@@ -86,6 +86,14 @@ _Last updated: 2026-05-22_
   (b) strip marker → texture-packet binding (enables per-texture extraction);
   (c) MATRIX instance transforms (placed full-level scenes; also addresses the
   "missing pieces" — instanced geometry is currently exported once, unplaced).
+- **Asset repackers + moddable build** — the end goal is that a user builds the
+  game from loose extracted assets (see `CLAUDE.md` "End-state build
+  architecture"). Each `extract_*` tool needs a matching repacker that rebuilds
+  the original container (`DATA.DAT`/`INDEX.IDX`, the streams) **byte-identically**
+  from the extracted files. The archive format is reversed precisely enough
+  (exact tiling) that byte-identical repacking is feasible. Note: the matching
+  build repacks the *raw* extracted files; the human-friendly views (WAV/PNG/OBJ)
+  are for inspection/modding and need re-encoders to put edits back.
 - Stand up **Track A**: clone a reference template (`fmil95/recvx-decomp` —
   also CodeWarrior), install objdiff (native arm64), set up splat, build the
   x86_64-Linux `mwccps2` + wibo container, get one leaf function to 100%.

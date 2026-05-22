@@ -105,6 +105,12 @@ never silently change:
   building extraction/viewer tools can deliver real modding value *long before* the code is
   matched. Help me weigh "advance the matching decomp" vs. "ship modding tools" at decision
   points.
+- **End-state build architecture:** the goal is that a user supplies their own legal disc,
+  the build extracts the assets to loose files, compiles the decompiled code, and *repacks*
+  the assets into the original containers — producing the same game. So every asset
+  extractor needs a matching **repacker** (loose files → byte-identical container). This is
+  what makes the game genuinely moddable and extensible — assets live as editable separate
+  files, and a rebuild reproduces the game.
 - The stated north-star is eventually earning the standing to pitch Sony a remake. That
   framing is strongest if this project stays scrupulously clean — reinforce that, don't
   undermine it.
