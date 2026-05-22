@@ -32,9 +32,9 @@ _Last updated: 2026-05-22_
 - **Dialogue** — `STREAM/VOICE.DAT` decoded: 116 mono clips.
 - **Music** — `STREAM/MUSIC.DAT` decoded: 55 stereo tracks (interleaved VAG).
 - **Textures** — format reverse-engineered. 28 GS texture-upload packets in
-  `DATA.DAT` decode to 8-bit indexed, PS2-swizzled images. Extractor:
-  `tools/extract_textures.py` — currently **grayscale** (shapes/layout correct,
-  color pending the CLUT).
+  `DATA.DAT` decode to single-transfer 8-bit indexed, PS2-swizzled images
+  (512 px wide, verified by GIF parse). Extractor: `tools/extract_textures.py`.
+  Output is **approximate**: see the two texture open questions below.
 
 ### Open questions / to verify
 - **Sample rate.** Streamed audio (VOICE/MUSIC) = **48000 Hz** — strong
@@ -43,12 +43,19 @@ _Last updated: 2026-05-22_
   Re-confirm both from the decompiled audio engine.
 - **Audio clip splitting** is heuristic (silence gaps) — no per-clip index was
   found for `VOICE.DAT` / `MUSIC.DAT`. An index may live in game code/overlays.
+- **Texture unswizzle.** The standard combined 8-bit unswizzle recovers the
+  overall layout but has tile-placement and flip errors. A full PS2 GS VRAM
+  swizzle (PSMCT32 write + PSMT8 read) is needed for pixel accuracy.
 - **Texture CLUT.** The 256-color palettes are not in the texture files (file
   size == header + index data exactly). Palettes are stored separately/shared;
   finding them (and handling the PS2 CLUT swizzle) is what blocks color output.
+- **More textures.** The 28 packets are only the standalone `07../60` files —
+  not the whole game. More texture packets are likely embedded inside the
+  larger region files (`id 0x43/0x44`) and `OVERLAY/` data.
 
 ### Next steps (roadmap)
-- **Texture CLUT** — find the palettes so textures export in full color.
+- **Finish textures** — implement the pixel-correct GS swizzle, find the CLUTs
+  for color, and locate the texture packets embedded in other files.
 - Separate the 55 `MUSIC.DAT` tracks: **25 are the official soundtrack, the
   other 30 are cutscene audio** (per user, cross-referenced with an online
   soundtrack listing). Not yet labelled/split.

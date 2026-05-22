@@ -14,11 +14,16 @@ transfer: a TRXREG of w x h (32-bit) carries a (w*2) x (h*2) 8-bit image, in
 PS2 swizzled VRAM order. This tool parses the packet, un-swizzles the index
 data, and writes a PNG.
 
-STATUS: the CLUT (256-colour palette) is not stored in the texture file itself
-(file size == header + index data exactly) -- palettes appear to be uploaded
-separately/shared across an area's textures. Until that is reverse-engineered,
-output is 8-bit grayscale (index value as gray): shapes and layout are
-correct, colours are not. See docs/PROGRESS.md.
+STATUS: this extractor is approximate -- two things are not yet correct:
+  1. Unswizzle. Each file is a single transfer of 8-bit indexed data, 512 px
+     wide (verified by GIF parse). The standard combined unswizzle used here
+     recovers the overall layout but has tile-placement and flip errors; a
+     full PS2 GS VRAM swizzle (PSMCT32 write + PSMT8 read, with the documented
+     page/block/column tables) is needed for pixel accuracy.
+  2. CLUT. The 256-colour palette is not in the texture file (size == header
+     + index data exactly); palettes are stored separately/shared. Output is
+     8-bit grayscale until the CLUT is found.
+See docs/PROGRESS.md.
 
 Usage:
   extract_textures.py --in extract --out textures
