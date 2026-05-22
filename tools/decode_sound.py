@@ -26,14 +26,17 @@ banks to the sounds they use.
 The sample rate is not yet located in the header; it defaults to 22050 Hz
 (overridable with --rate). Wrong rate => wrong pitch, not a wrong decode.
 
-VOICE.DAT is a different beast: a single raw VAG stream with no SShd
-container and no VAG end-flags. The `voice` subcommand splits it into clips
-on runs of digitally-silent frames.
+VOICE.DAT and MUSIC.DAT are different: each is one raw VAG stream with no
+SShd container and no VAG end-flags. The `stream` subcommand splits them
+into clips on runs of digitally-silent frames. VOICE.DAT is mono; MUSIC.DAT
+is interleaved stereo (64-frame / 1024-byte blocks: L, R, L, R, ...) so it
+needs --interleave 64.
 
 Usage:
   decode_sound.py batch  --in extract --out wav
   decode_sound.py decode extract/chunk22 --out wav
-  decode_sound.py voice  STREAM/VOICE.DAT --out voice --gap 64
+  decode_sound.py stream STREAM/VOICE.DAT --out voice
+  decode_sound.py stream STREAM/MUSIC.DAT --out music --interleave 64
 """
 from __future__ import annotations
 
@@ -155,9 +158,35 @@ def find_voice_clips(data: bytes, gap_frames: int) -> list[tuple[int, int]]:
     return clips
 
 
-def write_wav(path: Path, pcm: bytes, rate: int) -> None:
+def deinterleave(data: bytes, block_frames: int) -> tuple[bytes, bytes]:
+    """Split an interleaved stereo VAG stream into (left, right) byte streams.
+
+    The stream alternates fixed-size blocks: L, R, L, R, ... MUSIC.DAT uses
+    64-frame (1024-byte) blocks.
+    """
+    blk = block_frames * 16
+    left = bytearray()
+    right = bytearray()
+    for n, pos in enumerate(range(0, len(data), blk)):
+        (left if n % 2 == 0 else right).extend(data[pos:pos + blk])
+    return bytes(left), bytes(right)
+
+
+def interleave_lr(lpcm: bytes, rpcm: bytes) -> bytes:
+    """Interleave two mono PCM16 byte streams into stereo PCM16."""
+    n = min(len(lpcm), len(rpcm))
+    n -= n % 2
+    out = bytearray(2 * n)
+    out[0::4] = lpcm[0:n:2]
+    out[1::4] = lpcm[1:n:2]
+    out[2::4] = rpcm[0:n:2]
+    out[3::4] = rpcm[1:n:2]
+    return bytes(out)
+
+
+def write_wav(path: Path, pcm: bytes, rate: int, channels: int = 1) -> None:
     with wave.open(str(path), "wb") as w:
-        w.setnchannels(1)
+        w.setnchannels(channels)
         w.setsampwidth(2)
         w.setframerate(rate)
         w.writeframes(pcm)
@@ -260,26 +289,39 @@ def cmd_batch(args) -> int:
     return 0
 
 
-def cmd_voice(args) -> int:
+def cmd_stream(args) -> int:
     data = Path(args.file).read_bytes()
     if len(data) % 16:
         print(f"warning: {len(data) % 16} trailing bytes are not a whole VAG frame")
-    clips = find_voice_clips(data, args.gap)
+    if args.interleave:
+        left, right = deinterleave(data, args.interleave)
+        channels = 2
+    else:
+        left, right, channels = data, b"", 1
+    clips = find_voice_clips(left, args.gap)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     written = 0
-    total_samples = 0
+    total_frames = 0
     anomalies = 0
     for sf, ef in clips:
         if ef - sf < args.min_frames:
             continue
-        pcm, anom = decode_vag(data, sf, ef - sf)
+        lpcm, anom = decode_vag(left, sf, ef - sf)
         anomalies += anom
-        write_wav(out / f"voice_{written:04d}.wav", pcm, args.rate)
-        total_samples += len(pcm) // 2
+        if channels == 2:
+            rpcm, anom2 = decode_vag(right, sf, ef - sf)
+            anomalies += anom2
+            pcm = interleave_lr(lpcm, rpcm)
+            total_frames += len(pcm) // 4
+        else:
+            pcm = lpcm
+            total_frames += len(pcm) // 2
+        write_wav(out / f"clip_{written:04d}.wav", pcm, args.rate, channels)
         written += 1
+    kind = "stereo" if channels == 2 else "mono"
     print(f"{len(clips)} clips found, {written} written to {out}/ "
-          f"({total_samples / args.rate:.0f}s total @ {args.rate}Hz, gap={args.gap})")
+          f"({total_frames / args.rate:.0f}s total @ {args.rate}Hz, gap={args.gap}, {kind})")
     if anomalies:
         print(f"warning: {anomalies} frames had an out-of-range predictor")
     return 0
@@ -305,15 +347,20 @@ def main(argv: list[str]) -> int:
     add_common(sp)
     sp.set_defaults(func=cmd_batch)
 
-    sp = sub.add_parser("voice", help="decode a raw VAG stream (VOICE.DAT) into clips")
-    sp.add_argument("file", help="path to VOICE.DAT")
-    sp.add_argument("--out", default="voice", help="output directory (default: voice/)")
-    sp.add_argument("--rate", type=int, default=22050, help="sample rate (default: 22050)")
+    sp = sub.add_parser("stream", help="decode a raw VAG stream (VOICE.DAT/MUSIC.DAT) into clips")
+    sp.add_argument("file", help="path to the raw VAG stream (VOICE.DAT or MUSIC.DAT)")
+    sp.add_argument("--out", default="stream", help="output directory (default: stream/)")
+    # Provisional: VOICE.DAT/MUSIC.DAT play back between 44100 and 48000 Hz
+    # (~46000 by ear). The exact rate is not in the audio data -- it is an
+    # engine/SPU-pitch value, to be pinned once the audio engine is decompiled.
+    sp.add_argument("--rate", type=int, default=46000, help="sample rate (provisional, default: 46000)")
     sp.add_argument("--gap", type=int, default=64,
                     help="silent frames that delimit a clip (default: 64)")
     sp.add_argument("--min-frames", type=int, default=8,
                     help="drop clips shorter than this many frames (default: 8)")
-    sp.set_defaults(func=cmd_voice)
+    sp.add_argument("--interleave", type=int, default=0,
+                    help="stereo deinterleave block in frames (0=mono; MUSIC.DAT uses 64)")
+    sp.set_defaults(func=cmd_stream)
 
     args = p.parse_args(argv)
     return args.func(args)
