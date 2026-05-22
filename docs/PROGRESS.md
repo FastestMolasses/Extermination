@@ -31,6 +31,10 @@ _Last updated: 2026-05-22_
   1146 references deduplicated to 241 unique sounds.
 - **Dialogue** — `STREAM/VOICE.DAT` decoded: 116 mono clips.
 - **Music** — `STREAM/MUSIC.DAT` decoded: 55 stereo tracks (interleaved VAG).
+- **Textures** — format reverse-engineered. 28 GS texture-upload packets in
+  `DATA.DAT` decode to 8-bit indexed, PS2-swizzled images. Extractor:
+  `tools/extract_textures.py` — currently **grayscale** (shapes/layout correct,
+  color pending the CLUT).
 
 ### Open questions / to verify
 - **Sample rate.** Streamed audio (VOICE/MUSIC) = **48000 Hz** — strong
@@ -39,14 +43,17 @@ _Last updated: 2026-05-22_
   Re-confirm both from the decompiled audio engine.
 - **Audio clip splitting** is heuristic (silence gaps) — no per-clip index was
   found for `VOICE.DAT` / `MUSIC.DAT`. An index may live in game code/overlays.
+- **Texture CLUT.** The 256-color palettes are not in the texture files (file
+  size == header + index data exactly). Palettes are stored separately/shared;
+  finding them (and handling the PS2 CLUT swizzle) is what blocks color output.
 
 ### Next steps (roadmap)
+- **Texture CLUT** — find the palettes so textures export in full color.
 - Separate the 55 `MUSIC.DAT` tracks: **25 are the official soundtrack, the
   other 30 are cutscene audio** (per user, cross-referenced with an online
   soundtrack listing). Not yet labelled/split.
 - Reverse the **geometry / model** formats (the float-array files in the
   taxonomy — see `docs/FINDINGS.md`).
-- Reverse the **texture** format.
 - Stand up **Track A**: clone a reference template (`fmil95/recvx-decomp` —
   also CodeWarrior), install objdiff (native arm64), set up splat, build the
   x86_64-Linux `mwccps2` + wibo container, get one leaf function to 100%.
@@ -56,6 +63,7 @@ _Last updated: 2026-05-22_
 - `tools/` — original tooling (committed).
   - `extract_data.py` — `DATA.DAT`/`INDEX.IDX` archive extractor.
   - `decode_sound.py` — VAG ADPCM decoder (SFX banks + VOICE/MUSIC streams).
+  - `extract_textures.py` — GS texture-packet extractor (8-bit, grayscale).
 - `docs/` — this folder: project state and findings (committed).
 - Disc-derived outputs (`extract/`, `wav/`, `voice/`, `music/`, `iso/`, …) are
   git-ignored — each user regenerates them locally from their own disc.

@@ -41,8 +41,25 @@ Two-level container, fully validated by exact tiling. Tool: `tools/extract_data.
 
 `file_id` is an **asset-role tag**, not a format tag — content varies by region.
 Observed content types: SShd sound banks, float-array geometry/model data,
-`07.. /0x60` containers, ASCII text (`id 0x80`), tables/padding. A region
-bundles one logical entity's pieces (geometry + textures + audio).
+`07 XX 00 60` GS texture packets, ASCII text (`id 0x80`), tables/padding. A
+region bundles one logical entity's pieces (geometry + textures + audio).
+
+## Textures
+
+Textures are PS2 **GS texture-upload packets** in `DATA.DAT` — 28 of them, each
+a file beginning `07 XX 00 60`. Tool: `tools/extract_textures.py`.
+
+- The packet is GIF/DMA data: GS register writes (`BITBLTBUF` 0x50, `TRXPOS`
+  0x51, `TRXREG` 0x52, `TRXDIR` 0x53) then an IMAGE-mode GIF tag with the payload.
+- `TRXREG` gives the transfer region `w x h` in PSMCT32 (32-bit). The real
+  texture is **8-bit indexed (PSMT8)**, dimensions `(w*2) x (h*2)` — the
+  PSMCT32-page / PSMT8-page footprint ratio is 2x per axis.
+- The index data is in PS2 **swizzled** VRAM order; the standard PSMT8
+  unswizzle (in the tool) recovers it. Results are 512-wide sheets, heights
+  64-960 — atlases of UI / HUD / world textures.
+- **CLUT (palette) not yet found** — the texture files are exactly
+  header + index data, so the 256-color palettes live elsewhere
+  (separate/shared). Output is grayscale until the CLUT is reverse-engineered.
 
 ## Audio — VAG ADPCM
 
