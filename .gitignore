@@ -1,0 +1,53 @@
+# === Disc-derived material — NEVER commit (see CLAUDE.md hard rules) ===
+# The ISO and everything produced from it stays local; users supply their own copy.
+*.iso
+iso/
+disc/
+extract/
+dump/
+scratch/
+
+# Boot executable (regional serials) and any ELF
+SLUS_*
+SLES_*
+SCUS_*
+SCES_*
+SCPS_*
+SLPS_*
+SLPM_*
+*.elf
+
+# Disc filesystem of Extermination (SCUS-97112)
+SYSTEM.CNF
+EXTER.BIN
+EXTER*.DAT
+DATA/
+IRX/
+MOVIE/
+OVERLAY/
+STREAM/
+
+# Raw binary / asset dumps pulled off the disc
+*.bin
+*.BIN
+*.dat
+*.DAT
+*.irx
+*.IRX
+*.pss
+*.PSS
+
+# Original-binary disassembly / target objects produced locally
+asm/
+*.s.orig
+expected/
+
+# === Toolchain binaries — not ours to redistribute ===
+*.exe
+tools/mwcc*/
+tools/wibo*/
+
+# === Local scratch ===
+.DS_Store
+*.log
+*.tmp
