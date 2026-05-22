@@ -41,9 +41,11 @@ BLOCK STRUCTURE
                   vertex count and a bounding box). The mesh descriptor
                   `04 04 00 01 00 80 80 6c` appears again partway into the
                   block; geometry begins right after it.
-    * MATRIX      descriptor has `ff ff ff ff` at +0x04. A scene-graph node /
-                  instance-transform table (4x4 matrices), NOT raw geometry.
-                  Skipped by this tool.
+    * MATRIX      descriptor has `ff ff ff ff` at +0x04. A scene-graph /
+                  instance-placement block: a table of 4x4 transforms followed
+                  by the object-space geometry they instance. Skipped by the
+                  default per-mesh export; decoded and applied by `--scene`.
+                  See "MATRIX blocks / --scene mode" below.
     * FILLER      descriptor is all `0xff`. Padding. Skipped.
 
 VERTEX RECORD -- 64 bytes, four 16-byte rows (SHARED by both formats):
@@ -103,6 +105,54 @@ signature, but the block framing differs from the level files:
   non-degenerate triangles, only 600 degenerate, zero NaN faces). Bounding
   boxes are model-sized (median max-extent ~177 units), not level-sized.
 
+----------------------------------------------------------------------------
+MATRIX blocks / `--scene` mode -- reverse-engineered, validated empirically
+----------------------------------------------------------------------------
+
+A MATRIX block (level-file block whose descriptor has `ff ff ff ff` at +0x04)
+is a scene-graph / instance-placement block. It holds OBJECT-SPACE geometry
+plus a table of 4x4 transforms that place copies of that geometry into the
+level. The default per-mesh export skips these blocks entirely; the opt-in
+`--scene` mode decodes them and bakes the transforms so a whole level can be
+viewed placed in world space.
+
+A MATRIX block is one or more SECTIONS. A new section begins at a 16-byte
+block separator (`00 00 00 17` or `00 00 00 14` + twelve `00`) whose following
+16-byte descriptor row has `ff ff ff ff` at +0x04 (`00 00 00 00 ff ff ff ff
+00...`). Separators that lack that descriptor are ordinary geometry-internal
+delimiters and do NOT start a section.
+
+Each section is:
+
+  1. A TRANSFORM TABLE starting at section+0x10. Records are 0x50 bytes:
+       +0x00  <u32 index> + 12 bytes
+              record 0's "index" slot is the descriptor row, i.e.
+              `00 00 00 00  ff ff ff ff  00 00 00 00  00 00 00 00`;
+              records 1..N-1 are `<u32 sequential-index> 00..00` (12 zero
+              bytes of padding).
+       +0x10  4x4 affine matrix, row-major, 16 little-endian floats. Rows 0-2
+              are the 3x4 rotation/scale, row 3 is the translation; the 4th
+              column is (0,0,0,1). Many tables include identity entries.
+     The table ends at the first 0x50-stride slot that is not a valid record
+     (a FILLER row, or the geometry sub-header) -- detected by the index no
+     longer being sequential / the pad no longer being zero / the matrix no
+     longer being affine.
+  2. The OBJECT-SPACE GEOMETRY: a short sub-header (a `[w0][w0*130][w2]
+     [w0*0x860]` word quad and an axis-aligned bbox), then one or more MESH
+     blocks decoded exactly like model-file geometry (read_model_block()).
+
+`--scene` emits the section's geometry once per transform in the table, baking
+each matrix into the vertex positions (and rotating normals). Exact-duplicate
+matrices within a table are collapsed to one instance to avoid pure z-fighting
+overlays. The regular MESH / SUBMESH geometry is already authored in world
+space and is emitted unchanged. The result is a placed full-level OBJ.
+
+  Validated: across all 36 `id 0x44` level files, 930 transforms are decoded;
+  translations are bounded and level-scale (max component ~1130 units, no NaN
+  / infinite outliers). Placed-scene bounding boxes stay consistent with the
+  regular level geometry (e.g. chunk07.n0: regular x[-9,248] z[-15,450],
+  placed props cluster x[-12,9] z[-18,15] -> coherent combined scene).
+
 UNCERTAIN / NOT YET RESOLVED
   * Material/texture binding. m0/m1 are constant per strip and clearly key
     something (likely a material or texture-page index) but the mapping to the
@@ -111,8 +161,18 @@ UNCERTAIN / NOT YET RESOLVED
   * The SUBMESH sub-header fields (index, counts, bbox) are only partially
     interpreted; this tool locates the geometry within the block empirically
     rather than trusting the declared counts.
-  * The MATRIX blocks hold instance transforms; this tool exports geometry in
-    its stored object-space coordinates and does not apply them.
+  * MATRIX transforms (`--scene`). The transform table and its object-space
+    geometry are decoded reliably, but two things are not fully confirmed
+    without the engine code: (a) some tables hold repeated identity entries --
+    collapsed by the duplicate-matrix filter, but their runtime role
+    (animation slots, LOD, unused) is unknown; (b) whether a transform is the
+    final world placement or is composed with a parent node is unverified.
+    Decoded translations are level-scale and bounded, which is consistent with
+    them being world placements, so `--scene` applies them directly.
+  * The MATRIX geometry sub-header word quad (`w0`, `w0*130`, `w2`,
+    `w0*0x860`) is decoded structurally; `w0`/`w2`'s exact meaning (a count
+    and a sub-mesh/material index) is unconfirmed and the decoder does not
+    rely on it.
   * Skinning / bone weights. No per-vertex bone index or weight data was found
     in the 64-byte record -- the four rows are fully accounted for (marker,
     uv, normal/colour, position). Any skinning rig, if present, lives outside
@@ -127,6 +187,8 @@ Usage:
   extract_models.py --in extract --out models
   extract_models.py --file extract/chunk04.n0/f06_id44.bin --out models
   extract_models.py --file extract/chunk07.n1/f06_id70.bin --out models
+  extract_models.py --scene --in extract --out models      # placed levels
+  extract_models.py --scene --file extract/chunk17/f01_id44.bin --out models
 """
 from __future__ import annotations
 
@@ -136,12 +198,19 @@ import struct
 import sys
 from pathlib import Path
 
-# 16-byte block separator.
+# 16-byte block separator (level files).
 SEPARATOR = b"\x00\x00\x00\x17" + b"\x00" * 12
+# 16-byte block separator (model files; also appears inside MATRIX-block geometry).
+SEPARATOR_MODEL = b"\x00\x00\x00\x14" + b"\x00" * 12
 # Last 8 bytes of a MESH descriptor row.
 MESH_SIG = bytes.fromhex("040400010080806c")
 # Bytes [8:12] of a SUBMESH descriptor row.
 SUBMESH_SIG = bytes.fromhex("4d040000")
+# Bytes [4:8] of a MATRIX descriptor row (and of a MATRIX section descriptor).
+MATRIX_SIG = b"\xff\xff\xff\xff"
+
+# One MATRIX transform-table record: u32 index + 12 bytes, then a 4x4 matrix.
+MATRIX_REC_SIZE = 0x50
 
 VERT_SIZE = 0x40
 # A real vertex's position w is ~= +/-1.0; padding/header rows are not.
@@ -366,17 +435,208 @@ def parse_model_file(d: bytes) -> list[Strip]:
     return strips
 
 
-def write_obj(path: Path, strips: list[Strip]) -> tuple[int, int]:
+# ---------------------------------------------------------------------------
+# MATRIX blocks / scene placement
+# ---------------------------------------------------------------------------
+
+# A row-major 4x4 identity matrix, used when a section has no transform table.
+IDENTITY = (1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0)
+
+
+def is_matrix_descriptor(desc: bytes) -> bool:
+    """True for a MATRIX block / MATRIX section descriptor row.
+
+    The descriptor is `00 00 00 00  ff ff ff ff  ...` -- `ff ff ff ff` at
+    +0x04. An all-`0xff` row is FILLER, not a MATRIX descriptor.
+    """
+    return (len(desc) == 16
+            and desc[4:8] == MATRIX_SIG
+            and desc != b"\xff" * 16)
+
+
+def _looks_like_affine(m: tuple) -> bool:
+    """True if 16 floats form a sane row-major affine matrix.
+
+    The 4th column must be (0,0,0,1): a real transform record has it, a
+    geometry sub-header or FILLER row interpreted as 16 floats does not.
+    """
+    return (abs(m[15] - 1.0) < 1e-3
+            and abs(m[3]) < 1e-3 and abs(m[7]) < 1e-3 and abs(m[11]) < 1e-3)
+
+
+def matrix_sections(d: bytes, start: int, end: int) -> list[tuple[int, int]]:
+    """Split a MATRIX block into [(section_start, section_end), ...].
+
+    A section begins at the block start and at every interior 16-byte
+    separator (`0x17` or `0x14` form) whose following descriptor row is a
+    MATRIX descriptor. Separators that lack that descriptor are ordinary
+    geometry-internal delimiters and do not start a section.
+    """
+    starts = [start]
+    i = start + 16
+    while i + 24 <= end:
+        row = d[i:i + 16]
+        if (row == SEPARATOR or row == SEPARATOR_MODEL) \
+                and d[i + 20:i + 24] == MATRIX_SIG:
+            starts.append(i)
+        i += 1
+    starts.append(end)
+    return [(starts[k], starts[k + 1]) for k in range(len(starts) - 1)]
+
+
+def parse_matrix_table(d: bytes, start: int, end: int) -> tuple[list[tuple], int]:
+    """Decode a section's transform table.
+
+    Returns (matrices, offset_after_table). The table begins at start+0x10:
+    record 0's index slot is the descriptor row (`ff ff ff ff` at +4), and
+    records 1..N-1 carry a sequential u32 index and 12 zero pad bytes. Each
+    record holds a 4x4 row-major affine matrix at +0x10. The table ends at
+    the first 0x50-stride slot that fails those checks.
+    """
+    matrices: list[tuple] = []
+    o = start + 0x10
+    if o + MATRIX_REC_SIZE > end or d[o + 4:o + 8] != MATRIX_SIG:
+        return matrices, o
+    m = struct.unpack_from("<16f", d, o + 0x10)
+    if not _looks_like_affine(m):
+        return matrices, o
+    matrices.append(m)
+    o += MATRIX_REC_SIZE
+    expect = 1
+    while o + MATRIX_REC_SIZE <= end:
+        if struct.unpack_from("<I", d, o)[0] != expect:
+            break
+        if d[o + 4:o + 0x10] != b"\x00" * 12:
+            break
+        m = struct.unpack_from("<16f", d, o + 0x10)
+        if not _looks_like_affine(m):
+            break
+        matrices.append(m)
+        o += MATRIX_REC_SIZE
+        expect += 1
+    return matrices, o
+
+
+def unique_matrices(matrices: list[tuple]) -> list[tuple]:
+    """Drop exact-duplicate transforms (rounded) to avoid z-fighting overlays.
+
+    Repeated identity entries are common in the tables; emitting the same
+    geometry several times at the same place only produces coincident faces.
+    """
+    seen: set = set()
+    out: list[tuple] = []
+    for m in matrices:
+        key = tuple(round(x, 4) for x in m)
+        if key not in seen:
+            seen.add(key)
+            out.append(m)
+    return out
+
+
+def transform_point(m: tuple, p) -> tuple:
+    """Apply a row-major 4x4 affine matrix to a position (x, y, z)."""
+    x, y, z = p
+    return (m[0] * x + m[4] * y + m[8] * z + m[12],
+            m[1] * x + m[5] * y + m[9] * z + m[13],
+            m[2] * x + m[6] * y + m[10] * z + m[14])
+
+
+def transform_dir(m: tuple, v) -> tuple:
+    """Apply a matrix's rotation/scale part to a direction (no translation)."""
+    x, y, z = v
+    return (m[0] * x + m[4] * y + m[8] * z,
+            m[1] * x + m[5] * y + m[9] * z,
+            m[2] * x + m[6] * y + m[10] * z)
+
+
+def transformed_strip(strip: Strip, m: tuple) -> Strip:
+    """Return a copy of `strip` with the matrix baked into every vertex."""
+    out = Strip(strip.key)
+    for v in strip.verts:
+        if v.is_normal:
+            attr = transform_dir(m, v.attr)
+            n = math.sqrt(attr[0] ** 2 + attr[1] ** 2 + attr[2] ** 2)
+            if n > 1e-9:
+                attr = (attr[0] / n, attr[1] / n, attr[2] / n)
+        else:
+            attr = v.attr  # a vertex colour -- not affected by placement
+        out.verts.append(Vertex(v.flag, v.uv, attr, transform_point(m, v.pos)))
+    return out
+
+
+def matrix_section_strips(d: bytes, start: int, end: int) -> list[Strip]:
+    """Object-space triangle strips of one MATRIX section's geometry.
+
+    The geometry follows the transform table and is decoded exactly like
+    model-file geometry: every MESH descriptor in the section anchors a
+    fixed-size padded block read by read_model_block().
+    """
+    strips: list[Strip] = []
+    i = d.find(MESH_SIG, start, end)
+    while i != -1 and i < end:
+        records = read_model_block(d, i + len(MESH_SIG))
+        if records:
+            strips.extend(build_strips(records))
+        i = d.find(MESH_SIG, i + 1, end)
+    return strips
+
+
+def parse_scene(d: bytes) -> list[Strip]:
+    """Return every triangle strip of a LEVEL file PLACED in world space.
+
+    The regular MESH / SUBMESH geometry (already authored in world space) is
+    returned unchanged. Every MATRIX block additionally contributes its
+    object-space geometry once per transform in its table, with the transform
+    baked into the vertices. The union is a placed full-level scene.
+    """
+    blocks = block_bounds(d)
+    if not blocks:
+        return []
+    strips: list[Strip] = []
+    for idx, (start, end) in enumerate(blocks):
+        if idx == 0:
+            # Block 0 is plain geometry, already world-space.
+            strips.extend(build_strips(read_vertices(d, start, end)))
+            continue
+        desc = d[start + 0x10:start + 0x20]
+        if is_matrix_descriptor(desc):
+            for sec_start, sec_end in matrix_sections(d, start, end):
+                matrices, after = parse_matrix_table(d, sec_start, sec_end)
+                instances = unique_matrices(matrices) if matrices else [IDENTITY]
+                base = matrix_section_strips(d, after, sec_end)
+                for m in instances:
+                    for s in base:
+                        strips.append(transformed_strip(s, m))
+            continue
+        # MESH / SUBMESH: world-space geometry, emitted as stored.
+        vstart = mesh_vertex_start(d, start, end, is_first=False)
+        if vstart is None:
+            continue
+        strips.extend(build_strips(read_vertices(d, vstart, end)))
+    return strips
+
+
+def write_obj(path: Path, strips: list[Strip],
+              placed: bool = False) -> tuple[int, int]:
     """Write strips to a Wavefront OBJ. Returns (vertex_count, face_count).
 
     Strips are grouped into OBJ objects by their marker key, so the in-file
     strip/material grouping is preserved. Each strip's vertices are emitted
     once; positions become `v`, UVs `vt`, and unit normals `vn` (colour-only
-    strips get no `vn`).
+    strips get no `vn`). `placed` only changes the header comment -- in
+    `--scene` mode the strips already carry their baked world coordinates.
     """
+    coord_note = (
+        "# Coordinates are world-space: MATRIX instance transforms applied (--scene)."
+        if placed else
+        "# Coordinates are object-space as stored on disc (no instance transform)."
+    )
     lines: list[str] = [
         "# Extermination (SCUS-97112) model -- exported by tools/extract_models.py",
-        "# Coordinates are object-space as stored on disc (no instance transform).",
+        coord_note,
     ]
     v_base = 1   # OBJ indices are 1-based
     vt_base = 1
@@ -435,25 +695,37 @@ def is_level_file(path: Path) -> bool:
     return path.stem.endswith("_id44")
 
 
-def process(path: Path, out_dir: Path) -> str | None:
+def process(path: Path, out_dir: Path, scene: bool = False) -> str | None:
     """Parse one geometry file and write an OBJ. Returns a status line.
 
     `id 0x44` files take the validated level path; every other file takes the
     model-variant path. A file with no MESH signature yields nothing.
+
+    With `scene=True`, level files are exported as PLACED scenes -- MATRIX
+    instance transforms applied -- to `*_scene.obj`. Model files are not
+    instanced and are skipped in scene mode (the default export covers them).
     """
     d = path.read_bytes()
     if is_level_file(path):
-        strips = parse_file(d)
-        kind = "level"
+        if scene:
+            strips = parse_scene(d)
+            kind = "scene"
+        else:
+            strips = parse_file(d)
+            kind = "level"
     else:
+        if scene:
+            # Model files have no level MATRIX blocks to place.
+            return None
         if MESH_SIG not in d:
             return None
         strips = parse_model_file(d)
         kind = "model"
     if not strips:
         return None
-    name = f"{path.parent.name}_{path.stem}.obj"
-    nv, nf = write_obj(out_dir / name, strips)
+    suffix = "_scene.obj" if scene else ".obj"
+    name = f"{path.parent.name}_{path.stem}{suffix}"
+    nv, nf = write_obj(out_dir / name, strips, placed=scene)
     if nf == 0:
         # No real triangles after dropping degenerates -- discard the file.
         (out_dir / name).unlink(missing_ok=True)
@@ -471,6 +743,13 @@ def main(argv: list[str]) -> int:
                    help="output directory for OBJ files (default: models)")
     p.add_argument("--levels-only", action="store_true",
                    help="only convert the id 0x44 level files (skip model variants)")
+    p.add_argument("--scene", action="store_true",
+                   help="export PLACED full-level scenes: decode the MATRIX "
+                        "instance transforms and bake them so instanced "
+                        "geometry sits at its world position. Writes "
+                        "*_scene.obj; only affects the id 0x44 level files. "
+                        "Opt-in and additive -- the default per-mesh export is "
+                        "unchanged.")
     args = p.parse_args(argv)
 
     out_dir = Path(args.out)
@@ -478,7 +757,7 @@ def main(argv: list[str]) -> int:
 
     if args.file:
         paths = [Path(args.file)]
-    elif args.levels_only:
+    elif args.scene or args.levels_only:
         paths = sorted(Path(args.input).rglob("*_id44.bin"))
     else:
         # Every chunk file; process() routes id44 -> level path, rest -> model.
@@ -491,17 +770,21 @@ def main(argv: list[str]) -> int:
         if not path.is_file():
             print(f"skip (not found): {path}")
             continue
-        line = process(path, out_dir)
+        line = process(path, out_dir, scene=args.scene)
         if line:
             print(line)
-            if "[level]" in line:
+            if "[level]" in line or "[scene]" in line:
                 levels += 1
             else:
                 models += 1
         else:
             skipped += 1
-    print(f"\n{levels} level + {models} model file(s) exported to {out_dir}/  "
-          f"({skipped} file(s) had no geometry)")
+    if args.scene:
+        print(f"\n{levels} placed level scene(s) exported to {out_dir}/  "
+              f"({skipped} file(s) had no geometry)")
+    else:
+        print(f"\n{levels} level + {models} model file(s) exported to {out_dir}/  "
+              f"({skipped} file(s) had no geometry)")
     return 0
 
 

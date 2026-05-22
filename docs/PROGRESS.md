@@ -48,9 +48,13 @@ _Last updated: 2026-05-22_
   files (≈1.18 M verts, ≈684 K triangles; 243 non-geometry files skipped).
   Verified: zero out-of-range faces, model-sized bounding boxes for model
   files, level result unchanged (19271 triangles). `docs/FINDINGS.md` has the
-  format detail. Remaining geometry work: skinning/bone data (not found in the
-  vertex record — lives elsewhere), material→texture binding, MATRIX instance
-  transforms.
+  format detail. **MATRIX instance transforms now decoded** — the level-file
+  MATRIX blocks are a transform table plus the object-space geometry it
+  instances; `extract_models.py --scene` bakes them and exports placed
+  full-level OBJ scenes (32 levels, ≈331 K verts, zero outliers; default
+  per-mesh export byte-identical and unchanged). Remaining geometry work:
+  skinning/bone data (not found in the vertex record — lives elsewhere),
+  material→texture binding.
 
 ### Open questions / to verify
 - **Sample rate.** Streamed audio (VOICE/MUSIC) = **48000 Hz** — strong
@@ -79,13 +83,16 @@ _Last updated: 2026-05-22_
 - Separate the 55 `MUSIC.DAT` tracks: **25 are the official soundtrack, the
   other 30 are cutscene audio** (per user, cross-referenced with an online
   soundtrack listing). Not yet labelled/split.
-- **Geometry / models** — level geometry and character/object/prop models are
-  both decoded (`extract_models.py`). Remaining: (a) **skinning / animation** —
-  no bone index/weight data is in the geometry record; locate the animation
-  rig (separate file or MATRIX block) so model meshes can be posed/animated;
-  (b) strip marker → texture-packet binding (enables per-texture extraction);
-  (c) MATRIX instance transforms (placed full-level scenes; also addresses the
-  "missing pieces" — instanced geometry is currently exported once, unplaced).
+- **Geometry / models** — level geometry, character/object/prop models, and
+  the level-file MATRIX instance transforms are all decoded
+  (`extract_models.py`; `--scene` exports placed full-level OBJ scenes).
+  Remaining: (a) **skinning / animation** — no bone index/weight data is in
+  the geometry record; locate the animation rig (a separate file) so model
+  meshes can be posed/animated; (b) strip marker → texture-packet binding
+  (enables per-texture extraction); (c) confirm the MATRIX `--scene` open
+  questions from the engine code — the role of repeated identity transforms
+  and whether transforms are absolute or composed with a parent node (see
+  `docs/FINDINGS.md`).
 - **Asset repackers + moddable build** — the end goal is that a user builds the
   game from loose extracted assets (see `CLAUDE.md` "End-state build
   architecture"). Each `extract_*` tool needs a matching repacker that rebuilds
@@ -104,7 +111,8 @@ _Last updated: 2026-05-22_
   - `extract_data.py` — `DATA.DAT`/`INDEX.IDX` archive extractor.
   - `decode_sound.py` — VAG ADPCM decoder (SFX banks + VOICE/MUSIC streams).
   - `extract_textures.py` — GS texture-packet extractor (8-bit, grayscale).
-  - `extract_models.py` — geometry → Wavefront OBJ (level + character/object models).
+  - `extract_models.py` — geometry → Wavefront OBJ (level + character/object
+    models); `--scene` exports placed full-level scenes (MATRIX transforms applied).
 - `docs/` — this folder: project state and findings (committed).
 - Disc-derived outputs (`extract/`, `wav/`, `voice/`, `music/`, `iso/`, …) are
   git-ignored — each user regenerates them locally from their own disc.

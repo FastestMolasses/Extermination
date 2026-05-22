@@ -132,8 +132,11 @@ reading was a coincidence of the first block).
 - **SUBMESH** — descriptor `0X 00 00 00 .. .. .. .. 4d 04 00 00 ..`: a mesh
   with an extra ~0x40-byte sub-header (an index, a vertex count, a bounding
   box). The MESH descriptor reappears inside the block; geometry follows it.
-- **MATRIX** — `ff ff ff ff` at descriptor+0x04: a scene-graph / instance
-  4x4-transform table, *not* geometry. Skipped.
+- **MATRIX** — `ff ff ff ff` at descriptor+0x04: a scene-graph /
+  instance-placement block — a table of 4x4 transforms followed by the
+  object-space geometry they instance. Skipped by the default per-mesh
+  export; decoded and applied by `extract_models.py --scene` (see "MATRIX
+  blocks and `--scene`" below).
 - **FILLER** — all-`0xff` descriptor: padding. Skipped.
 
 **Vertex record — 64 bytes, four 16-byte rows:**
@@ -190,18 +193,70 @@ model-sized — median max-extent ≈177 units — not level-sized (e.g.
 50 × 43 × 140). One outlier (`chunk30/f00_id38.bin`) is a flat 2D element
 (z-extent 0, x/y ≈ 2000) — likely a billboard/skybox/map plane.
 
-**Still uncertain.** Material/texture binding: m0/m1 are constant per strip
-and clearly key a material or texture page, but the mapping to the GS texture
-packets is not decoded — the exporter groups strips into OBJ objects by
-(m0, m1) to preserve the grouping. The SUBMESH sub-header fields and the
-MATRIX instance transforms are not applied (geometry is exported in stored
-object space). **Skinning / bone data**: no per-vertex bone index or weight
-was found — the four record rows are fully accounted for (marker, uv,
-normal/colour, position). Any animation rig lives outside the geometry blocks
-(a separate file or a MATRIX block) and is not yet located; model meshes are
-exported as static geometry in rest pose. The model-block sub-header's leading
-`01 00 00 00 .. ..` word pair is constant within a file but its meaning is
-unconfirmed; the decoder does not rely on it.
+### MATRIX blocks and `--scene` (placed full-level export)
+
+A **MATRIX** block (`ff ff ff ff` at descriptor+0x04) is a scene-graph /
+instance-placement block: it holds **object-space geometry plus a table of
+4x4 transforms** that place copies of that geometry into the level. The
+default per-mesh export skips MATRIX blocks; `extract_models.py --scene`
+decodes them and bakes the transforms, writing placed `*_scene.obj` files.
+
+A MATRIX block is one or more **sections**. A section begins at the block
+start and at every interior 16-byte separator (`00 00 00 17` *or* `00 00 00
+14` form) whose following descriptor row is a **MATRIX descriptor**
+`00 00 00 00 ff ff ff ff 00…`. Separators lacking that descriptor are
+ordinary geometry-internal delimiters and do not start a section.
+
+Each section is:
+
+1. A **transform table** at section+0x10. Records are **0x50 bytes**:
+   `<u32 index>` + 12 bytes, then a **4x4 row-major affine matrix** (16 LE
+   floats; rows 0-2 are the 3x4 rotation/scale, row 3 the translation, 4th
+   column `(0,0,0,1)`). Record 0's index slot *is* the descriptor row
+   (`ff ff ff ff` at +4); records 1..N-1 carry a sequential u32 index and 12
+   zero pad bytes. The table ends at the first 0x50-stride slot failing those
+   checks (a FILLER row or the geometry sub-header). Tables often include
+   repeated identity entries.
+2. The **object-space geometry**: a short sub-header — a word quad
+   `[w0][w0*130][w2][w0*0x860]` then an axis-aligned bbox — followed by one
+   or more MESH blocks decoded exactly like model-file geometry.
+
+`--scene` emits each section's geometry once per transform in its table, with
+the matrix baked into vertex positions (and normals rotated). Exact-duplicate
+matrices in a table are collapsed to one instance to avoid pure z-fighting
+overlays. The regular MESH/SUBMESH geometry — already authored in world space
+— is emitted unchanged. The union is a placed full-level OBJ.
+
+**Validation.** Across all 36 `id 0x44` files, **930 transforms** decode;
+translations are bounded and level-scale (max component ≈ 1130 units). A full
+`--scene` run produces **32 placed level scenes** (≈331 K verts, ≈168 K
+triangles) with **zero NaN / infinite / outlier vertices**; the largest
+single-scene extent is ≈2739 units — consistent with the level geometry. The
+default per-mesh export is byte-identical with and without the new code
+(verified by diffing all 360 OBJ outputs); `--scene` is purely opt-in.
+
+**Uncertain.** Two things are unverified without the engine code: (a) the
+runtime role of the repeated identity entries (animation slots, LOD, or
+unused) — they are collapsed by the duplicate filter; (b) whether a transform
+is the final world placement or is composed with a parent node. Decoded
+translations are level-scale and bounded, consistent with world placements,
+so `--scene` applies them directly. The sub-header word quad is decoded
+structurally; `w0`/`w2`'s exact meaning (a count and a sub-mesh/material
+index) is unconfirmed and the decoder does not rely on it. The MATRIX
+geometry observed so far is self-contained — no MATRIX block was seen
+referencing geometry in another file.
+
+**Still uncertain (other geometry).** Material/texture binding: m0/m1 are
+constant per strip and clearly key a material or texture page, but the
+mapping to the GS texture packets is not decoded — the exporter groups strips
+into OBJ objects by (m0, m1) to preserve the grouping. The SUBMESH sub-header
+fields are not fully interpreted (geometry is located empirically).
+**Skinning / bone data**: no per-vertex bone index or weight was found — the
+four record rows are fully accounted for (marker, uv, normal/colour,
+position). Any animation rig lives outside the geometry blocks and is not yet
+located; model meshes are exported as static geometry in rest pose. The
+model-block sub-header's leading `01 00 00 00 .. ..` word pair is constant
+within a file but its meaning is unconfirmed; the decoder does not rely on it.
 
 ## `MUSIC.DAT` track listing
 
