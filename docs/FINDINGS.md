@@ -101,18 +101,57 @@ re-confirmed from the decompiled audio engine.
 
 ## Geometry / models
 
-Reverse-engineering **started — characterized, not yet fully decoded.**
+**Decoded and validated.** Exporter: `tools/extract_models.py` (geometry file
+→ Wavefront OBJ). Full format details are in that script's module docstring;
+summary below.
 
-3D geometry lives in the large `id 0x44` level files. Observed structure:
-- A geometry file is a long run of fixed **0x40-byte (64-byte) records** — one
-  ~5.4 MB level file (`chunk04.n0/f06_id44.bin`) holds ~85,000 of them.
-- Each record looks like one **vertex**: a marker/id field (`15 42 37 5X`
-  followed by a u32) then three vec4s — a UV-like pair (0..1), a unit normal,
-  and a world-space position (xyz + w ≈ -1.0). All IEEE-754 floats.
+3D geometry lives in the large `id 0x44` level files (`*_id44.bin`). A
+geometry file is a sequence of **variable-length blocks**, not a flat vertex
+array (the earlier "uniform 64-byte record run" reading was a coincidence of
+the first block).
 
-Not yet determined: how vertices group into primitives/strips/meshes, any
-index data, material/texture binding, and whether VIF/GIF draw packets wrap
-it. This is the next deep task; per-texture extraction depends on it.
+**Block structure.** Blocks are delimited by a 16-byte separator row
+`00 00 00 17` + twelve `00`. Each separator is followed by a 16-byte
+*descriptor* row naming the block kind (block 0 has no leading separator):
+
+- **MESH** — descriptor ends `04 04 00 01 00 80 80 6c`. Geometry starts right
+  after the descriptor.
+- **SUBMESH** — descriptor `0X 00 00 00 .. .. .. .. 4d 04 00 00 ..`: a mesh
+  with an extra ~0x40-byte sub-header (an index, a vertex count, a bounding
+  box). The MESH descriptor reappears inside the block; geometry follows it.
+- **MATRIX** — `ff ff ff ff` at descriptor+0x04: a scene-graph / instance
+  4x4-transform table, *not* geometry. Skipped.
+- **FILLER** — all-`0xff` descriptor: padding. Skipped.
+
+**Vertex record — 64 bytes, four 16-byte rows:**
+
+| Offset | Contents |
+|---|---|
+| `+0x00` | marker: `<u32 m0> <u32 m1>` + 8 zero bytes. m0/m1 are constant within one strip (a per-strip key). **Byte 7 is the strip flag**: `0x00` for a strip's 2 priming vertices, `0x20` for continuation vertices. |
+| `+0x10` | vec4 `(u, v, 1.0, 0.0)` — texture coordinates |
+| `+0x20` | vec4 — either a **unit normal** `(nx,ny,nz,0)` (dynamic meshes) or a **vertex color** `(r,g,b,1)` with components 0..1 (static/world meshes with baked lighting). Distinguished per-vertex by `|xyz|≈1`. |
+| `+0x30` | vec4 world-space **position** `(x, y, z, w)`, `w ≈ ±1.0` |
+
+A real vertex always has `|w| ≈ 1.0`; header/padding rows that share the
+64-byte grid do not — this is the reliable validity test.
+
+**Topology — triangle strips.** Consecutive valid vertices form strips; a new
+strip begins at a flag-`0x00` vertex following a non-`0x00` one (the
+`00 00 20 20 …` priming pattern). N strip vertices → N−2 triangles with
+alternating winding. **Degenerate (zero-area) triangles** are the PS2 idiom
+for stitching strips into one draw call and are dropped on export.
+
+**Validation.** On `chunk04.n0/f06_id44.bin`: 19271 non-degenerate triangles,
+zero degenerate or level-spanning faces, coherent bounding box
+(≈ 455 × 162 × 1813 units), unit normals. All 32 geometry-bearing `id 0x44`
+files export to valid OBJ (4 `id44` files hold non-geometry data).
+
+**Still uncertain.** Material/texture binding: m0/m1 are constant per strip
+and clearly key a material or texture page, but the mapping to the GS texture
+packets is not decoded — the exporter groups strips into OBJ objects by
+(m0, m1) to preserve the grouping. The SUBMESH sub-header fields and the
+MATRIX instance transforms are not applied (geometry is exported in stored
+object space).
 
 ## `MUSIC.DAT` track listing
 
