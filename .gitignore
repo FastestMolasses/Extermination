@@ -55,3 +55,4 @@ tools/wibo*/
 *.log
 *.tmp
 rate_test/
+textures/
