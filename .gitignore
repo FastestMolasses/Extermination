@@ -57,6 +57,7 @@ tools/wibo*/
 rate_test/
 textures/
 models/
+subtextures/
 
 # Python bytecode cache
 __pycache__/

@@ -77,6 +77,27 @@ a file beginning `07 XX 00 60`. Tool: `tools/extract_textures.py`.
   *is* a packed atlas. Cutting it into clean, correctly-oriented individual
   textures needs each texture's UV rectangle from the geometry/draw data.
 
+### Material → texture binding, per-texture extraction
+
+The per-strip geometry marker `m0` carries the texture binding. Its middle 14
+bits — `sheet_field = (m0 >> 15) & 0x3FFF` — are a GS VRAM base address. A GS
+texture upload is a `BITBLTBUF` (dest pointer `DBP`) + `TRXREG` (`w×h`) pair;
+`DBP` and `sheet_field` encode the same address, related by the affine map
+`sheet_field = DBP·(2048/1920) − 584.8` (exact on the universal slot trio
+`DBP {10752,12672,14592} ↔ sheet_field {10884,12932,14980}`). A material binds
+to the transfer whose predicted `sheet_field` matches. `m0` low 15 bits and
+`m1` are per-material running indices, not sub-rectangles.
+
+`tools/extract_subtextures.py` uses this: it scans all GS transfers (including
+the `07../10` DMA-tag packets `extract_textures.py` misses), binds each
+material, and crops its UV bounding box from the bound sheet → 2274 per-texture
+PNGs. Limit: ~631 materials reference a texture uploaded by another file
+(common/UI packets) — resolving them needs the engine's cross-file VRAM map.
+
+Note: `extract_textures.py`'s signature only matches `07 XX 00 60` packets and
+so misses the `07../10` level sheets — broaden it (or consolidate with
+`extract_subtextures.py`).
+
 ## Audio — VAG ADPCM
 
 All game audio is **PS2 VAG ADPCM** (16-byte frames). Decoder: `tools/decode_sound.py`.

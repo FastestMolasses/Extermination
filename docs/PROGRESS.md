@@ -71,16 +71,16 @@ _Last updated: 2026-05-22_
   game data. Either the runtime CLUT is a grayscale ramp (color comes from
   renderer vertex-color modulation) or there is an unlocated color CLUT. The
   decompiled draw code (GS `TEX0` setup) will resolve this.
-- **Per-texture extraction** — the decoded sheets are correct but packed
-  atlases; clean individual textures need UV rectangles from geometry data.
-  Now unblocked: `extract_models.py` recovers per-vertex UVs; the remaining
-  gap is binding a strip's marker key (m0/m1) to a specific texture packet.
+- **Cross-file texture residency** — per-texture extraction works
+  (`tools/extract_subtextures.py`, 2274 PNGs), but ~631 materials reference a
+  texture uploaded by a *different* file (common/UI packets) not in the level
+  dir. Resolving them needs the engine's cross-file VRAM map.
+- **`extract_textures.py` misses `07../10` packets** — its signature only
+  matches `07 XX 00 60`, so it never extracted the `07../10` DMA-tag level
+  sheets. `extract_subtextures.py` handles them; `extract_textures.py` should
+  be broadened (or the two tools consolidated).
 
 ### Next steps (roadmap)
-- **Per-texture extraction** — the decoded texture sheets are correct but are
-  packed atlases. Cutting them into clean individual textures needs each
-  texture's UV rectangle/orientation from the geometry/draw data (so it
-  depends on the geometry track below).
 - Separate the 55 `MUSIC.DAT` tracks: **25 are the official soundtrack, the
   other 30 are cutscene audio** (per user, cross-referenced with an online
   soundtrack listing). Not yet labelled/split.
@@ -90,12 +90,15 @@ _Last updated: 2026-05-22_
   Remaining: (a) **skinning / animation** — the rig is located (separate
   0x78-byte-record files; plus per-frame vertex-animation pose sets), exposed
   by `--rig`/`--anim`; still to do is the VIF-packed transform payload decode
-  (needs VU1 microcode) and the bone parent hierarchy; (b) strip marker →
-  texture-packet binding
-  (enables per-texture extraction); (c) confirm the MATRIX `--scene` open
-  questions from the engine code — the role of repeated identity transforms
-  and whether transforms are absolute or composed with a parent node (see
-  `docs/FINDINGS.md`).
+  (needs VU1 microcode) and the bone parent hierarchy; (b) confirm the MATRIX
+  `--scene` open questions from the engine code — the role of repeated identity
+  transforms and whether transforms are absolute or composed with a parent
+  node (see `docs/FINDINGS.md`).
+- **Per-texture extraction — done.** The strip marker→texture binding is
+  cracked (`m0` carries a `sheet_field` GS VRAM address); `extract_subtextures.py`
+  crops per-material textures (2274 PNGs). Remaining: the ~631 cross-file-bound
+  materials (see open questions) and broadening `extract_textures.py` to
+  `07../10` packets.
 - **Asset repackers + moddable build** — the end goal is that a user builds the
   game from loose extracted assets (see `CLAUDE.md` "End-state build
   architecture"). Each `extract_*` tool needs a matching repacker that rebuilds
@@ -115,7 +118,9 @@ _Last updated: 2026-05-22_
   - `decode_sound.py` — VAG ADPCM decoder (SFX banks + VOICE/MUSIC streams).
   - `extract_textures.py` — GS texture-packet extractor (8-bit, grayscale).
   - `extract_models.py` — geometry → Wavefront OBJ (level + character/object
-    models); `--scene` exports placed full-level scenes (MATRIX transforms applied).
+    models); `--scene` places full levels; `--rig`/`--anim` dump rig & poses.
+  - `extract_subtextures.py` — per-material texture extraction (marker→packet
+    binding + UV crop).
 - `docs/` — this folder: project state and findings (committed).
 - Disc-derived outputs (`extract/`, `wav/`, `voice/`, `music/`, `iso/`, …) are
   git-ignored — each user regenerates them locally from their own disc.
