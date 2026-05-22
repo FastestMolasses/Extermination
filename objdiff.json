@@ -22,6 +22,38 @@
       }
     },
     {
+      "name": "func_00109BF8",
+      "target_path": "build/expected/func_00109BF8.o",
+      "base_path": "build/obj/func_00109BF8.o",
+      "metadata": {
+        "source_path": "src/func_00109BF8.c"
+      }
+    },
+    {
+      "name": "func_00109C08",
+      "target_path": "build/expected/func_00109C08.o",
+      "base_path": "build/obj/func_00109C08.o",
+      "metadata": {
+        "source_path": "src/func_00109C08.c"
+      }
+    },
+    {
+      "name": "func_00109C58",
+      "target_path": "build/expected/func_00109C58.o",
+      "base_path": "build/obj/func_00109C58.o",
+      "metadata": {
+        "source_path": "src/func_00109C58.c"
+      }
+    },
+    {
+      "name": "func_00109C68",
+      "target_path": "build/expected/func_00109C68.o",
+      "base_path": "build/obj/func_00109C68.o",
+      "metadata": {
+        "source_path": "src/func_00109C68.c"
+      }
+    },
+    {
       "name": "func_0010BE50",
       "target_path": "build/expected/func_0010BE50.o",
       "base_path": "build/obj/func_0010BE50.o",
@@ -30,11 +62,179 @@
       }
     },
     {
+      "name": "func_0010BE58",
+      "target_path": "build/expected/func_0010BE58.o",
+      "base_path": "build/obj/func_0010BE58.o",
+      "metadata": {
+        "source_path": "src/func_0010BE58.c"
+      }
+    },
+    {
+      "name": "func_0010BE60",
+      "target_path": "build/expected/func_0010BE60.o",
+      "base_path": "build/obj/func_0010BE60.o",
+      "metadata": {
+        "source_path": "src/func_0010BE60.c"
+      }
+    },
+    {
+      "name": "func_0010BF10",
+      "target_path": "build/expected/func_0010BF10.o",
+      "base_path": "build/obj/func_0010BF10.o",
+      "metadata": {
+        "source_path": "src/func_0010BF10.c"
+      }
+    },
+    {
+      "name": "func_0010BF30",
+      "target_path": "build/expected/func_0010BF30.o",
+      "base_path": "build/obj/func_0010BF30.o",
+      "metadata": {
+        "source_path": "src/func_0010BF30.c"
+      }
+    },
+    {
       "name": "func_00121AE8",
       "target_path": "build/expected/func_00121AE8.o",
       "base_path": "build/obj/func_00121AE8.o",
       "metadata": {
         "source_path": "src/func_00121AE8.c"
+      }
+    },
+    {
+      "name": "func_00121AF0",
+      "target_path": "build/expected/func_00121AF0.o",
+      "base_path": "build/obj/func_00121AF0.o",
+      "metadata": {
+        "source_path": "src/func_00121AF0.c"
+      }
+    },
+    {
+      "name": "func_0015AAF0",
+      "target_path": "build/expected/func_0015AAF0.o",
+      "base_path": "build/obj/func_0015AAF0.o",
+      "metadata": {
+        "source_path": "src/func_0015AAF0.c"
+      }
+    },
+    {
+      "name": "func_00183240",
+      "target_path": "build/expected/func_00183240.o",
+      "base_path": "build/obj/func_00183240.o",
+      "metadata": {
+        "source_path": "src/func_00183240.c"
+      }
+    },
+    {
+      "name": "func_001837A0",
+      "target_path": "build/expected/func_001837A0.o",
+      "base_path": "build/obj/func_001837A0.o",
+      "metadata": {
+        "source_path": "src/func_001837A0.c"
+      }
+    },
+    {
+      "name": "func_001C1E90",
+      "target_path": "build/expected/func_001C1E90.o",
+      "base_path": "build/obj/func_001C1E90.o",
+      "metadata": {
+        "source_path": "src/func_001C1E90.c"
+      }
+    },
+    {
+      "name": "func_001C2420",
+      "target_path": "build/expected/func_001C2420.o",
+      "base_path": "build/obj/func_001C2420.o",
+      "metadata": {
+        "source_path": "src/func_001C2420.c"
+      }
+    },
+    {
+      "name": "func_001CB5A0",
+      "target_path": "build/expected/func_001CB5A0.o",
+      "base_path": "build/obj/func_001CB5A0.o",
+      "metadata": {
+        "source_path": "src/func_001CB5A0.c"
+      }
+    },
+    {
+      "name": "func_001CBA40",
+      "target_path": "build/expected/func_001CBA40.o",
+      "base_path": "build/obj/func_001CBA40.o",
+      "metadata": {
+        "source_path": "src/func_001CBA40.c"
+      }
+    },
+    {
+      "name": "func_001CCB00",
+      "target_path": "build/expected/func_001CCB00.o",
+      "base_path": "build/obj/func_001CCB00.o",
+      "metadata": {
+        "source_path": "src/func_001CCB00.c"
+      }
+    },
+    {
+      "name": "func_001D9060",
+      "target_path": "build/expected/func_001D9060.o",
+      "base_path": "build/obj/func_001D9060.o",
+      "metadata": {
+        "source_path": "src/func_001D9060.c"
+      }
+    },
+    {
+      "name": "func_001E3620",
+      "target_path": "build/expected/func_001E3620.o",
+      "base_path": "build/obj/func_001E3620.o",
+      "metadata": {
+        "source_path": "src/func_001E3620.c"
+      }
+    },
+    {
+      "name": "func_001E4600",
+      "target_path": "build/expected/func_001E4600.o",
+      "base_path": "build/obj/func_001E4600.o",
+      "metadata": {
+        "source_path": "src/func_001E4600.c"
+      }
+    },
+    {
+      "name": "func_001E49F0",
+      "target_path": "build/expected/func_001E49F0.o",
+      "base_path": "build/obj/func_001E49F0.o",
+      "metadata": {
+        "source_path": "src/func_001E49F0.c"
+      }
+    },
+    {
+      "name": "func_00204080",
+      "target_path": "build/expected/func_00204080.o",
+      "base_path": "build/obj/func_00204080.o",
+      "metadata": {
+        "source_path": "src/func_00204080.c"
+      }
+    },
+    {
+      "name": "func_00204090",
+      "target_path": "build/expected/func_00204090.o",
+      "base_path": "build/obj/func_00204090.o",
+      "metadata": {
+        "source_path": "src/func_00204090.c"
+      }
+    },
+    {
+      "name": "func_002063A0",
+      "target_path": "build/expected/func_002063A0.o",
+      "base_path": "build/obj/func_002063A0.o",
+      "metadata": {
+        "source_path": "src/func_002063A0.c"
+      }
+    },
+    {
+      "name": "func_00207060",
+      "target_path": "build/expected/func_00207060.o",
+      "base_path": "build/obj/func_00207060.o",
+      "metadata": {
+        "source_path": "src/func_00207060.c"
       }
     }
   ]

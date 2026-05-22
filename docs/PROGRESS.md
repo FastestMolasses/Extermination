@@ -74,10 +74,11 @@ runs the period-correct compiler.
   **32-bit wibo** (`tools/bin/wibo32`, cross-built by `docker/build-wibo.sh`)
   inside **qemu-i386**. The MIPS assembler is arm64-native — only the compiler
   is emulated.
-- **First matches** — `func_001098D8` (`return 1`), `func_0010BE50`
-  (`return -1`) and `func_00121AE8` (empty) each compile to a **100% `.text`
-  match** vs the original, confirmed by `objdiff-cli`. The pipeline is proven
-  end to end.
+- **28 leaf functions matched** — trivial leaves (integer constants, empty
+  bodies, field getters, field copies, field+constant) each compile to a
+  **100% `.text` match** vs the original, confirmed by `objdiff-cli`. The
+  pipeline is proven end to end and `tools/decomp/build.py` drives it across
+  all units (splat → assemble target → compile base → objdiff).
 
 Build flow (`tools/decomp/build.py`): `setup` runs splat + writes
 `objdiff.json`; `build` assembles the splat disassembly into objdiff *target*
@@ -121,10 +122,11 @@ tuning — the normal substance of matching work.
 Goal: a runnable developer build — compile the decompiled code and run the game
 with its own assets (no repacking needed; the original `DATA.DAT` is used
 as-is). The pipeline "hello world" is **done** — see "Done — Track A" above:
-splat + objdiff + the mwccmips toolchain container all work, and
-`func_001098D8` is a verified 100% match. Next: decompile and match more leaf
-functions (`func_001031E0` / `func_00102638` are scouted and close), grow
-`config/symbol_addrs.txt`, and work outward toward a partial runnable ELF.
+splat + objdiff + the mwccmips toolchain container all work, and 28 trivial
+leaf functions are verified 100% matches. Next: keep matching outward — the
+~137 EE `syscall` stubs (one big batch, need the hand-written-asm path), then
+non-trivial functions; grow `config/symbol_addrs.txt` and work toward a partial
+runnable ELF.
 The reference template studied for the pipeline is `fmil95/recvx-decomp`
 (same CodeWarrior toolchain family).
 
