@@ -43,9 +43,12 @@ _Last updated: 2026-05-22_
   Re-confirm both from the decompiled audio engine.
 - **Audio clip splitting** is heuristic (silence gaps) — no per-clip index was
   found for `VOICE.DAT` / `MUSIC.DAT`. An index may live in game code/overlays.
-- **Texture unswizzle.** The standard combined 8-bit unswizzle recovers the
-  overall layout but has tile-placement and flip errors. A full PS2 GS VRAM
-  swizzle (PSMCT32 write + PSMT8 read) is needed for pixel accuracy.
+- **Texture pixel-accuracy.** `unswizzle8` decodes multi-page textures cleanly
+  (verified on the chain-of-rings sheet); a from-memory 2-step GS swizzle came
+  out worse and was discarded. Remaining visible oddities (flipped/rearranged
+  regions) may be the texture-atlas layout rather than a swizzle bug — best
+  confirmed once the CLUT yields a colored result, or with a checked GS
+  swizzle reference.
 - **Texture CLUT.** The 256-color palettes are not in the texture files (file
   size == header + index data exactly). Palettes are stored separately/shared;
   finding them (and handling the PS2 CLUT swizzle) is what blocks color output.
