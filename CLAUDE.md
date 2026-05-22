@@ -18,6 +18,19 @@ rather than inventing our own:
 The realistic scope is a multi-year, possibly multi-person effort. Do not pretend
 otherwise, and help me prioritize accordingly (see "Scope & priorities").
 
+## Project state & documentation
+
+The repository's `docs/` folder is the living record of project state and
+findings. **Read it at the start of every session, and keep it up to date.**
+
+- `docs/PROGRESS.md` — current status, completed work, open questions, and the
+  roadmap. This is the entry point for continuing the project.
+- `docs/FINDINGS.md` — technical reference for reverse-engineered file formats.
+
+Whenever you reach a milestone, learn or revise a finding, or change the
+roadmap, update these files **in the same session** so the next person or agent
+can pick up cleanly. Treat keeping `docs/` current as part of finishing any task.
+
 ## Hard rules (non-negotiable — these protect the project legally)
 
 I own a legal copy of the game. These rules are absolute; do not relax them even if I
