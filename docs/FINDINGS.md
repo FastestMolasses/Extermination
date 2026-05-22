@@ -54,9 +54,11 @@ a file beginning `07 XX 00 60`. Tool: `tools/extract_textures.py`.
 - `TRXREG` gives the transfer region `w x h` in PSMCT32 (32-bit). The real
   texture is **8-bit indexed (PSMT8)**, dimensions `(w*2) x (h*2)` — the
   PSMCT32-page / PSMT8-page footprint ratio is 2x per axis.
-- The index data is in PS2 **swizzled** VRAM order; the standard PSMT8
-  unswizzle (in the tool) recovers it. Results are 512-wide sheets, heights
-  64-960 — atlases of UI / HUD / world textures.
+- The index data is in PS2 **swizzled** VRAM order. The tool recovers it with
+  the documented GS pipeline — write the PSMCT32 transfer into simulated VRAM,
+  read it back as PSMT8, using the hardware page/block/column swizzle tables.
+  This was verified **byte-identical** to the standard combined `unswizzle8`,
+  so the swizzle is provably correct. Results are 512-wide sheets.
 - The extractor also finds packets **embedded** in larger `id 0x44` level
   files (57 packets total, vs 28 standalone). A few embedded results look
   noisy — likely false-positive signature matches.
@@ -65,9 +67,12 @@ a file beginning `07 XX 00 60`. Tool: `tools/extract_textures.py`.
   palette) and the total absence of CLUT-upload packets in the game data
   show the bytes are luminance. The grayscale PNG output is the correct
   texture data; the renderer applies color at draw time via vertex /
-  primitive-color modulation. The low smoothness delta also confirms the
-  unswizzle is correct — apparent flipped/rearranged regions are the
-  texture-atlas packing, not a decode bug.
+  primitive-color modulation.
+- Each decoded sheet is a texture **atlas** — many individual textures packed
+  into one sheet, some stored flipped/rotated to pack tighter, plus
+  non-texture padding. The swizzle is correct (proven above); the sheet just
+  *is* a packed atlas. Cutting it into clean, correctly-oriented individual
+  textures needs each texture's UV rectangle from the geometry/draw data.
 
 ## Audio — VAG ADPCM
 

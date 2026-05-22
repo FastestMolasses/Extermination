@@ -50,6 +50,10 @@ _Last updated: 2026-05-22_
   standalone sheets are the solid set. `OVERLAY/` not yet scanned for textures.
 
 ### Next steps (roadmap)
+- **Per-texture extraction** — the decoded texture sheets are correct but are
+  packed atlases. Cutting them into clean individual textures needs each
+  texture's UV rectangle/orientation from the geometry/draw data (so it
+  depends on the geometry track below).
 - Separate the 55 `MUSIC.DAT` tracks: **25 are the official soundtrack, the
   other 30 are cutscene audio** (per user, cross-referenced with an online
   soundtrack listing). Not yet labelled/split.

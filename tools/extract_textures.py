@@ -5,26 +5,25 @@ Original tooling for the Extermination decompilation project. Reads only the
 user's locally extracted disc data; redistributes nothing.
 
 Textures are PS2 GS texture-upload packets: a `07 XX 00 60` GIF/DMA packet
-that DMAs a texture into GS VRAM. The packet carries GS register writes
-(BITBLTBUF 0x50, TRXPOS 0x51, TRXREG 0x52, TRXDIR 0x53) then an IMAGE-mode
-GIF tag with the pixel payload.
+carrying GS register writes (BITBLTBUF 0x50 / TRXPOS 0x51 / TRXREG 0x52 /
+TRXDIR 0x53) then an IMAGE-mode GIF tag with the pixel payload.
 
 The payload is an 8-bit indexed (PSMT8) texture uploaded through a PSMCT32
-transfer: a TRXREG of w x h (32-bit) carries a (w*2) x (h*2) 8-bit image in
-PS2 swizzled order. This tool finds every packet -- the standalone `07../60`
-files (UI/common art) AND packets embedded inside larger level files
-(id 0x44) -- un-swizzles, and writes a PNG.
+host->local transfer. To recover the image this tool runs the real PS2 GS
+memory pipeline: it writes the transfer payload into a simulated VRAM at the
+PSMCT32 swizzled addresses, then reads it back at the PSMT8 swizzled addresses.
+The GS page/block/column swizzle tables are the documented hardware tables
+(verified: this produces output byte-identical to the standard `unswizzle8`).
+A TRXREG of w x h (32-bit) yields a (w*2) x (h*2) 8-bit texture.
 
-The textures are 8-bit INTENSITY (luminance), not color-indexed. This is
-confirmed by a smoothness test -- mean adjacent-pixel delta is ~7-22, versus
-~85 for a random color palette -- and by the total absence of CLUT-upload
-packets anywhere in the game data. So the grayscale PNG output IS the correct
-texture data; the game applies color at draw time via vertex/primitive-color
-modulation (renderer state, not texture data). There is no color CLUT.
-
-The standard PSMT8 unswizzle used here is essentially correct (the low
-smoothness delta confirms it). Apparent "flipped/rearranged" regions are the
-texture-atlas layout (sub-textures packed flipped), not a decode error.
+NOTES:
+- The textures are 8-bit INTENSITY (luminance), not color-indexed -- there is
+  no CLUT (smoothness test + zero CLUT packets in the game data). Grayscale
+  output is the correct texture data; the renderer tints via vertex color.
+- Each decoded sheet is a texture ATLAS: many individual textures packed into
+  one sheet, some stored flipped/rotated to pack tighter, plus non-texture
+  padding. Cutting it into clean, correctly-oriented individual textures needs
+  each texture's UV rectangle from the geometry/draw data (not yet decoded).
 See docs/FINDINGS.md.
 
 Usage:
@@ -38,19 +37,71 @@ import sys
 import zlib
 from pathlib import Path
 
+# Documented PS2 GS swizzle tables (page/block/column). PSMT8 reuses the
+# PSMCT32 page swizzle. Source: the GS hardware layout.
+PAGE32 = [0, 1, 4, 5, 16, 17, 20, 21, 2, 3, 6, 7, 18, 19, 22, 23,
+          8, 9, 12, 13, 24, 25, 28, 29, 10, 11, 14, 15, 26, 27, 30, 31]
+COL32 = [0, 1, 4, 5, 8, 9, 12, 13, 2, 3, 6, 7, 10, 11, 14, 15]
+COL8 = [
+    0, 4, 16, 20, 32, 36, 48, 52, 2, 6, 18, 22, 34, 38, 50, 54,
+    8, 12, 24, 28, 40, 44, 56, 60, 10, 14, 26, 30, 42, 46, 58, 62,
+    33, 37, 49, 53, 1, 5, 17, 21, 35, 39, 51, 55, 3, 7, 19, 23,
+    41, 45, 57, 61, 9, 13, 25, 29, 43, 47, 59, 63, 11, 15, 27, 31,
+    32, 36, 48, 52, 0, 4, 16, 20, 34, 38, 50, 54, 2, 6, 18, 22,
+    40, 44, 56, 60, 8, 12, 24, 28, 42, 46, 58, 62, 10, 14, 26, 30,
+    1, 5, 17, 21, 33, 37, 49, 53, 3, 7, 19, 23, 35, 39, 51, 55,
+    9, 13, 25, 29, 41, 45, 57, 61, 11, 15, 27, 31, 43, 47, 59, 63,
+]
+
+
+def psmct32_word(x: int, y: int, ppr: int) -> int:
+    """GS VRAM word address of a PSMCT32 pixel in a buffer `ppr` pages wide."""
+    page = (y // 32) * ppr + (x // 64)
+    px = (y % 32 % 8) * 8 + (x % 64 % 8)
+    block = PAGE32[(y % 32 // 8) * 8 + (x % 64 // 8)]
+    return page * 2048 + block * 64 + (px // 16) * 16 + COL32[px % 16]
+
+
+def psmt8_byte(x: int, y: int, ppr: int) -> int:
+    """GS VRAM byte address of a PSMT8 texel in a buffer `ppr` pages wide."""
+    page = (y // 64) * ppr + (x // 128)
+    px = (y % 64 % 16) * 16 + (x % 128 % 16)
+    block = PAGE32[(y % 64 // 16) * 8 + (x % 128 // 16)]
+    return page * 8192 + block * 256 + (px // 64) * 64 + COL8[px % 128]
+
+
+def deswizzle(payload: bytes, tw: int, th: int) -> tuple[int, int, bytes]:
+    """Run the GS pipeline: PSMCT32 transfer payload -> VRAM -> PSMT8 read.
+
+    `payload` is the raster PSMCT32 transfer (tw*th*4 bytes). Returns the
+    (width, height, pixels) of the resulting (tw*2) x (th*2) 8-bit texture.
+    """
+    ow, oh = tw * 2, th * 2
+    word_src = {}  # VRAM word -> source raster pixel
+    ct_ppr = max(1, tw // 64)
+    for y in range(th):
+        for x in range(tw):
+            word_src[psmct32_word(x, y, ct_ppr)] = (x, y)
+    t8_ppr = max(1, ow // 128)
+    out = bytearray(ow * oh)
+    for ty in range(oh):
+        for tx in range(ow):
+            vb = psmt8_byte(tx, ty, t8_ppr)
+            src = word_src.get(vb >> 2)
+            if src is not None:
+                sx, sy = src
+                out[ty * ow + tx] = payload[(sy * tw + sx) * 4 + (vb & 3)]
+    return ow, oh, bytes(out)
+
 
 def find_packet_starts(d: bytes) -> list[int]:
     """Offsets of `07 XX 00 60` GS texture packets (XX a non-zero multiple of 8)."""
-    starts = []
-    for i in range(0, len(d) - 16, 16):
-        if d[i] == 0x07 and d[i + 2] == 0x00 and d[i + 3] == 0x60 \
-                and d[i + 1] and d[i + 1] % 8 == 0:
-            starts.append(i)
-    return starts
+    return [i for i in range(0, len(d) - 16, 16)
+            if d[i] == 0x07 and d[i + 2] == 0x00 and d[i + 3] == 0x60
+            and d[i + 1] and d[i + 1] % 8 == 0]
 
 
 def first_trxreg(d: bytes, start: int) -> tuple[int, int] | None:
-    """(width, height) of the first GS TRXREG (0x52) A+D write at/after `start`."""
     for pos in range(start, len(d) - 16, 16):
         addr = int.from_bytes(d[pos + 8:pos + 16], "little")
         if addr >> 8 == 0 and addr & 0xFF == 0x52:
@@ -60,28 +111,12 @@ def first_trxreg(d: bytes, start: int) -> tuple[int, int] | None:
 
 
 def find_image_block(d: bytes, nbytes: int, start: int) -> int | None:
-    """Offset of the IMAGE-mode GIF payload of exactly `nbytes` at/after `start`."""
     for pos in range(start, len(d) - 16, 16):
         if (d[pos + 7] >> 2) & 3 == 2:  # GIF tag FLG == IMAGE
             nloop = (d[pos] | (d[pos + 1] << 8)) & 0x7FFF
             if nloop * 16 == nbytes and pos + 16 + nbytes <= len(d):
                 return pos + 16
     return None
-
-
-def unswizzle8(src: bytes, width: int, height: int) -> bytes:
-    """Un-swizzle an 8-bit PS2 texture (the standard PSMT8 unswizzle)."""
-    out = bytearray(width * height)
-    for y in range(height):
-        for x in range(width):
-            block = (y & ~0xF) * width + (x & ~0xF) * 2
-            swap = (((y + 2) >> 2) & 1) * 4
-            pos_y = (((y & ~3) >> 1) + (y & 1)) & 7
-            column = pos_y * width * 2 + ((x + swap) & 7) * 4
-            byte = ((y >> 1) & 1) + ((x >> 2) & 2)
-            idx = block + column + byte
-            out[y * width + x] = src[idx] if idx < len(src) else 0
-    return bytes(out)
 
 
 def write_png_gray(path: Path, width: int, height: int, pixels: bytes) -> None:
@@ -99,17 +134,16 @@ def write_png_gray(path: Path, width: int, height: int, pixels: bytes) -> None:
 
 
 def convert(path: Path, d: bytes, start: int, out_dir: Path) -> str | None:
-    """Convert one GS texture packet at offset `start`; None if not a valid packet."""
     trx = first_trxreg(d, start)
     if trx is None:
         return None
     tw, th = trx
-    index_bytes = tw * th * 4  # PSMCT32 transfer payload == 8-bit index data
-    off = find_image_block(d, index_bytes, start)
-    if off is None or tw == 0 or th == 0:
+    if tw == 0 or th == 0 or tw % 64 or th % 32:
         return None
-    width, height = tw * 2, th * 2  # PSMT8 dimensions
-    pixels = unswizzle8(d[off:off + index_bytes], width, height)
+    off = find_image_block(d, tw * th * 4, start)
+    if off is None:
+        return None
+    width, height, pixels = deswizzle(d[off:off + tw * th * 4], tw, th)
     suffix = "" if start == 0 else f"_{start:06x}"
     name = f"{path.parent.name}_{path.stem}{suffix}.png"
     write_png_gray(out_dir / name, width, height, pixels)
