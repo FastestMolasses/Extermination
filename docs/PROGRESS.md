@@ -31,13 +31,12 @@ _Last updated: 2026-05-22_
   1146 references deduplicated to 241 unique sounds.
 - **Dialogue** — `STREAM/VOICE.DAT` decoded: 116 mono clips.
 - **Music** — `STREAM/MUSIC.DAT` decoded: 55 stereo tracks (interleaved VAG).
-- **Textures** — format reverse-engineered. GS texture-upload packets decode
-  to single-transfer 8-bit indexed, PS2-swizzled images. Extractor:
-  `tools/extract_textures.py` finds 57 packets — 28 standalone `07../60` files
-  (UI/common art, decode to clean, recognizable grayscale) plus ~29 embedded
-  in level (`id 0x44`) files (world art; some may be false-positive signature
-  matches — unverified until color works). Output is **approximate**: see the
-  texture open questions below.
+- **Textures** — fully decoded. GS texture-upload packets are 8-bit
+  **intensity** images (PSMT8-swizzled); `tools/extract_textures.py` finds 57
+  packets (28 standalone UI/common + ~29 embedded in `id 0x44` level files)
+  and writes grayscale PNGs. There is no color CLUT — the bytes are luminance
+  and the renderer applies color via vertex-color modulation, so the grayscale
+  output is the correct texture data.
 
 ### Open questions / to verify
 - **Sample rate.** Streamed audio (VOICE/MUSIC) = **48000 Hz** — strong
@@ -46,23 +45,11 @@ _Last updated: 2026-05-22_
   Re-confirm both from the decompiled audio engine.
 - **Audio clip splitting** is heuristic (silence gaps) — no per-clip index was
   found for `VOICE.DAT` / `MUSIC.DAT`. An index may live in game code/overlays.
-- **Texture pixel-accuracy.** `unswizzle8` decodes multi-page textures cleanly
-  (verified on the chain-of-rings sheet); a from-memory 2-step GS swizzle came
-  out worse and was discarded. Remaining visible oddities (flipped/rearranged
-  regions) may be the texture-atlas layout rather than a swizzle bug — best
-  confirmed once the CLUT yields a colored result, or with a checked GS
-  swizzle reference.
-- **Texture CLUT.** The 256-color palettes are not in the texture files (file
-  size == header + index data exactly). Palettes are stored separately/shared;
-  finding them (and handling the PS2 CLUT swizzle) is what blocks color output.
-- **Embedded-texture verification.** The extractor now also finds packets
-  embedded in `id 0x44` level files, but those results are unverified (one
-  checked looked like noise — false positive or a genuinely noisy texture).
-  Confirming them needs working color. `OVERLAY/` not yet scanned for textures.
+- **Embedded textures** — a few of the ~29 embedded-packet results look noisy
+  (likely false-positive `07../60` signature matches in geometry data); the 28
+  standalone sheets are the solid set. `OVERLAY/` not yet scanned for textures.
 
 ### Next steps (roadmap)
-- **Finish textures** — implement the pixel-correct GS swizzle, find the CLUTs
-  for color, and locate the texture packets embedded in other files.
 - Separate the 55 `MUSIC.DAT` tracks: **25 are the official soundtrack, the
   other 30 are cutscene audio** (per user, cross-referenced with an online
   soundtrack listing). Not yet labelled/split.

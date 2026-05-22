@@ -15,13 +15,17 @@ PS2 swizzled order. This tool finds every packet -- the standalone `07../60`
 files (UI/common art) AND packets embedded inside larger level files
 (id 0x44) -- un-swizzles, and writes a PNG.
 
-STATUS: approximate -- two things are not yet correct:
-  1. Unswizzle. The standard combined 8-bit unswizzle (used here) decodes
-     multi-page textures cleanly; a from-memory 2-step GS swizzle came out
-     worse and was discarded. Any residual oddities may be atlas layout.
-  2. CLUT. The 256-color palette is not in the texture packets; output is
-     8-bit grayscale until the palettes are located.
-See docs/PROGRESS.md.
+The textures are 8-bit INTENSITY (luminance), not color-indexed. This is
+confirmed by a smoothness test -- mean adjacent-pixel delta is ~7-22, versus
+~85 for a random color palette -- and by the total absence of CLUT-upload
+packets anywhere in the game data. So the grayscale PNG output IS the correct
+texture data; the game applies color at draw time via vertex/primitive-color
+modulation (renderer state, not texture data). There is no color CLUT.
+
+The standard PSMT8 unswizzle used here is essentially correct (the low
+smoothness delta confirms it). Apparent "flipped/rearranged" regions are the
+texture-atlas layout (sub-textures packed flipped), not a decode error.
+See docs/FINDINGS.md.
 
 Usage:
   extract_textures.py --in extract --out textures

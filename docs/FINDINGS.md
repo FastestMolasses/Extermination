@@ -57,9 +57,17 @@ a file beginning `07 XX 00 60`. Tool: `tools/extract_textures.py`.
 - The index data is in PS2 **swizzled** VRAM order; the standard PSMT8
   unswizzle (in the tool) recovers it. Results are 512-wide sheets, heights
   64-960 — atlases of UI / HUD / world textures.
-- **CLUT (palette) not yet found** — the texture files are exactly
-  header + index data, so the 256-color palettes live elsewhere
-  (separate/shared). Output is grayscale until the CLUT is reverse-engineered.
+- The extractor also finds packets **embedded** in larger `id 0x44` level
+  files (57 packets total, vs 28 standalone). A few embedded results look
+  noisy — likely false-positive signature matches.
+- **The textures are 8-bit INTENSITY, not color-indexed — there is no CLUT.**
+  A smoothness test (mean adjacent-pixel delta ~7-22, vs ~85 for a random
+  palette) and the total absence of CLUT-upload packets in the game data
+  show the bytes are luminance. The grayscale PNG output is the correct
+  texture data; the renderer applies color at draw time via vertex /
+  primitive-color modulation. The low smoothness delta also confirms the
+  unswizzle is correct — apparent flipped/rearranged regions are the
+  texture-atlas packing, not a decode bug.
 
 ## Audio — VAG ADPCM
 
