@@ -38,15 +38,15 @@ _Last updated: 2026-05-22_
   source** is unresolved — PSMT8 needs a CLUT, none was found in the data;
   it's either a grayscale ramp (color from vertex modulation) or an unlocated
   color CLUT. See the open questions.
-- **Geometry / models** — the `id 0x44` level-file geometry format is
-  reverse-engineered and validated. `tools/extract_models.py` exports it to
-  Wavefront OBJ. Files are block-structured (separator-delimited MESH /
-  SUBMESH / MATRIX / FILLER blocks); meshes are 64-byte vertex records
-  (UV + normal-or-color + position) drawn as triangle strips. All 32
-  geometry-bearing files export to valid OBJ — 19271 clean triangles in the
-  largest, zero degenerate/spanning faces. Open: material/texture binding
-  (strip marker keys a material but the texture-packet mapping is undecoded).
-  See `docs/FINDINGS.md`.
+- **Geometry / models** — **level geometry done; character/object models
+  pending.** The `id 0x44` level-file format is reverse-engineered:
+  `tools/extract_models.py` exports it to Wavefront OBJ (block-structured —
+  MESH / SUBMESH / MATRIX / FILLER blocks; triangle-strip 64-byte vertex
+  records). All 32 `id 0x44` files export to valid OBJ (verified: 19271 clean
+  triangles in the largest, zero degenerate faces). **But the same MESH-format
+  signature appears in ~330 other files** (many file ids) — almost certainly
+  the character / enemy / prop models — and the tool does not yet decode them
+  (format variants). See the open questions. `docs/FINDINGS.md` has detail.
 
 ### Open questions / to verify
 - **Sample rate.** Streamed audio (VOICE/MUSIC) = **48000 Hz** — strong
@@ -75,11 +75,12 @@ _Last updated: 2026-05-22_
 - Separate the 55 `MUSIC.DAT` tracks: **25 are the official soundtrack, the
   other 30 are cutscene audio** (per user, cross-referenced with an online
   soundtrack listing). Not yet labelled/split.
-- **Geometry / model** formats — **done**: the `id 0x44` block format and
-  triangle-strip vertex records are decoded; `tools/extract_models.py` exports
-  OBJ. Remaining geometry work: decode the strip marker → texture-packet
-  binding (enables per-texture extraction), and the MATRIX instance-transform
-  blocks (for correctly placed full-level scenes). See `docs/FINDINGS.md`.
+- **Geometry / models** — level geometry is decoded (`extract_models.py`).
+  Remaining: (a) **character / object / prop models** — ~330 more files carry
+  the MESH signature in undecoded format variant(s); adapt the tool to them;
+  (b) strip marker → texture-packet binding (enables per-texture extraction);
+  (c) MATRIX instance transforms (placed full-level scenes; also addresses the
+  "missing pieces" — instanced geometry is currently exported once, unplaced).
 - Stand up **Track A**: clone a reference template (`fmil95/recvx-decomp` —
   also CodeWarrior), install objdiff (native arm64), set up splat, build the
   x86_64-Linux `mwccps2` + wibo container, get one leaf function to 100%.

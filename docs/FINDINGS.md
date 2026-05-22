@@ -101,14 +101,21 @@ re-confirmed from the decompiled audio engine.
 
 ## Geometry / models
 
-**Decoded and validated.** Exporter: `tools/extract_models.py` (geometry file
-→ Wavefront OBJ). Full format details are in that script's module docstring;
-summary below.
+**Level geometry decoded; character/object models still pending.** Exporter:
+`tools/extract_models.py` (geometry file → Wavefront OBJ). Full format details
+are in that script's module docstring; summary below.
 
-3D geometry lives in the large `id 0x44` level files (`*_id44.bin`). A
-geometry file is a sequence of **variable-length blocks**, not a flat vertex
-array (the earlier "uniform 64-byte record run" reading was a coincidence of
-the first block).
+The `id 0x44` **level** files are decoded and validated — all 32 export to
+valid OBJ. **But the MESH-descriptor signature also appears in ~330 other
+files** across many file ids — almost certainly the character / enemy / prop
+/ object models. `extract_models.py` does *not* yet decode those: tested on
+non-`id 0x44` files it extracts nothing or near-nothing (e.g. an `id 0x70`
+file gave 734 vertices but only 8 faces), so they use format variant(s) still
+to be reverse-engineered.
+
+3D geometry in the `id 0x44` level files is a sequence of **variable-length
+blocks**, not a flat vertex array (the earlier "uniform 64-byte record run"
+reading was a coincidence of the first block).
 
 **Block structure.** Blocks are delimited by a 16-byte separator row
 `00 00 00 17` + twelve `00`. Each separator is followed by a 16-byte
