@@ -4,25 +4,23 @@
 Original tooling for the Extermination decompilation project. Reads only the
 user's locally extracted disc data; redistributes nothing.
 
-Textures live in `DATA.DAT` as PS2 GS texture-upload packets: a file beginning
-`07 XX 00 60` is a GIF/DMA packet that DMAs a texture into GS VRAM. The packet
-carries GS register writes (BITBLTBUF 0x50, TRXPOS 0x51, TRXREG 0x52, TRXDIR
-0x53) followed by an IMAGE-mode GIF tag with the pixel payload.
+Textures are PS2 GS texture-upload packets: a `07 XX 00 60` GIF/DMA packet
+that DMAs a texture into GS VRAM. The packet carries GS register writes
+(BITBLTBUF 0x50, TRXPOS 0x51, TRXREG 0x52, TRXDIR 0x53) then an IMAGE-mode
+GIF tag with the pixel payload.
 
-The payload is an **8-bit indexed (PSMT8) texture** uploaded through a PSMCT32
-transfer: a TRXREG of w x h (32-bit) carries a (w*2) x (h*2) 8-bit image, in
-PS2 swizzled VRAM order. This tool parses the packet, un-swizzles the index
-data, and writes a PNG.
+The payload is an 8-bit indexed (PSMT8) texture uploaded through a PSMCT32
+transfer: a TRXREG of w x h (32-bit) carries a (w*2) x (h*2) 8-bit image in
+PS2 swizzled order. This tool finds every packet -- the standalone `07../60`
+files (UI/common art) AND packets embedded inside larger level files
+(id 0x44) -- un-swizzles, and writes a PNG.
 
-STATUS: this extractor is approximate -- two things are not yet correct:
-  1. Unswizzle. Each file is a single transfer of 8-bit indexed data, 512 px
-     wide (verified by GIF parse). The standard combined unswizzle used here
-     recovers the overall layout but has tile-placement and flip errors; a
-     full PS2 GS VRAM swizzle (PSMCT32 write + PSMT8 read, with the documented
-     page/block/column tables) is needed for pixel accuracy.
-  2. CLUT. The 256-colour palette is not in the texture file (size == header
-     + index data exactly); palettes are stored separately/shared. Output is
-     8-bit grayscale until the CLUT is found.
+STATUS: approximate -- two things are not yet correct:
+  1. Unswizzle. The standard combined 8-bit unswizzle (used here) decodes
+     multi-page textures cleanly; a from-memory 2-step GS swizzle came out
+     worse and was discarded. Any residual oddities may be atlas layout.
+  2. CLUT. The 256-color palette is not in the texture packets; output is
+     8-bit grayscale until the palettes are located.
 See docs/PROGRESS.md.
 
 Usage:
@@ -37,15 +35,19 @@ import zlib
 from pathlib import Path
 
 
-def is_texture_packet(path: Path) -> bool:
-    with path.open("rb") as f:
-        h = f.read(4)
-    return len(h) >= 4 and h[0] == 0x07 and h[2] == 0x00 and h[3] == 0x60
+def find_packet_starts(d: bytes) -> list[int]:
+    """Offsets of `07 XX 00 60` GS texture packets (XX a non-zero multiple of 8)."""
+    starts = []
+    for i in range(0, len(d) - 16, 16):
+        if d[i] == 0x07 and d[i + 2] == 0x00 and d[i + 3] == 0x60 \
+                and d[i + 1] and d[i + 1] % 8 == 0:
+            starts.append(i)
+    return starts
 
 
-def first_trxreg(d: bytes) -> tuple[int, int] | None:
-    """Return (width, height) of the first GS TRXREG (0x52) A+D register write."""
-    for pos in range(0, len(d) - 16, 16):
+def first_trxreg(d: bytes, start: int) -> tuple[int, int] | None:
+    """(width, height) of the first GS TRXREG (0x52) A+D write at/after `start`."""
+    for pos in range(start, len(d) - 16, 16):
         addr = int.from_bytes(d[pos + 8:pos + 16], "little")
         if addr >> 8 == 0 and addr & 0xFF == 0x52:
             data = int.from_bytes(d[pos:pos + 8], "little")
@@ -53,9 +55,9 @@ def first_trxreg(d: bytes) -> tuple[int, int] | None:
     return None
 
 
-def find_image_block(d: bytes, nbytes: int) -> int | None:
-    """Offset of the IMAGE-mode GIF payload of exactly nbytes (16-byte aligned)."""
-    for pos in range(0, len(d) - 16, 16):
+def find_image_block(d: bytes, nbytes: int, start: int) -> int | None:
+    """Offset of the IMAGE-mode GIF payload of exactly `nbytes` at/after `start`."""
+    for pos in range(start, len(d) - 16, 16):
         if (d[pos + 7] >> 2) & 3 == 2:  # GIF tag FLG == IMAGE
             nloop = (d[pos] | (d[pos + 1] << 8)) & 0x7FFF
             if nloop * 16 == nbytes and pos + 16 + nbytes <= len(d):
@@ -73,7 +75,8 @@ def unswizzle8(src: bytes, width: int, height: int) -> bytes:
             pos_y = (((y & ~3) >> 1) + (y & 1)) & 7
             column = pos_y * width * 2 + ((x + swap) & 7) * 4
             byte = ((y >> 1) & 1) + ((x >> 2) & 2)
-            out[y * width + x] = src[block + column + byte]
+            idx = block + column + byte
+            out[y * width + x] = src[idx] if idx < len(src) else 0
     return bytes(out)
 
 
@@ -91,21 +94,22 @@ def write_png_gray(path: Path, width: int, height: int, pixels: bytes) -> None:
                 chunk(b"IDAT", zlib.compress(bytes(raw), 6)) + chunk(b"IEND", b""))
 
 
-def convert(path: Path, out_dir: Path) -> str:
-    d = path.read_bytes()
-    trx = first_trxreg(d)
+def convert(path: Path, d: bytes, start: int, out_dir: Path) -> str | None:
+    """Convert one GS texture packet at offset `start`; None if not a valid packet."""
+    trx = first_trxreg(d, start)
     if trx is None:
-        return f"{path.name}: no TRXREG found"
+        return None
     tw, th = trx
-    index_bytes = tw * th * 4  # PSMCT32 transfer payload = 8-bit index data
-    off = find_image_block(d, index_bytes)
-    if off is None:
-        return f"{path.name}: no {index_bytes}-byte IMAGE block (TRXREG {tw}x{th})"
+    index_bytes = tw * th * 4  # PSMCT32 transfer payload == 8-bit index data
+    off = find_image_block(d, index_bytes, start)
+    if off is None or tw == 0 or th == 0:
+        return None
     width, height = tw * 2, th * 2  # PSMT8 dimensions
     pixels = unswizzle8(d[off:off + index_bytes], width, height)
-    name = f"{path.parent.name}_{path.stem}.png"
+    suffix = "" if start == 0 else f"_{start:06x}"
+    name = f"{path.parent.name}_{path.stem}{suffix}.png"
     write_png_gray(out_dir / name, width, height, pixels)
-    return f"{path.parent.name}/{path.name}: {width}x{height} 8-bit -> {name}"
+    return f"{path.parent.name}/{path.name}@{start:#x}: {width}x{height} -> {name}"
 
 
 def main(argv: list[str]) -> int:
@@ -114,16 +118,17 @@ def main(argv: list[str]) -> int:
     p.add_argument("--out", default="textures", help="output directory (default: textures/)")
     args = p.parse_args(argv)
 
-    root = Path(args.input)
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    packets = sorted(p for p in root.rglob("*.bin") if is_texture_packet(p))
     done = 0
-    for path in packets:
-        line = convert(path, out_dir)
-        print(line)
-        done += ".png" in line
-    print(f"\n{done} of {len(packets)} texture packets converted -> {out_dir}/")
+    for path in sorted(Path(args.input).rglob("*.bin")):
+        d = path.read_bytes()
+        for start in find_packet_starts(d):
+            line = convert(path, d, start, out_dir)
+            if line:
+                print(line)
+                done += 1
+    print(f"\n{done} texture packets converted -> {out_dir}/")
     return 0
 
 

@@ -31,10 +31,13 @@ _Last updated: 2026-05-22_
   1146 references deduplicated to 241 unique sounds.
 - **Dialogue** — `STREAM/VOICE.DAT` decoded: 116 mono clips.
 - **Music** — `STREAM/MUSIC.DAT` decoded: 55 stereo tracks (interleaved VAG).
-- **Textures** — format reverse-engineered. 28 GS texture-upload packets in
-  `DATA.DAT` decode to single-transfer 8-bit indexed, PS2-swizzled images
-  (512 px wide, verified by GIF parse). Extractor: `tools/extract_textures.py`.
-  Output is **approximate**: see the two texture open questions below.
+- **Textures** — format reverse-engineered. GS texture-upload packets decode
+  to single-transfer 8-bit indexed, PS2-swizzled images. Extractor:
+  `tools/extract_textures.py` finds 57 packets — 28 standalone `07../60` files
+  (UI/common art, decode to clean, recognizable grayscale) plus ~29 embedded
+  in level (`id 0x44`) files (world art; some may be false-positive signature
+  matches — unverified until color works). Output is **approximate**: see the
+  texture open questions below.
 
 ### Open questions / to verify
 - **Sample rate.** Streamed audio (VOICE/MUSIC) = **48000 Hz** — strong
@@ -52,9 +55,10 @@ _Last updated: 2026-05-22_
 - **Texture CLUT.** The 256-color palettes are not in the texture files (file
   size == header + index data exactly). Palettes are stored separately/shared;
   finding them (and handling the PS2 CLUT swizzle) is what blocks color output.
-- **More textures.** The 28 packets are only the standalone `07../60` files —
-  not the whole game. More texture packets are likely embedded inside the
-  larger region files (`id 0x43/0x44`) and `OVERLAY/` data.
+- **Embedded-texture verification.** The extractor now also finds packets
+  embedded in `id 0x44` level files, but those results are unverified (one
+  checked looked like noise — false positive or a genuinely noisy texture).
+  Confirming them needs working color. `OVERLAY/` not yet scanned for textures.
 
 ### Next steps (roadmap)
 - **Finish textures** — implement the pixel-correct GS swizzle, find the CLUTs
