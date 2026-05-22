@@ -350,10 +350,10 @@ def main(argv: list[str]) -> int:
     sp = sub.add_parser("stream", help="decode a raw VAG stream (VOICE.DAT/MUSIC.DAT) into clips")
     sp.add_argument("file", help="path to the raw VAG stream (VOICE.DAT or MUSIC.DAT)")
     sp.add_argument("--out", default="stream", help="output directory (default: stream/)")
-    # Provisional: VOICE.DAT/MUSIC.DAT play back between 44100 and 48000 Hz
-    # (~46000 by ear). The exact rate is not in the audio data -- it is an
-    # engine/SPU-pitch value, to be pinned once the audio engine is decompiled.
-    sp.add_argument("--rate", type=int, default=46000, help="sample rate (provisional, default: 46000)")
+    # 48000 Hz: clip_0000 (End Credits) matches an official-soundtrack rip
+    # (also 48000 Hz) in duration only at this rate. The rate is not stored in
+    # the audio data; treat as final pending confirmation from the decomp.
+    sp.add_argument("--rate", type=int, default=48000, help="sample rate (default: 48000)")
     sp.add_argument("--gap", type=int, default=64,
                     help="silent frames that delimit a clip (default: 64)")
     sp.add_argument("--min-frames", type=int, default=8,

@@ -54,3 +54,4 @@ tools/wibo*/
 .DS_Store
 *.log
 *.tmp
+rate_test/
