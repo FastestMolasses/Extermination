@@ -4,32 +4,36 @@
 Original tooling for the Extermination decompilation project. Reads only the
 user's locally extracted disc data; redistributes nothing.
 
-Decodes the SShd sound-bank container into WAV files. The container is the
-structure produced by extract_data.py for sound regions:
+Decodes the SShd sound-bank container into individual WAV files.
 
+Container layout (produced by extract_data.py for sound regions):
   +0x00  u32 totalsize    body_offset + body_size
-  +0x04  u32 hdrlen       = 0x20 + 0x10*count
-  +0x08  u32 0
+  +0x04  u32 hdrlen
   +0x0C  u32 count
-  +0x10  count records of 0x10 bytes, then a 0x10-byte trailer
-  +hdrlen      u32 c, u32 body_offset, u32 0, "SShd"
-  +hdrlen+0xC  "SShd" magic, then the voice table
-  body_offset  PS2 VAG ADPCM payload, body_size = totalsize - body_offset
+  +hdrlen+4   u32 body_offset   (relative to the region)
+  +hdrlen+0xC "SShd" magic, then the voice table
+  body        PS2 VAG ADPCM, body_size = totalsize - body_offset
 
-body_offset is relative to the start of the region (the concatenation of the
-region's extracted files, of which the SShd container is the first).
+A bank's body holds many sounds concatenated. Each 16-byte VAG frame carries
+a flag byte; a frame whose flag has bit 0 set ends a block. Real sounds are
+the multi-frame runs; the 1-frame flag-7 blocks between them are terminators.
+A sound "loops" if any of its frames has the loop bit (0x02) set.
 
-The PS2 ADPCM sample rate is not yet located in the header; it defaults to
-22050 Hz and is overridable with --rate. If a clip plays too fast/slow the
-rate is wrong, not the decode.
+Many banks reuse a shared SFX set, so `batch` deduplicates by ADPCM content
+across all banks and writes each unique sound once, with a manifest mapping
+banks to the sounds they use.
+
+The sample rate is not yet located in the header; it defaults to 22050 Hz
+(overridable with --rate). Wrong rate => wrong pitch, not a wrong decode.
 
 Usage:
   decode_sound.py batch  --in extract --out wav
-  decode_sound.py decode extract/chunk50 --out wav --rate 22050
+  decode_sound.py decode extract/chunk22 --out wav
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import struct
 import sys
 import wave
@@ -61,12 +65,35 @@ def parse_bank(data: bytes):
     return body_offset, body_size
 
 
-def decode_vag(body: bytes) -> tuple[bytes, int]:
-    """Decode PS2 VAG ADPCM to little-endian mono PCM16. Returns (pcm, anomalies)."""
+def split_sounds(body: bytes) -> list[tuple[int, int]]:
+    """Split a bank body into (start_frame, frame_count) per sound.
+
+    A VAG frame whose flag (byte 1) has bit 0 set ends a block. Multi-frame
+    runs are real sounds; lone 1-frame blocks are terminators and are dropped.
+    """
+    nframes = len(body) // 16
+    sounds = []
+    start = 0
+    for i in range(nframes):
+        if body[i * 16 + 1] & 1:
+            if i - start + 1 > 1:
+                sounds.append((start, i - start + 1))
+            start = i + 1
+    if nframes - start > 1:
+        sounds.append((start, nframes - start))
+    return sounds
+
+
+def decode_vag(body: bytes, start_frame: int, n_frames: int) -> tuple[bytes, int]:
+    """Decode one VAG sound to little-endian mono PCM16. Returns (pcm, anomalies).
+
+    ADPCM history is local to this call, so each sound decodes independently.
+    """
     hist1 = hist2 = 0
     out = bytearray()
     anomalies = 0
-    for fpos in range(0, len(body) - 15, 16):
+    for f in range(start_frame, start_frame + n_frames):
+        fpos = f * 16
         b0 = body[fpos]
         shift = b0 & 0xF
         pred = (b0 >> 4) & 0xF
@@ -86,6 +113,11 @@ def decode_vag(body: bytes) -> tuple[bytes, int]:
     return bytes(out), anomalies
 
 
+def sound_loops(body: bytes, start_frame: int, n_frames: int) -> bool:
+    """True if any frame in the sound has the VAG loop bit (0x02) set."""
+    return any(body[(start_frame + k) * 16 + 1] & 2 for k in range(n_frames))
+
+
 def write_wav(path: Path, pcm: bytes, rate: int) -> None:
     with wave.open(str(path), "wb") as w:
         w.setnchannels(1)
@@ -94,60 +126,121 @@ def write_wav(path: Path, pcm: bytes, rate: int) -> None:
         w.writeframes(pcm)
 
 
-def decode_region(region_dir: Path, out_dir: Path, rate: int) -> str | None:
-    data = region_bytes(region_dir)
-    bank = parse_bank(data)
-    if bank is None:
-        return None
-    body_offset, body_size = bank
-    body = data[body_offset:body_offset + body_size]
-    pcm, anomalies = decode_vag(body)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    wav = out_dir / f"{region_dir.name}.wav"
-    write_wav(wav, pcm, rate)
-    secs = len(pcm) // 2 / rate
-    note = f"  ({anomalies} bad frames)" if anomalies else ""
-    return f"{wav.name}: body {body_size:#x}, {len(pcm) // 2} samples, {secs:.2f}s @ {rate}Hz{note}"
+def loop_pad(pcm: bytes, rate: int, target: float = 1.0) -> bytes:
+    """Repeat a short looping sound so it is long enough to audition."""
+    dur = len(pcm) / 2 / rate
+    if 0 < dur < 0.5:
+        return pcm * (int(target / dur) + 1)
+    return pcm
+
+
+def iter_banks(root: Path):
+    """Yield (region_dir, body) for every region that is an SShd bank."""
+    for region_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+        data = region_bytes(region_dir)
+        bank = parse_bank(data)
+        if bank:
+            body_offset, body_size = bank
+            yield region_dir, data[body_offset:body_offset + body_size]
 
 
 def cmd_decode(args) -> int:
-    out = Path(args.out)
-    line = decode_region(Path(args.region), out, args.rate)
-    if line is None:
-        print(f"{args.region}: not an SShd sound bank")
+    region_dir = Path(args.region)
+    data = region_bytes(region_dir)
+    bank = parse_bank(data)
+    if bank is None:
+        print(f"{region_dir}: not an SShd sound bank")
         return 1
-    print(line)
+    body_offset, body_size = bank
+    body = data[body_offset:body_offset + body_size]
+    out = Path(args.out) / region_dir.name
+    out.mkdir(parents=True, exist_ok=True)
+    sounds = split_sounds(body)
+    for idx, (sf, nf) in enumerate(sounds):
+        pcm, _ = decode_vag(body, sf, nf)
+        if args.loop_pad and sound_loops(body, sf, nf):
+            pcm = loop_pad(pcm, args.rate)
+        write_wav(out / f"s{idx:02d}.wav", pcm, args.rate)
+    print(f"{region_dir.name}: {len(sounds)} sounds -> {out}/")
     return 0
 
 
 def cmd_batch(args) -> int:
     root = Path(args.input)
     out = Path(args.out)
-    regions = sorted(p for p in root.iterdir() if p.is_dir())
-    decoded = 0
-    for region_dir in regions:
-        line = decode_region(region_dir, out, args.rate)
-        if line:
-            print(line)
-            decoded += 1
-    print(f"\ndecoded {decoded} sound banks to {out}/")
-    return 0 if decoded else 1
+    out.mkdir(parents=True, exist_ok=True)
+
+    uniq: dict[bytes, int] = {}        # adpcm hash -> sound id
+    pcms: dict[int, bytes] = {}        # sound id -> pcm
+    loops: set[int] = set()
+    used_by: dict[int, list[str]] = {}
+    bank_sounds: list[tuple[str, list[int]]] = []
+    anomalies = 0
+
+    for region_dir, body in iter_banks(root):
+        ids = []
+        for sf, nf in split_sounds(body):
+            raw = body[sf * 16:(sf + nf) * 16]
+            h = hashlib.sha1(raw).digest()
+            sid = uniq.get(h)
+            if sid is None:
+                sid = len(uniq)
+                uniq[h] = sid
+                pcm, anom = decode_vag(body, sf, nf)
+                anomalies += anom
+                pcms[sid] = pcm
+                if sound_loops(body, sf, nf):
+                    loops.add(sid)
+                used_by[sid] = []
+            ids.append(sid)
+            if region_dir.name not in used_by[sid]:
+                used_by[sid].append(region_dir.name)
+        bank_sounds.append((region_dir.name, ids))
+
+    out_dur: dict[int, float] = {}
+    for sid, pcm in pcms.items():
+        out_pcm = loop_pad(pcm, args.rate) if (args.loop_pad and sid in loops) else pcm
+        write_wav(out / f"snd_{sid:04d}.wav", out_pcm, args.rate)
+        out_dur[sid] = len(out_pcm) / 2 / args.rate
+
+    lines = ["# Extermination sound banks -> unique sounds", ""]
+    for name, ids in bank_sounds:
+        lines.append(f"{name}: " + " ".join(f"snd_{s:04d}" for s in ids))
+    lines += ["", "# unique sounds (duration is the written WAV; loop sounds may be repeated)"]
+    for sid in sorted(pcms):
+        dur = out_dur[sid]
+        tag = "loop" if sid in loops else "oneshot"
+        lines.append(f"snd_{sid:04d}  {dur:7.3f}s  {tag:7}  "
+                     f"used by {len(used_by[sid])}: {' '.join(used_by[sid])}")
+    (out / "manifest.txt").write_text("\n".join(lines) + "\n")
+
+    total = sum(len(ids) for _, ids in bank_sounds)
+    print(f"{len(bank_sounds)} banks, {total} sound references, "
+          f"{len(pcms)} unique sounds -> {out}/")
+    if anomalies:
+        print(f"warning: {anomalies} frames had an out-of-range predictor")
+    print(f"manifest: {out / 'manifest.txt'}")
+    return 0
 
 
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description="Extermination SShd sound-bank decoder")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    sp = sub.add_parser("decode", help="decode one region directory")
-    sp.add_argument("region", help="path to an extracted region dir, e.g. extract/chunk50")
-    sp.add_argument("--out", default="wav", help="output directory (default: wav/)")
-    sp.add_argument("--rate", type=int, default=22050, help="sample rate (default: 22050)")
+    def add_common(sp):
+        sp.add_argument("--out", default="wav", help="output directory (default: wav/)")
+        sp.add_argument("--rate", type=int, default=22050, help="sample rate (default: 22050)")
+        sp.add_argument("--no-loop-pad", dest="loop_pad", action="store_false",
+                        help="do not repeat short looping sounds")
+
+    sp = sub.add_parser("decode", help="decode one region into per-sound WAVs")
+    sp.add_argument("region", help="path to an extracted region dir, e.g. extract/chunk22")
+    add_common(sp)
     sp.set_defaults(func=cmd_decode)
 
-    sp = sub.add_parser("batch", help="decode every sound bank under a directory")
+    sp = sub.add_parser("batch", help="decode all banks, deduplicated, with a manifest")
     sp.add_argument("--in", dest="input", default="extract", help="extraction directory")
-    sp.add_argument("--out", default="wav", help="output directory (default: wav/)")
-    sp.add_argument("--rate", type=int, default=22050, help="sample rate (default: 22050)")
+    add_common(sp)
     sp.set_defaults(func=cmd_batch)
 
     args = p.parse_args(argv)
