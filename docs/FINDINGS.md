@@ -62,12 +62,15 @@ a file beginning `07 XX 00 60`. Tool: `tools/extract_textures.py`.
 - The extractor also finds packets **embedded** in larger `id 0x44` level
   files (57 packets total, vs 28 standalone). A few embedded results look
   noisy — likely false-positive signature matches.
-- **The textures are 8-bit INTENSITY, not color-indexed — there is no CLUT.**
-  A smoothness test (mean adjacent-pixel delta ~7-22, vs ~85 for a random
-  palette) and the total absence of CLUT-upload packets in the game data
-  show the bytes are luminance. The grayscale PNG output is the correct
-  texture data; the renderer applies color at draw time via vertex /
-  primitive-color modulation.
+- **Color source is unresolved.** The format is 8-bit (PSMT8), which on GS
+  hardware always samples through a CLUT — so a CLUT exists in VRAM at
+  runtime. But no CLUT data was found in `DATA.DAT` or the boot ELF, and a
+  smoothness test (adjacent-pixel delta ~7-22, vs ~85 for a random palette)
+  shows the 8-bit values are luminance-ordered. So either the runtime CLUT is
+  a grayscale ramp (color then comes from renderer vertex-color modulation)
+  or there is a luminance-sorted color CLUT not yet located. The `TEX0` setup
+  in the decompiled draw code will settle it. The grayscale PNG output is
+  faithful to the index data either way.
 - Each decoded sheet is a texture **atlas** — many individual textures packed
   into one sheet, some stored flipped/rotated to pack tighter, plus
   non-texture padding. The swizzle is correct (proven above); the sheet just

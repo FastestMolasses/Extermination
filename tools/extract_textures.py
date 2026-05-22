@@ -17,9 +17,11 @@ The GS page/block/column swizzle tables are the documented hardware tables
 A TRXREG of w x h (32-bit) yields a (w*2) x (h*2) 8-bit texture.
 
 NOTES:
-- The textures are 8-bit INTENSITY (luminance), not color-indexed -- there is
-  no CLUT (smoothness test + zero CLUT packets in the game data). Grayscale
-  output is the correct texture data; the renderer tints via vertex color.
+- Color source unresolved. PSMT8 always samples through a CLUT on GS hardware,
+  but no CLUT was found in the game data; a smoothness test shows the 8-bit
+  values are luminance-ordered. So the runtime CLUT is either a grayscale ramp
+  (color from renderer vertex-color modulation) or an unlocated color palette.
+  The grayscale PNG output is faithful to the index data regardless.
 - Each decoded sheet is a texture ATLAS: many individual textures packed into
   one sheet, some stored flipped/rotated to pack tighter, plus non-texture
   padding. Cutting it into clean, correctly-oriented individual textures needs

@@ -31,12 +31,13 @@ _Last updated: 2026-05-22_
   1146 references deduplicated to 241 unique sounds.
 - **Dialogue** — `STREAM/VOICE.DAT` decoded: 116 mono clips.
 - **Music** — `STREAM/MUSIC.DAT` decoded: 55 stereo tracks (interleaved VAG).
-- **Textures** — fully decoded. GS texture-upload packets are 8-bit
-  **intensity** images (PSMT8-swizzled); `tools/extract_textures.py` finds 57
-  packets (28 standalone UI/common + ~29 embedded in `id 0x44` level files)
-  and writes grayscale PNGs. There is no color CLUT — the bytes are luminance
-  and the renderer applies color via vertex-color modulation, so the grayscale
-  output is the correct texture data.
+- **Textures** — pixel data decoded. GS texture-upload packets are 8-bit
+  (PSMT8) images; `tools/extract_textures.py` finds 57 packets (28 standalone
+  UI/common + ~29 embedded in `id 0x44` level files) and writes grayscale
+  PNGs via the authoritative GS swizzle (proven correct). Open: the **color
+  source** is unresolved — PSMT8 needs a CLUT, none was found in the data;
+  it's either a grayscale ramp (color from vertex modulation) or an unlocated
+  color CLUT. See the open questions.
 
 ### Open questions / to verify
 - **Sample rate.** Streamed audio (VOICE/MUSIC) = **48000 Hz** — strong
@@ -48,6 +49,12 @@ _Last updated: 2026-05-22_
 - **Embedded textures** — a few of the ~29 embedded-packet results look noisy
   (likely false-positive `07../60` signature matches in geometry data); the 28
   standalone sheets are the solid set. `OVERLAY/` not yet scanned for textures.
+- **Texture color source.** PSMT8 needs a CLUT, but none was found in the
+  game data. Either the runtime CLUT is a grayscale ramp (color comes from
+  renderer vertex-color modulation) or there is an unlocated color CLUT. The
+  decompiled draw code (GS `TEX0` setup) will resolve this.
+- **Per-texture extraction** — the decoded sheets are correct but packed
+  atlases; clean individual textures need UV rectangles from geometry data.
 
 ### Next steps (roadmap)
 - **Per-texture extraction** — the decoded texture sheets are correct but are
