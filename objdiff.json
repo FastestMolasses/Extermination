@@ -12,5 +12,14 @@
     "*.h",
     "*.s"
   ],
-  "units": []
+  "units": [
+    {
+      "name": "func_001098D8",
+      "target_path": "build/expected/func_001098D8.o",
+      "base_path": "build/obj/func_001098D8.o",
+      "metadata": {
+        "source_path": "src/func_001098D8.c"
+      }
+    }
+  ]
 }
