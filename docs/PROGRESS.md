@@ -54,8 +54,8 @@ full format detail for everything below.
 
 ### Done — Track A matching-decomp pipeline (the "hello world")
 
-The decomp pipeline is stood up end to end and the first function is a verified
-100% match. The M1 runs objdiff, splat and editing; an arm64 Linux container
+The decomp pipeline is stood up end to end and the first functions are verified
+100% matches. The M1 runs objdiff, splat and editing; an arm64 Linux container
 runs the period-correct compiler.
 
 - **Boot ELF** `SCUS_971.12` extracted from the user's ISO to
@@ -74,9 +74,10 @@ runs the period-correct compiler.
   **32-bit wibo** (`tools/bin/wibo32`, cross-built by `docker/build-wibo.sh`)
   inside **qemu-i386**. The MIPS assembler is arm64-native — only the compiler
   is emulated.
-- **First match — `func_001098D8`** (`return 1`): `src/func_001098D8.c`
-  compiles to a **100% `.text` match** vs the original, confirmed by
-  `objdiff-cli`. The pipeline is proven end to end.
+- **First matches** — `func_001098D8` (`return 1`), `func_0010BE50`
+  (`return -1`) and `func_00121AE8` (empty) each compile to a **100% `.text`
+  match** vs the original, confirmed by `objdiff-cli`. The pipeline is proven
+  end to end.
 
 Build flow (`tools/decomp/build.py`): `setup` runs splat + writes
 `objdiff.json`; `build` assembles the splat disassembly into objdiff *target*

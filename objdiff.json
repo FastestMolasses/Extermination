@@ -20,6 +20,22 @@
       "metadata": {
         "source_path": "src/func_001098D8.c"
       }
+    },
+    {
+      "name": "func_0010BE50",
+      "target_path": "build/expected/func_0010BE50.o",
+      "base_path": "build/obj/func_0010BE50.o",
+      "metadata": {
+        "source_path": "src/func_0010BE50.c"
+      }
+    },
+    {
+      "name": "func_00121AE8",
+      "target_path": "build/expected/func_00121AE8.o",
+      "base_path": "build/obj/func_00121AE8.o",
+      "metadata": {
+        "source_path": "src/func_00121AE8.c"
+      }
     }
   ]
 }
