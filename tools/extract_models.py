@@ -5,12 +5,24 @@ Original tooling for the Extermination decompilation project. Reads only files
 the user supplies from their own legally-dumped disc; it redistributes nothing
 and embeds no disc-derived data.
 
+The game stores 3D geometry in two related layouts that share an identical
+64-byte vertex record but differ in how blocks are framed:
+
+  * LEVEL geometry  -- the 32 `id 0x44` files. Block-structured, walked via
+                       16-byte separator rows. See "Level format" below.
+  * MODEL geometry  -- ~330 other files (character / enemy / prop / object
+                       models, many file ids). Same vertex record, but the
+                       geometry is wrapped in fixed-size padded blocks rather
+                       than separator-delimited ones. See "Model format" below.
+
+This tool decodes both. Files named `*_id44.bin` take the level path; every
+other `*_id*.bin` carrying the MESH signature takes the model path.
+
 ----------------------------------------------------------------------------
-Geometry format (reverse-engineered, validated empirically)
+Level format (`id 0x44` files) -- reverse-engineered, validated empirically
 ----------------------------------------------------------------------------
 
-3D geometry lives in the large `id 0x44` level files (`*_id44.bin` under the
-`extract/` tree). A geometry file is a sequence of variable-length BLOCKS.
+A level geometry file is a sequence of variable-length BLOCKS.
 
 BLOCK STRUCTURE
   Blocks are delimited by a 16-byte separator row:
@@ -34,7 +46,7 @@ BLOCK STRUCTURE
                   Skipped by this tool.
     * FILLER      descriptor is all `0xff`. Padding. Skipped.
 
-VERTEX RECORD -- 64 bytes, four 16-byte rows:
+VERTEX RECORD -- 64 bytes, four 16-byte rows (SHARED by both formats):
     +0x00  marker row : `<u32 m0> <u32 m1> 00 00 00 00 00 00 00 00`
                         m0/m1 are constant within one triangle strip (a
                         per-strip id / material-ish key). Byte 7 of the record
@@ -62,6 +74,35 @@ TRIANGLE TOPOLOGY -- triangle strips.
   Validated on `chunk04.n0/f06_id44.bin`: 19271 non-degenerate triangles,
   zero spanning the level, coherent bounding box, unit normals.
 
+----------------------------------------------------------------------------
+Model format (character / object / prop files) -- reverse-engineered
+----------------------------------------------------------------------------
+
+The model files carry the SAME 64-byte vertex record and the SAME MESH
+signature, but the block framing differs from the level files:
+
+  * The primary block delimiter is a 16-byte separator `00 00 00 14` + twelve
+    `00` (note `14`, not the level files' `17`). `0x17` separators still
+    appear but only as rare section markers.
+  * A model block is a FIXED-SIZE, PADDED unit. The 16-byte descriptor row
+    right after the separator is usually FILLER (`0xff` x16), not a MESH
+    descriptor -- so the level-style "geometry begins right after the
+    descriptor" rule does not apply. Instead each block carries a short
+    sub-header (a constant `01 00 00 00 .. ..` word pair and a bounding box),
+    then the MESH descriptor `04 04 00 01 00 80 80 6c`, then the vertex
+    records. Each block holds only a handful of real vertices; the remainder
+    of the fixed-size block is filled by DUPLICATING the last real record.
+
+  Because the geometry is reliably anchored by the MESH signature in both
+  layouts, the model path simply scans for every MESH descriptor, reads
+  64-byte records from descriptor+8 until the first invalid (|w| != 1) row,
+  and then drops the duplicated-record tail padding. Triangle-strip topology
+  is identical to the level format.
+
+  Validated empirically across 329 model files (908906 vertices, 537276
+  non-degenerate triangles, only 600 degenerate, zero NaN faces). Bounding
+  boxes are model-sized (median max-extent ~177 units), not level-sized.
+
 UNCERTAIN / NOT YET RESOLVED
   * Material/texture binding. m0/m1 are constant per strip and clearly key
     something (likely a material or texture-page index) but the mapping to the
@@ -72,10 +113,20 @@ UNCERTAIN / NOT YET RESOLVED
     rather than trusting the declared counts.
   * The MATRIX blocks hold instance transforms; this tool exports geometry in
     its stored object-space coordinates and does not apply them.
+  * Skinning / bone weights. No per-vertex bone index or weight data was found
+    in the 64-byte record -- the four rows are fully accounted for (marker,
+    uv, normal/colour, position). Any skinning rig, if present, lives outside
+    the geometry blocks (likely in a separate animation file or a MATRIX
+    block) and is not yet located. Model meshes are exported as static
+    geometry in bind/rest pose.
+  * The model-block sub-header's leading `01 00 00 00 .. ..` word pair is
+    constant within a file but its meaning (a vertex/strip count or a flags
+    word) is not confirmed; the decoder does not rely on it.
 
 Usage:
   extract_models.py --in extract --out models
   extract_models.py --file extract/chunk04.n0/f06_id44.bin --out models
+  extract_models.py --file extract/chunk07.n1/f06_id70.bin --out models
 """
 from __future__ import annotations
 
@@ -233,7 +284,9 @@ def strip_triangles(strip: Strip):
     """Yield (i0, i1, i2) local vertex indices for non-degenerate triangles.
 
     Standard triangle-strip winding with the alternating flip; degenerate
-    (zero-area) triangles -- the strip-stitching idiom -- are skipped.
+    triangles -- the strip-stitching idiom -- are skipped: both zero-area
+    triangles and triangles with two coincident vertices (a thin sliver whose
+    area is non-zero but which is still topologically degenerate).
     """
     v = strip.verts
     for t in range(len(v) - 2):
@@ -241,13 +294,16 @@ def strip_triangles(strip: Strip):
             i0, i1, i2 = t + 1, t, t + 2
         else:
             i0, i1, i2 = t, t + 1, t + 2
-        if tri_area(v[i0].pos, v[i1].pos, v[i2].pos) < MIN_TRI_AREA:
+        p0, p1, p2 = v[i0].pos, v[i1].pos, v[i2].pos
+        if p0 == p1 or p1 == p2 or p0 == p2:
+            continue
+        if tri_area(p0, p1, p2) < MIN_TRI_AREA:
             continue
         yield i0, i1, i2
 
 
 def parse_file(d: bytes) -> list[Strip]:
-    """Return every triangle strip in a geometry file."""
+    """Return every triangle strip in a LEVEL (`id 0x44`) geometry file."""
     blocks = block_bounds(d)
     if not blocks:
         return []
@@ -258,6 +314,55 @@ def parse_file(d: bytes) -> list[Strip]:
             continue
         records = read_vertices(d, vstart, end)
         strips.extend(build_strips(records))
+    return strips
+
+
+def read_model_block(d: bytes, vstart: int) -> list:
+    """Decode one model-format MESH block's vertex records.
+
+    Reads 64-byte records from `vstart` until the first invalid (|w| != 1)
+    row, then drops the duplicated-record tail that pads the fixed-size block.
+    Returns the (Vertex, strip_key) list build_strips() expects.
+    """
+    raw: list[bytes] = []
+    o = vstart
+    while o + VERT_SIZE <= len(d):
+        w = struct.unpack_from("<f", d, o + 0x3C)[0]
+        if abs(abs(w) - 1.0) < W_TOLERANCE:
+            raw.append(d[o:o + VERT_SIZE])
+            o += VERT_SIZE
+        else:
+            break
+    # The block is padded by repeating its last real record; trim that tail.
+    real = len(raw)
+    while real > 1 and raw[real - 1] == raw[real - 2]:
+        real -= 1
+    records: list = []
+    for rec in raw[:real]:
+        flag = rec[7]
+        m0, m1 = struct.unpack_from("<II", rec, 0)
+        uv = struct.unpack_from("<2f", rec, 0x10)
+        attr = struct.unpack_from("<3f", rec, 0x20)
+        pos = struct.unpack_from("<3f", rec, 0x30)
+        records.append((Vertex(flag, uv, attr, pos), (m0, m1 & 0x00FFFFFF)))
+    return records
+
+
+def parse_model_file(d: bytes) -> list[Strip]:
+    """Return every triangle strip in a MODEL (character/object/prop) file.
+
+    Model files do not use the level files' separator-delimited block walk:
+    their MESH blocks are fixed-size and the descriptor after a separator is
+    usually FILLER. The MESH signature is the reliable anchor, so this scans
+    for every occurrence and decodes the records that follow it.
+    """
+    strips: list[Strip] = []
+    i = d.find(MESH_SIG)
+    while i != -1:
+        records = read_model_block(d, i + len(MESH_SIG))
+        if records:
+            strips.extend(build_strips(records))
+        i = d.find(MESH_SIG, i + 1)
     return strips
 
 
@@ -325,10 +430,26 @@ def write_obj(path: Path, strips: list[Strip]) -> tuple[int, int]:
     return total_v, total_f
 
 
+def is_level_file(path: Path) -> bool:
+    """True for the `id 0x44` level files, which use the separator-block path."""
+    return path.stem.endswith("_id44")
+
+
 def process(path: Path, out_dir: Path) -> str | None:
-    """Parse one geometry file and write an OBJ. Returns a status line."""
+    """Parse one geometry file and write an OBJ. Returns a status line.
+
+    `id 0x44` files take the validated level path; every other file takes the
+    model-variant path. A file with no MESH signature yields nothing.
+    """
     d = path.read_bytes()
-    strips = parse_file(d)
+    if is_level_file(path):
+        strips = parse_file(d)
+        kind = "level"
+    else:
+        if MESH_SIG not in d:
+            return None
+        strips = parse_model_file(d)
+        kind = "model"
     if not strips:
         return None
     name = f"{path.parent.name}_{path.stem}.obj"
@@ -337,16 +458,19 @@ def process(path: Path, out_dir: Path) -> str | None:
         # No real triangles after dropping degenerates -- discard the file.
         (out_dir / name).unlink(missing_ok=True)
         return None
-    return f"{path.parent.name}/{path.name}: {len(strips)} strips, {nv} verts, {nf} tris -> {name}"
+    return (f"{path.parent.name}/{path.name} [{kind}]: {len(strips)} strips, "
+            f"{nv} verts, {nf} tris -> {name}")
 
 
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description="Extermination 3D model extractor")
     p.add_argument("--in", dest="input", default="extract",
-                   help="extraction directory to scan for *_id44.bin (default: extract)")
+                   help="extraction directory to scan for *_id*.bin (default: extract)")
     p.add_argument("--file", help="convert a single geometry file instead of scanning")
     p.add_argument("--out", default="models",
                    help="output directory for OBJ files (default: models)")
+    p.add_argument("--levels-only", action="store_true",
+                   help="only convert the id 0x44 level files (skip model variants)")
     args = p.parse_args(argv)
 
     out_dir = Path(args.out)
@@ -354,10 +478,14 @@ def main(argv: list[str]) -> int:
 
     if args.file:
         paths = [Path(args.file)]
-    else:
+    elif args.levels_only:
         paths = sorted(Path(args.input).rglob("*_id44.bin"))
+    else:
+        # Every chunk file; process() routes id44 -> level path, rest -> model.
+        paths = sorted(Path(args.input).rglob("*_id*.bin"))
 
-    done = 0
+    levels = 0
+    models = 0
     skipped = 0
     for path in paths:
         if not path.is_file():
@@ -366,10 +494,13 @@ def main(argv: list[str]) -> int:
         line = process(path, out_dir)
         if line:
             print(line)
-            done += 1
+            if "[level]" in line:
+                levels += 1
+            else:
+                models += 1
         else:
             skipped += 1
-    print(f"\n{done} model file(s) exported to {out_dir}/  "
+    print(f"\n{levels} level + {models} model file(s) exported to {out_dir}/  "
           f"({skipped} file(s) had no geometry)")
     return 0
 

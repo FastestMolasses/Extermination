@@ -101,17 +101,23 @@ re-confirmed from the decompiled audio engine.
 
 ## Geometry / models
 
-**Level geometry decoded; character/object models still pending.** Exporter:
+**Level geometry AND character/object/prop models decoded.** Exporter:
 `tools/extract_models.py` (geometry file → Wavefront OBJ). Full format details
 are in that script's module docstring; summary below.
 
-The `id 0x44` **level** files are decoded and validated — all 32 export to
-valid OBJ. **But the MESH-descriptor signature also appears in ~330 other
-files** across many file ids — almost certainly the character / enemy / prop
-/ object models. `extract_models.py` does *not* yet decode those: tested on
-non-`id 0x44` files it extracts nothing or near-nothing (e.g. an `id 0x70`
-file gave 734 vertices but only 8 faces), so they use format variant(s) still
-to be reverse-engineered.
+The game stores 3D geometry in **two related layouts** that share an identical
+64-byte vertex record but frame their blocks differently:
+
+- **Level geometry** — the 32 `id 0x44` files. Separator-delimited blocks.
+- **Model geometry** — ~330 other files (character / enemy / prop / object
+  models, many file ids). Same vertex record; fixed-size padded blocks.
+
+`extract_models.py` now decodes **both**: `*_id44.bin` → level path,
+every other `*_id*.bin` carrying the MESH signature → model path. A full
+`extract/` run exports **32 level + 328 model** OBJ files (≈1.18 M vertices,
+≈684 K triangles total; 243 non-geometry files correctly skipped).
+
+### Level format (`id 0x44`)
 
 3D geometry in the `id 0x44` level files is a sequence of **variable-length
 blocks**, not a flat vertex array (the earlier "uniform 64-byte record run"
@@ -150,15 +156,52 @@ for stitching strips into one draw call and are dropped on export.
 
 **Validation.** On `chunk04.n0/f06_id44.bin`: 19271 non-degenerate triangles,
 zero degenerate or level-spanning faces, coherent bounding box
-(≈ 455 × 162 × 1813 units), unit normals. All 32 geometry-bearing `id 0x44`
-files export to valid OBJ (4 `id44` files hold non-geometry data).
+(≈ 455 × 162 × 1813 units), unit normals. All 32 `id 0x44` files export to
+valid OBJ.
+
+### Model format (character / object / prop files)
+
+The model files carry the **same 64-byte vertex record** and the **same MESH
+descriptor** `04 04 00 01 00 80 80 6c`, but the block framing differs:
+
+- The primary block delimiter is a 16-byte separator `00 00 00 14` + twelve
+  `00` — note `14`, not the level files' `17`. (`0x17` separators still occur
+  in model files, but only as rare section markers.)
+- A model block is a **fixed-size, padded** unit (`0x880` bytes in the files
+  examined). The 16-byte descriptor row right after the separator is usually
+  **FILLER** (`0xff`×16), *not* a MESH descriptor — so the level rule
+  "geometry begins right after the descriptor" does not apply. Each block
+  carries a short sub-header (a constant `01 00 00 00 .. ..` word pair and a
+  bounding box), then the MESH descriptor, then the vertex records.
+- Each block holds only a handful of real vertices; the rest of the
+  fixed-size block is filled by **duplicating the last real record**.
+
+Because the MESH descriptor reliably anchors the geometry in *both* layouts,
+the model path scans for every MESH descriptor, reads 64-byte records from
+descriptor+8 until the first invalid (`|w| ≠ 1`) row, then **drops the
+duplicated-record tail padding**. Triangle-strip topology is identical to the
+level format.
+
+**Validation.** Empirically across the 328 exported model files: ≈905 K
+vertices, ≈538 K non-degenerate triangles, ~600 strip-stitch degenerates
+(dropped), zero NaN and zero out-of-range faces. Bounding boxes are
+model-sized — median max-extent ≈177 units — not level-sized (e.g.
+`chunk07.n1/f06_id70.bin` → 90 × 60 × 275; `chunk04.n0/f05_id71.bin` →
+50 × 43 × 140). One outlier (`chunk30/f00_id38.bin`) is a flat 2D element
+(z-extent 0, x/y ≈ 2000) — likely a billboard/skybox/map plane.
 
 **Still uncertain.** Material/texture binding: m0/m1 are constant per strip
 and clearly key a material or texture page, but the mapping to the GS texture
 packets is not decoded — the exporter groups strips into OBJ objects by
 (m0, m1) to preserve the grouping. The SUBMESH sub-header fields and the
 MATRIX instance transforms are not applied (geometry is exported in stored
-object space).
+object space). **Skinning / bone data**: no per-vertex bone index or weight
+was found — the four record rows are fully accounted for (marker, uv,
+normal/colour, position). Any animation rig lives outside the geometry blocks
+(a separate file or a MATRIX block) and is not yet located; model meshes are
+exported as static geometry in rest pose. The model-block sub-header's leading
+`01 00 00 00 .. ..` word pair is constant within a file but its meaning is
+unconfirmed; the decoder does not rely on it.
 
 ## `MUSIC.DAT` track listing
 

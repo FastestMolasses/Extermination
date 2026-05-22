@@ -38,15 +38,19 @@ _Last updated: 2026-05-22_
   source** is unresolved — PSMT8 needs a CLUT, none was found in the data;
   it's either a grayscale ramp (color from vertex modulation) or an unlocated
   color CLUT. See the open questions.
-- **Geometry / models** — **level geometry done; character/object models
-  pending.** The `id 0x44` level-file format is reverse-engineered:
-  `tools/extract_models.py` exports it to Wavefront OBJ (block-structured —
-  MESH / SUBMESH / MATRIX / FILLER blocks; triangle-strip 64-byte vertex
-  records). All 32 `id 0x44` files export to valid OBJ (verified: 19271 clean
-  triangles in the largest, zero degenerate faces). **But the same MESH-format
-  signature appears in ~330 other files** (many file ids) — almost certainly
-  the character / enemy / prop models — and the tool does not yet decode them
-  (format variants). See the open questions. `docs/FINDINGS.md` has detail.
+- **Geometry / models** — **level geometry AND character/object/prop models
+  done.** Both the `id 0x44` level-file format and the model-file variant are
+  reverse-engineered: `tools/extract_models.py` exports both to Wavefront OBJ.
+  Level files are separator-delimited blocks (MESH / SUBMESH / MATRIX /
+  FILLER); model files use the same 64-byte vertex record but fixed-size
+  padded blocks anchored by the MESH descriptor (with duplicated-record tail
+  padding trimmed). A full `extract/` run exports **32 level + 328 model** OBJ
+  files (≈1.18 M verts, ≈684 K triangles; 243 non-geometry files skipped).
+  Verified: zero out-of-range faces, model-sized bounding boxes for model
+  files, level result unchanged (19271 triangles). `docs/FINDINGS.md` has the
+  format detail. Remaining geometry work: skinning/bone data (not found in the
+  vertex record — lives elsewhere), material→texture binding, MATRIX instance
+  transforms.
 
 ### Open questions / to verify
 - **Sample rate.** Streamed audio (VOICE/MUSIC) = **48000 Hz** — strong
@@ -75,9 +79,10 @@ _Last updated: 2026-05-22_
 - Separate the 55 `MUSIC.DAT` tracks: **25 are the official soundtrack, the
   other 30 are cutscene audio** (per user, cross-referenced with an online
   soundtrack listing). Not yet labelled/split.
-- **Geometry / models** — level geometry is decoded (`extract_models.py`).
-  Remaining: (a) **character / object / prop models** — ~330 more files carry
-  the MESH signature in undecoded format variant(s); adapt the tool to them;
+- **Geometry / models** — level geometry and character/object/prop models are
+  both decoded (`extract_models.py`). Remaining: (a) **skinning / animation** —
+  no bone index/weight data is in the geometry record; locate the animation
+  rig (separate file or MATRIX block) so model meshes can be posed/animated;
   (b) strip marker → texture-packet binding (enables per-texture extraction);
   (c) MATRIX instance transforms (placed full-level scenes; also addresses the
   "missing pieces" — instanced geometry is currently exported once, unplaced).
@@ -91,7 +96,7 @@ _Last updated: 2026-05-22_
   - `extract_data.py` — `DATA.DAT`/`INDEX.IDX` archive extractor.
   - `decode_sound.py` — VAG ADPCM decoder (SFX banks + VOICE/MUSIC streams).
   - `extract_textures.py` — GS texture-packet extractor (8-bit, grayscale).
-  - `extract_models.py` — `id 0x44` geometry → Wavefront OBJ exporter.
+  - `extract_models.py` — geometry → Wavefront OBJ (level + character/object models).
 - `docs/` — this folder: project state and findings (committed).
 - Disc-derived outputs (`extract/`, `wav/`, `voice/`, `music/`, `iso/`, …) are
   git-ignored — each user regenerates them locally from their own disc.
