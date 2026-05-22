@@ -99,7 +99,22 @@ The rate is **not stored in the audio data** (engine/SPU-pitch parameter).
 SFX-bank rate is still unconfirmed (provisionally 22050). Both should be
 re-confirmed from the decompiled audio engine.
 
-### `MUSIC.DAT` track listing
+## Geometry / models
+
+Reverse-engineering **started — characterized, not yet fully decoded.**
+
+3D geometry lives in the large `id 0x44` level files. Observed structure:
+- A geometry file is a long run of fixed **0x40-byte (64-byte) records** — one
+  ~5.4 MB level file (`chunk04.n0/f06_id44.bin`) holds ~85,000 of them.
+- Each record looks like one **vertex**: a marker/id field (`15 42 37 5X`
+  followed by a u32) then three vec4s — a UV-like pair (0..1), a unit normal,
+  and a world-space position (xyz + w ≈ -1.0). All IEEE-754 floats.
+
+Not yet determined: how vertices group into primitives/strips/meshes, any
+index data, material/texture binding, and whether VIF/GIF draw packets wrap
+it. This is the next deep task; per-texture extraction depends on it.
+
+## `MUSIC.DAT` track listing
 
 `MUSIC.DAT` decodes to 55 tracks. Per the user (cross-referenced with an online
 soundtrack listing): **25 are the official soundtrack; the remaining 30 are

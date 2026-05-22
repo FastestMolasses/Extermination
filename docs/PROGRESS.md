@@ -64,8 +64,10 @@ _Last updated: 2026-05-22_
 - Separate the 55 `MUSIC.DAT` tracks: **25 are the official soundtrack, the
   other 30 are cutscene audio** (per user, cross-referenced with an online
   soundtrack listing). Not yet labelled/split.
-- Reverse the **geometry / model** formats (the float-array files in the
-  taxonomy — see `docs/FINDINGS.md`).
+- Reverse the **geometry / model** formats — **started**: the `id 0x44` level
+  files are long runs of 0x40-byte vertex records (position + normal + UV-like
+  + id field). Still to do: primitives/meshes, indices, material binding, then
+  a model exporter. See `docs/FINDINGS.md`.
 - Stand up **Track A**: clone a reference template (`fmil95/recvx-decomp` —
   also CodeWarrior), install objdiff (native arm64), set up splat, build the
   x86_64-Linux `mwccps2` + wibo container, get one leaf function to 100%.
