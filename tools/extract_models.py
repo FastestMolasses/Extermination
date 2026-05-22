@@ -183,12 +183,78 @@ UNCERTAIN / NOT YET RESOLVED
     constant within a file but its meaning (a vertex/strip count or a flags
     word) is not confirmed; the decoder does not rely on it.
 
+----------------------------------------------------------------------------
+Rig / animation data -- reverse-engineered, PARTIAL (see "uncertain" notes)
+----------------------------------------------------------------------------
+
+The 64-byte geometry vertex record has NO per-vertex bone index or weight
+field -- its four rows are fully accounted for (marker, uv, normal/colour,
+position). The skinning / animation rig therefore lives in SEPARATE files, not
+inside the geometry blocks. Two distinct representations were located:
+
+(1) RIG / SKELETON-TRANSFORM FILES -- a family of small (2-4 KiB) files that
+    carry NO MESH signature and instead hold a flat array of fixed 0x78-byte
+    (120-byte) records. 23 such files are present in `extract/`; several are
+    byte-identical across many level regions (a shared rig, presumably the
+    player). Layout:
+
+      FILE HEADER
+        * "short" form  -- 4 bytes: `<u32 record_count>`. Records start at +4.
+        * "long" form   -- 0x20 bytes: `<u32 record_count>` then a `fffe00xx`
+                           sentinel and a float vec3 (a root offset / bbox
+                           centre). Records start at +0x20.
+        The two forms are told apart by where the first `78 00 04 00` tag sits
+        (offset 8 for short, 0x24 for long).
+
+      RECORD -- 0x78 bytes, repeated `record_count` (+/-1) times:
+        +0x00  u8[3] flags + u8 BONE / JOINT INDEX
+               The 4th byte is a small integer that indexes a bone/joint; it
+               is constant across a run of consecutive records (several
+               records per joint -- keyframes or sub-transforms). The three
+               flag bytes take a few discrete values (`00 01`, `01 00`,
+               `00 80`, ...) -- a per-record type/interpolation tag.
+        +0x04  `78 00 04 00` -- a PS2 VIF UNPACK tag (the engine DMAs these
+               records straight to VU1; `0x78` is the UNPACK opcode).
+        +0x08  112-byte transform PAYLOAD -- the VIF-unpacked joint transform
+               (a matrix and/or quaternion+translation). In the cleanest
+               files the payload decodes to exact +/-1.0 / 0.0 entries
+               (axis-aligned bind-pose matrices); in general it is VIF-packed
+               and a faithful float decode needs the VU1 program, so this
+               tool dumps the payload as raw bytes + a best-effort float view
+               rather than asserting a matrix layout.
+
+    `--rig` walks every rig file and writes a `*_rig.txt` dump: the header,
+    and per record the bone index, flags, and payload (hex + float view).
+
+(2) PER-FRAME VERTEX ANIMATION -- some characters are animated by shipping the
+    whole mesh once per pose. In `chunk03` a single 13-block / 1690-vertex
+    character mesh appears as 11 sibling files (`id29..id2e`, `id30..id34`)
+    with IDENTICAL block count and per-strip topology but different vertex
+    positions -- i.e. 11 keyframe poses of one mesh. `--anim` detects such
+    sibling groups (same block count + same per-strip vertex counts within a
+    region) and exports each group as a numbered OBJ sequence
+    `*_frameNN.obj`, ready to load as a morph / vertex-cache animation.
+
+UNCERTAIN / NOT YET RESOLVED (rig)
+  * The 112-byte rig-record payload is VIF-packed; without the VU1 microcode
+    the exact field layout (matrix vs quaternion+translation, fixed-point
+    scale) is not confirmed. The dump is structural and honest about this.
+  * The bone PARENT hierarchy is not yet isolated -- the per-record index is
+    the joint id, but no explicit parent-index array was identified inside the
+    rig files (it may be implied by record order, or live in the model-file
+    sub-header). Reported as open.
+  * Which rig file binds to which model file is by-region association only
+    (a region bundles one entity's pieces); no explicit cross-reference id
+    was decoded.
+
 Usage:
   extract_models.py --in extract --out models
   extract_models.py --file extract/chunk04.n0/f06_id44.bin --out models
   extract_models.py --file extract/chunk07.n1/f06_id70.bin --out models
   extract_models.py --scene --in extract --out models      # placed levels
   extract_models.py --scene --file extract/chunk17/f01_id44.bin --out models
+  extract_models.py --rig  --in extract --out models       # dump rig files
+  extract_models.py --anim --in extract --out models       # pose-set frames
 """
 from __future__ import annotations
 
@@ -211,6 +277,12 @@ MATRIX_SIG = b"\xff\xff\xff\xff"
 
 # One MATRIX transform-table record: u32 index + 12 bytes, then a 4x4 matrix.
 MATRIX_REC_SIZE = 0x50
+
+# Rig-file record: 4-byte control word (incl. bone index) + a 4-byte VIF
+# UNPACK tag + a 112-byte transform payload = 0x78 bytes total.
+RIG_REC_SIZE = 0x78
+# The VIF UNPACK tag that marks every rig record's transform payload.
+RIG_VIF_TAG = b"\x78\x00\x04\x00"
 
 VERT_SIZE = 0x40
 # A real vertex's position w is ~= +/-1.0; padding/header rows are not.
@@ -619,6 +691,171 @@ def parse_scene(d: bytes) -> list[Strip]:
     return strips
 
 
+# ---------------------------------------------------------------------------
+# Rig / skeleton-transform files
+# ---------------------------------------------------------------------------
+
+
+class RigRecord:
+    """One 0x78-byte rig record: a joint transform packet."""
+
+    __slots__ = ("offset", "flags", "bone", "payload")
+
+    def __init__(self, offset: int, flags: tuple, bone: int, payload: bytes):
+        self.offset = offset      # byte offset of the record in the file
+        self.flags = flags        # the three control-word flag bytes
+        self.bone = bone          # joint / bone index (control-word byte 3)
+        self.payload = payload    # 112-byte VIF-packed transform payload
+
+
+class RigFile:
+    """A decoded rig / skeleton-transform file."""
+
+    __slots__ = ("count", "header", "records", "long_header")
+
+    def __init__(self, count, header, records, long_header):
+        self.count = count            # declared record count from the header
+        self.header = header          # raw header bytes
+        self.records = records        # list[RigRecord]
+        self.long_header = long_header  # True for the 0x20-byte header form
+
+
+def _rig_record_starts(d: bytes) -> list[int]:
+    """Offsets of every contiguous 0x78-byte rig record (tag-anchored)."""
+    first = d.find(RIG_VIF_TAG)
+    if first < 0:
+        return []
+    # The VIF tag sits at record+0x04; the record itself starts 4 bytes earlier.
+    o = first - 4
+    starts: list[int] = []
+    while o >= 0 and o + RIG_REC_SIZE <= len(d) \
+            and d[o + 4:o + 8] == RIG_VIF_TAG:
+        starts.append(o)
+        o += RIG_REC_SIZE
+    return starts
+
+
+def is_rig_file(d: bytes) -> bool:
+    """True for a rig / skeleton-transform file.
+
+    A rig file carries NO MESH signature and is a flat array of >=3
+    contiguous 0x78-byte records, each tagged with the VIF UNPACK word.
+    """
+    if MESH_SIG in d or len(d) > 200_000:
+        return False
+    return len(_rig_record_starts(d)) >= 3
+
+
+def parse_rig_file(d: bytes) -> RigFile | None:
+    """Decode a rig / skeleton-transform file into joint-transform records.
+
+    See the module docstring ("Rig / animation data") for the format. The
+    payload is left as raw bytes -- it is VIF-packed and a faithful float
+    decode needs the VU1 microcode -- but the bone index and flags are
+    decoded reliably.
+    """
+    starts = _rig_record_starts(d)
+    if len(starts) < 3:
+        return None
+    first = starts[0]
+    # Header is everything before the first record's 4-byte control word.
+    long_header = first >= 0x20
+    header = d[:first - 4]
+    count = struct.unpack_from("<I", d, 0)[0] if len(d) >= 4 else len(starts)
+    records: list[RigRecord] = []
+    for o in starts:
+        ctrl = d[o:o + 4]
+        records.append(RigRecord(o, (ctrl[0], ctrl[1], ctrl[2]), ctrl[3],
+                                 d[o + 8:o + RIG_REC_SIZE]))
+    return RigFile(count, header, records, long_header)
+
+
+def write_rig_dump(path: Path, rig: RigFile, src_name: str) -> int:
+    """Write a human-readable dump of a rig file. Returns the record count.
+
+    Each record is shown with its joint index, flag bytes, and the 112-byte
+    transform payload as both hex and a best-effort 28-float view. The float
+    view is informational only -- the payload is VIF-packed (see docstring).
+    """
+    lines: list[str] = [
+        f"# Extermination (SCUS-97112) rig / skeleton-transform dump",
+        f"# source: {src_name}",
+        f"# exported by tools/extract_models.py --rig",
+        f"# header ({len(rig.header)} bytes, "
+        f"{'long' if rig.long_header else 'short'} form): "
+        f"{rig.header.hex()}",
+        f"# declared record count: {rig.count}; decoded records: "
+        f"{len(rig.records)}",
+        "# record = u8[3] flags + u8 bone-index, then a 78 00 04 00 VIF tag,"
+        " then a 112-byte VIF-packed transform payload.",
+        "",
+    ]
+    # Joint indices in order -- a quick view of the skeleton layout.
+    bones = [r.bone for r in rig.records]
+    lines.append(f"# joint index per record: {bones}")
+    lines.append(f"# distinct joints: {sorted(set(bones))}")
+    lines.append("")
+    for i, r in enumerate(rig.records):
+        floats = struct.unpack("<28f", r.payload)
+        lines.append(f"record {i:3d}  @0x{r.offset:05x}  bone={r.bone:3d}  "
+                     f"flags={r.flags[0]:02x} {r.flags[1]:02x} "
+                     f"{r.flags[2]:02x}")
+        lines.append(f"  payload.hex: {r.payload.hex()}")
+        for k in range(0, 28, 4):
+            quad = floats[k:k + 4]
+            lines.append("  payload.f4[%2d]: %s" % (
+                k, "  ".join(f"{x: .5f}" for x in quad)))
+        lines.append("")
+    path.write_text("\n".join(lines) + "\n")
+    return len(rig.records)
+
+
+# ---------------------------------------------------------------------------
+# Per-frame vertex animation (pose-set detection)
+# ---------------------------------------------------------------------------
+
+
+def model_topology_key(d: bytes):
+    """Topology fingerprint of a model file, or None if it has no geometry.
+
+    The key is (block_count, total_vertices, per-strip vertex counts). Two
+    model files with the same key are the same mesh -- different files with
+    that key in one region are keyframe poses of one animated mesh.
+    """
+    if MESH_SIG not in d:
+        return None
+    strips = parse_model_file(d)
+    if not strips:
+        return None
+    return (len(strips),
+            sum(len(s.verts) for s in strips),
+            tuple(len(s.verts) for s in strips))
+
+
+def find_pose_sets(paths: list[Path]) -> list[list[Path]]:
+    """Group model files into per-frame-animation pose sets.
+
+    Files are grouped within a single region (same parent directory): a group
+    of >=3 model files that share an identical topology fingerprint is a
+    vertex-animation pose set (one mesh shipped once per keyframe pose).
+    """
+    by_region: dict[Path, dict] = {}
+    for p in paths:
+        if not p.is_file() or p.stem.endswith("_id44"):
+            continue
+        key = model_topology_key(p.read_bytes())
+        if key is None:
+            continue
+        by_region.setdefault(p.parent, {}).setdefault(key, []).append(p)
+    sets: list[list[Path]] = []
+    for region in sorted(by_region):
+        for key in sorted(by_region[region], key=lambda k: (-k[0], k[1])):
+            group = sorted(by_region[region][key])
+            if len(group) >= 3:
+                sets.append(group)
+    return sets
+
+
 def write_obj(path: Path, strips: list[Strip],
               placed: bool = False) -> tuple[int, int]:
     """Write strips to a Wavefront OBJ. Returns (vertex_count, face_count).
@@ -734,6 +971,62 @@ def process(path: Path, out_dir: Path, scene: bool = False) -> str | None:
             f"{nv} verts, {nf} tris -> {name}")
 
 
+def run_rig(args, out_dir: Path) -> int:
+    """`--rig`: decode rig / skeleton-transform files and dump them."""
+    if args.file:
+        paths = [Path(args.file)]
+    else:
+        paths = sorted(Path(args.input).rglob("*_id*.bin"))
+    found = 0
+    for path in paths:
+        if not path.is_file():
+            print(f"skip (not found): {path}")
+            continue
+        d = path.read_bytes()
+        if not is_rig_file(d):
+            continue
+        rig = parse_rig_file(d)
+        if rig is None:
+            continue
+        name = f"{path.parent.name}_{path.stem}_rig.txt"
+        n = write_rig_dump(out_dir / name, rig, f"{path.parent.name}/{path.name}")
+        bones = sorted(set(r.bone for r in rig.records))
+        print(f"{path.parent.name}/{path.name}: {n} joint records, "
+              f"{len(bones)} distinct joint indices -> {name}")
+        found += 1
+    print(f"\n{found} rig file(s) dumped to {out_dir}/")
+    return 0
+
+
+def run_anim(args, out_dir: Path) -> int:
+    """`--anim`: detect and export per-frame vertex-animation pose sets."""
+    if args.file:
+        paths = [Path(args.file)]
+    else:
+        paths = sorted(Path(args.input).rglob("*_id*.bin"))
+    sets = find_pose_sets(paths)
+    exported = 0
+    for group in sets:
+        region = group[0].parent.name
+        # A stable base name from the region and the group's shared topology.
+        first = group[0]
+        base = f"{region}_{first.stem.split('_')[0]}_anim"
+        for frame, path in enumerate(group):
+            strips = parse_model_file(path.read_bytes())
+            name = f"{base}_frame{frame:02d}.obj"
+            nv, nf = write_obj(out_dir / name, strips)
+            if nf == 0:
+                (out_dir / name).unlink(missing_ok=True)
+        print(f"{region}: pose set of {len(group)} frames "
+              f"({first.name}..{group[-1].name}) -> {base}_frameNN.obj")
+        exported += 1
+    print(f"\n{exported} vertex-animation pose set(s) exported to {out_dir}/")
+    if exported == 0:
+        print("(no per-frame pose sets found -- most models are not "
+              "vertex-animated; see --rig for the skeleton-transform files)")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description="Extermination 3D model extractor")
     p.add_argument("--in", dest="input", default="extract",
@@ -750,10 +1043,25 @@ def main(argv: list[str]) -> int:
                         "*_scene.obj; only affects the id 0x44 level files. "
                         "Opt-in and additive -- the default per-mesh export is "
                         "unchanged.")
+    p.add_argument("--rig", action="store_true",
+                   help="decode the rig / skeleton-transform files (small "
+                        "non-MESH files of 0x78-byte VIF-tagged joint "
+                        "records) and write a *_rig.txt dump of each. Opt-in "
+                        "and additive -- does not affect geometry export.")
+    p.add_argument("--anim", action="store_true",
+                   help="detect per-frame vertex-animation pose sets (>=3 "
+                        "model files in one region sharing identical "
+                        "topology) and export each as a *_frameNN.obj "
+                        "sequence. Opt-in and additive.")
     args = p.parse_args(argv)
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.rig:
+        return run_rig(args, out_dir)
+    if args.anim:
+        return run_anim(args, out_dir)
 
     if args.file:
         paths = [Path(args.file)]

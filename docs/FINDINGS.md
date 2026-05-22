@@ -253,10 +253,32 @@ into OBJ objects by (m0, m1) to preserve the grouping. The SUBMESH sub-header
 fields are not fully interpreted (geometry is located empirically).
 **Skinning / bone data**: no per-vertex bone index or weight was found — the
 four record rows are fully accounted for (marker, uv, normal/colour,
-position). Any animation rig lives outside the geometry blocks and is not yet
-located; model meshes are exported as static geometry in rest pose. The
-model-block sub-header's leading `01 00 00 00 .. ..` word pair is constant
-within a file but its meaning is unconfirmed; the decoder does not rely on it.
+position). The animation rig lives in separate files — now located and
+partially reversed (see "Rig / animation" below). The model-block sub-header's
+leading `01 00 00 00 .. ..` word pair is constant within a file but its
+meaning is unconfirmed; the decoder does not rely on it.
+
+### Rig / animation
+
+Skinning/animation data is **not** in the geometry record; it lives in
+separate files, in two representations.
+
+**Rig / skeleton-transform files.** 23 small (2-4 KiB) files with no MESH
+signature — instead a flat array of fixed **0x78-byte (120-byte) records**.
+Several are byte-identical across many level regions (a shared rig, presumably
+the player). Each record: `[u8x3 flags][u8 bone/joint index]`, a `78 00 04 00`
+VIF UNPACK tag, then a 112-byte **VIF-packed transform payload**. The bone
+index decodes reliably; the payload decodes to bind-pose matrices in the
+cleanest files but a faithful general decode needs the VU1 microcode.
+`extract_models.py --rig` dumps each rig file structurally.
+
+**Per-frame vertex animation.** Some characters ship as sets of sibling pose
+files — identical topology, differing vertex positions (keyframes). A
+`chunk03` character is 11 poses across file ids `0x29`-`0x34`.
+`extract_models.py --anim` detects pose sets and exports `*_frameNN.obj`.
+
+Open: the exact VIF-payload transform layout (needs VU1 microcode) and the
+bone parent hierarchy.
 
 ## `MUSIC.DAT` track listing
 

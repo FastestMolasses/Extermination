@@ -53,7 +53,8 @@ _Last updated: 2026-05-22_
   instances; `extract_models.py --scene` bakes them and exports placed
   full-level OBJ scenes (32 levels, ≈331 K verts, zero outliers; default
   per-mesh export byte-identical and unchanged). Remaining geometry work:
-  skinning/bone data (not found in the vertex record — lives elsewhere),
+  the skinning rig — **now located** in separate files and partially
+  reversed (`--rig` / `--anim` modes; see `docs/FINDINGS.md`) — and
   material→texture binding.
 
 ### Open questions / to verify
@@ -86,9 +87,11 @@ _Last updated: 2026-05-22_
 - **Geometry / models** — level geometry, character/object/prop models, and
   the level-file MATRIX instance transforms are all decoded
   (`extract_models.py`; `--scene` exports placed full-level OBJ scenes).
-  Remaining: (a) **skinning / animation** — no bone index/weight data is in
-  the geometry record; locate the animation rig (a separate file) so model
-  meshes can be posed/animated; (b) strip marker → texture-packet binding
+  Remaining: (a) **skinning / animation** — the rig is located (separate
+  0x78-byte-record files; plus per-frame vertex-animation pose sets), exposed
+  by `--rig`/`--anim`; still to do is the VIF-packed transform payload decode
+  (needs VU1 microcode) and the bone parent hierarchy; (b) strip marker →
+  texture-packet binding
   (enables per-texture extraction); (c) confirm the MATRIX `--scene` open
   questions from the engine code — the role of repeated identity transforms
   and whether transforms are absolute or composed with a parent node (see
