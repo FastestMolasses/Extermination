@@ -1,0 +1,65 @@
+# splat configuration for the Extermination matching decompilation.
+#
+# Target: SCUS-97112 boot ELF (SCUS_971.12) — see CLAUDE.md "Target identity".
+# The ELF is disc-derived: the user supplies it locally at config/SCUS_971.12
+# (git-ignored). splat reads it and disassembles into build/ (also git-ignored).
+#
+# This ELF is fully stripped (no DWARF, zero .symtab entries) and its loadable
+# content is a single unnamed PROGBITS section — so there are no file or
+# function boundaries to recover from the binary. splat auto-detects functions;
+# real translation-unit boundaries are discovered by hand over time and pinned
+# in config/symbol_addrs.txt.
+
+name: "Extermination (SCUS-97112)"
+sha1: 2cca045edce7db2af2c865bd80b46f79661608f0
+
+options:
+  platform: ps2
+  basename: SCUS_971.12
+  # base_path is resolved relative to this yaml's dir (config/); every other
+  # path below is then resolved relative to base_path. ".." => repo root.
+  base_path: ..
+  target_path: config/SCUS_971.12
+
+  # All splat output is disassembly of the original binary -> git-ignored.
+  # Everything generated lands under build/ (incl. the asm macros and the
+  # auto symbol lists) so committed dirs stay clean of disc-derived artifacts.
+  asm_path: build/asm
+  src_path: src
+  build_path: build
+  ld_script_path: build/SCUS_971.12.ld
+  generated_asm_macros_directory: build
+  undefined_funcs_auto_path: build/undefined_funcs_auto.txt
+  undefined_syms_auto_path: build/undefined_syms_auto.txt
+
+  compiler: MWCCPS2
+  gp_value: 0x0027D370
+
+  symbol_addrs_path:
+    - config/symbol_addrs.txt
+
+  # We hand-write C; never let splat scaffold or overwrite source.
+  create_c_files: False
+  disassemble_all: True
+  section_order: [".text", ".data", ".rodata", ".bss"]
+  subalign: 2
+
+segments:
+  # ELF header + 22 program headers (file 0x000000..0x000300).
+  - name: header
+    type: databin
+    start: 0x0
+
+  # The single loadable PROGBITS section: .text/.data/.rodata merged.
+  #   file 0x000300..0x175E00  ->  vram 0x00100000  (entry 0x00100008)
+  #   bss = PT_LOAD memsz 0x723500 - filesz 0x175B00 = 0x5ADA00
+  - name: main
+    type: code
+    start: 0x300
+    vram: 0x00100000
+    bss_size: 0x5ADA00
+    subsegments:
+      - [0x300, c, main/code]
+
+  # End of file content (.shstrtab/.comment/.reginfo follow, non-loaded).
+  - [0x175E00]

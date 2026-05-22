@@ -19,6 +19,8 @@ SCPS_*
 SLPS_*
 SLPM_*
 *.elf
+# ...but the Track A build config is named after the serial and IS committed.
+!SCUS_*.yaml
 
 # Disc filesystem of Extermination (SCUS-97112)
 SYSTEM.CNF
@@ -49,6 +51,15 @@ expected/
 *.exe
 tools/mwcc*/
 tools/wibo*/
+tools/bin/
+
+# === Track A (matching decomp) build artifacts ===
+# build/ holds splat disassembly of the original ELF + compiled objects — all
+# disc-derived; never commit. elf/ holds the locally relinked executable.
+build/
+elf/
+.venv/
+.splache/
 
 # === Local scratch ===
 .DS_Store

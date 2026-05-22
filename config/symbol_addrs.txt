@@ -1,0 +1,11 @@
+// Symbol address list for the Extermination matching decompilation.
+//
+// The boot ELF is stripped, so every symbol here is recovered by hand. splat
+// reads this file to name functions/data; entries accumulate as the decomp
+// progresses. Format (one per line):
+//
+//   name = 0xVRAM;  // type:func    (or type:label / size:0xNN / ignore:true)
+//
+// This file is project annotation (addresses + our own names), not disc data.
+
+_start = 0x00100008;  // type:func

@@ -96,6 +96,9 @@ never silently change:
   entries (effectively stripped). → Hardest tier: fully blind matching (like Sly1/ICO).
 - Layout: one boot LOAD segment at vaddr `0x00100000` (filesz `0x175b00`, memsz `0x00723500`);
   a runtime overlay arena at vaddr `0x00823500` fed by modules in disc `OVERLAY/`.
+- Entry point `0x00100008`; `$gp` = `0x0027D370` (crt0 does `move $gp, $a0` after building
+  `$a0` from `lui 0x28 / addiu -0x2C90`). The loadable content is a single unnamed PROGBITS
+  section, file `0x300..0x175E00` → vram `0x00100000`; splat auto-detects ~3014 functions.
 
 ## Scope & priorities
 

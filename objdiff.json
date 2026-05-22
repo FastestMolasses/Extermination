@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/encounter/objdiff/main/config.schema.json",
+  "min_version": "2.0.0",
+  "custom_make": "python3",
+  "custom_args": [
+    "tools/decomp/build.py",
+    "--single-file"
+  ],
+  "build_target": false,
+  "watch_patterns": [
+    "*.c",
+    "*.h",
+    "*.s"
+  ],
+  "units": []
+}
