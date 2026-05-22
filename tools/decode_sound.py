@@ -26,9 +26,14 @@ banks to the sounds they use.
 The sample rate is not yet located in the header; it defaults to 22050 Hz
 (overridable with --rate). Wrong rate => wrong pitch, not a wrong decode.
 
+VOICE.DAT is a different beast: a single raw VAG stream with no SShd
+container and no VAG end-flags. The `voice` subcommand splits it into clips
+on runs of digitally-silent frames.
+
 Usage:
   decode_sound.py batch  --in extract --out wav
   decode_sound.py decode extract/chunk22 --out wav
+  decode_sound.py voice  STREAM/VOICE.DAT --out voice --gap 64
 """
 from __future__ import annotations
 
@@ -116,6 +121,38 @@ def decode_vag(body: bytes, start_frame: int, n_frames: int) -> tuple[bytes, int
 def sound_loops(body: bytes, start_frame: int, n_frames: int) -> bool:
     """True if any frame in the sound has the VAG loop bit (0x02) set."""
     return any(body[(start_frame + k) * 16 + 1] & 2 for k in range(n_frames))
+
+
+ZERO_DATA = b"\x00" * 14  # the 14 data bytes of a digitally-silent VAG frame
+
+
+def find_voice_clips(data: bytes, gap_frames: int) -> list[tuple[int, int]]:
+    """Split a raw VAG stream (VOICE.DAT) into clips on silence gaps.
+
+    VOICE.DAT carries no VAG end-flags, so clips are delimited instead by
+    runs of digitally-silent frames. A run of >= gap_frames silent frames
+    ends a clip; shorter silent runs are kept as in-clip pauses.
+    """
+    nframes = len(data) // 16
+    silent = [data[i * 16 + 2:i * 16 + 16] == ZERO_DATA for i in range(nframes)]
+    clips = []
+    i = 0
+    while i < nframes:
+        if silent[i]:
+            i += 1
+            continue
+        start = i
+        last_voiced = i
+        run = 0
+        while i < nframes and run < gap_frames:
+            if silent[i]:
+                run += 1
+            else:
+                run = 0
+                last_voiced = i
+            i += 1
+        clips.append((start, last_voiced + 1))
+    return clips
 
 
 def write_wav(path: Path, pcm: bytes, rate: int) -> None:
@@ -223,6 +260,31 @@ def cmd_batch(args) -> int:
     return 0
 
 
+def cmd_voice(args) -> int:
+    data = Path(args.file).read_bytes()
+    if len(data) % 16:
+        print(f"warning: {len(data) % 16} trailing bytes are not a whole VAG frame")
+    clips = find_voice_clips(data, args.gap)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    written = 0
+    total_samples = 0
+    anomalies = 0
+    for sf, ef in clips:
+        if ef - sf < args.min_frames:
+            continue
+        pcm, anom = decode_vag(data, sf, ef - sf)
+        anomalies += anom
+        write_wav(out / f"voice_{written:04d}.wav", pcm, args.rate)
+        total_samples += len(pcm) // 2
+        written += 1
+    print(f"{len(clips)} clips found, {written} written to {out}/ "
+          f"({total_samples / args.rate:.0f}s total @ {args.rate}Hz, gap={args.gap})")
+    if anomalies:
+        print(f"warning: {anomalies} frames had an out-of-range predictor")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description="Extermination SShd sound-bank decoder")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -242,6 +304,16 @@ def main(argv: list[str]) -> int:
     sp.add_argument("--in", dest="input", default="extract", help="extraction directory")
     add_common(sp)
     sp.set_defaults(func=cmd_batch)
+
+    sp = sub.add_parser("voice", help="decode a raw VAG stream (VOICE.DAT) into clips")
+    sp.add_argument("file", help="path to VOICE.DAT")
+    sp.add_argument("--out", default="voice", help="output directory (default: voice/)")
+    sp.add_argument("--rate", type=int, default=22050, help="sample rate (default: 22050)")
+    sp.add_argument("--gap", type=int, default=64,
+                    help="silent frames that delimit a clip (default: 64)")
+    sp.add_argument("--min-frames", type=int, default=8,
+                    help="drop clips shorter than this many frames (default: 8)")
+    sp.set_defaults(func=cmd_voice)
 
     args = p.parse_args(argv)
     return args.func(args)
