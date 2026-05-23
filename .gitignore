@@ -73,3 +73,6 @@ subtextures/
 # Python bytecode cache
 __pycache__/
 *.pyc
+
+# Personal textbook (not part of the project)
+textbook/

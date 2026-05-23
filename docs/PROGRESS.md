@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-22 (Track A: 188 leaf functions at 100% match — 51 C + 137 EE syscall stubs)_
+_Last updated: 2026-05-22 (Track A: 233 leaf functions at 100% — 51 C + 137 syscalls + 45 tail-call wrappers)_
 
 ## Project at a glance
 
@@ -74,19 +74,28 @@ runs the period-correct compiler.
   **32-bit wibo** (`tools/bin/wibo32`, cross-built by `docker/build-wibo.sh`)
   inside **qemu-i386**. The MIPS assembler is arm64-native — only the compiler
   is emulated.
-- **188 leaf functions matched** — 51 C-decompiled trivial leaves (integer
-  constants, empty bodies, field getters/setters, field copies, field+constant,
-  global-pointer writes, comparisons, conditional stores, float copies) plus
-  **137 EE-kernel syscall stub functions** matched as one-line inline-asm C
-  stubs (`asm { addiu $v1, $zero, N; syscall 0; };`) — every syscall stub in
-  the boot ELF, 0% → 100% in a single pass. Of those, **101 stubs are now
-  named to their SDK identities** (`ResetEE`, `FlushCache`, `CreateThread`,
-  etc.) via `config/symbol_addrs.txt`, mapping each `addiu $v1,$zero,N` to the
-  public PS2-SDK syscall-number table; splat picks up the names and writes the
-  `.s`/`.o` under those names. The remaining 34 negative-N (user-mode) stubs
-  and 2 duplicate-N collisions keep their `func_<addr>` names for now. Each
-  function compiles to a **100% `.text` match** vs the original, confirmed by
-  `objdiff-cli`. 211 functions are in `src/` total (188 perfect, 23 partial).
+- **233 leaf functions matched** — three batches via three approaches:
+  - **51 C-decompiled trivial leaves** (integer constants, empty bodies, field
+    getters/setters, field copies, field+constant, global-pointer writes,
+    comparisons, conditional stores, float copies).
+  - **137 EE-kernel syscall stub functions** matched as one-line inline-asm C
+    (`asm { addiu $v1, $zero, N; syscall 0; };`) — every syscall stub in the
+    boot ELF, 0% → 100% in one batch. Of those, **101 stubs are named to
+    their SDK identities** (`ResetEE`, `FlushCache`, `CreateThread`, etc.) via
+    `config/symbol_addrs.txt`, mapping `addiu $v1,$zero,N` through the public
+    PS2-SDK syscall-number table; splat picks up the names. The 34 negative-N
+    (user-mode) stubs and 2 duplicate-N collisions keep their `func_<addr>`
+    names for now.
+  - **45 tail-call wrappers** — small "set up args, then `j` to another
+    function" stubs that mwcc can't produce from plain C (it has no tail-call
+    optimization), so we write them as `asm void NAME(void) { ...; j func; arg }`.
+    mwcc inline asm rejects `$t0..$t7` named registers; numeric `$8..$15`
+    works. Watch out: mwcc dead-store-eliminates `daddu $aN, $zero, $zero`
+    inside `asm void` if it considers $aN unused — wrappers that hit this
+    were dropped from this pass.
+  Each function compiles to a **100% `.text` match** vs the original,
+  confirmed by `objdiff-cli`. 256 functions are in `src/` total (233 perfect,
+  23 partial).
 
 Build flow (`tools/decomp/build.py`): `setup` runs splat + writes
 `objdiff.json`; `build` assembles the splat disassembly into objdiff *target*
