@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-23 (Track A: 448/449 leaf functions at 100% — 153 more functions matched in one session: 5 complex FP/branch leaves, 3 trivial stubs, 134 new EE syscall stubs, plus 8 functions from trivial-nop/jr patterns; sole remaining partial is func_001B5C90 at 90.9%)_
+_Last updated: 2026-05-23 (Track A: 839 / 846 in src/ matched — 720 leaves + 119 first non-leaves; ~27% of all 3149 functions in the boot ELF)_
 
 ## Project at a glance
 
