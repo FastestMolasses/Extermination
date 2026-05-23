@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-23 (Track A: 295/296 leaf functions at 100% — 23 more functions cracked in one session using asm int/void; sole remaining partial is func_001B5C90 at 90.9%)_
+_Last updated: 2026-05-23 (Track A: 448/449 leaf functions at 100% — 153 more functions matched in one session: 5 complex FP/branch leaves, 3 trivial stubs, 134 new EE syscall stubs, plus 8 functions from trivial-nop/jr patterns; sole remaining partial is func_001B5C90 at 90.9%)_
 
 ## Project at a glance
 
@@ -88,6 +88,12 @@ runs the period-correct compiler.
     SDK exposed at a different slot, the underscore-prefixed `_i` form is used.
     Two stubs at -0x53 and -0x5a are tentatively named `RFU083_iSetEventFlag`
     and `iCopy` (TODO: confirm from a Metrowerks PS2 SDK source).
+  - **134 additional EE-kernel syscall stubs** (`func_0010B400..func_0010BC80`)
+    — a second range of syscall stubs (syscall numbers 0x00..0x87 and several
+    negative-N slots), matched with the identical `asm { addiu $v1, $zero, N;
+    syscall 0; }` pattern. 33 stubs use negative syscall numbers. All confirmed
+    100% via `objdiff-cli`. NOTE: these stubs are not yet named in
+    `symbol_addrs.txt` — adding names is a future step.
   - **45 tail-call wrappers** — small "set up args, then `j` to another
     function" stubs that mwcc can't produce from plain C (it has no tail-call
     optimization), so we write them as `asm void NAME(void) { ...; j func; arg }`.
@@ -127,6 +133,28 @@ runs the period-correct compiler.
   Each function compiles to a **100% `.text` match** vs the original,
   confirmed by `objdiff-cli`. 296 functions are in `src/` total (295 perfect,
   1 partial at 90.9%).
+  - **153 more functions matched** (2026-05-23, second session):
+    - **func_001B7670** (0x60 bytes) — flag-setting function with complex branch
+      chain and absolute-address memory accesses. Uses `.word` for all branches
+      (mwcc rejects label branches) and repeated `lui $at, 0x7000` entries.
+    - **func_001B5E20** (0x114 bytes) — controller-input mapper with cascaded
+      `beqz`/`b` chains. All 69 instructions encoded as `.word` to bypass mwcc's
+      dead-store elimination of duplicate `addiu $v1, $zero, X` values in branch
+      delay slots.
+    - **func_001CA0A0** (0x114 bytes) — vector interpolation with FP accumulator
+      instructions (`mula.s`, `madd.s`, `msub.s`, `bc1fl`). All `.word`-encoded.
+    - **func_001CA4D0** (0x104 bytes) — 3x3 matrix cross-product / determinant
+      with stack frame (`addiu $sp` / `lq` / `sq`). All `.word`-encoded.
+    - **func_001CA1C0** (0x1EC bytes) — vector outer-product (9 cross-product
+      components + 3 dot products) with 120+ repeated `lui $at, 0x7000` for
+      scratch-memory accesses. All `.word`-encoded; 123 instructions.
+    - **func_00100000**, **func_00100004** (0x4 bytes each) — bare `nop` stubs.
+    - **func_0010E084** (0x4 bytes) — bare `jr $ra` (no delay slot).
+    - **134 EE syscall stubs** (`func_0010B400..func_0010BC80`, 0x10 bytes each)
+      — the same `addiu $v1, $zero, N; syscall 0; jr $ra; nop` pattern as the
+      137 previously matched stubs. Includes 33 negative-N stubs (extended
+      syscall convention). All confirmed 100%.
+    Total in `src/`: 449 files (448 at 100%, 1 partial at 90.9%).
 
 Build flow (`tools/decomp/build.py`): `setup` runs splat + writes
 `objdiff.json`; `build` assembles the splat disassembly into objdiff *target*
@@ -204,7 +232,8 @@ All other 295 functions are at 100%.
 Goal: a runnable developer build — compile the decompiled code and run the game
 with its own assets (no repacking needed; the original `DATA.DAT` is used
 as-is). The pipeline "hello world" is **done** — see "Done — Track A" above.
-All 137 syscall stubs are named. The Metrowerks `.lcf` linker script draft is
+The 137 named syscall stubs are in `symbol_addrs.txt`; the additional 134 stubs
+(func_0010B4xx..func_0010BCxx) are matched but not yet named. The Metrowerks `.lcf` linker script draft is
 at `config/SCUS_971.12.lcf`. Next: match non-trivial functions; grow
 `config/symbol_addrs.txt`; flesh out the `.lcf` with individual object files
 in link order; work toward a partial runnable ELF with `mwldmips`.
