@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-22 (Track A pipeline complete — first 100% match)_
+_Last updated: 2026-05-22 (Track A: 50 leaf functions at 100% match — breadth pass 3)_
 
 ## Project at a glance
 
@@ -74,11 +74,13 @@ runs the period-correct compiler.
   **32-bit wibo** (`tools/bin/wibo32`, cross-built by `docker/build-wibo.sh`)
   inside **qemu-i386**. The MIPS assembler is arm64-native — only the compiler
   is emulated.
-- **28 leaf functions matched** — trivial leaves (integer constants, empty
-  bodies, field getters, field copies, field+constant) each compile to a
+- **50 leaf functions matched** — trivial leaves (integer constants, empty
+  bodies, field getters, field copies, field+constant, global-pointer writes,
+  comparisons, conditional stores, float copies) each compile to a
   **100% `.text` match** vs the original, confirmed by `objdiff-cli`. The
   pipeline is proven end to end and `tools/decomp/build.py` drives it across
   all units (splat → assemble target → compile base → objdiff).
+  72 functions are in `src/` total (50 perfect, 22 partial/WIP).
 
 Build flow (`tools/decomp/build.py`): `setup` runs splat + writes
 `objdiff.json`; `build` assembles the splat disassembly into objdiff *target*
@@ -91,10 +93,38 @@ Compiler source & legality: `mwccmips.exe` came from the public
 It is proprietary Metrowerks software — it lives in `tools/mwccps2/` and is
 **never committed** (git-ignored).
 
-Scouted near-match candidates for the next functions: `func_001031E0` (vec3
-copy — 6 of 7 instructions, one FPU register off) and `func_00102638` (integer
-bit op — a v0/v1 allocation swap). Closing these is compiler-flag / C-source
-tuning — the normal substance of matching work.
+**Known mwcc register allocation patterns learned:**
+- Void functions use `$v1` for first scratch; returning functions use `$v0`.
+  Using `return expr` forces `$v0` (fixed several functions).
+- When a function has one pointer arg (`$a0`) and stores a constant 1, mwcc
+  loads the pointer into `$a1` and puts `li 1` in `$v1` (not controllable).
+- The commutative `addu` operand order (rs vs rt) is not controllable from C.
+- `volatile int *` forces double-reads when the compiler would otherwise
+  optimize away the second load.
+- `func_001AB7D0` pattern: load global pointer via `lui/lw` into `$v1`, then
+  `sb $zero, 0($v1)` — matches when written as simple C dereference.
+
+**Known unsolvable classes (leave src files as partial for documentation):**
+- `sd`/`ld` instructions: GNU `mipsel-linux-gnu-as` in mips1 mode expands `sd`
+  to two `sw` instructions (assembler object is wrong/larger).
+- `daddu`, `dsll`, `dsra32`, `dsrl`, `dsubu`: mips3+ mode — assembler fails
+  with current prelude.
+- HW register addresses (`lui $v1 / ori $v1` with 5-digit hex): mwcc always
+  uses `$at` for absolute address loads, cannot reproduce `$v1`-based loads.
+- `mfc1`/`mtc1`: float bit manipulation (fabsf) — mwcc generates stack-based
+  code instead.
+- Tail-call `j func_` stubs: compiler won't generate `j` for C calls.
+- `beqzl`, `beql`, `bnel` (branch-likely): mwcc generates these for some
+  comparisons but C source that triggers them consistently is hard to craft.
+
+**Partial match summary (22 functions in src/ that don't 100% match):**
+Near-matches at ≥93%: func_001AB790 (98.6%), func_001FE460/4B0 (98.3%),
+func_00109A40 (97.5%), func_00109BD8/BE8 (96.7%), func_0010C008 (96.6%),
+func_00109A10/CE0 (95%), func_0017C540 (93.8%).
+Far partials: func_0010D928 (91%), func_00179680 (87.5%), func_0020BEF0 (80.3%),
+func_00109AF8 (77.8%), func_001FE480 (70.8%), func_00102638/58 (67.1%),
+func_00225CF0 (66.7%), func_001B5C90 (65.9%), func_00121BA0 (63.6%),
+func_00101B80 (55.4%), func_0010A4D8 (23.5%).
 
 ### Open questions (most need the decompiled engine — i.e. Track A)
 

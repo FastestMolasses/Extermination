@@ -1,0 +1,5 @@
+// Auto-recovered trivial leaf function. The boot ELF is stripped, so the
+// name is the VRAM address until the real purpose is identified.
+unsigned char func_001C6150(void *a0) {
+    return ((unsigned char *)a0)[8];
+}
