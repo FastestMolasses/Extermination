@@ -114,3 +114,79 @@ sceSifDmaStat = 0x0010BC50;  // type:func
 isceSifDmaStat = 0x0010BC60;  // type:func
 sceSifSetDma = 0x0010BC70;  // type:func
 isceSifSetDma = 0x0010BC80;  // type:func
+
+// EE-kernel negative-N syscall stubs (interrupt-handler-context direct dispatch).
+// These are the raw kernel stubs; the positive-N stubs in the block above are
+// the public SCEI API wrappers. Where a name would collide with an existing
+// positive stub, the underscore-prefixed (_i) form is used -- matching the SCEI
+// SDK convention for the raw kernel-mode variants. Names derived from the public
+// PS2 SDK syscall-number table (ps2dev/ps2sdk ee/kernel/include/syscallnr.h)
+// and corroborated by fmil95/recvx-decomp and Adubbz/DCDecomp.
+// N=-26 (-0x1a) __NR__iEnableIntc
+_iEnableIntc = 0x0010B5C0;  // type:func
+// N=-27 (-0x1b) __NR__iDisableIntc
+_iDisableIntc = 0x0010B5D0;  // type:func
+// N=-28 (-0x1c) __NR__iEnableDmac
+_iEnableDmac = 0x0010B5E0;  // type:func
+// N=-29 (-0x1d) __NR__iDisableDmac
+_iDisableDmac = 0x0010B5F0;  // type:func
+// N=-30 (-0x1e) __NR__iSetAlarm (DCDecomp second block: SetAlarm)
+SetAlarm = 0x0010B600;  // type:func
+// N=-31 (-0x1f) __NR__iReleaseAlarm (DCDecomp second block: ReleaseAlarm)
+ReleaseAlarm = 0x0010B610;  // type:func
+// N=-38 (-0x26) __NR_iTerminateThread; _i prefix avoids conflict with iTerminateThread (+40)
+_iTerminateThread = 0x0010B680;  // type:func
+// N=-42 (-0x2a) __NR_iChangeThreadPriority
+iChangeThreadPriority = 0x0010B6C0;  // type:func
+// N=-44 (-0x2c) __NR__iRotateThreadReadyQueue
+_iRotateThreadReadyQueue = 0x0010B6E0;  // type:func
+// N=-46 (-0x2e) __NR_iReleaseWaitThread; _i prefix avoids conflict with iReleaseWaitThread (+46)
+_iReleaseWaitThread = 0x0010B700;  // type:func
+// N=-49 (-0x31) __NR_iReferThreadStatus; _i prefix avoids conflict with iReferThreadStatus (+51)
+_iReferThreadStatus = 0x0010B730;  // type:func
+// N=-52 (-0x34) __NR__iWakeupThread
+_iWakeupThread = 0x0010B760;  // type:func
+// N=-54 (-0x36) __NR_iCancelWakeupThread
+iCancelWakeupThread = 0x0010B780;  // type:func
+// N=-56 (-0x38) __NR__iSuspendThread
+_iSuspendThread = 0x0010B7A0;  // type:func
+// N=-58 (-0x3a) __NR_iResumeThread; _i prefix avoids conflict with iResumeThread (+60)
+_iResumeThread = 0x0010B7C0;  // type:func
+// N=-67 (-0x43) __NR_iSignalSema; _i prefix avoids conflict with iSignalSema (+69)
+_iSignalSema = 0x0010B850;  // type:func
+// N=-70 (-0x46) __NR_iPollSema
+iPollSema = 0x0010B880;  // type:func
+// N=-72 (-0x48) __NR_iReferSemaStatus; _i prefix avoids conflict with iReferSemaStatus (+74)
+_iReferSemaStatus = 0x0010B8A0;  // type:func
+// N=-83 (-0x53) SCEI slot 0x53 interrupt-handler variant; TODO: verify exact SCEI name
+RFU083_iSetEventFlag = 0x0010B950;  // type:func
+// N=-85 (-0x55) __NR_iPutTLBEntry
+iPutTLBEntry = 0x0010B970;  // type:func
+// N=-88 (-0x58) __NR_iProbeTLBEntry
+iProbeTLBEntry = 0x0010B9A0;  // type:func
+// N=-90 (-0x5a) negative of __NR_Copy (0x5a); TODO: verify exact SCEI name
+iCopy = 0x0010B9C0;  // type:func
+// N=-92 (-0x5c) __NR_iEnableIntcHandler; _i prefix avoids conflict with iEnableIntcHandler (+95)
+_iEnableIntcHandler = 0x0010B9F0;  // type:func
+// N=-93 (-0x5d) __NR_iDisableIntcHandler; _i prefix avoids conflict with iDisableIntcHandler (+93)
+_iDisableIntcHandler = 0x0010BA10;  // type:func
+// N=-94 (-0x5e) __NR_iEnableDmacHandler; _i prefix avoids conflict with iEnableDmacHandler
+_iEnableDmacHandler = 0x0010BA30;  // type:func
+// N=-95 (-0x5f) __NR_iDisableDmacHandler
+iDisableDmacHandler = 0x0010BA50;  // type:func
+// N=-103 (-0x67) __NR_iGetCop0; _i prefix avoids conflict with iGetCop0 (positive slot)
+_iGetCop0 = 0x0010BAC0;  // type:func
+// N=-104 (-0x68) __NR_iFlushCache; _i prefix avoids conflict with iFlushCache (positive slot)
+_iFlushCache = 0x0010BAD0;  // type:func
+// N=-106 (-0x6a) __NR_iCpuConfig; _i prefix avoids conflict with iCpuConfig (positive slot)
+_iCpuConfig = 0x0010BAE0;  // type:func
+// N=-112 (-0x70) __NR_iGsGetIMR; _i prefix avoids conflict with iGsGetIMR (positive slot)
+_iGsGetIMR = 0x0010BB50;  // type:func
+// N=-113 (-0x71) __NR_iGsPutIMR; _i prefix avoids conflict with iGsPutIMR (positive slot)
+_iGsPutIMR = 0x0010BB70;  // type:func
+// N=-118 (-0x76) __NR_isceSifDmaStat; _i prefix avoids conflict with isceSifDmaStat (positive slot)
+_isceSifDmaStat = 0x0010BBD0;  // type:func
+// N=-119 (-0x77) __NR_isceSifSetDma; _i prefix avoids conflict with isceSifSetDma (positive slot)
+_isceSifSetDma = 0x0010BBF0;  // type:func
+// N=-120 (-0x78) __NR_isceSifSetDChain
+isceSifSetDChain = 0x0010BC10;  // type:func

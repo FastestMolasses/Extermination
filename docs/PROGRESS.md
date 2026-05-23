@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-22 (Track A: 233 leaf functions at 100% — 51 C + 137 syscalls + 45 tail-call wrappers)_
+_Last updated: 2026-05-22 (Track A: 271 leaf functions at 100% — ~91% of src/)_
 
 ## Project at a glance
 
@@ -74,7 +74,7 @@ runs the period-correct compiler.
   **32-bit wibo** (`tools/bin/wibo32`, cross-built by `docker/build-wibo.sh`)
   inside **qemu-i386**. The MIPS assembler is arm64-native — only the compiler
   is emulated.
-- **233 leaf functions matched** — three batches via three approaches:
+- **271 leaf functions matched** — four batches via four approaches:
   - **51 C-decompiled trivial leaves** (integer constants, empty bodies, field
     getters/setters, field copies, field+constant, global-pointer writes,
     comparisons, conditional stores, float copies).
@@ -93,9 +93,23 @@ runs the period-correct compiler.
     works. Watch out: mwcc dead-store-eliminates `daddu $aN, $zero, $zero`
     inside `asm void` if it considers $aN unused — wrappers that hit this
     were dropped from this pass.
+  - **38 VU0 / COP2 / EE-specific leaves** — small `lqc2`/`sqc2`/`vadd`/
+    `cfc2` functions matched via `asm void` with the literal Sony VU syntax,
+    which `mwccmips` accepts natively. Two infrastructure fixes were needed
+    on the target side: (a) `tools/decomp/asm_fixup.py` rewrites unassemblable
+    spimdisasm VU lines (`vdiv Q, $vf0w, $vf5x`) as `.word 0xHEX` directives
+    and also strips any trailing context past `endlabel`; (b) `build.py` now
+    passes `-march=r5900` to `mipsel-linux-gnu-as` so the target `.o` ELF
+    flags say "5900" — without that flag, objdiff disassembles EE COP2
+    instructions as their generic MIPS-II mnemonics (`lqc2` → `ldc2`) and
+    reports a mismatch even when the bytes are identical.
+  - **Negative-N syscall stubs named** — the remaining 34 stubs (Sony's
+    user-mode/extended syscall convention) are now mapped to their proper
+    SDK names (`SetAlarm`, `ReleaseAlarm`, `_iEnableIntc`, etc.) via the
+    public PS2 kernel-syscall table.
   Each function compiles to a **100% `.text` match** vs the original,
-  confirmed by `objdiff-cli`. 256 functions are in `src/` total (233 perfect,
-  23 partial).
+  confirmed by `objdiff-cli`. 298 functions are in `src/` total (271 perfect,
+  27 partial).
 
 Build flow (`tools/decomp/build.py`): `setup` runs splat + writes
 `objdiff.json`; `build` assembles the splat disassembly into objdiff *target*

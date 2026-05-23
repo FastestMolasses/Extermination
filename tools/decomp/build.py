@@ -55,9 +55,15 @@ def container(script: str) -> None:
 
 
 def assemble_cmd(name: str) -> str:
-    """Assemble splat's disassembly of `name` into an objdiff target object."""
-    return (f"mipsel-linux-gnu-as config/asm_prelude.inc build/macro.inc "
-            f"{ASM_DIR}/{name}.s -o build/expected/{name}.o")
+    """Assemble splat's disassembly of `name` into an objdiff target object.
+
+    `-march=r5900` sets the EE flag in the resulting ELF header — objdiff uses
+    that flag to pick its disassembler (5900 vs generic mips1), and without it
+    coprocessor-2/VU instructions show as `ldc2`/`sdc2` instead of `lqc2`/`sqc2`,
+    confusing the per-instruction comparison even when the bytes match.
+    """
+    return (f"mipsel-linux-gnu-as -march=r5900 config/asm_prelude.inc "
+            f"build/macro.inc {ASM_DIR}/{name}.s -o build/expected/{name}.o")
 
 
 def compile_cmd(name: str) -> str:
