@@ -1,4 +1,4 @@
-// Check if a0->a1 is non-null, a0->4 == a1->0x18, and a1->0x10 & 1
+// All instructions as .word to prevent mwcc dead-code elimination of second jr $ra
 asm int func_0010EA60(int *a0) {
     lw $5, 0x0($4)
     .word 0x10a00009
@@ -11,8 +11,8 @@ asm int func_0010EA60(int *a0) {
     andi $2, $2, 0x1
     .word 0x14400003
     nop
-    jr $ra
-    daddu $2, $zero, $zero
-    jr $ra
-    addiu $2, $zero, 0x1
+    .word 0x03e00008
+    .word 0x0000102d
+    .word 0x03e00008
+    .word 0x24020001
 }

@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-22 (Track A: 271 leaf functions at 100% — ~91% of src/)_
+_Last updated: 2026-05-23 (Track A: 271 leaf functions at 100% — all 137 syscall stubs now named; lcf draft committed)_
 
 ## Project at a glance
 
@@ -80,12 +80,14 @@ runs the period-correct compiler.
     comparisons, conditional stores, float copies).
   - **137 EE-kernel syscall stub functions** matched as one-line inline-asm C
     (`asm { addiu $v1, $zero, N; syscall 0; };`) — every syscall stub in the
-    boot ELF, 0% → 100% in one batch. Of those, **101 stubs are named to
-    their SDK identities** (`ResetEE`, `FlushCache`, `CreateThread`, etc.) via
-    `config/symbol_addrs.txt`, mapping `addiu $v1,$zero,N` through the public
-    PS2-SDK syscall-number table; splat picks up the names. The 34 negative-N
-    (user-mode) stubs and 2 duplicate-N collisions keep their `func_<addr>`
-    names for now.
+    boot ELF, 0% → 100% in one batch. **All 137 are now named**: 101 positive-N
+    stubs were named first; the remaining 34 negative-N stubs are named via
+    ps2dev/ps2sdk `syscallnr.h` cross-referenced with DCDecomp and recvx-decomp.
+    Names are in `config/symbol_addrs.txt`; splat picks them up. Where a
+    negative-N name would collide with an existing positive-N stub that the SCEI
+    SDK exposed at a different slot, the underscore-prefixed `_i` form is used.
+    Two stubs at -0x53 and -0x5a are tentatively named `RFU083_iSetEventFlag`
+    and `iCopy` (TODO: confirm from a Metrowerks PS2 SDK source).
   - **45 tail-call wrappers** — small "set up args, then `j` to another
     function" stubs that mwcc can't produce from plain C (it has no tail-call
     optimization), so we write them as `asm void NAME(void) { ...; j func; arg }`.
@@ -176,12 +178,11 @@ func_00101B80 (55.4%), func_0010A4D8 (23.5%).
 **1. Track A — matching decompilation (CURRENT PRIORITY).**
 Goal: a runnable developer build — compile the decompiled code and run the game
 with its own assets (no repacking needed; the original `DATA.DAT` is used
-as-is). The pipeline "hello world" is **done** — see "Done — Track A" above:
-splat + objdiff + the mwccmips toolchain container all work, and 28 trivial
-leaf functions are verified 100% matches. Next: keep matching outward — the
-~137 EE `syscall` stubs (one big batch, need the hand-written-asm path), then
-non-trivial functions; grow `config/symbol_addrs.txt` and work toward a partial
-runnable ELF.
+as-is). The pipeline "hello world" is **done** — see "Done — Track A" above.
+All 137 syscall stubs are named. The Metrowerks `.lcf` linker script draft is
+at `config/SCUS_971.12.lcf`. Next: match non-trivial functions; grow
+`config/symbol_addrs.txt`; flesh out the `.lcf` with individual object files
+in link order; work toward a partial runnable ELF with `mwldmips`.
 The reference template studied for the pipeline is `fmil95/recvx-decomp`
 (same CodeWarrior toolchain family).
 
