@@ -12,7 +12,7 @@ asm void func_0010BC90(void) {
     nop
     .word 0x1040FFF9
     nop
-    addiu $2, $zero, 0x4
+    .word 0x24020004
     lui $1, 0x1001
     jr $ra
     sw $2, -0x1000($1)
