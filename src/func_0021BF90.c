@@ -25,20 +25,20 @@ asm void func_0021BF90(void) {
     .word 0x10000014
     sb $6, 0xD($4)
     addiu $2, $0, 0x7
-    .word 0x14420005
+    .word 0x14A20005
     addiu $2, $0, 0x6
     sb $7, 0xD($4)
     .word 0x1000000E
     sb $6, 0x25F($4)
     addiu $2, $0, 0x6
-    .word 0x14420006
+    .word 0x14A20006
     addiu $2, $0, 0x5
     addiu $2, $0, 0x3
     sb $2, 0xD($4)
     .word 0x10000007
     sb $6, 0x25F($4)
     addiu $2, $0, 0x5
-    .word 0x14420003
+    .word 0x14A20003
     nop
     .word 0x10000002
     sb $3, 0xD($4)

@@ -106,6 +106,11 @@ def write_objdiff() -> None:
 def cmd_setup(_a: argparse.Namespace) -> None:
     BUILD.mkdir(exist_ok=True)
     run_splat()
+    # splat regenerates every .s from scratch, which would undo the VU /
+    # endlabel-trailer fixups. Re-apply them so the target objects stay
+    # assemblable.
+    subprocess.run([sys.executable, str(ROOT / "tools/decomp/asm_fixup.py")],
+                   cwd=ROOT, check=True)
     write_objdiff()
 
 
