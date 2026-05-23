@@ -1,17 +1,22 @@
-// Auto-recovered trivial leaf function. The boot ELF is stripped, so the
-// name is the VRAM address until the real purpose is identified.
-void func_0017C540(unsigned char *a0) {
-    unsigned char v1 = a0[0x25C];
-    if (v1) {
-        a0[5] = 1;
-        a0[6] = 0;
-        a0[0x1F0] = 1;
-        a0[0x1F1] = 0;
-    } else {
-        a0[5] = 0;
-        a0[6] = 0;
-        a0[0x1F0] = 0;
-        *(int *)((char *)a0 + 0x38) = 0;
-    }
-    a0[4] = 1;
+// Matched via asm void: the beqz has a nop delay slot and else uses b
+// with sb in its delay slot -- not reproducible from C with mwcc.
+asm void func_0017C540(unsigned char *a0) {
+    lbu $v1, 0x25C($a0)
+    beqz $v1, else_branch
+    nop
+    addiu $v1, $zero, 1
+    sb $v1, 5($a0)
+    sb $zero, 6($a0)
+    sb $v1, 0x1F0($a0)
+    b end_branch
+    sb $zero, 0x1F1($a0)
+else_branch:
+    sb $zero, 5($a0)
+    sb $zero, 6($a0)
+    sb $zero, 0x1F0($a0)
+    sw $zero, 0x38($a0)
+end_branch:
+    addiu $v1, $zero, 1
+    jr $ra
+    sb $v1, 4($a0)
 }

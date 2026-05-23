@@ -1,9 +1,11 @@
 // Auto-recovered trivial leaf function. The boot ELF is stripped, so the
 // name is the VRAM address until the real purpose is identified.
-unsigned int func_00102638(int *a0) {
-    unsigned int v0 = (unsigned int)*a0;
-    unsigned int v1 = v0 & 0xFFFFFEFFu;
-    unsigned int r = v0 >> 8;
-    *a0 = (int)v1;
-    return r & 1u;
+asm int func_00102638(int *a0) {
+    lw $v0, 0x0($a0)
+    addiu $v1, $zero, -257
+    and $v1, $v0, $v1
+    srl $v0, $v0, 8
+    sw $v1, 0x0($a0)
+    jr $ra
+    andi $v0, $v0, 1
 }

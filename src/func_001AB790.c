@@ -3,7 +3,8 @@
 // Writes to a struct accessed via a global pointer at 0x70003B6C
 void func_001AB790(int a0) {
     int *v1 = *(int **)0x70003B6C;
-    ((unsigned char *)v1)[0] = 1;
+    int a1 = 1;
+    ((unsigned char *)v1)[0] = a1;
     v1 = *(int **)0x70003B6C;
     v1[1] = a0;
     v1 = *(int **)0x70003B6C;

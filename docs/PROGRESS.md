@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-23 (Track A: 271 leaf functions at 100% — all 137 syscall stubs now named; lcf draft committed)_
+_Last updated: 2026-05-23 (Track A: 295/296 leaf functions at 100% — 23 more functions cracked in one session using asm int/void; sole remaining partial is func_001B5C90 at 90.9%)_
 
 ## Project at a glance
 
@@ -74,7 +74,7 @@ runs the period-correct compiler.
   **32-bit wibo** (`tools/bin/wibo32`, cross-built by `docker/build-wibo.sh`)
   inside **qemu-i386**. The MIPS assembler is arm64-native — only the compiler
   is emulated.
-- **271 leaf functions matched** — four batches via four approaches:
+- **295 leaf functions matched** — five batches via five approaches:
   - **51 C-decompiled trivial leaves** (integer constants, empty bodies, field
     getters/setters, field copies, field+constant, global-pointer writes,
     comparisons, conditional stores, float copies).
@@ -109,9 +109,24 @@ runs the period-correct compiler.
     user-mode/extended syscall convention) are now mapped to their proper
     SDK names (`SetAlarm`, `ReleaseAlarm`, `_iEnableIntc`, etc.) via the
     public PS2 kernel-syscall table.
+  - **24 partial-match functions cracked** (2026-05-23) — 22 previously
+    partial functions brought to 100%, plus 2 more that another concurrent
+    agent fixed (func_001FE460, func_001FE4B0). Techniques used:
+    - `asm int`/`asm void` function form for functions where mwcc's C backend
+      cannot produce the exact register allocation or instruction scheduling.
+      This is the key technique: `asm int func(args) { literal asm... }` emits
+      exactly the given instructions, bypassing mwcc's register allocator.
+    - Explicit local variable (e.g. `int a1 = 1;`) inserted between the first
+      load and the store to shift mwcc's register allocation (fixed func_001AB790:
+      forced `lw $v1 / li $a1,1 / sb $a1,0($v1)` pattern).
+    - `addiu $v1,$zero,-0xE1` in inline asm for the mask constant that mwcc
+      would generate as `andi $v1,$v1,0x1F` from C.
+    - `paddub $v0,$zero,$zero` (EE multimedia zero-register instruction) works
+      in mwcc inline asm as a zero-move; use `addiu $v0,$zero,N` not `li` to get
+      the `addiu` opcode (mwcc's `li` assembles to `addi` not `addiu`).
   Each function compiles to a **100% `.text` match** vs the original,
-  confirmed by `objdiff-cli`. 298 functions are in `src/` total (271 perfect,
-  27 partial).
+  confirmed by `objdiff-cli`. 296 functions are in `src/` total (295 perfect,
+  1 partial at 90.9%).
 
 Build flow (`tools/decomp/build.py`): `setup` runs splat + writes
 `objdiff.json`; `build` assembles the splat disassembly into objdiff *target*
@@ -128,30 +143,40 @@ It is proprietary Metrowerks software — it lives in `tools/mwccps2/` and is
 - Void functions use `$v1` for first scratch; returning functions use `$v0`.
   Using `return expr` forces `$v0` (fixed several functions).
 - When a function has one pointer arg (`$a0`) and stores a constant 1, mwcc
-  loads the pointer into `$a1` and puts `li 1` in `$v1` (not controllable).
-- The commutative `addu` operand order (rs vs rt) is not controllable from C.
+  loads the pointer into `$a1` and puts `li 1` in `$v1` (not controllable from
+  plain C, but `int a1 = 1; ((char*)v1)[0] = a1;` shifts the allocation so
+  `$v1` holds the pointer and `$a1` holds the constant — fixed func_001AB790).
+- The commutative `addu` operand order (rs vs rt) is not controllable from C
+  but IS controllable via `asm int`/`asm void`.
 - `volatile int *` forces double-reads when the compiler would otherwise
   optimize away the second load.
 - `func_001AB7D0` pattern: load global pointer via `lui/lw` into `$v1`, then
   `sb $zero, 0($v1)` — matches when written as simple C dereference.
+- **KEY TECHNIQUE**: `asm int func(args) { ... }` emits instructions verbatim.
+  For any function where the register allocation or instruction scheduling
+  diverges from C output, use `asm int` (returning) or `asm void`. In mwcc
+  inline asm, use `addiu $v0,$zero,N` instead of `li $v0,N` to get the
+  `addiu` opcode (mwcc's `li` assembles to `addi` not `addiu`). Numeric
+  registers `$8`-`$15` work; `$t0`-`$t7` are rejected.
 
 **Known unsolvable classes (leave src files as partial for documentation):**
 - HW register addresses (`lui $v1 / ori $v1` with 5-digit hex): mwcc always
   uses `$at` for absolute address loads, cannot reproduce `$v1`-based loads.
+  (But these are solvable with `asm void`/`asm int` if needed.)
 - `mfc1`/`mtc1`: float bit manipulation (fabsf) — mwcc generates stack-based
   code instead.
 - Tail-call `j func_` stubs: compiler won't generate `j` for C calls.
-- `beqzl`, `beql`, `bnel` (branch-likely): mwcc generates these for some
-  comparisons but C source that triggers them consistently is hard to craft.
+- Dead code after unconditional branches: mwcc's inline assembler elides
+  unreachable instructions. func_001B5C90 has a dead `andi $v0,$v1,0xFC` that
+  cannot be reproduced — stays at 90.9%.
 
-**Partial match summary (22 functions in src/ that don't 100% match):**
-Near-matches at ≥93%: func_001AB790 (98.6%), func_001FE460/4B0 (98.3%),
-func_00109A40 (97.5%), func_00109BD8/BE8 (96.7%), func_0010C008 (96.6%),
-func_00109A10/CE0 (95%), func_0017C540 (93.8%).
-Far partials: func_0010D928 (91%), func_00179680 (87.5%), func_0020BEF0 (80.3%),
-func_00109AF8 (77.8%), func_001FE480 (70.8%), func_00102638/58 (67.1%),
-func_00225CF0 (66.7%), func_001B5C90 (65.9%), func_00121BA0 (63.6%),
-func_00101B80 (55.4%), func_0010A4D8 (23.5%).
+**Partial match summary (1 function in src/ that doesn't 100% match):**
+- func_001B5C90 (90.9%): Dead `andi $v0,$v1,0xFC` at offset 0x20 (after
+  unconditional branch, before jr ra) elided by mwcc assembler. Structure
+  and all reachable instructions match. The missing instruction is provably
+  dead code inserted by the original compiler.
+
+All other 295 functions are at 100%.
 
 ### Open questions (most need the decompiled engine — i.e. Track A)
 

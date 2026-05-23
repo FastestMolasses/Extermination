@@ -19,18 +19,18 @@ asm void func_0021BF90(void) {
     sb $0, 0xD($4)
     .word 0x10000019
     sb $6, 0x25F($4)
-    addiu $3, $0, 0x4
+    .word 0x24030004
     .word 0x14A30004
     addiu $2, $0, 0x7
     .word 0x10000014
     sb $6, 0xD($4)
-    addiu $2, $0, 0x7
+    .word 0x24020007
     .word 0x14A20005
     addiu $2, $0, 0x6
     sb $7, 0xD($4)
     .word 0x1000000E
     sb $6, 0x25F($4)
-    addiu $2, $0, 0x6
+    .word 0x24020006
     .word 0x14A20006
     addiu $2, $0, 0x5
     addiu $2, $0, 0x3

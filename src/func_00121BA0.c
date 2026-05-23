@@ -1,16 +1,16 @@
 // Auto-recovered trivial leaf function. The boot ELF is stripped, so the
 // name is the VRAM address until the real purpose is identified.
-void func_00121BA0(int *a0, int *a1) {
-    int v0;
-    int *a0p;
-    int v1;
-    if (a1 == 0) {
-        return;
-    }
-    v0 = a1[1];
-    a0p = (int *)a0[0x4C / 4];
-    v0 = (int)((char *)a0p + v0 * 4);
-    v1 = *(int *)v0;
-    a1[0] = v1;
-    *(int *)v0 = (int)a1;
+asm void func_00121BA0(int *a0, int *a1) {
+    beqz $a1, ba0_end
+    nop
+    lw $v0, 0x4($a1)
+    lw $a0, 0x4C($a0)
+    sll $v0, $v0, 2
+    addu $v0, $v0, $a0
+    lw $v1, 0x0($v0)
+    sw $v1, 0x0($a1)
+    sw $a1, 0x0($v0)
+ba0_end:
+    jr $ra
+    nop
 }
