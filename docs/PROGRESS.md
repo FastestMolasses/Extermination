@@ -337,6 +337,13 @@ build architecture".
   - `extract_models.py` — geometry → Wavefront OBJ (level + models); `--scene`
     places full levels, `--rig`/`--anim` dump rig & poses.
   - `decomp/build.py` — Track A build driver (splat, compile, objdiff.json).
+  - `decomp/fill_unmatched.py` — assembles all 3149 boot-ELF functions into
+    `build/filler/*.o` for mwldmips (handles special cases: GPREL16 overflow,
+    cross-function labels, symbol weakening).
+  - `decomp/strip_sections.py` — strips GNU-as-specific sections; fixes .text
+    alignment (16→4 bytes); pre-applies R_MIPS_GPREL16 relocations.
+  - `decomp/link.py` — full link orchestrator: generates LCF + object list,
+    invokes mwldmips, compares output ELF against original.
 - `config/` — Track A build config (committed): `SCUS_971.12.yaml` (splat
   config), `symbol_addrs.txt` (hand-recovered symbol list), `asm_prelude.inc`
   (assembler directives for target objects). The boot ELF `config/SCUS_971.12`
@@ -346,8 +353,9 @@ build architecture".
   + qemu-user + MIPS binutils, built with Apple's `container` CLI) and
   `build-wibo.sh` (cross-builds the 32-bit wibo).
 - `docs/` — project state and findings (committed): `PROGRESS.md` (this file),
-  `FINDINGS.md` (technical format reference), `track-a-kickoff.md` (Track A
-  starter prompt).
+  `FINDINGS.md` (technical format reference), `LINKER.md` (partial-link pipeline
+  — mwldmips invocation, LCF decisions, special cases, debugging tips),
+  `track-a-kickoff.md` (Track A starter prompt).
 - `CLAUDE.md` — project charter, legal rules, target identity, toolchain
   conventions, end-state build architecture.
 - Disc-derived material is **git-ignored** — the ISO, `extract/`, `wav/`,
