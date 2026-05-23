@@ -262,10 +262,25 @@ def apply_gprel16(obj: Path) -> bool:
             keep.append(i)
             continue
 
-        # Patch the instruction: clear low 16 bits, insert gp_offset.
-        instr_off = text_off + r_offset
-        instr     = struct.unpack_from("<I", data, instr_off)[0]
-        instr     = (instr & 0xFFFF0000) | (gp_offset & 0xFFFF)
+        # Patch the instruction.
+        # For REL relocations (not RELA), the addend is embedded in the
+        # instruction's immediate field.  Read it as a signed 16-bit value
+        # and add it to the symbol's GP offset so that expressions like
+        # %gp_rel(D_00275B00 + 0xC) are resolved correctly.
+        instr_off  = text_off + r_offset
+        instr      = struct.unpack_from("<I", data, instr_off)[0]
+        addend     = instr & 0xFFFF
+        if addend >= 0x8000:
+            addend -= 0x10000   # sign-extend
+        final_offset = gp_offset + addend
+
+        if not (-32768 <= final_offset <= 32767):
+            print(f"[strip_sections] GPREL16+addend overflow: {name}+{addend} "
+                  f"offset={final_offset} in {obj}", file=sys.stderr)
+            keep.append(i)
+            continue
+
+        instr     = (instr & 0xFFFF0000) | (final_offset & 0xFFFF)
         struct.pack_into("<I", data, instr_off, instr)
         applied  += 1
 
@@ -292,8 +307,250 @@ def apply_gprel16(obj: Path) -> bool:
     return True
 
 
-def process(obj: Path) -> bool:
-    """Strip unwanted sections, fix .text alignment, and pre-apply GPREL16.
+def resize_text(obj: Path, target_size: int) -> bool:
+    """Resize .text section content to exactly target_size bytes.
+
+    This handles two directions:
+
+    Truncation (text_size > target_size):
+        GNU-as with -march=r5900 emits .text padded to the next 16-byte
+        boundary.  When target_size < padded size, the extra zero bytes are
+        removed so that mwldmips places the next function at the correct vram.
+
+    Extension (text_size < target_size):
+        When the original binary has trailing zero-nop padding between
+        functions that is larger than what GNU-as emits (i.e., the inter-
+        function gap exceeds the 16-byte rounding), we extend .text by
+        appending zero bytes in the ELF file and updating sh_size.
+        In practice this occurs for at most one function.
+
+    The function also trims the .rel.text table to remove any relocation
+    entries that point beyond target_size (only relevant when truncating).
+
+    Returns True if the file was modified.
+    """
+    if target_size <= 0:
+        return False
+
+    data = bytearray(obj.read_bytes())
+
+    e_shoff     = struct.unpack_from("<I", data, 32)[0]
+    e_shentsize = struct.unpack_from("<H", data, 46)[0]
+    e_shnum     = struct.unpack_from("<H", data, 48)[0]
+    e_shstrndx  = struct.unpack_from("<H", data, 50)[0]
+
+    def sh(idx: int) -> tuple:
+        off = e_shoff + idx * e_shentsize
+        return struct.unpack_from("<10I", data, off)
+
+    shstr_sh    = sh(e_shstrndx)
+    shstr_data  = data[shstr_sh[4]: shstr_sh[4] + shstr_sh[5]]
+
+    def sh_name(idx: int) -> str:
+        name_off = sh(idx)[0]
+        end = shstr_data.index(b"\x00", name_off)
+        return shstr_data[name_off:end].decode("ascii", errors="replace")
+
+    text_idx = rel_text_idx = -1
+    for i in range(e_shnum):
+        n = sh_name(i)
+        if n == ".text":
+            text_idx = i
+        elif n == ".rel.text":
+            rel_text_idx = i
+
+    if text_idx < 0:
+        return False
+
+    text_sh = sh(text_idx)
+    text_file_off = text_sh[4]   # sh_offset
+    text_size     = text_sh[5]   # sh_size
+
+    if text_size == target_size:
+        return False  # Already correct — nothing to do.
+
+    if text_size > target_size:
+        # --- Truncation path ---
+        # Zero the extra bytes (trailing nop padding) in the file.
+        for i in range(text_file_off + target_size, text_file_off + text_size):
+            data[i] = 0
+
+        # Update sh_size in the .text section header.
+        text_sh_off = e_shoff + text_idx * e_shentsize
+        struct.pack_into("<I", data, text_sh_off + 20, target_size)
+
+        # Truncate .rel.text to remove entries that point beyond target_size.
+        if rel_text_idx >= 0:
+            rel_sh      = sh(rel_text_idx)
+            rel_off     = rel_sh[4]   # sh_offset
+            rel_size    = rel_sh[5]   # sh_size
+            rel_entsz   = rel_sh[9] or 8
+
+            n_entries = rel_size // rel_entsz
+            keep = []
+            for i in range(n_entries):
+                entry_off = rel_off + i * rel_entsz
+                r_offset = struct.unpack_from("<I", data, entry_off)[0]
+                if r_offset < target_size:
+                    keep.append(i)
+
+            if len(keep) < n_entries:
+                new_rel = bytearray()
+                for i in keep:
+                    entry_off = rel_off + i * rel_entsz
+                    new_rel += data[entry_off: entry_off + rel_entsz]
+                old_end = rel_off + rel_size
+                data[rel_off: old_end] = new_rel + bytes(rel_size - len(new_rel))
+                rel_sh_off = e_shoff + rel_text_idx * e_shentsize
+                struct.pack_into("<I", data, rel_sh_off + 20, len(new_rel))
+
+        obj.write_bytes(bytes(data))
+        return True
+    else:
+        # --- Extension path: target_size > text_size ---
+        # Insert zero bytes immediately after .text's current data in the file,
+        # then fix up all ELF header fields that reference positions after the
+        # insertion point (section offsets and the section-header-table offset).
+        extra = target_size - text_size
+        insert_at = text_file_off + text_size
+
+        # Collect all section offsets BEFORE modifying the data array.
+        sh_offsets = []
+        for i in range(e_shnum):
+            sh_fields = struct.unpack_from("<10I", data, e_shoff + i * e_shentsize)
+            sh_offsets.append(sh_fields[4])  # sh_offset field
+
+        # Insert the extra zero bytes.
+        data = data[:insert_at] + bytes(extra) + data[insert_at:]
+
+        # e_shoff may have moved if the SHT came after insert_at.
+        new_e_shoff = e_shoff + extra if e_shoff >= insert_at else e_shoff
+        struct.pack_into("<I", data, 32, new_e_shoff)
+
+        # Update sh_size for .text (using the NEW e_shoff).
+        text_sh_base = new_e_shoff + text_idx * e_shentsize
+        struct.pack_into("<I", data, text_sh_base + 20, target_size)
+
+        # Fix up sh_offset for all sections whose data starts at or after insert_at,
+        # skipping .text itself (its offset hasn't changed, only its size has).
+        for i in range(e_shnum):
+            old_off = sh_offsets[i]
+            if i == text_idx:
+                continue  # .text offset unchanged; we only changed sh_size
+            if old_off >= insert_at:
+                new_off = old_off + extra
+                sh_base = new_e_shoff + i * e_shentsize
+                struct.pack_into("<I", data, sh_base + 16, new_off)
+
+        obj.write_bytes(bytes(data))
+        return True
+
+
+# Keep the old name as an alias for backward compatibility.
+def truncate_text(obj: Path, expected_size: int) -> bool:
+    """Alias for resize_text (truncation direction only)."""
+    return resize_text(obj, expected_size)
+
+
+def fix_pc16_addend(obj: Path) -> bool:
+    """Zero out the addend in all R_MIPS_PC16 branch instructions for mwldmips.
+
+    GNU-as encodes the addend for R_MIPS_PC16 (PC-relative branch) relocations
+    as -1 (0xffff) in the instruction word's low 16 bits.  mwldmips applies
+    R_MIPS_PC16 as:
+
+        result = (symbol_value + addend - (branch_pc + 4)) / 4
+
+    This is one extra pipeline-slot subtraction compared to what GNU-ld does
+    (which uses branch_pc, not branch_pc+4).  With addend=-1:
+
+        mwldmips: (S - 1 - (P + 4)) / 4 = (S - P - 5) / 4   ← off by one instruction
+
+    Setting addend=0 corrects this:
+
+        mwldmips: (S + 0 - (P + 4)) / 4 = (S - P - 4) / 4   ← correct MIPS branch formula
+
+    This function reads .rel.text, finds every R_MIPS_PC16 entry, and sets the
+    corresponding instruction's low 16 bits to 0.
+
+    Returns True if any instruction was patched.
+    """
+    R_MIPS_PC16 = 10
+
+    data = bytearray(obj.read_bytes())
+
+    e_shoff     = struct.unpack_from("<I", data, 32)[0]
+    e_shentsize = struct.unpack_from("<H", data, 46)[0]
+    e_shnum     = struct.unpack_from("<H", data, 48)[0]
+    e_shstrndx  = struct.unpack_from("<H", data, 50)[0]
+
+    def sh(idx: int) -> tuple:
+        off = e_shoff + idx * e_shentsize
+        return struct.unpack_from("<10I", data, off)
+
+    shstr_sh   = sh(e_shstrndx)
+    shstr_data = data[shstr_sh[4]: shstr_sh[4] + shstr_sh[5]]
+
+    def sh_name(idx: int) -> str:
+        name_off = sh(idx)[0]
+        end = shstr_data.index(b"\x00", name_off)
+        return shstr_data[name_off:end].decode("ascii", errors="replace")
+
+    text_idx = rel_text_idx = -1
+    for i in range(e_shnum):
+        n = sh_name(i)
+        if n == ".text":
+            text_idx = i
+        elif n == ".rel.text":
+            rel_text_idx = i
+
+    if text_idx < 0 or rel_text_idx < 0:
+        return False
+
+    text_sh = sh(text_idx)
+    text_off = text_sh[4]
+    text_size = text_sh[5]
+
+    rel_sh    = sh(rel_text_idx)
+    rel_off   = rel_sh[4]
+    rel_size  = rel_sh[5]
+    rel_entsz = rel_sh[9] or 8
+
+    n_entries = rel_size // rel_entsz
+    patched = 0
+
+    for i in range(n_entries):
+        entry_off = rel_off + i * rel_entsz
+        r_offset, r_info = struct.unpack_from("<II", data, entry_off)
+        r_type = r_info & 0xFF
+
+        if r_type != R_MIPS_PC16:
+            continue
+        if r_offset + 4 > text_size:
+            continue
+
+        # Zero the low 16 bits (addend field) of the branch instruction.
+        instr_off = text_off + r_offset
+        instr = struct.unpack_from("<I", data, instr_off)[0]
+        new_instr = instr & 0xFFFF0000
+        if new_instr != instr:
+            struct.pack_into("<I", data, instr_off, new_instr)
+            patched += 1
+
+    if patched == 0:
+        return False
+
+    obj.write_bytes(bytes(data))
+    return True
+
+
+def process(obj: Path, expected_text_size: int = 0) -> bool:
+    """Strip unwanted sections, fix .text alignment, resize, pre-apply GPREL16, fix PC16.
+
+    expected_text_size: if > 0, resize .text to this exact byte count.
+        For GNU-as assembled objects (slot_size < 16-byte-padded size), this
+        removes trailing padding.  For mwcc objects with trailing gap bytes,
+        this appends zero bytes to fill the inter-function slot.
 
     Returns True if the object was modified in any way.
     """
@@ -304,18 +561,30 @@ def process(obj: Path) -> bool:
         changed = True
     if fix_text_alignment(obj):
         changed = True
+    if expected_text_size > 0 and resize_text(obj, expected_text_size):
+        changed = True
     if apply_gprel16(obj):
+        changed = True
+    if fix_pc16_addend(obj):
         changed = True
     return changed
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        sys.exit("usage: strip_sections.py <file.o> [...]")
-    for arg in sys.argv[1:]:
+    import argparse as _argparse
+    ap = _argparse.ArgumentParser(
+        description="Strip/fix ELF object files for mwldmips compatibility"
+    )
+    ap.add_argument("files", nargs="+", metavar="file.o")
+    ap.add_argument(
+        "--expected-size", type=int, default=0, metavar="N",
+        help="truncate .text to exactly N bytes (removes GNU-as 16-byte alignment padding)"
+    )
+    args = ap.parse_args()
+    for arg in args.files:
         p = Path(arg)
         if not p.exists():
             print(f"[strip_sections] warning: {p} does not exist", file=sys.stderr)
             continue
-        if process(p):
-            print(f"[strip_sections] stripped sections from {p}")
+        if process(p, expected_text_size=args.expected_size):
+            print(f"[strip_sections] stripped/fixed {p}")

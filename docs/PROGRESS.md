@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-23 (Track A: 1008 src files, ~32% of 3149 boot-ELF functions; partial-link pipeline complete — `elf/SCUS_971.12.elf` produced at 17% byte identity, rising as functions are matched)_
+_Last updated: 2026-05-23 (Track A: 1008 src files, ~32% of 3014 unique-vram functions; partial-link pipeline at **100% byte identity** — `elf/SCUS_971.12.elf` loadable region is byte-identical to original)_
 
 ## Project at a glance
 
@@ -244,28 +244,39 @@ All other 295 functions are at 100%.
 
 ### Done — Track A partial-link pipeline
 
-A fully automated pipeline that links all 3149 boot-ELF functions into a single
-`elf/SCUS_971.12.elf` using `mwldmips.exe` (the original period-correct linker):
+A fully automated pipeline that links all 3014 unique-vram boot-ELF functions
+into a single `elf/SCUS_971.12.elf` using `mwldmips.exe` (the original
+period-correct linker). **The loadable region is byte-identical to the original
+ELF** (1530624/1530624 bytes, 100.00%).
 
-- **`tools/decomp/fill_unmatched.py`** — assembles all 3149 per-function `.s`
+- **`tools/decomp/fill_unmatched.py`** — assembles all 3014 per-function `.s`
   files from splat into `build/filler/*.o`.  For functions with a compiled
   `build/obj/*.o`, copies those instead.  Applies all post-processing
   (section stripping, 16→4-byte `.text` alignment fix, GPREL16 pre-application,
   cross-function local label globalization, symbol weakening).  Idempotent with
-  incremental rebuild.
+  incremental rebuild.  135 duplicate-vram syscall-stub aliases (same vram, both
+  a named form and `func_XXXXXXXX`) are deduplicated to the named form.
 - **`tools/decomp/strip_sections.py`** — strips `.pdr`/`.reginfo`/`.MIPS.abiflags`/
   `.gnu.attributes` from GNU-as objects; zeroes empty `.text`/`.data`/`.bss`;
   forces `.text` section alignment from 16 to 4; pre-applies `R_MIPS_GPREL16`
-  relocations against `D_XXXXXXXX`/`func_XXXXXXXX` absolute symbols.
+  relocations (preserving REL addend for expressions like `%gp_rel(sym+0xC)`);
+  zeroes `R_MIPS_PC16` addend fields (mwldmips formula is `(S+A-(P+4))/4`,
+  but GNU-as writes A=-1; setting A=0 gives the correct branch offset).
+  For each function, resizes `.text` to `slot_size = next_vram − this_vram` so
+  inter-function gap bytes are part of the object (not left as linker holes).
+  156 functions whose mwcc output has the wrong size or content are
+  force-assembled from the `.s` instead (`SIZE_DRIFT_FORCE_ASM`).
 - **`tools/decomp/link.py`** — generates `config/SCUS_971.12.lcf` (the
   Metrowerks linker command file) with per-function `.text` placement in vram
   order, 2000+ absolute symbol definitions for BSS/IOP/hardware-register
   addresses, and `_gp = 0x0027D370`.  Invokes `mwldmips.exe` via
   `qemu-i386 wibo32`, then compares the PT_LOAD region of the output ELF against
-  the original.
-- **Current byte identity: ~17%.**  The low figure is because 137 compiled
-  functions aren't yet byte-exact, causing a -1540-byte size drift that shifts
-  all JAL/J targets.  Byte identity rises directly as functions are matched.
+  the original.  Vram deduplication mirrors `fill_unmatched.py`.
+- **Current byte identity: 100.00%** (1530624/1530624 bytes in the loadable
+  region).  The output ELF is 0x80 bytes longer than the original due to
+  mwldmips alignment padding in currently-empty data sections — expected and
+  harmless.  Byte identity rises as matched functions displace `SIZE_DRIFT_FORCE_ASM`
+  entries.
 - **To run the full pipeline** (inside the `exterm-toolchain` container):
   `python3 tools/decomp/link.py`  (runs fill_unmatched, generates LCF, links,
   compares).  Add `--no-fill` to skip fill_unmatched; `--dry-run` to skip the

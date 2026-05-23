@@ -75,13 +75,28 @@ def _vram_from_asm(path: Path) -> int:
 
 
 def sorted_functions() -> list[str]:
-    """Return all function names in vram order."""
+    """Return deduplicated function names in vram order.
+
+    When two .s files share the same vram (e.g. the named syscall stub
+    RFU000_FullReset and its alias func_0010B400), only one entry is kept.
+    The non-func_ (named) form is preferred; the func_ alias is dropped.
+    This matches the deduplication in fill_unmatched.all_asm_functions().
+    """
     entries: list[tuple[int, str]] = []
     for f in ASM_DIR.glob("*.s"):
         vram = _vram_from_asm(f)
         entries.append((vram, f.stem))
     entries.sort()
-    return [name for _, name in entries]
+
+    seen: dict[int, str] = {}
+    for vram, name in entries:
+        if vram not in seen:
+            seen[vram] = name
+        else:
+            existing = seen[vram]
+            if existing.startswith("func_") and not name.startswith("func_"):
+                seen[vram] = name
+    return [name for _, name in sorted(seen.items())]
 
 
 # ---------------------------------------------------------------------------

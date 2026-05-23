@@ -130,6 +130,53 @@ absolute values in the LCF SECTIONS block.  This covers:
 Addresses are derived from the `D_XXXXXXXX` / `func_XXXXXXXX` naming
 convention (splat encodes the vram address in the symbol name).
 
+## strip_sections.py — post-processing
+
+Called after every assembly (and after copying from `build/obj/`).  Applies
+six fixes:
+
+1. **Section removal** — strips `.pdr`, `.MIPS.abiflags`, `.reginfo`,
+   `.gnu.attributes` (GNU-as extensions mwldmips doesn't understand), and any
+   empty `.text`/`.data`/`.bss` (mwldmips rejects them).
+
+2. **`.text` alignment** — GNU-as with `-march=r5900` emits `.text` with
+   16-byte alignment (MIPS EE ABI default).  mwldmips pads between sections to
+   satisfy alignment, inserting up to 12 bytes of zeros between consecutive
+   functions.  `objcopy --set-section-alignment .text=4` forces 4-byte alignment
+   so no padding is inserted.
+
+3. **`.text` resize to slot size** — each object's `.text` is resized to
+   exactly `next_function_vram - this_function_vram` (the "slot size").  This
+   serves two purposes:
+   - For GNU-as objects: removes the trailing zero-nop padding that GNU-as adds
+     when rounding `.text` up to its 16-byte alignment boundary.
+   - For all objects: appends trailing zero bytes to fill any inter-function
+     alignment gap the original CodeWarrior linker inserted.  These gaps (all
+     zero nops, typically 4–16 bytes) are not captured in splat `.s` files but
+     are part of the original binary layout.  The extension path in `resize_text()`
+     handles the rare case where slot > 16-byte-padded nm_size.
+
+4. **GPREL16 pre-application** — splat disassembles `lw $x, %gp_rel(sym)($gp)`
+   references.  GNU-as emits `R_MIPS_GPREL16` for these.  mwldmips applies
+   GPREL16 only to actual `.sdata` symbols, not absolute symbols from the LCF.
+   We pre-apply the relocations in Python: `offset = (sym_addr + addend) - _gp`,
+   preserving the REL addend embedded in the instruction's immediate field
+   (critical for expressions like `%gp_rel(D_00275B00 + 0xC)`).  The processed
+   GPREL16 entries are removed from `.rel.text`.
+
+5. **R_MIPS_PC16 addend fix** — mwldmips resolves R_MIPS_PC16 (PC-relative
+   branch) relocations using the formula `(S + A - (P + 4)) / 4`, where it
+   subtracts an extra pipeline slot (4 bytes) compared to GNU-ld's `(S + A - P) / 4`.
+   GNU-as puts `-1` (0xffff) as the addend `A` in branch instructions.
+   With mwldmips's formula this is off by one instruction.  We zero the addend
+   field in every R_MIPS_PC16 instruction (`A = 0`) so mwldmips computes the
+   correct branch target.
+
+6. **No-op on mwcc compiled objects for steps 1–2** — mwcc objects have 4-byte
+   `.text` alignment and no GNU-as sections, so steps 1–2 are no-ops.  Steps
+   3–5 are applied to all objects (mwcc objects get `.text` extended to slot
+   size if needed; GPREL16 and PC16 are no-ops if no such relocations exist).
+
 ## fill_unmatched.py — special cases
 
 Several special cases are encoded in `fill_unmatched.py`:
@@ -140,6 +187,17 @@ Functions that have a compiled `build/obj/*.o` but whose mwcc-compiled object
 uses `R_MIPS_GPREL16` relocations that overflow at link time.  These are
 force-assembled from the splat `.s` instead (the `.s` uses `%gp_rel()` which
 becomes inline-patched by `strip_sections.py`).
+
+### SIZE_DRIFT_FORCE_ASM (156 functions)
+
+Functions whose compiled `build/obj/*.o` has a different `.text` size or
+different instruction bytes from the original binary.  Causes include:
+- Dead-store elimination of delay-slot `daddu $rN, $zero, $zero` nops
+- Different code generation (e.g., SIMD vs. scalar load sequences)
+- Incomplete matching (function compiled to wrong but similarly-sized code)
+
+These are force-assembled from the splat `.s` which contains the exact original
+bytes.
 
 ### CROSS_LABEL_FUNCS (4 functions)
 
@@ -156,46 +214,35 @@ can resolve the cross-function references.
 object has `D_00275670` weakened with `objcopy --weaken-symbol` to avoid a
 multiply-defined error.
 
-## strip_sections.py — post-processing
+## Vram deduplication
 
-Called after every assembly (and after copying from `build/obj/`).  Applies
-four fixes:
-
-1. **Section removal** — strips `.pdr`, `.MIPS.abiflags`, `.reginfo`,
-   `.gnu.attributes` (GNU-as extensions mwldmips doesn't understand), and any
-   empty `.text`/`.data`/`.bss` (mwldmips rejects them).
-
-2. **`.text` alignment** — GNU-as with `-march=r5900` emits `.text` with
-   16-byte alignment (MIPS EE ABI default).  mwldmips pads between sections to
-   satisfy alignment, inserting up to 12 bytes of zeros between consecutive
-   functions.  `objcopy --set-section-alignment .text=4` forces 4-byte alignment
-   so no padding is inserted.
-
-3. **GPREL16 pre-application** — splat disassembles `lw $x, sym($gp)` as
-   `addiu $x, $gp, %gp_rel(sym)`.  GNU-as emits `R_MIPS_GPREL16` for these.
-   mwldmips applies GPREL16 only to actual `.sdata` symbols, not absolute
-   symbols from the LCF.  We pre-apply the relocations in Python:
-   `offset = sym_addr - 0x0027D370`, patch the instruction word, then remove
-   the GPREL16 entry from `.rel.text`.
-
-4. **No-op on mwcc compiled objects** — mwcc objects have 4-byte `.text`
-   alignment and no GNU-as sections, so steps 1–3 are no-ops for them.
+Splat generates BOTH a named `.s` file (e.g. `RFU000_FullReset.s`) AND a
+`func_XXXXXXXX.s` alias for the same vram address for 135 EE kernel syscall
+stubs.  `sorted_functions()` (in `link.py`) and `all_asm_functions()` (in
+`fill_unmatched.py`) deduplicate by vram, keeping the named form and discarding
+the `func_` alias.  This reduces the link list from 3149 to 3014 objects.
 
 ## Current status
 
 | Metric | Value |
 |---|---|
-| Total functions | 3149 |
-| Compiled from `src/` (matched) | 1008 (~32%) |
+| Total functions | 3149 (3014 unique vrams after dedup) |
+| Compiled from `src/` (matched) | ~891 |
 | Force-assembled (GPREL override) | 111 |
-| Assembled from splat `.s` | ~2030 |
-| Byte identity vs original | ~17% |
-| First difference at vram | 0x00100080 |
-| Root cause of diff | 137 matched but non-byte-exact compiled functions cause -1540 bytes total size drift, shifting all JAL/J targets |
+| Force-assembled (size/content drift) | 156 |
+| Assembled from splat `.s` | ~1856 |
+| Byte identity vs original | **100.00%** (1530624/1530624 bytes) |
+| ELF filesz | 0x175b80 (vs orig 0x175b00; +0x80 bytes data-section padding) |
 
-The byte identity rises directly as functions are matched to byte-exact output.
-When all 3149 functions match, the ELF should be identical to the original
-(with the same file size of `0x175B00` loadable bytes).
+The loadable region of `elf/SCUS_971.12.elf` is byte-identical to the original
+`config/SCUS_971.12`.  The output file is 0x80 bytes longer due to mwldmips
+inserting alignment padding in the data sections (`.data`, `.rodata`, etc.)
+that follow the code; these sections currently contain no game data.
+
+Byte identity rises directly as functions are matched to byte-exact output.
+When all 3014 functions are matched (and the 156 SIZE_DRIFT_FORCE_ASM functions
+are fixed), the ELF should be identical to the original (with the exact file
+size of `0x175B00` loadable bytes).
 
 ## Debugging tips
 

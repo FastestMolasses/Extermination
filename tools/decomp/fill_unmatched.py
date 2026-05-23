@@ -27,6 +27,7 @@ Pass --clean to wipe build/filler/ first.
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -187,16 +188,233 @@ WEAKEN_SYMBOLS: dict[str, list[str]] = {
     "func_00271DF8": ["D_00275670"],
 }
 
+# Functions whose build/obj/*.o has a size mismatch vs the original function.
+# These were compiled by mwcc but the compiler dropped or added instructions
+# (e.g. dead-store elimination of delay-slot daddu zeroing, or extra prologue).
+# We fall back to assembling from the splat .s (which contains the exact original
+# bytes) to obtain the correct .text size and content.
+SIZE_DRIFT_FORCE_ASM = {
+    "func_00100610",
+    "func_001046C0",
+    "func_00108EA8",
+    "func_00108FF8",
+    "func_0010C0C8",
+    "func_0010C200",
+    "func_0010C290",
+    "func_0010C2F8",
+    "func_0010C360",
+    "func_0010C3C8",
+    "func_0010C430",
+    "func_0010C4A0",
+    "func_0010D098",
+    "func_0010E368",
+    "func_00110C80",
+    "func_00110D70",
+    "func_00110E58",
+    "func_00119870",
+    "func_00119880",
+    "func_0011B390",
+    "func_0011B410",
+    "func_0011BCF8",
+    "func_0011C128",
+    "func_0011DE90",
+    "func_0011E148",
+    "func_0011E2A8",
+    "func_00127650",
+    "func_00128250",
+    "func_0012B850",
+    "func_0012D850",
+    "func_0012F980",
+    "func_00131510",
+    "func_00131940",
+    "func_00133A20",
+    "func_00137830",
+    "func_0013B790",
+    "func_0013BA20",
+    "func_0013BBB0",
+    "func_0013D850",
+    "func_0013DC60",
+    "func_00141A30",
+    "func_00142330",
+    "func_0014ACC0",
+    "func_0014BE20",
+    "func_0014C220",
+    "func_0014E420",
+    "func_0014E670",
+    "func_0014EC00",
+    "func_0014EEF0",
+    "func_00150260",
+    "func_001504D0",
+    "func_00150DA0",
+    "func_00151590",
+    "func_00152930",
+    "func_00152B60",
+    "func_00152EB0",
+    "func_00153950",
+    "func_00158130",
+    "func_0015B030",
+    "func_0015B610",
+    "func_0015D460",
+    "func_001639E0",
+    "func_00163B40",
+    "func_00163C10",
+    "func_00163D50",
+    "func_001645D0",
+    "func_0016AC50",
+    "func_00177460",
+    "func_00178390",
+    "func_001796C0",
+    "func_0017D800",
+    "func_0017D940",
+    "func_0017DAF0",
+    "func_0017DC80",
+    "func_0017DEB0",
+    "func_0017DFB0",
+    "func_001811F0",
+    "func_00181430",
+    "func_00182100",
+    "func_00182430",
+    "func_00182870",
+    "func_00183250",
+    "func_001837B0",
+    "func_0018C4B0",
+    "func_0018C6A0",
+    "func_0018C850",
+    "func_0018C920",
+    "func_00191120",
+    "func_00192010",
+    "func_0019A310",
+    "func_0019ED80",
+    "func_0019F330",
+    "func_001A4D10",
+    "func_001A58B0",
+    "func_001A9E00",
+    "func_001AA2A0",
+    "func_001AD140",
+    "func_001AEB60",
+    "func_001AEBA0",
+    "func_001B0FD0",
+    "func_001B1190",
+    "func_001B12B0",
+    "func_001B1B70",
+    "func_001B1EA0",
+    "func_001B2B80",
+    "func_001B2BF0",
+    "func_001C67E0",
+    "func_001C8710",
+    "func_001C9E40",
+    "func_001CBE10",
+    "func_001CF470",
+    "func_001D0D60",
+    "func_001DEEE0",
+    "func_001E2270",
+    "func_001F1110",
+    "func_001F5490",
+    "func_001FBD50",
+    "func_001FBDB0",
+    "func_001FBE80",
+    "func_001FE530",
+    "func_00204700",
+    "func_00204AE0",
+    "func_00204D60",
+    "func_00205F90",
+    "func_0021BE40",
+    "func_0021BED0",
+    "func_0021D1A0",
+    "func_0021D490",
+    "func_0021D4E0",
+    "func_0021D6C0",
+    "func_0021E490",
+    "func_00224290",
+    "func_002243F0",
+    "func_00225570",
+    "func_00229960",
+    "func_00229A00",
+    "func_00229C00",
+    # Content-mismatch functions: compiled obj has wrong instructions (different
+    # code generation from mwcc vs original), even though size may be correct.
+    # These were identified by comparing filler object bytes to the original ELF.
+    "func_00100550",
+    "func_0010BFB0",
+    "func_0011B1E0",
+    "func_0011E878",
+    "func_001226E8",
+    "func_00193D90",
+    "func_001AFF90",
+    "func_001B3250",
+    "func_001B3670",
+    "func_001B5F40",
+    "func_001C85D0",
+    "func_001D2160",
+    "func_001D2DE0",
+    "func_001D8FD0",
+    "func_001DCFF0",
+    "func_001DEDB0",
+    "func_001E0C80",
+    "func_001FE660",
+    "func_00206970",
+}
+
+# Regex for extracting the declared original size from a .s file's nonmatching line.
+_NONMATCHING_RE = re.compile(r"^nonmatching\s+\S+,\s+(0x[0-9A-Fa-f]+|\d+)")
+
 
 def all_asm_functions() -> list[str]:
-    """Return all function names from build/asm/matchings/main/code/*.s, vram-ordered."""
+    """Return deduplicated function names in vram order.
+
+    When two .s files map to the same vram (named syscall stubs and their
+    func_XXXXXXXX aliases, e.g. RFU000_FullReset / func_0010B400), only one
+    entry is included.  Named (non-func_) forms are preferred because they
+    carry the canonical symbol name; the func_ alias is silently dropped.
+    """
     entries: list[tuple[int, str]] = []
     for f in ASM_DIR.glob("*.s"):
         name = f.stem
         vram = _vram_from_asm(f)
         entries.append((vram, name))
     entries.sort()
-    return [name for _, name in entries]
+
+    # Deduplicate by vram: prefer the named form over func_XXXXXXXX aliases.
+    seen: dict[int, str] = {}
+    for vram, name in entries:
+        if vram not in seen:
+            seen[vram] = name
+        else:
+            existing = seen[vram]
+            if existing.startswith("func_") and not name.startswith("func_"):
+                seen[vram] = name
+    return [name for _, name in sorted(seen.items())]
+
+
+def compute_slot_sizes() -> dict[str, int]:
+    """Return a dict mapping function name → slot size in the original binary.
+
+    The slot size is (next_function_vram - this_function_vram), which equals
+    the function body size plus any inter-function alignment padding (zero nops)
+    that the original CodeWarrior linker inserted between functions.  Using the
+    slot size as the truncation target for assembled .s objects ensures that
+    trailing gap bytes are included in each filler object, which is required to
+    reproduce the exact byte layout of the original binary.
+    """
+    funcs = all_asm_functions()
+    # Build vram → name map for the deduped list.
+    vram_list: list[tuple[int, str]] = []
+    for name in funcs:
+        asm_path = ASM_DIR / f"{name}.s"
+        vram = _vram_from_asm(asm_path)
+        vram_list.append((vram, name))
+    # vram_list is already sorted because all_asm_functions() returns sorted names.
+
+    slot_sizes: dict[str, int] = {}
+    for i, (vram, name) in enumerate(vram_list):
+        if i + 1 < len(vram_list):
+            next_vram = vram_list[i + 1][0]
+        else:
+            # Last function: slot = its nonmatching declared size (no gap after).
+            nm = _nonmatching_size(ASM_DIR / f"{name}.s")
+            next_vram = vram + (nm if nm > 0 else 0)
+        slot_sizes[name] = next_vram - vram
+    return slot_sizes
 
 
 def _vram_from_asm(path: Path) -> int:
@@ -220,6 +438,19 @@ def _vram_from_asm(path: Path) -> int:
     return 0
 
 
+def _nonmatching_size(asm_path: Path) -> int:
+    """Return the declared original function size from the nonmatching directive."""
+    try:
+        for line in asm_path.read_text(errors="replace").splitlines()[:5]:
+            m = _NONMATCHING_RE.match(line.strip())
+            if m:
+                sz_str = m.group(1)
+                return int(sz_str, 16) if sz_str.startswith("0x") else int(sz_str)
+    except Exception:
+        pass
+    return 0
+
+
 def _needs_rebuild(src: Path, dst: Path) -> bool:
     """Return True if dst is missing or older than src."""
     if not dst.exists():
@@ -228,8 +459,13 @@ def _needs_rebuild(src: Path, dst: Path) -> bool:
 
 
 def _assemble_from_s(name: str, asm_path: Path, out_path: Path,
-                     keep_locals: bool = False) -> Exception | None:
-    """Assemble asm_path -> out_path.  Returns CalledProcessError on failure."""
+                     keep_locals: bool = False,
+                     expected_size: int = 0) -> Exception | None:
+    """Assemble asm_path -> out_path.  Returns CalledProcessError on failure.
+
+    expected_size: if > 0, passed to _strip() so it can truncate any trailing
+        zero-padding that GNU-as adds when rounding .text up to 16-byte boundary.
+    """
     extra = ["-L"] if keep_locals else []
     cmd = AS_CMD + extra + [str(asm_path), "-o", str(out_path)]
     try:
@@ -237,7 +473,7 @@ def _assemble_from_s(name: str, asm_path: Path, out_path: Path,
     except subprocess.CalledProcessError as e:
         return e
 
-    _strip(out_path)
+    _strip(out_path, expected_size=expected_size)
 
     if keep_locals:
         # Globalize all .L* symbols so cross-function branch references resolve.
@@ -278,8 +514,15 @@ def _apply_weaken(name: str, out_path: Path) -> None:
     subprocess.run(cmd, check=True)
 
 
-def assemble_one(name: str) -> tuple[str, str, Exception | None]:
-    """Assemble one .s file into build/filler/<name>.o.  Returns (name, status, err)."""
+def assemble_one(name: str, slot_size: int = 0) -> tuple[str, str, Exception | None]:
+    """Assemble one .s file into build/filler/<name>.o.  Returns (name, status, err).
+
+    slot_size: the exact number of bytes this function occupies in the original
+        binary (next_vram - this_vram).  Passed to _strip() so strip_sections.py
+        can resize the .text section to match the original layout, including any
+        inter-function zero-nop alignment padding the CodeWarrior linker inserted.
+        If 0, no resizing is performed (legacy behaviour).
+    """
     asm_path = ASM_DIR / f"{name}.s"
     out_path = FILLER_DIR / f"{name}.o"
 
@@ -288,7 +531,9 @@ def assemble_one(name: str) -> tuple[str, str, Exception | None]:
 
     # GPREL force-asm: even if build/obj/ has a compiled copy, use the .s
     # because the mwcc object has R_MIPS_GPREL16 relocations that overflow.
-    force_asm = name in GPREL_FORCE_ASM
+    # SIZE_DRIFT_FORCE_ASM: the build/obj/.o has wrong .text size (mwcc dropped
+    # or added instructions); use the .s which has the correct original bytes.
+    force_asm = name in GPREL_FORCE_ASM or name in SIZE_DRIFT_FORCE_ASM
     # Cross-label functions need -L + globalize-symbol post-processing.
     keep_locals = name in CROSS_LABEL_FUNCS
 
@@ -297,29 +542,43 @@ def assemble_one(name: str) -> tuple[str, str, Exception | None]:
         # Use the compiled/asm-matched object from build/obj/.
         if _needs_rebuild(obj_src, out_path):
             shutil.copy2(obj_src, out_path)
-            _strip(out_path)
+            # For matched (mwcc) objects: pass slot_size so that any trailing
+            # inter-function gap bytes are appended.  mwcc produces the correct
+            # instruction bytes but no trailing nops; the slot_size resize adds
+            # them back so the binary layout matches the original.
+            _strip(out_path, expected_size=slot_size)
             _apply_weaken(name, out_path)
         return name, "copied", None
     else:
         # Assemble from the splat .s (either no obj/ copy, or forced).
         if not keep_locals and not force_asm and not _needs_rebuild(asm_path, out_path):
             return name, "cached", None
-        err = _assemble_from_s(name, asm_path, out_path, keep_locals=keep_locals)
+        err = _assemble_from_s(name, asm_path, out_path,
+                                keep_locals=keep_locals,
+                                expected_size=slot_size)
         if err is not None:
             return name, "asm_error", err
         _apply_weaken(name, out_path)
-        status = "force_asm" if force_asm else "assembled"
+        if name in GPREL_FORCE_ASM:
+            status = "force_asm"
+        elif name in SIZE_DRIFT_FORCE_ASM:
+            status = "drift_asm"
+        else:
+            status = "assembled"
         return name, status, None
 
 
-def _strip(obj: Path) -> None:
-    """Strip empty .text/.data/.bss sections from a GNU-as ELF object."""
+def _strip(obj: Path, expected_size: int = 0) -> None:
+    """Strip empty sections, fix alignment, and optionally truncate .text padding.
+
+    expected_size: if > 0, passed as --expected-size to strip_sections.py so
+        it can truncate 16-byte alignment padding from GNU-as assembled objects.
+    """
+    cmd = [sys.executable, str(STRIP_SCRIPT), str(obj)]
+    if expected_size > 0:
+        cmd += ["--expected-size", str(expected_size)]
     try:
-        subprocess.run(
-            [sys.executable, str(STRIP_SCRIPT), str(obj)],
-            check=True,
-            capture_output=True,
-        )
+        subprocess.run(cmd, check=True, capture_output=True)
     except subprocess.CalledProcessError:
         pass  # Non-fatal; mwldmips will report the real error.
 
@@ -345,11 +604,14 @@ def main(argv: list[str]) -> int:
         shutil.rmtree(FILLER_DIR)
     FILLER_DIR.mkdir(parents=True, exist_ok=True)
 
+    # Precompute slot sizes once (avoids re-reading all .s files per function).
+    slot_sizes = compute_slot_sizes()
+
     errors: list[tuple[str, Exception]] = []
     counts = {"copied": 0, "assembled": 0, "cached": 0, "no_asm": 0, "asm_error": 0}
 
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = {pool.submit(assemble_one, n): n for n in funcs}
+        futures = {pool.submit(assemble_one, n, slot_sizes.get(n, 0)): n for n in funcs}
         for fut in as_completed(futures):
             name, status, err = fut.result()
             counts[status] = counts.get(status, 0) + 1
@@ -361,7 +623,8 @@ def main(argv: list[str]) -> int:
     print(
         f"[fill_unmatched] {total} functions: "
         f"{counts['assembled']} assembled, "
-        f"{counts.get('force_asm', 0)} force-asm, "
+        f"{counts.get('force_asm', 0)} force-asm (gprel), "
+        f"{counts.get('drift_asm', 0)} force-asm (size-drift), "
         f"{counts['copied']} copied from obj/, "
         f"{counts['cached']} cached, "
         f"{counts.get('asm_error', 0)} errors"
