@@ -1,0 +1,64 @@
+// Asm-void leaf, encoded entirely as .word directives — used when
+// expressing the function in source-level C or even labeled asm would
+// be impractical or would force mwcc into non-matching codegen.
+asm void func_001CCE80(void) {
+    .word 0x0005183c
+    .word 0x0003183f
+    .word 0x0003283c
+    .word 0x0006183c
+    .word 0x0003183f
+    .word 0x00031c3c
+    .word 0x00a32825
+    .word 0x0007183c
+    .word 0x0003183f
+    .word 0x00031e3c
+    .word 0x00653825
+    .word 0x0008183c
+    .word 0x0003183f
+    .word 0x0003283c
+    .word 0x0009183c
+    .word 0x0003183f
+    .word 0x00031c3c
+    .word 0x00a33025
+    .word 0x000b183c
+    .word 0x000a283c
+    .word 0x0003183f
+    .word 0x0005283f
+    .word 0x0003183c
+    .word 0x00a31825
+    .word 0x8faa0000
+    .word 0x7c800000
+    .word 0x3c051100
+    .word 0xac850008
+    .word 0x3c051000
+    .word 0x0005403c
+    .word 0x25450006
+    .word 0x3c095000
+    .word 0x00a92825
+    .word 0xac85000c
+    .word 0x24050004
+    .word 0x00a82825
+    .word 0xfc850010
+    .word 0x2405000e
+    .word 0xfc850018
+    .word 0x24050050
+    .word 0xfc870020
+    .word 0xfc850028
+    .word 0x24050051
+    .word 0xfc860030
+    .word 0xfc850038
+    .word 0xfc830040
+    .word 0x24030052
+    .word 0xfc830048
+    .word 0x24030053
+    .word 0xfc800050
+    .word 0xfc830058
+    .word 0x3c030800
+    .word 0x0003283c
+    .word 0x34038000
+    .word 0x00651825
+    .word 0x01431825
+    .word 0xfc830060
+    .word 0x03e00008
+    .word 0xfc800068
+}
