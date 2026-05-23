@@ -79,11 +79,14 @@ runs the period-correct compiler.
   global-pointer writes, comparisons, conditional stores, float copies) plus
   **137 EE-kernel syscall stub functions** matched as one-line inline-asm C
   stubs (`asm { addiu $v1, $zero, N; syscall 0; };`) — every syscall stub in
-  the boot ELF, 0% → 100% in a single pass. Each compiles to a **100% `.text`
-  match** vs the original, confirmed by `objdiff-cli`. The pipeline is proven
-  end to end and `tools/decomp/build.py` drives it across all units (splat →
-  assemble target → compile base → objdiff). 211 functions are in `src/`
-  total (188 perfect, 23 partial/WIP).
+  the boot ELF, 0% → 100% in a single pass. Of those, **101 stubs are now
+  named to their SDK identities** (`ResetEE`, `FlushCache`, `CreateThread`,
+  etc.) via `config/symbol_addrs.txt`, mapping each `addiu $v1,$zero,N` to the
+  public PS2-SDK syscall-number table; splat picks up the names and writes the
+  `.s`/`.o` under those names. The remaining 34 negative-N (user-mode) stubs
+  and 2 duplicate-N collisions keep their `func_<addr>` names for now. Each
+  function compiles to a **100% `.text` match** vs the original, confirmed by
+  `objdiff-cli`. 211 functions are in `src/` total (188 perfect, 23 partial).
 
 Build flow (`tools/decomp/build.py`): `setup` runs splat + writes
 `objdiff.json`; `build` assembles the splat disassembly into objdiff *target*
