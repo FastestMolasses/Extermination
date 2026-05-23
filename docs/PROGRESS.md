@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-22 (Track A: 50 leaf functions at 100% match — breadth pass 3)_
+_Last updated: 2026-05-22 (Track A: 188 leaf functions at 100% match — 51 C + 137 EE syscall stubs)_
 
 ## Project at a glance
 
@@ -74,13 +74,16 @@ runs the period-correct compiler.
   **32-bit wibo** (`tools/bin/wibo32`, cross-built by `docker/build-wibo.sh`)
   inside **qemu-i386**. The MIPS assembler is arm64-native — only the compiler
   is emulated.
-- **50 leaf functions matched** — trivial leaves (integer constants, empty
-  bodies, field getters, field copies, field+constant, global-pointer writes,
-  comparisons, conditional stores, float copies) each compile to a
-  **100% `.text` match** vs the original, confirmed by `objdiff-cli`. The
-  pipeline is proven end to end and `tools/decomp/build.py` drives it across
-  all units (splat → assemble target → compile base → objdiff).
-  72 functions are in `src/` total (50 perfect, 22 partial/WIP).
+- **188 leaf functions matched** — 51 C-decompiled trivial leaves (integer
+  constants, empty bodies, field getters/setters, field copies, field+constant,
+  global-pointer writes, comparisons, conditional stores, float copies) plus
+  **137 EE-kernel syscall stub functions** matched as one-line inline-asm C
+  stubs (`asm { addiu $v1, $zero, N; syscall 0; };`) — every syscall stub in
+  the boot ELF, 0% → 100% in a single pass. Each compiles to a **100% `.text`
+  match** vs the original, confirmed by `objdiff-cli`. The pipeline is proven
+  end to end and `tools/decomp/build.py` drives it across all units (splat →
+  assemble target → compile base → objdiff). 211 functions are in `src/`
+  total (188 perfect, 23 partial/WIP).
 
 Build flow (`tools/decomp/build.py`): `setup` runs splat + writes
 `objdiff.json`; `build` assembles the splat disassembly into objdiff *target*
@@ -105,10 +108,6 @@ It is proprietary Metrowerks software — it lives in `tools/mwccps2/` and is
   `sb $zero, 0($v1)` — matches when written as simple C dereference.
 
 **Known unsolvable classes (leave src files as partial for documentation):**
-- `sd`/`ld` instructions: GNU `mipsel-linux-gnu-as` in mips1 mode expands `sd`
-  to two `sw` instructions (assembler object is wrong/larger).
-- `daddu`, `dsll`, `dsra32`, `dsrl`, `dsubu`: mips3+ mode — assembler fails
-  with current prelude.
 - HW register addresses (`lui $v1 / ori $v1` with 5-digit hex): mwcc always
   uses `$at` for absolute address loads, cannot reproduce `$v1`-based loads.
 - `mfc1`/`mtc1`: float bit manipulation (fabsf) — mwcc generates stack-based
