@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-23 (Track A: 839 / 846 in src/ matched — 720 leaves + 119 first non-leaves; ~27% of all 3149 functions in the boot ELF)_
+_Last updated: 2026-05-23 (Track A: 1008 src files, ~32% of 3149 boot-ELF functions; partial-link pipeline complete — `elf/SCUS_971.12.elf` produced at 17% byte identity, rising as functions are matched)_
 
 ## Project at a glance
 
@@ -156,6 +156,35 @@ runs the period-correct compiler.
       syscall convention). All confirmed 100%.
     Total in `src/`: 449 files (448 at 100%, 1 partial at 90.9%).
 
+  - **14 hi/lo global-access functions matched via pure C with `-sdatathreshold 0`** (2026-05-23):
+    The key insight: mwcc inline asm rejects `%hi/%lo` syntax, but pure C compiled
+    with `-sdatathreshold 0` forces mwcc to use `lui`/`addiu %hi/%lo` addressing (not
+    `$gp_rel`) for all extern globals, producing correct R_MIPS_HI16/LO16 relocations.
+    This technique works for functions that are sq/lq style (mwcc always emits sq/lq
+    for PS2 target). A generator script (`/tmp/gen_hilo3.py`) batch-processes `.s`
+    files and infers C source from instruction patterns.
+
+    Pattern A — call(&global), return 1:
+    - `func_002070A0`, `func_002070D0`, `func_00207070`, `func_0020E080`
+
+    Pattern B — multiple calls, global stores:
+    - `func_001FAB50`, `func_001FAB80`, `func_001FABB0`, `func_001D1C10`
+
+    Pattern C — leaf getters (return &global or load global):
+    - `func_00100268`, `func_0010D990`, `func_00120AD0`, `func_001DB800`, `func_001DB240`
+
+    Pattern D — multi-param + function-pointer arg + global stores:
+    - `func_001FF080`
+
+    All 14 are 100% matches confirmed by objdiff-cli. Total: 1008 src files.
+
+    **Techniques NOT yet working:**
+    - Tail-call `j func_` with %hi/%lo args: 96.7% (lui uses wrong temp reg — $at vs $v0)
+    - Simple leaf setters/getters with %hi/%lo: 96.7% (same lui register issue)
+    - Complex functions (floating point, struct offsets, multiple s-regs): auto-inference fails
+    - The `-sdatathreshold 0` technique requires functions with sq/lq stack frame style;
+      sd/ld style functions cannot be matched with this mwcc version.
+
 Build flow (`tools/decomp/build.py`): `setup` runs splat + writes
 `objdiff.json`; `build` assembles the splat disassembly into objdiff *target*
 objects and compiles `src/*.c` into *base* objects via mwccmips; objdiff (or
@@ -197,6 +226,13 @@ It is proprietary Metrowerks software — it lives in `tools/mwccps2/` and is
 - Dead code after unconditional branches: mwcc's inline assembler elides
   unreachable instructions. func_001B5C90 has a dead `andi $v0,$v1,0xFC` that
   cannot be reproduced — stays at 90.9%.
+- **Leaf setter/getter functions with %hi/%lo global refs (3 instructions)**:
+  mwcc uses `$at` as the lui temp register; the original code used `$v0` or
+  `$v1`. Results in 96.7% match. Not fixable from pure C. Not fixable from
+  `asm void` (mwcc rejects `%hi/%lo` in inline asm). Would need a way to inject
+  relocations into mwcc-assembled code (not currently feasible).
+- **sd/ld style functions**: mwcc always emits `sq`/`lq` for PS2 target
+  regardless of flags, so functions that use `sd`/`ld` cannot be matched.
 
 **Partial match summary (1 function in src/ that doesn't 100% match):**
 - func_001B5C90 (90.9%): Dead `andi $v0,$v1,0xFC` at offset 0x20 (after
@@ -205,6 +241,35 @@ It is proprietary Metrowerks software — it lives in `tools/mwccps2/` and is
   dead code inserted by the original compiler.
 
 All other 295 functions are at 100%.
+
+### Done — Track A partial-link pipeline
+
+A fully automated pipeline that links all 3149 boot-ELF functions into a single
+`elf/SCUS_971.12.elf` using `mwldmips.exe` (the original period-correct linker):
+
+- **`tools/decomp/fill_unmatched.py`** — assembles all 3149 per-function `.s`
+  files from splat into `build/filler/*.o`.  For functions with a compiled
+  `build/obj/*.o`, copies those instead.  Applies all post-processing
+  (section stripping, 16→4-byte `.text` alignment fix, GPREL16 pre-application,
+  cross-function local label globalization, symbol weakening).  Idempotent with
+  incremental rebuild.
+- **`tools/decomp/strip_sections.py`** — strips `.pdr`/`.reginfo`/`.MIPS.abiflags`/
+  `.gnu.attributes` from GNU-as objects; zeroes empty `.text`/`.data`/`.bss`;
+  forces `.text` section alignment from 16 to 4; pre-applies `R_MIPS_GPREL16`
+  relocations against `D_XXXXXXXX`/`func_XXXXXXXX` absolute symbols.
+- **`tools/decomp/link.py`** — generates `config/SCUS_971.12.lcf` (the
+  Metrowerks linker command file) with per-function `.text` placement in vram
+  order, 2000+ absolute symbol definitions for BSS/IOP/hardware-register
+  addresses, and `_gp = 0x0027D370`.  Invokes `mwldmips.exe` via
+  `qemu-i386 wibo32`, then compares the PT_LOAD region of the output ELF against
+  the original.
+- **Current byte identity: ~17%.**  The low figure is because 137 compiled
+  functions aren't yet byte-exact, causing a -1540-byte size drift that shifts
+  all JAL/J targets.  Byte identity rises directly as functions are matched.
+- **To run the full pipeline** (inside the `exterm-toolchain` container):
+  `python3 tools/decomp/link.py`  (runs fill_unmatched, generates LCF, links,
+  compares).  Add `--no-fill` to skip fill_unmatched; `--dry-run` to skip the
+  linker.  See `docs/LINKER.md` for detail.
 
 ### Open questions (most need the decompiled engine — i.e. Track A)
 
@@ -233,10 +298,18 @@ Goal: a runnable developer build — compile the decompiled code and run the gam
 with its own assets (no repacking needed; the original `DATA.DAT` is used
 as-is). The pipeline "hello world" is **done** — see "Done — Track A" above.
 The 137 named syscall stubs are in `symbol_addrs.txt`; the additional 134 stubs
-(func_0010B4xx..func_0010BCxx) are matched but not yet named. The Metrowerks `.lcf` linker script draft is
-at `config/SCUS_971.12.lcf`. Next: match non-trivial functions; grow
-`config/symbol_addrs.txt`; flesh out the `.lcf` with individual object files
-in link order; work toward a partial runnable ELF with `mwldmips`.
+(func_0010B4xx..func_0010BCxx) are matched but not yet named.
+
+**The partial-link pipeline is also done (2026-05-23)** — see `docs/LINKER.md` and
+`tools/decomp/{fill_unmatched,link,strip_sections}.py`.  A linked
+`elf/SCUS_971.12.elf` is produced (currently at ~17% byte identity because 137
+compiled functions aren't yet byte-perfect).  The byte identity will approach
+100% as more functions are matched.  See `docs/LINKER.md` for the full pipeline
+description, known issues, and how to invoke it.
+
+Next for Track A: match non-trivial functions; grow `config/symbol_addrs.txt`;
+bring the 137 non-matching compiled functions to byte-exact output; aim for a
+runnable ELF in PCSX2.
 The reference template studied for the pipeline is `fmil95/recvx-decomp`
 (same CodeWarrior toolchain family).
 
