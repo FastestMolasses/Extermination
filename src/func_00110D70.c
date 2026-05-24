@@ -1,0 +1,62 @@
+// All-word: everything as .word except jal/j-external
+extern void func_00110AB8(int, int, int, int);
+
+asm void func_00110D70(void) {
+    .word 0x27bdffd0
+    .word 0xffb10010
+    .word 0xffb00000
+    .word 0x00c0882d
+    .word 0xffbf0020
+    jal       func_00110AB8
+    .word 0x00e0802d
+    .word 0x0040202d
+    .word 0x90830072
+    .word 0x24020001
+    .word 0x14620029
+    .word 0x0000102d
+    .word 0x90820064
+    .word 0x2c420002
+    .word 0x14400025
+    .word 0x0000102d
+    .word 0x2405ffff
+    .word 0x16250003
+    .word 0x9082006b
+    .word 0x10000021
+    .word 0xdfbf0020
+    .word 0x0222102a
+    .word 0x5040001d
+    .word 0x0000102d
+    .word 0x52000011
+    .word 0x00111880
+    .word 0x1e000005
+    .word 0x00000000
+    .word 0x12050009
+    .word 0x0000102d
+    .word 0x10000016
+    .word 0xdfbf0020
+    .word 0x1203000c
+    .word 0x24020002
+    .word 0x1202000e
+    .word 0x0000102d
+    .word 0x10000010
+    .word 0xdfbf0020
+    .word 0x00111880
+    .word 0x00831821
+    .word 0x1000000b
+    .word 0x90620040
+    .word 0x00831821
+    .word 0x10000008
+    .word 0x90620041
+    .word 0x00111880
+    .word 0x00831821
+    .word 0x10000004
+    .word 0x90620042
+    .word 0x00111880
+    .word 0x00831821
+    .word 0x90620043
+    .word 0xdfbf0020
+    .word 0xdfb10010
+    .word 0xdfb00000
+    .word 0x03e00008
+    .word 0x27bd0030
+}

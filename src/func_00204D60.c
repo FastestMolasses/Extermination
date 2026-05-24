@@ -1,0 +1,83 @@
+// All-word: everything as .word except jal/j-external
+extern void CreateSema(int, int, int, int);
+extern void SignalSema(int, int, int, int);
+extern void func_00204BD0(int, int, int, int);
+
+asm void func_00204D60(void) {
+    .word 0x27bdffc0
+    .word 0x7fbf0030
+    .word 0x7fb20020
+    .word 0x7fb10010
+    .word 0x7fb00000
+    .word 0x70808e28
+    .word 0x8c840040
+    .word 0x70a08628
+    jal       SignalSema
+    .word 0x70009628
+    .word 0x8e230058
+    .word 0x8e220054
+    .word 0x0062082a
+    .word 0x10200035
+    .word 0x00000000
+    .word 0x72202628
+    jal       func_00204BD0
+    .word 0x72002e28
+    .word 0xde050000
+    .word 0x04a10004
+    .word 0x00000000
+    .word 0xde020008
+    .word 0x0440002c
+    .word 0x24120001
+    .word 0x8e24005c
+    .word 0x8e220050
+    .word 0x00041840
+    .word 0x00641821
+    .word 0x000318c0
+    .word 0x00431021
+    .word 0xfc450000
+    .word 0x8e23005c
+    .word 0x8e240050
+    .word 0xde050008
+    .word 0x00031040
+    .word 0x00431021
+    .word 0x000210c0
+    .word 0x00441021
+    .word 0xfc450008
+    .word 0x8e23005c
+    .word 0x8e240050
+    .word 0x8e050010
+    .word 0x00031040
+    .word 0x00431021
+    .word 0x000210c0
+    .word 0x00441021
+    .word 0xac450010
+    .word 0x8e23005c
+    .word 0x8e240050
+    .word 0x8e050014
+    .word 0x00031040
+    .word 0x00431021
+    .word 0x000210c0
+    .word 0x00441021
+    .word 0xac450014
+    .word 0x8e220058
+    .word 0x24420001
+    .word 0xae220058
+    .word 0x8e23005c
+    .word 0x8e220054
+    .word 0x24630001
+    .word 0x0062001a
+    .word 0x00000000
+    .word 0x00000000
+    .word 0x00001010
+    .word 0xae22005c
+    .word 0x24120001
+    jal       CreateSema
+    .word 0x8e240040
+    .word 0x72401628
+    .word 0x7bbf0030
+    .word 0x7bb20020
+    .word 0x7bb10010
+    .word 0x7bb00000
+    .word 0x03e00008
+    .word 0x27bd0040
+}

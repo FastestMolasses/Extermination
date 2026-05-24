@@ -1,0 +1,92 @@
+// All-word: everything as .word except jal/j-external
+extern void func_00108640(int, int, int, int);
+extern void func_001086F8(int, int, int, int);
+extern void func_00108748(int, int, int, int);
+extern void func_00108FF8(int, int, int, int);
+
+asm void func_00108EA8(void) {
+    .word 0x27bdff80
+    .word 0xffb60060
+    .word 0xffb30030
+    .word 0x00a0b02d
+    .word 0x0080982d
+    .word 0xffb50050
+    .word 0xffb40040
+    .word 0xffb20020
+    .word 0x24050022
+    .word 0xffb10010
+    .word 0xffb00000
+    .word 0xffbf0070
+    jal       func_001086F8
+    .word 0x0000a82d
+    .word 0x0260202d
+    jal       func_001086F8
+    .word 0x24050003
+    .word 0x0040802d
+    jal       func_00108748
+    .word 0x0260202d
+    .word 0x0260202d
+    jal       func_001086F8
+    .word 0x2405000f
+    .word 0x0040882d
+    jal       func_00108748
+    .word 0x0260202d
+    .word 0x0260202d
+    jal       func_001086F8
+    .word 0x2405000f
+    .word 0x0040902d
+    jal       func_00108748
+    .word 0x0260202d
+    .word 0x0260202d
+    jal       func_001086F8
+    .word 0x24050009
+    .word 0xaec20000
+    .word 0x0260202d
+    jal       func_001086F8
+    .word 0x2405001e
+    .word 0x0260202d
+    jal       func_001086F8
+    .word 0x24050003
+    .word 0x0040a02d
+    .word 0x00118bc0
+    .word 0x00101780
+    .word 0x00108082
+    .word 0x00511025
+    .word 0x32100001
+    .word 0x00521025
+    .word 0xaed00008
+    .word 0x12800009
+    .word 0xaec20004
+    .word 0x0260202d
+    .word 0x00000000
+    jal       func_001086F8
+    .word 0x24050008
+    .word 0x26b50001
+    .word 0x02b4102b
+    .word 0x1440fffb
+    .word 0x0260202d
+    .word 0x0260202d
+    jal       func_00108640
+    .word 0x24050020
+    .word 0x240301bb
+    .word 0x54430008
+    .word 0xaec0000c
+    .word 0x24020001
+    .word 0x0260202d
+    .word 0xaec2000c
+    jal       func_00108FF8
+    .word 0x02c0282d
+    .word 0x10000002
+    .word 0xdfbf0070
+    .word 0xdfbf0070
+    .word 0x24020001
+    .word 0xdfb60060
+    .word 0xdfb50050
+    .word 0xdfb40040
+    .word 0xdfb30030
+    .word 0xdfb20020
+    .word 0xdfb10010
+    .word 0xdfb00000
+    .word 0x03e00008
+    .word 0x27bd0080
+}

@@ -1,22 +1,10 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001749A0(int, int, int, int);
+// CFLAGS: -O4,p -sdatathreshold 0
+extern void func_001749A0(int, int, int);
 
-asm void func_0017FD40(void) {
-    addiu $sp, $sp, -0x10
-    sq $ra, 0x0($sp)
-    lbu $v0, 0x2F1($a0)
-    .word 0x14400007
-    addiu $a1, $zero, 0xEB
-    addiu $a1, $zero, 0xE9
-    jal func_001749A0
-    paddub $a2, $zero, $zero
-    .word 0x10000005
-    lq $ra, 0x0($sp)
-    addiu $a1, $zero, 0xEB
-    jal func_001749A0
-    paddub $a2, $zero, $zero
-    lq $ra, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x10
+void func_0017FD40(unsigned char *a0) {
+    if (a0[0x2F1] == 0) {
+        func_001749A0((int)a0, 0xE9, 0);
+    } else {
+        func_001749A0((int)a0, 0xEB, 0);
+    }
 }

@@ -1,0 +1,121 @@
+// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
+extern void func_0012E560(int, int, int, int);
+extern void func_0012E840(int, int, int, int);
+extern void func_00131650(int, int, int, int);
+extern void func_00131E80(int, int, int, int);
+extern void func_001B0D80(int, int, int, int);
+extern void func_001B2140(int, int, int, int);
+extern void func_001B5360(int, int, int, int);
+
+asm void func_0012E3A0(void) {
+    .word 0x27bdffd0
+    .word 0x7fbf0020
+    .word 0x7fb10010
+    .word 0x7fb00000
+    .word 0x3c017000
+    .word 0x90263b8d
+    .word 0x70808e28
+    .word 0x24030004
+    .word 0x10c30024
+    .word 0x263001f0
+    .word 0x24050003
+    .word 0x10c50019
+    .word 0x24030002
+    .word 0x10c30017
+    .word 0x00000000
+    .word 0x24020001
+    .word 0x10c20005
+    .word 0x00000000
+    .word 0x10c0001a
+    .word 0x00000000
+    .word 0x10000019
+    .word 0xa6200052
+    .word 0x9222000d
+    .word 0x10450015
+    .word 0x00000000
+    jal       func_001B2140
+    .word 0x00000000
+    .word 0x10400011
+    .word 0x00000000
+    .word 0x92230004
+    .word 0x1060004a
+    .word 0x00000000
+    .word 0x8e22004c
+    .word 0x0040f809
+    .word 0x72202628
+    .word 0x10000046
+    .word 0x7bbf0020
+    .word 0x9224000d
+    .word 0x24030003
+    .word 0x14830041
+    .word 0x00000000
+    .word 0x92240004
+    .word 0x24030001
+    .word 0x1083003d
+    .word 0x00000000
+    .word 0xa6200052
+    .word 0x92230004
+    .word 0x24020003
+    .word 0x10620017
+    .word 0x72202628
+    .word 0x24020002
+    .word 0x10620010
+    .word 0x72202628
+    .word 0x24020001
+    .word 0x10620009
+    .word 0x72202628
+    .word 0x10600003
+    .word 0x72202628
+    .word 0x10000012
+    .word 0x92020066
+    jal       func_0012E560
+    .word 0x72002e28
+    .word 0x1000000d
+    .word 0x00000000
+    jal       func_0012E840
+    .word 0x72002e28
+    .word 0x10000009
+    .word 0x00000000
+    jal       func_00131650
+    .word 0x72002e28
+    .word 0x10000005
+    .word 0x00000000
+    jal       func_00131E80
+    .word 0x72002e28
+    .word 0x1000001e
+    .word 0x00000000
+    .word 0x92020066
+    .word 0x10400003
+    .word 0x00000000
+    .word 0x2442ffff
+    .word 0xa2020066
+    .word 0x9602005c
+    .word 0x10400003
+    .word 0x00000000
+    .word 0x2442ffff
+    .word 0xa602005c
+    .word 0x9202006c
+    .word 0x10400003
+    .word 0x00000000
+    .word 0x2442ffff
+    .word 0xa202006c
+    .word 0x9202006a
+    .word 0x10400003
+    .word 0x00000000
+    .word 0x2442ffff
+    .word 0xa202006a
+    .word 0xa6200054
+    .word 0x9202006d
+    .word 0x10400004
+    .word 0x72202628
+    jal       func_001B5360
+    .word 0x72202628
+    .word 0x72202628
+    jal       func_001B0D80
+    .word 0x00000000
+    .word 0x7bbf0020
+    .word 0x7bb10010
+    .word 0x7bb00000
+    .word 0x03e00008
+    .word 0x27bd0030
+}
