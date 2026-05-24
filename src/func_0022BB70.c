@@ -1,0 +1,10 @@
+// CFLAGS: -O4,p -sdatathreshold 4
+extern int *D_00275B40;
+
+int func_0022BB70(int a0) {
+    int v0;
+    int v1;
+    v0 = D_00275B40[a0 / 13];
+    v1 = (a0 % 13) << 4;
+    return v0 + v1;
+}

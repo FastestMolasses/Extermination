@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-23 (Track A: 1373 src files, 43.6% of 3149 splat functions; partial-link pipeline at **100% byte identity**; 70 new functions added this session via hand-decompilation of branch-before-call patterns)_
+_Last updated: 2026-05-23 (Track A: ~1395 src files, ~44.3% of 3149 splat functions; partial-link pipeline at **100% byte identity**; new session: 8 new src files created, 94 missing src files added to objdiff.json, totalling 1477 objdiff units)_
 
 ## Project at a glance
 
@@ -315,13 +315,59 @@ It is proprietary Metrowerks software — it lives in `tools/mwccps2/` and is
 - **sd/ld style functions**: mwcc always emits `sq`/`lq` for PS2 target
   regardless of flags, so functions that use `sd`/`ld` cannot be matched.
 
-**Partial match summary (1 function in src/ that doesn't 100% match):**
+**Partial match summary — known partial matches in src/ (not 100%):**
 - func_001B5C90 (90.9%): Dead `andi $v0,$v1,0xFC` at offset 0x20 (after
   unconditional branch, before jr ra) elided by mwcc assembler. Structure
   and all reachable instructions match. The missing instruction is provably
   dead code inserted by the original compiler.
 
-All other 295 functions are at 100%.
+All other 295 previously-committed functions are at 100%.
+
+  - **14 more partial-match functions added** (2026-05-23, fifth session — gp_rel struct-write decompilation):
+    Pure-C decompilation of functions using gp_rel globals (sdatathreshold 4) and pointer/struct patterns.
+    Findings and techniques:
+
+    **`sq zero` vs 4×`sw zero`**: mwcc emits `sq zero` (128-bit store) for aligned 16-byte zero regions
+    when the original did so; writing 4 individual `sw zero` stores doesn't consolidate. Functions
+    needing `sq zero` (e.g. func_001D71A0) stay at ~47%.
+
+    **Scheduler ordering for gp_rel loads**: mwcc's instruction scheduler reorders gp_rel loads
+    vs arithmetic ops differently than the expected. Functions in the 001D* family that load
+    D_00275670/D_00275674 pointers and index a linked-list node stay at ~65-70%.
+
+    **Two-andi pattern**: `(a0 & 0xff) & 0x80` forces two separate `andi` instructions; the
+    single-constant `a0 & 0x80` generates only one. Using `int v0 = a0 & 0xff; v0 = v0 & 0x80;`
+    (two statements) is required.
+
+    **sdatathreshold mixing**: globals at 0x008107xx are outside the GP±32KB window, so even
+    with `-sdatathreshold N` (N≥1) mwcc uses lui/lbu for them. Globals at 0x00275xxx are within
+    GP range and use gp_rel. Declare out-of-range globals as `char[N]` with N>threshold to
+    prevent sdata placement while keeping near globals at threshold.
+
+    **Branch direction**: `beq v1, v0, target` vs `bne v1, v0, target` is controlled by which
+    path is the "fall-through". Writing the condition as `if (x != y) { return; }` generates `bne`;
+    writing the store first and returning early generates `beq`.
+
+    **Functions added and match scores:**
+    - func_001D1FF0 (70.5%) — D_00275670/D_00275674 indexed node push (offset 0x4a0)
+    - func_001D2040 (70.5%) — same but offset 0x5a0
+    - func_001D71A0 (46.8%) — node push with sq zero; blocked by sq vs 3×sw
+    - func_001D1F20 (69.0%) — node push with complex index via D_00275670[0x27]
+    - func_001D38A0 (65.3%) — node push with D_00816440 array + shift index; has `j` tail call
+    - func_00119400 (21.2%) — bit repack + counter increment; blocked by constant scheduling
+    - func_001AF890 (63.5%) — loop zeroing 13×16 bytes + linked-list update; sq vs sw issue
+    - func_001B1190 (60.5%) — bit-set into 2-level bitmap; register naming mismatch
+    - func_00114448 (69.2%) — non-leaf calling func_00114360; sd vs sq saves
+    - func_001199F0 (31.7%) — array write with 3-branch bounds check; complex scheduling
+    - func_001FA5A0 (94.4%) — ring-buffer push returning 1; nearly matches (dead code gap)
+    - func_001FEFE0 (88.9%) — key-input handler with D_00810730 circular write; tail call
+    - func_001FF030 (85.6%) — same as func_001FEFE0 but different tail-call args
+    - func_001FA5A0 already added above
+
+    **Key learning: dead code between branches** — the compiler sometimes emits a dead
+    instruction in the "gap" between `b target` and its target (a reachable-but-skipped slot).
+    E.g. `beq v1,v0,0x30; addiu v0,a2,1; b 0x40; addiu v0,1; addiu v0,a2,1 (dead); sw ...`
+    This dead instruction can't be forced from C; causes ~5% mismatch.
 
   - **70 more functions added** (2026-05-23, fourth session — branch-before-call decompilation):
     Hand-decompiled using pure C (`-O4,p -sdatathreshold 0`). Key pattern discovered:
@@ -366,6 +412,33 @@ All other 295 functions are at 100%.
     func_001AF690 (83%), func_001B6F80 (23%), func_001BA1C0 (48%), func_0010A368 (83%)
 
     **Current total: 1373 units in objdiff.json, 1315/1373 (95.8%) at 100% match.**
+
+  - **New session (2026-05-23, sixth session) — GP-relative queue-push family decompilation:**
+    Pure-C decompilation of gp_rel struct-write functions (command queue push pattern).
+    94 existing src files that were missing from objdiff.json were added (total now 1477 units).
+    8 new src files created:
+    - **func_00207D00** (98.2%) — switch-based command queue push using D_00275670/D_00275674.
+      Uses `if (a1==N) goto L_N` chain to get `beq` branches matching the expected.
+      Remaining 1.8%: register allocation at join point puts D_00275670 into $a1 vs expected $v1.
+    - **func_001D2090** (80.8%) — double command push (two write sequences) into D_00275670 channel.
+      Compiler hoists all `li` constants upfront; expected delays one `addiu` until after first store.
+    - **func_001CB9B0** (82.4%) — switch-based pointer getter returning D_00275674 + offset.
+      Uses goto chain; remaining: comparison uses $v1 vs expected $v0, missing dead `paddub`.
+    - **func_001D1F80** (53%) — complex index arithmetic + queue push; scheduler difference prevents better match.
+    - **func_001D1FF0** (70.5%, previously existing) — rewritten with `int` extern types for gp_rel.
+    - **func_001D4A90**, **func_001DD950** — compiled (previously unbuilt src files); match 56% and 72%.
+
+    **Key findings:**
+    - **`beq` vs `bne` generation**: writing `if (a0 == N) goto L_N` produces `beq a0, v1, L_N`.
+      Writing `if (a0 == N) { action; }` produces `bne a0, v1, skip` (inverted branch). The goto
+      form matches the expected beq-chain pattern in switch-like functions.
+    - **Constant scheduling**: mwcc always hoists ALL `li` (load-immediate) operations to the top
+      of the basic block, regardless of source order. Cannot force a constant to be initialized late.
+    - **GP-relative register choice at join point**: after a switch with multiple beq-targets,
+      at the join point the compiler picks the register for global loads based on liveness analysis,
+      not source variable name. Cannot force $v1 vs $a1 without changing the function structure.
+    - **Dead `paddub` in else branch**: appears when comparing with `bne` chain (not `beq` goto chain).
+      The goto form with `beqz` tests generates `paddub` in the `bnez` delay slot for the "no match" path.
 
 ### Done — Track A partial-link pipeline
 
