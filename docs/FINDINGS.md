@@ -116,10 +116,25 @@ a file beginning `07 XX 00 60`. Tool: `tools/extract_textures.py`.
   - **Binding from each blob to its texture is NOT yet known.** Heuristic
     detection (`tools/clut.py::find_clut_candidates`) finds them but
     multiple candidates per file means a per-material mapping needs more
-    work — likely the engine's per-asset palette table in the boot ELF, or
-    a stride/index encoded in the geometry `m0`/`m1` marker bits that we
-    haven't decoded yet (`m1>>10 & 0x3FFF` has 21 distinct values per
-    level, similar to the per-sheet CLUT count).
+    work — likely the engine's per-asset palette table in the boot ELF.
+    **Tested 2026-05-24** the prior hypothesis that `m1>>10 & 0x3FFF`
+    indexes CLUTs: **disproved.** That field is a small per-material
+    running counter (e.g. {418..423}), often partially shared across
+    sheets — not a palette selector. `m1>>15 & 0x3FFF` is constant per
+    sheet (a redundant sheet-group tag). **Structurally promising but
+    unverified:** `(m0 >> 30) & 0x3` — m0's top two bits take 1-4
+    distinct values per sheet, and the count of distinct (sheet, idx)
+    pairs across the 32 level files is within ±2-4 of the per-level CLUT
+    candidate count for most levels (e.g. chunk04.n2 6↔6,
+    chunk04.n0 11↔10, chunk15 8↔8, chunk20.n1 6↔5). Empirical render
+    test (chunk04.n2, 6 CLUTs ↔ 6 pairs) was inconclusive: the level's
+    in-game palette happens to be near-monochrome (industrial wall
+    textures), so most CLUT-cycling outputs look similarly gray; one
+    CLUT clearly produces the cleanest coherent atlas. The (sheet, idx)
+    → CLUT-offset ordering remains unknown. Not wired into the
+    extractors — the structural signal is real but unverified. Next
+    step: decompile the boot ELF's PSMT8 TEX0 setup (TEX0 writes with
+    PSM=0x13, trace CBP source, find the per-asset palette LUT).
   - **PSMT8 indices are luminance-ordered** (adjacent-index delta ~7-22 vs
     ~85 for a random palette), so the identity grayscale CLUT
     `i -> (i,i,i,255)` is a faithful luminance preview even without the

@@ -770,6 +770,33 @@ ELF** (1530624/1530624 bytes, 100.00%).
   candidate; visual spot-checks show structurally correct images with
   partially-wrong colors when there are multiple CLUTs per file). See
   docs/FINDINGS.md "Textures" section for the full investigation.
+  - **Per-material→per-CLUT binding investigation (2026-05-24).** Tested the
+    earlier hypothesis that `m1>>10 & 0x3FFF` indexes the file's CLUT list.
+    **Hypothesis disproved.** The "21 distinct values per level" signal was
+    a coincidence: `m1>>10 & 0x3FFF` is a small per-material running counter
+    (typically 4-7 consecutive integers, like 418-423), partially shared
+    across sheets — not a palette index. `m1>>15 & 0x3FFF` is constant per
+    sheet (just a duplicate sheet-group tag), also not an index.
+    **Structurally promising alternative: `(m0 >> 30) & 0x3`** — m0's top
+    2 bits take only values {0,1,2,3} (only ever observed as 0,2,4,6 in the
+    full 3-bit `(m0>>29)` slice), per-sheet. Counting distinct (sheet, idx)
+    pairs across 32 level files yields numbers comparable to (often within
+    ±2-4 of) the per-level CLUT candidate count: e.g. chunk04.n2 6↔6,
+    chunk04.n0 11↔10, chunk15 8↔8, chunk20.n1 6↔5. So `(m0>>30)&3` is
+    plausibly a 2-bit "which-CLUT-of-up-to-4-for-this-sheet" index — but
+    the actual ordering of CLUT candidates within a file is unknown, so
+    the binding cannot be verified from raw bits alone. Empirical render
+    test (chunk04.n2): cycling all 6 CLUTs against each decoded sheet
+    produced mostly noisy/stippled output for 5 of 6 — the cleanest
+    result was nearly grayscale, so the in-game palette for this
+    particular level is genuinely near-monochrome (industrial wall
+    textures), which makes visual validation inconclusive on its own.
+    Did NOT wire `(m0>>30)&3` into the extractors — the structural
+    signal is real but unverified; shipping a half-correct binding would
+    be worse than the current honest `--clut gray` default. Next step:
+    decompile the boot ELF's PSMT8 TEX0 setup (find every TEX0 register
+    write with PSM=0x13, trace where CBP comes from, find the per-asset
+    palette table).
 - **Cross-file texture residency.** ~631 materials bind to a texture uploaded
   by a different file (common/UI packets); needs the engine's VRAM map.
 - **`extract_textures.py`** only matches `07 XX 00 60` packets, missing the
