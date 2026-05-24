@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-24 (Track A: ~1491 src files, objdiff.json at 1491 units; partial-link pipeline at **100% byte identity**; **overlay build pipeline complete — all 19/19 overlays byte-identical** — see `docs/OVERLAYS.md`; session 8 added ~25 more asm void functions — see below)_
+_Last updated: 2026-05-24 (Track A: ~1491 src files, objdiff.json at 1491 units; partial-link pipeline at **100% byte identity**; **overlay matching loop landed: 36 overlay functions at 100% C** across 18 of 19 overlays, all 19/19 still byte-identical — see `docs/OVERLAYS.md`; session 8 added ~25 more asm void functions — see below)_
 
 ## Project at a glance
 
@@ -523,6 +523,35 @@ All other 295 previously-committed functions are at 100%.
       not source variable name. Cannot force $v1 vs $a1 without changing the function structure.
     - **Dead `paddub` in else branch**: appears when comparing with `bne` chain (not `beq` goto chain).
       The goto form with `beqz` tests generates `paddub` in the `bnez` delay slot for the "no match" path.
+
+### Done — Overlay matching first batch (36 functions, 2026-05-24)
+
+The overlay decomp loop is now proven end-to-end. **36 overlay functions are
+matched to 100% C source** across 18 of 19 overlays, while all 19 overlays
+remain byte-identical to the original `OVERLAY/AREAXX.BIN` files. The
+matched-function tree lives at `src/overlays/AREAXX/`; see `docs/OVERLAYS.md`
+section 6 for the per-overlay table and the patterns used.
+
+Categories (most are pure C with `-O4,p -sdatathreshold 4`, no inline asm):
+- 19 **area-init functions** (1 per overlay) — write area-type, data-section
+  pointer, and zeroes into 4–6 gp-relative boot-ELF BSS slots.
+- 6 **jr+nop stubs** (`void f(void) {}`).
+- 3 **thin wrappers** (`callee(args); return 1`).
+- 4 **struct-field setters / boolean inverters** (small leaves).
+- 2 **abs-address byte read-modify-write** (need `-sdatathreshold 0` to
+  force `lui/lbu` for globals outside the GP ±32KB window).
+- 2 **gp_rel pure-C leaves** that don't fit the above buckets.
+
+Three small infrastructure changes:
+- **`tools/overlay/compile_overlay_src.py`** (new) — compiles
+  `src/overlays/AREAXX/*.c` → `build/overlays/AREAXX/obj/`.
+- **`tools/overlay/fill_overlay.py`** — normalizes the mwcc-emitted EABI64
+  e_flags to O32 before handing the object to GNU ld (which refuses to link
+  EABI64 alongside GNU-as O32). Boot-ELF builds use mwldmips directly and are
+  unaffected.
+- **`tools/overlay/link_overlay.py`** — symbol table for the GNU ld script
+  now also scans compiled `.o` objects (`nm -u`), not just `.s` disassembly,
+  so C source can reference globals never named in any `.s`.
 
 ### Done — Overlay build pipeline (19/19 byte-identical)
 

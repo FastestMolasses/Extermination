@@ -296,6 +296,34 @@ def _assemble(asm_path: Path, out_path: Path, macro_inc: Path,
     return None
 
 
+def _normalize_mwcc_abi(obj_path: Path) -> None:
+    """Patch a mwcc-compiled ELF's e_flags so GNU ld will link it alongside
+    GNU-as-assembled overlay objects.
+
+    mwccmips emits Flags=0x20924001 (eabi64), while GNU as with -march=r5900
+    emits Flags=0x20921101 (o32+32bitmode).  GNU ld refuses to merge the two
+    ABIs.  The two flag words differ only in the ABI-selection bits:
+      EF_MIPS_ABI_O32    = 0x00001000   (set in GNU-as output)
+      EF_MIPS_32BITMODE  = 0x00000100   (set in GNU-as output)
+      EF_MIPS_ABI_EABI64 = 0x00004000   (set in mwcc output)
+
+    The .text bytes and relocations don't change between the two ABIs for the
+    instructions we use, so it's safe to rewrite the flags to the o32 form.
+    Boot-ELF builds link with mwldmips (which accepts eabi64 directly) and
+    don't run this codepath.
+    """
+    data = bytearray(obj_path.read_bytes())
+    if data[:4] != b'\x7fELF':
+        return
+    # e_flags is at offset 36 in ELF32 header.
+    flags = struct.unpack_from('<I', data, 36)[0]
+    # Clear EABI64 bit, set O32 + 32bitmode.
+    new_flags = (flags & ~0x00006000) | 0x00001100
+    if new_flags != flags:
+        struct.pack_into('<I', data, 36, new_flags)
+        obj_path.write_bytes(bytes(data))
+
+
 def assemble_one(name: str, asm_path: Path, out_path: Path,
                  obj_path: Path | None, macro_inc: Path,
                  slot_size: int) -> tuple[str, str, Exception | None]:
@@ -304,6 +332,9 @@ def assemble_one(name: str, asm_path: Path, out_path: Path,
     if obj_path is not None and obj_path.exists():
         if _needs_rebuild(obj_path, out_path):
             shutil.copy2(obj_path, out_path)
+            # Normalize the mwcc-emitted EABI64 flags to o32 so GNU ld will
+            # link this object alongside GNU-as-produced overlay objects.
+            _normalize_mwcc_abi(out_path)
             strip_cmd = [sys.executable, str(STRIP_SCRIPT), str(out_path)]
             if slot_size > 0:
                 strip_cmd += ["--expected-size", str(slot_size)]

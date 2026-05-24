@@ -345,26 +345,108 @@ recovery from one overlay transfers easily to others.
 
 ---
 
-## 6. Overlay matching next steps
+## 6. Overlay matching — first batch (2026-05-24)
 
-The build pipeline is complete. The natural next steps for overlay matching:
+**36 overlay functions matched at 100%** across 18 of 19 overlays. All 19
+overlays still produce byte-identical `.BIN` output with C-compiled `.o` swapped
+in for the splat-disassembled `.s`. See `src/overlays/AREAXX/` for the source.
 
-1. **AREA18 / AREA22** (stub overlays, 1 function each) — these are the easiest
-   C decompilation targets. The single function is a pure leaf (`addiu`, `sw`,
-   `lui`, `jr $ra`) with gp-relative stores. Matches with `-sdatathreshold 0`
-   (or inline asm). Serves as the first overlay function to move from `.s` to `.c`.
+### Matches by overlay
 
-2. **AREA08** (18,944 bytes, ~30-40 functions) — smallest real overlay. Good
-   second target once the `.c` decompilation workflow is validated on AREA18/22.
+| Overlay | C funcs matched | Notes |
+|---|---|---|
+| AREA00 | 3 | init (6 gp-rel stores) + struct field setter + jr+nop stub |
+| AREA01 | 1 | init (6 gp-rel stores) |
+| AREA02 | 1 | init (5 gp-rel stores, "extended" variant) |
+| AREA03 | 3 | init + a2[2]→gp setter + !! boolean inverter |
+| AREA04 | 1 | init (5 stores, 2 pointers) |
+| AREA06 | 1 | init (5 stores) |
+| AREA07 | 2 | init + jr+nop stub |
+| AREA08 | 1 | init |
+| AREA11 | 3 | init + two thin wrappers (`func(); return 1`) |
+| AREA13 | 4 | init + jr+nop stub + short[0x17]=0xFF setter + abs-addr byte increment |
+| AREA14 | 2 | init + thin wrapper (`func(0); return 1`) |
+| AREA15 | 1 | init |
+| AREA16 | 2 | init + struct field a0[0xB8] = -1 |
+| AREA17 | 1 | init |
+| AREA18 | 1 | init (stub overlay — only function) |
+| AREA19 | 4 | init + jr+nop stub + short[0x14]=1 + abs-addr byte setter |
+| AREA20 | 1 | init |
+| AREA21 | 3 | init + two jr+nop stubs |
+| AREA22 | 1 | init (stub overlay — only function) |
 
-3. **AREA07** (19,328 bytes) — similarly small, good third target.
+### Decomp patterns used
 
-The overlay matching workflow:
-1. Add C source to `src/overlays/AREAXX/`.
-2. Compile with `mwccmips.exe -O4,p -sdatathreshold 0` → `build/overlays/AREAXX/obj/`.
-3. Re-run `fill_overlay.py AREAXX` (auto-picks up compiled `.o`).
-4. Re-run `link_overlay.py AREAXX` — checks byte-identity.
-5. Add objdiff units for per-function diffing.
+All matches use pure C compiled with `mwccmips.exe -O4,p -sdatathreshold N`.
+
+1. **Area init** (every overlay): writes the area-type constant `0x20`, a
+   pointer to the overlay's data section, and `0`s into 4–6 gp-relative slots
+   in boot ELF BSS (`D_00275C18`/`C1C`/`C20`/`C24`/`C28`/`C2C`). Pure C with
+   `-sdatathreshold 4` (gp_rel for int globals). Three variants: 4-slot (most
+   overlays), 5-slot (AREA02/04/06/19), 6-slot (AREA00/01).
+
+2. **jr+nop stubs**: `void func(void) {}` — empty C function. mwcc emits
+   `jr $ra; nop` exactly.
+
+3. **Thin wrappers**: `funcN(args); return 1;` — pure C. Matches when the
+   callee args fit naturally in the calling convention (mwcc 2.3 schedules
+   the arg setup before the `jal` and fills the delay slot with `nop` or a
+   safe hoistable instruction).
+
+4. **Struct-field setters**: `a0[N] = K; return 1;` — straight sw/sh at
+   offset `N*sizeof(elem)`, return constant.
+
+5. **GP-rel `int` reads/writes**: pure C with `-sdatathreshold 4`. mwcc
+   generates `R_MIPS_GPREL16` for `int` globals (4 ≤ threshold).
+
+6. **Absolute hi/lo addresses** (e.g. `D_008107F4`, outside gp ±32KB range):
+   `-sdatathreshold 0` forces mwcc to use `lui/lbu` (R_MIPS_HI16/LO16) via
+   `$at` instead of gp_rel. Required for any global outside the ~64KB GP
+   window around 0x27D370.
+
+### Infrastructure additions
+
+- **`tools/overlay/compile_overlay_src.py`** — new script. For each `src/overlays/AREAXX/*.c`,
+  compiles via `mwccmips.exe` (under qemu-i386 wibo32) into
+  `build/overlays/AREAXX/obj/<stem>.o`. Honours `// CFLAGS:` comment on the
+  first non-blank line (same convention as `tools/decomp/build.py`). Default
+  flags: `-O4,p -sdatathreshold 4`. Run inside the `exterm-toolchain` container:
+  `python3 tools/overlay/compile_overlay_src.py [AREAXX | --all]`.
+
+- **`tools/overlay/fill_overlay.py`** — added `_normalize_mwcc_abi()` step
+  that runs immediately after a compiled `.o` is copied from
+  `build/overlays/AREAXX/obj/` into `filler/`. mwccmips emits
+  `e_flags=0x20924001` (EABI64), but GNU ld refuses to link EABI64 alongside
+  GNU-as's O32 (`0x20921101`). The normalizer rewrites the EABI64 bits to
+  O32+32bitmode in-place. Bytes and relocs are unchanged. The boot-ELF build
+  uses mwldmips directly and is unaffected.
+
+- **`tools/overlay/link_overlay.py`** — `_build_abs_syms_lds()` now also
+  scans symbols from `build/overlays/AREAXX/obj/*.o` via `mipsel-linux-gnu-nm -u`,
+  not just the splat `.s` files. C decompilations can reference globals
+  (like `D_008107F4`) that are never named in any `.s` — those symbols are
+  now resolved from their address-encoded names automatically.
+
+### Overlay matching workflow (now validated)
+
+1. Add C source to `src/overlays/AREAXX/<funcname>.c`.
+2. Inside container: `python3 tools/overlay/compile_overlay_src.py AREAXX`
+   → produces `build/overlays/AREAXX/obj/<funcname>.o`.
+3. `rm build/overlays/AREAXX/filler/<funcname>.o`  *(or rm all to force re-fill)*.
+4. `python3 tools/overlay/link_overlay.py AREAXX` — re-fills (auto picks up
+   compiled `.o`), partial-links, applies PC16 fix, final-links, extracts
+   text+data, prepends MWo3 header, verifies byte-identity against
+   `extract/OVERLAY/AREAXX.BIN`.
+5. If `[verify] PASS` — the function is matched. If `FAIL`, delete the `.c`
+   and `obj/.o` to revert.
+
+### Next overlay matching targets
+
+Remaining low-hanging:
+- Area-init variants in AREA13/AREA16/AREA11 (multiple inits per overlay).
+- Larger gp_rel struct accesses and conditional setters.
+- Branch-before-call wrappers (apply the boot-ELF "branch before jal" pattern).
+- AREA21 has 61 functions including VU0 code — the biggest decomp target.
 
 ---
 

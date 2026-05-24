@@ -239,6 +239,35 @@ def _build_abs_syms_lds(name: str) -> str:
                     if nm not in syms:
                         syms[nm] = addr
 
+    # Also scan compiled .o files for undefined symbols (added when src/overlays
+    # C decompilations reference globals not present in any .s disassembly).
+    obj_dir = overlay_build / "obj"
+    if obj_dir.exists():
+        for o_file in sorted(obj_dir.glob("*.o")):
+            try:
+                out = subprocess.check_output(
+                    ["mipsel-linux-gnu-nm", "-u", str(o_file)],
+                    stderr=subprocess.DEVNULL,
+                ).decode(errors="replace")
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                continue
+            for line in out.splitlines():
+                tok = line.strip().split()
+                if not tok:
+                    continue
+                nm = tok[-1]
+                if nm in syms:
+                    continue
+                md = _d_re.fullmatch(nm)
+                if md:
+                    syms[nm] = int(md.group(1), 16)
+                    continue
+                mf = _f_re.fullmatch(nm)
+                if mf:
+                    addr = int(mf.group(1), 16)
+                    if addr < ARENA_BASE or addr > 0x00900000:
+                        syms[nm] = addr
+
     if not syms:
         return ""
     lines = [f"{nm} = 0x{addr:08X};\n" for nm, addr in sorted(syms.items())]
