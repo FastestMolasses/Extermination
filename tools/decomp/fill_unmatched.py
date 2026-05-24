@@ -56,6 +56,7 @@ AS_CMD = [
 # would see undefined .L00XXXXXX references.
 CROSS_LABEL_FUNCS = {
     "func_00140004",
+    "func_001C0004",  # defines .L001C02B4 referenced from func_001BFFD0
     "func_001C2FF0",
     "func_00200004",
     "func_00201000",

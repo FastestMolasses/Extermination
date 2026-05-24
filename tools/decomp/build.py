@@ -137,12 +137,27 @@ def cmd_setup(_a: argparse.Namespace) -> None:
     write_objdiff()
 
 
+CHUNK = 200  # container exec arg-length limit ~1MB; ~200 cmds * ~250 chars fits
+
+
+def _run_chunked(setup: str, cmds: list[str]) -> None:
+    """Run `setup; cmd1; cmd2; ...` in container, batched by CHUNK.
+
+    Uses `;` rather than `&&` so one failing compile (e.g. an asm-void file with
+    syntax mwcc rejects) doesn't kill the whole batch — the link step's
+    fill_unmatched.py falls back to the splat-assembled .s for missing .o files.
+    """
+    for i in range(0, len(cmds), CHUNK):
+        batch = cmds[i:i + CHUNK]
+        container("; ".join([setup, *batch]) + "; true")
+
+
 def cmd_expected(_a: argparse.Namespace) -> None:
     names = units()
     if not names:
         print("[expected] no src/*.c — nothing to assemble")
         return
-    container(" && ".join(["mkdir -p build/expected", *map(assemble_cmd, names)]))
+    _run_chunked("mkdir -p build/expected", [assemble_cmd(n) for n in names])
     print(f"[expected] assembled {len(names)} target object(s)")
 
 
@@ -151,7 +166,7 @@ def cmd_compile(_a: argparse.Namespace) -> None:
     if not names:
         print("[compile] no src/*.c — nothing to compile")
         return
-    container(" && ".join(["mkdir -p build/obj", *map(compile_cmd, names)]))
+    _run_chunked("mkdir -p build/obj", [compile_cmd(n) for n in names])
     print(f"[compile] compiled {len(names)} base object(s)")
 
 

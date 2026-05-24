@@ -149,6 +149,8 @@ def main(argv: list[str]) -> int:
                    help="Rebuilt ELF to insert")
     p.add_argument("--keep-stripped", action="store_true",
                    help="keep the intermediate boot-ready ELF (elf/SCUS_971.12.boot.elf)")
+    p.add_argument("--no-elf", action="store_true",
+                   help="skip swapping the boot ELF (only swap overlays etc.)")
     p.add_argument("--overlays", action="store_true",
                    help="also swap rebuilt OVERLAY/AREA*.BIN files into the ISO")
     p.add_argument("--overlay-dir", type=Path,
@@ -158,28 +160,31 @@ def main(argv: list[str]) -> int:
 
     if not args.iso.exists():
         sys.exit(f"error: ISO not found: {args.iso}")
-    if not args.elf.exists():
+    if not args.no_elf and not args.elf.exists():
         sys.exit(f"error: rebuilt ELF not found: {args.elf}")
 
-    # 1. Strip the rebuilt ELF to a boot-ready form (no debug/symbol/pdr
-    #    cruft) so it fits in the original's ISO slot.
-    stripped = args.elf.with_suffix(".boot.elf")
-    print(f"[strip] {args.elf.name} ({args.elf.stat().st_size:,} bytes) → "
-          f"{stripped.name}")
-    stripped_size = strip_elf(args.elf, stripped)
-    print(f"[strip] result: {stripped_size:,} bytes")
+    if not args.no_elf:
+        # 1. Strip the rebuilt ELF to a boot-ready form (no debug/symbol/pdr
+        #    cruft) so it fits in the original's ISO slot.
+        stripped = args.elf.with_suffix(".boot.elf")
+        print(f"[strip] {args.elf.name} ({args.elf.stat().st_size:,} bytes) → "
+              f"{stripped.name}")
+        stripped_size = strip_elf(args.elf, stripped)
+        print(f"[strip] result: {stripped_size:,} bytes")
 
-    # 2. Look up the ISO slot location + size.
-    file_off, slot_len = locate_iso_file(args.iso, ELF_ISO_NAME)
-    print(f"[iso]   {args.iso.name} ({args.iso.stat().st_size:,} bytes); "
-          f"{ELF_NAME} at offset {file_off:#x}, slot {slot_len:,} bytes")
+        # 2. Look up the ISO slot location + size.
+        file_off, slot_len = locate_iso_file(args.iso, ELF_ISO_NAME)
+        print(f"[iso]   {args.iso.name} ({args.iso.stat().st_size:,} bytes); "
+              f"{ELF_NAME} at offset {file_off:#x}, slot {slot_len:,} bytes")
 
-    # 3. Swap in the stripped ELF, padding to the original slot size.
-    swap_iso_file(args.iso, ELF_ISO_NAME, stripped.read_bytes())
-    print(f"[iso]   replaced {ELF_NAME} with our build")
+        # 3. Swap in the stripped ELF, padding to the original slot size.
+        swap_iso_file(args.iso, ELF_ISO_NAME, stripped.read_bytes())
+        print(f"[iso]   replaced {ELF_NAME} with our build")
 
-    if not args.keep_stripped:
-        stripped.unlink()
+        if not args.keep_stripped:
+            stripped.unlink()
+    else:
+        print(f"[iso]   --no-elf: leaving original {ELF_NAME} in place")
 
     # 4. Optionally swap rebuilt overlays.
     if args.overlays:
