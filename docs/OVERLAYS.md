@@ -559,6 +559,80 @@ The matches fall into two groups:
   the wrong sdatathreshold was used, producing GPREL-vs-HI/LO mismatches
   at link time.)
 
+### Bulk pure-C generator + manual conditional decomp (2026-05-24, session +3)
+
+**+1 additional overlay function matched** — AREA13_00827D90 (small if/else
+that conditionally writes 0 or 0xFFFF through a gp-rel pointer global).
+New total: **99 functions at 100%**.
+
+This session also stood up `tools/overlay/gen_pure_c.py`, a bulk pure-C
+match generator modeled on `gen_asm_void.py`. It walks each overlay's
+per-function `.s` and tries a set of simple-idiom C templates
+(empty stub, `return K`, `return G`, `return &G`, simple loads/stores)
+against the splat-assembled reference object. It compiles each candidate
+inside the toolchain container and verifies text bytes + relocation
+targets; then runs a per-overlay end-to-end fill+link byte-identity
+check and bisects-and-drops on failure (responding to the prior agent's
+hi/lo false-positive discovery).
+
+**Yield: 0 pattern matches across all 19 overlays.** The previous batches
+(gen_asm_void + asm-void hi/lo + hand-written pure-C) already exhausted
+the surface of pure straight-line simple-idiom leaves. The remaining
+unmatched functions fall into three buckets:
+
+  1. **Medium control-flow functions** (with internal branches/labels) —
+     unreachable by single-template pattern matching; would need per-function
+     decompilation.
+  2. **Mid-function fragments from splat mis-splitting** — start without a
+     prologue and rely on caller-side register state. Cannot be expressed
+     as top-level C functions at all.
+  3. **Cross-register hi/lo wrappers** (`lui $X,%hi(SYM); ...; addiu $Y,$X,%lo(SYM)`
+     with X≠Y) — mwcc emits these naturally from extern globals, but the
+     remaining candidates (AREA04_00824A00, AREA21_00826960) suffer from
+     scheduler differences: mwcc and the original disagree on which
+     instruction fills the `jal` delay slot. Verified manually for
+     AREA04_00824A00 — produced 6/37824 byte diff on full overlay verify.
+
+The one match this session (AREA13_00827D90) was hand-written, not
+generator-produced: it has internal labels (it's an if/else), but the
+control flow is simple enough that writing the C directly worked first
+try. The generator's pattern set does not yet attempt if/else templates.
+
+### Infrastructure additions (session +3)
+
+- **`tools/overlay/gen_pure_c.py`** — new bulk pure-C match generator
+  (see above). The pattern dispatcher is open for extension; future
+  patterns to add would include single-jal return-1 wrappers with hi/lo
+  arg setup (where scheduling can be forced via stack-buffer presence)
+  and simple if-else gp-rel store patterns.
+
+- **Stale `filler/*.o` cache bug** — `tools/overlay/fill_overlay.py`
+  caches assembled objects in `build/overlays/AREAXX/filler/`. When a
+  candidate `.c` is deleted, removing `obj/*.o` was not sufficient —
+  the previous-run's compiled bytes lingered in `filler/*.o` and
+  silently re-appeared on the next fill. AREA04_00824A00 hit this
+  exact issue in session +3. Both `gen_pure_c.py` and `gen_asm_void.py`
+  now wipe both `obj/<name>.o` and `filler/<name>.o` when a candidate
+  is dropped.
+
+### Honest assessment of remaining surface
+
+After three bulk batches and two hand-written-pure-C sessions, **the
+small-function surface in `src/overlays/` is effectively exhausted by
+pattern-driven generation.** Further matching gains will come from:
+
+  1. **Per-function manual decompilation** of medium-sized functions —
+     this is the standard matching-decomp workflow.
+  2. **Recognizing and matching jump-table dispatchers** at function
+     boundaries — splat treats each switch-case branch as a separate
+     function, and joining them properly with their dispatcher (e.g.
+     AREA13_00824140/00824160) would unlock at least 10+ matches per
+     such case statement.
+  3. **Identifying repeated boilerplate across overlays** — the
+     overlay interface (section 5) implies many overlays implement the
+     same protocol; one decomp may produce 5+ identical matches across
+     sibling overlays.
+
 ---
 
 ## 7. Tools implemented
@@ -593,6 +667,15 @@ internally by `link_overlay.py`.
 
 ### `tools/overlay/build.py`
 Batch driver: runs gen_splat_yaml → splat → fill → link for all 19 overlays.
+
+### `tools/overlay/gen_pure_c.py`
+Bulk pure-C match generator (companion to `gen_asm_void.py`). Walks each
+overlay's per-function `.s`, dispatches a small set of simple-idiom
+recognizers (empty stub, return constant, return global, return &global,
+load global+return), generates pure C source, compiles via mwccmips,
+verifies text bytes + relocation targets against the splat-assembled
+reference, then runs an end-to-end fill+link byte-identity check
+(bisect-and-drop on failure). Must run inside the toolchain container.
 
 ### `tools/overlay/gen_asm_void.py`
 Bulk hybrid asm-void match generator (modeled on the boot ELF

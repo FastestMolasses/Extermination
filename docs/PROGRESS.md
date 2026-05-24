@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-24 (Track A: ~1491 src files, objdiff.json at 1491 units; partial-link pipeline at **100% byte identity**; **overlay matching: 98 overlay functions at 100%** across 19 of 19 overlays, all 19/19 still byte-identical — see `docs/OVERLAYS.md` section 6 for the hi/lo-aware asm-void batch and the pure-C hi/lo hand decomps; session 8 added ~25 more asm void functions — see below)_
+_Last updated: 2026-05-24 (Track A: ~1491 src files, objdiff.json at 1491 units; partial-link pipeline at **100% byte identity**; **overlay matching: 99 overlay functions at 100%** across 19 of 19 overlays, all 19/19 still byte-identical — see `docs/OVERLAYS.md` section 6 for the hi/lo-aware asm-void batch, the pure-C hi/lo hand decomps, and the session +3 pure-C generator scaffold; session 8 added ~25 more asm void functions — see below)_
 
 ## Project at a glance
 

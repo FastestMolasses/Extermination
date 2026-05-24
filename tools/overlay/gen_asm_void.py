@@ -498,6 +498,8 @@ def process_area(area: str) -> tuple[int, int]:
             c_path.unlink(missing_ok=True)
             stale_obj = ROOT / "build" / "overlays" / area / "obj" / f"{name}.o"
             stale_obj.unlink(missing_ok=True)
+            stale_filler = ROOT / "build" / "overlays" / area / "filler" / f"{name}.o"
+            stale_filler.unlink(missing_ok=True)
             dropped.append((name, pct or "build-fail"))
         if (i + 1) % 25 == 0:
             print(f"  [{area}] no-hilo {i+1}/{len(candidates)}  matched={len(matched)} dropped={len(dropped)}")
@@ -519,6 +521,8 @@ def process_area(area: str) -> tuple[int, int]:
             c_path.unlink(missing_ok=True)
             stale_obj = ROOT / "build" / "overlays" / area / "obj" / f"{name}.o"
             stale_obj.unlink(missing_ok=True)
+            stale_filler = ROOT / "build" / "overlays" / area / "filler" / f"{name}.o"
+            stale_filler.unlink(missing_ok=True)
             dropped.append((name, pct or "build-fail"))
             hilo_dropped += 1
         if (i + 1) % 25 == 0:
