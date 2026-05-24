@@ -66,10 +66,33 @@ def assemble_cmd(name: str) -> str:
             f"build/macro.inc {ASM_DIR}/{name}.s -o build/expected/{name}.o")
 
 
+def file_cflags(name: str) -> str:
+    """Read per-file CFLAGS from a '// CFLAGS: ...' comment in src/<name>.c.
+
+    If the first non-blank line of the file is a C++ comment starting with
+    '// CFLAGS:', the remainder of that line replaces the default CFLAGS.
+    Otherwise the global CFLAGS constant is used.
+    """
+    src = SRC / f"{name}.c"
+    try:
+        with src.open() as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("// CFLAGS:"):
+                    return line[len("// CFLAGS:"):].strip()
+                break
+    except OSError:
+        pass
+    return CFLAGS
+
+
 def compile_cmd(name: str) -> str:
     """Compile src/<name>.c into an objdiff base object via mwccmips."""
+    flags = file_cflags(name)
     return (f"qemu-i386 tools/bin/wibo32 tools/mwccps2/mwccmips.exe "
-            f"-c {CFLAGS} -o build/obj/{name}.o src/{name}.c")
+            f"-c {flags} -o build/obj/{name}.o src/{name}.c")
 
 
 def run_splat() -> None:
