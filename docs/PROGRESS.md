@@ -755,10 +755,21 @@ ELF** (1530624/1530624 bytes, 100.00%).
      remainder is permanently un-decompilable SDK code that the linker
      already handles via assembled `.s`.
 
-- **Texture color source.** PSMT8 always samples through a CLUT, but no CLUT
-  data was found in `DATA.DAT` or the boot ELF; the 8-bit values are luminance-
-  ordered. Either a grayscale-ramp CLUT (color from vertex-color modulation) or
-  an unlocated color CLUT. The engine's GS `TEX0` setup will resolve it.
+- **Texture color source — partially resolved (2026-05-24).** Raw 1024-byte
+  CLUT-shaped blobs ARE present in some asset files (id 0x6e/0x70/0x72
+  character/model files, id 0x46, most id 0x44 level files) — not as GIF
+  packets, just plain `[R G B A]*256` arrays. `tools/clut.py` locates them
+  heuristically and both extractors now support `--clut auto` (scan-and-
+  apply) and `--clut gray` (identity-grayscale, the default; produces RGBA
+  PNGs that match the legacy 8-bit grayscale visually). `--no-clut` keeps
+  the original grayscale PNG output. Standalone texture packets (ids 0x06..
+  0x0c, 0x35, 0x38) carry NO CLUT in the same file at all — the only
+  reliable color source for them is the boot ELF's per-asset palette table
+  (engine code, not yet decompiled). The per-material→per-CLUT binding
+  inside multi-CLUT files is also not yet known (auto-mode picks the first
+  candidate; visual spot-checks show structurally correct images with
+  partially-wrong colors when there are multiple CLUTs per file). See
+  docs/FINDINGS.md "Textures" section for the full investigation.
 - **Cross-file texture residency.** ~631 materials bind to a texture uploaded
   by a different file (common/UI packets); needs the engine's VRAM map.
 - **`extract_textures.py`** only matches `07 XX 00 60` packets, missing the

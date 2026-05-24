@@ -16,28 +16,57 @@ The GS page/block/column swizzle tables are the documented hardware tables
 (verified: this produces output byte-identical to the standard `unswizzle8`).
 A TRXREG of w x h (32-bit) yields a (w*2) x (h*2) 8-bit texture.
 
-NOTES:
-- Color source unresolved. PSMT8 always samples through a CLUT on GS hardware,
-  but no CLUT was found in the game data; a smoothness test shows the 8-bit
-  values are luminance-ordered. So the runtime CLUT is either a grayscale ramp
-  (color from renderer vertex-color modulation) or an unlocated color palette.
-  The grayscale PNG output is faithful to the index data regardless.
-- Each decoded sheet is a texture ATLAS: many individual textures packed into
-  one sheet, some stored flipped/rotated to pack tighter, plus non-texture
-  padding. Cutting it into clean, correctly-oriented individual textures needs
-  each texture's UV rectangle from the geometry/draw data (not yet decoded).
+CLUT (palette) HANDLING
+-----------------------
+PSMT8 always samples through a 256-entry CLUT. The standalone texture packets
+in DATA.DAT do not carry a CLUT inside the same GS upload packet (verified:
+exactly one BITBLTBUF/TRXREG/IMAGE-GIF per packet, with only sector-alignment
+zero padding afterwards). The engine uploads CLUTs separately at runtime.
+
+Raw 1024-byte CLUT blobs ARE present in the asset files -- not framed as GIF
+packets, just plain RGBA data -- inside character/model files (ids 0x6e, 0x70,
+0x72) and some level files (id 0x44). `tools/clut.py` locates them by their
+structural shape (alpha in [0, 0x80], many distinct RGB triples). Standalone
+texture files (ids 0x06..0x0c, 0x35, 0x38) carry no CLUT in the same file at
+all -- their palette must come from elsewhere (boot ELF data section, another
+data file loaded at the same time, or a runtime grayscale ramp).
+
+CLUT MODES (--clut)
+-------------------
+  gray (default)      -- identity grayscale CLUT: i -> (i, i, i, 255). For
+                         this game's luminance-ordered indices this is a
+                         faithful preview; vertex-color modulation would tint
+                         it at draw time.
+  auto                -- search the texture's own file for a candidate CLUT
+                         and apply it (with PS2 CSM1 swizzle attempted).
+                         Falls back to gray when no candidate is found.
+  <path>              -- read 1024 raw RGBA bytes from `<path>` and use them.
+
+Use `--no-clut` to force the original grayscale 8-bit PNG output (no color
+channel). With `--clut gray` the output is an RGBA PNG that displays
+identically but uses color-type 6, suitable for future CLUT remapping.
+
 See docs/FINDINGS.md.
 
 Usage:
   extract_textures.py --in extract --out textures
+  extract_textures.py --in extract --out textures --clut auto
+  extract_textures.py --in extract --out textures --no-clut   # legacy gray
 """
 from __future__ import annotations
 
 import argparse
-import struct
 import sys
-import zlib
 from pathlib import Path
+
+from clut import (
+    apply_clut,
+    find_best_clut_for_file,
+    identity_grayscale_clut,
+    psmct8_csm1_swizzle,
+    write_png_gray,
+    write_png_rgba,
+)
 
 # Documented PS2 GS swizzle tables (page/block/column). PSMT8 reuses the
 # PSMCT32 page swizzle. Source: the GS hardware layout.
@@ -121,21 +150,24 @@ def find_image_block(d: bytes, nbytes: int, start: int) -> int | None:
     return None
 
 
-def write_png_gray(path: Path, width: int, height: int, pixels: bytes) -> None:
-    def chunk(typ: bytes, data: bytes) -> bytes:
-        return (struct.pack(">I", len(data)) + typ + data +
-                struct.pack(">I", zlib.crc32(typ + data) & 0xFFFFFFFF))
-    ihdr = struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0)
-    raw = bytearray()
-    for y in range(height):
-        raw.append(0)
-        raw += pixels[y * width:(y + 1) * width]
-    with path.open("wb") as f:
-        f.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) +
-                chunk(b"IDAT", zlib.compress(bytes(raw), 6)) + chunk(b"IEND", b""))
+def _load_clut_arg(spec: str) -> bytes:
+    """Resolve a `--clut` argument to a 1024-byte RGBA palette."""
+    if spec == "gray":
+        return identity_grayscale_clut()
+    if spec == "auto":
+        return b""  # sentinel: resolved per-file in convert()
+    path = Path(spec)
+    if not path.is_file():
+        raise SystemExit(f"--clut: not a known mode and not a file: {spec}")
+    data = path.read_bytes()
+    if len(data) != 1024:
+        raise SystemExit(f"--clut file must be 1024 bytes (256xRGBA), got {len(data)}")
+    return data
 
 
-def convert(path: Path, d: bytes, start: int, out_dir: Path) -> str | None:
+def convert(path: Path, d: bytes, start: int, out_dir: Path,
+            clut_mode: str, fixed_clut: bytes,
+            apply_csm1_swizzle: bool, want_gray_png: bool) -> str | None:
     trx = first_trxreg(d, start)
     if trx is None:
         return None
@@ -148,23 +180,67 @@ def convert(path: Path, d: bytes, start: int, out_dir: Path) -> str | None:
     width, height, pixels = deswizzle(d[off:off + tw * th * 4], tw, th)
     suffix = "" if start == 0 else f"_{start:06x}"
     name = f"{path.parent.name}_{path.stem}{suffix}.png"
-    write_png_gray(out_dir / name, width, height, pixels)
-    return f"{path.parent.name}/{path.name}@{start:#x}: {width}x{height} -> {name}"
+
+    if want_gray_png:
+        write_png_gray(out_dir / name, width, height, pixels)
+        return f"{path.parent.name}/{path.name}@{start:#x}: {width}x{height} -> {name} (gray)"
+
+    # Color path -- RGBA PNG with a CLUT applied.
+    clut = fixed_clut
+    clut_source = clut_mode
+    if clut_mode == "auto":
+        found = find_best_clut_for_file(d, image_payload_range=(off, off + tw * th * 4))
+        if found is None:
+            clut = identity_grayscale_clut()
+            clut_source = "auto -> gray (no candidate)"
+        else:
+            clut = psmct8_csm1_swizzle(found) if apply_csm1_swizzle else found
+            clut_source = f"auto -> file-internal CLUT"
+    elif clut_mode != "gray":
+        clut = psmct8_csm1_swizzle(fixed_clut) if apply_csm1_swizzle else fixed_clut
+
+    rgba = apply_clut(pixels, clut)
+    write_png_rgba(out_dir / name, width, height, rgba)
+    return (f"{path.parent.name}/{path.name}@{start:#x}: "
+            f"{width}x{height} -> {name} ({clut_source})")
 
 
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description="Extermination texture extractor")
     p.add_argument("--in", dest="input", default="extract", help="extraction directory")
     p.add_argument("--out", default="textures", help="output directory (default: textures/)")
+    p.add_argument("--clut", default="gray",
+                   help="CLUT source: 'gray' (identity ramp, default), 'auto' "
+                        "(search file for a candidate), or a path to a "
+                        "1024-byte RGBA palette file")
+    p.add_argument("--csm1-swizzle", action="store_true",
+                   help="apply the PSMT8 CSM1 CLUT entry-swap (8..15 <-> 16..23 "
+                        "in every 32-entry block) before indexing")
+    p.add_argument("--no-clut", action="store_true",
+                   help="legacy: write 8-bit grayscale PNGs (no CLUT applied, "
+                        "no RGBA output -- the original behavior)")
     args = p.parse_args(argv)
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.no_clut:
+        clut_mode = "_gray_png_"
+        fixed_clut = b""
+    else:
+        clut_mode = args.clut
+        fixed_clut = _load_clut_arg(args.clut)
+
     done = 0
     for path in sorted(Path(args.input).rglob("*.bin")):
         d = path.read_bytes()
         for start in find_packet_starts(d):
-            line = convert(path, d, start, out_dir)
+            line = convert(
+                path, d, start, out_dir,
+                clut_mode=clut_mode, fixed_clut=fixed_clut,
+                apply_csm1_swizzle=args.csm1_swizzle,
+                want_gray_png=args.no_clut,
+            )
             if line:
                 print(line)
                 done += 1

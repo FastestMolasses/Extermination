@@ -72,8 +72,18 @@ genuine sub-rectangle. For every bound material this tool:
 
 A material whose clamped UV box still covers ~the whole sheet yields a copy of
 the sheet; a material with a real sub-range yields a clean individual texture.
-Output PNGs are grayscale 8-bit -- faithful to the index data, exactly as
-`extract_textures.py` (the runtime CLUT is unresolved; see docs/FINDINGS.md).
+
+Output PNGs are RGBA 8-bit by default, with an identity-grayscale CLUT
+(`i -> (i,i,i,255)`). The standalone texture packets in DATA.DAT carry no
+CLUT in the same packet (verified -- one BITBLTBUF/TRXREG/IMAGE-GIF, no
+secondary 16x16 PSMCT32 transfer, no 1024-byte tail), so the runtime palette
+must come from another source (boot ELF data, another data file loaded at
+the same time, or runtime grayscale modulated by vertex color). Use
+`--clut auto` to scan the texture's source file (and the level directory)
+for raw 1024-byte CLUT-shaped blocks and apply the first match -- useful
+for model/character files (ids 0x6e/0x70/0x72) where the CLUT is stored as
+raw RGBA bytes in the same file. Use `--no-clut` to fall back to 8-bit
+grayscale PNGs (the original behaviour). See `tools/clut.py` for details.
 
 The GS deswizzle pipeline is re-implemented here (small, identical to
 `extract_textures.py`'s -- verified byte-exact against the standard
@@ -82,6 +92,8 @@ The GS deswizzle pipeline is re-implemented here (small, identical to
 Usage:
   extract_subtextures.py --in extract --out subtextures
   extract_subtextures.py --in extract --out subtextures --sheets   # also dump full sheets
+  extract_subtextures.py --in extract --out subtextures --clut auto
+  extract_subtextures.py --in extract --out subtextures --no-clut  # legacy gray
 """
 from __future__ import annotations
 
@@ -91,6 +103,15 @@ import sys
 import zlib
 from collections import defaultdict
 from pathlib import Path
+
+from clut import (
+    apply_clut,
+    find_best_clut_for_file,
+    find_clut_candidates,
+    identity_grayscale_clut,
+    psmct8_csm1_swizzle,
+    write_png_rgba,
+)
 
 # ---------------------------------------------------------------------------
 # GS swizzle pipeline -- documented hardware tables. Identical to the tables in
@@ -170,12 +191,13 @@ def write_png_gray(path: Path, width: int, height: int, pixels: bytes) -> None:
 class Transfer:
     """One GS texture upload: a BITBLTBUF + TRXREG pair, with decoded sheet."""
 
-    __slots__ = ("src_file", "dbp", "tw", "th", "trxreg_off",
-                 "width", "height", "pixels")
+    __slots__ = ("src_file", "src_path", "dbp", "tw", "th", "trxreg_off",
+                 "width", "height", "pixels", "image_payload_range", "clut")
 
     def __init__(self, src_file: str, dbp: int, tw: int, th: int,
-                 trxreg_off: int):
+                 trxreg_off: int, src_path: Path | None = None):
         self.src_file = src_file
+        self.src_path = src_path     # absolute path for later re-read (CLUT search)
         self.dbp = dbp              # GS destination base pointer (sort key)
         self.tw = tw                # TRXREG transfer width  (PSMCT32 texels)
         self.th = th                # TRXREG transfer height (PSMCT32 texels)
@@ -183,6 +205,8 @@ class Transfer:
         self.width = tw * 2         # decoded 8-bit texture dimensions
         self.height = th * 2
         self.pixels: bytes | None = None
+        self.image_payload_range: tuple[int, int] | None = None
+        self.clut: bytes | None = None  # 1024-byte RGBA palette, if found
 
 
 def _gs_regwrite(d: bytes, pos: int) -> int | None:
@@ -219,6 +243,14 @@ def scan_transfers(d: bytes, src_file: str) -> list[Transfer]:
     return out
 
 
+def scan_transfers_with_path(d: bytes, src_path: Path) -> list["Transfer"]:
+    """Like scan_transfers, but also records the absolute source path."""
+    xfers = scan_transfers(d, src_path.name)
+    for t in xfers:
+        t.src_path = src_path
+    return xfers
+
+
 def find_image_payload(d: bytes, nbytes: int, start: int) -> int | None:
     """Offset of the IMAGE-mode GIF payload of `nbytes` bytes after `start`.
 
@@ -252,6 +284,7 @@ def decode_transfer(d: bytes, t: Transfer) -> bool:
     if len(payload) < nbytes:
         payload = payload + b"\x00" * (nbytes - len(payload))
     _, _, t.pixels = deswizzle(payload, t.tw, t.th)
+    t.image_payload_range = (off, off + nbytes)
     return True
 
 
@@ -420,8 +453,37 @@ def predict_sheet_field(dbp: int) -> float:
     return dbp * DBP_TO_SHEET_SCALE + DBP_TO_SHEET_BIAS
 
 
+def _resolve_clut_for_transfer(t: Transfer, clut_mode: str,
+                                fixed_clut: bytes, level_dir: Path,
+                                apply_csm1: bool) -> tuple[bytes, str]:
+    """Pick the right CLUT for a transfer; return (1024-byte RGBA, source label)."""
+    if clut_mode == "gray":
+        return fixed_clut, "gray"
+    if clut_mode == "file":
+        c = psmct8_csm1_swizzle(fixed_clut) if apply_csm1 else fixed_clut
+        return c, "fixed-file"
+    # auto mode
+    if t.src_path is not None and t.src_path.is_file():
+        d = t.src_path.read_bytes()
+        found = find_best_clut_for_file(d, image_payload_range=t.image_payload_range)
+        if found is not None:
+            return (psmct8_csm1_swizzle(found) if apply_csm1 else found,
+                    f"auto:{t.src_path.name}")
+    # Fall back to scanning the level directory for any CLUT-shaped block.
+    for q in sorted(level_dir.glob("*.bin")):
+        d = q.read_bytes()
+        cands = find_clut_candidates(d, min_alpha_80=128, min_distinct_rgb=64)
+        if cands:
+            blob = d[cands[0]:cands[0] + 1024]
+            return (psmct8_csm1_swizzle(blob) if apply_csm1 else blob,
+                    f"auto:{q.name}@{cands[0]:#x}")
+    return identity_grayscale_clut(), "auto -> gray (no candidate)"
+
+
 def process_level(level_file: Path, out_dir: Path,
-                   dump_sheets: bool) -> tuple[int, int, list[str]]:
+                   dump_sheets: bool, clut_mode: str, fixed_clut: bytes,
+                   apply_csm1: bool, want_gray_png: bool
+                   ) -> tuple[int, int, list[str]]:
     """Bind markers to texture packets and cut per-material sub-textures.
 
     Returns (textures_written, materials_unbound, log_lines).
@@ -437,6 +499,7 @@ def process_level(level_file: Path, out_dir: Path,
     for q in sorted(level_file.parent.glob("*.bin")):
         dq = q.read_bytes()
         for t in scan_transfers(dq, q.name):
+            t.src_path = q
             if decode_transfer(dq, t):
                 transfers.append(t)
     # Each scanned transfer is distinct (anchored at its own TRXREG offset);
@@ -464,11 +527,21 @@ def process_level(level_file: Path, out_dir: Path,
             log.append(f"  sheet {sheet_field}: {len(mats)} material(s) "
                        f"UNBOUND (texture resident from another file) -- skipped")
             continue
+        # Resolve a CLUT for this sheet (or fall back to grayscale).
+        if want_gray_png:
+            clut_label = "gray-8bpp"
+        else:
+            clut, clut_label = _resolve_clut_for_transfer(
+                t, clut_mode, fixed_clut, level_file.parent, apply_csm1)
         if dump_sheets:
             sp = out_dir / f"{tag}_sheet_{sheet_field}.png"
-            write_png_gray(sp, t.width, t.height, t.pixels)
+            if want_gray_png:
+                write_png_gray(sp, t.width, t.height, t.pixels)
+            else:
+                rgba = apply_clut(t.pixels, clut)
+                write_png_rgba(sp, t.width, t.height, rgba)
         log.append(f"  sheet {sheet_field}: {len(mats)} material(s) -> "
-                   f"{t.src_file} {t.width}x{t.height} (DBP {t.dbp})")
+                   f"{t.src_file} {t.width}x{t.height} (DBP {t.dbp}, CLUT: {clut_label})")
         for mi, (key, mat) in enumerate(sorted(mats.items())):
             # Clamp UV box to [0,1]: UVs >1 are hardware wrap/tiling; the
             # visible texel set is still the [0,1] sheet.
@@ -485,9 +558,27 @@ def process_level(level_file: Path, out_dir: Path,
                 continue
             name = (f"{tag}_s{sheet_field}_m{mi:03d}_"
                     f"{key[0]:08x}_{cw}x{ch}.png")
-            write_png_gray(out_dir / name, cw, ch, pix)
+            if want_gray_png:
+                write_png_gray(out_dir / name, cw, ch, pix)
+            else:
+                write_png_rgba(out_dir / name, cw, ch, apply_clut(pix, clut))
             written += 1
     return written, unbound, log
+
+
+def _load_clut_arg(spec: str) -> tuple[str, bytes]:
+    """Resolve --clut to (mode, 1024-byte palette). mode in {gray, auto, file}."""
+    if spec == "gray":
+        return "gray", identity_grayscale_clut()
+    if spec == "auto":
+        return "auto", b""
+    path = Path(spec)
+    if not path.is_file():
+        raise SystemExit(f"--clut: not a known mode and not a file: {spec}")
+    data = path.read_bytes()
+    if len(data) != 1024:
+        raise SystemExit(f"--clut file must be 1024 bytes, got {len(data)}")
+    return "file", data
 
 
 def main(argv: list[str]) -> int:
@@ -499,16 +590,35 @@ def main(argv: list[str]) -> int:
                    help="output directory (default: subtextures/)")
     p.add_argument("--sheets", action="store_true",
                    help="also dump each full bound sheet alongside the crops")
+    p.add_argument("--clut", default="gray",
+                   help="CLUT source: 'gray' (identity ramp, default), 'auto' "
+                        "(scan the transfer's source file then the level dir "
+                        "for raw 1024-byte CLUT-shaped blocks), or a path to "
+                        "a 1024-byte RGBA palette file")
+    p.add_argument("--csm1-swizzle", action="store_true",
+                   help="apply the PSMT8 CSM1 entry-swap (8..15<->16..23 within "
+                        "each 32-entry block) before indexing")
+    p.add_argument("--no-clut", action="store_true",
+                   help="legacy: write 8-bit grayscale PNGs (no CLUT, no RGBA)")
     args = p.parse_args(argv)
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    if args.no_clut:
+        clut_mode = "gray"
+        fixed_clut = b""
+    else:
+        clut_mode, fixed_clut = _load_clut_arg(args.clut)
+
     total_written = 0
     total_unbound = 0
     levels = 0
     for level_file in sorted(Path(args.input).rglob("*_id44.bin")):
-        written, unbound, log = process_level(level_file, out_dir, args.sheets)
+        written, unbound, log = process_level(
+            level_file, out_dir, args.sheets,
+            clut_mode=clut_mode, fixed_clut=fixed_clut,
+            apply_csm1=args.csm1_swizzle, want_gray_png=args.no_clut)
         if not log:
             continue
         levels += 1

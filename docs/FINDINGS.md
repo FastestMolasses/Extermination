@@ -94,15 +94,45 @@ a file beginning `07 XX 00 60`. Tool: `tools/extract_textures.py`.
 - The extractor also finds packets **embedded** in larger `id 0x44` level
   files (57 packets total, vs 28 standalone). A few embedded results look
   noisy — likely false-positive signature matches.
-- **Color source is unresolved.** The format is 8-bit (PSMT8), which on GS
-  hardware always samples through a CLUT — so a CLUT exists in VRAM at
-  runtime. But no CLUT data was found in `DATA.DAT` or the boot ELF, and a
-  smoothness test (adjacent-pixel delta ~7-22, vs ~85 for a random palette)
-  shows the 8-bit values are luminance-ordered. So either the runtime CLUT is
-  a grayscale ramp (color then comes from renderer vertex-color modulation)
-  or there is a luminance-sorted color CLUT not yet located. The `TEX0` setup
-  in the decompiled draw code will settle it. The grayscale PNG output is
-  faithful to the index data either way.
+- **Color source — partially resolved (2026-05-24).** PSMT8 always samples
+  through a CLUT on GS hardware. Investigation findings:
+  - **Standalone texture packets (ids 0x06..0x0c, 0x35, 0x38) carry no CLUT.**
+    Every standalone texture file has exactly one BITBLTBUF/TRXREG/IMAGE-GIF
+    upload; the tail after the image payload is just sector-alignment zero
+    padding. No paired 16x16-PSMCT32 CLUT transfer anywhere in DATA.DAT.
+  - **The boot ELF's GS register table contains 9 unique TEX0 templates** —
+    8 with `PSM=0 PSMCT32` (rendering target setups) and 1 with `PSM=0x14
+    PSMT4 CLD=1` (one static UI / 4-bit palette). No PSMT8 templates appear
+    statically; their TEX0 (with CBP/CLD fields) is built at runtime by
+    engine code, presumably from per-asset metadata.
+  - **Raw 1024-byte CLUT-shaped blobs ARE present in some asset files** —
+    not framed as GIF packets, just plain `[R G B A]*256` arrays sitting in
+    model / character / level data. Identified in: id 0x6e/0x70/0x72
+    character/prop files (1–11 candidates per file, often in pairs spaced
+    exactly 0x400 apart), id 0x46 some files, and most id 0x44 level files
+    (typically 4–11 candidates near the texture-sheet uploads). The blobs
+    look textbook (alpha bytes in [0..0x80], 100+ entries at 0x80 = fully
+    opaque, hundreds of distinct RGB triples).
+  - **Binding from each blob to its texture is NOT yet known.** Heuristic
+    detection (`tools/clut.py::find_clut_candidates`) finds them but
+    multiple candidates per file means a per-material mapping needs more
+    work — likely the engine's per-asset palette table in the boot ELF, or
+    a stride/index encoded in the geometry `m0`/`m1` marker bits that we
+    haven't decoded yet (`m1>>10 & 0x3FFF` has 21 distinct values per
+    level, similar to the per-sheet CLUT count).
+  - **PSMT8 indices are luminance-ordered** (adjacent-index delta ~7-22 vs
+    ~85 for a random palette), so the identity grayscale CLUT
+    `i -> (i,i,i,255)` is a faithful luminance preview even without the
+    correct color palette.
+  - **Both extractors now write RGBA PNGs by default** using the identity
+    grayscale CLUT (`--clut gray`, the default). `--clut auto` scans the
+    texture's own file (and for the per-material extractor, the level
+    directory) for a candidate CLUT and applies the first match — useful
+    where the binding is unambiguous (one CLUT per file). `--no-clut`
+    restores the original 8-bit grayscale PNG output for compatibility.
+    `--csm1-swizzle` applies the PSMT8 CSM1 32-entry-block swap before
+    indexing (the documented PS2 swizzle for CLUTs uploaded in CSM1 mode).
+    See `tools/clut.py` for the recognition heuristic and PNG writers.
 - Each decoded sheet is a texture **atlas** — many individual textures packed
   into one sheet, some stored flipped/rotated to pack tighter, plus
   non-texture padding. The swizzle is correct (proven above); the sheet just
