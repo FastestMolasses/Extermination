@@ -524,6 +524,37 @@ All other 295 previously-committed functions are at 100%.
     - **Dead `paddub` in else branch**: appears when comparing with `bne` chain (not `beq` goto chain).
       The goto form with `beqz` tests generates `paddub` in the `bnez` delay slot for the "no match" path.
 
+### Done — Heuristic function naming pass (47 names, 2026-05-24)
+
+Added `tools/decomp/name_functions.py` — heuristic naming via string-reference
+analysis. The tool reads splat's per-function `.s` disassembly, recovers
+absolute 32-bit addresses from lui/addiu pairs (and the resolved
+`D_XXXXXXXX` symbols splat already emits for cross-function data refs), maps
+them to ASCII strings extracted from the boot ELF, and proposes a
+function name derived from the most distinctive nearby string. Auto-block in
+`config/symbol_addrs.txt` is idempotent — rerunnable any time without
+duplication.
+
+Result of first pass: **47 SDK helpers named** by their referenced strings,
+e.g. `sub_Invalid_macroblock_type_code_0` (MPEG decoder error path),
+`sub_Too_many_macroblocks_in_picture`, `sub_libpad_Module_version_mismatch`,
+`sub_BASCUS_97112_DS00_00_*` (boot ID readers), `sub_NIGHT_VISION_SYSTEM`
+(weapon-name lookup, game code). Stdlib-signature pass and SDK-banner pass
+yielded zero high-confidence hits — the SDK leaves all call out (no
+isolated memcpy/memset/strlen in the linked ELF that's also obviously
+distinct from byte-loop game code), and the `PsIIlib*` banner strings are
+referenced by too many functions (≥6 each, dropped by the
+distinctiveness filter).
+
+DCDecomp cross-reference attempted (`/tmp/DCDecomp`): yielded zero. DCDecomp
+itself only has ~120 named symbols, all anonymous `D_XXXXX` / `.LXXXXX`
+labels — they don't name SDK functions either. The memory note's hopeful
+estimate of 50-200 hits did not materialize.
+
+objdiff still parses (1491 units) and `objdiff-cli report generate` reports
+unchanged metrics: **1338/1491 matched at 100%, 98.51% fuzzy**. No matched
+function regressed.
+
 ### Done — Overlay matching first batch (36 functions, 2026-05-24)
 
 The overlay decomp loop is now proven end-to-end. **36 overlay functions are

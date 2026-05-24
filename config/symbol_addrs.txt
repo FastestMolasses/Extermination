@@ -190,3 +190,103 @@ _isceSifDmaStat = 0x0010BBD0;  // type:func
 _isceSifSetDma = 0x0010BBF0;  // type:func
 // N=-120 (-0x78) __NR_isceSifSetDChain
 isceSifSetDChain = 0x0010BC10;  // type:func
+
+// ===========================================================
+// Auto-added by tools/decomp/name_functions.py
+// Sources: stdlib signature match / SDK banner ref / string ref
+// Names are heuristic; rename freely as analysis confirms them.
+// ===========================================================
+// strref: 'D2_TADR=%08x:'
+sub_D2_TADR_08x = 0x00100A60;  // type:func
+// strref: 'Invalid modion type -- ignored(%d)'
+sub_Invalid_modion_type_ignored_d = 0x001033E0;  // type:func
+// strref: '(c) invalid motion_type(%d)-2'
+sub_c_invalid_motion_type_d_2 = 0x00103718;  // type:func
+// strref: 'intra && skip MB'
+sub_intra_skip_MB = 0x001041E8;  // type:func
+// strref: 'Error code detected(BDEC)'
+sub_Error_code_detected_BDEC = 0x00105170;  // type:func
+// strref: 'Invalid macroblock_address_increment code(0x%08x)'
+sub_Invalid_macroblock_address_incre = 0x00105518;  // type:func
+// strref: '= Skip to the next picture ='
+sub_Skip_to_the_next_picture = 0x00105628;  // type:func
+// strref: 'slice_start_code(0x%08x) out of range'
+sub_slice_start_code_0x_08x_out_of_r = 0x00105750;  // type:func
+// strref: 'Too many macroblocks in picture'
+sub_Too_many_macroblocks_in_picture = 0x00105878;  // type:func
+// strref: 'skiped macroblock in I picure is not allowed'
+sub_skiped_macroblock_in_I_picure_is = 0x00105A78;  // type:func
+// strref: 'Invalid macroblock_type code: 0'
+sub_Invalid_macroblock_type_code_0 = 0x00105B48;  // type:func
+// strref: 'load_chroma_non_intra_quantizer_matrix == 1'
+sub_load_chroma_non_intra_quantizer_ = 0x00107260;  // type:func
+// strref: 'odd number of field pictures'
+sub_odd_number_of_field_pictures = 0x001074B0;  // type:func
+// strref: 'The size of work area is too small'
+sub_The_size_of_work_area_is_too_sma = 0x00109698;  // type:func
+// strref: 'work area size is too small'
+sub_work_area_size_is_too_small = 0x00109C78;  // type:func
+// strref: 'image buffer needs to be aligned to 64byte boundary(0x%08x)'
+sub_image_buffer_needs_to_be_aligned = 0x00109CF8;  // type:func
+// strref: 'the second field is missing'
+sub_the_second_field_is_missing = 0x0010A1C0;  // type:func
+// strref: 'vertical size > 2800'
+sub_vertical_size_2800 = 0x0010A4F8;  // type:func
+// strref: '_chroma_format needs to be 1: 420'
+sub_chroma_format_needs_to_be_1_420 = 0x0010AB40;  // type:func
+// strref: '_sequenceScalableExtension() is not implemented'
+sub_sequenceScalableExtension_is_not = 0x0010AD48;  // type:func
+// strref: 'Unknown Extension'
+sub_Unknown_Extension = 0x0010AD58;  // type:func
+// strref: '_pictureSpatialScalableExtension is not supported'
+sub_pictureSpatialScalableExtension_ = 0x0010AD68;  // type:func
+// strref: '_pictureTemporalScalableExtension is not supported'
+sub_pictureTemporalScalableExtension = 0x0010AD78;  // type:func
+// strref: '9PsIIlibkernl2000'
+sub__9PsIIlibkernl2000 = 0x0010BD30;  // type:func
+// strref: '9PsIIlibkernl2000'
+sub__9PsIIlibkernl2000_2 = 0x0010BDB0;  // type:func
+// strref: 'TTY: receive error'
+sub_TTY_receive_error = 0x0010CA70;  // type:func
+// strref: '9PsIIlibkernl2000'
+sub__9PsIIlibkernl2000_3 = 0x0010F110;  // type:func
+// strref: '9PsIIlibkernl2000'
+sub__9PsIIlibkernl2000_4 = 0x0010FBD0;  // type:func
+// strref: 'PsIIlibpad  2000'
+sub_PsIIlibpad_2000 = 0x00110690;  // type:func
+// strref: 'PsIIlibpad  2000'
+sub_PsIIlibpad_2000_2 = 0x00110868;  // type:func
+// strref: '                0000000000000000Inf'
+sub__0000000000000000Inf = 0x00123750;  // type:func
+// strref: 'cdrom0:\\IRX\\SNDN2DRV.IRX;1'
+sub_cdrom0_IRX_SNDN2DRV_IRX_1 = 0x001AB1E0;  // type:func
+// strref: '+-EXTERMINATION='
+sub_EXTERMINATION = 0x001D0F20;  // type:func
+// strref: 'NIGHT VISION SYSTEM'
+sub_NIGHT_VISION_SYSTEM = 0x001DBD50;  // type:func
+// strref: 'SPECIAL PURPOSE MISSILE LAUNCHER'
+sub_SPECIAL_PURPOSE_MISSILE_LAUNCHER = 0x001DBE20;  // type:func
+// strref: 'DELTA AUTO SIGHT SYS'
+sub_DELTA_AUTO_SIGHT_SYS = 0x001DBF00;  // type:func
+// strref: 'TACTICAL ADVANCED'
+sub_TACTICAL_ADVANCED = 0x001DC960;  // type:func
+// strref: '>(\\O@\\STREAM\\MUSIC.DAT;1'
+sub_O_STREAM_MUSIC_DAT_1 = 0x001FA6E0;  // type:func
+// strref: 'pts is not used'
+sub_pts_is_not_used = 0x00204BD0;  // type:func
+// strref: 'sceMpegGetPicture() decode error'
+sub_sceMpegGetPicture_decode_error = 0x00206D80;  // type:func
+// strref: 'BASCUS-97112-DS00-00/EX_DATA.00'
+sub_BASCUS_97112_DS00_00_EX_DATA_00 = 0x002285A0;  // type:func
+// strref: 'BASCUS-97112-DS00-00/EX_DATA.00'
+sub_BASCUS_97112_DS00_00_EX_DATA_00_2 = 0x002288A0;  // type:func
+// strref: '%s/EX_DATA.%02d'
+sub_s_EX_DATA_02d = 0x00228B60;  // type:func
+// strref: 'BASCUS-97112-DS00-00/EX_DATA.00'
+sub_BASCUS_97112_DS00_00_EX_DATA_00_3 = 0x00228EB0;  // type:func
+// strref: '%02d:%02d:%02d'
+sub__02d_02d_02d = 0x002293B0;  // type:func
+// strref: 'BASCUS-97112-DS00-00/EX.ico'
+sub_BASCUS_97112_DS00_00_EX_ico = 0x00229640;  // type:func
+// strref: 'BASCUS-97112-DS00-00/EX_DATA.00'
+sub_BASCUS_97112_DS00_00_EX_DATA_00_4 = 0x00229680;  // type:func
