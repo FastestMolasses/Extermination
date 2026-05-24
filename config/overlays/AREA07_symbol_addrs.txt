@@ -1,0 +1,1 @@
+overlay_AREA07_func_00823540 = 0x00823540; // type:func

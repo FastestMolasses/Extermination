@@ -1,12 +1,14 @@
 # Extermination — Runtime Overlay Matching Plan
 
-_Created: 2026-05-24_
+_Created: 2026-05-24. Pipeline completed 2026-05-24: all 19/19 overlays produce byte-identical output._
 
 The disc ships 19 `OVERLAY/AREA*.BIN` files that are the **second matching surface**
-of this project, alongside the boot ELF `SCUS_971.12`. The boot ELF is well under
-way (~44% matched); the overlays are currently 0% addressed. This document records
-everything learned in a dedicated investigation session, and lays out the concrete
-plan for matching them.
+of this project, alongside the boot ELF `SCUS_971.12`. This document records
+everything learned during investigation and pipeline development.
+
+**Status: the overlay build pipeline is complete.** All 19 overlays produce byte-identical
+output via the GNU ld pipeline described in section 4. The scaffold tools in
+`tools/overlay/` are committed and functional.
 
 ---
 
@@ -176,139 +178,137 @@ update" function at +0x0CF0 (0x8241F0), etc.
 
 ---
 
-## 4. Architectural Plan for Matching
+## 4. Build Pipeline (Implemented)
 
-### 4.1 Splat extension
+The overlay build pipeline is fully implemented in `tools/overlay/`. All 19 overlays
+produce byte-identical output from the original `.s` disassembly. The same pipeline
+will swap in compiled `.c` objects as functions are matched.
 
-**Splat can disassemble overlays directly** with a per-overlay YAML. The
-approach mirrors how the boot ELF config works:
+### 4.1 Tools
 
-```yaml
-# config/AREA07.yaml (example)
-name: AREA07
-basename: AREA07
-target_path: config/AREA07.BIN
-base_path: build
-build_path: build
-asm_path: build/asm/overlay/AREA07
-asset_path: assets/overlay/AREA07
-src_path: src/overlay/AREA07
-platform: ps2
-compiler: mwccps2
-# The overlay's .text starts at 0x823500, but the file starts at 0x40 (past the header)
-header_encoding: none
-options:
-  platform: ps2
-  compiler: mwccps2
-  
-segments:
-  - name: AREA07
-    type: code
-    start: 0x40      # skip the MWo3 header
-    vram: 0x823500   # maps to the overlay arena base
-    bss_size: <bss_size_from_header>
-    subsegments:
-      - [0x40, c, AREA07]
+| Script | Purpose |
+|---|---|
+| `tools/overlay/gen_splat_yaml.py` | Reads MWo3 header, writes per-overlay splat YAML + `AREAXX_symbol_addrs.txt` |
+| `tools/overlay/fill_overlay.py` | Assembles splat `.s` → `.o` (with pre-assembly fixups); copies compiled `.o` when available |
+| `tools/overlay/link_overlay.py` | Links with GNU ld, extracts `.text`+`.data`, prepends MWo3 header, verifies byte-identity |
+| `tools/overlay/extract_overlays.py` | Extracts `.text`+`.data`+header from all original BIN files |
+| `tools/overlay/pack_mwo3.py` | Packs raw code+data with MWo3 header into a final `.BIN` |
+| `tools/overlay/build.py` | Batch pipeline: gen_splat_yaml → splat → fill → link for all 19 overlays |
+
+The configs live in `config/overlays/AREAXX.yaml` (splat) and
+`config/overlays/AREAXX_symbol_addrs.txt` (symbol seeds), both committed.
+
+### 4.2 Pipeline steps
+
+**For each overlay:**
+
+1. **`gen_splat_yaml.py AREAXX`** — reads `extract/OVERLAY/AREAXX.BIN`'s MWo3
+   header, writes `config/overlays/AREAXX.yaml` (with correct `vram`, `text_size`,
+   `data_size`, `bss_size` subsegment layout) and `AREAXX_symbol_addrs.txt`
+   (single entry-point symbol — required by splat 0.40).
+
+2. **`splat split config/overlays/AREAXX.yaml`** — disassembles text to
+   `build/overlays/AREAXX/asm/matchings/AREAXX/code/*.s` and data to
+   `build/overlays/AREAXX/asm/data/*.s`.  Symbol prefix:
+   `overlay_AREAXX_$VRAM` (e.g. `overlay_AREA07_func_00823580`) to avoid
+   vram collisions between overlays (all load at 0x823500).
+
+3. **`fill_overlay.py AREAXX`** — pre-assembly fixups on the `.s` files, then
+   parallel assembly to `build/overlays/AREAXX/filler/*.o`:
+   - **VU0 fixup** (`fix_vu0_instructions`): replaces COP2 vector mnemonics
+     (`vmulax`, `vmadday`, etc.) with `.word` directives. Splat's comment
+     contains the raw 8-hex-char opcode; the LE integer is
+     `int.from_bytes(bytes.fromhex(opcode), 'little')`.
+   - **Cross-file label fixup** (`fix_cross_file_local_labels`): finds `.L`
+     labels defined in one `.s` but referenced in another; renames them to
+     non-local (drops the `.`) and adds `.globl` in the defining file.
+     (Splat splits at function boundaries, but MIPS branches legally jump
+     into adjacent functions — the `.L` targets would be unresolvable
+     across object files without this.)
+   - Assembled with `mipsel-linux-gnu-as -march=r5900 -L` (`-L` keeps `.L`
+     labels in symbol table for the partial-link step).
+   - `strip_sections.py --expected-size SLOT` strips GNU-as-only sections,
+     fixes `.text` alignment (16→4 bytes), pre-applies GPREL16 relocations,
+     and pads/trims `.text` to the computed slot size.
+
+4. **`link_overlay.py AREAXX`**:
+   a. **Partial relocatable link** — `mipsel-linux-gnu-ld -r` merges all
+      code objects into `_code_merged.o`.  Resolves cross-object `.L`
+      branch references.
+   b. **R_MIPS_PC16 addend fix** — scans `_code_merged.o` for PC16
+      relocations with instruction field = 0 (GNU as leaves these zero for
+      cross-object branches).  Patches to 0xFFFF (-1) so GNU ld computes
+      `(S + (-1) - P) / 4 = (S - P - 4) / 4` — the correct MIPS branch
+      target formula (hardware: `target = P + 4 + offset×4`).
+   c. **Final link** — `mipsel-linux-gnu-ld` with the generated GNU ld
+      script (`config/overlays/AREAXX.lds`).  Script uses `INPUT()` with
+      absolute paths, absolute symbol definitions for all boot-ELF symbols
+      referenced from the overlay, and separate `.text` / `.data` / `.bss
+      (NOLOAD)` sections.
+   d. **Extract** — reads section headers from the output ELF to locate
+      `.text` and `.data` at their exact file offsets; extracts exactly
+      `text_size + data_size` bytes.
+   e. **Pack** — prepends the 64-byte MWo3 header (copied verbatim from
+      the original BIN).
+   f. **Verify** — byte-compares against the original.
+
+**Why GNU ld instead of mwldmips?**
+mwldmips (the period-correct Metrowerks linker) segfaults on aarch64 when
+linking small overlay-sized inputs (1–~100 objects) under qemu-i386 + wibo32.
+The full boot-ELF link (3014 objects) works fine. GNU `mipsel-linux-gnu-ld`
+runs natively on aarch64 and produces byte-identical output: overlay objects
+have no GPREL16 relocations (pre-applied by strip_sections.py), no
+CodeWarrior-specific section types, and no linker-transformed instructions.
+The byte-identical verification confirms correctness.
+
+### 4.3 Compiler flags for overlay decompilation
+
+Overlays were compiled with the same `mwccps2 2.3.1.01`. Expected flags:
+- `-O4,p` (same as game code in the boot ELF; delay slots filled)
+- `-sdatathreshold 0` (overlay-local globals are at 0x823500+, outside
+  GP±32KB, so all data uses `lui`/`lw`; boot-ELF globals at 0x27XXXX
+  may use gp_rel depending on threshold)
+- `$gp = 0x0027D370` (shared with boot ELF — overlays run in the same
+  address space)
+
+### 4.4 Byte-identity results
+
+All 19 overlays verified byte-identical as of 2026-05-24:
+
+```
+AREA00 PASS   AREA01 PASS   AREA02 PASS   AREA03 PASS   AREA04 PASS
+AREA06 PASS   AREA07 PASS   AREA08 PASS   AREA11 PASS   AREA13 PASS
+AREA14 PASS   AREA15 PASS   AREA16 PASS   AREA17 PASS   AREA18 PASS
+AREA19 PASS   AREA20 PASS   AREA21 PASS   AREA22 PASS
+=== 19/19 pass, 0 fail ===
 ```
 
-A wrapper script should read the MWo3 header, compute `bss_size`, and
-generate the YAML automatically.
+AREA21 (the most complex, 61 functions with VU0 COP2 instructions) required
+the VU0 fixup. Several overlays required the cross-file label fixup and PC16
+addend fix. All are now handled automatically by the pipeline.
 
-**Symbol scoping**: because every overlay loads at the same vram, symbol names
-must be scoped per overlay. The convention is:
+### 4.5 Repacking into the ISO
 
-```
-overlay_AREA07_func_00823580   # the init function of AREA07
-overlay_AREA07_func_00823900   # another function in AREA07
-overlay_AREA07_D_008260C0      # a data label in AREA07
-```
+`tools/decomp/repack_iso.py --overlays` swaps all rebuilt
+`build/overlays/AREAXX/AREAXX.BIN` files into a copy of the user's ISO for
+testing in PCSX2. Each rebuilt BIN must be exactly the original slot size
+(text+data bytes match — BSS is not stored). The `--overlay-dir` argument
+defaults to `build/overlays/`.
 
-Splat's `symbol_addrs.txt` does **not** support per-file scoping natively. Two
-options:
-1. Maintain a **separate `symbol_addrs_overlayAREANN.txt`** per overlay, and
-   reference it in the per-overlay splat config.
-2. Use a single global file with a naming prefix convention and let splat
-   discover symbols by address range (all overlays share 0x823500+, but you
-   only run one config at a time).
+### 4.6 objdiff integration (future)
 
-Option 2 is simpler for now. Since objdiff diffs one overlay at a time, and
-the build system rebuilds one overlay at a time, address collisions never
-occur in practice.
-
-### 4.2 Build system
-
-Each overlay is compiled as a **separate mwldmips link** producing a separate
-`AREA07.BIN` (the full MWo3 file with header). The pipeline mirrors
-Track A's `fill_unmatched.py` / `link.py` but targets overlay vram:
-
-1. **splat disassembles** the original AREA07.BIN → per-function `.s` files
-   in `build/asm/overlay/AREA07/`.
-2. **fill_unmatched** assembles all `.s` files into filler objects, substituting
-   matched `.c` objects from `src/overlay/AREA07/`.
-3. **link.py (overlay variant)** generates an overlay-specific LCF:
-   - `MEMORY` section: one region `overlay_AREA07 : ORIGIN = 0x00823500,
-     LENGTH = 0 > AREA07.BIN`
-   - Places each function object in vram order.
-   - Sets `_gp = 0x0027D370` (same as the boot ELF — overlays share the same
-     `$gp` since they run in the same address space).
-   - Outputs the MWo3-format binary (mwldmips produces relocatable output;
-     `tools/decomp/repack_iso.py` will swap in the rebuilt binary).
-4. **Compare**: the loadable region of the rebuilt `AREA07.BIN` must be
-   byte-identical to the original.
-
-The overlay LCF is simpler than the boot ELF's (no GPREL16 overflow issues, no
-cross-segment labels, no symbol deduplication). The main complication is the
-**MWo3 header** — mwldmips does not write MWo3 headers; the linker produces a
-raw ELF. A post-link step (`tools/overlay/pack_mwo3.py`) reads the resulting
-ELF's `.text` and `.data` sections, prepends the 0x40-byte header (copied from
-the original), and writes the final AREA07.BIN.
-
-Alternatively: mwldmips with `> AREA07.BIN` output may strip the ELF
-and output a raw binary — the same behavior exploited by DCDecomp for its
-overlay outputs (see `SCUS_971.11.lcf` `title (RWXO) > TITLE.bin`). If so, the
-header must be prepended in the post-link step.
-
-### 4.3 objdiff integration
-
-Each overlay gets its own objdiff unit. In `objdiff.json`:
+When C decompilations are added to `src/overlays/AREAXX/`, `fill_overlay.py`
+automatically picks up compiled `.o` from `build/overlays/AREAXX/obj/` in
+preference to assembled `.s` filler. For objdiff, add per-function units:
 
 ```json
 {
-  "units": [
-    {
-      "name": "overlay/AREA07/overlay_AREA07_func_00823580",
-      "target_path": "build/filler_overlay/AREA07/overlay_AREA07_func_00823580.o",
-      "base_path":   "build/obj_overlay/AREA07/overlay_AREA07_func_00823580.o",
-      "metadata": { "complete": null }
-    }
-  ]
+  "name": "overlay/AREA07/overlay_AREA07_func_00823580",
+  "target_path": "build/overlays/AREA07/filler/overlay_AREA07_func_00823580.o",
+  "base_path":   "build/overlays/AREA07/obj/overlay_AREA07_func_00823580.o",
+  "metadata": { "complete": null }
 }
 ```
-
-### 4.4 Compiler flags
-
-Overlays were compiled with the **same mwccps2 2.3.1.01** (the `MW MIPS C
-Compiler (2.3.1.01)` string is in the boot ELF `.comment`, and there is no
-reason to expect a different compiler for the overlays — they link into the same
-address space). Expected flags:
-- `-O4,p` (same as game code in the boot ELF)
-- `-sdatathreshold N` (TBD per overlay — depends on what variables are gp_rel)
-- The `$gp` value is the same as the boot ELF (0x27D370), so gp_rel range
-  (±32KB) covers the boot ELF's data; the overlays' own data is in the
-  0x823500+ range, which is outside gp_rel range. Expect overlay-local
-  globals to use `lui`/`lw` (hi/lo) addressing.
-
-### 4.5 Relocation handling
-
-The MWo3 format is a **position-dependent binary** (loaded at a fixed address,
-not position-independent). The boot ELF's overlay loader reads text_size + data_size
-bytes from file and copies them verbatim to vram 0x823500. No relocation patching
-is needed at load time — unlike ELF, MWo3 is pre-linked to a fixed address.
-This matches what we see: the text section already contains absolute jal/j
-targets in the 0x82XXXX range.
-
-For the **decomp link**: mwldmips can produce a fixed-address binary directly,
-exactly as it does for the boot ELF, if the LCF specifies the correct origin.
 
 ---
 
@@ -345,53 +345,61 @@ recovery from one overlay transfers easily to others.
 
 ---
 
-## 6. Recommended First Target: AREA18
+## 6. Overlay matching next steps
 
-**AREA18.BIN** (2,176 bytes, overlay ID 15) is the recommended "hello world"
-overlay target:
+The build pipeline is complete. The natural next steps for overlay matching:
 
-- **Smallest overlay** at 2,176 bytes total (only AREA22 at 2,304 bytes is
-  comparable; both are stubs).
-- **Exactly one function** in the text section (7 instructions at 0x823540,
-  plus 0x40 bytes of nop padding before it).
-- **No non-leaf calls** — the single function is a pure leaf using only
-  `addiu`, `sw`, `lui`, `jr $ra`.
-- The function was already decoded above; it's straightforwardly matchable
-  from C using `-sdatathreshold 0` (gp_rel for the three gp-relative stores).
-- Serves as the scaffold test for the **entire overlay pipeline**:
-  splat config, fill_unmatched overlay variant, mwldmips overlay LCF,
-  MWo3 header packing, byte-identity check.
+1. **AREA18 / AREA22** (stub overlays, 1 function each) — these are the easiest
+   C decompilation targets. The single function is a pure leaf (`addiu`, `sw`,
+   `lui`, `jr $ra`) with gp-relative stores. Matches with `-sdatathreshold 0`
+   (or inline asm). Serves as the first overlay function to move from `.s` to `.c`.
 
-Once AREA18 is 100% matched and the pipeline produces a byte-identical
-AREA18.BIN, the same pipeline applies to every other overlay.
+2. **AREA08** (18,944 bytes, ~30-40 functions) — smallest real overlay. Good
+   second target once the `.c` decompilation workflow is validated on AREA18/22.
 
-**After AREA18**: AREA22 (also a stub, one function, slightly different) as a
-sanity check that the pipeline generalizes. Then AREA08 (smallest real area,
-18,944 bytes, ~30–40 functions) as the first non-trivial overlay match.
+3. **AREA07** (19,328 bytes) — similarly small, good third target.
+
+The overlay matching workflow:
+1. Add C source to `src/overlays/AREAXX/`.
+2. Compile with `mwccmips.exe -O4,p -sdatathreshold 0` → `build/overlays/AREAXX/obj/`.
+3. Re-run `fill_overlay.py AREAXX` (auto-picks up compiled `.o`).
+4. Re-run `link_overlay.py AREAXX` — checks byte-identity.
+5. Add objdiff units for per-function diffing.
 
 ---
 
-## 7. Required New Tools
+## 7. Tools implemented
 
-### `tools/overlay/extract_overlay.py`
-Extracts text and data sections from a MWo3 file into separate loose files,
-and dumps the header fields. Use as a quick inspection tool and as input to
-the splat pipeline.
-
-### `tools/overlay/pack_mwo3.py`
-Packs a compiled text section + data section back into a MWo3 binary:
-- Reads original header from the reference file (or takes CLI args).
-- Prepends the 0x40-byte header.
-- Appends text + data sections.
-- Writes the rebuilt AREA**.BIN.
-- Verifies byte-identity against the original.
+All tools in `tools/overlay/` are committed originals (no disc content).
 
 ### `tools/overlay/gen_splat_yaml.py`
-Reads a MWo3 header and generates the per-overlay splat YAML config,
-including the correct `bss_size` and `vram` values.
+Reads a MWo3 header and generates the per-overlay splat YAML config with
+correct `bss_size`, `vram`, and data-as-subsegment structure. Also writes
+the per-overlay `AREAXX_symbol_addrs.txt` (required by splat 0.40).
 
-These three tools are clean originals (no disc content) and can live in
-`tools/overlay/` alongside the existing `tools/decomp/` scripts.
+### `tools/overlay/fill_overlay.py`
+Assembles splat `.s` → filler `.o` with pre-assembly fixups:
+- VU0 / COP2 instruction replacement with `.word` directives
+- Cross-file `.L` label promotion to non-local + `.globl`
+Copies compiled `.o` from `build/overlays/AREAXX/obj/` when available.
+
+### `tools/overlay/link_overlay.py`
+GNU ld-based linker (replaces mwldmips for overlays):
+- Generates `config/overlays/AREAXX.lds`
+- Partial relocatable link → R_MIPS_PC16 addend fix → final link
+- Extracts `.text`+`.data` from ELF section headers
+- Prepends MWo3 header → byte-identity verification
+
+### `tools/overlay/extract_overlays.py`
+Extracts text, data, and header fields from all original BIN files for
+inspection. Disc-derived output — not committed.
+
+### `tools/overlay/pack_mwo3.py`
+Packs raw `.text` + `.data` + original header into a final `.BIN`. Used
+internally by `link_overlay.py`.
+
+### `tools/overlay/build.py`
+Batch driver: runs gen_splat_yaml → splat → fill → link for all 19 overlays.
 
 ---
 

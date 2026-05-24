@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-24 (Track A: ~1491 src files, objdiff.json at 1491 units; partial-link pipeline at **100% byte identity**; overlay investigation complete — see `docs/OVERLAYS.md`; session 8 added ~25 more asm void functions — see below)_
+_Last updated: 2026-05-24 (Track A: ~1491 src files, objdiff.json at 1491 units; partial-link pipeline at **100% byte identity**; **overlay build pipeline complete — all 19/19 overlays byte-identical** — see `docs/OVERLAYS.md`; session 8 added ~25 more asm void functions — see below)_
 
 ## Project at a glance
 
@@ -524,6 +524,41 @@ All other 295 previously-committed functions are at 100%.
     - **Dead `paddub` in else branch**: appears when comparing with `bne` chain (not `beq` goto chain).
       The goto form with `beqz` tests generates `paddub` in the `bnez` delay slot for the "no match" path.
 
+### Done — Overlay build pipeline (19/19 byte-identical)
+
+All 19 `OVERLAY/AREA*.BIN` overlay files produce byte-identical output from
+the original disc disassembly. The pipeline is fully automated in `tools/overlay/`.
+
+**Key decisions and hard-won fixes:**
+
+- **GNU ld instead of mwldmips**: mwldmips (the period-correct linker) segfaults
+  on aarch64 under qemu-i386 + wibo32 for small overlay-sized inputs. GNU
+  `mipsel-linux-gnu-ld` runs natively and produces byte-identical results.
+  mwldmips continues to be used for the boot ELF (the full 3014-object link
+  doesn't crash).
+
+- **Cross-file `.L` label fixup**: splat splits code at function boundaries, but
+  MIPS branches legally jump into adjacent functions. Splat generates `.L` local
+  labels for branch targets in the *defining* function's `.s`. GNU as local labels
+  are not exported, so cross-object `.L` refs fail at link time. Fix: scan all
+  `.s` files, find `.L` labels referenced across files, rename them (drop `.`) and
+  add `.globl` in the defining file.
+
+- **R_MIPS_PC16 addend bias**: GNU ld's formula is `(S - P) >> 2`, but MIPS
+  hardware uses `target = P + 4 + offset×4`, so the correct formula is
+  `(S - P - 4) >> 2`. GNU as leaves the instruction field = 0 for cross-object
+  branches. Fix: after partial link, patch all PC16 relocation instruction fields
+  from 0 → 0xFFFF (-1), so GNU ld computes `(S + (-1) - P) / 4` = correct value.
+
+- **VU0 / COP2 macro-mode instructions**: AREA21 contains vector unit instructions
+  (`vmulax`, `vmadday`, etc.) that GNU as doesn't support. Splat emits them as
+  decoded mnemonics with the raw 8-hex-char opcode in the comment. Fix: replace
+  with `.word` directives. Opcode byte order: splat shows bytes MSB-first; use
+  `int.from_bytes(bytes.fromhex(opcode), 'little')` to get the correct LE integer.
+
+See `docs/OVERLAYS.md` for the full architecture, tool descriptions, and
+byte-identity results table.
+
 ### Done — Track A partial-link pipeline
 
 A fully automated pipeline that links all 3014 unique-vram boot-ELF functions
@@ -647,9 +682,13 @@ ELF** (1530624/1530624 bytes, 100.00%).
   transforms are absolute or parent-composed — confirm from engine code.
 - **Audio.** SFX-bank rate unconfirmed (provisionally 22050). Clip splitting is
   heuristic (silence gaps) — no per-clip index found.
-- **`OVERLAY/`** (`AREA*.BIN`, `MWo3` overlay modules) — **investigated
-  2026-05-24**. Format fully characterized; architectural plan written. See
-  `docs/OVERLAYS.md`. Not yet scanned for embedded textures/geometry.
+- **`OVERLAY/`** (`AREA*.BIN`, `MWo3` overlay modules) — **fully characterized
+  and pipeline complete (2026-05-24)**. Format documented in `docs/OVERLAYS.md`.
+  All 19/19 overlays produce byte-identical output via `tools/overlay/`. The
+  overlay pipeline uses GNU ld (not mwldmips, which segfaults on aarch64 for
+  small link jobs). Three non-trivial obstacles resolved: cross-file `.L` label
+  promotion, R_MIPS_PC16 addend bias fix, and VU0 COP2 instruction replacement
+  with `.word` directives. Not yet scanned for embedded textures/geometry.
 
 ### Roadmap
 
@@ -704,6 +743,14 @@ build architecture".
     alignment (16→4 bytes); pre-applies R_MIPS_GPREL16 relocations.
   - `decomp/link.py` — full link orchestrator: generates LCF + object list,
     invokes mwldmips, compares output ELF against original.
+  - `decomp/repack_iso.py` — swaps rebuilt ELF and/or overlay BINs into a
+    copy of the user's ISO for PCSX2 testing (`--overlays` flag).
+  - `overlay/gen_splat_yaml.py` — auto-generates per-overlay splat YAML + symbol_addrs.
+  - `overlay/fill_overlay.py` — assembles overlay `.s` → `.o` (VU0 fixup, cross-file
+    label fix, strip_sections integration); picks up compiled `.o` when available.
+  - `overlay/link_overlay.py` — GNU ld-based overlay linker (partial link + PC16 fix +
+    final link + ELF extraction + MWo3 packing + byte verification).
+  - `overlay/extract_overlays.py`, `overlay/pack_mwo3.py`, `overlay/build.py` — support tools.
 - `config/` — Track A build config (committed): `SCUS_971.12.yaml` (splat
   config), `symbol_addrs.txt` (hand-recovered symbol list), `asm_prelude.inc`
   (assembler directives for target objects). The boot ELF `config/SCUS_971.12`

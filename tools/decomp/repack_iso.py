@@ -95,6 +95,50 @@ def swap_iso_file(iso_path: Path, name: str, new_content: bytes) -> None:
         f.write(padded)
 
 
+def swap_overlays(iso_path: Path, overlay_dir: Path) -> int:
+    """Replace OVERLAY/AREA*.BIN files in the ISO with rebuilt versions.
+
+    Scans `overlay_dir` (build/overlays/) for AREAXX/AREAXX.BIN files and
+    swaps each one into the corresponding ISO slot.  Returns the number of
+    overlays swapped.
+
+    Each rebuilt .BIN must be exactly the same size as the original (it
+    contains the same MWo3 header + text + data; BSS is never stored).
+    """
+    import pycdlib as _pycdlib
+    iso = _pycdlib.PyCdlib()
+    iso.open(str(iso_path))
+    iso.close()
+
+    count = 0
+    for rebuilt in sorted(overlay_dir.glob("AREA*/AREA*.BIN")):
+        area = rebuilt.parent.name  # "AREA00", etc.
+        iso_name = f"{area}.BIN;1"
+        iso_path_str = f"/OVERLAY/{iso_name}"
+
+        try:
+            file_off, slot_len = locate_iso_file(iso_path, iso_path_str)
+        except Exception as e:
+            print(f"[overlay] WARNING: {area}.BIN not found in ISO ({e}), skipping")
+            continue
+
+        content = rebuilt.read_bytes()
+        if len(content) != slot_len:
+            print(f"[overlay] WARNING: {area}.BIN rebuilt={len(content)} "
+                  f"!= slot={slot_len} — skipping (size must match)")
+            continue
+
+        padded = content + b"\x00" * (slot_len - len(content))
+        with open(iso_path, "r+b") as f:
+            f.seek(file_off)
+            f.write(padded)
+
+        count += 1
+        print(f"[overlay] swapped {area}.BIN ({len(content):,} bytes)")
+
+    return count
+
+
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--iso", type=Path,
@@ -105,6 +149,11 @@ def main(argv: list[str]) -> int:
                    help="Rebuilt ELF to insert")
     p.add_argument("--keep-stripped", action="store_true",
                    help="keep the intermediate boot-ready ELF (elf/SCUS_971.12.boot.elf)")
+    p.add_argument("--overlays", action="store_true",
+                   help="also swap rebuilt OVERLAY/AREA*.BIN files into the ISO")
+    p.add_argument("--overlay-dir", type=Path,
+                   default=ROOT / "build" / "overlays",
+                   help="directory containing AREAXX/AREAXX.BIN rebuilt overlays")
     args = p.parse_args(argv)
 
     if not args.iso.exists():
@@ -131,6 +180,15 @@ def main(argv: list[str]) -> int:
 
     if not args.keep_stripped:
         stripped.unlink()
+
+    # 4. Optionally swap rebuilt overlays.
+    if args.overlays:
+        if not args.overlay_dir.exists():
+            print(f"[overlay] no overlay build dir found at {args.overlay_dir}",
+                  file=sys.stderr)
+        else:
+            n = swap_overlays(args.iso, args.overlay_dir)
+            print(f"[overlay] {n} overlay(s) swapped into ISO")
 
     print()
     print(f"✓ {args.iso.name} now boots our rebuilt ELF.")

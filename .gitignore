@@ -59,6 +59,20 @@ tools/bin/
 # disc-derived; never commit. elf/ holds the locally relinked executable.
 build/
 elf/
+
+# === Track B (overlay pipeline) build artifacts ===
+# build/overlays/ holds per-overlay splat disassembly, filler objects, linked
+# ELF, and rebuilt BIN — all derived from disc content; never commit.
+# The config/overlays/ generated linker scripts (.lds) ARE committed (they are
+# original code, generated from MWo3 headers that users produce themselves).
+# The symbol_addrs files and YAML configs are committed; the binary outputs are not.
+build/overlays/
+
+# Overlay intermediate outputs produced by the pipeline
+# (*.BIN in build/ caught by build/ ignore above; these cover edge cases)
+*/_code_merged.o
+*/trivial.c
+*/trivial_objects.txt
 .venv/
 .splache/
 
