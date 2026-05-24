@@ -814,7 +814,32 @@ ELF** (1530624/1530624 bytes, 100.00%).
   overlay pipeline uses GNU ld (not mwldmips, which segfaults on aarch64 for
   small link jobs). Three non-trivial obstacles resolved: cross-file `.L` label
   promotion, R_MIPS_PC16 addend bias fix, and VU0 COP2 instruction replacement
-  with `.word` directives. Not yet scanned for embedded textures/geometry.
+  with `.word` directives.
+
+  - **Embedded-asset scan — RESOLVED 2026-05-24 (no embedded assets).**
+    `tools/scan_overlay_assets.py` swept all 19 overlay `.text` and `.data`
+    sections for known signatures (`VAGp`, `SShd`, nested `MWo3`, GS texture
+    DMA packets `07 XX 00 60` + BITBLTBUF/TRXREG/IMAGE-GIF, 1024-byte CLUT-
+    shaped blobs, ASCII runs). Per-overlay and aggregate counts: **0 VAG
+    headers, 0 SShd banks, 0 nested MWo3, 0 DMA texture packets, 0 GS texture
+    transfers, 0 CLUT candidates** across all 19 files. The only non-code
+    content found in the data sections is **135 short ASCII strings** (median
+    length 6–9 chars, max ~15), distributed unevenly — AREA04 (35), AREA13
+    (19), AREA19 (18) hold most; AREA00/01/02/06/18/20/22 hold ≤3 each.
+    Characterwise: ~75% mixed-case (likely debug/label text), ~20%
+    identifier-like ALL_CAPS_WITH_UNDERSCORES, ~4% source-path-like, ~1%
+    printf format specifiers. Conclusion: **the overlays are pure code +
+    per-area init constants + tiny debug strings; they do not embed
+    textures, palettes, geometry, or audio.** All real assets live in
+    `DATA.DAT` and `STREAM/`. Track B is therefore complete for the OVERLAY
+    directory — no extractor is needed beyond the existing
+    `tools/overlay/extract_overlays.py` (which already separates header /
+    .text / .data for inspection). The 135 strings remain interesting only
+    as future symbol-recovery hints during per-overlay decompilation (an
+    overlay's debug strings are referenced by its own functions; cross-
+    referencing string addresses against `lui+addiu` pairs in splat .s
+    output can name some overlay functions, parallel to
+    `tools/decomp/name_functions.py` for the boot ELF).
 
 ### Roadmap
 
@@ -842,7 +867,7 @@ The reference template studied for the pipeline is `fmil95/recvx-decomp`
 The open questions above — texture color/CLUT, cross-file texture residency,
 `extract_textures.py` `07../10` coverage, rig VIF payload + bone hierarchy,
 MATRIX `--scene` confirmation, SFX sample rate, labelling the 25 soundtrack vs
-30 cutscene `MUSIC.DAT` tracks, scanning `OVERLAY/`.
+30 cutscene `MUSIC.DAT` tracks. (`OVERLAY/` scan resolved — no embedded assets.)
 
 **3. Asset repackers + moddable build (DEFERRED to late in the project).**
 Repackers that rebuild `DATA.DAT`/`INDEX.IDX` and the streams byte-identically

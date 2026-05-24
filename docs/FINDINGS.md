@@ -58,6 +58,21 @@ from BSS at `D_00810700` and dispatches to one of 17 fixed overlay vram addresse
 
 **Inspector tool**: `tools/overlay/inspect_mwo3.py` (original code).
 
+**Embedded-asset scan (2026-05-24).** `tools/scan_overlay_assets.py` scans
+both .text and .data of every overlay for known asset signatures: `VAGp`,
+`SShd`, nested `MWo3`, GS texture DMA packets (`07 XX 00 60` +
+BITBLTBUF/TRXREG/IMAGE-GIF), 1024-byte CLUT-shaped blobs, and ASCII runs.
+**Result across all 19 overlays: 0 textures, 0 CLUTs, 0 VAGs, 0 sound
+banks, 0 nested overlays, 0 GS DMA packets.** The data sections contain
+only per-area constants/tables for the area's code. The only non-binary
+content is **135 short ASCII strings** (lengths 6–15 bytes; ~75% mixed-
+case debug/labels, ~20% ALL_CAPS identifier-like, ~4% source-path-like,
+~1% printf format specifiers); AREA04 / AREA13 / AREA19 hold most of
+them, AREA00 / AREA01 / AREA02 / AREA06 / AREA18 / AREA20 / AREA22 hold
+≤3 each. All real game assets live in `DATA.DAT` / `STREAM/`, not in the
+overlays. Strings may still be useful as overlay-function naming hints
+(parallel to `tools/decomp/name_functions.py`).
+
 ## `DATA.DAT` / `INDEX.IDX` archive
 
 Two-level container, fully validated by exact tiling. Tool: `tools/extract_data.py`.
