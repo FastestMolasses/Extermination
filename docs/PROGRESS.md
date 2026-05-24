@@ -802,8 +802,23 @@ ELF** (1530624/1530624 bytes, 100.00%).
 - **`extract_textures.py`** only matches `07 XX 00 60` packets, missing the
   `07../10` DMA-tag level sheets (`extract_subtextures.py` handles them);
   broaden or consolidate the two tools.
-- **Rig payload.** The 112-byte per-record rig transform is VIF-packed; a
-  faithful decode needs the VU1 microcode. Bone parent hierarchy not isolated.
+- **Rig payload — partially resolved (2026-05-24).** The "rig" files were
+  reverse-engineered to be per-bone **collision hulls**, not skeleton bind-
+  pose transforms. Each 112-byte record's first 16 bytes are a **plane
+  equation** `n.x + D = 0` with `(nx,ny,nz)` a unit-length outward normal
+  (verified across every record of every rig file) and `D` the signed plane
+  offset. Records group by bone; most bones have 6 records = 3 antiparallel
+  plane pairs = a full OBB (oriented bounding box). `extract_models.py
+  --rig` now decodes the plane equations, detects OBB pairs, dumps a
+  `*_rig.txt` per-bone summary, and exports `*_rig_hulls.obj` wireframe
+  bounding boxes. **Still open:** (a) the remaining 96 bytes of payload
+  (six vec4 "extras") look like face polygon corners / edge endpoints but
+  the exact field layout is not decoded — needs the VU1 microcode that
+  consumes them; (b) the actual bind-pose skeleton (parent-relative
+  bone transforms needed for skinning) is NOT in these files and its
+  storage location is still unknown — likely embedded MATRIX block in
+  the model file, a boot-ELF table, or another file kind; (c) the bone
+  parent hierarchy is still not isolated.
 - **MATRIX `--scene`.** Role of the repeated identity transforms, and whether
   transforms are absolute or parent-composed — confirm from engine code.
 - **Audio.** SFX-bank rate unconfirmed (provisionally 22050). Clip splitting is

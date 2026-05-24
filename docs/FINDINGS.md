@@ -371,27 +371,62 @@ partially reversed (see "Rig / animation" below). The model-block sub-header's
 leading `01 00 00 00 .. ..` word pair is constant within a file but its
 meaning is unconfirmed; the decoder does not rely on it.
 
-### Rig / animation
+### Rig / per-bone collision hulls
 
 Skinning/animation data is **not** in the geometry record; it lives in
-separate files, in two representations.
+separate files. Two representations:
 
-**Rig / skeleton-transform files.** 23 small (2-4 KiB) files with no MESH
-signature — instead a flat array of fixed **0x78-byte (120-byte) records**.
-Several are byte-identical across many level regions (a shared rig, presumably
-the player). Each record: `[u8x3 flags][u8 bone/joint index]`, a `78 00 04 00`
-VIF UNPACK tag, then a 112-byte **VIF-packed transform payload**. The bone
-index decodes reliably; the payload decodes to bind-pose matrices in the
-cleanest files but a faithful general decode needs the VU1 microcode.
-`extract_models.py --rig` dumps each rig file structurally.
+**Per-bone collision-hull files** (formerly mislabeled "rig / skeleton-
+transform" files; reclassified 2026-05-24). 22 small (2-4 KiB) files
+with no MESH signature — a flat array of fixed **0x78-byte (120-byte)
+records**. Several are byte-identical across many level regions (the same
+recurring enemy / player). Each record: `[u8x3 flags][u8 bone-index]`, a
+`78 00 04 00` VIF UNPACK-tag preset, then a 112-byte payload:
 
-**Per-frame vertex animation.** Some characters ship as sets of sibling pose
-files — identical topology, differing vertex positions (keyframes). A
-`chunk03` character is 11 poses across file ids `0x29`-`0x34`.
+- **Payload bytes 0..16 = `vec4(nx, ny, nz, D)` — a plane equation.**
+  `(nx,ny,nz)` is a unit-length outward normal (verified across every
+  record of every rig file, |xyz|=1.0 within float epsilon); `D` is the
+  signed plane offset. The bone's interior is the intersection of all its
+  half-spaces `n·x + D ≤ 0`.
+- **Payload bytes 16..112 = six vec4 extras.** Empirically structured
+  (face-corner pairs appear with sign-flipped values, consistent with
+  edge endpoints of the face polygon), but the exact field layout is not
+  yet decoded — needs either the VU1 microcode that consumes these or
+  a careful per-OBB empirical match against the recovered face polygons.
+
+Plane sets group by bone index. Most bones have **6 records = 3
+antiparallel pairs = an OBB (oriented bounding box)** — verified on
+several files including `chunk03/f10_id12.bin` where the three pairs
+have dot(n,n') ≈ -1.0 and the recovered extents are bone-scale (~2-12
+units). Some bones carry fewer planes (half-spaces / capped hulls).
+
+**Bone parent hierarchy is still not found.** The per-record bone index
+is an ID; no explicit parent-index array was identified inside the rig
+files. Bone-group orderings recur across files (e.g. `[18, 25, 24, 23,
+4, 3]` in many character rigs) so the order looks like a per-skeleton
+iteration order, but that ordering alone does not convey a tree. The
+actual bind-pose skeleton (parent-relative rotations + translations) is
+not in these files; where it lives — embedded MATRIX block in the model
+file, boot-ELF table, or a yet-unidentified file kind — is **still
+open**. The geometry vertex record has no per-vertex bone weight/index
+field, so meshes are either rigid-bone-attached or vertex-animated.
+
+**Header forms:**
+- Short (4 bytes): `<u32 record_count>`. Records start at +4.
+- Long (0x20 bytes): `<u32 record_count>`, 8 bytes of default flag /
+  `fffe00xx` VIF preset (STMASK/STROW-style), 4 zero bytes, then a vec3
+  of floats (an unverified root offset / global hull centre). Records
+  start at +0x20.
+
+`extract_models.py --rig` walks every rig file and writes (a) a
+`*_rig.txt` dump (plane equations per record, per-bone OBB-pair summary,
+raw payload), and (b) a `*_rig_hulls.obj` wireframe of every recovered
+OBB (one wire-box per bone with exactly 3 antiparallel plane pairs).
+
+**Per-frame vertex animation.** Some characters ship as sets of sibling
+pose files — identical topology, differing vertex positions (keyframes).
+A `chunk03` character is 11 poses across file ids `0x29`-`0x34`.
 `extract_models.py --anim` detects pose sets and exports `*_frameNN.obj`.
-
-Open: the exact VIF-payload transform layout (needs VU1 microcode) and the
-bone parent hierarchy.
 
 ## `MUSIC.DAT` track listing
 

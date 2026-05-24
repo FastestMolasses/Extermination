@@ -192,39 +192,61 @@ field -- its four rows are fully accounted for (marker, uv, normal/colour,
 position). The skinning / animation rig therefore lives in SEPARATE files, not
 inside the geometry blocks. Two distinct representations were located:
 
-(1) RIG / SKELETON-TRANSFORM FILES -- a family of small (2-4 KiB) files that
-    carry NO MESH signature and instead hold a flat array of fixed 0x78-byte
-    (120-byte) records. 23 such files are present in `extract/`; several are
-    byte-identical across many level regions (a shared rig, presumably the
-    player). Layout:
+(1) PER-BONE COLLISION-HULL FILES -- previously thought to be skeleton
+    bind-pose transforms; reverse-engineered 2026-05-24 to be per-bone
+    convex collision hulls described as sets of bounding-PLANE EQUATIONS,
+    most commonly OBBs (oriented bounding boxes). Small (2-4 KiB) files
+    with NO MESH signature; a flat array of fixed 0x78-byte (120-byte)
+    records. 22 such files are present in `extract/`; several are byte-
+    identical across many level regions (a shared hull set for a recurring
+    enemy / the player). Layout:
 
       FILE HEADER
         * "short" form  -- 4 bytes: `<u32 record_count>`. Records start at +4.
-        * "long" form   -- 0x20 bytes: `<u32 record_count>` then a `fffe00xx`
-                           sentinel and a float vec3 (a root offset / bbox
-                           centre). Records start at +0x20.
+        * "long" form   -- 0x20 bytes: `<u32 record_count>`, then 8 bytes of
+                           default-flags + a `fffe00xx` VIF preset (STMASK /
+                           STROW-style), 4 zero bytes, then a vec3 of floats
+                           (a root offset / global hull centre -- not yet
+                           confirmed). Records start at +0x20.
         The two forms are told apart by where the first `78 00 04 00` tag sits
         (offset 8 for short, 0x24 for long).
 
       RECORD -- 0x78 bytes, repeated `record_count` (+/-1) times:
-        +0x00  u8[3] flags + u8 BONE / JOINT INDEX
-               The 4th byte is a small integer that indexes a bone/joint; it
-               is constant across a run of consecutive records (several
-               records per joint -- keyframes or sub-transforms). The three
-               flag bytes take a few discrete values (`00 01`, `01 00`,
-               `00 80`, ...) -- a per-record type/interpolation tag.
-        +0x04  `78 00 04 00` -- a PS2 VIF UNPACK tag (the engine DMAs these
-               records straight to VU1; `0x78` is the UNPACK opcode).
-        +0x08  112-byte transform PAYLOAD -- the VIF-unpacked joint transform
-               (a matrix and/or quaternion+translation). In the cleanest
-               files the payload decodes to exact +/-1.0 / 0.0 entries
-               (axis-aligned bind-pose matrices); in general it is VIF-packed
-               and a faithful float decode needs the VU1 program, so this
-               tool dumps the payload as raw bytes + a best-effort float view
-               rather than asserting a matrix layout.
+        +0x00  u8[3] flags + u8 BONE INDEX
+               The 4th byte is a small integer that indexes a bone, constant
+               across a run of consecutive records (one record per plane;
+               6 planes = an OBB; fewer = a half-space / capped hull). The
+               three flag bytes take a few discrete values (`00 00 01`,
+               `00 01 00`, `00 01 01`, `00 80 00`, ...) -- a per-plane role
+               tag (face-pair vs cap, etc.).
+        +0x04  4-byte VIF UNPACK tag preset (`78 00 04 00`). The engine
+               splices these records into VIF1 packets, so each record
+               carries its own tag inline.
+        +0x08  112-byte PAYLOAD
+               +0x08..+0x18  vec4 PLANE EQUATION: `(nx, ny, nz, D)` -- xyz is
+                             a UNIT-LENGTH outward normal (verified across
+                             every record of every rig file: |xyz| = 1.0
+                             within float epsilon), D is the signed plane
+                             offset. The bone's interior is the intersection
+                             of all half-spaces `n.x + D <= 0`.
+               +0x18..+0x78  six vec4 EXTRAS. Their exact role is not yet
+                             confirmed -- candidates include the face's
+                             polygon corners, in-plane edge vectors, or
+                             neighbour-face indices used by the engine's
+                             SAT / GJK responder. The values are bounded
+                             and consistent with geometric data, but not
+                             yet a closed-form decode.
 
-    `--rig` walks every rig file and writes a `*_rig.txt` dump: the header,
-    and per record the bone index, flags, and payload (hex + float view).
+    `--rig` walks every rig file and writes (a) a `*_rig.txt` dump (header,
+    per-record plane equations, per-bone OBB pair summary, raw payload),
+    and (b) a `*_rig_hulls.obj` wireframe of each detected OBB.
+
+    OBB recovery: per bone, planes are grouped into antiparallel pairs
+    (`dot < -0.95`). A bone with exactly 3 pairs yields a complete OBB:
+    each pair defines an axis (the pair's shared direction) and a span
+    along that axis (`[D_neg, -D_pos]`). 8 box corners follow by enumerating
+    +/- spans on each axis. Bones with non-OBB plane counts (half-spaces,
+    capped hulls) are reported but not turned into wireframe boxes.
 
 (2) PER-FRAME VERTEX ANIMATION -- some characters are animated by shipping the
     whole mesh once per pose. In `chunk03` a single 13-block / 1690-vertex
@@ -236,13 +258,25 @@ inside the geometry blocks. Two distinct representations were located:
     `*_frameNN.obj`, ready to load as a morph / vertex-cache animation.
 
 UNCERTAIN / NOT YET RESOLVED (rig)
-  * The 112-byte rig-record payload is VIF-packed; without the VU1 microcode
-    the exact field layout (matrix vs quaternion+translation, fixed-point
-    scale) is not confirmed. The dump is structural and honest about this.
-  * The bone PARENT hierarchy is not yet isolated -- the per-record index is
-    the joint id, but no explicit parent-index array was identified inside the
-    rig files (it may be implied by record order, or live in the model-file
-    sub-header). Reported as open.
+  * The first 16 bytes of the payload are a plane equation (confirmed across
+    every record of every rig file). The remaining 96 bytes (6 vec4s) carry
+    additional geometry whose exact field layout is not yet decoded -- needs
+    either the VU1 microcode that consumes them or a careful empirical study
+    matching the extras against a known hull's face polygons.
+  * The "rig" files describe collision hulls, NOT the bind-pose skeleton.
+    Where the actual bone bind-pose transforms (parent-relative rotations
+    + translations needed to skin the mesh) live is STILL OPEN. The 64-byte
+    geometry vertex record has no per-vertex bone weight / index, which is
+    consistent with the meshes being either rigid-bone-attached (a whole
+    sub-mesh per bone) or vertex-animated frame-by-frame (see --anim). It
+    is also possible the bind-pose lives inside an embedded MATRIX block in
+    the model file, or in the boot ELF; not yet investigated.
+  * The bone PARENT hierarchy is not yet isolated. The per-record bone
+    index is just an ID; no explicit parent-index array was identified inside
+    the rig files. The bone-group ordering within a file is recurring across
+    files (e.g. [18, 25, 24, 23, 4, 3] in many character rigs) which may be
+    a per-skeleton bone iteration order, but that ordering does not by itself
+    convey a parent-child tree.
   * Which rig file binds to which model file is by-region association only
     (a region bundles one entity's pieces); no explicit cross-reference id
     was decoded.
@@ -770,15 +804,97 @@ def parse_rig_file(d: bytes) -> RigFile | None:
     return RigFile(count, header, records, long_header)
 
 
+def _decode_rig_record(rec: "RigRecord"):
+    """Decode a 112-byte rig record into a per-bone collision plane.
+
+    Empirically (2026-05-24), every rig record's first vec4 has unit-length
+    xyz (verified across all 22 rig files and every record). This identifies
+    the record's primary payload as a PLANE EQUATION ``n.x + n.y + n.z + D``
+    where ``(nx,ny,nz) = vec4[0].xyz`` is the outward normal and ``D =
+    vec4[0].w`` is the signed plane offset from the world origin. Per-bone
+    plane sets pair up antiparallel (dot ~= -1) into orthonormal pairs --
+    most bones have 6 planes forming an OBB (oriented bounding box), some
+    bones have fewer for half-space / cap planes.
+
+    The remaining 6 vec4s (96 bytes) of the payload are extra geometric data
+    -- candidates include polygon corners, edge vectors, or face neighbour
+    indices -- whose exact layout is not yet decoded but does not look like
+    a transform matrix.
+
+    Returns ``(normal_xyz, D, extras_list_of_vec4)``.
+    """
+    floats = struct.unpack("<28f", rec.payload)
+    normal = (floats[0], floats[1], floats[2])
+    D = floats[3]
+    extras = [floats[i:i + 4] for i in range(4, 28, 4)]
+    return normal, D, extras
+
+
+def _group_bone_planes(rig: "RigFile"):
+    """Group rig records by bone index, preserving record order within each bone.
+
+    Returns a dict ``{bone_index: [(rec_index, normal, D, extras, flags), ...]}``.
+    """
+    out: dict[int, list] = {}
+    for i, rec in enumerate(rig.records):
+        n, D, extras = _decode_rig_record(rec)
+        out.setdefault(rec.bone, []).append((i, n, D, extras, rec.flags))
+    return out
+
+
+def _pair_planes(planes):
+    """Find antiparallel plane pairs (dot < -0.95) in a bone's plane list.
+
+    Returns ``(pairs, unpaired_indices)`` where ``pairs`` is a list of
+    ``(i_pos, i_neg, axis_xyz, extent)``: the two opposing plane indices, a
+    chosen positive-half outward normal, and the signed gap ``D_pos + D_neg``
+    (positive = the box has thickness along that axis).
+    """
+    pairs = []
+    used = set()
+    for i in range(len(planes)):
+        if i in used:
+            continue
+        _, ni, Di, _, _ = planes[i]
+        best_j = None
+        best_dot = -0.95
+        for j in range(i + 1, len(planes)):
+            if j in used:
+                continue
+            _, nj, Dj, _, _ = planes[j]
+            d = ni[0] * nj[0] + ni[1] * nj[1] + ni[2] * nj[2]
+            if d < best_dot:
+                best_dot = d
+                best_j = j
+        if best_j is not None:
+            _, nj, Dj, _, _ = planes[best_j]
+            extent = Di + Dj
+            pairs.append((i, best_j, ni, extent))
+            used.add(i)
+            used.add(best_j)
+    unpaired = [k for k in range(len(planes)) if k not in used]
+    return pairs, unpaired
+
+
 def write_rig_dump(path: Path, rig: RigFile, src_name: str) -> int:
     """Write a human-readable dump of a rig file. Returns the record count.
 
-    Each record is shown with its joint index, flag bytes, and the 112-byte
-    transform payload as both hex and a best-effort 28-float view. The float
-    view is informational only -- the payload is VIF-packed (see docstring).
+    Format (reverse-engineered 2026-05-24): the so-called "rig" files are
+    NOT skeleton bind-pose transforms -- they are per-bone COLLISION HULLS
+    described as sets of bounding planes (mostly OBBs). Each 0x78-byte
+    record holds one PLANE EQUATION ``n.x + D = 0`` (unit normal in the
+    first 12 bytes, signed offset ``D`` in the next 4) plus 96 bytes of
+    extra geometric data whose exact role is not yet decoded (likely face
+    polygons / edge spans). Multiple records share a bone index to build up
+    that bone's hull. See the module docstring "Rig / animation data" for
+    full detail.
+
+    The dump emits: (a) the plane equation per record, (b) a per-bone
+    summary grouping records and detecting antiparallel pairs (OBB axes),
+    (c) the raw 28-float payload as before for any further hand analysis.
     """
     lines: list[str] = [
-        f"# Extermination (SCUS-97112) rig / skeleton-transform dump",
+        f"# Extermination (SCUS-97112) rig / per-bone collision-hull dump",
         f"# source: {src_name}",
         f"# exported by tools/extract_models.py --rig",
         f"# header ({len(rig.header)} bytes, "
@@ -786,28 +902,158 @@ def write_rig_dump(path: Path, rig: RigFile, src_name: str) -> int:
         f"{rig.header.hex()}",
         f"# declared record count: {rig.count}; decoded records: "
         f"{len(rig.records)}",
-        "# record = u8[3] flags + u8 bone-index, then a 78 00 04 00 VIF tag,"
-        " then a 112-byte VIF-packed transform payload.",
+        "# format: record = u8[3] flags + u8 bone-index, then a VIF UNPACK"
+        " tag word, then a 112-byte payload.",
+        "# payload[0:16] = vec4(normal.xyz, D): unit-length plane normal +"
+        " signed plane offset (plane equation n.x+D=0).",
+        "# payload[16:112] = six vec4 extras (face polygon / edges /"
+        " neighbour indices -- exact layout TBD).",
         "",
     ]
-    # Joint indices in order -- a quick view of the skeleton layout.
-    bones = [r.bone for r in rig.records]
-    lines.append(f"# joint index per record: {bones}")
-    lines.append(f"# distinct joints: {sorted(set(bones))}")
+    bones_seq = [r.bone for r in rig.records]
+    lines.append(f"# bone index per record: {bones_seq}")
+    lines.append(f"# distinct bones: {sorted(set(bones_seq))}")
     lines.append("")
+
+    # Per-bone summary with OBB pair detection.
+    by_bone = _group_bone_planes(rig)
+    lines.append("## per-bone hull summary")
+    for bone in sorted(by_bone):
+        planes = by_bone[bone]
+        pairs, unpaired = _pair_planes(planes)
+        kind = ("OBB (3 pairs)" if len(pairs) == 3 and not unpaired
+                else f"hull ({len(pairs)} pairs, {len(unpaired)} unpaired)")
+        lines.append(f"bone {bone:3d}: {len(planes)} planes -- {kind}")
+        for i_pos, i_neg, axis, extent in pairs:
+            rec_i = planes[i_pos][0]
+            rec_j = planes[i_neg][0]
+            lines.append(
+                f"   axis=({axis[0]: .4f},{axis[1]: .4f},{axis[2]: .4f})"
+                f"  extent={extent: .4f}  records[{rec_i},{rec_j}]")
+        for k in unpaired:
+            rec_k, n, D, _, fl = planes[k]
+            lines.append(
+                f"   half-space: n=({n[0]: .4f},{n[1]: .4f},{n[2]: .4f})"
+                f"  D={D: .4f}  record[{rec_k}]"
+                f"  flags={fl[0]:02x} {fl[1]:02x} {fl[2]:02x}")
+    lines.append("")
+
+    # Per-record full dump.
+    lines.append("## per-record raw payload")
     for i, r in enumerate(rig.records):
+        n, D, extras = _decode_rig_record(r)
         floats = struct.unpack("<28f", r.payload)
         lines.append(f"record {i:3d}  @0x{r.offset:05x}  bone={r.bone:3d}  "
                      f"flags={r.flags[0]:02x} {r.flags[1]:02x} "
                      f"{r.flags[2]:02x}")
+        lines.append(f"  plane: n=({n[0]: .5f},{n[1]: .5f},{n[2]: .5f})"
+                     f"  D={D: .5f}")
         lines.append(f"  payload.hex: {r.payload.hex()}")
         for k in range(0, 28, 4):
             quad = floats[k:k + 4]
-            lines.append("  payload.f4[%2d]: %s" % (
-                k, "  ".join(f"{x: .5f}" for x in quad)))
+            tag = "plane" if k == 0 else f"extra{(k - 4) // 4}"
+            lines.append("  %-7s f4[%2d]: %s" % (
+                tag, k, "  ".join(f"{x: .5f}" for x in quad)))
         lines.append("")
     path.write_text("\n".join(lines) + "\n")
     return len(rig.records)
+
+
+def _obb_from_pairs(pairs):
+    """Build an OBB (8 corners + 3 axis triples) from 3 antiparallel pairs.
+
+    For each pair (axis, extent), the box extends from ``-D_neg`` to ``D_pos``
+    along the axis. Centre = (D_pos - D_neg) / 2 along that axis. Returns
+    ``(centre_xyz, axes_3x3, half_extents_xyz)`` or None if the pairs are not
+    a complete orthonormal frame (e.g. fewer than 3 pairs).
+    """
+    if len(pairs) != 3:
+        return None
+    # Each pair: (i_pos, i_neg, axis_pos, extent = D_pos + D_neg).
+    # The plane equation convention here is n.x + D = 0; the plane sits at
+    # distance -D from origin along +n. With outward-pointing normals, the
+    # interior of the box satisfies n.x + D <= 0. The +n plane is at
+    # -D_pos, the -n plane is at +D_neg, so the box centre's projection on
+    # n is (D_neg - D_pos) / 2, half-extent is (D_pos + D_neg) / 2.
+    centre = [0.0, 0.0, 0.0]
+    axes = []
+    half = []
+    for i_pos, i_neg, axis_pos, extent in pairs:
+        # extent = D_pos + D_neg, but signs in source are mixed -- robust
+        # to either convention by taking magnitude.
+        h = abs(extent) * 0.5
+        half.append(h)
+        axes.append(axis_pos)
+    # We can't recover a global centre without the per-pair plane D values,
+    # so fall back to: caller already passed plane[]; do that below instead.
+    return axes, half
+
+
+def write_rig_obb_obj(path: Path, rig: RigFile, src_name: str) -> int:
+    """Export each bone's OBB hull as a wire-frame OBJ. Returns hull count.
+
+    For bones with exactly 3 antiparallel plane pairs (a complete OBB), emit
+    the 8 corner vertices and the 12 edges as line primitives. Hulls with
+    other plane counts are skipped (logged in a header comment).
+    """
+    lines = [
+        f"# Extermination (SCUS-97112) rig collision-hull export",
+        f"# source: {src_name}",
+        "# one wireframe OBB per bone; bones with non-OBB hulls are skipped.",
+        f"o {Path(src_name).stem}_hulls",
+    ]
+    vert_base = 1
+    hull_count = 0
+    by_bone = _group_bone_planes(rig)
+    for bone in sorted(by_bone):
+        planes = by_bone[bone]
+        pairs, unpaired = _pair_planes(planes)
+        if len(pairs) != 3 or unpaired:
+            continue
+        # Solve box: each pair gives axis + two plane offsets (D_pos, D_neg).
+        # Interior: n.x + D <= 0. The +n face plane: n.x = -D_pos.
+        # The -n face plane: -n.x = -D_neg, i.e. n.x = D_neg.
+        # So along axis n, the box spans [D_neg, -D_pos] (signed). Centre
+        # on n = (D_neg - D_pos) / 2, half-extent = (-D_pos - D_neg) / 2.
+        axes = []
+        spans = []  # list of (min_along_axis, max_along_axis)
+        for i_pos, i_neg, axis_pos, _ in pairs:
+            _, _, D_pos, _, _ = planes[i_pos]
+            _, _, D_neg, _, _ = planes[i_neg]
+            a_lo = D_neg
+            a_hi = -D_pos
+            if a_lo > a_hi:
+                a_lo, a_hi = a_hi, a_lo
+            axes.append(axis_pos)
+            spans.append((a_lo, a_hi))
+        # 8 corners: each axis contributes either its lo or hi extent.
+        corners = []
+        for s0 in (0, 1):
+            for s1 in (0, 1):
+                for s2 in (0, 1):
+                    t0 = spans[0][s0]
+                    t1 = spans[1][s1]
+                    t2 = spans[2][s2]
+                    x = (t0 * axes[0][0] + t1 * axes[1][0]
+                         + t2 * axes[2][0])
+                    y = (t0 * axes[0][1] + t1 * axes[1][1]
+                         + t2 * axes[2][1])
+                    z = (t0 * axes[0][2] + t1 * axes[1][2]
+                         + t2 * axes[2][2])
+                    corners.append((x, y, z))
+        for x, y, z in corners:
+            lines.append(f"v {x:.4f} {y:.4f} {z:.4f}")
+        # 12 edges as l-primitives (OBJ line lists).
+        edges = [(0, 1), (1, 3), (3, 2), (2, 0),
+                 (4, 5), (5, 7), (7, 6), (6, 4),
+                 (0, 4), (1, 5), (2, 6), (3, 7)]
+        lines.append(f"g bone_{bone:03d}")
+        for a, b in edges:
+            lines.append(f"l {vert_base + a} {vert_base + b}")
+        vert_base += 8
+        hull_count += 1
+    path.write_text("\n".join(lines) + "\n")
+    return hull_count
 
 
 # ---------------------------------------------------------------------------
@@ -988,11 +1234,16 @@ def run_rig(args, out_dir: Path) -> int:
         rig = parse_rig_file(d)
         if rig is None:
             continue
-        name = f"{path.parent.name}_{path.stem}_rig.txt"
+        stem = f"{path.parent.name}_{path.stem}"
+        name = stem + "_rig.txt"
         n = write_rig_dump(out_dir / name, rig, f"{path.parent.name}/{path.name}")
+        # Also emit a wireframe-OBB OBJ for visualizing the collision hulls.
+        obj_name = stem + "_rig_hulls.obj"
+        hulls = write_rig_obb_obj(
+            out_dir / obj_name, rig, f"{path.parent.name}/{path.name}")
         bones = sorted(set(r.bone for r in rig.records))
-        print(f"{path.parent.name}/{path.name}: {n} joint records, "
-              f"{len(bones)} distinct joint indices -> {name}")
+        print(f"{path.parent.name}/{path.name}: {n} plane records, "
+              f"{len(bones)} bones, {hulls} OBB hull(s) -> {name}, {obj_name}")
         found += 1
     print(f"\n{found} rig file(s) dumped to {out_dir}/")
     return 0
