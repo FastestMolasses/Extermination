@@ -24,15 +24,19 @@ DEFAULT_CFLAGS = "-O4,p -sdatathreshold 4"
 
 
 def file_cflags(src: Path) -> str:
+    """Return the CFLAGS for a .c file. Scans the file's leading comment block
+    (any consecutive // comment lines at the top) for `// CFLAGS:` and returns
+    its value. Falls back to DEFAULT_CFLAGS if not found."""
     try:
         with src.open() as f:
             for line in f:
                 s = line.strip()
                 if not s:
                     continue
+                if not s.startswith("//"):
+                    break  # comment block ended
                 if s.startswith("// CFLAGS:"):
                     return s[len("// CFLAGS:"):].strip()
-                break
     except OSError:
         pass
     return DEFAULT_CFLAGS

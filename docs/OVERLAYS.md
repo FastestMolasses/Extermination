@@ -473,6 +473,92 @@ obj/*.o` files whose corresponding `.c` source no longer exists, since
 from a dropped candidate would silently keep using mwcc output that no longer
 reflects what's in `src/`.
 
+### Pure-C hi/lo + asm-void hi/lo batch (2026-05-24, session +2)
+
+**+12 additional overlay functions matched** (one AREA13 asm-void hi/lo candidate
+the generator's verifier reported as 100% turned out to be wrong on parent
+re-verification: splat had folded a stranded basic block — `lbu $v1, 0xB($s0)` at
+0x0082417C — into func_overlay_AREA13_00824160's slot, and the C decomp couldn't
+reproduce that tail byte. Dropped). New total: **98 functions at 100%**.
+
+The matches fall into two groups:
+
+1. **4 hand-written pure-C decompilations** for "jal-with-hi/lo arg + return 1"
+   wrappers — the simplest non-leaf hi/lo pattern. Compiled with
+   `// CFLAGS: -O4,p -sdatathreshold 0` so mwcc emits `lui/addiu` for the
+   address (the global is outside the gp ±32KB window). Matched:
+   - AREA00 `func_overlay_AREA00_00826070` — two `func_1EFD20(K, &D_..)` calls.
+   - AREA17 `func_overlay_AREA17_00824240` — three init calls.
+   - AREA19 `func_overlay_AREA19_00827AE0` — three init calls.
+   - AREA04 / AREA21 — attempted, abandoned (mwcc -O4 schedules the arg-setup
+     into a different delay slot than the original — see "Patterns that didn't
+     work" below).
+
+2. **9 asm-void hi/lo matches** via the new hi/lo-aware path in
+   `gen_asm_void.py`. The key discovery: **mwcc's `la $reg, SYM` pseudo emits
+   exactly `lui $reg, %hi(SYM); addiu $reg, $reg, %lo(SYM)`** with proper
+   `R_MIPS_HI16/LO16` relocations — the same byte pattern as the original
+   when the original used the destination register as the lui scratch. So
+   functions whose only %hi/%lo usage is the same-register form
+   (`lui $R, %hi(SYM); addiu $R, $R, %lo(SYM)`) can be matched as hybrid
+   asm-void by collapsing each pair into a single `la $R, SYM` instruction.
+
+   Per-overlay delta this batch: AREA00 +1, AREA01 +1, AREA02 +1, AREA04 +2,
+   AREA13 +1, AREA19 +2, AREA20 +1, AREA21 +1 (asm-void hi/lo only).
+   Combined with the 4 hand-written pure-C: AREA00 +2, AREA01 +1, AREA02 +1,
+   AREA04 +2, AREA13 +1, AREA17 +1, AREA19 +3, AREA20 +1, AREA21 +1 = +13.
+
+   All 13 produce byte-identical overlay BINs.
+
+### Patterns that worked
+
+- `la $R, SYM` for paired-same-register `lui/addiu %hi/%lo` (the common
+  "load symbol address into R" idiom).
+- mwcc inline-asm short forms `lw/sw/lb/sb/lh/sh/lhu/lbu $R, SYM` (no base)
+  emit `lui $at; <load> $R, %lo(SYM)($at)`. Only useful when the original
+  also used `$at` as scratch — rare.
+- Pure-C `func(K, D_extern); return 1;` wrappers (3 matched).
+
+### Patterns that didn't work
+
+- **Cross-register `lui/addiu`**: `lui $X, %hi(SYM); addiu $Y, $X, %lo(SYM)`
+  with `Y != X` is unreachable. mwcc's `la` always uses the destination
+  reg for both halves; the `addiu` form with a symbol operand is rejected
+  ("illegal constant expression"). This blocks the most common "load arg
+  before jal" idiom (`lui $v0, %hi(D); jal F; addiu $a1, $v0, %lo(D)`).
+  An estimated 60-70% of remaining unmatched hi/lo functions hit this.
+- **Split `lui $X, %hi(SYM); lw $Y, %lo(SYM)($X)`** with `X != $at`:
+  same constraint. mwcc's short `lw $Y, SYM` always uses `$at`.
+- **Delay-slot scheduling differences**: when mwcc -O4's scheduler picks a
+  different instruction to fill a `jal` delay slot than the original (e.g.
+  arg-setup vs. tail-load), the bytes diverge and no source-level tweak
+  reliably forces a match (tried `int buf` vs `char buf[16]` for the
+  AREA04 stack-buffer case).
+- **Mid-function fragments from splat mis-splitting**: AREA01/03/07/11/13/14/
+  19/20 all have an identical 20-instruction fragment ending in
+  `lq $ra, 0x20($sp); jr $ra; addiu $sp, $sp, 0x40` that splat treats as a
+  standalone function. These have no entry prologue and rely on caller
+  state — can't be expressed as a top-level C function.
+
+### Infrastructure changes
+
+- **`tools/overlay/gen_asm_void.py`** — added hi/lo-aware second pass. New
+  `hilo_transform()` recognizes `lui+addiu %hi/%lo` pairs (same reg) and
+  emits `la $R, SYM`; recognizes `lui $at + (lw/sw/lh/sh/lb/sb/lhu/lbu)
+  %lo($at)` and emits the corresponding mwcc short-form pseudo. Generates
+  `extern int SYM;` decls for each collapsed symbol. Rejects any %hi/%lo
+  that can't be cleanly paired. Uses `-sdatathreshold 0` for the hi/lo pass.
+  Also fixed a regex bug in `rr()` (`$t0..$t9` register renaming) that was
+  silently producing no substitution — masked previously because the
+  earlier batch happened to not have functions using `$t`-named registers.
+
+- **`tools/overlay/compile_overlay_src.py`** — `file_cflags()` now scans
+  the *entire* leading comment block for `// CFLAGS:`, not just the very
+  first non-blank line. (gen_asm_void's hi/lo header puts the explanatory
+  comment first; without this fix the CFLAGS were silently ignored and
+  the wrong sdatathreshold was used, producing GPREL-vs-HI/LO mismatches
+  at link time.)
+
 ---
 
 ## 7. Tools implemented

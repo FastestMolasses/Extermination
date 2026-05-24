@@ -49,6 +49,10 @@ HDR = ("// Hybrid asm void: real mnemonics where mwcc accepts them,\n"
        "// .word for branch instructions (mwcc rejects PC-relative labels).\n"
        "// CFLAGS: -O4,p -sdatathreshold 4\n")
 
+HDR_HILO = ("// CFLAGS: -O4,p -sdatathreshold 0\n"
+            "// Hybrid asm void: real mnemonics where mwcc accepts them,\n"
+            "// .word for branch instructions, `la $r, SYM' for %hi/%lo pairs.\n")
+
 ALL_OVERLAYS = [
     "AREA00", "AREA01", "AREA02", "AREA03", "AREA04",
     "AREA06", "AREA07", "AREA08", "AREA11", "AREA13",
@@ -78,7 +82,7 @@ SYMBOLIC_PREFIX_RE = re.compile(r"func_[0-9A-Fa-f]+|func_overlay_|sce[A-Z]|[A-Z]
 
 def rr(s: str) -> str:
     for k, v in T_MAP.items():
-        s = re.sub(rf"\{re.escape(k)}\b", v, s)
+        s = re.sub(re.escape(k) + r"\b", v, s)
     return s
 
 
@@ -130,6 +134,90 @@ def should_skip(insns) -> bool:
     return False
 
 
+_HI_RE = re.compile(r"^lui\s+(\$\w+),\s*%hi\(([A-Za-z_][\w]*)\)\s*$")
+_LO_ADDIU_RE = re.compile(r"^addiu\s+(\$\w+),\s*(\$\w+),\s*%lo\(([A-Za-z_][\w]*)\)\s*$")
+_LO_LDST_RE = re.compile(
+    r"^(lw|sw|lh|sh|lhu|lb|sb|lbu|lwc1|swc1|ld|sd|lq|sq)\s+"
+    r"(\$\w+),\s*%lo\(([A-Za-z_][\w]*)\)\((\$\w+)\)\s*$"
+)
+_ANY_HILO_RE = re.compile(r"%hi|%lo|%gp_rel")
+_SYM_RE = re.compile(r"\b(D_[0-9A-Fa-f]{6,8}|D_overlay_AREA\d\d_[0-9A-Fa-f]{8}|jtbl_[\w]+)\b")
+
+
+def hilo_transform(insns):
+    """Return (out_lines, sym_names, ok). out_lines is list of asm body lines
+    (each properly indented). sym_names is the set of D_/jtbl_ symbols that need
+    extern decls. ok is False if any %hi/%lo couldn't be paired into a clean
+    `la $r, SYM` form (different scratch reg, split load, etc.)."""
+    out: list[str] = []
+    syms: set[str] = set()
+    i = 0
+    while i < len(insns):
+        hb, text = insns[i]
+        m_hi = _HI_RE.match(text)
+        if m_hi:
+            hi_reg, hi_sym = m_hi.group(1), m_hi.group(2)
+            # Look at next insn
+            if i + 1 < len(insns):
+                hb2, text2 = insns[i + 1]
+                m_addiu = _LO_ADDIU_RE.match(text2)
+                if (m_addiu and m_addiu.group(1) == hi_reg and
+                        m_addiu.group(2) == hi_reg and m_addiu.group(3) == hi_sym):
+                    out.append(f"    la {rr(hi_reg)}, {hi_sym}")
+                    syms.add(hi_sym)
+                    i += 2
+                    continue
+                # lui+load(%lo) only safe when scratch == $at AND dst != scratch...
+                # actually mwcc's `lw $X, SYM` form forces $at, so we can match only
+                # patterns where the original used $at as scratch.
+                m_ld = _LO_LDST_RE.match(text2)
+                if (m_ld and hi_reg == "$at" and m_ld.group(4) == "$at"
+                        and m_ld.group(3) == hi_sym):
+                    op = m_ld.group(1)
+                    dst = rr(m_ld.group(2))
+                    out.append(f"    {op} {dst}, {hi_sym}")
+                    syms.add(hi_sym)
+                    i += 2
+                    continue
+            return [], set(), False
+        # Standalone %hi/%lo (not paired into recognized form)
+        if _ANY_HILO_RE.search(text):
+            return [], set(), False
+        toks = text.split()
+        op = toks[0] if toks else ""
+        if op in BRANCH_OPS:
+            out.append(f"    {word(hb)}")
+        elif op == "j" and len(toks) > 1:
+            out.append(f"    {word(hb)}")
+        else:
+            out.append(f"    {rr(text)}")
+        i += 1
+    return out, syms, True
+
+
+def has_hilo(insns) -> bool:
+    return any(_ANY_HILO_RE.search(t) for _h, t in insns)
+
+
+def should_skip_hilo(insns) -> bool:
+    """Skip criteria for the hi/lo-enabled pass: same as should_skip but
+    allowing %hi/%lo. Still rejects jalr/syscall/j-to-sym/%gp_rel."""
+    for _hb, text in insns:
+        toks = text.split()
+        if not toks:
+            continue
+        op = toks[0]
+        if "%gp_rel" in text:
+            return True
+        if op in ("jalr", "syscall"):
+            return True
+        if op == "j" and len(toks) > 1:
+            target = toks[1]
+            if SYMBOLIC_PREFIX_RE.match(target):
+                return True
+    return False
+
+
 def word(hex_le: str) -> str:
     val = int.from_bytes(bytes.fromhex(hex_le), "little")
     return f".word 0x{val:08x}"
@@ -154,6 +242,28 @@ def generate_c(name: str, insns) -> str:
         else:
             body.append(f"    {rr(text)}")
     prefix = HDR + (decls + "\n\n" if decls else "\n")
+    return prefix + f"asm void {name}(void) {{\n" + "\n".join(body) + "\n}\n"
+
+
+def generate_c_hilo(name: str, insns) -> str | None:
+    """Generate hybrid asm-void body that handles `lui+addiu %hi/%lo` pairs
+    via the mwcc `la $r, SYM` pseudo. Returns None if not all %hi/%lo can be
+    cleanly collapsed."""
+    body, syms, ok = hilo_transform(insns)
+    if not ok:
+        return None
+    callees = []
+    for _hb, text in insns:
+        if text.startswith("jal "):
+            callee = text.split()[1]
+            callees.append(callee)
+    decl_lines = []
+    for c in sorted(set(callees)):
+        decl_lines.append(f"extern void {c}(int, int, int, int);")
+    for s in sorted(syms):
+        decl_lines.append(f"extern int {s};")
+    decls = "\n".join(decl_lines)
+    prefix = HDR_HILO + (decls + "\n\n" if decls else "\n")
     return prefix + f"asm void {name}(void) {{\n" + "\n".join(body) + "\n}\n"
 
 
@@ -197,6 +307,7 @@ def scan_overlay(area: str):
     # non-empty, the candidate cannot be silently replaced by mwcc output
     # (the labels would disappear from the symbol table).
     out = []
+    out_hilo = []
     for f in all_files:
         name = f.stem
         if (src_dir / f"{name}.c").exists():
@@ -205,8 +316,6 @@ def scan_overlay(area: str):
         if not insns:
             continue
         if not (3 <= len(insns) <= 300):
-            continue
-        if should_skip(insns):
             continue
 
         my_defs = file_defined[f.name]
@@ -219,8 +328,12 @@ def scan_overlay(area: str):
                 break
         if externally_used:
             continue
-        out.append((name, insns, f))
-    return out
+
+        if not should_skip(insns):
+            out.append((name, insns, f))
+        elif has_hilo(insns) and not should_skip_hilo(insns):
+            out_hilo.append((name, insns, f))
+    return out, out_hilo
 
 
 def _extract_text_with_relocs(obj_path: Path) -> tuple[bytes, list] | None:
@@ -300,7 +413,7 @@ def _extract_text_with_relocs(obj_path: Path) -> tuple[bytes, list] | None:
         return None
 
 
-def build_candidate(area: str, name: str) -> str | None:
+def build_candidate(area: str, name: str, sdatathreshold: int = 4) -> str | None:
     """Compile candidate src + assemble expected; return '100.0' if byte+reloc match."""
     src_rel = f"src/overlays/{area}/{name}.c"
     asm_rel = f"build/overlays/{area}/asm/matchings/{area}/code/{name}.s"
@@ -324,7 +437,7 @@ def build_candidate(area: str, name: str) -> str | None:
     # Compile candidate .c with mwccmips via qemu+wibo
     r2 = subprocess.run([
         "qemu-i386", "tools/bin/wibo32", "tools/mwccps2/mwccmips.exe",
-        "-c", "-O4,p", "-sdatathreshold", "4",
+        "-c", "-O4,p", "-sdatathreshold", str(sdatathreshold),
         "-o", obj_rel, src_rel,
     ], cwd=ROOT, capture_output=True, text=True)
     if r2.returncode != 0 or not (ROOT / obj_rel).exists():
@@ -370,28 +483,47 @@ def process_area(area: str) -> tuple[int, int]:
     src_dir = ROOT / "src" / "overlays" / area
     src_dir.mkdir(parents=True, exist_ok=True)
     _clean_stale_obj(area)
-    candidates = scan_overlay(area)
-    print(f"[{area}] candidates: {len(candidates)}")
+    candidates, hilo_candidates = scan_overlay(area)
+    print(f"[{area}] candidates: no-hilo={len(candidates)} hilo={len(hilo_candidates)}")
     matched = []
     dropped = []
+    # First pass: plain asm-void (no hi/lo).
     for i, (name, insns, _f) in enumerate(candidates):
         c_path = src_dir / f"{name}.c"
         c_path.write_text(generate_c(name, insns))
-        pct = build_candidate(area, name)
+        pct = build_candidate(area, name, sdatathreshold=4)
         if pct == "100.0":
             matched.append(name)
         else:
             c_path.unlink(missing_ok=True)
-            # If a previous run cached a compiled .o for this name in obj/,
-            # remove it now so fill_overlay falls back to the splat .s. Without
-            # this, dropping a candidate could leave the old .o in place and
-            # silently break the overlay link.
             stale_obj = ROOT / "build" / "overlays" / area / "obj" / f"{name}.o"
             stale_obj.unlink(missing_ok=True)
             dropped.append((name, pct or "build-fail"))
         if (i + 1) % 25 == 0:
-            print(f"  [{area}] {i+1}/{len(candidates)}  matched={len(matched)} dropped={len(dropped)}")
-    print(f"[{area}] matched={len(matched)} dropped={len(dropped)}")
+            print(f"  [{area}] no-hilo {i+1}/{len(candidates)}  matched={len(matched)} dropped={len(dropped)}")
+    # Second pass: hi/lo-aware (lui+addiu → la $r,SYM).
+    hilo_matched = 0
+    hilo_dropped = 0
+    for i, (name, insns, _f) in enumerate(hilo_candidates):
+        c_path = src_dir / f"{name}.c"
+        body = generate_c_hilo(name, insns)
+        if body is None:
+            hilo_dropped += 1
+            continue
+        c_path.write_text(body)
+        pct = build_candidate(area, name, sdatathreshold=0)
+        if pct == "100.0":
+            matched.append(name)
+            hilo_matched += 1
+        else:
+            c_path.unlink(missing_ok=True)
+            stale_obj = ROOT / "build" / "overlays" / area / "obj" / f"{name}.o"
+            stale_obj.unlink(missing_ok=True)
+            dropped.append((name, pct or "build-fail"))
+            hilo_dropped += 1
+        if (i + 1) % 25 == 0:
+            print(f"  [{area}] hilo {i+1}/{len(hilo_candidates)}  matched={hilo_matched} dropped={hilo_dropped}")
+    print(f"[{area}] matched={len(matched)} (hilo +{hilo_matched}) dropped={len(dropped)}")
     return len(matched), len(dropped)
 
 
