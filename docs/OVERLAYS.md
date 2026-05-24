@@ -448,6 +448,31 @@ Remaining low-hanging:
 - Branch-before-call wrappers (apply the boot-ELF "branch before jal" pattern).
 - AREA21 has 61 functions including VU0 code — the biggest decomp target.
 
+### Bulk asm-void batch (2026-05-24, session +1)
+
+**+50 additional overlay functions matched** via the hybrid asm-void technique
+ported from the boot ELF (`/tmp/gen_hybrid.py`). New generator:
+`tools/overlay/gen_asm_void.py` walks each overlay's per-function `.s`, applies
+the boot-ELF skip filter (no `%hi/%lo/%gp_rel`, no `jalr`/`syscall`/`j SYM`,
+3–300 insns), generates `.word`-encoded branches with named `jal` callees, and
+verifies per-candidate by raw-byte + relocation comparison of the
+mwcc-compiled `.o` against the GNU-as-assembled reference `.o`. Candidates that
+define a label referenced by another file in the same overlay are skipped
+(the label would vanish from the symbol table once the splat `.s` is replaced).
+
+Per-overlay delta: AREA00 +2, AREA01 +9, AREA02 +4, AREA03 +3, AREA04 +0,
+AREA06 +1, AREA07 +1, AREA08 +5, AREA11 +1, AREA13 +6, AREA14 +1, AREA15 +3,
+AREA16 +4, AREA17 +0, AREA18 +0, AREA19 +3, AREA20 +1, AREA21 +6, AREA22 +0.
+
+All 19/19 overlays remain byte-identical (`tools/overlay/build.py --all
+--no-extract --no-yaml --no-splat`). New total: 86 overlay functions at 100%.
+
+Infrastructure addition: the generator now removes stale `build/overlays/AREAXX/
+obj/*.o` files whose corresponding `.c` source no longer exists, since
+`fill_overlay.py` prefers `obj/*.o` over the splat fallback and a stale `.o`
+from a dropped candidate would silently keep using mwcc output that no longer
+reflects what's in `src/`.
+
 ---
 
 ## 7. Tools implemented
@@ -482,6 +507,15 @@ internally by `link_overlay.py`.
 
 ### `tools/overlay/build.py`
 Batch driver: runs gen_splat_yaml → splat → fill → link for all 19 overlays.
+
+### `tools/overlay/gen_asm_void.py`
+Bulk hybrid asm-void match generator (modeled on the boot ELF
+`/tmp/gen_hybrid.py`). Walks each overlay's per-function `.s` files, filters
+to candidates without data relocs / indirect calls / cross-file labels, emits
+a `.word`-for-branches asm-void wrapper in `src/overlays/AREAXX/<name>.c`,
+compiles it via mwccmips, and keeps only those whose `.text` bytes and
+relocation targets match the splat-assembled reference. Must run inside the
+toolchain container so mwccmips + GNU as are available directly.
 
 ---
 
