@@ -1,1 +1,8 @@
 overlay_AREA02_func_00823540 = 0x00823540; // type:func
+
+// ===========================================================
+// Auto-added by tools/decomp/name_vtables_overlays.py
+// Overlay-dispatch targets resolved from boot ELF func_001E7780.
+// ===========================================================
+// overlay-dispatch: vram 0x008250C0 (+0x1BC0), 2 caller(s), area-state IDs [0x1300,0x1301]
+overlay_AREA02_area_dispatch_off1BC0_state1300 = 0x008250C0;  // type:func

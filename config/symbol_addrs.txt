@@ -290,3 +290,52 @@ sub__02d_02d_02d = 0x002293B0;  // type:func
 sub_BASCUS_97112_DS00_00_EX_ico = 0x00229640;  // type:func
 // strref: 'BASCUS-97112-DS00-00/EX_DATA.00'
 sub_BASCUS_97112_DS00_00_EX_DATA_00_4 = 0x00229680;  // type:func
+
+// ===========================================================
+// Auto-added by tools/decomp/name_vtables_overlays.py
+// Pass 1: overlay-dispatch (func_001E7780 callers).
+// Pass 2: vtable-init scan (3+ consecutive sw of func ptrs).
+// Names are heuristic; rename freely as analysis confirms them.
+// ===========================================================
+// vtable-init: 4 slots into a0, base reg $?
+init_vtable_a0_at_0011FE90 = 0x0011FE90;  // type:func
+// vtable slot: init at func_0011FE90, base a0+0x20
+vtable_a0_at_0011FE90_off20 = 0x00122D80;  // type:func
+// vtable slot: init at func_0011FE90, base a0+0x24
+vtable_a0_at_0011FE90_off24 = 0x00122DE8;  // type:func
+// vtable slot: init at func_0011FE90, base a0+0x28
+vtable_a0_at_0011FE90_off28 = 0x00122E68;  // type:func
+// vtable slot: init at func_0011FE90, base a0+0x2C
+vtable_a0_at_0011FE90_off2C = 0x00122ED0;  // type:func
+// overlay-dispatch: vram 0x00823580 (+0x80), 6 caller(s), area-state IDs [0x300,0x301,0xF00,0xF01,0x1200,0x1600]
+area_dispatch_off0080_state0300 = 0x00823580;  // type:func
+// overlay-dispatch: vram 0x008236E0 (+0x1E0), 1 caller(s), area-state IDs [0xD00]
+area_dispatch_off01E0_state0D00 = 0x008236E0;  // type:func
+// overlay-dispatch: vram 0x00823740 (+0x240), 1 caller(s), area-state IDs [0xE00]
+area_dispatch_off0240_state0E00 = 0x00823740;  // type:func
+// overlay-dispatch: vram 0x008237C0 (+0x2C0), 1 caller(s), area-state IDs [0xB00]
+area_dispatch_off02C0_state0B00 = 0x008237C0;  // type:func
+// overlay-dispatch: vram 0x00823900 (+0x400), 3 caller(s), area-state IDs [0x200,0x201,0x202]
+area_dispatch_off0400_state0200 = 0x00823900;  // type:func
+// overlay-dispatch: vram 0x00823970 (+0x470), 5 caller(s), area-state IDs [0x700,0x701,0x702,0x703,0x704]
+area_dispatch_off0470_state0700 = 0x00823970;  // type:func
+// overlay-dispatch: vram 0x00823990 (+0x490), 1 caller(s), area-state IDs [0x1400]
+area_dispatch_off0490_state1400 = 0x00823990;  // type:func
+// overlay-dispatch: vram 0x00823A50 (+0x550), 2 caller(s), area-state IDs [0x100,0x101]
+area_dispatch_off0550_state0100 = 0x00823A50;  // type:func
+// overlay-dispatch: vram 0x00823B10 (+0x610), 2 caller(s), area-state IDs [0x400,0x401]
+area_dispatch_off0610_state0400 = 0x00823B10;  // type:func
+// overlay-dispatch: vram 0x00823B80 (+0x680), 1 caller(s), area-state IDs [0x1100]
+area_dispatch_off0680_state1100 = 0x00823B80;  // type:func
+// overlay-dispatch: vram 0x008241F0 (+0xCF0), 7 caller(s), area-state IDs [0x800,0x801,0x802,0x803,0x804,0x805,0x806]
+area_dispatch_off0CF0_state0800 = 0x008241F0;  // type:func
+// overlay-dispatch: vram 0x00824290 (+0xD90), 2 caller(s), area-state IDs [0x600,0x601]
+area_dispatch_off0D90_state0600 = 0x00824290;  // type:func
+// overlay-dispatch: vram 0x00824420 (+0xF20), 2 caller(s), area-state IDs [0x1000,0x1001]
+area_dispatch_off0F20_state1000 = 0x00824420;  // type:func
+// overlay-dispatch: vram 0x00824E00 (+0x1900), 3 caller(s), area-state IDs [0x0,0x1,0x2]
+area_dispatch_off1900_state0000 = 0x00824E00;  // type:func
+// overlay-dispatch: vram 0x008250C0 (+0x1BC0), 2 caller(s), area-state IDs [0x1300,0x1301]
+area_dispatch_off1BC0_state1300 = 0x008250C0;  // type:func
+// overlay-dispatch: vram 0x00826180 (+0x2C80), 1 caller(s), area-state IDs [0x1500]
+area_dispatch_off2C80_state1500 = 0x00826180;  // type:func

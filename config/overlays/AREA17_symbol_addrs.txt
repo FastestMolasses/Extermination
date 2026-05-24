@@ -1,1 +1,14 @@
 overlay_AREA17_func_00823540 = 0x00823540; // type:func
+
+// ===========================================================
+// Auto-added by tools/decomp/name_vtables_overlays.py
+// Overlay-dispatch targets resolved from boot ELF func_001E7780.
+// ===========================================================
+// overlay-dispatch: vram 0x008237C0 (+0x2C0), 1 caller(s), area-state IDs [0xB00]
+overlay_AREA17_area_dispatch_off02C0_state0B00 = 0x008237C0;  // type:func
+// overlay-dispatch: vram 0x00823990 (+0x490), 1 caller(s), area-state IDs [0x1400]
+overlay_AREA17_area_dispatch_off0490_state1400 = 0x00823990;  // type:func
+// overlay-dispatch: vram 0x00824290 (+0xD90), 2 caller(s), area-state IDs [0x600,0x601]
+overlay_AREA17_area_dispatch_off0D90_state0600 = 0x00824290;  // type:func
+// overlay-dispatch: vram 0x00824E00 (+0x1900), 3 caller(s), area-state IDs [0x0,0x1,0x2]
+overlay_AREA17_area_dispatch_off1900_state0000 = 0x00824E00;  // type:func
