@@ -4,7 +4,7 @@ Technical reference for formats and facts established so far. The authoritative,
 exhaustive format details live in the docstrings of the `tools/` scripts; this
 file summarises them and records findings that have no other home.
 
-_Last updated: 2026-05-22_
+_Last updated: 2026-05-24_
 
 ## Target identity
 
@@ -21,10 +21,42 @@ no symbol table** — blind matching, the hardest tier.
 | `EXTER.BIN` | exactly 1 GiB — **disc padding/dummy** (`"EXTERMINATION"` + `0xAA` filler). Ignore. |
 | `EXTER1.DAT` | an MPEG-PS video (FMV) |
 | `DATA/DATA.DAT` + `DATA/INDEX.IDX` | the main asset archive (see below) |
-| `OVERLAY/AREA*.BIN` | runtime code overlays, `MWo3` (Metrowerks) format, ~19 files |
+| `OVERLAY/AREA*.BIN` | runtime code overlays, `MWo3` (Metrowerks) format, **19 files** (see below) |
 | `MOVIE/*.PSS` | cutscene FMVs (Sony PSS / MPEG-PS) |
 | `STREAM/MUSIC.DAT`, `STREAM/VOICE.DAT` | streamed music and dialogue |
 | `IRX/*` | IOP-side modules (mostly stock Sony SDK) |
+
+## `OVERLAY/AREA*.BIN` — MWo3 runtime code overlays
+
+**19 overlay files**, IDs 1–19 (AREA05, AREA09, AREA10, AREA12 absent — cut content).
+All load to the arena base at **vram 0x00823500**. Full format documentation and
+the architectural plan for matching them: see `docs/OVERLAYS.md`.
+
+**MWo3 header** (64 bytes = 0x40):
+
+| Offset | Field | Notes |
+|---|---|---|
+| 0x00 | magic `MWo3` | 4 bytes ASCII |
+| 0x04 | overlay_id (u32 LE) | 1-based; maps to ELF PT_LOAD slot |
+| 0x08 | load_address (u32 LE) | always 0x00823500 |
+| 0x0C | text_size (u32 LE) | bytes of code in file |
+| 0x10 | data_size (u32 LE) | bytes of initialized data in file |
+| 0x14 | bss_size (u32 LE) | bytes of zero-init BSS (not in file) |
+| 0x18 | static_init_address (u32 LE) | vram of C++ static ctor list start |
+| 0x1C | static_init_end_address (u32 LE) | vram of C++ static ctor list end |
+| 0x20 | overlay_name[32] | NUL-terminated ASCII, e.g. `Area07.bin` |
+
+**File layout**: `[0x40-byte header][text_size bytes .text][data_size bytes .data]`
+Invariant: `filesize = 0x40 + text_size + data_size` — verified exact for all 19 files.
+
+**Text layout**: first 0x40 bytes of .text are always zeros (nop sled / alignment
+gap). First function of every overlay is at **vram 0x00823540** (+0x40 from arena base).
+
+**Boot ELF dispatch**: `func_001E7780` (0x4D4 bytes) reads a two-byte area/state ID
+from BSS at `D_00810700` and dispatches to one of 17 fixed overlay vram addresses
+(hardcoded `jal func_8XXXXXX` instructions in the boot ELF).
+
+**Inspector tool**: `tools/overlay/inspect_mwo3.py` (original code).
 
 ## `DATA.DAT` / `INDEX.IDX` archive
 

@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-23 (Track A: ~1395 src files, ~44.3% of 3149 splat functions; partial-link pipeline at **100% byte identity**; new session: 8 new src files created, 94 missing src files added to objdiff.json, totalling 1477 objdiff units)_
+_Last updated: 2026-05-24 (Track A: ~1395 src files, ~44.3% of 3149 splat functions; partial-link pipeline at **100% byte identity**; overlay investigation complete — see `docs/OVERLAYS.md`)_
 
 ## Project at a glance
 
@@ -242,8 +242,12 @@ runs the period-correct compiler.
       R_MIPS_GPREL16 only for variables ≤ sdatathreshold bytes, but mwcc always uses $at).
     - Tail calls: `lui $a0; j target; addiu $a0, $a0, %lo` — mwcc emits lui into $v0
       as intermediate, never $a0 directly.
-    - sd/ld-style functions: original used sd/ld for 64-bit saves but mwcc generates
-      sq/lq (PS2 128-bit). Cannot match from C; would need asm void with hi/lo relocs.
+    - sd/ld-style functions: **these are Sony PS2 SDK / `libkernel` / `crt0` code
+      statically linked into the boot ELF**, not original game code. They cluster
+      in vram 0x00100000–0x0011FFFF, never use our compiler's `sq` callee-save
+      style, and are out of scope for matching from C — the linker pipeline
+      already accepts splat's `.s` for them. See "Open questions" → SDK section
+      for the full diagnosis.
 
 Build flow (`tools/decomp/build.py`): `setup` runs splat + writes
 `objdiff.json`; `build` assembles the splat disassembly into objdiff *target*
@@ -371,11 +375,12 @@ All other 295 previously-committed functions are at 100%.
 
   - **70 more functions added** (2026-05-23, fourth session — branch-before-call decompilation):
     Hand-decompiled using pure C (`-O4,p -sdatathreshold 0`). Key pattern discovered:
-    **CRITICAL DISCOVERY: The target binary was compiled by TWO different compiler versions.**
-    - Functions with `sq/lq` + `paddub` for register moves → mwcc 2.3 style (matchable)
-    - Functions with `sd/ld` + `daddu/move` for register moves → mwcc 2.3.1 style (NOT matchable)
-    This explains why many functions can't match: our compiler (mwcc 2.3) generates different
-    register-save instructions than the original 2.3.1 for those functions.
+    **(Earlier finding — superseded 2026-05-24, see "Open questions" → SDK section.)**
+    Some functions use `sq/lq + paddub` and others use `sd/ld + daddu/move`. This
+    is not "two compiler versions"; it's the Sony PS2 SDK (vram < 0x00120000)
+    linked into the boot ELF alongside game code (vram ≥ 0x00130000). Our
+    compiler is the right version and matches the game-code half; the SDK half
+    is vendor code we can't and shouldn't try to decompile from C.
 
     **Key matching patterns for 2.3-compiled functions:**
     - **Branch before jal**: when a conditional branch appears BEFORE the first `jal`, both
@@ -482,6 +487,72 @@ ELF** (1530624/1530624 bytes, 100.00%).
 
 ### Open questions (most need the decompiled engine — i.e. Track A)
 
+- **`sd/ld` callee-save functions are Sony PS2 SDK code, not game code (RESOLVED 2026-05-24 — not a blocker).**
+  Earlier sessions noted that ~half the boot ELF's functions use
+  `sd/ld + daddu/move` for callee-saves while the other half use
+  `sq/lq + paddub`, and called this a "two compiler versions" mystery
+  blocking Track A. **The split is real but the diagnosis was wrong.**
+  Empirical findings:
+  - The local `tools/mwccps2/mwccmips.exe` is **byte-identical** to
+    `Adubbz/DCDecomp`'s `tools/compilers/mw/2.3.1.01/mwccmips.exe` (SHA1
+    `b368c01c0d3e306389d5de622a801e6b56f77ba4`, 1,177,088 bytes). It
+    self-identifies as **`Version 2.3, Runtime Built Dec  2 1999`** when
+    asked `-help`, but `mwldmips` writes `MW MIPS C Compiler (2.3.1.01)`
+    into the linked ELF's `.comment` regardless — that string is a static
+    linker label, not a per-compile attribute. DCDecomp uses this exact
+    binary to byte-match the Dark Cloud ELF.
+  - This compiler **always emits `sq/lq` for callee-save spills** from C
+    input. Tested across `-O0/-O1/-O2/-O3/-O4/-O4,p/-O4,s` with multiple
+    function shapes — `sq` in every case. There is no CLI flag, pragma,
+    or optimisation level in the EXE that toggles this to `sd`/`ld`
+    (verified by reading the full `-help all` output and grepping strings).
+  - **Spill style is bimodal per function**: out of 2065 functions in the
+    boot ELF that spill anything to the stack, **1627 use `sq` exclusively**
+    and **437 use `sd` exclusively**; only 1 mixes both. So each function
+    was compiled by exactly one codegen, never a mix.
+  - **The `sd`-style functions cluster sharply by vram**:
+    ```
+    bucket(64KB)   sd    sq    % sd
+    0x00100000    184     4   97.9%   <- SDK region
+    0x00110000    185     0  100.0%   <- SDK region
+    0x00120000     67    42   61.5%   <- transition
+    0x00130000+     1  1581    0.1%   <- game code
+    ```
+    The 0x00100000–0x0011FFFF region (the lowest 128 KB of the boot
+    segment) contains the entry point `_start`, the 134 EE-kernel syscall
+    stubs (`func_0010B400..0010BC80`), and named runtime/kernel helpers
+    that are already in `symbol_addrs.txt`: `ResetEE`, `SetGsCrt`,
+    `LoadExecPS2`, `ExecPS2`, `AddIntcHandler*`, `AddDmacHandler*`,
+    `_EnableIntc`, `_iSetAlarm`, `CreateThread`, `StartThread`, etc.
+    These are the **Sony PS2 SDK / `libkernel` / `crt0`** statically
+    linked into the boot ELF — pre-compiled by Sony (presumably with an
+    earlier mwcc build whose default callee-save width was `sd`) and
+    shipped as object/archive files alongside the Metrowerks compiler.
+    Above 0x00130000 is Extermination's own engine code, which our
+    compiler matches in `sq` style.
+  
+  **Implications:**
+  1. The `sd`-style functions are not original game code waiting to be
+     decompiled. They are **vendor binaries**. They should never count
+     against Track A's "matched-functions" denominator.
+  2. Re-matching them from C with this compiler is impossible (it never
+     emits `sd` callee-saves). Re-matching them from a hypothetical
+     "earlier" mwcc is undesirable even if one were found — we'd just
+     be re-creating Sony's pre-compiled SDK.
+  3. The linker pipeline already handles them correctly: when
+     `tools/decomp/strip_sections.py` detects a `SIZE_DRIFT_FORCE_ASM`
+     mismatch, it links from the splat-disassembled `.s` instead. For
+     these SDK functions that **is** the canonical source.
+  4. Hand-decompilation effort should focus on the **1627 `sq`-style
+     functions** (vram ≥ ~0x00130000) — that's the game code our
+     compiler can actually match.
+  5. The "current total: ~1477 src files" / "44% matched" numbers
+     elsewhere in this document should be recomputed against a denominator
+     of 1627 (game code) + 134 (named syscall stubs, already matched)
+     ≈ 1761, not 3014 total splat functions. Many of the unmatched
+     remainder is permanently un-decompilable SDK code that the linker
+     already handles via assembled `.s`.
+
 - **Texture color source.** PSMT8 always samples through a CLUT, but no CLUT
   data was found in `DATA.DAT` or the boot ELF; the 8-bit values are luminance-
   ordered. Either a grayscale-ramp CLUT (color from vertex-color modulation) or
@@ -497,8 +568,9 @@ ELF** (1530624/1530624 bytes, 100.00%).
   transforms are absolute or parent-composed — confirm from engine code.
 - **Audio.** SFX-bank rate unconfirmed (provisionally 22050). Clip splitting is
   heuristic (silence gaps) — no per-clip index found.
-- **`OVERLAY/`** (`AREA*.BIN`, `MWo3` overlay modules) not yet scanned for
-  textures/geometry.
+- **`OVERLAY/`** (`AREA*.BIN`, `MWo3` overlay modules) — **investigated
+  2026-05-24**. Format fully characterized; architectural plan written. See
+  `docs/OVERLAYS.md`. Not yet scanned for embedded textures/geometry.
 
 ### Roadmap
 
@@ -564,7 +636,8 @@ build architecture".
 - `docs/` — project state and findings (committed): `PROGRESS.md` (this file),
   `FINDINGS.md` (technical format reference), `LINKER.md` (partial-link pipeline
   — mwldmips invocation, LCF decisions, special cases, debugging tips),
-  `track-a-kickoff.md` (Track A starter prompt).
+  `OVERLAYS.md` (overlay format reference, architectural plan, and roadmap for
+  the second matching surface), `track-a-kickoff.md` (Track A starter prompt).
 - `CLAUDE.md` — project charter, legal rules, target identity, toolchain
   conventions, end-state build architecture.
 - Disc-derived material is **git-ignored** — the ISO, `extract/`, `wav/`,
