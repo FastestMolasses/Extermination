@@ -30,6 +30,7 @@ DATA/
 IRX/
 MOVIE/
 OVERLAY/
+!tools/overlay/
 STREAM/
 
 # Raw binary / asset dumps pulled off the disc
