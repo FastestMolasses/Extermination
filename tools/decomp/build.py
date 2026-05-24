@@ -41,8 +41,22 @@ CFLAGS = "-O4,p"
 
 
 def units() -> list[str]:
-    """Function names with C source in src/ (one function per file for now)."""
-    return sorted(p.stem for p in SRC.glob("*.c"))
+    """Function names with C source in src/ AND a splat .s in build/asm/.
+
+    Skips orphan src files whose corresponding splat function has been renamed
+    (so no .s with the original func_XXXXXXXX name exists any more).  Those
+    orphans don't link into the boot ELF — they'd be silently ignored by
+    fill_unmatched.py since the linker iterates the splat-detected vram list,
+    not src/.  Including them in objdiff.json just produces "missing target"
+    errors when generating reports.
+    """
+    asm_dir = ROOT / ASM_DIR
+    available = {p.stem for p in asm_dir.glob("*.s")} if asm_dir.exists() else None
+    out = []
+    for p in SRC.glob("*.c"):
+        if available is None or p.stem in available:
+            out.append(p.stem)
+    return sorted(out)
 
 
 def container(script: str) -> None:

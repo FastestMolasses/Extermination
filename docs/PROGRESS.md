@@ -5,7 +5,35 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-24 (Track A: ~1491 src files, objdiff.json at 1491 units; partial-link pipeline at **100% byte identity**; **overlay matching: 99 overlay functions at 100%** across 19 of 19 overlays, all 19/19 still byte-identical — see `docs/OVERLAYS.md` section 6 for the hi/lo-aware asm-void batch, the pure-C hi/lo hand decomps, and the session +3 pure-C generator scaffold; session 8 added ~25 more asm void functions — see below)_
+_Last updated: 2026-05-24 (Track A: 1352 active units in objdiff.json — orphan src files for renamed splat functions are now filtered out by `build.py units()`; partial-link pipeline back at **100% byte identity** after the naming/splat-regen pass; objdiff report: **1191/1352 (88.1%) matched, 98.51% fuzzy**; **overlay matching: 99 overlay functions at 100%** across 19 of 19 overlays, all 19/19 still byte-identical — see `docs/OVERLAYS.md` section 6 for the hi/lo-aware asm-void batch, the pure-C hi/lo hand decomps, and the session +3 pure-C generator scaffold; session 8 added ~25 more asm void functions — see below)_
+
+### Note — 2026-05-24 post-naming repair pass
+
+After the heuristic naming commits (8c44346 string-refs, 201dff8 vtable/dispatch)
+and a splat regen, the boot-ELF rebuild regressed from 100% byte-identity to
+99.8% (3115 bytes off) and `link.py` threw 17 GPREL-overflow errors. Restored
+byte identity by:
+
+- Adding 10 newly-overflowing functions to
+  `tools/decomp/fill_unmatched.py::GPREL_FORCE_ASM` (func_00122BA8, func_00187EC0,
+  func_001D1C10, func_001DB240, func_001DB800, func_001FAB50, func_001FAB80,
+  func_001FF080, func_00207070, func_0020E080).
+- Adding 91 partial-match src functions to
+  `tools/decomp/fill_unmatched.py::SIZE_DRIFT_FORCE_ASM` — these had drifted
+  bytes in their mwcc output relative to the original; the .s fallback gives
+  byte-exact output. (List enumerated in the file.)
+- Filtering `tools/decomp/build.py::units()` to only include src/*.c files
+  that have a matching splat .s in build/asm/. After the rename, 135 src
+  files (mostly the func_0010B4xx syscall stubs whose .s files are now named
+  RFU000_FullReset.s etc.) are orphans — they can't link into the boot ELF
+  and shouldn't show up in objdiff.json. Unit count went from 1491 → 1352.
+- Deleting 4 src files that mwcc rejects outright (post-statement declarations
+  or malformed asm-void bodies): src/func_00102600.c, src/func_001B6250.c,
+  src/func_001C85D0.c, src/func_00229640.c. These were unmatched anyway; the
+  splat .s fallback continues to provide byte-exact output for their slots.
+
+After repair: `tools/decomp/link.py` reports `[verify] PASS — 0x175b00 loadable
+bytes are identical`. All 19/19 overlays still byte-identical.
 
 ## Project at a glance
 
