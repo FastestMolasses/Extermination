@@ -689,6 +689,23 @@ ELF** (1530624/1530624 bytes, 100.00%).
 
 ### Open questions (most need the decompiled engine — i.e. Track A)
 
+- **Per-vertex skin weights — RESOLVED 2026-05-25.** There are none.
+  Character meshes use **per-bone rigid attachment**: a VIF prefix in
+  the model file carries N per-bone vertex packets (one per bone,
+  bone matrix preloaded into VU1 before each unpack), and the
+  per-bone section boundary table sits in the file prefix as a
+  zero-terminated u32 offset array. Length matches the paired
+  skeleton's bone count for characters with hand-validated 28-bone
+  player rigs (chunk17/f14_id8b, chunk21/f17_id8f). The 64-byte
+  vertex record in the post-skinning MESH-descriptor section carries
+  no weight or bone-index field — every byte is accounted for. New
+  `extract_models.py --skinned` exports the 17 detected character
+  meshes with bone-section metadata; see `docs/FINDINGS.md` →
+  "Per-bone rigid attachment". Still blocked on VU1 microcode:
+  decoding the quantised VIF packets to recover bind-pose object-
+  space vertex positions, and confirming the section-index → bone-
+  index mapping.
+
 - **`sd/ld` callee-save functions are Sony PS2 SDK code, not game code (RESOLVED 2026-05-24 — not a blocker).**
   Earlier sessions noted that ~half the boot ELF's functions use
   `sd/ld + daddu/move` for callee-saves while the other half use

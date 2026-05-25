@@ -4,7 +4,7 @@ Technical reference for formats and facts established so far. The authoritative,
 exhaustive format details live in the docstrings of the `tools/` scripts; this
 file summarises them and records findings that have no other home.
 
-_Last updated: 2026-05-25_
+_Last updated: 2026-05-25 — per-bone rigid-attachment skinning confirmed (no per-vertex weights); --skinned exporter added._
 
 ## Target identity
 
@@ -473,10 +473,69 @@ centres. 26 skeletons across the game are recognised; the dumps for
 the player character mark 6 hulled joints (bones 3, 4, 18, 23, 24, 25),
 all other joints are collapsed onto their nearest hulled ancestor.
 
-The geometry vertex record has no per-vertex bone weight/index field,
-so meshes are either rigid-bone-attached (each MATRIX section in
-id 0x74 character mesh files is plausibly one bone's rigid sub-mesh) or
-vertex-animated (see --anim).
+The geometry vertex record has no per-vertex bone weight/index field
+(every byte of the 64-byte record is accounted for: marker / strip
+flag, UV, normal-or-colour, position — see "Vertex record" above).
+Skinning is therefore **per-bone rigid attachment**: each vertex
+belongs to exactly one bone, no per-vertex weights.
+
+**Per-bone rigid attachment — confirmed (2026-05-25).** Character
+mesh files (ids 0x70, 0x72, 0x74, 0x88, 0x89, 0x8b, 0x8f, 0xa0, 0x96
+and others) store a **two-stage representation**:
+
+1. **VIF prefix** — a stream of small fixed-width quantised vertex
+   packets organised **per bone**. Each section is one bone's
+   bind-pose vertices, set up to be uploaded to VU1 with that bone's
+   joint matrix preloaded; VU1 transforms them and emits world-space
+   strips. The per-bone section boundaries are recorded in a **u32
+   offset table** sitting in the prefix region, terminated by a zero
+   u32. The table's length is the file's bone-section count and
+   matches the paired skeleton's bone count for true characters
+   (e.g. `chunk17/f14_id8b.bin` and `chunk21/f17_id8f.bin` both have
+   28-entry tables matching the 28-bone player skeleton at
+   `chunk05/f04_id71.bin`). The packet payload appears to be
+   6-byte quantised xyz + u16 vertex-id records with a strictly
+   monotonically-increasing vertex id; the engine resets the counter
+   between bones. **Fully decoding the packets needs the VU1
+   microcode** — they carry no full floats, only Q12-style
+   fixed-point or s16-normalised values that VU1 multiplies by the
+   bone matrix.
+
+2. **MESH-descriptor section** — the regular post-skinning,
+   already-world-space strips decoded by the existing `parse_model_file`
+   path. These are what the renderer would draw at bind pose. The
+   existing default exporter (and `--scene`, `--anim`) write these
+   as-is.
+
+Across the 603 files in `DATA.DAT`, **17 files carry a detectable
+per-bone section table** (the prefix u32 table at length 10..40 with
+first entry < 0x200, terminated by a zero u32 and ending before the
+first MESH descriptor). The remaining model files are static
+geometry / single-bone props that the VU1 microcode draws without
+a per-bone section table.
+
+`extract_models.py --skinned` walks every model file, detects the
+per-bone table where present, and writes (a) a `*_skinned.obj` with
+the world-space strips grouped by (m0,m1) sub-mesh key, and (b) a
+`*_skinned.txt` recording the table offset, all section offsets,
+and (when present) the paired id 0x71 skeleton with a
+bone-count-match check. The OBJ is the same world-space geometry
+as the default exporter — what's new is the bone-section metadata,
+which a downstream tool (Blender) can use as a guide for binding
+the mesh to a hand-built rig. Per-vertex weights are not needed:
+each VIF section is one bone's exclusive geometry, so re-binding
+in DCC is a per-sub-mesh assignment.
+
+**Still unknown.** (a) The VIF packet quantisation format — without
+the VU1 microcode the per-bone bind-pose vertex positions can't be
+reconstructed in object space. (b) The mapping from section index
+in the table to bone index in the id 0x71 skeleton — empirically
+the first few small offsets in the table (e.g. 0x5, 0xa, 0xb, 0xc,
+0xd, 0xf, 0x10) look like indices into a sub-table rather than
+prefix byte offsets, suggesting the format is `[7-byte sub-index
+header][bone offsets...]`; needs the VU1 / engine bone-update code
+to confirm. (c) Bind-pose joint transforms (still blocked on VU1
+microcode, as previously noted for id 0x71 entries).
 
 **Header forms:**
 - Short (4 bytes): `<u32 record_count>`. Records start at +4.

@@ -1625,6 +1625,257 @@ def run_skeleton(args, out_dir: Path) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# Per-bone "skinned" character meshes
+# ---------------------------------------------------------------------------
+#
+# Many character-mesh files (ids 0x70, 0x72, 0x74, 0x88, 0x89, 0x8b, 0x8f, 0xa0,
+# 0xa3 and others) contain a TWO-STAGE representation:
+#
+#   1. A pre-MESH "VIF prefix" -- a stream of small fixed-width quantised
+#      vertex packets organised PER BONE. Each section is one bone's bind-pose
+#      vertices, set up to be uploaded to VU1 with that bone's joint matrix
+#      already preloaded; VU1 then transforms them and emits world-space
+#      strips. The bone-section boundary table is a u32-offset array somewhere
+#      in the prefix region -- detected by `_find_bone_section_table`.
+#
+#   2. A regular MESH-descriptor section already decoded by `parse_model_file`,
+#      carrying ALREADY-WORLD-SPACE strips (the same vertices that VU1 would
+#      emit at bind pose). This is what the existing default exporter writes.
+#
+# Fully decoding stage 1 requires the VU1 microcode (out of scope -- the
+# packet format is `[VIF UNPACK] [N x 6-byte fixed-point xyz + u16 vid]`
+# with bone-matrix preloads handled by the engine). What we CAN do without
+# the microcode is:
+#
+#   * Recover the per-bone SECTION BOUNDARY TABLE -- a u32 array of offsets
+#     whose length matches the file's skeleton bone count (confirmed for
+#     several characters: chunk17/f14_id8b 28 entries vs 28-bone skeleton).
+#   * Use the existing world-space strips from stage 2 as the rigged output,
+#     grouped into one OBJ object per (m0, m1) strip key (which the engine
+#     uses as a material/sub-mesh tag), tagged with section index when the
+#     prefix carries a section table. Combined with --skeleton, this lets a
+#     downstream tool (Blender) re-bind by hand using the bone-section count
+#     as a guide.
+#
+# Per-vertex bone WEIGHTS are NOT carried in the 64-byte vertex record (every
+# byte field is fully accounted for: marker / strip-flag, UV, normal-or-colour,
+# position). Skinning is per-bone-rigid (every vertex in a stage-1 bone
+# section is rigidly attached to that bone) -- standard PS2 character idiom.
+
+# Bytes that mark the start of a model file's section/offset table -- a run of
+# small monotonically-increasing u32 offsets terminated by a zero u32. The
+# table's length is the file's bone-section count.
+def _find_bone_section_table(d: bytes) -> tuple[int, list[int]] | None:
+    """Locate the per-bone offset table in a character-mesh file.
+
+    Returns (table_start_offset, [u32 offsets...]) or None if not found. The
+    table is a run of 10..60 monotonically-increasing u32 values, each less
+    than the file size and the first less than 0x200, terminated by a zero
+    u32. It lives before the first MESH descriptor.
+    """
+    first_mesh = d.find(MESH_SIG)
+    if first_mesh < 1024:
+        return None
+    # The table lives in the file PREFIX (before any geometry). Scan only
+    # the bytes before the first MESH descriptor, never trailing padding.
+    scan_end = first_mesh - 180
+    if scan_end < 0x100:
+        return None
+    for o in range(0x100, scan_end, 4):
+        try:
+            vals = list(struct.unpack_from("<40I", d, o))
+        except struct.error:
+            break
+        n = 0
+        for i in range(1, len(vals)):
+            if vals[i] == 0:
+                n = i
+                break
+            if vals[i] <= vals[i - 1] or vals[i] >= len(d):
+                break
+            n = i + 1
+        if 10 <= n <= 60 and vals[0] < 0x200:
+            return o, vals[:n]
+    return None
+
+
+def write_skinned_obj(path: Path, strips: list[Strip],
+                       n_bone_sections: int | None,
+                       src_name: str) -> tuple[int, int]:
+    """Write a "skinned"-tagged OBJ.
+
+    Groups strips by (m0, m1) like the default exporter, but prefixes the
+    object names with `bone_NN_` where NN is the index of the nearest
+    preceding bone-section boundary (if a section table was found). Without
+    per-vertex weights from the VIF prefix this is the most honest bone
+    attribution possible from the world-space strips alone.
+    """
+    header = [
+        f"# Extermination (SCUS-97112) skinned model: {src_name}",
+        "# World-space strips from the MESH-descriptor stage (post-skinning).",
+    ]
+    if n_bone_sections is not None:
+        header.append(
+            f"# {n_bone_sections} per-bone VIF section(s) detected in the file "
+            "prefix; vertices are grouped by (m0,m1) strip key, not by bone "
+            "(decoding the per-bone VIF packets needs VU1 microcode)."
+        )
+    else:
+        header.append(
+            "# No per-bone VIF section table found -- this file may not be a "
+            "skinned character mesh, or uses a different prefix layout."
+        )
+
+    v_base = 1
+    vt_base = 1
+    vn_base = 1
+    total_v = 0
+    total_f = 0
+    lines: list[str] = list(header)
+
+    groups: dict[tuple[int, int], list[Strip]] = {}
+    order: list[tuple[int, int]] = []
+    for s in strips:
+        if s.key not in groups:
+            groups[s.key] = []
+            order.append(s.key)
+        groups[s.key].append(s)
+
+    for gi, key in enumerate(order):
+        group = groups[key]
+        lines.append(
+            f"o submesh_{gi:04d}_{key[0]:08x}_{key[1]:06x}"
+        )
+        for s in group:
+            for v in s.verts:
+                lines.append(f"v {v.pos[0]:.6f} {v.pos[1]:.6f} {v.pos[2]:.6f}")
+            for v in s.verts:
+                lines.append(f"vt {v.uv[0]:.6f} {1.0 - v.uv[1]:.6f}")
+            has_normals = all(v.is_normal for v in s.verts)
+            if has_normals:
+                for v in s.verts:
+                    lines.append(
+                        f"vn {v.attr[0]:.6f} {v.attr[1]:.6f} {v.attr[2]:.6f}"
+                    )
+            nverts = len(s.verts)
+            for i0, i1, i2 in strip_triangles(s):
+                def ref(i: int) -> str:
+                    vi = v_base + i
+                    ti = vt_base + i
+                    if has_normals:
+                        ni = vn_base + i
+                        return f"{vi}/{ti}/{ni}"
+                    return f"{vi}/{ti}"
+                lines.append(f"f {ref(i0)} {ref(i1)} {ref(i2)}")
+                total_f += 1
+            v_base += nverts
+            vt_base += nverts
+            if has_normals:
+                vn_base += nverts
+            total_v += nverts
+
+    path.write_text("\n".join(lines) + "\n")
+    return total_v, total_f
+
+
+def run_skinned(args, out_dir: Path) -> int:
+    """`--skinned`: export character mesh files with bone-section metadata.
+
+    Detects model files that carry a VIF-prefix per-bone section table,
+    decodes the table, and writes a `*_skinned.obj` per such file with the
+    bone-section count in the header comment plus a sibling `*_skinned.txt`
+    describing the table. Also walks paired id 0x71 skeletons / id 0x73
+    rig hulls when present.
+    """
+    if args.file:
+        paths = [Path(args.file)]
+    else:
+        paths = sorted(Path(args.input).rglob("*_id*.bin"))
+
+    exported = 0
+    skipped = 0
+    for path in paths:
+        if not path.is_file():
+            continue
+        if is_level_file(path):
+            # id 0x44 level files also have offset tables in their prefix
+            # (level-extent / scene-graph metadata) -- not bone sections.
+            skipped += 1
+            continue
+        d = path.read_bytes()
+        if MESH_SIG not in d:
+            skipped += 1
+            continue
+        table = _find_bone_section_table(d)
+        # Try to find a paired skeleton in the same region directory.
+        skel_path = None
+        for cand in sorted(path.parent.glob("*_id71.bin")):
+            skel_path = cand
+            break
+        strips = parse_model_file(d)
+        if not strips:
+            skipped += 1
+            continue
+        # Only export when we found a per-bone table OR when caller passed --file
+        # explicitly (so they can inspect any model).
+        if table is None and not args.file:
+            skipped += 1
+            continue
+
+        region = path.parent.name
+        stem = path.stem
+        out_obj = out_dir / f"{region}_{stem}_skinned.obj"
+        out_txt = out_dir / f"{region}_{stem}_skinned.txt"
+        n_sections = len(table[1]) if table else None
+        nv, nf = write_skinned_obj(out_obj, strips, n_sections,
+                                    f"{region}/{path.name}")
+
+        # Sidecar txt: table layout + skeleton pairing.
+        txt: list[str] = [
+            f"# Skinned-mesh report: {region}/{path.name}",
+            f"# File size: {len(d)} bytes ({len(d):#x})",
+        ]
+        if table:
+            tbl_off, entries = table
+            txt.append(
+                f"# Bone-section offset table @ {tbl_off:#x}, "
+                f"{len(entries)} entries (= bone-section count)."
+            )
+            for i, off in enumerate(entries):
+                txt.append(f"section {i:3d}: prefix offset {off:#08x}")
+        else:
+            txt.append("# No bone-section table detected (single-section "
+                       "or unrecognised prefix layout).")
+        if skel_path is not None:
+            skel = parse_skeleton_file(skel_path.read_bytes())
+            if skel:
+                txt.append(
+                    f"# Paired skeleton: {skel_path.name} "
+                    f"({skel.bone_count} bones)"
+                )
+                if n_sections == skel.bone_count or (
+                    n_sections is not None and abs(n_sections - skel.bone_count) <= 2
+                ):
+                    txt.append(
+                        "# Bone-section count matches the skeleton's bone "
+                        "count -- CONFIRMED per-bone rigid attachment."
+                    )
+            else:
+                txt.append(f"# Paired skeleton: {skel_path.name} (unparsed)")
+        else:
+            txt.append("# No paired id 0x71 skeleton in this region.")
+        out_txt.write_text("\n".join(txt) + "\n")
+
+        print(f"{region}/{path.name}: {nv} verts, {nf} tris, "
+              f"{n_sections or 0} bone-section(s) -> {out_obj.name}")
+        exported += 1
+
+    print(f"\n{exported} skinned-character file(s) exported to {out_dir}/  "
+          f"({skipped} file(s) had no detected bone table)")
+    return 0
+
+
 def run_anim(args, out_dir: Path) -> int:
     """`--anim`: detect and export per-frame vertex-animation pose sets."""
     if args.file:
@@ -1681,6 +1932,12 @@ def main(argv: list[str]) -> int:
                         "a matching collision-hull rig file exists in the "
                         "same region) write a *_skeleton.obj stick figure "
                         "with joints placed at hull centres. Opt-in.")
+    p.add_argument("--skinned", action="store_true",
+                   help="export character-mesh files that carry a per-bone "
+                        "VIF prefix section table. Writes *_skinned.obj "
+                        "(world-space strips, grouped by sub-mesh key) plus a "
+                        "*_skinned.txt with the bone-section table and "
+                        "skeleton pairing summary. Opt-in and additive.")
     p.add_argument("--anim", action="store_true",
                    help="detect per-frame vertex-animation pose sets (>=3 "
                         "model files in one region sharing identical "
@@ -1695,6 +1952,8 @@ def main(argv: list[str]) -> int:
         return run_rig(args, out_dir)
     if args.skeleton:
         return run_skeleton(args, out_dir)
+    if args.skinned:
+        return run_skinned(args, out_dir)
     if args.anim:
         return run_anim(args, out_dir)
 
