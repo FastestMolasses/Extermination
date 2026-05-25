@@ -4,7 +4,7 @@ Technical reference for formats and facts established so far. The authoritative,
 exhaustive format details live in the docstrings of the `tools/` scripts; this
 file summarises them and records findings that have no other home.
 
-_Last updated: 2026-05-25 — id 0x71 entry "sections" structurally decoded; the three per-bone payload sections are NOT bind-pose matrices (section 1 is per-bone object-space vertex data in the standard 12-byte Q4.12+normal+vid record; sections 2 and 3 are mostly-empty VIF priming headers). Bind-pose matrices live elsewhere. Earlier: per-bone object-space Q4.12 vertex decode confirmed on the 28-bone player rig (`chunk21/f17_id8f.bin`); `extract_models.py --object-space` ships per-bone bind-pose point clouds._
+_Last updated: 2026-05-25 — live bone matrices located in EE .bss via PCSX2 save state (`tools/parse_pcsx2_state.py`): the engine stages column-major 4x4 affine matrices in `0x002863XX`..`0x002893XX` as two pairs of {world,local} 21-matrix runs (double-buffered character rigs). The matrices are not stored verbatim on disc → bind pose is built at runtime. See "Live bone matrices in EE RAM" below. Earlier: id 0x71 entry "sections" structurally decoded; the three per-bone payload sections are NOT bind-pose matrices (section 1 is per-bone object-space vertex data in the standard 12-byte Q4.12+normal+vid record; sections 2 and 3 are mostly-empty VIF priming headers). Earlier: per-bone object-space Q4.12 vertex decode confirmed on the 28-bone player rig (`chunk21/f17_id8f.bin`); `extract_models.py --object-space` ships per-bone bind-pose point clouds._
 
 ## Target identity
 
@@ -520,9 +520,63 @@ rigid-skinning kernel (#5/#6, #7/#8, #9/#10 family) comes from a
 **dmem address**; tracing that back to its EE-side source needs the
 DMA/VIF1 dispatcher in the decompiled engine.
 
-Until the engine code reveals the matrix source, the hierarchy +
-collision-hull centres remain the practical guide for hand-rigging in
-Blender/Maya.
+### Live bone matrices in EE RAM (2026-05-25, PCSX2 save state)
+
+Confirmed by parsing a PCSX2 v2 save state captured with a character on
+screen (tool: `tools/parse_pcsx2_state.py`):
+
+- The engine stages **column-major 4x4 affine matrices** in a fixed .bss
+  region of the boot ELF (.bss spans vram `0x00275B00`..`0x00823500`).
+  Storage convention: each consecutive qword (16 bytes) is one column of
+  the math matrix; the 4th column carries `(tx, ty, tz, 1)` translation,
+  the first three columns are the rotation/scale axes. Stride 64 bytes
+  (NO 32-byte VU1 padding — that padding is added at upload time).
+- In this save state, four populated runs were found, organised as two
+  pairs of {world-space, local/relative}, each pair occupying a
+  contiguous 0xE00-byte slot:
+  - `0x00286340` (world, 21 matrices, translation ~ (+85,+10,-293))
+  - `0x00287140` (world, 21 matrices, identical translations — second
+    instance / double buffer)
+  - `0x00287F40` (local, 21 matrices, all translations within a few
+    units of origin — limb-length offsets)
+  - `0x00288D40` (local, 21 matrices, identical to the previous local
+    set — second instance)
+- Slot size is 0xE00 (3584) bytes, of which the first 0x800 hold up to
+  32 matrices and the remaining 0x600 is zero padding. Two slots
+  pack into 0x1C00 (the "world / local pair"); the two pairs at
+  `0x00286340` and `0x00287F40` are 0x1C00 apart, consistent with a
+  small ring/double-buffer of per-character rigs.
+- Neither the world nor the local matrix sets occur anywhere in the
+  user's extracted disc data — confirming the matrices are
+  **constructed at runtime** (animation evaluation: bind-pose blended
+  with a clip), not stored verbatim on disc.
+
+VIF-DMA verification: VU1 dmem at the moment of capture held a 32-slot
+**identity-matrix table** at `0x200`..`0xe00` (stride 0x60 = matrix + 32B
+pad), with the EE source being four other .bss buffers at `0x004837A0`,
+`0x00495850`, `0x004F37A0`, `0x00505850` (each preceded by an identical
+64-byte DMA/VIF-tag header containing a REF tag, a `0x6CC00020` UNPACK
+V4-32 opcode, and a self-referential pointer). These are evidently the
+matrix-upload buffers for **non-skinned objects** (everything posed by
+identity), while the 21-matrix runs at `0x002863XX` are the live
+character rigs. The currently-loaded VU1 microprogram is at EE
+`0x0023C780` (the static-mesh kernel), not the per-bone skinning kernel
+at `0x00234610` — i.e. the renderer was between skinned-character
+draws when the state was captured.
+
+Caveat: 21 active matrices does NOT match any of the dumped 28-bone or
+20-bone rigs. Possibilities (TBD): (a) a not-yet-dumped 21-bone rig
+(some character/object that isn't in `models/*_skeleton.txt`); (b) the
+posed character is a 28-bone rig but only 21 slots are populated this
+frame (e.g. an `m_used_count` field controlling the upload count).
+The full rig identification is the next step — it requires either (i)
+finding the per-character "model instance" struct that owns the matrix
+pointer (no direct pointers to `0x00286340` are present in EE memory,
+suggesting it is computed as a base + offset by the engine), or (ii)
+decompiling the function that writes the matrix buffer.
+
+JSON exports of all four runs are available via
+`tools/parse_pcsx2_state.py --scan-bones --dump-bones`.
 
 `extract_models.py --skeleton` walks every id 0x71-shaped file and
 writes (a) a `*_skeleton.txt` dump (parents, tree, hull centres where
