@@ -1,225 +1,420 @@
 #!/usr/bin/env python3
 """
-disasm_vu.py — partial PS2 VU1 microcode disassembler + microcode scanner.
+disasm_vu.py — PS2 VU1 microcode disassembler + microcode scanner.
 
-Each VU instruction is 64 bits / 8 bytes:
-  bytes +0..3 = UPPER 32 bits = LOWER pipe op (load/store, integer, branch, vcallms, ...)
-  bytes +4..7 = LOWER 32 bits = UPPER pipe op (FP math: vadd, vsub, vmul, ...)
-  (i.e. file layout has lower-pipe word FIRST, then upper-pipe word — confirmed
-  empirically: 0x000002FF appears in second-word slot = UPPER NOP; 0x8000033C
-  appears in first-word slot = LOWER NOP.)
-plus 4 bit flags packed in the top of the upper word:
+Each VU instruction is 64 bits / 8 bytes laid out little-endian:
+  bytes +0..3 = LOWER pipe word (load/store, integer, branch, vcallms, ...)
+  bytes +4..7 = UPPER pipe word (FP math: vadd, vsub, vmul, ...)
+  Confirmed empirically: the E-bit (bit 30) end-of-program flag and the
+  I/M/D/T flags live in the +4..7 word only. At vram 0x0023c780 the qw58
+  word1 = 0x400002FF — that is UPPER NOP 0x000002FF with the E-bit set.
+  At that same qw the LOWER word is 0x80006EFC = XGKICK (primary op 0x40,
+  subop 0x6FC), confirming bytes 0..3 carry the LOWER pipe op.
+
+UPPER pipe word top-bit flags:
   I (bit 31): immediate-load form (LOAD-imm32 follows in next slot)
   E (bit 30): end-of-program (set on the LAST instruction; one delay slot follows)
   M (bit 29): use macroflag
   D (bit 28): debug
   T (bit 27): T-bit
 
-This decoder is INTENTIONALLY PARTIAL — it identifies enough opcodes to
-characterize a program's shape (loads, stores, FP math, vcallms, branches,
-xgkick, end-of-program) without reproducing every encoding edge case.
+This decoder is sized to *classify* programs (not to round-trip every encoding
+edge case); it identifies XGKICK, vector LQ/SQ with auto-inc/dec, accumulator
+math (MULA/MADDA/etc.), and the common helpers (DIV/RSQRT/ABS/CLIP/ITOF/FTOI)
+so a per-program op-frequency profile distinguishes a skinning kernel from a
+particle/effect kernel.
 
-References used (no source paste): public ps2tek docs; PCSX2 emulator
-disassembler tables; openpsy/VuAssembler opcode tables.
+References (no source paste): public ps2tek docs, PCSX2's VU disasm tables,
+VuAssembler.
 
-Two modes:
+Three modes:
     disasm <vram> <size>     -- disassemble bytes at vram for size bytes
-    scan                     -- scan the ELF data region for microcode-shaped
-                                blocks (low E-bit density, ending with E-bit
-                                then a non-instruction transition)
-
-Bytes are read from the user's local boot ELF at config/SCUS_971.12 — never
-committed. Output goes to stdout; capture to /tmp/ for analysis.
+    catalog                  -- list every VIF1 MPG packet (microcode upload)
+    profile                  -- per-program op-frequency table for all 48 progs
 """
 
 import argparse
 import os
 import struct
 import sys
+from collections import defaultdict
 
 ELF_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'SCUS_971.12')
 
-# ---------- LOWER pipe ----------
-# Bottom 11 bits select the op (within a coarse opcode group).
-# Reduced to high-value cases for characterizing programs.
+BC = ['x', 'y', 'z', 'w']
+DEST_BITS = ['x', 'y', 'z', 'w']  # bit positions [24]=x [23]=y [22]=z [21]=w
 
-LOWER_OPC = {
-    # opcode field [31:25] = top bits of LOWER word
-    0x00: 'LQ',     # lq vfT, imm(vis)
-    0x01: 'SQ',     # sq vfS, imm(vit)
-    0x04: 'ILW',    # integer load word
-    0x05: 'ISW',
-    0x08: 'IADDIU',
-    0x09: 'ISUBIU',
-    0x10: 'FCEQ',
-    0x11: 'FCSET',
-    0x12: 'FCAND',
-    0x13: 'FCOR',
-    0x14: 'FSEQ',
-    0x15: 'FSSET',
-    0x16: 'FSAND',
-    0x17: 'FSOR',
-    0x18: 'FMEQ',
-    0x1a: 'FMAND',
-    0x1b: 'FMOR',
-    0x1c: 'FCGET',
-    0x20: 'B',
-    0x21: 'BAL',
-    0x24: 'JR',
-    0x25: 'JALR',
-    0x28: 'IBEQ',
-    0x29: 'IBNE',
-    0x2c: 'IBLTZ',
-    0x2d: 'IBGTZ',
-    0x2e: 'IBLEZ',
-    0x2f: 'IBGEZ',
+
+def dest_mask(upper):
+    """Return e.g. '.xyzw' or '.xy' from the dest field (bits 24..21)."""
+    s = ''
+    for i, c in enumerate(DEST_BITS):
+        if upper & (1 << (24 - i)):
+            s += c
+    return '.' + s if s else ''
+
+
+# =====================================================================
+# UPPER pipe decoder
+# =====================================================================
+# Primary opcode is bits [5:0]. For 0x3C..0x3F, the secondary opcode lives
+# in bits [10:6] combined with bits [1:0] (the 'special' subgroup).
+
+# bc-style ops have primary op = 00,04,08,0C,10,14,18 with bc in bits [1:0]
+UPPER_BC_OPS = {
+    0x00: 'addbc',
+    0x04: 'subbc',
+    0x08: 'maddbc',
+    0x0c: 'msubbc',
+    0x10: 'maxbc',
+    0x14: 'minibc',
+    0x18: 'mulbc',
 }
 
-# Special LOWER ops (opc field == 0x40): selected by bits [10:6] (sub-opcode 11 bits actually)
+UPPER_PRIMARY = {
+    0x1c: 'mulq',
+    0x1d: 'maxi',
+    0x1e: 'muli',
+    0x1f: 'minii',
+    0x20: 'addq',
+    0x21: 'maddq',
+    0x22: 'addi',
+    0x23: 'maddi',
+    0x24: 'subq',
+    0x25: 'msubq',
+    0x26: 'subi',
+    0x27: 'msubi',
+    0x28: 'add',
+    0x29: 'madd',
+    0x2a: 'mul',
+    0x2b: 'max',
+    0x2c: 'sub',
+    0x2d: 'msub',
+    0x2e: 'opmsub',
+    0x2f: 'mini',
+}
+
+# UPPER "special" — primary opcode 0x3C/0x3D/0x3E/0x3F.
+# Secondary opcode is in bits [10:6]; for the bc variants the bc is in [1:0].
+# Key encodings (consolidated from public VU tables):
+#   primary=0x3C secondary table:
+UPPER_SPECIAL_3C = {
+    0x00: 'addAbc',   # +bc in [1:0]
+    0x01: 'subAbc',
+    0x02: 'maddAbc',
+    0x03: 'msubAbc',
+    0x04: 'itof0',
+    0x05: 'itof4',
+    0x06: 'itof12',
+    0x07: 'itof15',
+    0x08: 'ftoi0',
+    0x09: 'ftoi4',
+    0x0a: 'ftoi12',
+    0x0b: 'ftoi15',
+    0x0c: 'mulAbc',
+    0x0d: 'mulAq',
+    0x0e: 'absA',     # rare
+    0x0f: 'clip',     # CLIPw.xyz
+}
+UPPER_SPECIAL_3D = {
+    0x00: 'addAq',
+    0x01: 'maddAq',
+    0x02: 'addAi',
+    0x03: 'maddAi',
+    0x04: 'subAq',
+    0x05: 'msubAq',
+    0x06: 'subAi',
+    0x07: 'msubAi',
+    0x08: 'addA',
+    0x09: 'maddA',
+    0x0a: 'mulA',
+    0x0b: 'opmula',
+    0x0c: 'subA',
+    0x0d: 'msubA',
+    0x0e: 'nop',
+}
+UPPER_SPECIAL_3E = {
+    0x00: 'mulAbc',  # variant
+    0x01: 'mulAbc',
+    0x02: 'mulAbc',
+    0x03: 'mulAbc',
+    0x04: 'itof0',
+    0x05: 'itof4',
+    0x06: 'itof12',
+    0x07: 'itof15',
+    0x08: 'ftoi0',
+    0x09: 'ftoi4',
+    0x0a: 'ftoi12',
+    0x0b: 'ftoi15',
+    0x0c: 'mulAi',
+    0x0d: 'abs',
+    0x0e: 'mulAi',
+    0x0f: 'clip',
+}
+UPPER_SPECIAL_3F = {
+    0x00: 'maxi',
+    0x01: 'minii',
+    # remainder rare / unused on most kernels
+}
+
+
+def decode_upper(upper):
+    if upper == 0x000002FF or upper == 0x800002FF:
+        return ('nop', dest_mask(upper))
+    op = upper & 0x3f
+    dm = dest_mask(upper)
+    # bc-style primaries
+    if op in UPPER_BC_OPS:
+        bc = upper & 0x3
+        return (UPPER_BC_OPS[op] + BC[bc], dm)
+    if op in UPPER_PRIMARY:
+        return (UPPER_PRIMARY[op], dm)
+    # Special groups
+    if 0x3c <= op <= 0x3f:
+        secondary = (upper >> 6) & 0x1f
+        tables = {0x3c: UPPER_SPECIAL_3C, 0x3d: UPPER_SPECIAL_3D,
+                  0x3e: UPPER_SPECIAL_3E, 0x3f: UPPER_SPECIAL_3F}
+        name = tables[op].get(secondary, f'upp{op:02x}_{secondary:02x}')
+        # bc suffix for the bc-form rows
+        if name.endswith('bc'):
+            bc = upper & 0x3
+            name = name + BC[bc]
+        return (name, dm)
+    return (f'upp_{op:02x}', dm)
+
+
+# =====================================================================
+# LOWER pipe decoder
+# =====================================================================
+# Two big groups:
+#   - "regular" LOWER: top 7 bits [31:25] = primary opcode (lq, sq, ilw, branches, ...)
+#   - "special" LOWER: top 7 bits == 0x40 -> sub-opcode in bits [10:0]
+#       within that, last 6 bits select group; bits [10:6] select sub-sub.
+
+LOWER_PRIMARY = {
+    0x00: 'lq',
+    0x01: 'sq',
+    0x04: 'ilw',
+    0x05: 'isw',
+    0x08: 'iaddiu',
+    0x09: 'isubiu',
+    0x10: 'fceq',
+    0x11: 'fcset',
+    0x12: 'fcand',
+    0x13: 'fcor',
+    0x14: 'fseq',
+    0x15: 'fsset',
+    0x16: 'fsand',
+    0x17: 'fsor',
+    0x18: 'fmeq',
+    0x1a: 'fmand',
+    0x1b: 'fmor',
+    0x1c: 'fcget',
+    0x20: 'b',
+    0x21: 'bal',
+    0x24: 'jr',
+    0x25: 'jalr',
+    0x28: 'ibeq',
+    0x29: 'ibne',
+    0x2c: 'ibltz',
+    0x2d: 'ibgtz',
+    0x2e: 'iblez',
+    0x2f: 'ibgez',
+}
+
+# LOWER special: when top 7 bits == 0x40, the bottom 11 bits select one of
+# many ops. The bottom 6 bits are the "group selector"; ops sharing a group
+# disambiguate by bits [10:6].
+# We tabulate by the full 11-bit fingerprint (subop = lower & 0x7FF).
+# This is the master table — covers all common encodings we expect to hit.
+
 LOWER_SPECIAL = {
-    0x30: 'IADD',
-    0x31: 'ISUB',
-    0x32: 'IADDI',
-    0x34: 'IAND',
-    0x35: 'IOR',
-    # Sub-table when bits [5:0] == 0x3c (extended lower ops)
+    # group 0x30 — integer ALU
+    0x030: 'iadd',
+    0x031: 'isub',
+    0x032: 'iaddi',
+    0x034: 'iand',
+    0x035: 'ior',
+    # group 0x3C — extended LOWER1 (5-bit secondary in [10:6])
+    # The 11-bit encoding is (secondary << 6) | 0x3C
+    0x03c: 'move',
+    0x07c: 'lqi',     # vlqi vfT, (vit++)
+    0x0bc: 'div',
+    0x0fc: 'mtir',
+    0x13c: 'rnext',
+    0x17c: 'sqi',     # vsqi vfS, (vit++)
+    0x1bc: 'sqrt',
+    0x1fc: 'mfir',    # also FCAND/etc in alt tables; use context
+    0x23c: 'rget',
+    0x27c: 'lqd',
+    0x2bc: 'rsqrt',
+    0x2fc: 'ilwr',
+    0x33c: 'rinit',
+    0x37c: 'sqd',
+    0x3bc: 'waitq',
+    0x3fc: 'iswr',
+    0x43c: 'rxor',
+    0x47c: 'mfp',
+    0x4bc: 'xtop',
+    0x4fc: 'xitop',
+    # group 0x3D — EFU stuff (EE-side single-issue)
+    0x73d: 'esadd',
+    0x77d: 'ersadd',
+    0x7bd: 'eleng',
+    0x7fd: 'erleng',
+    # 0x3E group:
+    0x73e: 'eatanxy',
+    0x77e: 'eatanxz',
+    0x7be: 'esum',
+    0x7fe: 'ercpr',
+    # 0x3F group:
+    0x73f: 'esqrt',
+    0x77f: 'ersqrt',
+    0x7bf: 'esin',
+    0x7ff: 'eatan',
+    0xbbf: 'eexp',
+    # Misc
+    0x3bf: 'waitp',
+    # XGKICK — primary 0x40, fingerprint matches sub 0x6FC (encoded as
+    # secondary 0x1B in the LOWER1 0x3C group: (0x1B << 6) | 0x3C = 0x6FC)
+    0x6fc: 'xgkick',
+    # MFP / extended placeholders — common but rare:
+    0x7fc: 'mfp',
 }
 
-# Extended lower (subop field at low bits) — these are the "interesting" ones:
-# When LOWER opc == 0x40 and the lowest 6 bits form a secondary opcode
-LOWER_EXT = {
-    # Heavily abbreviated mapping of common LOWER ops by 11-bit fingerprint
-    0x030: 'MOVE',
-    0x031: 'LQI',     # vlqi vfT, (vit++)  -- load + post-inc
-    0x032: 'DIV',
-    0x033: 'MTIR',
-    0x034: 'RNEXT',
-    0x035: 'SQI',     # vsqi vfS, (vit++)  -- store + post-inc
-    0x036: 'SQRT',
-    0x037: 'MFIR',
-    0x038: 'RGET',
-    0x039: 'LQD',     # pre-dec load
-    0x03a: 'RSQRT',
-    0x03b: 'ILWR',
-    0x03c: 'RINIT',
-    0x03d: 'SQD',     # pre-dec store
-    0x03e: 'WAITQ',
-    0x03f: 'ISWR',
-    0x040: 'RXOR',
-    0x041: 'MFP',
-    0x042: 'XTOP',
-    0x043: 'XITOP',
-    0x6c4: 'XGKICK',  # *** key for GIF emit ***
-    0x06c: 'ESADD',
-    0x070: 'ERSADD',
-    0x074: 'ELENG',
-    0x078: 'ERLENG',
-    0x07c: 'EATANxy',
-    0x0fc: 'WAITP',
-    0x1fc: 'ESIN',
-    0x3fc: 'ERCPR',
-    0x1ff: 'NOP_LOWER',
-}
+# VCALLMS / VCALLMSR / BAL / B operate on primary-op group too, but their
+# imm15 target needs decoding. Handled in decode_lower below.
 
-# Pseudo opcodes for the upper-word "flags + opcode"
-UPPER_OPC_SIMPLE = {
-    # bits 5..0
-    0x00: 'ADDbc',  # ADDbc with bc=0..3 selecting x/y/z/w
-    0x04: 'SUBbc',
-    0x08: 'MADDbc',
-    0x0c: 'MSUBbc',
-    0x10: 'MAXbc',
-    0x14: 'MINIbc',
-    0x18: 'MULbc',
-    0x1c: 'MULq',
-    0x1d: 'MAXi',
-    0x1e: 'MULi',
-    0x1f: 'MINIi',
-    0x20: 'ADDq',
-    0x21: 'MADDq',
-    0x22: 'ADDi',
-    0x23: 'MADDi',
-    0x24: 'SUBq',
-    0x25: 'MSUBq',
-    0x26: 'SUBi',
-    0x27: 'MSUBi',
-    0x28: 'ADD',
-    0x29: 'MADD',
-    0x2a: 'MUL',
-    0x2b: 'MAX',
-    0x2c: 'SUB',
-    0x2d: 'MSUB',
-    0x2e: 'OPMSUB',
-    0x2f: 'MINI',
-    0x3c: 'EXT',   # extended UPPER op
-}
+LOWER1_GROUP_BASE = 0x3C  # 6-bit base of all "vector misc" ops
 
 
-def decode_upper(upper: int) -> str:
-    # NOP fingerprint
-    if upper == 0x000002FF:
-        return 'nop'
+def decode_lower(lower, pc=None):
+    if lower == 0x8000033C:
+        return ('nop', '')
+    opc = (lower >> 25) & 0x7f
+    name = LOWER_PRIMARY.get(opc)
+    if name:
+        # add operand hint for common forms
+        if name in ('lq', 'sq'):
+            return (name, 'mem')
+        if name in ('iaddiu', 'isubiu'):
+            return (name, 'imm')
+        if name in ('b', 'bal', 'ibeq', 'ibne', 'ibltz',
+                    'ibgtz', 'iblez', 'ibgez'):
+            return (name, 'br')
+        return (name, '')
+    if opc == 0x40:
+        sub = lower & 0x7ff
+        # XGKICK detection: the canonical PCSX2 encoding uses bits [10:6]==0x1B
+        secondary = (lower >> 6) & 0x1f
+        # primary fingerprint table:
+        nm = LOWER_SPECIAL.get(sub)
+        if nm:
+            return (nm, '')
+        # Try secondary lookup for 0x3C-group ops we may have missed:
+        if (sub & 0x3f) == 0x3c:
+            # 0x3C ext group, secondary in [10:6]
+            ext_map = {
+                0x00: 'move', 0x01: 'lqi', 0x02: 'div', 0x03: 'mtir',
+                0x04: 'rnext', 0x05: 'sqi', 0x06: 'sqrt', 0x07: 'mfir',
+                0x08: 'rget', 0x09: 'lqd', 0x0a: 'rsqrt', 0x0b: 'ilwr',
+                0x0c: 'rinit', 0x0d: 'sqd', 0x0e: 'waitq', 0x0f: 'iswr',
+                0x10: 'rxor', 0x11: 'mfp', 0x12: 'xtop', 0x13: 'xitop',
+                0x1a: 'mfp', 0x1b: 'xgkick', 0x1c: 'waitp',
+            }
+            return (ext_map.get(secondary, f'low1_{secondary:02x}'), '')
+        if (sub & 0x3f) == 0x3d:
+            ext_map = {
+                0x1c: 'esadd', 0x1d: 'ersadd', 0x1e: 'eleng', 0x1f: 'erleng',
+            }
+            return (ext_map.get(secondary, f'low2_{secondary:02x}'), '')
+        if (sub & 0x3f) == 0x3e:
+            ext_map = {
+                0x1c: 'eatanxy', 0x1d: 'eatanxz', 0x1e: 'esum', 0x1f: 'ercpr',
+            }
+            return (ext_map.get(secondary, f'low3_{secondary:02x}'), '')
+        if (sub & 0x3f) == 0x3f:
+            ext_map = {
+                0x1c: 'esqrt', 0x1d: 'ersqrt', 0x1e: 'esin', 0x1f: 'eatan',
+            }
+            return (ext_map.get(secondary, f'low4_{secondary:02x}'), '')
+        # vcallms / vcallmsr
+        if (sub & 0x3f) == 0x38:
+            return ('vcallms', 'imm15')
+        if (sub & 0x3f) == 0x39:
+            return ('vcallmsr', '')
+        # iadd/isub/etc
+        if (sub & 0x3f) in (0x30, 0x31, 0x34, 0x35):
+            return ({0x30: 'iadd', 0x31: 'isub', 0x34: 'iand',
+                     0x35: 'ior'}[sub & 0x3f], '')
+        return (f'lspec_{sub:03x}', '')
+    return (f'low_{lower:08x}', '')
+
+
+# =====================================================================
+# Display helpers
+# =====================================================================
+
+def flags_str(upper):
+    i = (upper >> 31) & 1
     e = (upper >> 30) & 1
-    i_flag = (upper >> 31) & 1
     m = (upper >> 29) & 1
     d = (upper >> 28) & 1
     t = (upper >> 27) & 1
-    op = upper & 0x3f
-    flags = ''.join(c if v else '.' for c, v in [('I', i_flag), ('E', e), ('M', m), ('D', d), ('T', t)])
-    name = UPPER_OPC_SIMPLE.get(op, f'UPP_{op:02x}')
-    if op == 0x3c:
-        # extended upper subop in bits [10:6]
-        ext = (upper >> 6) & 0x1f
-        # mapping subset
-        ext_map = {
-            0x00: 'ITOF0', 0x04: 'FTOI0',
-            0x01: 'ITOF4', 0x05: 'FTOI4',
-            0x02: 'ITOF12', 0x06: 'FTOI12',
-            0x03: 'ITOF15', 0x07: 'FTOI15',
-            0x08: 'MULAbc', 0x0a: 'ABS',
-            0x0c: 'MULAq', 0x0d: 'ADDAi', 0x0e: 'SUBAq', 0x0f: 'MSUBAi',
-            0x10: 'ADDAbc', 0x14: 'SUBAbc', 0x18: 'MADDAbc', 0x1c: 'MSUBAbc',
-            0x1d: 'NOP',  # NOP_UPPER fingerprint when full word == 0x800002FF
-        }
-        name = ext_map.get(ext, f'EXT_{ext:02x}')
-    return f'[{flags}] {name}'
+    return ''.join(c if v else '.' for c, v in
+                   [('I', i), ('E', e), ('M', m), ('D', d), ('T', t)])
 
 
-def decode_lower(lower: int) -> str:
-    # NOP fingerprint: 0x8000033C is the typical "lower NOP"
-    if lower == 0x8000033C:
-        return 'nop'
-    opc = (lower >> 25) & 0x7f
-    name = LOWER_OPC.get(opc)
-    if name:
-        return name
-    if opc == 0x40:
-        sub = lower & 0x7ff
-        ext_name = LOWER_EXT.get(sub)
-        if ext_name:
-            return ext_name
-    return f'LOW_{lower:08x}'
-
-
-def disasm_block(blob: bytes, base_vram: int) -> str:
+def disasm_block(blob, base_vram):
     out = []
-    for i in range(0, len(blob) - 7, 8):
-        # Memory layout: bytes +0..3 = LOWER pipe word, bytes +4..7 = UPPER pipe word
-        lower, upper = struct.unpack_from('<II', blob, i)
-        vram = base_vram + i
-        out.append(f'  {vram:08x} {upper:08x}|{lower:08x}  '
-                   f'U:{decode_upper(upper):24s}  L:{decode_lower(lower)}')
+    n = len(blob) // 8
+    i_pending = False
+    for k in range(n):
+        lower, upper = struct.unpack_from('<II', blob, k * 8)
+        vram = base_vram + k * 8
+        if i_pending:
+            # Previous insn was I-bit set: this 64-bit word is a 32-bit float
+            # immediate (loaded into I register). The immediate occupies the
+            # upper word (it replaces the FP op).
+            f = struct.unpack('<f', struct.pack('<I', upper))[0]
+            out.append(f'  {vram:08x} {upper:08x}|{lower:08x}  '
+                       f'<imm32 I = {f:g}>')
+            i_pending = False
+            continue
+        un, ud = decode_upper(upper)
+        ln, _ = decode_lower(lower, pc=vram)
+        flags = flags_str(upper)
+        out.append(f'  {vram:08x} {upper:08x}|{lower:08x}  [{flags}] '
+                   f'U:{un + ud:18s}  L:{ln}')
+        if upper & 0x80000000:
+            i_pending = True
         if upper & 0x40000000:
             out.append('    -- [E] end-of-program (one delay slot follows)')
     return '\n'.join(out)
 
 
-def read_elf_bytes(vram: int, size: int) -> bytes:
+# =====================================================================
+# ELF I/O
+# =====================================================================
+
+def read_elf():
     with open(ELF_PATH, 'rb') as f:
-        data = f.read()
-    foff = vram - 0x00100000 + 0x300
+        return f.read()
+
+
+def vram_to_foff(vram):
+    return vram - 0x00100000 + 0x300
+
+
+def read_elf_bytes(vram, size):
+    data = read_elf()
+    foff = vram_to_foff(vram)
     return data[foff:foff + size]
 
+
+# =====================================================================
+# Commands
+# =====================================================================
 
 def cmd_disasm(args):
     vram = int(args.vram, 0)
@@ -229,75 +424,15 @@ def cmd_disasm(args):
     print(disasm_block(blob, vram))
 
 
-def cmd_scan(args):
-    """Scan the ELF data region for plausible VU1 microcode blocks.
-
-    Heuristic: a microcode program is a run of N >= 32 quadwords ending with
-    exactly one E-bit-set instruction near the end (last 1-3 qwords), with no
-    other E-bits in the body, and with the LOWER word of the last 1-2
-    instructions plausibly == nop (0x8000033C) or a vcallms-style end.
-    """
-    with open(ELF_PATH, 'rb') as f:
-        data = f.read()
-
-    # Restrict scan to the data half of the PROGBITS section (after main code).
-    # Conservative: start at vram 0x00230000 (post-game-code, into data tables).
+def list_packets():
+    """Return list of (packet_vram, body_vram, body_size, imem_dst)."""
+    data = read_elf()
     start_vram = 0x00230000
     end_vram = 0x00275B00
-    foff_start = start_vram - 0x00100000 + 0x300
-    foff_end = end_vram - 0x00100000 + 0x300
+    foff_start = vram_to_foff(start_vram)
+    foff_end = vram_to_foff(end_vram)
     blob = data[foff_start:foff_end]
-
-    # Find every E-bit-set qword
-    es = []
-    for i in range(0, len(blob) - 8, 8):
-        # UPPER word at +4
-        upper = struct.unpack_from('<I', blob, i + 4)[0]
-        if upper & 0x40000000:
-            es.append(i)
-
-    # Find candidate programs: an E-bit at index k where the previous E-bit
-    # was at index k - 8*N for N >= 32, with no body E-bits in between.
-    # i.e. consecutive E-bit gaps that are >= 32 qwords.
-    candidates = []
-    last = -8
-    for e in es:
-        gap_qw = (e - last) // 8
-        if 32 <= gap_qw <= 2000:
-            prog_start = last + 8
-            prog_end = e + 8 + 8  # include the E-bit insn + one delay slot
-            candidates.append((prog_start, prog_end, gap_qw))
-        last = e
-
-    print(f'# scanned vram 0x{start_vram:08x}..0x{end_vram:08x} '
-          f'({len(blob)} bytes, {len(es)} E-bit qwords)')
-    print(f'# {len(candidates)} candidate microcode programs:')
-    for s, e, n in candidates:
-        vram = start_vram + s
-        size = e - s
-        # Quick sanity: do the first 4 instructions look like VU ops?
-        # We accept any whose first lower-word == 0x8000033C (nop_lower) and
-        # whose first upper has a recognized UPPER opcode.
-        first_lower, first_upper = struct.unpack_from('<II', blob, s)
-        print(f'  vram=0x{vram:08x} size=0x{size:x} ({n} qw)  '
-              f'first: U=0x{first_upper:08x} L=0x{first_lower:08x}')
-
-
-def cmd_catalog(args):
-    """List every VIF1 MPG packet in the ELF data region — these are the
-    static microcode upload sites. Each MPG tag is preceded by 4 VIF1 setup
-    words (STMOD/FLUSHE/STCYCL/STMASK template) and followed immediately by
-    the microcode body (num*8 bytes).
-    """
-    with open(ELF_PATH, 'rb') as f:
-        data = f.read()
-    start_vram = 0x00230000
-    end_vram = 0x00275B00
-    foff_start = start_vram - 0x00100000 + 0x300
-    foff_end = end_vram - 0x00100000 + 0x300
-    blob = data[foff_start:foff_end]
-    print(f'# vram_packet  size  imem_dst  microcode_vram_start  microcode_vram_end')
-    n = 0
+    pkts = []
     for i in range(0, len(blob) - 16, 4):
         w = struct.unpack_from('<I', blob, i)[0]
         cmd = (w >> 24) & 0x7F
@@ -307,26 +442,143 @@ def cmd_catalog(args):
         num = (w >> 16) & 0xFF
         qw = 256 if num == 0 else num
         sz = qw * 8
-        mc_start = start_vram + i + 4
-        mc_end = mc_start + sz
-        print(f'  0x{start_vram+i:08x}  0x{sz:04x}  0x{addr:04x}    0x{mc_start:08x}  '
-              f'0x{mc_end:08x}  ({qw} qw)')
-        n += 1
-    print(f'# {n} microcode programs total')
+        body_vram = start_vram + i + 4
+        pkts.append((start_vram + i, body_vram, sz, addr))
+    return pkts
+
+
+def cmd_catalog(args):
+    print(f'# vram_packet  size  imem_dst  microcode_vram_start  microcode_vram_end')
+    pkts = list_packets()
+    for pv, bv, sz, dst in pkts:
+        print(f'  0x{pv:08x}  0x{sz:04x}  0x{dst:04x}    '
+              f'0x{bv:08x}  0x{bv+sz:08x}  ({sz//8} qw)')
+    print(f'# {len(pkts)} microcode programs total')
+
+
+# Group multi-MPG uploads into logical kernels. Heuristic: an upload chain
+# is a run of consecutive packets where each subsequent imem_dst > prev_dst
+# (i.e. continuation segments at 0x100, 0x200, ...). A new kernel starts at
+# every imem_dst == 0x0000 OR when imem_dst <= prev_dst.
+def group_kernels(pkts):
+    kernels = []
+    cur = []
+    for p in pkts:
+        if cur and p[3] <= cur[-1][3]:
+            kernels.append(cur)
+            cur = [p]
+        else:
+            cur.append(p)
+    if cur:
+        kernels.append(cur)
+    return kernels
+
+
+def profile_kernel(pkts):
+    """Disassemble a kernel (one or more contiguous packets) and return op
+    frequency counts."""
+    counts = defaultdict(int)
+    total_qw = 0
+    i_pending = False
+    for pv, bv, sz, dst in pkts:
+        blob = read_elf_bytes(bv, sz)
+        n = sz // 8
+        total_qw += n
+        for k in range(n):
+            lower, upper = struct.unpack_from('<II', blob, k * 8)
+            if i_pending:
+                i_pending = False
+                continue
+            un, _ = decode_upper(upper)
+            ln, _ = decode_lower(lower)
+            # Family bucketing
+            if un != 'nop':
+                if 'madd' in un.lower():
+                    counts['UPPER:madd*'] += 1
+                elif 'msub' in un.lower():
+                    counts['UPPER:msub*'] += 1
+                elif un.startswith('mul'):
+                    counts['UPPER:mul*'] += 1
+                elif un.startswith('add'):
+                    counts['UPPER:add*'] += 1
+                elif un.startswith('sub'):
+                    counts['UPPER:sub*'] += 1
+                elif un.startswith(('ftoi', 'itof')):
+                    counts['UPPER:ftoi/itof'] += 1
+                elif un == 'clip':
+                    counts['UPPER:clip'] += 1
+                elif un.startswith(('max', 'mini')):
+                    counts['UPPER:max/mini'] += 1
+                else:
+                    counts['UPPER:other'] += 1
+            else:
+                counts['UPPER:nop'] += 1
+            if ln != 'nop':
+                if ln == 'xgkick':
+                    counts['LOWER:XGKICK'] += 1
+                elif ln in ('lq', 'lqi', 'lqd'):
+                    counts['LOWER:LQ*'] += 1
+                elif ln in ('sq', 'sqi', 'sqd'):
+                    counts['LOWER:SQ*'] += 1
+                elif ln in ('div', 'sqrt', 'rsqrt'):
+                    counts['LOWER:div/sqrt'] += 1
+                elif ln in ('iaddiu', 'iaddi', 'iadd', 'isub', 'isubiu',
+                            'iand', 'ior'):
+                    counts['LOWER:int-alu'] += 1
+                elif ln.startswith(('ib', 'b', 'bal', 'jr', 'jalr')):
+                    counts['LOWER:branch'] += 1
+                elif ln == 'vcallms' or ln == 'vcallmsr':
+                    counts['LOWER:vcallms'] += 1
+                elif ln in ('mtir', 'mfir', 'ilw', 'ilwr', 'isw', 'iswr'):
+                    counts['LOWER:int-mem/move'] += 1
+                elif ln == 'waitp' or ln == 'waitq':
+                    counts['LOWER:wait'] += 1
+                else:
+                    counts['LOWER:other'] += 1
+            else:
+                counts['LOWER:nop'] += 1
+            if upper & 0x80000000:
+                i_pending = True
+    return total_qw, counts
+
+
+def cmd_profile(args):
+    pkts = list_packets()
+    kernels = group_kernels(pkts)
+    # Column order
+    cols = ['UPPER:mul*', 'UPPER:madd*', 'UPPER:msub*', 'UPPER:add*',
+            'UPPER:sub*', 'UPPER:ftoi/itof', 'UPPER:clip', 'UPPER:max/mini',
+            'UPPER:other', 'LOWER:XGKICK', 'LOWER:LQ*', 'LOWER:SQ*',
+            'LOWER:div/sqrt', 'LOWER:int-alu', 'LOWER:int-mem/move',
+            'LOWER:branch', 'LOWER:vcallms', 'LOWER:wait', 'LOWER:other']
+    hdr = ['#kern', 'pkts', 'segs', 'imem', 'qw'] + [c.split(':')[1] for c in cols]
+    print(' '.join(f'{h:>10}' for h in hdr))
+    for ki, kpkts in enumerate(kernels):
+        total_qw, counts = profile_kernel(kpkts)
+        imem0 = kpkts[0][3]
+        n_segs = len(kpkts)
+        row = [str(ki), f'{kpkts[0][0]:08x}', str(n_segs),
+               f'{imem0:04x}', str(total_qw)]
+        row += [str(counts.get(c, 0)) for c in cols]
+        print(' '.join(f'{v:>10}' for v in row))
+
+
+def cmd_scan(args):
+    # Legacy scanner — kept for backward-compat
+    cmd_catalog(args)
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest='cmd', required=True)
-    d = sub.add_parser('disasm', help='disassemble bytes at vram')
+    d = sub.add_parser('disasm')
     d.add_argument('vram')
     d.add_argument('size')
     d.set_defaults(func=cmd_disasm)
-    s = sub.add_parser('scan', help='scan ELF data region for microcode blocks (heuristic)')
-    s.set_defaults(func=cmd_scan)
-    c = sub.add_parser('catalog', help='list all VIF1 MPG packets / microcode upload sites')
-    c.set_defaults(func=cmd_catalog)
+    sub.add_parser('catalog').set_defaults(func=cmd_catalog)
+    sub.add_parser('scan').set_defaults(func=cmd_scan)
+    sub.add_parser('profile').set_defaults(func=cmd_profile)
     args = p.parse_args()
     args.func(args)
 

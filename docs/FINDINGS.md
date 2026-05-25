@@ -593,43 +593,132 @@ all with their packet vram, body size, and imem destination. Highlights:
   per-effect kernels (particles, decals, projector, environment-mapping,
   etc.).
 - **Small 15-qw subroutines** uploaded to imem 0x0800: 6 distinct stubs,
-  each 0x78 bytes. These are `vcallms` targets called from the larger
-  kernels — utility subroutines.
+  each 0x78 bytes. These are `bal`-jump targets called from the larger
+  kernels (no `vcallms` is actually used anywhere in the boot ELF
+  microcode — all subroutine invocation is plain `bal`+`jr`).
 
-**What we know about program purpose: not yet enough.** The partial
-disassembler in `tools/disasm_vu.py` decodes the LOWER pipe's coarse
-opcode group and a subset of UPPER pipe FP ops, enough to confirm these
-are real microcode (high `nop`/`waitp` density, plausible LQ/SQ/IADDIU
-patterns, branches, E-bit terminators). **It does not yet decode XGKICK,
-VLQI, VSQI, VMULAbc, or VMADDAbc reliably** — the bottom-11-bit subop
-field positions in those encodings are not nailed down in the current
-opcode tables. As a result, the per-program classifier in early
-investigation reported zero XGKICKs across all 48 programs, which is
-clearly wrong for a renderer (kicks must exist somewhere). The next
-step needs either:
+**Disassembler v2 (2026-05-25).** `tools/disasm_vu.py` now decodes:
 
-- a full VU1 LOWER-ext opcode table (cross-referenced against
-  VuAssembler / openpsxasm / PCSX2's `VU1Disasm.cpp`), or
-- assembled live observation in PCSX2's VU debugger to identify the
-  per-frame upload sequence and tag each program by use.
+- LOWER primary ops (LQ/SQ/ILW/ISW/IADDIU/branches/jr/jalr/fcand/fcor/fseq/...).
+- LOWER special / LOWER1 group: **XGKICK**, **LQI/SQI/LQD/SQD** (auto-inc/dec
+  vector load/store), DIV / SQRT / RSQRT / RINIT / RGET / RNEXT / RXOR,
+  MTIR/MFIR/MFP, XTOP/XITOP, ILWR/ISWR, WAITP/WAITQ, MOVE.
+- LOWER2/3/4 EFU ops (ESADD / ERSADD / ELENG / ERLENG / EATAN* / ESIN / ESQRT / ...).
+- UPPER bc-form: ADDbc / SUBbc / MULbc / MADDbc / MSUBbc / MAXbc / MINIbc.
+- UPPER primary: MUL / MADD / MSUB / ADD / SUB / OPMSUB / MAX / MINI plus the
+  `q` and `i` register variants.
+- UPPER special (op 0x3C/0x3D/0x3E/0x3F): MULAbc / MADDAbc / MSUBAbc /
+  ADDAbc / SUBAbc / OPMULA / MULAi / MULAq / ADDAi / ITOF{0,4,12,15} /
+  FTOI{0,4,12,15} / ABS / CLIP / NOP.
+- The I-bit imm32 follower (`<imm32 I = ...>`).
+- Dest mask printing (`.xyzw`, `.xy`, etc.) and flag column (`I/E/M/D/T`).
+
+Still placeholder (rare or non-canonical sub-encodings): a few `lspec_xxx`
+and `upp_xx` opcodes that show up sparsely (<5% of body for any kernel) —
+none affect classification. The byte-order convention is now empirically
+nailed down: **bytes +0..3 = LOWER pipe word, bytes +4..7 = UPPER pipe word.**
+
+**Per-program op profile (`disasm_vu.py profile`).** The 48 packets group
+into **25 logical kernels** (some kernels are split across 2-5 MPG segments
+because each MPG carries at most 256 qw). Every kernel has at least 1
+XGKICK — confirming the decoder is correct. Highlights:
+
+- **3 big 5-segment kernels** (#14 0x00237750, #15 0x00239CBC, #24 0x0023E8CC),
+  ~1183-1235 qw, 3 XGKICKs each, 140 LQ / 74 SQ, very high int-alu (166-168) +
+  branch (89-92) + `bal` use. These are the **world/level-geometry
+  renderers** with three sub-paths (likely opaque / alpha-test / additive).
+- **4 medium 2-segment kernels** (#0/1/2/4, ~322-382 qw, all imem 0x0000)
+  sharing a near-identical op signature: 26-41 mul*, 4 madd*, 6-8 msub*,
+  13-19 add*, 10-16 sub*, **17-20 ftoi/itof**, 1-2 XGKICK, **53-66 LQ /
+  20-29 SQ**, 36-38 branches. Highest ftoi/itof+LQ density of any group —
+  the dequantize-and-transform signature of a **skinned-mesh renderer**.
+  Variants 0/1/2/4 are likely opaque vs alpha vs additive vs env-mapped.
+- **3 paired main+helper kernels** (#5+#6, #7+#8, #9+#10): each is a
+  ~145-168 qw main at imem 0x0000 plus a 15-qw helper at imem 0x0800.
+  The mains have 1 XGKICK, 4 ftoi/itof, 25 LQ / 4 SQ, 9 branches.
+  These look like **per-bone rigid-skinning kernels** (lean: transform
+  one batch of bone-anchored vertices, no animation interpolation), with
+  the imem-0x800 helper functioning as a per-vertex inner transform.
+- **Standalone setup/effect kernels** (#3, #12, #13, #16-22): 62-138 qw
+  single-segment programs, low mul/madd, often 1 XGKICK or none. Likely
+  particle / decal / env-map / sprite / projector kernels.
+
+**Most likely skinning kernel: the #5+#6 / #7+#8 / #9+#10 family.**
+
+Pseudocode reconstruction of the main-routine pattern (~150 qw):
+
+```
+init:
+    xtop  vi01           ; read VIF UNPACK top-of-buffer marker
+    iaddiu vi02, vi00, 1 ; vertex count guard
+    ; load 4-row bone matrix from a fixed dmem offset into vf01..vf04
+    lq    vf01, BONE+0(vi00)
+    lq    vf02, BONE+1(vi00)
+    lq    vf03, BONE+2(vi00)
+    lq    vf04, BONE+3(vi00)
+
+per_vertex_loop:
+    lqi   vfV, (vi01++)        ; load 1 quantized vertex qword from VIF stream
+    bal   imem_0x800           ; -> 15-qw helper: dequantize + transform
+    sqi   vfV, (vi02++)        ; write transformed vertex to output buffer
+    iaddiu vi03, vi03, -1      ; decrement count
+    ibne  vi03, vi00, per_vertex_loop
+
+emit:
+    ; write GIF tag preamble
+    sq   gif_tag, OUTBUF+0
+    xgkick  vi02               ; kick the assembled packet
+end:
+    nop ; [E]
+    nop
+```
+
+The 15-qw helper at imem 0x0800 (5 mul*, 2 ftoi/itof, 8 LQ) is the
+dequantize+transform inner kernel:
+
+```
+xform_one_vertex:
+    ; vfIN already has the raw quantized qword loaded by caller
+    itof12  vfTMP, vfIN         ; treat as Q4.12 fixed-point -> float
+    mulAi   ACC,   vf01, vfTMP.x ; bone row 0 * x
+    maddAi  ACC,   vf02, vfTMP.y ; + bone row 1 * y
+    maddAi  ACC,   vf03, vfTMP.z ; + bone row 2 * z
+    madd    vfOUT, vf04, vfTMP.w ; + translation row (w as 1.0 sentinel)
+    ftoi0   vfINT, vfOUT        ; convert to GS integer coord
+    jr      ra
+```
+
+**This pseudocode is INFERRED from the op-frequency profile, not a
+byte-level decode.** The encoding edge-cases around `mulAi` / `maddAi`
+modifier (i-reg loaded via the preceding I-flag) make a fully literal
+trace of the 15-qw helper require nailing down the I-bit sequence — left
+for follow-up.
+
+**Suggested dequantize formula for id 0x74 character vertices** (working
+hypothesis, to be confirmed by visual extraction): each vertex is a single
+quadword of four int16 components in Q4.12, interpreted as
+
+    object_pos.x = raw.x / 4096.0
+    object_pos.y = raw.y / 4096.0
+    object_pos.z = raw.z / 4096.0
+    weight       = raw.w / 4096.0    ; typically 1.0 (single-bone rigid)
+
+This is consistent with the ITOF12 op appearing prominently in the helper
+and the per-bone rigid-attachment model already documented above.
 
 **What this unblocks (status of the three blockers).**
 
-- **id 0x74 object-space character vertices** (per-bone VIF prefix
-  packets): blocked on decoding the per-vertex packet quantisation
-  format and the bone-matrix index source. The microcode that performs
-  this transform is *one of the 48 catalogued programs*; identifying
-  exactly which one still needs the full disassembler.
-- **id 0x71 bind-pose joint transforms**: the per-bone VIF/GIF-packed
-  transform stream the engine consumes is decoded by VU1 microcode at
-  load time. Again, one of the 48 programs — most likely a small
-  setup/data-shuffle kernel rather than the per-vertex kernel.
-- **PSMT8 TEX0 CLUT binding**: TEX0 register writes are typically
-  emitted on the EE side via direct GS DMA (not VU1), so the 48
-  microcode programs probably do not carry the CLUT binding. The next
-  step for this blocker is to decompile the EE-side draw setup that
-  builds the GS register write list (TEX0 with `PSM=0x13`, trace `CBP`
-  source) — independent of VU1 microcode.
+- **id 0x74 object-space character vertices**: dequantize formula now has
+  a strong working hypothesis (Q4.12 int16 quadword) — implementing
+  `--skinned` to actually emit object-space vertex positions just needs a
+  test extraction and visual compare against a reference. Not yet wired
+  into `extract_models.py`; the formula needs at least one visual
+  confirmation before we ship it as the default extractor path.
+- **id 0x71 bind-pose joint transforms**: probably handled by one of the
+  small standalone kernels (#3 or #19) given their setup-shaped profile
+  (high int-alu, low XGKICK, no ftoi/itof). Still needs a targeted walk.
+- **PSMT8 TEX0 CLUT binding**: confirmed unaffected by VU1 microcode —
+  needs EE-side draw-setup decompilation as previously noted.
 
 ## `MUSIC.DAT` track listing
 

@@ -689,25 +689,26 @@ ELF** (1530624/1530624 bytes, 100.00%).
 
 ### Open questions (most need the decompiled engine — i.e. Track A)
 
-- **VU1 microcode location — PARTIALLY RESOLVED 2026-05-25.** Found 48
-  VU1 microcode programs statically embedded in the boot ELF, all in
-  vram **0x00230824..0x00240F88** (the data half of PROGBITS), wrapped
-  as complete VIF1 DMA packets (`NOP/STMOD/FLUSHE/OFFSET/MPG` template
-  + microcode body). 3 large 5-segment kernels (~10 KB each at imem
-  0x000..0x1400) are the likely main rendering kernels; 22 standalone
-  single-MPG kernels at imem 0x0000 and 6 small 15-qw subroutines at
-  imem 0x0800 round out the set. Full catalog: `tools/disasm_vu.py
-  catalog`. Per-program purpose (which kernel does character skinning
-  vs static geometry vs particles vs lighting) is **not yet
-  identified** — the included partial disassembler decodes branches,
-  loads/stores, and FP math coarsely but not XGKICK / VLQI / VSQI /
-  VMULAbc subop encodings reliably. Next agent: either complete the
-  opcode tables (cross-reference VuAssembler / PCSX2 `VU1Disasm.cpp`)
-  or use PCSX2's VU debugger live to tag each program by use. The
-  three blockers below all depend on identifying which microcode
-  program does the work, then implementing an equivalent Python
-  decoder for it. Findings detail: `docs/FINDINGS.md` -> "VU1
-  microcode".
+- **VU1 microcode location + per-program classification — PARTIALLY
+  RESOLVED 2026-05-25.** Found 48 VU1 microcode programs (25 logical
+  kernels after grouping multi-MPG uploads) statically embedded in the
+  boot ELF, all in vram **0x00230824..0x00240F88**. `tools/disasm_vu.py`
+  now decodes the full LOWER + UPPER opcode space well enough to
+  classify every kernel: `disasm_vu.py profile` prints an op-frequency
+  table; XGKICK, LQI/SQI/LQD/SQD, MULAbc/MADDAbc/MSUBAbc, ITOF/FTOI,
+  CLIP, DIV/RSQRT, EFU helpers, and I-bit imm32 sequences all decode
+  correctly. The 25 kernels fall into 4 families: (1) 3 large
+  5-segment world/level-geometry renderers (~1200 qw each, 3 XGKICKs);
+  (2) 4 medium 2-segment **skinned-mesh renderers** (#0,1,2,4 — high
+  ftoi/itof + LQ density, 1-2 XGKICK); (3) 3 paired main+helper
+  per-bone rigid skinners (#5/6, #7/8, #9/10 — ~150 qw main + 15 qw
+  inner-transform helper at imem 0x0800); (4) standalone
+  setup/effect/particle kernels. The 15-qw helpers are reached via
+  plain `bal` — no `vcallms` is used anywhere. Inferred dequantize for
+  id 0x74 character vertices: each vertex is a single int16 quadword in
+  Q4.12, transformed by a preloaded bone matrix. Not yet wired into
+  `extract_models.py` — needs at least one visual confirmation first.
+  Details: `docs/FINDINGS.md` -> "VU1 microcode".
 
 - **Per-vertex skin weights — RESOLVED 2026-05-25.** There are none.
   Character meshes use **per-bone rigid attachment**: a VIF prefix in
