@@ -596,6 +596,50 @@ header][bone offsets...]`; needs the VU1 / engine bone-update code
 to confirm. (c) Bind-pose joint transforms (still blocked on VU1
 microcode, as previously noted for id 0x71 entries).
 
+**Prefix-region structure (investigated 2026-05-25).** The mesh
+file's PREFIX REGION — the bytes from file offset 0 up to the
+per-bone section table — was investigated as a candidate location
+for bind-pose joint transforms. Findings:
+
+- The region's size varies wildly between files of the same
+  skeleton: `chunk21/f17_id8f.bin` has an 0x22c8-byte prefix while
+  `chunk17/f14_id8b.bin` has a 0x173c8-byte prefix (~94 KiB) — too
+  much variation to be a per-bone bind-pose array.
+- The region is structured as **32-byte records of two vec4 floats
+  each** (verified: byte positions [3] and [7] are the constant
+  sign+exponent bytes of floats; bytes [8..11] are always zero —
+  the third float in vec4#1 is identically 0.0). The first vec4 is
+  per-record-varying; the second is mostly constant across records
+  with one slowly-varying float at `+0x18`.
+- The values are world-scale (hundreds, e.g. 237.78, 1188.04,
+  662.30) and bounded, consistent with positions or AABB extents.
+  The `+0x18` field walks monotonically with a step of ~0.15 units
+  per record across long runs, with occasional discontinuities.
+- The **last 0x40 bytes of the prefix** are not a record — they hold
+  a MATRIX-style descriptor (`00 00 00 00 ff ff ff ff ...` at
+  prefix_end−0x40), then a 28-element u32 array of small ints, then
+  the existing 28-element u32 "section table". The two arrays read
+  back-to-back as the existing detector's "section table" hit
+  (which is why the section table looked like it began with the
+  small ints `5,10,11,12,13,15,16,...`): the real layout is
+  `[small u32 × 28][large u32 × 28]`, two parallel per-bone tables
+  (probably `[vid_terminator_count][byte_offset]` pairs).
+
+This region is **NOT bind-pose matrices**: there are zero 4×4
+matrix-shaped runs anywhere in the prefix of either character file
+(scanned by `last_row≈(0,0,0,1) + |row0|≈1`). The most plausible
+reading of the float records is **per-bone or per-frame transform
+control data driven by VU1**, not a recoverable affine bind-pose
+table. Bind-pose joint transforms remain located only inside the
+id 0x71 entry sections (themselves VIF/GIF-packed and blocked on
+VU1 microcode), or possibly composed at runtime in code.
+
+A future investigation should trace the EE-side function that DMAs
+bone matrices to VU1 — VU1 microcode kernel pair #5/#6 (vram
+`0x002346b0` / `0x002346f0` helpers, mains at `0x00234610` /
+`0x002346f4`) loads a 4-row matrix into vf01..vf04 from a fixed
+dmem address — back to func_0011AA50 and its callers.
+
 **Header forms:**
 - Short (4 bytes): `<u32 record_count>`. Records start at +4.
 - Long (0x20 bytes): `<u32 record_count>`, 8 bytes of default flag /

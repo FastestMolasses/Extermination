@@ -907,11 +907,24 @@ ELF** (1530624/1530624 bytes, 100.00%).
     parent table is invariant — consistent with keyframed animation
     rather than per-pose matrices.
   The bind-pose / inverse-bind-pose joint transforms are therefore
-  not in id 0x71 at all. They most likely live in (a) a still-
-  unidentified header in the mesh files themselves (id 0x74/0x8b/0x8f),
-  (b) baked into the VIF microcode preamble that the engine ships to
-  VU1 before each per-bone vertex upload, or (c) inferred at runtime
-  from rest-pose mesh + collision-hull centres. The per-bone rigid-
+  not in id 0x71 at all. **Mesh-file prefix region also ruled out
+  (2026-05-25)**: the bytes from file offset 0 up to the per-bone
+  section table (`0x22c8` in `chunk21/f17_id8f.bin`, `0x173c8` in
+  `chunk17/f14_id8b.bin`) contain 32-byte float records (two vec4s
+  per record), but the region's size varies ~10x between two files
+  of the same 28-bone skeleton — far too much to be a per-bone
+  bind-pose array — and zero 4×4-matrix-shaped runs (last row
+  `≈(0,0,0,1)`, |row0|≈1) appear in either prefix. The prefix's
+  last 0x40 bytes are a MATRIX-style descriptor followed by two
+  parallel 28-entry u32 tables (the second of which is the existing
+  "section offset" table). Detail in `docs/FINDINGS.md`
+  "Bind-pose matrices > Prefix-region structure". Remaining
+  candidates: (a) baked into the VIF microcode preamble that the
+  engine ships to VU1 before each per-bone vertex upload, or
+  (b) inferred at runtime from rest-pose mesh + collision-hull
+  centres, or (c) assembled in EE code (trace from VU1 kernel #5/#6
+  helpers at `0x002346b0`/`0x002346f0` back to `func_0011AA50` and
+  its callers). The per-bone rigid-
   skinning VU1 kernel (#5/#6, #7/#8, #9/#10 family at vram
   0x00234610 / 0x002346f4) loads a 4-row matrix into vf01..vf04 from
   a fixed dmem address — tracing that address back to its EE-side
