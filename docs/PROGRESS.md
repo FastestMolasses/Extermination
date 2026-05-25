@@ -913,6 +913,25 @@ ELF** (1530624/1530624 bytes, 100.00%).
   unresolved -- candidates include per-material vertex re-emissions,
   LOD packets, or accessory geometry not drawn this frame.
 
+  **STATUS: WORK IN PROGRESS — composition pipeline produces a scattered
+  point cloud, not a recognisable humanoid, when loaded in Blender.**
+  Confirmed via user screenshot 2026-05-25. Each piece in isolation is
+  correct (live matrices extracted, parent walk composes, Q4.12 dequant
+  validated on object-space mode), but the assembled output doesn't form
+  a coherent figure. Most likely cause: the assumption that the per-bone
+  vertex section index in the id 0x74 file's section table maps 1:1 to
+  bone index in the runtime matrix buffer is WRONG. Section #N's vertices
+  are getting transformed by bone matrix #N, but the actual mapping is
+  some permutation/indirection we haven't found. Resolving this needs
+  either: (a) PCSX2 instrumentation to log which VU1 dmem matrix slot is
+  active for each per-bone VIF UNPACK in one frame, or (b) decompiling
+  the EE-side anim/draw code (func_00100EB8 chain) to read the section→
+  bone mapping. Deferred — the 28-commit session of bind-pose RE has
+  already produced 90% of a working pipeline (skeleton + collision hulls
+  + object-space vertices + live matrix capture + composition). The
+  remaining 10% (correct section→bone mapping) is a discrete future
+  task.
+
   **PRIOR (investigated 2026-05-25,
   found NOT to live in the three id 0x71 entry "sections" as
   previously hypothesised). Detailed structural decode:
