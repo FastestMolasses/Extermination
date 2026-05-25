@@ -856,6 +856,124 @@ no faces -- the stream is pre-stripification quantised vertices) plus a
 - **PSMT8 TEX0 CLUT binding**: confirmed unaffected by VU1 microcode —
   needs EE-side draw-setup decompilation as previously noted.
 
+### Bind-pose matrix EE-side trace (2026-05-25, partial)
+
+Followed up the FINDINGS hypothesis that the EE-side bone-matrix DMA
+would lead back from kernel-pair #5/#6 via `func_0011AA50` →
+`func_0011AB60` (ctc2+vcallmsr dispatcher). Two concrete results:
+
+**1. VU1 dmem source of the bone matrix — RESOLVED.** The skinning
+kernel main at vram `0x00234610` loads its 4-row matrix into
+**vf28..vf31** from **VU1 dmem qwords `0x000..0x003`** (bytes
+`0x0000..0x003F`), via four absolute-address LQ instructions
+`lq vfNN, K(vi0)` with K in {0,1,2,3} (LQ immediate is 11-bit
+**unsigned**, not sign-extended — corrected from initial reading).
+Additionally vf16..vf21 are loaded from the **top of dmem**
+(qw 0x3F8, 0x3FA, 0x3FB, 0x3FD, 0x3FE, 0x3FF) — six quadwords of
+shared constants/state (clip planes, near/far, light dirs, etc.).
+The VIF1 wrapper just before kernel #5 (vram `0x002345f8..0x00234610`)
+sets `BASE=0x0020` and `OFFSET=0x0190`, confirming VU1 dmem layout:
+
+- **qw `0x000..0x01F`** — fixed shared region (matrix + state).
+  UNPACKed with absolute-address mode (FLG=1).
+- **qw `0x020..0x01AF` / `0x01B0..0x033F`** — double-buffered per-batch
+  vertex stream (BASE+OFFSET).
+- **qw `0x3F8..0x3FF`** — top-of-dmem shared constants.
+
+**2. EE-side caller chain — NEGATIVE RESULT.** The hypothesised
+`func_0011AA50` / `func_0011AB60` cluster (and its siblings
+`0011A9F0`, `0011AB20`, `0011AB70`) **has no callers anywhere**:
+
+- No `jal` to any of those addresses anywhere in the boot ELF
+  (brute-force u32 scan of `0x300..end`).
+- No `lui`+`addiu`/`ori` pair computing any of those addresses
+  (function-pointer load) anywhere in the boot ELF.
+- Same for all 19 area overlays — zero references.
+- Same for the entire VIF1 helper library at vram
+  `0x0011BA00..0x0011BCF8` (`func_0011BA00` VIF status,
+  `func_0011BA10` VIF op status, `func_0011BA60` VIF1 register
+  snapshot to 0x40-byte struct, `func_0011BC38` VIF1-FIFO drain
+  loop targeting `0x10005000`, `func_0011BC98` VIF1-FIFO read).
+  Every one of these functions is statically unreferenced.
+- The `ctc2 vi27` + `vcallmsr` instructions appear exactly **once
+  each in the whole boot ELF** (inside `func_0011AB60`); since
+  AB60 is unreferenced, **`vcallmsr` is effectively unused** — VU1
+  programs are kicked by VIF1 `MSCAL`/`MSCNT` tags in DMA chains,
+  not by EE-side `vcallmsr`. This matches the earlier finding that
+  no microcode uses `vcallms` either.
+
+**Interpretation.** The AA50/AB60/AB70/AB20/BA00..BCF8 cluster is
+**dead-stripped library code** — Sony-SDK / handwritten VPU/VIF
+helpers that the linker pulled in but no compiled code calls. The
+real engine inlines equivalent logic (or builds DMA tags directly).
+
+**3. The actual EE-side VU1/VIF1/GIF DMA pipeline.** Surveyed every
+`lui 0x1000`+`addiu/ori` pair in the boot ELF that resolves to an
+EE MMIO address. All hardware accesses concentrate in **boot/init
+code**, not overlays:
+
+- **Zero overlay code touches VIF1/GIF DMA or VIF1 FIFO** — verified
+  for all 19 area overlays across the relevant ranges (`0x10005000`,
+  `0x10009000-0x100090FF`, `0x1000A000-0x1000A0FF`, `0x10003C00`).
+- **All VIF1 DMA submissions live in `func_00100A60`** (vram
+  `0x00100A60`, size 0x314) and **`func_00100EB8`** (vram
+  `0x00100EB8`, size 0x68C — 419 instructions). They write
+  MADR/QWC/CHCR of channel 1 (`0x10009010/20/00`) and channel 2
+  (GIF, `0x1000A000`); the giant `func_00100EB8` carries 5 separate
+  VIF1 DMA submissions plus 5 raw FIFO writes to `0x10005000`,
+  interleaved with VIF1_STAT polls — this is the **VU1
+  microcode-upload / setup driver** invoked at game-init time
+  (probably builds the per-program DMA chains that ship the 48
+  microcode packets cataloged earlier).
+- **VIF1 STAT poll** (`0x10003C00`) is the universal sync primitive
+  (16 sites in the boot ELF).
+
+**Implication for the bind-pose hunt.** The per-frame bone-matrix
+construction + DMA dispatcher is **NOT in any function the static
+disassembly can reach from a named entry point**. The most plausible
+remaining path is:
+
+1. Per-frame engine code (likely in `func_001E7780` area-state
+   dispatcher's call tree, or one of the per-frame draw functions)
+   builds a VIF1 DMA chain in EE scratch RAM containing
+   `UNPACK V4-32 num=4 dest=0 (absolute)` for the matrix +
+   `UNPACK ... dest=BASE+OFFSET` for the per-bone vertex stream +
+   `MSCAL imem=0x0000` to kick the kernel.
+2. The chain head is written to VIF1_TADR (or MADR) and CHCR is
+   started — but this happens via a **runtime-set function pointer**
+   in BSS, populated during init; static cross-reference finds
+   nothing.
+3. The matrix data itself is constructed per-frame from the bone
+   hierarchy + animation clip data (from id 0x71) by code that
+   composes parent-relative transforms.
+
+**Next step (NOT done this session).** Reverse-engineer
+`func_00100EB8` first to confirm it is the static VU1 init / packet
+shipper, then walk its callees and the area-state dispatcher
+(`func_001E7780`) to find the per-frame draw entry point. The bone
+matrix builder will be reachable through that chain. Practical
+shortcuts: (a) instrument PCSX2 to log writes to VIF1 FIFO
+`0x10005000` and VIF1_TADR with a per-frame breakpoint, capturing
+the DMA chain bytes the engine actually ships — the matrix UNPACK
+to dest=0 will be in there; (b) decompile `func_00100EB8`
+(419 instructions, all `lui`+`ori` MMIO addressing — large but
+mechanical).
+
+**Verification status.**
+- VU1 dmem matrix source qw 0..3 — confirmed by direct disassembly
+  of kernel #5.
+- EE-side caller chain back to a named function — **not found**;
+  cluster AA50/AB60/etc. is dead code; live VU1 dispatch goes
+  through `func_00100EB8` (unanalysed in detail).
+- Source data struct for bone matrices — still unknown. Best guess
+  remains runtime construction from id 0x71 animation clip data
+  (section 1 quantised per-bone vertices + section 2 root-channel
+  keyframes) composed with the parent table.
+
+**No tool deliverable this session** — the trace stops at an
+unanalysed 419-instruction VU1 driver function. `extract_models.py
+--rigged` cannot be wired up until the matrix source is identified.
+
 ## `MUSIC.DAT` track listing
 
 `MUSIC.DAT` decodes to 55 tracks. Per the user (cross-referenced with an online
