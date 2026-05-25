@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-25 (Object-space character vertices resolved: Q4.12 dequant confirmed on the 28-bone player rig; `extract_models.py --object-space` ships per-bone bind-pose vertex point clouds.) Track A: 1352 active units in objdiff.json — orphan src files for renamed splat functions are now filtered out by `build.py units()`; partial-link pipeline back at **100% byte identity** after the naming/splat-regen pass; objdiff report: **1191/1352 (88.1%) matched, 98.51% fuzzy**; **overlay matching: 99 overlay functions at 100%** across 19 of 19 overlays, all 19/19 still byte-identical — see `docs/OVERLAYS.md` section 6 for the hi/lo-aware asm-void batch, the pure-C hi/lo hand decomps, and the session +3 pure-C generator scaffold; session 8 added ~25 more asm void functions — see below)_
+_Last updated: 2026-05-25 (Bind-pose joint transforms investigation: structurally decoded all three id 0x71 entry "sections" and confirmed they are NOT bind-pose matrices — section 1 is per-bone object-space vertex data, sections 2/3 are mostly-empty VIF priming headers. The bind-pose transforms therefore live elsewhere — most likely in a mesh-file header, the VIF microcode preamble, or runtime-inferred. See docs/FINDINGS.md "Bind-pose matrices" for the corrected entry-header layout and section content evidence. Earlier today: object-space character vertices resolved — Q4.12 dequant confirmed on the 28-bone player rig; `extract_models.py --object-space` ships per-bone bind-pose vertex point clouds.) Track A: 1352 active units in objdiff.json — orphan src files for renamed splat functions are now filtered out by `build.py units()`; partial-link pipeline back at **100% byte identity** after the naming/splat-regen pass; objdiff report: **1191/1352 (88.1%) matched, 98.51% fuzzy**; **overlay matching: 99 overlay functions at 100%** across 19 of 19 overlays, all 19/19 still byte-identical — see `docs/OVERLAYS.md` section 6 for the hi/lo-aware asm-void batch, the pure-C hi/lo hand decomps, and the session +3 pure-C generator scaffold; session 8 added ~25 more asm void functions — see below)_
 
 ### Note — 2026-05-24 post-naming repair pass
 
@@ -887,15 +887,39 @@ ELF** (1530624/1530624 bytes, 100.00%).
   parent. `extract_models.py --skeleton` writes `*_skeleton.txt` (tree
   + hull centres) and `*_skeleton.obj` (stick figure placing each
   bone at its collision-hull centroid or its nearest hulled ancestor).
-  **Still open:** the per-bone BIND-POSE TRANSFORM lives in three
-  VIF/GIF-packed payload sections referenced by the entry header
-  (section1 variable-size, section2/section3 mostly 36-byte stride).
-  Raw bytes are 16-bit fixed-point interleaved with GS register
-  addresses — a faithful decode needs the VU1 microcode or the
-  engine's bone-update code. The hierarchy alone is enough to
-  hand-author a rig in Blender/Maya and bind it to model geometry.
-  See `docs/FINDINGS.md` "Rig / per-bone collision hulls" for the
-  detailed format.
+  **Still open: BIND-POSE JOINT TRANSFORMS** (investigated 2026-05-25,
+  found NOT to live in the three id 0x71 entry "sections" as
+  previously hypothesised). Detailed structural decode:
+  - Section 1 (variable per-bone size) is a stream of 12-byte records
+    in the EXACT same Q4.12 + packed-normal + uint16-vid format as the
+    separate id 0x74/0x8b/0x8f character-mesh per-bone vertex packets;
+    i.e. it is **per-bone object-space vertex data**, not matrices.
+  - Sections 2 and 3 are mostly 36-byte stride per bone where each
+    36-byte record is a SINGLE 12-byte payload repeated 3 times
+    following the standard `0000 / 7700 / ffff` VIF priming-vs-
+    terminator pattern. In other words these are **empty VIF priming
+    headers** — vertex-stream framing with no body data.
+  - Section 2's bone-0 special 384-byte record (32 chunks instead of
+    3) carries a smoothly-varying int16 sequence that looks like a
+    keyframed root channel rather than a transform.
+  - The 57 entries in `chunk05/f04_id71.bin` are **animation clips**
+    sharing the same skeleton; the per-clip payload differs but the
+    parent table is invariant — consistent with keyframed animation
+    rather than per-pose matrices.
+  The bind-pose / inverse-bind-pose joint transforms are therefore
+  not in id 0x71 at all. They most likely live in (a) a still-
+  unidentified header in the mesh files themselves (id 0x74/0x8b/0x8f),
+  (b) baked into the VIF microcode preamble that the engine ships to
+  VU1 before each per-bone vertex upload, or (c) inferred at runtime
+  from rest-pose mesh + collision-hull centres. The per-bone rigid-
+  skinning VU1 kernel (#5/#6, #7/#8, #9/#10 family at vram
+  0x00234610 / 0x002346f4) loads a 4-row matrix into vf01..vf04 from
+  a fixed dmem address — tracing that address back to its EE-side
+  DMA-source needs the decompiled engine. **Until then the hierarchy
+  + collision-hull centres remain the practical guide for hand-
+  rigging in Blender/Maya.** See `docs/FINDINGS.md` "Bind-pose
+  matrices" for the corrected header layout, the per-section content
+  decode, and the byte-level evidence.
 - **MATRIX `--scene`.** Role of the repeated identity transforms, and whether
   transforms are absolute or parent-composed — confirm from engine code.
 - **Audio.** SFX-bank rate unconfirmed (provisionally 22050). Clip splitting is

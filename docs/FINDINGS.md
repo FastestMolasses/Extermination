@@ -4,7 +4,7 @@ Technical reference for formats and facts established so far. The authoritative,
 exhaustive format details live in the docstrings of the `tools/` scripts; this
 file summarises them and records findings that have no other home.
 
-_Last updated: 2026-05-25 — per-bone object-space Q4.12 vertex decode confirmed on the 28-bone player rig (`chunk21/f17_id8f.bin`); `extract_models.py --object-space` ships per-bone bind-pose point clouds._
+_Last updated: 2026-05-25 — id 0x71 entry "sections" structurally decoded; the three per-bone payload sections are NOT bind-pose matrices (section 1 is per-bone object-space vertex data in the standard 12-byte Q4.12+normal+vid record; sections 2 and 3 are mostly-empty VIF priming headers). Bind-pose matrices live elsewhere. Earlier: per-bone object-space Q4.12 vertex decode confirmed on the 28-bone player rig (`chunk21/f17_id8f.bin`); `extract_models.py --object-space` ships per-bone bind-pose point clouds._
 
 ## Target identity
 
@@ -453,17 +453,76 @@ or one of {2, 3} is the true root and the other is a mirror. The
 exporter writes the field as-is; downstream consumers should treat a
 strict tree walk as having one cycle.
 
-**Bind-pose matrices — NOT yet extracted.** The three per-bone payload
-sections referenced by the entry header (section1: variable size,
-typically 36 bytes for the first two bones then 0xc0..0x150 each;
-section2 and section3: uniform 36-byte stride per bone with a 384-byte
-header for bone 0) are VIF/GIF-packed transform / draw-command streams.
-The raw 16-bit fixed-point values are interleaved with what look like
-GS register addresses. A faithful decode of the bind-pose joint
-transforms needs either the VU1 microcode or the engine's bone-update
-code. The hierarchy alone is enough to author a skinned rig in
-Blender/Maya and bind it to model geometry by hand, with the
-collision-hull centres (from --rig) as joint-position guides.
+**Bind-pose matrices — STILL NOT EXTRACTED, but the three id 0x71 entry
+"sections" turn out NOT to be bind-pose matrices** (investigated
+2026-05-25). Detailed structural decode of the player rig
+(`chunk05/f04_id71.bin`, entry 0):
+
+Corrected entry header layout (28-byte header):
+
+| Offset (in entry) | Field |
+|---|---|
+| +0x00 | u16 bone_count_raw (0x1e = 30; high 2 are overshoot sentinels, real bones = 28) |
+| +0x02 | u16 stride (0x78 — a VIF UNPACK row size) |
+| +0x04 | u16 `0xffff` then 2-byte 0 |
+| +0x08 | u32 section1_off (relative to entry start) |
+| +0x0c | u32 section2_off |
+| +0x10 | u32 section3_off |
+| +0x14..+0x1f | zero padding |
+| +0x20 | `ffffffff 00000000` (section-table sentinel) |
+| +0x28..+0x98 | u32[28] parent-index table (28 entries, NOT 30 — the
+              raw bone_count includes 2 overshoot slots, so the actual
+              parent table is 28*4 = 0x70 bytes, ending exactly at the
+              first section's offset 0x98) |
+
+Each section starts with a 30-entry inner u32 offset sub-table (120 bytes),
+followed by per-bone variable-length payload at those offsets:
+
+- **Section 1** (entry 0: rel 0x98, total 0x1680 bytes = 5760): variable
+  per-bone payload (36 bytes for bones 0,1; 36..348 bytes for bones
+  2..27; 36 bytes for the overshoot sentinels). Each payload is a stream
+  of **12-byte records** with the exact same layout as the per-bone
+  object-space vertex format (int16 x/y/z Q4.12 + 4-byte packed normal
+  + uint16 vid stepping by 4, with the standard `0000/7700/ffff`
+  priming-then-terminator pattern). **This is NOT a matrix table — it
+  is per-bone object-space vertex data**, the same content as the
+  separate id 0x74/0x8b/0x8f character-mesh files.
+- **Section 2** (entry 0: rel 0x1718, total 0x60c bytes = 1548): a
+  36-byte stride per bone, EXCEPT bone 0 is 384 bytes. The 36-byte
+  records each consist of a single 12-byte payload repeated 3 times
+  with the trailing 2 bytes following the same `0000/7700/ffff` priming
+  pattern — i.e. these are **empty VIF priming headers** (2 priming
+  records + 0xffff terminator, no body). The 384-byte bone-0 record
+  expands the same priming header to 32 chunks: 3 priming + 29 data
+  chunks whose middle int16s form a smooth animated curve, suggesting
+  this is a **per-frame keyframe stream** for a single "root" channel
+  (likely root-translation/orientation across the clip's frames).
+- **Section 3** (entry 0: rel 0x1d24, total 0x4bc bytes = 1212):
+  uniform 36-byte stride per bone (no special bone-0 case). All
+  records observed are the same 3x-repeated empty priming header.
+
+Section 2's bone-0 special record, plus the variable-size Section 1
+payloads, vary entry-to-entry — the 57 entries in
+`chunk05/f04_id71.bin` are **animation clips**, not poses. The
+header at +0x04 reads `0xffff` and the parent table is invariant
+across entries (verified — same skeleton across all 7 paired player
+id 0x71 files), but the per-entry payload differs, consistent with
+keyframed clip data, not bind-pose matrices.
+
+**Implication.** The bind-pose / inverse-bind-pose joint transforms are
+NOT stored in the id 0x71 file at all. They must live elsewhere — most
+likely (a) inferred at runtime from the rest-pose mesh + collision-hull
+centres, (b) stored in a still-unidentified header in the mesh files
+(ids 0x74/0x8b/0x8f), or (c) baked directly into the VIF microcode
+preamble that the engine ships to VU1 before each per-bone vertex
+upload. The 4-row matrix loaded into vf01..vf04 in the per-bone
+rigid-skinning kernel (#5/#6, #7/#8, #9/#10 family) comes from a
+**dmem address**; tracing that back to its EE-side source needs the
+DMA/VIF1 dispatcher in the decompiled engine.
+
+Until the engine code reveals the matrix source, the hierarchy +
+collision-hull centres remain the practical guide for hand-rigging in
+Blender/Maya.
 
 `extract_models.py --skeleton` walks every id 0x71-shaped file and
 writes (a) a `*_skeleton.txt` dump (parents, tree, hull centres where
