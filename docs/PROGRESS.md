@@ -689,6 +689,26 @@ ELF** (1530624/1530624 bytes, 100.00%).
 
 ### Open questions (most need the decompiled engine — i.e. Track A)
 
+- **VU1 microcode location — PARTIALLY RESOLVED 2026-05-25.** Found 48
+  VU1 microcode programs statically embedded in the boot ELF, all in
+  vram **0x00230824..0x00240F88** (the data half of PROGBITS), wrapped
+  as complete VIF1 DMA packets (`NOP/STMOD/FLUSHE/OFFSET/MPG` template
+  + microcode body). 3 large 5-segment kernels (~10 KB each at imem
+  0x000..0x1400) are the likely main rendering kernels; 22 standalone
+  single-MPG kernels at imem 0x0000 and 6 small 15-qw subroutines at
+  imem 0x0800 round out the set. Full catalog: `tools/disasm_vu.py
+  catalog`. Per-program purpose (which kernel does character skinning
+  vs static geometry vs particles vs lighting) is **not yet
+  identified** — the included partial disassembler decodes branches,
+  loads/stores, and FP math coarsely but not XGKICK / VLQI / VSQI /
+  VMULAbc subop encodings reliably. Next agent: either complete the
+  opcode tables (cross-reference VuAssembler / PCSX2 `VU1Disasm.cpp`)
+  or use PCSX2's VU debugger live to tag each program by use. The
+  three blockers below all depend on identifying which microcode
+  program does the work, then implementing an equivalent Python
+  decoder for it. Findings detail: `docs/FINDINGS.md` -> "VU1
+  microcode".
+
 - **Per-vertex skin weights — RESOLVED 2026-05-25.** There are none.
   Character meshes use **per-bone rigid attachment**: a VIF prefix in
   the model file carries N per-bone vertex packets (one per bone,

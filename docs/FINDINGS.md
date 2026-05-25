@@ -554,6 +554,83 @@ pose files — identical topology, differing vertex positions (keyframes).
 A `chunk03` character is 11 poses across file ids `0x29`-`0x34`.
 `extract_models.py --anim` detects pose sets and exports `*_frameNN.obj`.
 
+## VU1 microcode (boot ELF static, 2026-05-25)
+
+Located 48 VU1 microcode programs statically embedded in the boot ELF, all
+between **vram 0x00230824..0x00240F88** (the data half of the single PROGBITS
+section). Tool: `tools/disasm_vu.py` (`catalog` lists them; `disasm <vram>
+<size>` runs a partial disassembly; `scan` is a fallback heuristic).
+
+**Packet wrapper.** Each microcode block is wrapped as a complete VIF1 DMA
+packet ready to ship straight to VIF1:
+
+```
++0x00:  0x00000000     VIF NOP
++0x04:  0x05000000     STMOD  (mode=0)
++0x08:  0x03000000     FLUSHE
++0x0c:  0x02000000     OFFSET
++0x10:  0x4A NN AAAA   MPG (NN = num qwords, 0=>256; AAAA = imem qword addr)
++0x14:  microcode body, NN*8 bytes (VU1 64-bit instructions, LE)
+```
+
+The 4-word setup template is followed by the MPG tag and the microcode body
+contiguously, then either another MPG tag (multi-segment program for programs
+larger than 256 qwords) or a different VIF1 cmd. Some packets carry leading
+STCYCL/STMASK variants instead of the all-zero template — the MPG cmd is
+still the reliable signature.
+
+**MPG-tag scan finds 48 programs.** `tools/disasm_vu.py catalog` lists them
+all with their packet vram, body size, and imem destination. Highlights:
+
+- **5-segment programs** at imem 0x000/0x100/0x200/0x300/0x400 — these are
+  the same logical program (each MPG can carry at most 256 qwords, so a
+  large kernel is split). Three such 5-segment sets exist (total per-kernel
+  size ~10 KB): packets starting at 0x00237750, 0x00239CC0, 0x0023E8D0.
+  These are the most likely candidates for the main character/geometry
+  rendering kernel.
+- **Single-program uploads** (one MPG, no continuation) target imem 0x0000
+  and are 60-256 qwords each — 22 such standalone programs. Likely
+  per-effect kernels (particles, decals, projector, environment-mapping,
+  etc.).
+- **Small 15-qw subroutines** uploaded to imem 0x0800: 6 distinct stubs,
+  each 0x78 bytes. These are `vcallms` targets called from the larger
+  kernels — utility subroutines.
+
+**What we know about program purpose: not yet enough.** The partial
+disassembler in `tools/disasm_vu.py` decodes the LOWER pipe's coarse
+opcode group and a subset of UPPER pipe FP ops, enough to confirm these
+are real microcode (high `nop`/`waitp` density, plausible LQ/SQ/IADDIU
+patterns, branches, E-bit terminators). **It does not yet decode XGKICK,
+VLQI, VSQI, VMULAbc, or VMADDAbc reliably** — the bottom-11-bit subop
+field positions in those encodings are not nailed down in the current
+opcode tables. As a result, the per-program classifier in early
+investigation reported zero XGKICKs across all 48 programs, which is
+clearly wrong for a renderer (kicks must exist somewhere). The next
+step needs either:
+
+- a full VU1 LOWER-ext opcode table (cross-referenced against
+  VuAssembler / openpsxasm / PCSX2's `VU1Disasm.cpp`), or
+- assembled live observation in PCSX2's VU debugger to identify the
+  per-frame upload sequence and tag each program by use.
+
+**What this unblocks (status of the three blockers).**
+
+- **id 0x74 object-space character vertices** (per-bone VIF prefix
+  packets): blocked on decoding the per-vertex packet quantisation
+  format and the bone-matrix index source. The microcode that performs
+  this transform is *one of the 48 catalogued programs*; identifying
+  exactly which one still needs the full disassembler.
+- **id 0x71 bind-pose joint transforms**: the per-bone VIF/GIF-packed
+  transform stream the engine consumes is decoded by VU1 microcode at
+  load time. Again, one of the 48 programs — most likely a small
+  setup/data-shuffle kernel rather than the per-vertex kernel.
+- **PSMT8 TEX0 CLUT binding**: TEX0 register writes are typically
+  emitted on the EE side via direct GS DMA (not VU1), so the 48
+  microcode programs probably do not carry the CLUT binding. The next
+  step for this blocker is to decompile the EE-side draw setup that
+  builds the GS register write list (TEX0 with `PSM=0x13`, trace `CBP`
+  source) — independent of VU1 microcode.
+
 ## `MUSIC.DAT` track listing
 
 `MUSIC.DAT` decodes to 55 tracks. Per the user (cross-referenced with an online
