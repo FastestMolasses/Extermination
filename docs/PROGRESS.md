@@ -933,6 +933,23 @@ ELF** (1530624/1530624 bytes, 100.00%).
   rigging in Blender/Maya.** See `docs/FINDINGS.md` "Bind-pose
   matrices" for the corrected header layout, the per-section content
   decode, and the byte-level evidence.
+  - **GS dump capture attempt — NEGATIVE RESULT 2026-05-25.** A PCSX2
+    GS dump of one live gameplay frame was parsed (new
+    `tools/parse_gsdump.py`; decompresses zstd, decodes the
+    `0xFFFFFFFF` "new" header + state blob + 8192-byte regs + packet
+    stream). The capture contains 4 vsyncs, each with 706 `PATH1new`
+    Transfers (post-VU1 GIF data via XGKICK), zero PATH2/PATH3. The
+    GS dump format **does not capture EE memory, VU1 micro/data
+    memory, or raw VIF1 packets** — only the GIF output stream after
+    VU1 has already consumed the matrices. Bone matrices have been
+    folded into post-skin world-space vertices on PATH1 and are
+    unrecoverable. To actually catch the VIF1 UNPACK we need a PCSX2
+    save state + a patched PCSX2 that logs VIF1 FIFO writes /
+    VIF1_CHCR kicks, or to push forward with the static decomp of
+    `func_00100EB8`. See `docs/FINDINGS.md` "Bind-pose hunt via PCSX2
+    GS dump" for the full format-level explanation.
+    `tools/parse_gsdump.py` is retained as a general-purpose PCSX2
+    GS-dump reader for future GS-side questions.
 - **MATRIX `--scene`.** Role of the repeated identity transforms, and whether
   transforms are absolute or parent-composed — confirm from engine code.
 - **Audio.** SFX-bank rate unconfirmed (provisionally 22050). Clip splitting is

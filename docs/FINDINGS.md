@@ -974,6 +974,70 @@ mechanical).
 unanalysed 419-instruction VU1 driver function. `extract_models.py
 --rigged` cannot be wired up until the matrix source is identified.
 
+### Bind-pose hunt via PCSX2 GS dump — format dead-end (2026-05-25)
+
+Tried to recover bone matrices from a PCSX2 GS dump of one live
+gameplay frame (`Extermination_SCUS-97112_20260525055057.gs.zst`).
+Decompressed (zstd) and parsed with new `tools/parse_gsdump.py`.
+Successfully decoded the PCSX2 "new" dump container (magic
+`0xFFFFFFFF`, `GSDumpHeader` then state-blob then 8192-byte regs
+then a packet stream with id ∈ {Transfer, VSync, ReadFIFO2,
+Registers}).
+
+The capture contains 4 vsyncs, each with **706 Transfer packets,
+all on `PATH1new`** (=3, GIF FIFO from VU1 via XGKICK). Each frame
+has 522 PRIM=TRISTRIP and 25 PRIM=SPRITE GIFtags, all FLG=PACKED.
+Zero PATH2 (VIF1→GIF passthrough) and zero PATH3 (EE GIF DMA)
+transfers. Total packet stream ~4.3 MB; state blob 4.00 MB
+(≈4 MB GS local memory + GS regs).
+
+**Conclusion: a PCSX2 GS dump is not the right capture format for
+this question.** It contains only:
+
+- The GS local memory snapshot (4 MB framebuffer/texture memory).
+- The GS register set.
+- The post-VU1 GIF stream (PATH1 from XGKICK / PATH3 from EE).
+
+It does **not** contain:
+
+- EE main memory (32 MB).
+- VU0/VU1 micro/data memory.
+- The raw VIF1 packet stream — by the time GIF data is captured,
+  VU1 has already consumed the VIF1 UNPACKs and applied skinning,
+  so the bone matrices have been folded into world-space vertex
+  positions and are unrecoverable from PATH1.
+
+The bone-matrix UNPACK described in the task (V4-32, num=4, dest=0)
+is a VIF1 packet, not a GIF packet, and it leaves no trace in the
+GS dump. Even the post-skin vertex stream on PATH1 doesn't let us
+recover matrices: each strip's vertices are already in clip space,
+mixing the per-bone matrix with the per-bone bind-pose vertex
+data, and inverting that without knowing the bind pose is the same
+chicken-and-egg problem we started with.
+
+**What would actually work (recorded for next session):**
+
+1. **PCSX2 save state.** A full save state freezes EE RAM + VU0/VU1
+   memory + VIF state + IOP. Loading it in a custom build of
+   PCSX2 with a one-shot logger on `dmacWrite(VIF1_CHCR ...)` or
+   on FIFO writes to `0x10005000` would capture the next frame's
+   VIF1 DMA chain bytes (matrix UNPACK + vertex UNPACK + MSCAL).
+   The EE source address is the chain MADR at the moment of kick.
+2. **PCSX2 patch (best path).** Add ~30 lines to PCSX2's VIF1
+   handler logging every UNPACK with cmd, dest, num, format, and
+   the source EE address (MADR/TADR), dumped to a text file. Run
+   one frame; grep for `dest=0 num=4 fmt=V4-32`; cross-reference
+   against EE RAM dumped via PCSX2's memory tools.
+3. **Static decomp of `func_00100EB8`.** 419 instructions, all
+   `lui`+`ori` MMIO addressing — large but mechanical. Will
+   reveal the VU1/VIF1 driver and unlock the call graph.
+
+`tools/parse_gsdump.py` is left in the tree as a usable PCSX2
+GS-dump reader (header decode, packet stream walker, GIFtag
+decoder for PACKED/REGLIST/IMAGE) for any future GS-side
+investigation (texture/PSM analysis, draw-call counting, etc.) —
+it just isn't the right tool for the bind-pose question.
+
 ## `MUSIC.DAT` track listing
 
 `MUSIC.DAT` decodes to 55 tracks. Per the user (cross-referenced with an online
