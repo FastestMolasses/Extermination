@@ -1,5 +1,45 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-25 sdatathreshold + asm-word register fixes (+15 matches)
+
+Pure-C partial-match functions that the linker had to fall back to .s for
+because mwcc emitted `gp_rel` references against globals whose actual VRAM is
+outside the GP ±32KB window: rewriting them with `// CFLAGS: -O4,p
+-sdatathreshold 0` forces mwcc to use `lui/addiu %hi/%lo` instead, exactly
+matching the original CodeWarrior 2.3.1 codegen. **13 functions cracked**
+this way (func_001D1C10, func_001FAB50, func_001FAB80, func_001FABB0,
+func_001FF080, func_00207070, func_00187EC0, func_001B0070, func_001DB240,
+func_001DB800, func_001E0C80, func_0020E080, func_001D6DD0).
+
+Two additional small write-then-return functions (func_001AEB60,
+func_001AEBA0) needed `-O2` instead of `-O4,p` so mwcc emits the explicit
+`nop` in the branch delay slot — matches the original 2.3.1 `-O2` codegen
+for early-return + global-store sequences.
+
+One asm-word function (func_001D6DD0) had a single register-encoding bug:
+src had `.word 0x8D630010` (lw $v1) where the original was `.word
+0x8D690010` (lw $t1), with all subsequent stores still using $v1's base
+register. Fixed all 6 affected `.word` lines.
+
+One asm-word function (func_0017B460) had `.word`-encoded `lui/addiu %hi/%lo`
+with the imm field already containing the resolved-value bytes from the
+original; rewrote to match splat's resolved bytes so `inject_relocs` could
+attach R_MIPS_HI16/LO16 (the imm gets zeroed pre-link; mwldmips re-resolves
+to the same final bytes).
+
+Verification: byte identity preserved (`link.py` reports `[verify] PASS —
+0x175b00 loadable bytes are identical`).  objdiff report: **1236/1352
+(91.42%) → 1251/1352 (92.53%) at 100% match** (+15 functions); matched
+code 95.71% → 96.16%; fuzzy 98.54% → 98.59%.
+
+Remaining ~50 game-code partials fall into harder categories the techniques
+in this pass don't reach: missing/extra dead instructions from CodeWarrior
+2.3.1's scheduler that mwcc 2.3 won't reproduce; complex register-allocation
+divergence at switch join points; reordered store sequences requiring
+genuinely-different control flow in the C source. Pure-C `-O2`/`-O4,p`
+swaps were tried on candidates with `DIFF_DELETE nop` patterns but
+introduced other structural mismatches.
+
 ### Update — 2026-05-25 relocation injector
 
 New tool `tools/decomp/inject_relocs.py` (wired into `build.py compile` and

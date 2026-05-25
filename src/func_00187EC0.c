@@ -1,3 +1,4 @@
+// CFLAGS: -O4,p -sdatathreshold 0
 extern volatile char D_008102BB;
 extern volatile char D_008104EA;
 extern volatile char D_008105CE;

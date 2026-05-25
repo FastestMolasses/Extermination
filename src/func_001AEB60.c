@@ -1,3 +1,4 @@
+// CFLAGS: -O2 -sdatathreshold 0
 extern volatile short D_0028A8D0[];
 extern volatile short D_0028A8D2[];
 extern volatile int D_0028A8D4[];

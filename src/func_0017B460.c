@@ -4,7 +4,7 @@
 extern short *D_00248AB0[];
 
 asm int func_0017B460(int a0, int a1) {
-    .word 0x3C020024  // lui v0, %hi(D_00248AB0) [hardcoded]
+    .word 0x3C020025  // lui v0, %hi(D_00248AB0) [hardcoded]
     .word 0x24428AB0  // addiu v0, v0, %lo(D_00248AB0) [hardcoded]
     .word 0x00042080  // sll a0, a0, 2   [a0 *= 4]
     .word 0x00441021  // addu v0, v0, a0 [v0 = &D_00248AB0[a0]]

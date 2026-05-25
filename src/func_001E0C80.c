@@ -1,3 +1,4 @@
+// CFLAGS: -O4,p -sdatathreshold 0
 extern int *D_00275670;
 
 int func_001E0C80(int a0, int a1) {

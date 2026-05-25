@@ -1,3 +1,4 @@
+// CFLAGS: -O4,p -sdatathreshold 0
 extern void func_001FAAC0(int);
 extern char D_008106F4;
 

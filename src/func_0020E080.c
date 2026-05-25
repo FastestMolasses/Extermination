@@ -1,3 +1,4 @@
+// CFLAGS: -O4,p -sdatathreshold 0
 extern int D_002821B4;
 extern char D_008106B0;
 extern char D_008106C5;
