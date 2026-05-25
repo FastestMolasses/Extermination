@@ -1876,6 +1876,152 @@ def run_skinned(args, out_dir: Path) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# Per-bone OBJECT-SPACE vertex extraction (--object-space)
+# ---------------------------------------------------------------------------
+#
+# Each per-bone section in the VIF prefix is a stream of 12-byte records:
+#
+#     +0x00  int16  x           Q4.12 fixed-point (raw / 4096.0)
+#     +0x02  int16  y           Q4.12
+#     +0x04  int16  z           Q4.12
+#     +0x06  4 bytes            packed normal / lighting / VIF padding
+#                               (signed-byte components; not yet decoded)
+#     +0x0a  uint16 vid         monotonically-increasing vertex id within
+#                               this bone's packet; 0xffff terminates a
+#                               sub-block (also used as a header terminator)
+#
+# Each bone's region starts with two priming records (degenerate strip
+# starters), then 0xffff terminator, then the actual vertex stream. We treat
+# the 12-byte stride uniformly and stop at the first 0xffff vid seen after
+# the priming records (or when we run into the next bone's offset).
+#
+# The Q4.12 dequant follows directly from the ITOF12 instruction in the
+# 15-qw inner helper at imem 0x0800 (see disasm_vu.py / FINDINGS.md). The
+# values land in bone-local coordinates with a natural range of [-8, +8],
+# which matches the empirical bbox of every decoded packet.
+
+OBJSPACE_REC_SIZE = 12
+OBJSPACE_VID_TERMINATOR = 0xffff
+OBJSPACE_HEADER_SIZE = 0x1c  # two priming records (24 bytes) + 4-byte terminator
+
+
+def decode_objspace_bone_vertices(d: bytes, sect_start: int, sect_end: int
+                                  ) -> list[tuple[float, float, float, int]]:
+    """Decode one bone's per-vertex object-space records.
+
+    Returns a list of (x, y, z, vid) tuples in the bone's local frame.
+    """
+    out: list[tuple[float, float, float, int]] = []
+    body = sect_start + OBJSPACE_HEADER_SIZE
+    off = body
+    while off + OBJSPACE_REC_SIZE <= sect_end:
+        vid = struct.unpack_from("<H", d, off + 10)[0]
+        if vid == OBJSPACE_VID_TERMINATOR:
+            break
+        x, y, z = struct.unpack_from("<3h", d, off)
+        out.append((x / 4096.0, y / 4096.0, z / 4096.0, vid))
+        off += OBJSPACE_REC_SIZE
+    return out
+
+
+def run_object_space(args, out_dir: Path) -> int:
+    """`--object-space`: decode per-bone Q4.12 vertices into OBJ + summary.
+
+    For each character-mesh file carrying a VIF-prefix per-bone section
+    table, write:
+      * `*_objspace.obj` -- one `o bone_NN` group per bone with the
+        decoded object-space vertices as points (no faces; the per-bone
+        VIF stream is a quantised point cloud, not a triangulated mesh).
+      * `*_objspace.txt` -- per-bone vertex counts, bboxes and total.
+    """
+    if args.file:
+        paths = [Path(args.file)]
+    else:
+        paths = sorted(Path(args.input).rglob("*_id*.bin"))
+
+    exported = 0
+    skipped = 0
+    for path in paths:
+        if not path.is_file():
+            continue
+        if is_level_file(path):
+            skipped += 1
+            continue
+        d = path.read_bytes()
+        if MESH_SIG not in d:
+            skipped += 1
+            continue
+        table = _find_bone_section_table(d)
+        if table is None:
+            skipped += 1
+            continue
+        table_off, entries = table
+
+        region = path.parent.name
+        stem = path.stem
+        out_obj = out_dir / f"{region}_{stem}_objspace.obj"
+        out_txt = out_dir / f"{region}_{stem}_objspace.txt"
+
+        lines = [
+            f"# Extermination (SCUS-97112) per-bone object-space vertices: "
+            f"{region}/{path.name}",
+            "# Decoded from VIF prefix; Q4.12 fixed-point (raw_i16 / 4096.0).",
+            "# Each `o bone_NN` group is one bone's bind-pose vertices in "
+            "that bone's local frame -- no bone-matrix transform applied.",
+            f"# Section table @ {table_off:#x}, {len(entries)} bone section(s).",
+        ]
+        txt = [
+            f"# Per-bone object-space report: {region}/{path.name}",
+            f"# Section table @ {table_off:#x}, {len(entries)} bone section(s).",
+            "# Format per bone: vertex count, vid range, bbox extents (Q4.12 units).",
+            "",
+        ]
+        total_v = 0
+        per_bone_counts = []
+        for i, off in enumerate(entries):
+            sect_start = table_off + off
+            sect_end = (table_off + entries[i + 1]
+                        if i + 1 < len(entries) else len(d))
+            verts = decode_objspace_bone_vertices(d, sect_start, sect_end)
+            per_bone_counts.append(len(verts))
+            lines.append(f"o bone_{i:02d}")
+            for (x, y, z, _vid) in verts:
+                lines.append(f"v {x:.6f} {y:.6f} {z:.6f}")
+            if verts:
+                xs = [v[0] for v in verts]
+                ys = [v[1] for v in verts]
+                zs = [v[2] for v in verts]
+                vids = [v[3] for v in verts]
+                txt.append(
+                    f"bone {i:2d}: {len(verts):4d}v  "
+                    f"vid[{min(vids):3d}..{max(vids):3d}]  "
+                    f"x[{min(xs):6.2f}..{max(xs):6.2f}] "
+                    f"y[{min(ys):6.2f}..{max(ys):6.2f}] "
+                    f"z[{min(zs):6.2f}..{max(zs):6.2f}]  "
+                    f"ext=({max(xs)-min(xs):5.2f},"
+                    f"{max(ys)-min(ys):5.2f},"
+                    f"{max(zs)-min(zs):5.2f})"
+                )
+            else:
+                txt.append(f"bone {i:2d}:    0v  (empty / index-only section)")
+            total_v += len(verts)
+
+        out_obj.write_text("\n".join(lines) + "\n")
+        txt.append("")
+        txt.append(f"TOTAL: {total_v} object-space vertices across "
+                   f"{len(entries)} bone section(s).")
+        out_txt.write_text("\n".join(txt) + "\n")
+
+        print(f"{region}/{path.name}: {total_v} object-space verts "
+              f"across {len(entries)} bone(s) -> {out_obj.name}")
+        exported += 1
+
+    print(f"\n{exported} character file(s) exported (object-space) to "
+          f"{out_dir}/  ({skipped} file(s) skipped -- no bone table)")
+    return 0
+
+
 def run_anim(args, out_dir: Path) -> int:
     """`--anim`: detect and export per-frame vertex-animation pose sets."""
     if args.file:
@@ -1938,6 +2084,15 @@ def main(argv: list[str]) -> int:
                         "(world-space strips, grouped by sub-mesh key) plus a "
                         "*_skinned.txt with the bone-section table and "
                         "skeleton pairing summary. Opt-in and additive.")
+    p.add_argument("--object-space", dest="object_space", action="store_true",
+                   help="decode per-bone VIF-prefix vertex packets into "
+                        "OBJECT-SPACE (bone-local) coordinates using the "
+                        "Q4.12 dequant formula confirmed from the VU1 "
+                        "skinning kernel (raw_i16 / 4096.0). Writes "
+                        "*_objspace.obj (one `o bone_NN` point-cloud group "
+                        "per bone, NO faces -- the VIF stream is pre-strip "
+                        "quantised vertices) plus *_objspace.txt with "
+                        "per-bone counts and bboxes. Opt-in and additive.")
     p.add_argument("--anim", action="store_true",
                    help="detect per-frame vertex-animation pose sets (>=3 "
                         "model files in one region sharing identical "
@@ -1954,6 +2109,8 @@ def main(argv: list[str]) -> int:
         return run_skeleton(args, out_dir)
     if args.skinned:
         return run_skinned(args, out_dir)
+    if args.object_space:
+        return run_object_space(args, out_dir)
     if args.anim:
         return run_anim(args, out_dir)
 

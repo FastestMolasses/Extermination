@@ -4,7 +4,7 @@ Technical reference for formats and facts established so far. The authoritative,
 exhaustive format details live in the docstrings of the `tools/` scripts; this
 file summarises them and records findings that have no other home.
 
-_Last updated: 2026-05-25 — per-bone rigid-attachment skinning confirmed (no per-vertex weights); --skinned exporter added._
+_Last updated: 2026-05-25 — per-bone object-space Q4.12 vertex decode confirmed on the 28-bone player rig (`chunk21/f17_id8f.bin`); `extract_models.py --object-space` ships per-bone bind-pose point clouds._
 
 ## Target identity
 
@@ -694,26 +694,59 @@ modifier (i-reg loaded via the preceding I-flag) make a fully literal
 trace of the 15-qw helper require nailing down the I-bit sequence — left
 for follow-up.
 
-**Suggested dequantize formula for id 0x74 character vertices** (working
-hypothesis, to be confirmed by visual extraction): each vertex is a single
-quadword of four int16 components in Q4.12, interpreted as
+**Per-bone object-space vertex format -- CONFIRMED (2026-05-25).**
+Each per-bone VIF section consists of a 28-byte priming header (two
+12-byte priming records + a 4-byte 0xffff terminator) followed by a
+stream of uniform **12-byte vertex records** terminated by another vid
+sentinel `0xffff`. The body layout is:
 
-    object_pos.x = raw.x / 4096.0
-    object_pos.y = raw.y / 4096.0
-    object_pos.z = raw.z / 4096.0
-    weight       = raw.w / 4096.0    ; typically 1.0 (single-bone rigid)
+    +0x00  int16  x       Q4.12 fixed-point (dequant: raw / 4096.0)
+    +0x02  int16  y       Q4.12
+    +0x04  int16  z       Q4.12
+    +0x06  4 bytes        packed normal / lighting / VIF padding (not yet decoded)
+    +0x0a  uint16 vid     monotonically-increasing vertex id (steps of 2)
 
-This is consistent with the ITOF12 op appearing prominently in the helper
-and the per-bone rigid-attachment model already documented above.
+The Q4.12 dequant comes straight from the **ITOF12** instruction in the
+15-qw helper at imem 0x0800 invoked by the per-bone rigid-skinning
+kernel pair (#5/#6, #7/#8, #9/#10) at vram 0x00234610 / 0x002346F4.
+
+**Validation (player rig `chunk21/f17_id8f.bin`, 28-bone skeleton).**
+- 28 bone sections in the prefix table (matches the 28-bone player
+  skeleton at `chunk05/f04_id71.bin`);
+- bones 0..5 are tiny index-only sections (1..5 bytes, no records);
+  bones 6..27 carry between 3 and 131 records each;
+- TOTAL 2196 unique object-space vertices vs. 4049 unique world-space
+  positions in the existing `--skinned` OBJ -- the world-space count is
+  larger because the post-stripification mesh duplicates shared verts
+  across strip-restart pairs and across (m0,m1) sub-meshes; same order
+  of magnitude as expected;
+- per-bone bboxes are bone-scale (0.5..16 units across, never exceeding
+  the Q4.12 saturation range of +/-8) and anatomically plausible:
+  bone 6 (3v at +1.7,0,+2.0) reads as a small attachment; bones 22/23
+  (centred at +4.25 x) and bones 14/24..27 (centred at -2.6..-3.7 x)
+  form left/right mirror-pairs consistent with a humanoid skeleton;
+  bones 12/13/17/18 carry large y/z extents matching the spine/torso.
+
+The 4-byte field at +0x06 is signed-byte-like (alternating positive /
+negative components, components in [-127, 127], magnitude often <1) and
+correlates smoothly across consecutive vertices -- almost certainly a
+packed normal or vertex-colour, but the exact format is not yet
+decoded. The decoder writes only positions.
+
+Object-space export wired into `extract_models.py --object-space`:
+writes a `*_objspace.obj` (one `o bone_NN` group per bone, points only,
+no faces -- the stream is pre-stripification quantised vertices) plus a
+`*_objspace.txt` summary with per-bone vertex counts and bboxes.
 
 **What this unblocks (status of the three blockers).**
 
-- **id 0x74 object-space character vertices**: dequantize formula now has
-  a strong working hypothesis (Q4.12 int16 quadword) — implementing
-  `--skinned` to actually emit object-space vertex positions just needs a
-  test extraction and visual compare against a reference. Not yet wired
-  into `extract_models.py`; the formula needs at least one visual
-  confirmation before we ship it as the default extractor path.
+- **id 0x74 object-space character vertices**: RESOLVED (2026-05-25).
+  Q4.12 dequant confirmed empirically on the 28-bone player rig
+  (`chunk21/f17_id8f.bin`): 12-byte records of `int16 x/y/z (Q4.12) +
+  4-byte packed normal + uint16 vid`. Per-bone vertex counts and bboxes
+  are anatomically plausible. Wired into `extract_models.py
+  --object-space`. See "Per-bone object-space vertex format" section
+  above.
 - **id 0x71 bind-pose joint transforms**: probably handled by one of the
   small standalone kernels (#3 or #19) given their setup-shaped profile
   (high int-alu, low XGKICK, no ftoi/itof). Still needs a targeted walk.

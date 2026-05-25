@@ -5,7 +5,7 @@ project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
 point for anyone (a person or an agent) picking up the project.
 
-_Last updated: 2026-05-24 (Track A: 1352 active units in objdiff.json — orphan src files for renamed splat functions are now filtered out by `build.py units()`; partial-link pipeline back at **100% byte identity** after the naming/splat-regen pass; objdiff report: **1191/1352 (88.1%) matched, 98.51% fuzzy**; **overlay matching: 99 overlay functions at 100%** across 19 of 19 overlays, all 19/19 still byte-identical — see `docs/OVERLAYS.md` section 6 for the hi/lo-aware asm-void batch, the pure-C hi/lo hand decomps, and the session +3 pure-C generator scaffold; session 8 added ~25 more asm void functions — see below)_
+_Last updated: 2026-05-25 (Object-space character vertices resolved: Q4.12 dequant confirmed on the 28-bone player rig; `extract_models.py --object-space` ships per-bone bind-pose vertex point clouds.) Track A: 1352 active units in objdiff.json — orphan src files for renamed splat functions are now filtered out by `build.py units()`; partial-link pipeline back at **100% byte identity** after the naming/splat-regen pass; objdiff report: **1191/1352 (88.1%) matched, 98.51% fuzzy**; **overlay matching: 99 overlay functions at 100%** across 19 of 19 overlays, all 19/19 still byte-identical — see `docs/OVERLAYS.md` section 6 for the hi/lo-aware asm-void batch, the pure-C hi/lo hand decomps, and the session +3 pure-C generator scaffold; session 8 added ~25 more asm void functions — see below)_
 
 ### Note — 2026-05-24 post-naming repair pass
 
@@ -706,9 +706,26 @@ ELF** (1530624/1530624 bytes, 100.00%).
   setup/effect/particle kernels. The 15-qw helpers are reached via
   plain `bal` — no `vcallms` is used anywhere. Inferred dequantize for
   id 0x74 character vertices: each vertex is a single int16 quadword in
-  Q4.12, transformed by a preloaded bone matrix. Not yet wired into
-  `extract_models.py` — needs at least one visual confirmation first.
+  Q4.12, transformed by a preloaded bone matrix. **Confirmed and wired
+  2026-05-25** -- see "Object-space character vertices" below.
   Details: `docs/FINDINGS.md` -> "VU1 microcode".
+
+- **Object-space character vertices — RESOLVED 2026-05-25.** Q4.12
+  dequantize formula validated empirically on the 28-bone player rig
+  (`chunk21/f17_id8f.bin`). Per-bone VIF packet layout is uniform
+  12-byte records: `int16 x/y/z (Q4.12) + 4-byte packed normal +
+  uint16 vid`, with `vid == 0xffff` as the section terminator. 2196
+  object-space vertices decoded across 28 bone sections; per-bone
+  bboxes are bone-scale (within +/-8 Q4.12 saturation) and
+  anatomically plausible (left/right mirror-pair x-centres at the
+  arm/leg bones, large y/z extents on the spine bones). Wired into
+  `extract_models.py --object-space` (writes `*_objspace.obj` with
+  one `o bone_NN` group per bone and `*_objspace.txt` with per-bone
+  counts and bboxes). Still unknown: (a) the 4-byte normal/lighting
+  payload format; (b) the section-index → bone-index mapping (likely
+  identity for true characters, since the section count matches the
+  skeleton's bone count, but unverified). Details:
+  `docs/FINDINGS.md` -> "Per-bone object-space vertex format".
 
 - **Per-vertex skin weights — RESOLVED 2026-05-25.** There are none.
   Character meshes use **per-bone rigid attachment**: a VIF prefix in
