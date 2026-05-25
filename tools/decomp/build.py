@@ -182,6 +182,11 @@ def cmd_compile(_a: argparse.Namespace) -> None:
         return
     _run_chunked("mkdir -p build/obj", [compile_cmd(n) for n in names])
     print(f"[compile] compiled {len(names)} base object(s)")
+    # Post-process: inject gp_rel/hi/lo relocations derived from splat .s into
+    # mwcc-emitted objects (asm-void .word references can't attach relocs from
+    # the compiler).  See tools/decomp/inject_relocs.py for the rationale.
+    subprocess.run([sys.executable, str(ROOT / "tools/decomp/inject_relocs.py")],
+                   cwd=ROOT, check=False)
 
 
 def cmd_build(a: argparse.Namespace) -> None:
@@ -199,6 +204,8 @@ def single_file(obj: str) -> None:
     if not (SRC / f"{name}.c").exists():
         sys.exit(f"error: no src/{name}.c for {obj}")
     container(f"mkdir -p build/obj && {compile_cmd(name)}")
+    subprocess.run([sys.executable, str(ROOT / "tools/decomp/inject_relocs.py"), name],
+                   cwd=ROOT, check=False)
 
 
 def main(argv: list[str]) -> int:

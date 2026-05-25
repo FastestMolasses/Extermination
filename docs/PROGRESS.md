@@ -1,5 +1,33 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-25 relocation injector
+
+New tool `tools/decomp/inject_relocs.py` (wired into `build.py compile` and
+the objdiff `--single-file` hook): parses splat's `.s` files for
+`%gp_rel(SYM)` / `%hi(SYM)` / `%lo(SYM)` annotations and synthesises matching
+R_MIPS_GPREL16 / R_MIPS_HI16 / R_MIPS_LO16 entries into the corresponding
+`build/obj/*.o`.  This addresses the long-standing class of "byte-identical
+at link time but objdiff still reports a partial match" cases — mwcc inline
+asm `.word` directives can't attach relocs from the compiler, so we attach
+them ourselves after the fact.  The injector also zeros the 16-bit immediate
+field of each newly-relocated instruction (mwcc hardcoded the resolved
+value; the linker now supplies it from the symbol address), keeping
+strip_sections.apply_gprel16 happy and matching the byte layout splat's
+target objects use.
+
+Verification: byte identity preserved (`link.py` reports
+`[verify] PASS — 0x175b00 loadable bytes are identical`).  objdiff report:
+**1191/1352 (88.16%) → 1236/1352 (91.42%) at 100% match** (+45 functions);
+matched code bytes 93.27% → 95.71%; fuzzy 98.51% → 98.54%.
+
+Per-type counts on first run: 197 relocs injected across 47 objects
+(43 GPREL16 / 77 HI16 / 77 LO16).  Skip categories: 212 `text_mismatch`
+(mwcc-emitted bytes diverge from splat at a candidate reloc offset; injecting
+would break byte-identity — these are genuinely unmatched and need pure-C or
+asm-void rework), 1093 `no_relocs` (splat .s has no `%hi/%lo/%gp_rel` to begin
+with), 135 `no_asm` (renamed syscall-stub objs with no per-name splat .s).
+The injector is idempotent (re-running on an already-complete obj is a no-op).
+
 Living status document for the Extermination (PS2) decompilation / modding
 project. **Keep this current** — update it whenever a milestone is reached, a
 finding changes, or the roadmap shifts. With `docs/FINDINGS.md` it is the entry
