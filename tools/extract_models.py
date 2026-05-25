@@ -2177,22 +2177,23 @@ def run_rigged(args, out_dir: Path) -> int:
 
     # Pick the buffer that gives the most "humanoid-looking" composed pose --
     # in practice both PCSX2 buffers are current-frame / previous-frame copies
-    # of the local matrices, so either works; we pick buffer[0].
-    local_mats = buffers[0]
+    # of the local matrices (used for inter-frame interpolation), so either
+    # works; we pick buffer[0].
+    local_mats = list(buffers[0])
     n_live = len(local_mats)
     n_skel = len(skel.parents)
     n_bones = len(entries)
-    # Pad live matrices with identity if the engine left trailing slots empty
-    # (typical: declared 28 bones, only 21 live).
-    while len(local_mats) < n_bones:
-        local_mats = list(local_mats) + [_identity_mat()]
-        local_mats = list(local_mats)  # ensure list
-    # Compose world from local using the skeleton's parent table (truncated
-    # / padded to the matrix count).
-    parents = list(skel.parents)
-    while len(parents) < len(local_mats):
-        parents.append(-1)
-    world = _compose_world_from_local(list(local_mats), parents[:len(local_mats)])
+    # The mesh's bone-section table can declare more sections than the
+    # engine actively animates (28 declared, 21 live for the player). The
+    # earlier behaviour padded with identity matrices, which planted the
+    # trailing sections' raw Q4.12 object-space vertices (range ~+/-8) at
+    # the world origin as stacked extra "humanoid" copies. Instead: compose
+    # world matrices using only the live (n_live) matrices + the matching
+    # prefix of the parent table, and SKIP any bone section beyond that.
+    parents_live = list(skel.parents[:n_live])
+    while len(parents_live) < n_live:
+        parents_live.append(-1)
+    world = _compose_world_from_local(local_mats, parents_live)
 
     # Read per-bone obj-space verts and transform.
     out_obj = out_dir / (f"{mesh_path.parent.name}_{mesh_path.stem}_rigged.obj")
@@ -2213,15 +2214,30 @@ def run_rigged(args, out_dir: Path) -> int:
         f"# bones JSON: {bones_path}",
         f"# skeleton:   {skel_src.parent.name}/{skel_src.name} "
         f"({n_skel} bones, parents = {skel.parents})",
-        f"# live matrices: {n_live} (rest padded identity to {n_bones})",
+        f"# live matrices: {n_live} (sections beyond {n_live} are skipped "
+        f"-- declared {n_bones} but only {n_live} are animated this frame)",
         "",
     ]
+    skipped_sections = 0
     for i, off in enumerate(entries):
         sect_start = table_off + off
         sect_end = (table_off + entries[i + 1]
                     if i + 1 < len(entries) else len(d))
+        # Skip bone sections beyond the live-matrix count: those slots are
+        # inactive (col3.w == 0 in EE RAM), so we would otherwise emit their
+        # raw object-space vertex packets at the world origin as bogus
+        # extra-humanoid copies.
+        if i >= n_live:
+            verts_count = sum(1 for _ in decode_objspace_bone_vertices(d, sect_start, sect_end))
+            if verts_count:
+                skipped_sections += 1
+                report.append(
+                    f"bone {i:2d}: SKIPPED ({verts_count}v in section, but no "
+                    f"live matrix -- bone slot inactive)"
+                )
+            continue
         verts = decode_objspace_bone_vertices(d, sect_start, sect_end)
-        W = world[i] if i < len(world) else _identity_mat()
+        W = world[i]
         lines.append(f"o bone_{i:02d}")
         bb_min = [float("inf")] * 3
         bb_max = [-float("inf")] * 3
@@ -2246,10 +2262,11 @@ def run_rigged(args, out_dir: Path) -> int:
     out_obj.write_text("\n".join(lines) + "\n")
     report.append("")
     report.append(f"TOTAL: {total_v} world-space vertices across "
-                  f"{len(entries)} bone(s).")
+                  f"{n_live} live bone(s); {skipped_sections} trailing "
+                  f"bone section(s) with geometry skipped (inactive slot).")
     out_txt.write_text("\n".join(report) + "\n")
     print(f"{mesh_path.parent.name}/{mesh_path.name}: {total_v} verts, "
-          f"{len(entries)} bones -> {out_obj.name}")
+          f"{n_live}/{n_bones} live bones -> {out_obj.name}")
     print(f"  (bone matrices from {bones_path.name}; "
           f"skeleton from {skel_src.name})")
     return 0

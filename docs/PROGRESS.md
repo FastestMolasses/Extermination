@@ -901,13 +901,17 @@ ELF** (1530624/1530624 bytes, 100.00%).
   `extract_models.py --rigged --bones player_bones.json --file
   extract/chunk21/f17_id8f.bin` (writes `*_rigged.obj`: one
   `o bone_NN` point-cloud group per bone in world space, plus
-  `*_rigged.txt` with per-bone world bboxes). Inactive bone slots fall
-  back to identity so the full 28-bone mesh still exports. Caveat: the
-  two captured buffers both appear to hold local matrices rather than
-  a {world, local} pair, so world matrices are computed by composing
-  local-relative transforms through the id 0x71 parent table; this
-  works for active bones but the trailing inactive ones receive
-  identity composition.
+  `*_rigged.txt` with per-bone world bboxes). Inactive bone sections
+  (the trailing 7 of the 28 declared bone-section slots, for which the
+  engine left col3.w == 0) are **skipped** rather than identity-padded:
+  emitting their raw Q4.12 verts at the origin previously produced
+  stacked phantom copies of the body across the world Y axis. The
+  two captured buffers both hold parent-relative local matrices
+  (current and previous frame for interpolation); world matrices are
+  composed through the id 0x71 parent table. The 7 inactive sections
+  carry ~830 verts of geometry whose bone attribution is still
+  unresolved -- candidates include per-material vertex re-emissions,
+  LOD packets, or accessory geometry not drawn this frame.
 
   **PRIOR (investigated 2026-05-25,
   found NOT to live in the three id 0x71 entry "sections" as

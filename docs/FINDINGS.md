@@ -602,13 +602,28 @@ player_bones.json --file chunk21/f17_id8f.bin` composes world
 matrices using the id 0x71 parent table, applies them to the per-bone
 Q4.12 object-space vertex packets, and writes a posed
 `*_rigged.obj` (one `o bone_NN` group per bone, world-space). For
-inactive bone slots (the trailing 7 of 28) the composer falls back to
-identity, so all geometry is emitted even when the engine populates
-only the active subset. This closes the "bind-pose joint
-transforms" question: the transforms are constructed at runtime from
-an animation system, snapshot-able from a save state, and combine
-trivially with the already-decoded per-bone vertex packets to yield a
+inactive bone slots (the trailing 7 of 28) the composer **skips the
+section entirely** rather than padding with identity: an identity
+fallback was found to plant the trailing sections' raw Q4.12
+object-space verts (range ~+/-8 per axis) at the world origin as
+stacked phantom copies of the body. Open in Blender, the corrected
+output is a single posed figure of 1366 verts across 21 live bones;
+the 7 skipped sections (~830 verts) belong to inactive bone slots
+whose semantics aren't yet pinned down -- candidates include
+per-material vertex re-emissions, LOD packets, or accessory-bone
+geometry that this captured frame happens not to draw. This closes
+the "bind-pose joint transforms" question: the transforms are
+constructed at runtime from an animation system, snapshot-able from a
+save state, and combine with the per-bone vertex packets to yield a
 posed model.
+
+Confirmation that both buffers are LOCAL (not one world + one local):
+composing buffer[0] as local through the parent table does NOT
+reproduce buffer[1]; the per-bone translations differ only on bones 1
+and 4 by tenths of a unit (consistent with frame-to-frame
+interpolation), and mirror-pair symmetry on bones 5/6, 8/9, 10/11,
+12/13, 17/18, 19/20 is identical between buffers -- both are
+parent-relative limb-length offsets.
 
 `extract_models.py --skeleton` walks every id 0x71-shaped file and
 writes (a) a `*_skeleton.txt` dump (parents, tree, hull centres where
