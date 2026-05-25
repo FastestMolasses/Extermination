@@ -4,7 +4,7 @@ Technical reference for formats and facts established so far. The authoritative,
 exhaustive format details live in the docstrings of the `tools/` scripts; this
 file summarises them and records findings that have no other home.
 
-_Last updated: 2026-05-24_
+_Last updated: 2026-05-25_
 
 ## Target identity
 
@@ -400,16 +400,83 @@ several files including `chunk03/f10_id12.bin` where the three pairs
 have dot(n,n') ≈ -1.0 and the recovered extents are bone-scale (~2-12
 units). Some bones carry fewer planes (half-spaces / capped hulls).
 
-**Bone parent hierarchy is still not found.** The per-record bone index
-is an ID; no explicit parent-index array was identified inside the rig
-files. Bone-group orderings recur across files (e.g. `[18, 25, 24, 23,
-4, 3]` in many character rigs) so the order looks like a per-skeleton
-iteration order, but that ordering alone does not convey a tree. The
-actual bind-pose skeleton (parent-relative rotations + translations) is
-not in these files; where it lives — embedded MATRIX block in the model
-file, boot-ELF table, or a yet-unidentified file kind — is **still
-open**. The geometry vertex record has no per-vertex bone weight/index
-field, so meshes are either rigid-bone-attached or vertex-animated.
+**Bone parent hierarchy — found in id 0x71 files (2026-05-25).** The
+hierarchy lives in a separate file class from the collision hulls.
+Several character classes ship a paired set of files:
+
+- id 0x71 (and a small number of related ids: 0x78, 0x84, 0x96, 0x52,
+  0x5b, 0x65, 0x7c, 0x11, 0x13, 0x21, 0x27) — a multi-entry animation
+  container whose entry header carries the bone PARENT-INDEX TABLE;
+- id 0x73 / 0x6f / 0x6e / 0x53 / 0x5c / 0x96 / 0x3a — the per-bone
+  collision-hull rig file described above.
+
+An id 0x71 file is a simple offset directory:
+
+| Offset | Field | Notes |
+|---|---|---|
+| 0x00 | u32 entry_count | usually 1..57; entries are animation clips |
+| 0x04 | u32[entry_count] entry_offs | absolute byte offsets in the file |
+| ...  | u32 0xffffffff | sentinel terminating the table |
+
+Each entry is self-contained and shares the SAME skeleton (same bone
+count and same parent table) as every other entry of the file, so the
+hierarchy can be read from entry 0:
+
+| Offset (in entry) | Field |
+|---|---|
+| 0x00 | u8 bone_count |
+| 0x02 | u8 stride (a VIF UNPACK row size, e.g. 0x78) |
+| 0x04, 0x08, 0x0c | u32 offsets of three per-bone payload sections within the entry |
+| 0x20 | `ffffffff 00000000` (section-table sentinel) |
+| 0x28 | u32[bone_count] PARENT-INDEX TABLE |
+| ...  | further per-bone u32 tables (bone "kind" / skin counts, not decoded) |
+
+**Validation.** For the player character (chunk05/f04_id71.bin):
+- bone_count = 30 (28 valid bones + 2 trailing "non-parent" overshoot
+  slots `120, 156` which are dropped);
+- the same 28-entry parent array appears in chunk06/f01_id71,
+  chunk07/f03_id71, chunk08/f05_id71, chunk11/f00_id71,
+  chunk12/f00_id71, chunk20/f01_id71 — same character, same skeleton;
+- shape is anatomically coherent: shoulder→elbow→wrist chains
+  (5→7→16, 6→8→17), a chest/spine hub (bone 4) with 9 children, a hand
+  hub (bone 24) with 5 children = palm + finger tips;
+- the collision-hull file for the same character
+  (chunk05/f05_id73.bin) has bones `{3, 4, 18, 23, 24, 25}` — every
+  bone ID is a valid index in this 28-bone skeleton.
+
+**Caveat.** The table contains one consistent 2-cycle
+(`parents[2]=3`, `parents[3]=2`) and two self-parented roots (bones 1
+and 24). The cycle is repeatable across every id 0x71 file using this
+skeleton, so it is real data — likely the field is overloaded for a
+couple of bones (a "linked-pair" / mirror pointer rather than parent),
+or one of {2, 3} is the true root and the other is a mirror. The
+exporter writes the field as-is; downstream consumers should treat a
+strict tree walk as having one cycle.
+
+**Bind-pose matrices — NOT yet extracted.** The three per-bone payload
+sections referenced by the entry header (section1: variable size,
+typically 36 bytes for the first two bones then 0xc0..0x150 each;
+section2 and section3: uniform 36-byte stride per bone with a 384-byte
+header for bone 0) are VIF/GIF-packed transform / draw-command streams.
+The raw 16-bit fixed-point values are interleaved with what look like
+GS register addresses. A faithful decode of the bind-pose joint
+transforms needs either the VU1 microcode or the engine's bone-update
+code. The hierarchy alone is enough to author a skinned rig in
+Blender/Maya and bind it to model geometry by hand, with the
+collision-hull centres (from --rig) as joint-position guides.
+
+`extract_models.py --skeleton` walks every id 0x71-shaped file and
+writes (a) a `*_skeleton.txt` dump (parents, tree, hull centres where
+known), and (b) when a matching rig file exists in the same region, a
+`*_skeleton.obj` stick figure with joints placed at the collision-hull
+centres. 26 skeletons across the game are recognised; the dumps for
+the player character mark 6 hulled joints (bones 3, 4, 18, 23, 24, 25),
+all other joints are collapsed onto their nearest hulled ancestor.
+
+The geometry vertex record has no per-vertex bone weight/index field,
+so meshes are either rigid-bone-attached (each MATRIX section in
+id 0x74 character mesh files is plausibly one bone's rigid sub-mesh) or
+vertex-animated (see --anim).
 
 **Header forms:**
 - Short (4 bytes): `<u32 record_count>`. Records start at +4.

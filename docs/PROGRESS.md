@@ -814,11 +814,33 @@ ELF** (1530624/1530624 bytes, 100.00%).
   bounding boxes. **Still open:** (a) the remaining 96 bytes of payload
   (six vec4 "extras") look like face polygon corners / edge endpoints but
   the exact field layout is not decoded — needs the VU1 microcode that
-  consumes them; (b) the actual bind-pose skeleton (parent-relative
-  bone transforms needed for skinning) is NOT in these files and its
-  storage location is still unknown — likely embedded MATRIX block in
-  the model file, a boot-ELF table, or another file kind; (c) the bone
-  parent hierarchy is still not isolated.
+  consumes them; (b) the actual bind-pose joint transforms are still
+  packed (see next bullet).
+- **Bone parent hierarchy — RESOLVED 2026-05-25** (bind-pose matrices
+  still packed). The skeleton lives in **id 0x71 character/animation
+  files** (paired with the id 0x73 collision-hull file), not the rig
+  file itself. An id 0x71 file is an offset directory of N animation
+  entries; every entry shares the same skeleton, with the bone
+  PARENT-INDEX TABLE at entry+0x28 as a `u32[bone_count]` array (the
+  bone-count byte is at entry+0x00). 26 skeletons across the game now
+  parse cleanly; six id 0x71 files share the player-character skeleton
+  (28 bones, anatomically coherent shoulder/elbow/wrist chains, a
+  9-child chest hub and a 5-child hand hub). One persistent caveat:
+  the array contains a stable 2-cycle (`parents[2]=3, parents[3]=2`)
+  and two self-parented roots, so the field is overloaded for a couple
+  of bones — likely a "linked-pair" / mirror pointer rather than a
+  parent. `extract_models.py --skeleton` writes `*_skeleton.txt` (tree
+  + hull centres) and `*_skeleton.obj` (stick figure placing each
+  bone at its collision-hull centroid or its nearest hulled ancestor).
+  **Still open:** the per-bone BIND-POSE TRANSFORM lives in three
+  VIF/GIF-packed payload sections referenced by the entry header
+  (section1 variable-size, section2/section3 mostly 36-byte stride).
+  Raw bytes are 16-bit fixed-point interleaved with GS register
+  addresses — a faithful decode needs the VU1 microcode or the
+  engine's bone-update code. The hierarchy alone is enough to
+  hand-author a rig in Blender/Maya and bind it to model geometry.
+  See `docs/FINDINGS.md` "Rig / per-bone collision hulls" for the
+  detailed format.
 - **MATRIX `--scene`.** Role of the repeated identity transforms, and whether
   transforms are absolute or parent-composed — confirm from engine code.
 - **Audio.** SFX-bank rate unconfirmed (provisionally 22050). Clip splitting is

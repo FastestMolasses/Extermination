@@ -1057,6 +1057,310 @@ def write_rig_obb_obj(path: Path, rig: RigFile, src_name: str) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Skeleton hierarchy (id 0x71 character / animation files)
+# ---------------------------------------------------------------------------
+#
+# Reverse-engineered 2026-05-25. Several character classes ship a paired set
+# of files:
+#   * id 0x73 (or near it) -- the per-bone collision-hull file (see --rig).
+#   * id 0x71              -- a multi-entry animation/skeleton container.
+#
+# An id 0x71 character file is laid out as a simple offset directory:
+#
+#   +0x00  u32  entry_count                    (e.g. 57 = bind pose + 56 anim clips)
+#   +0x04  u32[entry_count]  entry_offsets     (absolute byte offsets in file)
+#   +0x04+ u32  0xffffffff                     (sentinel terminating the table)
+#
+# Each entry is a self-contained animation clip / pose. Every entry of a given
+# file shares the SAME skeleton: same bone count and the SAME parent-index
+# array. So the bone hierarchy can be recovered from any entry, and is
+# straightforwardly extracted from entry 0:
+#
+#   entry[0x00]  u8   bone_count           e.g. 30 (called nbones below)
+#   entry[0x01]  u8   ?                    (often 0)
+#   entry[0x02]  u8   stride               e.g. 0x78 -- a VIF UNPACK row size
+#   entry[0x03]  u8   ?                    (often 0)
+#   entry[0x04]  u16  0xffff               (constant fence)
+#   entry[0x06]  u16  ?                    (often 0)
+#   entry[0x08]  u32  off_section1         offset (in entry) of the first
+#                                          per-bone payload section
+#                                          (variable size per bone)
+#   entry[0x0c]  u32  off_section2         offset of a second per-bone payload
+#                                          section (bone 0 is large, others uniform 0x24)
+#   entry[0x10]  u32  off_section3         offset of a third per-bone section
+#                                          (uniform 0x24 per bone)
+#   entry[0x14..0x20]  zeros               padding
+#   entry[0x20..0x28]  0xffffffff,0        section-table sentinel
+#   entry[0x28]        u32[nbones]         PARENT-INDEX TABLE (this finding)
+#   entry[0x28+nbones*4 .. ]               additional per-bone u32 tables
+#                                          (bone "kind"/skin counts, not yet decoded)
+#
+# Validation (chunk05/f04_id71.bin, the player character):
+#   nbones = 30  (28 active bones + 2 trailing "120, 156" slots that are not
+#                 valid parent indices -- only the first 28 are interpreted)
+#   parents (first 28) =
+#     [1, 1, 3, 2, 2, 4, 4, 5, 6, 4, 4, 4, 4, 4, 4, 4, 7, 8, 9, 10, 12, 22,
+#      23, 24, 24, 24, 24, 24]
+#   Identical for chunk12/f00_id71.bin, chunk06/f01_id71.bin,
+#   chunk07/f03_id71.bin, etc. -- same character, same skeleton.
+#   The structure is MOSTLY a clean parent-index table:
+#     * bone 1 is a root (parent==self); chain 5->7->16, 6->8->17 are
+#       shoulder->elbow->wrist; bone 4 is a hub with 9 children (chest/ribs);
+#       bone 24 has 5 children (palm + finger tips);
+#     * EXCEPTION: bone 2 / bone 3 form a 2-cycle (parents[2]=3, parents[3]=2).
+#       This cycle is consistent across every id 0x71 file that uses this
+#       skeleton, so it is real data, not corruption. The most likely reading
+#       is that the field is overloaded -- "parent" for most bones, but for a
+#       few bones a "linked-pair" / "next-LOD" pointer -- or that one element
+#       of the cycle is the true root and the other is its mirror. The dump
+#       reports the field as-is; downstream consumers should be aware that a
+#       strict parent-tree walk over this array has one cycle and two roots
+#       (bone 1 and bone 24 are both self-parented; bone 2 / bone 3 form a
+#       cycle, so neither is a root in the tree-walk sense).
+#   Cross-check with the collision-hull (--rig) file for the same character
+#   (chunk05/f05_id73.bin -> bones {3, 4, 18, 23, 24, 25}): all bone IDs in
+#   the rig are valid indices in this skeleton, confirming that rig-file
+#   bone IDs index into this same id 0x71 skeleton.
+#
+# The per-bone payload sections (section1/2/3) are VIF/GIF-packed transform
+# / draw-command streams (16-bit fixed-point interleaved with what look like
+# GS register addresses). A faithful decode of the BIND-POSE MATRICES from
+# them needs either the VU1 microcode or the engine's bone-update code, so
+# this extractor only recovers the HIERARCHY. The hierarchy alone is enough
+# to author a skinned rig in Blender/Maya and bind it to the model geometry
+# by hand; the bind-pose joint positions can be hand-placed using the
+# collision-hull centres from the --rig dump as a guide.
+
+# Trailing "non-parent" slots: id71 entries declare a bone_count that
+# sometimes overshoots the real bone count by a couple of slots. The trailing
+# slots' "parent" values are obviously out of range (e.g. 120, 156) and are
+# detected and dropped.
+
+
+class SkeletonFile:
+    """A decoded id 0x71 skeleton/animation container."""
+
+    __slots__ = ("entry_count", "bone_count_raw", "parents", "stride",
+                 "section_offsets", "entry_size")
+
+    def __init__(self, entry_count, bone_count_raw, parents, stride,
+                 section_offsets, entry_size):
+        self.entry_count = entry_count          # number of animation entries
+        self.bone_count_raw = bone_count_raw    # declared count from header byte
+        self.parents = parents                  # list[int] -- parent index per bone (-1 for root)
+        self.stride = stride                    # VIF stride byte from header
+        self.section_offsets = section_offsets  # tuple of 3 ints (offsets within entry)
+        self.entry_size = entry_size            # size of entry 0 in bytes
+
+
+def is_skeleton_file(d: bytes) -> bool:
+    """True for an id 0x71-shaped animation/skeleton container.
+
+    The format is a simple offset directory. The sanity check is:
+      * u32 entry_count is small (1..512),
+      * entry_offsets are monotonically increasing and within the file,
+      * the table ends with the 0xffffffff sentinel,
+      * the first entry's bone_count byte is small (<= 200),
+      * the first entry's parent-table area parses as plausible indices.
+    """
+    if len(d) < 32:
+        return False
+    n = struct.unpack_from("<I", d, 0)[0]
+    if not (1 <= n <= 512):
+        return False
+    table_end = 4 + (n + 1) * 4
+    if table_end > len(d):
+        return False
+    offs = struct.unpack_from(f"<{n+1}I", d, 4)
+    if offs[-1] != 0xFFFFFFFF:
+        return False
+    if offs[0] < table_end or offs[0] > len(d):
+        return False
+    for i in range(n):
+        if offs[i] >= len(d):
+            return False
+        if i > 0 and offs[i] <= offs[i - 1]:
+            return False
+    e0 = d[offs[0]: offs[1] if n > 1 else len(d)]
+    if len(e0) < 0x40:
+        return False
+    bc = e0[0]
+    if not (1 <= bc <= 200):
+        return False
+    if 0x28 + bc * 4 > len(e0):
+        return False
+    # Plausibility: most parent indices should be < bone_count (allow a few
+    # trailing slots to overshoot, hence count plausible vs all).
+    parents = struct.unpack_from(f"<{bc}I", e0, 0x28)
+    ok = sum(1 for p in parents if p < bc)
+    return ok >= max(1, bc - 4)
+
+
+def parse_skeleton_file(d: bytes) -> SkeletonFile | None:
+    """Decode an id 0x71 file's directory header and skeleton hierarchy."""
+    if not is_skeleton_file(d):
+        return None
+    n = struct.unpack_from("<I", d, 0)[0]
+    offs = struct.unpack_from(f"<{n+1}I", d, 4)
+    e0_start = offs[0]
+    e0_end = offs[1] if n > 1 else len(d)
+    e0 = d[e0_start:e0_end]
+    bc = e0[0]
+    stride = e0[2]
+    # Header: u8 nbones, u8 ?, u8 stride, u8 ?, u16 0xffff, u16 ?, then
+    # three u32 section offsets at +0x08, +0x0c, +0x10.
+    s1 = struct.unpack_from("<I", e0, 0x08)[0]
+    s2 = struct.unpack_from("<I", e0, 0x0c)[0]
+    s3 = struct.unpack_from("<I", e0, 0x10)[0]
+    raw_parents = list(struct.unpack_from(f"<{bc}I", e0, 0x28))
+    # Trim trailing "non-parent" overshoot slots (parent index out of range).
+    trimmed = raw_parents[:]
+    while trimmed and trimmed[-1] >= len(trimmed):
+        trimmed.pop()
+    # Convert "self parent" (the root) to -1 for consumer convenience.
+    parents = [(-1 if p == i else p) for i, p in enumerate(trimmed)]
+    return SkeletonFile(entry_count=n,
+                        bone_count_raw=bc,
+                        parents=parents,
+                        stride=stride,
+                        section_offsets=(s1, s2, s3),
+                        entry_size=len(e0))
+
+
+def skeleton_children(parents: list[int]) -> dict[int, list[int]]:
+    """parent->children index for a skeleton."""
+    ch: dict[int, list[int]] = {}
+    for i, p in enumerate(parents):
+        ch.setdefault(p, []).append(i)
+    return ch
+
+
+def skeleton_roots(parents: list[int]) -> list[int]:
+    """Bones whose parent is -1 (self-parent in the source)."""
+    return [i for i, p in enumerate(parents) if p == -1]
+
+
+def write_skeleton_dump(path: Path, skel: SkeletonFile, src_name: str,
+                        hull_centres: dict[int, tuple[float, float, float]] | None = None) -> None:
+    """Write a human-readable skeleton dump: parents, tree, and (optional) hull centres."""
+    lines: list[str] = [
+        "# Extermination (SCUS-97112) skeleton hierarchy dump",
+        f"# source: {src_name}",
+        "# exported by tools/extract_models.py --skeleton",
+        f"# id 0x71 entry directory: {skel.entry_count} entry/animation(s)",
+        f"# bone_count (declared) = {skel.bone_count_raw}; active bones = {len(skel.parents)}",
+        f"# stride byte = 0x{skel.stride:02x}",
+        f"# section offsets within entry 0: section1=0x{skel.section_offsets[0]:x}  "
+        f"section2=0x{skel.section_offsets[1]:x}  section3=0x{skel.section_offsets[2]:x}",
+        "",
+        "# Parent table (one line per bone; -1 means root).",
+    ]
+    for i, p in enumerate(skel.parents):
+        extra = ""
+        if hull_centres and i in hull_centres:
+            cx, cy, cz = hull_centres[i]
+            extra = f"  # hull centre: ({cx:.2f}, {cy:.2f}, {cz:.2f})"
+        lines.append(f"bone {i:3d}  parent={p:3d}{extra}")
+    lines.append("")
+    lines.append("# Tree (depth-indented).")
+    children = skeleton_children(skel.parents)
+    visited = set()
+
+    def emit(i: int, depth: int) -> None:
+        if i in visited:
+            return
+        visited.add(i)
+        marker = ""
+        if hull_centres and i in hull_centres:
+            cx, cy, cz = hull_centres[i]
+            marker = f"  [hull@({cx:.1f},{cy:.1f},{cz:.1f})]"
+        lines.append("  " * depth + f"bone {i}{marker}")
+        for c in children.get(i, []):
+            if c != i:
+                emit(c, depth + 1)
+
+    for r in skeleton_roots(skel.parents):
+        emit(r, 0)
+    # Any bones not reachable from a root: emit at top level (defensive).
+    for i in range(len(skel.parents)):
+        if i not in visited:
+            emit(i, 0)
+    path.write_text("\n".join(lines) + "\n")
+
+
+def write_skeleton_obj(path: Path, skel: SkeletonFile,
+                       hull_centres: dict[int, tuple[float, float, float]]) -> int:
+    """Write a stick-figure OBJ of the skeleton using hull centres as joint positions.
+
+    Returns the number of bones placed. Bones missing a hull centre are
+    placed at the parent's position (collapsed to a stub) and recorded
+    in the OBJ comments.
+    """
+    n = len(skel.parents)
+    # Resolve a position per bone: prefer hull centre; else fall back to the
+    # nearest ancestor's hull centre; else (0,0,0).
+    pos: list[tuple[float, float, float] | None] = [None] * n
+    for i in range(n):
+        if i in hull_centres:
+            pos[i] = hull_centres[i]
+    changed = True
+    while changed:
+        changed = False
+        for i in range(n):
+            if pos[i] is None:
+                p = skel.parents[i]
+                if p >= 0 and pos[p] is not None:
+                    pos[i] = pos[p]
+                    changed = True
+    # Roots without any descendant hull -> origin.
+    for i in range(n):
+        if pos[i] is None:
+            pos[i] = (0.0, 0.0, 0.0)
+
+    placed = sum(1 for i in range(n) if i in hull_centres)
+    lines = [
+        "# Extermination skeleton stick figure",
+        f"# {placed}/{n} bones placed from collision-hull centres; "
+        f"others collapsed onto their nearest hulled ancestor.",
+    ]
+    for i, (x, y, z) in enumerate(pos):
+        lines.append(f"v {x:.4f} {y:.4f} {z:.4f}  # bone {i}")
+    for i, p in enumerate(skel.parents):
+        if p < 0 or p == i:
+            continue
+        # OBJ vertex indices are 1-based.
+        lines.append(f"l {p+1} {i+1}")
+    path.write_text("\n".join(lines) + "\n")
+    return placed
+
+
+def rig_hull_centres(rig: "RigFile") -> dict[int, tuple[float, float, float]]:
+    """Per-bone collision-hull centroid, derived from the rig plane equations.
+
+    For each bone, gather all plane equations (n.x + D = 0) from --rig and
+    take the centroid of the plane points nearest the origin (-D * n for each
+    plane). This is a coarse approximation of the bone's collision-hull
+    centre, which is in turn a coarse approximation of the joint position --
+    good enough for sanity-checking the skeleton topology in a 3D viewer.
+    """
+    by_bone: dict[int, list[tuple[float, float, float]]] = {}
+    for rec in rig.records:
+        decoded = _decode_rig_record(rec)
+        if decoded is None:
+            continue
+        (nx, ny, nz), D, _extras = decoded
+        # Closest point on plane n.x + D = 0 to origin is -D * n.
+        by_bone.setdefault(rec.bone, []).append((-D * nx, -D * ny, -D * nz))
+    centres: dict[int, tuple[float, float, float]] = {}
+    for bone, pts in by_bone.items():
+        cx = sum(p[0] for p in pts) / len(pts)
+        cy = sum(p[1] for p in pts) / len(pts)
+        cz = sum(p[2] for p in pts) / len(pts)
+        centres[bone] = (cx, cy, cz)
+    return centres
+
+
+# ---------------------------------------------------------------------------
 # Per-frame vertex animation (pose-set detection)
 # ---------------------------------------------------------------------------
 
@@ -1249,6 +1553,78 @@ def run_rig(args, out_dir: Path) -> int:
     return 0
 
 
+def run_skeleton(args, out_dir: Path) -> int:
+    """`--skeleton`: decode id 0x71 character files and dump their bone hierarchy.
+
+    For each id 0x71 file recognised by ``is_skeleton_file``, writes a
+    ``*_skeleton.txt`` describing the parent table and tree. If a matching
+    collision-hull rig file is found in the same region (any ``*_id*.bin``
+    file that ``is_rig_file`` accepts), also writes a ``*_skeleton.obj``
+    stick figure using the rig's hull centres as joint positions -- a
+    visual sanity check on the topology.
+    """
+    if args.file:
+        paths = [Path(args.file)]
+    else:
+        paths = sorted(Path(args.input).rglob("*_id*.bin"))
+    found = 0
+    seen_keys: set[tuple] = set()
+    for path in paths:
+        if not path.is_file():
+            continue
+        try:
+            d = path.read_bytes()
+        except OSError:
+            continue
+        skel = parse_skeleton_file(d)
+        if skel is None:
+            continue
+        # Dedupe identical skeletons across regions: many regions ship the
+        # same player-character file. Key on (bone_count, parents tuple).
+        key = (len(skel.parents), tuple(skel.parents))
+        if key in seen_keys:
+            # Still write per-region but tag it.
+            pass
+        seen_keys.add(key)
+
+        # Find a matching rig file in the same region for hull centres.
+        hull_centres: dict[int, tuple[float, float, float]] = {}
+        region = path.parent
+        for sibling in sorted(region.glob("*_id*.bin")):
+            if sibling == path:
+                continue
+            try:
+                sd = sibling.read_bytes()
+            except OSError:
+                continue
+            if not is_rig_file(sd):
+                continue
+            rig = parse_rig_file(sd)
+            if rig is None:
+                continue
+            cand = rig_hull_centres(rig)
+            # Only adopt hulls whose bone IDs all index into this skeleton.
+            if cand and all(b < len(skel.parents) for b in cand):
+                hull_centres = cand
+                break
+
+        stem = f"{path.parent.name}_{path.stem}"
+        txt_name = stem + "_skeleton.txt"
+        write_skeleton_dump(out_dir / txt_name, skel,
+                            f"{path.parent.name}/{path.name}",
+                            hull_centres or None)
+        msg = (f"{path.parent.name}/{path.name}: {len(skel.parents)} bones, "
+               f"{skel.entry_count} entries -> {txt_name}")
+        if hull_centres:
+            obj_name = stem + "_skeleton.obj"
+            placed = write_skeleton_obj(out_dir / obj_name, skel, hull_centres)
+            msg += f", {obj_name} ({placed} hulled joints)"
+        print(msg)
+        found += 1
+    print(f"\n{found} skeleton file(s) decoded to {out_dir}/")
+    return 0
+
+
 def run_anim(args, out_dir: Path) -> int:
     """`--anim`: detect and export per-frame vertex-animation pose sets."""
     if args.file:
@@ -1299,6 +1675,12 @@ def main(argv: list[str]) -> int:
                         "non-MESH files of 0x78-byte VIF-tagged joint "
                         "records) and write a *_rig.txt dump of each. Opt-in "
                         "and additive -- does not affect geometry export.")
+    p.add_argument("--skeleton", action="store_true",
+                   help="decode id 0x71 character/animation files: dump the "
+                        "bone PARENT HIERARCHY as a *_skeleton.txt, and (when "
+                        "a matching collision-hull rig file exists in the "
+                        "same region) write a *_skeleton.obj stick figure "
+                        "with joints placed at hull centres. Opt-in.")
     p.add_argument("--anim", action="store_true",
                    help="detect per-frame vertex-animation pose sets (>=3 "
                         "model files in one region sharing identical "
@@ -1311,6 +1693,8 @@ def main(argv: list[str]) -> int:
 
     if args.rig:
         return run_rig(args, out_dir)
+    if args.skeleton:
+        return run_skeleton(args, out_dir)
     if args.anim:
         return run_anim(args, out_dir)
 
