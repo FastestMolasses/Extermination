@@ -578,6 +578,38 @@ decompiling the function that writes the matrix buffer.
 JSON exports of all four runs are available via
 `tools/parse_pcsx2_state.py --scan-bones --dump-bones`.
 
+**Bind-pose extraction — RESOLVED (2026-05-25).** A second PCSX2 save
+state captured with the player alone in a small room (no NPCs loaded)
+confirms the per-character layout: only the 0x1C00 pair starting at
+`0x00287F40` is populated (the other pair at `0x00286340` is zeroed
+when no other character is on screen), and that pair holds two copies
+of a 21-active-matrix buffer (the player's current and previous-frame
+local transforms — both buffers are local-frame matrices, not
+world+local, used by the engine for inter-frame interpolation).
+
+The player's id 0x71 declares 28 bones, but only 21 are live at
+runtime: the trailing 7 slots (col0w = 0, no translation) are
+inactive / reserved. The captured 21 active matrices are bone-local
+(parent-relative), with shoulder-elbow translations of ~4 units along
+local X and clean L/R symmetry around Z — the limb-length scale of
+the bind-pose skeleton, modulated by the captured walk animation.
+
+`tools/parse_pcsx2_state.py --player-bones` emits a structured
+`player_bones.json` that pairs the two captured buffers and tags them
+with the canonical skeleton (`chunk05/f04_id71.bin`) and mesh
+(`chunk21/f17_id8f.bin`) sources. `extract_models.py --rigged --bones
+player_bones.json --file chunk21/f17_id8f.bin` composes world
+matrices using the id 0x71 parent table, applies them to the per-bone
+Q4.12 object-space vertex packets, and writes a posed
+`*_rigged.obj` (one `o bone_NN` group per bone, world-space). For
+inactive bone slots (the trailing 7 of 28) the composer falls back to
+identity, so all geometry is emitted even when the engine populates
+only the active subset. This closes the "bind-pose joint
+transforms" question: the transforms are constructed at runtime from
+an animation system, snapshot-able from a save state, and combine
+trivially with the already-decoded per-bone vertex packets to yield a
+posed model.
+
 `extract_models.py --skeleton` walks every id 0x71-shaped file and
 writes (a) a `*_skeleton.txt` dump (parents, tree, hull centres where
 known), and (b) when a matching rig file exists in the same region, a

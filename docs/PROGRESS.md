@@ -887,7 +887,29 @@ ELF** (1530624/1530624 bytes, 100.00%).
   parent. `extract_models.py --skeleton` writes `*_skeleton.txt` (tree
   + hull centres) and `*_skeleton.obj` (stick figure placing each
   bone at its collision-hull centroid or its nearest hulled ancestor).
-  **Still open: BIND-POSE JOINT TRANSFORMS** (investigated 2026-05-25,
+  **BIND-POSE JOINT TRANSFORMS — RESOLVED 2026-05-25 (live PCSX2 save
+  state)**. The transforms are not stored verbatim on disc; they are
+  constructed at runtime by the animation system in EE .bss. A PCSX2
+  save state captured with only the player on screen confirms a single
+  populated 0x1C00 character slot pair at `0x00287F40` / `0x00288D40`
+  holding two copies of a 21-active-matrix buffer (current + previous
+  frame for inter-frame interpolation; both are bone-local matrices).
+  The player's id 0x71 declares 28 bones; only the first 21 are live
+  at runtime (the trailing 7 slots are zeroed / reserved). The matrices
+  are extracted with `tools/parse_pcsx2_state.py --player-bones`
+  (writes `player_bones.json`) and composed into a posed model with
+  `extract_models.py --rigged --bones player_bones.json --file
+  extract/chunk21/f17_id8f.bin` (writes `*_rigged.obj`: one
+  `o bone_NN` point-cloud group per bone in world space, plus
+  `*_rigged.txt` with per-bone world bboxes). Inactive bone slots fall
+  back to identity so the full 28-bone mesh still exports. Caveat: the
+  two captured buffers both appear to hold local matrices rather than
+  a {world, local} pair, so world matrices are computed by composing
+  local-relative transforms through the id 0x71 parent table; this
+  works for active bones but the trailing inactive ones receive
+  identity composition.
+
+  **PRIOR (investigated 2026-05-25,
   found NOT to live in the three id 0x71 entry "sections" as
   previously hypothesised). Detailed structural decode:
   - Section 1 (variable per-bone size) is a stream of 12-byte records

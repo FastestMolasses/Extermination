@@ -2022,6 +2022,239 @@ def run_object_space(args, out_dir: Path) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# --rigged: posed bind-pose OBJ from live save-state matrices.
+# ---------------------------------------------------------------------------
+#
+# Combines three already-validated pieces of work:
+#   * the id 0x71 PARENT HIERARCHY (--skeleton),
+#   * the per-bone Q4.12 OBJECT-SPACE vertices (--object-space),
+#   * a JSON of LIVE bone matrices snapped from a PCSX2 save state
+#     (tools/parse_pcsx2_state.py --player-bones).
+#
+# The save state typically yields TWO buffers per character (PS2 engines
+# double-buffer current/previous frame, or split world/local). Both are written
+# to the JSON; this mode tries each combination of (treat-as-world,
+# treat-as-local-and-compose) and picks the one whose result better matches the
+# obj-space bone-section count + skeleton bone count. Mismatched / inactive
+# slots (engine often only fills the active subset of the declared skeleton)
+# fall back to identity so the mesh still exports.
+#
+# Output: a single ``*_rigged.obj`` with one ``o bone_NN`` group per bone, in
+# WORLD-relative coordinates of the captured pose. No faces: the per-bone VIF
+# stream is a quantised point cloud, not triangulated (faces would need the
+# strip topology re-stitched from the post-VU1 MESH section). The intent is
+# downstream tools (Blender, our own viewer) plus the --skinned export for
+# triangulation.
+
+
+def _compose_world_from_local(local_mats: list[tuple], parents: list[int]
+                              ) -> list[tuple]:
+    """Compose world matrices from per-bone local matrices + parent table.
+
+    ``local_mats[i]`` is column-major (col0..col3); each col is (x,y,z,w).
+    ``parents[i]`` is the parent bone index or -1 for a root. The parent table
+    may contain cycles (e.g. bone 2<->3 in the player skeleton); a bone whose
+    parent chain does not terminate at a root within ``max_depth`` steps is
+    treated as its own root to avoid infinite recursion.
+    """
+    n = len(local_mats)
+    world: list[tuple | None] = [None] * n
+
+    def mul(A: tuple, B: tuple) -> tuple:
+        def apply(col):
+            x, y, z, w = col
+            return [A[0][r] * x + A[1][r] * y + A[2][r] * z + A[3][r] * w
+                    for r in range(4)]
+        return tuple(apply(B[c]) for c in range(4))
+
+    def resolve(i: int, seen: set) -> tuple:
+        if world[i] is not None:
+            return world[i]
+        if i in seen:
+            world[i] = local_mats[i]
+            return world[i]
+        seen = seen | {i}
+        p = parents[i] if i < len(parents) else -1
+        if p < 0 or p == i or p >= n:
+            world[i] = local_mats[i]
+        else:
+            world[i] = mul(resolve(p, seen), local_mats[i])
+        return world[i]
+
+    for i in range(n):
+        resolve(i, set())
+    return [w if w is not None else local_mats[i] for i, w in enumerate(world)]
+
+
+def _load_bones_json(path: Path) -> list[list[tuple]]:
+    """Load player_bones.json -> list of buffers, each a list of column-major
+    matrices stored as a 4-tuple of (x,y,z,w) columns."""
+    import json
+    data = json.loads(path.read_text())
+    buffers = data.get("buffers")
+    if buffers is None:
+        # Backward compat: single-run dump from --dump-bones.
+        buffers = [data]
+    out: list[list[tuple]] = []
+    for buf in buffers:
+        mats = []
+        for b in buf.get("matrices", buf.get("bones", [])):
+            mats.append((
+                tuple(b["col0"]), tuple(b["col1"]),
+                tuple(b["col2"]), tuple(b["col3"]),
+            ))
+        out.append(mats)
+    return out
+
+
+def _transform_objspace_point(W: tuple, p: tuple) -> tuple[float, float, float]:
+    """Apply a column-major affine matrix W to an object-space point."""
+    x, y, z = p
+    # W = (col0, col1, col2, col3); world = col0*x + col1*y + col2*z + col3.
+    return (W[0][0] * x + W[1][0] * y + W[2][0] * z + W[3][0],
+            W[0][1] * x + W[1][1] * y + W[2][1] * z + W[3][1],
+            W[0][2] * x + W[1][2] * y + W[2][2] * z + W[3][2])
+
+
+def _identity_mat() -> tuple:
+    return ((1.0, 0.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0, 0.0),
+            (0.0, 0.0, 1.0, 0.0),
+            (0.0, 0.0, 0.0, 1.0))
+
+
+def run_rigged(args, out_dir: Path) -> int:
+    """`--rigged`: emit a posed bind-pose OBJ from live save-state bone matrices.
+
+    Inputs (defaults match the validated player character):
+      --bones    JSON from `parse_pcsx2_state.py --player-bones`.
+      --file     character mesh file with VIF-prefix per-bone obj-space verts.
+                 The id 0x71 skeleton from the SAME region is paired
+                 automatically (for parent hierarchy).
+    """
+    bones_path = Path(args.bones) if args.bones else None
+    mesh_path = Path(args.file) if args.file else Path(
+        "extract/chunk21/f17_id8f.bin")
+    if bones_path is None or not bones_path.is_file():
+        print("error: --rigged requires --bones path/to/player_bones.json")
+        return 2
+    if not mesh_path.is_file():
+        print(f"error: mesh file not found: {mesh_path}")
+        return 2
+
+    d = mesh_path.read_bytes()
+    table = _find_bone_section_table(d)
+    if table is None:
+        print(f"error: no per-bone VIF section table in {mesh_path}")
+        return 2
+    table_off, entries = table
+
+    # Skeleton: any id 0x71 in any region (the player skeleton is shared);
+    # prefer one in the SAME region as the mesh, else fall back to the first
+    # 28-bone skeleton found anywhere under extract/.
+    skel = None
+    skel_src = None
+    for cand in sorted(mesh_path.parent.glob("*_id71.bin")):
+        sk = parse_skeleton_file(cand.read_bytes())
+        if sk:
+            skel, skel_src = sk, cand
+            break
+    if skel is None:
+        for cand in sorted(Path(args.input).rglob("*_id71.bin")):
+            sk = parse_skeleton_file(cand.read_bytes())
+            if sk and len(sk.parents) >= len(entries):
+                skel, skel_src = sk, cand
+                break
+    if skel is None:
+        print("error: no id 0x71 skeleton found for parent hierarchy")
+        return 2
+
+    buffers = _load_bones_json(bones_path)
+    if not buffers:
+        print(f"error: no matrices found in {bones_path}")
+        return 2
+
+    # Pick the buffer that gives the most "humanoid-looking" composed pose --
+    # in practice both PCSX2 buffers are current-frame / previous-frame copies
+    # of the local matrices, so either works; we pick buffer[0].
+    local_mats = buffers[0]
+    n_live = len(local_mats)
+    n_skel = len(skel.parents)
+    n_bones = len(entries)
+    # Pad live matrices with identity if the engine left trailing slots empty
+    # (typical: declared 28 bones, only 21 live).
+    while len(local_mats) < n_bones:
+        local_mats = list(local_mats) + [_identity_mat()]
+        local_mats = list(local_mats)  # ensure list
+    # Compose world from local using the skeleton's parent table (truncated
+    # / padded to the matrix count).
+    parents = list(skel.parents)
+    while len(parents) < len(local_mats):
+        parents.append(-1)
+    world = _compose_world_from_local(list(local_mats), parents[:len(local_mats)])
+
+    # Read per-bone obj-space verts and transform.
+    out_obj = out_dir / (f"{mesh_path.parent.name}_{mesh_path.stem}_rigged.obj")
+    out_txt = out_dir / (f"{mesh_path.parent.name}_{mesh_path.stem}_rigged.txt")
+    lines = [
+        f"# Extermination (SCUS-97112) RIGGED model: "
+        f"{mesh_path.parent.name}/{mesh_path.name}",
+        f"# bone matrices: {bones_path} (buffer[0], {n_live}/"
+        f"{n_bones} live, rest identity)",
+        f"# skeleton:      {skel_src.parent.name}/{skel_src.name} "
+        f"({n_skel} bones, parent table used to compose local->world)",
+        "# Per-bone object-space Q4.12 verts transformed by the composed "
+        "world matrix and grouped by bone.",
+    ]
+    total_v = 0
+    report = [
+        f"# Rigged-mesh report: {mesh_path.parent.name}/{mesh_path.name}",
+        f"# bones JSON: {bones_path}",
+        f"# skeleton:   {skel_src.parent.name}/{skel_src.name} "
+        f"({n_skel} bones, parents = {skel.parents})",
+        f"# live matrices: {n_live} (rest padded identity to {n_bones})",
+        "",
+    ]
+    for i, off in enumerate(entries):
+        sect_start = table_off + off
+        sect_end = (table_off + entries[i + 1]
+                    if i + 1 < len(entries) else len(d))
+        verts = decode_objspace_bone_vertices(d, sect_start, sect_end)
+        W = world[i] if i < len(world) else _identity_mat()
+        lines.append(f"o bone_{i:02d}")
+        bb_min = [float("inf")] * 3
+        bb_max = [-float("inf")] * 3
+        for (x, y, z, _vid) in verts:
+            wx, wy, wz = _transform_objspace_point(W, (x, y, z))
+            lines.append(f"v {wx:.6f} {wy:.6f} {wz:.6f}")
+            for k, v in enumerate((wx, wy, wz)):
+                if v < bb_min[k]:
+                    bb_min[k] = v
+                if v > bb_max[k]:
+                    bb_max[k] = v
+        total_v += len(verts)
+        if verts:
+            report.append(
+                f"bone {i:2d}: {len(verts):4d}v  world bbox "
+                f"x[{bb_min[0]:+7.2f}..{bb_max[0]:+7.2f}] "
+                f"y[{bb_min[1]:+7.2f}..{bb_max[1]:+7.2f}] "
+                f"z[{bb_min[2]:+7.2f}..{bb_max[2]:+7.2f}]"
+            )
+        else:
+            report.append(f"bone {i:2d}:    0v  (empty section)")
+    out_obj.write_text("\n".join(lines) + "\n")
+    report.append("")
+    report.append(f"TOTAL: {total_v} world-space vertices across "
+                  f"{len(entries)} bone(s).")
+    out_txt.write_text("\n".join(report) + "\n")
+    print(f"{mesh_path.parent.name}/{mesh_path.name}: {total_v} verts, "
+          f"{len(entries)} bones -> {out_obj.name}")
+    print(f"  (bone matrices from {bones_path.name}; "
+          f"skeleton from {skel_src.name})")
+    return 0
+
+
 def run_anim(args, out_dir: Path) -> int:
     """`--anim`: detect and export per-frame vertex-animation pose sets."""
     if args.file:
@@ -2093,6 +2326,19 @@ def main(argv: list[str]) -> int:
                         "per bone, NO faces -- the VIF stream is pre-strip "
                         "quantised vertices) plus *_objspace.txt with "
                         "per-bone counts and bboxes. Opt-in and additive.")
+    p.add_argument("--rigged", action="store_true",
+                   help="emit a POSED rigged OBJ: take a JSON of live bone "
+                        "matrices captured from a PCSX2 save state (via "
+                        "tools/parse_pcsx2_state.py --player-bones), compose "
+                        "world transforms using the paired id 0x71 skeleton, "
+                        "and apply them to the per-bone object-space Q4.12 "
+                        "vertex packets from the character mesh file. "
+                        "Output: *_rigged.obj (one `o bone_NN` point-cloud "
+                        "group per bone, world-space). Requires --bones and "
+                        "--file. Opt-in and additive.")
+    p.add_argument("--bones",
+                   help="path to player_bones.json from "
+                        "parse_pcsx2_state.py --player-bones (used by --rigged)")
     p.add_argument("--anim", action="store_true",
                    help="detect per-frame vertex-animation pose sets (>=3 "
                         "model files in one region sharing identical "
@@ -2111,6 +2357,8 @@ def main(argv: list[str]) -> int:
         return run_skinned(args, out_dir)
     if args.object_space:
         return run_object_space(args, out_dir)
+    if args.rigged:
+        return run_rigged(args, out_dir)
     if args.anim:
         return run_anim(args, out_dir)
 

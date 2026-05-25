@@ -140,7 +140,7 @@ def _is_colmaj_identity(buf: bytes, off: int) -> bool:
     return True
 
 
-def find_bone_matrix_runs(ee_path: Path, min_len: int = 8) -> list[tuple[int, int, bool]]:
+def find_bone_matrix_runs(ee_path: Path, min_len: int = 4) -> list[tuple[int, int, bool]]:
     """Return a list of (ee_address, run_length, has_non_identity) tuples for
     every run of >= `min_len` consecutive column-major affine matrices, tight
     64-byte stride, in EE RAM."""
@@ -194,6 +194,68 @@ def dump_matrix_run(ee_path: Path, ee_addr: int, count: int, out_path: Path) -> 
     }, indent=2))
 
 
+def dump_player_bones(ee_path: Path, runs: list[tuple[int, int, bool]],
+                       out_path: Path) -> dict | None:
+    """Emit a structured player_bones.json combining the detected character
+    matrix buffers. Each character slot in EE .bss is 0xE00 bytes and two slots
+    pack into a 0x1C00 {world,local} pair, double-buffered. We pick the run with
+    the most non-identity matrices as the player's primary buffer, and -- when a
+    sibling buffer 0xE00 bytes later exists with the same length -- emit it as
+    the paired buffer too. The two buffers are saved without trying to label
+    them world vs local: at the time of writing, both appear to hold local /
+    near-local per-bone matrices (one is the previous-frame copy used for
+    interpolation), and consumers should pick whichever composes correctly
+    against the published id71 parent hierarchy.
+    """
+    import json
+    if not runs:
+        return None
+    # Pick the longest run; ties broken by lowest EE address.
+    runs_sorted = sorted(runs, key=lambda r: (-r[1], r[0]))
+    primary_addr, primary_len, _ = runs_sorted[0]
+    addrs = [primary_addr]
+    for addr, length, _ in runs_sorted[1:]:
+        if length == primary_len and addr not in addrs:
+            addrs.append(addr)
+        if len(addrs) >= 2:
+            break
+    with open(ee_path, "rb") as f:
+        ee = f.read()
+    def read_run(addr: int, n: int):
+        out = []
+        for i in range(n):
+            m = struct.unpack_from("<16f", ee, addr + i * 64)
+            out.append({
+                "index": i,
+                "col0": list(m[0:4]),
+                "col1": list(m[4:8]),
+                "col2": list(m[8:12]),
+                "col3": list(m[12:16]),
+            })
+        return out
+    payload = {
+        "source_note": ("Live per-bone matrices snapped from EE RAM via "
+                         "tools/parse_pcsx2_state.py --player-bones. The "
+                         "engine stores two buffers per character "
+                         "(double-buffered current/previous local frames, "
+                         "or world+local depending on slot); both are dumped."),
+        "skeleton_source": "chunk05/f04_id71.bin",
+        "vertex_source":   "chunk21/f17_id8f.bin",
+        "stride_bytes": 64,
+        "storage": "column-major (each col = one qword); col3.xyz is translation",
+        "buffers": [
+            {
+                "ee_address": f"0x{addr:08x}",
+                "count": primary_len,
+                "matrices": read_run(addr, primary_len),
+            }
+            for addr in addrs
+        ],
+    }
+    out_path.write_text(json.dumps(payload, indent=2))
+    return payload
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("p2s", type=Path, help="path to .p2s save state")
@@ -203,12 +265,19 @@ def main() -> None:
                     help="after extracting, scan EE RAM for bone-matrix runs")
     ap.add_argument("--dump-bones", action="store_true",
                     help="with --scan-bones, also dump each run to JSON in --out")
+    ap.add_argument("--player-bones", action="store_true",
+                    help="emit a structured player_bones.json combining the "
+                         "longest run (the player's primary buffer) and its "
+                         "0xE00-paired sibling buffer if present. Implies "
+                         "--scan-bones.")
     args = ap.parse_args()
 
     written = extract_all(args.p2s, args.out)
     for short, path in sorted(written.items()):
         print(f"  {short:<24s} {path.stat().st_size:>10d} bytes  ({path})")
 
+    if args.player_bones:
+        args.scan_bones = True
     if args.scan_bones and "ee.bin" in written:
         print("\nScanning EE RAM for column-major bone-matrix runs...")
         runs = find_bone_matrix_runs(written["ee.bin"])
@@ -226,6 +295,18 @@ def main() -> None:
                 jp = args.out / f"bones_ee_{ee_addr:08x}.json"
                 dump_matrix_run(written["ee.bin"], ee_addr, length, jp)
                 print(f"      -> {jp}")
+        if args.player_bones:
+            jp = args.out / "player_bones.json"
+            payload = dump_player_bones(written["ee.bin"], nontrivial, jp)
+            if payload is not None:
+                addrs = [b["ee_address"] for b in payload["buffers"]]
+                cnt = payload["buffers"][0]["count"]
+                print(f"\n  player_bones.json: {len(addrs)} buffer(s) x {cnt} "
+                      f"matrices each -> {jp}")
+                for a in addrs:
+                    print(f"      ee {a}")
+            else:
+                print("  (no bone runs found; nothing to dump)")
 
 
 if __name__ == "__main__":
