@@ -4,6 +4,24 @@ Technical reference for formats and facts established so far. The authoritative,
 exhaustive format details live in the docstrings of the `tools/` scripts; this
 file summarises them and records findings that have no other home.
 
+## Python bind-pose evaluator (2026-05-27)
+
+`tools/extract_models.py` exposes `bind_pose_at_t(id71_path, entry_idx, t)`
+which parses an id 0x71 entry, samples the per-bone rotation and translation
+streams at `t` (frames) via `anim_decoder.sample_bone`, builds local `T*R`
+column-major affines, and composes world matrices through the entry's
++0x28 parent table (cycle-safe). The `--rigged` mode now defaults to
+evaluating the auto-paired skeleton at entry 0 / t=0 with no PCSX2 save
+state required; legacy `--bones JSON` and the new `--from-id71
+PATH:ENTRY:TIME` flags coexist.
+
+Validation: `chunk21/f17_id8f.bin` poses to 2196 world-space verts (matches
+the `--object-space` per-bone sum) at humanoid scale (~24x21x23 units),
+recognisable silhouette with mirrored L/R leaf bones and the high-X finger
+chain on bones 21..23. The pose is animation-clip-evaluated, not a true
+rest pose, so limb overlap is expected; the runtime per-bone scale
+(`+0x7C`/`+0x88`) is not stored on disc and defaults to identity here.
+
 ## Anim decoder VALIDATED (2026-05-27)
 
 `tools/anim_decoder.py` was empirically validated against the player rig

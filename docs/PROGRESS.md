@@ -1,5 +1,47 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-27 PYTHON BIND-POSE EVALUATOR — `--rigged` now disc-only
+
+End-to-end Python evaluation of the id 0x71 animation pipeline is wired into
+`tools/extract_models.py`. The legacy `--rigged` path required a PCSX2 save
+state to source live bone matrices; the new default decodes an id 0x71 clip
+directly from disc-extracted data and evaluates per-bone TRS at a chosen
+frame.
+
+**New helper** `bind_pose_at_t(id71_path, entry_idx=0, time_frames=0.0)`:
+- parses the file directory, slices the chosen entry;
+- pulls bone_count_raw, section1/2 bases, and the parent table (+0x28);
+- per bone, samples the rotation stream (`anim_decoder.parse_rotation_section`)
+  and translation stream at `time_frames` (identity quat / zero translation
+  for empty streams);
+- builds local `T*R` column-major affines and composes world matrices via
+  the existing cycle-safe `_compose_world_from_local`.
+
+**New CLI flag** `--from-id71 PATH[:ENTRY[:TIME]]`. Default: auto-paired
+skeleton, entry 0, frame 0. Legacy `--bones JSON` still works.
+
+**Validation (player rig, `chunk21/f17_id8f.bin` + skeleton
+`chunk05/f04_id71.bin` entry 0 @ t=0).**
+
+- Output: `models/chunk21_f17_id8f_rigged.obj`, 2196 world-space vertices
+  across 22 populated bones (matches the per-bone-section vertex sum from
+  `--object-space`).
+- Overall world-space AABB ~24x21x23 units — humanoid scale.
+- Bone 11 sits at the highest Y (head). Bones 21..23 form the high-X
+  finger/hand chain (parents `21->22->23->24`). Bones 5/6, 7/8, 9/10,
+  12/13, 17/18, 19/20, 22/23, 25/26 leaf-bone centroids exhibit approximate
+  L/R mirroring around X=0 (animation pose perturbs perfect symmetry).
+- Same flag also runs on `chunk17/f14_id8b.bin` (18380 verts, same scale).
+
+**What's still off.** The clip is mid-animation, not a true bind/rest
+pose. Several limbs overlap because (a) some animated bones inherit the
+root's translation and (b) the engine's runtime `+0x88..+0x8C` s16 fine
+scale and `+0x7C` float scale are not stored in id 0x71 — we default
+scale to 1. Recognisable humanoid silhouette, not yet pixel-perfect.
+
+`tools/anim_decoder.py` was used unchanged; the new logic lives entirely
+in `extract_models.py` (`bind_pose_at_t` + `_quat_to_local_mat`).
+
 ### Update — 2026-05-27 KEYFRAME STREAM FORMAT DECODED — bind-pose data flow FULLY DECODED
 
 The last piece of the bind-pose chain is now characterized: the on-disc

@@ -2124,21 +2124,123 @@ def _identity_mat() -> tuple:
             (0.0, 0.0, 0.0, 1.0))
 
 
-def run_rigged(args, out_dir: Path) -> int:
-    """`--rigged`: emit a posed bind-pose OBJ from live save-state bone matrices.
+def _quat_to_local_mat(q: tuple, t: tuple) -> tuple:
+    """Build a column-major 4x4 affine = T * R from a unit quaternion (qx,qy,qz,qw)
+    and a translation vec3. Scale defaults to 1.0 (per-bone struct +0x7C scale is
+    not stored in id 0x71 -- the engine seeds it elsewhere; identity scale is the
+    correct default for a bind-pose evaluator).
 
-    Inputs (defaults match the validated player character):
-      --bones    JSON from `parse_pcsx2_state.py --player-bones`.
-      --file     character mesh file with VIF-prefix per-bone obj-space verts.
-                 The id 0x71 skeleton from the SAME region is paired
-                 automatically (for parent hierarchy).
+    The 3x3 rotation matrix R, derived from a unit quaternion, is stored as the
+    first three columns. Translation goes into column 3.
     """
-    bones_path = Path(args.bones) if args.bones else None
+    x, y, z, w = q
+    # Standard quat->matrix (right-handed). Columns of R.
+    xx, yy, zz = x * x, y * y, z * z
+    xy, xz, yz = x * y, x * z, y * z
+    wx, wy, wz = w * x, w * y, w * z
+    col0 = (1.0 - 2.0 * (yy + zz), 2.0 * (xy + wz),       2.0 * (xz - wy),       0.0)
+    col1 = (2.0 * (xy - wz),       1.0 - 2.0 * (xx + zz), 2.0 * (yz + wx),       0.0)
+    col2 = (2.0 * (xz + wy),       2.0 * (yz - wx),       1.0 - 2.0 * (xx + yy), 0.0)
+    col3 = (t[0], t[1], t[2], 1.0)
+    return (col0, col1, col2, col3)
+
+
+def bind_pose_at_t(id71_path: Path, entry_idx: int = 0, time_frames: float = 0.0
+                   ) -> tuple[list[tuple], list[int]]:
+    """Decode an id 0x71 clip and return WORLD-space 4x4 column-major matrices
+    sampled at ``time_frames`` (default frame 0).
+
+    Pipeline:
+      - parse the file's entry directory; slice ``entry_idx``'s payload;
+      - extract bone count, section1 (rotation), section2 (translation) bases,
+        and the bone-count parent table (per FINDINGS, +0x28);
+      - per bone i in [0..bone_count_raw):
+          q = sample rotation stream at t (identity if no keyframes);
+          tr = sample translation stream at t ((0,0,0) if none);
+          local[i] = TRS_to_matrix(q, tr);
+      - walk parent table to compose world matrices (cycle-safe, mirroring
+        ``_compose_world_from_local``).
+
+    Returns (world_matrices, parents). world_matrices length = bone_count_raw
+    (30 for the player). The trailing overshoot slots are included so the
+    caller can choose how to handle them.
+    """
+    # local import keeps the module's import cost low at top-level
+    import importlib.util
+    import sys as _sys
+    if "_anim_decoder" in _sys.modules:
+        ad = _sys.modules["_anim_decoder"]
+    else:
+        _here = Path(__file__).resolve().parent
+        _spec = importlib.util.spec_from_file_location(
+            "_anim_decoder", _here / "anim_decoder.py")
+        ad = importlib.util.module_from_spec(_spec)
+        _sys.modules["_anim_decoder"] = ad
+        _spec.loader.exec_module(ad)
+
+    d = id71_path.read_bytes()
+    n_entries = struct.unpack_from("<I", d, 0)[0]
+    if not (1 <= n_entries <= 512):
+        raise ValueError(f"{id71_path}: not an id 0x71 file (entry_count={n_entries})")
+    offs = struct.unpack_from(f"<{n_entries + 1}I", d, 4)
+    if entry_idx >= n_entries:
+        raise ValueError(f"entry_idx {entry_idx} out of range (count={n_entries})")
+    e_start = offs[entry_idx]
+    e_end = offs[entry_idx + 1] if (entry_idx + 1) < n_entries else len(d)
+    if offs[entry_idx + 1] == 0xFFFFFFFF and (entry_idx + 1) == n_entries:
+        e_end = len(d)
+    entry = d[e_start:e_end]
+
+    bc_raw = entry[0]  # may include overshoot sentinels (e.g. 30 for player)
+    s1 = struct.unpack_from("<I", entry, 0x08)[0]
+    s2 = struct.unpack_from("<I", entry, 0x0c)[0]
+    s3 = struct.unpack_from("<I", entry, 0x10)[0]
+    raw_parents = list(struct.unpack_from(f"<{bc_raw}I", entry, 0x28))
+
+    sec1 = entry[s1:s2]
+    sec2 = entry[s2:s3]
+    rot_streams = ad.parse_rotation_section(sec1, bc_raw)
+    trn_streams = ad.parse_translation_section(sec2, bc_raw)
+
+    local_mats: list[tuple] = []
+    for i in range(bc_raw):
+        q = ad.sample_bone(rot_streams[i], time_frames) if rot_streams[i] else None
+        if q is None:
+            q = (0.0, 0.0, 0.0, 1.0)  # identity rotation
+        tr = ad.sample_bone(trn_streams[i], time_frames, normalize=False) \
+            if trn_streams[i] else None
+        if tr is None:
+            tr = (0.0, 0.0, 0.0)
+        local_mats.append(_quat_to_local_mat(q, tr))
+
+    # Build parent list compatible with _compose_world_from_local: -1 for
+    # self-parented root, -1 for indices out-of-range (overshoot sentinels).
+    parents_signed: list[int] = []
+    for i, p in enumerate(raw_parents):
+        if p == i or p >= bc_raw:
+            parents_signed.append(-1)
+        else:
+            parents_signed.append(p)
+
+    world = _compose_world_from_local(local_mats, parents_signed)
+    return world, parents_signed
+
+
+def run_rigged(args, out_dir: Path) -> int:
+    """`--rigged`: emit a posed humanoid OBJ from id 0x71 clip-evaluated matrices.
+
+    Default behaviour (NEW, 2026-05-27): decode an id 0x71 clip directly from
+    disc-extracted data and evaluate the bind pose at a chosen frame --
+    no save-state capture needed.
+
+      --from-id71 PATH[:ENTRY[:TIME]]    e.g. extract/chunk05/f04_id71.bin:0:0
+      --file     character mesh file with VIF-prefix per-bone obj-space verts.
+
+    Legacy (deprecated): --bones path/to/player_bones.json keeps the old
+    PCSX2 save-state pipeline working for back-compat.
+    """
     mesh_path = Path(args.file) if args.file else Path(
         "extract/chunk21/f17_id8f.bin")
-    if bones_path is None or not bones_path.is_file():
-        print("error: --rigged requires --bones path/to/player_bones.json")
-        return 2
     if not mesh_path.is_file():
         print(f"error: mesh file not found: {mesh_path}")
         return 2
@@ -2170,30 +2272,51 @@ def run_rigged(args, out_dir: Path) -> int:
         print("error: no id 0x71 skeleton found for parent hierarchy")
         return 2
 
-    buffers = _load_bones_json(bones_path)
-    if not buffers:
-        print(f"error: no matrices found in {bones_path}")
-        return 2
-
-    # Pick the buffer that gives the most "humanoid-looking" composed pose --
-    # in practice both PCSX2 buffers are current-frame / previous-frame copies
-    # of the local matrices (used for inter-frame interpolation), so either
-    # works; we pick buffer[0].
-    local_mats = list(buffers[0])
-    n_live = len(local_mats)
+    # --- choose matrix source ---------------------------------------------
+    source_desc = ""
+    bones_path = Path(args.bones) if args.bones else None
+    if bones_path is not None:
+        # LEGACY: PCSX2 save-state JSON.
+        if not bones_path.is_file():
+            print(f"error: --bones file not found: {bones_path}")
+            return 2
+        buffers = _load_bones_json(bones_path)
+        if not buffers:
+            print(f"error: no matrices found in {bones_path}")
+            return 2
+        local_mats = list(buffers[0])
+        n_live = len(local_mats)
+        parents_live = list(skel.parents[:n_live])
+        while len(parents_live) < n_live:
+            parents_live.append(-1)
+        world = _compose_world_from_local(local_mats, parents_live)
+        source_desc = (f"PCSX2 save-state JSON: {bones_path} "
+                       f"(buffer[0], {n_live} matrices)")
+    else:
+        # NEW DEFAULT: evaluate an id 0x71 clip at frame ``time_frames``.
+        clip_spec = getattr(args, "from_id71", None)
+        if clip_spec:
+            parts = clip_spec.split(":")
+            clip_path = Path(parts[0])
+            entry_idx = int(parts[1]) if len(parts) > 1 and parts[1] else 0
+            t_frames = float(parts[2]) if len(parts) > 2 and parts[2] else 0.0
+        else:
+            clip_path = skel_src
+            entry_idx = 0
+            t_frames = 0.0
+        if not clip_path.is_file():
+            print(f"error: id 0x71 file not found: {clip_path}")
+            return 2
+        world_full, parents_full = bind_pose_at_t(clip_path, entry_idx, t_frames)
+        # world_full length = bone_count_raw (e.g. 30 for the player). The
+        # mesh's bone-section table is what governs how many sections we
+        # actually emit; world_full[i] is used for section i.
+        world = world_full
+        n_live = len(world)
+        source_desc = (f"id 0x71 clip: {clip_path} entry {entry_idx} "
+                       f"@ t={t_frames} ({n_live} bones)")
     n_skel = len(skel.parents)
     n_bones = len(entries)
-    # The mesh's bone-section table can declare more sections than the
-    # engine actively animates (28 declared, 21 live for the player). The
-    # earlier behaviour padded with identity matrices, which planted the
-    # trailing sections' raw Q4.12 object-space vertices (range ~+/-8) at
-    # the world origin as stacked extra "humanoid" copies. Instead: compose
-    # world matrices using only the live (n_live) matrices + the matching
-    # prefix of the parent table, and SKIP any bone section beyond that.
-    parents_live = list(skel.parents[:n_live])
-    while len(parents_live) < n_live:
-        parents_live.append(-1)
-    world = _compose_world_from_local(local_mats, parents_live)
 
     # Read per-bone obj-space verts and transform.
     out_obj = out_dir / (f"{mesh_path.parent.name}_{mesh_path.stem}_rigged.obj")
@@ -2201,8 +2324,7 @@ def run_rigged(args, out_dir: Path) -> int:
     lines = [
         f"# Extermination (SCUS-97112) RIGGED model: "
         f"{mesh_path.parent.name}/{mesh_path.name}",
-        f"# bone matrices: {bones_path} (buffer[0], {n_live}/"
-        f"{n_bones} live, rest identity)",
+        f"# matrix source: {source_desc}",
         f"# skeleton:      {skel_src.parent.name}/{skel_src.name} "
         f"({n_skel} bones, parent table used to compose local->world)",
         "# Per-bone object-space Q4.12 verts transformed by the composed "
@@ -2211,11 +2333,11 @@ def run_rigged(args, out_dir: Path) -> int:
     total_v = 0
     report = [
         f"# Rigged-mesh report: {mesh_path.parent.name}/{mesh_path.name}",
-        f"# bones JSON: {bones_path}",
+        f"# matrix source: {source_desc}",
         f"# skeleton:   {skel_src.parent.name}/{skel_src.name} "
         f"({n_skel} bones, parents = {skel.parents})",
-        f"# live matrices: {n_live} (sections beyond {n_live} are skipped "
-        f"-- declared {n_bones} but only {n_live} are animated this frame)",
+        f"# bone-section table: {len(entries)} sections in mesh; "
+        f"{n_live} world matrices computed from clip",
         "",
     ]
     skipped_sections = 0
@@ -2267,8 +2389,7 @@ def run_rigged(args, out_dir: Path) -> int:
     out_txt.write_text("\n".join(report) + "\n")
     print(f"{mesh_path.parent.name}/{mesh_path.name}: {total_v} verts, "
           f"{n_live}/{n_bones} live bones -> {out_obj.name}")
-    print(f"  (bone matrices from {bones_path.name}; "
-          f"skeleton from {skel_src.name})")
+    print(f"  ({source_desc}; skeleton from {skel_src.name})")
     return 0
 
 
@@ -2344,18 +2465,25 @@ def main(argv: list[str]) -> int:
                         "quantised vertices) plus *_objspace.txt with "
                         "per-bone counts and bboxes. Opt-in and additive.")
     p.add_argument("--rigged", action="store_true",
-                   help="emit a POSED rigged OBJ: take a JSON of live bone "
-                        "matrices captured from a PCSX2 save state (via "
-                        "tools/parse_pcsx2_state.py --player-bones), compose "
-                        "world transforms using the paired id 0x71 skeleton, "
-                        "and apply them to the per-bone object-space Q4.12 "
-                        "vertex packets from the character mesh file. "
-                        "Output: *_rigged.obj (one `o bone_NN` point-cloud "
-                        "group per bone, world-space). Requires --bones and "
-                        "--file. Opt-in and additive.")
+                   help="emit a POSED rigged OBJ. NEW DEFAULT (2026-05-27): "
+                        "decode an id 0x71 animation clip directly from disc "
+                        "data, evaluate the per-bone TRS at frame 0 (or "
+                        "--from-id71 PATH:ENTRY:TIME), compose world matrices "
+                        "via the parent table, and apply them to the per-bone "
+                        "object-space Q4.12 vertex packets from --file. "
+                        "Legacy --bones JSON path remains for back-compat. "
+                        "Output: *_rigged.obj (one `o bone_NN` group per bone, "
+                        "world-space). Opt-in and additive.")
     p.add_argument("--bones",
-                   help="path to player_bones.json from "
-                        "parse_pcsx2_state.py --player-bones (used by --rigged)")
+                   help="LEGACY (deprecated): path to player_bones.json from "
+                        "parse_pcsx2_state.py --player-bones. If supplied, "
+                        "--rigged uses the PCSX2 save-state matrices instead "
+                        "of decoding an id 0x71 clip.")
+    p.add_argument("--from-id71", dest="from_id71",
+                   help="id 0x71 clip source for --rigged, formatted as "
+                        "PATH[:ENTRY[:TIME]] (e.g. extract/chunk05/f04_id71.bin"
+                        ":0:0). When omitted, --rigged uses the auto-paired "
+                        "skeleton's entry 0 at frame 0.")
     p.add_argument("--anim", action="store_true",
                    help="detect per-frame vertex-animation pose sets (>=3 "
                         "model files in one region sharing identical "
