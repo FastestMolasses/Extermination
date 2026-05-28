@@ -195,6 +195,67 @@ def sample_bone(frames: List[Keyframe], time_frames: float, normalize: bool = Tr
 
 
 # ---------------------------------------------------------------------------
+# Section 3 -- per-clip EVENT TABLE (reverse-engineered 2026-05-27 from
+# func_001C64F0 + func_001C8480; see docs/FINDINGS.md -> "Section 3 / event
+# table" for the derivation).
+#
+# Section 3 of an id 0x71 entry is a fixed 0x4b0-byte VIF-priming block (the
+# 30 inner offsets + 30 * 36-byte empty priming records) followed by an
+# optional EVENT TABLE at section3_base + 0x4b0:
+#
+#     +0x000  s16 count            # number of event records
+#     +0x002  s16 reserved (0)
+#     +0x004  count * { s16 frame, u16 flag }
+#     +ENDED  0xFFFFFFFF sentinel  # one or two u32 sentinels of padding
+#
+# Per-frame consumer (func_001C64F0) walks the table linearly, comparing
+# `frame` against int(clip_time_in_frames), and on the FIRST match OR-merges
+# `flag` into the bone state's return-status word (low 12 bits) before
+# breaking. `count == 0` means "no events this clip" (the block degenerates
+# to the sentinel only).
+#
+# The event table's existence for a given entry is signalled by the entry
+# header's u32 at +0x14 being non-zero: when set, it equals
+# section3_off + 0x4b0 (so the +0x14 word is purely a fast-path pointer to
+# what's already locatable at section3_base + 0x4b0).
+#
+# Empirically (player rig copies across chunk05/06/07/08/11/12/20): of 400
+# id 0x71 entries scanned, 35 carry a non-empty event table totalling 77
+# event records; every observed `flag` payload is 0x0009 -- consistent with
+# a single "footstep / sound trigger" event class for the player's locomotion
+# clips. Other rigs/clips may use different flag values.
+
+
+@dataclass
+class AnimEvent:
+    frame: int  # signed 16-bit frame index this event fires on
+    flag: int   # unsigned 16-bit event-flag payload (OR'd into bone status)
+
+
+def parse_event_section(section3_bytes: bytes,
+                        table_off: int = 0x4b0) -> List[AnimEvent]:
+    """Decode the optional event table inside section 3.
+
+    `section3_bytes` is the full section3 slice (from section3_base up to
+    the start of the next entry / EOF). `table_off` defaults to 0x4b0,
+    the empirically-uniform offset of the event table head past the
+    per-bone empty-priming block. Returns [] if count == 0.
+    """
+    if table_off + 4 > len(section3_bytes):
+        return []
+    count = struct.unpack_from("<h", section3_bytes, table_off)[0]
+    if count <= 0 or table_off + 4 + 4 * count > len(section3_bytes):
+        return []
+    events: List[AnimEvent] = []
+    base = table_off + 4
+    for i in range(count):
+        frame = struct.unpack_from("<h", section3_bytes, base + 4 * i)[0]
+        flag = struct.unpack_from("<H", section3_bytes, base + 4 * i + 2)[0]
+        events.append(AnimEvent(frame=frame, flag=flag))
+    return events
+
+
+# ---------------------------------------------------------------------------
 # self-test
 
 
@@ -235,6 +296,20 @@ def _selftest() -> None:
     assert abs(ty - -3.25) < 1e-3, ty
     assert abs(tz - 100.0) < 1e-2, tz
     print("translation pack/unpack roundtrip OK:", tframes[0].values)
+
+    # Event-table round-trip: build a synthetic section3 with two events.
+    body = bytes(0x4b0)  # empty priming block (don't care for this test)
+    body += struct.pack("<hH", 2, 0)
+    body += struct.pack("<hH", 12, 0x0009)
+    body += struct.pack("<hH", 32, 0x0009)
+    body += b"\xff\xff\xff\xff"  # sentinel
+    evts = parse_event_section(body)
+    assert len(evts) == 2 and evts[0].frame == 12 and evts[0].flag == 0x0009, evts
+    assert evts[1].frame == 32 and evts[1].flag == 0x0009, evts
+    # empty case
+    body0 = bytes(0x4b0) + struct.pack("<hH", 0, 0) + b"\xff\xff\xff\xff\xff\xff\xff\xff"
+    assert parse_event_section(body0) == [], parse_event_section(body0)
+    print("event table pack/unpack roundtrip OK:", evts)
     print("self-test PASS")
 
 

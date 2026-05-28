@@ -142,8 +142,13 @@ disc -> VU1 chain is now end-to-end characterized.
   and scale) are sampled by `func_001C90D0` and `func_001C92C0`.
 - **Per-frame advance:** `func_001C64F0` (vram `0x001C64F0`) re-runs
   `func_001C8480` each frame (cheap — pointer arithmetic) and walks
-  section3 as an **event table** (s16 event-id pairs at section3+4i,
-  payload s16 at +2), advancing `bone+0x50` toward 1.0.
+  the section3 **event table** (header at section3 + 0x4b0:
+  `s16 count, s16 pad, count*{s16 frame, u16 flag}, sentinel`),
+  OR-merging the first frame-matched `flag` into the return status
+  word, and advancing `bone+0x50` toward 1.0. The entry header's
+  `+0x14` u32 is the optional fast-path pointer to the table head
+  (zero when the clip has no events). DECODED 2026-05-27; see
+  FINDINGS.md "Section 3 / event table".
 
 End-to-end chain (disc -> VU1 vf01..vf04) and field table now in
 `docs/FINDINGS.md` under "Upstream keyframe sampler chain
@@ -152,7 +157,10 @@ End-to-end chain (disc -> VU1 vf01..vf04) and field table now in
 **Remaining unknowns** are at the bit-packing level only:
 - Exact disc encoding of the per-keyframe quat in section2 (decode
   lives in `func_001C8F10`, ~208 lines).
-- Event-record packing in section3.
+- ~~Event-record packing in section3.~~ DECODED 2026-05-27: 4-byte
+  `(s16 frame, u16 flag)` records at section3 + 0x4b0, prefixed by
+  s16 count + s16 pad, sentinel-terminated. Only flag value observed
+  across 77 events in the dataset is `0x0009` (likely footstep).
 - Whether translation/scale channels share the rotation-channel
   format.
 

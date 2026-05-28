@@ -552,6 +552,83 @@ followed by per-bone variable-length payload at those offsets:
 - **Section 3** (entry 0: rel 0x1d24, total 0x4bc bytes = 1212):
   uniform 36-byte stride per bone (no special bone-0 case). All
   records observed are the same 3x-repeated empty priming header.
+  **Section 3 also carries the per-clip EVENT TABLE** appended after
+  the priming block — see "Section 3 / event table" below.
+
+### Section 3 / event table (DECODED 2026-05-27)
+
+Section 3's full layout is now characterized:
+
+```
++0x000  30 * u32 inner offset sub-table            (0x78 bytes)
++0x078  30 * 36-byte empty VIF-priming records     (0x438 bytes)
++0x4b0  EVENT TABLE:
+          s16 count
+          s16 reserved (0)
+          count * { s16 frame, u16 flag }
+          0xFFFFFFFF sentinel(s)
+```
+
+The 0x4b0 header offset is **invariant across every id 0x71 entry**
+seen (30 bones * 36 bytes + 0x78 directory = 0x4b0 exactly). The
+event table is per-CLIP (per-entry), not per-bone — a single linear
+list of `(frame, flag)` pairs that fire when the clip time crosses
+each frame index.
+
+Consumer: `func_001C64F0` (per-frame time advancer). The function
+calls `func_001C8480` (the clip resolver, which caches
+`D_00275BF8` = entry header pointer, `D_00275BEC` = section3 base),
+then reads the entry header's u32 at offset +0x14. When non-zero
+this word is a fast-path pointer to the event table head (= `s3_off
++ 0x4b0`); when zero, the entry has no events and the loop is
+skipped.
+
+Per-frame walk (annotated, in C):
+
+```c
+clip_state* hdr = D_00275BF8;
+int evt_off = hdr->u32[+0x14];        // 0 => no events
+if (evt_off && !(bone->flags & 0x8000)) {
+    s16* tbl   = (s16*)((u8*)hdr + evt_off);
+    s16  count = tbl[0];                       // s16 count
+    u8*  recs  = (u8*)tbl + 4;                 // skip count+pad
+    int  ft    = (int)bone->time_frames_f32;   // bone+0x3C
+    for (int i = 0; i < count; i++) {
+        s16 frame =  *(s16*)(recs + 4*i + 0);
+        u16 flag  = *(u16*)(recs + 4*i + 2);
+        if (frame == (s16)ft) {
+            status |= flag;            // OR into low 16 bits of return
+            break;                     // FIRST-hit only, one event/frame
+        }
+    }
+}
+```
+
+The OR-accumulator that holds the flag is also where the clip-state
+machine writes its control bits (`0x1000`, `0x3000`, `0x4000`,
+`0x8000`) on end-of-clip and looping transitions — so the function's
+return word is a 16-bit packed `{ high 4 bits: state, low 12 bits:
+event-flag OR-merge }` carried back to the bone driver.
+
+**Cross-clip stats.** 400 id 0x71 entries scanned across all rigs;
+35 entries carry a non-empty event table (77 events total). **Every
+flag value observed is `0x0009`**, suggesting a single dominant
+event type (likely a footstep / sound trigger) on the player's
+locomotion clips. The 5 entries on the player rig with events are
+7, 8, 9, 10, 32, with 2/1/2/4/2 events at frames {22,57}, {7},
+{6,29}, {18,27,41,60}, {12,32} respectively — all sparse, monotonic
+within a clip, and clip-relative. Other rigs/clips may exercise
+other flag bits not present in this dataset.
+
+**Python decoder.** `tools/anim_decoder.py::parse_event_section`
+takes the section3 byte slice and returns a list of `AnimEvent`
+records. Round-tripped by the module self-test.
+
+**Doc errata.** The entry-header layout above lists `+0x14..+0x1f
+zero padding`; the +0x14 u32 is in fact the optional event-table
+pointer (zero when absent), and the +0x14 word IS used by the
+runtime. The remaining +0x18..+0x1f bytes were zero in every entry
+scanned and remain unverified-but-empty.
 
 Section 2's bone-0 special record, plus the variable-size Section 1
 payloads, vary entry-to-entry — the 57 entries in
