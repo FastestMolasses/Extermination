@@ -1466,17 +1466,61 @@ Each function builds a single REF tag pointing at a catalog packet
 | `func_001F0720` | `0x00232d6c` | early kernel data half (66 qw, IMEM 0x0100) |
 | `func_001D3AD0..001D5170` | various | static-geometry kernels |
 
-### Bone-matrix UNPACK source
+### Bone-matrix UNPACK source — REVISED 2026-05-27
 
-The **per-bone matrix UNPACK** is built in
-`func_001D4750`: the BSS region `D_00817240..D_008172BC` (124 bytes =
-4x 4x4 float matrices laid out contiguously) is the staging area for
-the four matrices uploaded as `UNPACK V4-32 NUM=4 dest=0x03F5` (the
-`0x6C0403F5` VIF immediate). The `0x6C080000` second UNPACK ships
-8 quadwords of additional context. Whatever fills
-`D_00817240..D_008172BC` each frame **is the bone-matrix source**.
-That fill happens in code reachable from `func_001D4750`'s callers —
-the next session's hunt.
+**Previous hypothesis (that some other function per-frame-fills
+`D_00817240..D_008172BC` with bone matrices) is REFUTED.** A full
+search of `build/asm/matchings/main/code/*.s` (3014 functions, 100%
+coverage) and `src/` finds exactly **one writer** to any address in
+`D_00817240..D_008172BC`: `func_001D4750` itself. No other function
+contains a LUI/ADDIU pair, gp-rel reference, or symbol reference that
+resolves anywhere inside this range.
+
+What `func_001D4750` actually does (lines 4-77 of the splat asm):
+the first ~120 instructions are 28 `sw` stores of literal immediates
+(`0x3F800000` = 1.0, `0xBF800000` = -1.0, `0x42000000` = 32.0, and
+`$zero`) into `D_00817240..D_008172AF`, followed by 4 stores of
+`0x4B000040` / `0x4B000080` into `D_008172B0..D_008172BC`. The decoded
+content is:
+
+```
+D_00817240 (qw 0..3 / 64 bytes): a fixed 4x4 matrix
+                  ( 1  0  0  0 )
+                  ( 0 -1  0  0 )    <- Y-flip / handedness
+                  ( 0  0  1  0 )
+                  ( 0  0  0  1 )
+D_00817280 (qw 4..6 / 48 bytes): three quadwords of (32.0, 32.0, 32.0, 0)
+                  — almost certainly the GS PRIM-context fixed-point
+                  bias / sub-pixel offset constants
+D_008172B0 (4 words / 16 bytes): packed VIF tag immediates
+                  0x4B000040, 0x4B000040, 0x4B000040, 0x4B000080
+                  (UNPACK V4-16 / V4-32 NUMs to a fixed dest)
+```
+
+The BSS scratch is purely a **once-built constant UNPACK header**. On
+every call (per-channel, per-frame), `func_001D4750` rewrites the same
+constants and memcpys the block into the chain buffer via
+`func_00102958`. So the staging area is **idempotent boilerplate, not
+a per-frame bone-matrix sink**. The "four 4x4 matrices" reading was
+wrong — there is one fixed transform + a constants triplet + VIF tags.
+
+**Implication: the per-bone matrix data does NOT pass through
+`D_00817240`.** The actual per-bone matrices ship via a different
+mechanism — most likely the second UNPACK that `func_001D4750` appends
+(the `0x6C0403F5` immediate, V4-32 NUM=4 dest=0x03F5), whose source
+pointer is passed *as a chain-buffer field* and built by the CALLER
+of `func_001D4750`. The two `jal func_00102958` calls memcpy from
+`D_00817240` (the constants) — but the chain ALSO contains a REF tag
+appended by `func_001D2090` in each caller (see
+`func_001D4960` line 14: `D_00816440` as the catalog packet base
+plus `0x9C(t0) << 7` per-channel offset). That `D_00816440`-relative
+buffer is the next thing to investigate — it is indexed per channel
+by `0x9C(t0)` (a counter that increments per draw) and is the most
+likely live per-bone matrix arena.
+
+**Next hunt target:** `D_00816440` and `0x9C` offset in the per-
+channel struct rooted at `D_00275670`. Search writers to that range,
+not `D_00817240`.
 
 ### PSMT8 TEX0 setup — NOT YET FOUND
 

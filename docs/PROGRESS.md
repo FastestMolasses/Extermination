@@ -870,9 +870,16 @@ ELF** (1530624/1530624 bytes, 100.00%).
   wrappers in the `001D3xxx-001D5xxx` and `001E7xxx-001E9xxx` clusters
   build chain tags into the per-channel buffer at `D_00275670[ch]`
   via `func_001D2090` (REF tag, addr=packet) and `func_001D4750`
-  (matrix UNPACK builder). Bone-matrix UNPACK source is BSS
-  `D_00817240..D_008172BC` (4 stacked 4x4 matrices, shipped as
-  `UNPACK V4-32 NUM=4 dest=0x03F5` via VIF imm `0x6C0403F5`). VIF1
+  (matrix UNPACK builder). **REVISED 2026-05-27:**
+  `D_00817240..D_008172BC` is NOT the bone-matrix source — it is a
+  static UNPACK header (fixed Y-flip matrix + GS bias constants + VIF
+  tag immediates) that `func_001D4750` rebuilds from literals on every
+  call. A full-coverage search finds NO other writer to this range.
+  The actual per-bone matrix arena is reached via the REF tag appended
+  by `func_001D2090` in each caller; the data is rooted at
+  `D_00816440 + 0x80 * 0x9C($t0)` where `$t0 = D_00275670[ch]`.
+  See FINDINGS.md "Bone-matrix UNPACK source — REVISED 2026-05-27".
+  VIF1
   cold-start primer is `func_00100278` (direct FIFO write of two
   VIF-command quadwords at `D_00241020`). The per-frame chain flush
   is still unidentified — likely in the `func_001D7C30 /
