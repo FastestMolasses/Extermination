@@ -1577,10 +1577,8 @@ range. The `D_00816440` arena and the four 21-matrix BSS buffers are
   located by this search and is the *next* hunt target.
 
 **Still unknown.**
-1. Where the **anim-evaluator** writes the 4 per-character 21-matrix
-   buffers at `0x002863xx`. None of the 6 D_00816440-referencing
-   functions touches that BSS range. Needs a separate search for
-   writers into `0x00286300..0x00289400`.
+1. ~~Writers to the 4 per-character 21-matrix buffers at `0x002863xx`.~~
+   **RESOLVED 2026-05-27 — see "Live bone matrix writers" below.**
 2. Whether `func_001D9720` reuploads or patches `D_00816440` per
    frame (sibling call right after the one-shot init) — quick read
    suggests it's VIF1 cold-start related, not a per-frame matrix
@@ -1589,6 +1587,99 @@ range. The `D_00816440` arena and the four 21-matrix BSS buffers are
    identity matrices or carry per-channel scale/orientation biases
    (header word is uniform `0x01000404 / 0x6C0703F9`; payload not
    inspected).
+
+### Live bone matrix writers — RESOLVED (2026-05-27)
+
+Static disassembly of `build/asm/matchings/main/code/` finds exactly
+**three functions** that load the addresses of any of
+`D_00286340 / D_00287140 / D_00287F40 / D_00288D40` (the 4 live bone
+buffers identified via PCSX2 save state) with `lui+addiu`:
+
+- `func_0017A130` (0x6C8) — **per-frame dispatcher**. Reads a float
+  selector at `+0x278` of its sole arg (a per-actor struct also passed
+  to `func_00179BC0`/`func_0017A0B0`), picks one of 5 routing branches,
+  and for each branch makes a sequence of `func_0017A0B0(actor, mode)`
+  → `func_00179BC0(actor, slot_index<<16>>16, buffer_base)` calls.
+  The buffer base passed in `$a2` is one of the four fixed BSS
+  addresses, hardcoded per branch. The branch selector picks between
+  {world,local} pair A (`0x00286340 / 0x00287F40`) and pair B
+  (`0x00287140 / 0x00288D40`); the second pair only ever appears in the
+  late branches, consistent with the FINDINGS observation that when
+  only the player is on screen only the `0x00287F40` pair is populated.
+- `func_00148B40` (0x1010) — a **larger sibling** of `func_0017A130`
+  with the same four buffer addresses interleaved; the same
+  ($s3,$s4,$s5)=(local,local',world) register pattern, suggesting a
+  multi-actor or transitional/cross-fade variant of the same routing.
+  Called only from `func_00147700` (only caller of `func_00147390`).
+- `func_0017B660` (0x2A8) — references only `D_00287F40 / D_00288D40`
+  (the player-only pair), and is the writer-side of the
+  player-character path. Called only from `func_0017C030`, in turn
+  called from `func_001612D0` (writer) and `func_001837B0` (writer).
+
+**The inner writer is `func_00179BC0`** (0xD4 bytes). Signature:
+`(actor *a0, short slot_idx_a1, matrix_buffer *a2)`. Body:
+
+1. Reads `lbu $v1, 0x1F0($a0)` — actor "kind" byte. Cases `0x31` and
+   `0x34` take one normalisation path (build a `cvt.s.w` of
+   `lh 0x276($a0)` and call `func_001749F0(actor, 0.0, n)`); otherwise
+   call `func_001749F0(actor, 0.0, 1.0)` — these set up an
+   animation-time / blend-weight before evaluation.
+2. Calls `func_001C6DA0(actor)` — likely the per-actor animation
+   evaluator that fills the per-bone source structs.
+3. Loops `for (i = 0; i < lbu($s3 + 0xC); i++)` — **bone count** is a
+   byte at offset `+0xC` of the actor struct.
+4. Per iteration: `ptr = *(D_00275B40 + i*4); func_00102958(dest, ptr + 0x90); dest += 0x40;`
+
+`func_00102958` is a pure 64-byte qword copy (`lq/sq` × 4) — confirmed
+matrix-sized.
+
+**`D_00275B40` is a runtime-resolved pointer to a flat array of
+per-bone source pointers.** It is initialised by `func_001CB5B0`:
+`D_00275B40 = *D_00275B48 + 0x110`. The per-bone source struct holds a
+fully composed 4x4 column-major matrix at `+0x90`; that struct is
+populated upstream by the animation evaluator chain rooted at
+`func_001C6DA0`. **So `func_00179BC0` is the matrix *publisher***: it
+gathers already-computed per-bone matrices from a heap-allocated
+animation scratch (reached via the `D_00275B40` pointer-of-pointers
+table) and copies them into the four fixed BSS slots that the
+skinning UNPACK pipeline reads from.
+
+This explains *why* no direct EE pointer to `0x00286340` exists in
+captured memory: the destination address is a compile-time constant
+baked into `func_0017A130` / `func_00148B40` / `func_0017B660`, never
+stored.
+
+**Caller chain (live anim pipeline):**
+```
+func_001ACA20 / func_001AE040   (engine state setup — same top as D_00816440 pipeline)
+  -> func_0015BCF0
+       -> func_0015BA50
+            -> func_0015B130                   -> func_001612D0 -> func_0017C030 -> func_0017B660 (player-only writer)
+            -> func_0015B530                   -> func_001837B0 -> func_0017C030 -> func_0017B660
+            (sibling) func_00147390 -> func_00147700 -> func_00148B40           (multi-actor writer)
+       -> ... per-actor: func_0017A130                                          (general dispatcher writer)
+                            -> func_0017A0B0   (frame/slot index selector)
+                            -> func_00179BC0   (the publisher above)
+                                 -> func_001749F0   (anim-time / blend setup)
+                                 -> func_001C6DA0   (per-actor anim evaluator — fills +0x90 source matrices)
+                                 -> func_00102958   (64-byte matrix copy, per bone)
+```
+
+The **next target for true "where does anim data live"** is therefore
+`func_001C6DA0` and the heap region returned by `*D_00275B48 + 0x110`
+— this is the per-bone source-struct array, and its inputs are the
+actual animation clips. From the PCSX2 capture the source matrices
+match the bone-local interpolated pose, so the evaluator at
+`func_001C6DA0` is doing the keyframe lookup + SLERP/LERP + matrix
+compose, almost certainly off the id 0x71 entry data (skeleton +
+clips) — but **this writer does not itself read id 0x71**; the
+question is now pushed into `func_001C6DA0`.
+
+**No connection to the static D_00816440 pipeline at the writer
+level** — the two arenas (D_00816440 fixed-pose VIF arena and the
+0x002863xx live bone slots) are independent staging areas with
+independent fillers, sharing only the top-level per-frame entry
+points `func_001ACA20` / `func_001AE040`.
 
 ### PSMT8 TEX0 setup — NOT YET FOUND
 

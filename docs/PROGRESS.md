@@ -889,9 +889,18 @@ ELF** (1530624/1530624 bytes, 100.00%).
   `func_001ACA20`/`func_001AE040` -> `func_001D19E0` -> `func_001D2E20`.
   This is a **fixed/identity-pose** path. The live per-frame anim
   matrices in `0x002863xx..0x002893xx` are produced by a separate
-  pipeline — writer still unknown (no overlap with the 6 functions
-  that reference `D_00816440`). See FINDINGS.md "D_00816440 arena —
-  writer identified".
+  pipeline — **writer identified 2026-05-27: `func_00179BC0` (inner
+  publisher) dispatched by `func_0017A130` / `func_00148B40` /
+  `func_0017B660`** (the only three functions that statically reach
+  the four bone-buffer addresses via lui/addiu). The publisher copies
+  pre-computed 64-byte matrices from a per-bone source struct
+  (`*(D_00275B40 + 4*bone) + 0x90`) into one of the four BSS slots.
+  Bone count is `lbu($actor + 0xC)`; matrix data is **populated
+  upstream by `func_001C6DA0`** (per-actor anim evaluator) — the next
+  hunt target for actual keyframe / clip data. Top-of-chain is the
+  same per-frame entries as the D_00816440 pipeline
+  (`func_001ACA20` / `func_001AE040`). See FINDINGS.md "Live bone
+  matrix writers — RESOLVED (2026-05-27)".
   VIF1
   cold-start primer is `func_00100278` (direct FIFO write of two
   VIF-command quadwords at `D_00241020`). The per-frame chain flush
