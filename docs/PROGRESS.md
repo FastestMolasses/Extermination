@@ -1,5 +1,88 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-27 GLTF EXPORTER — UVs + textures (static reference mesh)
+
+The .glb exporter now embeds the player's three character texture sheets
+and a UV-mapped reference mesh alongside the rigged skeleton.
+
+**Source of UVs.** The character mesh file (`chunk21/f17_id8f.bin`) carries
+TWO independent vertex streams:
+
+1. The previously-documented per-bone VIF stream (28 sections,
+   POSITION+packed_normal+vid, **no UVs**) -- still used to drive the
+   rigged/animated skeleton.
+2. A **MESH-descriptor section** starting at file offset 0xe848, holding
+   317 fixed-size 0x820-byte blocks. Each block is the standard 64-byte
+   vertex record (already documented for level `id 0x44` files): `m0/m1`
+   marker, `(u,v,1,0)` UVs at +0x10, normal-or-color at +0x20, position
+   at +0x30. The existing `parse_model_file()` in `extract_models.py`
+   already decoded this stream (it just wasn't being routed to the .glb).
+   Total: **10015 vertices / 6921 triangles / 105 distinct (m0,m1) keys**.
+
+**Texture binding.** The per-strip `sheet_field = (m0 >> 15) & 0x3FFF`
+field (already documented in FINDINGS for level materials) applies
+identically to character strips. The player rig uses the universal
+sheet trio `{10884, 12932, 14980}`, which maps to GS VRAM
+`DBP = {10752, 12672, 14592}` via the affine `DBP = (sheet_field + 584.8)
+* (1920/2048)`. Two of the three sheets are uploaded by sibling files in
+the player mesh's own chunk dir (`chunk21/f00_id43.bin` and
+`chunk21/f01_id44.bin`); the third (`DBP=14592`, the smallest 512x384
+sheet) is uploaded by per-level `id 0x44` files -- the exporter falls
+back to scanning `extract/` and picks the first match (currently
+`chunk04.n2/f00_id44.bin`).
+
+**Textures embedded.** Each resolved sheet is decoded via the existing
+PSMT8 deswizzle pipeline (`extract_subtextures.deswizzle`), expanded to
+RGBA via the identity-grayscale CLUT (color CLUT binding is still
+unresolved -- see FINDINGS "Color source"), and written into the .glb as
+an embedded `image/png` referenced by a glTF Material with
+`baseColorTexture`.
+
+**What works.** The .glb now contains:
+- the 28-bone rigged skeleton with 57 animation clips (unchanged);
+- a sibling un-rigged `player_static_textured` mesh under the scene root
+  with 3 primitives (one per texture sheet), each with POSITION +
+  NORMAL + TEXCOORD_0 + a material pointing at the embedded PNG.
+
+**What's still off.**
+- The static-textured mesh's positions are *bone-local*
+  (range roughly -5..15 across all blocks) -- they need bone matrices
+  applied to land in world space. So the static mesh appears as a
+  collapsed blob near the scene origin rather than a posed character.
+  The per-bone↔MESH-block binding metadata is not yet decoded; nothing
+  in the per-block header carries an explicit bone index, and the
+  block positions do NOT overlap with the per-bone VIF positions
+  (different coordinate frames). Candidate next investigation: the
+  "small u32 x 28" table immediately preceding the section table (file
+  offset 0x2258..0x22c8), or the m0/m1 key -> bone mapping.
+- Color CLUT is still grayscale-luminance (PSMT8 indices ordered by
+  luminance, so grayscale is a faithful brightness preview but obviously
+  not the in-game palette).
+- The rigged mesh primitives still have no UVs (the per-bone VIF stream
+  carries no UV field at all -- decoding the VU1 skinning kernel may
+  reveal whether the UV is shipped via a parallel VIF UNPACK or is
+  reconstructed at runtime from the MESH-descriptor stream).
+
+**Validation output** (`tools/export_gltf.py --mesh extract/chunk21/f17_id8f.bin
+--skel extract/chunk05/f04_id71.bin`):
+
+```
+wrote models/Extermination_Player.glb (2709792 bytes)
+  bones      : 30
+  meshes     : 23  (one rigid mesh per non-empty bone + 1 static textured)
+  triangles  : 1739
+  animations : 57
+  static mesh: 10015 verts / 6921 tris / 3 prims
+    sheet DBP=10752 ( 525 strips)  512x960  source=chunk21/f00_id43.bin
+    sheet DBP=12672 ( 505 strips)  512x448  source=chunk21/f01_id44.bin
+    sheet DBP=14592 ( 517 strips)  512x384  source=chunk04.n2/f00_id44.bin
+  images/textures/materials: 3/3/3
+```
+
+GLB round-trips through `pygltflib`; all accessors fit their bufferViews;
+embedded PNGs are well-formed (verified via `file(1)`: `512 x 960, 8-bit/
+color RGBA, non-interlaced`).
+
 ### Update — 2026-05-27 GLTF EXPORTER — triangles + smooth normals
 
 Promoted the .glb exporter from a point cloud to a shaded mesh:

@@ -72,6 +72,45 @@ normal/lighting field at vertex-record +0x06 is not decoded so normals
 are derived from face geometry; 3 trivial bones (3 verts each) fall back
 to POINTS mode because their vid deltas form no valid strip.
 
+### UV + texture binding for the character (2026-05-27)
+
+Character mesh files (e.g. `chunk21/f17_id8f.bin`) carry the UV data not
+in the per-bone VIF stream but in a **second**, model-format
+MESH-descriptor section starting partway through the file (offset 0xe848
+in the player mesh). This section is decoded by the EXISTING
+`extract_models.parse_model_file()` -- 317 fixed-size 0x820-byte blocks,
+each with the standard 64-byte vertex record carrying:
+
+    +0x00  u32 m0, u32 m1                  marker / per-strip key
+    +0x10  vec4 (u, v, 1.0, 0.0)           UV coordinates (floats)
+    +0x20  vec4 normal_or_color            unit normal for dynamic meshes
+    +0x30  vec4 (x, y, z, w=+/-1)          position (bone-local, small)
+
+Across the player mesh: 105 distinct (m0,m1) keys, ~10000 vertices,
+~6900 triangles. The per-strip `sheet_field = (m0 >> 15) & 0x3FFF`
+already documented for level materials applies identically here: the
+three values {10884, 12932, 14980} resolve to GS VRAM bases
+`DBP = {10752, 12672, 14592}` -- the **universal character sheet trio**.
+
+The first two sheets (DBP 10752, 12672) are uploaded by sibling files
+in the same chunk dir as the mesh (`chunk21/f00_id43.bin`,
+`chunk21/f01_id44.bin`); the third (DBP 14592) is uploaded by per-level
+`id 0x44` files (the closest match in the dataset is
+`chunk04.n2/f00_id44.bin`). `tools/export_gltf.py` now embeds all three
+sheets as RGBA PNGs (identity grayscale CLUT) referenced by glTF
+Materials with `baseColorTexture`.
+
+**Unresolved.** (1) Per-bone↔MESH-block binding: the block headers
+carry a bbox but no explicit bone index, and the MESH-block positions
+do not match the per-bone VIF positions (different coordinate frames).
+Without the bone binding the static-textured mesh appears collapsed
+near the origin. Candidate: the "small u32 x 28" table at the end of
+the file's prefix region (immediately before the per-bone section
+table) -- size matches the bone count, but its semantics are not yet
+decoded. (2) Whether the per-bone VIF stream has parallel UVs shipped
+via another VIF UNPACK (currently the per-bone records are 12 bytes
+each and fully accounted for as POSITION+packed_normal+vid).
+
 ## Python bind-pose evaluator (2026-05-27)
 
 `tools/extract_models.py` exposes `bind_pose_at_t(id71_path, entry_idx, t)`

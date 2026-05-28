@@ -56,6 +56,74 @@ def _load(name: str, fname: str):
 
 ad = _load("_anim_decoder", "anim_decoder.py")
 em = _load("_extract_models", "extract_models.py")
+est = _load("_extract_subtextures", "extract_subtextures.py")
+
+
+# ---------------------------------------------------------------------------
+# Texture sheet resolution and PNG encoding
+#
+# Each character mesh's per-strip marker `m0` carries a `sheet_field`
+# (`(m0 >> 15) & 0x3FFF`) that names a GS VRAM base, which maps to a
+# texture-upload BITBLTBUF DBP via the affine
+#     sheet_field = DBP * (2048/1920) - 584.8
+# (see docs/FINDINGS.md "Material -> texture binding"). The player rig
+# references three universal-slot DBPs {10752, 12672, 14592}. We resolve
+# each DBP by scanning the mesh's sibling files (same chunk dir) plus an
+# optional fall-back search root for the first GS texture upload matching
+# that DBP, then decode the PSMT8 sheet via extract_subtextures and write
+# it as an RGBA PNG using the identity-grayscale CLUT (full-color binding
+# is still unresolved -- see docs/FINDINGS.md "Color source").
+# ---------------------------------------------------------------------------
+
+
+def _sheet_field_to_dbp(sf: int) -> int:
+    return round((sf + 584.8) / (2048.0 / 1920.0))
+
+
+def _find_transfer_for_dbp(mesh_path: Path, dbp: int,
+                           search_root: Path | None) -> tuple[Path, "est.Transfer"] | None:
+    """Locate the first GS texture upload matching `dbp`, preferring the
+    same chunk dir as the mesh file. Returns (source_file, decoded transfer)
+    or None."""
+    candidates: list[Path] = []
+    # Same-chunk preference
+    candidates.extend(sorted(mesh_path.parent.glob("*.bin")))
+    seen = set(candidates)
+    if search_root and search_root.is_dir():
+        for p in sorted(search_root.rglob("*.bin")):
+            if p not in seen:
+                candidates.append(p)
+    for f in candidates:
+        try:
+            d = f.read_bytes()
+        except Exception:
+            continue
+        xfers = est.scan_transfers(d, f.name)
+        for t in xfers:
+            if t.dbp == dbp:
+                if est.decode_transfer(d, t):
+                    return (f, t)
+    return None
+
+
+def _png_rgba_bytes(width: int, height: int, indexed: bytes) -> bytes:
+    """8-bit indexed pixels -> RGBA PNG bytes (identity grayscale CLUT)."""
+    import zlib as _zlib
+
+    def chunk(typ: bytes, data: bytes) -> bytes:
+        return (struct.pack(">I", len(data)) + typ + data +
+                struct.pack(">I", _zlib.crc32(typ + data) & 0xFFFFFFFF))
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)  # 6 = RGBA
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)  # filter byte
+        row = indexed[y * width:(y + 1) * width]
+        for px in row:
+            raw.append(px); raw.append(px); raw.append(px); raw.append(0xFF)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) +
+            chunk(b"IDAT", _zlib.compress(bytes(raw), 6)) +
+            chunk(b"IEND", b""))
 
 
 # ---------------------------------------------------------------------------
@@ -427,6 +495,29 @@ class GLBBuilder:
             target=34963,  # ELEMENT_ARRAY_BUFFER
         )
 
+    def add_vec2_float(self, uvs: List[Tuple[float, float]]) -> int:
+        if not uvs:
+            raise ValueError("empty vec2 accessor")
+        data = struct.pack(f"<{len(uvs) * 2}f",
+                           *[c for v in uvs for c in v])
+        return self.add_accessor(
+            data, self.COMP_FLOAT, len(uvs), "VEC2",
+            target=34962,
+        )
+
+    def add_raw_blob(self, blob: bytes) -> int:
+        """Append a raw byte blob and return its bufferView index (no accessor).
+        Used for embedded image data."""
+        self._pad4()
+        byte_offset = len(self.bin_blob)
+        self.bin_blob.extend(blob)
+        self.bufferViews.append({
+            "buffer": 0,
+            "byteOffset": byte_offset,
+            "byteLength": len(blob),
+        })
+        return len(self.bufferViews) - 1
+
 
 # ---------------------------------------------------------------------------
 # Main build (unified single-pass; see build_glb_unified below).
@@ -596,8 +687,134 @@ def _unused_staged_build(mesh_path: Path, skel_path: Path, out_path: Path,
 # split. This pass builds everything against one shared GLBBuilder.)
 
 
+def build_static_textured_mesh(mesh_path: Path, gb: "GLBBuilder",
+                               search_root: Path | None) -> tuple[list, list, list, dict]:
+    """Build the textured reference mesh from the mesh file's MESH-descriptor
+    section (UV + position + normal). Returns (primitives, images, textures,
+    info_dict). The primitives are split by texture sheet (one primitive per
+    DBP), each referencing its own material.
+
+    The positions in this stream are bone-local (pre-skinning), so the mesh
+    appears as a jumbled blob at the scene root when bone-binding metadata
+    is not yet decoded -- but the UVs and textures bind correctly per strip.
+
+    Returns ([], [], [], {}) if no MESH descriptors found.
+    """
+    info: dict = {"sheets": [], "primitives": 0, "triangles": 0, "vertices": 0}
+    d = mesh_path.read_bytes()
+    strips = em.parse_model_file(d)
+    if not strips:
+        return [], [], [], info
+
+    # Group strips by sheet_field -> DBP.
+    by_dbp: dict[int, list] = {}
+    for s in strips:
+        m0, _m1 = s.key
+        sheet_field = (m0 >> 15) & 0x3FFF
+        dbp = _sheet_field_to_dbp(sheet_field)
+        by_dbp.setdefault(dbp, []).append(s)
+
+    # Resolve each DBP -> texture sheet (PSMT8 -> RGBA grayscale PNG).
+    materials_for_dbp: dict[int, int] = {}
+    textures_for_dbp: dict[int, int] = {}
+    images_for_dbp: dict[int, int] = {}
+    image_objs: list = []
+    texture_objs: list = []
+    material_objs: list = []
+    for dbp in sorted(by_dbp.keys()):
+        found = _find_transfer_for_dbp(mesh_path, dbp, search_root)
+        sheet_info = {"dbp": dbp, "n_strips": len(by_dbp[dbp])}
+        if found is None:
+            # Synthetic placeholder texture -- still emit a material so the
+            # primitive renders solid gray rather than failing strict parsers.
+            sheet_info["source"] = None
+            material_objs.append({
+                "name": f"player_dbp{dbp}_missing",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.5, 0.5, 0.5, 1.0],
+                    "metallicFactor": 0.0, "roughnessFactor": 1.0,
+                },
+            })
+            materials_for_dbp[dbp] = len(material_objs) - 1
+            continue
+        src_path, xfer = found
+        png_bytes = _png_rgba_bytes(xfer.width, xfer.height, xfer.pixels)
+        bv_idx = gb.add_raw_blob(png_bytes)
+        image_objs.append({
+            "name": f"sheet_DBP{dbp}",
+            "mimeType": "image/png",
+            "bufferView": bv_idx,
+        })
+        img_i = len(image_objs) - 1
+        texture_objs.append({"source": img_i})
+        tex_i = len(texture_objs) - 1
+        material_objs.append({
+            "name": f"player_dbp{dbp}",
+            "pbrMetallicRoughness": {
+                "baseColorTexture": {"index": tex_i, "texCoord": 0},
+                "metallicFactor": 0.0, "roughnessFactor": 1.0,
+            },
+        })
+        materials_for_dbp[dbp] = len(material_objs) - 1
+        images_for_dbp[dbp] = img_i
+        textures_for_dbp[dbp] = tex_i
+        sheet_info["source"] = str(src_path.relative_to(src_path.parents[1]))
+        sheet_info["size"] = [xfer.width, xfer.height]
+        info["sheets"].append(sheet_info)
+
+    # Build a primitive per DBP with merged strip triangles.
+    primitives: list = []
+    total_tris = 0
+    total_verts = 0
+    for dbp, dbp_strips in by_dbp.items():
+        positions: list = []
+        normals: list = []
+        uvs: list = []
+        indices: list = []
+        for s in dbp_strips:
+            base = len(positions)
+            for v in s.verts:
+                positions.append(v.pos)
+                # attr is (nx,ny,nz) for dynamic meshes; we trust it as a
+                # normal here (character meshes are dynamic-lit).
+                normals.append(v.attr)
+                uvs.append((v.uv[0], v.uv[1]))
+            for i0, i1, i2 in em.strip_triangles(s):
+                indices.append(base + i0)
+                indices.append(base + i1)
+                indices.append(base + i2)
+        if not indices:
+            continue
+        pos_acc = gb.add_vec3_float(positions)
+        nrm_acc = gb.add_vec3_float_normal(normals)
+        uv_acc = gb.add_vec2_float(uvs)
+        idx_acc = gb.add_indices_auto(indices, len(positions))
+        prim = {
+            "attributes": {
+                "POSITION": pos_acc,
+                "NORMAL": nrm_acc,
+                "TEXCOORD_0": uv_acc,
+            },
+            "indices": idx_acc,
+            "mode": 4,  # TRIANGLES
+            "material": materials_for_dbp[dbp],
+        }
+        primitives.append(prim)
+        total_tris += len(indices) // 3
+        total_verts += len(positions)
+
+    info["primitives"] = len(primitives)
+    info["triangles"] = total_tris
+    info["vertices"] = total_verts
+    return primitives, image_objs, texture_objs, {
+        **info,
+        "_materials": material_objs,
+    }
+
+
 def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
-                      fps: float = 30.0) -> dict:
+                      fps: float = 30.0,
+                      search_root: Path | None = None) -> dict:
     global FPS
     FPS = fps
 
@@ -739,9 +956,41 @@ def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
         else:
             track_per_clip.append(0)
 
+    # 3b. Static textured reference mesh (MESH-descriptor section, with UVs +
+    # texture sheets resolved from sibling files). Positions are bone-local
+    # and not yet bound to bones, so this mesh appears as a single un-rigged
+    # blob -- but it carries the correct UVs and material/texture references.
+    static_prims, image_objs, texture_objs, static_info = build_static_textured_mesh(
+        mesh_path, gb, search_root,
+    )
+    material_objs = static_info.pop("_materials", []) if static_info else []
+    static_mesh_idx: int | None = None
+    static_node_idx: int | None = None
+    if static_prims:
+        meshes.append({
+            "primitives": static_prims,
+            "name": "player_static_textured",
+        })
+        static_mesh_idx = len(meshes) - 1
+        # Add a sibling node at scene root so it doesn't inherit any bone
+        # transform. Tagged with a uniform scale so the user can see both
+        # the rigged rig and the static-textured reference side-by-side.
+        nodes.append({
+            "name": "player_static_textured",
+            "mesh": static_mesh_idx,
+            "translation": [0.0, 0.0, 0.0],
+        })
+        static_node_idx = len(nodes) - 1
+        # Don't re-insert scene_root_idx -- it's still last-but-one;
+        # rebuild scene roots to include both.
+
     # 4. Pad buffer to 4
     while len(gb.bin_blob) % 4 != 0:
         gb.bin_blob.append(0)
+
+    scene_nodes = [scene_root_idx]
+    if static_node_idx is not None:
+        scene_nodes.append(static_node_idx)
 
     gltf = {
         "asset": {
@@ -749,13 +998,19 @@ def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
             "generator": "Extermination decomp export_gltf.py",
         },
         "scene": 0,
-        "scenes": [{"name": "Scene", "nodes": [scene_root_idx]}],
+        "scenes": [{"name": "Scene", "nodes": scene_nodes}],
         "nodes": nodes,
         "meshes": meshes,
         "accessors": gb.accessors,
         "bufferViews": gb.bufferViews,
         "buffers": [{"byteLength": len(gb.bin_blob)}],
     }
+    if image_objs:
+        gltf["images"] = image_objs
+    if texture_objs:
+        gltf["textures"] = texture_objs
+    if material_objs:
+        gltf["materials"] = material_objs
     if animations:
         gltf["animations"] = animations
 
@@ -788,6 +1043,10 @@ def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
         "buffer_bytes": len(bin_bytes),
         "json_bytes": len(json_bytes),
         "parents": parents_signed,
+        "static_textured": static_info,
+        "n_images": len(image_objs),
+        "n_textures": len(texture_objs),
+        "n_materials": len(material_objs),
     }
 
 
@@ -846,14 +1105,26 @@ def main(argv: list[str]) -> int:
             return 2
         print(f"# auto-paired skeleton: {skel_path}")
 
-    info = build_glb_unified(mesh_path, skel_path, Path(args.out), fps=args.fps)
+    info = build_glb_unified(mesh_path, skel_path, Path(args.out),
+                              fps=args.fps,
+                              search_root=Path(args.search_root))
     print(f"wrote {info['out_path']} ({info['size_bytes']} bytes)")
     print(f"  bones      : {info['n_bones']}")
-    print(f"  meshes     : {info['n_meshes']}  (one rigid mesh per non-empty bone)")
+    print(f"  meshes     : {info['n_meshes']}  (one rigid mesh per non-empty bone + 1 static textured)")
     print(f"  triangles  : {info['n_triangles']}  (points-only fallback bones: {info['bones_as_points']})")
     print(f"  animations : {info['n_animations']}")
     print(f"  tracks     : {info['total_animation_tracks']}")
     print(f"  samples    : {info['total_animation_samples']}")
+    st = info.get("static_textured") or {}
+    if st:
+        print(f"  static mesh: {st.get('vertices',0)} verts / {st.get('triangles',0)} tris / "
+              f"{st.get('primitives',0)} prims")
+        for sh in st.get("sheets", []):
+            src = sh.get("source") or "MISSING"
+            sz = sh.get("size", [0,0])
+            print(f"    sheet DBP={sh['dbp']:5d} ({sh['n_strips']:4d} strips)  "
+                  f"{sz[0]}x{sz[1]}  source={src}")
+        print(f"  images/textures/materials: {info['n_images']}/{info['n_textures']}/{info['n_materials']}")
     print(f"  buffer     : {info['buffer_bytes']} bytes  |  json: {info['json_bytes']} bytes")
     return 0
 
