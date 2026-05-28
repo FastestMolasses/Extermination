@@ -1031,6 +1031,29 @@ pose files — identical topology, differing vertex positions (keyframes).
 A `chunk03` character is 11 poses across file ids `0x29`-`0x34`.
 `extract_models.py --anim` detects pose sets and exports `*_frameNN.obj`.
 
+## VU1 SOFT-skinner kernel family #0/#1/#2/#4 — dmem palette + per-vertex selector (2026-05-27)
+
+The four medium 2-segment kernels at imem 0x0000 (vram heads `0x00230828`,
+`0x00231798`, `0x00232568`, `0x00233828`) share an identical dmem framing
+and are the consumers of the per-vertex W-field bone selector documented
+in "Per-vertex bone binding lives in the position w field". Per
+`docs/PROGRESS.md` "VU1 SOFT-skinner kernel #0 first-pass disassembly":
+
+- **Per-block 4-bone matrix palette lives at dmem qw 111..122** (12 qw =
+  4 affine matrices × 3 rows each). Populated per draw-batch by EE-side
+  VIF1 UNPACK; the matrix payload originates from the live-pose BSS
+  arena `0x002863XX..0x002893XX`.
+- **Per-vertex selector decode** at vram `0x00230B70..0x00230B98`:
+  `ftoi4.x` + `iswr` round-trips the W-field float through a VI register
+  into `vi01`, which is then the base for `lq vf12, 0(vi01)` /
+  `lq vf13, 16(vi01)` (palette indexing with +16qw matrix-slot stride).
+- **The kernel does NOT contain the global-bone-id list.** That mapping
+  is supplied by the EE side: whichever function builds the
+  matrix-palette VIF1 UNPACK reads a per-MESH-block 4-bone-index table
+  (location still unknown — search target now narrowed to a small
+  fixed-offset field in the 0x820-byte MESH-block header, OR a
+  separate per-block table that the EE walks during draw-list setup).
+
 ## VU1 microcode (boot ELF static, 2026-05-25)
 
 Located 48 VU1 microcode programs statically embedded in the boot ELF, all

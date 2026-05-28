@@ -1,5 +1,126 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-27 VU1 SOFT-skinner kernel #0 first-pass disassembly (per-vertex selector → vi01 → matrix-palette LQ confirmed)
+
+Followed the kernel #5 walkthrough by disassembling the first of the
+"medium 2-segment" kernels expected to consume the MESH-block per-vertex
+W-field bone selector. Disassembler note: `disasm_vu.py disasm <vram> <size>`
+takes a *body* vram (not the packet wrapper), so feed it the body start
+listed in the catalog (e.g. `0x00230828` for kernel #0, NOT `0x00230824`)
+otherwise the first qw is parsed as a stray MPG tag and the decoder
+shifts by one byte.
+
+**Kernel #0 chosen:** segment 1 vram `0x00230828` size `0x800` (256 qw,
+imem 0x0000), segment 2 vram `0x00231030` size `0x3f0` (126 qw, imem 0x0100).
+
+**Shared dmem layout across the four soft-skinner siblings #0/#1/#2/#4**
+(vram heads `0x00230828`, `0x00231798`, `0x00232568`, `0x00233828`).
+All four programs load *identical* absolute dmem slots — strong evidence
+the EE VIF1 driver lays out a single shared dmem framing for the entire
+character-mesh draw class:
+
+  - qw 80,81     → vf23, vf24       (constants)
+  - qw 82..85    → vf10..vf13       (clip planes / fog / lighting state)
+  - qw 86..89    → vf05, vf04, vf03, vf18
+  - qw 90..93    → vf28..vf31       (ONE bone matrix, "active draw" matrix)
+  - qw 96        → vf02
+  - qw 102       → vf25             (per-batch base ptr for SQ-via-vi25)
+  - qw 110..123  → vf16..vf28+vf09  (constants block, including a 12-qw region
+                                     qw 111..122 that is the **per-block
+                                     4-matrix bone PALETTE** — 4 bones x 3
+                                     affine rows = 12 qw; vf09 from qw 123 is
+                                     the per-batch GIF tag template)
+  - qw 124..128  → vf31, vf01..vf04 (segment-2 constants reload)
+
+The 4-bone palette in qw 111..122 matches the FINDINGS empirical result
+("each MESH block ships with an implicit small bone TABLE — ~4 bones /
+block"). The matrix at qw 90..93 is the *active* draw-frame matrix (likely
+the per-block "base bone" used as a fallback / origin); the 4-bone palette
+is layered on top via per-vertex selection.
+
+**Per-vertex selector decode — IDENTIFIED.** Inside the inner loop at
+`0x00230B50..0x00230BC8` (seg 1) the kernel runs the canonical
+UPPER-pipe-FTOI + LOWER-pipe-ISWR round-trip:
+
+```
+0x00230b50  U:itof4.xyzw         L:iaddiu vi02, vi00, 0x0080  ; mask seed
+0x00230b58  U:upp_0e.x           L:low4_10                     ; (selector preprocess)
+0x00230b70  U:ftoi4.x            L:iswr                        ; float -> Q4.4 int, write VI
+0x00230b78  U:itof4.xyzw         L:fmand  vi02, 0x021000       ; flag mask
+0x00230b80  U:maddi.x            L:ior                         ; OR base ptr
+0x00230b88  U:upp_19.x           L:sq vf00, 102(vi25)          ; (output store)
+0x00230b90  U:subbcx.w           L:lq vf12, 0(vi01)            ; <<< MATRIX ROW A
+0x00230b98  U:itof0.xyzw         L:lq vf13, 16(vi01)           ; <<< MATRIX ROW B (+16qw)
+```
+
+The `ftoi4.x` + `iswr` pair converts the per-vertex W-field (Q-format
+float) to an integer, stores it through a VI register (vi01 receives the
+result via the ISWR→IADD chain at 0x00230B80 `ior`), and the subsequent
+`lq vf12, 0(vi01)` / `lq vf13, 16(vi01)` **uses vi01 as the matrix-palette
+base pointer**. The stride of 16 qw between vf12 and vf13 is exactly **one
+matrix slot in a 4-matrix-palette layout** (4 matrices × 4 rows × 1 qw =
+16 qw / matrix-spacing); but here each LQ is one ROW, so the layout is:
+
+```
+palette base + 0    = bone[selector].row0
+palette base + 16qw = bone[selector+1].row0    (or row1 of next pose-slot)
+```
+
+Two reads with a +16qw stride strongly suggests **2-bone blend per vertex**
+(load row0 of bone-A and row0 of bone-B; weighted sum), then lines 121-122
+re-fetch vf14, vf15 at the same `0(vi01)` and `16(vi01)` — likely a
+**second-row pair**, building two affine rows for both selected bones.
+With 12-qw palette (qw 111..122) and 16-qw stride, the modulo wraps every
+loop iteration. (Need careful field-by-field decode of `low4_10` and
+`maddi.x` to nail down the exact arithmetic; left for follow-up.)
+
+**What this means for the per-block 4-bone-index TABLE.**
+
+The microcode *does NOT carry the bone-INDEX list* — it operates purely
+on the per-vertex selector (small integer 0..3) and indexes a palette
+that the **EE side pre-populates via VIF1 UNPACK** into dmem qw 111..122.
+That UNPACK is what we need to trace. The 4 matrices land in dmem in a
+specific order that *defines* the per-block bone-to-selector mapping.
+
+Three concrete next steps to crack the binding:
+
+1. **Find the VIF1 packet builder** that targets dmem `qw 111..122`. The
+   matrix payload comes from the live-bone BSS arena at `0x002863XX..
+   0x002893XX` (already characterized in FINDINGS). The EE function that
+   reads the per-block 4-bone-index list and gathers the 4 matrices into
+   the UNPACK payload is the bone-binding source of truth.
+2. **Re-examine each 0x820-byte MESH block header.** Per FINDINGS, the
+   bone-index list "is not yet located" — but with the confirmed 4-bone
+   palette, the search target is now precise: a `u8[4]` or `u16[4]` field
+   in the per-block header (block size 0x820 = 2080 bytes; 4 bytes for
+   u8x4 is tiny — likely at a fixed offset in the first 0x40 bytes of
+   each block before the 64-byte vertex records start).
+3. **PCSX2 dmem capture mid-frame.** Snapshot VU1 dmem qw 111..122 while
+   the player mesh renders; the 12 qw should be 4 well-formed affine
+   matrices that can be cross-referenced against the global bone-pose
+   BSS arena to recover the index list directly.
+
+**glTF exporter — NOT UPDATED THIS SESSION.** The per-block bone-INDEX
+list is still required to replace `_bind_blocks_to_bones()` spatial
+proximity. We confirmed *where the binding metadata lives* (the EE-side
+VIF1 UNPACK source) but didn't recover the per-block u8[4]/u16[4] list.
+Updating `tools/export_gltf.py` without that mapping would still be a
+proxy. Flag for next pass: do the PCSX2 dmem capture, recover one
+block's 4 matrices, identify them in the BSS pose arena → that yields
+ONE block's bone indices, which then validates whichever MESH-header
+offset stores the per-block list.
+
+**Disassembler caveat.** `tools/disasm_vu.py` still has some LOWER-pipe
+opcodes printed as `low4_10`/`low_3b800000`/`low1_19` placeholders
+(IBIT-immediate followers + a handful of LOWER1 sub-encodings). The
+visible structure of the per-vertex selector decode is sufficient for
+this finding, but a clean trace of the exact `ftoi4 → iswr → ior` field
+arithmetic (which bits of the W lane select the matrix slot, and
+whether the residual `+epsilon` documented in FINDINGS is a separate
+per-block base or just float quantisation) needs those decoded too.
+
+---
+
 ### Update — 2026-05-27 VU1 skinner kernel #5 disassembled (operands recovered, field convention corrected)
 
 Disassembled the per-bone rigid-skinning main kernel at vram
