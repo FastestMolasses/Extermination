@@ -1,5 +1,59 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-26 fptr table mining + stale extern fixes
+
+`tools/decomp/name_fptr_tables.py` mines the boot ELF .data for runs of
+4+ consecutive code-pointer-shaped 32-bit values. Found 3 function-pointer
+tables, named only as labels (per-entry function rename would force
+src/*.c chain rebuilds):
+  - 0x00241130, 16 entries — MPEG decoder dispatch.
+  - 0x002411A8, 11 entries — libpad-shaped dispatch.
+  - 0x0024D880, 27 entries — game-code state-handler dispatch, called from
+    `func_001BA1F0` (state-machine driver reading entity struct at +0x1F0,
+    indexing the table by `(*$s1 & 0xFFF) << 2`, dispatching with paddub
+    args, checking return values 1/2/3 to drive transitions).
+
+Also fixed 5 src/*.c with stale extern decls referencing pre-rename names
+that the linker couldn't resolve (`func_00109CF8` → `sub_image_buffer_
+needs_to_be_aligned`, `func_00110690` → `sub_PsIIlibpad_2000`, `func_
+00123750` → `sub__0000000000000000Inf`). These were blocking link verify
+in this session.
+
+Also added the 1-line `link_overlay.py` regex fix to accept 6-char `D_/
+func_` names (was 7-8, silently dropping short-form refs).
+
+Match metrics now:
+  matched_functions: 1247/1344 (92.78%)
+  matched_code:      96.18% (up from 95.71%)
+  Boot ELF byte-identity: PASS
+  19/19 overlays byte-identical
+  Named symbols total: 255 (3 ftab labels added; 252 functions/data named)
+  Overlay function decomps: 100/586 (stuck — picked-over surface, agent
+    confirms remaining small candidates need delay-slot scheduling fixes
+    or are mid-function fragments that aren't standalone C functions)
+
+### Wall identified — 2026-05-26
+
+Per the previous session push, remaining matching directions:
+  - Boot-ELF partials: ~50 remain, all genuine CodeWarrior 2.3.1
+    scheduling/dead-code patterns mwcc 2.3 cannot reproduce. Each needs
+    either per-instruction asm rewrite of large functions or a different
+    mwcc version (not available).
+  - Overlay decomps: small-leaf surface saturated; remaining functions
+    need medium per-function manual decomp (slow, low yield).
+  - Bind-pose composition: section→bone mapping wrong, needs PCSX2
+    instrumentation OR decomp of func_00100EB8 (419-instr VU1/VIF driver).
+  - Texture color CLUT: per-material binding unknown, needs EE-side
+    PSMT8 TEX0 setup decomp.
+
+Future high-leverage paths remaining:
+  - Decompile func_00100EB8 (would unlock bind-pose source, CLUT setup,
+    section→bone mapping in one shot).
+  - PCSX2 patched logger for VIF1 FIFO writes (definitive bind-pose
+    source identification).
+  - Per-character save state captures (to identify the 21-of-28 active
+    bone slot count and the per-character matrix pointer struct).
+
 ### Update — 2026-05-25 sdatathreshold + asm-word register fixes (+15 matches)
 
 Pure-C partial-match functions that the linker had to fall back to .s for
