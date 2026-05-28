@@ -4,6 +4,41 @@ Technical reference for formats and facts established so far. The authoritative,
 exhaustive format details live in the docstrings of the `tools/` scripts; this
 file summarises them and records findings that have no other home.
 
+## glTF (.glb) export of the player rig (2026-05-27)
+
+`tools/export_gltf.py` bundles a character mesh + id 0x71 skeleton/animation
+file into a single glTF 2.0 binary. Output: one scene; one node per bone
+plus a scene-root parent holding the parent-table roots as children; one
+mesh per non-empty bone (POINTS-mode primitive with POSITION attribute
+holding the bone's Q4.12 verts dequantised to floats); one glTF animation
+per id 0x71 clip entry with paired rotation (VEC4 quat) and translation
+(VEC3) samplers per bone.
+
+Rigid attachment is achieved by parenting the per-bone mesh directly to its
+bone node — no glTF `skin` object is required, because each vertex belongs
+entirely to one bone with implicit weight 1.0. The bone node's TRS animates
+under the runtime, dragging the rigid mesh with it.
+
+Time conversion: the keyframe `t_next` field is treated as a frame index at
+30 fps. Quat sampler interpolation is `LINEAR`; compliant runtimes
+re-normalise after lerping, which matches `anim_decoder.sample_bone`'s
+NLERP behaviour. Frame-0 default TRS on each bone is sampled from clip 0
+(the canonical bind-ish pose), so the file looks correct even before any
+animation is selected.
+
+Validation on `extract/chunk21/f17_id8f.bin` + `extract/chunk05/f04_id71.bin`:
+1.94 MB .glb, 30 bones, 22 non-empty meshes, 57 animations, 3 420 sampler
+tracks, 33 562 keyframe samples. The structure round-trips through
+`pygltflib` (strict parser); every bufferView lies inside the buffer,
+every accessor count × stride fits its bufferView, every sampler input
+is strictly time-monotonic, every quaternion output sample is unit-norm.
+
+Known limitations (do not block animation preview, but the modder-facing
+mesh is a point cloud, not a surface): no triangle indices (the VIF strip
+output is not reverse-engineered into per-bone strips yet), no normals/UVs
+(packed into the 4-byte attribute field decoded by VU1 microcode that
+hasn't been lifted), no texture binding.
+
 ## Python bind-pose evaluator (2026-05-27)
 
 `tools/extract_models.py` exposes `bind_pose_at_t(id71_path, entry_idx, t)`

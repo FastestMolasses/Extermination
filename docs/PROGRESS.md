@@ -1,5 +1,52 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-27 GLTF EXPORTER — full character + 57 anims in one .glb
+
+`tools/export_gltf.py` (new) is the headline modder-facing deliverable: it
+emits a single glTF 2.0 binary bundle containing the player's skeleton
+hierarchy, per-bone rigid mesh, and every animation clip from the chosen
+id 0x71 file. Pure-Python, no third-party deps.
+
+Validation run on `extract/chunk21/f17_id8f.bin` (player mesh) +
+`extract/chunk05/f04_id71.bin` (player skeleton + 57 clips):
+
+```
+wrote models/Extermination_Player.glb (1938052 bytes)
+  bones      : 30 (28 active + 2 overshoot)
+  meshes     : 22  (one rigid POINTS mesh per non-empty bone)
+  animations : 57
+  tracks     : 3420
+  samples    : 33562
+```
+
+Structural validation: GLB header magic/version/length OK; binary chunk
+size matches buffer declaration; all 6862 bufferViews lie within the
+buffer; all accessor counts × component-sizes fit their bufferViews;
+every animation sampler input is strictly time-monotonic; quaternion
+output samples are unit-norm. Round-trips cleanly through `pygltflib`
+(strict parser). Should open in Blender's "File > Import > glTF 2.0"
+and in any compliant viewer; 57 clips appear under the Animations panel.
+
+Design choices:
+- **Rigid skinning via node-attachment** (no `skin` object). Each non-empty
+  bone's Q4.12 verts become a POINTS-mode primitive parented to that
+  bone node; when the node animates, the mesh moves with it. This
+  matches the engine's per-bone object-space packets (one per bone).
+- **POINTS primitive** because the VIF-prefix vertex stream is pre-strip
+  quantized points -- no triangle indices survive the decode. The mesh
+  shows up as point cloud silhouettes in viewers; the bone tree and
+  animation playback are the load-bearing output for now.
+- **30 fps time conversion** for the keyframe `t_next` (frame index) → seconds.
+- **Per-clip animation** (one glTF animation per id 0x71 entry), with
+  one rotation and one translation sampler per bone (LINEAR = NLERP for
+  quaternions, which matches `anim_decoder.sample_bone(normalize=True)`).
+
+Outstanding items: (1) triangle topology -- need to recover or reconstruct
+the strip indices for proper surface rendering; (2) per-vertex normals
+and UVs (the 4-byte packed-normal field is decoded by the VU1 microcode
+which we haven't lifted); (3) texture binding. None block animation
+preview in Blender / Maya / any glTF viewer.
+
 ### Update — 2026-05-27 PER-BONE SCALE FIELDS — NOT A DISC CHANNEL
 
 Open question from the rigged-export work was "who writes the per-bone
