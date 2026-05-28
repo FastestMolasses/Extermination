@@ -1,5 +1,67 @@
 # Extermination Decomp — Progress
 
+### Session checkpoint — 2026-05-27 (53 commits)
+
+Headline numbers and what's open. The session brought the project from
+boot-ELF-only matching to a complete end-to-end animation pipeline that
+exports posed + textured character glTFs.
+
+**Matching surface:**
+  - Boot ELF: **1247/1344 (92.78%) functions matched, 96.18% code-byte
+    match, byte-identical**.
+  - Overlays: **120/586 functions decomp'd, 19/19 byte-identical**.
+  - 255 named symbols (incl. fptr-table labels).
+  - Reusable tools landed: `inject_relocs.py`, `name_fptr_tables.py`,
+    `name_functions.py`, `name_vtables_overlays.py`,
+    `parse_pcsx2_state.py`, `parse_gsdump.py`, `disasm_vu.py`,
+    `clut.py`, overlay generators.
+  - ISO refreshed + verified working in PCSX2.
+
+**Asset extraction:**
+  - Skeletons: full bone hierarchies (28 bones, parent table, validated
+    L/R symmetry).
+  - Per-bone collision hulls (OBBs from plane equations).
+  - Per-bone object-space character vertices (Q4.12 decoded).
+  - Anim format **fully decoded**: id 0x71 sections 1-3, quat keyframes
+    (top-20-bits-of-float packing), translation keyframes (top-26-bits),
+    event table (per-clip footstep markers). Python decoder validated
+    against real disc data.
+  - **`tools/anim_decoder.py`**: parse_rotation_section,
+    parse_translation_section, parse_event_section, sample_bone (NLERP).
+  - **`tools/export_gltf.py`**: produces single .glb with skeleton +
+    per-bone meshes (TRIANGLES + smooth normals + UVs + 3 PSMT8 sheet
+    textures) + all 57 animation clips. Opens cleanly in Blender / Maya
+    via standard glTF import.
+
+**Bind-pose data flow CHARACTERIZED end-to-end:**
+```
+disc id 0x71 entry
+  -> func_001C8480 (resolver) caches sections
+  -> func_001C8D50 (per-bone sampler) writes quat/translation slots
+  -> func_001C64F0 (per-frame time advancer)
+  -> func_001C6DA0 (NLERP + TRS + parent concat) -> bone+0x90 4x4
+  -> func_00179BC0 publisher -> BSS 0x002863XX..0x002893XX
+  -> DMA via func_00101FE0 -> VIF1 -> VU1 dmem -> vf01..vf04
+  -> per-vertex transform -> XGKICK -> GS
+```
+
+**Genuinely-hit walls (need user-driven PCSX2 work to break):**
+  - Per-block bone-INDEX TABLE for the textured-surface MESH-blocks
+    (proxy-bound via spatial-proximity; 30-50% mis-bound).
+  - Packed-normal byte-to-lane mapping (Q4.4 confirmed but lane order
+    unverified; face-averaged normals used in glTF).
+  - PSMT8 TEX0 / color-CLUT binding (TEX0 setup is inside VU1 kernels;
+    needs mid-frame dmem capture).
+  - Boot-ELF text-mismatch partials (~50 remain; CW 2.3.1 scheduler/
+    dead-code patterns mwcc 2.3 can't reproduce from C).
+  - Overlay small-leaf decomps saturated; remaining functions need
+    medium per-function manual work.
+
+**Recommended next session start point:**
+  - Capture a PCSX2 VU1 dmem dump mid-frame during player render to
+    pin down the per-block bone-INDEX list, packed-normal byte order,
+    and GIF tag REGLIST in one go.
+
 ### Update — 2026-05-27 VU1 SOFT-skinner kernel #0 first-pass disassembly (per-vertex selector → vi01 → matrix-palette LQ confirmed)
 
 Followed the kernel #5 walkthrough by disassembling the first of the
