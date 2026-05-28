@@ -204,8 +204,9 @@ def _build_abs_syms_lds(name: str) -> str:
     overlay_build = ROOT / "build" / "overlays" / name
     asm_code_dir  = overlay_build / "asm" / "matchings"
 
-    _d_re = re.compile(r'\bD_([0-9A-Fa-f]{7,8})\b')
-    _f_re = re.compile(r'\bfunc_([0-9A-Fa-f]{7,8})\b')
+    # Allow 6-8 hex chars so short-form names like D_8106C0 also resolve.
+    _d_re = re.compile(r'\bD_([0-9A-Fa-f]{6,8})\b')
+    _f_re = re.compile(r'\bfunc_([0-9A-Fa-f]{6,8})\b')
 
     syms: dict[str, int] = {}
 
