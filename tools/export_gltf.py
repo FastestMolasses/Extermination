@@ -687,6 +687,68 @@ def _unused_staged_build(mesh_path: Path, skel_path: Path, out_path: Path,
 # split. This pass builds everything against one shared GLBBuilder.)
 
 
+def _bind_blocks_to_bones(blocks: list, bone_world_mats: list) -> list[int]:
+    """For each MESH-descriptor block, pick the bone whose joint position is
+    spatially closest to the block's vertex centroid after that bone's world
+    matrix is applied (block verts are in some bone-local frame; the correct
+    bone is the one whose local->world maps the centroid near its OWN joint).
+
+    Algorithm per block:
+      1. Compute centroid C_local of all real vertices across the block's
+         strips (positions are in bone-local frame).
+      2. For each candidate bone B:
+         - Apply B's world matrix to C_local -> C_world.
+         - Compute distance from C_world to B's joint translation
+           (= B.world[3][:3]).
+         The candidate bone is the one minimising that distance, i.e. the
+         bone whose local frame "owns" this block: applying its transform
+         produces a point near its own joint.
+
+    Returns ``bone_index_for_block[block_i]``. Bones with empty mats (None)
+    are skipped. Returns -1 for a block with no real vertices.
+    """
+    # Cache bone joint positions (column 3 of column-major 4x4).
+    bone_joints: list[tuple[float, float, float] | None] = []
+    for m in bone_world_mats:
+        if m is None:
+            bone_joints.append(None)
+        else:
+            bone_joints.append((m[3][0], m[3][1], m[3][2]))
+
+    out: list[int] = []
+    for block in blocks:
+        # All real vertex positions in the block (bone-local frame).
+        pts = []
+        for s in block:
+            for v in s.verts:
+                pts.append(v.pos)
+        if not pts:
+            out.append(-1)
+            continue
+        cx = sum(p[0] for p in pts) / len(pts)
+        cy = sum(p[1] for p in pts) / len(pts)
+        cz = sum(p[2] for p in pts) / len(pts)
+
+        best_bone = -1
+        best_d2 = float("inf")
+        for b, m in enumerate(bone_world_mats):
+            if m is None or bone_joints[b] is None:
+                continue
+            # Apply column-major 4x4 to (cx, cy, cz, 1):
+            # world = col0*cx + col1*cy + col2*cz + col3
+            wx = m[0][0] * cx + m[1][0] * cy + m[2][0] * cz + m[3][0]
+            wy = m[0][1] * cx + m[1][1] * cy + m[2][1] * cz + m[3][1]
+            wz = m[0][2] * cx + m[1][2] * cy + m[2][2] * cz + m[3][2]
+            jx, jy, jz = bone_joints[b]
+            dx, dy, dz = wx - jx, wy - jy, wz - jz
+            d2 = dx * dx + dy * dy + dz * dz
+            if d2 < best_d2:
+                best_d2 = d2
+                best_bone = b
+        out.append(best_bone)
+    return out
+
+
 def build_static_textured_mesh(mesh_path: Path, gb: "GLBBuilder",
                                search_root: Path | None) -> tuple[list, list, list, dict]:
     """Build the textured reference mesh from the mesh file's MESH-descriptor
@@ -810,6 +872,156 @@ def build_static_textured_mesh(mesh_path: Path, gb: "GLBBuilder",
         **info,
         "_materials": material_objs,
     }
+
+
+def build_proxy_bound_blocks(mesh_path: Path, gb: "GLBBuilder",
+                             bone_world_mats: list,
+                             search_root: Path | None
+                             ) -> tuple[list, list, list, list, dict]:
+    """Build TEXTURED per-block meshes BOUND by spatial proximity to bones.
+
+    Replaces the single un-bound static mesh: each MESH-descriptor block
+    becomes its own mesh whose primitives are split by texture sheet (DBP),
+    and the mesh is attached to a glTF node parented to the nearest-fit bone
+    node. The block's vertex positions stay in bone-local frame; the bone
+    node's world transform (from id 0x71 frame 0) places it in world space.
+
+    Returns (per_block_meshes, per_block_bone_index, image_objs, texture_objs,
+    info_dict). `per_block_meshes[i]` is a glTF mesh dict for block i (or
+    None for empty blocks), and `per_block_bone_index[i]` is the bone the
+    block is parented to (or -1 if no candidate fit / empty block).
+    """
+    info: dict = {"blocks": 0, "bound": 0, "primitives": 0,
+                  "triangles": 0, "vertices": 0, "sheets": []}
+    d = mesh_path.read_bytes()
+    blocks = em.parse_model_blocks(d)
+    if not blocks:
+        return [], [], [], [], info
+
+    # Resolve textures up front (same as build_static_textured_mesh): scan
+    # every block's strips to enumerate sheet DBPs.
+    by_dbp_global: dict[int, int] = {}  # dbp -> presence
+    for block in blocks:
+        for s in block:
+            m0, _m1 = s.key
+            sheet_field = (m0 >> 15) & 0x3FFF
+            dbp = _sheet_field_to_dbp(sheet_field)
+            by_dbp_global[dbp] = by_dbp_global.get(dbp, 0) + 1
+
+    materials_for_dbp: dict[int, int] = {}
+    image_objs: list = []
+    texture_objs: list = []
+    material_objs: list = []
+    for dbp in sorted(by_dbp_global.keys()):
+        found = _find_transfer_for_dbp(mesh_path, dbp, search_root)
+        sheet_info = {"dbp": dbp, "n_strips_total": by_dbp_global[dbp]}
+        if found is None:
+            sheet_info["source"] = None
+            material_objs.append({
+                "name": f"player_dbp{dbp}_missing",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.5, 0.5, 0.5, 1.0],
+                    "metallicFactor": 0.0, "roughnessFactor": 1.0,
+                },
+            })
+            materials_for_dbp[dbp] = len(material_objs) - 1
+            info["sheets"].append(sheet_info)
+            continue
+        src_path, xfer = found
+        png_bytes = _png_rgba_bytes(xfer.width, xfer.height, xfer.pixels)
+        bv_idx = gb.add_raw_blob(png_bytes)
+        image_objs.append({
+            "name": f"sheet_DBP{dbp}",
+            "mimeType": "image/png",
+            "bufferView": bv_idx,
+        })
+        img_i = len(image_objs) - 1
+        texture_objs.append({"source": img_i})
+        tex_i = len(texture_objs) - 1
+        material_objs.append({
+            "name": f"player_dbp{dbp}",
+            "pbrMetallicRoughness": {
+                "baseColorTexture": {"index": tex_i, "texCoord": 0},
+                "metallicFactor": 0.0, "roughnessFactor": 1.0,
+            },
+        })
+        materials_for_dbp[dbp] = len(material_objs) - 1
+        sheet_info["source"] = str(src_path.relative_to(src_path.parents[1]))
+        sheet_info["size"] = [xfer.width, xfer.height]
+        info["sheets"].append(sheet_info)
+
+    # Spatial-proximity binding: block -> bone.
+    bone_for_block = _bind_blocks_to_bones(blocks, bone_world_mats)
+
+    per_block_meshes: list = []
+    total_tris = 0
+    total_verts = 0
+    total_prims = 0
+    bound_count = 0
+    for bi, block in enumerate(blocks):
+        if not block:
+            per_block_meshes.append(None)
+            continue
+        # Group strips of this block by DBP.
+        by_dbp: dict[int, list] = {}
+        for s in block:
+            m0, _m1 = s.key
+            sheet_field = (m0 >> 15) & 0x3FFF
+            dbp = _sheet_field_to_dbp(sheet_field)
+            by_dbp.setdefault(dbp, []).append(s)
+        primitives: list = []
+        for dbp, dbp_strips in by_dbp.items():
+            positions: list = []
+            normals: list = []
+            uvs: list = []
+            indices: list = []
+            for s in dbp_strips:
+                base = len(positions)
+                for v in s.verts:
+                    positions.append(v.pos)
+                    normals.append(v.attr)
+                    uvs.append((v.uv[0], v.uv[1]))
+                for i0, i1, i2 in em.strip_triangles(s):
+                    indices.append(base + i0)
+                    indices.append(base + i1)
+                    indices.append(base + i2)
+            if not indices:
+                continue
+            pos_acc = gb.add_vec3_float(positions)
+            nrm_acc = gb.add_vec3_float_normal(normals)
+            uv_acc = gb.add_vec2_float(uvs)
+            idx_acc = gb.add_indices_auto(indices, len(positions))
+            prim = {
+                "attributes": {
+                    "POSITION": pos_acc,
+                    "NORMAL": nrm_acc,
+                    "TEXCOORD_0": uv_acc,
+                },
+                "indices": idx_acc,
+                "mode": 4,
+                "material": materials_for_dbp[dbp],
+            }
+            primitives.append(prim)
+            total_tris += len(indices) // 3
+            total_verts += len(positions)
+            total_prims += 1
+        if not primitives:
+            per_block_meshes.append(None)
+            continue
+        per_block_meshes.append({
+            "primitives": primitives,
+            "name": f"block_{bi:02d}_bound_bone_{bone_for_block[bi]:02d}",
+        })
+        if bone_for_block[bi] >= 0:
+            bound_count += 1
+
+    info["blocks"] = len(blocks)
+    info["bound"] = bound_count
+    info["primitives"] = total_prims
+    info["triangles"] = total_tris
+    info["vertices"] = total_verts
+    info["_materials"] = material_objs
+    return per_block_meshes, bone_for_block, image_objs, texture_objs, info
 
 
 def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
@@ -956,33 +1168,54 @@ def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
         else:
             track_per_clip.append(0)
 
-    # 3b. Static textured reference mesh (MESH-descriptor section, with UVs +
-    # texture sheets resolved from sibling files). Positions are bone-local
-    # and not yet bound to bones, so this mesh appears as a single un-rigged
-    # blob -- but it carries the correct UVs and material/texture references.
-    static_prims, image_objs, texture_objs, static_info = build_static_textured_mesh(
-        mesh_path, gb, search_root,
-    )
+    # 3b. Textured MESH-descriptor blocks with SPATIAL-PROXIMITY bone binding.
+    # Each block (~32 verts in bone-local frame) is attached to the bone node
+    # whose world transform best places the block's centroid near that bone's
+    # joint. This is an approximation -- the true per-block bone-INDEX TABLE
+    # is not yet located on disc -- but it produces a recognisable textured
+    # humanoid placed in world space instead of a blob collapsed at origin.
+    # See docs/FINDINGS.md "Per-block bone binding (proxy)".
+    bone_world_mats: list = []
+    try:
+        world_full, _parents_unused = em.bind_pose_at_t(skel_path, 0, 0.0)
+        # Pad / truncate to n_bones length so block-binder indices align with
+        # bone node indices.
+        for i in range(n_bones):
+            if i < len(world_full):
+                bone_world_mats.append(world_full[i])
+            else:
+                bone_world_mats.append(None)
+    except Exception:
+        bone_world_mats = [None] * n_bones
+
+    block_meshes, bone_for_block, image_objs, texture_objs, static_info = \
+        build_proxy_bound_blocks(mesh_path, gb, bone_world_mats, search_root)
     material_objs = static_info.pop("_materials", []) if static_info else []
-    static_mesh_idx: int | None = None
-    static_node_idx: int | None = None
-    if static_prims:
-        meshes.append({
-            "primitives": static_prims,
-            "name": "player_static_textured",
-        })
-        static_mesh_idx = len(meshes) - 1
-        # Add a sibling node at scene root so it doesn't inherit any bone
-        # transform. Tagged with a uniform scale so the user can see both
-        # the rigged rig and the static-textured reference side-by-side.
-        nodes.append({
-            "name": "player_static_textured",
-            "mesh": static_mesh_idx,
-            "translation": [0.0, 0.0, 0.0],
-        })
-        static_node_idx = len(nodes) - 1
-        # Don't re-insert scene_root_idx -- it's still last-but-one;
-        # rebuild scene roots to include both.
+
+    # Each non-empty block becomes a mesh + a node parented under its bound
+    # bone, so the bone's animated TRS carries the block with it.
+    block_node_indices: list[int] = []
+    for bi, m in enumerate(block_meshes):
+        if m is None:
+            continue
+        meshes.append(m)
+        mesh_idx = len(meshes) - 1
+        bone_i = bone_for_block[bi]
+        node = {
+            "name": f"block_{bi:02d}_node",
+            "mesh": mesh_idx,
+        }
+        nodes.append(node)
+        node_idx = len(nodes) - 1
+        block_node_indices.append(node_idx)
+        if 0 <= bone_i < n_bones:
+            bn = bone_nodes[bone_i]
+            kids = bn.setdefault("children", [])
+            kids.append(node_idx)
+        else:
+            # Fallback: attach to scene root if no bone fit was found.
+            scene_root.setdefault("children", []).append(node_idx)
+    static_node_idx = None  # legacy compat; static mesh no longer at scene root
 
     # 4. Pad buffer to 4
     while len(gb.bin_blob) % 4 != 0:
@@ -1117,12 +1350,14 @@ def main(argv: list[str]) -> int:
     print(f"  samples    : {info['total_animation_samples']}")
     st = info.get("static_textured") or {}
     if st:
-        print(f"  static mesh: {st.get('vertices',0)} verts / {st.get('triangles',0)} tris / "
+        print(f"  blocks     : {st.get('blocks', 0)} (bound to bones: {st.get('bound', 0)})")
+        print(f"  textured   : {st.get('vertices',0)} verts / {st.get('triangles',0)} tris / "
               f"{st.get('primitives',0)} prims")
         for sh in st.get("sheets", []):
             src = sh.get("source") or "MISSING"
             sz = sh.get("size", [0,0])
-            print(f"    sheet DBP={sh['dbp']:5d} ({sh['n_strips']:4d} strips)  "
+            n_strips = sh.get('n_strips', sh.get('n_strips_total', 0))
+            print(f"    sheet DBP={sh['dbp']:5d} ({n_strips:4d} strips)  "
                   f"{sz[0]}x{sz[1]}  source={src}")
         print(f"  images/textures/materials: {info['n_images']}/{info['n_textures']}/{info['n_materials']}")
     print(f"  buffer     : {info['buffer_bytes']} bytes  |  json: {info['json_bytes']} bytes")

@@ -541,6 +541,27 @@ def parse_model_file(d: bytes) -> list[Strip]:
     return strips
 
 
+def parse_model_blocks(d: bytes) -> list[list[Strip]]:
+    """Like parse_model_file(), but returns triangle strips GROUPED BY BLOCK.
+
+    Each MESH-descriptor occurrence in the file anchors one block (~32
+    real vertices in bone-local space; the rest of the fixed-size unit is
+    duplicated padding). Returns ``[ [strip, ...], ... ]`` with one inner
+    list per block, preserving file order. This is the granularity at
+    which spatial-proximity bone binding is performed -- one block binds to
+    one bone, since the per-vertex W-field selector (commit 94b8fe5) only
+    takes a small handful of distinct values per block.
+    """
+    out: list[list[Strip]] = []
+    i = d.find(MESH_SIG)
+    while i != -1:
+        records = read_model_block(d, i + len(MESH_SIG))
+        if records:
+            out.append(build_strips(records))
+        i = d.find(MESH_SIG, i + 1)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # MATRIX blocks / scene placement
 # ---------------------------------------------------------------------------

@@ -635,6 +635,15 @@ full format detail for everything below.
   `--scene` (apply MATRIX instance transforms → placed full-level scenes),
   `--rig` (dump the skeleton-transform files), `--anim` (export vertex-
   animation pose sequences).
+- **Skinned glTF export with proxy bone binding** — `tools/export_gltf.py`.
+  Outputs a `.glb` bundle for Blender/Maya: skeleton hierarchy, per-block
+  textured meshes (3 PSMT8 sheets resolved as grayscale PNGs), all 57 animation
+  clips. Per-block bone binding uses a **spatial-proximity proxy**
+  (`_bind_blocks_to_bones`) because the real per-block bone-index table is not
+  yet located on disc — see `docs/FINDINGS.md` "Per-block bone binding (proxy
+  by spatial proximity, 2026-05-27)". Player export: 317 blocks bound across
+  18 of 28 active bones, 6921 triangles. Sample:
+  `models/Extermination_Player_proxybind.glb`.
 
 ### Done — Track A matching-decomp pipeline (the "hello world")
 

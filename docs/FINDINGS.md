@@ -2489,3 +2489,55 @@ is a runtime-only animation that has no representation on disc.
 `MUSIC.DAT` decodes to 55 tracks. Per the user (cross-referenced with an online
 soundtrack listing): **25 are the official soundtrack; the remaining 30 are
 cutscene audio.** Not yet separated or labelled — a roadmap item.
+
+## Per-block bone binding (proxy by spatial proximity, 2026-05-27)
+
+The MESH-descriptor blocks in a character file (e.g.
+`extract/chunk21/f17_id8f.bin`) store their ~32 vertices in some BONE-LOCAL
+frame — not in world space. Each block also carries a per-vertex W-field
+selector (commit `94b8fe5`: `k = round((w - sign(w)) * 512)`) that takes only
+a small handful of distinct values per block, so each block belongs to ONE
+bone (no per-vertex blending).
+
+The per-block bone-INDEX TABLE (which bone owns each block) has NOT been
+located on disc. As an interim measure, `tools/export_gltf.py` now ships a
+**spatial-proximity proxy binder** (`_bind_blocks_to_bones`):
+
+1. Sample the id 0x71 skeleton at frame 0 to get 30 column-major world
+   matrices via `bind_pose_at_t()`. Bone joint = column 3, xyz components.
+2. For each MESH block, compute the centroid of its real vertices (the
+   bone-local coordinates).
+3. For each candidate bone B, apply B's world matrix to the centroid and
+   compute distance to B's own joint position.
+4. Pick the bone minimising that distance — i.e. the bone whose local-frame
+   "ownership" places the block's centroid nearest that bone's joint.
+
+Validated on the player mesh: 317 blocks bind across 18 distinct bones
+(out of 28 active). Distribution is plausible but biased toward bones near
+the world origin (a block centroid near (0,0,0) in bone-local trivially
+lands at the bone's joint after transform — distance 0). Concretely: bones
+11/12 (torso/hub) draw 178 of 317 blocks; arms/legs (5,6,7,8,17,18,20)
+collectively draw ~115, which is the expected order of magnitude. Hands and
+fingertips are under-represented.
+
+Exporter behaviour: each non-empty block becomes a glTF mesh attached to a
+new node that is parented under its bound bone's node. The bone-node's
+animated TRS therefore carries the block, so all 57 animation clips drive
+the textured surface — not just the per-bone debug meshes. Replaces the
+previous "static_textured" blob at scene root.
+
+Sample output: `models/Extermination_Player_proxybind.glb` (3.0 MB; 339
+meshes, 348 nodes, 57 animations, 3 PSMT8 sheets).
+
+CAVEATS
+  * Approximate. Expect ~30-50% of blocks to bind to the visually wrong
+    bone, producing some floating/misplaced pieces; the goal is "recognisable
+    posed humanoid in Blender" not perfect skinning.
+  * The bias toward origin-centred bones is intrinsic to this heuristic and
+    cannot be fixed without the real on-disc binding table.
+  * The W-field per-vertex selector is currently ignored at export time
+    (one bone per block, not per vertex). Wiring per-vertex weights in needs
+    the decoded SELECTOR -> bone-index lookup that the engine builds at load.
+  * When the real per-block bone-index table is located on disc, replace
+    `_bind_blocks_to_bones()` with a table lookup; the rest of the
+    block-as-glTF-mesh-parented-to-bone-node pipeline stays unchanged.
