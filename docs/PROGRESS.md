@@ -879,6 +879,19 @@ ELF** (1530624/1530624 bytes, 100.00%).
   by `func_001D2090` in each caller; the data is rooted at
   `D_00816440 + 0x80 * 0x9C($t0)` where `$t0 = D_00275670[ch]`.
   See FINDINGS.md "Bone-matrix UNPACK source — REVISED 2026-05-27".
+  **FOLLOW-UP 2026-05-27:** Writer to the `D_00816440` arena
+  identified — `func_001D2E20` (vram 0x001D2E20), a one-shot init
+  that memcpys 14 static pre-formatted VIF-UNPACK packets from
+  `D_002514D0..D_00251B50` (main image .data) into the 14 per-channel
+  arenas `D_00816440..D_00817140`, two 0x80 slots per arena. Source
+  blobs are static (header `0x01000404 / 0x6C0703F9` = VIF UNPACK
+  V4-32 NUM=8 dest=0x3F9), NOT anim-evaluator output. Caller chain:
+  `func_001ACA20`/`func_001AE040` -> `func_001D19E0` -> `func_001D2E20`.
+  This is a **fixed/identity-pose** path. The live per-frame anim
+  matrices in `0x002863xx..0x002893xx` are produced by a separate
+  pipeline — writer still unknown (no overlap with the 6 functions
+  that reference `D_00816440`). See FINDINGS.md "D_00816440 arena —
+  writer identified".
   VIF1
   cold-start primer is `func_00100278` (direct FIFO write of two
   VIF-command quadwords at `D_00241020`). The per-frame chain flush

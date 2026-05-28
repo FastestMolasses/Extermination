@@ -1522,6 +1522,74 @@ likely live per-bone matrix arena.
 channel struct rooted at `D_00275670`. Search writers to that range,
 not `D_00817240`.
 
+### D_00816440 arena — writer identified (2026-05-27)
+
+**Writer:** `func_001D2E20` (vram 0x001D2E20). One-shot initializer.
+Structure: a 2-iteration outer loop (`slti $v1, 0x2`), each iteration
+calls `func_00121870(dst, src, 0x80)` (a generic block-copy) 14 times
+to fill 14 destination arenas from 14 contiguous source blobs, then
+advances all dst/src pointers by 0x80 and repeats.
+
+| dst arena (per channel) | source blob (main image .data) |
+|------------------------|--------------------------------|
+| `D_00816440..D_00817140` (14 arenas, 0x100 apart) | `D_002514D0..D_00251B50` (14 src, 0x80 apart) |
+
+Result after the call: each of the 14 0x100-byte per-channel arenas
+holds **two 0x80-byte VIF-UNPACK-prefixed matrix blobs** copied from
+the static source table. The 0x100 stride for arena labels reconciles
+with the runtime stride seen at REF-tag build time (`<<7` = 0x80) —
+each arena is 2 slots × 0x80, and `0x9C(t0)` ping-pongs between the
+two halves.
+
+**Source data nature.** The source blocks at `D_002514D0` start with
+the header word `0x01000404` followed by `0x6C0703F9` — that is a
+VIF UNPACK-V4-32 tag (`6C` opcode + NUM/dest) plus its `0x80` payload.
+So the "matrices" being moved are **static, pre-formatted VIF UNPACK
+packets baked into the boot ELF** — not anim-evaluator output. The
+14 destinations correspond 1:1 to 14 PS2 character/skeleton-channel
+slots used by the engine's draw catalog.
+
+**Runtime consumers (REF-tag builders) of `D_00816440 + (ch<<7)`:**
+`func_001D30A0`, `func_001D38A0`, `func_001D3E40`, `func_001D4960`,
+`func_001D4DA0` — all consume the arena address as a DMA REF source.
+
+**Caller chain (writer side):**
+```
+func_001ACA20 / func_001AE040  (engine state setup)
+  -> func_001D19E0
+       -> func_001D2E20      <-- the arena initializer (this finding)
+       -> func_001D9720      (sibling — likely VIF-state companion)
+```
+
+**Connection to the 4× per-character 21-matrix EE-RAM buffers at
+`0x002863xx..0x002893xx`:** *None observed in static disassembly of
+this path.* `func_001D2E20` does not touch the `0x00286xxx..0x00289xxx`
+range. The `D_00816440` arena and the four 21-matrix BSS buffers are
+**two distinct skinning pipelines**:
+
+- `D_00816440` arena: 14 hardcoded per-channel VIF-UNPACK packets,
+  initialized once from static `.data`, then chained by REF tag
+  per draw (`func_001D4960`/etc.). This is a **fixed/identity-pose
+  pipeline** — likely menu, cutscene, or bind-pose-only actors.
+- `0x002863xx..0x002893xx`: 4× 21-bone matrix buffers — the live
+  per-frame anim-evaluator output for in-game character skinning,
+  identified separately via PCSX2 save-state. Their writer was NOT
+  located by this search and is the *next* hunt target.
+
+**Still unknown.**
+1. Where the **anim-evaluator** writes the 4 per-character 21-matrix
+   buffers at `0x002863xx`. None of the 6 D_00816440-referencing
+   functions touches that BSS range. Needs a separate search for
+   writers into `0x00286300..0x00289400`.
+2. Whether `func_001D9720` reuploads or patches `D_00816440` per
+   frame (sibling call right after the one-shot init) — quick read
+   suggests it's VIF1 cold-start related, not a per-frame matrix
+   writer, but unverified.
+3. Whether the static blobs at `D_002514D0..D_00251B50` are pure
+   identity matrices or carry per-channel scale/orientation biases
+   (header word is uniform `0x01000404 / 0x6C0703F9`; payload not
+   inspected).
+
 ### PSMT8 TEX0 setup — NOT YET FOUND
 
 No EE function in the boot ELF builds a TEX0 register write with
