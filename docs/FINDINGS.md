@@ -1122,6 +1122,28 @@ XGKICK — confirming the decoder is correct. Highlights:
 
 **Most likely skinning kernel: the #5+#6 / #7+#8 / #9+#10 family.**
 
+> **2026-05-27 CORRECTION.** The "#6/#8/#10 helper packets" identified
+> at vram `0x002346b0`/`0x002346f0`/etc. are **false positives** — the
+> catalog scanner mistook interior `jalr vi15` instructions
+> (`0x4a0f0800`) for MPG tags. The skinner mains (#5/#7/#9) are real
+> kernels at vram `0x00234610`/`0x00234b30`/`0x00235010` (153/145/142
+> qw). The imem-0x800 helper IS used (the mains contain `jalr vi15`
+> calls) but lives in a separate VIF DMA upload that the catalog
+> scanner doesn't surface. The pseudocode below was inferred from
+> op-frequency profile; the **byte-decoded** version, including the
+> corrected vf28..vf31 bone-matrix slot and the dual-ITOF
+> (positions Q4.12 + normal Q4.4) decode in the helper, is in
+> `docs/PROGRESS.md` (2026-05-27 entry "VU1 skinner kernel #5
+> disassembled").
+
+> **LOWER-pipe field-position convention.** `tools/disasm_vu.py`
+> currently decodes operand fields as `FT=[15:11] IS=[20:16]` (PCSX2
+> source convention). On this binary the correct mapping is
+> **swapped**: `FT=[20:16] IS=[15:11]`. Under the swap, all bone /
+> constant / vertex loads decode sensibly; under the original
+> convention every load went to `vf00` (zero register). Pending
+> one-line fix in `tools/disasm_vu.py`.
+
 Pseudocode reconstruction of the main-routine pattern (~150 qw):
 
 ```

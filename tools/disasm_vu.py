@@ -288,28 +288,79 @@ LOWER_SPECIAL = {
 LOWER1_GROUP_BASE = 0x3C  # 6-bit base of all "vector misc" ops
 
 
+_DMASK_NAMES = ['', 'w', 'z', 'zw', 'y', 'yw', 'yz', 'yzw',
+                'x', 'xw', 'xz', 'xzw', 'xy', 'xyw', 'xyz', 'xyzw']
+
+
+def _s11(x):
+    """Sign-extend the 11-bit LOWER immediate (range -1024..+1023)."""
+    x &= 0x7ff
+    return x - 0x800 if x & 0x400 else x
+
+
+def _fld(w, hi, lo):
+    return (w >> lo) & ((1 << (hi - lo + 1)) - 1)
+
+
 def decode_lower(lower, pc=None):
+    """Decode a 32-bit LOWER-pipe word into (mnemonic, operand_string).
+
+    *** Field-position convention (CORRECTED 2026-05-27) ***
+    Empirical decode of the per-bone skinner main at vram 0x00234610
+    shows that on this binary the integer-register field lies at
+    bits [15:11] and the vector-register field at bits [20:16] for
+    LOWER load/store/branch ops — the OPPOSITE of the PCSX2-source
+    convention. Under PCSX2's mapping (FT=[15:11], IS=[20:16]) every
+    bone-matrix and constant-table load decoded as `vf00` (zero
+    register); swapping the fields produced sensible vf28..vf31
+    bone-matrix loads, matching the documented kernel pattern.
+    """
     if lower == 0x8000033C:
         return ('nop', '')
     opc = (lower >> 25) & 0x7f
     name = LOWER_PRIMARY.get(opc)
     if name:
-        # add operand hint for common forms
-        if name in ('lq', 'sq'):
-            return (name, 'mem')
+        ft = _fld(lower, 20, 16)   # vector reg (FT)
+        is_ = _fld(lower, 15, 11)  # integer reg (IS) — swapped vs. PCSX2
+        dest = _DMASK_NAMES[_fld(lower, 24, 21)]
+        imm11 = _s11(lower)
+        if name == 'lq':
+            return (name, f'  vf{ft:02d}.{dest}, {imm11}(vi{is_:02d})')
+        if name == 'sq':
+            return (name, f'  vf{ft:02d}.{dest}, {imm11}(vi{is_:02d})')
+        if name in ('ilw', 'isw'):
+            return (name, f'  vi{ft:02d}, {imm11}(vi{is_:02d})')
         if name in ('iaddiu', 'isubiu'):
-            return (name, 'imm')
-        if name in ('b', 'bal', 'ibeq', 'ibne', 'ibltz',
-                    'ibgtz', 'iblez', 'ibgez'):
-            return (name, 'br')
+            imm15 = _fld(lower, 10, 0) | (_fld(lower, 24, 21) << 11)
+            return (name, f' vi{ft:02d}, vi{is_:02d}, 0x{imm15:04x}')
+        if name in ('ibeq', 'ibne'):
+            return (name, f'  vi{ft:02d}, vi{is_:02d}, {imm11*8:+d}')
+        if name in ('ibltz', 'ibgtz', 'iblez', 'ibgez'):
+            return (name, f' vi{is_:02d}, {imm11*8:+d}')
+        if name in ('b', 'bal'):
+            tgt = f' vi{ft:02d},' if name == 'bal' else ''
+            return (name, f'{tgt} {imm11*8:+d}')
+        if name.startswith('fc') or name.startswith('fs') or name.startswith('fm'):
+            return (name, f'  vi{ft:02d}, 0x{lower & 0xffffff:06x}')
         return (name, '')
     if opc == 0x40:
         sub = lower & 0x7ff
         # XGKICK detection: the canonical PCSX2 encoding uses bits [10:6]==0x1B
         secondary = (lower >> 6) & 0x1f
+        ft = _fld(lower, 20, 16)
+        is_ = _fld(lower, 15, 11)
+        dest = _DMASK_NAMES[_fld(lower, 24, 21)]
         # primary fingerprint table:
         nm = LOWER_SPECIAL.get(sub)
         if nm:
+            # most LOWER_SPECIAL entries that take operands fall through
+            # to the 0x3c-group block below; fast-path the unambiguous ones
+            if nm == 'jr':
+                return (nm, f'    vi{is_:02d}')
+            if nm == 'jalr':
+                return (nm, f'  vi{ft:02d}, vi{is_:02d}')
+            if nm in ('waitp', 'waitq'):
+                return (nm, '')
             return (nm, '')
         # Try secondary lookup for 0x3C-group ops we may have missed:
         if (sub & 0x3f) == 0x3c:
@@ -322,7 +373,32 @@ def decode_lower(lower, pc=None):
                 0x10: 'rxor', 0x11: 'mfp', 0x12: 'xtop', 0x13: 'xitop',
                 0x1a: 'mfp', 0x1b: 'xgkick', 0x1c: 'waitp',
             }
-            return (ext_map.get(secondary, f'low1_{secondary:02x}'), '')
+            nm2 = ext_map.get(secondary, f'low1_{secondary:02x}')
+            if nm2 == 'lqi':
+                return (nm2, f'   vf{ft:02d}.{dest}, (vi{is_:02d}++)')
+            if nm2 == 'sqi':
+                return (nm2, f'   vf{ft:02d}.{dest}, (vi{is_:02d}++)')
+            if nm2 == 'lqd':
+                return (nm2, f'   vf{ft:02d}.{dest}, (--vi{is_:02d})')
+            if nm2 == 'sqd':
+                return (nm2, f'   vf{ft:02d}.{dest}, (--vi{is_:02d})')
+            if nm2 == 'mfir':
+                return (nm2, f'  vf{ft:02d}.{dest}, vi{is_:02d}')
+            if nm2 == 'mtir':
+                return (nm2, f'  vi{ft:02d}, vf{is_:02d}.{dest}')
+            if nm2 == 'ilwr':
+                return (nm2, f'  vi{ft:02d}, (vi{is_:02d})')
+            if nm2 == 'iswr':
+                return (nm2, f'  vi{ft:02d}, (vi{is_:02d})')
+            if nm2 == 'xtop':
+                return (nm2, f'  vi{ft:02d}')
+            if nm2 == 'xgkick':
+                return (nm2, f' vi{is_:02d}')
+            if nm2 == 'move':
+                return (nm2, f'  vf{ft:02d}.{dest}, vf{is_:02d}')
+            if nm2 == 'mfp':
+                return (nm2, f'   vf{ft:02d}.{dest}')
+            return (nm2, '')
         if (sub & 0x3f) == 0x3d:
             ext_map = {
                 0x1c: 'esadd', 0x1d: 'ersadd', 0x1e: 'eleng', 0x1f: 'erleng',
@@ -382,10 +458,10 @@ def disasm_block(blob, base_vram):
             i_pending = False
             continue
         un, ud = decode_upper(upper)
-        ln, _ = decode_lower(lower, pc=vram)
+        ln, lops = decode_lower(lower, pc=vram)
         flags = flags_str(upper)
         out.append(f'  {vram:08x} {upper:08x}|{lower:08x}  [{flags}] '
-                   f'U:{un + ud:18s}  L:{ln}')
+                   f'U:{un + ud:18s}  L:{ln}{lops}')
         if upper & 0x80000000:
             i_pending = True
         if upper & 0x40000000:

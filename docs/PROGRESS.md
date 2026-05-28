@@ -1,5 +1,153 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-27 VU1 skinner kernel #5 disassembled (operands recovered, field convention corrected)
+
+Disassembled the per-bone rigid-skinning main kernel at vram
+`0x00234610` (153 qw, 0x4c8 bytes — the full body; the catalog's
+helper packets at `0x002346b0` / `0x002346f0` are **false positives**
+— scanner mis-identified interior `jalr vi15` instructions
+(`0x4a0f0800`) as MPG tags, and the same false-positive pattern
+recurs at `0x00234bd0/0x00234c10/0x002350b0/0x002350f0`). The real
+helper at imem 0x0800 is uploaded by a SEPARATE VIF DMA that the
+catalog scanner doesn't reach — likely a one-time boot upload reused
+across all 3 sibling skinner mains (vram `0x00234610`, `0x00234b30`,
+`0x00235010`). `tools/disasm_vu.py catalog` needs a follow-up filter
+that requires a preceding VIF setup template before accepting an
+MPG signature.
+
+**LOWER-pipe operand field convention CORRECTED.** The PCSX2-style
+`FT=[15:11] IS=[20:16]` documented in the disasm comments is wrong
+for this binary: every load/store to vf28..vf31 / vf16..vf21
+disassembled as `vf00` (zero register) under that mapping. With
+`FT=[20:16] IS=[15:11]` (swap), the instruction stream becomes
+sensible — `vf28..vf31` get the bone-matrix loads, `vf16..vf21` get
+the top-of-dmem constants. The on-disk encoding therefore stores
+the integer-register field at [15:11] and the vector-register
+field at [20:16] for all LOWER-pipe load/store/branch/iaddiu/jalr
+ops. `tools/disasm_vu.py` needs a one-line correction; the
+operator-frequency `profile` mode is unaffected (op detection
+doesn't depend on operand positions).
+
+**Skinner main #5 structure (vram 0x00234610..0x00234ad8, 153 qw).**
+
+```
+PROLOGUE (~16 qw):
+  mfp     vf13          ; sync EFU pipe
+  iaddiu  vi14, ...     ; counter setup
+  iaddiu  vi12, vi13, 7 ; loop-end cursor
+  iaddiu  vi11, vi13, 0x19
+  fcset   0
+  ; 6 dummy LQs to vf16..vf21 from dmem qw 1016..1023 (top-of-dmem
+  ; shared constants: clip planes, light dirs, GIF tag template, etc.)
+  lq      vf16, 1019(vi00) .. lq vf21, 1016(vi00)
+  ; bone matrix: 4 rows from dmem qw 0..3 into vf28..vf31
+  lq      vf28, 0(vi00)
+  lq      vf29, 1(vi00)
+  lq      vf30, 2(vi00)
+  lq      vf31, 3(vi00)
+
+PER-VERTEX LOOP (unrolled 2x, body ~12 qw):
+  lq      vf03, 0(vi13)        ; load vertex record qword
+  iaddiu  vi01, vi00, 0x31     ; setup jalr-target seed
+  jalr    vi15, vi01           ; -> imem 0x800 helper (per-vertex xform)
+  iadd    vi13, ..., 8         ; advance input ptr by 8 dmem qw stride
+  lq      vf03, 0(vi13)        ; second vertex of unrolled pair
+  iaddiu  vi01, vi00, 0x31
+  jalr    vi15, vi01
+  isubiu  vi13, vi13, 8        ; rollback (second vert reuses prior offset)
+  iadd    vi13, ..., <stride>  ; advance by net stride (low_072)
+  ibne    vi13, vi12, -136     ; loop until vi13 hits vi12 (end)
+
+EPILOGUE (~5 qw):
+  mfp     vf11
+  iaddiu  vi11, vi11, 0x18     ; output ptr += 3 qw
+  lq      vf01, 1020(vi00)     ; load GIF tag template from constant pool
+  sq      vf11, 0(vi01)
+  [E] xgkick vi11               ; kick the assembled GIF packet
+  -- end --
+
+UNREACHABLE TAIL (vram 0x00234780..0x00234ad8, ~150 qw):
+  This is NOT main-flow code (the E-bit set at the xgkick ends the
+  program). It is the **helper subroutine** that the JALR vi15 calls
+  reach via imem 0x0800 once uploaded by a separate VIF DMA. The
+  per-vertex xform body lives here; it culminates in:
+    itof12.xyzw      ; positions: Q4.12 -> float
+    addAi/mulAbcz    ; bone matrix multiply (acc=vf28..31 * vfTMP)
+    ftoi12.xyzw      ; back to Q4.12 integer for GS output
+    itof12.w  ...    ; W lane dequantize, then minibcx/maxbcx (clamp)
+    itof4.xyzw       ; SEPARATE int->float at Q4.4 scale — this is the
+                     ;   per-vertex packed-normal/lighting decode!
+    sq vf11, 0(vi02) ; final 3-qw GIF packet writes
+    sq vf11, 1(vi05)
+    sq vf11, 2(vi05)
+    jr vi00          ; return
+```
+
+**KEY DECODES.**
+
+1. **Bone matrix slot — CONFIRMED.** 4 rows in vf28..vf31 from dmem
+   qw 0..3 (bytes 0x000..0x03F). This refines the earlier FINDINGS
+   text ("vf01..vf04" was wrong — the prior pseudocode was inferred
+   from op-frequency, not byte-decode).
+
+2. **Per-vertex input stride.** The kernel advances vi13 by 8 (LQ
+   immediate units, which on this VU are **qwords**, so 8*16=128
+   bytes per 2-vertex pair = 64 bytes/vertex stride at the dmem
+   level). The disc per-bone records are 12 bytes each, so VIF
+   UNPACK is *expanding* them: most likely **V4-16 UNPACK with
+   USN=0 expanding 8 bytes of disc data into 1 qw** (4 int16
+   lanes), and the remaining 4 bytes (`+0x06..+0x09` packed normal)
+   go to a parallel dmem stream OR a second pass.
+
+3. **Packed-normal decode — PARTIAL.** The helper has
+   **two distinct ITOF scales**: `itof12.xyzw` for positions
+   (Q4.12, divide by 4096) and `itof4.xyzw` for a separate lane
+   (Q4.4, divide by 16). The Q4.4 path is the per-vertex normal
+   dequant — signed bytes -127..+127 → -7.94..+7.94 unit vectors,
+   which is a textbook PS2 packed-normal encoding (~Q1.7 with
+   intensity headroom). The 4th byte (clustering near 63 / 188 in
+   the FINDINGS empirical analysis) is loaded into the .w lane via
+   `itof12.w` then clamped via `minibcx.w` / `maxbcx.w` — that's a
+   **per-vertex lighting intensity / culling flag**, not a
+   coordinate. This matches FINDINGS' guess of "category/intensity
+   tag".
+
+4. **Per-block bone palette — NOT FOUND IN THIS KERNEL.** The
+   skinner main loads ONE bone matrix into vf28..vf31 — there is no
+   4-matrix palette and no per-vertex selector read. Conclusion:
+   **kernel #5 is a single-bone rigid skinner**, one bone per VIF
+   batch. The per-vertex bone selector documented in MESH-block
+   `(w-sign(w))*512` (FINDINGS line 103) must be consumed by a
+   DIFFERENT kernel — most likely one of the 4 medium 2-segment
+   kernels at imem 0x0000 (#0/#1/#2/#4, vram 0x00230824 etc.) which
+   have 17-20 ftoi/itof and the LQ density characteristic of a
+   4-matrix-palette weighted skinner.
+
+5. **GIF output structure — PARTIAL.** Output is **3 qw per kick**:
+   `[GIF tag template at vi11+0, payload at vi11+1, payload at vi11+2]`.
+   The GIF tag template is preloaded from constant dmem qw 1020.
+   3 qw is consistent with a `PRIM + 2 vertex records` strip
+   continuation OR a `GIFtag + STQ + XYZF2` per-vertex packet.
+   Without the REGLIST bits from the tag template (which lives in
+   dmem at qw 1020, not statically decodable from microcode alone),
+   the exact GS register list isn't pinned. Capture needed.
+
+**Implications for the glTF exporter.** The Q4.4 packed-normal
+hypothesis is now strong enough to *attempt* a real decode in
+`tools/export_gltf.py`, but the per-byte component-to-lane mapping
+inside the 4-byte field still needs a sanity check (which 3 of the
+4 bytes are x/y/z, and which is the intensity). The current
+face-averaged-normal path is left in place — it works; replacing
+it speculatively risks breaking the 1.98 MB validated .glb. **Not
+wired into export_gltf.py this session** — flag for next pass
+(combine with a PCSX2-state capture of vu1 dmem mid-frame to
+confirm the byte order).
+
+**Implications for `_bind_blocks_to_bones`.** This kernel handles
+**rigid** skinning (1 bone per batch); MESH-block soft skinning is
+a different kernel. The per-block bone palette is therefore NOT in
+this kernel's dmem footprint. No changes warranted.
+
 ### Update — 2026-05-27 MESH-block per-vertex bone selector identified
 
 Investigation into the "MESH-block static-textured mesh collapsed at
