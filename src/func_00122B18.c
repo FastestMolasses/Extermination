@@ -1,5 +1,5 @@
 // Simple nonleaf asm void
-extern void func_00123750(int, int, int, int);
+extern void sub__0000000000000000Inf(int, int, int, int);
 
 asm void func_00122B18(void) {
     addiu      $sp, $sp, -0x80
@@ -12,7 +12,7 @@ asm void func_00122B18(void) {
     sd         $9, 0x68($sp)
     sd         $10, 0x70($sp)
     sd         $11, 0x78($sp)
-    jal        func_00123750
+    jal        sub__0000000000000000Inf
     lw        $a1, 0x8($a0)
     ld         $ra, 0x0($sp)
     jr         $ra

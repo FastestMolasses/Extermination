@@ -339,3 +339,17 @@ area_dispatch_off1900_state0000 = 0x00824E00;  // type:func
 area_dispatch_off1BC0_state1300 = 0x008250C0;  // type:func
 // overlay-dispatch: vram 0x00826180 (+0x2C80), 1 caller(s), area-state IDs [0x1500]
 area_dispatch_off2C80_state1500 = 0x00826180;  // type:func
+
+// === Auto-added by tools/decomp/name_fptr_tables.py ===
+// Function-pointer tables mined from .data: contiguous runs of 4+ words
+// pointing at splat-detected function entries. Names are provisional.
+// table @ 0x00241130, 16 entries, callers=none
+ftab_00241130 = 0x00241130;  // type:label
+//   entries: 0x00104378, 0x00104488, 0x00104610, 0x00104778, 0x00104970, 0x00104AC8, 0x00104C98, 0x00104E48, ... (8 more)
+// table @ 0x002411A8, 11 entries, callers=none
+ftab_002411A8 = 0x002411A8;  // type:label
+//   entries: 0x0010AD58, 0x0010AB40, 0x0010ACA8, 0x00107260, 0x00107400, 0x0010AD48, 0x0010AD58, 0x00107310, ... (3 more)
+// table @ 0x0024D880, 27 entries, callers=none
+ftab_0024D880 = 0x0024D880;  // type:label
+//   entries: 0x001B8FC0, 0x001B94F0, 0x001B9BA0, 0x001B8AB0, 0x001B9C10, 0x001B9CF0, 0x001BA080, 0x001B82D0, ... (19 more)
+// === End auto-added by tools/decomp/name_fptr_tables.py ===

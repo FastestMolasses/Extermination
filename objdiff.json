@@ -1974,38 +1974,6 @@
       }
     },
     {
-      "name": "func_0010AD48",
-      "target_path": "build/expected/func_0010AD48.o",
-      "base_path": "build/obj/func_0010AD48.o",
-      "metadata": {
-        "source_path": "src/func_0010AD48.c"
-      }
-    },
-    {
-      "name": "func_0010AD58",
-      "target_path": "build/expected/func_0010AD58.o",
-      "base_path": "build/obj/func_0010AD58.o",
-      "metadata": {
-        "source_path": "src/func_0010AD58.c"
-      }
-    },
-    {
-      "name": "func_0010AD68",
-      "target_path": "build/expected/func_0010AD68.o",
-      "base_path": "build/obj/func_0010AD68.o",
-      "metadata": {
-        "source_path": "src/func_0010AD68.c"
-      }
-    },
-    {
-      "name": "func_0010AD78",
-      "target_path": "build/expected/func_0010AD78.o",
-      "base_path": "build/obj/func_0010AD78.o",
-      "metadata": {
-        "source_path": "src/func_0010AD78.c"
-      }
-    },
-    {
       "name": "func_0010AD88",
       "target_path": "build/expected/func_0010AD88.o",
       "base_path": "build/obj/func_0010AD88.o",
@@ -4083,38 +4051,6 @@
       "base_path": "build/obj/func_00122CA8.o",
       "metadata": {
         "source_path": "src/func_00122CA8.c"
-      }
-    },
-    {
-      "name": "func_00122D80",
-      "target_path": "build/expected/func_00122D80.o",
-      "base_path": "build/obj/func_00122D80.o",
-      "metadata": {
-        "source_path": "src/func_00122D80.c"
-      }
-    },
-    {
-      "name": "func_00122DE8",
-      "target_path": "build/expected/func_00122DE8.o",
-      "base_path": "build/obj/func_00122DE8.o",
-      "metadata": {
-        "source_path": "src/func_00122DE8.c"
-      }
-    },
-    {
-      "name": "func_00122E68",
-      "target_path": "build/expected/func_00122E68.o",
-      "base_path": "build/obj/func_00122E68.o",
-      "metadata": {
-        "source_path": "src/func_00122E68.c"
-      }
-    },
-    {
-      "name": "func_00122ED0",
-      "target_path": "build/expected/func_00122ED0.o",
-      "base_path": "build/obj/func_00122ED0.o",
-      "metadata": {
-        "source_path": "src/func_00122ED0.c"
       }
     },
     {

@@ -1,5 +1,5 @@
 // Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_00109CF8(int, int, int, int);
+extern void sub_image_buffer_needs_to_be_aligned(int, int, int, int);
 
 asm void func_00109960(void) {
     addiu $sp, $sp, -0x10
@@ -14,7 +14,7 @@ asm void func_00109960(void) {
     sw $a1, 0xD8($a3)
     sw $zero, 0xDC($a3)
     sw $zero, 0xB0($a3)
-    jal func_00109CF8
+    jal sub_image_buffer_needs_to_be_aligned
     sw $zero, 0xE0($a3)
     ld $ra, 0x0($sp)
     jr $ra

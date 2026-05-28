@@ -1,5 +1,5 @@
 // Simple nonleaf asm void
-extern void func_00109CF8(int, int, int, int);
+extern void sub_image_buffer_needs_to_be_aligned(int, int, int, int);
 
 asm void func_001099A8(void) {
     addiu      $sp, $sp, -0x10
@@ -17,7 +17,7 @@ asm void func_001099A8(void) {
     sw         $a1, 0xD8($v1)
     sw         $8, 0xE4($v1)
     sw         $a2, 0xDC($v1)
-    jal        func_00109CF8
+    jal        sub_image_buffer_needs_to_be_aligned
     sw        $zero, 0xB0($v1)
     ld         $ra, 0x0($sp)
     jr         $ra
