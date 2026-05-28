@@ -4,6 +4,40 @@ Technical reference for formats and facts established so far. The authoritative,
 exhaustive format details live in the docstrings of the `tools/` scripts; this
 file summarises them and records findings that have no other home.
 
+## Anim decoder VALIDATED (2026-05-27)
+
+`tools/anim_decoder.py` was empirically validated against the player rig
+`extract/chunk05/f04_id71.bin` entry 0:
+
+- All decoded quaternion magnitudes ≈ 1.0 (within float-truncation precision)
+  across every keyframe of every bone with rotation data — confirms the
+  20-bit-of-float packing format and the per-bone directory layout.
+- Bones 0 and 1 are identity quats `(0, 0, 0, 1)` held for the full clip —
+  consistent with skeleton-root bones that don't animate.
+- Bones 2-5 show smooth quaternion interpolation with small frame-to-frame
+  deltas (`|Δq|` < 0.05 between adjacent keyframes), monotonically increasing
+  `t_next` values.
+- The last keyframe of each stream has `t_next = 0xFFFF` — confirms the
+  end-of-stream sentinel hypothesis.
+- Entry 0 of f04_id71 has 30 bone-stream entries; bones 0/1 hold rest pose,
+  bones 2-29 are the live animation channels. (28 of these align with the
+  real player-bone count; 2 are the documented sentinel overshoots.)
+
+The complete bind-pose data flow from disc to VU1 is now CHARACTERIZED and
+PYTHON-DECODABLE end to end:
+
+```
+disc id 0x71 entry (per-bone directory + 12-byte-stride keyframe streams)
+    -> anim_decoder.parse_rotation_section / parse_translation_section
+    -> sample_bone(frames, t)  -- NLERP between adjacent keyframes
+    -> per-bone struct +0x30/+0x40/+0x50 (quat A, quat B, blend t)
+    -> func_001C6DA0 (NLERP + TRS + parent concat) -> bone+0x90
+    -> func_00179BC0 publisher -> BSS 0x002863XX..0x002893XX
+    -> DMA via func_00101FE0 -> VIF1 -> VU1 dmem -> vf01..vf04
+    -> per-vertex transform -> XGKICK -> GS
+```
+
+
 _Last updated: 2026-05-25 — live bone matrices located in EE .bss via PCSX2 save state (`tools/parse_pcsx2_state.py`): the engine stages column-major 4x4 affine matrices in `0x002863XX`..`0x002893XX` as two pairs of {world,local} 21-matrix runs (double-buffered character rigs). The matrices are not stored verbatim on disc → bind pose is built at runtime. See "Live bone matrices in EE RAM" below. Earlier: id 0x71 entry "sections" structurally decoded; the three per-bone payload sections are NOT bind-pose matrices (section 1 is per-bone object-space vertex data in the standard 12-byte Q4.12+normal+vid record; sections 2 and 3 are mostly-empty VIF priming headers). Earlier: per-bone object-space Q4.12 vertex decode confirmed on the 28-bone player rig (`chunk21/f17_id8f.bin`); `extract_models.py --object-space` ships per-bone bind-pose point clouds._
 
 ## Target identity
