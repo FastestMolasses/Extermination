@@ -1725,6 +1725,139 @@ _start
   channel base is loaded once per dispatch from the table, never as
   a literal `lui`/`ori` pair.
 
+## Per-bone animation evaluator (`func_001C6DA0`, 2026-05-27)
+
+`func_001C6DA0` is the per-actor per-frame animation/pose evaluator
+called from `func_00179BC0` immediately BEFORE the publisher's per-bone
+matrix copy loop. It is **the producer** of the 4x4 source matrices at
+each per-bone struct's `+0x90` field (`D_00275B40[i].matrix`, consumed
+by `func_00102958`).
+
+**Size:** 0x680 bytes / 426 asm lines. **One argument:** `$a0 = actor*`.
+
+**Inputs (per-bone struct, base = `*(actor + 0x110 + 4*bone_idx)`):**
+| Offset | Type | Use |
+|---|---|---|
+| `+0x18..0x20` | 3x int32 quantised | per-axis scale factors (Q?, used as `vmulx.xyz` on identity-axis vec4s for the "fast" path bone 0) |
+| `+0x30` | quat (vec4) | source quaternion A |
+| `+0x40` | quat (vec4) | source quaternion B |
+| `+0x50` | f32 | quat blend factor `t` (clamped <= 1.0) |
+| `+0x60..0x6C` | f32 vec3 | local translation (TRS T) |
+| `+0x64` | int16 | parent bone index, `-1` = root |
+| `+0x70..0x7C` | f32 vec3 | local Euler rotation (TRS R) |
+| `+0x7C..0x84` | f32 vec3 | local scale (TRS S, float) |
+| `+0x88, +0x8A, +0x8C` | s16 x3 | additional per-axis fine scale, decoded by `* 2^-12` (`0x39800000` = 1/4096) and `vmulx.xyz`'d into the X/Y/Z basis vectors |
+| `+0x90` | OUTPUT 4x4 | composed world-space bone matrix (the matrix this whole pipeline produces) |
+
+**Actor struct fields read:**
+| Offset | Use |
+|---|---|
+| `+0x0C` | u8 bone_count (loop limit) |
+| `+0x60..0x6C` | actor scale vec3 (a3 to TRS builder) |
+| `+0xB0..0xBC` | actor translation vec3 (a1 to TRS builder) |
+| `+0xC0..0xCC` | actor Euler rotation vec3 (a2 to TRS builder) |
+| `+0xD0..+0x10C` | OUTPUT actor root 4x4 matrix (built by `func_001C94B0`) |
+| `+0x110[]` | array of per-bone struct pointers (D_00275B40 = this+0x110 for the current actor; `func_001CB5B0` just publishes the pointer) |
+
+**Scratch workspace (`D_70003400..D_70003600+`):** an EE scratchpad
+region used as transient matrix storage:
+- `D_70003400` = composed local 4x4 (output of `func_00102C58` per bone)
+- `D_70003440` = parent matrix (loaded into `vf04..vf07` and multiplied
+  with local via vmulax/vmadday/vmaddaz/vmaddw)
+- `D_70003450/0x60` = X/Y/Z basis-rotated identity rows used to apply
+  the s16 fine scale (`+0x88..+0x8C`)
+- `D_70003600` = output of `func_001CA0A0` (the quaternion blend buffer)
+
+**Math identified:**
+1. **`func_001C94B0(actor+0xD0, actor+0xB0, actor+0xC0, actor+0x60)`** —
+   actor root matrix = `T(pos) * R(eulerZ) * R(eulerY) * R(eulerX) * S(scale)`.
+2. For each bone `i = 0..bone_count`:
+   - **Bone 0** (fast path, no quat blend): `func_001029C0` loads identity
+     into D_70003400/D_70003440, `func_00102C58` applies Euler rotation
+     from bone+0x70..0x78 (calls into a chain of `func_00102A60` /
+     `func_00102B08` / `func_00102BB0` — the standard rotateX/Y/Z helpers
+     used elsewhere in the boot ELF), then applies the s16 fine scale
+     via three `vmulx.xyz` writes on the basis vectors.
+   - **Bone i>=1:** `func_001CA0A0(D_70003600, bone+0x30, bone+0x40, bone+0x50)`
+     blends the two quats with factor `t` (clamped to <=1; if `dot < 0`
+     it negates B for shortest-path) — this is **quaternion NLERP**.
+     Then `func_001CA1C0` (127 lines, contains `vopmsub` and Gram-Schmidt-
+     looking ops) converts the blended quat into a 3x3 basis rotation
+     and writes it into the actor's bone slot starting at bone+0x00.
+     Then the same identity / Euler / s16-scale pipeline as bone 0.
+3. Final per-bone concatenation:
+   - `vf04..vf07 = D_70003400` (local TRS)
+   - `vf08..vf0B = D_70003440` (parent matrix)
+   - 4x4 multiply by `vmulax / vmadday / vmaddaz / vmaddw` → vf12..vf15
+   - Store **either** into `bone+0x90` (parent index != -1, parent matrix
+     selected by `*(actor + 0x110 + 4*parent_idx) + 0x90`), **or** into
+     `bone+0x90` using `actor+0xD0` (root bone, parent index == -1).
+   - This is the produced world-space 4x4 the publisher (`func_00179BC0`)
+     then copies into the EE BSS staging buffer for VU1 upload.
+
+**Inputs are 100% RAM-resident.** The function reads no `D_70xxxx`
+constants except the scratchpad workspace it itself initialises. **No
+disc data, no id 0x71 sections, no BSS animation tables** are read by
+this function. The per-bone struct fields (`+0x30` quats, `+0x60`
+translation, `+0x70` Euler, `+0x88` s16 scale) are populated by some
+**other system** that runs before this evaluator — that upstream system
+is what reads the id 0x71 entry data (the keyframe stream in section 2's
+bone-0 384-byte record, plus per-bone interpolation data) and writes
+the two quats + blend factor into each bone's slot. `func_001C6DA0`
+itself is purely the runtime quaternion-blend + TRS-composition step.
+
+**Refutes the "id 0x71 is the direct anim source for func_001C6DA0"
+guess.** id 0x71 keyframe streams are not consumed here. They must be
+unpacked by an upstream sampler that writes the `+0x30/+0x40/+0x50` quat
+pair + blend factor into each per-bone struct. Finding that sampler is
+the next investigation.
+
+**Confirmed bind-pose data flow chain (end-to-end):**
+```
+disc id 0x71 entry sections     [keyframe quats + per-frame data]
+        |
+        v
+[upstream anim sampler -- unidentified function]
+        |
+        v   writes per-bone struct fields:
+        |     +0x30 quat A, +0x40 quat B, +0x50 blend t,
+        |     +0x60 trans, +0x70 euler, +0x88 s16 scale
+        v
+func_001C6DA0 (per-actor anim evaluator)
+        |
+        |   for each bone:
+        |     - NLERP quats A/B by t  -> 3x3 rotation
+        |     - build local TRS matrix
+        |     - multiply by parent (sibling bone's +0x90)
+        |       or by actor root (+0xD0)
+        |     - write composed 4x4 to bone +0x90
+        v
+func_00179BC0 (publisher)
+        |   for each bone: func_00102958(scratchpad_dst, bone+0x90)
+        v
+EE BSS staging at 0x002863XX..0x002893XX   (the 21-matrix buffers)
+        |
+        v   DMA via func_00101FE0 -> VIF1
+        v
+VU1 dmem (4-row matrix loaded into vf01..vf04 per kernel #5/#6/...)
+        |
+        v   per-vertex transform: ITOF12 vert; ACC = bone * vert; FTOI0
+        v
+GS via XGKICK -> rendered skinned mesh
+```
+
+**Still unknown:**
+- The **upstream anim sampler** that reads id 0x71 keyframes and
+  populates each bone's `+0x30/+0x40/+0x50` quat-blend slot. Likely
+  called from the actor's per-frame tick before `func_00179BC0`.
+- The exact **packing of the s16 values at +0x88..0x8C**. The `1/4096`
+  conversion factor matches the Q4.12 vertex-packing convention used
+  elsewhere in the engine, suggesting these are a per-bone fine scale
+  delta applied on top of the float `+0x7C..+0x84` scale.
+- Whether `func_001CA1C0`'s output is a pure-rotation 3x3 written back
+  to `bone+0x00..+0x30` (which would be a per-frame derived rotation
+  matrix cache), or whether it overlaps the quat fields used as input.
+
 ## `MUSIC.DAT` track listing
 
 `MUSIC.DAT` decodes to 55 tracks. Per the user (cross-referenced with an online

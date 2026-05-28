@@ -1,5 +1,27 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-27 func_001C6DA0 characterized (per-actor anim evaluator)
+
+Characterized `func_001C6DA0` (0x680 / 426 lines). It is the per-frame,
+per-actor TRS-composition + quaternion-NLERP step that produces the
+4x4 bone matrices at `bone+0x90` that the publisher `func_00179BC0`
+then copies into the EE BSS staging buffer for VU1.
+
+Key result: **it consumes no disc data and no id 0x71 sections** — its
+inputs are the per-bone struct fields (`+0x30/+0x40` quats, `+0x50`
+blend `t`, `+0x60` trans, `+0x70` Euler, `+0x88..+0x8C` s16 fine
+scale) which are populated by an **upstream sampler that has yet to be
+identified**. That sampler is what reads the id 0x71 keyframe data.
+
+Full structural decode, per-bone-field table, scratchpad workspace
+layout, and the end-to-end bind-pose pipeline diagram are recorded in
+`docs/FINDINGS.md` under "Per-bone animation evaluator (func_001C6DA0,
+2026-05-27)".
+
+Next lead: find the upstream sampler — i.e., the function called
+earlier in the actor's per-frame tick that writes each bone's
+`+0x30/+0x40/+0x50` quat pair from id 0x71 entry data.
+
 ### Update — 2026-05-27 func_00100EB8 characterized (CORRECTION)
 
 Read func_00100EB8 (419 instr) end-to-end together with its packet-builder
