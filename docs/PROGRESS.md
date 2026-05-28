@@ -1,5 +1,49 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-27 KEYFRAME STREAM FORMAT DECODED — bind-pose data flow FULLY DECODED
+
+The last piece of the bind-pose chain is now characterized: the on-disc
+bit-packing inside id 0x71 section1 (rotation) and section2 (translation)
+keyframe streams. Decoders for both `func_001C8F10` (rotation outer loop +
+blend), `func_001C90D0` (translation outer loop), `func_001C84D0` (quat
+decode kernel), and `func_001C85D0` (vec3 decode kernel) were read.
+
+**Stream layout.** Each section starts with a `nbones * u32` directory
+of per-bone byte offsets, immediately followed by per-bone keyframe
+streams. A keyframe record is **12 bytes**: 10 bytes packed sample +
+u16 `t_next` (frame-counter end of this record's interval).
+
+**Sample packing — "top-N-bits-of-IEEE-float".** Each channel is a
+bit-field that is the **high N bits of a standard 32-bit IEEE-754
+single-precision float**, with the low (32 - N) mantissa bits truncated
+to zero. The compiler implements it as a `sw + lwc1` bit-cast through
+the EE Scratchpad at `0x70003600`.
+
+| channel set | width per channel | channels | total bits |
+| ----------- | ----------------- | -------- | ---------- |
+| rotation (quat xyzw) | **20 bits** | 4 | 80 (= 10 bytes) |
+| translation (xyz)    | **26 bits** | 3 | 78 (+ 2 pad)    |
+
+**Blend parameter.** `D_00811240 = (now - t_prev) / (t_next - t_prev)`,
+plain linear-in-frames, consumed downstream by SLERP at `func_001CA0A0`.
+
+Format spec is in `docs/FINDINGS.md` under "Keyframe stream format —
+decoded 2026-05-27".
+
+**Python prototype** at `tools/anim_decoder.py` — parses sections 1/2
+into per-bone keyframe lists with NLERP sampling, with a synthetic
+pack/unpack roundtrip self-test that passes for both rotation and
+translation. The decoder is self-contained (does no disc I/O; the
+caller slices an id 0x71 entry from a locally-extracted copy per the
+project's hard rules). Validation against an in-game PCSX2 capture of
+the player skeleton across frames remains as follow-up work, but the
+synthetic roundtrip and the close structural match to the MWCC asm
+give high confidence in the format.
+
+Open: scale channel (`func_001C92C0`) not yet read line-by-line —
+structurally identical to translation, expected to share the same 26-bit
+truncated-float layout but the bit widths have not been confirmed.
+
 ### Update — 2026-05-27 bind-pose data flow CHARACTERIZED (upstream sampler found)
 
 The **upstream keyframe sampler** that fills each per-bone struct's

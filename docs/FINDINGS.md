@@ -2006,18 +2006,156 @@ disc id 0x71 clip entry  [header @ +0x00; sections @ +0x08/+0x0C/+0x10]
 
 ### What's still unknown
 
-- Exact **on-disc packing of the keyframe quat** inside section 2 (the
-  per-bone keyframe stream). `func_001C8F10` (208 lines) is the right
-  place to decode this; it indexes the cached section pointers with
-  `(bone_idx, frame_idx)` and writes `D_00811220/30/40` (quat pair +
-  blend factor) for the second NLERP pass. Q-format vs IEEE float
-  storage on disc has not been confirmed.
 - Exact format of the **event-table records** that `func_001C64F0`
   walks (it loads s16 event-id pairs at section3+4*i, with payload
   s16 at section3+4*i+2).
-- Whether `func_001C90D0` (translation) and `func_001C92C0` (scale)
-  share a packed format with the rotation channel, or use vec3
-  IEEE-float keyframes.
+- The **scale-channel** decoder (`func_001C92C0`, called for `0x18(actor)`
+  output) has not yet been read line-by-line; by structural symmetry with
+  the rotation/translation samplers it almost certainly uses the same
+  12-byte-per-keyframe record stride and a 3-channel "truncated-float"
+  sample, but the bit width per channel needs confirmation.
+
+## Keyframe stream format — decoded 2026-05-27 (`func_001C8F10`/`func_001C90D0`/`func_001C84D0`/`func_001C85D0`)
+
+The rotation, translation, and scale samplers all share the same outer
+structure: each is invoked as `f(actor, bone_idx, time_int_frames)`, indexes
+a cached section base via `bone_idx`, walks a list of fixed-stride
+keyframe records, picks the one straddling the integer time, decodes the
+sample, and stores it into the actor's "next keyframe" slot.
+
+### Section indexing (bone_idx -> stream start)
+
+The id 0x71 entry-section bases cached at runtime are u32 directories of
+per-bone byte offsets:
+
+| symbol         | what it points at         | consumed by                  |
+| -------------- | ------------------------- | ---------------------------- |
+| `D_00275BF4`   | id 0x71 entry section 1   | `func_001C8F10`  — rotation  |
+| `D_00275BF0`   | id 0x71 entry section 2   | `func_001C90D0`  — translation; also `func_001C92C0` (scale) |
+
+For each sampler:
+
+```
+section_base = D_00275BFx                            ; u8 *
+rel_off      = ((u32 *) section_base)[bone_idx]      ; u32 little-endian
+stream_start = section_base + rel_off                ; first keyframe record
+```
+
+So section1/section2 begin with a `nbones * 4`-byte table of u32 relative
+offsets, immediately followed by the per-bone keyframe streams. (FINDINGS
+already noted section 1 was *not* per-bone bind-pose vertex data for the
+animated-clip files; this is what it actually is — the per-bone rotation
+keyframe directory + streams.)
+
+### Per-keyframe record (12 bytes, both channels)
+
+```
+offset  size  field
++0x00   10 B  sample payload (packed; see decode below)
++0x0A    2 B  u16 t_next   -- the time at which THIS record's sample is reached
+```
+
+The sampler walks `record[i]` until `time_int < record[i].t_next AND
+time_int >= record[i+1].t_prev`. Because successive records overlap their
+time field (`+0xA` of record[i] is read as "this record's end time", and
+`+0x16 == +0xA` of record[i+1] is "next record's end time"), each pair
+defines a `[t_prev, t_next)` interval where:
+
+```
+t_prev = (u16) *(stream + i*12 + 0x0A)
+t_next = (u16) *(stream + i*12 + 0x16)   ; == t_prev of record[i+1]
+```
+
+The blend parameter written to `D_00811240` (the value the caller later
+hands to the SLERP/LERP at `f12`) is the **standard linear interpolation
+coefficient**:
+
+```
+t_blend = (time_now_int - t_prev) / (t_next - t_prev)   ; in [0, 1)
+```
+
+(Implementation detail: time values are loaded with `lhu` and converted via
+the MWCC unsigned-16-to-float idiom `srl/andi/or; cvt.s.w; add.s`, so they
+are **u16 frame counts**, not signed. Sample-decode helpers
+`func_001C84D0` and `func_001C85D0` are called with `$a0 = record + 0x00`,
+so the payload starts at byte 0 of the record.)
+
+### Sample payload: "top-N-bits-of-IEEE-float" packing
+
+Both `func_001C84D0` (rotation, 4 channels) and `func_001C85D0`
+(translation, 3 channels) use the same pattern, repeated per channel:
+
+1. Stitch a 32-bit word from several `lhu` loads with shifts and `or`s,
+   so that bit `k` of the channel maps to bit `k - N_low` of the assembled
+   word (i.e. the channel's "msb-first" bits land at bit positions
+   `Nlow..31` of the temporary).
+2. `sw` the word to a scratchpad u32 at `0x70003600`, then `lw` and
+   `sll` it left by `(32 - channel_width)` so the channel's bits land in
+   bits 31 downto `(32 - W)` of the temporary.
+3. Re-store, then `lwc1` the same scratchpad address into an FPU
+   register. **This is a bit-cast, not a value conversion.** Because the
+   channel was placed in the high bits, the resulting float has the
+   stored bits as: sign (bit 31) + exponent (bits 23..30) + top mantissa
+   bits, with the rest of the mantissa zero. The on-disc value is
+   therefore the **top W bits of a standard IEEE 754 single-precision
+   float**, with the low `32 - W` mantissa bits truncated to zero.
+
+The shift amounts give the channel widths:
+
+| channel    | code path                              | shift used | width W |
+| ---------- | -------------------------------------- | ---------- | ------- |
+| rot.x/y/z/w | `func_001C84D0`                       | `sll $r,12` | **20 bits** |
+| tx/ty/tz   | `func_001C85D0`                        | `sll $r, 6` | **26 bits** |
+
+Bit layout within the 10-byte payload:
+
+Rotation (4 × 20 bits = 80 bits = 10 bytes):
+```
+bits  0..19  : qx        (top 20 bits of an IEEE float, low 12 mantissa = 0)
+bits 20..39  : qy
+bits 40..59  : qz
+bits 60..79  : qw
+```
+
+Translation (3 × 26 bits = 78 bits, padded into 10 bytes):
+```
+bits  0..25  : tx        (top 26 bits of an IEEE float, low 6 mantissa = 0)
+bits 26..51  : ty
+bits 52..77  : tz
+bits 78..79  : padding   (last 2 bits of the 10-byte cell)
+```
+
+Encoder side: pack `f = (uint32_be) bit_cast<u32>(float) >> (32 - W)` into
+the channel; decoder side: `float = bit_cast<float>(packed_channel <<
+(32 - W))`. So both rotation and translation are **lossy floats** (not
+fixed-point, not smallest-three) — just IEEE-754 with the bottom of the
+mantissa shaved off. ~9 mantissa bits left for rotation (precision
+~1/512 per channel, then renormalized to a unit quat in the SLERP),
+~15 mantissa bits left for translation (precision ~1 part in 32k of the
+exponent's local scale — plenty for world-space positions).
+
+The decoded sample is written to actor offsets:
+
+| sampler          | actor write           | meaning                       |
+| ---------------- | --------------------- | ----------------------------- |
+| `func_001C8F10`  | `+0x40` (vec4, via `func_001C84D0(payload, actor+0x40)`) | quat B (next keyframe rotation) |
+| `func_001C90D0`  | `+0x0C` (vec3, via `func_001C85D0(payload, actor+0x0C)`) | translation sample            |
+| `func_001C92C0`  | (not yet read)        | scale sample                  |
+
+And the blend `t` to `D_00811240` (= `0x50(actor)`), with the time
+deltas to `0x60(actor)` (`t_next - time_now`) and `1/(t_next - t_prev)`
+to `0x54(actor)`. The slerp/lerp downstream (`func_001CA0A0`) consumes
+`D_00811240` as its `f12`.
+
+### Why the 0x70003600 scratchpad?
+
+EE address `0x70003600` is **inside the EE Scratchpad** (16 KB SPRAM at
+`0x70000000`). MWCC is using it as a uncached u32<->float bit-cast
+buffer (the kind of thing a C compiler with a `union { u32 i; float f; }`
+would emit on a CPU with no `mtc1`/`bitcast` shortcut; here MWCC emits
+plain `sw`+`lwc1` against scratchpad memory, which is single-cycle).
+This is a strong fingerprint for recognising "truncated-IEEE bit-cast"
+elsewhere in the binary.
 
 ## `MUSIC.DAT` track listing
 
