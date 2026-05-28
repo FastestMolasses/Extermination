@@ -100,16 +100,53 @@ in the same chunk dir as the mesh (`chunk21/f00_id43.bin`,
 sheets as RGBA PNGs (identity grayscale CLUT) referenced by glTF
 Materials with `baseColorTexture`.
 
-**Unresolved.** (1) Per-bone↔MESH-block binding: the block headers
-carry a bbox but no explicit bone index, and the MESH-block positions
-do not match the per-bone VIF positions (different coordinate frames).
-Without the bone binding the static-textured mesh appears collapsed
-near the origin. Candidate: the "small u32 x 28" table at the end of
-the file's prefix region (immediately before the per-bone section
-table) -- size matches the bone count, but its semantics are not yet
-decoded. (2) Whether the per-bone VIF stream has parallel UVs shipped
-via another VIF UNPACK (currently the per-bone records are 12 bytes
-each and fully accounted for as POSITION+packed_normal+vid).
+**Per-vertex bone binding lives in the position w field (PARTIALLY
+DECODED 2026-05-27).** The 64-byte vertex record's `+0x3C` `w` field
+is NOT a pure sign flag. Empirically across all 317 MESH blocks of
+the player mesh (`chunk21/f17_id8f.bin`):
+
+  * `sign(w)` carries the documented `+/-1` strip-priming convention,
+    but `w - sign(w)` is a quantised offset of the form
+    `k / 512 + epsilon` with `k` in a tiny per-block set: most blocks
+    expose only `k in {-3, -1, 0, 2}` (4 distinct integers, but the
+    universe of `k` across the file is the same 4 plus close
+    near-quantisation neighbours).
+  * Per-block distinct-k counts: mode = 4, range 3..15, distribution
+    `{3: 1, 4: 61, 5: 5, 6: 8, 7: 9, 8: 34, ...}` across 134 blocks
+    sampled. Quantisation: `(w - sign(w)) * 512` rounds to integers
+    within +/- 0.01; the residual ~0.001-0.010 above each integer
+    varies per block (a per-block FLOAT base, likely the bone-table
+    pointer or bone-base index).
+
+Interpretation: each MESH block ships with an implicit small bone
+TABLE (~4 bones / block) and each vertex's `k = round((w-sign(w))*
+512)` is its per-vertex bone-selector index into that table. This
+matches PS2 VU1 skinning idiom: the engine uploads a few joint
+matrices into VU dmem ahead of each vertex batch, the microcode
+indexes them with the packed selector, and emits world-space verts
+via XGKICK. The per-block-bone count of ~4 is also consistent with
+the four-matrix `vf01..vf04` register convention seen elsewhere in
+the decomp.
+
+**Still unresolved.** (a) Where the per-block bone-INDEX table lives
+(mapping `k -> global bone-id` for each MESH block). The 0x48-byte
+preamble at `+0xe800` immediately before the first MESH block is a
+uniform block-table header (descriptor `+0c44 / +14 / +44100` plus a
+single axis-aligned bbox plus zero padding) -- not per-block. The
+`28 x u32` table at `+0x229c` is too short (28 entries for 317
+blocks). The most-likely candidate is the residual float offset on
+`(w-sign(w))*512` itself encoding the per-block base, but proving
+the decode needs the VU1 microcode -- this is the same wall hit when
+decoding the per-bone VIF stream's packed normal/lighting field.
+(b) Coordinate-frame relationship: MESH-block positions span roughly
+the same X/Y range as the rigged skeleton's world bbox but with
+swapped/different Z -- a "swap YZ" mapping reduces the avg
+nearest-bone distance from 2.67 -> 2.30 units (still 9/30 bones at
+d>3), so the frame is close but not identical. The bone-local frame
+of each block needs the bone-id mapping to validate. (c) Whether the
+per-bone VIF stream has parallel UVs shipped via another VIF UNPACK
+(currently the per-bone records are 12 bytes each and fully
+accounted for as POSITION+packed_normal+vid).
 
 ## Python bind-pose evaluator (2026-05-27)
 

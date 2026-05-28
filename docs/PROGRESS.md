@@ -1,5 +1,27 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-27 MESH-block per-vertex bone selector identified
+
+Investigation into the "MESH-block static-textured mesh collapsed at
+origin" question revealed that the 64-byte vertex record's `+0x3C` `w`
+field is NOT a pure sign flag -- it carries a quantised per-vertex
+bone-selector. Per block, `round((w - sign(w)) * 512)` takes 3-15
+distinct small integer values (mode = 4 -- one per matrix slot the
+VU1 microcode holds resident). This matches the canonical PS2
+rigid-skinning idiom: a small bone TABLE per draw-batch + a per-vertex
+selector into it. The per-block bone-INDEX table that maps
+selector -> global bone-id is not yet located in the file (the 0x48-byte
+preamble before the first MESH block is a single bbox header, not
+per-block; the `28 x u32` prefix table is too short for 317 blocks).
+Most-likely candidate is the residual float offset above each `k *
+1/512` slot encoding a per-block base, but proving that needs the
+VU1 microcode. See `docs/FINDINGS.md` "Per-vertex bone binding lives
+in the position w field" for full evidence and quantisation data.
+
+Implication: the glTF static-textured-mesh primitive cannot yet be
+parented to bones for posing -- but the path forward is concrete
+(decode VU1 microcode -> recover the per-block bone-table format).
+
 ### Update — 2026-05-27 GLTF EXPORTER — UVs + textures (static reference mesh)
 
 The .glb exporter now embeds the player's three character texture sheets
