@@ -1,5 +1,34 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-27 PER-BONE SCALE FIELDS — NOT A DISC CHANNEL
+
+Open question from the rigged-export work was "who writes the per-bone
+`+0x7C` float vec3 scale and `+0x88/+0x8A/+0x8C` s16 Q4.12 fine scale
+that `func_001C6DA0` reads?". Audited every store to those offsets
+across all splat asm:
+
+- **Bind-pose / reset writers** (`func_001C6200`, `func_001C62C0`,
+  `func_001C63E0`) initialize all bones to `s16 = 0x1000` (=1.0) and
+  `f32 = 0`. This is the rest value.
+- **Runtime gameplay-effect writers** (`func_001C06E0` — root-bone
+  pulse driven by `actor+0x2A`; `func_001BDD70`/`func_001BDCA0` —
+  decaying "wobble" over the global object list bones 1..0x10) mutate
+  these fields with synthesized values, not anything sourced from
+  disc.
+- **The keyframe sampler** (`func_001C8D50` → `func_001C90D0` /
+  `func_001C92C0`) writes only `+0x18..+0x60` (TRS R + T), **never
+  +0x7C or +0x88**.
+
+Conclusion: id 0x71 has **no scale channel**. Section 3 of id 0x71
+("uniform 36 bytes/bone") is therefore *not* scale keyframes (probably
+events, as previously hypothesized). `tools/extract_models.py`'s
+existing default of scale=1.0 already matches what the engine itself
+writes at skeleton init, so the rigged exporter is correct as-is and
+no decoder additions to `anim_decoder.py` are warranted.
+
+Updated `docs/FINDINGS.md` ("Per-bone scale fields — writers
+identified") with the writer inventory. No code changes.
+
 ### Update — 2026-05-27 PYTHON BIND-POSE EVALUATOR — `--rigged` now disc-only
 
 End-to-end Python evaluation of the id 0x71 animation pipeline is wired into

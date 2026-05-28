@@ -2209,6 +2209,60 @@ plain `sw`+`lwc1` against scratchpad memory, which is single-cycle).
 This is a strong fingerprint for recognising "truncated-IEEE bit-cast"
 elsewhere in the binary.
 
+## Per-bone scale fields — writers identified, NOT a disc-side channel (2026-05-27)
+
+Following the keyframe-stream decode, the open question was: who fills
+`+0x7C..0x84` (f32 vec3 scale) and `+0x88/+0x8A/+0x8C` (s16 Q4.12 fine
+scale) on each bone struct, since `func_001C6DA0` consumes them but the
+keyframe sampler chain (`func_001C8D50` → `func_001C90D0` /
+`func_001C92C0`) only writes the +0x18..+0x20, +0x24..+0x2C, +0x30..,
++0x40.., +0x50..+0x60 region (rotation + translation samples). Search
+of all splat asm for `sh ..., 0x88($x)` / `sh ..., 0x8A($x)` /
+`sh ..., 0x8C($x)` returns ~9 functions; only four are clearly bone-
+struct writers, and **none of them is a per-frame keyframe decoder**:
+
+| function | what it does | when it runs |
+|---|---|---|
+| `func_001C6200` | bone-state **reset**: for every bone `i < actor+0xC`, writes `+0x88=+0x8A=+0x8C=0x1000` (Q4.12 → 1.0), `+0x7C=+0x80=+0x84=0`, `+0x70=+0x74=+0x78=0`, `+0x64=-1` (clear current clip), then `jal func_001029C0` (probably matrix-identity). | Skeleton init / clip-clear |
+| `func_001C62C0` | same as `func_001C6200` but with bone count taken from `$a1` and base pointer from `$a2`. Companion entry point. | Skeleton init |
+| `func_001C63E0` | same shape; takes pointer/count in different registers. | Skeleton init |
+| `func_001C06E0` (lines 484–502 and 603–611) | mutates **bone[0] only** (`actor+0x124`) — writes the same s16 value (`actor+0x2A`) to `+0x88`, `+0x8A`, `+0x8C`. `+0x2A` is a per-actor counter that decrements by `0x40` per frame and is clamped to `>= 0x1000` (1.0). This is a **uniform-scale pulse** on the actor's root bone — clearly a gameplay/animation effect (hit-react, breathing, growth), not skeletal animation. | Gameplay state update |
+| `func_001BDD70` / `func_001BDCA0` | iterates `D_00275B40[1..0x10]`, writes a decaying scalar to `+0x80` (just one axis of the float vec3) and a uniform `0x1000` to all three s16 fine-scale slots. Looks like a **global "wobble" decay loop** for up to 16 actors / particles. | Gameplay effect |
+
+No writer matches "per-frame per-bone keyframe decoder reading from
+disc data" — there is **no scale animation channel** in the id-0x71
+file format.
+
+### Implication for the model exporter
+
+The "default scale=1" that `tools/extract_models.py --rigged` currently
+applies to every bone is **the correct rest-pose value** and matches
+what the engine's own skeleton-init paths write:
+
+- `+0x88 = +0x8A = +0x8C = 0x1000` in Q4.12 → multiplier `0x1000 *
+  2^-12 = 1.0`, which `func_001C6DA0` multiplies via `vmulx.xyz` into
+  each axis basis (identity → unchanged).
+- `+0x7C = +0x80 = +0x84 = 0.0` — these are an *additive* float vec3,
+  applied via `func_001C94B0` to the actor-root path. Zero ≡ no
+  contribution.
+
+So the rigged export is already as accurate as it can be from disc data
+alone — the scale fields are **runtime gameplay state**, not part of
+the animation file format. They do not need to be parsed in
+`anim_decoder.py`.
+
+Confirming evidence: section 3 of id 0x71 ("uniform 36 bytes per bone"
+flagged by the previous agent as a candidate) is therefore **not**
+scale keyframes; an earlier characterization as "events" stays the
+most plausible reading.
+
+### What's still load-bearing
+
+If the model viewer ever animates the actor's root bone during certain
+gameplay states (hit-react, idle breathing), it would need to mirror
+`func_001C06E0`'s `actor+0x2A` clock to recover that effect — but that
+is a runtime-only animation that has no representation on disc.
+
 ## `MUSIC.DAT` track listing
 
 `MUSIC.DAT` decodes to 55 tracks. Per the user (cross-referenced with an online
