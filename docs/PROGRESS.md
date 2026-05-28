@@ -1,5 +1,56 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-27 func_00100EB8 characterized (CORRECTION)
+
+Read func_00100EB8 (419 instr) end-to-end together with its packet-builder
+`func_00100D78` (0x140) and its only static caller `func_001D7410`. The
+prior session's identification of this function as "the VU1 microcode-
+upload / setup driver" was **wrong**. It is the engine's **synchronous
+GS-local-memory READBACK driver**:
+
+1. The packet built by `func_00100D78` is a 7-qword GIF PATH2 packet:
+   GIFtag + BITBLTBUF + TRXPOS + TRXREG + **TRXDIR=1** (= VRAM→EE).
+   `func_00100D78` returns 7 (the QWC value `func_00100EB8` uses).
+2. `func_00100EB8` decodes the PSM from the packet, uses
+   `jtbl_0026B130` to compute per-PSM stride (PSMCT32/24/16, PSMT8/4,
+   etc.), and issues **2 DMA submissions** — not 5:
+   - outbound 7-qw setup (`CHCR=0x101`, MEM→FIFO) — programs the GS
+     readback rectangle
+   - inbound s2-qw readback (`CHCR=0x100`, **FIFO→MEM** with VIF1_STAT
+     VFS bit set for reverse-FIFO mode)
+3. Three FIFO **drain loops** (`lq` from `0x10005000`) pick up the
+   trailing partial qwords / byte tail. The prior "5 raw FIFO writes"
+   were actually FIFO *reads* in reverse-FIFO mode. There is exactly
+   one direction-`sq` to `0x10005000`: a single 16-byte "stop tag"
+   from `D_00241040` written at function exit to leave VIF1 FIFO in a
+   known state.
+4. No VU1 microcode is uploaded. No TEX0 writes. No bone matrices.
+
+**Consequences for open questions:**
+- Bind-pose matrix source — STILL UNKNOWN. The matrix-DMA driver is
+  not `func_00100EB8`.
+- PSMT8 CLUT setup — STILL UNKNOWN. CLUT/TEX0 binding happens at
+  draw time elsewhere.
+- VU1 microcode upload chain — STILL UNKNOWN. Different driver.
+- **NEW finding**: The engine does per-frame GS-VRAM-to-EE pixel
+  readback for some game purpose. `func_001D7410` is the per-frame
+  driver loop (over `D_00275C08` items in `D_008172C0[].`), and
+  `func_001AAE40` is its sole static caller. Following the readback
+  data flow from `func_001AAE40` upward is the new lead — it
+  identifies a self-contained engine subsystem we hadn't noticed,
+  and the readback is a strong signal of how the engine uses
+  rendered data for non-graphics game logic (visibility queries,
+  baked light tests, shadow occlusion, screenshot capture, etc.).
+
+Full per-section walkthrough lives in FINDINGS.md, "func_00100EB8 —
+GS-VRAM-to-EE readback driver (2026-05-27)" section. The 2026-05-25
+"Bind-pose matrix EE-side trace" section's interpretation of this
+function is now superseded for the function-identity question (the
+VU1 dmem matrix-source decode and the dead-code AA50/AB60 finding
+still stand).
+
+No code change this session (characterization only). No commits.
+
 ### Update — 2026-05-26 fptr table mining + stale extern fixes
 
 `tools/decomp/name_fptr_tables.py` mines the boot ELF .data for runs of

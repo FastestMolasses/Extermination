@@ -1139,6 +1139,237 @@ decoder for PACKED/REGLIST/IMAGE) for any future GS-side
 investigation (texture/PSM analysis, draw-call counting, etc.) —
 it just isn't the right tool for the bind-pose question.
 
+## func_00100EB8 — GS-VRAM-to-EE readback driver (2026-05-27)
+
+**Major correction to the 2026-05-25 "VU1 microcode-upload / setup driver"
+guess in "Bind-pose matrix EE-side trace" above.** Reading `func_00100EB8`
+end-to-end together with its packet-builder `func_00100D78` and its only
+caller `func_001D7410` shows it is NOT the VU1 microcode uploader. It is
+the engine's **synchronous GS-local-memory READBACK driver** — it pushes
+a 7-qword BITBLTBUF/TRXPOS/TRXREG/TRXDIR=1 packet to GS, waits for the
+transfer setup to complete, then DMAs pixel data **back** from GS VRAM
+into an EE buffer via VIF1 in reverse-FIFO mode, draining tail bytes
+from the VIF1 FIFO. The packet-builder, the readback, and the format
+jump-table all line up exactly. The "5 DMA submissions + 5 raw FIFO
+writes" framing in the prior session's PROGRESS note was a miscount —
+there is **1 outbound DMA**, **1 inbound DMA**, and the "FIFO writes"
+are actually `lq` *reads* from `0x10005000` (VIF1 FIFO in reverse-FIFO
+mode), not writes.
+
+### Function signature and call site
+
+`func_00100EB8($a0 = packet_struct, $a1 = dst_buffer)` — 0x68C / 419
+instructions, vram `0x00100EB8`. Only static caller is
+`func_001D7410` (vram `0x001D7410`), which loops `D_00275C08` items
+and per item does:
+
+```
+func_00100D78(sp+0x50, w, h, dst_x, dst_y, src_x, src_y, opcode, ...)
+DisableDmacHandler(0)
+func_00100EB8(sp+0x50, item->offset+8)   /* read pixels back to RAM */
+sub_D2_TADR_08x(0, 0)                    /* idle-wait VIF1/GIF/VU1 */
+```
+
+`D_00275C08` is a per-frame counter (zeroed at the end of
+`func_001D7410` and other places — it's a small queue of pending
+GS-readback requests). `D_008172C0` indexes into a 0x4C0-stride array
+of GS-readback descriptors; the 0x48-byte sub-record at +0x9C\*0x4C0
+holds the request that gets shipped this frame.
+
+### func_00100D78 — packet builder (proves the contents)
+
+`func_00100D78($a0 = pkt, a1=w, a2=DBP, a3=DBW, t0=h, t1=DPSM, t2=DSAY,
+t3=DSAX, ...)` — 0x140 bytes. Stores a GIFtag at +0x4..+0x18 then 8 GS
+register fields at +0x10..+0x68, returns **7** (the packet's qword
+count, exactly the value `func_00100EB8` writes to D1_QWC). Decoded
+field layout in the 0x70-byte struct:
+
+| Offset | Stored value | GS field |
+|---|---|---|
+| +0x00 | 0 | reserved / DMA tag slot |
+| +0x04 | `0x06008000` | GIFtag word 0: NLOOP=0, EOP=1, PRE=0, NREG=6, FLG=0 PACKED |
+| +0x08 | `0x13000000` | GIFtag word 1 (top half): REGS field |
+| +0x0C | `0x50000006` | GIFtag word 2: NREG-tail / continuation flags |
+| +0x10 | `(t4 with PSM bits)` | low qw of BITBLTBUF (DBP/DBW/DPSM packed in) |
+| +0x18 | `(t5)` | high qw of BITBLTBUF (SBP/SBW/SPSM) |
+| +0x20 | `(a1<<32 \| a2<<16 \| a3)` | TRXPOS or TRXREG payload |
+| +0x28 | `0x50` | **BITBLTBUF register address (GS 0x50)** |
+| +0x30 | `(t1\|t0)` | TRXREG payload (W \| H) |
+| +0x38 | `0x51` | **TRXPOS register address (GS 0x51)** |
+| +0x40 | `(t2\|t3)` | TRXREG (used as TADR slot later by `func_00100EB8`) |
+| +0x48 | `0x52` | **TRXREG register address (GS 0x52)** |
+| +0x50 | 0 | |
+| +0x58 | `0x61` | **NOP / FINISH register (GS 0x61)** |
+| +0x60 | `0x1` | TRXDIR payload — **direction=1 ⇒ GS-VRAM → EE** |
+| +0x68 | `0x53` | **TRXDIR register address (GS 0x53)** |
+
+Returns 7. So the struct is a **GIF PATH2 packet via VIF1**: 1 qword
+GIFtag header (+0x00) + 6 qwords of A+D-format register writes
+(addr/data pairs at +0x10/+0x28, +0x18/+0x38, +0x20/+0x48,
++0x30/+0x58, +0x40/+0x68 — and +0x50/+0x60 unused/tail).
+
+The constant `0x1` at TRXDIR = **VRAM→EE**, which is what proves the
+function is a READBACK, not an upload.
+
+### func_00100EB8 — what each section does
+
+The function walks the packet struct, decodes the BITBLTBUF / TRXREG
+fields it just received (re-extracting DPSM, w, h from the qwords
+the builder packed), runs the PSM→stride jump table to compute exact
+byte sizes for the readback, then issues:
+
+1. **Format jump table** (`jtbl_0026B130`, opcodes 0..0x3A): a
+   per-PSM expansion-factor calculator. Cases observed:
+   - PSMCT32 (`PSM=0x00`): bytes-per-pixel = 4, divide W\*H by 4
+     for qword count.
+   - PSMCT24 (`PSM=0x01`): bpp=3, ÷5.333.
+   - PSMCT16 / PSMCT16S (`PSM=0x02 / 0x0A`): bpp=2, ÷8.
+   - PSMT8 / PSMT8H (`PSM=0x13 / 0x1B`): bpp=1, ÷16. **PSMT8 is
+     case 0x13** — directly relevant for the engine's PSMT8 textures.
+   - PSMT4 / PSMT4HL / PSMT4HH (`PSM=0x14 / 0x24 / 0x2C`): bpp=0.5, ÷32.
+   It computes (a) `$s2` = whole-qword count, (b) `$s3` = leftover
+   byte-tail count, (c) `$s1` = sub-qword pad count, (d) `$s6` =
+   extra trailing qwords (the per-PSM "block-tail" rounding).
+
+2. **Patch DMA tag** at `pkt+0x40` (`.L00101094`): OR with
+   `0x20000000` (uncached segment) then write the 8-byte chain-end
+   tag containing `qwc | dst_addr`. This builds the DMA chain header
+   in-place.
+
+3. **Wait D1_CHCR.STR clear** (`.L001010BC`) — VIF1 channel idle.
+
+4. **Watchdog**: `SetCPUTimerHandler(0)`, `SetCPUTimer(prev | 0x200)`
+   — installs a 1-shot timeout while we wait on GS.
+
+5. **GS_CSR = 2** at `0x12001000` — clears GS FINISH flag.
+
+6. **First DMA submission** (outbound, `.L001011BC` block):
+   - `D1_QWC = 7`  (the packet size from `func_00100D78`)
+   - `D1_MADR = pkt | 0x80000000` if `pkt & 0x70000000 == 0x70000000`
+     (scratchpad-RAM source bit), else `pkt & 0x0FFFFFFF`
+   - `D1_CHCR = 0x101` — STR|DIR=1 (MEM→FIFO), normal mode
+   - Wait STR clear, wait `GS_CSR.FINISH` (bit 1) set — the GS has
+     processed the BITBLTBUF/TRXPOS/TRXREG/TRXDIR setup.
+
+7. **Switch to reverse FIFO** (`.L00101208`):
+   - `VIF1_STAT = 0x800000` — sets **VFS** (VIF1 forced reverse-FIFO mode)
+   - `GS_IMR = 1` — mask GS interrupts during readback
+
+8. **Second DMA submission** (inbound, `.L00101228..L00101314`),
+   gated on `$s2 != 0`:
+   - `D1_QWC = $s2`  (whole-qword count from step 1)
+   - `D1_MADR = dst_buffer` (with SPR-bit handling on `$a1`)
+   - `D1_CHCR = 0x100` — STR only, **DIR=0 = FIFO→MEM (reverse direction)**
+   - Wait STR clear
+
+9. **Three FIFO drain loops** for the trailing partial qwords that
+   the qword-aligned DMA can't move:
+   - `.L00101388` loop (gated on `$s1`): for each of `$s1` qwords —
+     poll `VIF1_STAT & 0x1F000000` (FQC field, FIFO qword count) until
+     non-zero, then `lq` from `0x10005000` and `sq` to
+     `dst + (s2*16) + i*16`.
+   - `.L00101440` loop (gated on `$s3`): copy `$s3` **bytes** from a
+     1-qword temp buffer at `$sp+0`  to dst — the sub-qword tail.
+   - `.L00101464..L00101480` loop (gated on `$s6 > 0`): same FIFO-
+     drain pattern, `$s6` extra qwords to scratch on the stack
+     (`sq $v0, 0($sp)`) — leftover that doesn't fit in dst.
+
+10. **Restore state** (`.L001014D0`):
+    - `VIF1_STAT = 0` (exit reverse-FIFO mode)
+    - `GS_IMR = 0` (re-enable GS interrupts)
+    - `SetCPUTimer(prev)` — restore watchdog
+    - `GS_CSR = 2` again (re-clear FINISH so the next submission can
+      wait on it cleanly)
+    - **Final 1-qword FIFO write**: `lq` from `D_00241040`, `sq` to
+      `0x10005000` — writes a fixed terminating GIFtag (the "stop"
+      tag) to the VIF1 FIFO so the next forward-FIFO transfer starts
+      from a known state. This is the **only direction-write to
+      `0x10005000`** in the whole function.
+
+### Error / timeout path
+
+Several inline waits (`$s0` is a saturating per-call timeout counter)
+fall through to one of three error handlers via
+`func_00122B58(error_string)`:
+- `D_0026B050` (`func_001009C8` chain): "DMAC STR timeout" before
+  setup-write
+- `D_0026B088`: "GS FINISH timeout" before readback
+- `D_0026B0B8` / `D_0026B0F8`: "VIF1 FIFO drain timeout"
+
+Each error path also restores `GS_CSR = 0x100` and `GS_IMR = 0` then
+returns `-1`. Success returns `0`.
+
+### What was uploaded where, item by item
+
+- **Per-DMA-submission summary (2 of them, not 5):**
+  1. `QWC=7`, `MADR=pkt_struct`, `CHCR=0x101` (MEM→FIFO, normal) —
+     ships the BITBLTBUF/TRXPOS/TRXREG/TRXDIR=1 setup packet to GIF
+     PATH2 via VIF1 DIRECT. Source: caller's stack-built struct.
+  2. `QWC=s2`, `MADR=dst_buffer`, `CHCR=0x100` (FIFO→MEM, reverse) —
+     bulk pixel readback from GS local memory to `$a1`. Source: GS
+     VRAM rectangle programmed in step 1.
+- **Per-FIFO-write summary (1 of them, not 5):** A single 16-byte
+  `sq` to `0x10005000` of the constant qword at `D_00241040`,
+  emitted at function exit to leave a known good "stop" tag in
+  VIF1 FIFO after exiting forced-reverse mode. The remaining 3
+  "FIFO accesses" are `lq` *reads* from VIF1 FIFO during the
+  reverse-direction drain loops, not writes.
+- **Microcode IDs uploaded:** **None.** `func_00100EB8` does not
+  upload any VU1 microcode. It is GS-only (PATH2 + GS-VRAM
+  readback). The 48 VU1 microcode kernels cataloged in `tools/
+  disasm_vu.py catalog` are uploaded by a different, still-
+  unidentified driver — most likely a one-shot at engine init
+  that walks the 48-packet table and DMAs each through VIF1 PATH1.
+- **GS / TEX0 writes found:** Zero TEX0 writes. The function
+  writes BITBLTBUF, TRXPOS, TRXREG, TRXDIR — the **image transfer
+  registers** — not the texture-sampler registers TEX0_1/TEX0_2.
+  So this driver doesn't bind textures for drawing; it copies
+  pixel data out of VRAM. No PSMT8 CLUT setup happens here.
+- **Bind-pose matrix source:** Still unknown. `func_00100EB8`
+  reads pixels from VRAM, not matrices to VU1, so the bind-pose
+  hunt has to go elsewhere. The remaining candidate VIF1 DMA
+  driver is whatever loop ships the 48 microcode packets at
+  init, and whatever per-frame submitter ships geometry +
+  bone-matrix UNPACK packets. Neither is reachable by static
+  cross-reference from a named entry point (confirmed in the
+  prior session).
+- **CLUT setup:** Still unknown. Not touched by this function.
+
+### What the caller `func_001D7410` is doing
+
+The driving loop reads each of `D_00275C08` items from a per-frame
+queue (the 0x48-byte entry inside `D_008172C0[id*0x4C0]+offset`),
+calls `func_00100D78` to build a per-item readback setup packet
+on the stack, then `func_00100EB8` to execute the readback into
+`item->offset+8`. The first arg `func_00100D78(sp+0x50, w, h, ...)`
+takes the dimensions from per-item fields. This is **per-frame
+GS→EE readback for game-side use of rendered data** — most
+plausibly: shadow / projection / lightmap baking captured at
+small resolutions per frame, or rendered light occlusion masks for
+the visibility system. The 0x48-byte stride and the per-item
+metadata suggest a small fixed queue (~8-32 items per frame max).
+
+The 0x1F000000 FIFO-mask and the watchdog timer both point at a
+truly synchronous "wait for GS to finish, drain pixels, return"
+operation — consistent with this being game-logic feedback from
+rendered data, not a streaming render path.
+
+### What this unblocks / doesn't
+
+- **Bind-pose source** — NOT unblocked. Search continues in the
+  per-frame draw dispatcher's call tree.
+- **PSMT8 CLUT setup** — NOT unblocked. CLUT binding happens at
+  draw time (TEX0 writes) elsewhere, not in this readback driver.
+- **Microcode upload chain** — NOT unblocked. The 48 VU1 packets
+  ship via a different driver, still unidentified.
+- **GS readback feedback** — **NEWLY identified.** The engine
+  does per-frame VRAM readback for some game-state purpose
+  (resolution and content TBD). This is itself an unexpected
+  finding worth following up — what game code consumes the
+  readback data the loop in `func_001D7410` produces? That trace
+  starts at the caller `func_001AAE40` (vram `0x001AAE40`, the
+  only static caller of `func_001D7410`).
+
 ## `MUSIC.DAT` track listing
 
 `MUSIC.DAT` decodes to 55 tracks. Per the user (cross-referenced with an online
