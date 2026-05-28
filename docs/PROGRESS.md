@@ -1,5 +1,46 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-27 bind-pose data flow CHARACTERIZED (upstream sampler found)
+
+The **upstream keyframe sampler** that fills each per-bone struct's
+`+0x30/+0x40/+0x50` quat pair + blend factor has been identified. The
+disc -> VU1 chain is now end-to-end characterized.
+
+- **Clip resolver:** `func_001C8480` (vram `0x001C8480`) reads the id
+  0x71 entry header and caches **section1/section2/section3** pointers
+  (header offsets `+0x08/+0x0C/+0x10`) into BSS globals
+  `D_00275BF4/F0/EC` plus the entry base at `D_00275BF8`. This
+  **confirms** id 0x71 entries are the disc-side source for the
+  sampler.
+- **Clip-change init:** `func_001C67E0` (vram `0x001C67E0`) is invoked
+  by the clip-switch arbiter `func_001749F0` from inside
+  `func_00179BC0` / `func_0017A130`. It calls `func_001C8480` to
+  refresh the section cache, then invokes the per-bone sampler.
+- **Per-bone sampler:** `func_001C8D50` (vram `0x001C8D50`) walks
+  `actor+0x110[0..N)`. For each bone it (a) snapshots the current
+  pose into `bone+0x30` via NLERP scratchpad `D_70003600`,
+  (b) samples the new clip's keyframe quat pair through
+  `func_001C8F10` (which indexes the cached section pointers), and
+  (c) writes the new `bone+0x40` (quat B), `bone+0x50 = 0` (blend t
+  reset), `bone+0x54 = 1/duration`, `bone+0x60 = duration`, plus
+  `+0x66/+0x68/+0x6A` kind flags. Two further channels (translation
+  and scale) are sampled by `func_001C90D0` and `func_001C92C0`.
+- **Per-frame advance:** `func_001C64F0` (vram `0x001C64F0`) re-runs
+  `func_001C8480` each frame (cheap — pointer arithmetic) and walks
+  section3 as an **event table** (s16 event-id pairs at section3+4i,
+  payload s16 at +2), advancing `bone+0x50` toward 1.0.
+
+End-to-end chain (disc -> VU1 vf01..vf04) and field table now in
+`docs/FINDINGS.md` under "Upstream keyframe sampler chain
+(func_001C8480 / func_001C67E0 / func_001C8D50, 2026-05-27)".
+
+**Remaining unknowns** are at the bit-packing level only:
+- Exact disc encoding of the per-keyframe quat in section2 (decode
+  lives in `func_001C8F10`, ~208 lines).
+- Event-record packing in section3.
+- Whether translation/scale channels share the rotation-channel
+  format.
+
 ### Update — 2026-05-27 func_001C6DA0 characterized (per-actor anim evaluator)
 
 Characterized `func_001C6DA0` (0x680 / 426 lines). It is the per-frame,

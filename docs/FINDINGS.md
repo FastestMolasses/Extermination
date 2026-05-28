@@ -1847,9 +1847,6 @@ GS via XGKICK -> rendered skinned mesh
 ```
 
 **Still unknown:**
-- The **upstream anim sampler** that reads id 0x71 keyframes and
-  populates each bone's `+0x30/+0x40/+0x50` quat-blend slot. Likely
-  called from the actor's per-frame tick before `func_00179BC0`.
 - The exact **packing of the s16 values at +0x88..0x8C**. The `1/4096`
   conversion factor matches the Q4.12 vertex-packing convention used
   elsewhere in the engine, suggesting these are a per-bone fine scale
@@ -1857,6 +1854,170 @@ GS via XGKICK -> rendered skinned mesh
 - Whether `func_001CA1C0`'s output is a pure-rotation 3x3 written back
   to `bone+0x00..+0x30` (which would be a per-frame derived rotation
   matrix cache), or whether it overlaps the quat fields used as input.
+
+## Upstream keyframe sampler chain (`func_001C8480` / `func_001C67E0` / `func_001C8D50`, 2026-05-27)
+
+The **upstream sampler** that reads id 0x71 clip data and writes each
+per-bone struct's `+0x30/+0x40/+0x50` quat-blend slot has been located.
+It is split between a **clip resolver**, a **clip-change initializer**,
+and a **per-frame time advancer**.
+
+### Clip resolver — `func_001C8480` (vram 0x001C8480)
+
+`func_001C8480(clip_table_ptr, clip_id_short)` is the id 0x71 entry
+header reader.
+
+1. Calls `func_001C6120(clip_table, clip_id)` which returns the **clip
+   entry base pointer** (`v0`). This is one id 0x71 entry. The pointer
+   is cached in `D_00275BF8`.
+2. Reads three section-table offsets off the entry header:
+   * `entry+0x08` -> `section1 = entry + *(entry+0x08)`, cached at `D_00275BF4`
+   * `entry+0x0C` -> `section2 = entry + *(entry+0x0C)`, cached at `D_00275BF0`
+   * `entry+0x10` -> `section3 = entry + *(entry+0x10)`, cached at `D_00275BEC`
+
+This **confirms** the id 0x71 entry header layout from FINDINGS:
+section pointers at +0x08/+0x0C/+0x10 are relative to the entry base.
+All three downstream sampler stages read from `D_00275BEC/F0/F4/F8`,
+so id 0x71 IS the disc-side source for the sampler.
+
+### Clip-change init — `func_001C67E0` (vram 0x001C67E0)
+
+`func_001C67E0(actor, clip_id, prev_t, new_t)` runs when an actor
+switches animation clips (callers: `func_001749F0`, which is the
+clip-switch arbiter called from `func_00179BC0` and `func_0017A130`).
+
+1. Writes `actor+0x2C |= 0x8000 | clip_id` (clip selector with "active" bit).
+2. Calls `func_001C8480(actor+0x40, clip_id)` -> populates the section
+   pointers in BSS.
+3. `func_00128250()` returns a frame counter/index; written to
+   `bone0+0x8E`.
+4. **Calls `func_001C8D50(actor+0x110, num_bones, new_t, prev_t)`** —
+   this is the **per-bone sampler** (see below).
+5. If `prev_t == 0` (initial bind): also calls
+   `func_001C64F0(actor)` — the per-frame time advancer.
+
+### Per-bone sampler — `func_001C8D50` (vram 0x001C8D50)
+
+`func_001C8D50(per_bone_array=actor+0x110, num_bones, f12=new_t, f13=prev_t)`.
+
+For each bone `i` in `[0, num_bones)`, with `bone = *(actor+0x110+4*i)`:
+
+1. **Quat A (previous keyframe) capture.** Blend the bone's current
+   `+0x30/+0x40/+0x50` quats with its current blend factor into the VU0
+   scratchpad `D_70003600` via `func_001CA0A0(D_70003600, bone+0x30,
+   bone+0x40, t=*(bone+0x50))`. Copy the result back to `bone+0x30`
+   with `sq $v0, 0x30($bone)`. This snapshots "where we were" before
+   the clip switch.
+2. **Quat B (next keyframe) sample.** Call
+   `func_001281C0(f12=new_t)` -> scalar int (a fixed-point frame
+   index from the new time). Pass that index into
+   `func_001C8F10(D_008111F0, bone_idx, frame_idx)` — a per-bone clip
+   indexer that uses the cached section pointers
+   (`D_00275BEC/F0/F4/F8`) to write the new target quat into
+   `D_00811220/30/40` (channel state at fixed BSS slots).
+3. Second `func_001CA0A0(D_70003600, D_00811220, D_00811230,
+   t=*D_00811240)` blends into scratchpad again.
+4. Copy scratchpad to **`bone+0x40` (quat B slot)** with
+   `sq $a0, 0x40($bone)`.
+5. Write blend-factor state:
+   * `bone+0x50 = 0.0`            (blend t reset to 0)
+   * `bone+0x54 = 1.0 / new_t`    (per-frame increment for the lerp)
+   * `bone+0x60 = new_t`          (clip-segment duration)
+   * `bone+0x66 = D_00811256`     (clip kind flag for channel 0)
+6. **Three additional channels** are sampled in the same pattern via
+   `func_001C90D0`/`func_001C92C0` for the **translation** and
+   **scale** TRS components. These write:
+   * `bone+0x58 = new_t`, `bone+0x68 = clip kind flag`  (channel 1 — translation)
+   * `bone+0x5C = new_t`, `bone+0x6A = clip kind flag`  (channel 2 — scale)
+   And both call `func_001C86A0(bone+0x0C, ...)` and
+   `func_001C86A0(bone+0x24, bone+0x18)` to write the per-bone
+   translation and scale source vectors used by the rest of the TRS
+   build in `func_001C6DA0`.
+
+So the per-bone struct layout is now richer:
+
+| Offset | Type    | Meaning |
+|--------|---------|---------|
+| `+0x00`..`+0x2F` | mixed | TRS source vectors (translation, scale, scratch) |
+| `+0x0C` | vec3    | translation source A |
+| `+0x18` | vec3    | translation/scale scratch |
+| `+0x24` | vec3    | scale source A |
+| `+0x30` | quat    | **quat A** (rotation channel, prev keyframe) |
+| `+0x40` | quat    | **quat B** (rotation channel, next keyframe) |
+| `+0x50` | f32     | quat blend t (advanced each frame, clamped to 1.0) |
+| `+0x54` | f32     | 1/duration -- per-frame t increment for rotation channel |
+| `+0x58` | f32     | translation channel duration |
+| `+0x5C` | f32     | scale channel duration |
+| `+0x60` | f32     | rotation channel total duration |
+| `+0x66` | u16     | rotation channel kind/flag (loaded from clip header) |
+| `+0x68` | u16     | translation channel kind/flag |
+| `+0x6A` | u16     | scale channel kind/flag |
+| `+0x90` | mat4    | composed output (written by `func_001C6DA0`) |
+
+### Per-frame time advancer — `func_001C64F0` (vram 0x001C64F0)
+
+`func_001C64F0(actor, f12=delta_seconds)` advances `actor+0x3C`
+(clip-time) by `delta_seconds`, clamped to `1.0`. On each frame it
+re-resolves the clip via `func_001C8480` (so the cached section
+pointers stay valid for this actor) and walks the keyframe stream:
+for each event-table entry it compares the current frame index
+(produced by `func_001281C0(actor+0x3C)`) against an event s16,
+loading the matching record. The first 80 lines establish this; the
+remainder is event dispatch + the per-bone blend-factor bump that
+writes `bone+0x50 += per-frame increment`.
+
+### Final end-to-end chain
+
+```
+disc id 0x71 clip entry  [header @ +0x00; sections @ +0x08/+0x0C/+0x10]
+         |
+         v   func_001C6120(clip_table, clip_id) -> entry base
+         v   func_001C8480 caches base + sections into BSS globals
+         v     D_00275BF8 = entry base
+         v     D_00275BF4 = entry + *(entry+0x08)  (section 1)
+         v     D_00275BF0 = entry + *(entry+0x0C)  (section 2)
+         v     D_00275BEC = entry + *(entry+0x10)  (section 3)
+         |
+         v   clip-change: func_001C67E0 -> func_001C8D50(actor+0x110, N)
+         v     per bone i:
+         v       quat A <- NLERP(old A, old B, old t)   (snapshot current pose)
+         v       sample new keyframe via func_001C8F10
+         v       quat B <- NLERP(scratch, new clip quat pair, clip-mix t)
+         v       bone+0x50 = 0; bone+0x54 = 1/duration; bone+0x60 = duration
+         v       sample translation channel -> bone+0x0C, channel state
+         v       sample scale channel       -> bone+0x24, channel state
+         |
+         v   each frame: func_001C64F0 advances bone+0x50 toward 1.0
+         |
+         v   func_00179BC0(actor, ..., src_clip):
+         v     func_001749F0 (clip switch detect; may re-invoke 001C67E0)
+         v     func_001C6DA0(actor)  -- per-bone TRS+NLERP using +0x30/+0x40/+0x50
+         v                              writes 4x4 to bone+0x90
+         v     for each bone: func_00102958(scratchpad, bone+0x90)  (publish)
+         |
+         v   EE BSS staging @ 0x00286340 .. 0x00288D40   (21-matrix buffers)
+         |
+         v   DMA via func_00101FE0 -> VIF1
+         |
+         v   VU1 dmem -> vf01..vf04 per skinning kernel
+         |
+         v   GS via XGKICK -> rendered skinned mesh
+```
+
+### What's still unknown
+
+- Exact **on-disc packing of the keyframe quat** inside section 2 (the
+  per-bone keyframe stream). `func_001C8F10` (208 lines) is the right
+  place to decode this; it indexes the cached section pointers with
+  `(bone_idx, frame_idx)` and writes `D_00811220/30/40` (quat pair +
+  blend factor) for the second NLERP pass. Q-format vs IEEE float
+  storage on disc has not been confirmed.
+- Exact format of the **event-table records** that `func_001C64F0`
+  walks (it loads s16 event-id pairs at section3+4*i, with payload
+  s16 at section3+4*i+2).
+- Whether `func_001C90D0` (translation) and `func_001C92C0` (scale)
+  share a packed format with the rotation channel, or use vec3
+  IEEE-float keyframes.
 
 ## `MUSIC.DAT` track listing
 
