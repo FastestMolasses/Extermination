@@ -9,10 +9,39 @@ file summarises them and records findings that have no other home.
 `tools/export_gltf.py` bundles a character mesh + id 0x71 skeleton/animation
 file into a single glTF 2.0 binary. Output: one scene; one node per bone
 plus a scene-root parent holding the parent-table roots as children; one
-mesh per non-empty bone (POINTS-mode primitive with POSITION attribute
-holding the bone's Q4.12 verts dequantised to floats); one glTF animation
-per id 0x71 clip entry with paired rotation (VEC4 quat) and translation
-(VEC3) samplers per bone.
+**TRIANGLES-mode** mesh per non-empty bone with **POSITION + NORMAL**
+attributes and an index buffer (see "Per-bone triangle topology" below);
+one glTF animation per id 0x71 clip entry with paired rotation (VEC4
+quat) and translation (VEC3) samplers per bone.
+
+### Per-bone triangle topology (decoded 2026-05-27)
+
+The per-bone VIF vertex stream (`extract_models.decode_objspace_bone_vertices`)
+is a **generalized triangle strip** keyed by the per-record `vid` field at
++0x0A. Within one strip every adjacent vertex pair has `delta_vid == +2`
+(the engine reserves the odd-vid parity for an internal flag; every stored
+vid in our corpus is even). **Any non-+2 delta signals a strip restart** --
+observed restart deltas include +1, +4, +5, +7, +9, +17, +19, +43, +64, +90.
+The +64 delta is the most common -- likely the engine's "advance to next
+sub-mesh strip base" tag -- but every irregular delta is treated as a
+restart by the decoder.
+
+`export_gltf.triangulate_bone()` splits each bone's vertex list into
+strips on irregular deltas, drops strips with fewer than 3 verts, and
+emits PS2-standard alternating-winding triangles per strip (`(i, i+1,
+i+2)` swapping to `(i+1, i, i+2)` on odd index). Coincident-position
+triangles -- the strip-stitching degenerates -- are skipped.
+
+Per-vertex normals are produced by **face-area-weighted averaging** of
+the surrounding triangles (cross-product weighting in
+`_face_averaged_normals`). The packed 4-byte field at vertex-record
++0x06 was inspected empirically (signed-byte / 127, IEEE float, unsigned
+bytes / 255) -- none gives consistently unit-length vectors, so the
+exact quantisation needs the VU1 microcode decode. The 4th byte
+clusters tightly around 63 in some bones and around 188 in others,
+suggesting it is a category/intensity tag rather than a coordinate.
+Smooth face-averaged normals are good enough for preview shading; a
+faithful packed-normal decode can replace them later.
 
 Rigid attachment is achieved by parenting the per-bone mesh directly to its
 bone node — no glTF `skin` object is required, because each vertex belongs
@@ -27,17 +56,21 @@ NLERP behaviour. Frame-0 default TRS on each bone is sampled from clip 0
 animation is selected.
 
 Validation on `extract/chunk21/f17_id8f.bin` + `extract/chunk05/f04_id71.bin`:
-1.94 MB .glb, 30 bones, 22 non-empty meshes, 57 animations, 3 420 sampler
-tracks, 33 562 keyframe samples. The structure round-trips through
-`pygltflib` (strict parser); every bufferView lies inside the buffer,
-every accessor count × stride fits its bufferView, every sampler input
-is strictly time-monotonic, every quaternion output sample is unit-norm.
+~1.98 MB .glb, 30 bones, 22 non-empty meshes (19 TRIANGLES + 3 POINTS
+fallback for 3-vert bones with irregular vid deltas), **1739 triangles**
+across 2196 object-space vertices, 57 animations, 3 420 sampler tracks,
+33 562 keyframe samples. The structure round-trips through `pygltflib`
+(strict parser); every bufferView lies inside the buffer, every accessor
+count × stride fits its bufferView, every sampler input is strictly
+time-monotonic, every quaternion output sample is unit-norm, every
+NORMAL sample is unit-norm within float epsilon.
 
-Known limitations (do not block animation preview, but the modder-facing
-mesh is a point cloud, not a surface): no triangle indices (the VIF strip
-output is not reverse-engineered into per-bone strips yet), no normals/UVs
-(packed into the 4-byte attribute field decoded by VU1 microcode that
-hasn't been lifted), no texture binding.
+Known limitations (do not block animation preview): no UVs / no texture
+binding (the per-bone VIF records carry no UV field -- texturing data
+lives in a separate stream not yet located); the packed 4-byte
+normal/lighting field at vertex-record +0x06 is not decoded so normals
+are derived from face geometry; 3 trivial bones (3 verts each) fall back
+to POINTS mode because their vid deltas form no valid strip.
 
 ## Python bind-pose evaluator (2026-05-27)
 

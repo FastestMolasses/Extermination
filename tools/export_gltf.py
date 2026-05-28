@@ -116,6 +116,127 @@ def load_per_bone_meshes(mesh_path: Path):
     return out
 
 
+def load_per_bone_meshes_with_vids(mesh_path: Path):
+    """Return list of [(x, y, z, vid), ...] per bone."""
+    d = mesh_path.read_bytes()
+    table = em._find_bone_section_table(d)
+    if table is None:
+        raise RuntimeError(f"no per-bone VIF section table in {mesh_path}")
+    table_off, entries = table
+    out = []
+    for i, off in enumerate(entries):
+        sect_start = table_off + off
+        sect_end = (table_off + entries[i + 1]
+                    if i + 1 < len(entries) else len(d))
+        verts = em.decode_objspace_bone_vertices(d, sect_start, sect_end)
+        out.append(list(verts))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Triangle topology + smooth normals
+#
+# The per-bone VIF stream is a generalized triangle strip. Each record carries
+# a monotonic `vid` (vertex id) that steps by +2 between adjacent strip verts
+# (the engine reserves the odd parity for an internal flag; in practice every
+# stored vid is even). A delta other than +2 (+1, +4, +5, +7, +9, ..., +64,
+# +90, etc.) signals a STRIP RESTART -- the next vertex begins a new strip.
+#
+# Within a strip of N verts we emit N-2 triangles with the standard
+# alternating winding. Degenerate triangles (coincident vertex positions) are
+# dropped -- the PS2 idiom for stitching strips into one draw.
+#
+# Per-vertex normals are computed by averaging the face normals of the
+# triangles each vertex participates in. The packed 4-byte normal/lighting
+# field at +0x06 in the VIF record was inspected (signed-byte / 127, IEEE
+# float, unsigned bytes / 255) -- none gives consistently unit-length
+# vectors, so the exact quantisation needs the VU1 microcode decode. Smooth
+# face-averaged normals look fine for preview shading; we can revisit later.
+
+
+def _build_strips(vids: list) -> list:
+    """Split a vid sequence into [[local_idx, ...], ...] strips on any
+    non-+2 delta. Strips shorter than 3 are dropped."""
+    if not vids:
+        return []
+    strips = []
+    cur = [0]
+    for i in range(1, len(vids)):
+        if vids[i] - vids[i - 1] == 2:
+            cur.append(i)
+        else:
+            if len(cur) >= 3:
+                strips.append(cur)
+            cur = [i]
+    if len(cur) >= 3:
+        strips.append(cur)
+    return strips
+
+
+def _strip_triangles(strip: list, positions: list) -> list:
+    """Emit (i0, i1, i2) tuples for one strip, with PS2 alternating winding,
+    skipping degenerate (coincident-position) triangles."""
+    tris = []
+    n = len(strip)
+    for t in range(n - 2):
+        if t & 1:
+            a, b, c = strip[t + 1], strip[t], strip[t + 2]
+        else:
+            a, b, c = strip[t], strip[t + 1], strip[t + 2]
+        pa, pb, pc = positions[a], positions[b], positions[c]
+        if pa == pb or pb == pc or pa == pc:
+            continue
+        tris.append((a, b, c))
+    return tris
+
+
+def _face_averaged_normals(positions: list, tris: list) -> list:
+    """Per-vertex normals by face-area-weighted averaging."""
+    import math as _m
+    n = len(positions)
+    nx = [0.0] * n
+    ny = [0.0] * n
+    nz = [0.0] * n
+    for a, b, c in tris:
+        ax, ay, az = positions[a]
+        bx, by, bz = positions[b]
+        cx, cy, cz = positions[c]
+        ux, uy, uz = bx - ax, by - ay, bz - az
+        vx, vy, vz = cx - ax, cy - ay, cz - az
+        fx = uy * vz - uz * vy
+        fy = uz * vx - ux * vz
+        fz = ux * vy - uy * vx
+        # cross-product magnitude == 2 * triangle area -> natural weighting
+        for idx in (a, b, c):
+            nx[idx] += fx
+            ny[idx] += fy
+            nz[idx] += fz
+    out = []
+    for i in range(n):
+        m = _m.sqrt(nx[i] * nx[i] + ny[i] * ny[i] + nz[i] * nz[i])
+        if m > 1e-9:
+            out.append((nx[i] / m, ny[i] / m, nz[i] / m))
+        else:
+            out.append((0.0, 1.0, 0.0))
+    return out
+
+
+def triangulate_bone(verts_with_vid: list):
+    """Given a bone's decoded [(x,y,z,vid), ...] records, return
+    (positions, normals, indices_flat). All three are aligned so that
+    `positions[i] / normals[i]` is the i-th vertex and `indices_flat`
+    is a flat list of triangle vertex indices."""
+    positions = [(x, y, z) for (x, y, z, _v) in verts_with_vid]
+    vids = [v for (_x, _y, _z, v) in verts_with_vid]
+    strips = _build_strips(vids)
+    tris = []
+    for s in strips:
+        tris.extend(_strip_triangles(s, positions))
+    normals = _face_averaged_normals(positions, tris)
+    indices = [i for t in tris for i in t]
+    return positions, normals, indices
+
+
 # ---------------------------------------------------------------------------
 # Quaternion helpers
 
@@ -235,6 +356,32 @@ class GLBBuilder:
             acc["max"] = list(maxs)
         self.accessors.append(acc)
         return len(self.accessors) - 1
+
+    def add_vec3_float_normal(self, normals: List[Tuple[float, float, float]]) -> int:
+        """A vec3 attribute accessor for normals (no min/max required, no
+        component bounds tracking)."""
+        if not normals:
+            raise ValueError("empty normal accessor")
+        data = struct.pack(f"<{len(normals) * 3}f",
+                           *[c for v in normals for c in v])
+        return self.add_accessor(
+            data, self.COMP_FLOAT, len(normals), "VEC3",
+            target=34962,
+        )
+
+    def add_indices_auto(self, idx: List[int], max_index: int) -> int:
+        """u16 if max_index fits, else u32."""
+        if max_index < 65536:
+            data = struct.pack(f"<{len(idx)}H", *idx)
+            return self.add_accessor(
+                data, self.COMP_UNSIGNED_SHORT, len(idx), "SCALAR",
+                target=34963,
+            )
+        data = struct.pack(f"<{len(idx)}I", *idx)
+        return self.add_accessor(
+            data, self.COMP_UNSIGNED_INT, len(idx), "SCALAR",
+            target=34963,
+        )
 
     def add_vec3_float(self, verts: List[Tuple[float, float, float]]) -> int:
         if not verts:
@@ -465,21 +612,42 @@ def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
     parents_signed = _signed_parents(raw_parents0)
     n_bones = bc0
 
-    per_bone_verts = load_per_bone_meshes(mesh_path)
-    n_mesh_sections = len(per_bone_verts)
+    per_bone_verts_vid = load_per_bone_meshes_with_vids(mesh_path)
+    n_mesh_sections = len(per_bone_verts_vid)
 
     gb = GLBBuilder()
 
-    # 1. Meshes
+    # 1. Meshes -- one TRIANGLES primitive per non-empty bone with POSITION,
+    # NORMAL and an index buffer. Triangle topology comes from generalized
+    # tristrip decoding of the per-bone VIF vid stream (see triangulate_bone).
+    # Normals are face-area-weighted vertex averages -- the packed 4-byte
+    # field in the VIF record is not yet decoded.
     meshes: list = []
     mesh_idx_for_bone: dict[int, int] = {}
+    total_tris = 0
+    bones_as_points = 0
     for i in range(min(n_bones, n_mesh_sections)):
-        verts = per_bone_verts[i]
-        if not verts:
+        vwv = per_bone_verts_vid[i]
+        if not vwv:
             continue
-        pos_acc = gb.add_vec3_float(verts)
+        positions, normals, indices = triangulate_bone(vwv)
+        if indices:
+            pos_acc = gb.add_vec3_float(positions)
+            nrm_acc = gb.add_vec3_float_normal(normals)
+            idx_acc = gb.add_indices_auto(indices, len(positions))
+            prim = {
+                "attributes": {"POSITION": pos_acc, "NORMAL": nrm_acc},
+                "indices": idx_acc,
+                "mode": 4,  # TRIANGLES
+            }
+            total_tris += len(indices) // 3
+        else:
+            # Bone with <3 verts or no decodable strip -- fall back to POINTS.
+            pos_acc = gb.add_vec3_float(positions)
+            prim = {"attributes": {"POSITION": pos_acc}, "mode": 0}
+            bones_as_points += 1
         meshes.append({
-            "primitives": [{"attributes": {"POSITION": pos_acc}, "mode": 0}],
+            "primitives": [prim],
             "name": f"bone_{i:02d}_mesh",
         })
         mesh_idx_for_bone[i] = len(meshes) - 1
@@ -611,6 +779,8 @@ def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
         "size_bytes": len(header) + len(json_chunk) + len(bin_chunk),
         "n_bones": n_bones,
         "n_meshes": len(meshes),
+        "n_triangles": total_tris,
+        "bones_as_points": bones_as_points,
         "n_animations": len(animations),
         "total_animation_tracks": total_tracks,
         "total_animation_samples": total_samples,
@@ -680,6 +850,7 @@ def main(argv: list[str]) -> int:
     print(f"wrote {info['out_path']} ({info['size_bytes']} bytes)")
     print(f"  bones      : {info['n_bones']}")
     print(f"  meshes     : {info['n_meshes']}  (one rigid mesh per non-empty bone)")
+    print(f"  triangles  : {info['n_triangles']}  (points-only fallback bones: {info['bones_as_points']})")
     print(f"  animations : {info['n_animations']}")
     print(f"  tracks     : {info['total_animation_tracks']}")
     print(f"  samples    : {info['total_animation_samples']}")

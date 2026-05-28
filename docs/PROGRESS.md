@@ -1,5 +1,50 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-05-27 GLTF EXPORTER — triangles + smooth normals
+
+Promoted the .glb exporter from a point cloud to a shaded mesh:
+
+- **Triangle topology decoded.** The per-bone VIF stream's monotonic `vid`
+  field (+0x0A in each 12-byte record) is a generalized-tristrip cursor:
+  adjacent verts in one strip have `delta_vid == +2`; any other delta
+  (+1, +4, +5, +7, +9, +17, +19, +43, +64, +90 observed) signals a
+  STRIP RESTART. `export_gltf.triangulate_bone()` splits each bone's
+  vertex list at every irregular delta, drops sub-strips with <3 verts,
+  and emits PS2-standard alternating-winding triangles per strip
+  (coincident-vertex degenerates dropped).
+- **Smooth per-vertex normals** via face-area-weighted averaging.
+  The packed 4-byte field at record +0x06 (3 signed-ish components + a
+  4th byte that clusters tightly around 63 or 188) is **not yet
+  decoded**: tried (signed/127), (unsigned/255), and IEEE-float
+  reinterpretation -- none yields consistently unit-length vectors, so
+  the exact quantisation needs the VU1 microcode. Face-averaged smooth
+  normals are good enough for preview shading and can be replaced once
+  the packed format is cracked.
+- **glTF schema upgrade.** Per-bone primitives now write mode=4
+  (TRIANGLES) with POSITION + NORMAL + indices (u16 auto-promoted to
+  u32 when needed). 3 trivial 3-vert bones with no valid strip fall
+  back to mode=0 (POINTS).
+
+Validation on the player rig (`chunk21/f17_id8f.bin` +
+`chunk05/f04_id71.bin`):
+
+```
+wrote models/Extermination_Player.glb (1980632 bytes)
+  bones      : 30
+  meshes     : 22  (one rigid mesh per non-empty bone)
+  triangles  : 1739  (points-only fallback bones: 3)
+  animations : 57
+  tracks     : 3420
+  samples    : 33562
+```
+
+Round-trips through `pygltflib`; all 6900 accessors / 22 primitives
+parse clean; first-vertex normal on a sampled bone is unit-length
+within float epsilon. Outstanding gaps: UVs / texture binding (the VIF
+per-bone record carries no UV field -- texturing data lives in a
+separate stream not yet located); a faithful decode of the packed
+normal/lighting byte quad (blocked on VU1 microcode lift).
+
 ### Update — 2026-05-27 GLTF EXPORTER — full character + 57 anims in one .glb
 
 `tools/export_gltf.py` (new) is the headline modder-facing deliverable: it
