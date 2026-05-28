@@ -862,6 +862,32 @@ ELF** (1530624/1530624 bytes, 100.00%).
 
 ### Open questions (most need the decompiled engine — i.e. Track A)
 
+- **VU1 microcode upload driver — RESOLVED 2026-05-27.** Outbound
+  VIF1 DMA in the boot ELF is dispatched through a generic indirected
+  pump: `func_00101FE0($ch_base, $madr, $qwc)` is the universal
+  MADR/QWC/CHCR writer (sets `CHCR |= 0x101`); `func_00101BB8(ch)`
+  returns the channel base from table `D_00241050`. Microcode-packet
+  wrappers in the `001D3xxx-001D5xxx` and `001E7xxx-001E9xxx` clusters
+  build chain tags into the per-channel buffer at `D_00275670[ch]`
+  via `func_001D2090` (REF tag, addr=packet) and `func_001D4750`
+  (matrix UNPACK builder). Bone-matrix UNPACK source is BSS
+  `D_00817240..D_008172BC` (4 stacked 4x4 matrices, shipped as
+  `UNPACK V4-32 NUM=4 dest=0x03F5` via VIF imm `0x6C0403F5`). VIF1
+  cold-start primer is `func_00100278` (direct FIFO write of two
+  VIF-command quadwords at `D_00241020`). The per-frame chain flush
+  is still unidentified — likely in the `func_001D7C30 /
+  func_001D30A0` subtree off `func_001D1C50`.
+  Details: `docs/FINDINGS.md` -> "VU1 microcode upload path".
+
+- **PSMT8 TEX0 CLUT binding — STILL UNRESOLVED.** No EE TEX0
+  composition with PSM=0x13 in static disassembly; per-frame GS dump
+  is 100% PATH1, so TEX0 is emitted inside VU1 kernels (at
+  IMEM=0 of the 256-qw families `0x002354cc / 0x002364dc / 0x00237750
+  / 0x00238760 / 0x00239cc0`). The per-material CLUT pointer is a
+  VU1 dmem field EE writes per-draw via a small UNPACK; identifying
+  the dest requires disassembling the kernel's TEX0-emit sequence.
+
+
 - **VU1 microcode location + per-program classification — PARTIALLY
   RESOLVED 2026-05-25.** Found 48 VU1 microcode programs (25 logical
   kernels after grouping multi-MPG uploads) statically embedded in the

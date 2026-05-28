@@ -1370,6 +1370,158 @@ rendered data, not a streaming render path.
   starts at the caller `func_001AAE40` (vram `0x001AAE40`, the
   only static caller of `func_001D7410`).
 
+## VU1 microcode upload path — generic-DMA pump architecture (2026-05-27)
+
+Resolves the open question left by the 2026-05-27 `func_00100EB8` correction.
+The boot ELF does **not** ship VU1 microcode packets via hard-coded writes to
+`D1_MADR/QWC/CHCR` (`0x10009010/20/00`). The only function in the entire boot
+that touches those addresses with their absolute literals is `func_00100EB8`
+(GS-VRAM readback) and the busy-wait sync `sub_D2_TADR_08x` — neither uploads
+VU1 microcode. The engine instead uses an **indirected DMA dispatch**:
+
+### The DMA dispatch primitives
+
+- **`func_00101BB8(ch)`** — channel-base accessor. Returns
+  `D_00241050[ch]` for `ch < 10`, where `D_00241050` is a table of all ten
+  DMAC channel base addresses (`0x10008000`, `0x10009000`, `0x1000A000`,
+  `0x1000B000`, `0x1000B400`, `0x1000C000`, `0x1000C400`, `0x1000C800`,
+  `0x1000D000`, `0x1000D400`). Every DMA dispatch in the engine indirects
+  through this. **This is why all earlier greps for `0x10009000` came up
+  empty — only the readback driver inlines the literal.**
+
+- **`func_00101FE0($a0=ch_base, $a1=madr, $a2=qwc)`** — the actual
+  **DMA kick**. Polls `ch_base[0].STR` (CHCR bit 0x100) until clear, then
+  writes `MADR = $a1`, `QWC = $a2`, and sets `CHCR |= 0x101` (STR + DIR).
+  Generic — works for any channel — and is the only outbound-DMA kicker
+  in the boot ELF.
+
+- **`func_00102468(ch_base, mode, timeout)`** — paired DMA-wait/sync
+  used after every kick (with `func_00122B58` as the yield-to-scheduler
+  callback during the spin).
+
+- **`func_00101BE0(reset_mode)`** — global DMAC reset; iterates the
+  channel-mask table `D_00241090` and zeroes CHCR/MADR/TADR/QWC for each
+  active channel, then touches D_CTRL (`0x1000E000`) and D_STAT
+  (`0x1000E010`).
+
+- **`func_00101BB8`** has **5 callers** in the boot ELF —
+  `func_001CCB10`, `func_001CCBD0`, `func_001CCCC0` (all GS-VRAM **uploaders**
+  symmetric to `func_00100EB8`'s readback), `func_001D21E0`, and
+  `func_00200830`. The three `0x1CCxxx` callers all call `func_00101FE0`
+  with `qwc=0x17` (23 qw — exactly the BITBLTBUF+TRXPOS+TRXREG+TRXDIR
+  setup packet plus a one-page IMAGE-mode transfer header) and build the
+  packet via `func_001CCE80`. These are the **CPU→GS texture-page DMA
+  uploaders** (PATH3 via VIF1 channel).
+
+### VIF1 bootstrap
+
+`func_00100278` (0x68 bytes) is the **VIF1/VU1 cold-start primer**:
+resets VIF1 FBRST (`0x10003C10 <- 1`), VIF1 ERR (`0x10003C20 <- 2`), sets
+VU1 control bit `0x200` in `$vi28`, then **DMA-bypasses by streaming
+two quadwords directly from `D_00241020` to the VIF1 FIFO at
+`0x10005000`**. Those two quadwords decode as VIF commands
+`STCYCL(WL=4 CL=4); STMASK; NOP; MSCNT; MSKPATH3; NOP; FLUSH; NOP` — a
+clean idle/sync pattern that primes VU1 and parks PATH3 before normal
+DMA dispatch starts. This runs once at boot from `_start`.
+
+### The catalog-vram-referencing wrappers
+
+Two dozen functions in the `0x001D3xxx-0x001D5xxx` and
+`0x001E7xxx-0x001E9xxx` clusters each reference exactly one catalog
+packet vram via a `D_xxxxxxxx` label. Pattern (representative,
+`func_001D4960` referencing offset `+0x524` inside packet `0x0023976c`):
+
+1. Call `func_001D4750($a0=ch)` — builds a giant pre-built UNPACK
+   header in BSS scratch at `D_00817240..D_008172BC` (containing four
+   4x4 matrices and a `0x6C0403F5` and `0x6C080000` VIF UNPACK V4-32
+   command — the **per-bone matrix UNPACK to VU dest=0x03F5 NUM=4**),
+   then memcpys it into a chain-buffer cursor `0x10($t0)` where `$t0 =
+   D_00275670[ch]` (the per-channel DMA chain-buffer base, BSS).
+2. Call `func_001D2090($a0=ch, $a1=&packet_offset)` — appends a 2-tag
+   pair: (tag id=0x30 = REF, qwc=1, addr=$a1) followed by (tag id=0x50 =
+   CNT continuation). This **chains the microcode packet into the
+   per-channel DMA chain buffer without copying it**.
+3. The chain buffer is later kicked by code we have not yet pinpointed
+   (likely a per-frame flush in the `func_001D1C50` / `func_001D7C30` /
+   `func_001D30A0` call tree) that walks `D_00275670[1]`, calls
+   `func_00101BB8(1)`, and hands the chain head to `func_00101FE0`
+   with chain mode.
+
+`D_00275670` and `D_00275674` are the engine's per-channel
+DMA-chain-buffer base + write-cursor pair (`gp_rel` accessed from ~100
+functions). Every microcode packet, matrix UNPACK, vertex UNPACK, and
+MSCAL tag is appended here per-frame; one bulk kick per channel per
+frame ships them all.
+
+### Identified microcode-shipping wrappers (sample)
+
+Each function builds a single REF tag pointing at a catalog packet
+(meaning that packet is uploaded via DMA-REF tag, not memcpyed):
+
+| Function | Catalog packet | Microcode role |
+|---|---|---|
+| `func_001E7D20` | `0x0023460c` | **Skinning kernel #1 main** (vram->IMEM 0x0000, 153 qw) — the bone-matrix consumer at IMEM dest=0, qw 0..3 |
+| `func_001E9280` | `0x00234c10` | bone-helper #1 (15 qw, IMEM 0x0800) |
+| `func_001E9E60` | `0x0023402c` | preceding kernel pair (81 qw, IMEM 0x0100) |
+| `func_001F0720` | `0x00232d6c` | early kernel data half (66 qw, IMEM 0x0100) |
+| `func_001D3AD0..001D5170` | various | static-geometry kernels |
+
+### Bone-matrix UNPACK source
+
+The **per-bone matrix UNPACK** is built in
+`func_001D4750`: the BSS region `D_00817240..D_008172BC` (124 bytes =
+4x 4x4 float matrices laid out contiguously) is the staging area for
+the four matrices uploaded as `UNPACK V4-32 NUM=4 dest=0x03F5` (the
+`0x6C0403F5` VIF immediate). The `0x6C080000` second UNPACK ships
+8 quadwords of additional context. Whatever fills
+`D_00817240..D_008172BC` each frame **is the bone-matrix source**.
+That fill happens in code reachable from `func_001D4750`'s callers —
+the next session's hunt.
+
+### PSMT8 TEX0 setup — NOT YET FOUND
+
+No EE function in the boot ELF builds a TEX0 register write with
+PSM=0x13 visible in static disassembly. Per the per-frame PCSX2 GS dump
+analysis (2026-05-25), all draw GIFtags are PATH1 PACKED TRISTRIP/SPRITE,
+implying **TEX0 is composed inside VU1 microcode** (one of the 256-qw
+kernels at IMEM=0 in the `0x002354cc / 0x002364dc / 0x00237750 /
+0x00238760 / 0x00239cc0` families) and shipped via XGKICK. The per-material
+CLUT pointer is therefore a VU1 dmem field that EE writes per-draw via
+a small UNPACK to a fixed dest. Identifying that UNPACK dest requires
+disassembling the kernel's TEX0-emit sequence — left for next session.
+
+### Caller-chain summary
+
+```
+_start
+  -> func_00100278        (VIF1/VU1 cold-start: STCYCL, MSCNT, MSKPATH3)
+  -> func_00101BE0        (DMAC global reset)
+  -> ...
+  -> func_001D1C50        (per-frame engine init / chain head builder)
+       -> func_001D2830   (per-frame state machine)
+       -> func_001D7C30   (per-frame builder)
+       -> func_001D30A0   (per-frame draw walker)
+            -> func_001D4960 / func_001E7D20 / etc.
+                 -> func_001D4750  (UNPACK matrix builder)
+                 -> func_001D2090  (REF tag append for microcode packet)
+                 -> ... appends to D_00275670[1] chain buffer ...
+       -> (unidentified flush; calls func_00101BB8(1) + func_00101FE0)
+            -> DMA kicks chain on VIF1
+```
+
+### Updates to prior FINDINGS
+
+- The 2026-05-25 claim that `func_00100EB8` "is the static VU1 init /
+  packet shipper" was corrected on 2026-05-27 to GS-VRAM readback.
+- The 2026-05-25 claim that "All VIF1 DMA submissions live in
+  `func_00100A60` (`sub_D2_TADR_08x`) and `func_00100EB8`" was wrong:
+  `sub_D2_TADR_08x` is sync only; `func_00100EB8` is readback only.
+  **All outbound VIF1 DMA goes through `func_00101FE0`** via the
+  channel-base table at `D_00241050` returned by `func_00101BB8`. The
+  earlier blind grep for `0x10009` could not see this because the
+  channel base is loaded once per dispatch from the table, never as
+  a literal `lui`/`ori` pair.
+
 ## `MUSIC.DAT` track listing
 
 `MUSIC.DAT` decodes to 55 tracks. Per the user (cross-referenced with an online
