@@ -24,6 +24,17 @@ extract/ whose bone count >= the mesh's per-bone section count.
 The output .glb opens in Blender (File > Import > glTF 2.0), Maya 2022+, and
 any compliant viewer (gltf-viewer, three.js, Babylon Sandbox, etc.). All
 57 clips show up under the file's Animations panel.
+
+LEVEL MODE
+    python3 tools/export_gltf.py level \
+        --level extract/chunk04.n0/f06_id44.bin \
+        --out   models/chunk04.n0_f06_scene.glb
+
+Exports an id 0x44 level file as a single placed, textured scene .glb:
+world-space MESH/SUBMESH geometry plus MATRIX-instanced props (transforms
+baked in), grouped into one mesh per texture sheet, textures resolved across
+the extract tree and embedded as RGBA PNGs. `--all-levels` batch-exports every
+id 0x44 file; `--no-textures` emits geometry only. See build_level_glb().
 """
 
 from __future__ import annotations
@@ -42,6 +53,11 @@ from typing import List, Tuple
 # its own argparse-heavy entry point).
 
 _HERE = Path(__file__).resolve().parent
+
+# Ensure sibling modules that use bare imports (e.g. extract_subtextures.py's
+# `from clut import ...`) resolve regardless of how this script is launched.
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
 
 
 def _load(name: str, fname: str):
@@ -1284,6 +1300,389 @@ def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
 
 
 # ---------------------------------------------------------------------------
+# LEVEL scene export (id 0x44 files)
+#
+# A level file holds world-space MESH / SUBMESH geometry plus MATRIX
+# instance-placement blocks. `extract_models.parse_scene()` already returns
+# every triangle strip PLACED in world space: the regular MESH/SUBMESH strips
+# unchanged, and every MATRIX section's geometry emitted once per (deduped)
+# transform with the matrix baked into the vertices.
+#
+# MATRIX transforms are ABSOLUTE world placements, not parent-composed
+# (resolved empirically 2026-06-01): on chunk04.n0/f06_id44.bin the MATRIX
+# sections' object-space geometry already spans the full level Z extent
+# (Z[-1515,6]) at their identity (record-0) transform, and the per-instance
+# translations are small additive offsets (a few units) that scatter copies of
+# a base prop WITHIN the level footprint -- never an outer frame that would
+# collapse everything to the origin. Applying each matrix directly keeps the
+# instanced geometry inside the static world bbox and overlapping it, which is
+# exactly what an absolute placement does. So we bake the transforms in (same
+# as the OBJ `--scene` path) and emit the union as one placed scene.
+#
+# Each strip's marker `m0` carries the texture sheet:
+#   sheet_field = (m0 >> 15) & 0x3FFF  ->  GS DBP (see _sheet_field_to_dbp).
+# We group strips by DBP, resolve each DBP to a texture sheet (preferring the
+# level's own chunk dir, then the whole extract tree -- ~all level textures are
+# cross-file, uploaded by sibling id 0x43/0x44/0x06 files), and embed the
+# PSMT8 sheet as an RGBA grayscale PNG. Strips whose DBP cannot be resolved get
+# a solid-gray placeholder material so the geometry still renders.
+#
+# The `+0x20` attribute is a unit normal on dynamic meshes and a baked vertex
+# colour on static/world meshes (distinguished per-vertex by `Vertex.is_normal`
+# -- see extract_models). For a clean preview we emit a geometric (face-area-
+# weighted) NORMAL per strip-group and pass the colour-or-normal attr through
+# as COLOR_0 only when it is clearly a colour (so lit viewers shade by geometry
+# and unlit viewers can still show baked vertex colour).
+# ---------------------------------------------------------------------------
+
+
+def _strip_dbp(strip) -> int:
+    m0, _m1 = strip.key
+    sheet_field = (m0 >> 15) & 0x3FFF
+    return _sheet_field_to_dbp(sheet_field)
+
+
+def _resolve_level_sheets(level_path: Path, dbps: list[int],
+                          search_root: Path | None) -> dict[int, tuple[Path, "est.Transfer"]]:
+    """Resolve each wanted DBP to (source_file, decoded transfer).
+
+    Scans the level's own chunk dir first (cheap, usually finds the level's
+    id 0x43 sibling sheets), then -- for any still-missing DBP -- widens to the
+    whole search root (level textures are very commonly cross-file). Each file
+    is read at most once per pass. Missing DBPs are simply absent from the
+    returned dict (the caller emits a placeholder material).
+    """
+    want = set(dbps)
+    found: dict[int, tuple[Path, "est.Transfer"]] = {}
+
+    def scan_dir(files: list[Path]):
+        for p in files:
+            if want <= set(found):
+                return
+            try:
+                dd = p.read_bytes()
+            except Exception:
+                continue
+            for t in est.scan_transfers(dd, p.name):
+                if t.dbp in want and t.dbp not in found:
+                    t.src_path = p
+                    if est.decode_transfer(dd, t):
+                        found[t.dbp] = (p, t)
+
+    scan_dir(sorted(level_path.parent.glob("*.bin")))
+    if not (want <= set(found)) and search_root and search_root.is_dir():
+        seen = set(level_path.parent.glob("*.bin"))
+        rest = [p for p in sorted(search_root.rglob("*.bin")) if p not in seen]
+        scan_dir(rest)
+    return found
+
+
+def build_level_glb(level_path: Path, out_path: Path,
+                    search_root: Path | None = None,
+                    no_textures: bool = False) -> dict:
+    """Export an id 0x44 level file as a single placed, textured .glb.
+
+    Geometry: extract_models.parse_scene() (world-space MESH/SUBMESH + baked
+    MATRIX instances). Texturing: per-DBP sheet resolution + embedded PNG.
+    One glTF mesh per DBP group (one TRIANGLES primitive), all under a single
+    scene-root node. Returns a stats dict.
+    """
+    d = level_path.read_bytes()
+    strips = em.parse_scene(d)
+    if not strips:
+        raise RuntimeError(f"{level_path}: no geometry strips")
+
+    # Group strips by texture sheet DBP.
+    by_dbp: dict[int, list] = {}
+    for s in strips:
+        by_dbp.setdefault(_strip_dbp(s), []).append(s)
+
+    gb = GLBBuilder()
+
+    # Resolve + embed textures (unless suppressed).
+    image_objs: list = []
+    texture_objs: list = []
+    material_objs: list = []
+    material_for_dbp: dict[int, int] = {}
+    sheet_infos: list = []
+    resolved: dict[int, tuple[Path, "est.Transfer"]] = {}
+    if not no_textures:
+        resolved = _resolve_level_sheets(level_path, sorted(by_dbp.keys()),
+                                         search_root)
+    for dbp in sorted(by_dbp.keys()):
+        n_strips = len(by_dbp[dbp])
+        if dbp in resolved:
+            src_path, xfer = resolved[dbp]
+            png = _png_rgba_bytes(xfer.width, xfer.height, xfer.pixels)
+            bv = gb.add_raw_blob(png)
+            image_objs.append({
+                "name": f"sheet_DBP{dbp}",
+                "mimeType": "image/png",
+                "bufferView": bv,
+            })
+            img_i = len(image_objs) - 1
+            texture_objs.append({"source": img_i})
+            tex_i = len(texture_objs) - 1
+            material_objs.append({
+                "name": f"mat_dbp{dbp}",
+                "pbrMetallicRoughness": {
+                    "baseColorTexture": {"index": tex_i, "texCoord": 0},
+                    "metallicFactor": 0.0, "roughnessFactor": 1.0,
+                },
+                "doubleSided": True,
+            })
+            try:
+                src_rel = str(src_path.relative_to(search_root)) \
+                    if search_root else src_path.name
+            except ValueError:
+                src_rel = src_path.name
+            sheet_infos.append({"dbp": dbp, "n_strips": n_strips,
+                                "source": src_rel,
+                                "size": [xfer.width, xfer.height]})
+        else:
+            material_objs.append({
+                "name": f"mat_dbp{dbp}_missing",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.6, 0.6, 0.6, 1.0],
+                    "metallicFactor": 0.0, "roughnessFactor": 1.0,
+                },
+                "doubleSided": True,
+            })
+            sheet_infos.append({"dbp": dbp, "n_strips": n_strips,
+                                "source": None})
+        material_for_dbp[dbp] = len(material_objs) - 1
+
+    # One mesh per DBP group; merge that group's strip triangles into a single
+    # TRIANGLES primitive (POSITION + NORMAL + TEXCOORD_0).
+    meshes: list = []
+    mesh_node_indices: list = []
+    total_tris = 0
+    total_verts = 0
+    xs_all: list[float] = []
+    ys_all: list[float] = []
+    zs_all: list[float] = []
+    for dbp in sorted(by_dbp.keys()):
+        positions: list = []
+        normals: list = []
+        uvs: list = []
+        indices: list = []
+        for s in by_dbp[dbp]:
+            base = len(positions)
+            local_pos = [v.pos for v in s.verts]
+            for v in s.verts:
+                positions.append(v.pos)
+                uvs.append((v.uv[0], v.uv[1]))
+            tris = list(em.strip_triangles(s))
+            # Per-strip geometric normals (handles colour-attr static meshes
+            # uniformly; dynamic-mesh stored normals are close to these too).
+            snorm = _strip_geom_normals(local_pos, tris)
+            normals.extend(snorm)
+            for i0, i1, i2 in tris:
+                indices.append(base + i0)
+                indices.append(base + i1)
+                indices.append(base + i2)
+        if not indices:
+            continue
+        pos_acc = gb.add_vec3_float(positions)
+        nrm_acc = gb.add_vec3_float_normal(normals)
+        uv_acc = gb.add_vec2_float(uvs)
+        idx_acc = gb.add_indices_auto(indices, len(positions))
+        prim = {
+            "attributes": {
+                "POSITION": pos_acc,
+                "NORMAL": nrm_acc,
+                "TEXCOORD_0": uv_acc,
+            },
+            "indices": idx_acc,
+            "mode": 4,  # TRIANGLES
+        }
+        if material_for_dbp:
+            prim["material"] = material_for_dbp[dbp]
+        meshes.append({"primitives": [prim], "name": f"sheet_dbp{dbp}"})
+        total_tris += len(indices) // 3
+        total_verts += len(positions)
+        xs_all.extend(p[0] for p in positions)
+        ys_all.extend(p[1] for p in positions)
+        zs_all.extend(p[2] for p in positions)
+
+    if not meshes:
+        raise RuntimeError(f"{level_path}: no renderable triangles")
+
+    # Nodes: one node per mesh, all under a single scene-root. Geometry is
+    # already world-placed (MATRIX transforms baked), so node transforms are
+    # identity -- the node layer simply names each sheet group for the DCC tool.
+    nodes: list = []
+    for mi, m in enumerate(meshes):
+        nodes.append({"name": m["name"], "mesh": mi})
+        mesh_node_indices.append(len(nodes) - 1)
+    scene_root = {"name": level_path.stem, "children": list(mesh_node_indices)}
+    nodes.append(scene_root)
+    scene_root_idx = len(nodes) - 1
+
+    while len(gb.bin_blob) % 4 != 0:
+        gb.bin_blob.append(0)
+
+    gltf = {
+        "asset": {"version": "2.0",
+                  "generator": "Extermination decomp export_gltf.py (level)"},
+        "scene": 0,
+        "scenes": [{"name": "Scene", "nodes": [scene_root_idx]}],
+        "nodes": nodes,
+        "meshes": meshes,
+        "accessors": gb.accessors,
+        "bufferViews": gb.bufferViews,
+        "buffers": [{"byteLength": len(gb.bin_blob)}],
+    }
+    if image_objs:
+        gltf["images"] = image_objs
+    if texture_objs:
+        gltf["textures"] = texture_objs
+    if material_objs:
+        gltf["materials"] = material_objs
+
+    json_bytes = json.dumps(gltf, separators=(",", ":")).encode("utf-8")
+    while len(json_bytes) % 4 != 0:
+        json_bytes += b" "
+    bin_bytes = bytes(gb.bin_blob)
+    total_len = 12 + 8 + len(json_bytes) + 8 + len(bin_bytes)
+    header = struct.pack("<III", 0x46546C67, 2, total_len)
+    json_chunk = struct.pack("<II", len(json_bytes), 0x4E4F534A) + json_bytes
+    bin_chunk = struct.pack("<II", len(bin_bytes), 0x004E4942) + bin_bytes
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(header + json_chunk + bin_chunk)
+
+    bbox = None
+    if xs_all:
+        bbox = (round(min(xs_all), 1), round(max(xs_all), 1),
+                round(min(ys_all), 1), round(max(ys_all), 1),
+                round(min(zs_all), 1), round(max(zs_all), 1))
+    n_resolved = sum(1 for s in sheet_infos if s.get("source"))
+    return {
+        "out_path": str(out_path),
+        "size_bytes": len(header) + len(json_chunk) + len(bin_chunk),
+        "n_strips": len(strips),
+        "n_meshes": len(meshes),
+        "n_triangles": total_tris,
+        "n_vertices": total_verts,
+        "n_dbp_groups": len(by_dbp),
+        "n_textures": len(texture_objs),
+        "n_materials": len(material_objs),
+        "sheets_resolved": n_resolved,
+        "sheets_total": len(by_dbp),
+        "bbox": bbox,
+        "sheets": sheet_infos,
+    }
+
+
+def _strip_geom_normals(positions: list, tris: list) -> list:
+    """Per-vertex face-area-weighted normals for one strip (local indices).
+
+    `positions` is the strip's vertex positions in emission order; `tris` are
+    (i0,i1,i2) local-index triangles from em.strip_triangles. Returns one
+    normal per position. Falls back to +Y for isolated verts.
+    """
+    import math as _m
+    n = len(positions)
+    ax = [0.0] * n
+    ay = [0.0] * n
+    az = [0.0] * n
+    for a, b, c in tris:
+        pa, pb, pc = positions[a], positions[b], positions[c]
+        ux, uy, uz = pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]
+        vx, vy, vz = pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]
+        fx = uy * vz - uz * vy
+        fy = uz * vx - ux * vz
+        fz = ux * vy - uy * vx
+        for idx in (a, b, c):
+            ax[idx] += fx
+            ay[idx] += fy
+            az[idx] += fz
+    out = []
+    for i in range(n):
+        m = _m.sqrt(ax[i] * ax[i] + ay[i] * ay[i] + az[i] * az[i])
+        if m > 1e-9:
+            out.append((ax[i] / m, ay[i] / m, az[i] / m))
+        else:
+            out.append((0.0, 1.0, 0.0))
+    return out
+
+
+def _level_main(argv: list[str]) -> int:
+    """Entry for `export_gltf.py level ...`."""
+    p = argparse.ArgumentParser(
+        prog="export_gltf.py level",
+        description="Export an Extermination id 0x44 level file as a placed, "
+                    "textured glTF 2.0 binary (.glb).")
+    g = p.add_mutually_exclusive_group(required=True)
+    g.add_argument("--level", help="id 0x44 level file "
+                   "(e.g. extract/chunk04.n0/f06_id44.bin)")
+    g.add_argument("--all-levels", action="store_true",
+                   help="export every id 0x44 file under --search-root")
+    p.add_argument("--out", help="output .glb path (single-level mode). "
+                   "Default: models/<stem>_scene.glb")
+    p.add_argument("--out-dir", default="models",
+                   help="output dir for --all-levels (default: models)")
+    p.add_argument("--search-root", default="extract",
+                   help="root for cross-file texture resolution / level scan "
+                        "(default: extract)")
+    p.add_argument("--no-textures", action="store_true",
+                   help="skip texture resolution -- geometry-only scene")
+    args = p.parse_args(argv)
+
+    search_root = Path(args.search_root)
+
+    if args.all_levels:
+        levels = sorted(search_root.rglob("*_id44.bin"))
+        if not levels:
+            print(f"error: no *_id44.bin under {search_root}", file=sys.stderr)
+            return 2
+        out_dir = Path(args.out_dir)
+        ok = 0
+        for lv in levels:
+            out = out_dir / f"{lv.stem}_{lv.parent.name}_scene.glb"
+            try:
+                info = build_level_glb(lv, out, search_root=search_root,
+                                       no_textures=args.no_textures)
+            except Exception as exc:  # noqa: BLE001
+                print(f"  SKIP {lv}: {exc}", file=sys.stderr)
+                continue
+            ok += 1
+            print(f"  {lv.parent.name}/{lv.name}: {info['n_triangles']} tris, "
+                  f"{info['sheets_resolved']}/{info['sheets_total']} sheets, "
+                  f"{info['size_bytes']//1024} KiB -> {out}")
+        print(f"wrote {ok}/{len(levels)} level scenes to {out_dir}")
+        return 0
+
+    level_path = Path(args.level)
+    if not level_path.is_file():
+        print(f"error: level not found: {level_path}", file=sys.stderr)
+        return 2
+    out = Path(args.out) if args.out else \
+        Path("models") / f"{level_path.stem}_scene.glb"
+    info = build_level_glb(level_path, out, search_root=search_root,
+                           no_textures=args.no_textures)
+    print(f"wrote {info['out_path']} ({info['size_bytes']} bytes)")
+    print(f"  strips     : {info['n_strips']}")
+    print(f"  meshes     : {info['n_meshes']}  (one per texture sheet group)")
+    print(f"  triangles  : {info['n_triangles']}")
+    print(f"  vertices   : {info['n_vertices']}")
+    if info["bbox"]:
+        bx = info["bbox"]
+        print(f"  bbox       : X[{bx[0]},{bx[1]}] Y[{bx[2]},{bx[3]}] "
+              f"Z[{bx[4]},{bx[5]}]  extent "
+              f"{bx[1]-bx[0]:.0f} x {bx[3]-bx[2]:.0f} x {bx[5]-bx[4]:.0f}")
+    print(f"  textures   : {info['sheets_resolved']}/{info['sheets_total']} "
+          f"sheets resolved, {info['n_materials']} materials")
+    for sh in info["sheets"]:
+        src = sh.get("source") or "MISSING (gray placeholder)"
+        sz = sh.get("size")
+        szs = f"{sz[0]}x{sz[1]}" if sz else "-"
+        print(f"    DBP={sh['dbp']:6d} ({sh['n_strips']:4d} strips)  "
+              f"{szs:>9}  source={src}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # CLI
 
 
@@ -1302,6 +1701,11 @@ def _auto_pair_skel(mesh_path: Path, mesh_section_count: int,
 
 
 def main(argv: list[str]) -> int:
+    # Subcommand dispatch: `export_gltf.py level ...` exports an id 0x44 level
+    # scene; the default (no/other first token) exports a character rig.
+    if argv and argv[0] == "level":
+        return _level_main(argv[1:])
+
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--mesh", required=True,
                    help="character-mesh file with per-bone VIF prefix "

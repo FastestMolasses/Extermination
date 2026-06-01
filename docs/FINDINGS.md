@@ -544,12 +544,34 @@ single-scene extent is ≈2739 units — consistent with the level geometry. The
 default per-mesh export is byte-identical with and without the new code
 (verified by diffing all 360 OBJ outputs); `--scene` is purely opt-in.
 
-**Uncertain.** Two things are unverified without the engine code: (a) the
-runtime role of the repeated identity entries (animation slots, LOD, or
-unused) — they are collapsed by the duplicate filter; (b) whether a transform
-is the final world placement or is composed with a parent node. Decoded
-translations are level-scale and bounded, consistent with world placements,
-so `--scene` applies them directly. The sub-header word quad is decoded
+**MATRIX transforms are ABSOLUTE world placements, not parent-composed
+(RESOLVED 2026-06-01).** Resolved empirically on `chunk04.n0/f06_id44.bin`
+by comparing bounding boxes:
+
+- The world-space MESH/SUBMESH geometry spans `X[-190,265] Y[-101,60]
+  Z[-1775,38]` (the full level footprint).
+- The MATRIX sections' **object-space geometry already spans `X[-190,84]
+  Y[-60,24] Z[-1515,6]` at the identity (record-0) transform** — i.e. it is
+  authored directly in level/world coordinates, *not* in a small per-prop
+  local frame centred at the origin.
+- The per-instance transforms are **small additive offsets** (translations of
+  a few units, e.g. sec0 scatters copies at `(±6.8, 5.0, −34.0)`,
+  `(±6.7, 5.0, −23.0)`, `(±6.7, 5.0, +23.0)` — a row of identical props).
+  Record 0 of every table is the identity, so the "base" copy sits exactly
+  where its geometry is already authored.
+
+Applying each matrix **directly** keeps the instanced geometry inside the
+static world bbox and overlapping it (applied-direct extent `Z[-1515,12]`,
+fully inside the world `Z[-1775,38]`). If the transforms were parent-composed,
+applying them without an outer frame would scatter the instances *outside* the
+world bbox or collapse them toward the origin — neither happens. So both
+`extract_models.py --scene` and the level glTF exporter **bake the transforms
+directly** with no parent composition, and produce coherent non-overlapping
+placed scenes.
+
+**Uncertain.** Still unverified without the engine code: the runtime role of
+the repeated identity entries (animation slots, LOD, or unused) — they are
+collapsed by the duplicate filter. The sub-header word quad is decoded
 structurally; `w0`/`w2`'s exact meaning (a count and a sub-mesh/material
 index) is unconfirmed and the decoder does not rely on it. The MATRIX
 geometry observed so far is self-contained — no MATRIX block was seen
@@ -566,6 +588,66 @@ position). The animation rig lives in separate files — now located and
 partially reversed (see "Rig / animation" below). The model-block sub-header's
 leading `01 00 00 00 .. ..` word pair is constant within a file but its
 meaning is unconfirmed; the decoder does not rely on it.
+
+### Level-scene glTF (.glb) export (2026-06-01)
+
+`tools/export_gltf.py level` exports an `id 0x44` level file as a single
+**placed, textured glTF 2.0 binary** that opens directly in Blender
+(File > Import > glTF 2.0). It reuses the same infrastructure as the character
+exporter — `GLBBuilder`, the `extract_subtextures` transfer scan/decode, and
+the identity-grayscale PNG embed — applied to whole-level geometry.
+
+```
+python3 tools/export_gltf.py level \
+    --level extract/chunk04.n0/f06_id44.bin \
+    --out   models/chunk04.n0_f06_scene.glb
+python3 tools/export_gltf.py level --all-levels --out-dir models   # batch
+python3 tools/export_gltf.py level --level <f> --no-textures        # geom-only
+```
+
+Pipeline (`build_level_glb`):
+
+1. **Geometry** comes straight from `extract_models.parse_scene()` — the same
+   world-placed strips the OBJ `--scene` mode emits (world-space MESH/SUBMESH
+   plus MATRIX-instanced props with their absolute transforms baked into the
+   vertices; see "MATRIX transforms are ABSOLUTE world placements" above).
+2. **Texture binding.** Strips are grouped by texture sheet via the documented
+   `sheet_field = (m0 >> 15) & 0x3FFF → GS DBP` map. Each DBP is resolved to a
+   `BITBLTBUF`/`TRXREG`/IMAGE-GIF transfer — **the level's own chunk dir first,
+   then the whole `extract/` tree** (level textures are almost entirely
+   cross-file: the reference level itself contains **zero** GS transfers; its 3
+   sheets come from `chunk04.n0/f00_id43.bin` and `chunk04.n2/f00_id44.bin`).
+   The PSMT8 sheet is decoded and embedded as an RGBA grayscale PNG (identity
+   CLUT; colour CLUT binding still unresolved). An unresolved DBP gets a
+   solid-gray placeholder material so the geometry still renders.
+3. **glTF structure.** One mesh per DBP group, each a single double-sided
+   TRIANGLES primitive with POSITION + NORMAL + TEXCOORD_0, referencing its
+   sheet material; all meshes parented under one scene-root node. Geometry is
+   pre-placed so node transforms are identity. NORMALs are per-strip
+   face-area-weighted geometric normals (uniform handling of the static-mesh
+   colour-vs-normal `+0x20` ambiguity).
+
+**Validation.** Reference level `chunk04.n0/f06_id44.bin`:
+`models/chunk04.n0_f06_scene.glb`, **2.4 MB**, 3 meshes, 7538 strips,
+**20 647 triangles**, 47 271 vertices, bbox `X[-190,265] Y[-101,60]
+Z[-1775,38]` (extent **455 × 162 × 1813** units — room/corridor scale, not the
+~20-unit character scale), **3/3 texture sheets resolved** and embedded as
+PNGs. Round-trips through `pygltflib`'s strict loader: every bufferView lies
+inside the buffer, every accessor count × stride fits its bufferView, every
+image is a valid embedded PNG, every material → texture → image reference is
+in range.
+
+**Batch.** `--all-levels` exports **32 of 36** `id 0x44` files (≈0.6–2.3 MB
+each). The **4 skips** (`chunk07.n2`, `chunk11.n2`, `chunk12.n2`,
+`chunk12.n3` `f01_id44.bin`) carry **no MESH signature at all** — they are
+pure texture-sheet carrier files (1–2 GS transfers, zero geometry strips),
+correctly skipped as non-renderable. Texture coverage: every level resolves
+its 2–3 universal sheets (DBP {10752, 12672, 14592}); levels that reference 4+
+distinct DBPs leave the extra sheets as gray placeholders (their uploads are
+in common/UI files outside the per-level + extract-tree search, the same
+~631-material cross-file residency gap noted under "Material → texture
+binding"). Geometry-only (`--no-textures`) export is always available as a
+fallback. Output `models/*.glb` is git-ignored (disc-derived, never committed).
 
 ### Rig / per-bone collision hulls
 

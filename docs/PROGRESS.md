@@ -1,5 +1,40 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-06-01 LEVEL-SCENE glTF EXPORTER (explorable textured levels in Blender)
+
+Applied the character glTF infrastructure to a new surface: **whole `id 0x44`
+level scenes**. New mode `tools/export_gltf.py level` exports an explorable,
+textured level as a single `.glb` that opens in Blender.
+
+- **Geometry** reuses `extract_models.parse_scene()` (world-space MESH/SUBMESH +
+  MATRIX-instanced props, transforms baked). No new geometry decode needed —
+  the 64-byte vertex record and tristrip topology are identical to characters.
+- **Textures** resolved per strip via `sheet_field (m0>>15)&0x3FFF → GS DBP`,
+  scanning the level's chunk dir then the whole `extract/` tree (level textures
+  are almost entirely cross-file), decoded with `extract_subtextures` and
+  embedded as identity-grayscale RGBA PNGs. Unresolved sheets → gray placeholder.
+- **Structure**: one mesh per texture-sheet DBP, double-sided TRIANGLES with
+  POSITION + NORMAL + TEXCOORD_0, under a single scene-root.
+
+**MATRIX absolute-vs-composed: RESOLVED — transforms are ABSOLUTE world
+placements, not parent-composed.** On `chunk04.n0/f06_id44.bin` the MATRIX
+object-space geometry already spans the full level Z extent at its identity
+transform, and per-instance transforms are small additive offsets that scatter
+prop copies *within* the level footprint. Baking them directly keeps everything
+inside the static world bbox (see FINDINGS "MATRIX transforms are ABSOLUTE").
+
+**Validation.** Reference level → `models/chunk04.n0_f06_scene.glb` (2.4 MB,
+3 meshes, **20 647 triangles**, 47 271 verts, bbox 455 × 162 × 1813 units —
+room scale, **3/3 sheets** embedded). Round-trips through `pygltflib` strict
+loader. `--all-levels` exports **32/36** levels; the 4 skips are MESH-less
+texture-carrier files (correctly non-renderable). `--no-textures` gives a
+geometry-only fallback. Output `models/*.glb` stays git-ignored.
+
+**Still off / open:** colour CLUT binding unresolved (grayscale luminance
+preview); levels referencing 4+ DBPs leave the extra sheets as gray
+placeholders (common/UI uploads outside the extract-tree search — same
+cross-file VRAM-residency gap as the per-texture extractor's ~631 materials).
+
 ### Session checkpoint — 2026-05-27 (53 commits)
 
 Headline numbers and what's open. The session brought the project from
