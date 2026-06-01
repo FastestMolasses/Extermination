@@ -1,7 +1,7 @@
 // Hybrid asm void: real mnemonics where mwcc accepts them,
 // .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001C63E0(int, int, int, int);
-extern void func_001C67E0(int, int, int, int);
+extern void bone_init_default_2(int, int, int, int);
+extern void anim_clip_init(int, int, int, int);
 extern void func_001D0C70(int, int, int, int);
 
 asm void func_00183090(void) {
@@ -22,7 +22,7 @@ asm void func_00183090(void) {
     .word 0x14820009
     addiu $v1, $zero, 0x3
     lh $a1, 0x1F2($s0)
-    jal func_001C63E0
+    jal bone_init_default_2
     paddub $a0, $s0, $zero
     addiu $v0, $zero, 0x2
     sw $zero, 0x200($s0)
@@ -32,7 +32,7 @@ asm void func_00183090(void) {
     .word 0x14830017
     nop
     lh $a1, 0x1F2($s0)
-    jal func_001C63E0
+    jal bone_init_default_2
     paddub $a0, $s0, $zero
     addiu $v0, $zero, 0x4
     sw $zero, 0x200($s0)
@@ -49,7 +49,7 @@ asm void func_00183090(void) {
     lh $a1, 0x20C($s0)
     lwc1 $f12, 0x1F8($s0)
     mtc1 $zero, $f13
-    jal func_001C67E0
+    jal anim_clip_init
     paddub $a0, $s0, $zero
     sw $zero, 0x200($s0)
     paddub $v0, $zero, $zero

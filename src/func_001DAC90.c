@@ -1,6 +1,6 @@
 // Hybrid asm void: real mnemonics where mwcc accepts them,
 // .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001281C0(int, int, int, int);
+extern void float_to_int(int, int, int, int);
 
 asm void func_001DAC90(void) {
     addiu $sp, $sp, -0x40
@@ -31,7 +31,7 @@ asm void func_001DAC90(void) {
     nop
     mul.s $f0, $f0, $f3
     add.s $f0, $f1, $f0
-    jal func_001281C0
+    jal float_to_int
     add.s $f12, $f2, $f0
     addiu $v0, $v0, 0x10
     .word 0x1000000f
@@ -44,7 +44,7 @@ asm void func_001DAC90(void) {
     nop
     mul.s $f0, $f0, $f3
     add.s $f0, $f1, $f0
-    jal func_001281C0
+    jal float_to_int
     add.s $f12, $f2, $f0
     addiu $v0, $v0, 0x10
     .word 0x10000002
@@ -82,13 +82,13 @@ asm void func_001DAC90(void) {
     add.s $f0, $f4, $f0
     swc1 $f0, 0x14($s2)
     sw $v0, 0x18($s2)
-    jal func_001281C0
+    jal float_to_int
     lwc1 $f12, 0x0($s1)
     sw $v0, 0x20($s2)
-    jal func_001281C0
+    jal float_to_int
     lwc1 $f12, 0x4($s1)
     sw $v0, 0x24($s2)
-    jal func_001281C0
+    jal float_to_int
     lwc1 $f12, 0x8($s1)
     addiu $v1, $zero, 0xFF
     sw $v0, 0x28($s2)

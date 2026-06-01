@@ -196,8 +196,8 @@ isceSifSetDChain = 0x0010BC10;  // type:func
 // Sources: stdlib signature match / SDK banner ref / string ref
 // Names are heuristic; rename freely as analysis confirms them.
 // ===========================================================
-// strref: 'D2_TADR=%08x:'
-sub_D2_TADR_08x = 0x00100A60;  // type:func
+// strref: 'D2_TADR=%08x:' — VIF1/GIF/VU1 idle-wait + DMA submit (sync). See docs/FINDINGS.md.
+dma_wait_and_submit = 0x00100A60;  // type:func
 // strref: 'Invalid modion type -- ignored(%d)'
 sub_Invalid_modion_type_ignored_d = 0x001033E0;  // type:func
 // strref: '(c) invalid motion_type(%d)-2'
@@ -353,3 +353,83 @@ ftab_002411A8 = 0x002411A8;  // type:label
 ftab_0024D880 = 0x0024D880;  // type:label
 //   entries: 0x001B8FC0, 0x001B94F0, 0x001B9BA0, 0x001B8AB0, 0x001B9C10, 0x001B9CF0, 0x001BA080, 0x001B82D0, ... (19 more)
 // === End auto-added by tools/decomp/name_fptr_tables.py ===
+
+// ===========================================================
+// Hand-named from the 2026 anim/skinning/DMA/VU1/GS-readback RE session.
+// Each name is corroborated by docs/FINDINGS.md. (func_00100A60 was
+// previously sub_D2_TADR_08x and is renamed dma_wait_and_submit above.)
+// ===========================================================
+// DMA / VU1 / VIF infrastructure.
+// vu1_cold_start           VIF1/VU1 cold start primer
+// gs_readback_build_packet builds 7-qw BITBLTBUF readback packet
+// gs_vram_readback         GS-VRAM->EE pixel readback driver
+// dmac_channel_base        DMAC channel-base table accessor
+// dmac_reset               DMAC global reset
+// dma_kick                 generic outbound DMA kick
+// vif_append_ref_tag       REF-tag append into chain buffer
+// vif_build_unpack_const   static UNPACK boilerplate builder
+// skin_arena_init          D_00816440 skinning arena initializer
+vu1_cold_start = 0x00100278;  // type:func
+gs_readback_build_packet = 0x00100D78;  // type:func
+gs_vram_readback = 0x00100EB8;  // type:func
+dmac_channel_base = 0x00101BB8;  // type:func
+dmac_reset = 0x00101BE0;  // type:func
+dma_kick = 0x00101FE0;  // type:func
+vif_append_ref_tag = 0x001D2090;  // type:func
+vif_build_unpack_const = 0x001D4750;  // type:func
+skin_arena_init = 0x001D2E20;  // type:func
+// GS readback queue
+gs_readback_queue_drain = 0x001D7410;  // type:func
+gs_readback_queue_run = 0x001AAE40;  // type:func
+// Memory helpers (block_copy / copy_qw4 64-byte matrix copy / float->int)
+block_copy = 0x00121870;  // type:func
+copy_qw4 = 0x00102958;  // type:func
+float_to_int = 0x001281C0;  // type:func
+// Animation pipeline.
+// anim_frame_top_a/_b      per-frame engine state top
+// bone_matrix_publish      publishes composed matrices to BSS
+// anim_matrix_dispatch     5-branch dispatcher / matrix writer
+// anim_slot_index          double-buffer slot selector
+// anim_matrix_multi        multi-actor matrix writer
+// anim_matrix_player       player-only matrix writer
+// anim_clip_arbiter        clip-change arbiter / blend weight
+// anim_eval_skeleton       NLERP + TRS + parent concat evaluator
+// build_trs_matrix         TRS matrix builder
+// quat_nlerp               quaternion NLERP shortest-path
+// quat_to_mat3             quat -> 3x3 rotation basis
+// anim_clip_resolve        clip resolver, caches sections
+// anim_clip_init           clip-change initializer
+// anim_sample_bones        per-bone keyframe sampler
+// anim_advance_time        per-frame time advancer / event walker
+// anim_sample_rotation     rotation keyframe decoder
+// anim_decode_translation  translation keyframe decoder
+// anim_bone_array_setup    sets D_00275B40 per-bone source ptr
+anim_frame_top_a = 0x001ACA20;  // type:func
+anim_frame_top_b = 0x001AE040;  // type:func
+bone_matrix_publish = 0x00179BC0;  // type:func
+anim_matrix_dispatch = 0x0017A130;  // type:func
+anim_slot_index = 0x0017A0B0;  // type:func
+anim_matrix_multi = 0x00148B40;  // type:func
+anim_matrix_player = 0x0017B660;  // type:func
+anim_clip_arbiter = 0x001749F0;  // type:func
+anim_eval_skeleton = 0x001C6DA0;  // type:func
+build_trs_matrix = 0x001C94B0;  // type:func
+quat_nlerp = 0x001CA0A0;  // type:func
+quat_to_mat3 = 0x001CA1C0;  // type:func
+anim_clip_resolve = 0x001C8480;  // type:func
+anim_clip_init = 0x001C67E0;  // type:func
+anim_sample_bones = 0x001C8D50;  // type:func
+anim_advance_time = 0x001C64F0;  // type:func
+anim_sample_rotation = 0x001C8F10;  // type:func
+anim_decode_translation = 0x001C85D0;  // type:func
+anim_bone_array_setup = 0x001CB5B0;  // type:func
+// Bone init / effects.
+// bone_init_default_0/1/2  bind-pose init (scale=1, parent=-1) + companions
+// bone_root_pulse          root-bone scale-pulse effect
+// bone_wobble_decay_0/1    global wobble-decay loop
+bone_init_default_0 = 0x001C6200;  // type:func
+bone_init_default_1 = 0x001C62C0;  // type:func
+bone_init_default_2 = 0x001C63E0;  // type:func
+bone_root_pulse = 0x001C06E0;  // type:func
+bone_wobble_decay_0 = 0x001BDD70;  // type:func
+bone_wobble_decay_1 = 0x001BDCA0;  // type:func

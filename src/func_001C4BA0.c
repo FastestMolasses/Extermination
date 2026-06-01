@@ -1,5 +1,5 @@
 // All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_00102958(int, int, int, int);
+extern void copy_qw4(int, int, int, int);
 extern void func_001031E0(int, int, int, int);
 extern void func_001AFC10(int, int, int, int);
 extern void func_001B0FD0(int, int, int, int);
@@ -46,7 +46,7 @@ asm void func_001C4BA0(void) {
     .word 0x8e030110
     .word 0x8c420110
     .word 0x24640090
-    jal       func_00102958
+    jal       copy_qw4
     .word 0x24450090
     .word 0x8e020110
     .word 0x260500b0

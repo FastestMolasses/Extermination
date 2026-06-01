@@ -4,7 +4,7 @@
 // but byte-identical at link time (linker computes same -0x7D00 offset from the reloc).
 extern void func_0021B970(int, int, int);
 extern void func_0021BA80(int, int, int);
-extern void func_00121870(void *, void *, int);
+extern void block_copy(void *, void *, int);
 extern int *D_00275670;
 
 asm void func_0021B860(void) {
@@ -25,17 +25,17 @@ asm void func_0021B860(void) {
     .word 0x8F828300  // lw v0, %gp_rel(D_00275670)(gp) [hardcoded offset -0x7D00]
     .word 0x24060020  // addiu a2, zero, 0x20
     .word 0x24440100  // addiu a0, v0, 0x100
-    jal func_00121870
+    jal block_copy
     .word 0x244500A0  // addiu a1, v0, 0xA0 (delay slot)
     .word 0x8F828300  // lw v0, %gp_rel(D_00275670)(gp) [hardcoded]
     .word 0x24060020  // addiu a2, zero, 0x20
     .word 0x244400C0  // addiu a0, v0, 0xC0
-    jal func_00121870
+    jal block_copy
     .word 0x244500A0  // addiu a1, v0, 0xA0 (delay slot)
     .word 0x8F828300  // lw v0, %gp_rel(D_00275670)(gp) [hardcoded]
     .word 0x24060020  // addiu a2, zero, 0x20
     .word 0x244400E0  // addiu a0, v0, 0xE0
-    jal func_00121870
+    jal block_copy
     .word 0x244500A0  // addiu a1, v0, 0xA0 (delay slot)
     .word 0x7BBF0000  // lq ra, 0x0(sp)
     .word 0x03E00008  // jr ra

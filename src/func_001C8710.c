@@ -1,6 +1,6 @@
 // All-word: everything as .word except jal/j-external
-extern void func_001281C0(int, int, int, int);
-extern void func_001C8F10(int, int, int, int);
+extern void float_to_int(int, int, int, int);
+extern void anim_sample_rotation(int, int, int, int);
 extern void func_001C90D0(int, int, int, int);
 extern void func_001C92C0(int, int, int, int);
 
@@ -17,19 +17,19 @@ asm void func_001C8710(void) {
     .word 0x10200018
     .word 0x70008628
     .word 0x70808e28
-    jal       func_001281C0
+    jal       float_to_int
     .word 0x4600a306
     .word 0x8e240000
     .word 0x70403628
-    jal       func_001C8F10
+    jal       anim_sample_rotation
     .word 0x72002e28
-    jal       func_001281C0
+    jal       float_to_int
     .word 0x4600a306
     .word 0x8e240000
     .word 0x70403628
     jal       func_001C90D0
     .word 0x72002e28
-    jal       func_001281C0
+    jal       float_to_int
     .word 0x4600a306
     .word 0x8e240000
     .word 0x72002e28

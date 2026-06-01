@@ -1,5 +1,5 @@
 // Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_00101BB8(int, int, int, int);
+extern void dmac_channel_base(int, int, int, int);
 extern void func_00101F08(int, int, int, int);
 extern void func_00102468(int, int, int, int);
 
@@ -9,7 +9,7 @@ asm void func_00200830(void) {
     sq $s1, 0x10($sp)
     paddub $s1, $a0, $zero
     addiu $a0, $zero, 0x1
-    jal func_00101BB8
+    jal dmac_channel_base
     sq $s0, 0x0($sp)
     paddub $s0, $v0, $zero
     paddub $a0, $s0, $zero

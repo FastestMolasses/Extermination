@@ -1,7 +1,7 @@
 // Hybrid asm void: real mnemonics where mwcc accepts them,
 // .word for branch instructions (mwcc rejects PC-relative labels).
 extern void func_0011E0A8(int, int, int, int);
-extern void func_001281C0(int, int, int, int);
+extern void float_to_int(int, int, int, int);
 
 asm void func_0014E890(void) {
     addiu $sp, $sp, -0x40
@@ -46,11 +46,11 @@ asm void func_0014E890(void) {
     addiu $a0, $sp, 0x3C
     jal func_0011E0A8
     mul.s $f12, $f1, $f0
-    jal func_001281C0
+    jal float_to_int
     lwc1 $f12, 0x3C($sp)
     lw $v1, 0x13C($s1)
     sh $v0, 0x8A($v1)
-    jal func_001281C0
+    jal float_to_int
     lwc1 $f12, 0x3C($sp)
     lw $a1, 0x13C($s1)
     lui $v1, (0x3F800000 >> 16)
@@ -66,11 +66,11 @@ asm void func_0014E890(void) {
     nop
     jal func_0011E0A8
     mul.s $f12, $f0, $f1
-    jal func_001281C0
+    jal float_to_int
     lwc1 $f12, 0x3C($sp)
     lw $v1, 0x140($s1)
     sh $v0, 0x8A($v1)
-    jal func_001281C0
+    jal float_to_int
     lwc1 $f12, 0x3C($sp)
     lw $v1, 0x140($s1)
     sh $v0, 0x8C($v1)

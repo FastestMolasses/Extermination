@@ -1,7 +1,7 @@
 // Simple nonleaf asm void
 extern void DisableDmacHandler(int, int, int, int);
-extern void func_00101BB8(int, int, int, int);
-extern void func_00101FE0(int, int, int, int);
+extern void dmac_channel_base(int, int, int, int);
+extern void dma_kick(int, int, int, int);
 extern void func_00102468(int, int, int, int);
 
 asm void func_001CCCC0(void) {
@@ -98,14 +98,14 @@ asm void func_001CCCC0(void) {
     sd         $zero, 0x180($sp)
     sd         $v0, 0x198($sp)
     addiu      $a0, $zero, 0x1
-    jal        func_00101BB8
+    jal        dmac_channel_base
     sd        $zero, 0x190($sp)
     paddub     $s0, $v0, $zero
     jal        DisableDmacHandler
     paddub    $a0, $zero, $zero
     addiu      $a1, $sp, 0x20
     addiu      $a2, $zero, 0x18
-    jal        func_00101FE0
+    jal        dma_kick
     paddub    $a0, $s0, $zero
     paddub     $a0, $s0, $zero
     paddub     $a1, $zero, $zero

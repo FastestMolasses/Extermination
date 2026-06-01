@@ -1,7 +1,7 @@
 // Asm-void leaf, encoded entirely as .word directives — used when
 // expressing the function in source-level C or even labeled asm would
 // be impractical or would force mwcc into non-matching codegen.
-asm void func_00100D78(void) {
+asm void gs_readback_build_packet(void) {
     .word 0x27bdfff0
     .word 0x700014a9
     .word 0xffb00000

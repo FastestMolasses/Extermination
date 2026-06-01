@@ -1,5 +1,5 @@
 // All-word: everything as .word except jal/j-external
-extern void func_00121870(int, int, int, int);
+extern void block_copy(int, int, int, int);
 extern void func_001CF870(int, int, int, int);
 extern void func_001CF970(int, int, int, int);
 
@@ -109,7 +109,7 @@ asm void func_001CF470(void) {
     .word 0x00021100
     .word 0x02e22021
     .word 0x24060050
-    jal       func_00121870
+    jal       block_copy
     .word 0x72a02e28
     .word 0x10000078
     .word 0x26940001
@@ -145,7 +145,7 @@ asm void func_001CF470(void) {
     .word 0x00021100
     .word 0x02e22021
     .word 0x24060050
-    jal       func_00121870
+    jal       block_copy
     .word 0x72a02e28
     .word 0x02541021
     .word 0x24430001
@@ -167,7 +167,7 @@ asm void func_001CF470(void) {
     .word 0x00021100
     .word 0x02e22021
     .word 0x24060050
-    jal       func_00121870
+    jal       block_copy
     .word 0x72a02e28
     .word 0x02541021
     .word 0x24430001

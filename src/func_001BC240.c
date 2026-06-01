@@ -1,6 +1,6 @@
 // Multi-call non-leaf — asm void with extern decls for every callee.
 extern void func_001BC150(int, int, int, int);
-extern void func_001C64F0(int, int, int, int);
+extern void anim_advance_time(int, int, int, int);
 
 asm void func_001BC240(void) {
     addiu $sp, $sp, -0x30
@@ -10,7 +10,7 @@ asm void func_001BC240(void) {
     sq $s0, 0x0($sp)
     mtc1 $v0, $f12
     paddub $s0, $a1, $zero
-    jal func_001C64F0
+    jal anim_advance_time
     paddub $s1, $a0, $zero
     sh $v0, 0xE($s0)
     jal func_001BC150

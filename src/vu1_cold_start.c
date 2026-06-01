@@ -1,7 +1,7 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 extern int D_00241020[4];
 
-asm void func_00100278(void) {
+asm void vu1_cold_start(void) {
     lui      $v0, 0x1000
     addiu    $a3, $zero, 1
     ori      $v0, $v0, 0x3c10

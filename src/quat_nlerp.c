@@ -1,4 +1,4 @@
-asm void func_001CA0A0(void) {
+asm void quat_nlerp(void) {
     .word 0x3C033F80
     .word 0x44830000
     .word 0x00000000

@@ -1,5 +1,5 @@
 // Simple nonleaf asm void
-extern void func_001281C0(int, int, int, int);
+extern void float_to_int(int, int, int, int);
 extern void func_00207F80(int, int, int, int);
 
 asm void func_001DC020(void) {
@@ -32,7 +32,7 @@ asm void func_001DC020(void) {
     mtc1       $v1, $f1
     nop
     mul.s      $f0, $f0, $f20
-    jal        func_001281C0
+    jal        float_to_int
     add.s     $f12, $f1, $f0
     paddub     $s3, $v0, $zero
     lui        $v0, (0x435E0000 >> 16)
@@ -41,7 +41,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f0, $f0, $f20
-    jal        func_001281C0
+    jal        float_to_int
     add.s     $f12, $f1, $f0
     paddub     $s4, $v0, $zero
     lui        $v0, (0x43800000 >> 16)
@@ -50,7 +50,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f0, $f0, $f20
-    jal        func_001281C0
+    jal        float_to_int
     add.s     $f12, $f1, $f0
     paddub     $s5, $v0, $zero
     lui        $v0, (0x435E0000 >> 16)
@@ -59,7 +59,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f0, $f0, $f20
-    jal        func_001281C0
+    jal        float_to_int
     add.s     $f12, $f1, $f0
     paddub     $s6, $v0, $zero
     addiu      $v0, $s3, 0x700
@@ -70,7 +70,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f22, $f0, $f1
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f22
     paddub     $s2, $v0, $zero
     sra        $v0, $s4, 1
@@ -82,7 +82,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f24, $f0, $f1
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f24
     paddub     $s1, $v0, $zero
     addiu      $v0, $s5, 0x700
@@ -93,7 +93,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f21, $f0, $f1
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f21
     addiu      $v1, $s4, 0x2
     sra        $v1, $v1, 1
@@ -103,7 +103,7 @@ asm void func_001DC020(void) {
     cvt.s.w    $f1, $f0
     lui        $v0, (0x41800000 >> 16)
     mtc1       $v0, $f0
-    jal        func_001281C0
+    jal        float_to_int
     mul.s     $f12, $f0, $f1
     paddub     $8, $v0, $zero
     lui        $v0, (0x801996FF >> 16)
@@ -113,7 +113,7 @@ asm void func_001DC020(void) {
     paddub     $a0, $s0, $zero
     jal        func_00207F80
     .word 0x344996ff
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f22
     paddub     $s2, $v0, $zero
     sra        $v0, $s6, 1
@@ -125,10 +125,10 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f23, $f0, $f1
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f23
     paddub     $s1, $v0, $zero
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f21
     addiu      $v1, $s6, -0x2
     sra        $v1, $v1, 1
@@ -138,7 +138,7 @@ asm void func_001DC020(void) {
     cvt.s.w    $f1, $f0
     lui        $v0, (0x41800000 >> 16)
     mtc1       $v0, $f0
-    jal        func_001281C0
+    jal        float_to_int
     mul.s     $f12, $f0, $f1
     paddub     $8, $v0, $zero
     lui        $v0, (0x801996FF >> 16)
@@ -148,10 +148,10 @@ asm void func_001DC020(void) {
     paddub     $a0, $s0, $zero
     jal        func_00207F80
     .word 0x344996ff
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f22
     paddub     $s4, $v0, $zero
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f24
     addiu      $v1, $s3, 0x702
     mtc1       $v1, $f0
@@ -159,10 +159,10 @@ asm void func_001DC020(void) {
     cvt.s.w    $f1, $f0
     lui        $v0, (0x41800000 >> 16)
     mtc1       $v0, $f0
-    jal        func_001281C0
+    jal        float_to_int
     mul.s     $f12, $f0, $f1
     paddub     $s1, $v0, $zero
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f23
     paddub     $8, $v0, $zero
     lui        $v0, (0x801996FF >> 16)
@@ -172,10 +172,10 @@ asm void func_001DC020(void) {
     paddub     $a0, $s0, $zero
     jal        func_00207F80
     .word 0x344996ff
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f21
     mov.s      $f12, $f24
-    jal        func_001281C0
+    jal        float_to_int
     paddub    $s3, $v0, $zero
     addiu      $v1, $s5, 0x6FE
     mtc1       $v1, $f0
@@ -183,10 +183,10 @@ asm void func_001DC020(void) {
     cvt.s.w    $f1, $f0
     lui        $v0, (0x41800000 >> 16)
     mtc1       $v0, $f0
-    jal        func_001281C0
+    jal        float_to_int
     mul.s     $f12, $f0, $f1
     mov.s      $f12, $f23
-    jal        func_001281C0
+    jal        float_to_int
     paddub    $s1, $v0, $zero
     paddub     $8, $v0, $zero
     lui        $v0, (0x801996FF >> 16)
@@ -202,7 +202,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f0, $f0, $f20
-    jal        func_001281C0
+    jal        float_to_int
     add.s     $f12, $f1, $f0
     paddub     $s3, $v0, $zero
     lui        $v0, (0x435E0000 >> 16)
@@ -211,7 +211,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f0, $f0, $f20
-    jal        func_001281C0
+    jal        float_to_int
     add.s     $f12, $f1, $f0
     paddub     $s4, $v0, $zero
     lui        $v0, (0x43800000 >> 16)
@@ -220,7 +220,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f0, $f0, $f20
-    jal        func_001281C0
+    jal        float_to_int
     add.s     $f12, $f1, $f0
     paddub     $s5, $v0, $zero
     lui        $v0, (0x435E0000 >> 16)
@@ -229,7 +229,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f0, $f0, $f20
-    jal        func_001281C0
+    jal        float_to_int
     add.s     $f12, $f1, $f0
     paddub     $s6, $v0, $zero
     addiu      $v0, $s3, 0x700
@@ -240,7 +240,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f21, $f0, $f1
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f21
     paddub     $s2, $v0, $zero
     sra        $v0, $s4, 1
@@ -252,7 +252,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f23, $f0, $f1
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f23
     paddub     $s1, $v0, $zero
     addiu      $v0, $s5, 0x700
@@ -263,7 +263,7 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f20, $f0, $f1
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f20
     addiu      $v1, $s4, 0x2
     sra        $v1, $v1, 1
@@ -273,7 +273,7 @@ asm void func_001DC020(void) {
     cvt.s.w    $f1, $f0
     lui        $v0, (0x41800000 >> 16)
     mtc1       $v0, $f0
-    jal        func_001281C0
+    jal        float_to_int
     mul.s     $f12, $f0, $f1
     paddub     $8, $v0, $zero
     lui        $v0, (0x801996FF >> 16)
@@ -283,7 +283,7 @@ asm void func_001DC020(void) {
     paddub     $a0, $s0, $zero
     jal        func_00207F80
     .word 0x344996ff
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f21
     paddub     $s2, $v0, $zero
     sra        $v0, $s6, 1
@@ -295,10 +295,10 @@ asm void func_001DC020(void) {
     mtc1       $v0, $f0
     nop
     mul.s      $f22, $f0, $f1
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f22
     paddub     $s1, $v0, $zero
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f20
     addiu      $v1, $s6, -0x2
     sra        $v1, $v1, 1
@@ -308,7 +308,7 @@ asm void func_001DC020(void) {
     cvt.s.w    $f1, $f0
     lui        $v0, (0x41800000 >> 16)
     mtc1       $v0, $f0
-    jal        func_001281C0
+    jal        float_to_int
     mul.s     $f12, $f0, $f1
     paddub     $8, $v0, $zero
     lui        $v0, (0x801996FF >> 16)
@@ -318,10 +318,10 @@ asm void func_001DC020(void) {
     paddub     $a0, $s0, $zero
     jal        func_00207F80
     .word 0x344996ff
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f21
     paddub     $s4, $v0, $zero
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f23
     addiu      $v1, $s3, 0x702
     mtc1       $v1, $f0
@@ -329,10 +329,10 @@ asm void func_001DC020(void) {
     cvt.s.w    $f1, $f0
     lui        $v0, (0x41800000 >> 16)
     mtc1       $v0, $f0
-    jal        func_001281C0
+    jal        float_to_int
     mul.s     $f12, $f0, $f1
     paddub     $s1, $v0, $zero
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f22
     paddub     $8, $v0, $zero
     lui        $v0, (0x801996FF >> 16)
@@ -342,10 +342,10 @@ asm void func_001DC020(void) {
     paddub     $a0, $s0, $zero
     jal        func_00207F80
     .word 0x344996ff
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f20
     mov.s      $f12, $f23
-    jal        func_001281C0
+    jal        float_to_int
     paddub    $s3, $v0, $zero
     addiu      $v1, $s5, 0x6FE
     mtc1       $v1, $f0
@@ -353,10 +353,10 @@ asm void func_001DC020(void) {
     cvt.s.w    $f1, $f0
     lui        $v0, (0x41800000 >> 16)
     mtc1       $v0, $f0
-    jal        func_001281C0
+    jal        float_to_int
     mul.s     $f12, $f0, $f1
     mov.s      $f12, $f22
-    jal        func_001281C0
+    jal        float_to_int
     paddub    $s1, $v0, $zero
     paddub     $8, $v0, $zero
     lui        $v0, (0x801996FF >> 16)

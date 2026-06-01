@@ -1,5 +1,42 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-06-01 SYMBOL NAMING — anim / skinning / DMA / VU1 / GS-readback
+
+Pushed the session's RE findings into real symbol names. **40 functions
+renamed** from `func_XXXXXXXX` to descriptive names in
+`config/symbol_addrs.txt`, each corroborated by `docs/FINDINGS.md`:
+
+- DMA/VU1/VIF infra (9): `vu1_cold_start`, `dma_wait_and_submit` (was the
+  `sub_D2_TADR_08x` strref name), `gs_readback_build_packet`,
+  `gs_vram_readback`, `dmac_channel_base`, `dmac_reset`, `dma_kick`,
+  `vif_append_ref_tag`, `vif_build_unpack_const`, `skin_arena_init`.
+- GS readback queue (2): `gs_readback_queue_drain`, `gs_readback_queue_run`.
+- Memory helpers (3): `block_copy`, `copy_qw4`, `float_to_int`.
+- Animation pipeline (19): `anim_frame_top_a/_b`, `bone_matrix_publish`,
+  `anim_matrix_dispatch`, `anim_slot_index`, `anim_matrix_multi`,
+  `anim_matrix_player`, `anim_clip_arbiter`, `anim_eval_skeleton`,
+  `build_trs_matrix`, `quat_nlerp`, `quat_to_mat3`, `anim_clip_resolve`,
+  `anim_clip_init`, `anim_sample_bones`, `anim_advance_time`,
+  `anim_sample_rotation`, `anim_decode_translation`, `anim_bone_array_setup`.
+- Bone init / effects (6): `bone_init_default_0/1/2`, `bone_root_pulse`,
+  `bone_wobble_decay_0/1`.
+
+Mechanics: re-ran splat, renamed 16 owning `src/*.c` definition files
+(`git mv` + internal symbol), updated all stale `extern`/`jal` references
+across 94 `src/*.c` caller files, and — the step that bit twice before —
+updated the 5 affected name-keyed entries in
+`tools/decomp/fill_unmatched.py`'s `GPREL_FORCE_ASM` / `SIZE_DRIFT_FORCE_ASM`
+lists (a renamed force-asm function silently falls back to non-matching
+compiled C otherwise). **Boot ELF byte-identical (0x175b00 loadable bytes),
+overlays 19/19 byte-identical.**
+
+Named-symbol count: **244 named functions** (`type:func`, non-`func_`) +
+4 `type:label` data/table symbols.
+
+Toolchain note: under the Apple `container` CLI, `fill_unmatched.py`'s default
+8-way parallel copy intermittently hits `OSError EDEADLK` on the bind mount;
+`--clean --jobs 1` then `link.py --no-fill` is the reliable path.
+
 ### Update — 2026-06-01 LEVEL-SCENE glTF EXPORTER (explorable textured levels in Blender)
 
 Applied the character glTF infrastructure to a new surface: **whole `id 0x44`
@@ -45,7 +82,8 @@ exports posed + textured character glTFs.
   - Boot ELF: **1247/1344 (92.78%) functions matched, 96.18% code-byte
     match, byte-identical**.
   - Overlays: **120/586 functions decomp'd, 19/19 byte-identical**.
-  - 255 named symbols (incl. fptr-table labels).
+  - 255 named symbols (incl. fptr-table labels). _(See 2026-06-01 naming
+    update above: now 244 named functions + 4 label symbols.)_
   - Reusable tools landed: `inject_relocs.py`, `name_fptr_tables.py`,
     `name_functions.py`, `name_vtables_overlays.py`,
     `parse_pcsx2_state.py`, `parse_gsdump.py`, `disasm_vu.py`,

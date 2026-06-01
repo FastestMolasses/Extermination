@@ -4,7 +4,7 @@ extern void func_001BA540(int, int, int, int);
 extern void func_001BA580(int, int, int, int);
 extern void func_001BAD40(int, int, int, int);
 extern void func_001C5C90(int, int, int, int);
-extern void func_001C64F0(int, int, int, int);
+extern void anim_advance_time(int, int, int, int);
 extern void func_001C68C0(int, int, int, int);
 extern void func_001F9660(int, int, int, int);
 
@@ -88,7 +88,7 @@ asm void func_001BB0E0(void) {
     jal       func_001BA580
     .word 0x00000000
     .word 0xc60c000c
-    jal       func_001C64F0
+    jal       anim_advance_time
     .word 0x72202628
     jal       func_001C68C0
     .word 0x72202628
@@ -100,7 +100,7 @@ asm void func_001BB0E0(void) {
     .word 0x1000002b
     .word 0x00000000
     .word 0xc60c000c
-    jal       func_001C64F0
+    jal       anim_advance_time
     .word 0x72202628
     jal       func_001C68C0
     .word 0x72202628
@@ -115,7 +115,7 @@ asm void func_001BB0E0(void) {
     .word 0x1000001c
     .word 0x00000000
     .word 0xc60c000c
-    jal       func_001C64F0
+    jal       anim_advance_time
     .word 0x72202628
     jal       func_001C68C0
     .word 0x72202628

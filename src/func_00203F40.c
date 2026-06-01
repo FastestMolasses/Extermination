@@ -1,5 +1,5 @@
 // Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00121870(int, int, int, int);
+extern void block_copy(int, int, int, int);
 
 asm void func_00203F40(void) {
     addiu      $sp, $sp, -0x90
@@ -29,16 +29,16 @@ asm void func_00203F40(void) {
     .word 0x14400010
     subu      $s0, $s6, $s3
     .word 0x72802e28
-    jal        func_00121870
+    jal        block_copy
     .word 0x72c03628
     addu       $a1, $s4, $s6
     subu       $a2, $s3, $s6
-    jal        func_00121870
+    jal        block_copy
     .word 0x72a02628
     addu       $v0, $s5, $s3
     subu       $a0, $v0, $s6
     .word 0x72402e28
-    jal        func_00121870
+    jal        block_copy
     .word 0x72203628
     .word 0x1000001b
     addu      $v0, $s3, $s1
@@ -47,25 +47,25 @@ asm void func_00203F40(void) {
     .word 0x14400010
     .word 0x72802e28
     .word 0x72802e28
-    jal        func_00121870
+    jal        block_copy
     .word 0x72603628
     addu       $a0, $s7, $s3
     .word 0x72402e28
-    jal        func_00121870
+    jal        block_copy
     .word 0x72003628
     addu       $v0, $s2, $s6
     subu       $a1, $v0, $s3
     subu       $a2, $s1, $s0
-    jal        func_00121870
+    jal        block_copy
     .word 0x72a02628
     .word 0x10000008
     nop
     .word 0x72802e28
-    jal        func_00121870
+    jal        block_copy
     .word 0x72603628
     addu       $a0, $s7, $s3
     .word 0x72402e28
-    jal        func_00121870
+    jal        block_copy
     .word 0x72203628
     addu       $v0, $s3, $s1
     .word 0x7bbf0080

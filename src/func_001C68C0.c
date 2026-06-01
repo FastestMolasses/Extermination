@@ -1,5 +1,5 @@
 // Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_001C94B0(int, int, int, int);
+extern void build_trs_matrix(int, int, int, int);
 extern void func_001C9940(int, int, int, int);
 
 asm void func_001C68C0(void) {
@@ -10,7 +10,7 @@ asm void func_001C68C0(void) {
     addiu $a0, $s0, 0xD0
     addiu $a1, $s0, 0xB0
     addiu $a2, $s0, 0xC0
-    jal func_001C94B0
+    jal build_trs_matrix
     addiu $a3, $s0, 0x60
     lbu $a1, 0xC($s0)
     addiu $a0, $s0, 0x110

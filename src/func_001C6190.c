@@ -1,5 +1,5 @@
 // Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_001281C0(int, int, int, int);
+extern void float_to_int(int, int, int, int);
 extern void func_001C6160(int, int, int, int);
 
 asm void func_001C6190(void) {
@@ -9,7 +9,7 @@ asm void func_001C6190(void) {
     jal func_001C6160
     paddub $s0, $a0, $zero
     lwc1 $f12, 0x3C($s0)
-    jal func_001281C0
+    jal float_to_int
     paddub $s0, $v0, $zero
     subu $v0, $s0, $v0
     lq $ra, 0x10($sp)

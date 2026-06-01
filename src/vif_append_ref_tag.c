@@ -2,7 +2,7 @@
 extern int D_00275670;
 extern int D_00275674;
 
-void func_001D2090(int a0, int a1) {
+void vif_append_ref_tag(int a0, int a1) {
     int v1;
     int t0;
     int t1;

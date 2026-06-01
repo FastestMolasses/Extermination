@@ -1,5 +1,5 @@
 // Hybrid: branches/j as .word, jal with extern decls
-extern void func_00121870(int, int, int, int);
+extern void block_copy(int, int, int, int);
 extern void func_00121AF8(int, int, int, int);
 extern void func_00121BA0(int, int, int, int);
 
@@ -52,7 +52,7 @@ asm void func_00121BD0(void) {
     addiu      $a1, $s1, 0xC
     addiu      $a0, $s0, 0xC
     sll        $a2, $a2, 2
-    jal        func_00121870
+    jal        block_copy
     addiu     $a2, $a2, 0x8
     daddu      $a1, $s1, $zero
     jal        func_00121BA0

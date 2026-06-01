@@ -5,7 +5,7 @@ extern void func_00102A60(int, int, int, int);
 extern void func_00102B08(int, int, int, int);
 extern void func_00102BB0(int, int, int, int);
 
-asm void func_001C94B0(void) {
+asm void build_trs_matrix(void) {
     addiu      $sp, $sp, -0x50
     sq         $ra, 0x40($sp)
     sq         $s3, 0x30($sp)

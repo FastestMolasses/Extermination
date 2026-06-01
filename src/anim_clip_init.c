@@ -1,10 +1,10 @@
 // All-word: everything as .word except jal/j-external
 extern void func_00128250(int, int, int, int);
-extern void func_001C64F0(int, int, int, int);
-extern void func_001C8480(int, int, int, int);
-extern void func_001C8D50(int, int, int, int);
+extern void anim_advance_time(int, int, int, int);
+extern void anim_clip_resolve(int, int, int, int);
+extern void anim_sample_bones(int, int, int, int);
 
-asm void func_001C67E0(void) {
+asm void anim_clip_init(void) {
     .word 0x27bdffd0
     .word 0x7fbf0020
     .word 0x7fb00010
@@ -16,7 +16,7 @@ asm void func_001C67E0(void) {
     .word 0x8c840040
     .word 0x8605002c
     .word 0x46006546
-    jal       func_001C8480
+    jal       anim_clip_resolve
     .word 0x46006d06
     .word 0x44800000
     .word 0x00000000
@@ -34,11 +34,11 @@ asm void func_001C67E0(void) {
     .word 0x26040110
     .word 0xa4a2008e
     .word 0x9205000c
-    jal       func_001C8D50
+    jal       anim_sample_bones
     .word 0x4600a306
     .word 0x3c023f80
     .word 0x44826000
-    jal       func_001C64F0
+    jal       anim_advance_time
     .word 0x72002628
     .word 0x1000000c
     .word 0x7bbf0020
@@ -50,7 +50,7 @@ asm void func_001C67E0(void) {
     .word 0x4600a306
     .word 0xa462008e
     .word 0x9205000c
-    jal       func_001C8D50
+    jal       anim_sample_bones
     .word 0x4600ab46
     .word 0x7bbf0020
     .word 0x7bb00010

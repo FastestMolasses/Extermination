@@ -3,7 +3,7 @@
 extern void func_0011DE90(int, int, int, int);
 extern void func_0011DF78(int, int, int, int);
 extern void func_0011E2A8(int, int, int, int);
-extern void func_001281C0(int, int, int, int);
+extern void float_to_int(int, int, int, int);
 extern void func_001764E0(int, int, int, int);
 
 asm void func_00178B90(void) {
@@ -123,7 +123,7 @@ asm void func_00178B90(void) {
     div.s $f12, $f23, $f21
     nop
     nop
-    jal func_001281C0
+    jal float_to_int
     nop
     paddub $s3, $v0, $zero
     slt $at, $zero, $s3

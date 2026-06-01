@@ -1,5 +1,5 @@
 // Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_001281C0(int, int, int, int);
+extern void float_to_int(int, int, int, int);
 
 asm void func_001D0D60(void) {
     addiu      $sp, $sp, -0x60
@@ -32,7 +32,7 @@ asm void func_001D0D60(void) {
     nop
     .word 0x3c023f80
     mtc1       $v0, $f0
-    jal        func_001281C0
+    jal        float_to_int
     add.s     $f12, $f0, $f1
     mtc1       $v0, $f0
     nop
@@ -57,7 +57,7 @@ asm void func_001D0D60(void) {
     .word 0xc6610008
     .word 0x3c023f80
     mtc1       $v0, $f0
-    jal        func_001281C0
+    jal        float_to_int
     add.s     $f12, $f0, $f1
     mtc1       $v0, $f0
     .word 0xc6610004
@@ -68,11 +68,11 @@ asm void func_001D0D60(void) {
     .word 0x70408e28
     .word 0x3c023f80
     mtc1       $v0, $f0
-    jal        func_001281C0
+    jal        float_to_int
     sub.s     $f12, $f1, $f0
     .word 0x70408e28
     .word 0xc6740008
-    jal        func_001281C0
+    jal        float_to_int
     mov.s     $f12, $f20
     mtc1       $v0, $f0
     .word 0x8e720000
@@ -81,7 +81,7 @@ asm void func_001D0D60(void) {
     sub.s      $f21, $f20, $f0
     mtc1       $v0, $f0
     mov.s      $f12, $f20
-    jal        func_001281C0
+    jal        float_to_int
     sub.s     $f20, $f0, $f21
     sll        $v1, $v0, 3
     subu       $v0, $v1, $v0

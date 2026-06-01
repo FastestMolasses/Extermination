@@ -3,18 +3,18 @@
 // gp_rel and lui/addiu %hi/%lo hardcoded .word. Byte-identical at link time.
 extern char *D_00275670;
 extern char D_00816440[0x10000];
-extern void func_001D4750(int);
-extern void func_001D2090(int, char *);
+extern void vif_build_unpack_const(int);
+extern void vif_append_ref_tag(int, char *);
 extern char D_00239C90[8];
 
 asm void func_001D4960(void) {
     .word 0x27BDFFF0  // addiu sp, sp, -0x10
     .word 0x7FBF0000  // sq ra, 0x0(sp)
-    jal func_001D4750
+    jal vif_build_unpack_const
     .word 0x70002628  // paddub a0, zero, zero (delay slot)
     .word 0x3C020024  // lui v0, %hi(D_00239C90) [hardcoded]
     .word 0x24459C90  // addiu a1, v0, %lo(D_00239C90) [hardcoded]
-    jal func_001D2090
+    jal vif_append_ref_tag
     .word 0x70002628  // paddub a0, zero, zero (delay slot)
     .word 0x8F888300  // lw t0, %gp_rel(D_00275670)(gp) [hardcoded]
     .word 0x3C030081  // lui v1, %hi(D_00816440) [hardcoded]

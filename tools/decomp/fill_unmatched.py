@@ -129,7 +129,7 @@ GPREL_FORCE_ASM = {
     "func_001BF6B0",
     "func_001C0004",
     "func_001C02E0",
-    "func_001C06E0",
+    "bone_root_pulse",  # was func_001C06E0
     "func_001C1A80",
     "func_001CB9B0",
     "func_001D0F20",
@@ -138,7 +138,7 @@ GPREL_FORCE_ASM = {
     "func_001D1F80",
     "func_001D1FF0",
     "func_001D2040",
-    "func_001D2090",
+    "vif_append_ref_tag",  # was func_001D2090
     "func_001D21E0",
     "func_001D2300",
     "func_001D3F60",
@@ -312,7 +312,7 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_001B1EA0",
     "func_001B2B80",
     "func_001B2BF0",
-    "func_001C67E0",
+    "anim_clip_init",  # was func_001C67E0
     "func_001C8710",
     "func_001C9E40",
     "func_001CBE10",
@@ -356,7 +356,7 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_001B3250",
     "func_001B3670",
     "func_001B5F40",
-    "func_001C85D0",
+    "anim_decode_translation",  # was func_001C85D0
     "func_001D2160",
     "func_001D2DE0",
     "func_001D8FD0",
@@ -370,7 +370,7 @@ SIZE_DRIFT_FORCE_ASM = {
     # mwcc compiles successfully (or that build.py's tolerant compile
     # batches skip) but whose bytes diverge from the original; fall back
     # to splat-assembled .s for byte identity.
-    "func_00101BB8",
+    "dmac_channel_base",  # was func_00101BB8
     "func_00101CC0",
     "func_00101EA8",
     "func_00102458",

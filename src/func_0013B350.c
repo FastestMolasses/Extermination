@@ -6,7 +6,7 @@ extern void func_0013B790(int, int, int, int);
 extern void func_0013BE60(int, int, int, int);
 extern void func_0013BF20(int, int, int, int);
 extern void func_001B17A0(int, int, int, int);
-extern void func_001C64F0(int, int, int, int);
+extern void anim_advance_time(int, int, int, int);
 extern void func_001C6910(int, int, int, int);
 
 asm void func_0013B350(void) {
@@ -44,7 +44,7 @@ asm void func_0013B350(void) {
     .word 0x72002e28
     .word 0x3c023f80
     .word 0x44826000
-    jal       func_001C64F0
+    jal       anim_advance_time
     .word 0x72202628
     .word 0xae020070
     jal       func_00131ED0

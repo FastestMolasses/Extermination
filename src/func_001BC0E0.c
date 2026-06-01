@@ -1,7 +1,7 @@
 // Hybrid asm void: real mnemonics where mwcc accepts them,
 // .word for branch instructions (mwcc rejects PC-relative labels).
 extern void func_001BA1F0(int, int, int, int);
-extern void func_001C64F0(int, int, int, int);
+extern void anim_advance_time(int, int, int, int);
 
 asm void func_001BC0E0(void) {
     addiu $sp, $sp, -0x30
@@ -14,7 +14,7 @@ asm void func_001BC0E0(void) {
     paddub $s0, $a1, $zero
     lui $v0, (0x3F800000 >> 16)
     mtc1 $v0, $f12
-    jal func_001C64F0
+    jal anim_advance_time
     nop
     sh $v0, 0xE($s0)
     jal func_001BA1F0

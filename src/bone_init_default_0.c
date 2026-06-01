@@ -2,7 +2,7 @@
 // .word for branch instructions (mwcc rejects PC-relative labels).
 extern void func_001029C0(int, int, int, int);
 
-asm void func_001C6200(void) {
+asm void bone_init_default_0(void) {
     addiu $sp, $sp, -0x40
     sq $ra, 0x30($sp)
     sq $s2, 0x20($sp)

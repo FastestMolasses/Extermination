@@ -2,7 +2,7 @@
 // .word for branch instructions (mwcc rejects PC-relative labels).
 extern void func_001278C0(int, int, int, int);
 
-asm void func_001281C0(void) {
+asm void float_to_int(void) {
     addiu $sp, $sp, -0x30
     sd $ra, 0x20($sp)
     addiu $a0, $sp, 0x10

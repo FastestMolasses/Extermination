@@ -1,14 +1,14 @@
 // Hybrid asm void: real mnemonics where mwcc accepts them,
 // .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001C67E0(int, int, int, int);
+extern void anim_clip_init(int, int, int, int);
 
-asm void func_001749F0(void) {
+asm void anim_clip_arbiter(void) {
     addiu $sp, $sp, -0x30
     sq $ra, 0x20($sp)
     sq $s1, 0x10($sp)
     sq $s0, 0x0($sp)
     paddub $s1, $a0, $zero
-    jal func_001C67E0
+    jal anim_clip_init
     paddub $s0, $a1, $zero
     lh $v0, 0x20C($s1)
     dsll32 $v1, $s0, 16

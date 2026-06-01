@@ -1,4 +1,4 @@
-asm void func_001CA1C0(void) {
+asm void quat_to_mat3(void) {
     .word 0xC4A20000
     .word 0x3C034000
     .word 0x44830800

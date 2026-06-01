@@ -1,5 +1,5 @@
 // Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_001281C0(int, int, int, int);
+extern void float_to_int(int, int, int, int);
 
 asm void func_0017D800(void) {
     addiu      $sp, $sp, -0x20
@@ -26,7 +26,7 @@ asm void func_0017D800(void) {
     .word 0x3c017000
     add.s      $f0, $f0, $f1
     .word 0xe6000258
-    jal        func_001281C0
+    jal        float_to_int
     .word 0xc42c3a20
     .word 0xa6020028
     .word 0xc60002e0

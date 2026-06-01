@@ -1,5 +1,5 @@
 // Simple nonleaf asm void
-extern void func_001281C0(int, int, int, int);
+extern void float_to_int(int, int, int, int);
 extern void func_00207E40(int, int, int, int);
 
 asm void func_00211310(void) {
@@ -21,7 +21,7 @@ asm void func_00211310(void) {
     mtc1       $v0, $f0
     nop
     add.s      $f1, $f1, $f2
-    jal        func_001281C0
+    jal        float_to_int
     mul.s     $f12, $f0, $f1
     lwc1       $f1, 0x0($s0)
     lui        $a2, (0x40000000 >> 16)
@@ -42,7 +42,7 @@ asm void func_00211310(void) {
     div.s      $f1, $f2, $f1
     add.s      $f1, $f0, $f1
     mtc1       $v0, $f0
-    jal        func_001281C0
+    jal        float_to_int
     mul.s     $f12, $f0, $f1
     paddub     $a2, $v0, $zero
     lui        $v0, (0x80808080 >> 16)

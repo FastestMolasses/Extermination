@@ -2,7 +2,7 @@
 extern void func_00122BB8(int, int, int, int);
 extern void func_00150DA0(int, int, int, int);
 extern void func_00150F40(int, int, int, int);
-extern void func_001C67E0(int, int, int, int);
+extern void anim_clip_init(int, int, int, int);
 extern void func_001FBD50(int, int, int, int);
 
 asm void func_0014EEF0(void) {
@@ -106,7 +106,7 @@ asm void func_0014EEF0(void) {
     .word 0xae2200b4
     .word 0x72202628
     .word 0x46006346
-    jal       func_001C67E0
+    jal       anim_clip_init
     .word 0x70002e28
     .word 0x8e240020
     .word 0x108000ba

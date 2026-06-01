@@ -1,6 +1,6 @@
 // Multi-call non-leaf — asm void with extern decls for every callee.
 extern void func_00110AB8(int, int, int, int);
-extern void func_00121870(int, int, int, int);
+extern void block_copy(int, int, int, int);
 
 asm void func_00110B38(void) {
     addiu $sp, $sp, -0x30
@@ -12,7 +12,7 @@ asm void func_00110B38(void) {
     daddu $s0, $v0, $zero
     daddu $a0, $s1, $zero
     lw $a2, 0x60($s0)
-    jal func_00121870
+    jal block_copy
     daddu $a1, $s0, $zero
     lw $v0, 0x60($s0)
     ld $ra, 0x20($sp)

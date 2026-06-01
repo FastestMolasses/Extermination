@@ -1,5 +1,5 @@
 // Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_001281C0(int, int, int, int);
+extern void float_to_int(int, int, int, int);
 extern void func_00207D00(int, int, int, int);
 extern void func_00207E40(int, int, int, int);
 
@@ -137,7 +137,7 @@ asm void func_00225720(void) {
     mtc1       $v0, $f1
     nop
     cvt.s.w    $f1, $f1
-    jal        func_001281C0
+    jal        float_to_int
     mul.s     $f12, $f0, $f1
     .word 0x70403628
     .word 0x3c024080
@@ -166,7 +166,7 @@ asm void func_00225720(void) {
     mtc1       $v0, $f1
     nop
     cvt.s.w    $f1, $f1
-    jal        func_001281C0
+    jal        float_to_int
     mul.s     $f12, $f0, $f1
     .word 0x70403628
     .word 0x3c024080

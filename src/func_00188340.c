@@ -3,7 +3,7 @@ extern void func_00188180(int, int, int, int);
 extern void func_00188250(int, int, int, int);
 extern void func_00188430(int, int, int, int);
 extern void func_001AFC10(int, int, int, int);
-extern void func_001C64F0(int, int, int, int);
+extern void anim_advance_time(int, int, int, int);
 
 asm void func_00188340(void) {
     .word 0x27bdffe0
@@ -32,7 +32,7 @@ asm void func_00188340(void) {
     .word 0xa2030004
     .word 0x3c023f80
     .word 0x44826000
-    jal       func_001C64F0
+    jal       anim_advance_time
     .word 0x00000000
     .word 0xa602002e
     .word 0x9203000d

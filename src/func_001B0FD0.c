@@ -1,6 +1,6 @@
 // Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
 extern void func_001B0EA0(int, int, int, int);
-extern void func_001C62C0(int, int, int, int);
+extern void bone_init_default_1(int, int, int, int);
 
 asm void func_001B0FD0(void) {
     addiu      $sp, $sp, -0x20
@@ -13,7 +13,7 @@ asm void func_001B0FD0(void) {
     .word 0x10000008
     addiu     $v0, $zero, 0x1
     .word 0x72002628
-    jal        func_001C62C0
+    jal        bone_init_default_1
     nop
     .word 0x92030004
     .word 0x70001628

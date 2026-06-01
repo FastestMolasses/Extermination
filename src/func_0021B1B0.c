@@ -1,7 +1,7 @@
 // All-word: everything as .word except jal/j-external
 extern void func_00102948(int, int, int, int);
 extern void func_0011DF78(int, int, int, int);
-extern void func_001281C0(int, int, int, int);
+extern void float_to_int(int, int, int, int);
 extern void func_001D1F80(int, int, int, int);
 extern void func_001D63B0(int, int, int, int);
 extern void func_001DFA40(int, int, int, int);
@@ -108,7 +108,7 @@ asm void func_0021B1B0(void) {
     .word 0x44820000
     .word 0x00000000
     .word 0x46011082
-    jal       func_001281C0
+    jal       float_to_int
     .word 0x46020302
     .word 0x70409628
     .word 0x3c023f00
@@ -141,7 +141,7 @@ asm void func_0021B1B0(void) {
     .word 0xc6800018
     .word 0x4601a502
     .word 0x46800020
-    jal       func_001281C0
+    jal       float_to_int
     .word 0x46140300
     .word 0xafa200a4
     .word 0x3c0200ff

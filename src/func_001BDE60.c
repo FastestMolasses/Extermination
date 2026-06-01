@@ -3,8 +3,8 @@ extern void func_001AFC10(int, int, int, int);
 extern void func_001B0FD0(int, int, int, int);
 extern void func_001B1D20(int, int, int, int);
 extern void func_001BBD20(int, int, int, int);
-extern void func_001BDCA0(int, int, int, int);
-extern void func_001BDD70(int, int, int, int);
+extern void bone_wobble_decay_1(int, int, int, int);
+extern void bone_wobble_decay_0(int, int, int, int);
 extern void func_001C6380(int, int, int, int);
 
 asm void func_001BDE60(void) {
@@ -55,7 +55,7 @@ asm void func_001BDE60(void) {
     .word 0x10000015
     .word 0x00000000
     .word 0x72002628
-    jal       func_001BDCA0
+    jal       bone_wobble_decay_1
     .word 0x00000000
     .word 0x10400010
     .word 0x00000000
@@ -69,7 +69,7 @@ asm void func_001BDE60(void) {
     .word 0x10000007
     .word 0x00000000
     .word 0x72002628
-    jal       func_001BDD70
+    jal       bone_wobble_decay_0
     .word 0x00000000
     .word 0x10400002
     .word 0x00000000

@@ -1,6 +1,6 @@
 // Simple nonleaf asm void
 extern void func_00122BB8(int, int, int, int);
-extern void func_001281C0(int, int, int, int);
+extern void float_to_int(int, int, int, int);
 
 asm void func_001E00F0(void) {
     addiu      $sp, $sp, -0x50
@@ -68,13 +68,13 @@ asm void func_001E00F0(void) {
     add.s      $f1, $f1, $f3
     swc1       $f1, 0x14($s1)
     sw         $v0, 0x18($s1)
-    jal        func_001281C0
+    jal        float_to_int
     lwc1      $f12, 0x0($s0)
     sw         $v0, 0x20($s1)
-    jal        func_001281C0
+    jal        float_to_int
     lwc1      $f12, 0x4($s0)
     sw         $v0, 0x24($s1)
-    jal        func_001281C0
+    jal        float_to_int
     lwc1      $f12, 0x8($s0)
     addiu      $v1, $zero, 0xFF
     sw         $v0, 0x28($s1)

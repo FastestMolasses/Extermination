@@ -1,6 +1,6 @@
 // All-word: everything as .word except jal/j-external
 extern void func_001749A0(int, int, int, int);
-extern void func_001749F0(int, int, int, int);
+extern void anim_clip_arbiter(int, int, int, int);
 extern void func_001B61C0(int, int, int, int);
 extern void func_001C61D0(int, int, int, int);
 extern void func_001FBD50(int, int, int, int);
@@ -108,7 +108,7 @@ asm void func_002243F0(void) {
     .word 0x46010343
     .word 0x00000000
     .word 0x00000000
-    jal       func_001749F0
+    jal       anim_clip_arbiter
     .word 0x00000000
     .word 0x10000015
     .word 0x00000000
@@ -130,7 +130,7 @@ asm void func_002243F0(void) {
     .word 0x46010343
     .word 0x00000000
     .word 0x00000000
-    jal       func_001749F0
+    jal       anim_clip_arbiter
     .word 0x00000000
     .word 0x24020001
     .word 0x7bbf0010
