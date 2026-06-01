@@ -315,7 +315,7 @@ def _selftest() -> None:
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) == 1:
+    if len(sys.argv) == 1 or "--selftest" in sys.argv[1:]:
         _selftest()
     else:
         print(__doc__)
