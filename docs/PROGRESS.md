@@ -1,5 +1,48 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-06-01 GLOBAL GS VRAM RESIDENCY MAP (cross-file texture resolution)
+
+New tool `tools/vram_residency.py` builds ONE disc-wide GS VRAM residency map
+so any DBP resolves regardless of which file uploads it — closing the
+"cross-file texture residency" gap that left exporter sheets gray.
+
+- **Scans every file** under `extract/` for GS upload packets and records each
+  upload's full descriptor `(DBP, DBW, DPSM, TRXREG w×h, TRXPOS dest, source
+  file, byte offset)`, indexed `DBP → [uploads]`. Reuses
+  `extract_subtextures.decode_transfer` for pixels (no duplicate decode).
+- **Cached** to `scratch/vram_residency.json` (git-ignored; verified via
+  `git check-ignore`). A size/mtime corpus signature invalidates it;
+  `--rebuild` forces a fresh scan. Cached load 0.018s vs 3.2s full scan.
+- **Lookup API** `resolve_dbp(dbp, prefer_dir=…, want_psm=…, want_dims=…)`
+  returns the best upload: exact-DBP candidates ranked by hint match + same
+  chunk dir + stable path order, else nearest-DBP within a snap tolerance
+  (the affine `sheet_field→DBP` map is exact only on the universal slot trio,
+  so neighbouring addresses are the same physical sheet). Returns ALL
+  candidates via `candidates(dbp)` so the consumer can disambiguate.
+
+**Disc-wide census (definitive):** exactly **113 GS texture uploads** at only
+**5 distinct DBPs** `{7040, 7424, 10752, 12672, 14592}`, all PSMCT32 / DBW=4.
+Each DBP is re-targeted by many files (slot reuse across levels) with varying
+dimensions, so DBP alone is ambiguous. **Zero GS CLUT uploads** — confirms
+CLUTs are the raw 1024-byte blobs (`clut.py`), not GS packets; the color-CLUT
+question gains no lead from GS packets (the hoped-for CLUT-upload crack came up
+empty — palettes simply aren't GS-packetised).
+
+**Wired into `export_gltf.py`** (character + level paths consult the map first,
+legacy per-dir scan as fallback). Results:
+- **Player**: 3/3 sheets, identical sources to the validated baseline
+  (10752/12672 from chunk21, 14592 → chunk04.n2 512×384).
+- **Sample levels** `chunk08.n0`/`chunk08.n1`: 3/6→4/6 and 3/7→4/7 (DBP 14562
+  now snaps to 14592's sheet, was gray).
+- **All 32 levels aggregate**: 91/143 → 93/143 sheets resolved. The remaining
+  50 are low DBPs (548…2581, 1152, 8802) with no upload anywhere on disc
+  (common/UI textures outside the extracted tree) — they honestly stay gray.
+- pygltflib strict round-trip passes on all re-exported `.glb`s.
+
+Files: `tools/vram_residency.py` (new), `tools/export_gltf.py` (wired),
+`docs/FINDINGS.md` ("Global GS VRAM residency map"). Output cache and `.glb`s
+stay git-ignored.
+
 ### Update — 2026-06-01 SYMBOL NAMING — anim / skinning / DMA / VU1 / GS-readback
 
 Pushed the session's RE findings into real symbol names. **40 functions
@@ -2020,9 +2063,16 @@ ELF** (1530624/1530624 bytes, 100.00%).
     `tools/parse_gsdump.py` is retained as a general-purpose PCSX2
     GS-dump reader for future GS-side questions.
 - **MATRIX `--scene`.** Role of the repeated identity transforms, and whether
-  transforms are absolute or parent-composed — confirm from engine code.
-- **Audio.** SFX-bank rate unconfirmed (provisionally 22050). Clip splitting is
-  heuristic (silence gaps) — no per-clip index found.
+  transforms are absolute or parent-composed — RESOLVED 2026-05-27: transforms
+  are ABSOLUTE world placements (see the level-scene glTF exporter; applying
+  them directly keeps geometry inside the static world bbox, a parent-composed
+  scheme would collapse/escape).
+- **Audio.** SFX-bank rate RESOLVED 2026-05-27: there is NO stored Hz in the
+  SShd bank (header is `{offset,size,count}` triples; no rate field; scan for
+  standard rates finds zero matches). Playback pitch is an SPU2/sequencer
+  parameter set at trigger time, so no single "correct" bank rate exists; 22050
+  is a reasonable extraction default. Clip splitting is still heuristic
+  (silence gaps) — no per-clip index found.
 - **`OVERLAY/`** (`AREA*.BIN`, `MWo3` overlay modules) — **fully characterized
   and pipeline complete (2026-05-24)**. Format documented in `docs/OVERLAYS.md`.
   All 19/19 overlays produce byte-identical output via `tools/overlay/`. The

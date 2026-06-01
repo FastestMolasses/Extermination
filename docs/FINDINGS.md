@@ -386,6 +386,61 @@ Note: `extract_textures.py`'s signature only matches `07 XX 00 60` packets and
 so misses the `07../10` level sheets — broaden it (or consolidate with
 `extract_subtextures.py`).
 
+### Global GS VRAM residency map (2026-06-01)
+
+`tools/vram_residency.py` builds ONE residency map for the whole disc so any
+DBP can be resolved regardless of which file uploads it (the cross-file
+residency gap above). It walks every file under `extract/`, records each GS
+upload's full descriptor — `(DBP, DBW, DPSM, TRXREG w×h, TRXPOS dest x/y,
+source file, byte offset)` — and indexes them `DBP → [uploads]`. The scan is
+cached to `scratch/vram_residency.json` (git-ignored); a corpus
+size/mtime signature invalidates it. Reuses `extract_subtextures.decode_transfer`
+for pixels, so it owns no duplicate decode logic.
+
+**Disc-wide census (definitive).** Across all 605 extracted files there are
+exactly **113 GS texture uploads** at only **5 distinct DBPs**:
+`{7040, 7424, 10752, 12672, 14592}`. Every upload is **PSMCT32 (DPSM=0),
+DBW=4** (256-texel-wide PSMCT32 → 512-wide PSMT8 sheet). The same DBP is
+re-targeted by many files (VRAM is 4 MB, so a slot is reused across
+levels/frames): DBP 10752 has 40 uploads, 12672 has 34, 7424 has 18, 14592
+has 16, 7040 has 5. Each reuse may have **different dimensions** (e.g. DBP
+14592 appears as 512×384, 512×256, 512×320, 512×64, 512×448, 512×640) — so
+**DBP alone is ambiguous**; the consumer must disambiguate by same-chunk-dir
+proximity (`prefer_dir`) or expected `(PSM, dims)`.
+
+**No GS CLUT uploads exist.** The scanner found **zero** small/palette-shaped
+GS transfers (it tags them `clut=True` if it does). This **confirms** the
+earlier finding that CLUTs are NOT shipped as GS upload packets — they are the
+raw 1024-byte `[R G B A]·256` blobs detected by `tools/clut.py`. The
+color-CLUT binding question gains no new lead from GS packets; it remains a
+boot-ELF per-asset palette LUT / VU1 TEX0-setup problem. (The CLUT-upload
+hunt the task hoped might crack color came up empty — the palettes are simply
+not GS-packetised in this game.)
+
+**Resolution gap, quantified.** Level materials reference **31 distinct DBPs**
+but only 5 are ever uploaded. The high-traffic sheets dominate (DBP 10752:
+21465 strips, 12672: 29302, 14592: 12519) and resolve exactly. Near-miss DBPs
+(material DBP **14562** ↔ upload **14592**, 30 words apart) are the same
+physical sheet and resolve by snapping within a small tolerance (default 64
+VRAM words). The remaining ~26 low DBPs (548…2581, 1152, 8802) have **no
+upload anywhere on disc** — they are textures resident from common/UI packets
+that live outside `DATA.DAT` (boot-ELF data or a shared bank not in the
+extracted tree), so they honestly stay gray. The affine `sheet_field→DBP` map
+is exact only on the universal trio, so these low addresses don't snap to a
+real slot either.
+
+**Wired into `export_gltf.py`.** Both the character path
+(`_find_transfer_for_dbp`) and the level path (`_resolve_level_sheets`) now
+consult the residency map first (cached, disc-wide, with same-dir preference
+and near-miss snapping), falling back to the legacy per-dir scan only if the
+map is unavailable. The default cross-dir tiebreak is the lowest-sorted source
+path (deterministic; reproduces the previously-validated per-asset bindings,
+e.g. the player's DBP 14592 → `chunk04.n2/f00_id44.bin` 512×384) rather than
+"largest sheet" (which would grab an unrelated level's reuse of the slot).
+Level aggregate: **91/143 → 93/143** sheets resolved (the +2 are 14562 snaps
+in `chunk08.n0`/`chunk08.n1`). The player still resolves 3/3 with identical
+sources to the validated baseline.
+
 ## Audio — VAG ADPCM
 
 All game audio is **PS2 VAG ADPCM** (16-byte frames). Decoder: `tools/decode_sound.py`.
@@ -405,8 +460,19 @@ Streamed audio plays at **48000 Hz** (PS2 SPU2 native rate). Evidence:
 `music/clip_0000` (End Credits) matches an official-soundtrack rip — the rip is
 encoded at 48000 Hz, and our clip's frame count / the rip's duration ≈ 48090 Hz.
 The rate is **not stored in the audio data** (engine/SPU-pitch parameter).
-SFX-bank rate is still unconfirmed (provisionally 22050). Both should be
-re-confirmed from the decompiled audio engine.
+
+**SFX-bank rate — confirmed NOT stored in the bank (2026-05-27).** The SShd
+bank header is a flat structure of `{offset, size, count}` u32 triples followed
+by the `SShd` sub-chunk magic; the sub-chunk fields after the magic are
+offsets/counts (`0xFFFFFFFF, 0x80, 0x0B6E, 0x102, 0x41E, 0x72E, ...`), not a
+sample rate. A scan of the first 0x200 bytes of a real bank
+(`chunk04.n0`, SShd at +0x5C) for any u16/u32 equal to a standard rate
+(8000/11025/22050/24000/44100/48000) finds **zero matches**. So there is no
+per-bank Hz — like the streamed audio, SFX playback pitch is an SPU2 / sequencer
+parameter (center-note based), set by the audio engine at trigger time, not a
+property of the bank. `22050` remains a reasonable extraction default; a single
+"correct" rate doesn't exist because each SFX can be repitched at playback.
+Confirming the exact default pitch needs the decompiled audio engine.
 
 ## Geometry / models
 

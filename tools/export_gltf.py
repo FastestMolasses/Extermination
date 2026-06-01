@@ -73,6 +73,34 @@ def _load(name: str, fname: str):
 ad = _load("_anim_decoder", "anim_decoder.py")
 em = _load("_extract_models", "extract_models.py")
 est = _load("_extract_subtextures", "extract_subtextures.py")
+vr = _load("_vram_residency", "vram_residency.py")
+
+
+# ---------------------------------------------------------------------------
+# Global GS VRAM residency map
+#
+# Textures are very commonly uploaded by a DIFFERENT file than the geometry
+# that samples them ("cross-file texture residency"). Rather than scan each
+# mesh's chunk dir then the whole tree ad-hoc per export, we build ONE
+# residency map for the whole disc once (cached under scratch/) and resolve any
+# DBP against it. The map snaps near-miss DBPs to the same physical sheet (the
+# affine sheet_field->DBP relation is only exact on the universal slot trio).
+# See tools/vram_residency.py.
+# ---------------------------------------------------------------------------
+_RESIDENCY: "vr.ResidencyMap | None" = None
+
+
+def _residency(search_root: Path | None) -> "vr.ResidencyMap | None":
+    """Lazily build (and cache) the global residency map for `search_root`."""
+    global _RESIDENCY
+    if search_root is None or not search_root.is_dir():
+        return None
+    if _RESIDENCY is None or _RESIDENCY.root != search_root:
+        try:
+            _RESIDENCY = vr.ResidencyMap.load_or_scan(search_root)
+        except Exception:  # noqa: BLE001 -- never let texture lookup break export
+            return None
+    return _RESIDENCY
 
 
 # ---------------------------------------------------------------------------
@@ -98,11 +126,30 @@ def _sheet_field_to_dbp(sf: int) -> int:
 
 def _find_transfer_for_dbp(mesh_path: Path, dbp: int,
                            search_root: Path | None) -> tuple[Path, "est.Transfer"] | None:
-    """Locate the first GS texture upload matching `dbp`, preferring the
-    same chunk dir as the mesh file. Returns (source_file, decoded transfer)
-    or None."""
+    """Locate the best GS texture upload for `dbp`, disc-wide.
+
+    Consults the global VRAM residency map first (resolves cross-file uploads
+    and snaps near-miss DBPs to the same physical sheet), preferring the mesh's
+    own chunk dir. Falls back to the legacy same-dir-then-tree scan only if the
+    residency map is unavailable or finds nothing.
+    """
+    rm = _residency(search_root)
+    if rm is not None:
+        up = rm.resolve_dbp(dbp, prefer_dir=mesh_path.parent)
+        if up is not None:
+            src = rm.root / up.src_rel
+            try:
+                d = src.read_bytes()
+            except OSError:
+                d = None
+            if d is not None:
+                t = est.Transfer(src.name, up.dbp, up.tw, up.th, up.trxreg_off,
+                                 src_path=src)
+                if est.decode_transfer(d, t):
+                    return (src, t)
+
+    # Legacy fallback: same-chunk preference, then the whole tree.
     candidates: list[Path] = []
-    # Same-chunk preference
     candidates.extend(sorted(mesh_path.parent.glob("*.bin")))
     seen = set(candidates)
     if search_root and search_root.is_dir():
@@ -1346,15 +1393,35 @@ def _resolve_level_sheets(level_path: Path, dbps: list[int],
                           search_root: Path | None) -> dict[int, tuple[Path, "est.Transfer"]]:
     """Resolve each wanted DBP to (source_file, decoded transfer).
 
-    Scans the level's own chunk dir first (cheap, usually finds the level's
-    id 0x43 sibling sheets), then -- for any still-missing DBP -- widens to the
-    whole search root (level textures are very commonly cross-file). Each file
-    is read at most once per pass. Missing DBPs are simply absent from the
-    returned dict (the caller emits a placeholder material).
+    Consults the global VRAM residency map first: every wanted DBP is resolved
+    disc-wide (cross-file uploads + near-miss snapping to the same physical
+    sheet), preferring the level's own chunk dir. Only DBPs the map can't
+    resolve fall through to the legacy same-dir-then-tree scan. Missing DBPs are
+    simply absent from the returned dict (the caller emits a placeholder).
     """
     want = set(dbps)
     found: dict[int, tuple[Path, "est.Transfer"]] = {}
 
+    rm = _residency(search_root)
+    if rm is not None:
+        for dbp in want:
+            up = rm.resolve_dbp(dbp, prefer_dir=level_path.parent)
+            if up is None:
+                continue
+            src = rm.root / up.src_rel
+            try:
+                dd = src.read_bytes()
+            except OSError:
+                continue
+            t = est.Transfer(src.name, up.dbp, up.tw, up.th, up.trxreg_off,
+                             src_path=src)
+            if est.decode_transfer(dd, t):
+                found[dbp] = (src, t)
+
+    if want <= set(found):
+        return found
+
+    # Legacy fallback for any DBP the residency map didn't resolve.
     def scan_dir(files: list[Path]):
         for p in files:
             if want <= set(found):
