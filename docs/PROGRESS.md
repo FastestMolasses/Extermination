@@ -2170,10 +2170,17 @@ The reference template studied for the pipeline is `fmil95/recvx-decomp`
 (same CodeWarrior toolchain family).
 
 **2. Asset polish (minor; several items need Track A's decompiled engine).**
-The open questions above — texture color/CLUT, cross-file texture residency,
-`extract_textures.py` `07../10` coverage, rig VIF payload + bone hierarchy,
-MATRIX `--scene` confirmation, SFX sample rate, labelling the 25 soundtrack vs
-30 cutscene `MUSIC.DAT` tracks. (`OVERLAY/` scan resolved — no embedded assets.)
+The open questions above. RESOLVED this session: `OVERLAY/` scan (no embedded
+assets), MATRIX `--scene` (absolute transforms), SFX sample rate (no stored
+Hz — sequencer-pitched), rig VIF payload + bone hierarchy (full anim format
+decoded → glTF export), cross-file texture residency (global VRAM map; the
+remaining ~50 gray sheets are common/UI textures uploaded outside the
+extracted `DATA.DAT` tree). `MUSIC.DAT` 25/30 labelling narrowed to a bimodal
+long/short split (~28/27) but exact assignment needs the engine music-cue
+table or audio fingerprinting. STILL BLOCKED on a PCSX2 mid-frame capture:
+texture color/CLUT binding, per-block bone-index table, packed-normal byte
+order. `extract_textures.py` `07../10` packet coverage merge remains a
+tooling-cleanup TODO.
 
 **3. Asset repackers + moddable build (DEFERRED to late in the project).**
 Repackers that rebuild `DATA.DAT`/`INDEX.IDX` and the streams byte-identically

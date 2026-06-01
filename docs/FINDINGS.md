@@ -2749,7 +2749,28 @@ is a runtime-only animation that has no representation on disc.
 
 `MUSIC.DAT` decodes to 55 tracks. Per the user (cross-referenced with an online
 soundtrack listing): **25 are the official soundtrack; the remaining 30 are
-cutscene audio.** Not yet separated or labelled — a roadmap item.
+cutscene audio.**
+
+**Duration analysis (2026-05-27).** All 55 clips are stereo. Decoded clip
+durations are clearly **bimodal**, which is consistent with the soundtrack /
+cutscene split but does not pin the exact 25/30 assignment:
+
+- **Long-form cluster (~28 clips, ≥ 90 s):** looping background-music /
+  soundtrack pieces — e.g. `clip_0008` at 460 s, `clip_0049` at 313 s,
+  `clip_0009` at 263 s, and a band of 90–220 s tracks. These are the
+  full-length looping BGM.
+- **Short-form cluster (~27 clips, < 90 s):** cutscene / event stings and
+  jingles — e.g. `clip_0010`/`clip_0011`/`clip_0017` at 7–10 s, plus a
+  spread of 20–80 s pieces.
+- `clip_0054` at 0.4 s is a stream-terminator artifact, not a real track.
+
+The duration boundary (~90 s) gives roughly 28/27, not exactly 25/30, so a
+handful of mid-length pieces (e.g. `clip_0031` 72 s, `clip_0040` 80 s) are
+ambiguous by duration alone. A definitive labelling needs either the engine's
+music-cue table (which clip index plays in which context) or an audio
+fingerprint match against the official-soundtrack rip. The bimodal split is
+recorded here so a future pass can start from the long/short partition rather
+than from scratch.
 
 ## Per-block bone binding (proxy by spatial proximity, 2026-05-27)
 
