@@ -197,6 +197,29 @@ changed. Step 4 is nearly instant (it just patches a few sectors).
 .venv/bin/python tools/decomp/repack_iso.py
 ```
 
+### Did I break anything? — `verify_all.py`
+
+After any change to the build pipeline, the symbol map, or the asset tools,
+run the regression harness. It's a single PASS/FAIL gate (exit 0 = all good):
+
+```bash
+# Full check: boot ELF byte-identity, 19/19 overlays, match %, glTF, decoders
+.venv/bin/python tools/decomp/build.py build && \
+.venv/bin/python tools/verify_all.py
+
+# Fast host-only subset (skips the container build stages)
+.venv/bin/python tools/verify_all.py --no-container
+
+# Just one or two stages
+.venv/bin/python tools/verify_all.py --only match,selftest
+```
+
+Stages: `boot-elf` (rebuilt ELF byte-identical), `overlays` (19/19
+byte-identical), `match` (matched-code % vs a floor, default 95.0), `gltf`
+(exporter output validates), `selftest` (anim decoder round-trip). The
+`match` stage SKIPs rather than fails when `build/expected` is stale — run
+`build.py build` first for a meaningful match check.
+
 ### Iterating faster with objdiff
 
 If you're in a matching loop (trying to get a function to 100%), you don't
