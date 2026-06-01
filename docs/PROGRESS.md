@@ -1,5 +1,46 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-06-01 BRUTE-FORCE CLUT RECOVERY — NEGATIVE RESULT (colour still needs the engine)
+
+Tried recovering the per-sheet colour palette **without an emulator** by
+image-coherence scoring: collect every CLUT-shaped blob disc-wide, apply each
+to a sheet's PSMT8 indices, rank by how natural the colour image looks. New
+tool `tools/clut_bruteforce.py`. **Outcome: coherence scoring cannot
+disambiguate the palette — confirmed negative.**
+
+- **Candidate pool:** 424 hits across 50 files → **361 unique 1024-byte CLUT
+  blobs** disc-wide; 98 of them genuinely colourful (chroma > 30), so the pool
+  is not the limiting factor.
+- **Metric:** Pearson correlation of |index Δ| vs |colour Δ| over adjacent
+  distinct-index texel pairs (degeneracy-robust — a plain "minimise adjacent
+  RGB difference" smoothness score was tried first and trivially rewards
+  near-grayscale palettes, so it was replaced). Diagnostics: smoothness,
+  luminance-monotonicity, chroma, distinct-colour guard. Tests both the raw
+  and PSMT8/CSM1-swizzled form of each blob.
+- **Tested all 5 disc-wide texture sheets** (DBP 7040/7424/10752/12672/14592;
+  10752 is the EXTERMINATION title screen — a known-appearance validation
+  target). **The SAME blob wins on all of them** (`chunk19.n1/f01_id44.bin @
+  0xb6690`, z ≈ 2.5–3.2): a chroma-4.6 near-grayscale luminance ramp (r(index,
+  luminance) = −0.90). It wins everywhere because the indices are
+  luminance-ordered, so any monotone gray ramp correlates — the metric just
+  re-discovers grayscale; the correct colour palette gets no advantage.
+- **Forcing colour** (`--min-chroma 30`) makes the best vivid palettes decode
+  to **confetti noise** for the level sheets — visibly worse than grayscale. No
+  vivid CLUT produces a coherent colour image.
+- **Two structural reasons it's the wrong tool:** (1) luminance-ordered indices
+  mean smoothness is maximised by any monotone ramp; (2) a sheet is an atlas of
+  many sub-textures that may each use a *different* CLUT, so one global
+  sheet-palette is ill-posed in principle.
+
+**Colour-CLUT binding status: UNRESOLVED, and provably not crackable by
+coherence heuristics.** It remains a boot-ELF per-asset palette-LUT / VU1
+`TEX0` `CBP`-trace problem (the engine path, blocked on PCSX2 / the static
+TEX0 setup). The default colour path stays the identity grayscale CLUT.
+`tools/clut_bruteforce.py` is kept as the disc-wide candidate collector +
+scorer; PNG output lands in `scratch/clut_bf/` (git-ignored), nothing wired
+into exporters. Files: `tools/clut_bruteforce.py` (new),
+`docs/FINDINGS.md` ("Brute-force CLUT recovery … NEGATIVE RESULT").
+
 ### Update — 2026-06-01 GLOBAL GS VRAM RESIDENCY MAP (cross-file texture resolution)
 
 New tool `tools/vram_residency.py` builds ONE disc-wide GS VRAM residency map

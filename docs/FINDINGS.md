@@ -441,6 +441,74 @@ Level aggregate: **91/143 → 93/143** sheets resolved (the +2 are 14562 snaps
 in `chunk08.n0`/`chunk08.n1`). The player still resolves 3/3 with identical
 sources to the validated baseline.
 
+### Brute-force CLUT recovery by coherence scoring — NEGATIVE RESULT (2026-06-01)
+
+`tools/clut_bruteforce.py` attempts to recover the per-sheet colour palette
+**without the engine**: collect every 1024-byte CLUT-shaped blob disc-wide,
+apply each to a texture sheet's PSMT8 indices, and rank by how "coherent" /
+natural the resulting colour image looks. **Conclusion: coherence scoring
+cannot disambiguate the colour palette. The binding genuinely needs the
+engine (PCSX2 / boot-ELF trace).** Details below so this is not re-attempted
+blind.
+
+**Candidate pool.** Walking `extract/` with `clut.find_clut_candidates`
+(α∈[0,0x80], ≥100 entries at 0x80, ≥32 distinct RGB) yields **424 candidate
+hits across 50 files → 361 UNIQUE deduped 1024-byte blobs** (298 appear once,
+63 appear at two locations). Pool chroma (mean per-entry RGB max−min, 0..255):
+min 1.1, median 18.2, p90 41.9, max 68.3; **98 of 361 are genuinely colourful
+(chroma > 30)** — so the pool is not all grayscale; vivid palettes exist.
+
+**Sheets tested.** All 5 disc-wide texture DBPs (the only sheets that exist —
+see "Global GS VRAM residency map"): 7040 (chunk03, 512×64), 7424 (chunk27
+character, 512×960), 10752 (chunk01 — the **EXTERMINATION title screen**,
+512×768), 12672 (chunk04.n0 level, 512×896), 14592 (chunk04.n2 level,
+512×384). Each is a packed atlas (confirmed by the grayscale reference render).
+
+**Metric.** Primary score = **Pearson correlation between |index Δ| and
+|colour Δ| over adjacent NON-equal-index texel pairs** (subsampled to ≤400 K
+pairs). This is degeneracy-robust by design: a flat/gray palette has ~zero
+colour-Δ variance so it cannot fake a high correlation (the failure mode of a
+plain "minimise adjacent RGB difference" smoothness score, which was tried
+first and trivially rewards desaturation). Tie-breakers / diagnostics: mean
+adjacent colour-Δ (smoothness), luminance-monotonicity over used entries,
+per-entry chroma, distinct-colour degeneracy guard. Both the raw blob and its
+PSMT8/CSM1 entry-swap form are scored.
+
+**Why it fails — the decisive finding.** Across **all 5 sheets the SAME blob
+wins** (`chunk19.n1/f01_id44.bin @ 0xb6690`), with z ≈ 2.5–3.2 above the mean
+correlation each time. That blob has **chroma 4.6 (essentially grayscale)** and
+is a monotone luminance ramp (Pearson r(index, entry-luminance) = −0.90 over
+all 256 entries). It wins everywhere precisely *because* the game's PSMT8
+indices are luminance-ordered (documented): **any** roughly-monotone gray ramp
+correlates strongly with luminance-ordered indices, so the metric just
+re-discovers the grayscale ordering and the correct *colour* palette gets no
+distinguishing advantage. A single blob being optimal for four unrelated
+sheets is the tell that the score keys on a generic property, not a per-sheet
+binding.
+
+**Forcing colour confirms it.** Restricting to vivid candidates (`--min-chroma
+30`, 98 candidates) and re-ranking, the best colour palettes for the level
+sheets (12672 / 14592) decode to **confetti / speckle noise** — random
+red/gray scatter with no coherent textured surface — visibly *worse* than the
+grayscale reference. No vivid CLUT in the pool produces a coherent colour image
+for any sheet.
+
+**Two structural reasons coherence scoring is the wrong tool here:**
+1. **Luminance-ordered indices defeat the metric.** Smoothness/correlation is
+   maximised by *any* monotone ramp; the documented index ordering means
+   grayscale already satisfies it, so colour adds no score.
+2. **A sheet is an atlas of many sub-textures that may each use a different
+   CLUT.** Scoring one global palette per sheet is ill-posed even in principle
+   — there is no single "correct" sheet-wide palette to find.
+
+**Status:** brute-force coherence scoring is **insufficient**; recorded as a
+valid negative result. The colour-CLUT binding remains a boot-ELF per-asset
+palette-LUT / VU1 TEX0-setup problem (trace the PSMT8 `TEX0` `CBP` source in
+the engine). `tools/clut_bruteforce.py` is retained as the disc-wide candidate
+collector (361-blob pool) and a reusable scorer; output PNGs land in
+`scratch/clut_bf/` (git-ignored). Not wired into any exporter — the default
+colour path stays the identity grayscale CLUT.
+
 ## Audio — VAG ADPCM
 
 All game audio is **PS2 VAG ADPCM** (16-byte frames). Decoder: `tools/decode_sound.py`.
