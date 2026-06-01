@@ -592,6 +592,52 @@ rather than code, see `docs/FINDINGS.md`:
 - Repacking assets back into `DATA.DAT`/`INDEX.IDX` is on the roadmap but
   not yet implemented (see `docs/PROGRESS.md` roadmap item 3)
 
+### glTF export — characters and levels in Blender
+
+`tools/export_gltf.py` produces standard glTF 2.0 binary (`.glb`) files
+that open directly in Blender / Maya / any glTF viewer. This is the
+richest view of the game's 3D content. The full id 0x71 animation format
+is decoded (`tools/anim_decoder.py`), so character exports include
+playable animation clips.
+
+```bash
+# macOS-arm64 (pure Python, no container needed)
+
+# A rigged, textured, animated character. Auto-pairs the skeleton.
+.venv/bin/python tools/export_gltf.py \
+    --mesh extract/chunk21/f17_id8f.bin \
+    --skel extract/chunk05/f04_id71.bin \
+    --out  models/Player.glb
+# -> 28-bone skeleton, per-bone mesh (triangulated + smooth normals + UVs
+#    + 3 texture sheets), all 57 animation clips. Open in Blender via
+#    File > Import > glTF 2.0; clips appear in the Animation/NLA panel.
+
+# A whole explorable level scene (placed geometry + textures).
+.venv/bin/python tools/export_gltf.py level \
+    --level extract/chunk04.n0/f06_id44.bin \
+    --out   models/Level.glb
+
+# Batch every level at once.
+.venv/bin/python tools/export_gltf.py level --all-levels --out-dir models
+```
+
+Caveats (see `docs/FINDINGS.md` for the full status):
+
+- Textures export as **grayscale luminance** — the color-CLUT binding is
+  still unresolved (PSMT8 indices are luminance-ordered, so this is a
+  faithful preview, just not colored).
+- Character per-block bone binding is **approximate** (spatial-proximity
+  proxy; ~30–50% of surface blocks may be mis-placed) until the on-disc
+  bone-index table is recovered via a PCSX2 mid-frame capture.
+- Per-vertex normals are **face-averaged**, not the packed disc normals
+  (the packed-normal byte order needs a VU1 dmem capture to confirm).
+- Levels reference textures across files; sheets uploaded in common/UI
+  files outside the search tree fall back to gray placeholders.
+
+The OBJ exporters (`extract_models.py --scene`, `--rigged`,
+`--object-space`, `--skeleton`) remain available for tool-chains that
+prefer Wavefront OBJ.
+
 ### Pointing PCSX2 at a mod build automatically
 
 For a tighter loop, PCSX2 supports launching from the command line:
