@@ -1,18 +1,8 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_001AFC10(int, int, int, int);
-extern void func_001B1190(int, int, int, int);
+// Dispatch helper: notify subsystem of this object's byte[0x9A], then process it.
+extern void func_001B1190(int);
+extern void func_001AFC10(void *);
 
-asm void func_00145850(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    sq $s0, 0x0($sp)
-    paddub $s0, $a0, $zero
-    jal func_001B1190
-    lbu $a0, 0x9A($a0)
-    jal func_001AFC10
-    paddub $a0, $s0, $zero
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+void func_00145850(unsigned char *obj) {
+    func_001B1190(obj[0x9A]);
+    func_001AFC10(obj);
 }

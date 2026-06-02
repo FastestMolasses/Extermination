@@ -1,40 +1,20 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_0017DE20(void) {
-    .word 0x84830028
-    .word 0x2462ffff
-    .word 0x14600009
-    .word 0xa4820028
-    .word 0xc48002f4
-    .word 0x24020001
-    .word 0xe48000b0
-    .word 0xc48002f8
-    .word 0xe48000b8
-    .word 0xc4800258
-    .word 0x10000016
-    .word 0xe48000b4
-    .word 0xc48102e0
-    .word 0xc48000b0
-    .word 0x70001628
-    .word 0x46010000
-    .word 0xe48000b0
-    .word 0xc48102e8
-    .word 0xc48000b8
-    .word 0x46010000
-    .word 0xe48000b8
-    .word 0xc48102e4
-    .word 0xc48000b4
-    .word 0x46010000
-    .word 0xe48000b4
-    .word 0xc481026c
-    .word 0xc48000b4
-    .word 0x46010000
-    .word 0xe48000b4
-    .word 0xc4810270
-    .word 0xc480026c
-    .word 0x46010001
-    .word 0xe480026c
-    .word 0x03e00008
-    .word 0x00000000
+// Per-frame motion update with a countdown at 0x28. On the final tick snap the
+// position (0xB0/0xB4/0xB8) to the target at 0x2F4/0x258/0x2F8 and report 1;
+// otherwise integrate velocity (0x2E0/0x2E4/0x2E8) plus a decaying lateral push
+// (0x26C, which itself bleeds off by 0x270 each frame) and report 0.
+int func_0017DE20(unsigned char *obj) {
+    short counter = *(short *)(obj + 0x28);
+    *(short *)(obj + 0x28) = counter - 1;
+    if (counter == 0) {
+        *(float *)(obj + 0xB0) = *(float *)(obj + 0x2F4);
+        *(float *)(obj + 0xB8) = *(float *)(obj + 0x2F8);
+        *(float *)(obj + 0xB4) = *(float *)(obj + 0x258);
+        return 1;
+    }
+    *(float *)(obj + 0xB0) += *(float *)(obj + 0x2E0);
+    *(float *)(obj + 0xB8) += *(float *)(obj + 0x2E8);
+    *(float *)(obj + 0xB4) += *(float *)(obj + 0x2E4);
+    *(float *)(obj + 0xB4) += *(float *)(obj + 0x26C);
+    *(float *)(obj + 0x26C) -= *(float *)(obj + 0x270);
+    return 0;
 }

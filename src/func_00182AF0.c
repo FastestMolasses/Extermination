@@ -1,21 +1,8 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_00179B90(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// Play a sound (id = entity sound-base + 0x100) at full range (300.0).
+extern int func_00179B90(void *);
+extern void func_001FBD50(void *, int, int, float);
 
-asm void func_00182AF0(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    sq $s0, 0x0($sp)
-    jal func_00179B90
-    paddub $s0, $a0, $zero
-    addiu $a1, $v0, 0x100
-    lui $v0, (0x43960000 >> 16)
-    mtc1 $v0, $f12
-    paddub $a0, $s0, $zero
-    jal func_001FBD50
-    paddub $a2, $zero, $zero
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+void func_00182AF0(void *obj) {
+    int base = func_00179B90(obj);
+    func_001FBD50(obj, base + 0x100, 0, 300.0f);
 }
