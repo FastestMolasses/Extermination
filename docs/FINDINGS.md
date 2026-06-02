@@ -557,6 +557,24 @@ GS-resident palette is an engine *output*. Recovering colour offline now require
 reproducing the engine's palette-build (decompile the PSMT8 `TEX0`/CLUT-DMA
 setup and any per-material colour modulation), not a lookup.
 
+**Follow-up probe (2026-06-02): the CLUT is assembled per-entry, not staged.**
+Searched the capture's EE RAM (`ee.bin`) and scratchpad for the resident
+1024-byte CLUT (CBP 8368) in both swizzled and un-swizzled forms — **no
+contiguous match in either, anywhere**. But the palette's individual RGBA
+colours **do** appear in EE RAM: 8/8 sampled distinct entries are each found as
+4-byte words somewhere in `ee.bin`. So the engine never stages a complete
+palette buffer that it then DMAs; it writes the CLUT **per entry directly into
+GS VRAM** (or via small scattered transfers), drawing each colour from
+material/lighting sources that live separately in EE RAM. This is why no disc
+blob and no EE buffer matches the whole CLUT. Implication: reproducing colour
+offline means reconstructing a *per-entry* synthesis (base material colour ×
+lighting), and the result is inherently lighting-dependent — there is no single
+"true texture colour" stored anywhere. The cheapest remaining experiment is a
+**neutral-lit capture** (e.g. a menu / the title screen while displayed): if
+the synthesis is base×light, a neutrally-lit frame's resident CLUT should
+approach the unmodulated base palette and *then* may match a disc blob,
+recovering at least the base colours.
+
 **Pipeline proven (the milestone).** Applying a resident CLUT (un-swizzled via
 `csm1_unswizzle_clut`) to a *known-coherent* sheet — the EXTERMINATION title
 screen (DBP 10752, `chunk01/f00_id06.bin`, decodes cleanly in grayscale) —
