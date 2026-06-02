@@ -1,5 +1,33 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-06-02 readable-C campaign (+83 functions, strict match)
+
+Two parallel campaigns over the game-code region converted **83 .word/
+asm-void blocks into readable idiomatic C**, all byte-identical (commits
+db65e1c, 11b52a2). Boot ELF remains byte-identical (verify_all boot-elf
+PASS); matched_code 96.18% (1247/1344). This is the first big push toward
+READABLE game/engine code (the prior 96% was mostly opaque .word blocks).
+
+Readable gameplay now includes: per-frame motion update (countdown ->
+position-snap vs velocity integration), entity sub-object construction by
+type byte, entity-to-target heading-angle helpers, sound triggers, a
+one-shot-flag substate reset. Plus ~50 engine dispatch/allocator thunks.
+
+Two process notes baked in for future readable-C work:
+1. **Never-regress requires a full recompile before linking.** Restoring a
+   failed attempt's .c WITHOUT recompiling its build/obj/*.o leaves a STALE
+   object; fill_unmatched links the stale obj and silently regresses the
+   boot ELF. Per-function objdiff passes but the LINK differs. Fix: run
+   `build.py compile` (full) then `verify_all --only boot-elf` before
+   committing any readable-C batch. verify_all's relink is what catches it.
+2. **The recurring matching wall is the CodeWarrior 2.3.1 scheduler.** ~48
+   near-misses (95-99.4%) had fully correct readable logic but 1-2 non-
+   matching instructions, from: reversed independent float-constant loads
+   (f13 before f12), the branch-before-jal nop-delay-slot idiom, the 2.3.1
+   dead-instruction-after-branch artifact, and commutative-operand /
+   register-allocation divergences. Cracking any one of these idioms would
+   unlock many functions at once — higher leverage than more breadth.
+
 ### Update — 2026-06-02 TEXTURED-BLOCK BONE BINDING — no on-disc field; runtime-built (decisive negative)
 
 Cracked the *structure* of the textured-mesh per-block bone binding from the
