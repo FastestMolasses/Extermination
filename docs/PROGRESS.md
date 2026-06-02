@@ -29,6 +29,23 @@ only float-op / operand-order / saved-register diffs:
    mwcc emit the duplicated `jal` too, defeating its dead-`b` coalescing.
    (func_0017FC80, func_0017FF80 — animation-clip selectors.)
 
+5. **Struct copy as explicit per-quadword copies.** Write a 0x40-byte block
+   copy as `dst->q[i] = src->q[i]` for each 16-byte slot (or four explicit
+   `*(u128*)(d+k) = *(u128*)(s+k)`), NOT a single aggregate struct assignment.
+   The explicit form yields CW's interleaved `lq;sq` per slot; a single
+   struct-assignment batches all loads then all stores and diverges.
+   (func_001CFA60 object initialiser.)
+
+ADDITIONAL CONFIRMED WALLS (recurred in wave 3, not C-addressable):
+- **Float-constant materialization hoist.** CW emits `mtc1 zero,$f12` / a
+  const load right after the stack-adjust (before register saves); mwcc emits
+  it just before the call.
+- **Prologue spill/reload interleave.** CW interleaves an unrelated `lwc1`
+  reload between a sub.s and its store around scratch RAM.
+- **slt-into-branch regalloc** (`slt $at` vs CW's `slt $v1`) on dynamic-bound
+  loop/compare guards — blocks otherwise-clean loops (e.g. bone_init_default_0,
+  a per-bone default bind-pose init, reached 97.6%).
+
 CONFIRMED COMPILER WALLS (do NOT keep trying from C):
 - **Dead `b epilogue; <dup-instr>` after a branch.** CW 2.3.1 emits an
   unconditional branch to a shared epilogue plus a dead duplicate of the

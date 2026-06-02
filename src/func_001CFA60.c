@@ -1,35 +1,23 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_001CD370(int, int, int, int);
+// Initialises an object: seeds its transform/params block (+0x44..+0x54),
+// acquires a handle, then copies a 0x40-byte source block over the object's
+// head (four quadword copies).
+typedef unsigned __int128 uint128;
+struct Block40 { uint128 q[4]; };
+extern int func_001CD370(int);
 
-asm void func_001CFA60(void) {
-    addiu $sp, $sp, -0x30
-    sq $ra, 0x20($sp)
-    sq $s1, 0x10($sp)
-    sq $s0, 0x0($sp)
-    swc1 $f12, 0x44($a0)
-    swc1 $f13, 0x4C($a0)
-    lui $v0, (0x3F800000 >> 16)
-    sw $v0, 0x48($a0)
-    lui $v0, (0x358637BD >> 16)
-    ori $v0, $v0, (0x358637BD & 0xFFFF)
-    sw $v0, 0x50($a0)
-    paddub $s0, $a0, $zero
-    sw $zero, 0x54($a0)
-    paddub $s1, $a1, $zero
-    jal func_001CD370
-    paddub $a0, $zero, $zero
-    sw $v0, 0x40($s0)
-    lq $v1, 0x0($s1)
-    sq $v1, 0x0($s0)
-    lq $v1, 0x10($s1)
-    sq $v1, 0x10($s0)
-    lq $v1, 0x20($s1)
-    sq $v1, 0x20($s0)
-    lq $v1, 0x30($s1)
-    sq $v1, 0x30($s0)
-    lq $ra, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+void func_001CFA60(unsigned char *obj, struct Block40 *src, float f12, float f13) {
+    *(float *)(obj + 0x44) = f12;
+    *(float *)(obj + 0x4C) = f13;
+    *(int *)(obj + 0x48) = 0x3F800000;  /* 1.0f */
+    *(int *)(obj + 0x50) = 0x358637BD;
+    *(int *)(obj + 0x54) = 0;
+    *(int *)(obj + 0x40) = func_001CD370(0);
+
+    {
+        struct Block40 *dst = (struct Block40 *)obj;
+        dst->q[0] = src->q[0];
+        dst->q[1] = src->q[1];
+        dst->q[2] = src->q[2];
+        dst->q[3] = src->q[3];
+    }
 }
