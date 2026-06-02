@@ -22,6 +22,13 @@ only float-op / operand-order / saved-register diffs:
    rule 2 this cracked the sin/cos motion-update physics family
    (func_0014CD30, func_00150900, func_00136630 — `*p += *q * func(...)`).
 
+4. **Duplicate the common tail-call in BOTH if/else branches.** When CW emits
+   a dead `b epilogue; <dup jal>` and the duplicated instruction is a CALL
+   whose per-branch value comes from another call result, writing the tail
+   call explicitly inside each branch (instead of once after the if) makes
+   mwcc emit the duplicated `jal` too, defeating its dead-`b` coalescing.
+   (func_0017FC80, func_0017FF80 — animation-clip selectors.)
+
 CONFIRMED COMPILER WALLS (do NOT keep trying from C):
 - **Dead `b epilogue; <dup-instr>` after a branch.** CW 2.3.1 emits an
   unconditional branch to a shared epilogue plus a dead duplicate of the

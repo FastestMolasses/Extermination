@@ -1,30 +1,11 @@
-asm void func_001C86A0(void) {
-    lui $v1, (0x3F800000 >> 16)
-    mtc1 $v1, $0
-    lui $at, (0x70003A3C >> 16)
-    div.s $0, $0, $12
-    swc1 $0, (0x70003A3C & 0xFFFF)($at)
-    lwc1 $2, 0x0($5)
-    lwc1 $1, 0x0($6)
-    .word 0x3c017000
-    lwc1 $0, (0x70003A3C & 0xFFFF)($at)
-    sub.s $1, $2, $1
-    .word 0x3c017000
-    mul.s $0, $0, $1
-    swc1 $0, 0x0($4)
-    lwc1 $2, 0x4($5)
-    lwc1 $1, 0x4($6)
-    lwc1 $0, (0x70003A3C & 0xFFFF)($at)
-    sub.s $1, $2, $1
-    .word 0x3c017000
-    mul.s $0, $0, $1
-    swc1 $0, 0x4($4)
-    lwc1 $2, 0x8($5)
-    lwc1 $1, 0x8($6)
-    lwc1 $0, (0x70003A3C & 0xFFFF)($at)
-    sub.s $1, $2, $1
-    mul.s $0, $0, $1
-    jr $ra
-    swc1 $0, 0x8($4)
-    nop
+// Scratchpad scalar used to cache the reciprocal between the per-component
+// stores (the EE scratchpad lives at 0x70000000).
+#define SCRATCH (*(volatile float *)0x70003A3C)
+
+// Componentwise scaled difference: dst = (a - b) / divisor, for a vec3.
+void func_001C86A0(float *dst, const float *a, const float *b, float divisor) {
+    SCRATCH = 1.0f / divisor;
+    dst[0] = SCRATCH * (a[0] - b[0]);
+    dst[1] = SCRATCH * (a[1] - b[1]);
+    dst[2] = SCRATCH * (a[2] - b[2]);
 }
