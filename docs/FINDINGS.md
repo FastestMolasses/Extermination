@@ -2772,6 +2772,39 @@ fingerprint match against the official-soundtrack rip. The bimodal split is
 recorded here so a future pass can start from the long/short partition rather
 than from scratch.
 
+## Per-bone section directory — RESOLVED 2026-06-02 (object-space mesh)
+
+The character mesh's **object-space per-bone VIF stream** (the untextured
+rigged mesh, distinct from the textured MESH-descriptor blocks below) is
+prefixed by a directory that maps each section to its GLOBAL bone index.
+Recovered from a live PCSX2 capture taken mid-skinning-draw
+(`SCUS-97112 (4CDC5F74).01.p2s`): the resident VU1 kernel and the live
+4-bone palette in dmem confirmed the per-bone wiring, and the on-disc
+directory was then located by structural search.
+
+On the player mesh (`chunk21/f17_id8f.bin`) the directory is at file offset
+`0x2280`:
+
+```
++0x00  u32 base_ptr          file offset the section offsets are relative to (0x818C)
++0x04  u32 x 3               zero padding
++0x10  u32 bone_idx[0..L-1]  GLOBAL bone index per section; [0] = 0xffffffff sentinel
+...    u32 offset[0..L-1]    section byte offset (rel. base_ptr), strictly increasing
+...    u32 0                 terminator
+```
+
+Two parallel L-entry tables (L = 21 for the player): `section i` belongs to
+global bone `bone_idx[i]` and starts at `base_ptr + offset[i]`. The recovered
+mapping is `[-1, 0, 1, 1, 2, 3, 3, 2, 2, 2, 8, 9, 5, 6, 5, 10, 11, 12, 13,
+15, 16]` — 21 sections → 14 distinct bones (multiple sections per bone, e.g.
+bone 2 gets 4 sections). `tools/export_gltf.py::decode_bone_section_table`
+implements this and the exporter now attaches each object-space section as a
+child node of its real bone (was previously the wrong `section i == bone i`
+assumption — the old `em._find_bone_section_table` heuristic keyed on
+`vals[0] < 0x200` and started part-way down the bone-index list, dropping the
+mapping). **This fixes the object-space rigged mesh only**; the textured
+MESH-descriptor blocks (below) have a separate, still-unresolved binding.
+
 ## Per-block bone binding (proxy by spatial proximity, 2026-05-27)
 
 The MESH-descriptor blocks in a character file (e.g.

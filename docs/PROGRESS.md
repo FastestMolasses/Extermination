@@ -2241,3 +2241,19 @@ build architecture".
 - `docs/FINDINGS.md` — technical reference for every reverse-engineered format.
 - Update both in the same session as work progresses, so the next person or
   agent can continue cleanly (required by `CLAUDE.md`).
+
+### Update — 2026-06-02 per-bone section directory RESOLVED (object-space mesh)
+
+A live PCSX2 capture taken mid-skinning-draw with the player on screen
+(`SCUS-97112 (4CDC5F74).01.p2s`) had a resident soft-skinner VU1 kernel
+(matches boot ELF vram 0x002317D8) and a live 4-bone matrix palette in VU1
+dmem qw 111..122. That confirmed the per-bone wiring and led to locating the
+on-disc per-bone SECTION DIRECTORY at mesh file offset 0x2280: parallel
+`bone_idx[]` + `offset[]` lists mapping each object-space VIF section to its
+GLOBAL bone (21 sections → 14 bones on the player). `export_gltf.py` now binds
+object-space sections to their real bones (was the wrong `section i == bone i`
+assumption). See FINDINGS "Per-bone section directory". The textured
+MESH-descriptor blocks remain proxy-bound (their per-block index is separate
+and still unlocated — the position-W field is not a clean selector for them).
+The capture's 4 MB GS VRAM (`gs.bin`) also physically contains the uploaded
+CLUTs — still to be mined for the color question.

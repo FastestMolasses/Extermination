@@ -1087,6 +1087,72 @@ def build_proxy_bound_blocks(mesh_path: Path, gb: "GLBBuilder",
     return per_block_meshes, bone_for_block, image_objs, texture_objs, info
 
 
+def decode_bone_section_table(d: bytes):
+    """Decode the per-bone section directory in a character-mesh file.
+
+    RESOLVED 2026-06-02 from a live PCSX2 capture (mid-skinning-draw). The
+    character mesh prefixes its per-bone object-space VIF stream with a small
+    directory mapping each section to (global bone index, byte offset). On the
+    player mesh (``chunk21/f17_id8f.bin``) it lives at file offset ``0x2280``::
+
+        +0x00  u32 base_ptr          file offset the section offsets are relative to
+        +0x04  u32 x 3               zero padding
+        +0x10  u32 bone_idx[0..L-1]  GLOBAL bone index per section; [0] = 0xffffffff
+        ...    u32 offset[0..L-1]    section byte offset (rel. to base_ptr),
+                                     strictly increasing, first < 0x200
+        ...    u32 0                 terminator
+
+    ``section i`` belongs to global bone ``bone_idx[i]`` (multiple sections may
+    share a bone, e.g. sections 2 and 3 both rig bone 1). Returns
+    ``(base_ptr, bone_idx, offsets)`` with ``bone_idx[0]`` normalised to ``-1``,
+    or ``None`` if no such table is present.
+
+    Supersedes the old ``section i == bone i`` assumption: the previous
+    ``em._find_bone_section_table`` keyed on ``vals[0] < 0x200`` and started
+    part-way down the bone-index list, folding the bone-index tail into the
+    offset list and losing the mapping. This keys on the structural invariants.
+    """
+    mesh_sig = em.MESH_SIG
+    first_mesh = d.find(mesh_sig)
+    if first_mesh < 0x400:
+        return None
+
+    def u32(off: int) -> int:
+        return struct.unpack_from("<I", d, off)[0]
+
+    scan_end = min(first_mesh, len(d) - 4)
+    for hdr in range(0x100, scan_end - 0x10, 4):
+        base_ptr = u32(hdr)
+        if not (0x400 <= base_ptr < len(d)):
+            continue
+        if u32(hdr + 4) or u32(hdr + 8) or u32(hdr + 12):
+            continue
+        if u32(hdr + 0x10) != 0xFFFFFFFF:
+            continue
+        bone_start = hdr + 0x10
+        for L in range(8, 64):
+            bone_vals = [u32(bone_start + i * 4) for i in range(L)]
+            if bone_vals[0] != 0xFFFFFFFF:
+                break
+            if any((v != 0xFFFFFFFF and v >= 64) for v in bone_vals):
+                continue
+            off_start = bone_start + L * 4
+            offs = [u32(off_start + i * 4) for i in range(L)]
+            if offs[0] >= 0x200:
+                continue
+            if any(offs[i] >= offs[i + 1] for i in range(L - 1)):
+                continue
+            if base_ptr + offs[-1] >= first_mesh:
+                continue
+            if u32(off_start + L * 4) != 0:
+                continue
+            if not (first_mesh - 0x400 < base_ptr + offs[-1] < first_mesh):
+                continue
+            bone_idx = [(-1 if v == 0xFFFFFFFF else v) for v in bone_vals]
+            return base_ptr, bone_idx, offs
+    return None
+
+
 def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
                       fps: float = 30.0,
                       search_root: Path | None = None) -> dict:
@@ -1114,11 +1180,22 @@ def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
     # tristrip decoding of the per-bone VIF vid stream (see triangulate_bone).
     # Normals are face-area-weighted vertex averages -- the packed 4-byte
     # field in the VIF record is not yet decoded.
+    # Per-section -> GLOBAL bone index. RESOLVED 2026-06-02: the prefix
+    # directory maps section i to bone_idx[i] (multiple sections per bone).
+    # Falls back to identity (section i == bone i) if the table is absent,
+    # preserving the old behaviour for files without the directory.
+    sec_table = decode_bone_section_table(mesh_path.read_bytes())
+    if sec_table is not None:
+        _bp, section_bone, _offs = sec_table
+    else:
+        section_bone = list(range(n_mesh_sections))
+
     meshes: list = []
-    mesh_idx_for_bone: dict[int, int] = {}
+    # section index -> mesh index (each section is its own mesh primitive).
+    sec_mesh_idx: dict[int, int] = {}
     total_tris = 0
     bones_as_points = 0
-    for i in range(min(n_bones, n_mesh_sections)):
+    for i in range(min(len(section_bone), n_mesh_sections)):
         vwv = per_bone_verts_vid[i]
         if not vwv:
             continue
@@ -1134,15 +1211,16 @@ def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
             }
             total_tris += len(indices) // 3
         else:
-            # Bone with <3 verts or no decodable strip -- fall back to POINTS.
+            # Section with <3 verts or no decodable strip -- fall back to POINTS.
             pos_acc = gb.add_vec3_float(positions)
             prim = {"attributes": {"POSITION": pos_acc}, "mode": 0}
             bones_as_points += 1
+        b = section_bone[i]
         meshes.append({
             "primitives": [prim],
-            "name": f"bone_{i:02d}_mesh",
+            "name": f"sec{i:02d}_bone{b:02d}_mesh",
         })
-        mesh_idx_for_bone[i] = len(meshes) - 1
+        sec_mesh_idx[i] = len(meshes) - 1
 
     # 2. Bone nodes with frame-0 default TRS.
     bone_nodes: list = []
@@ -1159,9 +1237,29 @@ def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
             "rotation": [nq[0], nq[1], nq[2], nq[3]],
             "translation": [t[0], t[1], t[2]],
         }
-        if i in mesh_idx_for_bone:
-            node["mesh"] = mesh_idx_for_bone[i]
         bone_nodes.append(node)
+
+    # 2b. Section nodes: each object-space mesh section is a child node of its
+    # GLOBAL bone (section_bone[i]), inheriting that bone's animated world TRS.
+    # A glTF node holds one mesh, and several sections can share a bone, so we
+    # use one identity-transform child node per section rather than attaching
+    # the mesh to the bone node directly. Section node indices follow the bone
+    # nodes in the node list. Sections whose bone index is out of range are
+    # parented to the scene root so their geometry still appears.
+    section_nodes: list = []
+    section_node_children_of_bone: dict[int, list[int]] = {}
+    orphan_section_nodes: list[int] = []
+    for sec_i, mesh_idx in sorted(sec_mesh_idx.items()):
+        b = section_bone[sec_i]
+        node_idx = n_bones + len(section_nodes)
+        section_nodes.append({
+            "name": f"sec{sec_i:02d}_bone{b:02d}",
+            "mesh": mesh_idx,
+        })
+        if 0 <= b < n_bones:
+            section_node_children_of_bone.setdefault(b, []).append(node_idx)
+        else:
+            orphan_section_nodes.append(node_idx)
 
     children_of: dict[int, list[int]] = {}
     roots: list[int] = []
@@ -1171,11 +1269,13 @@ def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
         else:
             children_of.setdefault(p, []).append(i)
     for i, node in enumerate(bone_nodes):
-        if i in children_of:
-            node["children"] = children_of[i]
+        kids = list(children_of.get(i, []))
+        kids += section_node_children_of_bone.get(i, [])
+        if kids:
+            node["children"] = kids
 
-    scene_root = {"name": "Skeleton", "children": list(roots)}
-    nodes = bone_nodes + [scene_root]
+    scene_root = {"name": "Skeleton", "children": list(roots) + orphan_section_nodes}
+    nodes = bone_nodes + section_nodes + [scene_root]
     scene_root_idx = len(nodes) - 1
 
     # 3. Animations
