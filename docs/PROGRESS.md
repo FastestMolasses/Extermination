@@ -1,5 +1,49 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-06-02 TEXTURED-BLOCK BONE BINDING — no on-disc field; runtime-built (decisive negative)
+
+Cracked the *structure* of the textured-mesh per-block bone binding from the
+live capture (`/tmp/cap2/`), even though it turned out there is **nothing to
+read on disc**. The headline-export question ("which 4 global bones skin each
+textured 0x820 block?") is answered: the engine builds the palette at draw time.
+
+- **File architecture mapped.** `chunk21/f17_id8f.bin` stores the model twice:
+  an **object-space per-bone VIF stream** (bound by the directory at `0x2280`,
+  21 sections, RESOLVED earlier — plus ≈40 more 20/44-section directories of the
+  same format filling the directory zone `0x53040..0xc4e40`, LOD/detail copies),
+  and **textured 0x820 blocks** in two uniform runs — region 1: 134 blocks
+  `0xe848..0x520e8`, region 2: 183 blocks `0xd6048..0x132708` (317 total).
+- **The W-selector is GLOBAL, not per-block.** `k = round((w-sign(w))*512)` is
+  **exactly `{-3,-1,0,+2}` in every block of both regions** — it selects one of
+  4 fixed palette *slots*; the *contents* (the 4 bones) are swapped per draw
+  batch by the EE. The earlier "small per-block k-set" was an artifact of a
+  too-small sample.
+- **Ruled out as the per-block bone field:** the per-bone directories (their
+  `base_ptr+offset` sections do NOT align with textured-block MESH sigs — they
+  index the parallel object-space stream); the 276 file-prefix `0x20`-byte
+  records (count≠blocks; 8-float animation/transform params); the `m0/m1`
+  marker (texture-sheet + material index only); any length-134/183 byte table
+  (none exists).
+- **Live capture = runtime palette, not a disc lookup.** This frame's
+  `vu1_dmem` qw 111..122 held GS/projection setup (qw112 `2048,2048` screen
+  centre, qw113 `1677721.5` Z scale), and the qw 90..93 "active draw" matrix is
+  an identity-rotation **viewport** matrix (translation `452.3,278.6,277.6`,
+  also resident at several EE viewport-constant addresses). So palette slots are
+  **MVP-folded** (`viewport · bone_world`) — the save state caught VU1 between
+  batches with no clean 4-bone palette. The clean per-bone LOCAL matrices ARE
+  present: two 21-matrix double-buffered runs at EE `0x00287f40` / `0x00288d40`.
+- **Conclusion / next step.** Per-block binding is engine-built: the EE gathers
+  4 bone matrices per block, folds with the viewport, UNPACKs to the VU1 palette;
+  the vertex W picks the slot. To recover the exact slot→bone choice, decompile
+  the EE palette-UNPACK builder (the loop reading 4 bone indices from a per-draw
+  structure) or capture mid-UNPACK with a fully-populated palette. Exporter
+  **unchanged** (no clean disc binding to wire); textured surface stays on the
+  spatial-proximity proxy; object-space rig (dir `0x2280`) remains the faithful
+  posed export. `verify_all --only gltf` PASS preserved.
+- **Files:** no tool edits; `docs/FINDINGS.md` ("Textured-block bone binding —
+  the per-block field is NOT on disc"), `docs/PROGRESS.md`. Scratch analysis in
+  `/tmp/cap_analysis/` (user-local, never committed).
+
 ### Update — 2026-06-02 NEUTRAL-LIT MENU CAPTURE — base palette is also engine-synthesised (colour offline = closed door)
 
 The decisive follow-up to the live-capture work below. Two **flat-lit menu**

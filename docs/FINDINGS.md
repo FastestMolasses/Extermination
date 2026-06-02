@@ -3002,3 +3002,94 @@ CAVEATS
   * When the real per-block bone-index table is located on disc, replace
     `_bind_blocks_to_bones()` with a table lookup; the rest of the
     block-as-glTF-mesh-parented-to-bone-node pipeline stays unchanged.
+
+## Textured-block bone binding — the per-block field is NOT on disc (2026-06-02)
+
+Full investigation of the textured MESH-descriptor blocks' bone binding using
+the live PCSX2 capture (`/tmp/cap2/`, mid-skinning-draw). The headline result
+is a **decisive negative with a structural reframing**: there is no explicit
+on-disc per-block 4-bone-index table; the textured blocks are skinned at draw
+time through a runtime-built 4-matrix palette indexed by a **fixed**, not
+per-block, W-selector.
+
+### File architecture of `chunk21/f17_id8f.bin` (mapped)
+
+The character file stores the model **twice**:
+
+- **Object-space per-bone VIF stream** — bound by the directory at file
+  `0x2280` (21 sections → 14 distinct bones; RESOLVED, see section above) plus a
+  long series of additional per-bone directories filling the **directory zone**
+  `0x53040..0xc4e40` (≈40 directories of 20 and 44 sections each — LOD / extra-
+  detail / per-region copies). Every directory has the identical layout:
+  `prefix[count|tag, 0xfffe, off_a, off_b]` then `base_ptr (+0x00)`, an optional
+  second base at `+0x04`, three zero words, `0xffffffff` sentinel at `+0x10`,
+  the `u32 bone_idx[]` list, the strictly-increasing `u32 offset[]` list, and a
+  `0` terminator. The 44-section directories repeat almost the same bone-index
+  sequence as the 21-section one (`[-1,0,1,1,3,2,3,2,3,3,8,5,7,9,6,9,4,15,15,
+  15,15,13,10,12,11,15,14,...]`) — the same skeleton at finer granularity.
+- **Textured 0x820-byte blocks** — the UV+normal+position skin, in **two**
+  uniform-stride runs: **region 1** = 134 blocks `0xe848..0x520e8`, **region 2**
+  = 183 blocks `0xd6048..0x132708` (317 blocks total, matching the 317 MESH
+  sigs). Each block carries the standard 64-byte vertex record (marker / UV /
+  normal / position+W).
+
+### Why there is no per-block bone table — what was ruled out
+
+- **The W-selector is globally fixed, not per-block.** `k =
+  round((w-sign(w))*512)` takes **exactly the same 4 values `{-3, -1, 0, +2}`
+  in every block of both regions** (region 1 counts `{-3:700,-1:1260,0:1621,
+  2:707}`, region 2 `{-3:903,-1:1847,0:2193,2:913}`). So `k` selects one of 4
+  **palette slots** (a fixed slot role), and the palette *contents* — which 4
+  global bones populate the slots — are swapped per draw batch by the EE side.
+  The earlier "per-block small-set selector" reading was an artifact of looking
+  at too few blocks; the universe is the same 4 everywhere.
+- **The per-bone DIRECTORIES bind the object-space stream, not the textured
+  blocks.** Their `base_ptr + offset[i]` section addresses do **not** land on
+  the textured-block MESH sigs (1/44 coincidental hits), and the section
+  offset deltas (~0x600) are smaller than the 0x820 block stride — they index
+  variable-length VIF sections in the directory zone, a parallel representation.
+- **The 276 fixed 0x20-byte records at file `0x0..0x2280`** are not per-block
+  bone indices: count (276) ≠ block count (134/183/317), and each record is 8
+  floats with a slowly-incrementing field (an animation/transform parameter
+  stream), not small integers.
+- **The block header `m0/m1` marker** keys only the texture sheet
+  (`sheet_field = (m0>>15)&0x3FFF`) and a per-material running index — already
+  documented as NOT a bone selector.
+- **No length-134 / length-183 byte/short bone table exists** anywhere in the
+  file (a full scan for a run of small varied integers finds only the directory
+  `bone_idx` u32 lists themselves).
+
+### The live capture confirms a runtime-built palette (not a disc lookup)
+
+The captured VU1 `vu1_dmem.bin` does **not** hold a clean 4-bone palette at
+qw 111..122 in this frame: that region is occupied by GS / projection setup
+(qw 112 `(2048,2048,..)` screen-centre, qw 113 `1677721.5` the PS2 Z fixed-
+point scale), and the "active draw" matrix at qw 90..93 is an **identity-
+rotation viewport matrix with translation `(452.3, 278.6, 277.6)`** (a
+screen-space MVP base; the same triple appears at several EE addresses as a
+viewport constant). The palette slots are therefore **MVP-folded** (`palette[k]
+= viewport · bone_world`), so palette rotations do not match the model-space
+composed world bones directly, and only one slot (qw 114..116) held a single
+non-orthonormal matrix — the save state caught VU1 between batches. The EE pose
+buffers are present and clean: **two 21-matrix runs at EE `0x00287f40` and
+`0x00288d40`** (0xE00 apart, the documented double-buffered local/world pair),
+column-major affine, humanoid-scale — these are the per-bone LOCAL matrices the
+engine composes through the id71 parent table and then folds with the viewport
+into the per-block palette.
+
+### Conclusion and path forward
+
+The per-block 4-bone binding is **engine-built at draw time**: for each textured
+block the EE gathers 4 bone world matrices, folds them with the viewport, and
+VIF1-UNPACKs them into the VU1 palette; the vertex W-selector (`k∈{-3,-1,0,2}`)
+picks the slot. There is **no on-disc per-block bone-index field to read**.
+Recovering the exact slot→bone choice per block requires either (a) decompiling
+the EE function that builds the palette UNPACK (the loop that reads the 4 bone
+indices from a per-draw structure — likely keyed by the same material/section
+ordering as the object-space directories), or (b) a capture taken precisely
+during a block's UNPACK with a fully-populated palette, cross-referenced by the
+XGKICK'd GIF output. The object-space rigged mesh (directory at `0x2280`) stays
+the faithful posed export; the textured surface stays on the spatial-proximity
+proxy until the EE palette-builder is decompiled. The exporter was **not**
+changed (no clean on-disc binding emerged to wire); `verify_all --only gltf`
+PASS preserved.
