@@ -1,7 +1,6 @@
-// Tail-call / arg-shuffle wrapper — `asm void` with extern decls.
-extern void func_001D4E20(void);
+// Tail-call thunk: forwards to func_001D4E20 with a zeroed argument.
+extern void func_001D4E20(int a0);
 
-asm void func_001D4EA0(void) {
-    j func_001D4E20
-    paddub $a0, $zero, $zero
+void func_001D4EA0(void) {
+    func_001D4E20(0);
 }

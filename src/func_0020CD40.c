@@ -1,10 +1,6 @@
-// Tail-call / arg-shuffle wrapper — `asm void` with extern decls.
-extern void func_001FB9F0(void);
+// Tail-call thunk: requests a 0x1000-aligned allocation of class 0.
+extern void func_001FB9F0(int sel, int size, int a2, int a3);
 
-asm void func_0020CD40(void) {
-    addiu $a1, $zero, 0x1000
-    paddub $a0, $zero, $zero
-    paddub $a2, $a1, $zero
-    j func_001FB9F0
-    paddub $a3, $a1, $zero
+void func_0020CD40(void) {
+    func_001FB9F0(0, 0x1000, 0x1000, 0x1000);
 }

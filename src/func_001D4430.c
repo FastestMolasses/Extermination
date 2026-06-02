@@ -1,9 +1,6 @@
-// Tail-call / arg-shuffle wrapper — `asm void` with extern decls.
-extern void func_001D42E0(void);
+// Tail-call thunk: dispatches to func_001D42E0 with selector 3.
+extern void func_001D42E0(int sel, int a0, int a1);
 
-asm void func_001D4430(void) {
-    paddub $a2, $a1, $zero
-    paddub $a1, $a0, $zero
-    j func_001D42E0
-    addiu $a0, $zero, 0x3
+void func_001D4430(int a0, int a1) {
+    func_001D42E0(3, a0, a1);
 }

@@ -1,10 +1,6 @@
-// Tail-call stub: jumps to another function. mwcc has no C-level
-// tail-call optimization, so we hand-write the 2-instruction `j` as
-// inline assembly inside an `asm void` function (no compiler-added
-// prologue/epilogue).
+// Tail-call thunk: forwards directly to func_001D9070.
 extern void func_001D9070(void);
 
-asm void func_001D19D0(void) {
-    j func_001D9070
-    nop
+void func_001D19D0(void) {
+    func_001D9070();
 }

@@ -1,19 +1,11 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_001D1C50(int, int, int, int);
-extern void func_001D1EA0(int, int, int, int);
-extern void func_001D2830(int, int, int, int);
+// Tear-down sequence: resets the subsystem, posts state (3,1), and clears
+// slot 0.
+extern void func_001D1C50(void);
+extern void func_001D2830(int a, int b);
+extern void func_001D1EA0(int a);
 
-asm void func_001D1EF0(void) {
-    addiu $sp, $sp, -0x10
-    sq $ra, 0x0($sp)
-    jal func_001D1C50
-    nop
-    addiu $a0, $zero, 0x3
-    jal func_001D2830
-    addiu $a1, $zero, 0x1
-    jal func_001D1EA0
-    paddub $a0, $zero, $zero
-    lq $ra, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x10
+void func_001D1EF0(void) {
+    func_001D1C50();
+    func_001D2830(3, 1);
+    func_001D1EA0(0);
 }

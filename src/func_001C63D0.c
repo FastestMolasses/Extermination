@@ -1,11 +1,9 @@
-// Tail-call wrapper: sets up arguments and tail-jumps to another
-// function. mwcc lacks C-level tail-call optimization, so we write
-// these wrappers as `asm void` to control the final `j`.
-extern void func_001C9610(void);
+// Forwards into func_001C9610, deriving its arguments from sub-fields of the
+// passed object before advancing the base pointer.
+extern void func_001C9610(int *base, int flag, void *aux);
 
-asm void func_001C63D0(void) {
-    lbu $a1, 0xC($a0)
-    addiu $a2, $a0, 0xD0
-    j func_001C9610
-    addiu $a0, $a0, 0x110
+void func_001C63D0(char *obj) {
+    int flag = (unsigned char)obj[0xC];
+    void *aux = obj + 0xD0;
+    func_001C9610((int *)(obj + 0x110), flag, aux);
 }

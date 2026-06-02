@@ -1,15 +1,8 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_001E7780(int, int, int, int);
-extern void func_001F0310(int, int, int, int);
+// Runs the two subsystem steps in sequence.
+extern void func_001F0310(void);
+extern void func_001E7780(void);
 
-asm void func_001D0660(void) {
-    addiu $sp, $sp, -0x10
-    sq $ra, 0x0($sp)
-    jal func_001F0310
-    nop
-    jal func_001E7780
-    nop
-    lq $ra, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x10
+void func_001D0660(void) {
+    func_001F0310();
+    func_001E7780();
 }

@@ -1,12 +1,7 @@
-// Tail-call wrapper: sets up arguments and tail-jumps to another
-// function. mwcc lacks C-level tail-call optimization, so we write
-// these wrappers as `asm void` to control the final `j`.
-extern void func_001F4D40(void);
+// Tail-call thunk: forwards to func_001F4D40 with a fixed 5.5 in the
+// second float slot.
+extern void func_001F4D40(int a0, int a1, float f12, float f13);
 
-asm void func_001F4E20(void) {
-    lui $v0, (0x40B00000 >> 16)
-    mtc1 $v0, $f13
-    nop
-    j func_001F4D40
-    nop
+void func_001F4E20(int a0, int a1, float f12) {
+    func_001F4D40(a0, a1, f12, 5.5f);
 }

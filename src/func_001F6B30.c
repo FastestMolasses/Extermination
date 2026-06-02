@@ -1,15 +1,7 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_001F6640(int, int, int, int);
-extern void func_001F6760(int, int, int, int);
+// Builds an object via func_001F6760 and hands it to func_001F6640.
+extern int func_001F6760(void);
+extern void func_001F6640(int obj);
 
-asm void func_001F6B30(void) {
-    addiu $sp, $sp, -0x10
-    sq $ra, 0x0($sp)
-    jal func_001F6760
-    nop
-    jal func_001F6640
-    paddub $a0, $v0, $zero
-    lq $ra, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x10
+void func_001F6B30(void) {
+    func_001F6640(func_001F6760());
 }

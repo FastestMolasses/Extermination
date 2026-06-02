@@ -1,6 +1,6 @@
-extern void ChangeThreadPriority(void);
+// Tail-call thunk: raises the calling thread to priority 5.
+extern void ChangeThreadPriority(int prio);
 
-asm void func_00203980(void) {
-    j ChangeThreadPriority
-    addiu $a0, $zero, 0x5
+void func_00203980(void) {
+    ChangeThreadPriority(5);
 }
