@@ -1,5 +1,40 @@
 # Extermination Decomp — Progress
 
+### CodeWarrior 2.3.1 matching idioms — CRACKED (2026-06-02)
+
+Three reusable C-source rules that make mwcc 2.3 reproduce CW 2.3.1's
+scheduling/regalloc. Apply these when a readable-C decomp is 95-99% with
+only float-op / operand-order / saved-register diffs:
+
+1. **Compound assignment for float ops.** Write `x += K`, never `x = x + K`.
+   `x = a[i] + K` makes mwcc emit `add.s dst, const, value` with a spare
+   temp register; `a[i] += K` emits the target's `add.s dst, value, const`
+   and reuses the right register. (func_0021B500, func_00179880.)
+
+2. **Call-result first in chained multiply.** For `acc += A * (B * C)`, the
+   final multiply's asm operand order follows source order. To get
+   `mul.s dst, <call-result>, <product>` write the call result FIRST:
+   `func(...) * (b * c)`, not `(b * c) * func(...)`. (func_00179150.)
+
+3. **Saved-register allocation follows declaration / first-use order.**
+   mwcc assigns s0/s1/... in the order locals are declared/first used.
+   Declare the pointer that must land in s0 FIRST to match. Combined with
+   rule 2 this cracked the sin/cos motion-update physics family
+   (func_0014CD30, func_00150900, func_00136630 — `*p += *q * func(...)`).
+
+CONFIRMED COMPILER WALLS (do NOT keep trying from C):
+- **Dead `b epilogue; <dup-instr>` after a branch.** CW 2.3.1 emits an
+  unconditional branch to a shared epilogue plus a dead duplicate of the
+  merge instruction; mwcc 2.3 always coalesces it, at every opt level and
+  for every structure (if/else, goto, ternary). (-O2,p can recover the dead
+  `b` but then leaves delay-slot nops unfilled — trades one wall for #2.)
+- **Branch-delay-slot fill divergence.** CW left `beqz; nop` or set the
+  return value redundantly in delay slots; mwcc fills/omits differently.
+- **add.s scheduled BETWEEN a lui %hi / addiu %lo reloc pair.** mwcc treats
+  the reloc pair atomically and won't interleave; CW does. Scheduler-level.
+
+These three walls are why ~40 game-code near-misses stay as .word matches.
+
 ### Update — 2026-06-02 readable-C campaign (+83 functions, strict match)
 
 Two parallel campaigns over the game-code region converted **83 .word/

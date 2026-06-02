@@ -1,46 +1,14 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_0011DE90(int, int, int, int);
-extern void func_0011E2A8(int, int, int, int);
+extern float func_0011DE90(float);
+extern float func_0011E2A8(float);
 
-asm void func_00150900(void) {
-    addiu $sp, $sp, -0x30
-    sq $ra, 0x20($sp)
-    sq $s1, 0x10($sp)
-    sq $s0, 0x0($sp)
-    lb $v1, 0x63($a1)
-    paddub $s1, $a0, $zero
-    .word 0x1460001b
-    paddub $s0, $a1, $zero
-    lwc1 $f1, 0x3C($s0)
-    lwc1 $f0, 0x38($s0)
-    add.s $f0, $f0, $f1
-    swc1 $f0, 0x38($s0)
-    lwc1 $f1, 0x48($s0)
-    lwc1 $f0, 0x40($s0)
-    add.s $f0, $f0, $f1
-    swc1 $f0, 0x40($s0)
-    lwc1 $f1, 0x38($s0)
-    lwc1 $f0, 0xB4($s1)
-    add.s $f0, $f0, $f1
-    swc1 $f0, 0xB4($s1)
-    jal func_0011E2A8
-    lwc1 $f12, 0x28($s0)
-    lwc1 $f2, 0x40($s0)
-    lwc1 $f1, 0xB0($s1)
-    mul.s $f0, $f2, $f0
-    add.s $f0, $f1, $f0
-    swc1 $f0, 0xB0($s1)
-    jal func_0011DE90
-    lwc1 $f12, 0x28($s0)
-    lwc1 $f2, 0x40($s0)
-    lwc1 $f1, 0xB8($s1)
-    mul.s $f0, $f2, $f0
-    add.s $f0, $f1, $f0
-    swc1 $f0, 0xB8($s1)
-    lq $ra, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+void func_00150900(unsigned char *a0, unsigned char *a1) {
+    float *q = (float *)a1;
+    float *p = (float *)a0;
+    if (((signed char *)a1)[0x63] == 0) {
+        q[14] += q[15];
+        q[16] += q[18];
+        p[0x2D] += q[14];
+        p[0x2C] += q[16] * func_0011E2A8(q[10]);
+        p[0x2E] += q[16] * func_0011DE90(q[10]);
+    }
 }
