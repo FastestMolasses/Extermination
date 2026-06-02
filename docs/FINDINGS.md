@@ -587,6 +587,74 @@ CLUT belongs to the snowy level, not the title. No exporter was wired to colour
 `tools/gs_vram.py` (`--scan`, `--crossref`, `--dump CBP`); colour PNGs land in
 `scratch/color/` (git-ignored).
 
+### Neutral-lit MENU capture — base palette is STILL synthesised (2026-06-02)
+
+The payoff experiment the prior section proposed: two **flat-lit menu**
+captures (`/tmp/menu02` = MAIN MENU / EXTERMINATION title screen in colour;
+`/tmp/menu03` = OPTIONS screen; both user-local, never committed). The
+hypothesis was that with no 3D level ambient, the resident CLUT would equal
+the *unmodulated base* palette and therefore match an on-disc blob, recovering
+offline colour. **Hypothesis disproven — base palette is also engine-built.**
+
+**Step 1 — title-screen colour reproduction VALIDATED (milestone hit).** The
+title texture (DBP 10752, `chunk01/f00_id06.bin`, 512×768 PSMT8) is one packed
+atlas holding the *entire* title screen (the title wordmark, the X-ray-hand
+circle, the menu strings, the bottom menu items — all legible; the wordmark is
+stored mirrored and flipped on draw). Applying the menu capture's **resident**
+CLUTs (un-swizzled via `csm1_unswizzle_clut`) reproduces the **on-screen colour
+families**: the atlas is **multi-palette** — different sub-regions sample
+different resident CLUTs at draw time. Empirically on menu02:
+
+  * **CBP 12174-run (purple/silver)** → the EXTERMINATION wordmark + menu text
+    (matches the on-screen silver/purple title band) over a transparent ground.
+  * **CBP 12158-12166-run (magenta / red / purple / blue)** → the X-ray hand
+    (red-orange bones, magenta/purple glow) — matches the on-screen hand.
+  * **CBP 12288-run (blue / cyan / steel-gray)** → a blue/steel variant region.
+  * **CBP 8368-run (blue / black)** → persistent UI/font palette (also present,
+    byte-identical offset, in the earlier *gameplay* capture — a global UI CLUT).
+
+Each render is structurally perfect and the colours match the screenshot's
+families, proving the per-frame colour path on a known target. (A 16×16 CLUT is
+1024 bytes = **4 GS blocks**; `scan_vram_cluts` reports each 256-byte block as a
+sliding-window "hit", so the true palettes start on 4-block-aligned CBPs and the
+adjacent CBPs are shifted views of the same data.) Colour PNGs:
+`scratch/color2/menu02_title_cbp{12174,12159,12288,8368}_unsw.png` (git-ignored).
+
+**Step 2 — THE KEY TEST: menu CLUT vs on-disc blob = NO MATCH (decisive).**
+Cross-referencing **every** resident menu CLUT (menu02: 37; menu03: 19) against
+the 361-blob disc pool, with 4-block alignment, **both** CSM1 swizzle
+directions, and three match keys — **exact 1024-byte**, **RGB-only
+(alpha-stripped, 768 B)**, **alpha-normalized (all α→0x80)** — gives **ZERO
+matches**. Nearest disc blob (RGB-only max-per-byte-diff) is **154-235/255** for
+every vivid CLUT (a real match is 0). So the neutral-lit base palette is *not*
+a disc blob under any alpha convention or swizzle.
+
+**Per-entry synthesis re-confirmed.** For each vivid resident CLUT, **12/13
+distinct chromatic entries appear as standalone 4-byte words in `ee.bin`**, but
+the contiguous 1024-byte palette appears nowhere on disc and nowhere in EE RAM.
+The engine assembles each CLUT **per entry** directly into GS VRAM from
+material/colour sources scattered in EE RAM; it never stages or ships a whole
+palette buffer. This holds in *both* menu frames and matches the gameplay-capture
+finding exactly.
+
+**Cross-check (menu03 / Options) consistent.** The same 12158-12166 hand-region
+CLUT run is resident at the **identical VRAM offset** in both menu frames (a
+persisted UI palette); zero disc matches; per-entry colours present in EE RAM.
+The one difference — CBP 12288's colours are absent from menu03's EE RAM (0/13)
+because the Options screen doesn't load that atlas region — further confirms the
+palette set is assembled per-frame, not loaded verbatim.
+
+**CONCLUSION — offline colour is not recoverable by lookup; it is engine-bound.**
+Even flat menu lighting yields a synthesised palette, so there is **no
+(texture → disc-blob) base-palette binding rule** to extract. The disc blobs are
+palette *inputs* the engine combines per-entry (base material colour × lighting /
+material params); the GS-resident palette is an engine *output*. Recovering
+colour offline requires **reproducing the engine's per-entry palette build**
+(decompile the PSMT8 `TEX0`/CLUT setup and per-material colour modulation), not a
+table lookup. **The extractors therefore stay on the identity grayscale CLUT**
+(no exporter wired to colour). The resident-CLUT path (`tools/gs_vram.py`) and a
+live PCSX2 capture remain the only way to obtain a *specific frame's* colours.
+
 ## Audio — VAG ADPCM
 
 All game audio is **PS2 VAG ADPCM** (16-byte frames). Decoder: `tools/decode_sound.py`.

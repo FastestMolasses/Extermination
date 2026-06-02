@@ -1,5 +1,48 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-06-02 NEUTRAL-LIT MENU CAPTURE — base palette is also engine-synthesised (colour offline = closed door)
+
+The decisive follow-up to the live-capture work below. Two **flat-lit menu**
+captures (`/tmp/menu02` = title screen in colour, `/tmp/menu03` = Options;
+user-local, never committed) test whether neutral lighting yields the
+*unmodulated base* palette — which would then match an on-disc blob and give an
+offline colour binding. **It does not. The base palette is engine-built too.**
+
+- **Step 1 — title-screen colour reproduction VALIDATED (must-hit milestone).**
+  The title atlas (DBP 10752, `chunk01/f00_id06.bin`, 512×768 PSMT8) decodes
+  cleanly and holds the whole title screen. Applying the menu's **resident**
+  CLUTs (un-swizzled) reproduces the **on-screen colour families** — the atlas
+  is **multi-palette**: the purple/silver wordmark uses one resident CLUT
+  (CBP 12174-run), the red/magenta X-ray hand another (CBP 12158-run), a
+  blue/steel region another (CBP 12288-run), plus a persistent UI/font palette
+  (CBP 8368-run, also in the gameplay capture). Renders are structurally perfect
+  and colour-correct per region → the per-frame colour path is proven on a
+  known target. PNGs: `scratch/color2/menu02_title_cbp*_unsw.png`.
+- **Step 2 — KEY TEST: menu CLUT vs disc blob = NO MATCH (decisive negative).**
+  Every resident menu CLUT (37 in menu02, 19 in menu03) vs the 361-blob disc
+  pool, with 4-block alignment, both swizzle directions, and three keys (exact /
+  RGB-only / alpha-normalized): **zero matches**; nearest RGB-only max-byte-diff
+  154–235/255. The neutral-lit base palette is **not** a disc blob under any
+  alpha convention.
+- **Per-entry synthesis re-confirmed.** 12/13 distinct chromatic entries of each
+  resident CLUT appear as standalone 4-byte words in `ee.bin`, but the
+  contiguous palette appears nowhere on disc or in EE RAM. The engine builds
+  each CLUT **per entry** into GS VRAM.
+- **menu03 cross-check consistent.** Same 12158-run resident at the identical
+  VRAM offset in both frames (persisted UI palette); zero disc matches;
+  per-entry colours in EE RAM. CBP 12288's colours are absent from menu03 EE RAM
+  (that atlas region isn't loaded) — further proof palettes are per-frame.
+- **CONCLUSION.** There is **no offline (texture → disc-blob) base-palette
+  binding rule** — even flat lighting gives a synthesised palette. Disc blobs are
+  palette *inputs*; the resident palette is an engine *output*. Offline colour
+  now requires reproducing the engine's per-entry palette build (decompile the
+  PSMT8 `TEX0`/CLUT setup + per-material colour modulation), not a lookup.
+  **Extractors stay on identity grayscale** (nothing wired to colour — no rule).
+- **Files:** no tool edits (no binding rule emerged); `docs/FINDINGS.md`
+  ("Neutral-lit MENU capture — base palette is STILL synthesised"). Colour PNGs
+  → `scratch/color2/` (git-ignored). Reused `tools/gs_vram.py`,
+  `tools/clut.py`, `tools/extract_subtextures.py`, `tools/clut_bruteforce.py`.
+
 ### Update — 2026-06-02 RESIDENT CLUTs FROM A LIVE CAPTURE — pipeline proven, offline binding still not recoverable
 
 Extracted the **real resident CLUTs** from a PCSX2 in-game capture's 4 MB GS
