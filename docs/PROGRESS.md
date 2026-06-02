@@ -1,5 +1,40 @@
 # Extermination Decomp — Progress
 
+### Update — 2026-06-02 RESIDENT CLUTs FROM A LIVE CAPTURE — pipeline proven, offline binding still not recoverable
+
+Extracted the **real resident CLUTs** from a PCSX2 in-game capture's 4 MB GS
+local memory (`/tmp/cap2/gs.bin`, user-local) to try to crack the colour
+binding the brute-force pass (below) couldn't. New tool `tools/gs_vram.py`.
+
+- **GS local memory base in `gs.bin` = byte 509 (0x1FD).** The file is a GS
+  *freeze* blob (not the GS-dump packet format); the 4 MB ends exactly at EOF,
+  so VRAM word 0 = `len - 0x400000`. A CLUT `CBP` (256-byte blocks) →
+  `base + CBP*256`.
+- **CBPs found.** EE-RAM `TEX0` scan: character sheet `TBP0=7424` → CBP cluster
+  8272–8800; `TBP0=12800 → CBP=13560` (all `CPSM=0` PSMCT32, `CSM=0` CSM1,
+  `CLD=1`). A full VRAM block-scan finds **13 resident palette-shaped CLUTs**,
+  notably a vivid run at **CBP 8368–8371** (chroma 50–65 — real colour
+  palettes, confirmed by swatch).
+- **COLOUR pipeline proven (milestone hit).** Un-swizzling a resident CLUT and
+  applying it to the known-coherent EXTERMINATION title screen (DBP 10752)
+  yields a **structurally perfect, readable** image — proving the apply +
+  CSM1-un-swizzle path is correct — with **wrong colours** (it's the snowy
+  level's palette on the title art, not the title's own). So: one confirmed
+  colourised render from the capture; the extraction/apply pipeline works.
+- **OFFLINE BINDING — decisive NEGATIVE.** Resident CLUTs match **no** disc
+  blob: 0 exact matches vs the 361-blob pool (nearest max-byte-diff 128–235);
+  the resident **RGB content appears nowhere on disc** (alpha-free, both swizzle
+  forms); and no disc blob fits a resident CLUT under a per-channel **tint**
+  (best RMS ≈ 68/255). **The resident CLUTs are runtime-synthesised** (likely
+  per-material/ambient lighting modulation baked into the palette before
+  upload), not raw or tinted disc blobs. There is **no offline lookup rule** to
+  recover; colour offline now requires reproducing the engine's palette-build
+  (decompile the PSMT8 `TEX0`/CLUT-DMA setup + colour modulation).
+- **Not wired into exporters** (no binding rule). Default colour path stays
+  identity grayscale. Files: `tools/gs_vram.py` (new), `docs/FINDINGS.md`
+  ("Resident CLUTs from a live PCSX2 capture"). Colour PNGs → `scratch/color/`
+  (git-ignored).
+
 ### Update — 2026-06-01 BRUTE-FORCE CLUT RECOVERY — NEGATIVE RESULT (colour still needs the engine)
 
 Tried recovering the per-sheet colour palette **without an emulator** by

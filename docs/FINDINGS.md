@@ -509,6 +509,66 @@ collector (361-blob pool) and a reusable scorer; output PNGs land in
 `scratch/clut_bf/` (git-ignored). Not wired into any exporter — the default
 colour path stays the identity grayscale CLUT.
 
+### Resident CLUTs from a live PCSX2 capture (2026-06-02)
+
+`tools/gs_vram.py` reads the **resident** CLUTs straight out of a captured GS
+local-memory image (a PCSX2 save-state GS *freeze* blob), to sidestep the
+unknown offline binding entirely: the running engine has already uploaded the
+real palettes into VRAM. Capture used: an in-game frame (player soldier in the
+snowy-gate area; see `/tmp/cap2/Screenshot.png`, user-local, never committed).
+
+**GS local-memory layout in `gs.bin`.** The capture's `gs.bin` is a GS *freeze*
+blob, NOT the GS-dump packet format (no `0xFFFFFFFF` magic). It is a small fixed
+header followed by the 4 MB local memory, which ends exactly at EOF, so **VRAM
+word 0 is at byte offset `len(gs.bin) - 0x400000` = 509 (0x1FD)** for this
+v9 freeze. A CLUT pointer `CBP` (in 256-byte GS blocks) maps to file offset
+`base + CBP*256`. The 509-byte header is the GS display/PMODE/DISPFB state only;
+the internal drawing `TEX0` (active CBP) is **not** in it — it lives in the
+emulator's `PCSX2_Internal_Structures.dat`, not parsed here.
+
+**Resident CLUTs found.** A full VRAM block-scan (α∈[0,0x80], ≥100 entries at
+0x80, ≥32 distinct RGB) finds **13 resident palette-shaped CLUTs**, clustered in
+two runs of contiguous GS blocks: **CBP 8368–8371** (vivid, chroma 50–65) and
+**CBP 8384–8388 / 8402–8403 / 13559–13560** (chroma 4–28). The 8368-run swatches
+ARE genuine vivid palettes (purples/blues/greens/oranges). The contiguous runs
+imply **several CLUTs packed back-to-back** — consistent with one atlas's
+sub-textures each using a different palette.
+
+**CBP source (ee.bin).** Scanning EE RAM for PSMT8 `TEX0` (PSM=0x13) writes with
+`CLD≥1` finds runtime bindings; the clean ones (`CPSM=0` PSMCT32, `CSM=0` CSM1)
+point a character sheet `TBP0=7424` at CBP values in the 8272–8800 range, and
+`TBP0=12800 → CBP=13560`. So the resident 8368-run CLUTs are bound to the
+on-screen character/level textures, exactly where the residency map places those
+sheets.
+
+**THE BINDING — still not recoverable offline (decisive negative).** Cross-
+referencing every resident CLUT against the 361-blob disc pool gives **zero
+exact matches** (nearest blob max-per-byte-diff 128–235). Stronger tests also
+fail: (a) the resident **RGB content (alpha-free, 4-byte stride, both swizzle
+forms) appears nowhere on disc** — so it is not a disc blob with a different
+alpha convention; (b) the best **per-channel linear tint fit** of any disc blob
+to a resident CLUT has RMS ≈ 68/255 — so it is not a uniformly tinted disc blob
+either. **Conclusion: the resident CLUTs are runtime-synthesised** (most likely
+per-material/ambient lighting modulation baked into the palette before upload —
+plausible for the blue-white snowy scene), not verbatim or simply-tinted copies
+of on-disc blobs. There is therefore **no offline (sheet → disc-blob) binding
+rule to recover from this capture**; the disc blobs are palette *inputs*, and the
+GS-resident palette is an engine *output*. Recovering colour offline now requires
+reproducing the engine's palette-build (decompile the PSMT8 `TEX0`/CLUT-DMA
+setup and any per-material colour modulation), not a lookup.
+
+**Pipeline proven (the milestone).** Applying a resident CLUT (un-swizzled via
+`csm1_unswizzle_clut`) to a *known-coherent* sheet — the EXTERMINATION title
+screen (DBP 10752, `chunk01/f00_id06.bin`, decodes cleanly in grayscale) —
+produces a **structurally perfect, readable image** (the title text and X-ray
+hand) with **wrong colours** (purple/blue/peach over a monochrome source). That
+is the expected signature of a valid-but-mismatched palette: the apply +
+un-swizzle path is provably correct, and the colours are wrong only because that
+CLUT belongs to the snowy level, not the title. No exporter was wired to colour
+(no binding rule emerged); the default path stays identity grayscale. Tool:
+`tools/gs_vram.py` (`--scan`, `--crossref`, `--dump CBP`); colour PNGs land in
+`scratch/color/` (git-ignored).
+
 ## Audio — VAG ADPCM
 
 All game audio is **PS2 VAG ADPCM** (16-byte frames). Decoder: `tools/decode_sound.py`.
