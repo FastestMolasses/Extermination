@@ -36,6 +36,32 @@ only float-op / operand-order / saved-register diffs:
    struct-assignment batches all loads then all stores and diverges.
    (func_001CFA60 object initialiser.)
 
+6. **FP-register-slot via a two-float prototype (PARTIAL).** When a call takes a
+   const float (e.g. 0.0f) that CW places in `$f13` (the 2nd FP arg slot) with
+   `$f12` untouched, the callee has a *passthrough* float param. Declare the
+   prototype with TWO trailing floats — `f(..., float passthru, ..., float k)` —
+   forwarding the function's own float param to the first and the constant to
+   the second. mwcc then emits `mtc1 ...,$f13` (not `$f12`) and stops re-sign-
+   extending int args. Cracks the FP-register CHOICE only; surrounding mtc1
+   placement / delay-slot scheduling may still be a wall.
+
+GENUINE WALLS — CONFIRMED UNBREAKABLE from C (exhaustive: 8+ varied steering
+attempts each across opt levels, control-flow shapes, casts, temps; STOP trying):
+- **slt-into-branch regalloc.** mwcc's branch-on-compare peephole ALWAYS sinks
+  the slt/slti result into `$at` and folds it into the branch; CW uses `$v1`.
+  The only way mwcc emits slti into a general reg is when the compare result is
+  a RETURNED value (changes semantics). Blocks bone_init_default_0 (97.6%) and
+  every dynamic-bound loop/compare guard.
+- **Float-constant prologue hoist.** CW emits the const load (e.g.
+  `mtc1 $zero,$f12`) right after the stack-adjust, before register saves; mwcc
+  sinks it to just before the call. The const VALUE is matchable (rule 6); its
+  PLACEMENT is not.
+- **Branch-delay-slot fill.** CW leaves `beq; nop`; mwcc fills the legal delay
+  slot with the next instruction, shifting everything after by one. No C
+  structure forbids the fill; -O4 (no speed-sched) still fills.
+These three saturate the ~40-50 game-code near-misses; they stay as .word
+matches under strict matching (or become readable C only via hand-written asm).
+
 ADDITIONAL CONFIRMED WALLS (recurred in wave 3, not C-addressable):
 - **Float-constant materialization hoist.** CW emits `mtc1 zero,$f12` / a
   const load right after the stack-adjust (before register saves); mwcc emits
