@@ -220,7 +220,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00153A90,func_00153A90,188,undecompiled,1,entity
 0x00153B50,func_00153B50,844,undecompiled,1,entity
 0x00153EA0,func_00153EA0,48,readable,1,entity
-0x00153ED0,func_00153ED0,56,readable,1,entity
+0x00153ED0,func_00153ED0,56,word,1,entity
 0x00153F10,func_00153F10,292,word,0,entity
 0x00154040,func_00154040,212,undecompiled,1,entity
 0x00154120,func_00154120,832,undecompiled,1,entity
@@ -905,7 +905,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001B5E20,func_001B5E20,276,word,1,math_vector
 0x001B5F40,func_001B5F40,640,word,1,math_vector
 0x001B61C0,func_001B61C0,132,undecompiled,42,math_vector
-0x001B6250,func_001B6250,76,undecompiled,3,math_vector
+0x001B6250,func_001B6250,76,readable,3,math_vector
 0x001B62A0,func_001B62A0,20,readable,1,math_vector
 0x001B62C0,func_001B62C0,552,undecompiled,2,math_vector
 0x001B64F0,func_001B64F0,204,undecompiled,1,math_vector
@@ -1421,7 +1421,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001E76A0,func_001E76A0,216,undecompiled,0,weapon_hud
 0x001E7780,func_001E7780,1236,undecompiled,1,weapon_hud
 0x001E7C60,func_001E7C60,68,word,1,weapon_hud
-0x001E7CB0,func_001E7CB0,100,undecompiled,1,weapon_hud
+0x001E7CB0,func_001E7CB0,100,readable,1,weapon_hud
 0x001E7D20,func_001E7D20,3608,undecompiled,0,weapon_hud
 0x001E8B40,func_001E8B40,72,word,0,weapon_hud
 0x001E8B90,func_001E8B90,748,undecompiled,13,weapon_hud
@@ -1781,7 +1781,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00207BB0,func_00207BB0,240,undecompiled,1,subsystem
 0x00207CA0,func_00207CA0,36,word,1,subsystem
 0x00207CD0,func_00207CD0,36,word,1,subsystem
-0x00207D00,func_00207D00,132,undecompiled,47,subsystem
+0x00207D00,func_00207D00,132,readable,47,subsystem
 0x00207D90,func_00207D90,172,undecompiled,3,subsystem
 0x00207E40,func_00207E40,308,undecompiled,40,subsystem
 0x00207F80,func_00207F80,184,undecompiled,16,subsystem
