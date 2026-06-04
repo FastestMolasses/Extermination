@@ -40,22 +40,44 @@ ASM_DIR = "build/asm/matchings/main/code"
 CFLAGS = "-O4,p"
 
 
-def units() -> list[str]:
-    """Function names with C source in src/ AND a splat .s in build/asm/.
+def is_asm_stub(path: Path) -> bool:
+    """True if src/<name>.c is an INCLUDE_ASM stub (undecompiled placeholder).
 
-    Skips orphan src files whose corresponding splat function has been renamed
-    (so no .s with the original func_XXXXXXXX name exists any more).  Those
-    orphans don't link into the boot ELF — they'd be silently ignored by
-    fill_unmatched.py since the linker iterates the splat-detected vram list,
-    not src/.  Including them in objdiff.json just produces "missing target"
-    errors when generating reports.
+    A stub is a committed per-function file whose byte-identical machine code is
+    supplied by the locally-assembled splat disassembly (fill_unmatched.py), NOT
+    by compiling this C.  It exists so every function is a claimable unit without
+    committing the disassembly.  Marked by a first-line `// INCLUDE_ASM` comment.
+    Stubs are skipped by compile/expected/objdiff; the linker assembles their .s.
+    """
+    try:
+        with path.open() as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                return line.startswith("// INCLUDE_ASM")
+    except OSError:
+        pass
+    return False
+
+
+def units() -> list[str]:
+    """Function names with real C source in src/ AND a splat .s in build/asm/.
+
+    Skips (a) orphan src files whose corresponding splat function has been
+    renamed (no .s with that name exists), and (b) INCLUDE_ASM stubs (see
+    is_asm_stub) — stubs are undecompiled placeholders the linker fulfils from
+    the local .s, so they must not be compiled or treated as objdiff units.
     """
     asm_dir = ROOT / ASM_DIR
     available = {p.stem for p in asm_dir.glob("*.s")} if asm_dir.exists() else None
     out = []
     for p in SRC.glob("*.c"):
-        if available is None or p.stem in available:
-            out.append(p.stem)
+        if available is not None and p.stem not in available:
+            continue
+        if is_asm_stub(p):
+            continue
+        out.append(p.stem)
     return sorted(out)
 
 
