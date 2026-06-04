@@ -78,6 +78,17 @@ only float-op / operand-order / saved-register diffs:
    extending int args. Cracks the FP-register CHOICE only; surrounding mtc1
    placement / delay-slot scheduling may still be a wall.
 
+ 
+NOT A WALL — paddub register moves (correction 2026-06-XX). mwcc DOES emit
+`paddub $rd, $rs, $zero` for EE register moves/arg-saves/arg-setup — proven by
+committed readable-C matches func_00182A70, func_001BC300, func_001F0060 (each
+contains paddub and is byte-identical). A value (int OR pointer) used after a
+call is saved across it via paddub naturally; `arg = 0` becomes
+`paddub $aN, $zero, $zero`. Do NOT skip paddub functions (~1158 stubs have
+paddub). The real limiter on multi-call functions is SCHEDULER divergence
+(gp/scratchpad-address rematerialization order, delay-slot fill) — that, not
+paddub, is the wall.
+
 GENUINE WALLS — CONFIRMED UNBREAKABLE from C (exhaustive: 8+ varied steering
 attempts each across opt levels, control-flow shapes, casts, temps; STOP trying):
 - **slt-into-branch regalloc.** mwcc's branch-on-compare peephole ALWAYS sinks
