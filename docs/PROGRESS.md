@@ -1,5 +1,34 @@
 # Extermination Decomp — Progress
 
+> 2026-06-10 (session 25): FIRE ANIM MECHANISM decoded (static) — the
+> s23 guess "fire clips 0x31/0x32/0x34/0x35 = containers 49/50/52/53"
+> is DISPROVEN and corrected in FINDINGS: those values are armed-stance
+> ACTION CODES at player +0x1F0 (func_0016F600: stance +0x05
+> 0x1D/0x1E/0x1F/0x20 → 0x31/0x32/0x34/0x35, fire-mode independent; the
+> fire families only read them for sound 0x164 vs 0x165), and containers
+> 49/50/52/53 are unrelated long clips (49: 110 fr/17.2 u root travel,
+> 50: 79 fr/8.5 u, 52: 33 fr, 53: 60 fr — library-verified, NOT recoil
+> snaps, NOT appended to player.emdl; old export reproduced
+> byte-identical from the recorded CLI first). The real recoil:
+> bone_matrix_publish passes f13 = (float)fire-counter(+0x276) to
+> anim_clip_arbiter when the code is 0x31/0x34 — the committed AIM-LADDER
+> clip (anim_slot_index: D_00248B70/D_00248C50 per-sub 9-step pointer
+> tables; SPR4 stance-A base 0x112) is re-sampled at frame = counter,
+> which resets 0 per shot and gains +2/frame: the recoil snap is BAKED
+> into the clip's front frames (0x112: 4.0°/fr over frames 0-4 decaying
+> to a 0.9°/fr tail), replaying per shot and clamping back into the hold
+> (12.5 ticks; full-auto restarts at frame 12 — inherent overlap).
+> D_00248C90 rows extracted (weapon ids all rate 1.0; 0x110 = 1.4
+> re-confirmed; elf/ copy maps file_off = vram−0x100000+0x94). PORT:
+> em_game_anim_hold_restart (the counter re-seed) + em_game_anim_frame;
+> em_weapon rewinds the held 0x112 to frame 0 @2 fr/tick per shot;
+> weapon test extended (mid-replay after shots 1/5, clamp by D; D moved
+> +14 for the settle window) — PASS; EM_CAPTURE_AIM=2 (aim + one shot)
+> differs from =1 by 3.85% of pixels at the mid-recoil frame and is
+> pixel-IDENTICAL 22 ticks later; default + aim captures byte-identical;
+> all port self-tests PASS. FINDINGS: "FIRE ANIM MECHANISM" (+ inline
+> correction in "ANIM ID MAPPING").
+
 > 2026-06-10 (session 24 port wiring): WEAPON POSES + AIM CAMERA IN THE
 > PORT — player.emdl re-exported with the s23 weapon clips appended:
 > `export_native.py --attach --mesh extract/chunk28/f00_id3b.bin

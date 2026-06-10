@@ -7241,7 +7241,11 @@ is no remap table; D_00248C90 is a per-id PROPERTY table, not a remap.
    that file, 0..0x1C6.**
 
 So: reload 0x33 = container 51, draw 0x110 = container 272, holster
-0x111 = 273, fire 0x31/0x32/0x34/0x35 = 49/50/52/53, door-open
+0x111 = 273, ~~fire 0x31/0x32/0x34/0x35 = 49/50/52/53~~ **(CORRECTED
+s25, "FIRE ANIM MECHANISM": 0x31/0x32/0x34/0x35 are armed-stance ACTION
+CODES at +0x1F0, never clip requests — containers 49/50/52/53 are
+unrelated locomotion-class clips; the fire recoil is a fire-counter
+replay of the aim-ladder clip)**, door-open
 front/back 0x45/0x43 = 69/67, door-locked front/back 0x46/0x44 = 70/68,
 scripted walk set 0x4B-0x4E = 75-78, basic locomotion 1/2/3.
 
@@ -7657,3 +7661,109 @@ whether the world SIMULATION also halts is still unverified).
   ("2 segments at current=4") — settle with pixels.
 - Does the world simulation pause while the screen is open? (UI camera
   swap is confirmed; actor updates not yet checked.)
+
+## FIRE ANIM MECHANISM — no fire clips; the recoil is a counter-driven replay of the aim-ladder clip (2026-06-10, session 25)
+
+Static walk of the per-shot anim path (fire SM `func_00170A60` + stance
+helper `func_0016F600` + publisher `bone_matrix_publish`/`anim_matrix_
+dispatch` asm), property-table extraction, and clip-library inspection.
+**CORRECTS the s23 "ANIM ID MAPPING" line "fire 0x31/0x32/0x34/0x35 =
+containers 49/50/52/53": those four values are never requested as clip
+ids. The engine has NO separate fire clips.**
+
+### 0x31/0x32/0x34/0x35 are armed-stance ACTION CODES (+0x1F0)
+
+`func_0016F600` (and the stance tops) set player `+0x1F0` 1:1 from the
+stance byte `+0x05` on stance entry/switch:
+
+```
++0x05 = 0x1D -> +0x1F0 = 0x31      0x1E -> 0x32
+        0x1F ->          0x34      0x20 -> 0x35
+```
+
+The code is held for the WHOLE stance (this is why the s23 live laser
+capture read +0x1F0 = 0x31 during plain aiming). It is fire-mode
+INDEPENDENT — the semi/burst/auto families never write it; their
+per-shot blocks only READ it to pick the fire sound (0x164 for
+0x31/0x34, 0x165 for 0x32/0x35 — the s22 pairing) and the laser
+drawers/dodge AI key on it. The reload code 0x33 happens to coincide
+with the real reload clip id 0x33 because the top's state 3 requests
+that clip separately — the coincidence misled s23 into mapping the fire
+codes to containers 49/50/52/53.
+
+### What containers 49/50/52/53 actually are (library-verified)
+
+Exported from chunk28/f01_id3c on the 21-node player rig: 49 = 110
+frames with 17.2 u root travel (in-place natural speed 9.48 u/s), 50 =
+79 fr / 8.5 u travel, 52 = 33 fr, 53 = 60 fr — long locomotion-class
+clips, NOT recoil snaps (true weapon clips all have zero root travel).
+Identity unknown; NOT appended to the port's player.emdl.
+
+### The real recoil: bone_matrix_publish re-seeds the aim clip with the fire counter
+
+`bone_matrix_publish` (func_00179BC0), called per slot from
+`anim_matrix_dispatch` (func_0017A130) with the aim-ladder clip id from
+`anim_slot_index` (func_0017A0B0):
+
+```
+if (+0x1F0 in {0x31, 0x34})
+    anim_clip_arbiter(actor, ladder_clip, f12=0, f13=(float)lh(+0x276))
+else
+    anim_clip_arbiter(actor, ladder_clip, f12=0, f13=1.0)
+```
+
+`anim_clip_init`'s f13 is the SAMPLE TIME passed to anim_sample_bones —
+so in stances 0x1D/0x1F the committed aim-pose clip is evaluated at
+frame = the FIRE COUNTER (+0x276): 0 written at every shot (and at
+stance entry), +2/frame, shot gate at >= interval 12. Each shot
+therefore replays the aim clip from frame 0 at 2 clip-frames/tick; the
+RECOIL SNAP IS BAKED INTO THE CLIP'S FRONT FRAMES. Measured on clip
+0x112 (SPR4 stance-A ladder base, 25 fr): max adjacent-frame bone
+rotation 4.0 deg/frame over frames 0-4, decaying 1.9 -> 1.4 -> 1.2 to a
+0.9 deg/frame static tail — a snap settling into the rest pose. 25 fr @
+2/tick = 12.5 ticks to settle; at the 6-tick full-auto cadence the
+counter resets at frame 12, so sustained fire only ever replays the
+front half (engine-inherent overlap). Stances 0x1E/0x20 (codes
+0x32/0x35) sample at constant 1.0 — no counter recoil.
+
+### Aim-ladder tables (pinned; supersedes the halfword-table reading)
+
+`anim_slot_index`: stance {0x1D,0x1E} -> `D_00248B70[sub]` (POINTER per
+sub-weapon), else `D_00248C50[sub]`; the pointed-to halfword row is a
+9-step pitch/yaw ladder (dispatch samples steps 0..2 by pitch +0x278
+and 4/7/8 by yaw +0x27C, blending two buffers via func_00179CA0):
+
+```
+D_00248B70: sub 0 -> 0x112..0x11A   1,2 -> 0x11C..0x124   3 -> 0x127..0x12F
+            4 -> 0x131..0x139       5 -> 0x13B..0x143
+D_00248C50: sub 0 -> 0x18A..0x192   1,2 -> 0x194..0x19C   3 -> 0x19F..0x1A7
+            4 -> 0x1A9..0x1B1       5 -> 0x1B3..0x1BB
+```
+
+(The s23 "D_00248B88/D_00248C68 halfword stance tables" used by the
+tops' state-1 entry request remain correct — same clip families.)
+
+### D_00248C90 property rows (extracted, weapon ids)
+
+`{s16 mode, s16 frameA, s16 frameB, s16 pad, f32 rate_scale}`:
+0x31/0x32/0x33/0x34/0x35/0x111/0x112 all mode 1 (0x35: mode 0), no
+footstep frames, **rate 1.0**; 0x110 rate **1.4** (re-confirmed). The
+counter-driven recoil path does NOT consume rate_scale — the playhead
+step is the counter's +2/frame.
+
+Extraction note: in `elf/SCUS_971.12.elf` the LOAD segment starts at
+file offset **0x94** (readelf PHDR), not the boot ELF's 0x300 —
+`file_off = vram - 0x100000 + 0x94` for that copy. Verified against six
+anchors (walk 72/21, run 26/3, scripted walks 135/24 41/9 20/6, draw
+1.4).
+
+### Port translation (extermination-port s25)
+
+`em_game_anim_hold_restart(0x112, 2.0)` per shot — rewinds the
+committed aim hold to frame 0 at 2 frames/tick, clamping back into the
+hold (em_weapon.c "FIRE RECOIL" block). Laser stays on through the
+recoil (the gate is the stance code, held all aim — consistent with the
+s23 laser finding). Verified: weapon self-test asserts mid-replay after
+shots 1/5 and the clamp before holster; EM_CAPTURE_AIM=2 (aim + one
+shot) vs =1 differ by 3.85% of pixels at the mid-recoil frame and are
+pixel-identical 22 ticks later (the settle).
