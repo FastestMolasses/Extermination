@@ -7421,3 +7421,229 @@ variant byte {6, 0x1E} gates the knockback, but the husk pick inside
 func_001551B0 state 2 is not yet pinned); whether the engine ALSO
 draws the shard/chunk meshes at burst time (the gore-FX effect ids may
 reference them) — check live during a crate burst.
+
+## STATUS SCREEN LAYOUT — full draw-chain decode of the Triangle/Start status screen (2026-06-10, session 25)
+
+Live PCSX2 session (DebugServer + pad injection). Goal was a fidelity
+reference for the port's `em_hud`. **Capture method:** a GS dump was NOT
+obtainable — the DebugServer protocol has no dump command (verified
+against the fork's `DebugServer.cpp` command list), Pine is not running
+(so no save states either), and the one-shot GS-dump menu action needs
+the GUI. Method used instead: drove the real screen live with pad
+injection and decoded the entire draw chain statically (PCSX2 native
+disasm), verifying inputs/state/strings/param-blocks from live RAM.
+Everything below is from the code + live values, not from pixels; texture
+images (icons/title/portrait) remain unresolved without a VRAM capture.
+
+### Coordinate system & draw primitives (the UI module's vocabulary)
+
+- UI canvas is **512x448**, y-down. GS coords: `x_gs = x + 0x700`
+  (1792 = 2048−512/2), `y_gs = y/2 + 0x790` (1936 = 2048−224/2; y is
+  halved — interlaced field space). Quad/sprite coords are passed as
+  12.4 fixed (`float→fixed` via `*16.0` + `func_001281C0`).
+- `func_00207F80(1, x0,y0,x1,y1, rgba)` — flat quad by corners (12.4 GS).
+- `func_00207E40(1, x,y, w,h, rgba, tex_token:u64)` — textured sprite
+  (w/h in canvas px; token = {0x2004xxxx fmt/page word, uv/rect word}).
+- `func_001CBA50(1, x,y, glyph_w, glyph_h, str, style*)` — text
+  (x,y integer GS-space). `func_001CC1E0` — tall-font variant (10x20).
+  `func_001CC170(str)` returns pixel width (used for centering).
+- `func_001C5FB0(value, digits, trim)` — number formatter (known);
+  output assembled at buffer `0x2862C0` via `0x123168`/`0x122EF0`.
+- `func_002082B0(1, block*)` — **annular arc segment** from a 0x60-byte
+  param block: `+0x00/+0x04` x,y (GS*16, float), `+0x08/+0x0C` start/end
+  angle (degrees, float), `+0x10/+0x14` inner radius, `+0x18/+0x1C`
+  outer radius, `+0x20..0x5C` 4x RGBA (float4 each) gradient colors.
+- `func_00207D00(1, mode)` — blend mode (0 normal, 1 additive-ish, 3 seen).
+- Text styles (8 B records): `0x265510` white `0x80808080`; `0x265518`
+  dark gray; `0x265520` dark red (96,8,16) = "INFECTED"; `0x265528` red
+  (128,0,0) = health warning; `0x265530` gray (80,80,80) = profile rows;
+  `0x265538` blue (0,96,206) = the name (same blue as the markers).
+
+### Screen lifecycle & input (controller `func_0020CDC0`, ctx `0x810130`)
+
+- **Triangle AND Start both open the status screen** (verified: identical
+  memory diff — there is NO separate pause menu; this hub IS the menu).
+- On open: camera matrix `0x810610` set to **identity** (UI camera — the
+  3D scene becomes the status screen's rotating player model), flag
+  `0x8106C4=1` (back to 0 on close), `0x810750` bit 0x40 set.
+- ctx fields: `+0x01` state (jump table `0x2735B0`: 0 init, 1/2 hub,
+  3 page view, 4 return-from-page, 5 close, 6 —), `+0x02` sub-state,
+  `+0x10` ENTERED page (0x63 = none/returned), `+0x11` HOVERED page,
+  `+0x34/+0x38` health/infection targets, `+0x3C/+0x3E` timers.
+- **Count-up animation**: displayed health/infection live in display
+  copies `0x810858`/`0x81085C` (floats) stepping ±1.0/frame toward the
+  player-actor values (`0x8104D0`/`0x8104D8`).
+- **Page hover = left stick** (`func_0020D930` mode 0): deflection > 0.8
+  (double cmp via `func_00100130`), atan2 quadrant → `+0x11`:
+  right→2, down→1, up→3, left→4 (sound id 5 via `func_001FB9F0(5,...)`
+  on every change); resets to 0 when the stick releases (hover, not latch).
+- **X enters** the hovered page (works with no hover too → page 0).
+  Entering requests a disc-loaded asset module via `func_001FF080(0,id)`:
+  page 0→0x1F, 1→0x1E, 2→0x2C, 3→0x24, 4→0x25, (5→0x26); loader task
+  `0x1FF0D0`/`0x1FF1E0` reads header at byte offset `id*0x800`, loads
+  sections to `0xB00000` (default base). Per-frame page VIEW code is in
+  the main ELF: page 0→`func_0020EE50`, 1→`func_0020F950`,
+  2→`func_00211970` (reads SPR4 reserve `0x810CB4` — equipment-flavored),
+  3→`func_00214020`, 4/5→`func_002072C0`. Verified live: entered page 2,
+  exited back to the hub (`+0x10` ← 0x63).
+- **Exit to gameplay**: internal pad edge word `0x810E74` & `0x0810`
+  (internal swapped layout; held word at `0x810E7A`, Triangle=0x0020
+  there). Triangle closes from the hub.
+
+### Main (hub) page — element inventory (positions in the 512x448 canvas)
+
+Master drawer `func_00209DF0(ctx)`:
+
+1. **Four page-tab panels** around the selector (textured strips via
+   `func_00208750(0x10, verts, tex)`, tex `0x265540`, highlight variant
+   `0x265570` for the hovered page).
+2. **Page-selector diamond**, center (432,320): markers bottom
+   (432,376)=p1, right (476,320)=p2, top (432,264)=p3, left (388,320)=p4.
+   Each marker = white fading disc r0–16 (block `0x265270`) + ring r10–12
+   (`0x2652D0`) + ring r14–16 (`0x265330`); ring colors alternate
+   (0,128,255,128)/(0,64,64,128) **blue**, hovered → (0,240,0,128)/
+   (0,200,0,128) **green**. Around the center: spinning double ring
+   r50–56 / r56–62 (blocks `0x2651B0`/`0x265210`), ~88° cyan
+   (41,159,189,128)↔transparent gradient arcs advancing +90°/update;
+   plus a 16-particle sparkle emitter at (432,272) (`func_0020AC70`,
+   particle array `0x821300`, tex/data `0x273580`).
+3. **Title art**: textured 128x64 quad at (16,0) (token `..._9D421E50`).
+4. **Profile block**: "DENNIS RILEY" 12 px blue at (16,56); gray 10 px
+   rows "BIRTHDAY     :10.25.1981" (24,74), "HEIGHT/WEIGHT:5'11"/154lbs"
+   (24,86), "NATIONALITY  :USA" (24,98); one small blue slant tick
+   (4x6) at x=18 beside each row (y 78/90/102). Strings live at
+   `0x273dc0..`; the label pointer table is `0x267290`:
+   [INFECTED, INFECTION, HEALTH, BATTERY, SPR4, name, birthday, h/w,
+   nationality]. (Nearby: "INFECTION 50+%/70+%/90+%" at `0x273d50..` —
+   graded warnings used elsewhere.)
+5. **Portrait**: textured 128x128 quad at (0,320) (token `..._DD421D40`);
+   **help panel**: translucent gray (64,64,64,0x40) rect
+   (128,336)-(384,432); per-page help-text line ids are written to
+   `0x2821B4`/`0x2821B8`.
+6. **Four 32x32 icons** (white, textured): (11,304), (484,304), (417,10),
+   (417,406) — identity unresolved (tokens `..2186/..21F0/..2192/..21F4`).
+7. **HEALTH** (`func_00208AD0(ctx, cx=208, cy=196)`):
+   - label "HEALTH" 12 px white CENTERED on x=208 at y=118 (width via
+     `func_001CC170`); 8x8 blue marker just left of the label (y 122).
+   - **circular ring gauge** centered (208,197):
+     - background full ring r36–56 (block `0x2653F0`, angles 180→540°),
+       colors: normal (192,224,0,128)↔(224,128,24,128) yellow-green↔
+       orange; health ≤ 35 → (160,0,0,128)↔(192,0,0,128) red;
+     - health fill arc r24–56 (block `0x265390`) **light blue**
+       (0,153,255,128), sweep = 360°·health/100 starting at 180°;
+     - rotating 120° highlight (two 60° arcs r36–56, blocks
+       `0x265450`/`0x2654B0`, transparent↔(80,80,80) gradient), advances
+       12° per 2 frames → full revolution every 1 s; drawn in blend mode 1;
+     - the rotating 3D player model renders inside the ring (UI camera).
+   - value text 16 px at y=262: value at x=166, "/" at 202, max at 214 —
+     "075 / 100". Reads `0x810858`; red style when health ≤ 60 or when
+     flag `0x8104E4` is set; that same flag swaps the max string "100" →
+     "60" (`0x273558`/`0x273560`) — infection-reduced max health.
+8. **INFECTION** (text only — there is NO infection bar): reads
+   `0x81085C`; if == 100 → "INFECTED" tall-font (10x20) dark red at
+   (290,260); else label "INFECTION" 10x20 at (296,260) + value
+   ("60" + "%" from `0x273570`) 16 px white at (296,288).
+9. **BATTERY** (`func_00209280(ctx, 16, 118, tex_pair, mode=0)`), all
+   gated on `0x810C7F != 0`:
+   - 8x8 blue marker (0,96,206,128) at (16,120); "BATTERY" 12 px white
+     at (28,118);
+   - "04/06" 16 px white at (32,170): current `0x810CB2>>1` (2 digits) +
+     "/" + max `0x810CB7>>1`;
+   - **segment bar**: squares of 8x8 (mode 0), one per internal
+     HALF-unit, 12 per row (additional rows wrap below for capacity
+     > 12), drawn right-to-left from right edge x=104 at y=134, even
+     squares x-staggered −1 px; per-square color steps along
+     (163,54,160,128) magenta → (255,230,52,128) yellow in 1/12
+     increments (gradient computed in scratchpad `0x700038A0`).
+     NOTE: code says square count = half-units (8 squares in the test
+     save); the s21 eyeball note "shrank to 2" when current=4 conflicts
+     (code says 4) — needs a pixel capture to settle.
+   - mode 1 variant (no marker/label, 12x12 squares, text at +0x46/+0x50)
+     is used by `func_0020AE40` at (150,180) together with a HEALTH block
+     at (438,110) — a different screen (page view/device UI) reusing the
+     same widgets.
+10. **SPR4 / ammo** (`func_00209860(ctx, 16, 190)`):
+    - 8x8 blue marker at (16,192); "SPR4" 12 px white at (28,190);
+    - bullet icon 24x24 (token `..2196`) at (16,262); reserve count
+      (`0x810CB4`, 4 digits trimmed) 16 px white at (42,266);
+    - **the magazine count is NOT shown anywhere on this screen**;
+    - optional SECONDARY weapon row at y=286 (icon 24x24 at x=16, count
+      16 px at ~42,290): keyed on `0x810CA4`==2 → count `0x810CB0`
+      (icon `..21C2`); else switch `0x810CA6`: 1→`0x810CA8` (`..21A2`),
+      2,3→`0x810CAA` (`..21A6`), 4→ fuel percent = `0x810CAE` +
+      100·`0x810CAC` with "%" (`..21B2`), 0→ row hidden (test save: hidden).
+
+### Port comparison — `extermination-port/src/game/em_hud.c` vs the real screen
+
+The port's HUD is an honest placeholder (flagged as such in `em_hud.h`),
+but nearly every visual decision differs from the real thing:
+
+| aspect | port (`em_hud.c`) | real status screen |
+|---|---|---|
+| canvas | 640x448 | **512x448** (GS 0x700/0x790 offsets) |
+| layout | corner-anchored HUD bars | composed page: profile col TL, ring gauge center, battery/ammo blocks left, infection text right, pager diamond right, portrait+help panel bottom |
+| health | 180x10 linear bar, green→red lerp | **circular ring gauge** r24–56 @ (208,197): light-blue fill arc over yellow-green/orange ring, red ring ≤35, rotating 1 s highlight wedge, "075 / 100" text (red ≤60), max swaps to "/60" under flag `0x8104E4` |
+| infection | 180x7 purple bar | **text only** — "INFECTION" + "NN%"; "INFECTED" dark red at 100; no bar exists |
+| ammo | mag tick marks + reserve bar /240 | **no magazine display at all**; bullet icon + reserve number as text; optional secondary-weapon row; 240 is a port invention |
+| battery | teal segments, count = display units | "04/06" text + 8x8 squares = **half-units** (8 squares for "04"), 12/row, magenta→yellow gradient, right-to-left, gated by `0x810C7F` |
+| toggle | Triangle only | Triangle **or Start**; open/close animation states; count-up animation of displayed values |
+| scene | world keeps rendering, dimmed | camera swaps to **identity UI camera** — the scene IS the status screen (rotating player model); not a dim over gameplay |
+| text | none (no font) | white/gray/blue/red styled text everywhere; glyph cells 10x20 (tall), 12x12 (labels), 16x16 (numbers) |
+| extras | — | pager diamond (stick hover + X), spinning cyan rings + sparkles, profile bio block, portrait, help panel, page sub-screens |
+
+`em_hud.h` staleness: "battery storage address not yet located" — located
+since s21 (`0x810CB2`/`0x810CB7`); the "gameplay keeps running underneath"
+assumption is contradicted by the UI-camera swap (world view is replaced;
+whether the world SIMULATION also halts is still unverified).
+
+**Concrete fix list for the port (ordered):**
+1. Switch the overlay canvas to 512x448 (or remap logical coords).
+2. Move blocks to the real anchors: battery (16,118), SPR4 (16,190),
+   health center (208,196), infection text (296,260), profile (16,56)+
+   (24,74/86/98), portrait (0,320), help panel (128,336)-(384,432),
+   pager diamond center (432,320).
+3. Add an annular-arc primitive to em_gfx (params = the 0x60 block:
+   center, angle pair, r_inner/r_outer, 4-color gradient) and rebuild
+   HEALTH as the ring gauge (radii/angles/colors above), including the
+   ≤35 red state and the 12°/2-frame highlight sweep.
+4. Battery: squares = current half-units (not display units), 8 px,
+   12/row, right-to-left from x=104 y=134, magenta→yellow 1/12 gradient
+   steps, −1 px stagger on even squares; render "04/06" once a font lands.
+5. Ammo: drop the magazine ticks from the status screen (keep mag state
+   for a future in-page view); show reserve as icon + number at
+   (16,262)/(42,266); add the secondary-row dispatch when weapons land.
+6. Infection: remove the purple bar; text-only ("INFECTION NN%" /
+   "INFECTED"), tall font; red INFECTED state at 100.
+7. Open on Start as well as Triangle; add the ±1/frame count-up of
+   displayed health/infection (mirror `0x810858`/`0x81085C` semantics).
+8. Render the player model at the ring center with an identity UI camera
+   instead of dimming the live scene (and stop simulating the world while
+   open, pending verification of the engine's behavior).
+9. Font renderer is the single biggest fidelity unlock (labels, numbers,
+   profile text are the screen's core); glyph cell sizes 10x20/12/16.
+10. Refresh `em_hud.h` notes: battery addresses, canvas size, camera
+    behavior, and the EmPlayerStatus battery fields = half-units.
+
+### Tooling gotchas (this session)
+
+- `pcsx2_step` leaves TEMPORARY breakpoints at the stepped addresses;
+  they re-trigger on every `continue` (the VM "freezes" advancing ~1
+  cycle per resume). `pcsx2_clear_all_breakpoints` fixes it. Also
+  `pcsx2_read_registers` pauses the VM as a side effect — re-`continue`
+  after using it. Both together mimicked a soft-lock convincingly.
+- Status-screen page exploration is save-safe: hover/enter/exit changed
+  no inventory or player state (verified byte-identical `0x810C60..`
+  block, health/infection floats after full restore).
+
+### Open items
+
+- Page sub-screen content layouts (`func_0020EE50`/`0x20F950`/`0x211970`/
+  `0x214020`/`0x2072C0`) — each needs its own decode pass; page names
+  unconfirmed (page 2 reads the ammo reserve → equipment-flavored).
+- Icon/title/portrait texture images need a VRAM capture taken while the
+  screen is open (GS dump via the GUI menu action, or a software-renderer
+  save state once Pine is available).
+- Battery-bar square count: code (half-units) vs the s21 eyeball note
+  ("2 segments at current=4") — settle with pixels.
+- Does the world simulation pause while the screen is open? (UI camera
+  swap is confirmed; actor updates not yet checked.)
