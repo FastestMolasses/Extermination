@@ -1,5 +1,37 @@
 # Extermination Decomp — Progress
 
+### chunk21/f17_id8f rig RESOLVED: it's an encounter package (2026-06-09, session 4b)
+
+Open item #2 is CLOSED (parallel investigation; tool: `tools/rig_probe.py`
+— probe/survey/compare subcommands). The "42-slot rig" question had a
+third answer nobody hypothesized:
+
+- **Segment 1 = ONE 44-node creature** (boss-sized, ~3x humanoid scale,
+  hub node with 8 child chains — multi-appendage body plan). Its parent
+  table + 30 clips (blob id 0xd0, 40..586 frames) are embedded in the SAME
+  file's animation bank at 0x64080..0xc4e30. Slots 2..43 are nodes 2..43
+  (root + node 1 unskinned, exactly like chunk28). Proof: contiguous slot
+  histogram (no gap → not two stacked rigs) + mirror-chain fingerprint —
+  the three slot pairs with byte-identical bboxes and z-mirrored centroids
+  (11/12, 23/24, 34/35) are precisely the tree's mirror chains.
+- **Segment 0's rig is the in-file 20-node id-0x70 table, NOT the 21-node
+  0x74 prefix**: all five mirrored-geometry slot pairs match the 20-node
+  tree's mirror nodes and contradict the 21-node tree. The 0x74 prefix
+  (byte-identical to chunk28's player table) drives a 21-node actor in a
+  401-frame synchronized multi-actor CUTSCENE track set (0x74 + 0x2c +
+  3x 0x24 containers, same clip length).
+- **The pattern generalizes**: survey of 126 prefixed files found more
+  multi-model packages pairing mesh segments with in-file parent tables of
+  size max_slot+1 (chunk05.n0/f14_id88 47-node, chunk17/f14_id8b 33-node
+  74-clip, chunk25/f29_id95 33-node, chunk12.n0/f13_id8b → the common
+  30-node enemy rig). Rule for exporters: pair each segment with the
+  in-file table where n == max_slot + 1.
+- To pose the creature: decode any id-0xd0 clip with the (now decoded)
+  map-A/B/C channels + its 44-entry parent table — no external skeleton
+  file needed. Minimal export_native.py change: a --rig-nodes/--anim-hdr
+  selector (parse_id74_prefix returns only the FIRST container; use
+  rig_probe.scan_anim_headers-style enumeration for multi-bank files).
+
 ### id 0x74 channel encodings FULLY decoded; ANIMATED character in the port (2026-06-09, session 4)
 
 Open item #1 (map A's A/B fields + map B/C packing) is CLOSED — the
@@ -70,9 +102,12 @@ confirms the mapping sharply (0.88 vs ≥3.6 for any shifted mapping).
 Details: FINDINGS.md "Skinned-character pipeline FULLY DECODED".
 
 Notes: session-1's player_bones_live.json is actually this chunk28
-character's rig; chunk21/f17_id8f is a different costume/variant (its
-42-slot segment 1 rig pairing still open). export_native.py grew
---segment/--live and per-vertex bone EMDL output; port unchanged.
+character's rig. ~~chunk21/f17_id8f is a different costume/variant (its
+42-slot segment 1 rig pairing still open)~~ — RESOLVED in session 4b:
+f17_id8f is an encounter package (20-node humanoid + 44-node creature +
+in-file anim banks + a 401-frame multi-actor cutscene set); see the
+session-4b section above. export_native.py grew --segment/--live and
+per-vertex bone EMDL output; port unchanged.
 
 ### id 0x74 "vertex records" are ANIMATION — premise resolved, tools fixed (2026-06-09, session 2)
 

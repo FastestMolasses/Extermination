@@ -3555,3 +3555,51 @@ not needed for offline decode).
   multi-frame EMDL (per-frame TRS sampling, conjugate-quat locals,
   parent-table composition, recentre, fps=60). `--live` and the
   identity-palette fallback unchanged; the port needed no changes.
+
+## chunk21/f17_id8f is an ENCOUNTER PACKAGE — 42-slot rig resolved (2026-06-09)
+
+Resolved by disc-data-only structural analysis (`tools/rig_probe.py`:
+probe / survey / compare). Full evidence in the tool's output; summary:
+
+**File layout (358 blocks):**
+- `0x0..0xf870` — prefix: id 0x74 21-node container + id 0x2c 3-node +
+  3x id 0x24 1-node, ALL with the same 401-frame clip length: a
+  synchronized multi-actor (cutscene) track set. The 21-node parent table
+  is byte-identical to chunk28's player/NPC table.
+- `0xf870..0x528f0` — segment 0: 132 MESH blocks, skinned slots 3..19.
+- `0x528f0..0xd7070` — an ANIMATION BANK (previously misread as a "MATRIX
+  separator" block): 11 id-0x70 clips on a 20-node parent table + 30
+  id-0xd0 clips (40..586 frames) on a 44-node parent table.
+- `0xd7070..0x132f10` — segment 1: 181 MESH blocks, skinned slots 2..43.
+- 41 trailing 256-qw raw VIF blocks (different sig `...80006c`, not
+  W-bit-skinned; unrelated).
+
+**Segment 1 = one 44-node creature.** Parent table
+`[-1,0,1,1,3,2,3,2,3,3,8,5,7,9,6,9,4,15,15,15,15,13,10,12,11,15,14,15,
+15,16,15,21,25,22,23,24,26,29,30,31,32,36,39,40]` — single root, depth 8,
+14 leaves; does not split into two trees and does not embed the 21-node
+table at any offset. Slot histogram over 5792 vertices: contiguous 2..43,
+every slot used (kills the two-stacked-rigs hypothesis). Fingerprint: the
+tree's mirror-symmetric chains (5→11→24→35 vs 7→12→23→34) correspond to
+exactly the three slot pairs with byte-identical bbox dimensions and
+z-mirrored centroids — (11,12), (23,24), (34,35). Geometry: bone-local
+bboxes 3..23 units (≈3x humanoid), node 15 is a hub with 8 children
+sprouting long chains (multi-appendage body plan); slot 28 = dense
+530-vert core, slots 33/38/41/43 = long thin tips.
+
+**Segment 0 binds the in-file 20-node id-0x70 table, NOT the 0x74
+prefix.** Mirrored-geometry slot pairs (8,9),(10,11),(14,15),(16,17),
+(18,19) are all mirror nodes of the 20-node tree and contradict the
+21-node tree's mirrors ((15,16)/(19,20)); slot 20 is unused.
+
+**Generalization (survey of 126 prefixed files):** several other
+multi-model packages pair mesh segments with in-file parent tables of
+size max_slot+1 — chunk05.n0/f14_id88 (47-node), chunk17/f14_id8b
+(33-node, 74 clips), chunk25/f29_id95 (33-node), chunk12.n0/f13_id8b
+(the common 30-node enemy rig, bank files chunk*/f0x_id71.bin). The
+44-node table also appears in chunk21/f09_id99.bin@0xcfde0 (same chunk,
+same creature). Exporter rule: pair each segment with the in-file table
+where n == max_slot + 1; pose with that bank's clips via the (decoded)
+map-A/B/C channels. `parse_id74_prefix()` returns only the first
+container — multi-bank files need whole-file enumeration
+(`find_id74_headers()` / rig_probe's scan).
