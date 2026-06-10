@@ -4037,3 +4037,122 @@ levels because every level reuses the same VRAM slot allocator.
 - EMDL v2 header `reserved` is now a **flags** word: bit 0 = "the normal
   slot carries a baked RGB vertex color" (written by export_level.py,
   consumed by the port's shader as texture*color GS-modulate).
+
+## COLLISION WORLD — id 0x44 CONFIRMED as the collision/world-query data (2026-06-09, session 7)
+
+The "the engine never draws the id 0x44 file" puzzle is resolved: **the
+id 0x44 file is the level's collision world**, and the `level_world`
+cluster (0x19Axxx–0x1A7xxx) is the collision/query library. Confirmed
+three independent ways (static .s reading + disc-file decoding + EE-RAM
+dumps from the on-disk save states; no live debugger used).
+
+### 1. Runtime query API (the hubs all 4 reach from the actor spine)
+
+All four hub functions stage a query **segment** in scratchpad
+(`0x70003190` = start vec4, `0x700031A0` = end) and dispatch over a
+caller mask, one bit per collision SET; each set test clamps the
+segment end to its nearest hit, so the final result is the closest hit
+across sets. Return = bitfield of the set that produced the final hit
+(also stored to `0x700031D8`):
+
+- `func_0019A570(float* from, float* to, u8 set_mask, u16 param)` —
+  plain segment/ray query. mask bit0 → `func_001A6440` (movable-object
+  hulls), bit1 → `func_001A0B10` (static cell/n-gon world), bit2 →
+  `func_0019D330` (s16-grid heightfield world).
+- `func_0019AD00(actor*, float* target, u32 mask)` — actor move-probe:
+  start = actor position (+0xB0/+0xB8 = x/z), end extended 0.01 past
+  the target (`f12 = 0x3C23D70A`); on hit with mask bit31 set it ADDS
+  the hit-minus-end delta back into actor x/z — i.e. **collide-and-
+  slide response**. Consults actor +0x00 bit0, +0x02 & 0x1F (matrix /
+  world slot), +0x52 flags; object set via `func_001A7280`, entity set
+  via `func_0019FE50(actor->+0x14)`, plus `func_0019CB60`.
+- `func_0019AFE0(actor*, float* from, float* to, u32 mask)` — same
+  shape, explicit segment (736 B twin of 0019AD00).
+- Scratchpad result block: hit point `0x700031B0`, hit-minus-end delta
+  `0x700031C0`, result record ptr `0x700031D0`, hit object `0x700031D4`,
+  hit kind `0x700031D8`, hit id `0x7000324E`, surface attr `0x700030CC`,
+  poly id word `0x700030D0`, surface-type byte staged at `0x70003B88`
+  (values 0x50..0x59 are conditional/one-way surfaces, special-cased in
+  func_001A0B10 against `0x7000324E`).
+
+Caller linkage (tools/callgraph.py): the actor-update spine reaches all
+four hubs — `func_0015BCF0 → func_0015BA50 → func_0015B130 →
+{func_0016EBA0 → func_0019AD00, func_001647D0 → func_0019AFE0,
+func_00161020 → func_00175900 → func_0019AB20, func_00162DB0 →
+func_0017D080 → func_0019A570}`. 41/36/30/20 distinct callers — this is
+THE gameplay collision API.
+
+### 2. Static world: cells + convex n-gons, stored VERBATIM in the id 0x44 file
+
+`func_001A0B10` walks a **cell list** pointed to by SPR `0x70003250`:
+`u32 count` + count u32 entries (top bits 0xC0000000 = runtime
+active/stream flags — on disc 0xC0 on the first entry, cleared/set in
+place at runtime; low 30 bits = offset from list base; 0 = empty).
+Cell = 6-float world AABB + `s16 prim_count` @+0x18 + prims @+0x1C.
+Prim header u16: type = hdr & 0xF000, wide = hdr & 0x800, count byte
+@+2. Type 0x1000 (`func_001A4030`) = **convex planar n-gon**: plane
+normal+d @+4, N vec3f verts @+0x14, then edge data (narrow: edge
+normals, 0x14+0x18N total; wide: edge vectors + edge normals,
+0x24+0x30N). Types 0x2000 (0x1C B, `func_001A50A0`) / 0x4000
+(0x18/0x2C B, `func_001A5C30`) are small prims, not yet decoded; type
+0x8000 (0x14/0x24 B) is skipped here — it belongs to the s16-grid path.
+
+**RAM proof (save state 03, chunk10.n0 resident):** the per-level
+world-section directory at bss `0x28A598` holds 5 pointers; [0],[2],[4]
+point INTO the resident `f02_id44.bin` image (file offsets 0x138000,
+0x164000, 0x15A800), [1],[3] into `f10_id7a.bin`. [4] is the cell list:
+51 cells, **byte-identical to the disc file except single-bit
+0x40000000 entry-flag fixups** (1 of 51 words differed). A frozen
+in-progress query sat in scratchpad: vertical probe (-255.75, 110→310,
+-715.23) hit y=120.000 with `0x700031D0` pointing at file offset
+0x14FDDC inside section [0] — s16 rows (433,432,432,432,431,432 ≈
+120×3.6) → the **s16-quantized grid section produced a live floor hit**
+(kind 4 = `func_0019D330`, which calls `func_0019F1A0` = per-axis
+binary search over sorted s16 node tables (32 s16/node) + a stride-12
+float boundary array, then `func_0019ED80` for the surface test).
+
+### 3. Geometry: id 0x44 n-gons are SIMPLIFIED, textureless, and coincide with the render mesh
+
+`tools/collision_probe.py compare extract/chunk06.n1 --at 107.4,-184`
+(office room): cell list @0x7E800 (18 cells), 84 n-gons / 332 verts,
+bbox X[-3.6,120.5] Y[0,17.8] Z[-296,2.4] — fully inside the render
+mesh's X[-25,120] Y[-10,50] Z[-305,50]; 43% of collision verts lie
+within 2u of a render vertex (median 0.77u); ~84 polys vs ~10k render
+records (two orders of magnitude simpler); records carry plane + edge
+math and NO uv/TEX0/color — pure collision, not drawable geometry. The
+floor under the character is owned by the s16-grid section (the cell
+n-gons there are stairs/ramps/prop hulls; cells 13–17 are repeated
+small template boxes near the origin). Same decode works on chunk10.n0
+(247 n-gons), chunk15 (84), chunk04.n0 (304, via loose-signature scan —
+its cell-list header form differs).
+
+### 4. Movable-object hulls (doors etc.)
+
+Objects registered in the gp table `D_00275B8C` (ptr) / `D_00275B94`
+(s16 count) carry a polygon list at +0x58: `u32 count` (s16 @+0xA ==
+-2 → skip first record), then variable records: 3 layer bytes (masked
+against obj +0x5C/5D/5E) + matrix-index byte, u16 size = 0x18+24N,
+s16 N (<0 = disabled), plane normal @+8, plane d @+0x14, N vec3f verts
+@+0x18, N vec3f edge normals after. Matrix index selects
+`*(obj+0x110+idx*4)+0x90` (4x4) — sub-objects move/rotate. Walked by
+`func_001A6440(mask)` / `func_001A6AD0`: world-transform plane & verts,
+ray-plane t, per-axis interval check, then point-vs-edge-normal inside
+test (eps 1e-5); mask bit 0x40 enforces front-facing only
+(dot(n,dir) ≤ -1e-5). Verified live: 5-poly convex hull (a 11×2.5×3
+prism) shared by two door-like objects at (-134, 61, -769), layout
+checks 5/5.
+
+### Port-facing summary
+
+Collision query API for the native port:
+`int query_segment(vec3 from, vec3 to, u8 set_mask, u16 id)` →
+0 = no hit / set bit of nearest hit; outputs: hit point, hit normal,
+surface attr byte, poly id, hit object. Plus
+`int actor_move_probe(Actor*, vec3 target, u32 mask)` with bit31 =
+apply slide correction. Sets: movable hulls (object list), static
+n-gon cells, s16 heightfield grid. Tool: `tools/collision_probe.py`
+(decode / compare / ram). Open: exact s16-grid decode (scale ≈ 1/3.6?,
+node tables), prim types 0x2000/0x4000, section-directory loader
+(who fills 0x28A598), and section [2] (header 0x376/0xE00/0x4E80) role.
+
+_Last updated: 2026-06-09 (session 7) — verdict: **id 0x44 = collision world, CONFIRMED**._

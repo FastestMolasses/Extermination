@@ -1,5 +1,11 @@
 # Extermination Decomp — Progress
 
+> 2026-06-09 (session 7): COLLISION CONFIRMED — id 0x44 = the collision world
+> (cells + convex n-gons + s16 grid, verbatim on disc), level_world = the query
+> library (func_0019A570/AD00/AFE0 segment-query hubs reached from the actor
+> spine, with collide-and-slide response); decoder/validator:
+> tools/collision_probe.py; full writeup in FINDINGS "COLLISION WORLD".
+
 > 2026-06-09: SUBSYSTEM MAP COMPLETE — all 2,063 FUNCTIONS.csv rows labeled (40
 > clusters, 91 fns in numbered unknowns), main() identified at 0x001AAE40,
 > prioritized decomp roadmap in docs/SUBSYSTEMS.md; graph tool: tools/callgraph.py.
