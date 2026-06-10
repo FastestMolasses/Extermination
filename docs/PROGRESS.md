@@ -2278,7 +2278,19 @@ full format detail for everything below.
     `extract/audio_decoded/soundmap.json` — 1686 ids resolved (weapon/
     enemy/leech/flashlight ids verified feature-based), plus the
     (area0, area1) → region-container scene map as a by-product. FINDINGS
-    "Engine SOUND IDS".
+    "Engine SOUND IDS". Schema gotcha: `sounds` keys are UPPERCASE
+    zero-padded hex (`0x7D8`, not `0x7d8`); global ids carry
+    `events[]` inline, area-tabled ids carry `variants[]` (match the
+    area in `areas`, else the area's region via `area_scene_map`).
+  - **Port SFX registry generator** (2026-06-10 s26):
+    `tools/gen_sfx_registry.py` — soundmap.json → the port's
+    `assets/sfx/sfx.txt` (`<id-hex> <abs-wav-path>` lines) for an id
+    list or `--scene office` (area 2.1). The office preset also
+    recomputes the DOOR sound pair from the user's local data
+    (AREA02 state-1 placement links 0x0200/0x0280 → selector 2 →
+    D_0024DB80[2] = [front 0x3FD, back 0x3FE], both sounds in the
+    chunk04.n0 bank for area 2.1) and prints the matching scene.txt
+    `doorsfx 0x3FD 0x3FE` line the port's em_door consumes.
   - Dialogue: `STREAM/VOICE.DAT` → 116 mono clips (997 s).
   - Music: `STREAM/MUSIC.DAT` → 55 stereo tracks (5633 s); the 64-frame L/R
     interleave is now verified empirically (`detect-interleave`).
@@ -3918,3 +3930,37 @@ full detail):
   re-trigger every `continue`; `pcsx2_read_registers` pauses the VM.
 - Game state verified restored (inventory block, health/infection
   byte-identical; overlay closed; VM left running).
+
+### Update — 2026-06-10 s26: SFX registry generator + REAL door sounds in the port
+
+- **`tools/gen_sfx_registry.py`** (new): soundmap.json → the port's
+  `assets/sfx/sfx.txt` registry; see the audio tools bullet above for
+  the resolution rules (uppercase-hex keys, variants-by-area, region
+  fallback) and the door-pair computation.
+- **Office door sound pair pinned from data**: both office door
+  placements carry link `0x02xx` → D_0024DB80 selector 2 → **front
+  0x3FD (snd_0522, 24572 Hz) / back 0x3FE (snd_0523, 27581 Hz)**, area
+  2.1 bank chunk04.n0. Office enemy-death 0x7D8 resolves via the
+  region fallback (chunk04.n0 variant, snd_0552 19154 Hz) — its
+  area-table rows don't list 2.1.
+- **Port (extermination-port s26)**: `em_door` now reads the optional
+  global `doorsfx <front-id> <back-id>` scene.txt line (em_game's
+  parser skips unknown keywords; em_door scans the manifest itself)
+  and the open chain plays the engine's `pair[side]` (op 0x0B sub 6 /
+  func_001BBD60), logging the id. The close-at-black placeholder play
+  is dropped when the real pair is active (the decoded open script has
+  a SINGLE sound record; func_001BBD20 noted as a possible close path).
+  No `doorsfx` line = the old placeholder behavior, bit-for-bit.
+  FLAGGED simplification: one global pair, not per-door link patching
+  (needs export_props.py to emit the link halfword on door lines).
+- **Reload sound id still unlocated** — no labeled candidate in the
+  soundmap and FINDINGS pins only the reload ANIM (0x33). The registry
+  aliases the port placeholder 0xF002 to UNVERIFIED candidate 0x166
+  (unlabeled weapon-bank neighbor, snd_0357 48791 Hz); 0x166–0x168 are
+  the candidates to verify live (trigger a reload, watch
+  func_001FBD50's id argument).
+- Verified: EM_SFX_TEST (9 sounds, 3 plays, peak 3) / EM_DOOR_TEST
+  (logs `door sfx: open id 0x3FE (back side)`) / EM_WEAPON_TEST /
+  EM_ENEMY_TEST all PASS; all 9 registry WAVs exist (PCM16 mono,
+  19–49 kHz engine-exact rates); default EM_CAPTURE byte-identical to
+  pre-change baseline.

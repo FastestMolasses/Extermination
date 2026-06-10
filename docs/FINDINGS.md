@@ -7184,6 +7184,16 @@ So the door LINK halfword fully decodes as: bits 0-5 locked-VO line
 selector (func_001BBAE0), bit 6/7 door scale 1.5x/2.0x (s17), bits
 8-15 sound-set index into D_0024DB80.
 
+s26 dump of the table (13 used pairs, selectors 0..12): [0x3FB,0x3FB]
+[0x3FC,0x3FC] [0x3FD,0x3FE] [0x3FF,0x400] [0x401,0x402] [0x403,0x404]
+[0x405,0x405] [0x407,0x407] [0x409,0x409] [0x40A,0x40A] [0x40B,0x40B]
+[0x40C,0x40C] [0x40D,0x40E]. OFFICE: both door placements (AREA02
+state-1 records [5]/[6]) carry link 0x0200/0x0280 → selector 2 →
+**front 0x3FD / back 0x3FE** (area 2.1 bank chunk04.n0: snd_0522 @
+24572 Hz / snd_0523 @ 27581 Hz). `tools/gen_sfx_registry.py` recomputes
+this from the user's local ELF + overlay and feeds the port (scene.txt
+`doorsfx` line + sfx.txt registry).
+
 **Related scripts in the same region** (not door-specific, recorded for
 later): D_0024D900/D_0024D940... (op 7 / op 0D / op 17 / op 09 →
 func_001BB400 / op 01 walk-to 35.0 / op 09 → func_001BB310 / op 02 wait
