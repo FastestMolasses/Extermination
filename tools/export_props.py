@@ -130,6 +130,28 @@ props above) into <outdir>/gib_<id>.emdl. The port's em_enemy.c launches the
 small chunks on the crawler's burst death and falls back to its old sink
 placeholder when the files are absent.
 
+CRATE (--crate, 2026-06-10 s26). The placed crawler's IDLE disguise is the
+PER-AREA model-table entry bound by its placement param low byte (FINDINGS
+"CRAWLER RESOLVED" section 2: func_001B0EA0 looks actor+0x0D up in
+*(D_0028A59C)). For the OFFICE (AREA02, param 0x0D) the s23 recipe — read
+the live table pointer from an AREA02 save state (*(0x0028A59C) =
+0x015570C0, count 0x10) and content-match against extract/ — resolves the
+table INSIDE THE LEVEL RENDER FILE: chunk06.n1/f03_id43.bin at file offset
+0x82000 (entry 0x0D blob at 0xA3900, RAM 0x15789C0, byte-identical).
+
+  ** The office disguise is NOT the AREA11 14x14x14 beveled crate: office
+  entry 0x0D is a plain 6 x 4 x 5 BOX (1 block, 1 node, 10 tris, 8 corner
+  verts; bounds x +-3, y 0..4, z +-2.5) skinned with THREE 64x64 PSMT4
+  cardboard textures (TBP 0x2DF0/0x2D98/0x2D88), all VRAM-resident in the
+  office GS dump. Per-area skins, exactly as s23 section 2 predicted. **
+
+--crate exports that entry as a static 1-node EMDL v2 (model-local space,
+identity palette frame, texels from the office GS dump) — the port's
+em_enemy.c "crate" kind idles disguised as it. Defaults target the office;
+--crate-blob <file> instead exports a pre-carved raw blob (offset 0), e.g.
+scratch/crawler_mesh_id0D.bin (the AREA11 14u crate) with --p2s <state 01>
+as the texel source — flag that combination as the non-office stand-in.
+
 Disc-derived output: write only into git-ignored locations.
 
 Usage (macOS arm64, decomp repo root):
@@ -152,6 +174,10 @@ Usage (macOS arm64, decomp repo root):
   .venv/bin/python tools/export_props.py --gibs \
       --gsdump extract/gsdump/frame1.gs \
       --gibs-outdir ../extermination-port/assets/gibs
+  # the office crawler's intact crate disguise (per-area model table):
+  .venv/bin/python tools/export_props.py --crate \
+      --gsdump extract/gsdump/frame1.gs \
+      --out ../extermination-port/assets/enemy_crate.emdl
 """
 from __future__ import annotations
 
@@ -740,6 +766,112 @@ def export_gibs(args):
 
 
 # ---------------------------------------------------------------------------
+# Mode 5: --crate — the office crawler's intact crate disguise, from the
+# PER-AREA model table (see "CRATE" in the module docstring).
+
+CRATE_TABLE_FILE = "extract/chunk06.n1/f03_id43.bin"   # office level render
+CRATE_TABLE_OFF = 0x82000     # *(0x0028A59C) of the AREA02 save states,
+                              # content-matched into the file (s26)
+CRATE_MODEL_ID = 0x0D         # office crawler placement param low byte
+
+
+def table_entry_offset(d: bytes, table_off: int, mid: int) -> int:
+    """func_001C6120(table, id): entry = table + (dir[id] & ~3); the
+    id directory starts at table+4, word 0 = entry count, 0xFFFFFFFF =
+    absent. Returns the FILE offset of the entry blob."""
+    count = struct.unpack_from("<I", d, table_off)[0]
+    if not (0 < count <= 0x100):
+        raise SystemExit(f"model table at {table_off:#x}: bad count "
+                         f"{count:#x} (wrong file/offset?)")
+    if mid >= count:
+        raise SystemExit(f"model id {mid:#x} >= table count {count:#x}")
+    rel = struct.unpack_from("<I", d, table_off + 4 + 4 * mid)[0]
+    if rel == 0xFFFFFFFF:
+        raise SystemExit(f"model id {mid:#x} is absent from the table")
+    return table_off + (rel & ~3)
+
+
+def build_blob_mesh(d: bytes, off: int):
+    """One raw mesh blob at byte offset `off` -> a static EMDL section in
+    MODEL-LOCAL space (identity placement, attr rows baked through the
+    standard normals-or-colors rule) — the per-area model-table sibling
+    of build_placed_mesh's library path."""
+    raw_pos, raw_col, raw_bone, raw_uv, raw_tex = [], [], [], [], []
+    tris = []
+    weld = {}
+    tex_table: list[dict] = []
+    tex_of = make_tex_of(tex_table, {})
+
+    def vid_of(p, c, uv, t):
+        key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
+               round(c[0], 3), round(c[1], 3), round(c[2], 3),
+               round(uv[0], 5), round(uv[1], 5), t)
+        i = weld.get(key)
+        if i is None:
+            i = len(raw_pos)
+            weld[key] = i
+            raw_pos.append(p)
+            raw_col.append(c)
+            raw_bone.append(0)
+            raw_uv.append(uv)
+            raw_tex.append(t)
+        return i
+
+    for q, corners, parity in model_tris(d, off):
+        t = tex_of(q)
+        ids = [vid_of(tuple(p), attr_color(a, None), uv, t)
+               for p, a, uv, _q in corners]
+        a, b, c = ids
+        if parity:
+            tris.extend((c, b, a))
+        else:
+            tris.extend((c, a, b))
+
+    return [(raw_pos, raw_col, tris, raw_bone, raw_uv, raw_tex)], tex_table
+
+
+def export_crate(args):
+    if args.crate_blob:
+        src = Path(args.crate_blob)
+        d = src.read_bytes()
+        off = 0
+        print(f"crate source: {src} (pre-carved raw blob) — NON-OFFICE "
+              f"stand-in, pair with the matching --p2s VRAM (flagged)")
+    else:
+        src = Path(args.crate_table)
+        d = src.read_bytes()
+        off = table_entry_offset(d, args.crate_table_off, args.crate_id)
+        print(f"crate source: {src} model-table @{args.crate_table_off:#x} "
+              f"entry {args.crate_id:#04x} -> blob @{off:#x}")
+    nb, qwc, nn, size = struct.unpack_from("<4I", d, off)
+    print(f"  blob: {nb} block(s), {nn} node(s), size {size:#x}")
+    if nn != 1:
+        raise SystemExit(f"expected a 1-node static blob, got {nn} nodes")
+
+    sections, tex_table = build_blob_mesh(d, off)
+    pos = sections[0][0]
+    if not pos:
+        raise SystemExit("no geometry produced")
+    xs = [p[0] for p in pos]; ys = [p[1] for p in pos]
+    zs = [p[2] for p in pos]
+    print(f"  mesh: {len(pos)} verts, {len(sections[0][2]) // 3} tris, "
+          f"{len(tex_table)} texture(s), local bbox "
+          f"X[{min(xs):.2f},{max(xs):.2f}] Y[{min(ys):.2f},{max(ys):.2f}] "
+          f"Z[{min(zs):.2f},{max(zs):.2f}]")
+    for tf in tex_table:
+        print(f"  tex: psm {tf['psm']:#x} {1 << tf['tw']}x{1 << tf['th']} "
+              f"tbp {tf['tbp0']:#x} cbp {tf['cbp']:#x}")
+
+    tex_entries, tex_blob = lvl.build_texture_blob(
+        Path(args.gsdump) if args.gsdump else None, tex_table,
+        Path(args.p2s) if args.p2s else None)
+    out = Path(args.out)
+    en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
+                  tex_entries, tex_blob, flags=1)
+    return 0
+
+
+# ---------------------------------------------------------------------------
 
 def main(argv):
     ap = argparse.ArgumentParser(
@@ -760,6 +892,22 @@ def main(argv):
     ap.add_argument("--gibs-outdir", default="../extermination-port/assets/gibs",
                     help="(--gibs) output directory (git-ignored, "
                     "disc-derived)")
+    ap.add_argument("--crate", action="store_true",
+                    help="export the office crawler's intact crate disguise "
+                    "(per-area model-table entry) as a static 1-node EMDL "
+                    "to --out")
+    ap.add_argument("--crate-table", default=CRATE_TABLE_FILE,
+                    help="(--crate) file carrying the per-area model table")
+    ap.add_argument("--crate-table-off", type=lambda s: int(s, 0),
+                    default=CRATE_TABLE_OFF,
+                    help="(--crate) model-table byte offset in that file")
+    ap.add_argument("--crate-id", type=lambda s: int(s, 0),
+                    default=CRATE_MODEL_ID,
+                    help="(--crate) model-table entry id (placement param "
+                    "low byte)")
+    ap.add_argument("--crate-blob", help="(--crate) export this pre-carved "
+                    "raw blob instead of a table entry (flagged non-office "
+                    "stand-in; pair with the matching --p2s)")
     ap.add_argument("--doors", action="store_true",
                     help="export the placement-table doors as separate "
                     "articulated EMDLs into <outdir>/doors/, write the "
@@ -786,10 +934,12 @@ def main(argv):
 
     if args.gibs:
         return export_gibs(args)
+    if not args.out and not args.doors:
+        ap.error("--out is required (except with --doors)")
+    if args.crate:
+        return export_crate(args)
     if args.doors:
         return export_doors(args)
-    if not args.out:
-        ap.error("--out is required (except with --doors)")
 
     if args.attach:
         sections, max_slot, tex_table = build_attached_player(args)
