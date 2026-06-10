@@ -3545,3 +3545,24 @@ full detail):
   clip; read func_00183EF0's class-5 LOS path (does the boundary plane
   exempt itself?); area/room transition commit (destination tables
   D_0024E140) when the port grows an area loader.
+
+### Update — 2026-06-10 s21: BATTERY SOLVED — storage, display mapping, mechanics, L3 light
+
+- **Battery storage located and display-verified**: current = u16
+  `0x810CB2` (half-units), max = u8 `0x810CB7`; overlay shows
+  `value >> 1` ("04/06" = 8/12). Poke of CB2=4 changed the open overlay
+  to "02/06" + 2-segment bar live. Draw site `0x00209424/0x00209460`
+  (sra 1 + 2-digit draw via `0x001C5FB0`), gated on `0x810C7F`.
+- **Mechanics**: init zeroes it (`0x001AF380`); pickups add +12 (max->
+  0x0C) or +36 (max->0x24 = "18") via `0x001C41CC` cases; devices cost
+  `2*cost` half-units, drained -2/cycle (`0x002156A0`, insufficient ->
+  msg 0xF0); stations recharge +4/cycle (`0x002277xx`). A currency,
+  not a timer.
+- **Shoulder light = L3** (TYPE A config; unlabeled 7th BUTTON CONFIG
+  row): flips player-actor `0x8102BA` (+0xA); 300-frame auto-off burst
+  (`0x8102D8` timer, off-anim id 0x15D via `0x001749A0`); **zero
+  battery drain** (watch_change on CB2 over a full cycle: 0 hits).
+- **func_001418F0 candidate RESOLVED — not the battery** (entity
+  light/regen; callers `0x0013D908/DA28/DF28` idle in the office room).
+- Bonus: full processed-pad map (`0x810E70/74` byte-swapped held/edge
+  masks, raw bufs `0x810D40/DC0`) recorded in FINDINGS.

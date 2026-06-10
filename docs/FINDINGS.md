@@ -5899,6 +5899,14 @@ the inventory+stats. Layout differs from the live block.
   passed in `a1` (+0x70 s16 capped to 0xF0=240, +0x78 s16 tick counter,
   threshold from a table at gp-0x7FA8 indexed by `*(u8*)0x0081050C & 3`)
   — 240 = 8 mags x 30; owner struct not yet identified (battery?).
+  RESOLVED 2026-06-10 s21: **NOT the player battery** (that is
+  `0x810CB2/0x810CB7`, see the BATTERY section below). Its `a0` is an
+  actor with the same +0xA light-flag convention as the player actor;
+  its three static call sites (`0x0013D908`, `0x0013DA28`, `0x0013DF28`,
+  in an entity-update chain s1=actor/s0=sub-struct) never executed in
+  the office save room — some entity's own light/regen, not the suit
+  battery. Beware 0xF0=240 numerology: 0xF0 also appears as a message
+  id in the depot UI (`0x00214B38`).
 
 ### Tooling notes (first live use)
 
@@ -6002,3 +6010,103 @@ real clip (frame_count > 1) is picked up automatically.
   through both planes, door reaches OPEN — PASS. Office EM_CAPTURE with
   a doors-less manifest + old assets is byte-identical to the
   pre-change build; EM_MOVE_TEST / test-input / verify_all green.
+
+## BATTERY LOCATED — storage, display mapping, spend/recharge mechanics, L3 light (2026-06-10, session 21)
+
+Live PCSX2 session (DebugServer + pad injection + screen observation).
+The status overlay's "04/06" BATTERY readout is fully resolved.
+
+### Storage (static globals, inside the inventory block)
+
+```
+0x810CB2  u16  battery CURRENT, in internal HALF-units (8 in test save)
+0x810CB4  u16  SPR4 reserve ammo (known, unchanged)
+0x810CB7  u8   battery MAX, half-units (0x0C = 12 in test save)
+0x810C7F  u8   gate flag: nonzero = battery readout enabled on overlay
+```
+
+**Display mapping (display-verified): shown value = stored >> 1.**
+8>>1 = "04", 12>>1 = "06". Poking `0x810CB2 = 4` with the overlay open
+changed the text to "02/06" AND shrank the segment bar to 2 — live,
+same frame. NOT 240-based, NOT 40-per-segment; the old 240-cap guess
+is dead (see the func_001418F0 resolution above).
+
+Overlay draw site (status screen module): `0x00209424`
+`lh 0xCB2(at=0x810000); sra a0,v0,1` -> 2-digit draw via the number
+formatter `0x001C5FB0(value, digits, flag)`; `0x00209460`
+`lbu 0xCB7; sra 1` for the max; the "/" sprite from `0x00273568`
+between them; whole readout gated on `0x810C7F != 0`. (Same drawer
+reads `0x810CB4` at `0x00209A44` for the "120" reserve. The status
+strings "BATTERY"/"HEALTH"/... live at `0x00273DB0` etc., pointer
+table around `0x00267290`.)
+
+### Mechanics — the battery is a spend/recharge CURRENCY, not a timer
+
+- **New-game init `0x001AF380`**: zeroes both `0xCB2` and `0xCB7`
+  (battery acquired as items later), sets `0x810C7B=1` and other
+  inventory flags.
+- **Pickups / capacity upgrades** (cases inside the inventory-add fn
+  `0x001C41CC`): one item class adds `count*12` half-units and raises
+  max to 0x0C (=06 displayed) if below (`0x001C43D0..444C`); another
+  adds `count*36` and raises max to 0x24 (=18 displayed!)
+  (`0x001C4450..44D0`); current is clamped to max after each add. So
+  capacity can grow to 18 displayed units late-game.
+- **Spending — powering devices** (interaction dispatcher case 6,
+  `0x00214AE0`): device cost = `2 * (device->+0x34)` half-units,
+  snapshot of current to `+0x12` of the UI struct; if current < cost ->
+  "insufficient battery" path (message id 0xF0). Otherwise a
+  progressive transfer loop (`0x00215654/0x002156A0`) drains
+  **-2 half-units (= 1 displayed unit) per cycle** until the target is
+  reached; the empty-threshold branch fires an event
+  (`0x8106C5 = 0xFF`, scratch `0x70003B8D = 3`). Skippable via pad
+  mask 0x0870 (Start/Tri/O/X in the swapped layout, `lhu 0x810E74`).
+- **Recharging** (station/depot events, `0x002277D4 / 0x00227800 /
+  0x00227884`): **+4 half-units (= 2 displayed) per cycle**, same
+  progressive-transfer pattern.
+
+### Shoulder light: L3 toggle, timed burst, NO battery cost
+
+- **Toggle = L3** (button config TYPE A; it is the unlabeled 7th row of
+  the BUTTON CONFIG screen — icons: X, O, Square, R1, R2, L1, L3).
+  Verified by pad injection: each L3 tap flips player-actor byte
+  `0x8102BA` (+0xA of actor `0x8102B0`) 0<->1. NOT R3 (R3/SELECT/L1
+  all tested negative; SELECT opens the options screen).
+- **The light is a timed burst, then auto-off**: on activation the
+  actor timer `+0x28` (`0x8102D8`, s16) is loaded with 0x12C (300
+  frames = 5 s) (`0x00161180`, gated on `actor->0x200 & 0x1000`); it
+  down-counts per frame (`0x00161138`); at 0 the phase byte `+0x7`
+  (`0x8102B7`) increments and anim/event id 0x15D=349 is set via
+  `0x001749A0` (stores the id to `actor+0x20C`, blend 8.0) — the
+  turn-off animation. Observed end-to-end: light flag returns to 0 by
+  itself ~5-6 s game time after L3.
+- **Zero battery drain**: `watch_change` armed on `0x810CB2` across a
+  full on->auto-off cycle: 0 changes (and `0xCB2` never appeared in any
+  4 KB page diff during light-on). In this build/room the shoulder
+  light costs nothing; the 04/06 battery is exclusively the
+  device-powering currency above. (Caveat: only tested in the lit
+  office save room; re-check in a dark area if behavior ever looks
+  battery-gated there.)
+- The earlier "10-second timers" note: `0x8102DC`/`0x8104BC` getting
+  0x15D is this same anim/event id 349 propagating, not a dedicated
+  battery timer.
+
+### Pad-state map (found en route; useful for all future input work)
+
+```
+0x810D40 / 0x810DC0  raw libpad buffers (status 00, mode 0x73,
+                     buttons active-low at +2/+3, sticks +4..+7)
+0x810E40             ptr -> 0x810D40 (processed-pad struct follows)
+0x810E70  u16        HELD button mask, BYTE-SWAPPED layout:
+                     value = (low_byte << 8) | high_byte, i.e.
+                     SELECT=0x0100, L3=0x0200, R3=0x0400, START=0x0800,
+                     d-pad U/R/D/L=0x1000/2000/4000/8000,
+                     L2=0x01, R2=0x02, L1=0x04, R1=0x08,
+                     TRI=0x10, O=0x20, X=0x40, SQ=0x80
+0x810E72  u16        same value (latched copy)
+0x810E74  u16        PRESSED-EDGE mask, same swapped layout
+```
+
+Handlers and the config-mapped action masks come from scratchpad
+(`lhu 0x70003B76` and-ed with `0x810E74` at `0x00160234`); L3 is also
+tested raw (`andi 0x0200`) by the reload paths `0x00170C9C` /
+`0x00171060` (L3 doubles as reload when the weapon is drawn).
