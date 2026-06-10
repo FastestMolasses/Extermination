@@ -5705,3 +5705,93 @@ D_008106B5..B8 consumed by the area loader), walking the player to
   `D_0024DC14..D_0024DD14` not yet dumped/decoded.
 - `func_00183EF0` only fully read for the class-7 prefix; its class-5/8
   door variants (office doors are class 5) assumed symmetric — verify.
+
+## PLAYER AURA / GLOW BILLBOARDS DECODED — additive glow path in the port (2026-06-10, session 17)
+
+Closes the "billboard/glow quads (lib models 20/21/110-118) need a
+port-side billboard path" open item (s9). Sources: offline arena scan of
+save state 01's EE RAM (no live PCSX2 needed — the last built frame's
+DMA chains are intact in the state) + the office GS dump (frame1.gs).
+
+### 1. Geometry — the "billboard" library models
+
+- **Models 20/21 are ±5-unit CUBES** (6 quads, axis normals, 32 records,
+  `n_nodes=1`), not flat quads. Both sample ONE 16x16 PSMT8 texture
+  (TEX0 key `0x041695113222E9`, tbp 0x22E9 / cbp 0x20B4): a bright
+  border RING (lum 149..217) around a faint interior (lum ~5..15). The
+  cube faces' UV box is **0.281..0.719 — interior only**, so each face
+  adds only ~6% brightness: the aura is faint by construction.
+- **Models 110–118 are single small QUADS** with positions baked in
+  model space (e.g. 110: a ~1.8x1.8 tilted quad, full 0..1 UV — these
+  DO sample the bright ring; PSMT4 64x64 for 110, the shared 16x16 key
+  for 111–118). They are the control-panel/station glow overlays the s9
+  door-panel pass draws. Model 114 is a 13-block 3-node composite (12
+  distinct PSMT4 TEX0 keys) — not a glow, leave to the object pipeline.
+
+### 2. GS state of every glow draw (office dump, all 4 captured frames)
+
+```
+PRIM  tristrip, IIP=1, TME=1, FGE=1, ABE=1
+ALPHA A=0 B=2 C=2 D=1 FIX=0x80   -> Cv = Cs*(0x80/128) + Cd = Cs + Cd  (pure ADDITIVE)
+TEST  ATE=1 ATST=0(NEVER) AFAIL=3(RGB_ONLY)  -> never writes A or Z
+      ZTE=1 ZTST=2(GEQUAL)                   -> depth TEST stays ON
+ZBUF  ZMSK=1                                 -> no depth write (belt & braces)
+RGBAQ green, PULSING per frame: (1, 20..215, 1)/0x80 at the player;
+      (0,110,0), (1,114,1), (1,48,1) on the panel instances; model 110
+      (1, 103..132, 1)
+```
+
+### 3. Placement — models 20/21 are the PLAYER AURA
+
+Arena scan of save state 01 (snow scene): the glow draw units go through
+the LEVEL kernel (CALL `0x00237180`, matrix CNT 9qw with VIF in the tag
+words, RGBAQ via an A+D CNT just before the model REF). With the camera
+matrix K = P*V read from ctx+0x23C0 (camera_probe), **W = M · K⁻¹ (ROW-
+vector convention — the memory qwords are rows here, unlike the s7b
+column reading of the object kernel)** gives, for ALL model-20/21 units
+in the frame:
+
+```
+W = diag(1.6, 4, 1.6), identity rotation (player yaw NOT inherited)
+t = (player_root.x, player_root.y - 9.1, player_root.z)
+```
+
+byte-exact across both frame buffers (player root = skin palette bone 0
+= actor +A0 = (218.592, 229.851, 201.789); glow at y 220.751). Model 21
+gets a THIRD pass in a late chain (CALL 0x239C90 cluster) with the same
+scale ROTATED ~80° about Y — a slowly counter-rotating second layer; the
+s7b "rank-2 variant" reading was this rotated pass, mis-decoded. So the
+aura = additive scaled cubes anchored at the root, NOT camera-facing
+billboards; the depth test (GEQUAL, no Z write) clips the below-floor
+half of the 40-unit-tall box, leaving a soft green column over the body.
+(In the office placement table world: pickups get the same 20/21 pair —
+"models 20/21's parents are pickups" from s7b refers to those instances;
+the player carries his own.)
+
+### 4. EMDL extension + port render path (both repos)
+
+- **EMDL vertex flag** (EMD2/EMD3 compatible — old files carry 0):
+  vertex bone word bits 24..31 = per-vertex flags; **bit 31 =
+  BILLBOARD+ADDITIVE glow**. For flagged verts pos = anchor (bone-local)
+  and the normal slot = camera-plane corner offset (x=right, y=up,
+  world units). `export_native.write_emdl` passes the bits through;
+  `export_props.GLOW_ATTACHMENTS` bakes models 20/21 as one camera-
+  facing quad each (half-extents 8x20 = cube 5 x scale (1.6,4), anchor
+  (0,-9.1,0) on node 0, face UV box, fixed mid-pulse tints (0,110,0)/128
+  and (1,58,1)/128 premultiplied into DEDICATED texture copies —
+  `finish_textures`). The pulse animation is NOT reproduced (fixed
+  mid-pulse bake) and the camera-facing quad replaces the engine's
+  additive cube + rotating second pass — the standard modern equivalent,
+  same silhouette, stated honestly.
+- **Port (`em_gfx_metal.m`)**: mesh creation partitions flagged
+  triangles to the index-buffer tail; `draw_skinned` issues them as a
+  second pass — additive PSO (ONE/ONE, dest alpha kept), depth test on /
+  depth write off, shader mode bit 1 (no alpha-test cutout). Camera
+  right/up are recovered in the vertex shader from viewproj rows 0/1
+  (P*V rows = view rotation rows up to a positive projection scale).
+- **Acceptance**: EM_CAPTURE diff vs a no-glow re-export: 8.7% of pixels
+  change, GREEN CHANNEL ONLY, max delta +18/255, confined to the region
+  around the player — glows visible but subtle, scene otherwise
+  byte-identical. Move test PASS, verify_all --no-container all-PASS.
+- Remaining: panel glows 110–118 (level side — export_level is the
+  owner), pickup-instance auras in 01_props, the per-frame green pulse.

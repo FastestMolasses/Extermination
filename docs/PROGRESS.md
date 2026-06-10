@@ -10,6 +10,28 @@
 > clusters, 91 fns in numbered unknowns), main() identified at 0x001AAE40,
 > prioritized decomp roadmap in docs/SUBSYSTEMS.md; graph tool: tools/callgraph.py.
 
+### Player AURA decoded + EMDL billboard/additive flag — green glow in the port (2026-06-10, session 17)
+
+Closes the s9 "billboard/glow path" open item. Library models 20/21 are
+±5 CUBES (faint-interior 16x16 PSMT8 texture, UV box 0.281..0.719); the
+engine draws them through the LEVEL kernel as the player's aura: one
+matrix = diag(1.6,4,1.6) at the root's X/Z, y = root_y − 9.1, identity
+rotation, ADDITIVE (GS ALPHA A=0 B=2 C=2 D=1 FIX=0x80 → Cs+Cd), depth
+test GEQUAL on / Z write OFF (ZMSK=1), green RGBAQ pulsing 20..215;
+model 21 gets an extra slowly-rotating pass (the s7b "rank-2 variant").
+Recovered OFFLINE by scanning save state 01's frame arenas (REF tags →
+matrix CNTs; W = M·K⁻¹ row-convention with K from ctx+0x23C0) — no live
+PCSX2 session needed. Models 110–118 = fixed panel-glow quads (level
+side, still unexported). EMDL gains a compatible per-vertex flag (bone
+word bit 31 = billboard+additive; bits 24..31 reserved as flags);
+export_props bakes the aura as two camera-facing quads on node 0 with
+live-tint textures; the Metal backend draws flagged triangles in a
+second additive pass (ONE/ONE, depth-write off, camera right/up from
+viewproj rows). EM_CAPTURE diff vs no-glow baseline: green-only +18/255
+around the player (subtle, by construction); move test + verify_all
+--no-container PASS. Full writeup: FINDINGS "PLAYER AURA / GLOW
+BILLBOARDS DECODED".
+
 ### Multi-clip EMDL v3 + player WALK/RUN identified — port crossfades idle<->walk (2026-06-10, session 10)
 
 The port now plays a real walk cycle while moving. Two halves:

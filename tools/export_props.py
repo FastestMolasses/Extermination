@@ -37,6 +37,34 @@ So --attach merges the rifle models onto node 4 and the knife onto node
 14 (positions stay model-space = bone-local) and they animate with the
 skeleton automatically.
 
+PLAYER AURA / GLOW BILLBOARDS (decoded 2026-06-10 from save state 01 +
+the office GS dump). Library models 20/21 are +-5-unit CUBES (6 quads,
+axis normals) sharing one 16x16 PSMT8 texture (TEX0 key
+0x041695113222E9: a bright border ring, faint ~6%% interior; the cube
+faces' UV box 0.281..0.719 samples only the faint interior). The engine
+draws them through the LEVEL kernel (CALL 0x237180) as the player's
+aura: one shared world matrix = pure scale diag(1.6, 4, 1.6) translated
+to the player ROOT's exact X/Z with y = root_y - 9.1, identity rotation
+regardless of player yaw (model 21 gets an extra slowly-rotating pass).
+GS state of every glow draw (office dump runs 3533+, all four captured
+frames): PRIM ABE=1; ALPHA A=0 B=2 C=2 D=1 FIX=0x80 -> Cv = Cs*1.0 + Cd
+(pure ADDITIVE); ZBUF ZMSK=1 (no depth write) + TEST ATST=NEVER/AFAIL=
+RGB_ONLY (belt & braces: no A/Z update); TEST ZTE=1 ZTST=2 (depth test
+ON, GEQUAL) — so the below-floor half of the 40-unit-tall box is depth-
+clipped, leaving a soft column over the body. Vertex color comes from
+EE-side RGBAQ: green, pulsing per frame (office: (1, 20..215, 1)/0x80;
+snow state 01: model 20 (0,0x80,0), model 21's rotated pass red-ish).
+
+The port renders these as camera-facing QUADS (the standard equivalent
+of the PS2's additive box trick): GLOW_ATTACHMENTS bakes, per model, one
+quad anchored to skeleton node 0 at local offset (0,-9.1,0) with corner
+half-extents (8, 20) = cube half-size 5 x engine scale (1.6, 4), the
+face UV box, and a fixed mid-pulse green tint pre-multiplied into a
+dedicated copy of the texture. The vertex record carries the anchor in
+the position slot, the camera-plane corner offset in the normal slot,
+and bit 31 of the bone word = BILLBOARD+ADDITIVE (see export_native.
+write_emdl and the port's em_model.h/em_gfx_metal.m).
+
 The default (no --attach) export bakes PLACED world models (the pickups)
 into a static EMDL v2 with the placements applied — currently model 106
 at its live floor pose (115.0, 1.5, -269.3), which is a REAL separate
@@ -90,6 +118,17 @@ lvl = _load("_export_level_props", "export_level.py")
 
 ATTACHMENTS = [(47, 4), (48, 4), (49, 4), (50, 4), (56, 4), (64, 4),
                (106, 14)]
+
+# Player aura (see "PLAYER AURA / GLOW BILLBOARDS" above): camera-facing
+# additive quads anchored to a skeleton node. (model, node, local anchor,
+# corner half-extents (x, y) = cube half-size 5 * live scale (1.6, 4),
+# RGB tint /128 from live office RGBAQ samples — the engine pulses the
+# green channel; we bake one mid-pulse value per layer.)
+VERT_BILLBOARD = 0x80000000          # bone-word bit 31 (write_emdl flag)
+GLOW_ATTACHMENTS = [
+    (20, 0, (0.0, -9.1, 0.0), (8.0, 20.0), (0, 110, 0)),
+    (21, 0, (0.0, -9.1, 0.0), (8.0, 20.0), (1, 58, 1)),
+]
 
 LIVE_PLACEMENTS: dict[int, list] = {
     # model 106 (knife): floor pickup near the office's far wall
@@ -287,8 +326,57 @@ def build_attached_player(args):
     print(f"player+equipment: {len(pos)} verts, {len(tris)//3} tris "
           f"(+{len(tris)//3 - base_tris}), {len(tex_table)} textures")
 
-    max_slot = max([max_slot] + [n for _m, n in ATTACHMENTS])
+    # Player aura: one camera-facing additive quad per glow model, anchored
+    # to a skeleton node (positions = anchor, normals = corner offsets,
+    # bone word bit 31 = billboard+additive; tint pre-multiplied into a
+    # DEDICATED texture entry so each layer keeps its live color).
+    for mi, node, anchor, half, tint in GLOW_ATTACHMENTS:
+        recs = [r for blk in model_records(lib, offs[mi]) for r in blk]
+        key = recs[0][0] & en.TEX0_KEY_MASK
+        us = [r[1][0] for r in recs]
+        vs = [r[1][1] for r in recs]
+        u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
+        tf = en.tex0_fields(key)
+        tf["key"] = key
+        tf["tint"] = tint            # applied by finish_textures
+        ti = len(tex_table)
+        tex_table.append(tf)
+        base = len(pos)
+        hx, hy = half
+        for cx, cy, uv in ((-hx, -hy, (u0, v1)), (hx, -hy, (u1, v1)),
+                           (-hx, hy, (u0, v0)), (hx, hy, (u1, v0))):
+            pos.append(tuple(anchor))
+            nrm.append((cx, cy, 0.0))
+            bones.append(node | VERT_BILLBOARD)
+            uvs.append(uv)
+            texs.append(ti)
+        tris.extend((base, base + 1, base + 2, base + 2, base + 1, base + 3))
+        print(f"  glow model {mi:3d} -> node {node:2d}: billboard quad "
+              f"{2*hx:.0f}x{2*hy:.0f} @ {anchor}, tint {tint}")
+
+    max_slot = max([max_slot] + [n for _m, n in ATTACHMENTS]
+                   + [n for _m, n, _a, _h, _t in GLOW_ATTACHMENTS])
     return sections, max_slot, tex_table
+
+
+def finish_textures(args, tex_table):
+    """build_texture_blob + the glow tints: entries whose tex_table dict
+    carries `tint` (R,G,B, /128 fixed point — the live RGBAQ convention)
+    get their texels multiplied in place. Used by both --attach drivers
+    (here and export_native --attach)."""
+    tex_entries, tex_blob = lvl.build_texture_blob(
+        Path(args.gsdump) if args.gsdump else None, tex_table)
+    blob = bytearray(tex_blob)
+    for i, tf in enumerate(tex_table):
+        tint = tf.get("tint")
+        if not tint or i >= len(tex_entries):
+            continue
+        e = tex_entries[i]
+        for p in range(e["off"], e["off"] + e["w"] * e["h"] * 4, 4):
+            blob[p + 0] = min(255, blob[p + 0] * tint[0] // 128)
+            blob[p + 1] = min(255, blob[p + 1] * tint[1] // 128)
+            blob[p + 2] = min(255, blob[p + 2] * tint[2] // 128)
+    return tex_entries, bytes(blob)
 
 
 # ---------------------------------------------------------------------------
@@ -317,8 +405,7 @@ def main(argv):
 
     if args.attach:
         sections, max_slot, tex_table = build_attached_player(args)
-        tex_entries, tex_blob = lvl.build_texture_blob(
-            Path(args.gsdump) if args.gsdump else None, tex_table)
+        tex_entries, tex_blob = finish_textures(args, tex_table)
         parents, frames, fps = en.bake_id74_palettes(Path(args.anim),
                                                      args.clip)
         frames = en.recentre(frames)

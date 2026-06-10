@@ -661,7 +661,14 @@ def write_emdl(out_path: Path, sections, section_bone, parents, frames,
 
     `clips` = [{id, first, count, fps}] ranges into `frames` (see
     bake_id74_clips); None = one clip covering everything (single-pose
-    and single-animation exports)."""
+    and single-animation exports).
+
+    Per-vertex FLAGS (2026-06-10): bits 24..31 of a vertex's bone value
+    pass through into the stored bone word (bits 0..23 stay the palette
+    slot). Bit 31 = BILLBOARD+ADDITIVE glow part (camera-facing quad,
+    additive blend, no depth write — see export_props.GLOW_ATTACHMENTS
+    and the port's em_model.h). Plain slot values are unchanged, so every
+    existing producer/consumer is unaffected."""
     n_bones = len(frames[0])
     id_slot = n_bones        # identity matrix slot for unmapped vertices
     tex_entries = tex_entries or []
@@ -679,6 +686,8 @@ def write_emdl(out_path: Path, sections, section_bone, parents, frames,
         for vi, (p, n) in enumerate(zip(pos, nrm)):
             b = bones[vi] if bones is not None else (
                 section_bone[i] if i < len(section_bone) else -1)
+            vflags = (b & 0xFF000000) if b >= 0 else 0   # bits 24..31
+            b = (b & 0x00FFFFFF) if b >= 0 else b
             slot = b if 0 <= b < n_bones else id_slot
             used.add(slot)
             uv = uvs[vi] if uvs is not None else (0.0, 0.0)
@@ -686,7 +695,8 @@ def write_emdl(out_path: Path, sections, section_bone, parents, frames,
             if not (0 <= t < len(tex_entries)):
                 t = NO_TEX
             verts += struct.pack("<8f2I", p[0], p[1], p[2],
-                                 n[0], n[1], n[2], uv[0], uv[1], slot, t)
+                                 n[0], n[1], n[2], uv[0], uv[1],
+                                 slot | vflags, t)
         indices.extend(vbase + k for k in idx)
         vbase += len(pos)
 
@@ -799,8 +809,9 @@ def main(argv):
                              "blob builder); use --gsdump")
         props = _load("_export_props", "export_props.py")
         sections, max_slot, tex_table = props.build_attached_player(args)
-        tex_entries, tex_blob = props.lvl.build_texture_blob(
-            Path(args.gsdump) if args.gsdump else None, tex_table)
+        # finish_textures = build_texture_blob + the glow-layer tints
+        # (export_props.GLOW_ATTACHMENTS adds tinted billboard quads).
+        tex_entries, tex_blob = props.finish_textures(args, tex_table)
     else:
         sections, max_slot, tex_table = load_mesh_sections(Path(args.mesh),
                                                            args.segment)
