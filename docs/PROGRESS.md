@@ -722,6 +722,62 @@ src/func_001C84D0.c — all still stubs, wall-blocked 82-93%):
     exactly where CW put it (materializing at declaration parks it in
     the FIRST guard's slot instead; both beql conversions follow).
 
+17. **`switch` ALSO reproduces CW's plain beq+nop sparse chain — with
+    cross-block case-constant reuse** (2026-06-10, func_00153B50 attempt,
+    91.33% best, wall-blocked — analysis inline in the stub). Extends
+    idiom 14 to the non-beql variant: a C `switch` on an idiom-16c
+    fake-param-pinned value (`state = self->sub05` into the dead 3rd
+    param -> `lbu $a2`) made mwcc emit CW's exact chain — reverse
+    source-order compares with the SAME constant registers (v0,v0,a1,v1),
+    the case bodies CONSUMING the chain constants (`sb a1,0x5(s1)` /
+    `sb a1,D_008107FB` reusing the chain's `addiu a1,zero,2`), the
+    switch register live into a case body (`addiu v0,a2,1`), and the
+    dup'd common-tail head (`lui` in the default `b`'s delay slot).
+    Compose with: idiom 12c for call-arg order (`clip = 0x34;
+    anim_clip_init(s, clip, 10.0f, 0.0f);` puts `li a1` before the jal
+    and `paddub a0,s1` in the slot — validated x3), `if ((short)hp <= 0)`
+    polarity so the DEATH leg is the fall-through, and `*(int *)&f = K`
+    for CW's integer stores of float-constant bit patterns (the lui/ori
+    feeding both mtc1-compare and sw). Residual = wall #13 (the chain
+    slots' fall-through candidates are the next chain constants — not
+    C-addressable) + shadow-fill hoists + one f13-before-f12 swap.
+
+18. **`volatile` on a function-pointer FIELD preserves a beqz delay-slot
+    nop** (2026-06-10, same attempt). The tail `beqz v0; nop;
+    lw v0,0x4C(s1); jalr` shape: mwcc fills the slot with the (safe,
+    non-volatile) `lw` of the hook pointer; declaring the field
+    `int (* volatile post4C)(...)` makes the load unsafe to speculate
+    and recovers CW's nop. This is the field-level analog of the
+    matched-func_001F0060 rule in idiom 13. (Counter-datum: `volatile`
+    on a BYTE field did NOT stop mwcc sinking its `sb` into a jal delay
+    slot — volatility blocks speculation across a branch, not sinking
+    into an always-executed slot.)
+
+NEW WALL DATUM — prologue ADDRESS-pair split (2026-06-10, func_001B61C0 /
+pad-rumble request, wall-blocked at 93.6% with every other row AND all
+registers matching — idiom-7 fake params pinned the pause byte to $t0 and
+the pad-block pointer to $t1, the bnezl+dup'd-`addiu v0,1` likely-slot
+shape and the `sh` slot fill reproduced, and all four branch nops
+survived because the lbu candidates were volatile). CW 2.3.1 emits the
+global-struct address pair adjacent BEFORE the ra save (`addiu sp; lui;
+addiu; sq ra`) — the address-materialization analog of the
+float-constant-prologue-hoist wall; mwcc 2.3 fills the lui->addiu stall
+with the `sq ra` at -O3,p/-O4/-O4,s/-O4,p and hoists `sq ra` above the
+whole pair at -O2,p. Falsified: all four opt levels, pointer assigned
+before/after the first guard (after = worse, the pair sinks into the
+beqz slot). Once bytes match, inject_relocs.py supplies raw-cast
+HI16/LO16 — it refuses while .text differs, so the reloc rows show as
+extra diff until the scheduling row is fixed.
+
+WALLS RECOGNIZED WITHOUT BURNING ATTEMPTS (2026-06-10, from disassembly
+inspection — see the analysis inline in each stub): func_001860A0
+(surface-impact FX resolver) has 3x dead-`b`-dup (two dup'd chain
+constants + a dup'd return-0 paddub); func_001B41F0 (the hit-application
+dispatcher) stacks dead-`b`-dup x3 + wall-#13 bc1f slots + the
+saved-register-allocation-ORDER wall across SEVEN webs (params a0..t1 ->
+s6..s1 reversed, s0 reserved for a late-initialized local). Do not
+attempt from C until those families crack.
+
 NEW WALL DATUM — mwcc reorders accesses to DISTINCT volatile objects
 (2026-06-10, func_001AAD00 attempt, 75.13% best). Pinning a long gp-rel
 load/store swap block by declaring the globals volatile and transcribing
