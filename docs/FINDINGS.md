@@ -9692,3 +9692,119 @@ none.
   untranslated.
 - The 0x2755xx spawn descs (overlay-filled areas): dump each AREAxx
   overlay's filler to complete the all-areas spawn map offline.
+
+## STATUS SUB-PAGES — pager page identities, navigation remap, message bank, and texture export (2026-06-10, session 39)
+
+Static decode of the five status-screen sub-pages flagged open in s25
+("page sub-screen content layouts — each needs its own decode pass").
+No emulator: page view .s files + the chunk00 message bank + GS-upload
+replay of the page chunks. Port: page navigation skeleton shipped in
+`extermination-port` (em_hud) with per-page texture sheets from the new
+`tools/export_ui.py --page` mode.
+
+### Page id → identity (pinned; names from the game's own message bank)
+
+| page (+0x10) | hover | chunk | view fn | identity |
+|---|---|---|---|---|
+| 0 | 4 = left | 0x1F (extract/chunk31) | `func_0020EE50` | **ITEM SCREEN** — category hub; sub-modules 0x20 EQUIPMENT / 0x21 BATTERY / 0x22 EVENT / 0x23 HEALING (views `func_00214570`/`func_002149F0`/`func_00215870`/`func_002160B0`, states 4–7) |
+| 1 | 3 = up | 0x1E (chunk30) | `func_0020F950` | **MAP SCREEN** — 11 area maps (owned-flags `0x810700+0x5B8[11]`, gate array `D_00810CB8[11]`); cursor `+0x12` skips unowned maps; preselects the CURRENT area from `D_008106CD` (&0xF map, >>4&3 floor `+0x14`); entering computes the player-blip offset from `D_00810350/0x810358` vs the per-map float-triplet tables `D_00265890[map][floor]` (scaled 2·0.10666 → `+0x28/+0x2C`); external preselect via `D_008106B0/B1` |
+| 2 | 2 = right | 0x2C (chunk44) | `func_00211970` | **SPR4 SCREEN** — weapon customization hub; sub-modules 0x2D LOWER U.R.S. (`func_00218D90`) / 0x2E UPPER U.R.S. (`func_00217090`) / 0x2F SCOPE MOUNT (`func_00218640`) / 0x30 MULTIPLE ATTACHMENT (`func_002177B0`) / 0x31 SELECTOR SWITCH (`func_00217FA0`), states 4–8; plus the **magazine-refill flow** (entry request `D_008106B0`==5): counts the reserve display `+0x1E` up +3 per tick (sound 0x182 every 10 frames via the main-loop counter `0x70003B64`) to max = `D_00810C63`·30, then writes mag `D_00810C62`=30 and reserve `D_00810CB4`=max — reserve max is battery-capacity·30 |
+| 3 | 1 = down | 0x24 (chunk36) | `func_00214020` | **DATABASE SCREEN** — full item catalog; record id `+0x1B` classed by id ranges (<0x20/<0x32/<0x48/<0x5D/else → category `+0x12` 0–4); record text via help group 0x64 → `func_001FCF90(line, D_00282244)` (the "Found:" entries); external open-at-record via `D_008106B0/B1` (the pickup → database flow) |
+| 4/5 | — | 0x25/0x26 (chunk37/38) | `func_002072C0` → cb `func_00207350` | **PASSCODE KEYPADS** — NOT diamond-reachable; entered only via external request `D_008106C5` (≠2 → page 4, ==2 → page 5; 0xFF = cleared). 3x4 numeric pad: cursor `+0x28` (right +1, left −1, up −3, down +3, clamp 0xA=ENTER), X appends `D_00265010[cell]`+0x30 ASCII to the 16-byte buffer `+0x60` (max 8, sound 0x8C6; backspace Triangle-bit 0x20, 0x8C7; commit on cell 0xA, 0x8C8), then **strcmp (`func_00123020`) against `D_00275858[page-4]`**; match on page 4 sets unlock flag `D_00810845 |= 0x20`, mismatch → help line 2 + sound 0x8CB. Textures come from data tables `D_00275860[page-4]` (no inline TEX0 tokens — statically unexportable for now) |
+
+### CORRECTIONS to the s25 "STATUS SCREEN LAYOUT" notes
+
+- **X with no hover does NOT enter page 0** — `func_0020CDC0`
+  .L0020D294 requires hover 1..4; hover 0 → error buzz `func_0020CD80`.
+- **hover → entered page is a REMAP, not identity**: 1(down)→3,
+  2(right)→2, 3(up)→1, 4(left)→0 (so the s25 live "entered page 2 from
+  right-hover" was the identity case by coincidence).
+- The hub close mask is 0x830 = Triangle | Start | **Circle**.
+- s25's "(5→0x26)" module entry is real but only `D_008106C5`==2
+  reaches it.
+
+### The message bank: chunk00/f02_id02.bin = asset slot 2 (D_0028A498)
+
+Help text resolves via `func_001FCB90(x, y, group=D_00282240,
+line=D_002821B8)`: blob top header `{u32 base=0xA0, u32 ngroups=9,
+u32 total, u32 dir=0x10}`, 16-byte group dir entries at +0x10 (first
+u32 = group blob offset rel. base); each group blob `{u32 strbase,
+u32 count}` + sequential NUL-separated strings — **line N = the Nth
+string in physical order** (`func_001FE070` walks terminators).
+Groups: 0 = hub (lines 0 DATABASE SCREEN / 1 ITEM SCREEN / 2 MAP
+SCREEN / 3 "Dennis Infected" / 4–8 infection diary / 9 SPR4 SCREEN —
+the hub help shows the page name per hover, or the infection-graded
+diary line when idle, keyed on 100−infection thresholds 0x51/0x33/
+0x1F at `func_0020CDC0` .L0020D1AC); 1 = ITEM categories (BATTERY/
+EQUIPMENT/EVENT/MAIN MENU/HEALING); 2 = SPR4 components (SCOPE MOUNT/
+MULTIPLE ATTACHMENT/LOWER U.R.S./UPPER U.R.S./SELECTOR SWITCH/MAIN
+MENU); 5 = action prompts ("Reload SPR4 magazines…", battery-consume
+confirms, "Yes           No"); 6 = the 11 MAP area names ("Underground
+Tunnel", "A, B, and C Areas", "Supply Room", "Command Center"…);
+3/4/7/8 = item names/descriptions + the "Found:" database variants
+(64/64/41/42 lines).
+
+### Page textures: TEX0 tokens are inlined raw, and the chunks replay
+
+- Every page chunk uploads ONE PSMCT32 block at **dbp 0x1D00, dbw 4**
+  (256 px wide; heights 96–480) — `read_uploads_localmem` replays it;
+  the page textures are PSMT4/PSMT8 (+16/256-entry CSM1 CT32 CLUTs at
+  CBPs inside the same upload), stored v-flipped like the hub set.
+- The draw functions inline **raw 64-bit TEX0 values** (lui/ori +
+  dsll32/or pairs): TBP=lo&0x3FFF, TBW=(lo>>14)&0x3F, PSM=(lo>>20)&0x3F
+  (0x14/0x13), TW/TH log2 (TH spans the word boundary), CBP=(hi>>5)
+  &0x3FFF. A register-tracking scan of each page's draw-function
+  closure yields 17/18/35/22 tokens for pages 0–3 (page 4: 0 — data-
+  driven). **All 92 decode against their chunk replays (100%)**;
+  pixel-verified identities: "ITEM"/"MAP"/"SPR4" 128x64 title art
+  (titles draw at canvas (8,0) — page-1's inline call GS 0x7080/
+  0x7900), per-page OK/BACK/EXIT button legends, the 512x320 graph-
+  paper map (2x 256x256 + 2x 256x64 bands), the DATABASE page's
+  512x512 background (8x 256x128 tiles, 2x4), the SPR4 page's seven
+  256x128 weapon-attachment renders (carbine/shotgun/grenade
+  launchers/AT6/flamethrower/missile launcher), the map player-blip
+  16x16, map icons, chevrons, "PAGE /" counter. A "DATABASE" art
+  title was NOT found statically (likely data-driven via
+  `func_00213F30`/`D_002659C0`).
+- `tools/export_ui.py --page N|all` (macOS arm64, repo root; reads the
+  user's own extract/) writes `assets/ui_pageN.emui` (.emui v1, same
+  format as the hub sheet): records carry canvas anchors where known
+  (titles asm-anchored; background tiles/legends composition-verified
+  ASSUMED), else the x=-32768 sheet-only sentinel. Reported coverage:
+  page 0 17/17 (1 anchored), 1 18/18 (6), 2 35/35 (3), 3 22/22 (10),
+  4 0/0 (honest: keypad textures unreachable statically).
+
+### Port (extermination-port s39) — page-navigation skeleton
+
+em_hud: stick hover among the pager diamonds (deflection > 0.8,
+quadrants → hover 1–4; hovered marker rings render the engine's green
+state), X enters via the engine remap, Circle/Triangle exits a page to
+the hub, hub closes on Triangle/Start/Circle. The entered page draws
+its `ui_pageN.emui` anchored records (single UI texture slot re-
+registered on hub↔page transitions — the engine's transient re-stream
+shape); missing asset → flagged placeholder panel; every page carries
+an amber "CONTENT TBD" strip (interiors not modeled). Capture hooks
+`EM_HUD_PAGE=<0..3>` / `EM_HUD_HOVER=<1..4>` (with EM_HUD_FORCE=1).
+Verified: `make test-input` + door/sfx self-tests PASS; default AND
+EM_HUD_FORCE=1 hub captures **byte-identical** to the pre-nav build
+(nav only changes on input); page captures show MAP's graph-paper map
++ legend, SPR4's title/carbine/legend, DATABASE's tiled background +
+PAGE counter + legend, ITEM's title.
+
+### Open items (s39)
+
+- Page interior layouts (lists, cursors, the SPR4 component grid, the
+  database record view) — each still needs its own draw-chain pass;
+  the per-page draw helpers are mapped (see table) so the work is
+  scoped.
+- Sub-module texture sets (ITEM categories 0x20–0x23, SPR4 components
+  0x2D–0x31) decode with the same recipe (verified spot checks: cyan
+  selection banner, shared background art) — export once their views
+  are modeled.
+- Page background/legend anchors marked ASSUMED need one live capture
+  (or the draw-call coordinate walk) to pin exactly; the DATABASE
+  art title and the keypad textures need the data-table path
+  (`D_002659C0`, `D_00275860`) decoded.
+- The two keypad codes (`D_00275858[0/1]`) and the unlock flags'
+  consumers — read the strings from the local ELF and tie to the
+  METAL TAG / Maximum Security flow.

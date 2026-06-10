@@ -1,6 +1,6 @@
 # Extermination Decomp — Progress
 
-## Current status (2026-06-10, through session ~s37)
+## Current status (2026-06-10, through session ~s39)
 
 Two tracks, both far along. The matching decomp is verifiably byte-perfect
 end-to-end and ~96.2% of game-code bytes are committed readable/matching C;
@@ -26,7 +26,7 @@ weapons, enemies, doors, audio and the real status screen.
   enemy-AI architecture + 1011-record placement census (s22b), door scripts
   + anim-id mapping (s17/s20/s23/s30/s32), area/room transition lifecycle
   (s22), inventory/battery globals (s19/s21), status screen + UI font + UI
-  textures (s25/s26b/s27b), SShd tone records + the full engine sound-id map
+  textures + sub-page identities/navigation (s25/s26b/s27b/s39), SShd tone records + the full engine sound-id map
   (s12, `soundmap`), music/voice cue tables (s15), generators (s28+), the
   kind-0xE tendril field (s33), engine-exact locomotion ids (s31), live
   gameplay sound-id captures (s29). All formats in docs/FINDINGS.md.
@@ -127,6 +127,28 @@ below are kept as historical record; this block supersedes them.)
 Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
+
+> 2026-06-10 (session 39): STATUS SUB-PAGES — the five pager pages are
+> identified, navigated and textured (FINDINGS "STATUS SUB-PAGES").
+> Identities pinned from the chunk00/f02 message bank (asset slot 2,
+> 9 help groups, line = Nth NUL-string) + the controller's hover
+> remap (func_0020CDC0: down→3 DATABASE, right→2 SPR4, up→1 MAP,
+> left→0 ITEM; X with NO hover buzzes — corrects s25): page 0 = ITEM
+> (chunk 0x1F; category sub-modules 0x20–0x23), 1 = MAP (0x1E; 11
+> area maps, player-blip math), 2 = SPR4 customization (0x2C; sub-
+> modules 0x2D–0x31 = lower/upper URS, scope, multi-attach, selector;
+> mag-refill flow writes mag=30, reserve=battery·30), 3 = DATABASE
+> (0x24; id-range categories, "Found:" records), 4/5 = passcode
+> KEYPADS (0x25/0x26; strcmp vs D_00275858, unlock flag 0x810845|=
+> 0x20; external-only via D_008106C5). Page chunks each upload one
+> PSMCT32 block at dbp 0x1D00 — replayed synthetically; 92/92
+> statically lifted inline TEX0 tokens decode (titles "ITEM"/"MAP"/
+> "SPR4" pixel-verified; map sheet, DB background tiles, 7 SPR4
+> weapon renders). New `export_ui.py --page` writes ui_page0–3.emui
+> (page 4 honestly 0/0 — data-driven). Port: hub stick-hover (green
+> marker) + X-enter + Circle/Triangle-back navigation, page views
+> draw the exported backgrounds + amber CONTENT TBD strip; tests
+> PASS, default + EM_HUD_FORCE hub captures byte-identical.
 
 > 2026-06-10 (session 37): FOOTSTEP SURFACE TABLE — the s29 open item
 > "per-surface id table not located" is retired: there is NO data
