@@ -1,5 +1,28 @@
 # Extermination Decomp — Progress
 
+### Skinned-character pipeline solved end-to-end; posed character in the port (2026-06-09, session 3)
+
+The block→node binding fell: the character skinner is the 62-qw kernel
+at vram 0x0023C780 (found via the live VIF1 draw chain: GS-state REFs +
+CALL to the kernel's canned MPG packet + one REF covering the whole
+block stream). It reads each vertex's position-W float AS AN INTEGER:
+bits 0..9 are the absolute VU1 dmem qword address of that vertex's
+7-qw matrix set (transform + normal matrix), laid out at qw 8×node;
+bit 15 is the strip-restart flag. So per-vertex node = (W_bits &
+0x3FF) >> 3, positions/normals are bone-local, and blocks are plain
+VIF packets (MESH_SIG == STCYCL(4,4)+UNPACK V4-32).
+
+Verified: exported the live scene's character (chunk28/f00_id3b.bin)
+with its captured 21 node world matrices → the port renders a fully
+coherent posed character (head/face/hands/boots). Joint-edge metric
+confirms the mapping sharply (0.88 vs ≥3.6 for any shifted mapping).
+Details: FINDINGS.md "Skinned-character pipeline FULLY DECODED".
+
+Notes: session-1's player_bones_live.json is actually this chunk28
+character's rig; chunk21/f17_id8f is a different costume/variant (its
+42-slot segment 1 rig pairing still open). export_native.py grew
+--segment/--live and per-vertex bone EMDL output; port unchanged.
+
 ### id 0x74 "vertex records" are ANIMATION — premise resolved, tools fixed (2026-06-09, session 2)
 
 Set out to pin the 12-byte record layout via the VU1 kernels + VIF UNPACK

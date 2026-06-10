@@ -3345,3 +3345,93 @@ Corrected kernel readings (decoded end-to-end):
 - `tools/export_gltf.py`: still contains the void per-bone decoders
   (`load_per_bone_meshes*`); needs the same surgery — its glTF output
   remains garbage until then.
+
+## Skinned-character pipeline FULLY DECODED — posed character renders in the port (2026-06-09, session 3)
+
+Continuation of session 2; the block→node binding is solved and verified
+end-to-end (port capture shows a coherent posed character).
+
+### The draw chain (live, EE RAM 0x29bda0 / double buffer 0x2fc5c0)
+
+Per skinned character, the engine emits:
+
+    REF  9qw  -> 0x815360   GS state (VIF NOP/FLUSH + DIRECT 8qw)
+    REF  8qw  -> 0x816440   more state
+    REF  1qw  -> 0x814220
+    CALL      -> 0x0023C750 canned ELF packet: MPG of the 62-qw kernel
+                            at vram 0x0023C780  <- THE character skinner
+    REF  Nqw  -> mesh blob  the ENTIRE block stream in one transfer
+    NEXT      -> ...
+
+The mesh blob (e.g. chunk28/f00_id3b.bin, loaded verbatim at 0xd1c1c0)
+is itself the VIF stream: header {u32 n_blocks; u32 total_qwc; u32
+n_nodes; u32 byte_size; bbox floats} at +0, then per block:
+`STCYCL(4,4)` + `UNPACK V4-32 128qw -> TOPS+0` + 32 vertex records
++ `MSCAL 0` (first block) / `MSCNT` (rest). What extract_models.py
+calls MESH_SIG is exactly that 8-byte STCYCL+UNPACK pair.
+
+### The 62-qw skinning kernel (vram 0x0023C780) — full decode
+
+Per 32-vertex batch (XTOP double-buffered input, 4 qw per record:
+[tex/marker][ST][normal][pos+w]):
+
+    ilw   vi10, 3(vi14).w        ; read the position W FLOAT AS AN INT
+    lq    vf28..vf31, 0..3(vi10) ; transform matrix  (absolute dmem!)
+    lq    vf24..vf26, 4..6(vi10) ; normal matrix (3 rows)
+    iand  vi02, vi12(=0x8000), vi10  ; bit15 = strip-restart flag
+    ...   pos' = M*pos; clip; div Q,1,w; fog (qw1021); ftoi4
+    ...   N' = NM*normal; light via matrix at qw 1013..1016; RGBA
+    ...   ST*Q perspective; marker qword copied through (texture regs)
+    sq    {marker,ST,RGBA,XYZ2} -> output at TOPS+0x81..0x84, +4/vert
+    xgkick at TOPS+0x84
+
+**Per-vertex binding: the low bits of the position W float are a VU1
+dmem address.** W = ±(1 + small mantissa); reading its bit pattern:
+
+    bits 0..9   dmem qword address of the vertex's matrix set
+                = 8 * node_index (sets are 7 qw: 4 transform rows +
+                3 normal-matrix rows, 8-qw stride). Lowest used slot
+                is qw 16 = node 2 (root/hips carry no skin).
+    bit 15      strip-restart (no triangle emitted; the kernel also
+                ORs it with the clip flags to kill the GIF ADC bit)
+    sign + bit14  winding parity / restart pairing
+
+So vertex node = (W_bits & 0x3FF) >> 3. The old "w-field k =
+round((w-sign)*512) per-block 4-bone selector" reading is dead: the
+"k set {-3,-1,0,2}" was bits 14/15 + sign (strip flags), identical in
+every block, and the "per-block float base epsilon" was the address.
+
+The engine uploads each node's {world-composited transform, normal
+matrix} set to dmem qw 8*n before kicking the blob (matrices are
+pre-multiplied with the camera: the kernel clips/divides immediately).
+
+### Validation (the acceptance test)
+
+Exported chunk28/f00_id3b.bin (the character standing in the live
+scene) with node = addr>>3 binding and the live node arena's 21 world
+matrices (+0x90) as a one-frame palette: the port (extermination-port,
+Metal, EM_CAPTURE) renders a fully coherent posed character — head,
+face, torso, belt, arms with hands, knee pads, boots. Quantitative
+check: mean posed length of node-crossing triangle edges has a SHARP
+minimum at this mapping (0.88 units vs 3.6–8.6 for every shifted
+mapping; intra-node baseline 0.41).
+
+Corrections to older notes this implies:
+
+- `extract/live/player_bones_live.json` (session 1) is the rig of the
+  chunk28 character (same world spot 107.4/−184), NOT the chunk21
+  f17_id8f model — its matrices fit f00_id3b (score 0.88) and fit
+  f17_id8f at NO shift (≥4.1). chunk21/f17_id8f is a different
+  costume/variant; its segment 1 addresses 42 node slots (rig pairing
+  unresolved — possibly body+suit double rig or merged LODs).
+- A model file can hold several block segments separated by
+  MATRIX-descriptor blocks (f17: 132-block segment 0 with 17 slots,
+  181-block segment 1 with 42 slots, plus 41 trailing 256-qw blocks).
+- `tools/export_native.py` decodes all of this (`--segment`, `--live`)
+  and bakes per-vertex node indices into EMDL; the port needed no
+  changes.
+
+Still open (nice-to-have, not blocking): map A's A/B field encoding
+(rotation qx/qz companions) and map B/C payload packing for decoding
+the mesh-embedded clips; the f17 42-slot segment's rig identity; UVs/
+textures in EMDL.

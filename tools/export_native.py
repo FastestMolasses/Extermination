@@ -103,76 +103,135 @@ def mat_mul(a, b):
 
 # ---------------------------------------------------------------------------
 
-def load_mesh_sections(mesh_path: Path):
-    """Returns (sections, section_bone) built from the stage-2 MESH-block
-    tristrips — the only stream in the file that actually holds render
-    geometry.
+# ---------------------------------------------------------------------------
+# Skinned-mesh loader (DECODED 2026-06-09 session 2)
+#
+# The render mesh is a stream of VIF-ready blocks: each block is
+# `STCYCL(4,4)` + `UNPACK V4-32 128qw -> TOPS+0` followed by 32 records
+# of 4 qwords [tex/marker, ST, normal, pos+w]. The engine DMA-REFs the
+# whole stream and runs the 62-qw skinning kernel at vram 0x0023C780
+# once per block (MSCAL/MSCNT). That kernel reads the position W float
+# AS AN INTEGER (`ilw .w`):
+#
+#     bits 0..9   absolute VU1 dmem qword address of this vertex's
+#                 matrix set (7 qw: 4 transform rows + 3 normal-matrix
+#                 rows), laid out at qw 8 * node_index (nodes 0..1 carry
+#                 no skin; lowest observed address is qw 16 = node 2)
+#     bit 15      strip-restart flag (vertex emits no triangle)
+#     sign/k bits make the word a valid +-1.0-ish float (winding parity)
+#
+# So per-vertex node = ((w_bits & 0x3FF) - 16) / 8, and positions/normals
+# are BONE-LOCAL. Posed world = node_world_matrix * pos, exactly what the
+# port's skinning shader does with the EMDL palette.
 
-    CORRECTED 2026-06-09: the per-bone "object-space vertex records" this
-    exporter previously used (load_per_bone_meshes_with_vids) are NOT
-    vertices at all — the 12-byte records in the id-0x74 prefix are keyed
-    ANIMATION channels (vid = frame index, payload = quat/translation
-    fields; see docs/FINDINGS.md "id 0x74 prefix is animation, not
-    geometry"). Rendering them as positions is what produced triangle
-    soup in the port.
+VERT_QW = 4 * 16     # 4 qwords per record
+BLOCK_VERTS = 32
 
-    The stage-2 strips are model-space (whole posed figure). Per-vertex
-    bone binding for them is still unresolved (the engine's per-block
-    palette mapping is not yet decoded), so every vertex is bound to the
-    identity palette slot: the export is a coherent STATIC figure.
 
-    Coordinates are remapped from the model's X-up frame to the port's
-    Y-up frame (rotate +90 deg about Z: (x,y,z) -> (-y,x,z)) and shifted
-    so the feet rest at y=0, centred in xz.
-    """
+def _walk_blob_blocks(d: bytes):
+    """Block payloads of a raw mesh blob (header: n_blocks, total_qwc,
+    n_nodes, size; first UNPACK at +0x48). Returns (payloads, n_nodes)."""
+    n_blocks, _qwc, n_nodes, size = struct.unpack_from("<4I", d, 0)
+    payloads = []
+    o = 0x48
+    while o + 8 <= size and len(payloads) < n_blocks:
+        w0, w1 = struct.unpack_from("<2I", d, o)
+        if w0 == 0x01000404 and (w1 >> 24) & 0xff == 0x6c:
+            num = (w1 >> 16) & 0xff
+            qw = 256 if num == 0 else num
+            payloads.append(d[o + 8:o + 8 + qw * 16])
+            o += 8 + qw * 16
+        else:
+            o += 4   # skip MSCAL/MSCNT words
+    return payloads, n_nodes
+
+
+def _walk_meshsig_blocks(d: bytes, segment: int):
+    """Block payloads of a packed model file (player f17_id8f style):
+    MESH_SIG-tagged 0x820 blocks, with MATRIX-descriptor separator blocks
+    splitting the file into segments (LOD/variant sets, each with its own
+    node-slot space). Returns payloads of `segment`."""
     em = _load("_extract_models", "extract_models.py")
+    bounds = em.block_bounds(d)
+    seg = 0
+    payloads = []
+    for i, (s, e) in enumerate(bounds):
+        if not i:
+            continue
+        desc = d[s + 0x10:s + 0x20]
+        if len(desc) < 16:
+            continue
+        if em.is_matrix_descriptor(desc):
+            seg += 1
+            continue
+        if desc[8:16] == em.MESH_SIG and seg == segment:
+            payloads.append(d[s + 0x20:s + 0x20 + 0x800])
+    return payloads
+
+
+def load_mesh_sections(mesh_path: Path, segment: int = 0):
+    """Decode the skinned mesh into one section with PER-VERTEX bones.
+
+    Returns (sections, max_slot) with sections = [(pos, nrm, tris,
+    bones)]; positions/normals bone-local, bone = dmem-slot index.
+    """
     d = mesh_path.read_bytes()
-    strips = em.parse_model_file(d)
-    if not strips:
-        strips = em.parse_file(d)
-    if not strips:
-        raise SystemExit(f"no MESH strips found in {mesh_path}")
+    if struct.unpack_from("<I", d, 0)[0] < 0x1000 and \
+            d[0x48:0x50] == bytes.fromhex("040400010080806c"):
+        payloads, _n = _walk_blob_blocks(d)
+    else:
+        payloads = _walk_meshsig_blocks(d, segment)
+    if not payloads:
+        raise SystemExit(f"no skinned-mesh blocks found in {mesh_path}")
 
-    def remap(p):
-        return (-p[1], p[0], p[2])
-
-    raw_pos = []
-    raw_nrm = []
+    raw_pos, raw_nrm, raw_bone = [], [], []
     tris = []
     weld = {}
+    max_slot = 0
 
-    def vid_of(v):
-        p = remap(v.pos)
-        n = remap(v.attr) if v.is_normal else (0.0, 1.0, 0.0)
+    def vid_of(p, n, b):
         key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
-               round(n[0], 3), round(n[1], 3), round(n[2], 3))
+               round(n[0], 3), round(n[1], 3), round(n[2], 3), b)
         i = weld.get(key)
         if i is None:
             i = len(raw_pos)
             weld[key] = i
             raw_pos.append(p)
             raw_nrm.append(n)
+            raw_bone.append(b)
         return i
 
-    for s in strips:
-        ids = [vid_of(v) for v in s.verts]
-        for a, b, c in em.strip_triangles(s):
-            ia, ib, ic = ids[a], ids[b], ids[c]
-            if ia != ib and ib != ic and ia != ic:
-                tris.extend((ia, ib, ic))
+    for payload in payloads:
+        run = []   # welded ids of the running strip, parallel restart flags
+        for r in range(0, len(payload) - VERT_QW + 1, VERT_QW):
+            w = struct.unpack_from("<f", payload, r + 0x3c)[0]
+            if abs(abs(w) - 1.0) > 0.25:
+                break
+            wbits = struct.unpack_from("<I", payload, r + 0x3c)[0]
+            # node index = dmem qword address / 8 (matrix sets at qw 8*n;
+            # validated on the live NPC pose: joint-edge coherence has a
+            # sharp minimum at this mapping)
+            slot = (wbits & 0x3FF) >> 3
+            if slot < 2:
+                continue
+            max_slot = max(max_slot, slot)
+            pos = struct.unpack_from("<3f", payload, r + 0x30)
+            nrm = struct.unpack_from("<3f", payload, r + 0x20)
+            vi = vid_of(pos, nrm, slot)
+            restart = bool(wbits & 0x8000)
+            run.append((vi, restart))
+            k = len(run)
+            if k >= 3 and not restart:
+                a, b, c = run[k - 3][0], run[k - 2][0], run[k - 1][0]
+                if a != b and b != c and a != c:
+                    # alternate winding by strip parity
+                    if (k & 1) == 0:
+                        tris.extend((a, b, c))
+                    else:
+                        tris.extend((b, a, c))
 
-    # Ground + centre: feet at y=0, xz centred on the origin.
-    xs = [p[0] for p in raw_pos]
-    ys = [p[1] for p in raw_pos]
-    zs = [p[2] for p in raw_pos]
-    cx = (min(xs) + max(xs)) / 2.0
-    cz = (min(zs) + max(zs)) / 2.0
-    y0 = min(ys)
-    raw_pos = [(p[0] - cx, p[1] - y0, p[2] - cz) for p in raw_pos]
-
-    sections = [(raw_pos, raw_nrm, tris)]
-    section_bone = [-1]          # identity palette slot (static figure)
-    return sections, section_bone
+    sections = [(raw_pos, raw_nrm, tris, raw_bone)]
+    return sections, max_slot
 
 
 def bake_clip_palettes(skel_path: Path, clip: int):
@@ -250,22 +309,24 @@ def recentre(frames):
 
 def write_emdl(out_path: Path, sections, section_bone, parents, frames,
                fps: float):
-    """Palette slots = the skeleton's GLOBAL bones plus one trailing identity
-    slot for sections with no bone (section_bone -1). Each vertex carries the
-    palette slot of its section — several sections can share a bone, exactly
-    like the glTF section->bone parenting."""
+    """Vertices carry their own palette slot (per-vertex bone, decoded from
+    the position-W dmem address — see load_mesh_sections). A trailing
+    identity slot soaks up any vertex whose slot exceeds the palette."""
     n_bones = len(frames[0])
-    id_slot = n_bones        # identity matrix slot for unmapped sections
+    id_slot = n_bones        # identity matrix slot for unmapped vertices
 
     verts = bytearray()
     indices = []
     vbase = 0
     used = set()
-    for i, (pos, nrm, idx) in enumerate(sections):
-        b = section_bone[i] if i < len(section_bone) else -1
-        slot = b if 0 <= b < n_bones else id_slot
-        used.add(slot)
-        for p, n in zip(pos, nrm):
+    for i, sec in enumerate(sections):
+        pos, nrm, idx = sec[0], sec[1], sec[2]
+        bones = sec[3] if len(sec) > 3 else None
+        for vi, (p, n) in enumerate(zip(pos, nrm)):
+            b = bones[vi] if bones is not None else (
+                section_bone[i] if i < len(section_bone) else -1)
+            slot = b if 0 <= b < n_bones else id_slot
+            used.add(slot)
             verts += struct.pack("<6fI", p[0], p[1], p[2],
                                  n[0], n[1], n[2], slot)
         indices.extend(vbase + k for k in idx)
@@ -304,27 +365,34 @@ def main(argv):
     ap.add_argument("--mesh", default="extract/chunk21/f17_id8f.bin")
     ap.add_argument("--skel", default="extract/chunk05/f04_id71.bin")
     ap.add_argument("--clip", type=int, default=0)
-    ap.add_argument("--live", help="player_bones_live.json: export that "
-                    "single captured frame instead of baking a clip")
+    ap.add_argument("--live", help="live node-matrix JSON (world matrices, "
+                    "node order): export that single captured pose")
+    ap.add_argument("--segment", type=int, default=0,
+                    help="model segment for MESH_SIG-style files (X-separator"
+                    " groups; default 0)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 
-    sections, section_bone = load_mesh_sections(Path(args.mesh))
-    print(f"mesh sections: {len(sections)} "
-          f"({sum(len(s[0]) for s in sections)} verts)")
+    sections, max_slot = load_mesh_sections(Path(args.mesh), args.segment)
+    nverts = sum(len(s[0]) for s in sections)
+    ntris = sum(len(s[2]) for s in sections) // 3
+    print(f"mesh: {nverts} verts, {ntris} tris, max node slot {max_slot}")
 
-    # 2026-06-09: per-vertex bone binding for the stage-2 strips is not yet
-    # decoded (the old per-bone "vertex" stream turned out to be animation
-    # keys), so --clip/--live palettes cannot be applied to the geometry
-    # meaningfully yet. Export the model-space figure on a single identity
-    # frame; the palette pipeline stays in place for when binding lands.
-    if args.live or args.clip is not None:
-        print("note: bone binding unresolved -- exporting static figure "
-              "(1 identity frame); --clip/--live palettes not applied")
-    parents = []
-    frames = [[]]   # zero bones + the implicit identity slot
+    if args.live:
+        frames = recentre(load_live_palette(Path(args.live)))
+        parents = [-1] * len(frames[0])
+        print(f"palette: 1 live frame, {len(frames[0])} node matrices")
+    else:
+        # No live pose supplied: identity palette (bone-local parts shown
+        # overlapping at the origin). Clip baking returns once the id 0x74
+        # channel A/B encoding is decoded.
+        n = max_slot + 1
+        frames = [[mat_identity()] * n]
+        parents = [-1] * n
+        print("note: no --live pose; exporting identity palette "
+              "(bone-local parts will overlap)")
 
-    write_emdl(Path(args.out), sections, section_bone, parents, frames, FPS)
+    write_emdl(Path(args.out), sections, [], parents, frames, FPS)
     return 0
 
 
