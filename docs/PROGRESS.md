@@ -4046,3 +4046,38 @@ full detail):
   authentic spawn is also byte-identical — no crate is inside the scene
   volume; a floor-vantage capture shows the crate EMDL at the authentic
   table positions).
+
+### Update — 2026-06-10 s27b: STATUS-SCREEN DECOR resolved + native — UI textures, .emui export, hub composed
+
+- **Textures found without a new capture** (closes the s25 open item):
+  the hub decor sprites are PSMT4 + 16-entry-CLUT textures **resident in
+  GS VRAM of the ordinary state-01 gameplay dump**, stored v-flipped;
+  decoded via the TEX0 tokens inlined in `func_00209DF0`/`func_00209860`
+  (FINDINGS "STATUS SCREEN UI TEXTURES" — TBP/CBP table). Identities
+  settled by pixels: the (16,0) title art reads **"MAIN"**, the audit's
+  "portrait" at (0,320) is the **button legend** (cross OK / circle BACK
+  / triangle EXIT), the four 32x32 icons are **page arrows** pairing
+  with the pager diamond, plus the red SPR4 bullet icon (32→24 GS scale).
+- **Module-loader format decoded** (`func_001FF1E0`): the "asset module
+  id" of `func_001FF080` is a DATA.DAT **chunk index** — INDEX.IDX
+  sector `id` is read directly as the module header (section table,
+  transient + resident GS upload packets, and `{u24 off, u8 slot}`
+  entries that fill the pointer-slot array at `D_0028A490` — fonts =
+  chunk 0x00 slots 0–3, page textures = chunks 0x1F–0x31, weapon-icon
+  modules 0x32–0x35).
+- **`tools/export_ui.py`** (new): gs.bin state dump → `assets/ui.emui`
+  (272x144 RGBA8 sheet + per-sprite records carrying sheet UVs AND the
+  audited 512x448 canvas anchors; format in the script header).
+- **Port (extermination-port)**: overlay texturing extended to TWO slots
+  (`em_gfx_overlay_sprite` + UI slot; flush order untextured → decor →
+  text = the hub layering); `em_hud` composes the decor pass when
+  `ui.emui` is present — 7 real sprites, pager-diamond markers (engine
+  arc-block colors), profile bio block ("DENNIS RILEY" + 3 rows + blue
+  ticks), bullet icon replaces its placeholder. `EM_GFX_OVERLAY_MAX`
+  512→1024 (the diamond is ~720 arc quads).
+- Verified: default capture AND no-asset forced capture **byte-identical
+  to a clean-HEAD build** (same assets, back-to-back); decor capture
+  legible at the audited anchors; make test-input, EM_DOOR_TEST,
+  EM_ENEMY_TEST 1/2/3, EM_SFX_TEST all PASS; clean build.
+- Open: page-tab strips, spinning cyan ring + sparkles (cadence
+  unverified), hover-green marker state, page sub-screen layouts.

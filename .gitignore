@@ -83,6 +83,7 @@ build/overlays/
 rate_test/
 assets/
 *.emfn
+*.emui
 textures/
 models/
 subtextures/

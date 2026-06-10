@@ -7975,3 +7975,100 @@ Open: which engine event flips `D_00810701` from 0/1/2 for area 02
 (story scripting — would let a future port scene load the populated
 floor with its own geometry once sub-state-0's render file region map
 is recovered).
+
+## STATUS SCREEN UI TEXTURES — decor sprites resolved + exported; module loader format decoded (2026-06-10, session 26)
+
+Closes the session-25 open item "icon/title/portrait texture images need
+a VRAM capture": **no new capture was needed — the hub's decor textures
+are RESIDENT in GS VRAM in an ordinary gameplay save state** (the s21
+state-01 dump). Decoded straight out of `gs.bin` (local-memory base =
+`len - 0x400000 - 84`, the gs_vram.py rule) using the TEX0 tokens inlined
+in the hub master drawer `func_00209DF0` (+ `func_00209860` for the
+ammo icon). New exporter `tools/export_ui.py` → `ui.emui` for the port.
+
+### The sprite set (all PSMT4, TBW 8, 16-entry CSM1 CT32 CLUTs)
+
+| sprite | TEX0 lo_hi | TBP | CBP | texels | canvas draw |
+|---|---|---|---|---|---|
+| title "MAIN" | `0x9D421E50_200453A5` | 0x1E50 | 0x229D | 128x64 | (16,0) 1:1 |
+| button legend | `0xDD421D40_20045505` | 0x1D40 | 0x22A8 | 128x128 | (0,320) 1:1 |
+| page arrow left | `0x55422186_20045EC5` | 0x2186 | 0x22F6 | 32x32 | (11,304) |
+| page arrow right | `0x554221F0_20045EC5` | 0x21F0 | 0x22F6 | 32x32 | (484,304) |
+| page arrow up | `0x55422192_20045EC5` | 0x2192 | 0x22F6 | 32x32 | (417,10) |
+| page arrow down | `0x554221F4_20045EC5` | 0x21F4 | 0x22F6 | 32x32 | (417,406) |
+| SPR4 bullet | `0x55422196_20045185` | 0x2196 | 0x228C | 32x32 | (16,262) **24x24** |
+
+- Textures are stored **vertically flipped** (the engine's sprite UVs
+  flip V on draw); the exporter un-flips so the sheet is screen-oriented.
+- **Identities settled by pixels:** the (16,0) "title art" reads
+  **"MAIN"** (the hub page's title — page sub-screens presumably swap
+  it); the 128x128 quad at (0,320) the s25 audit provisionally called
+  the "portrait" is actually the **button legend** (cross OK / circle
+  BACK / triangle EXIT — there is no Dennis portrait on the hub); the
+  four unresolved 32x32 icons are **double-chevron page arrows** pointing
+  out of each screen edge (left/right/up/down — they pair with the pager
+  diamond). The s25 audit's "help panel" is a flat translucent rect
+  (no texture). The four icons draw in blend mode 3 (`func_00207D00(1,3)`),
+  the title/legend in mode 0.
+- All four 32x32 arrows share CLUT 0x22F6; the bullet icon (red shell,
+  `func_00209860`) GS-scales its 32x32 texture to a 24x24 sprite.
+
+### Where they come from: INDEX.IDX IS the UI-module package format
+
+Decoding `func_001FF1E0` (the loader task behind `func_001FF080(0,id)`)
+shows the "asset module" system reads **INDEX.IDX sector `id` directly**
+as a module header (file handle `D_0028A480` = `{LBA 0x9D7D0, size
+0x1C000}` = INDEX.IDX; section reads go through `D_0028A488` =
+`{0x801D8, 0xEAFC000}` = DATA.DAT). So the status-screen "module ids"
+(hub pages 0x1F/0x1E/0x2C/0x24/0x25/0x26, secondary-weapon icon modules
+0x32–0x35 from `func_001FEF70`) are **DATA.DAT chunk indices**. Header
+fields used by the loader (offsets in the 0x800-byte sector):
+
+```
++0x04 u32 chunk data offset in DATA.DAT     +0x10 u32 count B (resident GS packets)
++0x08 u32 resident size bound               +0x14 u32 resident region offset
++0x0E u16 count A (transient GS packets)    +0x1C u32 count C (pointer-slot entries)
++0x20 (A+B) x {u32 off, u32 size}           then C x {u24 offset, u8 slot}
+```
+
+Group-A sections are loaded and DMA'd to VIF1/GS (`func_00200830`) then
+discarded; the resident region loads to the asset heap (`D_0028A734`,
+boot value 0xB00000) and its leading B sections are ALSO DMA'd (resident
+GS packets); the C entries fill the **asset pointer-slot array at
+`D_0028A490`** (`slot*4`): the s26 font slots 0–3 come from **chunk 0x00**
+(slots 0–5), chunk 0x1B fills slots 0x35/0x37/0x39/0x3A, chunk 0x03
+slots 8–52, etc. Every status-screen page chunk (0x1F–0x31) is one
+transient GS packet = that page's texture upload; the hub decor set
+above is boot-resident (uploaded once, never re-streamed — which is why
+a plain gameplay state contains it).
+
+### Export + port (extermination-port s26)
+
+- `tools/export_ui.py` (macOS arm64 python3; reads the user's own local
+  `gs.bin` state dump) decodes the 7 sprites + CLUTs, un-flips, packs
+  them into one 272x144 RGBA8 sheet with 2-px gutters and writes
+  `assets/ui.emui` — header + per-sprite `{sheet u,v,w,h; canvas x,y;
+  draw dw,dh}` records + sheet (format documented in the script header;
+  the audited canvas anchors TRAVEL WITH the asset). `*.emui` added to
+  `.gitignore`.
+- Port: `em_gfx` overlay texturing extended to **two slots** (font strip
+  + UI decor sheet; `em_gfx_overlay_sprite` mirrors `_glyph`); flush
+  order untextured → decor → text keeps the engine's hub layering
+  (icons over the diamond rings, text over everything). `em_hud` draws
+  the full decor pass when `ui.emui` is present: the 7 sprites at their
+  recorded anchors, the pager-diamond markers (white fading disc r0–16 +
+  blue gradient rings r10–12/r14–16 at (432,376)/(476,320)/(432,264)/
+  (388,320), the live 0x265270/0x2652D0/0x265330 arc-block colors), and
+  the profile bio block ("DENNIS RILEY" 12x16 blue, three 10x10 gray
+  rows, 4x6 blue ticks — strings from the 0x267290 label table).
+  Verified: with `ui.emui` absent the EM_HUD_FORCE and default captures
+  are BYTE-IDENTICAL to the pre-decor build; with it present the forced
+  capture shows the legible "MAIN" title, legend, arrows, diamond and
+  profile rows at the audited anchors.
+
+Open: hub page-tab strips (untextured gradient quads via
+`func_00208750`, color records 0x265540/0x265570) and the spinning cyan
+double ring + sparkle emitter (animated; cadence unverified) are still
+not composed in the port; hover-green marker state needs page-navigation
+input; page sub-screen texture sets (chunks 0x1F–0x31) are exportable
+with the same recipe once their layouts are decoded.
