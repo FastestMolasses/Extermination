@@ -1,5 +1,9 @@
 # Extermination Decomp — Progress
 
+> 2026-06-09: SUBSYSTEM MAP COMPLETE — all 2,063 FUNCTIONS.csv rows labeled (40
+> clusters, 91 fns in numbered unknowns), main() identified at 0x001AAE40,
+> prioritized decomp roadmap in docs/SUBSYSTEMS.md; graph tool: tools/callgraph.py.
+
 ### CHARACTER TEXTURES SOLVED — colored, textured, ANIMATED character in the port (2026-06-09, session 5)
 
 The texture-color loop is CLOSED end-to-end. Full write-up: FINDINGS.md
