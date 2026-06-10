@@ -70,6 +70,18 @@ per-bone decoders; map C scale is constant (1,1,1) in everything
 sampled so far (apply-anyway support is in the exporter); UVs/textures
 in EMDL.
 
+### Texture COLOR recovered from save states (2026-06-09, session 4c)
+
+`tools/clut_pair.py` extracts colored PNGs + pairing manifests from .p2s
+save states — title-screen textures validated screenshot-exact; snow
+particles + terrain atlases colored with high/medium confidence. The
+TEX0-harvest pairing rule and a CRITICAL GS-VRAM offset correction
+(freeze blob offset 425, not 509 — prior reads skewed; gs_vram.py fix
+pending) are in FINDINGS.md "Texture COLOR recovered". Character
+textures need a PCSX2 GS dump (.gs) of a character scene (VU1-built
+TEX0s don't persist in a freeze) — that closes the loop for colored
+glTF/EMDL export.
+
 ### Hand/forearm artifacts resolved: capture tearing, not IK (2026-06-09, session 3b)
 
 The glitches around the hands in the first posed capture were temporal

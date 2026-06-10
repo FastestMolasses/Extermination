@@ -3603,3 +3603,43 @@ where n == max_slot + 1; pose with that bank's clips via the (decoded)
 map-A/B/C channels. `parse_id74_prefix()` returns only the first
 container — multi-bank files need whole-file enumeration
 (`find_id74_headers()` / rig_probe's scan).
+
+## Texture COLOR recovered — CLUT pairing rule + GS-VRAM offset fix (2026-06-09)
+
+First colored textures for the project, extracted from existing .p2s save
+states by `tools/clut_pair.py` (output under git-ignored
+`extract/textures_colored/{01,02,03}/` with per-pair confidence manifests).
+Validated screenshot-exact on save state 02 (title screen): the
+EXTERMINATION wordmark in silver/white over the purple/magenta X-ray hand,
+and a legible, correctly-colored copyright line. State 01 (snow level):
+high-confidence snow-particle sprites + four 256x128 night-palette terrain
+atlases; the CHARACTER's textures were NOT isolated (see below).
+
+**Pairing rule (no disc binding exists):**
+1. The only texture<->CLUT association is the runtime-built TEX0 qword:
+   TBP0 (bits 0-13) names the texture, CBP (37-50) its CLUT. Harvest TEX0s
+   by scanning EE RAM + VU1 dmem for 8-aligned qwords with PSM=0x13,
+   TW/TH 4-10, TBW in {2,4,8,16}, CPSM=CSM=CSA=0 — the engine's GIF/VIF
+   ring buffers persist in a save state.
+2. Strip-allocator rule (validated in both captures): a 512-wide sheet is
+   consumed as 256x128 strips; strip k at TBP0 = base + 64k pairs with
+   CBP = clut_base + 4k.
+3. **GS local memory starts at offset 425 in the .p2s v9 GS freeze blob
+   (len - 0x400000 - 84; 84 trailing state bytes), NOT 509.** Proven by
+   byte-exact 8KB-page anchoring of a disc upload simulated through the
+   PSMCT32 swizzle. ALL prior GS-VRAM reads were skewed; `gs_vram.py` (and
+   any parse_pcsx2_state consumers) still carry the old reading — FIX
+   PENDING.
+4. CSM1 CLUT entry swap (8-15 <-> 16-23 per 32 entries) + alpha 0..0x80
+   scaled x2, as previously documented.
+
+**Why the character resisted:** characters/level geometry draw through the
+VU1 path — their TEX0s are built in VIF/VU1 buffers and do not persist in a
+freeze (VU1 dmem retains only the last batch; in state 01 that was the
+snowflakes). Their textures are micro-tile subrects of the trio sheets
+(content-anchored byte-exactly back to disc at block granularity), but the
+per-subrect CLUT slots cannot be attested from a freeze. **Cheap fix: a
+PCSX2 GS dump (.gs) records every TEX0 of a frame** — one dump of a
+character scene yields the complete per-subrect pairing table
+(`tools/parse_gsdump.py` exists). That + clut_pair.py's machinery is the
+wiring path for colored glTF/EMDL export.
