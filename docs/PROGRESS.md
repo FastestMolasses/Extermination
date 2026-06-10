@@ -1,5 +1,38 @@
 # Extermination Decomp — Progress
 
+> 2026-06-10 (session 24 port wiring): WEAPON POSES + AIM CAMERA IN THE
+> PORT — player.emdl re-exported with the s23 weapon clips appended:
+> `export_native.py --attach --mesh extract/chunk28/f00_id3b.bin
+> --anim extract/chunk28/f01_id3c.bin --clips 346,2,3,69,67,75,272,273,51,274
+> --gsdump extract/gsdump/frame1.gs` (272 = 0x110 draw, 25 fr; 273 =
+> 0x111 holster, 25 fr; 51 = 0x33 reload, 57 fr; 274 = 0x112 SPR4 sub-0
+> aim-pose ladder base, 25 fr — all zero root travel). The old export was
+> first reproduced byte-identical from the recorded CLI; the new EMDL is a
+> byte-verified superset (verts/indices/parents/tex table/texels identical,
+> old palette+clip table are prefixes, 4 clips appended) and all four clips
+> are on the 21-node player rig (exporter parent-table check) and
+> hemisphere-clean (max adjacent-frame rotation delta 5.0°/5.3°/24.1°/4.0°,
+> far under the 90° s7c flip signature). Port side: em_game's anim mailbox
+> grew a HELD-POSE variant (em_game_anim_hold — clamp at the last frame and
+> keep the palette, the native analog of the armed tops re-selecting the
+> aim-pose id through the arbiter every frame) + em_game_anim_frames (honest
+> clip lengths); em_weapon drives the real clips per state (DRAW 0x110 @1.4
+> once, AIM holds 0x112, RELOAD 0x33 / HOLSTER 0x111 with the state window
+> = ceil(frames/rate) ticks — the old fixed windows remain only as flagged
+> clip-less fallbacks; live windows draw 18 / reload 57 / holster 25).
+> PLANTED AIMING (port decision, flagged in em_game.c player_move): the
+> armed stance locks movement to turn-in-place — evidence: the armed modes
+> 0x1D..0x20 replace the locomotion modes and their tops run no free-move
+> spine, aim poses are full-body pitch-ladder POSE clips with NO aim-walk
+> family and ZERO footstep frames in D_00248C90, and the live s23 capture
+> shows the planted shouldered stance. The documented one-line AIM CAMERA
+> hookup applied (camera target height → cam->aim_h while
+> em_weapon_is_aiming()). EM_WEAPON_TEST rewritten to derive its checkpoint
+> schedule from the honest windows — PASS; EM_CAPTURE_AIM=1 capture shows
+> the shouldered rifle pose, the laser hit-dot on the wall and the
+> lowered/over-shoulder aim camera; default capture byte-identical; all
+> port self-tests PASS.
+
 > 2026-06-10 (session 23 port wiring): DOOR-OPEN ANIMS IN THE PORT —
 > player.emdl re-exported with the s23 door/scripted-walk clips appended:
 > `export_native.py --attach --mesh extract/chunk28/f00_id3b.bin
