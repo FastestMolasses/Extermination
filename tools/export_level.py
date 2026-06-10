@@ -75,11 +75,18 @@ PSMCT32), or — `--p2s` — through a PCSX2 SAVE STATE's GS local memory
 - 84`, gs_vram.read_localmem). Texture residency is the caller's
 responsibility: pass a state captured INSIDE this level.
 
-`--offset dx,dy,dz` translates every output vertex (a pure world-frame
-shift; geometry/UVs/colors untouched). The native port's player spawn is
-compile-time (em_game.c kPlayerPos, office coordinates), so secondary
-scenes are baked with the offset that lands their chosen spawn point on
-kPlayerPos. Re-export without --offset once the port reads spawn tables.
+SCENE MANIFEST: every scene exports in TRUE world coordinates and carries
+its own boot config in a plain-text `scene.txt` next to the .emdl files
+(read by the port's em_game.c at boot; missing file = office defaults):
+
+    spawn <x> <y> <z> <yaw>     player spawn, world coords + facing (rad)
+    collision <file.emcl>       collision filename (export_collision.py
+                                writes this key)
+    bgm <file.wav>              optional looping level-music cue WAV
+
+`--spawn x,y,z[,yaw]` and `--bgm name.wav` write/update this exporter's
+keys (other keys and lines are preserved). The old `--offset` spawn-
+anchoring bake is gone — the manifest spawn replaced it.
 
 Multi-zone levels (e.g. the chunk15 snow level): each zone render file is
 its own whole-file-static export — run this tool once per file into
@@ -93,10 +100,11 @@ Usage (macOS arm64, decomp repo root):
       --level extract/chunk06.n1/f03_id43.bin \
       --gsdump extract/gsdump/frame1.gs \
       --out ../extermination-port/assets/scene/00_level.emdl
-  # snow level main zone, textures from save state 01, spawn-anchored:
+  # snow level main zone, textures from save state 01, true world coords,
+  # manifest spawn = the live state-01 player position:
   .venv/bin/python tools/export_level.py \
       --level extract/chunk15/f12_id44.bin \
-      --p2s /tmp/exterm_s01 --offset -111.19,-229.85,-385.79 \
+      --p2s /tmp/exterm_s01 --spawn 218.592,229.85,201.789,0 \
       --out ../extermination-port/assets/scene_snow/00_zone_main.emdl
 """
 from __future__ import annotations
@@ -122,6 +130,20 @@ def _load(name: str, fname: str):
 
 
 en = _load("_export_native", "export_native.py")   # tex0_fields, write_emdl
+
+
+def update_manifest(scene_dir: Path, key: str, value: str) -> None:
+    """Write/update one key of the SCENE MANIFEST (scene.txt) in the scene
+    directory — the port's per-scene boot config (see module docstring).
+    Existing lines for other keys (and comments) are preserved; this key's
+    line is replaced in place or appended. Plain text, zero deps, mirrors
+    the port's zero-dep parser (em_game.c scene_manifest_load)."""
+    mf = scene_dir / "scene.txt"
+    lines = mf.read_text().splitlines() if mf.exists() else []
+    lines = [ln for ln in lines if not ln.startswith(key + " ")]
+    lines.append(f"{key} {value}")
+    mf.write_text("\n".join(lines) + "\n")
+    print(f"manifest: {mf}: {key} {value}")
 
 REC = 64
 W_TOL = 0.25
@@ -602,19 +624,17 @@ def main(argv):
     ap.add_argument("--p2s", help="PCSX2 save state (.p2s, pre-extracted "
                     "state dir, or bare gs.bin) captured INSIDE this level: "
                     "alternative VRAM texel source (--gsdump wins if both)")
-    ap.add_argument("--offset", default=None,
-                    help="dx,dy,dz world translation applied to every "
-                    "output vertex (spawn-anchoring for the port; see "
-                    "module docstring)")
+    ap.add_argument("--spawn", default=None,
+                    help="x,y,z[,yaw] player spawn in TRUE world "
+                    "coordinates; written to the scene manifest "
+                    "(scene.txt) next to --out (see module docstring)")
+    ap.add_argument("--bgm", default=None,
+                    help="looping level-music cue WAV filename (relative "
+                    "to the scene dir); written to the scene manifest")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 
     sections, tex_table, n_tris = load_level_mesh(Path(args.level))
-    if args.offset:
-        dx, dy, dz = (float(v) for v in args.offset.split(","))
-        sections[0] = ([(p[0] + dx, p[1] + dy, p[2] + dz)
-                        for p in sections[0][0]],) + tuple(sections[0][1:])
-        print(f"offset applied: ({dx:+.2f}, {dy:+.2f}, {dz:+.2f})")
     pos = sections[0][0]
     ntris = len(sections[0][2]) // 3
     xs = [p[0] for p in pos]
@@ -633,6 +653,17 @@ def main(argv):
     parents = [-1]
     en.write_emdl(Path(args.out), sections, [], parents, frames, 30.0,
                   tex_entries, tex_blob, flags=1)   # bit 0: vertex-color
+
+    if args.spawn:
+        vals = [float(v) for v in args.spawn.split(",")]
+        if len(vals) == 3:
+            vals.append(0.0)                        # default facing: +Z
+        if len(vals) != 4:
+            sys.exit("--spawn wants x,y,z or x,y,z,yaw")
+        update_manifest(Path(args.out).parent, "spawn",
+                        " ".join(f"{v:g}" for v in vals))
+    if args.bgm:
+        update_manifest(Path(args.out).parent, "bgm", args.bgm)
     return 0
 
 

@@ -613,6 +613,43 @@ src/func_001C84D0.c — all still stubs, wall-blocked 82-93%):
     branch, cf. matched func_001F0060) — otherwise it is the delay-slot-fill
     wall (func_001B57E0 96.55%, func_001AB590 97.87%, func_001AD250 92.3%,
     all restored to stubs with the analysis inline).
+14. **`switch` reproduces CW's beql compare-chain switch lowering**
+    (2026-06-10, func_001B1B70 attempt, 91.53%). A C `switch` makes mwcc
+    emit CW's exact sparse-switch shape: one `beql case-const` per case
+    with the case block's first instruction (e.g. the call-arg `paddub`)
+    duplicated into the likely slot, shared-label case pairs
+    (`case A: case B:`) as beql(B)+beq(A)→out-of-line paddub stub
+    falling into B's block, and out-of-line case blocks each ending
+    `b common-exit`. Ordering rule: mwcc emits the COMPARE CHAIN in
+    REVERSE source-case order and the CASE BLOCKS in source-case order —
+    same as CW — so transcribe the target's chain bottom-up into source
+    case order (func_001B1B70: chain D,7,4,2,A,1 + blocks 1,2,4,7,D ⇒
+    source order `case 1; case 0xA: case 2; case 4; case 7; case 0xD`).
+    An if-else chain does NOT work (mwcc inlines calls behind bne-skips,
+    49.6%). Residuals in that attempt were walls #13 + dead block-head
+    paddub dups (mwcc coalesces).
+15. **Win the first saved register by hoisting a global load to the top**
+    (2026-06-10, func_001AFA90 attempt). When CW gives `s0` to a
+    variable whose load EMITS late (CW allocates by declaration order),
+    write that variable's load as the FIRST statement: mwcc's allocator
+    keys on source-order web start, so the variable wins `s0`, and
+    mwcc's scheduler then sinks the load back down (often into a branch
+    delay slot) for ~1 row of cost instead of ~16 — fixed the s0/s1 swap
+    that cost 40 rows. Does NOT work when the variable is a loop-carried
+    cursor (`cur`/`next` walks, func_001AFD70 97.46%): the cursor's web
+    (head load + guard + bottom-copy phi) necessarily starts first and a
+    `cur = next` seed before the loop is copy-propagated away — that
+    remains the saved-register-allocation-ORDER wall.
+
+NEW WALL DATUM — mwcc reorders accesses to DISTINCT volatile objects
+(2026-06-10, func_001AAD00 attempt, 75.13% best). Pinning a long gp-rel
+load/store swap block by declaring the globals volatile and transcribing
+CW's emission order with explicit temps FAILS: mwcc preserves per-object
+volatile order only, freely interleaving different volatile globals
+(scored 55.7%, worse than plain statements). For such blocks the only
+lever is coarse statement order (per-list [pubCursor, pubCount,
+resetCursor, resetCount] beat 5 other legal orders by 4-14 points); the
+residual interleave is the documented scheduler-divergence wall.
 
  
 NOT A WALL — paddub register moves (correction 2026-06-XX). mwcc DOES emit
@@ -3361,3 +3398,52 @@ full detail):
   attempts documented inline: `func_001C4820` 89.74% (delay-slot fill),
   `func_001B6990` ~93% (delay-slot fill + dead-dup + loop-invariant delay
   fill — analysis in the stubs). verify_all boot-elf PASS (byte-identical).
+
+### Update — 2026-06-10 s18: SCENE MANIFEST — per-scene boot config, snow scene re-baked in TRUE world coordinates
+
+- **Scene manifest (`scene.txt`)**: each port scene dir now carries a
+  plain-text boot config written by the exporters and read by the port's
+  `em_game.c` at boot (zero-dep "key value" parser; `#` comments; missing
+  file/key = the office defaults, bit-for-bit historical behavior):
+  - `spawn <x> <y> <z> <yaw>` — player spawn, TRUE world coords + facing
+    (radians; 0 = +Z). `export_level.py --spawn x,y,z[,yaw]` writes it.
+  - `collision <file.emcl>` — collision filename inside the scene dir;
+    `export_collision.py` records its own output name automatically.
+  - `bgm <file.wav>` — optional looping level-music cue WAV
+    (`export_level.py --bgm`); the `EM_BGM` env override still wins.
+- **`--offset` spawn-anchoring is GONE** from both exporters (it baked the
+  snow level into office-anchored coordinates because the port spawn was
+  compile-time). Both scenes are now true-world: office spawn
+  `107.4 0 -184 0` / `office.emcl`; snow spawn `218.592 229.85 201.789 0`
+  (= the live state-01 actor) / `snow.emcl`. Re-exported snow EMDLs/EMCL
+  came out byte-identical to the no-offset bake; the EMCL floor probe at
+  the live XZ returns y = 229.85 in OUTPUT coords (= the live actor Y),
+  pinning true coordinates. This supersedes FINDINGS s16's "scene dirs
+  must name their collision office.emcl" and "--offset anchoring" notes.
+- **Port collision robustness for outdoor terrain** (em_game.c, found by
+  the snow move test): the horizontal move probe now (a) ignores
+  FLOOR/SLOPE-class hits — near-flat tilted terrain front-faces the probe
+  by ~0.001 and turned walks into sideways drift; the engine's result
+  block carries the surface class (SPR 0x700030CA) for exactly this
+  split — stepping past walkable crossings to find real walls; (b) runs
+  at knee height (+1.0) so coarse ground-seated wall tris don't thin to
+  a sliver at foot level; (c) rests blocked actors 0.01 in front of the
+  hit plane (contact skin) so on-plane starts don't tunnel next frame.
+  The floor query gets the same class split (a leaning gate-wall face
+  was ratcheting the sliding player up the post). Office behavior is
+  unchanged except the documented 0.01 skin (within the test tolerance).
+- **Move-test instrumentation**: `EM_MOVE_LEGS=fwd,strafe` resizes the
+  two script legs (default 60,30 = the office walk) and
+  `EM_MOVE_EXPECT=x,y,z` overrides the expected final position, so the
+  same scripted test asserts non-office scenes. Snow verification
+  (`EM_SCENE=assets/scene_snow EM_MOVE_TEST=1 EM_MOVE_LEGS=60,60
+  EM_MOVE_EXPECT=206.663,229.840,216.319`): forward leg walks +Z 15u with
+  terrain-follow (y 229.85 -> 229.853 -> 229.840, matches independent
+  floor probes), strafe leg is BLOCKED by the gate-side wall (grid poly
+  n=(0.949,0.280,-0.145), verts at x 202-209 — free motion would reach
+  x 203.59, the player stops at 206.663) — deterministic PASS x2.
+- Verified: office EM_CAPTURE byte-identical to the pre-change build
+  (manifest active), office EM_MOVE_TEST PASS (99.900, 0.000, -170.010),
+  snow EM_CAPTURE shows the soldier at the snowy gate (the documented
+  s16 description), `make test-input` PASS, port builds clean
+  -Wall -Wextra, decomp `verify_all --no-container` PASS (4/4).

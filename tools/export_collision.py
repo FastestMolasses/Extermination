@@ -68,10 +68,12 @@ f12+0x8E2C). So this tool accepts MULTIPLE input files and decodes the
 byte-concatenation — pass the chunk's files in index order. A single-file
 call (the office) is unchanged.
 
-`--offset dx,dy,dz` translates the output world (verts AND plane d via
-d' = d + n·offset; edge normals are direction-only). Same spawn-anchoring
-rationale as export_level.py --offset. `--at` probes in OUTPUT (post-
-offset) coordinates.
+SCENE MANIFEST: the bake always runs in TRUE world coordinates (the old
+--offset spawn-anchoring is gone; the manifest spawn replaced it). After
+writing the EMCL this tool records its own filename in the scene's
+`scene.txt` (`collision <file.emcl>` — the port's per-scene boot config,
+read by em_game.c; spawn/bgm keys come from export_level.py). `--at`
+probes in world coordinates.
 
 Disc-data safety: reads the user's locally extracted files, writes only to
 git-ignored output paths. Runs natively on arm64 macOS.
@@ -83,8 +85,8 @@ Usage:
       extract/chunk15/f08_id4d.bin extract/chunk15/f09_id53.bin \
       extract/chunk15/f10_id5b.bin extract/chunk15/f11_id4a.bin \
       extract/chunk15/f12_id44.bin \
-      -o ../extermination-port/assets/scene_snow/office.emcl \
-      --offset -111.19,-229.85,-385.79 --at 107.4,-184
+      -o ../extermination-port/assets/scene_snow/snow.emcl \
+      --at 218.592,201.789
 """
 from __future__ import annotations
 
@@ -101,6 +103,19 @@ import collision_probe as cp  # cell/prim decode (do not duplicate)
 
 SET_CELLS = 2   # func_001A0B10 world (hub mask bit 1)
 SET_GRID = 4    # func_0019D330 world (hub mask bit 2)
+
+
+def update_manifest(scene_dir: Path, key: str, value: str) -> None:
+    """Write/update one key of the SCENE MANIFEST (scene.txt) in the scene
+    directory (same format/helper as export_level.py — the port's per-scene
+    boot config, parsed by em_game.c scene_manifest_load). Other keys and
+    comment lines are preserved."""
+    mf = scene_dir / "scene.txt"
+    lines = mf.read_text().splitlines() if mf.exists() else []
+    lines = [ln for ln in lines if not ln.startswith(key + " ")]
+    lines.append(f"{key} {value}")
+    mf.write_text("\n".join(lines) + "\n")
+    print(f"manifest: {mf}: {key} {value}")
 
 
 # ---------------------------------------------------------------------------
@@ -224,11 +239,8 @@ def main(argv=None):
                     "contiguous chunk load — see module docstring)")
     ap.add_argument("-o", "--out", required=True, help="output .emcl path")
     ap.add_argument("--at", default=None,
-                    help="X,Z floor-validation probe in OUTPUT coordinates "
+                    help="X,Z floor-validation probe in world coordinates "
                     "(expects a hit)")
-    ap.add_argument("--offset", default=None,
-                    help="dx,dy,dz world translation applied to the output "
-                    "(verts + plane d)")
     args = ap.parse_args(argv)
 
     d = b"".join(Path(p).read_bytes() for p in args.id44)
@@ -274,15 +286,6 @@ def main(argv=None):
     if not polys:
         sys.exit("nothing decoded -- refusing to write an empty EMCL")
 
-    if args.offset:
-        ox, oy, oz = (float(v) for v in args.offset.split(","))
-        pool = [(v[0] + ox, v[1] + oy, v[2] + oz) for v in pool]
-        polys = [((pl[0], pl[1], pl[2],
-                   pl[3] + pl[0] * ox + pl[1] * oy + pl[2] * oz),
-                  idxs, ens, pset, attr)
-                 for pl, idxs, ens, pset, attr in polys]
-        print(f"offset applied: ({ox:+.2f}, {oy:+.2f}, {oz:+.2f})")
-
     if args.at:
         px, pz = (float(x) for x in args.at.split(","))
         hits = floor_probe(pool, [(pl, ix, e, a)
@@ -323,6 +326,7 @@ def main(argv=None):
     print(f"wrote {out} ({len(blob)} bytes): {len(pool)} verts, "
           f"{len(polys)} polys, {len(indices)} indices, flags=0x{flags:X}, "
           f"bbox {cp.fmt_bbox(bbox)}")
+    update_manifest(out.parent, "collision", out.name)
     return 0
 
 

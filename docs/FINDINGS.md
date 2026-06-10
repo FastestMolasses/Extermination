@@ -5426,7 +5426,15 @@ description: soldier at a snowy gate, night palette.)
   did not generalize — chunk15 simply doesn't need them (its movables
   are world-space at rest), but a third level might.
 
-_Last updated: 2026-06-10 (session 16)._
+**s18 supersession note**: the two port-side limitations above are gone —
+the SCENE MANIFEST (`scene.txt`, written by the exporters; spawn /
+collision filename / optional bgm, parsed by `em_game.c` at boot) gives
+every scene its own spawn and collision name, and both exporters dropped
+`--offset`: the snow scene is re-baked in TRUE world coordinates (spawn
+`218.592 229.85 201.789`, collision `snow.emcl`). See PROGRESS s18.
+
+_Last updated: 2026-06-10 (session 18: scene-manifest supersession note;
+content session 16)._
 
 ## FIRST INTERACTIVE OBJECTS — pickup + door state machines, actor registry/tick decoded (2026-06-10, session 15)
 
