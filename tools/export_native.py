@@ -82,6 +82,14 @@ Usage (macOS arm64, repo root):
   python3 tools/export_native.py --mesh extract/chunk28/f00_id3b.bin \
       --anim extract/chunk28/f01_id3c.bin --clip 346 \
       --out ../extermination-port/assets/player.emdl
+  # ENEMY/CREATURE from an ENCOUNTER PACKAGE (multi-segment file with an
+  # IN-FILE animation bank — blob ids 0x70/0xd0/... that the default 0x74
+  # enumeration skips; see FINDINGS.md "encounter package"): pick the mesh
+  # segment, then select clips on the matching in-file parent table with
+  # --rig-nodes (= segment max_slot + 1) or pin one with --anim-hdr:
+  python3 tools/export_native.py --mesh extract/chunk21/f17_id8f.bin \
+      --segment 1 --anim extract/chunk21/f17_id8f.bin --rig-nodes 44 \
+      --clip 4 --out ../extermination-port/assets/enemy_test.emdl
   # pose a mesh with a live PCSX2 node capture (world matrices, node order;
   # capture with the emulator PAUSED so all nodes are from one frame):
   python3 tools/export_native.py --mesh extract/chunk28/f00_id3b.bin \
@@ -325,9 +333,25 @@ def load_mesh_sections(mesh_path: Path, segment: int = 0):
     return sections, max_slot, tex_table
 
 
-def bake_id74_palettes(anim_path: Path, clip: int):
-    """Bake one id 0x74 clip (mesh-companion animation library) into
-    per-frame world-matrix palettes.
+def scan_anim_containers(d: bytes, rig_nodes: int | None = None) -> list[int]:
+    """Header offsets of EVERY keyed-animation container in `d`, any blob
+    id (rig_probe's id-agnostic anchor scan). extract_models'
+    find_id74_headers only matches blob ids 0x74/0x2c and therefore misses
+    in-file enemy/creature banks (e.g. chunk21/f17_id8f's 11 id-0x70 +
+    30 id-0xd0 clips at 0x53030..0xc4e30). `rig_nodes` filters to
+    containers whose parent table has exactly that many nodes — pair a
+    mesh segment with the in-file table where rig_nodes == max_slot + 1
+    (FINDINGS.md "encounter package")."""
+    rp = _load("_rig_probe", "rig_probe.py")
+    return [h["hdr"] for h in rp.scan_anim_headers(d)
+            if rig_nodes is None or h["n"] == rig_nodes]
+
+
+def bake_id74_palettes(anim_path: Path, clip: int,
+                       rig_nodes: int | None = None,
+                       anim_hdr: int | None = None):
+    """Bake one keyed-animation container (mesh-companion library OR
+    in-file bank) into per-frame world-matrix palettes.
 
     Channel encodings (decoded + live-verified 2026-06-09 s4): rotation =
     4x20-bit truncated-float local quat (x,y,z,w), translation/scale =
@@ -336,19 +360,37 @@ def bake_id74_palettes(anim_path: Path, clip: int):
     CONJUGATE of the stored quat (pinned against live world matrices:
     conj gives 0.008 max element error vs 15.2 for the direct quat).
 
+    Container selection: `anim_hdr` picks the container at that file
+    offset directly; else `clip` indexes the enumeration — the historic
+    find_id74_headers list (ids 0x74/0x2c only; player library indices
+    like 346 keep meaning) unless `rig_nodes` is given, which switches to
+    the id-agnostic whole-file scan filtered to that node count.
+
     Returns (parents, frames, fps): frames = [[mat4 x n] x clip_len].
     Clips advance one frame per 60 Hz tick on the PS2 (live node cursor
     rate = 1/(clip_len-1) per tick), so fps = 60.
     """
     em = _load("_extract_models", "extract_models.py")
     d = anim_path.read_bytes()
-    hdrs = em.find_id74_headers(d)
-    if not hdrs:
-        raise SystemExit(f"no id 0x74 animation containers in {anim_path}")
-    if not (0 <= clip < len(hdrs)):
-        raise SystemExit(f"clip {clip} out of range (0..{len(hdrs) - 1} "
-                         f"in {anim_path.name})")
-    pre = em.parse_id74_prefix(d, hdrs[clip])
+    if anim_hdr is not None:
+        hdr = anim_hdr
+        if not any(h == hdr for h in scan_anim_containers(d)):
+            raise SystemExit(f"--anim-hdr {hdr:#x}: no animation container "
+                             f"header at that offset in {anim_path.name}")
+    else:
+        if rig_nodes is None:
+            hdrs = em.find_id74_headers(d)
+            what = "id 0x74"
+        else:
+            hdrs = scan_anim_containers(d, rig_nodes)
+            what = f"{rig_nodes}-node"
+        if not hdrs:
+            raise SystemExit(f"no {what} animation containers in {anim_path}")
+        if not (0 <= clip < len(hdrs)):
+            raise SystemExit(f"clip {clip} out of range (0..{len(hdrs) - 1} "
+                             f"{what} containers in {anim_path.name})")
+        hdr = hdrs[clip]
+    pre = em.parse_id74_prefix(d, hdr)
     n, parents = pre["n"], pre["parents"]
 
     def keyframes(chan):
@@ -486,12 +528,28 @@ def root_travel(frames):
     return math.hypot(dx, dz)
 
 
-def bake_id74_clips(anim_path: Path, clip_ids: list[int]):
-    """Bake several id 0x74 containers into one shared palette blob.
+def translate_frames(frames, off):
+    """Bake a constant world translation into every palette matrix (used
+    to place a scene-file export off to the side — the port poses scene
+    EMDLs verbatim at frame 0, no per-item placement)."""
+    ox, oy, oz = off
+    out = []
+    for fr in frames:
+        out.append([(m[0], m[1], m[2],
+                     (m[3][0] + ox, m[3][1] + oy, m[3][2] + oz, m[3][3]))
+                    for m in fr])
+    return out
+
+
+def bake_id74_clips(anim_path: Path, clip_ids: list[int],
+                    rig_nodes: int | None = None):
+    """Bake several animation containers into one shared palette blob.
 
     The FIRST clip's frame-0 root translation is the shared origin (so a
     single-clip 346 export reproduces the old recentre output exactly);
     locomotion clips are converted to in-place (see strip_root_motion).
+    `rig_nodes` switches the enumeration the indices refer to (see
+    bake_id74_palettes).
 
     Returns (parents, frames, clip_table, fps) with clip_table =
     [{id, first, count, fps}] ranges into the concatenated frames."""
@@ -501,7 +559,7 @@ def bake_id74_clips(anim_path: Path, clip_ids: list[int]):
     origin = None
     fps = 60.0
     for ci in clip_ids:
-        p, fr, fps = bake_id74_palettes(anim_path, ci)
+        p, fr, fps = bake_id74_palettes(anim_path, ci, rig_nodes)
         if parents is None:
             parents = p
         elif p != parents:
@@ -651,6 +709,21 @@ def main(argv):
                     "it into a multi-frame EMDL")
     ap.add_argument("--clip", type=int, default=0,
                     help="container index inside --anim (default 0)")
+    ap.add_argument("--rig-nodes", type=int,
+                    help="select animation containers by parent-table size "
+                    "via the id-agnostic whole-file scan (in-file enemy "
+                    "banks use blob ids 0x70/0xd0/... that the default "
+                    "0x74-library enumeration skips); --clip/--clips then "
+                    "index ONLY the matching containers. Pick the size as "
+                    "mesh max_slot + 1 (printed; FINDINGS 'encounter "
+                    "package' pairing rule)")
+    ap.add_argument("--anim-hdr", type=lambda x: int(x, 0),
+                    help="container header file offset inside --anim "
+                    "(hex ok): bake exactly that container, bypassing "
+                    "--clip/--rig-nodes indexing")
+    ap.add_argument("--offset", help="x,y,z world translation baked into "
+                    "every palette matrix after recentring (scene-file "
+                    "placement; the port poses scene EMDLs verbatim)")
     ap.add_argument("--clips", help="comma list of container indices to "
                     "bake into ONE multi-clip EMDL (e.g. 346,2,3 = "
                     "idle,walk,run); locomotion clips are converted to "
@@ -700,7 +773,8 @@ def main(argv):
         if not args.anim:
             raise SystemExit("--clips needs --anim")
         print(f"baking {len(ids)} clips from {args.anim}:")
-        parents, frames, clips, fps = bake_id74_clips(Path(args.anim), ids)
+        parents, frames, clips, fps = bake_id74_clips(Path(args.anim), ids,
+                                                      args.rig_nodes)
         print(f"palette: {len(frames)} total frames, {len(frames[0])} nodes "
               f"@ {fps} fps")
     elif args.live:
@@ -708,11 +782,19 @@ def main(argv):
         parents = [-1] * len(frames[0])
         print(f"palette: 1 live frame, {len(frames[0])} node matrices")
     elif args.anim:
-        parents, frames, fps = bake_id74_palettes(Path(args.anim), args.clip)
+        parents, frames, fps = bake_id74_palettes(Path(args.anim), args.clip,
+                                                  args.rig_nodes,
+                                                  args.anim_hdr)
         frames = recentre(frames)
-        clips = [{"id": args.clip, "first": 0, "count": len(frames),
+        # clip id: container index, or the header offset for --anim-hdr
+        cid = args.anim_hdr if args.anim_hdr is not None else args.clip
+        clips = [{"id": cid, "first": 0, "count": len(frames),
                   "fps": fps}]
-        print(f"palette: clip {args.clip} of {args.anim} -> "
+        sel = (f"hdr {args.anim_hdr:#x}" if args.anim_hdr is not None
+               else f"clip {args.clip}"
+               + (f" ({args.rig_nodes}-node scan)" if args.rig_nodes
+                  else ""))
+        print(f"palette: {sel} of {args.anim} -> "
               f"{len(frames)} frames, {len(frames[0])} nodes @ {fps} fps")
     else:
         # No pose source: identity palette (bone-local parts shown
@@ -722,6 +804,13 @@ def main(argv):
         parents = [-1] * n
         print("note: no --live/--anim; exporting identity palette "
               "(bone-local parts will overlap)")
+
+    if args.offset:
+        off = tuple(float(x) for x in args.offset.split(","))
+        if len(off) != 3:
+            raise SystemExit("--offset needs x,y,z")
+        frames = translate_frames(frames, off)
+        print(f"baked world offset {off}")
 
     write_emdl(Path(args.out), sections, [], parents, frames, fps,
                tex_entries, tex_blob, clips=clips)

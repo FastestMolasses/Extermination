@@ -3189,3 +3189,21 @@ full detail):
   (<0x120000, daddu-vs-paddub move style) that mwcc 2.3 cannot reproduce;
   stub restored per policy. The whole audio cluster is SDK-half — exclude
   it from readable-C matching campaigns.
+
+### Update — 2026-06-10 s13: EMDL pipeline generalized — first enemy/creature export
+
+- The 44-node chunk21/f17_id8f segment-1 creature is exported as an
+  animated EMDL (`enemy_test.emdl`, in-file id-0xd0 idle clip 0 @0x64080,
+  180 frames) and renders in the port beside the player (capture kept at
+  `extermination-port/build/cap_enemy.png`; temporary scene file removed
+  after capture). Flat-lit: its textures are resident in no existing
+  GS dump / save state (0/61 TEX0 keys everywhere).
+- `export_native.py` gained `--rig-nodes` (id-agnostic container scan
+  filtered by parent-table size — unlocks in-file 0x70/0xd0 banks),
+  `--anim-hdr` (pin container by offset) and `--offset` (baked world
+  placement). Default enumeration/player exports unchanged.
+- 0xd0 clips decode with the unchanged map-A/B/C machinery (unit-quat
+  fingerprint); hemisphere scan over all 30 clips: 0 jumps > 90 deg.
+- Next textured-character win: chunk15/f18_id94 seg1 (21-node NPC) is
+  fully texture-resident in save state 01 — needs only a .p2s VRAM
+  source option in build_texture_blob.

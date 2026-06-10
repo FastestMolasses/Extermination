@@ -4995,4 +4995,55 @@ AREA11 has one rx=-0.314 entry); semantics of kinds 3/0xA/0xD/0xE/0x46/
 0x52; the class-0x0B scripted-spawn records' trigger conditions; item-
 type id → inventory-item name mapping (0x0B/0x0C/0x0D...).
 
-_Last updated: 2026-06-10 (session 11)._
+## Pipeline generalizes beyond the player — 44-node creature exported (2026-06-10 s13)
+
+First non-player character through the full EMDL pipeline: the
+**chunk21/f17_id8f segment-1 44-node creature**, animated with its own
+in-file id-0xd0 bank, rendered by the port next to the player
+(evidence: `extermination-port/build/cap_enemy.png`; the temporary
+`assets/scene/90_enemy.emdl` was removed after capture — default scene
+unchanged; canonical export kept at `assets/enemy_test.emdl`).
+
+**id-0xd0 clips use the standard map-A/B/C encoding.** All 30 in-file
+0xd0 containers (0x64080..0xc4e30) decode with `parse_id74_prefix`
+unchanged: every rot key is a unit quat to 4e-4 (the 11-bit-mantissa
+truncation fingerprint). Composition (conjugate-quat locals, parent-table
+world chaining) carries over verbatim.
+
+**Hemisphere fix holds for 0xd0.** s7c-style scan over all 30 clips x 44
+nodes x every baked frame: **0 single-frame world-rotation jumps > 90
+deg**; worst step anywhere = 49.7 deg (clip 16 frame 58 node 41, a fast
+snap). Mean joint step of the exported clip: 3.0 deg/frame.
+
+**Clip survey (root XZ travel over the clip, 60 fps bake):** 9 clips are
+in-place (< 0.05 u): container 0 @0x64080 (180 f, 0.003 u — the IDLE,
+exported), 6, 11, 17, 18, 21 (286 f), 26, 19, 24. Locomotion clips
+travel 3.1..89.9 u; clips 1/2/3 (@0x69b60/0x6d0e0/0x708b0) are exactly
+54.0 u / 90 f each — a matched walk set. Clip 29 (@0xc4e30, 586 f,
+5.3 u) is a long scripted/cinematic track.
+
+**Exporter selectors (export_native.py).** `find_id74_headers` only
+matches blob ids 0x74/0x2c, so in-file banks (0x70/0xd0/...) were
+unreachable. New: `--rig-nodes N` switches container enumeration to the
+id-agnostic whole-file scan (rig_probe.scan_anim_headers) filtered to
+N-node parent tables — `--clip/--clips` then index only those; pick N =
+segment max_slot + 1 (the encounter-package pairing rule). `--anim-hdr
+OFFSET` pins one container by file offset (its offset becomes the EMDL
+clip-table id). `--offset x,y,z` bakes a world translation into every
+palette matrix (scene-file placement; the port poses scene EMDLs
+verbatim at frame 0). Default (no selector) enumeration is unchanged —
+player library indices like 346 keep meaning.
+
+**Texture status: flat-lit (unresolvable from current captures).** The
+creature's 61 TEX0 keys (CLD-masked qwords from the mesh) appear in NO
+existing capture: 0/61 in the office GS dump's draw stream and 0/61 in
+the EE RAM + VU1 dmem of all three save states — the chunk21 level was
+never captured. The 30-node enemy (chunk12.n0/f13_id8b) is likewise
+non-resident everywhere. Negative space mapped while checking: the
+office dump's character keys are the player + equipment only. **Future
+textured-NPC candidate: chunk15/f18_id94 segment 1 (21-node humanoid,
+68 TEX0 keys) is 68/68 resident in save state 01** — a state-01-VRAM
+texture source for that NPC needs only a .p2s-VRAM path in
+build_texture_blob (clut_pair already reads it).
+
+_Last updated: 2026-06-10 (session 13)._
