@@ -7372,3 +7372,52 @@ R = (0x50+rand5)/0x80. Beam width: GS LINE = 1 screen pixel at 512×448
 (the port uses a ~0.12-unit axial-billboard quad). Aim camera: target
 height offset = camera struct +0x8C (default 6.0; AREA02 live 2.0)
 while the player is in the armed stance.
+
+## GIB SET — the burst-death model entries of the chunk27 library, identified + exported (2026-06-10, session 24)
+
+Follow-up to "CRAWLER RESOLVED": the crawler's damage-kill death REBINDS
+the actor's model record (+0x44) to `D_0028A56C` library entry **0x22 or
+0x29** (`func_001C6120` + `func_001CA6E0`). Surveying
+`extract/chunk27/f01_id37.bin` around those ids — geometry stats +
+TEX0-key sharing (`tools/export_props.py` survey, GS-dump-resolved
+texels) — identifies the complete burst set. The discriminator is the
+texture pairing: each husk's small chunk/shard meshes sample the SAME
+TEX0 key as their husk, and nothing else nearby does.
+
+| lib id | geometry | role |
+|---|---|---|
+| 0x22 | 160 v / 300 t, 14×14 footprint, 2.8 tall | **burst husk A** — the opened crate base (matches the 14×14×14 crate disguise of FINDINGS s23) |
+| 0x1C/0x1D/0x1E | 1.5–3 u flat splinters | husk-A shards (share 0x22's 32×16 PSMT4 skin, TBP 0x22F9 — brown crate tones) |
+| 0x29 | 100 v / 252 t, 14×14, 8 tall | **burst husk B** (the second rebind target) |
+| 0x28 | same mesh family, exactly half size (7×7×4) | husk B at 0.5× (same skin) |
+| 0x26/0x27 | ~2 u lumps | husk-B chunks (share 0x29's skin, TBP 0x229B — grey-cyan) |
+| 0x1F/0x20/0x21 | same three shard shapes as 0x1C–0x1E | second shard triplet, own skin (TBP 0x22FD, dark brown) — the other variant's splinters |
+
+NOT gibs, despite adjacency: 0x2C/0x2D/0x2E sample the additive
+glow-billboard texture (key `0x041695113222E9`, the s7b player-aura
+skin) — effect shells; 0x23/0x24 pair on their own 64×64 skin and
+0x25/0x2A/0x2B pair elsewhere — unrelated pickups/props.
+
+**Export:** `tools/export_props.py --gibs` (new mode) writes each entry
+as a static 1-node EMDL v2 (model-local space, identity palette frame,
+normals → baked colors, texels from the office GS dump — all 4 gib
+skins resolve from frame1.gs since chunk27 is globally resident) into
+`extermination-port/assets/gibs/gib_<id>.emdl` (git-ignored,
+disc-derived, 11 files).
+
+**Port (extermination-port s24):** `em_enemy.c` death now distinguishes
+the engine's two state-2 arms: a LETHAL HIT (+0x36 nonzero — the
+knockback arm, hit source +0x70) launches 3–5 gib instances from the
+exported set with the documented knockback shape (hit vector RNG-rotated
+by 90°/180°/270° + a flagged ±30° port jitter, 0.052/tick gravity arc,
+floor-query landing, ~3 s rest then sink — the no-per-draw-alpha fade
+stand-in); the contact/suicide burst (mailbox empty — the engine's
+no-knockback arm) and missing gib assets keep the old sink placeholder.
+Launch speeds/spin are flagged port constants; the gore particle-FX
+pairs (func_001EFD90 ids) and nest-child spawns remain untranslated.
+
+Open: which husk (0x22 vs 0x29) binds to which crawler variant (the
+variant byte {6, 0x1E} gates the knockback, but the husk pick inside
+func_001551B0 state 2 is not yet pinned); whether the engine ALSO
+draws the shard/chunk meshes at burst time (the gore-FX effect ids may
+reference them) — check live during a crate burst.

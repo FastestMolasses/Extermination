@@ -105,6 +105,31 @@ ship as a SEPARATE articulated EMDL instead:
     machinery (imported, not copied) with the RGN_DOOR replays dropped,
     so the static bake no longer contains the doors.
 
+GIBS (--gibs, 2026-06-10 s24). The crawler's burst death REBINDS the actor's
+model to library entry 0x22 or 0x29 (FINDINGS "CRAWLER RESOLVED": D_0028A56C
+is THIS library; func_001C6120 + func_001CA6E0 swap actor+0x44). Surveying the
+library around those ids by TEX0-key sharing identifies the whole burst set —
+each husk has small chunk/shard meshes textured with ITS OWN skin:
+
+  0x22  burst husk A (160 v/300 t, 14x14 footprint, 2.8 tall — the opened
+        crate base), texture 0x22F9 shared with shards 0x1C/0x1D/0x1E
+        (1.5-3 u flat splinters)
+  0x29  burst husk B (100 v/252 t, 14x14, 8 tall), texture 0x229B shared
+        with chunks 0x26/0x27 (~2 u lumps); 0x28 = the same husk at exactly
+        half size (3.5/4.0 extents, same texture)
+  0x1F/0x20/0x21  a second shard triplet (same three shapes as 0x1C-0x1E,
+        own texture 0x22FD — the other husk variant's splinters)
+  (0x2C-0x2E nearby are NOT gibs: they sample the additive glow-billboard
+  texture 0x...3222E9 — effect shells; 0x23/0x24 pair on a 64x64 skin and
+  0x25/0x2A/0x2B pair elsewhere — unrelated pickups/props.)
+
+--gibs exports each entry as its own STATIC 1-node EMDL v2 (model-local
+space, identity palette frame, normals -> baked colors with the standard
+stand-in light, texels resolved from the office GS dump exactly like the
+props above) into <outdir>/gib_<id>.emdl. The port's em_enemy.c launches the
+small chunks on the crawler's burst death and falls back to its old sink
+placeholder when the files are absent.
+
 Disc-derived output: write only into git-ignored locations.
 
 Usage (macOS arm64, decomp repo root):
@@ -123,6 +148,10 @@ Usage (macOS arm64, decomp repo root):
       --level extract/chunk06.n1/f03_id43.bin \
       --gsdump extract/gsdump/frame1.gs \
       --outdir ../extermination-port/assets/scene
+  # crawler burst-death gib set (one EMDL per library entry):
+  .venv/bin/python tools/export_props.py --gibs \
+      --gsdump extract/gsdump/frame1.gs \
+      --gibs-outdir ../extermination-port/assets/gibs
 """
 from __future__ import annotations
 
@@ -667,6 +696,50 @@ def export_doors(args):
 
 
 # ---------------------------------------------------------------------------
+# Mode 4: --gibs — the crawler burst-death model set, one static EMDL each
+# (see "GIBS" in the module docstring for the survey that picked these).
+
+GIB_ENTRIES = [
+    # (lib id, role) — kept in the FINDINGS "GIB SET" table.
+    (0x22, "burst husk A (crate base, 14x14x2.8)"),
+    (0x29, "burst husk B (14x14x8)"),
+    (0x28, "husk B at half size (7x7x4)"),
+    (0x1C, "shard A1 (husk-A skin)"),
+    (0x1D, "shard A2 (husk-A skin)"),
+    (0x1E, "shard A3 (husk-A skin)"),
+    (0x1F, "shard B1 (variant skin)"),
+    (0x20, "shard B2 (variant skin)"),
+    (0x21, "shard B3 (variant skin)"),
+    (0x26, "chunk 1 (husk-B skin)"),
+    (0x27, "chunk 2 (husk-B skin)"),
+]
+
+
+def export_gibs(args):
+    d = Path(args.library).read_bytes()
+    offs = read_directory(d)
+    outdir = Path(args.gibs_outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    for mi, role in GIB_ENTRIES:
+        # model-local export: identity placement, baked stand-in lighting
+        sections, tex_table, _n = build_placed_mesh(d, {mi: [lvl.IDENT34]})
+        pos = sections[0][0]
+        if not pos:
+            print(f"  ! gib 0x{mi:02x}: no geometry, skipped")
+            continue
+        tex_entries, tex_blob = lvl.build_texture_blob(
+            Path(args.gsdump) if args.gsdump else None, tex_table)
+        out = outdir / f"gib_{mi:02x}.emdl"
+        en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
+                      tex_entries, tex_blob, flags=1)
+        ys = [p[1] for p in pos]
+        print(f"gib 0x{mi:02x} -> {out.name}: {len(pos)} verts, "
+              f"{len(sections[0][2]) // 3} tris, Y[{min(ys):.1f},"
+              f"{max(ys):.1f}] — {role}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 
 def main(argv):
     ap = argparse.ArgumentParser(
@@ -680,6 +753,13 @@ def main(argv):
     ap.add_argument("--attach", action="store_true",
                     help="export the PLAYER EMDL (--mesh/--anim/--clip) with "
                     "the held equipment merged onto its skeleton nodes")
+    ap.add_argument("--gibs", action="store_true",
+                    help="export the crawler burst-death gib set (library "
+                    "entries in GIB_ENTRIES) as one static 1-node EMDL each "
+                    "into --gibs-outdir")
+    ap.add_argument("--gibs-outdir", default="../extermination-port/assets/gibs",
+                    help="(--gibs) output directory (git-ignored, "
+                    "disc-derived)")
     ap.add_argument("--doors", action="store_true",
                     help="export the placement-table doors as separate "
                     "articulated EMDLs into <outdir>/doors/, write the "
@@ -704,6 +784,8 @@ def main(argv):
                     "which writes into --outdir)")
     args = ap.parse_args(argv)
 
+    if args.gibs:
+        return export_gibs(args)
     if args.doors:
         return export_doors(args)
     if not args.out:
