@@ -649,17 +649,20 @@ Caveats (see `docs/FINDINGS.md` for the full status):
 - Textures export as **grayscale luminance** — the color-CLUT binding is
   still unresolved (PSMT8 indices are luminance-ordered, so this is a
   faithful preview, just not colored).
-- Character per-block bone binding is **approximate** (spatial-proximity
-  proxy; ~30–50% of surface blocks may be mis-placed) until the on-disc
-  bone-index table is recovered via a PCSX2 mid-frame capture.
+- Character per-vertex bone binding is **exact** as of 2026-06-09: the
+  node index is encoded in each vertex's position-W float (bits 0..9 =
+  VU1 dmem matrix address = 8*node; see FINDINGS "Skinned-character
+  pipeline FULLY DECODED" and tools/export_native.py).
 - Per-vertex normals are **face-averaged**, not the packed disc normals
   (the packed-normal byte order needs a VU1 dmem capture to confirm).
 - Levels reference textures across files; sheets uploaded in common/UI
   files outside the search tree fall back to gray placeholders.
 
-The OBJ exporters (`extract_models.py --scene`, `--rigged`,
-`--object-space`, `--skeleton`) remain available for tool-chains that
-prefer Wavefront OBJ.
+The OBJ exporters (`extract_models.py --scene`, `--skeleton`) remain
+available for tool-chains that prefer Wavefront OBJ. (`--object-space`
+now dumps the id 0x74 ANIMATION channels — the records it used to
+export as vertices are keyframes; `--rigged` is pending the same
+correction.)
 
 ### Pointing PCSX2 at a mod build automatically
 
