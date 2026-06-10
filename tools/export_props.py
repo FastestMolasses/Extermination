@@ -14,24 +14,34 @@ directory of 126 standalone mesh blobs:
   +0x48; 130-qw VIF blocks of 32 records [TEX0][ST][normal][pos+W]) —
   `export_native._walk_blob_blocks` walks it unchanged.
 
-ATTACHMENT (decoded 2026-06-09 s8, live DMA-chain decode of the office
-frame). Each held item is one object-kernel draw unit (CALL 0x23C750)
-whose dmem matrix upload is BYTE-IDENTICAL to one of the 21 matrices of
-the player's own skin draw unit — i.e. the engine parents equipment to a
-skeleton node with an IDENTITY local offset. Live frame:
+ATTACHMENT (decoded 2026-06-09 s8; CORRECTED 2026-06-10 s9 against three
+fresh live frames at different player positions). Each held item is one
+object-kernel draw unit (CALL 0x23C750) whose dmem matrix upload is
+BYTE-IDENTICAL to one of the 21 matrices of the player's own skin draw
+unit — i.e. the engine parents equipment to a skeleton node with an
+IDENTITY local offset. Verified RAW byte-exact in s9:
 
-  rifle  = models 47, 48, 49, 50, 56, 64  -> node  4 (right hand)
-  spare  = model 48 drawn a second time   -> node 14 (left hand)
-  model 106 (knife) = a floor PICKUP at world (115.0, 1.5, -269.3), not
-  attached this frame.
+  rifle = models 47, 48, 49, 50, 56, 64  -> node  4 (right hand)
+  knife = model 106                      -> node 14 (hip HOLSTER node)
 
-So --attach simply merges the rifle/spare model vertices into the player
-EMDL bound to nodes 4/14 (positions stay model-space = bone-local) and
-they animate with the hands automatically.
+s8's "model 48 drawn a second time -> node 14" was WRONG: node 14 carries
+the HOLSTERED KNIFE every frame (one knife draw per frame, matrix ==
+bone 14 byte-exact in every s9 capture; note the skin palette must be
+read from the PRIMARY skin unit — later 21-set player-blob units in the
+frame are shadow/secondary passes with different matrices). Model 48's
+occasional second REF is a second PASS of the same draw unit (same
+matrix, re-kick) — never a second placement. Binding 48 to node 14 is
+what produced the phantom barrel by the right leg in the port.
+
+So --attach merges the rifle models onto node 4 and the knife onto node
+14 (positions stay model-space = bone-local) and they animate with the
+skeleton automatically.
 
 The default (no --attach) export bakes PLACED world models (the pickups)
 into a static EMDL v2 with the placements applied — currently model 106
-at its live floor pose.
+at its live floor pose (115.0, 1.5, -269.3), which is a REAL separate
+pickup instance (type-0xB entry in the live placement table @0x828330),
+independent of the holstered knife.
 
 Disc-derived output: write only into git-ignored locations.
 
@@ -73,12 +83,13 @@ en = _load("_export_native_props", "export_native.py")
 lvl = _load("_export_level_props", "export_level.py")
 
 # ---------------------------------------------------------------------------
-# Live capture (2026-06-09 s8, office scene): held equipment -> player node
-# (identity local offset, M_equip == M_node byte-exact in the frame's DMA
-# chain), plus world-placed pickups (W = K_L^-1 * M, 3x4 [R | t] rows).
+# Live capture (2026-06-09 s8, corrected 2026-06-10 s9): held equipment ->
+# player node (identity local offset, M_equip == M_node byte-exact in the
+# frame's DMA chain; rifle -> node 4, knife -> node 14 hip holster), plus
+# world-placed pickups (W = K_L^-1 * M, 3x4 [R | t] rows).
 
 ATTACHMENTS = [(47, 4), (48, 4), (49, 4), (50, 4), (56, 4), (64, 4),
-               (48, 14)]
+               (106, 14)]
 
 LIVE_PLACEMENTS: dict[int, list] = {
     # model 106 (knife): floor pickup near the office's far wall

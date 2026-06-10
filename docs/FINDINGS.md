@@ -4428,4 +4428,96 @@ Open: bit 13 meaning; the un-drawn object regions' placements; dynamic
 block-color (lit-copy) path; per-room residency layout of the two mesh
 files (the engine loads them as multiple separately-based pieces).
 
-_Last updated: 2026-06-09 (session 8)._
+## LEVEL OBJECTS COMPLETE + ATTACHMENT CORRECTION — placement table found, node 14 = knife holster (2026-06-10, session 9)
+
+Live PCSX2 session (DebugServer; player teleported around chunk06.n1 by
+writing the actor pos qwords at 0x810350/0x810360; camera steered by
+writing the camera block eye/target at 0x8101F0/0x810200). Frames decoded
+by scanning the per-frame packet arenas (two ~850KB regions around
+0x28F000.. and 0x480000..) for matrix-upload CNT tags + their REF/CALL
+tails, then W = K_L^-1 * M as in s7b/s8. Three s8 results corrected, the
+remaining office/west-room objects recovered, and the engine's object
+PLACEMENT TABLE located.
+
+### 1. CORRECTION — node 14 is the hip-HOLSTER node; the knife rides it
+
+In every s9 frame (three player positions, walking and idle) the
+equipment draw units are:
+
+- models 47/48/49/50/56/64 (rifle) -> bone 4, RAW BYTE-EXACT against the
+  player skin unit's 21-set palette;
+- model 106 (knife) -> bone 14, RAW BYTE-EXACT, every frame — the knife
+  is always drawn HOLSTERED at the hip while the rifle is held.
+
+s8's "model 48 drawn a second time -> node 14 (left hand)" was wrong on
+both counts: the occasional second REF of model 48 is a second PASS of
+the same draw unit (same matrix, LVL2-style re-kick), and node 14 is the
+holster. Binding 48 to node 14 produced the port's phantom barrel
+floating by the leg. Beware when matching: a frame contains up to THREE
+21-set player-blob units — only the primary skin unit's palette matches
+equipment; the others (shadow/secondary passes) have different matrices.
+
+### 2. The live object PLACEMENT TABLE (EE 0x828170.., 0x28-byte entries)
+
+Searching EE RAM for the recovered W translations finds the engine's
+placement table for the loaded area: entries
+`{u32 type_word, f32 x, y, z, 0, f32 yaw, 0, ptr class/blob, u32 C, u32 D}`.
+type_word & 0xFFFF: 4 = placed object/door (ptr -> per-object record),
+0xB = item pickup (all share class ptr 0x1C4820; the model varies by
+item), 5/8/0xD/0x52 = other actor/trigger kinds. The five SE-room type-0xB
+entries are exactly the s8 "wall fixtures + knife pickup" draws — they
+are ITEM PICKUPS (A3040/A3940 ammo-box blobs at (116.3,9.4,-266.6) /
+(116.6,1.5,-264.2) / (115.6,9.4,-280.1) / (116.3,1.5,-289.9), knife
+model 106 at (115.0,1.5,-269.3)). Doors and stations are type 4. This
+table is the authoritative source for object placements — no camera
+hacking needed once an area is loaded.
+
+Object draws are selected per frame (nearest door instances win: the
+A05C0 double-door blob draws at the (109,-252.2) OR the (57,-220.5)
+doorway depending on player position), so single-frame captures
+under-count instances; the table has them all.
+
+### 3. Region map completed (chunk06.n1/f03_id43.bin)
+
+New live-recovered placements (all orthonormal, bottom row 0001):
+
+- `[0x9A140,0x9A960)` 3-slot door CONTROL PANEL — all three slots at the
+  corridor door (75, 0, -188.2); drawn in a late-pass call packet
+  together with 2-tri glow quads (library models 110/111/112).
+- `[0x9AAC0,0xA0420)` 3-slot wall STATION (ammo/refill unit) at
+  (57.5, 15, -292.6) / (60.0, 14.9, -296.0) / (60.8, 15.35, -290.0).
+- A05C0 double door, SECOND instance (west doorway):
+  (57.0, 0, -220.5) / (57.25, 9, -228.19) — this was the port's
+  "doorway renders as a bare hole".
+- `[0xA2740,0xA2F60)` supply crate, TWO instances:
+  (75.7, 0, -302.0) yaw 0.28 and (82.5, 0, -302.4) yaw -0.04.
+- `[0xA4240,0xA8340)` table-top DEVICE ("orange battery bank") at
+  (80.1, 8.2, -244.0) — sits on the long table in the west room.
+
+All embedded in `tools/export_level.py` (level now 6451 verts / 4205
+tris / 115 textures). Glow/billboard library models (20/21/110-118,
+2-tri overlays or non-rigid) remain unexported — noted honestly; they
+need a billboard path in the port. The only remaining un-drawn f03
+content is the non-record region [0x820C8,0x88840) and the 0x2C0-byte
+tail at [0xAC540,end).
+
+### 4. Misc engine notes (s9)
+
+- The frame's draw lists live in 4 bump arenas; the double-buffered
+  chain heads are the tag pair at 0x4835C0/0x4835E0 (NEXT -> 0x488C80 /
+  0x28F740). The geometry units are easiest to recover by scanning the
+  arenas for `CNT qwc=8n+1` whose payload starts with UNPACK V4-32 ->
+  dmem 0, then collecting the REF/CALL tail (model stream REFs come
+  AFTER the kernel CALL).
+- Static world streams from BOTH n1 files AND the neighbour zone files
+  (chunk06.n0/.n2) once their geometry is resident — REF'd blocks match
+  those files byte-for-byte (no runtime color modification observed in
+  s9 frames; the s8 "lit copy" note stays open).
+- A 21-set unit REFing chunk-blob 0x12D1A00 draws SCALED TO ZERO at
+  (114.7, 17.9, -206.1) — a hidden/pending actor (office ceiling),
+  invisible by construction.
+- Camera block 0x8101D0: +0x20 eye, +0x30 target, +0x44 yaw (the actor
+  struct's +0x218 float mirrors it). Writing eye/target works for a
+  frame but draw-list selection is position-, not camera-, driven.
+
+_Last updated: 2026-06-10 (session 9)._

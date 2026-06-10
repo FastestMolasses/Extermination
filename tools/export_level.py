@@ -31,9 +31,8 @@ predecessors emits a triangle; nothing else breaks the strip (TEX0 may
 change MID-STRIP — the triangle belongs to the TEX0 of its kicking
 vertex).
 
-REGION MAP (chunk06.n1/f03_id43.bin, live-verified frame, office scene):
-the file is not all world-space. Live DMA-chain decode (PCSX2 DebugServer,
-session 8) shows three kinds of content:
+REGION MAP (chunk06.n1/f03_id43.bin, live-verified frames, office scene +
+west rooms — sessions 8 and 9). The file is not all world-space:
 
   * 0x000000..0x0820C8  static world (slot 0, world space) — drawn through
                         the level kernel (CALL 0x237180) with camera K_L.
@@ -42,15 +41,31 @@ session 8) shows three kinds of content:
                         bits select one of 13 live matrices uploaded to
                         VU1 dmem (W = K_L^-1 * M per set, validated
                         orthonormal).
-  * four standalone object blobs at 0xA05C0/0xA3040/0xA3940/0xA8440 —
-                        drawn through the OBJECT kernel (CALL 0x23C750)
-                        with per-unit placements; 0xA3040/0xA3940 are
-                        each drawn TWICE (two instances).
-  * everything else     sub-object/blob variants NOT drawn in the live
-                        frame (other door states etc.) — skipped.
+  * 0x09A140..0x09A960  3-slot door CONTROL PANEL, all slots at the
+                        corridor door (75, 0, -188.2) (s9; drawn through a
+                        late-pass call packet alongside glow quads).
+  * 0x09AAC0..0x0A0420  3-slot wall-mounted STATION (ammo/refill unit) at
+                        (57.5..60.8, ~15, -290..-296) (s9).
+  * standalone object blobs, drawn through the OBJECT kernel (CALL
+                        0x23C750) with per-unit placements:
+                        0xA05C0 double door — TWO doorway instances:
+                        office (109, 0, -252.2)/(101.3, 9, -252.5) and
+                        west (57, 0, -220.5)/(57.25, 9, -228.2) (s9);
+                        0xA2740 supply crate, drawn twice (s9);
+                        0xA3040/0xA3940 pickup items, each drawn twice
+                        (these match type-0xB entries in the live
+                        placement table at 0x828170 — item pickups, baked
+                        statically here);
+                        0xA4240 table-top device ("battery bank") at
+                        (80.1, 8.2, -244) (s9);
+                        0xA8440 lockers at (116.2, 8, -184).
+  * everything else     non-record data / tiny tail [0xAC540,end) —
+                        skipped.
 
-The exporter bakes the live placements statically. Other level files fall
-back to "whole file static" (their movables need their own live capture).
+The exporter bakes the live placements statically. Glow/billboard quads
+(library models 20/21/110-118, non-rigid or 2-tri overlays) are NOT
+exported. Other level files fall back to "whole file static" (their
+movables need their own live capture).
 
 Output: one EMDL v2, bone_count 1 (identity palette), baked vertex color
 in the EMD2 normal slot (header flags bit 0). Textures resolve to RGBA8
@@ -125,6 +140,25 @@ BLOB_A05C0 = [   # 520qw @ 0xA05C0, ONE unit with 2 slots (records pick 0/1)
     [[1.0, -0.0, -0.0, 108.999973], [0.0, 1.0, -0.0, 0.000004], [0.0, 0.0, 1.0, -252.200051]],
     [[1.0, -0.0, 0.0, 101.310513], [0.0, 1.0, -0.0, 8.999992], [0.0, 0.0, 1.0, -252.451882]],
 ]
+BLOB_A05C0_W = [   # the SAME 2-slot double door at the WEST doorway (s9 live)
+    [[0.0, 0.0, -1.0, 56.999988], [-0.0, 1.0, 0.0, 0.000006], [1.0, -0.0, 0.0, -220.499989]],
+    [[0.0, -0.0, -1.0, 57.251972], [-0.0, 1.0, 0.0, 9.000002], [1.0, -0.0, 0.0, -228.189473]],
+]
+SUBOBJ_9A100 = [   # 130qw 3-slot door control panel; all slots at the corridor door (s9)
+    [[-0.0, 0.0, 1.0, 74.999983], [0.0, 1.0, -0.0, -0.000008], [-1.0, -0.0, 0.0, -188.199956]],
+] * 3
+SUBOBJ_9AA80 = [   # 1430qw 3-slot wall station ("ammo refill"), SW room (s9)
+    [[-0.0, 0.0, 1.0, 57.500001], [0.0, 1.0, -0.0, 14.999998], [-1.0, -0.0, 0.0, -292.600003]],
+    [[-0.0, 0.0, 1.0, 59.999936], [0.0, 1.0, -0.0, 14.900021], [-1.0, -0.0, 0.0, -295.999924]],
+    [[-0.0, 0.0, 1.0, 60.799965], [-0.0, 1.0, -0.0, 15.350014], [-1.0, -0.0, -0.0, -289.999945]],
+]
+BLOB_A2700 = [   # 130qw supply crate, TWO instances, south room floor (s9)
+    [[0.962218, 0.0, 0.27228, 75.699979], [0.0, 1.0, 0.0, -0.000012], [-0.27228, -0.0, 0.962218, -301.999949]],
+    [[0.999194, 0.0, -0.040133, 82.500003], [0.0, 1.0, -0.0, -0.000025], [0.040133, -0.0, 0.999194, -302.399962]],
+]
+BLOB_A4240 = [   # 1040qw table-top device ("battery bank"), one instance (s9)
+    [[1.0, 0.0, 0.0, 80.099981], [-0.0, 1.0, -0.0, 8.199997], [0.0, -0.0, 1.0, -243.999971]],
+]
 BLOB_A3940 = [   # 0x82qw @ 0xA3940, TWO instances
     [[0.99956, -0.0, 0.029672, 115.599991], [-0.0, 1.0, -0.0, 9.399987], [-0.029672, 0.0, 0.99956, -280.09995]],
     [[0.999945, -0.0, -0.010472, 116.299984], [0.0, 1.0, -0.0, 1.499905], [0.010472, 0.0, 0.999945, -289.899902]],
@@ -139,9 +173,14 @@ BLOB_A3040 = [   # 0x82qw @ 0xA3040, TWO instances
 CHUNK06N1_REGIONS = [
     (0x000000, 0x0820C8, "world", None),
     (0x088840, 0x099C80, "slots", SUBOBJ_SLOTS),
+    (0x09A140, 0x09A960, "slots", SUBOBJ_9A100),
+    (0x09AAC0, 0x0A0420, "slots", SUBOBJ_9AA80),
     (0x0A05C0, 0x0A2640, "slots", BLOB_A05C0),
+    (0x0A05C0, 0x0A2640, "slots", BLOB_A05C0_W),   # second doorway instance
+    (0x0A2740, 0x0A2F60, "instances", BLOB_A2700),
     (0x0A3040, 0x0A3860, "instances", BLOB_A3040),
     (0x0A3940, 0x0A41C0, "instances", BLOB_A3940),
+    (0x0A4240, 0x0A8340, "instances", BLOB_A4240),
     (0x0A8440, 0x0AC540, "instances", BLOB_A8440),
 ]
 CHUNK06N1_SHA1 = "unpinned"   # match by name+size instead (disc data stays local)

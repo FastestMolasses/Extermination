@@ -3059,3 +3059,33 @@ problems. FINDINGS "LEVEL RENDER MESH v2" has the full detail.
   `verify_all.py --no-container` all-PASS.
 - Open: W-bit 13 meaning; placements for the un-drawn object regions
   (other door states); the runtime "lit copy" dynamic block colors.
+
+### Update — 2026-06-10 s9: attachment correction (node 14 = knife holster), region map completed, live placement table found
+
+Live PCSX2 session fixing the three user-visible port issues from the s8
+export (FINDINGS "LEVEL OBJECTS COMPLETE + ATTACHMENT CORRECTION" has the
+full detail):
+
+- **Phantom barrel fixed:** s8's `(48, node 14)` attach was wrong — node
+  14 is the hip HOLSTER node and carries the KNIFE (model 106), RAW
+  byte-exact vs the skin palette in every frame; model 48's second REF is
+  a second pass of the same unit. `export_props.py --attach` now merges
+  rifle->4 and knife->14; the knife shows in the hip holster, no barrel
+  at the leg (EM_CAPTURE zoom verified).
+- **Missing props recovered:** the west double-door instance at
+  (57,0,-220.5) (the "bare doorway"), the table-top device / battery
+  bank `f03+0xA4240` at (80.1,8.2,-244), the wall ammo/refill station
+  `f03+0x9AA80` at (57.5..60.8,~15,-290..-296), supply crate
+  `f03+0xA2700` x2, and the corridor-door control panel `f03+0x9A100` —
+  all baked via the `export_level.py` region map (level emdl 3800 ->
+  4205 tris / 115 textures). Verified by software-rendering the rebuilt
+  asset at the recovered placements (the port's scripted chase-cam can't
+  reach the west rooms within a 60-frame capture — noted honestly).
+- **Engine placement table found** at EE `0x828170` (0x28-byte entries:
+  type, pos, yaw, class ptr) — doors/objects type 4, item pickups type
+  0xB; it is the authoritative placement source and reclassifies the s8
+  "wall fixtures" as ammo-box pickups.
+- `verify_all.py --no-container` all-PASS; port rebuilt; PCSX2 restored
+  to the pre-session player position and left running.
+- Open (added): billboard/glow quads (lib models 20/21/110-118) need a
+  port-side billboard path; f03 non-record region [0x820C8,0x88840).
