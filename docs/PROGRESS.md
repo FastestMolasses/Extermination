@@ -3251,3 +3251,28 @@ full detail):
   default scene re-verified byte-identical). Discontinuity scan over all
   14 21-node clips: 0 jumps > 90°, worst step 63.7°.
   verify_all --no-container all-PASS.
+
+### Update — 2026-06-10 s15: music cue table found — engine-exact MUSIC.DAT/VOICE.DAT track boundaries
+
+- **The MUSIC CUE TABLE is pinned**: `D_0025DD30` (68 × 16-byte entries,
+  cues 1–67) and the VOICE cue table `D_0025E170` (179 entries, cues
+  1–178), entry = `{start_sector, start_byte, byte_len, flag}` relative to
+  the stream file's first LSN (resolved at boot by
+  `sub_O_STREAM_MUSIC_DAT_1` via sceCdSearchFile into
+  `D_00282188/D_0028218C`). Cue starter `func_001FA790(ch, cue)`; BGM API
+  `func_001FB0B0(cue)` / `func_001FAE70(fade)` around the current-BGM
+  global `D_00810D38`. Full table layout, runtime streamer block, and the
+  cue → old-track mapping are in FINDINGS "Music cue table — SOLVED".
+- **Area/event mapping**: `D_0026EC60` (36 rows `{area, 0, trigger, cue}`,
+  scanned by `func_001FD4C0` against `D_00810700`) covers scripted cues
+  29–66; overlay constants give 8 areas' looping BGM + 3 stings; save
+  state 01 validates live (area 11 streaming cue 25, sectors match the
+  table exactly). ~60% of music cues now have a confirmed in-game use.
+- `tools/audio_export.py music|voice` now split on the engine cue table
+  read from the user's local boot ELF (`--elf`, default
+  `elf/SCUS_971.12.elf`) and name outputs `cue_NNN.wav` (67 music / 178
+  voice clips); silence split kept as fallback (still 55/116). The old
+  55-track decode had merged adjacent cues 12 times.
+- Open: the writer of the initial per-area `D_00810D38` for the areas with
+  no overlay constant (cues 2–8, 10, 13–14, 16, 22, 26, 28 unattributed);
+  cue-entry flag behaviour (looping-BGM marker) at stream end.

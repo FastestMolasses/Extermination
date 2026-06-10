@@ -11,10 +11,17 @@ tools/decode_sound.py for export jobs). It covers all three audio sources:
   STREAM/MUSIC.DAT   one raw interleaved-stereo VAG stream, no container.
                      Alternating fixed-size L/R blocks; the block size is
                      64 frames = 1024 bytes (empirically verified, see
-                     `detect-interleave` below). Tracks are delimited by
-                     runs of digitally-silent frames -> 55 stereo tracks.
-  STREAM/VOICE.DAT   one raw mono VAG stream, same silence-delimited split
-                     -> 116 mono clips.
+                     `detect-interleave` below). Authoritative track
+                     boundaries live in the engine's MUSIC CUE TABLE in the
+                     boot ELF (vram 0x25DD30, 68 x 16-byte entries; see
+                     docs/FINDINGS.md "Music cue table"): pass --elf to
+                     split on it and name tracks cue_NNN.wav (67 cues).
+                     Without --elf, falls back to the older silence split
+                     (-> 55 tracks; adjacent cues separated by < gap
+                     silent frames get merged).
+  STREAM/VOICE.DAT   one raw mono VAG stream. Same deal: the VOICE CUE
+                     TABLE at vram 0x25E170 (179 entries) gives 178 exact
+                     clips with --elf; silence split -> 116 merged clips.
   SShd sound banks   inside DATA.DAT regions (extract/<chunk>/f*_id*.bin).
                      One *container* holds 1..4 banks (decompiled from the
                      boot ELF's loader/trigger path, 2026-06-10 — see
@@ -83,6 +90,15 @@ ZERO_DATA = b"\x00" * 14        # data bytes of a digitally-silent frame
 DEFAULT_OUT = Path("extract/audio_decoded")
 STREAM_RATE = 48000             # streams: evidence-based (FINDINGS "Audio")
 
+# Engine stream-cue tables in the user's boot ELF (SCUS_971.12, decompiled
+# from func_001FA790: entry = {u32 start_sector, u32 start_byte, u32
+# byte_len, u32 flag}; start_sector is relative to the file's first LBA,
+# flag=1 marks the looping in-level BGM cues).  Entry 0 of each table is
+# null padding; real cue ids start at 1.
+DEFAULT_ELF = Path("elf/SCUS_971.12.elf")
+MUSIC_CUE_TABLE = (0x0025DD30, 68)      # (vram, entry count) -> cues 1..67
+VOICE_CUE_TABLE = (0x0025E170, 179)     # -> cues 1..178
+
 
 # ----------------------------------------------------------------- decode
 
@@ -139,6 +155,42 @@ def interleave_pcm(lpcm: bytes, rpcm: bytes) -> bytes:
 
 
 # ----------------------------------------------------------------- streams
+
+def read_cue_table(elf_path: Path, stereo: bool) -> list[tuple[int, int, int, int]]:
+    """Read a stream cue table out of the user's locally-supplied boot ELF.
+
+    Returns the raw 16-byte entries as (start_sector, start_byte, byte_len,
+    flag) tuples, index == engine cue id.  The tables are how the game
+    itself seeks MUSIC.DAT/VOICE.DAT (func_001FA790 adds start_sector to
+    the file's first LBA), so they are the authoritative track boundaries.
+    """
+    data = elf_path.read_bytes()
+    if data[:4] != b"\x7fELF":
+        raise ValueError(f"{elf_path} is not an ELF")
+    (phoff,) = struct.unpack_from("<I", data, 0x1C)
+    phentsize, phnum = struct.unpack_from("<2H", data, 0x2A)
+    segs = []
+    for i in range(phnum):
+        p_type, p_offset, p_vaddr, _, p_filesz = struct.unpack_from(
+            "<5I", data, phoff + i * phentsize)
+        if p_type == 1 and p_filesz:                      # PT_LOAD
+            segs.append((p_vaddr, p_offset, p_filesz))
+
+    def file_off(vaddr: int) -> int:
+        for va, off, sz in segs:
+            if va <= vaddr < va + sz:
+                return off + (vaddr - va)
+        raise ValueError(f"vaddr {vaddr:#x} not in any LOAD segment")
+
+    vram, count = MUSIC_CUE_TABLE if stereo else VOICE_CUE_TABLE
+    base = file_off(vram)
+    rows = [struct.unpack_from("<4I", data, base + i * 16) for i in range(count)]
+    for i, (sect, byte_off, _, _) in enumerate(rows):
+        if byte_off != sect * 2048:
+            raise ValueError(f"cue {i}: start_byte {byte_off:#x} != "
+                             f"start_sector*2048 ({sect:#x}) - wrong ELF?")
+    return rows
+
 
 def deinterleave(data: bytes, block_frames: int) -> tuple[bytes, bytes]:
     """Split alternating fixed-size L/R blocks into two channel streams."""
@@ -224,9 +276,38 @@ def cmd_stream(args, stereo: bool) -> int:
         left, right = deinterleave(data, args.interleave)
     else:
         left, right = data, b""
-    clips = split_on_silence(left, args.gap)
+
+    cues = None
+    if args.elf:
+        elf_path = Path(args.elf)
+        if elf_path.is_file():
+            cues = read_cue_table(elf_path, stereo)
+        elif args.elf != str(DEFAULT_ELF):
+            print(f"error: --elf {elf_path} not found")
+            return 1
+        else:
+            print(f"note: {elf_path} not found - using silence split "
+                  f"(tracks named track_NNNN, adjacent cues may merge)")
+
+    if cues is not None:
+        # Engine cue ids -> exact clips. A cue's [start_byte, +byte_len)
+        # range in the raw stream maps to per-channel frames: each 2048-byte
+        # sector holds one 1024-byte L + one 1024-byte R block (64 frames
+        # each) for music, or 128 mono frames for voice.
+        clips = []
+        for cue_id, (_, byte_off, byte_len, _) in enumerate(cues):
+            if byte_len == 0:
+                continue                      # entry 0 null padding
+            if stereo:
+                sf, nf = byte_off // 2048 * 64, byte_len // 2048 * 64
+            else:
+                sf, nf = byte_off // FRAME, byte_len // FRAME
+            clips.append((cue_id, sf, sf + nf))
+    else:
+        clips = [(None, sf, ef) for sf, ef in split_on_silence(left, args.gap)]
+
     written = total_samples = 0
-    for sf, ef in clips:
+    for cue_id, sf, ef in clips:
         nf = ef - sf
         if nf < args.min_frames:
             continue
@@ -237,10 +318,12 @@ def cmd_stream(args, stereo: bool) -> int:
         else:
             pcm = lpcm
             total_samples += len(pcm) // 2
-        write_wav(out / f"track_{written:04d}.wav", pcm, args.rate,
-                  2 if stereo else 1)
+        name = (f"cue_{cue_id:03d}.wav" if cue_id is not None
+                else f"track_{written:04d}.wav")
+        write_wav(out / name, pcm, args.rate, 2 if stereo else 1)
         written += 1
-    print(f"{written} {'stereo' if stereo else 'mono'} tracks -> {out}/ "
+    print(f"{written} {'stereo' if stereo else 'mono'} "
+          f"{'cues' if cues is not None else 'tracks'} -> {out}/ "
           f"({total_samples / args.rate:.0f}s @ {args.rate} Hz)")
     return 0
 
@@ -450,8 +533,12 @@ def main(argv: list[str]) -> int:
     sp.add_argument("--interleave", type=int, default=64,
                     help="L/R block size in frames (default 64, verified)")
     sp.add_argument("--gap", type=int, default=64,
-                    help="silent frames that delimit a track")
+                    help="silent frames that delimit a track (fallback split)")
     sp.add_argument("--min-frames", type=int, default=8)
+    sp.add_argument("--elf", default=str(DEFAULT_ELF),
+                    help="boot ELF to read the engine cue table from "
+                         "(authoritative track boundaries + cue-id names); "
+                         "pass --elf '' to force the silence split")
     sp.set_defaults(func=lambda a: cmd_stream(a, stereo=True))
 
     sp = sub.add_parser("voice", help="decode VOICE.DAT (mono)")
@@ -460,6 +547,9 @@ def main(argv: list[str]) -> int:
     sp.add_argument("--rate", type=int, default=STREAM_RATE)
     sp.add_argument("--gap", type=int, default=64)
     sp.add_argument("--min-frames", type=int, default=8)
+    sp.add_argument("--elf", default=str(DEFAULT_ELF),
+                    help="boot ELF to read the engine cue table from; "
+                         "pass --elf '' to force the silence split")
     sp.set_defaults(func=lambda a: cmd_stream(a, stereo=False))
 
     sp = sub.add_parser(

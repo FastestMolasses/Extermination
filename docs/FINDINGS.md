@@ -5169,3 +5169,176 @@ anywhere = 63.7° (clip 0 frame 14 node 17). Hemisphere fix holds for
 this bank too. verify_all --no-container all-PASS.
 
 _Last updated: 2026-06-10 (session 15)._
+
+## Music cue table — SOLVED (2026-06-10 s15): how the engine selects MUSIC.DAT tracks
+
+The engine's stream cue tables are pinned, validated against live RAM, and
+wired into the exporter. The "55 tracks" of the silence-split decode were an
+approximation; the game addresses **67 music cues** (and **178 voice cues**)
+through fixed tables in the boot ELF.
+
+### Engine code path (boot ELF, stream_music cluster 0x1FA)
+
+- `sub_O_STREAM_MUSIC_DAT_1` (0x001FA6E0) — boot-time LBA resolve: calls
+  `sceCdSearchFile` (`func_00111C28`) on `\STREAM\MUSIC.DAT;1`
+  (string at `D_0026EBB0`) and `\STREAM\VOICE.DAT;1` (`D_0026EBD0`) and
+  stores word 0 of the result (the file's first LSN) to **`D_00282188`**
+  (music) / **`D_0028218C`** (voice). Retries in a spin loop until found.
+- **`func_001FA790(channel, cueId)` — the cue starter.** channel 0 = music,
+  nonzero = voice (channels 1/2 are used for dialogue via the 16-deep
+  pending-voice ring `D_00281CF0` drained by `func_001FA5F0`). It indexes
+  the cue table (16 bytes/entry, below), adds `start_sector` to the file's
+  base LSN, and fills the per-channel streamer block (stride 0x60):
+  `D_00281FFC[ch]` start = `D_00281FF4[ch]` current sector,
+  `D_00281FF8[ch]` end sector (`start + (byte_len+0x7FF)>>11`),
+  `D_00281FF0[ch]` ← entry flag, `D_00282178[ch]` ← cue id,
+  `D_00282154[ch]` ← state 1 (2 = streaming, observed live), then kicks the
+  first block read via `func_001FABF0`. It also computes a duration
+  estimate: `60.0 * (byte_len>>11) * 0.0746514 / 2 - 30` frames for music
+  (`/2` because the stream is stereo-interleaved; 0.0746514 s = one
+  2048-byte sector = 128 VAG frames = 3584 samples @ 48 kHz — independent
+  confirmation of both the 48 kHz rate and the 64-frame interleave).
+- Public API above it: **`func_001FB0B0(cue)`** = write the current-BGM
+  global **`D_00810D38`** + tail-call `func_001FAE70(1)` (fade-out then
+  start); **`func_001FAE70(fade)`** (re)starts whatever `D_00810D38` holds.
+  `func_001FAE70` also hosts a hardcoded override: when `D_008104E4 == 1`
+  (and not area 0x15 / BGM 0xB/0xC/0x17), it plays **cue 0x18 (24)** at
+  volume 0x40 instead — an "alert/event mode" music swap.
+  `func_001FAFD0` only applies its logic when the playing cue is **< 29** —
+  the engine itself treats cues 1..28 as BGM and 29+ as scripted streams.
+- Script/event command path: `func_001B6D70` (7-way opcode dispatch via
+  `jtbl_0026DF00`) — opcode arms call `func_001FAE70(cmd+0x18)`,
+  `func_001FA790(0, cmd+0x18)`, `func_001FABB0` (stop), play_sound, etc.
+  So cutscene scripts carry cue ids as data.
+
+### Cue table layout (PINNED)
+
+    MUSIC cue table  vram 0x0025DD30 (D_0025DD30), 68 entries x 16 bytes
+    VOICE cue table  vram 0x0025E170 (D_0025E170), 179 entries x 16 bytes
+    entry: +0x00 u32 start_sector   (relative to the file's first LSN)
+           +0x04 u32 start_byte     (== start_sector * 2048, redundant)
+           +0x08 u32 byte_len
+           +0x0C u32 flag           (music: 1 on cues 3-16 and 20-26 = the
+                                     looping in-level BGM set; 0 elsewhere)
+
+  Entry 0 of each table is null; real cue ids are 1..67 (music) and
+  1..178 (voice). The music table ends exactly where the voice table
+  begins; the last voice cue ends exactly at VOICE.DAT's EOF. Cue spans
+  tile each file completely (sector-aligned, no gaps beyond padding).
+
+### Live validation (PCSX2 save state 01)
+
+State 01 (area 11): `D_00282178[0]` = cue **25**, `D_00282154[0]` = 2
+(streaming), start sector 720927 − MUSIC.DAT LSN 645393 = **75534 =
+0x1270E**, exactly cue 25's `start_sector`; the end sector matches
+`start + len>>11` (0x644 sectors). States 02/03 (areas 0/6) had no music
+streaming (`D_00282154[0]` = 0) — consistent with what those scenes sound
+like (silent exploration).
+
+### Area/event → cue mapping
+
+Two sources:
+
+1. **`D_0026EC60`** — area/trigger → music cue table, 16-byte rows
+   `{u32 area_id, u32 0, u32 trigger_id, u32 cue}`, terminated by
+   `area_id == 0xFFFFFFFF` (36 rows). Scanned by `func_001FD4C0` against
+   the current-area byte `D_00810700`; on match it stops the current
+   stream and plays the row's cue. Covers cues 29–66 (the
+   cutscene/scripted streams).
+2. **Overlay call sites** (constants in per-area overlay code):
+   `func_1FB0B0` BGM constants and direct `func_1FA790(0, cue)` stings.
+
+Combined cue → old `track_NN` (silence-split index) → known use:
+
+| cue | dur (s) | loop | old track | known use |
+|----:|--------:|:----:|:---------:|-----------|
+| 1 | 212.9 |  | track_00 | End Credits (official-soundtrack rip match) |
+| 2 | 198.2 |  | track_01 |  |
+| 3 | 160.2 | Y | track_02 |  |
+| 4 | 186.6 | Y | track_03 |  |
+| 5 | 217.8 | Y | track_04 |  |
+| 6 | 222.4 | Y | track_05 |  |
+| 7 | 182.8 | Y | track_06 |  |
+| 8 | 198.8 | Y | track_07 |  |
+| 9 | 90.7 | Y | track_08 | AREA07+AREA08 BGM (overlay func_1FB0B0 const) |
+| 10 | 99.8 | Y | track_08 |  |
+| 11 | 87.8 | Y | track_08 | AREA17 BGM |
+| 12 | 90.3 | Y | track_08 | AREA21 BGM |
+| 13 | 91.9 | Y | track_08 |  |
+| 14 | 96.9 | Y | track_09 |  |
+| 15 | 77.1 | Y | track_09 | AREA04 BGM |
+| 16 | 81.5 | Y | track_09 |  |
+| 17 | 7.9 |  | track_09 | AREA08/AREA21 event sting (func_1FA790 const) |
+| 18 | 8.1 |  | track_10 | AREA13 event sting |
+| 19 | 10.0 |  | track_11 | AREA02 event sting |
+| 20 | 104.5 | Y | track_12 | AREA01 BGM |
+| 21 | 101.3 | Y | track_13 | AREA06 BGM |
+| 22 | 117.9 | Y | track_14 |  |
+| 23 | 90.3 | Y | track_15 | AREA00 BGM |
+| 24 | 84.0 | Y | track_16 | alert-mode override (func_001FAE70, D_008104E4==1) |
+| 25 | 59.9 | Y | track_16 | area 11 BGM (live save state 01) |
+| 26 | 60.5 | Y | track_16 |  |
+| 27 | 9.1 |  | track_16 | frame_main func_001AD4E0 (alongside a movie call) |
+| 28 | 10.1 |  | track_17 |  |
+| 29 | 26.5 |  | track_18 | D_0026EC60 A11/t0 |
+| 30 | 118.9 |  | track_19 | D_0026EC60 A01/t0x58 |
+| 31 | 18.2 |  | track_20 |  |
+| 32 | 19.1 |  | track_20 | D_0026EC60 A04/t0 |
+| 33 | 52.1 |  | track_21 | D_0026EC60 A04/t7 |
+| 34 | 141.6 |  | track_22 | D_0026EC60 A04/t0x2c |
+| 35 | 24.5 |  | track_23 | D_0026EC60 A04/t0x8f |
+| 36 | 108.9 |  | track_24 | D_0026EC60 A13/t0 |
+| 37 | 24.7 |  | track_25 | D_0026EC60 A19/t0 |
+| 38 | 117.9 |  | track_26 | D_0026EC60 A19/t5 |
+| 39 | 160.6 |  | track_27 | D_0026EC60 A15/t0 |
+| 40 | 13.7 |  | track_28 | D_0026EC60 A15/t0x5f |
+| 41 | 44.7 |  | track_29 | D_0026EC60 A15/t0x64 |
+| 42 | 156.2 |  | track_30 | D_0026EC60 A15/t0x81 |
+| 43 | 75.1 |  | track_31 | D_0026EC60 A15/t0x117 |
+| 44 | 137.8 |  | track_32 | D_0026EC60 A04/t0x92 |
+| 45 | 14.3 |  | track_33 | D_0026EC60 A00/t0x31 |
+| 46 | 130.5 |  | track_34 | D_0026EC60 A15/t0x150 |
+| 47 | 21.7 |  | track_35 | D_0026EC60 A00/t0x32 |
+| 48 | 24.0 |  | track_36 | D_0026EC60 A14/t0 |
+| 49 | 46.8 |  | track_37 | D_0026EC60 A17/t0 |
+| 50 | 32.3 |  | track_38 | D_0026EC60 A17/t0x15 |
+| 51 | 150.2 |  | track_39 | D_0026EC60 A17/t0x16 |
+| 52 | 83.2 |  | track_40 | D_0026EC60 A17/t0x5f |
+| 53 | 16.6 |  | track_41 | D_0026EC60 A17/t0x82 |
+| 54 | 120.7 |  | track_42 | D_0026EC60 A11/t0x19 |
+| 55 | 23.9 |  | track_43 | D_0026EC60 A16/t2 |
+| 56 | 158.1 |  | track_44 | D_0026EC60 A16/t3 |
+| 57 | 25.9 |  | track_45 | D_0026EC60 A20/t0x19 |
+| 58 | 23.0 |  | track_46 |  |
+| 59 | 35.8 |  | track_46 | D_0026EC60 A21/t0 |
+| 60 | 39.4 |  | track_47 | D_0026EC60 A21/t0x17 |
+| 61 | 49.9 |  | track_48 | D_0026EC60 A21/t0x24 |
+| 62 | 316.7 |  | track_49 | D_0026EC60 A21/t0x2b |
+| 63 | 25.1 |  | track_50 | D_0026EC60 A11/t0x66 |
+| 64 | 31.1 |  | track_51 | D_0026EC60 A01/t0xa5 |
+| 65 | 46.7 |  | track_52 | D_0026EC60 A14/t1 |
+| 66 | 129.6 |  | track_53 | D_0026EC60 A14/t0x20 |
+| 67 | 1.0 |  | track_54 | real table entry (1 s), not a decode artifact |
+
+The silence split merged adjacent cues 12 times (9–13, 14–17, 24–27,
+31–32, 58–59), which is exactly 67 − 12 = 55. This supersedes the earlier
+"MUSIC.DAT track listing" reading: the bimodal 25/30 guess maps onto the
+engine's real partition — non-looping pieces 1–2 + looping BGM 3–16/20–26
++ stings 17–19/27–28 (cues ≤ 28, `func_001FAFD0`'s BGM range) vs scripted
+streams 29–67. `clip_0054`/`track_54` is cue 67, a genuine (tiny) entry.
+
+### Corrections / open items
+
+- `tools/audio_export.py` `music`/`voice` now read the cue tables from the
+  user's local boot ELF (`--elf`, default `elf/SCUS_971.12.elf`) and emit
+  exact per-cue WAVs named `cue_NNN.wav`; the silence split remains as the
+  no-ELF fallback. Verified: cue split is sample-identical to the old
+  output over aligned ranges and the fallback still reproduces 55/116.
+- **Open:** who writes `D_00810D38` (initial per-area BGM) at level load —
+  zeroed in `func_001AD740`/`func_001ADF00` and set by overlay
+  `func_1FB0B0` calls in 8 areas, but several areas' base BGM (cues 2–8,
+  10, 13–14, 16, 22, 26, 28) have no caller found yet; likely set
+  data-driven from area config or by overlay code paths not yet read.
+- **Open:** entry flag semantics beyond "looping BGM set" (it is stored to
+  `D_00281FF0[ch]` and read back by the streamer refill; behaviour-level
+  confirmation that it gates seamless loop-on-end still pending).
