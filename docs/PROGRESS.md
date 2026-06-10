@@ -3207,3 +3207,25 @@ full detail):
 - Next textured-character win: chunk15/f18_id94 seg1 (21-node NPC) is
   fully texture-resident in save state 01 — needs only a .p2s VRAM
   source option in build_texture_blob.
+
+### Update — 2026-06-10 s14: collision world shipped to the port — grid section decoded, EMCL bake, native queries
+
+- **"s16-grid heightfield" misread corrected**: the id-0x44 grid section is
+  a full-float convex-polygon soup with a sorted-rank acceleration index
+  (no quantized heights, no 1/3.6 scale). Header/node layout + the shared
+  polygon test (front-facing ≤ −1e-5, convex edge-normal inside ≤ +1e-5,
+  nearest-hit end clamp) and the wide cell n-gon layout are in FINDINGS
+  "COLLISION s16-GRID SECTION FULLY DECODED" (s14).
+- New `tools/export_collision.py`: id44 → **EMCL v1** for the port
+  (office: 205 polys = 121 grid + 84 cell n-gons incl. 30 wide; floor
+  y = 0 validated at the spawn; flat-floor fallback path if a level's grid
+  header ever resists the scan).
+- Port: new `src/game/em_collision.[hc]` (zero-dep loader +
+  `segment_query`/`move_probe` mirroring func_0019A570/func_0019AD00 — set
+  mask bits, query id with conditional surfaces 0x50..0x59, collide-and-
+  slide delta). `em_game.c` movement now probes the real world (bbox clamp
+  kept only as a no-asset fallback), floor height comes from a vertical
+  query, and the camera solver runs mask-6 eye queries (struct +0x07 hit
+  byte wired). Verified: EM_MOVE_TEST wall run stops at the z=−170 office
+  wall exactly (PASS), idle EM_CAPTURE byte-identical, `make test-input`
+  PASS.

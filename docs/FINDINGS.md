@@ -5047,3 +5047,76 @@ texture source for that NPC needs only a .p2s-VRAM path in
 build_texture_blob (clut_pair already reads it).
 
 _Last updated: 2026-06-10 (session 13)._
+
+## COLLISION "s16-GRID" SECTION FULLY DECODED — it is a rank-indexed polygon soup, NOT a heightfield (2026-06-10, session 14)
+
+Static .s read of the remaining grid-path functions (`func_0019F1A0`,
+`func_0019D330`, `func_0019ED80`, `func_00199C50`, `func_001A4030`) plus a
+byte-level decode of `chunk06.n1/f02_id44.bin`. This closes the s7 open
+item "exact s16-grid decode (scale ≈ 1/3.6?)" — **there is no quantized
+height grid and no 1/3.6 scale.** The s16 values that looked like
+quantized heights (433,432,… at the live result ptr) are *vertex indices*;
+the apparent ×3.6 was coincidence. The section is a **convex-polygon soup
+with full float precision** plus a sorted-rank acceleration index:
+
+### Section layout (world-section directory [0]; office file @0x79000)
+
+`func_00199C50` stages directory[0] (`D_0028A598`) into the scratchpad
+query block and reveals the header (all offsets section-relative):
+
+| Off | Field | SPR mirror |
+|---|---|---|
+| +0x00/+0x04 | vertex pool off (vec3f) / count | 0x700031FC |
+| +0x08/+0x0C | edge-normal pool off (vec3f) / count | 0x70003200 |
+| +0x10/+0x14 | vertex-index pool off (s16) / count | 0x70003204 |
+| +0x18 | sorted rank tables off — **12** contiguous s16[N] (6 sort dirs + 6 range helpers) | 0x70003210/0x70003228 |
+| +0x1C | form word (0xC = helper tables present) | — |
+| +0x20/+0x24 | node array off / s16 node count N | 0x70003208/0x7000320C |
+
+Node = **64 bytes**: +0x00 s16[6] boundary-vertex index per sort
+direction; +0x0C s16[6] rank bounds (accel only); +0x18 u8 vert count;
++0x1A u8 **surface attr** (0x50..0x59 conditional vs query id 0x7000324E:
+0x50 never, 0x51 id==0, 0x52 id==2, 0x53 not for id -1, 0x54+ always);
++0x1C u32 off into index pool; +0x20 u32 off into edge-normal pool;
++0x24 vec3f plane normal; +0x30 f32 plane d. The office section:
+325 verts / 484 indices+edge normals / 121 nodes, all normals unit, all
+ring verts on-plane, floor poly under the spawn solves to y = 0 exactly.
+
+### Query semantics (shared by BOTH worlds)
+
+`func_0019ED80` (grid node) and `func_001A4030` (cell n-gon) are the same
+test: require dot(dir,n) ≤ −1e-5 (**front-facing only** — this is what
+makes wall-sliding free), plane t, per-axis hit-in-interval, then convex
+inside test dot(hit − v_k, edge_n_k) ≤ +1e-5; on accept the segment end is
+clamped (nearest-hit semantics across sets). `func_001A4030` additionally
+classifies the surface from ny²/(nx²+nz²) vs 0.49029/3.0 →
+0x2000 wall / 0x1000 slope / 0x4000 floor / 0x800 down-slope / 0x8000
+ceiling at SPR 0x700030CA, and stages the plane normal at 0x700030D4.
+`func_0019F1A0` is a pure accel prune (per-direction binary search of the
+segment-AABB ranks vs the node rank bounds). The camera-family hub
+(`func_0019A910` → `func_0019D770`) reuses `func_0019ED80` — same facing
+rule. **Wide cell n-gons (hdr bit 0x800) decoded:** plane@+4, verts@+0x14,
+unnormalized in-plane edge normals (= cross(edge, n)) follow the verts,
+then the entire record repeats (a second mirrored copy) — size
+0x24 + 0x30·cnt accounted for.
+
+### Tools / port
+
+- `tools/export_collision.py` — bakes grid + cell worlds (narrow + wide
+  n-gons) into **EMCL v1** (shared vert pool, per-poly plane/ring/edge
+  normals/set bit/attr; format doc in the tool header). Office:
+  205 polys (121 grid + 84 cell), validated floor y=0 at the spawn.
+- Port `src/game/em_collision.[hc]` — EMCL loader + faithful
+  `em_collision_segment_query` (func_0019A570 shape: mask bits, query id,
+  conditional attrs, nearest-hit clamp, result block) and
+  `em_collision_move_probe` (func_0019AD00: horizontal probe at target.y,
+  0.01 extension, hit−target delta correction with mask bit31). Player
+  movement + camera desired-eye solver (mask 6) now run these natively;
+  EM_MOVE_TEST walks into the office z=−170 wall n-gon and asserts the
+  stop (PASS), idle EM_CAPTURE byte-identical.
+
+Still open: prim types 0x2000/0x4000 (small prims), type 0x8000 records,
+section [2] role, who writes the 0x28A598 directory at level load, and the
+movable-hull object set in the port (no native objects yet).
+
+_Last updated: 2026-06-10 (session 14)._
