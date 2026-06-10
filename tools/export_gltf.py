@@ -3,7 +3,8 @@
 export_gltf.py -- Export an Extermination (SCUS-97112) character as a glTF 2.0
 binary (.glb) bundle containing:
 
-  * the skinned render mesh (stage-2 VIF strip blocks, textured per sheet),
+  * the skinned render mesh (stage-2 VIF strip blocks, one textured
+    primitive per draw TEX0),
   * a glTF skin: node hierarchy from the keyed-animation container's parent
     table (rig = the table with n == max_slot + 1; ids 0x70/0x74/0xd0/...),
     per-vertex JOINTS_0/WEIGHTS_0 (single influence, weight 1.0),
@@ -21,11 +22,26 @@ Animation channels are sparse keyframes: rot = 4x20-bit truncated-float quat
 (the engine composes with the CONJUGATE of the stored quat -- conjugated here
 too), trn/scl = 3x26-bit vec3, played at 60 fps.
 
+TEXTURE COLOR (s5 TEX0 path, adopted from export_native.py): each vertex
+record's marker qword 0 IS the draw's TEX0 register value (TBP0/TBW/PSM/
+TW/TH/CBP baked into the disc file -- FINDINGS "marker qword IS TEX0").
+With --gsdump (PCSX2 1-frame GS dump) or --p2s (PCSX2 save state) the
+snapshot's VRAM supplies each TEX0's PSMT4/8 texels + runtime-built CLUT,
+giving full-COLOR per-draw materials (export_native.build_texture_blob is
+reused verbatim). Without a VRAM source the character falls back to the
+legacy identity-grayscale sheet textures resolved via the residency map.
+
 USAGE
     python3 tools/export_gltf.py \
         --mesh extract/chunk28/f00_id3b.bin \
         --anim extract/chunk28/f01_id3c.bin \
+        --gsdump extract/gsdump/frame1.gs \
         --out  models/chunk28_character.glb
+    # or, color from a save state's VRAM (mesh TEX0s must be resident):
+    python3 tools/export_gltf.py \
+        --mesh extract/chunk15/f18_id94.bin --segment 1 \
+        --p2s "$HOME/Library/Application Support/PCSX2/sstates/SCUS-97112 (4CDC5F74).01.p2s" \
+        --out  models/chunk15_npc.glb
 
 If --anim is omitted, containers embedded in the mesh file are used, else
 the same-chunk sibling file with the most matching-node-count containers.
@@ -183,8 +199,8 @@ def _find_transfer_for_dbp(mesh_path: Path, dbp: int,
     return None
 
 
-def _png_rgba_bytes(width: int, height: int, indexed: bytes) -> bytes:
-    """8-bit indexed pixels -> RGBA PNG bytes (identity grayscale CLUT)."""
+def _png_from_rgba(width: int, height: int, rgba: bytes) -> bytes:
+    """RGBA8 pixel stream (rows top-down) -> PNG bytes."""
     import zlib as _zlib
 
     def chunk(typ: bytes, data: bytes) -> bytes:
@@ -192,15 +208,24 @@ def _png_rgba_bytes(width: int, height: int, indexed: bytes) -> bytes:
                 struct.pack(">I", _zlib.crc32(typ + data) & 0xFFFFFFFF))
 
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)  # 6 = RGBA
+    stride = width * 4
     raw = bytearray()
     for y in range(height):
         raw.append(0)  # filter byte
-        row = indexed[y * width:(y + 1) * width]
-        for px in row:
-            raw.append(px); raw.append(px); raw.append(px); raw.append(0xFF)
+        raw += rgba[y * stride:(y + 1) * stride]
     return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) +
             chunk(b"IDAT", _zlib.compress(bytes(raw), 6)) +
             chunk(b"IEND", b""))
+
+
+def _png_rgba_bytes(width: int, height: int, indexed: bytes) -> bytes:
+    """8-bit indexed pixels -> RGBA PNG bytes (identity grayscale CLUT)."""
+    rgba = bytearray(width * height * 4)
+    for i, px in enumerate(indexed[:width * height]):
+        o = i * 4
+        rgba[o] = rgba[o + 1] = rgba[o + 2] = px
+        rgba[o + 3] = 0xFF
+    return _png_from_rgba(width, height, bytes(rgba))
 
 
 # ---------------------------------------------------------------------------
@@ -248,24 +273,27 @@ def _signed_parents(raw: List[int]) -> List[int]:
 # the stage-2 VIF strip-block stream consumed by the 62-qw VU1 skinning
 # kernel at vram 0x0023C780. Block discovery is shared with
 # export_native.load_mesh_sections (raw-blob and MESH_SIG-style files); this
-# loader additionally keeps each record's ST (UV) and marker m0 (texture
-# sheet field) so the glTF output can be textured per sheet.
+# loader additionally keeps each record's ST (UV) and marker qword (the
+# draw's TEX0 register value) so the glTF output can be textured per draw.
 
 VERT_REC = 0x40   # 4 qwords per record: [tex/marker][ST][normal][pos+w]
 
 
-def load_skinned_sections(mesh_path: Path, segment: int = 0,
-                          fallback_dbp: int = -1):
-    """Decode the skinned render mesh, grouped by texture-sheet DBP.
+def load_skinned_sections(mesh_path: Path, segment: int = 0):
+    """Decode the skinned render mesh, grouped by per-draw TEX0 key.
 
-    Returns (groups, max_slot) with groups = {dbp: [pos, nrm, uv, slot,
+    Returns (groups, max_slot) with groups = {tex0_key: [pos, nrm, uv, slot,
     tris]}: bone-local positions/normals, per-vertex node slot decoded from
     the position-W bits ((W_bits & 0x3FF) >> 3 -- validated live, see
-    FINDINGS.md), and flat triangle index lists per group. Strip walking
-    mirrors export_native.load_mesh_sections exactly (restart bit 15,
-    alternating winding by strip parity), with one addition: a marker
-    (sheet) change also breaks the running strip so no triangle straddles
-    two texture sheets.
+    FINDINGS.md), and flat triangle index lists per group. The grouping key
+    is the record's marker qword 0, which IS the draw's complete TEX0
+    register value (TBP0/TBW/PSM/TW/TH/CBP baked into the disc file --
+    FINDINGS "marker qword IS TEX0", s5), masked of the per-draw CLD
+    CLUT-cache bits (export_native.TEX0_KEY_MASK); a zero marker groups
+    under key -1 (untextured). Strip walking mirrors
+    export_native.load_mesh_sections exactly (restart bit 15, alternating
+    winding by strip parity), with one addition: a marker (TEX0) change
+    also breaks the running strip so no triangle straddles two textures.
     """
     en = _load("_export_native", "export_native.py")
     d = mesh_path.read_bytes()
@@ -277,13 +305,13 @@ def load_skinned_sections(mesh_path: Path, segment: int = 0,
     if not payloads:
         raise RuntimeError(f"no skinned-mesh blocks found in {mesh_path}")
 
-    groups: dict[int, list] = {}   # dbp -> [pos, nrm, uv, slot, tris]
-    welds: dict[int, dict] = {}    # dbp -> weld map
+    groups: dict[int, list] = {}   # tex0 key -> [pos, nrm, uv, slot, tris]
+    welds: dict[int, dict] = {}    # tex0 key -> weld map
     max_slot = 0
 
-    def vid_of(dbp, p, n, t, b):
-        g = groups.setdefault(dbp, [[], [], [], [], []])
-        weld = welds.setdefault(dbp, {})
+    def vid_of(key0, p, n, t, b):
+        g = groups.setdefault(key0, [[], [], [], [], []])
+        weld = welds.setdefault(key0, {})
         key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
                round(n[0], 3), round(n[1], 3), round(n[2], 3),
                round(t[0], 5), round(t[1], 5), b)
@@ -299,7 +327,7 @@ def load_skinned_sections(mesh_path: Path, segment: int = 0,
 
     for payload in payloads:
         run = []        # (welded id, restart flag) of the running strip
-        run_dbp = None
+        run_key = None
         for r in range(0, len(payload) - VERT_REC + 1, VERT_REC):
             w = struct.unpack_from("<f", payload, r + 0x3c)[0]
             if abs(abs(w) - 1.0) > 0.25:
@@ -309,17 +337,16 @@ def load_skinned_sections(mesh_path: Path, segment: int = 0,
             if slot < 2:        # nodes 0..1 carry no skin
                 continue
             max_slot = max(max_slot, slot)
-            m0 = struct.unpack_from("<I", payload, r)[0]
-            dbp = _sheet_field_to_dbp((m0 >> 15) & 0x3FFF) \
-                if m0 else fallback_dbp
+            q0 = int.from_bytes(payload[r:r + 8], "little")
+            key0 = (q0 & en.TEX0_KEY_MASK) if q0 else -1
             pos = struct.unpack_from("<3f", payload, r + 0x30)
             nrm = struct.unpack_from("<3f", payload, r + 0x20)
             uv = struct.unpack_from("<2f", payload, r + 0x10)
             restart = bool(wbits & 0x8000)
-            if dbp != run_dbp:
+            if key0 != run_key:
                 run = []
-                run_dbp = dbp
-            vi = vid_of(dbp, pos, nrm, uv, slot)
+                run_key = key0
+            vi = vid_of(key0, pos, nrm, uv, slot)
             run.append((vi, restart))
             k = len(run)
             if k >= 3 and not restart:
@@ -327,9 +354,9 @@ def load_skinned_sections(mesh_path: Path, segment: int = 0,
                 if a != b and b != c and a != c:
                     # alternate winding by strip parity
                     if (k & 1) == 0:
-                        groups[dbp][4].extend((a, b, c))
+                        groups[key0][4].extend((a, b, c))
                     else:
-                        groups[dbp][4].extend((b, a, c))
+                        groups[key0][4].extend((b, a, c))
 
     groups = {dbp: g for dbp, g in groups.items() if g[4]}
     if not groups:
@@ -650,7 +677,9 @@ def build_character_glb(mesh_path: Path, out_path: Path,
                         anim_path: Path | None = None, segment: int = 0,
                         fps: float = 60.0, search_root: Path | None = None,
                         no_textures: bool = False,
-                        clips: str = "all") -> dict:
+                        clips: str = "all",
+                        gsdump: Path | None = None,
+                        p2s: Path | None = None) -> dict:
     mesh_bytes = mesh_path.read_bytes()
     groups, max_slot = load_skinned_sections(mesh_path, segment)
 
@@ -678,61 +707,132 @@ def build_character_glb(mesh_path: Path, out_path: Path,
 
     gb = GLBBuilder()
 
-    # Materials: one per texture-sheet DBP (identity-grayscale PNG -- the
-    # colour-CLUT binding is engine-synthesised, see FINDINGS "Color source").
+    # Materials: one per draw TEX0 key (the marker qword IS the TEX0
+    # register -- FINDINGS s5 "marker qword IS TEX0").
+    #
+    # COLOR path (--gsdump/--p2s): a VRAM snapshot supplies each TEX0's
+    # PSMT4/8 texels + runtime-built 16/256-entry CLUT, decoded to a
+    # full-colour RGBA PNG by export_native.build_texture_blob -- the exact
+    # machinery the EMDL exporter uses (texture residency is the caller's
+    # responsibility: a snapshot of the wrong level yields garbage texels).
+    #
+    # Legacy fallback (no VRAM source): TEX0 keys collapse to their
+    # texture-sheet DBP via the affine sheet_field relation and the
+    # residency map supplies the PSMT8 sheet as an identity-grayscale PNG
+    # (one shared material per DBP), as before.
     image_objs: list = []
     texture_objs: list = []
     material_objs: list = []
-    material_for_dbp: dict[int, int] = {}
+    material_for_key: dict[int, int] = {}
     sheet_infos: list = []
-    for dbp in sorted(groups):
-        n_tris = len(groups[dbp][4]) // 3
-        found = None if (no_textures or dbp < 0) else \
-            _find_transfer_for_dbp(mesh_path, dbp, search_root)
-        if found is not None:
-            src_path, xfer = found
-            bv = gb.add_raw_blob(
-                _png_rgba_bytes(xfer.width, xfer.height, xfer.pixels))
-            image_objs.append({"name": f"sheet_DBP{dbp}",
-                               "mimeType": "image/png", "bufferView": bv})
-            texture_objs.append({"source": len(image_objs) - 1})
-            material_objs.append({
-                "name": f"mat_dbp{dbp}",
-                "pbrMetallicRoughness": {
-                    "baseColorTexture": {"index": len(texture_objs) - 1,
-                                         "texCoord": 0},
-                    "metallicFactor": 0.0, "roughnessFactor": 1.0,
-                },
-                "doubleSided": True,
-            })
-            try:
-                src_rel = str(src_path.relative_to(search_root)) \
-                    if search_root else src_path.name
-            except ValueError:
-                src_rel = src_path.name
-            sheet_infos.append({"dbp": dbp, "n_tris": n_tris,
-                                "source": src_rel,
-                                "size": [xfer.width, xfer.height]})
-        else:
-            material_objs.append({
-                "name": f"mat_dbp{dbp}_missing",
-                "pbrMetallicRoughness": {
-                    "baseColorFactor": [0.6, 0.6, 0.6, 1.0],
-                    "metallicFactor": 0.0, "roughnessFactor": 1.0,
-                },
-                "doubleSided": True,
-            })
-            sheet_infos.append({"dbp": dbp, "n_tris": n_tris, "source": None})
-        material_for_dbp[dbp] = len(material_objs) - 1
+    keys = sorted(groups)
 
-    # One skinned mesh; one primitive per texture sheet. JOINTS_0 carries the
+    def _add_placeholder(name: str, label: str, n_tris: int) -> int:
+        material_objs.append({
+            "name": f"{name}_missing",
+            "pbrMetallicRoughness": {
+                "baseColorFactor": [0.6, 0.6, 0.6, 1.0],
+                "metallicFactor": 0.0, "roughnessFactor": 1.0,
+            },
+            "doubleSided": True,
+        })
+        sheet_infos.append({"label": label, "n_tris": n_tris, "source": None})
+        return len(material_objs) - 1
+
+    def _add_textured(name: str, label: str, n_tris: int, png: bytes,
+                      width: int, height: int, source: str) -> int:
+        bv = gb.add_raw_blob(png)
+        image_objs.append({"name": name, "mimeType": "image/png",
+                           "bufferView": bv})
+        texture_objs.append({"source": len(image_objs) - 1})
+        material_objs.append({
+            "name": f"mat_{name}",
+            "pbrMetallicRoughness": {
+                "baseColorTexture": {"index": len(texture_objs) - 1,
+                                     "texCoord": 0},
+                "metallicFactor": 0.0, "roughnessFactor": 1.0,
+            },
+            "doubleSided": True,
+        })
+        sheet_infos.append({"label": label, "n_tris": n_tris,
+                            "source": source, "size": [width, height]})
+        return len(material_objs) - 1
+
+    color_source = (gsdump or p2s) if not no_textures else None
+    if color_source is not None:
+        # ---- s5 TEX0 colour path ----
+        en = _load("_export_native", "export_native.py")
+        tex_table: list[dict] = []
+        table_for_key: dict[int, int] = {}
+        for key in keys:
+            if key <= 0:
+                continue
+            f = en.tex0_fields(key)
+            # Same plausibility gate as export_native.load_mesh_sections:
+            # indexed PSM, sane log2 dims.
+            if f["psm"] in (0x13, 0x14) and 4 <= f["tw"] <= 10 \
+                    and 4 <= f["th"] <= 10:
+                f["key"] = key
+                table_for_key[key] = len(tex_table)
+                tex_table.append(f)
+        entries, blob = en.build_texture_blob(gsdump, tex_table, p2s)
+        src_name = color_source.name
+        for key in keys:
+            n_tris = len(groups[key][4]) // 3
+            name = f"tex0_{key:016x}" if key > 0 else "no_marker"
+            ti = table_for_key.get(key)
+            if ti is None:
+                material_for_key[key] = _add_placeholder(
+                    name, name if key > 0 else "(no marker)", n_tris)
+                continue
+            e, f = entries[ti], tex_table[ti]
+            rgba = blob[e["off"]:e["off"] + e["w"] * e["h"] * 4]
+            label = (f"TEX0 {key:016x} TBP0={f['tbp0']} CBP={f['cbp']} "
+                     f"PSM={f['psm']:#x}")
+            material_for_key[key] = _add_textured(
+                name, label, n_tris, _png_from_rgba(e["w"], e["h"], rgba),
+                e["w"], e["h"], src_name)
+    else:
+        # ---- legacy grayscale-sheet path ----
+        mat_for_dbp: dict[int, int] = {}
+        info_for_dbp: dict[int, dict] = {}
+        for key in keys:
+            n_tris = len(groups[key][4]) // 3
+            dbp = _sheet_field_to_dbp(((key & 0xFFFFFFFF) >> 15) & 0x3FFF) \
+                if key > 0 else -1
+            if dbp in mat_for_dbp:           # share the sheet material
+                material_for_key[key] = mat_for_dbp[dbp]
+                info_for_dbp[dbp]["n_tris"] += n_tris
+                continue
+            label = f"DBP {dbp}" if dbp >= 0 else "(no marker)"
+            found = None if (no_textures or dbp < 0) else \
+                _find_transfer_for_dbp(mesh_path, dbp, search_root)
+            if found is not None:
+                src_path, xfer = found
+                try:
+                    src_rel = str(src_path.relative_to(search_root)) \
+                        if search_root else src_path.name
+                except ValueError:
+                    src_rel = src_path.name
+                mi = _add_textured(
+                    f"dbp{dbp}", label, n_tris,
+                    _png_rgba_bytes(xfer.width, xfer.height, xfer.pixels),
+                    xfer.width, xfer.height, src_rel)
+            else:
+                mi = _add_placeholder(f"dbp{dbp}" if dbp >= 0 else "no_marker",
+                                      label, n_tris)
+            mat_for_dbp[dbp] = mi
+            info_for_dbp[dbp] = sheet_infos[-1]
+            material_for_key[key] = mi
+
+    # One skinned mesh; one primitive per draw TEX0 key. JOINTS_0 carries the
     # per-vertex node slot directly (skin.joints is ordered so that joint
     # index == node slot).
     primitives: list = []
     total_tris = 0
     total_verts = 0
-    for dbp in sorted(groups):
-        pos, nrm, uv, slot, tris = groups[dbp]
+    for key in keys:
+        pos, nrm, uv, slot, tris = groups[key]
         primitives.append({
             "attributes": {
                 "POSITION": gb.add_vec3_float(pos),
@@ -743,7 +843,7 @@ def build_character_glb(mesh_path: Path, out_path: Path,
             },
             "indices": gb.add_indices_auto(tris, len(pos)),
             "mode": 4,  # TRIANGLES
-            "material": material_for_dbp[dbp],
+            "material": material_for_key[key],
         })
         total_tris += len(tris) // 3
         total_verts += len(pos)
@@ -876,6 +976,7 @@ def build_character_glb(mesh_path: Path, out_path: Path,
         "total_keys": total_keys,
         "sheets": sheet_infos,
         "sheets_resolved": sum(1 for s in sheet_infos if s.get("source")),
+        "color_source": str(color_source) if color_source is not None else None,
         "n_materials": len(material_objs),
         "buffer_bytes": len(bin_bytes),
         "json_bytes": len(json_bytes),
@@ -1320,6 +1421,19 @@ def main(argv: list[str]) -> int:
                         "advance one frame per 60 Hz tick on the PS2)")
     p.add_argument("--no-textures", action="store_true",
                    help="skip texture resolution -- untextured primitives")
+    p.add_argument("--gsdump",
+                   help="PCSX2 1-frame GS dump (.gs) of a scene with this "
+                        "model on screen: full-COLOR textures (each marker "
+                        "TEX0's PSMT4/8 texels + runtime-built CLUT resolved "
+                        "from the dump's VRAM -- the s5 TEX0 path, same as "
+                        "export_native.py). Without --gsdump/--p2s, falls "
+                        "back to identity-grayscale sheet textures.")
+    p.add_argument("--p2s",
+                   help="PCSX2 save state (.p2s, or a pre-extracted state "
+                        "dir, or a bare gs.bin freeze blob) as the VRAM "
+                        "texel/CLUT source instead of --gsdump -- for models "
+                        "with a save state but no GS dump (the mesh TEX0 "
+                        "keys must be resident in that state's VRAM)")
     p.add_argument("--search-root", default="extract",
                    help="root for cross-file texture resolution "
                         "(default: extract)")
@@ -1344,7 +1458,10 @@ def main(argv: list[str]) -> int:
                                fps=args.fps,
                                search_root=Path(args.search_root),
                                no_textures=args.no_textures,
-                               clips=args.clips)
+                               clips=args.clips,
+                               gsdump=Path(args.gsdump) if args.gsdump
+                               else None,
+                               p2s=Path(args.p2s) if args.p2s else None)
     print(f"wrote {info['out_path']} ({info['size_bytes']} bytes)")
     print(f"  joints     : {info['n_joints']}  (rig nodes: {info['n_nodes']},"
           f" max vertex slot: {info['max_slot']})")
@@ -1358,13 +1475,15 @@ def main(argv: list[str]) -> int:
     else:
         print("  animations : none (no id 0x74 source found -- rigid export, "
               "bone-local parts overlap)")
+    mode = "COLOR (TEX0 via VRAM snapshot)" if info["color_source"] \
+        else "grayscale sheets (no --gsdump/--p2s)"
     print(f"  textures   : {info['sheets_resolved']}/{len(info['sheets'])} "
-          f"sheets resolved, {info['n_materials']} materials")
+          f"resolved, {info['n_materials']} materials -- {mode}")
     for sh in info["sheets"]:
         src = sh.get("source") or "MISSING (gray placeholder)"
         sz = sh.get("size")
         szs = f"{sz[0]}x{sz[1]}" if sz else "-"
-        print(f"    DBP={sh['dbp']:6d} ({sh['n_tris']:5d} tris)  {szs:>9}  "
+        print(f"    {sh['label']:<48} ({sh['n_tris']:5d} tris)  {szs:>9}  "
               f"source={src}")
     print(f"  buffer     : {info['buffer_bytes']} bytes  |  json: "
           f"{info['json_bytes']} bytes")

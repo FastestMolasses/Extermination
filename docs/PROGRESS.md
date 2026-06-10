@@ -10,6 +10,42 @@
 > clusters, 91 fns in numbered unknowns), main() identified at 0x001AAE40,
 > prioritized decomp roadmap in docs/SUBSYSTEMS.md; graph tool: tools/callgraph.py.
 
+### glTF characters get full-COLOR textures — s5 TEX0 path adopted in export_gltf.py (2026-06-10, session 18)
+
+Closes the s4d/s5 open item "glTF color textures via the same
+marker-TEX0 path". `tools/export_gltf.py` (character mode) now sources
+textures exactly like `export_native.py`:
+
+- **Per-draw TEX0 grouping**: `load_skinned_sections` groups vertices by
+  the CLD-masked 64-bit marker qword (the draw's complete TEX0 register
+  value — FINDINGS s5), not the legacy 32-bit sheet-field DBP. One glTF
+  primitive (+ material) per TEX0 key; a marker change still breaks the
+  running strip. Geometry is unchanged (same strip walk/weld).
+- **New `--gsdump` / `--p2s` flags** (same semantics as export_native):
+  the VRAM snapshot resolves each plausible TEX0 (PSM 0x13/0x14, log2
+  dims 4..10) to PSMT4/8 texels + its runtime-built CLUT via
+  `export_native.build_texture_blob` (reused verbatim, lazily loaded —
+  no import cycle), embedded as full-color RGBA PNGs with
+  `baseColorTexture` materials. TEXCOORD_0 was already the per-record
+  normalized ST; glTF's default REPEAT sampler matches the GS wrap.
+- **Fallback unchanged**: without a VRAM source, TEX0 keys collapse to
+  their sheet DBP (identical affine on the low 32 bits) and the
+  residency-map grayscale sheets are shared per DBP — verify_all's
+  no-dump invocation still resolves 3/3 sheets on f17_id8f (2837 tris,
+  58 primitives / 3 materials).
+- **Validated on both targets**: chunk28/f00_id3b + office GS dump
+  (`extract/gsdump/frame1.gs`) → **51/51 TEX0s resolved**, 3170 tris,
+  51 textured primitives, largest sheet 84% chromatic pixels (real
+  color, not gray); chunk15/f18_id94 seg 1 + save state 01 (`--p2s`)
+  → **68/68 TEX0s resolved**, 3330 tris, 14 clips from sibling
+  f12_id44. pygltflib strict round-trip passes on both plus the legacy
+  and level outputs; `verify_all --no-container` all-PASS (gltf stage
+  green). Level mode untouched (still DBP sheets; `_png_rgba_bytes`
+  refactored over a new `_png_from_rgba` RGBA encoder).
+
+Still open: glTF alpha/blend modes (PNGs carry CLUT alpha but materials
+stay OPAQUE), and the engine's per-material color modulation.
+
 ### Player AURA decoded + EMDL billboard/additive flag — green glow in the port (2026-06-10, session 17)
 
 Closes the s9 "billboard/glow path" open item. Library models 20/21 are
@@ -195,9 +231,10 @@ fatigues, shoulder insignia, boots) animated on clip 346
 Still open (graphics polish, not blockers): vertex lighting from the
 kernel's light matrix instead of the port's stand-in directional light;
 alpha (exported, drawn opaque); the gun model (separate, attached to a
-hand node); glTF color textures via the same marker-TEX0 path
+hand node); ~~glTF color textures via the same marker-TEX0 path
 (session 4d noted this upgrade path — the GS-dump pipeline is now
-landed, so export_gltf.py can adopt it).
+landed, so export_gltf.py can adopt it)~~ (CLOSED 2026-06-10 s18:
+export_gltf.py `--gsdump/--p2s`).
 
 ### export_gltf.py re-pointed at the corrected pipeline (2026-06-09, session 4d)
 

@@ -3993,7 +3993,12 @@ with the character on screen:
 - `tools/export_native.py`: reads per-vertex UV (qword 1) + marker TEX0
   (qword 0, CLD-masked dedup) -> texture table; `--gsdump frame.gs`
   resolves each TEX0 against the dump's VRAM through the PSMT4/8 + CLUT
-  machinery and embeds native-size RGBA8 textures. **EMDL v2** ("EMD2"):
+  machinery and embeds native-size RGBA8 textures.
+  (2026-06-10 s18: `tools/export_gltf.py` character mode consumes the
+  same path — `--gsdump/--p2s` group primitives per CLD-masked TEX0 key
+  and embed the build_texture_blob RGBA output as per-material PNGs;
+  validated 51/51 on f00_id3b + office dump, 68/68 on f18_id94 seg 1 +
+  save state 01.) **EMDL v2** ("EMD2"):
   header gains tex_count; tex table {w, h, byte_offset}; vertex = pos3,
   nrm3, uv2, bone, tex (10 words); RGBA8 texel blob at EOF. Export of
   f00_id3b + clip 346: 2,598 verts, 3,170 tris, 51 textures, 432 KB
