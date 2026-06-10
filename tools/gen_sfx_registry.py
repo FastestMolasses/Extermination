@@ -65,17 +65,19 @@ SCENES = {
         "overlay": "AREA02.BIN",
         "table_vaddr": 0x828170,
         # Gameplay ids already wired in the port (em_sfx.h):
-        # weapon draw/holster/fire/fire-alt/dry + canonical enemy death.
-        "ids": [0x162, 0x163, 0x164, 0x165, 0x169, 0x7D8],
-        # PLACEHOLDER alias (flagged): the engine's reload sound id is
-        # still unlocated (only the reload ANIM 0x33 is pinned, s23).
-        # 0x166/0x167/0x168 are the unlabeled weapon-bank neighbors
-        # (record group [1,1,3,4..6]) between holster and dry-fire —
-        # the best reload CANDIDATES. Mapping the port's placeholder id
-        # 0xF002 to 0x166's sample makes reload audible without
-        # claiming engine truth; drop this alias the session the real
-        # id is pinned.
-        "reload_alias": (0xF002, 0x166),
+        # - weapon draw 0x162 / handling-foley 0x163 (holster + reload
+        #   start) / fire 0x164/0x165 / reload MAG ACTION 0x168 / dry
+        #   0x169 — the reload pair 0x163+0x168 was live-pinned s29
+        #   (FINDINGS "GAMEPLAY SOUND IDS PINNED LIVE"), retiring the
+        #   old 0xF002 -> 0x166 placeholder alias.
+        # - FOOTSTEPS (s29): surface pairs floor A 0x15/0x16 and
+        #   floor B 0x1A/0x1B + the constant gear/cloth layer
+        #   0x139/0x13A; the port plays set A until the per-surface
+        #   lookup (collision attr) is located, but all six ship so
+        #   the surface hook lands without a registry change.
+        # - canonical enemy death 0x7D8.
+        "ids": [0x162, 0x163, 0x164, 0x165, 0x168, 0x169, 0x7D8,
+                0x015, 0x016, 0x01A, 0x01B, 0x139, 0x13A],
     },
 }
 
@@ -187,7 +189,6 @@ def main(argv=None) -> int:
            for t in args.ids]
     door_info: list[str] = []
     doorsfx = None
-    alias = None
     area = args.area
 
     if args.scene:
@@ -196,7 +197,6 @@ def main(argv=None) -> int:
         ids = scene["ids"] + [i for i in ids if i not in scene["ids"]]
         door_ids, door_info, doorsfx = office_door_pairs(scene)
         ids += [i for i in door_ids if i not in ids]
-        alias = scene.get("reload_alias")
     if not ids:
         ap.error("no ids (pass ids and/or --scene)")
     if not area:
@@ -234,16 +234,6 @@ def main(argv=None) -> int:
         lines.append(f"# 0x{sid:03X} {label or '(unlabeled)'} — "
                      f"{rate} Hz, {n_ev} event(s), {how}")
         lines.append(f"0x{sid:03X} {wav}")
-
-    if alias:
-        pid, src = alias
-        r = resolve(sm, src, area)
-        if r:
-            wav = (wav_root / r[0]).resolve()
-            lines.append(f"# 0x{pid:03X} PLACEHOLDER reload alias -> "
-                         f"candidate 0x{src:03X} (UNVERIFIED — engine "
-                         f"reload sound id not located; see tool header)")
-            lines.append(f"0x{pid:03X} {wav}")
 
     text = "\n".join(lines) + "\n"
     if args.out:

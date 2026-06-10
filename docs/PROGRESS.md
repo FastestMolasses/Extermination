@@ -4189,3 +4189,42 @@ full detail):
 - Open: 0x179 action identity; 0x166/0x167 neighbors; per-surface
   footstep table; 0x138 trigger; live audible door-open capture (needs
   fresh emulator + the player actually adjacent to a door's near side).
+
+### Update — 2026-06-10 s30: PORT WIRES THE s29 SOUND DECODE — faithful controls, footsteps, real reload pair
+
+- **Port controls are now engine-faithful** (port repo, em_input/em_weapon):
+  FIRE moved to CIRCLE (keyboard L — the real default-config trigger,
+  spad 0x3B78 = 0x0020), CROSS stays USE/confirm (doors), manual reload
+  moved to L3 (new keyboard key R; the engine's raw 0x0200 pad bit, not
+  config-mapped — retires the port's old SQUARE deviation). The full
+  swapped-layout config block spad 0x70003B70..7E is documented in
+  em_input.h ("ENGINE DEFAULT BUTTON CONFIG") with the bit decode
+  (0x0001 L2 .. 0x8000 LEFT) and per-slot actions.
+- **Reload sounds wired for real**: em_weapon plays 0x163 at the reload
+  START (shared handling foley) and schedules 0x168 at the MAG ACTION
+  30 ticks (~0.5 s) into the 0x33 window, cancelled by a mid-reload
+  stance drop. The 0xF002 placeholder id is deleted from em_sfx.h and
+  the `reload_alias` plumbing removed from tools/gen_sfx_registry.py
+  (the s29 "next time tools are open" note — done).
+- **Footsteps live in the port**: em_game fires the two-layer step
+  (surface pair + gear pair, both alternating strictly per step, s29)
+  when the locomotion clip's playhead crosses its D_00248C90 trigger
+  frames. Rows re-read from the local ELF this session: the port's
+  locomotion clip id 2 → frames 26/3, run id 3 → 21/2 (the live-metered
+  72/21 pair belongs to the engine's default walk id 1, which the port
+  asset does not ship). Surface set = floor A (0x15/0x16) everywhere,
+  FLAGGED — the future hook is the floor-probe hit attribute once the
+  per-surface table is located; 0x1A/0x1B ship in the registry already.
+- **Registry**: gen_sfx_registry.py office set now carries the 6
+  footstep ids + 0x168 (15 ids resolved, 0 unresolved; sfx.txt
+  regenerated). Ad-hoc extras from s29 (0x189/0x16A/0x179/0x138) are
+  not in the preset — they are unwired in the port; re-add via the
+  ad-hoc id list when impact/shell-casing land.
+- Verified (port): make clean build; test-input PASS (new R→L3 row);
+  EM_MOVE / EM_DOOR / EM_WEAPON / EM_ENEMY 1-3 / EM_SFX all PASS
+  (weapon test now fires via L and reloads via R; 17 sfx plays = draw +
+  11 fire + 2×reload-start + 2×mag-action + holster; move test logs 6
+  footstep-layer plays = 3 steps × 2 layers); default EM_CAPTURE
+  byte-identical to pre-change baseline.
+- Open (unchanged from s29): 0x179 action identity; 0x166/0x167;
+  per-surface footstep table (the port hook is ready); 0x138 trigger.

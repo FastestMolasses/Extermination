@@ -8238,6 +8238,9 @@ No third sound; mag refilled to 30, reserve untouched (total-pool
 semantics re-confirmed). **The s26 registry alias `0xF002 → 0x166` was
 wrong** — 0x166/0x167 remain unassigned weapon-bank neighbors. The
 port registry now maps 0xF002 → 0x168 (regenerated this session).
+*(s30: the 0xF002 placeholder is retired entirely — the port's
+em_weapon plays the real pair 0x163 + 0x168 directly and
+gen_sfx_registry.py dropped the alias plumbing.)*
 
 ### FOOTSTEPS — two-layer, surface-dependent + constant gear layer
 
