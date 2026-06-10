@@ -1,5 +1,18 @@
 # Extermination Decomp — Progress
 
+### Hand/forearm artifacts resolved: capture tearing, not IK (2026-06-09, session 3b)
+
+The glitches around the hands in the first posed capture were temporal
+tearing in the live capture (node arena read in two MCP requests while
+the emulator ran; the hand nodes came from a different animation frame).
+Re-captured with the emulator PAUSED: all 21 node worlds are exact
+parent x local compositions (max dev 0.007) — no IK layer in the idle
+pose. The right hand's curled shape is intentional (weapon-grip pose;
+the gun is a separate attached model, not exported). Port captures are
+now clean front and back. New protocol noted in FINDINGS: pause before
+multi-read captures. Also swept FINDINGS/tools for stale pre-correction
+claims (w-field selector, kernel classifications, exporter docstring).
+
 ### Skinned-character pipeline solved end-to-end; posed character in the port (2026-06-09, session 3)
 
 The block→node binding fell: the character skinner is the 62-qw kernel

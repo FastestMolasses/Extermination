@@ -100,8 +100,11 @@ in the same chunk dir as the mesh (`chunk21/f00_id43.bin`,
 sheets as RGBA PNGs (identity grayscale CLUT) referenced by glTF
 Materials with `baseColorTexture`.
 
-**Per-vertex bone binding lives in the position w field (PARTIALLY
-DECODED 2026-05-27).** The 64-byte vertex record's `+0x3C` `w` field
+**Per-vertex bone binding lives in the position w field (~~PARTIALLY
+DECODED 2026-05-27~~ FULLY DECODED 2026-06-09 s3 — the reading below is
+superseded: the W bit pattern is [dmem matrix address | strip flags],
+NOT a k/512 palette selector; see "Skinned-character pipeline FULLY
+DECODED").** The 64-byte vertex record's `+0x3C` `w` field
 is NOT a pure sign flag. Empirically across all 317 MESH blocks of
 the player mesh (`chunk21/f17_id8f.bin`):
 
@@ -1418,6 +1421,13 @@ in "Per-vertex bone binding lives in the position w field". Per
 
 ## VU1 microcode (boot ELF static, 2026-05-25)
 
+> **2026-06-09 s3:** the per-kernel CLASSIFICATIONS below ("world
+> renderers", "skinned-mesh signature", "per-bone rigid skinners")
+> predate the disassembler fix and are unreliable; the verified facts:
+> the CHARACTER skinner is the 62-qw kernel at 0x0023C780, kernel #0
+> family are ribbon/beam renderers, #5/#7/#9 are 14-vertex effect
+> kernels. The packet-wrapper/MPG catalog mechanics below remain valid.
+
 Located 48 VU1 microcode programs statically embedded in the boot ELF, all
 between **vram 0x00230824..0x00240F88** (the data half of the single PROGBITS
 section). Tool: `tools/disasm_vu.py` (`catalog` lists them; `disasm <vram>
@@ -1505,7 +1515,9 @@ XGKICK — confirming the decoder is correct. Highlights:
   single-segment programs, low mul/madd, often 1 XGKICK or none. Likely
   particle / decal / env-map / sprite / projector kernels.
 
-**Most likely skinning kernel: the #5+#6 / #7+#8 / #9+#10 family.**
+**~~Most likely skinning kernel: the #5+#6 / #7+#8 / #9+#10 family~~
+(2026-06-09 s3: WRONG — the character skinner is the 62-qw kernel at
+0x0023C780; the #5 family are effect kernels. Kept for history.)**
 
 > **2026-05-27 CORRECTION.** The "#6/#8/#10 helper packets" identified
 > at vram `0x002346b0`/`0x002346f0`/etc. are **false positives** — the
@@ -3430,6 +3442,20 @@ Corrections to older notes this implies:
 - `tools/export_native.py` decodes all of this (`--segment`, `--live`)
   and bakes per-vertex node indices into EMDL; the port needed no
   changes.
+
+### Addendum (2026-06-09 s3): hand/forearm artifacts explained; capture protocol
+
+The small glitches around the hands/forearms in the first posed capture
+were NOT an engine feature and NOT IK: they were temporal tearing in the
+LIVE CAPTURE — the node arena was read in two MCP requests while the
+emulator was running, so nodes 19/20 (the hands) came from a different
+animation frame than nodes 0..18. **Protocol: pause the emulator before
+multi-read captures of animated state.** With an atomic paused capture,
+all 21 node world matrices are exactly parent x local(quat,trans)
+compositions (max deviation 0.007 across the rig) — no IK layer exists
+in the idle pose. The remaining "odd" right-hand shape is intentional
+animation: the hand is curled in a WEAPON-GRIP pose; the gun is a
+separate model attached to a hand node at draw time (not exported yet).
 
 Still open (nice-to-have, not blocking): map A's A/B field encoding
 (rotation qx/qz companions) and map B/C payload packing for decoding

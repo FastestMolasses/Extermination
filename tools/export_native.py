@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""export_native.py — export the player character as a single binary asset
+"""export_native.py — export a skinned character as a single binary asset
 (.emdl) consumed by the native port (extermination-port), which loads it with
 plain fread (zero third-party deps on the port side).
 
-Reuses the proven decoders from export_gltf.py / extract_models.py /
-anim_decoder.py: per-bone Q4.12 tristrip mesh, id 0x71 skeleton parent table,
-and keyframe rot/trn streams (NLERP-sampled, composed through the parent
-table into per-frame WORLD matrix palettes).
+Pipeline (decoded 2026-06-09, see docs/FINDINGS.md "Skinned-character
+pipeline FULLY DECODED"): the render mesh is a stream of VIF-ready blocks
+(STCYCL(4,4) + UNPACK V4-32, 32 records of [tex][ST][normal][pos+w] per
+block) consumed by the 62-qw VU1 kernel at vram 0x0023C780. Each vertex's
+bone is encoded in its position-W float read as an integer: bits 0..9 are
+the VU1 dmem qword address of the node's 7-qw matrix set at qw 8*node,
+bit 15 is the strip-restart flag. This exporter bakes that per-vertex node
+index into the EMDL verts and emits a world-matrix palette per frame.
 
 The output is disc-derived: write it only into git-ignored locations
 (extermination-port/assets/ is ignored there).
@@ -14,7 +18,7 @@ The output is disc-derived: write it only into git-ignored locations
 EMDL v1 layout (little-endian):
 
   char  magic[4]      "EMD1"
-  u32   bone_count    bones exported (mesh sections kept)
+  u32   bone_count    palette slots (nodes + 1 trailing identity slot)
   u32   vert_count    total vertices
   u32   index_count   total triangle indices (u32, global vertex ids)
   u32   frame_count   baked pose frames (>=1)
@@ -25,20 +29,17 @@ EMDL v1 layout (little-endian):
   u32   indices[index_count]
   f32   palette[frame_count][bone_count][16] column-major world matrices
 
-Vertices are in BONE-LOCAL object space (exactly as stored on disc); the
-palette matrices are the composed world transforms — vertex_world =
-palette[frame][bone] * pos. That mirrors the PS2 pipeline (per-bone packets
-+ a matrix palette in VU1 dmem).
+Vertices are BONE-LOCAL (exactly as stored on disc); vertex_world =
+palette[frame][bone] * pos — the same contract as the PS2 kernel.
 
 Usage (macOS arm64, repo root):
-  .venv/bin/python tools/export_native.py \
-      --mesh extract/chunk21/f17_id8f.bin \
-      --skel extract/chunk05/f04_id71.bin \
-      --clip 0 \
+  # pose a mesh with a live PCSX2 node capture (world matrices, node order;
+  # capture with the emulator PAUSED so all nodes are from one frame):
+  python3 tools/export_native.py --mesh extract/chunk28/f00_id3b.bin \
+      --live extract/live/npc_nodes_live.json \
       --out ../extermination-port/assets/player.emdl
-  # or a single static frame from a live PCSX2 capture:
-  .venv/bin/python tools/export_native.py --live extract/live/player_bones_live.json \
-      --out ../extermination-port/assets/player_live.emdl
+  # without --live: identity palette (bone-local parts overlap at origin).
+  # --clip is parked until the id 0x74 channel A/B encoding is decoded.
 """
 from __future__ import annotations
 
@@ -120,7 +121,7 @@ def mat_mul(a, b):
 #     bit 15      strip-restart flag (vertex emits no triangle)
 #     sign/k bits make the word a valid +-1.0-ish float (winding parity)
 #
-# So per-vertex node = ((w_bits & 0x3FF) - 16) / 8, and positions/normals
+# So per-vertex node = (w_bits & 0x3FF) >> 3, and positions/normals
 # are BONE-LOCAL. Posed world = node_world_matrix * pos, exactly what the
 # port's skinning shader does with the EMDL palette.
 

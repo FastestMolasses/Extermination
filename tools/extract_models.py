@@ -1679,10 +1679,11 @@ def run_skeleton(args, out_dir: Path) -> int:
 #     downstream tool (Blender) re-bind by hand using the bone-section count
 #     as a guide.
 #
-# Per-vertex bone WEIGHTS are NOT carried in the 64-byte vertex record (every
-# byte field is fully accounted for: marker / strip-flag, UV, normal-or-colour,
-# position). Skinning is per-bone-rigid (every vertex in a stage-1 bone
-# section is rigidly attached to that bone) -- standard PS2 character idiom.
+# Per-vertex skinning (RESOLVED 2026-06-09 s3): rigid one-node-per-vertex.
+# The node index is encoded in the 64-byte record's position-W float read
+# as an integer (bits 0..9 = VU1 dmem qword address of the node's matrix
+# set at qw 8*node, bit 15 = strip-restart flag). See FINDINGS.md
+# "Skinned-character pipeline FULLY DECODED" and export_native.py.
 
 # Bytes that mark the start of a model file's section/offset table -- a run of
 # small monotonically-increasing u32 offsets terminated by a zero u32. The
