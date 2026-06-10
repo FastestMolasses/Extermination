@@ -1844,11 +1844,20 @@ full format detail for everything below.
 - **`DATA.DAT` / `INDEX.IDX` archive** — `tools/extract_data.py`. Reverse-
   engineered and validated by exact tiling: 81 regions / 603 files, byte-exact,
   100% coverage. Asset taxonomy mapped (603 files by content).
-- **Audio** — `tools/decode_sound.py`. All PS2 VAG ADPCM.
-  - SFX: SShd sound banks → 241 unique sounds (deduped from 1146 references).
-  - Dialogue: `STREAM/VOICE.DAT` → 116 mono clips.
-  - Music: `STREAM/MUSIC.DAT` → 55 stereo tracks (interleaved VAG).
+- **Audio** — `tools/audio_export.py` (consolidated exporter, 2026-06-09;
+  older `tools/decode_sound.py` kept). All PS2 SPU2 ADPCM ("VAG").
+  - SFX: 39 SShd sound banks → 241 unique sounds (deduped from 1146 references).
+  - Dialogue: `STREAM/VOICE.DAT` → 116 mono clips (997 s).
+  - Music: `STREAM/MUSIC.DAT` → 55 stereo tracks (5633 s); the 64-frame L/R
+    interleave is now verified empirically (`detect-interleave`).
   - Streamed audio is 48000 Hz (End Credits matches an official-soundtrack rip).
+  - SFX pitch system cracked at the engine level (2026-06-09): 44100-referenced
+    note→pitch table ×44100/48000 → SPU2 pitch; per-sound trigger macros in the
+    bank header repitch each sound, so no single bank Hz exists. FINDINGS
+    "SFX pitch system — engine evidence". Open: locate the tone records
+    (center notes) to compute each sound's exact Hz.
+  - Native-port playback verified 2026-06-09: decoded music + SFX WAVs play
+    through the port's CoreAudio pull path (`EM_AUDIO_TEST=2`, port repo).
 - **Textures** — `tools/extract_textures.py` (sheet extractor) and
   `tools/extract_subtextures.py` (per-material). 8-bit PSMT8, decoded with the
   authoritative GS swizzle (proven correct). The geometry marker→texture

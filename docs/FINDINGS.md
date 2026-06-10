@@ -701,16 +701,33 @@ live PCSX2 capture remain the only way to obtain a *specific frame's* colours.
 
 ## Audio — VAG ADPCM
 
-All game audio is **PS2 VAG ADPCM** (16-byte frames). Decoder: `tools/decode_sound.py`.
+All game audio is **PS2 SPU2 ADPCM ("VAG", 16-byte frames)**. Tools:
+`tools/audio_export.py` (consolidated exporter, 2026-06-09 — streams + banks,
+default output `extract/audio_decoded/`, git-ignored) and the older
+`tools/decode_sound.py` (same decode core).
 
-- **SFX**: `SShd` sound-bank containers inside `DATA.DAT` files. A bank holds
-  many sounds; each ends on a VAG flag with bit 0 set. `decode_sound.py batch`
-  deduplicates across banks → 241 unique sounds.
-- **`VOICE.DAT`**: one raw **mono** VAG stream, no container, no end-flags.
-  Split into clips on silence gaps. → 116 clips.
-- **`MUSIC.DAT`**: one raw **interleaved-stereo** VAG stream — alternating
-  **64-frame (1024-byte) L/R blocks**. Deinterleave then decode.
-  `decode_sound.py stream --interleave 64`. → 55 stereo tracks.
+Full inventory (verified by a complete re-export 2026-06-09):
+
+- **SFX**: `SShd` sound-bank containers inside `DATA.DAT` files — **39 banks,
+  1146 sound references, 241 unique sounds** after content dedup
+  (`audio_export.py sfx`). A bank's body is concatenated VAG blocks; a frame
+  whose flag byte has bit 0 set ends a block, 1-frame blocks are terminators.
+  Most banks share a common ~19-sound base set (player/UI) plus per-area sets.
+- **`VOICE.DAT`** (27.8 MB): one raw **mono** VAG stream, no container, no
+  end-flags. Split on silence gaps → **116 clips** (997 s @ 48 kHz).
+- **`MUSIC.DAT`** (315 MB): one raw **interleaved-stereo** VAG stream —
+  alternating **64-frame (1024-byte) L/R blocks**. Deinterleave then decode
+  (`audio_export.py music`) → **55 stereo tracks** (5633 s @ 48 kHz).
+
+**Interleave verified empirically** (`audio_export.py detect-interleave`):
+deinterleave at a candidate block size, decode, and compare the mean decoded
+sample step across block boundaries vs inside blocks. Only 64 frames gives a
+boundary/in-block ratio ≈ 1 (continuous audio); every wrong candidate splices
+unrelated audio at boundaries:
+
+| candidate (frames) | 16 | 32 | **64** | 128 | 256 | 512 |
+|---|---|---|---|---|---|---|
+| boundary/in-block step ratio | 1.35 | 1.47 | **0.99** | 1.42 | 1.24 | 1.31 |
 
 ### Sample rate
 
@@ -731,6 +748,44 @@ parameter (center-note based), set by the audio engine at trigger time, not a
 property of the bank. `22050` remains a reasonable extraction default; a single
 "correct" rate doesn't exist because each SFX can be repitched at playback.
 Confirming the exact default pitch needs the decompiled audio engine.
+
+### SFX pitch system — engine evidence (2026-06-09)
+
+The boot ELF's voice-trigger path settles *how* SFX pitch works (read in the
+local splat disassembly; addresses for future decomp work):
+
+- **`func_00115E50`** (voice setup) calls **`func_00117918`** — a PS1-libsnd-
+  style **note→pitch** conversion: a 2^(x/192) semitone/fine u16 ladder at
+  **`D_00241D70`** indexed by `(note − center)` semitones + fine steps, with
+  `sllv`/`srav` octave shifts. Its inputs are per-voice bytes (entry +0x2
+  center note, +0x3 fine) and the trigger note.
+- The result is immediately rescaled by **× 0xAC44 / 0xBB80 (44100/48000)**
+  and written as voice param 6 (pitch), alongside param 5 = sample start
+  address (`(entry_u16 + bank_base) << 3`) and param 3 = ADSR (entry +0x6/+0x8).
+  I.e. the note system is **44100-referenced** (PS1 pitch convention, where
+  0x1000 = 44100 Hz) and converted to the SPU2's 48000-based pitch register:
+  a sound triggered at its center note plays at **44100 Hz**.
+- **SFX triggers are tiny sequence macros embedded in the bank header**: after
+  the `SShd` block comes a 128-byte program map, a u16 offset table, then
+  per-sound event scripts — note-on events `A0 <note> <vel≈0x64> ...`
+  terminated by the SMF end-of-track marker `FF 2F 00`. Observed trigger notes
+  span ~0x21..0x5D, i.e. **sounds are deliberately repitched per trigger**;
+  there is no single bank Hz.
+- **Bandwidth corroboration** (rate-invariant 99%-energy occupancy of
+  Nyquist): SFX median **0.90** (p25 0.60) — critically sampled, content
+  right up to its Nyquist — vs **0.10–0.21** for the 48 kHz streams. So the
+  SFX masters were downsampled to (near) their storage rate; at 44100 they
+  would imply ~20 kHz of real content, which the rest of the game's audio
+  chain never has. Sub-44100 storage with center notes set below the trigger
+  range is the consistent reading.
+
+**Verdict**: per-sound playback rate = `44100 × 2^(Δnote/12)`; the per-sound
+Δ needs the bank's tone records (center-note bytes), which have **not** been
+located in the bank header yet (a structural scan for the sample-offset table
+found no flat copy — the loader at/around `func_00115E50`'s parser is the next
+step). Until then `22050` stays the audition default for exports; confidence:
+high that no Hz is stored and that the pitch base is 44100-referenced, medium
+on any single sound's exact Hz.
 
 ## Geometry / models
 
