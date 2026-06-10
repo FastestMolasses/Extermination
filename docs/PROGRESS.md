@@ -1,5 +1,31 @@
 # Extermination Decomp — Progress
 
+> 2026-06-10 (session 31): AUTHENTIC LOCOMOTION IDS — stick walk/run
+> anim ids decoded statically and committed to the port. Chain:
+> func_001B5CC0 quantizes stick deflection (rings r=48/88/122) to gait
+> 0..3 → pad struct +0x17 (D_00810E57) → player +0x23F → locomotion top
+> func_001612D0: locIdx = gait−1, speed = D_00248870[locIdx]
+> {0, 0.1, 0.3, 0.8} u/tick, id = D_00248AB0[mode 1][family*4+locIdx]
+> (func_0017B490/func_0017B460; unarmed family 0 = {0,1,2,3}). Gait
+> never exceeds 3 (func_00174AC0 max-checks it) → stick WALK = anim
+> id 1 (steps 72/21 — the s29 live-metered pair), full-stick RUN =
+> id 2 (steps 26/3); id 3 (0.8 u/tick, steps 21/2) is an unreachable
+> sprint data slot. The s10 stride scan had the port walking with the
+> engine's RUN clip (2) — corrected. player.emdl re-exported with id 1
+> appended (recorded CLI now `--clips 346,2,3,69,67,75,272,273,51,274,1`;
+> old export reproduced byte-identical first; superset byte-verified,
+> clip 1[977..+120], hemisphere-clean 5.4° max). Clip 1 measures 120 fr
+> / 12.1 u → natural 6.11 u/s — the engine's own walk speed 0.1 u/tick
+> = 6.0 u/s at 60 Hz cross-checks it. Port: CLIP_ID_WALK 2→1,
+> CLIP_ID_RUN 3→2, WALK_CLIP_SPEED 24.07→6.11, footstep frames 72/21
+> (walk) / 26/3 (run); instrumented run verified crossings at exactly
+> 72/21; default capture byte-identical; mid-stride old-vs-new captures
+> differ visibly (5.8% px — longer scissored stride vs the old jog
+> frame); move test PASS, now 8 footstep-layer plays (4 steps, was 6/3
+> — honest cadence change of the 120-frame cycle under the 15 u/s
+> stride lock); test-input/door/weapon/sfx/enemy 1-4 all PASS.
+> FINDINGS: "PLAYER STICK LOCOMOTION IDS".
+
 > 2026-06-10 (session 30): DOOR CLIPS FOUND (static) — the s20
 > "double-door clip UNLOCATED / flagged placeholder" item is CLOSED.
 > Chain: door INIT (func_001BBDA0 → func_001B0F60) binds actor+0x40 =

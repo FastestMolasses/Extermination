@@ -8660,3 +8660,75 @@ impact; documented in the manifest).
 - `D_00275BB0` list identity (the second box pass's wake targets).
 - func_00187EC0(6/7, …) event semantics (rumble? ambient cue?).
 - The per-AREA/ROOM visual variants of func_001E9580 (case table).
+
+## PLAYER STICK LOCOMOTION IDS — walk = anim id 1, run = anim id 2 (2026-06-10, session 31)
+
+Closes the s30 flag "the port's locomotion ships clips 2/3 from the
+s10 stride scan; the engine's default walk is id 1". Static decode of
+the full stick → anim-id selection chain; the port now commits the
+authentic ids.
+
+### The selection chain (boot ELF, all static)
+
+1. **Stick quantizer `func_001B5CC0(stickX, stickY)`**: r =
+   sqrt((x−128)² + (y−128)²); returns **0** (r ≤ 48), **1** (r ≤ 88),
+   **2** (r ≤ 122), **3** (else) — the GAIT byte.
+2. The live pad reader `func_001B5940` stores it at processed-pad
+   struct +0x17 = **`D_00810E57`** (base `D_00810E40`, the s21 pad
+   map); demo playback overwrites the same byte from input-record
+   byte +4 (`func_001B5BC0`, stream `D_0028A6AC`).
+3. Player locomotion states copy it to **player +0x23F**
+   (`func_00175390` / `func_001751A0` / `func_00174AC0`; the last
+   compares it against a MAX of 3 — gait ∈ 0..3 always).
+4. The locomotion top **`func_001612D0`** (vram 0x161450): locIdx
+   `+0x25C` = gait − 1; **speed** `+0x38` = `D_00248870[locIdx]` =
+   `{0.0, 0.1, 0.3, 0.8}` u/tick; **anim id** =
+   `func_0017B490(actor, mode=1, family=+0x235, locIdx)` →
+   `func_0017B460(mode, family*4 + locIdx)` =
+   **`((s16**)D_00248AB0)[mode][family*4 + locIdx]`**
+   (`jtbl_0026D700` routes modes 1/6 through the family*4 indexer;
+   a flashlight-ish flag `func_001B0070()&4` substitutes locIdx+0x10).
+
+### The mode-1 id table (D_00248AB0[1] = 0x248A10, ELF-dumped)
+
+family 0 (unarmed): `{0, 1, 2, 3}`; family 1: `{0xA,0xB,0xC,0xD}`;
+family 2: `{0x4B,0x4C,0x4D,0x4E}`; family 3: `{0x55,0x4C,0x4D,0x4E}`;
+family 4 / +0x10 row: `{0x14,0x15,0x16,0x17}`.
+
+### Verdict (family 0, the default)
+
+| gait (stick ring) | locIdx | anim id | speed u/tick | D_00248C90 row |
+|---|---|---|---|---|
+| 1 (48 < r ≤ 88) | 0 | 0 | 0.0 | idle/turn-in-place, no steps |
+| 2 (88 < r ≤ 122) | 1 | **1 = WALK** | 0.1 (= 6 u/s @60) | mode 1, steps **72/21**, rate 1.0 |
+| 3 (r > 122, full) | 2 | **2 = RUN** | 0.3 | mode 1, steps **26/3**, rate 1.0 |
+| (4 — unreachable) | 3 | 3 | 0.8 | steps 21/2 — sprint data slot the quantizer never selects |
+
+The id-1 row's 72/21 is exactly the pair the s29 live capture metered
+while stick-walking — the live and static reads now agree. The s10
+stride scan had picked clips 2/3 ("walk/run") — i.e. the port walked
+with the engine's RUN clip; corrected this session.
+
+### Clip measurements (library chunk28/f01_id3c, exporter-baked)
+
+- id 1 WALK: 120 frames, root travel 12.1 u → natural **6.11 u/s** at
+  60 fps (the engine's own 0.1 u/tick = 6.0 u/s cross-checks);
+  hemisphere-clean (max adjacent-frame rotation 5.4°).
+- id 2 RUN: 45 frames, 17.6 u → 24.07 u/s (s10 numbers re-confirmed).
+- id 3 sprint slot: 40 frames, 30.9 u → 47.57 u/s (stays exported,
+  unused by stick locomotion).
+
+### Port (extermination-port)
+
+player.emdl re-exported with id 1 appended (recorded CLI + `,1`; old
+export reproduced byte-identical first; superset byte-verified:
+verts/indices/parents/tex/texels identical, old clip table + palette
+exact prefixes, clip 1[977..+120] appended). em_game: CLIP_ID_WALK
+2→1, CLIP_ID_RUN 3→2, WALK_CLIP_SPEED 24.07→6.11 (stride lock),
+footstep frames walk 72/21 / run 26/3. Verified: instrumented run
+shows crossings at exactly 72/21; default capture byte-identical;
+mid-stride captures old-vs-new differ visibly (5.8% of pixels — the
+id-1 walk reads as a longer, scissored stride with trailing push-off
+vs the old jog-like clip-2 frame); move test PASS with 8 footstep-layer
+plays (4 steps — was 6/3: the 120-frame cycle at the port's 15 u/s
+stride lock steps every ~24 frames); all other self-tests PASS.
