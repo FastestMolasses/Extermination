@@ -1393,7 +1393,7 @@ pose files — identical topology, differing vertex positions (keyframes).
 A `chunk03` character is 11 poses across file ids `0x29`-`0x34`.
 `extract_models.py --anim` detects pose sets and exports `*_frameNN.obj`.
 
-## VU1 SOFT-skinner kernel family #0/#1/#2/#4 — dmem palette + per-vertex selector (2026-05-27)
+## ~~VU1 SOFT-skinner kernel family #0/#1/#2/#4~~ VOID (2026-06-09 s2: decoder-bug artifact; kernel #0 is a ribbon/beam renderer — see the 2026-06-09 session-2 section) (2026-05-27)
 
 The four medium 2-segment kernels at imem 0x0000 (vram heads `0x00230828`,
 `0x00231798`, `0x00232568`, `0x00233828`) share an identical dmem framing
@@ -1578,7 +1578,7 @@ modifier (i-reg loaded via the preceding I-flag) make a fully literal
 trace of the 15-qw helper require nailing down the I-bit sequence — left
 for follow-up.
 
-**Per-bone object-space vertex format -- CONFIRMED (2026-05-25).**
+**Per-bone object-space vertex format -- ~~CONFIRMED (2026-05-25)~~ VOID (2026-06-09 s2: these records are animation keyframes; see "id 0x74 prefix is ANIMATION, not geometry").**
 Each per-bone VIF section consists of a 28-byte priming header (two
 12-byte priming records + a 4-byte 0xffff terminator) followed by a
 stream of uniform **12-byte vertex records** terminated by another vid
@@ -3096,6 +3096,10 @@ PASS preserved.
 
 ## Live bone-NODE array + vertex-record layout is WRONG — 2026-06-09 (PCSX2 MCP live debug)
 
+> **SUPERSEDED same day (session 2):** the records are not vertices at
+> all — see "id 0x74 prefix is ANIMATION, not geometry" below. Also
+> note +0x64[0] is the node's PARENT index, not its global bone index.
+
 First session using the PCSX2 MCP debugger (DebugServer connected; Pine
 absent). Practical notes: EE **memory reads work everywhere** (including
 the VU1 dmem window at physical `0x1100C000`, which read zero between
@@ -3193,3 +3197,151 @@ runtime-compiled skinning shader, bone palette via inline constants,
 `EM_CAPTURE=<path.bmp>` headless screenshot for regression). With the
 corrected vertex decode the same EMDL + renderer should display the
 posed, animated character with no further port-side work.
+
+## id 0x74 prefix is ANIMATION, not geometry — vertex-record question RESOLVED (2026-06-09, session 2)
+
+Follow-up to "Live bone-NODE array + vertex-record layout is WRONG". The
+plan was to pin the 12-byte record layout from the VU1 kernels + VIF
+UNPACK tags. The actual answer: **there is no vertex-record layout to
+pin — the records are keyframes.** The whole "per-bone object-space
+vertex stream" interpretation (2026-05-25, "CONFIRMED") is void.
+
+### The container format (blob ids 0x74, 0x2C — same layout)
+
+A mesh file's prefix carries one or more keyed-animation containers:
+
+    hdr+0x00  u16  n_sections      = node count (player: 21)
+    hdr+0x02  u16  clip_len        frames (player f17_id8f: 401; the
+                                   chunk28/f01_id3c NPC: 80)
+    hdr+0x04  u16  0xfffe/0xffff
+    hdr+0x08  u32  blob id         0x74 (also 0x2C sub-blobs, n=3)
+    hdr+0x0c  u32  -> map B section table (header-relative)
+    hdr+0x10  u32  -> map C section table (header-relative)
+    hdr+0x20  i32  parents[n]      node TREE (strict: parent < index)
+    then      u32  offsets[n]      map A sections (rel. to this table)
+
+Player f17_id8f: hdr at 0x2270, map B table at 0x8ce0, map C at 0xa3fc.
+A second id 0x2C container sits at 0xac40 (3 sections, same 401-frame
+clip), more keyed blobs follow up to ~0xe7ff. The old "28-entry section
+table at 0x22c8" was a misparse straddling the parents/offsets arrays;
+the old "0x818C stream-B directory" was this header's map C pointer.
+
+**The `parents` array is a parent table, not a bone-id directory.** The
+live node struct's `+0x64[0]` short is the node's PARENT index (-1 =
+root), matching this array element-for-element — the earlier reading
+("this node's GLOBAL bone index") was wrong.
+
+### The 12-byte record = one keyframe
+
+    +0x00  i16  A        companion field (encoding still open)
+    +0x02  f20  W1       see below
+    +0x05  i16  B        companion field (encoding still open)
+    +0x07  f20  W2
+    +0x0a  u16  frame    key time; 0xffff terminates a section
+
+"f20" = an IEEE float stored as its top 20 bits only (sign, exponent,
+11 mantissa bits). In the byte stream the float's 32-bit lane overlaps
+the neighbouring i16: its low 12 bits hold [tag nibble][i16 high byte].
+The tag nibble is 0x3 or 0xB — one flag bit (0x8) + constant 0b011.
+This overlap is why no 3×i16 or 3×f32 parse ever produced clean
+positions, and why byte +8 was "always 0x3F" (W ∈ (0.5,1) exponent).
+
+Keys are sparse and ascending (the old "vid stepping +2" was key times
+every 2 frames), with hold semantics, duplicated end keys, and 0xffff
+terminators — the "warmup/stitch records" were dense key bursts.
+
+### Live verification (PCSX2, NPC chunk28/f01_id3c @ 0x00d689c0)
+
+For the on-screen character (21 live nodes at 0x007d5840, stride 0xD0):
+**map A W1 = node local quaternion .y and W2 = .w — byte-exact** on
+nodes with uncontaminated channels (node 14: channel (·,0.580,·,-0.043)
+vs live quat (0.813, 0.580, -0.028, -0.043); node 20 exact too; root =
+(0,0,0,1) vs channel (0,0,0,1)). A/B encode the remaining quat
+components in a form not yet decoded (not Q4.12/Q1.15 direct, not a
+plain angle). Map B is translation-flavoured (constant sections for all
+non-root bones — bone lengths; its payload packing differs and is not
+yet decoded). Map C holds small per-node constants.
+
+Node-struct corrections (live, same arena layout as the player session):
+`+0x00` = local translation (pose-invariant bone offsets), `+0x30` =
+local rotation quat (x,y,z,w; conjugate convention vs. composed world
+matrices), `+0x90` = composed world matrix as before.
+
+### Stage-2 MESH blocks are the ONLY geometry — and they are bone-local
+
+f17_id8f block walk: 313 fixed 0x820-byte MESH blocks (32 × 64-byte
+records each), 3 MATRIX-descriptor blocks, and 41 trailing 5680-byte
+blocks whose "descriptor" is literally VIF code `STCYCL(4,4)` +
+`UNPACK V4-32, 256qw, addr 0, FLG=1` followed by float vec4 rows
+(ST / normal / position+w) — i.e. ready-to-kick VIF vertex payloads,
+4 qwords per vertex.
+
+Per-block position bboxes are limb-sized (≤ ~2.7 units) and cluster at
+the origin: **block positions are in BONE-LOCAL frames**, not model
+space. Rendering all blocks untransformed yields overlapping body parts
+(a coherent solid "blob") — NOT a posed figure. The w field is
+±(1 + k/512) with k ∈ {-3,-1,0,2} — the SAME set in every block, so it
+is a per-block 4-slot palette selector (all four slots used per block)
+or a strip-role code; either way it is NOT a per-block-varying global
+bone id. The per-block palette→node table is NOT in the mesh file's
+prefix (searched exhaustively; the prefix is fully accounted for as
+animation blobs + a float track table at 0x0..0x2270 + the 0xe800
+preamble). **Block→node binding is the one remaining unknown** for
+posed character rendering.
+
+### VU1 disassembler corrected — all prior kernel readings void
+
+`tools/disasm_vu.py` had five systematic decode bugs, now fixed against
+PCSX2's canonical tables (pcsx2/VUops.cpp `_vuTablesMess`):
+
+1. UPPER bc-family ops only decoded for bc=x (ops 0x01..0x1b in the
+   bc families were `upp_XX` placeholders).
+2. UPPER special groups 0x3C..0x3F used invented tables; canonical is
+   FD_xx[(code>>6)&0x1f] — e.g. what decoded as "itof12" was MULAx;
+   the entire "dual ITOF12/ITOF4 Q4.12/Q4.4 dequant" finding was a
+   decode artifact (there is NO ITOF in the per-vertex path).
+3. LOWER special T3 tables were shifted (0x3BC = DIV, not WAITQ;
+   0x33D = MR32; 0x73F = ERLENG; 0x7BF = WAITP; XGKICK = 0x6FC was the
+   only correct anchor; lower NOP 0x8000033C = MOVE vf00,vf00).
+4. I-bit immediates live in the SAME pair's lower word (not the next
+   pair).
+5. SQ/SQI/SQD encode source in FS [15:11] and base in IT [20:16] —
+   asymmetric vs LQ. (The 2026-05-27 "global field swap" was a partial
+   fix that happened to be right for LQ only.)
+
+Corrected kernel readings (decoded end-to-end):
+
+- **Kernel #0 family** (0x00230828 + seg2 0x00231030, and siblings):
+  a RIBBON/BEAM renderer: input 4 qw per element (two endpoint
+  positions, color, width), output 13 qw per element (GIF tag + 4
+  corner vertices = two endpoints extruded perpendicular in screen
+  space). The "per-vertex selector → matrix palette at qw 111..122"
+  reading was a decode artifact; qw 110..123 are this kernel's
+  constants (two matrices, fog, GIF tag template).
+- **Kernel #5/#7/#9** (0x00234610 etc.): fixed 14-vertex-per-kick
+  effect kernel. Reads ONE qword per vertex (float x,y,z + w scalar),
+  transforms by a single matrix from dmem qw 0..3 (full MVP), builds
+  UV procedurally (normalize(pos - C), plane-projection divide) and
+  RGBA from a pseudo-normal directional term — a projected-shadow /
+  env-effect kernel, NOT the per-bone rigid skinner. Its "helper at
+  imem 0x800" is actually at instruction 0x31 of the SAME program
+  (`jalr vi15, vi01` with vi01=0x31); the tail after the main's E-bit
+  is that helper, fully decoded now.
+- The 12-byte anim records can never be VIF-unpacked (their fields are
+  not 32-bit aligned) — consistent with their being EE-side animation
+  data; sections are back-to-back with no VIF tags between them.
+
+### Tooling status after this session
+
+- `tools/disasm_vu.py`: fixed as above (canonical tables, operands).
+- `tools/extract_models.py`: `parse_id74_prefix()` is the canonical
+  prefix parser; `decode_objspace_bone_vertices()` now raises (the
+  geometry it produced was garbage); `--object-space` dumps the anim
+  channels (`*_animchannels.txt`).
+- `tools/export_native.py`: exports stage-2 strip geometry (welded,
+  Y-up, grounded) as a STATIC one-frame EMDL; `--clip/--live` palettes
+  are parked until block→node binding is decoded. Port renders a
+  coherent solid model (overlapping bone-local parts), no longer soup.
+- `tools/export_gltf.py`: still contains the void per-bone decoders
+  (`load_per_bone_meshes*`); needs the same surgery — its glTF output
+  remains garbage until then.

@@ -104,17 +104,74 @@ def mat_mul(a, b):
 # ---------------------------------------------------------------------------
 
 def load_mesh_sections(mesh_path: Path):
-    """Returns (sections, section_bone): per-section (positions, normals,
-    indices) plus the section -> GLOBAL bone index mapping from the mesh's
-    prefix directory (decode_bone_section_table — multiple sections can rig
-    one bone; -1 = no bone / static). Mirrors build_glb_unified."""
-    per_bone = eg.load_per_bone_meshes_with_vids(mesh_path)
-    sections = [eg.triangulate_bone(v) for v in per_bone]
-    sec_table = eg.decode_bone_section_table(mesh_path.read_bytes())
-    if sec_table is not None:
-        _bp, section_bone, _offs = sec_table
-    else:
-        section_bone = list(range(len(sections)))
+    """Returns (sections, section_bone) built from the stage-2 MESH-block
+    tristrips — the only stream in the file that actually holds render
+    geometry.
+
+    CORRECTED 2026-06-09: the per-bone "object-space vertex records" this
+    exporter previously used (load_per_bone_meshes_with_vids) are NOT
+    vertices at all — the 12-byte records in the id-0x74 prefix are keyed
+    ANIMATION channels (vid = frame index, payload = quat/translation
+    fields; see docs/FINDINGS.md "id 0x74 prefix is animation, not
+    geometry"). Rendering them as positions is what produced triangle
+    soup in the port.
+
+    The stage-2 strips are model-space (whole posed figure). Per-vertex
+    bone binding for them is still unresolved (the engine's per-block
+    palette mapping is not yet decoded), so every vertex is bound to the
+    identity palette slot: the export is a coherent STATIC figure.
+
+    Coordinates are remapped from the model's X-up frame to the port's
+    Y-up frame (rotate +90 deg about Z: (x,y,z) -> (-y,x,z)) and shifted
+    so the feet rest at y=0, centred in xz.
+    """
+    em = _load("_extract_models", "extract_models.py")
+    d = mesh_path.read_bytes()
+    strips = em.parse_model_file(d)
+    if not strips:
+        strips = em.parse_file(d)
+    if not strips:
+        raise SystemExit(f"no MESH strips found in {mesh_path}")
+
+    def remap(p):
+        return (-p[1], p[0], p[2])
+
+    raw_pos = []
+    raw_nrm = []
+    tris = []
+    weld = {}
+
+    def vid_of(v):
+        p = remap(v.pos)
+        n = remap(v.attr) if v.is_normal else (0.0, 1.0, 0.0)
+        key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
+               round(n[0], 3), round(n[1], 3), round(n[2], 3))
+        i = weld.get(key)
+        if i is None:
+            i = len(raw_pos)
+            weld[key] = i
+            raw_pos.append(p)
+            raw_nrm.append(n)
+        return i
+
+    for s in strips:
+        ids = [vid_of(v) for v in s.verts]
+        for a, b, c in em.strip_triangles(s):
+            ia, ib, ic = ids[a], ids[b], ids[c]
+            if ia != ib and ib != ic and ia != ic:
+                tris.extend((ia, ib, ic))
+
+    # Ground + centre: feet at y=0, xz centred on the origin.
+    xs = [p[0] for p in raw_pos]
+    ys = [p[1] for p in raw_pos]
+    zs = [p[2] for p in raw_pos]
+    cx = (min(xs) + max(xs)) / 2.0
+    cz = (min(zs) + max(zs)) / 2.0
+    y0 = min(ys)
+    raw_pos = [(p[0] - cx, p[1] - y0, p[2] - cz) for p in raw_pos]
+
+    sections = [(raw_pos, raw_nrm, tris)]
+    section_bone = [-1]          # identity palette slot (static figure)
     return sections, section_bone
 
 
@@ -255,17 +312,17 @@ def main(argv):
     sections, section_bone = load_mesh_sections(Path(args.mesh))
     print(f"mesh sections: {len(sections)} "
           f"({sum(len(s[0]) for s in sections)} verts)")
-    print(f"section -> bone: {section_bone}")
 
-    if args.live:
-        frames = recentre(load_live_palette(Path(args.live)))
-        # parent table only informational here; derive length from capture
-        parents = [-1] * len(frames[0])
-    else:
-        parents, frames = bake_clip_palettes(Path(args.skel), args.clip)
-        print(f"clip {args.clip}: {len(frames)} frames, "
-              f"{len(frames[0])} bones, parents {parents}")
-        frames = recentre(frames)
+    # 2026-06-09: per-vertex bone binding for the stage-2 strips is not yet
+    # decoded (the old per-bone "vertex" stream turned out to be animation
+    # keys), so --clip/--live palettes cannot be applied to the geometry
+    # meaningfully yet. Export the model-space figure on a single identity
+    # frame; the palette pipeline stays in place for when binding lands.
+    if args.live or args.clip is not None:
+        print("note: bone binding unresolved -- exporting static figure "
+              "(1 identity frame); --clip/--live palettes not applied")
+    parents = []
+    frames = [[]]   # zero bones + the implicit identity slot
 
     write_emdl(Path(args.out), sections, section_bone, parents, frames, FPS)
     return 0

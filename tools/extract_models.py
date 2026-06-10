@@ -1898,63 +1898,131 @@ def run_skinned(args, out_dir: Path) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Per-bone OBJECT-SPACE vertex extraction (--object-space)
+# id 0x74 prefix: per-NODE keyed ANIMATION channels (--object-space, legacy)
 # ---------------------------------------------------------------------------
 #
-# Each per-bone section in the VIF prefix is a stream of 12-byte records:
+# *** CORRECTED 2026-06-09 (see FINDINGS.md "id 0x74 prefix is animation,
+# not geometry"). The 12-byte records in the mesh-file prefix are NOT
+# object-space vertices. They are keyframes of per-node animation
+# channels; the old "vid" field is a FRAME index. Decoding them as
+# Q4.12 positions is what produced the garbage point clouds / triangle
+# soup. The real layout:
 #
-#     +0x00  int16  x           Q4.12 fixed-point (raw / 4096.0)
-#     +0x02  int16  y           Q4.12
-#     +0x04  int16  z           Q4.12
-#     +0x06  4 bytes            packed normal / lighting / VIF padding
-#                               (signed-byte components; not yet decoded)
-#     +0x0a  uint16 vid         monotonically-increasing vertex id within
-#                               this bone's packet; 0xffff terminates a
-#                               sub-block (also used as a header terminator)
+#   header (0x20 bytes):
+#     +0x00  u16  n_sections    (= node count, e.g. 21 for the player)
+#     +0x02  u16  clip_len      total frames; keys are sparse with hold
+#                               semantics and duplicated end keys
+#     +0x04  u16  0xfffe/0xffff
+#     +0x08  u32  blob id       0x74 (mesh-embedded clip; sibling 0x2c
+#                               blobs use the same container)
+#     +0x0c  u32  -> map B section table (header-relative; translations)
+#     +0x10  u32  -> map C section table (header-relative; aux/scale)
+#   +0x20: i32 parents[n]       node tree (NOT global-bone ids; verified
+#                               against live node structs +0x64[0])
+#   then:  u32 offsets[n]       map A sections, relative to this table
 #
-# Each bone's region starts with two priming records (degenerate strip
-# starters), then 0xffff terminator, then the actual vertex stream. We treat
-# the 12-byte stride uniformly and stop at the first 0xffff vid seen after
-# the priming records (or when we run into the next bone's offset).
+#   record (12 bytes, all three maps):
+#     +0x00  i16  A             companion field (encoding open)
+#     +0x02  f20  W1            float stored as its top 20 bits; low 12
+#                               bits of the (unaligned) 32-bit lane are
+#                               [tag nibble 0x3/0xB][A's high byte]
+#     +0x05  i16  B             companion field (encoding open)
+#     +0x07  f20  W2            as W1
+#     +0x0a  u16  frame         key time; 0xffff terminates the section
 #
-# The Q4.12 dequant follows directly from the ITOF12 instruction in the
-# 15-qw inner helper at imem 0x0800 (see disasm_vu.py / FINDINGS.md). The
-# values land in bone-local coordinates with a natural range of [-8, +8],
-# which matches the empirical bbox of every decoded packet.
+# Live-verified on PCSX2 (chunk28/f01_id3c NPC): map A W1 == node local
+# quaternion .y and W2 == .w, byte-exact on uncontaminated nodes; the
+# root channel is (0,0,0,1). A/B encode the remaining quat components
+# in a still-undecoded form. Map B carries translations (constant for
+# all non-root bones), map C small per-node constants.
 
-OBJSPACE_REC_SIZE = 12
-OBJSPACE_VID_TERMINATOR = 0xffff
-OBJSPACE_HEADER_SIZE = 0x1c  # two priming records (24 bytes) + 4-byte terminator
+ANIMKEY_REC_SIZE = 12
+ANIMKEY_TERMINATOR = 0xffff
+
+
+def _f20(b0: int, b1: int, b2: int) -> float:
+    """Reassemble a 'top 20 bits' float: [tag|b0hi][b1][b2] -> f32."""
+    return struct.unpack("<f", bytes([0, (b0 >> 4) << 4, b1, b2]))[0]
+
+
+def parse_id74_prefix(d: bytes) -> dict | None:
+    """Locate and parse the id 0x74 animation prefix of a mesh file.
+
+    Returns {hdr, n, clip_len, parents, maps: [A, B, C]} where each map is
+    a list of per-node key lists [(frame, A, B, W1, W2, tag1, tag2), ...],
+    or None if the file has no id 0x74 blob.
+    """
+    # Find the header: u32 0x74 at +0x08 with a sane section count at +0
+    hdr = -1
+    off = 0
+    while True:
+        off = d.find(b"\x74\x00\x00\x00", off + 1)
+        if off < 0 or off < 8:
+            return None
+        n, clip = struct.unpack_from("<2H", d, off - 8)
+        sentinel = struct.unpack_from("<H", d, off - 4)[0]
+        if 1 <= n <= 64 and clip > 0 and sentinel in (0xfffe, 0xffff):
+            parents = struct.unpack_from(f"<{n}i", d, off - 8 + 0x20)
+            if all(-1 <= p < i for i, p in enumerate(parents)):
+                hdr = off - 8
+                break
+    n, clip = struct.unpack_from("<2H", d, hdr)
+    mapB_off, mapC_off = struct.unpack_from("<2I", d, hdr + 0x0c)
+    parents = list(struct.unpack_from(f"<{n}i", d, hdr + 0x20))
+
+    def read_map(tbl: int) -> list[list[tuple]]:
+        offs = struct.unpack_from(f"<{n}I", d, tbl)
+        out = []
+        for so in offs:
+            off2 = tbl + so
+            keys = []
+            while off2 + ANIMKEY_REC_SIZE <= len(d):
+                frame = struct.unpack_from("<H", d, off2 + 10)[0]
+                if frame == ANIMKEY_TERMINATOR:
+                    break
+                A, = struct.unpack_from("<h", d, off2)
+                B, = struct.unpack_from("<h", d, off2 + 5)
+                w1 = _f20(d[off2 + 2], d[off2 + 3], d[off2 + 4])
+                w2 = _f20(d[off2 + 7], d[off2 + 8], d[off2 + 9])
+                keys.append((frame, A, B, w1, w2,
+                             d[off2 + 2] & 0xf, d[off2 + 7] & 0xf))
+                off2 += ANIMKEY_REC_SIZE
+            out.append(keys)
+        return out
+
+    return {
+        "hdr": hdr,
+        "n": n,
+        "clip_len": clip,
+        "parents": parents,
+        "maps": [read_map(hdr + 0x20 + n * 4),
+                 read_map(hdr + mapB_off),
+                 read_map(hdr + mapC_off)],
+    }
 
 
 def decode_objspace_bone_vertices(d: bytes, sect_start: int, sect_end: int
                                   ) -> list[tuple[float, float, float, int]]:
-    """Decode one bone's per-vertex object-space records.
-
-    Returns a list of (x, y, z, vid) tuples in the bone's local frame.
-    """
-    out: list[tuple[float, float, float, int]] = []
-    body = sect_start + OBJSPACE_HEADER_SIZE
-    off = body
-    while off + OBJSPACE_REC_SIZE <= sect_end:
-        vid = struct.unpack_from("<H", d, off + 10)[0]
-        if vid == OBJSPACE_VID_TERMINATOR:
-            break
-        x, y, z = struct.unpack_from("<3h", d, off)
-        out.append((x / 4096.0, y / 4096.0, z / 4096.0, vid))
-        off += OBJSPACE_REC_SIZE
-    return out
+    """REMOVED 2026-06-09: the records this decoded are animation keys,
+    not vertices (see parse_id74_prefix / FINDINGS.md). Any geometry built
+    from this function was garbage."""
+    raise RuntimeError(
+        "decode_objspace_bone_vertices is gone: the id 0x74 prefix holds "
+        "keyed animation channels, not object-space vertices. Use "
+        "parse_id74_prefix() for the channels and the stage-2 MESH strips "
+        "(parse_model_file) for geometry."
+    )
 
 
 def run_object_space(args, out_dir: Path) -> int:
-    """`--object-space`: decode per-bone Q4.12 vertices into OBJ + summary.
+    """`--object-space` (repurposed 2026-06-09): dump the id 0x74 keyed
+    ANIMATION channels that earlier sessions misread as per-bone vertices.
 
-    For each character-mesh file carrying a VIF-prefix per-bone section
-    table, write:
-      * `*_objspace.obj` -- one `o bone_NN` group per bone with the
-        decoded object-space vertices as points (no faces; the per-bone
-        VIF stream is a quantised point cloud, not a triangulated mesh).
-      * `*_objspace.txt` -- per-bone vertex counts, bboxes and total.
+    For each mesh file carrying an id 0x74 prefix, writes
+    `*_animchannels.txt`: the node parent tree plus, per node and per map
+    (A=rotation qy/qw + companions, B=translation-flavoured, C=aux), the
+    key count, frame range and W1/W2 value ranges. Geometry export lives
+    in the stage-2 strip pipeline (default mode / export_native.py).
     """
     if args.file:
         paths = [Path(args.file)]
@@ -1964,82 +2032,48 @@ def run_object_space(args, out_dir: Path) -> int:
     exported = 0
     skipped = 0
     for path in paths:
-        if not path.is_file():
-            continue
-        if is_level_file(path):
+        if not path.is_file() or is_level_file(path):
             skipped += 1
             continue
         d = path.read_bytes()
-        if MESH_SIG not in d:
+        pre = parse_id74_prefix(d)
+        if pre is None:
             skipped += 1
             continue
-        table = _find_bone_section_table(d)
-        if table is None:
-            skipped += 1
-            continue
-        table_off, entries = table
 
         region = path.parent.name
-        stem = path.stem
-        out_obj = out_dir / f"{region}_{stem}_objspace.obj"
-        out_txt = out_dir / f"{region}_{stem}_objspace.txt"
-
-        lines = [
-            f"# Extermination (SCUS-97112) per-bone object-space vertices: "
-            f"{region}/{path.name}",
-            "# Decoded from VIF prefix; Q4.12 fixed-point (raw_i16 / 4096.0).",
-            "# Each `o bone_NN` group is one bone's bind-pose vertices in "
-            "that bone's local frame -- no bone-matrix transform applied.",
-            f"# Section table @ {table_off:#x}, {len(entries)} bone section(s).",
-        ]
+        out_txt = out_dir / f"{region}_{path.stem}_animchannels.txt"
         txt = [
-            f"# Per-bone object-space report: {region}/{path.name}",
-            f"# Section table @ {table_off:#x}, {len(entries)} bone section(s).",
-            "# Format per bone: vertex count, vid range, bbox extents (Q4.12 units).",
+            f"# id 0x74 keyed animation channels: {region}/{path.name}",
+            f"# header @ {pre['hdr']:#x}  nodes={pre['n']}  "
+            f"clip_len={pre['clip_len']} frames",
+            f"# parents: {pre['parents']}",
+            "# record = (frame, A_i16, B_i16, W1_f20, W2_f20, tag1, tag2);"
+            " map A: W1=quat.y W2=quat.w (live-verified)",
             "",
         ]
-        total_v = 0
-        per_bone_counts = []
-        for i, off in enumerate(entries):
-            sect_start = table_off + off
-            sect_end = (table_off + entries[i + 1]
-                        if i + 1 < len(entries) else len(d))
-            verts = decode_objspace_bone_vertices(d, sect_start, sect_end)
-            per_bone_counts.append(len(verts))
-            lines.append(f"o bone_{i:02d}")
-            for (x, y, z, _vid) in verts:
-                lines.append(f"v {x:.6f} {y:.6f} {z:.6f}")
-            if verts:
-                xs = [v[0] for v in verts]
-                ys = [v[1] for v in verts]
-                zs = [v[2] for v in verts]
-                vids = [v[3] for v in verts]
+        for mi, name in enumerate("ABC"):
+            txt.append(f"map {name}:")
+            for ni, keys in enumerate(pre["maps"][mi]):
+                if not keys:
+                    txt.append(f"  node {ni:2d}: (empty)")
+                    continue
+                fr = [k[0] for k in keys]
+                w1 = [k[3] for k in keys]
+                w2 = [k[4] for k in keys]
                 txt.append(
-                    f"bone {i:2d}: {len(verts):4d}v  "
-                    f"vid[{min(vids):3d}..{max(vids):3d}]  "
-                    f"x[{min(xs):6.2f}..{max(xs):6.2f}] "
-                    f"y[{min(ys):6.2f}..{max(ys):6.2f}] "
-                    f"z[{min(zs):6.2f}..{max(zs):6.2f}]  "
-                    f"ext=({max(xs)-min(xs):5.2f},"
-                    f"{max(ys)-min(ys):5.2f},"
-                    f"{max(zs)-min(zs):5.2f})"
+                    f"  node {ni:2d}: {len(keys):4d} keys  "
+                    f"frames [{min(fr)}..{max(fr)}]  "
+                    f"W1 [{min(w1):8.4f}..{max(w1):8.4f}]  "
+                    f"W2 [{min(w2):8.4f}..{max(w2):8.4f}]"
                 )
-            else:
-                txt.append(f"bone {i:2d}:    0v  (empty / index-only section)")
-            total_v += len(verts)
-
-        out_obj.write_text("\n".join(lines) + "\n")
-        txt.append("")
-        txt.append(f"TOTAL: {total_v} object-space vertices across "
-                   f"{len(entries)} bone section(s).")
+            txt.append("")
         out_txt.write_text("\n".join(txt) + "\n")
-
-        print(f"{region}/{path.name}: {total_v} object-space verts "
-              f"across {len(entries)} bone(s) -> {out_obj.name}")
+        print(f"{region}/{path.name}: {pre['n']} nodes, "
+              f"{pre['clip_len']}-frame embedded clip -> {out_txt.name}")
         exported += 1
 
-    print(f"\n{exported} character file(s) exported (object-space) to "
-          f"{out_dir}/  ({skipped} file(s) skipped -- no bone table)")
+    print(f"\n{exported} file(s) dumped (anim channels), {skipped} skipped")
     return 0
 
 

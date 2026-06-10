@@ -1,5 +1,60 @@
 # Extermination Decomp — Progress
 
+### id 0x74 "vertex records" are ANIMATION — premise resolved, tools fixed (2026-06-09, session 2)
+
+Set out to pin the 12-byte record layout via the VU1 kernels + VIF UNPACK
+tags; the investigation overturned the premise instead. Full write-up:
+FINDINGS.md "id 0x74 prefix is ANIMATION, not geometry".
+
+**Headline results:**
+
+- The mesh-prefix 12-byte records are **keyframes**, not vertices: the
+  prefix is a keyed-animation container (`parse_id74_prefix` in
+  extract_models.py) — header {node count, clip length in frames,
+  pointers to 3 channel maps}, node PARENT table (the old "section→bone
+  directory"), and per-node sparse keyed channels whose "vid" is the
+  frame index. Record = {i16 A, f20 W1, i16 B, f20 W2, 2 flag bits,
+  u16 frame} with the floats stored as top-20-bits overlapping the i16s.
+- **Live-verified on PCSX2**: map A's W1/W2 = the node's local
+  quaternion .y/.w byte-exact (chunk28 NPC, nodes 14/20/root); node
+  struct corrections: +0x00 local translation, +0x30 local quat,
+  +0x64[0] = PARENT index. A/B (the remaining quat components'
+  encoding) and map B/C payload packing still open.
+- `tools/disasm_vu.py` had five systematic decode bugs (UPPER bc ops,
+  UPPER FD tables, LOWER T3 tables, I-bit placement, SQ field
+  asymmetry); fixed against PCSX2's canonical tables. Consequently ALL
+  pre-existing kernel classifications were artifacts: kernel #0 family
+  = ribbon/beam quad renderer; #5/#7/#9 = fixed 14-vert effect kernel
+  (single MVP, procedural UV, pseudo-normal lighting). No ITOF12
+  "Q4.12 dequant" exists in any of them.
+- Stage-2 MESH blocks are the only real geometry and are **bone-local**
+  (per-block bbox ≤ ~2.7 units); the w field's k ∈ {-3,-1,0,2} is the
+  same set in EVERY block (per-block 4-slot palette selector, not a
+  global bone id). The **block→node binding table is the one remaining
+  unknown** — it is not in the mesh file prefix (fully accounted for
+  now: float track table, id 0x74 + id 0x2C anim blobs, preamble,
+  313 MESH + 3 MATRIX + 41 raw-VIF float-vertex blocks).
+- `tools/export_native.py` now exports the stage-2 strips (welded,
+  Y-up, grounded) as a static EMDL; the port capture shows a coherent
+  solid model — overlapping bone-local parts ("blob"), no longer
+  triangle soup. Posed/animated rendering is parked on block→node.
+
+**Next steps (in order):**
+
+1. **Block→node binding**: pause PCSX2 mid-frame and sample VU1 dmem /
+   VIF1 packet buffers during a character draw to catch (matrix
+   palette, vertex batch) pairs; match batch floats to file blocks.
+   Alternative: decompile the EE draw loop that walks the 313 blocks
+   (the 41 trailing raw-VIF blocks' STCYCL(4,4)+UNPACK V4-32 addr-0
+   tags are a good code anchor).
+2. Decode map A's A/B fields (qx/qz encoding) + map B translations →
+   full mesh-embedded clip decode (the 21-sample live oracle in the
+   session transcript constrains it well).
+3. Re-point export_gltf.py at the corrected pipeline (it still uses the
+   void per-bone decoders).
+4. After binding lands: bake palettes per frame (world × inv(bind)) and
+   re-enable --clip in export_native; port side needs no changes.
+
 ### Native-port renderer + live-debug session (2026-06-09)
 
 **Port (extermination-port):** full Metal skinned-character pipeline landed —

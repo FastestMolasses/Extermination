@@ -95,66 +95,27 @@ UPPER_PRIMARY = {
 }
 
 # UPPER "special" — primary opcode 0x3C/0x3D/0x3E/0x3F.
-# Secondary opcode is in bits [10:6]; for the bc variants the bc is in [1:0].
-# Key encodings (consolidated from public VU tables):
-#   primary=0x3C secondary table:
-UPPER_SPECIAL_3C = {
-    0x00: 'addAbc',   # +bc in [1:0]
-    0x01: 'subAbc',
-    0x02: 'maddAbc',
-    0x03: 'msubAbc',
-    0x04: 'itof0',
-    0x05: 'itof4',
-    0x06: 'itof12',
-    0x07: 'itof15',
-    0x08: 'ftoi0',
-    0x09: 'ftoi4',
-    0x0a: 'ftoi12',
-    0x0b: 'ftoi15',
-    0x0c: 'mulAbc',
-    0x0d: 'mulAq',
-    0x0e: 'absA',     # rare
-    0x0f: 'clip',     # CLIPw.xyz
-}
-UPPER_SPECIAL_3D = {
-    0x00: 'addAq',
-    0x01: 'maddAq',
-    0x02: 'addAi',
-    0x03: 'maddAi',
-    0x04: 'subAq',
-    0x05: 'msubAq',
-    0x06: 'subAi',
-    0x07: 'msubAi',
-    0x08: 'addA',
-    0x09: 'maddA',
-    0x0a: 'mulA',
-    0x0b: 'opmula',
-    0x0c: 'subA',
-    0x0d: 'msubA',
-    0x0e: 'nop',
-}
-UPPER_SPECIAL_3E = {
-    0x00: 'mulAbc',  # variant
-    0x01: 'mulAbc',
-    0x02: 'mulAbc',
-    0x03: 'mulAbc',
-    0x04: 'itof0',
-    0x05: 'itof4',
-    0x06: 'itof12',
-    0x07: 'itof15',
-    0x08: 'ftoi0',
-    0x09: 'ftoi4',
-    0x0a: 'ftoi12',
-    0x0b: 'ftoi15',
-    0x0c: 'mulAi',
-    0x0d: 'abs',
-    0x0e: 'mulAi',
-    0x0f: 'clip',
-}
-UPPER_SPECIAL_3F = {
-    0x00: 'maxi',
-    0x01: 'minii',
-    # remainder rare / unused on most kernels
+# Secondary opcode is bits [10:6]; primary&3 selects one of 4 FD tables.
+# *** CORRECTED 2026-06-09 against PCSX2 pcsx2/VUops.cpp _vuTablesMess
+# (VU{0,1}_UPPER_FD_{00,01,10,11}_TABLE[(code>>6)&0x1f]). The previous
+# tables here were guesses and systematically WRONG (e.g. 3C/sec6 was
+# called itof12 but is canonically MULAx) — every conclusion drawn from
+# the old decode of ITOF/FTOI/MULA ops must be re-verified. ***
+# Verified anchors in this binary: upper NOP 0x000002FF = 3F/secB = NOP;
+# 0x01c529ff = 3F/sec7 = CLIP, sitting 4 qw before an fcand 0x3ffff.
+UPPER_FD = {
+    0x3c: {0x0: 'addAx', 0x1: 'subAx', 0x2: 'maddAx', 0x3: 'msubAx',
+           0x4: 'itof0', 0x5: 'ftoi0', 0x6: 'mulAx', 0x7: 'mulAq',
+           0x8: 'addAq', 0x9: 'subAq', 0xa: 'addA', 0xb: 'subA'},
+    0x3d: {0x0: 'addAy', 0x1: 'subAy', 0x2: 'maddAy', 0x3: 'msubAy',
+           0x4: 'itof4', 0x5: 'ftoi4', 0x6: 'mulAy', 0x7: 'abs',
+           0x8: 'maddAq', 0x9: 'msubAq', 0xa: 'maddA', 0xb: 'msubA'},
+    0x3e: {0x0: 'addAz', 0x1: 'subAz', 0x2: 'maddAz', 0x3: 'msubAz',
+           0x4: 'itof12', 0x5: 'ftoi12', 0x6: 'mulAz', 0x7: 'mulAi',
+           0x8: 'addAi', 0x9: 'subAi', 0xa: 'mulA', 0xb: 'opmula'},
+    0x3f: {0x0: 'addAw', 0x1: 'subAw', 0x2: 'maddAw', 0x3: 'msubAw',
+           0x4: 'itof15', 0x5: 'ftoi15', 0x6: 'mulAw', 0x7: 'clip',
+           0x8: 'maddAi', 0x9: 'msubAi', 0xb: 'nop'},
 }
 
 
@@ -163,23 +124,42 @@ def decode_upper(upper):
         return ('nop', dest_mask(upper))
     op = upper & 0x3f
     dm = dest_mask(upper)
-    # bc-style primaries
-    if op in UPPER_BC_OPS:
-        bc = upper & 0x3
-        return (UPPER_BC_OPS[op] + BC[bc], dm)
+    # bc-style primaries: ops 0x00..0x1b are 7 bc-families x 4 bc lanes.
+    # The table is keyed by the bc=x member; mask off the bc bits [1:0]
+    # so addbc.y/z/w (op 0x01..0x03) etc. decode too.
+    if op < 0x1c and (op & ~0x3) in UPPER_BC_OPS:
+        bc = op & 0x3
+        base = op & ~0x3
+        ft = _fld(upper, 20, 16)
+        fs = _fld(upper, 15, 11)
+        fd = _fld(upper, 10, 6)
+        return (f'{UPPER_BC_OPS[base]}{BC[bc]}',
+                f'{dm} vf{fd:02d}, vf{fs:02d}, vf{ft:02d}{BC[bc]}')
     if op in UPPER_PRIMARY:
-        return (UPPER_PRIMARY[op], dm)
-    # Special groups
+        ft = _fld(upper, 20, 16)
+        fs = _fld(upper, 15, 11)
+        fd = _fld(upper, 10, 6)
+        nm = UPPER_PRIMARY[op]
+        if nm.endswith(('q', 'i')) and nm not in ('maddi', 'msubi'):
+            # q/i-register second operand forms: fd, fs only
+            return (nm, f'{dm} vf{fd:02d}, vf{fs:02d}')
+        return (nm, f'{dm} vf{fd:02d}, vf{fs:02d}, vf{ft:02d}')
+    # Special groups (FD tables)
     if 0x3c <= op <= 0x3f:
         secondary = (upper >> 6) & 0x1f
-        tables = {0x3c: UPPER_SPECIAL_3C, 0x3d: UPPER_SPECIAL_3D,
-                  0x3e: UPPER_SPECIAL_3E, 0x3f: UPPER_SPECIAL_3F}
-        name = tables[op].get(secondary, f'upp{op:02x}_{secondary:02x}')
-        # bc suffix for the bc-form rows
-        if name.endswith('bc'):
-            bc = upper & 0x3
-            name = name + BC[bc]
-        return (name, dm)
+        name = UPPER_FD[op].get(secondary, f'upp{op:02x}_{secondary:02x}')
+        ft = _fld(upper, 20, 16)
+        fs = _fld(upper, 15, 11)
+        if name == 'nop':
+            return ('nop', '')
+        if name.startswith(('itof', 'ftoi', 'abs')):
+            return (name, f'{dm} vf{ft:02d}, vf{fs:02d}')
+        if name == 'clip':
+            return (name, f' vf{fs:02d}.xyz, vf{ft:02d}w')
+        # ACC ops; bc-form names end in x/y/z/w (addAx..mulAw)
+        if name[-1] in 'xyzw' and name not in ('clip',):
+            return (name, f'{dm} ACC, vf{fs:02d}, vf{ft:02d}{name[-1]}')
+        return (name, f'{dm} ACC, vf{fs:02d}, vf{ft:02d}')
     return (f'upp_{op:02x}', dm)
 
 
@@ -222,64 +202,26 @@ LOWER_PRIMARY = {
     0x2f: 'ibgez',
 }
 
-# LOWER special: when top 7 bits == 0x40, the bottom 11 bits select one of
-# many ops. The bottom 6 bits are the "group selector"; ops sharing a group
-# disambiguate by bits [10:6].
-# We tabulate by the full 11-bit fingerprint (subop = lower & 0x7FF).
-# This is the master table — covers all common encodings we expect to hit.
-
-LOWER_SPECIAL = {
-    # group 0x30 — integer ALU
-    0x030: 'iadd',
-    0x031: 'isub',
-    0x032: 'iaddi',
-    0x034: 'iand',
-    0x035: 'ior',
-    # group 0x3C — extended LOWER1 (5-bit secondary in [10:6])
-    # The 11-bit encoding is (secondary << 6) | 0x3C
-    0x03c: 'move',
-    0x07c: 'lqi',     # vlqi vfT, (vit++)
-    0x0bc: 'div',
-    0x0fc: 'mtir',
-    0x13c: 'rnext',
-    0x17c: 'sqi',     # vsqi vfS, (vit++)
-    0x1bc: 'sqrt',
-    0x1fc: 'mfir',    # also FCAND/etc in alt tables; use context
-    0x23c: 'rget',
-    0x27c: 'lqd',
-    0x2bc: 'rsqrt',
-    0x2fc: 'ilwr',
-    0x33c: 'rinit',
-    0x37c: 'sqd',
-    0x3bc: 'waitq',
-    0x3fc: 'iswr',
-    0x43c: 'rxor',
-    0x47c: 'mfp',
-    0x4bc: 'xtop',
-    0x4fc: 'xitop',
-    # group 0x3D — EFU stuff (EE-side single-issue)
-    0x73d: 'esadd',
-    0x77d: 'ersadd',
-    0x7bd: 'eleng',
-    0x7fd: 'erleng',
-    # 0x3E group:
-    0x73e: 'eatanxy',
-    0x77e: 'eatanxz',
-    0x7be: 'esum',
-    0x7fe: 'ercpr',
-    # 0x3F group:
-    0x73f: 'esqrt',
-    0x77f: 'ersqrt',
-    0x7bf: 'esin',
-    0x7ff: 'eatan',
-    0xbbf: 'eexp',
-    # Misc
-    0x3bf: 'waitp',
-    # XGKICK — primary 0x40, fingerprint matches sub 0x6FC (encoded as
-    # secondary 0x1B in the LOWER1 0x3C group: (0x1B << 6) | 0x3C = 0x6FC)
-    0x6fc: 'xgkick',
-    # MFP / extended placeholders — common but rare:
-    0x7fc: 'mfp',
+# LOWER special: when top 7 bits == 0x40, bits [5:0] select the group:
+# 0x30..0x35 integer ALU, 0x3C..0x3F dispatch to a T3 table indexed by
+# bits [10:6].
+# *** CORRECTED 2026-06-09 against PCSX2 pcsx2/VUops.cpp _vuTablesMess
+# (VU{0,1}LowerOP_T3_{00,01,10,11}_OPCODE[(code>>6)&0x1f]). The previous
+# 11-bit fingerprint dict here was shifted (e.g. 0x3BC was called WAITQ
+# but is canonically DIV; 0x6FC=XGKICK was the only correct anchor).
+# Verified anchors in this binary: lower NOP 0x8000033C = T3_00[0xC] =
+# MOVE vf00,vf00 (canonical pseudo-NOP); XGKICK sub 0x6FC = T3_00[0x1B].
+LOWER_T3 = {
+    0x3c: {0x0c: 'move', 0x0d: 'lqi', 0x0e: 'div', 0x0f: 'mtir',
+           0x10: 'rnext', 0x19: 'mfp', 0x1a: 'xtop', 0x1b: 'xgkick',
+           0x1c: 'esadd', 0x1d: 'eatanxy', 0x1e: 'esqrt', 0x1f: 'esin'},
+    0x3d: {0x0c: 'mr32', 0x0d: 'sqi', 0x0e: 'sqrt', 0x0f: 'mfir',
+           0x10: 'rget', 0x1a: 'xitop',
+           0x1c: 'ersadd', 0x1d: 'eatanxz', 0x1e: 'ersqrt', 0x1f: 'eatan'},
+    0x3e: {0x0d: 'lqd', 0x0e: 'rsqrt', 0x0f: 'ilwr', 0x10: 'rinit',
+           0x1c: 'eleng', 0x1d: 'esum', 0x1e: 'ercpr', 0x1f: 'eexp'},
+    0x3f: {0x0d: 'sqd', 0x0e: 'waitq', 0x0f: 'iswr', 0x10: 'rxor',
+           0x1c: 'erleng', 0x1e: 'waitp'},
 }
 
 # VCALLMS / VCALLMSR / BAL / B operate on primary-op group too, but their
@@ -325,9 +267,12 @@ def decode_lower(lower, pc=None):
         dest = _DMASK_NAMES[_fld(lower, 24, 21)]
         imm11 = _s11(lower)
         if name == 'lq':
+            # LQ vfFt, imm11(viIs): dest = ft [20:16], base = is [15:11]
             return (name, f'  vf{ft:02d}.{dest}, {imm11}(vi{is_:02d})')
         if name == 'sq':
-            return (name, f'  vf{ft:02d}.{dest}, {imm11}(vi{is_:02d})')
+            # SQ vfFs, imm11(viIt): SOURCE = fs [15:11], base = it [20:16]
+            # (asymmetric vs LQ — per PCSX2 _vuSQ; corrected 2026-06-09)
+            return (name, f'  vf{is_:02d}.{dest}, {imm11}(vi{ft:02d})')
         if name in ('ilw', 'isw'):
             return (name, f'  vi{ft:02d}, {imm11}(vi{is_:02d})')
         if name in ('iaddiu', 'isubiu'):
@@ -340,89 +285,85 @@ def decode_lower(lower, pc=None):
         if name in ('b', 'bal'):
             tgt = f' vi{ft:02d},' if name == 'bal' else ''
             return (name, f'{tgt} {imm11*8:+d}')
+        if name == 'jr':
+            return (name, f'    vi{is_:02d}')
+        if name == 'jalr':
+            return (name, f'  vi{ft:02d}, vi{is_:02d}')
         if name.startswith('fc') or name.startswith('fs') or name.startswith('fm'):
             return (name, f'  vi{ft:02d}, 0x{lower & 0xffffff:06x}')
         return (name, '')
     if opc == 0x40:
         sub = lower & 0x7ff
-        # XGKICK detection: the canonical PCSX2 encoding uses bits [10:6]==0x1B
         secondary = (lower >> 6) & 0x1f
         ft = _fld(lower, 20, 16)
         is_ = _fld(lower, 15, 11)
         dest = _DMASK_NAMES[_fld(lower, 24, 21)]
-        # primary fingerprint table:
-        nm = LOWER_SPECIAL.get(sub)
-        if nm:
-            # most LOWER_SPECIAL entries that take operands fall through
-            # to the 0x3c-group block below; fast-path the unambiguous ones
-            if nm == 'jr':
-                return (nm, f'    vi{is_:02d}')
-            if nm == 'jalr':
-                return (nm, f'  vi{ft:02d}, vi{is_:02d}')
-            if nm in ('waitp', 'waitq'):
-                return (nm, '')
-            return (nm, '')
-        # Try secondary lookup for 0x3C-group ops we may have missed:
-        if (sub & 0x3f) == 0x3c:
-            # 0x3C ext group, secondary in [10:6]
-            ext_map = {
-                0x00: 'move', 0x01: 'lqi', 0x02: 'div', 0x03: 'mtir',
-                0x04: 'rnext', 0x05: 'sqi', 0x06: 'sqrt', 0x07: 'mfir',
-                0x08: 'rget', 0x09: 'lqd', 0x0a: 'rsqrt', 0x0b: 'ilwr',
-                0x0c: 'rinit', 0x0d: 'sqd', 0x0e: 'waitq', 0x0f: 'iswr',
-                0x10: 'rxor', 0x11: 'mfp', 0x12: 'xtop', 0x13: 'xitop',
-                0x1a: 'mfp', 0x1b: 'xgkick', 0x1c: 'waitp',
-            }
-            nm2 = ext_map.get(secondary, f'low1_{secondary:02x}')
+        fsf = _fld(lower, 22, 21)
+        ftf = _fld(lower, 24, 23)
+        grp = sub & 0x3f
+        if grp in LOWER_T3:
+            nm2 = LOWER_T3[grp].get(
+                secondary, f'lowT3_{grp:02x}_{secondary:02x}')
             if nm2 == 'lqi':
                 return (nm2, f'   vf{ft:02d}.{dest}, (vi{is_:02d}++)')
             if nm2 == 'sqi':
-                return (nm2, f'   vf{ft:02d}.{dest}, (vi{is_:02d}++)')
+                # SQI vfFs, (viIt++) — source fs, base it (like SQ)
+                return (nm2, f'   vf{is_:02d}.{dest}, (vi{ft:02d}++)')
             if nm2 == 'lqd':
                 return (nm2, f'   vf{ft:02d}.{dest}, (--vi{is_:02d})')
             if nm2 == 'sqd':
-                return (nm2, f'   vf{ft:02d}.{dest}, (--vi{is_:02d})')
+                return (nm2, f'   vf{is_:02d}.{dest}, (--vi{ft:02d})')
+            if nm2 == 'div':
+                return (nm2, f'   Q, vf{is_:02d}.{BC[fsf]}, '
+                             f'vf{ft:02d}.{BC[ftf]}')
+            if nm2 == 'sqrt':
+                return (nm2, f'  Q, vf{ft:02d}.{BC[ftf]}')
+            if nm2 == 'rsqrt':
+                return (nm2, f' Q, vf{is_:02d}.{BC[fsf]}, '
+                             f'vf{ft:02d}.{BC[ftf]}')
+            if nm2 in ('eleng', 'erleng', 'esadd', 'ersadd', 'esum'):
+                return (nm2, f' P, vf{is_:02d}')
+            if nm2 in ('esqrt', 'ersqrt', 'esin', 'eatan', 'ercpr',
+                       'eexp', 'eatanxy', 'eatanxz'):
+                return (nm2, f' P, vf{is_:02d}.{BC[fsf]}')
+            if nm2 == 'mr32':
+                return (nm2, f'  vf{ft:02d}.{dest}, vf{is_:02d}')
             if nm2 == 'mfir':
                 return (nm2, f'  vf{ft:02d}.{dest}, vi{is_:02d}')
             if nm2 == 'mtir':
-                return (nm2, f'  vi{ft:02d}, vf{is_:02d}.{dest}')
+                return (nm2, f'  vi{ft:02d}, vf{is_:02d}.{BC[fsf]}')
             if nm2 == 'ilwr':
-                return (nm2, f'  vi{ft:02d}, (vi{is_:02d})')
+                return (nm2, f'  vi{ft:02d}.{dest}, (vi{is_:02d})')
             if nm2 == 'iswr':
-                return (nm2, f'  vi{ft:02d}, (vi{is_:02d})')
-            if nm2 == 'xtop':
+                return (nm2, f'  vi{ft:02d}.{dest}, (vi{is_:02d})')
+            if nm2 in ('xtop', 'xitop'):
                 return (nm2, f'  vi{ft:02d}')
             if nm2 == 'xgkick':
                 return (nm2, f' vi{is_:02d}')
             if nm2 == 'move':
+                if ft == 0 and is_ == 0:
+                    return ('nop', '')
                 return (nm2, f'  vf{ft:02d}.{dest}, vf{is_:02d}')
             if nm2 == 'mfp':
-                return (nm2, f'   vf{ft:02d}.{dest}')
+                return (nm2, f'   vf{ft:02d}.{dest}, P')
             return (nm2, '')
-        if (sub & 0x3f) == 0x3d:
-            ext_map = {
-                0x1c: 'esadd', 0x1d: 'ersadd', 0x1e: 'eleng', 0x1f: 'erleng',
-            }
-            return (ext_map.get(secondary, f'low2_{secondary:02x}'), '')
-        if (sub & 0x3f) == 0x3e:
-            ext_map = {
-                0x1c: 'eatanxy', 0x1d: 'eatanxz', 0x1e: 'esum', 0x1f: 'ercpr',
-            }
-            return (ext_map.get(secondary, f'low3_{secondary:02x}'), '')
-        if (sub & 0x3f) == 0x3f:
-            ext_map = {
-                0x1c: 'esqrt', 0x1d: 'ersqrt', 0x1e: 'esin', 0x1f: 'eatan',
-            }
-            return (ext_map.get(secondary, f'low4_{secondary:02x}'), '')
         # vcallms / vcallmsr
         if (sub & 0x3f) == 0x38:
             return ('vcallms', 'imm15')
         if (sub & 0x3f) == 0x39:
             return ('vcallmsr', '')
-        # iadd/isub/etc
+        # iaddi it, is, imm5 (imm5 signed, bits [10:6])
+        if (sub & 0x3f) == 0x32:
+            imm5 = _fld(lower, 10, 6)
+            if imm5 & 0x10:
+                imm5 -= 32
+            return ('iaddi', f' vi{ft:02d}, vi{is_:02d}, {imm5:+d}')
+        # iadd/isub/iand/ior id, is, it  (id in [10:6])
         if (sub & 0x3f) in (0x30, 0x31, 0x34, 0x35):
-            return ({0x30: 'iadd', 0x31: 'isub', 0x34: 'iand',
-                     0x35: 'ior'}[sub & 0x3f], '')
+            id_ = _fld(lower, 10, 6)
+            nm3 = {0x30: 'iadd', 0x31: 'isub', 0x34: 'iand',
+                   0x35: 'ior'}[sub & 0x3f]
+            return (nm3, f'  vi{id_:02d}, vi{is_:02d}, vi{ft:02d}')
         return (f'lspec_{sub:03x}', '')
     return (f'low_{lower:08x}', '')
 
@@ -444,26 +385,23 @@ def flags_str(upper):
 def disasm_block(blob, base_vram):
     out = []
     n = len(blob) // 8
-    i_pending = False
     for k in range(n):
         lower, upper = struct.unpack_from('<II', blob, k * 8)
         vram = base_vram + k * 8
-        if i_pending:
-            # Previous insn was I-bit set: this 64-bit word is a 32-bit float
-            # immediate (loaded into I register). The immediate occupies the
-            # upper word (it replaces the FP op).
-            f = struct.unpack('<f', struct.pack('<I', upper))[0]
-            out.append(f'  {vram:08x} {upper:08x}|{lower:08x}  '
-                       f'<imm32 I = {f:g}>')
-            i_pending = False
-            continue
         un, ud = decode_upper(upper)
-        ln, lops = decode_lower(lower, pc=vram)
         flags = flags_str(upper)
-        out.append(f'  {vram:08x} {upper:08x}|{lower:08x}  [{flags}] '
-                   f'U:{un + ud:18s}  L:{ln}{lops}')
         if upper & 0x80000000:
-            i_pending = True
+            # I-bit: the LOWER word of THIS pair is a 32-bit float
+            # immediate loaded into the I register (same-slot, per VU
+            # spec — corrected 2026-06-09; previously misread as
+            # occupying the following pair).
+            f = struct.unpack('<f', struct.pack('<I', lower))[0]
+            out.append(f'  {vram:08x} {upper:08x}|{lower:08x}  [{flags}] '
+                       f'U:{un + ud:18s}  L:<I = {f:g} (0x{lower:08x})>')
+        else:
+            ln, lops = decode_lower(lower, pc=vram)
+            out.append(f'  {vram:08x} {upper:08x}|{lower:08x}  [{flags}] '
+                       f'U:{un + ud:18s}  L:{ln}{lops}')
         if upper & 0x40000000:
             out.append('    -- [E] end-of-program (one delay slot follows)')
     return '\n'.join(out)
@@ -555,18 +493,17 @@ def profile_kernel(pkts):
     frequency counts."""
     counts = defaultdict(int)
     total_qw = 0
-    i_pending = False
     for pv, bv, sz, dst in pkts:
         blob = read_elf_bytes(bv, sz)
         n = sz // 8
         total_qw += n
         for k in range(n):
             lower, upper = struct.unpack_from('<II', blob, k * 8)
-            if i_pending:
-                i_pending = False
-                continue
             un, _ = decode_upper(upper)
-            ln, _ = decode_lower(lower)
+            if upper & 0x80000000:
+                ln = 'nop'  # I-bit: lower word is the imm32, not an op
+            else:
+                ln, _ = decode_lower(lower)
             # Family bucketing
             if un != 'nop':
                 if 'madd' in un.lower():
@@ -613,8 +550,6 @@ def profile_kernel(pkts):
                     counts['LOWER:other'] += 1
             else:
                 counts['LOWER:nop'] += 1
-            if upper & 0x80000000:
-                i_pending = True
     return total_qw, counts
 
 
