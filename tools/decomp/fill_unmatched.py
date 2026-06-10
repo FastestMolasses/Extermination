@@ -426,7 +426,8 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_00191350",
     "func_001ACE70",
     "func_001AB650",
-    "func_001AB740",
+    # func_001AB740 removed 2026-06-10: src/func_001AB740.c now compiles
+    # byte-identical (statement-order idiom); the compiled obj is linked.
     "func_001AF690",
     "func_001AF890",
     "func_001AFE60",

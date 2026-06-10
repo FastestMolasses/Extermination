@@ -526,6 +526,30 @@ src/func_001C84D0.c — all still stubs, wall-blocked 82-93%):
 11. **Goto-shaped loops** (guards branching forward to a bottom advance
     block) reproduce CW's non-rotated while-loop layout; a plain `while`
     gets rotated by mwcc.
+12. **Statement-order emission** (2026-06-10, cracked func_001AB740 to 100%,
+    recovered func_001AB650's call-arg order). mwcc emits independent SCALAR
+    statements in source order — use this to steer instruction placement:
+    (a) split compound pointer arithmetic across statements
+    (`p = &D_xxx; p += off;`) to pin where the reloc pair vs the `addu`
+    land — a single `p = &D_xxx + off` expression gets its whole
+    computation sunk to just before first use (e.g. below an earlier sb);
+    (b) place a constant materialization between two address statements
+    (`p = &D_xxx; k = 1; p += off;`) to reproduce CW's
+    [pair][const][addu][store] order; (c) materialize a call argument as
+    its own statement before the call (`n = 0x20; f(p, 0, n);`) to make it
+    emit FIRST with another arg in the jal delay slot, matching CW's arg
+    order. Composes with reusing a dead PARAMETER variable for a constant
+    to land it in that param's register (`idx = 1; *slot = idx;` →
+    `addiu $a0, $zero, 1`, where a plain literal would allocate a temp).
+13. **CW's delay-slot fill rule (when a `nop` is matchable).** CW 2.3.1
+    fills a conditional-branch delay slot only from the TAKEN path's first
+    instruction; mwcc 2.3 also fills from the fall-through whenever a SAFE
+    candidate exists (a `lui` etc.). Consequence: a CW `beqz; nop;
+    <safe-instr>` shape is matchable from C only when every fall-through
+    candidate is unsafe to speculate (e.g. a store conditioned on the
+    branch, cf. matched func_001F0060) — otherwise it is the delay-slot-fill
+    wall (func_001B57E0 96.55%, func_001AB590 97.87%, func_001AD250 92.3%,
+    all restored to stubs with the analysis inline).
 
  
 NOT A WALL — paddub register moves (correction 2026-06-XX). mwcc DOES emit
