@@ -71,6 +71,40 @@ at its live floor pose (115.0, 1.5, -269.3), which is a REAL separate
 pickup instance (type-0xB entry in the live placement table @0x828330),
 independent of the holstered knife.
 
+DOORS (--doors, 2026-06-10 interactive-objects session). The office
+double doors (placement-table class 5, model 3, behavior func_001BC350 —
+FINDINGS "FIRST INTERACTIVE OBJECTS") become the port's first interactive
+objects, so they must stop being baked statically into 00_level.emdl and
+ship as a SEPARATE articulated EMDL instead:
+
+  * door mesh = the level render file's RGN_DOOR blob (0xA05C0..0xA2640),
+    exported in DOOR-LOCAL space: slot 0 is the full 9x21 door panel at
+    the placement origin (hinge edge at local x=0, panel spans x -9..0),
+    slot 1 a small lock/mechanism fixture at local (-7.69, 9.0, -0.25)
+    (= L0^-1 * L1 of the live-captured closed slot matrices — per-slot
+    extents measured this session). Two bones (slot 0/1), one closed-pose
+    palette frame; vertices stay slot-model-space so the frame-0 palette
+    reproduces the captured closed pose exactly.
+  * the per-area placement TRS + the s17 use-scan trigger radius (12.0,
+    func_00184BA0's dist^2 <= 144) go to the SCENE MANIFEST as one line
+    per door instance:  door <file> <x> <y> <z> <yaw> <radius>
+    (files live in <scene>/doors/ so the port's static scene_load —
+    which slurps every .emdl in the scene dir — does not double-draw
+    them; the port's em_door.c owns them instead).
+  * open/close clip: the engine articulates doors with a keyframe clip on
+    the door skeleton (s17, advanced 1.0/frame via func_001C68C0). A
+    GLOBAL 3-node object-anim bank exists (chunk27/f02_id39.bin, 5 clips,
+    resident in EE RAM across save states of three different areas), but
+    none of its rest poses matches the double door's captured closed pose
+    (slot-1 local (-7.69, 9.0, -0.25)), and no other decodable id 0x74
+    bank in the extraction carries a matching small-rig container. The
+    hunt is automated below (find_door_clip) and re-runs on every export;
+    until it finds one the EMDL ships the closed pose only and the port
+    plays an honestly-flagged placeholder 90-degree hinge swing.
+  * 00_level.emdl is REBUILT in the same run from export_level's region
+    machinery (imported, not copied) with the RGN_DOOR replays dropped,
+    so the static bake no longer contains the doors.
+
 Disc-derived output: write only into git-ignored locations.
 
 Usage (macOS arm64, decomp repo root):
@@ -84,6 +118,11 @@ Usage (macOS arm64, decomp repo root):
   .venv/bin/python tools/export_props.py \
       --gsdump extract/gsdump/frame1.gs \
       --out ../extermination-port/assets/scene/01_props.emdl
+  # office doors as articulated EMDLs + door-less level rebake:
+  .venv/bin/python tools/export_props.py --doors \
+      --level extract/chunk06.n1/f03_id43.bin \
+      --gsdump extract/gsdump/frame1.gs \
+      --outdir ../extermination-port/assets/scene
 """
 from __future__ import annotations
 
@@ -380,6 +419,254 @@ def finish_textures(args, tex_table):
 
 
 # ---------------------------------------------------------------------------
+# Mode 3: --doors — placement-table doors as separate articulated EMDLs
+# (see "DOORS" in the module docstring).
+
+DOOR_TRIGGER_RADIUS = 12.0   # func_00184BA0: use-scan distance^2 <= 144
+
+# Anim banks the clip hunt can decode today. chunk27/f02_id39 is the
+# globally-resident 3-node object bank (verified at EE 0xd1a750 in save
+# states of areas 0x11/0x06/0x02-family — same bytes in all three).
+DOOR_CLIP_BANKS = [
+    "extract/chunk27/f02_id39.bin",
+]
+
+
+def door_local_slots():
+    """Door-local slot matrices [L0^-1 * Lk] of the captured closed pose
+    (live slot 0 == the placement base for every captured assembly —
+    export_level.anchor_slots' invariant)."""
+    l0inv = lvl.mat34_inv_rigid(lvl.BLOB_A05C0[0])
+    return [lvl.mat34_mul(l0inv, lk) for lk in lvl.BLOB_A05C0]
+
+
+def find_door_clip(locals34, tol=1.0):
+    """Hunt the decodable id 0x74 banks for the double door's open/close
+    clip: a small-rig container whose FRAME-0 node translations include
+    the door's closed slot-1 local offset. Returns (path, clip_index,
+    parents, frames, fps) or None — honestly None today (documented in
+    the module docstring); re-runs each export so a future extraction
+    win is picked up automatically."""
+    want = [row[3] for row in locals34[1]]      # slot-1 closed local t
+    for bank in DOOR_CLIP_BANKS:
+        p = Path(bank)
+        if not p.exists():
+            continue
+        em = en._load("_extract_models_doors", "extract_models.py")
+        d = p.read_bytes()
+        try:
+            hdrs = em.find_id74_headers(d)
+        except Exception:
+            continue
+        for ci in range(len(hdrs)):
+            try:
+                parents, frames, fps = en.bake_id74_palettes(p, ci)
+            except SystemExit:
+                continue
+            if not (2 <= len(parents) <= 4):
+                continue
+            f0 = frames[0]
+            for node in f0:
+                t = node[3]
+                if all(abs(t[k] - want[k]) <= tol for k in range(3)):
+                    return p, ci, parents, frames, fps
+    return None
+
+
+def build_door_mesh(level: bytes, locals34):
+    """RGN_DOOR records -> one door-local EMDL section: per-record slot
+    bits become the vertex bone, positions stay slot-model-space (the
+    closed-pose palette frame supplies the slot offsets), colors follow
+    export_level's normal-or-baked-color rule with the slot's local
+    rotation."""
+    raw_pos, raw_col, raw_bone, raw_uv, raw_tex = [], [], [], [], []
+    tris = []
+    weld = {}
+    tex_table: list[dict] = []
+    tex_of = make_tex_of(tex_table, {})
+
+    def vid_of(p, c, b, uv, t):
+        key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
+               round(c[0], 3), round(c[1], 3), round(c[2], 3), b,
+               round(uv[0], 5), round(uv[1], 5), t)
+        i = weld.get(key)
+        if i is None:
+            i = len(raw_pos)
+            weld[key] = i
+            raw_pos.append(p)
+            raw_col.append(c)
+            raw_bone.append(b)
+            raw_uv.append(uv)
+            raw_tex.append(t)
+        return i
+
+    run = []
+    for rec in lvl.walk_records(level, *lvl.RGN_DOOR):
+        if rec is None:
+            run = []
+            continue
+        _off, pos, wbits, q, uv, attr = rec
+        slot = (wbits & 0x3FF) >> 3
+        m = locals34[slot] if slot < len(locals34) else lvl.IDENT34
+        col = lvl.attr_to_color(attr, m)     # rotate normals slot-locally
+        run.append((tuple(pos), col, slot, uv, q))
+        if len(run) > 3:
+            run.pop(0)
+        if (wbits & 0x8000) == 0 and len(run) == 3:
+            t = tex_of(q)
+            (pa, ca, ba, ua, _qa), (pb, cb, bb, ub, _qb), \
+                (pc, cc, bc, uc, _qc) = run
+            if pa != pb and pb != pc and pa != pc:
+                a = vid_of(pa, ca, ba, ua, t)
+                b = vid_of(pb, cb, bb, ub, t)
+                c = vid_of(pc, cc, bc, uc, t)
+                if wbits & 0x4000:
+                    tris.extend((c, b, a))
+                else:
+                    tris.extend((c, a, b))
+
+    return [(raw_pos, raw_col, tris, raw_bone, raw_uv, raw_tex)], tex_table
+
+
+def mat34_to_cols(m):
+    """3x4 [R|t] rows -> the EMDL palette's column-major mat4."""
+    return ((m[0][0], m[1][0], m[2][0], 0.0),
+            (m[0][1], m[1][1], m[2][1], 0.0),
+            (m[0][2], m[1][2], m[2][2], 0.0),
+            (m[0][3], m[1][3], m[2][3], 1.0))
+
+
+def rebuild_level_without_doors(args, level_path: Path, out: Path):
+    """00_level.emdl minus the RGN_DOOR replays — export_level's own
+    region machinery (table-driven placements + the id44 sibling static
+    section), imported, with the door regions filtered out."""
+    d = level_path.read_bytes()
+    if not (len(d) == lvl.CHUNK06N1_SIZE
+            and level_path.name == "f03_id43.bin"):
+        raise SystemExit("--doors knows only the office level render file "
+                         "(chunk06.n1/f03_id43.bin) today")
+    regions = lvl.table_driven_regions(level_path)
+    if regions is None:
+        print("note: OVERLAY/AREA02.BIN not found — using embedded "
+              "live-captured placements")
+        regions = lvl.CHUNK06N1_REGIONS
+    n_all = len(regions)
+    regions = [r for r in regions if (r[0], r[1]) != lvl.RGN_DOOR]
+    print(f"level rebake: {n_all - len(regions)} door region replays "
+          f"dropped ({len(regions)} regions kept)")
+
+    b = lvl.MeshBuilder()
+    sib_name, sib_lo, sib_hi = lvl.CHUNK06N1_SIBLING
+    sib_path = level_path.parent / sib_name
+    if sib_path.exists():
+        sd = sib_path.read_bytes()
+        b.add_stream((r if r is None else r[1:] for r in
+                      lvl.walk_records(sd, sib_lo, sib_hi)), None)
+    else:
+        print(f"warning: {sib_path} missing — the western half of the "
+              "area will be absent")
+    for lo, hi, mode, mats in regions:
+        if mode == "world":
+            b.add_stream((r if r is None else r[1:] for r in
+                          lvl.walk_records(d, lo, hi)), None)
+        elif mode == "slots":
+            def placement(wbits, mats=mats):
+                s = (wbits & 0x3FF) >> 3
+                return mats[s] if s < len(mats) else lvl.IDENT34
+            b.add_stream((r if r is None else r[1:] for r in
+                          lvl.walk_records(d, lo, hi)), placement)
+        elif mode == "instances":
+            for m in mats:
+                b.add_stream((r if r is None else r[1:] for r in
+                              lvl.walk_records(d, lo, hi)),
+                             lambda wbits, m=m: m)
+    sections = [(b.pos, b.col, b.tris, b.bone, b.uv, b.tex)]
+    print(f"level mesh (door-less): {len(b.pos)} verts, "
+          f"{len(b.tris) // 3} tris, {len(b.tex_table)} textures")
+    tex_entries, tex_blob = lvl.build_texture_blob(
+        Path(args.gsdump) if args.gsdump else None, b.tex_table,
+        Path(args.p2s) if args.p2s else None)
+    en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
+                  tex_entries, tex_blob, flags=1)
+
+
+def update_doors_manifest(scene_dir: Path, lines: list[str]) -> None:
+    """Replace the manifest's doors section (all `door ` lines) with
+    `lines`; every other key/comment is preserved (same convention as
+    export_level.update_manifest, which replaces single-value keys)."""
+    mf = scene_dir / "scene.txt"
+    kept = [ln for ln in (mf.read_text().splitlines() if mf.exists() else [])
+            if not ln.startswith("door ")]
+    mf.write_text("\n".join(kept + lines) + "\n")
+    for ln in lines:
+        print(f"manifest: {mf}: {ln}")
+
+
+def export_doors(args):
+    level_path = Path(args.level)
+    ov_path = Path(args.overlay)
+    scene_dir = Path(args.outdir)
+    if not ov_path.exists():
+        raise SystemExit(f"{ov_path}: the doors export is placement-table "
+                         "driven; extract OVERLAY/AREA02.BIN first")
+    pl = _load("_placements_doors", "placements.py")
+    entries = pl.parse_table(ov_path.read_bytes(), lvl.OFFICE_TABLE_VADDR)
+    doors = [e for e in entries
+             if (e.spawn_class & 0x1F) == 5 and e.model == 3]
+    if not doors:
+        raise SystemExit("no class-5 model-3 doors in the placement table")
+
+    locals34 = door_local_slots()
+    level = level_path.read_bytes()
+    sections, tex_table = build_door_mesh(level, locals34)
+    pos = sections[0][0]
+    ntris = len(sections[0][2]) // 3
+    print(f"door mesh (model 3, door-local): {len(pos)} verts, {ntris} "
+          f"tris, {len(tex_table)} textures, "
+          f"{1 + max(sections[0][3])} slots")
+
+    # Open/close clip hunt (None today — port plays its flagged placeholder).
+    clip = find_door_clip(locals34)
+    if clip is None:
+        print("door clip: NOT FOUND in the decodable anim banks — EMDL "
+              "carries the closed pose only; the port's em_door.c plays "
+              "its placeholder hinge swing (flagged there)")
+        frames = [[mat34_to_cols(m) for m in locals34]]
+        parents = [-1] * len(locals34)
+        fps, clips = 60.0, None
+    else:
+        bank, ci, parents, frames, fps = clip
+        print(f"door clip: {bank} container {ci} — {len(frames)} frames, "
+              f"{len(parents)} nodes")
+        clips = [{"id": ci, "first": 0, "count": len(frames), "fps": fps}]
+
+    tex_entries, tex_blob = lvl.build_texture_blob(
+        Path(args.gsdump) if args.gsdump else None, tex_table,
+        Path(args.p2s) if args.p2s else None)
+
+    door_file = "doors/door_m03.emdl"
+    out = scene_dir / door_file
+    en.write_emdl(out, sections, [], parents, frames, fps,
+                  tex_entries, tex_blob, flags=1, clips=clips)
+
+    lines = []
+    for e in doors:
+        # s17 door contract: per-instance placement TRS + the use-scan
+        # radius. (flags2/link semantics — door id, area-change bit,
+        # 1.5x/2.0x anim scale — land with the destination tables.)
+        lines.append(f"door {door_file} {e.pos[0]:g} {e.pos[1]:g} "
+                     f"{e.pos[2]:g} {e.rot[1]:g} {DOOR_TRIGGER_RADIUS:g}")
+        print(f"  door uid {e.uid:#06x} fl={e.flags2:#04x} "
+              f"link={e.link:#06x} at ({e.pos[0]:.1f}, {e.pos[1]:.1f}, "
+              f"{e.pos[2]:.1f}) yaw {e.rot[1]:.3f}")
+    update_doors_manifest(scene_dir, lines)
+
+    rebuild_level_without_doors(args, level_path,
+                                scene_dir / "00_level.emdl")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 
 def main(argv):
     ap = argparse.ArgumentParser(
@@ -393,6 +680,19 @@ def main(argv):
     ap.add_argument("--attach", action="store_true",
                     help="export the PLAYER EMDL (--mesh/--anim/--clip) with "
                     "the held equipment merged onto its skeleton nodes")
+    ap.add_argument("--doors", action="store_true",
+                    help="export the placement-table doors as separate "
+                    "articulated EMDLs into <outdir>/doors/, write the "
+                    "manifest doors section, and rebake 00_level.emdl "
+                    "without the static door geometry")
+    ap.add_argument("--level", default="extract/chunk06.n1/f03_id43.bin",
+                    help="(--doors) level render-mesh file")
+    ap.add_argument("--overlay", default="extract/OVERLAY/AREA02.BIN",
+                    help="(--doors) area overlay holding the placement table")
+    ap.add_argument("--p2s", help="(--doors) PCSX2 save state as the VRAM "
+                    "texel source (--gsdump wins if both)")
+    ap.add_argument("--outdir", default="../extermination-port/assets/scene",
+                    help="(--doors) scene directory (manifest + EMDLs)")
     ap.add_argument("--mesh", default="extract/chunk28/f00_id3b.bin",
                     help="(--attach) player mesh blob")
     ap.add_argument("--anim", default="extract/chunk28/f01_id3c.bin",
@@ -400,8 +700,14 @@ def main(argv):
     ap.add_argument("--clip", type=int, default=346,
                     help="(--attach) clip index to bake (default 346, idle)")
     ap.add_argument("--segment", type=int, default=0)
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--out", help="output EMDL (required except --doors, "
+                    "which writes into --outdir)")
     args = ap.parse_args(argv)
+
+    if args.doors:
+        return export_doors(args)
+    if not args.out:
+        ap.error("--out is required (except with --doors)")
 
     if args.attach:
         sections, max_slot, tex_table = build_attached_player(args)

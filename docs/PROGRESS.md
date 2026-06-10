@@ -3506,3 +3506,42 @@ full detail):
   "DEPOSIT" wall unit actually does (its X-interaction cycles sub-frame
   and never changed ammo); owner struct of the 240-cap tick at
   `0x001418F0`.
+
+### Update — 2026-06-10 s20: FIRST INTERACTIVE OBJECT NATIVE — office doors open in the port
+
+- **`export_props.py --doors`**: exports the placement-table doors
+  (class 5 model 3) as a SEPARATE articulated EMDL in door-local space
+  (bone 0 = the full 9x21 panel — the "double door" blob is one panel +
+  a small lock fixture, not two leaves; per-slot extents in FINDINGS
+  s20), writes one `door <file> <x> <y> <z> <yaw> <radius>` manifest
+  line per instance (files under `<scene>/doors/`), and rebakes
+  `00_level.emdl` WITHOUT the static door geometry (export_level's
+  region machinery imported, RGN_DOOR replays dropped: 6475→6275 verts).
+- **Door open/close clip hunt: NEGATIVE** (automated, re-runs every
+  export). Found a globally-resident 3-node object-anim bank
+  (`chunk27/f02_id39.bin`, 5 clips) but no rest pose matches the door —
+  the port plays a flagged placeholder 90° hinge swing until the real
+  clip surfaces (details + bank characterization in FINDINGS s20).
+- **Engine finding — sealed room boxes**: the grid collision world
+  seals every doorway with boundary planes (x=60 west, z=-250/-255 at
+  the office door); free movement never crosses a doorway. The s17 door
+  transit (func_001BBE40 MOVE-TO to door_pos ± 5.0·normal) is the ONLY
+  way through — the ±5.0 exactly clears the boundary plane spacing.
+- **Port `src/game/em_door.{h,c}`** (+ em_game wiring): s17 state
+  machine with engine sub-state numbers, use scan (12 u / facing-dot
+  0.4 / auto 2 u / LOS with a flagged doorway-pocket exemption),
+  kickoff side latch + collision-free walk-through glide, closed-door
+  AABB hull on the movable-hull set, per-door palette through the
+  existing skinned mesh path. Flagged deviations: CROSS-to-open outside
+  the auto ring (engine = walk-into), OPEN-hold instead of the area/room
+  transition commit.
+- **Verified**: `EM_DOOR_TEST=1` PASS (blocked at 60.010 while closed →
+  X press → OPENING → transit to (52.16, 0, -220.59) through the
+  doorway → OPEN); EM_CAPTURE byte-identical with a doors-less
+  manifest + old assets; EM_MOVE_TEST PASS; `make test-input` PASS;
+  `verify_all --no-container` PASS (4/4); mid-transit capture shows the
+  textured panel mid-swing with the player walked through.
+- Open: identify the f02_id39 bank's owner object; locate the door
+  clip; read func_00183EF0's class-5 LOS path (does the boundary plane
+  exempt itself?); area/room transition commit (destination tables
+  D_0024E140) when the port grows an area loader.

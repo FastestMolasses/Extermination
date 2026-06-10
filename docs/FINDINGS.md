@@ -5914,3 +5914,91 @@ the inventory+stats. Layout differs from the live block.
   session (`write` AND `onchange`, 0 hits even on an address rewritten
   every frame, interpreter EE) — treat pcsx2_set_watchpoint as broken
   in this build; use watch_change or find_pattern+disasm instead.
+
+## DOORS IN THE PORT — blob anatomy, sealed-room collision, clip hunt NEGATIVE (2026-06-10, session 20)
+
+Exporter+port session: the office double doors became the port's first
+native interactive objects (`export_props.py --doors` + port
+`src/game/em_door.{h,c}`). Three engine findings fell out:
+
+### 1. Double-door blob anatomy (RGN_DOOR @0xA05C0, model 3)
+
+The "2-slot double door" is NOT two leaves. Per-slot extents of the
+door-local records (local_k = L0^-1 * L_k of the captured closed pose):
+
+    slot 0 (48 recs): (-9.0, 0.0, -0.5)..(0.0, 21.0, 0.0)  — the FULL
+           9x21 door panel, hinge edge at local x = 0 (= the placement
+           origin; the table pos is the panel's hinge corner)
+    slot 1 (80 recs): model-space ~1.9 x 0.4 x 1.3 fixture placed at
+           local (-7.689, 9.0, -0.252) — a lock/handle/mechanism part
+
+So door articulation animates one rigid panel + one small fixture.
+Office door records (placements.py, AREA02 state 1): west door uid
+0x0A00 fl=0x81 (door id 1, bit7 = AREA-CHANGE) link 0x0200 at
+(57, 0, -220.5) yaw -pi/2; office door uid 0x0900 fl=0x02 (same-area
+room move) link 0x0280 (anim scale 2.0) at (109, 0, -252.2) yaw 0.
+Both captured closed poses are unit-scale — the link-bit scale does not
+affect the rest pose.
+
+### 2. The grid world is SEALED ROOM BOXES — doorways have no static opening
+
+Office EMCL probes (correct plane convention: n.p = d, NOT n.p + d = 0):
+
+- a full-height grid boundary plane at x = 60 spans z -252.9..-167.3,
+  y -3.1..37.9 — 3 u EAST of the west door at x = 57;
+- the office door at z = -252.2 sits BETWEEN two boundary planes at
+  z = -250 (n +z) and z = -255 (n -z), each room with its own floor poly.
+
+Free movement can NEVER cross a doorway: the engine's room transitions
+work exactly as s17 documented — the use scan arms the door and
+`func_001BBE40`'s MOVE-TO walks the player to `door_pos -/+ 5.0 *
+[sin,cos](yaw)`, i.e. just past the far boundary plane (the +-5.0
+matches the plane spacing). The walk-through is the ONLY way across.
+Consequence for the use scan's LOS gate (mode 6, hit-flag 0x2000
+blocks): a straight player->door segment ALWAYS crosses the near
+boundary plane, so either those planes carry something that exempts
+them or func_00183EF0's class-5 path differs from the read class-7
+prefix (s17 open item). The port exempts LOS hits within 6 u of the
+door origin (the doorway pocket) — FLAGGED approximation in em_door.c.
+
+### 3. Door open/close clip — hunt NEGATIVE; a global 3-node object bank exists
+
+`chunk27/f02_id39.bin` is a 5-clip id 0x74 bank, 3-node chain rigs
+(parents -1,0,1), RESIDENT at EE 0xd1a750 in save states of three
+different areas (globally loaded, like the chunk27 model library):
+clips of 360/90/40/30/30 frames; the 90/40/30/30 set moves two nodes
+vertically between a "together" pose (~y 11-12 both) and an "apart"
+pose (y 20-22 / y 10) — some vertical two-part object (not yet
+identified); the 360-frame clip slowly rotates a node at (-5.1, 0.2, 0)
+(dial/beacon-like). NONE of the rest poses matches the double door's
+closed slot-1 local (-7.69, 9.0, -0.25), and no other decodable id 0x74
+container in the extraction has a 2-4-node rig that does
+(`export_props.find_door_clip` re-runs the hunt on every export). The
+double door's clip therefore remains UNLOCATED — the port plays an
+honestly-flagged placeholder 90-degree hinge swing (60 frames at the
+engine's 1.0/frame rate) until it surfaces; an EMDL re-exported with a
+real clip (frame_count > 1) is picked up automatically.
+
+### 4. Port implementation (extermination-port)
+
+- Manifest doors section: `door <file> <x> <y> <z> <yaw> <radius>` per
+  instance (radius = the s17 use-scan 12.0); door EMDLs live in
+  `<scene>/doors/` so the static scene loader does not double-draw them;
+  `00_level.emdl` is rebaked without the RGN_DOOR replays in the same
+  `--doors` run.
+- `em_door.c` mirrors the s17 machine with engine sub-state numbering
+  (0 CLOSED -> 3 OPENING -> 4 OPEN -> 5 CLOSING; locked subs 1/2 not yet
+  ported), 1.0 frame/tick clip advance, kickoff side-latch + far-point
+  MOVE-TO (collision-free glide in player_move = the selector-3 transit
+  variant), closed-door AABB hull on the movable-hull set (mask bit 0;
+  suppressed only when fully OPEN), and the use scan (dist^2 <= 144,
+  facing-dot >= 0.4, auto < 2 u, nearest wins, +0x0B = 4). PORT
+  DEVIATION (flagged): trigger needs CROSS outside the 2 u auto ring
+  (engine = walk-into via action-state 0x2D); OPEN holds on a timeout
+  instead of committing an area/room transition (no native area loader).
+- `EM_DOOR_TEST=1` end-to-end self-test (deterministic, real input API):
+  blocked at the x = 60 boundary while CLOSED (min x 60.010), CROSS at
+  dist 5.4 -> OPENING, transit carries the player to (52.16, 0, -220.59)
+  through both planes, door reaches OPEN — PASS. Office EM_CAPTURE with
+  a doors-less manifest + old assets is byte-identical to the
+  pre-change build; EM_MOVE_TEST / test-input / verify_all green.
