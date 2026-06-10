@@ -92,15 +92,26 @@ ship as a SEPARATE articulated EMDL instead:
     which slurps every .emdl in the scene dir — does not double-draw
     them; the port's em_door.c owns them instead).
   * open/close clip: the engine articulates doors with a keyframe clip on
-    the door skeleton (s17, advanced 1.0/frame via func_001C68C0). A
-    GLOBAL 3-node object-anim bank exists (chunk27/f02_id39.bin, 5 clips,
-    resident in EE RAM across save states of three different areas), but
-    none of its rest poses matches the double door's captured closed pose
-    (slot-1 local (-7.69, 9.0, -0.25)), and no other decodable id 0x74
-    bank in the extraction carries a matching small-rig container. The
-    hunt is automated below (find_door_clip) and re-runs on every export;
-    until it finds one the EMDL ships the closed pose only and the port
-    plays an honestly-flagged placeholder 90-degree hinge swing.
+    the door skeleton (s17, advanced 1.0/frame via func_001C68C0).
+    RESOLVED (2026-06-10 s29, FINDINGS "DOOR CLIPS FOUND"): door INIT
+    (func_001BBDA0 -> func_001B0F60) binds actor+0x40 = D_0028A574 =
+    D_0028A490[0x39] = chunk27/f02_id39.bin — the globally-resident
+    object-anim bank. The script clip ids [2|0] open / [3|1] locked index
+    the FILE'S OWN leading u32 directory (anim_clip_resolve/func_001C6120
+    shape: u32 count, then count u32 byte offsets, low 2 bits flags), NOT
+    the id-0x74 header-scan order: ids 0-8 are 2-node containers with
+    blob id 0x28 that find_id74_headers skips (s20's "5 clips, no rest-
+    pose match" hunt only saw directory ids 9/12/13/14/15). Clip 0/2 =
+    open toward back/front (150 frames, the whole panel + lock fixture
+    swing -87.5/-88.2 deg about the placement-origin Y hinge, ease-out;
+    frame 0 = the captured closed pose exactly); clip 1/3 = locked jiggle
+    back/front (200 frames, panel still, the slot-1 lock fixture rattles
+    to 24.0/15.8 deg peak around frames 60-110 and settles). find_door_clip
+    resolves + verifies all four (2-node rig, frame-0 slot-1 local within
+    tol of the captured pose) and the EMDL ships them as an EMD3 multi-
+    clip table ordered open-first (0, 2, 1, 3) — the port's em_door.c
+    plays table entry 0 (frame_count > 1 is picked up automatically) and
+    can find the rest by engine id via em_model_clip_index.
   * 00_level.emdl is REBUILT in the same run from export_level's region
     machinery (imported, not copied) with the RGN_DOOR replays dropped,
     so the static bake no longer contains the doors.
@@ -479,12 +490,19 @@ def finish_textures(args, tex_table):
 
 DOOR_TRIGGER_RADIUS = 12.0   # func_00184BA0: use-scan distance^2 <= 144
 
-# Anim banks the clip hunt can decode today. chunk27/f02_id39 is the
-# globally-resident 3-node object bank (verified at EE 0xd1a750 in save
-# states of areas 0x11/0x06/0x02-family — same bytes in all three).
+# The door's clip container, pinned statically (s29): door INIT binds
+# actor+0x40 = D_0028A574 = D_0028A490[slot 0x39], filled at boot from
+# DATA.DAT chunk 0x1B = extract/chunk27/f02_id39.bin (globally resident,
+# verified at EE 0xd1a750 in save states of three different areas).
 DOOR_CLIP_BANKS = [
     "extract/chunk27/f02_id39.bin",
 ]
+
+# Engine clip ids from the door scripts (D_0024DE40/D_0024DEC0 op-0x0B
+# records, patched by func_001BBE40): 0/2 open toward back/front, 1/3
+# locked-jiggle back/front. Table order = open clips first so the port's
+# em_door.c (which plays clip-table entry 0) gets the open swing.
+DOOR_CLIP_IDS = (0, 2, 1, 3)
 
 
 def door_local_slots():
@@ -496,35 +514,43 @@ def door_local_slots():
 
 
 def find_door_clip(locals34, tol=1.0):
-    """Hunt the decodable id 0x74 banks for the double door's open/close
-    clip: a small-rig container whose FRAME-0 node translations include
-    the door's closed slot-1 local offset. Returns (path, clip_index,
-    parents, frames, fps) or None — honestly None today (documented in
-    the module docstring); re-runs each export so a future extraction
-    win is picked up automatically."""
+    """Resolve the door clips the way the engine does (s29): clip ids
+    index the bank file's OWN leading u32 directory (anim_clip_resolve =
+    func_001C6120: u32 count, count u32 byte offsets, low 2 bits flags) —
+    container headers there carry blob id 0x28, which the historic
+    find_id74_headers scan skips (the s20 miss). Bakes every engine door
+    clip id and verifies it against the captured closed pose: a 2-node
+    rig whose FRAME-0 slot-1 translation matches the door's closed slot-1
+    local offset. Returns (path, [(clip_id, parents, frames, fps), ...]
+    in DOOR_CLIP_IDS order) or None (-> the port's flagged placeholder)."""
     want = [row[3] for row in locals34[1]]      # slot-1 closed local t
     for bank in DOOR_CLIP_BANKS:
         p = Path(bank)
         if not p.exists():
             continue
-        em = en._load("_extract_models_doors", "extract_models.py")
         d = p.read_bytes()
-        try:
-            hdrs = em.find_id74_headers(d)
-        except Exception:
+        if len(d) < 8:
             continue
-        for ci in range(len(hdrs)):
+        count = struct.unpack_from("<I", d, 0)[0]
+        if not (max(DOOR_CLIP_IDS) < count <= 0x200):
+            continue
+        baked = []
+        for cid in DOOR_CLIP_IDS:
+            off = struct.unpack_from("<I", d, 4 + 4 * cid)[0] & ~3
             try:
-                parents, frames, fps = en.bake_id74_palettes(p, ci)
+                parents, frames, fps = en.bake_id74_palettes(
+                    p, 0, anim_hdr=off)
             except SystemExit:
-                continue
-            if not (2 <= len(parents) <= 4):
-                continue
-            f0 = frames[0]
-            for node in f0:
-                t = node[3]
-                if all(abs(t[k] - want[k]) <= tol for k in range(3)):
-                    return p, ci, parents, frames, fps
+                baked = None
+                break
+            t = frames[0][-1][3] if len(parents) == 2 else None
+            if t is None or not all(abs(t[k] - want[k]) <= tol
+                                    for k in range(3)):
+                baked = None
+                break
+            baked.append((cid, parents, frames, fps))
+        if baked:
+            return p, baked
     return None
 
 
@@ -680,7 +706,8 @@ def export_doors(args):
           f"tris, {len(tex_table)} textures, "
           f"{1 + max(sections[0][3])} slots")
 
-    # Open/close clip hunt (None today — port plays its flagged placeholder).
+    # Open/close clips, engine-resolved (s29: D_0028A490[0x39] directory
+    # ids 0-3); None -> the port plays its flagged placeholder.
     clip = find_door_clip(locals34)
     if clip is None:
         print("door clip: NOT FOUND in the decodable anim banks — EMDL "
@@ -690,10 +717,17 @@ def export_doors(args):
         parents = [-1] * len(locals34)
         fps, clips = 60.0, None
     else:
-        bank, ci, parents, frames, fps = clip
-        print(f"door clip: {bank} container {ci} — {len(frames)} frames, "
-              f"{len(parents)} nodes")
-        clips = [{"id": ci, "first": 0, "count": len(frames), "fps": fps}]
+        bank, baked = clip
+        parents, fps = baked[0][1], baked[0][3]
+        frames, clips = [], []
+        role = {0: "open back", 2: "open front",
+                1: "locked back", 3: "locked front"}
+        for cid, _par, frs, f in baked:
+            clips.append({"id": cid, "first": len(frames),
+                          "count": len(frs), "fps": f})
+            frames.extend(frs)
+            print(f"door clip {cid} ({role.get(cid, '?')}): {bank} "
+                  f"directory id {cid} — {len(frs)} frames @ {f:g} fps")
 
     tex_entries, tex_blob = lvl.build_texture_blob(
         Path(args.gsdump) if args.gsdump else None, tex_table,

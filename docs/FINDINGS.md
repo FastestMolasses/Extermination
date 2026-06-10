@@ -6055,6 +6055,13 @@ door origin (the doorway pocket) — FLAGGED approximation in em_door.c.
 
 ### 3. Door open/close clip — hunt NEGATIVE; a global 3-node object bank exists
 
+> **2026-06-10 s30 CORRECTION — FOUND, in THIS bank** (see "DOOR CLIPS
+> FOUND"): f02_id39's leading directory has 16 entries; the "5 clips"
+> below are directory ids 9/12/13/14/15 (the only blob-id-0x74
+> containers). Door clips 0-3 are blob-id-0x28 containers (directory
+> ids 0-3) that find_id74_headers skips — clip 0's frame 0 matches the
+> closed slot-1 local EXACTLY. The placeholder is retired.
+
 `chunk27/f02_id39.bin` is a 5-clip id 0x74 bank, 3-node chain rigs
 (parents -1,0,1), RESIDENT at EE 0xd1a750 in save states of three
 different areas (globally loaded, like the chunk27 model library):
@@ -8356,3 +8363,110 @@ The VM was left RUNNING and playable-ish but NOT pristine:
 - Door id 2: fully restored (closed, state 0, disarmed +0x0B=0).
 - Mag 30, reserve 118 (two test shots). All breakpoints/watches/pad
   injection cleared.
+
+## DOOR CLIPS FOUND — slot-0x39 bank pinned, bid-0x28 containers decoded, real swing shipped (2026-06-10, session 30)
+
+Closes the s20 open item "double door open/close clip UNLOCATED" and
+retires the port's flagged placeholder hinge swing. Static only (door
+.s files + local ELF dumps + extract/); no emulator.
+
+### 1. Container resolution chain (the s23 lead, run to ground)
+
+The door OPEN script's anim record does NOT carry a container: the
+op-0x0B record at 0x24DC40 is sub-6 (sound + `anim_clip_init(rec
+[+0x14])` on the owner's EXISTING +0x40 container) and its +0x1C field
+is 0 — only subs 4/5 read +0x1C (ELF dump of 0x24DBC0..0x24DF40
+re-verified byte-exact against the s23 listing; default door-clip id
+baked into both op-0x0B records is 1, patched to [2|0]/[3|1] by
+func_001BBE40 before queuing). The bind happens at door INIT instead:
+
+```
+func_001BBDA0 (door INIT, s15)
+  -> func_001B0F60(actor, 0)
+       -> func_001B0EA0(actor): model rec = func_001C6120(
+              *(D_0028A59C) per-area model table, actor+0xD) -> +0x44,
+              node count -> +0xC, bone array alloc
+       on success: actor+0x40 = D_0028A574        <- the clip container
+                   bone_init_default_2(actor, 0)
+```
+
+`D_0028A574` = `0x28A490 + 4*0x39` = **`D_0028A490[slot 0x39]`** — the
+asset pointer-slot array (s22b/s27). Slot 0x39 is filled at boot by
+DATA.DAT chunk 0x1B (s27 loader decode: chunk 0x1B fills slots
+0x35/0x37/0x39/0x3A = exactly extract/chunk27's four files) =
+**`extract/chunk27/f02_id39.bin`** — the same globally-resident bank s20
+characterized and rejected. Note `func_001B0F60` is the GENERIC placed-
+object bind: every placed object that comes up this path gets the slot-
+0x39 bank as its default clip container.
+
+### 2. Why s20 missed it: the directory has 16 entries; door clips are blob-id 0x28
+
+`anim_clip_resolve`/`func_001C6120` index the bank's OWN leading u32
+directory (count 16, offsets 0x50..0x24D0, low 2 bits flags). s20's
+hunt enumerated `find_id74_headers` scan order instead — and that
+scanner only accepts blob ids 0x74/0x2c, so it saw just 5 containers
+(directory ids 9/12/13/14/15: the 360/90/40/30/30-frame set, which is
+NOT the door group). **Directory ids 0-8 are containers with blob id
+0x28** — same header layout (n_nodes/clip_len at +0, sentinel 0xFFFE at
++4, blob id at +8, trn/scl table offsets at +0xC, parents at +0x20) and
+same 20-bit-quat / 26-bit-vec3 key encoding; `export_native.
+bake_id74_palettes(..., anim_hdr=off)` decodes them as-is (the
+id-agnostic `scan_anim_containers` already finds all 16).
+
+### 3. The door clips (directory ids 0-3, 2-node rigs, parents [-1,0])
+
+Node 0 = the door panel (hinge at the placement origin), node 1 = the
+slot-1 lock/mechanism fixture; **clip frame 0 = the live-captured
+closed pose exactly** (node-1 local (-7.69, 9.00, -0.25) = L0^-1*L1 of
+the captured A05C0 slots; clips 1-3 author it as -7.72).
+
+| id | script role | frames | motion |
+|----|-------------|--------|--------|
+| 0 | open toward back | 150 | whole assembly (panel + fixture, shared yaw) swings about the origin Y hinge, ease-out: -42.8 deg by f40, -87.1 by f80, settles -87.5 |
+| 1 | locked jiggle, back | 200 | panel STILL; the node-1 lock fixture rattles — rot-from-rest peaks 24.0 deg around f60-110, settles to 0 (times the script's 60-frame wait -> 0x3F2 rattle SFX) |
+| 2 | open toward front | 150 | same swing, slightly sharper ease (-88.2 by f75, flat after); both open variants swing the SAME direction — the panel is one-way, the side only re-times it |
+| 3 | locked jiggle, front | 200 | as clip 1, peak 15.8 deg |
+
+Directory ids 4-7 (also bid 0x28, 2-node, 200 f) translate node 1 z
++-0.9 with zero rotation — small two-state slide, not referenced by the
+door scripts (candidates: panel/station mechanism states — open).
+Id 8 = 1-node 360-frame full Y rotation (s20's "dial/beacon"). Ids 9-15
+= the old s20 set (the 3-node together/apart pair etc., still
+unidentified — NOT door parts).
+
+Hemisphere/continuity check across all four door clips: max basis-
+vector deviation 0.070/frame (≈4 deg at the swing's fastest — no sign
+flips, which would read ~2.0), max node translation jump 0.44 u/frame.
+Clean.
+
+### 4. Export + port pickup (tools/export_props.py --doors extended)
+
+`find_door_clip` now resolves clips the way the engine does — the
+file's leading directory, ids from the door scripts — and verifies each
+(2-node rig, frame-0 node-1 translation within 1.0 u of the captured
+closed slot-1 local) instead of hunting id-0x74 scan order. The door
+EMDL (`assets/scene/doors/door_m03.emdl`, port repo, git-ignored) is
+now EMD3 multi-clip: 700 palette frames @60, clip table ordered
+open-first **[0, 2, 1, 3]** (the port's em_door.c plays table entry 0;
+locked clips are reachable by engine id via `em_model_clip_index` when
+the locked subs land). Verified by readback: frame 0 reproduces the
+captured closed pose exactly (the port's closed-pose AABB hull is
+unchanged), clip-0 end pose -87.5 deg, all within-clip continuity as
+above. Port compatibility audited statically: `has_clip` keys off
+header frame_count (700>1 ok), `em_model_palette_at(clip 0)` wraps at
+the CLIP's 150 frames but `clip_t` is phase-capped at the script wait
+(90/70) so no wrap is reachable; `door_clip_total`'s whole-buffer
+`frame_count-1` only loosens that cap. The placeholder swing path
+(`DOOR_SWING_*`) is now dead code whenever the EMDL is present — the
+real motion IS a ~88 deg origin-hinge swing, so the placeholder reads
+nearly identically; the win is the authored ease-out, the exact closed
+pose, the lock-fixture motion, and the locked rattle now being
+available.
+
+Open (door clips):
+- scene_office0's door_m15/door_m17 (s28) still ship pose-only EMDLs;
+  model-0x15 (13-slot corridor door) plays the same script clip ids
+  through the same slot-0x39 2-node containers — how a 2-node clip
+  drives a 13-slot palette needs the func_001C68C0 node->slot mapping
+  read before exporting those.
+- directory ids 4-7 (z-slide pair) and 9-15 unidentified.

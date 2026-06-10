@@ -1,5 +1,30 @@
 # Extermination Decomp — Progress
 
+> 2026-06-10 (session 30): DOOR CLIPS FOUND (static) — the s20
+> "double-door clip UNLOCATED / flagged placeholder" item is CLOSED.
+> Chain: door INIT (func_001BBDA0 → func_001B0F60) binds actor+0x40 =
+> D_0028A574 = D_0028A490[slot 0x39] = extract/chunk27/f02_id39.bin
+> (boot-resident via DATA.DAT chunk 0x1B, s27 loader); the script
+> op-0x0B records carry NO container (+0x1C = 0; sub-6/sub-0 use the
+> INIT bind — ELF dump re-verified the s23 listing byte-exact). s20
+> missed it because the bank's leading directory has 16 entries and
+> door clip ids 0-3 resolve to blob-id-0x28 containers (same header +
+> key encoding as id 0x74) that find_id74_headers skips. Decoded: clips
+> 0/2 = open toward back/front (150 fr, panel + lock fixture swing
+> -87.5/-88.2° about the placement-origin Y hinge, ease-out, frame 0 =
+> the captured closed pose EXACTLY); 1/3 = locked jiggle (200 fr, panel
+> still, slot-1 lock fixture rattles 24.0/15.8° peak ~f60-110, timed to
+> the script's 60-frame wait → rattle SFX). Hemisphere-clean (max basis
+> dev 0.070/frame, max node jump 0.44 u/frame, no flips).
+> tools/export_props.py --doors now resolves clips engine-style (file
+> directory, script ids) and ships door_m03.emdl as EMD3 multi-clip
+> (700 fr, table open-first [0,2,1,3]); readback-verified, and the
+> port's em_door.c picks the real swing up automatically (frame_count>1;
+> clip_t phase-cap audited — no wrap reachable). FINDINGS: "DOOR CLIPS
+> FOUND". Open: door_m15/m17 (13-slot corridor door) node→slot mapping
+> before their clips ship; directory ids 4-7 (z-slide pair) and 9-15
+> unidentified.
+
 > 2026-06-10 (session 25): FIRE ANIM MECHANISM decoded (static) — the
 > s23 guess "fire clips 0x31/0x32/0x34/0x35 = containers 49/50/52/53"
 > is DISPROVEN and corrected in FINDINGS: those values are armed-stance
