@@ -4228,3 +4228,29 @@ full detail):
   byte-identical to pre-change baseline.
 - Open (unchanged from s29): 0x179 action identity; 0x166/0x167;
   per-surface footstep table (the port hook is ready); 0x138 trigger.
+
+### Session 28+ (2026-06-10) — generator resolved (func_0015A2C0) + port generator kind
+
+- **FINDINGS "GENERATOR — func_0015A2C0 RESOLVED"**: full .s read of the
+  most-placed creature behavior + callees and trigger pass. Revises s22:
+  the count tables (D_002481B0/D0, decoded) are a runtime MODE draw
+  (0 inert / 1 breather-trap / 2 worm emitter) stored back into +0x56;
+  emission is PLAYER-PROXIMITY-gated (pair pass func_001A8840 box test
+  vs the decoded D_00248120 footprints → +0x0A), 121 consecutive in-box
+  frames per worm, delays D_002481F0 = {1800,3600,5400} frames
+  (30/60/90 s), cap 4 then permanently exhausted; worms emerge AT the
+  generator origin (func_0015A200 copies +0xB0); the generator is
+  INDESTRUCTIBLE (no +0x34/+0x36 reads, victim filters reject it); the
+  visual is procedural VU-morph geometry (func_001E9580/001E9E60
+  per-uid 0xA060 buffers, rest vec (24,112,24)) — NO model-table entry
+  to export. Office decode: sub-state-0's 8 pads all link 0 (inert);
+  sub-state 2 arms 5 link-2 + 3 link-1.
+- **Port**: em_enemy.* gains the generator kind (`enemy generator x y z
+  yaw [kind k] [link n]`, separate EM_GENERATOR_MAX pool, decoded
+  tables/cadence, placeholder mound visual flagged); EM_ENEMY_TEST=4
+  (charge → worm-at-origin → mailbox kill → keeps emitting → 4-cap →
+  exhaustion silence) PASS; tests 1–3 byte-identical PASS; default
+  capture byte-identical. scene_office0 generator lines activated with
+  decoded kind/link (all link 0 → zero enemy-count impact).
+- Open: func_001546C0 (kind-0xE pair brain), D_00275BB0 list identity,
+  func_00187EC0 event semantics, per-area visual variant cases.

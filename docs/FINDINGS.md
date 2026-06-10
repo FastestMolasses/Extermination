@@ -8473,3 +8473,190 @@ Open (door clips):
   drives a 13-slot palette needs the func_001C68C0 node->slot mapping
   read before exporting those.
 - directory ids 4-7 (z-slide pair) and 9-15 unidentified.
+
+## GENERATOR — func_0015A2C0 RESOLVED (2026-06-10, session 28)
+
+Full .s read of the ENEMY GENERATOR (class 0x0D, model 3, 129
+placements — the engine's most-placed creature behavior) plus its
+callees, its trigger pair-pass and its data tables (decoded from the
+pristine boot ELF locally; `elf/SCUS_971.12.elf` is a REBUILT binary —
+read game data from `config/SCUS_971.12` only). This REVISES the
+session-22 headline ("RNG count tables… emits up to 4 kind-0xD per
+point"): the count tables are a MODE draw, emission is player-
+proximity-gated, and the delays are 30/90 SECONDS, not frames.
+
+### What it is
+
+An organic infected-growth FLOOR PAD. It has no model-table binding,
+no HP, no hit sphere — it idles, charges while the PLAYER STANDS ON
+IT, and depending on a mode drawn at init either opens as a damaging
+"breather" trap or births kind-0xD worms (the leech, brain
+func_00153F10).
+
+### Placement fields
+
+- `kind` (+0x54) 0–6 → config rec `D_00248120 + kind*20` (decoded):
+
+  | kind | X half-ext | Y ext | Z half-ext |
+  |---|---|---|---|
+  | 0 | 5  | 1.0 | 5  |
+  | 1 | 15 | 1.0 | 15 |
+  | 2 | 25 | 1.0 | 25 |
+  | 3 | 10 | 1.0 | 15 |
+  | 4 | 15 | 1.0 | 30 |
+  | 5 | 15 | 1.0 | 10 |
+  | 6 | 30 | 1.0 | 15 |
+
+  (fields 3/4 zero in all 7 recs). The X/Z extents are BOTH the
+  trigger box and, doubled into spad `0x700038A0/A8`, the visual pad
+  footprint handed to func_001E9580.
+- `link` (+0x56) selects the mode table: 0 = none (pad stays inert
+  forever), 1 → `D_002481B0`, 2 → `D_002481D0`.
+- `param` (+0x04 → actor +0xD): 0 = normal; 1 = the box pass fires
+  event `func_00187EC0(7,0)` instead of `(6,mode)` and does NOT set
+  the trigger flag (a "silent" pad variant).
+- `uid` (+0x0E) = the per-instance render-buffer slot (below).
+
+### INIT (state 0) — the mode draw
+
+`+0x30` = config rec ptr; anim phase seed `+0x1F4` = RNG; visual
+build func_001E9580(actor, uid). Then, link 1/2 only: draw ONE BYTE
+from the count table — row = frame RNG (`0x70003B68`) & 3, column =
+a GLOBAL per-link counter & 7 (`D_008106EC` for link 1, `D_008106ED`
+for link 2, post-incremented) — and STORE IT BACK INTO +0x56 as the
+runtime mode. Decoded tables (4 rows × 8 cols):
+
+    D_002481B0 (link 1):        D_002481D0 (link 2):
+      0 1 0 1 0 1 0 1             0 1 2 1 0 2 0 1
+      1 1 0 0 0 1 0 1             1 2 1 0 2 2 0 2
+      0 1 0 1 0 0 0 0             0 1 0 1 2 0 2 0
+      1 0 1 1 0 1 0 1             2 2 1 2 0 1 0 1
+
+  Mode semantics: 0 = inert pad, 1 = breather/trap, 2 = WORM EMITTER.
+  Link-1 placements can never become worm emitters (table 1 is 0/1
+  only; 16/32 active). If the drawn value is 1 the generator ALSO
+  immediately emits a PAIR of kind-0xE enemies
+  (`func_0015A200(actor, 0xE, 0)` and `(…, 1)` → brain func_001546C0,
+  still uncharacterized).
+
+### Trigger — actor +0x0A is "player inside my box", NOT the group alarm
+
+Pair pass `func_001A8BE0(player)` (gameplay frames only, spad
+`0x70003B8D == 0`, gated on `D_0028A9A0 == 0`): for every HAZARD-list
+entry (`D_00275BA0` — the generator registers there, not on the
+damage-target list) dispatch by model byte — 1 → func_001A8660, 3 →
+**func_001A8840** (the generator), 5 → func_001A8970.
+
+`func_001A8840(player, gen)`: box test |player+0xA0..A8 −
+gen+0xB0..B8| against rec X / rec Z, Y against rec Y + 1.5. Inside,
+param +0xD == 0: `gen+0x0A = 1` + event `func_00187EC0(6, mode)`;
+and if the pad is OPEN (`+0x0B`, breather) and player event byte ==
+1 and `D_00810707 != 1`: **player +0x22C = 5.0, player event = 3**
+— the open pad hurts the standing player. The behavior consumes
++0x0A in its tick and clears it at tick end.
+
+Second pass `func_001A8DA0`: every `D_00275BB0`-list actor ×
+every model-3 hazard with +0xD == 0 → `func_001A8CE0` box test
+(tighter Y +0.5) sets the OTHER actor's +0x0A — generators wake
+nearby list-BB0 actors (list identity unverified; open).
+
+### ACTIVE (state 1) — per mode (sub-state +0x05)
+
+Every tick first renders via func_001E9E60(actor, uid), then:
+
+- **mode 1 (breather/trap)** — sub 0 closed: morph phase `+0x80 =
+  +0x20/100`; in-box → `+0x20 += 1`, at 100 → sub 1, `+0x0B = 1`
+  (OPEN), `+0x20 = 60`, phase 1; out-of-box → `+0x20 = 0`. Sub 1
+  open: sound 0x42F every 128 frames (`0x70003B64 & 0x7F`), phase =
+  `+0x20/60`, particle fountain func_0015A750; in-box holds `+0x20 =
+  60`; out-of-box decays −1/tick → 0 → closed (sub 0, +0x0B = 0,
+  anim +0x1F0 = 0). The damage to the standing player comes from the
+  pair pass above, not the behavior.
+- **mode 2 (worm emitter)** — sub 0 charge: out-of-box → `+0x20 = 0`
+  (consecutive-frames requirement); in-box → `+0x20 += 1`; when
+  `+0x20+1 > 120` (the **121st consecutive in-box frame**) → spawn
+  ONE kind-0xD worm `func_0015A200(actor, 0xD, 0)`; on alloc success
+  `+0x2E++` (a full pool does NOT consume the cap — it retries after
+  the delay). `+0x2E >= 4` → sub 2 **EXHAUSTED, permanent**; else
+  sub 1 with `+0x20 = D_002481F0[((RNG>>16)*3)>>15]` — decoded
+  delays **{1800, 3600, 5400} frames = 30/60/90 s** — counted down
+  −1/tick in sub 1 WITHOUT needing the player, then sub 0 again.
+  Mode 2 never writes +0x80 (the pad stays at rest pose).
+- any other mode (0, or the drawn 0): inert — tail only.
+- Tail every tick: func_001B17A0 (cull/transform), clear +0x0A.
+
+States 2/3 → func_001AFC10 (free). **The behavior never reads
++0x34/+0x36** — and func_00183AC0 (the laser/bullet victim filter)
+requires class&0x1F == 2, rejecting class 0x0D; the pair-pass model
+whitelist skips model 3. The generator is INDESTRUCTIBLE; the only
+terminal state is the 4-worm exhaustion.
+
+### Spawn helper func_0015A200(parent, kind, idx)
+
+`func_001AFA90(2)` alloc (NULL → return 0); child `+0x03 = kind`
+(0xD/0xE — the model byte IS the kind), `+0x0D = parent kind(+0x54)`,
+`+0x2E = idx` (the 0/1 pair index), `+0x9A = 0`, **pos = parent
++0xB0 verbatim (vec copy — worms emerge AT the generator origin, no
+offsets)**, `+0xC0/C4/C8 = 0` (the leech brain init then yaws toward
+the player and plays 0x430), `+0x20 = parent uid(+0x14)`, brain
+`+0x10 = func_00153F10` (kind 0xD) / `func_001546C0` (kind 0xE).
+Returns 1.
+
+### Visual — procedural VU-morph, NOT a model-table entry
+
+- `func_001E9580(actor, uid, sizes=spad 0x700038A0)` (init): builds a
+  private pad-geometry buffer at `D_00275C1C + uid*0xA060`: world pos
+  at buf+0x00, full footprint (2×recX, 2×recZ) at buf+0x30/0x34,
+  wobble params at buf+0x40..0x50, then a per-AREA/ROOM shape/skin
+  variant switch on `D_00810700<<8 | D_00810701` (cases 0x1300,
+  0x803, 0x703, 0x702, 0x700, …). Texture select byte buf+0x5C.
+- `func_001E9E60(actor, uid)` (every active tick): streams 6 ring
+  segments × 8 morph rows from the buffer (0x200 stride), blending
+  each vs the REST SHAPE vec `D_0026E9B0 = (24, 112, 24)` by factor
+  `actor+0x80` (the breather phase — the pad visibly swells as it
+  charges/opens), scale buf+0x1C × actor+0x8C; prim/tex word picked
+  by buf+0x5C (0x20048CC1_55422242 / 0x20048E41_55422256); VU kernel
+  packet `D_002345E0`. (The session-21 microcode table's
+  "func_001E9E60 = kernel pair shipper" row described this upload
+  path, not a generic shipper — this is the generator pad renderer.)
+- `func_0015A750(actor)` (mode-1 open tick): particle fountain —
+  jtbl_0026D390 per kind: count {2,3,5,3,5,3,4}, spread `D_00248280`
+  = 0x18/0x20; per-particle params into D_00248200 block
+  (rec X/Z fractions −5.0, 64×phase), drawn via func_001CFAE0/
+  001CFBE0; advances the fountain phase +0x1F0 by 0.01 wrap 2→1.
+- **Nothing to export**: no EMDL/model-table id. A native port must
+  reimplement the morph (or stand in a placeholder).
+
+### Office (AREA02) placements decoded
+
+| table | recs | kinds | links |
+|---|---|---|---|
+| sub-state 0 @0x827830 | 50–57 (uid 0–7) | 5,0,0,1,5,1,1,1 | **all 0 → INERT** |
+| sub-state 2 @0x8283D0 | 43–50 (uid 0–7) | 3,0,5,0,1,0,5,1 | 2,1,2,1,2,1,2,2 |
+
+The main-floor story beat (sub-state 0, the exported scene_office0)
+ships only DECORATIVE pads; the "after" population (sub-state 2)
+arms 5 link-2 (worm-capable) + 3 link-1 pads on the same floor plus
+the annex. All param 0, yaw 0, y = 0.01.
+
+### Port status (extermination-port src/game/em_enemy.*)
+
+`enemy generator x y z yaw [kind k] [link n]` implemented per the
+above: decoded footprints/tables/charge/delays/cap, worm-at-origin
+spawns through the normal crawler path, indestructible, separate
+EM_GENERATOR_MAX pool (hazard-list semantics: not shootable, not
+acquirable, excluded from alive counts). Flagged stand-ins: module
+LCG for the draws, one-shot mailbox-5 trap hit, placeholder mound
+visual (phase = Y swell), mode-1 kind-0xE pair untranslated, manifest
+parsed by an em_enemy-side shim (em_game.c's kind table not touched).
+`EM_ENEMY_TEST=4` validates charge→worm→kill→cap→exhaustion (delays
+/60, test-only). scene_office0/scene.txt's 8 generator lines are now
+ACTIVE with decoded kind/link (all link 0 → inert: zero enemy-count
+impact; documented in the manifest).
+
+### Open
+
+- func_001546C0 (kind 0xE, the mode-1 pair) — uncharacterized.
+- `D_00275BB0` list identity (the second box pass's wake targets).
+- func_00187EC0(6/7, …) event semantics (rumble? ambient cue?).
+- The per-AREA/ROOM visual variants of func_001E9580 (case table).
