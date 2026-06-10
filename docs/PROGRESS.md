@@ -33,6 +33,21 @@
 > lowered/over-shoulder aim camera; default capture byte-identical; all
 > port self-tests PASS.
 
+> 2026-06-10 (session 23c): door-path decomp wave — func_001BBD60 (door
+> sound-pair patcher) and func_001BC240 (door sub-3→4 commit step)
+> verified already 100%-matched (committed 572ab29); 3 walls
+> characterized with best-attempt C inline in their stubs:
+> func_001BC150 85.6% (NEW temp-register POOL-ORDER wall + prologue pair
+> + #13), func_001B99F0/001B9A00 ~93.5% (dense-switch dispatch wall 2nd
+> confirmation; two-function unit + mid-function ftab entry + case-
+> fallthrough mid-block jtbl entry all reproduce from C), func_001BBE40
+> 91.5% (all residuals known walls). NEW IDIOM 19: tail calls (`jr`
+> through a loaded pointer) ARE matchable. New datums: bare-params-first
+> for the reversed saved-reg mapping (param copies INVERT s1/s2); float
+> literals = CW's lui/ori→mtc1 (the bit-pattern int form allocates a
+> stack slot — keep it only for integer stores); volatile pins short
+> distinct-global blocks (2 more confirmations). Idioms section below.
+
 > 2026-06-10 (session 23 port wiring): DOOR-OPEN ANIMS IN THE PORT —
 > player.emdl re-exported with the s23 door/scripted-walk clips appended:
 > `export_native.py --attach --mesh extract/chunk28/f00_id3b.bin
@@ -865,6 +880,74 @@ volatile order only, freely interleaving different volatile globals
 lever is coarse statement order (per-list [pubCursor, pubCount,
 resetCursor, resetCount] beat 5 other legal orders by 4-14 points); the
 residual interleave is the documented scheduler-divergence wall.
+REFINEMENT (2026-06-10, door-wave session): for SHORT mixed blocks
+volatile across distinct objects DOES hold program order in mwcc 2.3 —
+two confirmations: func_001B9A00 case 6 (2 loads + 3 stores on five
+distinct globals D_00810350/354/358/360/368: matched only after declaring
+all five volatile, including the f0 register reuse), and func_001BBE40
+(volatile on the five script patch points D_0024DC14/DC54/DC8C/DCD4/DD14
+recovered CW's store order AND flipped the shared `1` constant into CW's
+v1). The func_001AAD00 failure is specific to LONG gp-rel swap blocks.
+
+19. **Tail calls ARE matchable** (2026-06-10, func_001B99F0 op-09 handler,
+    byte-identical 3-instr prefix). mwcc 2.3 emits the MIPS sibling-call
+    shape `lw v0, 0x4(a2); jr v0; nop` for
+    `return ((int (*)(...))rec[1])(actor, blk, rec);` — a call in tail
+    position whose arguments pass through unchanged. Do not skip
+    `jr <reg>`-tail functions assuming mwcc can't produce them.
+
+NEW WALL DATUM — temp-register POOL ORDER (2026-06-10, func_001BC150 /
+door transition commit, wall-blocked at 85.61%; O3/O4 identical, O2
+60.9%). For the four short pre-branch temp webs (door-id lbu, dest-table
+reloc pair, area lbu, door-id lh) CW 2.3.1 allocates v1 / v0->a1 split
+pair / a2 / v0; mwcc 2.3 allocates a1 / v1 same-register pair / a0 / v0 —
+it prefers free ARGUMENT registers for short temp webs and never picked
+a2. Idiom-7 fake-param pinning FAILS for values ASSIGNED from memory
+loads: the assignment kill-renames the web and mwcc reallocates it by its
+own pool order (idiom 7's matrix-copy temps worked because the loads were
+the webs' only def, feeding stores, call-free). Statement reorder
+(idiom 12) does not move the loads — the scheduler hoists all loads above
+the address pair regardless of source order. Same attempt also hit the
+prologue ADDRESS-pair split (pair interleaved around `sq s0`) and wall
+#13. NOTE: split-REGISTER reloc pairs (`lui v0; addiu s0, v0, %lo`) are
+NOT themselves a wall — mwcc emits them when the destination is a saved
+register or a second live temp (matched in func_001B9A00's prologue and
+cases 4/1); the same-register-pair divergence is specific to short temp
+webs.
+
+NEW DATUM — param-to-saved-register mapping: BARE params first
+(2026-06-10, func_001BBE40 kickoff, 91.5% best). With a body-local
+pointer assigned first (winning s0, idiom 15) and params used DIRECTLY,
+mwcc reproduces CW's reversed-by-declaration mapping a0->s3, a1->s2,
+a2->s1 exactly. Copying params to explicit locals (`d = door; b = blk;
+m = mode;` in any order) INVERTS mwcc's s1/s2 choice — the copies
+collapse by copy-prop and re-rank the webs. Counter-datum to the
+anim_sample_bones param-copy trick: when the target mapping is already
+a0->sN .. aN->s1, use bare params; reach for the copy trick only when
+the target mapping deviates from that.
+
+NEW DATUM — float-constant forms (2026-06-10, func_001BBE40): plain
+float literals (e.g. `1.5707963705062866f`, `5.0f`) compile to CW's
+exact `lui/ori -> mtc1` integer materialization — including inside
+compares and `const * call()` products (idiom-2 operand order applies).
+`*(int *)&f = K` is the WRONG form for values consumed as floats: mwcc
+allocates a STACK slot and round-trips sw/lwc1 (cost ~15 rows + frame
+growth). Keep the bit-pattern form only for INTEGER stores of float
+constants (`D_0024DC8C = 0x42B40000`, `*(volatile int *)0x700038AC =
+0x3F800000` — both matched).
+
+NEW WALL DATUM — dense-switch jump-table dispatch order, 2nd confirmation
+(2026-06-10, func_001B99F0/func_001B9A00 op-0A player-anim handler,
+~93.5% genuine rows): mwcc [lui jtbl, sll idx, addiu %lo, addu] vs CW
+[lui, addiu, sll, addu], as in func_001BA080. Two additional structure
+datums from the same unit: (a) a TWO-FUNCTION translation unit compiles
+fine — mwcc emits one .text section per function, and the ftab's
+mid-function entry point (func_001B99F0+0x10) is just the second
+function; (b) a jump-table entry landing MID-BLOCK in another case's body
+reproduces naturally from C `case 4: ... /*fallthrough*/ case 0:`.
+Reminder: a matched dense-switch function still cannot be LINKED from C —
+the compiled object carries its own local jump table while the original
+table lives in the shared data region (jtbl_0026E0B0).
 
  
 NOT A WALL — paddub register moves (correction 2026-06-XX). mwcc DOES emit
@@ -3807,3 +3890,31 @@ full detail):
   static/prop kernel's W encoding (single-node blobs, matrix at dmem
   qw 0).
 - FINDINGS: new section "CRAWLER RESOLVED" (s22 §3 corrections inline).
+
+### Update — 2026-06-10 s25: STATUS SCREEN fully mapped (draw-chain decode, live-driven)
+
+- **The Triangle/Start status screen is completely documented** —
+  FINDINGS new section "STATUS SCREEN LAYOUT": 512x448 UI canvas and
+  GS offset convention (0x700/0x790, y halved), every element with
+  position/size/color (profile block, HEALTH circular ring gauge at
+  (208,197) with red low state + rotating highlight, battery half-unit
+  square bar w/ magenta→yellow gradient, SPR4 reserve row + secondary
+  weapon dispatch, INFECTION text-only block, page-selector diamond),
+  the UI primitive vocabulary (flat quad / textured sprite / text /
+  annular-arc-from-param-block `func_002082B0`), text style records at
+  `0x265510..`, and the controller state machine (`0x810130` ctx,
+  stick-hover page selection, X→ sub-screens loaded from disc to
+  `0xB00000`, ids 0x1E/0x1F/0x24/0x25/0x26/0x2C).
+- **Start opens the same screen as Triangle** — there is no separate
+  pause menu; the status hub IS the menu.
+- GS dump was not capturable headlessly (no DebugServer command, Pine
+  down, menu action needs GUI) — decode done from code + live RAM;
+  texture imagery (title/portrait/icons) still needs a VRAM capture.
+- Port: concrete 10-point fix list for `em_hud.c` recorded in FINDINGS
+  (canvas size, real anchors, ring gauge, battery half-units, no mag
+  display, infection text-only, Start toggle, UI-camera scene swap,
+  font renderer priority, em_hud.h staleness).
+- Tooling gotchas recorded: `pcsx2_step` leaves temp breakpoints that
+  re-trigger every `continue`; `pcsx2_read_registers` pauses the VM.
+- Game state verified restored (inventory block, health/infection
+  byte-identical; overlay closed; VM left running).
