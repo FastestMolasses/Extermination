@@ -111,11 +111,26 @@ W_TOL = 0.25
 IDENT34 = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]]
 
 # ---------------------------------------------------------------------------
-# Live placements for chunk06.n1/f03_id43.bin (office scene), recovered
-# 2026-06-09 s8 from the running game's per-frame DMA chain: per draw unit,
-# W = K_L^-1 * M (K_L = the static level draw's camera upload; M = the
-# unit's dmem matrix set). Rows are the first three rows of the affine
-# world matrix [R | t].
+# Placements for chunk06.n1/f03_id43.bin (office scene).
+#
+# PRIMARY (disc-faithful, 2026-06-10 s11): the engine's per-area object
+# PLACEMENT TABLE, static data inside OVERLAY/AREA02.BIN (state-1 table at
+# overlay vaddr 0x828170; see tools/placements.py for the registry, record
+# layout and the spawner func_001B6990). One record per placed object /
+# pickup: pos + Euler rot + class/model/kind. Single-matrix instances are
+# fully table-driven; multi-slot assemblies (doors, station, panel) take
+# their BASE from the table and their internal slot articulation from the
+# live-captured matrices below (slot offsets are runtime animation state,
+# not in the table; live slot 0 == table base for every such object).
+#
+# FALLBACK (no overlay file): the hand-recovered live matrices below,
+# captured 2026-06-09 s8/s9 from the running game's per-frame DMA chain:
+# per draw unit, W = K_L^-1 * M (K_L = the static level draw's camera
+# upload; M = the unit's dmem matrix set). Rows are the first three rows
+# of the affine world matrix [R | t].
+
+OFFICE_OVERLAY = "AREA02.BIN"          # office = area 02, sub-state 1
+OFFICE_TABLE_VADDR = 0x828170
 
 SUBOBJ_SLOTS = [   # 13-set palette, REF 4420qw @ file 0x88840 (corridor door)
     [[0.0, -0.0, 1.0, 74.999991], [0.0, 1.0, 0.0, 0.000004], [-1.0, 0.0, 0.0, -188.199997]],
@@ -170,18 +185,30 @@ BLOB_A3040 = [   # 0x82qw @ 0xA3040, TWO instances
 
 # region = (lo, hi, mode, mats); mode "world" ignores mats, "slots" indexes
 # mats by the record slot bits, "instances" replays the region once per mat.
+# (lo, hi) extents of the movable-object blob regions, shared by the
+# table-driven and fallback region builders:
+RGN_CORRIDOR = (0x088840, 0x099C80)    # 13-slot corridor door assembly
+RGN_PANEL    = (0x09A140, 0x09A960)    # 3-slot door control panel
+RGN_STATION  = (0x09AAC0, 0x0A0420)    # 3-slot wall station (ammo refill)
+RGN_DOOR     = (0x0A05C0, 0x0A2640)    # 2-slot double door (per doorway)
+RGN_CRATE    = (0x0A2740, 0x0A2F60)    # supply crate        (item 0x0B)
+RGN_AMMO_C   = (0x0A3040, 0x0A3860)    # ammo box            (item 0x0C)
+RGN_AMMO_D   = (0x0A3940, 0x0A41C0)    # ammo box            (item 0x0D)
+RGN_BATTERY  = (0x0A4240, 0x0A8340)    # table-top device, model 0x2C
+RGN_LOCKERS  = (0x0A8440, 0x0AC540)    # lockers, model 0x38
+
 CHUNK06N1_REGIONS = [
     (0x000000, 0x0820C8, "world", None),
-    (0x088840, 0x099C80, "slots", SUBOBJ_SLOTS),
-    (0x09A140, 0x09A960, "slots", SUBOBJ_9A100),
-    (0x09AAC0, 0x0A0420, "slots", SUBOBJ_9AA80),
-    (0x0A05C0, 0x0A2640, "slots", BLOB_A05C0),
-    (0x0A05C0, 0x0A2640, "slots", BLOB_A05C0_W),   # second doorway instance
-    (0x0A2740, 0x0A2F60, "instances", BLOB_A2700),
-    (0x0A3040, 0x0A3860, "instances", BLOB_A3040),
-    (0x0A3940, 0x0A41C0, "instances", BLOB_A3940),
-    (0x0A4240, 0x0A8340, "instances", BLOB_A4240),
-    (0x0A8440, 0x0AC540, "instances", BLOB_A8440),
+    (*RGN_CORRIDOR, "slots", SUBOBJ_SLOTS),
+    (*RGN_PANEL,    "slots", SUBOBJ_9A100),
+    (*RGN_STATION,  "slots", SUBOBJ_9AA80),
+    (*RGN_DOOR,     "slots", BLOB_A05C0),
+    (*RGN_DOOR,     "slots", BLOB_A05C0_W),   # second doorway instance
+    (*RGN_CRATE,    "instances", BLOB_A2700),
+    (*RGN_AMMO_C,   "instances", BLOB_A3040),
+    (*RGN_AMMO_D,   "instances", BLOB_A3940),
+    (*RGN_BATTERY,  "instances", BLOB_A4240),
+    (*RGN_LOCKERS,  "instances", BLOB_A8440),
 ]
 CHUNK06N1_SHA1 = "unpinned"   # match by name+size instead (disc data stays local)
 CHUNK06N1_SIZE = 0xAC800
@@ -340,6 +367,88 @@ class MeshBuilder:
                     self.n_strip_tris += 1
 
 
+# ---------------------------------------------------------------------------
+# Table-driven placement (disc-faithful path)
+
+def mat34_mul(a, b):
+    """3x4 affine compose a*b (both [R|t] as 3 rows of 4)."""
+    return [[a[i][0] * b[0][j] + a[i][1] * b[1][j] + a[i][2] * b[2][j]
+             + (a[i][3] if j == 3 else 0.0) for j in range(4)]
+            for i in range(3)]
+
+
+def mat34_inv_rigid(m):
+    """Inverse of a rigid 3x4 [R|t]: [R^T | -R^T t]."""
+    r = [[m[j][i] for j in range(3)] for i in range(3)]
+    t = [-(r[i][0] * m[0][3] + r[i][1] * m[1][3] + r[i][2] * m[2][3])
+         for i in range(3)]
+    return [[r[0][0], r[0][1], r[0][2], t[0]],
+            [r[1][0], r[1][1], r[1][2], t[1]],
+            [r[2][0], r[2][1], r[2][2], t[2]]]
+
+
+def anchor_slots(live_slots, base34):
+    """Re-anchor a live-captured slot-matrix set on a table base placement:
+    slot_k = B * L0^-1 * L_k. The internal articulation (door panels,
+    station sub-parts) is runtime state, not in the table; live slot 0
+    equals the table base for every captured assembly, so this reproduces
+    the capture exactly while taking the placement from the disc."""
+    l0inv = mat34_inv_rigid(live_slots[0])
+    return [mat34_mul(base34, mat34_mul(l0inv, lk)) for lk in live_slots]
+
+
+def table_driven_regions(level_path: Path):
+    """Build the chunk06.n1 region list from the disc placement table
+    (OVERLAY/AREA02.BIN state-1 table @0x828170; see tools/placements.py).
+    Returns None when the overlay file is missing (caller falls back to
+    the embedded live matrices)."""
+    ov_path = level_path.parent.parent / "OVERLAY" / OFFICE_OVERLAY
+    if not ov_path.exists():
+        return None
+    pl = _load("_placements", "placements.py")
+    entries = pl.parse_table(ov_path.read_bytes(), OFFICE_TABLE_VADDR)
+
+    doors = [e for e in entries
+             if (e.spawn_class & 0x1F) == 5 and e.model == 3]
+    corridor = [e for e in entries if (e.spawn_class & 0xFF) == 8]
+    fixture = {e.model: e for e in entries
+               if e.kind == 4 and (e.spawn_class & 0x1F) in (4, 6)
+               and e.spawn_class & 0x80}
+    pickups = lambda item: [e for e in entries
+                            if e.kind == 0xB and e.param == item]
+
+    need = (doors and corridor and
+            all(m in fixture for m in (0x36, 0x37, 0x2C, 0x38)))
+    if not need:
+        print("warning: placement table lacks expected office objects — "
+              "falling back to embedded live matrices")
+        return None
+
+    regions = [(0x000000, 0x0820C8, "world", None)]
+    regions.append((*RGN_CORRIDOR, "slots",
+                    anchor_slots(SUBOBJ_SLOTS, corridor[0].matrix34())))
+    regions.append((*RGN_PANEL, "slots",
+                    anchor_slots(SUBOBJ_9A100, fixture[0x36].matrix34())))
+    regions.append((*RGN_STATION, "slots",
+                    anchor_slots(SUBOBJ_9AA80, fixture[0x37].matrix34())))
+    for e in doors:           # one 2-slot replay per doorway in the table
+        regions.append((*RGN_DOOR, "slots",
+                        anchor_slots(BLOB_A05C0, e.matrix34())))
+    for rgn, item in ((RGN_CRATE, 0x0B), (RGN_AMMO_C, 0x0C),
+                      (RGN_AMMO_D, 0x0D)):
+        ents = pickups(item)
+        if ents:
+            regions.append((*rgn, "instances",
+                            [e.matrix34() for e in ents]))
+    regions.append((*RGN_BATTERY, "instances", [fixture[0x2C].matrix34()]))
+    regions.append((*RGN_LOCKERS, "instances", [fixture[0x38].matrix34()]))
+    print(f"placements: table-driven from {ov_path.name} @"
+          f"{OFFICE_TABLE_VADDR:#x} ({len(entries)} entries: "
+          f"{len(doors)} doors, {sum(len(pickups(i)) for i in (0xB, 0xC, 0xD))}"
+          " pickups)")
+    return regions
+
+
 def load_level_mesh(level_path: Path):
     """Decode the render mesh into one EMDL section using the per-file
     region map (live placements baked in). Returns (sections, tex_table,
@@ -347,7 +456,11 @@ def load_level_mesh(level_path: Path):
     d = level_path.read_bytes()
     sibling = None
     if len(d) == CHUNK06N1_SIZE and level_path.name == "f03_id43.bin":
-        regions = CHUNK06N1_REGIONS
+        regions = table_driven_regions(level_path)
+        if regions is None:
+            print("note: OVERLAY/AREA02.BIN not found — using embedded "
+                  "live-captured placements")
+            regions = CHUNK06N1_REGIONS
         sib_name, sib_lo, sib_hi = CHUNK06N1_SIBLING
         sib_path = level_path.parent / sib_name
         if sib_path.exists():

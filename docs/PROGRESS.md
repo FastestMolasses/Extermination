@@ -3143,3 +3143,22 @@ full detail):
   ctx+0x23C0 verified to 1e-8 against two save states. Full field map,
   mode table, and native-port contract in FINDINGS "CAMERA SYSTEM"
   (2026-06-10); probe tool `tools/camera_probe.py`.
+
+### Update — 2026-06-10 s11: placements are DISC-FAITHFUL (OVERLAY tables decoded)
+
+- The s9 placement table is **static data in `OVERLAY/AREAxx.BIN`** (loaded
+  flat at 0x823500): registry `0x24D7C0[area]` → per-area descriptor →
+  per-sub-state table vaddr; 0x28-byte records, 0x00FF sentinel; spawner =
+  `func_001B6990` (s9's read was shifted +8; full corrected field map in
+  FINDINGS s11). Live tables byte-identical to the disc files in both save
+  states. Office = `AREA02.BIN` sub-state-1 table @0x828170 (14 entries);
+  snow = `AREA06.BIN` @0x827AC0 (57); state-01 area = `AREA11.BIN`
+  @0x82A3C0 (21). New tool `tools/placements.py` (parse/scan/JSON).
+- The office "knife pickup" at (115,1.5,-269.3) is a **third item-0x0C ammo
+  box** (byte-identical class/kind/item to its two neighbors; behavior fn
+  0x1C4820 = generic pickup) — no knife pickup exists on disc; s9's model
+  attribution was wrong.
+- `tools/export_level.py` now builds office placements from the disc table
+  (live matrices kept as fallback; multi-slot assemblies anchor live
+  articulation on the table base): 4205 → **4217 tris** / 6475 verts / 115
+  textures; port rebuilt and EM_CAPTURE-verified.

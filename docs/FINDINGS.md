@@ -4728,3 +4728,120 @@ composition, fog — **high** (live-verified in both states; K = P·V to
 `tools/camera_probe.py`.
 
 _Last updated: 2026-06-10 (session 10)._
+
+## PLACEMENT TABLES ARE DISC DATA — OVERLAY/AREAxx.BIN record format + spawner decoded (2026-06-10, session 11)
+
+Static analysis of the extracted `OVERLAY/` modules cross-checked against
+EE RAM from save states 01 (area 0x1100) and 03 (snow, area 0x0600) via
+`tools/parse_pcsx2_state.py`, plus the main-ELF spawner disassembly. This
+closes s9's "table is the authoritative source" with the actual DISC
+source: **no live capture is needed for object placements anymore.**
+Tool: `tools/placements.py` (parser + scanner + JSON dump).
+
+### 1. The disc source
+
+The s9 "live placement table at EE 0x828170" is **static data inside the
+area's overlay module**, loaded FLAT at the overlay arena base `0x823500`
+(office table = `OVERLAY/AREA02.BIN` file offset 0x4C70 = vaddr 0x828170).
+Live tables in both save states are **byte-identical** to the overlay
+files — the engine never mutates them (mutable pickup/object state lives
+in scratchpad words at `0x70003250`, see below).
+
+Lookup chain (spawner `func_001B6990`, queried later by `func_0019C6F0`):
+
+    desc  = *(u32*)(0x0024D7C0 + 4*D_00810700)   ; area number (code hi byte)
+    table = ((u32**)desc)[D_00810701]            ; area sub-state (lo byte)
+
+`D_0024D7C0` is a static per-area pointer array in main .data; each slot
+points to a per-area DESCRIPTOR (in main .data for some areas, inside the
+overlay for others) = an array of placement-table vaddrs indexed by story
+sub-state (area code 0x0200/0x0201/0x0202 → desc[0..2]). Known tables:
+
+- `AREA02.BIN` (the office level, chunk06.n1): desc @0x828C40 =
+  `{0x827830, 0x828170, 0x8283D0}`. The s8/s9 captured office scene is
+  **sub-state 1** (table 0x828170, 14 entries). States 0 and 2 are
+  near-duplicate 58-entry lists for the area's other sub-states.
+- `AREA06.BIN` (snow, save state 03): desc @0x275948 (main .data) =
+  `{0x827AC0, 0x8283D0}`; state-0 table = 57 entries.
+- `AREA11.BIN` (save state 01): table 0x82A3C0, 21 entries.
+
+### 2. Record layout (0x28 bytes) — s9's read was shifted +8
+
+Each table is a flat array of 0x28-byte records ending in a sentinel
+record whose halfword +0x00 == 0x00FF. (s9 read the entries starting at
++0x08, so its "type word" was this record's `kind`.) Fields, with the
+actor offsets `func_001B6990` copies them to:
+
+    +0x00 u16 spawn_class  & 0xFF1F = class (4 generic actor, 5 double
+                           door, 6 wall station, 8 door assembly, 2
+                           link-special, ...); low-byte bits 5..7 = flags
+                           (0x84/0x85/0x86 observed). 0xFF = END sentinel.
+                           Low byte 0x0B = scripted/deferred spawn: the
+                           area-load spawner SKIPS it (func_0019C6F0
+                           queries those records on demand).
+    +0x02 u8  model        object/model record selector → actor+0x03
+                           (office: 0x36 control panel, 0x37 wall station,
+                           0x2C battery device, 0x38 lockers, 0x03 door;
+                           same model byte ↔ same behavior fn across areas)
+    +0x03 u8  flags2       → actor+0x2E (door variants 0x81/0x02/...)
+    +0x04 u16 param        → actor+0x0D; for kind-0xB pickups = ITEM TYPE
+    +0x06 u16 uid          → actor+0x0E; high byte = per-area unique id =
+                           index of the object's state word in scratchpad
+                           0x70003250 (func_0019C6F0 tests bit 0x20000000,
+                           sets/clears 0x40000000)
+    +0x08 u16 kind         → actor+0x54 (s9's "type"): 4 = placed object/
+                           door, 0xB = item pickup, 0xD/0xE = enemy
+                           spawns, 0x46 fixture, 3/8/0xA/0x52 = others
+    +0x0A u16 link         → actor+0x56; 0xFFFF none; doors: room/door
+                           link id + flags (0x0200/0x0280 office doors)
+    +0x0C f32 pos[3]       → actor+0xB0..B8 (world units)
+    +0x18 f32 rot[3]       → actor+0xC0..C8, Euler radians, ry = yaw;
+                           rx/rz almost always 0 (W = Ry·t verified
+                           against every s8/s9 live matrix to ~1e-3)
+    +0x24 u32 behavior     → actor+0x10: actor BEHAVIOR FUNCTION pointer
+                           (main ELF or overlay): 0x1C4820 generic placed
+                           prop/pickup state machine, 0x1BC350 door,
+                           0x1551B0 enemy spawn, 0x159xxx per-fixture, ...
+
+The s9 "class ptr" is therefore a function pointer, not a class record.
+Multi-slot assemblies (13-slot corridor door, 3-slot panel/station,
+2-slot double doors) have ONE record each: the table holds the BASE
+placement (== live slot-0 matrix in every captured case); per-slot
+articulation is runtime animation state. Validated: composing
+`B·L0⁻¹·L_k` from the table base + office-door live slots reproduces the
+WEST door's live slot matrices to 1e-2 — the articulation is door-local.
+
+### 3. The office (115.0, 1.5, -269.3) "knife pickup" is an AMMO BOX
+
+The office table's 7 pickups (kind 0xB, behavior 0x1C4820, model byte 0):
+
+    item 0x0D, uids 2,3:   (115.6,9.4,-280.1) (116.3,1.5,-289.9)  → blob 0xA3940
+    item 0x0C, uids 4,5,6: (116.3,9.4,-266.6) (116.6,1.5,-264.2)
+                           (115.0,1.5,-269.3)                     → blob 0xA3040
+    item 0x0B, uids 7,8:   (75.7,0,-302.0)    (82.5,0,-302.4)     → blob 0xA2740
+
+The (115.0,1.5,-269.3) record is byte-identical in class/kind/item type
+to the two ammo-box pickups beside it (item type 0x0C; differs only in
+uid 6 and yaw 0.15) — it is a **third 0x0C ammo box**, drawn with the
+same 0xA3040 blob. There is NO knife pickup in the disc data (matching
+in-game observation); s9's "knife model 106 at (115.0,1.5,-269.3)" was a
+frame-capture misattribution. Item-type → blob pairing (0x0B crate,
+0x0C/0x0D ammo boxes) is consistent across both instances of each type.
+
+### 4. export_level.py is now table-driven
+
+`tools/export_level.py` builds the chunk06.n1 region placements from
+`extract/OVERLAY/AREA02.BIN` (state-1 table) when present: single-matrix
+instances (pickups, crates, battery, lockers) come straight from the
+table (`Ry(yaw)+t`); multi-slot assemblies anchor the live-captured slot
+sets on the table base (`B·L0⁻¹·L_k`). The embedded live matrices remain
+as the no-overlay fallback. Office export: 6451→6475 verts, 4205→4217
+tris (the third 0x0C ammo box), 115 textures; port-rendered OK
+(EM_CAPTURE).
+
+Open: rot[3] composition order when rx/rz ≠ 0 (none in the office table;
+AREA11 has one rx=-0.314 entry); semantics of kinds 3/0xA/0xD/0xE/0x46/
+0x52; the class-0x0B scripted-spawn records' trigger conditions; item-
+type id → inventory-item name mapping (0x0B/0x0C/0x0D...).
+
+_Last updated: 2026-06-10 (session 11)._
