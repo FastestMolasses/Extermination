@@ -1,6 +1,6 @@
 # Extermination Decomp — Progress
 
-## Current status (2026-06-10, through session ~s39)
+## Current status (2026-06-10, through session ~s42)
 
 Two tracks, both far along. The matching decomp is verifiably byte-perfect
 end-to-end and ~96.2% of game-code bytes are committed readable/matching C;
@@ -131,6 +131,28 @@ below are kept as historical record; this block supersedes them.)
 Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
+
+> 2026-06-10 (session 42): MESSAGE BANK EXPORTED + PORT TEXT — full
+> decode of chunk00/f02_id02.bin (asset slot 2): exact two-level layout
+> (group dir -> OUTER markup directory -> TEXT blob with per-line
+> offset/len entries; groups 3/4 carry 119 inline style-markup lines),
+> all 9 groups' content domains inventoried (hub help/diary, ITEM
+> categories, SPR4 components, 64-line item catalog + "Found:"
+> variants, action prompts, 11 map names, memory-card text, OPTIONS
+> labels). New `tools/export_ui.py --messages` -> assets/messages.emsg
+> (.emsg v1: group/line directory + offset table + NUL blob). Hub help
+> selection pinned exactly (func_0020CDC0: hover -> page-name line
+> 0/9/2/1; idle -> infection diary with the previously missing 0xB
+> threshold, infection 0 -> no line, 100 -> "Dennis Infected"); help
+> draws at canvas (138,336), '\n' steps 24 px (func_001FE070 line
+> advance (20+4)/2 field). Port em_hud: loads messages.emsg (missing =
+> skip), hub help panel shows the real engine line, ITEM page renders
+> a basic real interior (group-1 category labels + the two modeled
+> counts: battery pack by gauge + SPR4 MAGAZINE x reserve/30, flagged;
+> strip reads "PARTIAL: AMMO/BATTERY ONLY"). Verified: tests PASS;
+> default + bank-absent hub captures byte-identical; hub idle/hover
+> and ITEM-page captures show the real text. FINDINGS "MESSAGE BANK
+> EXPORTED" s42.
 
 > 2026-06-10 (session 41): MATCHING WAVE over the s33/s36 stub set —
 > +1 readable-C match: func_00179B90 (footstep rand 0..4 fold) at 100%,

@@ -9808,3 +9808,111 @@ PAGE counter + legend, ITEM's title.
 - The two keypad codes (`D_00275858[0/1]`) and the unlock flags'
   consumers — read the strings from the local ELF and tie to the
   METAL TAG / Maximum Security flow.
+
+## MESSAGE BANK EXPORTED — full decode of chunk00/f02_id02.bin, group inventory, hub-help selection rule, port help/ITEM text (2026-06-10, session 42)
+
+Static pass closing two s39 threads: the message bank is now fully
+decoded and EXPORTED (`tools/export_ui.py --messages` →
+`assets/messages.emsg`), and the port's em_hud consumes it — the hub
+help panel shows the engine's real help line and the ITEM page renders
+a basic real interior. No emulator needed.
+
+### Bank on-disc layout (refines the s39 sketch; engine-verified)
+
+`extract/chunk00/f02_id02.bin` = boot-chunk asset slot 2 (runtime
+pointer `D_0028A498`), resolved by `func_001FCB90(x, y, group, line)`
+→ `func_001FE070`. Exact layout (LE; offsets relative to the named
+header):
+
+- bank header `{u32 dir_base=0xA0, u32 ngroups=9, u32 total=0x6200,
+  u32 dir_off=0x10}`; group dir at `dir_off`: 16-byte entries
+  `{u32 group_off (rel dir_base), u32 group_off>>4, u32 size,
+  u32 padded_size}`.
+- group OUTER blob at `bank + dir_base + group_off`:
+  `{u32 text_off, u32 line_count, u32 records_size, u32 0x10}` +
+  line_count x 16-byte MARKUP entries `{u32 records_off (rel OUTER),
+  ?, ?, u32 nrecords<<4}` (`func_001FE4B0`/`func_001FE4D0`; the
+  16-byte control records — inline style/color/glyph-size runs, types
+  2/3/4 in `func_001FE070` — live between this table and the text;
+  groups 3/4 use them on 119 lines, all other groups are zero).
+- group TEXT blob at `OUTER + text_off + records_size`
+  (`func_001FE460`'s walk): `{u32 strbase (= 0x10 + 16*count),
+  u32 line_count, u32 str_bytes, u32 1}` + per-line 16-byte entries
+  `{u32 off, u32 off, u32 len, u32 len+1}` (`func_001FE480`: string N
+  = TEXT + strbase + off), then the NUL-terminated ASCII strings.
+  '\n' = in-entry line break; the line table agrees exactly with the
+  s39 "Nth NUL-string" walk (exporter cross-checks both).
+
+### Group inventory (content domains, full dump read)
+
+| group | lines | domain |
+|---|---|---|
+| 0 | 10 | HUB HELP — page names (0 DATABASE / 1 ITEM / 2 MAP / 9 SPR4 SCREEN), 3 "Dennis Infected", 4–8 infection diary (graded) |
+| 1 | 5 | ITEM screen category banners: BATTERY / EQUIPMENT / EVENT ITEMS, MAIN MENU, HEALING ITEMS (label + '\n' + description per line) |
+| 2 | 6 | SPR4 screen component slots: SCOPE MOUNT, MULTIPLE ATTACHMENT, LOWER/UPPER U.R.S., SELECTOR SWITCH, MAIN MENU |
+| 3 | 64 | ITEM CATALOG names+descriptions, indexed by record/type id: 0–15 weapon attachments, 16–22+63 `\` placeholders (the no-database ammo types), 23–29 gear/batteries (BATTERY PACK 6/18/24 GAUGE = lines 27/28/29), 30–34 healing, 35–44 event items (CARD KEYs, METAL TAGs, DVD-ROM, GARY'S BOMB…), 45–59 the 15 RECON DOGTAGs (named Marines), 60 MISSILE LAUNCHER, 61–62 fire modes. Carries inline markup records (color runs — e.g. card-reader glyphs) |
+| 4 | 64 | same index space, the "Found:" PICKUP-POPUP / database variants (s39's help group 0x64 → `func_001FCF90`); also markup |
+| 5 | 28 | ACTION PROMPTS / confirm dialogs — "Yes  No", magazine reload, battery-consume (2/4/6/16/24 units), MTS treatment, save-cost prompts |
+| 6 | 11 | the 11 MAP area names, one line per map, '\n'-separated per-floor sub-names ("Underground Tunnel"… "Power Reactor Area") |
+| 7 | 41 | MEMORY CARD / save-load system messages (slots, format, 88KB, corrupt-data flows) |
+| 8 | 42 | OPTIONS screen labels (VIBRATION/SOUND/BRIGHTNESS/BUTTON CONFIG rows, action names, TYPE A/B/C) |
+
+### Hub help-line selection — exact rule (func_0020CDC0, completes s39)
+
+- Hovered diamond → the page-name line: hover 1 (down) → line 0
+  DATABASE, 2 (right) → 9 SPR4, 3 (up) → 2 MAP, 4 (left) → 1 ITEM
+  (`D_002821B4=1`, `D_002821B8=line`).
+- Idle (hover 0) → `.L0020D1AC`: `v = 100 - (int)D_0081085C`
+  (displayed infection). v == 100 → NO help line (`D_002821B4=0`);
+  v ≥ 0x51 → line 4; ≥ 0x33 → 5; ≥ 0x1F → 6; ≥ 0xB → 7 (threshold
+  not in the s39 note); > 0 → 8; else (infection 100) → 3 "Dennis
+  Infected". I.e. infection 1–19 → 4, 20–49 → 5, 50–69 → 6, 70–89 →
+  7, 90–99 → 8.
+- Draw path `func_001FCA10` state 4: group ≠ 0x64 →
+  `func_001FCB90(0x8A, 0xA8, group, line)` — canvas x 138, FIELD y
+  168 = canvas y 336 (the help panel's top edge; panel is
+  (128,336)-(384,432)). Group 0x64 (database records) instead draws
+  at (0xA8, 0xBE) via `func_001FCF90`/`func_001FCF60`. '\n' line
+  advance in `func_001FE070` = `(D_00264CD8 + D_00264CE0) >> 1` =
+  (20+4)/2 = 12 field lines = **24 canvas px** (tall font).
+  (Confirms the text functions' y is field space — e.g. the hub's
+  "INFECTED" call passes GS 0x822/0x812 = canvas (290,260).)
+
+### Export + port (extermination-port s42)
+
+- `tools/export_ui.py --messages` (macOS arm64, repo root; reads the
+  user's own `extract/chunk00/`) → `assets/messages.emsg` (.emsg v1,
+  documented in the script docstring + the em_hud loader): flat
+  group/line directory + offset table + NUL-terminated string blob;
+  271 lines / 9 groups / ~12 KB text. Markup records are NOT exported
+  (plain text only; the exporter reports the 119 affected lines).
+- em_hud: loads `assets/messages.emsg` (missing/invalid = skip, no
+  regression); the hub help panel draws the real engine help line per
+  the rule above (tall font, (138,336), 24 px steps); the ITEM page
+  renders a basic real interior — the group-1 category labels (row
+  layout ASSUMED) plus the only item counts the port models, flagged:
+  the carried battery pack (group-3 catalog name picked by capacity
+  6/18/24 + charge cur/max) and "SPR4 MAGAZINE xN" (PORT label,
+  N = reserve/30 derived — the engine's per-type count array
+  `D_00810C64` / pack counter `D_00810C63` are untranslated). The
+  page flag strip reads "PARTIAL: AMMO/BATTERY ONLY" there;
+  "CONTENT TBD" elsewhere.
+- Verified: `make test-input` + door/sfx self-tests PASS; default
+  capture AND the EM_HUD_FORCE=1 hub capture with the bank absent are
+  **byte-identical** to the pre-bank build; with the bank, the idle
+  hub shows the infection-60 diary line 6 ("I feel dizzy…", 4 rows
+  filling the help panel), EM_HUD_HOVER=4 shows "ITEM SCREEN", and
+  EM_HUD_PAGE=0 shows the five category labels + the two count rows
+  under the ITEM title art.
+
+### Open items (s42)
+
+- Inline markup records (groups 3/4): decode the type-2/3/4 payloads
+  (style index / glyph size) and carry them in .emsg if the database/
+  pickup views ever need styled runs.
+- The other bank consumers (groups 5–8 prompts, map names, memory
+  card, options) wire up as their screens/flows get modeled; group 6
+  is ready for the MAP page interior pass.
+- The engine's per-type inventory array (`D_00810C64`) is the next
+  step for a faithful ITEM interior (real per-item rows + counts,
+  category membership by type id).

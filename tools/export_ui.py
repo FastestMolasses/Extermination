@@ -86,12 +86,61 @@ verified guesses (STITCH check) and flagged ASSUMED; records with NO
 known anchor are packed sheet-only with x = y = -32768 (the port skips
 drawing them; they stay available in the sheet).
 
+MESSAGES MODE (--messages) - the status-screen message bank (session 40)
+------------------------------------------------------------------------
+The status screen's text (hub help lines, ITEM categories, SPR4
+components, action prompts, map area names, item names/descriptions)
+lives in ONE bank file: boot chunk asset slot 2 = extract/chunk00/
+f02_id02.bin (runtime pointer D_0028A498; FINDINGS.md "STATUS
+SUB-PAGES" -> "The message bank"). Resolution path in the engine:
+func_001FCB90(x, y, group, line) -> func_001FE070 walks the group's
+string blob. On-disc layout (little-endian, offsets are relative to the
+named header unless stated):
+
+  bank header   {u32 dir_base (0xA0), u32 ngroups (9), u32 total_size,
+                 u32 dir_off (0x10)}
+  group dir     at dir_off: ngroups x 16-byte entries
+                {u32 group_off (rel. dir_base), u32 group_off>>4,
+                 u32 size, u32 padded_size}
+  group OUTER   at bank + dir_base + group_off:
+                {u32 text_off, u32 line_count, u32 records_size,
+                 u32 0x10}, then line_count x 16-byte MARKUP entries
+                {u32 records_off (rel. OUTER), u32 ?, u32 ?,
+                 u32 nrecords<<4} (func_001FE4B0/func_001FE4D0 -
+                 inline style/color control records, 16 B each,
+                 between the entry table and the TEXT blob; groups
+                 3/4 use them, the rest are zero)
+  group TEXT    at OUTER + text_off + records_size (func_001FE460):
+                {u32 strbase (= 0x10 + 16*count), u32 line_count,
+                 u32 str_bytes, u32 1}, then line_count x 16-byte line
+                entries {u32 off, u32 off, u32 len, u32 len+1}
+                (func_001FE480: string N = TEXT + strbase + off), then
+                the NUL-terminated ASCII strings ('\n' = in-entry line
+                break; entries often end with a trailing '\n')
+
+OUTPUT FORMAT .emsg v1 (little-endian) - keep in sync with the port
+loader (extermination-port/src/game/em_hud.c, msg_parse):
+
+  off  size
+  0    4    magic "EMSG"
+  4    4    u32 version = 1
+  8    4    u32 group_count
+  12   4    u32 line_count (total, all groups)
+  16   4    u32 blob_size
+  20   8*group_count   per group: u32 first (index into the line
+                       offset table), u32 count
+  ...  4*line_count    u32 line offsets into the blob
+  ...  blob_size       NUL-terminated ASCII/UTF-8 strings; '\n' is an
+                       in-entry line break (multi-line help text)
+
 USAGE (macOS arm64, repo root)
     python3 tools/parse_pcsx2_state.py <state.p2s> --out scratch/state01
     python3 tools/export_ui.py --gs scratch/state01/gs.bin \
         --out ../extermination-port/assets/ui.emui
     python3 tools/export_ui.py --page all \
         --out-dir ../extermination-port/assets [--png scratch/ui_pages]
+    python3 tools/export_ui.py --messages \
+        --out-dir ../extermination-port/assets
 """
 from __future__ import annotations
 
@@ -411,6 +460,83 @@ def build_page(page: int, out_dir: Path, extract_dir: Path,
     return 0
 
 
+def build_messages(out_dir: Path, extract_dir: Path) -> int:
+    """Decode the chunk00 message bank (asset slot 2) and write
+    assets/messages.emsg. Returns 0/1 like a main()."""
+    src = extract_dir / "chunk00" / "f02_id02.bin"
+    if not src.is_file():
+        sys.exit(f"error: {src} not found - run tools/extract_data.py "
+                 "against your own disc first")
+    data = src.read_bytes()
+    dir_base, ngroups, total, dir_off = struct.unpack_from("<4I", data, 0)
+    if dir_base >= len(data) or ngroups == 0 or ngroups > 64:
+        sys.exit(f"error: {src}: implausible bank header "
+                 f"(base {dir_base:#x}, {ngroups} groups)")
+
+    groups: list[list[bytes]] = []
+    markup_lines = 0
+    for g in range(ngroups):
+        goff = struct.unpack_from("<I", data, dir_off + g * 16)[0]
+        outer = dir_base + goff
+        text_off, count, rec_size = struct.unpack_from("<3I", data, outer)
+        # markup directory (16 B/line at outer+0x10): +0xC = nrecords<<4
+        for i in range(count):
+            if struct.unpack_from("<I", data, outer + 0x10 + i * 16 + 12)[0]:
+                markup_lines += 1
+        text = outer + text_off + rec_size      # func_001FE460's walk
+        strbase, count2, str_bytes, _ = struct.unpack_from("<4I", data, text)
+        if count2 != count:
+            sys.exit(f"error: group {g}: outer/text line counts disagree "
+                     f"({count} vs {count2})")
+        lines = []
+        walk = text + strbase            # NUL-walk cross-check cursor
+        for i in range(count):
+            off, off2, ln, ln_nul = struct.unpack_from(
+                "<4I", data, text + 0x10 + i * 16)
+            if off != off2 or ln_nul != ln + 1:
+                sys.exit(f"error: group {g} line {i}: unexpected line "
+                         f"entry ({off:#x}/{off2:#x}, {ln}/{ln_nul})")
+            s = data[text + strbase + off: text + strbase + off + ln]
+            # the engine resolves line N by walking NUL terminators
+            # (func_001FE070) - verify both views agree
+            if walk != text + strbase + off or data[walk + ln] != 0:
+                sys.exit(f"error: group {g} line {i}: line table "
+                         "disagrees with the NUL walk")
+            walk += ln + 1
+            lines.append(s)
+        groups.append(lines)
+
+    # ---- write .emsg v1 -------------------------------------------------
+    firsts, offsets, blob = [], [], bytearray()
+    for lines in groups:
+        firsts.append(len(offsets))
+        for s in lines:
+            offsets.append(len(blob))
+            blob += s + b"\0"
+    out = out_dir / "messages.emsg"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("wb") as f:
+        f.write(b"EMSG")
+        f.write(struct.pack("<4I", 1, ngroups, len(offsets), len(blob)))
+        for g, lines in enumerate(groups):
+            f.write(struct.pack("<2I", firsts[g], len(lines)))
+        for o in offsets:
+            f.write(struct.pack("<I", o))
+        f.write(blob)
+
+    print(f"message bank {src.name}: {ngroups} groups, "
+          f"{len(offsets)} lines, {len(blob)} text bytes -> {out}")
+    if markup_lines:
+        print(f"  note: {markup_lines} lines carry inline markup records "
+              "(style/color runs - not exported; plain text only)")
+    for g, lines in enumerate(groups):
+        first = lines[0].split(b"\n")[0].decode("ascii", "replace") \
+                if lines else ""
+        print(f"  group {g}: {len(lines):3d} lines  "
+              f"(line 0: {first[:46]!r})")
+    return 0
+
+
 def decode_sprite(lm: bytes, tbp: int, cbp: int, w: int, h: int) -> bytes:
     """PSMT4 texture + 16-entry CSM1 CLUT -> RGBA8, v-flipped back to
     screen orientation (rows top-down as drawn)."""
@@ -444,6 +570,9 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--page", metavar="N",
                     help="page mode: export pager sub-screen N (0-4) or "
                          "'all' from extract/ chunks to ui_pageN.emui")
+    ap.add_argument("--messages", action="store_true",
+                    help="messages mode: export the chunk00 message bank "
+                         "(asset slot 2) to messages.emsg in --out-dir")
     ap.add_argument("--extract", default="extract",
                     help="extract/ root with the chunk dirs "
                          "(default: extract)")
@@ -451,6 +580,9 @@ def main(argv: list[str]) -> int:
                     help="page-mode output dir "
                          "(default: ../extermination-port/assets)")
     args = ap.parse_args(argv)
+
+    if args.messages:
+        return build_messages(Path(args.out_dir), Path(args.extract))
 
     if args.page is not None:
         pages = list(PAGE_SPECS) if args.page == "all" else [int(args.page)]
