@@ -219,6 +219,39 @@ placement (for-init → the saved params steal s0/s1) — never both. Falsified:
 dual early+late init (dead-store elim runs first), `register` hints
 (ignored), -O3,p (identical). Compose this with idiom 3: declaration order
 only controls allocation when first-writes happen in the same order.
+PARTIAL COUNTER-EXAMPLE (2026-06-09, anim_sample_bones): for the
+param-save case specifically, copying a pointer param to an explicit local
+(`bones = arg_bones;`) moves its web start ahead of a later param's,
+flipping mwcc's s1/s2 to match CW — recovered 11 rows. The wall stands for
+late-initialized loop counters; try the param-copy trick first.
+
+NEW WALL DATUM — address-pair shadow-fill hoist (2026-06-09, keyframe
+unpacker family func_001C84D0 / anim_decode_translation, blocked at
+92.6%/87.0%): for back-to-back volatile-scratchpad store blocks, mwcc -O3+
+hoists EVERY independent `lui/addiu` address-materialization pair maximally
+early — packing as many pairs as fit into the first `lhu` load shadow, past
+volatile stores, allocating fresh temps as needed. CW 2.3.1 emits at most
+one pair per load cluster, each gated on a dead temp register. Falsified:
+all pointer-local placements, idiom-7 fake-param register pinning (the pair
+just moves to the next free register), `-O3,p`/`-O4`/`-opt nointerleave`
+(identical), `-O2,p` (worse).
+
+Additional cracked idioms from the 2026-06-09 sampler attempts (full
+analyses live as comments in src/anim_sample_rotation.c,
+src/anim_sample_bones.c, src/anim_decode_translation.c,
+src/func_001C84D0.c — all still stubs, wall-blocked 82-93%):
+8. **`-sdatathreshold 0` + `*(volatile int *)0xADDR`** reproduces CW's `$at`
+   absolute addressing byte-exactly (raw constant, no reloc); `&D_xxx`
+   externs give the relocated `lui/addiu` form. Both coexist in CW output —
+   pick per access site.
+9. **Union'd `uint128` quat fields fold `sq` offsets** (`sq v, 0x30(base)`);
+   casting a `float[4]` field to u128 emits a stray `addiu` instead.
+10. **Struct field access defeats mwcc's address-CSE** on store-then-reload
+    of the same field; the cast form `*(float *)(p+0x54)` produces a hoisted
+    `addiu a1, base, 0x54` that CW doesn't have.
+11. **Goto-shaped loops** (guards branching forward to a bottom advance
+    block) reproduce CW's non-rotated while-loop layout; a plain `while`
+    gets rotated by mwcc.
 
  
 NOT A WALL — paddub register moves (correction 2026-06-XX). mwcc DOES emit
