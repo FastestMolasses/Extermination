@@ -6785,3 +6785,117 @@ fade speed).
   (exec BPs being broken, the use-scan path could not be traced live).
 - Door script: both captured transits queued `D_0024DE40` despite
   opposite side latches — s17's "side 1 -> D_0024DEC0" needs re-check.
+
+## CRAWLER RESOLVED — model-table binding, the crate husk, and the real creature (the leech EMDL) (2026-06-10, session 23)
+
+Resolved which mesh = the "placed crawler" `func_001551B0` (s22's most
+common placed enemy) and shipped the first enemy EMDL to the port
+(`extermination-port/assets/enemy_crawler.emdl`). Method: follow the
+per-area model table from save state 01's EE RAM
+(`tools/parse_pcsx2_state.py` → `*(0x0028A59C)`), content-match entries
+against `extract/` files. Three corrections to s22 fell out.
+
+### 1. Model-table resolution method (now a repeatable recipe)
+
+- `func_001C6120(table, id)` = `table + (*(table + 4 + 4*id) & ~3)`
+  (id-directory lookup; offset words, 0xFFFFFFFF = absent; word 0 =
+  entry count).
+- **Save state 01 = AREA11** (`D_00810700` = 0x0B): `*(D_0028A59C)` =
+  `0x01335F40`, count 0x15 (model ids 0x00–0x14). The table + entries
+  content-match `extract/chunk15/f05_id97.bin` **at file offset 0x5000**
+  (RAM−file delta constant; entries verified byte-identical). Entries
+  past the file's 0x70800 end (ids ≥ 0x13) continue in the next file
+  loaded into the area arena.
+- **Each model-table entry is a raw mesh blob** — the same format as
+  `f00_id3b` (header `n_blocks/total_qwc/n_nodes/size`, 8 floats of
+  bounds, first UNPACK at +0x48) — so a carved entry feeds
+  `export_native.py --mesh` directly. AREA11 ids 0x00–0x14 interleave
+  with `rig_probe`'s MESH_SIG segments of f05_id97 but are NOT 1:1 with
+  X-separator segment indices; carve by table offsets, not by segment.
+
+### 2. CORRECTION (s11/s22): creature mesh binds by PARAM, not the model byte
+
+`func_001B0FD0` → `func_001B0EA0` (the crawler/pickup INIT bind) reads
+**actor+0x0D = placement PARAM low byte** and looks it up in
+`*(D_0028A59C)` (`lbu $a1, 0xD($a0)` at 0x001B0EB4). The placement
+"model" byte (+0x03, the s22 6/0x1C/0x1E/0x1F/0x50 set) is only the
+behavior VARIANT tag (heading constants, hop timer, gore-effect pick).
+Crawler placements bind: AREA02 + AREA11 param 0x0D, AREA03 params
+2/3/4, AREA07 param 0x0B, AREA13 params 4/0x29 — per-area skins.
+
+### 3. The placed "crawler" renders as an INFECTED CRATE (husk)
+
+AREA11 (and office AREA02) crawler param 0x0D → model-table id 0x0D =
+**a 14×14×14 beveled CRATE**: 1 node, 6 blocks, 192 verts (177 welded,
+90 tris), TEX0 PSMT4 128×128 TBP0 0x2E80 CBP 0x3759 (resident in state
+01 VRAM; 16-color grey/brown box skin). AREA11 even stacks them (the
+3-crate pile at x 214–228: y values exactly 14 apart). So the most
+common "enemy" idles disguised as scenery; s22's state machine reads
+as: wiggle/chitter in place (the "idle anim" is **procedural** — float
+tables `D_002468B0/B4/B8` jitter the world-matrix x/z translation at
+actor+0x100/+0x108; no skeletal clips exist: zero anim containers in
+f05_id97/f12_id44 match a 1-node rig), hop at the player, burst.
+
+**CORRECTION (s22 §3):** "death anim clip 0x22/0x29 from the
+`D_0028A56C` clip lib" is actually a **MODEL REBIND**: `D_0028A56C` is
+the global MODEL library (= `extract/chunk27/f01_id37.bin`,
+content-matched at offset 0 in state 01 RAM `0x00BAA1C0`), and
+`func_001C6120` + `func_001CA6E0` swap the actor's model record
+(+0x44) to library entry 0x22 or 0x29 — the burst-husk/gib models.
+`func_001CA6E0` = `func_001CA5E0(actor, rec, mode=0)`; the +0x4C method
+is picked from `jtbl_0026E310` by the MODE ARGUMENT (not a record
+field — refines s17's wording).
+
+**Static/prop VU1 kernel W encoding** (new): single-node raw blobs keep
+their one 7-qw matrix set at dmem qw 0; vertex W = ±1.0f with flag bits
+14/15 only (bit 15 = strip restart, bit 14 = parity), node bits 0..9 =
+0. `export_native.py` now accepts slot 0 for `n_nodes==1` blobs (packed
+character meshes still reject slots < 2 as kernel scratch).
+
+### 4. The real creature: kind-0xD leech = chunk03 f12_id14 + f11_id13
+
+The thing that actually crawls (runtime brain `func_00153F10`, spawned
+by generators and crate bursts) binds through a SECOND, **global
+record-pointer array `D_0028A490`** (67 slots, indexed directly —
+`func_001B10B0(actor, model_idx, anim_idx)`: model rec =
+`D_0028A490[model_idx]` → +0x44, clip table = `D_0028A490[anim_idx]` →
++0x40, anim mode 9). **Slot index = source-file id**: slot 0x14 =
+`extract/chunk03/f12_id14.bin` (mesh), slot 0x13 =
+`extract/chunk03/f11_id13.bin` (clip bank) — both content-matched in
+state 01 RAM at offset 0 (chunk03 is globally resident, so its textures
+are in EVERY save state's VRAM).
+
+- **Mesh** (raw blob): 12 blocks, 24 nodes, 180 welded verts, 284 tris,
+  one PSMT4 128×128 texture (dark red/black striated flesh). Rig =
+  segmented worm: parents `[-1,0,1,...,14, 14, 15×7]` — nodes 0–15 a
+  pure chain (tail→head, ring diameters 4.7→7.0), 16 + 17–23 head
+  appendages. The s14 pairing rule holds: clip-bank nodes 24 = mesh
+  max_slot 23 + 1.
+- **Clip bank**: 4 containers = clip ids 0–3. From `func_00154040` /
+  `func_00154120`: **clip 1 = spawn/emerge** (90 f; init writes clip id
+  1 to +0x1F0), **clip 0 = crawl/stalk loop** (239 f, in-place),
+  **clip 2 = windup** (45 f), **clip 3 = lunge** (120 f, root travel
+  42.2 u → 21.27 u/s; export converts to in-place). Baked-palette
+  continuity is hemisphere-clean (max basis-vector deviation 0.18 ≈
+  fast whip, no sign flips; max node jump 8.7 u/frame in the lunge).
+- **Live scale**: `func_00154040` writes **0.5 → actor+0x80** (anim
+  scale) — the in-game leech is HALF the authored size (~11 u long).
+  The EMDL ships authored-size; the port applies actor scale.
+
+### 5. Shipped + verified
+
+`assets/enemy_crawler.emdl` (port repo, git-ignored): EMD3, 25 palette
+slots, 180 verts/284 tris, 4 clips (494 frames @60), 1 texture resolved
+from state 01 VRAM via `--p2s`. Verified in the port via a temp scene
+copy (office scene + the leech at spawn+offset): `EM_SCENE` +
+`EM_CAPTURE` frame-60 BMP shows the textured leech posed in the office;
+temp scene removed, default scene untouched (default-scene capture
+re-verified after cleanup). The carved crate husk
+(`scratch/crawler_mesh_id0D.bin`, git-ignored) exports the same way if
+the port wants the disguise prop.
+
+Open: which clip the burst-spawned (vs generator-spawned) children
+play first; the AREA11 nest-registry record layout (the s22 0x2C-byte
+guess didn't parse cleanly against `D_0024D820[11]` — re-derive from
+`func_001551B0` state 2 before relying on it); kind-0xE sibling
+(`func_001546C0`) model/anim slots.

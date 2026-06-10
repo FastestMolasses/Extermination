@@ -260,9 +260,10 @@ def load_mesh_sections(mesh_path: Path, segment: int = 0):
     dicts in first-use order; 0xFFFFFFFF = no/implausible texture).
     """
     d = mesh_path.read_bytes()
+    blob_nodes = None
     if struct.unpack_from("<I", d, 0)[0] < 0x1000 and \
             d[0x48:0x50] == bytes.fromhex("040400010080806c"):
-        payloads, _n = _walk_blob_blocks(d)
+        payloads, blob_nodes = _walk_blob_blocks(d)
     else:
         payloads = _walk_meshsig_blocks(d, segment)
     if not payloads:
@@ -319,7 +320,15 @@ def load_mesh_sections(mesh_path: Path, segment: int = 0):
             # validated on the live NPC pose: joint-edge coherence has a
             # sharp minimum at this mapping)
             slot = (wbits & 0x3FF) >> 3
-            if slot < 2:
+            if slot < 2 and blob_nodes != 1:
+                # packed character meshes never address dmem qw < 16
+                # (slots 0/1 are kernel scratch) -- records there are
+                # junk. EXCEPTION: single-node raw blobs (the per-area
+                # MODEL-TABLE entries bound via *(D_0028A59C), e.g. the
+                # placed-crawler CRATE husk, AREA11 id 0x0D): the prop
+                # kernel keeps its one matrix set at dmem qw 0, W is
+                # +/-1.0 with flag bits 14/15 only, so every vertex is
+                # slot 0. (FINDINGS "CRAWLER RESOLVED", 2026-06-10.)
                 continue
             max_slot = max(max_slot, slot)
             pos = struct.unpack_from("<3f", payload, r + 0x30)

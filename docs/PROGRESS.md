@@ -3638,3 +3638,28 @@ full detail):
   per-frame copies — writes never stick); organic class-5 walk-into
   trigger still not reproduced under pad injection (s17/s20 item);
   s17's side→script mapping (both transits queued 0x24DE40).
+
+### Update — 2026-06-10 s23: FIRST ENEMY EMDL — crawler resolved (crate husk + the real leech creature)
+
+- **Model-table recipe proven**: save state EE RAM → `*(0x0028A59C)`
+  per-area model table (`func_001C6120` = offset directory) →
+  content-match entries against `extract/` files. State 01 (AREA11)
+  table = `chunk15/f05_id97.bin` @ 0x5000; entries are raw mesh blobs
+  (carve → `export_native.py --mesh`).
+- **Correction**: creature/prop INIT binds mesh by placement PARAM
+  (actor+0x0D), not the model byte (+0x03 = behavior variant). The
+  placed crawler `func_001551B0` renders as a 1-node 14u INFECTED
+  CRATE (AREA11/02 id 0x0D); its idle is procedural jitter, no clips;
+  death REBINDS to gib models 0x22/0x29 in the global model library
+  `*(D_0028A56C)` = `chunk27/f01_id37.bin`.
+- **The real creature** (kind-0xD leech, `func_00153F10`): global
+  array `D_0028A490[file id]` → `chunk03/f12_id14.bin` mesh (24-node
+  worm chain) + `f11_id13.bin` clip bank (0 crawl loop / 1 emerge /
+  2 windup / 3 lunge w/ root motion); live scale 0.5 (actor+0x80).
+- **Shipped**: `extermination-port/assets/enemy_crawler.emdl` (EMD3,
+  4 clips, 494 frames, textured from state 01 VRAM via `--p2s`);
+  verified rendering in the port via temp EM_SCENE copy + EM_CAPTURE;
+  default scene untouched. `export_native.py` now decodes the
+  static/prop kernel's W encoding (single-node blobs, matrix at dmem
+  qw 0).
+- FINDINGS: new section "CRAWLER RESOLVED" (s22 §3 corrections inline).
