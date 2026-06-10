@@ -4411,3 +4411,24 @@ full detail):
   with the asset absent vs present (the asset is inert until the hook
   lands — described honestly); test-input + MOVE/DOOR/WEAPON/ENEMY 1-4
   PASS.
+
+### Update — 2026-06-10 s35: tendril-field spike shipped as assets/tendril.emdl
+
+- **Asset**: the s33 kind-0xE spike (chunk03/f13_id15.bin, D_0028A490
+  slot 0x15) exported via export_props.py `--crate-blob` as the port's
+  `assets/tendril.emdl` — static 1-node EMD2, 31 verts / 54 tris,
+  r≈1.6 base tapering to a point at y≈9.65.
+- **Texture verdict (s33 correction)**: the blob is untextured by
+  design — TEX0 = 0 in all 96 records, UVs (0,0), unit-normal attrs;
+  the +0x18A0 tail is the 1-node model record, NOT a texture, and the
+  file contains 0 GS upload packets. Coverage 0/0 (honest); --p2s
+  state 01 verified byte-identical to no VRAM source. The engine
+  colors the spike via the actor RGB multiplier (room tint → green).
+- Verified: temp-scene EM_CAPTURE shows the tapering grey spike beside
+  the player (temp removed); default capture byte-identical before vs
+  after (asset inert until the renderer lands); test-input +
+  MOVE/DOOR/WEAPON/ENEMY 1-4 PASS.
+- Open (port-side, all constants pinned in FINDINGS s33/s35): em_enemy
+  tendril-field actor — pair spawn from mode-1 generator pads, 12-slot
+  ring scatter + ellipse reject, ramp/bob/thrash scale-Y animation,
+  room-tint→green blend, sound 0x42D.

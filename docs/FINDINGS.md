@@ -9141,3 +9141,66 @@ The port (read-only this session) cannot pick a per-scene crate today:
 Open: apply the crate hook port-side; the n2 sub-state's table (concat
 0x3E9000, count 27) almost certainly carries the same entry 0x0D —
 carve with `--crate-dir --crate-table-off` when that scene exports.
+
+## TENDRIL SPIKE ASSET SHIPPED — chunk03/f13_id15 exported; untextured by design (2026-06-10, session 35)
+
+The s33 ("KIND-0xE COMPANION RESOLVED", commit 663d358) spike mesh is
+now a port asset: **`assets/tendril.emdl`** (port repo, git-ignored) —
+static 1-node EMD2, 96 records → 31 welded verts / 54 tris, local bbox
+X[-1.39,1.39] Y[-0.02,9.65] Z[-1.63,1.63] (the authored ~9.6-u tapering
+spike on an r≈1.6 base ring). Recorded CLI (export_props.py docstring):
+`--crate --crate-blob extract/chunk03/f13_id15.bin --out
+../extermination-port/assets/tendril.emdl`.
+
+### Texture verdict — 0 textures, honestly (s33 correction)
+
+The blob references NO texture: all 96 records carry TEX0 qword 0 and
+UV (0,0); the attr rows are unit normals; and the +0x18A0 tail is the
+1-node MODEL RECORD (parent -1, identity 4×4 rest) + zero pad to
+0x2000 — **s33's "embedded texture blob at +0x18A0" was wrong**. A
+GS-upload packet scan of the file (export_level.read_uploads_localmem)
+finds 0 transfers. Both candidate texel sources are therefore moot:
+the export is byte-identical with and without `--p2s scratch/state01`
+(and `--gsdump` would be too) — coverage is 0/0 referenced/resolved,
+not a fallback. This is consistent with the s33 render contract: the
+engine colors the spike entirely through the actor RGB multiplier
+(room tint → (6,92,1)/128 green with the pad's open phase) over the
+normal-lit mesh; the EMDL bakes the standard normals→grayscale
+stand-in light.
+
+### Verification (port, read-only; asset-side only)
+
+- Temp scene copy (default office scene + the spike placed on open
+  floor at (99, 0, -179), 12 u left/front of spawn, via a one-off
+  translated-palette EMDL): `EM_SCENE` + `EM_CAPTURE` frame-60 BMP
+  shows a tall slender SPIKE rising from the floor beside the player —
+  flared faceted base narrowing sharply, then a thin column tapering
+  to a point at ~9.6 u; smooth-shaded neutral grey (the runtime green
+  tint is the renderer's job). Reads exactly as the s33 "tapering
+  organic spike/stalagmite". Temp scene removed after capture.
+- Default capture byte-identical before vs after shipping the asset
+  (nothing loads `assets/tendril.emdl` today — it is inert until the
+  tendril-field renderer lands; stated honestly).
+- `make test-input` PASS; EM_MOVE_TEST / EM_DOOR_TEST / EM_WEAPON_TEST
+  / EM_ENEMY_TEST=1..4 all PASS.
+
+### Port-side work remaining (em_enemy "tendril field", per the 663d358 contract)
+
+All engine constants already pinned in s33's "Port contract" block;
+nothing else needs decomp work:
+
+- Spawn: a generator pad rolling mode 1 spawns the PAIR (idx 0/1) at
+  the pad origin, parent-linked; dies only with the room.
+- 12 instances per actor: trigger scan (player within 3× pad
+  footprint, ±(3+recY) Y band), ring scatter r = 5.5±2.0 (idx 0) /
+  7.0±2.5 (idx 1) around the player, reject outside the 0.92× pad
+  ellipse, sound 0x42D range 300 if any survive.
+- Ramp/bob/thrash scale-Y animation: deploy ramp +37/tick cap 300,
+  hold while player within 2/4 u of the anchor, retract −37/tick;
+  scale Y = phase·ramp/65536 with the bob integrator (floor 100,
+  kicks 3..7 idle / 28..41 pad-open, gravity 1/8, vel ×0.5 at ≥8);
+  scale X/Z = girth {0.70, 0.85, 1.00, 1.50} cycling.
+- Room-tint blend: RGB mult = room tint → (6,92,1)/128 green as the
+  parent pad's open phase → 1; alpha = roomC.w/128 faded in over the
+  first 16 ramp units. 24 spikes of a pair = 24 re-posed draws of
+  this one EMDL.

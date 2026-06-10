@@ -203,6 +203,22 @@ no n0 entry content-matches the global gib library and none has the
 library models (D_0028A56C is area-independent), already shipped as
 assets/gibs/.
 
+TENDRIL (s35, 2026-06-10). The breather pad's tendril-field spike
+(FINDINGS "KIND-0xE COMPANION RESOLVED": D_0028A490 slot 0x15 =
+extract/chunk03/f13_id15.bin, globally resident) ships through the
+--crate-blob path as assets/tendril.emdl: 1 node, 96 records -> 31
+welded verts / 54 tris, base ring r~1.6 tapering to a point at y~9.65.
+The blob is genuinely UNTEXTURED — every record's TEX0 qword is 0, all
+UVs are (0,0), the attr rows are unit normals, and the +0x18A0 tail is
+the 1-node MODEL RECORD (parent -1, identity rest) + zero pad to 0x2000,
+NOT a texture (corrects s33's "embedded texture blob at +0x18A0"; a
+GS-upload scan of the file finds 0 transfers). The engine colors the
+spike entirely through the actor RGB multiplier (room tint -> green as
+the parent pad opens — the s33 render contract), so the EMDL bakes the
+standard normals->grayscale stand-in light and honestly ships 0
+textures; --p2s/--gsdump change nothing (verified byte-identical with
+and without --p2s state 01).
+
 Disc-derived output: write only into git-ignored locations.
 
 Usage (macOS arm64, decomp repo root):
@@ -238,6 +254,10 @@ Usage (macOS arm64, decomp repo root):
   .venv/bin/python tools/export_props.py --crate \
       --crate-dir extract/chunk06.n0 \
       --out ../extermination-port/assets/scene_office0/props/enemy_crate.emdl
+  # the tendril-field spike (untextured 1-node blob; the engine tints it):
+  .venv/bin/python tools/export_props.py --crate \
+      --crate-blob extract/chunk03/f13_id15.bin \
+      --out ../extermination-port/assets/tendril.emdl
 """
 from __future__ import annotations
 
@@ -1133,8 +1153,9 @@ def export_crate(args):
         src = Path(args.crate_blob)
         d = src.read_bytes()
         off = 0
-        print(f"crate source: {src} (pre-carved raw blob) — NON-OFFICE "
-              f"stand-in, pair with the matching --p2s VRAM (flagged)")
+        print(f"crate source: {src} (pre-carved raw blob) — table-less "
+              f"path; pair with the VRAM source matching the blob's "
+              f"provenance if it references textures (flagged)")
     elif args.crate_dir:
         # Leaf-directory mode (s30): the per-area table may sit at a
         # CONCAT offset whose entries cross a file boundary (the n0 table
