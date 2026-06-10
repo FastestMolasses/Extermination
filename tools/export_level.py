@@ -281,6 +281,65 @@ CHUNK06N1_SIZE = 0xAC800
 # fix and is wrong for this section). (lo, hi) below = the section extent.
 CHUNK06N1_SIBLING = ("f02_id44.bin", 0x086B40, 0x173800)
 
+# ---------------------------------------------------------------------------
+# AREA02 SUB-STATE 0 — the office MAIN FLOOR (chunk leaf chunk06.n0).
+#
+# Leaf identity: the soundmap's area_scene_map pins (area 2, sub 0) ->
+# chunk06.n0 and (2, 2) -> chunk06.n2; the live-captured back-office scene
+# (sub-state 1) is chunk06.n1. Geometry survey (2026-06-10 s28,
+# walk_records over every chunk06* file):
+#
+#   f03_id43.bin (0x13D800)  [0x10,0x13D750)   static world, all slot 0,
+#                            X[-35,546] Z[-195,185] — east + center floor.
+#   f02_id44.bin (0x1EA000)  collision world (head) + static render TAIL
+#                            [0x14FCD0,0x1EA000) X[-349,35] — west floor
+#                            (same two-section shape as chunk06.n1's id44).
+#   f04_id72.bin (0x22000)   [0x10,0xD1D0) static far-east annex
+#                            X[520,550]; +0xD800 = the per-area MODEL
+#                            TABLE (27 entries, func_001C6120 directory;
+#                            entries span across into f05_id41 — the leaf's
+#                            files load contiguously, like chunk15).
+#   f05_id41.bin (0x14B800)  model-table entries ONLY (object-space blobs;
+#                            no world-space geometry — do not export
+#                            whole-file).
+#
+# Placed objects: OVERLAY/AREA02.BIN sub-state-0 placement table @0x827830
+# (58 records) binds actor meshes BY PARAM into the model table (the s23
+# rule, validated here: the n1 table's entries 0x0B/0x0C/0x0D/0x0E/0x0F sit
+# exactly at the s8/s9 live blob regions for pickup params 0xB/0xC/0xD and
+# fixture entries). NOTE the n0 table's entry 0x0D (the crawler disguise,
+# param 0x000D) is a 14x14x14 crate — NOT the n1 cardboard box; the s26
+# "office crate" came from the SUB-STATE-1 table, which never places a
+# crawler.
+#
+# Doors (class 5, fn 0x001BC350 / 0x001BB860): param 0x16 (model 0x15) at
+# (-30.5, 0, -187.3) and param 0x19 (model 0x17) at (440.2, 15, 109.9).
+# Spawn: the engine's area-2 spawn tables (boot ELF 0x24B2F4/0x24B444/
+# 0x24B594, one 7-record copy per sub-state, record = {f32 pos[3], yaw,
+# ...} 0x30 bytes) — entry 5 = (40, 0, -146) yaw -pi/2 lands on the main
+# floor next to the rec-0 trigger at (43, 3.5, -147).
+#
+# TEXTURES: the office GS dump / AREA02 save states are all SUB-STATE 1 —
+# zero TEX0-key overlap with this leaf's 242 keys. The leaf carries its own
+# GS upload packets instead: chunk06.n0/f02_id44.bin uploads blocks
+# 0x2A00..0x3500 (two PSMCT32 IMAGE transfers) and the global library pack
+# chunk27/f00_id35.bin uploads 0x1D00..0x2480; together they cover every
+# key (1 global + 241 leaf). --uploads replays them into a synthetic VRAM.
+
+OFFICE0_DIRNAME = "chunk06.n0"
+OFFICE0_TABLE_OFF = 0x373800        # model table at concat f04_id72+0xD800
+OFFICE0_SUBSTATE = 0
+OFFICE0_SPAWN = (40.0, 0.0, -146.0, -1.5708)   # engine spawn rec 5
+OFFICE0_F03_SIZE = 0x13D800
+
+# Static world regions keyed by (file name, file size) — leaves whose
+# render files need more than the whole-file-static fallback.
+KNOWN_STATIC_REGIONS = {
+    ("f03_id43.bin", 0x13D800): [(0x000010, 0x13D750, "world", None)],
+    ("f02_id44.bin", 0x1EA000): [(0x14FCD0, 0x1EA000, "world", None)],
+    ("f04_id72.bin", 0x022000): [(0x000010, 0x00D1D0, "world", None)],
+}
+
 
 # ---------------------------------------------------------------------------
 # Record walker (corrected phase: [TEX0][ST][color/normal][pos+W])
@@ -581,24 +640,32 @@ def _enemy_lines(entries, prefix: str = "") -> list[str]:
     return out
 
 
-def emit_enemy_manifest(scene_dir: Path, ov_path: Path) -> None:
+def emit_enemy_manifest(scene_dir: Path, ov_path: Path,
+                        substate: int = OFFICE_SCENE_SUBSTATE,
+                        cap: int | None = None,
+                        spawn: tuple | None = None) -> None:
     """Rewrite the marker-delimited enemies block of scene.txt from the
-    AREA02 placement tables. The scene's own table (sub-state 1) drives the
-    ACTIVE lines; when it places no crawlers (the census result — see the
-    module docstring) the sub-state-0 crawler placements are appended as a
-    commented toggle instead."""
+    AREA02 placement tables. The given sub-state's table drives the ACTIVE
+    lines; when it places no crawlers (the sub-state-1 census result — see
+    the module docstring) the sub-state-0 crawler placements are appended
+    as a commented toggle instead. `cap` (the port's EM_ENEMY_MAX) bounds
+    the active crawler lines: the placements FARTHEST from `spawn` (XZ
+    distance) overflow into commented lines with a note."""
     pl = sys.modules.get("_placements") or _load("_placements",
                                                  "placements.py")
     data = ov_path.read_bytes()
     tables = pl.KNOWN_TABLES[OFFICE_OVERLAY]
     per = [pl.parse_table(data, v) for v in tables]
-    scene_entries = per[OFFICE_SCENE_SUBSTATE]
+    scene_entries = per[substate]
     cen = _placement_census(scene_entries)
 
+    desc = ("the captured office scene" if substate == 1
+            else "the office MAIN-FLOOR story beat" if substate == 0
+            else "the office post-event floor")
     block = [ENEMY_BLOCK_BEGIN]
-    block.append(f"# scene table = sub-state {OFFICE_SCENE_SUBSTATE} "
-                 f"@{tables[OFFICE_SCENE_SUBSTATE]:#x} (the captured office "
-                 f"scene), {len(scene_entries)} records:")
+    block.append(f"# scene table = sub-state {substate} "
+                 f"@{tables[substate]:#x} ({desc}), "
+                 f"{len(scene_entries)} records:")
     block.append(f"#   {cen['crawler']} crawlers (fn 0x001551B0), "
                  f"{cen['generator']} generators (fn 0x0015A2C0), "
                  f"{cen['door']} doors, {cen['pickup']} pickups, "
@@ -606,7 +673,7 @@ def emit_enemy_manifest(scene_dir: Path, ov_path: Path) -> None:
                  + (f", {cen['deferred']} deferred" if cen["deferred"]
                     else ""))
     for ss, ents in enumerate(per):
-        if ss == OFFICE_SCENE_SUBSTATE:
+        if ss == substate:
             continue
         c = _placement_census(ents)
         block.append(f"# sub-state {ss} @{tables[ss]:#x}: {len(ents)} "
@@ -615,8 +682,24 @@ def emit_enemy_manifest(scene_dir: Path, ov_path: Path) -> None:
                      f"{c['enemy_misc']} misc creature-family, "
                      f"{c['door']} doors, {c['deferred']} deferred(0x0B)")
 
-    active = _enemy_lines(scene_entries)
+    overflow = []
+    emit_entries = scene_entries
+    crawlers = [e for e in scene_entries if e.behavior == FN_CRAWLER]
+    if cap is not None and spawn is not None and len(crawlers) > cap:
+        ranked = sorted(crawlers, key=lambda e:
+                        (e.pos[0] - spawn[0]) ** 2 + (e.pos[2] - spawn[2]) ** 2)
+        dropped = {id(e) for e in ranked[cap:]}
+        overflow = [e for e in scene_entries if id(e) in dropped]
+        emit_entries = [e for e in scene_entries if id(e) not in dropped]
+    active = _enemy_lines(emit_entries)
     block += active
+    if overflow:
+        block.append(f"# OVERFLOW: the table places {len(crawlers)} "
+                     f"crawler crates but the port caps at EM_ENEMY_MAX "
+                     f"{cap} manifest slots —")
+        block.append("# the placement(s) FARTHEST from the spawn stay "
+                     "commented out:")
+        block += _enemy_lines(overflow, prefix="#")
     if cen["crawler"] == 0:
         block.append("# this sub-state places NO enemies — the faithful "
                      "default scene has none.")
@@ -644,9 +727,210 @@ def emit_enemy_manifest(scene_dir: Path, ov_path: Path) -> None:
     lines += block
     mf.write_text("\n".join(lines) + "\n")
     print(f"manifest: {mf}: enemies block — sub-state "
-          f"{OFFICE_SCENE_SUBSTATE}: {cen['crawler']} active crawler "
-          f"line(s), {cen['generator']} generator comment(s); toggle "
-          f"lines: {_placement_census(per[0])['crawler']} (sub-state 0)")
+          f"{substate}: {cen['crawler'] - len(overflow)} active crawler "
+          f"line(s), {cen['generator']} generator comment(s), "
+          f"{len(overflow)} overflow"
+          + (f"; toggle lines: {_placement_census(per[0])['crawler']} "
+             f"(sub-state 0)" if cen["crawler"] == 0 else ""))
+
+
+# ---------------------------------------------------------------------------
+# AREA02 sub-state 0: placed objects + doors from the per-area model table
+# (see the OFFICE0 constants above for the leaf/table identification).
+
+OFFICE0_FN_GLOW = 0x001C4960            # billboard family (no port path)
+OFFICE0_FN_ENV = (0x001C4CB0, 0x0022DCD0)   # camera/env objects, no mesh
+
+
+def office0_concat(dirp: Path) -> bytes:
+    """Byte-concatenation of the leaf's files in index order — the engine
+    loads them contiguously (the chunk15 finding), and the n0 model
+    table's entries run across the f04_id72/f05_id41 boundary."""
+    blob = bytearray()
+    for f in sorted(dirp.glob("*.bin")):
+        blob += f.read_bytes()
+    return bytes(blob)
+
+
+def office0_uploads(dirp: Path, args) -> list:
+    """Default texel source for the office0 modes: the leaf's own GS
+    upload packets (blocks 0x2A00..0x3500) + the global library pack
+    (chunk27/f00_id35.bin, 0x1D00..0x2480)."""
+    if args.uploads:
+        return [Path(s) for s in args.uploads.split(",")]
+    ups = [dirp / "f02_id44.bin",
+           dirp.parent / "chunk27" / "f00_id35.bin"]
+    return [p for p in ups if p.exists()]
+
+
+def office0_bake_placed(d: bytes, placements):
+    """Bake model-table entries at world placements: `placements` is a
+    list of (param, mat34-or-None). All node slots are baked with the
+    placement matrix — per-node rest offsets are runtime state we have no
+    live capture of for this sub-state (FLAGGED: articulated sub-parts of
+    multi-node entries may sit at their model-local origin)."""
+    props = sys.modules.get("_export_props_lvl") or _load(
+        "_export_props_lvl", "export_props.py")
+    raw_pos, raw_col, raw_bone, raw_uv, raw_tex = [], [], [], [], []
+    tris = []
+    weld = {}
+    tex_table: list[dict] = []
+    tex_of = props.make_tex_of(tex_table, {})
+
+    def vid_of(p, c, uv, t):
+        key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
+               round(c[0], 3), round(c[1], 3), round(c[2], 3),
+               round(uv[0], 5), round(uv[1], 5), t)
+        i = weld.get(key)
+        if i is None:
+            i = len(raw_pos)
+            weld[key] = i
+            raw_pos.append(p)
+            raw_col.append(c)
+            raw_bone.append(0)
+            raw_uv.append(uv)
+            raw_tex.append(t)
+        return i
+
+    for param, m in placements:
+        off = props.table_entry_offset(d, OFFICE0_TABLE_OFF, param)
+        ntri = 0
+        for q, corners, parity in props.model_tris(d, off):
+            t = tex_of(q)
+            ids = [vid_of(mat_apply(m, p) if m else tuple(p),
+                          props.attr_color(a, m), uv, t)
+                   for p, a, uv, _q in corners]
+            a, b, c = ids
+            if parity:
+                tris.extend((c, b, a))
+            else:
+                tris.extend((c, a, b))
+            ntri += 1
+        where = (f"({m[0][3]:.1f}, {m[1][3]:.1f}, {m[2][3]:.1f})"
+                 if m else "model-local")
+        print(f"  entry {param:#04x}: {ntri} tris at {where}")
+    return [(raw_pos, raw_col, tris, raw_bone, raw_uv, raw_tex)], tex_table
+
+
+def _office0_placements(dirp: Path):
+    """(concat, model-table count, placement records of sub-state 0)."""
+    d = office0_concat(dirp)
+    cnt = struct.unpack_from("<I", d, OFFICE0_TABLE_OFF)[0]
+    if not (0 < cnt <= 0x100):
+        sys.exit(f"{dirp}: no model table at concat {OFFICE0_TABLE_OFF:#x} "
+                 f"(count {cnt:#x}) — wrong leaf?")
+    ov_path = dirp.parent / "OVERLAY" / OFFICE_OVERLAY
+    if not ov_path.exists():
+        sys.exit(f"{ov_path} missing — the office0 modes are placement-"
+                 "table driven")
+    pl = sys.modules.get("_placements") or _load("_placements",
+                                                 "placements.py")
+    entries = pl.parse_table(
+        ov_path.read_bytes(),
+        pl.KNOWN_TABLES[OFFICE_OVERLAY][OFFICE0_SUBSTATE])
+    return d, cnt, entries
+
+
+def export_office0_placed(args):
+    """--office0-placed DIR: every static placed object of the AREA02
+    sub-state-0 table baked at its placement matrix into one EMDL.
+    Excluded (each reported): crawlers + generators (the scene.txt enemy
+    block), doors (interactive, --office0-doors), class-0x0B deferred
+    spawns, glow/billboard records, env/camera objects, param-0 records
+    (no model bind), params absent from the 27-entry table. The misc
+    creature-family destructibles (nest/egg fixtures) ARE baked — they
+    have authentic meshes; natively they are static scenery (flagged)."""
+    dirp = Path(args.office0_placed)
+    d, cnt, entries = _office0_placements(dirp)
+    dirview = struct.unpack_from(f"<{cnt}I", d, OFFICE0_TABLE_OFF + 4)
+
+    placements, skipped = [], []
+    for e in entries:
+        cls = e.spawn_class & 0xFF
+        if e.behavior == FN_CRAWLER or e.behavior in FN_GENERATORS:
+            continue                          # scene.txt enemies block
+        if e.behavior in FN_DOORS:
+            continue                          # --office0-doors
+        if cls == 0x0B:
+            skipped.append((e, "deferred class-0x0B scripted spawn"))
+        elif e.behavior == OFFICE0_FN_GLOW:
+            skipped.append((e, "glow/billboard (no billboard path)"))
+        elif e.behavior in OFFICE0_FN_ENV:
+            skipped.append((e, "env/camera object (no geometry)"))
+        elif e.param == 0:
+            skipped.append((e, "param 0 (no model bind)"))
+        elif e.param >= cnt or dirview[e.param] == 0xFFFFFFFF:
+            skipped.append((e, f"param {e.param:#x} absent from the "
+                            f"{cnt}-entry table"))
+        else:
+            placements.append((e.param, e.matrix34()))
+    for e, why in skipped:
+        print(f"  skipped [{e.index:2d}] cls={e.spawn_class:04x} "
+              f"param={e.param:04x} at ({e.pos[0]:.1f}, {e.pos[1]:.1f}, "
+              f"{e.pos[2]:.1f}): {why}")
+
+    sections, tex_table = office0_bake_placed(d, placements)
+    pos = sections[0][0]
+    if not pos:
+        sys.exit("no geometry produced")
+    xs = [p[0] for p in pos]
+    ys = [p[1] for p in pos]
+    zs = [p[2] for p in pos]
+    print(f"placed objects: {len(placements)} instances, {len(pos)} verts, "
+          f"{len(sections[0][2]) // 3} tris, {len(tex_table)} textures")
+    print(f"  bbox X[{min(xs):.1f},{max(xs):.1f}] "
+          f"Y[{min(ys):.1f},{max(ys):.1f}] Z[{min(zs):.1f},{max(zs):.1f}]")
+
+    tex_entries, tex_blob = build_texture_blob(
+        None, tex_table, None, office0_uploads(dirp, args))
+    en.write_emdl(Path(args.out), sections, [], [-1], [[en.mat_identity()]],
+                  30.0, tex_entries, tex_blob, flags=1)
+    return 0
+
+
+def export_office0_doors(args):
+    """--office0-doors DIR: the sub-state-0 table's two interactive doors
+    (class 5; fn 0x001BC350 west / 0x001BB860 east) carved MODEL-LOCAL
+    from the per-area model table into <out>/doors/door_mXX.emdl (XX = the
+    record's model byte) and written as manifest `door` lines (positions /
+    yaw from the table, the 12.0-unit use-scan radius). --out is the SCENE
+    DIRECTORY for this mode. All node slots bake at identity — the leaf
+    rest offsets are unknown without a live capture (flagged; the n1
+    evidence says they can be nonzero). The doorsfx pair stays the s26
+    family-2 office pair (the west door's link is 0x02xx); the east
+    door's family-6 pair is unresolved (D_0024DB80 is BSS — needs live)."""
+    dirp = Path(args.office0_doors)
+    scene_dir = Path(args.out)
+    d, cnt, entries = _office0_placements(dirp)
+    doors = [e for e in entries if e.behavior in FN_DOORS]
+    if not doors:
+        sys.exit("no door records in the sub-state-0 table")
+    (scene_dir / "doors").mkdir(parents=True, exist_ok=True)
+
+    ups = office0_uploads(dirp, args)
+    lines = []
+    for e in doors:
+        name = f"doors/door_m{e.model:02x}.emdl"
+        sections, tex_table = office0_bake_placed(d, [(e.param, None)])
+        tex_entries, tex_blob = build_texture_blob(None, tex_table, None,
+                                                   ups)
+        en.write_emdl(scene_dir / name, sections, [], [-1],
+                      [[en.mat_identity()]], 30.0, tex_entries, tex_blob,
+                      flags=1)
+        pos = sections[0][0]
+        print(f"door [{e.index}] model {e.model:#04x} param {e.param:#04x} "
+              f"link {e.link:#06x} -> {name}: {len(pos)} verts, "
+              f"{len(sections[0][2]) // 3} tris")
+        lines.append(f"door {name} {e.pos[0]:.6g} {e.pos[1]:.6g} "
+                     f"{e.pos[2]:.6g} {e.rot[1]:.6g} 12")
+
+    mf = scene_dir / "scene.txt"
+    old = mf.read_text().splitlines() if mf.exists() else []
+    old = [ln for ln in old if not ln.startswith("door ")]
+    mf.write_text("\n".join(old + lines) + "\n")
+    print(f"manifest: {mf}: {len(lines)} door line(s)")
+    update_manifest(scene_dir, "doorsfx", "0x3FD 0x3FE")
+    return 0
 
 
 def load_level_mesh(level_path: Path):
@@ -668,6 +952,10 @@ def load_level_mesh(level_path: Path):
         else:
             print(f"warning: {sib_path} missing — the western half of the "
                   "area will be absent")
+    elif (level_path.name, len(d)) in KNOWN_STATIC_REGIONS:
+        regions = KNOWN_STATIC_REGIONS[(level_path.name, len(d))]
+        print(f"regions: known static map for {level_path.name} "
+              f"({len(regions)} region(s))")
     else:
         print("note: no live region map for this file — exporting the whole "
               "file as static world (movable sub-objects may be missing or "
@@ -719,18 +1007,101 @@ def read_psmct32_rgba(lm: bytes, tbp0: int, tbw: int, w: int, h: int) -> bytes:
     return bytes(out)
 
 
+def read_uploads_localmem(paths):
+    """Synthetic GS local memory: replay the GS texture-upload packets
+    (BITBLTBUF reg 0x50 / TRXPOS 0x51 / TRXREG 0x52 + the IMAGE-mode GIF
+    payload) of the given disc files into a zeroed 4 MB buffer — exactly
+    the writes the engine's streaming loader performs, so the standard
+    clut_pair readers resolve TEX0 keys against the result. Only PSMCT32
+    transfers are replayed (every observed level/library upload is one;
+    anything else is reported and skipped). Returns (localmem, covered):
+    `covered` flags each 256-byte GS block a replay wrote, so the caller
+    can tell authentic texels from unreplayed zero-fill (validated: the
+    chunk27 pack replay is byte-identical to the live office GS dump's
+    VRAM over all 1920 blocks). The replay-exactness makes content
+    heuristics unnecessary — coverage IS residency here."""
+    est = _load("_est_lvl_up", "extract_subtextures.py")
+    lm = bytearray(4 * 1024 * 1024)
+    covered = bytearray(4 * 1024 * 1024 // 256)
+    for p in paths:
+        p = Path(p)
+        d = p.read_bytes()
+        bb = None
+        tp = (0, 0)
+        for off in range(0, len(d) - 16, 16):
+            reg = est._gs_regwrite(d, off)
+            if reg == 0x50:                       # BITBLTBUF
+                v = int.from_bytes(d[off:off + 8], "little")
+                bb = ((v >> 32) & 0x3FFF, (v >> 48) & 0x3F,
+                      (v >> 56) & 0x3F)
+                tp = (0, 0)
+            elif reg == 0x51 and bb is not None:  # TRXPOS (dest x/y)
+                v = int.from_bytes(d[off:off + 8], "little")
+                tp = ((v >> 32) & 0x7FF, (v >> 48) & 0x7FF)
+            elif reg == 0x52 and bb is not None:  # TRXREG -> replay
+                v = int.from_bytes(d[off:off + 8], "little")
+                w, h = v & 0xFFF, (v >> 32) & 0xFFF
+                dbp, dbw, dpsm = bb
+                bb = None
+                if not (0 < w <= 2048 and 0 < h <= 2048 and w % 64 == 0):
+                    continue
+                if dpsm != 0x00:
+                    print(f"  uploads: {p.name}: non-PSMCT32 transfer "
+                          f"(psm {dpsm:#x}) skipped")
+                    continue
+                payload = est.find_image_payload(d, w * h * 4, off)
+                if payload is None:
+                    print(f"  uploads: {p.name}: dbp {dbp:#x} {w}x{h} — "
+                          "IMAGE payload not found, skipped")
+                    continue
+                dx, dy = tp
+                ppr = max(dbw, 1)      # DBW is in 64-px units = PSMCT32
+                base = dbp * 256       # pages-per-row (psmct32_word arg)
+                for y in range(h):
+                    row = payload + y * w * 4
+                    sy = y + dy
+                    for x in range(w):
+                        a = base + est.psmct32_word(x + dx, sy, ppr) * 4
+                        if a + 4 <= len(lm):
+                            lm[a:a + 4] = d[row + x * 4:row + x * 4 + 4]
+                            covered[a >> 8] = 1
+                print(f"  uploads: {p.name}: dbp {dbp:#x} dbw {dbw} "
+                      f"{w}x{h} replayed")
+    return bytes(lm), covered
+
+
+def _blocks_covered(covered, blk: int, nbytes: int) -> bool:
+    """True when every 256-byte block of [blk*256, blk*256+nbytes) was
+    written by a replayed upload."""
+    for b in range(blk, blk + (nbytes + 255) // 256):
+        if b >= len(covered) or not covered[b]:
+            return False
+    return True
+
+
 def build_texture_blob(gsdump: Path | None, tex_table: list[dict],
-                       p2s: Path | None = None):
+                       p2s: Path | None = None, uploads=None):
     """Like export_native.build_texture_blob but adds PSMCT32 support.
 
     VRAM sources (gsdump wins if both given, mirroring export_native):
-      gsdump — PCSX2 1-frame GS dump (.gs): replayed register writes.
-      p2s    — PCSX2 save state (.p2s, or a pre-extracted state dir, or a
-               bare gs.bin freeze blob): GS local memory at
-               len(gs.bin) - 0x400000 - 84 (gs_vram.read_localmem)."""
+      gsdump  — PCSX2 1-frame GS dump (.gs): replayed register writes.
+      p2s     — PCSX2 save state (.p2s, or a pre-extracted state dir, or a
+                bare gs.bin freeze blob): GS local memory at
+                len(gs.bin) - 0x400000 - 84 (gs_vram.read_localmem).
+      uploads — list of disc files whose GS texture-upload packets are
+                replayed into a synthetic VRAM (read_uploads_localmem; the
+                only texel source for scenes with no captured state, e.g.
+                AREA02 sub-state 0). This path checks each texture's
+                texel + CLUT blocks against the replay COVERAGE map and
+                falls back to flat grey when uncovered — resolution is
+                counted honestly."""
     entries, blob = [], bytearray()
     lm = None
-    if gsdump is not None:
+    covered = None
+    n_ok = n_flat = 0
+    if uploads:
+        lm, covered = read_uploads_localmem(uploads)
+    elif gsdump is not None:
         pg = _load("_parse_gsdump_lvl", "parse_gsdump.py")
         state_data, _r, _p, _s, _c = pg.parse(gsdump, quiet=True)
         lm = pg.dump_vram(state_data)
@@ -755,6 +1126,18 @@ def build_texture_blob(gsdump: Path | None, tex_table: list[dict],
             entries.append({"w": 1, "h": 1, "off": len(blob)})
             blob += b"\x80\x80\x80\xff"
             continue
+        if covered is not None:
+            # coverage gate (uploads path): texel base + CLUT block must
+            # have been written by a replayed transfer
+            clut_bytes = 64 if f["psm"] == 0x14 else 1024
+            ok = _blocks_covered(covered, f["tbp0"], 256) and \
+                (f["psm"] == 0x00
+                 or _blocks_covered(covered, f["cbp"], clut_bytes))
+            if not ok:
+                entries.append({"w": 1, "h": 1, "off": len(blob)})
+                blob += b"\x80\x80\x80\xff"
+                n_flat += 1
+                continue
         if f["psm"] == 0x00:
             rgba = read_psmct32_rgba(lm, f["tbp0"], f["tbw"], w, h)
         elif f["psm"] == 0x14:
@@ -767,6 +1150,10 @@ def build_texture_blob(gsdump: Path | None, tex_table: list[dict],
             rgba = apply_clut(idx, pal)
         entries.append({"w": w, "h": h, "off": len(blob)})
         blob += rgba
+        n_ok += 1
+    if covered is not None:
+        print(f"textures: {n_ok}/{len(tex_table)} resolved from the "
+              f"replayed uploads, {n_flat} flat-grey fallback(s)")
     return entries, bytes(blob)
 
 
@@ -784,6 +1171,18 @@ def main(argv):
     ap.add_argument("--p2s", help="PCSX2 save state (.p2s, pre-extracted "
                     "state dir, or bare gs.bin) captured INSIDE this level: "
                     "alternative VRAM texel source (--gsdump wins if both)")
+    ap.add_argument("--uploads", help="comma-separated disc files whose GS "
+                    "texture-upload packets are replayed into a synthetic "
+                    "VRAM (texel source for scenes with NO captured state, "
+                    "e.g. AREA02 sub-state 0; wins over --gsdump/--p2s)")
+    ap.add_argument("--office0-placed", metavar="DIR",
+                    help="export the AREA02 sub-state-0 PLACED OBJECTS "
+                    "(model-table fixtures at their placement matrices) "
+                    "from this chunk06.n0 leaf dir into --out")
+    ap.add_argument("--office0-doors", metavar="DIR",
+                    help="carve the sub-state-0 interactive door meshes "
+                    "from this chunk06.n0 leaf dir into --out/doors/ and "
+                    "write the manifest door lines (--out = the scene dir)")
     ap.add_argument("--spawn", default=None,
                     help="x,y,z[,yaw] player spawn in TRUE world "
                     "coordinates; written to the scene manifest "
@@ -793,6 +1192,11 @@ def main(argv):
                     "to the scene dir); written to the scene manifest")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
+
+    if args.office0_placed:
+        return export_office0_placed(args)
+    if args.office0_doors:
+        return export_office0_doors(args)
 
     sections, tex_table, n_tris = load_level_mesh(Path(args.level))
     pos = sections[0][0]
@@ -807,7 +1211,9 @@ def main(argv):
 
     tex_entries, tex_blob = build_texture_blob(
         Path(args.gsdump) if args.gsdump else None, tex_table,
-        Path(args.p2s) if args.p2s else None)
+        Path(args.p2s) if args.p2s else None,
+        [Path(s) for s in args.uploads.split(",")] if args.uploads
+        else None)
 
     frames = [[en.mat_identity()]]   # 1 bone, 1 identity frame
     parents = [-1]
@@ -826,11 +1232,21 @@ def main(argv):
         update_manifest(Path(args.out).parent, "bgm", args.bgm)
 
     # Office level: rewrite the scene.txt enemies block from the AREA02
-    # placement tables (see the module docstring, ENEMY LINES).
+    # placement tables (see the module docstring, ENEMY LINES). The two
+    # office render files share a name; the leaf disambiguates them:
+    # chunk06.n1 (sub-state 1, the captured scene — commented toggle) vs
+    # chunk06.n0 (sub-state 0, the main floor — ACTIVE lines, capped at
+    # the port's EM_ENEMY_MAX=16 by distance from the engine spawn).
     level_path = Path(args.level)
     ov_path = level_path.parent.parent / "OVERLAY" / OFFICE_OVERLAY
     if level_path.name == "f03_id43.bin" and ov_path.exists():
-        emit_enemy_manifest(Path(args.out).parent, ov_path)
+        if level_path.stat().st_size == OFFICE0_F03_SIZE \
+                and level_path.parent.name == OFFICE0_DIRNAME:
+            emit_enemy_manifest(Path(args.out).parent, ov_path,
+                                substate=OFFICE0_SUBSTATE, cap=16,
+                                spawn=OFFICE0_SPAWN)
+        else:
+            emit_enemy_manifest(Path(args.out).parent, ov_path)
     return 0
 
 

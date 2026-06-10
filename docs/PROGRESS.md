@@ -4081,3 +4081,41 @@ full detail):
   EM_ENEMY_TEST 1/2/3, EM_SFX_TEST all PASS; clean build.
 - Open: page-tab strips, spinning cyan ring + sparkles (cadence
   unverified), hover-green marker state, page sub-screen layouts.
+
+### Update — 2026-06-10 s28: AREA02 SUB-STATE 0 exported — the main office floor is a playable scene
+
+- **Geometry mapping closed** (FINDINGS new section "AREA02 SUB-STATE 0
+  GEOMETRY MAPPED"): the area's three sub-states ARE the three chunk06
+  leaves (soundmap area_scene_map: (2,0)→chunk06.n0, (2,2)→chunk06.n2;
+  n1 = the captured sub-state 1). The main floor is chunk06.n0:
+  f03_id43 whole-file static (east+center), f02_id44 render tail (west)
+  + collision grid @0x10C800 (no cell list), f04_id72 head (far-east
+  annex) + per-area MODEL TABLE @ concat 0x373800 (27 entries, crosses
+  into f05_id41 — concatenation-only). Param-binding validated against
+  the n1 table (doors/pickups/fixtures all bind by param).
+- **s26 scope correction**: the sub-state-0/2 tables' entry 0x0D (what
+  the 17 placed office crawlers disguise as) is a 14u crate, not the
+  cardboard box (that is sub-state 1's table, which places no crawlers).
+- **Engine spawn tables found in boot .data**: area-2 sub tables
+  0x24B2F4/0x24B444/0x24B594, 7 records each; entry 5 = (40,0,-146)
+  yaw -pi/2 = the main-floor arrival → the scene spawn.
+- **Texture residency without a save state**: export_level gains
+  `--uploads` — replays the disc's GS upload packets into a synthetic
+  VRAM (chunk06.n0/f02_id44 + chunk27/f00_id35; replay byte-identical
+  to live VRAM over the global pack's 1920 blocks; coverage-gated).
+  Scene texture resolution **247/247, 0 flat fallbacks**.
+- **Shipped**: `assets/scene_office0/` — 4 mesh parts (28k verts/18.7k
+  tris), office0.emcl, 2 carved doors (door_m15/door_m17, model-local,
+  slot offsets flagged), scene.txt with 16 ACTIVE `enemy crate` lines
+  (EM_ENEMY_MAX cap, farthest-from-spawn overflow commented), 8
+  generator comments, doorsfx 0x3FD/0x3FE (east door family 6 open).
+  export_level.py: KNOWN_STATIC_REGIONS, --office0-placed,
+  --office0-doors, emit_enemy_manifest(substate/cap/spawn), and a
+  psmct32_word ppr fix in the new replay path.
+- Verified: EM_SCENE captures show a coherent textured industrial floor
+  with cardboard crates at authentic table positions (conveyor crossing,
+  freight elevator platform y15, infected growth west); default capture
+  byte-identical; EM_MOVE/DOOR/WEAPON/ENEMY 1-3 + test-input PASS.
+- Open: live sub-state-0 capture (door leaf offsets, east-door sfx
+  family 6), n0 f00_id42/f01_id46 roles, grid-only collision question,
+  per-scene crate model in the port.

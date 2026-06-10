@@ -8072,3 +8072,137 @@ double ring + sparkle emitter (animated; cadence unverified) are still
 not composed in the port; hover-green marker state needs page-navigation
 input; page sub-screen texture sets (chunks 0x1F–0x31) are exportable
 with the same recipe once their layouts are decoded.
+
+## AREA02 SUB-STATE 0 GEOMETRY MAPPED — the main floor exported end-to-end (2026-06-10, session 28)
+
+The office area's MAIN-FLOOR story beat (placement table 0x827830, 58
+records — s27's "sub-state 0") now has its render geometry, collision,
+model table, doors, spawn and textures pinned and exported as
+`extermination-port/assets/scene_office0/` (EM_SCENE-loadable, 16 active
+crawler crates). Closes the s27 open item "sub-state-0's render file
+region map".
+
+### 1. Sub-state -> chunk leaf mapping (the geometry was never in n1)
+
+The s27 prompt assumed the floor hid inside chunk06.n1's files; it does
+not. **The area's three story sub-states are the three chunk06 nested
+leaves**, pinned by the soundmap's `area_scene_map` ((2,0) -> chunk06.n0,
+(2,2) -> chunk06.n2; (2,1) ties broadly but chunk06.n1 is live-pinned as
+the captured scene): n0 = sub-state 0, n1 = 1 (back office), n2 = 2.
+Render-record survey of every chunk06* file (walk_records, per-section
+slot histogram + slot-0 bbox):
+
+| chunk06.n0 file | size | render content (world space, slot 0) |
+|---|---|---|
+| f00_id42 / f01_id46 | 0x28800 / 0x16000 | none (no records; f01 carries no GS uploads either — roles TBD) |
+| f02_id44 | 0x1EA000 | collision world (head; grid section @0x10C800, 1863 verts / 1007 nodes, **no cell-list section** — unlike n1) + **render tail [0x14FCD0,0x1EA000) X[-349,35] Z[-210,201]** (west floor; same two-section shape as n1's id44, s8) + the leaf's two GS texture uploads |
+| f03_id43 | 0x13D800 | **whole-file static world [0x10,0x13D750) X[-35,546] Z[-195,185]** (east + center; all slot 0 — NO object regions and NO embedded model table, unlike n1's f03) |
+| f04_id72 | 0x22000 | static far-east annex [0x10,0xD1D0) X[520,550]; **+0xD800 = the per-area MODEL TABLE** |
+| f05_id41 | 0x14B800 | model-table entries ONLY (object-space; never export whole-file) |
+
+chunk06.n2 (sub-state 2, surveyed not exported): render spans f01_id43
+(X[-120,345]) + f02_id42 + f03_id46 + f06_id74 (east, to X 546) +
+f00_id44 tail (west) + f07..f12 object/model files; f00_id44 head =
+collision; model table @ concat 0x3E9000 (f07_id82+0x12000, count 27).
+
+### 2. The n0 model table — directory across a file boundary, param binds
+
+`func_001C6120`-shape table (u32 count; u32 dir[count]; entry = table +
+(dir[i] & ~3)) at **concat offset 0x373800 = f04_id72+0xD800, count 27
+(0x00..0x1A)**; the entries run past f04's end into f05_id41 — the leaf's
+files load contiguously (the chunk15 rule), so tools must operate on the
+byte-concatenation. Single-file scans MISS this table; that is why s28's
+first scan found only n1's (fully inside f03_id43 @0x82000).
+
+Binding validation (n1 cross-check): the n1 table's entries land exactly
+on the s8/s9 live blob regions — 0x07=corridor door 0x88800, 0x08=panel,
+0x09=station, **0x0A=double door 0xA0580**, 0x0B/0x0C/0x0D=pickup blobs
+(= pickup PARAMS 0xB/0xC/0xD), 0x0E=battery, 0x0F=lockers. So placed
+actors bind mesh by **param** across the board (the s23 creature rule
+holds for doors/fixtures/pickups too; the "model" byte is a variant
+selector).
+
+**CORRECTION-of-scope for s26's crate**: the n0 (and n2) table's entry
+0x0D — the disguise the 17 ACTUALLY-PLACED office crawlers bind — is a
+**14x14x14 crate (1 block, 32 recs)**, the AREA11 size class, NOT the
+6x4x5 cardboard box. The s26 box is the SUB-STATE-1 table's 0x0D, and
+sub-state 1 places no crawler at all. The port's global
+`enemy_crate.emdl` (the box) therefore stands in for the office0 scene's
+crates — flagged, re-carve from the n0 table when the crate kind grows
+per-scene models.
+
+Doors (class 5): param 0x16 (model 0x15, fn 0x001BC350, link 0x0200) at
+(-30.5, 0, -187.3) — a 9x21 single leaf + handle sub-node; param 0x19
+(model 0x17, fn 0x001BB860, link 0x0605) at (440.2, 15, 109.9) — 3 nodes,
+two stacked 10x21 sliding panels. Carved model-local with ALL slots at
+identity (their rest offsets are runtime palette state; no live capture
+of this sub-state exists — n1's door slots prove offsets can be nonzero,
+so the leaves may sit slightly off until captured).
+
+### 3. The engine spawn tables live in the BOOT ELF (.data)
+
+The s22 spawn-table chain (`0x24D650[area] -> desc[sub] -> rec*0x30`)
+resolves statically for AREA02: **three 7-record copies at 0x24B2F4 /
+0x24B444 / 0x24B594 (sub-states 0/1/2)**, record = {f32 pos[3]; f32 yaw;
+u32 flags; u32 1; ...}. All three copies carry the SAME 7 entries:
+[0] (-35,0,-178) y0 (flanks the west door), [1] (65,0,-225) y1.571,
+[2]/(3] (104,0,-245/-259) the office door faces (s22 live), [4]
+(439,15,99) ypi (flanks the east door), [5] **(40,0,-146) y-pi/2** — the
+main-floor arrival, 3u from the sub-state-0 table's rec-0 trigger at
+(43,3.5,-147) — and [6] (90,0,-170) ypi. (The s22 doc's "tbl @0x24B6B0"
+is the NEXT table base; entry contents match at 0x24B444+, so the doc
+vaddr was off by one table — the entries themselves were verified live
+and stand.) Scene spawn = entry 5.
+
+### 4. Textures with NO captured state: GS-upload replay (synthetic VRAM)
+
+All AREA02 captures (GS dump frame1.gs, save states 08/09/resume) are
+sub-state 1; the n0 leaf's 242 TEX0 keys overlap them ZERO percent (same
+0x1FB0..0x34C8 block range, different content per sub-state). Resolution
+instead comes from the disc's own GS upload packets
+(`export_level.read_uploads_localmem`): replay BITBLTBUF/TRXPOS/TRXREG +
+IMAGE payloads into a zeroed 4 MB buffer using PSMCT32 addressing
+(`psmct32_word(x, y, ppr)` — NOTE its third arg is pages-per-row = DBW,
+not pixels). Sources and coverage:
+
+- `chunk06.n0/f02_id44.bin`: dbp 0x2A00 256x480 + dbp 0x3180 256x224
+  (the leaf pack, blocks 0x2A00..0x3500) — 241/242 keys;
+- `chunk27/f00_id35.bin`: dbp 0x1D00 256x480 (the global library pack,
+  0x1D00..0x2480) — the remaining key.
+
+**Replay validation: the chunk27 replay is byte-identical to the live
+office GS dump's VRAM over all 1920 blocks** — coverage == residency, no
+content heuristic needed (a 256-byte-block coverage map gates the read;
+uncovered -> flat grey, counted). Scene result: **247/247 texture slots
+resolved** (84+40+20 world, 98 placed, 5 doors), 0 flat fallbacks. This
+generalizes: any leaf with its own upload packets can now be textured
+without a save state (`--uploads`).
+
+### 5. Scene export + verification (assets/scene_office0)
+
+- Parts: 00_floor_east (8427v/4919t/84tex), 01_floor_west (3895/2261/40),
+  02_annex_east (335/187/20), 03_placed (15520/11334/98; 21 instances of
+  16 table entries — incl. the misc creature-family destructibles baked
+  static, flagged), doors/door_m15+m17, office0.emcl (1007 grid polys;
+  floor y=0 at the spawn and at every crawler position probed; the east
+  platform solves y=15 under the y-15 placements — consistent).
+- scene.txt: spawn 40 0 -146 -1.5708; **16 active `enemy crate` lines**
+  (EM_ENEMY_MAX cap; the 17th, (476.9,15,68.8) — farthest from spawn —
+  stays commented with the overflow note); 8 generator + 3 creature
+  comments; 2 door lines (table positions, r=12); doorsfx 0x3FD/0x3FE
+  (the west door's link family 2 = the s26 office pair; the EAST door's
+  family-6 pair is unresolved — D_0024DB80 is BSS, needs a live read).
+- Skipped, reported by the exporter: 4 deferred class-0x0B records, 3
+  glow/billboard (param 0x7D), 2 env/camera, 1 param-0 record.
+- Captures (EM_SCENE + temp spawn-override shadow): coherent textured
+  industrial floor — concrete walls, pipe runs, grate floors, a freight
+  conveyor crossing the floor, hazard-striped platform edges, shutter
+  doors, the east freight elevator at y15, and organic infected growth
+  masses on the west side; cardboard crates render at the authentic
+  table positions (e.g. (33,0,106) beside the conveyor). Default scene
+  byte-identical; EM_MOVE/DOOR/WEAPON/ENEMY 1-3 + make test-input PASS.
+
+Open: n0 f00_id42/f01_id46 roles; the n0 cell-list absence (does the
+engine run grid-only collision here?); live capture of sub-state 0 (door
+leaf rest offsets, generator/crawler verification, the green aura tint);
+the east door's sound family; per-scene crate models in the port.
