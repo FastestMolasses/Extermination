@@ -6628,3 +6628,160 @@ the behaviors themselves (no central HP system):
 - Live-verify (PCSX2, future session): crawler invulnerability during
   state 1; leech HP consumption; node slots `+0x34`/`+0x40` identity
   in the `D_00275B40` table during enemy ticks.
+
+## AREA TRANSITION LIFECYCLE — both modes captured live, end-to-end (2026-06-10, session 22)
+
+Live PCSX2 capture of one complete **intra-area room move** (office double
+door, id 2, both directions) and one complete **inter-area change** (west
+door, id 1|0x80, area 02 → area 01), instrumented with the DebugServer's
+`watch_change` poller (5 ms, auto-pause, old/new/cycle). Execution
+breakpoints were NON-FUNCTIONAL in this DebugServer session (a BP on the
+main-loop top never fired) — all ordering below is from data watchpoints
++ paused-state reads; writer functions are attributed statically.
+Timing unit: vsyncs (NTSC field count at `0x00810E90`).
+
+### 0. The global transition-state bytes (refined from s15/s17)
+
+```
+0x810700 u8 AREA            0x810701 u8 story SUB-STATE
+0x810702 u8 ENTRY/room idx  0x810703 u8 area-currently-BUILT mirror
+0x8106B5 u8 req: next area  0x8106B6 u8 req: next sub (0xFF -> 0)
+0x8106B7 u8 req: entry idx  0x8106B8 u8 req: mode 0=idle 1=area 2=room
+```
+
+`0x810702` is not a "current room" — it is the **player-placement entry
+index**, the index of the 0x30-byte record the player was last placed
+from. The same value doubles as the room/visibility-zone id (the engine
+showed "SUPPLY ROOM" after placing entry 3).
+
+**Spawn-table chain (func_001B07C0, fully decoded from disasm):**
+
+```
+desc = *(u32*)(0x0024D650 + 4*area)        ; per-area (bss-resident for
+tbl  = *(u32*)(desc + 4*sub)               ;  overlay-owned areas)
+rec  = tbl + entry*0x30
+rec: {f32 pos[3]; f32 yaw @+0xC; u32 flags @+0x10; u32 1 @+0x14;
+      f32 @+0x18; u32 packed @+0x20; ...}   (pos+yaw verified live;
+                                             +0x10.. likely camera init)
+```
+Override path: if byte `gp-0x7790` == 1, placement instead uses floats
+`0x810710/14/18` (pos) + `0x810720/24/28` (rot) — an explicit
+"place player here" request (scripted/cutscene placements).
+Verified live: area-2 sub-1 tbl @`0x24B6B0` — entry 2 = (104,0,-245) yaw 0,
+entry 3 = (104,0,-259) yaw pi (the two faces of the office door); area-1
+sub-0 tbl @`0x24B1A0` — entry 5 = (39,0,-225) yaw -pi/2 (west face of the
+west door). Entries flank their door, yaw facing AWAY (exit pose).
+
+**Destination table (s17/s20, now byte-verified live):** record =
+`*(D_0024E140[area]) + 4*(door_id & 0x7F)`, but its 4 bytes are read TWO
+WAYS depending on door-id bit7 (`func_001BC150` disasm):
+
+- bit7 SET (area change): `{next_area, entry_idx, has_sub, sub}` →
+  B5=rec[0], B7=rec[1], B6 = rec[2] ? rec[3] : 0xFF (0xFF → sub 0).
+  Area-2 door 1 = {01 05 00 00} → area 1, entry 5, sub 0. Return path
+  area-1 door 3 = {02 01 01 01} → area 2, entry 1, sub 1 (symmetric).
+- bit7 CLEAR (room move): `{entry_from_side0, entry_from_side1, -, -}` →
+  B7 = rec[side_latch +0x2E], B8=2. Area-2 door 2 = {03 02 ..}: entered
+  from north (side 0) → entry 3 (supply room), from south (side 1) →
+  entry 2 (office). Both directions captured live.
+
+### 1. Intra-area room move — captured timeline (door id 2, side 0)
+
+```
+vsync   +d   event
+528519       door sub 0->3 OPENING (func_001BBE40 kickoff): side latch
+             +0x2E computed (0=north); player SNAPPED to staging point
+             (104.0, 0, door_z+5.0 = -247.2) — no gradual walk observed;
+             door script D_0024DE40 queued on anim block +0x1F0
+             (+0x00 active=1, +0x04 cursor=1, +0x08 PC=0x0024DE40)
+528616  +97  clip done (script active = -1) -> sub 3->4
+528617  + 1  sub-4 (func_001BC240) -> func_001BC150 COMMIT:
+             func_001AEDE0(4,0) fade-out; B7=3 (rec[side 0]); B8=2
+             -> sub 4->5 same frame
+528681  +64  fade-out complete: 0x810702 <- B7 (2->3); player re-placed
+             from spawn rec 3 = (104,0,-259) yaw pi  [same frame]
+528682  + 1  B5..B8 cleared to 0
+528682   0   door sees B8==0: clip reset, +0x0B=0, sub 5->0 (re-armed)
+             (fade-in runs after, same 4-speed machine)
+```
+NOT touched: overlay arena (byte-identical), actor pool (same actor
+slots; the door actor persists across the move), audio (no channel fade).
+Reverse direction (side 1, captured earlier in-session): B7=2, player
+placed at (104,0,-245) yaw 0 — symmetric.
+
+### 2. Inter-area change — captured timeline (door id 1|0x80, area 2 -> 1)
+
+```
+vsync   +d   event
+528813       door sub 0->3; side latch 1; same script PC 0x0024DE40
+             observed; player snapped to staging (62.0, 0, -225.5)
+             (= door east face + 5; door yaw -pi/2)
+528890  +77  clip done -> sub 3->4
+528891  + 1  COMMIT func_001BC150 bit7 path: func_001B0C00(4) =
+             func_001AEDE0(4,0) fade-out + func_001FAD70(ch,4,1) x3
+             audio-channel fades (ch 0/1/2 — inter-area kills audio;
+             room moves do not); B5=01 B6=FF B7=05 B8=01 -> sub 4->5
+528955  +64  fade-out complete, SWITCH BEGINS: 0x810700<-01 (area),
+             0x810701<-00 (B6 0xFF->0), 0x810702<-05 (entry);
+             player still at staging point
+528958  + 3  overlay arena 0x823500 REWRITTEN: MWo3 "Area01.bin" flat
+             load (header now ver=02, sizes 0x54C0/0x4300, end 0x82CD00);
+             overlay init populates the per-area .bss descriptors
+             (D_0024D650[1]=0x275500 spawn desc, D_0024D7C0[1]=0x2758D0
+             placement desc)
+528962  + 4  0x810703 <- 01 (built-area mirror updated)
+   ...       ~290 vsyncs of asset streaming (textures/models/level mesh;
+             dominates load time even on PCSX2's instant CD)
+529254 +296  completion burst (within ~1 frame): ACTOR POOL freed and
+             respawned from AREA01 placement tables (old area-2 door
+             slots zeroed; free count changed); player placed from
+             area-1 sub-0 spawn rec 5 = (39,0,-225) yaw -pi/2;
+             B5..B8 cleared; fade-in
+```
+Totals: commit -> playable ≈ 363 vsyncs (~6 s; disc-speed dependent) for
+the area change, vs 65 vsyncs for a room move. Fade-out is 64 vsyncs in
+both modes (`func_001AEDE0(4,0)` / via `func_001B0C00(4)` — the 4 is the
+fade speed).
+
+### 3. Port contract — what an area loader must implement
+
+1. **Request**: door commit writes the 4-byte request B5..B8 (above).
+   Nothing else carries the transition.
+2. **Both modes**: run fade-out (speed 4 ≈ 64 frames); door stays in
+   sub 5 until it observes B8 == 0, then closes and re-arms — doors are
+   reusable and persist across room moves.
+3. **Room move (B8==2)**: at fade-out end, set entry byte, re-place the
+   player from `spawn_tbl[area][sub][entry]` (pos + yaw), clear request
+   next frame, fade in. KEEP: actors, overlay, audio, collision world.
+4. **Area change (B8==1)**: additionally fade all audio channels at
+   commit. At fade-out end: write area/sub/entry; load OVERLAY/AREAxx.BIN
+   flat at the arena base; run its init (registers spawn/placement/
+   destination descriptors); update the built-area mirror; stream the
+   area's assets; FREE the whole actor pool and respawn it from the new
+   area's placement table (s11 spawner); place the player from the new
+   spawn table; clear request; fade in.
+5. **Authoring data per area**: placement table (s11), destination table
+   (4 B x doors, dual interpretation by bit7), spawn table (0x30 B x
+   entries, per sub-state). All three live in/are selected by the
+   overlay; spawn entries flank their door faces at ±5 with exit yaw.
+
+### 4. Tooling + caveats (this session)
+
+- DebugServer **execution breakpoints never fired** (tested against the
+  main loop); MCP watchpoints also never paused. The raw TCP
+  `watch_change` poller (5 ms) is the working auto-pause primitive —
+  use it for any future transition/loader work.
+- The player's authoritative position is NOT `0x810350` (actor +0xA0):
+  writes there, to +0x100, and to the spad mirrors are all overwritten
+  by the next frame. The locomotion state lives elsewhere (untracked);
+  the engine itself moves the player only via the placement path above
+  (and MOVE-TO). Finding the real store is an open item.
+- The organic walk-into trigger (s17: action-state 0x2D + ring) did NOT
+  reproduce under analog pad injection — the door never armed while the
+  player pushed against the doorway plane. Both captures were started by
+  writing the use-scan's own effect bytes (`door+0x0B = 4`,
+  spad `0x70003B8D = 3`); everything downstream is organic engine
+  behavior. The class-5 trigger conditions remain the s17/s20 open item
+  (exec BPs being broken, the use-scan path could not be traced live).
+- Door script: both captured transits queued `D_0024DE40` despite
+  opposite side latches — s17's "side 1 -> D_0024DEC0" needs re-check.

@@ -3610,3 +3610,31 @@ full detail):
   light/regen; callers `0x0013D908/DA28/DF28` idle in the office room).
 - Bonus: full processed-pad map (`0x810E70/74` byte-swapped held/edge
   masks, raw bufs `0x810D40/DC0`) recorded in FINDINGS.
+
+### Update — 2026-06-10 s22: AREA/ROOM TRANSITIONS captured live — full lifecycle + port contract
+
+- **Both transition modes captured end-to-end** with the raw-TCP
+  `watch_change` poller (exec breakpoints + MCP watchpoints proved
+  NON-FUNCTIONAL this session — data-watch ordering only):
+  intra-area office door both directions, and inter-area west door
+  (area 02 → 01) with save-state restore.
+- **Sequence (vsync-stamped)**: arm → kickoff (player SNAPPED to
+  door±5 staging, script 0x24DE40) → 77–97f door clip → commit
+  (`func_001BC150` writes the B5..B8 request; +audio fade x3 via
+  `func_001B0C00(4)` iff inter-area) → 64f fade-out → switch
+  (room move: entry byte + player re-place, 1 frame; area change:
+  area/sub/entry bytes → overlay arena rewritten +3f → built-mirror
+  0x810703 +4f → ~290f asset streaming → actor pool freed+respawned +
+  player placed) → request cleared → door self-closes on B8==0.
+- **Spawn-table chain fully decoded** (`func_001B07C0`):
+  `(*(D_0024D650[area]))[sub] + entry*0x30` = {pos[3], yaw, ...};
+  destination records have DUAL layout by door-id bit7
+  ({area,entry,has_sub,sub} vs {entry_side0,entry_side1}); all four
+  byte-verified live, both directions symmetric. 0x810702 = placement
+  ENTRY index (doubles as room/zone id).
+- FINDINGS "AREA TRANSITION LIFECYCLE" has the full timelines + the
+  5-point port-loader contract.
+- Open: authoritative player-position store (0x810350 et al. are
+  per-frame copies — writes never stick); organic class-5 walk-into
+  trigger still not reproduced under pad injection (s17/s20 item);
+  s17's side→script mapping (both transits queued 0x24DE40).
