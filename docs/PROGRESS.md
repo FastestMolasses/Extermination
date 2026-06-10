@@ -1,5 +1,29 @@
 # Extermination Decomp — Progress
 
+> 2026-06-10 (session 23 port wiring): DOOR-OPEN ANIMS IN THE PORT —
+> player.emdl re-exported with the s23 door/scripted-walk clips appended:
+> `export_native.py --attach --mesh extract/chunk28/f00_id3b.bin
+> --anim extract/chunk28/f01_id3c.bin --clips 346,2,3,69,67,75
+> --gsdump extract/gsdump/frame1.gs` (69 = 0x45 door-open FRONT, 200 fr;
+> 67 = 0x43 door-open BACK, 200 fr; 75 = 0x4B scripted walk, 180 fr,
+> root travel 15.0u → in-place at 5.01 u/s). All three verified present
+> in chunk28/f01_id3c (21-node rig, matches the player) and
+> hemisphere-clean (max adjacent-frame rotation delta 9.7°/10.6°/4.1°,
+> well under the 90° flip signature of the s7c bug); door clips have
+> ZERO root travel — in-place by construction, exactly the property-mode-0
+> behavior of D_00248C90. The new EMDL is a byte-verified superset of the
+> old (mesh/texture/index/old-palette blocks identical, 3 clips appended);
+> the old export was first reproduced byte-identical from the recorded CLI.
+> Port side: em_game grew the scripted-anim mailbox (em_game_anim_request /
+> _cancel / _active = the +0x1F2 request → +0x20C commit path of
+> func_00183090, one-frame latency preserved); em_door now runs the OPEN
+> script per D_0024DE40 — side latch +0x2E at kickoff (s17 front test),
+> on walk-to arrival player anim 0x45/0x43 at rate 1.0 + door sound+clip,
+> wait 90/70 frames, then the fade — replacing the generic walk during
+> that phase. EM_DOOR_TEST extended (anim 0x43 committed mid-open, reset
+> after teardown) — PASS; default capture byte-identical; all port
+> self-tests PASS.
+
 > 2026-06-10 (session 23): DOOR SCRIPTS + ANIM-ID MAPPING decoded (static) —
 > ftab_0024D880 fully itemized (27 opcodes 0x00-0x1A + sub-command tables;
 > records are 0x40 bytes, s22's "8-byte" corrected), all three door scripts
