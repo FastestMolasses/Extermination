@@ -1,6 +1,6 @@
 # Extermination Decomp — Progress
 
-## Current status (2026-06-10, through session ~s35)
+## Current status (2026-06-10, through session ~s36)
 
 Two tracks, both far along. The matching decomp is verifiably byte-perfect
 end-to-end and ~96.2% of game-code bytes are committed readable/matching C;
@@ -43,7 +43,9 @@ weapons, enemies, doors, audio and the real status screen.
 - **Weapons**: draw/aim/holster/reload with the real clips, laser hit-dot,
   aim camera, per-shot recoil via the engine's aim-ladder replay mechanism
   (s24, fire-anim s25-blockquote); engine-faithful controls (CIRCLE fire,
-  L3 reload — s29/s30).
+  L3 reload — s29/s30); KNIFE melee — unarmed CIRCLE = light 3-hit combo,
+  SQUARE = heavy stab, real clips/damage/sounds + the armed-SQUARE 0x179
+  toggle (s36); EM_MELEE_TEST self-test.
 - **Doors**: real swing/slide clips (s30-blockquote/s32), real per-pair door
   sounds (s26), walk-through transit + fade per the decoded scripts (s20/s23).
 - **Enemies**: crawler crates (burst → gibs + leech), worm generators with
@@ -120,6 +122,34 @@ below are kept as historical record; this block supersedes them.)
 Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
+
+> 2026-06-10 (session 36): KNIFE/MELEE DECODED + PORTED — the s29
+> "SQUARE = 0x179 unidentified action" open item is retired. Static
+> decode (FINDINGS "KNIFE/MELEE DECODED"): the knife rides TWO buttons,
+> not tap-vs-hold — unarmed CIRCLE press -> player mode 0x21
+> (func_001735C0, LIGHT 3-hit combo: anims 0x10B/0x10C/0x10D, damage
+> 3/3/5, sounds 0x17D/0x17E/0x17F vol 300, FIRE-press chain buffer
+> +0x2E with 19-frame chain gates, hit-confirm via the target's +0x0A
+> -> recover 0x50..0x52 anim 0x10F; a LANDED hit skips the combo);
+> unarmed SQUARE press -> mode 0x22 (func_00173E60, HEAVY stab: anim
+> 0x10E, damage 15, sound 0x17F, in-swing yaw steer func_00173DD0 at
+> D_002486F0[gait] rates). Armed SQUARE = sub-weapon func_0017A970;
+> attachment 0 just toggles D_00810D3C with 0x179 on toggle-ON — the
+> exact s29 live observation (what the flag arms: still open). Damage
+> goes through the melee-target link player+0x18 (+0x00 event/+0x36
+> mailbox/+0x0A confirm); enemies range-poll it themselves
+> (func_00219870) — no player-side reach constant exists. +0x236
+> selects an alternate anim row (0x1BD..0x1C1, elevated-context gate).
+> NO knife hand-rebind found statically (model 106 stays on holster
+> node 14 — flagged; needs a live melee capture). Open: the +0x3C
+> impact-frame reading (up- vs down-count; tables 24/26/41/43), the
+> +0x18 record writer, D_00810D3C identity. PORT: player.emdl superset
+> re-export (+clips 267..271; old bytes verified prefix-identical),
+> em_weapon.c melee machines + 0x179 toggle, melee movement plant,
+> sfx registry +0x17D/0x17E/0x17F/0x179 (19 ids), EM_MELEE_TEST=1
+> (light kills a crate via the mailbox, heavy kills a second crate,
+> whiff combo chains 0x10B->0x10C->0x10D, recover only on confirm) —
+> PASS; all prior self-tests PASS; default capture byte-identical.
 
 > 2026-06-10 (session 33): KIND-0xE RESOLVED — the breather pad's
 > companion pair is a TENDRIL FIELD, not a creature. func_001546C0

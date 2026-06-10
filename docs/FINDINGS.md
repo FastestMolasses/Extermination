@@ -9204,3 +9204,189 @@ nothing else needs decomp work:
   parent pad's open phase → 1; alpha = roomC.w/128 faded in over the
   first 16 ramp units. 24 spikes of a pair = 24 re-posed draws of
   this one EMDL.
+
+## KNIFE/MELEE DECODED — SQUARE action identified, both attack machines characterized (2026-06-10, session 36)
+
+Static decode (splat asm of the boot ELF + boot-ELF `.data` reads; no
+live session — PCSX2 MCP unavailable). **Retires the s29 open item
+"0x179 / SQUARE = unidentified action"** and characterizes the knife
+attacks end-to-end. Port: knife attacks shipped in
+`extermination-port` (em_weapon.c melee section, `EM_MELEE_TEST=1`).
+
+### 1. Dispatch — the knife is on TWO buttons, not tap-vs-hold
+
+The action machine `func_001607D0` (mode-0 sub-state 1, after the
+draw-mask checks) dispatches from the unarmed action codes `+0x1F0`
+0..7 (idle + the movement actions, via `func_0017C370` stop-move):
+
+```
+held  E70 & spad3B7E (R2)      -> mode 0x1E, code 0x32   (armed stance)
+held  E70 & spad3B7C (R1)      -> mode 0x1D, code 0x31   (armed stance)
+press E74 & spad3B78 (CIRCLE)  -> mode 0x21, code 0x36   KNIFE LIGHT COMBO
+press E74 & spad3B74 (SQUARE)  -> mode 0x22, code 0x37   KNIFE HEAVY STAB
+```
+
+`+0x1FC` (anim rate for the melee entry) is set to 1.0f at the
+dispatcher head. Mode 0x21 -> `func_001735C0`, mode 0x22 ->
+`func_00173E60` (jtbl_0026D3B0 indices 0x21/0x22; the s22 weapon
+write-up's mode map extends cleanly). So: LIGHT melee is on the FIRE
+button while unarmed; SQUARE is the HEAVY. There is no hold/tap split.
+
+In the ARMED stances (codes 0x31/0x32/0x34/0x35) SQUARE instead calls
+`func_0017A970(player, press?0:held?1)` = the SUB-WEAPON action,
+switching on the attachment id `D_00810CA6`:
+
+```
+att 0: press toggles D_00810D3C: 0->1 plays sound 0x179 vol 300 +
+       sets the voice latch D_008106C7; 1->0 silent.  <- the s29 capture
+att 1: press -> func_0017A8B0(p,3)     att 2: press -> func_0017A8B0(p,1)
+att 3: hold  -> func_0017A8B0(p,2)     att 4: hold  -> func_0017A8B0(p,1)
+aim option D_00810CA4==2: press -> func_0017A8B0(p,5)
+```
+
+`D_00810D3C` is also read by the draw helper `func_0016F530`
+(rifle draw: if att==0 && D3C -> replay 0x179 + D_008106C7=1) and
+cleared by the inventory reset `func_001AF2C0`. **What the flag arms
+is still OPEN** (a persistent attachment-0 mode; candidates: a
+sub-weapon arm/laser mode toggle — needs a live session).
+
+### 2. func_001735C0 — LIGHT 3-hit combo (player mode 0x21)
+
+Major `+0x06`: 0 entry -> 1/2/3 = combo hits -> 0x50/0x51/0x52
+hit-confirm recover -> 0x63/0x64 exit ramp (func_0017C440 at gait
++0x23F>=2, else func_0017C540 direct; 0x6E/0x6F-style hit/forced
+exits = the same 0x63/0x64 handlers as the armed tops). Phase `+0x07`
+within each hit: 0 start anim -> 1 wait blend (+0x200 bit 0x8000) ->
+2 impact gate -> 3 release/chain -> 4 wait clip end (+0x200 bit
+0x1000). Tail every tick: func_001764E0 (torso), +0xB4 -= 0.2,
+func_00175900(.,1), func_001796C0 — identical to the armed tops.
+
+Per-hit data (row idx = `+0x236`, see §5; all reads verified against
+the original boot ELF `config/SCUS_971.12`):
+
+```
+                          row 0 (normal)      row 1 (alt context)
+anim ids   D_00248690     0x10B 0x10C 0x10D   0x1BD 0x1BE 0x1BF
+impact T   D_002486A0/A8/B0   24    26    41      25    28    41
+release T  D_002486A4/AC/B4   20    15    30      20    16    34
+chain T    D_002486D0/D4      19    19    (--)    19    19    (--)
+damage     (immediate)         3     3     5   (same)
+sound      (immediate)     0x17D 0x17E 0x17F  (same)
++0x25E marker              0x81  0x82  0x82   (same)
+```
+
+- At the impact gate (`+0x3C` vs T, c.le.s): target `+0x00 = 1`
+  (event ping), target `+0x36 = damage` (the universal mailbox),
+  positional sound vol 300 — ALL unconditional (range is the
+  target's job, §4), `+0x25E = 0x80|n` (consumed by func_00187350's
+  melee arm -> func_00182430(p, n), the step-effect dispatcher).
+- COMBO: FIRE-button presses (E74 & spad3B78 — the same mask that
+  started the combo) buffer in `+0x2E` from the impact phase on; at
+  the chain gate the next hit starts through the clip arbiter
+  func_001749A0 with f12=1.0 (blend), target `+0x00 = 2` (release).
+- HIT CONFIRM: phase 3 polls target `+0x0A`; nonzero -> stop the
+  sound handle `+0x302` (func_0011A070) and jump to recover 0x50.
+  **A landed hit SKIPS the rest of the combo**; chaining only happens
+  on whiffs.
+- RECOVER 0x50/0x51: `+0x28 = 4` countdown, then anim 0x10F (row 0)
+  / 0x1C1 (row 1) at blend 4.0; 0x52 waits clip end -> 0x63.
+
+TIMING (OPEN): `+0x3C` is the up-counting clip time (the property-
+table footstep semantics), under which `c.le.s(+0x3C, T)` passes on
+the first impact-phase tick — impact ~right after the blend. But
+hit 1's T=24 against its 50-frame clip only makes sense counting
+DOWN (impact at frame 26, mid-swing); for hits 2/3/heavy T >= clip
+length so both readings agree (immediate). Needs one live capture.
+The port uses `impact = max(3, len - T)` (the down-count reading).
+
+### 3. func_00173E60 — HEAVY stab (player mode 0x22)
+
+Same skeleton, single attack: major 0 entry (anim halfword from
+`D_002754A8[+0x236]`: row 0 = **0x10E** (20 fr), row 1 = 0x1C0; rate
++0x1FC=1.0) -> 1 wait blend -> 2 impact gate `D_00248700[idx]` = 43.0
+(both rows): target event 1, **damage 0xF = 15**, sound **0x17F** vol
+300, marker `+0x25E = 0x83` -> 3 release gate `D_00248704` = 29.0
+(event 2) / hit-confirm (+0x0A) -> recover 0x50 -> 4 wait clip end ->
+0x63. States 2/3 call `func_00173DD0` each tick: yaw `+0xC4` steered
+toward the goal `+0x218` at `pi * D_002486F0[+0x23F] / 180` rad/tick
+(D_002486F0 = {0, 0.5, 1.0, 2.0} by gait) — the heavy TRACKS while
+swinging. Recover anim row 0 = 0x10F again (idx-0 sound... anim
+branch at +0x236==0), row 1 = 0x1C1.
+
+Clip lengths (id 0x74 library, exported s36): 0x10B = 50 fr,
+0x10C = 25, 0x10D = 20, 0x10E = 20, 0x10F = 25 (property-table rates
+all 1.0, trigger frames all 0 — like the aim/door ids).
+
+### 4. Damage contract — the melee-target link player+0x18
+
+Both machines write through `player+0x18` (global mirror
+`D_008102C8`): `+0x00` event byte (1 = swing live, 2 = release),
+`+0x36` damage mailbox, `+0x0A` read back as hit-confirm; state 0
+clears `+0x0A` and parks the sound handle `+0x302 = 0xFF`. **No range
+test exists in the player code** — enemy behaviors poll the link
+themselves: `func_00219870` (creature, state 1 sub 0) reads
+`(*D_008102C8)->+0x00` and runs its own `func_0019AA80(ctx, ctx+0x10,
+0x40)` proximity/segment probe (the same query family as the leech's
+0x20 grab sense). The +0x18 WRITER was not found statically (no
+direct stores; likely established at player init via block copies) —
+identity of the linked record (per-enemy target vs a fixed melee
+agent record) is OPEN; the s17 note "writes target(+0x18)->+0x36
+directly" stands. The +0x36/+0x0A semantics match the enemy-side
+mailbox + group-alarm fields, so the port damages the resolved victim
+through the same mailbox (reach stand-in: 12 u = the documented
+use-scan hands-reach dist^2<=144, s17; cone 60 deg — both flagged).
+
+### 5. +0x236 — the alternate melee row (anim ids 0x1BD..0x1C1)
+
+Set to 1 by `func_001764E0` when the player's height sits beyond a
+13.8-unit threshold against the floor-probe result (spad 0x700031B4
+block) under a mode flag; cleared by `func_00179680`. Selects row 1
+of every melee table (and the 0x1C1 recover). Context unverified
+(elevated/hang/ladder family); the port ships row 0 only.
+
+### 6. Knife visual — NO rebind found (flagged)
+
+The knife (model 106) rides the hip HOLSTER node 14 (s9). Neither
+melee machine nor their helpers (func_00173DD0 / func_001749A0 /
+func_0017C370/C440/C540 / func_00174AC0 / func_00178B90) touches the
+equipment draw slots (+0x120 family / D_008103D0), and no mode-0x21/
+0x22 keyed attach-table switch was found in the main ELF. If the
+engine shows the knife in hand during attacks, the rebind lives in
+the equipment-draw selection (player-blob attach table) and needs a
+LIVE melee-frame capture (the s9 method) to pin. The port leaves the
+knife holstered during attacks (flagged note in em_weapon.h).
+
+### 7. Sound ids (extend the s29 live table; soundmap-resolved)
+
+```
+0x17D  light hit 1 impact/swing   (snd_0432, 47745 Hz, global)
+0x17E  light hit 2 impact/swing   (snd_0434, 53592 Hz, global)
+0x17F  light hit 3 + HEAVY impact (snd_0430, 47745 Hz, global, 2 ev)
+0x179  attachment-0 SQUARE toggle-ON (snd_0436 — the s29 capture)
+```
+
+`tools/gen_sfx_registry.py` office ids extended with all four
+(19 ids, 0 unresolved).
+
+### 8. Port (extermination-port, this session)
+
+- `player.emdl` re-exported with the knife clips appended (superset
+  discipline: old export reproduced byte-identical from the recorded
+  CLI first, then `--clips ...,267,268,269,270,271`; old
+  clips/palette verified as byte prefixes, default capture
+  byte-identical).
+- em_weapon.c gained the melee machines (engine states in comments),
+  em_game.c the melee movement plant + `EM_MELEE_TEST=1` (two crates
+  in knife reach but outside their proximity trigger: light-combo
+  kill via the mailbox, hit-confirm recover 0x10F asserted, heavy
+  kill, whiff-combo 0x10B->0x10C->0x10D chain asserted, no recover on
+  whiff, 5 swings / 2 hits / 0 shots) — PASS; all prior self-tests
+  PASS; SQUARE while aiming = the 0x179 toggle.
+
+### Open items
+
+- Live-verify the impact-frame reading of the +0x3C gates (§2).
+- Identify what D_00810D3C arms (§1) and the +0x236 context (§5).
+- The player+0x18 record's identity / writer (§4).
+- The melee rows' +0x25E -> func_00182430(p, 1..3) effect content.
+- Whether the knife visually rebinds to the hand mid-attack (§6).

@@ -76,8 +76,15 @@ SCENES = {
         #   lookup (collision attr) is located, but all six ship so
         #   the surface hook lands without a registry change.
         # - canonical enemy death 0x7D8.
+        # - KNIFE/MELEE (s36 decode, FINDINGS "KNIFE/MELEE DECODED"):
+        #   swing/impact sounds 0x17D/0x17E/0x17F (light hits 1-3; the
+        #   heavy stab shares 0x17F), fired at each attack's impact
+        #   gate, vol 300; 0x179 = the armed-stance SQUARE attachment-0
+        #   toggle-ON sound (func_0017A970 — the s29 "unidentified
+        #   action", snd_0436).
         "ids": [0x162, 0x163, 0x164, 0x165, 0x168, 0x169, 0x7D8,
-                0x015, 0x016, 0x01A, 0x01B, 0x139, 0x13A],
+                0x015, 0x016, 0x01A, 0x01B, 0x139, 0x13A,
+                0x17D, 0x17E, 0x17F, 0x179],
     },
 }
 
