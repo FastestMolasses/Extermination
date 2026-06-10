@@ -4119,3 +4119,48 @@ full detail):
 - Open: live sub-state-0 capture (door leaf offsets, east-door sfx
   family 6), n0 f00_id42/f01_id46 roles, grid-only collision question,
   per-scene crate model in the port.
+
+### Update — 2026-06-10 s29: LIVE SOUND-ID CAPTURE — reload/footsteps pinned, fire chain verified, door close silent
+
+- **Reload sound PINNED (live, replicated)**: L3 reload = anim 0x33 +
+  **0x163 at start** (shared weapon-handling foley, same id as holster)
+  + **0x168 at the mag action** (snd_0351 @ 39006 Hz). The s26 registry
+  alias 0xF002→0x166 was WRONG; the port registry is regenerated with
+  0xF002→0x168 plus all new ids (tools/gen_sfx_registry.py --scene
+  office + ad-hoc ids; 19 ids, 0 unresolved; the stale alias line in
+  the generated file hand-corrected — drop the `reload_alias` from the
+  tool's SCENES next time tools are open for edits).
+- **Footsteps decoded live**: each step = surface layer + gear layer in
+  the same frame. Surface pairs (alternate L/R, change with floor
+  material): 0x15/0x16 (storage floor A), 0x1A/0x1B (floor B); constant
+  gear layer alternates 0x139/0x13A; 0x138 seen once (variant,
+  unresolved trigger). Per-surface id table not yet found statically.
+- **Fire chain verified live**: CIRCLE=fire (config mask spad 3B78) →
+  0x164, impact 0x189 (+2 frames), shell casing 0x16A (+0.7 s); SQUARE
+  → 0x179 (unknown sub-weapon/melee action, new open item); draw 0x162 /
+  holster 0x163 re-confirmed. Default pad config block documented
+  (spad 0x70003B70..7E).
+- **Door close = SILENT** (closes the s17 question): close path
+  func_001BC240/001BC150/001BC290 has zero sound callees; door audio is
+  exactly the open-script pair + locked rattle 0x3F2 + VO. Live pool
+  scan: only two door actors in AREA02 s1, links 0x0280/0x0200 →
+  selector 2 → 0x3FD/0x3FE (s26 prediction confirmed from live actor
+  link bytes; the forced-open's audible capture was lost to the tooling
+  blackout below).
+- **Engine architecture extras** (FINDINGS s29): BBE40 arm gate =
+  door+0x0B bit2; spad 3B40 = authoritative player position mirror
+  (s23 open item settled); frame selector spad 3B8D → AE5E0/AE6B0;
+  player mode-0 top func_00161020 + USE SCAN func_00160220 identified;
+  flashlight 0x15D idle-timer path.
+- **TOOLING WARNING (required reading before any live session)**: exec
+  breakpoints in this DebugServer build work on a fresh launch but
+  silently DECAY after heavy use, leaving instrumented blocks that
+  crush frame rate and wedge the IOP sound-RPC permanently. Recovery
+  recipe + rules (one BP at a time; prefer watch_change/memory_diff on
+  the channel array D_0027E0C0) in FINDINGS s29. **The running PCSX2
+  instance was left patched at 0x10EA60 with audio dead and a
+  scripted-mode residue on the player (weapon draw inhibited) — restart
+  PCSX2 / reload a save before the next live session.**
+- Open: 0x179 action identity; 0x166/0x167 neighbors; per-surface
+  footstep table; 0x138 trigger; live audible door-open capture (needs
+  fresh emulator + the player actually adjacent to a door's near side).

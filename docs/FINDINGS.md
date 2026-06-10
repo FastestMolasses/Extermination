@@ -8206,3 +8206,153 @@ Open: n0 f00_id42/f01_id46 roles; the n0 cell-list absence (does the
 engine run grid-only collision here?); live capture of sub-state 0 (door
 leaf rest offsets, generator/crawler verification, the green aura tint);
 the east door's sound family; per-scene crate models in the port.
+
+## GAMEPLAY SOUND IDS PINNED LIVE — reload, footsteps, fire chain, door-close verdict (2026-06-10, session 29)
+
+Live PCSX2 capture, storage room AREA02 (2.1). Method: exec breakpoint at
+`func_001FB9F0` entry reading `$a0` (= sound id, both the raw path and the
+`func_001FBD50` positional tail-call land here). Every action sound below
+was read directly off the submit call; reload was replicated twice.
+
+### RELOAD — id pinned (closes the s23/s26 open + the 0xF002 alias)
+
+L3 tap with weapon drawn (mag 29/30, reserve > mag → `func_0017B300`
+mode-2 top-up) →
+
+    anim 0x33 committed at +0x1F2/+0x20C  (s23 mapping confirmed live)
+    sound 0x163  at reload START   (same id as holster — 0x163 is a
+                                    shared weapon-handling foley, not
+                                    holster-specific)
+    sound 0x168  at the MAG ACTION (~0.5 s in; the distinctive reload
+                                    sound; global bank, snd_0351 @
+                                    39006 Hz in the soundmap)
+
+No third sound; mag refilled to 30, reserve untouched (total-pool
+semantics re-confirmed). **The s26 registry alias `0xF002 → 0x166` was
+wrong** — 0x166/0x167 remain unassigned weapon-bank neighbors. The
+port registry now maps 0xF002 → 0x168 (regenerated this session).
+
+### FOOTSTEPS — two-layer, surface-dependent + constant gear layer
+
+Each footstep submits TWO positional ids back-to-back (~1.7k cycles
+apart, same frame), matching the property-table trigger frames (72/21 →
+two steps per walk cycle):
+
+    layer 1 (SURFACE, alternating L/R pair, changes with floor material):
+        storage-room floor A: 0x15 / 0x16   (snd_0042 / snd_0052)
+        floor B (after crossing a material boundary mid-room):
+                              0x1A / 0x1B   (snd_0050 / snd_0048)
+    layer 2 (GEAR/cloth foley, constant across surfaces, alternates
+             strictly per step): 0x139 / 0x13A  (snd_0308 / snd_0309)
+    0x138 observed once (same family; likely a stop/scuff or run
+    variant — unresolved which trigger)
+
+Surface selection presumably keys off the collision hit record's
+surface-type byte (+0x1A, s22) — the per-surface id table is NOT yet
+located statically; only these two pairs are observed.
+
+### FIRE chain re-verified live + two new ids
+
+    CIRCLE (fire; config mask spad 0x70003B78 = 0x0020 swapped) →
+        0x164 fire (mag 30→29, both s18 counters decrement)
+        0x189 impact/ricochet  ~2 frames later (office wall hit)
+        0x16A shell-casing     ~0.7 s later (2-event, snd_0347)
+    SQUARE (config mask 0x3B74 = 0x0080) → 0x179 (2-event, snd_0436)
+        with NO ammo use and no state change — sub-weapon/melee-class
+        action sound, unidentified action (new open item)
+    R1 draw 0x162 / release holster 0x163 — re-confirmed live.
+
+Config-mask block at spad `0x70003B70` (u16 each, swapped layout):
+3B70=0x0800, 3B72=0x0800, 3B74=0x0080 (SQ), 3B76=0x0040 (X, use),
+3B78=0x0020 (O, FIRE), 3B7A=0x0010 (TRI), 3B7C=0x0008, 3B7E=0x0002.
+So default config: CIRCLE = fire, X = use, L3 = reload (raw bit).
+
+### DOOR CLOSE IS SILENT — engine verdict (closes the s17 question)
+
+Static, confirmed against the live actors: the door close path has **no
+sound call anywhere**: state 4 `func_001BC240` → `func_001BC150`
+(callees: fade `func_001AEDE0`, area kick `func_001B0C00`), state 5
+`func_001BC290` (callees: `anim_advance_time`, `anim_clip_init` only).
+The complete door audio set is: open pair `D_0024DB80[link>>8][side]`
+(op-0x0B sub-6 in the open script), locked rattle 0x3F2 + VO. The live
+pool holds exactly TWO door actors in AREA02 s1 (pattern scan
+`01 ?? 85 03` over the 256×0x2F0 pool at 0x7A5640): id 2 @(109,0,-252.2)
+link 0x0280 and id 0x81 (bit7=inter-area) @(57,0,-220.5) link 0x0200 —
+both selector 2 → front 0x3FD / back 0x3FE, as predicted by s26.
+A scripted-open of door id 2 was forced via the s23 effect-byte method;
+its sound fired during a tooling blackout (below) and was not read, but
+the table+selector path needs no further live proof.
+
+### Door/transit machine — new architecture details (from the recovery)
+
+- `func_001BBE40` arm gate is **door `+0x0B` bit 2** (`andi 4`); once
+  armed it unconditionally: patches the script records (anim id 0x45/0x43
+  open Δ 0x46/0x44 locked, clip 2/0 / 3/1, wait 90.0/70.0), patches the
+  sound id via `func_001BBD60`, snaps player yaw, **teleports the player
+  via `func_00182F90`** (instant translate of +0xA0/+0xB0 AND the spad
+  mirror — `0x70003B40` is the authoritative position mirror, settling
+  the s23 "real store" open item: position writes must also hit 3B40 to
+  stick), queues `D_0024DE40`/`D_0024DEC0` (`func_001BA1A0`) and runs one
+  synchronous pump (`func_001BA1F0`).
+- Per-frame script pumping happens from the DOOR's own SM states 1/3 via
+  `func_001BC0E0` (clip advance + one `func_001BA1F0` step). States:
+  0 closed → (BBE40 ok) 3 opening → 4 commit (`func_001BC240/150`) → 5
+  re-close (`func_001BC290`; **gated on pause byte `D_00810841`-family
+  `D_008106B8` == 0**) → 0.
+- `spad 0x70003B8D` is the FRAME SELECTOR read by `func_001AE040` at
+  0x001AE294: 0 → `func_001AE5E0` gameplay frame, nonzero →
+  `func_001AE6B0` cutscene frame. Writing 3 by hand (the s23 method's
+  second byte) flips the player into the transit hold; the door SM must
+  independently see `+0x0B` bit 2 or the player waits forever.
+- Player mode-0 top is `func_00161020` (jtbl_0026D3B0[0]) switching on
+  +0x06 (0,1,2,0x63,0x64); sub-state 1 early-outs through the fade-wait
+  halfword `0x28A9A0`, the action dispatcher `func_001607D0` (+0x1F0
+  action byte 0x27,0x31-0x37), and the USE SCAN **`func_00160220`**
+  (gate: `0x810E74 & spad3B76` = X edge — this is the interaction
+  machine the s20 worklist wanted). Flashlight id 0x15D fires from this
+  sub-state's idle timer path (0x12C-frame countdown at +0x28).
+
+### Tooling postmortem — breakpoint decay → RPC wedge (REQUIRED READING for live sessions)
+
+Extends the s23 caveat ("exec BPs never fired"). In this DebugServer
+build exec breakpoints DO fire on a fresh PCSX2 launch — the whole id
+capture above used them — but they **silently degrade after heavy use**
+(hundreds of hits / add-remove cycles): first hits stop reporting, and
+every address that EVER had a breakpoint keeps its blocks instrumented.
+Consequences observed, in order:
+
+1. Frames crawl (each gameplay frame takes seconds; main-loop counter
+   `0x70003B64` near-frozen while the vsync ISR counter `0x810E90` runs
+   at full turbo rate) — looks exactly like a soft-lock.
+2. The audio thread (TID3, `func_001FB0C0`) backs up: the sound command
+   ring cursors at `0x27F770` (write) / `0x27F774` (read) diverge by
+   hundreds, and the SIF RPC client at `0x281B00` (data `0x277400`;
+   +0x10 bit0 busy, +0x18 id) wedges busy permanently — the IOP-side
+   sound server never recovers even after the EE side is cleaned.
+3. **Fix that worked**: `pcsx2_clear_all_breakpoints` (restores full
+   speed instantly) + drain the ring (read cursor := write cursor) +
+   patch the RPC busy predicate `0x0010EA60` → `jr ra; li v0,0`
+   (original words `0x8C850000 0x10A00009`) so the EE never blocks on
+   the dead client. Game logic runs fine; audio output stays dead until
+   PCSX2 restarts (EE-side sound submission still observable in memory).
+
+Rules of thumb going forward: keep at most ONE breakpoint live, remove
+it the moment a capture leg ends, and prefer `pcsx2_watch_change` +
+`pcsx2_memory_diff` (snapshot the 48×0x78 channel array `D_0027E0C0`,
+act, diff — channel +0x18 holds the sound id) for anything bulk.
+
+### End-state of this session (honest damage report)
+
+The VM was left RUNNING and playable-ish but NOT pristine:
+- `0x0010EA60` patched (audio busy check bypassed) — **in-memory only;
+  restart PCSX2 (or reload the ELF) to restore audio.**
+- Audible audio dead for the session (IOP sound-RPC server wedged).
+- Player: storage room ~(106.4, 0, -259.5) (walked from the parked spot
+  (64.4, 0, -286.4)), yaw overwritten to pi at one point; locomotion and
+  position are healthy, but a scripted-mode residue from the forced door
+  transit still inhibits the weapon-draw action mask (+0x200 stays 0
+  under R1) and locomotion anim requests — the next save-load or
+  area transition resets the player struct and clears this.
+- Door id 2: fully restored (closed, state 0, disarmed +0x0B=0).
+- Mag 30, reserve 118 (two test shots). All breakpoints/watches/pad
+  injection cleared.
