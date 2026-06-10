@@ -85,6 +85,9 @@ its own boot config in a plain-text `scene.txt` next to the .emdl files
     bgm <file.wav>              optional looping level-music cue WAV
     enemy crate <x> <y> <z> <yaw>   placed disguised-container crawler
                                 (em_enemy.c EM_ENEMY_KIND_CRATE)
+    enemy generator <x> <y> <z> <yaw> kind <k> link <n>
+                                generator floor pad (fn 0x0015A2C0,
+                                em_enemy.c "GENERATOR KIND")
 
 `--spawn x,y,z[,yaw]` and `--bgm name.wav` write/update this exporter's
 keys (other keys and lines are preserved). The old `--offset` spawn-
@@ -95,8 +98,13 @@ rewrites a marker-delimited "enemies" block in scene.txt from the AREA02
 placement tables (FINDINGS "ENEMY AI ARCHITECTURE" census): records with
 behavior func_001551B0 (placed crawler — in the office a DISGUISED
 CONTAINER, param 0x000D = the cardboard-box model) become `enemy crate`
-lines; generator records (func_0015A2C0 / func_001E3D90) and the other
-creature-family behaviors become comment lines (unimplemented natively).
+lines; generator records with behavior func_0015A2C0 become active
+`enemy generator` lines carrying the decoded placement fields (s28,
+FINDINGS "GENERATOR — func_0015A2C0 RESOLVED": kind = +0x08 config
+index 0-6 into the D_00248120 footprint recs, link = +0x0A mode-table
+selector 0/1/2 where 0 locks the pad inert); the type-2 generator
+(func_001E3D90) and the other creature-family behaviors stay comment
+lines (unimplemented natively).
 CENSUS RESULT: the captured office scene is area SUB-STATE 1 (table
 @0x828170, 14 records) and that table places NO enemies at all — 2 doors,
 7 pickups, 5 fixtures. The area's crawlers live in sub-state 0 (@0x827830:
@@ -575,8 +583,9 @@ OFFICE_SCENE_SUBSTATE = 1      # the captured office scene's story sub-state
 
 FN_CRAWLER = 0x001551B0        # placed crawler / disguised container
 FN_DOORS = (0x001BC350, 0x001BB860)
+FN_GENERATOR = 0x0015A2C0      # generator floor pad — implemented in the port
 FN_GENERATORS = {               # class-0x0D runtime enemy spawn points
-    0x0015A2C0: "generator (leech spawn point, D_00248120 config)",
+    FN_GENERATOR: "generator (leech spawn point, D_00248120 config)",
     0x001E3D90: "generator type 2 (class 0x0D model 1)",
 }
 FN_ENEMY_MISC = {               # other creature-family behaviors (s22 census)
@@ -622,14 +631,20 @@ def _enemy_lines(entries, prefix: str = "") -> list[str]:
     """Manifest lines for one table's enemy-class records. Crawlers become
     `enemy crate` lines (the office placed crawler is a DISGUISED CONTAINER;
     param 0x000D binds the cardboard-box model — FINDINGS s22/s23);
-    generators and the misc creature-family behaviors are unimplemented in
-    the port and become comment lines."""
+    fn-0x0015A2C0 generators become `enemy generator` lines with the
+    decoded kind/link placement fields (FINDINGS "GENERATOR —
+    func_0015A2C0 RESOLVED"); the type-2 generator and the misc
+    creature-family behaviors are unimplemented in the port and become
+    comment lines."""
     out = []
     for e in entries:
         x, y, z = (f"{v:.6g}" for v in e.pos)
         yaw = f"{e.rot[1]:.6g}"
         if e.behavior == FN_CRAWLER:
             out.append(f"{prefix}enemy crate {x} {y} {z} {yaw}")
+        elif e.behavior == FN_GENERATOR:
+            out.append(f"{prefix}enemy generator {x} {y} {z} {yaw} "
+                       f"kind {e.kind} link {e.link}")
         elif e.behavior in FN_GENERATORS:
             out.append(f"# generator (fn {e.behavior:#08x}, unimplemented) "
                        f"pos ({x}, {y}, {z}) kind {e.kind}")
@@ -681,6 +696,15 @@ def emit_enemy_manifest(scene_dir: Path, ov_path: Path,
                      f"{c['generator']} generators, "
                      f"{c['enemy_misc']} misc creature-family, "
                      f"{c['door']} doors, {c['deferred']} deferred(0x0B)")
+    if cen["generator"]:
+        block.append('# enemy generator lines (fn 0x15a2c0, em_enemy.c '
+                     '"GENERATOR KIND"): kind = the')
+        block.append("# D_00248120 footprint config 0-6, link = mode-table "
+                     "selector (0 = locked inert,")
+        block.append("# 1/2 = the engine's count-table draw). Pads live in "
+                     "their own EM_GENERATOR_MAX")
+        block.append('# pool — no crate-slot impact. FINDINGS "GENERATOR — '
+                     'func_0015A2C0 RESOLVED".')
 
     overflow = []
     emit_entries = scene_entries
@@ -728,7 +752,7 @@ def emit_enemy_manifest(scene_dir: Path, ov_path: Path,
     mf.write_text("\n".join(lines) + "\n")
     print(f"manifest: {mf}: enemies block — sub-state "
           f"{substate}: {cen['crawler'] - len(overflow)} active crawler "
-          f"line(s), {cen['generator']} generator comment(s), "
+          f"line(s), {cen['generator']} generator line(s), "
           f"{len(overflow)} overflow"
           + (f"; toggle lines: {_placement_census(per[0])['crawler']} "
              f"(sub-state 0)" if cen["crawler"] == 0 else ""))

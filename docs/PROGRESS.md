@@ -4340,3 +4340,23 @@ full detail):
 - Open: bank ids 4-15 consumers (wall station 0x001C1A80 candidate);
   east-door family-6 sfx pair (D_0024DB80 BSS — live read); the variant
   door lifecycle vs the port's m03 state machine (flagged deviation).
+
+### Update — 2026-06-10 s33: export_level.py emits active generator lines
+
+- **Tooling**: export_level.py's enemy-block emitter now writes fn-0x0015A2C0
+  placements as active `enemy generator <x> <y> <z> <yaw> kind <k> link <n>`
+  lines (kind = +0x08 D_00248120 config index, link = +0x0A mode-table
+  selector — FINDINGS "GENERATOR — func_0015A2C0 RESOLVED"), retiring the
+  s27 "unimplemented" comment form for that behavior; the type-2 generator
+  (func_001E3D90) and the misc creature-family behaviors stay comments. A
+  short decoder-ring comment is emitted ahead of the block when the scene
+  table places generators.
+- Regenerated scene_office0/scene.txt (local, gitignored): all 8 generator
+  lines byte-match the s28 hand-activated set (positions/kind/link, all
+  link 0 → inert), crate/overflow/enemy-family lines unchanged; the block
+  now sits at the end of the manifest (emitter append — parser is
+  keyword-based, per-category order unchanged).
+- Verified: port builds clean; EM_ENEMY_TEST=1/2/3/4 PASS; default capture
+  byte-identical (back-to-back; default scene untouched by this change);
+  EM_SCENE=scene_office0 loads 16 crates + 8 mode-0 pads from the
+  regenerated manifest.

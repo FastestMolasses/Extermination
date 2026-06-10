@@ -8658,7 +8658,10 @@ parsed by an em_enemy-side shim (em_game.c's kind table not touched).
 `EM_ENEMY_TEST=4` validates charge→worm→kill→cap→exhaustion (delays
 /60, test-only). scene_office0/scene.txt's 8 generator lines are now
 ACTIVE with decoded kind/link (all link 0 → inert: zero enemy-count
-impact; documented in the manifest).
+impact; documented in the manifest), and export_level.py's enemy-block
+emitter writes them directly (s33: fn-0x0015A2C0 placements →
+`enemy generator x y z yaw kind k link n`; regeneration reproduces
+the hand-activated set, so the manifest is round-trip safe).
 
 ### Open
 
