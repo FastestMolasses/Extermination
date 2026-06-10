@@ -1,5 +1,126 @@
 # Extermination Decomp — Progress
 
+## Current status (2026-06-10, through session ~s35)
+
+Two tracks, both far along. The matching decomp is verifiably byte-perfect
+end-to-end and ~96.2% of game-code bytes are committed readable/matching C;
+the native port plays real, textured, placement-table-faithful scenes with
+weapons, enemies, doors, audio and the real status screen.
+
+### Decomp (Track A)
+
+- **Byte coverage is 100% and verified**: the rebuilt boot ELF is
+  byte-identical to the original, all 19 overlays are byte-identical, and the
+  repacked ISO equals the original ("Whole-game extraction" section). Every
+  function is a committed `src/` unit — matched C or an INCLUDE_ASM stub
+  (stubs contain no disassembly; bytes come from locally assembled splat .s).
+- **Committed-C matching**: 1247/1344 game functions (92.78%) at 100%,
+  **matched_code 96.18%** at the 2026-06-02 census, plus singles since
+  (s17 +2, s22 +1, s23c re-verifications) → **~96.2% of game-code bytes**.
+  The CodeWarrior 2.3.1 matching idioms are cracked (19 reusable idioms);
+  the remaining gap is mostly catalogued compiler walls ("CONFIRMED GENUINE
+  WALLS") — wall-blocked functions keep best-attempt C inline in their stubs.
+- **The engine is substantially mapped**: complete subsystem map
+  (2,063 labeled functions, `main()` = 0x001AAE40, docs/SUBSYSTEMS.md);
+  collision world (s7/s14), camera (s10), weapon system end-to-end (s22),
+  enemy-AI architecture + 1011-record placement census (s22b), door scripts
+  + anim-id mapping (s17/s20/s23/s30/s32), area/room transition lifecycle
+  (s22), inventory/battery globals (s19/s21), status screen + UI font + UI
+  textures (s25/s26b/s27b), SShd tone records + the full engine sound-id map
+  (s12, `soundmap`), music/voice cue tables (s15), generators (s28+), the
+  kind-0xE tendril field (s33), engine-exact locomotion ids (s31), live
+  gameplay sound-id captures (s29). All formats in docs/FINDINGS.md.
+
+### Native port (sibling `extermination-port/`, macOS Cocoa+Metal, zero-dep)
+
+- **Playable scenes**: three exported scenes — the captured office room
+  (default), the full office main floor AREA02 sub-state 0 (s28), and the
+  AREA11 snow level (s16) — each a `scene.txt` manifest + EMDL render parts
+  + EMCL collision, with spawns, placements and enemies straight from the
+  disc's placement tables (s11/s18/s27/s33).
+- **Player**: textured, animated, with engine-exact walk/run clip ids and
+  footstep frames (s31), aura glow (s17-blockquote), attached weapons (s8/s9).
+- **Weapons**: draw/aim/holster/reload with the real clips, laser hit-dot,
+  aim camera, per-shot recoil via the engine's aim-ladder replay mechanism
+  (s24, fire-anim s25-blockquote); engine-faithful controls (CIRCLE fire,
+  L3 reload — s29/s30).
+- **Doors**: real swing/slide clips (s30-blockquote/s32), real per-pair door
+  sounds (s26), walk-through transit + fade per the decoded scripts (s20/s23).
+- **Enemies**: crawler crates (burst → gibs + leech), worm generators with
+  decoded cadence (s28+), per-scene carved crate model (s34), tendril spike
+  asset shipped (s35); EM_ENEMY_TEST 1–4 self-tests.
+- **Audio**: music cues + SFX at engine-exact ids/rates through the
+  generated sfx registry (s12/s15/s26/s29/s30); two-layer footsteps (s30).
+- **UI**: the real status screen — game font (EMFN, s26b), decor textures
+  (EMUI, s27b), audited anchors/gauges (s25).
+- **Live-RE tooling**: PCSX2 fork with DebugServer — pad injection,
+  watch_change data watchpoints, save-state round-trips (s19/s22/s29; see
+  the s29 breakpoint-decay warning before any live session).
+
+### Verification gates (keep green every session)
+
+1. `tools/verify_all.py` — stages `boot-elf` (rebuilt ELF byte-identical,
+   container), `overlays` (19/19 byte-identical, container), `match`
+   (matched-code % floor), `gltf`, `selftest`, `gs-offset`;
+   `--no-container` = fast host-only subset.
+2. **Matching**: a function counts only at objdiff 100%; stubs must stay
+   byte-identical (never paste disassembly into the repo).
+3. **Exporters**: before changing an export, reproduce the previous output
+   byte-identical from its recorded CLI, then verify the new output as a
+   byte-verified superset (the s23/s24/s31 rule).
+4. **Port**: default `EM_CAPTURE` byte-identical to the pre-change baseline;
+   `make test-input` + EM_MOVE/DOOR/WEAPON/ENEMY 1–4/SFX self-tests PASS;
+   temp scenes removed after captures.
+
+## Current roadmap (2026-06-10)
+
+Next, in rough priority order:
+
+1. **Status-screen sub-pages** — page-tab strips, hover-green marker, ring/
+   sparkle cadence, and the X-entered sub-screen layouts (disc modules ids
+   0x1E/0x1F/0x24/0x25/0x26/0x2C loaded to 0xB00000) — s25/s27b open items.
+2. **Area transitions between scenes** — a port scene loader implementing the
+   captured s22 lifecycle (B5..B8 request → fade → switch → respawn; spawn
+   tables `D_0024D650`, destination tables `D_0024E140`), retiring the s20
+   OPEN-hold deviation so doors actually take you somewhere.
+3. **Remaining creature brains** — beyond crawler/leech/generator: the s22b
+   census's ~20 behaviors (5 cover >90% of spawns); turn the scene.txt
+   `# enemy-family` comment lines (fns 0x1582E0/0x158EC0/0x158BD0, type-2
+   generator func_001E3D90) into native kinds.
+4. **Kind-0xE tendril field in scenes** — em_enemy actor from the pinned
+   s33/s35 constants (pair-spawn off mode-1 generator pads, 12-spike player
+   ring + ellipse clip, ramp/bob/thrash Y-scale, room-tint green, sound
+   0x42D); `assets/tendril.emdl` is already shipped and inert.
+5. **Surface-dependent footsteps** — locate the per-surface id table
+   (s29: pairs 0x15/0x16 vs 0x1A/0x1B; 0x138 trigger); the port's
+   floor-probe hook is ready and flagged (s30).
+6. **Sound-id wiring** — identify the SQUARE action behind 0x179; wire
+   impact 0x189 + shell-casing 0x16A into em_weapon; check neighbors
+   0x166/0x167 (s29/s30 open items).
+7. **Fire-button config** — support the engine's BUTTON CONFIG block
+   (spad 0x70003B70..7E, s21/s29) as user-configurable mappings instead of
+   only the hardwired default layout.
+8. **More byte-matching** — push committed-C matched_code past 96.2%;
+   re-attack catalogued walls with the newer datums (s23c tail-call idiom
+   19, pool-order wall, dense-switch dispatch).
+9. **IOP inventory** — census the disc's `IRX/` modules (stock Sony SDK vs
+   custom), and pin the IOP sound-RPC driver contract (the SIF RPC 0x64
+   path; its wedge behavior bit us in s29).
+10. **Repacker track** (deferred end-state, per CLAUDE.md) — byte-identical
+    `DATA.DAT`/`INDEX.IDX` + stream repackers so loose edited assets rebuild
+    the original game.
+
+(The older mid-file "Project at a glance" / "Status" / "Roadmap" sections
+below are kept as historical record; this block supersedes them.)
+
+---
+
+## Recent-session digest (verbatim, newest-first blockquotes)
+
+Note: session numbers were assigned by parallel agents and collide in a few
+places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
+the dated sections later in the file are both authoritative.
+
 > 2026-06-10 (session 33): KIND-0xE RESOLVED — the breather pad's
 > companion pair is a TENDRIL FIELD, not a creature. func_001546C0
 > (+ init func_00154740, tick func_001549C0, gate func_00154460,
@@ -3473,6 +3594,9 @@ ELF** (1530624/1530624 bytes, 100.00%).
     `tools/decomp/name_functions.py` for the boot ELF).
 
 ### Roadmap
+
+> **Superseded (2026-06-10):** see "Current roadmap" at the top of this file.
+> Kept as historical record.
 
 **1. Track A — matching decompilation (CURRENT PRIORITY).**
 Goal: a runnable developer build — compile the decompiled code and run the game
