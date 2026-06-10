@@ -162,8 +162,13 @@ def sample_bone(frames: List[Keyframe], time_frames: float, normalize: bool = Tr
     blend factor `t = (now - t_prev) / (t_next - t_prev)` (see FINDINGS).
 
     For rotation, this is *linear* interpolation followed by renormalisation
-    (NLERP). The engine itself uses a SLERP-like routine downstream
-    (func_001CA0A0); NLERP is close enough for validation."""
+    (NLERP), with hemisphere correction: q and -q encode the same rotation,
+    and the stored keys are free to flip sign between records (observed in
+    id 0x74 clip 346, bone 2, frames 96->100: dot = -0.9993). Lerping across
+    such a pair without negating one side passes through ~zero and
+    normalises to a ~180-degree-wrong quat for the in-between frames. The
+    engine itself uses a SLERP-like routine downstream (func_001CA0A0),
+    which shortest-arcs the same way; NLERP is close enough for validation."""
     if not frames:
         return None
     # find the interval [t_prev, t_next) such that t_prev <= time < t_next
@@ -180,9 +185,18 @@ def sample_bone(frames: List[Keyframe], time_frames: float, normalize: bool = Tr
                 blended = kf.values  # hold first sample until we leave t_next
             else:
                 t = (time_frames - t_prev) / max(1.0, (t_next - t_prev))
+                prev_vals = frames[i - 1].values
+                next_vals = kf.values
+                if len(next_vals) == 4:
+                    # quaternion hemisphere correction: negate the earlier
+                    # sample when the pair straddles hemispheres so the
+                    # lerp takes the shortest arc.
+                    dot = sum(a * b for a, b in zip(prev_vals, next_vals))
+                    if dot < 0.0:
+                        prev_vals = tuple(-c for c in prev_vals)
                 blended = tuple(
-                    _lerp(frames[i - 1].values[k], kf.values[k], t)
-                    for k in range(len(kf.values))
+                    _lerp(prev_vals[k], next_vals[k], t)
+                    for k in range(len(next_vals))
                 )
             if normalize and len(blended) == 4:
                 return _normalize_quat(blended)  # type: ignore[arg-type]
@@ -296,6 +310,27 @@ def _selftest() -> None:
     assert abs(ty - -3.25) < 1e-3, ty
     assert abs(tz - 100.0) < 1e-2, tz
     print("translation pack/unpack roundtrip OK:", tframes[0].values)
+
+    # Hemisphere correction: two keys encoding (nearly) the SAME rotation
+    # with opposite quaternion signs (the clip-346 bone-2 failure mode).
+    # Sampling between them must stay on that rotation, not normalise a
+    # near-zero lerp into a ~180-degree-wrong quat.
+    def _quat_rec(q, t_next):
+        bits = 0
+        for chan_idx, val in enumerate(q):
+            u = struct.unpack("<I", struct.pack("<f", val))[0]
+            bits |= (u >> (32 - 20)) << (chan_idx * 20)
+        return bits.to_bytes(10, "little") + struct.pack("<H", t_next)
+
+    h = 0.5 ** 0.5
+    qa = (h, 0.0, 0.0, h)
+    qb = (-h, 0.0, 0.0, -h)              # same rotation, flipped sign
+    section = struct.pack("<I", 4) + _quat_rec(qa, 0) + _quat_rec(qb, 4)
+    rframes = parse_rotation_section(section, num_bones=1)[0]
+    mid = sample_bone(rframes, 2.0)      # midpoint of the antipodal pair
+    align = abs(sum(a * b for a, b in zip(mid, qa)))
+    assert align > 0.999, (mid, align)   # would be ~0 without correction
+    print("hemisphere-corrected NLERP OK:", tuple(round(c, 4) for c in mid))
 
     # Event-table round-trip: build a synthetic section3 with two events.
     body = bytes(0x4b0)  # empty priming block (don't care for this test)

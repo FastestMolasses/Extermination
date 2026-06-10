@@ -3549,6 +3549,13 @@ nibble 0x3/0xB}` — was this bitstream misparsed at byte offsets:
 Keys are sparse per node with LERP-between-keys semantics (value at
 `frame` = that record's sample; engine SLERPs, NLERP is within ~0.6 deg
 on 40-deg key gaps), duplicated end keys, hold past the last key.
+**Hemisphere caveat (2026-06-09 s7c):** stored keys freely flip
+quaternion sign between consecutive records (clip 346 bone 2, frames
+96→100 and 160→164: dot(q_prev, q_next) = −0.9993, antipodal encodings
+of near-identical rotations). Any interpolator must negate one side
+when the dot is negative — `anim_decoder.sample_bone` now does; without
+it the midpoint NLERP normalises to a ~180°-wrong quat (the port's
+one-frame torso-flip bug at baked frames 98/162).
 
 ### Containers are a whole animation LIBRARY
 

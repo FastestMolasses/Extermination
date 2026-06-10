@@ -10,6 +10,27 @@
 > clusters, 91 fns in numbered unknowns), main() identified at 0x001AAE40,
 > prioritized decomp roadmap in docs/SUBSYSTEMS.md; graph tool: tools/callgraph.py.
 
+### Quat hemisphere fix — one-frame 180° torso flip in the port (2026-06-09, session 7c)
+
+The animated player's upper half flipped 180° for one frame per loop.
+Numerical repro (bake clip 346 via `export_native.bake_id74_palettes`,
+scan adjacent-frame rotation deltas): baked frames 98 and 162 had the
+whole torso chain (bone 2 + descendants 4/7–11/15/16/19/20) ~177° off.
+Root cause: the stored id-0x74 keys flip quaternion SIGN between
+records — bone 2 keys at frames 96→100 and 160→164 are antipodal
+representations of nearly the same rotation (dot = −0.9993; e.g.
+q@96 = (−.4927,−.4899,−.5120,+.5049) vs q@100 = (+.5071,+.5054,+.4974,
+−.4896)) — and `anim_decoder.sample_bone`'s NLERP had no hemisphere
+correction, so the midpoint lerp passed through ~zero and normalised to
+a garbage quat. Fix in `tools/anim_decoder.py` (the right layer; the
+engine's own SLERP shortest-arcs): negate the earlier sample when
+dot(q_prev, q_next) < 0 before lerping; selftest grew an antipodal-pair
+case. Not implicated: the 0xFFFF sentinel (dropped at parse, clamped at
+sample) and the port's `em_model_palette_at` last→first wrap (measured
+0.01°/0.21° on clips 0/346). Verified: re-scan clean (no >90° adjacent-
+frame jumps, clips 0 and 346), verify_all --no-container all-PASS,
+player.emdl re-exported (diff confined to palette frames 97–99/161–163).
+
 ### chunk27 library placed in the port — it's the EQUIPMENT library (2026-06-09, session 7b)
 
 Live placement decode done end-to-end (FINDINGS "CHUNK27 MODEL LIBRARY +
