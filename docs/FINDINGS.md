@@ -5874,15 +5874,20 @@ the inventory+stats. Layout differs from the live block.
   bar + health 75/100 + infection 60%. The "04/06" pair is **not**
   reserve/30 (held at 04 with reserve forced to 99 and 150), not
   0x810C63, not 0x810C74, not the overlay-arena `04 00 06 00` records at
-  0x8278D0/0x828470 (poked all, incl. across a close/reopen) — its
-  source is still OPEN. Plausibly grenade-launcher rounds current/max.
+  0x8278D0/0x828470 (poked all, incl. across a close/reopen) — RESOLVED
+  by the user (2026-06-10): the "04/06" display is the BATTERY level
+  (current/max), not a magazine or weapon counter. The battery storage
+  address is still unlocated (candidates: the 240-cap tick struct below).
 - The green wall unit ("DEPOSIT") in the office save: pressing Cross
   produces a sub-frame interaction cycle — scratchpad u16 `0x70003B88`
   pulses 0 -> 4 or 3 -> 0 within ONE frame (caught only by the
   DebugServer watch_change 5 ms poller). It never changed the inventory
-  in any of ~6 cycles even with ammo at 120 and the mag at 4 — either
-  this unit is not an ammo refill, or the refill needs a menu
-  interaction the instant-cycle skipped. The 10-second timers it starts
+  in any of ~6 cycles even with ammo at 120 and the mag at 4. USER
+  CORRECTION (2026-06-10): the station IS an ammo refill — the agent was
+  interacting with it incorrectly (the instant sub-frame cycle at 35%
+  emu speed skipped the menu; a proper open->confirm sequence works).
+  Re-verify the inventory-write path through it once the fast build
+  lands. The 10-second timers it starts
   (0x8102DC and 0x8104BC counted 0x15D=349 down to 0 at ~35/s) are
   display/popup timers, not ammo. Also OPEN.
 - A regen/refill-shaped tick at `0x001418F0` operates on a struct
