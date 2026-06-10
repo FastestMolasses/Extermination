@@ -1899,79 +1899,115 @@ def run_skinned(args, out_dir: Path) -> int:
 
 
 # ---------------------------------------------------------------------------
-# id 0x74 prefix: per-NODE keyed ANIMATION channels (--object-space, legacy)
+# id 0x74 prefix: per-NODE keyed ANIMATION clips — FULLY DECODED 2026-06-09 s4
 # ---------------------------------------------------------------------------
 #
-# *** CORRECTED 2026-06-09 (see FINDINGS.md "id 0x74 prefix is animation,
-# not geometry"). The 12-byte records in the mesh-file prefix are NOT
-# object-space vertices. They are keyframes of per-node animation
-# channels; the old "vid" field is a FRAME index. Decoding them as
-# Q4.12 positions is what produced the garbage point clouds / triangle
-# soup. The real layout:
+# (History: 2026-06-09 s2 established these are keyframes, not vertices;
+# s4 cracked the remaining channel packing. See FINDINGS.md "id 0x74
+# channel encodings fully decoded".)
+#
+# A file can carry MANY containers back-to-back (chunk28/f01_id3c holds
+# 455 of them — a whole animation library for the 21-node rig). Layout
+# of one container:
 #
 #   header (0x20 bytes):
-#     +0x00  u16  n_sections    (= node count, e.g. 21 for the player)
-#     +0x02  u16  clip_len      total frames; keys are sparse with hold
-#                               semantics and duplicated end keys
+#     +0x00  u16  n_sections    (= node count, e.g. 21)
+#     +0x02  u16  clip_len      total frames; keys are sparse with
+#                               lerp/hold semantics and duplicated end keys
 #     +0x04  u16  0xfffe/0xffff
-#     +0x08  u32  blob id       0x74 (mesh-embedded clip; sibling 0x2c
-#                               blobs use the same container)
-#     +0x0c  u32  -> map B section table (header-relative; translations)
-#     +0x10  u32  -> map C section table (header-relative; aux/scale)
-#   +0x20: i32 parents[n]       node tree (NOT global-bone ids; verified
-#                               against live node structs +0x64[0])
-#   then:  u32 offsets[n]       map A sections, relative to this table
+#     +0x08  u32  blob id       0x74 (sibling 0x2c blobs: same container)
+#     +0x0c  u32  -> translation section table (header-relative)
+#     +0x10  u32  -> scale section table (header-relative)
+#   +0x20: i32 parents[n]       node tree (strict: parent < index;
+#                               matches live node structs +0x64[0])
+#   then:  u32 offsets[n]       rotation sections, relative to this table
 #
-#   record (12 bytes, all three maps):
-#     +0x00  i16  A             companion field (encoding open)
-#     +0x02  f20  W1            float stored as its top 20 bits; low 12
-#                               bits of the (unaligned) 32-bit lane are
-#                               [tag nibble 0x3/0xB][A's high byte]
-#     +0x05  i16  B             companion field (encoding open)
-#     +0x07  f20  W2            as W1
-#     +0x0a  u16  frame         key time; 0xffff terminates the section
+#   record (12 bytes, all three maps) — IDENTICAL to the id 0x71 clip
+#   format (anim_decoder.py): a 10-byte LSB-first bitstream of truncated
+#   IEEE-754 floats (top `width` bits kept, low mantissa bits zeroed),
+#   then `u16 frame` at +0x0a (key time; 0xffff terminates a section):
 #
-# Live-verified on PCSX2 (chunk28/f01_id3c NPC): map A W1 == node local
-# quaternion .y and W2 == .w, byte-exact on uncontaminated nodes; the
-# root channel is (0,0,0,1). A/B encode the remaining quat components
-# in a still-undecoded form. Map B carries translations (constant for
-# all non-root bones), map C small per-node constants.
+#     rotation     4 x 20 bits  = local quat (qx, qy, qz, qw)
+#     translation  3 x 26 bits  = local translation (x, y, z)
+#     scale        3 x 26 bits  = local scale (constant 1,1,1 so far)
+#
+#   The old "i16 A/B companion + f20 W1/W2 + tag nibble 0x3/0xB" reading
+#   was this same bitstream misparsed at byte offsets: A/B are the low
+#   16 bits of the qx/qz 20-bit fields, the "tag nibble" is their top 4
+#   bits (sign bit + exponent prefix 0b011), W1/W2 are qy/qw.
+#
+# Live-verified on PCSX2 (chunk28 NPC, paused captures): decoded quats
+# match the live node +0x30 local quats to 0.15 deg mid-interpolation
+# and 0.0000 deg on keys, across two different clips; |q|=1 holds to
+# 3e-4 (pure truncation noise) on every keyframe of every container.
+# The live +0x30 quats are the raw truncated values (engine does not
+# renormalise). Matrix convention: the engine builds local matrices
+# from the CONJUGATE of the stored quat (world = parent x R(conj q)).
 
 ANIMKEY_REC_SIZE = 12
 ANIMKEY_TERMINATOR = 0xffff
+ID74_ROT_WIDTHS = (20, 20, 20, 20)
+ID74_VEC_WIDTHS = (26, 26, 26)
 
 
-def _f20(b0: int, b1: int, b2: int) -> float:
-    """Reassemble a 'top 20 bits' float: [tag|b0hi][b1][b2] -> f32."""
-    return struct.unpack("<f", bytes([0, (b0 >> 4) << 4, b1, b2]))[0]
+def _id74_bits(buf: bytes, bit_off: int, width: int) -> int:
+    """LSB-first little-endian bitfield read (same as anim_decoder)."""
+    val = 0
+    out = 0
+    while out < width:
+        byte = buf[bit_off >> 3]
+        in_bit = bit_off & 7
+        take = min(8 - in_bit, width - out)
+        val |= ((byte >> in_bit) & ((1 << take) - 1)) << out
+        bit_off += take
+        out += take
+    return val
 
 
-def parse_id74_prefix(d: bytes) -> dict | None:
-    """Locate and parse the id 0x74 animation prefix of a mesh file.
+def _id74_truncfloat(raw: int, width: int) -> float:
+    """Top-`width`-bits truncated IEEE-754 float back to f32."""
+    return struct.unpack("<f", struct.pack("<I", (raw & ((1 << width) - 1))
+                                           << (32 - width)))[0]
 
-    Returns {hdr, n, clip_len, parents, maps: [A, B, C]} where each map is
-    a list of per-node key lists [(frame, A, B, W1, W2, tag1, tag2), ...],
-    or None if the file has no id 0x74 blob.
+
+def find_id74_headers(d: bytes) -> list[int]:
+    """All animation-container header offsets in a file (ids 0x74/0x2c)."""
+    hdrs = []
+    for off in range(0, len(d) - 0x28, 4):
+        bid = struct.unpack_from("<I", d, off + 8)[0]
+        if bid not in (0x74, 0x2c):
+            continue
+        n, clip = struct.unpack_from("<2H", d, off)
+        sentinel = struct.unpack_from("<H", d, off + 4)[0]
+        if not (1 <= n <= 64 and clip > 0 and sentinel in (0xfffe, 0xffff)):
+            continue
+        try:
+            parents = struct.unpack_from(f"<{n}i", d, off + 0x20)
+        except struct.error:
+            continue
+        if all(-1 <= p < i for i, p in enumerate(parents)):
+            hdrs.append(off)
+    return hdrs
+
+
+def parse_id74_prefix(d: bytes, hdr: int | None = None) -> dict | None:
+    """Parse one id 0x74/0x2c animation container (the first one found,
+    or the one at header offset `hdr`).
+
+    Returns {hdr, n, clip_len, parents, rot, trn, scl} where rot is a
+    per-node list of (frame, (qx, qy, qz, qw)) keyframes and trn/scl are
+    per-node lists of (frame, (x, y, z)); or None if the file has none.
     """
-    # Find the header: u32 0x74 at +0x08 with a sane section count at +0
-    hdr = -1
-    off = 0
-    while True:
-        off = d.find(b"\x74\x00\x00\x00", off + 1)
-        if off < 0 or off < 8:
+    if hdr is None:
+        hdrs = find_id74_headers(d)
+        if not hdrs:
             return None
-        n, clip = struct.unpack_from("<2H", d, off - 8)
-        sentinel = struct.unpack_from("<H", d, off - 4)[0]
-        if 1 <= n <= 64 and clip > 0 and sentinel in (0xfffe, 0xffff):
-            parents = struct.unpack_from(f"<{n}i", d, off - 8 + 0x20)
-            if all(-1 <= p < i for i, p in enumerate(parents)):
-                hdr = off - 8
-                break
+        hdr = hdrs[0]
     n, clip = struct.unpack_from("<2H", d, hdr)
-    mapB_off, mapC_off = struct.unpack_from("<2I", d, hdr + 0x0c)
+    trn_off, scl_off = struct.unpack_from("<2I", d, hdr + 0x0c)
     parents = list(struct.unpack_from(f"<{n}i", d, hdr + 0x20))
 
-    def read_map(tbl: int) -> list[list[tuple]]:
+    def read_map(tbl: int, widths: tuple[int, ...]) -> list[list[tuple]]:
         offs = struct.unpack_from(f"<{n}I", d, tbl)
         out = []
         for so in offs:
@@ -1981,12 +2017,12 @@ def parse_id74_prefix(d: bytes) -> dict | None:
                 frame = struct.unpack_from("<H", d, off2 + 10)[0]
                 if frame == ANIMKEY_TERMINATOR:
                     break
-                A, = struct.unpack_from("<h", d, off2)
-                B, = struct.unpack_from("<h", d, off2 + 5)
-                w1 = _f20(d[off2 + 2], d[off2 + 3], d[off2 + 4])
-                w2 = _f20(d[off2 + 7], d[off2 + 8], d[off2 + 9])
-                keys.append((frame, A, B, w1, w2,
-                             d[off2 + 2] & 0xf, d[off2 + 7] & 0xf))
+                vals, bit = [], 0
+                for w in widths:
+                    vals.append(_id74_truncfloat(
+                        _id74_bits(d[off2:off2 + 10], bit, w), w))
+                    bit += w
+                keys.append((frame, tuple(vals)))
                 off2 += ANIMKEY_REC_SIZE
             out.append(keys)
         return out
@@ -1996,9 +2032,9 @@ def parse_id74_prefix(d: bytes) -> dict | None:
         "n": n,
         "clip_len": clip,
         "parents": parents,
-        "maps": [read_map(hdr + 0x20 + n * 4),
-                 read_map(hdr + mapB_off),
-                 read_map(hdr + mapC_off)],
+        "rot": read_map(hdr + 0x20 + n * 4, ID74_ROT_WIDTHS),
+        "trn": read_map(hdr + trn_off, ID74_VEC_WIDTHS),
+        "scl": read_map(hdr + scl_off, ID74_VEC_WIDTHS),
     }
 
 
@@ -2020,10 +2056,11 @@ def run_object_space(args, out_dir: Path) -> int:
     ANIMATION channels that earlier sessions misread as per-bone vertices.
 
     For each mesh file carrying an id 0x74 prefix, writes
-    `*_animchannels.txt`: the node parent tree plus, per node and per map
-    (A=rotation qy/qw + companions, B=translation-flavoured, C=aux), the
-    key count, frame range and W1/W2 value ranges. Geometry export lives
-    in the stage-2 strip pipeline (default mode / export_native.py).
+    `*_animchannels.txt`: the node parent tree plus, per node and per
+    channel (rot=quat 4x20, trn/scl=vec3 3x26), the key count, frame
+    range and per-component value ranges of the FIRST container (plus
+    the file's container count). Geometry export lives in the stage-2
+    strip pipeline (default mode / export_native.py).
     """
     if args.file:
         paths = [Path(args.file)]
@@ -2043,35 +2080,38 @@ def run_object_space(args, out_dir: Path) -> int:
             continue
 
         region = path.parent.name
+        n_clips = len(find_id74_headers(d))
         out_txt = out_dir / f"{region}_{path.stem}_animchannels.txt"
         txt = [
             f"# id 0x74 keyed animation channels: {region}/{path.name}",
-            f"# header @ {pre['hdr']:#x}  nodes={pre['n']}  "
-            f"clip_len={pre['clip_len']} frames",
+            f"# {n_clips} container(s); first @ {pre['hdr']:#x}  "
+            f"nodes={pre['n']}  clip_len={pre['clip_len']} frames",
             f"# parents: {pre['parents']}",
-            "# record = (frame, A_i16, B_i16, W1_f20, W2_f20, tag1, tag2);"
-            " map A: W1=quat.y W2=quat.w (live-verified)",
+            "# rot = 4x20-bit truncated-float quat (x,y,z,w); "
+            "trn/scl = 3x26-bit vec3 (live-verified)",
             "",
         ]
-        for mi, name in enumerate("ABC"):
-            txt.append(f"map {name}:")
-            for ni, keys in enumerate(pre["maps"][mi]):
+        for name in ("rot", "trn", "scl"):
+            txt.append(f"{name}:")
+            for ni, keys in enumerate(pre[name]):
                 if not keys:
                     txt.append(f"  node {ni:2d}: (empty)")
                     continue
                 fr = [k[0] for k in keys]
-                w1 = [k[3] for k in keys]
-                w2 = [k[4] for k in keys]
+                lo = [min(k[1][c] for k in keys)
+                      for c in range(len(keys[0][1]))]
+                hi = [max(k[1][c] for k in keys)
+                      for c in range(len(keys[0][1]))]
+                rng = " ".join(f"[{a:8.4f}..{b:8.4f}]"
+                               for a, b in zip(lo, hi))
                 txt.append(
                     f"  node {ni:2d}: {len(keys):4d} keys  "
-                    f"frames [{min(fr)}..{max(fr)}]  "
-                    f"W1 [{min(w1):8.4f}..{max(w1):8.4f}]  "
-                    f"W2 [{min(w2):8.4f}..{max(w2):8.4f}]"
+                    f"frames [{min(fr)}..{max(fr)}]  {rng}"
                 )
             txt.append("")
         out_txt.write_text("\n".join(txt) + "\n")
-        print(f"{region}/{path.name}: {pre['n']} nodes, "
-              f"{pre['clip_len']}-frame embedded clip -> {out_txt.name}")
+        print(f"{region}/{path.name}: {pre['n']} nodes, {n_clips} clips, "
+              f"first {pre['clip_len']} frames -> {out_txt.name}")
         exported += 1
 
     print(f"\n{exported} file(s) dumped (anim channels), {skipped} skipped")

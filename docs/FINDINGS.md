@@ -3245,10 +3245,15 @@ root), matching this array element-for-element — the earlier reading
 
 ### The 12-byte record = one keyframe
 
-    +0x00  i16  A        companion field (encoding still open)
-    +0x02  f20  W1       see below
-    +0x05  i16  B        companion field (encoding still open)
-    +0x07  f20  W2
+> SUPERSEDED (2026-06-09 s4): the record is a 4x20-bit truncated-float
+> bitstream (qx,qy,qz,qw) — see "id 0x74 channel encodings FULLY
+> DECODED". The A/B/W1/W2 reading below is that bitstream misparsed at
+> byte offsets; kept for the historical derivation.
+
+    +0x00  i16  A        companion field (= low 16 bits of qx's field)
+    +0x02  f20  W1       see below (= qy)
+    +0x05  i16  B        companion field (= low 16 bits of qz's field)
+    +0x07  f20  W2       (= qw)
     +0x0a  u16  frame    key time; 0xffff terminates a section
 
 "f20" = an IEEE float stored as its top 20 bits only (sign, exponent,
@@ -3269,10 +3274,9 @@ For the on-screen character (21 live nodes at 0x007d5840, stride 0xD0):
 nodes with uncontaminated channels (node 14: channel (·,0.580,·,-0.043)
 vs live quat (0.813, 0.580, -0.028, -0.043); node 20 exact too; root =
 (0,0,0,1) vs channel (0,0,0,1)). A/B encode the remaining quat
-components in a form not yet decoded (not Q4.12/Q1.15 direct, not a
-plain angle). Map B is translation-flavoured (constant sections for all
-non-root bones — bone lengths; its payload packing differs and is not
-yet decoded). Map C holds small per-node constants.
+components ~~in a form not yet decoded~~ (s4: they ARE qx/qz — 20-bit
+truncated floats whose low 16 bits the A/B parse isolated). Map B is
+translation (3x26-bit truncated floats; s4). Map C is scale (3x26; s4).
 
 Node-struct corrections (live, same arena layout as the player session):
 `+0x00` = local translation (pose-invariant bone offsets), `+0x30` =
@@ -3457,7 +3461,97 @@ in the idle pose. The remaining "odd" right-hand shape is intentional
 animation: the hand is curled in a WEAPON-GRIP pose; the gun is a
 separate model attached to a hand node at draw time (not exported yet).
 
-Still open (nice-to-have, not blocking): map A's A/B field encoding
+Still open (nice-to-have, not blocking): ~~map A's A/B field encoding
 (rotation qx/qz companions) and map B/C payload packing for decoding
-the mesh-embedded clips; the f17 42-slot segment's rig identity; UVs/
-textures in EMDL.
+the mesh-embedded clips~~ (RESOLVED — next section); the f17 42-slot
+segment's rig identity; UVs/textures in EMDL.
+
+## id 0x74 channel encodings FULLY DECODED — animated character in the port (2026-06-09, session 4)
+
+Closes the channel-encoding question from sessions 2/3. **The id 0x74
+container's record format is byte-identical to the id 0x71 clip format
+already decoded in `tools/anim_decoder.py`**: each 12-byte record is a
+10-byte LSB-first bitstream of truncated IEEE-754 floats (top `W` bits
+kept, low mantissa bits zeroed; decode = `raw << (32-W)` bit-cast to
+f32) followed by `u16 frame` at +0x0a (key time, 0xffff terminator):
+
+    map A (rotation)     4 x 20 bits  = local quat (qx, qy, qz, qw)
+    map B (translation)  3 x 26 bits  = local translation (x, y, z)
+    map C (scale)        3 x 26 bits  = local scale (so far always 1,1,1)
+
+Session 2's partial reading — `{i16 A, f20 W1, i16 B, f20 W2, tag
+nibble 0x3/0xB}` — was this bitstream misparsed at byte offsets:
+
+- "A"/"B" are the LOW 16 BITS of the qx/qz 20-bit fields (bits 0..19
+  and 40..59 of the sample);
+- the "tag nibble" is their TOP 4 BITS: sign bit + the constant 0b011
+  exponent prefix every |q|<2 float starts with (hence "0x3 or 0xB");
+- "W1"/"W2" are the qy/qw fields (bits 20..39, 60..79), whose 32-bit
+  lanes happen to land on the +0x02/+0x07 byte offsets.
+
+Keys are sparse per node with LERP-between-keys semantics (value at
+`frame` = that record's sample; engine SLERPs, NLERP is within ~0.6 deg
+on 40-deg key gaps), duplicated end keys, hold past the last key.
+
+### Containers are a whole animation LIBRARY
+
+`chunk28/f01_id3c.bin` holds **455 containers** back-to-back (the old
+"50" was a 0x40000-byte truncated scan; `find_id74_headers()` in
+extract_models.py now walks whole files). All 21-node, lengths 1..180
+frames: container 0 = the 80-frame breathing idle, container 346
+(@0x1c4c00) = a 180-frame look-around fidget with up to 50-deg node
+rotations and animated hip translation. The live NPC cycles through
+the library with cross-fade transitions — a paused capture taken
+mid-transition matches NO single clip (this is a blend, not a decode
+failure; three captures only matched single clips when the blend had
+settled).
+
+### Verification evidence
+
+1. **Static, no live data**: decoding map A as 4x20 gives |q| = 1 to
+   within 3.1e-4 (exactly the 11-bit-mantissa truncation noise) on
+   every keyframe of every container in the file. Any wrong field
+   split destroys this immediately.
+2. **Live quats (PCSX2, paused captures, NPC node arena 0x007d5840
+   stride 0xD0, +0x30 local quat)**: capture A matched container 0 @
+   frame 34.2 with max error 0.153 deg over ALL 21 nodes; capture B
+   matched container 346 @ frame 120.6 — node 10: decoded
+   (+0.6107,-0.5206,+0.3090,+0.5104) = live EXACT (0.0000 deg), node
+   19: (-0.1038,0,0,+0.9946) = live EXACT, node 4: 0.018 deg. The live
+   +0x30 quats are the RAW TRUNCATED values (|q| ~ 0.9997 — the engine
+   never renormalises), which is itself a fingerprint of this encoding.
+3. **Translations**: map B values equal live node +0x00 exactly
+   (hip y=10.9008, L/R mirror pairs 5/6, 8/9, 10/11, 17/18, 19/20;
+   only the pelvis node 4 and — in moving clips — the hip node 1 have
+   animated translation).
+4. **Composition convention**: building locals as R(CONJUGATE(q)) and
+   composing world = parent_world * local via the prefix parent table
+   reproduces the live +0x90 world matrices (relative to root) with
+   max element error 0.008; the un-conjugated quat gives 15.2. This is
+   the same conjugate convention noted for +0x30 in session 2.
+5. **Port acceptance test**: `export_native.py --mesh
+   extract/chunk28/f00_id3b.bin --anim extract/chunk28/f01_id3c.bin
+   --clip 346` bakes a 180-frame EMDL palette (60 fps — live cursor:
+   node +0x50 = phase 0..1, +0x54 = 1/(clip_len-1) per 60 Hz tick);
+   the port plays it unmodified. EM_CAPTURE at frame 60 (t = 1.0 s)
+   shows a coherent character in a clearly different pose than frame 0
+   (left arm lowered, head turned vs both hands raised).
+
+### Node-struct cursor addendum (+0x50 block)
+
+`+0x50` f32 clip phase in [0,1); `+0x54` f32 phase rate = 1/(clip_len-1)
+per 60 Hz tick (so clip frames advance at 60 fps and current frame =
+phase * (clip_len-1), confirmed against matched frames on two clips);
+`+0x58/+0x5c/+0x60` are per-channel cursor floats (key-segment state;
+not needed for offline decode).
+
+### Tooling
+
+- `extract_models.py`: `parse_id74_prefix(d, hdr=None)` now returns
+  decoded channels {rot, trn, scl} as per-node (frame, values) lists;
+  `find_id74_headers(d)` enumerates every container in a file. The old
+  A/B/W1/W2 tuple shape is gone (`--object-space` dump updated).
+- `export_native.py`: `--anim <library file> --clip N` bakes a
+  multi-frame EMDL (per-frame TRS sampling, conjugate-quat locals,
+  parent-table composition, recentre, fps=60). `--live` and the
+  identity-palette fallback unchanged; the port needed no changes.

@@ -1,5 +1,43 @@
 # Extermination Decomp — Progress
 
+### id 0x74 channel encodings FULLY decoded; ANIMATED character in the port (2026-06-09, session 4)
+
+Open item #1 (map A's A/B fields + map B/C packing) is CLOSED — the
+whole container turned out to be the id 0x71 clip format verbatim:
+rotation = 4x20-bit LSB-first truncated-float quat (x,y,z,w),
+translation AND scale = 3x26-bit vec3. Session 2's "i16 A/B companions
++ f20 W1/W2 + tag nibble" was that bitstream misparsed at byte offsets
+(A/B = low 16 bits of qx/qz; tag nibble = their sign + exponent-prefix
+0b011 top bits; W1/W2 = qy/qw). Full write-up + verification evidence:
+FINDINGS.md "id 0x74 channel encodings FULLY DECODED".
+
+Headlines:
+
+- **Live-verified on two clips**: paused-capture quats match decoded
+  channels to 0.0000 deg on keys / <=0.15 deg mid-interpolation across
+  all 21 nodes; |q|=1 holds to 3e-4 on every keyframe of every
+  container (static proof of the qx/qz fields). Translations match
+  live node +0x00 exactly; engine local matrices use the CONJUGATE of
+  the stored quat (pinned numerically: 0.008 vs 15.2 max element err).
+- chunk28/f01_id3c is a **455-clip animation library** (the old "50
+  containers" was a truncated scan); the live NPC cycles through it
+  (idle = container 0, a 180-frame look-around = container 346) with
+  cross-fade transitions (mid-blend captures match no single clip).
+  Node +0x50 = clip phase 0..1, +0x54 = 1/(clip_len-1) per 60 Hz tick
+  → clips play at 60 fps.
+- `export_native.py --anim <lib> --clip N` bakes any container into a
+  multi-frame EMDL (compose via the prefix's own parent table,
+  conjugate-quat locals, recentre). Exported chunk28/f00_id3b +
+  container 346 → the port renders a fully ANIMATED character; capture
+  frame 60 (t=1.0 s) shows a clearly different, coherent pose vs
+  frame 0. extract_models.py: `parse_id74_prefix()` now decodes real
+  channel values; new `find_id74_headers()` enumerates whole files.
+
+Still open from this thread: export_gltf.py still carries the void
+per-bone decoders; map C scale is constant (1,1,1) in everything
+sampled so far (apply-anyway support is in the exporter); UVs/textures
+in EMDL.
+
 ### Hand/forearm artifacts resolved: capture tearing, not IK (2026-06-09, session 3b)
 
 The glitches around the hands in the first posed capture were temporal
@@ -83,13 +121,14 @@ FINDINGS.md "id 0x74 prefix is ANIMATION, not geometry".
    Alternative: decompile the EE draw loop that walks the 313 blocks
    (the 41 trailing raw-VIF blocks' STCYCL(4,4)+UNPACK V4-32 addr-0
    tags are a good code anchor).
-2. Decode map A's A/B fields (qx/qz encoding) + map B translations →
-   full mesh-embedded clip decode (the 21-sample live oracle in the
-   session transcript constrains it well).
+2. ~~Decode map A's A/B fields (qx/qz encoding) + map B translations →
+   full mesh-embedded clip decode~~ DONE (session 4: the container is
+   the id 0x71 record format; see top entry).
 3. Re-point export_gltf.py at the corrected pipeline (it still uses the
    void per-bone decoders).
-4. After binding lands: bake palettes per frame (world × inv(bind)) and
-   re-enable --clip in export_native; port side needs no changes.
+4. ~~After binding lands: bake palettes per frame and re-enable --clip
+   in export_native~~ DONE (session 4: `--anim <lib> --clip N`; port
+   side needed no changes).
 
 ### Native-port renderer + live-debug session (2026-06-09)
 

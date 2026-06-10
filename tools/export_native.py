@@ -33,13 +33,17 @@ Vertices are BONE-LOCAL (exactly as stored on disc); vertex_world =
 palette[frame][bone] * pos — the same contract as the PS2 kernel.
 
 Usage (macOS arm64, repo root):
+  # ANIMATED export: bake clip N from an id 0x74 animation library file
+  # (channel encodings decoded 2026-06-09 s4 — see FINDINGS.md):
+  python3 tools/export_native.py --mesh extract/chunk28/f00_id3b.bin \
+      --anim extract/chunk28/f01_id3c.bin --clip 346 \
+      --out ../extermination-port/assets/player.emdl
   # pose a mesh with a live PCSX2 node capture (world matrices, node order;
   # capture with the emulator PAUSED so all nodes are from one frame):
   python3 tools/export_native.py --mesh extract/chunk28/f00_id3b.bin \
       --live extract/live/npc_nodes_live.json \
       --out ../extermination-port/assets/player.emdl
-  # without --live: identity palette (bone-local parts overlap at origin).
-  # --clip is parked until the id 0x74 channel A/B encoding is decoded.
+  # without --live/--anim: identity palette (bone-local parts overlap).
 """
 from __future__ import annotations
 
@@ -235,6 +239,60 @@ def load_mesh_sections(mesh_path: Path, segment: int = 0):
     return sections, max_slot
 
 
+def bake_id74_palettes(anim_path: Path, clip: int):
+    """Bake one id 0x74 clip (mesh-companion animation library) into
+    per-frame world-matrix palettes.
+
+    Channel encodings (decoded + live-verified 2026-06-09 s4): rotation =
+    4x20-bit truncated-float local quat (x,y,z,w), translation/scale =
+    3x26-bit vec3, sparse keys with lerp semantics. The engine composes
+    world = parent_world * local with the local rotation built from the
+    CONJUGATE of the stored quat (pinned against live world matrices:
+    conj gives 0.008 max element error vs 15.2 for the direct quat).
+
+    Returns (parents, frames, fps): frames = [[mat4 x n] x clip_len].
+    Clips advance one frame per 60 Hz tick on the PS2 (live node cursor
+    rate = 1/(clip_len-1) per tick), so fps = 60.
+    """
+    em = _load("_extract_models", "extract_models.py")
+    d = anim_path.read_bytes()
+    hdrs = em.find_id74_headers(d)
+    if not hdrs:
+        raise SystemExit(f"no id 0x74 animation containers in {anim_path}")
+    if not (0 <= clip < len(hdrs)):
+        raise SystemExit(f"clip {clip} out of range (0..{len(hdrs) - 1} "
+                         f"in {anim_path.name})")
+    pre = em.parse_id74_prefix(d, hdrs[clip])
+    n, parents = pre["n"], pre["parents"]
+
+    def keyframes(chan):
+        return [[ad.Keyframe(t_next=f, values=v) for f, v in node_keys]
+                for node_keys in pre[chan]]
+
+    rot, trn, scl = keyframes("rot"), keyframes("trn"), keyframes("scl")
+
+    frames = []
+    for f in range(pre["clip_len"]):
+        world = []
+        for b in range(n):
+            q = ad.sample_bone(rot[b], float(f)) if rot[b] else (0, 0, 0, 1)
+            t = ad.sample_bone(trn[b], float(f), normalize=False) \
+                if trn[b] else (0.0, 0.0, 0.0)
+            s = ad.sample_bone(scl[b], float(f), normalize=False) \
+                if scl[b] else (1.0, 1.0, 1.0)
+            # engine convention: local rotation = R(conj(q))
+            local = mat_from_quat_trn((-q[0], -q[1], -q[2], q[3]), t)
+            if any(abs(c - 1.0) > 1e-4 for c in s):
+                local = tuple(
+                    tuple(v * (s[c] if c < 3 else 1.0) for v in col)
+                    if c < 3 else col
+                    for c, col in enumerate(local))
+            p = parents[b]
+            world.append(local if p < 0 else mat_mul(world[p], local))
+        frames.append(world)
+    return parents, frames, 60.0
+
+
 def bake_clip_palettes(skel_path: Path, clip: int):
     """Sample clip keyframes at 1-frame steps and compose world matrices.
     Returns (parents, frames) where frames is [ [mat4 x bone_count] ... ]."""
@@ -365,7 +423,11 @@ def main(argv):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--mesh", default="extract/chunk21/f17_id8f.bin")
     ap.add_argument("--skel", default="extract/chunk05/f04_id71.bin")
-    ap.add_argument("--clip", type=int, default=0)
+    ap.add_argument("--anim", help="id 0x74 animation-library file (e.g. "
+                    "extract/chunk28/f01_id3c.bin): bake clip --clip from "
+                    "it into a multi-frame EMDL")
+    ap.add_argument("--clip", type=int, default=0,
+                    help="container index inside --anim (default 0)")
     ap.add_argument("--live", help="live node-matrix JSON (world matrices, "
                     "node order): export that single captured pose")
     ap.add_argument("--segment", type=int, default=0,
@@ -379,21 +441,26 @@ def main(argv):
     ntris = sum(len(s[2]) for s in sections) // 3
     print(f"mesh: {nverts} verts, {ntris} tris, max node slot {max_slot}")
 
+    fps = FPS
     if args.live:
         frames = recentre(load_live_palette(Path(args.live)))
         parents = [-1] * len(frames[0])
         print(f"palette: 1 live frame, {len(frames[0])} node matrices")
+    elif args.anim:
+        parents, frames, fps = bake_id74_palettes(Path(args.anim), args.clip)
+        frames = recentre(frames)
+        print(f"palette: clip {args.clip} of {args.anim} -> "
+              f"{len(frames)} frames, {len(frames[0])} nodes @ {fps} fps")
     else:
-        # No live pose supplied: identity palette (bone-local parts shown
-        # overlapping at the origin). Clip baking returns once the id 0x74
-        # channel A/B encoding is decoded.
+        # No pose source: identity palette (bone-local parts shown
+        # overlapping at the origin).
         n = max_slot + 1
         frames = [[mat_identity()] * n]
         parents = [-1] * n
-        print("note: no --live pose; exporting identity palette "
+        print("note: no --live/--anim; exporting identity palette "
               "(bone-local parts will overlap)")
 
-    write_emdl(Path(args.out), sections, [], parents, frames, FPS)
+    write_emdl(Path(args.out), sections, [], parents, frames, fps)
     return 0
 
 
