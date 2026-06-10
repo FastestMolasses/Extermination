@@ -1,4 +1,15 @@
 // All-word: everything as .word except jal/j-external
+//
+// SEMANTICS (s37, FINDINGS "FOOTSTEP SURFACE TABLE"): the FOOTSTEP
+// SURFACE->SOUND MAPPER, func_00182430(actor, gait). No data table —
+// the mapping is these compiled-in immediates:
+//   surface_id = BLOCK(actor+0x23A) + (gait==3 ? 0xA : gait==2 ? 5 : 0)
+//                + func_00179B90()            // rand 0..4
+//   gear_id    = 0x138 + func_00179B90()      // second independent rand
+// both played positionally via func_001FBD50(actor, id, 0) vol 300.
+// BLOCK bases (stride 0x11): attr 0/unmapped->0x10, 1->0x21, 2->0x32,
+// 3->0x43, 4->0x54, 5->0x65, 6|7->0xA9, 8->0x87, 0xD->0xDC, 0xE->0xED,
+// 0x5A->0x76, 0x5B->0xBA shallow (+0x23C==1) / 0xCB deep, 0x5C->0x98.
 extern void func_00179B90(int, int, int, int);
 extern void func_001FBD50(int, int, int, int);
 

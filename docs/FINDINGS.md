@@ -8263,6 +8263,14 @@ Surface selection presumably keys off the collision hit record's
 surface-type byte (+0x1A, s22) — the per-surface id table is NOT yet
 located statically; only these two pairs are observed.
 
+> **2026-06-10 s37 CORRECTION — mapping decoded (see "FOOTSTEP SURFACE
+> TABLE")**: the surface attr DOES come from the hit record's +0x1A,
+> but both observed pairs are the SAME material block 0x10 — the
+> mid-walk change was a **gait change** (walk→run sub-base +5→+0xA),
+> not a material boundary; and neither layer alternates strictly L/R
+> (both add an independent rand 0..4; 0x138/0x139/0x13A are one
+> randomized gear set 0x138-0x13C).
+
 ### FIRE chain re-verified live + two new ids
 
     CIRCLE (fire; config mask spad 0x70003B78 = 0x0020 swapped) →
@@ -9398,5 +9406,176 @@ knife holstered during attacks (flagged note in em_weapon.h).
 - Live-verify the impact-frame reading of the +0x3C gates (§2).
 - Identify what D_00810D3C arms (§1) and the +0x236 context (§5).
 - The player+0x18 record's identity / writer (§4).
-- The melee rows' +0x25E -> func_00182430(p, 1..3) effect content.
+- ~~The melee rows' +0x25E -> func_00182430(p, 1..3) effect content.~~
+  **(s37: resolved — func_00182430 is the surface-footstep mapper; the
+  melee gates plant 0x80|n so the footwork plays a surface step at
+  intensity n. See "FOOTSTEP SURFACE TABLE".)**
 - Whether the knife visually rebinds to the hand mid-attack (§6).
+
+## FOOTSTEP SURFACE TABLE — the surface→sound mapping fully decoded (2026-06-10, s37)
+
+Static .s read of the per-frame footstep slice `func_00187350` and its
+whole call tree (`func_00182430` mapper, `func_00179B90` variant rand,
+`func_00187EE0` step decal/FX, `func_00175900` footing update,
+`func_00187DC0/DE0/EA0` first-contact one-shots), cross-checked against
+the office collision grid and the soundmap. **Closes the s29 open item
+"the per-surface id table is NOT yet located statically" — there is no
+data table.** The mapping is compiled-in immediates inside
+`func_00182430`: a two-level switch (surface attr × gait) plus a random
+variant. Headline formula, per footstep:
+
+    surface_id = BLOCK(attr, depth) + GAIT_SUB(gait) + rand5()
+    gear_id    = 0x138 + rand5()          (independent second rand5)
+    both: positional play_sound(actor, id, 0) at volume 300
+
+`rand5()` = `func_00179B90` = `(rand() & 7)`, values 5..7 folded to
+0..2 — returns 0..4 with 0/1/2 twice as likely as 3/4.
+
+### Where the surface attr comes from (actor +0x23A)
+
+`func_00175900` (the footing update in the player spine, s17): after
+the floor probe `func_0019B6C0` hits, it copies **the collision result
+record's surface-attr byte +0x1A** (via the spad result pointer
+`*0x700031D0` — for grid hits this points at the 64-byte poly node, s14)
+into **actor +0x23A**, and the floor height `0x700031B4` into +0x250.
+Not-grounded branch: a second probe `func_0019B8C0` (mask 7) supplies
+the attr, else +0x23A = 0; **standing on a movable object** (+0x214,
+type byte 2 masked ~0xE1 == 4) overrides by object subtype: subtype 2 →
+attr 2; subtypes 0xA/0xC/0x18/0x2A/0x28 → attr 4.
+
+First-contact latches (cleared whenever the probe misses):
+
+- attr **0x5A** (latch +0x23D): `func_00187DC0` → play_sound(actor,
+  **0x86**, 0) vol 300 (global bank: 4-WAV splash set 0069/0073/0132/
+  0133 — puddle/wet-surface entry).
+- attr **0x5B** (latch +0x23C): depth probe at floorY − 4.01 →
+  **+0x23C = 1 (shallow) / 2 (deep)** — the WATER DEPTH state — then
+  `func_00187DE0`: effect 0x80000016 at the hit point, loop level
+  `func_001E8B90(pos, 5.0)`, and `func_001FB9F0(0xCA shallow / 0xDB
+  deep, 0x1000 ×3)` (non-positional water-entry one-shot).
+- attr **0x5C** (latch +0x23E): `func_00187EA0` =
+  `func_001FB9F0(0xA8, 0x1000 ×3)`.
+
+### The gait selector (mapper arg a1)
+
+`func_00182430(actor, a1)` picks the sub-base from a1: **a1==3 → +0xA,
+a1==2 → +5, else (0/1) → +0**. a1 = **actor +0x25C**:
+
+- unarmed walk update `func_0016A8B0` RAMPS +0x25C ±1/frame toward the
+  gait target **+0x23F** (the stick quantizer 0..3, s31) and uses it to
+  index the speed table `D_00248640`;
+- the armed locomotion top `func_001612D0` writes **gait − 1** (locIdx
+  0..2) into the same byte.
+
+So unarmed: walk (gait 2) → +5, run (gait 3) → +0xA, creep → +0; armed
+locomotion tops out at a1==2 (+5). The melee machines bypass the gait
+byte: their impact gates plant **+0x25E = 0x80|n** (s36) and
+`func_00187350`'s 0x36/0x37 (and default) action paths call
+`func_00182430(actor, n)` directly — footwork at scripted intensity.
+
+### BLOCK(attr) — the material blocks (stride 0x11 = 17 ids)
+
+Each material owns 17 consecutive ids: 3 gait sub-bases × 5 random
+variants = 15, + 2 spare slots (base+0xF/+0x10 hold 3-/4-WAV random
+sets in the banks — landing/scuff family, not fired by this path).
+
+| attr (+0x23A)        | base  | ids (gait 0-1 / 2 / 3)           | global-bank WAVs (chunk00/f05 sfx) |
+|----------------------|-------|----------------------------------|------------------------------------|
+| 0 and any unmapped   | 0x10  | 0x10-14 / 0x15-19 / 0x1A-1E      | 0040,0055,0054,0053,0039 / 0042,0052,0051,0049,0047 / (level banks) |
+| 1                    | 0x21  | 0x21-25 / 0x26-2A / 0x2B-2F      | 0037,0035,0036,0033,0032 / 0034,0030,0031,0028,- / - |
+| 2                    | 0x32  | 0x32-36 / 0x37-3B / 0x3C-40      | 0016,0000,0012,0009,0007 / 0018,0017,0001,-,- / - |
+| 3                    | 0x43  | 0x43-47 / 0x48-4C / 0x4D-51      | 0109,0107,0108,0105,0091 / 0106,0103,… / … |
+| 4                    | 0x54  | 0x54-58 / 0x59-5D / 0x5E-62      | 0089,0090,0088,0087,0083 / 0086,… / …,0080,0081,0077 |
+| 5                    | 0x65  | 0x65-69 / 0x6A-6E / 0x6F-73      | 0076,0074,0073,0071,0069 / - / -,0063,0061,0059,0058 |
+| 6, 7                 | 0xA9  | 0xA9-AD / 0xAE-B2 / 0xB3-B7      | level banks only |
+| 8                    | 0x87  | 0x87-8B / 0x8C-90 / 0x91-95      | 0131,0130,0129,… / … / 0122,0120,0119,0118,0116 |
+| 0xD                  | 0xDC  | 0xDC-E0 / 0xE1-E5 / 0xE6-EA      | level banks only |
+| 0xE                  | 0xED  | 0xED-F1 / 0xF2-F6 / 0xF7-FB      | level banks only |
+| 0x5A (wet/puddle)    | 0x76  | 0x76-7A / 0x7B-7F / 0x80-84      | 2-event splash+step pairs (0150/0153, …) |
+| 0x5B shallow (+0x23C==1) | 0xBA | 0xBA-BE / 0xBF-C3 / 0xC4-C8  | level banks only |
+| 0x5B deep (+0x23C==2) | 0xCB | 0xCB-CF / 0xD0-D4 / 0xD5-D9      | level banks only |
+| 0x5C                 | 0x98  | 0x98-9C / 0x9D-A1 / 0xA2-A6      | 0113,0192,… |
+
+WAV resolution is per-loaded-bank (the s37 soundmap rule): the "-"
+ids above simply have no record in the GLOBAL bank — area banks fill
+them (s29's storage room resolved 0x1A→snd_0050, 0x1B→snd_0048).
+The GEAR layer 0x138-0x13C (cloth foley, base 0x138 + rand5) resolves
+globally: 0311/0308/0309/0310/0306.
+
+### s29 CORRECTIONS
+
+1. **"Floor A / floor B" was a GAIT change, not a material boundary.**
+   0x15/0x16 = block 0x10 at gait 2 (walk); 0x1A/0x1B = the SAME block
+   at gait 3 (run) — the player went from walk to run mid-room on one
+   material. (a1==3 is only reachable unarmed → the capture was
+   unarmed locomotion.) The actual material-change signature is a jump
+   of the whole id by ±n·0x11.
+2. **Neither layer alternates strictly L/R.** Both layers draw rand5()
+   independently per step; the observed 0x15/0x16 and 0x139/0x13A
+   "pairs" were the biased low values. 0x138 "observed once" = the
+   same gear rand landing on 0.
+
+### Per-step decal/FX layer (`func_00187EE0`, attrs again)
+
+attr 0: while the wet-feet timer +0x212 is ticking → **wet FOOTPRINT
+decal** `func_001F0460(1, foot)`, else dust effect 0x80000011;
+attrs 1-4, 0xD, 0xE: none; 5 → effect 0x80000028; 6 → 0x80000005;
+7 → 0x80000068; 8 → 0x80000066; 0x5A → 0x80000065 at floor Y;
+0x5B → 0x8000001D (water ripple) at floor Y; 0x5C → 0x80000067 at
+floor Y. Foot positions: the locomotion path passes skeleton globals
+`*(D_00275B40)+0x44/+0x48` (+0xC0/+0x90 into each = L/R foot node);
+the default mailbox path uses actor +0xB0/+0xD0.
+
+Tail of `func_00187350` (every frame): **wet-feet timer** +0x212 = 120
+while attr ∈ {6, 0x5B}, else decrements; **wade layer** while in water
+(+0x23C ≠ 0, byte D_00810700 != 0x15, and moving): ripple effect
+0x8000001D at the player + level `func_001E8B90(pos, 0.3·speed)`
+(speed +0x38; halved-rate gate on spad 0x70003B68 frame counter & 3).
+
+### Office cross-check (read-only, export_collision grid decode)
+
+`extract/chunk06.n1/f02_id44.bin` grid section @0x79000 (121 nodes):
+the floor poly under the live player position (105.9, −184) is
+**attr 0 → block 0x10** — exactly the s29-observed block. Office
+floor-attr census (ny>0.7): attr 0 ×11, 3 ×4, 4 ×9, 0xB ×7 (unmapped →
+default block), plus singles 0x1F/0x37 (unmapped) and 0x50
+(conditional-accept code, s14). No 0x5A/0x5B/0x5C in the office.
+
+### Matching assessment (s37)
+
+`func_00182430` (the mapper), `func_00187DC0`, `func_00187EA0`,
+`func_00179B90` are already committed byte-equivalent as gated asm
+(`word` form). `func_00187350` and `func_00187DE0` were assessed and
+are **wall #13 blocked** (beq;nop sites whose fall-through candidates
+are safe-to-speculate chain constants / lui — mwcc fills them): stubs
+annotated with the analysis, no compile attempt burned.
+
+### Port contract (the s30 floor-probe hook is ready)
+
+- EMCL already carries the per-poly attr for GRID polys; **cell n-gons
+  export attr 0** (the cell-prim attr byte location is still
+  un-decoded — open). Office floors are grid polys, so the port is
+  immediately correct there.
+- Step fire (at the property-table frames, s25/s31):
+  `id = block_base(attr, depth_state) + (gait==3 ? 10 : gait==2 ? 5 :
+  0) + rand5(); gear = 0x138 + rand5();` both positional, vol 300.
+  Unmapped attrs → block 0x10. rand5 = (r&7), 5..7→0..2.
+- The port's current hardcoded walk pair stays correct for office walk
+  (0x15+r) but must switch to 0x1A+r at run gait, and should drop the
+  strict L/R alternation in favor of rand5.
+- Water/wet extras when those materials appear in exported scenes:
+  depth probe at floorY−4.01 → shallow/deep, entry one-shots 0x86/
+  0xCA/0xDB/0xA8, wet-feet footprint decals for 120 frames after
+  attrs 6/0x5B, ripple effect 0x1D + wade level while submerged.
+
+### Open items (s37)
+
+- The cell-prim surface-attr byte location (narrow/wide n-gon records;
+  the result-ptr +0x1A read implies the byte exists in whatever record
+  the cell path stages — possibly the wide header's +0x14..+0x23 span).
+- Material semantics for attrs 1-8/0xD/0xE (concrete/metal/grate/…) —
+  needs listening to the per-block WAV families or a live A/B.
+- What byte `D_00810700` is (value 0x15 disables the wade layer and
+  the +0x23C branches in func_00187350/func_00187DE0).
+- The +0x212=120 pairing of attr 6 with 0x5B (wet-feet from a non-water
+  material — blood/slime floor?).

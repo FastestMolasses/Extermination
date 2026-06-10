@@ -1,6 +1,6 @@
 # Extermination Decomp — Progress
 
-## Current status (2026-06-10, through session ~s36)
+## Current status (2026-06-10, through session ~s37)
 
 Two tracks, both far along. The matching decomp is verifiably byte-perfect
 end-to-end and ~96.2% of game-code bytes are committed readable/matching C;
@@ -93,9 +93,14 @@ Next, in rough priority order:
    s33/s35 constants (pair-spawn off mode-1 generator pads, 12-spike player
    ring + ellipse clip, ramp/bob/thrash Y-scale, room-tint green, sound
    0x42D); `assets/tendril.emdl` is already shipped and inert.
-5. **Surface-dependent footsteps** — locate the per-surface id table
-   (s29: pairs 0x15/0x16 vs 0x1A/0x1B; 0x138 trigger); the port's
-   floor-probe hook is ready and flagged (s30).
+5. **Surface-dependent footsteps** — ~~locate the per-surface id table~~
+   **DONE s37** (FINDINGS "FOOTSTEP SURFACE TABLE": no data table —
+   compiled-in blocks of 0x11 ids per surface attr × gait sub-base
+   (+0/+5/+0xA) + rand 0..4; gear layer = 0x138+rand; s29's "two
+   floors" was a walk→run gait change). Remaining: wire the formula
+   into the port's ready floor-probe hook (s30), and find the
+   cell-prim attr byte (grid polys carry it at node +0x1A; cell
+   n-gons export attr 0).
 6. **Sound-id wiring** — identify the SQUARE action behind 0x179; wire
    impact 0x189 + shell-casing 0x16A into em_weapon; check neighbors
    0x166/0x167 (s29/s30 open items).
@@ -122,6 +127,35 @@ below are kept as historical record; this block supersedes them.)
 Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
+
+> 2026-06-10 (session 37): FOOTSTEP SURFACE TABLE — the s29 open item
+> "per-surface id table not located" is retired: there is NO data
+> table. func_00182430(actor, gait) maps with compiled-in immediates:
+> id = BLOCK(attr) + (gait==3 ? 0xA : gait==2 ? 5 : 0) + rand(0..4),
+> plus an independent gear layer 0x138+rand(0..4); both positional
+> vol 300 (FINDINGS "FOOTSTEP SURFACE TABLE", full block table). attr
+> = actor+0x23A, copied by the footing update func_00175900 from the
+> floor-probe result record's +0x1A (grid poly node attr, s14), with
+> a standing-on-object override (subtype 2 -> attr 2, 0xA/0xC/0x18/
+> 0x2A/0x28 -> attr 4) and first-contact latches: 0x5A puddle splash
+> 0x86, 0x5B water depth probe (floorY-4.01 -> +0x23C shallow/deep,
+> entries 0xCA/0xDB, per-block bases 0xBA/0xCB), 0x5C one-shot 0xA8.
+> gait = +0x25C (unarmed: smoothed stick gait 0..3; armed tops write
+> gait-1). TWO s29 corrections: the "floor A/B material boundary" was
+> a walk->run GAIT change (0x15/0x16 -> 0x1A/0x1B is sub-base +5 ->
+> +0xA inside the same block 0x10), and neither layer alternates L/R
+> (rand variants; 0x138/0x139/0x13A = one gear set 0x138-0x13C).
+> Decal layer func_00187EE0 decoded (attr 0 = dust 0x11 / wet
+> FOOTPRINT decals while +0x212 ticks; water ripple 0x1D; per-attr
+> effect ids), wet-feet timer +0x212=120 on attrs 6/0x5B, wade-layer
+> loop. Office cross-check (read-only grid decode): floor under the
+> player is attr 0 -> block 0x10, census 0/3/4/0xB + conditional
+> codes; no water attrs in the office. The s36 open item "+0x25E ->
+> func_00182430(p,1..3)" is resolved (melee footwork at intensity n).
+> Matching: mapper/rand/one-shots already committed as gated asm;
+> func_00187350 + func_00187DE0 assessed = wall #13 (analyses inline
+> in the stubs). Port contract written (hook ready per s30); open:
+> cell-prim attr byte location, material semantics, D_00810700.
 
 > 2026-06-10 (session 36): KNIFE/MELEE DECODED + PORTED — the s29
 > "SQUARE = 0x179 unidentified action" open item is retired. Static
