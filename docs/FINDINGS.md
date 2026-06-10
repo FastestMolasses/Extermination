@@ -8655,8 +8655,18 @@ spawns through the normal crawler path, indestructible, separate
 EM_GENERATOR_MAX pool (hazard-list semantics: not shootable, not
 acquirable, excluded from alive counts). Flagged stand-ins: module
 LCG for the draws, one-shot mailbox-5 trap hit, placeholder mound
-visual (phase = Y swell), mode-1 kind-0xE pair untranslated, manifest
+visual (phase = Y swell), manifest
 parsed by an em_enemy-side shim (em_game.c's kind table not touched).
+The mode-1 kind-0xE pair is now TRANSLATED (port commit cd47b7e): a
+mode-1 draw attaches the tendril-field pair per the "KIND-0xE
+COMPANION RESOLVED" port contract — full SCAN/DEPLOY/HOLD/RETRACT
+machine, LCG scatter, s16 bob/thrash integrator, 12 re-posed
+assets/tendril.emdl draws per field (load-if-present), sound 0x42D on
+trigger (unmapped in the generated sfx registry — flagged there), no
+damage; room-tint→green blend + ramp alpha fade skipped (the
+contract's sanctioned simplification). `EM_ENEMY_TEST=5` validates
+trigger→deploy(8 ticks→296)→hold(12/12 valid)→retract→rescan with a
+synthetic walker and a link-1 pad mode-forced to 1 (test-only).
 `EM_ENEMY_TEST=4` validates charge→worm→kill→cap→exhaustion (delays
 /60, test-only). scene_office0/scene.txt's 8 generator lines are now
 ACTIVE with decoded kind/link (all link 0 → inert: zero enemy-count
