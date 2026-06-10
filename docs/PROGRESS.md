@@ -3447,3 +3447,25 @@ full detail):
   snow EM_CAPTURE shows the soldier at the snowy gate (the documented
   s16 description), `make test-input` PASS, port builds clean
   -Wall -Wextra, decomp `verify_all --no-container` PASS (4/4).
+
+### Update — 2026-06-10 s19: INVENTORY FOUND — static global block 0x810C62..0x810CB5 (live session)
+
+- **Closes the s15/s17 open item** (inventory-write site). The inventory
+  is NOT actor-side: it is a static global block addressed via
+  `lui 0x0081` absolutes. `D_00810C64` = byte-per-item-type COUNT ARRAY
+  (`count[type]`); `D_00810CB4` s16 = SPR4 reserve rounds
+  (display-verified live by poking with the status overlay open);
+  `D_00810C62` u8 = rounds in current 30-round magazine. Add/pickup
+  switch at `0x001C4100` (case 0x10: +30 rounds per SPR4 mag pack),
+  reload at `0x0017B300`, per-shot decrement near `0x00170D40`. Player
+  HEALTH/INFECTION are floats at actor+0x220/+0x228 (0x8104D0/0x8104D8).
+  Full layout + 22-site code worklist in FINDINGS s18 section.
+- First end-to-end use of DebugServer **pad injection** (pad_press /
+  pad_set / watch_change): drove the depot interaction, status overlay,
+  weapon draw, and walking. watch_change auto-pause catches sub-frame
+  scratchpad transients; MCP watchpoints never fired (broken this
+  build) — documented in FINDINGS.
+- Open: source of the status screen "04/06" pair; what the office
+  "DEPOSIT" wall unit actually does (its X-interaction cycles sub-frame
+  and never changed ammo); owner struct of the 240-cap tick at
+  `0x001418F0`.

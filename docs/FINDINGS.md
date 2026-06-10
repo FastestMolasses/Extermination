@@ -5803,3 +5803,104 @@ the player carries his own.)
   byte-identical. Move test PASS, verify_all --no-container all-PASS.
 - Remaining: panel glows 110–118 (level side — export_level is the
   owner), pickup-instance auras in 01_props, the per-frame green pulse.
+
+## INVENTORY LOCATED — static global block at 0x810C62..0x810CB5, byte-per-type count array (2026-06-10, session 18)
+
+Live PCSX2 session (DebugServer + first end-to-end use of pad injection).
+This closes the s15 open item "the INVENTORY WRITE on item pickup":
+the inventory is a **static global block addressed absolutely**
+(`lui at,0x0081` + fixed offsets — NOT reached through the player actor
+or any heap object, which is why the actor-side scans never found it).
+
+### Layout (all addresses absolute, BSS)
+
+```
+D_00810C62   u8   rounds in the CURRENT SPR4 magazine (0x1E = 30 = full mag)
+D_00810C63   u8   magazine-equivalent counter, capped at 98; overflow is
+                  folded back into the round reserve at 30 rounds : 1 mag
+D_00810C64   u8[] ITEM COUNT ARRAY, indexed by item TYPE id (one byte per
+                  type): count_of(type t) = *(u8*)(0x810C64 + t)
+                    type 0x10 (SPR4 mag pack) -> 0x810C74   (= 4 in test save)
+                    s11 office ammo types 0x0B/0x0C/0x0D -> 0x810C6F/70/71
+                  observed nonzero in the test save: types 0x05,0x07,0x13,
+                  0x17,0x1B = 1, 0x1E = 6, 0x1F = 1, 0x20 = 2, 0x21 = 1
+D_00810CB4   s16  SPR4 reserve rounds (the "120" with the bullet icon on the
+                  status screen)
+```
+
+**Display-verified:** poking `0x810CB4` while the status overlay was open
+changed the rendered reserve immediately (120 -> 99, then 150) — the UI
+re-reads the canonical value every frame. Restored afterward.
+
+### The code that proves it
+
+- **Add-ammo / pickup switch** `0x001C4100..`: `switch(item_type a0,
+  amount a1)` with cases 0x0F..0x1D. Case 0x10 (`0x001C4190`):
+  `count[0x810C64 + type] += a1`; `0x810C63 += a1`;
+  `0x810CB4 += 30*a1`; if `0x810C62 == 0` set it to 30 (auto-fill mag);
+  if `0x810C63 >= 99` fold the excess into the reserve (x30) and clamp
+  to 98. This is the long-sought **inventory write site** — each SPR4
+  magazine pack adds 30 rounds.
+- **Reload routine** `0x0017B300(_, mode)`: mode 0 = fill mag from
+  reserve only if mag empty; mode 1 = unconditional; else top-up
+  (`need = 30 - mag`); mag = min(30, reserve). Confirms 0x810C62
+  semantics and the 30-round magazine.
+- **Consume path** `~0x00170D40`: `lh/addiu -1/sh` on `0x810CB4`
+  (reserve decremented per shot) with a coupled `sb` to `0x810C62`.
+- 22 code references to immediate `0x0CB4` total (0x157E6C, 0x170D48/54,
+  0x170ED0/DC, 0x1710D8/E4, 0x17B30C..F8 cluster, 0x1AF424,
+  0x1C41CC..4230, 0x209A44, 0x211A00, 0x212098, 0x212434) — a ready-made
+  worklist for naming the weapon/ammo functions.
+
+### Player stats (same page, separate from the count array)
+
+```
+player actor 0x008102B0:
+  +0x220 (0x008104D0)  float  HEALTH    (75.0 = "75/100")
+  +0x228 (0x008104D8)  float  INFECTION (60.0 = "60%")
+```
+
+### Scratchpad checkpoint copy (NOT canonical)
+
+`0x70003240`: u16 cluster `[22, 4, 120, 93, 50, 38, 18]` — contains
+mag-pack count (4) and reserve (120) but writing it does NOT affect the
+live game or the UI; it sits immediately before the s17 persistence
+pointer (`0x70003250`) and is evidently a save/checkpoint snapshot of
+the inventory+stats. Layout differs from the live block.
+
+### Status screen, depot, and open questions
+
+- Status overlay (Triangle): "04/06 SPR4" + bullet-icon 120 + battery
+  bar + health 75/100 + infection 60%. The "04/06" pair is **not**
+  reserve/30 (held at 04 with reserve forced to 99 and 150), not
+  0x810C63, not 0x810C74, not the overlay-arena `04 00 06 00` records at
+  0x8278D0/0x828470 (poked all, incl. across a close/reopen) — its
+  source is still OPEN. Plausibly grenade-launcher rounds current/max.
+- The green wall unit ("DEPOSIT") in the office save: pressing Cross
+  produces a sub-frame interaction cycle — scratchpad u16 `0x70003B88`
+  pulses 0 -> 4 or 3 -> 0 within ONE frame (caught only by the
+  DebugServer watch_change 5 ms poller). It never changed the inventory
+  in any of ~6 cycles even with ammo at 120 and the mag at 4 — either
+  this unit is not an ammo refill, or the refill needs a menu
+  interaction the instant-cycle skipped. The 10-second timers it starts
+  (0x8102DC and 0x8104BC counted 0x15D=349 down to 0 at ~35/s) are
+  display/popup timers, not ammo. Also OPEN.
+- A regen/refill-shaped tick at `0x001418F0` operates on a struct
+  passed in `a1` (+0x70 s16 capped to 0xF0=240, +0x78 s16 tick counter,
+  threshold from a table at gp-0x7FA8 indexed by `*(u8*)0x0081050C & 3`)
+  — 240 = 8 mags x 30; owner struct not yet identified (battery?).
+
+### Tooling notes (first live use)
+
+- **Pad injection works end-to-end**: raw TCP `pad_press`/`pad_set` on
+  port 21512 drove the depot interaction, the status overlay
+  (Triangle), weapon draw (hold R1 via pad_set), and analog walking
+  (lx/ly) — at 20-40% emu speed use pad_set with real-time sleeps;
+  short pad_press taps both opened AND auto-confirmed the depot dialog
+  within one hold (it cycles in <1 s game time), so separate
+  open/confirm presses need pauses between them.
+- **watch_change (5 ms poll + auto-pause) works** and catches sub-frame
+  scratchpad transients. **MCP watchpoints did NOT fire at all** this
+  session (`write` AND `onchange`, 0 hits even on an address rewritten
+  every frame, interpreter EE) — treat pcsx2_set_watchpoint as broken
+  in this build; use watch_change or find_pattern+disasm instead.
