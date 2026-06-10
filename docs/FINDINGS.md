@@ -514,6 +514,24 @@ colour path stays the identity grayscale CLUT.
 
 ### Resident CLUTs from a live PCSX2 capture (2026-06-02)
 
+> **CORRECTION (2026-06-09): every VRAM read in this section and the menu
+> section below was made with the WRONG freeze-blob base (509; correct is
+> 425 — see "Texture COLOR recovered"), i.e. skewed +84 bytes.** 84 = 21
+> CLUT entries × 4, so reads stayed entry-aligned — palette-shape
+> validation and colour families were right, but exact byte content,
+> "13 resident CLUTs", and the nearest-diff figures were measured on
+> shifted windows. **Re-verified at the corrected base 425 (2026-06-09,
+> fixed `gs_vram.py`, save states 01 = gameplay snow / 02 = title):
+> the decisive negative HOLDS — 17 (state 01) and 41 (state 02) resident
+> CLUTs vs the same 361-blob disc pool give ZERO exact matches (nearest
+> max-byte-diff 127–224), in both swizzle directions.** The
+> runtime-synthesised conclusion stands on clean reads; the per-entry EE-RAM
+> probes below sampled genuine (entry-aligned) palette words, so their
+> qualitative conclusion is unaffected. The CBP block addresses cited below
+> are confirmed at block granularity (8368/8384/8402-runs re-found at base
+> 425). The original `/tmp` captures are deleted; the save-state re-runs
+> supersede their numbers.
+
 `tools/gs_vram.py` reads the **resident** CLUTs straight out of a captured GS
 local-memory image (a PCSX2 save-state GS *freeze* blob), to sidestep the
 unknown offline binding entirely: the running engine has already uploaded the
@@ -521,13 +539,15 @@ real palettes into VRAM. Capture used: an in-game frame (player soldier in the
 snowy-gate area; see `/tmp/cap2/Screenshot.png`, user-local, never committed).
 
 **GS local-memory layout in `gs.bin`.** The capture's `gs.bin` is a GS *freeze*
-blob, NOT the GS-dump packet format (no `0xFFFFFFFF` magic). It is a small fixed
-header followed by the 4 MB local memory, which ends exactly at EOF, so **VRAM
-word 0 is at byte offset `len(gs.bin) - 0x400000` = 509 (0x1FD)** for this
-v9 freeze. A CLUT pointer `CBP` (in 256-byte GS blocks) maps to file offset
-`base + CBP*256`. The 509-byte header is the GS display/PMODE/DISPFB state only;
-the internal drawing `TEX0` (active CBP) is **not** in it — it lives in the
-emulator's `PCSX2_Internal_Structures.dat`, not parsed here.
+blob, NOT the GS-dump packet format (no `0xFFFFFFFF` magic). ~~It is a small
+fixed header followed by the 4 MB local memory, which ends exactly at EOF, so
+**VRAM word 0 is at byte offset `len(gs.bin) - 0x400000` = 509 (0x1FD)** for
+this v9 freeze~~ **[VOID — corrected 2026-06-09: the 4 MB is followed by 84
+trailing state bytes; VRAM word 0 is at `len - 0x400000 - 84` = 425]**. A CLUT
+pointer `CBP` (in 256-byte GS blocks) maps to file offset `base + CBP*256`.
+The header is the GS display/PMODE/DISPFB state only; the internal drawing
+`TEX0` (active CBP) is **not** in it — it lives in the emulator's
+`PCSX2_Internal_Structures.dat`, not parsed here.
 
 **Resident CLUTs found.** A full VRAM block-scan (α∈[0,0x80], ≥100 entries at
 0x80, ≥32 distinct RGB) finds **13 resident palette-shaped CLUTs**, clustered in
@@ -591,6 +611,19 @@ CLUT belongs to the snowy level, not the title. No exporter was wired to colour
 `scratch/color/` (git-ignored).
 
 ### Neutral-lit MENU capture — base palette is STILL synthesised (2026-06-02)
+
+> **CORRECTION (2026-06-09): same +84-byte read skew as the section above
+> (base 509 → 425). The headline negative was re-verified clean: at base
+> 425 the title-screen state (02) yields 41 resident CLUTs, ZERO exact
+> matches vs the 361-blob disc pool (nearest max-byte-diff 127–224). The
+> conclusion of this section stands. Superseded on skewed reads: the
+> per-CLUT inventories (37/19 CLUTs) and the maxdiff figures (154–235);
+> the RGB-only / alpha-normalised / tint-fit variants and the EE-RAM
+> per-entry counts were not re-run (captures deleted) but sampled
+> entry-aligned, genuine palette words. The CBP runs (8368, 12158–12166,
+> 12174, 12288) are confirmed resident at base 425 on state 02. The
+> screenshot-exact title-screen renders in "Texture COLOR recovered"
+> (clut_pair.py, base 425) supersede the colour-family renders here.**
 
 The payoff experiment the prior section proposed: two **flat-lit menu**
 captures (`/tmp/menu02` = MAIN MENU / EXTERMINATION title screen in colour;
@@ -3627,9 +3660,21 @@ atlases; the CHARACTER's textures were NOT isolated (see below).
 3. **GS local memory starts at offset 425 in the .p2s v9 GS freeze blob
    (len - 0x400000 - 84; 84 trailing state bytes), NOT 509.** Proven by
    byte-exact 8KB-page anchoring of a disc upload simulated through the
-   PSMCT32 swizzle. ALL prior GS-VRAM reads were skewed; `gs_vram.py` (and
-   any parse_pcsx2_state consumers) still carry the old reading — FIX
-   PENDING.
+   PSMCT32 swizzle. ALL prior GS-VRAM reads were skewed. **FIXED
+   2026-06-09:** `gs_vram.py` now computes base 425 (`VRAM_TRAILER = 84`
+   is the single source of truth; `clut_pair.py` imports it).
+   `parse_pcsx2_state.py` was never affected (it extracts the blob
+   verbatim, no offset math). The skewed-read 2026-06-02 sections above
+   carry correction notes; their decisive "zero disc matches" negative was
+   re-verified clean at base 425 (states 01 and 02: 0 exact matches vs the
+   361-blob disc pool). `clut_bruteforce.collect_clut_pool` now skips
+   tool-output dirs under `extract/` (`textures_colored`, `gsdump`,
+   `live`, `scratch`) so capture files can't masquerade as disc blobs.
+   Regression guard: `verify_all.py` stage **`gs-offset`** cross-validates
+   `gs_vram.localmem_base` (formula) against `clut_pair.detect_vram_base`
+   (palette-scored) on a local PCSX2 save state and asserts the corrected
+   base strictly out-scores the legacy one (observed 7>4 on state 01,
+   10>7 on state 02).
 4. CSM1 CLUT entry swap (8-15 <-> 16-23 per 32 entries) + alpha 0..0x80
    scaled x2, as previously documented.
 

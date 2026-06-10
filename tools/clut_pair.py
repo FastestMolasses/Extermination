@@ -61,8 +61,9 @@ GS FREEZE LAYOUT -- VRAM BASE IS 425, NOT 509 (correction, 2026-06-09)
 In the .p2s ``GS.bin`` freeze blob (v9), GS local memory starts at byte
 offset ``len - 0x400000 - 84`` (= 425 for the 4194813-byte blob), i.e.
 there are 84 bytes of trailing freeze state AFTER the 4 MB. The earlier
-``len - 0x400000`` (= 509) reading used elsewhere is off by 84 bytes,
-which scrambles every 256-byte-block-addressed read at sub-block level.
+``len - 0x400000`` (= 509) reading (fixed in gs_vram.py on 2026-06-09)
+was off by 84 bytes, which scrambles every 256-byte-block-addressed
+read at sub-block level.
 Proof: simulating a known disc texture upload through the documented
 PSMCT32 page/block/column swizzle matches the captured VRAM byte-exactly
 (full 8 KB pages) only with base 425 -- every match lands 256-byte
@@ -107,10 +108,8 @@ if str(_HERE) not in sys.path:
 
 from clut import apply_clut, write_png_rgba                    # noqa: E402
 from extract_textures import psmt8_byte                       # noqa: E402
-from gs_vram import (GS_LOCALMEM_SIZE, characterise,          # noqa: E402
-                     csm1_unswizzle_clut)
-
-VRAM_TRAILER = 84          # bytes of freeze state after the 4 MB local memory
+from gs_vram import (GS_LOCALMEM_SIZE, VRAM_TRAILER,          # noqa: E402
+                     characterise, csm1_unswizzle_clut)
 
 
 # ---------------------------------------------------------------------------
@@ -200,6 +199,40 @@ def read_clut_rgba(lm: bytes, cbp: int) -> bytes:
     """Resident CLUT at ``cbp`` -> linear RGBA palette, PNG-ready alpha."""
     lin = bytearray(csm1_unswizzle_clut(lm[cbp * 256:cbp * 256 + 1024]))
     for i in range(3, 1024, 4):                  # GS alpha 0..0x80 -> 0..255
+        lin[i] = min(255, lin[i] * 2)
+    return bytes(lin)
+
+
+def read_psmt4(lm: bytes, tbp0: int, tbw: int, w: int, h: int) -> bytes:
+    """Read a PSMT4 texture out of GS local memory (one byte per texel,
+    values 0..15). TBP0 in 256-byte blocks; TBW in 64-texel units
+    (pages-per-row = TBW*64/128)."""
+    from extract_textures import psmt4_nibble
+    ppr = max(1, (tbw * 64) // 128)
+    base = tbp0 * 512                            # nibble address
+    out = bytearray(w * h)
+    for y in range(h):
+        row = y * w
+        for x in range(w):
+            a = base + psmt4_nibble(x, y, ppr)
+            b = lm[(a >> 1) & 0x3FFFFF]
+            out[row + x] = (b >> 4) & 0xF if a & 1 else b & 0xF
+    return bytes(out)
+
+
+# CSM1 16-entry CLUT (PSMT4, CPSM=PSMCT32): the entries occupy the first 64
+# bytes at CBP as an 8x2 PSMCT32 region; entry i sits at word CLUT16_WORD[i].
+CLUT16_WORD = [0, 1, 4, 5, 8, 9, 12, 13, 2, 3, 6, 7, 10, 11, 14, 15]
+
+
+def read_clut16_rgba(lm: bytes, cbp: int) -> bytes:
+    """Resident 16-entry PSMT4 CLUT at ``cbp`` -> 64-byte linear RGBA
+    palette, PNG-ready alpha."""
+    blk = lm[cbp * 256:cbp * 256 + 64]
+    lin = bytearray(64)
+    for i, wi in enumerate(CLUT16_WORD):
+        lin[i * 4:i * 4 + 4] = blk[wi * 4:wi * 4 + 4]
+    for i in range(3, 64, 4):                    # GS alpha 0..0x80 -> 0..255
         lin[i] = min(255, lin[i] * 2)
     return bytes(lin)
 

@@ -85,12 +85,22 @@ class ClutCand:
     locations: list[tuple[str, int]]  # (rel_path, file_offset)
 
 
+# Tool-output directories under the extraction root that hold captures /
+# rendered output, not disc data. They must not contribute to the "on-disc"
+# blob pool (a save-state ee.bin under textures_colored/_states/ would
+# otherwise masquerade as a disc location).
+_NON_DISC_DIRS = {"textures_colored", "gsdump", "live", "scratch"}
+
+
 def collect_clut_pool(root: Path,
                       min_alpha_80: int = 100,
                       min_distinct_rgb: int = 32) -> list[ClutCand]:
     """Walk `root` and return the deduped pool of candidate CLUT blobs."""
     pool: dict[str, ClutCand] = {}
     for p in sorted(root.rglob("*.bin")):
+        rel_parts = p.relative_to(root).parts
+        if rel_parts and rel_parts[0] in _NON_DISC_DIRS:
+            continue
         try:
             d = p.read_bytes()
         except OSError:

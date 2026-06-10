@@ -76,11 +76,21 @@ in EMDL.
 save states — title-screen textures validated screenshot-exact; snow
 particles + terrain atlases colored with high/medium confidence. The
 TEX0-harvest pairing rule and a CRITICAL GS-VRAM offset correction
-(freeze blob offset 425, not 509 — prior reads skewed; gs_vram.py fix
-pending) are in FINDINGS.md "Texture COLOR recovered". Character
-textures need a PCSX2 GS dump (.gs) of a character scene (VU1-built
-TEX0s don't persist in a freeze) — that closes the loop for colored
-glTF/EMDL export.
+(freeze blob offset 425, not 509 — prior reads skewed) are in
+FINDINGS.md "Texture COLOR recovered". **Offset fix landed (2026-06-09,
+session 4d):** `gs_vram.py` corrected (base 425; `VRAM_TRAILER=84` is
+the single source of truth, imported by `clut_pair.py`);
+`clut_bruteforce.collect_clut_pool` now excludes tool-output dirs under
+`extract/` (capture files were polluting the "disc" pool); the
+2026-06-02 "zero disc matches → palettes are runtime-synthesised"
+negative was RE-VERIFIED clean at base 425 on save states 01+02
+(0 exact matches vs the 361-blob disc pool, nearest maxdiff 127–224 —
+conclusion stands); new `verify_all.py` stage `gs-offset`
+regression-guards the base against clut_pair's independent
+palette-scored detection on a local save state (PASS: score 7>4 on
+state 01). Character textures need a PCSX2 GS dump (.gs) of a character
+scene (VU1-built TEX0s don't persist in a freeze) — that closes the
+loop for colored glTF/EMDL export.
 
 ### Hand/forearm artifacts resolved: capture tearing, not IK (2026-06-09, session 3b)
 
@@ -464,6 +474,11 @@ textured 0x820 block?") is answered: the engine builds the palette at draw time.
 
 ### Update — 2026-06-02 NEUTRAL-LIT MENU CAPTURE — base palette is also engine-synthesised (colour offline = closed door)
 
+**[Correction 2026-06-09: this entry's VRAM reads used the wrong freeze base
+(509; correct 425, entry-aligned skew). The decisive "zero disc matches"
+negative was re-verified clean at base 425 — conclusion stands. See
+FINDINGS.md correction notes.]**
+
 The decisive follow-up to the live-capture work below. Two **flat-lit menu**
 captures (`/tmp/menu02` = title screen in colour, `/tmp/menu03` = Options;
 user-local, never committed) test whether neutral lighting yields the
@@ -511,10 +526,13 @@ Extracted the **real resident CLUTs** from a PCSX2 in-game capture's 4 MB GS
 local memory (`/tmp/cap2/gs.bin`, user-local) to try to crack the colour
 binding the brute-force pass (below) couldn't. New tool `tools/gs_vram.py`.
 
-- **GS local memory base in `gs.bin` = byte 509 (0x1FD).** The file is a GS
-  *freeze* blob (not the GS-dump packet format); the 4 MB ends exactly at EOF,
-  so VRAM word 0 = `len - 0x400000`. A CLUT `CBP` (256-byte blocks) →
-  `base + CBP*256`.
+- ~~**GS local memory base in `gs.bin` = byte 509 (0x1FD).**~~ **[VOID —
+  corrected 2026-06-09: base = `len - 0x400000 - 84` = 425; the 4 MB is
+  followed by 84 trailing state bytes. All reads in this entry were skewed
+  +84 bytes (entry-aligned, so palette shapes held). The decisive negative
+  below was re-verified clean at base 425 — see FINDINGS.md corrections.]**
+  The file is a GS *freeze* blob (not the GS-dump packet format). A CLUT
+  `CBP` (256-byte blocks) → `base + CBP*256`.
 - **CBPs found.** EE-RAM `TEX0` scan: character sheet `TBP0=7424` → CBP cluster
   8272–8800; `TBP0=12800 → CBP=13560` (all `CPSM=0` PSMCT32, `CSM=0` CSM1,
   `CLD=1`). A full VRAM block-scan finds **13 resident palette-shaped CLUTs**,

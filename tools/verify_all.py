@@ -19,6 +19,10 @@ Stages (each can be skipped with a flag):
                           pygltflib or the sample assets are absent).
   selftest   [host]       run the pure-Python decoder self-tests
                           (anim_decoder).
+  gs-offset  [host]       cross-validate the GS freeze-blob VRAM base between
+                          gs_vram.py (formula: len - 4MB - 84) and
+                          clut_pair.py (palette-scored detection) on a real
+                          PCSX2 save state (skipped if none present).
 
 The container stages use Apple's `container` CLI. They are the slow part; pass
 --no-container to skip them and run only the host-side checks (fast).
@@ -255,12 +259,79 @@ def run_selftest(st: Stage) -> None:
                  else (r.stderr or r.stdout).strip().splitlines()[-1][:120] if (r.stderr or r.stdout) else "self-test failed")
 
 
+# ---------------------------------------------------------------- gs-offset
+
+def run_gs_offset(st: Stage) -> None:
+    """Cross-validate the GS freeze-blob VRAM base on a real save state.
+
+    Guards the 2026-06-09 correction (base = len - 0x400000 - 84, not
+    len - 0x400000): gs_vram.localmem_base's fixed formula must agree with
+    clut_pair.detect_vram_base's independent palette-scored detection, and
+    the corrected base must strictly out-score the legacy one on
+    TEX0-referenced CLUTs. Reads only the user's own save state; writes
+    nothing.
+    """
+    sdir = Path.home() / "Library/Application Support/PCSX2/sstates"
+    states = sorted(sdir.glob("*.p2s")) if sdir.is_dir() else []
+    if not states:
+        st.ok = None
+        st.detail = "skipped (no .p2s save states in PCSX2 sstates dir)"
+        return
+    sys.path.insert(0, str(ROOT / "tools"))
+    try:
+        from parse_pcsx2_state import extract_all
+        from gs_vram import (GS_LOCALMEM_SIZE, VRAM_TRAILER, characterise,
+                             csm1_unswizzle_clut, localmem_base)
+        from clut_pair import detect_vram_base, harvest_tex0
+    except ImportError as e:
+        st.ok = None
+        st.detail = f"skipped (import: {e})"[:120]
+        return
+    import tempfile
+    p2s = states[0]
+    with tempfile.TemporaryDirectory(prefix="gs_offset_") as td:
+        out = Path(td)
+        extract_all(p2s, out)
+        gs = (out / "gs.bin").read_bytes()
+        ee = (out / "ee.bin").read_bytes()
+        vu1 = out / "vu1_dmem.bin"
+        blobs = [ee] + ([vu1.read_bytes()] if vu1.is_file() else [])
+    cbps = sorted({k[4] for k in harvest_tex0(blobs)})
+    if not cbps:
+        st.ok = False
+        st.detail = f"no TEX0 CBPs harvested from {p2s.name} — cannot validate"
+        return
+
+    def score(base: int) -> int:
+        lm = gs[base:base + GS_LOCALMEM_SIZE]
+        n = 0
+        for c in cbps:
+            i = characterise(csm1_unswizzle_clut(lm[c*256:c*256 + 1024]), c)
+            if i.valid and i.a80 >= 100 and i.distinct_rgb >= 32:
+                n += 1
+        return n
+
+    formula = localmem_base(gs)
+    detected = detect_vram_base(gs, cbps)
+    expect = len(gs) - GS_LOCALMEM_SIZE - VRAM_TRAILER
+    s_new, s_old = score(expect), score(len(gs) - GS_LOCALMEM_SIZE)
+    if formula == detected == expect and s_new > s_old:
+        st.ok = True
+        st.detail = (f"{p2s.name}: base {formula} (formula==detected), "
+                     f"palette score {s_new} > legacy {s_old}")
+    else:
+        st.ok = False
+        st.detail = (f"{p2s.name}: formula={formula} detected={detected} "
+                     f"expect={expect}, score new={s_new} legacy={s_old}")
+
+
 STAGE_FNS = {
     "boot-elf": (True, run_boot_elf),
     "overlays": (True, run_overlays),
     "match":    (False, None),    # needs floor arg, dispatched specially
     "gltf":     (False, run_gltf),
     "selftest": (False, run_selftest),
+    "gs-offset": (False, run_gs_offset),
 }
 
 
@@ -274,7 +345,7 @@ def main(argv: list[str]) -> int:
                    help="fail if matched_code_percent drops below this (default 95.0)")
     args = p.parse_args(argv)
 
-    order = ["boot-elf", "overlays", "match", "gltf", "selftest"]
+    order = ["boot-elf", "overlays", "match", "gltf", "selftest", "gs-offset"]
     if args.only:
         want = {s.strip() for s in args.only.split(",")}
         order = [s for s in order if s in want]

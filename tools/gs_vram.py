@@ -25,12 +25,15 @@ palette for a texture, recovering the offline binding rule.
 GS FREEZE BLOB LAYOUT
 ---------------------
 The capture's ``gs.bin`` is a PCSX2 GS *freeze* blob (a save-state component),
-NOT the GS-dump packet format (no 0xFFFFFFFF magic). Empirically it is a small
-fixed-size header followed by the 4 MB GS local memory, which ends exactly at
-EOF. So the local-memory base is ``len(gs.bin) - 0x400000`` (= 509 = 0x1FD for
-the v9 freeze format). VRAM word 0 lives at that byte offset; a CLUT buffer
-pointer ``CBP`` (in 256-byte GS blocks) maps to file offset
-``base + CBP * 256``.
+NOT the GS-dump packet format (no 0xFFFFFFFF magic). It is a small fixed-size
+header, the 4 MB GS local memory, then **84 trailing state bytes**. So the
+local-memory base is ``len(gs.bin) - 0x400000 - 84`` (= 425 for the v9 freeze
+format), NOT ``len - 0x400000`` (= 509) as this tool originally assumed.
+Proven 2026-06-09 by byte-exact 8 KB-page anchoring of a known disc texture
+upload simulated through the PSMCT32 swizzle (see tools/clut_pair.py and
+docs/FINDINGS.md); the old reading skewed every read by 84 bytes (21 CLUT
+entries). VRAM word 0 lives at the base; a CLUT buffer pointer ``CBP`` (in
+256-byte GS blocks) maps to file offset ``base + CBP * 256``.
 
 CSM1 CLUT SWIZZLE
 -----------------
@@ -57,6 +60,7 @@ from clut import psmct8_csm1_swizzle, write_png_rgba  # noqa: E402
 
 GS_LOCALMEM_SIZE = 0x400000        # 4 MB GS local memory
 CLUT_BYTES = 1024                  # 256 entries * 4 bytes (PSMCT32)
+VRAM_TRAILER = 84                  # freeze state bytes AFTER the 4 MB (v9 .p2s)
 
 
 # ---------------------------------------------------------------------------
@@ -65,12 +69,15 @@ CLUT_BYTES = 1024                  # 256 entries * 4 bytes (PSMCT32)
 def localmem_base(gs_bytes: bytes) -> int:
     """Return the byte offset of VRAM word 0 inside a GS freeze blob.
 
-    The 4 MB local memory ends exactly at EOF in the save-state freeze format,
-    so the base is ``len - 0x400000``. We assert the size is consistent.
+    In the .p2s v9 freeze the 4 MB local memory is followed by 84 trailing
+    state bytes, so the base is ``len - 0x400000 - 84`` (see module
+    docstring for the byte-exact proof). The pre-2026-06-09 ``len -
+    0x400000`` reading was off by +84 bytes.
     """
-    if len(gs_bytes) < GS_LOCALMEM_SIZE:
-        raise ValueError(f"gs.bin too small ({len(gs_bytes)}) to hold 4 MB VRAM")
-    return len(gs_bytes) - GS_LOCALMEM_SIZE
+    if len(gs_bytes) < GS_LOCALMEM_SIZE + VRAM_TRAILER:
+        raise ValueError(f"gs.bin too small ({len(gs_bytes)}) to hold 4 MB VRAM"
+                         f" + {VRAM_TRAILER}-byte trailer")
+    return len(gs_bytes) - GS_LOCALMEM_SIZE - VRAM_TRAILER
 
 
 def read_localmem(gs_path: Path) -> tuple[int, bytes]:
