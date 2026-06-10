@@ -10,6 +10,47 @@
 > clusters, 91 fns in numbered unknowns), main() identified at 0x001AAE40,
 > prioritized decomp roadmap in docs/SUBSYSTEMS.md; graph tool: tools/callgraph.py.
 
+### Multi-clip EMDL v3 + player WALK/RUN identified — port crossfades idle<->walk (2026-06-10, session 10)
+
+The port now plays a real walk cycle while moving. Two halves:
+
+**Player walk/run clips identified by stride scan.** Scanned all 455
+containers of `chunk28/f01_id3c.bin` (bake every 21-node clip of length
+10..120, feet = nodes 17/18 — the lowest-Y nodes of the idle pose —
+score anti-phase fore-aft foot swing × foot lift × root travel):
+
+- **clip 2 = WALK**: 45 frames, root speed 24.07 u/s, low foot lift
+  (~1.3u), upper body CLOSEST to the idle-346 rifle-held pose (mean
+  node distance 0.72u — the armed-stance variant).
+- **clip 3 = RUN**: 40 frames, 47.57 u/s, high lift (~3.9u), same
+  stance family (dist 1.33).
+- Pairs (12,13)/(22,23) are other-stance walk/run variants (upper body
+  2.1–2.6u from idle); (76,77) another family; 186–198 = slow/lateral
+  steps (~13 u/s); 105/106/251 have 12–27u foot lift (jumps/rolls).
+- ALL locomotion clips head exactly +Z (heading 0.0°), matching the
+  port's yaw-0 facing convention.
+
+**EMDL v3 (magic EMD3)** — `export_native.py` now writes a clip table
+`{id, first_frame, frame_count, fps}` over a shared palette blob;
+`--clips 346,2,3` bakes several library containers at once (first
+clip's frame-0 root = shared origin, so the idle block is byte-
+identical to the old EMD2 export); locomotion clips (root XZ travel
+> 3u) are baked IN-PLACE (per-frame root XZ stripped, natural speed
+printed). New `--attach` reuses `export_props.build_attached_player`
+verbatim, so the one-command player export keeps the rifle/knife
+merge. The port loads EMD2 unchanged (synthetic whole-range clip).
+
+Port side: `em_model_palette_at(m, clip, t, out)` + clip table +
+`em_model_clip_index`; `actor_update` crossfades idle<->walk with a
+0.15 s linear palette blend driven by movement speed (the engine
+cross-fades clip transitions the same way — see the s4 live-capture
+note below) and advances the walk clip at move_speed/24.07 so the
+stride tracks the ground. Verified: EM_CAPTURE idle byte-identical to
+the pre-change baseline (asset blocks byte-compared too), move-test
+placement unchanged, mid-walk captures (new EM_CAPTURE_FRAME knob)
+show the legs scissored at ±8u feet separation vs 2.2u idle,
+verify_all --no-container all-PASS.
+
 ### Quat hemisphere fix — one-frame 180° torso flip in the port (2026-06-09, session 7c)
 
 The animated player's upper half flipped 180° for one frame per loop.

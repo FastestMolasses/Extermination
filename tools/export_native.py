@@ -15,19 +15,24 @@ index into the EMDL verts and emits a world-matrix palette per frame.
 The output is disc-derived: write it only into git-ignored locations
 (extermination-port/assets/ is ignored there).
 
-EMDL v2 layout (little-endian):
+EMDL v3 layout (little-endian; v2 = the same file without the clip
+table, magic "EMD2" and no clip_count word — the port still loads it):
 
-  char  magic[4]      "EMD2"
+  char  magic[4]      "EMD3"
   u32   bone_count    palette slots (nodes + 1 trailing identity slot)
   u32   vert_count    total vertices
   u32   index_count   total triangle indices (u32, global vertex ids)
-  u32   frame_count   baked pose frames (>=1)
-  f32   fps           playback rate for the baked frames
+  u32   frame_count   baked pose frames across ALL clips (>=1)
+  f32   fps           default playback rate for the baked frames
   u32   tex_count     textures in the embedded table (0 = untextured)
-  u32   reserved
+  u32   flags
+  u32   clip_count    named clips sharing the palette blob (>=1)
   i32   parents[bone_count]                  (-1 = root; informational)
   tex   { u32 width, height, byte_offset, reserved } x tex_count
         byte_offset into the RGBA8 texel blob at the end of the file
+  clip  { u32 id, first_frame, frame_count; f32 fps } x clip_count
+        id = source container index in the id 0x74 animation library;
+        first_frame/frame_count = range into the shared palette blob
   vert  { f32 px,py,pz; f32 nx,ny,nz; f32 u,v; u32 bone; u32 tex }
         x vert_count   (tex = index into the table, 0xFFFFFFFF = none;
         UVs are normalized texture coords, REPEAT addressing — values
@@ -39,6 +44,21 @@ EMDL v2 layout (little-endian):
 Vertices are BONE-LOCAL (exactly as stored on disc); vertex_world =
 palette[frame][bone] * pos — the same contract as the PS2 kernel.
 
+MULTI-CLIP (2026-06-10): --clips 346,2,3 bakes several library
+containers into one shared palette blob with a clip table. The FIRST
+clip's frame-0 root translation is the shared origin (recentre
+semantics unchanged for it). Locomotion clips (net root XZ travel
+over the clip > 3 units) are converted to IN-PLACE: the root's XZ
+translation is subtracted from every node per frame (vertical bob
+kept) and the measured natural ground speed is printed — the port
+re-applies travel itself and scales playback rate to its own speed.
+Player walk/run identified 2026-06-10 by stride scan (feet = nodes
+17/18, anti-phase fore-aft swing + foot lift + root travel, all
+locomotion clips head exactly +Z): clip 2 = WALK (45 frames,
+24.07 u/s), clip 3 = RUN (40 frames, 47.57 u/s); the (12,13)/(22,23)
+pairs are other-stance variants (upper body further from the idle/
+rifle pose), 346 stays the idle/look-around used since EMDL v2.
+
 TEXTURE/COLOR (decoded 2026-06-09 s5): vertex record qword 0 ("marker")
 IS the draw's TEX0 register value — TBP0/TBW/PSM/TW/TH/CBP baked into
 the disc file (validated: all 51 (TBP0,CBP) pairs of f00_id3b appear
@@ -49,6 +69,14 @@ supplies the PSMT4 texels + 16-entry CLUTs (palettes are runtime-built;
 see docs/FINDINGS.md "Texture COLOR recovered").
 
 Usage (macOS arm64, repo root):
+  # THE player export (multi-clip + held weapons; --attach reuses
+  # export_props' equipment merge, the same machinery as
+  # `export_props.py --attach`):
+  .venv/bin/python tools/export_native.py --attach \
+      --mesh extract/chunk28/f00_id3b.bin \
+      --anim extract/chunk28/f01_id3c.bin --clips 346,2,3 \
+      --gsdump extract/gsdump/frame1.gs \
+      --out ../extermination-port/assets/player.emdl
   # ANIMATED export: bake clip N from an id 0x74 animation library file
   # (channel encodings decoded 2026-06-09 s4 — see FINDINGS.md):
   python3 tools/export_native.py --mesh extract/chunk28/f00_id3b.bin \
@@ -66,6 +94,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import math
 import struct
 import sys
 from pathlib import Path
@@ -409,10 +438,11 @@ def load_live_palette(live_json: Path):
     return [mats]
 
 
-def recentre(frames):
-    """Subtract frame-0 root translation so the character sits at the
-    origin (the port supplies its own camera/world placement)."""
-    ox, oy, oz = frames[0][0][3][:3]
+def recentre(frames, origin=None):
+    """Subtract a shared origin (default: frame-0 root translation) so the
+    character sits at the origin (the port supplies its own camera/world
+    placement)."""
+    ox, oy, oz = origin if origin is not None else frames[0][0][3][:3]
     out = []
     for fr in frames:
         nf = []
@@ -421,6 +451,76 @@ def recentre(frames):
             nf.append((m[0], m[1], m[2], c3))
         out.append(nf)
     return out
+
+
+# Net root XZ travel above this (units) marks a clip as locomotion: its
+# baked root motion is stripped so it plays in place (the port drives the
+# world translation itself). The player is ~15 units tall; locomotion
+# clips travel 17..31 units, while idle/look-around roots drift < 1.
+LOCO_TRAVEL_MIN = 3.0
+
+
+def strip_root_motion(frames):
+    """Make a locomotion clip play IN PLACE: subtract the root's XZ
+    translation from every node, per frame (the vertical bob is kept).
+    Returns (frames, speed) with speed = the clip's natural ground speed
+    in units/sec at the baked 60 fps (the port scales playback by
+    move_speed / speed so the feet track the ground)."""
+    out = []
+    for fr in frames:
+        rx, rz = fr[0][3][0], fr[0][3][2]
+        nf = []
+        for m in fr:
+            c3 = (m[3][0] - rx, m[3][1], m[3][2] - rz, m[3][3])
+            nf.append((m[0], m[1], m[2], c3))
+        out.append(nf)
+    dx = frames[-1][0][3][0] - frames[0][0][3][0]
+    dz = frames[-1][0][3][2] - frames[0][0][3][2]
+    speed = math.hypot(dx, dz) / max(len(frames) - 1, 1) * 60.0
+    return out, speed
+
+
+def root_travel(frames):
+    dx = frames[-1][0][3][0] - frames[0][0][3][0]
+    dz = frames[-1][0][3][2] - frames[0][0][3][2]
+    return math.hypot(dx, dz)
+
+
+def bake_id74_clips(anim_path: Path, clip_ids: list[int]):
+    """Bake several id 0x74 containers into one shared palette blob.
+
+    The FIRST clip's frame-0 root translation is the shared origin (so a
+    single-clip 346 export reproduces the old recentre output exactly);
+    locomotion clips are converted to in-place (see strip_root_motion).
+
+    Returns (parents, frames, clip_table, fps) with clip_table =
+    [{id, first, count, fps}] ranges into the concatenated frames."""
+    parents = None
+    frames: list = []
+    clip_table = []
+    origin = None
+    fps = 60.0
+    for ci in clip_ids:
+        p, fr, fps = bake_id74_palettes(anim_path, ci)
+        if parents is None:
+            parents = p
+        elif p != parents:
+            raise SystemExit(f"clip {ci}: parent table differs from clip "
+                             f"{clip_ids[0]} — not the same rig")
+        if origin is None:
+            origin = fr[0][0][3][:3]
+        fr = recentre(fr, origin)
+        note = ""
+        travel = root_travel(fr)
+        if travel > LOCO_TRAVEL_MIN:
+            fr, speed = strip_root_motion(fr)
+            note = (f" — locomotion (root travel {travel:.1f}u) -> "
+                    f"in-place, natural speed {speed:.2f} u/s")
+        clip_table.append({"id": ci, "first": len(frames),
+                           "count": len(fr), "fps": fps})
+        frames.extend(fr)
+        print(f"  clip {ci}: {len(fr)} frames @ {fps:.0f} fps{note}")
+    return parents, frames, clip_table, fps
 
 
 def build_texture_blob(gsdump: Path | None, tex_table: list[dict]):
@@ -456,14 +556,19 @@ def build_texture_blob(gsdump: Path | None, tex_table: list[dict]):
 
 
 def write_emdl(out_path: Path, sections, section_bone, parents, frames,
-               fps: float, tex_entries=None, tex_blob=b"", flags=0):
+               fps: float, tex_entries=None, tex_blob=b"", flags=0,
+               clips=None):
     """Vertices carry their own palette slot (per-vertex bone, decoded from
     the position-W dmem address — see load_mesh_sections). A trailing
     identity slot soaks up any vertex whose slot exceeds the palette.
 
-    `flags` lands in the header's reserved word (bit 0: the normal slot
+    `flags` lands in the header's flags word (bit 0: the normal slot
     carries a baked vertex COLOR — static level geometry; see
-    export_level.py). Character exports keep the default 0."""
+    export_level.py). Character exports keep the default 0.
+
+    `clips` = [{id, first, count, fps}] ranges into `frames` (see
+    bake_id74_clips); None = one clip covering everything (single-pose
+    and single-animation exports)."""
     n_bones = len(frames[0])
     id_slot = n_bones        # identity matrix slot for unmapped vertices
     tex_entries = tex_entries or []
@@ -501,17 +606,28 @@ def write_emdl(out_path: Path, sections, section_bone, parents, frames,
         for col in ident:
             pal += struct.pack("<4f", *col)
 
+    if clips is None:
+        clips = [{"id": 0, "first": 0, "count": len(frames), "fps": fps}]
+    for c in clips:
+        if not (0 <= c["first"] and c["first"] + c["count"] <= len(frames)
+                and c["count"] >= 1):
+            raise SystemExit(f"clip table entry out of range: {c}")
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("wb") as f:
-        f.write(b"EMD2")
-        f.write(struct.pack("<4If2I", n_bones + 1, vbase, len(indices),
-                            len(frames), fps, len(tex_entries), flags))
+        f.write(b"EMD3")
+        f.write(struct.pack("<4If3I", n_bones + 1, vbase, len(indices),
+                            len(frames), fps, len(tex_entries), flags,
+                            len(clips)))
         for b in range(n_bones):
             p = parents[b] if b < len(parents) else -1
             f.write(struct.pack("<i", p if 0 <= p < n_bones else -1))
         f.write(struct.pack("<i", -1))   # identity slot
         for e in tex_entries:
             f.write(struct.pack("<4I", e["w"], e["h"], e["off"], 0))
+        for c in clips:
+            f.write(struct.pack("<3If", c["id"], c["first"], c["count"],
+                                c["fps"]))
         f.write(verts)
         f.write(struct.pack(f"<{len(indices)}I", *indices))
         f.write(pal)
@@ -521,6 +637,8 @@ def write_emdl(out_path: Path, sections, section_bone, parents, frames,
     print(f"  palette : {n_bones}+1 slots ({len(used)} referenced)")
     print(f"  verts   : {vbase}  tris: {len(indices) // 3}")
     print(f"  frames  : {len(frames)} @ {fps} fps")
+    print(f"  clips   : " + ", ".join(
+        f"{c['id']}[{c['first']}..+{c['count']}]" for c in clips))
     print(f"  textures: {len(tex_entries)} ({len(tex_blob)} texel bytes)")
 
 
@@ -533,6 +651,16 @@ def main(argv):
                     "it into a multi-frame EMDL")
     ap.add_argument("--clip", type=int, default=0,
                     help="container index inside --anim (default 0)")
+    ap.add_argument("--clips", help="comma list of container indices to "
+                    "bake into ONE multi-clip EMDL (e.g. 346,2,3 = "
+                    "idle,walk,run); locomotion clips are converted to "
+                    "in-place (see bake_id74_clips)")
+    ap.add_argument("--attach", action="store_true",
+                    help="merge the held equipment onto the skeleton nodes "
+                    "(reuses export_props.build_attached_player — the same "
+                    "machinery as `export_props.py --attach`)")
+    ap.add_argument("--library", default="extract/chunk27/f01_id37.bin",
+                    help="(--attach) equipment model library")
     ap.add_argument("--live", help="live node-matrix JSON (world matrices, "
                     "node order): export that single captured pose")
     ap.add_argument("--segment", type=int, default=0,
@@ -545,23 +673,45 @@ def main(argv):
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 
-    sections, max_slot, tex_table = load_mesh_sections(Path(args.mesh),
-                                                       args.segment)
-    nverts = sum(len(s[0]) for s in sections)
-    ntris = sum(len(s[2]) for s in sections) // 3
-    print(f"mesh: {nverts} verts, {ntris} tris, max node slot {max_slot}, "
-          f"{len(tex_table)} textures")
-    tex_entries, tex_blob = build_texture_blob(
-        Path(args.gsdump) if args.gsdump else None, tex_table)
+    if args.attach:
+        # Reuse the export_props equipment merge verbatim (ATTACHMENTS:
+        # rifle models -> node 4, knife 106 -> node 14 holster; identity
+        # local offsets — see export_props.py for the live-frame proof).
+        # export_props also resolves textures via export_level's blob
+        # builder (PSMCT32-capable), exactly as `export_props.py --attach`.
+        props = _load("_export_props", "export_props.py")
+        sections, max_slot, tex_table = props.build_attached_player(args)
+        tex_entries, tex_blob = props.lvl.build_texture_blob(
+            Path(args.gsdump) if args.gsdump else None, tex_table)
+    else:
+        sections, max_slot, tex_table = load_mesh_sections(Path(args.mesh),
+                                                           args.segment)
+        nverts = sum(len(s[0]) for s in sections)
+        ntris = sum(len(s[2]) for s in sections) // 3
+        print(f"mesh: {nverts} verts, {ntris} tris, max node slot {max_slot},"
+              f" {len(tex_table)} textures")
+        tex_entries, tex_blob = build_texture_blob(
+            Path(args.gsdump) if args.gsdump else None, tex_table)
 
     fps = FPS
-    if args.live:
+    clips = None
+    if args.clips:
+        ids = [int(x) for x in args.clips.split(",") if x.strip() != ""]
+        if not args.anim:
+            raise SystemExit("--clips needs --anim")
+        print(f"baking {len(ids)} clips from {args.anim}:")
+        parents, frames, clips, fps = bake_id74_clips(Path(args.anim), ids)
+        print(f"palette: {len(frames)} total frames, {len(frames[0])} nodes "
+              f"@ {fps} fps")
+    elif args.live:
         frames = recentre(load_live_palette(Path(args.live)))
         parents = [-1] * len(frames[0])
         print(f"palette: 1 live frame, {len(frames[0])} node matrices")
     elif args.anim:
         parents, frames, fps = bake_id74_palettes(Path(args.anim), args.clip)
         frames = recentre(frames)
+        clips = [{"id": args.clip, "first": 0, "count": len(frames),
+                  "fps": fps}]
         print(f"palette: clip {args.clip} of {args.anim} -> "
               f"{len(frames)} frames, {len(frames[0])} nodes @ {fps} fps")
     else:
@@ -574,7 +724,7 @@ def main(argv):
               "(bone-local parts will overlap)")
 
     write_emdl(Path(args.out), sections, [], parents, frames, fps,
-               tex_entries, tex_blob)
+               tex_entries, tex_blob, clips=clips)
     return 0
 
 
