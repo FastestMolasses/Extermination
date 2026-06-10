@@ -70,7 +70,20 @@ movables need their own live capture).
 Output: one EMDL v2, bone_count 1 (identity palette), baked vertex color
 in the EMD2 normal slot (header flags bit 0). Textures resolve to RGBA8
 through a one-frame PCSX2 GS dump's VRAM snapshot (PSMT4+CLUT16 / PSMT8 /
-PSMCT32).
+PSMCT32), or — `--p2s` — through a PCSX2 SAVE STATE's GS local memory
+(the s15 path proven on the chunk15 NPC: 4 MB at `len(gs.bin) - 0x400000
+- 84`, gs_vram.read_localmem). Texture residency is the caller's
+responsibility: pass a state captured INSIDE this level.
+
+`--offset dx,dy,dz` translates every output vertex (a pure world-frame
+shift; geometry/UVs/colors untouched). The native port's player spawn is
+compile-time (em_game.c kPlayerPos, office coordinates), so secondary
+scenes are baked with the offset that lands their chosen spawn point on
+kPlayerPos. Re-export without --offset once the port reads spawn tables.
+
+Multi-zone levels (e.g. the chunk15 snow level): each zone render file is
+its own whole-file-static export — run this tool once per file into
+scene_snow/NN_zone.emdl; the port's scene loader draws all of them.
 
 Disc-derived output: write only into git-ignored locations
 (extermination-port/assets/ is ignored there).
@@ -80,6 +93,11 @@ Usage (macOS arm64, decomp repo root):
       --level extract/chunk06.n1/f03_id43.bin \
       --gsdump extract/gsdump/frame1.gs \
       --out ../extermination-port/assets/scene/00_level.emdl
+  # snow level main zone, textures from save state 01, spawn-anchored:
+  .venv/bin/python tools/export_level.py \
+      --level extract/chunk15/f12_id44.bin \
+      --p2s /tmp/exterm_s01 --offset -111.19,-229.85,-385.79 \
+      --out ../extermination-port/assets/scene_snow/00_zone_main.emdl
 """
 from __future__ import annotations
 
@@ -519,14 +537,34 @@ def read_psmct32_rgba(lm: bytes, tbp0: int, tbw: int, w: int, h: int) -> bytes:
     return bytes(out)
 
 
-def build_texture_blob(gsdump: Path | None, tex_table: list[dict]):
-    """Like export_native.build_texture_blob but adds PSMCT32 support."""
+def build_texture_blob(gsdump: Path | None, tex_table: list[dict],
+                       p2s: Path | None = None):
+    """Like export_native.build_texture_blob but adds PSMCT32 support.
+
+    VRAM sources (gsdump wins if both given, mirroring export_native):
+      gsdump — PCSX2 1-frame GS dump (.gs): replayed register writes.
+      p2s    — PCSX2 save state (.p2s, or a pre-extracted state dir, or a
+               bare gs.bin freeze blob): GS local memory at
+               len(gs.bin) - 0x400000 - 84 (gs_vram.read_localmem)."""
     entries, blob = [], bytearray()
     lm = None
     if gsdump is not None:
         pg = _load("_parse_gsdump_lvl", "parse_gsdump.py")
         state_data, _r, _p, _s, _c = pg.parse(gsdump, quiet=True)
         lm = pg.dump_vram(state_data)
+    elif p2s is not None:
+        gv = _load("_gs_vram_lvl", "gs_vram.py")
+        if p2s.is_dir():                       # pre-extracted state dir
+            gs_path = p2s / "gs.bin"
+        elif p2s.suffix.lower() == ".p2s":     # save state: pull gs.bin
+            import tempfile
+            pps = _load("_parse_pcsx2_state_lvl", "parse_pcsx2_state.py")
+            tmp = Path(tempfile.mkdtemp(prefix="emdl_p2s_lvl_"))
+            gs_path = pps.extract_all(p2s, tmp)["gs.bin"]
+        else:                                  # bare gs.bin freeze blob
+            gs_path = p2s
+        _base, lm = gv.read_localmem(gs_path)
+    if lm is not None:
         cp = _load("_clut_pair_lvl", "clut_pair.py")
         from clut import apply_clut
     for f in tex_table:
@@ -561,10 +599,22 @@ def main(argv):
     ap.add_argument("--gsdump", help="PCSX2 1-frame GS dump (.gs) of a scene "
                     "inside this level: source of colored texels. Without "
                     "it textures are grey 1x1.")
+    ap.add_argument("--p2s", help="PCSX2 save state (.p2s, pre-extracted "
+                    "state dir, or bare gs.bin) captured INSIDE this level: "
+                    "alternative VRAM texel source (--gsdump wins if both)")
+    ap.add_argument("--offset", default=None,
+                    help="dx,dy,dz world translation applied to every "
+                    "output vertex (spawn-anchoring for the port; see "
+                    "module docstring)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 
     sections, tex_table, n_tris = load_level_mesh(Path(args.level))
+    if args.offset:
+        dx, dy, dz = (float(v) for v in args.offset.split(","))
+        sections[0] = ([(p[0] + dx, p[1] + dy, p[2] + dz)
+                        for p in sections[0][0]],) + tuple(sections[0][1:])
+        print(f"offset applied: ({dx:+.2f}, {dy:+.2f}, {dz:+.2f})")
     pos = sections[0][0]
     ntris = len(sections[0][2]) // 3
     xs = [p[0] for p in pos]
@@ -576,7 +626,8 @@ def main(argv):
           f"Y[{min(ys):.1f},{max(ys):.1f}] Z[{min(zs):.1f},{max(zs):.1f}]")
 
     tex_entries, tex_blob = build_texture_blob(
-        Path(args.gsdump) if args.gsdump else None, tex_table)
+        Path(args.gsdump) if args.gsdump else None, tex_table,
+        Path(args.p2s) if args.p2s else None)
 
     frames = [[en.mat_identity()]]   # 1 bone, 1 identity frame
     parents = [-1]

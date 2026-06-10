@@ -5342,3 +5342,88 @@ streams 29–67. `clip_0054`/`track_54` is cue 67, a genuine (tiny) entry.
 - **Open:** entry flag semantics beyond "looping BGM set" (it is stored to
   `D_00281FF0[ch]` and read back by the streamer refill; behaviour-level
   confirmation that it gates seamless loop-on-end still pending).
+
+## SECOND SCENE END-TO-END: the chunk15 snow level (AREA11, save state 01) (2026-06-10, s16)
+
+The whole scene pipeline (render mesh -> EMDL, collision -> EMCL, textures
+from a VRAM snapshot, placements from the OVERLAY table) is proven on a
+SECOND level: the outdoor snow level **chunk15**, rendered and walkable in
+the native port (`EM_SCENE=assets/scene_snow`).
+
+### Level identity — disambiguating the two "snow" states
+
+`chunk15` = **AREA 0x0B (AREA11.BIN), save state 01** — pinned live: state
+01's EE `D_00810700/701` = 0x0B/0x00, placement desc `0x24D7C0[0xB]` ->
+0x2759AC -> table **0x82A3C0** (21 entries, = s11's AREA11 entry), player
+actor at **(218.592, 229.85, 201.789)** inside chunk15's main-zone bbox,
+and every chunk15 file EE-RAM-resident in state 01. The s10/s11 phrase
+"state 03 (snow, area 0x0600)" refers to a DIFFERENT (also snowy) level —
+AREA06 is NOT chunk15's table; both are snow scenes (the game is set in
+Antarctica), which is what the older "state 01 = gameplay snow" notes
+meant. The task-relevant mapping: **chunk15 <-> AREA11 <-> save state 01.**
+
+### Multi-zone level layout (differs from the office!)
+
+The chunk's files load CONTIGUOUSLY into EE RAM (state 01 map: f06 @
+0x13A1740 ... f07 @0x13B9F40 ... f12 @0x13F3F40 ... f18 @0x1842740, each
+file starting exactly at the previous one's end; f00, the SShd bank, loads
+elsewhere). Consequences:
+
+- **Render meshes**: no single id-0x43 "render file role" — chunk15's id
+  0x43 is its sound bank. The drawn level is SIX files of standard 64-byte
+  render records: `f12_id44.bin` tail [0x127BD0..0x2D6FF0] (main zone,
+  X[33,408], slot 0), `f13_id50/f14_id5a/f15_id47/f16_id88` (whole-file
+  static east zones, X up to 621), and `f17_id93` (the movable/sub-object
+  set: 5247/5428 records carry nonzero matrix-slot bits 3..14, but the
+  positions are WORLD-space — at-rest articulation = bake as-is, unlike
+  the office's object-space door assemblies). `f05_id97`/`f06_id98` are
+  OBJECT-space multi-slot assemblies (bbox +-50, slots 1..12) — placed at
+  runtime, NOT exported (no slot matrices available without a live frame).
+- **Collision SPANS FILE BOUNDARIES**: the grid section header sits at
+  `f07_id52.bin+0x1800` and its pools run through f08/f09/f10/f11 into
+  f12 (live directory[0] @0x28A598 = 0x13BB740 = f07+0x1800; node array =
+  f12+0x8E2C). `tools/export_collision.py` now accepts multiple files and
+  decodes the byte-concatenation. Grid = **3503 verts / 3099 nodes**; the
+  84 cell n-gons live in f12 as before. Floor probe at the live player XZ
+  -> y = 229.85 — exactly the live actor Y. **165 grid quads are warped**
+  (3 verts on the stored plane, 4th up to ~20u off): legitimate outdoor
+  terrain data (the engine keeps one plane per node); the validator now
+  counts these instead of failing.
+- **Texture residency is whole-level**: all 290 zone-file TEX0 keys (96/
+  51/41/43/24/35, ALL PSMT4) resolve from state 01's VRAM with healthy
+  16-color CLUTs — `export_level.py --p2s` (the s15 export_native path,
+  now in the level exporter too).
+
+### No framebuffer in a HW-renderer .p2s (negative, useful)
+
+State 01's GS freeze holds NO rasterized frame: the FRAME-reg page (56)
+is zeroed; occupied VRAM pages (216-292, 300-308, 336-444) are exactly
+the texture+CLUT pack. With the hardware renderer the rendered image
+lives in GPU textures, not GS local memory — a .p2s yields textures but
+never screenshots. (The old reference screenshot /tmp/cap2/Screenshot.png
+is deleted; capture comparisons for this scene are vs the documented
+description: soldier at a snowy gate, night palette.)
+
+### Port wiring + what did NOT generalize
+
+- `EM_SCENE=<dir>` (port main.c): switches scenes by staging a symlink
+  shadow of assets/ with `<dir>` linked as "scene" + chdir. Default is
+  untouched (office capture byte-identical). Scene dirs must name their
+  collision `office.emcl` (the loader's compile-time constant) — a real
+  per-scene name needs a src/game change (fenced this session).
+- The port's spawn is compile-time (kPlayerPos, office coords), so the
+  snow scene is baked with `--offset -111.192,-229.85,-385.789`
+  (export_level + export_collision), anchoring the live state-01 player
+  position onto kPlayerPos with floor y=0 at the spawn. Re-export without
+  --offset once the port reads the engine spawn tables (func_001B07C0 /
+  0x24D650).
+- NOT exported: f05/f06 object-space assemblies (need live slot matrices
+  or the spawner's model-byte -> mesh-blob binding), placement-record
+  props/pickups/enemies (AREA11's 21 records parse fine via
+  placements.py, but the model byte -> render-blob mapping that s9
+  recovered for the office from live captures is unknown for this area),
+  and snow particle effects. The office's hand-mapped movable regions
+  did not generalize — chunk15 simply doesn't need them (its movables
+  are world-space at rest), but a third level might.
+
+_Last updated: 2026-06-10 (session 16)._

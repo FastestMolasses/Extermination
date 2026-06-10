@@ -57,12 +57,34 @@ EMCL v1 (little endian, our own original container):
        u16 indices[index_count] (+2 B pad if odd)
        f32 edge_normals[index_count*3]
 
+MULTI-FILE LEVELS (generalization, 2026-06-10 snow-level session): the
+extraction splits each level chunk into f00..fNN files, but the engine
+loads them CONTIGUOUSLY into EE RAM, and a collision section may SPAN
+file boundaries. chunk15 (the AREA11 snow level, save state 01): the grid
+section header sits at f07_id52.bin+0x1800 and its vertex/index/node
+pools run on through f08/f09/f10/f11 into f12_id44.bin (live-verified:
+directory[0] @0x28A598 = EE 0x13BB740 = f07 base + 0x1800; node array =
+f12+0x8E2C). So this tool accepts MULTIPLE input files and decodes the
+byte-concatenation — pass the chunk's files in index order. A single-file
+call (the office) is unchanged.
+
+`--offset dx,dy,dz` translates the output world (verts AND plane d via
+d' = d + n·offset; edge normals are direction-only). Same spawn-anchoring
+rationale as export_level.py --offset. `--at` probes in OUTPUT (post-
+offset) coordinates.
+
 Disc-data safety: reads the user's locally extracted files, writes only to
 git-ignored output paths. Runs natively on arm64 macOS.
 
 Usage:
   python3 tools/export_collision.py extract/chunk06.n1/f02_id44.bin \
       -o ../extermination-port/assets/scene/office.emcl --at 107.4,-184
+  python3 tools/export_collision.py extract/chunk15/f07_id52.bin \
+      extract/chunk15/f08_id4d.bin extract/chunk15/f09_id53.bin \
+      extract/chunk15/f10_id5b.bin extract/chunk15/f11_id4a.bin \
+      extract/chunk15/f12_id44.bin \
+      -o ../extermination-port/assets/scene_snow/office.emcl \
+      --offset -111.19,-229.85,-385.79 --at 107.4,-184
 """
 from __future__ import annotations
 
@@ -160,17 +182,26 @@ def decode_cell_ngons(d: bytes):
 # Validation + EMCL write
 
 def validate(verts, polys, label):
-    bad_n = bad_p = 0
+    """A poly is sound if its normal is unit and >= 3 of its verts sit on
+    the stored plane. Outdoor terrain (chunk15) legitimately contains
+    WARPED QUADS — 3 verts on the plane, the 4th off by up to ~20 u; the
+    engine stores exactly one plane per node regardless, so these are
+    counted (reported) but not failures."""
+    bad_n = bad_p = warped = 0
     for plane, idxs, _ens, _attr in polys:
         nl = math.sqrt(sum(c * c for c in plane[:3]))
         if abs(nl - 1.0) > 0.01:
             bad_n += 1
-        dev = max(abs(sum(verts[i][k] * plane[k] for k in range(3)) - plane[3])
-                  for i in idxs)
-        if dev > 0.1:
+        devs = [abs(sum(verts[i][k] * plane[k] for k in range(3)) - plane[3])
+                for i in idxs]
+        on_plane = sum(1 for v in devs if v <= 0.1)
+        if on_plane < 3:
             bad_p += 1
+        elif max(devs) > 0.1:
+            warped += 1
     print(f"  {label}: {len(polys)} polys -- "
-          f"non-unit normals: {bad_n}, off-plane verts: {bad_p}")
+          f"non-unit normals: {bad_n}, off-plane verts: {bad_p}"
+          + (f", warped quads: {warped}" if warped else ""))
     return bad_n == 0 and bad_p == 0
 
 
@@ -187,13 +218,20 @@ def floor_probe(verts, polys, px, pz):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("id44", help="locally extracted f??_id44.bin")
+    ap.add_argument("id44", nargs="+",
+                    help="locally extracted level file(s); multiple files "
+                    "are byte-concatenated in argument order (the engine's "
+                    "contiguous chunk load — see module docstring)")
     ap.add_argument("-o", "--out", required=True, help="output .emcl path")
     ap.add_argument("--at", default=None,
-                    help="X,Z floor-validation probe (expects a hit)")
+                    help="X,Z floor-validation probe in OUTPUT coordinates "
+                    "(expects a hit)")
+    ap.add_argument("--offset", default=None,
+                    help="dx,dy,dz world translation applied to the output "
+                    "(verts + plane d)")
     args = ap.parse_args(argv)
 
-    d = Path(args.id44).read_bytes()
+    d = b"".join(Path(p).read_bytes() for p in args.id44)
     pool: list = []          # shared vertex pool
     pool_lut: dict = {}      # exact-float dedupe
     polys: list = []         # (plane, [pool idx], [edge n], set, attr)
@@ -235,6 +273,15 @@ def main(argv=None):
 
     if not polys:
         sys.exit("nothing decoded -- refusing to write an empty EMCL")
+
+    if args.offset:
+        ox, oy, oz = (float(v) for v in args.offset.split(","))
+        pool = [(v[0] + ox, v[1] + oy, v[2] + oz) for v in pool]
+        polys = [((pl[0], pl[1], pl[2],
+                   pl[3] + pl[0] * ox + pl[1] * oy + pl[2] * oz),
+                  idxs, ens, pset, attr)
+                 for pl, idxs, ens, pset, attr in polys]
+        print(f"offset applied: ({ox:+.2f}, {oy:+.2f}, {oz:+.2f})")
 
     if args.at:
         px, pz = (float(x) for x in args.at.split(","))

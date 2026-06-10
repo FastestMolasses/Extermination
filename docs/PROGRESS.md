@@ -3276,3 +3276,28 @@ full detail):
 - Open: the writer of the initial per-area `D_00810D38` for the areas with
   no overlay constant (cues 2–8, 10, 13–14, 16, 22, 26, 28 unattributed);
   cue-entry flag behaviour (looping-BGM marker) at stream end.
+
+### Update — 2026-06-10 s16: SECOND SCENE end-to-end — chunk15 snow level exported + walkable in the port
+
+- The scene pipeline generalizes: **chunk15 (= AREA11 = save state 01,
+  pinned live from EE 0x810700 + the loaded placement table 0x82A3C0)**
+  is fully exported — six render-mesh files (f12 tail + f13..f16 zones +
+  f17 movables-at-rest; 29.4k verts / 18.6k tris / 290 PSMT4 textures,
+  texels straight from state 01's .p2s VRAM via the new
+  `export_level.py --p2s`) and the collision world (grid **3503 verts /
+  3099 nodes + 84 cells**; the section SPANS f07..f12 — the chunk loads
+  contiguously, so `export_collision.py` now takes multiple files and
+  decodes the concatenation; floor at the live player XZ = 229.85 =
+  exactly the live actor Y). FINDINGS "SECOND SCENE END-TO-END" has the
+  layout + what did NOT generalize (f05/f06 object-space assemblies,
+  placement->model binding, per-scene collision filename, the
+  compile-time spawn -> `--offset` anchoring).
+- Port: `EM_SCENE=<dir>` scene switch (main.c symlink-staging redirect;
+  default byte-identical — office EM_CAPTURE compared equal), snow scene
+  in `assets/scene_snow/` with the state-01 player position as spawn.
+  Capture shows the soldier at the snowy gate (matches the deleted
+  reference screenshot's documented description); EM_MOVE_TEST and
+  verify_all --no-container PASS.
+- Negative result worth keeping: a HW-renderer .p2s holds NO rasterized
+  framebuffer (FRAME page zeroed; VRAM = texture pack only) — save
+  states give textures, never screenshots.
