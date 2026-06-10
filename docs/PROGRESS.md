@@ -1,5 +1,34 @@
 # Extermination Decomp — Progress
 
+### Native-port renderer + live-debug session (2026-06-09)
+
+**Port (extermination-port):** full Metal skinned-character pipeline landed —
+`em_gfx.h` grew mesh create/destroy + `em_gfx_draw_skinned` (bone-palette
+skinning, depth buffer, runtime-compiled MSL) plus `EM_CAPTURE=<path.bmp>`
+headless frame capture for screenshot regression; `em_model.{h,c}` loads the
+new zero-dep `EMDL` asset (mesh + section→bone map + baked world-matrix
+palette frames) produced by `tools/export_native.py` here. Pipeline verified
+end-to-end (builds, runs, captures); the character renders as triangle soup
+because the **disc vertex-record decode is wrong** — see below.
+
+**Live PCSX2 MCP debugging (first use):** memory reads work (EE + VU1
+windows); DebugServer breakpoints do NOT fire (recompiler). Found the live
+per-bone NODE array (`*(0x00275B40)` → 21 nodes, stride 0xD0, world matrix
+at +0x90, global-bone index at +0x64 matching the mesh section directory)
+and disassembled `bone_matrix_publish`'s exact data flow. Capture in
+`extract/live/` (git-ignored).
+
+**Blocking discovery:** the long-assumed 12-byte object-space vertex record
+(`pos3@+0, vid@+10`) is WRONG — vid is at +2, bytes [+5..+8] are a unit-range
+LE float (per-vertex bone weight / W), and position fields are not
+contiguous. All old object-space/rigged/glTF geometry is partially garbage;
+the 2026-05-25 "posed figure in Blender" does not reproduce. ALSO: the player
+mesh has TWO vertex streams (legacy 28-section + directory-mapped 21-section
+with a different layout). **Next step:** decode VU1 skinning kernel #0 /
+rigid skinner `0x00234610` dmem expectations + the section VIF UNPACK opcode
+to pin the record layout, then fix `decode_objspace_bone_vertices` once.
+Details: FINDINGS.md "Live bone-NODE array + vertex-record layout is WRONG".
+
 ### Whole-game extraction: every function is now a committed unit (2026-06-XX)
 
 **Byte-match coverage of the game is 100%** — the boot ELF rebuilds byte-

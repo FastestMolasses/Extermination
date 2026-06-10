@@ -3093,3 +3093,103 @@ the faithful posed export; the textured surface stays on the spatial-proximity
 proxy until the EE palette-builder is decompiled. The exporter was **not**
 changed (no clean on-disc binding emerged to wire); `verify_all --only gltf`
 PASS preserved.
+
+## Live bone-NODE array + vertex-record layout is WRONG — 2026-06-09 (PCSX2 MCP live debug)
+
+First session using the PCSX2 MCP debugger (DebugServer connected; Pine
+absent). Practical notes: EE **memory reads work everywhere** (including
+the VU1 dmem window at physical `0x1100C000`, which read zero between
+draws), but **EE breakpoints set via DebugServer never fire** (recompiler
+does not honour them, pause/resume does not flush them in) — live work must
+be done by reading memory while running/paused, not by trapping.
+
+### The live per-bone NODE array (player rig, runtime)
+
+`bone_matrix_publish` (`func_00179BC0`) disassembles to:
+
+1. optional call `func_001749F0(obj, f12=0, f13=lh(obj+0x276) or 1.0f)`
+   depending on `lbu(obj+0x1F0)` ∈ {0x31, 0x34};
+2. `anim_eval_skeleton` (`func_001C6DA0`) on the character object (`a0`);
+3. for `i < lbu(obj+0xC)` (bone count): copy via `func_00102958(dst, src)`
+   from `*( *(gp-0x7830) + i*4 ) + 0x90` into `a2 + i*0x40`.
+
+`*(gp-0x7830)` = `*(0x00275B40)`. In the live session it pointed to a node
+POINTER TABLE at `0x008103C0` holding exactly **21 node pointers**
+(`0x007D5840 .. 0x007D6880`, stride 0xD0) then NULLs. Node struct (0xD0):
+
+    +0x18  f32[3]   scale (1,1,1 observed)
+    +0x30  f32[4]   quaternion, current   (NLERP output)
+    +0x40  f32[4]   quaternion, previous
+    +0x50  f32[2]   clip phase + rate (e.g. 0.564, 0.0128)
+    +0x58  f32[3]   clip frame info (34.0 = current clip length; 3rd varies)
+    +0x64  i16[..]  [0] = this node's GLOBAL bone index; more tree/link shorts
+    +0x88  i16[4]   Q4.12 constants (0x1000 = 1.0)
+    +0x90  f32[16]  column-major 4x4 — translations are WORLD-scale
+                    (clustered around the character's world position
+                    (107.4, 0..15, -184)), i.e. composed, not parent-local
+
+**Cross-confirmation:** reading `+0x64[0]` across the 21 nodes yields
+`[-1,0,1,1,2,3,3,2,2,2,8,9,5,6,5,10,11,12,13,15,16]` — exactly the mesh
+file's section→global-bone directory (`decode_bone_section_table`,
+FINDINGS "Per-bone section directory"). So **live node order == mesh
+section order**, and the directory's bone index is stored per node.
+
+Full capture: `extract/live/player_bones_live.json` + `node_structs.json`
+(git-ignored), raw bytes in `extract/live/nodes_raw.hex`.
+
+### `chunk21/f17_id8f.bin` carries TWO per-bone vertex streams
+
+- **Stream A (legacy)**: the 28-section table at `0x22xx`, sections
+  `0x231C..0x8186`. This is what `em._find_bone_section_table` /
+  `load_per_bone_meshes*` slice today.
+- **Stream B (directory)**: the 21-section region `0x81E0..0xE848`
+  addressed by the `0x818C`-based directory — *different record layout*
+  (vid-like field at +6 stepping +1; at least one section, #19, is an
+  INDEX/stitch stream of u16s with 0xFFFF restart sentinels).
+
+The two streams are similar sizes (~2.0k vs ~2.2k verts) — LOD pair or
+position/topology split; unresolved.
+
+### The documented 12-byte vertex record layout is WRONG
+
+The assumed layout (`pos3 i16 @+0, packed normal @+6, vid u16 @+10`,
+`OBJSPACE_*` in extract_models.py) decodes Stream A into per-section
+clouds whose y/z **saturate the full ±8 Q4.12 range** (uniform noise +
+one thin coherent line — the classic misaligned-stride signature). Hard
+evidence against it, from raw record dumps (12-byte stride confirmed by
+the repeating vid):
+
+- the true **vid is at +2** (steps +2 within strips; duplicated
+  warmup/stitch records step +1; standalone 0xFFFF-vid restart records);
+- byte +8 is **0x3F in every record** of every section inspected;
+  bytes [+5..+8] decode as a **little-endian float in (0.5, 1.0)**
+  (0.989, 0.846, 0.572 …) — almost certainly the per-vertex bone
+  WEIGHT / position-W field that the VU1 kernel turns into a bone index
+  (`k = round((w - sign(w)) * 512)`, see the VU1 notes);
+- low nibbles of bytes +6 and +11 are a constant tag (0x3/0xB);
+- i16s at +0 and +4 are smooth, plausible Q4.12 coordinates; the third
+  coordinate is NOT a clean i16 at any even offset — the record packs
+  pos + weight-float + normal into non-2-byte-aligned fields.
+
+**Consequences:** every artifact built on the old decode — the
+`--object-space` point clouds, the `--rigged` "posed figure", the glTF
+geometry (`verify_all`'s glTF stage checks structure, not shape) — has
+partially garbage positions. The 2026-05-25 "single posed figure in
+Blender" claim does not reproduce; treat it as unverified.
+
+**Resolution path (next session):** disassemble VU1 skinning kernel #0 /
+the rigid skinner at `0x00234610` (`tools/disasm_vu.py`) and read the
+exact dmem qword layout the kernel consumes, together with the VIF UNPACK
+opcode that expands these 12-byte records into qwords. That pins every
+field; then fix `decode_objspace_bone_vertices` + the exporters once.
+
+### Native-port renderer status (extermination-port)
+
+The port side is DONE and waiting on the decode fix: `tools/
+export_native.py` (this repo) bakes mesh + section→bone mapping + clip-
+sampled world-matrix palettes into a zero-dep binary (`EMDL`), and the
+port renders it through a complete Metal skinned pipeline (depth buffer,
+runtime-compiled skinning shader, bone palette via inline constants,
+`EM_CAPTURE=<path.bmp>` headless screenshot for regression). With the
+corrected vertex decode the same EMDL + renderer should display the
+posed, animated character with no further port-side work.
