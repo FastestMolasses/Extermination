@@ -6,6 +6,14 @@ file summarises them and records findings that have no other home.
 
 ## glTF (.glb) export of the player rig (2026-05-27)
 
+> SUPERSEDED (2026-06-09): the "per-bone object-space vertex packets" this
+> exporter consumed are animation keyframes ("id 0x74 prefix is ANIMATION,
+> not geometry"), so the geometry it produced was garbage. export_gltf.py
+> was re-pointed at the corrected skinned pipeline in s4d (stage-2 strips,
+> per-vertex node binding, glTF skin, keyed-container animations);
+> `triangulate_bone`/`load_per_bone_meshes*` no longer exist. Kept for the
+> historical record only.
+
 `tools/export_gltf.py` bundles a character mesh + id 0x71 skeleton/animation
 file into a single glTF 2.0 binary. Output: one scene; one node per bone
 plus a scene-root parent holding the parent-table roots as children; one
@@ -2965,6 +2973,13 @@ than from scratch.
 
 ## Per-bone section directory — RESOLVED 2026-06-02 (object-space mesh)
 
+> SUPERSEDED (2026-06-09): the "object-space per-bone VIF stream" this
+> directory indexes is the id 0x74 ANIMATION container's map-A section
+> table, not geometry (see "id 0x74 prefix is ANIMATION, not geometry";
+> the 0x2280 header and the "0x818C base" are that container's header and
+> rotation map). `decode_bone_section_table` was removed from
+> export_gltf.py in s4d. Kept for the historical record only.
+
 The character mesh's **object-space per-bone VIF stream** (the untextured
 rigged mesh, distinct from the textured MESH-descriptor blocks below) is
 prefixed by a directory that maps each section to its GLOBAL bone index.
@@ -2997,6 +3012,12 @@ mapping). **This fixes the object-space rigged mesh only**; the textured
 MESH-descriptor blocks (below) have a separate, still-unresolved binding.
 
 ## Per-block bone binding (proxy by spatial proximity, 2026-05-27)
+
+> SUPERSEDED (2026-06-09): the binding is exact and PER-VERTEX, not
+> per-block — node = (pos_W_bits & 0x3FF) >> 3 (see "Skinned-character
+> pipeline FULLY DECODED"; the "W-field selector k" was the address bits).
+> The proxy binder `_bind_blocks_to_bones` was removed from export_gltf.py
+> in s4d. Kept for the historical record only.
 
 The MESH-descriptor blocks in a character file (e.g.
 `extract/chunk21/f17_id8f.bin`) store their ~32 vertices in some BONE-LOCAL
@@ -3391,9 +3412,12 @@ Corrected kernel readings (decoded end-to-end):
   Y-up, grounded) as a STATIC one-frame EMDL; `--clip/--live` palettes
   are parked until block→node binding is decoded. Port renders a
   coherent solid model (overlapping bone-local parts), no longer soup.
-- `tools/export_gltf.py`: still contains the void per-bone decoders
-  (`load_per_bone_meshes*`); needs the same surgery — its glTF output
-  remains garbage until then.
+- `tools/export_gltf.py`: ~~still contains the void per-bone decoders
+  (`load_per_bone_meshes*`); needs the same surgery~~ — re-pointed
+  2026-06-09 (s4d): void decoders/proxy binding deleted; characters now
+  export as skinned glTF (stage-2 strips with exact per-vertex node
+  binding, identity inverse binds, keyed-container animations paired by
+  n == max_slot + 1, textured per sheet). Parity with EMDL verified.
 
 ## Skinned-character pipeline FULLY DECODED — posed character renders in the port (2026-06-09, session 3)
 
@@ -3688,3 +3712,90 @@ PCSX2 GS dump (.gs) records every TEX0 of a frame** — one dump of a
 character scene yields the complete per-subrect pairing table
 (`tools/parse_gsdump.py` exists). That + clut_pair.py's machinery is the
 wiring path for colored glTF/EMDL export.
+
+## CHARACTER TEXTURES SOLVED — marker qword IS TEX0; textured character in the port (2026-06-09, session 5)
+
+Closes the texture chain end-to-end: the native port renders the chunk28
+character **colored, textured and animated** (EM_CAPTURE acceptance test,
+clip 346 frame 60: face with skin tones + brown hair, urban-camo fatigues,
+shoulder insignia, knee pads, buckled boots).
+
+### The decisive finding: the vertex "marker" qword IS the TEX0 value
+
+Each mesh record's qword 0 ([tex/marker][ST][normal][pos+w]) is the draw's
+complete **TEX0 register value with TBP0, TBW, PSM, TW, TH AND CBP baked
+in, stored verbatim in the disc file**. f00_id3b.bin carries 102 distinct
+marker qwords = 51 unique (TBP0, CBP) pairs x 2 CLD variants (CLD=1 load
+CLUT on first use / CLD=0 reuse; bits 61-63 are the only difference). So
+for MESHES the texture<->CLUT binding IS disc-static after all — the
+earlier "no disc binding exists" finding still holds for the UI/sprite
+path (PSMT8 sheets with runtime-assembled strip CLUTs), but character/
+level-geometry pairings ship in the vertex stream. The VU1 kernel copies
+the marker through to the GIF packet, which is why TEX0 writes appear
+per-vertex in a GS dump (49,424 writes in one frame).
+
+Qword 1 = the vertex's **normalized ST** (true UVs, REPEAT semantics —
+values run past 1, observed up to ~21.8; the kernel multiplies by Q=1/w
+only for the GS's STQ perspective division, so the disc floats are the
+real texture coordinates).
+
+### Characters are PSMT4 (16-color), not PSMT8
+
+All 51 character pairings have PSM=0x14 (PSMT4) — this is why the .p2s
+EE-RAM harvest (PSM==0x13 filter) never saw them. Each is a small
+standalone texture (32x16 .. 128x128, TBW=8) with its own 16-entry CLUT
+at its own CBP (CSA=0, CPSM=PSMCT32, CSM1). The 16-entry CSM1 CLUT
+occupies the first 64 bytes at CBP*256 as an 8x2 PSMCT32 region: linear
+entry i sits at word [0,1,4,5,8,9,12,13,2,3,6,7,10,11,14,15][i]
+(columnTable32 rows 0-1). PSMT4 texel swizzle (128x128 pages, 8x4 blocks
+of 32x16, nibble-addressed): tools/extract_textures.py `BLK4`/`COL4`/
+`psmt4_nibble` (tables validated as a 0..511 permutation);
+clut_pair.py `read_psmt4` / `read_clut16_rgba`.
+
+### GS dump (.gs) capture + tooling
+
+A 1-frame PCSX2 GS dump (Tools > Save Single Frame GS Dump; needs "Show
+Advanced Settings"; lands in PCSX2/snaps/*.gs.zst) of the office scene
+with the character on screen:
+
+- Container: magic 0xFFFFFFFF, header, **freeze blob with the SAME
+  425/+4MB/84-trailer layout as the .p2s GS.bin** (state_size 0x4001fd),
+  8KB GSPrivRegSet, then packets (Transfer/VSync/ReadFIFO2/Registers).
+- This frame: 4 vsyncs, 3,140 transfer packets — ALL PATH1 (VU1 XGKICK;
+  confirms everything draws through VU1), ZERO image-mode uploads (all
+  textures/CLUTs already resident -> the dump's own VRAM snapshot is
+  authoritative for the whole frame).
+- `tools/parse_gsdump.py` (rewritten): full GIF-stream walker (PACKED
+  incl. A+D, REGLIST, IMAGE; PRE/PRIM, TEX2 merge, per-context TEX0,
+  ADC) -> per-draw runs with vert counts + ST/UV bboxes; `--json` table;
+  `--textures` emits colored PNGs straight from the dump (PSMT4+PSMT8).
+  Frame stats: 14,328 draw runs, 171 unique textured pairings (51 = the
+  character, rest = level + UI).
+- Cross-validation: **all 51 mesh-marker pairs of f00_id3b appear in the
+  dump's per-draw table** (100%); extracted PNGs are recognizably the
+  character's face/gear at correct colors.
+
+### Pipeline wiring (EMDL v2 + port)
+
+- `tools/export_native.py`: reads per-vertex UV (qword 1) + marker TEX0
+  (qword 0, CLD-masked dedup) -> texture table; `--gsdump frame.gs`
+  resolves each TEX0 against the dump's VRAM through the PSMT4/8 + CLUT
+  machinery and embeds native-size RGBA8 textures. **EMDL v2** ("EMD2"):
+  header gains tex_count; tex table {w, h, byte_offset}; vertex = pos3,
+  nrm3, uv2, bone, tex (10 words); RGBA8 texel blob at EOF. Export of
+  f00_id3b + clip 346: 2,598 verts, 3,170 tris, 51 textures, 432 KB
+  texels.
+- Port (extermination-port): em_model loads EMD2 (+bounds checks);
+  em_gfx mesh API takes the texture table; the Metal backend packs all
+  textures into a `texture2d_array` whose slices hold each texture TILED
+  to the common max pow-2 size (128x128 here) so sampler REPEAT
+  reproduces GS wrap for every sub-size at any UV; per-texture float2
+  UV scale in buffer 3; skinning shader passes scaled UV + [[flat]]
+  slice; fragment = texture * directional light. Untextured verts
+  (tex=~0) keep the flat-grey path; meshes with no textures bind a 1x1
+  white slice so the PSO stays valid.
+
+Remaining (nice-to-have): per-vertex lighting RGBA from the kernel's
+light matrix (qw 1013..1016) instead of the port's stand-in directional
+light; alpha (PSMT4 entries carry GS alpha — currently exported but
+drawn opaque); the gun (separate model attached to a hand node).

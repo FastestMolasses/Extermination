@@ -619,21 +619,29 @@ rather than code, see `docs/FINDINGS.md`:
 
 `tools/export_gltf.py` produces standard glTF 2.0 binary (`.glb`) files
 that open directly in Blender / Maya / any glTF viewer. This is the
-richest view of the game's 3D content. The full id 0x71 animation format
-is decoded (`tools/anim_decoder.py`), so character exports include
-playable animation clips.
+richest view of the game's 3D content. Characters export as properly
+SKINNED glTF (re-pointed 2026-06-09): exact per-vertex bone binding,
+disc normals and UVs, and one playable animation per keyed container
+(the in-file clip banks / cross-file libraries; 60 fps).
 
 ```bash
 # macOS-arm64 (pure Python, no container needed)
 
-# A rigged, textured, animated character. Auto-pairs the skeleton.
+# A skinned, textured, animated character. Auto-pairs the animation
+# library (here: the 455-clip chunk28/f01_id3c).
 .venv/bin/python tools/export_gltf.py \
-    --mesh extract/chunk21/f17_id8f.bin \
-    --skel extract/chunk05/f04_id71.bin \
-    --out  models/Player.glb
-# -> 28-bone skeleton, per-bone mesh (triangulated + smooth normals + UVs
-#    + 3 texture sheets), all 57 animation clips. Open in Blender via
+    --mesh extract/chunk28/f00_id3b.bin \
+    --out  models/chunk28_character.glb
+# -> 21-joint skin, 3 texture sheets, 455 clips. Open in Blender via
 #    File > Import > glTF 2.0; clips appear in the Animation/NLA panel.
+#    --clips 0,346 limits the export; --anim picks the library manually.
+
+# Multi-model "encounter packages": pick the mesh segment. f17_id8f
+# segment 0 = 20-node humanoid (11 clips), segment 1 = 44-node creature
+# (30 clips).
+.venv/bin/python tools/export_gltf.py \
+    --mesh extract/chunk21/f17_id8f.bin --segment 1 \
+    --out  models/chunk21_creature.glb
 
 # A whole explorable level scene (placed geometry + textures).
 .venv/bin/python tools/export_gltf.py level \
@@ -652,9 +660,10 @@ Caveats (see `docs/FINDINGS.md` for the full status):
 - Character per-vertex bone binding is **exact** as of 2026-06-09: the
   node index is encoded in each vertex's position-W float (bits 0..9 =
   VU1 dmem matrix address = 8*node; see FINDINGS "Skinned-character
-  pipeline FULLY DECODED" and tools/export_native.py).
-- Per-vertex normals are **face-averaged**, not the packed disc normals
-  (the packed-normal byte order needs a VU1 dmem capture to confirm).
+  pipeline FULLY DECODED" and tools/export_native.py). The glTF skin
+  uses identity inverse-bind matrices (disc vertices are bone-local).
+- `--skel` (the old id 0x71 pairing) is deprecated and ignored; the
+  id 0x71 clips target a different rig pairing than the node slots.
 - Levels reference textures across files; sheets uploaded in common/UI
   files outside the search tree fall back to gray placeholders.
 

@@ -3,27 +3,41 @@
 export_gltf.py -- Export an Extermination (SCUS-97112) character as a glTF 2.0
 binary (.glb) bundle containing:
 
-  * the skeleton hierarchy (parent table from id 0x71 entry 0),
-  * one rigid mesh per bone (the bone's Q4.12 object-space vertex packet),
-  * one animation per id 0x71 entry (rotation + translation tracks per bone).
+  * the skinned render mesh (stage-2 VIF strip blocks, textured per sheet),
+  * a glTF skin: node hierarchy from the keyed-animation container's parent
+    table (rig = the table with n == max_slot + 1; ids 0x70/0x74/0xd0/...),
+    per-vertex JOINTS_0/WEIGHTS_0 (single influence, weight 1.0),
+  * one animation per matching container (rotation/translation/scale tracks).
 
-The per-bone mesh is parented directly to its bone node ("node-attached" rigid
-skinning) -- no glTF `skin` object is needed because every vertex belongs
-entirely to its parent bone with weight 1.0. The bone node's TRS is what
-animates; the mesh moves rigidly with the node.
+Pipeline (decoded 2026-06-09, FINDINGS.md "Skinned-character pipeline FULLY
+DECODED" / "id 0x74 channel encodings FULLY DECODED"): geometry records are
+[tex/marker][ST][normal][pos+w] qwords; each vertex's node is encoded in its
+position-W float read as an integer (bits 0..9 = VU1 dmem qword address of
+the node's matrix set at qw 8*node, so node = (W_bits & 0x3FF) >> 3; bit 15 =
+strip restart). Positions/normals are BONE-LOCAL, so the skin's inverse bind
+matrices are identity and vertex_world = joint_world * pos -- the same
+contract as the PS2 kernel and the EMDL exporter (export_native.py).
+Animation channels are sparse keyframes: rot = 4x20-bit truncated-float quat
+(the engine composes with the CONJUGATE of the stored quat -- conjugated here
+too), trn/scl = 3x26-bit vec3, played at 60 fps.
 
 USAGE
     python3 tools/export_gltf.py \
-        --mesh extract/chunk21/f17_id8f.bin \
-        --skel extract/chunk05/f04_id71.bin \
-        --out  models/Extermination_Player.glb
+        --mesh extract/chunk28/f00_id3b.bin \
+        --anim extract/chunk28/f01_id3c.bin \
+        --out  models/chunk28_character.glb
 
-If --skel is omitted, the script auto-pairs the first id 0x71 file under
-extract/ whose bone count >= the mesh's per-bone section count.
+If --anim is omitted, containers embedded in the mesh file are used, else
+the same-chunk sibling file with the most matching-node-count containers.
+Without any animation source the mesh exports rigid (bone-local parts
+overlap at the origin -- same as export_native.py's identity palette).
+`--clips 0,346` / `--clips 0-9` selects containers (default: all).
+(--skel is accepted for backward compatibility and ignored: the id 0x71
+clips target a different rig pairing than the id 0x74 node slots.)
 
 The output .glb opens in Blender (File > Import > glTF 2.0), Maya 2022+, and
-any compliant viewer (gltf-viewer, three.js, Babylon Sandbox, etc.). All
-57 clips show up under the file's Animations panel.
+any compliant viewer (gltf-viewer, three.js, Babylon Sandbox, etc.). Every
+exported clip shows up under the file's Animations panel.
 
 LEVEL MODE
     python3 tools/export_gltf.py level \
@@ -226,146 +240,168 @@ def _signed_parents(raw: List[int]) -> List[int]:
 
 
 # ---------------------------------------------------------------------------
-# Mesh + bone section extraction (re-uses extract_models helpers).
+# Skinned-character mesh loader (corrected pipeline, 2026-06-09)
+#
+# The old per-bone object-space decoders (load_per_bone_meshes*) are GONE:
+# the id 0x74 prefix records they read are animation keyframes, not vertices
+# (FINDINGS.md "id 0x74 prefix is ANIMATION, not geometry"). Real geometry is
+# the stage-2 VIF strip-block stream consumed by the 62-qw VU1 skinning
+# kernel at vram 0x0023C780. Block discovery is shared with
+# export_native.load_mesh_sections (raw-blob and MESH_SIG-style files); this
+# loader additionally keeps each record's ST (UV) and marker m0 (texture
+# sheet field) so the glTF output can be textured per sheet.
+
+VERT_REC = 0x40   # 4 qwords per record: [tex/marker][ST][normal][pos+w]
 
 
-def load_per_bone_meshes(mesh_path: Path):
-    """Return list of per-bone vertex lists: [[(x,y,z), ...], ...].
-    Index in the list = bone index (matches the mesh's section table)."""
+def load_skinned_sections(mesh_path: Path, segment: int = 0,
+                          fallback_dbp: int = -1):
+    """Decode the skinned render mesh, grouped by texture-sheet DBP.
+
+    Returns (groups, max_slot) with groups = {dbp: [pos, nrm, uv, slot,
+    tris]}: bone-local positions/normals, per-vertex node slot decoded from
+    the position-W bits ((W_bits & 0x3FF) >> 3 -- validated live, see
+    FINDINGS.md), and flat triangle index lists per group. Strip walking
+    mirrors export_native.load_mesh_sections exactly (restart bit 15,
+    alternating winding by strip parity), with one addition: a marker
+    (sheet) change also breaks the running strip so no triangle straddles
+    two texture sheets.
+    """
+    en = _load("_export_native", "export_native.py")
     d = mesh_path.read_bytes()
-    table = em._find_bone_section_table(d)
-    if table is None:
-        raise RuntimeError(f"no per-bone VIF section table in {mesh_path}")
-    table_off, entries = table
-    out: List[List[Tuple[float, float, float]]] = []
-    for i, off in enumerate(entries):
-        sect_start = table_off + off
-        sect_end = (table_off + entries[i + 1]
-                    if i + 1 < len(entries) else len(d))
-        verts = em.decode_objspace_bone_vertices(d, sect_start, sect_end)
-        out.append([(x, y, z) for (x, y, z, _vid) in verts])
-    return out
+    if struct.unpack_from("<I", d, 0)[0] < 0x1000 and \
+            d[0x48:0x50] == bytes.fromhex("040400010080806c"):
+        payloads, _n = en._walk_blob_blocks(d)
+    else:
+        payloads = en._walk_meshsig_blocks(d, segment)
+    if not payloads:
+        raise RuntimeError(f"no skinned-mesh blocks found in {mesh_path}")
 
+    groups: dict[int, list] = {}   # dbp -> [pos, nrm, uv, slot, tris]
+    welds: dict[int, dict] = {}    # dbp -> weld map
+    max_slot = 0
 
-def load_per_bone_meshes_with_vids(mesh_path: Path):
-    """Return list of [(x, y, z, vid), ...] per bone."""
-    d = mesh_path.read_bytes()
-    table = em._find_bone_section_table(d)
-    if table is None:
-        raise RuntimeError(f"no per-bone VIF section table in {mesh_path}")
-    table_off, entries = table
-    out = []
-    for i, off in enumerate(entries):
-        sect_start = table_off + off
-        sect_end = (table_off + entries[i + 1]
-                    if i + 1 < len(entries) else len(d))
-        verts = em.decode_objspace_bone_vertices(d, sect_start, sect_end)
-        out.append(list(verts))
-    return out
+    def vid_of(dbp, p, n, t, b):
+        g = groups.setdefault(dbp, [[], [], [], [], []])
+        weld = welds.setdefault(dbp, {})
+        key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
+               round(n[0], 3), round(n[1], 3), round(n[2], 3),
+               round(t[0], 5), round(t[1], 5), b)
+        i = weld.get(key)
+        if i is None:
+            i = len(g[0])
+            weld[key] = i
+            g[0].append(p)
+            g[1].append(n)
+            g[2].append(t)
+            g[3].append(b)
+        return i
+
+    for payload in payloads:
+        run = []        # (welded id, restart flag) of the running strip
+        run_dbp = None
+        for r in range(0, len(payload) - VERT_REC + 1, VERT_REC):
+            w = struct.unpack_from("<f", payload, r + 0x3c)[0]
+            if abs(abs(w) - 1.0) > 0.25:
+                break
+            wbits = struct.unpack_from("<I", payload, r + 0x3c)[0]
+            slot = (wbits & 0x3FF) >> 3
+            if slot < 2:        # nodes 0..1 carry no skin
+                continue
+            max_slot = max(max_slot, slot)
+            m0 = struct.unpack_from("<I", payload, r)[0]
+            dbp = _sheet_field_to_dbp((m0 >> 15) & 0x3FFF) \
+                if m0 else fallback_dbp
+            pos = struct.unpack_from("<3f", payload, r + 0x30)
+            nrm = struct.unpack_from("<3f", payload, r + 0x20)
+            uv = struct.unpack_from("<2f", payload, r + 0x10)
+            restart = bool(wbits & 0x8000)
+            if dbp != run_dbp:
+                run = []
+                run_dbp = dbp
+            vi = vid_of(dbp, pos, nrm, uv, slot)
+            run.append((vi, restart))
+            k = len(run)
+            if k >= 3 and not restart:
+                a, b, c = run[k - 3][0], run[k - 2][0], run[k - 1][0]
+                if a != b and b != c and a != c:
+                    # alternate winding by strip parity
+                    if (k & 1) == 0:
+                        groups[dbp][4].extend((a, b, c))
+                    else:
+                        groups[dbp][4].extend((b, a, c))
+
+    groups = {dbp: g for dbp, g in groups.items() if g[4]}
+    if not groups:
+        raise RuntimeError(f"no triangles decoded from {mesh_path}")
+    return groups, max_slot
 
 
 # ---------------------------------------------------------------------------
-# Triangle topology + smooth normals
+# id 0x74 animation containers -> skeleton + glTF tracks
 #
-# The per-bone VIF stream is a generalized triangle strip. Each record carries
-# a monotonic `vid` (vertex id) that steps by +2 between adjacent strip verts
-# (the engine reserves the odd parity for an internal flag; in practice every
-# stored vid is even). A delta other than +2 (+1, +4, +5, +7, +9, ..., +64,
-# +90, etc.) signals a STRIP RESTART -- the next vertex begins a new strip.
-#
-# Within a strip of N verts we emit N-2 triangles with the standard
-# alternating winding. Degenerate triangles (coincident vertex positions) are
-# dropped -- the PS2 idiom for stitching strips into one draw.
-#
-# Per-vertex normals are computed by averaging the face normals of the
-# triangles each vertex participates in. The packed 4-byte normal/lighting
-# field at +0x06 in the VIF record was inspected (signed-byte / 127, IEEE
-# float, unsigned bytes / 255) -- none gives consistently unit-length
-# vectors, so the exact quantisation needs the VU1 microcode decode. Smooth
-# face-averaged normals look fine for preview shading; we can revisit later.
+# Channel encodings (FINDINGS.md "id 0x74 channel encodings FULLY DECODED",
+# live-verified): rot = 4x20-bit truncated-float local quat with the engine
+# composing R(CONJUGATE(q)), trn/scl = 3x26-bit vec3, sparse keys with LERP
+# semantics, clips advance at 60 fps. extract_models.parse_id74_prefix
+# decodes a container to per-node (frame, values) key lists.
 
 
-def _build_strips(vids: list) -> list:
-    """Split a vid sequence into [[local_idx, ...], ...] strips on any
-    non-+2 delta. Strips shorter than 3 are dropped."""
-    if not vids:
-        return []
-    strips = []
-    cur = [0]
-    for i in range(1, len(vids)):
-        if vids[i] - vids[i - 1] == 2:
-            cur.append(i)
-        else:
-            if len(cur) >= 3:
-                strips.append(cur)
-            cur = [i]
-    if len(cur) >= 3:
-        strips.append(cur)
-    return strips
+def select_anim_containers(d: bytes, max_slot: int):
+    """Containers in `d` usable as this mesh segment's rig + clips.
+
+    Pairing rule (PROGRESS session 4b, rig_probe survey of 126 prefixed
+    files): a segment's rig is the in-file parent table with
+    n == max_slot + 1 (slots 0..1 exist but carry no skin). Only when no
+    such table exists do we fall back to the dominant node count
+    > max_slot (cross-file libraries like chunk28's f01_id3c). Containers
+    are enumerated with rig_probe.scan_anim_headers, which finds EVERY
+    blob id (0x70/0x74/0xd0/...; extract_models.find_id74_headers only
+    knows 0x74/0x2c) -- e.g. chunk21/f17_id8f pairs segment 0 with its 11
+    id-0x70 20-node clips and segment 1 with its 30 id-0xd0 44-node
+    creature clips, NOT with the 21-node id-0x74 cutscene track.
+
+    Returns (n_nodes, [header_offset, ...]), or (0, []) if none qualify.
+    """
+    rp = _load("_rig_probe", "rig_probe.py")
+    counts: dict[int, list[int]] = {}
+    for h in rp.scan_anim_headers(d):
+        if h["n"] > max_slot:
+            counts.setdefault(h["n"], []).append(h["hdr"])
+    if not counts:
+        return 0, []
+    n_nodes = max_slot + 1 if max_slot + 1 in counts else \
+        max(counts, key=lambda n: len(counts[n]))
+    return n_nodes, counts[n_nodes]
 
 
-def _strip_triangles(strip: list, positions: list) -> list:
-    """Emit (i0, i1, i2) tuples for one strip, with PS2 alternating winding,
-    skipping degenerate (coincident-position) triangles."""
-    tris = []
-    n = len(strip)
-    for t in range(n - 2):
-        if t & 1:
-            a, b, c = strip[t + 1], strip[t], strip[t + 2]
-        else:
-            a, b, c = strip[t], strip[t + 1], strip[t + 2]
-        pa, pb, pc = positions[a], positions[b], positions[c]
-        if pa == pb or pb == pc or pa == pc:
-            continue
-        tris.append((a, b, c))
-    return tris
+def _rot_track(keys: list, fps: float):
+    """(times_sec, quats) for one node's rotation keys, conjugated to the
+    engine's composition convention and normalised (the stored quats keep
+    only 11 mantissa bits, |q| ~ 0.9997)."""
+    times, vals = [], []
+    last = None
+    for frame, q in keys:
+        t = frame / fps
+        if last is not None and t <= last:
+            t = last + 1e-4      # glTF needs strictly increasing input
+        times.append(t)
+        vals.append(_quat_from_decoded(-q[0], -q[1], -q[2], q[3]))
+        last = t
+    return times, vals
 
 
-def _face_averaged_normals(positions: list, tris: list) -> list:
-    """Per-vertex normals by face-area-weighted averaging."""
-    import math as _m
-    n = len(positions)
-    nx = [0.0] * n
-    ny = [0.0] * n
-    nz = [0.0] * n
-    for a, b, c in tris:
-        ax, ay, az = positions[a]
-        bx, by, bz = positions[b]
-        cx, cy, cz = positions[c]
-        ux, uy, uz = bx - ax, by - ay, bz - az
-        vx, vy, vz = cx - ax, cy - ay, cz - az
-        fx = uy * vz - uz * vy
-        fy = uz * vx - ux * vz
-        fz = ux * vy - uy * vx
-        # cross-product magnitude == 2 * triangle area -> natural weighting
-        for idx in (a, b, c):
-            nx[idx] += fx
-            ny[idx] += fy
-            nz[idx] += fz
-    out = []
-    for i in range(n):
-        m = _m.sqrt(nx[i] * nx[i] + ny[i] * ny[i] + nz[i] * nz[i])
-        if m > 1e-9:
-            out.append((nx[i] / m, ny[i] / m, nz[i] / m))
-        else:
-            out.append((0.0, 1.0, 0.0))
-    return out
-
-
-def triangulate_bone(verts_with_vid: list):
-    """Given a bone's decoded [(x,y,z,vid), ...] records, return
-    (positions, normals, indices_flat). All three are aligned so that
-    `positions[i] / normals[i]` is the i-th vertex and `indices_flat`
-    is a flat list of triangle vertex indices."""
-    positions = [(x, y, z) for (x, y, z, _v) in verts_with_vid]
-    vids = [v for (_x, _y, _z, v) in verts_with_vid]
-    strips = _build_strips(vids)
-    tris = []
-    for s in strips:
-        tris.extend(_strip_triangles(s, positions))
-    normals = _face_averaged_normals(positions, tris)
-    indices = [i for t in tris for i in t]
-    return positions, normals, indices
+def _vec_track(keys: list, fps: float):
+    times, vals = [], []
+    last = None
+    for frame, v in keys:
+        t = frame / fps
+        if last is not None and t <= last:
+            t = last + 1e-4
+        times.append(t)
+        vals.append(v)
+        last = t
+    return times, vals
 
 
 # ---------------------------------------------------------------------------
@@ -379,67 +415,6 @@ def _quat_from_decoded(qx, qy, qz, qw):
     if n == 0.0:
         return (0.0, 0.0, 0.0, 1.0)
     return (qx / n, qy / n, qz / n, qw / n)
-
-
-# ---------------------------------------------------------------------------
-# Animation track building
-#
-# For each bone we want continuous keyframes with TIME values in seconds and
-# matching rotation/translation VALUES. The raw stream stores discrete records
-# whose +0x0A field is t_next = the frame at which THIS record's sample is
-# reached. We treat each record as a STEP keyframe at its t_next, with an
-# implicit "previous-value-at-t_prev" sample so the in-between interpolation
-# matches the engine's NLERP behaviour.
-#
-# glTF interpolation "LINEAR" gives us NLERP on quats (glTF runtimes normalise
-# the lerped quat each frame). That matches anim_decoder.sample_bone(normalize=True).
-
-
-FPS = 30.0
-
-
-def _bone_rot_track(frames):
-    """Return (times_sec, quats) for a bone's rotation stream.
-    Empty -> ([], [])."""
-    if not frames:
-        return [], []
-    times = []
-    vals = []
-    last_t = None
-    for kf in frames:
-        t_sec = kf.t_next / FPS
-        if last_t is not None and t_sec <= last_t:
-            # ensure strictly increasing times (glTF requires this)
-            t_sec = last_t + 1.0 / FPS
-        q = _quat_from_decoded(*kf.values)
-        times.append(t_sec)
-        vals.append(q)
-        last_t = t_sec
-    # Prepend a frame-0 sample equal to the first record (so the clip starts
-    # cleanly at t=0 with the held value).
-    if times[0] > 0.0:
-        times.insert(0, 0.0)
-        vals.insert(0, vals[0])
-    return times, vals
-
-
-def _bone_trn_track(frames):
-    if not frames:
-        return [], []
-    times = []
-    vals = []
-    last_t = None
-    for kf in frames:
-        t_sec = kf.t_next / FPS
-        if last_t is not None and t_sec <= last_t:
-            t_sec = last_t + 1.0 / FPS
-        times.append(t_sec)
-        vals.append(kf.values)  # (tx, ty, tz)
-        last_t = t_sec
-    if times[0] > 0.0:
-        times.insert(0, 0.0)
-        vals.insert(0, vals[0])
-    return times, vals
 
 
 # ---------------------------------------------------------------------------
@@ -568,6 +543,29 @@ class GLBBuilder:
             target=34962,
         )
 
+    def add_joints_u16(self, slots: List[int]) -> int:
+        """JOINTS_0: one u16 vec4 per vertex, single influence in lane 0."""
+        data = struct.pack(f"<{len(slots) * 4}H",
+                           *[c for s in slots for c in (s, 0, 0, 0)])
+        return self.add_accessor(
+            data, self.COMP_UNSIGNED_SHORT, len(slots), "VEC4",
+            target=34962,
+        )
+
+    def add_weights_one(self, count: int) -> int:
+        """WEIGHTS_0: (1, 0, 0, 0) per vertex (rigid single-bone skinning)."""
+        data = struct.pack("<4f", 1.0, 0.0, 0.0, 0.0) * count
+        return self.add_accessor(
+            data, self.COMP_FLOAT, count, "VEC4",
+            target=34962,
+        )
+
+    def add_mat4_float(self, mats: List[tuple]) -> int:
+        """MAT4 accessor (column-major column tuples, e.g. inverse binds)."""
+        data = struct.pack(f"<{len(mats) * 16}f",
+                           *[v for m in mats for col in m for v in col])
+        return self.add_accessor(data, self.COMP_FLOAT, len(mats), "MAT4")
+
     def add_raw_blob(self, blob: bytes) -> int:
         """Append a raw byte blob and return its bufferView index (no accessor).
         Used for embedded image data."""
@@ -583,820 +581,261 @@ class GLBBuilder:
 
 
 # ---------------------------------------------------------------------------
-# Main build (unified single-pass; see build_glb_unified below).
+# Character build: skinned + textured + animated (corrected pipeline).
+#
+# Replaces the 2026-05 build_glb_unified path (void per-bone object-space
+# decoders + spatial-proximity block binding + id 0x71 clips on the wrong
+# rig pairing). The skin's inverse bind matrices are identity because the
+# disc vertices are already bone-local: vertex_world = joint_world * pos,
+# the exact PS2-kernel / EMDL contract.
 
 
-def _unused_staged_build(mesh_path: Path, skel_path: Path, out_path: Path,
-                         fps: float = 30.0) -> dict:
-    global FPS
-    FPS = fps
+_IDENT_COLS = ((1.0, 0.0, 0.0, 0.0), (0.0, 1.0, 0.0, 0.0),
+               (0.0, 0.0, 1.0, 0.0), (0.0, 0.0, 0.0, 1.0))
 
-    skel_bytes = skel_path.read_bytes()
-    entries = _entry_slices(skel_bytes)
-    if not entries:
-        raise RuntimeError(f"{skel_path}: no entries")
 
-    # Entry 0 owns the canonical parent table + bind-pose-ish frame 0.
-    e0_start, e0_end = entries[0]
-    e0 = skel_bytes[e0_start:e0_end]
-    bc0, raw_parents0, rot0, trn0 = _decode_entry_streams(e0)
-    parents_signed = _signed_parents(raw_parents0)
-    n_bones = bc0  # use the raw count so bone indices match the mesh sections.
+def _resolve_anim_source(mesh_path: Path, mesh_bytes: bytes, max_slot: int,
+                         anim_path: Path | None):
+    """Pick the id 0x74 animation library for this mesh.
 
-    # Per-bone meshes from the character file.
-    per_bone_verts = load_per_bone_meshes(mesh_path)
-    n_mesh_sections = len(per_bone_verts)
-
-    # ----- glTF scaffolding ------------------------------------------------
-    gb = GLBBuilder()
-
-    # Build meshes: one primitive per bone with vertices. Skip empty bones.
-    mesh_for_bone: dict[int, int] = {}
-    for i in range(min(n_bones, n_mesh_sections)):
-        verts = per_bone_verts[i]
-        if not verts:
+    Returns (anim_bytes, src_path, n_nodes, headers); (None, None, 0, [])
+    when there is no usable source. Order: explicit --anim file; containers
+    embedded in the mesh file itself (e.g. chunk21/f17_id8f); the same-chunk
+    sibling with the most qualifying containers (e.g. chunk28/f00_id3b ->
+    f01_id3c, the 455-clip library).
+    """
+    if anim_path is not None:
+        d = anim_path.read_bytes()
+        n, hdrs = select_anim_containers(d, max_slot)
+        if not hdrs:
+            raise RuntimeError(f"{anim_path}: no id 0x74 containers with "
+                               f"more than {max_slot} nodes")
+        return d, anim_path, n, hdrs
+    n, hdrs = select_anim_containers(mesh_bytes, max_slot)
+    if hdrs:
+        return mesh_bytes, mesh_path, n, hdrs
+    best = None
+    for sib in sorted(mesh_path.parent.glob("*_id*.bin")):
+        if sib.resolve() == mesh_path.resolve():
             continue
-        # Triangulate? The per-bone packets are a *point cloud* of
-        # pre-strip Q4.12 vertices (no faces survived the VIF decode).
-        # Emit them as POINTS primitive so they at least show up in viewers
-        # that support points; for triangle topology we lack the index
-        # buffer. (glTF mode 0 = POINTS.)
-        pos_acc = gb.add_vec3_float(verts)
-        prim = {
-            "attributes": {"POSITION": pos_acc},
-            "mode": 0,  # POINTS
-        }
-        mesh = {"primitives": [prim], "name": f"bone_{i:02d}_mesh"}
-        mesh_for_bone[i] = -1  # placeholder; fill once meshes list is built
-        # we'll re-emit below in a deterministic order
-
-    # Re-emit meshes deterministically.
-    meshes = []
-    mesh_idx_for_bone: dict[int, int] = {}
-    # we need to rebuild because we lost the position accessors above; do it cleanly:
-    gb = GLBBuilder()
-    for i in range(min(n_bones, n_mesh_sections)):
-        verts = per_bone_verts[i]
-        if not verts:
-            continue
-        pos_acc = gb.add_vec3_float(verts)
-        prim = {"attributes": {"POSITION": pos_acc}, "mode": 0}
-        meshes.append({"primitives": [prim], "name": f"bone_{i:02d}_mesh"})
-        mesh_idx_for_bone[i] = len(meshes) - 1
-
-    # ----- Nodes: scene root + 1 node per bone ----------------------------
-    # Sample frame 0 TRS from clip 0 for bind-ish default pose.
-    bone_nodes: list = []
-    for i in range(n_bones):
-        q = ad.sample_bone(rot0[i], 0.0) if rot0[i] else (0.0, 0.0, 0.0, 1.0)
-        t = ad.sample_bone(trn0[i], 0.0, normalize=False) if trn0[i] else (0.0, 0.0, 0.0)
-        if q is None:
-            q = (0.0, 0.0, 0.0, 1.0)
-        if t is None:
-            t = (0.0, 0.0, 0.0)
-        node = {
-            "name": f"bone_{i:02d}",
-            "rotation": list(_quat_from_decoded(*q)),
-            "translation": [t[0], t[1], t[2]],
-        }
-        if i in mesh_idx_for_bone:
-            node["mesh"] = mesh_idx_for_bone[i]
-        bone_nodes.append(node)
-
-    # Children: derive from parent table. Self-parent or -1 -> root.
-    children_of: dict[int, list[int]] = {}
-    roots: list[int] = []
-    for i, p in enumerate(parents_signed):
-        if p < 0 or p == i:
-            roots.append(i)
-        else:
-            children_of.setdefault(p, []).append(i)
-    for i, node in enumerate(bone_nodes):
-        if i in children_of:
-            node["children"] = children_of[i]
-
-    # Root scene node holds all bone roots as children.
-    scene_root = {"name": "Skeleton", "children": list(roots)}
-    nodes = bone_nodes + [scene_root]
-    scene_root_idx = len(nodes) - 1
-
-    # ----- Animations ------------------------------------------------------
-    animations: list = []
-    total_samples = 0
-    total_tracks = 0
-    for clip_idx, (s, e) in enumerate(entries):
-        entry_bytes = skel_bytes[s:e]
         try:
-            bc, _, rot_streams, trn_streams = _decode_entry_streams(entry_bytes)
-        except Exception:
+            d = sib.read_bytes()
+        except OSError:
             continue
-        channels = []
-        samplers = []
-
-        for bone_i in range(min(bc, n_bones)):
-            # Rotation track
-            r_times, r_vals = _bone_rot_track(rot_streams[bone_i])
-            if r_times:
-                in_acc = gb.add_scalar_float(r_times)
-                out_acc = gb.add_vec4_float_anim(r_vals)
-                samplers.append({
-                    "input": in_acc,
-                    "output": out_acc,
-                    "interpolation": "LINEAR",
-                })
-                channels.append({
-                    "sampler": len(samplers) - 1,
-                    "target": {"node": bone_i, "path": "rotation"},
-                })
-                total_samples += len(r_times)
-                total_tracks += 1
-
-            # Translation track
-            t_times, t_vals = _bone_trn_track(trn_streams[bone_i])
-            if t_times:
-                in_acc = gb.add_scalar_float(t_times)
-                out_acc = gb.add_vec3_float_anim(t_vals)
-                samplers.append({
-                    "input": in_acc,
-                    "output": out_acc,
-                    "interpolation": "LINEAR",
-                })
-                channels.append({
-                    "sampler": len(samplers) - 1,
-                    "target": {"node": bone_i, "path": "translation"},
-                })
-                total_samples += len(t_times)
-                total_tracks += 1
-
-        if channels:
-            animations.append({
-                "name": f"clip_{clip_idx:02d}",
-                "channels": channels,
-                "samplers": samplers,
-            })
-
-    # We need to re-emit per-bone mesh accessors into the SAME GLBBuilder so
-    # the buffer contains both meshes and animation data. We started fresh
-    # above for animations -- fix by re-adding meshes now (their pos accessors
-    # were lost) and patching mesh.primitives to point to the new accessor IDs.
-    # Easier path: rebuild from scratch with one pass. Refactor below.
-    raise RuntimeError("internal: pipeline should not reach here -- "
-                       "use the unified single-pass build path")
+        n, hdrs = select_anim_containers(d, max_slot)
+        if hdrs and (best is None or len(hdrs) > len(best[3])):
+            best = (d, sib, n, hdrs)
+    return best if best else (None, None, 0, [])
 
 
-# ---------------------------------------------------------------------------
-# Unified single-pass build (replaces the staged version above; the staged
-# code was kept readable but loses accessor indices on the meshes-then-anims
-# split. This pass builds everything against one shared GLBBuilder.)
+def _parse_clip_selection(spec: str, n_clips: int) -> list[int]:
+    """'all' | '0,346' | '0-9,400-410' -> sorted container index list."""
+    if not spec or spec == "all":
+        return list(range(n_clips))
+    out: set[int] = set()
+    for part in spec.split(","):
+        part = part.strip()
+        if "-" in part:
+            a, b = part.split("-", 1)
+            out.update(range(int(a), int(b) + 1))
+        elif part:
+            out.add(int(part))
+    bad = sorted(i for i in out if not (0 <= i < n_clips))
+    if bad:
+        raise RuntimeError(f"clip(s) {bad} out of range (0..{n_clips - 1})")
+    return sorted(out)
 
 
-def _bind_blocks_to_bones(blocks: list, bone_world_mats: list) -> list[int]:
-    """For each MESH-descriptor block, pick the bone whose joint position is
-    spatially closest to the block's vertex centroid after that bone's world
-    matrix is applied (block verts are in some bone-local frame; the correct
-    bone is the one whose local->world maps the centroid near its OWN joint).
+def build_character_glb(mesh_path: Path, out_path: Path,
+                        anim_path: Path | None = None, segment: int = 0,
+                        fps: float = 60.0, search_root: Path | None = None,
+                        no_textures: bool = False,
+                        clips: str = "all") -> dict:
+    mesh_bytes = mesh_path.read_bytes()
+    groups, max_slot = load_skinned_sections(mesh_path, segment)
 
-    Algorithm per block:
-      1. Compute centroid C_local of all real vertices across the block's
-         strips (positions are in bone-local frame).
-      2. For each candidate bone B:
-         - Apply B's world matrix to C_local -> C_world.
-         - Compute distance from C_world to B's joint translation
-           (= B.world[3][:3]).
-         The candidate bone is the one minimising that distance, i.e. the
-         bone whose local frame "owns" this block: applying its transform
-         produces a point near its own joint.
+    anim_bytes, anim_src, n_nodes, headers = _resolve_anim_source(
+        mesh_path, mesh_bytes, max_slot, anim_path)
+    clip_sel = _parse_clip_selection(clips, len(headers)) if headers else []
 
-    Returns ``bone_index_for_block[block_i]``. Bones with empty mats (None)
-    are skipped. Returns -1 for a block with no real vertices.
-    """
-    # Cache bone joint positions (column 3 of column-major 4x4).
-    bone_joints: list[tuple[float, float, float] | None] = []
-    for m in bone_world_mats:
-        if m is None:
-            bone_joints.append(None)
-        else:
-            bone_joints.append((m[3][0], m[3][1], m[3][2]))
+    # Skeleton: parent table + rest pose (frame-0 keys of container 0; all
+    # containers in a library share one parent table). Slots past the rig's
+    # node count -- or every slot when no animation source exists -- become
+    # root-parented identity joints, mirroring EMDL's identity slot.
+    n_joints = max(n_nodes, max_slot + 1)
+    parents = [-1] * n_joints
+    rest = [((0.0, 0.0, 0.0, 1.0), (0.0, 0.0, 0.0), (1.0, 1.0, 1.0))
+            for _ in range(n_joints)]
+    if headers:
+        pre0 = em.parse_id74_prefix(anim_bytes, headers[0])
+        for i, p in enumerate(pre0["parents"]):
+            parents[i] = p if -1 <= p < n_joints else -1
+        for i in range(n_nodes):
+            q = pre0["rot"][i][0][1] if pre0["rot"][i] else (0.0, 0.0, 0.0, 1.0)
+            t = pre0["trn"][i][0][1] if pre0["trn"][i] else (0.0, 0.0, 0.0)
+            s = pre0["scl"][i][0][1] if pre0["scl"][i] else (1.0, 1.0, 1.0)
+            rest[i] = (q, t, s)
 
-    out: list[int] = []
-    for block in blocks:
-        # All real vertex positions in the block (bone-local frame).
-        pts = []
-        for s in block:
-            for v in s.verts:
-                pts.append(v.pos)
-        if not pts:
-            out.append(-1)
-            continue
-        cx = sum(p[0] for p in pts) / len(pts)
-        cy = sum(p[1] for p in pts) / len(pts)
-        cz = sum(p[2] for p in pts) / len(pts)
+    gb = GLBBuilder()
 
-        best_bone = -1
-        best_d2 = float("inf")
-        for b, m in enumerate(bone_world_mats):
-            if m is None or bone_joints[b] is None:
-                continue
-            # Apply column-major 4x4 to (cx, cy, cz, 1):
-            # world = col0*cx + col1*cy + col2*cz + col3
-            wx = m[0][0] * cx + m[1][0] * cy + m[2][0] * cz + m[3][0]
-            wy = m[0][1] * cx + m[1][1] * cy + m[2][1] * cz + m[3][1]
-            wz = m[0][2] * cx + m[1][2] * cy + m[2][2] * cz + m[3][2]
-            jx, jy, jz = bone_joints[b]
-            dx, dy, dz = wx - jx, wy - jy, wz - jz
-            d2 = dx * dx + dy * dy + dz * dz
-            if d2 < best_d2:
-                best_d2 = d2
-                best_bone = b
-        out.append(best_bone)
-    return out
-
-
-def build_static_textured_mesh(mesh_path: Path, gb: "GLBBuilder",
-                               search_root: Path | None) -> tuple[list, list, list, dict]:
-    """Build the textured reference mesh from the mesh file's MESH-descriptor
-    section (UV + position + normal). Returns (primitives, images, textures,
-    info_dict). The primitives are split by texture sheet (one primitive per
-    DBP), each referencing its own material.
-
-    The positions in this stream are bone-local (pre-skinning), so the mesh
-    appears as a jumbled blob at the scene root when bone-binding metadata
-    is not yet decoded -- but the UVs and textures bind correctly per strip.
-
-    Returns ([], [], [], {}) if no MESH descriptors found.
-    """
-    info: dict = {"sheets": [], "primitives": 0, "triangles": 0, "vertices": 0}
-    d = mesh_path.read_bytes()
-    strips = em.parse_model_file(d)
-    if not strips:
-        return [], [], [], info
-
-    # Group strips by sheet_field -> DBP.
-    by_dbp: dict[int, list] = {}
-    for s in strips:
-        m0, _m1 = s.key
-        sheet_field = (m0 >> 15) & 0x3FFF
-        dbp = _sheet_field_to_dbp(sheet_field)
-        by_dbp.setdefault(dbp, []).append(s)
-
-    # Resolve each DBP -> texture sheet (PSMT8 -> RGBA grayscale PNG).
-    materials_for_dbp: dict[int, int] = {}
-    textures_for_dbp: dict[int, int] = {}
-    images_for_dbp: dict[int, int] = {}
+    # Materials: one per texture-sheet DBP (identity-grayscale PNG -- the
+    # colour-CLUT binding is engine-synthesised, see FINDINGS "Color source").
     image_objs: list = []
     texture_objs: list = []
     material_objs: list = []
-    for dbp in sorted(by_dbp.keys()):
-        found = _find_transfer_for_dbp(mesh_path, dbp, search_root)
-        sheet_info = {"dbp": dbp, "n_strips": len(by_dbp[dbp])}
-        if found is None:
-            # Synthetic placeholder texture -- still emit a material so the
-            # primitive renders solid gray rather than failing strict parsers.
-            sheet_info["source"] = None
+    material_for_dbp: dict[int, int] = {}
+    sheet_infos: list = []
+    for dbp in sorted(groups):
+        n_tris = len(groups[dbp][4]) // 3
+        found = None if (no_textures or dbp < 0) else \
+            _find_transfer_for_dbp(mesh_path, dbp, search_root)
+        if found is not None:
+            src_path, xfer = found
+            bv = gb.add_raw_blob(
+                _png_rgba_bytes(xfer.width, xfer.height, xfer.pixels))
+            image_objs.append({"name": f"sheet_DBP{dbp}",
+                               "mimeType": "image/png", "bufferView": bv})
+            texture_objs.append({"source": len(image_objs) - 1})
             material_objs.append({
-                "name": f"player_dbp{dbp}_missing",
+                "name": f"mat_dbp{dbp}",
                 "pbrMetallicRoughness": {
-                    "baseColorFactor": [0.5, 0.5, 0.5, 1.0],
+                    "baseColorTexture": {"index": len(texture_objs) - 1,
+                                         "texCoord": 0},
                     "metallicFactor": 0.0, "roughnessFactor": 1.0,
                 },
+                "doubleSided": True,
             })
-            materials_for_dbp[dbp] = len(material_objs) - 1
-            continue
-        src_path, xfer = found
-        png_bytes = _png_rgba_bytes(xfer.width, xfer.height, xfer.pixels)
-        bv_idx = gb.add_raw_blob(png_bytes)
-        image_objs.append({
-            "name": f"sheet_DBP{dbp}",
-            "mimeType": "image/png",
-            "bufferView": bv_idx,
-        })
-        img_i = len(image_objs) - 1
-        texture_objs.append({"source": img_i})
-        tex_i = len(texture_objs) - 1
-        material_objs.append({
-            "name": f"player_dbp{dbp}",
-            "pbrMetallicRoughness": {
-                "baseColorTexture": {"index": tex_i, "texCoord": 0},
-                "metallicFactor": 0.0, "roughnessFactor": 1.0,
-            },
-        })
-        materials_for_dbp[dbp] = len(material_objs) - 1
-        images_for_dbp[dbp] = img_i
-        textures_for_dbp[dbp] = tex_i
-        sheet_info["source"] = str(src_path.relative_to(src_path.parents[1]))
-        sheet_info["size"] = [xfer.width, xfer.height]
-        info["sheets"].append(sheet_info)
+            try:
+                src_rel = str(src_path.relative_to(search_root)) \
+                    if search_root else src_path.name
+            except ValueError:
+                src_rel = src_path.name
+            sheet_infos.append({"dbp": dbp, "n_tris": n_tris,
+                                "source": src_rel,
+                                "size": [xfer.width, xfer.height]})
+        else:
+            material_objs.append({
+                "name": f"mat_dbp{dbp}_missing",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.6, 0.6, 0.6, 1.0],
+                    "metallicFactor": 0.0, "roughnessFactor": 1.0,
+                },
+                "doubleSided": True,
+            })
+            sheet_infos.append({"dbp": dbp, "n_tris": n_tris, "source": None})
+        material_for_dbp[dbp] = len(material_objs) - 1
 
-    # Build a primitive per DBP with merged strip triangles.
+    # One skinned mesh; one primitive per texture sheet. JOINTS_0 carries the
+    # per-vertex node slot directly (skin.joints is ordered so that joint
+    # index == node slot).
     primitives: list = []
     total_tris = 0
     total_verts = 0
-    for dbp, dbp_strips in by_dbp.items():
-        positions: list = []
-        normals: list = []
-        uvs: list = []
-        indices: list = []
-        for s in dbp_strips:
-            base = len(positions)
-            for v in s.verts:
-                positions.append(v.pos)
-                # attr is (nx,ny,nz) for dynamic meshes; we trust it as a
-                # normal here (character meshes are dynamic-lit).
-                normals.append(v.attr)
-                uvs.append((v.uv[0], v.uv[1]))
-            for i0, i1, i2 in em.strip_triangles(s):
-                indices.append(base + i0)
-                indices.append(base + i1)
-                indices.append(base + i2)
-        if not indices:
-            continue
-        pos_acc = gb.add_vec3_float(positions)
-        nrm_acc = gb.add_vec3_float_normal(normals)
-        uv_acc = gb.add_vec2_float(uvs)
-        idx_acc = gb.add_indices_auto(indices, len(positions))
-        prim = {
+    for dbp in sorted(groups):
+        pos, nrm, uv, slot, tris = groups[dbp]
+        primitives.append({
             "attributes": {
-                "POSITION": pos_acc,
-                "NORMAL": nrm_acc,
-                "TEXCOORD_0": uv_acc,
+                "POSITION": gb.add_vec3_float(pos),
+                "NORMAL": gb.add_vec3_float_normal(nrm),
+                "TEXCOORD_0": gb.add_vec2_float(uv),
+                "JOINTS_0": gb.add_joints_u16(slot),
+                "WEIGHTS_0": gb.add_weights_one(len(slot)),
             },
-            "indices": idx_acc,
+            "indices": gb.add_indices_auto(tris, len(pos)),
             "mode": 4,  # TRIANGLES
-            "material": materials_for_dbp[dbp],
-        }
-        primitives.append(prim)
-        total_tris += len(indices) // 3
-        total_verts += len(positions)
-
-    info["primitives"] = len(primitives)
-    info["triangles"] = total_tris
-    info["vertices"] = total_verts
-    return primitives, image_objs, texture_objs, {
-        **info,
-        "_materials": material_objs,
-    }
-
-
-def build_proxy_bound_blocks(mesh_path: Path, gb: "GLBBuilder",
-                             bone_world_mats: list,
-                             search_root: Path | None
-                             ) -> tuple[list, list, list, list, dict]:
-    """Build TEXTURED per-block meshes BOUND by spatial proximity to bones.
-
-    Replaces the single un-bound static mesh: each MESH-descriptor block
-    becomes its own mesh whose primitives are split by texture sheet (DBP),
-    and the mesh is attached to a glTF node parented to the nearest-fit bone
-    node. The block's vertex positions stay in bone-local frame; the bone
-    node's world transform (from id 0x71 frame 0) places it in world space.
-
-    Returns (per_block_meshes, per_block_bone_index, image_objs, texture_objs,
-    info_dict). `per_block_meshes[i]` is a glTF mesh dict for block i (or
-    None for empty blocks), and `per_block_bone_index[i]` is the bone the
-    block is parented to (or -1 if no candidate fit / empty block).
-    """
-    info: dict = {"blocks": 0, "bound": 0, "primitives": 0,
-                  "triangles": 0, "vertices": 0, "sheets": []}
-    d = mesh_path.read_bytes()
-    blocks = em.parse_model_blocks(d)
-    if not blocks:
-        return [], [], [], [], info
-
-    # Resolve textures up front (same as build_static_textured_mesh): scan
-    # every block's strips to enumerate sheet DBPs.
-    by_dbp_global: dict[int, int] = {}  # dbp -> presence
-    for block in blocks:
-        for s in block:
-            m0, _m1 = s.key
-            sheet_field = (m0 >> 15) & 0x3FFF
-            dbp = _sheet_field_to_dbp(sheet_field)
-            by_dbp_global[dbp] = by_dbp_global.get(dbp, 0) + 1
-
-    materials_for_dbp: dict[int, int] = {}
-    image_objs: list = []
-    texture_objs: list = []
-    material_objs: list = []
-    for dbp in sorted(by_dbp_global.keys()):
-        found = _find_transfer_for_dbp(mesh_path, dbp, search_root)
-        sheet_info = {"dbp": dbp, "n_strips_total": by_dbp_global[dbp]}
-        if found is None:
-            sheet_info["source"] = None
-            material_objs.append({
-                "name": f"player_dbp{dbp}_missing",
-                "pbrMetallicRoughness": {
-                    "baseColorFactor": [0.5, 0.5, 0.5, 1.0],
-                    "metallicFactor": 0.0, "roughnessFactor": 1.0,
-                },
-            })
-            materials_for_dbp[dbp] = len(material_objs) - 1
-            info["sheets"].append(sheet_info)
-            continue
-        src_path, xfer = found
-        png_bytes = _png_rgba_bytes(xfer.width, xfer.height, xfer.pixels)
-        bv_idx = gb.add_raw_blob(png_bytes)
-        image_objs.append({
-            "name": f"sheet_DBP{dbp}",
-            "mimeType": "image/png",
-            "bufferView": bv_idx,
+            "material": material_for_dbp[dbp],
         })
-        img_i = len(image_objs) - 1
-        texture_objs.append({"source": img_i})
-        tex_i = len(texture_objs) - 1
-        material_objs.append({
-            "name": f"player_dbp{dbp}",
-            "pbrMetallicRoughness": {
-                "baseColorTexture": {"index": tex_i, "texCoord": 0},
-                "metallicFactor": 0.0, "roughnessFactor": 1.0,
-            },
-        })
-        materials_for_dbp[dbp] = len(material_objs) - 1
-        sheet_info["source"] = str(src_path.relative_to(src_path.parents[1]))
-        sheet_info["size"] = [xfer.width, xfer.height]
-        info["sheets"].append(sheet_info)
+        total_tris += len(tris) // 3
+        total_verts += len(pos)
 
-    # Spatial-proximity binding: block -> bone.
-    bone_for_block = _bind_blocks_to_bones(blocks, bone_world_mats)
-
-    per_block_meshes: list = []
-    total_tris = 0
-    total_verts = 0
-    total_prims = 0
-    bound_count = 0
-    for bi, block in enumerate(blocks):
-        if not block:
-            per_block_meshes.append(None)
-            continue
-        # Group strips of this block by DBP.
-        by_dbp: dict[int, list] = {}
-        for s in block:
-            m0, _m1 = s.key
-            sheet_field = (m0 >> 15) & 0x3FFF
-            dbp = _sheet_field_to_dbp(sheet_field)
-            by_dbp.setdefault(dbp, []).append(s)
-        primitives: list = []
-        for dbp, dbp_strips in by_dbp.items():
-            positions: list = []
-            normals: list = []
-            uvs: list = []
-            indices: list = []
-            for s in dbp_strips:
-                base = len(positions)
-                for v in s.verts:
-                    positions.append(v.pos)
-                    normals.append(v.attr)
-                    uvs.append((v.uv[0], v.uv[1]))
-                for i0, i1, i2 in em.strip_triangles(s):
-                    indices.append(base + i0)
-                    indices.append(base + i1)
-                    indices.append(base + i2)
-            if not indices:
-                continue
-            pos_acc = gb.add_vec3_float(positions)
-            nrm_acc = gb.add_vec3_float_normal(normals)
-            uv_acc = gb.add_vec2_float(uvs)
-            idx_acc = gb.add_indices_auto(indices, len(positions))
-            prim = {
-                "attributes": {
-                    "POSITION": pos_acc,
-                    "NORMAL": nrm_acc,
-                    "TEXCOORD_0": uv_acc,
-                },
-                "indices": idx_acc,
-                "mode": 4,
-                "material": materials_for_dbp[dbp],
-            }
-            primitives.append(prim)
-            total_tris += len(indices) // 3
-            total_verts += len(positions)
-            total_prims += 1
-        if not primitives:
-            per_block_meshes.append(None)
-            continue
-        per_block_meshes.append({
-            "primitives": primitives,
-            "name": f"block_{bi:02d}_bound_bone_{bone_for_block[bi]:02d}",
-        })
-        if bone_for_block[bi] >= 0:
-            bound_count += 1
-
-    info["blocks"] = len(blocks)
-    info["bound"] = bound_count
-    info["primitives"] = total_prims
-    info["triangles"] = total_tris
-    info["vertices"] = total_verts
-    info["_materials"] = material_objs
-    return per_block_meshes, bone_for_block, image_objs, texture_objs, info
-
-
-def decode_bone_section_table(d: bytes):
-    """Decode the per-bone section directory in a character-mesh file.
-
-    RESOLVED 2026-06-02 from a live PCSX2 capture (mid-skinning-draw). The
-    character mesh prefixes its per-bone object-space VIF stream with a small
-    directory mapping each section to (global bone index, byte offset). On the
-    player mesh (``chunk21/f17_id8f.bin``) it lives at file offset ``0x2280``::
-
-        +0x00  u32 base_ptr          file offset the section offsets are relative to
-        +0x04  u32 x 3               zero padding
-        +0x10  u32 bone_idx[0..L-1]  GLOBAL bone index per section; [0] = 0xffffffff
-        ...    u32 offset[0..L-1]    section byte offset (rel. to base_ptr),
-                                     strictly increasing, first < 0x200
-        ...    u32 0                 terminator
-
-    ``section i`` belongs to global bone ``bone_idx[i]`` (multiple sections may
-    share a bone, e.g. sections 2 and 3 both rig bone 1). Returns
-    ``(base_ptr, bone_idx, offsets)`` with ``bone_idx[0]`` normalised to ``-1``,
-    or ``None`` if no such table is present.
-
-    Supersedes the old ``section i == bone i`` assumption: the previous
-    ``em._find_bone_section_table`` keyed on ``vals[0] < 0x200`` and started
-    part-way down the bone-index list, folding the bone-index tail into the
-    offset list and losing the mapping. This keys on the structural invariants.
-    """
-    mesh_sig = em.MESH_SIG
-    first_mesh = d.find(mesh_sig)
-    if first_mesh < 0x400:
-        return None
-
-    def u32(off: int) -> int:
-        return struct.unpack_from("<I", d, off)[0]
-
-    scan_end = min(first_mesh, len(d) - 4)
-    for hdr in range(0x100, scan_end - 0x10, 4):
-        base_ptr = u32(hdr)
-        if not (0x400 <= base_ptr < len(d)):
-            continue
-        if u32(hdr + 4) or u32(hdr + 8) or u32(hdr + 12):
-            continue
-        if u32(hdr + 0x10) != 0xFFFFFFFF:
-            continue
-        bone_start = hdr + 0x10
-        for L in range(8, 64):
-            bone_vals = [u32(bone_start + i * 4) for i in range(L)]
-            if bone_vals[0] != 0xFFFFFFFF:
-                break
-            if any((v != 0xFFFFFFFF and v >= 64) for v in bone_vals):
-                continue
-            off_start = bone_start + L * 4
-            offs = [u32(off_start + i * 4) for i in range(L)]
-            if offs[0] >= 0x200:
-                continue
-            if any(offs[i] >= offs[i + 1] for i in range(L - 1)):
-                continue
-            if base_ptr + offs[-1] >= first_mesh:
-                continue
-            if u32(off_start + L * 4) != 0:
-                continue
-            if not (first_mesh - 0x400 < base_ptr + offs[-1] < first_mesh):
-                continue
-            bone_idx = [(-1 if v == 0xFFFFFFFF else v) for v in bone_vals]
-            return base_ptr, bone_idx, offs
-    return None
-
-
-def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
-                      fps: float = 30.0,
-                      search_root: Path | None = None) -> dict:
-    global FPS
-    FPS = fps
-
-    skel_bytes = skel_path.read_bytes()
-    entries = _entry_slices(skel_bytes)
-    if not entries:
-        raise RuntimeError(f"{skel_path}: no entries")
-
-    e0_start, e0_end = entries[0]
-    e0 = skel_bytes[e0_start:e0_end]
-    bc0, raw_parents0, rot0, trn0 = _decode_entry_streams(e0)
-    parents_signed = _signed_parents(raw_parents0)
-    n_bones = bc0
-
-    per_bone_verts_vid = load_per_bone_meshes_with_vids(mesh_path)
-    n_mesh_sections = len(per_bone_verts_vid)
-
-    gb = GLBBuilder()
-
-    # 1. Meshes -- one TRIANGLES primitive per non-empty bone with POSITION,
-    # NORMAL and an index buffer. Triangle topology comes from generalized
-    # tristrip decoding of the per-bone VIF vid stream (see triangulate_bone).
-    # Normals are face-area-weighted vertex averages -- the packed 4-byte
-    # field in the VIF record is not yet decoded.
-    # Per-section -> GLOBAL bone index. RESOLVED 2026-06-02: the prefix
-    # directory maps section i to bone_idx[i] (multiple sections per bone).
-    # Falls back to identity (section i == bone i) if the table is absent,
-    # preserving the old behaviour for files without the directory.
-    sec_table = decode_bone_section_table(mesh_path.read_bytes())
-    if sec_table is not None:
-        _bp, section_bone, _offs = sec_table
-    else:
-        section_bone = list(range(n_mesh_sections))
-
-    meshes: list = []
-    # section index -> mesh index (each section is its own mesh primitive).
-    sec_mesh_idx: dict[int, int] = {}
-    total_tris = 0
-    bones_as_points = 0
-    for i in range(min(len(section_bone), n_mesh_sections)):
-        vwv = per_bone_verts_vid[i]
-        if not vwv:
-            continue
-        positions, normals, indices = triangulate_bone(vwv)
-        if indices:
-            pos_acc = gb.add_vec3_float(positions)
-            nrm_acc = gb.add_vec3_float_normal(normals)
-            idx_acc = gb.add_indices_auto(indices, len(positions))
-            prim = {
-                "attributes": {"POSITION": pos_acc, "NORMAL": nrm_acc},
-                "indices": idx_acc,
-                "mode": 4,  # TRIANGLES
-            }
-            total_tris += len(indices) // 3
-        else:
-            # Section with <3 verts or no decodable strip -- fall back to POINTS.
-            pos_acc = gb.add_vec3_float(positions)
-            prim = {"attributes": {"POSITION": pos_acc}, "mode": 0}
-            bones_as_points += 1
-        b = section_bone[i]
-        meshes.append({
-            "primitives": [prim],
-            "name": f"sec{i:02d}_bone{b:02d}_mesh",
-        })
-        sec_mesh_idx[i] = len(meshes) - 1
-
-    # 2. Bone nodes with frame-0 default TRS.
-    bone_nodes: list = []
-    for i in range(n_bones):
-        q = ad.sample_bone(rot0[i], 0.0) if rot0[i] else (0.0, 0.0, 0.0, 1.0)
-        t = ad.sample_bone(trn0[i], 0.0, normalize=False) if trn0[i] else (0.0, 0.0, 0.0)
-        if q is None:
-            q = (0.0, 0.0, 0.0, 1.0)
-        if t is None:
-            t = (0.0, 0.0, 0.0)
-        nq = _quat_from_decoded(*q)
+    # Nodes: joints 0..n_joints-1 first (node index == slot), then the
+    # skinned-mesh node, then the scene root.
+    joint_nodes: list = []
+    for i in range(n_joints):
+        q, t, s = rest[i]
         node = {
-            "name": f"bone_{i:02d}",
-            "rotation": [nq[0], nq[1], nq[2], nq[3]],
+            "name": f"node_{i:02d}",
+            "rotation": list(_quat_from_decoded(-q[0], -q[1], -q[2], q[3])),
             "translation": [t[0], t[1], t[2]],
         }
-        bone_nodes.append(node)
-
-    # 2b. Section nodes: each object-space mesh section is a child node of its
-    # GLOBAL bone (section_bone[i]), inheriting that bone's animated world TRS.
-    # A glTF node holds one mesh, and several sections can share a bone, so we
-    # use one identity-transform child node per section rather than attaching
-    # the mesh to the bone node directly. Section node indices follow the bone
-    # nodes in the node list. Sections whose bone index is out of range are
-    # parented to the scene root so their geometry still appears.
-    section_nodes: list = []
-    section_node_children_of_bone: dict[int, list[int]] = {}
-    orphan_section_nodes: list[int] = []
-    for sec_i, mesh_idx in sorted(sec_mesh_idx.items()):
-        b = section_bone[sec_i]
-        node_idx = n_bones + len(section_nodes)
-        section_nodes.append({
-            "name": f"sec{sec_i:02d}_bone{b:02d}",
-            "mesh": mesh_idx,
-        })
-        if 0 <= b < n_bones:
-            section_node_children_of_bone.setdefault(b, []).append(node_idx)
-        else:
-            orphan_section_nodes.append(node_idx)
-
+        if any(abs(c - 1.0) > 1e-4 for c in s):
+            node["scale"] = [s[0], s[1], s[2]]
+        joint_nodes.append(node)
     children_of: dict[int, list[int]] = {}
     roots: list[int] = []
-    for i, p in enumerate(parents_signed):
-        if p < 0 or p == i:
-            roots.append(i)
-        else:
+    for i, p in enumerate(parents):
+        if 0 <= p < n_joints and p != i:
             children_of.setdefault(p, []).append(i)
-    for i, node in enumerate(bone_nodes):
-        kids = list(children_of.get(i, []))
-        kids += section_node_children_of_bone.get(i, [])
-        if kids:
-            node["children"] = kids
+        else:
+            roots.append(i)
+    for i, kids in children_of.items():
+        joint_nodes[i]["children"] = kids
 
-    scene_root = {"name": "Skeleton", "children": list(roots) + orphan_section_nodes}
-    nodes = bone_nodes + section_nodes + [scene_root]
-    scene_root_idx = len(nodes) - 1
+    nodes = list(joint_nodes)
+    mesh_node_idx = len(nodes)
+    nodes.append({"name": f"{mesh_path.stem}_mesh", "mesh": 0, "skin": 0})
+    scene_root_idx = len(nodes)
+    nodes.append({"name": mesh_path.stem,
+                  "children": roots + [mesh_node_idx]})
 
-    # 3. Animations
+    skin = {
+        "name": f"{mesh_path.stem}_skin",
+        "joints": list(range(n_joints)),
+        # Identity inverse binds: disc vertices are bone-local already.
+        "inverseBindMatrices": gb.add_mat4_float([_IDENT_COLS] * n_joints),
+    }
+
+    # Animations: one glTF animation per selected container. Keys are the
+    # sparse disc keyframes verbatim (times = frame/fps); LINEAR sampling
+    # matches the engine's lerp-between-keys (NLERP vs engine SLERP is
+    # within ~0.6 deg on 40-deg key gaps, see FINDINGS).
     animations: list = []
-    total_samples = 0
-    total_tracks = 0
-    track_per_clip: list[int] = []
-    for clip_idx, (s, e) in enumerate(entries):
-        entry_bytes = skel_bytes[s:e]
-        try:
-            bc, _, rot_streams, trn_streams = _decode_entry_streams(entry_bytes)
-        except Exception:
-            track_per_clip.append(0)
-            continue
-        channels = []
-        samplers = []
-        for bone_i in range(min(bc, n_bones)):
-            r_times, r_vals = _bone_rot_track(rot_streams[bone_i])
-            if r_times:
-                in_acc = gb.add_scalar_float(r_times)
-                out_acc = gb.add_vec4_float_anim(r_vals)
-                samplers.append({
-                    "input": in_acc, "output": out_acc,
-                    "interpolation": "LINEAR",
-                })
-                channels.append({
-                    "sampler": len(samplers) - 1,
-                    "target": {"node": bone_i, "path": "rotation"},
-                })
-                total_samples += len(r_times)
-                total_tracks += 1
-            t_times, t_vals = _bone_trn_track(trn_streams[bone_i])
-            if t_times:
-                in_acc = gb.add_scalar_float(t_times)
-                out_acc = gb.add_vec3_float_anim(t_vals)
-                samplers.append({
-                    "input": in_acc, "output": out_acc,
-                    "interpolation": "LINEAR",
-                })
-                channels.append({
-                    "sampler": len(samplers) - 1,
-                    "target": {"node": bone_i, "path": "translation"},
-                })
-                total_samples += len(t_times)
-                total_tracks += 1
+    total_channels = 0
+    total_keys = 0
+    for ci in clip_sel:
+        pre = em.parse_id74_prefix(anim_bytes, headers[ci])
+        channels: list = []
+        samplers: list = []
+
+        def add_channel(path, times, vals, node_i, is_quat):
+            nonlocal total_keys
+            out_acc = gb.add_vec4_float_anim(vals) if is_quat \
+                else gb.add_vec3_float_anim(vals)
+            samplers.append({"input": gb.add_scalar_float(times),
+                             "output": out_acc, "interpolation": "LINEAR"})
+            channels.append({"sampler": len(samplers) - 1,
+                             "target": {"node": node_i, "path": path}})
+            total_keys += len(times)
+
+        for i in range(min(pre["n"], n_joints)):
+            if pre["rot"][i]:
+                times, vals = _rot_track(pre["rot"][i], fps)
+                add_channel("rotation", times, vals, i, True)
+            if pre["trn"][i]:
+                times, vals = _vec_track(pre["trn"][i], fps)
+                add_channel("translation", times, vals, i, False)
+            scl = pre["scl"][i]
+            # Scale has been constant (1,1,1) in everything sampled so far;
+            # emit the track only when a key actually deviates.
+            if scl and any(abs(c - 1.0) > 1e-4 for _f, v in scl for c in v):
+                times, vals = _vec_track(scl, fps)
+                add_channel("scale", times, vals, i, False)
         if channels:
-            animations.append({
-                "name": f"clip_{clip_idx:02d}",
-                "channels": channels,
-                "samplers": samplers,
-            })
-            track_per_clip.append(len(channels))
-        else:
-            track_per_clip.append(0)
+            animations.append({"name": f"clip_{ci:03d}",
+                               "channels": channels, "samplers": samplers})
+            total_channels += len(channels)
 
-    # 3b. Textured MESH-descriptor blocks with SPATIAL-PROXIMITY bone binding.
-    # Each block (~32 verts in bone-local frame) is attached to the bone node
-    # whose world transform best places the block's centroid near that bone's
-    # joint. This is an approximation -- the true per-block bone-INDEX TABLE
-    # is not yet located on disc -- but it produces a recognisable textured
-    # humanoid placed in world space instead of a blob collapsed at origin.
-    # See docs/FINDINGS.md "Per-block bone binding (proxy)".
-    bone_world_mats: list = []
-    try:
-        world_full, _parents_unused = em.bind_pose_at_t(skel_path, 0, 0.0)
-        # Pad / truncate to n_bones length so block-binder indices align with
-        # bone node indices.
-        for i in range(n_bones):
-            if i < len(world_full):
-                bone_world_mats.append(world_full[i])
-            else:
-                bone_world_mats.append(None)
-    except Exception:
-        bone_world_mats = [None] * n_bones
-
-    block_meshes, bone_for_block, image_objs, texture_objs, static_info = \
-        build_proxy_bound_blocks(mesh_path, gb, bone_world_mats, search_root)
-    material_objs = static_info.pop("_materials", []) if static_info else []
-
-    # Each non-empty block becomes a mesh + a node parented under its bound
-    # bone, so the bone's animated TRS carries the block with it.
-    block_node_indices: list[int] = []
-    for bi, m in enumerate(block_meshes):
-        if m is None:
-            continue
-        meshes.append(m)
-        mesh_idx = len(meshes) - 1
-        bone_i = bone_for_block[bi]
-        node = {
-            "name": f"block_{bi:02d}_node",
-            "mesh": mesh_idx,
-        }
-        nodes.append(node)
-        node_idx = len(nodes) - 1
-        block_node_indices.append(node_idx)
-        if 0 <= bone_i < n_bones:
-            bn = bone_nodes[bone_i]
-            kids = bn.setdefault("children", [])
-            kids.append(node_idx)
-        else:
-            # Fallback: attach to scene root if no bone fit was found.
-            scene_root.setdefault("children", []).append(node_idx)
-    static_node_idx = None  # legacy compat; static mesh no longer at scene root
-
-    # 4. Pad buffer to 4
     while len(gb.bin_blob) % 4 != 0:
         gb.bin_blob.append(0)
 
-    scene_nodes = [scene_root_idx]
-    if static_node_idx is not None:
-        scene_nodes.append(static_node_idx)
-
     gltf = {
-        "asset": {
-            "version": "2.0",
-            "generator": "Extermination decomp export_gltf.py",
-        },
+        "asset": {"version": "2.0",
+                  "generator": "Extermination decomp export_gltf.py"},
         "scene": 0,
-        "scenes": [{"name": "Scene", "nodes": scene_nodes}],
+        "scenes": [{"name": "Scene", "nodes": [scene_root_idx]}],
         "nodes": nodes,
-        "meshes": meshes,
+        "meshes": [{"name": mesh_path.stem, "primitives": primitives}],
+        "skins": [skin],
         "accessors": gb.accessors,
         "bufferViews": gb.bufferViews,
         "buffers": [{"byteLength": len(gb.bin_blob)}],
@@ -1410,39 +849,36 @@ def build_glb_unified(mesh_path: Path, skel_path: Path, out_path: Path,
     if animations:
         gltf["animations"] = animations
 
-    # 5. Serialize as .glb
     json_bytes = json.dumps(gltf, separators=(",", ":")).encode("utf-8")
-    # pad JSON to 4-byte multiple with spaces.
     while len(json_bytes) % 4 != 0:
         json_bytes += b" "
     bin_bytes = bytes(gb.bin_blob)
-    # binary chunk also padded to 4 (already is by gb).
     total_len = 12 + 8 + len(json_bytes) + 8 + len(bin_bytes)
-    header = struct.pack("<III", 0x46546C67, 2, total_len)  # 'glTF', ver, len
-    json_chunk = struct.pack("<II", len(json_bytes), 0x4E4F534A) + json_bytes  # 'JSON'
-    bin_chunk = struct.pack("<II", len(bin_bytes), 0x004E4942) + bin_bytes  # 'BIN\0'
-
+    header = struct.pack("<III", 0x46546C67, 2, total_len)
+    json_chunk = struct.pack("<II", len(json_bytes), 0x4E4F534A) + json_bytes
+    bin_chunk = struct.pack("<II", len(bin_bytes), 0x004E4942) + bin_bytes
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(header + json_chunk + bin_chunk)
 
     return {
         "out_path": str(out_path),
         "size_bytes": len(header) + len(json_chunk) + len(bin_chunk),
-        "n_bones": n_bones,
-        "n_meshes": len(meshes),
+        "anim_source": str(anim_src) if anim_src is not None else None,
+        "n_containers": len(headers),
+        "n_clips": len(animations),
+        "n_nodes": n_nodes,
+        "n_joints": n_joints,
+        "max_slot": max_slot,
+        "n_vertices": total_verts,
         "n_triangles": total_tris,
-        "bones_as_points": bones_as_points,
-        "n_animations": len(animations),
-        "total_animation_tracks": total_tracks,
-        "total_animation_samples": total_samples,
-        "tracks_per_clip_first_5": track_per_clip[:5],
+        "n_primitives": len(primitives),
+        "total_channels": total_channels,
+        "total_keys": total_keys,
+        "sheets": sheet_infos,
+        "sheets_resolved": sum(1 for s in sheet_infos if s.get("source")),
+        "n_materials": len(material_objs),
         "buffer_bytes": len(bin_bytes),
         "json_bytes": len(json_bytes),
-        "parents": parents_signed,
-        "static_textured": static_info,
-        "n_images": len(image_objs),
-        "n_textures": len(texture_objs),
-        "n_materials": len(material_objs),
     }
 
 
@@ -1853,85 +1289,85 @@ def _level_main(argv: list[str]) -> int:
 # CLI
 
 
-def _auto_pair_skel(mesh_path: Path, mesh_section_count: int,
-                    search_root: Path) -> Path | None:
-    # Prefer same chunk dir, else search all.
-    for cand in sorted(mesh_path.parent.glob("*_id71.bin")):
-        skel = em.parse_skeleton_file(cand.read_bytes())
-        if skel and skel.bone_count_raw >= mesh_section_count:
-            return cand
-    for cand in sorted(search_root.rglob("*_id71.bin")):
-        skel = em.parse_skeleton_file(cand.read_bytes())
-        if skel and skel.bone_count_raw >= mesh_section_count:
-            return cand
-    return None
-
-
 def main(argv: list[str]) -> int:
     # Subcommand dispatch: `export_gltf.py level ...` exports an id 0x44 level
-    # scene; the default (no/other first token) exports a character rig.
+    # scene; the default (no/other first token) exports a skinned character.
     if argv and argv[0] == "level":
         return _level_main(argv[1:])
 
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--mesh", required=True,
-                   help="character-mesh file with per-bone VIF prefix "
-                        "(e.g. extract/chunk21/f17_id8f.bin)")
+                   help="skinned character-mesh file (raw VIF blob like "
+                        "extract/chunk28/f00_id3b.bin, or MESH_SIG-style like "
+                        "extract/chunk21/f17_id8f.bin)")
+    p.add_argument("--anim",
+                   help="id 0x74 animation-library file (e.g. "
+                        "extract/chunk28/f01_id3c.bin). If omitted, use "
+                        "containers embedded in the mesh file, else the "
+                        "same-chunk sibling with the most containers.")
     p.add_argument("--skel",
-                   help="id 0x71 animation/skeleton file (e.g. "
-                        "extract/chunk05/f04_id71.bin). If omitted, auto-pair "
-                        "the first compatible id 0x71 under --search-root.")
+                   help="DEPRECATED, ignored (was the id 0x71 clip source; "
+                        "those clips target a different rig pairing than the "
+                        "id 0x74 node slots -- see docs/FINDINGS.md)")
+    p.add_argument("--segment", type=int, default=0,
+                   help="model segment for MESH_SIG-style files (MATRIX-"
+                        "separator groups; default 0)")
+    p.add_argument("--clips", default="all",
+                   help="containers to export as animations: 'all' (default) "
+                        "or comma/range list like '0,346' / '0-9'")
+    p.add_argument("--fps", type=float, default=60.0,
+                   help="keyframe playback rate (default: 60 -- clips "
+                        "advance one frame per 60 Hz tick on the PS2)")
+    p.add_argument("--no-textures", action="store_true",
+                   help="skip texture resolution -- untextured primitives")
     p.add_argument("--search-root", default="extract",
-                   help="root for auto-pair search (default: extract)")
-    p.add_argument("--out", default="models/Extermination_Player.glb",
+                   help="root for cross-file texture resolution "
+                        "(default: extract)")
+    p.add_argument("--out", default="models/Extermination_Character.glb",
                    help="output .glb path")
-    p.add_argument("--fps", type=float, default=30.0,
-                   help="frames-per-second for animation time conversion "
-                        "(default: 30)")
     args = p.parse_args(argv)
 
     mesh_path = Path(args.mesh)
     if not mesh_path.is_file():
         print(f"error: mesh not found: {mesh_path}", file=sys.stderr)
         return 2
-
     if args.skel:
-        skel_path = Path(args.skel)
-    else:
-        d = mesh_path.read_bytes()
-        table = em._find_bone_section_table(d)
-        if table is None:
-            print(f"error: no bone section table in {mesh_path}", file=sys.stderr)
-            return 2
-        skel_path = _auto_pair_skel(mesh_path, len(table[1]), Path(args.search_root))
-        if not skel_path:
-            print("error: no compatible id 0x71 skeleton found", file=sys.stderr)
-            return 2
-        print(f"# auto-paired skeleton: {skel_path}")
+        print("# note: --skel is deprecated and ignored (animations now come "
+              "from id 0x74 containers; see --anim)")
+    anim_path = Path(args.anim) if args.anim else None
+    if anim_path is not None and not anim_path.is_file():
+        print(f"error: anim library not found: {anim_path}", file=sys.stderr)
+        return 2
 
-    info = build_glb_unified(mesh_path, skel_path, Path(args.out),
-                              fps=args.fps,
-                              search_root=Path(args.search_root))
+    info = build_character_glb(mesh_path, Path(args.out),
+                               anim_path=anim_path, segment=args.segment,
+                               fps=args.fps,
+                               search_root=Path(args.search_root),
+                               no_textures=args.no_textures,
+                               clips=args.clips)
     print(f"wrote {info['out_path']} ({info['size_bytes']} bytes)")
-    print(f"  bones      : {info['n_bones']}")
-    print(f"  meshes     : {info['n_meshes']}  (one rigid mesh per non-empty bone + 1 static textured)")
-    print(f"  triangles  : {info['n_triangles']}  (points-only fallback bones: {info['bones_as_points']})")
-    print(f"  animations : {info['n_animations']}")
-    print(f"  tracks     : {info['total_animation_tracks']}")
-    print(f"  samples    : {info['total_animation_samples']}")
-    st = info.get("static_textured") or {}
-    if st:
-        print(f"  blocks     : {st.get('blocks', 0)} (bound to bones: {st.get('bound', 0)})")
-        print(f"  textured   : {st.get('vertices',0)} verts / {st.get('triangles',0)} tris / "
-              f"{st.get('primitives',0)} prims")
-        for sh in st.get("sheets", []):
-            src = sh.get("source") or "MISSING"
-            sz = sh.get("size", [0,0])
-            n_strips = sh.get('n_strips', sh.get('n_strips_total', 0))
-            print(f"    sheet DBP={sh['dbp']:5d} ({n_strips:4d} strips)  "
-                  f"{sz[0]}x{sz[1]}  source={src}")
-        print(f"  images/textures/materials: {info['n_images']}/{info['n_textures']}/{info['n_materials']}")
-    print(f"  buffer     : {info['buffer_bytes']} bytes  |  json: {info['json_bytes']} bytes")
+    print(f"  joints     : {info['n_joints']}  (rig nodes: {info['n_nodes']},"
+          f" max vertex slot: {info['max_slot']})")
+    print(f"  vertices   : {info['n_vertices']}   triangles: "
+          f"{info['n_triangles']}   primitives: {info['n_primitives']}")
+    if info["anim_source"]:
+        print(f"  animations : {info['n_clips']}/{info['n_containers']} "
+              f"containers from {info['anim_source']}")
+        print(f"  channels   : {info['total_channels']}   keys: "
+              f"{info['total_keys']}")
+    else:
+        print("  animations : none (no id 0x74 source found -- rigid export, "
+              "bone-local parts overlap)")
+    print(f"  textures   : {info['sheets_resolved']}/{len(info['sheets'])} "
+          f"sheets resolved, {info['n_materials']} materials")
+    for sh in info["sheets"]:
+        src = sh.get("source") or "MISSING (gray placeholder)"
+        sz = sh.get("size")
+        szs = f"{sz[0]}x{sz[1]}" if sz else "-"
+        print(f"    DBP={sh['dbp']:6d} ({sh['n_tris']:5d} tris)  {szs:>9}  "
+              f"source={src}")
+    print(f"  buffer     : {info['buffer_bytes']} bytes  |  json: "
+          f"{info['json_bytes']} bytes")
     return 0
 
 

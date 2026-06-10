@@ -1,5 +1,86 @@
 # Extermination Decomp — Progress
 
+### CHARACTER TEXTURES SOLVED — colored, textured, ANIMATED character in the port (2026-06-09, session 5)
+
+The texture-color loop is CLOSED end-to-end. Full write-up: FINDINGS.md
+"CHARACTER TEXTURES SOLVED". Acceptance test passed: the native port
+renders the chunk28 character fully textured (face/skin/hair, urban-camo
+fatigues, shoulder insignia, boots) animated on clip 346
+(`extermination-port/build/capture_textured.bmp`, EM_CAPTURE frame 60).
+
+- **Decisive finding: vertex qword 0 (the "marker") IS the draw's full
+  TEX0 register value — TBP0+TBW+PSM+TW+TH+CBP baked into the DISC
+  file** (x2 CLD load/reuse variants). Mesh texture<->CLUT pairing is
+  disc-static; qword 1 is the vertex's normalized ST (REPEAT semantics,
+  observed up to ~21.8). Character textures are PSMT4 (psm 0x14,
+  16-entry CLUTs at per-texture CBPs) — why the PSMT8-only save-state
+  harvest never saw them.
+- **GS dump captured + parsed**: 1-frame PCSX2 dump of the office scene
+  (recorded via Tools > Save Single Frame GS Dump). `parse_gsdump.py`
+  rewritten into a full GIF-stream walker → per-draw TEX0 table (49,424
+  TEX0 writes, 171 unique pairings) + `--textures` colored-PNG emission
+  straight from the dump (its freeze blob has the same 425-base VRAM
+  layout as .p2s). Cross-validation: all 51 mesh-marker pairs of
+  f00_id3b appear in the dump's table (100%).
+- **PSMT4 machinery added**: `extract_textures.py` BLK4/COL4/
+  `psmt4_nibble`; `clut_pair.py` `read_psmt4`/`read_clut16_rgba`
+  (16-entry CSM1 CLUT = 8x2 PSMCT32 region, word order
+  [0,1,4,5,8,9,12,13,2,3,6,7,10,11,14,15]).
+- **EMDL v2** (`export_native.py`): per-vertex UV + texture id from the
+  records; `--gsdump frame.gs` embeds the resolved RGBA8 textures
+  (51 textures, 432 KB for the player). Port: EMD2 loader (em_model),
+  Metal `texture2d_array` with TILED pow-2 slices so sampler REPEAT
+  reproduces GS wrap, [[flat]] per-triangle slice + per-texture UV
+  scale, texture * directional light in the skinning shader.
+
+Still open (graphics polish, not blockers): vertex lighting from the
+kernel's light matrix instead of the port's stand-in directional light;
+alpha (exported, drawn opaque); the gun model (separate, attached to a
+hand node); glTF color textures via the same marker-TEX0 path
+(session 4d noted this upgrade path — the GS-dump pipeline is now
+landed, so export_gltf.py can adopt it).
+
+### export_gltf.py re-pointed at the corrected pipeline (2026-06-09, session 4d)
+
+Open item #3 is CLOSED. The void per-bone object-space decoders
+(`load_per_bone_meshes*`), the spatial-proximity block binding, and the
+id 0x71 character-animation path are deleted from `tools/export_gltf.py`;
+characters now export as a proper skinned glTF:
+
+- **Geometry**: stage-2 VIF strip blocks with the exact per-vertex node
+  binding (`(pos_W_bits & 0x3FF) >> 3`), block walking shared with
+  `export_native.load_mesh_sections`, plus per-record ST (TEXCOORD_0)
+  and marker m0 → texture-sheet grouping (grayscale CLUT, as before).
+- **Skinning**: one glTF `skin` with IDENTITY inverse-bind matrices —
+  disc vertices are bone-local, so `vertex_world = joint_world * pos`,
+  the same contract as the PS2 kernel and EMDL. JOINTS_0/WEIGHTS_0 =
+  single influence, weight 1.0; joint index == node slot.
+- **Animation**: one glTF animation per keyed container (sparse LINEAR
+  keys at 60 fps, conjugate-quat rotations, scale only when non-unit).
+  Rig pairing implements the session-4b rule (`n == max_slot + 1`, via
+  `rig_probe.scan_anim_headers`, all blob ids): chunk28/f00_id3b
+  auto-pairs the 455-clip f01_id3c library; f17_id8f segment 0 gets its
+  11 id-0x70 20-node clips and segment 1 its 30 id-0xd0 44-node creature
+  clips — the 21-node 0x74 cutscene track is correctly NOT selected.
+- **Parity proven against the EMDL exporter**: glTF joint worlds composed
+  from node TRS == `export_native.bake_id74_palettes` frame 0 to
+  0.000000 max element error; triangle counts identical (3170 chunk28,
+  2837/3994 f17 seg 0/1). pygltflib strict round-trip passes on all
+  outputs (pygltflib reinstalled into .venv; `verify_all --only gltf`
+  PASS, now reporting the 11 seg-0 clips).
+- CLI: `--anim/--segment/--clips/--fps(60)/--no-textures`; `--skel` is
+  accepted-and-ignored for backward compatibility (verify_all's
+  invocation unchanged). Level mode untouched.
+
+Still open here: EMDL (`export_native.py --anim`) still pairs by FIRST
+container only — the session-4b `--rig-nodes/--anim-hdr` selector idea
+remains the way to bake f17's id-0x70/id-0xd0 clips into EMDL. The glTF
+texture grouping still uses the legacy `sheet_field → DBP` affine +
+grayscale residency-map sheets; session 5's discovery that vertex
+qword 0 IS the draw's TEX0 register (see EMDL v2 in export_native.py)
+is the upgrade path to exact per-draw COLOR textures in glTF once the
+GS-dump pipeline lands.
+
 ### chunk21/f17_id8f rig RESOLVED: it's an encounter package (2026-06-09, session 4b)
 
 Open item #2 is CLOSED (parallel investigation; tool: `tools/rig_probe.py`
@@ -65,10 +146,10 @@ Headlines:
   frame 0. extract_models.py: `parse_id74_prefix()` now decodes real
   channel values; new `find_id74_headers()` enumerates whole files.
 
-Still open from this thread: export_gltf.py still carries the void
-per-bone decoders; map C scale is constant (1,1,1) in everything
-sampled so far (apply-anyway support is in the exporter); UVs/textures
-in EMDL.
+Still open from this thread: ~~export_gltf.py still carries the void
+per-bone decoders~~ (DONE — session 4d, see top entry); map C scale is
+constant (1,1,1) in everything sampled so far (apply-anyway support is
+in the exporter); UVs/textures in EMDL.
 
 ### Texture COLOR recovered from save states (2026-06-09, session 4c)
 
@@ -89,8 +170,8 @@ conclusion stands); new `verify_all.py` stage `gs-offset`
 regression-guards the base against clut_pair's independent
 palette-scored detection on a local save state (PASS: score 7>4 on
 state 01). Character textures need a PCSX2 GS dump (.gs) of a character
-scene (VU1-built TEX0s don't persist in a freeze) — that closes the
-loop for colored glTF/EMDL export.
+scene (VU1-built TEX0s don't persist in a freeze) — DONE in session 5
+(see top entry): the dump was recorded and the loop is closed for EMDL.
 
 ### Hand/forearm artifacts resolved: capture tearing, not IK (2026-06-09, session 3b)
 
@@ -181,8 +262,9 @@ FINDINGS.md "id 0x74 prefix is ANIMATION, not geometry".
 2. ~~Decode map A's A/B fields (qx/qz encoding) + map B translations →
    full mesh-embedded clip decode~~ DONE (session 4: the container is
    the id 0x71 record format; see top entry).
-3. Re-point export_gltf.py at the corrected pipeline (it still uses the
-   void per-bone decoders).
+3. ~~Re-point export_gltf.py at the corrected pipeline (it still uses the
+   void per-bone decoders)~~ DONE (session 4d: skinned/textured/animated
+   glTF with exact per-vertex node binding; see top entry).
 4. ~~After binding lands: bake palettes per frame and re-enable --clip
    in export_native~~ DONE (session 4: `--anim <lib> --clip N`; port
    side needed no changes).
