@@ -82,9 +82,19 @@ SCENES = {
         #   gate, vol 300; 0x179 = the armed-stance SQUARE attachment-0
         #   toggle-ON sound (func_0017A970 — the s29 "unidentified
         #   action", snd_0436).
+        # - FIRE-CHAIN TAIL (s29 live, FINDINGS "GAMEPLAY SOUND IDS
+        #   PINNED LIVE"): wall impact/ricochet 0x189 ~2 frames after
+        #   the shot (snd_0421) + shell casing 0x16A ~0.7 s after each
+        #   shot (2-event, snd_0347). SURFACE-VARIANT FLAG: the
+        #   soundmap's 0x188/0x18A/0x18B neighbors (snd_0423/0422/0420,
+        #   consecutive tones of the same program) look like the
+        #   per-surface impact family, but no surface->id mapping is
+        #   pinned in FINDINGS — only the observed 0x189 ships; the
+        #   port plays it for every wall (em_sfx.h flag).
         "ids": [0x162, 0x163, 0x164, 0x165, 0x168, 0x169, 0x7D8,
                 0x015, 0x016, 0x01A, 0x01B, 0x139, 0x13A,
-                0x17D, 0x17E, 0x17F, 0x179],
+                0x17D, 0x17E, 0x17F, 0x179,
+                0x189, 0x16A],
     },
 }
 
