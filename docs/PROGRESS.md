@@ -1,5 +1,35 @@
 # Extermination Decomp — Progress
 
+> 2026-06-10 (session 32): OFFICE0 DOORS ARTICULATED — the s30 open
+> items are closed and both scene_office0 doors animate. (1) The
+> slot-0x39 bank (chunk27/f02_id39.bin) is fully inventoried: ids 4-7 =
+> ±0.9-u two-state z-flip toggles (far too small for doors — mechanism
+> latches, wall-station candidates), 8 = the 360° dial, 9/10/11 =
+> 100-120° crank/lever rotations, 12 = a 90-f arm/claw swing-and-return,
+> 13/14/15 = the s20 "together/apart" pure-translation pair (~9 u). NONE
+> of 4-15 is script-referenced (full .data op-0x0B scan = the m03 trio
+> only). (2) The s30 "node→slot mapping" question dissolves: the MODEL
+> RECORD carries the rig (bone_init_default_1 reads rec+0xC: s16 parent
+> +0x4 → bone+0x64, 4x4 rest local +0x10) — clip channels bind 1:1 by
+> index, unkeyed bones hold their model-rec rest. So the s28 "rest needs
+> live capture" flag was wrong: door_m15 = 2 nodes [-1,0], node-1 rest
+> (-7.706,9.023,-0.250) — matches bank clips 0-3 frame 0 within 0.03 u
+> (closed-pose verification PASS; same brain fn 0x001BC350 as m03 →
+> same clip table [0,2,1,3]). door_m17 (fn 0x001BB860) binds NO
+> container: its scripts (D_0024D900 open / D_0024DA40 locked = camera
+> + VO only, no jiggle) pump NATIVE func_001BB400 — panels (3-node rig
+> [-1,0,0], rests ∓5) slide ∓0.2 u/frame along door-local X to ∓14
+> (flags2 0x83 twin branch, 9.0-u stop; 0x3D/0x3E → 13.0, 0x08/0x16 →
+> single leaf), 45 ticks, clearing the 20-u doorway. New
+> export_props.py --doors-office0 ships both as EMD3 (m15: 700 fr, 4
+> bank clips; m17: 46-fr clip SYNTHESIZED from the native constants —
+> flagged); readback + capture verified (m15 mid-swing ~85° @f100, m17
+> half-parted @f28/fully @f75, door sfx fired), default capture
+> byte-identical, EM_DOOR_TEST + test-input PASS. FINDINGS: "OFFICE0
+> DOORS ARTICULATED". Open: consumers of bank ids 4-15; east-door
+> family-6 sfx pair (BSS, needs live); the variant lifecycle
+> (func_001BB560/op01-sub8) vs the port's m03 state machine.
+
 > 2026-06-10 (session 31): AUTHENTIC LOCOMOTION IDS — stick walk/run
 > anim ids decoded statically and committed to the port. Chain:
 > func_001B5CC0 quantizes stick deflection (rings r=48/88/122) to gait
@@ -4280,3 +4310,33 @@ full detail):
   decoded kind/link (all link 0 → zero enemy-count impact).
 - Open: func_001546C0 (kind-0xE pair brain), D_00275BB0 list identity,
   func_00187EC0 event semantics, per-area visual variant cases.
+
+### Update — 2026-06-10 s32: OFFICE0 DOORS ARTICULATED — bank ids 4-15 classified, model-rec rigs, native slide
+
+- **FINDINGS "OFFICE0 DOORS ARTICULATED"**: the slot-0x39 bank's 16-entry
+  directory fully motion-classified (ids 4-7 = ±0.9-u two-state z-flip
+  mechanism toggles, NOT doors; 8 = 360° dial; 9-11 = crank/lever
+  rotations; 12-15 = arm/claw + together/apart servo set). No main-ELF
+  script references any of 4-15 (op-0x0B census = the m03 trio).
+- **Model record carries the rig** (closes the s30 node→slot question):
+  bone_init_default_1 reads rec+0xC → per-node {s16 parent; 4x4 rest
+  local}; bone+0x64 = parent in func_001C9940's compose walk; clip
+  channels bind 1:1 by index, unkeyed bones hold rest. The s28 "rest
+  offsets need live capture" flag retired — the closed pose is static.
+- **door_m15** (fn 0x001BC350 = the m03 brain): 2-node rig matches bank
+  clips 0/2/1/3 (frame-0 node-1 vs model-rec rest within 0.03 u). Ships
+  the m03-style EMD3 (700 fr, open-first [0,2,1,3]).
+- **door_m17** (fn 0x001BB860): binds NO clip container — scripts
+  D_0024D900/D_0024DA40 pump NATIVE func_001BB400: twin panels slide
+  ∓0.2 u/frame along door-local X to ∓9.0 (flags2 0x83; 13.0 for
+  0x3D/0x3E, single-leaf for 0x08/0x16), 45 ticks. Ships ONE 46-frame
+  clip synthesized from those constants (flagged synthetic). The locked
+  script is camera + VO only — sliding doors have no jiggle.
+- **Port**: export_props.py --doors-office0 (new mode) rewrote both
+  scene_office0 door EMDLs; readback verified; EM_SCENE captures show
+  m15 mid-swing (~85° @f100) and m17 half/fully parted (@f28/@f75) with
+  door sfx firing; default capture byte-identical across runs;
+  EM_DOOR_TEST=1 (m03) PASS; make test-input PASS.
+- Open: bank ids 4-15 consumers (wall station 0x001C1A80 candidate);
+  east-door family-6 sfx pair (D_0024DB80 BSS — live read); the variant
+  door lifecycle vs the port's m03 state machine (flagged deviation).

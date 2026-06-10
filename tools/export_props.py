@@ -116,6 +116,31 @@ ship as a SEPARATE articulated EMDL instead:
     machinery (imported, not copied) with the RGN_DOOR replays dropped,
     so the static bake no longer contains the doors.
 
+DOORS-OFFICE0 (--doors-office0, 2026-06-10 s32). The scene_office0 doors
+(AREA02 sub-state 0: door_m15 west / door_m17 east, carved pose-only by
+export_level --office0-doors in s28) re-exported as ARTICULATED EMD3s.
+Two discoveries unlock this (FINDINGS "OFFICE0 DOORS ARTICULATED"):
+
+  * the MODEL RECORD carries the rig: bone_init_default_1 reads rec+0xC ->
+    a 0x50-byte/node table {s16 parent at +0x4; 4x4 rest local at +0x10}.
+    So the s28 "rest offsets are runtime state, needs live capture" flag
+    was wrong — the closed pose is static data. m15 = 2 nodes [-1,0],
+    node-1 rest (-7.706, 9.023, -0.250); m17 = 3 nodes [-1,0,0], panel
+    rests (-+5, 0, 0). Mesh verts are node-local ((wbits&0x3FF)>>3 slot),
+    same as every skinned blob.
+  * the two door behaviors animate DIFFERENTLY. fn 0x001BC350 (m15 — the
+    same brain as the m03 office doors) plays slot-0x39 bank directory
+    ids [0,2,1,3]; the bank clips' frame-0 node-1 translation matches the
+    m15 model-rec rest within 0.03 u, the closed-pose verification.
+    fn 0x001BB860 (m17) binds NO clip container: its scripts
+    (D_0024D900 open / D_0024DA40 locked) drive op-0x09 NATIVE motion
+    func_001BB400 — bone[1] +0x7C -= 0.2 and bone[2] +0x7C += 0.2 per
+    frame (local X) until bone[1] passes -9.0 (-13.0 for flags2
+    0x3D/0x3E; flags2 0x08/0x16 = single-leaf branch, bone[0] only).
+    The m17 EMDL therefore ships ONE SYNTHESIZED 46-frame clip baked
+    from those constants: each 10x21 panel parts 9.0 u along door-local
+    X (rest -+5 -> -+14), clearing the 20-u doorway in 45 ticks.
+
 GIBS (--gibs, 2026-06-10 s24). The crawler's burst death REBINDS the actor's
 model to library entry 0x22 or 0x29 (FINDINGS "CRAWLER RESOLVED": D_0028A56C
 is THIS library; func_001C6120 + func_001CA6E0 swap actor+0x44). Surveying the
@@ -181,6 +206,10 @@ Usage (macOS arm64, decomp repo root):
       --level extract/chunk06.n1/f03_id43.bin \
       --gsdump extract/gsdump/frame1.gs \
       --outdir ../extermination-port/assets/scene
+  # scene_office0 doors as articulated EMD3s (clips included):
+  .venv/bin/python tools/export_props.py \
+      --doors-office0 extract/chunk06.n0 \
+      --outdir ../extermination-port/assets/scene_office0
   # crawler burst-death gib set (one EMDL per library entry):
   .venv/bin/python tools/export_props.py --gibs \
       --gsdump extract/gsdump/frame1.gs \
@@ -513,17 +542,18 @@ def door_local_slots():
     return [lvl.mat34_mul(l0inv, lk) for lk in lvl.BLOB_A05C0]
 
 
-def find_door_clip(locals34, tol=1.0):
+def find_door_clip(want, tol=1.0):
     """Resolve the door clips the way the engine does (s29): clip ids
     index the bank file's OWN leading u32 directory (anim_clip_resolve =
     func_001C6120: u32 count, count u32 byte offsets, low 2 bits flags) —
     container headers there carry blob id 0x28, which the historic
     find_id74_headers scan skips (the s20 miss). Bakes every engine door
-    clip id and verifies it against the captured closed pose: a 2-node
-    rig whose FRAME-0 slot-1 translation matches the door's closed slot-1
-    local offset. Returns (path, [(clip_id, parents, frames, fps), ...]
-    in DOOR_CLIP_IDS order) or None (-> the port's flagged placeholder)."""
-    want = [row[3] for row in locals34[1]]      # slot-1 closed local t
+    clip id and verifies it against the door's closed pose: a 2-node
+    rig whose FRAME-0 slot-1 translation matches `want` (the closed
+    slot-1 local offset — live-captured for m03, the model record's
+    authored rest for m15). Returns (path, [(clip_id, parents, frames,
+    fps), ...] in DOOR_CLIP_IDS order) or None (-> the port's flagged
+    placeholder)."""
     for bank in DOOR_CLIP_BANKS:
         p = Path(bank)
         if not p.exists():
@@ -708,7 +738,7 @@ def export_doors(args):
 
     # Open/close clips, engine-resolved (s29: D_0028A490[0x39] directory
     # ids 0-3); None -> the port plays its flagged placeholder.
-    clip = find_door_clip(locals34)
+    clip = find_door_clip([row[3] for row in locals34[1]])
     if clip is None:
         print("door clip: NOT FOUND in the decodable anim banks — EMDL "
               "carries the closed pose only; the port's em_door.c plays "
@@ -752,6 +782,219 @@ def export_doors(args):
 
     rebuild_level_without_doors(args, level_path,
                                 scene_dir / "00_level.emdl")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Mode 3b: --doors-office0 — the scene_office0 doors as articulated EMD3s
+# (see "DOORS-OFFICE0" in the module docstring).
+
+FN_DOOR_SWING = 0x001BC350    # m03/m15 brain: slot-0x39 bank ids 0/2/1/3
+FN_DOOR_SLIDE = 0x001BB860    # m17 brain: NATIVE slide (func_001BB400)
+
+SLIDE_RATE = 0.2              # u/frame (func_001BB400's 0x3E4CCCCD)
+
+
+def slide_distance(flags2: int) -> float:
+    """func_001BB400's stop threshold by placement flags2 (actor+0x2E ->
+    +0x34; the script block's +0x3 selector)."""
+    return 13.0 if flags2 in (0x3D, 0x3E) else 9.0
+
+
+def model_rec_nodes(d: bytes, rec_off: int):
+    """The model record's OWN rig — bone_init_default_1's exact read:
+    n_nodes = u32 at rec+8; node table at rec + *(rec+0xC), 0x50-byte
+    entries {s16 parent at +0x4; 4x4 rest local (row-vector layout,
+    translation in row 3) at +0x10}. Returns (parents, rests) with rests
+    as 4 row-tuples each."""
+    n = struct.unpack_from("<I", d, rec_off + 8)[0]
+    tbl = rec_off + struct.unpack_from("<I", d, rec_off + 0xC)[0]
+    parents, rests = [], []
+    for i in range(n):
+        e = tbl + 0x50 * i
+        parents.append(struct.unpack_from("<h", d, e + 4)[0])
+        rests.append(tuple(struct.unpack_from("<4f", d, e + 0x10 + 16 * r)
+                           for r in range(4)))
+    return parents, rests
+
+
+def model_tris_slots(d: bytes, off: int):
+    """model_tris with the per-vertex node slot kept: yields
+    (tex0_qword, [3 x (pos, attr, uv, slot)], parity)."""
+    for recs in model_records(d, off):
+        run = []
+        for q, uv, attr, pos, wbits in recs:
+            run.append((pos, attr, uv, (wbits & 0x3FF) >> 3))
+            if len(run) > 3:
+                run.pop(0)
+            if (wbits & 0x8000) == 0 and len(run) == 3:
+                if run[0][0] != run[1][0] and run[1][0] != run[2][0] \
+                        and run[0][0] != run[2][0]:
+                    yield q, list(run), (wbits >> 14) & 1
+
+
+def build_office0_door_mesh(d: bytes, rec_off: int):
+    """One model-table door blob -> a node-local EMDL section with the
+    per-vertex bone = the record's slot bits (the EMD3 palette supplies
+    the rest/anim node offsets). Colors use the stand-in light with no
+    placement rotation (door rest rotations are identity)."""
+    raw_pos, raw_col, raw_bone, raw_uv, raw_tex = [], [], [], [], []
+    tris = []
+    weld = {}
+    tex_table: list[dict] = []
+    tex_of = make_tex_of(tex_table, {})
+
+    def vid_of(p, c, b, uv, t):
+        key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
+               round(c[0], 3), round(c[1], 3), round(c[2], 3), b,
+               round(uv[0], 5), round(uv[1], 5), t)
+        i = weld.get(key)
+        if i is None:
+            i = len(raw_pos)
+            weld[key] = i
+            raw_pos.append(tuple(p))
+            raw_col.append(c)
+            raw_bone.append(b)
+            raw_uv.append(uv)
+            raw_tex.append(t)
+        return i
+
+    for q, corners, parity in model_tris_slots(d, rec_off):
+        t = tex_of(q)
+        ids = [vid_of(p, attr_color(a, None), s, uv, t)
+               for p, a, uv, s in corners]
+        a, b, c = ids
+        if parity:
+            tris.extend((c, b, a))
+        else:
+            tris.extend((c, a, b))
+    return [(raw_pos, raw_col, tris, raw_bone, raw_uv, raw_tex)], tex_table
+
+
+def _trn_mat(t):
+    return ((1.0, 0.0, 0.0, 0.0), (0.0, 1.0, 0.0, 0.0),
+            (0.0, 0.0, 1.0, 0.0), (t[0], t[1], t[2], 1.0))
+
+
+def bake_native_slide(parents, rests, flags2: int):
+    """func_001BB400's native door motion as a baked palette clip: per
+    frame, the twin branch moves bone[1] local X by -SLIDE_RATE and
+    bone[2] by +SLIDE_RATE (the single-leaf branch, flags2 0x08/0x16,
+    moves bone[0] -X only) until the lead bone passes slide_distance().
+    Frame 0 = the model-rec rest (closed); the last frame = fully open.
+    Door rest rotations are identity (asserted), so locals are pure
+    translations; worlds still compose through the parents."""
+    for r in rests:
+        for i in range(3):
+            for j in range(3):
+                want = 1.0 if i == j else 0.0
+                if abs(r[i][j] - want) > 1e-4:
+                    raise SystemExit("door rest rotation not identity — "
+                                     "bake_native_slide needs extending")
+    dist = slide_distance(flags2)
+    single = flags2 in (0x08, 0x16)
+    nfr = int(round(dist / SLIDE_RATE)) + 1          # 0..45 (9.0/0.2)
+    frames = []
+    for f in range(nfr):
+        t = min(SLIDE_RATE * f, dist)
+        world = []
+        for b in range(len(parents)):
+            lx, ly, lz = rests[b][3][0], rests[b][3][1], rests[b][3][2]
+            if single:
+                if b == 0:
+                    lx -= t
+            elif b == 1:
+                lx -= t
+            elif b == 2:
+                lx += t
+            local = _trn_mat((lx, ly, lz))
+            p = parents[b]
+            world.append(local if p < 0 else en.mat_mul(world[p], local))
+        frames.append(world)
+    return frames
+
+
+def export_doors_office0(args):
+    dirp = Path(args.doors_office0)
+    scene_dir = Path(args.outdir)
+    d, cnt, entries = lvl._office0_placements(dirp)
+    doors = [e for e in entries if e.behavior in lvl.FN_DOORS]
+    if not doors:
+        raise SystemExit("no door records in the sub-state-0 table")
+    (scene_dir / "doors").mkdir(parents=True, exist_ok=True)
+    ups = [p for p in (dirp / "f02_id44.bin",
+                       dirp.parent / "chunk27" / "f00_id35.bin")
+           if p.exists()]
+
+    lines = []
+    for e in doors:
+        rec_off = table_entry_offset(d, lvl.OFFICE0_TABLE_OFF, e.param)
+        parents, rests = model_rec_nodes(d, rec_off)
+        sections, tex_table = build_office0_door_mesh(d, rec_off)
+        pos = sections[0][0]
+        name = f"doors/door_m{e.model:02x}.emdl"
+        print(f"door [{e.index}] model {e.model:#04x} param {e.param:#04x} "
+              f"fn {e.behavior:#x} flags2 {e.flags2:#04x}: {len(pos)} verts, "
+              f"{len(sections[0][2]) // 3} tris, rig {parents}")
+
+        if e.behavior == FN_DOOR_SWING:
+            # Same brain as the m03 office doors -> the same slot-0x39
+            # bank directory ids; closed-pose check against the model
+            # record's authored node-1 rest.
+            clip = find_door_clip(rests[1][3][:3])
+            if clip is None:
+                raise SystemExit(f"door m{e.model:02x}: bank clips did not "
+                                 "verify against the model-rec rest")
+            bank, baked = clip
+            if list(baked[0][1]) != list(parents):
+                raise SystemExit(f"door m{e.model:02x}: bank rig "
+                                 f"{baked[0][1]} != model rig {parents}")
+            frames, clips = [], []
+            role = {0: "open back", 2: "open front",
+                    1: "locked back", 3: "locked front"}
+            for cid, _par, frs, f in baked:
+                clips.append({"id": cid, "first": len(frames),
+                              "count": len(frs), "fps": f})
+                frames.extend(frs)
+                print(f"  clip {cid} ({role.get(cid, '?')}): {bank} "
+                      f"directory id {cid} — {len(frs)} frames")
+            fps = baked[0][3]
+        elif e.behavior == FN_DOOR_SLIDE:
+            frames = bake_native_slide(parents, rests, e.flags2)
+            clips = [{"id": 0, "first": 0, "count": len(frames),
+                      "fps": 60.0}]
+            fps = 60.0
+            t1 = frames[-1][1][3]
+            print(f"  clip 0 (native slide, synthesized): {len(frames)} "
+                  f"frames @ 60, {slide_distance(e.flags2):g} u per panel; "
+                  f"end node-1 t = ({t1[0]:.2f}, {t1[1]:.2f}, {t1[2]:.2f})")
+        else:
+            raise SystemExit(f"unknown door behavior {e.behavior:#x}")
+
+        tex_entries, tex_blob = lvl.build_texture_blob(None, tex_table,
+                                                       None, ups)
+        out = scene_dir / name
+        en.write_emdl(out, sections, [], parents, frames, fps,
+                      tex_entries, tex_blob, flags=1, clips=clips)
+
+        # Closed-pose verification: palette frame 0 must equal the model
+        # record's rest worlds (what bone_init_default_1 poses at INIT).
+        for b in range(len(parents)):
+            rest_world = rests[b][3][:3]
+            p = parents[b]
+            if p >= 0:
+                rest_world = tuple(rests[p][3][k] + rests[b][3][k]
+                                   for k in range(3))
+            got = frames[0][b][3][:3]
+            err = max(abs(got[k] - rest_world[k]) for k in range(3))
+            if err > 0.05:
+                print(f"  ! frame-0 node {b} off rest by {err:.3f} u "
+                      f"(got {got}, rest {rest_world})")
+        lines.append(f"door {name} {e.pos[0]:.6g} {e.pos[1]:.6g} "
+                     f"{e.pos[2]:.6g} {e.rot[1]:.6g} "
+                     f"{DOOR_TRIGGER_RADIUS:g}")
+
+    update_doors_manifest(scene_dir, lines)
     return 0
 
 
@@ -947,6 +1190,12 @@ def main(argv):
                     "articulated EMDLs into <outdir>/doors/, write the "
                     "manifest doors section, and rebake 00_level.emdl "
                     "without the static door geometry")
+    ap.add_argument("--doors-office0", metavar="DIR",
+                    help="export the scene_office0 doors (AREA02 sub-state-0"
+                    " leaf dir, e.g. extract/chunk06.n0) as articulated "
+                    "EMD3s into <outdir>/doors/ — m15 with the slot-0x39 "
+                    "bank clips [0,2,1,3], m17 with the synthesized "
+                    "func_001BB400 native slide")
     ap.add_argument("--level", default="extract/chunk06.n1/f03_id43.bin",
                     help="(--doors) level render-mesh file")
     ap.add_argument("--overlay", default="extract/OVERLAY/AREA02.BIN",
@@ -968,12 +1217,14 @@ def main(argv):
 
     if args.gibs:
         return export_gibs(args)
-    if not args.out and not args.doors:
-        ap.error("--out is required (except with --doors)")
+    if not args.out and not args.doors and not args.doors_office0:
+        ap.error("--out is required (except with --doors/--doors-office0)")
     if args.crate:
         return export_crate(args)
     if args.doors:
         return export_doors(args)
+    if args.doors_office0:
+        return export_doors_office0(args)
 
     if args.attach:
         sections, max_slot, tex_table = build_attached_player(args)

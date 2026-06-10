@@ -8467,12 +8467,18 @@ pose, the lock-fixture motion, and the locked rattle now being
 available.
 
 Open (door clips):
-- scene_office0's door_m15/door_m17 (s28) still ship pose-only EMDLs;
+- ~~scene_office0's door_m15/door_m17 (s28) still ship pose-only EMDLs;
   model-0x15 (13-slot corridor door) plays the same script clip ids
   through the same slot-0x39 2-node containers — how a 2-node clip
   drives a 13-slot palette needs the func_001C68C0 node->slot mapping
-  read before exporting those.
-- directory ids 4-7 (z-slide pair) and 9-15 unidentified.
+  read before exporting those.~~ CLOSED s32 ("OFFICE0 DOORS
+  ARTICULATED"): the model RECORD carries the rig (parent + rest local
+  per node); bones map 1:1 to clip nodes and unkeyed bones hold their
+  model-rec rest. The office0 m15 blob is itself 2-node — both office0
+  doors now ship articulated EMD3s.
+- ~~directory ids 4-7 (z-slide pair) and 9-15 unidentified.~~ s32: all
+  16 ids motion-classified (inventory table in "OFFICE0 DOORS
+  ARTICULATED" §1); behavioral consumers of ids 4-15 still open.
 
 ## GENERATOR — func_0015A2C0 RESOLVED (2026-06-10, session 28)
 
@@ -8732,3 +8738,148 @@ id-1 walk reads as a longer, scissored stride with trailing push-off
 vs the old jog-like clip-2 frame); move test PASS with 8 footstep-layer
 plays (4 steps — was 6/3: the 120-frame cycle at the port's 15 u/s
 stride lock steps every ~24 frames); all other self-tests PASS.
+
+## OFFICE0 DOORS ARTICULATED — bank ids 4-15 classified, model-rec rigs, native slide decoded (2026-06-10, session 32)
+
+Closes the s30 open items: the slot-0x39 bank's remaining directory ids
+are motion-classified, the office0 door rigs are pinned, and BOTH
+scene_office0 doors now ship articulated EMD3s. Static only (.s files +
+rebuilt-ELF .data + extract/); no emulator.
+
+### 1. chunk27/f02_id39.bin — full 16-entry directory inventory
+
+Every container baked via `bake_id74_palettes(anim_hdr=dir[i]&~3)`;
+motion = world-palette deltas from frame 0 (max |dT| per axis, rotation
+angle vs frame-0 basis):
+
+| id | rig (parents) | frames | motion |
+|----|---------------|--------|--------|
+| 0  | 2 [-1,0] | 150 | DOOR open-back: whole-rig -87.5° Y swing about origin, ease-out (s30) |
+| 1  | 2 [-1,0] | 200 | DOOR locked-back: node-1 fixture rattle, 24.0° peak @f64, settles (s30) |
+| 2  | 2 [-1,0] | 150 | DOOR open-front: -88.2° swing, sharper ease (s30) |
+| 3  | 2 [-1,0] | 200 | DOOR locked-front: 15.8° peak @f68 (s30) |
+| 4  | 2 [-1,0] | 200 | two-state z-flip: node 1 t0 z=-0.9 → +0.9 (dT +1.8), zero rotation |
+| 5  | 2 [-1,0] | 200 | mirror of 4: z=+0.9 → -0.9 |
+| 6  | 2 [-1,0] | 200 | same as 4 (second variant, z -0.9 → +0.9) |
+| 7  | 2 [-1,0] | 200 | as 5 but settles -0.78 (z +0.9 → -0.78) |
+| 8  | 1 [-1]   | 360 | full 360° Y rotation with wobble t (max dT (3.1,-7.9,11.6)) — s20's "dial/beacon" |
+| 9  | 3 [-1,0,1] | 360 | node 2 only (rest (-5.1,0.2,0)): slow steady +100° over the whole clip — crank/valve |
+| 10 | 2 [-1,0] | 300 | node 1 (rest at origin): +120° by f240, holds — lever/wheel A |
+| 11 | 2 [-1,0] | 300 | node 1: +120.4° spread over all 300 f — lever/wheel B (re-timed pair of 10) |
+| 12 | 3 [-1,0,1] | 90 | nodes 1+2 (rest y 12.3): 69.7° swing out @f36 AND node-1 y +9.7 lift, returns rot to 0 — arm/claw cycle |
+| 13 | 3 [-1,0,1] | 40 | PURE TRANSLATION together: node-1 world y 22→12.6, node-2 y 10→12.6 (s20's "together/apart") |
+| 14 | 3 [-1,0,1] | 30 | apart: node-1 y 10.8→20, node-2 y 10.8→10 (the 13-pair's return) |
+| 15 | 3 [-1,0,1] | 30 | as 14 with overshoot wobble (12.6°/18.4° transient) |
+
+Ids 4-7's ±0.9-u z-flip is far too small for any door panel — they are
+two-state MECHANISM toggles (candidates: wall-station latch/button —
+the wall-station brain func_001C1A80 comes up the same generic
+func_001B0F60 bind and so holds this same container). Ids 9-15 =
+servo/lever/arm motions, NOT door parts. NONE of 4-15 is referenced by
+any main-ELF script: a full .data scan for 0x40-stride op-0x0B records
+finds exactly the s23 m03 trio (0x24DC40 sub-6 id 1, 0x24DD00 sub-0
+id 1, 0x24DE00 sub-1) — consumers of 4-15 are direct anim_clip_init
+callers or overlay-local scripts (open).
+
+### 2. The MODEL RECORD carries the rig — the s30 node->slot question answered
+
+`bone_init_default_1` (called from both door INIT paths) reads the
+actor's model record (+0x44, the per-area-table entry): node table at
+`rec + *(rec+0xC)`, n_nodes = u32 at rec+8, 0x50-byte entries:
+
+    +0x04  s16  parent index  -> bone+0x64
+    +0x10  4x4  rest local (row-vector layout, translation in row 3)
+                -> the bone's local matrix qwords
+
+`func_001C9940` (the evaluator behind func_001C68C0) then composes
+`world[b] = world[bone[b]+0x64] * local[b]` — bone+0x64 is the PARENT,
+not a clip-channel remap. So clip channels bind to bones 1:1 BY INDEX;
+a clip with fewer nodes than the rig leaves the extra bones at their
+model-record rest (they still follow their parents). The s28 flag
+"rest offsets are runtime state, needs live capture" was WRONG — the
+closed pose is static data in the model record:
+
+- param 0x16 (door_m15, west): 2 nodes [-1,0]; node-1 rest
+  (-7.706, 9.023, -0.250). Mesh verts node-local, slots {0,1}
+  (leaf X[-9,0]xY[0,21] hinged at origin + handle ~1.9x0.4x1.3).
+- param 0x19 (door_m17, east): 3 nodes [-1,0,0]; panel rests (∓5,0,0).
+  Slots {1,2} carry mesh (node 0 = motion root, no geometry); each
+  panel 10x21 centered on its node → together they cover the 20-u
+  doorway X[-10,10].
+
+### 3. door_m15 = the m03 brain → bank ids 0/2/1/3 verified
+
+The west door's behavior fn 0x001BC350 IS the m03 office-door brain
+(INIT func_001BBDA0 → func_001B0F60 → +0x40 = slot-0x39 bank; scripts
+D_0024DE40/D_0024DEC0; clip ids [2|0]/[3|1]). Closed-pose
+verification, the s30 method with the model-rec rest standing in for
+the live capture: bank clips 0-3 frame-0 node-1 translation
+(-7.69/-7.72, 9.00, -0.25) matches the param-0x16 rest within 0.03 u,
+rigs match exactly (2 nodes, [-1,0]). The m15 EMDL ships the same
+open-first table [0, 2, 1, 3] as door_m03 (700 palette frames @60).
+
+### 4. door_m17 = fn 0x001BB860: NO clip — native slide func_001BB400
+
+The east-door variant brain binds NO clip container: its INIT
+(func_001BB520 → func_001B0FD0) does model bind + bone_init_default_1
+only (never touches +0x40). Its scripts (rebuilt-ELF .data, record
+layout {u32 op|flags, u32 arg, u32 sub, f32 rate @+0xC, id @+0x14,
+snd @+0x18, slot @+0x1C, f32 wait @+0x20}):
+
+```
+D_0024D900 (OPEN, queued via func_001BA1A0 from the trigger sub):
+ @24D900 op07 sub0          enter scripted mode (rate field 120)
+ @24D940 op0D sub5          chase-camera cue
+ @24D980 op17 sub0          positional door sound (id patched into
+                            rec+0x18 by func_001BBD60(self,D_0024D980))
+ @24D9C0 op09 → func_001BB400   NATIVE SLIDE (pumped until done)
+ @24DA00 op01 sub8 STOP     player walk-through/handoff (rate 35, id 2)
+
+D_0024DA40 (LOCKED TRY): op07 sub2 (fade enter) → op09 func_001BB310
+ (locked-look camera) → op02 wait 40 → op09 func_001BBAE0 (the SAME
+ locked-door VO native as m03) → op07 sub4 STOP. No motion at all —
+ sliding doors have NO locked-jiggle clip.
+```
+
+`func_001BB400` (the motion, keyed on the block's +0x3 = placement
+flags2): twin branch (default) moves bone[1] +0x7C -= 0.2 and
+bone[2] +0x7C += 0.2 per pump (bone+0x7C/0x80/0x84 = the keyed local
+translation x/y/z per func_001C9940) until bone[1] passes -9.0;
+flags2 0x3D/0x3E use -13.0; flags2 0x08/0x16 = single-leaf branch
+(bone[0] only, -9.0). D_00275B40 = the pumped door's bone array. The
+office0 east door's flags2 = 0x83 → twin, 9.0 u: each panel parts
+9.0 u along door-local X (rest ∓5 → ∓14) at 0.2 u/frame = 45 ticks
+(0.75 s), clearing the doorway exactly. The port EMDL bakes those
+constants as ONE SYNTHESIZED 46-frame clip (id 0; frame 0 = rest =
+closed) — flagged synthetic-from-constants, not disc keyframes.
+
+### 5. Export + port verification (tools/export_props.py --doors-office0)
+
+New mode writes both EMDLs into the scene (mesh node-local with
+per-vertex slot bones, model-rec parents, GS-upload replay texels —
+3/3 + 2/2 resolved, 0 fallbacks) and refreshes the manifest door lines
+(byte-identical values to s28's). Verified:
+
+- readback: m15 4-clip table [0,2,1,3], frame-0 node-1 t (-7.689, 9.0,
+  -0.252), open ends ±87.5/88.2°, locked clips return to rest;
+  m17 1 clip, panels ∓5 → ∓14, max per-frame step 0.2 u.
+- captures (EM_SCENE shadow with spawn inside the 2-u auto-open ring):
+  m15 frame-5 closed leaf / frame-100 leaf mid-swing ~85° (doorway
+  open, corridor visible); m17 frame-5 closed cross-braced pair /
+  frame-28 panels half-parted / frame-75 fully parted into the jambs.
+  Door sfx fired on both (front 0x3FD west / back 0x3FE east-path).
+- default scene: EM_CAPTURE byte-identical across runs (office assets
+  untouched); EM_DOOR_TEST=1 (m03 doors) PASS; make test-input PASS.
+
+Open (office0 doors):
+- behavioral consumers of bank ids 4-15 (wall station func_001C1A80 is
+  the prime candidate for 4-7/12-15 — its op/anim path unread).
+- the east door's family-6 sound pair (D_0024DB80 is BSS — needs live;
+  the port still plays the family-2 office pair from scene.txt).
+- the port's em_door.c drives m17 through the m03 state machine
+  (walk-through + fade transit); the engine's variant brain
+  (func_001BB860 trigger sub func_001BB560, op01-sub8 handoff) differs
+  in sequencing — acceptable until the variant lifecycle is read.
+- m17 close: the engine re-closes via area re-entry/state, not a
+  reverse script — the port runs the clip backwards (em_door CLOSING),
+  which matches the native motion reversed.
