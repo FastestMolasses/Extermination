@@ -1,5 +1,22 @@
 # Extermination Decomp — Progress
 
+> 2026-06-10 (session 22b): ENEMY AI ARCHITECTURE mapped (static) — all 19
+> overlays' placement tables censused (1011 records, 164 distinct behavior
+> fns: 39 main-ELF / 125 overlay-local; ~20 creature behaviors, 5 cover >90%
+> of spawns). Characterized: generator func_0015A2C0 (class 0x0D, 129
+> placements) → func_0015A200 installs leech brains func_00153F10/001546C0;
+> placed crawler func_001551B0 (95) full state machine (idle nest → group
+> alarm via actor+0x0A broadcast → 4-dir probe steering → suicide burst that
+> spawns nest children); destructible fixture func_00156620 (115). Damage
+> system: HP = actor+0x34, incoming-damage mailbox +0x36 (amount | weapon-type
+> bits 0x2000/0x4000), hit-source pos +0x70; producers = weapon cluster
+> (func_001735C0 melee, func_001B41F0 hitscan) + per-frame pair passes
+> func_001A9000/func_001A9480 over lists D_00275B80 (targets, func_001B1D20)
+> × D_00275BA0 (hazards, func_001B1DA0) from the gameplay frame; consumers =
+> each behavior's own tick (func_00153B50 = canonical HP-=dmg hurt/death
+> helper). Full writeup: FINDINGS "ENEMY AI ARCHITECTURE". No new matches
+> attempted (docs-only session).
+
 > 2026-06-10 (session 22): WEAPON SYSTEM characterized end-to-end (static) —
 > rifle/spread = HITSCAN via func_0019A570 (mode 7, mask 0x20, 260 range),
 > missile/grenade = projectile actors; gun = separate actor at player+0x20

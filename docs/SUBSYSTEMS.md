@@ -61,7 +61,7 @@ undecompiled count (the decomp frontier inside that cluster).
 
 | Label | vram range(s) | fns | und | What it is / evidence | Conf |
 |-------|---------------|----:|----:|-----------------------|------|
-| entity_logic | 0x130–0x15A | 268 | 191 | per-entity-type behaviour state machines (switch on `obj+0x04`, STRUCTS.md); call anim-clip API (0x174), math (0x1B1), play_sound | med |
+| entity_logic | 0x130–0x15A | 268 | 191 | per-entity-type behaviour state machines (switch on `obj+0x04`, STRUCTS.md); call anim-clip API (0x174), math (0x1B1), play_sound. **Enemy-AI core mapped 2026-06-10 s22** (FINDINGS "ENEMY AI ARCHITECTURE"): generator `0x15A2C0`→spawn helper `0x15A200`→leech brains `0x153F10`/`0x1546C0`; placed crawler `0x1551B0`; fixture `0x156620`; damage helper `0x153B50`; HP at actor`+0x34`, damage mailbox `+0x36` | high |
 | frame_update | 0x15B–0x165 | 49 | 36 | per-frame game orchestrators; widest fan-out fns (`func_0015B130` 43 callees, `func_001647D0` 37); FINDINGS player-anim chain runs through here | med-high |
 | entity_update | 0x166–0x173 | 43 | 39 | per-frame entity setup/update family (`func_001662D0` 41 callees, `func_00168050` 31) | med |
 | actor_anim | 0x174–0x18A | 236 | 138 | entity↔anim glue: clip arbiter/commit (0x1749F0/0x1749A0, 109 callers), motion updaters (0x17D8D0/0x17DE20), `bone_matrix_publish`, `anim_matrix_dispatch/player` | high (core) |

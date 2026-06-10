@@ -6372,3 +6372,259 @@ a runtime-built pointer (enemy weapon?). Open.
   90.4%/93.6% but are **wall #13** (mwcc fills the `beqz` slot with the
   safe `li v1,3`; CW leaves a nop) — stubs restored with analysis
   inline.
+
+## ENEMY AI ARCHITECTURE — behavior inventory, crawler & leech state machines, damage system (2026-06-10, session 22)
+
+Static analysis only (local splat `.s`, `tools/placements.py` over all 19
+extracted `OVERLAY/AREAxx.BIN`). First systematic map of the
+`entity_logic` cluster (SUBSYSTEMS 0x130–0x15A).
+
+### 1. Behavior-pointer inventory (placement records, `+0x24`)
+
+Scanning every overlay's sentinel-terminated placement tables (the s11
+record format) yields **1011 placement records → 164 distinct behavior
+function pointers**: **39 in the main ELF** (shared engine behaviors)
+and **125 overlay-local** (per-area one-offs: scripted props, area
+set-pieces; they live at 0x823xxx–0x82axxx and can call main-ELF
+helpers or install main-ELF brains — AREA15's `0x826CF0` installs
+`func_00153950`, see §5).
+
+Main-ELF behaviors split into two families by address:
+
+- **0x1BB–0x1E4 = interactive-object family** (already in FINDINGS s15):
+  `0x001C4820` generic prop/pickup (107 recs, 15 areas), `0x001BC350`
+  door (30), `0x001BB860` door variant (29), `0x001C2420` (45, all
+  class 0x0B = scripted/deferred), `0x001C1A80` wall station (31),
+  `0x001E3D90` (26, class 0x0D model 1 — a second generator type,
+  areas 07/18/19/20), plus ~15 smaller prop handlers (0x001C4960,
+  0x00158xxx doors…).
+- **0x149–0x15A = creature family** (the actual enemy/NPC AI). The
+  placement-table census, main-ELF creature behaviors:
+
+| behavior | n | areas | placement profile |
+|---|---|---|---|
+| `func_0015A2C0` | 129 | 00,01,02,03,04,06,07,08,13,16,19,20 | class 0x0D, model 3 — **enemy GENERATOR** (spawn point), `kind` 0–6 picks a 20-byte config rec in `D_00248120` |
+| `func_00156620` | 115 | 03,07,11,13,14,17,19,20,21,22 | class 4, kind 0x46, models 0x18/0xA/0xC — **destructible fixture** (egg/nest cluster), HP=1 |
+| `func_001551B0` | 95 | 02,03,07,08,11,13,14,15,17,18,20,21,22 | class 4, kind 0xD/0xE, models 6 (82×)/0x1C/0x1E — **placed crawler** (most common placed enemy; characterized §3) |
+| `func_00158D30` | 18 | 00,03,07,08,13,15,16,22 | class 8, model 2 |
+| `func_00158BD0` | 17 | 00,02,03,07,08,16,21,22 | class 8, model 2 (sibling of the above) |
+| `func_00159B90` | 11 | 10 areas | class 0x84, model 0x38 |
+| `func_00159210` | 9 | 9 areas | class 0x84, model 0x2C/0x24 |
+| `func_00159970` | 7 | 6 areas | class 0x84/0x86, model 0x37 |
+| `func_00159620` | 5 | 5 areas | class 0x84, model 0x36 |
+| `func_001581A0` / `func_001582E0` / `func_00158430` | 3/2/1 | — | class 0x44, model 0xE |
+| `func_00158810` | 3 | 00,22 | class 0x86, models 0x12/0x13 |
+| `func_00158EC0` | 3 | 02,16 | class 0x84, models 0x14/0x23 |
+| `func_00156F30` | 3 | 03,22 | kind 0x46 fixture variant (also installed by weapon-cluster `func_00175640`) |
+| `func_0015A070` / `func_00159E70` | 2/1 | — | minor |
+
+Runtime-installed brains (never appear in placement tables):
+`func_00153F10` (kind 0xD "leech", §4), `func_001546C0` (kind 0xE),
+both installed by the generator helper `func_0015A200`;
+`func_00153950` (AREA15 overlay enemy, §5); `func_00153540`
+(installed by `func_00153290` ← `func_00152930`); `func_0015AAF0`
+(installed by `func_0015AB00`). Crawler death also spawns children
+with behavior pointers taken from per-area nest records (§3 state 2),
+so the disc tables undercount live brains.
+
+So: **~20 distinct creature behaviors engine-wide**, of which 5
+account for >90% of placements; everything else is per-area flavor.
+
+### 2. Shared actor lifecycle (creature family)
+
+All creature behaviors switch first on `actor+0x04` (lifecycle):
+`0` init → (`4` idle/dormant, where used) → `1` active → `2`
+hurt/death sequence → `3` free (`func_001AFC10`). Sub-state in
+`actor+0x05` (and `+0x07` inside state 2 for the crawler). Common
+fields established this session:
+
+| offset | meaning |
+|---|---|
+| `+0x03` | model/variant byte (from placement `model`) |
+| `+0x04` / `+0x05` / `+0x07` | lifecycle state / sub-state / death sub-state |
+| `+0x0A` | **group-alarm flag** (set by a damaged neighbor; wakes the pack) |
+| `+0x28`, `+0x2A` | frame timers (attack/hop counters) |
+| `+0x2E` | spawn counter (generator) |
+| **`+0x34`** | **hit points** (s16). Crawler/fixture init = 1; leech init (`func_00154040`) = 10 |
+| **`+0x36`** | **incoming-damage mailbox** (s16). Written by attackers; low bits = amount, high bits = weapon-type flags (`0x2000` tested by the fixture, `0x4000` set by the pair-pass below — e.g. `0x400A` = type 0x4000, amount 10). Behavior polls it in its tick, then clears it |
+| `+0x4C` | per-actor render/post fn pointer (called at tick end) |
+| `+0x52` | "on-surface" flag (floor-probe result at init) |
+| `+0x70` | hit-source position (copied from attacker `+0xC0` by the pair pass, for knockback direction) |
+| `+0xB0/B4/B8` | world position; `+0xC4` yaw |
+| `+0x1F0` | anim context (clip id at `+0x1F0+0`, advanced via `anim_advance_time`; status bit `0x1000` = clip finished) |
+| `+0x2D0..0x2EC` | crawler: 4 precomputed diagonal probe direction pairs (init) |
+
+Ticks end with the common post-update `func_001B17A0` (visibility cull
+via `func_001B1630` → `+0x01`, transform rebuild `func_001B1B70`,
+special-area marker hook `func_001B1CE0` when `D_00810CA5 == 6`).
+
+### 3. `func_001551B0` — the placed crawler (characterized state machine)
+
+Variants by model byte: 6, 0x1C, 0x1E, 0x1F, 0x50 (the same set is
+whitelisted in its group-alarm broadcast and in the projectile pair
+pass `func_001A9000`).
+
+- **state 0 INIT** — wait until `func_001B0FD0` (resource ready);
+  `HP(+0x34)=1`; pick a base heading by variant (2.1213 or 4.5962
+  rad), build the 4 diagonal probe vectors into `+0x2D0..0x2EC`;
+  if placement flag `+0x0E` bit0: resolve the **per-area nest
+  registry** — `D_0024A850[area]` (s16 index) + `D_0024D820[area]`
+  (table ptr) → 0x2C-byte child records, filtered by
+  `func_001B11E0(rec+0x2)` (model-resident check); floor probe
+  `func_0019AB20(actor, pos, out=D_700038B0, 7)`: result 4 → not on
+  a surface (`+0x52=0`). → **state 4**.
+- **state 4 IDLE (on nest)** — poll `+0x36`: **any damage kills**
+  (HP=1) → state 2, and *broadcast the alarm*: walk the live-actor
+  list `D_00275BC0` (next ptr `+0x1C`) and set `+0x0A=1` on every
+  actor with model ∈ {6,0x1C,0x1E,0x1F,0x50} and `+0x52 != 0`.
+  If own `+0x0A` set (a neighbor was shot) → **state 1**, `+0x2A=6`.
+  Otherwise idle: RNG-timed idle anims/chitters from anim table
+  `D_002468B0` (sound 0x19C via `func_001FBD50`), then copy own root
+  node matrix (`*D_00275B40[0]+0x90`) into `+0xD0` and call `+0x4C`.
+- **state 1 ATTACK RUN** — sub 0 *steer*: probe the 4 diagonals
+  (`func_0019AB20(...,7)`; result 2 + scratch `0x700031D4` nonzero =
+  blocked); rotate the velocity vector ±3° (`func_00102B08` /
+  `func_00102A60`, angle 0x3D56774F≈0.0524) away from blocked sides,
+  or RNG heading if open; if ≥3 sides blocked and `+0x2A`
+  exhausted → back to state 4. Variant 6 sets its hop timer from its
+  height. → sub 1 *hop*: integrate velocity, vertical `+0x2C8` with
+  gravity 0.052/tick; forward probe each hop; **probe result 4 (lost
+  the surface) or attack timer expired → clear `+0x36` → state 2**
+  (these things burst on/after the lunge — the suicide-attack path).
+  Open: state 1 never polls `+0x36`; crawlers appear undamageable
+  mid-lunge (one-frame windows aside) — verify live.
+- **state 2 BURST/DEATH** (`+0x07` sub-machine) — sub 0: if it has a
+  nest link, **spawn children**: for each registry record, allocate
+  via `func_001AFA90` and copy rec → actor (model `+0x2`→`+0x3`,
+  class, params, `pos += parent pos`, rot, **behavior fn `rec+0x28` →
+  `actor+0x10`**). Per-variant gore: sounds 0x19D/0x19E
+  (`func_001FC580`) + effect pairs `func_001EFD90`
+  (0x8000000A+0x80000015 / 0x8000000B+0x80000014 /
+  0x80000031+0x80000015 / 0x80000032+0x80000014). If killed by damage
+  (`+0x36 != 0`) and variant ∈ {6, 0x1E}: knockback — the hit vector
+  in scratch `D_700036E0` is RNG-rotated (90°/180°/270°), velocity set
+  from it, death anim clip 0x22/0x29 from the `D_0028A56C` clip lib
+  (`func_001C6120` + `func_001CA6E0`), `bone_init_default_1` → sub 1
+  corpse-slide (4 probes at radius 6, settle) → state 3. Otherwise
+  state 3 directly.
+- **state 3 FREE** — variant 0x50 extra release `func_001B1190`, then
+  `func_001AFC10`.
+
+### 4. Generator + leech (the kind-0xD/0xE runtime enemies)
+
+- **`func_0015A2C0` (generator, class 0x0D)** — most-placed behavior
+  (129). State 0: `kind`(+0x54) indexes config `D_00248120` (20 B
+  recs; field 0 ×2 → scratch `0x700038A0/A8` spawn offsets);
+  `link`(+0x56) selects a **count table** — 1 → `D_002481B0`, 2 →
+  `D_002481D0` (8 bytes/row, row = frame-RNG `0x70003B68 & 3`,
+  column = global spawn counter `D_008106EC`/`D_008106ED & 7`,
+  post-incremented); when the drawn count is 1 it immediately emits a
+  pair of **kind-0xE** enemies (`func_0015A200(actor, 0xE, 0/1)`).
+  State 1 active: idle loop (sound 0x42F every 128 frames, breathing
+  anim phase `+0x20`/`+0x80`), and on its anim beat emits **kind-0xD**
+  enemies (`func_0015A200(actor, 0xD, 0)`) until `+0x2E == 4`, with
+  inter-spawn delay from `D_002481F0[RNG%3]`. State 2/3 →
+  `func_001AFC10`.
+- **`func_0015A200` (spawn helper)** — `func_001AFA90(2)` allocate,
+  copy generator pos/uid, then **install the brain: `+0x10 =
+  func_00153F10` (kind 0xD) or `func_001546C0` (kind 0xE)**.
+- **`func_00153F10` (leech, kind 0xD)** — init `func_00154040`: bind
+  model/rig 0x14 anim 0x13 (`func_001B10B0`), **HP=10**, initial yaw
+  toward `(D_00810350, D_00810358)` (player X/Z mirror) via atan2
+  `func_001B1240`, spawn sound 0x430. Active state runs only when the
+  gameplay-frame selector spad `0x70003B8D` is 0 or 4. Brain
+  `func_00154120` sub-machine:
+  - sub 0 *approach*: proximity test `func_0019AA80(nodeA+0xC0,
+    nodeB+0xC0, 0x20)` between node-table slots `+0x34`/`+0x40` of the
+    current `D_00275B40` table (≤32 units; exact node identities
+    unverified — likely leech body vs player attach node). On hit and
+    player status `D_008102B0 == 1`: **latch onto the player** —
+    `D_008102BF = 2` (latch type), `D_008104D4 = 5.0` (drain/damage
+    magnitude), `D_008102B0 |= 2` (player "latched" status bit), and
+    the relative vector → `D_00810320` (the on-player wiggle anchor).
+    When the clip's 0x1000 bit fires → next anim
+    (`func_00153ED0`), sub 1, `+0x28 = 0x78`.
+  - sub 1 *stalk*: countdown; **homing** — yaw toward
+    `(D_00810350, D_00810358)` smoothed at 0.0698 rad/tick
+    (`func_001B12B0`).
+  - sub 2 *windup*: on anim end → sub 3, snap yaw, sound 0x431.
+  - sub 3 *lunge resolve*: ≤32-unit test again → latch with
+    `D_008104D4 = 15.0` (the lunge hit hurts more) and → state 2;
+    else radius-6 contact (`func_0019A570`) → state 2; else on anim
+    end → state 3 (despawn).
+  - state 2 *burst*: sound 0x434, gore effect `func_001EFE00
+    (0x80000052)`, call `+0x4C`, → state 3.
+  Open: nothing in the leech family reads `+0x36`/`+0x34` — leeches
+  appear to die only by bursting on the player (and presumably the
+  shake-off mechanic); HP=10 may be consumed by a handler not yet
+  found. Verify live.
+
+### 5. Damage application (how enemies get hurt)
+
+Two producer paths write the victim's `+0x36` mailbox; consumers are
+the behaviors themselves (no central HP system):
+
+1. **Weapons (weapon cluster — see this session's "WEAPON SYSTEM"
+   FINDINGS)** — melee `func_001735C0` writes
+   `target(+0x18 of player struct)->+0x36 = dmg` directly (5 etc.)
+   and sets the target's `+0x00` event byte, sounds 0x17D–0x17F;
+   hitscan bullets apply through `func_001B41F0` (victim `+0x36` =
+   damage code, `+0x70` = hit direction) — same mailbox+knockback
+   contract as the pair pass below, confirming `+0x36`/`+0x70` as the
+   universal enemy-damage interface.
+2. **Pair-collision pass (gameplay frame)** — the actor system keeps
+   two per-frame pointer lists, rebuilt each frame
+   (`func_001AF8E0` allocates):
+   - `D_00275B80` / count `D_00275B88` (max 0x80): **damage targets**,
+     pushed by `func_001B1D20` (stores `obj+0x14`, the actor ptr);
+   - `D_00275BA0` / count `D_00275BA8` (max 0x30): **hazards/
+     projectiles**, pushed by `func_001B1DA0`.
+   `func_001AAD00` (← `func_001AE5E0`, the gameplay frame; FINDINGS
+   "ENGINE FRAME ANATOMY") runs `func_001A9000`: every hazard with
+   class byte 5 × every live target with model ∈ {6, 0x1E, 0x1F, …}
+   → sphere tests `func_001A8E80`/`func_001A8F40` (height tolerance
+   ±6/8, radius² vs 8) → `victim+0x36 = 0x14` (20) and zero the spad
+   loop counter `0x70003B88` (one victim per hazard per frame).
+   `func_001A97B0` → `func_001A9480` is a second pass (swipe/flame):
+   writes `victim+0x36 = 0x400A` (type 0x4000 | amount 10) and copies
+   the attacker position `+0xC0` → `victim+0x70` (knockback source).
+   The weapon agent's missile/grenade spawns (`func_001869A0` /
+   `func_001872C0`, this session's weapon FINDINGS) allocate exactly
+   the class-5 hazard actors this pass consumes.
+3. **Consumption** — each behavior polls `+0x36` in its own tick:
+   - HP=1 actors (crawler state 4, fixture `func_00156620` state 4):
+     any nonzero value → death state (fixture also branches on the
+     type bit 0x2000 → effects 0x80000013/0x8000002E, sound 0x1A0).
+   - HP>1 actors: hurt-state helper — `func_00153B50` (state-2 handler
+     of the `func_00153950` enemy) is the canonical form:
+     `HP(+0x34) -= dmg(+0x36)`; `>0` → flinch (sound 0x7D4, anim clip
+     0x37); `≤0` → death sub-state (sound 0x7D8, anim 0x34, kill flag
+     `D_008107FB=1`). Its active state `func_00153A90` gates on the
+     vulnerability global `D_0081077B` (nonzero → take the hit,
+     zero → absorb: ping `+0x00=1`, clear `+0x36`) — a phase-gated
+     (boss-like) enemy, installed only by AREA15's overlay stub at
+     `0x826CF0`.
+   - The s15 "death check Y<-200" in the player spine has **no enemy
+     equivalent** — enemies die via the `+0x36` mailbox or scripted
+     burst, not a kill-plane.
+
+### Cross-references / open questions
+
+- Generator config tables `D_00248120` (20 B × 7 kinds), count tables
+  `D_002481B0`/`D_002481D0`, delay table `D_002481F0`, idle-anim table
+  `D_002468B0`, nest registries `D_0024A850`+`D_0024D820` (0x2C-byte
+  child-spawn records, per area) — all main-ELF .data, undocumented
+  until now; worth dumping when the data segment is split.
+- `func_0019AA80` (two-point radius test), `func_0019A570` (radius-6
+  contact), `func_0019AB20` (directional surface probe; result codes:
+  2 = blocked w/ detail in spad `0x700031D4`, 4 = no surface; out vec
+  `D_700038B0`) are the collision-query family the AI senses with —
+  same family as the s17 door LOS scan. None of the creature
+  behaviors ray-test toward the *player* for vision; "seeing" the
+  player is distance-only (leech ≤32 u) or alarm-driven (crawlers).
+- Kind semantics refined vs s11: placement `kind` 0xD/0xE mark the
+  crawler placements; the *generator's* `kind` (0–6) is a config
+  index, not an enemy kind.
+- Live-verify (PCSX2, future session): crawler invulnerability during
+  state 1; leech HP consumption; node slots `+0x34`/`+0x40` identity
+  in the `D_00275B40` table during enemy ticks.
