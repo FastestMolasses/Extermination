@@ -2107,7 +2107,17 @@ full format detail for everything below.
   100% coverage. Asset taxonomy mapped (603 files by content).
 - **Audio** — `tools/audio_export.py` (consolidated exporter, 2026-06-09;
   older `tools/decode_sound.py` kept). All PS2 SPU2 ADPCM ("VAG").
-  - SFX: 39 SShd sound banks → 241 unique sounds (deduped from 1146 references).
+  - SFX: SShd bank format fully solved (2026-06-10): 40 containers / 115
+    banks / 5758 tone refs → 533 unique samples, 1206 (sample, rate) WAVs at
+    engine-exact per-tone rates (`sfx` subcommand; supersedes the earlier
+    241-sound mis-segmented export).
+  - **Engine sound-id map** (2026-06-10): `audio_export.py soundmap` decodes
+    the full id → record table → bank group/slot → trigger script → tone →
+    WAV chain (func_001FBD50/001FB9F0/00119EA0) into
+    `extract/audio_decoded/soundmap.json` — 1686 ids resolved (weapon/
+    enemy/leech/flashlight ids verified feature-based), plus the
+    (area0, area1) → region-container scene map as a by-product. FINDINGS
+    "Engine SOUND IDS".
   - Dialogue: `STREAM/VOICE.DAT` → 116 mono clips (997 s).
   - Music: `STREAM/MUSIC.DAT` → 55 stereo tracks (5633 s); the 64-frame L/R
     interleave is now verified empirically (`detect-interleave`).
@@ -2115,8 +2125,8 @@ full format detail for everything below.
   - SFX pitch system cracked at the engine level (2026-06-09): 44100-referenced
     note→pitch table ×44100/48000 → SPU2 pitch; per-sound trigger macros in the
     bank header repitch each sound, so no single bank Hz exists. FINDINGS
-    "SFX pitch system — engine evidence". Open: locate the tone records
-    (center notes) to compute each sound's exact Hz.
+    "SFX pitch system — engine evidence". (The then-open tone-record hunt was
+    closed 2026-06-10 — see the SShd / sound-id bullets above.)
   - Native-port playback verified 2026-06-09: decoded music + SFX WAVs play
     through the port's CoreAudio pull path (`EM_AUDIO_TEST=2`, port repo).
 - **Textures** — `tools/extract_textures.py` (sheet extractor) and

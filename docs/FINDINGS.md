@@ -938,7 +938,82 @@ absolute per-sound Hz (savestate-corroborated to within the runtime
 modulation; the bend=0-vs-0x40 ×2 question is settled by data/registers, not
 yet by a single exactly-reproduced voice).
 
-## Geometry / models
+### Engine SOUND IDS — id → bank/script/tone/WAV resolution SOLVED (2026-06-10)
+
+The gameplay sound ids (weapon 0x162–0x165/0x169, flashlight 0x15D, enemy
+0x7D4/0x7D8, leech 0x430/0x431/0x434, …) now resolve statically all the way
+to the exported WAVs. Tool: **`tools/audio_export.py soundmap`** →
+`extract/audio_decoded/soundmap.json` (git-ignored; regenerate from your own
+ELF + extracted banks). Chain, read from `func_001FB9F0` (+ the loader
+`func_001FB3E0` and trigger `func_00119EA0` disassembly):
+
+1. **`func_001FBD50(pos, id, x)`** (play_sound, 213 callers) computes 3-D
+   volume/pan via `func_001FBF50` and tail-calls
+   **`func_001FB9F0(id, 0x1000, vol, pan)`** — no id transformation.
+2. **`func_001FB9F0`** masks `id &= 0x7FFF`, bins it, and fetches a 4-byte
+   **sound record `{s8 group, s8 bankIdx, s8 scriptGroup, s8 scriptIdx}`**:
+   - id 0x000–0x3E7 → record table **`D_0025ECA0`**`[id]` (1000 entries)
+   - id 0x5DC–0x7CF → **`D_00261570`**`[id-0x5DC]` (500 entries)
+   - id 0x3E8–0x5DB → area-paged: `remap = D_00264A70[area0][area1]
+     [id-0x3E8]` (u8, 0xFF = absent), `record = D_00264B30[area0][area1]
+     [remap]`, with `area0/area1` = the current-area bytes
+     `D_00810700/D_00810701`; 24 area slots × up to 8 sub-slots
+   - id 0x7D0–0x9C3 → same shape via **`D_00264AD0`/`D_00264B90`**
+   - other ids → return −1. Unused rows are junk (0xFF runs / leftover
+     bytes); the tool validates each record against the bank data and
+     drops non-resolving ones.
+3. **Bank slot**: `handle = D_00281D50[group*0x14 + bankIdx]` (BSS, 6
+   groups × 20 u32). Filled by the bank streaming loader
+   **`func_001FB3E0`**: each registered bank (`func_001194B8` →
+   `D_0027C6C0` slot) is appended at `D_00281D50[D_00282190]
+   [D_00281D30[group]++]`; on a group re-load the whole group is freed
+   (`func_001195A8`). **The registration group = the bank row's `type`
+   field in its container** (validated data-side: every plausible record's
+   (group, bankIdx, scriptGroup, scriptIdx) resolves under this
+   assignment):
+   - group **1** = the global player/weapon/UI container
+     `chunk00/f05_id05.bin`, types `[1,1,1,3]` → records (1,0) (1,1) (1,2)
+   - group **3** = swappable music banks: the global container's bank 3
+     and the `chunk50..53` single-bank containers (type 3)
+   - group **2** = the loaded region container's type-2 bank (the per-area
+     "common" set) → records (2,0)
+   - group **4** = the region's type-4 banks (enemy sets, up to 3) →
+     records (4,0)…(4,2)
+4. **`func_00119EA0(handle, scriptGroup, scriptIdx)`** walks the bank's
+   trigger-script table (hdr+0x1C) and starts the script on a free
+   sequencer channel (`D_0027E0C0`). Script grammar (sequencer
+   `func_001152D8`): `A0 note vel prog` direct-map note-ons (tone =
+   note − prog.base_note), `80 xx` wait/release, `FF 2F 00` end — so one
+   sound id can layer several samples with delays (e.g. 0x162 weapon draw
+   = 2 layers, 0x7D8 death = 2 layers).
+5. Tone record → sample offset + engine-exact rate as per the SShd section
+   above; the tool keys (sha1(adpcm), rate) to the `sfx` export's
+   `snd_NNNN.wav` names.
+
+**Area→region mapping falls out as a by-product**: each (area0, area1)
+cell's group-2/4 records must resolve in the loaded region container, so
+script-coverage matching pins the scene: e.g. **(11,0) → chunk15** (matches
+the savestate-pinned AREA11 = chunk15), (2,4) → chunk07.n0, (16,6) →
+chunk24, (20,7) → chunk08.n1 (138 cells, 25 unique-exact, rest
+best-coverage 0.86–0.98 with junk records accounting for the misses;
+`area_scene_map` in soundmap.json records coverage + ties). Negative
+cross-check: chunk15 (cutscene area) has **no type-4 bank**, and area11
+sub0's high table correspondingly has **no 0x7D8 entry** — no enemies, no
+death sound.
+
+**Coverage: 1686 sound ids** (432 global-fixed, 377 global-table ids whose
+records point at the area-loaded groups 2/4, 877 area-tabled ids with
+per-region variants), 26 245 resolved note-on events, **0 dangling WAV
+references**; output identical when generated from the pristine disc ELF
+and from the rebuilt ELF. Documented-id spot checks (feature-based, at the
+mapped WAVs): 0x164/0x165 fire → `snd_0363/0356.wav`, 7.5 ms attack,
+~290 ms broadband decay (gunshot-shaped); 0x169 dry-fire → `snd_0350.wav`,
+2 ms attack 149 ms click; 0x162 draw / 0x163 holster → bright 160–230 ms
+mechanical foley; 0x15D flashlight → 920 ms switch sound; 0x7D8 enemy
+death → per-region enemy-bank roars (721 + 967 ms low-frequency vocal
+layers in chunk04.n0). Confidence: **high** (engine-code-exact dispatch +
+data-validated bank assignment); the only heuristic part is the
+non-exact-coverage cells of the area→region map.
 
 **Level geometry AND character/object/prop models decoded.** Exporter:
 `tools/extract_models.py` (geometry file → Wavefront OBJ). Full format details
