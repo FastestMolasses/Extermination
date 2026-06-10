@@ -5119,4 +5119,53 @@ Still open: prim types 0x2000/0x4000 (small prims), type 0x8000 records,
 section [2] role, who writes the 0x28A598 directory at level load, and the
 movable-hull object set in the port (no native objects yet).
 
-_Last updated: 2026-06-10 (session 14)._
+## First fully TEXTURED NPC — save-state VRAM as texture source (2026-06-10 s15)
+
+The s13 candidate is delivered: **chunk15/f18_id94 segment 1 (21-node
+humanoid) exported textured + animated** (`assets/npc_test.emdl`, 2789
+verts / 3330 tris / 240-frame idle) and EM_CAPTURE-verified in the port
+beside the player — a textured soldier NPC in camo fatigues, harness and
+cap (`extermination-port/build/cap_npc.png`; the temporary
+`assets/scene/90_npc.emdl` was removed after capture, default scene
+re-verified byte-identical).
+
+**.p2s VRAM is now a texture source.** `export_native.build_texture_blob`
+accepts a save state (`--p2s`: a .p2s, a pre-extracted state dir, or a
+bare gs.bin freeze blob) as the texel/CLUT source alongside the GS-dump
+path: GS local memory = the 4 MB inside the GS freeze component at base
+`len(gs.bin) − 0x400000 − 84` (gs_vram.read_localmem; the layout proven
+2026-06-09). The PSMT4/PSMT8 + CLUT readers are clut_pair's, unchanged.
+Residency is the caller's responsibility — the mesh's baked TEX0
+TBP0/CBP are read as-is, so a state of the wrong level yields garbage.
+Coverage here: **68/68 mesh TEX0 keys resolve from save state 01** (all
+PSMT4; every 16-entry CLUT validates — alpha ≤ 0x80, ≥ 2 distinct RGB —
+and every index plane is non-degenerate). `--attach` keeps requiring
+`--gsdump` (that path uses export_level's PSMCT32-capable builder).
+
+**The rig can live in a SIBLING file — and one file can hold several
+same-node-count rigs.** f18_id94.bin itself contains NO animation
+containers (scan_anim_headers: zero). The rig is in `chunk15/f12_id44.bin`
+(the chunk's collision-id file is a multi-asset container here): 14
+21-node + 18 20-node containers. The 14 21-node containers split into
+TWO parent-table families — clips {0,2,3} vs {1,4,5,6,7,8,9,10,11,12,13}
+— so the encounter-package rule (n == max_slot + 1 = 21) alone is
+ambiguous. Disambiguation: pose the mesh at frame 0 of one clip per
+family and score **cross-bone edge coherence** (mean posed length of the
+388 mesh edges whose endpoints skin to different bones): matching family
+0.99u, wrong family 3.62u. The matching rig's parents:
+`[-1,0,0,2,2,4,4,3,3,3,8,9,5,6,6,10,11,12,13,15,16]`.
+
+**Clip survey (all in-place — root XZ travel 0.000u on every container;
+a scripted/cinematic NPC, fits the snow-level save state).** Matching
+family: clip 5 near-frozen (7° max excursion), clips 6/7/8/9 gentle
+gesturing loops (0.2–0.3°/frame, wrap ≤ 1.2°), 10/11 short actions
+(60 f, ~1.3°/frame), 12/13 medium, 1/4 long scripted tracks (691/646 f;
+clip 1 wraps badly at 125°). **Idle pick: clip 7** (240 f, 0.25° max
+loop-wrap, 67.7° max excursion — visibly alive, loops cleanly).
+
+**Discontinuity scan (s7c-style, all 14 21-node clips × 21 nodes × every
+baked frame): 0 single-frame world-rotation jumps > 90°**; worst step
+anywhere = 63.7° (clip 0 frame 14 node 17). Hemisphere fix holds for
+this bank too. verify_all --no-container all-PASS.
+
+_Last updated: 2026-06-10 (session 15)._

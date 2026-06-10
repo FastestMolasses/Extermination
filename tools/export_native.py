@@ -90,6 +90,16 @@ Usage (macOS arm64, repo root):
   python3 tools/export_native.py --mesh extract/chunk21/f17_id8f.bin \
       --segment 1 --anim extract/chunk21/f17_id8f.bin --rig-nodes 44 \
       --clip 4 --out ../extermination-port/assets/enemy_test.emdl
+  # TEXTURED NPC with no GS dump of its level: resolve texels/CLUTs from a
+  # PCSX2 save state's VRAM instead (--p2s; the mesh TEX0 keys must be
+  # resident in that state — chunk15/f18_id94 seg 1 is 68/68 in state 01).
+  # The rig can live in a SIBLING file (chunk15: f12_id44.bin), and one
+  # file can hold several same-node-count rigs — pick the parent-table
+  # family whose posed cross-bone edges are shortest (see FINDINGS s14):
+  .venv/bin/python tools/export_native.py --mesh extract/chunk15/f18_id94.bin \
+      --segment 1 --anim extract/chunk15/f12_id44.bin --rig-nodes 21 \
+      --clip 7 --p2s "$HOME/Library/Application Support/PCSX2/sstates/SCUS-97112 (4CDC5F74).01.p2s" \
+      --out ../extermination-port/assets/npc_test.emdl
   # pose a mesh with a live PCSX2 node capture (world matrices, node order;
   # capture with the emulator PAUSED so all nodes are from one frame):
   python3 tools/export_native.py --mesh extract/chunk28/f00_id3b.bin \
@@ -581,10 +591,22 @@ def bake_id74_clips(anim_path: Path, clip_ids: list[int],
     return parents, frames, clip_table, fps
 
 
-def build_texture_blob(gsdump: Path | None, tex_table: list[dict]):
-    """Resolve each mesh TEX0 to RGBA8 texels via a GS dump's VRAM
-    snapshot (PSMT4/PSMT8 indices + runtime-built CLUTs both live there).
-    Without a dump every texture is a 1x1 mid-grey placeholder.
+def build_texture_blob(gsdump: Path | None, tex_table: list[dict],
+                       p2s: Path | None = None):
+    """Resolve each mesh TEX0 to RGBA8 texels via a VRAM snapshot
+    (PSMT4/PSMT8 indices + runtime-built CLUTs both live there).
+    Without a source every texture is a 1x1 mid-grey placeholder.
+
+    Two VRAM sources (mutually exclusive; `gsdump` wins if both given):
+      gsdump — PCSX2 1-frame GS dump (.gs): replayed register writes.
+      p2s    — PCSX2 save state (.p2s, or a pre-extracted state dir,
+               or a bare gs.bin freeze blob): the 4 MB GS local memory
+               inside the GS freeze component, base = len(gs.bin) -
+               0x400000 - 84 (gs_vram.read_localmem; layout proven
+               2026-06-09, see clut_pair.py). Useful when no GS dump of
+               a level exists but a save state does — texture residency
+               is the caller's responsibility (mesh TEX0 TBP0/CBP are
+               read as-is; a state of the wrong level yields garbage).
 
     Returns (entries, blob): entries = [{w, h, off}] parallel to
     tex_table."""
@@ -594,6 +616,19 @@ def build_texture_blob(gsdump: Path | None, tex_table: list[dict]):
         pg = _load("_parse_gsdump", "parse_gsdump.py")
         state_data, _regs, _pkts, _serial, _crc = pg.parse(gsdump, quiet=True)
         lm = pg.dump_vram(state_data)
+    elif p2s is not None:
+        gv = _load("_gs_vram", "gs_vram.py")
+        if p2s.is_dir():                       # pre-extracted state dir
+            gs_path = p2s / "gs.bin"
+        elif p2s.suffix.lower() == ".p2s":     # save state: pull gs.bin
+            import tempfile
+            pps = _load("_parse_pcsx2_state", "parse_pcsx2_state.py")
+            tmp = Path(tempfile.mkdtemp(prefix="emdl_p2s_"))
+            gs_path = pps.extract_all(p2s, tmp)["gs.bin"]
+        else:                                  # bare gs.bin freeze blob
+            gs_path = p2s
+        _base, lm = gv.read_localmem(gs_path)
+    if lm is not None:
         cp = _load("_clut_pair", "clut_pair.py")
         from clut import apply_clut
     for f in tex_table:
@@ -743,6 +778,12 @@ def main(argv):
                     "with this model on screen: source of colored texels "
                     "(VRAM snapshot resolves each marker TEX0's PSMT4 "
                     "indices + CLUT). Without it textures are grey 1x1.")
+    ap.add_argument("--p2s", help="PCSX2 save state (.p2s, or a "
+                    "pre-extracted state dir, or a bare gs.bin freeze "
+                    "blob) as the VRAM texel/CLUT source instead of "
+                    "--gsdump — for levels with a save state but no GS "
+                    "dump (the model's TEX0 keys must be resident in "
+                    "that state's VRAM; see build_texture_blob)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 
@@ -752,6 +793,10 @@ def main(argv):
         # local offsets — see export_props.py for the live-frame proof).
         # export_props also resolves textures via export_level's blob
         # builder (PSMCT32-capable), exactly as `export_props.py --attach`.
+        if args.p2s:
+            raise SystemExit("--p2s is not supported with --attach (that "
+                             "path uses export_level's PSMCT32-capable "
+                             "blob builder); use --gsdump")
         props = _load("_export_props", "export_props.py")
         sections, max_slot, tex_table = props.build_attached_player(args)
         tex_entries, tex_blob = props.lvl.build_texture_blob(
@@ -764,7 +809,8 @@ def main(argv):
         print(f"mesh: {nverts} verts, {ntris} tris, max node slot {max_slot},"
               f" {len(tex_table)} textures")
         tex_entries, tex_blob = build_texture_blob(
-            Path(args.gsdump) if args.gsdump else None, tex_table)
+            Path(args.gsdump) if args.gsdump else None, tex_table,
+            Path(args.p2s) if args.p2s else None)
 
     fps = FPS
     clips = None

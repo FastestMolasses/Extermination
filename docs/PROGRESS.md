@@ -3229,3 +3229,25 @@ full detail):
   byte wired). Verified: EM_MOVE_TEST wall run stops at the z=−170 office
   wall exactly (PASS), idle EM_CAPTURE byte-identical, `make test-input`
   PASS.
+
+### Update — 2026-06-10 s15: first fully TEXTURED NPC — .p2s VRAM texture source
+
+- `export_native.build_texture_blob` gained a **.p2s save-state VRAM
+  source** (`--p2s`; accepts a .p2s, a pre-extracted state dir, or a bare
+  gs.bin freeze blob) next to the existing GS-dump path — for levels with
+  a save state but no GS dump. Same 4 MB local memory, base =
+  len(gs.bin) − 0x400000 − 84 (gs_vram.read_localmem). `--attach` still
+  requires `--gsdump` (export_level's builder untouched).
+- **chunk15/f18_id94 seg-1 21-node humanoid exported textured + animated**
+  (`assets/npc_test.emdl`: 2789 verts / 3330 tris / 240-frame idle,
+  **68/68 textures resolved** from save state 01 — all PSMT4, every CLUT
+  validates). Rig lives in the SIBLING file `chunk15/f12_id44.bin`
+  (14 21-node containers; the mesh file itself has none) and that file
+  holds TWO 21-node rigs — disambiguated by posed cross-bone edge
+  coherence (matching family 0.99u vs 3.62u; clips 1,4–13). Idle pick:
+  clip 7 (240 f, 0.25° loop wrap, gentle gesturing). EM_CAPTURE: textured
+  soldier NPC (camo fatigues, harness, cap) beside the player
+  (`extermination-port/build/cap_npc.png`; temp scene copy removed,
+  default scene re-verified byte-identical). Discontinuity scan over all
+  14 21-node clips: 0 jumps > 90°, worst step 63.7°.
+  verify_all --no-container all-PASS.
