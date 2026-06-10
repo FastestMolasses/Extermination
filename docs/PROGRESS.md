@@ -4022,3 +4022,27 @@ full detail):
 - Verified: default capture byte-identical; forced-HUD capture
   deterministic and legible; make test-input / EM_DOOR_TEST PASS;
   clean build.
+
+### Update — 2026-06-10 s27: office placement census → scene.txt enemy emission
+
+- **`tools/export_level.py` emits manifest enemy lines** from the AREA02
+  placement tables (marker-delimited scene.txt block, idempotent):
+  fn-0x1551B0 records → `enemy crate x y z yaw`, generators/creature-
+  family records → comment lines.
+- **Census finding (FINDINGS "OFFICE SUB-STATE-1 PLACEMENT CENSUS")**:
+  the captured office scene (sub-state 1 @0x828170, 14 records) places
+  **ZERO enemies** — 2 doors + 7 pickups + 5 fixtures. The area's 17
+  disguised-container crawlers (param 0x000D = the cardboard box) + 8
+  generators live in sub-states 0/2, on the main floor OUTSIDE the
+  sub-state-1 geometry volume (bbox X[37,120] Z[−305,−143]). The
+  faithful default scene has no enemies; the sub-state-0 crawler
+  placements ship as a documented commented toggle (`#enemy crate`) —
+  active manifest enemies take slot 0 before the EM_ENEMY_TEST spawn
+  and break the self-tests (verified: FAIL with toggle on; 17 also
+  exceeds EM_ENEMY_MAX 16).
+- Verified on the restored default: EM_ENEMY_TEST 1/2/3, EM_DOOR_TEST,
+  EM_MOVE_TEST, EM_WEAPON_TEST all PASS; default EM_CAPTURE
+  byte-identical to the pre-change baseline (toggle-on capture from the
+  authentic spawn is also byte-identical — no crate is inside the scene
+  volume; a floor-vantage capture shows the crate EMDL at the authentic
+  table positions).

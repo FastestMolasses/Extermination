@@ -83,10 +83,30 @@ its own boot config in a plain-text `scene.txt` next to the .emdl files
     collision <file.emcl>       collision filename (export_collision.py
                                 writes this key)
     bgm <file.wav>              optional looping level-music cue WAV
+    enemy crate <x> <y> <z> <yaw>   placed disguised-container crawler
+                                (em_enemy.c EM_ENEMY_KIND_CRATE)
 
 `--spawn x,y,z[,yaw]` and `--bgm name.wav` write/update this exporter's
 keys (other keys and lines are preserved). The old `--offset` spawn-
 anchoring bake is gone — the manifest spawn replaced it.
+
+ENEMY LINES (2026-06-10 s27): for the office level the exporter also
+rewrites a marker-delimited "enemies" block in scene.txt from the AREA02
+placement tables (FINDINGS "ENEMY AI ARCHITECTURE" census): records with
+behavior func_001551B0 (placed crawler — in the office a DISGUISED
+CONTAINER, param 0x000D = the cardboard-box model) become `enemy crate`
+lines; generator records (func_0015A2C0 / func_001E3D90) and the other
+creature-family behaviors become comment lines (unimplemented natively).
+CENSUS RESULT: the captured office scene is area SUB-STATE 1 (table
+@0x828170, 14 records) and that table places NO enemies at all — 2 doors,
+7 pickups, 5 fixtures. The area's crawlers live in sub-state 0 (@0x827830:
+17 crawlers + 8 generators) and sub-state 2 (@0x8283D0: same 17 + 8), the
+other story states of the same floor. The faithful default scene therefore
+has ZERO active enemy lines; the sub-state-0 crawler placements are
+emitted as a COMMENTED TOGGLE (`#enemy crate ...`) — uncommenting them
+populates the floor, but manifest enemies load before the EM_ENEMY_TEST
+spawn and take enemy slot 0, breaking the self-tests' slot-0 asserts, so
+they stay off by default.
 
 Multi-zone levels (e.g. the chunk15 snow level): each zone render file is
 its own whole-file-static export — run this tool once per file into
@@ -489,6 +509,146 @@ def table_driven_regions(level_path: Path):
     return regions
 
 
+# ---------------------------------------------------------------------------
+# Enemy manifest emission (scene.txt enemy lines from the placement tables)
+
+OFFICE_SCENE_SUBSTATE = 1      # the captured office scene's story sub-state
+
+FN_CRAWLER = 0x001551B0        # placed crawler / disguised container
+FN_DOORS = (0x001BC350, 0x001BB860)
+FN_GENERATORS = {               # class-0x0D runtime enemy spawn points
+    0x0015A2C0: "generator (leech spawn point, D_00248120 config)",
+    0x001E3D90: "generator type 2 (class 0x0D model 1)",
+}
+FN_ENEMY_MISC = {               # other creature-family behaviors (s22 census)
+    0x00156620: "destructible nest/egg fixture",
+    0x00156F30: "destructible fixture variant",
+    0x00158BD0: "class-8 creature",
+    0x00158D30: "class-8 creature (sibling)",
+    0x00158810: "class-0x86 creature",
+    0x001581A0: "class-0x44 creature",
+    0x001582E0: "class-0x44 creature",
+    0x00158430: "class-0x44 creature",
+    0x00158EC0: "class-0x84 creature-family fixture",
+    0x0015A070: "minor creature",
+    0x00159E70: "minor creature",
+}
+ENEMY_BLOCK_BEGIN = "# --- enemies (export_level.py, AREA02 placement tables) ---"
+ENEMY_BLOCK_END = "# --- end enemies ---"
+
+
+def _placement_census(entries) -> dict:
+    """Bucket one placement table's records (FINDINGS s11/s22 categories)."""
+    c = {"crawler": 0, "generator": 0, "enemy_misc": 0, "door": 0,
+         "pickup": 0, "deferred": 0, "prop": 0}
+    for e in entries:
+        if e.behavior == FN_CRAWLER:
+            c["crawler"] += 1
+        elif e.behavior in FN_GENERATORS:
+            c["generator"] += 1
+        elif e.behavior in FN_ENEMY_MISC:
+            c["enemy_misc"] += 1
+        elif e.behavior in FN_DOORS:
+            c["door"] += 1
+        elif (e.spawn_class & 0xFF) == 0x0B:
+            c["deferred"] += 1      # scripted/deferred, skipped at area load
+        elif e.kind == 0xB:
+            c["pickup"] += 1
+        else:
+            c["prop"] += 1
+    return c
+
+
+def _enemy_lines(entries, prefix: str = "") -> list[str]:
+    """Manifest lines for one table's enemy-class records. Crawlers become
+    `enemy crate` lines (the office placed crawler is a DISGUISED CONTAINER;
+    param 0x000D binds the cardboard-box model — FINDINGS s22/s23);
+    generators and the misc creature-family behaviors are unimplemented in
+    the port and become comment lines."""
+    out = []
+    for e in entries:
+        x, y, z = (f"{v:.6g}" for v in e.pos)
+        yaw = f"{e.rot[1]:.6g}"
+        if e.behavior == FN_CRAWLER:
+            out.append(f"{prefix}enemy crate {x} {y} {z} {yaw}")
+        elif e.behavior in FN_GENERATORS:
+            out.append(f"# generator (fn {e.behavior:#08x}, unimplemented) "
+                       f"pos ({x}, {y}, {z}) kind {e.kind}")
+        elif e.behavior in FN_ENEMY_MISC:
+            out.append(f"# enemy-family (fn {e.behavior:#08x}, "
+                       f"{FN_ENEMY_MISC[e.behavior]}, unimplemented) "
+                       f"pos ({x}, {y}, {z})")
+    return out
+
+
+def emit_enemy_manifest(scene_dir: Path, ov_path: Path) -> None:
+    """Rewrite the marker-delimited enemies block of scene.txt from the
+    AREA02 placement tables. The scene's own table (sub-state 1) drives the
+    ACTIVE lines; when it places no crawlers (the census result — see the
+    module docstring) the sub-state-0 crawler placements are appended as a
+    commented toggle instead."""
+    pl = sys.modules.get("_placements") or _load("_placements",
+                                                 "placements.py")
+    data = ov_path.read_bytes()
+    tables = pl.KNOWN_TABLES[OFFICE_OVERLAY]
+    per = [pl.parse_table(data, v) for v in tables]
+    scene_entries = per[OFFICE_SCENE_SUBSTATE]
+    cen = _placement_census(scene_entries)
+
+    block = [ENEMY_BLOCK_BEGIN]
+    block.append(f"# scene table = sub-state {OFFICE_SCENE_SUBSTATE} "
+                 f"@{tables[OFFICE_SCENE_SUBSTATE]:#x} (the captured office "
+                 f"scene), {len(scene_entries)} records:")
+    block.append(f"#   {cen['crawler']} crawlers (fn 0x001551B0), "
+                 f"{cen['generator']} generators (fn 0x0015A2C0), "
+                 f"{cen['door']} doors, {cen['pickup']} pickups, "
+                 f"{cen['prop']} fixtures/props"
+                 + (f", {cen['deferred']} deferred" if cen["deferred"]
+                    else ""))
+    for ss, ents in enumerate(per):
+        if ss == OFFICE_SCENE_SUBSTATE:
+            continue
+        c = _placement_census(ents)
+        block.append(f"# sub-state {ss} @{tables[ss]:#x}: {len(ents)} "
+                     f"records — {c['crawler']} crawlers, "
+                     f"{c['generator']} generators, "
+                     f"{c['enemy_misc']} misc creature-family, "
+                     f"{c['door']} doors, {c['deferred']} deferred(0x0B)")
+
+    active = _enemy_lines(scene_entries)
+    block += active
+    if cen["crawler"] == 0:
+        block.append("# this sub-state places NO enemies — the faithful "
+                     "default scene has none.")
+        block.append("# TOGGLE (off by default): the sub-state-0 crawler "
+                     "placements (disguised")
+        block.append("# cardboard-box containers, param 0x000D). Uncomment "
+                     "the #enemy lines to")
+        block.append("# populate the floor. NOTE: manifest enemies load "
+                     "before the EM_ENEMY_TEST")
+        block.append("# spawn and take enemy slot 0, breaking the "
+                     "self-tests' slot-0 asserts —")
+        block.append("# keep them commented for deterministic test runs.")
+        block += _enemy_lines(per[0], prefix="#")
+    block.append(ENEMY_BLOCK_END)
+
+    mf = scene_dir / "scene.txt"
+    lines = mf.read_text().splitlines() if mf.exists() else []
+    if ENEMY_BLOCK_BEGIN in lines:
+        b = lines.index(ENEMY_BLOCK_BEGIN)
+        e = lines.index(ENEMY_BLOCK_END) if ENEMY_BLOCK_END in lines \
+            else len(lines) - 1
+        lines = lines[:b] + lines[e + 1:]
+    while lines and not lines[-1].strip():
+        lines.pop()
+    lines += block
+    mf.write_text("\n".join(lines) + "\n")
+    print(f"manifest: {mf}: enemies block — sub-state "
+          f"{OFFICE_SCENE_SUBSTATE}: {cen['crawler']} active crawler "
+          f"line(s), {cen['generator']} generator comment(s); toggle "
+          f"lines: {_placement_census(per[0])['crawler']} (sub-state 0)")
+
+
 def load_level_mesh(level_path: Path):
     """Decode the render mesh into one EMDL section using the per-file
     region map (live placements baked in). Returns (sections, tex_table,
@@ -664,6 +824,13 @@ def main(argv):
                         " ".join(f"{v:g}" for v in vals))
     if args.bgm:
         update_manifest(Path(args.out).parent, "bgm", args.bgm)
+
+    # Office level: rewrite the scene.txt enemies block from the AREA02
+    # placement tables (see the module docstring, ENEMY LINES).
+    level_path = Path(args.level)
+    ov_path = level_path.parent.parent / "OVERLAY" / OFFICE_OVERLAY
+    if level_path.name == "f03_id43.bin" and ov_path.exists():
+        emit_enemy_manifest(Path(args.out).parent, ov_path)
     return 0
 
 

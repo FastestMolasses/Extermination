@@ -7911,3 +7911,67 @@ rebinds for the office's 6×4×5 box is unpinned (the husk set is the
 GLOBAL chunk27 library; check live during an office crate kill);
 office entries 0x0B/0x0C (same bounds as 0x0D) are probably the other
 office crawler param variants — unverified against placement params.
+
+## OFFICE SUB-STATE-1 PLACEMENT CENSUS — scene.txt enemy emission (2026-06-10, session 27)
+
+`tools/export_level.py` now emits the port's manifest `enemy` lines from
+the AREA02 placement tables (s11 record format, s22 behavior census) for
+the office scene. The census result reframes "the office's enemies":
+
+### 1. The captured scene's table places NO enemies
+
+The exported office scene is area SUB-STATE 1 (table `0x828170`, the
+s8/s9 capture). Its **14 records contain zero enemy-class behaviors**:
+
+| sub-state | table | records | crawlers (fn 0x001551B0) | generators (fn 0x0015A2C0) | misc creature-family | doors | pickups | deferred (cls 0x0B) | fixtures/props |
+|---|---|---|---|---|---|---|---|---|---|
+| 0 | 0x827830 | 58 | **17** | **8** | 3 | 2 | 0 | 4 | 24 |
+| **1 (scene)** | **0x828170** | **14** | **0** | **0** | **0** | **2** | **7** | **0** | **5** |
+| 2 | 0x8283D0 | 53 | **17** | **8** | 3 | 2 | 0 | 4 | 19 |
+
+Sub-state 1 = the back-office intro rooms (control panel 0x36 +
+companion prop, wall station 0x37, lockers 0x38, battery 0x2C, 2 double
+doors, 7 item pickups). The area's crawlers belong to the OTHER story
+states of the same floor: sub-states 0 and 2 each place 17 disguised
+containers (model 6, **param 0x000D = the s23 cardboard-box model**) on
+the main office floor (x −157..483, z −23..168) plus 8 class-0x0D
+generator spawn points (kinds 0/1/3/5 indexing `D_00248120`). The two
+sets differ only in uid numbering, door-link flags and minor prop
+swaps — they are the "before/after" populations of the floor. The misc
+creature-family records per table 0/2 are fns `0x1582E0` (class 0x44),
+`0x158EC0` (class 0x84), `0x158BD0` (class 8).
+
+CONSISTENT GEOMETRY CHECK: the sub-state-1 render export's bbox is
+X[37,120] Z[−305,−143] — every sub-state-0/2 crawler position lies
+OUTSIDE the captured scene's geometry volume. The crawler placements
+genuinely belong to a different scene of the area, not to this one.
+
+### 2. Emitter + port verification
+
+- `export_level.py` rewrites a marker-delimited `# --- enemies ... ---`
+  block in scene.txt: active `enemy crate x y z yaw` lines from the
+  scene table's fn-0x1551B0 records (none, per the census), generator /
+  creature-family records as comment lines (unimplemented natively),
+  and — since the scene table is enemy-free — the 17 sub-state-0
+  crawler placements as a documented COMMENTED TOGGLE (`#enemy crate`).
+  Idempotent; preserves all foreign manifest lines.
+- TOGGLE GATING (verified empirically): manifest enemies load at boot,
+  BEFORE the EM_ENEMY_TEST scene-init spawn, and the self-tests assert
+  on enemy slot 0 — with the 17 lines active, slot 0 is the (33,0,120)
+  crate 313 u away and EM_ENEMY_TEST=1 FAILs (also: 17 > EM_ENEMY_MAX
+  16, the last line's spawn is rejected). Hence commented-by-default.
+- Captures: default-spawn capture with the toggle ON is BYTE-IDENTICAL
+  to the no-enemies default (all crates sit beyond the back-office
+  walls, outside the scene volume); a temporary floor-vantage spawn
+  (33,0,60) shows the cardboard crate EMDL rendered at the authentic
+  (33,0,106..168) table positions, floating in the void where this
+  scene has no geometry.
+- The faithful default scene therefore HAS no enemies, and the
+  byte-identical capture baseline does NOT move. All self-tests pass
+  on the default: EM_ENEMY_TEST 1/2/3, EM_DOOR_TEST, EM_MOVE_TEST,
+  EM_WEAPON_TEST.
+
+Open: which engine event flips `D_00810701` from 0/1/2 for area 02
+(story scripting — would let a future port scene load the populated
+floor with its own geometry once sub-state-0's render file region map
+is recovered).
