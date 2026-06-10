@@ -132,6 +132,26 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-10 (session 41): MATCHING WAVE over the s33/s36 stub set —
+> +1 readable-C match: func_00179B90 (footstep rand 0..4 fold) at 100%,
+> converting its asm-void to C and PARTIALLY CRACKING the slt-into-
+> branch wall's fresh-temp case (copy-out + assign-compare-back-into-
+> compared-variable lands CW's `slti v1`; full datum in the idioms
+> section). func_00187DC0/func_00187EA0 verified already 100%. Four
+> targets recognized as wall-blocked FAST (≤4 attempts each, best-
+> attempt C + full wall census inline in each stub): func_0015A200
+> kind-0xE pair-spawn helper 91.30% (dead-`b`-dup + prologue
+> interleave; saved-reg mapping + beqz/paddub slot matched),
+> func_001545B0 ellipse validity 95.45% (dead-`b`-dup + mula/madd
+> stall nop; entire FP body incl. f20-f24 allocation matched first
+> try), func_00154740 tendril init 89.33% (dead-dup x5 incl. NEW
+> dead-srl-per-dance family member, wall-#13 store fills, pool order;
+> bnel likely-loop + all four u32->float dances + gp-rel mix matched;
+> fake-param pinning PROVEN for non-load defs), func_00173DD0
+> heavy-stab yaw steer 74.51% (reloc-pair fold/interleave + div.s
+> FP-stall pad; counter-datum: a beqz nop survived a safe-lui
+> fall-through). Gate: full recompile + boot-elf byte-identical PASS.
+
 > 2026-06-10 (session 40): PORT WIRES THE s37 FOOTSTEP FORMULA — the
 > em_game footstep block now computes the real per-step mapping:
 > surface = BLOCK(attr) + gait sub-base (walk 2 -> +5, run 3 -> +0xA,
@@ -1316,7 +1336,55 @@ Reminder: a matched dense-switch function still cannot be LINKED from C —
 the compiled object carries its own local jump table while the original
 table lives in the shared data region (jtbl_0026E0B0).
 
- 
+NEW DATUM — slt-into-branch wall PARTIALLY CRACKED: the fresh-temp case
+(2026-06-10, func_00179B90 matched 100%, readable C committed). When CW's
+compare result lands in a FRESH register (`slti v1, v0, k; bnez v1`) — the
+shape the wall writeup calls unbreakable — it IS matchable by copying the
+compared value OUT first and assigning the compare back into the compared
+variable: `r = t; t = t < 5; if (!t) r -= 5; return r;`. The kill-rename
+splits t's web (def 1 = the real computation, def 2 = the compare); mwcc
+allocates the compare web the next free register instead of $at-folding.
+A plain `ok = r < 5` fresh local still $at-folds (99.17%). Validated 2nd
+time in func_00154740's tint-loop guard (`t = idx + 1; idx = t;
+t = (unsigned)t < 0x16; if (!t) break;` → CW's `sltiu v1; bnez v1` with
+the increment in the bnel slot). Prereq: the compared variable's def 1
+must be a REAL op (andi/addiu), not a copy — a copy def collapses by
+copy-prop and re-folds to $at. The wall still stands when the result
+register must be a specific NON-next-free register (pool order rules it).
+
+NEW DATUM — idiom-7 fake-param pinning works for NON-LOAD defs
+(2026-06-10, func_00154740 attempt). The pool-order wall datum's "fake
+params FAIL for values assigned from memory loads" has a sharp boundary:
+pinning rec -> a2 / idx -> a3 via fake trailing parameters WORKED when
+their single defs are an address materialization (`rec = D_00246800;`
+lui/addiu) and a constant (`idx = 0;` paddub zero) — recovering the bnel
+tint-scan loop's entire body base-register set. Memory-loaded values
+(lbu/lh) still kill-rename into mwcc's own pool order.
+
+COUNTER-DATUM to wall #13 (2026-06-10, func_00173DD0 attempt): a
+`beqz v0, exit; nop` slot SURVIVED in mwcc -O4,p even though the
+fall-through's first candidate is a safe `lui` (an FP-constant
+materialization chain lui/ori/mtc1). Wall #13's "mwcc always fills from
+a safe fall-through candidate" is not universal — large FP-heavy
+fall-through blocks can keep the nop. Conversely (func_00154740) mwcc
+filled a loop-bottom `bnez` slot with a loop-invariant STORE
+(`sb v0,9(s1)`) — it will speculate stores into always-executed slots
+when the value is loop-invariant, a fill CW never makes.
+
+NEW WALL INSTANCES (2026-06-10, dead-`b`-dup family, recognized in this
+session's targets — analyses inline in the stubs): func_0015A200 (dead
+return-0 `paddub` + `b`, blocked 91.30%), func_001545B0 (dead return-1
+`addiu` tail, blocked 95.45%), func_00154740 (dead `paddub s2` init dup
+under the bail beqz AND a dead `srl a0,v1,1` per u32->float conversion
+dance x4 — the dance's bltz-slot dup is a new family member; blocked
+89.33%, also pool-order + FP-stall + prologue-interleave). func_00173DD0
+blocked 74.51% by the reloc-pair fold/interleave (mwcc folds %lo into a
+single-use load in every C form; CW splits the pair across the prologue
+sq's) + CW's `div.s; nop; nop` FP-stall pad before a jal (mwcc sinks the
+div.s into the jal slot; same family as func_001545B0's missing
+`mula.s; nop; madd.s` pad — CW pads FP latency, mwcc's hazard model only
+pads compare->bc1x).
+
 NOT A WALL — paddub register moves (correction 2026-06-XX). mwcc DOES emit
 `paddub $rd, $rs, $zero` for EE register moves/arg-saves/arg-setup — proven by
 committed readable-C matches func_00182A70, func_001BC300, func_001F0060 (each
