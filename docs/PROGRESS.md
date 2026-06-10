@@ -3993,3 +3993,32 @@ full detail):
   EM_ENEMY_TEST all PASS; all 9 registry WAVs exist (PCM16 mono,
   19–49 kHz engine-exact rates); default EM_CAPTURE byte-identical to
   pre-change baseline.
+
+### Update — 2026-06-10 s26b: UI FONT decoded + exported; real text in the port
+
+- **The engine's two UI fonts are fully decoded** — FINDINGS new section
+  "UI FONT". No VRAM-resident sheet exists: text streams 1bpp glyphs
+  from EE RAM (pointer block `0x0028A490`; tall 12x20 @ 30 B, small
+  16x16 @ 32 B, loaded to `0xB00000`) through the nibble LUT at
+  `0x26E350` into a PSMT4 strip at GS block 0x1B00 (TBW 8) and draws
+  one batched sprite per ≤32-glyph segment. Glyph rule
+  `index = ascii - 0x20` ('$' → 0x89 tall / 0x87 small); proportional
+  tall advance table from `func_001CBE10`; bilinear + modulate +
+  standard alpha from the prebuilt TEX0/TEX1/ALPHA packets. Office GS
+  dump checked at 0x1B00: stale noise (gameplay draws no text) — EE RAM
+  is the authoritative source.
+- **`tools/export_font.py`** (new): EE-RAM dump → `font.emfn` (RGBA8
+  sheet + per-glyph u/v/w/h/advance table; format in the script header)
+  — 409 tall + 256 small glyphs from the test states.
+- **Port (extermination-port)**: textured-overlay primitive
+  `em_gfx_overlay_glyph` + single overlay texture slot (runtime-MSL
+  textured pipeline, flushes after the untextured overlay), `.emfn`
+  loader + `em_hud_text` in em_hud — the status screen's labels and
+  numbers ("HEALTH", "075 / 100", "BATTERY 04/06", "SPR4", reserve,
+  "INFECTION 60%"/"INFECTED") now render in the REAL glyphs at the
+  audited anchors/styles, including the engine's tall-width centering
+  quirk for "HEALTH". Missing `font.emfn` → the old placeholder rects
+  (forced-HUD capture byte-identical to the pre-font baseline).
+- Verified: default capture byte-identical; forced-HUD capture
+  deterministic and legible; make test-input / EM_DOOR_TEST PASS;
+  clean build.

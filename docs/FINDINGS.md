@@ -7767,3 +7767,147 @@ s23 laser finding). Verified: weapon self-test asserts mid-replay after
 shots 1/5 and the clamp before holster; EM_CAPTURE_AIM=2 (aim + one
 shot) vs =1 differ by 3.85% of pixels at the mid-recoil frame and are
 pixel-identical 22 ticks later (the settle).
+
+## UI FONT — glyph rule, storage, and export (2026-06-10, session 26)
+
+Full decode of the text draw chain flagged in the s25 status-screen audit
+(`func_001CBA50` small-font text / `func_001CC1E0` tall-font text). The
+headline: **the engine has no VRAM-resident font sheet.** Text streams
+1bpp glyphs from EE RAM into a PSMT4 staging strip in GS VRAM and draws
+one batched sprite per string segment. Checked the office GS dump at the
+strip address — only stale non-text noise (gameplay frames draw no text),
+so the EE-RAM bitmaps are the authoritative (and complete) source.
+
+### Storage
+
+Pointer block at `0x0028A490` (filled by the boot asset loader; in the
+test states all four point into the disc-module region at `0xB00000`):
+
+| slot | points to | layout |
+|---|---|---|
+| `[0x0028A490]` | tall font (0xB00000) | 1bpp, **30 B/glyph = 12x20**, 409 slots |
+| `[0x0028A494]` | small font (0xB03000) | 1bpp, **32 B/glyph = 16x16**, 256 slots |
+| `[0x0028A498]` | string-table file (0xB05000) | used by `func_001FCB90`/`func_001FCBD0` |
+| `[0x0028A49C]` | (0xB0B800) | unexamined |
+
+### Glyph rule (func_001CBA50 / func_001CC1E0 / func_001CC8A0)
+
+- `glyph_index = ascii - 0x20`; chars `< 0x20` draw glyph 0 (blank) —
+  tall advances 0 for them, small still advances a full cell.
+- `'$'` (0x24) remaps to extended glyph **0x89 tall / 0x87 small**.
+- Byte offset = `index*30` (tall) / `index*32` (small).
+- 1bpp→PSMT4 expansion via the 16-entry u16 LUT at `0x0026E350`:
+  `LUT[n]` spreads bit *i* of nibble *n* into texel nibble *i* — within a
+  nibble **bit 0 is the leftmost pixel**; nibbles consumed low-then-high.
+- Small glyph: 32 bytes linear = 16 rows x 16 px (2 B/row).
+- Tall glyph: 3 bytes per TWO 12-px rows (`b0.lo b0.hi b1.lo` = row N,
+  `b1.hi b2.lo b2.hi` = row N+1), 10 iterations = 20 rows.
+
+### Draw path
+
+Per character the glyph is expanded and HOST→LOCAL-uploaded
+(`func_001CCE80` builds BITBLTBUF/TRXPOS/TRXREG/TRXDIR + IMAGE tag) into
+a staging strip at **GS block 0x1B00, DBW 8 (512 texels wide), PSMT4**
+(TRXREG 16x16 small / 32x32 tall window). Cells advance horizontally —
+fixed 16 texels per small glyph, **proportional advance** per tall glyph
+— and at 512 texels (32 small glyphs) the batch flushes as ONE textured
+sprite (`func_001CBC20` small / `func_001CC3B0` tall): UV (0,0)..(Σadv,
+16|20) texels over the strip, screen w = Σadv (tall draws 1:1; small
+GS-scales its 16x16 cells to the caller's `glyph_w`/`glyph_h` — the
+status screen passes 12x12 labels, 12x16 numbers). Because the strip is
+written left-to-right with overlapping 32-wide windows, each tall glyph
+shows exactly its first `advance` ink columns.
+
+Texture state (prebuilt packets `D_00250FC0` style/TEX setup,
+`D_002511C0` ALPHA pair): TEX0 = `0x20036CE5E5421B00` → TBP0 0x1B00,
+TBW 8, PSMT4, TW 9/TH 7, TCC RGBA, **TFX modulate**, CBP 0x1B67 (CT32,
+CSM1, CLD 1); TEX1 = `0x60` → **MMAG/MMIN linear (bilinear)**; ALPHA
+`0x44` = standard `(Cs-Cd)*As+Cd` blend (additive `0x68`+FIX 0x80
+variant in the same packet, selected per style byte +4..+7; style byte
++7 is a 0..15 sub-pixel y nudge OR'd into the sprite's XYZ).
+
+Tall-font advance table (`func_001CBE10`, keyed by RAW char code before
+the `'$'` remap; default **9**): space/`'`(0x60) 5, `!` `'` `I` `i` `l`
+0xA1 4, `,` `j` 0x82 0x91 0x92 0xA6 6, `:` `J` 7, `(` `)` `.`→5, `/`
+`;` `[` `\` `]` `f` 0x84 0x93 0x94 8, `r` 0x8B 0x9B 9, `M` `W` `m` `w`
+12. (`.` is 5, `(`/`)` are 8.) The width helper `func_001CC170` sums
+these — and `func_00208AD0` centers the "HEALTH" label with it even
+though the label draws in the SMALL font at 12x12 cells, so the drawn
+label sits slightly right of true center: a real engine quirk.
+
+### Export & port
+
+`tools/export_font.py` (new; macOS arm64 python3) reads an EE-RAM dump
+(`parse_pcsx2_state.py` output), decodes both fonts via the rule above
+and writes `font.emfn` — RGBA8 sheet + per-glyph `{u,v,w,h,advance}`
+table; format documented in the script header and mirrored by the port
+loader (`extermination-port/src/game/em_hud.c`). The port draws text
+through a new textured-overlay primitive (`em_gfx_overlay_glyph`,
+bilinear+modulate = the strip's GS state); with the asset absent it
+falls back to the old placeholder rects (verified byte-identical to the
+pre-font build). Verified vs the disasm: 'A'/'0'/'R'/'%' render
+correctly from both fonts; status screen shows "HEALTH 075 / 100",
+"BATTERY 04/06", "SPR4", "INFECTION 60%" in the real glyphs.
+
+## OFFICE CRATE BLOB — the AREA02 crawler disguise identified, carved, exported (2026-06-10, session 26)
+
+Closes the "CRAWLER RESOLVED" follow-up "also resolvable for the office
+area": which intact model the OFFICE (AREA02) placed crawler renders
+while idling disguised. Method = the s23 recipe, applied to the office.
+
+### 1. The office model table (the s23 method, AREA02)
+
+- Save states **08 / 09 / resume are all AREA02** (`D_00810700` = 2):
+  `*(D_0028A59C)` = `0x015570C0`, count **0x10** (model ids 0x00–0x0F;
+  identical table in all three states).
+- Content match: the table + entries are byte-identical to
+  **`extract/chunk06.n1/f03_id43.bin` at file offset `0x82000`**
+  (RAM−file delta `0x14D50C0`; entry 0x0D at file `0xA3900` = RAM
+  `0x15789C0`, verified byte-exact). So the per-area model table lives
+  INSIDE the level RENDER file, past the region map of FINDINGS s10 —
+  f03_id43 carries render regions AND the area's bind-by-param models.
+
+### 2. CORRECTION (s23 §3): the office disguise is NOT the 14u crate
+
+s23 extrapolated "AREA11 (and office AREA02) crawler param 0x0D →
+model-table id 0x0D = a 14×14×14 beveled CRATE". The binding (param
+0x0D → entry 0x0D) holds, but the office's entry 0x0D is a different
+model — **a plain 6×4×5 cardboard BOX** (1 block, 1 node, 10 tris, 8
+corner positions; bounds x ±3, y 0..4, z ±2.5, radius 5.59), skinned
+with THREE 64×64 PSMT4 textures (TBP0 `0x2DF0`/`0x2D98`/`0x2D88`, CBP
+`0x2F71`/`0x2F75`/`0x2F74` — per-face cardboard browns, all resident in
+the office GS dump `frame1.gs`). The 14u beveled crate is the AREA11
+skin only — "per-area skins", exactly as s23 §2 predicted from the
+param table. (Office table survey, for reference: 0x05 = a 20×20
+6-block prop sharing the AREA11 crate's size class; 0x07 = a 13-node
+34-block character; 0x0B/0x0C are near-duplicates of 0x0D's size.)
+
+### 3. Export + port
+
+- `tools/export_props.py --crate` (new mode): carves a per-area
+  model-table entry (`table_entry_offset` = the func_001C6120 lookup:
+  `table + (dir[id] & ~3)`), defaults = the office table/entry above,
+  and writes a static 1-node EMDL v2 (model-local, identity frame,
+  texels from `--gsdump extract/gsdump/frame1.gs`) →
+  `extermination-port/assets/enemy_crate.emdl` (20 welded verts, 10
+  tris, 3 textures; git-ignored, disc-derived). `--crate-blob` exports
+  a pre-carved raw blob instead (e.g. `scratch/crawler_mesh_id0D.bin`,
+  the AREA11 14u crate, with `--p2s` state 01 as the texel source) —
+  flagged as the non-office stand-in.
+- **Port (extermination-port s26):** `em_enemy` gains the CRATE kind —
+  `enemy crate x y z yaw` manifest lines; IDLE renders the crate EMDL
+  with the documented PROCEDURAL jitter mechanism (deterministic x/z +
+  yaw perturbation standing in for the D_002468B0/B4/B8 tables, which
+  are not exported — amplitudes flagged); HP 1; a bullet hit or ~10-u
+  player proximity (flagged trigger) BURSTS it: husk gibs through the
+  s24 launcher + the real worm spawned at the crate position (emerge
+  clip 1, yaw toward the player = the engine's leech init yaw).
+  `EM_ENEMY_TEST=3` walks the player at a crate 25 u ahead and asserts
+  burst-at-proximity, worm-at-crate-position, worm-closes-distance.
+
+Open: the AREA11 14u crate's husk pairing says husk A (0x22, 14×14
+footprint) is ITS burst shell — which husk (if either) the engine
+rebinds for the office's 6×4×5 box is unpinned (the husk set is the
+GLOBAL chunk27 library; check live during an office crate kill);
+office entries 0x0B/0x0C (same bounds as 0x0D) are probably the other
+office crawler param variants — unverified against placement params.
