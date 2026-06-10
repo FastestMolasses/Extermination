@@ -15,22 +15,38 @@ index into the EMDL verts and emits a world-matrix palette per frame.
 The output is disc-derived: write it only into git-ignored locations
 (extermination-port/assets/ is ignored there).
 
-EMDL v1 layout (little-endian):
+EMDL v2 layout (little-endian):
 
-  char  magic[4]      "EMD1"
+  char  magic[4]      "EMD2"
   u32   bone_count    palette slots (nodes + 1 trailing identity slot)
   u32   vert_count    total vertices
   u32   index_count   total triangle indices (u32, global vertex ids)
   u32   frame_count   baked pose frames (>=1)
   f32   fps           playback rate for the baked frames
-  u32   reserved[2]
+  u32   tex_count     textures in the embedded table (0 = untextured)
+  u32   reserved
   i32   parents[bone_count]                  (-1 = root; informational)
-  vert  { f32 px,py,pz; f32 nx,ny,nz; u32 bone } x vert_count
+  tex   { u32 width, height, byte_offset, reserved } x tex_count
+        byte_offset into the RGBA8 texel blob at the end of the file
+  vert  { f32 px,py,pz; f32 nx,ny,nz; f32 u,v; u32 bone; u32 tex }
+        x vert_count   (tex = index into the table, 0xFFFFFFFF = none;
+        UVs are normalized texture coords, REPEAT addressing — values
+        outside [0,1] are intentional tiling)
   u32   indices[index_count]
   f32   palette[frame_count][bone_count][16] column-major world matrices
+  u8    texels[]      RGBA8, rows top-down, per-texture at byte_offset
 
 Vertices are BONE-LOCAL (exactly as stored on disc); vertex_world =
 palette[frame][bone] * pos — the same contract as the PS2 kernel.
+
+TEXTURE/COLOR (decoded 2026-06-09 s5): vertex record qword 0 ("marker")
+IS the draw's TEX0 register value — TBP0/TBW/PSM/TW/TH/CBP baked into
+the disc file (validated: all 51 (TBP0,CBP) pairs of f00_id3b appear
+verbatim in a live GS dump's per-draw TEX0 stream; the two variants per
+pair differ only in CLD). Qword 1 holds the vertex's normalized ST.
+Color requires a one-frame PCSX2 GS dump (--gsdump) whose VRAM snapshot
+supplies the PSMT4 texels + 16-entry CLUTs (palettes are runtime-built;
+see docs/FINDINGS.md "Texture COLOR recovered").
 
 Usage (macOS arm64, repo root):
   # ANIMATED export: bake clip N from an id 0x74 animation library file
@@ -174,11 +190,27 @@ def _walk_meshsig_blocks(d: bytes, segment: int):
     return payloads
 
 
-def load_mesh_sections(mesh_path: Path, segment: int = 0):
-    """Decode the skinned mesh into one section with PER-VERTEX bones.
+def tex0_fields(q: int) -> dict:
+    return {
+        "tbp0": q & 0x3FFF, "tbw": (q >> 14) & 0x3F, "psm": (q >> 20) & 0x3F,
+        "tw": (q >> 26) & 0xF, "th": (q >> 30) & 0xF,
+        "cbp": (q >> 37) & 0x3FFF,
+    }
 
-    Returns (sections, max_slot) with sections = [(pos, nrm, tris,
-    bones)]; positions/normals bone-local, bone = dmem-slot index.
+
+# CLD (bits 61-63) is per-draw CLUT-cache control, not texture identity:
+# the same texture appears with CLD=1 (first use) and CLD=0 (reuse).
+TEX0_KEY_MASK = ~(7 << 61) & (2 ** 64 - 1)
+
+
+def load_mesh_sections(mesh_path: Path, segment: int = 0):
+    """Decode the skinned mesh into one section with PER-VERTEX bones,
+    UVs and texture ids.
+
+    Returns (sections, max_slot, tex_table) with sections = [(pos, nrm,
+    tris, bones, uvs, texids)]; positions/normals bone-local, bone =
+    dmem-slot index, texid = index into tex_table (list of TEX0 field
+    dicts in first-use order; 0xFFFFFFFF = no/implausible texture).
     """
     d = mesh_path.read_bytes()
     if struct.unpack_from("<I", d, 0)[0] < 0x1000 and \
@@ -189,14 +221,35 @@ def load_mesh_sections(mesh_path: Path, segment: int = 0):
     if not payloads:
         raise SystemExit(f"no skinned-mesh blocks found in {mesh_path}")
 
-    raw_pos, raw_nrm, raw_bone = [], [], []
+    raw_pos, raw_nrm, raw_bone, raw_uv, raw_tex = [], [], [], [], []
     tris = []
     weld = {}
     max_slot = 0
+    tex_table: list[dict] = []
+    tex_index: dict[int, int] = {}     # TEX0 (CLD-masked) -> table index
+    NO_TEX = 0xFFFFFFFF
 
-    def vid_of(p, n, b):
+    def tex_of(q0: int) -> int:
+        key = q0 & TEX0_KEY_MASK
+        ti = tex_index.get(key)
+        if ti is None:
+            f = tex0_fields(key)
+            # plausibility: indexed PSM, sane log2 dims (engine uses
+            # PSMT4 for characters/level, PSMT8 for UI sheets)
+            if f["psm"] not in (0x13, 0x14) or not (4 <= f["tw"] <= 10) \
+                    or not (4 <= f["th"] <= 10):
+                ti = NO_TEX
+            else:
+                ti = len(tex_table)
+                f["key"] = key
+                tex_table.append(f)
+            tex_index[key] = ti
+        return ti
+
+    def vid_of(p, n, b, uv, t):
         key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
-               round(n[0], 3), round(n[1], 3), round(n[2], 3), b)
+               round(n[0], 3), round(n[1], 3), round(n[2], 3), b,
+               round(uv[0], 5), round(uv[1], 5), t)
         i = weld.get(key)
         if i is None:
             i = len(raw_pos)
@@ -204,6 +257,8 @@ def load_mesh_sections(mesh_path: Path, segment: int = 0):
             raw_pos.append(p)
             raw_nrm.append(n)
             raw_bone.append(b)
+            raw_uv.append(uv)
+            raw_tex.append(t)
         return i
 
     for payload in payloads:
@@ -222,7 +277,9 @@ def load_mesh_sections(mesh_path: Path, segment: int = 0):
             max_slot = max(max_slot, slot)
             pos = struct.unpack_from("<3f", payload, r + 0x30)
             nrm = struct.unpack_from("<3f", payload, r + 0x20)
-            vi = vid_of(pos, nrm, slot)
+            uv = struct.unpack_from("<2f", payload, r + 0x10)
+            tex = tex_of(int.from_bytes(payload[r:r + 8], "little"))
+            vi = vid_of(pos, nrm, slot, uv, tex)
             restart = bool(wbits & 0x8000)
             run.append((vi, restart))
             k = len(run)
@@ -235,8 +292,8 @@ def load_mesh_sections(mesh_path: Path, segment: int = 0):
                     else:
                         tris.extend((b, a, c))
 
-    sections = [(raw_pos, raw_nrm, tris, raw_bone)]
-    return sections, max_slot
+    sections = [(raw_pos, raw_nrm, tris, raw_bone, raw_uv, raw_tex)]
+    return sections, max_slot, tex_table
 
 
 def bake_id74_palettes(anim_path: Path, clip: int):
@@ -366,13 +423,47 @@ def recentre(frames):
     return out
 
 
+def build_texture_blob(gsdump: Path | None, tex_table: list[dict]):
+    """Resolve each mesh TEX0 to RGBA8 texels via a GS dump's VRAM
+    snapshot (PSMT4/PSMT8 indices + runtime-built CLUTs both live there).
+    Without a dump every texture is a 1x1 mid-grey placeholder.
+
+    Returns (entries, blob): entries = [{w, h, off}] parallel to
+    tex_table."""
+    entries, blob = [], bytearray()
+    lm = None
+    if gsdump is not None:
+        pg = _load("_parse_gsdump", "parse_gsdump.py")
+        state_data, _regs, _pkts, _serial, _crc = pg.parse(gsdump, quiet=True)
+        lm = pg.dump_vram(state_data)
+        cp = _load("_clut_pair", "clut_pair.py")
+        from clut import apply_clut
+    for f in tex_table:
+        w, h = 1 << f["tw"], 1 << f["th"]
+        if lm is None:
+            entries.append({"w": 1, "h": 1, "off": len(blob)})
+            blob += b"\x80\x80\x80\xff"
+            continue
+        if f["psm"] == 0x14:
+            idx = cp.read_psmt4(lm, f["tbp0"], f["tbw"], w, h)
+            pal = cp.read_clut16_rgba(lm, f["cbp"]) + bytes(1024 - 64)
+        else:
+            idx = cp.read_psmt8(lm, f["tbp0"], f["tbw"], w, h)
+            pal = cp.read_clut_rgba(lm, f["cbp"])
+        entries.append({"w": w, "h": h, "off": len(blob)})
+        blob += apply_clut(idx, pal)
+    return entries, bytes(blob)
+
+
 def write_emdl(out_path: Path, sections, section_bone, parents, frames,
-               fps: float):
+               fps: float, tex_entries=None, tex_blob=b""):
     """Vertices carry their own palette slot (per-vertex bone, decoded from
     the position-W dmem address — see load_mesh_sections). A trailing
     identity slot soaks up any vertex whose slot exceeds the palette."""
     n_bones = len(frames[0])
     id_slot = n_bones        # identity matrix slot for unmapped vertices
+    tex_entries = tex_entries or []
+    NO_TEX = 0xFFFFFFFF
 
     verts = bytearray()
     indices = []
@@ -381,13 +472,19 @@ def write_emdl(out_path: Path, sections, section_bone, parents, frames,
     for i, sec in enumerate(sections):
         pos, nrm, idx = sec[0], sec[1], sec[2]
         bones = sec[3] if len(sec) > 3 else None
+        uvs = sec[4] if len(sec) > 4 else None
+        texs = sec[5] if len(sec) > 5 else None
         for vi, (p, n) in enumerate(zip(pos, nrm)):
             b = bones[vi] if bones is not None else (
                 section_bone[i] if i < len(section_bone) else -1)
             slot = b if 0 <= b < n_bones else id_slot
             used.add(slot)
-            verts += struct.pack("<6fI", p[0], p[1], p[2],
-                                 n[0], n[1], n[2], slot)
+            uv = uvs[vi] if uvs is not None else (0.0, 0.0)
+            t = texs[vi] if texs is not None else NO_TEX
+            if not (0 <= t < len(tex_entries)):
+                t = NO_TEX
+            verts += struct.pack("<8f2I", p[0], p[1], p[2],
+                                 n[0], n[1], n[2], uv[0], uv[1], slot, t)
         indices.extend(vbase + k for k in idx)
         vbase += len(pos)
 
@@ -402,21 +499,25 @@ def write_emdl(out_path: Path, sections, section_bone, parents, frames,
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("wb") as f:
-        f.write(b"EMD1")
+        f.write(b"EMD2")
         f.write(struct.pack("<4If2I", n_bones + 1, vbase, len(indices),
-                            len(frames), fps, 0, 0))
+                            len(frames), fps, len(tex_entries), 0))
         for b in range(n_bones):
             p = parents[b] if b < len(parents) else -1
             f.write(struct.pack("<i", p if 0 <= p < n_bones else -1))
         f.write(struct.pack("<i", -1))   # identity slot
+        for e in tex_entries:
+            f.write(struct.pack("<4I", e["w"], e["h"], e["off"], 0))
         f.write(verts)
         f.write(struct.pack(f"<{len(indices)}I", *indices))
         f.write(pal)
+        f.write(tex_blob)
 
     print(f"wrote {out_path}")
-    print(f"  palette: {n_bones}+1 slots ({len(used)} referenced)")
-    print(f"  verts  : {vbase}  tris: {len(indices) // 3}")
-    print(f"  frames : {len(frames)} @ {fps} fps")
+    print(f"  palette : {n_bones}+1 slots ({len(used)} referenced)")
+    print(f"  verts   : {vbase}  tris: {len(indices) // 3}")
+    print(f"  frames  : {len(frames)} @ {fps} fps")
+    print(f"  textures: {len(tex_entries)} ({len(tex_blob)} texel bytes)")
 
 
 def main(argv):
@@ -433,13 +534,21 @@ def main(argv):
     ap.add_argument("--segment", type=int, default=0,
                     help="model segment for MESH_SIG-style files (X-separator"
                     " groups; default 0)")
+    ap.add_argument("--gsdump", help="PCSX2 1-frame GS dump (.gs) of a scene "
+                    "with this model on screen: source of colored texels "
+                    "(VRAM snapshot resolves each marker TEX0's PSMT4 "
+                    "indices + CLUT). Without it textures are grey 1x1.")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 
-    sections, max_slot = load_mesh_sections(Path(args.mesh), args.segment)
+    sections, max_slot, tex_table = load_mesh_sections(Path(args.mesh),
+                                                       args.segment)
     nverts = sum(len(s[0]) for s in sections)
     ntris = sum(len(s[2]) for s in sections) // 3
-    print(f"mesh: {nverts} verts, {ntris} tris, max node slot {max_slot}")
+    print(f"mesh: {nverts} verts, {ntris} tris, max node slot {max_slot}, "
+          f"{len(tex_table)} textures")
+    tex_entries, tex_blob = build_texture_blob(
+        Path(args.gsdump) if args.gsdump else None, tex_table)
 
     fps = FPS
     if args.live:
@@ -460,7 +569,8 @@ def main(argv):
         print("note: no --live/--anim; exporting identity palette "
               "(bone-local parts will overlap)")
 
-    write_emdl(Path(args.out), sections, [], parents, frames, fps)
+    write_emdl(Path(args.out), sections, [], parents, frames, fps,
+               tex_entries, tex_blob)
     return 0
 
 
