@@ -1,4 +1,14 @@
 // All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
+//
+// SEMANTICS (2026-06-10 s15): generic placed-prop / item-pickup behavior —
+// the placement-record +0x24 target for every kind-0xB pickup. State machine
+// on actor byte +0x04: 0=INIT (func_001B0FD0 binds model/bones, then
+// func_001C6380 stamps the placement TRS into all bone slots), 1=ACTIVE
+// (func_001B17A0 common prop frame, then the anim-mode method at +0x4C),
+// 2/3=FREE (func_001AFC10). Readable-C attempt reached 89.74%: blocked by
+// the delay-slot-fill wall (idiom 13) — CW leaves `bnez v0,skip; nop` and
+// puts `paddub a0,s0` in func_001C6380's jal delay slot; mwcc always hoists
+// the paddub into the bnez delay slot. Same wall as func_001B57E0.
 extern void func_001AFC10(int, int, int, int);
 extern void func_001B0FD0(int, int, int, int);
 extern void func_001B17A0(int, int, int, int);

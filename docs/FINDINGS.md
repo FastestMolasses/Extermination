@@ -5427,3 +5427,281 @@ description: soldier at a snowy gate, night palette.)
   are world-space at rest), but a third level might.
 
 _Last updated: 2026-06-10 (session 16)._
+
+## FIRST INTERACTIVE OBJECTS — pickup + door state machines, actor registry/tick decoded (2026-06-10, session 15)
+
+Static disassembly walk of the two placement-table behavior functions from
+s11 (`func_001C4820` prop/pickup, `func_001BC350` door), the spawner's
+registry linkage, and the player-side trigger scans. This is the semantic
+contract for the port's first interactive objects. All offsets are into the
+0x2F0-byte actor struct unless noted.
+
+### 1. The actor registry (closes "spawn/tick linkage")
+
+**Pool:** 256 actors x 0x2F0 bytes at `D_007A5640`, initialized by
+`func_001AF8E0` (memset each, chain free list through +0x1C; free head
+`D_00275BC4`, free count `D_00275BC8` halfword = 0x100). A second static
+24-slot actor array lives at `D_0028B020` (ticked separately by
+`func_001B0000`; persistent/global actors).
+
+**Alloc `func_001AFA90(cls)`** (called by the spawner and by scripted
+spawners like `func_001C5C50`): refuses class 0xC when fewer than 10 free
+(reserve for transient FX); pops the free list and initializes:
+`+0x00 status=2`, `+0x02 class byte` (low 5 bits class, bits 5-7 flags —
+bit 7 = "interactive"), `+0x14 self-pointer`, scale `+0x60..6C`=1.0 x4,
+`+0x70/74`=0 `+0x78/7C`=1.0, `+0x80..8C`=1.0 x4 (anim scale), pos
+`+0xB0..B8`=0 `+0xBC`=1.0, `+0x94`=-1 h, `+0x96`=0 h, `+0x99/9A/9C`=0;
+links into the ACTIVE doubly-linked list via `func_001AFA50`
+(head `D_00275BC0`, tail `D_00275BBC`, prev +0x18, next +0x1C); zeroes
+`+0x30, +0x52..58 h, +0x5C=0x00010101`; class 2 additionally gets
+`+0x9D = D_00810701` (area sub-state), `+0x9E = D_00810702`.
+
+**Spawner `func_001B6990`** (s11, field map confirmed at instruction
+level): walks the placement table, allocates per record (skipping
+cls&0xFF==0x0B deferred records), copies model→+0x03,
+flags2→+0x2E (u16), param lo→+0x0D, table index→+0x9A, uid→+0x0E (u16),
+kind→+0x54, link→+0x56, pos→+0xB0/B4/B8, rot→+0xC0/C4/C8, and the
+record's +0x24 BEHAVIOR fn→+0x10. One correction to s11's map: for
+class-2 records uid is NOT copied to +0x0E; instead +0x9D=D_00810701 and
++0x9E=uid lo byte. If the pool empties the scan aborts.
+
+**Tick `func_001AFD70(mode)`** — called from the gameplay frame
+(`func_001AE5E0`, the "world services" slot after the player update):
+walks the active list; mode 1 = only class 1, mode 2 = all except
+class 1, mode 0 = all. Per actor: `func_001CB590(actor, 0x2F0,
+bonecount@+0x09)` — this just publishes `D_00275B48=D_00275B44=actor`
+("current actor" globals) and sizes the shared bone work array — then
+clears byte +0x01 (per-frame visible flag) and calls the BEHAVIOR
+POINTER `*(+0x10)(actor)`. Per-frame walk counter at spad 0x70003B8A.
+`func_001CB5A0` ("context end") is a no-op. So the s11 placement table's
++0x24 pointer is invoked once per frame per actor, exactly here. The
+player actor 0x008102B0 is NOT in this pool (updated separately by
+`func_0015BCF0`).
+
+**Free `func_001AFC10(actor)`** (behavior states 2/3): takes the
+canonical pointer from +0x14, runs `func_001AF800` (bone-slot release) +
+`func_001AFBC0` (active-list unlink), pushes onto the free list, clears
++0x00/04/08/0C, +0x36 h, +0x90 w, +0x98 b, and zeroes the 0x100-byte
+tail +0x1F0..+0x2F0 (per-behavior scratch area).
+
+**Per-frame category lists** (how other systems find actors without
+walking the pool): when an actor is visible, `func_001B17A0`/
+`func_001BC300` call `func_001B1B70`, which pushes `*(+0x14)` onto
+downward-growing per-CLASS pointer lists rebuilt every frame:
+class 1→`D_00275B70/78`, 2/0xA→`D_00275B54`-area, 4→`D_00275B80`
+cursor/`D_00275B88` count (cap 0x80), 7→`D_00275B90`-area,
+0xD→`D_00275BA0`-area, and — if class-flag 0x80 (interactive) —
+additionally `func_001B1DE0` pushes onto the INTERACTIVE list
+`D_00275B60` cursor/`D_00275B68` count (cap 0x20). At frame close-out
+`func_001AAD00` double-buffer-swaps cursors/counts (published copies:
+interactive `D_00275B5C/B64`, class-4 `D_00275B7C/B84`, ...), so
+consumers always read last frame's complete list.
+
+### 2. `func_001C4820` — generic placed-prop / item-pickup behavior
+
+Tiny per-frame state machine on lifecycle byte +0x04:
+
+- **0 INIT:** `func_001B0FD0` → `func_001B0EA0`: binds the model by ITEM
+  TYPE byte +0x0D through the per-area model table `*(D_0028A59C)`
+  (`func_001C6120` lookup → `func_001CA6E0` bind: stores model record to
+  +0x44 and selects the +0x4C ANIM-MODE METHOD from `jtbl_0026E310` by
+  the record's mode field — mode 0 = `func_001CAA00` default static);
+  reads bone count (`func_001C6150`) → +0x0C, allocates one matrix slot
+  per bone (`func_001AF780`) → pointer array +0x110, +0x09 = count.
+  If the matrix pool is short (`D_00275BCC`), sets state 3 (self-free).
+  On success state→1 and the dispatcher runs `func_001C6380`: build TRS
+  world matrix at +0xD0 from pos/rot/scale and copy it into every bone
+  slot (rigid prop). **MATCHED 100% readable C: src/func_001C6380.c.**
+- **1 ACTIVE:** `func_001B17A0` (common prop frame): optional
+  interaction-highlight hook when global mode `D_00810CA5`==6 for
+  classes 7/8/0xA/2; then `func_001B1630(pos)` room/visibility test →
+  byte +0x01; if visible `func_001B1B70` (category-list publish + draw
+  submit). Then the +0x4C anim-mode method runs (bob/spin would live
+  there; office pickups use the default static mode 0 — there is no
+  bob/spin on these). NO gameplay logic in the pickup actor itself.
+- **2/3 FREE:** `func_001AFC10` (despawn back to pool).
+
+Readable-C attempt for the dispatcher reached 89.74% — delay-slot-fill
+wall (analysis inline in src/func_001C4820.c; stays a .word stub).
+
+**Pickup collection is NOT in the pickup behavior.** The office records
+(AREA02 state-1 table dumped via tools/placements.py) show pickups are
+class 0x0004 — WITHOUT interactive flag 0x80 — kind 0xB, model byte 0,
+param = item type. The actual "take item" path is player-side and goes
+through the published category lists (s15 found the consumers but not
+yet the inventory write — see Open below).
+
+### 3. `func_001BC350` — door behavior (class-5 double doors, model 3)
+
+Outer lifecycle on +0x04 (0 INIT / 1 RUN / 2-3 FREE). INIT
+(`func_001BBDA0` after `func_001B0F60` model-bind): door id +0x34 (u16)
+= flags2 (+0x2E, from record +0x03), then +0x2E zeroed (reused as
+"which side" latch); LINK halfword +0x56 bit 0x40 → uniform scale 1.5,
+bit 0x80 → 2.0, else 1.0 (the s9 "double door is 2x scale" mystery —
+office link 0x0280 vs 0x0200); status byte +0 = 1 (makes the door
+eligible for the player's use-scan, below).
+
+RUN: inner sub-state byte +0x05 through `jtbl_0026E1C0`:
+
+```
+0 CLOSED   model 0x15 ("security door"): unlock bitmask byte
+           D_00810841[D_00810700] bit (1 << +0x34): set -> trigger
+           func_001BBE40(self, blk, 0) -> sub 3; clear -> func_001BBE40
+           (self, blk, 1) -> sub 1 (locked sequence). Other models:
+           func_001BBE40(self, blk, 0) -> sub 3.
+1 LOCKED-A func_001BC0E0 pump; when clip done queue script D_0024DBC0
+           (func_001BA1A0) -> sub 2
+2 LOCKED-B func_001BC0E0 pump; done -> +0x0B = 0 (re-arm), sub 0
+3 OPENING  func_001BC0E0 pump (advance clip @1.0/frame -> blk+0xE; run
+           queued script via func_001BA1F0); done -> sub 4
+4 COMMIT   func_001BC240 [MATCHED 100% readable C]: advance clip, then
+           func_001BC150 = THE TRANSITION COMMIT -> sub 5
+5 CLOSE    func_001BC290: advance clip; once D_008106B8 (transition
+           byte) returns 0: anim_clip_init(self, 0, 0.0, 0.0) reset,
+           +0x0B = 0, sub 0
+```
+
+Every RUN frame ends in `func_001BC300` (already matched): evaluate the
+door's multi-slot articulation via the generic keyframe evaluator
+`func_001C68C0` (the s9 door-local slot animation IS skeletal animation
+on the door's bones — no special articulation math), cull-test at
+pos+(0,10,0), publish/draw, then the +0x4C method.
+
+**Trigger (who arms +0x0B):** the player-side USE SCAN `func_00184BA0`
+(callers: player locomotion states `func_001612D0`/`func_00160220`/
+`func_0016DE40`): bails unless gameplay-frame selector spad 0x70003B8D
+== 0; walks last frame's INTERACTIVE list (`D_00275B5C/B64`) filtering
+status bit0 set, class flag 0x80, +0x0B == 0; per candidate
+`func_00183EF0(player, actor)` — requires player action-state byte
++0x1F0 == 0x2D (pressing forward), a clear LOS query
+(`func_0019A910`, mode 6; hit-flag 0x2000 blocks), distance^2 <= 144
+(12.0 u), returns 2 (immediate) if < 4 (2.0 u), else facing-dot
+threshold (~0.4) → nearest-candidate (distance via spad 0x70003B98).
+Winner: `actor[+0x0B] = 4` and **spad 0x70003B8D = 3** — the gameplay
+frame switches to the door-transit variant. So doors trigger on
+walk-into (distance+facing), no button.
+
+**`func_001BBE40` (transit kickoff,** runs while +0x0B bit2 set**):**
+computes which side the player is on (angle(player-door) vs door yaw,
+threshold pi/2) → +0x2E side latch; writes a camera cue (front:
+`D_0024DC14`=0x45/`D_0024DC54`=2/`D_0024DC8C`=90.0 or 0x43/0/70.0 +
+`func_001BBD60(self, D_0024DC40)`; back via `D_0024DCD4/D_0024DD14`);
+SNAPS player yaw +0xC4 to the door normal (yaw or yaw+pi); computes the
+far-side point `door_pos -/+ 5.0*[sin,cos](side yaw)` adjusted by
+player yaw into spad vec 0x700038A0 and issues a player MOVE-TO
+(`func_00182F90`) — the door sequence WALKS THE PLAYER THROUGH;
+queues door script `D_0024DE40` (side 0) / `D_0024DEC0` (side 1) on the
+anim block and pumps it. Door scripts are command streams executed by
+`func_001BA1F0`: 8-byte records `{u32 op|flags, u32 arg}`, opcode =
+op&0xFFF dispatched through the function table `ftab_0024D880`
+(opcode 0x18 = end/wait; flag bit31 = stop, bit30 = jump-to-arg ptr,
+bit29 = arg-relative advance; spad 0x70003B91 gates a pause variant).
+SOUNDS: no direct SShd call in the door fns — door audio is emitted by
+script opcodes through ftab_0024D880 (table not yet itemized).
+
+**`func_001BC150` (transition commit):** door id +0x34 bit 0x80 set →
+AREA CHANGE: `func_001B0C00(4)`, `D_008106B8=1`, and
+`D_008106B5/B7/B6` = bytes 0/1/(2?3:0xFF) of record
+`*(D_0024E140[D_00810700]) + 4*(+0x34 & 0x7F)` — the per-area DOOR
+DESTINATION TABLE (next area / sub-state / entry point). Bit clear →
+same-area room move: `func_001AEDE0(4,0)` (fade), `D_008106B8=2`,
+`D_008106B7` = destination byte chosen by side latch +0x2E. The
+flags2/uid of door records are therefore: low 7 bits = door id indexing
+the area's destination table, bit 7 = "leads to another area".
+
+**Door control panel (`func_001BD9F0`, office record[0] is the related
+panel class):** its sub-state 1, when its script completes, follows its
+active-list NEIGHBOR pointer +0x18 (the door spawned adjacently —
+record order matters!), sets the partner's +0x0B = 1, points the view
+target D_008105E0 at partner pos+(0,16,0), waits 0x3C frames (+0x28
+countdown), then runs the same `func_001BC150` commit. I.e. panels
+open/operate their adjacent door by arming the same flag byte.
+
+### 4. The uid state words at 0x70003250 — refined
+
+`0x70003250` (spad) holds a POINTER (= `*(D_0028A5A8)`, a per-area
+loaded blob; count halfword cached at 0x7000324C, set up by
+`func_00199C50`). Per-uid word at `ptr + 4*uid + 4`:
+low bits = OFFSET (from ptr) of the object's COLLISION RECORD —
+AABB {xmin,ymin,zmin,xmax,ymax,zmax} floats + halfword face list
+(0xF000-coded face dir, walked by `func_0019BC40`/`func_0019F730`/
+`func_0019FE50`/`func_001A0B10`/`func_001A2AE0`, the player/projectile
+vs placed-object collision family, which iterate the published CLASS-4
+list and gate on kind +0x54 < 0x51 and uid < count) — and flag bits:
+0x40000000 (toggled by `func_0019C6F0`; e.g. collision on/off for
+opened/removed objects), 0x20000000 (tested by it). `func_0019C6F0
+(param|bit31, clear)` scans the placement table's leading class-0x0B
+(deferred/scripted) records for a param match and tests 0x20000000 /
+sets-clears 0x40000000 of that uid's word; it has NO main-ELF callers —
+invoked from area overlay code (the scripted-spawn trigger path).
+`func_00199DB0` returns an object's AABB center from the same records
+(aim-assist/targeting). So: object MUTABLE state = these per-uid words;
+the placement tables themselves are never written (s11 confirmed).
+
+### 5. Port contracts
+
+**Actor (entity) core — fields used by these systems:**
+```
++0x00 u8  status (1 bits: 0=live/visible-eligible; alloc sets 2, door
+          init sets 1)        +0x01 u8  visible-this-frame
++0x02 u8  class | flags (bit7 interactive, bit5/6 variants)
++0x03 u8  model byte          +0x04 u8  lifecycle state
++0x05 u8  behavior sub-state  +0x09 u8  bone count (ticked copy)
++0x0B u8  activation flags (bit0 panel-armed, bit2 player-use-armed)
++0x0C u8  bone count          +0x0D u8  param/item type
++0x0E u16 uid (hi byte = state-word index)
++0x10 fn* behavior (from placement record +0x24)
++0x14 ptr self (canonical pool pointer)
++0x18/+0x1C prev/next active links
++0x28 s16 timer (panel)       +0x2E u16 scratch (door: side latch)
++0x30 ptr anim/clip desc      +0x34 u16 door id (bit7 = area-change)
++0x44 ptr model record        +0x4C fn* anim-mode method
++0x54 u16 kind  +0x56 u16 link  +0x60 f32[4] scale
++0x80 f32[4] anim scale (door 1.0/1.5/2.0 from link bits 0x40/0x80)
++0x9A u8  placement-table index   +0x9D/+0x9E u8 (class 2 only)
++0xA0 q   player: position qword (player struct variant, 0x320)
++0xB0 f32[3]+1.0 position     +0xC0 f32[3] rotation (ry = yaw)
++0xD0 f32[16] world TRS       +0x110 ptr[] per-bone matrix slots
++0x1F0 u8[0x100] behavior-local scratch (door: anim block — +0xC byte
+       clip-active, +0xE s16 clip time, +0x0 s32 script-active,
+       +0x4 script cursor state, +0x8 script PC)
+```
+
+**Per-frame rule (port game loop):** after the player update, walk the
+active actor list; for each: set current-actor global, clear
+visible-flag, call behavior(actor). Behaviors publish themselves into
+per-class + interactive lists consumed NEXT frame (double-buffered at
+frame close). Free = unlink + push free-list + zero +0x1F0 tail.
+
+**Pickup contract:** spawn from table records kind 0xB (class 4, param
+= item type); INIT binds model by item type and stamps the placement
+TRS into all bone slots; ACTIVE = draw-if-visible only; remove by
+setting lifecycle 2/3. Persistence/collection state = per-uid word in
+the area state blob (bit 0x40000000) — the inventory-write call site is
+still open (below).
+
+**Door contract:** spawn kind 4 class 5|0x80, model 3; closed door arms
+when the player pushes into it (state 0x2D, LOS clear, dist <= 12,
+facing-dot >= ~0.4, nearest wins) OR when its neighbor panel arms it;
+model 0x15 doors additionally require unlock bit
+`D_00810841[area] >> door_id` else they play the locked sequence and
+re-arm; opening/closing = keyframe clip on the door skeleton at
+1.0/frame; at clip end commit transition via the per-area destination
+table `D_0024E140[area][door_id & 0x7F]` (bit7 = inter-area; writes
+D_008106B5..B8 consumed by the area loader), walking the player to
+`door_pos ± 5.0` along the door normal with yaw snapped.
+
+### Open items
+
+- The INVENTORY WRITE on item pickup: not in the pickup behavior, not in
+  the door/use scan; candidates are the interaction-UI machine
+  (`func_002149F0` cluster — its `func_00185420`/`func_00184D20` scans
+  cover examine actions 0x1B-0x27 against class-4 models 0x14-0x2C, not
+  kind-0xB items) or area-overlay handlers via the published class-4
+  list. Needs one live breakpoint session on an office ammo-box take.
+- `ftab_0024D880` script opcode table (door sounds live behind it) — not
+  itemized; sound-id → SShd mapping for doors therefore open.
+- Door scripts `D_0024DBC0/D_0024DE40/D_0024DEC0` and camera-cue block
+  `D_0024DC14..D_0024DD14` not yet dumped/decoded.
+- `func_00183EF0` only fully read for the class-7 prefix; its class-5/8
+  door variants (office doors are class 5) assumed symmetric — verify.

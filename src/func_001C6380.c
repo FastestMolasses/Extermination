@@ -1,23 +1,14 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void build_trs_matrix(int, int, int, int);
-extern void func_001C9610(int, int, int, int);
+// Placed-prop world-matrix build (state-0 init tail of the generic prop/
+// pickup behavior func_001C4820, also called by the door-assembly init
+// func_001BD9F0). Composes the actor's TRS world matrix at +0xD0 from
+// pos(+0xB0)/rot(+0xC0)/scale(+0x60), then copies it into all of the
+// actor's per-bone matrix slots (pointer array at +0x110, one per bone,
+// bone count byte at +0xC) so a rigid prop's whole skeleton carries the
+// placement transform.
+extern void build_trs_matrix(void *mtx, void *pos, void *rot, void *scale);
+extern void func_001C9610(void *slots, int nbones, void *mtx);
 
-asm void func_001C6380(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    sq $s0, 0x0($sp)
-    paddub $s0, $a0, $zero
-    addiu $a0, $s0, 0xD0
-    addiu $a1, $s0, 0xB0
-    addiu $a2, $s0, 0xC0
-    jal build_trs_matrix
-    addiu $a3, $s0, 0x60
-    lbu $a1, 0xC($s0)
-    addiu $a0, $s0, 0x110
-    jal func_001C9610
-    addiu $a2, $s0, 0xD0
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+void func_001C6380(unsigned char *self) {
+    build_trs_matrix(self + 0xD0, self + 0xB0, self + 0xC0, self + 0x60);
+    func_001C9610(self + 0x110, self[0xC], self + 0xD0);
 }

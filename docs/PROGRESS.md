@@ -3301,3 +3301,41 @@ full detail):
 - Negative result worth keeping: a HW-renderer .p2s holds NO rasterized
   framebuffer (FRAME page zeroed; VRAM = texture pack only) — save
   states give textures, never screenshots.
+
+### Update — 2026-06-10 s17: first interactive objects decoded — pickup + door semantics, actor registry, 2 new matches
+
+- **Entity tick linkage closed.** The s11 placement +0x24 behavior pointers
+  are invoked by `func_001AFD70` (gameplay-frame "world services"): walks
+  the active doubly-linked actor list (head `D_00275BC0`; pool = 256 x
+  0x2F0 @ `D_007A5640`, alloc `func_001AFA90`, free `func_001AFC10`) and
+  calls `*(actor+0x10)(actor)` once per frame. Visible actors re-publish
+  themselves into double-buffered per-class + interactive pointer lists
+  (`D_00275B5x..Bxx`, swapped by `func_001AAD00` at frame close) that the
+  player-side scans consume. Full registry + struct contract in FINDINGS
+  "FIRST INTERACTIVE OBJECTS" (s15 section).
+- **Pickup (`func_001C4820`)**: INIT (bind model by item type via
+  `*(D_0028A59C)`, bone slots, TRS stamp `func_001C6380`) / ACTIVE
+  (cull+draw only — no gameplay in the actor; office pickups use the
+  default static anim mode, no bob/spin) / FREE. Collection is player-side
+  and NOT yet located (open: the inventory write site).
+- **Door (`func_001BC350`)**: 6 sub-states (closed / locked x2 / opening /
+  commit / close); trigger = player USE SCAN `func_00184BA0` (walk-into:
+  action-state 0x2D + LOS + dist<=12 + facing>=~0.4 -> +0xB=4, frame mode
+  spad 0x70003B8D=3); model-0x15 doors gate on unlock bits
+  `D_00810841[area]`; articulation = ordinary keyframe clip on the door
+  skeleton (`func_001C68C0`); doors are ROOM/AREA TRANSITION devices —
+  commit writes `D_008106B5..B8` from the per-area destination table
+  `D_0024E140[area][door_id&0x7F]` (id bit7 = inter-area) and WALKS the
+  player through (move-to door±5.0, yaw snapped). Panels arm their
+  active-list-neighbor door (+0x18) with +0xB=1. Door sounds live behind
+  the script interpreter `func_001BA1F0` / opcode table `ftab_0024D880`
+  (not yet itemized).
+- **0x70003250 refined**: points into a per-area blob (`*(D_0028A5A8)`);
+  per-uid words = collision-record OFFSET (AABB+face list, consumed by the
+  `func_0019F730` player-vs-object collision family over the class-4 list)
+  | flags 0x40000000/0x20000000 (`func_0019C6F0`, overlay-called).
+- **Matches: +2 readable C, 100% byte-identical** — `func_001C6380`
+  (prop TRS stamp) and `func_001BC240` (door commit step). Wall-blocked
+  attempts documented inline: `func_001C4820` 89.74% (delay-slot fill),
+  `func_001B6990` ~93% (delay-slot fill + dead-dup + loop-invariant delay
+  fill — analysis in the stubs). verify_all boot-elf PASS (byte-identical).

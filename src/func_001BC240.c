@@ -1,23 +1,12 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_001BC150(int, int, int, int);
-extern void anim_advance_time(int, int, int, int);
+// Door sub-state 4 (post-open hold): advance the door articulation clip one
+// step (result -> anim block +0xE current time), then commit the room/area
+// transition request (func_001BC150 reads the door id at actor+0x34 and
+// writes the D_008106B5..B8 transition block). Caller func_001BC350 then
+// advances the door to sub-state 5 (await transition completion).
+extern short anim_advance_time(void *self, float step);
+extern void func_001BC150(void *self);
 
-asm void func_001BC240(void) {
-    addiu $sp, $sp, -0x30
-    sq $ra, 0x20($sp)
-    sq $s1, 0x10($sp)
-    lui $v0, (0x3F800000 >> 16)
-    sq $s0, 0x0($sp)
-    mtc1 $v0, $f12
-    paddub $s0, $a1, $zero
-    jal anim_advance_time
-    paddub $s1, $a0, $zero
-    sh $v0, 0xE($s0)
-    jal func_001BC150
-    paddub $a0, $s1, $zero
-    lq $ra, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+void func_001BC240(unsigned char *self, unsigned char *blk) {
+    *(short *)(blk + 0xE) = anim_advance_time(self, 1.0f);
+    func_001BC150(self);
 }
