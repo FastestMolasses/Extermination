@@ -1,5 +1,13 @@
 # Extermination Decomp — Progress
 
+> 2026-06-10 (session 22): WEAPON SYSTEM characterized end-to-end (static) —
+> rifle/spread = HITSCAN via func_0019A570 (mode 7, mask 0x20, 260 range),
+> missile/grenade = projectile actors; gun = separate actor at player+0x20
+> consuming a +0x2E fire event; 3-target auto-aim (func_00199220) with
+> screen-cone + LOS rays; hit application func_001B41F0 writes victim
+> +0x36/+0x70. Full writeup + port contract in FINDINGS "WEAPON SYSTEM".
+> +1 readable-C match: src/func_0017B300.c (reload) — new idiom 16 below.
+
 > 2026-06-09 (session 7): COLLISION CONFIRMED — id 0x44 = the collision world
 > (cells + convex n-gons + s16 grid, verbatim on disc), level_world = the query
 > library (func_0019A570/AD00/AFE0 segment-query hubs reached from the actor
@@ -677,6 +685,25 @@ src/func_001C84D0.c — all still stubs, wall-blocked 82-93%):
     (head load + guard + bottom-copy phi) necessarily starts first and a
     `cur = next` seed before the loop is copy-propagated away — that
     remains the saved-register-allocation-ORDER wall.
+16. **Forcing CW's redundant short re-sign-extension + temp-register
+    choices** (2026-06-10, cracked func_0017B300 / SPR4 reload to 100%,
+    src/func_0017B300.c). Four composable rules: (a) to reproduce CW's
+    redundant `dsll32/dsra32` before an `slti` on an lh-loaded short,
+    cache the volatile short into an **int** local and compare
+    `(short)local` — a `short` local does NOT work (mwcc knows lh
+    already extends; the cast on an int forces the pair); (b) assigning
+    a comparison back into the compared variable (`low = low < 30;
+    if (!low) …`) lands the slti/slt RESULT in that variable's register
+    (CW's `slti v0, v0, k; bnez v0` shape) instead of `$at`, and also
+    fixes the branch polarity/block order; (c) park a value in the dead
+    first PARAMETER variable to pin it to `$a0` (`self = RESERVE;`) —
+    temp-register analog of idiom 7's fake params; (d) idiom-15
+    composition for temps: declare a constant's variable first but
+    materialize it BETWEEN two guards (`int thirty; …if(...){ x=…;
+    thirty=30; if(...){…}}`) — the web order wins the right register
+    AND the scheduler sinks the `li` into the second guard's delay slot
+    exactly where CW put it (materializing at declaration parks it in
+    the FIRST guard's slot instead; both beql conversions follow).
 
 NEW WALL DATUM — mwcc reorders accesses to DISTINCT volatile objects
 (2026-06-10, func_001AAD00 attempt, 75.13% best). Pinning a long gp-rel

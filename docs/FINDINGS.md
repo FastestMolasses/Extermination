@@ -6110,3 +6110,265 @@ Handlers and the config-mapped action masks come from scratchpad
 (`lhu 0x70003B76` and-ed with `0x810E74` at `0x00160234`); L3 is also
 tested raw (`andi 0x0200`) by the reload paths `0x00170C9C` /
 `0x00171060` (L3 doubles as reload when the weapon is drawn).
+
+## WEAPON SYSTEM — full fire path, state machine, reload, port contract (2026-06-10, session 22)
+
+Static walk of the whole trigger-press → damage chain (callgraph.py +
+splat asm; no live session needed). Closes the s18 worklist on the
+0x0CB4 references. **Headline verdict: the SPR4 rifle and the spread
+sub-weapon are HITSCAN (one `func_0019A570` segment query per shot);
+the missile and grenade sub-weapons spawn projectile ACTORS; tracers,
+muzzle flashes and impacts are visual-only transient actors.** This also
+confirms `level_world`/`func_0019A570` as the collision/ray system (the
+SUBSYSTEMS.md step-6 hypothesis) — the spad result block is
+`0x700031B0` hit point, `*0x700031D0` hit record (+0x24 vec4 normal,
++0x1A surface-type byte, +0x1C sub-part/hull word), `*0x700031D4` hit
+ACTOR pointer.
+
+### 0. Architecture — three kinds of actors
+
+1. **Player actor `0x008102B0`** owns input, ammo, fire timing, fire
+   animation (weapon modes of the +0x05 state byte).
+2. **The GUN is a separate actor**, linked at player `+0x20` (global
+   mirror `D_008102D0`). Behavior `func_0018A6B0` (installed via
+   runtime pointer — zero static callers). Its `+0x03` model byte =
+   weapon kind (0 = SPR4 chassis; 1/2/4 = other carried weapons). The
+   player SM never spawns effects itself: it posts a **fire event** by
+   writing `1` to the gun actor's `+0x2E` halfword; the gun behavior
+   consumes (reads + clears) it next tick.
+3. **Per-shot transients** are class-1 pool actors (this is why
+   `func_001AFA90` keeps a 10-slot reserve for class allocations):
+   impact marker (behavior `func_0018ABA0`), homing missile
+   (`func_0018AF50`), ballistic grenade (`func_0018B3E0`).
+
+### 1. Global state (extends the s18 inventory block)
+
+```
+D_00810C61  u8   FIRE-MODE select: 0 single / 1 burst-3 / 2 full-auto
+                 (chooses fire sub-state family 10/20/30; also read by HUD)
+D_00810C62  u8   SPR4 magazine (s18)        D_00810C63 u8 mag-equivalent
+D_00810CB4  s16  SPR4 reserve = TOTAL rounds INCLUDING the mag — proven by
+                 the reload routine, which sets mag = min(30, reserve)
+                 WITHOUT subtracting (each shot decrements BOTH)
+D_00810CA8/CAA/CAC/CAE/CB0/CB2  s16  per-sub-weapon ammo counters
+                 (CAA: subs 1+2, CA8: sub 3, CAE: sub 4, CB0: sub 5 —
+                 from which fire SM reads which; CB2 is UI-shared)
+D_00810CA4  u8   AIM OPTION: 0 manual+target-cycling, 1 lock-on, 2 third mode
+D_00810CA6  u8   current attachment/weapon id (HUD-wide)
+D_00810525  u8   = player+0x275, current SUB-WEAPON 0..5 (global mirror)
+D_008106E0/E4/E8 ptr  the three nearest valid TARGETS (= D_008106B0+0x30)
+D_008102D0  ptr  = player+0x20, the gun actor
+D_00810550  mtx  = player+0x2A0, per-frame HAND/AIM matrix (copied from
+                 the camera/actor context *D_00275B40 ctx[0]+0x90)
+D_008104A0/A1 u8 = player+0x1F0/1F1: anim id / anim-phase flag
+D_008104E0  u32  = player+0x230, player context id (0xC = normal gameplay,
+                 0x29 = second armed context)
+D_008103D0  ptr  = player+0x120, gun draw-matrix slot (hand bone)
+```
+
+Player-actor weapon fields (under the +0x1F0 behavior-scratch region):
+`+0x274` trigger latch · `+0x275` sub-weapon 0..5 · `+0x276` s16 fire
+counter (+2/frame) · `+0x278/+0x27C` aim-blend pitch/yaw (0.5 = center)
+· `+0x28` s16 burst counter · `+0x2A` s16 queued-shot flag · `+0x2E`
+own request halfword · `+0x2F0` target-cycle index 0..2 · `+0x2F2` aim
+latch · `+0x2F4` float fire interval (12.0 default = shot per 6 frames)
+· `+0x317` aim-restore latch · `+0x318` mode byte (selects
+beam-vs-flash drawer) · `+0x200` u32 config-mapped ACTION mask (bit
+0x1000 = weapon-draw hold, R1 in default config).
+
+### 2. Weapon-mode state machine (player side)
+
+`func_0015B130` (per-frame player dispatch on +0x05 via
+`jtbl_0026D3B0`) routes modes **0x1D/0x1E/0x1F/0x20** to the four
+armed-stance tops `func_0016FCF0` / `func_001703E0` / `func_001729A0`
+/ `func_00173000` (same shape; pairs 0x1D+0x1E and 0x1F+0x20 share the
+aim-pose anim tables `D_00248B88` / `D_00248C68`, indexed by
+sub-weapon ×2 → clip id). Each top switches on MAJOR state `+0x06`:
+
+```
+0     ENTER: reload-if-empty func_0017B300(·,0); on fresh draw
+      (+0x317==0) anim 0x110 (draw) via clip arbiter func_001749A0,
+      sound 0x162 @vol150 (func_0016F530, which also sets +0x1F1=1 and
+      D_008106C7 voice-line latch); aim blends +0x278/+0x27C = 0.5
+1     WAIT until action mask +0x200 bit 0x1000 confirms hold; then
+      aim-pose anim from the stance table
+2     AIM/FIRE loop: D_008106E0=0; func_0017ABA0 (pose);
+      target acquisition func_00199220 (gated by D_00810CA4 / blink
+      counter +0x2F0); then jr jtbl_0026D680[+0x275] → the per-sub-
+      weapon FIRE SUB-MACHINE: 0→func_00170A60, 1→func_00171320,
+      2→func_00171670, 3→func_00171B00, 4→func_00171E90, 5→func_001723D0
+3     RELOAD-ANIM wait (anim 0x33; +0x01 visible-flag kept on)
+0x63  aim-blend ramp-out setup (+0x28=8, per-frame deltas /8)
+0x64  ramp countdown, then re-enter aim pose
+0x65  HOLSTER: anim 0x111, sound 0x163, +0x317=0
+0x66  wait R1 release + yaw smoothing (func_001B12B0 to +0x218 goal)
+0x6E  hit-reaction exit (func_00174AC0, +0x23F>=2 → func_0017C440)
+0x6F  forced exit (func_00178B90, +0x200 bit 0x8000)
+```
+
+Tail of every top: `func_001764E0` (look/torso), `+0xB4 -= 0.2`,
+`func_00175900(·,1)` (anim commit), `func_001796C0`.
+
+### 3. Fire sub-machine (func_00170A60 = rifle; the others are clones
+per sub-weapon with their own ammo globals)
+
+Sub-state byte `+0x07`, three families chosen at trigger-press by the
+fire-mode byte `D_00810C61` (decimal 10/20/30 — CW constants 0xA/0x14/
+0x1E): **10/11 = SEMI** (one shot per press), **20..23 = 3-ROUND
+BURST** (`+0x28` counter, slti 3), **30..32 = FULL-AUTO** (interval
+refresh while held). Common per-SHOT block (states 0xB/0x15/0x1F...):
+
+```
+*(gun+0x2E) = 1                      fire event -> gun actor
+D_00810C62-- ; D_00810CB4--          mag AND reserve (s18 "consume path")
+play 0x164 (anims 0x31/0x34) or 0x165 (0x32/0x35), vol 150.0
++0x2A queued-shot flag from held mask (D_00810E74 & *(u16*)0x70003B78)
+```
+
+Cadence: `+0x276 += 2` per frame, fires when `>= (int)+0x2F4`
+(12.0 → 6 frames → 10 shots/s at 60 Hz). Dry mag: `func_0017B300(·,0)`;
+fail (reserve empty) → click `0x169` (or func_001FB9F0(0x169,0x1000…));
+success → anim **0x33 reload**, `+0x06++`, `+0x07=0`. **L3 (raw pad bit
+0x200) = manual reload** → `func_0017B300(·,2)` top-up (see s22 pad-map
+note). While aiming, the per-frame aim matrix `ctx[0]+0x90 → +0x2A0`
+(=0x810550) and aim vector `ctx[0]+0xC0..C8 → +0x2D0..2D8` are
+refreshed; if a target is locked (D_008106E0) `func_0017AF70` steers
+the aim blends +0x27C/+0x278 toward it (per-stance gain constants,
+clamp [0,1], max 0.02/frame).
+
+### 4. Reload — func_0017B300(_, mode) — **MATCHED 100% readable C**
+
+`src/func_0017B300.c` (this session). mode 0 = only if mag empty;
+mode 1 = unconditional; else top-up (only if mag<30 AND reserve>mag).
+All modes: `mag = min(30, reserve)`, NO reserve subtraction (reserve is
+the total pool). Returns 0 = reloaded, 1 = nothing to do.
+
+### 5. Target acquisition — func_00199220 (auto-aim)
+
+Per aim frame: clears D_008106E0/E4/E8, walks the published per-class
+enemy list (`gp D_00275B8C/B94`); a candidate must be: status!=0,
+HP halfword `+0x34` != 0, `func_00183B80` targetable, distance < 260;
+its aim point (`func_00183C40`, class-keyed jtbl_0026D7C0) projected by
+the spad camera matrix `0x70003AC0` must fall in the screen cone —
+lock-on mode (CA4==1): radius ≤ 50+55·spread; manual: |x| ≤ 66+50·s
+AND |y| ≤ 45+45·s, where spread = gun scratch `+0x214` float; then TWO
+rays: `func_0019A570(playerPos, target, 1, 0x20)` must hit THAT actor
+(`*0x700031D4 == candidate`) and mode-6 world ray must be CLEAR (LOS).
+Keeps the three nearest (E0 ≤ E4 ≤ E8). Tail draws the reticle
+marker(s) via `func_001DD170(1, pos, 0, 0x80808080, 0)`.
+
+### 6. Gun-actor behavior — func_0018A6B0 → func_00188630 (kind 0)
+
+Lifecycle on +0x04 (0 init `func_0018A8D0` retry-bind, 1 run, 2/3
+free); visible flag = player visible OR player anim == 0x33 (gun stays
+drawn through reloads). Run dispatches on its own model byte +0x03:
+0→`func_00188630`, 1→`func_00188A50`, 2→`func_00188DF0` (gated by
+D_008106CC despawn flag), 4→`func_0018A1F0`.
+
+`func_00188630` (the SPR4) every frame: copies the HAND BONE matrix
+`ctx[0]+0x90` → `*(D_008103D0)+0x90` (the s8 "equipment draw matrix ==
+bone matrix" mechanism); computes **muzzle pos** `+0xA0 =
+M(0x810550)·(-3, tbl.y, 0)`, second point `+0xB0 = M·D_0024A220[idx]`,
+**fire direction** `+0xC0 = normalize(B0−A0)`; idx = sub-weapon
+(sub-0 remapped by aim option: CA4==0→row 7, CA4==2→row 6; rows are
+16-byte vec4s in `D_0024A224/D_0024A220/D_0024A2A0/D_0024A300`).
+While the player fire anim (0x31/0x32/0x34/0x35) is in phase
+(+0x1F1==1): per-frame beam/flash drawer `func_001854E0` or
+`func_00185760` by +0x318 (each raycasts then draws via
+`func_001CD520`/`func_001E2BA0` — the laser-sight/muzzle-glow pass).
+Then the FIRE EVENT (`+0x2E`, cleared on read) via `jtbl_0026D850`:
+
+```
+sub 0  func_001861C0 BULLET  + func_00187CC0 muzzle FX
+       + shell eject func_001F4010(3, M·D_0024A300[idx])
+sub 1  func_001869A0 spawn MISSILE actor (behavior func_0018AF50;
+       +0x24 = locked target if ctx==0xC && CA4==1)   + rumble(0,0xE8,0xF,1)
+sub 2  func_00186A60 SPREAD hitscan (rand spread)     + rumble(0,0xD8,0xC,1)
+       + muzzle FX
+sub 3  FX object func_001EFEB0(0x80000039, perp dir)  + rumble(0x65,5,1)
+sub 4  func_001872C0 spawn GRENADE actor (func_0018B3E0;
+       velocity +0x70 = dir, type byte from D_0081070B) + rumble(1,0xF8,0x12,1)
+sub 5  (no fire arm)
+```
+
+`func_001B61C0` = pad-actuator rumble (libpad `func_00111018` on
+`D_00810E40`).
+
+### 7. The bullet — func_001861C0 (HITSCAN, evidence)
+
+1. ENDPOINT: in player contexts 0xC/0x29 with aim option 0/1 —
+   lock-on: D_008106E0's aim point; manual: shots CYCLE through
+   E0/E4/E8 by the per-shot counter player+0x2F0 (the "3-target
+   round-robin"); targeted rays overshoot the aim point by 5 units.
+   No target: `muzzle + dir·260` (260 = max range, same constant as
+   acquisition).
+2. `func_0019A570(muzzle+0xA0, endpoint, mode 7, mask 0x20)`.
+   MISS → tracer `func_001860A0(muzzle, endpoint)` only.
+3. HIT: tracer to hit point; hit class 1 + victim class 2 (enemy) →
+   **`func_001B41F0(victim, hitPoint, dir+0xC0, subPart, 5, 0)`** =
+   the HIT APPLICATION: per-victim-model jtbl_0026DDF0 picks the
+   blood/impact FX id (0x80000024/25/35…), writes **victim+0x36 =
+   hit-reaction code and victim+0x70 = bullet direction vec4** (the
+   victim's own behavior consumes these → flinch/damage/death; enemy
+   HP is the +0x34 halfword the targeting loop tests). World hits:
+   near-miss cone ≤ ~4.5° re-credits the locked target; else
+   surface-type (+0x1A) keyed impact: types 2-4 → spark code 0x201,
+   5 → FX 0x8000002C, 8 → FX 0x80000067.
+4. ALWAYS spawns the impact-marker actor (class 1, model 3, behavior
+   `func_0018ABA0`, +0x2E = impact code, pos = hit point, +0xC0 = hit
+   normal) — decal/sparks/ricochet sound.
+
+Enemy-side counterpart: `func_00146AF0` ("am I in the line of fire") —
+checks player anim 0x31/0x32 + gun dir vector (or player yaw
+D_00810374) against the vector to self for dodge AI.
+
+`func_001E3630` is one more projectile/beam behavior (50-unit ray
+steps, surface check 0x5B, impact FX 0x8000001A, tracer models via
+obj_registry D_00253AA0/B30/BC0) with NO static spawner and no pointer
+to it anywhere in the boot ELF or overlay binaries — likely reached via
+a runtime-built pointer (enemy weapon?). Open.
+
+### 8. Port contract (weapon system)
+
+- **State**: the inventory block (s18) plus: fire-mode u8, sub-weapon
+  ammo s16[6], aim option u8, current sub-weapon u8, 3-target array,
+  aim-blend pair, fire counter/interval, burst counter, target-cycle
+  index. All global/static — no heap.
+- **Per frame (armed)**: (1) refresh hand matrix → muzzle pos + dir;
+  (2) acquire up to 3 targets (cone test in SCREEN space + actor ray +
+  world-LOS ray); (3) steer aim blends toward target #1 (≤0.02/frame);
+  (4) advance fire counter by 2; if trigger state and counter ≥
+  interval(12.0) → SHOT.
+- **Per shot**: decrement mag AND reserve; post fire event to the gun;
+  gun resolves: rifle = one ray (mode 7/mask 0x20, 260 range, endpoint
+  = cycled target or dir·260), apply hit to victim (+0x36 code, +0x70
+  dir, FX by victim model), spawn impact marker, tracer line, muzzle
+  flash, shell eject, rumble; missile/grenade = spawn projectile actor
+  with dir/velocity from the gun vectors.
+- **Reload**: mag = min(30, reserve); reserve untouched; L3 = manual
+  top-up; auto when dry; anim 0x33 gates firing.
+- **Fire modes**: semi/burst-3/auto from D_00810C61; burst pause = 8
+  ticks; auto = every 6 frames.
+- **Sounds**: 0x162 draw, 0x163 holster, 0x164/0x165 fire, 0x169 dry
+  click (all vol 150.0); anims 0x110 draw, 0x111 holster, 0x31/0x32 &
+  0x34/0x35 fire/aim by stance, 0x33 reload.
+- The port can replace the gun-actor event indirection with a direct
+  call, but MUST keep the one-frame latency (fire event consumed the
+  next gun tick) if animation/FX sync is to match.
+
+### Matching notes (new idiom data, this session)
+
+- `src/func_0017B300.c` matched 100% via: idiom-8 raw volatile casts
+  (all three globals through `$at`); **NEW: a `(short)` cast on an
+  int-cached volatile-short load reproduces CW's redundant
+  `dsll32/dsra32` re-sign-extension before `slti`** (declaring the
+  local `short` does NOT — mwcc knows lh extends); assigning a
+  comparison back into the compared variable (`low = low < 30`) lands
+  the slti result in CW's register; parking a value in the dead first
+  PARAMETER register pins it to `$a0`; declaring a constant's variable
+  first but materializing it between two guards makes its `li` sink
+  into the second guard's delay slot (idiom-15 composition).
+- `func_001869A0` / `func_001872C0` (missile/grenade spawns) reached
+  90.4%/93.6% but are **wall #13** (mwcc fills the `beqz` slot with the
+  safe `li v1,3`; CW leaves a nop) — stubs restored with analysis
+  inline.

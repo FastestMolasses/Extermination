@@ -427,7 +427,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0017AAD0,func_0017AAD0,200,undecompiled,1,actor_anim
 0x0017ABA0,func_0017ABA0,972,undecompiled,4,actor_anim
 0x0017AF70,func_0017AF70,904,undecompiled,1,actor_anim
-0x0017B300,func_0017B300,280,undecompiled,5,actor_anim
+0x0017B300,func_0017B300,280,readable,5,actor_anim
 0x0017B420,func_0017B420,60,word,1,actor_anim
 0x0017B460,func_0017B460,36,word,1,actor_anim
 0x0017B490,func_0017B490,292,undecompiled,10,actor_anim

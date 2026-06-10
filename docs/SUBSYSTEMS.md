@@ -173,7 +173,17 @@ Defer indefinitely for the port: `movie` (replace with a video file player),
 ### Open questions
 
 - **Camera**: not isolated (see Headline table for the search method).
-- **Collision**: level_world is a hypothesis — confirm via step 6.
+- **Collision**: CONFIRMED (s7 id-0x44 world + s22 weapon pass):
+  `func_0019A570(from, to, mode, mask)` is the segment/ray query — the
+  weapon system uses mode 7/mask 0x20 for bullets, mode 1/0x20 for
+  actor-hit tests, mode 6 for world LOS; results in scratchpad
+  (0x700031B0 point, *0x700031D0 record, *0x700031D4 hit actor).
+- **Weapon system** (s22): fully characterized — see FINDINGS "WEAPON
+  SYSTEM". The fire/aim state machines live in entity_update
+  (0x16FCF0–0x1735C0, player modes 0x1D-0x20), the shot resolution and
+  gun-actor behavior in actor_anim (0x185–0x18B: func_00188630
+  dispatcher, func_001861C0 bullet, func_001B41F0 hit application),
+  and the HUD/equipment-text layer in weapon_equip proper.
 - **unknown_01..07** (91 fns): name them as their callers get decompiled.
 - The `gs_readback_queue_run` name on 0x001AAE40 predates the main()
   identification and should be retired (the actual readback-queue runner is
