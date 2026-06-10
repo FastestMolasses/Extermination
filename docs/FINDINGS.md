@@ -4520,4 +4520,211 @@ tail at [0xAC540,end).
   struct's +0x218 float mirrors it). Writing eye/target works for a
   frame but draw-list selection is position-, not camera-, driven.
 
-_Last updated: 2026-06-10 (session 9)._
+## CAMERA SYSTEM — isolated and characterized (2026-06-10, session 10)
+
+Static .s analysis of the local splat tree, cross-checked against EE-RAM +
+scratchpad from save states 01 (area 0x1100) and 03 (snow, area 0x0600) via
+`tools/camera_probe.py`. This closes the "Camera: NOT yet isolated" entry in
+SUBSYSTEMS.md. The camera TU lives at **0x18B9C0–0x199xxx** — inside the
+cluster mislabeled `init_io` (everything below 0x18B9C0 there really is
+boot/IOP; 0x18B9C0+ is the camera system).
+
+### Corrections to earlier sections
+
+- `func_001C1D00(0x008101D0)` is NOT "camera apply": it is a **once-per-area
+  render-env init** (byte 0x008101D0+0 is a once-flag; area 0x1500 gets
+  special GS regs via func_001E2260, then func_001E0CF0/func_001D5370).
+  0x008101D0 itself is just that 0x10-byte flag block; the camera struct
+  proper starts at 0x008101E0 (the s9 live note "0x8101D0: +0x20 eye,
+  +0x30 target" is the same memory, offset by the 0x10 header).
+- `func_001C1DC0` ("camera/matrix update" in the frame anatomy) is the
+  per-frame **render-env updater**, not camera math: render-chain channel
+  enables (func_001D2830 over channels 0..2, 0x20..0x25), camera-object
+  publish (func_001C1E70 → func_001D52E0: looks up object 0 of the table at
+  `*D_0028A5A0` via func_001C6120, copies +0x08..0x1C / ptr +0x20 into
+  render-ctx +0x150../+0x140), per-area **fog** (func_001C1E80 →
+  func_001D8FD0), weather-particle selection by func_001B0070 flag bits
+  (func_001C1EA0 → D_00250F00/F10/F20 via func_001EFD20), and per-area
+  channel masks (func_001C1F50).
+- `func_0018B9C0` is the **camera state machine top**; its a0 is
+  `*D_00275B44` = the context base set by the preceding
+  `func_001CB590(0x008101E0, 0xD0, 0)` — NOT 0x008102B0.
+  `func_0018D7B0`/`func_0018C0D0` are camera functions, not "HUD/weapon
+  context". `func_00195130` (SUBSYSTEMS "area init outlier") is the
+  **mode-0 area-camera director**. `func_0022EEF0` (labeled sdk_gs) is the
+  **scope/sniper camera** (variable zoom = 224.0/x via func_001D25F0).
+
+### 1. The camera struct: 0x008101E0, size 0xD0
+
+Live-verified fields (states 01/03):
+
+| Offset | Type | Meaning |
+|---|---|---|
+| +0x00 | u8 | state: 0 = init (one-shot setup in func_0018B9C0), 1 = run |
+| +0x01 | u8 | sub-state (0→1 ramp on first run frame; zeroes timer +0x08) |
+| +0x04 | u8 | top mode: 0 = normal play, 1/2 = frozen (commit only), 3 = scope/sniper (func_0022EEF0) |
+| +0x05 | u8 | dispatch table select: 0 = "cut" jtbl_0026D950, 1 = "smooth" jtbl_0026D910 |
+| +0x06 | u8 | **camera MODE 0..15** (≥16 → func_00195130 too); live = 0 |
+| +0x07 | u8 | follow-solver result/hit byte (set by func_0018D7B0) |
+| +0x08 | u16 | mode timer (zeroed on entry) |
+| +0x0C | f32 | per-area param, init-copied from +0x64 (−46.8 live, both states) |
+| +0x10 | vec4 | **desired EYE** (world; live (251.3, 248.9, 170.3) ≈ 33 u from player, 19 u above ground) |
+| +0x20 | vec4 | **desired TARGET** (live = player x/z exactly, y = ground + 17) |
+| +0x30 | vec4 | vertical offset accumulator (0, y, 0, 1) |
+| +0x44 | f32 | yaw eye→target (func_001B1240 heading; tracks +0x9C) |
+| +0x50,+0x54 | f32 | mode workspace (init −200.0 / 1000.0) |
+| +0x5C | f32 | 2.0 (init constant) |
+| +0x60,+0x64 | f32 | per-area params (440.0 / −46.8 live) |
+| +0x8B | u8 | flag byte OR'd each frame from spad 0x700031F0 (player collision result) |
+| +0x8C | f32 | target height offset above player Y, default 6.0 (aim mode, player state 5) |
+| +0x9C | f32 | yaw copy written by commit func_0018C0D0 |
+| +0xB0 | vec4 | normalized forward (copy of D_00810600) |
+
+**Global camera vector pool 0x008105D0..0x008106A0** (the real per-frame
+camera output, smoothed from the struct):
+
+- `0x008105D0` vec4 **actual EYE** (w=1) — chased toward struct+0x10
+- `0x008105E0` vec4 **actual TARGET** (w=1) — copy of struct+0x20 (func_0018C0C0)
+- `0x008105F0` vec4 **UP vector = (0,−1,0,1)** — Y-DOWN view convention, set
+  once at camera init (this is what func_0018B9C0 writes there; the frame
+  anatomy's "view-target update writing vectors at 0x008105F0" was loose)
+- `0x00810600` vec4 normalized forward; `0x00810610` **view (look-at)
+  matrix**; `0x00810650` its **transpose** (func_00102798)
+- scalars: `0x810690` desired horiz eye↔target dist, `0x810694` |Δy|,
+  `0x810698` eye height above `D_00810354` (player ground Y), `0x81069C`
+  actual horiz dist, `0x8106A0` atan2 angle of forward
+
+### 2. Update rule — clamped proportional chase + collision-aware solver
+
+Once per gameplay frame (inside func_001AE5E0, AFTER the render-chain build —
+the renderer always consumes the PREVIOUS frame's matrices):
+
+```
+func_0018B9C0(cam = *D_00275B44 = 0x008101E0)
+  state 0: init (vectors, up=(0,-1,0), mode=8 unless area 0x12 chunk 0,
+           settle vs world: func_0018CE60 -> 2x func_0019A910 ray queries)
+  state 1, top-mode 0:
+    func_00191390(cam, player)       leaf pre-step
+    func_0018BC20(cam, player)       MODE DISPATCH (table below)
+    func_0018C0D0(cam, 1)            commit -> matrices
+  top-mode 3: func_0022EEF0 (scope cam) ; top-modes 1/2: commit only
+```
+
+`func_0018BC20` dispatches byte+6 over **jtbl_0026D950** (cut, byte+5==0) /
+**jtbl_0026D910** (smooth, byte+5==1), 16 entries (dumped from save-state RAM):
+
+| Mode | Handler (cut table) | Notes |
+|---|---|---|
+| 0, ≥16 | **func_00195130** (4720 B) | DEFAULT: per-area camera director; 14× func_0018C4B0 + 10× func_0018C6A0 lerps, 12× func_0018D7B0, and a hardcoded `jal 0x823FE0` **overlay hook** — per-room camera logic lives in the area overlays (survival-horror room cameras) |
+| 1 | func_00197D20 | |
+| 2 | func_00198650 | |
+| 3 | func_001936E0 | |
+| 4, 7 | (nop) | |
+| 5 | func_0018CA90 → sets mode 7 | one-shot reposition |
+| 6 | wait `D_0028A9A0`==0 → mode 0 | timed hold |
+| 8 | func_001914A0 + func_001DD980(eye, tgt) | init/fallback mode |
+| 9 | func_00198CE0 | |
+| 10 | func_00198D90 + enable chain ch3 | |
+| 11 | func_00198F10 | |
+| 12 | func_001963A0 | |
+| 13 | func_00196CE0 | |
+| 14 | func_00198AF0 | |
+| 15 | func_00197390 | |
+
+The smooth table maps to the same handlers; its default modes (0/9/11/14)
+run an inline **player-relative follow**: chase target x/z toward player
++0xA0/+0xB0 (rate cap 0.8/frame), target y toward player.y + 15.0 (or
++cam[0x8C] = 6.0 in player state 5/aim), keyed on player state word +0x230.
+
+**The two lerp primitives** (used everywhere, incl. by mode handlers):
+
+- `func_0018C6A0(src, dst, max)` — horizontal chase, per axis (x and z):
+  d = src−dst; if |d| ≤ 1.0: dst += d/4; else dst += sign(d)·min(|d|/6, max).
+- `func_0018C4B0(vec, target_y, max)` — same for vec[1] (y), divisor 8.
+
+So: **speed-limited proportional follow** (≈ exponential at rate 1/6 horiz,
+1/8 vert per frame, hard cap, quarter-step snap inside 1.0 unit). No splines.
+
+**Collision-aware: yes.** `func_0018D7B0(cam, style)` — the desired-eye
+solver — picks collision-set mask **6** (static cell world + heightfield) or
+**7** (+ movable hulls) and runs func_0018D330, then by style func_0018DD20
+(6984 B full solver) / func_0018D910 / func_0018F870; all of these call
+**func_0019A910**, a level_world segment-query hub (same TU family as the
+documented func_0019A570; dispatches to func_0019D770 / func_001A1390 /
+func_001A6AD0 = heightfield / cell-world / movable-hull walkers). Style 0
+then smooth-chases global eye D_008105D0 toward desired cam+0x10 (max
+4.0/frame); style 1 hard-copies desired→actual. Result byte → cam+0x07.
+
+### 3. Projection path — commit to VU1 dmem 0
+
+`func_0018C0D0(cam, flag)` (the commit, every frame):
+
+1. forward = normalize(target − eye) (VU0: func_001028D0 sub, func_00102760
+   normalize); horizontal length < 1e-3 clamped (degenerate guard).
+2. view position = **eye + 4.0·forward** (near push, spad 0x700038C0;
+   mode 0xA uses −1.0·forward; frozen modes copy eye as-is).
+3. `func_00102CD0(D_00810610, pos, forward, up=D_008105F0)` — **look-at
+   builder** (sceVu0CameraMatrix-style; memory rows are the operator's
+   COLUMNS: clip = Σ col_i·v_i, translation row = −R·pos; verified
+   numerically in both states). func_00102798 → transpose at D_00810650.
+4. yaw bookkeeping → cam+0x9C, D_008106A0; forward → D_00810600, cam+0xB0.
+
+`func_001D1C50` (render-chain head) passes D_00810610 to **func_001D2960**,
+which builds in the per-frame render ctx (`*D_00275670`, live 0x811CC0):
+
+- `ctx+0x2340` **projection P** from zoom s = ctx+0x2468, stored rows:
+  (0.8s, 0, 0, 0), (0, 0.5s, 0, 0), (2048, 2048, 0.8996, 1),
+  (0, 0, 1677721.5, 0). Default s = 480 (set via func_001D25F0; every
+  static caller passes 0x43F00000; the scope camera and func_001D2590
+  animate it): screen x = 384·x/z + 2048, y = 240·y/z + 2048 (GS center
+  2048), w_clip = z_view, z = 0.8996·z + 1677721.5 (24-bit GS Z).
+- `ctx+0x2380` = view copy; `ctx+0x23C0` = **K = P·V** — verified == P·V to
+  1e-8 in both save states. This K is exactly the "MVP upload, CNT 9qw →
+  VU1 dmem 0" of the draw-unit anatomy (per unit M = K·W).
+- variants: ctx+0x2240/0x2280/0x22C0/0x2300 = altP·V (func_001D2D20 with
+  explicit screen/near params — 1280×560, near 20, 3584², 2048²: offscreen/
+  shadow/reflection passes); ctx+0x2220 guard-band clip constants;
+  ctx+0x2410/20/30 frustum cull planes (normal = (±s, 0, −1023)/√(s²+1023²)).
+- the LEVEL kernel's axis-permuted camera K_L is built separately by
+  func_001D5370/func_001D5C80 (func_001D2D20(zoom, 4096, 4096, 0.1,
+  16711680.0) × D_00810610 → spad 0x70003440) — explains the s7
+  K↔K_L permutation identity.
+- **Fog** (not projection): func_001D8FD0 reads the per-area 0x78-byte
+  record from table `D_00251C50` (45 entries, keyed by area id
+  D_00810700<<8|D_00810701; rec+4/+8 = fog near/far, rec+0xC/10/14 = RGB) →
+  func_0021B970/func_0021BA80 → GS fog coefs A = 255·far/(far−near),
+  B = −255/(far−near) at ctx+0xA0 (func_0021B920); func_001B0070 flag 0x80
+  (night-vision) overrides with 0/110/black. Live: −209/304 (area 0x1100),
+  −150/334 (area 0x0600).
+
+### 4. Port contract — authentic camera natively
+
+State: camera struct (0xD0, fields above) + globals eye/target/up
+(D_008105D0/E0/F0) + zoom s (default 480) + per-area fog record.
+At 60 Hz, in this order inside the gameplay frame:
+
+1. (render) build V from LAST frame's eye/target: lookat(eye + 4·fwd, fwd,
+   up = (0,−1,0)); P as above; K = P·V → every draw's matrix slot 0
+   (M = K·W). For a native GL/Vulkan/Metal port remap GS screen → NDC:
+   x_ndc = 0.8s·x/(z·half_w_gs) etc.; tan(half-hfov) = half_w_gs/(0.8s);
+   screen Y is down; view +Z into the screen.
+2. (logic) run the mode machine: handlers produce desired eye/target
+   (cam+0x10/+0x20) — mode 0 delegates per-room logic to area overlay code;
+   the generic follow chases target to player x/z (cap 0.8/frame) and
+   y → player.y + 15 (or +6 aiming).
+3. solve desired eye against the collision world (segment queries, set
+   mask 6/7) — the id 0x44 file's cell/heightfield/hull sets.
+4. smooth actual ← desired per axis: step = |Δ|≤1 ? Δ/4 :
+   sign(Δ)·min(|Δ|/6 horiz | |Δ|/8 vert, cap 4.0); then commit (step 1
+   inputs for next frame).
+5. fog from the per-area table; zoom fixed 480 except scope (224/x) and
+   scripted zoom lerps (func_001D2590).
+
+Confidence: struct map, smoothing math, commit/look-at path, P/K
+composition, fog — **high** (live-verified in both states; K = P·V to
+1e-8). Mode-dispatch table — high; individual handler semantics — low
+(only mode 0 traced). Collision-solver internals (func_0018DD20) — medium
+(mask + query hub verified; 6984 B body not read). Tool:
+`tools/camera_probe.py`.
+
+_Last updated: 2026-06-10 (session 10)._

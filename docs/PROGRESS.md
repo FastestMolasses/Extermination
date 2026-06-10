@@ -3089,3 +3089,16 @@ full detail):
   to the pre-session player position and left running.
 - Open (added): billboard/glow quads (lib models 20/21/110-118) need a
   port-side billboard path; f03 non-record region [0x820C8,0x88840).
+
+### Update — 2026-06-10 s10: CAMERA SYSTEM isolated and characterized
+
+- The SUBSYSTEMS "Camera: NOT yet isolated" question is closed: camera TU =
+  0x18B9C0–0x199xxx (inside the mislabeled `init_io` cluster). Struct at
+  0x008101E0 (0xD0 B), mode machine func_0018B9C0/func_0018BC20 (16 modes,
+  jtbl_0026D910/950), clamped-proportional follow (Δ/6 horiz, Δ/8 vert,
+  cap 4.0), collision-aware eye solver (func_0019A910 segment queries,
+  set mask 6/7), commit func_0018C0D0 → look-at D_00810610 (up = (0,−1,0)),
+  projection P (zoom 480, 0.8s/0.5s, GS center 2048) and K = P·V at
+  ctx+0x23C0 verified to 1e-8 against two save states. Full field map,
+  mode table, and native-port contract in FINDINGS "CAMERA SYSTEM"
+  (2026-06-10); probe tool `tools/camera_probe.py`.
