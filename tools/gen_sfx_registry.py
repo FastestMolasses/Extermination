@@ -70,11 +70,13 @@ SCENES = {
         #   0x169 — the reload pair 0x163+0x168 was live-pinned s29
         #   (FINDINGS "GAMEPLAY SOUND IDS PINNED LIVE"), retiring the
         #   old 0xF002 -> 0x166 placeholder alias.
-        # - FOOTSTEPS (s29): surface pairs floor A 0x15/0x16 and
-        #   floor B 0x1A/0x1B + the constant gear/cloth layer
-        #   0x139/0x13A; the port plays set A until the per-surface
-        #   lookup (collision attr) is located, but all six ship so
-        #   the surface hook lands without a registry change.
+        # - FOOTSTEPS (s37 "FOOTSTEP SURFACE TABLE" — replaces the s29
+        #   fixed-pair reading): per step, surface_id = BLOCK(attr) +
+        #   GAIT_SUB(gait) + rand5() and gear_id = 0x138 + rand5()
+        #   (independent draw; rand5 = (rand() & 7), 5..7 folded to
+        #   0..2). The office floor is attr 0 -> block 0x10, so the
+        #   FULL variant sets ship: walk (gait 2, +5) 0x15..0x19, run
+        #   (gait 3, +0xA) 0x1A..0x1E, gear/cloth 0x138..0x13C.
         # - canonical enemy death 0x7D8.
         # - KNIFE/MELEE (s36 decode, FINDINGS "KNIFE/MELEE DECODED"):
         #   swing/impact sounds 0x17D/0x17E/0x17F (light hits 1-3; the
@@ -92,7 +94,9 @@ SCENES = {
         #   pinned in FINDINGS — only the observed 0x189 ships; the
         #   port plays it for every wall (em_sfx.h flag).
         "ids": [0x162, 0x163, 0x164, 0x165, 0x168, 0x169, 0x7D8,
-                0x015, 0x016, 0x01A, 0x01B, 0x139, 0x13A,
+                0x015, 0x016, 0x017, 0x018, 0x019,   # walk (gait 2)
+                0x01A, 0x01B, 0x01C, 0x01D, 0x01E,   # run (gait 3)
+                0x138, 0x139, 0x13A, 0x13B, 0x13C,   # gear/cloth
                 0x17D, 0x17E, 0x17F, 0x179,
                 0x189, 0x16A],
     },

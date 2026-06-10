@@ -97,10 +97,14 @@ Next, in rough priority order:
    **DONE s37** (FINDINGS "FOOTSTEP SURFACE TABLE": no data table —
    compiled-in blocks of 0x11 ids per surface attr × gait sub-base
    (+0/+5/+0xA) + rand 0..4; gear layer = 0x138+rand; s29's "two
-   floors" was a walk→run gait change). Remaining: wire the formula
-   into the port's ready floor-probe hook (s30), and find the
-   cell-prim attr byte (grid polys carry it at node +0x1A; cell
-   n-gons export attr 0).
+   floors" was a walk→run gait change). ~~Wire the formula into the
+   port~~ **DONE s40** (em_game footstep block: attr probe + BLOCK
+   switch + gait sub-base + per-layer deterministic rand5; registry
+   ships the full office sets 0x15..0x19/0x1A..0x1E/0x138..0x13C, all
+   resolved). Remaining: find the cell-prim attr byte (grid polys
+   carry it at node +0x1A; cell n-gons export attr 0); the
+   standing-on-object attr override, water-depth state (+0x23C) and
+   the 0x5A/0x5B/0x5C first-contact one-shots are untranslated.
 6. **Sound-id wiring** — identify the SQUARE action behind 0x179; wire
    impact 0x189 + shell-casing 0x16A into em_weapon; check neighbors
    0x166/0x167 (s29/s30 open items).
@@ -127,6 +131,26 @@ below are kept as historical record; this block supersedes them.)
 Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
+
+> 2026-06-10 (session 40): PORT WIRES THE s37 FOOTSTEP FORMULA — the
+> em_game footstep block now computes the real per-step mapping:
+> surface = BLOCK(attr) + gait sub-base (walk 2 -> +5, run 3 -> +0xA,
+> else +0) + rand5, gear = 0x138 + independent rand5; rand5 = the
+> engine's (rand()&7) fold (5..7 -> 0..2) over a deterministic port
+> LCG. attr comes from a step-time floor probe mirroring
+> func_00175900's +0x1A attr copy (EmCollHit.attr; miss/no-world ->
+> 0 -> default block 0x10 = the office floor); the full func_00182430
+> BLOCK switch is in footstep_block (0x5B maps shallow 0xBA — the
+> +0x23C depth state, object-override attrs and 0x5A/0x5B/0x5C
+> first-contact one-shots stay untranslated/flagged). Retires the
+> s29-era fixed-pair + L/R-alternation port guess (em_sfx.h defines
+> EM_SFX_STEP_GEAR_BASE now; dead step_parity removed).
+> gen_sfx_registry.py office preset emits the full variant sets
+> 0x15..0x19 / 0x1A..0x1E / 0x138..0x13C — 15/15 resolve (walk + gear
+> per the FINDINGS WAV chains, run set global too: snd_0050/0048/
+> 0046/0045/0043). EM_STEP_TRACE=1 added. Move test PASS (8 layer
+> plays = 4 steps × 2, ids vary within the sets, trace md5-identical
+> across runs); all suite tests PASS; default capture byte-identical.
 
 > 2026-06-10 (session 39): STATUS SUB-PAGES — the five pager pages are
 > identified, navigated and textured (FINDINGS "STATUS SUB-PAGES").
