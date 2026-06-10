@@ -1,5 +1,31 @@
 # Extermination Decomp — Progress
 
+> 2026-06-10 (session 33): KIND-0xE RESOLVED — the breather pad's
+> companion pair is a TENDRIL FIELD, not a creature. func_001546C0
+> (+ init func_00154740, tick func_001549C0, gate func_00154460,
+> ellipse test func_001545B0, renderer func_00154F00) fully read
+> statically: a stationary, indestructible area-effect actor that
+> erupts 12 tapering spikes around the player whenever they linger
+> within 3× the parent pad's footprint — rings 5.5±2.0 u (pair idx 0)
+> / 7.0±2.5 u (idx 1) around the player, clipped to the 0.92× pad
+> ellipse; deploy 8 ticks (ramp 37/tick→300), hold while within
+> 2/4 u of the trigger anchor, retract, rescan forever; sound 0x42D
+> on deploy; NO damage (the pad's pair-pass does that), HP/mailbox
+> never read. Model = `D_0028A490[slot 0x15]` = chunk03/f13_id15.bin
+> (96-vert 1-node spike, r1.6 base → point at y9.9; closes the leech
+> section's open item), 12 re-posed draws per actor with girth
+> {0.70,0.85,1.00,1.50}, Y scale = bob-phase×ramp/65536 (gentle bob
+> closed / violent thrash while the pad is open >0.5), RGB blending
+> room tint (D_00246800, 22 recs) → (6,92,1)/128 green with pad
+> phase. Spawner census: generator init mode-1 draw is the ONLY
+> kind-0xE source (main ELF + all overlay BINs scanned). FINDINGS:
+> "KIND-0xE COMPANION RESOLVED" (+ port contract). Matching: 2 new
+> wall datums recorded — the brain dispatcher readable-C lands 29/30
+> (wall #13 beq-slot fill, same family as func_00153B50);
+> func_00154460 67.5% (early-return epilogue merge + addr-pair/lbu
+> order + return-bool polarity). Stubs stay; semantics comments
+> added to all six src files.
+
 > 2026-06-10 (session 32): OFFICE0 DOORS ARTICULATED — the s30 open
 > items are closed and both scene_office0 doors animate. (1) The
 > slot-0x39 bank (chunk27/f02_id39.bin) is fully inventoried: ids 4-7 =

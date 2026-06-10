@@ -1,4 +1,16 @@
 // All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
+//
+// SEMANTICS (resolved s33 — docs/FINDINGS.md "KIND-0xE COMPANION
+// RESOLVED"): tendril-field renderer — 12 re-posed draws of the one
+// spike mesh. Per VALID record (+0x84): bob integrator on {phase
+// +0x7C, vel +0x7E} (parent pad open >0.5: gravity -8 + kicks
+// +28..41 below phase 128 = thrash; closed: gravity -1, kicks +3..7,
+// vel halved at >=8; floor clamp phase 100 with fresh vel 3..7);
+// scale X/Z +0x60/+0x68 = girth(+0x82)/256, scale Y +0x64 =
+// phase*ramp(+0x80)/65536, alpha +0x8C = scratch+0xC faded over ramp
+// 0..16; pos.xz = record X/Z; func_001C6380 TRS + the +0x4C draw
+// method (func_001CB1F0). Own pos/matrix saved+restored around the
+// loop (func_00102948 qword copy).
 extern void func_00102948(int, int, int, int);
 extern void func_00122BB8(int, int, int, int);
 extern void float_to_int(int, int, int, int);

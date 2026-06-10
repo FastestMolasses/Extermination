@@ -6988,8 +6988,10 @@ the port wants the disguise prop.
 Open: which clip the burst-spawned (vs generator-spawned) children
 play first; the AREA11 nest-registry record layout (the s22 0x2C-byte
 guess didn't parse cleanly against `D_0024D820[11]` — re-derive from
-`func_001551B0` state 2 before relying on it); kind-0xE sibling
-(`func_001546C0`) model/anim slots.
+`func_001551B0` state 2 before relying on it). ~~kind-0xE sibling
+(`func_001546C0`) model/anim slots~~ **RESOLVED s33 ("KIND-0xE
+COMPANION RESOLVED"): D_0028A490 slot 0x15 = chunk03/f13_id15.bin, a
+1-node 96-vert spike mesh — no clip bank, anim mode 0xA.**
 
 ## DOOR SCRIPTS DECODED — ftab_0024D880 itemized, all three door scripts listed (2026-06-10, session 23)
 
@@ -8665,7 +8667,9 @@ the hand-activated set, so the manifest is round-trip safe).
 
 ### Open
 
-- func_001546C0 (kind 0xE, the mode-1 pair) — uncharacterized.
+- ~~func_001546C0 (kind 0xE, the mode-1 pair) — uncharacterized~~
+  RESOLVED s33: tendril/spike field around the player, no damage —
+  see "KIND-0xE COMPANION RESOLVED" below.
 - `D_00275BB0` list identity (the second box pass's wake targets).
 - func_00187EC0(6/7, …) event semantics (rumble? ambient cue?).
 - The per-AREA/ROOM visual variants of func_001E9580 (case table).
@@ -8886,6 +8890,169 @@ Open (office0 doors):
 - m17 close: the engine re-closes via area re-entry/state, not a
   reverse script — the port runs the clip backwards (em_door CLOSING),
   which matches the native motion reversed.
+
+## KIND-0xE COMPANION RESOLVED — the breather pad's TENDRIL FIELD (func_001546C0) (2026-06-10)
+
+The "uncharacterized kind-0xE pair" a mode-1 (breather) generator pad
+emits at init is not a creature: it is a STATIONARY AREA-EFFECT actor
+that erupts a field of 12 tapering organic SPIKES/TENDRILS out of the
+infested floor around the player whenever the player lingers near the
+pad. It deals NO damage (the pad's pair-pass `func_001A8840` does
+that), has NO senses beyond player distance, never moves, and cannot
+be hurt — it is the breather trap's telegraph/dressing. All five
+functions read statically (asm in build/asm; offsets vs the s17 actor
+contract).
+
+### Identity / spawn
+
+- Spawned ONLY by the generator behavior `func_0015A2C0` init when the
+  link-1/link-2 table draw lands mode 1: `func_0015A200(pad, 0xE, 0)` +
+  `(pad, 0xE, 1)` — always a PAIR, once, at pad init. Exhaustive
+  search: no other caller of `func_0015A200` in the boot ELF, no
+  overlay references the helper or the brain (byte-scan of all
+  `build/overlays/AREA*.BIN` for `jal 0x0015A200` / the brain address:
+  0 hits). Worms (0xD) and tendril fields (0xE) are the only two
+  dynamically-spawned generator children.
+- Child fields from the spawn helper: model byte +0x03 = 0xE, +0x0D =
+  PARENT pad kind (selects the D_00248120 footprint rec), +0x2E = pair
+  index 0/1, pos +0xB0 = pad origin verbatim, +0x20 = parent's +0x14
+  canonical POINTER (read live every tick), brain +0x10 =
+  `func_001546C0`.
+
+### Brain func_001546C0 (0x7C) — standard lifecycle dispatcher
+
+state +0x04: 0 → `func_00154740(self, self+0x1F0)` init; 1 →
+`func_001549C0(self, self+0x1F0)` tick; 2 → state=3; 3 →
+`func_001AFC10` free; else return. The 0x100-byte actor tail +0x1F0
+is the per-instance scratch (layout below).
+
+### INIT func_00154740 (0x274)
+
+1. Model bind `func_001CA5E0(self, *D_0028A4E4, mode 0xA)`.
+   `D_0028A4E4` = `0x28A490 + 4*0x15` = **`D_0028A490[slot 0x15]` =
+   `extract/chunk03/f13_id15.bin`** (globally resident, 8 KB) — this
+   resolves the leech section's open item. Raw blob, header
+   {n_blocks 3, qwc 0x186, **n_nodes 1**, size 0x18A0}: 96 verts,
+   single rigid node, embedded texture blob at +0x18A0. Vertex
+   profile = a TAPERING SPIKE: ring r≈1.6 at y=0 narrowing to a point
+   at y≈9.9 (authored ~9.6 u tall, ~3 u wide at base). No clip bank
+   (one node, no +0x40 bind); anim-mode method 0xA = `func_001CB1F0`
+   → `func_001CB140(self, +0x44)` raw-blob draw submit.
+2. Bone-count/matrix-slot boilerplate (same as func_001C4820 INIT):
+   `func_001C6150(+0x44)` → +0x0C (=1), `func_001AF780` slot → +0x110,
+   +0x09 = count; matrix pool short (`D_00275BCC`) → state 3 bail.
+   `anim_bone_array_setup` + `bone_init_default_1`; state=1; **+0x00
+   = 2** (class-2 byte write; the brain never publishes to the
+   category lists — it skips func_001B17A0 entirely — so it is not
+   shootable/acquirable in practice; mailbox +0x36 and HP +0x34 are
+   NEVER read: indestructible, like its parent).
+3. +0x30 = &D_00275450 (generic 2-float bounds rec {4.0, 14.0};
+   defensive — the brain never reads it).
+4. Per-room TINT from `D_00246800` (22 recs × 8 B: {u32 key =
+   AREA<<8|ROOM; u8 c0,c1,c2,c3}; key match vs
+   `D_00810700<<8|D_00810701`): scratch+0x00/04/08 = c0/c1/c2 as raw
+   floats, scratch+0x0C = c3/128; actor RGB mult +0x80/84/88 =
+   c0/c1/c2 ÷ 128 (defaults 1.0 if no key matches), +0x8C = c3/128
+   (W/alpha; office AREA02 recs: (128,128,128,2), (128,102,122,2)…).
+5. +0x38 = 1.0f; clear the 12 record valid-flags (+0x1F0+0x84+i*0xA).
+
+### Scratch layout (actor +0x1F0, inside the 0x100 tail)
+
+    +0x00..0x0B  f32×3  room tint c0..c2 (RAW 0..255 floats)
+    +0x0C        f32    c3/128 (alpha/W target)
+    +0x10/14/18  f32×3  deploy ANCHOR (player X, pad Y, player Z at trigger)
+    +0x1C..0x78  12 × {f32 X, f32 Z}              tendril world positions
+    +0x7C..0xF2  12 × {s16 phase, s16 vel, s16 ramp, s16 girth, s16 valid}
+                 (stride 0xA)
+
+### TICK func_001549C0 (0x540) — sub-state +0x05 machine
+
+- **0 SCAN**: gate `func_00154460(self)`: gameplay frames only (spad
+  `0x70003B8D`==0) AND player inside |Δx| ≤ 3·recX, |Δz| ≤ 3·recZ,
+  |Δy| ≤ 3+recY of the PAD origin (rec = `D_00248120 + (+0x0D)*20`,
+  i.e. **3× the parent pad's footprint**). On trigger: anchor =
+  (player X, pad Y, player Z), timer +0x28 = 8, sub→1; then for each
+  of 12 records: target = anchor + polar(r, θ) with θ uniform and
+  **r = 5.5±2.0 u (pair idx 0) / 7.0±2.5 u (idx 1)** — the two pair
+  members are concentric rings; valid flag +0x84 =
+  `func_001545B0(self, X, Z)` = point inside the ELLIPSE of semi-axes
+  0.92·recX / 0.92·recZ around the pad (heading via atan2
+  func_001B1240, ellipse-radius-at-angle formula) — tendrils only
+  erupt from the pad's own footprint; phase +0x7C = rand 48..127,
+  vel +0x7E = 0, ramp +0x80 = 0, girth +0x82 = D_0026D320[(seed++)&3]
+  (cycling table {0xB4,0xDA,0xFF,0x180}/256 = 0.70/0.85/1.00/1.50,
+  random start row). If ANY record valid → **sound 0x42D** at range
+  300 (`func_001FBD50`; soundmap: 88 ms squelch sfx/snd_0615.wav,
+  every-area variant). Falls through to sub 1 same tick.
+- **1 DEPLOY**: all 12 ramps += 37/tick clamp 300; +0x28-- → 0 → sub 2.
+  (8 ticks ≈ 0.13 s rise.)
+- **2 HOLD**: retract (timer 8, sub→3) if: non-gameplay frame, OR
+  |playerY − padY| > 3+recY, OR player leaves the anchor: dist²XZ
+  (player, anchor) ≥ 4.0 (idx 0) / 16.0 (idx 1) — i.e. the field
+  stays up only while the player stands within 2 u / 4 u of where
+  they triggered it.
+- **3 RETRACT**: ramps −= 37/tick floor 0; +0x28-- → 0 → sub 4.
+- **4 RESET**: sub = 0 (rescan; the field re-deploys indefinitely).
+- **Tail every tick**: if parent ptr +0x20 != 0, blend own RGB toward
+  GREEN as the pad opens: ph = parent+0x80 (breather phase 0..1),
+  RGB = (base + (1−ph)·(roomC − base))/128 with base = (6, 92, 1) —
+  room tint when closed → vivid green at full open. Then
+  `func_001C6380` (TRS matrix rebuild) and, when sub != 0,
+  `func_00154F00` (the field renderer).
+
+### RENDER func_00154F00 (0x2A4) — 12 re-posed draws of one spike
+
+Saves own pos; for each VALID record: bob physics on (phase +0x7C,
+vel +0x7E): phase += vel; **pad open >0.5 (parent +0x80, flag s2):
+vel −= 8/tick with a +28..41 kick whenever phase < 128 — violent
+thrash; closed: vel −= 1/tick, +3..7 kick below 128, vel halved at
+≥8 — gentle bob**; floor clamp: phase < 100 → 100, fresh vel 3..7.
+Then per-instance TRS: scale X/Z (+0x60/+0x68) = girth/256, scale Y
+(+0x64) = phase·ramp/65536 (deployed: ≈0.45 at rest-bob → ≈1.0
+thrashing → spike stands 4.4..9.6 u), alpha +0x8C = scratch+0x0C
+(faded in over ramp 0..16); pos.xz = record X/Z; `func_001C6380` +
+the +0x4C method (func_001CB1F0 draw). Restores pos + matrix after
+the loop. The 24 spikes of a pad pair are 24 re-posed submissions of
+the SAME 96-vert mesh.
+
+### Port contract (em_enemy "tendril field", companion of `enemy generator`)
+
+- Spawn: when a generator pad rolls mode 1, spawn TWO tendril-field
+  actors at the pad origin (pair idx 0/1), parent-linked. Kill them
+  with the room (nothing else kills them).
+- Per actor: 12 slots; on trigger (player in 3× pad footprint, pad Y
+  band ±(3+recY)) scatter targets on ring r = 5.5±2.0 (idx 0) /
+  7.0±2.5 (idx 1) around the player, REJECT points outside the
+  0.92× pad ellipse; play sound 0x42D (range 300) if any survive.
+- Deploy 8 ticks up (ramp 0→296/300), hold while player within
+  2 u (idx 0) / 4 u (idx 1) of the trigger anchor, retract 8 ticks,
+  rescan. No damage, no HP, no collision.
+- Visual: spike mesh `chunk03/f13_id15.bin` (96 verts, 1 node,
+  embedded texture; exportable as static EMDL — r1.6 base, 9.9 tall),
+  12 instances, scale X/Z ∈ {0.70,0.85,1.00,1.50}, scale Y =
+  phase·ramp/65536 with the bob/thrash integrator above; RGB mult =
+  room tint → (6,92,1)/128 green as the parent pad's open phase → 1;
+  alpha = roomC.w/128 faded in over the first 16 ramp units.
+- Tunables table: trigger 3×footprint; rings 3.5–7.5/4.5–9.5;
+  ellipse 0.92; ramp step 37, cap 300; hold radii 2/4 u; phase floor
+  100, kicks 3..7 (idle) / 28..41 (open), gravity 1 (idle) / 8
+  (open), vel damp ×0.5 at ≥8; girths {180,218,255,384}/256.
+
+### Matching status (all five committed as stubs; 2 wall datums added)
+
+- `func_001546C0`: hybrid asm-void stub stays byte-matching ("word").
+  Readable-C `switch` reproduces 29/30 instructions but hits **wall
+  #13**: CW leaves the beq(case 2) delay slot as nop, mwcc fills it
+  with the next chain constant (`addiu v1,1`) — one-instruction-short
+  body, every later branch off by one. Same family func_00153B50
+  documented as unfixable.
+- `func_00154460`: readable attempt 67.5% structural — three mwcc
+  policy walls: (a) early-`return 0` sites — CW emits `b common-tail;
+  v0=0 in slot` + nop after bc1t, mwcc fills the bc1t slot and inlines
+  the epilogue at the first return; (b) table-address pair vs `lbu`
+  kind-byte scheduling order; (c) final `return cond;` polarity (CW
+  bc1t + dead addiu, mwcc bc1f). Recorded in the src stubs; not
+  worth further attempts until a #13-family crack lands.
 
 ## SCENE_OFFICE0 CRATE CARVED — the n0 table's 0x0D shipped per-scene; husk verdict (2026-06-10, session 34)
 
