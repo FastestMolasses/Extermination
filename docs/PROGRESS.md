@@ -4,6 +4,48 @@
 > clusters, 91 fns in numbered unknowns), main() identified at 0x001AAE40,
 > prioritized decomp roadmap in docs/SUBSYSTEMS.md; graph tool: tools/callgraph.py.
 
+### LEVEL RENDER MESH decoded — character standing in its textured room in the port (2026-06-09, session 6)
+
+The native port now renders the textured, animated character STANDING IN
+ITS LEVEL — the office room of the live GS-dump scene, fully textured in
+color. Full write-up: FINDINGS.md "LEVEL RENDER MESH". Highlights:
+
+- **The drawn level is NOT the `id 0x44` file.** Each level chunk carries a
+  separate VU1-ready *render mesh* (the office's is
+  `chunk06.n1/f03_id43.bin`): 64-byte `[pos+W][TEX0][ST][color]` records in
+  0x880 blocks, position-W flag bits exactly like the character kernel
+  (bit 15 = ADC/priming, bits 0..9 = matrix slot), **TEX0 verbatim on
+  disc per record** — 84/85 of the dump frame's level TEX0 pairings appear
+  byte-exact in the file. Level texture color is therefore solved by the
+  same marker-TEX0 + GS-dump-VRAM machinery as the character.
+- **Scene identification was nontrivial**: the only in-game save state on
+  disk is a *different* scene (snow level, chunk15), which misled EE-RAM
+  residency analysis. The office was pinned by TEX0-key intersection with
+  the dump + bbox containing the live character position (107.4, 0, -184)
+  + the VRAM texture-pack structure.
+- **New tool `tools/export_level.py`**: render mesh → EMDL v2, static
+  (bone_count 1, identity, frame_count 1), baked vertex colors in the
+  normal slot (header flags bit 0), PSMT4/PSMT8/PSMCT32 textures resolved
+  from the GS dump (112 textures for the office). `export_native.write_emdl`
+  gained an optional `flags` kwarg (character path unchanged, default 0).
+- **Port** (extermination-port): scene = `assets/scene/*.emdl` (alphabetical,
+  world-space) + `assets/player.emdl` placed at its known world position;
+  EMD2 flags plumbed through `em_model`/`em_gfx_mesh_create`; Metal shader
+  gained a per-draw mode — bit 0 = "normal slot is a baked RGB color",
+  fragment = texture * color (GS modulate). Orbit camera centers on the
+  character in the room. Player-only path verified unregressed; EM_CAPTURE
+  acceptance shows the camo character in the recognizable office (desk,
+  lockers, binder shelf, concrete walls). verify_all --no-container all-PASS.
+- **Honest gaps**: `chunk27/f01_id37` (an object-space model LIBRARY of
+  props/pickups, 235 TEX0 keys, also drawn in the dump frame) is not
+  placed — runtime entity placements unknown — so desk-top items/pickups
+  are missing; movable sub-objects (nonzero matrix slots, ~750 verts:
+  doors etc.) are exported at bind pose; PSMT4 alpha still drawn opaque;
+  the id 0x44 static-mesh marker→TEX0 translation (the per-level material
+  table) remains undecoded — irrelevant for rendering since the engine
+  draws the render mesh, but the id44 file's runtime role (collision?) is
+  still open.
+
 ### CHARACTER TEXTURES SOLVED — colored, textured, ANIMATED character in the port (2026-06-09, session 5)
 
 The texture-color loop is CLOSED end-to-end. Full write-up: FINDINGS.md

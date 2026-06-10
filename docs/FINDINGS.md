@@ -3952,3 +3952,88 @@ Thin spots (stated plainly): the conditional VU block (0x0011A9D8..
 func_001FB100/func_00203350 are "audio service" by subsystem range;
 TID2's exact role inferred from creation site; func_0018D7B0/func_0018C0D0
 not disassembled.
+
+## LEVEL RENDER MESH — the drawn level is NOT the id 0x44 file (2026-06-09, session 6)
+
+The engine does not draw the `id 0x44` static level geometry. Each level
+chunk carries a separate **VU1-ready render mesh** file, and that is what
+streams through the 32-record VU1 kernel blocks seen in the GS dump. For
+the office scene (the live GS-dump frame) the level is **chunk06.n1** and
+its render mesh is `chunk06.n1/f03_id43.bin` (the file id varies per
+level — chunk15's and chunk17's `id 0x43` files are SShd sound banks, so
+the id is not a role tag here).
+
+### Record format (64 bytes, four 16-byte rows)
+
+| Row | Contents |
+|---|---|
+| `+0x00` | vec4 world-space position `(x, y, z, w)`, `|w| ~= 1.0`. W read as an int carries the SAME flag bits as the character kernel: bits 0..9 = VU1 dmem matrix-slot address (0 = static world, nonzero = movable sub-object e.g. doors), **bit 15 = ADC** — set on a strip's priming vertices and on padding, clear on triangle-kicking vertices. |
+| `+0x10` | the draw's complete **TEX0 register value, verbatim** (TBP0/TBW/PSM/TW/TH/CBP), + 8 zero bytes. |
+| `+0x20` | vec4 `(u, v, 1.0, 0.0)` — normalized per-texture ST, REPEAT semantics (NOT sheet-atlas coordinates). |
+| `+0x30` | vec4 **baked vertex color** `(r, g, b, 1.0)` — the level's baked lighting — or a unit normal `(nx,ny,nz, 0.0)` on some records (same `|xyz|~=1` disambiguation as id44 geometry). |
+
+Framing: fixed **0x880-byte blocks** = a 0x80-byte header (`01 00 00 00`
+word quad + AABB rows) + 32 records; blocks are padded by duplicating the
+last record (the model-format idiom). A tolerant walker that validates
+`|pos.w|~=1` + TEX0-row zero tail + ST-row `(1.0, 0.0)` and resyncs by 16
+bytes handles all of it. Decoder: `tools/export_level.py`.
+
+### Why this closes level texture COLOR
+
+The per-record TEX0 is disc-static exactly like the character mesh: 84 of
+the 85 level TEX0 pairings of the office GS-dump frame appear byte-exact
+(CLD-masked) in `f03_id43.bin` — so the level inherits the whole
+character texture pipeline (PSMT4 + per-texture 16-entry CLUT resolved
+from the dump's VRAM snapshot). The office mesh also references one
+PSMCT32 (psm=0) texture (the window/backdrop) — `export_level.py` reads
+it straight out of VRAM — and a few PSMT8 ones.
+
+The dump's level textures are a sequential **pack**: tbp0 descends
+through size classes (128x128 down to 32x16) with deltas equal to each
+texture's block footprint, CLUTs packed densely behind (CBP 11912..12151
+for the office; tiny textures carry their CLUT adjacent, cbp = tbp0+1
+or +3). The old "512-wide PSMT8 atlas sheet" reading of the level sheet
+uploads is therefore a misinterpretation: that VRAM region is the packed
+PSMT4 texture + CLUT array; reading it as PSMT8 just happens to produce
+structured-looking grayscale.
+
+### GS-dump streaming behavior (useful for future cross-validation)
+
+- The VU1 kernel emits **every** block, visible or not: culled/off-screen
+  blocks stream as runs of identical parked vertices with ADC set (which
+  is why per-TEX0 vertex totals in a dump roughly match file totals).
+- A `.gs` dump spans multiple VSyncs — per-TEX0 vertex totals are ~2-3x a
+  single frame's.
+- Clipped triangles re-enter the stream as clipper output (guard-band
+  coordinates, x/y = 4088.0).
+- `parse_gsdump.py` reads the PACKED XYZ2 ADC bit from byte 15; the ADC
+  bit is bit 111 = byte 13 bit 7 (kick counts in its tables are slightly
+  off; pairing tables unaffected).
+
+### Scene identification (and a trap)
+
+The only in-game save state on disk is the SNOW level (chunk15) — EE-RAM
+residency from it identifies the wrong level for the office dump. The
+office was pinned three ways: (1) TEX0-key intersection — f03_id43
+uniquely covers 84/85 of the dump's level pairings; (2) its bbox
+X[-25,120] Y[-10,50] Z[-305,50] contains the live character position
+(107.4, 0, -184) with floor y=0 there; (3) recognizable office textures
+(lockers, binders, keypads) decode from the dump VRAM via its TEX0s.
+For level-vs-dump comparisons, only TEX0 *content* (VRAM bytes) and
+key intersections are trustworthy — TEX0 VALUES alias heavily across
+levels because every level reuses the same VRAM slot allocator.
+
+### Related files, still open
+
+- `chunk06.n1/f02_id44.bin` (the id 0x44 static mesh) is RAM-resident
+  byte-identical at runtime but its markers are NOT TEX0s and none of the
+  dump's TEX0s exist anywhere in EE RAM as marker rows — the id44 file is
+  not the drawn geometry; likely collision/visibility data. Its
+  marker→texture translation (per-level material table) stays undecoded.
+- `chunk27/f01_id37.bin` is an object-space **model library** (~21.8k
+  records, 235 TEX0 keys, bbox ±25 units, multi-scene resident) — the
+  props/pickups drawn in the frame. Placing them needs runtime entity
+  data; not exported yet.
+- EMDL v2 header `reserved` is now a **flags** word: bit 0 = "the normal
+  slot carries a baked RGB vertex color" (written by export_level.py,
+  consumed by the port's shader as texture*color GS-modulate).

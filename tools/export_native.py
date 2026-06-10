@@ -456,10 +456,14 @@ def build_texture_blob(gsdump: Path | None, tex_table: list[dict]):
 
 
 def write_emdl(out_path: Path, sections, section_bone, parents, frames,
-               fps: float, tex_entries=None, tex_blob=b""):
+               fps: float, tex_entries=None, tex_blob=b"", flags=0):
     """Vertices carry their own palette slot (per-vertex bone, decoded from
     the position-W dmem address — see load_mesh_sections). A trailing
-    identity slot soaks up any vertex whose slot exceeds the palette."""
+    identity slot soaks up any vertex whose slot exceeds the palette.
+
+    `flags` lands in the header's reserved word (bit 0: the normal slot
+    carries a baked vertex COLOR — static level geometry; see
+    export_level.py). Character exports keep the default 0."""
     n_bones = len(frames[0])
     id_slot = n_bones        # identity matrix slot for unmapped vertices
     tex_entries = tex_entries or []
@@ -501,7 +505,7 @@ def write_emdl(out_path: Path, sections, section_bone, parents, frames,
     with out_path.open("wb") as f:
         f.write(b"EMD2")
         f.write(struct.pack("<4If2I", n_bones + 1, vbase, len(indices),
-                            len(frames), fps, len(tex_entries), 0))
+                            len(frames), fps, len(tex_entries), flags))
         for b in range(n_bones):
             p = parents[b] if b < len(parents) else -1
             f.write(struct.pack("<i", p if 0 <= p < n_bones else -1))
