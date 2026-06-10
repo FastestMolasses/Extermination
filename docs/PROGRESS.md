@@ -2993,3 +2993,36 @@ MESH-descriptor blocks remain proxy-bound (their per-block index is separate
 and still unlocated — the position-W field is not a clean selector for them).
 The capture's 4 MB GS VRAM (`gs.bin`) also physically contains the uploaded
 CLUTs — still to be mined for the color question.
+
+### Update — 2026-06-09 s8: level render fixed end-to-end (phase bug, id44 render section, live placements, weapon attachment)
+
+Live DMA-chain decode of the office frame (PCSX2 DebugServer; packet arena
+0x297400..0x2A2400 parsed offline) closed the port's two visible rendering
+problems. FINDINGS "LEVEL RENDER MESH v2" has the full detail.
+
+- **Record-phase bug (CORRECTION):** the level mesh records are in the
+  character order [TEX0][ST][color][pos+W]; the file starts mid-record.
+  The old [pos][...] reading paired every position with the next record's
+  UV/color — smeared textures, broken strips. Also removed two bogus
+  strip-break rules (TEX0 change / ADC runs do NOT reset a GS strip).
+- **id 0x44 carries a render section (CORRECTION):** the tail of
+  `chunk06.n1/f02_id44.bin` ([0x86B40,0x173800)) is a second static
+  render-mesh section — the WESTERN half of the area. The live static
+  draw streams blocks from both files.
+- **Region map + live placements:** `f03_id43.bin` = static world
+  [0,0x820C8) + a 13-slot door assembly + four placed object blobs (two
+  drawn twice = instancing); placements recovered as W = K_L^-1 * M from
+  the frame's draw units, embedded in `tools/export_level.py`.
+- **Weapon attachment:** held-equipment draw matrices are byte-identical
+  to player bone matrices — identity-offset node parenting. Rifle (models
+  47/48/49/50/56/64) -> node 4, model 48 again -> node 14; model 106
+  (knife) is a floor pickup this frame. `tools/export_props.py --attach`
+  merges them into `player.emdl` bone-local; they animate with the hands.
+- **Port:** level 2041 -> 3800 tris / 92 textures (room now closed:
+  walls/floor/ceiling/lockers); player 3170 -> 3686 tris with weapons in
+  hand; props = the knife pickup. Metal backend gained alpha-test discard
+  + alpha blending (8 level textures carry cutout alpha). EM_CAPTURE
+  verified at two phases (idle + EM_MOVE_TEST mid-walk).
+  `verify_all.py --no-container` all-PASS.
+- Open: W-bit 13 meaning; placements for the un-drawn object regions
+  (other door states); the runtime "lit copy" dynamic block colors.

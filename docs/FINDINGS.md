@@ -3962,6 +3962,12 @@ not disassembled.
 
 ## LEVEL RENDER MESH — the drawn level is NOT the id 0x44 file (2026-06-09, session 6)
 
+> **2026-06-09 s8 CORRECTIONS** (see "LEVEL RENDER MESH v2" below): the
+> record row order documented here is off by one row — the true order is
+> the character order [TEX0][ST][color][pos+W] (the file starts
+> mid-record); and the id 0x44 file DOES carry a second static render
+> section in its tail (the "related files" paragraph below is stale).
+
 The engine does not draw the `id 0x44` static level geometry. Each level
 chunk carries a separate **VU1-ready render mesh** file, and that is what
 streams through the 32-record VU1 kernel blocks seen in the GS dump. For
@@ -4163,6 +4169,9 @@ node tables), prim types 0x2000/0x4000, section-directory loader
 (who fills 0x28A598), and section [2] (header 0x376/0xE00/0x4E80) role.
 
 _Last updated: 2026-06-09 (session 7) — verdict: **id 0x44 = collision world, CONFIRMED**._
+_(s8 amendment: the file's TAIL additionally carries a static render-mesh
+section — see "LEVEL RENDER MESH v2"; the collision verdict for the
+cell/grid sections stands.)_
 
 ## CHUNK27 MODEL LIBRARY + LIVE PLACEMENT DECODE — it's the EQUIPMENT library; placement algebra solved (2026-06-09, session 7b)
 
@@ -4262,3 +4271,106 @@ proper attachment needs the bone-publish chain); the billboard glows
 are skipped; pickups elsewhere in the level (models 20/21's parents,
 weapon pickups) appear only when their rooms are active, so their
 placements are recoverable the same way once visited live.
+
+## LEVEL RENDER MESH v2 — record phase fixed, id44 render section, live placements, weapon attachment (2026-06-09, session 8)
+
+Live DMA-chain decode of the office frame (PCSX2 DebugServer, paused at
+the vsync wait so the whole frame's packet arena is built). Four results,
+two of them corrections to sessions 6/7b.
+
+### 1. CORRECTION — the level record row order is the CHARACTER order
+
+The session-6 reading ([pos][TEX0][ST][color]) was an off-by-one-row
+artifact: `f03_id43.bin` simply *begins mid-record* (a stray pos row at
+offset 0; the first full record starts at +0x10). The resident stream
+(REF'd blocks at runtime) shows the true order — **[TEX0][ST][color/
+normal][pos+W]**, identical to the character/object meshes. The old
+walker paired every position with the NEXT record's TEX0/UV/color, which
+smeared textures and mangled strip assembly in the port. Position-W flag
+bits (verified against the level VU1 kernel's PACKED XYZ2 output layout —
+the W word lands in output word 3, so file bit 15 == GS ADC bit 111):
+
+- bit 15 = ADC, verbatim (SET = prime/padding, CLEAR = kick a triangle)
+- bit 14 = strip parity / winding (mirrored in the float's sign bit)
+- bit 13 = per-vertex flag, varies per strip, NOT topology (undecoded)
+- bits 0..9 = dmem matrix-slot address (slot = bits >> 3)
+
+Triangle assembly is plain GS tristrip semantics per VIF block: every
+record enters the strip queue, kicks emit, **TEX0 may change mid-strip**
+(the triangle belongs to its kick vertex's TEX0) — do NOT break strips on
+TEX0 changes or ADC runs. ~10% of the room's triangles were lost to those
+two bogus break rules; the rest of the old export's damage was the phase.
+
+### 2. CORRECTION — the id 0x44 file ALSO holds a render-mesh section
+
+`chunk06.n1/f02_id44.bin` is the collision world (s7, still true for its
+cell/grid sections) **but its tail [0x86B40, 0x173800) is a second static
+render-mesh section** — 448 VIF blocks, same record format, slot 0, world
+space, X[37,120] (the WESTERN part of the area incl. the office's x=100
+wall). The live static level draw REFs blocks from BOTH files; runtime
+also keeps color-modified copies of some blocks (dynamic lighting) in a
+separate arena (the s6 "id44 markers are not TEX0s" check failed only
+because of the record-phase bug). The office room alone: f03 contributes
+the east part (x 100..120), f02's render section the west.
+
+### 3. Level region map + live placements (chunk06.n1, office frame)
+
+`f03_id43.bin` is NOT all world-space static. Live frame structure (DMA
+chain, CALL targets are the kernel-kick packets):
+
+- `[0x000000,0x0820C8)` static world, slot 0 — drawn via the LEVEL kernel
+  (CALL 0x237180) with camera K_L (one 8-qw set to dmem 0).
+- `[0x088840,0x099C80)` a 13-slot SUB-OBJECT assembly (one REF 4420 qw),
+  drawn via the OBJECT kernel (CALL 0x23C750) with a 105-qw CNT = 13
+  matrix sets to dmem 0; records pick sets by their slot bits. This is
+  the corridor door at (75, 0, -188.2). W = K_L^-1 * M per set
+  (orthonormal, bottom row 0001 — same algebra as s7b).
+- Standalone object blobs drawn via the object kernel with per-unit
+  1-2-set palettes: 0xA05C0 (520 qw, 2 slots, double door at
+  (109,0,-252)/(101,9,-252)), 0xA3040 and 0xA3940 (0x82 qw each, drawn
+  TWICE each = two instances, wall fixtures x~116 z~-264..-290), 0xA8440
+  (1040 qw, lockers at (116.2, 8, -184)).
+- Remaining object-space regions ([0x820C8,0x88840) non-record data,
+  [0x99C80,0xA05C0) a second 3-slot door assembly, [0xA41C0,0xA8440),
+  [0xAC540,end)) are NOT drawn in this frame — other door/object states;
+  placements recoverable the same way when live.
+
+The static draw also re-kicks the sub-object region after CALL 0x2354A0
+(level-kernel re-upload packet; alpha env REF 0x816540) — a second pass,
+same palette. `tools/export_level.py` embeds the region map + matrices.
+
+### 4. Weapon attachment — equipment draw matrix == bone matrix
+
+The player skin draw unit (REF 19370 qw @ the resident player blob) has a
+21-set palette = the player's 21 node matrices (M-form). The held
+equipment units' matrices are **byte-identical** to specific bone sets:
+
+- models 47, 48, 49, 50, 56, 64 (rifle parts) == bone 4 (right hand)
+- model 48 drawn a second time == bone 14 (left hand)
+- model 106 (knife) is NOT attached this frame — it is a floor pickup at
+  world (115.0, 1.5, -269.3)
+
+So equipment parenting is identity-offset node attachment: merging the
+library model vertices into the player EMDL bound to nodes 4/14
+(positions kept model-local = bone-local) animates them with the hands.
+`tools/export_props.py --attach` does exactly that; the no-flag mode now
+exports placed world pickups (model 106) instead of baking held weapons
+at a world pose (the s7b approach, now superseded).
+
+### Port side
+
+`assets/scene/00_level.emdl` 5743 verts / 3800 tris / 92 textures (was
+4002/2041/85 with the phase bug: missing west half, smeared UVs);
+`assets/player.emdl` 3363 verts / 3686 tris (rifle + offhand item
+attached, +516 tris); `assets/scene/01_props.emdl` = the knife pickup.
+Metal backend: texture alpha now honored — alpha-test discard (<0.5) for
+cutout texels (8 of 92 level textures carry alpha: grates, glass) +
+standard alpha blending; winding is normalized (kick vertex first =
+provoking vertex, bit-14 parity decides the flip) but the port still
+draws double-sided until GS cull state is translated.
+
+Open: bit 13 meaning; the un-drawn object regions' placements; dynamic
+block-color (lit-copy) path; per-room residency layout of the two mesh
+files (the engine loads them as multiple separately-based pieces).
+
+_Last updated: 2026-06-09 (session 8)._

@@ -1,55 +1,49 @@
 #!/usr/bin/env python3
-"""export_props.py — export PLACED models from the chunk27 model LIBRARY
-(`extract/chunk27/f01_id37.bin`) as a static, world-baked EMDL v2 asset
-for the native port.
+"""export_props.py — chunk27 equipment-library models for the native port:
+attach the player's held weapons to the player skeleton, and export placed
+world pickups as a static scene EMDL.
 
-THE LIBRARY (decoded 2026-06-09, session 7). f01_id37.bin is a directory
-of 126 standalone mesh blobs:
+THE LIBRARY (decoded 2026-06-09 s7). `extract/chunk27/f01_id37.bin` is a
+directory of 126 standalone mesh blobs:
 
   +0x00  u32 count (0x7E = 126)
-  +0x04  u32 offset[count]      byte offsets into the file (0x80-aligned),
-                                terminated by 0xFFFFFFFF
-  each offset -> a "raw mesh blob" in exactly the chunk28-character
-  format (header: n_blocks, total_qwc, n_nodes, size; first STCYCL+UNPACK
-  at +0x48; 130-qw VIF blocks of 32 records [TEX0][ST][normal][pos+W]) —
+  +0x04  u32 offset[count]      byte offsets into the file (0x80-aligned,
+                                terminated by 0xFFFFFFFF)
+  each offset -> a "raw mesh blob" in exactly the chunk28-character format
+  (header: n_blocks, total_qwc, n_nodes, size; first STCYCL+UNPACK at
+  +0x48; 130-qw VIF blocks of 32 records [TEX0][ST][normal][pos+W]) —
   `export_native._walk_blob_blocks` walks it unchanged.
 
-PLACEMENTS (live-debug session 7). The engine draws library models with
-one DMA "draw unit" per placed model in the per-frame packet arena:
+ATTACHMENT (decoded 2026-06-09 s8, live DMA-chain decode of the office
+frame). Each held item is one object-kernel draw unit (CALL 0x23C750)
+whose dmem matrix upload is BYTE-IDENTICAL to one of the 21 matrices of
+the player's own skin draw unit — i.e. the engine parents equipment to a
+skeleton node with an IDENTITY local offset. Live frame:
 
-  [CNT 9qw : VIF STCYCL+UNPACK V4-32 8qw -> VU1 dmem 0]  4 qw MVP matrix
-                                                         + 4 qw light rows
-  [REF 9qw @0x815360] [REF 8qw @0x816440] [REF 1qw @0x814220]  shared env
-  [CALL @0x0023C750]                       kernel-kick packet (MSCAL)
-  [REF n qw @ library_base + offset[i] + 0x40]   the model's block stream
-  [CNT 5qw]                                per-object GS constants
+  rifle  = models 47, 48, 49, 50, 56, 64  -> node  4 (right hand)
+  spare  = model 48 drawn a second time   -> node 14 (left hand)
+  model 106 (knife) = a floor PICKUP at world (115.0, 1.5, -269.3), not
+  attached this frame.
 
-The uploaded matrix is MVP = K x W (K = camera/clip transform, W = the
-model's world placement; matrix qwords are the columns/axis images).
-The level render mesh streams in WORLD space through its own kernel
-with matrix K_level, and K's first three columns are byte-identical to
-(-K_level.col2, K_level.col1, K_level.col0) in every live sample — the
-two kernels share the camera, so W = K_level^-1 x MVP recovers the
-ABSOLUTE world placement (validated: bottom row (0,0,0,1), orthonormal
-rotation, translations inside the room bbox at the player).
+So --attach simply merges the rifle/spare model vertices into the player
+EMDL bound to nodes 4/14 (positions stay model-space = bone-local) and
+they animate with the hands automatically.
 
-Live office-scene result: the only chunk27 models drawn are the PLAYER'S
-EQUIPMENT — models 47/48/49/50/56/64 (the rifle, a six-model composite
-sharing one transform), model 106 (carried gear), models 20/21 (glow
-billboards, non-rigid scale matrices — skipped here). The office desk
-items are baked into the level render mesh; chunk27 is the equipment /
-pickup library, not room furniture.
-
-Output: one EMDL v2 (static, identity palette, flags bit 0 = baked
-vertex color) with the placements baked into the vertices. Textures
-resolve through the same GS-dump VRAM machinery as the level exporter
-(all 30 equipment TEX0 keys appear in the office dump frame).
+The default (no --attach) export bakes PLACED world models (the pickups)
+into a static EMDL v2 with the placements applied — currently model 106
+at its live floor pose.
 
 Disc-derived output: write only into git-ignored locations.
 
 Usage (macOS arm64, decomp repo root):
+  # player with attached weapons:
+  .venv/bin/python tools/export_props.py --attach \
+      --mesh extract/chunk28/f00_id3b.bin \
+      --anim extract/chunk28/f01_id3c.bin --clip 346 \
+      --gsdump extract/gsdump/frame1.gs \
+      --out ../extermination-port/assets/player.emdl
+  # world pickups:
   .venv/bin/python tools/export_props.py \
-      --library extract/chunk27/f01_id37.bin \
       --gsdump extract/gsdump/frame1.gs \
       --out ../extermination-port/assets/scene/01_props.emdl
 """
@@ -79,37 +73,18 @@ en = _load("_export_native_props", "export_native.py")
 lvl = _load("_export_level_props", "export_level.py")
 
 # ---------------------------------------------------------------------------
-# Live placements, recovered 2026-06-09 from the running office scene
-# (PCSX2 DebugServer; per-model draw-unit MVPs at packet-arena 0x299xxx,
-# K_level anchor from the level draw chain at 0x297410). Rows are the
-# first three rows of the affine world matrix [R | t]; bottom row 0001.
-# Model keys are library directory indices.
+# Live capture (2026-06-09 s8, office scene): held equipment -> player node
+# (identity local offset, M_equip == M_node byte-exact in the frame's DMA
+# chain), plus world-placed pickups (W = K_L^-1 * M, 3x4 [R | t] rows).
 
-LIVE_PLACEMENTS: dict[int, list[list[float]]] = {
-    # the rifle: a six-model composite, one shared transform (in the
-    # player's hands, idle pose)
-    47: [[0.026218, -0.029295, -0.998309, 104.573173],
-         [0.613704,  0.788837, -0.006362,  12.934228],
-         [0.788679, -0.612222,  0.039197, -183.358210]],
-    48: [[0.026218, -0.029295, -0.998309, 104.573173],
-         [0.613704,  0.788837, -0.006362,  12.934228],
-         [0.788679, -0.612222,  0.039197, -183.358210]],
-    49: [[0.026218, -0.029295, -0.998309, 104.573173],
-         [0.613704,  0.788837, -0.006362,  12.934228],
-         [0.788679, -0.612222,  0.039197, -183.358210]],
-    50: [[0.026218, -0.029295, -0.998309, 104.573173],
-         [0.613704,  0.788837, -0.006362,  12.934228],
-         [0.788679, -0.612222,  0.039197, -183.358210]],
-    56: [[0.026218, -0.029295, -0.998309, 104.573173],
-         [0.613704,  0.788837, -0.006362,  12.934228],
-         [0.788679, -0.612222,  0.039197, -183.358210]],
-    64: [[0.026218, -0.029295, -0.998309, 104.573173],
-         [0.613704,  0.788837, -0.006362,  12.934228],
-         [0.788679, -0.612222,  0.039197, -183.358210]],
-    # carried gear (shoulder-height, mirrored axes in the live matrix)
-    106: [[-0.987142,  0.040452,  0.146947, 106.109454],
-          [-0.032970, -0.996965,  0.059144,   9.182241],
-          [ 0.149576,  0.054252,  0.985992, -181.974180]],
+ATTACHMENTS = [(47, 4), (48, 4), (49, 4), (50, 4), (56, 4), (64, 4),
+               (48, 14)]
+
+LIVE_PLACEMENTS: dict[int, list] = {
+    # model 106 (knife): floor pickup near the office's far wall
+    106: [[[0.988756, -0.0, 0.149536, 115.000011],
+           [-0.0, 1.0, 0.0, 1.50013],
+           [-0.149536, 0.0, 0.988756, -269.30001]]],
 }
 
 
@@ -140,18 +115,6 @@ def model_records(d: bytes, off: int):
         yield recs
 
 
-def mat_apply(m, v):
-    return (m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2] + m[0][3],
-            m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2] + m[1][3],
-            m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2] + m[2][3])
-
-
-def mat_rotate(m, v):
-    return (m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
-            m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
-            m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2])
-
-
 def attr_color(attr, m) -> tuple:
     """attr row -> baked color. Unit normals (|xyz|~1, w~0) are rotated
     into world space and lit with the port's stand-in light; anything
@@ -159,25 +122,38 @@ def attr_color(attr, m) -> tuple:
     x, y, z, w = attr
     n = math.sqrt(x * x + y * y + z * z)
     if abs(n - 1.0) < 0.05 and abs(w) < 0.1:
-        wx, wy, wz = mat_rotate(m, (x, y, z))
+        if m is not None:
+            x, y, z = lvl.mat_rotate(m, (x, y, z))
         lx, ly, lz = 0.4, 0.8, 0.45
         ll = math.sqrt(lx * lx + ly * ly + lz * lz)
-        d = max((wx * lx + wy * ly + wz * lz) / ll, 0.0)
+        d = max((x * lx + y * ly + z * lz) / ll, 0.0)
         s = 0.30 + 0.70 * d
         return (s, s, s)
     return (min(max(x, 0.0), 1.0), min(max(y, 0.0), 1.0),
             min(max(z, 0.0), 1.0))
 
 
-# ---------------------------------------------------------------------------
+def model_tris(d: bytes, off: int):
+    """GS tristrip assembly of one library model: yield
+    (tex0_qword, [3 x (pos, attr, uv)], parity) triangles. Every record
+    enters the strip; bit-15-clear records with two predecessors kick;
+    triangle texture = the kick vertex's TEX0 (it may change mid-strip)."""
+    for recs in model_records(d, off):
+        run = []
+        for q, uv, attr, pos, wbits in recs:
+            run.append((pos, attr, uv, q))
+            if len(run) > 3:
+                run.pop(0)
+            if (wbits & 0x8000) == 0 and len(run) == 3:
+                if run[0][0] != run[1][0] and run[1][0] != run[2][0] \
+                        and run[0][0] != run[2][0]:
+                    yield q, list(run), (wbits >> 14) & 1
 
-def build_mesh(d: bytes, placements: dict[int, list]):
-    offs = read_directory(d)
-    raw_pos, raw_col, raw_bone, raw_uv, raw_tex = [], [], [], [], []
-    tris = []
-    weld = {}
-    tex_table: list[dict] = []
-    tex_index: dict[int, int] = {}
+
+# ---------------------------------------------------------------------------
+# Shared texture-id helper
+
+def make_tex_of(tex_table, tex_index):
     NO_TEX = 0xFFFFFFFF
 
     def tex_of(q0: int) -> int:
@@ -194,6 +170,19 @@ def build_mesh(d: bytes, placements: dict[int, list]):
                 tex_table.append(f)
             tex_index[key] = ti
         return ti
+    return tex_of
+
+
+# ---------------------------------------------------------------------------
+# Mode 1: static world pickups (placements baked)
+
+def build_placed_mesh(d: bytes, placements: dict[int, list]):
+    offs = read_directory(d)
+    raw_pos, raw_col, raw_bone, raw_uv, raw_tex = [], [], [], [], []
+    tris = []
+    weld = {}
+    tex_table: list[dict] = []
+    tex_of = make_tex_of(tex_table, {})
 
     def vid_of(p, c, uv, t):
         key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
@@ -210,40 +199,88 @@ def build_mesh(d: bytes, placements: dict[int, list]):
             raw_tex.append(t)
         return i
 
-    n_models = 0
-    for mi, m in sorted(placements.items()):
+    n_inst = 0
+    for mi, mats in sorted(placements.items()):
         if mi >= len(offs):
             print(f"  ! model {mi} out of range ({len(offs)} models), skipped")
             continue
-        n_models += 1
-        nverts = 0
-        for recs in model_records(d, offs[mi]):
-            run = []
-            prev_adc = None
-            prev_key = None
-            for q, uv, attr, pos, wbits in recs:
-                adc = (wbits >> 15) & 1
-                key56 = q & en.TEX0_KEY_MASK
-                if (adc and prev_adc == 0) or key56 != prev_key:
-                    run = []
-                prev_adc, prev_key = adc, key56
+        for m in mats:
+            n_inst += 1
+            ntri = 0
+            for q, corners, parity in model_tris(d, offs[mi]):
                 t = tex_of(q)
-                vi = vid_of(mat_apply(m, pos), attr_color(attr, m), uv, t)
-                nverts += 1
-                run.append(vi)
-                k = len(run)
-                if k >= 3 and not adc:
-                    a, b, c = run[k - 3], run[k - 2], run[k - 1]
-                    if a != b and b != c and a != c:
-                        if (k & 1) == 0:
-                            tris.extend((a, b, c))
-                        else:
-                            tris.extend((b, a, c))
-        print(f"  model {mi:3d}: {nverts} records")
+                ids = [vid_of(lvl.mat_apply(m, p), attr_color(a, m), uv, t)
+                       for p, a, uv, _q in corners]
+                a, b, c = ids
+                if parity:
+                    tris.extend((c, b, a))
+                else:
+                    tris.extend((c, a, b))
+                ntri += 1
+            print(f"  model {mi:3d}: {ntri} tris at "
+                  f"({m[0][3]:.1f}, {m[1][3]:.1f}, {m[2][3]:.1f})")
 
     sections = [(raw_pos, raw_col, tris, raw_bone, raw_uv, raw_tex)]
-    return sections, tex_table, n_models
+    return sections, tex_table, n_inst
 
+
+# ---------------------------------------------------------------------------
+# Mode 2: --attach — player EMDL with equipment merged onto skeleton nodes
+
+def build_attached_player(args):
+    mesh_path = Path(args.mesh)
+    sections, max_slot, tex_table = en.load_mesh_sections(mesh_path,
+                                                          args.segment)
+    pos, nrm, tris, bones, uvs, texs = sections[0]
+    print(f"player mesh: {len(pos)} verts, {len(tris)//3} tris, "
+          f"max node slot {max_slot}, {len(tex_table)} textures")
+
+    tex_index = {t["key"]: i for i, t in enumerate(tex_table)}
+    tex_of = make_tex_of(tex_table, tex_index)
+    weld = {}
+
+    def vid_of(p, n, b, uv, t):
+        key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
+               round(n[0], 3), round(n[1], 3), round(n[2], 3), b,
+               round(uv[0], 5), round(uv[1], 5), t)
+        i = weld.get(key)
+        if i is None:
+            i = len(pos)
+            weld[key] = i
+            pos.append(p)
+            nrm.append(n)
+            bones.append(b)
+            uvs.append(uv)
+            texs.append(t)
+        return i
+
+    lib = Path(args.library).read_bytes()
+    offs = read_directory(lib)
+    base_tris = len(tris) // 3
+    for mi, node in ATTACHMENTS:
+        ntri = 0
+        for q, corners, parity in model_tris(lib, offs[mi]):
+            t = tex_of(q)
+            # positions/normals stay MODEL-LOCAL: the live frame shows the
+            # equipment draw matrix == the node matrix (identity offset),
+            # so model space IS the node's bone-local space.
+            ids = [vid_of(tuple(p), (a[0], a[1], a[2]), node, uv, t)
+                   for p, a, uv, _q in corners]
+            a, b, c = ids
+            if parity:
+                tris.extend((c, b, a))
+            else:
+                tris.extend((c, a, b))
+            ntri += 1
+        print(f"  attached model {mi:3d} -> node {node:2d}: {ntri} tris")
+    print(f"player+equipment: {len(pos)} verts, {len(tris)//3} tris "
+          f"(+{len(tris)//3 - base_tris}), {len(tex_table)} textures")
+
+    max_slot = max([max_slot] + [n for _m, n in ATTACHMENTS])
+    return sections, max_slot, tex_table
+
+
+# ---------------------------------------------------------------------------
 
 def main(argv):
     ap = argparse.ArgumentParser(
@@ -252,10 +289,33 @@ def main(argv):
                     help="model library (directory of mesh blobs)")
     ap.add_argument("--gsdump", help="PCSX2 1-frame GS dump (.gs): source of "
                     "colored texels (grey 1x1 without it)")
-    ap.add_argument("--placements", help="JSON {model_index: 3x4 row-major "
-                    "world matrix}; default = live-captured office equipment")
+    ap.add_argument("--placements", help="JSON {model_index: [3x4 row-major "
+                    "world matrices]}; default = live-captured pickups")
+    ap.add_argument("--attach", action="store_true",
+                    help="export the PLAYER EMDL (--mesh/--anim/--clip) with "
+                    "the held equipment merged onto its skeleton nodes")
+    ap.add_argument("--mesh", default="extract/chunk28/f00_id3b.bin",
+                    help="(--attach) player mesh blob")
+    ap.add_argument("--anim", default="extract/chunk28/f01_id3c.bin",
+                    help="(--attach) id 0x74 animation library")
+    ap.add_argument("--clip", type=int, default=346,
+                    help="(--attach) clip index to bake (default 346, idle)")
+    ap.add_argument("--segment", type=int, default=0)
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
+
+    if args.attach:
+        sections, max_slot, tex_table = build_attached_player(args)
+        tex_entries, tex_blob = lvl.build_texture_blob(
+            Path(args.gsdump) if args.gsdump else None, tex_table)
+        parents, frames, fps = en.bake_id74_palettes(Path(args.anim),
+                                                     args.clip)
+        frames = en.recentre(frames)
+        print(f"palette: clip {args.clip} -> {len(frames)} frames, "
+              f"{len(frames[0])} nodes @ {fps} fps")
+        en.write_emdl(Path(args.out), sections, [], parents, frames, fps,
+                      tex_entries, tex_blob)
+        return 0
 
     placements = LIVE_PLACEMENTS
     if args.placements:
@@ -263,13 +323,13 @@ def main(argv):
         placements = {int(k): v for k, v in raw.items()}
 
     d = Path(args.library).read_bytes()
-    sections, tex_table, n_models = build_mesh(d, placements)
+    sections, tex_table, n_inst = build_placed_mesh(d, placements)
     pos = sections[0][0]
     ntris = len(sections[0][2]) // 3
     if not pos:
         raise SystemExit("no geometry produced")
     xs = [p[0] for p in pos]; ys = [p[1] for p in pos]; zs = [p[2] for p in pos]
-    print(f"props: {n_models} models, {len(pos)} verts, {ntris} tris, "
+    print(f"props: {n_inst} placed instances, {len(pos)} verts, {ntris} tris, "
           f"{len(tex_table)} textures")
     print(f"  world bbox X[{min(xs):.1f},{max(xs):.1f}] "
           f"Y[{min(ys):.1f},{max(ys):.1f}] Z[{min(zs):.1f},{max(zs):.1f}]")
