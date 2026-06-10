@@ -7283,3 +7283,92 @@ footstep events at frameA/frameB, and pick the evaluator by property
 mode (0 = in-place). The exporter's container indices already match
 anim ids 1:1 — `export_native.py --anim chunk28/f01_id3c.bin --clip
 0x110` IS the draw animation.
+
+## LASER SIGHT DECODED — beam rule, colors, dot, and the aim camera (2026-06-10, session 23)
+
+Live PCSX2 aim capture (R1 hold, AREA02 storage room) + native disasm of
+the gun actor's per-frame laser drawers. The s22 weapon write-up's
+"beam/flash drawer func_001854E0 or func_00185760 by +0x318" is now
+fully characterized; the anim gate is the AIM-POSE pair, so the laser
+runs the whole time the player aims, not only during fire frames.
+
+### Reference (live capture)
+
+- Holding R1 draws the rifle into the shouldered aim pose and the camera
+  cuts to a close over-shoulder AIM camera: camera struct +0x06 mode
+  byte goes 0 → **1** (handler `func_00197D20`, smooth table), top mode
+  +0x04 stays 0 (NOT the scope cam 3); +0x8C target-height offset read
+  **2.0** live in this area (the documented default is 6.0).
+- The laser: a **thin red beam from the rifle muzzle to the world hit
+  point**, visibly dashed/shimmering along its length, terminated by a
+  **bright soft red glow dot** several times wider than the beam. On the
+  bright wall at point-blank only the dot flare is prominent; in dark
+  rooms the beam reads clearly (additive).
+- Live gun actor (ptr `D_008102D0` = 0x007a8540 this session): muzzle
+  +0xA0 = (106.79, 15.22, −292.80), aim dir +0xC0 = (−0.597, 0.001,
+  −0.802) — refreshed per frame from the hand matrix exactly as s22
+  documented. Player +0x05 = 0x1D, major +0x06 = 2, +0x318 = 0.
+
+### Selection (func_00188630, the SPR4 gun tick)
+
+Gated on the player anim pair (D_008104A0/A1 = player +0x1F0/+0x1F1):
+
+```
+anim ∈ {0x31, 0x34} (aim-pose ladder) && phase==1 && D_008105A2 != 0:
+    +0x318 == 0 → func_00185760 (DOT + BEAM)   ← the normal aim laser
+    else        → func_001854E0 (DOT only)
+anim ∈ {0x32, 0x35} (the other stance pair) && phase==1:
+    +0x318 == 0 → func_001854E0 (DOT only)
+    else        → func_00185760 (DOT + BEAM)
+```
+
+### The raycast (both drawers, identical head)
+
+`spad38B0 = muzzle (gun+0xA0)`; `spad38A0 = muzzle + dir(gun+0xC0)*260.0`;
+**`func_0019A570(muzzle, end, mode 7, mask 0x20)` — the exact bullet
+query.** On hit: endpoint = spad 0x700031B0 hit point, and if the hit
+ACTOR (*0x700031D4) passes `func_00183AC0` its **+0x0A byte is set to
+0x80 — a "laser on me" tag** (enemy AI input). The clipped endpoint is
+stored at gun+0x200 (s0=gun+0x1F0, s0+0x10) with s0+0x20 = 1 (laser-hit
+flag); gun+0x1F0 itself is the beam-start vec4. On miss the laser still
+draws to the full 260-unit endpoint. func_001854E0 additionally writes
+s0+0x24 = intensity: 1.0 for len ≤ 20, then linear (240−(len−20))/240
+to 0 at 260 (a distance fade consumed elsewhere).
+
+### The DOT (func_001CD520 billboard at the endpoint)
+
+`func_001CD520(0, 2, endpoint, 0x20045BA5_154222DC, w=3.0, h=3.0, 2.0,
+RGBA)` — additive billboard sprite:
+- func_001854E0: R = 0x40 + (rand>>15 & 0x1F), G = B = 0, A = 0x80
+- func_00185760 unlocked: R = 0x50 + flicker, G = B = 0, A = 0x80; size 3.0
+- func_00185760 LOCKED (D_008106E0 nonzero): R/G/B = 0x70/0x40/0x20 +
+  flicker, A = 0x80, size **5.0** (warm/orange dot when locked on)
+(GS color scale: 0x80 = 1.0 → unlocked dot red ≈ 0.63..0.86.)
+
+### The BEAM (func_00185760 tail → func_001E2BA0)
+
+`func_001E2BA0(start=gun+0x1F0, end=spad38A0, colorf4, 260.0)` with
+base color **(0.7, 0, 0, 1.0)** unlocked / **(1.0, 0.6, 0.2, 1.0)**
+locked. Inside (728 B, fully read):
+
+- the beam is **32 consecutive GS LINE segments** start → end
+  (step = delta/32), drawn via `func_001E2800(2, seg, colorPrev,
+  colorCur)` with both ends vclip-tested against the current clip
+  matrix (func_001CD370(2));
+- per-segment color = base × **sin-wave flicker**: phase starts RANDOM
+  each frame (rand/2^31 × 2π) and advances **(0.1 × len)/4.0 rad per
+  segment**; the float→GS-int conversion clamps negative sine to 0, so
+  roughly half the segments go dark → the dashed shimmer;
+- the previous-vertex color register starts ZERO, so segment 1 fades up
+  from black; colors are per-vertex (gradient along each segment).
+
+### Port rule (implemented in extermination-port s23)
+
+Per AIM frame: one bullet-identical segment query muzzle → muzzle +
+dir·260; clip at the hit; draw 32 additive, depth-tested (write-off)
+segments with per-vertex color (0.7,0,0)×max(sin(φ),0), φ0 random,
+Δφ = 0.025·len; 3.0-unit additive dot at the endpoint with
+R = (0x50+rand5)/0x80. Beam width: GS LINE = 1 screen pixel at 512×448
+(the port uses a ~0.12-unit axial-billboard quad). Aim camera: target
+height offset = camera struct +0x8C (default 6.0; AREA02 live 2.0)
+while the player is in the armed stance.
