@@ -107,6 +107,28 @@ only float-op / operand-order / saved-register diffs:
    extending int args. Cracks the FP-register CHOICE only; surrounding mtc1
    placement / delay-slot scheduling may still be a wall.
 
+7. **Block-copy temps via `volatile` src + fake trailing parameters**
+   (2026-06-09, func_00102958 — 4x4 matrix copy, 100% matched). Two parts,
+   both required: (a) declare the SOURCE pointer `volatile` — this pins the
+   four `lq`s ahead of all `sq`s (otherwise mwcc sinks the first load down
+   next to its store); (b) declare the copy temps as extra never-passed
+   PARAMETERS — `f(u128 *dst, volatile u128 *src, u128 q0, q1, q2, q3)` —
+   so they allocate to the next argument registers `$a2,$a3,$t0,$t1`,
+   matching CW's block-copy temp choice (locals or an aggregate `*d = *s`
+   get `$v1`/`$a1` reuse instead). Callers still pass only `(dst, src)`.
+
+NEW WALL DATUM — saved-register allocation ORDER (2026-06-09,
+func_00179BC0 / bone_matrix_publish, wall-blocked at 96.23%): mwcc assigns
+`s0..sN` by WEB-START (emission) position; CW 2.3.1 assigns by DECLARATION
+order. When a variable is declared early but first written late (e.g. a loop
+counter initialized in the for-init after two calls), CW still gives it the
+earlier saved register. With mwcc you can have EITHER the right registers
+(init at declaration → the inits wrongly emit in the prologue) OR the right
+placement (for-init → the saved params steal s0/s1) — never both. Falsified:
+dual early+late init (dead-store elim runs first), `register` hints
+(ignored), -O3,p (identical). Compose this with idiom 3: declaration order
+only controls allocation when first-writes happen in the same order.
+
  
 NOT A WALL — paddub register moves (correction 2026-06-XX). mwcc DOES emit
 `paddub $rd, $rs, $zero` for EE register moves/arg-saves/arg-setup — proven by
