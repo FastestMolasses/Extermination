@@ -1,5 +1,26 @@
 # Extermination Decomp — Progress
 
+> 2026-06-10 (session 23): DOOR SCRIPTS + ANIM-ID MAPPING decoded (static) —
+> ftab_0024D880 fully itemized (27 opcodes 0x00-0x1A + sub-command tables;
+> records are 0x40 bytes, s22's "8-byte" corrected), all three door scripts
+> listed and traced (D_0024DE40 open / D_0024DEC0 locked / D_0024DBC0 locked-
+> finish; the s22 side→script question resolved: choice is unlocked-vs-locked,
+> the side only patches anim/clip/wait/sound fields into the shared records);
+> door sounds = pair table D_0024DB80[link>>8][side] patched in by
+> func_001BBD60. ANIM IDS: id = container index in the bound clip library
+> (clip = lib + offset_table[id & 0x7FFF], func_001C6120; player default
+> D_0028A580 == D_0028A490[0x3C] = chunk28/f01_id3c, 455 containers);
+> D_00248C90 = per-id property rows {evaluator mode, footstep frames A/B,
+> rate scale}; aim poses = per-sub-weapon clips from stance tables
+> D_00248B88/D_00248C68. Clip ids: reload 0x33, draw 0x110 (rate 1.4),
+> holster 0x111, fire 0x31/32/34/35, door open 0x45/0x43, locked try
+> 0x46/0x44, scripted walks 0x4B-0x4E. FINDINGS: "DOOR SCRIPTS DECODED" +
+> "ANIM ID MAPPING". Match attempt func_001BA080 (op-6 flag/counter switch)
+> wall-blocked at 88.4% — NEW DATUM: mwcc orders dense-switch jump-table
+> dispatch [lui, sll, addiu %lo, addu] vs CW's [lui, addiu %lo, sll, addu]
+> (+ wall #13 slot fills, shadow-fill interleave); analysis + best shape
+> inline in src/func_001BA080.c (stub restored).
+
 > 2026-06-10 (session 22b): ENEMY AI ARCHITECTURE mapped (static) — all 19
 > overlays' placement tables censused (1011 records, 164 distinct behavior
 > fns: 39 main-ELF / 125 overlay-local; ~20 creature behaviors, 5 cover >90%

@@ -5687,6 +5687,14 @@ bit29 = arg-relative advance; spad 0x70003B91 gates a pause variant).
 SOUNDS: no direct SShd call in the door fns — door audio is emitted by
 script opcodes through ftab_0024D880 (table not yet itemized).
 
+> **2026-06-10 s23 CORRECTIONS** (see "DOOR SCRIPTS DECODED" below):
+> records are **0x40 bytes**, not 8; the script choice is **unlocked
+> (D_0024DE40) vs locked (D_0024DEC0)** — the a2 mode arg — not side
+> 0/1 (the side patches anim/clip/wait/sound values into the shared
+> records instead); ftab_0024D880 is now fully itemized and the three
+> scripts fully listed, door sounds = pair table D_0024DB80 indexed by
+> link high byte + side.
+
 **`func_001BC150` (transition commit):** door id +0x34 bit 0x80 set →
 AREA CHANGE: `func_001B0C00(4)`, `D_008106B8=1`, and
 `D_008106B5/B7/B6` = bytes 0/1/(2?3:0xFF) of record
@@ -5787,10 +5795,11 @@ D_008106B5..B8 consumed by the area loader), walking the player to
   cover examine actions 0x1B-0x27 against class-4 models 0x14-0x2C, not
   kind-0xB items) or area-overlay handlers via the published class-4
   list. Needs one live breakpoint session on an office ammo-box take.
-- `ftab_0024D880` script opcode table (door sounds live behind it) — not
-  itemized; sound-id → SShd mapping for doors therefore open.
-- Door scripts `D_0024DBC0/D_0024DE40/D_0024DEC0` and camera-cue block
-  `D_0024DC14..D_0024DD14` not yet dumped/decoded.
+- ~~`ftab_0024D880` script opcode table — not itemized~~ CLOSED s23
+  ("DOOR SCRIPTS DECODED"); door sounds = D_0024DB80 pair table.
+- ~~Door scripts `D_0024DBC0/D_0024DE40/D_0024DEC0` and camera-cue block
+  `D_0024DC14..D_0024DD14` not yet dumped/decoded~~ CLOSED s23 — the
+  "camera-cue block" is runtime-patched fields inside the script records.
 - `func_00183EF0` only fully read for the class-7 prefix; its class-5/8
   door variants (office doors are class 5) assumed symmetric — verify.
 
@@ -6974,3 +6983,303 @@ play first; the AREA11 nest-registry record layout (the s22 0x2C-byte
 guess didn't parse cleanly against `D_0024D820[11]` — re-derive from
 `func_001551B0` state 2 before relying on it); kind-0xE sibling
 (`func_001546C0`) model/anim slots.
+
+## DOOR SCRIPTS DECODED — ftab_0024D880 itemized, all three door scripts listed (2026-06-10, session 23)
+
+Closes the s17/s20/s22 open items "ftab_0024D880 not itemized", "door
+scripts D_0024DBC0/DE40/DEC0 not decoded", and the s22 side→script
+re-check. Static analysis only (handler .s + local-ELF data dumps).
+
+### Interpreter contract — func_001BA1F0 (CORRECTIONS to s22)
+
+Script records are **0x40 bytes**, not 8 (the PC at blk+0x8 advances by
+0x40; handlers read args anywhere in the record). Record word +0x00 =
+`op|flags` (opcode = op & 0xFFF), +0x04 = jump target. Flags: bit31
+STOP (terminate after this record: script word = -1, +0x4 = 0), bit30
+JUMP (PC = rec[+0x4] instead of PC += 0x40), bit29 = force
+continue-same-frame after advance. Handler ABI:
+`handler(actor, blk = actor+0x1F0, rec)` →
+**0 = stay on record (waiting; yield), 1 = advance + yield,
+2 = advance + continue this frame, 3 = abort script.**
+Opcode 0x18 is additionally hard-coded as the end marker in the
+pause/fast-forward variants (gated by spad byte 0x70003B91; blk+0xC =
+pause phase). blk fields: +0x0 script-active (>0 = run, -1 = done),
++0x4 per-record cursor state (handlers' "first call" flag), +0x8 PC.
+
+### ftab_0024D880 — the 27-entry opcode table (0x00..0x1A)
+
+Entry 0x0A is a mid-function entry point (func_001B99F0+0x10), which is
+why splat shows a raw word there. Sub-command = rec[+0x8] unless noted.
+
+```
+op  handler        role (sub-tables below for the door-relevant ones)
+00  func_001B8FC0  camera cue: view pos D_008105D0 / target D_008105E0
+                   setters + spline (func_001DD980); jtbl_0026E020/E050
+01  func_001B94F0  scripted player WALK-TO (func_00182F90 move-to; dir→
+                   clip block D_0024D8F0: dirs [0,1,3,2] → walk clips
+                   [0x4C,0x4B,0x4E,0x4D]); jtbl_0026E080
+02  func_001B9BA0  WAIT rec[+0xC] frames (float; copy to rec[+0x10] on
+                   first call, -=1.0/frame, ret 1 when <= 0)
+03  func_001B8AB0  camera path/offset via spad vec D_70003600/10
+04  func_001B9C10  set actor rotation component / camera-angle globals
+                   D_00810354/370-37C; jtbl_0026E0E0 (11 subs)
+05  func_001B9CF0  rotate camera angles D_00810354.. toward targets
+                   (func_001B12B0 step); jtbl_0026E110
+06  func_001BA080  script FLAGS/COUNTERS on D_00810758 (event flags; the
+                   door-panel behavior consumes these) / D_008107D8
+                   (counters), index rec[+0x14]: sub 0/1 = flag 1/0xFF,
+                   2 = wait counter != 0, 3 = counter = rec[+0x18],
+                   4 = wait counter == rec[+0x18], 5/6 = ++/--
+07  func_001B82D0  MODE CONTROL (enter/exit scripted-sequence state) —
+                   see sub-table below; jtbl_0026DFE0
+08  func_001B9FF0  rotate the OWNER actor's yaw +0xC4 toward the player
+                   (atan2 func_001B1240 + step func_001B12B0, step =
+                   rec[+0x24]); ret 1 when aligned (gate rec[+0x8]==1)
+09  func_001B99F0  CALL NATIVE: jr rec[+0x4] (function gets the same
+                   3 args and returns the script return code)
+0A  001B9A00       PLAYER ANIM (mid-entry of 09's body) — sub-table below
+0B  func_001B8020  OWNER (door/prop) ANIM + sound — sub-table below
+0C  func_001B7D60  music/stream control (D_002821B0/B4/B8/BC,
+                   func_001FC9B0); jtbl_0026DFA0
+0D  func_001B7B30  cutscene camera placement on D_008101E0 (chase cam
+                   func_0018CBD0 at fixed distances, view targets
+                   D_008105D0/E0, FOV reset 480 func_001D25F0);
+                   jtbl_0026DF70 (9 subs; door uses sub 5 = chase at
+                   -20.0, cam mode flags 5/1, hold 0x78)
+0E  func_001B7F90  rotate the PLAYER toward the owner actor (step
+                   rec[+0x24]; gate rec[+0x8]==1); ret 1 when aligned
+0F  func_001B7A30  voice/stream cue trigger: D_00275C78 = rec[+0x14],
+                   D_00821058 = 1, wait completion (state machine on
+                   blk+0x4); on rec[+0x8]==0 also func_001FAE70(1)
+10  func_001B7840  screen fade control (func_001AED80/DB0/DE0/E10
+                   family), wait D_0028A9A0; jtbl_0026DF40
+11  func_001B7700  set/wait global byte pair D_008106CE/CF
+12  func_001B76D0  func_001B1E20(rec[+0x14], rec[+0x18]); ret 1
+13  func_001B7670  set/clear the script-pause gate spad 0x70003B91
+                   (rec[+0x8]: 1 = set if clear, 0 = clear if set)
+14  func_001BAC00  spawn scripted actor (func_001AFA90 alloc, behavior
+                   func_001BB0E0, model/clips via D_0028A490)
+15  func_001B6FA0  cutscene player-anim/orient compound (anim_clip_init
+                   xN + camera angles D_00810374, D_008104A2/A8)
+16  func_001B6E40  wait player move-to arrival (func_00182BF0); on
+                   arrival spad 0x70003B8D = 3 (door-transit frame)
+17  func_001B6D70  SOUND — sub-table below; jtbl_0026DF00
+18  func_001B6BF0  script END/teardown — area-change
+                   kick (func_001B0C00), rumble clear (func_001B6250),
+                   music stop (func_001FBC50/func_001FABB0), player anim
+                   reset (+0x40 = D_0028A580, +0x1F2 = 0), camera/FOV/
+                   view-dir restore; also the interpreter's end marker
+19  func_001B73A0  cutscene anim variant of 0x15 (advance + waits)
+1A  func_001B6AE0  screen-wipe/effect pair func_001FD4C0(rec[+0x18]) +
+                   func_00119828 (as in op 7 sub 9-C teardown)
+```
+
+**op 0x07 MODE CONTROL subs** (jtbl_0026DFE0; spad 0x70003B8D =
+gameplay-frame selector, 0x70003B91 = pause gate, 0x70003B92 = "mode
+entered" latch, D_008101E4 = HUD/control mode byte):
+- 0/1/D: ENTER scripted mode — D_008101E4 = 2, spad3B8D = 2 (sub D: 1),
+  zero spad3B84/3B91/D_008106F3; state 1 waits rec[+0x14]/spad3B8F then
+  sets spad3B92 = 1, blk+0xC = 1, camera blend func_001D2610(0.0).
+- 2/3/7/8: ENTER variant with fade (func_001AEB60(4)) + func_001BA510;
+  state 1 re-aims camera at the player (func_001B81D0) for subs 7/8.
+- 4: EXIT/RESTORE (the locked-door finisher): restore D_008106F3/
+  D_008101E4/D_008106EF=0x50, fade-in func_001AEBA0(4), camera restore
+  func_001CA770 + FOV 480 + view-dir reset D_008105F0..FC, clear
+  spad3B8D/3B92/3B91 (+ pause-aware variant → ret 3 abort).
+- 5: same as 4 but first sets event flag D_00810758[rec[+0x14]] = 0xFF.
+- 6: same family, stores D_008107D8[rec[+0x14]] = rec[+0x18] byte first.
+- 9-C: AREA-TRANSITION teardown — fade-out func_001AEDE0(4,0), stream
+  func_001FD4C0(rec[+0x18]), 2x func_00119828; A/C also spad3B91 = 1.
+
+**op 0x0A PLAYER ANIM subs** (jtbl_0026E0B0; target = player
+D_008102B0): 0 = set anim id +0x1F2 = rec[+0x14], rate +0x1F8 =
+rec[+0xC] (float), +0x1F4 = 1.0; 4 = sub 0 + bind clip container
++0x40 = D_0028A490[rec[+0x1C]] + mode +0x2F3 = 3; 1 = container +
+id + mode 1, +0x1F4 = rec[+0xC], clear flags +0x200; 2 = RESET (id 0,
++0x20C = -1, mode 3, container = D_0028A580); 3 = wait player anim done
+(+0x200 & 0x1000); 5 = move-to point in rec[+0x30] (rec[+0x34] -=
+11.0); 6 = camera angle reset; 7 = id/rate/+0x1F4 from rec
++0x14/+0xC/+0x10; 8 = player re-init func_001798D0.
+
+**op 0x0B OWNER ANIM subs** (jtbl_0026DFC0; target = script owner):
+0 = anim_clip_init(owner, clip rec[+0x14], rate rec[+0xC], 0); 1 = wait
+clip-end flag (blk+0xE & 0x1000); 2 = advance (anim_advance_time
+rec[+0xC]) until flags & rec[+0x14]; 3 = advance + countdown rec[+0x14]
+frames; 4 = bind container D_0028A490[rec[+0x1C]] + clip_init(rec
+[+0x14], 0, 0); 5 = bind container + bind pose (bone_init_default_2);
+6 = positional sound play_sound(owner pos, 300.0, id rec[+0x18]) +
+clip_init(rec[+0x14], rec[+0xC], 0).
+
+**op 0x17 SOUND subs** (jtbl_0026DF00): 0 = play_sound(owner, 300.0,
+id rec[+0x18]); 1 = play_sound(radius rec[+0x20] float, id); 2 =
+func_001FB9F0(id, 0x1000, 0x1000, 0x1000) raw submit; 3 =
+func_001FBC50() stop; 4 = music cue func_001FA790(0, rec[+0x18]); 5 =
+func_001FABB0() music stop; 6 = func_001FAE70(rec[+0x18]) cue restart.
+
+### The three door scripts (traced with jumps; 0x40-byte records)
+
+Two of the "camera-cue globals" from s17 are actually **runtime patch
+points inside script records**: D_0024DC14/D_0024DCD4 = the op-0x0A
+player-anim-id field (+0x14) of the records at 0x24DC00/0x24DCC0, and
+D_0024DC54/D_0024DD14 = the op-0x0B door-clip-id field of the records
+at 0x24DC40/0x24DD00; D_0024DC8C = the op-0x02 wait count at
+0x24DC80+0xC. func_001BBE40 writes them before queuing.
+
+```
+D_0024DE40 (OPEN, queued by func_001BBE40 mode 0):
+ @24DE40 op07 sub0           enter scripted mode (spad3B8D=2)
+ @24DE80 op0D sub5 JMP→24DC00 chase camera -20.0, hold 0x78
+ @24DC00 op0A sub0           PLAYER anim id [0x45 front | 0x43 back],
+                             rate 1.0 (patched via D_0024DC14)
+ @24DC40 op0B sub6           DOOR sound (D_0024DB80 pair, patched into
+                             rec+0x18 by func_001BBD60) + DOOR clip
+                             [2 front | 0 back] (patched via D_0024DC54)
+ @24DC80 op02 STOP           wait [90.0 front | 70.0 back] frames, end
+
+D_0024DEC0 (LOCKED TRY, queued by func_001BBE40 mode 1):
+ @24DEC0 op07 sub2           enter scripted mode (fade variant)
+ @24DF00 op09 → func_001BBBF0 native: place locked-look camera (view
+                             target/pos from door pos ± 8/10/12/13
+                             along door yaw and camera yaw D_00810374)
+ @24DF40 op02 JMP→24DCC0     wait 0 (1 frame), jump to back chain
+ @24DCC0 op0A sub0           PLAYER anim id [0x46 front | 0x44 back]
+                             rate 1.0 (patched via D_0024DCD4)
+ @24DD00 op0B sub0           DOOR clip [3 front | 1 back], no sound
+                             (patched via D_0024DD14)
+ @24DD40 op02                wait 60.0 frames
+ @24DD80 op17 sub0           positional sound id 0x3F2 (locked rattle)
+ @24DDC0 op09 → func_001BBAE0 native: locked-door VOICE OVER — music
+                             duck D_002821B0=2/B4=1, VO line selected by
+                             door link low 6 bits via jtbl_0026E1A0
+ @24DE00 op0B sub1 STOP      wait door clip end, end script
+
+D_0024DBC0 (LOCKED FINISH, queued by door sub-state 1 when the re-close
+clip completes):
+ @24DBC0 op07 sub4 STOP      exit scripted mode / restore camera+control
+```
+
+**s22 side→script RESOLVED (correction):** the script choice is
+**unlocked vs locked** — `func_001BBE40(door, blk, mode)` queues
+D_0024DE40 when mode = 0 (unlock-bit OK) and D_0024DEC0 when mode = 1
+(locked attempt). The SIDE (front = player within pi/2 of door yaw →
+latch +0x2E = 0; else back = 1) only selects which values are patched
+into the shared records: player anim 0x45/0x43 (open) or 0x46/0x44
+(locked), door clip 2/0 (open) or 3/1 (locked), wait 90/70 frames, and
+the player yaw snap (front: door_yaw + pi; back: door_yaw). Both sides
+run the same script bytes.
+
+**Door clip indices** (door model's own container, bound at INIT):
+0 = open toward back, 2 = open toward front, 1/3 = locked-jiggle
+back/front variants. The OPENING pump func_001BC0E0 advances whichever
+clip the script started.
+
+**Door sounds — D_0024DB80** (closes "door sound-id mapping open"):
+a halfword PAIR table `[front_id, back_id]` indexed by the door LINK
+halfword's HIGH byte (link +0x56 >> 8 = sound-set selector; ids
+0x3FB..0x40E, the door family in the s23 sound map).
+`func_001BBD60(door, rec)` patches `rec[+0x18] = pair[side]` into the
+op-0x0B sub-6 record before the script runs; `func_001BBD20(door,
+side)` is the direct variant (tail-jumps play_sound at radius 300).
+So the door LINK halfword fully decodes as: bits 0-5 locked-VO line
+selector (func_001BBAE0), bit 6/7 door scale 1.5x/2.0x (s17), bits
+8-15 sound-set index into D_0024DB80.
+
+**Related scripts in the same region** (not door-specific, recorded for
+later): D_0024D900/D_0024D940... (op 7 / op 0D / op 17 / op 09 →
+func_001BB400 / op 01 walk-to 35.0 / op 09 → func_001BB310 / op 02 wait
+40 / op 09 → func_001BBAE0 / op 7 sub 4 STOP) — this is the door-PANEL
+use sequence (the func_001BD9F0 class); its native calls place the
+panel camera and arm the partner door.
+
+### Port contract (door sequence, script-accurate)
+
+Implement the interpreter (0x40-byte records, return-code semantics
+above) + opcodes {2, 7 subs 0/2/4, 9, A sub 0, B subs 0/1/6, D sub 5,
+17 sub 0} and the two native callbacks, and the entire door experience
+(camera, player walk-through, anims, sounds, locked VO) reproduces from
+the original script bytes at 0x24DBC0-0x24DF80. Patch points: player
+anim id, door clip id, wait count, sound id — all written by
+func_001BBE40/func_001BBD60 before queuing.
+
+## ANIM ID MAPPING — id → clip container resolution + aim/door/reload clip ids (2026-06-10, session 23)
+
+Closes "how does anim id 0x110/0x33 pick a clip in the 455-clip
+library". Short answer: **the anim id IS the container index** — there
+is no remap table; D_00248C90 is a per-id PROPERTY table, not a remap.
+
+### Resolution chain (player, and any actor with anim mode 0/3/4)
+
+1. An anim REQUEST writes the id halfword to actor+0x1F2 (weapon code
+   via the arbiters func_001749A0/anim_clip_arbiter@0x1749F0, scripts
+   via op 0x0A, defaults via func_00182D70) and the rate float to
+   +0x1F8.
+2. The per-frame commit `func_00183090` (modes 1/3: bind-pose via
+   bone_init_default_2 instead): if +0x1F2 != +0x20C (current id),
+   copy it and call `anim_clip_init(actor, id, rate +0x1F8, 0.0)`.
+3. `anim_clip_init` stores (id | 0x8000) at +0x2C and resolves the clip
+   via `anim_clip_resolve(container = actor+0x40, id)` →
+   `func_001C6120`:
+   **`clip = lib + (((u32 *)lib)[1 + (id & 0x7FFF)] & ~3)`**
+   — the container file's leading u32 table maps index → byte offset
+   (low 2 bits are flag bits). Same accessor the model library uses
+   (s22 crawler rebind).
+4. The container pointer +0x40 comes from the global 67-slot
+   record-pointer array `D_0028A490[slot]` (slot = source-file id,
+   s22b). The player default `D_0028A580` **is** `D_0028A490[0x3C]`
+   (0x28A490 + 4*0x3C = 0x28A580) = `chunk28/f01_id3c.bin`, the
+   455-container clip library → **player anim id = container index in
+   that file, 0..0x1C6.**
+
+So: reload 0x33 = container 51, draw 0x110 = container 272, holster
+0x111 = 273, fire 0x31/0x32/0x34/0x35 = 49/50/52/53, door-open
+front/back 0x45/0x43 = 69/67, door-locked front/back 0x46/0x44 = 70/68,
+scripted walk set 0x4B-0x4E = 75-78, basic locomotion 1/2/3.
+
+### D_00248C90 — the per-anim-id PROPERTY table (455 rows x 12 bytes)
+
+Row = `{s16 mode, s16 frameA, s16 frameB, s16 pad, f32 rate_scale}`:
+- **mode** (+0x0): consumed by the actor spine func_0015BCF0 (and
+  func_00182DF0): nonzero → evaluator anim_eval_skeleton (root-motion-
+  aware), zero → func_001C68C0 (generic in-place). Door interaction ids
+  0x43-0x46 are mode 0 (the MOVE-TO walks the player; the clip is
+  evaluated in place). Actor anim-mode byte +0x2F3 overrides: 3/4 →
+  func_001C68C0, other nonzero → func_001C6960.
+- **frameA/frameB** (+0x2/+0x4): FOOTSTEP trigger frames — per-frame
+  func_00187350 fires func_00182430/func_00187EE0 (step sound + decal)
+  when the clip time +0x3C crosses them (walk id 1: frames 72/21; run
+  id 2: 26/3; scripted walks 0x4C: 135/24, 0x4D: 41/9, 0x4E: 20/6).
+  Zero = no triggers (all aim/door/weapon ids).
+- **rate_scale** (+0x8): copied to actor+0x34 every frame by
+  func_0015BA50 — per-id playback speed (1.0 almost everywhere; the
+  draw anim 0x110 runs at 1.4).
+
+### Aim poses (the "aim idle / aim walk" question)
+
+There are NO separate aim-idle/aim-walk clip families. The aim pose is
+a per-sub-weapon POSE CLIP selected from two stance tables (s22's
+"stance table" pinned):
+- `D_00248B88[player+0x275]` (halfword entries; +0x275 = current
+  sub-weapon 0..5, +8 for the second weapon bank) — used when the
+  player locomotion sub-state +0x05 is 0x1D/0x1E:
+  sub-weapon 0..5 → clips 0x112, 0x11C, 0x11C, 0x127, 0x131, 0x13B;
+  bank 8..13 → 0x11B, 0x125, 0x126, 0x130, 0x13A, 0x144;
+  rows 20-28 → 0x18A..0x192, rows 36-39 → 0x194..0x197.
+- `D_00248C68[player+0x275]` — every other aiming state:
+  0..5 → 0x18A, 0x194, 0x194, 0x19F, 0x1A9, 0x1B3; 8..13 → 0x193,
+  0x19D, 0x19E, 0x1A8, 0x1B2, 0x1BC.
+The +9/+10 spacing between consecutive ids and the second bank = base
+family + 9 says each weapon owns a LADDER of consecutive pose
+containers (aim-pitch steps blended by the aim pitch +0x278); all have
+property mode 1, no footstep frames, rate 1.0. Selection code:
+func_0016FCF0/func_001703E0/func_001729A0/func_00173000 (the four
+weapon-mode tops) → func_001749A0 arbiter → anim_eval_skeleton.
+
+### Port rule
+
+`clip_for(actor) = container_file[offset_table[anim_id]]` where
+container_file is the actor's bound library (player:
+chunk28/f01_id3c). Apply rate_scale from the property table, fire
+footstep events at frameA/frameB, and pick the evaluator by property
+mode (0 = in-place). The exporter's container indices already match
+anim ids 1:1 — `export_native.py --anim chunk28/f01_id3c.bin --clip
+0x110` IS the draw animation.
