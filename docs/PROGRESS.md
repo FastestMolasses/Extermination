@@ -10,6 +10,29 @@
 > clusters, 91 fns in numbered unknowns), main() identified at 0x001AAE40,
 > prioritized decomp roadmap in docs/SUBSYSTEMS.md; graph tool: tools/callgraph.py.
 
+### chunk27 library placed in the port — it's the EQUIPMENT library (2026-06-09, session 7b)
+
+Live placement decode done end-to-end (FINDINGS "CHUNK27 MODEL LIBRARY +
+LIVE PLACEMENT DECODE"). Key outcomes:
+
+- `chunk27/f01_id37.bin` decoded: directory (126 entries) of standalone
+  mesh blobs in the character format; resident at EE 0x00BAA1C0; the
+  loaded-asset slot table at 0x0028A4A0+ holds every resident asset base.
+- **Per-model draw-unit anatomy + placement algebra solved**: unit MVP =
+  K·W uploaded to VU1 dmem 0; `W = K_level⁻¹·MVP` (level kernel matrix =
+  the world anchor) gives absolute world placements — validated affine +
+  orthonormal on every live unit.
+- **Premise corrected**: chunk27 is the player equipment / pickup
+  library. Live office frame draws models 47/48/49/50/56/64 (the rifle,
+  six parts, one transform at the hands), 106 (hip knife), 20/21 (glow
+  billboards). The office desk items are baked in the LEVEL render mesh
+  (already exported) — there is no separate room-prop pass in this scene.
+- **New tool `tools/export_props.py`** → `assets/scene/01_props.emdl`
+  (world-baked static EMDL v2, 7 models, 753 verts, 29 GS-dump-resolved
+  textures). EM_CAPTURE acceptance: the soldier holds his textured rifle,
+  knife on hip, in the office scene. Gun gap from session 5 is closed
+  (static-pose bake; proper hand-bone attachment is future work).
+
 ### LEVEL RENDER MESH decoded — character standing in its textured room in the port (2026-06-09, session 6)
 
 The native port now renders the textured, animated character STANDING IN

@@ -4156,3 +4156,102 @@ node tables), prim types 0x2000/0x4000, section-directory loader
 (who fills 0x28A598), and section [2] (header 0x376/0xE00/0x4E80) role.
 
 _Last updated: 2026-06-09 (session 7) — verdict: **id 0x44 = collision world, CONFIRMED**._
+
+## CHUNK27 MODEL LIBRARY + LIVE PLACEMENT DECODE — it's the EQUIPMENT library; placement algebra solved (2026-06-09, session 7b)
+
+Live PCSX2 session in the office scene (player idle at (105.9, 0, -184)).
+Goal was "place the chunk27 props in the port"; the decode succeeded and
+**corrected the premise**: `chunk27/f01_id37.bin` is the **player
+equipment / pickup model library**, not room furniture. The office desk
+items (books, papers, binders) are baked into the level render mesh
+(`f03_id43`) and already render in the port. Result in the port: the
+soldier now holds his **rifle** (a six-model composite) with his **knife**
+on the hip — `tools/export_props.py` → `assets/scene/01_props.emdl`.
+
+### Library file format (f01_id37.bin, 126 models)
+
+- `+0x00` u32 model count (0x7E); `+0x04` u32 offset[count] (byte offsets,
+  0x80-aligned, terminator 0xFFFFFFFF after the last entry).
+- Each offset → a standalone **raw mesh blob in exactly the chunk28
+  character format**: header `{n_blocks, total_qwc, n_nodes, size}`,
+  first `STCYCL(4,4)+UNPACK V4-32` at +0x48, then 130-qw VIF blocks of
+  32 × 64-byte records `[TEX0][ST][normal][pos+W]` (record order of the
+  character/object meshes, NOT the level order).
+  `export_native._walk_blob_blocks` parses all 126 unchanged.
+- Most models are `n_nodes=1`, vertices select dmem matrix slot 0
+  (`wbits & 0x3FF == 0`).
+
+### Runtime residency + the loaded-asset slot table
+
+- Library resident at EE `0x00BAA1C0` (whole file, byte-identical).
+- The pointer lives in a **loaded-asset slot table around `0x0028A4A0..0x0028A5B0`**:
+  u32 pointers to every resident asset base (chunk blobs at
+  0x012Axxxx.., the library at +0x16C entry `0x0028A56C`, the level
+  region pointers 0x00D191C0/0x00D1B9C0/0x00D1C1C0, …). The **player
+  character mesh blob** (21 nodes) is resident at `0x00D1C1C0` and is
+  REF'd 6–7×/frame as a whole 0x4BAA-qw stream.
+
+### The per-model DRAW UNIT (packet arena, live frame at 0x2994xx..0x2A1xxx)
+
+One unit per placed model, built fresh each frame:
+
+```
+CNT 9qw   VIF NOP+FLUSH, STCYCL(1,1), UNPACK V4-32 8qw -> VU1 dmem 0:
+          qw 0..3 = MVP matrix (columns = axis images), qw 4..7 = light rows
+          (tag words 2-3 hold two per-unit floats — sort keys, TTE not set)
+REF 9qw  @0x00815360   shared GS/viewport env
+REF 8qw  @0x00816440   shared
+REF 1qw  @0x00814220   shared
+CALL     @0x0023C750   kernel-kick packet (MSCAL of the 0x0023C780 kernel)
+REF Nqw  @ lib_base + offset[model] + 0x40    the model's VIF block stream
+CNT 5qw   FLUSH + UNPACK 4qw -> dmem 0x3F5: GS constants (58.0/47.0 rows,
+          0x4B00xxxx xyz-offset row)
+```
+
+Multi-node batches use a bigger palette CNT (e.g. 105 qw = 13 sets of
+8 qw to dmem 0) and the vertices' `wbits & 0x3FF` select `8*slot`. The
+**level's movable sub-objects** (doors etc., streamed from the level
+region at 0x0155D900) are drawn exactly this way; four of the 13 live
+sets were byte-identical — see anchor below.
+
+### Placement recovery (the algebra that worked)
+
+- The unit matrix is `M = K · W` (K = shared camera/clip transform of the
+  0x23C750 kernel; qwords are matrix COLUMNS; `clip = Σ col_i · obj_i`).
+- The LEVEL render mesh streams world-space geometry through its own
+  kernel (CALL @0x00237180) with upload `K_L` at the level chain
+  (0x297410 live). Live byte-identities: `K.col0 = -K_L.col2`,
+  `K.col1 = K_L.col1`, `K.col2 = K_L.col0` — same camera, permuted axes.
+- **`W = K_L⁻¹ · M` gives the ABSOLUTE world placement.** Validation on
+  every live unit: bottom row = (0,0,0,1) exactly, R orthonormal
+  (|scale-1| < 0.002), translations inside the room at the player.
+- Live office placements: models **47/48/49/50/56/64 = the rifle**
+  (six parts, one shared transform, in the hands at
+  (104.57, 12.93, -183.36), tilted idle hold); **model 106 = the knife**
+  on the hip at (106.11, 9.18, -181.97) (axis-mirrored matrix);
+  models **20/21 = glow billboards** (non-rigid: scales (1.6, 4, 1.6) and
+  a rank-2 variant — skipped in the export). The 13-set sub-object
+  palette's identity-rotation set decodes to a door-like part at
+  (75, 0, -188.2) with yaw -90°.
+- Cross-check vs the GS dump: the office dump's 36 TEX0 keys not
+  attributable to level or character are covered 30/30 by exactly these
+  equipment models (+4 PSMCT32 UI/backdrop keys + 2 strays) — the dump
+  frame, like the live frame, draws **no chunk27 room furniture**.
+  Earlier "37 library models present in the dump" was TEX0-key aliasing
+  (shared textures between library models).
+
+### Tool + port
+
+`tools/export_props.py`: library decode + embedded live placement table
+(`--placements` JSON to override) → world-baked static EMDL v2
+(identity palette, flags bit 0, normals → lit baked colors, textures via
+the GS-dump VRAM machinery; all 29 used pairings resolve). Output
+`assets/scene/01_props.emdl`; EM_CAPTURE shows the rifle in the
+character's hands and the knife on the hip in the office.
+
+Honest limits: the rifle/knife are baked STATIC at the captured idle
+pose (the real engine recomputes per-frame hand-bone transforms —
+proper attachment needs the bone-publish chain); the billboard glows
+are skipped; pickups elsewhere in the level (models 20/21's parents,
+weapon pickups) appear only when their rooms are active, so their
+placements are recoverable the same way once visited live.
