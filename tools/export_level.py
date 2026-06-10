@@ -759,6 +759,227 @@ def emit_enemy_manifest(scene_dir: Path, ov_path: Path,
 
 
 # ---------------------------------------------------------------------------
+# Door DESTINATION links (scene.txt `door ... goto` annotation).
+#
+# Decoded 2026-06-10 (this session) from the BOOT ELF's static tables —
+# the area-transition authoring data of FINDINGS "AREA TRANSITION
+# LIFECYCLE" s22, now read offline (no live capture):
+#
+#   D_0024E140[area]      per-area DOOR DESTINATION TABLE base (static
+#                         .data in the boot ELF — NOT overlay-resident).
+#                         AREA02 -> 0x24DFC0, 4 records (door ids 0..3).
+#                         One 4-byte record per door id; read two ways by
+#                         the commit func_001BC150 depending on the door
+#                         id's bit7 (= placement flags2 bit7):
+#                           bit7 SET  {next_area, entry, has_sub, sub}
+#                           bit7 CLEAR {entry_from_side0, entry_from_side1}
+#   D_0024D650[area]      spawn DESC -> per-sub-state spawn table vaddrs.
+#                         AREA02 desc 0x24D610 -> sub tables 0x24B560 /
+#                         0x24B6B0 / 0x24B800 (0x30-byte records
+#                         {f32 pos[3], f32 yaw, ...}; the s22 live-read
+#                         entries byte-match these static tables).
+#
+# AREA02 census (placement flags2 -> dest record):
+#   sub 0: door id 0|0x80 (model 0x15) -> AREA 1 sub 0 entry 3
+#          door id 3|0x80 (model 0x17) -> AREA 4 sub 0 entry 0
+#   sub 1: door id 1|0x80 (west m03)   -> AREA 1 sub 0 entry 5
+#          door id 2      (office m03) -> room move, entries {3, 2}
+#   sub 2: door id 0|0x80 (same as sub 0)
+#
+# => NO real door pair links AREA02 sub-state 1 <-> sub-state 0: the
+# engine routes between the two office story states through OTHER areas
+# (AREA01 door 1 -> sub 0 entry 0; AREA01 door 3 -> sub 1 entry 1). The
+# optional --synthetic-link therefore wires the two exported scenes'
+# NEAREST doors with a FLAGGED synthetic goto (arrival = the target
+# sub-state's real spawn entry nearest its partner door) so the port's
+# scene-switch machinery has a testable in-game path.
+
+AREA02 = 2
+DEST_PTR_ARRAY = 0x0024E140      # D_0024E140: per-area dest-table base
+SPAWN_DESC_ARRAY = 0x0024D650    # D_0024D650: per-area spawn desc
+SPAWN_REC_SIZE = 0x30
+GOTO_MARK = "# door-goto:"       # idempotency marker for our comments
+
+
+class BootElf:
+    """Minimal vaddr reader over the user's local boot ELF (read-only;
+    nothing disc-derived is emitted beyond the scene.txt coordinates,
+    which live in the git-ignored assets tree)."""
+
+    def __init__(self, path: Path):
+        self.data = path.read_bytes()
+        e_phoff, = struct.unpack_from("<I", self.data, 0x1C)
+        e_phnum, = struct.unpack_from("<H", self.data, 0x2C)
+        self.segs = []
+        for i in range(e_phnum):
+            p_type, p_off, p_vaddr, _, p_filesz = struct.unpack_from(
+                "<5I", self.data, e_phoff + 32 * i)
+            if p_type == 1 and p_filesz:
+                self.segs.append((p_vaddr, p_off, p_filesz))
+
+    def read(self, vaddr: int, n: int) -> bytes:
+        for va, off, sz in self.segs:
+            if va <= vaddr and vaddr + n <= va + sz:
+                o = off + (vaddr - va)
+                return self.data[o:o + n]
+        raise ValueError(f"vaddr {vaddr:#x} not in a LOAD segment")
+
+    def u32(self, vaddr: int) -> int:
+        return struct.unpack("<I", self.read(vaddr, 4))[0]
+
+
+def area2_dest_table(elf: BootElf) -> list[bytes]:
+    """AREA02's destination records (door id -> 4 bytes). The table runs
+    from D_0024E140[2] to the next area's base (AREA03's), giving the
+    record count without a stored length."""
+    base = elf.u32(DEST_PTR_ARRAY + 4 * AREA02)
+    nxt = min(p for a in range(16)
+              if (p := elf.u32(DEST_PTR_ARRAY + 4 * a)) > base)
+    return [elf.read(base + 4 * d, 4) for d in range((nxt - base) // 4)]
+
+
+def area2_spawn_tables(elf: BootElf) -> list[list[tuple]]:
+    """AREA02's per-sub-state spawn tables as [(x, y, z, yaw), ...].
+    Record = {f32 pos[3], f32 yaw @+0xC, ...} (s22, byte-verified)."""
+    desc = elf.u32(SPAWN_DESC_ARRAY + 4 * AREA02)
+    tbls = []
+    ptrs = [elf.u32(desc + 4 * s) for s in range(4)]
+    for si, tbl in enumerate(ptrs):
+        if not tbl:
+            break
+        end = min([p for p in ptrs if p > tbl] + [tbl + 7 * SPAWN_REC_SIZE])
+        recs = []
+        for e in range((end - tbl) // SPAWN_REC_SIZE):
+            recs.append(struct.unpack(
+                "<4f", elf.read(tbl + e * SPAWN_REC_SIZE, 0x10)))
+        tbls.append(recs)
+    return tbls
+
+
+def _sub_doors(ov_data: bytes, sub: int):
+    """Door placement records of one AREA02 sub-state table."""
+    pl = sys.modules.get("_placements") or _load("_placements",
+                                                 "placements.py")
+    tables = pl.KNOWN_TABLES[OFFICE_OVERLAY]
+    return [e for e in pl.parse_table(ov_data, tables[sub])
+            if e.behavior in FN_DOORS]
+
+
+def annotate_door_goto(args) -> int:
+    """--door-goto DIR: annotate DIR/scene.txt's `door` lines with the
+    decoded transition destination:
+
+        door <file> <x> <y> <z> <yaw> <r> goto <scene-dir> <sx> <sy> <sz> <syaw>
+
+    <scene-dir> is the target scene's SIBLING DIRECTORY NAME (the port
+    resolves it against the current scene dir's parent) and the spawn is
+    the target sub-state's real spawn-table record (pos + exit yaw).
+    A goto is emitted only when the decoded destination is an EXPORTED
+    sub-state (--exported sub=dirname,...); inter-area destinations and
+    intra-area room moves (bit7 clear — the port re-places in the same
+    scene) keep the plain 6-field line. Lines are matched to placement
+    records by position; existing goto fields and our marker comments are
+    stripped first (idempotent)."""
+    scene_dir = Path(args.door_goto)
+    mf = scene_dir / "scene.txt"
+    if not mf.exists():
+        sys.exit(f"{mf} not found")
+    if args.sub is None:
+        sys.exit("--door-goto needs --sub (the scene's AREA02 sub-state)")
+    exported = {}
+    for kv in (args.exported or "").split(","):
+        if kv:
+            k, _, v = kv.partition("=")
+            exported[int(k)] = v
+    elf = BootElf(Path(args.elf))
+    ov_data = Path(args.overlay).read_bytes()
+    dest = area2_dest_table(elf)
+    spawns = area2_spawn_tables(elf)
+    doors = _sub_doors(ov_data, args.sub)
+
+    out, n_goto, syn_done = [], 0, False
+    lines = mf.read_text().splitlines()
+    lines = [ln for ln in lines if not ln.startswith(GOTO_MARK)]
+
+    # --synthetic-link pre-pass: pick THIS scene's door nearest the
+    # partner exported sub-state's nearest door (see the header note).
+    syn = None
+    if args.synthetic_link:
+        partner = next((s for s in exported if s != args.sub), None)
+        if partner is None:
+            sys.exit("--synthetic-link needs the partner sub-state in "
+                     "--exported")
+        pdoors = _sub_doors(ov_data, partner)
+        pair = min(((d, p) for d in doors for p in pdoors),
+                   key=lambda dp: (dp[0].pos[0] - dp[1].pos[0]) ** 2 +
+                                  (dp[0].pos[2] - dp[1].pos[2]) ** 2)
+        tgt_door = pair[1]
+        ent = min(range(len(spawns[partner])),
+                  key=lambda e: (spawns[partner][e][0] - tgt_door.pos[0]) ** 2
+                              + (spawns[partner][e][2] - tgt_door.pos[2]) ** 2)
+        syn = (pair[0], partner, ent)
+
+    for ln in lines:
+        f = ln.split()
+        if not (f and f[0] == "door" and len(f) >= 7):
+            out.append(ln)
+            continue
+        f = f[:7]                      # strip any previous goto fields
+        x, z = float(f[2]), float(f[4])
+        rec = next((e for e in doors
+                    if abs(e.pos[0] - x) < 0.5 and abs(e.pos[2] - z) < 0.5),
+                   None)
+        if rec is None:
+            out.append(" ".join(f))
+            print(f"door-goto: no placement record matches door at "
+                  f"({f[2]}, {f[4]}) — line left plain")
+            continue
+        door_id = rec.flags2 & 0x7F
+        drec = dest[door_id] if door_id < len(dest) else b"\0\0\0\0"
+        if not (rec.flags2 & 0x80):
+            out.append(f"{GOTO_MARK} door id {door_id} = intra-area room "
+                       f"move, entries {{{drec[0]}, {drec[1]}}} — same "
+                       f"scene, no goto (em_door re-places)")
+            out.append(" ".join(f))
+            continue
+        n_area, entry = drec[0], drec[1]
+        n_sub = drec[3] if drec[2] else 0
+        if n_area == AREA02 and n_sub in exported:
+            sx, sy, sz, syaw = spawns[n_sub][entry]
+            out.append(f"{GOTO_MARK} door id {door_id}|0x80 -> AREA02 "
+                       f"sub {n_sub} entry {entry} (dest table 0x24DFC0)")
+            out.append(" ".join(f) + f" goto {exported[n_sub]} {sx:.6g} "
+                       f"{sy:.6g} {sz:.6g} {syaw:.6g}")
+            n_goto += 1
+            continue
+        if syn and rec is syn[0]:
+            _, psub, ent = syn
+            sx, sy, sz, syaw = spawns[psub][ent]
+            out.append(f"{GOTO_MARK} SYNTHETIC LINK (flagged): the real "
+                       f"dest of door id {door_id}|0x80 is AREA "
+                       f"{n_area:02d} sub {n_sub} entry {entry} (not "
+                       f"exported); no real door pair links AREA02 sub "
+                       f"{args.sub} <-> sub {psub} (the engine routes "
+                       f"via other areas), so this wires the two "
+                       f"exported scenes' nearest doors. Arrival = sub "
+                       f"{psub}'s real spawn entry {ent}.")
+            out.append(" ".join(f) + f" goto {exported[psub]} {sx:.6g} "
+                       f"{sy:.6g} {sz:.6g} {syaw:.6g}")
+            n_goto += 1
+            syn_done = True
+            continue
+        out.append(f"{GOTO_MARK} door id {door_id}|0x80 -> AREA "
+                   f"{n_area:02d} sub {n_sub} entry {entry} — target not "
+                   f"exported, no goto")
+        out.append(" ".join(f))
+
+    mf.write_text("\n".join(out) + "\n")
+    print(f"manifest: {mf}: {n_goto} goto link(s)"
+          + (" (1 SYNTHETIC, flagged)" if syn_done else ""))
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # AREA02 sub-state 0: placed objects + doors from the per-area model table
 # (see the OFFICE0 constants above for the leaf/table identification).
 
@@ -1214,9 +1435,33 @@ def main(argv):
     ap.add_argument("--bgm", default=None,
                     help="looping level-music cue WAV filename (relative "
                     "to the scene dir); written to the scene manifest")
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--door-goto", metavar="DIR",
+                    help="annotate DIR/scene.txt door lines with decoded "
+                    "transition destinations (goto fields) from the boot "
+                    "ELF's dest/spawn tables; see annotate_door_goto")
+    ap.add_argument("--sub", type=int, default=None,
+                    help="--door-goto: the scene's AREA02 sub-state (0-2)")
+    ap.add_argument("--exported", default=None,
+                    help="--door-goto: sub=dirname,... map of exported "
+                    "sub-states (sibling scene dir names), e.g. "
+                    "0=scene_office0,1=scene")
+    ap.add_argument("--elf", default="elf/SCUS_971.12.elf",
+                    help="--door-goto: the user's local boot ELF (read "
+                    "only; never committed)")
+    ap.add_argument("--overlay", default="extract/OVERLAY/AREA02.BIN",
+                    help="--door-goto: the user's extracted AREA02 overlay")
+    ap.add_argument("--synthetic-link", action="store_true",
+                    help="--door-goto: ALSO wire the two exported "
+                    "sub-states' nearest doors with a FLAGGED synthetic "
+                    "goto (no real intra-area pair exists — see the "
+                    "door-goto header note)")
+    ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
 
+    if args.door_goto:
+        return annotate_door_goto(args)
+    if not args.out:
+        ap.error("--out is required")
     if args.office0_placed:
         return export_office0_placed(args)
     if args.office0_doors:

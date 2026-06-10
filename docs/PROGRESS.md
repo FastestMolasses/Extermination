@@ -4620,3 +4620,31 @@ full detail):
   tendril-field actor — pair spawn from mode-1 generator pads, 12-slot
   ring scatter + ellipse reject, ramp/bob/thrash scale-Y animation,
   room-tint→green blend, sound 0x42D.
+
+### Update — 2026-06-10 s38: AREA02 door destinations decoded offline; port scene-switch shipped
+
+- **Decode (FINDINGS s38)**: the per-area door DESTINATION tables
+  (`D_0024E140`) and the AREA02 spawn descs/tables are STATIC in the
+  boot ELF (LOAD file offset 0x94 → vaddr 0x100000); all s22
+  live-verified records byte-match. AREA02 has 4 doors: ids 0/1/3 are
+  area changes (→ AREA01/AREA04), id 2 is the office room move —
+  **no real door pair links sub-state 1 ↔ 0** (the engine routes the
+  two office story states through other areas).
+- **Tool**: `export_level.py --door-goto` annotates scene.txt door
+  lines with decoded `goto` destinations (only when the target
+  sub-state is exported; `--synthetic-link` wires the two exported
+  scenes' nearest doors with a FLAGGED synthetic link whose arrival is
+  the target's real spawn entry). Idempotent; `# door-goto:` comments
+  document every door's real destination.
+- **Port**: runtime scene switch — em_door's commit at full black
+  posts a goto; `em_game_scene_switch(dir)` frees + reloads level
+  meshes/collision/manifest (doors, enemies) within the running
+  process; player/camera placed at the decoded arrival spawn; render
+  chain re-recorded; input lock + fade-in survive the reload; player
+  model/BGM/sfx persist. `EM_TRANSIT_TEST=1` PASSES end to end;
+  default capture byte-identical; MOVE/DOOR/WEAPON/ENEMY 1-4/MELEE/
+  SFX/test-input all PASS (EM_DOOR_TEST ignores goto tails — it
+  asserts the same-scene re-place on the west door).
+- Open: engine-side same-area sub-switch fast path (AREA03's
+  self-record), locked-door models 0x15/0x17 sequence, the
+  overlay-filled spawn descs for the remaining areas.

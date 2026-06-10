@@ -9579,3 +9579,116 @@ annotated with the analysis, no compile attempt burned.
   the +0x23C branches in func_00187350/func_00187DE0).
 - The +0x212=120 pairing of attr 6 with 0x5B (wet-feet from a non-water
   material — blood/slime floor?).
+
+## DOOR DESTINATIONS DECODED OFFLINE — static dest/spawn tables in the boot ELF; scene-switch goto links (2026-06-10, session 38)
+
+Closes the s22 "authoring data per area" decode for AREA02 entirely
+offline (boot ELF + extracted overlay; no live capture) and ships the
+port's RUNTIME SCENE SWITCH on top of it. Everything below was
+byte-cross-checked against the s22 live reads.
+
+### 1. The transition authoring tables are STATIC in the boot ELF
+
+ELF mapping note: the boot ELF's LOAD segment is file offset `0x94` →
+vaddr `0x100000` (NOT 0x300 — the section header padding starts the
+loadable content at `e_phoff`-adjacent 0x94; an earlier scratch decode
+with +0x300 produced garbage tables shifted by 0x26C).
+
+- **`D_0024E140`** (per-area door DESTINATION table pointers) is fully
+  populated **statically** — all 16 slots point into main `.data`
+  (0x24DF80..0x24E0xx), NOT overlay-filled. Notation refinement to
+  s17/s20: `D_0024E140[area]` IS the table base; record =
+  `D_0024E140[area] + 4*(door_id & 0x7F)`. Table length = next area's
+  base (no stored count). AREA01 = `0x24DFA0`, AREA02 = `0x24DFC0`
+  (4 records).
+- **`D_0024D650`** (per-area spawn DESC) is statically populated for
+  areas 0-3/7/8 (descs in `.data`, e.g. AREA02 → `0x24D610`); the
+  `0x2755xx` slots (areas 1/4/6/10/11/13-15) are late-`.data` descs
+  whose CONTENTS the area overlays fill at load (s22's "overlay init
+  populates" — the pointer array itself is static). AREA02 desc
+  `0x24D610` → sub-state spawn tables `{0x24B560, 0x24B6B0, 0x24B800}`
+  (subs 0/1/2), 7 records of 0x30 each.
+- Spawn record layout confirmed at +0: `{f32 pos[3], f32 yaw, u32
+  flags?, u32, f32, ...}`. The s22 live-verified entries byte-match:
+  sub-1 entry 2 = (104, 0, -245) yaw 0, entry 3 = (104, 0, -259) yaw
+  pi; AREA01 sub-0 entry 5 = (39, 0, -225) yaw -pi/2.
+- **All three AREA02 sub-state spawn tables carry IDENTICAL values**
+  (three separate static copies) — the office floor's entry points
+  don't vary by story state.
+
+### 2. AREA02 door census (placement flags2 → dest record)
+
+```
+AREA02 dest table @0x24DFC0:
+  door 0: {01 03 00 00}   door 1: {01 05 00 00}
+  door 2: {03 02 00 00}   door 3: {04 00 00 00}
+
+sub 0 (@0x827830): door id 0|0x80 model 0x15 (-30.5, 0, -187.3)
+                     -> AREA 1 sub 0 entry 3 = (-25, 0, -197) yaw pi
+                   door id 3|0x80 model 0x17 (440.2, 15, 109.9),
+                     fn 0x001BB860 -> AREA 4 sub 0 entry 0
+sub 1 (@0x828170): door id 1|0x80 (west m03, 57, 0, -220.5)
+                     -> AREA 1 sub 0 entry 5  [s22 live-verified]
+                   door id 2 (office m03, 109, 0, -252.2)
+                     -> room move, entries {3, 2}  [s22 live-verified]
+sub 2 (@0x8283D0): door id 0|0x80 (same as sub 0)
+```
+
+Cross-area records targeting AREA02 (the full 16-area scan): AREA01
+door 1 → sub 0 entry 0 = (-35, 0, -178) yaw 0 (the m15 door's arrival
+spawn); AREA01 door 3 → sub 1 entry 1 = (65, 0, -225) yaw pi/2 (the
+west door's arrival — the s22 return path); plus 17 records from areas
+4-15, almost all → sub 0 entry 1 (the elevator/hub entry).
+
+### 3. NO real intra-area sub-state door link exists in AREA02
+
+Every AREA02 door either changes AREA (ids 0/1/3 → areas 1/4) or room-
+moves within its own sub-state (id 2). Sub-state 1 ↔ 0 transitions are
+reached ONLY through other areas' doors (story routing). Generally:
+dest records CAN encode same-area sub switches (`{02 xx 01 sub}` is
+representable, and e.g. AREA03's table opens with `{03 01 01 01}` —
+area 3 switching its own sub-state through a door), but AREA02 has
+none.
+
+### 4. Tooling + port (scene-switch machinery)
+
+- `tools/export_level.py --door-goto DIR --sub N --exported
+  sub=dir,... [--synthetic-link]`: annotates DIR/scene.txt door lines
+  with `goto <sibling-scene-dir> <sx> <sy> <sz> <syaw>` from the
+  decoded tables — emitted ONLY when the destination is an exported
+  AREA02 sub-state; inter-area dests and room moves stay plain
+  (documented in `# door-goto:` comment lines; idempotent).
+  `--synthetic-link` wires the two exported office scenes' nearest
+  doors (west m03 ↔ m15) with a FLAGGED synthetic goto — arrival =
+  the target sub's REAL spawn entry nearest the partner door (sub-0
+  entry 0 / sub-1 entry 1, exactly the records other areas use to
+  arrive at those doors). Honest: only the door-to-door pairing is
+  synthetic; the engine routes via AREA01 in between.
+- Port (`extermination-port`): em_door goto tail → at fade-out black
+  the commit posts a SCENE SWITCH (em_door_goto_pending) instead of
+  the same-scene re-place; `em_game_scene_switch(dir)` frees the
+  active scene (level meshes, collision, door + enemy pools — the
+  engine's actor-pool free) and reloads everything from the new
+  manifest WITHIN the running process; player/camera placed at the
+  decoded arrival spawn while black; the render chain is re-recorded
+  the same frame (the earlier-built chain points into freed tables);
+  the transit-wide input lock + fade-in survive the door teardown
+  (em_door_scene_clear). Player model, BGM, sfx registry persist
+  (room-move audio semantics — the shipped links are intra-area).
+  `EM_TRANSIT_TEST=1` exercises it end to end: PASS (scene → office0
+  at frame 155 of the transit, player at (-35, 0, -178) yaw 0, new
+  scene's 2 doors + 24 enemies + 1007-poly collision live, fade
+  clean, default capture byte-identical).
+
+### Open items (s38)
+
+- The engine-side sub-state SWITCH mechanics for a same-area dest
+  record (`{02 xx 01 sub}`-shaped): does the B8==1 loader skip the
+  overlay reload when next_area == current? (AREA03's self-record
+  suggests a fast path; needs one live capture in area 3.)
+- AREA02 door 0 vs door 3 use models 0x15/0x17 (locked-door class —
+  unlock bitmask D_00810841); the port's scene_office0 doors load
+  their meshes but the locked sequence (subs 1/2) is still
+  untranslated.
+- The 0x2755xx spawn descs (overlay-filled areas): dump each AREAxx
+  overlay's filler to complete the all-areas spawn map offline.
