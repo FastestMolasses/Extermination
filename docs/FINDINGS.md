@@ -3799,3 +3799,156 @@ Remaining (nice-to-have): per-vertex lighting RGBA from the kernel's
 light matrix (qw 1013..1016) instead of the port's stand-in directional
 light; alpha (PSMT4 entries carry GS alpha — currently exported but
 drawn opaque); the gun (separate model attached to a hand node).
+
+## ENGINE FRAME ANATOMY — main loop, task dispatch, vsync, input (2026-06-09, live session)
+
+Live PCSX2 DebugServer analysis (PC sampling located the loop; full native
+disasm + live table reads + three lockstep per-frame counters carried the
+proof: 0x00810E90 vsync count, 0x70003B64 main-loop count, 0x00810750 /
+0x70003B68 gameplay count). This section is the semantic skeleton for the
+native port's game loop.
+
+### Main loop: `func_001AAE40` (924 B, never returns; called from crt0 tail)
+
+INIT (once): engine bring-up (func_001AB1E0 → func_0010E088/00112F98/
+001138D8, polls func_00110508(0x0027DB70)); audio init (func_001FEE60,
+func_001FB210, func_001F9820); T0_MODE=0x83; pad init cluster
+(func_001AB370, func_001CCCC0, func_001CCBD0(0,0x3FFF,0), func_001AB430);
+**func_001F9780 creates THREAD 3** (entry func_001FB0C0, prio 2, TID at
+0x00282184; main thread demoted to prio 5) — the audio/SIF-RPC pump:
+`loop { SleepThread(); while (func_001192D0()); func_001152B0(); }`;
+**func_00101548(0x001AB140) = AddIntcHandler(2 /*VBLANK_S*/, handler, -1)**;
+func_001AB650 zeroes the 3-slot frame-task table at 0x0028A750;
+**func_001AB740(0, 0x001AB7E0) = task_register(slot 0, boot/flow task)**.
+
+PER FRAME (ordered):
+```
+A  sw 0 -> 0x00810E98                clear vsync flag (loop top 0x001AAF28)
+B  func_001D1AE0(frame_idx)          frame begin: select per-frame CPU packet
+                                     arena (gp-0x7D00 stream: +0x9C idx, +0x10
+                                     cursor; base 0x0028F700, ~0x95800/frame)
+C  func_001B57E0                     INPUT read/unpack (see Input below)
+D  func_001AEBE0                     screen-fade machine (0x0028A8D0)
+E  func_001AB6A0                     TASK DISPATCH: jalr *(slot+4) over the
+                                     3x0x20 table @0x0028A750 -> ALL game logic
+F  func_001FCA10                     audio service
+G  func_001AEE70                     transition/brightness machine
+                                     (jr-table 0x0026DD50, 7 states)
+H  func_001FB100                     audio service
+I  func_001B5B70                     input post-process
+J  v=func_00100A60(0,0)              VIF1/GIF/VU1 sync; if idle: conditional
+                                     VU0/VU1 macro block (0x0011A9D8..0x0011B910)
+K  func_001D7410                     gated *(gp-0x7768): GS-VRAM READBACK path —
+                                     the ONLY caller of func_00100EB8 (@0x001D74C4);
+                                     disabled in all live samples
+L  func_001AB590                     DMA CHCR watchdog (D0/D1/D2 MOD bits)
+M  if byte 0x00821058==1: func_00203350   audio
+N  func_001D1C10(frame_idx)          frame-end render bookkeeping
+O  func_001AEE70                     (second fade update)
+P  WAIT @0x001AAFF0: poll 0x00810E98 until nonzero   (vsync)
+Q  sw 0 -> 0x10000000                T0_COUNT reset
+R  func_001AB4E0(spad 3B94/3B96)     display-offset apply
+S  func_001015A8/func_00101810       PutDispEnv x2 (dispenv @0x810F00/0x811070
+                                     and 0x810F80/0x8110F0, FIELD-indexed)
+T  func_0010BAA0(0)                  GS register apply
+U  func_00100550(0x00810EA0+idx*0x28) per-frame GS env (double-buffered)
+V  func_001D2300                     render frame-flip bookkeeping
+W  frame_idx ^= 1 (sh 0x00810E80); func_001D2580; (0x70003B64)++ -> A
+```
+
+### Vsync ISR — RESOLVED
+
+`func_001AB140` (registered above): di-guarded; **increments 0x00810E98**
+(the wait flag) and 0x00810E90 (lifetime vsync counter); samples GS CSR
+0x12001000 bit 13 (FIELD) -> halfword 0x00810E88 (drives the R-S dispenv
+selection); **iWakeupThread(TID3)** — audio pump runs once per vsync.
+Syscall stubs verified: 0x0010B740 SleepThread, 0x0010B760 iWakeupThread,
+0x0010B850 iSignalSema, 0x0010B860 WaitSema, 0x0010B500 AddIntcHandler.
+Threads: TID1 main (prio 5, busy-polls); TID3 audio pump (prio 2);
+TID2 sema-wait worker (entry 0x00111680, created at 0x001117C4 — CD/
+streaming service); one SDK-internal thread (entry 0x0010C5C8, prio 0).
+
+### Task dispatch + the live game-update chain
+
+`func_001AB6A0` iterates the 3-slot table @0x0028A750 (byte+0 state:
+1/4 -> 2; 2 = run; 0 = skip; word+4 = fn; slot ptr parked in spad
+0x70003B6C; `jalr` at 0x001AB704). Live: slot 0 = **func_001ACEC0** (game
+task; replaced boot task 0x001AB7E0), slot 2 = 0x001FF0D0 dormant audio.
+
+Chain (state bytes live 03/01/01 at task+8/+9/+0xB):
+```
+func_001ACEC0  game task machine (byte+8)
+ └ func_001AD250  sub-machine (jr-table 0x0026DCB0, 6 states)
+   └ func_001AD4D0 = j func_001AE040 (trampoline — explains its "0 callers")
+     └ func_001AE040  in-game frame machine (byte+0xB, jr-table 0x0026DD30)
+       state 1: func_001AFCF0 (per-frame flag reset), func_0018AB00
+       (difficulty map), func_001B07C0(1) (player placement vs area spawn
+       tables 0x0024D650, area ids @0x810700), func_001C1DC0 (camera),
+       func_0018D7B0/func_0018C0D0(0x008101E0,1) (HUD/weapon context),
+       func_001AEE10(4,0), func_001FAE70(0), func_001C5C50,
+       v=func_001AE7E0 (end-of-level/game-over poll),
+       then selector spad 0x70003B8D: -> func_001AE5E0 (gameplay frame)
+       or func_001AE6B0 (cutscene variant; polls buttons 0x0900 @0x810E74)
+```
+**func_001AE5E0 — THE GAMEPLAY FRAME** (counters 0x00810750/0x70003B68++):
+```
+func_001CB590(0x008102B0, 0x320, byte 0x008102B9)  actor-context begin
+                                  (sets the D_00275B40 node-table base)
+func_0015BCF0(*(gp-0x782C)=0x008102B0)   PLAYER ACTOR UPDATE
+func_001CB5A0                            actor-context end
+func_001D1C50                            RENDER CHAIN BUILD (-> func_001D2830/
+                                         7C30/30A0 walkers -> VIF1 kick via
+                                         func_00101BB8/func_00101FE0)
+func_001C1D00(0x008101D0)                camera apply
+func_001AFD70(0); func_0015C160; func_001F0360     world services
+func_001CB590(0x008101E0, 0xD0, 0)       HUD/second context begin
+func_0018B9C0(0x008102B0)                view-target update (0x008105F0)
+func_001CB5A0; func_001AAD00; func_001D1EA0(1)     close-out
+```
+Idle-room census: ONE live actor, the player struct @0x008102B0 (size
+0x320). func_0015BCF0: per-actor spine — pos qword copies (func_00102948),
+state/AI via func_0015BA50, anim-evaluator SELECTION among func_001C6DA0 /
+func_001C68C0 / func_001C6960 via per-anim-id table @0x00248C90, physics
+(func_0015CF90/func_0015CBA0/func_00187350), death check (Y < -200.0f ->
+state 6), sound triggers (func_0011A070), pos mirror to spad 0x70003B40.
+Multi-actor anim dispatchers func_0017A130/func_00148B40 have zero static
+AND zero live-overlay callers — reached only via actor-struct fn pointers
+when NPCs exist. Area/room logic installs at scene init: func_001AFCA0 ->
+func_001D0660 -> func_001E7780 (area-ID dispatch to 17 overlay entries).
+
+Bone-publish caller chain (player): main loop -> E -> func_001ACEC0 ->
+func_001AD250 -> func_001AE040 -> func_001AE5E0 -> func_0015BCF0 ->
+func_0015BA50 -> func_0015B130/func_0015B530 -> func_001612D0/
+func_001837B0 -> func_0017C030 -> func_0017B660 -> publish into the
+0x287F40 pair; anim eval also called directly from func_0015BCF0.
+
+### Input path — RESOLVED (high confidence)
+
+`func_001B57E0` (step C) -> `func_001B5F40(0x00810E70, 0x00810E40)`:
+0x00810E40 = raw libpad RPC landing buffer, unpacked to the FRAME INPUT
+BLOCK 0x00810E60..0x00810E7B — analog bytes @0x810E64/65 (0x80-centered
+on failure), button halfwords @0x810E70/72/74/76/78/7A (current/pressed/
+released triples). Consumers verified: func_001AE6B0 (mask 0x0900 skip),
+pause bytes 0x008106B8/B9. Pad init: func_001CCCC0 / func_001CCBD0
+(0,0x3FFF,0). The port's em_input replaces exactly this block.
+
+### Ranked decomp targets for the port's game loop
+
+1. func_001AAE40 (main loop, 924 B — mechanical now)
+2. func_001AE040 + func_001ACEC0/func_001AD250 (frame state machines;
+   jr-tables 0x0026DD30/0x0026DCB0/0x0026DC50 mapped)
+3. func_0015BCF0 + func_0015BA50 (actor spine; struct fields +0x20C anim
+   id, +0x2F3/+0x303 mode bytes, +0xA0/B0 pos)
+4. func_001D1C50 (render-chain head)
+5. task system: func_001AB6A0/740/650/7E0 (~800 B total)
+6. func_001AB140 + func_00101548 (vsync ISR contract)
+7. func_001B5F40 (pad unpack ABI)
+8. func_001AE5E0/func_001AE6B0 (gameplay frame variants)
+9. func_001D1AE0/func_001D1C10/func_001D2300 (packet-arena model)
+10. func_001B07C0 (player placement / area spawn tables 0x0024D650)
+
+Thin spots (stated plainly): the conditional VU block (0x0011A9D8..
+0x0011B910) classified by gating/address-cluster only; func_001FCA10/
+func_001FB100/func_00203350 are "audio service" by subsystem range;
+TID2's exact role inferred from creation site; func_0018D7B0/func_0018C0D0
+not disassembled.
