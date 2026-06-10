@@ -16,13 +16,25 @@ tools/decode_sound.py for export jobs). It covers all three audio sources:
   STREAM/VOICE.DAT   one raw mono VAG stream, same silence-delimited split
                      -> 116 mono clips.
   SShd sound banks   inside DATA.DAT regions (extract/<chunk>/f*_id*.bin).
-                     Container: u32 totalsize, u32 hdrlen, ..., u32 count;
-                     at +hdrlen+4 u32 body_offset, at +hdrlen+0xC "SShd".
-                     The body is concatenated VAG sounds; a frame whose
-                     flag byte has bit 0 set ends a block, 1-frame blocks
-                     are terminators. Banks heavily share content, so the
-                     `sfx` command deduplicates by ADPCM bytes and writes
-                     each unique sound once with a manifest.
+                     One *container* holds 1..4 banks (decompiled from the
+                     boot ELF's loader/trigger path, 2026-06-10 — see
+                     docs/FINDINGS.md "SShd bank format"):
+                       +0x00 u32 total size
+                       +0x04 u32 offset of first bank header (== 0x?50)
+                       +0x08 u32 0
+                       +0x0C u32 bank count N
+                       +0x10 {u32 img_off, u32 img_size, u32 img_off, 0}
+                       +0x20 N rows {u32 body_size, u32 hdr_off, u32 type, 0}
+                     The sample image (all banks' concatenated VAG bodies)
+                     spans [img_off, img_off+img_size); bank i's body starts
+                     at img_off + sum(body_size of rows before it).
+                     Each bank header ("SShd" magic at hdr+0xC) holds region
+                     offsets; its program records contain 16-byte TONE
+                     RECORDS: {note_lo, note_hi, center, s8 fine, u16
+                     sample_off>>3, u16 adsr1, u16 adsr2, vol?, pan?, ?,
+                     bend_range, ?, flags}.  sample_off<<3 is relative to
+                     the bank's SPU upload base == its body start.
+                     The per-tone playback rate is exact (see tone_rate()).
 
 SPU2 ADPCM format (the "VAG" block codec): 16-byte frames =
   byte 0   = (predictor << 4) | shift    predictor 0..4, shift 0..12
@@ -33,12 +45,18 @@ Decode: s = (nibble sign-extended) << (12 - shift)
             + (hist1*c1 + hist2*c2) >> 6,  with the standard 5 coefficient
 pairs (c1,c2) in 1/64 units: (0,0) (60,0) (115,-52) (98,-55) (122,-60).
 
-Sample rates: NOT stored anywhere in the data (SPU2 pitch is a runtime
-voice parameter). Streams play at 48000 Hz (evidence: clip_0000 "End
-Credits" duration-matches an official soundtrack rip; voice formants are
-natural at 48000). SFX banks have no single rate — each voice is repitched
-at trigger time; 22050 is the extraction default (see docs/FINDINGS.md
-"Audio" for the empirical analysis).
+Sample rates: streams play at 48000 Hz (evidence: clip_0000 "End Credits"
+duration-matches an official soundtrack rip; voice formants are natural at
+48000).  SFX rates are now EXACT, derived from the engine's voice-trigger
+path (func_00115E50/func_00115850 -> func_00117918, boot ELF):
+    pitch = T[0xD0 + 16*(note-center) + fine + ((bend-64)*range>>2)]
+with T the 2^(x/192) ladder at vram 0x241CA4 (T_eng[0xD0] = 12542 =
+4096*2^(310/192)), then pitch*44100/48000 into the SPU2 pitch register
+(0x1000 = 48000 Hz).  SFX sound records store bend=0 and the tone records
+store bend_range=12, so the net per-tone rate is
+    rate = 44100 * 2^((310 - 192 + 16*(note-center) + fine) / 192)
+For the direct-map programs used by SFX banks (prog[0] == 0xFF) the trigger
+note for tone t is prog.base_note + t, so every tone has one fixed rate.
 
 Usage (run from the repo root; ISO mounted or STREAM files copied locally):
   audio_export.py music  /Volumes/<disc>/STREAM/MUSIC.DAT
@@ -64,7 +82,6 @@ ZERO_DATA = b"\x00" * 14        # data bytes of a digitally-silent frame
 
 DEFAULT_OUT = Path("extract/audio_decoded")
 STREAM_RATE = 48000             # streams: evidence-based (FINDINGS "Audio")
-SFX_RATE = 22050                # banks: extraction default, no stored rate
 
 
 # ----------------------------------------------------------------- decode
@@ -236,20 +253,101 @@ def region_bytes(region_dir: Path) -> bytes:
     return b"".join(p.read_bytes() for p in parts)
 
 
-def parse_bank(data: bytes) -> tuple[int, int] | None:
-    """Return (body_offset, body_size) if data is an SShd bank, else None."""
-    if len(data) < 0x20:
+def parse_container(data: bytes) -> dict | None:
+    """Parse an SShd multi-bank container (layout in the module docstring).
+
+    Returns {'total', 'img_off', 'img_size', 'banks': [{'hd', 'body_base',
+    'body_size', 'type'}]} or None.  body_base is a file offset into `data`
+    and is the bank's SPU-upload base: tone-record sample offsets (<<3) are
+    relative to it.
+    """
+    if len(data) < 0x60:
         return None
-    totalsize, hdrlen = struct.unpack_from("<2I", data, 0)
-    if not (0x20 <= hdrlen <= 0x400) or hdrlen + 0x10 > len(data):
+    total, hdr0 = struct.unpack_from("<2I", data, 0)
+    if not (0x20 <= hdr0 <= 0x400) or hdr0 + 0x10 > len(data):
         return None
-    if data[hdrlen + 0xC:hdrlen + 0x10] != b"SShd":
+    if data[hdr0 + 0xC:hdr0 + 0x10] != b"SShd":
         return None
-    body_offset = struct.unpack_from("<I", data, hdrlen + 4)[0]
-    body_size = totalsize - body_offset
-    if body_size <= 0 or body_offset + body_size > len(data):
+    nbanks = struct.unpack_from("<I", data, 0xC)[0]
+    img_off, img_size = struct.unpack_from("<2I", data, 0x10)
+    if img_off + img_size != total or not (1 <= nbanks <= 16):
         return None
-    return body_offset, body_size
+    banks, base = [], img_off
+    for i in range(nbanks):
+        body_size, hd, btype, _ = struct.unpack_from("<4I", data, 0x20 + 16 * i)
+        if data[hd + 0xC:hd + 0x10] != b"SShd":
+            return None
+        banks.append(dict(hd=hd, body_base=base, body_size=body_size,
+                          type=btype))
+        base += body_size
+    if base != total:
+        return None
+    return dict(total=total, img_off=img_off, img_size=img_size, banks=banks)
+
+
+def parse_programs(data: bytes, hd: int) -> list[dict]:
+    """All program records of one bank (both region slots, music + SFX).
+
+    A program region (header offset hd+0x10 = music, hd+0x24 = SFX;
+    0xFFFFFFFF = absent) is: u16 max_program_index, u16 offsets[idx+1]
+    (0xFFFF = absent, relative to the region base), each program is
+    {u8 ntones|0x80 or 0xFF, u8 mvol, u8 mpan, u8, u8 bend_range, u8,
+    u8 base_note, u8 top_note} + ntones 16-byte tone records.
+    For 0xFF (direct-map) programs ntones = top_note - base_note + 1 and
+    tone t is triggered only by note base_note + t.
+    """
+    progs = []
+    for reg_field in (0x10, 0x24):
+        reg = struct.unpack_from("<I", data, hd + reg_field)[0]
+        if reg == 0xFFFFFFFF:
+            continue
+        pr = hd + reg
+        maxidx = struct.unpack_from("<H", data, pr)[0]
+        offs = struct.unpack_from(f"<{maxidx + 1}H", data, pr + 2)
+        for pi, po in enumerate(offs):
+            if po == 0xFFFF:
+                continue
+            p = pr + po
+            h = data[p:p + 8]
+            direct = h[0] == 0xFF
+            ntones = (h[7] - h[6] + 1) if direct else (h[0] & 0x7F)
+            tones = []
+            for t in range(ntones):
+                te = data[p + 8 + t * 16:p + 8 + (t + 1) * 16]
+                if len(te) < 16:
+                    break
+                tones.append(dict(
+                    note_lo=te[0], note_hi=te[1], center=te[2],
+                    fine=struct.unpack("b", te[3:4])[0],
+                    samp_off=struct.unpack_from("<H", te, 4)[0] << 3,
+                    adsr1=struct.unpack_from("<H", te, 6)[0],
+                    adsr2=struct.unpack_from("<H", te, 8)[0],
+                    bend_range=te[0xD], flags=te[0xF],
+                    note=(h[6] + t) if direct else te[0]))
+            progs.append(dict(index=pi, region=reg_field, direct=direct,
+                              base_note=h[6], top_note=h[7],
+                              prog_bend_range=h[4], tones=tones))
+    return progs
+
+
+def tone_rate(tone: dict, bend: int = 0) -> float:
+    """Engine-exact playback rate in Hz for one tone record.
+
+    Mirrors func_00117918 + the 44100/48000 rescale in func_00115E50/
+    func_00115850: a 2^(x/192) u16 ladder (4096-anchored at vram 0x241CA4;
+    the code's base pointer D_00241D70 is 102 entries in and indexes it at
+    +0xD0, so the trigger-time anchor is 4096*2^(310/192)), stepped by
+    16/semitone, +fine, + MIDI-style bend ((bend-64)*range>>2 steps).
+    SFX sound records store bend = 0 (wheel fully down -> -range
+    semitones); range = tone bend_range (12 in every bank inspected), or
+    the program's if tone flags bit 4 is set (not observed).
+    SPU2 pitch 0x1000 = 48000 Hz; the engine multiplies by 44100/48000,
+    so rate = 44100 * ladder/4096.
+    """
+    rng = tone["bend_range"]
+    steps = (310 + 16 * (tone["note"] - tone["center"]) + tone["fine"]
+             + (((bend - 0x40) * rng) >> 2))
+    return 44100.0 * 2.0 ** (steps / 192.0)
 
 
 def split_bank_sounds(body: bytes) -> list[tuple[int, int]]:
@@ -266,42 +364,75 @@ def split_bank_sounds(body: bytes) -> list[tuple[int, int]]:
     return sounds
 
 
+def vag_block_at(data: bytes, off: int) -> bytes:
+    """The ADPCM block starting at `off` (frames until the end flag)."""
+    end = off
+    while end + FRAME <= len(data):
+        end += FRAME
+        if data[end - FRAME + 1] & 1:
+            break
+    return data[off:end]
+
+
 def cmd_sfx(args) -> int:
     root = Path(args.input)
     out = Path(args.out) / "sfx"
     out.mkdir(parents=True, exist_ok=True)
-    uniq: dict[bytes, int] = {}
-    manifest = ["# Extermination SShd banks -> unique SFX "
-                f"(decoded at {args.rate} Hz; no rate is stored in the bank)",
-                ""]
-    n_banks = refs = 0
+    uniq: dict[tuple[bytes, int], int] = {}
+    manifest = [
+        "# Extermination SShd banks -> SFX at engine-exact rates",
+        "# rate = 44100 * 2^((310-192 + 16*(note-center) + fine)/192)"
+        "  (see docs/FINDINGS.md 'SShd bank format')",
+        "# columns: region bank prog tone note center fine rate_hz"
+        " body_off size wav", ""]
+    n_containers = n_banks = refs = bad_offsets = 0
+    sources: list[tuple[str, bytes]] = []
     for region_dir in sorted(p for p in root.iterdir() if p.is_dir()):
         data = region_bytes(region_dir)
-        bank = parse_bank(data)
-        if not bank:
+        if parse_container(data):
+            # container starts at f00 and spans the region's files
+            sources.append((region_dir.name, data))
             continue
-        n_banks += 1
-        body = data[bank[0]:bank[0] + bank[1]]
-        ids = []
-        for sf, nf in split_bank_sounds(body):
-            raw = body[sf * FRAME:(sf + nf) * FRAME]
-            sid = uniq.get(hashlib.sha1(raw).digest())
-            if sid is None:
-                sid = len(uniq)
-                uniq[hashlib.sha1(raw).digest()] = sid
-                loops = any(raw[k * FRAME + 1] & 2 for k in range(nf))
-                pcm = decode_adpcm(body, sf, nf)
-                write_wav(out / f"snd_{sid:04d}.wav", pcm, args.rate, 1)
-                manifest.append(
-                    f"snd_{sid:04d}  {len(pcm) / 2 / args.rate:7.3f}s  "
-                    f"{'loop' if loops else 'oneshot'}")
-            ids.append(sid)
-            refs += 1
-        manifest.append(f"{region_dir.name}: "
-                        + " ".join(f"snd_{s:04d}" for s in ids))
+        # otherwise look for a container wholly inside one file
+        # (e.g. the global player/weapon/UI bank in chunk00/f05_id05.bin)
+        for f in sorted(region_dir.glob("f*_id*.bin")):
+            fdata = f.read_bytes()
+            if parse_container(fdata):
+                sources.append((f"{region_dir.name}/{f.name}", fdata))
+    for src_name, data in sources:
+        cont = parse_container(data)
+        n_containers += 1
+        for bi, bank in enumerate(cont["banks"]):
+            n_banks += 1
+            for prog in parse_programs(data, bank["hd"]):
+                for ti, tone in enumerate(prog["tones"]):
+                    pos = bank["body_base"] + tone["samp_off"]
+                    if pos >= cont["total"]:
+                        bad_offsets += 1
+                        continue
+                    raw = vag_block_at(data, pos)
+                    if len(raw) < 2 * FRAME:    # terminator / silence stub
+                        continue
+                    rate = int(round(tone_rate(tone)))
+                    key = (hashlib.sha1(raw).digest(), rate)
+                    sid = uniq.get(key)
+                    if sid is None:
+                        sid = len(uniq)
+                        uniq[key] = sid
+                        pcm = decode_adpcm(raw)
+                        write_wav(out / f"snd_{sid:04d}.wav", pcm, rate, 1)
+                    manifest.append(
+                        f"{src_name} bank{bi} prog{prog['index']}"
+                        f" tone{ti:02d} note=0x{tone['note']:02X}"
+                        f" center={tone['center']:3d} fine={tone['fine']:4d}"
+                        f" rate={rate:5d} off=0x{tone['samp_off']:06X}"
+                        f" len={len(raw):6d} snd_{sid:04d}.wav")
+                    refs += 1
     (out / "manifest.txt").write_text("\n".join(manifest) + "\n")
-    print(f"{n_banks} banks, {refs} sound references, "
-          f"{len(uniq)} unique sounds -> {out}/")
+    print(f"{n_containers} containers, {n_banks} banks, {refs} tone refs, "
+          f"{len(uniq)} unique (sound,rate) -> {out}/"
+          + (f"  [{bad_offsets} out-of-range offsets skipped]"
+             if bad_offsets else ""))
     return 0
 
 
@@ -331,11 +462,11 @@ def main(argv: list[str]) -> int:
     sp.add_argument("--min-frames", type=int, default=8)
     sp.set_defaults(func=lambda a: cmd_stream(a, stereo=False))
 
-    sp = sub.add_parser("sfx", help="decode all SShd banks (deduplicated)")
+    sp = sub.add_parser(
+        "sfx", help="decode all SShd banks at engine-exact per-tone rates")
     sp.add_argument("--in", dest="input", default="extract",
                     help="extract_data.py output directory")
     sp.add_argument("--out", default=str(DEFAULT_OUT))
-    sp.add_argument("--rate", type=int, default=SFX_RATE)
     sp.set_defaults(func=cmd_sfx)
 
     sp = sub.add_parser("detect-interleave",

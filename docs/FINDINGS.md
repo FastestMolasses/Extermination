@@ -787,6 +787,157 @@ step). Until then `22050` stays the audition default for exports; confidence:
 high that no Hz is stored and that the pitch base is 44100-referenced, medium
 on any single sound's exact Hz.
 
+### SShd bank format — SOLVED via the loader/trigger decomp (2026-06-10)
+
+The open item above is closed: the tone records exist and were pinned by
+reading the bank loader + voice-trigger path in the local splat disassembly.
+The earlier structural scan missed them because (a) a "bank file" is really a
+multi-bank **container**, (b) the per-bank header offsets are indirect, and
+(c) the old exporter's "body offset" field is actually a body **size**.
+
+**Engine code map (boot ELF, all in the SDK-compiled half < 0x120000):**
+
+- `func_00119528` — bank registration: validates `"SShd"` at hdr+0xC, takes a
+  free slot in **`D_0027C6C0`** (128 slots × 12 bytes: `{u32 inUse, u8 *eeHdr,
+  u32 spuByteAddr>>3}`). The slot's SPU base is the upload address of the
+  bank's body; `func_001195A8` frees a slot (after checking no active voice in
+  the runtime voice table references the bank).
+- `func_00117088` — per-event program resolver. Fills the parser state
+  **`D_00281AC0`**: `+0x00` current program record, `+0x04` current tone
+  record, `+0x08` region base, `+0x0C` sound/channel record, `+0x10` bank hdr,
+  `+0x14` seq data base, `+0x18` velocity table, `+0x20` program-offset
+  table, `+0x28` script table. Two modes (channel `+0x32`): 0 = sequenced
+  music (program from the 16-byte per-channel block at seq+0x10+ch*16, byte
+  +0x12), 1 = SFX (program from the note-on event's 4th byte; sound record
+  from channel `+0x18` = sound id).
+- `func_001152D8` — the per-tick sequencer over 48 channels (0x78-byte
+  structs at `D_0027E0C0`): MIDI-style status dispatch — 0x80 note-off
+  (`func_001177E8`), **0x90 note-on `func_00115E50`** (range-scan tone select
+  via `func_001178C0`), **0xA0 note-on `func_00115850`** (direct-map: tone =
+  note − prog.base_note; this is the form used by the banks' embedded trigger
+  scripts `A0 <note> <vel> <prog>`, 4-byte events), 0xB0 controllers (jump
+  table `jtbl_0026BF40`), 0xC0/0xE0 program change / pitch bend
+  (`func_00118CF8` writes the bend byte into sound-record +0xA and live-
+  updates pitch), 0xF0 meta (FF 2F end). Voice command queue:
+  `func_001157F0` (ring at `D_0027F7C0`, 16-byte `{cmd,voice,value,x}`
+  records, flushed via SIF RPC 0x64 to the IOP driver each tick).
+- **Runtime voice table**: `D_0027CCC0`, 48 × 0x6A-byte records (one per
+  hardware voice), filled by the note-on handlers (note +0x02, bank +0x22,
+  tone fields +0x2E/+0x36/+0x38/+0x3A/+0x40, ADSR cached, etc.).
+- `func_00117918` — note→pitch: `2^(x/192)` u16 ladder (16 steps/semitone);
+  the canonical 4096-anchored table starts at vram **0x241CA4**; the code's
+  base pointer `D_00241D70` is 102 entries in and indexes `+0xD0` at center,
+  so the at-trigger anchor value is `T[310] = 12542`. Index =
+  `0xD0 + 16*(note−center) + fine + ((bend−0x40)*bend_range>>2)` (composed
+  with exact /12 octave decomposition + sllv/srav shifts). The result is
+  rescaled `× 0xAC44/0xBB80` (44100/48000) and written as voice param 6 —
+  the SPU2 pitch register (0x1000 = 48000 Hz). Sample start = param 5 =
+  `(tone_u16[+4] + slotSpuBase>>3) << 3`; ADSR = param 3 (tone +0x6/+0x8).
+
+**Container layout** (validated on all 40 containers, 115 banks):
+
+    +0x00 u32 total_size
+    +0x04 u32 first_bank_header_offset
+    +0x08 u32 0
+    +0x0C u32 bank_count N            (1..4 observed)
+    +0x10 {u32 img_off, u32 img_size, u32 img_off, u32 0}
+    +0x20 N rows {u32 body_size, u32 hdr_off, u32 type, u32 0}
+
+The **sample image** `[img_off, img_off+img_size)` is the concatenation of
+all N banks' VAG bodies in row order; bank i's SPU-relative zero = `img_off +
+Σ body_size(rows<i)`. (The old exporter read hdr+0x04 as a body *offset* —
+it is the body **size**; that mis-segmentation is why the previous export
+found only 241 sounds.)
+
+**Bank header** (at hdr_off; offsets are hdr-relative):
+
+    +0x00 u32 header data size
+    +0x04 u32 body size (this bank's VAG bytes in the image)
+    +0x08 u32 0
+    +0x0C "SShd"
+    +0x10 u32 music program region offset   (0xFFFFFFFF if none)
+    +0x14 u32 velocity table offset          (identity curve observed)
+    +0x18 u32 ?                              (often 0xFFFFFFFF)
+    +0x1C u32 trigger-script table offset
+    +0x20 u32 sound-record region offset
+    +0x24 u32 SFX program region offset
+
+- **Trigger-script table** (+0x1C): u16 group count; u16 group offsets
+  (0xFFFF absent); each group: u16 count + u16 script offsets (all relative
+  to the table base). Scripts are tiny event streams: `A0 note vel prog`
+  note-ons ended by SMF `FF 2F 00`. (`func_00119EA0` resolves
+  group/index → script.)
+- **Sound records** (+0x20): region header 16 bytes, then 16-byte records
+  per sound id: `{u8 ?, u8 group, u8 ?, u8 vol(0x64), u8 pan(0x40), …,
+  u8 bend(+0xA, stored 0), …, u8 +0xC(4), …, u8 +0xE(0x64)}`.
+- **SFX program region** (+0x24): u16 max-program-index, u16 offsets[i+1]
+  (region-relative; the trigger path reads them via sound-region+0x312,
+  which equals this table because the sound region is fixed-size 0x310).
+  Program record: 8-byte header `{u8 ntones|0x80 or 0xFF, u8 mvol, u8 mpan,
+  u8, u8 bend_range, u8, u8 base_note, u8 top_note}` then the **TONE
+  RECORDS**, 16 bytes each:
+
+        +0x0 u8  note_lo      (range-scan select, 0x90 path)
+        +0x1 u8  note_hi
+        +0x2 u8  center note
+        +0x3 s8  fine         (1/16-semitone steps, signed; −15..0 observed)
+        +0x4 u16 sample start (<<3 = byte offset from the bank's SPU base)
+        +0x6 u16 ADSR1
+        +0x8 u16 ADSR2
+        +0xA u8  vol?
+        +0xB u8  pan?
+        +0xD u8  bend range   (12 everywhere observed)
+        +0xF u8  flags        (bit0 voice-keep, bit4 use prog bend range,
+                               bits5/6/7 routing/FX-bus selects)
+
+  For 0xFF (direct-map) programs ntones = top−base+1 and tone t is keyed
+  only by note base+t — so **every tone has one fixed playback rate**.
+
+**Per-tone exact rate.** With the effective trigger bend wheel at center
+(empirically confirmed, below):
+
+    rate = 44100 × 2^((310 − 192 + 16·(note − center) + fine) / 192)  Hz
+
+(The −192 is the bend term: sound records store bend=0 = wheel fully down ×
+bend_range 12 semitones = −192 ladder steps. `func_00115850` (0xA0) writes
+0x40 into the bend byte before computing pitch, which would cancel that term
+— but with the +310 anchor that overflows the 400-entry ladder for roughly
+half the shipped tones (center−note spans up to ~37 semitones) and predicts
+39% of trigger rates above 48 kHz; both impossible for working content.)
+
+**Empirical confirmation (PCSX2 savestate, no emulator needed live):** the
+texture-work savestates under `extract/textures_colored/_states/` carry SPU2
+RAM + PCSX2 voice structs (`spu2.bin`: RAM at +0x104, V_Voice array stride
+0xA0 in the tail; pitch u32 at +0x00, NextA/StartA/LoopStartA halfword
+addresses at +0x04/08/0C). Observed: stream voices with pitch 0x759/0xEB3 —
+exactly 22050/44100 in 48000-units, i.e. **the EE-computed param-6 value
+lands unscaled in the SPU2 pitch register** (no IOP-driver shift); and
+in-game SFX voices at pitch 1694–2134 (= 19.9–25.0 kHz), inside the bend-
+at-center prediction band for the loaded banks' tones (the ×2 hypothesis
+predicts 2360–4013+overflow — excluded). Per-voice exact reproduction is
+blurred by the runtime LFO/portamento updater (`func_00116598`, same ×441/480
+rescale), which keeps re-writing param 6 after key-on.
+
+**Re-export (tools/audio_export.py `sfx`, rewritten 2026-06-10):** parses
+containers/banks/programs/tone records and emits every tone at its exact
+rate. Inventory: **40 containers** (39 region-spanning + the global
+player/weapon/UI container `chunk00/f05_id05.bin`, which the old exporter
+missed entirely), **115 banks, 5758 tone refs, 533 unique samples, 1206
+unique (sample, rate) WAVs** + `manifest.txt` (region/bank/prog/tone/note/
+center/fine/rate/offset per ref). All 5758 tone sample offsets land exactly
+on VAG end-flag block boundaries (0 misses) — the layout is proven against
+the data, not just the code. Rate distribution: p25 15.9 kHz, median
+21.5 kHz, p75 27.1 kHz; a small tail of never-triggered/garbage tones
+computes absurd rates (up to 245 kHz) and is exported as-is, flagged by the
+manifest. Acoustic sanity at the computed rates: gunshot-like bank sounds
+(2–12 ms attack, 90–310 ms, broadband), footstep thumps (140–200 ms,
+low-band), tonal alarms F0 ≈ 405–430 Hz, voiced growls F0 ≈ 90–300 Hz, 7–9 s
+ambient loops — all natural. Confidence: **high** on the layout and the
+relative pitch math (engine-exact, data-verified); **medium-high** on
+absolute per-sound Hz (savestate-corroborated to within the runtime
+modulation; the bend=0-vs-0x40 ×2 question is settled by data/registers, not
+yet by a single exactly-reproduced voice).
+
 ## Geometry / models
 
 **Level geometry AND character/object/prop models decoded.** Exporter:

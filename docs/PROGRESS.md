@@ -3162,3 +3162,30 @@ full detail):
   (live matrices kept as fallback; multi-slot assemblies anchor live
   articulation on the table base): 4205 → **4217 tris** / 6475 verts / 115
   textures; port rebuilt and EM_CAPTURE-verified.
+
+### Update — 2026-06-10 s12: SShd TONE RECORDS pinned — exact per-SFX rates shipped
+
+- Decompiled (analytically) the bank loader + voice-trigger path
+  (`func_00119528` registration, `func_00117088` program resolver,
+  `func_001152D8` 48-channel sequencer, `func_00115E50`/`func_00115850`
+  note-on, `func_00117918` note→pitch, `func_00118CF8` pitch bend). Full
+  SShd container/bank/program/tone layout + the runtime voice table
+  (`D_0027CCC0`, 48×0x6A) and bank slot table (`D_0027C6C0`, 128×12) are in
+  FINDINGS "SShd bank format" (2026-06-10).
+- Tone records found: 16-byte `{note range, center, s8 fine, u16 start>>3,
+  ADSR1/2, …, bend_range, flags}` inside per-program arrays; exact rate
+  `44100·2^((118+16Δ+fine)/192)`. All **5758** tone sample offsets across
+  **40 containers / 115 banks** land exactly on VAG block boundaries.
+  Absolute scale corroborated from the PCSX2 savestates' SPU2 voice structs
+  (EE pitch value lands unscaled in the register; in-game SFX pitches
+  19.9–25.0 kHz inside the predicted band).
+- `tools/audio_export.py sfx` rewritten tone-record-driven: **533 unique
+  samples → 1206 (sample,rate) WAVs** + per-ref manifest at engine-exact
+  rates (median 21.5 kHz). The old 241-sound export was mis-segmented
+  (hdr+4 is body SIZE, not offset) and missed the global player/weapon/UI
+  container `chunk00/f05_id05.bin` entirely.
+- Match attempt on `func_001178C0` (note-range test, 22 insns): reached
+  structural parity but it sits at vram 0x001178C0 — the SDK-compiled half
+  (<0x120000, daddu-vs-paddub move style) that mwcc 2.3 cannot reproduce;
+  stub restored per policy. The whole audio cluster is SDK-half — exclude
+  it from readable-C matching campaigns.
