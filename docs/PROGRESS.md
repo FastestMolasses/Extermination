@@ -4360,3 +4360,28 @@ full detail):
   byte-identical (back-to-back; default scene untouched by this change);
   EM_SCENE=scene_office0 loads 16 crates + 8 mode-0 pads from the
   regenerated manifest.
+
+### Update — 2026-06-10 s34: scene_office0's real crate carved + shipped (n0 entry 0x0D)
+
+- **Tooling**: export_props.py `--crate-dir <leaf dir>` (new): carves a
+  per-area model-table entry from the leaf's byte-CONCAT view (the n0
+  table at 0x373800 crosses the f04_id72/f05_id41 boundary) with texels
+  from the s28 GS-upload replay (`office0_uploads` / `--uploads`). The
+  default n1 `--crate` path regression-checked byte-identical.
+- **Asset**: `assets/scene_office0/props/enemy_crate.emdl` — n0 entry
+  0x0D @ concat 0x45E180: a 12-tri 14×14×14 wooden crate (planks +
+  riveted metal straps + stencils; PSMT4 128×128 TBP 0x2CA0, 1/1
+  resolved from the replay). Lives in `props/` because em_game.c's
+  scene_load slurps top-level scene `*.emdl` as static geometry.
+- **Port hook documented (not applied; port read-only this session)**:
+  em_enemy.c `crate_mesh_get` one-liner — probe
+  `assets/scene/props/enemy_crate.emdl` before the global CRATE_ASSET
+  (FINDINGS s34 §3 has the exact line).
+- **Husk verdict**: the n0 table has NO gib/husk entries (full 27-entry
+  survey + SHA1 vs the global library) — office0 crate bursts use the
+  GLOBAL chunk27 husks/shards already shipped in `assets/gibs/`.
+- Verified: visual capture of the carved crate in the office0 scene
+  (temp scene, cleaned up); default + office0 captures byte-identical
+  with the asset absent vs present (the asset is inert until the hook
+  lands — described honestly); test-input + MOVE/DOOR/WEAPON/ENEMY 1-4
+  PASS.

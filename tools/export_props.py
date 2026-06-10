@@ -188,6 +188,21 @@ em_enemy.c "crate" kind idles disguised as it. Defaults target the office;
 scratch/crawler_mesh_id0D.bin (the AREA11 14u crate) with --p2s <state 01>
 as the texel source — flag that combination as the non-office stand-in.
 
+CRATE-DIR (--crate-dir, 2026-06-10 s34). The s28 correction: the office
+SUB-STATE-0 scene's 17 placed crawlers bind the n0 leaf's OWN table entry
+0x0D — a 14x14x14 crate (12 tris, one PSMT4 128x128, TBP 0x2CA0), NOT the
+sub-state-1 cardboard box the global enemy_crate.emdl carries. That table
+sits at concat offset 0x373800 (f04_id72+0xD800) and its entries cross
+into f05_id41, so --crate-dir <leaf dir> switches the carve source to
+export_level.office0_concat(dir) (the engine's contiguous-load view),
+defaults --crate-table-off to the concat table, and resolves texels from
+the leaf's GS-upload replay (export_level office0_uploads / --uploads —
+no captured VRAM exists for this sub-state). n0-table husk survey (s34):
+no n0 entry content-matches the global gib library and none has the
+14x14-footprint husk shape — burst husks/shards stay the GLOBAL chunk27
+library models (D_0028A56C is area-independent), already shipped as
+assets/gibs/.
+
 Disc-derived output: write only into git-ignored locations.
 
 Usage (macOS arm64, decomp repo root):
@@ -218,6 +233,11 @@ Usage (macOS arm64, decomp repo root):
   .venv/bin/python tools/export_props.py --crate \
       --gsdump extract/gsdump/frame1.gs \
       --out ../extermination-port/assets/enemy_crate.emdl
+  # the scene_office0 (sub-state 0) crate, from the n0 concat table with
+  # GS-upload-replay textures (no captured VRAM exists for this leaf):
+  .venv/bin/python tools/export_props.py --crate \
+      --crate-dir extract/chunk06.n0 \
+      --out ../extermination-port/assets/scene_office0/props/enemy_crate.emdl
 """
 from __future__ import annotations
 
@@ -1108,17 +1128,36 @@ def build_blob_mesh(d: bytes, off: int):
 
 
 def export_crate(args):
+    uploads = None
     if args.crate_blob:
         src = Path(args.crate_blob)
         d = src.read_bytes()
         off = 0
         print(f"crate source: {src} (pre-carved raw blob) — NON-OFFICE "
               f"stand-in, pair with the matching --p2s VRAM (flagged)")
+    elif args.crate_dir:
+        # Leaf-directory mode (s30): the per-area table may sit at a
+        # CONCAT offset whose entries cross a file boundary (the n0 table
+        # at 0x373800 = f04_id72+0xD800 runs into f05_id41), so carve from
+        # the engine's contiguous-load view; texels come from the leaf's
+        # own GS-upload replay (the s28 synthetic-VRAM path).
+        src = Path(args.crate_dir)
+        d = lvl.office0_concat(src)
+        table_off = (args.crate_table_off if args.crate_table_off is not None
+                     else lvl.OFFICE0_TABLE_OFF)
+        off = table_entry_offset(d, table_off, args.crate_id)
+        uploads = lvl.office0_uploads(src, args)
+        print(f"crate source: {src}/ concat model-table @{table_off:#x} "
+              f"entry {args.crate_id:#04x} -> blob @{off:#x}")
+        print(f"  texel source: GS-upload replay of "
+              f"{', '.join(p.name for p in uploads)}")
     else:
         src = Path(args.crate_table)
         d = src.read_bytes()
-        off = table_entry_offset(d, args.crate_table_off, args.crate_id)
-        print(f"crate source: {src} model-table @{args.crate_table_off:#x} "
+        table_off = (args.crate_table_off if args.crate_table_off is not None
+                     else CRATE_TABLE_OFF)
+        off = table_entry_offset(d, table_off, args.crate_id)
+        print(f"crate source: {src} model-table @{table_off:#x} "
               f"entry {args.crate_id:#04x} -> blob @{off:#x}")
     nb, qwc, nn, size = struct.unpack_from("<4I", d, off)
     print(f"  blob: {nb} block(s), {nn} node(s), size {size:#x}")
@@ -1141,7 +1180,7 @@ def export_crate(args):
 
     tex_entries, tex_blob = lvl.build_texture_blob(
         Path(args.gsdump) if args.gsdump else None, tex_table,
-        Path(args.p2s) if args.p2s else None)
+        Path(args.p2s) if args.p2s else None, uploads)
     out = Path(args.out)
     en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
                   tex_entries, tex_blob, flags=1)
@@ -1175,9 +1214,20 @@ def main(argv):
                     "to --out")
     ap.add_argument("--crate-table", default=CRATE_TABLE_FILE,
                     help="(--crate) file carrying the per-area model table")
+    ap.add_argument("--crate-dir", metavar="DIR",
+                    help="(--crate) chunk leaf DIRECTORY instead of a single "
+                    "table file: carve from the byte-concatenation of its "
+                    "files (tables whose entries cross a file boundary, "
+                    "e.g. chunk06.n0's at concat 0x373800) with texels "
+                    "from the leaf's GS-upload replay (--uploads overrides "
+                    "the source files)")
+    ap.add_argument("--uploads", help="(--crate-dir) comma-separated files "
+                    "whose GS upload packets supply the synthetic VRAM")
     ap.add_argument("--crate-table-off", type=lambda s: int(s, 0),
-                    default=CRATE_TABLE_OFF,
-                    help="(--crate) model-table byte offset in that file")
+                    default=None,
+                    help="(--crate) model-table byte offset (default: the "
+                    f"office n1 file offset {CRATE_TABLE_OFF:#x}, or the n0 "
+                    "concat offset with --crate-dir)")
     ap.add_argument("--crate-id", type=lambda s: int(s, 0),
                     default=CRATE_MODEL_ID,
                     help="(--crate) model-table entry id (placement param "

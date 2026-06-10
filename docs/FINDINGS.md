@@ -8886,3 +8886,91 @@ Open (office0 doors):
 - m17 close: the engine re-closes via area re-entry/state, not a
   reverse script — the port runs the clip backwards (em_door CLOSING),
   which matches the native motion reversed.
+
+## SCENE_OFFICE0 CRATE CARVED — the n0 table's 0x0D shipped per-scene; husk verdict (2026-06-10, session 34)
+
+Closes the s28 flag "per-scene crate models in the port": the 17 placed
+crawlers of AREA02 sub-state 0 bind the **n0 leaf table's entry 0x0D**,
+not the sub-state-1 cardboard box the port's global `enemy_crate.emdl`
+carries.
+
+### 1. The carve (export_props.py --crate-dir, new)
+
+`--crate --crate-dir extract/chunk06.n0` switches the crate machinery to
+the s28 concat view (`export_level.office0_concat`; the n0 table at
+concat `0x373800` = f04_id72+0xD800 has entries crossing into f05_id41)
+and to the s28 GS-upload-replay texel path (`office0_uploads`:
+f02_id44 + chunk27/f00_id35; `--uploads` overrides). Entry 0x0D lands at
+**concat 0x45E180 (inside f05_id41)**: 1 block, 1 node, size 0x860 → 23
+welded verts, **12 tris, a plain 14×14×14 box** (bbox X[-7,7] Y[0,14]
+Z[-7,7]), one **PSMT4 128×128, TBP0 0x2CA0 CBP 0x34F1**, resolved 1/1
+from the replay (leaf pack dbp 0x2A00), 0 flat fallbacks.
+
+**Wording correction (s28/commit 24cc7a0):** this is the AREA11 crate's
+SIZE CLASS, not its mesh — the AREA11 entry is a 6-block/90-tri mesh
+with real bevel geometry; the n0 entry is a 12-tri cube whose "bevel"
+is painted into the skin. Texture (verified visually): dark horizontal
+wooden planks, riveted metal corner straps along the edges, yellow
+stenciled freight markings — reads as a wooden shipping crate, matching
+the scene's industrial palette. (The default `--crate` n1 path
+regression-checked byte-identical to the shipped global asset.)
+
+### 2. Husk/gib verdict: the n0 table carries NO burst set
+
+Full mesh-level survey of all 27 n0 entries (per-entry nodes/tris/bbox/
+texture keys + SHA1 against the global library's gib set 0x1C–0x29):
+**no n0 entry content-matches the global gib library, and none has the
+14×14-footprint low-profile husk shape** (the only small props near
+0x0D: 0x0C = a 7×8×3 4-texture fixture, 0x12/0x13/0x14 = small clutter).
+So the office0 crates' burst husks/shards are the GLOBAL chunk27 models
+(0x22/0x29 + shards), exactly as the rebind path requires — D_0028A56C
+is the area-independent global library (s23) — and they are ALREADY
+shipped as `assets/gibs/`. Nothing per-scene to carve.
+
+### 3. Shipping: assets/scene_office0/props/enemy_crate.emdl + a one-line hook
+
+The port (read-only this session) cannot pick a per-scene crate today:
+
+- `em_enemy.c` loads the fixed global path `CRATE_ASSET =
+  "assets/enemy_crate.emdl"` (line ~180; load at ~642) — no scene-local
+  probe exists.
+- A scene-dir-local EMDL canNOT simply sit at the scene top level:
+  `scene_load` (em_game.c:556) slurps EVERY top-level `*.emdl` of
+  `assets/scene` as static level geometry posed at frame 0 — the crate
+  would render at the world origin as scenery. Subdirectories are not
+  slurped (the `doors/` precedent), so the asset ships as
+  **`assets/scene_office0/props/enemy_crate.emdl`** (git-ignored,
+  disc-derived; generic name so the hook below stays scene-agnostic;
+  the originally-suggested top-level `enemy_crate_n0.emdl` was rejected
+  for the slurp reason).
+- **The one-line port hook (documented, NOT applied):** in
+  `em_enemy.c` `crate_mesh_get`, probe the scene-local path first —
+
+      if (em_model_load(&s.crate_model, "assets/scene/props/enemy_crate.emdl") == 0 ||
+          em_model_load(&s.crate_model, CRATE_ASSET) == 0) {
+
+  (replaces the single `em_model_load(..., CRATE_ASSET)` condition).
+  Under the EM_SCENE shadow stage `assets/scene` IS the active scene
+  directory, so every scene may carry `props/enemy_crate.emdl`; scenes
+  without one (and the default scene) fall back to the global box —
+  byte-identical default behavior. Both crates are 1-bone, so the
+  CRATE_BONE_MAX path needs no change.
+
+### 4. Verification
+
+- Visual (temp scene copy, EM_SCENE + spawn-override; cleaned up): the
+  carved EMDL slurped at the origin renders beside the player as a
+  dark wooden plank crate with metal-strapped edges at the correct 14-u
+  scale (~chest height on the player) on the office0 conveyor floor;
+  the green tint at its base is the player's additive aura billboard,
+  not a texture fault.
+- **Default and office0 captures are byte-identical with the asset
+  absent vs present** — honestly: nothing loads `props/` today, so the
+  asset is inert until the hook lands; the identity checks confirm
+  shipping it changes nothing.
+- make test-input + EM_MOVE_TEST/EM_DOOR_TEST/EM_WEAPON_TEST/
+  EM_ENEMY_TEST=1..4 all PASS.
+
+Open: apply the crate hook port-side; the n2 sub-state's table (concat
+0x3E9000, count 27) almost certainly carries the same entry 0x0D —
+carve with `--crate-dir --crate-table-off` when that scene exports.
