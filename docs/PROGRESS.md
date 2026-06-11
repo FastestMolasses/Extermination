@@ -140,6 +140,38 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 66): LIVE VERIFICATION SWEEP — six flagged
+> s56-s63 items settled in one PCSX2 DebugServer session (FINDINGS
+> "LIVE VERIFICATION SWEEP"). (1) WORM NOT SHOOTABLE: both victim
+> filters (func_00183AC0/0x183B80) reject model 0xD by name; live
+> full-lifecycle memchecks saw zero +0x34/+0x36 accesses besides the
+> func_001AFC10 teardown clear, with shots fired into it — the port's
+> shootable stand-in must be removed (J2 closed). (2) The leech
+> "32-u node test" OVERTURNED: func_0019AA80(.., 0x20) sweeps the
+> worm's OWN rig node 13→16 (neck→head) SEGMENT against the player's
+> hit-volume list (func_001A7280, mask 0x20) — slots verified live
+> (J3 narrowed). (3) PAN CONVENTION VALIDATED both polarities via a
+> hijacked roaming-ambient source at yaw±45°: gains match the s58
+> formula to ±1 LSB and the K-projected screen side proves
+> wrapped-bearing ≥ 0 = screen-LEFT = gainA full (M2 caveat retired).
+> (4) MENU ZOOM: ctx+0x2468 = 480.37 with the hub open — the menu
+> uses the ordinary s=480 P with a y-flipped identity V; the s49
+> 0.74 pin is NOT a projection difference (E4 re-scoped). (5)
+> GAME-OVER TRIGGER DECODED LIVE: vitals mirror ~0x0015CFB0 latches
+> D_008106B9=1 at health<=0; func_001AE040 waits (6B9 && fade==2) →
+> task 3/2 → wait state func_001AD4E0 → func_001ADF00 REPLACES the
+> game-task fn with func_001AC070 (continue machine); D_008106CE/CF
+> never written on death — the s58 §6 candidate was the end-of-level
+> path (P3 trigger closed; screen draw still open). (6) DOOR-CUT
+> formulas reproduced exactly (eye=staging−20·dir/+19, target=
+> staging/+13, hard-copy, cam+0xA0=0x78). Tooling: exec breakpoints
+> AND memchecks WORK on the current x86_64 build (s22/s29 note
+> obsolete); savestate-less restore via paused-RAM region snapshots
+> (restore only at a NEUTRAL pause point); transitions forced by
+> writing B5..B8 + hand-starting the fade (func_001AEDE0 is 4 pure
+> global writes). Docs-only session (FINDINGS s66 append;
+> PORT_DIFFERENCES J2/J3/E4/M2/P3 + exec summary updated).
+
 > 2026-06-11 (session 64): AIM CAMERA WALL SOLVER func_0018F870 FULLY
 > DECODED + PORT (FINDINGS "AIM CAMERA WALL SOLVER func_0018F870
 > DECODED"; closes the s61 remaining-flagged list / PORT_DIFFERENCES

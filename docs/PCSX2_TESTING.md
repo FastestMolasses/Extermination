@@ -45,8 +45,18 @@ s28b (battery), s25 (status screen), s22/s23.
 ## Gotchas
 - Pause the VM before multi-byte pokes (`pcsx2_pause` / resume).
 - The status screen reads live values — open it (Triangle) to watch edits land.
-- Exec breakpoints don't fire and can degrade performance if armed repeatedly —
-  use `watch_change` (raw TCP) instead; restart PCSX2 if the IOP audio wedges.
+- Exec breakpoints AND memchecks DO fire on the current fast x86_64 build
+  (verified s66 — bp at a jal reads live args; write/read memchecks pause at the
+  offending PC). The old "don't fire" note applied to an earlier build. Remove
+  them promptly (perf decay) and restart PCSX2 if the IOP audio wedges;
+  `watch_change` (raw TCP) remains the low-impact option.
+- No savestates without Pine: snapshot/restore RAM regions instead (player
+  0x8102B0+0x320, camera 0x8101D0+0xE0, globals 0x810600+0x300, inventory
+  0x810C00+0x100, fade 0x28A9A0+0x10, task 0x28A750+0x10) — and only restore
+  while paused at a NEUTRAL PC (main loop), never inside the chain under test.
+- Force a transition without a door: write B5..B8, then hand-start the fade
+  (func_001AEDE0(4,0) is pure data: u16 0x28A9A0=3, u8 0x28A9A2=0, u8
+  0x28A9A3=3, u16 0x28A9A6=4); the consumer commits at hold-black.
 - Pad injection: `{"cmd":"pad_press","buttons":16384,"frames":12}` (Cross=0x4000,
   Circle=0x2000, Square=0x8000, Triangle=0x1000, R1=0x0800, L3=0x0002,
   Start=0x0008; sticks via pad_set lx/ly 0..255, 128 center).

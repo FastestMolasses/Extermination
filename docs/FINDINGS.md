@@ -13584,3 +13584,170 @@ Open:
   func_001D06E0 idx-0 player byte (+0x90/+0x80 — radio-pose flag?).
 
 _Last updated: 2026-06-11 (session 65)._
+
+## LIVE VERIFICATION SWEEP — six flagged s56-s63 items settled in PCSX2 (2026-06-11, session 66)
+
+One live DebugServer session against the s57-s63 static decodes. Method
+notes that matter for future sessions: **execution breakpoints AND
+memchecks DO fire on the current fast x86_64 build** (the s22/s29
+"non-functional" note is obsolete for this build — a write memcheck on
+the frame counter pauses within a frame, exec bp at a jal site reads
+args mid-flight; the bp-decay/IOP-wedge caution stays). Savestates were
+unavailable (Pine down; DebugServer has no save command) — destructive
+tests used paused-RAM region snapshots (player 0x8102B0+0x320, camera
+0x8101D0+0xE0, globals 0x810600+0x300, inventory 0x810C00+0x100, fade
+0x28A9A0, task 0x28A750) restored at a NEUTRAL pause point (restoring
+while paused inside the chain under test re-runs it — learned live).
+A transition can be forced without a door: write B5..B8 then hand-start
+the fade (func_001AEDE0(4,0) is pure data: u16 0x28A9A0=3, u8
+0x28A9A2=mode, u8 0x28A9A3=3, u16 0x28A9A6=speed); the B8 consumer
+runs at hold-black (poll at 0x001ACE34: returns 3 when B8 != 0 &&
+fade == 2).
+
+### 1. WORM SHOOTABILITY (s62 open item) — NOT SHOOTABLE; the stand-in is an invention
+
+- Static: BOTH bullet/melee victim filters reject the worm by MODEL:
+  func_00183AC0 requires class&0x1F == 2 then switches on model byte —
+  0x0D (worm) → 0, 0x0E → 0, 0x0F..0x13 → 0, 0x06 (crate family) →
+  victim only while +0x9F == 0, default → 1. The second filter
+  (0x00183B80) excludes 0xD/0xE/0xF/0x13 the same way (0x12 gated on
+  +0xD == 1). The worm's class byte IS 2 — the model exclusion is
+  doing the work, deliberately.
+- Live: full-lifecycle memchecks (read on +0x34, readwrite on +0x36)
+  on a generator-spawned worm, spawn → approach → latch burst →
+  release, with TWO SPR4 shots fired into it mid-stalk (mag 29→27):
+  ZERO hits except the teardown — the single +0x36 access in its
+  whole life is func_001AFC10's release-clear `sh zero, 0x36`
+  (PC 0x001afc64, brain → release call at 0x00154024). Nothing in
+  the engine ever reads worm +0x34; HP=10 is vestigial init data.
+- Worm census detail: generator mode draw rolled 0 for all 8 office0
+  pads this boot (placement link=1 tables CAN'T roll 2; this scene's
+  pads can) — worm produced by setting runtime mode +0x56 = 2 and
+  standing in the box the decoded 121 consecutive frames. Crate
+  0x7aa590 (link 0) burst by mailbox write spawned NO children in
+  office0 (registry resolved at INIT, +0x0E bit 0 set, but no child
+  appeared — child-model residency in this sub-state is the suspect;
+  unresolved, low stakes).
+- **PORT ACTION: remove the flagged shootable-worm stand-in** (J2
+  updated). Worms are dodged, not shot — the only kills are their own
+  burst/despawn.
+
+### 2. LEECH "32-u NODE TEST" (s62) — it is a SEGMENT-vs-PLAYER-HITBOX query on its OWN rig
+
+- bp at the 0x00154194 call site (approach sub 0): base = *(0x275B40)
+  = the WORM'S OWN node table (worm+0x110 ctx; entries = 0xD0-stride
+  rig node structs). slotA = *(base+0x34) = node 13, slotB =
+  *(base+0x40) = node 16. Node +0xC0 = world position (mid-emergence
+  read: the chain runs node1 deep underground → 13 → 14 → 16 toward
+  the surface — node 16 = the HEAD end, node 13 = the neck, ~6 u
+  apart). NOT two actors, NOT the player mirror.
+- func_0019AA80(p1, p2, m) disassembled: stages the p1→p2 SEGMENT in
+  spad 0x70003190/A0 (w=1, zeroes 0x700031D4) and calls
+  func_001A7280(m & 0xFFFF). **The 0x20 is a query MASK, not a 32-u
+  radius.** func_001A7280 head: s7 = 0x008102B0 — it walks the
+  PLAYER's hit-volume list (player+0x58, bails if null or player
+  event 0). So the latch condition is "my head/neck segment crosses
+  the player's hit volumes (filter 0x20)" — the s62 "≤32-u between
+  two unverified nodes" reading is OVERTURNED. (The lunge arm's
+  func_0019A570(.., 6, 0) is a different helper; its 6 unchecked —
+  likely genuinely a radius given the float-zero second arg, open.)
+- Live corroboration of the s58/s62 latch flow while hosting the
+  worms: approach-touch latch posted 5.0 + re-arm drain took the
+  player 100→65 (and 100→95 on the later controlled run), exactly the
+  producer/latch-tick model.
+
+### 3. PAN CONVENTION (s58-audio open caveat) — wrapped-bearing ≥ 0 = screen-LEFT CONFIRMED; no swap needed
+
+Controlled live experiment, both polarities. A roaming ambient emitter
+(id 0x420, radius 100.0 — self-repositioning, side-effect-free) was
+trapped at func_001FBD50 entry (exec bp, condition a0 != 0x8102B0) and
+its source obj+0xB0 rewritten to a point 50 u from the player at
+camera-yaw ± π/4; the submit was read at func_001FB9F0 entry:
+
+```
+bearing offset   wrapPi(bearing−yaw)   K-projected x_gs   gains (a2=gainA, a3=gainB)
+yaw + π/4        +0.406                1875  (LEFT)       gainA=2896 FULL, gainB=1895
+yaw − π/4        −0.406                2221  (RIGHT)      gainA=1895, gainB=2896 FULL
+```
+
+Predicted from the s58 decode: vol = 4096·sin(π/2·(100−50)/100) = 2896,
+far = vol·cos⁵(0.406) = 1896 — the live pairs match to ±1 LSB. The
+screen side is computed through the engine's own live K (ctx+0x23C0;
+camera-target sanity projection = 2048.0 exactly). With the
+data-verified "gainA = LEFT channel" LUT fact: **wrapped-bearing ≥ 0 ⇒
+side test TRUE ⇒ gainA full ⇒ source is on screen-LEFT.** The port's
+convention is correct as shipped; the "one-line swap" caveat is retired.
+(Also confirmed structurally: a player-attached source can never pan —
+src and listener are the same address, d = 0 forces center/full, which
+is why the hijack had to use a non-player object.)
+
+### 4. MENU ZOOM (s59 open item) — the status menu runs the STANDARD s ≈ 480, NOT 324
+
+Live with the hub open (ctx 0x810130 state 1, flag 0x8106C4 = 1):
+ctx+0x2468 = 0x43F02F4F = **480.37** — unchanged from gameplay (the
+same 480.37 before opening; the 0.37 residue looks like a stalled
+asymptotic zoom-lerp tail, not a menu effect). The render ctx during
+the menu: P at +0x2340 = (m00 0.8·480.37 = 384.295, m11 0.5·480.37 =
+240.18, rows 2/3 standard), V at +0x2380 = identity with **m11 = −1**
+(the UI camera y-flip; the s25 "camera matrix set to identity" is
+identity-with-y-flip in the V slot), K = P·V. So the s49 empirical
+tan(fovy/2) = 0.74 pin does NOT correspond to a different engine zoom —
+the menu player model is drawn through the ordinary s = 480 projection
+with a y-flipped identity view. The s59-implied "menu s ≈ 324.3" is
+dead; whatever the 0.74 pin was compensating for lives in the port's
+menu-scene MODEL TRANSFORM/placement, not the projection
+(PORT_DIFFERENCES E4 updated).
+
+### 5. GAME-OVER TRIGGER (s58 §6 open) — DECODED LIVE: a task REPLACEMENT keyed on D_008106B9, not D_008106CE
+
+Captured twice (kill via pending damage +0x224 = 500, generic tail).
+D_008106CE/CF, D_008106C5, D_008106B0 and D_00275BD8 stayed 0 through
+the entire death — write memchecks never fired. The s58 candidate
+(game-task state 6 / func_001AE7E0 / the D_008106CF screen id) is the
+END-OF-LEVEL path only. The real death chain, every writer trapped:
+
+```
+health hits 0 (func_0021C350)            → player state 2 death subs (s58)
+vitals mirror ~0x0015CFB0 (player spine, → D_008106B9 = 1   (latches once;
+  the func that copies health/infection      health <= 0.0 test; same fn
+  to the 0x810858/5C display floats)         feeds the display copies)
+death terminal func_0021D2E0 phase 1     → func_001AEDE0(4,0) fade-out
+func_001AE040 state 1 tail (0x001AE2BC): if (D_008106B9 && fade == 2)
+                                         → func_001AD140: task+8 = 3, task+9 = 2
+func_001AD250 state 2 = func_001AD4E0   the GAME-OVER WAIT: draws a black
+  (jr-table 0x0026DCB0: 1 = gameplay,    GS quad each frame (func_001ABF90),
+  2 = this, 4 = install, 5 = post-wait)  runs the task+0x18 countdown
+                                         (skippable: pad word 0x810E74 & 0x0040),
+                                         (re)arms the fade; at fade == 2 →
+                                         func_001FAB50() + task+9 = 4  (PC 0x001AD71C)
+state 4 arm (0x001AD304) = func_001ADF00 → clears 0x810D38/spad 0x3B93,
+                                         func_001D2880/001D1EF0/001AEBA0(0xFF),
+                                         gp-0x7794 = 1 ("from death"),
+                                         func_001AB790(0x001AC070)
+                                         → **the game task FN in slot 0
+                                         (0x28A750+4) is REPLACED** by
+                                         func_001AC070 — the CONTINUE/GAME-OVER
+                                         screen machine (7 states, jr-table
+                                         0x0027DC90; state 0 reads gp-0x7794;
+                                         the title path installs the same task
+                                         with flag 0 at 0x001AB9A0)
+```
+
+So "game over" is not a frame-machine state at all — the gameplay task
+func_001ACEC0 is swapped out wholesale and swapped back on continue.
+The port's flagged stand-in should key on the engine trigger (health-0
+latch byte + hold-black) and treat the screen as a separate task; the
+screen module/texture decode (func_001AC070's draw path) remains open.
+
+### 6. DOOR-CUT GEOMETRY (s56b formulas) — EXACT, second independent capture
+
+Office double doors, north side, cam+0xA0 change-watch: at the cut the
+spad pose 3B40/3B50 = staging (104, 10.9, −247.2) with through-door yaw
+π; desired EYE = (104, **19.0**, −227.2) = staging − 20·(sin π, cos π)
+with EYE.y = player.y + 19 exact; desired TARGET = (104, **13.0**,
+−247.2) = staging with TARGET.y = player.y + 13 exact; desired
+hard-copied to actual (D_008105D0/E0 identical), cam+0xA0 = 0x78,
+cam+0x0C = −31.2 (the per-record distance/fog copy). Every s56b number
+reproduced; D9 stays (match).
+
+_Last updated: 2026-06-11 (session 66)._
