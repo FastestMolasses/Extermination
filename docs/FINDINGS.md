@@ -8710,6 +8710,14 @@ the hand-activated set, so the manifest is round-trip safe).
 
 ## PLAYER STICK LOCOMOTION IDS — walk = anim id 1, run = anim id 2 (2026-06-10, session 31)
 
+> **2026-06-11 s56 CORRECTION — every tier label below is ONE STEP LOW.**
+> This section read only the locomotion ENTRY (locIdx = gait-1); the
+> tier is then RAMPED UP by func_0017BC40 until D_00248870[locIdx]
+> matches the func_00174AC0 target +0x240 — full stick SUSTAINS
+> locIdx 3 = anim id 3 at 0.8 u/tick. Gait 1/2/3 = WALK id 1 / JOG
+> id 2 / RUN id 3. See "LOCOMOTION TIER RAMP" (s56); the selection
+> chain and table dumps below remain correct as the entry mechanics.
+
 Closes the s30 flag "the port's locomotion ships clips 2/3 from the
 s10 stride scan; the engine's default walk is id 1". Static decode of
 the full stick → anim-id selection chain; the port now commits the
@@ -11327,9 +11335,181 @@ Also this session (port-side fidelity, decode-adjacent):
   Option = the gait-1 TURN/creep ring 0.5 — gait 1 is the engine's
   slowest movement tier (zero translation; D_00248870 has no slower
   translating band, so "slowest" maps to turn-in-place, documented).
+  *(s56 correction: gait 1 SUSTAINS the id-1 WALK at 0.1 u/tick — the
+  zero-translation read was the entry transient; Cmd = JOG id 2,
+  Option = WALK id 1, full = RUN id 3. See "LOCOMOTION TIER RAMP".)*
 - WOODEN CRATE (s34 n0 entry 0x0D) promoted to the GLOBAL port default
   (user-confirmed fidelity). Honest table note: the cardboard model is
   the n1 (office sub-1) table's, but NO sub-1 placement record spawns a
   crate — no shipped scene genuinely binds cardboard.
 
-_Last updated: 2026-06-11 (session 54)._
+
+## LOCOMOTION TIER RAMP — full stick = anim id 3, the s31/s54 gait labels were one tier low (2026-06-11, session 56)
+
+USER PCSX2 REPORT (the oracle): "the player still WALKS by default;
+should RUN — Cmd should give the anim the port played by default,
+Option the one under that." Correct on all counts. Re-decode of the
+gait chain found the missed mechanism; every prior tier label was one
+step too slow.
+
+### What s31 missed: the tier is RAMPED, not gait-1
+
+The s31 chain (quantizer 0..3 -> +0x23F -> locIdx +0x25C = gait-1 ->
+anim id row[locIdx]) read only the locomotion ENTRY. The full machine:
+
+1. **func_00174AC0** is not a "max check": it switches on +0x23F and
+   writes a TARGET SPEED `+0x240` = {0, 0.1, 0.3, **0.8**} u/tick for
+   gaits 0/1/2/3 (immediates 0x3DCCCCCD/0x3E99999A/0x3F4CCCCD). Full
+   stick targets 0.8 — the "sprint" speed.
+2. **func_001612D0 state 2** (entry only): locIdx = gait-1, speed
+   +0x38 = D_00248870[locIdx], ONE anim request, then state-- to 1 —
+   the per-frame re-request the s31 read assumed does NOT happen.
+3. **func_0017BC40 phase 1** (the ramp, jtbl_0026D720): sub 1
+   accelerates +0x38 by `D_00248880[locIdx]` per frame and on crossing
+   `D_00248874[locIdx]` (= D_00248870[locIdx+1]) does **+0x25C += 1**
+   — a TIER PROMOTION; sub 2 mirrors it down via D_00248890 /
+   D_0024886C (= row -1). Sub 0 compares +0x38 to the +0x240 target:
+   the tier settles where `D_00248870[locIdx] == target`.
+4. **anim_matrix_player** (from func_0017C030 phase 1) re-requests the
+   anim every ramp frame: sub 0 -> row id[locIdx]; sub 1 (accel) ->
+   id[locIdx+1] (blends TOWARD the next tier's clip); sub 2 ->
+   id[locIdx-1]. At-tier locIdx==2 sets the anim rate +0x204 = 0.75
+   (0x3F400000) — see the cross-check below.
+
+So the SUSTAINED tier == the gait itself; gait-1 is only the entry:
+
+| gait (ring) | sustained locIdx | anim id | speed u/tick (u/s) | D_00248C90 steps |
+|---|---|---|---|---|
+| 1 (48<r<=88) | 1 | **1 WALK** | 0.1 (6) | 72/21 |
+| 2 (88<r<=122) | 2 | **2 JOG** | 0.3 (18) | 26/3 |
+| 3 (full) | 3 | **3 RUN** | 0.8 (48) | 21/2 |
+
+Tier 0 (id 0, speed 0 — turn-in-place) is the gait-1 entry transient
+(~2 frames), not a sustained band. ELF dumps (rebuilt .data):
+D_00248870 = {0, 0.1, 0.3, 0.8}; accel D_00248880 = {0.05, 0.05,
+0.0625}; decel D_00248890 = {—, 0.05, 0.025, 0.022727}; full mode-1
+row table D_00248AB0[1] families: 0 unarmed {0,1,2,3}, 1 {A,B,C,D},
+2 {4B,4C,4D,4E}, 3 {55,4C,4D,4E}, +0x10 {14,15,16,17}; mode-0 idle row
+{0,A,4B,55,14}; mode-6 (stop) family-0 row {0,0,4,5} — ids 4/5 = the
+jog/run STOP-SKID anims (func_0017C030 phase 3 requests mode 6 at
+locIdx 3; untranslated in the port, flagged). Family byte +0x235 is a
+bitfield (bit0 armed — func_001B07C0 copies D_00810706; bit1 aim/
+special — func_001756E0), so default unarmed = row 0.
+
+Stick release: target 0 -> tiers <=2 stop INSTANTLY (phase 3, +0x38=0);
+tier 3 first runs DOWN (phase 2, 0x17BECC): 0.03125 u/tick/frame decay
+(x2 with carried gear +0x314 & 0x1F) to the tier-2 speed, then the
+stop — the run carries ~9 u. Pivot turns (heading delta > 3/4 pi in
+func_00174AC0) set phase 7 subs 3/4.
+
+### Clip evidence (fixed-directory bakes, 2026-06-11)
+
+| id | frames | root travel | natural u/s | feet swing | arm swing |
+|---|---|---|---|---|---|
+| 0 | 80 | 0 | 0 (breathing idle) | — | — |
+| 1 | 120 | 12.13 u | 6.11 | 7.3 u | 3.3 u |
+| 2 | 45 | 17.65 u | 24.07 | 8.4 u | 4.9 u |
+| 3 | 40 | 30.92 u | 47.57 | 10.1 u | 6.8 u |
+
+Cross-checks that pin the mapping: tier 2 drives clip 2 at 18/24.07 =
+0.748 — exactly the engine's hard-coded at-tier rate 0.75; tier 3
+drives clip 3 at 48/47.57 = 1.009 ~ 1.0. Clip 3 is the full arm-pump
+15.5-u-stride RUN — the PCSX2 full-stick anim. **CURIOSITIES entry 2
+("the unreachable sprint") is OVERTURNED**: the quantizer's clamp at
+gait 3 caps the TARGET, but the tier ramp reaches locIdx 3 in normal
+play — id 3 is the ordinary full-stick run, reached ~14 frames after
+a standing start (0.3 entry + 8 accel frames).
+
+(The s29/s30 live footstep data re-reads consistently: the 72/21
+metering was a partial-stick WALK moment; the 0x15../0x1A.. surface
+bands were tiers 2/3 — the sub-base key a1 IS +0x25C, unchanged.)
+
+### Port (extermination-port, this session)
+
+em_game.c: tier ramp implemented (entry gait-1 + accel/decel/promotion
++ tier-3 run-down; loco_tier/loco_upt = +0x25C/+0x38); clips
+walk/jog/run = ids 1/2/3 (all already in player.emdl — no re-export
+needed), stride-locked at 6/18/48 u/s; footstep frames per id (72/21,
+26/3, 21/2) and sub-base a1 = tier; walk-out keeps 0.3 = tier 2 (now
+honestly the JOG clip). em_input: Cmd 0.8 = JOG band, Option 0.5 =
+WALK band (the "TURN tier" labels retired). EM_MOVE_TEST expectations
+honestly recomputed (83.4, -174.5 wall stop; ramp 4.65 u + 0.8/f).
+All self-tests PASS; office + drawbridge default captures
+byte-identical (idle paths untouched).
+
+## SLIDER DOOR BRAIN func_001BB860 DECODED — walk-into trigger, no fade, no player anim (2026-06-11, session 56)
+
+USER PCSX2 REPORT: "sliding doors — the player just walks through; no
+door-open animation plays." Decoded: that IS the variant brain's whole
+design. Closes the s32 flag "the variant lifecycle differs in
+sequencing — unread".
+
+### The brain (per-frame, +0x05 state machine)
+
+- **state 0 (armed)**: branch on placement flags2 +0x3 — {0x16, 0x17,
+  0x3E} are LOCK-GATED: test `D_00810841[area] & (1 << door_id+0x34)`;
+  bit set -> trigger sub with a2=0 (OPEN, state->2), clear -> a2=1
+  (LOCKED try, state->1). All other flags2 (office 0x83, plain
+  sliders) -> always a2=0 OPEN.
+- **state 1** (locked-try pump func_001BB7C0 done): clears the use
+  mailbox +0xB, re-arms state 0. **state 2** (open pump done) ->
+  state 3 = func_001BC150 — the SAME transition COMMIT as m03 (dest
+  table D_0024E140; the slider doors with id bit7 are area changes,
+  plain ids are room moves). **state 4**: func_001BB7F0 wait ->
+  re-arm state 0.
+- Tail (every frame): dist(player) <= 20 sets the near flag +0x1, and
+  class bit7 registers on the interactive list (func_001B1DE0) — the
+  same use-scan plumbing as m03, so the TRIGGER is the standard +0xB
+  bit-2 use-arm: **the player WALKING INTO the door** (state-0x2D
+  push-into scan, FINDINGS "Door contract" — no button).
+
+### The trigger sub func_001BB560 (the player's role)
+
+Gate `+0xB & 4`, then:
+1. SIDE: bearing(door->player) vs door yaw +0xC4 — within pi/2 =
+   front, +0x2E = 0 (flags2 8/0x16 INVERT the latch — single-leaf
+   variants mount reversed; flags2 8/0x16 are also func_001BB400's
+   single-leaf motion branch).
+2. PLAYER YAW SNAP: +0xC4 of the player block D_008102B0 = door yaw
+   (+ pi on the front side) — pointing THROUGH the doorway.
+3. PLAYER SNAP: staging = door_pos − **6.0** · (sin, cos)(new yaw)
+   (y = player y) via **func_00182F90 = instant translate** (the m03
+   kickoff's snap helper; 6.0 here vs the m03 family's 5.0).
+4. Queue the OPEN script D_0024D900 (sound rec patched by
+   func_001BBD60(self, D_0024D980)) or the LOCKED D_0024DA40 (camera +
+   VO only — no motion, sliders have no jiggle clip). Area-0x16
+   special case: D_0024E140-driven flag writes to D_008106C8 bit 0x80.
+
+### The OPEN script = the observed behavior
+
+op07 sub0 scripted-mode enter (input lock, **NO fade** — the locked
+script's op07 sub2 is the fading one) -> op0D sub5 chase-camera cue ->
+op17 sub0 ONE positional door sound -> op09 func_001BB400 native slide
+(panels' keyed local translation 0.2 u/frame until ±9.0 — 45 ticks;
+flags2 0x3D/0x3E use 13.0, 0x08/0x16 single leaf) -> **op01 sub8 =
+scripted player WALK-THROUGH** (func_001B94F0 move-to family, walk
+clip) -> STOP. There is NO player door-gesture anim anywhere and no
+fade: walk at the door -> it parts -> you walk through. Exactly the
+user's PCSX2 description.
+
+### Port (extermination-port, this session)
+
+em_door.c "SLIDER (m17/m09) VARIANT BRAIN": sliders (filename
+door_m09/door_m17) leave the m03 machine — walk-into arming (stick
+past the dead ring + the class-5 window; CROSS stays only on the m03
+family), 6.0-u staging (walked via the established MOVE-TO deviation,
+not snapped), slide clip pump with one doorsfx play, scripted
+walk-through to the mirrored far point, then: goto sliders run the m03
+fade+scene-switch commit (native interleave unread, flagged); plain
+sliders end UNLOCKED on the far side, stay parted, and re-close
+(reverse clip, the s32 flag) when the player leaves the radius + 2-u
+hysteresis. Not ported (flagged): the D_00810841 lock gate + LOCKED
+script, the op0D chase-camera cue, the single-leaf +0x2E inversion
+(no flags2 in the manifest). EM_SLIDER_TEST=1 (scene_drawbridge,
+door 4 m09 at (128.6, 0, -610)) asserts the whole sequence: no-button
+arming, mid-slide park at (122.6, -610) with anim_active 0, fade
+pinned 0, far-side landing (134.6, -610) unlocked, re-close — PASS.
+Captures: closed approach / panels parted with the player standing /
+player mid-walk-through.
+
+_Last updated: 2026-06-11 (session 56)._

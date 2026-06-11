@@ -30,11 +30,18 @@ surfaces (FINDINGS s28b, s51):
 - Open: awareness decay, the consuming enemy family, room-light gating, why
   the off-gesture shares clip id 0x15D with the idle look-around fidget.
 
-## 2. The unreachable sprint (decoded)
+## 2. ~~The unreachable sprint~~ — OVERTURNED: id 3 is the ordinary full-stick run (decoded)
 
-The locomotion tables define FOUR gaits — turn/walk/run plus a sprint slot
-(anim id 3, 0.8 u/tick = 48 u/s, footstep frames 21/2) — but the gait
-quantizer clamps at 3, so the sprint is unreachable data. (s31, s46)
+s31/s46 called the fourth locomotion slot (anim id 3, 0.8 u/tick =
+48 u/s, footstep frames 21/2) "unreachable data" because the stick
+quantizer clamps at gait 3. WRONG (s56, prompted by a live PCSX2
+report): the quantizer only caps the TARGET SPEED (func_00174AC0
++0x240 = 0.8 at gait 3); the tier ramp func_0017BC40 then PROMOTES the
+locomotion tier +0x25C one boundary at a time until the tier speed
+matches — full stick reaches tier 3 / anim id 3 about 14 frames after
+a standing start. The real ladder is walk id 1 (6 u/s) / jog id 2
+(18 u/s) / run id 3 (48 u/s); there is no hidden sprint — just a
+mis-read entry tier. (FINDINGS "LOCOMOTION TIER RAMP", s56)
 
 ## 3. Hidden animation directory entries (unknown)
 

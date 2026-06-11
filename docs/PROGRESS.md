@@ -28,8 +28,9 @@ weapons, enemies, doors, audio and the real status screen.
   (s22), inventory/battery globals (s19/s21), status screen + UI font + UI
   textures + sub-page identities/navigation (s25/s26b/s27b/s39), SShd tone records + the full engine sound-id map
   (s12, `soundmap`), music/voice cue tables (s15), generators (s28+), the
-  kind-0xE tendril field (s33), engine-exact locomotion ids (s31), live
-  gameplay sound-id captures (s29). All formats in docs/FINDINGS.md.
+  kind-0xE tendril field (s33), engine-exact locomotion ids + the tier
+  ramp (s31, corrected s56: walk/jog/run = ids 1/2/3 at 6/18/48 u/s),
+  live gameplay sound-id captures (s29). All formats in docs/FINDINGS.md.
 
 ### Native port (sibling `extermination-port/`, macOS Cocoa+Metal, zero-dep)
 
@@ -42,8 +43,9 @@ weapons, enemies, doors, audio and the real status screen.
   (s38/s45: office west door -> drawbridge -> office0 and back; the
   flagged synthetic vent stands in for the overlay-scripted office0
   access).
-- **Player**: textured, animated, with engine-exact walk/run clip ids and
-  footstep frames (s31), aura glow (s17-blockquote), attached weapons (s8/s9).
+- **Player**: textured, animated, with the engine-exact walk/jog/run tier
+  ramp, clip ids and footstep frames (s31/s56), aura glow
+  (s17-blockquote), attached weapons (s8/s9).
 - **Weapons**: draw/aim/holster/reload with the real clips, laser hit-dot,
   aim camera, per-shot recoil via the engine's aim-ladder replay mechanism
   (s24, fire-anim s25-blockquote); engine-faithful controls (CIRCLE fire,
@@ -51,7 +53,9 @@ weapons, enemies, doors, audio and the real status screen.
   SQUARE = heavy stab, real clips/damage/sounds + the armed-SQUARE 0x179
   toggle (s36); EM_MELEE_TEST self-test.
 - **Doors**: real swing/slide clips (s30-blockquote/s32), real per-pair door
-  sounds (s26), walk-through transit + fade per the decoded scripts (s20/s23).
+  sounds (s26), walk-through transit + fade per the decoded scripts
+  (s20/s23); sliders run their decoded variant brain — walk-into trigger,
+  native slide, scripted walk-through, no fade/player anim (s56).
 - **Enemies**: crawler crates (burst → gibs + leech), worm generators with
   decoded cadence (s28+), per-scene carved crate model (s34), tendril spike
   asset shipped (s35); EM_ENEMY_TEST 1–4 self-tests.
@@ -5166,3 +5170,51 @@ full detail):
   Capture-harness note: the FIRST run after a fresh build can produce a
   divergent capture (cold-start; subsequent paced runs are identical) —
   compare steady-state runs.
+
+### Update — 2026-06-11 s56: LOCOMOTION TIER RAMP (full stick = id-3 RUN; "unreachable sprint" overturned) + SLIDER BRAIN func_001BB860 decoded & ported
+
+Driven by two live-PCSX2 user reports (the oracle), both confirmed:
+
+- **GAIT CORRECTION — every s31/s54 tier label was one step low.**
+  func_00174AC0 is a gait -> TARGET-SPEED map (+0x240 = {0, 0.1, 0.3,
+  0.8} u/tick), func_001612D0 state 2 only ENTERS at locIdx = gait-1,
+  and func_0017BC40 phase 1 RAMPS +0x38 by D_00248880[tier]/frame,
+  PROMOTING +0x25C at each D_00248870 boundary until tier speed ==
+  target; anim_matrix_player re-requests the tier clip each frame
+  (mid-accel: the NEXT tier's clip). Sustained: gait 1 = WALK id 1
+  (6 u/s), gait 2 = JOG id 2 (18 u/s), gait 3 = RUN id 3 (48 u/s) —
+  id 3 was never "unreachable sprint data" (CURIOSITIES entry 2
+  overturned). Cross-checks: engine at-tier-2 anim rate 0.75 ==
+  18/24.07; clip-3 natural 47.57 u/s == the 0.8 target at rate ~1.0.
+  Fixed-directory bakes re-measured (id1 120f/6.11, id2 45f/24.07,
+  id3 40f/47.57 u/s; arm-pump 3.3/4.9/6.8 u). Stop behavior: tiers
+  <=2 instant, tier 3 runs down 0.03125 u/tick/f to 0.3 then stops
+  (mode-6 stop-skid anims = row {0,0,4,5}, ids 4/5 — open).
+- **Port (extermination-port)**: tier ramp implemented (loco_tier/
+  loco_upt = +0x25C/+0x38; entry, accel/decel tables, tier-3
+  run-down); clips 1/2/3 (already in player.emdl) stride-locked at
+  6/18/48; per-id footstep frames 72/21 / 26/3 / 21/2 and sub-base
+  a1 = tier; em_input tiers relabeled (Cmd = JOG 0.8, Option = WALK
+  0.5); EM_MOVE_TEST recomputed honestly (83.4, -174.5). Walk-out
+  keeps 0.3 — now honestly the JOG clip id 2.
+- **SLIDER DOORS (m17/m09) — func_001BB860 fully decoded** (FINDINGS
+  s56): trigger = the standard +0xB walk-into use-arm (NO button);
+  trigger sub func_001BB560 latches the side, SNAPS the player yaw
+  through the door + position to door − 6.0·fwd (func_00182F90), and
+  queues OPEN script D_0024D900 = scripted mode (NO fade) + chase-cam
+  cue + ONE door sound + native slide func_001BB400 (0.2 u/f to ±9)
+  + op01-sub8 scripted player WALK-THROUGH — **no player door anim
+  exists for sliders** (the user-observed "just walks through").
+  Lock-gated flags2 {0x16,0x17,0x3E} route D_00810841 misses to the
+  LOCKED script (camera+VO, no motion). State 3 = the m03 commit
+  func_001BC150; state 4 re-arms.
+- **Port**: em_door.c slider machine (walk-into arming, 6.0-u staging
+  walk, slide pump + doorsfx, walk-through, stay-open + reverse-clip
+  re-close on leave; goto sliders reuse the m03 fade commit,
+  flagged). New EM_SLIDER_TEST (drawbridge m09 door 4) — PASS;
+  captures: closed approach / panels parted, player parked, no anim /
+  mid-walk-through. ALL self-tests PASS (move/door/transit/pause/
+  weapon/enemy 1-4/melee/aim/camregion/sfx/input/weapon-unit +
+  slider); office AND drawbridge default captures byte-identical.
+  Open: slider lock-bitmask gate, op0D chase-cam cue, flags2
+  single-leaf side inversion, mode-6 stop-skid anims.
