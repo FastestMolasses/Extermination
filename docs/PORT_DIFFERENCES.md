@@ -51,7 +51,10 @@ lists whole missing systems):
 
 (s62 re-count: J1 closed to "(match)" — −1 B, the freed FS slot taken by
 J2's SU→FS reclassification. D3's s61 close is NOT yet folded in here —
-that session owns its own re-count.)
+that session owns its own re-count. s64: D3's remaining aim stand-in is
+CLOSED — func_0018F870/0018CE60/0018D910 decoded + translated, −1 FS;
+D4 narrowed [the func_00191000 L1 arm is engine-true, the seek motion
+stays SI].)
 
 **Top 10 worst divergences** (impact-ranked; section.entry cites):
 
@@ -107,8 +110,11 @@ that session owns its own re-count.)
    the player's top" is emergent look-down geometry, verified by capture); plus
    head-clear waiver (17.5), wedge eject (4.0), 5.5-u side probes with corridor
    centering, and floor+17/ceiling−1 eye-Y bounds. The invented rise search
-   (step 2.0 / ceiling 40) is retired. Aim remains a flagged stand-in — the aim
-   camera's own solver func_0018F870 (style 2, mask 7) is still unread (D3).
+   (step 2.0 / ceiling 40) is retired. The AIM solver func_0018F870 is now ALSO
+   decoded and translated (s64, FINDINGS "AIM CAMERA WALL SOLVER"): R1 keeps the
+   constant-height pull-in (player→eye probe, no waiver/wedge, corner slide along
+   the wall, floor+2 eye-Y bound) — the CAM_WALL_MARGIN stand-in is retired,
+   verified by the EM_CAPTURE_AIM=5 wall capture (D3).
 9. **Audio: no per-sound pitch, first-event-only triggers** — tone center notes
    undecoded (M1), multi-event trigger scripts play their first event only (M4).
    RESOLVED 2026-06-11: positional attenuation/pan (the func_001FBF50 decode — the
@@ -173,8 +179,8 @@ that session owns its own re-count.)
 |---|----------|--------------|------|-----|--------|
 | D1 | Chase primitives | func_0018C6A0 (/6, cap, 0.25 snap), func_0018C4B0 (/8) | translated exactly | — | (match) |
 | D2 | Camera modes | modes 0..15 (cut/smooth tables), top-mode 3 scope func_0022EEF0, init mode 8 settle | only mode 0 (follow) + mode 1 (aim) exist; init snaps actual=desired instead of mode-8 settle; modes 2..15 + scope TODO | B | UT (flagged TODO) |
-| D3 | Blocked-eye response | **DECODED s61** func_0018DD20 (style 0, mask 6 — the idle/walk camera): constant-height pull-in (hit + 0.5 along the sight line), head-clear waiver (player.y + 17.5, dist ≤ 46.8), ceiling duck (hit.y − 1), wedge eject (reverse probe, 4.0·normal), 5.5-u side probes + corridor centering, eye-Y bounds floor+17 / ceiling−1, result bits → +0x07 (idle gate & 9) | translated verbatim (`cam_solver_0018DD20`); the invented rise search RETIRED; observed rise/return verified EMERGENT (EM_CAPTURE_RISE captures). Remaining stand-ins: AIM solver func_0018F870 unread (`CAM_WALL_MARGIN` pull-in, now mask 7); pre-pass func_0018D330 outputs (+0x5A/+0x60/+0x6D) unconsumed; styles 3/4/5 variants + area-0x12/0x15 specials untranslated (no native reach) | — | (match; aim stand-in FS) |
-| D4 | R1/L1 orient | engine: camera-mode swaps; orient-to-heading family rate 2°/frame (func_001921D0) — which player state L1 routes through is unpinned | L1 one-shot seek at the family rate; R1 owned by the aim camera | B | SI (flagged) |
+| D3 | Blocked-eye response | **DECODED s61 + s64** func_0018DD20 (style 0, mask 6 — the idle/walk camera): constant-height pull-in (hit + 0.5 along the sight line), head-clear waiver (player.y + 17.5, dist ≤ 46.8), ceiling duck (hit.y − 1), wedge eject (reverse probe, 4.0·normal), 5.5-u side probes + corridor centering, eye-Y bounds floor+17 / ceiling−1, result bits → +0x07 (idle gate & 9). **s64**: the AIM solver func_0018F870 (style 2, mask 7) decoded — player→eye probe, bit-1 block, NO waiver/wedge, GRID-hit bounds resettle (func_0018CE60), corner slide (5.5 u along the wall), simplified side stage, floor+2/ceiling−1 next-frame bounds; style 5 = func_0018D910 bounds-only maintenance | s61 follow solver translated verbatim (`cam_solver_0018DD20`); s64: aim solver translated verbatim (`cam_solver_0018F870` — `CAM_WALL_MARGIN` stand-in RETIRED; EM_CAPTURE_AIM=5 wall capture verifies the pull-in), director bounds pass (`cam_solver_0018D910`) runs in the fixed-region path. Remaining: pre-pass func_0018D330 outputs (+0x5A/+0x60/+0x6D) unconsumed; styles 3/4 cinematic variants + style-6 scope + area-0x12/0x15 specials untranslated (no native reach) | — | (match) |
+| D4 | R1/L1 orient | engine: camera-mode swaps; **L1 ARM DECODED s64** (func_00191000, routed from the mode-0 router func_00193EB0 states 1/0x21 + the walk camera func_00230000): press edge of config halfword spad 0x70003B80, goal = player heading (+π when action +0x1F0 == 6), 3° deadband, sub-state 3 with radius +0x4C = clamp(\|D_0081069C\|, 7, \|cam+0x64\| = 46.8); the sub-state-3 MOTION handler is unread (family rate 2°/frame) | L1 arm translated (deadband + radius clamp; the +π action-6 flip has no native producer); the seek MOTION stays the family-rate port stand-in around the armed radius; R1 owned by the aim camera | B | SI (narrowed s64; motion flagged) |
 | D5 | Idle auto-orient | decoded: 481-frame timer, 3° deadband, 0.2°/frame orbit, wall bits 0xD/0xB cancel (func_001921D0/func_00193D90) | translated; the timer-reset gate now reads the REAL solver bits (+0x07 & 9, s61); the orbit-cancel 0xD/0xB direction bits remain mapped onto a port rotation-path segment test | S | SI (flagged) |
 | D6 | Aim camera mode 1 | decoded (func_00197D20/740/870); flagged areas use eye floor +11 | translated; port always uses the +2 floor (flag-area param not carried) | B | SI (flagged) |
 | D7 | Aim release | engine swaps to transition mode 2 (func_00198650, untranslated) | chase yaw re-seeded from eye→player heading, mode-0 blends back | B | FS |

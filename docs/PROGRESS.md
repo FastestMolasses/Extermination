@@ -140,6 +140,36 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 64): AIM CAMERA WALL SOLVER func_0018F870 FULLY
+> DECODED + PORT (FINDINGS "AIM CAMERA WALL SOLVER func_0018F870
+> DECODED"; closes the s61 remaining-flagged list / PORT_DIFFERENCES
+> D3 aim stand-in, narrows D4). The 0x16A4 read: probe = PLAYER
+> POSITION -> eye + 1.5 (not target->eye), block returns bit 1, NO
+> head-clear waiver, NO wedge eject — "R1 keeps the pull-in" (eye x/z
+> = hit + 0.5 along player->eye, HEIGHT KEPT) is engine truth; GRID-
+> walker hits resettle the eye-Y bounds at the hit (func_0018CE60 —
+> also the s10 camera-init "settle": floor pad 2 aim / 6 var5C / 17,
+> n.y<=0.17 raw-Y rule); square-on blocks (head-on dot >= 0.99) run a
+> CORNER SLIDE (lane 1 u off the wall, -3..+5.5 along it, different-
+> wall dot < 0.9 -> eye parks 5.5 u from the corner); clear/glancing
+> runs a simplified 5.5-u side stage (no graze check, no confirm
+> probe); next-frame bounds floor+2/ceiling-1 from eye pulled 1.0 to
+> player+11up. func_0018D910 (style 5) = BOUNDS-ONLY maintenance
+> (s61's "returns 0" undersold it). func_00191000 = the L1 RE-ORIENT
+> ARM (s61's "walk-state eye placer" label was WRONG): config press
+> edge at spad 0x70003B80, 3-deg deadband, +pi flip on action 6, sub-
+> state 3 radius clamp(|D_0081069C|, 7, 46.8); routed from
+> func_00193EB0 (also decoded: the player-state -> camera-mode router)
+> states 1/0x21 + func_00230000 (walk camera, still unread — it owns
+> the door re-seat +29, retracting the s56 func_00191000 guess). Port:
+> cam_solver_0018F870/cam_bounds_settle_0018CE60/cam_solver_0018D910
+> translated, CAM_WALL_MARGIN retired, decoded L1 arm; NEW
+> EM_CAPTURE_AIM=5 aim-at-wall capture (pull-in park at wall+0.5,
+> height pinned, then glancing side re-place — stable); full suite
+> PASS (slider/locked pre-date at HEAD), default capture
+> byte-identical. Note: parallel c4dba3d swept the mid-session camera
+> hunks at a non-compiling point; the s64 commit completes them.
+
 > 2026-06-11 (session 63): ITEM PICKUP SYSTEM FULLY DECODED + PORT
 > SHIPPED (FINDINGS "ITEM PICKUP SYSTEM FULLY DECODED"; closes
 > PORT_DIFFERENCES headline #2 / Q1 / Q2 first slices; OVERTURNS the
@@ -5630,8 +5660,10 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   Default capture byte-identical vs HEAD; self-tests input/weapon/
   move/door/proj/aim/camregion/transit/pause/melee/sfx/death PASS
   (slider+locked failures pre-date this work at clean HEAD).
-- **Open**: func_0018F870 (aim/scope solver, styles 2/6);
-  func_0018D910 (director solver, style 5); func_00191000 (walk-state
-  eye placer — the live door re-seat +29 parking); pre-pass
+- **Open**: ~~func_0018F870 (aim/scope solver, styles 2/6)~~ CLOSED s64;
+  ~~func_0018D910 (director solver, style 5)~~ CLOSED s64 (bounds-only);
+  ~~func_00191000~~ CLOSED s64 — it is the L1 RE-ORIENT ARM, not an eye
+  placer (the door re-seat +29 parking belongs to func_00230000, still
+  unread, along with the sub-state-3 L1 motion handler); pre-pass
   func_0018D330 consumers (cam+0x5A/+0x60/+0x6D); styles 3/4 cinematic
   variants; area-0x12/0x15 solver specials.

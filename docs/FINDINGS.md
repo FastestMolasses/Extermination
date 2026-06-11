@@ -12836,7 +12836,7 @@ style 2, else mask **6**; always runs the pre-pass func_0018D330; then:
 | 1 | func_0018DD20, then actual = desired HARD COPY | door-cut/cinematic placements (anim_frame_top_b, func_001921D0 state 0x2F) |
 | 3, 4 | func_0018DD20 (style 3 takes a reduced branch: no waiver, simple pull-to-hit; caller chases at 0.8) | func_001921D0 cinematic/special states (6, 7, 9, 0x13, 0x14, 0x15, 0x18, 0xA/0x19, 0x2C/0x2D) |
 | 5 | func_0018D910 (returns 0) | func_00195130 director fixed cams, func_00194DB0, func_00230000 fall-cam |
-| 2, 6 | **func_0018F870** (mask 7) | **the AIM camera** func_00197D20 — a separate solver, still unread → "no rise while aiming" is STRUCTURAL |
+| 2, 6 | **func_0018F870** (mask 7) | **the AIM camera** func_00197D20 — a separate solver, **DECODED s64** ("AIM CAMERA WALL SOLVER func_0018F870 DECODED" below): R1 keeps the constant-height pull-in (no waiver/wedge; corner slide; floor+2 bound) |
 
 Pre-pass func_0018D330 (always runs, outputs nothing the solver core
 reads): cam+0x6D = func_0019B7D0 vertical query flag; cam+0x5A bits
@@ -12917,7 +12917,8 @@ plain wall pulls x/z only.
 
 - `cam_solver_0018DD20` translated verbatim (style 0, mask 6); aim keeps
   its flagged pull-in stand-in for the unread func_0018F870 (now run
-  over mask 7).
+  over mask 7). **SUPERSEDED s64: func_0018F870 is decoded and
+  translated — see "AIM CAMERA WALL SOLVER func_0018F870 DECODED".**
 - EM_CAPTURE_RISE + EM_CAMERA_TRACE (office scene): running at the
   camera parks the desired eye at wall + 0.5 (z −250.5), height pinned
   19.00 across 300+ blocked frames while the target closes to 5 u →
@@ -13260,3 +13261,150 @@ separate in-world toast and no take sound on the path itself.
   not modeled; cond-2 records emit active, 3..6 commented).
 
 _Last updated: 2026-06-11 (session 63)._
+
+## AIM CAMERA WALL SOLVER func_0018F870 DECODED — R1 keeps the pull-in; plus func_0018CE60 settle, func_0018D910 director bounds, func_00191000 L1 arm (2026-06-11, session 64)
+
+Full static read of the s61 remaining-flagged camera functions:
+`func_0018F870` (0x16A4 — the styles 2/6 aim/scope solver), its callee
+`func_0018CE60` (0x4C4 — the "settle vs world" of the s10 camera-init
+note), `func_0018D910` (0x408 — the style-5 director solver), and
+`func_00191000` (0x11C — mislabeled "walk-state eye placer" in s61; it
+is the **L1 re-orient ARM**) + its router `func_00193EB0`. All
+translated into `extermination-port` em_game.c (camera section).
+
+### func_0018F870 (cam, player, style 2=aim/6=scope, mask 7) — the aim solver
+
+Same spad vector kit and query hub (func_0019A910) as func_0018DD20.
+Differences from the follow solver, in engine order:
+
+1. **PRIMARY PROBE: player position (+0xB0) → desired eye extended
+   1.5 u** — NOT target→eye: the aim target rides the gun ray 16 u
+   ahead of the player, so the occlusion line is player→eye. A hit
+   sets **result bit 1** (the follow solver's plain pull-in returns 0)
+   and publishes the class (cam+0x58). GLANCING := dot(horiz
+   **TARGET-ward** sight dir, horiz raw normal) < **0.99**
+   (0x3F7D70A4) — a far tighter square-on gate than the follow sin45;
+   small aim-yaw deflections flip the response mode.
+2. **FIRST STAGE — every hit. NO head-clear waiver, NO wedge eject.**
+   - non-wall class (0xD800): widen the carried Y bound to admit the
+     hit (ceiling-class 0x8800: cam+0x50 down to hit.y, bit 8;
+     floor-class: cam+0x54 up to hit.y, bit 0x10), then eye = hit
+     (ALL 3 AXES) + 0.5·dir on x/z (dir = unit player→ext-eye).
+   - wall/other: **PULL-IN: eye x/z = hit + 0.5·dir, HEIGHT KEPT —
+     the user's "R1 keeps pull-in" note is engine truth.** Then eye.y
+     clamps into the PREVIOUS frame's bounds cam+0x50/+0x54 — UNLESS
+     the query hub returned **4** (the GRID/static-set walker): then
+     bounds are RE-DERIVED at (hit − 1·dir) via func_0018CE60 (below)
+     and the clamp uses the fresh pair.
+3. **LATERAL STAGE** (style 6 scope skips it entirely):
+   - blocked SQUARE-ON (not glancing) → **CORNER SLIDE**: a lane 1 u
+     off the wall through the eye (along = wall-normal yaw − 90°),
+     swept −3 → +5.5 u. A **different** wall in the lane (normal dot
+     vs the first < 0.9) puts the eye 5.5 u back from it along the
+     wall [bit 2; the mirror lane probes only if the first found
+     nothing → bit 4]. The over-shoulder eye slides out of corner
+     notches while staying pinned to its wall.
+   - clear OR glancing → the 5.5-u **SIDE STAGE**, the follow solver's
+     shape with the same constants but simpler: glancing sweep starts
+     3 u on the far side (NO 1.5-u target-ward pull on the end);
+     rejects = ceiling-case dot(side normal, horiz **PLAYER-ward**
+     dir) < −0.08, same-wall dot < −0.998; **no far-end-graze check,
+     no confirm re-probe**. Candidates = (hit ∓ 5.5-side) + 0.1·ray
+     [wall/tilted-underside: x/z; flat-underside/other-class: full
+     incl. Y; right-side bit-8/bit-1 quirks verbatim]. Selection:
+     midpoint corridor centering whenever the OTHER lane also hit
+     something not dot-rejected (raw-kind registers s1/s7), else the
+     full candidate copy.
+4. **FINAL Y POLICY** (blocked, non-wall): ceiling-class → eye.y =
+   min(eye.y, hit.y − 1); floor-class → eye.y = max(eye.y, hit.y + 1).
+5. **CONFIRM RE-PROBE** (any bits 0x1F): player pos → responded eye;
+   still blocked → eye x/z = the new hit point (no pad, height kept).
+6. **NEW BOUNDS for the NEXT frame** (written to cam+0x50/+0x54, not
+   applied now): from the eye pulled **1.0** (follow: 1.5) toward
+   player + 11 up — floor probe 200 down (class 0x7000) → lower =
+   floor + **2.0** (follow: +17 — the aim eye may ride 2 u over the
+   floor, why aiming can frame from ankle height); ceiling 200 up
+   (0x8800) → upper = ceiling − 1, else eye + 200; lower forced to
+   upper − 3.
+   Area specials: area 0x12 clamps eye.z to [169.5, 230.6] (step 4
+   site) and swaps the no-ceiling upper bound for a player+0xB0→+200
+   probe (down-normal dot ≤ 0.2 → open = eye + 200) — with an engine
+   QUIRK: if that probe misses, the upper bound keeps a stale scratch
+   value (0x70003A3C, last side-stage dot). Returns the bit byte.
+
+The mode-1 handler's own eye-Y clamps ([player.y+2, +30], s53) and
+the dispatcher's 8-u min-distance push run downstream of the solver,
+unchanged.
+
+### func_0018CE60 (cam, point, style) — the vertical-bounds settle
+
+Mask 7 for style 2, else 6. Floor probe point→200 down: lower = hit.y
++ pad (style 2: +2; cam+0x5C==1: +6; else +17) — a non-floor-class
+hit whose normal has **n.y ≤ 0.17** (0x3E2E147B, a wall face) keeps
+the RAW hit Y; no hit → cam+0x50 − 200. Ceiling probe 200 up: upper =
+hit.y − 1 (non-ceiling-class with −n.y ≤ 0.17 keeps raw); no hit →
+point.y + 200. lower > upper → lower = upper − 3. Writes
+cam+0x50/+0x54; **style != 5 clamps eye.y (cam+0x14) into them.**
+This is also the camera state-0 init "settle" (s10) and explains the
+two func_0019A910 queries seen there.
+
+### func_0018D910 (cam, player, mask) — style 5 director solver
+
+The s61 table's "returns 0" undersold it: it **never moves the eye —
+it is BOUNDS MAINTENANCE ONLY.** The func_0018CE60 shape anchored at
+the desired eye pulled 1.0 toward player(+0xA0) + 11 up: floor 0x7000
+→ lower = floor + 17 (+6 when cam+0x5C==1), non-0x7000 hit falls to
+the no-hit arm (cam+0x50 − 200); ceiling 0x8800 → upper = ceiling −
+1, else eye_des.y + 200 (area-0x12 player-up variant, same
+stale-scratch quirk as the aim solver). Keeps the bounds fresh while
+a director/fixed camera owns the eye so the first follow solve after
+release clamps against live values. (All three solvers anchor the
+settle at player **+0xA0** — the player-struct position qword mirror
+of +0xB0.)
+
+### func_00191000 — the L1 re-orient ARM (s61's "walk-state eye placer" label was wrong)
+
+It places nothing. Per call: returns 0 unless the press-edge halfword
+`D_00810E74` masks against the config halfword at **spad 0x70003B80**
+(the L1 slot of the s53 config block). Then: goal yaw cam+0x48 = the
+player heading +0xC4 — **+π when action code +0x1F0 == 6**; 3°
+deadband (|Δ| ≤ 0x3D567750 → return 0, press dropped); arm **director
+sub-state 3** (cam+0x06 = 3, cam+0x01 = 0) with orbit radius cam+0x4C
+= |D_0081069C| (actual horiz eye↔target distance) clamped into
+**[7.0, |cam+0x64|]** (= 46.8 default areas). Routing (its two
+callers): `func_00193EB0` — the mode-0 camera router off player state
++0x230 (states 0xD/0x2A → mode 1 aim, 0xC/0x29 → mode 2 release,
+0x10 → 9, 0x28 → 0xE, 0x12 → 0xB, climb states 6/7/8/9/0x2C/0x2D →
+per-area cinematics; **states 1/0x21 with cam mode 0 and not fixed →
+func_00191000**) — and `func_00230000` (the walk-state camera). The
+sub-state-3 MOTION handler is still unread (the 2°/frame family rate
+remains the port's flagged stand-in). This also retracts the s56
+guess that the door re-seat's +29 parking height came from
+func_00191000 — that height belongs to func_00230000 (unread).
+
+### Port (extermination-port s64) + verification
+
+- `cam_solver_0018F870` translated verbatim (style 2, mask 7) —
+  replaces the flagged CAM_WALL_MARGIN stand-in; `cam_bounds_settle_
+  0018CE60` + `cam_solver_0018D910` (run in the fixed-region path)
+  translated; the L1 arm runs the decoded deadband + radius clamp
+  (motion stays the flagged 2°/frame seek). Area-0x12/0x15 specials
+  and the style-6 scope path omitted, flagged (no native reach).
+- **EM_CAPTURE_AIM=5** (new): run to the office south wall, turn, aim
+  — the desired aim eye (30 u behind the facing) lands inside the
+  wall; trace shows the square-on pull-in park the desired eye at
+  (103.49, 19.00, −250.42) = wall + 0.5, height pinned, player at z
+  −232.25; when the committed gun-ray yaw drops the head-on dot below
+  0.99 the GLANCING side stage re-places it laterally (115.10, 18.32,
+  −244.93) — stable, no oscillation. The frame-420 capture: tight
+  over-shoulder framing from the wall plane down the barrel, laser
+  live, **no rise, no clip-through**.
+- Self-tests: move/weapon/door/transit/pause/melee/sfx/death/aim/
+  camregion/enemy/proj/pickup + input ALL PASS (slider/locked FAIL
+  pre-date at clean HEAD, unchanged). Default EM_CAPTURE
+  byte-identical before/after.
+- Repo note: parallel-session commit c4dba3d (pickups) swept in the
+  mid-session camera hunks (solver bodies, at a non-compiling
+  intermediate point); the s64 camera commit completes them.
+
+_Last updated: 2026-06-11 (session 64)._
