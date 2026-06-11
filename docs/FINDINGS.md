@@ -11046,3 +11046,166 @@ puff then the textured star streak at the muzzle. Reload/draw/holster
 render neither light nor laser (shared gate, by construction).
 
 _Last updated: 2026-06-11 (session 52)._
+
+## CAMERA & AIM CONTROL DECODE WAVE — idle-orient timer, aim camera mode 1, manual aim steer, door camera cues (2026-06-11, session 53)
+
+Static decode driven by four user fidelity notes against the real game
+(idle reorient timing, aim up/down steering, aim camera placement, door
+transit camera). All four mechanisms decoded from the local splat tree
+and shipped natively in `extermination-port` (em_game.c). Helper leaves
+pinned along the way: `func_0011E2A8` = sinf, `func_0011DE90` = cosf
+(the 0.5-pitch special case in func_0017ABA0 proves the assignment),
+`func_0011E620` = atan2f, `func_0011E748` = sqrtf, `func_0011DF78` =
+fabsf, `func_001B5DC0(byte)` = |byte-0x80| deflection band through
+rings 49/89/123 -> 0..3 (the gait quantizer's rings, single-axis).
+
+### 1. IDLE AUTO-ORIENT — the real trigger is a 481-frame camera timer
+
+`func_001921D0` (mode-0 generic chase), idle path (player states
+1/0x26/0x27), tail block `.L00193448`:
+
+- gate `(cam+0x07 & 9) == 0` (solver block bits clear), player state
+  +0x230 in {1, 2}: `cam+0x08` (the mode timer) increments per frame,
+  any other state resets it;
+- at `>= 0x1E1` = **481 frames (~8.0 s)**: delta = normalize(player
+  heading +0xC4 - cam yaw +0x44); if `|delta| > 0x3D567750 = 0.052368`
+  (3 deg deadband) AND the rotation direction's solver wall bit is
+  clear (delta < 0 needs ~(+0x07 & 4), else ~(& 2)): arm sub-state 2
+  with `+0x48` = player heading, `+0x4C` = |D_0081069C| (actual horiz
+  eye<->target distance), `+0x40` = 0.022222*|delta| min 0.0034907
+  (stored; the orbit itself uses the fixed rate), `+0x03` = direction;
+  timer resets either way.
+- **481 = the 300-frame fidget timer + the 180-frame look-around clip
+  0x15D** — the engine reorients exactly when the look-around idle
+  ENDS, the user-observed anchor ("right around when the look-around
+  idle plays, towards the END of that animation").
+
+The orbit = director sub-state 2 -> `func_00193D90`: per frame
+`func_001916C0(cam, player, 1)` target follow, yaw steps
+**0.0034907 rad/frame (0.2 deg/frame)** toward +0x48
+(func_001B12B0), `eye.xz = target.xz - (sin,cos)(yaw) * (+0x4C)`;
+exits to sub-state 1 when aligned, when the player leaves states 1/2,
+or on solver wall bits (0xD pre-direction-latch / 0xB after).
+
+Also decoded en passant: `func_00191390` (the per-frame pre-step) is
+the **+0x8C target-height table** — states 8/9/7/6/0x2C/0x2D -> 0,
+0x13 -> 11, 0xF/4/2 -> -3, states 1/3 (and default) -> 6.0 — or 2.0
+when the per-area param +0x64 == -31.2 (resolves the s23 "AREA02 live
+read 2.0 vs documented 6.0"). `func_00191210` = an area-0x10-only eye-z
+clamp (<= 507).
+
+### 2. AIM CAMERA — mode 1 fully decoded (func_00197D20/740/870)
+
+`func_00197D20` (cut-table mode 1) is a sub-machine on cam+0x01:
+sub 0 entry saves the player pos to spad `D_70003040`; sub 1 (until
+player +0x1F1 == 1 commits the aim pose) runs `func_00197740`; sub 2
+(states 0xD = R1 stance / 0x2A = R2 stance) runs `func_00197870`;
+states 0xC/0x29 (release) set **camera mode 2** (the blend-back
+transition func_00198650) after re-saving the exit pos.
+
+- **Entry** (func_00197740): rotation R = rotEuler(cam+0x30 — the
+  chase camera's euler vec, (0, yaw, 0)); desired TARGET = player +
+  R*(0, 19, 6), desired EYE = player + R*(0, 19, -30); actual target
+  chases at 0.4/frame (both primitives), eye via solver style 2 +
+  4.0/frame chase.
+- **Steady** (func_00197870): base = player pos (state 0xD) or the
+  ENTRY-SAVED pos (state 0x2A); aim dir = gun+0xC0 (the posed hand
+  matrix +X). Desired TARGET = base + dir*16 + (0, 19, 0). Desired
+  EYE = player + rotEuler(D_70003B50 = player rotation +0xC0, i.e.
+  30 u behind the FACING — it tracks the turn-in-place)*(0,0,-30),
+  with EYE.y = player.y + 19 - 30*dir.y where (-30*dir.y) clamps to
+  >= -25 (f20 = 22 + that in [-3, 0]); EYE.y clamps into [player.y+2
+  (areas with cam+0x5A bit 0x10: +11), player.y+30]; anti-close: horiz
+  eye<->player dist < 7 raises EYE.y to player.y + 18 + f20 (a second
+  arm re-places at -5 behind when cam+0x54 allows). Target chase 0.6,
+  eye 4.0 (a2 != 0 = hard copies).
+- **Dispatcher tail**: after the chase, if EYE.y > player.y + 23 and
+  the horizontal eye<->player distance < 8, the eye is pushed out to
+  EXACTLY 8 along its own heading (atan2/sin/cos — the min-distance
+  clamp).
+
+This retires the s23 "+0x8C aim height" port stand-in: mode 1 never
+reads +0x8C; the over-shoulder look-down-the-barrel comes from the
+target riding the aim line (dir*16) while the eye counter-moves
+(-30*dir.y).
+
+### 3. MANUAL AIM STEER — func_0017ABA0 (the +0x278/+0x27C writer)
+
+Per aim frame (the stance tops; func_0017AF70 replaces it only with a
+locked target D_008106E0):
+
+- rate row by stance code +0x1F0: {0, 0.0025, 0.005, 0.015}/frame for
+  0x31/0x34 (body-turn factor f20 = 1.0), {0, 0.0016667, 0.005,
+  0.015} for 0x32/0x35 (f20 = 1.5); row index = func_001B5DC0 of the
+  pad axis byte (D_00810E64 X / E65 Y);
+- YAW (+0x27C): step = rate / sin(pi*(0.5 + 0.6*(pitch-0.5))) (the
+  pitch == 0.5 case is special-cased to 1.0 — this pins func_0011E2A8
+  as SIN); axis >= 0x80 increments toward 1.0, else decrements toward
+  0; overflow past [0,1] clamps and rotates the BODY heading +0xC4 by
+  the excess * f20 (sub-weapon 4: rate * 1.5);
+- PITCH (+0x278): step = (rate * mult)/2; **axis >= 0x80 (stick DOWN)
+  INCREMENTS — the INVERTED-Y the user attested ("W = down")**; mult =
+  1.5 outside [0.3, 0.7] for 0x31/0x34, * 1.8 for sub-weapon 4; clamp
+  [0, 1.0] for stances 0x31/0x32, [0, 0.75] for 0x34/0x35. Both blends
+  reset to 0.5 at stance entry; +0x302 = 1 flags manual steering.
+
+**The 9-step ladder measured from the data** (hand-bone +X fire
+direction at the settled tail of each baked clip, sub-weapon 0 row
+0x112..0x11A): 0x112 center (pitch +1.3 deg), 0x113 full UP +81.3,
+0x114 full DOWN -78.7, 0x115/0x116 level yaw -+60 (model -X / +X),
+0x117/0x118 up/down at -X, 0x119/0x11A up/down at +X — a full 3x3
+pitch x yaw pose grid. (Exporter: the ladder ids 275..282 are now part
+of the documented player.emdl bake.)
+
+**R2 = the second armed stance**: `func_001607D0` dispatches HELD R2
+(spad 3B7E) -> player mode 0x1E, action code 0x32 — same ladder
+family, R2-family steer rates, dot-only laser (s23 table), no
+fire-counter recoil, camera mode-1 states 0x2A/0x29 with the
+entry-saved target base. The user-observed "R2 precision view" IS
+mode 1 under stance 0x1E.
+
+### 4. DOOR CAMERA CUES — op 0x0D sub 5 + func_001BBBF0
+
+- **OPEN transit** (script D_0024DE40 record 2 = op 0x0D sub 5,
+  `func_001B7B30` -> `func_0018CBD0(cam, player, -20.0)`): desired
+  TARGET = player pos with TARGET.y = player.y + 19 + f4 (f4/f5 = 6/2
+  when the area param +0x64 == -46.8, else 2/6 — f4+f5 = 8 in both),
+  desired EYE = player + rotEuler(cam+0x30)*(0, 0, -20) with EYE.y =
+  player.y + 19 + f4 + f5 = +27 (too-close variants shave it); then
+  solver style 5 AND style 1 — style 1 HARD-COPIES desired -> actual:
+  **a cinematic CUT 20 u behind the player at +27**, and cam+0xA0 =
+  0x78 makes the actual TARGET re-blend toward the desired one at
+  <= 1.0 u/frame for 120 frames (func_001916C0's tail) while the
+  player walks through. Sub 5's siblings: the same shape at dist
+  -14 / cam+0x0C; sub 0 = scope-style zoom reset + view-dir reset.
+- **LOCKED try** (record 2 of D_0024DEC0 = op 0x09 ->
+  `func_001BBBF0(door)`): TARGET = door pos + (-8*cos(door yaw), +10,
+  +8*sin(door yaw)) — **8 u to the door's LEFT = the HANDLE side, 10
+  up**; EYE = TARGET - 13*(sin,cos)(camera yaw D_00810374) with EYE.y
+  = door.y + 12 — the camera parked at the handle for the try
+  animation; hard copies to D_008105E0/D0, returns advance. The finish
+  script's op 0x07 sub 4 restores the saved camera (func_001CA770).
+
+### 5. Port (extermination-port s53) + verification
+
+All four shipped in em_game.c: the decoded idle-orient timer/orbit
+(retires the 120-frame/0.4-rad-s port constants), mode-1 aim camera
+(retires the +0x8C hack; runs inside camregions, instant region
+snap-back kept), the manual steer + bilinear 3x3 ladder-pose blend
+(player.emdl re-exported with clips 275..282; em_weapon's held 0x112
+base is substituted at dispatch, so the hand-bone fire/laser ray
+pitches automatically), R2-held stance 0x1E (camera + pose + steer;
+em_weapon's dot-only laser noted as pending), and the door-transit
+cinematic cut + 120-frame target re-blend (the locked-look math behind
+EM_DOORCAM_LOCKED=1 as a flagged preview until em_door grows the
+locked sequence — the unlocked west-door preview clips into the
+doorway wall, so geometry verification waits for a real locked door).
+Self-tests: ALL PASS including the new EM_AIM_TEST (inverted-Y, blend
+clamps, full-down camera geometry, pose-pan-then-body-turn); door/
+transit final-pos asserts updated for the parallel walk-out decode.
+Default capture byte-identical (old vs re-exported player.emdl, cmp
+exact). Captures: EM_CAPTURE_AIM=1 now frames down the barrel toward
+the laser dot; =3/=4 show the up/down ladder poses with the
+counter-moved eye; EM_CAPTURE_DOOR=1 shows the doorway cinematic.
+
+_Last updated: 2026-06-11 (session 53)._

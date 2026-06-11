@@ -136,6 +136,34 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 53): CAMERA & AIM CONTROL DECODE WAVE (FINDINGS
+> "CAMERA & AIM CONTROL DECODE WAVE") — four user fidelity notes
+> decoded to engine truth and shipped in the port. (1) IDLE AUTO-
+> ORIENT: the camera struct's own timer +0x08 fires at 481 frames =
+> the 300-frame fidget timer + the 180-frame look-around clip (the
+> END of the look-around idle), arming the 0.2-deg/frame orbit
+> (func_00193D90) with 3-deg deadband + per-direction wall gates —
+> retires the port's 120-frame/0.4-rad-s constants. (2) AIM CAMERA =
+> mode 1 decoded end to end (func_00197D20/740/870): steady eye 30 u
+> behind the FACING with eye.y = player.y + 19 - 30*dir.y (clamps),
+> target = player + aim_dir*16 + 19 up — down-the-barrel framing;
+> release -> mode 2. +0x8C is a mode-0 table (func_00191390, decoded:
+> default 6, param -31.2 areas 2.0 — the s23 AREA02 mystery). (3)
+> MANUAL AIM STEER func_0017ABA0: stick bands 49/89/123 -> rates
+> {0.0025, 0.005, 0.015}/frame steering +0x27C yaw (pose pans the
+> +-60-deg ladder, overflow turns the body) and +0x278 pitch INVERTED
+> Y ("W = down"); the 9-step ladder 0x112..0x11A measured from the
+> baked clips = a 3x3 pitch(+81/-79 deg) x yaw(+-60) pose grid; held
+> R2 = the SECOND armed stance 0x1E (func_001607D0). Pinned
+> func_0011E2A8 = sinf / func_0011DE90 = cosf. (4) DOOR CAMERA CUES:
+> op 0x0D sub 5 (func_0018CBD0) = the transit's cinematic HARD CUT 20
+> u behind the player at +27 with a 120-frame target re-blend
+> (cam+0xA0); func_001BBBF0 = the locked-look camera parked at the
+> door HANDLE (door + 8 left + 10 up, eye 13 back at door.y + 12).
+> Port: all four live (player.emdl re-exported with ladder clips
+> 275..282; new EM_AIM_TEST; all self-tests PASS; default capture
+> byte-identical).
+
 > 2026-06-11 (session 52): WEAPON-VISUAL FIDELITY (FINDINGS "WEAPON-
 > VISUAL FIDELITY"). The FX sprite textures identified + exported
 > (`export_props.py --fx` -> assets/fx/*.emtx): the laser-dot sprite
