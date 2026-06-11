@@ -42,12 +42,16 @@ lists whole missing systems):
 
 | Severity | count |   | Status | count |
 |----------|------:|---|--------|------:|
-| B behavioral | 50 |  | SI simplification | 51 |
+| B behavioral | 49 |  | SI simplification | 51 |
 | V visual     | 41 |  | UT untranslated path | 30 |
 | S structural | 40 |  | FS flagged stand-in | 28 |
 |              |    |  | PC port-invented constant | 13 |
-|              |    |  | SU suspected/unverified | 9 |
-| **total entries** | **131** | | whole missing systems (Q) | 24 |
+|              |    |  | SU suspected/unverified | 8 |
+| **total entries** | **130** | | whole missing systems (Q) | 24 |
+
+(s62 re-count: J1 closed to "(match)" — −1 B, the freed FS slot taken by
+J2's SU→FS reclassification. D3's s61 close is NOT yet folded in here —
+that session owns its own re-count.)
 
 **Top 10 worst divergences** (impact-ranked; section.entry cites):
 
@@ -71,9 +75,18 @@ lists whole missing systems):
    on `D_00810E74 & spad-3B76` = config "use" 0x0040; FINDINGS "DOOR TRIGGER IS THE CROSS
    PRESS EDGE"). The port's hinged CROSS gate was engine-true all along; the s56 slider
    walk-into arming was the actual deviation and is now CROSS too (K2).
-6. **Crawler aggro is port-invented** — the 32-u distance wake was added so a lone crawler
-   engages at all (engine IDLE wakes only via group alarm or damage), and the damage
-   window is widened to IDLE+ATTACK (J1, J2).
+6. ~~**Crawler aggro is port-invented**~~ — CLOSED 2026-06-11 s62: the three enemy brains'
+   conditions are decoded off the disassembly (FINDINGS "ENEMY CONDITION DECODE") and the
+   port now runs them: the invented 32-u wake and ~10-u crate proximity burst are REMOVED
+   (func_001551B0 contains NO player-distance test — crates wake by group alarm/damage
+   only, and the lone-placement "never engages" worry was misplaced: the free-roaming
+   attacker is the WORM, which is born attacking with no idle state); the damage window
+   is restored exactly (IDLE polls, ATTACK defers, the burst absorbs); the lunge deals
+   the decoded latch 15.0 (not the invented 0x400A/10); the alarmed crate's blind
+   suicide hop is translated. Remaining flagged: the worm's own damage-consumption
+   handler is unfound (the port keeps it shootable, HP 10), the latch/shake-off
+   mechanic and 5.0 approach latch are untranslated, locomotion speeds stay port
+   constants (J1–J4, J7).
 7. ~~**Bullet auto-aim is a different shape**~~ — CLOSED s60: the engine's screen-space
    acquisition func_00199220 is fully decoded and translated (|sx| ≤ 66, |sy| ≤ 45
    GS-center px through the published viewproj; the +50s/+45s spread terms ride a float
@@ -242,13 +255,13 @@ lists whole missing systems):
 
 | # | Behavior | Engine truth | Port | Sev | Status |
 |---|----------|--------------|------|-----|--------|
-| J1 | Crawler wake | IDLE wakes ONLY via group alarm (+0x0A) or damage; vision is distance-only in this engine (leech ≤ 32 u) | additionally wakes when the player is within 32 u (else a lone placement never engages) | B | FS (deliberate) |
-| J2 | Damage window | FINDINGS open item: state 1 (attack) never visibly polls +0x36 ("undamageable mid-lunge — verify live") | mailbox polled in IDLE and ATTACK | B | SU (flagged) |
-| J3 | Lunge damage | contact-damage code family 0x4000\|amount (func_001A9480); crawler amount unpinned | writes 0x400A (amount 10) to a player-side mailbox | B | FS |
-| J4 | Movement constants | hop speed/airtime, probe length/lift not exported | `ENEMY_HOP_SPEED` 0.32, `ENEMY_HOP_VY` 0.42, probes 6.0/1.0 — port values; turn rate 0.0524 and gravity 0.052 ARE engine values | B | PC (flagged) |
+| J1 | Wake / acquisition | **DECODED s62** (func_001551B0 disasm): the placed crawler IDLE wakes ONLY via the group alarm or dies to damage — NO player-distance test exists anywhere in the function (no func_0019AA80/func_0019A570 call, no player-position global); the broadcast walks the WHOLE live list (no radius), whitelist models {6,0x1C,0x1E,0x1F,0x50} + on-surface. The WORM (func_00153F10) needs no wake: it has no idle state — born attacking, init yaw at the player (func_00154040) | matches: the invented 32-u wake REMOVED; crates wake on alarm/damage only; worms spawn attacking; broadcast wakes crates only (worms not whitelisted, engine-true) | — | (match, s62) |
+| J2 | Damage window | **DECODED s62** (closes the old open item statically): crate state 4 polls +0x36 every tick; state 1 NEVER polls — the only access is `sh zero, 0x36` on the burst (damage mid-run DEFERS, kills on the next IDLE tick via the boxed-in return path, and is ABSORBED by the suicide burst). The worm brain never reads +0x34/+0x36 at all — its HP=10 (func_00154040) consumer is UNFOUND (open) | crate matches exactly (poll windows + deferral + absorption); the worm polls every tick as a flagged stand-in so it stays shootable (canonical hurt-helper shape func_00153B50, HP 10) | B | FS (worm damage path open) |
+| J3 | Lunge damage | **DECODED s62** (func_00154120): the worm damages the player only by LATCHING — D_008102BF=2, D_008104D4 = 5.0 (approach touch, status==1 gated) / 15.0 (lunge connect), status \|= 2; resolve = ≤32-u node test (func_0019AA80(..,0x20), node slots +0x34/+0x40 UNVERIFIED) else radius-6 contact (func_0019A570) → burst, else clip end → silent despawn (state 3, no gore). The old 0x400A/10 was the swipe-pass ENEMY-victim code — an invention | lunge connect posts the decoded 15 through the player-mailbox bridge (health route — whether the latch drains health or infection is undecoded); connect test folds both arms into the radius-6 contact (raw 32 between centers would be unavoidable; flagged); the 5.0 approach latch + latch/shake-off mechanic UNTRANSLATED | B | FS |
+| J4 | Movement constants | hop speed/airtime, probe length/lift not exported; **engine values now in (s62)**: stalk homing 0.0698 rad/t (0x3D8EFA35), stalk window 120 t (+0x28=0x78), windup-end yaw SNAP + sound 0x431, lunge root speed 21.27 u/s, crate attack timer 180 t (+0x2A=0xB4; variant 6 = 5×height), steer-away ±0.0524, gravity 0.052 (0x3D54FDF4), open-heading RNG perturb ±1/120 rad | `ENEMY_HOP_SPEED` 0.32, `ENEMY_HOP_VY` 0.42, probes 6.0/1.0 — port values (flagged); decoded values above adopted; worm sub-0/2/3 windows = the clip lengths 90/45/120 (the engine anim-gates those subs on the 0x1000 done bit; the bound-anim id chain is unverified) | B | PC (flagged, narrowed s62) |
 | J5 | Steering probes | func_0019AB20 directional probes over the actor's 4 precomputed diagonals | knee-height segment queries through em_collision | S | FS |
-| J6 | Death | state 2: nest children, gore FX, MODEL REBIND to gib entries 0x22/0x29, RNG 90° knockback corpse-slide | gibs launched with engine rotation steps + PORT launch constants (speed/vy/spin/jitter flagged); nest children + gore untranslated; no-gib cases get a 30-frame alpha corpse fade (placeholder) | B/V | FS + PC + UT |
-| J7 | Crate disguise | per-area model-table binding by param; jitter via D_002468B0 tables; alarmed crawler hops AS the crate | own spawn kind; jitter MECHANISM kept with PORT amplitudes/periods; ~10-u proximity burst trigger is a PORT stand-in (engine state-4 wake unpinned); group alarm ignored; alarmed-crate hop untranslated | B | FS + PC |
+| J6 | Death | state 2: nest children, gore FX, MODEL REBIND to gib entries 0x22/0x29, RNG 90° knockback corpse-slide (damage kills, variants 6/0x1E only — s62); worm burst = sound 0x434 + gore 0x80000052 + release; missed lunge = release with NO burst (s62) | gibs launched with engine rotation steps + PORT launch constants (speed/vy/spin/jitter flagged); nest children + gore untranslated; no-gib cases get a 30-frame alpha corpse fade (placeholder); missed-lunge despawn matches (no burst, no corpse) | B/V | FS + PC + UT |
+| J7 | Crate disguise | per-area model-table binding by param; jitter via D_002468B0 tables (state 4 ONLY — s62); burst trigger = DAMAGE ONLY (no proximity test exists — s62); alarmed crawler hops AS the crate: the decoded BLIND suicide run (probe-steered + RNG heading, NO player seek, +0x2A=6 steer budget, boxed-in → back to IDLE, else 180-t timer → burst) | own spawn kind; jitter MECHANISM kept with PORT amplitudes/periods (now gated to IDLE, engine-true); the invented ~10-u proximity trigger REMOVED; the alarm run TRANSLATED (hops as the crate, timer burst hatches the worm; repeated hops re-steering on landing — the engine launches one long leap, flagged) | B | FS + PC (narrowed s62) |
 | J8 | Generator | fully decoded (tables, charge counts, 4-worm cap, delays, trap damage event 3 magnitude 5) | translated with the decoded values; mode draw + delay pick use the module LCG (engine: frame RNG at spad 0x70003B68); second box pass (waking D_00275BB0-list actors) untranslated; trap hit = one-shot 5-damage mailbox write (engine: event-3 knockdown) | B | SI + UT (flagged) |
 | J9 | Generator visual | procedural VU-morph pad (func_001E9580/001E9E60, private 0xA060 buffer) | original placeholder mound scaled to the decoded footprint, phase as a Y swell | V | FS |
 | J10 | Tendril field | fully decoded (s33: rings, ramps, girth table, bob integrator, thrash) | translated; room-tint table D_00246800 UNDECODED → neutral (128,128,128) rest blend (TODO); alpha = ramp/300 vs engine roomC.w/128 target; sounds 0x42D/0x42F unmapped in the registry; pool cap 8 is a port cap | V | FS + UT |
@@ -388,7 +401,8 @@ the port (beyond the per-module gaps above).
   P1–P6 (clear color, TURN_SPEED, no-death gap, dead constant, stale walk-out label,
   clip planes) and the SU rows (A5 second fade tick, F3 alpha test, F9 loop seam, E4 UI
   projection derivation, I6 melee impact direction, K9 slider commit interleave, J2
-  damage window, D3 wall-rise model [closed s61 — the decoded solver replaced it],
+  damage window [closed s62 — the static decode restored the exact windows],
+  D3 wall-rise model [closed s61 — the decoded solver replaced it],
   L3 ring corners, L9 page anchors).
 - Highest-leverage fidelity work, in order: pickups+inventory
   (Q1/Q2), room lighting (F1),

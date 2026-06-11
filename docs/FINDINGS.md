@@ -6843,6 +6843,12 @@ the behaviors themselves (no central HP system):
 - Live-verify (PCSX2, future session): crawler invulnerability during
   state 1; leech HP consumption; node slots `+0x34`/`+0x40` identity
   in the `D_00275B40` table during enemy ticks.
+- **s62 update — see "ENEMY CONDITION DECODE" below**: state-1
+  invulnerability is now closed STATICALLY (never polls; defers/absorbs
+  decoded), the crate trigger is damage-only (no proximity test exists),
+  and the leech 32-u/radius-6/latch-magnitude values are verified off
+  the instructions. Still open: leech HP consumption, node-slot
+  identities.
 
 ## AREA TRANSITION LIFECYCLE — both modes captured live, end-to-end (2026-06-10, session 22)
 
@@ -12904,4 +12910,134 @@ plain wall pulls x/z only.
   locked FAIL pre-date this work at clean HEAD; enemy-test churn is the
   parallel enemy session's in-flight work).
 
-_Last updated: 2026-06-11 (session 61)._
+## ENEMY CONDITION DECODE — crawler/crate, worm, leech triggers read off the disassembly (2026-06-11, session 62)
+
+Static instruction-level read of `func_001551B0` (placed crawler/crate),
+`func_00153F10` (worm brain) and `func_00154120` (leech sub-machine) from
+the local splat `.s` — every wake/burst/damage condition below is the
+literal branch logic, not inference. Refines and partially supersedes the
+s22 "ENEMY AI ARCHITECTURE" section; written to kill the port's invented
+constants (PORT_DIFFERENCES item 6 / rows J1–J4, J7 — now updated).
+
+### 1. func_001551B0 (placed crawler / crate) — exact conditions
+
+- **NO PROXIMITY SENSE EXISTS.** The whole function contains zero
+  player-position reads: no `func_0019AA80`/`func_0019A570` call, no
+  `D_00810350/58`, no `D_008102B0`. State 4 cannot wake on approach and
+  state 1 cannot aim at or contact-test the player. The s22 open framing
+  ("state-4 wake unpinned") is closed: damage and the group alarm are
+  the ONLY triggers, full stop.
+- **State 4 IDLE, in order each tick:**
+  1. `+0x36 != 0` → event byte `+0x00 = 2`, state = 2 (HP is not even
+     read — any nonzero kills), then the **alarm broadcast**: walk
+     `D_00275BC0` (next `+0x1C`) and set `+0x0A = 1` on every actor with
+     model byte ∈ {6, 0x1C, 0x1E, 0x1F, 0x50} AND `+0x52` (on-surface)
+     nonzero — the WHOLE list, **no radius/distance term**; own `+0x0A`
+     cleared. `+0x36` is NOT cleared here (state 2 reads it for the
+     knockback arm).
+  2. else own `+0x0A` set → clear it, `+0x2A = 6`, state = 1.
+  3. else the disguise jitter (gated on placement flag `+0x0E` bit 0;
+     the jitter runs in state 4 ONLY — an alarmed crate hops instead).
+- **State 1 ATTACK is BLIND and never polls damage.** Sub 0 steer:
+  `+0x2A--`; probe the 4 precomputed diagonals (`func_0019AB20`, mode 7;
+  blocked = result 2 + spad `0x700031D4` nonzero); ≥3 blocked or both
+  OPPOSITE diagonal pairs blocked → hold, and at `+0x2A == 0` → **back
+  to state 4** (a pending `+0x36` then kills it on the next idle tick —
+  mid-attack damage DEFERS). Else rotate the heading ±0.0524 rad
+  (0x3D56774F) away from a blocked front side, or RNG-perturb the
+  velocity components by `(rand/2^31 − 0.5)/60` (≈ ±1/120 rad) when
+  open; hop timer `+0x28 = 30`; attack timer `+0x2A = 180` (0xB4) —
+  variant 6 instead `+0x2A = pos.y × 60/12` (5× its height). Sub 0 runs
+  ONCE: sub 1 never returns to it (one long leap, velocity 11.0-scaled
+  / 1.4-normalized components, gravity decrement 0x3D54FDF4 =
+  0.0519999). Sub 1 burst condition: forward probe result 4 (surface
+  lost) OR `+0x2A < 0` → **`sh zero, 0x36` (mid-run damage is
+  ABSORBED), `+0x2A = 0`, state = 2.** That store is the ONLY `+0x36`
+  access in the entire attack state — the s22 "appears undamageable
+  mid-lunge — verify live" open item is closed statically.
+- **State 2 sub 0:** nest-child spawn gated on `+0x56 >= 0` (the LINK
+  field; at INIT the registry resolve additionally needs `+0x0E` bit 0,
+  and clears that bit if no child record's model is resident);
+  registry = `D_0024A850[area]` (+1 if 0) + link → `D_0024D820[area]`
+  table → 0x2C-byte records (terminator rec[0] == −1), each
+  resident-filtered (`func_001B11E0(rec+0x2)`), alloc'd
+  (`func_001AFA90(rec[4])`) and copied — model `+0x3`, `+0x2E` =
+  rec[6]>>8, kind/link `+0x54/+0x56`, pos += parent, rot, **behavior
+  `rec+0x28` → `+0x10`**. Then per-variant gore (6: 0x19D +
+  0x8000000A/0x80000015; 0x1C/0x50: 0x19E + 0x8000000B/0x80000014;
+  0x1E: 0x19D + 0x80000031/0x80000015; 0x1F: 0x19E +
+  0x80000032/0x80000014). Knockback corpse-slide arm only when
+  `+0x36 != 0` AND variant ∈ {6, 0x1E} (RNG 0/90/180/270° rotation of
+  the D_700036E0 hit vector); otherwise straight to state 3.
+- **INIT:** HP `+0x34 = 1`, `+0x00 = 1`, alarm cleared; base heading
+  4.5962 (0x40931406 — variants 6/0x1E/default) or 2.1213 (0x4007C3B6 —
+  0x1C/0x1F/0x50); 4 diagonal probe points = pos ± the rotated heading
+  vector (90° steps); floor probe (target y−2, dir −3, mode 7): result
+  4 → `+0x52 = 0` else 1.
+
+### 2. func_00153F10 / func_00154040 (worm) — acquisition is unconditional
+
+- **No idle state, no alarm read, no mailbox read.** State 0 init
+  (`func_00154040`): bind rig 0x14 / anim 0x13, **HP `+0x34` = 10**,
+  yaw = atan2 toward `(D_00810350, D_00810358)` (the player mirror),
+  sound 0x430 → state 1. The worm is BORN ATTACKING — "target
+  acquisition" is the init yaw plus the stalk homing; there is no
+  distance gate of any kind.
+- State 1 runs the brain only when spad `0x70003B8D` ∈ {0, 4} (the
+  scripted/pause gate — the port's menu pause is the equivalent).
+- State 2 burst: sub 0 = sound 0x434 (`func_001FBD50`, radius 300.0) +
+  gore `func_001EFE00(0x80000052)` + call `+0x4C`; subs 1/2 are two
+  linger ticks → state 3 → `func_001AFC10` release.
+- **`+0x36`/`+0x34` are never read by the brain** — how a worm dies to
+  weapons is still an OPEN ITEM (some unfound handler must consume the
+  HP; verify live). The port keeps worms shootable via the canonical
+  hurt-helper shape as a flagged stand-in.
+
+### 3. func_00154120 (leech sub-machine) — the lunge, verified
+
+Per tick: `anim_advance_time(rate 1.0)` first, then sub `+0x05`:
+
+- **sub 0 APPROACH** — `func_0019AA80(slotA+0xC0, slotB+0xC0, 0x20)`:
+  the 32-u radius test **VERIFIED** ($a2 = 0x20; slots `+0x34`/`+0x40`
+  of `D_00275B40` — node identities still unverified). On hit AND
+  player status `D_008102B0 == 1`: **latch** — `D_008102BF = 2`,
+  `D_008104D4 = 5.0` (0x40A00000), status `|= 2`, relative vector →
+  `D_00810320`. No state change — the latch is one-shot by the
+  status==1 gate. Sub advances on the anim-done bit 0x1000 →
+  `func_00153ED0` (next anim), sub 1, `+0x28 = 0x78` (120).
+- **sub 1 STALK** — `+0x28--`; at 0 → next anim, sub 2. Every tick:
+  homing — `func_001B1240` atan2 toward the player mirror, smoothed by
+  `func_001B12B0` at **0.069813 rad/tick (0x3D8EFA35)** into `+0xC4`.
+- **sub 2 WINDUP** — on anim end: next anim, **SNAP** `+0xC4` =
+  atan2(player) (no smoothing), sound **0x431**, sub 3.
+- **sub 3 LUNGE RESOLVE**, every tick of the lunge anim:
+  1. the same 32-u node test → **state 2 burst**, and if status == 1
+     also latch with **`D_008104D4 = 15.0`** (0x41700000 — "the lunge
+     hurts more");
+  2. else `func_0019A570(slotA+0xC0, slotB+0xC0, 6, 0)` — **radius-6
+     contact** → state 2 burst (NO latch write on this arm);
+  3. else anim done → **state 3 despawn** (released — no burst, no
+     gore, no corpse).
+- Post: `func_001C68C0`, `func_001B17A0`, `+0x4C` — every tick.
+
+### 4. Port adoption (extermination-port, this session)
+
+`em_enemy.c/h` now run the decoded machines: KIND_CRATE =
+func_001551B0 (damage-only burst + list-wide alarm + the blind
+suicide hop, exact mailbox windows incl. deferral/absorption),
+KIND_CRAWLER = the worm (born attacking; approach/stalk/windup/lunge
+with the decoded 120-t stalk, 0.0698 homing, yaw snap, 21.27 u/s
+lunge, miss-despawn; lunge connect posts the decoded latch 15).
+REMOVED inventions: the 32-u distance wake, the ~10-u crate proximity
+burst, the 0x400A/10 lunge damage, the IDLE+ATTACK poll widening.
+Remaining flagged stand-ins: worm shootability (open item above), the
+latch/shake-off mechanic + 5.0 approach latch (untranslated), the
+32-u arm folded into the radius-6 contact (node identities), ground
+speeds 0.32 u/f, sub-0/2/3 windows = clip lengths 90/45/120 (the
+engine anim-gates them; the bound-anim id chain is unverified), the
+re-steering repeated hop (engine: one leap). Evidence:
+EM_ENEMY_TEST 1–5, EM_MELEE_TEST (now also the no-radius broadcast
+witness + the alarmed-crate timer burst) and EM_DEATH_TEST all PASS;
+the default EM_CAPTURE is byte-identical vs HEAD.
+
+_Last updated: 2026-06-11 (sessions 61–62)._

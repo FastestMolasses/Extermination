@@ -140,6 +140,27 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 62): ENEMY CONDITION DECODE + PORT FIDELITY FIX
+> (FINDINGS "ENEMY CONDITION DECODE"; closes PORT_DIFFERENCES top-10 #6,
+> rows J1/J2 → match/narrowed). Instruction-level read of func_001551B0
+> + func_00153F10 + func_00154120: the placed crawler/crate has NO
+> proximity sense at all (wake = group alarm or damage, broadcast =
+> whole live list, no radius, models {6,0x1C,0x1E,0x1F,0x50} +
+> on-surface); state 1 NEVER polls +0x36 (mid-run damage defers via the
+> boxed-in return, the suicide burst absorbs it — the s22 "undamageable
+> mid-lunge" open item closed statically); attack timer +0x2A = 180
+> (variant 6: 5×height), steer-away ±0.0524, RNG heading ±1/120 rad.
+> The worm is BORN ATTACKING (no idle/alarm/mailbox in its brain; HP 10
+> at init, its damage consumer UNFOUND — still open); leech sub-machine
+> verified: 32-u node test (0x20 literal) latching D_008104D4 = 5.0
+> approach / 15.0 lunge, 120-tick stalk homing at 0.0698 rad/t, windup
+> yaw SNAP + sound 0x431, radius-6 contact arm, missed lunge = silent
+> release. Port em_enemy rebuilt on the decoded machines; REMOVED
+> inventions: 32-u wake, ~10-u crate proximity burst, 0x400A/10 lunge
+> damage, widened damage poll. EM_ENEMY_TEST 1–5 + EM_MELEE_TEST (now
+> asserts the no-radius broadcast + the alarmed-crate timer burst) +
+> EM_DEATH_TEST all PASS; default capture byte-identical vs HEAD.
+
 > 2026-06-11 (session 59): ENGINE PROJECTION EXACTLY DERIVED + PORT
 > ADOPTED (FINDINGS "ENGINE PROJECTION EXACTLY DERIVED"; closes
 > PORT_DIFFERENCES top-10 #4 / D10 / P6). The main-P Z-row literals
