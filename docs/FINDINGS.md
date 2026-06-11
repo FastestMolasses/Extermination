@@ -10818,7 +10818,9 @@ main-ELF data, not an overlay delegate.
 
 ### 4. Exported-area verdict (the honest answer)
 
-- **AREA02 (office, subs 0/1/2): NO fixed cameras.** No director case;
+- **AREA02 (office, subs 0/1/2): NO fixed cameras** (s56 SUPERSEDED —
+  true for the DIRECTOR only: the SPAWN-RECORD mechanism, s56, pins
+  the supply-room corner camera at area 2 room 1 entry 3). No director case;
   the AREA02 overlay contains zero stores to the camera struct/pool
   (grep over 0x8101E6/0x8101F0/0x810200/0x8105D0/0x8105E0) — all chase.
 - **AREA01 sub 0 (drawbridge): NO fixed cameras.** No director case; the
@@ -11173,6 +11175,14 @@ entry-saved target base. The user-observed "R2 precision view" IS
 mode 1 under stance 0x1E.
 
 ### 4. DOOR CAMERA CUES — op 0x0D sub 5 + func_001BBBF0
+
+> **2026-06-11 s56 CORRECTION:** the OPEN-transit reading below is
+> wrong on both axes — the cut Euler comes from spad 3B50 = the
+> kickoff's SNAPPED pose (the THROUGH-DOOR axis, never the live camera
+> heading), EYE.y = player.y + 19 (11 + f4 + f5) and TARGET.y =
+> player.y + 13 (11 + f4, default params; −46.8 areas +17), both
+> live-verified. See "SPAWN-RECORD FIXED CAMERAS + DOOR-CUT GEOMETRY
+> RE-DERIVED" (s56).
 
 - **OPEN transit** (script D_0024DE40 record 2 = op 0x0D sub 5,
   `func_001B7B30` -> `func_0018CBD0(cam, player, -20.0)`): desired
@@ -11704,3 +11714,118 @@ frame = the shouldered 0x11B reload (support hand at the pouch).
   uses it for the flashlight deviation regardless.
 - The +0x2A0 hand-matrix copy consumers beyond the laser (the WAIT
   head copy gated on +0x2F2).
+
+## SPAWN-RECORD FIXED CAMERAS + DOOR-CUT GEOMETRY RE-DERIVED (2026-06-11, session 56)
+
+Driven by three PCSX2 ground-truth reports against the port. Static
+re-reads of `func_0018CBD0`/`func_001B7B30`/`func_001B0460`/
+`func_001B07C0` plus a LIVE session (DebugServer watch-trap on the
+camera pool) through the office double doors, both directions.
+
+### 1. CORRECTION — op 0x0D sub 5 door cut (revises s53 "DOOR CAMERA CUES")
+
+The s53 reading was wrong on both axes. Live-verified twice (cut
+trapped via a cam+0xA0 change-watch, values read at the pause):
+
+- The cue fires AFTER the kickoff snapped the player to the STAGING
+  POINT with the THROUGH-DOOR yaw — and the kickoff path refreshes the
+  spad pose snapshot `3B40/3B50` (writer: `func_001B07C0`'s
+  player+0xB0/+0xC0 copy) with that snapped pose. `func_0018CBD0`
+  builds its Euler from spad 3B50, so the cut direction is the DOOR
+  AXIS — never the live camera heading.
+- Heights: desired EYE = staging − 20·(sin,cos)(through yaw) with
+  EYE.y = player.y + 11 + f4 + f5 = **+19** (both parameter sets;
+  live: 19.0 exactly); desired TARGET = staging with TARGET.y =
+  player.y + 11 + f4 = **+13** (param-default f4 = 2; the −46.8 areas
+  use f4 = 6 → +17; live: 13.0 exactly). The extra `0.3·f20` term in
+  the .s is the steep-pitch shave path — f20 is the CALLER's
+  callee-saved value when the shave branch is skipped (live: 0).
+  Both desired vectors hard-copy to the actual camera (solver style 5
+  then 1), cam+0xA0 = 0x78.
+- `func_001B7B30` sub map (jtbl_0026DF70): sub 0 fade gate, sub 1 →
+  `func_001B0460(1)` (camera re-init from the entry record, below),
+  subs 2/3 → `func_0018CBD0(cam, player, cam+0x0C)` (the PER-RECORD
+  distance), sub 4 → dist −14, sub 5 → dist −20, sub 6 restore +
+  yaw window, sub 7 compare, sub 8 → D_008101E4 = 1.
+- ROOM-BOUNDARY RE-SEAT (live): when the walk-through crosses the
+  doorway plane (the room move), the chase re-seats behind the
+  player's through-door pose and the NORMAL solve runs — the door
+  wall right behind the eye RISES it (live: parked at
+  (104, 29, −250.4) over the 21-u doorframe, desired == actual).
+
+### 2. NEW — SPAWN-RECORD FIXED CAMERAS (the supply-room corner camera)
+
+The user-observed "director camera in the supply-room corner" that the
+s50 director decode could not find. It is a SECOND fixed-camera
+mechanism, keyed on room-ENTRY spawn records, not trigger volumes:
+
+- Spawn records (`D_0024D650[area]` → per-room record tables, 0x30
+  stride — the same records the re-place reads; area-2 room tables
+  0x24B560/0x24B6B0/0x24B800, 7 records each) carry a CAMERA-INIT
+  word at **+0x10**:
+  - bit 7 of the low byte = FIXED-camera flag → cam+0x05 = 1
+  - low 7 bits = camera mode byte → cam+0x06
+  - word >> 8 = index into **`D_0024A8D0`**, a packed vec3 fixed-EYE
+    table (stride 12)
+  (+0x18 = the per-record camera distance → cam+0x0C and the fog/param
+  copy D_00810244 — the source of the s53 "−31.2 areas" mystery value;
+  +0x14 = the s54 walk-out byte.)
+- **`func_001B0460(mode)`** = the camera re-init that consumes it,
+  called on EVERY room entry: by the transition machinery/re-place
+  (`func_001B07C0` tail), by op 0x0D sub 1, and by the scripted
+  player states (`func_00157360`/`func_0016D130`/`func_0016DE40`,
+  which set D_00810702 = entry idx first). Flagged record: desired
+  EYE = D_0024A8D0[idx] hard-copied to desired AND actual (with the
+  desired TARGET = player + 15, the chase target height), commit
+  `func_0018C0D0(cam, 1)` — the camera SNAPS to the room spec at
+  entry and stays pinned while cam+0x05 = 1 (L1/auto-orient dead, R1
+  aim still runs — the same user-observed semantics as the director
+  regions). Unflagged record: normal chase re-seat with mode byte →
+  cam+0x06.
+- **THE SUPPLY ROOM**: area 2 room 1 entry 3 (record 0x24B760: pos
+  (104, 0, −259) yaw pi — the south side of the office double doors)
+  has +0x10 = 0x380 → flag set, mode 0, eye idx 3 →
+  **D_0024A8D0[3] = (116, 33, −300)** — live-verified: entering the
+  supply room pins the camera there (desired == actual, eye static
+  while the player walks the room); walking back through the doors
+  re-inits from entry 2 (+0x10 = 0) → normal chase. D_00810702 is
+  the ENTRY INDEX (set to 3/2 by the room move), not a room id.
+- s50's "AREA02 has NO fixed cameras" stands for the DIRECTOR
+  (func_00195130) only; the area verdict is superseded by this
+  mechanism.
+
+### 3. Menu-player lighting verdict (the s49 "black on black" report)
+
+The status-menu turntable player WAS drawn by the port but at the
+shader stand-in's 0.30 ambient floor — invisible on the black UI
+backplate under the tile layers. Engine truth: the menu actor's draw
+class 0xB (`func_001CA5F0` → `func_001CB480`) sets lighting-override
+mode 2, and `func_001D89D0` special-cases only modes 1/3/4/5/6 — mode
+2 runs the NORMAL character light path: the CURRENT room's rig from
+D_00251C50 (office key 0x200: ambient (57,57,57)/128 ≈ 0.445 + two
+directional lights (60,60,60) and (37,37,37)/128) with light slot 0
+ZEROED (the static menu actor never gets the camera-light flag +0x2
+bit 0x20 — func_001AFF10 zeroes the byte, func_0020CDC0 never sets
+it). Port fix (em_game ui_scene_render): the existing forward spot
+term doubles as a camera-anchored fill light scoped to the menu player
+draw (cone edges < −1 = no cone falloff; the spot's N·(−L) IS a
+camera-facing wrap), putting camera-facing normals at ~1.0 — the
+engine-comparable readable turntable.
+
+### 4. Exporter + port
+
+- `tools/export_level.py --camregions` now also emits SPAWN-RECORD
+  cameras (`CAMSPAWN_*`, sub-state aware via `--sub`; the captured
+  office scene = room/sub 1, office0 = 0): flagged entries become
+  scene.txt `camregion` lines with the rect spanning the room behind
+  the entry's doorway plane (derived from the entry-record PAIR;
+  behavior-identical to the entry-keyed pin for an enclosed room) —
+  the office scene gains `camregion 64 -332 144 -252 0 116 33 -300`.
+- Port (extermination-port): door cut corrected (staging + through-door
+  axis + +19/+13, latched from the transit walk-to), the doorway-plane
+  re-seat added (doorcam 3 → normal dispatch+solve = the engine's
+  post-move rise), the menu-player fill light, EM_CAPTURE_SUPPLY
+  capture knob. All self-tests PASS; default capture byte-identical
+  vs the HEAD build.
+
+_Last updated: 2026-06-11 (session 56)._

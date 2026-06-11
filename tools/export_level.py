@@ -1086,19 +1086,131 @@ CAMREGION_BINDINGS = {
     6: [(2, (-367.7, 90.0, -598.9))],
 }
 
+# SPAWN-RECORD FIXED CAMERAS — the SECOND fixed-camera mechanism,
+# decoded + live-verified 2026-06-11 (FINDINGS "SPAWN-RECORD FIXED
+# CAMERAS"; this is the user-observed supply-room corner camera the
+# director decode above could not find). Room-ENTRY spawn records
+# (D_0024D650[area] -> per-room record tables, 0x30 stride — the same
+# records the re-place reads) carry a CAMERA-INIT word at +0x10:
+#
+#   bit 7 of the low byte   FIXED-camera flag  -> cam+0x05 = 1
+#   low 7 bits              camera mode byte   -> cam+0x06
+#   word >> 8               index into the fixed-eye vec3 table
+#                           D_0024A8D0 (stride 12)
+#
+# On EVERY room entry (door transition commit / re-place / op 0x0D
+# sub 1) func_001B0460 re-initializes the camera from the entry record:
+# a flagged record HARD-PLACES the eye at the table spec and PINS it
+# while the room is occupied (desired target = player + 15, the normal
+# chase target height; L1/auto-orient dead, R1 aim still runs — the
+# same user-observed semantics as the director regions); an unflagged
+# record re-seats the normal chase. The engine keys this on the ENTRY
+# RECORD, not a trigger volume — the port's camregion machinery stands
+# in with a rect spanning the room behind the entry's doorway plane
+# (derived from the entry-record PAIR: the two records of a door sit
+# ~14 u apart across the doorway; the plane is their midpoint), which
+# is behavior-identical for an enclosed room.
+CAMSPAWN_DIR_VADDR = 0x0024D650         # D_0024D650: area -> room tables
+CAMSPAWN_EYE_VADDR = 0x0024A8D0         # D_0024A8D0: fixed-eye vec3[]
+CAMSPAWN_REC_SIZE = 0x30
+CAMSPAWN_RECT_HALFWIDTH = 40.0          # rect: +-40 u about the entry
+CAMSPAWN_RECT_DEPTH = 80.0              # 80 u beyond the doorway plane
+# (area: {room index: record count}) — rooms to scan; counts bounded by
+# the next room pointer in the user's local ELF (area 2 room tables:
+# 0x24B560 / 0x24B6B0 / 0x24B800, 7 records each).
+CAMSPAWN_BINDINGS = {
+    2: {1: 7},   # AREA02 room 1: entry 3 = the SUPPLY ROOM behind the
+                 # office double doors (live-verified: +0x10 = 0x380 ->
+                 # eye idx 3; entry 2 = the office side, chase)
+}
+
 # Decode-verdict notes for exported areas that define NO fixed cameras.
 CAMREGION_NONE = {
     1: ("AREA01 has no func_00195130 case (generic chase only); the "
         "overlay's lone camera touch is the drawbridge-cutscene target "
         "retarget — not a room camera."),
     2: ("AREA02 has no func_00195130 case (generic chase only) and its "
-        "overlay never writes the camera struct/pool — the office is "
-        "ALL chase camera."),
+        "overlay never writes the camera struct/pool — but see the "
+        "SPAWN-RECORD camera above: room-1 entry 3 pins the supply-room "
+        "corner camera."),
 }
 
 
+def camspawn_records(elf: "BootElf", area: int, room: int, count: int):
+    """The room's 0x30-byte entry records: (pos, yaw, caminit word)."""
+    dirp = struct.unpack("<I", elf.read(CAMSPAWN_DIR_VADDR + area * 4,
+                                        4))[0]
+    base = struct.unpack("<I", elf.read(dirp + room * 4, 4))[0]
+    out = []
+    for i in range(count):
+        rec = elf.read(base + i * CAMSPAWN_REC_SIZE, CAMSPAWN_REC_SIZE)
+        x, y, z, yaw = struct.unpack("<4f", rec[0:16])
+        caminit = struct.unpack("<I", rec[0x10:0x14])[0]
+        out.append((x, y, z, yaw, caminit))
+    return out
+
+
+def camspawn_lines(elf: "BootElf", area: int, sub=None) -> list:
+    """`camregion` lines for the area's FLAGGED entry records (the
+    spawn-record fixed-camera mechanism above). `sub` (the scene's
+    sub-state == the ROOM index: the captured office scene is room 1,
+    office0 is room 0) filters to that room when given."""
+    lines = []
+    for room, count in CAMSPAWN_BINDINGS.get(area, {}).items():
+        if sub is not None and room != sub:
+            continue
+        recs = camspawn_records(elf, area, room, count)
+        for i, (x, y, z, yaw, caminit) in enumerate(recs):
+            if not (caminit & 0x80):
+                continue
+            eye_idx = caminit >> 8
+            ex, ey, ez = struct.unpack(
+                "<3f", elf.read(CAMSPAWN_EYE_VADDR + eye_idx * 12, 12))
+            # Doorway plane: midpoint to the PAIR record (the nearest
+            # other entry — the two sides of the same doorway).
+            best, pair = None, None
+            for j, (px, py, pz, pyaw, pinit) in enumerate(recs):
+                if j == i:
+                    continue
+                d2 = (px - x) ** 2 + (pz - z) ** 2
+                if best is None or d2 < best:
+                    best, pair = d2, (px, py, pz)
+            mx = (x + pair[0]) / 2 if pair else x
+            mz = (z + pair[2]) / 2 if pair else z
+            # Rect: from the plane, CAMSPAWN_RECT_DEPTH deep along the
+            # record's walk-out yaw (facing = (sin, cos)(yaw)), +-
+            # CAMSPAWN_RECT_HALFWIDTH lateral. Axis-aligned yaws only
+            # (all decoded records are); else fall back to a box about
+            # the record.
+            sy, cy = math.sin(yaw), math.cos(yaw)
+            if abs(sy) > 0.999 or abs(cy) > 0.999:
+                sy, cy = round(sy), round(cy)
+                x0 = min(mx, mx + sy * CAMSPAWN_RECT_DEPTH) \
+                    - abs(cy) * CAMSPAWN_RECT_HALFWIDTH
+                x1 = max(mx, mx + sy * CAMSPAWN_RECT_DEPTH) \
+                    + abs(cy) * CAMSPAWN_RECT_HALFWIDTH
+                z0 = min(mz, mz + cy * CAMSPAWN_RECT_DEPTH) \
+                    - abs(sy) * CAMSPAWN_RECT_HALFWIDTH
+                z1 = max(mz, mz + cy * CAMSPAWN_RECT_DEPTH) \
+                    + abs(sy) * CAMSPAWN_RECT_HALFWIDTH
+            else:
+                x0, x1 = x - CAMSPAWN_RECT_HALFWIDTH, \
+                    x + CAMSPAWN_RECT_HALFWIDTH
+                z0, z1 = z - CAMSPAWN_RECT_HALFWIDTH, \
+                    z + CAMSPAWN_RECT_HALFWIDTH
+            lines.append(f"# SPAWN-RECORD camera: area {area} room "
+                         f"{room} entry {i} (+0x10 = {caminit:#x}, "
+                         f"mode {caminit & 0x7F}) -> D_0024A8D0"
+                         f"[{eye_idx}]; rect = port stand-in for the "
+                         f"entry-keyed pin (doorway plane + "
+                         f"{CAMSPAWN_RECT_DEPTH:g} u deep).")
+            lines.append(f"camregion {x0:g} {z0:g} {x1:g} {z1:g} "
+                         f"{y:g} {ex:g} {ey:g} {ez:g}")
+    return lines
+
+
 def emit_camregion_manifest(scene_dir: Path, elf: "BootElf",
-                            area: int) -> int:
+                            area: int, sub=None) -> int:
     """--camregions DIR: rewrite DIR/scene.txt's marker-delimited camera-
     region block from the director decode: real `camregion x0 z0 x1 z1
     ygate ex ey ez` lines for areas with a fixed-camera binding, a
@@ -1119,6 +1231,10 @@ def emit_camregion_manifest(scene_dir: Path, elf: "BootElf",
                      f"{max(zs):g} {rec[1]:g} "
                      f"{eye[0]:g} {eye[1]:g} {eye[2]:g}")
         n_real += 1
+    sp_lines = camspawn_lines(elf, area, sub)
+    if sp_lines:
+        block += sp_lines
+        n_real += sum(1 for l in sp_lines if l.startswith("camregion"))
     if not n_real:
         verdict = CAMREGION_NONE.get(
             area, f"area {area} has no func_00195130 case and no "
@@ -1795,7 +1911,8 @@ def main(argv):
         return annotate_door_goto(args)
     if args.camregions:
         return emit_camregion_manifest(Path(args.camregions),
-                                       BootElf(Path(args.elf)), args.area)
+                                       BootElf(Path(args.elf)), args.area,
+                                       args.sub)
     if not args.out:
         ap.error("--out is required")
     if args.office0_placed:

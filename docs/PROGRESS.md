@@ -140,6 +140,33 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 56): THREE PCSX2 GROUND-TRUTH REPORTS RESOLVED
+> (FINDINGS "SPAWN-RECORD FIXED CAMERAS + DOOR-CUT GEOMETRY
+> RE-DERIVED"). (1) MENU TURNTABLE: the s49 player WAS drawn but at
+> the port shader's 0.30 ambient floor — black on black (engine: menu
+> draw class 0xB = lighting mode 2 which func_001D89D0 does NOT
+> special-case -> the normal room rig, office ambient 0.445 + 2 dir
+> lights; the static menu actor never gets the camera-light flag).
+> Port: the forward spot term doubles as a camera-anchored fill scoped
+> to the menu player draw — visible rotating model under the panels.
+> (2) DOOR CUT CORRECTED (live-trapped twice via cam+0xA0/eye watches):
+> Euler = spad 3B50 = the kickoff SNAP (the THROUGH-DOOR axis, never
+> the live heading), eye = staging − 20·throughdir at +19, target =
+> staging +13 (the s53 +27/+25 misread the 11+f4(+f5) sums); at the
+> doorway-plane crossing (the room move) the chase RE-SEATS behind the
+> through-door pose and the solve RISES over the doorframe (live:
+> parked at +29). Port: latched staging/yaw cut + plane re-seat.
+> (3) SUPPLY-ROOM CAMERA = a SECOND fixed-camera mechanism the s50
+> director decode could not see: room-ENTRY spawn records
+> (D_0024D650[area][room] +0x10 word) arm fixed cameras via
+> func_001B0460 (bit7 flag -> cam+0x05, low7 mode -> cam+0x06, >>8
+> indexes eye table D_0024A8D0; +0x18 = the per-record camera param,
+> the −31.2/−46.8 source). Area 2 room 1 entry 3 (+0x10 = 0x380) ->
+> eye (116, 33, −300), live-verified pinned; export_level.py
+> --camregions (now --sub aware) emits it as the office scene's
+> camregion line; EM_CAPTURE_SUPPLY captures the corner view. All
+> port self-tests PASS; default capture byte-identical vs HEAD.
+
 > 2026-06-11 (session 55): FADE RESIDUAL GAP CLOSED (port) — the gfx
 > overlay pass gained em_gfx_overlay_rect_sub (reverse-subtract,
 > ONE/ONE on RGB, dst alpha kept; Metal ReverseSubtract, own queue
@@ -5253,3 +5280,48 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   EM_WEAPON_TEST re-anchored); default capture byte-identical to a
   pristine-HEAD build. Open: other subs' intervals/reloads, stance-B
   laser, the engine's own cone-mesh draw site.
+
+### Update — 2026-06-11 s56: three ground-truth camera/menu reports resolved — spawn-record fixed cameras decoded, door cut re-derived live, menu turntable lit
+
+- **Menu turntable (user: "still NO spinning character")**: root cause
+  was LIGHTING, not the draw — the s49 scene rendered the player at the
+  port shader's 0.30 ambient floor, black on the black backplate under
+  the 50%-alpha tile layers. Engine truth: the menu actor draws through
+  lighting-override mode 2 (draw class 0xB), which func_001D89D0 does
+  NOT special-case — the NORMAL room-rig path lights it (D_00251C50
+  key 0x200: ambient (57,57,57)/128 + dir lights (60/37)/128), slot-0
+  camera light zeroed (flag +0x2 bit 0x20 never set on static actors).
+  Port: em_gfx_spot_light doubles as a camera-anchored fill (cone
+  opened full, scoped to the player draw, rgb zeroed after) — the
+  rotating model is readable; spin verified across capture frames.
+- **Door cinematic cut (user: "keeps the rotation, just pushes the
+  camera higher")**: the s53 geometry was wrong on both axes. Live
+  re-derivation (watch-trapped cuts, both door directions): Euler =
+  spad 3B50 = the kickoff's snapped pose (THROUGH-DOOR axis), eye
+  +19 / target +13 (the .s sums 11+f4+f5 / 11+f4), hard-copied; at
+  the doorway-plane crossing the chase re-seats and the solve rises
+  over the doorframe (engine parked at +29). Port: latched
+  staging+yaw cut, corrected heights, plane-crossing re-seat
+  (doorcam 3 -> normal dispatch+solve). Capture: over-the-shoulder
+  doorway framing replaces the old wall-filled high shot.
+- **Supply-room corner camera (user observation the s50 decode
+  missed)**: a SECOND fixed-camera mechanism — room-ENTRY spawn
+  records (D_0024D650, +0x10 word: bit7 flag, low7 mode, >>8 eye
+  index) drive func_001B0460 at every room entry; flagged entries
+  hard-place + PIN the eye from table D_0024A8D0 (target = player+15,
+  L1 dead, aim allowed, instant snap-back). Area 2 room 1 entry 3 =
+  the supply room: eye (116, 33, −300) — live-verified. Exported via
+  export_level.py --camregions (sub-state aware; office scene gains
+  `camregion 64 -332 144 -252 0 116 33 -300` — the rect is the
+  documented region stand-in for the entry-keyed pin); office0 keeps
+  its verdict comment. EM_CAPTURE_SUPPLY walks the transit and
+  captures the corner view (shelf room, elevated look-down).
+- Verified: build clean; MOVE/DOOR/TRANSIT/PAUSE/MELEE/AIM/CAMREGION/
+  SFX/ENEMY 1–4 + test-input + test-weapon all PASS; default capture
+  byte-identical vs the HEAD-build baseline (worktree A/B, plus 2-run
+  determinism).
+- Open: the −46.8 parameter areas' door-cut target (+17) untested
+  live; the other flagged spawn-record cameras (non-exported areas)
+  when those areas export; the engine's exact re-seat placement at
+  the room move (the port re-seats via its chase shape — the live
+  engine parked at (104, 29, −250.4), shape-compatible).
