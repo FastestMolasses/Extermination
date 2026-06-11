@@ -11829,3 +11829,132 @@ engine-comparable readable turntable.
   vs the HEAD build.
 
 _Last updated: 2026-06-11 (session 56)._
+
+## LOCKED-DOOR SEQUENCE PORTED — try-anim verdict, lock census, the locked "VO" is a TEXT-ONLY radio message (2026-06-11, session 57)
+
+Closes the s53 flag "EM_DOORCAM_LOCKED stays a preview until em_door
+grows the locked sequence" and the s56 "D_00810841 lock gate not
+ported" flag. Static decode (.s + local ELF/overlay data) + port
+implementation; no emulator.
+
+### 1. Anim verdict: 0x46/0x44 ARE CLIPS (directory ids), not codes
+
+The code-vs-clip trap that bit fire (s25) and reload (s53) does NOT
+apply to the locked script's op-0x0A ids. Directory-resolved bakes of
+ids 70/68 (engine 0x46/0x44), 21-node player rig:
+
+| dir id | frames | motion |
+|--------|--------|--------|
+| 68 (0x44 back)  | 200 | body stays (mean travel <= 0.8 u); limbs reach/jiggle, peak node dev 6.57 u @ f64, EXACT return to rest (f199 dev 0.00) |
+| 70 (0x46 front) | 200 | same shape, peak 5.44 u @ f68, exact return to rest |
+| 67/69 (opens)   | 150 | contrast: whole-body travel 25.2/14.5 u — walk-throughs |
+
+Try-the-handle-and-fail gestures peaking exactly at the script's
+60-frame rattle mark — the s45 table re-verified, safe to wire by id.
+`player.emdl` re-exported with `,70,68` appended (canonical CLI in
+export_native.py updated); byte-superset verified (verts/indices/
+textures/old clip table + palette prefix identical).
+
+### 2. func_001BBAE0 DECODED — the locked "VO" is the RADIO MESSAGE machine, text-only
+
+Full .s read + ELF data (jtbl_0026E1A0 @0x26E1A0, D_00264DD0
+@0x264DD0):
+
+- Phase 0: music duck `D_002821B0 = 2` (machine MODE 2, func_001FCA10
+  dispatch), `D_002821B4 = 1` (active), then `sel = link byte +0x56 &
+  0x3F`; sel >= 6 -> done (no VO). jtbl_0026E1A0[sel] -> LINE WORD
+  `0x8000000X` stored to `D_002821B8`, `D_002821BC = 0` (the mode-2
+  pre-delay), blk+4 = 1. Mapping: sel 0->line 6, 1->0, 2->2, 3->8,
+  4->0xA, 5->4.
+- Phase 1: poll `D_002821B4 == 2` (set by func_001FCA10 mode 2 when
+  func_001FDB80(0) reports the message done).
+- The line word's **bit 31 selects the GLOBAL message table**
+  `D_00264DD0[0]` = 0x272DF0 (per-AREA tables live at D_00264DD0
+  [area+1] — func_001FD790 reads `lw 0x4(D_00264DD0 + area*4)`).
+  8-byte line records `{u16 steps/duration, s16 voice_cue, u8 0xFF,
+  u8 +4, u8 +5 wait_stream}`; a message = record pairs `{dur, -1, 0}`
+  then `{0, .., +5=1}` (the +5 flag makes func_001FDB80 wait on the
+  VOICE stream flags D_00282155/156 before completing).
+- **Every locked-door line record's voice_cue is -1** (global recs
+  0/2/4/8/A = {0x94=148f, -1}, rec 6 = {0x76=118f, -1}): the locked
+  "VO" plays NO audio — it is a TYPEWRITER RADIO SUBTITLE. Text =
+  bank slot 0x16 (`D_0028A4E8`, the bit-31 container in
+  func_001FD950) string[line] via func_001FE480. A real voice cue
+  (area-table path) would start via func_001FD580's
+  `func_001FA5A0(rec+0x2)` — the VOICE.DAT stream.
+- s23's "locked-door VOICE OVER" label is hereby corrected to
+  "locked-door RADIO MESSAGE (text-only)".
+
+### 3. Lock census of the exported scenes — two REAL locked doors
+
+Gate recap: hinged func_001BC350 model 0x15 tests `D_00810841[area] &
+(1 << door_id)`; slider func_001BB860 only for flags2 in {0x16, 0x17,
+0x3E}. D_00810841 is BSS -> all lock-gated doors START LOCKED.
+Placement dump (this session):
+
+- AREA02 sub 0 [22]: m15, flags2 0x80 (id 0), link 0x0200 ->
+  scene_office0's drawbridge door — LOCKED, VO sel 0 -> line 6 (118 f).
+- AREA01 tblA [14]: m15, flags2 0x81 (id 1), link 0x0200 ->
+  scene_drawbridge's office0 door — LOCKED, VO sel 0 -> line 6.
+- All exported sliders (office m17 fl 0x83, drawbridge m09 fl
+  0x04/0x85) are NOT lock-gated; no synthetic test door needed.
+
+### 4. Tooling
+
+- `export_level.py --door-locked DIR --area A --sub S --overlay ...`:
+  idempotent `locked` token emission on the matched door lines +
+  decode marker comments (`door <file> x y z yaw r locked [goto ..]`).
+  Run on all three exported scenes (office = 0 locked, office0 +
+  drawbridge = 1 each).
+- `gen_sfx_registry.py`: locked rattle 0x3F2 added to the office
+  preset (snd_0533, 30959 Hz — same WAV in every exported area's
+  bank); `locked_door_census()` re-derives the gate + the VO verdict
+  per lock-gated door from the user's local overlay/ELF and emits it
+  as registry comments — and would emit a `lockedvo <id>` scene line
+  if a locked line ever resolved to a real audio cue (none do).
+
+### 5. Port (extermination-port, this session) + verification
+
+em_door grows the LOCKED SEQUENCE (engine subs 1/2, header block "THE
+LOCKED SEQUENCE"): manifest `locked` token -> gate at the use-arm,
+kickoff mode 1 (same side-latch/snap/staging walk), locked-look camera
+cut via the new em_door_locked_look() feed (em_game doorcam state 4 —
+the EM_DOORCAM_LOCKED env preview is retired, the real sequence drives
+the s53/s56 func_001BBBF0 geometry, with the op07-sub4 instant chase
+restore at the finish), player try anim 0x46/0x44, the door EMDL's
+locked-jiggle clip by ENGINE id (em_door now resolves op-0x0B clip ids
+2/0 open and 3/1 locked through em_model_clip_index — retiring the
+fixed clip-0 play), rattle 0x3F2 at the 60-frame mark, the lockedvo
+slot (silent — engine truth), clip-end finish, re-arm CLOSED. No
+fade, no warp; control + camera restore at the finish edge.
+`em_door_unlock(i)` = the D_00810841 bit-set event (the engine's
+door-panel/keycard scripts); em_door_is_locked/em_door_rattles
+introspection.
+
+EM_LOCKED_TEST=1 (EM_SCENE=assets/scene_drawbridge, the REAL m15
+security door): refusal -> LOCKED_TRY with both locks, try anim 0x44,
+locked-look camera geometry asserted ((-28.5, 10, -192) target /
+(-28.5, 12, -205) eye), exactly one rattle, door re-armed CLOSED with
+zero fade and the player held on the near side (parked at staging
+-197.25, then the control restore lets the free-move wall separation
+push the 4.5-u radius to ~-198.5 — never past the door plane), control
+restored, then em_door_unlock + retry -> OPENING, open anim 0x43, the
+real goto transit into scene_office0 — PASS. Full suite PASS (MOVE/
+DOOR/TRANSIT/SLIDER/LOCKED/WEAPON/SFX/PAUSE/CAMREGION/AIM/MELEE/
+ENEMY 1-4 + test-input + test-weapon). Default capture byte-identical
+(old vs re-exported player.emdl under the same build, cmp exact).
+
+Open (locked doors):
+- The locked-slider script D_0024DA40's camera native func_001BB310
+  is undecoded (the port approximates a locked slider with the hinged
+  refusal minus anim/clip/rattle — FLAGGED, no exported placement
+  exercises it).
+- The radio TEXT machine (func_001FD950 typewriter + the slot-0x16
+  bank strings + the D_00282155/156 stream-wait) is not ported — the
+  locked refusal is silent where the engine shows the radio subtitle.
+  Porting it would also serve every other radio message in the game.
+- Which game events SET D_00810841 bits (the door-panel script's
+  partner-door arm, s23) — the unlock authoring side is undecoded;
+  em_door_unlock is the API stand-in.
+
+_Last updated: 2026-06-11 (session 57)._

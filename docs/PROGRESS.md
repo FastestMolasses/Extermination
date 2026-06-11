@@ -5325,3 +5325,41 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   when those areas export; the engine's exact re-seat placement at
   the room move (the port re-seats via its chase shape — the live
   engine parked at (104, 29, −250.4), shape-compatible).
+
+### Update — 2026-06-11 s57: LOCKED-DOOR SEQUENCE shipped end to end (decomp decode + tooling + port)
+
+- **Anim verdict (the code-vs-clip trap checked)**: the locked script's
+  op-0x0A ids 0x46/0x44 ARE clip requests — directory bakes of ids
+  70/68 show 200-frame limbs-only try-the-handle-and-fail gestures
+  (peak node dev 5.4/6.6 u at f64-68, exact return to rest), unlike
+  the fire codes (s25) and the reload table pick (s53). player.emdl
+  re-exported with `,70,68` appended (byte-superset verified;
+  canonical CLI updated in export_native.py).
+- **func_001BBAE0 decoded — the locked "VO" is TEXT-ONLY**: link bits
+  0-5 -> jtbl_0026E1A0 -> a GLOBAL radio-message line (bit-31 word to
+  the D_002821B0 machine, mode 2); every locked line's 8-byte record
+  carries voice_cue = -1 — a typewriter radio subtitle (bank slot
+  0x16), NO audio. FINDINGS s57 has the full machine decode
+  (func_001FD790/1FDB80/1FD950, D_00264DD0 table layout).
+- **Lock census**: exactly two REAL locked doors in the exported
+  scenes — the two m15 security doors (office0 id 0, drawbridge id 1,
+  both link 0x0200 -> VO line 6); no slider is lock-gated; D_00810841
+  is BSS so both start LOCKED. No synthetic test door needed.
+- **Tooling**: `export_level.py --door-locked` (idempotent `locked`
+  token + decode comments; run on all three scenes),
+  `gen_sfx_registry.py` locked_door_census + rattle 0x3F2 (and the
+  conditional `lockedvo` scene-line emission — never fires on disc
+  data).
+- **Port**: em_door engine subs 1/2 (locked try / finish), the lock
+  gate at use-arm, em_door_unlock()/is_locked()/locked_look()/
+  rattles(), per-side ENGINE clip-id resolution (open 2/0, locked 3/1
+  via em_model_clip_index — fixed-clip-0 retired), rattle 0x3F2 at the
+  60-frame mark, em_game `locked` manifest token, doorcam state 4 =
+  the real func_001BBBF0 locked-look cut + instant restore
+  (EM_DOORCAM_LOCKED preview retired). EM_LOCKED_TEST=1 PASS
+  (refusal: pos held, rattle x1, camera geometry asserted, no fade,
+  door re-armed; unlock + retry: OPENING -> the real goto transit to
+  office0). Full suite PASS; default capture byte-identical.
+- **Open**: locked-slider camera native func_001BB310; the radio TEXT
+  machine port (would serve all radio messages); the authoring side
+  of D_00810841 (which events unlock which doors).

@@ -1033,6 +1033,84 @@ def annotate_door_goto(args) -> int:
 
 
 # ---------------------------------------------------------------------------
+# DOOR LOCK BITS (scene.txt `door ... locked` annotation) — decoded
+# 2026-06-11/12 from the door brains' sub-state-0 gates:
+#
+#   hinged family func_001BC350, model 0x15 ("security door"): state 0
+#     tests the per-area unlock bitmask `D_00810841[D_00810700] &
+#     (1 << door_id)` (door_id = actor +0x34 = placement flags2 & 0x7F;
+#     FINDINGS "FIRST INTERACTIVE OBJECTS" / "DOOR SCRIPTS DECODED" s23)
+#     — bit CLEAR queues the LOCKED TRY script D_0024DEC0 (camera cut,
+#     player try anim 0x46/0x44, door jiggle clip 3/1, rattle 0x3F2, VO).
+#   slider brain func_001BB860: only placements whose flags2 byte is in
+#     {0x16, 0x17, 0x3E} are lock-gated (FINDINGS s56 "SLIDER DOOR
+#     BRAIN"); their locked script D_0024DA40 is camera + VO only.
+#   every other door (m03 doubles, plain sliders) always opens.
+#
+# D_00810841 is BSS — all bits are ZERO at boot, so a lock-gated door is
+# LOCKED until a game event (door panel, keycard script) sets its bit.
+# The port mirrors the bit with em_door_unlock(). Emitted grammar:
+#
+#   door <file> <x> <y> <z> <yaw> <r> locked [goto ...]
+
+LOCK_MARK = "# door-locked:"
+SLIDER_LOCK_FLAGS2 = {0x16, 0x17, 0x3E}     # func_001BB860 state-0 set
+FN_DOOR_HINGED = 0x001BC350                 # m03/m15 double-door brain
+FN_DOOR_SLIDER = 0x001BB860                 # m17/m09 slider brain
+
+
+def annotate_door_locked(args) -> int:
+    """--door-locked DIR: annotate DIR/scene.txt's `door` lines with the
+    decoded LOCK GATE (the `locked` token, see the block comment above).
+    Lines are matched to placement records by position like --door-goto;
+    previous `locked` tokens and our marker comments are stripped first
+    (idempotent). Doors with no matching record (the flagged synthetic
+    vent) are left untouched."""
+    scene_dir = Path(args.door_locked)
+    mf = scene_dir / "scene.txt"
+    if not mf.exists():
+        sys.exit(f"{mf} not found")
+    if args.sub is None:
+        sys.exit("--door-locked needs --sub (the scene's sub-state)")
+    ov_data = Path(args.overlay).read_bytes()
+    doors = _sub_doors(ov_data, args.area, args.sub)
+
+    out, n_locked = [], 0
+    lines = mf.read_text().splitlines()
+    lines = [ln for ln in lines if not ln.startswith(LOCK_MARK)]
+    for ln in lines:
+        f = ln.split()
+        if not (f and f[0] == "door" and len(f) >= 7):
+            out.append(ln)
+            continue
+        f = [t for t in f if t != "locked"]    # strip previous token
+        x, z = float(f[2]), float(f[4])
+        rec = next((e for e in doors
+                    if abs(e.pos[0] - x) < 0.5 and abs(e.pos[2] - z) < 0.5),
+                   None)
+        if rec is None:
+            out.append(" ".join(f))
+            continue
+        gated = ((rec.behavior == FN_DOOR_HINGED and rec.model == 0x15) or
+                 (rec.behavior == FN_DOOR_SLIDER and
+                  rec.flags2 in SLIDER_LOCK_FLAGS2))
+        if not gated:
+            out.append(" ".join(f))
+            continue
+        door_id = rec.flags2 & 0x7F
+        out.append(f"{LOCK_MARK} model {rec.model:#04x} door id {door_id} "
+                   f"-> D_00810841[area {args.area}] bit {door_id} (BSS, "
+                   f"0 at boot = LOCKED until a game event / "
+                   f"em_door_unlock); link {rec.link:#06x} -> locked-VO "
+                   f"selector {rec.link & 0x3F} (bits 0-5)")
+        out.append(" ".join(f[:7] + ["locked"] + f[7:]))
+        n_locked += 1
+    mf.write_text("\n".join(out) + "\n")
+    print(f"manifest: {mf}: {n_locked} lock-gated door(s) annotated")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # CAMERA REGIONS (scene.txt `camregion` lines) — the mode-0 camera
 # director's fixed room cameras, decoded 2026-06-11 (FINDINGS "MODE-0
 # CAMERA DIRECTOR func_00195130 DECODED").
@@ -1898,6 +1976,12 @@ def main(argv):
     ap.add_argument("--overlay", default="extract/OVERLAY/AREA02.BIN",
                     help="--door-goto: the user's extracted area overlay "
                     "(pass AREA01.BIN with --area 1)")
+    ap.add_argument("--door-locked", metavar="DIR",
+                    help="annotate DIR/scene.txt's door lines with the "
+                    "decoded LOCK GATE (`locked` token: model-0x15 "
+                    "security doors + flags2-{16,17,3E} sliders vs the "
+                    "BSS unlock bitmask D_00810841; use with --area/"
+                    "--sub/--overlay; see annotate_door_locked)")
     ap.add_argument("--vent", action="store_true",
                     help="--door-goto (office scene only): append the "
                     "FLAGGED synthetic VENT door line -> scene_office0 "
@@ -1909,6 +1993,8 @@ def main(argv):
 
     if args.door_goto:
         return annotate_door_goto(args)
+    if args.door_locked:
+        return annotate_door_locked(args)
     if args.camregions:
         return emit_camregion_manifest(Path(args.camregions),
                                        BootElf(Path(args.elf)), args.area,

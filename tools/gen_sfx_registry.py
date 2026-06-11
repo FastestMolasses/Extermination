@@ -57,6 +57,42 @@ BOOT_ELF = ROOT / "elf" / "SCUS_971.12.elf"
 DOOR_PAIR_VADDR = 0x24DB80
 DOOR_PAIR_COUNT = 16
 
+# LOCKED-DOOR "VO" — func_001BBAE0 (the locked script's op-0x09 native,
+# decoded 2026-06-11/12 from the .s + local ELF data): the door LINK
+# halfword's low 6 bits select through jtbl_0026E1A0 (6 cases) a RADIO
+# MESSAGE LINE word 0x8000000X posted to the message machine
+# D_002821B0 (mode 2, line D_002821B8, duck B0=2/B4=1). Bit 31 = the
+# GLOBAL message table D_00264DD0[0] (per-area tables start at [1],
+# func_001FD790); the 8-byte line records are {u16 duration/steps,
+# s16 voice_cue, u8, u8 wait_stream}. Every locked-door line's
+# voice_cue is -1: the "VO" is a TEXT-ONLY radio message (typewriter
+# subtitle, bank slot 0x16 string[line]) — there is NO audio id to
+# register. The decode below recomputes this from the user's local
+# data per lock-gated door and emits the verdict as comments; if a
+# future line ever carries a real cue, a `lockedvo` scene.txt line is
+# emitted for the port's em_door (which plays it through em_sfx).
+LOCKED_VO_JTBL_VADDR = 0x26E1A0
+LOCKED_VO_CASE_LINE = {          # case target vaddr -> line index
+    0x1BBB60: 0x6, 0x1BBB6C: 0x0, 0x1BBB74: 0x2,
+    0x1BBB80: 0x8, 0x1BBB8C: 0xA, 0x1BBB98: 0x4,
+}
+GLOBAL_MSG_PTR_VADDR = 0x264DD0  # D_00264DD0[0] = global message table
+
+# Lock-gated door placements in the EXPORTED scenes (FINDINGS s56 lock
+# gate: model 0x15 hinged + flags2-{0x16,0x17,0x3E} sliders): the two
+# m15 security doors. (area, sub, overlay, table_vaddr) per scene.
+LOCKED_DOOR_TABLES = [
+    ("scene_office0 (AREA02 sub 0)", "AREA02.BIN", 0x827830),
+    ("scene_drawbridge (AREA01 sub 0)", "AREA01.BIN", 0x82BD50),
+]
+SLIDER_LOCK_FLAGS2 = {0x16, 0x17, 0x3E}
+FN_DOOR_HINGED = 0x001BC350
+FN_DOOR_SLIDER = 0x001BB860
+
+# The locked rattle — the locked script's op-0x17 sub-0 positional
+# sound at its 60-frame mark (FINDINGS s23 D_0024DEC0 @24DD80).
+LOCKED_RATTLE_ID = 0x3F2
+
 # Office scene = AREA02 sub-state 1 (placement table 0x828170), engine
 # area key 2.1 in the soundmap's area tables.
 SCENES = {
@@ -98,12 +134,18 @@ SCENES = {
         #   per-surface impact family, but no surface->id mapping is
         #   pinned in FINDINGS — only the observed 0x189 ships; the
         #   port plays it for every wall (em_sfx.h flag).
+        # - LOCKED-DOOR RATTLE 0x3F2 (s23 locked script D_0024DEC0's
+        #   op-0x17 sub-0 at its 60-frame mark; em_door's locked
+        #   sequence plays it — same snd_0533 WAV in every exported
+        #   area's bank). The locked "VO" itself is a TEXT-ONLY radio
+        #   message (see LOCKED-DOOR "VO" above) — verdict comments per
+        #   lock-gated door are appended by locked_door_census().
         "ids": [0x162, 0x163, 0x164, 0x165, 0x168, 0x169, 0x7D8,
                 0x015, 0x016, 0x017, 0x018, 0x019,   # walk (gait 2)
                 0x01A, 0x01B, 0x01C, 0x01D, 0x01E,   # run (gait 3)
                 0x138, 0x139, 0x13A, 0x13B, 0x13C,   # gear/cloth
                 0x17D, 0x17E, 0x17F, 0x179, 0x15D,
-                0x189, 0x16A],
+                0x189, 0x16A, LOCKED_RATTLE_ID],
     },
 }
 
@@ -144,20 +186,78 @@ def resolve(sm: dict, sid: int, area: str):
     return None
 
 
-def read_door_pairs() -> list[tuple[int, int]]:
-    """D_0024DB80 [front, back] pairs from the user's local boot ELF."""
+def elf_read(vaddr: int, n: int) -> bytes:
+    """`n` bytes at `vaddr` from the user's local boot ELF."""
     data = BOOT_ELF.read_bytes()
     e_phoff, = struct.unpack_from("<I", data, 0x1C)
     e_phnum, = struct.unpack_from("<H", data, 0x2C)
     for i in range(e_phnum):
         (p_type, p_offset, p_vaddr, _pa, p_filesz, _ms, _fl,
          _al) = struct.unpack_from("<8I", data, e_phoff + i * 32)
-        if p_type == 1 and p_vaddr <= DOOR_PAIR_VADDR < p_vaddr + p_filesz:
-            off = DOOR_PAIR_VADDR - p_vaddr + p_offset
-            hw = struct.unpack_from(f"<{DOOR_PAIR_COUNT * 2}H", data, off)
-            return [(hw[2 * k], hw[2 * k + 1])
-                    for k in range(DOOR_PAIR_COUNT)]
-    raise RuntimeError("pair-table vaddr not covered by any LOAD segment")
+        if p_type == 1 and p_vaddr <= vaddr and \
+                vaddr + n <= p_vaddr + p_filesz:
+            off = vaddr - p_vaddr + p_offset
+            return data[off:off + n]
+    raise RuntimeError(f"vaddr {vaddr:#x} not covered by any LOAD segment")
+
+
+def read_door_pairs() -> list[tuple[int, int]]:
+    """D_0024DB80 [front, back] pairs from the user's local boot ELF."""
+    hw = struct.unpack(f"<{DOOR_PAIR_COUNT * 2}H",
+                       elf_read(DOOR_PAIR_VADDR, DOOR_PAIR_COUNT * 4))
+    return [(hw[2 * k], hw[2 * k + 1]) for k in range(DOOR_PAIR_COUNT)]
+
+
+def locked_vo_decode(link: int):
+    """func_001BBAE0's locked-door VO resolution for one door LINK
+    halfword: (selector, line, duration, voice_cue) — voice_cue is -1
+    when the radio line is text-only (every shipped locked-door line;
+    see the LOCKED-DOOR \"VO\" block above), or None when the selector
+    is out of the 6-case jump-table range (no VO at all)."""
+    sel = link & 0x3F
+    if sel >= 6:
+        return sel, None, None, None
+    tgt, = struct.unpack("<I", elf_read(LOCKED_VO_JTBL_VADDR + 4 * sel, 4))
+    line = LOCKED_VO_CASE_LINE[tgt]
+    table, = struct.unpack("<I", elf_read(GLOBAL_MSG_PTR_VADDR, 4))
+    dur, cue = struct.unpack("<Hh", elf_read(table + 8 * line, 4))
+    return sel, line, dur, cue
+
+
+def locked_door_census():
+    """Comment lines (+ any lockedvo registry ids) for every lock-gated
+    door of the exported scenes: the lock-gate decode + the VO verdict."""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import placements  # noqa: E402
+
+    notes, vo_ids = [], []
+    for label, overlay, vaddr in LOCKED_DOOR_TABLES:
+        table = placements.parse_table(
+            (ROOT / "extract" / "OVERLAY" / overlay).read_bytes(), vaddr)
+        for e in table:
+            if (e.spawn_class & 0xFF) != 0x85:
+                continue
+            gated = ((e.behavior == FN_DOOR_HINGED and e.model == 0x15) or
+                     (e.behavior == FN_DOOR_SLIDER and
+                      e.flags2 in SLIDER_LOCK_FLAGS2))
+            if not gated:
+                continue
+            sel, line, dur, cue = locked_vo_decode(e.link)
+            head = (f"LOCKED door {label}: model {e.model:#04x} id "
+                    f"{e.flags2 & 0x7F} link {e.link:#06x} -> VO selector "
+                    f"{sel}")
+            if line is None:
+                notes.append(f"{head} -> out of jtbl range, NO VO")
+            elif cue == -1:
+                notes.append(f"{head} -> radio line {line} ({dur} frames), "
+                             f"voice cue -1 = TEXT-ONLY radio message; no "
+                             f"audio id -> no lockedvo scene.txt line")
+            else:
+                notes.append(f"{head} -> radio line {line} ({dur} frames), "
+                             f"VOICE cue {cue} — scene.txt line: lockedvo "
+                             f"0x{cue:03X}")
+                vo_ids.append(cue)
+    return notes, vo_ids
 
 
 def office_door_pairs(scene: dict):
@@ -223,6 +323,9 @@ def main(argv=None) -> int:
         ids = scene["ids"] + [i for i in ids if i not in scene["ids"]]
         door_ids, door_info, doorsfx = office_door_pairs(scene)
         ids += [i for i in door_ids if i not in ids]
+        vo_notes, vo_ids = locked_door_census()
+        door_info += vo_notes
+        ids += [i for i in vo_ids if i not in ids]
     if not ids:
         ap.error("no ids (pass ids and/or --scene)")
     if not area:

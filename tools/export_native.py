@@ -75,11 +75,14 @@ Usage (macOS arm64, repo root):
   # s43 fidelity call, see the export_props docstring; full clip list
   # = the s36 superset, idle = DIRECTORY id 349 after the 2026-06-11
   # directory-resolution fix — the old "346" was the same content
-  # under the shifted enumeration):
+  # under the shifted enumeration; ,70,68 = the door LOCKED-TRY
+  # gestures 0x46/0x44 appended 2026-06-11 for em_door's locked
+  # sequence — verified limbs-only try-and-fail clips, peak node
+  # deviation 5.4/6.6 u around f64-68, exact return to rest at f199):
   .venv/bin/python tools/export_native.py --attach --no-glow \
       --mesh extract/chunk28/f00_id3b.bin \
       --anim extract/chunk28/f01_id3c.bin \
-      --clips 349,2,3,69,67,75,272,273,283,51,274,275,276,277,278,279,280,281,282,1,267,268,269,270,271,0,450,10 \
+      --clips 349,2,3,69,67,75,272,273,283,51,274,275,276,277,278,279,280,281,282,1,267,268,269,270,271,0,450,10,70,68 \
       --gsdump extract/gsdump/frame1.gs \
       --out ../extermination-port/assets/player.emdl
   # ANIMATED export: bake clip N from an id 0x74 animation library file
