@@ -186,9 +186,12 @@ the dated sections later in the file are both authoritative.
 > em_hud_backdrop_ready) so the player sits between the black frame
 > and the translucent tile shimmer, under every panel — the engine's
 > draw order. Deterministic spin under EM_HUD_FORCE (yaw = pi at the
-> open/force edge, +0.01/rendered frame). Engine GS projection scale
-> still undecoded — the port projects at its own 50 deg (model anchor
-> drifts with window aspect; flagged).
+> open/force edge, +0.01/rendered frame). UI projection PINNED by
+> anchor consistency: x 7.4 at z 40 = the ring-center column iff
+> tan(fovy/2) = 0.74 at 4:3 (~73 deg) — locked 4:3, stretches with
+> the window like the panel canvas. Port deviation (flagged): the rig
+> orbits to the gfx stand-in light's azimuth (relative transform and
+> framing unchanged) so the camera-facing side is lit.
 
 > 2026-06-11 (session 47): WEAPON FIDELITY WAVE — semi cadence decoded,
 > L3 gate, flashlight identity, anim-id verdicts (FINDINGS "WEAPON

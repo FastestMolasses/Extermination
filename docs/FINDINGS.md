@@ -10710,18 +10710,33 @@ view. When `D_008104E4`==1 it also writes a color triple
   record (em_hud_backdrop_ready): a black fullscreen BACKPLATE quad
   (drawn through em_gfx_draw_skinned_tinted black — the engine's black
   UI frame) + the player at the decoded transform (view-space
-  (7.4, -2.4, 40) under the port's y-up remap, yaw pi + 0.01/frame,
-  scale 1, menu pose 450 / low-health idle 10 at <= 35 displayed
-  health, multiplicative approximation of the additive infection
-  pulse). em_hud_scene_3d() tells the background drawer to skip its
-  opaque base fill so the player sits between the black frame and the
-  translucent tile layers — the engine's draw order exactly.
-- Engine values NOT carried: the GS projection scale (the port projects
-  with its own 50-deg perspective, so the model's screen anchor drifts
-  with window aspect — flagged in em_game.c), the equipment companion
-  actors (func_0020E250's separate models; the port's player mesh
-  already carries the attached weapon), and the engine's time-seeded
-  pulse rand (the port background keeps its fixed-seed LCG).
+  (7.4, 2.4 down, 40), yaw pi + 0.01/frame, scale 1, menu pose 450 /
+  low-health idle 10 at <= 35 displayed health, multiplicative
+  approximation of the additive infection pulse). em_hud_scene_3d()
+  tells the background drawer to skip its opaque base fill so the
+  player sits between the black frame and the translucent tile layers
+  — the engine's draw order exactly.
+- **UI projection PINNED by anchor consistency**: the decoded 7.4-unit
+  x offset at z 40 projects exactly onto the ring-gauge center column
+  (canvas x 208 of 512, NDC -0.1875) iff the projection x scale is
+  0.1875*40/7.4 = 1.01351 — i.e. **tan(fovy/2) = 0.74 at the GS 4:3
+  frame (~73 deg vertical)**. The port locks this 4:3 projection for
+  the UI scene (the frame stretches with the window exactly like the
+  panel canvas), keeping the model registered on the ring at any
+  window size. (The clean 0.74 suggests this IS the engine's UI/world
+  projection constant — worth checking against func_001D2960's GS
+  scale when that path is decoded.)
+- Port lighting deviation (renderer stand-in, not engine): the gfx
+  layer lights characters with a fixed directional stand-in
+  (L = (0.4, 0.8, 0.45)); under the raw identity camera that leaves
+  the menu player at the ambient floor (near-black on black). The
+  port orbits the whole UI rig to the light's azimuth — the relative
+  camera<->player transform (and therefore the framing) is unchanged,
+  but the camera-facing side is the lit side.
+- Engine values NOT carried: the equipment companion actors
+  (func_0020E250's separate models; the port's player mesh already
+  carries the attached weapon) and the engine's time-seeded pulse
+  rand (the port background keeps its fixed-seed LCG).
 - Spin phase is deterministic for captures: state re-inits on every
   open/force edge (yaw = pi), advancing 1 tick per rendered frame —
   EM_HUD_FORCE captures at frame N always sample yaw = pi + 0.01*N.
