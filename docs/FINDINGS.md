@@ -11208,4 +11208,121 @@ exact). Captures: EM_CAPTURE_AIM=1 now frames down the barrel toward
 the laser dot; =3/=4 show the up/down ladder poses with the
 counter-moved eye; EM_CAPTURE_DOOR=1 shows the doorway cinematic.
 
-_Last updated: 2026-06-11 (session 53)._
+## SCREEN-FADE BLEND + TRANSIT TWO-LOCK + ARRIVAL WALK-OUT DECODED (2026-06-11, session 54)
+
+Closes three fidelity questions raised against the port: the fade's real
+GS blend, why the menu opens "about halfway through" the arrival
+walk-out while movement stays locked, and the walk-out itself.
+
+### 1. The fade is a SUBTRACTIVE GS sprite, not a black alpha cover
+
+The func_001AED80/DB0/DE0/E10 family arms the 0x0028A8E0
+transition/brightness machine (per-frame writer func_001AEE70, jr-table
+0x26DD50 — REAL table base; entries [0x1AEEB4, 0x1AEF10, 0x1AEF60,
+0x1AEFB0, 0x1AF00C, 0x1AF00C, 0x1AF01C] for states 0..6). Header fields
+(+0xC0 sub-state = D_0028A9A0, +0xC2 mode, +0xC3 state, +0xC4 level
+0..255, +0xC6 step):
+
+- func_001AED80(mode): level 0, state 0           (instant CLEAR)
+- func_001AEDB0(mode): level 255, state 1, sub 2  (instant BLACK hold)
+- func_001AEDE0(step, mode): state 3, sub 3       (FADE-OUT ramp)
+- func_001AEE10(step, mode): state 2, sub 1       (FADE-IN ramp)
+- fade-out completion: level=255, state 1, sub-state 2 — **D_0028A9A0
+  == 2 is the "hold black" gate** func_001AE040 requires before running
+  the commit executors (func_001AD010 room/area, func_001AD140);
+  fade-in completion: level=0, state 0, sub-state 0.
+
+The packet (init func_001AEA50, double-buffered 0x60/frame): VIF1
+FLUSH/NOP/NOP/**DIRECT 5** → GIF tag NLOOP 1 EOP, PRE=1 PRIM **0x346**
+(SPRITE, ABE on, FST, context 2), PACKED regs {A+D, RGBAQ, XYZF2,
+XYZF2}:
+
+- +0x20 A+D → **ALPHA_2** (reg 0x43):
+  - mode 0: `0x00000080_000000A1` → A=Cd B=Cs C=FIX D=0, FIX=0x80 →
+    **Cv = Cd − Cs** — saturating SUBTRACT of the source color;
+  - mode 1: `0x00000080_00000068` → A=Cs B=0 C=FIX D=Cd → **Cv = Cs +
+    Cd** — ADDITIVE (fade to white; used by the mode-1 callers).
+- +0x30 RGBAQ: R=G=B = **the level** (rewritten per frame by
+  func_001AEE70; A=0x80 unused since C=FIX).
+- +0x40/+0x50 XYZF2: (0x7000,0x7900)-(0x9000,0x8700) 12.4 — fullscreen.
+
+So the door fade subtracts the grey level from every pixel:
+`out = max(0, pixel − level)` — shadows crush to black early, highlights
+survive to the end ("exposure being pulled down", the user-observed
+look). Port stand-in (standard alpha blend only): black quad with
+**alpha = 1 − (1−l)²** — matches the engine's mean-luminance trajectory
+for a uniform histogram and both endpoints; residual gap (no per-pixel
+crush) documented in extermination-port em_frame.h; exact parity needs a
+reverse-subtract blend op in the port overlay pass (gfx-owned).
+
+### 2. The transit "input lock" is TWO separate systems
+
+**MENU**: gameplay state 1 polls func_001AE7E0 every frame; return 2
+(via the C5/B0 request bytes OR internal-layout buttons 0x800 Triangle /
+0x10 Start in D_00810E74, with D_008106B3 inhibit) opens the status
+screen (func_001AE040 state 3, D_008106C4=1). It returns 0 — press
+DROPPED — while: B8/B9 request pending, **fade machine D_0028A9A0 != 0**
+(fade-out 3 / hold 2 / fade-in 1), or **scripted spad 0x70003B8D != 0**.
+(Return 1 = the func_0022A650 screen on 0x100/SELECT or pad-mode byte
+D_00810E50 != 4; return 3 = level-end via D_008106CE.)
+
+**MOVEMENT**: the player actor state machine owns it. The room-move
+commit chain: D_0028A9A0==2 → func_001AD010 (B8==2: entry byte ←B7,
+task state 4) → state 4 runs **func_001AFCF0 (clears spads 0x3B8C/8D/8E/
+93 — scripted mode ENDS here, under black)**, **func_001B07C0(1)**
+(re-place from the spawn table; copies rec byte +0x14 → player +0x0E,
+and +0x14 == 1 in every decoded record → **player state 5/1**),
+func_001AEE10(4,0) fade-in, back to state 1.
+
+### 3. The ARRIVAL WALK-OUT — player state 5/1 (func_00183250)
+
+State-5 dispatcher func_0015B610 (head: 3B8D 0/4 → sub dispatch; 1-3 →
+func_00182B30 arbitration — which returns 0 for 5/1, the abort path
+that converts a walk-out to state 4/0 action 0x41 if scripted mode is
+still active). Sub 1 = func_00183250, phases on +0x06:
+
+- phase 0 (1 frame): locIdx +0x25C = 2, ramp +0x38 = 0.3 (D_00248870[2]
+  u/tick), anim = func_0017B490(mode 1, family +0x235, locIdx 2) →
+  D_00248AB0[1][family*4+2] (family 0 unarmed → id 2 = RUN; armed
+  families → the 0x4B-0x4E scripted-walk row), blend 1.0
+  (func_001749A0); timer +0x28 = 0x32.
+- phase 1 (50 frames): clip plays, **no mover** (hidden under the
+  64-frame fade-in).
+- phase 2 (30 frames): mover func_00178B90 at the 0.3 u/tick ramp.
+- phase 3 (30 frames): mover + ramp −= 0.0113636/frame (0x3C3A2E8C;
+  hits 0 at ~26 → base-idle request, blend 12.0).
+- exit: state 1/0/0, +0x1F0 = 0, 3B8D re-cleared. Every frame’s tail:
+  pos.y −= 0.2 + func_00175900 floor settle.
+
+Total ~111 frames, ~13.1 u of travel, stick never read. So on arrival:
+**menu unlocks at fade-in completion (~64 f ≈ halfway), movement at
+walk-out end (~111 f)** — two locks, exactly as observed in play.
+(Other 3B8D writers, for the record: use-scan func_00184BA0 = 3,
+func_001B0C60 = 3 + area kick, op16 func_001B6E40 = 3, op07
+func_001B82D0 subs 0/1/D = 2 (D: 1) / sub 4 = 0, walk handlers
+func_00183250/3F0/440 = 0 at their exits, func_001AFCF0 = 0.)
+
+### Port (extermination-port, this session)
+
+em_door_input_locked() split into em_door_movement_locked() (kickoff →
+walk-out end) + em_door_menu_locked() (kickoff → fade-in end) +
+em_door_walkout_active() (the 5/1 phases, surviving the goto scene
+switch); em_hud gates Triangle/Start opens on the menu lock; the fade
+rect draws em_frame_fade_alpha() = 1−(1−l)². Tests: EM_DOOR_TEST
+(frame-290 two-lock witness; final pos 38.889 = spawn − 13.111 travel),
+EM_TRANSIT_TEST (drawbridge arrival 25.889), EM_PAUSE_TEST door leg
+(mid-fade press dropped / menu opens mid-walk-out / open menu freezes
+the world / completion after resume) — all PASS; default capture
+byte-identical.
+
+Also this session (port-side fidelity, decode-adjacent):
+- GAIT HOLD TIERS from the s31 quantizer table: Cmd = walk band 0.8,
+  Option = the gait-1 TURN/creep ring 0.5 — gait 1 is the engine's
+  slowest movement tier (zero translation; D_00248870 has no slower
+  translating band, so "slowest" maps to turn-in-place, documented).
+- WOODEN CRATE (s34 n0 entry 0x0D) promoted to the GLOBAL port default
+  (user-confirmed fidelity). Honest table note: the cardboard model is
+  the n1 (office sub-1) table's, but NO sub-1 placement record spawns a
+  crate — no shipped scene genuinely binds cardboard.
+
+_Last updated: 2026-06-11 (session 54)._

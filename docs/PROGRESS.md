@@ -5075,3 +5075,59 @@ full detail):
   0x11/0x13 case bodies + func_001944B0 state tables) when those areas
   export; the engine's 0.7 u/frame entry approach vs the port's hard
   placement (deviation flagged in em_game.c).
+
+### Update — 2026-06-11 s54: fidelity wave — subtractive fade decoded, the transit TWO-LOCK split + arrival walk-out, gait hold tiers, wooden crate default
+
+- **FADE BLEND DECODED (FINDINGS s54)**: the door fade is NOT a black
+  alpha cover. func_001AEDE0/func_001AEE10 arm the 0x28A8E0
+  brightness machine (D_0028A9A0 IS its +0xC0 sub-state); its packet
+  (init func_001AEA50, per-frame func_001AEE70) draws ONE fullscreen
+  GS sprite with ALPHA_2 = 0xA1 / FIX 0x80 → **Cv = Cd − Cs**
+  (saturating SUBTRACT of the grey level; mode 1 = 0x68 = Cs + Cd,
+  additive to white). Port: black quad with alpha = 1−(1−l)² (the
+  mean-luminance match; residual gap documented in em_frame.h — exact
+  parity needs a reverse-subtract blend in the gfx overlay pass).
+- **THE TWO TRANSIT LOCKS DECODED (FINDINGS s54)**: movement and menu
+  are SEPARATE systems. Menu = func_001AE7E0 (state-1 poll; ret 2
+  opens the status screen on internal-layout Triangle 0x800 / Start
+  0x10) gated on pending request B8/B9, fade machine D_0028A9A0 != 0,
+  scripted spad 3B8D != 0. Movement = the player state machine: the
+  ARRIVAL re-place state (func_001AE040[4]) first clears 3B8D
+  (func_001AFCF0) then func_001B07C0(1) reads spawn-rec byte +0x14
+  (== 1 in every decoded record) → player state 5/1 = the WALK-OUT
+  (dispatcher func_0015B610 → func_00183250): 1+50 frames clip-in-
+  place (locIdx 2 → mode-1 anim table; family 0 = RUN clip), 30
+  frames mover at 0.3 u/tick, 30 frames ramp-decay (0x3C3A2E8C/frame)
+  → ~111 frames, ~13.1 u, stick never read. So the MENU unlocks at
+  fade-in completion (~64f ≈ halfway through the walk-out); MOVEMENT
+  at walk-out end — exactly the user-observed behavior.
+- **Port (extermination-port)**: em_door_input_locked() split into
+  em_door_movement_locked() / em_door_menu_locked() +
+  em_door_walkout_active() (phases owned by em_door, consumed by
+  player_move; survives the goto scene switch); em_hud gates its
+  Triangle/Start open on the menu lock; fade draws via
+  em_frame_fade_alpha(). EM_DOOR_TEST gains the frame-290 two-lock
+  witness + walk-out final pos (38.889 = spawn − 13.111);
+  EM_TRANSIT_TEST arrival = 25.889; EM_PAUSE_TEST gains the door leg
+  (mid-fade press DROPPED, menu OPENS mid-walk-out, open menu freezes
+  the walk-out, completes after resume). All PASS.
+- **GAIT HOLD TIERS (port)**: keyboard default 1.0 = RUN; COMMAND =
+  0.8 walk band; OPTION = 0.5 = the gait-1 TURN/creep ring — the
+  engine's slowest movement tier (D_00248870 = {0, 0.1, 0.3}: gait 1
+  translates ZERO; no slower translating band exists — documented
+  from the quantizer table). EM_KEY_CMD added to em_platform +mac;
+  EM_CAPTURE_ORIENT moved to Cmd; input tests cover both tiers +
+  precedence.
+- **WOODEN CRATE = GLOBAL DEFAULT (user-confirmed fidelity)**: the s34
+  n0-entry-0x0D wooden crate now ships as assets/enemy_crate.emdl;
+  cardboard stays local as enemy_crate_cardboard_n1.emdl. Table
+  nuance, recorded honestly: the cardboard carve is from the n1
+  (office sub-1) table but NO sub-1 placement spawns a crate, so no
+  shipped scene genuinely binds it (the scene-local props/ probe can
+  re-bind per scene if ever proven).
+- Verified: build clean; test-input + MOVE/DOOR/TRANSIT/PAUSE/WEAPON/
+  MELEE/AIM/CAMREGION/SFX/ENEMY 1–4 all PASS; default capture
+  byte-identical vs pre-change baseline (79252da); captures: mid-fade
+  old-vs-new (uniform dim → shadow crush with surviving highlights),
+  drawbridge walk-out sequence (chase camera follows the uninterruptible
+  walk), wooden crate in-scene.
