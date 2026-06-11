@@ -81,9 +81,15 @@ lists whole missing systems):
    and the func_0017AF70 lock steer (0.02 blend/frame, ladder-angle mapping). Remaining
    inside it: reticle markers, the lock-on option's radial cone, the 0x1D laser-ray lock
    (H3, H11, H16).
-8. **Camera wall response is a port-invented model** — the observed "rise over the wall"
-   behavior was re-created with port constants; the engine's 6984-byte solver
-   func_0018DD20 is unread (D3).
+8. ~~**Camera wall response is a port-invented model**~~ — CLOSED 2026-06-11 s61: the
+   6984-byte solver func_0018DD20 is fully decoded and translated verbatim
+   (FINDINGS "CAMERA WALL SOLVER func_0018DD20 DECODED"). The engine never lifts
+   the eye: a wall block PULLS IN at constant height (the observed "rise to show
+   the player's top" is emergent look-down geometry, verified by capture); plus
+   head-clear waiver (17.5), wedge eject (4.0), 5.5-u side probes with corridor
+   centering, and floor+17/ceiling−1 eye-Y bounds. The invented rise search
+   (step 2.0 / ceiling 40) is retired. Aim remains a flagged stand-in — the aim
+   camera's own solver func_0018F870 (style 2, mask 7) is still unread (D3).
 9. **Audio: no per-sound pitch, first-event-only triggers** — tone center notes
    undecoded (M1), multi-event trigger scripts play their first event only (M4).
    RESOLVED 2026-06-11: positional attenuation/pan (the func_001FBF50 decode — the
@@ -148,9 +154,9 @@ lists whole missing systems):
 |---|----------|--------------|------|-----|--------|
 | D1 | Chase primitives | func_0018C6A0 (/6, cap, 0.25 snap), func_0018C4B0 (/8) | translated exactly | — | (match) |
 | D2 | Camera modes | modes 0..15 (cut/smooth tables), top-mode 3 scope func_0022EEF0, init mode 8 settle | only mode 0 (follow) + mode 1 (aim) exist; init snaps actual=desired instead of mode-8 settle; modes 2..15 + scope TODO | B | UT (flagged TODO) |
-| D3 | Blocked-eye response | unread solver func_0018DD20 (FINDINGS confidence "medium"); observed behavior: camera RISES | port re-creation: rise search `CAM_RISE_STEP` 2.0 / `CAM_RISE_MAX` 40 + pull-in fallback with `CAM_WALL_MARGIN` 0.5 — all port constants | B | PC + SU (flagged) |
+| D3 | Blocked-eye response | **DECODED s61** func_0018DD20 (style 0, mask 6 — the idle/walk camera): constant-height pull-in (hit + 0.5 along the sight line), head-clear waiver (player.y + 17.5, dist ≤ 46.8), ceiling duck (hit.y − 1), wedge eject (reverse probe, 4.0·normal), 5.5-u side probes + corridor centering, eye-Y bounds floor+17 / ceiling−1, result bits → +0x07 (idle gate & 9) | translated verbatim (`cam_solver_0018DD20`); the invented rise search RETIRED; observed rise/return verified EMERGENT (EM_CAPTURE_RISE captures). Remaining stand-ins: AIM solver func_0018F870 unread (`CAM_WALL_MARGIN` pull-in, now mask 7); pre-pass func_0018D330 outputs (+0x5A/+0x60/+0x6D) unconsumed; styles 3/4/5 variants + area-0x12/0x15 specials untranslated (no native reach) | — | (match; aim stand-in FS) |
 | D4 | R1/L1 orient | engine: camera-mode swaps; orient-to-heading family rate 2°/frame (func_001921D0) — which player state L1 routes through is unpinned | L1 one-shot seek at the family rate; R1 owned by the aim camera | B | SI (flagged) |
-| D5 | Idle auto-orient | decoded: 481-frame timer, 3° deadband, 0.2°/frame orbit, wall bits 0xD/0xB cancel (func_001921D0/func_00193D90) | translated; the solver wall bits are mapped onto a port rotation-path segment test | S | SI (flagged) |
+| D5 | Idle auto-orient | decoded: 481-frame timer, 3° deadband, 0.2°/frame orbit, wall bits 0xD/0xB cancel (func_001921D0/func_00193D90) | translated; the timer-reset gate now reads the REAL solver bits (+0x07 & 9, s61); the orbit-cancel 0xD/0xB direction bits remain mapped onto a port rotation-path segment test | S | SI (flagged) |
 | D6 | Aim camera mode 1 | decoded (func_00197D20/740/870); flagged areas use eye floor +11 | translated; port always uses the +2 floor (flag-area param not carried) | B | SI (flagged) |
 | D7 | Aim release | engine swaps to transition mode 2 (func_00198650, untranslated) | chase yaw re-seeded from eye→player heading, mode-0 blends back | B | FS |
 | D8 | Fixed-camera regions | director regions: snow case approaches spec at 0.7 u/frame via chase primitives; spawn-record cameras hard-place (func_001B0460) | port hard-places for BOTH kinds (correct for spawn-record, divergent for director regions) | V | SI (documented) |
@@ -382,7 +388,8 @@ the port (beyond the per-module gaps above).
   P1–P6 (clear color, TURN_SPEED, no-death gap, dead constant, stale walk-out label,
   clip planes) and the SU rows (A5 second fade tick, F3 alpha test, F9 loop seam, E4 UI
   projection derivation, I6 melee impact direction, K9 slider commit interleave, J2
-  damage window, D3 wall-rise model, L3 ring corners, L9 page anchors).
+  damage window, D3 wall-rise model [closed s61 — the decoded solver replaced it],
+  L3 ring corners, L9 page anchors).
 - Highest-leverage fidelity work, in order: pickups+inventory
   (Q1/Q2), room lighting (F1),
   screen-space acquisition (H3), audio pitch/volume (M1/M2). (K2 door triggers: closed

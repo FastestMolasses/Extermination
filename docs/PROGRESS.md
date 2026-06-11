@@ -5548,3 +5548,41 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   0x1D laser-ray lock (the port conflates lock = 199220 slot 0,
   flagged); R2 set-B steer constants idle until an R2 weapon stance
   exists.
+
+### Update — 2026-06-11 s61: CAMERA WALL SOLVER func_0018DD20 DECODED — the "wall rise" was constant-height pull-in (PORT_DIFFERENCES item 8 closed)
+
+- **Decode (FINDINGS "CAMERA WALL SOLVER func_0018DD20 DECODED")**: full
+  static read of the 6984-byte body + dispatcher func_0018D7B0,
+  pre-pass func_0018D330, and a style census of every dispatcher
+  caller. The generic gameplay camera (idle 1/0x26/0x27 via
+  func_001921D0, walk 2/4/0xF via func_00230000) is **style 0** →
+  func_0018DD20 over mask 6, then the actual eye chases at cap 4.0;
+  the aim camera is style 2 → **func_0018F870 (separate solver, still
+  unread)** — "no rise while aiming" is structural. Decoded policy:
+  1.5-u extended target→eye probe; glancing classification at sin45;
+  head-clear waiver (player.y+17.5 ray, dist ≤ |cam+0x0C| = 46.8);
+  ceiling duck (hit.y − 1); wedge eject (reverse probe, dot > −0.3,
+  4.0·normal); otherwise **pull-in to hit + 0.5 with HEIGHT KEPT** —
+  the user-observed "camera rises to show the player's top" is
+  emergent look-down geometry, not a lift; 5.5-u side probes with
+  ~5.4-u lateral clearance candidates and corridor midpoint centering;
+  floor-class blockers get the solver's only literal rise (hit.y + 1);
+  per-frame eye-Y bounds = floor-under-eye + 17 / ceiling − 1 (bits
+  0x40/0x80); result bits → cam+0x07 (idle-orient gate & 9; a plain
+  pull-in returns 0).
+- **Port (extermination-port em_game.c cam_solver_0018DD20)**:
+  translated verbatim; the invented rise search (step 2.0 / max 40)
+  retired; aim keeps the flagged CAM_WALL_MARGIN stand-in (now over
+  mask 7) until func_0018F870 is read; idle timer gate now reads the
+  real solver bits. EM_CAPTURE_RISE: eye parks at wall + 0.5, height
+  pinned 19.00 over 300+ blocked frames while the player closes to
+  5 u — the capture looks down at the player's head; a new release
+  phase shows the camera returning the frame the desired eye clears.
+  Default capture byte-identical vs HEAD; self-tests input/weapon/
+  move/door/proj/aim/camregion/transit/pause/melee/sfx/death PASS
+  (slider+locked failures pre-date this work at clean HEAD).
+- **Open**: func_0018F870 (aim/scope solver, styles 2/6);
+  func_0018D910 (director solver, style 5); func_00191000 (walk-state
+  eye placer — the live door re-seat +29 parking); pre-pass
+  func_0018D330 consumers (cam+0x5A/+0x60/+0x6D); styles 3/4 cinematic
+  variants; area-0x12/0x15 solver specials.

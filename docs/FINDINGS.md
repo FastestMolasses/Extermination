@@ -5049,7 +5049,9 @@ At 60 Hz, in this order inside the gameplay frame:
 Confidence: struct map, smoothing math, commit/look-at path, P/K
 composition, fog — **high** (live-verified in both states; K = P·V to
 1e-8). Mode-dispatch table — high; individual handler semantics — low
-(only mode 0 traced). Collision-solver internals (func_0018DD20) — medium
+(only mode 0 traced). Collision-solver internals (func_0018DD20) — **high
+as of s61: the full 6984-byte body is decoded — see "CAMERA WALL SOLVER
+func_0018DD20 DECODED (s61)" below.** (superseded note kept for history:) medium
 (mask + query hub verified; 6984 B body not read). Tool:
 `tools/camera_probe.py`.
 
@@ -10573,6 +10575,13 @@ updated to the radius geometry (wall rest = plane + 4.5: move test
 
 ### Camera wall response — observed-behavior note (port "CAMERA FIDELITY")
 
+**SUPERSEDED s61** — func_0018DD20 is now fully decoded ("CAMERA WALL
+SOLVER func_0018DD20 DECODED", end of file): the engine never lifts the
+eye to clear a wall; the observed "rise" is constant-height PULL-IN
+(the eye keeps its absolute height while the horizontal distance
+collapses, so the view tilts down over the player's head). The original
+note, kept for history:
+
 Real-game observation (not yet decoded — the solver body func_0018DD20
 is unread): a wall blocking the camera's sight line makes the camera
 **RISE** above its default height until the line clears (you look down
@@ -12778,3 +12787,121 @@ delta magnitude is also published to spad `0x70003A20`.
   set-B steer constants, the 0x1D laser-ray lock.
 
 _Last updated: 2026-06-11 (session 60)._
+
+## CAMERA WALL SOLVER func_0018DD20 DECODED — the "wall rise" is constant-height pull-in (2026-06-11, session 61)
+
+Full static read of the 6984-byte solver body (`func_0018DD20.s`, all
+1814 lines) plus its dispatcher `func_0018D7B0`, pre-pass
+`func_0018D330`, and every caller of the dispatcher. Closes
+PORT_DIFFERENCES item 8 / D3 (the port-invented rise model). Translated
+verbatim into `extermination-port` `em_game.c cam_solver_0018DD20`.
+
+### Who calls what — the style map (every `jal func_0018D7B0` audited)
+
+`func_0018D7B0(cam, style)` picks mask **7** (movables in) only for
+style 2, else mask **6**; always runs the pre-pass func_0018D330; then:
+
+| style | solver | callers |
+|---|---|---|
+| **0** | **func_0018DD20** full path, then dispatcher chases ACTUAL eye D_008105D0 toward desired cam+0x10 (func_0018C6A0/func_0018C4B0, cap **4.0**/frame) | **the whole generic gameplay camera**: idle states 1/0x26/0x27 (func_001921D0 tail) and locomotion states 2/4/0xF (func_00230000) |
+| 1 | func_0018DD20, then actual = desired HARD COPY | door-cut/cinematic placements (anim_frame_top_b, func_001921D0 state 0x2F) |
+| 3, 4 | func_0018DD20 (style 3 takes a reduced branch: no waiver, simple pull-to-hit; caller chases at 0.8) | func_001921D0 cinematic/special states (6, 7, 9, 0x13, 0x14, 0x15, 0x18, 0xA/0x19, 0x2C/0x2D) |
+| 5 | func_0018D910 (returns 0) | func_00195130 director fixed cams, func_00194DB0, func_00230000 fall-cam |
+| 2, 6 | **func_0018F870** (mask 7) | **the AIM camera** func_00197D20 — a separate solver, still unread → "no rise while aiming" is STRUCTURAL |
+
+Pre-pass func_0018D330 (always runs, outputs nothing the solver core
+reads): cam+0x6D = func_0019B7D0 vertical query flag; cam+0x5A bits
+(0x80 = ceiling-class within 200 above the head → cam+0x60 = its Y;
+0x01/0x08 = a 20-u (aim: 9-u) ray from player+11 toward the eye hits
+wall-class 0x2000 / ceiling-class 0x8800; aim adds 0x10 = +6-height ray
+hits wall). Consumers unidentified — untranslated in the port, flagged.
+
+### func_0018DD20 (cam a0, player a1, style a2, mask a3) — the decoded algorithm
+
+Surface classes (rec+0x1A halfword, = the port's `surf_class`): wall
+0x2000, ceiling-class 0x8800 (CEIL|STEEPDN), floor-class 0x5000
+(FLOOR|SLOPE); the final floor-bound probe accepts **0x7000**
+(FLOOR|SLOPE|**WALL** — engine-verbatim quirk).
+
+1. **PRIMARY PROBE**: desired target (cam+0x20) → desired eye (cam+0x10)
+   **extended 1.5 u** past the eye. No hit → step 4. On a hit:
+   cam+0x58 = class halfword, cam+0x90 = wrap(atan2(n.x, n.z)),
+   GLANCING := dot(horiz sight dir, horiz **raw** normal component)
+   < 0.70710678 (0x3F34FDF4).
+2. **HEAD-CLEAR WAIVER** (style != 3, and only while D_00810690 — the
+   commit's desired horiz eye↔target distance, 1 frame stale — ≤
+   fabsf(cam+0x0C) = 46.8 live): re-probe from (target.x, player.y +
+   **17.5** [13.0 if cam+0x5C == 1.0], target.z) to the extended eye.
+   CLEAR → the block is **waived** (low/waist-high walls never move the
+   camera); a ceiling-class hit within 1 u of the eye also waives.
+3. **FIRST-STAGE RESPONSE** (still blocked):
+   - ceiling-class: eye = hit, y −= 1 (duck under), x/z += 0.5·sightdir;
+     widen carried Y bounds; result bit 8.
+   - wall: REVERSE probe ext-eye → target. Wall hit whose normal does
+     NOT oppose the first (dot > −0.3, 0xBE99999A) = eye buried in a
+     wedge → eye x/z = reverse hit + **4.0**·reverse-normal.
+   - otherwise **PULL-IN: eye x/z = hit + 0.5·sightdir, HEIGHT KEPT**
+     (sets NO result bits — a plain wall block returns 0). **This is
+     the user-observed "rise": the eye keeps its absolute height
+     (~19 u over ground) while the horizontal distance collapses, so
+     the camera ends up over the player's head looking down**; the
+     commit's +4·forward near-push carries the viewpoint off the wall.
+     "Returns when clear" because the mode handler re-poses the desired
+     eye from scratch every frame.
+4. **SIDE STAGE** (clear or glancing only): probes **5.5 u**
+   perpendicular to the sight line, both sides (glancing variant: start
+   3.0 on the far side, end 1.5 toward the target + 5.5 near side;
+   rejects: same-wall dot < −0.998 [0xBF7F7CEE], ceiling-case cross dot
+   < −0.08 [0xBDA3D70A], hit within 1 u of the probe end; a confirm
+   probe re-tests from the first hit point at eye height). Valid hit →
+   candidate eye = (hit ∓ side vector) + 0.1·ray dir, i.e. ~5.4 u of
+   lateral clearance [bits 2 left / 4 right / 8 ceiling-underside keeps
+   the candidate's own Y / 1 other-class]; non-glancing response only
+   for validation dot in (−0.3, 0.9). BOTH sides valid → eye x/z =
+   midpoint of the two hit points (corridor centering). Engine quirks
+   kept: the right side's ceiling-underside / other-class cases set
+   bits 8/1 without 4, so those candidates are computed but never
+   applied.
+5. **FINAL Y POLICY + BOUNDS**: blocked by a NON-wall class → ceiling:
+   eye.y = min(eye.y, hit.y − 1); floor-class: eye.y = **max(eye.y,
+   hit.y + 1)** — the only literal rise in the solver (1 u over
+   floor-class blockers). Clamp eye.y into the carried bounds cam+0x50/
+   +0x54 (init −200/1000), then RE-PROBE them: from the eye pulled 1.5
+   toward player+(0,11,0), 200 down (class 0x7000) → lower = floor +
+   **17.0** [6.0 if cam+0x5C==1]; 200 up (0x8800) → upper = ceiling − 1,
+   else eye + 200; lower forced to upper − 3 if crossed. Clamp again →
+   bits **0x40** (floor-clamped) / **0x80** (ceiling-clamped). The eye
+   can never sink below 17 u over the floor beneath it.
+   Per-area specials: area 0x12 clamps eye.z to [169.5, 230.6] and has
+   an alternate upward-bound probe from player+0xB0 (normal-down dot ≤
+   0.2 → open); area 0x15 with eye.z > 260 forces lower bound 70.
+6. Returns the bit byte → cam+0x07. **Idle auto-orient ties in** (s46):
+   the idle timer resets on `+0x07 & 9` — bit 8 = ceiling involvement,
+   bit 1 = side other-class; a plain wall pull-in (0) does NOT reset it.
+
+Style 3 (cinematic) differences: skips steps 2/4's full shape — on any
+0xD800-class hit it min/maxes cam+0x50/+0x54 with the hit Y (bits
+8/0x10) and pulls the eye to hit + 0.5·sightdir on ALL THREE axes; a
+plain wall pulls x/z only.
+
+### Port verification (extermination-port, this session)
+
+- `cam_solver_0018DD20` translated verbatim (style 0, mask 6); aim keeps
+  its flagged pull-in stand-in for the unread func_0018F870 (now run
+  over mask 7).
+- EM_CAPTURE_RISE + EM_CAMERA_TRACE (office scene): running at the
+  camera parks the desired eye at wall + 0.5 (z −250.5), height pinned
+  19.00 across 300+ blocked frames while the target closes to 5 u →
+  the frame-320 capture looks down at the top of the player's head —
+  the observed behavior EMERGES from the decoded code. The new release
+  phase (frames 360+: walk away) shows the block ceasing the frame the
+  desired eye re-enters the room and the chase returning to full
+  distance/height — "returns when clear" emerges too.
+- Default EM_CAPTURE byte-identical vs HEAD (solver quiescent mid-room,
+  as it must be: bounds floor+17 < eye 19 < ceiling−1, side walls > 5.5).
+- Self-tests: input, weapon, move, door, proj, aim, camregion, transit,
+  pause, melee, sfx, death — all PASS with the staged change (slider/
+  locked FAIL pre-date this work at clean HEAD; enemy-test churn is the
+  parallel enemy session's in-flight work).
+
+_Last updated: 2026-06-11 (session 61)._
