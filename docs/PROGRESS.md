@@ -140,6 +140,26 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 58): DOOR TRIGGER DECODED — CROSS PRESS EDGE, the
+> s17 "walk-into via action-state 0x2D" contract OVERTURNED (FINDINGS
+> "DOOR TRIGGER IS THE CROSS PRESS EDGE"; closes PORT_DIFFERENCES #5 /
+> K2 and the s20/s22 "class-5 trigger conditions" open item). All four
+> use-scan call sites (func_00160220/func_001612D0/func_0016DE40 x3)
+> gate func_00184BA0 on `D_00810E74 & spad-0x70003B76` — the pad
+> press-EDGE mask (func_001B5BC0: E74 = held & ~prev_held) AND'd with
+> the config "use" mask 0x0040 = CROSS. The +0x1F0==0x2D check in
+> func_00183EF0 guards the CLASS-7 prefix only and EXCLUDES class-5
+> doors. So every door — hinged m03/m15 AND m09/m17 sliders — arms on
+> a CROSS press inside the s45 class-5 window; there is NO walk-into
+> trigger (this is why s22's analog-only injection never armed one).
+> Port: em_door.c sliders moved from stick-push to CROSS arming (the
+> hinged CROSS gate was engine-true all along and is un-flagged);
+> EM_SLIDER_TEST asserts push-without-button stays CLOSED then the
+> CROSS edge arms; EM_DOOR/LOCKED/TRANSIT/PAUSE/MOVE tests PASS;
+> default capture byte-identical (cmp vs a HEAD-em_door build). New
+> open items: the 0x2D writer (class-7 push-into arming), D_008106EF
+> identity.
+
 > 2026-06-11 (session 58): PLAYER DAMAGE & DEATH PIPELINE — decoded +
 > ported (FINDINGS "PLAYER DAMAGE & DEATH PIPELINE"; closes
 > PORT_DIFFERENCES #1 / C12 / C14 / P3 / Q5). The 0x21C-0x225

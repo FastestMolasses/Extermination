@@ -5677,6 +5677,16 @@ walk-into (distance+facing), no button.
 > through-door YAW gate — no LOS, no auto ring. See "DOOR USE SCAN +
 > STAGING MATH DECODED" (s45).
 
+> **2026-06-11 s58 CORRECTION (the trigger itself):** "doors trigger on
+> walk-into (distance+facing), no button" is WRONG. func_00184BA0 is
+> only ever CALLED on the USE-button press edge — all four call sites
+> (func_00160220/func_001612D0/func_0016DE40 x3) gate on `D_00810E74 &
+> *(u16*)0x70003B76` (press-edge mask & config "use" = 0x0040 CROSS),
+> and the +0x1F0 == 0x2D check guards the CLASS-7 prefix ONLY (when the
+> player IS in 0x2D, class-5 doors return 0). Doors arm exclusively on
+> a CROSS press inside the class-5 window. See "DOOR TRIGGER IS THE
+> CROSS PRESS EDGE" (s58).
+
 **`func_001BBE40` (transit kickoff,** runs while +0x0B bit2 set**):**
 computes which side the player is on (angle(player-door) vs door yaw,
 threshold pi/2) → +0x2E side latch; writes a camera cue (front:
@@ -5788,7 +5798,11 @@ still open (below).
 
 **Door contract:** spawn kind 4 class 5|0x80, model 3; closed door arms
 when the player pushes into it (state 0x2D, LOS clear, dist <= 12,
-facing-dot >= ~0.4, nearest wins) OR when its neighbor panel arms it;
+facing-dot >= ~0.4, nearest wins) *(s58 CORRECTION: arms on a CROSS
+press edge inside the s45 class-5 window — the use scan only runs on
+`D_00810E74 & spad-3B76`; there is no walk-into door trigger, and the
+0x2D/LOS/ring conditions were the class-7 prefix — see "DOOR TRIGGER IS
+THE CROSS PRESS EDGE")* OR when its neighbor panel arms it;
 model 0x15 doors additionally require unlock bit
 `D_00810841[area] >> door_id` else they play the locked sequence and
 re-arm; opening/closing = keyframe clip on the door skeleton at
@@ -6104,7 +6118,9 @@ real clip (frame_count > 1) is picked up automatically.
   suppressed only when fully OPEN), and the use scan (dist^2 <= 144,
   facing-dot >= 0.4, auto < 2 u, nearest wins, +0x0B = 4). PORT
   DEVIATION (flagged): trigger needs CROSS outside the 2 u auto ring
-  (engine = walk-into via action-state 0x2D); OPEN holds on a timeout
+  (engine = walk-into via action-state 0x2D) *(s58: NOT a deviation —
+  the engine trigger IS the CROSS press edge; the walk-into/0x2D claim
+  was the s17 misread)*; OPEN holds on a timeout
   instead of committing an area/room transition (no native area loader).
 - `EM_DOOR_TEST=1` end-to-end self-test (deterministic, real input API):
   blocked at the x = 60 boundary while CLOSED (min x 60.010), CROSS at
@@ -6885,6 +6901,9 @@ fade speed).
   spad `0x70003B8D = 3`); everything downstream is organic engine
   behavior. The class-5 trigger conditions remain the s17/s20 open item
   (exec BPs being broken, the use-scan path could not be traced live).
+  *(CLOSED s58: the non-reproduction is fully explained — the use scan
+  only runs on a CROSS press edge, and the analog injection never
+  pressed CROSS. See "DOOR TRIGGER IS THE CROSS PRESS EDGE".)*
 - Door script: both captured transits queued `D_0024DE40` despite
   opposite side latches — s17's "side 1 -> D_0024DEC0" needs re-check.
 
@@ -10347,7 +10366,8 @@ decoded).
 
 - em_door.c: trigger = the decoded class-5 test (center point, radius
   desc[0]=10 via the manifest, |dy| <= 8, side + pi/4 facing; CROSS
-  stays as the flagged action-state-0x2D stand-in; LOS hack + auto
+  stays as the flagged action-state-0x2D stand-in *(s58: un-flagged —
+  CROSS IS the engine trigger)*; LOS hack + auto
   ring deleted); staging/spawn = the exact func_001BBE40 algebra
   (hinged flag parsed from the exporter's door_mXX filename, flagged).
 - Real goto graph: scene west door -> drawbridge e5; office0 m15 ->
@@ -11472,6 +11492,10 @@ sequencing — unread".
   same use-scan plumbing as m03, so the TRIGGER is the standard +0xB
   bit-2 use-arm: **the player WALKING INTO the door** (state-0x2D
   push-into scan, FINDINGS "Door contract" — no button).
+  *(s58 CORRECTION: the shared use-scan plumbing is right, the trigger
+  conclusion inherited the s17 error — the use scan runs only on a
+  CROSS press edge, so sliders too arm on CROSS, not walk-into. See
+  "DOOR TRIGGER IS THE CROSS PRESS EDGE".)*
 
 ### The trigger sub func_001BB560 (the player's role)
 
@@ -11521,6 +11545,12 @@ arming, mid-slide park at (122.6, -610) with anim_active 0, fade
 pinned 0, far-side landing (134.6, -610) unlocked, re-close — PASS.
 Captures: closed approach / panels parted with the player standing /
 player mid-walk-through.
+
+*(s58 CORRECTION: the walk-into slider arming above is retired — the
+use scan only runs on a CROSS press edge, for sliders exactly like the
+m03 family; em_door.c now arms both on CROSS and EM_SLIDER_TEST
+asserts push-without-button stays CLOSED. See "DOOR TRIGGER IS THE
+CROSS PRESS EDGE".)*
 
 _Last updated: 2026-06-11 (session 56)._
 
@@ -12292,5 +12322,111 @@ Open:
   not yet ported); the latch-tick fields +0x23A/+0x23B identities.
 - func_0021D1A0 (flinch side select — direction test, port uses RNG).
 - whether the infected latch survives an engine continue.
+
+_Last updated: 2026-06-11 (session 58)._
+
+## DOOR TRIGGER IS THE CROSS PRESS EDGE — use-scan callers decoded; the s17 "walk-into via 0x2D" contract is OVERTURNED (2026-06-11, session 58)
+
+Static decode of the use-scan arming condition (the s20/s22 open item:
+"the class-5 trigger conditions could not be traced live"). Verdict:
+**doors — hinged m03/m15 AND m09/m17 sliders — arm ONLY on a CROSS
+press edge inside the class-5 window. The engine has NO walk-into door
+trigger.** PORT_DIFFERENCES #5 / K2 are closed in the opposite
+direction from their framing: the port's CROSS gate was the engine
+behavior all along.
+
+### 1. Every use-scan call site is button-gated
+
+`func_00184BA0` has exactly four callers — the player ground-state
+handlers `func_00160220` (0x16024C), `func_001612D0` (0x1613E4) and
+`func_0016DE40` (x3: 0x16E048/0x16E128/0x16E1F0) — and every one
+gates the call identically:
+
+```
+lhu  v1, D_00810E74          ; pad press-EDGE mask (see 2)
+lhu  v0, 0x70003B76          ; config-mask block "use" entry = 0x0040
+and  v0, v1, v0
+beqz v0, skip                ; no new CROSS press -> NO scan this frame
+jal  func_00184BA0
+```
+
+spad `0x70003B76` is the s29-decoded config-mask block entry "X, use"
+(default 0x0040). The scan body itself (func_00184BA0, read in full)
+adds only: frame selector spad `0x70003B8D` == 0, fade-wait halfword
+`D_0028A9A0` == 0, inhibit byte `D_008106EF` == 0, then the
+interactive-list walk (status bit0, class flag 0x80, `+0x0B` == 0)
+with `func_00183EF0` per candidate — return 2 = instant winner,
+return 1 = nearest-by-dist² (spad 0x70003B98) wins. Winner:
+`+0x0B = 4`, spad `3B8D = 3`. On success the caller (func_00160220)
+runs func_001798D0 and puts the player in state 0x25/0.
+
+### 2. D_00810E74 is the press-EDGE mask, not the held mask
+
+`func_001B5BC0` (pad decode, per frame):
+
+```
+D_00810E72 = prev sample's inverted raw pad   (held, last frame)
+D_00810E70 = (raw[0]<<8 | raw[1]) ^ 0xFFFF    (held, this frame)
+D_00810E76 = old D_00810E74                   (prev edge)
+D_00810E74 = E70 & ~E72                       (newly pressed = EDGE)
+```
+
+(Some earlier notes called E74 the "held mask" — wrong; E70 is held.
+The s26 live note "0x810E74 & spad3B76 = X edge" had it right.)
+
+### 3. The 0x2D check EXCLUDES doors — it guards the class-7 prefix
+
+`func_00183EF0` head (0x183F14..0x183F4C): reads player `+0x1F0`,
+candidate class byte `+0x02`.
+
+- `+0x1F0 == 0x2D` (the push-into action code): ONLY `class & 0x1F
+  == 7` proceeds (the LOS / dist² <= 144 / 2-u auto ring / facing-dot
+  ~0.4 block — the s17 reading). Any other class, **including class-5
+  doors, returns 0**.
+- `+0x1F0 != 0x2D`: dispatch on candidate `+0x08` (jtbl_0026D810;
+  +0x08 >= 6 and entry-0 both land at .L00184154) -> the class-5 DOOR
+  branch (s45 geometry: doorway-center {10, 8} windows, side π/2,
+  through-door facing π/4) and the other-class branches.
+
+So s17's "doors trigger on walk-into (state 0x2D), no button" read the
+class-7 prefix conditions AND attributed them to doors; in truth the
+0x2D state is for class-7 interactables (pushing into panels etc.),
+and a door can only arm while the player is NOT in 0x2D. This is also
+why s22's analog-only pad injection never armed a door organically —
+no CROSS edge was ever generated. The s56 slider-brain "walk-into, no
+button" trigger claim inherited the same error (the slider plumbing IS
+the same use scan — hence the same CROSS edge).
+
+### 4. Corrections ledger
+
+- s17 "Door contract" / "Trigger (who arms +0x0B)": walk-into →
+  CROSS edge (blockquotes added in place).
+- s22 open item "class-5 trigger conditions" — CLOSED.
+- s56 slider TRIGGER bullet: walk-into → CROSS edge (blockquote).
+- PORT_DIFFERENCES #5 + K2: the port REQUIRED no change to the hinged
+  trigger; K9 sliders moved from stick-push arming to CROSS.
+
+### 5. Port (extermination-port, this session)
+
+em_door.c door_trigger_scan: the walk-into (stick past the dead ring)
+slider arming is REMOVED — both families arm on `in->pressed &
+EM_PAD_CROSS` (the port's pressed mask = exactly the D_00810E74
+cur&~prev edge semantics) inside the class-5 window; comments rewritten
+to the decoded contract (em_door.c/h, the "TRIGGER IS NOT A DEVIATION"
+fidelity note). EM_SLIDER_TEST now asserts the negative AND the
+positive: frame 13 inside the window pushing with no button = still
+CLOSED + unlocked, frame 14 CROSS edge = OPENING; the rest of the
+sequence unchanged — PASS. EM_DOOR_TEST keeps its frames-1..58
+no-button approach (now engine-true twice over: no auto ring AND no
+walk-into) and its frame-60 CROSS press — PASS. EM_LOCKED_TEST /
+EM_TRANSIT_TEST / EM_PAUSE_TEST / EM_MOVE_TEST PASS unchanged; default
+EM_CAPTURE byte-identical vs a HEAD-em_door build (cmp-exact).
+
+Open:
+- what WRITES action code 0x2D into player +0x1F0 (the class-7
+  push-into arming — its writer was not located this session; doors
+  do not need it).
+- D_008106EF identity (a scan inhibit; observed set to 0x50 in a
+  scripted-sequence context).
 
 _Last updated: 2026-06-11 (session 58)._

@@ -42,12 +42,12 @@ lists whole missing systems):
 
 | Severity | count |   | Status | count |
 |----------|------:|---|--------|------:|
-| B behavioral | 51 |  | SI simplification | 51 |
+| B behavioral | 50 |  | SI simplification | 51 |
 | V visual     | 41 |  | UT untranslated path | 30 |
-| S structural | 40 |  | FS flagged stand-in | 29 |
+| S structural | 40 |  | FS flagged stand-in | 28 |
 |              |    |  | PC port-invented constant | 13 |
 |              |    |  | SU suspected/unverified | 9 |
-| **total entries** | **132** | | whole missing systems (Q) | 24 |
+| **total entries** | **131** | | whole missing systems (Q) | 24 |
 
 **Top 10 worst divergences** (impact-ranked; section.entry cites):
 
@@ -66,8 +66,11 @@ lists whole missing systems):
 4. **Projection mismatch** — the port renders 50° fovy at window aspect; the engine is the
    s = 480 zoom model (FINDINGS "CAMERA SYSTEM" §3). Every frame's framing differs from
    the original (D10).
-5. **Hinged doors require the CROSS button** — the engine triggers all doors on walk-into
-   (player state 0x2D); only the port's sliders do (K2).
+5. ~~**Hinged doors require the CROSS button**~~ **RESOLVED s58 — the premise was a
+   misread**: the engine triggers ALL doors on a CROSS press edge (the use scan only runs
+   on `D_00810E74 & spad-3B76` = config "use" 0x0040; FINDINGS "DOOR TRIGGER IS THE CROSS
+   PRESS EDGE"). The port's hinged CROSS gate was engine-true all along; the s56 slider
+   walk-into arming was the actual deviation and is now CROSS too (K2).
 6. **Crawler aggro is port-invented** — the 32-u distance wake was added so a lone crawler
    engages at all (engine IDLE wakes only via group alarm or damage), and the damage
    window is widened to IDLE+ATTACK (J1, J2).
@@ -246,14 +249,14 @@ lists whole missing systems):
 | # | Behavior | Engine truth | Port | Sev | Status |
 |---|----------|--------------|------|-----|--------|
 | K1 | Use scan | func_00183EF0 class-5: dist ≤ 10 / \|dy\| ≤ 8 from the DOORWAY CENTER, side + π/4 facing (decoded s45) | translated | — | (match) |
-| K2 | Trigger input | ALL doors trigger on WALK-INTO (player state 0x2D scan; no button) | hinged m03 family requires CROSS; only sliders arm on walk-into | B | FS (flagged) |
+| K2 | Trigger input | ALL doors trigger on the CROSS press edge — use scan func_00184BA0 runs only on `D_00810E74 & spad-3B76` (0x0040); NO walk-into (s58 — the old "state 0x2D walk-into" was the class-7 prefix) | CROSS press edge (in->pressed), hinged + sliders alike (s58) | — | (match) |
 | K3 | Staging | engine snaps (func_00182F90 instant translate) | scripted MOVE-TO walk to the same point (see C8) | B | FS |
 | K4 | Model byte | placement record carries the model byte | parsed from the `door_mXX.emdl` FILENAME (hinged/slider) | S | FS (flagged) |
 | K5 | Transit modes | B8==2 room move vs B8==1 area change (audio fade + overlay/asset/actor-pool reload) | every transit is the room-move shape; goto doors approximate B8==1 with the scene switch, NO audio fade | B | SI (flagged) |
 | K6 | Locked doors | subs 1/2 locked sequence, unlock bitmask D_00810841, locked VO + camera (m03 + slider locked scripts) | absent (no lock bitmask) | B | UT (flagged) |
 | K7 | Door articulation | slot-0x39 bank clips (decoded s30/s32), pumped 1.0/frame | real clips shipped; clip-less EMDL falls back to a 90-frame placeholder hinge swing (90° — real clip length unknown for that case) | V | FS |
 | K8 | Door sounds | per-door pair D_0024DB80[link>>8][side] patched into the open script; close is SILENT (s29 verdict) | ONE global `doorsfx` line per scene (manifest lacks the link halfword); without the line, legacy placeholder ids (close-at-black play preserved) | V | SI (flagged) |
-| K9 | Sliders | brain func_001BB860 decoded: walk-into, 6.0 staging, native slide 0.2 u/frame to 9.0, walk-through, no fade, no player anim; engine re-close via room re-entry state | translated; re-close by running the clip BACKWARDS when the player leaves the scan radius + 2-u hysteresis (motion-identical stand-in); goto-slider commit/fade interleave unread | B | SI + SU (flagged) |
+| K9 | Sliders | brain func_001BB860 decoded: CROSS-edge use-arm (s58 — not walk-into), 6.0 staging, native slide 0.2 u/frame to 9.0, walk-through, no fade, no player anim; engine re-close via room re-entry state | translated (trigger = CROSS since s58); re-close by running the clip BACKWARDS when the player leaves the scan radius + 2-u hysteresis (motion-identical stand-in); goto-slider commit/fade interleave unread | B | SI + SU (flagged) |
 | K10 | Slider locked script | D_0024DA40 (camera + VO, no motion) | absent | B | UT |
 | K11 | Office VENT | overlay-scripted in-room mechanism (class-0x0B trigger record at (43, 3.5, -147)); not a placement object | flagged SYNTHETIC vent door line in the manifest whose goto lands on office0 spawn entry 5 | B | FS |
 | K12 | Arrival walk-out | player state 5/1 decoded (50/30/30 phases, 0.3 u/tick, decay 0x3C3A2E8C); armed families request scripted walks 0x4D/0x4E | translated for family 0; armed-family walk clips untranslated. NOTE: `em_door.h` step-4 comment still labels id 2 "RUN" (pre-tier-ramp label; id 2 = JOG) — doc staleness only | B | SI |
@@ -372,7 +375,8 @@ the port (beyond the per-module gaps above).
   projection derivation, I6 melee impact direction, K9 slider commit interleave, J2
   damage window, D3 wall-rise model, L3 ring corners, L9 page anchors).
 - Highest-leverage fidelity work, in order: pickups+inventory
-  (Q1/Q2), room lighting (F1), engine projection (D10), walk-into door triggers (K2),
-  screen-space acquisition (H3), audio pitch/volume (M1/M2).
+  (Q1/Q2), room lighting (F1), engine projection (D10),
+  screen-space acquisition (H3), audio pitch/volume (M1/M2). (K2 door triggers: closed
+  s58 — the engine trigger is the CROSS edge and the port now matches for all families.)
 - When any FINDINGS section is revised, re-audit the matching module section here — this
   file is the port-side mirror of FINDINGS and goes stale the same way.
