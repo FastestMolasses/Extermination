@@ -5469,3 +5469,43 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
 - **Open**: rec +0x18/+0x1C consumers; func_001D8C30 special modes
   1/3/4/5/6; the func_001D8270 exclusion-type names; lamp gate
   byte events.
+
+
+### Update — 2026-06-11 s58: POSITIONAL AUDIO + VOICE STEALING decoded and in the port
+
+- **Decode (FINDINGS "Engine 3-D VOLUME/PAN + VOICE STEALING")**:
+  func_001FBD50/func_001FBF50 fully read — play_sound computes a
+  one-shot STEREO GAIN PAIR: vol = 4096·sin(pi/2·(r−d)/r) from the
+  PLAYER (D_00810360), hard cull at d ≥ r; pan from the CAMERA (eye
+  D_008105D0, yaw D_0081027C = cam 0x8101E0 +0x9C): far channel =
+  vol·(c⁵·k ± (1−k)), c = cos(bearing−yaw), k = min(d/18, 1), BEHIND =
+  phase-inverted far channel (SPU2 negative volume pseudo-surround);
+  near side = LEFT for wrapped bearing ≥ 0 (pinned through the
+  func_001179E0 multiply chain × pan LUT D_00242630 byte order). The
+  f12 argument is the ATTENUATION RADIUS (300.0 at 281 of ~320 sites,
+  id-verified for 0x162/0x7D8/0x42F/0x430) — the old "vol 150/300"
+  reading retired. Voice allocator func_00117428: retrigger-reuse
+  (dead for SFX: tone byte0 = 0 on all 556 shipped SFX tones), free
+  voice, else released-first then OLDEST by note-on serial
+  (D_0027F740+0x34) under a priority gate uniform (10) across SFX
+  tones, else silent drop; steals defer one driver tick through the
+  func_001157F0 command ring.
+- **Port (extermination-port `em_sfx.*`)**: em_sfx_play_at(id, pos,
+  radius) bakes the decoded signed gains per voice (lock-free slots
+  extended with one atomic kill flag; mixer applies L/R incl. the rear
+  inversion); em_sfx_listener per-frame player/camera mirror; stealing
+  = 48-voice engine budget over 64 physical slots, oldest-live killed,
+  honored next callback. Positional call sites migrated at radius 300:
+  doors (rattle + open pair), enemy death 0x7D8, pad 0x42D/0x42F/0x430,
+  wall impact 0x189 at the stored hit point; player-attached ids stay
+  em_sfx_play = the exact d=0 engine result (documented). EM_SFX_TEST
+  extended: 5 synthetic pan/attenuation vectors vs the decode, range
+  cull, 60-play burst → 13 steals / 0 drops. Suite: EM_SFX_TEST PASS,
+  test-weapon PASS, test-input PASS, default capture byte-identical.
+  PORT_DIFFERENCES M2/M3 → OK.
+- **Open**: the wrapped-bearing-≥0 = LEFT convention is the one
+  unverified link (single-swap fix if live capture contradicts);
+  engine MONO option D_0028215B; the non-300 radius sites
+  (450/500/800/1000) when their callers get translated; per-sound
+  pitch (M1) and multi-event trigger scripts (M4) remain the flat-audio
+  residue.

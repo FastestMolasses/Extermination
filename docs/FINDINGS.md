@@ -1015,6 +1015,101 @@ layers in chunk04.n0). Confidence: **high** (engine-code-exact dispatch +
 data-validated bank assignment); the only heuristic part is the
 non-exact-coverage cells of the area→region map.
 
+### Engine 3-D VOLUME/PAN + VOICE STEALING decoded (2026-06-11)
+
+**`func_001FBD50(obj, id, flat2d, float radius)`** (play_sound) decoded to
+the instruction: it calls **`func_001FBF50(obj, &gainA, &gainB, flat2d,
+f12=radius, f13=4096.0)`** and, on success, tail-submits
+`func_001FB9F0(id, 0x1000, gainA, gainB)`. The gain pair is computed ONCE
+per trigger (no per-frame re-pan; the only later volume writes are the
+sequencer's own ramps). `func_001FBF50` in full:
+
+1. **Distance — listener = the PLAYER** (`D_00810360`, the actor pos
+   qword): `d = |src − player|` (3-D Euclidean via `func_001028D0` sub +
+   `func_0011E748` sqrtf; the `flat2d` s8 arg zeroes both Y components
+   first — callers pass 0). Source = `obj+0xB0`.
+   - `d >= radius` → **return 0: the sound is not submitted at all**
+     (play_sound returns −1).
+   - `vol = 4096 · sinf((π/2)·(radius − d)/radius)` — a quarter-sine
+     ease: full at the source, ~linear toward 0 at the rim.
+2. **Pan — listener = the CAMERA**: eye `D_008105D0` (the global view
+   position) + yaw `D_0081027C` = **cam struct 0x8101E0 + 0x9C** (eye is
+   +0x10 = 0x8101F0 — the same block the live sessions steered).
+   - forward = RotY(yaw)·(0,0,1) (identity `func_001029C0` + Euler
+     `func_00102C58` on the vec (0, yaw, 0)); dir = normalize_xz(src −
+     eye) (`func_001028D0`/`func_00102760`, Y zeroed).
+   - `c = dot(forward, dir)` (`func_00102738`) ≡ cos(bearing − yaw) with
+     bearing = atan2(dx, dz).
+   - `k = min(d/18, 1)` — **the pan ramps in over the first 18 units of
+     PLAYER distance** (player-attached sounds stay centered).
+   - `t = c⁵·k ± (1−k)` (sign of c⁵k; ± pushes |t| to 1 as d→0):
+     `t = +1` ahead (center), `0` at 90° (far channel silent), `−1`
+     behind — **the far channel goes NEGATIVE = SPU2 phase inversion**,
+     the engine's pseudo-surround rear cue.
+   - side test `func_001B1380(yaw, src, eye)`: `wrapPi(atan2(dx,dz) −
+     yaw) >= 0` (`func_0011E620` atan2f + `func_001B1470` wrap). TRUE →
+     gainA = vol, gainB = vol·t; FALSE → mirrored.
+   - **gainA is the LEFT channel**: gainA → channel +0x48 (via
+     `func_0011A218`, clamp ±0x1000), and in the per-voice volume
+     compose `func_001179E0` the +0x48 word multiplies the HIGH byte of
+     the voice pan pair `D_00242630[pan>>2]` — the LUT runs (0x80,0x00)
+     at pan 0 → (0x00,0x80) at pan 0x7F, i.e. high byte = left (MIDI
+     pan convention, record default 0x40 → center pair (0x78,0x78)).
+   - mono option `D_0028215B == 1` → both gains = vol (no pan);
+     `D_0027F778 == 1` is a second, driver-level mono (both = max|L,R|).
+3. **Radius is a per-call-site constant in f12**. Histogram across all
+   `jal func_001FBD50` sites: **300.0 × 281**, 500.0 × 17, 450.0 × 12,
+   1000.0 × 11, 800.0 × 6 (+ record-supplied: door script op 0x17 sub 1
+   reads rec+0x20). Verified per-id: weapon draw 0x162 (func_0016F530),
+   enemy death 0x7D8 (func_00153B50), leech spawn 0x430 (func_00154040),
+   generator 0x42F (func_0015A2C0) — all 300.0. **The earlier "vol
+   150/300" reading of this argument was wrong: it is the attenuation
+   radius.** The non-positional submit form is `func_001FB9F0(id,
+   0x1000, 0x1000, 0x1000)` (center/full), which is also exactly what
+   the positional math produces for a player-attached source (d=0).
+
+**Voice stealing — `func_00117428(toneB0, toneB1, bankHandle)`** (the
+voice allocator over the 48 × 0x6A table `D_0027CCC0`, called by both
+note-on handlers; scan starts at a rotating cursor `D_0027F740+0x30`):
+
+1. **Retrigger-reuse** (only if toneB0 != 0): a voice with `+0x1A == 2`
+   (active), `+0x20 ==` tone byte0 and `+0x22 ==` bank handle is
+   returned immediately — same sound restarts in place. **Data-side:
+   tone byte0 is 0 on every shipped SFX tone (556/556 in the global
+   container) — this pass never fires for gameplay SFX** (it is a
+   sequenced-music path; the 0x90 range-scan tones carry real note_lo).
+2. **Free voice**: `+0x00 == 0` and `+0x1A != 3` (3 = locked/reserved).
+3. **Steal**, in order: the first busy (`+0x08 == 1`) voice already in
+   released state (`+0x1A == 1`) — immediate; else the OLDEST (minimum
+   `+0x0A` = the note-on serial sampled from the global counter
+   `D_0027F740+0x34`, incremented at the tail of every note-on) among:
+   released keep-voices (`+0x08 != 1`, `+0x1A == 1`; no priority gate),
+   then active normal voices, then active keep-voices — the latter two
+   gated on `newToneByte1 >= voice+0x1E` (the victim's tone byte1 =
+   PRIORITY, written at note-on). **Tone byte1 is uniformly 10 across
+   shipped SFX tones** → among gameplay sounds the gate always passes
+   and the policy reduces to released-first, then oldest.
+4. Else **return −1 — the note-on is silently dropped** (the 0xA0
+   handler skips the event).
+
+Steals/key-offs reach the SPU through the `func_001157F0` command ring
+(flushed to the IOP driver once per tick) — i.e. the engine's own steal
+takes effect on the NEXT driver tick, not synchronously.
+
+**Port adoption** (extermination-port 2026-06-11, `em_sfx.*`):
+`em_sfx_play_at(id, pos, radius)` implements the decoded math verbatim
+on signed float gains (rear inversion preserved); per-frame
+`em_sfx_listener(player, cam_eye, cam_yaw)`; stealing = the engine's
+48-voice budget with oldest-live kill over 64 physical lock-free slots
+(kill honored at the next audio callback — the same one-tick deferral).
+All translated positional call sites use radius 300.0 (doors, enemy
+death, pad sounds 0x42D/0x42F/0x430, wall impact 0x189 at the hit
+point); player-attached ids remain center/full = the exact d=0 result.
+Confidence: **high** (instruction-level decode; pan LUT byte order
+data-verified; the single un-validated convention is wrapped-bearing ≥
+0 = screen-left, which is a one-line swap if live capture ever
+contradicts it).
+
 **Level geometry AND character/object/prop models decoded.** Exporter:
 `tools/extract_models.py` (geometry file → Wavefront OBJ). Full format details
 are in that script's module docstring; summary below.

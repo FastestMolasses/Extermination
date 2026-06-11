@@ -67,7 +67,7 @@ Notes:
 | func_00174A50 | (e, float blend) | resolve/commit animation clip with a blend |
 | func_001749A0 | (e, …) | animation commit (clip selectors call it) |
 | func_00179B90 | (obj) -> int | get the entity's sound-base id |
-| func_001FBD50 | (obj, sound_id, 0, float range) | play a positional sound |
+| func_001FBD50 | (obj, sound_id, flat2d, float radius) | play a positional sound — radius = attenuation range (300.0 typical); full vol/pan math decoded (FINDINGS "Engine 3-D VOLUME/PAN") |
 | func_001749F0 | (e, …) | anim clip-change arbiter (see FINDINGS) |
 
 ## Related globals

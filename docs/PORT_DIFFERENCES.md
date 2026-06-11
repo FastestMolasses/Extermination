@@ -80,9 +80,11 @@ lists whole missing systems):
 8. **Camera wall response is a port-invented model** — the observed "rise over the wall"
    behavior was re-created with port constants; the engine's 6984-byte solver
    func_0018DD20 is unread (D3).
-9. **Audio model is flat** — no per-sound pitch (tone center notes undecoded), no volume
-   parameter (engine vol 150/300 ignored), no positional attenuation, no voice stealing,
-   first-event-only triggers (M1–M4).
+9. **Audio: no per-sound pitch, first-event-only triggers** — tone center notes
+   undecoded (M1), multi-event trigger scripts play their first event only (M4).
+   RESOLVED 2026-06-11: positional attenuation/pan (the func_001FBF50 decode — the
+   "volume 150/300" was the play_sound RADIUS misread) and voice stealing (the
+   func_00117428 policy) are now in the port (M2/M3).
 10. **Locked doors and per-door sounds are missing** — no unlock bitmask `D_00810841`, no
     locked sequences (door subs 1/2, slider locked script), one global doorsfx pair
     instead of the per-door link-indexed `D_0024DB80` pair (K6, K8, K10).
@@ -288,8 +290,8 @@ lists whole missing systems):
 | # | Behavior | Engine truth | Port | Sev | Status |
 |---|----------|--------------|------|-----|--------|
 | M1 | Pitch | engine repitches per trigger note: 44100·2^(dnote/12); per-sound center notes in the tone records | each WAV plays at its stored rate — NO repitch (registry will grow a pitch column) | V | UT (flagged) |
-| M2 | Volume / position | play_sound carries volume (150/300 observed) + positional attenuation | `em_sfx_play(id)` has NO volume or position parameter; everything full-gain (x0.6 PORT headroom) | V | UT |
-| M3 | Voice management | 48-channel sequencer with voice STEALING | 8 voice slots; saturation DROPS the play (counted) | B | SI (flagged) |
+| M2 | Volume / position | play_sound(obj, id, 0, radius) -> func_001FBF50 stereo gain pair: vol = 4096·sin(pi/2·(r−d)/r) from the PLAYER (D_00810360), culled at d ≥ r; pan from the CAMERA (eye D_008105D0, yaw cam+0x9C): far ch = vol·(c⁵k ± (1−k)), c = cos(bearing−yaw), k = min(d/18,1), behind = phase-inverted far channel; radius = call-site constant (300.0 at all translated ids; the old "vol 150/300" was this radius misread) | RESOLVED 2026-06-11: `em_sfx_play_at(id, pos, radius)` implements the decoded math verbatim (signed float gains, rear inversion preserved); per-frame `em_sfx_listener` mirrors player/camera; positional call sites migrated (doors, enemy death/pad sounds, wall impact at the hit point); player-attached ids stay center/full = the exact d=0 engine result. EM_SFX_TEST asserts 5 synthetic gain vectors | V | OK |
+| M3 | Voice management | 48-voice table D_0027CCC0; allocator func_00117428: retrigger-reuse (tone byte0 — 0 on all shipped SFX tones, never fires), free voice, else released-first then OLDEST by note-on serial under a tone-priority gate (uniform 10 across SFX), else drop | RESOLVED 2026-06-11: 48-voice budget over 64 physical slots; oldest-live killed via per-slot atomic kill honored next callback (engine steals likewise defer one driver tick); drop only at 64 busy (counted). EM_SFX_TEST: 60-play burst -> 13 steals, 0 drops | B | OK |
 | M4 | Trigger scripts | multi-event note-on scripts (e.g. casing 0x16A is 2-event) | first event only (single WAV per id) | V | SI (flagged) |
 | M5 | Bank model | SShd banks, id→bank/script/tone chain (decoded s28/s29) | text registry `sfx.txt` id→WAV; unmapped id = silent no-op | S | SI (by design) |
 | M6 | BGM cues | cue table D_0025DD30 (67 cues, loop flags), func_001FB0B0/func_001FAE70 fade-restart | path-named WAV (`EM_BGM` env or manifest `bgm` line) stands in for the cue id; ~1 s fade approximates the engine fade shape | S | FS |
@@ -359,7 +361,8 @@ the port (beyond the per-module gaps above).
 21. **Status sub-page interiors** — map page, database, weapon customization, passcode
     keypads 4/5 (L7/L8).
 22. **IOP audio architecture** — SPU2 voice envelopes/ADSR, the sequencer, reverb,
-    positional audio, the streaming IOP RPC pumps (M1–M4 are the per-call symptoms).
+    the streaming IOP RPC pumps (M1/M4 are the per-call symptoms; positional audio
+    and voice stealing resolved 2026-06-11 — M2/M3).
 23. **Second player port / multitap input** — the engine's second button triple (A7).
 24. **GS readback path** — func_001D7410 (gated off in every live sample; documented
     no-op — listed for completeness).
