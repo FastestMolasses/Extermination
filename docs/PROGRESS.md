@@ -136,6 +136,16 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 55): FADE RESIDUAL GAP CLOSED (port) — the gfx
+> overlay pass gained em_gfx_overlay_rect_sub (reverse-subtract,
+> ONE/ONE on RGB, dst alpha kept; Metal ReverseSubtract, own queue
+> flushed last so the fade covers the HUD); the close-out draws a GREY
+> quad at em_frame_fade_level(), per-pixel identical to the decoded GS
+> ALPHA_2 0xA1/FIX 0x80 sprite. em_frame_fade_alpha() (1−(1−l)²
+> stand-in) retired; D3D12/Vulkan skeletons stub the hook. Level-0
+> capture byte-identical (4 runs); DOOR/TRANSIT/PAUSE PASS; mid-fade
+> captures show the shadow crush with surviving highlights.
+
 > 2026-06-11 (session 53): CAMERA & AIM CONTROL DECODE WAVE (FINDINGS
 > "CAMERA & AIM CONTROL DECODE WAVE") — four user fidelity notes
 > decoded to engine truth and shipped in the port. (1) IDLE AUTO-
@@ -5131,3 +5141,28 @@ full detail):
   old-vs-new (uniform dim → shadow crush with surviving highlights),
   drawbridge walk-out sequence (chase camera follows the uninterruptible
   walk), wooden crate in-scene.
+
+### Update — 2026-06-11 s55: fade residual gap CLOSED (port reverse-subtract overlay)
+
+- **Port (extermination-port)**: the s54-flagged fade gap is closed. The
+  gfx overlay pass gains `em_gfx_overlay_rect_sub` (em_gfx.h): a
+  reverse-subtract rect — out = max(0, dst − src.rgb), factors ONE/ONE
+  on RGB, dst alpha kept (Metal MTLBlendOperationReverseSubtract; own
+  16-quad queue + PSO, flushed LAST in the overlay sequence so the fade
+  darkens the HUD with the scene, matching the engine's fade owning the
+  whole GS frame). The close-out now draws a GREY quad with
+  rgb = em_frame_fade_level() — per-pixel identical to the GS ALPHA_2
+  0xA1/FIX 0x80 sprite (shadows clip to 0 once level ≥ pixel, pure
+  white survives to level 255). `em_frame_fade_alpha()` (the 1−(1−l)²
+  mean-luminance approximation) is retired; D3D12/Vulkan skeletons
+  carry a no-op stub of the hook (D3D12_BLEND_OP_REV_SUBTRACT /
+  VK_BLEND_OP_REVERSE_SUBTRACT noted for their implementations). The
+  mode-1 additive fade (0x68, to white) still has no port caller.
+- Verified: build clean; DOOR/TRANSIT/PAUSE tests PASS (fade peak 1.0 /
+  final 0.0 asserted); default level-0 capture byte-identical vs the
+  clean a16bf55 baseline across 4 runs (nothing queued at level 0);
+  mid-fade captures (door-test frames 150/165) show the per-pixel crush
+  — doorway/suit black while the lit wall keeps readable texture.
+  Capture-harness note: the FIRST run after a fresh build can produce a
+  divergent capture (cold-start; subsequent paced runs are identical) —
+  compare steady-state runs.

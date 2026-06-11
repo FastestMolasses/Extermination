@@ -11254,6 +11254,13 @@ look). Port stand-in (standard alpha blend only): black quad with
 for a uniform histogram and both endpoints; residual gap (no per-pixel
 crush) documented in extermination-port em_frame.h; exact parity needs a
 reverse-subtract blend op in the port overlay pass (gfx-owned).
+**GAP CLOSED (2026-06-11 s55)**: the port overlay pass now carries the
+exact op — `em_gfx_overlay_rect_sub` (Metal
+MTLBlendOperationReverseSubtract, factors ONE/ONE on RGB, dst alpha
+kept) draws a GREY fullscreen quad with r=g=b=level, per-pixel
+identical to the GS sprite; the alpha stand-in and
+`em_frame_fade_alpha()` are retired (D3D12/Vulkan skeletons carry a
+no-op stub of the hook).
 
 ### 2. The transit "input lock" is TWO separate systems
 
