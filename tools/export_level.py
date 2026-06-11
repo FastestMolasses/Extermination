@@ -795,10 +795,29 @@ def emit_enemy_manifest(scene_dir: Path, ov_path: Path,
 # scene-switch machinery has a testable in-game path.
 
 AREA02 = 2
+AREA01 = 1
 DEST_PTR_ARRAY = 0x0024E140      # D_0024E140: per-area dest-table base
 SPAWN_DESC_ARRAY = 0x0024D650    # D_0024D650: per-area spawn desc
 SPAWN_REC_SIZE = 0x30
 GOTO_MARK = "# door-goto:"       # idempotency marker for our comments
+
+# AREA01 authoring data (decoded 2026-06-11 for the scene_drawbridge
+# export — FINDINGS "DRAWBRIDGE ROOM"): the area's spawn DESC
+# (D_0024D650[1] = 0x275500) is BSS, overlay-filled, but the SUB-0 spawn
+# TABLE itself is static boot-ELF .data at 0x24B1A0 (s22 live-verified:
+# entry 5 = (39, 0, -225) yaw -pi/2). The dest table is generic
+# (D_0024E140[1] = 0x24DFA0, 8 records); door 4's room-move record
+# {09 08} cross-checks spawn entries 9/8 = (143, -609.7)/(115.5, -609.7)
+# flanking the door at (128.6, -610). The PLACEMENT tables live in
+# OVERLAY/AREA01.BIN: two tables serve the area's 7 sub-states —
+# 0x82BD50 (54 records; door id 0 is an OVERLAY-BRAIN scripted door
+# fn 0x823580 and the generators are link-0 inert = the first-visit
+# story beat -> treated as SUB 0, FLAGGED presumption) and 0x82C5F0
+# (32 records; plain door id 0, active generators = later sub-states).
+AREA01_SUB0_SPAWN_VADDR = 0x24B1A0
+AREA01_SPAWN_COUNT = 10          # max entry referenced by the dest table
+AREA01_TABLE_A = 0x82BD50        # sub-0 (flagged presumption, see above)
+AREA01_TABLE_B = 0x82C5F0
 
 
 class BootElf:
@@ -828,21 +847,29 @@ class BootElf:
         return struct.unpack("<I", self.read(vaddr, 4))[0]
 
 
-def area2_dest_table(elf: BootElf) -> list[bytes]:
-    """AREA02's destination records (door id -> 4 bytes). The table runs
-    from D_0024E140[2] to the next area's base (AREA03's), giving the
-    record count without a stored length."""
-    base = elf.u32(DEST_PTR_ARRAY + 4 * AREA02)
+def area_dest_table(elf: BootElf, area: int) -> list[bytes]:
+    """An area's destination records (door id -> 4 bytes). The table runs
+    from D_0024E140[area] to the next area's base, giving the record
+    count without a stored length."""
+    base = elf.u32(DEST_PTR_ARRAY + 4 * area)
     nxt = min(p for a in range(16)
               if (p := elf.u32(DEST_PTR_ARRAY + 4 * a)) > base)
     return [elf.read(base + 4 * d, 4) for d in range((nxt - base) // 4)]
 
 
-def area2_spawn_tables(elf: BootElf) -> list[list[tuple]]:
-    """AREA02's per-sub-state spawn tables as [(x, y, z, yaw), ...].
-    Record = {f32 pos[3], f32 yaw @+0xC, ...} (s22, byte-verified)."""
-    desc = elf.u32(SPAWN_DESC_ARRAY + 4 * AREA02)
-    tbls = []
+def area_spawn_tables(elf: BootElf, area: int) -> dict[int, list[tuple]]:
+    """An area's per-sub-state spawn tables as {sub: [(x, y, z, yaw),
+    ...]}. Record = {f32 pos[3], f32 yaw @+0xC, ...} (s22, byte-verified).
+    AREA02's desc is static; AREA01's desc is overlay-filled BSS but the
+    sub-0 TABLE is static at AREA01_SUB0_SPAWN_VADDR (other AREA01 subs
+    are not reachable offline yet — open item)."""
+    if area == AREA01:
+        recs = [struct.unpack("<4f", elf.read(
+            AREA01_SUB0_SPAWN_VADDR + e * SPAWN_REC_SIZE, 0x10))
+            for e in range(AREA01_SPAWN_COUNT)]
+        return {0: recs}
+    desc = elf.u32(SPAWN_DESC_ARRAY + 4 * area)
+    tbls = {}
     ptrs = [elf.u32(desc + 4 * s) for s in range(4)]
     for si, tbl in enumerate(ptrs):
         if not tbl:
@@ -852,17 +879,35 @@ def area2_spawn_tables(elf: BootElf) -> list[list[tuple]]:
         for e in range((end - tbl) // SPAWN_REC_SIZE):
             recs.append(struct.unpack(
                 "<4f", elf.read(tbl + e * SPAWN_REC_SIZE, 0x10)))
-        tbls.append(recs)
+        tbls[si] = recs
     return tbls
 
 
-def _sub_doors(ov_data: bytes, sub: int):
-    """Door placement records of one AREA02 sub-state table."""
+def area_placement_table_vaddr(area: int, sub: int) -> int:
+    """The placement-table vaddr serving (area, sub) — AREA02 via the
+    placements.py registry, AREA01 via the two decoded tables (sub 0 =
+    table A, flagged presumption; see the AREA01 block above)."""
     pl = sys.modules.get("_placements") or _load("_placements",
                                                  "placements.py")
-    tables = pl.KNOWN_TABLES[OFFICE_OVERLAY]
-    return [e for e in pl.parse_table(ov_data, tables[sub])
+    if area == AREA02:
+        return pl.KNOWN_TABLES[OFFICE_OVERLAY][sub]
+    if area == AREA01:
+        return AREA01_TABLE_A if sub == 0 else AREA01_TABLE_B
+    sys.exit(f"no placement-table registry for area {area}")
+
+
+def _sub_doors(ov_data: bytes, area: int, sub: int):
+    """Door placement records of one area sub-state table."""
+    pl = sys.modules.get("_placements") or _load("_placements",
+                                                 "placements.py")
+    vaddr = area_placement_table_vaddr(area, sub)
+    return [e for e in pl.parse_table(ov_data, vaddr)
             if e.behavior in FN_DOORS]
+
+
+VENT_FILE = "doors/vent.emdl"          # flagged synthetic stand-in mesh
+VENT_LINE = (f"door {VENT_FILE} 62.5 0 -168.5 3.14159 10 "
+             f"goto scene_office0 40 0 -146 -1.5708")
 
 
 def annotate_door_goto(args) -> int:
@@ -873,51 +918,52 @@ def annotate_door_goto(args) -> int:
 
     <scene-dir> is the target scene's SIBLING DIRECTORY NAME (the port
     resolves it against the current scene dir's parent) and the spawn is
-    the target sub-state's real spawn-table record (pos + exit yaw).
+    the target (area, sub)'s real spawn-table record (pos + exit yaw).
     A goto is emitted only when the decoded destination is an EXPORTED
-    sub-state (--exported sub=dirname,...); inter-area destinations and
-    intra-area room moves (bit7 clear — the port re-places in the same
-    scene) keep the plain 6-field line. Lines are matched to placement
-    records by position; existing goto fields and our marker comments are
-    stripped first (idempotent)."""
+    scene (--exported area.sub=dirname,...; a bare sub=dirname key means
+    area 2); unexported destinations and intra-area room moves (bit7
+    clear — the port re-places in the same scene) keep the plain 6-field
+    line. Lines are matched to placement records by position; existing
+    goto fields and our marker comments are stripped first (idempotent).
+
+    2026-06-11: multi-area (--area; AREA01 = scene_drawbridge), the
+    SHIPPED LINKS ARE THE REAL DEST RECORDS (the old --synthetic-link
+    west<->m15 wiring is gone), and --vent appends the office scene's
+    flagged synthetic VENT line (see VENT_LINE: the engine reaches
+    AREA02 sub 0 through an overlay-SCRIPTED vent crawl in the office
+    suite — not a placement object, so no honest door record exists;
+    the stand-in is a door line at the suite's north-corridor vent wall
+    whose goto lands on office0's real spawn entry 5 = (40, 0, -146),
+    beside the engine's own class-0x0B trigger record [0] at
+    (43, 3.5, -147))."""
     scene_dir = Path(args.door_goto)
     mf = scene_dir / "scene.txt"
     if not mf.exists():
         sys.exit(f"{mf} not found")
     if args.sub is None:
-        sys.exit("--door-goto needs --sub (the scene's AREA02 sub-state)")
+        sys.exit("--door-goto needs --sub (the scene's sub-state)")
+    area = args.area
     exported = {}
     for kv in (args.exported or "").split(","):
         if kv:
             k, _, v = kv.partition("=")
-            exported[int(k)] = v
+            a, dot, s = k.partition(".")
+            exported[(int(a), int(s)) if dot else (AREA02, int(k))] = v
     elf = BootElf(Path(args.elf))
     ov_data = Path(args.overlay).read_bytes()
-    dest = area2_dest_table(elf)
-    spawns = area2_spawn_tables(elf)
-    doors = _sub_doors(ov_data, args.sub)
+    dest = area_dest_table(elf, area)
+    doors = _sub_doors(ov_data, area, args.sub)
+    spawn_cache: dict[int, dict[int, list[tuple]]] = {}
 
-    out, n_goto, syn_done = [], 0, False
+    def spawns_of(a: int) -> dict[int, list[tuple]]:
+        if a not in spawn_cache:
+            spawn_cache[a] = area_spawn_tables(elf, a)
+        return spawn_cache[a]
+
+    out, n_goto = [], 0
     lines = mf.read_text().splitlines()
-    lines = [ln for ln in lines if not ln.startswith(GOTO_MARK)]
-
-    # --synthetic-link pre-pass: pick THIS scene's door nearest the
-    # partner exported sub-state's nearest door (see the header note).
-    syn = None
-    if args.synthetic_link:
-        partner = next((s for s in exported if s != args.sub), None)
-        if partner is None:
-            sys.exit("--synthetic-link needs the partner sub-state in "
-                     "--exported")
-        pdoors = _sub_doors(ov_data, partner)
-        pair = min(((d, p) for d in doors for p in pdoors),
-                   key=lambda dp: (dp[0].pos[0] - dp[1].pos[0]) ** 2 +
-                                  (dp[0].pos[2] - dp[1].pos[2]) ** 2)
-        tgt_door = pair[1]
-        ent = min(range(len(spawns[partner])),
-                  key=lambda e: (spawns[partner][e][0] - tgt_door.pos[0]) ** 2
-                              + (spawns[partner][e][2] - tgt_door.pos[2]) ** 2)
-        syn = (pair[0], partner, ent)
+    lines = [ln for ln in lines if not ln.startswith(GOTO_MARK)
+             and VENT_FILE not in ln]
 
     for ln in lines:
         f = ln.split()
@@ -944,38 +990,45 @@ def annotate_door_goto(args) -> int:
             continue
         n_area, entry = drec[0], drec[1]
         n_sub = drec[3] if drec[2] else 0
-        if n_area == AREA02 and n_sub in exported:
-            sx, sy, sz, syaw = spawns[n_sub][entry]
-            out.append(f"{GOTO_MARK} door id {door_id}|0x80 -> AREA02 "
-                       f"sub {n_sub} entry {entry} (dest table 0x24DFC0)")
-            out.append(" ".join(f) + f" goto {exported[n_sub]} {sx:.6g} "
+        tgt = exported.get((n_area, n_sub))
+        tgt_spawns = spawns_of(n_area).get(n_sub) if tgt else None
+        if tgt and tgt_spawns and entry < len(tgt_spawns):
+            sx, sy, sz, syaw = tgt_spawns[entry]
+            out.append(f"{GOTO_MARK} door id {door_id}|0x80 -> AREA"
+                       f"{n_area:02d} sub {n_sub} entry {entry} "
+                       f"(dest table D_0024E140[{area}], REAL record)")
+            out.append(" ".join(f) + f" goto {tgt} {sx:.6g} "
                        f"{sy:.6g} {sz:.6g} {syaw:.6g}")
             n_goto += 1
             continue
-        if syn and rec is syn[0]:
-            _, psub, ent = syn
-            sx, sy, sz, syaw = spawns[psub][ent]
-            out.append(f"{GOTO_MARK} SYNTHETIC LINK (flagged): the real "
-                       f"dest of door id {door_id}|0x80 is AREA "
-                       f"{n_area:02d} sub {n_sub} entry {entry} (not "
-                       f"exported); no real door pair links AREA02 sub "
-                       f"{args.sub} <-> sub {psub} (the engine routes "
-                       f"via other areas), so this wires the two "
-                       f"exported scenes' nearest doors. Arrival = sub "
-                       f"{psub}'s real spawn entry {ent}.")
-            out.append(" ".join(f) + f" goto {exported[psub]} {sx:.6g} "
-                       f"{sy:.6g} {sz:.6g} {syaw:.6g}")
-            n_goto += 1
-            syn_done = True
-            continue
-        out.append(f"{GOTO_MARK} door id {door_id}|0x80 -> AREA "
+        out.append(f"{GOTO_MARK} door id {door_id}|0x80 -> AREA"
                    f"{n_area:02d} sub {n_sub} entry {entry} — target not "
                    f"exported, no goto")
         out.append(" ".join(f))
 
+    if args.vent:
+        if area != AREA02 or args.sub != 1:
+            sys.exit("--vent is the office (area 2 sub 1) scene's line")
+        out.append(f"{GOTO_MARK} VENT — FLAGGED SYNTHETIC STAND-IN: the "
+                   f"engine reaches AREA02 sub 0 (the main floor) through "
+                   f"a vent crawl SCRIPTED IN THE AREA OVERLAY, not a "
+                   f"placement object (the sub-1 table's 14 records are "
+                   f"all identified: 2 doors, 7 pickups, 5 fixtures — no "
+                   f"vent). This door line is the port's stand-in at the "
+                   f"suite's north-corridor wall; the ARRIVAL is real "
+                   f"(office0 spawn entry 5, beside the engine's own "
+                   f"class-0x0B trigger record [0] at (43, 3.5, -147)).")
+        out.append(VENT_LINE)
+        vent_dst = scene_dir / VENT_FILE
+        vent_src = scene_dir / "doors" / "door_m03.emdl"
+        if not vent_dst.exists() and vent_src.exists():
+            vent_dst.write_bytes(vent_src.read_bytes())
+            print(f"vent: {vent_dst} written (copy of door_m03.emdl — "
+                  f"flagged visual stand-in; no vent mesh is decoded)")
+
     mf.write_text("\n".join(out) + "\n")
-    print(f"manifest: {mf}: {n_goto} goto link(s)"
-          + (" (1 SYNTHETIC, flagged)" if syn_done else ""))
+    print(f"manifest: {mf}: {n_goto} REAL goto link(s)"
+          + (" + 1 flagged synthetic vent line" if args.vent else ""))
     return 0
 
 
@@ -1175,6 +1228,148 @@ def export_office0_doors(args):
     mf.write_text("\n".join(old + lines) + "\n")
     print(f"manifest: {mf}: {len(lines)} door line(s)")
     update_manifest(scene_dir, "doorsfx", "0x3FD 0x3FE")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# AREA01 SUB-STATE 0 — the DRAWBRIDGE ROOM area (chunk leaf chunk05.n0).
+#
+# Leaf identity: the soundmap's area_scene_map pins (area 1, sub 0) ->
+# chunk05.n0 — and (1, 7) -> chunk15, the intro SNOW level: the snow
+# level is an AREA01 sub-state, so this leaf is "the first room after
+# the first snow level" (the user-remembered drawbridge room). The
+# room itself sits around X[-35, 65] Z[-150, -250]; the leaf's world
+# files cover the whole area (a deep shaft complex down to z -1297).
+#
+# Geometry survey (2026-06-11, walk_records over every file):
+#   f02_id43.bin  main static world        f03_id42.bin  world zone
+#   f05_id4a.bin  world zone               f09_id52.bin  world zone
+#   f10_id47.bin  world zone               f01_id45.bin  world zone
+#   f04_id46.bin  world zone               f06_id4d.bin  world zone
+#   f07_id4c.bin  world zone               f08_id99.bin  world zone
+#   f11_id4b.bin  world zone [0, 0x56000) — the per-area MODEL TABLE
+#                 lives at file +0x56000 (concat 0x3F2000, 22 entries,
+#                 func_001C6120 directory; entries span into f12..f14),
+#                 so the tail is OBJECT-SPACE and must not bake as world
+#   f00_id44.bin  collision world (head) + static render TAIL
+#                 [0x1523D0, end) — same two-section shape as the office
+#   f12_id4e.bin / f14_id88.bin  object-space blobs (model-table entries)
+#   f13_id72.bin  no records (table data)
+#
+# TEXTURES: no captured save state exists for this area — the s28
+# --uploads replay path: the leaf's own GS upload packets
+# (f00_id44.bin, blocks 0x2A00../0x3180..) + the global library pack
+# (chunk27/f00_id35.bin).
+#
+# Doors/placements: OVERLAY/AREA01.BIN table A @0x82BD50 (see the
+# AREA01 block above). Spawn = the arrival entry 5 (39, 0, -225) yaw
+# -pi/2 (the office west door's dest record).
+
+DRAWBRIDGE_DIRNAME = "chunk05.n0"
+DRAWBRIDGE_TABLE_OFF = 0x3F2000        # model table (concat; f11+0x56000)
+DRAWBRIDGE_SPAWN = (39.0, 0.0, -225.0, -1.5708)   # AREA01 sub-0 entry 5
+DRAWBRIDGE_ZONES = [
+    # (file, lo, hi-or-None)
+    ("f02_id43.bin", 0x000010, None),
+    ("f03_id42.bin", 0x000010, None),
+    ("f05_id4a.bin", 0x000010, None),
+    ("f09_id52.bin", 0x000010, None),
+    ("f10_id47.bin", 0x000010, None),
+    ("f11_id4b.bin", 0x000010, 0x56000),
+    ("f01_id45.bin", 0x000010, None),
+    ("f04_id46.bin", 0x000010, None),
+    ("f06_id4d.bin", 0x000010, None),
+    ("f07_id4c.bin", 0x000010, None),
+    ("f08_id99.bin", 0x000010, None),
+    ("f00_id44.bin", 0x1523D0, None),
+]
+
+
+def drawbridge_uploads(dirp: Path) -> list:
+    ups = [dirp / "f00_id44.bin",
+           dirp.parent / "chunk27" / "f00_id35.bin"]
+    return [p for p in ups if p.exists()]
+
+
+def export_drawbridge(args) -> int:
+    """--drawbridge DIR: export the AREA01 sub-state-0 leaf (chunk05.n0)
+    as a complete scene into --out (the SCENE DIRECTORY): one EMDL per
+    world zone file (NN_<file>.emdl), the manifest spawn + doorsfx +
+    enemies block. Doors come from export_props.py --doors-drawbridge;
+    collision from export_collision.py (both documented in PROGRESS)."""
+    dirp = Path(args.drawbridge)
+    scene_dir = Path(args.out)
+    scene_dir.mkdir(parents=True, exist_ok=True)
+    ups = drawbridge_uploads(dirp)
+    if not ups:
+        sys.exit(f"{dirp}: no upload-packet source files found")
+
+    for zi, (name, lo, hi) in enumerate(DRAWBRIDGE_ZONES):
+        p = dirp / name
+        if not p.exists():
+            sys.exit(f"{p} missing")
+        d = p.read_bytes()
+        b = MeshBuilder()
+        b.add_stream((r if r is None else r[1:] for r in
+                      walk_records(d, lo, hi)), None)
+        if not b.pos:
+            print(f"  zone {name}: no records — skipped")
+            continue
+        sections = [(b.pos, b.col, b.tris, b.bone, b.uv, b.tex)]
+        tex_entries, tex_blob = build_texture_blob(None, b.tex_table,
+                                                   None, ups)
+        out = scene_dir / f"{zi:02d}_{name.split('.')[0]}.emdl"
+        en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]],
+                      30.0, tex_entries, tex_blob, flags=1)
+
+    update_manifest(scene_dir, "spawn",
+                    " ".join(f"{v:g}" for v in DRAWBRIDGE_SPAWN))
+    # Door sound pair: every m03/m15 door link in table A is 0x02xx ->
+    # D_0024DB80 selector 2, the same pair the office uses (the table is
+    # BSS — ids are the engine rule; the per-scene sfx registry maps
+    # them to this area's bank or stays silent).
+    update_manifest(scene_dir, "doorsfx", "0x3FD 0x3FE")
+
+    # Enemies block (AREA01 table A; see the AREA01 constants block —
+    # sub-0 presumption flagged there).
+    pl = sys.modules.get("_placements") or _load("_placements",
+                                                 "placements.py")
+    ov_path = dirp.parent / "OVERLAY" / "AREA01.BIN"
+    if ov_path.exists():
+        ents = pl.parse_table(ov_path.read_bytes(), AREA01_TABLE_A)
+        cen = _placement_census(ents)
+        block = [ENEMY_BLOCK_BEGIN]
+        block.append(f"# scene table = AREA01 table A @{AREA01_TABLE_A:#x} "
+                     f"(SUB-0 PRESUMPTION, flagged: the overlay-brain "
+                     f"door id 0 + link-0 inert generators read as the "
+                     f"first-visit story beat), {len(ents)} records:")
+        block.append(f"#   {cen['crawler']} crawlers (fn 0x001551B0, "
+                     f"param 0x0004 — a DIFFERENT disguise model than the "
+                     f"office cardboard box; the port's crate enemy mesh "
+                     f"is a flagged visual stand-in), "
+                     f"{cen['generator']} generators (link 0 = inert), "
+                     f"{cen['door']} doors, {cen['pickup']} pickups, "
+                     f"{cen['prop']} fixtures/props, "
+                     f"{cen['deferred']} deferred(0x0B)")
+        block.append("# NOTE record [12] is an OVERLAY-BRAIN scripted "
+                     "door (fn 0x823580, door id 0) at (-35.5, -35, "
+                     "-1276.5) — likely the drawbridge cutscene; not a "
+                     "portable door record, omitted from the door lines.")
+        block += _enemy_lines(ents)
+        block.append(ENEMY_BLOCK_END)
+        mf = scene_dir / "scene.txt"
+        lines = mf.read_text().splitlines() if mf.exists() else []
+        if ENEMY_BLOCK_BEGIN in lines:
+            bidx = lines.index(ENEMY_BLOCK_BEGIN)
+            eidx = lines.index(ENEMY_BLOCK_END) if ENEMY_BLOCK_END in lines \
+                else len(lines) - 1
+            lines = lines[:bidx] + lines[eidx + 1:]
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines += block
+        mf.write_text("\n".join(lines) + "\n")
+        print(f"manifest: {mf}: enemies block — {cen['crawler']} crawler "
+              f"line(s), {cen['generator']} generator line(s)")
     return 0
 
 
@@ -1428,6 +1623,12 @@ def main(argv):
                     help="carve the sub-state-0 interactive door meshes "
                     "from this chunk06.n0 leaf dir into --out/doors/ and "
                     "write the manifest door lines (--out = the scene dir)")
+    ap.add_argument("--drawbridge", metavar="DIR",
+                    help="export the AREA01 sub-state-0 leaf (chunk05.n0, "
+                    "the drawbridge room area) as a complete scene into "
+                    "--out: zone EMDLs + manifest spawn/doorsfx/enemies "
+                    "(doors via export_props.py --doors-drawbridge, "
+                    "collision via export_collision.py)")
     ap.add_argument("--spawn", default=None,
                     help="x,y,z[,yaw] player spawn in TRUE world "
                     "coordinates; written to the scene manifest "
@@ -1439,22 +1640,28 @@ def main(argv):
                     help="annotate DIR/scene.txt door lines with decoded "
                     "transition destinations (goto fields) from the boot "
                     "ELF's dest/spawn tables; see annotate_door_goto")
+    ap.add_argument("--area", type=int, default=AREA02,
+                    help="--door-goto: the scene's AREA (default 2; "
+                    "scene_drawbridge = 1)")
     ap.add_argument("--sub", type=int, default=None,
-                    help="--door-goto: the scene's AREA02 sub-state (0-2)")
+                    help="--door-goto: the scene's sub-state")
     ap.add_argument("--exported", default=None,
-                    help="--door-goto: sub=dirname,... map of exported "
-                    "sub-states (sibling scene dir names), e.g. "
-                    "0=scene_office0,1=scene")
+                    help="--door-goto: area.sub=dirname,... map of "
+                    "exported scenes (sibling scene dir names), e.g. "
+                    "1.0=scene_drawbridge,2.0=scene_office0,2.1=scene; "
+                    "a bare sub=dirname key means area 2")
     ap.add_argument("--elf", default="elf/SCUS_971.12.elf",
                     help="--door-goto: the user's local boot ELF (read "
                     "only; never committed)")
     ap.add_argument("--overlay", default="extract/OVERLAY/AREA02.BIN",
-                    help="--door-goto: the user's extracted AREA02 overlay")
-    ap.add_argument("--synthetic-link", action="store_true",
-                    help="--door-goto: ALSO wire the two exported "
-                    "sub-states' nearest doors with a FLAGGED synthetic "
-                    "goto (no real intra-area pair exists — see the "
-                    "door-goto header note)")
+                    help="--door-goto: the user's extracted area overlay "
+                    "(pass AREA01.BIN with --area 1)")
+    ap.add_argument("--vent", action="store_true",
+                    help="--door-goto (office scene only): append the "
+                    "FLAGGED synthetic VENT door line -> scene_office0 "
+                    "(the engine's vent crawl is overlay-scripted, not a "
+                    "placement object; arrival = the real office0 spawn "
+                    "entry 5). Replaces the removed --synthetic-link.")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
 
@@ -1466,6 +1673,8 @@ def main(argv):
         return export_office0_placed(args)
     if args.office0_doors:
         return export_office0_doors(args)
+    if args.drawbridge:
+        return export_drawbridge(args)
 
     sections, tex_table, n_tris = load_level_mesh(Path(args.level))
     pos = sections[0][0]

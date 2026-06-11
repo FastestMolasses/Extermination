@@ -575,7 +575,11 @@ def finish_textures(args, tex_table):
 # Mode 3: --doors — placement-table doors as separate articulated EMDLs
 # (see "DOORS" in the module docstring).
 
-DOOR_TRIGGER_RADIUS = 12.0   # func_00184BA0: use-scan distance^2 <= 144
+DOOR_TRIGGER_RADIUS = 10.0   # func_00183EF0 CLASS-5 desc D_002755F0[0]
+                             # (2026-06-11 full read: horizontal distance
+                             # from the DOORWAY CENTER <= 10.0, |dy| <=
+                             # 8.0, facing within pi/4 of through-door;
+                             # the old 12.0 came from the class-7 prefix)
 
 # The door's clip container, pinned statically (s29): door INIT binds
 # actor+0x40 = D_0028A574 = D_0028A490[slot 0x39], filled at boot from
@@ -1056,6 +1060,109 @@ def export_doors_office0(args):
     return 0
 
 
+def export_doors_drawbridge(args):
+    """--doors-drawbridge DIR: the AREA01 sub-state-0 (table A @0x82BD50,
+    export_level's flagged sub-0 presumption) interactive doors carved
+    from the chunk05.n0 model table (concat 0x3F2000) into
+    <outdir>/doors/ + manifest door lines. Same machinery as
+    --doors-office0: m03/m15 (fn 0x001BC350) get the slot-0x39 bank
+    clips [0, 2, 1, 3] verified against the model-rec rest; m09
+    (fn 0x001BB860 variant brain) gets the synthesized func_001BB400
+    native slide. Several records share one model (3x m03) — the EMDL
+    is written once, each record gets its own manifest line. The
+    overlay-brain door id 0 (fn 0x823580) is NOT a portable door record
+    and is skipped (reported)."""
+    dirp = Path(args.doors_drawbridge)
+    scene_dir = Path(args.outdir)
+    blob = bytearray()
+    for f in sorted(dirp.glob("*.bin")):
+        blob += f.read_bytes()
+    blob = bytes(blob)
+    table_off = lvl.DRAWBRIDGE_TABLE_OFF
+    cnt = struct.unpack_from("<I", blob, table_off)[0]
+    if not (0 < cnt <= 0x100):
+        raise SystemExit(f"{dirp}: no model table at concat "
+                         f"{table_off:#x} (count {cnt:#x}) — wrong leaf?")
+    ov_path = dirp.parent / "OVERLAY" / "AREA01.BIN"
+    if not ov_path.exists():
+        raise SystemExit(f"{ov_path} missing")
+    pl = sys.modules.get("_placements") or lvl._load("_placements",
+                                                     "placements.py")
+    entries = pl.parse_table(ov_path.read_bytes(), lvl.AREA01_TABLE_A)
+    doors = [e for e in entries if e.behavior in (FN_DOOR_SWING,
+                                                  FN_DOOR_SLIDE)]
+    scripted = [e for e in entries
+                if (e.spawn_class & 0x1F) == 5 and
+                e.behavior not in (FN_DOOR_SWING, FN_DOOR_SLIDE)]
+    for e in scripted:
+        print(f"door [{e.index}] fl={e.flags2:#04x} fn {e.behavior:#x} at "
+              f"({e.pos[0]:.1f}, {e.pos[1]:.1f}, {e.pos[2]:.1f}): "
+              f"OVERLAY-BRAIN scripted door — skipped (not portable)")
+    if not doors:
+        raise SystemExit("no door records in AREA01 table A")
+    (scene_dir / "doors").mkdir(parents=True, exist_ok=True)
+    ups = [p for p in (dirp / "f00_id44.bin",
+                       dirp.parent / "chunk27" / "f00_id35.bin")
+           if p.exists()]
+
+    written = set()
+    lines = []
+    for e in doors:
+        name = f"doors/door_m{e.model:02x}.emdl"
+        lines.append(f"door {name} {e.pos[0]:.6g} {e.pos[1]:.6g} "
+                     f"{e.pos[2]:.6g} {e.rot[1]:.6g} "
+                     f"{DOOR_TRIGGER_RADIUS:g}")
+        if name in written:
+            print(f"door [{e.index}] model {e.model:#04x}: shared EMDL "
+                  f"{name} (already written)")
+            continue
+        written.add(name)
+        rec_off = table_entry_offset(blob, table_off, e.param)
+        parents, rests = model_rec_nodes(blob, rec_off)
+        sections, tex_table = build_office0_door_mesh(blob, rec_off)
+        pos = sections[0][0]
+        print(f"door [{e.index}] model {e.model:#04x} param {e.param:#04x}"
+              f" fn {e.behavior:#x} flags2 {e.flags2:#04x}: {len(pos)} "
+              f"verts, {len(sections[0][2]) // 3} tris, rig {parents}")
+
+        if e.behavior == FN_DOOR_SWING:
+            clip = find_door_clip(rests[1][3][:3])
+            if clip is None:
+                raise SystemExit(f"door m{e.model:02x}: bank clips did "
+                                 "not verify against the model-rec rest")
+            bank, baked = clip
+            if list(baked[0][1]) != list(parents):
+                raise SystemExit(f"door m{e.model:02x}: bank rig "
+                                 f"{baked[0][1]} != model rig {parents}")
+            frames, clips = [], []
+            role = {0: "open back", 2: "open front",
+                    1: "locked back", 3: "locked front"}
+            for cid, _par, frs, f in baked:
+                clips.append({"id": cid, "first": len(frames),
+                              "count": len(frs), "fps": f})
+                frames.extend(frs)
+                print(f"  clip {cid} ({role.get(cid, '?')}): {bank} "
+                      f"directory id {cid} — {len(frs)} frames")
+            fps = baked[0][3]
+        else:
+            frames = bake_native_slide(parents, rests, e.flags2)
+            clips = [{"id": 0, "first": 0, "count": len(frames),
+                      "fps": 60.0}]
+            fps = 60.0
+            t1 = frames[-1][1][3]
+            print(f"  clip 0 (native slide, synthesized): {len(frames)} "
+                  f"frames @ 60; end node-1 t = ({t1[0]:.2f}, {t1[1]:.2f},"
+                  f" {t1[2]:.2f})")
+
+        tex_entries, tex_blob = lvl.build_texture_blob(None, tex_table,
+                                                       None, ups)
+        en.write_emdl(scene_dir / name, sections, [], parents, frames,
+                      fps, tex_entries, tex_blob, flags=1, clips=clips)
+
+    update_doors_manifest(scene_dir, lines)
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Mode 4: --gibs — the crawler burst-death model set, one static EMDL each
 # (see "GIBS" in the module docstring for the survey that picked these).
@@ -1289,6 +1396,12 @@ def main(argv):
                     "EMD3s into <outdir>/doors/ — m15 with the slot-0x39 "
                     "bank clips [0,2,1,3], m17 with the synthesized "
                     "func_001BB400 native slide")
+    ap.add_argument("--doors-drawbridge", metavar="DIR",
+                    help="export the scene_drawbridge doors (AREA01 "
+                    "sub-state-0 leaf dir, e.g. extract/chunk05.n0) as "
+                    "articulated EMD3s into <outdir>/doors/ — m03/m15 "
+                    "with the slot-0x39 bank clips [0,2,1,3], m09 with "
+                    "the synthesized func_001BB400 native slide")
     ap.add_argument("--level", default="extract/chunk06.n1/f03_id43.bin",
                     help="(--doors) level render-mesh file")
     ap.add_argument("--overlay", default="extract/OVERLAY/AREA02.BIN",
@@ -1310,14 +1423,18 @@ def main(argv):
 
     if args.gibs:
         return export_gibs(args)
-    if not args.out and not args.doors and not args.doors_office0:
-        ap.error("--out is required (except with --doors/--doors-office0)")
+    if not args.out and not args.doors and not args.doors_office0 \
+            and not args.doors_drawbridge:
+        ap.error("--out is required (except with --doors/--doors-office0/"
+                 "--doors-drawbridge)")
     if args.crate:
         return export_crate(args)
     if args.doors:
         return export_doors(args)
     if args.doors_office0:
         return export_doors_office0(args)
+    if args.doors_drawbridge:
+        return export_doors_drawbridge(args)
 
     if args.attach:
         sections, max_slot, tex_table = build_attached_player(args)

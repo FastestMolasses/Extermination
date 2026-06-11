@@ -33,11 +33,15 @@ weapons, enemies, doors, audio and the real status screen.
 
 ### Native port (sibling `extermination-port/`, macOS Cocoa+Metal, zero-dep)
 
-- **Playable scenes**: three exported scenes — the captured office room
-  (default), the full office main floor AREA02 sub-state 0 (s28), and the
-  AREA11 snow level (s16) — each a `scene.txt` manifest + EMDL render parts
-  + EMCL collision, with spawns, placements and enemies straight from the
-  disc's placement tables (s11/s18/s27/s33).
+- **Playable scenes**: four exported scenes — the captured office room
+  (default), the full office main floor AREA02 sub-state 0 (s28), the
+  AREA11 snow level (s16), and the AREA01 drawbridge room area (s45) —
+  each a `scene.txt` manifest + EMDL render parts + EMCL collision, with
+  spawns, placements and enemies straight from the disc's placement
+  tables (s11/s18/s27/s33/s45), linked by REAL decoded door destinations
+  (s38/s45: office west door -> drawbridge -> office0 and back; the
+  flagged synthetic vent stands in for the overlay-scripted office0
+  access).
 - **Player**: textured, animated, with engine-exact walk/run clip ids and
   footstep frames (s31), aura glow (s17-blockquote), attached weapons (s8/s9).
 - **Weapons**: draw/aim/holster/reload with the real clips, laser hit-dot,
@@ -131,6 +135,79 @@ below are kept as historical record; this block supersedes them.)
 Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
+
+> 2026-06-11 (session 46): PLAYER/CAMERA FIDELITY WAVE — idle cycle +
+> wall radius decoded, analog gait + camera fidelity + menu pause in
+> the port. Static decodes (FINDINGS "PLAYER IDLE CYCLE" / "PLAYER
+> WALL COLLISION RADIUS"): (1) the player mode-0 top func_00161020 is
+> the IDLE CYCLE — base idle = anim id 0 (80-frame breathing; mode-0
+> family table D_00248A00, via func_00174A50), 300-frame timer
+> (+0x28 = 0x12C), fidget = id 0x15D = 349 (the 180-frame look-around,
+> directory id), return on clip-end flag +0x200&0x1000 — closes the
+> s45 "true default-idle id" open item; (2) the walk integrator
+> func_001764E0 fires FIVE radial wall probes per frame (yaw +
+> D_00248950 = {0,±45,±90}°, ankle (0,0.05,4.5) mask 6 + chest
+> (0,4.01,4.5) mask 7 incl. movable hulls) with pos += hit−end push
+> back — the player wall RADIUS is 4.5 u. PORT (extermination-port):
+> player.emdl superset re-export (directory ids ...,0 appended; clip
+> 0 = breathing); idle cycle implemented (fidget at exactly frame 300,
+> 5.76%-pixel pose delta verified); the engine stick quantizer
+> (rings 48/88/122 → turn-in-place/walk 6/run 18 u/s, keyboard full
+> push = run) replaces the fixed 15 u/s walk; radial-probe hitbox
+> replaces the zero-radius move probe (no more wall clipping; move/
+> door tests updated to the 4.5-u rest geometry); CAMERA FIDELITY
+> (observed behavior, flagged port constants): d-pad orbit REMOVED
+> (the original has no free camera), R1 tap/hold + L1 orient the
+> camera behind the player (R1 tracks the aim heading), idle camera
+> slowly auto-orients (0.4 rad/s after 120 frames; only at default
+> height; STOPS when a wall blocks the rotation path), and a blocked
+> camera now RISES over the wall (rise solve verified in scene_snow —
+> EM_CAPTURE_RISE/EM_CAPTURE_ORIENT/EM_CAMERA_TRACE hooks) with
+> pull-in kept only for aiming + full-height fallback (sealed office
+> room-boxes); STATUS-SCREEN PAUSE: gameplay_frame gates the whole
+> world update on em_hud_is_open() (new EM_PAUSE_TEST self-test);
+> all 12 port self-tests PASS. Camera-rise engine decode (the unread
+> 6984-B func_0018DD20) and the input layer's Alt half-push cap
+> (0.5 → raw 64 lands in the TURN ring, not WALK — needs ~0.8)
+> remain open.
+
+> 2026-06-11 (session 45): DOOR FIDELITY TRIPLE — use-scan/staging
+> math decoded, anim-id directory fix, drawbridge room exported.
+> (1) func_00183EF0's CLASS-5 branch fully read: door trigger measures
+> from the DOORWAY CENTER = hinge + 5*(-cos yaw, 0, +sin yaw) for
+> models 3/0x15, radius desc D_002755F0 = {10.0, 8.0}, side test +
+> pi/4 through-door yaw gate — NO LOS, NO 2-u auto ring (those were
+> class-7; the port's LOS-pocket hack retired). func_001BBE40's
+> staging algebra capture-exact (trig labels in the stub were swapped:
+> func_0011DE90 = COS, func_0011E2A8 = SIN): staging = CENTER -
+> 5*forward(snapped yaw) — the user-reported "positioned at the hinge
+> instead of the handle" fixed in em_door.c with the literal formula.
+> (2) Player anim ids are DIRECTORY indices: chunk28/f01_id3c has 459
+> directory entries but the exporter's scan enumerated 455 (ids
+> 54/94/115/375 carry a non-sentinel +0x4 header, undecoded variant),
+> shifting --clips >= 54 by up to +3 — the shipped "open" clips
+> 69/67 were the LOCKED tries 70/68 (the user literally watched the
+> bug); idle "346" was really dir 349. export_native.anim_directory
+> now resolves engine-style; player.emdl re-exported (open = 150-frame
+> reach+walk-through, locked = 200-frame rattle-and-return, idle
+> byte-identical under id 349; em_game CLIP_ID_IDLE -> 349).
+> (3) The office main door's s38 SYNTHETIC link removed: area_scene_map
+> (1,0) = chunk05.n0 = the DRAWBRIDGE ROOM ((1,7) = the snow level!).
+> Full offline decode: AREA01 placement tables 0x82BD50/0x82C5F0 (sub-0
+> presumption flagged), dest 0x24DFA0, static sub-0 spawn tbl 0x24B1A0,
+> model table concat 0x3F2000; exported as assets/scene_drawbridge
+> (export_level --drawbridge + export_props --doors-drawbridge +
+> export_collision over the leaf concat; --uploads textures 100%
+> resolved). All gotos now REAL dest records (west door -> drawbridge
+> e5; office0 m15 <-> drawbridge; drawbridge door 3 -> office e1); the
+> VENT (true office0 access) is overlay-scripted — flagged synthetic
+> door-line stand-in (--door-goto --vent), arrival = office0's real
+> spawn e5 beside the engine's own 0x0B trigger record. Door radius
+> 12 -> 10 (desc[0]). EM_DOOR_TEST + EM_TRANSIT_TEST updated to the
+> decoded values (staging z -225.5; drawbridge arrival) — PASS; all
+> other self-tests + verify_all green; default capture byte-identical
+> + deterministic. FINDINGS "DOOR USE SCAN + STAGING MATH DECODED;
+> ANIM-ID DIRECTORY FIX; DRAWBRIDGE ROOM EXPORTED" (s45).
 
 > 2026-06-11 (session 44): STATUS SCREEN BACKGROUND DECODED + PORT —
 > closes the s25 "what is behind the hub" question: every status/UI

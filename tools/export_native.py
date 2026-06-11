@@ -371,6 +371,33 @@ def scan_anim_containers(d: bytes, rig_nodes: int | None = None) -> list[int]:
             if rig_nodes is None or h["n"] == rig_nodes]
 
 
+def anim_directory(d: bytes) -> list[int] | None:
+    """The engine's container DIRECTORY of a clip-library file, when the
+    file has one (anim_clip_resolve / func_001C6120, FINDINGS "ANIM ID
+    MAPPING" + 2026-06-11 correction): leading u32 COUNT, then COUNT u32
+    entries; `entry & ~3` = the byte offset of container id i (low 2 bits
+    are flags). **Anim ids are DIRECTORY indices** — NOT enumeration-scan
+    indices. The historic find_id74_headers scan order silently skips
+    containers whose +0x4 halfword is not the 0xFFFE/0xFFFF sentinel
+    (chunk28/f01_id3c has 4 such: directory ids 54/94/115/375), shifting
+    every scan index >= 54 off the engine's id by up to +3 — the door
+    "open" clips 69/67 actually baked the LOCKED tries 70/68 until this
+    resolver landed. Returns the cleaned offset list, or None when the
+    file does not start with a plausible directory (in-file banks)."""
+    if len(d) < 8:
+        return None
+    cnt = struct.unpack_from("<I", d, 0)[0]
+    if not (1 <= cnt <= 0x1000) or 4 + 4 * cnt > len(d):
+        return None
+    offs = [o & ~3 for o in struct.unpack_from(f"<{cnt}I", d, 4)]
+    prev = 4 + 4 * cnt - 4          # first entry may be pad-aligned up
+    for o in offs:
+        if o < prev or o + 0x28 > len(d):
+            return None
+        prev = o
+    return offs
+
+
 def bake_id74_palettes(anim_path: Path, clip: int,
                        rig_nodes: int | None = None,
                        anim_hdr: int | None = None):
@@ -385,10 +412,15 @@ def bake_id74_palettes(anim_path: Path, clip: int,
     conj gives 0.008 max element error vs 15.2 for the direct quat).
 
     Container selection: `anim_hdr` picks the container at that file
-    offset directly; else `clip` indexes the enumeration — the historic
-    find_id74_headers list (ids 0x74/0x2c only; player library indices
-    like 346 keep meaning) unless `rig_nodes` is given, which switches to
-    the id-agnostic whole-file scan filtered to that node count.
+    offset directly. Otherwise, when the file has a leading container
+    DIRECTORY (anim_directory — clip libraries like chunk28/f01_id3c or
+    the slot-0x39 bank), `clip` is the DIRECTORY index = the engine's
+    anim id (2026-06-11 fix: the old enumeration order skipped 4
+    non-sentinel containers and shifted every player-library index >= 54
+    by up to +3 — door open ids 0x45/0x43 actually baked the locked
+    tries). Only files with NO directory (in-file enemy banks) fall back
+    to the historic find_id74_headers enumeration; `rig_nodes` switches
+    to the id-agnostic whole-file scan filtered to that node count.
 
     Returns (parents, frames, fps): frames = [[mat4 x n] x clip_len].
     Clips advance one frame per 60 Hz tick on the PS2 (live node cursor
@@ -401,6 +433,19 @@ def bake_id74_palettes(anim_path: Path, clip: int,
         if not any(h == hdr for h in scan_anim_containers(d)):
             raise SystemExit(f"--anim-hdr {hdr:#x}: no animation container "
                              f"header at that offset in {anim_path.name}")
+    elif rig_nodes is None and (dirs := anim_directory(d)) is not None:
+        # Clip-library file with a leading directory: resolve the way the
+        # engine does — `clip` IS the anim id / directory index (see
+        # anim_directory; the historic scan order is shifted >= id 54).
+        if not (0 <= clip < len(dirs)):
+            raise SystemExit(f"clip {clip} out of range (directory has "
+                             f"{len(dirs)} containers in {anim_path.name})")
+        hdr = dirs[clip]
+        if not any(h == hdr for h in scan_anim_containers(d)):
+            raise SystemExit(
+                f"clip {clip}: directory offset {hdr:#x} is a non-sentinel "
+                f"header variant (ids 54/94/115/375 in the player library) "
+                f"— container format undecoded, cannot bake")
     else:
         if rig_nodes is None:
             hdrs = em.find_id74_headers(d)

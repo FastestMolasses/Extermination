@@ -5669,6 +5669,14 @@ Winner: `actor[+0x0B] = 4` and **spad 0x70003B8D = 3** — the gameplay
 frame switches to the door-transit variant. So doors trigger on
 walk-into (distance+facing), no button.
 
+> **2026-06-11 s45 CORRECTION:** the LOS / dist^2<=144 / 2-u auto ring
+> / facing-dot conditions above are func_00183EF0's CLASS-7 prefix.
+> The CLASS-5 DOOR branch (read in full) measures from the DOORWAY
+> CENTER (door_pos + 5*(-cos yaw, 0, +sin yaw) for models 3/0x15),
+> radius desc D_002755F0 = {10.0, 8.0}, side test, then a pi/4
+> through-door YAW gate — no LOS, no auto ring. See "DOOR USE SCAN +
+> STAGING MATH DECODED" (s45).
+
 **`func_001BBE40` (transit kickoff,** runs while +0x0B bit2 set**):**
 computes which side the player is on (angle(player-door) vs door yaw,
 threshold pi/2) → +0x2E side latch; writes a camera cue (front:
@@ -7303,9 +7311,14 @@ weapon-mode tops) → func_001749A0 arbiter → anim_eval_skeleton.
 container_file is the actor's bound library (player:
 chunk28/f01_id3c). Apply rate_scale from the property table, fire
 footstep events at frameA/frameB, and pick the evaluator by property
-mode (0 = in-place). The exporter's container indices already match
+mode (0 = in-place). ~~The exporter's container indices already match
 anim ids 1:1 — `export_native.py --anim chunk28/f01_id3c.bin --clip
-0x110` IS the draw animation.
+0x110` IS the draw animation.~~ **WRONG — corrected 2026-06-11 s45:
+the historic scan enumeration skips 4 non-sentinel containers and is
+shifted by up to +3 above id 53 (the door "open" exports were the
+LOCKED tries). export_native now resolves `--clip/--clips` through
+the file's leading directory (anim_directory), after which the claim
+holds. See "DOOR USE SCAN + STAGING MATH ... ANIM-ID DIRECTORY FIX".**
 
 ## LASER SIGHT DECODED — beam rule, colors, dot, and the aim camera (2026-06-10, session 23)
 
@@ -9680,6 +9693,15 @@ none.
   scene's 2 doors + 24 enemies + 1007-poly collision live, fade
   clean, default capture byte-identical).
 
+> **2026-06-11 s45 CORRECTION:** the --synthetic-link west↔m15 wiring
+> is REMOVED — AREA01 sub 0 (the drawbridge room, chunk05.n0) is now
+> exported as scene_drawbridge, so every shipped goto is the REAL dest
+> record (west door → A1.0 e5, office0 m15 → A1.0 e3, drawbridge doors
+> 1/3 → the two office scenes). The user-confirmed office0 ACCESS path
+> is the VENT (overlay-scripted; flagged synthetic door-line stand-in
+> via --door-goto --vent). EM_TRANSIT_TEST now asserts the drawbridge
+> arrival. See "DOOR USE SCAN + STAGING MATH DECODED ..." (s45).
+
 ### Open items (s38)
 
 - The engine-side sub-state SWITCH mechanics for a same-area dest
@@ -10143,3 +10165,205 @@ re-adding the aura faithfully needs the pulse + additive-cube path
   untranslated port-side; the laser inherits the level-pitch pose.
 - Variants 1/3/4 of func_001F5040 (spread gun + the ctx pair) when
   those weapons land in the port.
+
+## DOOR USE SCAN + STAGING MATH DECODED; ANIM-ID DIRECTORY FIX; DRAWBRIDGE ROOM EXPORTED (2026-06-11, session 45)
+
+Closes three user-reported door-fidelity bugs from static decode (no
+emulator): the hinge-vs-handle trigger/staging offset, the "open plays
+the locked animation" anim-id bug, and the office main door's wrong
+destination (the s38 synthetic link). Sources: func_00183EF0 full
+class-5 read, the func_001BBE40 91.5% C stub re-verified against both
+s22 live captures, the player clip library's leading directory, the
+boot-ELF AREA01 tables, and OVERLAY/AREA01.BIN.
+
+### 1. func_00183EF0 CLASS-5 (door) use-scan branch — full read
+
+The s17 contract ("dist^2 <= 144, LOS, facing-dot ~0.4, 2-u auto ring")
+was the CLASS-7 prefix only. The class-5 door branch (entered for
+candidate class 5, model checked first):
+
+```
+models 3 / 0x15 (hinged m03 family; placement origin = the HINGE corner):
+    center = door_pos + 5.0 * (-cos(yaw), 0, +sin(yaw))
+other models (m17/m09 sliders; origin already the doorway center):
+    center = door_pos
+1. sqrt((px-cx)^2 + (pz-cz)^2)  <= desc[0]      ; horizontal, from CENTER
+2. sqrt((py - door_y)^2)        <= desc[1]      ; vertical
+3. side: |norm(atan2(player - door_pos) - yaw)| <= pi/2  -> FRONT
+4. facing: |norm(player_yaw + (front ? pi : 0) - yaw)|   <= pi/4 -> hit
+```
+
+`desc` = actor +0x30 = `D_002755F0`, STATIC .data: **{10.0f, 8.0f,
+0x102, ...}** — the door scan radius is **10.0 u from the doorway
+center** (5 u from the hinge toward the free/handle edge), vertical
+window 8.0. NO LOS query and NO 2-u auto ring exist in the class-5
+path (both were class-7) — the port's flagged "LOS doorway pocket"
+exemption matched nothing real and is retired. The class-5
+other-model path (.L00184230) is identical with center = door_pos.
+This is the user-reported "trigger is at the hinge, not the handle"
+bug: the port measured from the placement origin (the hinge corner).
+
+### 2. func_001BBE40 staging algebra — trig labels corrected, capture-exact
+
+The C stub's extern annotations had sin/cos SWAPPED: **func_0011DE90 =
+cosf, func_0011E2A8 = sinf** (pinned two ways: both s22 staging
+captures, and func_00136630's forward step `x += v*E2A8(yaw); z +=
+v*DE90(yaw)` with the engine's forward = (sin yaw, cos yaw)). The
+decoded staging point:
+
+```
+pyaw = norm(door_yaw + (front ? pi : 0))        ; the player yaw snap
+sx   = door_x - 5*cos(door_yaw) - 5*sin(pyaw)
+sy   = player_y
+sz   = door_z + 5*sin(door_yaw) - 5*cos(pyaw)
+     = doorway CENTER - 5 * forward(pyaw)       ; 5 u on the player's side
+```
+
+Both s22 captures reproduce exactly: office door (109, -252.2) yaw 0
+front -> (104, -247.2); west door (57, -220.5) yaw -pi/2 back ->
+(62, -225.5). The spawn-table records flank the CENTER (office recs
+2/3 = (104, -245)/(104, -259) vs center (104, -252.2)) — the engine
+stages and re-places on the doorway centerline, toward the handle
+side of the hinge. (src/func_001BBE40.c's comment block still carries
+the swapped labels — annotation-only, the .o is byte-identical.)
+
+### 3. Player anim ids are DIRECTORY indices — the exporter scan was shifted
+
+`chunk28/f01_id3c.bin` has a **459-entry leading directory** (the
+anim_clip_resolve/func_001C6120 path, s23) but `find_id74_headers`
+enumerates only **455** containers: directory ids **54/94/115/375**
+carry a non-sentinel +0x4 halfword (0x0035/0x005F/0x0072/0x0178
+instead of 0xFFFE/0xFFFF — an undecoded header variant, blob id still
+0x74) and are skipped, shifting every scan index >= 54 by up to +3.
+Consequences in the shipped port assets (all fixed by resolving
+through the directory — export_native.anim_directory, now the default
+for files that have one):
+
+- "--clips 69,67" (door open front/back 0x45/0x43) actually baked
+  directory ids **70/68 = the LOCKED tries 0x46/0x44** — the exact
+  user report "the player always does the locked animation". s23's
+  script/id decode was right all along; its closing claim "the
+  exporter's container indices already match anim ids 1:1" was wrong.
+- "idle 346" actually baked directory id 349. The real dir-349 is the
+  180-frame breathing idle the port has always shown; dir-346 is a
+  30-frame gesture. em_game's CLIP_ID_IDLE is now 349 (still a
+  flagged visual guess; the engine's default-idle id is open).
+- the s23/s25 weapon/pager ids (0x110/0x111/0x112, 0x10B-0x10F) were
+  authoritative engine ids — they now bake the RIGHT content (the old
+  asset's versions were +3-shifted neighbors, subtly wrong).
+
+**Door-clip motion verdict (directory-resolved bakes, 21-node rig):**
+
+| dir id | engine id | frames | motion |
+|--------|-----------|--------|--------|
+| 67 | 0x43 open back  | 150 | still ~f48, step/turn to the door (~15 u by f96), then 18-29 u whole-body travel f120-150 — reach, push, WALK THROUGH |
+| 69 | 0x45 open front | 150 | arm out ~5 u f12-84 (hold the handle), pull back f96, walk-through f108-150 (18.6 u) |
+| 68 | 0x44 locked back  | 200 | limbs only, peaks 6.6 u, rattles f32-176, RETURNS TO REST (f192 ~0.6) — try and fail |
+| 70 | 0x46 locked front | 200 | same shape, peaks 5.4 u, returns to rest |
+
+The 150-frame opens cover the script wait (90/70) + the 64-frame fade
+almost exactly (the walk-through tail plays during the fade-out).
+
+### 4. AREA01 = the DRAWBRIDGE ROOM area; office main door fixed
+
+The soundmap's area_scene_map pins **(1, 0) -> chunk05.n0** and
+**(1, 7) -> chunk15 = the intro SNOW level**: the snow level is an
+AREA01 sub-state, so AREA01 sub 0 is "the first room after the first
+snow level" — the user-remembered drawbridge room. The office main
+(west) door's REAL dest record (s38: door 1|0x80 -> {01 05 00 00} =
+AREA01 sub 0 entry 5) therefore points at the drawbridge room; the
+s38 --synthetic-link (west <-> m15) is REMOVED.
+
+Offline decode of the area (all new):
+
+- **Placement tables** (OVERLAY/AREA01.BIN — missed by placements.py
+  --scan; found by hunting the door behavior fn pointers): TWO tables,
+  0x82BD50 (54 recs) and 0x82C5F0 (32 recs), serving the area's 7
+  sub-states. Table A carries an OVERLAY-BRAIN scripted door (record
+  [12], fn 0x823580, door id 0, at the -1276 shaft bottom — likely
+  the drawbridge cutscene) and link-0 INERT generators; table B has
+  the same door as a plain fn 0x001BC350 record and ACTIVE generators
+  -> table A = the first-visit story beat = SUB 0 (FLAGGED
+  presumption). Doors in A: id 1|0x80 m15 (-20.5, 0, -192) link
+  0x0200; id 2 m03 (60.5, 0.5, -559) room move; id 3|0x80 m03
+  (50, 0, -220.5) yaw -pi/2 link 0x0200; id 4 m09 (128.6, 0, -610)
+  room move; id 5|0x80 m09 (120, 60, -318.8); id 6|0x80 m03
+  (-109.5, 60, -674.5).
+- **Dest table** D_0024E140[1] = 0x24DFA0 (8 recs): door 1 ->
+  {02 00 00 00} = AREA02 sub 0 entry 0 (-> office0, the m15 pair);
+  door 3 -> {02 01 01 01} = AREA02 sub 1 entry 1 (-> the office
+  scene, the west-door pair — the s22 return path); door 2 room move
+  {01 02}; door 4 room move {09 08}; doors 5/6 -> areas 0x16/0x06.
+- **Spawn table**: AREA01's desc (D_0024D650[1] = 0x275500) is BSS,
+  but the SUB-0 table is STATIC at **0x24B1A0** (s22 live-verified
+  entry 5). 10 entries; door 4's room-move entries 9/8 = (143,
+  -609.7)/(115.5, -609.7) flank the door at (128.6, -610) — internal
+  cross-check.
+- **Leaf survey** (chunk05.n0): f02_id43 main world + 9 more
+  world-zone files; f11_id4b is world only up to +0x56000 — the
+  per-area MODEL TABLE sits there (concat 0x3F2000, 22 entries; door
+  meshes param 5 = m03 2-node hinged, rest node 1 (-7.718, 9, -0.25);
+  param 0xF = m15; param 0xB = m09 3-node [-1,0,0] origin-rest
+  slider). f00_id44 = collision head + render tail [0x1523D0, end).
+  f06_id4d has 29 records but only 1 kick — no assemblable triangles,
+  skipped. Collision decodes over the LEAF CONCAT (grid section at
+  concat 0x438800, 854 polys; floor probe at the arrival spawn = y 0).
+  Textures: the s28 --uploads replay (leaf f00_id44 + chunk27 pack)
+  resolves **100% of all zone/door textures** (0 fallbacks).
+- **Export**: `export_level.py --drawbridge extract/chunk05.n0` ->
+  assets/scene_drawbridge (11 zones + manifest spawn (39, 0, -225)
+  yaw -pi/2 + doorsfx selector-2 pair + enemies block);
+  `export_props.py --doors-drawbridge` (m03/m15 with the verified
+  slot-0x39 bank clips [0,2,1,3]; m09 with the synthesized
+  func_001BB400 slide); `export_collision.py chunk05.n0/f*.bin`.
+
+### 5. The VENT (office0 access) — honest verdict
+
+The engine reaches AREA02 sub 0 from the office room through a vent
+crawl that is **overlay-SCRIPTED, not a placement object**: the sub-1
+table's 14 records are fully identified (2 doors, 7 pickups, 5
+fixtures — no vent, no class-0x0B), while the sub-0 table's record
+[0] is a class-0x0B trigger at (43, 3.5, -147) right beside spawn
+entry 5 (40, 0, -146) — the vent's EXIT end. The in-room mechanism
+needs the AREA02 overlay code read (open). The port ships a FLAGGED
+SYNTHETIC stand-in: a door line (`--door-goto --vent`) at the suite's
+north-corridor wall (62.5, 0, -168.5) whose goto lands on office0's
+real spawn entry 5; the mesh is a copy of door_m03 (no vent mesh is
+decoded).
+
+### 6. Port wiring + verification
+
+- em_door.c: trigger = the decoded class-5 test (center point, radius
+  desc[0]=10 via the manifest, |dy| <= 8, side + pi/4 facing; CROSS
+  stays as the flagged action-state-0x2D stand-in; LOS hack + auto
+  ring deleted); staging/spawn = the exact func_001BBE40 algebra
+  (hinged flag parsed from the exporter's door_mXX filename, flagged).
+- Real goto graph: scene west door -> drawbridge e5; office0 m15 ->
+  drawbridge e3; drawbridge door 1 -> office0 e0; drawbridge door 3 ->
+  scene e1; vent (flagged) -> office0 e5. All five REAL records except
+  the vent.
+- EM_DOOR_TEST PASS (staging/warp now on the doorway centerline z
+  -225.5 — the s22 captured values); EM_TRANSIT_TEST PASS (west door
+  -> scene_drawbridge, arrival (39, 0, -225) yaw -pi/2, 6 doors, 854
+  collision polys, 14 enemies); EM_MOVE/ENEMY/MELEE/WEAPON/test-input
+  PASS; verify_all all-green. Default capture byte-identical (vent out
+  of view; idle palette byte-identical under the directory fix) and
+  deterministic. Captures: mid-open shows the player centered ON the
+  doorway reaching at the panel; frame 145 shows the door swung open
+  and the player stepping THROUGH — the open clip, not the locked try.
+
+### Open items (s45)
+
+- The 4 non-sentinel containers (player-library ids 54/94/115/375):
+  header variant undecoded (the +0x4 halfword looks like a reference/
+  alias id); bake refuses them explicitly.
+- ~~The engine's true default-idle anim id~~ — CLOSED s46: base idle =
+  id 0, fidget = 0x15D = 349 on a 300-frame timer ("PLAYER IDLE
+  CYCLE" below).
+- AREA01 sub-state -> table mapping (A vs B) is a flagged presumption;
+  one live capture in area 1 would pin it. Same for the AREA01 subs'
+  spawn tables other than sub 0.
+- The office vent's overlay-scripted mechanism (AREA02 overlay code).
+- The drawbridge crawlers are param 0x0004 — a different disguise
+  model than the office cardboard box; the port's crate mesh is a
+  flagged visual stand-in (carve the param-4 entry like s34's crate).
