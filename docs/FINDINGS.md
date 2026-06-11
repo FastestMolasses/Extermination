@@ -10367,3 +10367,95 @@ decoded).
 - The drawbridge crawlers are param 0x0004 — a different disguise
   model than the office cardboard box; the port's crate mesh is a
   flagged visual stand-in (carve the param-4 entry like s34's crate).
+
+## PLAYER IDLE CYCLE — base id 0 + fidget 0x15D=349 on a 300-frame timer (2026-06-11, session 46)
+
+Closes the s45 open item "the engine's true default-idle anim id".
+Static decode of the player mode-0 top **func_00161020** (jtbl_0026D3B0
+slot 0 of the +0x05 player-mode dispatch in func_0015B130).
+
+### The state machine (+0x06 state byte)
+
+- **State 0 (entry)**: speed +0x38 = 0, locIdx +0x25C = 0, request the
+  BASE IDLE via `func_00174A50(actor, f12=12.0)` — which resolves
+  `func_0017B490(actor, mode=0, family=+0x235, locIdx=0)` =
+  `D_00248AB0[0][family]` (mode-0 row `{0, 0xA, 0x4B, 0x55, 0x14}`,
+  stride 1): unarmed family 0 → **anim id 0 = container 0, the 80-frame
+  breathing idle**. Timer +0x28 = **0x12C (300 frames = 5 s)**.
+- **State 1, sub-byte +0x07 = 0**: when +0x236 == 0 and !(+0x235 & 1),
+  the timer decrements; at 0 → `func_001749A0(actor, 0x15D, force=1)`
+  with f12 = 8.0 — the IDLE FIDGET **anim id 0x15D = 349**, the
+  180-frame look-around (directory id; the exporter's pre-fix scan
+  called this container "346"). Sub-byte → 1.
+- **Sub-byte 1**: waits for the clip-end flag (+0x200 & 0x1000), then
+  sub-byte = 0, timer = 0x12C, re-request the base idle
+  (`func_00174A50(8.0)`) — the clip re-inits at frame 0.
+- Stick input (func_00174AC0 ≠ 0) leaves to the locomotion mode; state
+  2/0x63/0x64 handle the walk-out/settle transitions (0x63/0x64 =
+  re-idle settle: request base idle, wait clip-flag 0x8000, state 1).
+
+So the standing player loops: breathing (id 0) for 300 frames →
+look-around (349) once → breathing → … The f12 argument of the request
+chain (12.0 entry / 8.0 cycle) rides anim_clip_init's +0x3C slot — a
+transition/blend parameter, not the playback rate (the property table
+D_00248C90 rates these ids 1.0); the port cross-fades 8 frames.
+
+Port (extermination-port): em_game.c idle machine (CLIP_ID_IDLE 0,
+CLIP_ID_FIDGET 349, IDLE_FIDGET_FRAMES 300); player.emdl re-exported
+with directory ids `349,2,3,69,67,75,272,273,51,274,1,267..271,0`
+(byte-superset of the s45 16-clip export — clip 0[1092..+80] appended;
+old asset without id 0 degrades to the single-349 idle, cycle off).
+Verified: fidget starts exactly at idle frame 300 (frame-290 vs -340
+captures differ by 5.76% of pixels = the look-around pose; breathing
+restarts after ~480); pose-only default-frame delta old-vs-new idle =
+5.76% (same binary/scene).
+
+## PLAYER WALL COLLISION RADIUS — 4.5 units, five radial probes (2026-06-11, session 46)
+
+The player's wall "hitbox" is not the move segment: the walk integrator
+**func_001764E0** (called from the idle top func_00161020 AND the walk
+top func_001612D0) fires **five radial probes** every frame, at angles
+`yaw + D_00248950` = **{0, +45, −45, +90, −90} deg**, in TWO passes:
+
+1. **Ankle pass** (actor states +0x04==1/+0x05==1): local probe vector
+   `(0, 0.05, 4.5, 1)` (stack-built constants 0x3D4CCCCD/0x40900000),
+   rotated by Ry(yaw+angle) at the actor position → `func_0019AD00`
+   mask **6** (static cells + grid). On a hit, the result poly header
+   class (rec+0x1A & 0xFF00) decides: 0x1000 (n-gon) / 0x800 → push
+   back; 0x2000 with rec byte+3 == 2 → push back; otherwise (mask-arg
+   bit 2) a surface-angle test (func_0019A310 → atan: < 1.2217 rad
+   (70°) or > 1.9198 rad (110°) pushes, the in-band slope is free).
+2. **Chest pass** (always): from `(0, 4.01, 0)` toward
+   `(0, 4.01, 4.5)` local (D_002488C0 = {0, 4.01, 4.5, 1}) via
+   `func_0019AFE0` mask **7** (+ movable hulls — doors); hits set a
+   per-direction bit in actor +0x314 and run the func_00176390
+   responder.
+
+The push-back is `actor x/z += (hit − end)` — the scratchpad
+0x700031C0 hit-minus-end delta — i.e. the probe END rests ON the wall:
+the effective standoff radius is **4.5 units**, and each iteration
+re-reads the corrected +0xB0/+0xB8, so multiple probes accumulate.
+Sliding falls out naturally (only wall-facing probes push, along their
+own directions).
+
+Port: em_game.c player_wall_probes (replaces the zero-radius pre-move
+segment — the reason the player visually clipped halfway into walls);
+ankle pass static-only, chest pass + em_door_probe. Move/door tests
+updated to the radius geometry (wall rest = plane + 4.5: move test
+−174.5, door test min-x 64.5) — all 12 port self-tests PASS.
+
+### Camera wall response — observed-behavior note (port "CAMERA FIDELITY")
+
+Real-game observation (not yet decoded — the solver body func_0018DD20
+is unread): a wall blocking the camera's sight line makes the camera
+**RISE** above its default height until the line clears (you look down
+at the top of the player), NOT pull in toward the player; pull-in
+remains for the AIM camera. The player has **no free camera control**;
+R1/L1 reorient the camera behind the player (R1 tracks the aim heading
+while held), and an idle camera slowly auto-orients behind the player —
+apparently only at default height, STOPPING if a wall blocks the
+rotation path. Implemented in the port behind flagged PORT CONSTANTS
+(em_game.c "CAMERA FIDELITY"); decoding func_0018DD20 and the mode
+handlers should replace them with engine values. Per-room FIXED angles
+are the cut-table mode-0 per-area director (func_00195130 + overlay
+hook 0x823FE0, "CAMERA SYSTEM") — pending overlay decomp.
