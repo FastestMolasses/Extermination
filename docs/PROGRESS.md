@@ -5667,3 +5667,38 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   unread, along with the sub-state-3 L1 motion handler); pre-pass
   func_0018D330 consumers (cam+0x5A/+0x60/+0x6D); styles 3/4 cinematic
   variants; area-0x12/0x15 solver specials.
+
+### Update — 2026-06-11 s65: RADIO-MESSAGE MACHINE decoded + ported (the locked "VO" text now draws); s57 typewriter label corrected
+
+- **Decode (FINDINGS "RADIO-MESSAGE MACHINE DECODED")**: the mode-2
+  presenter (D_002821B0 machine) read to the glyph draw. Verdict:
+  **NO typewriter** — full-text subtitle, centered (x = 256 −
+  max(first two '\n' segment widths)/2 on the 512 canvas), y = field
+  0xC2 = canvas 388, 24-px line steps, tall font in the default gray
+  0x606060, NO panel, NO sound (all global voice cues −1; zero calls
+  in func_001BBAE0), TIMER dismiss only (line 6 = 118 frames + one
+  terminal-record frame; durations corrected: recs 6/0xA/0xC = 118,
+  0/2/4/8/0xE = 148). Bank slot 0x16 = chunk03/f14_id16.bin = the
+  EXAMINE bank (54 lines: locked refusals, station descriptions,
+  corpse examines). Trigger survey: locked-door op09 native
+  (jtbl_0026E1A0, sel 0 → line 6 on both shipped locked doors),
+  script op 0x0C sub 0/1 (line word + pre-delay from the record —
+  corrects the s23 "music/stream control" label), op 0x15's
+  mid-anim arm, scripted-actor param 0x270D (area-table VO). The
+  infection-100 "Dennis Infected" pager line is mode-4 HUB HELP
+  (s42 rule), not this machine — verified already wired in the port.
+- **Export**: `export_ui.py --messages` appends slot 0x16 as .emsg
+  group 9 (10 groups / 325 lines; back-compatible).
+- **Port**: em_hud_radio(line) = the machine, engine-true (position/
+  style/durations/terminal frame; timer runs asset-less so the
+  sequencing holds); em_door's locked VO slot fires it at the
+  script's moment (hinged 60-frame mark with the rattle, slider at
+  wait-40) and blocks the finish edge on it like the engine's pumped
+  op09 native (the slider's "+30 frame" stand-in retired).
+  EM_LOCKED_TEST grew the radio ledger (presenting at f95, done at
+  EXACTLY 118 display frames) — PASS; full suite PASS; default
+  capture byte-identical; the f130 locked capture shows "It's locked
+  and won't open." centered over the locked-look cut.
+- **Open**: mode 3 (func_001FD0E0, slot-0x17 bank); global record
+  table durations past rec 0xF (dump when prop examines port);
+  D_008106D4 mailbox consumers; func_001D06E0's idx-0 player byte.

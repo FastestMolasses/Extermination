@@ -120,9 +120,10 @@ stays SI].)
    RESOLVED 2026-06-11: positional attenuation/pan (the func_001FBF50 decode — the
    "volume 150/300" was the play_sound RADIUS misread) and voice stealing (the
    func_00117428 policy) are now in the port (M2/M3).
-10. **Locked doors and per-door sounds are missing** — no unlock bitmask `D_00810841`, no
-    locked sequences (door subs 1/2, slider locked script), one global doorsfx pair
-    instead of the per-door link-indexed `D_0024DB80` pair (K6, K8, K10).
+10. **Per-door sounds are a single global pair** — one global doorsfx pair instead
+    of the per-door link-indexed `D_0024DB80` pair (K8). *(The rest of this item
+    RESOLVED: s57 shipped the locked sequences (K6/K10), and 2026-06-11 s65
+    shipped the locked "VO" — the radio/examine subtitle machine, em_hud_radio.)*
 
 ---
 
@@ -185,7 +186,7 @@ stays SI].)
 | D6 | Aim camera mode 1 | decoded (func_00197D20/740/870); flagged areas use eye floor +11 | translated; port always uses the +2 floor (flag-area param not carried) | B | SI (flagged) |
 | D7 | Aim release | engine swaps to transition mode 2 (func_00198650, untranslated) | chase yaw re-seeded from eye→player heading, mode-0 blends back | B | FS |
 | D8 | Fixed-camera regions | director regions: snow case approaches spec at 0.7 u/frame via chase primitives; spawn-record cameras hard-place (func_001B0460) | port hard-places for BOTH kinds (correct for spawn-record, divergent for director regions) | V | SI (documented) |
-| D9 | Door camera cues | op 0x0D sub 5 cut + cam+0xA0 target re-blend + locked-look func_001BBBF0 (decoded + live-verified) | translated; locked-look reachable only via `EM_DOORCAM_LOCKED` (its real trigger, the locked sequence, is absent — K6) | B | UT |
+| D9 | Door camera cues | op 0x0D sub 5 cut + cam+0xA0 target re-blend + locked-look func_001BBBF0 (decoded + live-verified) | translated; **s57**: the real locked sequence now drives the locked-look (EM_DOORCAM_LOCKED preview retired) | — | (match) |
 | D10 | Projection | s = 480 zoom model: x = 0.8s·x/z + 2048, y = 0.5s·y/z + 2048, GS-Z row (FINDINGS "CAMERA SYSTEM" §3 + s59 exact derivation) | ~~50° fovy at WINDOW aspect, near 0.5, far 800/500~~ — CLOSED s59: `em_mat4_perspective_gs` (tan h/v = 320/s, 224/s; near 0.1 / far 16711680 decoded bit-exact), 4:3 letterbox, zoom wired (scope-ready); EM_PROJ_TEST reproduces the engine K of state01 to <0.001 px | — | (match) |
 | D11 | Camera latency | PS2 kicked chain consumes the PREVIOUS frame's matrices | native chain flushed same-frame → one frame LESS camera latency | V | SI (documented) |
 | D12 | Top modes 1/2 (frozen) | commit-only frames | modeled via the status-screen pause gate reaching commit only | S | SI |
@@ -290,11 +291,11 @@ stays SI].)
 | K3 | Staging | engine snaps (func_00182F90 instant translate) | scripted MOVE-TO walk to the same point (see C8) | B | FS |
 | K4 | Model byte | placement record carries the model byte | parsed from the `door_mXX.emdl` FILENAME (hinged/slider) | S | FS (flagged) |
 | K5 | Transit modes | B8==2 room move vs B8==1 area change (audio fade + overlay/asset/actor-pool reload) | every transit is the room-move shape; goto doors approximate B8==1 with the scene switch, NO audio fade | B | SI (flagged) |
-| K6 | Locked doors | subs 1/2 locked sequence, unlock bitmask D_00810841, locked VO + camera (m03 + slider locked scripts) | absent (no lock bitmask) | B | UT (flagged) |
+| K6 | Locked doors | subs 1/2 locked sequence, unlock bitmask D_00810841, locked VO + camera (m03 + slider locked scripts) | **s57**: shipped (manifest `locked` token = the bitmask BSS start-locked truth, em_door_unlock = the set event, try anims/jiggle clips/rattle/locked-look/finish restore); **s65**: the locked "VO" = the radio/examine subtitle machine ported (em_hud_radio line 6, 118 f, engine presentation; finish edge blocks on it like the pumped op09 native). Remaining: unlock AUTHORING (which game events set the bits) undecoded | S | SI (flagged) |
 | K7 | Door articulation | slot-0x39 bank clips (decoded s30/s32), pumped 1.0/frame | real clips shipped; clip-less EMDL falls back to a 90-frame placeholder hinge swing (90° — real clip length unknown for that case) | V | FS |
 | K8 | Door sounds | per-door pair D_0024DB80[link>>8][side] patched into the open script; close is SILENT (s29 verdict) | ONE global `doorsfx` line per scene (manifest lacks the link halfword); without the line, legacy placeholder ids (close-at-black play preserved) | V | SI (flagged) |
 | K9 | Sliders | brain func_001BB860 decoded: CROSS-edge use-arm (s58 — not walk-into), 6.0 staging, native slide 0.2 u/frame to 9.0, walk-through, no fade, no player anim; engine re-close via room re-entry state | translated (trigger = CROSS since s58); re-close by running the clip BACKWARDS when the player leaves the scan radius + 2-u hysteresis (motion-identical stand-in); goto-slider commit/fade interleave unread | B | SI + SU (flagged) |
-| K10 | Slider locked script | D_0024DA40 (camera + VO, no motion) | absent | B | UT |
+| K10 | Slider locked script | D_0024DA40 (camera + VO, no motion) | **s57/s65**: approximated with the hinged refusal minus anim/clip/rattle, real wait-40 + radio-message duration (no exported placement exercises it; camera native func_001BB310 undecoded) | B | SI (flagged) |
 | K11 | Office VENT | overlay-scripted in-room mechanism (class-0x0B trigger record at (43, 3.5, -147)); not a placement object | flagged SYNTHETIC vent door line in the manifest whose goto lands on office0 spawn entry 5 | B | FS |
 | K12 | Arrival walk-out | player state 5/1 decoded (50/30/30 phases, 0.3 u/tick, decay 0x3C3A2E8C); armed families request scripted walks 0x4D/0x4E | translated for family 0; armed-family walk clips untranslated. NOTE: `em_door.h` step-4 comment still labels id 2 "RUN" (pre-tier-ramp label; id 2 = JOG) — doc staleness only | B | SI |
 | K13 | Two transit locks | movement lock (scripted mode + state 5) / menu lock (func_001AE7E0 fade gate) — decoded split | translated; func_001AE7E0's OTHER duties (end-of-level poll) not modeled | S | SI |

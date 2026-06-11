@@ -12044,7 +12044,10 @@ Full .s read + ELF data (jtbl_0026E1A0 @0x26E1A0, D_00264DD0
   bank slot 0x16 (`D_0028A4E8`, the bit-31 container in
   func_001FD950) string[line] via func_001FE480. A real voice cue
   (area-table path) would start via func_001FD580's
-  `func_001FA5A0(rec+0x2)` — the VOICE.DAT stream.
+  `func_001FA5A0(rec+0x2)` — the VOICE.DAT stream. *(s65 CORRECTIONS
+  — "RADIO-MESSAGE MACHINE DECODED": rec 0xA is 118f, not 148f; and
+  there is NO typewriter — the subtitle is full-text, centered,
+  timer-dismissed.)*
 - s23's "locked-door VOICE OVER" label is hereby corrected to
   "locked-door RADIO MESSAGE (text-only)".
 
@@ -13249,6 +13252,21 @@ separate in-world toast and no take sound on the path itself.
 
 ### Open (s63)
 
+- ~~The AREA01 drawbridge registry's one per-area-table item (type
+  0x00, param 0x0D, pos (61.8, 15.0, -549.6), uid 0x010B) — model
+  bound via `*(D_0028A59C)`, un-exported~~ **RESOLVED 2026-06-11:
+  chunk05.n0's per-area model table sits at CONCAT offset `0x3F2000`
+  (= f11_id4b.bin + 0x56000; count 0x16, entries 0x00–0x15, directory
+  crossing into f12_id4e — the same cross-boundary layout as the
+  office n0 table, found by structure-scanning the concat for the
+  func_001C6120 count+directory shape). Entry 0x0D = a 1-block 1-node
+  flat textured quad (2 tris, bbox X±4.7 Y±3.7 Z=0; one 128×64 PSMT4
+  texture TBP 0x3180 resolved from the leaf's own f00_id44 GS-upload
+  replay). Carved via `export_props.py --crate --crate-dir
+  extract/chunk05.n0 --crate-table-off 0x3f2000 --crate-id 0x0d
+  --uploads extract/chunk05.n0/f00_id44.bin,extract/chunk27/f00_id35.bin`
+  → `assets/scene_drawbridge/props/area_item_0d.emdl`; EM_TRANSIT_TEST
+  PASS with the model loading (no "failed to load" line).**
 - The grab-anim take variant (player clips 0x40..0x42 need a player
   re-export; the engine's height-keyed selection is decoded above).
 - Pickup AURAS (func_001F1110 class table + func_001F1180 draw).
@@ -13408,3 +13426,161 @@ func_00191000 — that height belongs to func_00230000 (unread).
   intermediate point); the s64 camera commit completes them.
 
 _Last updated: 2026-06-11 (session 64)._
+
+## RADIO-MESSAGE MACHINE DECODED — mode-2 presenter, slot-0x16 examine bank, trigger survey; ported as em_hud_radio (2026-06-11, session 65)
+
+Closes the s57 open item "the radio TEXT machine is not ported".
+Full static decode of the mode-2 message machine (the locked-door
+"VO") down to the glyph draw, the text bank itself, and every trigger
+in the boot ELF; ported end-to-end. No emulator.
+
+### 1. The machine — struct, modes, lifecycle
+
+`D_002821B0` is the base of ONE global message-machine struct
+(0x9C bytes, cleared by func_001FC9B0), ticked once per frame by
+func_001FCA10 keyed on `+0x00 mode` / `+0x04 state`:
+
+```
++0x00 mode      2 = RADIO/EXAMINE subtitle (this section)
+                3 = func_001FD0E0 (slot-0x17 bank presenter, separate)
+                4 = HELP/PROMPT draw (hub help at (0x8A,0xA8); group
+                    0x64 database records at (0xA8,0xBE) — s42)
+                0x10 = clear/reset (func_001FC9B0: zero the struct,
+                    color D_00275C50 = D_0026EC10[0], glyph 0x80)
++0x04 state     0 idle / 1 active / 2 done (the trigger's poll target)
++0x08 line word base (bit 31 = GLOBAL bank; low bits = line)
++0x0C mode-2 pre-delay frames (decremented before anything runs)
++0x34 current line word = +0x08 + record index +0x60
++0x50 current record's wait-stream flag (rec +5)
++0x51 current record's flag index (rec +4; 0xFF = none)
++0x5C sub-state (0 fetch record via func_001FD790, 1 present)
++0x60 record index (advances line word +1 per record)
++0x68 frame counter (incremented per tick; WRITE-ONLY — vestigial)
++0x6C frames left on the current record
++0x70 voice-line bookkeeping (area-table path)
+```
+
+Mode-2 tick (func_001FCA10 → func_001FDB80(0)): pre-delay, then
+func_001FD790 fetches the 8-byte line record `{u16 dur, s16
+voice_cue, u8 flag_idx, u8 wait_stream}` from `D_00264DD0[0]` =
+0x272DF0 (bit-31 lines; per-AREA tables at D_00264DD0[area+1] with
+real voice cues via func_001FD580 → func_001FA5A0 VOICE.DAT), then
+func_001FD950 presents it each frame. A message = the text record
+{dur, -1, 0xFF, 0} followed by the terminal record {0, -1, 0xFF, 1}
+on the NEXT bank line — which is EMPTY (this is why the bank's odd
+lines are blank): one bookkeeping frame, the wait-stream gate
+(D_00282155/156 — idle for text-only lines), state = 2 done.
+func_001FDB80(1) = the abort/reset arm (flushes the flag mailbox,
+func_001FAB80 stream stop).
+
+Flag mailbox: a record with flag_idx != 0xFF writes `D_008106D4
+[idx] = 1` while presenting and `= 2` at completion (script
+handshake, 12 slots); idx 0 additionally toggles the player-object
+byte `*(D_008102B0+0x90)+0x80` via func_001D06E0 when game-mode spad
+0x70003B8F == 2. Every GLOBAL record's flag is 0xFF — unused on the
+examine path.
+
+### 2. Presentation truth — there is NO typewriter
+
+Full read of the draw chain func_001FD950 → func_001FE070 →
+func_001FC7B0 → func_001CC1E0: the line's WHOLE text renders every
+frame. No per-char reveal exists anywhere (the +0x68 counter is never
+read; no chars-per-frame gate). **s57's "typewriter radio subtitle"
+label is hereby corrected: the radio message is a static, centered,
+timer-dismissed subtitle.**
+
+- POSITION: func_001FD950 copies the first TWO '\n' segments through
+  func_001FE530 and measures them (func_001CC170 per-glyph widths);
+  x = 0x100 − max(w0, w1)/2 — centered on the 512-px UI canvas.
+  y = 0xC2 = field 194 = canvas 388 (near the bottom edge). '\n'
+  advance = (D_00264CD8 + D_00264CE0)/2 = 12 field = 24 canvas px,
+  all lines at the same centered x.
+- STYLE: the tall font, DEFAULT text color `D_0026EC10[0]` = 0x606060
+  (75% gray at GS 0x80 scale; the slot-0x16 bank has zero markup
+  records, so nothing overrides it). No panel, no backdrop, no
+  portrait — bare text over the scene.
+- SOUND: NONE. Every global record's voice_cue is −1; no beep/static
+  call exists in the machine or in func_001BBAE0 (zero jal's). Only
+  area-table lines start a VOICE.DAT stream.
+- DISMISS: TIMER ONLY — no pad read anywhere in the machine. Record
+  durations from the global table (local-ELF dump, recs 0x0..0xF):
+  lines 0/2/4/8/0xE = 148 frames, **6/0xA/0xC = 118** *(corrects
+  s57's "recs 0/2/4/8/A = 148": rec 0xA is 118)*. The op09 trigger
+  natives PUMP until state == 2, so a triggering script blocks for
+  the full presentation (locked script: VO at the 60-frame mark +
+  ~119 frames, done ~180 — before its 200-frame clip-end gate).
+
+### 3. The text bank — asset slot 0x16 IS the examine bank
+
+Bit-31 line words resolve text through `D_0028A4E8` = asset slot
+0x16 = **extract/chunk03/f14_id16.bin** (globally resident, 4 KB) —
+a BARE group OUTER blob (same shape as the s42 slot-2 groups, no
+group dir, records_size 0): 54 lines, text on the even lines. Full
+inventory: lines 0/2/4/6/8/0xA = the locked-door refusal variants
+("Opened from a ◆ Card Reader" x2, "no power", **6 = "It's locked
+and won't open."**, "There must be a way to open it nearby",
+"securely locked"), 0xC..0x24 = station/use descriptions (Ammunition
+Storage Box, MTS, Battery Charger, Save Terminal, card readers,
+Battery Pack Terminal, "Switch / No power...", key-required,
+full-charge/no-treatment/mags-full/insufficient-power refusals),
+0x26..0x34 = the seven corpse EXAMINE texts (researchers, guards,
+RECON members). So the "radio-message machine" is properly the
+**EXAMINE/RADIO subtitle machine** — locked doors, prop
+examinations and scripted radio calls share it. (`D_0028A594` =
+slot 0x41 is the per-AREA voice-line text bank, same TEXT layout;
+`D_0028A4EC` = slot 0x17 feeds mode 3.)
+
+### 4. Trigger survey — every mode-2 writer in the boot ELF
+
+| trigger | line source | notes |
+|---|---|---|
+| func_001BBAE0 (op09 native in the locked scripts D_0024DEC0/D_0024DA40) | door LINK low 6 bits → jtbl_0026E1A0 sel 0..5 → global lines 6/0/2/8/0xA/4; sel ≥ 6 = none | both shipped locked doors (m15, links 0x0200) = sel 0 → line 6, 118 f; pre-delay 0 |
+| script op 0x0C = func_001B7D60 (jtbl_0026DFA0, 7 subs) | sub 0/1: line word rec+0x14, pre-delay rec+0x18 | the generic event/cutscene message op; sub 1 adds the D_00282224 handshake (waits bit 0x8000); sub 3 waits only; sub 5 = mode-4 PROMPT (group 5) — corrects the s23 op table's "music/stream control" label |
+| script op 0x15 = func_001B6FA0 (cutscene player-anim compound) | line word rec+0x08, pre-delay 0 | fires mid-anim (after its anim_clip_init arm); the 0x164/0x166/0x165 writes nearby are camera-angle params (D_008104A2/A8), not sounds |
+| func_001BAD40 (scripted-actor param native) | param 0x270D → line = rec halfword +0x08 (area table — real VO) | spawned-actor script path; does not touch the pre-delay |
+| status screens (func_0020CDC0 hub, pages, func_0020B210 battery/refill prompts, op 0x0C sub 5) | mode 4, not mode 2 | the HELP/PROMPT presentation at (138, 336) — including the infection-100 **pager line 3 "Dennis Infected"** (s42 rule): that line is HUB HELP, not a radio message |
+
+### 5. Export + port (extermination-port, this session)
+
+- `tools/export_ui.py --messages` now also decodes the slot-0x16 bank
+  (chunk03/f14_id16.bin, shared OUTER parser) and appends it to
+  `assets/messages.emsg` as **group 9** (10 groups / 325 lines total;
+  missing chunk03 file = warn + write the 9-group bank, loader
+  back-compatible both ways).
+- em_hud: `em_hud_radio(line)` = the mode-2 machine — engine-true
+  presentation (centered max-of-two-segments x, canvas y 388, 24-px
+  steps, tall font in the default gray 0x606060 = new style
+  EM_HUD_TEXT_TALL_GRAY, no sound/panel), decoded per-line durations
+  (118/148; unlisted lines default 148, FLAGGED), the terminal
+  bookkeeping frame, introspection em_hud_radio_active()/_frames().
+  The TIMER runs without assets (sequencing is engine truth; missing
+  bank/font just draws nothing). Ticked from em_hud_found_render —
+  the close-out's per-frame transient-text hook.
+- em_door: the locked sequence's VO slot now starts the radio machine
+  (line 6 — both shipped locked doors are jtbl sel 0) at the script's
+  moment: hinged at the 60-frame rattle mark (op17 then op09, same
+  tick), slider at its 40-frame wait; the finish edge blocks on
+  em_hud_radio_active() like the engine's pumped op09 native (hinged:
+  message AND 200-f clip end; slider: message end = script end,
+  replacing the s57 "+30 frames" stand-in). The `lockedvo` audio slot
+  stays honored if the registry ever resolves a real cue (none do).
+- The infection-100 pager line 3 was verified already wired
+  (hub_help_line s42 rule + the s58 infection latch feed it; engine
+  truth = hub help, not the radio machine).
+- EM_LOCKED_TEST grew the radio ledger: presenting at the frame-95
+  check, done with EXACTLY 118 display frames by frame 250 — PASS.
+  Full suite PASS (MOVE/DOOR/TRANSIT/SLIDER/LOCKED/WEAPON/SFX/PAUSE/
+  CAMREGION/AIM/MELEE/PICKUP/DEATH/PROJ/ENEMY1-4 + test-input +
+  test-weapon). Default capture byte-identical vs clean HEAD; the
+  frame-130 locked capture shows the engine presentation ("It's
+  locked and won't open." centered gray over the locked-look cut).
+
+Open:
+- mode 3 (func_001FD0E0, slot-0x17 bank) — the remaining presenter.
+- the duration default for lines past the decoded table prefix
+  (recs ≥ 0x10) — dump the rest of 0x272DF0 when an examine trigger
+  gets ported (prop examines are not in the port yet).
+- the D_008106D4 flag-mailbox consumers (script handshakes) and the
+  func_001D06E0 idx-0 player byte (+0x90/+0x80 — radio-pose flag?).
+
+_Last updated: 2026-06-11 (session 65)._

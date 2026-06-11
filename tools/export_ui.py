@@ -140,6 +140,16 @@ named header unless stated):
                 the NUL-terminated ASCII strings ('\n' = in-entry line
                 break; entries often end with a trailing '\n')
 
+Since 2026-06-11 ("RADIO-MESSAGE MACHINE DECODED") the mode also
+appends the GLOBAL examine/radio text bank as .emsg GROUP 9: asset
+slot 0x16 = extract/chunk03/f14_id16.bin (runtime pointer D_0028A4E8),
+a BARE group OUTER blob (no group dir, no markup records) holding the
+54 bit-31 lines of the mode-2 message machine (func_001FD950) -
+locked-door refusals ("It's locked and won't open." = line 6),
+station descriptions and corpse examines; even lines carry text, odd
+lines are the empty terminal-record lines. The port's em_hud_radio
+resolves group 9 line N.
+
 OUTPUT FORMAT .emsg v1 (little-endian) - keep in sync with the port
 loader (extermination-port/src/game/em_hud.c, msg_parse):
 
@@ -512,8 +522,43 @@ def build_page(page: int, out_dir: Path, extract_dir: Path,
     return 0
 
 
+def parse_outer(data: bytes, outer: int, label: str) -> tuple[list[bytes], int]:
+    """Parse one group OUTER blob (markup dir + TEXT blob) at `outer`.
+    Returns (lines, markup_line_count). Layout per the docstring; the
+    same shape serves the slot-2 groups AND the bare slot-0x16 bank."""
+    text_off, count, rec_size = struct.unpack_from("<3I", data, outer)
+    markup_lines = 0
+    # markup directory (16 B/line at outer+0x10): +0xC = nrecords<<4
+    for i in range(count):
+        if struct.unpack_from("<I", data, outer + 0x10 + i * 16 + 12)[0]:
+            markup_lines += 1
+    text = outer + text_off + rec_size      # func_001FE460's walk
+    strbase, count2, str_bytes, _ = struct.unpack_from("<4I", data, text)
+    if count2 != count:
+        sys.exit(f"error: {label}: outer/text line counts disagree "
+                 f"({count} vs {count2})")
+    lines = []
+    walk = text + strbase            # NUL-walk cross-check cursor
+    for i in range(count):
+        off, off2, ln, ln_nul = struct.unpack_from(
+            "<4I", data, text + 0x10 + i * 16)
+        if off != off2 or ln_nul != ln + 1:
+            sys.exit(f"error: {label} line {i}: unexpected line "
+                     f"entry ({off:#x}/{off2:#x}, {ln}/{ln_nul})")
+        s = data[text + strbase + off: text + strbase + off + ln]
+        # the engine resolves line N by walking NUL terminators
+        # (func_001FE070) - verify both views agree
+        if walk != text + strbase + off or data[walk + ln] != 0:
+            sys.exit(f"error: {label} line {i}: line table "
+                     "disagrees with the NUL walk")
+        walk += ln + 1
+        lines.append(s)
+    return lines, markup_lines
+
+
 def build_messages(out_dir: Path, extract_dir: Path) -> int:
-    """Decode the chunk00 message bank (asset slot 2) and write
+    """Decode the chunk00 message bank (asset slot 2) PLUS the global
+    examine/radio text bank (asset slot 0x16) and write
     assets/messages.emsg. Returns 0/1 like a main()."""
     src = extract_dir / "chunk00" / "f02_id02.bin"
     if not src.is_file():
@@ -529,34 +574,31 @@ def build_messages(out_dir: Path, extract_dir: Path) -> int:
     markup_lines = 0
     for g in range(ngroups):
         goff = struct.unpack_from("<I", data, dir_off + g * 16)[0]
-        outer = dir_base + goff
-        text_off, count, rec_size = struct.unpack_from("<3I", data, outer)
-        # markup directory (16 B/line at outer+0x10): +0xC = nrecords<<4
-        for i in range(count):
-            if struct.unpack_from("<I", data, outer + 0x10 + i * 16 + 12)[0]:
-                markup_lines += 1
-        text = outer + text_off + rec_size      # func_001FE460's walk
-        strbase, count2, str_bytes, _ = struct.unpack_from("<4I", data, text)
-        if count2 != count:
-            sys.exit(f"error: group {g}: outer/text line counts disagree "
-                     f"({count} vs {count2})")
-        lines = []
-        walk = text + strbase            # NUL-walk cross-check cursor
-        for i in range(count):
-            off, off2, ln, ln_nul = struct.unpack_from(
-                "<4I", data, text + 0x10 + i * 16)
-            if off != off2 or ln_nul != ln + 1:
-                sys.exit(f"error: group {g} line {i}: unexpected line "
-                         f"entry ({off:#x}/{off2:#x}, {ln}/{ln_nul})")
-            s = data[text + strbase + off: text + strbase + off + ln]
-            # the engine resolves line N by walking NUL terminators
-            # (func_001FE070) - verify both views agree
-            if walk != text + strbase + off or data[walk + ln] != 0:
-                sys.exit(f"error: group {g} line {i}: line table "
-                         "disagrees with the NUL walk")
-            walk += ln + 1
-            lines.append(s)
+        lines, ml = parse_outer(data, dir_base + goff, f"group {g}")
+        markup_lines += ml
         groups.append(lines)
+
+    # ---- the GLOBAL examine/radio bank: asset slot 0x16 -----------------
+    # chunk03/f14_id16.bin (runtime pointer D_0028A4E8) is a BARE group
+    # OUTER blob (no group dir): the bit-31 line words of the mode-2
+    # message machine (func_001FD950) resolve their text here — locked-
+    # door refusals, station descriptions, corpse examines (FINDINGS.md
+    # "RADIO-MESSAGE MACHINE DECODED", 2026-06-11). Appended as ONE
+    # extra .emsg group (index = ngroups = 9) so the port's em_hud_radio
+    # can address it as group 9 line N. Missing file (partial extract):
+    # warn and write the slot-2 groups only (back-compatible bank).
+    radio = extract_dir / "chunk03" / "f14_id16.bin"
+    radio_group = -1
+    if radio.is_file():
+        rdata = radio.read_bytes()
+        rlines, rml = parse_outer(rdata, 0, "slot-0x16 bank")
+        markup_lines += rml
+        radio_group = len(groups)
+        groups.append(rlines)
+    else:
+        print(f"warning: {radio} not found - the radio/examine bank "
+              "(group 9) is not exported; locked-door messages will "
+              "draw nothing in the port")
 
     # ---- write .emsg v1 -------------------------------------------------
     firsts, offsets, blob = [], [], bytearray()
@@ -569,14 +611,15 @@ def build_messages(out_dir: Path, extract_dir: Path) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("wb") as f:
         f.write(b"EMSG")
-        f.write(struct.pack("<4I", 1, ngroups, len(offsets), len(blob)))
+        f.write(struct.pack("<4I", 1, len(groups), len(offsets), len(blob)))
         for g, lines in enumerate(groups):
             f.write(struct.pack("<2I", firsts[g], len(lines)))
         for o in offsets:
             f.write(struct.pack("<I", o))
         f.write(blob)
 
-    print(f"message bank {src.name}: {ngroups} groups, "
+    print(f"message bank {src.name} (+ slot-0x16 examine bank): "
+          f"{len(groups)} groups, "
           f"{len(offsets)} lines, {len(blob)} text bytes -> {out}")
     if markup_lines:
         print(f"  note: {markup_lines} lines carry inline markup records "
@@ -584,8 +627,9 @@ def build_messages(out_dir: Path, extract_dir: Path) -> int:
     for g, lines in enumerate(groups):
         first = lines[0].split(b"\n")[0].decode("ascii", "replace") \
                 if lines else ""
+        tag = "  (slot 0x16, radio/examine)" if g == radio_group else ""
         print(f"  group {g}: {len(lines):3d} lines  "
-              f"(line 0: {first[:46]!r})")
+              f"(line 0: {first[:46]!r}){tag}")
     return 0
 
 
