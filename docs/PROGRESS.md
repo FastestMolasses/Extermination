@@ -132,6 +132,27 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 44): STATUS SCREEN BACKGROUND DECODED + PORT —
+> closes the s25 "what is behind the hub" question: every status/UI
+> screen calls ONE universal drawer (func_0020A7A0, 21 callers) with a
+> per-screen 128x64 PSMT4 tile and composites THREE animated layers
+> over the black UI-camera frame: 256x128-px tiling scrolling left
+> 0.5 px/frame (constant 50% alpha), a second tiling scrolling up
+> 1 px/frame with a 12 s sin-pulsed breath + random 1-4 s cooldown,
+> and a periodic full-screen zoom burst (+0.3 px/frame per side).
+> State = three 0x20-B blocks at D_002655A0 (.data init {0,0,90,0};
+> persists across opens); color (96,96,96), alpha 64*sin, blend 0.
+> Hub tile = TBP 0x1E40/CBP 0x22F7 (boot-resident, dark blue-gray
+> CIRCUIT-BOARD art); the four page tiles are s39's "unknown" records
+> title_hi/pan_b/title_b/t2200 — t2200's identity settled. Export:
+> ui.emui gains the BACKDROP record (new x=y=-32767 sentinel; pages
+> reflagged bg_anim). Port: em_gfx backdrop queue (flushes under the
+> panels) + em_hud background_render — the real animated background
+> replaces the scene-dim (which stays as the missing-asset fallback);
+> em_hud_is_open() exported as em_game's pause-gate query. Verified:
+> default + asset-absent captures byte-identical; tests PASS.
+> FINDINGS "STATUS SCREEN BACKGROUND" s44.
+
 > 2026-06-10 (session 42): MESSAGE BANK EXPORTED + PORT TEXT — full
 > decode of chunk00/f02_id02.bin (asset slot 2): exact two-level layout
 > (group dir -> OUTER markup directory -> TEXT blob with per-line

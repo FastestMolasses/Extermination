@@ -9916,3 +9916,104 @@ header):
 - The engine's per-type inventory array (`D_00810C64`) is the next
   step for a faithful ITEM interior (real per-item rows + counts,
   category membership by type id).
+
+## STATUS SCREEN BACKGROUND — the universal animated UI background decoded (2026-06-11, session 44)
+
+Closes the s25 open question "what fills the screen behind the hub"
+(dim? backdrop texture? the rotating-player room?): it is NONE of the
+s25 guesses — every status/UI screen draws an **animated full-screen
+background** through one universal drawer, over the black UI-camera
+frame, BEFORE its panels. Static decode (asm walk + .data init + GS
+dump pixel check); port ships it.
+
+### The drawer: func_0020A7A0(tex0_token)
+
+Called at the head of every UI view's draw chain with a **per-screen
+128x64 PSMT4 tile** (raw 64-bit TEX0 token, same inline lui/ori//
+dsll32/or idiom as the page tokens). Confirmed callers (21): the hub
+(`func_0020CDC0` state 1/2, before `func_00209DF0`), the four pager
+pages (`func_0020F170` ITEM frame, `func_00210A00` MAP, `func_002121A0`
+SPR4, `func_00214020` DATABASE), the ITEM/SPR4 sub-views
+(`func_00214570/2149F0/215870/2160B0`, `func_00217090/77B0/8640/8D90/
+FA0`), and the non-status screens `func_00200A40/201000/201F70/202BA0/
+202D10/22A650/225AC0` (title/options/memory-card family — same
+mechanism, tokens not yet inventoried).
+
+It composites THREE layers of the tile; per-layer state = three
+0x20-byte blocks at `D_002655A0` (+0x00/+0x04 offset floats, +0x08
+phase degrees, +0x0C pulse timer, +0x10..0x1C RGBA floats — colors
+rewritten every frame to (96,96,96,64); alpha then *= sin(phase·π/180)
+via func_0011E2A8). `.data` init: {0,0,90,0} / {0,0,90,0} / {0,...} —
+**no per-open reset; state persists across opens**. Blend mode 0
+(`func_00207D00(1,0)`), draws via `func_00207E40` (x,y 12.4 GS;
+w/h canvas px).
+
+- **Layer 0 — horizontal scroll tiling**: grid of 256x128-canvas-px
+  quads (the 128x64 tile at 2x) at GS x 0x400..0xC00 step 0x100, field
+  y 0x400..0xC00 step 0x40 (mostly offscreen; the visible residues are
+  canvas x ≡ int(p0) mod 256, y ≡ 96 mod 128). p0 -= 0.5/frame, wrap
+  <0 → 255 (drift LEFT 0.5 px/frame). Phase pinned at 90° → constant
+  alpha 64 (= 50%); modulate (96,96,96) = 0.75.
+- **Layer 1 — vertical scroll tiling, pulsed**: same grid; p1 -= 0.5
+  FIELD lines/frame (1 canvas px), wrap 255; rows at y ≡ 96 + 2·int(p1)
+  mod 128. Pulse: while timer ≥ 0 it decrements (phase was reset to 0
+  → alpha 0, invisible); then phase += 0.25°/frame, alpha = 64·sin
+  (12 s in / 12 s out breath); at phase ≥ 180 → timer = 0x3C +
+  3·(rand()%0x3C) (60..237 frames, func_00122BB8), phase/p0/p1 reset.
+- **Layer 2 — full-screen zoom burst**: same pulse timer; only while
+  active (timer < 0): p0 += 0.3, p1 += 0.3 per frame and ONE quad at
+  canvas (−p0, −p1) size (512+2·p0, 448+2·p1) — full screen expanding
+  0.3 px/frame past every edge (0x200/0x1C0 = the canvas dims, x via
+  16·(1792−p0), y via 16·(1936−p1/2)) — alpha 64·sin(phase).
+
+Behind the layers there is NO additional draw — the frame is the
+identity-UI-camera 3D pass (black + the rotating player model), so the
+real background = black + this triple-layer tile shimmer.
+
+### The tiles
+
+- **Hub**: token `0x9D421E40_20045EE5` → TBP **0x1E40**, CBP **0x22F7**,
+  PSMT4 128x64 TBW 8 — boot-resident, adjacent to the s26 decor set
+  (title 0x1E50 / arrows CLUT 0x22F6); decodes from an ordinary
+  gameplay-state gs.bin. Pixels: a **dark blue-gray circuit-board /
+  schematic pattern** (fully opaque, peak brightness ~57/255) — tiled,
+  scrolled and pulsed at 50% over black it reads as the menu's subtle
+  animated "tech blueprint" backdrop.
+- **Pages** (s39 SUPERSESSION — four "identity unknown" records were
+  these): ITEM `0x9D421DB0_2003C8A5` (s39 "title_hi"), MAP
+  `0x9D422050_20043C25` ("pan_b"), SPR4 `0x9D422300_20047945`
+  ("title_b"), DATABASE `0x9D422200_200450A5` ("t2200" — its
+  "background filler, identity unresolved" note is settled: it is the
+  page's func_0020A7A0 tile; a "DATABASE" art title still does not
+  exist statically).
+
+### Export + port (extermination-port s44)
+
+- `tools/export_ui.py`: hub mode adds the **backdrop** sprite (TBP
+  0x1E40/CBP 0x22F7, sheet 272x144 → 272x212); page mode reflags the
+  four tiles as `bg_anim`. New `.emui` sentinel: records with
+  **x = y = -32767 are BACKDROP records** (vs -32768 plain sheet-only);
+  dw/dh carry the engine's 2x tile size (256x128). Old assets simply
+  lack the record (port falls back to its scene dim).
+- Port (`em_hud.c background_render` + an em_gfx overlay BACKDROP
+  queue that flushes FIRST, under the untextured panels): black base
+  fill + the three layers, engine rates/phases/init values, rand →
+  fixed-seed LCG (deterministic captures). Hub AND entered pages use
+  their own sheet's record. Also exported `em_hud_is_open()` — the
+  pause-gate query for em_game (the engine's open flag `0x8106C4`
+  semantics; excludes the EM_HUD_FORCE render-only hook).
+- Verified: default capture and the ui.emui-absent forced capture
+  byte-identical to pre-change HEAD; forced hub/page captures show the
+  animated background under every panel; repeat captures
+  byte-identical; test-input + door/sfx/melee/transit PASS.
+
+### Open
+
+- The 7 non-status callers' tile tokens (title/options/memory-card
+  screens) — same one-line decode each when those screens get modeled.
+- Layer-1/2 pulse cadence is engine-exact but the engine's rand is
+  time-seeded; the port's fixed seed is a flagged determinism choice.
+- The rotating player model on the black UI scene stays the port's
+  documented 3D-in-UI TODO.
+
+_Last updated: 2026-06-11 (session 44)._

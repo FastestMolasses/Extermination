@@ -26,11 +26,33 @@ master drawer func_00209DF0's inline constants:
   icon BR     0x554221F4_20045EC5   0x21F4 0x22F6 32x32    (417,406)
   bullet      0x55422196_20045185   0x2196 0x228C 32x32    (16,262) dw/dh 24
               (func_00209860's SPR4 ammo icon — GS-scaled to 24x24 on draw)
+  backdrop    0x9D421E40_20045EE5   0x1E40 0x22F7 128x64   BACKDROP record
+              (the ANIMATED UI BACKGROUND tile — see below)
 
 ("legend" is the 128x128 quad the session-25 audit provisionally called
 the "portrait" - the texture is the button legend: triangle EXIT, circle
 BACK, cross OK. The audit's "help panel" is a FLAT translucent rect, not a
 texture; it needs no asset.)
+
+THE ANIMATED UI BACKGROUND (FINDINGS.md "STATUS SCREEN BACKGROUND")
+-------------------------------------------------------------------
+Every status/UI screen draws an ANIMATED FULL-SCREEN BACKGROUND before its
+panels: the universal drawer func_0020A7A0(tex0_token) composites THREE
+layers of ONE 128x64 PSMT4 tile (per-screen token, passed by each caller)
+over the black UI-camera frame: two full-screen 256x128-px tilings (2x
+upscale; one scrolling left 0.5 px/frame, one scrolling up 1 px/frame,
+sin-pulsed alpha) plus a periodic full-screen "zoom burst". The hub's tile
+is boot-resident (TBP 0x1E40/CBP 0x22F7, dumped from gs.bin like the decor
+set); each pager page passes a tile from its own chunk (the records below
+previously exported sheet-only as title_hi/pan_b/title_b/t2200 - now
+flagged as bg_anim BACKDROP records).
+
+BACKDROP records use the x = y = -32767 sentinel (vs -32768 = plain
+sheet-only): the port's em_hud finds the sentinel, never draws it as a
+positioned sprite, and runs the animated background pass with it; dw/dh
+carry the engine's 2x tile draw size (256x128). Assets exported before
+this sentinel existed simply have no backdrop record - the port keeps its
+translucent scene-dim fallback.
 
 OUTPUT FORMAT .emui v1 (little-endian) - keep in sync with the port loader
 (extermination-port/src/game/em_hud.c, ui_parse):
@@ -163,43 +185,59 @@ GS_TRAILER = 84
 
 TBW = 8           # all UI sprites live in the 512-texel-wide UI buffer
 
+# Backdrop sentinel: x = y = -32767 marks the screen's ANIMATED-BACKGROUND
+# tile (func_0020A7A0's per-screen texture; never drawn as a positioned
+# sprite — the port's background pass picks it up). Plain sheet-only
+# records keep -32768.
+BACKDROP_XY = -32767
+
 # (name, TBP0, CBP, w, h, canvas_x, canvas_y, draw_w, draw_h) -
 # func_00209DF0/func_00209860 TEX0 tokens + audited draw anchors
 # (FINDINGS.md "STATUS SCREEN LAYOUT" items 3/5/6/10). The bullet icon's
-# 32x32 texture GS-scales to a 24x24 sprite; everything else draws 1:1.
+# 32x32 texture GS-scales to a 24x24 sprite; the backdrop record carries
+# the engine's 2x tile draw size; everything else draws 1:1.
 SPRITES = [
-    ("title",   0x1E50, 0x229D, 128,  64,  16,   0, 128,  64),
-    ("legend",  0x1D40, 0x22A8, 128, 128,   0, 320, 128, 128),
-    ("icon_tl", 0x2186, 0x22F6,  32,  32,  11, 304,  32,  32),
-    ("icon_tr", 0x21F0, 0x22F6,  32,  32, 484, 304,  32,  32),
-    ("icon_bl", 0x2192, 0x22F6,  32,  32, 417,  10,  32,  32),
-    ("icon_br", 0x21F4, 0x22F6,  32,  32, 417, 406,  32,  32),
-    ("bullet",  0x2196, 0x228C,  32,  32,  16, 262,  24,  24),
+    ("title",    0x1E50, 0x229D, 128,  64,  16,   0, 128,  64),
+    ("legend",   0x1D40, 0x22A8, 128, 128,   0, 320, 128, 128),
+    ("icon_tl",  0x2186, 0x22F6,  32,  32,  11, 304,  32,  32),
+    ("icon_tr",  0x21F0, 0x22F6,  32,  32, 484, 304,  32,  32),
+    ("icon_bl",  0x2192, 0x22F6,  32,  32, 417,  10,  32,  32),
+    ("icon_br",  0x21F4, 0x22F6,  32,  32, 417, 406,  32,  32),
+    ("bullet",   0x2196, 0x228C,  32,  32,  16, 262,  24,  24),
+    # the hub's animated-background tile (func_0020CDC0 hub state ->
+    # func_0020A7A0 token 0x9D421E40_20045EE5; FINDINGS "STATUS SCREEN
+    # BACKGROUND") — BACKDROP record, not a positioned sprite
+    ("backdrop", 0x1E40, 0x22F7, 128,  64, BACKDROP_XY, BACKDROP_XY,
+     256, 128),
 ]
 
 # Sheet packing (2-px transparent gutters so bilinear sampling never
 # bleeds between neighbors): legend left, title top-right, icons in rows
-# under the title.
-SHEET_W, SHEET_H = 272, 144
+# under the title, backdrop tile on its own bottom shelf.
+SHEET_W, SHEET_H = 272, 212
 PACK = {            # name -> (u, v)
-    "title":   (136,  0),
-    "legend":  (  0,  0),
-    "icon_tl": (136, 72),
-    "icon_tr": (170, 72),
-    "icon_bl": (204, 72),
-    "icon_br": (238, 72),
-    "bullet":  (136, 108),
+    "title":    (136,  0),
+    "legend":   (  0,  0),
+    "icon_tl":  (136, 72),
+    "icon_tr":  (170, 72),
+    "icon_bl":  (204, 72),
+    "icon_br":  (238, 72),
+    "bullet":   (136, 108),
+    "backdrop": (136, 142),
 }
 
 
 # --------------------------------------------------------------------------
-# Page-mode tables. Record = (name, tex0_lo, tex0_hi, x, y) - x/y are the
-# 512x448-canvas anchor or None = sheet-only (packed but not auto-drawn).
+# Page-mode tables. Record = (name, tex0_lo, tex0_hi, anchor) - anchor is
+# the 512x448-canvas position, None = sheet-only (packed but not
+# auto-drawn), or BACKDROP = the page's func_0020A7A0 animated-background
+# tile (exported with the BACKDROP_XY sentinel + 2x draw size).
 # TEX0 fields decode as: TBP = lo & 0x3FFF, TBW = (lo>>14) & 0x3F, PSM =
 # (lo>>20) & 0x3F (0x14 PSMT4 / 0x13 PSMT8), TW/TH log2 sizes, CBP =
 # (hi>>5) & 0x3FFF. Records are in DRAW ORDER for the port's page view
 # (backgrounds first, title/legend last). Sourcing functions noted.
 SHEET_ONLY = None
+BACKDROP = "backdrop"
 
 PAGE_SPECS = {
     0: ("item", "chunk31", [
@@ -220,7 +258,9 @@ PAGE_SPECS = {
         ("slot_d",   0x99421E10, 0x2003CA05, SHEET_ONLY),
         ("icon_a",   0x55321E24, 0x2003C405, SHEET_ONLY),
         ("icon_b",   0x55421E30, 0x2003C825, SHEET_ONLY),
-        ("title_hi", 0x9D421DB0, 0x2003C8A5, SHEET_ONLY),
+        # func_0020F170 head: func_0020A7A0 animated-background tile
+        # (the record s39 provisionally called "title_hi")
+        ("bg_anim",  0x9D421DB0, 0x2003C8A5, BACKDROP),
         ("title",    0x9D421DA0, 0x2003C885, (8, 0)),     # "ITEM"
     ]),
     1: ("map", "chunk30", [
@@ -232,7 +272,9 @@ PAGE_SPECS = {
         ("band_r",   0xA1321FC0, 0x20042E85, (256, 320)),
         ("panel",    0xE1321F00, 0x20043205, SHEET_ONLY),
         ("pan_a",    0x9D422040, 0x20043A85, SHEET_ONLY),
-        ("pan_b",    0x9D422050, 0x20043C25, SHEET_ONLY),
+        # func_00210A00 head: func_0020A7A0 animated-background tile
+        # (the record s39 provisionally called "pan_b")
+        ("bg_anim",  0x9D422050, 0x20043C25, BACKDROP),
         # func_00211240 via func_00210C00: player blip + 8 map icons
         ("blip",     0x113221D0, 0x20042E85, SHEET_ONLY),
         ("icon_1",   0x55322158, 0x20042E85, SHEET_ONLY),
@@ -286,7 +328,9 @@ PAGE_SPECS = {
         ("s2338",     0x55322338, 0x20046785, SHEET_ONLY),
         ("s23BC",     0x554223BC, 0x20047BC5, SHEET_ONLY),
         ("s23C8",     0x554223C8, 0x20047BE5, SHEET_ONLY),
-        ("title_b",   0x9D422300, 0x20047945, SHEET_ONLY),
+        # func_002121A0 head: func_0020A7A0 animated-background tile
+        # (the record s39 provisionally called "title_b")
+        ("bg_anim",   0x9D422300, 0x20047945, BACKDROP),
         ("legend",    0xDD422240, 0x20047965, (0, 320)),  # ASSUMED
         ("title",     0x9D422340, 0x200480A5, (8, 0)),    # "SPR4"
     ]),
@@ -316,10 +360,12 @@ PAGE_SPECS = {
         ("ic_b",     0x5542226A, 0x20045085, SHEET_ONLY),
         ("ic_c",     0x55422278, 0x20045025, SHEET_ONLY),
         ("ic_d",     0x5542227C, 0x20045025, SHEET_ONLY),
-        # func_00214020 state 2/3 token - decodes as background filler,
-        # identity unresolved (no "DATABASE" art title found statically;
-        # the page heading may be data-driven via func_00213F30)
-        ("t2200",    0x9D422200, 0x200450A5, SHEET_ONLY),
+        # func_00214020 state 2/3 token - RESOLVED: the page's
+        # func_0020A7A0 animated-background tile (s39 called it "t2200",
+        # "identity unresolved"; no "DATABASE" art title exists in the
+        # statically reachable set - the heading may still be data-driven
+        # via func_00213F30)
+        ("bg_anim",  0x9D422200, 0x200450A5, BACKDROP),
         ("legend",   0xDD4221E0, 0x20045005, (0, 320)),   # ASSUMED
     ]),
     # page 4 (passcode keypad, chunk37/extract): func_00207350 reads its
@@ -431,17 +477,23 @@ def build_page(page: int, out_dir: Path, extract_dir: Path,
     sheet = bytearray(512 * sheet_h * 4)
     records = []
     anchored = 0
+    backdrops = 0
     for (nm, rgba, t, anchor), (u, v) in zip(decoded, pos):
         w, h = t["w"], t["h"]
         for y in range(h):
             o = ((v + y) * 512 + u) * 4
             sheet[o:o + w * 4] = rgba[y * w * 4:(y + 1) * w * 4]
-        if anchor is not None:
+        dw, dh = w, h
+        if anchor == BACKDROP:          # animated-background tile
+            cx = cy = BACKDROP_XY
+            dw, dh = w * 2, h * 2       # the engine's 2x tile draw size
+            backdrops += 1
+        elif anchor is not None:
             cx, cy = anchor
             anchored += 1
         else:
             cx = cy = -32768            # sheet-only sentinel (not drawn)
-        records.append((u, v, w, h, cx, cy, w, h))
+        records.append((u, v, w, h, cx, cy, dw, dh))
 
     out = out_dir / f"ui_page{page}.emui"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -452,8 +504,8 @@ def build_page(page: int, out_dir: Path, extract_dir: Path,
             f.write(struct.pack("<4H2h2H", *r))
         f.write(sheet)
     print(f"page {page} ({name}, {chunk}): {len(decoded)}/{len(specs)} "
-          f"tokens decoded ({anchored} anchored, "
-          f"{len(decoded) - anchored} sheet-only) -> {out} "
+          f"tokens decoded ({anchored} anchored, {backdrops} backdrop, "
+          f"{len(decoded) - anchored - backdrops} sheet-only) -> {out} "
           f"(sheet 512x{sheet_h})")
     for nm, why in skipped:
         print(f"  skipped {nm}: {why}")
