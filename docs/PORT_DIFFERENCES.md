@@ -63,9 +63,9 @@ lists whole missing systems):
    rigs `D_00251C50` + always-on camera light + ≤32 dynamic point lights
    (func_001D89D0/func_001D7FA0, FINDINGS s51) are untranslated; every character in every
    room is lit by one hardcoded shader light (F1).
-4. **Projection mismatch** — the port renders 50° fovy at window aspect; the engine is the
-   s = 480 zoom model (FINDINGS "CAMERA SYSTEM" §3). Every frame's framing differs from
-   the original (D10).
+4. ~~**Projection mismatch**~~ — CLOSED s59: the engine s = 480 zoom model is adopted
+   exactly (hfov 67.38° / vfov 50.03° at 4:3, near 0.1 / far 16711680 decoded bit-exact,
+   4:3 letterbox presentation); verified to <0.001 px against the state01 engine K (D10).
 5. ~~**Hinged doors require the CROSS button**~~ **RESOLVED s58 — the premise was a
    misread**: the engine triggers ALL doors on a CROSS press edge (the use scan only runs
    on `D_00810E74 & spad-3B76` = config "use" 0x0040; FINDINGS "DOOR TRIGGER IS THE CROSS
@@ -149,7 +149,7 @@ lists whole missing systems):
 | D7 | Aim release | engine swaps to transition mode 2 (func_00198650, untranslated) | chase yaw re-seeded from eye→player heading, mode-0 blends back | B | FS |
 | D8 | Fixed-camera regions | director regions: snow case approaches spec at 0.7 u/frame via chase primitives; spawn-record cameras hard-place (func_001B0460) | port hard-places for BOTH kinds (correct for spawn-record, divergent for director regions) | V | SI (documented) |
 | D9 | Door camera cues | op 0x0D sub 5 cut + cam+0xA0 target re-blend + locked-look func_001BBBF0 (decoded + live-verified) | translated; locked-look reachable only via `EM_DOORCAM_LOCKED` (its real trigger, the locked sequence, is absent — K6) | B | UT |
-| D10 | Projection | s = 480 zoom model: x = 0.8s·x/z + 2048, y = 0.5s·y/z + 2048, GS-Z row (FINDINGS "CAMERA SYSTEM" §3) | `em_mat4_perspective` 50° fovy at WINDOW aspect, near 0.5, far 800/500 — fov, aspect behavior and clip planes all port values | V | PC (flagged TODO(projection)) |
+| D10 | Projection | s = 480 zoom model: x = 0.8s·x/z + 2048, y = 0.5s·y/z + 2048, GS-Z row (FINDINGS "CAMERA SYSTEM" §3 + s59 exact derivation) | ~~50° fovy at WINDOW aspect, near 0.5, far 800/500~~ — CLOSED s59: `em_mat4_perspective_gs` (tan h/v = 320/s, 224/s; near 0.1 / far 16711680 decoded bit-exact), 4:3 letterbox, zoom wired (scope-ready); EM_PROJ_TEST reproduces the engine K of state01 to <0.001 px | — | (match) |
 | D11 | Camera latency | PS2 kicked chain consumes the PREVIOUS frame's matrices | native chain flushed same-frame → one frame LESS camera latency | V | SI (documented) |
 | D12 | Top modes 1/2 (frozen) | commit-only frames | modeled via the status-screen pause gate reaching commit only | S | SI |
 
@@ -306,7 +306,7 @@ lists whole missing systems):
 | P3 | ~~No death/game-over handling at 0 HP~~ — CLOSED s58 (see C12; the game-over SCREEN remains a flagged stand-in — the engine module + trigger are undecoded, FINDINGS s58 §6) | `em_game.c` PLAYER DAMAGE & DEATH |
 | P4 | `STICK_DEADZONE` dead constant (see C15) | `em_game.c:404` |
 | P5 | `em_door.h` step-4 walk-out comment labels anim id 2 "RUN" — stale vs the 2026-06-11 tier relabel (id 2 = JOG); behavior correct | `em_door.h:112` |
-| P6 | Camera far/near clip planes (0.5 / 500–800) are port values inside the flagged projection TODO (see D10) | `em_game.c` camera_commit |
+| P6 | ~~Camera far/near clip planes (0.5 / 500–800) are port values inside the flagged projection TODO~~ — CLOSED s59 (engine planes 0.1 / 16711680 derived bit-exact from the GS Z-row literals; see D10) | `em_game.c` camera_commit |
 | P7 | Menu-open frames make the UI player the "last skinned palette" — em_weapon's muzzle anchor would read a menu pose next frame (documented as untestable corner) | `em_game.c` ui_scene_render |
 | P8 | em_model header sanity bounds (bone ≤ 1024, vert ≤ 4M …) are port safety caps, not engine limits | `em_model.c` |
 
@@ -375,8 +375,11 @@ the port (beyond the per-module gaps above).
   projection derivation, I6 melee impact direction, K9 slider commit interleave, J2
   damage window, D3 wall-rise model, L3 ring corners, L9 page anchors).
 - Highest-leverage fidelity work, in order: pickups+inventory
-  (Q1/Q2), room lighting (F1), engine projection (D10),
+  (Q1/Q2), room lighting (F1),
   screen-space acquisition (H3), audio pitch/volume (M1/M2). (K2 door triggers: closed
-  s58 — the engine trigger is the CROSS edge and the port now matches for all families.)
+  s58 — the engine trigger is the CROSS edge and the port now matches for all families.
+  D10 engine projection: closed s59 — adopted exactly, verified against the state01
+  engine K; H3's screen-space cone is now directly implementable on the real canvas
+  mapping.)
 - When any FINDINGS section is revised, re-audit the matching module section here — this
   file is the port-side mirror of FINDINGS and goes stale the same way.

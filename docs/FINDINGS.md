@@ -12430,3 +12430,110 @@ Open:
   scripted-sequence context).
 
 _Last updated: 2026-06-11 (session 58)._
+
+## ENGINE PROJECTION EXACTLY DERIVED — near/far decoded bit-exact, field-space raster window, state01 pixel verification; PORT ADOPTED (2026-06-11, session 59)
+
+Closes the s23b/CAMERA-SYSTEM §3 "native remap" sketch and the port's
+TODO(projection) (PORT_DIFFERENCES D10/P6). Everything below is static
+.s + savestate arithmetic, verified against the state01 rendered frame.
+
+### 1. The P builder pair (func_001D2960 / func_001D2D20)
+
+`func_001D2960` (the per-frame main-P builder, ctx+0x2340) stores the
+literals directly: m00 = **0.8·s** (0x3F4CCCCD·zoom), m11 = **0.5·s**,
+centers **2048.0** (0x45000000), w-column 1.0, and the Z-row pair
+**bz = 0x3F664CB3** (0.8996078…) / **az = 0x49CCCCCC** (1677721.5) —
+the values FINDINGS previously read live as "0.8996 / 1677721.5".
+
+`func_001D2D20(m, zoom, w, h, near, far)` is the engine's own
+PARAMETERIZED perspective builder (used for the offscreen/level
+variants): m00 = zoom/(0.5·w), m11 = zoom/(0.5·h), m22 =
+(far+near)/(far−near), m32 = −2·far·near/(far−near), m23 = 1 — a
+GL-style Z row, unlike the main P's GS-Z row. Its callers pass
+**far = 16711680.0 (0xFF0000)** and near 0.1 (level kernel) / 20
+(offscreen passes).
+
+### 2. The Z-row literals decode EXACTLY to near 0.1 / far 16711680
+
+GS Z after the VU1 divide (confirmed live, see §4): z_gs = bz + az/z.
+
+- **az = 1677721.5 = 0.1 · (2^24 − 1) exactly** → z_gs(0.1) = 2^24−1,
+  the 24-bit GS-Z max: **near = 0.1**.
+- **bz = f32(1 − az/16711680) = 0x3F664CB3 bit-exact** → z_gs(16711680)
+  = 1.0: **far = 16711680 = 0xFF0000** — the same far literal the
+  engine passes func_001D2D20. (Equivalently the SCE
+  sceVu0ViewScreenMatrix form with zmin=1, zmax=2^24−1, n=0.1,
+  f=16711680 reproduces both constants to f32 rounding.)
+
+So the engine's frustum is near 0.1, far ≈ 16.7 MILLION units — an
+effectively infinite far plane (fog + the ±(s,0,−1023) cull planes
+bound the scene, never the far clip), reversed-hyperbolic onto the
+24-bit Z buffer (nearer = larger z_gs).
+
+### 3. X/Y: the raster window is FIELD-space in y — the exact fovs
+
+The visible GS window (pinned by the UI module's decoded offsets
+0x700/0x790) is x ∈ [1792, 2304] (512 px, half 256) and y ∈
+[1936, 2160] (**224 field lines** = 448 display lines, half 112); both
+centers are the P's 2048 offsets. Therefore on the 4:3 frame:
+
+    ndc_x = (0.8s/256)(x/z) = (s/320)(x/z)   tan(hfov/2) = 320/s
+    ndc_y = (0.5s/112)(y/z) = (s/224)(y/z)   tan(vfov/2) = 224/s
+
+At s = 480: **hfov 67.38°, vfov 50.03°**. The tan ratio is 10/7, not
+the square-pixel 4/3: the 0.8/0.5 row anisotropy bakes the
+512x448→4:3 pixel aspect and leaves a real ~7% horizontal angular
+compression (a sphere renders ~93% as wide as tall on the original
+display) — a property of the original image, to be reproduced, not
+corrected. The scope camera's documented "s = 224.0/x" is this same
+model: x is tan(vfov/2), 224 the field half-height. (The s23b-era
+phrasing "z = 0.8996·z + 1677721.5" was the pre-divide CLIP row; and
+the old "tan(half-hfov) = half_w_gs/(0.8s)" sketch left half_w/half_h
+unpinned — they are 256 and 112, NOT 224.)
+
+### 4. Verification against the state01 rendered frame
+
+From state01 ee.bin: K = P·V at ctx+0x23C0 (zoom 480). Projecting the
+live player root (218.59, 229.85, 201.79) through the ENGINE's own K
+and mapping GS→frame (x: [1792,2304]→640, y: [1936,2160]→480) gives
+**(320.0, 441.1)** — visually confirmed to land between the player's
+boots in the savestate's 640x480 screenshot (and the camera target
+projects to exactly (320, 240), screen center, as it must). The live
+z_gs at that point is 39638.7 = bz + az/42.33 to float precision —
+proof the GS Z **is** divided by w (settling the linear-vs-hyperbolic
+ambiguity).
+
+### 5. Port adoption (extermination-port, this session)
+
+- `em_math.h em_mat4_perspective_gs(m, s)`: m00 = s/320, m11 = s/224,
+  near 0.1 / far 16711680 hyperbolic [0,1] depth (ordering identical
+  to the GS's reversed encoding; clip planes exact). The old 50°-at-
+  window-aspect + invented 0.5/500–800 planes are retired.
+- Zoom s is wired through the camera (`EmCamera.zoom`, the native
+  ctx+0x2468): default 480 at init; scope (224/tan) and scripted lerps
+  have their field ready.
+- The gfx backend letterboxes/pillarboxes every frame to the centered
+  4:3 rect (viewport + scissor + in-frame clear; bars black) — the
+  window no longer stretches the image; PCSX2-style presentation.
+- `EM_PROJ_TEST=1`: the port chain (engine commit semantics +
+  perspective_gs + 4:3 viewport mapping) reproduces the engine-K
+  pixels of 5 state01 world points (incl. off-center, both axes) to
+  **< 0.001 px** — PASS. All other self-tests PASS (the EM_SLIDER_TEST
+  / EM_LOCKED_TEST failures present during the run also fail at a
+  clean HEAD build and belong to the in-flight door-trigger rework,
+  not the projection).
+- Captures re-baselined (`scratch_noassets/captures_proj/`): vertical
+  framing is essentially unchanged (old fovy 50° ≈ derived 50.03°, the
+  old value was a good empirical pin), horizontal gains ~7% scene
+  (hfov 63.7°→67.38° at 4:3), near 0.5→0.1 reveals close geometry,
+  far 500/800→16.7M unclips distant geometry. EVERY capture's framing
+  differs from pre-projection baselines — old baselines are obsolete.
+
+Open (UI projection, s49 pin): the status screen keeps its empirical
+tan(fovy/2) = 0.74 @ 4:3 projection. Under the engine s-model the same
+decoded x-anchor implies a menu zoom s ≈ 324.3 → tan(vfov/2) = 0.691,
+~7% tighter vertically than the pin (the pin assumed a square-pixel
+4/3 fx/fy ratio the engine P does not have). Needs a live ctx+0x2468
+read with the status screen open; until then the pinned look stands.
+
+_Last updated: 2026-06-11 (session 59)._

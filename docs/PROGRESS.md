@@ -140,6 +140,31 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 59): ENGINE PROJECTION EXACTLY DERIVED + PORT
+> ADOPTED (FINDINGS "ENGINE PROJECTION EXACTLY DERIVED"; closes
+> PORT_DIFFERENCES top-10 #4 / D10 / P6). The main-P Z-row literals
+> decode bit-exact: az = 0x49CCCCCC = 0.1·(2^24−1), bz = 0x3F664CB3 =
+> f32(1 − az/16711680) → NEAR 0.1, FAR 16711680 (0xFF0000 — the same
+> far the parameterized builder func_001D2D20 takes; its GL-style
+> formula read from the .s). Raster window pinned: x [1792,2304]
+> (512 px), y [1936,2160] (224 FIELD lines) → tan(hfov/2) = 320/s,
+> tan(vfov/2) = 224/s = 67.38°/50.03° at s = 480; the 10/7 tan ratio
+> is the 512x448→4:3 pixel-aspect anisotropy (reproduced, not
+> corrected); scope "224.0/x" = the same model (x = tan(vfov/2)).
+> state01 truth: the engine's own K = P·V projects the live player
+> root to (320.0, 441.1) on the 640x480 frame — confirmed between the
+> player's boots in the savestate screenshot; live z_gs 39638.7 =
+> bz + az/z proves the GS Z is w-divided. Port: em_mat4_perspective_gs
+> (em_math.h), camera zoom field wired (default 480, scope-ready),
+> 4:3 letterbox/pillarbox presentation in the Metal backend (viewport
+> + scissor + in-frame clear), EM_PROJ_TEST reproduces the engine K to
+> <0.001 px on 5 points — PASS; all port self-tests PASS (slider/
+> locked fails are the parallel door rework, present at HEAD too).
+> Captures re-baselined (captures_proj/): vertical framing ~unchanged
+> (old 50° pin ≈ derived 50.03°), ~7% more horizontal scene, near/far
+> unclipped. Open: the s49 UI menu projection pin vs the engine
+> s-model (implied menu zoom ≈ 324.3) — needs a live menu zoom read.
+
 > 2026-06-11 (session 58): DOOR TRIGGER DECODED — CROSS PRESS EDGE, the
 > s17 "walk-into via action-state 0x2D" contract OVERTURNED (FINDINGS
 > "DOOR TRIGGER IS THE CROSS PRESS EDGE"; closes PORT_DIFFERENCES #5 /
