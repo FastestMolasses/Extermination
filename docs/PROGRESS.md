@@ -5695,9 +5695,14 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
 - **Open**: ~~func_0018F870 (aim/scope solver, styles 2/6)~~ CLOSED s64;
   ~~func_0018D910 (director solver, style 5)~~ CLOSED s64 (bounds-only);
   ~~func_00191000~~ CLOSED s64 — it is the L1 RE-ORIENT ARM, not an eye
-  placer (the door re-seat +29 parking belongs to func_00230000, still
-  unread, along with the sub-state-3 L1 motion handler); pre-pass
-  func_0018D330 consumers (cam+0x5A/+0x60/+0x6D); styles 3/4 cinematic
+  placer; ~~func_00230000 (walk camera) + the door re-seat +29~~ CLOSED
+  s67 — the walk camera is the eye TETHER func_0022FCA0 + the
+  func_00191390 per-state height table (the +0x5C-variant writer), and
+  the +29 is the bounds settle over the doorframe lintel after the
+  func_001B0080 re-seat; ~~pre-pass consumers (cam+0x5A/+0x6D)~~
+  CLOSED s67 (the func_00191D40 descent veto / the cam+0x98 = 23
+  rider) — the pre-pass func_0018D330 itself and the cam+0x60 consumer
+  stay open; the sub-state-3 L1 MOTION handler; styles 3/4 cinematic
   variants; area-0x12/0x15 solver specials.
 
 ### Update — 2026-06-11 s65: RADIO-MESSAGE MACHINE decoded + ported (the locked "VO" text now draws); s57 typewriter label corrected
@@ -5734,3 +5739,42 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
 - **Open**: mode 3 (func_001FD0E0, slot-0x17 bank); global record
   table durations past rec 0xF (dump when prop examines port);
   D_008106D4 mailbox consumers; func_001D06E0's idx-0 player byte.
+
+### Update — 2026-06-11 s67: WALK-STATE CAMERA decoded (func_00230000 + the eye TETHER) — the port's last invented camera policy replaced
+
+- **Decode (FINDINGS "WALK-STATE CAMERA DECODED")**: func_00230000
+  (router states 2/4/0xF) + func_0022FCA0 (eye x/z policy) +
+  func_00191390 (per-state +0x8C/+0x5C table — the s61 "+0x5C writer
+  unidentified" flag CLOSED: walk states write 1.0 = solver floor pad
+  6 / head-clear 13, the low ride) + func_00191D40 (eye-height seek,
+  1/10 cap 4.0, rise/descent vetoes on bits 0x80/0x40 + the +0x5A
+  sight bit) + func_001916C0 (cut-table target follow: x/z cap 2.0,
+  height 11 + 0x8C → idle +17 / walk +8) + func_001B0080 (the room-
+  entry re-seat: target = player ground + 17, eye = fabs(cam+0x0C)
+  behind the through-door yaw at +19 — the s56 "+29 park" is the
+  bounds settle over the doorframe lintel, emergent). THE FINDING:
+  the moving camera has NO heading policy — the desired eye hangs on
+  a TOW-ROPE (full drag past fabs(cam+0x0C), 20/10-u dead band,
+  straight back-out, 0.3°-per-unit swing away from the published wall
+  heading when cramped ≤ 8.6 u) and cam+0x44 is recomputed every frame
+  from the ACTUAL pair — the heading is an OUTPUT. Heights drop to
+  eye +9 / target +8 while moving (idle 19/17).
+- **Port (extermination-port em_game.c)**: walk branch translated
+  (tether + swing latch, height table driving cam->aim_h/var_5c,
+  eye-Y seek, yaw tail); cut-path target numbers adopted (idle target
+  15 → 17 — the old 15 was the smooth-table inline's, which gameplay
+  never runs); doorcam-3 re-seat rebuilt on func_001B0080; new scene
+  key `camdist` carries the per-record cam+0x0C (office −31.2, s66).
+  Captures: walk-away/strafe show the tow-rope lag and the rotating
+  bearing; the walk-at-camera capture flips from "player out of
+  frame, camera staring at the floor" (old) to the engine's backing-
+  away face-on framing. EM_MOVE_TEST re-pinned (trajectory curves
+  with the output heading — engine-emergent); all 15 self-tests +
+  slider/locked + unit tests PASS; default capture changed ONLY by
+  the decoded idle target height (isolation-proven byte-identical
+  with that constant reverted).
+- **Open**: the idle-state tether (the port idle keeps the
+  yaw-anchored eye — PORT_DIFFERENCES D14); exporter emission of
+  `camdist` from spawn records (+0x18); the flags listed at D13
+  (fall cam, AREA11 region swap, +0x98 rider, area eye-Y clamps,
+  idle dip term, L1 gait gating).

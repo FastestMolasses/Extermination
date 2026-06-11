@@ -13751,3 +13751,180 @@ cam+0x0C = −31.2 (the per-record distance/fog copy). Every s56b number
 reproduced; D9 stays (match).
 
 _Last updated: 2026-06-11 (session 66)._
+
+## WALK-STATE CAMERA DECODED — func_00230000 + the eye TETHER func_0022FCA0; the camera has NO heading policy while moving (2026-06-11, session 67)
+
+Full static read of the last unread camera handler `func_00230000`
+(0x224 — the locomotion-states camera, router states 2/4/0xF) and its
+whole callee set: `func_0022FCA0` (0x358 — the desired-eye x/z policy),
+`func_00191390` (0x108 — the per-state height-param pre-step),
+`func_00191D40` (0x2C4 — the desired-eye-HEIGHT seek), the target
+pre-step `func_001916C0` (0x674, jtbl_0026D990) and the room-entry
+re-seat `func_001B0080` (0x1C4, from `func_001B0460`'s unflagged arm).
+Translated into extermination-port em_game.c. This closes the s64 open
+item "func_00230000 unread" and the s61 flag "+0x5C variant writer
+unidentified".
+
+### 1. func_00230000(cam, player) — the walk-camera frame
+
+Routed from func_001921D0 for player states 2/4/0xF. Per frame:
+
+1. **Area split on D_00810700:**
+   - area 0 with player.y < −83.0 → **FALL CAM**: cam+0x98 = 0,
+     desired eye x/z = (120.0, −1590.0) fixed, eye-Y seek (below)
+     toward **−67.5** at rate 4.0, solver style **5** (bounds-only),
+     then a MANUAL actual-eye chase (func_0018C6A0 + func_0018C4B0,
+     both cap 4.0) — the dispatcher's style-0 chase doesn't run here.
+   - area 0x0B → eye tether first, then `func_00194D10(cam, player,
+     1)` (the s50 trigger rect X[319.6,339.0] Z[150,182] y≈289.8):
+     INSIDE, the eye-height base uses the CONSTANT 6.0 in place of
+     cam+0x8C (= −3 while walking) — the walking eye rides **9 u
+     higher** inside that rect. *(Corrects the s50 table note "AIM
+     target-height tweak (+12)": it is the walk-state EYE height, and
+     the swap is −3 → 6.)*
+   - everywhere else: the general path.
+2. **General path:** `func_0022FCA0` (the tether, §3) → eye-height
+   seek `func_00191D40(cam, player.y + 11.0 + cam[0x5C] + cam[0x8C],
+   4.0)` → the L1 arm `func_00191000` for states **2/0xF only** (state
+   4 never arms) → `func_0018D7B0(cam, 0)` (the s61 follow solve +
+   actual-eye chase).
+3. **Tail (every path): cam+0x44 = func_001B1240(&D_008105D0,
+   D_008105E0.x, .z)** — the camera heading is recomputed from the
+   ACTUAL eye→target pair every frame. The walk camera never *consumes*
+   a heading: **the heading is an OUTPUT of the eye placement.**
+
+### 2. func_00191390 — the per-state height table (pre-step, runs before mode dispatch)
+
+Zeroes cam+0x94/+0x98 every frame, then writes **cam+0x8C / cam+0x5C**
+by player state +0x230:
+
+| states | +0x8C | +0x5C | eye base (11+5C+8C) | target (11+8C) |
+|---|---|---|---|---|
+| 2 / 4 / 0xF (locomotion) | **−3.0** | **1.0** | player.y + **9** | player.y + **8** |
+| 1 / 3 / default (idle) | 6.0 | 2.0 | +19 | +17 |
+| idle, cam+0x64 == −31.2 areas | 2.0 | 6.0 | +19 | +17 (same sums) |
+| 6/7/8/9/0x2C/0x2D (climb family) | 0.0 | 2.0 | +13 | +11 |
+| 0x13 | 11.0 | 2.0 | +24 | +22 |
+
+Then cam+0x6D != 0 → cam+0x98 = **23.0** (an eye-raise rider; +0x6D is
+written by the solver pre-pass func_0018D330 — consumer unread there).
+
+**This closes the s61 flag:** cam+0x5C = 1.0 (walk) flips the solver's
+floor pad 17 → **6** and head-clear 17.5 → **13** — which is exactly
+what makes the low walking ride (eye player.y + 9) reachable under the
+solver's floor bound. The camera RIDES LOW AND NEARLY LEVEL while the
+player moves (eye +9 / target +8 vs idle +19/+17) and climbs back as he
+stops — a state change the port had never modeled.
+
+### 3. func_0022FCA0 — the desired-eye x/z TETHER ("tow-rope")
+
+Consumes `D_00810690` (horiz desired eye↔target distance, written by
+the previous commit) and `D_0081069C` (the ACTUAL pair's). Let follow =
+fabs(cam+0x0C) (per-record camera distance, −46.8 default / −31.2
+office records [s66]); excess = dist − follow; slack = **20.0** if
+cam+0x64 == −46.8 else **10.0**:
+
+- **excess > 0** (player walking away): horiz dir = unit(target − eye);
+  **eye x/z += dir·excess** — full correction, instantly. The eye
+  trails the player's PATH at exactly `follow`: walking a curve drags
+  the bearing around asymptotically — **this is the heading lag**. No
+  rate constant exists; the lag IS the geometry. Swing byte cam+0x03=0.
+- **−slack ≤ excess ≤ 0**: NOTHING (cam+0x03 = 0). Walking toward the
+  camera consumes up to 20 u (10 in the −31.2 areas) dead-band first.
+- **excess < −slack**, spad 3A24 = excess + slack (< 0):
+  - actual horiz dist > **8.6** (0x4109999A): eye x/z += dir·3A24 —
+    backs straight out, pinning dist at follow − slack. (Swing latch
+    NOT touched here — engine-verbatim.)
+  - ≤ 8.6 (cramped — the camera is nearly on the player, typically
+    wall-pinned): **SWING.** If cam+0x03 == 0: latch spad 3A28 =
+    atan2(desired target − desired eye) and cam+0x03 = 1 if (cam+0x90 −
+    3A28) > 0 else 2 — cam+0x90 is the **blocking-wall heading the s61
+    solver publishes** (zeroed at init; the only other writer), so the
+    swing direction is picked AWAY from the last wall. Each frame:
+    3A28 ±= deg2rad(0.3 · 3A24) (latch 1 −, latch 2 +; ~0.3°/frame per
+    unit of over-closure) and **eye x/z += (sin,cos)(3A28) · 3A24** —
+    the eye orbits outward around the player along the rotated bearing.
+    3A28 persists in spad across latched frames (an accumulator).
+
+### 4. func_00191D40 — the desired-eye-HEIGHT seek
+
+want = base + cam+0x98, clamped to the UPPER bound cam+0x54 only.
+d = want − cam+0x14: |d| ≤ 1.0 → eye.y += d/5; else step = min(|d|/10,
+rate) (rate = 4.0 from all callers read). A RISE is vetoed by solver
+result bit **0x80**, a DESCENT by bit **0x40** OR halfword cam+0x5A
+bit 0 (the pre-pass sight bit). Area specials: area 0x10 room 1 subs
+2/4/6 — if cam+0x50 > 100, cap eye at cam+0x50 + 7.5; area 3 room 1,
+eye.x < 356 — above 250, cap at cam+0x54 − 2.
+
+### 5. func_001916C0 — the target follow (cut-table pre-step), walk + idle rows
+
+jtbl_0026D990 by player state; the rows that matter:
+
+- **states 2/4/0xF (walk):** target x/z chases player+0xA0 at cap
+  **2.0**/frame (hard copy when arg3 == 2); target.y seeks player.y +
+  11 + cam+0x8C (= **+8** walking) at cap 4.0 (func_0018C4B0).
+- **states 0/1/3 (idle):** same 2.0 x/z chase; target.y = player.y +
+  11 + cam+0x8C (**+17**) **+ 0.3·shaped(excess)** — the shaped term
+  reflects excess below −slack and floors at −7, dipping the target up
+  to ~6 u while over-close. *(The port's old +15 / 0.8-cap follow was
+  the SMOOTH-table inline's — gameplay runs the cut path; the live
+  state-01 target = ground + 17 matches the cut row.)*
+- Tail: actual target ← desired (hard copy via func_0018C0C0) unless
+  cam+0xA0 (tgt_soft) > 0 → x/z chase cap 1.0, y cap |Δ|/20 (states
+  0/1/2) or |Δ|/4, decrementing +0xA0; |Δy| ≤ 0.15 clears it.
+
+### 6. func_001B0080(cam, 2.0) — the door/room-entry "normal chase re-seat" (s56 +29 RESOLVED)
+
+From func_001B0460's unflagged-record arm (every room entry): desired
+TARGET = D_00810350 (player ground pos), target.y += **17.0**; desired
+EYE = target + rotY(spad-3B50 through yaw)·(0, 0, **cam+0x0C**) +
+(0, **2.0**, 0) — i.e. fabs(cam+0x0C) BEHIND the through-door pose at
+player.y + **19** — both HARD-COPIED to the actuals (area 1 entry 4
+has a fixed-eye special). Then normal dispatch + solve resume: the eye
+sits behind the door wall → the s61 pull-in (height kept) + the bounds
+settle landing on the doorframe lintel (lintel ~12 + 17) produce the
+live park at (104, **29**, −250.4) — the s56 "+29" is **bounds + the
+walk handler**, no special code. The s56 func_00191000 guess stays
+retracted; nothing re-seats at "+29" explicitly.
+
+### 7. Port (extermination-port s67) + verification
+
+- em_game.c camera section: `camera_prestep_00191390` (the per-state
+  table, replacing the "no native work yet" stub — it now DRIVES
+  cam->aim_h and cam->var_5c each frame), `camera_walk_eye_0022FCA0`
+  (tether + swing; swing state/bearing as cam->swing/swing_yaw),
+  `cam_eye_y_seek_00191D40`, the walk branch in camera_mode_dispatch
+  (tether → height seek → yaw tail from the actual pair), the target
+  follow re-pointed at the cut-path numbers (x/z cap 2.0, y cap 4.0,
+  height 11 + 0x8C → idle 17 / walk 8; idle dip term not modeled),
+  and the doorcam-3 re-seat rebuilt on the func_001B0080 geometry.
+  New scene key `camdist <f>` carries the per-record cam+0x0C (−31.2
+  office) — exporter does not emit it yet, default −46.8.
+- Omitted, flagged (no native reach): fall cam, AREA11 region-1 height
+  swap, cam+0x98/+0x6D rider, +0x5A descent veto, the area-0x10/0x03
+  eye-Y clamps, the idle 0.3·excess target dip, the idle-state tether
+  (port idle keeps the yaw-anchored eye so orbit/L1 yaw state stays
+  authoritative — PORT_DIFFERENCES D13), L1-arm state gating (engine:
+  2/0xF only; the port arms on any gait).
+- **Captures (A/B vs HEAD):** walk-away frame 40 — the eye hangs back
+  through the slack and the camera rides low (the tow-rope lag,
+  visible); strafe frame 85 — the bearing rotates with the dragged eye
+  (heading lag, visible; the old build kept a fixed bearing). The
+  EM_CAPTURE_RISE walk-at-camera capture is decisive: HEAD left the
+  player OUT OF FRAME (yaw-anchored eye overrun, camera staring at the
+  floor); the decoded tether backs the camera away IN FRONT of the
+  player, face-on framing the whole way — the engine's walk-toward-
+  camera shot.
+- EM_MOVE_TEST trajectory legitimately changed (camera-relative input
+  now curves with the output heading — the engine's emergent
+  chase-camera spiral); expectations re-pinned (collision (84.334, 0,
+  −177.513) yaw −1.9977; no-collision (83.891, 0, −141.560) yaw
+  −1.9586; new EM_MOVE_YAW override). All 15 self-tests + slider/
+  locked (EM_SCENE=assets/scene_drawbridge) + input/weapon unit tests
+  PASS.
+- Default EM_CAPTURE changes ONLY by the decoded idle target height
+  (15 → 17): isolation-proven — reverting just that constant (and the
+  caps) reproduces the HEAD capture byte-identically, so the walk
+  machinery is idle-invisible, engine-true.
+
+_Last updated: 2026-06-11 (session 67)._
