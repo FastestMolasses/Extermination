@@ -5716,6 +5716,17 @@ param = item type. The actual "take item" path is player-side and goes
 through the published category lists (s15 found the consumers but not
 yet the inventory write — see Open below).
 
+> **2026-06-11 s63 RESOLUTION (overturns the framing):** these kind-0xB
+> records are NOT collectible at all — they are DISPLAY PROPS (the
+> supply-room box/ammo stacks; param = per-area MODEL-TABLE id, not an
+> inventory type). The engine's real collectible items come from the
+> separate DEFERRED-SPAWN REGISTRY `D_0024D820[area][sub]` (0x2C
+> records, behaviors func_0015AFA0/func_0015B030/func_00219550,
+> taken-bit persistence `D_00810860`); the full take path — CROSS-edge
+> use scan archetype 3, the func_0015AE20 take scripts, the
+> func_001B6EA0 → func_001C40B0 inventory write and the D_008106B0
+> status auto-open — is decoded in "ITEM PICKUP SYSTEM FULLY DECODED".
+
 ### 3. `func_001BC350` — door behavior (class-5 double doors, model 3)
 
 Outer lifecycle on +0x04 (0 INIT / 1 RUN / 2-3 FREE). INIT
@@ -5893,6 +5904,15 @@ setting lifecycle 2/3. Persistence/collection state = per-uid word in
 the area state blob (bit 0x40000000) — the inventory-write call site is
 still open (below).
 
+> **2026-06-11 s63 CORRECTION:** the kind-0xB records are display
+> props ("param = item type" is really the per-area MODEL id) and are
+> never collected; pickup persistence is NOT the 0x70003250 collision
+> words but the per-area TAKEN-BIT array `D_00810860` keyed by the
+> deferred-spawn registry's puid. The real collectible-item contract —
+> registry, archetype-3 use scan {10.0, 3.5} desc, take scripts,
+> func_001C40B0 inventory switch, status auto-open — is in "ITEM
+> PICKUP SYSTEM FULLY DECODED" (s63).
+
 **Door contract:** spawn kind 4 class 5|0x80, model 3; closed door arms
 when the player pushes into it (state 0x2D, LOS clear, dist <= 12,
 facing-dot >= ~0.4, nearest wins) *(s58 CORRECTION: arms on a CROSS
@@ -6051,6 +6071,9 @@ re-reads the canonical value every frame. Restored afterward.
   if `0x810C63 >= 99` fold the excess into the reserve (x30) and clamp
   to 98. This is the long-sought **inventory write site** — each SPR4
   magazine pack adds 30 rounds.
+  *(s63: the switch's real function boundary is `func_001C40B0`;
+  its gameplay TRIGGER chain — take scripts → func_001B6EA0 →
+  func_001C47A0 — is decoded in "ITEM PICKUP SYSTEM FULLY DECODED".)*
 - **Reload routine** `0x0017B300(_, mode)`: mode 0 = fill mag from
   reserve only if mag empty; mode 1 = unconditional; else top-up
   (`need = 30 - mag`); mag = min(30, reserve). Confirms 0x810C62
@@ -13041,3 +13064,199 @@ witness + the alarmed-crate timer burst) and EM_DEATH_TEST all PASS;
 the default EM_CAPTURE is byte-identical vs HEAD.
 
 _Last updated: 2026-06-11 (sessions 61–62)._
+
+## ITEM PICKUP SYSTEM FULLY DECODED — deferred-spawn registry, use-scan archetype 3, take scripts, inventory switch, taken-bit persistence; PORT SHIPPED (2026-06-11, session 63)
+
+Static decode of the complete item-collection path (the s15/s18 open
+items "the take path up the player spine" and "who triggers the
+inventory write"), closing PORT_DIFFERENCES headline #2 / Q1 / Q2.
+**The s11/s15/s17 framing is OVERTURNED: the placement tables'
+kind-0xB records are DISPLAY PROPS; the engine's collectible items
+live in a second, previously-unknown per-area registry.**
+
+### 1. The kind-0xB "pickups" are display props
+
+The main placement tables' kind-0xB records (office sub-1: the 7
+class-0x0004 / fn-001C4820 records, params 0x0B/0x0C/0x0D) cannot be
+collected:
+
+- class byte 0x04 carries NO interactive flag 0x80 → never pushed onto
+  the use scan's interactive list (func_001B1B70/func_001B1DE0 gate);
+- `func_001C4820` (re-read) has no +0x0B reader and no take path —
+  INIT/draw/free only;
+- `func_001C40B0` (below) has no other gameplay caller.
+
+They are the supply-room ammo-box/crate STACKS — scenery. Their param
+indexes the PER-AREA model table (`*(D_0028A59C)`; office n1 entries
+0x0B/0x0C/0x0D = the box blobs at file 0xA2700/0xA3000/0xA3900,
+table_entry_offset confirms the s11 blob mapping).
+
+### 2. The DEFERRED-SPAWN REGISTRY (D_0024D820) — where items live
+
+`func_001B6910` (called by the spawner front `func_001B6990` before
+the placement-table walk):
+
+```
+reg = D_0024D820[area]          ; per-area registry (main-ELF array;
+sub = reg[D_00810701]           ;  entries point into ELF .data or the
+                                ;  area overlay)
+func_001B65C0(sub)              ; once-per-(area,sub) latch D_00810B40
+for each group ptr in sub (0-terminated): func_001B6660(group)
+```
+
+`func_001B6660` walks 0x2C-byte records (s16 -1 terminates a group):
+
+```
++0x00 s16  spawn CONDITION (jtbl_0026DEE0, 7 cases — below)
++0x02 u8   puid — persistence uid (0 = never persists)
++0x03 u8   sidx — event-flag/counter index for conds 2..6
++0x04 u16  cls   +0x06 u8 model (take family)  +0x07 u8 ITEM TYPE
++0x08 u16  param = MODEL id   +0x0A u16 uid  +0x0C kind  +0x0E link
++0x10 f32[3] pos   +0x1C f32[3] rot   +0x28 fn behavior
+```
+
+Spawn conditions (jtbl pinned):
+0 = always; 1 = `!func_001B11E0(puid)` (NOT taken); 2 = event flag
+`D_00810758[sidx] != 0xFF`; 3 = event == 0xFF && !taken; 4 = counter
+`D_008107D8[sidx] != 0` && !taken; 5 = event != 0xFF && counter == 1;
+6 = event == 0xFF + the `D_00810778`/param-bit7 pair + !taken.
+
+**TAKEN-BIT PERSISTENCE**: `D_00810860 + 32*area` = u32[8] per area,
+bit = puid. `func_001B1190(puid)` SETS the bit (called by the item
+behavior's free states with actor +0x9A = puid), `func_001B11E0`
+TESTS it (the cond-1/3/4/6 gate). Inside the 0x640-byte game-state
+block (memset at new game, func_001AF2C0). `func_001B64F0` RE-CLEARS
+the bits of class-2 model-1/4/5/7 param-0x40 records at the first
+(area,sub) entry — respawning enemies, not items. THIS array is the
+pickup persistence (the s17 0x70003250 uid words are the separate
+COLLISION-state words — unrelated).
+
+Item records carry behaviors `func_0015AFA0` (+ `func_0015B030`
+linked variant: pose follows actor +0x20) and `func_00219550`. Office
+sub-1's group (`D_002758D8` → 0x825B50): 3 items — type 0x24 CARD KEY
+BETA @(62.2,14,-216.2), 0x20 MTS VACCINE @(88.4,9.7,-269.9), 0x23
+CARD KEY ALPHA @(88.3,9.5,-272.6), all cond 1, library models
+0x58/0x4F. Sub-0: 6 items (incl. upper-floor DOGTAG 13). AREA01 sub-0:
+10 (one cond-3 SPR4 MAGAZINE); AREA06 sub-0: 11 (incl. a cond-1 SPR4
+MAGAZINE — model 0x6C). Item NAMES = message bank group 3 by type;
+group 4 = the literal "Found:\n<NAME>\n<description>" entries.
+
+### 3. INIT + the use-scan ITEM branch (the collection condition)
+
+`func_0015AC00` (INIT): scale by type (0x40..0x6D equipment ids 2.0,
+0x5B 1.5, else 1.0); model bind by EXPLICIT id +0x0D — model&0xF == 1
+→ per-area table `*(D_0028A59C)`, else `func_001B1020` →
+`func_001B0DC0` → the GLOBAL chunk27 library `*(D_0028A56C)` (the
+--gibs/--attach directory!); status = 1, **+0x08 = 3** (the use-scan
+archetype byte — the jtbl_0026D810 dispatch index of func_00183EF0),
++0x30 = `D_00275488` = **{10.0, 3.5}**; aura via func_001F1110
+(class 0/4/5 by model&0xF / type 0x34), per-frame aura draw
+func_001F1180 in the armed handler.
+
+`func_00183EF0` archetype-3 branch (.L00184758, read in full):
+
+1. XZ distance (sqrt) ≤ desc[0] = **10.0**;
+2. dy = player.y − item.y: if dy ≥ 0 require dy ≤ desc[1] = **3.5**,
+   else require |dy| ≤ desc[1] + 17.0 = **20.5** (shelf items above);
+3. FACING — model-byte families: model 0 (and default): within
+   **π/4 of the bearing to the item**, AUTO-PASS at distance ≤ 7.0;
+   model 1: |wrap(π + item_yaw − player_yaw)| ≤ π/4 (the item's
+   front); model 2 + class 7: the wall-mount pitch variant (reads
+   rot.x/rot.z);
+4. return 1 → nearest-by-dist² wins (func_00184BA0) → +0x0B = 4,
+   spad 3B8D = 3. Trigger = the s58 CROSS press edge (same scan as
+   doors). Archetype 4 (.L00184758 shared head) = the π/2 same-yaw
+   variant; archetype 5 (.L00184AB8) = a 14-u ring + |dy| ≤ 4 + side
+   test; 1/2 (.L001845E8/.L001846C8) measure from desc-offset points.
+
+### 4. The ARMED handler and the take scripts
+
+`func_0015AFA0` lifecycle: 0 INIT → 1 `func_0015AE20(actor, blk)` →
+2/3 `func_001B1190(+0x9A)` + `func_001AFC10` (set taken + free —
+the DESPAWN). `func_0015AE20` state 0, when +0x0B & 4:
+
+- player action 0x2D or `D_008104E6` set → queue the INSTANT script
+  `D_00248480`: {op7 subD enter-scripted (spad3B8D=1)}, {op9 CALL
+  `func_001B6EA0`}, {op7 sub4 exit | STOP};
+- else → patch the GRAB ANIM id into `D_00248354` (= rec[+0x14] of
+  the op-A record) by ITEM HEIGHT vs player.y (`D_00810354`):
+  y < py+6 → **0x42 (low)**, y < py+13 → **0x41 (mid)**, else
+  **0x40 (high)** — then queue `D_002482C0` (…, op-A play, op-0 sub-8
+  camera, op-A sub-3 wait-anim-done, the op-9 take, exit | STOP).
+  `func_00219550` queues its own identical pair D_00266620/D_002667E0.
+
+State 1 pumps the script (func_001BA1F0); completion → +0x04++ → the
+free state. Every frame also runs func_001F1180 (aura) + the standard
+publish/draw func_001B17A0.
+
+### 5. The take native + the inventory switch + Found
+
+`func_001B6EA0(actor)` — by take family +0x03 (item type = +0x2E):
+model 0 → `func_001C47A0(type, 1)`: `func_001C40B0` + the FOUND
+request `D_008106B0 = 1`, `D_008106B1 = type`; model 1 →
+`func_001C4720`: MAP array `D_00810CB8[type]++` + request 2; else →
+`func_001C4760`: KEY-ITEM array `D_00810CC3[type]++` + request 3
+(posted only for types ≥ 0x20).
+
+`func_001C40B0(type, n)` — the s18 "0x001C4100" switch's real entry:
+default `count[D_00810C64 + type] += n` cap 99; case **0x10 SPR4
+MAGAZINE**: count += n, packs `D_00810C63 += n`, reserve
+`D_00810CB4 += 30*n`, empty mag `D_00810C62` auto-fills to 30, packs
+≥ 99 fold ×30 into the reserve and clamp 98. Cases 0x11..0x1D feed
+the other weapons' percent pools (D_00810CA8/AA/AC/B0/B2 + battery
+B7 caps). Other gameplay-relevant callers: `func_001AF2C0` (new game:
+type 0x10 ×2, mag 30, reserve 60) and `func_001AD740` (the area-0xB
+special start: 8 packs + recovery/booster items).
+
+**FOUND presentation**: a nonzero `D_008106B0` makes the main-mode
+poll `func_001AE7E0` OPEN THE STATUS SCREEN; `func_0020CDC0` consumes
+B0/B1 and routes by type to the ITEM-page sub-module / database
+record — whose text is the group-4 "Found:" entry. There is NO
+separate in-world toast and no take sound on the path itself.
+
+### 6. Port (extermination-port, this session) + exporters
+
+- `tools/export_level.py --pickups DIR --area A --sub S --overlay …`:
+  marker-delimited scene.txt pickups block — collectible
+  `pickup <type> x y z yaw <uid> <model.emdl>` lines from the
+  registry (uid = (area<<8)|puid; conds 0/1/2 active, 3..6 emitted as
+  story-gated comments) + `pickup … prop` render-only lines for the
+  table's kind-0xB props. The office level bake DROPS the 7 box
+  instances (table_driven_regions; 6475→6315 verts) — they are
+  actors now, same positions.
+- `tools/export_props.py --pickup-items 0x4f,0x58,…`: chunk27-library
+  item models (the --gibs recipe) → `props/item_XX.emdl`; the box
+  props carve with the existing `--crate --crate-id 0x0b/0x0c/0x0d`.
+  All four scenes exported (office sub-1: 3 items + 7 props; sub-0:
+  7; drawbridge: 9 + 1 gated; snow: 11).
+- Port `em_pickup.{h,c}` (full decode ledger + flagged deviations in
+  the header): manifest-placed instances, the archetype-3 scan on the
+  CROSS edge, instant-script take (grab-anim clips 0x40..0x42 not in
+  the player export — flagged), `D_00810C64`-mirror inventory + the
+  case-0x10 pack/reserve math (+30 handed to em_weapon while
+  holstered), `D_00810860`-mirror taken bits (cond-1 respawn
+  suppression in em_pickup_add), em_hud "Found: <name>" line (group-4
+  name through the real font — flagged stand-in for the engine's
+  status auto-open) and the ITEM page's magazine row now reading the
+  real count. EM_PICKUP_TEST (collect → +count/+packs/+30
+  reserve/taken bit; despawn + facing gate; scene reload; taken-uid
+  respawn suppressed; inventory persists) — **PASS**; full suite PASS
+  (slider/locked fail pre-date this work at clean HEAD); captures:
+  default unchanged in view, EM_CAPTURE_SUPPLY shows the supply-room
+  items/props on their shelves, EM_PICKUP_TEST+EM_CAPTURE_FRAME=30
+  shows the Found line.
+
+### Open (s63)
+
+- The grab-anim take variant (player clips 0x40..0x42 need a player
+  re-export; the engine's height-keyed selection is decoded above).
+- Pickup AURAS (func_001F1110 class table + func_001F1180 draw).
+- The engine map/key-item arrays (D_00810CB8/D_00810CC3) fold into
+  the port's single count array — split them when the MAP/EVENT page
+  interiors land.
+- Take-family-1/2 facing variants (model-1 front test, model-2
+  wall-mount pitch path) — bearing test stands in.
+- Conds 2..6 runtime semantics in the port (story flags/counters are
+  not modeled; cond-2 records emit active, 3..6 commented).
+
+_Last updated: 2026-06-11 (session 63)._

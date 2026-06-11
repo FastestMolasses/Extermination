@@ -128,6 +128,11 @@ Usage (macOS arm64, decomp repo root):
       --level extract/chunk06.n1/f03_id43.bin \
       --gsdump extract/gsdump/frame1.gs \
       --out ../extermination-port/assets/scene/00_level.emdl
+  # scene.txt pickups block (collectible items from the deferred-spawn
+  # registry D_0024D820 + the table's kind-0xB display props; s63):
+  .venv/bin/python tools/export_level.py \
+      --pickups ../extermination-port/assets/scene --area 2 --sub 1 \
+      --overlay extract/OVERLAY/AREA02.BIN
   # snow level main zone, textures from save state 01, true world coords,
   # manifest spawn = the live state-01 player position:
   .venv/bin/python tools/export_level.py \
@@ -561,12 +566,17 @@ def table_driven_regions(level_path: Path):
     for e in doors:           # one 2-slot replay per doorway in the table
         regions.append((*RGN_DOOR, "slots",
                         anchor_slots(BLOB_A05C0, e.matrix34())))
-    for rgn, item in ((RGN_CRATE, 0x0B), (RGN_AMMO_C, 0x0C),
-                      (RGN_AMMO_D, 0x0D)):
-        ents = pickups(item)
-        if ents:
-            regions.append((*rgn, "instances",
-                            [e.matrix34() for e in ents]))
+    # 2026-06-11 (pickup decode): the kind-0xB box/ammo-stack records are
+    # NO LONGER baked into the static level mesh — they are emitted as
+    # `pickup ... prop` scene.txt lines (--pickups) and drawn by the
+    # port's em_pickup actor module instead (state-carrying placements,
+    # same positions; models = the per-area table carves
+    # props/box_0b/0c/0d.emdl from export_props.py --crate --crate-id).
+    n_pick = sum(len(pickups(i)) for i in (0x0B, 0x0C, 0x0D))
+    if n_pick:
+        print(f"placements: {n_pick} kind-0xB pickup-prop instance(s) "
+              f"left OUT of the bake (em_pickup actors — scene.txt "
+              f"pickups block)")
     regions.append((*RGN_BATTERY, "instances", [fixture[0x2C].matrix34()]))
     regions.append((*RGN_LOCKERS, "instances", [fixture[0x38].matrix34()]))
     print(f"placements: table-driven from {ov_path.name} @"
@@ -756,6 +766,214 @@ def emit_enemy_manifest(scene_dir: Path, ov_path: Path,
           f"{len(overflow)} overflow"
           + (f"; toggle lines: {_placement_census(per[0])['crawler']} "
              f"(sub-state 0)" if cen["crawler"] == 0 else ""))
+
+
+# ---------------------------------------------------------------------------
+# Pickup manifest emission (scene.txt `pickup` lines) — decoded 2026-06-11
+# (FINDINGS "ITEM PICKUP SYSTEM FULLY DECODED").
+#
+# The engine's COLLECTIBLE ITEMS do NOT come from the main placement
+# tables (D_0024D7C0): they live in the per-area DEFERRED-SPAWN REGISTRY
+#
+#   D_0024D820[area] -> per-sub-state pointer -> 0-terminated GROUP list
+#   -> 0x2C-byte records walked by func_001B6660 (spawner func_001B6910):
+#
+#   +0x00 s16  spawn CONDITION (jtbl_0026DEE0; -1 = end of group):
+#                0 always; 1 if !taken(puid); 2 if event[sidx] != 0xFF;
+#                3 if event[sidx] == 0xFF && !taken; 4 if counter[sidx]
+#                != 0 && !taken; 5 if event != 0xFF && counter == 1;
+#                6 = event == 0xFF + the D_00810778/param-bit7 pair +
+#                !taken.  taken(uid) = bit uid of the per-area TAKEN
+#                ARRAY D_00810860 + 32*area (set by func_001B1190 when
+#                a collected item frees, tested by func_001B11E0).
+#   +0x02 u8   puid (persistence uid; 0 = never persists)  +0x03 u8 sidx
+#   +0x04 u16  cls   +0x06 u8 model (take family)  +0x07 u8 ITEM TYPE
+#   +0x08 u16  param = MODEL id  (model&0xF == 1: per-area table
+#              *(D_0028A59C); else the GLOBAL chunk27 library
+#              *(D_0028A56C) via func_001B1020/func_001B0DC0)
+#   +0x0A..    uid/kind/link/pos[3]/rot[3] as the 0x28 placement record
+#   +0x28 u32  behavior fn — items are func_0015AFA0 / func_0015B030
+#              (linked variant) / func_00219550
+#
+# Emitted manifest line (consumed by the port's em_pickup.c):
+#
+#   pickup <type> <x> <y> <z> <yaw> <uid> [<model.emdl>] [prop]
+#
+# <uid> is GLOBALIZED as (area << 8) | puid so the port can keep one
+# flat taken-bit set with the engine's per-area semantics; uid 0 =
+# no persistence (the engine's own rule). Records whose spawn condition
+# is story-gated false at a fresh visit (3/4/5/6) are emitted as
+# comment lines; 0/1/2 are active (event flags boot to 0 != 0xFF).
+#
+# The main placement tables' kind-0xB records (class 0x0004, behavior
+# func_001C4820 — the office supply-room ammo-box/crate STACKS) are
+# DISPLAY PROPS in the engine: no interactive class flag 0x80, never on
+# the use-scan's interactive list, and func_001C4820 has no take path
+# (s11/s15/s17's "item pickups" framing is OVERTURNED — see FINDINGS).
+# They are emitted as `pickup ... prop` render-only lines (model =
+# props/box_<param>.emdl, the per-area model-table carve;
+# export_props.py --crate --crate-id) so they render as state-carrying
+# actors instead of baked level geometry (table_driven_regions no
+# longer bakes them).
+
+DEFER_PTR_ARRAY = 0x0024D820     # D_0024D820: per-area deferred registry
+OVERLAY_VADDR = 0x00823500       # runtime overlay arena base
+FN_PICKUPS = (0x0015AFA0, 0x0015B030, 0x00219550)
+FN_PICKUP_PROP = 0x001C4820      # display-prop behavior (kind-0xB records)
+PICKUP_COND = {0: "always", 1: "if not taken", 2: "if event[%d] != 0xFF",
+               3: "if event[%d] == 0xFF && !taken",
+               4: "if counter[%d] != 0 && !taken",
+               5: "if event[%d] != 0xFF && counter == 1",
+               6: "if event[%d] == 0xFF (+param bit7 pair) && !taken"}
+PICKUP_BLOCK_BEGIN = ("# --- pickups (export_level.py --pickups, "
+                      "deferred-spawn registry D_0024D820) ---")
+PICKUP_BLOCK_END = "# --- end pickups ---"
+
+
+class AreaMem:
+    """vaddr reader spanning the boot ELF + one loaded area overlay."""
+
+    def __init__(self, elf: BootElf, ov_path: Path):
+        self.elf = elf
+        self.ov = ov_path.read_bytes()
+
+    def read(self, vaddr: int, n: int) -> bytes:
+        if vaddr >= OVERLAY_VADDR:
+            o = vaddr - OVERLAY_VADDR
+            if o + n > len(self.ov):
+                raise ValueError(f"vaddr {vaddr:#x} beyond overlay")
+            return self.ov[o:o + n]
+        return self.elf.read(vaddr, n)
+
+    def u32(self, vaddr: int) -> int:
+        return struct.unpack("<I", self.read(vaddr, 4))[0]
+
+
+def defer_records(mem: AreaMem, area: int, sub: int) -> list[dict]:
+    """All deferred-spawn records of (area, sub), parsed (see the block
+    comment above for the 0x2C layout)."""
+    reg = mem.elf.u32(DEFER_PTR_ARRAY + 4 * area)
+    if not reg:
+        return []
+    sub_ptr = mem.u32(reg + 4 * sub)
+    if not sub_ptr:
+        return []
+    out = []
+    li = sub_ptr
+    while True:
+        grp = mem.u32(li)
+        li += 4
+        if not grp:
+            break
+        r = grp
+        while True:
+            cond, = struct.unpack("<h", mem.read(r, 2))
+            if cond == -1:
+                break
+            raw = mem.read(r, 0x2C)
+            puid, sidx = raw[2], raw[3]
+            cls, = struct.unpack_from("<H", raw, 4)
+            model, itype = raw[6], raw[7]
+            param, uid, kind, link = struct.unpack_from("<4H", raw, 8)
+            pos = struct.unpack_from("<3f", raw, 0x10)
+            rot = struct.unpack_from("<3f", raw, 0x1C)
+            fn, = struct.unpack_from("<I", raw, 0x28)
+            out.append(dict(vaddr=r, cond=cond, puid=puid, sidx=sidx,
+                            cls=cls, model=model, type=itype, param=param,
+                            uid=uid, kind=kind, link=link, pos=pos,
+                            rot=rot, fn=fn))
+            r += 0x2C
+    return out
+
+
+def emit_pickup_manifest(scene_dir: Path, elf: BootElf, ov_path: Path,
+                         area: int, sub: int) -> int:
+    """--pickups DIR: rewrite DIR/scene.txt's marker-delimited pickups
+    block from the deferred-spawn registry (collectible items) plus the
+    main placement table's kind-0xB display props (AREA02 tables only —
+    placements.py KNOWN_TABLES)."""
+    mem = AreaMem(elf, ov_path)
+    recs = defer_records(mem, area, sub)
+    items = [r for r in recs if r["fn"] in FN_PICKUPS]
+
+    block = [PICKUP_BLOCK_BEGIN]
+    block.append(f"# AREA{area:02d} sub-state {sub}: deferred-spawn "
+                 f"registry D_0024D820[{area}] — {len(recs)} record(s), "
+                 f"{len(items)} collectible item(s) (fn 0015AFA0/15B030/"
+                 f"219550).")
+    block.append("# pickup <type> <x> <y> <z> <yaw> <uid> [<model.emdl>] "
+                 "[prop] — type names = message")
+    block.append("# bank group 3; uid = (area<<8)|puid, the engine "
+                 "taken-bit key (D_00810860).")
+    n_active = n_gated = 0
+    for r in items:
+        x, y, z = (f"{v:.6g}" for v in r["pos"])
+        yaw = f"{r['rot'][1]:.6g}"
+        uid = (area << 8) | r["puid"] if r["puid"] else 0
+        if r["model"] & 0xF == 1:
+            model = f"props/area_item_{r['param']:02x}.emdl"
+            src = "per-area model table"
+        else:
+            model = f"props/item_{r['param']:02x}.emdl"
+            src = "chunk27 library"
+        cond = r["cond"]
+        cdesc = PICKUP_COND.get(cond, "?")
+        if "%d" in cdesc:
+            cdesc = cdesc % r["sidx"]
+        line = (f"pickup {r['type']:#04x} {x} {y} {z} {yaw} {uid:#06x} "
+                f"{model}")
+        note = (f"# ^ item type {r['type']:#04x}, model id "
+                f"{r['param']:#04x} ({src}), take family {r['model']}, "
+                f"spawn cond {cond} ({cdesc})")
+        if cond in (0, 1, 2):
+            block.append(line)
+            block.append(note)
+            n_active += 1
+        else:
+            block.append("# STORY-GATED (cond false at a fresh visit):")
+            block.append("#" + line)
+            block.append(note)
+            n_gated += 1
+
+    # Main-table kind-0xB display props (engine: func_001C4820, class 4
+    # WITHOUT the interactive flag — render-only).
+    n_props = 0
+    pl = sys.modules.get("_placements") or _load("_placements",
+                                                 "placements.py")
+    tables = pl.KNOWN_TABLES.get(ov_path.name)
+    if tables and sub < len(tables):
+        ents = pl.parse_table(ov_path.read_bytes(), tables[sub])
+        props = [e for e in ents
+                 if e.kind == 0xB and e.behavior == FN_PICKUP_PROP]
+        if props:
+            block.append(f"# {len(props)} kind-0xB DISPLAY PROPS from the "
+                         f"placement table @{tables[sub]:#x} (engine: "
+                         f"class 4, fn 001C4820 — NOT collectible;")
+            block.append("# the per-area model-table box/ammo stacks, no "
+                         "longer baked into the level mesh):")
+            for e in props:
+                x, y, z = (f"{v:.6g}" for v in e.pos)
+                yaw = f"{e.rot[1]:.6g}"
+                block.append(f"pickup {e.param:#04x} {x} {y} {z} {yaw} "
+                             f"0 props/box_{e.param:02x}.emdl prop")
+                n_props += 1
+    block.append(PICKUP_BLOCK_END)
+
+    mf = scene_dir / "scene.txt"
+    lines = mf.read_text().splitlines() if mf.exists() else []
+    if PICKUP_BLOCK_BEGIN in lines:
+        b = lines.index(PICKUP_BLOCK_BEGIN)
+        e = lines.index(PICKUP_BLOCK_END) if PICKUP_BLOCK_END in lines \
+            else len(lines) - 1
+        lines = lines[:b] + lines[e + 1:]
+    while lines and not lines[-1].strip():
+        lines.pop()
+    lines += block
+    mf.write_text("\n".join(lines) + "\n")
+    print(f"manifest: {mf}: pickups block — AREA{area:02d} sub {sub}: "
+          f"{n_active} active item(s), {n_gated} story-gated, "
+          f"{n_props} display prop(s)")
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -2190,6 +2408,11 @@ def main(argv):
                     help="annotate DIR/scene.txt door lines with decoded "
                     "transition destinations (goto fields) from the boot "
                     "ELF's dest/spawn tables; see annotate_door_goto")
+    ap.add_argument("--pickups", metavar="DIR",
+                    help="rewrite DIR/scene.txt's marker-delimited "
+                    "pickups block from the deferred-spawn registry "
+                    "D_0024D820 (+ the placement table's kind-0xB "
+                    "display props); needs --area/--sub/--overlay")
     ap.add_argument("--camregions", metavar="DIR",
                     help="rewrite DIR/scene.txt's camera-region block "
                     "from the mode-0 director decode (use with --area; "
@@ -2239,6 +2462,13 @@ def main(argv):
         return annotate_door_goto(args)
     if args.door_locked:
         return annotate_door_locked(args)
+    if args.pickups:
+        if args.sub is None:
+            ap.error("--pickups needs --sub (the scene's sub-state)")
+        return emit_pickup_manifest(Path(args.pickups),
+                                    BootElf(Path(args.elf)),
+                                    Path(args.overlay), args.area,
+                                    args.sub)
     if args.camregions:
         return emit_camregion_manifest(Path(args.camregions),
                                        BootElf(Path(args.elf)), args.area,

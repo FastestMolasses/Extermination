@@ -140,6 +140,34 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 63): ITEM PICKUP SYSTEM FULLY DECODED + PORT
+> SHIPPED (FINDINGS "ITEM PICKUP SYSTEM FULLY DECODED"; closes
+> PORT_DIFFERENCES headline #2 / Q1 / Q2 first slices; OVERTURNS the
+> s11/s15/s17 "kind-0xB = item pickups" framing). The placement
+> tables' kind-0xB records are DISPLAY PROPS (no 0x80 flag, fn
+> 001C4820 has no take path; param = per-area MODEL id — the office
+> box stacks). The real items live in the DEFERRED-SPAWN REGISTRY
+> D_0024D820[area][sub] (0x2C records: cond/puid/type/model-id,
+> conds via jtbl_0026DEE0 — cond 1 = !taken; TAKEN BITS = D_00810860
+> + 32*area, set func_001B1190 / tested func_001B11E0 = THE pickup
+> persistence). Collection: CROSS-edge use scan → func_00183EF0
+> archetype 3 (+0x08=3 from INIT func_0015AC00; desc D_00275488 =
+> {10.0, 3.5}, dy window [-20.5,+3.5], pi/4 facing with 7-u auto
+> ring, nearest wins) → armed handler func_0015AE20 queues the take
+> scripts (grab anim 0x42/0x41/0x40 by item height, or the instant
+> D_00248480) → op-9 native func_001B6EA0 → func_001C47A0/4720/4760 →
+> the inventory switch func_001C40B0 (s18's "0x001C4100"; case 0x10
+> = +30 reserve/pack) + the FOUND request D_008106B0/B1 → the status
+> screen AUTO-OPENS at the item's group-4 "Found:" record. Exporters:
+> export_level.py --pickups (scene.txt pickup lines, all 4 scenes;
+> office bake drops the 7 box instances), export_props.py
+> --pickup-items (chunk27 item models) + --crate-id box carves. Port:
+> NEW em_pickup.{h,c} (scan/take/inventory/taken-bits), em_hud Found
+> line + real ITEM-page count, em_game pickup hunks; EM_PICKUP_TEST
+> (collect/+30/despawn/facing gate/reload persistence) PASS; full
+> suite PASS (slider/locked pre-date at HEAD); supply-room capture
+> shows the items on their shelves.
+
 > 2026-06-11 (session 62): ENEMY CONDITION DECODE + PORT FIDELITY FIX
 > (FINDINGS "ENEMY CONDITION DECODE"; closes PORT_DIFFERENCES top-10 #6,
 > rows J1/J2 → match/narrowed). Instruction-level read of func_001551B0

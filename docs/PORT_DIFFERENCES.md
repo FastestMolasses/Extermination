@@ -60,9 +60,15 @@ that session owns its own re-count.)
    fade); the game-over SCREEN is a flagged stand-in (engine module undecoded). The s33
    "event 3" pad write turned out to be INFECTION (+0x22C), not health — the old consume
    was wrong twice over (C12, C14, P3, Q5 all closed).
-2. **No pickups / no inventory** — the engine's most common interactive object
-   (func_001C4820 props, class-4 kind-0xB items, ammo boxes) does not exist in the port;
-   scenes ship without them (Q1).
+2. ~~**No pickups / no inventory**~~ — CLOSED 2026-06-11 s63 (and the premise corrected:
+   the kind-0xB records are DISPLAY PROPS; the real collectibles live in the deferred-
+   spawn registry D_0024D820 — FINDINGS "ITEM PICKUP SYSTEM FULLY DECODED"). The port
+   ships em_pickup: registry items + box props in all 4 scenes, the decoded CROSS-edge
+   archetype-3 collection, the D_00810C64-mirror inventory (case-0x10 +30 reserve/pack),
+   D_00810860-mirror taken-bit persistence, the em_hud Found line (flagged stand-in for
+   the engine's status auto-open). Remaining inside it: grab-anim take variant (clips
+   0x40..0x42 unexported), pickup auras, separate map/key-item arrays, conds 3..6
+   story gating (Q1/Q2 updated).
 3. **Character lighting is a fixed directional stand-in** — the engine's per-room light
    rigs `D_00251C50` + always-on camera light + ≤32 dynamic point lights
    (func_001D89D0/func_001D7FA0, FINDINGS s51) are untranslated; every character in every
@@ -299,7 +305,7 @@ that session owns its own re-count.)
 | L4 | Fonts | 1bpp glyphs streamed from EE RAM into a PSMT4 strip at GS 0x1B00, batched sprite | pre-baked RGBA8 sheet (`font.emfn`), per-glyph quads; placeholder rects at real glyph metrics without the asset | S/V | SI + FS |
 | L5 | Decor | boot-resident sprites (decoded s26); engine blend mode 3 on icons | exported `ui.emui`; standard alpha blend approximates mode 3; nothing queues without the asset | V | SI |
 | L6 | Page navigation | func_0020D930 hover + func_0020CDC0 remap (decoded s39) | skeleton translated (hover/enter/back/close, edge mask 0x830) | — | (match, skeleton) |
-| L7 | Page interiors | item lists, map cursor, weapon customization, database records | NOT modeled: amber "CONTENT TBD" flag strips; ITEM page partial (battery + a PORT-LABEL "SPR4 MAGAZINE" derived count — engine per-type inventory D_00810C64 untranslated); missing page asset → flagged placeholder panel | B/V | UT (flagged) |
+| L7 | Page interiors | item lists, map cursor, weapon customization, database records | NOT modeled: amber "CONTENT TBD" flag strips; ITEM page partial (battery + the magazine row — s63: now the REAL group-4 catalog name × the real D_00810C64-mirror count when em_pickup's array is wired, derived reserve/30 as the array-less fallback); missing page asset → flagged placeholder panel. s63 adds the gameplay "Found:" line (flagged stand-in for the engine's status auto-open at the item record) | B/V | UT (flagged) |
 | L8 | Keypad pages 4/5 | chunks 0x25/0x26, entered via external request byte D_008106C5 | unreachable in the port | B | UT |
 | L9 | Page texture anchors | title art asm-anchored (8,0); tile/legend anchors not statically known | flagged ASSUMED in the exporter | V | SU |
 | L10 | Not composed | page-tab strips, spinning cyan double ring + sparkle emitter | absent | V | UT |
@@ -340,11 +346,16 @@ that session owns its own re-count.)
 From FINDINGS + SUBSYSTEMS.md cluster inventory. Each is a whole subsystem absent from
 the port (beyond the per-module gaps above).
 
-1. **Pickups / item collection** — func_001C4820 placed-prop behavior, class-4 kind-0xB
-   item records (the office "knife pickup" ammo box, s11), category-list publish + the
-   player-side take path, inventory writes. Port scenes contain no pickups at all.
-2. **Inventory system** — the byte-per-type count array D_00810C64 (s18), item usage,
-   healing items, equipment/event items.
+1. ~~**Pickups / item collection**~~ — CLOSED 2026-06-11 s63 (em_pickup; FINDINGS "ITEM
+   PICKUP SYSTEM FULLY DECODED" — the premise corrected: kind-0xB records are display
+   props, the collectibles live in the deferred-spawn registry D_0024D820). Remaining
+   inside it: grab-anim variant (player clips 0x40..0x42 unexported), pickup auras
+   (func_001F1110/func_001F1180), take-family-1/2 facing variants, spawn conds 3..6
+   (story flags/counters unmodeled — emitted as commented manifest lines).
+2. **Inventory system** — PARTLY CLOSED s63: the byte-per-type count array D_00810C64
+   is mirrored (em_pickup, case-0x10 magazine math + the ITEM page's real count row);
+   item USAGE (healing/battery consumption), the separate map/key arrays
+   (D_00810CB8/D_00810CC3) and the equipment/event page flows remain.
 3. **Battery mechanics** — the spend/recharge currency (s21); the port only displays the
    static value.
 4. **Infection mechanic** — PARTLY CLOSED s58: the at-100 consequence (60-HP cap, drain,
@@ -404,9 +415,11 @@ the port (beyond the per-module gaps above).
   damage window [closed s62 — the static decode restored the exact windows],
   D3 wall-rise model [closed s61 — the decoded solver replaced it],
   L3 ring corners, L9 page anchors).
-- Highest-leverage fidelity work, in order: pickups+inventory
-  (Q1/Q2), room lighting (F1),
-  screen-space acquisition (H3), audio pitch/volume (M1/M2). (K2 door triggers: closed
+- Highest-leverage fidelity work, in order: room lighting (F1),
+  screen-space acquisition (H3), audio pitch/volume (M1/M2). (Pickups+inventory Q1/Q2:
+  closed/narrowed s63 — em_pickup ships the decoded registry items, collection,
+  count-array inventory and taken-bit persistence; item USAGE and the map/key arrays
+  remain. K2 door triggers: closed
   s58 — the engine trigger is the CROSS edge and the port now matches for all families.
   D10 engine projection: closed s59 — adopted exactly, verified against the state01
   engine K; H3's screen-space cone is now directly implementable on the real canvas

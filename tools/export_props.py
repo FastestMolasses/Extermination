@@ -302,6 +302,16 @@ Usage (macOS arm64, decomp repo root):
   .venv/bin/python tools/export_props.py --crate \
       --crate-blob extract/chunk03/f13_id15.bin \
       --out ../extermination-port/assets/tendril.emdl
+  # collectible-item pickup models (the deferred-spawn registry's
+  # chunk27-library binds — scene.txt pickup lines, em_pickup):
+  .venv/bin/python tools/export_props.py \
+      --pickup-items 0x18,0x4d,0x4f,0x57,0x58,0x6c,0x72 \
+      --gsdump extract/gsdump/frame1.gs \
+      --outdir ../extermination-port/assets/scene_office0/props
+  # the office kind-0xB box-prop models (per-area n1 table entries):
+  .venv/bin/python tools/export_props.py --crate --crate-id 0x0b \
+      --gsdump extract/gsdump/frame1.gs \
+      --out ../extermination-port/assets/scene/props/box_0b.emdl
   # weapon-visual sprite textures (laser dot + muzzle-flash sheets):
   .venv/bin/python tools/export_props.py --fx \
       --gsdump extract/gsdump/frame1.gs \
@@ -1247,6 +1257,44 @@ def export_gibs(args):
 
 
 # ---------------------------------------------------------------------------
+# Mode 3b: --pickup-items — collectible-item models for em_pickup.
+#
+# The deferred-spawn registry's item records (FINDINGS "ITEM PICKUP
+# SYSTEM FULLY DECODED", 2026-06-11) bind their models by EXPLICIT id
+# through func_001B1020 -> func_001B0DC0 -> *(D_0028A56C) = the GLOBAL
+# chunk27 equipment library (the same 126-entry directory --attach and
+# --gibs read). One static EMDL per requested id, model-local space,
+# exactly the --gibs recipe; the port's em_pickup stamps the placement
+# TRS into every bone slot (the engine's func_001C6380 rigid-prop pose).
+# Texels resolve from the office GS dump (chunk27 sheets are globally
+# VRAM-resident — the same source the gib set uses).
+
+def export_pickup_items(args):
+    d = Path(args.library).read_bytes()
+    ids = [int(s, 0) for s in args.pickup_items.split(",")]
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    rc = 0
+    for mi in ids:
+        sections, tex_table, _n = build_placed_mesh(d, {mi: [lvl.IDENT34]})
+        pos = sections[0][0]
+        if not pos:
+            print(f"  ! item {mi:#04x}: no geometry, skipped")
+            rc = 1
+            continue
+        tex_entries, tex_blob = lvl.build_texture_blob(
+            Path(args.gsdump) if args.gsdump else None, tex_table)
+        out = outdir / f"item_{mi:02x}.emdl"
+        en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
+                      tex_entries, tex_blob, flags=1)
+        ys = [p[1] for p in pos]
+        print(f"item {mi:#04x} -> {out}: {len(pos)} verts, "
+              f"{len(sections[0][2]) // 3} tris, "
+              f"Y[{min(ys):.1f},{max(ys):.1f}]")
+    return rc
+
+
+# ---------------------------------------------------------------------------
 # Mode 4b: --fx — the weapon-visual sprite textures (see "FX SHEETS" in the
 # module docstring): the laser-dot sprite + the three muzzle-flash sheets,
 # written as raw-RGBA .emtx files for the port's textured beam pass.
@@ -1519,6 +1567,12 @@ def main(argv):
     ap.add_argument("--gibs-outdir", default="../extermination-port/assets/gibs",
                     help="(--gibs) output directory (git-ignored, "
                     "disc-derived)")
+    ap.add_argument("--pickup-items", metavar="IDS",
+                    help="export these chunk27-library model ids "
+                    "(comma-separated, e.g. 0x4f,0x57,0x58) as static "
+                    "item_XX.emdl files into --outdir — the collectible-"
+                    "item models the deferred-spawn registry binds by "
+                    "param (em_pickup; scene.txt pickup lines)")
     ap.add_argument("--cone", action="store_true",
                     help="export the chunk27 LIGHT-CONE mesh (entry 0x10) "
                          "as a static EMDL for the port's flashlight cone "
@@ -1596,6 +1650,8 @@ def main(argv):
 
     if args.gibs:
         return export_gibs(args)
+    if args.pickup_items:
+        return export_pickup_items(args)
     if args.fx:
         return export_fx(args)
     if args.cone:
