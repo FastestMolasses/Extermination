@@ -10611,6 +10611,123 @@ this section is the requested verification record.
 - All port self-tests PASS (weapon/melee/enemy 1-5/door/transit/sfx/
   move/pause/input); default capture byte-identical (6d23fe44...).
 
+## STATUS-MENU UI SCENE DECODED — the rotating player model (2026-06-11, session 49)
+
+Static decode of the status screen's 3D scene — what the identity UI
+camera (s25) actually looks at: `func_0020CDC0` state 0's scene setup,
+the menu-player static-actor behavior `func_0020E6F0`, the equipment
+companion spawner `func_0020E250` and the matrix publisher
+`func_0020EC80`. Closes the s44 open item "the rotating player model on
+the black UI scene stays the port's documented 3D-in-UI TODO" — the
+port now ships it.
+
+### Scene setup (func_0020CDC0 state 0)
+
+- On open the hub clears the 24-slot STATIC actor array `D_0028B020`
+  (0x2F0 each, s15's second registry): `func_001AFEB0` frees every live
+  slot (`func_001AF800`), `func_001AFE60` memsets all 24; `func_0020E020`
+  zeroes the 16-slot sparkle pool `D_00821300`. The static array is the
+  menu's private stage.
+- `func_001AFF10` allocates the first free slot (status=2, scale rows
+  1.0, +0x94=-1); the hub installs behavior **`func_0020E6F0`** at +0x10,
+  then calls `func_0020E250`.
+- `func_0020E250` spawns COMPANION actors (behavior `func_0020E460`) for
+  the equipment display: base entries `func_0020E3A0(-1)` and `(0x10)`,
+  plus weapon-conditionals (`D_00810CA4`==2 → 0xC; ==0 → 0xA +
+  `D_00810CA6`; else `D_00810CA5/CA6/CA7`, and `D_00810CA6`==4 adds
+  0x15 — the fuel tank). `func_0020E3A0` maps id+2 over
+  `jtbl_002735D0` → GLOBAL model-library ids (0x2F..0x3D/0x40/0x6D);
+  `func_0020E1E0` allocs a slot and binds the model from `D_0028A56C`
+  (`func_001C6120` + `func_001CA6E0`), bone count → +0xC, source id →
+  +0xD.
+- `func_001B0000` ticks the static array every hub/page frame, BEFORE
+  the input scan (`func_0020D930`) and the panel drawer
+  (`func_00209DF0`) — so the 3D scene draws under the background tiles
+  (func_0020A7A0, s44) and the panels.
+
+### The menu player (behavior func_0020E6F0, 0x58C — state byte +0x04)
+
+**State 0 (init):**
+
+- model from the PLAYER VARIANT table: flag `D_008104E4`==0 →
+  `D_00810C60` 1→`D_0028A588`, 2→`D_0028A58C`, else→`D_0028A57C`;
+  flag==1 → 1→`D_0028A588`, 2→`D_0028A58C`, 0/else→`D_0028A590`;
+  flag>1 → `D_0028A584`. Bind `func_001CA6E0`; bone count
+  `func_001C6150` → +0xC/+0x09; bone matrix slots `func_001AF7C0` →
+  +0x110[i]; `anim_bone_array_setup`.
+- +0x40 = `D_0028A580` — the player clip library (chunk28/f01_id3c).
+- clip on DISPLAYED health `D_00810858`: **> 35.0 → clip 0x1C2 (450),
+  <= 35 → clip 0xA (10)** via `bone_init_default_2`; +0x0B records which.
+  **Clip 0x1C2 is a SINGLE-FRAME container** (verified at the resolver:
+  1 frame) — the healthy menu player is a STATIC STANCE; all motion is
+  the turntable yaw. Clip 0xA is a 90-frame weak/low-health idle.
+- `func_001CA5F0(actor, 0xB)`.
+- infection tint vec +0x80 (vec4; alloc default 1.0) =
+  `(-0.8, -1.0, -0.3, 0) * D_0081085C` (constants 0.01·(-80/-100/-30);
+  infection display copy) — a GS 128-base color DELTA; ramp +0x38 = 1.0.
+- rotation +0xC0 = **(0, pi, 0)**; position +0xB0 = `M[3] + 40.0*M[2] +
+  7.4*M[0] + 2.4*M[1]` over the view-matrix columns at `D_00810610` —
+  with the identity UI camera (set on open, s25) that is **view-space
+  (x 7.4, y 2.4, z 40)**: right of axis, slightly below the eye line
+  (GS y-down), 40 units in front. Scale is NEVER written (stays the
+  alloc's 1.0). State → 1.
+
+**State 1 (run, every frame):**
+
+- ramp +0x38 breathes **1.0 ↔ 1.3 at ±0.01/frame** (direction flag
+  +0x05) — 2 s full cycle;
+- tint re-derived: +0x80 = -0.8·i·ramp, +0x84 = -1.0·i·ramp **clamped
+  >= -127.0**, +0x88 = -0.3·i·ramp — at infection 100 the delta swings
+  to ~(-80..-104, -100..-127, -30..-39): the pulsing dark blue-purple
+  "infected" skin;
+- **yaw +0xC4 += 0.01 rad/frame**, wrapped > pi → -= 2*pi: one full
+  revolution every ~628 frames ≈ 10.5 s;
+- clip swap-back only: displayed health back > 35 while +0x0B==1 →
+  `anim_clip_init(actor, 0x1C2, 16.0, 0.0)`, +0x0B=0 (nothing swaps TO
+  0xA mid-open — only init picks the low clip);
+- `anim_advance_time(actor, 1.0)`; publish via `func_0020EC80`.
+
+**States 2/3:** `func_001AFF90` — free the slot.
+
+### The publisher (func_0020EC80)
+
+World matrix built in scratchpad: rotX(+0xC0)·rotY(+0xC4)·rotZ(+0xC8)
+(funcs `0x102B08/0x102BB0/0x102A60`) composed with **diag(-1,-1,-1)**
+and an EXTRA rotY(pi), translation from +0xB0 (`func_001031E0`), copy
+to spad 0x36A0, submit `func_001C69A0`. The basis flip + extra Y-pi
+make the +0xC4=pi init face the camera upright in the y-down identity
+view. When `D_008104E4`==1 it also writes a color triple
+(3.2, -1.5, -0.6) to spad 0x700038A0 — the infected-variant override.
+
+### Port (extermination-port s49)
+
+- `assets/player.emdl` re-exported with the menu clips appended
+  (`--clips ...,0,450,10`; byte-verified superset — verts/indices/
+  textures/old palette+clip table identical prefixes; 450 bakes as
+  1 frame, 10 as 90).
+- em_game renders the UI-CAMERA 3D SCENE in place of the world whenever
+  the status screen is visible AND the active sheet carries a BACKDROP
+  record (em_hud_backdrop_ready): a black fullscreen BACKPLATE quad
+  (drawn through em_gfx_draw_skinned_tinted black — the engine's black
+  UI frame) + the player at the decoded transform (view-space
+  (7.4, -2.4, 40) under the port's y-up remap, yaw pi + 0.01/frame,
+  scale 1, menu pose 450 / low-health idle 10 at <= 35 displayed
+  health, multiplicative approximation of the additive infection
+  pulse). em_hud_scene_3d() tells the background drawer to skip its
+  opaque base fill so the player sits between the black frame and the
+  translucent tile layers — the engine's draw order exactly.
+- Engine values NOT carried: the GS projection scale (the port projects
+  with its own 50-deg perspective, so the model's screen anchor drifts
+  with window aspect — flagged in em_game.c), the equipment companion
+  actors (func_0020E250's separate models; the port's player mesh
+  already carries the attached weapon), and the engine's time-seeded
+  pulse rand (the port background keeps its fixed-seed LCG).
+- Spin phase is deterministic for captures: state re-inits on every
+  open/force edge (yaw = pi), advancing 1 tick per rendered frame —
+  EM_HUD_FORCE captures at frame N always sample yaw = pi + 0.01*N.
+
+_Last updated: 2026-06-11 (session 49)._
+
 ## MODE-0 CAMERA DIRECTOR func_00195130 DECODED — fixed room cameras are MAIN-ELF data (2026-06-11, session 50)
 
 Static decode of the mode-0 area-camera director (cut-table mode 0,
@@ -10713,4 +10830,122 @@ with a FLAGGED SYNTHETIC office region (the office has no real ones):
 enter→eye at spec exactly, L1 no-op, aim moves the eye >6 u, release
 snaps back within 2 frames — PASS; default capture byte-identical.
 
-_Last updated: 2026-06-11 (session 50)._
+## FLASHLIGHT RENDER DECODE — the toggle draws NOTHING; the engine's whole vertex-lighting chain decoded instead (2026-06-11, s51)
+
+Closes the s47 flagged TODO "decode how the engine renders the light when
+ON (player +0xA / D_00810D3C)". Static-only session (no live capture);
+method: exhaustive reader sweep of both flags across the full boot-ELF
+.s tree + the 19 overlay trees, then a decode of the render-side light
+pipeline those sweeps led into.
+
+### 1. VERDICT — no render-side consumer exists
+
+- **`D_00810D3C` (gun-light arm, SQUARE-in-aim)**: its only readers in
+  the entire image are the toggle itself (`func_0017A970` att 0), the
+  rifle-draw sound replay (`func_0016F530`: att==0 && D3C -> replay
+  0x179 + voice latch), and the inventory reset (`func_001AF2C0`).
+- **player `+0xA` (shoulder light, L3)**: no static reader goes through
+  the player base symbol at all (`D_008102BA` never appears; register-
+  tracked scan of `%lo(D_008102B0)`-derived bases finds zero `+0xA`
+  loads). Every `lbu +0xA / andi 1` consumer is ENEMY-AI entity logic
+  (0x128C10, 0x12A5D0, 0x12EB60, 0x1333F0, 0x138900, 0x138C20,
+  0x13D850, 0x13D980, 0x1418F0, 0x1469B0, 0x147960, 0x147B50,
+  0x14BB10): the light flag feeds DETECTION. `func_001418F0` (callers
+  0x13D850/0x13D980/0x13DD40) is the clean read: player light ON ->
+  awareness `+0x70 = 0xF0` instantly; light OFF -> atan2 to the camera
+  (`D_00275B40->0x3C` pos), `func_001B3F10(player, angle, 12.5)` view-
+  cone test, ramp `+0x78` against a difficulty threshold
+  (`D_002753C8[D_0081050C & 3]`). The remaining flag plumbing is the
+  s28b-decoded SM (`func_00161020`: 0x12C burst, off-anim 0x15D) plus
+  the anim-row substitution (`func_001B0070()&4` -> locIdx+0x10
+  light-carrying poses; bit 2 of the per-AREA flags word `D_008106C8`,
+  loaded from the area table at `func_001B0250`, +0x1C of the entry).
+- Overlays: no overlay references D_00810D3C, the player base, or the
+  light-registration API below. **The flashlight's player-visible
+  "light" in the real game is not a drawn beam/cone/sprite at all** —
+  it is (a) the pose change, (b) the always-on camera light below, and
+  (c) gameplay (enemies notice you). The port's visible cone is
+  therefore a DOCUMENTED DEVIATION (see §4).
+
+### 2. NEW — the per-actor VU1 light matrix chain (the s7b "light rows")
+
+The 4-qw upload to VU1 dmem **0x3F5 = qw 1013..1016** (the skinning
+kernel's lighting matrix) is built per actor per frame:
+
+- `func_001C7420(actor, dmem=0x3F5, idx)` — emits the draw-unit CNT:
+  4 qw from scratch `D_70003440` -> dmem 0x3F5, then the per-node
+  7-qw {transform + normal-matrix} sets -> dmem 0 (all callers pass
+  0x3F5; the multi-set level variant `func_001C7900` ditto via
+  `func_001D88B0`).
+- `func_001D89D0(actor, out3400, out3440, actor+0x80)` — THE BUILDER:
+  - lighting-override mode `[D_00275670+0x246C]` (set by
+    `func_001D8C20(mode)` from each draw class; modes 1/3/4/5/6 ->
+    `func_001D8C30` jtbl 0x0026E520 special paths, menu/cutscene rigs).
+  - light reference point: `actor+0x98` node idx (0xFF -> actor+0xB0
+    position, else node world matrix `[actor+0x110[idx]]+0xC0`).
+  - `func_001D8130` — copies the CURRENT ROOM's light rig into the
+    working set `D_00817BC0` (ptr mirror `D_00275688`): rig source =
+    `func_001D7B30` lookup of `(area<<8)|room` (`D_00810700/701`) in
+    the 45-entry x 0x78 static table **`D_00251C50` = the per-room
+    light-rig table** (3 directions + 3 colors + ambient, +0x1C..+0x70
+    of the record).
+  - `func_001D8340(actor, out, out, flag, point)` — composes 3
+    directional rows + color rows. **Light slot 0 is special: when
+    `flag` (= actor byte +0x2 bit 0x20) is set, its direction is
+    replaced per-frame by the CAMERA VIEW DIRECTION** (transform of
+    `D_00810610`, the camera lookat matrix written by the camera update
+    `func_0018C0D0`); when clear, slot 0 is zeroed. Then up to **32
+    DYNAMIC POINT LIGHTS** (slots at `[D_00275670]+0x220`, stride 0x80:
+    +0x10 pos, +0x2C intensity, +0x20/0x40 color rows; constants
+    `D_00253170/80`) contribute distance-attenuated terms
+    (0.1 * intensity / max(dist,1), x10 dir / x2 color, via the
+    `func_001D8270(actor)` gate).
+  - `func_001D8690` folds direction rows into the actor frame
+    (`actor+0x80`); actor flag +0x2 bit 0x40 adds a self-glow color
+    term (`64 * actor[+0x80..0x8C]` onto matrix row 3).
+- **`func_001D8BF0(actor, on)` = set/clear the camera-light flag** (+0x2
+  bit 0x20). The PLAYER gets it ONCE at init (`func_001AF5C0`, which
+  also zeroes the 0x320-byte player struct) — i.e. the protagonist
+  carries an ALWAYS-ON camera-following fill light; NPC spawners
+  (`func_001BA540/8E0/D40`, `func_001C1030`) set it on other
+  characters. It is NEVER keyed to the flashlight flags.
+- **Dynamic-light API**: `func_001D7BB0` clears the 32 slots each frame
+  (caller `func_001D19E0`), then `func_001F68B0`/`func_001F6E40`
+  register the room's PLACED lights (per-room lists, tables
+  `D_0025D270/D_0025D2C0`, colors `D_0026EB70[type]`) and effects add
+  theirs (`func_001EF9D0` -> `func_001D80E0/0x1D8100` presets;
+  `func_001C50B0`, a behavior-installed flicker-light actor with
+  per-room color cases keyed `(area<<8)|room`, random-walk intensity).
+  Register = `func_001D7FA0(pos, color, type, ...)` -> slot handle;
+  release = `func_001D80B0(handle)`.
+- LEVEL geometry never goes through any of this: it streams baked
+  vertex colors through its own kernel (s7/s13 findings stand).
+
+### 3. Bonus identifications (en route)
+
+- `D_008106C8` = the per-AREA FLAGS WORD (area-table +0x1C via
+  `func_001B0250`; `func_001B0070` is its getter — bit 2 = "dark area"
+  pose substitution, bit 0x80 fog/depth-fade, weather bits per s13).
+- `func_001AF5C0` = player-actor init (zeroes 0x320 bytes, sets the
+  +0x90 matrix mirrors, camera-light flag on).
+- `func_0018C0D0` = camera commit: writes the lookat `D_00810610`
+  (+ scratch eye/target `D_700038A0/D_700038C0`, yaw `D_008106A0`).
+- `func_001551B0` = the alarm broadcaster that walks the actor list
+  (`+0x1C` next) setting `+0xA = 1` on matching types — the s33
+  "group-alarm" writer (NOT the player light; +0xA is per-behavior).
+
+### 4. Port (extermination-port, same session)
+
+`em_gfx_spot_light` (em_gfx.h + Metal backend): one per-frame forward
+SPOT term in the skinned shader, applied to both the directional
+stand-in path (characters, N.-L-wrapped) and the baked-vertex-color
+LEVEL path (pure projected cone -> the light disc on the wall);
+em_weapon sets it each update from the hand-frame muzzle ray while the
+flashlight flag is on (`EM_CAPTURE_LIGHT=1` capture knob). Engine truth
++ deviation documented at the API and in em_weapon.h "RENDERING". The
+off state is bit-exact: spot-off frames reproduce the historical
+default capture hash (the o.pos expressions were kept byte-identical —
+reworking them flipped rasterizer edge pixels, caught and reverted).
+All port self-tests + make test-input/test-weapon PASS.
+
+_Last updated: 2026-06-11 (session 51)._

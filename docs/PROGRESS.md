@@ -136,6 +136,60 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 51): FLASHLIGHT RENDER DECODE + port spot light
+> (FINDINGS "FLASHLIGHT RENDER DECODE"). Verdict: the toggle draws
+> NOTHING in the boot ELF — exhaustive reader sweeps of D_00810D3C
+> (toggle/sound-replay/inv-reset only) and player +0xA (enemy-AI
+> detection only: func_001418F0 sets awareness +0x70=0xF0 when the
+> light is ON, else a 12.5-deg camera view-cone ramp; 13 entity-logic
+> readers; overlays clean). En route, the whole per-actor VERTEX
+> LIGHTING chain is now decoded: draw-unit light matrix (VU1 qw
+> 1013..1016) = func_001D89D0 → func_001D8130 (per-room rig table
+> D_00251C50, key (area<<8)|room) + func_001D8340 (slot 0 = CAMERA-
+> direction light gated on actor +0x2 bit 0x20 — set ONCE for the
+> player at init func_001AF5C0 via func_001D8BF0; ≤32 dynamic point
+> lights at ctx+0x220, register/release func_001D7FA0/func_001D80B0,
+> room lamp lists D_0025D270/2C0 + effect lights) + func_001D8690
+> fold; D_008106C8 = per-AREA flags word (bit 2 = dark-area poses).
+> PORT (deviation, documented at em_gfx.h + em_weapon.h "RENDERING"):
+> em_gfx_spot_light forward spot term in the Metal skinned shader
+> (characters N.-L-wrapped; level path pure projected cone — the disc
+> on the wall), set per frame from the hand-frame muzzle ray while the
+> flashlight flag is on; EM_CAPTURE_LIGHT=1 capture knob. Off state
+> bit-exact (default capture 6d23fe44 reproduced; o.pos expressions
+> kept byte-identical after an edge-pixel regression was caught). Also
+> verified+landed the Alt walk-gait cap fix: cap 0.8 (raw ~102, mid of
+> the TRUE walk band 88<r<=122; the suggested 0.54 lands in the gait-1
+> turn-in-place ring) with vector-magnitude diagonal normalization,
+> em_input.h docs + engine-quantizer asserts in tests/input_test.c.
+> All port self-tests + test-input + test-weapon PASS.
+
+> 2026-06-11 (session 49): STATUS-MENU UI SCENE — the rotating player
+> model decoded and shipped in the port (FINDINGS "STATUS-MENU UI SCENE
+> DECODED"). func_0020CDC0 state 0 clears the 24-slot static actor
+> array (the menu's private stage), allocs the menu player (behavior
+> func_0020E6F0) and spawns equipment companions (func_0020E250 →
+> func_0020E460, model ids via jtbl_002735D0). func_0020E6F0: identity-
+> UI-camera view-space placement (7.4, 2.4, 40) (scale untouched = 1.0),
+> rot init (0, pi, 0), yaw spin 0.01 rad/frame (~10.5 s/rev); clip
+> 0x1C2 when displayed health > 35 — a SINGLE-FRAME stance (the menu
+> player is a static pose turntabling) — else the 90-frame low-health
+> idle 0xA, swap-back at recovery via anim_clip_init(0x1C2, 16.0);
+> infection tint delta (-0.8,-1.0 clamp -127,-0.3)·infection·ramp with
+> the ramp breathing 1.0↔1.3 ±0.01/frame; publisher func_0020EC80 =
+> rotXYZ · diag(-1) · rotY(pi) + spad submit, infected-flag color
+> override (3.2,-1.5,-0.6). PORT: player.emdl superset re-export
+> (+clips 450/10); em_game draws the UI scene (black backplate quad +
+> player at the decoded transform) in place of the world whenever the
+> status screen is visible and the active sheet has a BACKDROP record;
+> em_hud skips its opaque base fill that frame (em_hud_scene_3d /
+> em_hud_backdrop_ready) so the player sits between the black frame
+> and the translucent tile shimmer, under every panel — the engine's
+> draw order. Deterministic spin under EM_HUD_FORCE (yaw = pi at the
+> open/force edge, +0.01/rendered frame). Engine GS projection scale
+> still undecoded — the port projects at its own 50 deg (model anchor
+> drifts with window aspect; flagged).
+
 > 2026-06-11 (session 47): WEAPON FIDELITY WAVE — semi cadence decoded,
 > L3 gate, flashlight identity, anim-id verdicts (FINDINGS "WEAPON
 > FIDELITY PASS"). (1) func_00170A60 .s re-read: the SEMI family HOLDS
