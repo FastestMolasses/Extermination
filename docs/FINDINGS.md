@@ -13927,4 +13927,197 @@ retracted; nothing re-seats at "+29" explicitly.
   caps) reproduces the HEAD capture byte-identically, so the walk
   machinery is idle-invisible, engine-true.
 
-_Last updated: 2026-06-11 (session 67)._
+## CREATURE IDENTITY CORRECTION — crates hatch BUGS (a 15-node insectoid), not worms; the chain creature is a pad-ambush emergent (2026-06-11, session 68)
+
+Rigorous re-decode of the two creature identities, prompted by user
+domain knowledge (the plot's virus multiplies in WATER; crates are
+supposed to burst into CRAWLING BUGS, not worms). Static decode of the
+nest registries + the two previously-unread brains, with every binding
+content-verified against save-state-01 EE RAM. **The port's current
+crate-hatch binding (burst → kind-0xD worm, PORT_DIFFERENCES J7) is an
+INVENTION and is wrong on both model and brain.** The worm itself was
+correctly decoded (s22/s62/s66) but mis-assigned to the crate.
+
+### 1. The NEST registry decoded exactly (closes the s23 open item)
+
+`func_001551B0` INIT (0x1553C8) and state-2 (0x155FD4) resolve, read
+off the instructions:
+
+```
+area  = D_00810700
+base  = D_0024A850[area]   (s16; 0 -> use 1)     ; FIRST NEST-GROUP index
+group = *( D_0024D820[area] + 4*(base + link) )  ; link = placement +0x56 (>=0)
+```
+
+i.e. **the "nest registry" IS the s63 deferred-spawn registry
+`D_0024D820`**: one per-area pointer array whose first `base` entries
+are the per-sub-state group lists (the item system, s63) and whose
+entries from `base` on are NEST GROUPS indexed by crate link. Same
+0x2C-byte record format as s63 (cond/puid/sidx/cls/model/typ/param/
+uid/kind/link/pos/rot/behavior). `D_0024A850` (s16[23]) and
+`D_0024D820` (ptr[23]) dumped: areas 5/9/10/12 have no registry;
+office base=3, AREA22 base=0(→1).
+
+- **s22/s62 wording corrected**: `func_001B11E0(rec+0x2)` is NOT a
+  "model-resident check" — it is the s63 TAKEN-BIT test, and rec+0x2
+  is a **puid**. Killed hatchlings set their bit (both brains call
+  `func_001B1190(+0x9A)` in their death path) and never respawn;
+  INIT counts un-taken records and arms the nest (+0x238=-1) only if
+  any remain, else clears placement flag +0x0E bit0.
+- State-2 child copy (field→actor): puid→+0x9A, rec[6]→+0x3 (model
+  byte), rec[7]→+0x2E, **rec[8]→+0x0D (param)**, cls==2 →
+  {+0x9D=current sub-state, +0x9E=rec[0xA]} else rec[0xA]→+0x0E,
+  kind/link→+0x54/+0x56, pos+=parent, rot, **behavior rec[0x28]→+0x10**.
+
+### 2. What the nests actually spawn — full 19-area survey
+
+Every area's crawler placements (behavior 0x001551B0) cross-checked
+for nest links, every referenced group parsed:
+
+| area | nest-linked crates | children per group | behaviors |
+|---|---|---|---|
+| 02 office | 5 (links 0–4; same in sub-0 and sub-2 tables; 12 more crates link −1 = gore-only) | 2,2,3,2,2 (puids 121–131) | `func_00128C10` (param 5) / `func_0012A5D0` (param 4) |
+| 03 | 1 (link 0) | 1 ITEM + 2 bugs | `func_0015AFA0` (type 0x20 MTS VACCINE, lib model 0x4F) + `func_0012A5D0` ×2 |
+| 06 | 1 (link 1) | 1 ITEM only | `func_0015AFA0` (type 0x1F, lib model 0x4E) |
+| 22 | 1 (link 0) | 3 bugs | `func_00128C10` (params 1,1,5) |
+
+**NO nest record anywhere installs `func_00153F10` (the worm).**
+Exhaustive: raw-word scans of all 19 overlays AND the main-ELF data
+segment find zero `0x00153F10` / `0x001546C0` pointers — the worm's
+ONLY installer in the whole image is `func_0015A200` (the generator
+helper). Crate bursts spawn the BUG brains (or items); some crates
+hide pickups (the AREA03 vaccine crate is a nice design beat). The
+bug-brain pointers (`0x00128C10`/`0x0012A5D0`) appear in the
+deferred-spawn registries of areas 00,01,02,03,04,06,07,08,13,16,18,
+19,20,22 (200+ records — most are ordinary per-sub-state room spawns,
+not nests): **the bug is the game's ubiquitous enemy**.
+
+### 3. The hatchling's true model — global slots 0x0F/0x10 + clip bank 0x11
+
+Both brains INIT through the shared `func_00128AB0`:
+`func_001B10B0(actor, D_00810788==0xFF ? 0x10 : 0x0F, 0x11)` — the
+GLOBAL creature array `D_0028A490` (s23), NOT the per-area model
+table. The child's param (4/5/9/…) is a **placement-POSE code**
+(`func_00129780`, jtbl_0026CFA0 cases 0..0xC: floor/wall/ceiling
+attach probes; office crates use poses 4/5; param bit7 → animctx+0xE0
+flag, stripped). Slot→file content-match verified in state-01 RAM
+(`*(0x28A490+4*slot)` blobs == files, 4 KiB compared):
+
+- slot 0x0F = `extract/chunk03/f07_id0f.bin` — bug mesh A
+- slot 0x10 = `extract/chunk03/f08_id10.bin` — bug mesh B
+- slot 0x11 = `extract/chunk03/f09_id11.bin` — the shared clip bank
+
+`D_00810788` is **event flag 0x30** (`D_00810758+0x30`; readers
+func_001B0250/001B65C0/001BA8E0/001FC280) — a story-stage swap:
+variant A until the event posts 0xFF, then variant B.
+
+### 4. The BUG described (it has legs)
+
+Same 15-node rig in both variants (parents
+`[-1,0,1,1,2,3,2,2,2,2,4,5,5,10,13]`): b2 = thorax (26 verts),
+**4-segment tail chain** b4→b10→b13→b14 reaching z −3.9, head b5 with
+two thin antennae/mandibles b11/b12 (4 verts each), and **two
+left/right leg-cluster pairs b6..b9** hanging off the thorax (13/13/
+8/8 verts). 148–150 verts, 122 tris, 8 small textures; flat low body
+~3.7 wide × 1.9 tall × 8.9 long (authored; no runtime scale write —
+renders ~half a crate's height long). Variant A (0x0F) skin: grey-blue
+segmented CHITIN carapace with a central ridge + glowing pink
+underbelly slit; variant B (0x10): ribbed RED FLESH with dark spines —
+the late-game "infected" look. **This is the crawling bug.**
+
+- **HP**: `func_00128390` — 15 (A) / 30 (B); 30/50 when difficulty
+  byte `D_0081070A` is set. **The bug consumes the +0x36 damage
+  mailbox** (`func_00128B80` polled every tick by both brains;
+  hurt/death handler `func_00129FC0`, death/flinch clips
+  0x1B/0x1D/0x20) — a genuinely shootable enemy, unlike the worm
+  (s66: not shootable).
+- Both brains are in the s51 **player-light reader list** (`lbu +0xA`)
+  — the bug participates in the light-based detection curiosity.
+- Clip bank: **36 containers** (the worm has 4). Ids referenced by the
+  brain family span 1..0x21; init clip = 1 = the 90-frame in-place
+  WALK (leg cycling, flat body); 7/8/10/12/13/17/19 = hop/lunge moves
+  (body rises 1–5 u, 3–5 u travel); 21/28 = motionless holds (death
+  poses). Containers 14,16,20,22,23,27,33,34 use the **non-sentinel
+  header variant the anim decoder cannot bake yet** (same wall as the
+  player-library ids 54/94/115/375) — flagged, includes used ids
+  0xE/0x10/0x14/0x1B/0x21.
+- Two AI variants: `func_00128C10` (0xB6C — simpler; office pose-5
+  pair) and `func_0012A5D0` (0x7F0 + a 14-case sub jtbl and a dozen
+  move helpers `func_0012ADC0..0012E070` — the fuller floor bug;
+  office pose-4 groups). Brains uncharacterized beyond INIT/damage —
+  future session.
+
+### 5. Placement model bytes 6/0x1C/0x1E — "behavior tag" verdict now rigorous
+
+The office n0 model table (concat 0x373800, s28/s34) has **27 entries
+(ids 0x00–0x1A): ids 0x1C/0x1E DO NOT EXIST**, and id 6 is a 1-block
+1-node ~10×10×5 prop shape (no rig, no legs). AREA11's table (21
+entries) can't hold them either. So the crawler placement model bytes
+6/0x1C/0x1E (and 0x1F/0x50) index NOTHING in any area model table —
+they are exactly what s23 said: behavior-variant tags (heading
+constant, hop timer, gore pick, alarm whitelist). The crate husk
+binding stays param→table-id 0x0D.
+
+### 6. The chain creature re-read — an ambush emergent, not a crawler
+
+Fresh-eyes pass over `chunk03/f12_id14` (24-node chain) + its 4 clips,
+baked node trajectories:
+
+- **clip 0 ("crawl/stalk loop", 239 f): there is no crawl.** Chain
+  nodes 0–4 (the base) are PLANTED (amp ≈ 0 at floor height); the
+  body rears UP along the chain (mean heights climb 0 → ~20 u) and
+  the head end weaves laterally/vertically (amp 2–4 u). It is an
+  anchored, reared, swaying posture — a tentacle/lamprey stance.
+- **clip 1 (emerge, 90 f): the body starts ~40 u BELOW the floor**
+  (mean Y −20, amp 39) and rises out — it erupts from under the
+  surface (the generator pad it spawns at).
+- clip 2 (windup, 45 f): same below-surface range (rears back/down);
+  clip 3 = the 42-u lunge (s23).
+
+Combined with s28 (spawned ONLY by mode-2 generator pads — organic
+infected growths — at the pad origin), s62 (born attacking, no idle,
+latch-drain damage, missed lunge = silent despawn, i.e. it sinks
+back), and s66 (not shootable): this creature is an **ambush
+emergent that lives INSIDE the infected growth/pool and strikes out
+of it** — consistent with the user-domain identity "the water-based
+enemy" (the virus multiplies in water). It has no business hatching
+from a dry cardboard/wooden crate, and indeed the engine never does
+that. Habitat: areas placing link-2 (worm-capable) generators =
+00,01,02,03,04,06,07,08,16,19,20. The snow field AREA11 places NO
+generators and its crates carry NO nest links (frozen outdoors spawn
+neither bugs nor worms — placement design agrees with the biology).
+
+Naming: the s23 asset `enemy_crawler.emdl` (the chain creature) is
+better read as the PAD WORM / water lurker; "crawler" survives only
+as the historical label of the crate-disguise behavior.
+
+### 7. Shipped + port rebinding recommendation
+
+- **`extermination-port/assets/enemy_bug.emdl`** (variant A, slot
+  0x0F): EMD3, 15+1 palette slots, 150 verts/122 tris, 28 bakeable
+  clips (1825 frames @60), 8 textures resolved from state-01 VRAM via
+  `--p2s` (chunk03 is globally resident). **`enemy_bug_infected.emdl`**
+  (variant B, slot 0x10): same bank, 148 verts, red-flesh skin.
+  Recorded CLIs: `tools/export_native.py --mesh
+  extract/chunk03/f07_id0f.bin` (resp. `f08_id10.bin`) `--anim
+  extract/chunk03/f09_id11.bin --clips
+  0,1,2,3,4,5,6,7,8,9,10,11,12,13,15,17,18,19,21,24,25,26,28,29,30,31,32,35
+  --p2s <state 01> --out assets/enemy_bug.emdl`. No exporter code
+  changes (pure reuse of the s13/s15 machinery).
+- **Port rebinding (em_enemy mid-edit this session — NOT touched;
+  documented for the owning agent):** crate burst should spawn the
+  registry-true children — office: 2–3 BUGS (enemy_bug.emdl, walk
+  clip 1, HP 15, mailbox-shootable, pose at parent+rec offset) —
+  NOT a worm; keep the worm exclusively on mode-2 generator pads
+  (that path was already engine-true). AREA03/06-style item-bearing
+  crates drop pickups through em_pickup. PORT_DIFFERENCES J6/J7
+  updated.
+
+Open (s68): the two bug brains' full state machines (move/attack/
+pose-specific subs, the 14-case jtbl_0026D000, awareness use of
+player+0xA); the 8 unbakeable clip containers (non-sentinel header
+variant — same decoder wall as s45); event flag 0x30's story moment
+(when the world turns to variant B); whether the +0x9E sub-state
+byte gates class-2 children's respawn via func_001B64F0's re-clear.
+
+_Last updated: 2026-06-11 (session 68)._

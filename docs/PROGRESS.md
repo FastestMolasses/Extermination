@@ -5778,3 +5778,42 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   `camdist` from spawn records (+0x18); the flags listed at D13
   (fall cam, AREA11 region swap, +0x98 rider, area eye-Y clamps,
   idle dip term, L1 gait gating).
+
+### Update — 2026-06-11 s68: CREATURE IDENTITY CORRECTION — crates hatch BUGS, not worms; first bug EMDLs shipped
+
+- **The nest registry is decoded exactly** (closes the s23 open item):
+  `D_0024A850[area]` = the FIRST NEST-GROUP index into the s63
+  deferred-spawn registry `D_0024D820[area]`; crate link selects the
+  group; same 0x2C records; rec+0x2 is a **puid** (the s22 "model-
+  resident check" was the s63 taken-bit test — killed hatchlings
+  persist dead). Full 19-area survey: office crates hatch 2–3
+  children with brains `func_00128C10`/`func_0012A5D0`; AREA03's
+  crate drops an MTS VACCINE item + 2 bugs, AREA06's an item only,
+  AREA22's 3 bugs. **No nest anywhere spawns func_00153F10** (raw-
+  pointer scans of all overlays + main-ELF data: the worm's only
+  installer is the generator helper func_0015A200).
+- **The hatchling is a previously-unread 15-node BUG**: global slots
+  0x0F/0x10 (mesh; selected by event flag 0x30 = `D_00810788`) +
+  0x11 (36-clip bank), content-verified in state-01 RAM. Legs,
+  antennae, 4-segment tail; grey-blue chitin (A) / red flesh (B);
+  HP 15/30 (30/50 hard), consumes the +0x36 mailbox (shootable),
+  reads the player light flag (the s51 detection list). Walk = clip
+  1 (in-place). Placement model bytes 6/0x1C/0x1E proven pure
+  behavior tags (0x1C/0x1E exceed every area model table).
+- **The chain creature re-read**: clip 0 is an anchored rear-and-
+  sway (base planted, body 8–20 u up), clip 1 emerges from 40 u
+  BELOW the floor — an ambush emergent living inside the mode-2
+  generator pads (its only spawner), consistent with the water-
+  based-enemy plot identity. AREA11 (snow) places no generators and
+  no nest links — nothing hatches outdoors.
+- **Shipped**: `extermination-port/assets/enemy_bug.emdl` +
+  `enemy_bug_infected.emdl` (28 bakeable clips, 1825 frames, 8
+  textures via --p2s; 8 containers hit the non-sentinel header
+  decoder wall — flagged). em_enemy was mid-edit by another agent —
+  NOT touched; the rebinding contract is in PORT_DIFFERENCES
+  J6/J7/J14 (crate burst → bugs; worm stays generator-only).
+- FINDINGS: new section "CREATURE IDENTITY CORRECTION";
+  CURIOSITIES #15/#16.
+- **Open**: the two bug brains' full state machines (move/attack
+  subs, jtbl_0026D000), the 8 unbakeable clip containers, event flag
+  0x30's story moment, the +0x9E respawn-re-clear interaction.

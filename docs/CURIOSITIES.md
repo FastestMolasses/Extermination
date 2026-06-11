@@ -117,3 +117,29 @@ stored as coordinated clip bundles, separate from gameplay anim banks. (s4b)
 
 The first real entry of the music cue table is the credits roll; cue 24 is a
 hardcoded alert-mode override that pre-empts area BGM. (s27 music session)
+
+## 15. Crates hatch bugs — and one crate hides the vaccine (decoded)
+
+The infected-crate burst (s22's "most common placed enemy") spawns per-area
+NEST children, and they are never the chain-worm: they are a previously
+unread 15-node chitinous BUG (global creature slots 0x0F/0x10, legs +
+antennae + segmented tail, 36-clip move bank, shootable HP 15–50) with two
+dedicated brains that read the player's LIGHT flag — tying the game's most
+common enemy into the dormant stealth system (curiosity #1). Design beats
+hidden in the nest records: AREA03's crate bursts into an MTS VACCINE pickup
+plus two bugs (loot guarded by the ambush), AREA06's crate is a pure item
+piñata, and the snow field's crates have no nests at all — nothing hatches
+outdoors in the cold, which matches the virus-needs-water biology. The bug
+also has a story-keyed skin swap: event flag 0x30 flips every future
+hatchling from grey-blue chitin to red infected flesh. (s68, FINDINGS
+"CREATURE IDENTITY CORRECTION")
+
+## 16. The chain creature never touches dry land (decoded)
+
+The 24-node chain "worm/leech" is spawned by exactly one thing in the whole
+image: mode-2 organic generator pads. Its "crawl" clip is actually an
+anchored rear-and-sway (the base never moves), its emerge clip starts 40
+units BELOW the floor, a missed lunge silently sinks it back, and no weapon
+can hurt it (s66) — an ambush predator that lives inside the infected
+growths/pools and only ever strikes out of them. The water-borne-virus plot
+reading was right. (s68)
