@@ -11958,3 +11958,162 @@ Open (locked doors):
   em_door_unlock is the API stand-in.
 
 _Last updated: 2026-06-11 (session 57)._
+
+## PER-ROOM LIGHT RIGS FULLY DECODED — D_00251C50 record layout, camera fill, point-light fold, VU1 clamps; exported + ported (2026-06-11, session 57)
+
+Static decode of the whole s51 per-actor lighting chain down to the
+data: every byte of the rig record, the exact direction math, the
+dynamic-light slot lifecycle and the kernel's clamp semantics. Source:
+funcs 001D7B30/8130/8340/8690/89D0/7FA0/7BB0/7C30/8270,
+001F6640/6760/6850/68B0, the VU0 helper identities (func_00102948 = qw
+copy, 001028B8 = vadd, 00102900 = vmulx, 001026A0 = mat4xvec,
+00102B08/A60/BB0 = RotX/Z/Y builders, 00102738 = DOT, 00102760 =
+normalize) and the 62-qw skinning kernel at 0x23C780.
+Tool: `tools/export_level.py --lightrig / --lightrig-dump`.
+
+### 1. The rig table D_00251C50 (45 x 0x78, key (area<<8)|sub)
+
+`func_001D7B30`: `func_001D2910(8)` active -> key forced 0xF00;
+otherwise key = `D_00810700<<8 | D_00810701`. Linear search; **miss
+falls back to ENTRY 0** (key 0x0000). Record:
+
+    +0x00 u32  key
+    +0x04/+08  fog near/far; +0x0C/10/14 fog RGB   (func_001D8FD0, s10)
+    +0x18 f32  not read by the light path (fog family; raw in dumps)
+    +0x1C f32  -> working set +0xB4 (paired with 0.0 at +0xB0; no
+               reader found on the normal path)
+    +0x20      3 light slots, 0x18 stride: { ANGLE ax, ANGLE ay,
+               color r, g, b, w }
+    +0x68/6C/70 ambient RGB        (all colors 0..128 GS-modulate scale)
+
+**s51 correction: directions are stored as ANGLE PAIRS, not vectors.**
+`func_001D8340` builds M = RotX(ax)·RotZ(az)·RotY(ay) (memory-row
+form; az = working set +0x88/+0x98/+0xA8, never written by
+func_001D8130 — BSS zero) and applies M^T to the base vector (0,1,0):
+
+    dir = (sin ay · sin ax,  cos ax,  cos ay · sin ax)
+
+so ax = tilt from +Y (world up), ay = azimuth. Most slot-2 entries
+are near-+Y "from above" room lights. Slot 0's w (rec +0x34) = the
+dir WEIGHT in the point-light fold (16.0 in 43/45 rigs, 64.0 in
+0x400). Working-set map (D_00817BC0, ptr D_00275688, func_001D8130):
+angles +0x80/+0x90/+0xA0, dir vectors +0xC0/+0xD0/+0xE0, colors
++0xF0/+0x100/+0x110, ambient +0x120 (alpha slot +0x12C = 128.0).
+
+### 2. Slot 0 = the camera fill (and only slot 0)
+
+`func_001D8340(actor, out3400, out3440, flag = actor[+0x2]&0x20,
+point)`: flag CLEAR -> slot-0 color AND dir zeroed. Flag SET -> slot
+0's angle vector is interpreted in CAMERA SPACE: the lookat
+`D_00810610` is copied, TRANSPOSED (func_00102798), and applied to
+M^T·(0,1,0) with w=0 — i.e. rotated view->world by the inverse view
+rotation. Typical slot-0 camera vector (0.553, -0.249, -0.795) =
+toward the camera (-z fwd), slightly from above/right — the engine's
+over-the-shoulder fill on camera-facing normals. Slots 1/2 are static
+world dirs every frame.
+
+### 3. Dynamic point lights — the full slot lifecycle
+
+- Registration `func_001D7FA0(pos, color4, type, f12, f13)` writes the
+  STAGING array (ctx+0x1220, the next frame's +0x220 — the render ctx
+  double-buffers): +0x0 = f12 (intensity MULTIPLIER), +0x4 = f13
+  (ADDER), +0x10 pos, +0x20 color qword, +0x8 type, +0xC handle.
+- `func_001D7BB0` (per frame): zeroes the 32 render slots + counters,
+  then re-registers the room lamps (func_001F68B0) and ambient
+  registrars (func_001F6E40).
+- `func_001D7C30` (per frame): per ACTIVE slot, intensity ramp
+  I' = max(0, adder + I·mult) and color ·= mult (placed lamps 1.0/0.0
+  = constant; effect presets func_001D80E0 0.6/-1.0 and func_001D8100
+  0.95/-0.05 = decays); then adopts new registrations into free slots —
+  **color qword scaled x128 (func_00102900 vmulx.xyzw): the W LANE IS
+  THE INTENSITY slot +0x2C**, so lamp I = D_0026EB70[type].w · 128.
+  Type-1 (placed lamp) slots also random-walk two angles +-0.0314 rad
+  into the +0x40 rotation matrix — a +-1.8 deg per-lamp direction
+  FLICKER (key 0xF00 forces identity).
+- Fold (func_001D8340 tail, gate func_001D8270: actor types {3, 8, 9,
+  0xB, 0xD, 0x15, 0x16, 0x17, 0x3D, 0x3E} excluded, others only if
+  [actor+0x44]+0x20 < 30.0 — small models): with toL = slotpos -
+  actor's light point (node +0xC0 column or +0xB0):
+
+      k    = 0.1 · I / max(dot(toL, toL), 1)     <- SQUARED distance
+             (s51 said dist; func_00102738 is a dot of the
+              UN-normalized offset)
+      dir0 = normalize(dir0·w0 + sum M_flicker·(toL · 10k))
+      col0 = col0 + sum slotcolor · 2k
+      (sum bases D_00253170/80 = zero qwords)
+
+  Slot 0 is REPURPOSED as the combined camera-fill + point-light
+  light. With no lamps the fold is an identity (normalize(dir0·w0)).
+- Per-room PLACED LAMP lists (`func_001F6760`): keys 0x0000/0001/0002
+  (area 0), 0x0100 (drawbridge: 1 lamp), 0x0200 (office sub 0:
+  8 lamps — the corridor wall lamps), 0x0E00, 0x1100, 0x1301 (+ a
+  second list via func_001F6850); every other key -> none (office
+  sub 1, snow have NO lamps). 0x28-byte records (+0x0 s16 marker >= 0,
+  +0x4 s16 color type, +0xC/10/14 pos, +0x24 runtime handle);
+  registration is story-flag gated in func_001F68B0 (e.g. 0x200 only
+  while D_00810761 == 0xFF). Color types D_0026EB70 (vec4 · 128):
+  type 0 (512, 128, 32) I=128; type 1 (1152, 288, 72) I=288; type 2
+  (1659, 415, 104) I=415 — all warm orange; at the engine's k the
+  glow saturates within ~5 u and fades ~1/d^2 (visible ~50 u).
+
+### 4. Matrix build + kernel semantics (func_001D8690, VU1 0x23C780)
+
+`func_001D8690(out3400, out3440, actorRGB = actor+0x80)`:
+- out3400 (DIR matrix): columns 0..2 = dir0..2 (row 3 zero; column 3
+  carries color0 — only the 3x3 is consumed via the per-node fold
+  func_001D88B0 into each node's normal-matrix rows, so the kernel's
+  N' = NM·n IS the intensity triple (I0, I1, I2)).
+- out3440 (COLOR matrix, the 4qw at VU1 dmem 0x3F5): rows 0..2 =
+  col_i · actorRGB (w = col_i.w · glow), row 3 = ambient · actorRGB +
+  8388608.0 (2^23 int-bias trick; w = 2^23 + 64·glow) where glow =
+  max(actor[+0x8C] - 1, 0); actor flag +0x2 bit 0x40 adds 64·actorRGB
+  onto row 3 (the s51 self-glow).
+- Kernel: `maxbcx vf12, vf11, vf00x` = **clamp I at 0** (no upper
+  clamp), `mulAx/maddAy/maddAz/maddw` with the color matrix, then
+  `minibcx vf14, vf13, vf17x` with vf17 = 2^23 + 255 = **clamp at
+  255**. The result IS the GS vertex color: shade = tex·rgb/128
+  (modulate), so 128 = identity and rigs can over-brighten to ~2x.
+
+Verdict: per character vertex,
+`rgb = min(amb + sum_i max(dot(dir_i, N), 0) · col_i, 255) / 128`.
+
+### 5. Room selection = the key bytes, not geometry
+
+The rig (and lamp list) key is (D_00810700<<8)|D_00810701 — the
+AREA/SUB-STATE bytes. Sub-state flips are the s56 room moves /
+transitions; there are no spatial room bounds in this system. For the
+port each exported scene is one (area, sub) pair, so the active
+scene's manifest rig IS the engine's room selection.
+
+### 6. Exporter + port (extermination-port, same session)
+
+- `tools/export_level.py --lightrig DIR --area A --sub S` writes a
+  marker-delimited block into the scene manifest: `lightamb r g b`,
+  `lightcam dx dy dz r g b w` (slot 0, camera-space), 2x `lightdir dx
+  dy dz r g b`, and `lamp x y z r g b i` lines (x128 registration
+  values). `--lightrig-dump` prints all 45 rigs + every lamp list.
+  Exported: scene (0x201), scene_office0 (0x200, 8 lamps),
+  scene_drawbridge (0x100, 1 lamp), scene_snow (0x600).
+- Port: `em_gfx_char_rig` (em_gfx.h + Metal fragment rows) runs the
+  kernel-exact composition on the character path; em_game's
+  char_rig_build composes per actor draw (camera fill = PLAYER only
+  per the decoded func_001D8BF0 gating; lamp fold at each draw's
+  bone-0 translation; menu turntable = rig with slot 0 zeroed — the
+  engine's mode-2 path, replacing the s56 camera-fill stand-in).
+  Omitted, flagged: lamp flicker jitter, story-flag lamp gates, the
+  func_001D8270 type exclusions (the port folds for all actor draws).
+  The invented stand-in directional remains ONLY for rig-less scenes.
+  The DEFAULT CAPTURE CHANGES (player lighting is now the office
+  0x201 rig + camera fill instead of the invented light) — a
+  deliberate fidelity change; level geometry stays byte-identical
+  (baked vertex color, never rig-lit).
+
+Open:
+- rec +0x18 / +0x1C consumers (fog family / the +0xB0 working pair).
+- The lighting-override rigs behind func_001D8C30 modes 1/3/4/5/6
+  (menu/cutscene specials; jtbl 0x0026E520) — mode 2 (status menu)
+  confirmed to run the normal path.
+- Which actor types {3, 8, ...} the func_001D8270 exclusion list maps
+  to (by name), and the engine event flipping the lamp gate bytes.
+
+_Last updated: 2026-06-11 (session 57)._

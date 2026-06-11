@@ -5363,3 +5363,33 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
 - **Open**: locked-slider camera native func_001BB310; the radio TEXT
   machine port (would serve all radio messages); the authoring side
   of D_00810841 (which events unlock which doors).
+
+### Update — 2026-06-11 s57b: PER-ROOM LIGHT RIGS decoded + character lighting engine-true in the port
+
+- **Decode (FINDINGS "PER-ROOM LIGHT RIGS FULLY DECODED")**: every
+  byte of the D_00251C50 rig record — directions are ANGLE PAIRS
+  (s51 correction) applied M^T·(0,1,0); slot 0 = camera fill in
+  CAMERA SPACE (inverse-view rotated, actor flag +0x2 bit 0x20);
+  entry-0 fallback on key miss; dynamic-light slot lifecycle
+  (registration f12/f13 ramp params, the x128 color copy whose W
+  lane IS the intensity, +-1.8 deg lamp flicker, the fold's SQUARED
+  distance k = 0.1·I/max(d^2,1)); per-room placed-lamp lists
+  (func_001F6760 key map + story-flag gates + D_0026EB70 types);
+  VU1 kernel clamps (max 0 / min 255, shade = tex·rgb/128).
+- **Tooling**: `export_level.py --lightrig DIR --area A --sub S`
+  emits manifest `lightamb/lightcam/lightdir/lamp` lines (rig +
+  lamps); `--lightrig-dump` prints all 45 rigs + every lamp list.
+  All four exported scenes carry their rig (office 0x201,
+  office0 0x200 + 8 lamps, drawbridge 0x100 + 1 lamp, snow 0x600).
+- **Port**: em_gfx_char_rig (Metal fragment rows) runs the
+  kernel-exact composition; em_game composes per actor draw
+  (camera fill = player only per the decoded gating; lamp fold at
+  bone-0; menu turntable = rig with slot 0 zeroed — engine mode-2
+  truth, the s56 camera-fill stand-in retired for rig scenes).
+  Room selection = the engine's own (area<<8)|sub key — per-scene,
+  no spatial bounds exist or are invented. Default capture CHANGES
+  (rig-lit player); level geometry byte-identical. Suite PASS
+  (slider pre-existing-at-HEAD failure noted aside, unrelated).
+- **Open**: rec +0x18/+0x1C consumers; func_001D8C30 special modes
+  1/3/4/5/6; the func_001D8270 exclusion-type names; lamp gate
+  byte events.

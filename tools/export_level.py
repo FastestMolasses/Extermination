@@ -1347,6 +1347,242 @@ def emit_camregion_manifest(scene_dir: Path, elf: "BootElf",
 
 
 # ---------------------------------------------------------------------------
+# CHARACTER LIGHT RIGS — the per-room VU1 light-matrix source data
+# (decoded 2026-06-11 s57; FINDINGS "PER-ROOM LIGHT RIGS DECODED").
+#
+# D_00251C50 = 45 records x 0x78, keyed (area<<8)|sub (D_00810700/701);
+# func_001D7B30 linear-searches and FALLS BACK TO ENTRY 0 on a miss
+# (func_001D2910(8) active -> key 0xF00). Record layout:
+#   +0x00 u32   key
+#   +0x04/+0x08 fog near/far, +0x0C/10/14 fog RGB (func_001D8FD0)
+#   +0x18 f32   (not read by the light path; fog-family, kept raw)
+#   +0x1C f32   -> working set +0xB4 (paired with 0; no reader found
+#                 on the normal path — kept raw)
+#   3 light slots, 0x18 apart from +0x20: { angle_x, angle_y,
+#                 color r, g, b, w } — DIRECTIONS ARE STORED AS ANGLE
+#                 PAIRS, not vectors: func_001D8340 builds
+#                 M = RotX(ax)*RotZ(az=0)*RotY(ay) (memory-row form,
+#                 sceVu0 helpers func_00102B08/A60/BB0) and applies
+#                 M^T to the base vector (0,1,0):
+#                   dir = (sin ay * sin ax, cos ax, cos ay * sin ax)
+#                 colors are on the GS 0..128 modulate scale; w of
+#                 slot 0 = the dir weight in the point-light fold.
+#   +0x68/6C/70 ambient RGB (working-set row 3; +0x12C = 128.0).
+#
+# SLOT 0 = the CAMERA FILL (actor flag +0x2 bit 0x20, func_001D8BF0 —
+# set once for the player at init, by the NPC spawners, never by the
+# flashlight): its angle-pair vector is CAMERA-SPACE and is rotated
+# into world by the TRANSPOSED view rotation (D_00810610) every frame;
+# flag clear -> slot 0 dir AND color zeroed. Slots 1/2 are static
+# world-space directionals. The VU1 kernel (0x23C780) computes
+# I_i = max(dot(dir_i, N), 0), rgb = min(amb + sum I_i*col_i, 255),
+# vertex color = rgb (GS modulate /128).
+#
+# DYNAMIC POINT LIGHTS (32 slots, func_001D7FA0/001D7C30/001D8340):
+# per-room PLACED LAMP lists below (func_001F6760 key map; 0x28-byte
+# records: +0x0 s16 >=0 marker, +0x4 s16 color type, +0xC/10/14 pos,
+# +0x24 runtime handle), registered each frame (func_001F68B0, story-
+# flag gated) with color/intensity = D_0026EB70[type] * 128
+# (func_001D7C30 copy: color qword scaled x128 — the W lane IS the
+# intensity slot +0x2C). Actors passing the func_001D8270 gate fold
+# them into SLOT 0: k = 0.1*I/max(dist^2,1) (dist UNNORMALIZED, the
+# func_00102738 dot of the un-normalized offset);
+#   dir0 = normalize(dir0*w0 + sum toLamp*10k)  [+ a +-1.8 deg random
+#          flicker rotation per lamp, slot+0x40 — omitted in the port]
+#   col0 = col0 + sum lampcol*2k.
+
+LIGHTRIG_VADDR = 0x251C50
+LIGHTRIG_COUNT = 45
+LIGHTRIG_SIZE = 0x78
+
+# func_001F6760: (area<<8)|sub -> placed-lamp list vaddr (NULL = none).
+LAMP_LISTS = {
+    0x0000: 0x25CF10, 0x0001: 0x25CF90, 0x0002: 0x25CFE0,
+    0x0100: 0x25D030, 0x0200: 0x25D080, 0x0E00: 0x25D1F0,
+    0x1100: 0x25D340, 0x1301: 0x25D270,
+}
+LAMP_LIST_1301_B = 0x25D2C0      # key 0x1301's second list (func_001F6850)
+LAMP_COLOR_VADDR = 0x26EB70      # D_0026EB70: vec4 (r,g,b,intensity) /128
+
+# func_001F68B0 story-flag gates (BSS byte, sense) per key — the port
+# registers lamps unconditionally; the gate is recorded for honesty.
+LAMP_GATES = {
+    0x0000: ("D_0081075D", "!= 0xFF"), 0x0001: ("D_0081075E", "== 0xFF"),
+    0x0002: ("D_00810784", "== 0xFF"), 0x0100: ("D_0081075E", "!= 0xFF"),
+    0x0200: ("D_00810761", "== 0xFF"), 0x0E00: ("D_00810784", "== 0xFF"),
+    0x1100: ("D_00810785", "== 0xFF"), 0x1301: ("D_0081079E/78/7B", "mixed"),
+}
+
+LIGHTRIG_BLOCK_BEGIN = ("# --- character light rig (export_level.py "
+                        "--lightrig, D_00251C50 decode) ---")
+LIGHTRIG_BLOCK_END = "# --- end character light rig ---"
+
+
+def lightrig_angles_to_dir(ax: float, ay: float):
+    """func_001D8340's angle-pair -> unit direction (base (0,1,0),
+    M^T = RotY^T*RotZ^T(0)*RotX^T applied — see the section comment)."""
+    return (math.sin(ay) * math.sin(ax), math.cos(ax),
+            math.cos(ay) * math.sin(ax))
+
+
+def lightrig_read(elf: "BootElf", area: int, sub: int) -> tuple:
+    """The rig record for (area, sub) with the engine's entry-0 fallback.
+    Returns (index, key_matched, dict)."""
+    want = (area << 8) | sub
+    idx, rec = 0, elf.read(LIGHTRIG_VADDR, LIGHTRIG_SIZE)
+    matched = False
+    for i in range(LIGHTRIG_COUNT):
+        r = elf.read(LIGHTRIG_VADDR + i * LIGHTRIG_SIZE, LIGHTRIG_SIZE)
+        if struct.unpack_from("<I", r, 0)[0] == want:
+            idx, rec, matched = i, r, True
+            break
+    def f(o):
+        return struct.unpack_from("<f", rec, o)[0]
+    lights = []
+    for base in (0x20, 0x38, 0x50):
+        lights.append({"ang": (f(base), f(base + 4)),
+                       "dir": lightrig_angles_to_dir(f(base), f(base + 4)),
+                       "col": (f(base + 8), f(base + 0xC), f(base + 0x10),
+                               f(base + 0x14))})
+    return idx, matched, {
+        "key": struct.unpack_from("<I", rec, 0)[0],
+        "fog": (f(4), f(8), f(0xC), f(0x10), f(0x14)),
+        "p18": f(0x18), "p1c": f(0x1C),
+        "lights": lights,
+        "amb": (f(0x68), f(0x6C), f(0x70)),
+    }
+
+
+def lamp_list_read(elf: "BootElf", vaddr: int) -> list:
+    """One placed-lamp list: [(pos3, color3*128, intensity)] — the
+    registration-time values (func_001F6640 + func_001D7C30's x128)."""
+    out = []
+    i = 0
+    while True:
+        rec = elf.read(vaddr + i * 0x28, 0x28)
+        if struct.unpack_from("<h", rec, 0)[0] < 0:
+            break
+        typ = struct.unpack_from("<h", rec, 4)[0]
+        pos = struct.unpack_from("<3f", rec, 0xC)
+        c = struct.unpack_from("<4f",
+                               elf.read(LAMP_COLOR_VADDR + typ * 0x10, 0x10))
+        out.append((pos, tuple(x * 128.0 for x in c[:3]), c[3] * 128.0, typ))
+        i += 1
+    return out
+
+
+def emit_lightrig_manifest(scene_dir: Path, elf: "BootElf",
+                           area: int, sub: int) -> int:
+    """--lightrig DIR: rewrite DIR/scene.txt's marker-delimited character
+    light-rig block from the (area, sub) rig + placed-lamp decode.
+    Port lines (em_game.c scene_manifest_load):
+      lightamb r g b                ambient row (0..128 scale)
+      lightcam dx dy dz r g b w     slot 0: CAMERA-SPACE fill dir + color
+                                    + point-light-fold dir weight
+      lightdir dx dy dz r g b       slots 1/2: world-space directionals
+      lamp x y z r g b i            placed lamp (color/intensity x128)"""
+    key = (area << 8) | sub
+    idx, matched, rig = lightrig_read(elf, area, sub)
+    block = [LIGHTRIG_BLOCK_BEGIN,
+             f"# D_00251C50[{idx}] key 0x{rig['key']:04X}"
+             + ("" if matched else
+                f" (ENGINE FALLBACK: no entry for key 0x{key:04X} — "
+                f"func_001D7B30 returns entry 0)")
+             + " — func_001D89D0 normal path.",
+             "# Colors are on the engine 0..128 GS-modulate scale; the"
+             " kernel computes",
+             "# rgb = min(amb + sum max(dot(N, dir_i), 0)*col_i, 255),"
+             " shade = tex*rgb/128.",
+             f"lightamb {rig['amb'][0]:g} {rig['amb'][1]:g}"
+             f" {rig['amb'][2]:g}"]
+    l0 = rig["lights"][0]
+    block.append("# slot 0 = the CAMERA FILL (player flag +0x2 bit 0x20):"
+                 " dir is CAMERA-SPACE")
+    block.append("# (x view-right, y view-down, z forward), rotated into"
+                 " world by the inverse")
+    block.append("# view rotation per frame; w = the dir weight in the"
+                 " point-light fold.")
+    block.append(f"lightcam {l0['dir'][0]:.4f} {l0['dir'][1]:.4f}"
+                 f" {l0['dir'][2]:.4f} {l0['col'][0]:g} {l0['col'][1]:g}"
+                 f" {l0['col'][2]:g} {l0['col'][3]:g}")
+    for li in (1, 2):
+        l = rig["lights"][li]
+        block.append(f"lightdir {l['dir'][0]:.4f} {l['dir'][1]:.4f}"
+                     f" {l['dir'][2]:.4f} {l['col'][0]:g} {l['col'][1]:g}"
+                     f" {l['col'][2]:g}")
+    lamps_va = LAMP_LISTS.get(key)
+    if lamps_va:
+        gate = LAMP_GATES.get(key)
+        lamps = lamp_list_read(elf, lamps_va)
+        block.append(f"# placed lamps: func_001F6760 key 0x{key:04X} ->"
+                     f" list @0x{lamps_va:06X} ({len(lamps)} records);")
+        block.append(f"# engine registration is story-flag gated"
+                     f" ({gate[0]} {gate[1]}) — the port")
+        block.append("# registers them unconditionally (flagged"
+                     " stand-in); the engine's per-lamp")
+        block.append("# +-1.8deg random flicker rotation (func_001D7C30"
+                     " type-1 path) is omitted.")
+        for pos, col, inten, typ in lamps:
+            block.append(f"lamp {pos[0]:g} {pos[1]:g} {pos[2]:g}"
+                         f" {col[0]:g} {col[1]:g} {col[2]:g} {inten:g}"
+                         f"  # type {typ}")
+    else:
+        block.append(f"# placed lamps: none — func_001F6760 has no list"
+                     f" for key 0x{key:04X}.")
+    block.append(LIGHTRIG_BLOCK_END)
+
+    mf = scene_dir / "scene.txt"
+    lines = mf.read_text().splitlines() if mf.exists() else []
+    if LIGHTRIG_BLOCK_BEGIN in lines:
+        b = lines.index(LIGHTRIG_BLOCK_BEGIN)
+        e = lines.index(LIGHTRIG_BLOCK_END) \
+            if LIGHTRIG_BLOCK_END in lines else len(lines) - 1
+        lines = lines[:b] + lines[e + 1:]
+    while lines and not lines[-1].strip():
+        lines.pop()
+    lines += block
+    mf.write_text("\n".join(lines) + "\n")
+    n_lamps = len(lamp_list_read(elf, lamps_va)) if lamps_va else 0
+    print(f"manifest: {mf}: light-rig block — key 0x{key:04X} -> "
+          f"D_00251C50[{idx}]"
+          + ("" if matched else " (entry-0 fallback)")
+          + f", {n_lamps} placed lamp(s)")
+    return 0
+
+
+def dump_lightrigs(elf: "BootElf") -> int:
+    """--lightrig-dump: print all 45 rigs + every placed-lamp list (the
+    documentation pass; nothing is written)."""
+    for i in range(LIGHTRIG_COUNT):
+        r = elf.read(LIGHTRIG_VADDR + i * LIGHTRIG_SIZE, LIGHTRIG_SIZE)
+        key = struct.unpack_from("<I", r, 0)[0]
+        _, _, rig = lightrig_read(elf, key >> 8, key & 0xFF)
+        fog = rig["fog"]
+        print(f"[{i:2d}] key 0x{key:04X} fog({fog[0]:7.1f},{fog[1]:7.1f}"
+              f" rgb {fog[2]:3.0f},{fog[3]:3.0f},{fog[4]:3.0f})"
+              f" p18={rig['p18']:.2f} p1c={rig['p1c']:.3f}"
+              f" amb({rig['amb'][0]:3.0f},{rig['amb'][1]:3.0f},"
+              f"{rig['amb'][2]:3.0f})")
+        for li, l in enumerate(rig["lights"]):
+            d, c = l["dir"], l["col"]
+            print(f"      L{li}{' (cam)' if li == 0 else '      '[:6]}:"
+                  f" dir({d[0]:6.3f},{d[1]:6.3f},{d[2]:6.3f})"
+                  f" col({c[0]:3.0f},{c[1]:3.0f},{c[2]:3.0f}"
+                  f" w {c[3]:g})")
+    print()
+    for key, va in sorted(LAMP_LISTS.items()) + [(0x1301, LAMP_LIST_1301_B)]:
+        lamps = lamp_list_read(elf, va)
+        gate = LAMP_GATES.get(key, ("?", "?"))
+        print(f"lamp list key 0x{key:04X} @0x{va:06X}"
+              f" (gate {gate[0]} {gate[1]}): {len(lamps)} lamp(s)")
+        for pos, col, inten, typ in lamps:
+            print(f"    type {typ} pos({pos[0]:7.1f},{pos[1]:7.1f},"
+                  f"{pos[2]:7.1f}) col({col[0]:6.1f},{col[1]:6.1f},"
+                  f"{col[2]:6.1f}) I={inten:.1f}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # AREA02 sub-state 0: placed objects + doors from the per-area model table
 # (see the OFFICE0 constants above for the leaf/table identification).
 
@@ -1960,6 +2196,14 @@ def main(argv):
                     "real `camregion` lines where the area has a "
                     "D_0024A5F0 binding, the decoded all-chase verdict "
                     "comment otherwise)")
+    ap.add_argument("--lightrig", metavar="DIR",
+                    help="rewrite DIR/scene.txt's character light-rig "
+                    "block from the D_00251C50 per-room rig + placed-"
+                    "lamp decode (use with --area/--sub; see "
+                    "emit_lightrig_manifest)")
+    ap.add_argument("--lightrig-dump", action="store_true",
+                    help="print all 45 D_00251C50 rigs + every placed-"
+                    "lamp list (documentation; writes nothing)")
     ap.add_argument("--area", type=int, default=AREA02,
                     help="--door-goto: the scene's AREA (default 2; "
                     "scene_drawbridge = 1)")
@@ -1999,6 +2243,15 @@ def main(argv):
         return emit_camregion_manifest(Path(args.camregions),
                                        BootElf(Path(args.elf)), args.area,
                                        args.sub)
+    if args.lightrig_dump:
+        return dump_lightrigs(BootElf(Path(args.elf)))
+    if args.lightrig:
+        if args.sub is None:
+            ap.error("--lightrig needs --sub (the scene's sub-state; "
+                     "the rig key is (area<<8)|sub)")
+        return emit_lightrig_manifest(Path(args.lightrig),
+                                      BootElf(Path(args.elf)), args.area,
+                                      args.sub)
     if not args.out:
         ap.error("--out is required")
     if args.office0_placed:
