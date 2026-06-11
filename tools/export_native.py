@@ -71,10 +71,15 @@ see docs/FINDINGS.md "Texture COLOR recovered").
 Usage (macOS arm64, repo root):
   # THE player export (multi-clip + held weapons; --attach reuses
   # export_props' equipment merge, the same machinery as
-  # `export_props.py --attach`):
-  .venv/bin/python tools/export_native.py --attach \
+  # `export_props.py --attach`; --no-glow skips the aura quads — the
+  # s43 fidelity call, see the export_props docstring; full clip list
+  # = the s36 superset, idle = DIRECTORY id 349 after the 2026-06-11
+  # directory-resolution fix — the old "346" was the same content
+  # under the shifted enumeration):
+  .venv/bin/python tools/export_native.py --attach --no-glow \
       --mesh extract/chunk28/f00_id3b.bin \
-      --anim extract/chunk28/f01_id3c.bin --clips 346,2,3 \
+      --anim extract/chunk28/f01_id3c.bin \
+      --clips 349,2,3,69,67,75,272,273,51,274,1,267,268,269,270,271 \
       --gsdump extract/gsdump/frame1.gs \
       --out ../extermination-port/assets/player.emdl
   # ANIMATED export: bake clip N from an id 0x74 animation library file
@@ -786,6 +791,11 @@ def main(argv):
                     help="merge the held equipment onto the skeleton nodes "
                     "(reuses export_props.build_attached_player — the same "
                     "machinery as `export_props.py --attach`)")
+    ap.add_argument("--no-glow", action="store_true",
+                    help="(--attach) skip the export_props GLOW_ATTACHMENTS "
+                    "aura quads (recommended for player.emdl — the quad "
+                    "stand-in over-reads as a solid green sheet; see the "
+                    "export_props docstring)")
     ap.add_argument("--library", default="extract/chunk27/f01_id37.bin",
                     help="(--attach) equipment model library")
     ap.add_argument("--live", help="live node-matrix JSON (world matrices, "

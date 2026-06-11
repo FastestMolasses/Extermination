@@ -10017,3 +10017,129 @@ real background = black + this triple-layer tile shimmer.
   documented 3D-in-UI TODO.
 
 _Last updated: 2026-06-11 (session 44)._
+
+## MUZZLE GEOMETRY DECODED + FLASH FX PINNED; PLAYER-AURA VERDICT (2026-06-11, session 43)
+
+Static decode pass closing the port's three weapon-fidelity bugs (laser
+anchored at the stomach + aimed ~90 deg off, placeholder overlay
+flash/crosshair squares, the permanent green "aura" square). Sources:
+func_00188630 / func_00187CC0 / func_001F4F40 / func_001F5040 splat asm
++ the offset tables read from the local boot ELF.
+
+### 1. The muzzle offset tables (boot ELF .data, read locally)
+
+`func_00188630` computes, in the HAND-BONE frame M (player +0x90,
+copied to the equipment blob `D_00810550` each gun tick):
+
+```
+ray origin  gun+0xA0 = M * (-3, tbl.y, 0, 1)
+barrel tip  gun+0xB0 = M * D_0024A220[idx]
+fire dir    gun+0xC0 = normalize(tip - origin)
+laser start gun+0x1F0 = M_player * D_0024A2A0[sub]   (sub UNREMAPPED)
+shell eject point      = M_player * D_0024A300[sub]  (func_001F4010(3,..))
+```
+
+idx = sub-weapon byte D_00810525, except sub 0 remaps on the aim
+option D_00810CA4: option 0 -> row 7, option 2 -> row 6, else row 0.
+Decoded rows (16-byte vec4s):
+
+```
+D_0024A220 (second point / barrel tip), rows 0..7:
+  0 (5.4, 1, 0)        1 (4.886, .304, 0)  2 (6.6, .304, 0)
+  3 (6.9, .524, 0)     4 (6.8, .4, 0)      5 (4.924, 1.348, 0)
+  6 (4.74, .908, 0)    7 (6.0, 1.088, 0)   <- SPR4 manual aim
+D_0024A2A0 (laser beam-draw start), rows 0..5:
+  0 (3.6, .5, 0)  1 (2.864, 0, 0)  2 (5.056, -.064, 0)
+  3 (6.36, -.048, 0)  4 (4.604, .024, 0)  5 (4.865, .627, .087)
+D_0024A300 (shell eject), row 0 = (1.3, 0.8, 0)
+```
+
+Key consequence: both ray points share tbl.y and z = 0, so **the fire
+direction is exactly the hand bone's local +X axis** — the rifle's
+barrel axis. The camera-aim relationship lives in the ANIMATION (the
+aim-pose ladder orients that axis along the aim yaw; the +0x278 pitch
+step adds camera pitch). The ray origin (x = -3) sits inside the
+receiver; the drawn laser starts at (3.6, .5, 0) on the barrel; the
+muzzle FLASH anchors at the (6, 1.088, 0) tip (func_00187CC0 copies
+gun+0xB0 into the FX actor).
+
+### 2. Muzzle flash FX — func_00187CC0 -> func_001F4F40 -> func_001F5040
+
+`func_00187CC0(gun)`: picks FX VARIANT a = (D_00810525==3 ?
+(ctx ? 4 : 1) : (ctx ? 3 : 0)) where ctx = func_0015D2F0() in {2,0x82}
+(the spread gun gets its own pair); spawns a class-0xC pool actor via
+`func_001F4F40(a)` (behavior `func_001F5040`), copies the tip point
++0xB0 and the hand matrix (player+0x90 -> FX+0xD0), and stores a second
+point FX+0x100 = tip + handRot*(0.2, 0.2, 0) with w=1.
+
+`func_001F5040` (the FX behavior), variant 0 (SPR4):
+
+- INIT: bind chunk27 library (D_0028A56C) model **0x0D**; scale vec
+  +0x60 = 0.15 + 0.05*rand01 (uniform), scale VELOCITY +0x1F0.40 =
+  0.15/component; rotation triple +0x80 = 0 (variants 3/4 start at
+  -96.0). Aborts to state 3 if the pool headroom D_00275BCC is short.
+- RUN tick t (halfword +0x28): t 0..2 -> rebind model **0x08** + a
+  `func_001F4F90(self, 2.4)` line-burst pass (D_0026EA80/EAC0 point
+  pairs through func_001CD940 — the radiating spark lines); t = 3 ->
+  rebind model **0x07**; t >= 4 -> rotation lerps to -128 by
+  0.35/tick; EVERY tick scale += vel, vel *= 0.8; **freed at t = 15**.
+- Library geometry (export_props survey, model-local): 0x0D = radial
+  puff X[0,.88] Y[-1.6,1.78] Z[+-1.81]; 0x08 and 0x07 = the forward
+  star, X[0,4.9] (the +X barrel axis!) radial +-2.3 / +-2.2; all three
+  sample ONE additive effect sheet (TEX0 key 0x457b5594220a0). Models
+  0x0B/0x0E/0x0F are the other variants' shells (same sheet).
+
+So the flash = a 16-tick additive billboard burst at the tip: bright
+star ticks 0..3 (model 8 then 7), growing 0.15->~0.9 scale with a
+0.8-decay velocity. PORT: drawn through the world-space beam/dot pass
+(core glow + forward streak at the real tip, intensity decaying with
+the engine's own 0.8^t; untextured stand-in for the sheet — flagged).
+
+### 3. Player-aura verdict (the port's "green square")
+
+Re-read of the s7b/s17 evidence for the port fidelity call: models
+20/21 ARE drawn by the original engine at the player root (live arena
+scan of save state 01 + all 4 office GS dump frames — two scenes), and
+they are NOT a drop shadow: the blend is pure additive (ALPHA A=0 B=2
+C=2 D=1 FIX=0x80, Cv = Cs + Cd — physically cannot darken), green-
+pulsing, feet-anchored. In the real frame they contribute only a
+~3..10% green shimmer (the cube faces UV the texture's FAINT INTERIOR,
+lum 5..15/255, x G<=215/128). The port's single camera-facing quad
+with the tint premultiplied into dedicated texels over-reads as a
+solid permanent green sheet — so the bake is now GATED: export_props/
+export_native `--no-glow` (player.emdl re-exported with it; the old
+recorded CLI still reproduces the old bytes — verified byte-identical
+before the change, superset discipline). No blob shadow is implemented:
+the evidence says the engine draws no subtractive shadow primitive
+under the player in these frames (none found in the s7b/s17 dumps);
+re-adding the aura faithfully needs the pulse + additive-cube path
+(open).
+
+### 4. Port wiring (extermination-port, this session)
+
+- `em_gfx_last_skinned_bone` (em_gfx.h + metal): every skinned draw
+  copies its first 16 bone matrices; the chain draws the player LAST,
+  so this publishes the player palette — the native analog of the
+  engine's player+0x90 bone publish (one frame of latency by
+  construction, like the fire-event mailbox).
+- `em_weapon.c`: muzzle ray/laser/flash all hand-frame anchored per
+  section 1 (node 4 = the rifle attach node; chest-height/yaw remains
+  the flagged fallback for an EMDL without weapon clips). The overlay
+  crosshair + hit-pulse + screen-space flash rects are REMOVED — the
+  real game aims with the laser dot alone (s23 capture). The dot and
+  flash draw as 3-layer concentric additive glows (untextured falloff
+  stand-in, flagged).
+- Verified: aim capture shows the laser leaving the rifle muzzle along
+  the barrel to a soft wall dot, fire capture the muzzle flash at the
+  tip; idle capture has no green square; make test-input + door/
+  weapon/melee/transit/enemy 1-4/sfx self-tests all PASS. Default
+  captures CHANGE by exactly the aura removal (expected, stated).
+
+### Open items (s43)
+
+- The flash line-burst pass (func_001F4F90's D_0026EA80 point pairs)
+  and the effect-sheet texels: extract for a textured flash.
+- The aim-ladder pitch step (+0x278) — vertical aim is still
+  untranslated port-side; the laser inherits the level-pitch pose.
+- Variants 1/3/4 of func_001F5040 (spread gun + the ctx pair) when
+  those weapons land in the port.

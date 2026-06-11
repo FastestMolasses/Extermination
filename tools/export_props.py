@@ -65,6 +65,20 @@ the position slot, the camera-plane corner offset in the normal slot,
 and bit 31 of the bone word = BILLBOARD+ADDITIVE (see export_native.
 write_emdl and the port's em_model.h/em_gfx_metal.m).
 
+GATED OFF BY DEFAULT-RECOMMENDED FLAG (2026-06-11 weapon-fidelity pass):
+`--no-glow` skips the GLOW_ATTACHMENTS bake. The quad stand-in reads as
+a large permanent green sheet in the port (the engine's draw adds only
+the texture's FAINT INTERIOR — interior lum 5..15/255 x green/128 ~= a
+3..10%% green shimmer — through an additive cube whose below-floor half
+is depth-clipped; one camera-facing quad with the tint premultiplied
+into the texels cannot reproduce that subtlety). The aura IS present in
+the original engine's frames (live arena scan + office GS dump, two
+scenes) and is NOT a drop shadow (the blend is pure additive, Cs + Cd —
+it can never darken), so removing it is a fidelity judgment for the
+port, not a correction of the evidence: until a faithful pulse/cube
+path exists, export player.emdl with --no-glow. Without the flag the
+old recorded CLIs still reproduce their bytes exactly.
+
 The default (no --attach) export bakes PLACED world models (the pickups)
 into a static EMDL v2 with the placements applied — currently model 106
 at its live floor pose (115.0, 1.5, -269.3), which is a REAL separate
@@ -504,7 +518,11 @@ def build_attached_player(args):
     # to a skeleton node (positions = anchor, normals = corner offsets,
     # bone word bit 31 = billboard+additive; tint pre-multiplied into a
     # DEDICATED texture entry so each layer keeps its live color).
-    for mi, node, anchor, half, tint in GLOW_ATTACHMENTS:
+    # --no-glow skips the bake (module docstring: the quad stand-in reads
+    # as a permanent green sheet; the engine adds only a faint shimmer).
+    glow_attachments = ([] if getattr(args, "no_glow", False)
+                        else GLOW_ATTACHMENTS)
+    for mi, node, anchor, half, tint in glow_attachments:
         recs = [r for blk in model_records(lib, offs[mi]) for r in blk]
         key = recs[0][0] & en.TEX0_KEY_MASK
         us = [r[1][0] for r in recs]
@@ -529,7 +547,7 @@ def build_attached_player(args):
               f"{2*hx:.0f}x{2*hy:.0f} @ {anchor}, tint {tint}")
 
     max_slot = max([max_slot] + [n for _m, n in ATTACHMENTS]
-                   + [n for _m, n, _a, _h, _t in GLOW_ATTACHMENTS])
+                   + [n for _m, n, _a, _h, _t in glow_attachments])
     return sections, max_slot, tex_table
 
 
@@ -1222,6 +1240,10 @@ def main(argv):
     ap.add_argument("--attach", action="store_true",
                     help="export the PLAYER EMDL (--mesh/--anim/--clip) with "
                     "the held equipment merged onto its skeleton nodes")
+    ap.add_argument("--no-glow", action="store_true",
+                    help="(--attach) skip the GLOW_ATTACHMENTS aura quads "
+                    "(recommended: the quad stand-in over-reads as a solid "
+                    "green sheet — see the module docstring)")
     ap.add_argument("--gibs", action="store_true",
                     help="export the crawler burst-death gib set (library "
                     "entries in GIB_ENTRIES) as one static 1-node EMDL each "

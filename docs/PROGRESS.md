@@ -153,6 +153,35 @@ the dated sections later in the file are both authoritative.
 > default + asset-absent captures byte-identical; tests PASS.
 > FINDINGS "STATUS SCREEN BACKGROUND" s44.
 
+> 2026-06-11 (session 43): MUZZLE GEOMETRY + FLASH FX DECODED, AURA
+> VERDICT — the port's three weapon-fidelity bugs closed from static
+> decode (FINDINGS "MUZZLE GEOMETRY DECODED..."): (1) func_00188630's
+> offset tables read from the local ELF — ray origin = handM*(-3,
+> 1.088, 0), barrel tip = handM*D_0024A220[7]=(6, 1.088, 0) (manual-aim
+> remap of sub 0), fire dir = EXACTLY the hand bone's local +X axis;
+> laser beam draws from handM*(3.6, .5, 0) (D_0024A2A0[0]). Port:
+> em_gfx_last_skinned_bone publishes the player palette (the chain
+> draws the player last); em_weapon anchors ray/laser/flash on palette
+> node 4 (the rifle attach node), chest-height/yaw demoted to flagged
+> fallback. (2) Muzzle flash decoded end-to-end: func_00187CC0 spawns
+> the class-0xC FX func_001F5040 variant 0 at the tip — chunk27 models
+> 0xD/8/7 (radial puff + 4.9-u forward star on the +X barrel axis, one
+> additive sheet), 16 ticks, scale 0.15+0.05*rand with 0.8-decay
+> velocity; port draws that envelope via the beam/dot pass (layered
+> concentric glows = untextured falloff stand-in, flagged); the overlay
+> crosshair/hit-pulse/flash rects REMOVED (the real game aims with the
+> laser dot alone). (3) Player-aura verdict: engine-real (two scenes of
+> dump evidence) but NOT a shadow (pure additive can't darken) and only
+> a ~3-10% green shimmer in the real frame — the port's quad bake
+> over-reads as a solid green sheet, so export_props/export_native grew
+> `--no-glow` and player.emdl is re-exported without the aura quads
+> (old CLI reproduced byte-identical first; new EMDL = same minus 8
+> glow verts / 2 quads / 2 tinted texture copies). Verified: aim/fire/
+> idle captures (laser from the rifle muzzle along the barrel to a soft
+> wall dot; flash at the tip; no green square), make test-input +
+> door/weapon/melee/transit/enemy 1-4/sfx all PASS; default capture
+> changes by exactly the aura removal (expected, stated).
+
 > 2026-06-10 (session 42): MESSAGE BANK EXPORTED + PORT TEXT — full
 > decode of chunk00/f02_id02.bin (asset slot 2): exact two-level layout
 > (group dir -> OUTER markup directory -> TEXT blob with per-line
