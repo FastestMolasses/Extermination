@@ -74,9 +74,13 @@ lists whole missing systems):
 6. **Crawler aggro is port-invented** — the 32-u distance wake was added so a lone crawler
    engages at all (engine IDLE wakes only via group alarm or damage), and the damage
    window is widened to IDLE+ATTACK (J1, J2).
-7. **Bullet auto-aim is a different shape** — distance + 10° facing cone stands in for the
-   engine's screen-space cone func_00199220 (|x| ≤ 66+50s, |y| ≤ 45+45s on the GS canvas);
-   target selection can differ per shot (H3).
+7. ~~**Bullet auto-aim is a different shape**~~ — CLOSED s60: the engine's screen-space
+   acquisition func_00199220 is fully decoded and translated (|sx| ≤ 66, |sy| ≤ 45
+   GS-center px through the published viewproj; the +50s/+45s spread terms ride a float
+   nothing writes), with the 3-slot nearest-first table, the +0x2F0 manual round-robin
+   and the func_0017AF70 lock steer (0.02 blend/frame, ladder-angle mapping). Remaining
+   inside it: reticle markers, the lock-on option's radial cone, the 0x1D laser-ray lock
+   (H3, H11, H16).
 8. **Camera wall response is a port-invented model** — the observed "rise over the wall"
    behavior was re-created with port constants; the engine's 6984-byte solver
    func_0018DD20 is unread (D3).
@@ -198,7 +202,7 @@ lists whole missing systems):
 |---|----------|--------------|------|-----|--------|
 | H1 | Ammo/reload | func_0017B300 matched 100% (TOTAL-pool rule, top-up fill quirk replicated verbatim) | translated | — | (match) |
 | H2 | Fire sub-machine | func_00170A60 sub-states; semi interval = ladder clip length (+0x2F4), burst/auto 12.0; +0x2A queue window; dry-mag reload at expiry | translated (states collapsed to 5 port enums, cadence/timing faithful); `WPN_BURST_PAUSE` 8 is the FINDINGS contract value | S | SI |
-| H3 | Target acquisition | screen-space cone func_00199220: \|x\| ≤ 66+50s, \|y\| ≤ 45+45s on the GS canvas, 3-target cycle | distance + cos 10° facing cone (`WPN_AIM_CONE`), nearest only | B | FS |
+| H3 | Target acquisition | screen-space cone func_00199220: \|sx\| ≤ 66+50s, \|sy\| ≤ 45+45s GS-center px (s = gun+0x214, never written = 0), validity chain (status/HP → dist(player, aim) < 260 → cone → actor ray ×1.2 must hit the candidate → world LOS), 3-slot nearest-first table; +0x2F0 manual round-robin (1→E4, 2→E8, E0 fallbacks; one advance per trigger event, bursts hold a slot); func_0017AF70 lock steer (blend-space, 0.02/frame, snap ≤ 0.02) | TRANSLATED s60 (`weapon_acquire`/`em_weapon_lock_steer`; screen test via `em_gfx_last_viewproj`, one frame stale like the bone publish). Conflation: the port's single stance uses the 199220 slots for the lock — the engine's 0x1D stance locks via the laser ray (func_00185A10/E30) and only 0x1E/0x20 run 199220. Reticle markers (func_001DD170) untranslated | S | SI (flagged) |
 | H4 | Bullet victim test | the segment query itself reports the hit actor (*0x700031D4; movable hulls in set 0) | `em_enemy_ray_test` sphere-vs-segment beside the world query, nearest wins — documented design split | B | SI |
 | H5 | Enemy hit-sphere radii | per-model collision hulls (id 0x73 rig hulls exist on disc) | spheres: crawler 3.0, crate 3.5 — port constants | B | PC (flagged in em_enemy) |
 | H6 | Fire sounds | per-stance code: 0x164 (0x31/0x34) vs 0x165 (0x32/0x35) | only the 0x1D-family stance exists → always 0x164 | V | UT |
@@ -206,7 +210,7 @@ lists whole missing systems):
 | H8 | Tracer / gore / impact markers / rumble | func_001860A0 tracer + FX dispatch | untranslated | V | UT |
 | H9 | Muzzle anchoring | hand matrix x D_0024A220/D_0024A2A0 table points (decoded) | translated via node-4 palette read; chest-height/yaw fallback for clip-less EMDLs | — | (match; fallback FS) |
 | H10 | Muzzle flash | chunk27 models 0xD/8/7 as real meshes, per-shot pool FX actors; rotation lerp tick ≥ 4 | model-per-tick schedule drawn as textured billboards; ONE flash slot (new shot restarts); rotation lerp translated as a roll around the gun axis (one of three Euler components) | V | SI (flagged) |
-| H11 | Laser sight | 32 GS LINE segments + dot billboard; hide window +0x2F2 (all decoded) | translated; lock-on variant (warm color, 5.0 dot — D_008106E0 aim option 1) pending (no lock-on system) | B | UT |
+| H11 | Laser sight | 32 GS LINE segments + dot billboard; hide window +0x2F2; LOCKED arm on D_008106E0: warm (1.0, 0.6, 0.2) beam + 5.0 dot at (0x70/0x40/0x20 + rand5)/0x80 (all decoded) | translated incl. the lock arm (s60 — keyed on target slot 0, the real lock state) | — | (match) |
 | H12 | Flashlight render | THE ENGINE DRAWS NOTHING for the toggle (exhaustive sweep, FINDINGS s51) | deliberate deviation: forward spot term + visible cone mesh; spot values port-tuned (cone angle asset-derived 7.13°, gain x3 stands in for the 0x10/0x11/0x16 shell stack); level-only lighting with the camera-fill exception | V | FS (deliberate, documented at the API) |
 | H13 | Shoulder-light burst (s28b L3 stealth light) | 300-frame auto-off burst, anim/sound 0x15D, zero battery | code kept but UNHOOKED (input path undecoded; L3 is the port's reload) | B | UT |
 | H14 | Fire-mode select | D_00810C61 set by game UI (page-2 weapon customization, presumably) | only the test API `em_weapon_set_fire_mode` — no in-game input changes modes | B | UT |
@@ -332,8 +336,10 @@ the port (beyond the per-module gaps above).
    module (port shows a flagged stand-in).
 6. **Other weapons** — the weapon_equip cluster's NIGHT VISION SYSTEM, SPECIAL PURPOSE
    MISSILE LAUNCHER, DELTA AUTO SIGHT SYS, TACTICAL ADVANCED; the port has SPR4 + knife.
-7. **Lock-on / aim options** — D_008106E0 target lock (laser color/dot swap), aim option
-   modes D_00810CA4.
+7. **Lock-on / aim options** — PARTLY CLOSED s60: the D_008106E0 target lock (laser
+   color/dot swap), the 3-slot acquisition and the lock steer are in; the aim OPTION
+   modes themselves (D_00810CA4 select UI, option 1's radial cone, option-keyed muzzle
+   rows) and the 0x1D laser-ray lock remain.
 8. **Enemy families beyond crawler/crate/generator/tendril** — the kind-0xD leech brain
    proper (func_00153F10), the fixture (func_00156620), nest children, the rest of the
    s22 behavior-pointer census (95 placements across 13 areas use more behaviors than the

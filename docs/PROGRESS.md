@@ -5509,3 +5509,42 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   (450/500/800/1000) when their callers get translated; per-sound
   pitch (M1) and multi-event trigger scripts (M4) remain the flat-audio
   residue.
+
+### Update — 2026-06-11 s60: AUTO-AIM ENGINE-TRUE — func_00199220 / round-robin / lock steer translated
+
+- **Decode (FINDINGS "AUTO-AIM FULLY DECODED" s60)**: func_00199220
+  read end-to-end — validity chain (status/183B80/HP → dist(PLAYER,
+  aim point) < 260 → screen cone through spad matrix 0x70003AC0:
+  sx = x'/w−2048, sy = 1.5·(y'/w−2048); manual |sx| ≤ 66+50s,
+  |sy| ≤ 45+45s vs lock-on radial ≤ 50+55s, s = gun+0x214 which
+  NOTHING writes (= 0) → actor ray muzzle→aim·1.2 must hit the
+  candidate → world LOS mode 6 clear), 3-slot nearest-first insertion
+  into D_008106E0/E4/E8, reticle-marker tail. Caller split corrected:
+  199220 belongs to stances 0x1E/0x20; 0x1D/0x1F lock via the laser
+  ray (func_00185A10/E30) and run func_0017AF70. The +0x2F0
+  round-robin: stance-top mod-3 increment on the +0x274 latch
+  (func_0017A8B0 per trigger event) = one advance per shot, bursts
+  hold a slot; bullet slot pick 1→E4/2→E8 with E0 fallbacks.
+  func_0017AF70 constants pinned: blend_des = blend ∓ 0.5·Δangle/HALF
+  with the per-side baked ladder angles (1.0469040/1.0470290 rad yaw,
+  1.3957210/1.3972940 pitch, sets A/B per stance pair), step
+  normalized 0.02 blend/frame, snap ≤ 0.02 (0x3CA3D70A).
+- **Port (extermination-port em_weapon.* + em_enemy queries +
+  em_gfx_last_viewproj)**: weapon_acquire runs the chain every AIM
+  tick against the published last-draw P*V (one frame stale, the
+  bone-publish staleness class); shots round-robin the slots at the
+  decoded trigger events; em_weapon_lock_steer feeds the pose-ladder
+  blends from em_game's player_move when the stick is idle (the
+  engine's +0x302 manual-input lock drop); the laser's warm lock arm
+  (1.0, 0.6, 0.2 beam, 5.0 warm dot) now rides the real lock slot 0.
+  The old WPN_AIM_CONE world-cone stand-in is retired (H3 closed,
+  H11 → match). Tests: test-weapon + new 2-enemy round-robin section
+  (slot fill, victim sequence B,A,A,B, exact 0.02 steer step);
+  EM_WEAPON/EM_ENEMY 1–4/EM_AIM/EM_MELEE/EM_PROJ PASS (the kill run
+  now pitches down until the screen-cone lock fills — engine-true);
+  default capture byte-identical.
+- **Open**: reticle markers func_001DD170; aim-option modes (lock-on
+  radial cone, option select UI, option-keyed muzzle rows — H16); the
+  0x1D laser-ray lock (the port conflates lock = 199220 slot 0,
+  flagged); R2 set-B steer constants idle until an R2 weapon stance
+  exists.

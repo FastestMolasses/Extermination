@@ -12632,3 +12632,149 @@ decoded x-anchor implies a menu zoom s ≈ 324.3 → tan(vfov/2) = 0.691,
 read with the status screen open; until then the pinned look stands.
 
 _Last updated: 2026-06-11 (session 59)._
+
+## AUTO-AIM FULLY DECODED — func_00199220 screen-cone chain, the +0x2F0 round-robin, func_0017AF70 lock-steer rates; PORT TRANSLATED (2026-06-11, session 60)
+
+Closes the s23 partial reading of the 3-target auto-aim (the port's
+distance + 10° world-cone stand-in, PORT_DIFFERENCES H3). Full static
+decode of the acquisition, the per-shot target cycle and the lock
+steer; all three now run natively in `em_weapon.c`.
+
+### 1. func_00199220 — acquisition, the exact math
+
+Entry (a0 = player): copies the GUN muzzle `gun+0xA0` → spad `38A0`,
+clears `D_008106E0/E4/E8`, seeds the three best distances f21/f22/f23
+= 1000.0, then walks the published list `D_00275B8C` (count
+`D_00275B94`). Per candidate, IN ORDER:
+
+1. status byte != 0 → `func_00183B80` != 0 → HP `+0x34` != 0;
+2. aim point `func_00183C40(cand, 0x700038B0)`; **distance from the
+   PLAYER position `+0xA0`** (not the muzzle) to the aim point, f20 =
+   sqrt; reject f20 >= 260.0 (`0x43820000`);
+3. SCREEN CONE: aim point (w=1) transformed by the spad camera matrix
+   `0x70003AC0` (`func_001026A0`). Reject 16/w < 0 (behind camera).
+   Screen coords: `sx = x'/w − 2048`, `sy = 1.5·(y'/w − 2048)` — GS
+   window pixels off the 2048 center (the visible half-extents are
+   256 ×112 GS units; the 1.5 y-scale makes the y test span ±168).
+   The mult/div-by-16 in the .s cancels (codegen artifact). Then by
+   aim option `D_00810CA4`:
+   - `== 1` (lock-on): radial — sqrt(sx²+sy²) ≤ 50 + 55·s;
+   - else (manual 0 / mode 2): box — |sx| ≤ 66 + 50·s AND
+     |sy| ≤ 45 + 45·s;
+   where s = gun scratch `+0x214` float. **No instruction in the boot
+   ELF ever writes gun+0x214** (exhaustive offset grep) — actor
+   scratch is zero-initialized, so s = 0 and the cone is the fixed
+   66×45 box / r=50 disc.
+4. ACTOR RAY: endpoint = muzzle + (aim − muzzle)·1.2 (`0x3F99999A` —
+   a 20% validation overshoot, distinct from the bullet's +5 u);
+   `func_0019A570(muzzle, end, 1, 0x20)` must HIT and the result
+   actor `*0x700031D4` must BE the candidate (an interposed actor
+   disqualifies);
+5. WORLD LOS: `func_0019A570(muzzle, 0x700031B0 = the actor ray's hit
+   point, 6, 0)` must MISS (clear line).
+
+Survivors run a 3-slot insertion sort on the step-2 distance: E0 ≤ E4
+≤ E8 (`f21/f22/f23` shift with the pointers). Tail: reticle markers
+`func_001DD170(1, aimPoint, 0, 0x80808080, 0)` — lock-on mode draws
+E0's only, manual draws all three (loop over `D_008106B0+0x30..0x38`,
+which IS E0/E4/E8).
+
+### 2. WHO calls it — the stance split (corrects the s23 conflation)
+
+`func_00199220` is called from stance tops **0x1E (func_001703E0) and
+0x20 (func_00173000) only** — the R2 family. The R1 tops 0x1D
+(func_0016FCF0) / 0x1F instead maintain E0 via the LASER-RAY lock
+(`func_00185A10` acquire / `func_00185E30` revalidate — a ray down the
+barrel, mask 0x20, same status/targetable/HP gates), cleared whenever
+manual steering flags `+0x302` or sub-weapon != 0. The fire SM head
+(func_00170A60, a1==0 callers = the 0x1D family) runs the lock steer
+`func_0017AF70` when E0 != 0; the 0x1E top calls the SM with a1=1
+(steer skipped — the R2 stance aims with the camera). The laser drawer
+`func_00185760` flips to the warm arm purely on `D_008106E0 != 0`,
+whichever system filled it.
+
+### 3. The +0x2F0 round-robin — increment policy
+
+Stance tops (all four), manual mode only (`D_00810CA4 == 0`): if the
+trigger latch `+0x274` is set, `+0x2F0 = (+0x2F0 + 1) % 3` — BEFORE
+the per-sub fire-SM dispatch. `+0x274` is SET only by `func_0017A8B0`
+(the trigger-event handler that also stores the cadence `+0x2F4`),
+which `func_001607D0` invokes on the fire-config bit: `D_00810E74`
+edge for SEMI (C61==0), `D_00810E70` held for burst/auto — plus the
+queued-semi refire arm (`.L00170E4C` sets it with `+0x2F2`). Every
+shot state, the dry click and the release CLEAR it. Net: **one
+advance per trigger event ≈ one per shot** (semi presses, queued
+refires, auto-refire expiries); burst rounds 2/3 chain through the
+step-back with the latch clear — a 3-round burst holds one slot.
+Stance entry zeroes `+0x2F0`.
+
+The bullet (`func_001861C0`, contexts 0xC/0x29): CA4==1 → E0 or
+untargeted; CA4==0 → `+0x2F0` 1 → E4, 2 → E8 (EACH falling back to E0
+when null), else E0; the chosen target's aim point is re-queried
+(`func_00183C40`) at fire time, endpoint overshoots +5 u; no target →
+muzzle + dir·260.
+
+### 4. func_0017AF70 — lock steer, exact constants
+
+Gate: `+0x2F2` (the laser-visible/aim latch — steering pauses through
+each shot's cadence) and `D_008106E0`. Two constant sets by mode
+`+0x05`: set A for 0x1D/0x1E, set B otherwise (0x1F/0x20):
+
+```
+              set A (0x1D/0x1E)        set B (0x1F/0x20)
+yaw eps       3.78000e-4 (39C62E4D)    5.94000e-4 (3A1BB6AA)
+yaw + side    1.0469040  (3F8600F3)    1.0458360  (3F85DDF4)   rad
+yaw − side    1.0470290  (3F86050C)    1.0463070  (3F85ED63)   rad
+pitch split   1.5693710  (3FC8E126)    1.5655510  (3FC863FA)   rad
+pitch A       1.3957210  (3FB2A6FC)    1.3935290  (3FB25F29)   rad
+pitch B       1.3972940  (3FB2DA88)    1.3981010  (3FB2F4F8)   rad
+```
+
+The yaw sides are the MEASURED ±60° ladder pose angles (59.98°/
+59.99°), the pitch constants the ~80° pitch span (79.97°/80.06°) —
+i.e. the steer maps angle error to blend units through the baked
+ladder geometry. Desired yaw = `func_001B1240(muzzle, target.x,
+target.z)` − heading `+0xC4`, wrapped (`func_001B1470`); current from
+the gun dir `+0xC0` (atan2 `func_0011E620`). Desired blend =
+blend − 0.5·(des − cur)/side (side picked by des vs eps; the engine's
+y-down/blend-axis signs — a port translates magnitudes). Pitch:
+desired `func_0017A800(muzzle, target)` vs current atan2(dir.y,
+horiz); side split des ≤ 1.5694 is in practice always true (atan2
+pitch < 90°) — pitch B is dead in flight. Both desired blends clamp
+[0,1]. THEN: the (Δyaw, Δpitch) blend delta is normalized
+(`func_00102760`) and stepped **0.02/frame** (`0x3CA3D70A`); |Δ| ≤
+0.02 SNAPS to the desired pair (writes `+0x27C/+0x278` directly). The
+delta magnitude is also published to spad `0x70003A20`.
+
+### 5. Port translation (extermination-port, this session)
+
+- `em_weapon.c weapon_acquire()` — the full chain each AIM tick;
+  screen cone via the new `em_gfx_last_viewproj` (the gfx layer's
+  published last-draw P*V = the engine's 0x70003AC0 read, one frame
+  stale like the bone publish); sx = 256·ndc_x, |sy| = 168·|ndc_y|;
+  spread fixed 0 (no writer, documented). New em_enemy queries:
+  `em_enemy_targetable` / `em_enemy_aim_point`.
+- Round-robin: `w.cycle` advances at the decoded trigger events
+  (press accept / queued expiry / auto refire; burst rounds chain);
+  the bullet picks slot[cycle] with the E0 fallbacks. The port's
+  single stance merges the engine's 0x1D/0x1E split: acquisition =
+  the 199220 3-slot chain, lock = slot 0 (documented conflation —
+  the 0x1D laser-ray lock func_00185A10/E30 is not translated).
+- `em_weapon_lock_steer()` — set-A constants, 0.02 step/snap;
+  em_game's player_move applies it when the stick is idle (the
+  engine's +0x302 manual-input lock drop).
+- Laser lock color flip + 5.0-unit warm dot now ride the REAL lock
+  state (slot 0) — the s23b warm arm (0x70/0x40/0x20 + rand5)/0x80.
+- Tests: `make test-weapon` gained the 2-enemy ROUND-ROBIN section
+  (slot fill nearest-first, victim sequence B,A,A,B over 4 semi
+  presses, the exact 0.02 steer step, lock clear on stance drop);
+  EM_WEAPON/EM_ENEMY 1–4/EM_AIM/EM_MELEE/EM_PROJ self-tests PASS
+  (the kill run now pitches the aim down until the screen-cone lock
+  fills — engine-true: a floor crawler under a level aim is OUTSIDE
+  the cone; the old planar stand-in ignored height). Default capture
+  byte-identical vs baseline.
+- UNTRANSLATED, flagged: the reticle markers (func_001DD170), the
+  lock-on aim option's radial cone selection (H16), the R2-stance
+  set-B steer constants, the 0x1D laser-ray lock.
+
+_Last updated: 2026-06-11 (session 60)._
