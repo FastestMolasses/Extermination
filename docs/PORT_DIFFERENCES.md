@@ -51,8 +51,11 @@ lists whole missing systems):
 
 **Top 10 worst divergences** (impact-ranked; section.entry cites):
 
-1. **No player damage/death pipeline** — health drains via a port mailbox stand-in; no
-   flinch, no knockdown (engine event 3), no death, no game over at 0 HP (C14, Q).
+1. ~~**No player damage/death pipeline**~~ — CLOSED 2026-06-11 s58: decoded processor
+   func_0021C440 translated (flinch/death/infection/i-frames/kill plane + corpse hold +
+   fade); the game-over SCREEN is a flagged stand-in (engine module undecoded). The s33
+   "event 3" pad write turned out to be INFECTION (+0x22C), not health — the old consume
+   was wrong twice over (C12, C14, P3, Q5 all closed).
 2. **No pickups / no inventory** — the engine's most common interactive object
    (func_001C4820 props, class-4 kind-0xB items, ammo boxes) does not exist in the port;
    scenes ship without them (Q1).
@@ -124,9 +127,9 @@ lists whole missing systems):
 | C9 | Idle cycle | id 0 breathing + 300-frame timer + fidget 0x15D (decoded s46) | translated; cross-fades via linear palette lerp (engine: bone-channel blend args 12.0/8.0) | V | SI (flagged) |
 | C10 | Locomotion clip rates | engine: per-tier property rates (tier 2 hard-codes +0x204 = 0.75); mid-ramp blend TOWARD next tier's clip (anim_matrix_player sub 1) | continuous rate = move_speed / clip natural speed (stride lock); tier-swap crossfade approximates the mid-ramp blend | V | FS |
 | C11 | Footstep mapping | func_00182430 compiled-in material blocks + tier sub-base + rand5 (decoded s37) | translated; **rand5 uses a private LCG** (engine: EE libc rand()); decal/FX layer func_00187EE0, movable-object attr override (crate = attr 2/4), first-contact one-shots 0x5A/5B/5C, deep-water block 0xCB (+0x23C state) all untranslated | B/V | SI + UT (flagged) |
-| C12 | Player damage | engine path: latch byte D_008102BF + drain magnitude D_008104D4, event-3 knockdown, hit reactions | port consumes the enemy mailbox code directly into `status.health`; **no flinch/knockdown anim, no death state, no game over at 0 HP** (health clamps at 0 and play continues) | B | UT (death handling unflagged) |
+| C12 | Player damage | per-frame processor func_0021C440: pending floats +0x224 (health) / +0x22C (infection), type byte D_008102BF, state-2 flinch/death subs, producer-side i-frames (event byte + 0x20E window), corpse hold + fade (FINDINGS "PLAYER DAMAGE & DEATH PIPELINE") | **CLOSED 2026-06-11 s58**: generic tail translated — flinch (decoded clips 0x1E-0x21/0x56-0x57/0x1C7 + voices 0x152/0x153), death sequence (clips 0x2A/0x5C/0x1C4, the 5-sound cue chain, 120-frame hold, 4-speed fade), infection-at-100 latch + 60-cap + drain, kill plane, i-frames. Remaining: typed paths 1..0xB (no native producers), latch ticks, blood-pool/gore effects (no effect system), heartbeat rumble (no FF backend), hazard-room drain (no room attrs) — all flagged | B | SI (typed paths UT) |
 | C13 | Player status values | live save: health 75/100, infection 60, mag 4/30, reserve 120, battery 4/6 (FINDINGS "INVENTORY LOCATED") | static demo values seeded at install; only mag/reserve are live (mirrored from em_weapon) | B | FS |
-| C14 | Health display max swap | engine flag 0x8104E4 swaps display max to 60 | not modeled (`em_hud.h`) | V | UT |
+| C14 | Health display max swap | engine flag 0x8104E4 (= player +0x234, the INFECTED latch) swaps display max to 60 | **CLOSED 2026-06-11 s58**: infection-at-100 sets the latch and `health_max` 60 (em_game player_apply_infection) | V | (match) |
 | C15 | Dead constant | — | `STICK_DEADZONE` 0.25 defined, never used (superseded by gait rings) | — | (cleanup note) |
 | C16 | Scene boot | engine area flow: spawn tables in boot ELF .data, difficulty map, HUD/weapon context init (func_001AE040 state 0) | scene manifest `scene.txt` (spawn/collision/bgm/doors/enemies/camregions) — a port-side data path replacing the engine loader | S | SI (by design) |
 
@@ -297,7 +300,7 @@ lists whole missing systems):
 |---|---------|-------|
 | P1 | Frame clear color (0.08, 0.09, 0.12) is an unflagged port value (see A2) | `em_frame.c:277` |
 | P2 | `TURN_SPEED` 12 rad/s facing seek has no engine citation and no flag (see C3) | `em_game.c:223` |
-| P3 | No death/game-over handling when health reaches 0 — unflagged gap (see C12) | `em_game.c` mailbox consume (~line 4760) |
+| P3 | ~~No death/game-over handling at 0 HP~~ — CLOSED s58 (see C12; the game-over SCREEN remains a flagged stand-in — the engine module + trigger are undecoded, FINDINGS s58 §6) | `em_game.c` PLAYER DAMAGE & DEATH |
 | P4 | `STICK_DEADZONE` dead constant (see C15) | `em_game.c:404` |
 | P5 | `em_door.h` step-4 walk-out comment labels anim id 2 "RUN" — stale vs the 2026-06-11 tier relabel (id 2 = JOG); behavior correct | `em_door.h:112` |
 | P6 | Camera far/near clip planes (0.5 / 500–800) are port values inside the flagged projection TODO (see D10) | `em_game.c` camera_commit |
@@ -316,10 +319,12 @@ the port (beyond the per-module gaps above).
    healing items, equipment/event items.
 3. **Battery mechanics** — the spend/recharge currency (s21); the port only displays the
    static value.
-4. **Infection mechanic** — gameplay effects of the infection percent (display + menu
-   tint only in the port).
-5. **Player damage/knockdown/death/game-over** — event-3 knockdown, the D_008102BF latch
-   path, death sequence (see C12).
+4. **Infection mechanic** — PARTLY CLOSED s58: the at-100 consequence (60-HP cap, drain,
+   infected flinch/death variants, display-max swap) is in; the infected SKIN tint on the
+   in-world player (s49 tint vec) and infection pickups/cures remain display-only.
+5. ~~**Player damage/knockdown/death/game-over**~~ — CLOSED 2026-06-11 s58 (see C12);
+   remaining inside it: typed/latch reaction paths 1..0xB, the engine game-over screen
+   module (port shows a flagged stand-in).
 6. **Other weapons** — the weapon_equip cluster's NIGHT VISION SYSTEM, SPECIAL PURPOSE
    MISSILE LAUNCHER, DELTA AUTO SIGHT SYS, TACTICAL ADVANCED; the port has SPR4 + knife.
 7. **Lock-on / aim options** — D_008106E0 target lock (laser color/dot swap), aim option
@@ -366,7 +371,7 @@ the port (beyond the per-module gaps above).
   clip planes) and the SU rows (A5 second fade tick, F3 alpha test, F9 loop seam, E4 UI
   projection derivation, I6 melee impact direction, K9 slider commit interleave, J2
   damage window, D3 wall-rise model, L3 ring corners, L9 page anchors).
-- Highest-leverage fidelity work, in order: player damage/death (C12), pickups+inventory
+- Highest-leverage fidelity work, in order: pickups+inventory
   (Q1/Q2), room lighting (F1), engine projection (D10), walk-into door triggers (K2),
   screen-space acquisition (H3), audio pitch/volume (M1/M2).
 - When any FINDINGS section is revised, re-audit the matching module section here — this

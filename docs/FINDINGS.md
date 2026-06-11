@@ -12116,4 +12116,181 @@ Open:
 - Which actor types {3, 8, ...} the func_001D8270 exclusion list maps
   to (by name), and the engine event flipping the lamp gate bytes.
 
-_Last updated: 2026-06-11 (session 57)._
+## PLAYER DAMAGE & DEATH PIPELINE — full decode (2026-06-11, session 58)
+
+Closes PORT_DIFFERENCES C12/C14/P3 ("no damage/death/game-over
+pipeline"). Static decode of the player hurt/death cluster — the 0x21B
+-0x225 range FUNCTIONS.csv had as "area_logic" is the PLAYER HIT-
+REACTION MACHINE (state-2 sub handlers + helpers).
+
+### 1. The damage interface is TWO pending floats + a type byte
+
+The player has NO +0x36 mailbox. Producers write the player actor
+(0x008102B0) directly:
+
+```
++0x224 (D_008104D4)  f32  pending HEALTH damage   (leech latch 5.0 /
+                          lunge 15.0 — s22b's "drain magnitude")
++0x22C (D_008104DC)  f32  pending INFECTION damage (breather pad 5.0 —
+                          the s33 "event 3" write INFECTS, not wounds)
++0x0F  (D_008102BF)  u8   damage TYPE byte (leech latch writes 2;
+                          typed reactions 1..0xB = scripted/latch
+                          paths, 0x63 = the infected-drain death)
++0x00                u8   event byte: 1 = normal/vulnerable, 2 = hit-
+                          reacting/dying, 3 = pad event (s33)
++0x20E               s16  post-hit INVULNERABILITY countdown
++0x234 (0x8104E4)    u8   INFECTED latch (1 at infection 100; 2 mid-
+                          infected-death). The SAME byte is the s39
+                          "display max -> 60" flag (C14 closed)
++0x235               u8   bit 0 = low-health latch (health <= 35)
++0x236               u8   armed-stance flag (clip-variant select)
+```
+
+Every producer requires event == 1, so the player is immune from
+hit-reaction start until +0x20E (armed at flinch END: 0x3C = 60
+frames, 0x5A = 90 after a latch hit) counts out — i-frames are
+producer-side, plus anim-id gates func_0021BB00/func_0021BC40 (the
+current +0x1F0 in a blocked set drops typed/generic damage — door/
+climb/scripted anims are damage-proof).
+
+### 2. func_0021C440 — THE damage processor (3424 B)
+
+Called at the head of player state 1 (func_0015B130) AND state 2
+(func_0015B770) every frame, via func_0021C440's callers. Flow:
+
+- health <= 0 already: clear pending, event = 2, return.
+- +0xF typed paths 1..0xB: each picks a state-2 sub + marker anim
+  (+0x1F0 = 0x3B/0x3C/0x3E/0x3F/0x40 — CATEGORY MARKERS, see below)
+  with per-type specials (type 5/0xA/0xB zero health; type 7 anim-
+  gated + sound 0x159; type 2 anim-blacklist + func_0021D640/6C0).
+- latch ticks (+0x234 == 1 && event == 1 && +0x23A in {0x5B, 6}, or
+  func_0021C3F0-gated +0x23B == 0xA): periodic +0x224 = 3.0/5.0/8.0
+  re-arms with blood effect 0x8000001B/0x80000044 + knockback yaw
+  into +0xC4 (atan2 of attacker facing + pi/2).
+- GENERIC TAIL (the common path): func_0021BC40 anim gate, then
+  func_0021C350 (health apply), func_0021C270 (infection apply),
+  then route: health <= 0 -> death entry; else flinch entry (state 2,
+  sub by context: 0 generic, 0x17/0x18 from aim subs 0x1D/0x1E,
+  2/0x18 variants when infected; anim marker 0x3E).
+
+**func_0021C350 (health apply)**: health -= +0x224, clear; <= 35 ->
++0x235 |= 1; <= 0 -> health = 0, event = 2.
+
+**func_0021C270 (infection apply)**: infection += +0x22C, clear; >=
+100 -> infection = 100, health = min(health, 60), +0x234 = 1 with
+D_00810707 = 1 (re-infection inhibit — the s33 pad gate) and
+D_008106F1 = 1, func_0021D4E0, sound 0x149 @ vol 300. "DENNIS
+INFECTED" = NOT a death: a 60-HP cap + the passive drain below + the
+pager line (s39 bank 0 line 3).
+
+### 3. State 2 sub handlers (jtbl_0026D450, 26 subs)
+
+- **sub 0 FLINCH (func_0021D800)**: rumble (0,0xC0,5); voice 0x152
+  (health hit) / 0x153 (infection hit, +0x1F1 == 1) @300; RNG &1
+  picks a flinch FAMILY, func_0021D1A0 the side: armed 0x56/0x57,
+  unarmed 0x1E/0x1F vs 0x20/0x21, infected 0x1C7 (all clip ids =
+  library directory ids; requested via func_001749A0 — the +0x1F0
+  markers never play). Root-motion mover + gravity (-0.2) + floor
+  settle while playing; clip end -> +0x20E = 60 (90 if +0x1F1 == 2),
+  exit state 1 sub 7 anim 0xD (recover).
+- **sub 1 DEATH (func_0021E240)**: phase 0 = rumble + sounds 0x146
+  (voice) + 0x151 (body) @300, clip 0x2A (armed +0x236 -> 0x5C),
+  both 130 f fall-to-ground (motion-audited: head y 14.6 -> 1.4);
+  during the clip at frames-remaining 80 -> sound 0x156, 50 ->
+  func_00182870(1), 16 -> func_0021D490 (thud 0x14E / infected
+  0x14F @300) + rumble (1,0xEE,0x3C); root-motion mover throughout.
+  Clip done -> func_0021D2E0.
+- **sub 3 INFECTED DEATH (func_0021E830)**: clip 0x1C4 (300 f
+  succumb sequence), gore effect 0x80000051, sounds 0x146 + 0x151;
+  at clip time <= 160 -> +0x234 = 2, D_00810707 = 2,
+  func_0015C1F0 (the full-transformation visual flip); end ->
+  rumble + func_0021D2E0.
+- **func_0021D2E0 (terminal)**: phase 0 = blood-pool effect
+  0x80000043 at node-1 XZ (y = +0x250 + 0.1, scale 1.0), event = 2,
+  health = 0, hold +0x28 = 0x78 (120 frames); phase 1 = countdown,
+  at 0 (and +0xF != 0xB) -> **func_001AEDE0(4,0)** — the STANDARD
+  fade-out; phase 2 = parked. Corpse settle (y -= 0.2 + floor) when
+  called with mode 0.
+- Subs 4/9 are entered by the pending-damage checks func_00181110/
+  func_001821E0 (state-1 action subs poll them); subs 0xC-0x15 are
+  the typed-reaction sequences (0x21Fxxx-0x225xxx, keyed on +0xD).
+
+### 4. Passive ticks (state-1 tail)
+
+- **func_0015D100** (gated on event bit 2 clear): hazard-room drain
+  (room attr 4 + D_008106C8 & 0x60 + suit byte D_00810C7E == 0 ->
+  health -= 1.0 / 360 frames) and the INFECTED drain (+0x234 != 0 ->
+  health -= 2.0 / 240 frames + green effect 0x80000063). Drain death
+  -> event 2 with +0xF = 0x63 -> the INFECTED death sub.
+- **func_0015D000**: low-health HEARTBEAT = pad rumble only
+  (func_001B61C0(0, 0xD0, 4, 0) every 121 frames at health <= 35;
+  0xE0 every 61 at <= 10). No sound.
+- Kill plane (spine): pos.y < -200 -> state 6 (func_0015D460): sub 0
+  health = 0 + event = 0, sub 1 func_001AEDE0(4,0), sub 2 parked.
+  No anim, no sound. State 6 is ONLY the kill plane; real deaths
+  stay in state 2.
+
+### 5. Anim-id MARKERS vs real clips
+
+The damage paths write +0x1F0 = 0x3B/0x3C/0x3E (hit), 0x3F (infected
+death), 0x40 (death) — but every state-2 sub handler immediately
+requests its REAL clip through func_001749A0, so the markers exist
+for the anim-id-keyed gates (invulnerability sets, the D_008106B3
+menu inhibit in func_0015BA50's tail). Motion audit: container 64
+(0x40) stays standing — it is not the death fall; 42 (0x2A) and 92
+(0x5C) are.
+
+### 6. GAME OVER — flow decoded to the screen launch; trigger OPEN
+
+After the death fade-out the engine is at HOLD-BLACK (D_0028A9A0 == 2)
+with the player machine parked; no B5..B8 request is posted. The
+end-screen machinery: game task state 6 (func_001AE040, reached when
+func_001AE7E0 returns 3 = D_008106CE != 0) stops audio and launches
+the DATA.DAT screen module — func_001FF030(D_008106CF) when
+D_008106CE == 2, else func_001FEFE0(D_008106CF) — busy-gated on
+D_00275BD8, then resets to gameplay state 1. The ONLY D_008106CE
+writer in the main ELF is func_001B7700, a POINTER-CALLED script op
+(no static callers; rec +0x14 = screen id, +0x80 bank offset on one
+arm). **OPEN: the dead-player -> D_008106CE/screen trigger was not
+found statically** — candidates: an overlay-resident watcher, the
+flow-task state 5 compositor (func_0021B180/550/840 — a three-layer
+fade-in renderer + func_001FF080 launch), or func_0022A650. Needs a
+live death capture in PCSX2 (watch D_008106CE/CF + D_00275BD8 +
+task bytes at death).
+
+### 7. Sound/effect id summary (all GLOBAL bank, vol 300)
+
+```
+0x152 flinch grunt        0x153 flinch grunt (infection hit)
+0x146 death voice         0x151 death body foley
+0x156 mid-fall cue (T-80) 0x14E ground thud (T-16; 0x14F infected)
+0x149 infection-100 sting 0x14D infected-death extra (func_0021C200)
+0x147 flinch settle extra 0x159 type-7 latched kill voice
+FX: 0x8000001B/44 latch blood, 0x80000043 blood pool, 0x80000048
+infected-death burst, 0x80000051 infected-death gore, 0x80000063
+infected drain tick
+```
+
+### 8. Port (extermination-port, same session)
+
+em_game.c "PLAYER DAMAGE & DEATH" block + em_hud: the generic-tail
+processor, flinch/death/infected-death sequences with the decoded
+clips/sounds/cues, infection mechanics (60-cap + drain + display-max
+swap = C14), producer-side i-frames, kill plane, corpse hold + the
+4-speed fade, and a FLAGGED game-over stand-in (black + "GAME OVER /
+PRESS START" in the real UI font; START reloads the scene) until the
+engine screen module + trigger are decoded. player.emdl re-exported
++10 clips (canonical CLI updated); sfx registry +11 ids.
+EM_DEATH_TEST=1 (flinch -> death -> game over -> restart) PASS;
+default capture byte-identical (code cmp-exact; asset append-only —
+shared clip palettes verified byte-identical).
+
+Open:
+- the dead-player game-over trigger (above) + the game-over screen
+  module id D_008106CF values / DATA.DAT chunk -> texture export.
+- typed damage paths 1..0xB (producers = scripted/latch attackers
+  not yet ported); the latch-tick fields +0x23A/+0x23B identities.
+- func_0021D1A0 (flinch side select — direction test, port uses RNG).
+- whether the infected latch survives an engine continue.
+
+_Last updated: 2026-06-11 (session 58)._

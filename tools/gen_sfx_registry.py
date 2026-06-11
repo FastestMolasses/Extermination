@@ -140,12 +140,27 @@ SCENES = {
         #   area's bank). The locked "VO" itself is a TEXT-ONLY radio
         #   message (see LOCKED-DOOR "VO" above) — verdict comments per
         #   lock-gated door are appended by locked_door_census().
+        # - PLAYER DAMAGE / DEATH voice set (2026-06-11 damage-pipeline
+        #   decode, FINDINGS "PLAYER DAMAGE & DEATH"; all GLOBAL ids,
+        #   vol 300 in the engine):
+        #     0x152 hurt grunt (flinch func_0021D800; 0x153 = the
+        #            infection-hit variant, +0x1F1 == 1)
+        #     0x146 death voice + 0x151 death body foley (death-seq
+        #            phase 0, func_0021E240/func_0021E830)
+        #     0x156 mid-fall body cue (death clip T-80)
+        #     0x14E body-hits-ground thud (T-16; 0x14F = infected)
+        #     0x149 infection-hits-100 sting (func_0021C270)
+        #     0x147 flinch-while-falling extra (func_0021D800 settle)
+        #     0x14D infected-death extra (func_0021C200)
+        #     0x159 type-7 latched kill voice (func_0021C440)
         "ids": [0x162, 0x163, 0x164, 0x165, 0x168, 0x169, 0x7D8,
                 0x015, 0x016, 0x017, 0x018, 0x019,   # walk (gait 2)
                 0x01A, 0x01B, 0x01C, 0x01D, 0x01E,   # run (gait 3)
                 0x138, 0x139, 0x13A, 0x13B, 0x13C,   # gear/cloth
                 0x17D, 0x17E, 0x17F, 0x179, 0x15D,
-                0x189, 0x16A, LOCKED_RATTLE_ID],
+                0x189, 0x16A, LOCKED_RATTLE_ID,
+                0x152, 0x153, 0x146, 0x151, 0x156,   # player damage
+                0x14E, 0x14F, 0x149, 0x147, 0x14D, 0x159],
     },
 }
 

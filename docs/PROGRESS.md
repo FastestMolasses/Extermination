@@ -140,6 +140,37 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 58): PLAYER DAMAGE & DEATH PIPELINE — decoded +
+> ported (FINDINGS "PLAYER DAMAGE & DEATH PIPELINE"; closes
+> PORT_DIFFERENCES #1 / C12 / C14 / P3 / Q5). The 0x21C-0x225
+> "area_logic" cluster is the PLAYER HURT MACHINE: per-frame processor
+> func_0021C440 — pending floats +0x224 health / +0x22C INFECTION (the
+> s33 pad "event 3" write INFECTS — the old port consume was wrong),
+> type byte D_008102BF, apply helpers func_0021C350/func_0021C270
+> (infection 100 -> 60-HP cap + display-max swap + 2HP/4s drain =
+> "Dennis Infected"), state-2 subs: flinch func_0021D800 (voices
+> 0x152/0x153, real clips 0x1E-0x21/0x56-0x57/0x1C7 — the +0x1F0
+> 0x3E/0x3F/0x40 writes are category markers, audited non-falls),
+> death func_0021E240 (clips 0x2A/0x5C 130 f falls, sound cues
+> 0x146+0x151 / 0x156 @T-80 / 0x14E @T-16), infected death
+> func_0021E830 (clip 0x1C4, 300 f), terminal func_0021D2E0 (blood
+> pool 0x80000043, 120-frame hold, func_001AEDE0(4,0) fade); producer-
+> side i-frames (event byte 1 gate + 0x20E 60/90-frame window); kill
+> plane = state 6 only. GAME OVER: flow decoded to the DATA.DAT screen
+> launchers (func_001FEFE0/func_001FF030, id D_008106CF, via
+> D_008106CE -> game-task state 6) but the dead-player TRIGGER is OPEN
+> (only writer func_001B7700 is a pointer-called script op) — needs a
+> live PCSX2 death capture. Port: full generic-tail translation in
+> em_game (PLAYER DAMAGE & DEATH block) + em_hud game-over stand-in
+> (flagged: black + GAME OVER/PRESS START in the real font, START
+> reloads the scene) + menu inhibit (D_008106B3); player.emdl +10
+> decoded clips (export CLI updated); sfx registry +11 voice ids.
+> EM_DEATH_TEST=1 (flinch -> death -> game over -> restart) PASS; all
+> self-tests PASS (melee test gates updated to wait out the now-real
+> flinch; slider/locked failures are the door agent's in-flight
+> worktree, pre-existing); default capture byte-identical (code
+> cmp-exact, asset append verified palette-identical).
+
 > 2026-06-11 (session 56): THREE PCSX2 GROUND-TRUTH REPORTS RESOLVED
 > (FINDINGS "SPAWN-RECORD FIXED CAMERAS + DOOR-CUT GEOMETRY
 > RE-DERIVED"). (1) MENU TURNTABLE: the s49 player WAS drawn but at
