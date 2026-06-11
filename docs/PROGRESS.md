@@ -136,6 +136,23 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 52): WEAPON-VISUAL FIDELITY (FINDINGS "WEAPON-
+> VISUAL FIDELITY"). The FX sprite textures identified + exported
+> (`export_props.py --fx` -> assets/fx/*.emtx): the laser-dot sprite
+> (func_001CD520 key 0x...4222DC, 32x16) and the THREE muzzle-flash
+> sheets — s43 correction: model 0x08 has two private keys
+> (0x...4220A4 star / 0x...4221E6 ball) besides the 0x...4220A0 sheet
+> 0x0D/0x07 share. Port: textured additive billboards in the beam
+> pass (em_gfx_beam_texture_set/_tex/_dot_tex) — the laser dot is now
+> ONE smooth textured sprite (not 3 concentric squares) and the
+> muzzle flash plays the engine's model-per-tick schedule with the
+> real sheets. FLASHLIGHT MODEL CORRECTED (user-attested): D_00810D3C
+> is a persistent preference (no timer — the 300-frame burst is the
+> separate s28b shoulder-light system, code kept but unhooked);
+> spot+laser share the AIM-phase gate (nothing during reload); cone
+> tightened to a sharp disc (cos 11.5/12.5 deg) per the reference.
+> All tests PASS; default capture byte-identical.
+
 > 2026-06-11 (session 51): FLASHLIGHT RENDER DECODE + port spot light
 > (FINDINGS "FLASHLIGHT RENDER DECODE"). Verdict: the toggle draws
 > NOTHING in the boot ELF — exhaustive reader sweeps of D_00810D3C

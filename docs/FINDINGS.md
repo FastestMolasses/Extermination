@@ -10963,4 +10963,86 @@ default capture hash (the o.pos expressions were kept byte-identical —
 reworking them flipped rasterizer edge pixels, caught and reverted).
 All port self-tests + make test-input/test-weapon PASS.
 
-_Last updated: 2026-06-11 (session 51)._
+## WEAPON-VISUAL FIDELITY: FX SPRITE TEXTURES EXPORTED + TEXTURED BEAM PASS; FLASHLIGHT MODEL CORRECTED (2026-06-11, session 52)
+
+User-fidelity pass against a reference capture of the original (while
+aiming: a SHARP-EDGED light circle on the wall + a thin laser with a
+small SMOOTH dot). Three fixes; the texture identities are new decode.
+
+### 1. The weapon FX sprite textures, identified and exported (--fx)
+
+`tools/export_props.py --fx` writes four raw-RGBA `.emtx` files (v1:
+"EMTX", u32 version, u32 w, u32 h, RGBA8 rows top-down) into the
+port's `assets/fx/`, texels resolved from the office GS dump (the
+chunk27 sheets are globally VRAM-resident):
+
+| file | TEX0 key (CLD-masked) | size | sampled by |
+|---|---|---|---|
+| laser_dot.emtx | `0x00045BA5154222DC` | 32x16 PSMT4 @ TBP 0x22DC | the laser drawers' func_001CD520 sprite call (s23b disasm literal `0x20045BA5_154222DC`) — a soft grey radial blob; the 2:1 image on the engine's SQUARE 3x3 quad squeezes to a round dot |
+| flash_puff.emtx | `0x000457B5594220A0` | 64x32 PSMT4 @ TBP 0x20A0 | muzzle-flash models 0x0D (spawn puff) and 0x07 (tick-3+ star), full-frame |
+| flash_star.emtx | `0x00045915594220A4` | 64x32 PSMT4 @ TBP 0x20A4 | model 0x08's 20 forward-streak records (X[0,4.9] — the +X star) |
+| flash_ball.emtx | `0x00045935554221E6` | 32x32 PSMT4 @ TBP 0x21E6 | model 0x08's 12 muzzle-base records (X~0, +-1.3 YZ radial cross) |
+
+CORRECTION to s43: "all three sample ONE additive effect sheet" was
+incomplete — model 0x08 carries TWO additional private keys (above);
+only 0x0D and 0x07 share the 0x20A0 sheet. The exporter reads the
+flash keys from the models themselves (self-verifying: 0x0D/0x07 must
+share one key, 0x08 exactly two, star-vs-ball split by +X extent) and
+keeps the dot key as the disasm constant.
+
+### 2. Port: textured world-space billboards (the real dot + flash)
+
+- em_gfx (em_gfx.h + Metal): `EM_GFX_BEAM_TEX_MAX` (4) texture slots
+  (`em_gfx_beam_texture_set`) + `em_gfx_beam_tex` (axial-billboard
+  quad, u along the segment) and `em_gfx_beam_dot_tex` (camera-facing
+  sprite) — same additive / depth-test-on / write-off state, same
+  budget and flush as the untextured beams; textured records draw
+  after the untextured set, grouped by slot (one runtime-compiled
+  pos+color+uv pipeline). The untextured pass is kept expression-for-
+  expression, so pre-texture frames stay byte-identical.
+- em_weapon: loads the `.emtx` files lazily (fx_load; missing file =
+  silent flat-color fallback). LASER DOT = ONE textured additive
+  sprite at the endpoint modulated by the flickering engine red (the
+  GS TFX-modulate draw) — replaces the 3-layer concentric flat-color
+  squares the user flagged ("3 distinct shrinking squares"). MUZZLE
+  FLASH = the engine's own model-per-tick schedule as textured
+  billboards: spawn tick = 0xD puff (camera-facing), ticks 0..2 =
+  model-8 star streak (axial, own sheet) + muzzle ball, tick 3+ =
+  model-7 star on the puff sheet; the 0.8^t intensity decay stays as
+  the flagged stand-in for the untranslated rotation lerp.
+
+### 3. FLASHLIGHT MODEL CORRECTED (user-attested vs the original)
+
+The port had hung the s28b 300-frame auto-off burst off the Square
+toggle (light "ran out" after 5 s with a switch sound) — WRONG against
+the real game: the gun light NEVER runs out, and light + laser appear
+ONLY while aiming (not even during a reload). Corrected model:
+
+- D_00810D3C is a PERSISTENT PREFERENCE: Square-in-aim toggles it
+  (ON = sound 0x179, OFF = silent), NO timer, no battery; it survives
+  holsters/re-draws (the engine replays it on the next rifle draw).
+- The 300-frame burst + 0x15D expiry (sound + gesture) belong to the
+  SEPARATE s28b shoulder-light stealth system (player +0xA family).
+  The port KEEPS that code (em_weapon.c "SHOULDER-LIGHT BURST") but
+  UNHOOKED — nothing arms it until the L3 input path is decoded;
+  `em_weapon_flashlight_timer()` introspects it (always 0).
+- RENDER GATE = the laser's: the spot term is set only in the AIM
+  phase (w.laser_on), so light and laser appear/vanish together.
+- The projected circle is SHARP per the reference: cone tightened to
+  cos 11.5deg inner / cos 12.5deg outer (a crisp disc with a ~1-degree
+  smoothstep rim) from the old 15->25-degree wash.
+
+### 4. Verification
+
+make test-weapon rewritten honestly (persistent preference: no
+auto-off after 400 frames, no 0x15D, flag survives holster + re-draw,
+manual OFF silent) — PASS; test-input + PAUSE/DOOR/MELEE/CAMREGION/
+TRANSIT/ENEMY 1-4/SFX self-tests all PASS. Captures: default frame
+byte-identical to the pre-change baseline (cmp exact); EM_CAPTURE_AIM
++ EM_CAPTURE_LIGHT shows the sharp-edged disc on the wall with the
+crisp rim; the laser dot reads as one soft round red glow (the old
+squares are gone); EM_CAPTURE_AIM=2 frames 59/60 show the textured
+puff then the textured star streak at the muzzle. Reload/draw/holster
+render neither light nor laser (shared gate, by construction).
+
+_Last updated: 2026-06-11 (session 52)._

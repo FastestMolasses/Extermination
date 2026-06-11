@@ -233,6 +233,36 @@ standard normals->grayscale stand-in light and honestly ships 0
 textures; --p2s/--gsdump change nothing (verified byte-identical with
 and without --p2s state 01).
 
+FX SHEETS (--fx, 2026-06-11 weapon-visual-fidelity session). The weapon
+visuals' SPRITE TEXTURES, exported as raw RGBA .emtx files for the port's
+textured world-space billboard pass (em_gfx_beam_tex/_dot_tex):
+
+  laser_dot   the laser-sight endpoint sprite — the TEX0 key passed to
+              func_001CD520 by the laser drawers (s23b disasm:
+              0x20045BA5_154222DC; CLD-masked 0x00045BA5154222DC =
+              32x16 PSMT4 @ TBP 0x22DC, a soft grey radial blob the
+              engine modulates red). The 2:1 image drawn on the sprite's
+              SQUARE 3x3 quad squeezes to a round dot.
+  flash_puff  the muzzle-flash effect sheet (TEX0 0x000457B5594220A0,
+              64x32 PSMT4 @ TBP 0x20A0) — sampled FULL-FRAME by chunk27
+              models 0x0D (the spawn-tick radial puff) and 0x07 (the
+              tick-3+ star). The s43 "ONE additive effect sheet" claim
+              was incomplete:
+  flash_star  model 0x08 (the tick-0..2 forward +X star, X[0,4.9])
+              actually samples its OWN 64x32 sheet (0x00045915594220A4
+              @ TBP 0x20A4) for the 20 streak records, and
+  flash_ball  a 32x32 sheet (0x00045935554221E6 @ TBP 0x21E6) for its
+              12 muzzle-base radial records (X~0, +-1.3 YZ cross).
+
+The flash keys are READ FROM THE MODELS (self-verifying: 0x0D/0x07 must
+share one key, 0x08 must carry exactly two, star-vs-ball split by the
+records' +X extent); the dot key is the disasm constant. Texels resolve
+from the office GS dump (chunk27 sheets are globally VRAM-resident).
+
+.emtx v1 layout (little-endian): "EMTX", u32 version=1, u32 w, u32 h,
+then w*h*4 RGBA8 rows top-down — the exact em_gfx texture-upload
+convention (see the port's em_weapon.c fx_load).
+
 Disc-derived output: write only into git-ignored locations.
 
 Usage (macOS arm64, decomp repo root):
@@ -272,6 +302,10 @@ Usage (macOS arm64, decomp repo root):
   .venv/bin/python tools/export_props.py --crate \
       --crate-blob extract/chunk03/f13_id15.bin \
       --out ../extermination-port/assets/tendril.emdl
+  # weapon-visual sprite textures (laser dot + muzzle-flash sheets):
+  .venv/bin/python tools/export_props.py --fx \
+      --gsdump extract/gsdump/frame1.gs \
+      --fx-outdir ../extermination-port/assets/fx
 """
 from __future__ import annotations
 
@@ -1208,6 +1242,87 @@ def export_gibs(args):
 
 
 # ---------------------------------------------------------------------------
+# Mode 4b: --fx — the weapon-visual sprite textures (see "FX SHEETS" in the
+# module docstring): the laser-dot sprite + the three muzzle-flash sheets,
+# written as raw-RGBA .emtx files for the port's textured beam pass.
+
+# The laser drawers' func_001CD520 sprite key (s23b disasm; FINDINGS "The
+# DOT"). Stored CLD-masked like every tex_table key.
+FX_DOT_KEY = 0x20045BA5154222DC & ((1 << 61) - 1)   # = en.TEX0_KEY_MASK'd
+
+# (model id, role) — the func_001F5040 variant-0 muzzle-flash models
+# (FINDINGS "Muzzle flash FX", s43).
+FX_FLASH_MODELS = [(0x0D, "spawn-tick radial puff"),
+                   (0x08, "tick-0..2 forward star + muzzle ball"),
+                   (0x07, "tick-3+ star (shared sheet)")]
+
+
+def _model_keys(d: bytes, offs, mi: int):
+    """TEX0 keys sampled by library model `mi` -> {key: [record pos...]}."""
+    bykey: dict[int, list] = {}
+    for blk in model_records(d, offs[mi]):
+        for q, _uv, _attr, pos, _wbits in blk:
+            bykey.setdefault(q & en.TEX0_KEY_MASK, []).append(pos)
+    return bykey
+
+
+def export_fx(args):
+    d = Path(args.library).read_bytes()
+    offs = read_directory(d)
+
+    # Flash keys read from the models themselves (self-verifying).
+    k_d = _model_keys(d, offs, 0x0D)
+    k_8 = _model_keys(d, offs, 0x08)
+    k_7 = _model_keys(d, offs, 0x07)
+    if len(k_d) != 1 or len(k_7) != 1 or set(k_d) != set(k_7):
+        raise SystemExit(f"flash models 0x0D/0x07 changed shape: keys "
+                         f"{[hex(k) for k in k_d]} vs "
+                         f"{[hex(k) for k in k_7]} (expected one shared)")
+    if len(k_8) != 2:
+        raise SystemExit(f"flash model 0x08 changed shape: keys "
+                         f"{[hex(k) for k in k_8]} (expected two)")
+    puff_key = next(iter(k_d))
+    # star-vs-ball split by +X extent: the forward star streaks to ~4.9
+    # along local +X (the barrel axis), the muzzle ball stays at X ~ 0.
+    star_key = max(k_8, key=lambda k: max(p[0] for p in k_8[k]))
+    ball_key = min(k_8, key=lambda k: max(p[0] for p in k_8[k]))
+
+    sheets = [("laser_dot",  FX_DOT_KEY,
+               "laser endpoint dot (func_001CD520 sprite)"),
+              ("flash_puff", puff_key, "flash models 0x0D/0x07 sheet"),
+              ("flash_star", star_key, "flash model 0x08 forward star"),
+              ("flash_ball", ball_key, "flash model 0x08 muzzle ball")]
+
+    tex_table = []
+    for _name, key, _role in sheets:
+        tf = en.tex0_fields(key)
+        tf["key"] = key
+        tex_table.append(tf)
+    tex_entries, tex_blob = lvl.build_texture_blob(
+        Path(args.gsdump) if args.gsdump else None, tex_table)
+
+    outdir = Path(args.fx_outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    for (name, key, role), tf, e in zip(sheets, tex_table, tex_entries):
+        w, h = e["w"], e["h"]
+        px = tex_blob[e["off"]:e["off"] + w * h * 4]
+        if w == 1 and h == 1:
+            print(f"  ! {name}: texels NOT resolved (flat-grey 1x1) — "
+                  f"pass --gsdump extract/gsdump/frame1.gs")
+        out = outdir / f"{name}.emtx"
+        with out.open("wb") as f:
+            f.write(b"EMTX")
+            f.write(struct.pack("<3I", 1, w, h))
+            f.write(px)
+        lum = [(px[i] + px[i + 1] + px[i + 2]) // 3
+               for i in range(0, len(px), 4)]
+        print(f"fx {name:10s} -> {out}: {w}x{h} (key {key:#018x}, "
+              f"psm {tf['psm']:#x} tbp {tf['tbp0']:#x}; lum max "
+              f"{max(lum)}, avg {sum(lum) // len(lum)}) — {role}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Mode 5: --crate — the office crawler's intact crate disguise, from the
 # PER-AREA model table (see "CRATE" in the module docstring).
 
@@ -1358,6 +1473,14 @@ def main(argv):
     ap.add_argument("--gibs-outdir", default="../extermination-port/assets/gibs",
                     help="(--gibs) output directory (git-ignored, "
                     "disc-derived)")
+    ap.add_argument("--fx", action="store_true",
+                    help="export the weapon-visual sprite textures (laser "
+                    "dot + the three muzzle-flash sheets) as raw-RGBA "
+                    ".emtx files into --fx-outdir (see FX SHEETS)")
+    ap.add_argument("--fx-outdir",
+                    default="../extermination-port/assets/fx",
+                    help="(--fx) output directory (git-ignored, "
+                    "disc-derived)")
     ap.add_argument("--crate", action="store_true",
                     help="export the office crawler's intact crate disguise "
                     "(per-area model-table entry) as a static 1-node EMDL "
@@ -1423,6 +1546,8 @@ def main(argv):
 
     if args.gibs:
         return export_gibs(args)
+    if args.fx:
+        return export_fx(args)
     if not args.out and not args.doors and not args.doors_office0 \
             and not args.doors_drawbridge:
         ap.error("--out is required (except with --doors/--doors-office0/"
