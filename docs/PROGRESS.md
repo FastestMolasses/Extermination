@@ -4939,3 +4939,37 @@ full detail):
 - Open: engine-side same-area sub-switch fast path (AREA03's
   self-record), locked-door models 0x15/0x17 sequence, the
   overlay-filled spawn descs for the remaining areas.
+
+### Update — 2026-06-11 s50: mode-0 camera director decoded; room fixed-camera regions exported + ported
+
+- **Decode (FINDINGS s50)**: func_00195130 (cut-table mode 0) holds ALL
+  its fixed room cameras in the MAIN ELF — a hardcoded area switch
+  (cases 0/4/6/8/0xB/0xD/0xE/0xF/0x11/0x13 only) + the D_0024A5F0
+  XZ-quad trigger-volume table (func_00194D10: point-in-quad,
+  |player.y − rec.y| < 4) + state-scripted eyes (func_001944B0).
+  CORRECTION: the `jal 0x823FE0` "overlay hook" is the area-13/entry≥8
+  gate only and lands MID-FUNCTION in shipped AREA13.BIN (dead/
+  drifted) — per-room cameras are NOT an overlay delegate.
+- **Exported-area verdict (honest)**: AREA02 (office, both subs) and
+  AREA01 sub 0 define NO fixed cameras (no director case; AREA02's
+  overlay never touches the camera; AREA01's only touch is the
+  drawbridge-cutscene target retarget). AREA06 (scene_snow) has ONE
+  real region: X[−370,−340] Z[−620,−600], y 60, eye (−367.7, 90,
+  −598.9).
+- **Tool**: `export_level.py --camregions DIR --area N` — rewrites the
+  scene.txt camera-region block (`camregion x0 z0 x1 z1 ygate ex ey
+  ez`; rects read from the user's local boot ELF). Emitted to all four
+  exported scenes (scene_snow real line; others verdict comments).
+- **Port**: scene.txt `camregion` machinery in em_game.c — in-region
+  the eye is PINNED to the room spec (chase + wall solve off, target
+  still tracks the player, movement stays camera-relative via the
+  fixed sight-line yaw), L1/idle auto-orient are NO-OPS, R1 aim still
+  works and release snaps back INSTANTLY (the user-observed behavior).
+  `EM_CAMREGION_TEST=1` (flagged synthetic office region) PASSES:
+  enter→spec exact, L1 no-op, aim moved 15.8 u, release snapped ≤2
+  frames. Default capture byte-identical; MOVE/DOOR/TRANSIT/WEAPON/
+  PAUSE/MELEE/SFX/ENEMY 1–4/test-input all PASS.
+- Open: the non-exported fixed-camera areas (0x08/0x0B/0x0D/0x0E/0x0F/
+  0x11/0x13 case bodies + func_001944B0 state tables) when those areas
+  export; the engine's 0.7 u/frame entry approach vs the port's hard
+  placement (deviation flagged in em_game.c).

@@ -10610,3 +10610,107 @@ this section is the requested verification record.
   auto 31-frame hold = 6 rounds — PASS.
 - All port self-tests PASS (weapon/melee/enemy 1-5/door/transit/sfx/
   move/pause/input); default capture byte-identical (6d23fe44...).
+
+## MODE-0 CAMERA DIRECTOR func_00195130 DECODED — fixed room cameras are MAIN-ELF data (2026-06-11, session 50)
+
+Static decode of the mode-0 area-camera director (cut-table mode 0,
+func_00195130, 0x1270 bytes) plus its helpers, driven by the exported-area
+question "which rooms own a specified camera angle?" (the live observation:
+in such rooms L1 won't reorient, and releasing the R1 aim INSTANTLY snaps
+the camera back to the room's setting). Sources: local splat tree
+(`build/asm/matchings/main/code/`), overlay splits
+(`build/overlays/*/asm/`), region table bytes re-read from the local boot
+ELF (LOAD file offset 0x94 → vaddr 0x100000).
+
+### 1. Director structure
+
+`func_00195130(cam = 0x008101E0, player)` — sub-machine on cam+0x01
+(states 0..4; 0 arms 1; 2/3 are solver/commit-only arms; 4 is an AREA13
+set-piece machine on cam+0x02 with three hardcoded eyes (669.3, 182.3,
+1082.5) / (765.6, 279.1, 1103.4) / (773.6, 387.3, 1136.7)). State 1 (the
+per-frame path) runs func_001916C0(cam, player, 0) (generic target/eye
+follow pre-step), then a **hardcoded switch on the area byte D_00810700**
+with cases ONLY for areas `0x00 0x04 0x06 0x08 0x0B 0x0D 0x0E 0x0F 0x11
+0x13`; every other area — **including AREA01 and AREA02** — falls through
+to the generic chase `func_001921D0(cam, player, 0)` (the s10 "smooth
+follow": target→player cap 0.8/frame, y +15/+aim 6; its only area test is
+an area-0 chunk-5/6 eye-z clamp at −1449.0). A case that fires writes the
+desired EYE (cam+0x10/14/18) from **float immediates in the director's
+code**, runs the solver func_0018D7B0(cam, 5), then steps the ACTUAL eye
+D_008105D0 toward it with the chase primitives (func_0018C6A0 horizontal /
+func_0018C4B0 vertical, case-specific caps 0.7–0.9) — or hard-copies it
+via func_00102948 in some player states (e.g. area 0x0B state 7). The
+desired TARGET keeps tracking the player in every fixed-camera case.
+
+### 2. The trigger-volume table D_0024A5F0 (func_00194D10)
+
+`func_00194D10(cam, player, idx)` = the region test: player XZ inside the
+0x40-byte quad record `D_0024A5F0[idx]` (4 vec4 corners, walked by
+func_001B1EA0 mode 0 — point-in-polygon, stride 0x10; all 3 shipped
+records are axis-aligned rects) AND `|player.y − corner0.y| < 4.0`.
+Records (ELF-verified, matches the splat data words):
+
+| idx | XZ rect | y gate | binding | fixed eye (code immediates) |
+|---|---|---|---|---|
+| 0 | X[779.5, 816.5] Z[1230.5, 1279.5] | 160.6 | AREA13 (0x0D), entry≥8 path | (839.8, 198.0, 1217.3) |
+| 1 | X[319.6, 339.0] Z[150.0, 182.0] | 289.8 | AREA11 (0x0B) — func_00230000 AIM target-height tweak (+12), not a fixed eye | — |
+| 2 | X[−370, −340] Z[−620, −600] | 60.0 | **AREA06 (snow)** director case .L001952F8 | (−367.7, 90.0, −598.9), approach 0.7/frame (y first, then xz) |
+
+Other fixed-camera sources in the director: per-player-state scripted
+cameras `func_001944B0(cam, player, idx)` (states 0x1D..0x25 via
+jtbl_0026DA50, eye tables D_0024A530/34/38 — ladder/scripted moments),
+and per-sub-state hardcoded eyes in the area 0x08/0x0D/0x11/0x13 cases.
+
+### 3. CORRECTION — the `jal 0x823FE0` "overlay hook"
+
+The s10 note "per-room camera logic lives in the area overlays (jal
+0x823FE0 hook)" is WRONG in its generality. The director's single
+`jal 0x823FE0` (0x00195D18) is inside the **area 0x0D case only**, gated
+`D_00810702 (entry idx) >= 8`; a nonzero return selects a second AREA13
+fixed eye (801.3, 282.3, 1171.0). And in the shipped AREA13.BIN, vram
+0x823FE0 is **mid-function** (inside the overlay's own region helper
+0x823FA0: quad at 0x82E1C0 + player.y > 210 test, full prologue at
+0x823FA0) — a call entering at 0x823FE0 would run `lq ra, 0(sp)` against
+the caller's frame: dead or build-drifted code. (AREA02 happens to have a
+function boundary at 0x823FE0 — its overlay brain dispatcher — pure
+layout coincidence; nothing calls across.) Per-room fixed cameras are
+main-ELF data, not an overlay delegate.
+
+### 4. Exported-area verdict (the honest answer)
+
+- **AREA02 (office, subs 0/1/2): NO fixed cameras.** No director case;
+  the AREA02 overlay contains zero stores to the camera struct/pool
+  (grep over 0x8101E6/0x8101F0/0x810200/0x8105D0/0x8105E0) — all chase.
+- **AREA01 sub 0 (drawbridge): NO fixed cameras.** No director case; the
+  overlay's only camera touch is the drawbridge-cutscene retarget —
+  func_00102948 copies object+0xB0 into the ACTUAL TARGET D_008105E0
+  (0x825C90 / 0x825D28), alongside a 0x8107DF=2 cutscene byte. An event
+  camera, not a room camera.
+- **AREA06 (snow, exported as scene_snow): ONE real region** —
+  D_0024A5F0[2] above. Far from the exported spawn (218.6, 229.85,
+  201.8) and at a different elevation (y gate 60), so it cannot cover
+  the spawn.
+
+### 5. Export + port contract (shipped this session)
+
+`tools/export_level.py --camregions DIR --area N` rewrites a
+marker-delimited block in DIR/scene.txt: real lines
+`camregion x0 z0 x1 z1 ygate ex ey ez` (rect read from the user's local
+ELF; eye = the decoded immediates) where a binding exists, else the
+decode-verdict comment. Emitted: scene_snow = the real AREA06 region;
+scene / scene_office0 / scene_drawbridge = verdict comments only.
+
+Port (extermination-port em_game.c): inside a region (XZ rect +
+|y−ygate|<4) the camera eye is PINNED to the spec (chase and wall solve
+disabled), the target keeps tracking the player, the struct yaw becomes
+the fixed sight-line heading (movement stays camera-relative), L1 and
+the idle auto-orient are NO-OPS, and the R1 aim camera still runs — its
+release re-pins the eye the SAME frame: the observed INSTANT snap-back
+(no lerp). Noted deviation: the engine approaches the snow spec at
+0.7 u/frame on entry; the port uses hard placement per the observed
+"chase disabled" behavior. `EM_CAMREGION_TEST=1` proves the machinery
+with a FLAGGED SYNTHETIC office region (the office has no real ones):
+enter→eye at spec exactly, L1 no-op, aim moves the eye >6 u, release
+snaps back within 2 frames — PASS; default capture byte-identical.
+
+_Last updated: 2026-06-11 (session 50)._

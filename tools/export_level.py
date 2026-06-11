@@ -1033,6 +1033,126 @@ def annotate_door_goto(args) -> int:
 
 
 # ---------------------------------------------------------------------------
+# CAMERA REGIONS (scene.txt `camregion` lines) — the mode-0 camera
+# director's fixed room cameras, decoded 2026-06-11 (FINDINGS "MODE-0
+# CAMERA DIRECTOR func_00195130 DECODED").
+#
+# The director (cut-table mode 0, func_00195130) keeps ALL of its fixed
+# cameras in the MAIN ELF: a per-area switch on the area byte D_00810700
+# with hardcoded cases for areas 0/4/6/8/0xB/0xD/0xE/0xF/0x11/0x13 only —
+# every other area (including AREA01 and AREA02) runs the generic chase
+# func_001921D0. A case pins the camera when func_00194D10(cam, player,
+# REGION_IDX) fires: player XZ inside the 0x40-byte quad record at
+# D_0024A5F0[REGION_IDX] (4 vec4 corners — axis-aligned rects in all
+# shipped data; func_001B1EA0 mode-0 point-in-poly) AND |player.y -
+# corner0.y| < 4.0. The fixed EYE coordinates are float immediates in the
+# director's code (decoded below); the desired TARGET keeps tracking the
+# player. Verdict for the exported scenes:
+#
+#   AREA02 (office, subs 0/1/2)  NO fixed cameras: no director case, and
+#                                the AREA02 overlay never writes the
+#                                camera struct/pool (0x8101E0/0x8105D0).
+#   AREA01 (sub 0, drawbridge)   NO fixed cameras: no director case; the
+#                                overlay's only camera touch is the
+#                                drawbridge-cutscene target retarget
+#                                (func_00102948 copy of object+0xB0 into
+#                                D_008105E0 at 0x825C90/0x825D28).
+#   AREA06 (snow)                ONE region: D_0024A5F0[2] -> fixed eye
+#                                (-367.7, 90.0, -598.9) (.L001952F8,
+#                                immediates 0xC3B7D99A / 0x42B40000 /
+#                                0xC415B99A; engine approach rate 0.7
+#                                u/frame via func_0018C6A0/func_0018C4B0).
+#
+# The other two table records bind to non-exported areas: [0] -> AREA13
+# (entry>=8 dam path, eye (839.8, 198.0, 1217.3)), [1] -> AREA11 (an AIM
+# target-height tweak in func_00230000, not a fixed eye). The lone
+# `jal 0x823FE0` "overlay hook" is the area-13 path's gate and lands
+# MID-FUNCTION in the shipped AREA13.BIN (dead/drifted code) — it is NOT
+# a general per-room camera delegate.
+#
+# Region rects are read from the user's local boot ELF (nothing
+# disc-derived is committed; the scene.txt output lives in the port's
+# git-ignored assets tree). Port consumption: em_game.c camera_mode_
+# dispatch (fixed placement, L1 ignored, R1 aim + INSTANT release snap).
+
+CAMREGION_TABLE_VADDR = 0x0024A5F0      # D_0024A5F0, 0x40-byte records
+CAMREGION_BLOCK_BEGIN = ("# --- camera regions (export_level.py, "
+                         "func_00195130 director decode) ---")
+CAMREGION_BLOCK_END = "# --- end camera regions ---"
+
+# area -> [(region table index, fixed eye (x, y, z) from the director's
+# float immediates)]
+CAMREGION_BINDINGS = {
+    6: [(2, (-367.7, 90.0, -598.9))],
+}
+
+# Decode-verdict notes for exported areas that define NO fixed cameras.
+CAMREGION_NONE = {
+    1: ("AREA01 has no func_00195130 case (generic chase only); the "
+        "overlay's lone camera touch is the drawbridge-cutscene target "
+        "retarget — not a room camera."),
+    2: ("AREA02 has no func_00195130 case (generic chase only) and its "
+        "overlay never writes the camera struct/pool — the office is "
+        "ALL chase camera."),
+}
+
+
+def emit_camregion_manifest(scene_dir: Path, elf: "BootElf",
+                            area: int) -> int:
+    """--camregions DIR: rewrite DIR/scene.txt's marker-delimited camera-
+    region block from the director decode: real `camregion x0 z0 x1 z1
+    ygate ex ey ez` lines for areas with a fixed-camera binding, a
+    verdict comment for decoded-empty areas."""
+    block = [CAMREGION_BLOCK_BEGIN]
+    n_real = 0
+    for idx, eye in CAMREGION_BINDINGS.get(area, []):
+        rec = struct.unpack("<16f",
+                            elf.read(CAMREGION_TABLE_VADDR + idx * 0x40,
+                                     0x40))
+        xs = [rec[c * 4 + 0] for c in range(4)]
+        zs = [rec[c * 4 + 2] for c in range(4)]
+        block.append(f"# REAL region: D_0024A5F0[{idx}] (mode-0 director "
+                     f"area-{area} case), y gate {rec[1]:g} +-4.0;")
+        block.append("# fixed EYE = director immediates; the camera "
+                     "target keeps tracking the player.")
+        block.append(f"camregion {min(xs):g} {min(zs):g} {max(xs):g} "
+                     f"{max(zs):g} {rec[1]:g} "
+                     f"{eye[0]:g} {eye[1]:g} {eye[2]:g}")
+        n_real += 1
+    if not n_real:
+        verdict = CAMREGION_NONE.get(
+            area, f"area {area} has no func_00195130 case and no "
+                  f"D_0024A5F0 binding")
+        block.append(f"# DECODE VERDICT (2026-06-11): no fixed-camera "
+                     f"regions in this scene.")
+        cur = "#"
+        for w in verdict.split():
+            if len(cur) + 1 + len(w) > 70:
+                block.append(cur)
+                cur = "#"
+            cur += " " + w
+        if cur != "#":
+            block.append(cur)
+    block.append(CAMREGION_BLOCK_END)
+
+    mf = scene_dir / "scene.txt"
+    lines = mf.read_text().splitlines() if mf.exists() else []
+    if CAMREGION_BLOCK_BEGIN in lines:
+        b = lines.index(CAMREGION_BLOCK_BEGIN)
+        e = lines.index(CAMREGION_BLOCK_END) \
+            if CAMREGION_BLOCK_END in lines else len(lines) - 1
+        lines = lines[:b] + lines[e + 1:]
+    while lines and not lines[-1].strip():
+        lines.pop()
+    lines += block
+    mf.write_text("\n".join(lines) + "\n")
+    print(f"manifest: {mf}: camera-region block — area {area}: "
+          f"{n_real} real region line(s)"
+          + ("" if n_real else " (decoded verdict: all chase)"))
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # AREA02 sub-state 0: placed objects + doors from the per-area model table
 # (see the OFFICE0 constants above for the leaf/table identification).
 
@@ -1640,6 +1760,12 @@ def main(argv):
                     help="annotate DIR/scene.txt door lines with decoded "
                     "transition destinations (goto fields) from the boot "
                     "ELF's dest/spawn tables; see annotate_door_goto")
+    ap.add_argument("--camregions", metavar="DIR",
+                    help="rewrite DIR/scene.txt's camera-region block "
+                    "from the mode-0 director decode (use with --area; "
+                    "real `camregion` lines where the area has a "
+                    "D_0024A5F0 binding, the decoded all-chase verdict "
+                    "comment otherwise)")
     ap.add_argument("--area", type=int, default=AREA02,
                     help="--door-goto: the scene's AREA (default 2; "
                     "scene_drawbridge = 1)")
@@ -1667,6 +1793,9 @@ def main(argv):
 
     if args.door_goto:
         return annotate_door_goto(args)
+    if args.camregions:
+        return emit_camregion_manifest(Path(args.camregions),
+                                       BootElf(Path(args.elf)), args.area)
     if not args.out:
         ap.error("--out is required")
     if args.office0_placed:
