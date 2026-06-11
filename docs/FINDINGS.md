@@ -5683,7 +5683,9 @@ threshold pi/2) → +0x2E side latch; writes a camera cue (front:
 `D_0024DC14`=0x45/`D_0024DC54`=2/`D_0024DC8C`=90.0 or 0x43/0/70.0 +
 `func_001BBD60(self, D_0024DC40)`; back via `D_0024DCD4/D_0024DD14`);
 SNAPS player yaw +0xC4 to the door normal (yaw or yaw+pi); computes the
-far-side point `door_pos -/+ 5.0*[sin,cos](side yaw)` adjusted by
+far-side point `door_pos -/+ 5.0*[cos,sin](side yaw)` (s45 trig-label
+fix — originally written `[sin,cos]` from the swapped stub externs;
+func_0011DE90 = cosf, func_0011E2A8 = sinf) adjusted by
 player yaw into spad vec 0x700038A0 and issues a player MOVE-TO
 (`func_00182F90`) — the door sequence WALKS THE PLAYER THROUGH;
 queues door script `D_0024DE40` (side 0) / `D_0024DEC0` (side 1) on the
@@ -6052,7 +6054,8 @@ Office EMCL probes (correct plane convention: n.p = d, NOT n.p + d = 0):
 Free movement can NEVER cross a doorway: the engine's room transitions
 work exactly as s17 documented — the use scan arms the door and
 `func_001BBE40`'s MOVE-TO walks the player to `door_pos -/+ 5.0 *
-[sin,cos](yaw)`, i.e. just past the far boundary plane (the +-5.0
+[cos,sin](yaw)` (s45 trig-label fix — was written `[sin,cos]` under
+the swapped stub externs), i.e. just past the far boundary plane (the +-5.0
 matches the plane spacing). The walk-through is the ONLY way across.
 Consequence for the use scan's LOS gate (mode 6, hit-flag 0x2000
 blocks): a straight player->door segment ALWAYS crosses the near
@@ -10224,8 +10227,9 @@ front -> (104, -247.2); west door (57, -220.5) yaw -pi/2 back ->
 (62, -225.5). The spawn-table records flank the CENTER (office recs
 2/3 = (104, -245)/(104, -259) vs center (104, -252.2)) — the engine
 stages and re-places on the doorway centerline, toward the handle
-side of the hinge. (src/func_001BBE40.c's comment block still carries
-the swapped labels — annotation-only, the .o is byte-identical.)
+side of the hinge. (src/func_001BBE40.c's comment block has been
+updated to the corrected labels, along with func_001545B0.c's and the
+s17/s20 staging prose above — annotation-only, the .o is byte-identical.)
 
 ### 3. Player anim ids are DIRECTORY indices — the exporter scan was shifted
 

@@ -11,9 +11,10 @@
 // (Z) centered on the actor origin +0xB0? rec = D_00248120 +
 // self[0xD]*20. Heading from origin to the point via atan2
 // func_001B1240, then ellipse radius-at-angle r^2 = (a^2 b^2) /
-// (a^2 cos^2 + b^2 sin^2) (a = 0.92*recZ, b = 0.92*recX; sin/cos =
-// func_0011DE90/func_0011E2A8) compared against distXZ^2. Returns
-// 1 inside.
+// (a^2 sin^2 + b^2 cos^2) (a = 0.92*recZ, b = 0.92*recX; sin/cos =
+// func_0011E2A8/func_0011DE90 — s45 trig-label fix; consistent with
+// the engine's forward = (sin yaw, cos yaw)) compared against
+// distXZ^2. Returns 1 inside.
 //
 // WALL-BLOCKED at 95.45% — 63/66 rows byte-identical from the C below
 // (2026-06-10 attempt; one probe + one tail variant). The whole FP
@@ -34,8 +35,11 @@
 //
 // extern unsigned char D_00248120[];
 // extern float func_001B1240(unsigned char *origin, float x, float z);
-// extern float func_0011E2A8(float a); /* cos */
-// extern float func_0011DE90(float a); /* sin */
+// extern float func_0011E2A8(float a); /* sin — s45 trig-label fix */
+// extern float func_0011DE90(float a); /* cos — s45 trig-label fix */
+// (locals `c`/`s` below keep their pre-fix names: c holds sin(ang),
+// s holds cos(ang). Names are codegen-neutral — left as-is to match
+// the verified 95.45% attempt verbatim.)
 // int func_001545B0(unsigned char *self, float x, float z) {
 //     unsigned char *rec;
 //     float ang, a, b, c, s, dx, dz, r2, d2;

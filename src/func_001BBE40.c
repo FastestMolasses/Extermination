@@ -13,8 +13,8 @@
 // patch the shared script records (player anim id 0x45/0x43 open or
 // 0x46/0x44 locked, door clip 2/0 or 3/1, wait 90/70 frames, sound pair
 // via func_001BBD60), snap player yaw to the door normal, build the
-// walk-through staging point spad 0x700038A0 = door_pos -/+ 5*[sin,cos]
-// (door_yaw) then -= 5*[cos,sin](player_yaw), MOVE-TO (func_00182F90),
+// walk-through staging point spad 0x700038A0 = door_pos -/+ 5*[cos,sin]
+// (door_yaw) then -= 5*[sin,cos](player_yaw), MOVE-TO (func_00182F90),
 // queue script D_0024DE40 (mode 0 = unlocked) / D_0024DEC0 (mode 1 =
 // locked) on the anim block and pump it (func_001BA1F0). Returns
 // 1 = kicked off, 0 = not armed.
@@ -59,8 +59,8 @@
 // extern float func_001B1240(float *pos, float x, float z);
 // extern float func_001B1470(float ang);
 // extern float func_0011DF78(float ang);   /* fabs  */
-// extern float func_0011DE90(float ang);   /* sin   */
-// extern float func_0011E2A8(float ang);   /* cos   */
+// extern float func_0011DE90(float ang);   /* cos — s45 trig-label fix */
+// extern float func_0011E2A8(float ang);   /* sin — s45 trig-label fix */
 // extern void func_001BBD60(void *door, void *rec);
 // extern void func_00182F90(void *player, void *pt);
 // extern void func_001BA1A0(void *blk, void *script);
