@@ -136,6 +136,34 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-11 (session 47): WEAPON FIDELITY WAVE — semi cadence decoded,
+> L3 gate, flashlight identity, anim-id verdicts (FINDINGS "WEAPON
+> FIDELITY PASS"). (1) func_00170A60 .s re-read: the SEMI family HOLDS
+> its sub-state through the 6-frame cadence (WAIT 0 / shot 0xA / cadence
+> 0xB with the +0x2A one-shot press queue, sampled from counter >=
+> interval-8) — mashing can never beat 6 frames/shot; dry-mag auto
+> reload = mode-1 func_0017B300 at the cadence EXPIRY (mode 0 is the
+> stance ENTER only); L3 manual reload honored only in states 0/0x17,
+> gate = mode-2 top-up (mag<30 AND reserve>mag; quirky fill compares
+> reserve vs rounds NEEDED). (2) D_00810D3C identity user-attested: the
+> SQUARE-while-aiming toggle is the FLASHLIGHT — wired in the port with
+> the s28b mechanics (0x179 ON / silent OFF, 300-frame auto-off burst,
+> 0x15D switch sound + gesture, zero battery; rendering = flagged TODO);
+> 0x15D added to gen_sfx_registry (31 ids, 0 unresolved). (3) Anim-id
+> verdicts via read-only motion audit vs a fresh directory-resolver
+> bake: clip 51 IS the reload (hands-to-the-mag, root planted — NOT a
+> stagger); true knife lengths 35/35/50/50/25 (s36's 50/25/20/20/25 were
+> the shifted bake), which RESOLVES the s36 impact-gate contradiction
+> (down-count impacts 11/9/9/7, all before their releases) and the
+> "knife stays holstered" flag (holster node 14 is KEYED into the hand
+> during every swing clip — no rebind exists or is needed); port
+> player.emdl verified byte-identical per clip to the fresh bake — NO
+> further re-export needed. PORT: em_weapon fire logic rewritten as the
+> engine sub-state machine, melee fallback lengths corrected,
+> CIRCLE=light/SQUARE=heavy verified; NEW `make test-weapon` headless
+> unit test (cadence/L3/flashlight/auto parity); all self-tests PASS,
+> default capture byte-identical.
+
 > 2026-06-11 (session 46): PLAYER/CAMERA FIDELITY WAVE — idle cycle +
 > wall radius decoded, analog gait + camera fidelity + menu pause in
 > the port. Static decodes (FINDINGS "PLAYER IDLE CYCLE" / "PLAYER

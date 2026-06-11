@@ -10459,3 +10459,150 @@ rotation path. Implemented in the port behind flagged PORT CONSTANTS
 handlers should replace them with engine values. Per-room FIXED angles
 are the cut-table mode-0 per-area director (func_00195130 + overlay
 hook 0x823FE0, "CAMERA SYSTEM") — pending overlay decomp.
+
+## WEAPON FIDELITY PASS — semi-family cadence decoded, L3 gate, flashlight identity, anim-id verdicts (2026-06-11, s47)
+
+Static re-read of the rifle fire sub-machine `func_00170A60` (.s) plus a
+read-only motion audit of the contested player clips against a fresh
+fixed-resolver bake. Drives the extermination-port em_weapon fidelity
+pass (per-note implementation list at the end).
+
+### 1. SEMI family gate — the sub-state holds through the cadence
+
+Corrects the port's old flat "pending" latch reading and refines the s23
+summary. Sub-state byte `+0x07`, traced branch-by-branch:
+
+```
+0    TRIGGER WAIT.  +0x274 (trigger latch) set ->
+       mag == 0 -> positional click 0x169 vol 300 ONLY (no reload here;
+                   for fire-mode != 0 the state also advances by 1)
+       mag != 0 -> family entry by D_00810C61: 0 -> 0xA, 1 -> 0x14,
+                   2 -> 0x1E
+     +0x274 clear -> raw L3 (D_00810E74 & 0x200) -> func_0017B300(.,2)
+       (TOP-UP: only mag < 30 AND reserve > mag); success -> +0x06++,
+       +0x1F0 = 0x33 (the RELOAD state). L3 is honored ONLY here and in
+       the burst gap 0x17 — never mid-cadence.
+0xA  SEMI SHOT: gun+0x2E = 1, mag--, reserve--, 0x164/0x165 by stance
+     code, clear +0x2A, fall THROUGH into 0xB the same tick.
+0xB  SEMI CADENCE: +0x276 += 2 at the head (so the shot tick itself
+     counts); a PRESSED-edge of the fire button (E74 & spad3B78) is
+     sampled into the +0x2A queue when counter >= int(+0x2F4) - 8
+     (= every tick after the shot tick); at counter >= int(+0x2F4):
+     counter = 0, then
+       mag == 0 -> func_0017B300(.,1) UNCONDITIONAL reload -> RELOAD
+                   (the dry-mag auto reload happens at the EXPIRY, not
+                   on the next press; mode 0 lives at the stance ENTER,
+                   not in the fire SM); reserve empty -> back to 0
+       +0x2A    -> +0x274 = 1, +0x07-- (back to 0xA: the queued shot
+                   fires the NEXT tick = exact 6-frame spacing)
+       else     -> +0x07 = 0
+0x14..0x17  BURST: 0x15 fire (sets +0x2F4 = 12.0 while +0x28 < 2),
+     0x16 cadence (+0x28++ at expiry; < 3 -> refire via the same
+     step-back; dry -> mode-1 reload, fail -> click via func_001FB9F0);
+     0x17 gap (L3 honored).
+0x1E..0x20  AUTO: 0x1E fire (sets +0x2F4 = 12.0) -> 0x1F cadence;
+     still-latched trigger -> step back to 0x1E (refire next tick).
+```
+
+Headline: **SEMI is rate-gated exactly like full-auto** — one press can
+never beat the 6-frame interval; a press during the cadence queues at
+most ONE follow-up shot (+0x2A is a flag, not a counter). A press in
+WAIT fires immediately (WAIT is only reachable a full cadence after the
+last shot). This is the engine answer to the port-fidelity report "the
+player can shoot as fast as they press the button".
+
+### 2. Reload func_0017B300 — mode map confirmed + the top-up fill quirk
+
+mode 0 = only if mag empty (stance ENTER), mode 1 = unconditional (the
+cadence-expiry dry reload), else = top-up, gated mag < 30 AND
+reserve > mag (the L3 manual reload — a FULL MAG IGNORES L3). Quirk in
+the matched C: the top-up fill compares the reserve against the rounds
+NEEDED (`reserve < 30 - mag ? reserve : 30`), not against 30 — with
+30-mag <= reserve < 30 the engine writes mag = 30 although the pool
+holds fewer. Port mirrors all three arms branch-for-branch.
+
+### 3. FLASHLIGHT — D_00810D3C identity (user-attested) + port wiring
+
+The s36 open item "what does the SQUARE-while-aiming toggle D_00810D3C
+arm?" is settled by the user's gameplay knowledge of the real game: it
+is the FLASHLIGHT (gun light) toggle. (Static cross-evidence: replayed
+0x179 + voice latch on rifle draw; the s28b/s21 light decode is the
+matching mechanics block — player +0xA flip, 300-frame (0x12C) auto-off
+burst, turn-off anim/event id 0x15D, ZERO battery drain.) Port
+(em_weapon.c): SQUARE in the AIM state toggles the light — ON plays
+0x179 + arms the 300-frame burst, OFF is silent; the timer ticks every
+frame in any stance; expiry turns the light off with the 0x15D switch
+sound (920 ms, snd_0361 — added to gen_sfx_registry's office set, 31
+ids 0 unresolved) and commits the 0x15D gesture only in the unarmed
+idle (armed tops re-select their pose every frame — documented
+simplification). Dynamic light RENDERING is a flagged port TODO.
+Engine keeps D3C (gun light arm) and +0xA (shoulder light) as separate
+bytes — the port unifies them in one flag until a live session
+separates their visuals; the unarmed L3 light toggle (s21) is NOT yet
+wired in the port (flagged).
+
+### 4. ANIM-IDENTITY VERDICTS — the contested clips, baked + motion-audited
+
+Method: read-only bake of directory ids 51, 267-271 (0x10B-0x10F),
+272/273 (0x110/0x111), 274 (0x112) with the CURRENT (directory-fixed)
+export_native.py to a scratch EMDL; per-node trajectory audit (root,
+gun-mount node 4, hands 19/20, knife/holster node 14). Rig semantics:
+parents [-1,0,1,1,2,3,3,2,2,2,8,9,5,6,5,10,11,12,13,15,16]; node 4 =
+gun mount (leaf off chest), 19/20 = hands, 14 = hip-holster mount
+(second child of thigh node 5), 17/18 = feet.
+
+**True directory lengths vs the s36 table (which measured the
+pre-directory-fix bake — shifted by +3 in this range):**
+
+| id | true fr | s36 said | motion verdict |
+|---|---|---|---|
+| 0x33 (51) | 57 | 57 (unshifted) | **RELOAD, not a stagger**: root planted (zero XZ/Y), knife parked on the thigh, BOTH hands stay on the weapon (inter-hand 0.6-1.1 u) while the gun-mount dives chest->waist (y 12.8 -> 5.5, frames ~14-42, mag work low) and returns to ready by fr 56. The user's in-game "stagger" impression predates the directory-fixed re-export / honest-length windows. |
+| 0x10B (267) | 35 | "50" | light hit 1: knife snaps from hip to hand in ~3 fr, wide chest-height slash (hand separation 3.8 -> 7.5 u), return to guard |
+| 0x10C (268) | 35 | "25" | light hit 2: long crossing return-cut, starts extended (9.3 u) finishes tight (1.4 u), knife held high early |
+| 0x10D (269) | 50 | "20" | light hit 3 FINISHER: overhead rise (knife y -> 15.0) then dive to 7.4, settle + re-holster tail |
+| 0x10E (270) | 50 | "20" | HEAVY: fastest entry (1.6 u/fr at fr 1-4), knife drops low (y 6.1) then drives up through to overhead (y 17.2 at fr 15) — rising stab; long recover + re-holster |
+| 0x10F (271) | 25 | 25 | hit-confirm recover: raised knife sweeps down and re-seats on the hip |
+| 0x110 (272) | 20 | "25" | rifle DRAW/raise: both hands together lift chest 12.8 -> 14.2 |
+| 0x111 (273) | 20 | "25" | HOLSTER: reverse lower, off-hand leaves the grip |
+| 0x112 (274) | 25 | 25 | aim pose: near-static at y 14.2-14.4 (front-frame recoil micro-snap) |
+
+**Knife visual RESOLVED (retires s36 §6 "no rebind found")**: there is
+no rebind and none is needed — the hip-holster node 14 is itself KEYED
+INTO THE HAND by every swing clip (rides hand node 20 at ~1.0 u for the
+whole swing, hip distance ballooning to 9-15 u, re-seats at the end; in
+idle/walk/reload it stays at the thigh, 3.9 u constant). The knife
+model attached to node 14 swings with the attack automatically.
+
+**Impact-gate timing RESOLVED (retires the s36 TIMING open item)**:
+under the TRUE lengths the down-count reading `impact = len - T` is
+self-consistent for all four attacks — impacts at fr 11/9/9 (light) and
+7 (heavy), each before its release gate (15/20/20/21) and inside the
+clip; the up-count reading would put every release before its impact.
+The s36 contradiction ("T=24 on a 50-frame clip") was an artifact of
+the shifted 50-frame length.
+
+**Re-export status: NO further re-export needed.** The port's
+player.emdl (re-baked 2026-06-11 by the s45 directory fix, canonical
+CLI in export_native.py's header) is byte-identical per clip to the
+fresh fixed-resolver bake for every contested id (51, 267-274 palettes
+compared byte-wise). Note for the exporter owner: nothing to change;
+this section is the requested verification record.
+
+### 5. Port implementation (extermination-port, this session)
+
+- em_weapon.c fire logic rewritten as the engine sub-state machine
+  (§1): WAIT/SEMI/BURST/GAP/AUTO + next-tick chained shots; semi is now
+  cadence-gated under mashing (user note 3 FIXED); dry-mag auto reload
+  moved to the cadence expiry (mode 1); WAIT dry press = click only.
+- weapon_reload mirrored branch-for-branch incl. the top-up quirk (§2);
+  L3 honored only in WAIT/GAP (user note 1 — full mag ignores L3).
+- FLASHLIGHT per §3 (user note 2); melee fallback lengths corrected to
+  the true clip lengths, CIRCLE=light/SQUARE=heavy wiring re-verified
+  NOT inverted (user note 4).
+- NEW headless unit test `make test-weapon` (tests/weapon_fire_test.c,
+  links em_weapon.c + stubs): semi mash = 11 shots/61 frames at exact
+  6-frame gaps, single press = 1 shot, L3 gates (full/short/equal/
+  quirk), expiry auto-reload, flashlight toggle + 300-frame burst,
+  auto 31-frame hold = 6 rounds — PASS.
+- All port self-tests PASS (weapon/melee/enemy 1-5/door/transit/sfx/
+  move/pause/input); default capture byte-identical (6d23fe44...).

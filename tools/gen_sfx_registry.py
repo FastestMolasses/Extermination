@@ -83,7 +83,12 @@ SCENES = {
         #   heavy stab shares 0x17F), fired at each attack's impact
         #   gate, vol 300; 0x179 = the armed-stance SQUARE attachment-0
         #   toggle-ON sound (func_0017A970 — the s29 "unidentified
-        #   action", snd_0436).
+        #   action", snd_0436; user-attested 2026-06-11 as the
+        #   FLASHLIGHT toggle — the D_00810D3C flag).
+        # - FLASHLIGHT auto-off 0x15D (s28b light decode: the 300-frame
+        #   burst's turn-off anim/event id doubles as the pinned 920 ms
+        #   switch sound, snd_0361) — the port's em_weapon plays it at
+        #   the burst expiry (2026-06-11 weapon-fidelity pass).
         # - FIRE-CHAIN TAIL (s29 live, FINDINGS "GAMEPLAY SOUND IDS
         #   PINNED LIVE"): wall impact/ricochet 0x189 ~2 frames after
         #   the shot (snd_0421) + shell casing 0x16A ~0.7 s after each
@@ -97,7 +102,7 @@ SCENES = {
                 0x015, 0x016, 0x017, 0x018, 0x019,   # walk (gait 2)
                 0x01A, 0x01B, 0x01C, 0x01D, 0x01E,   # run (gait 3)
                 0x138, 0x139, 0x13A, 0x13B, 0x13C,   # gear/cloth
-                0x17D, 0x17E, 0x17F, 0x179,
+                0x17D, 0x17E, 0x17F, 0x179, 0x15D,
                 0x189, 0x16A],
     },
 }
