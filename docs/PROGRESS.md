@@ -5218,3 +5218,38 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   slider); office AND drawbridge default captures byte-identical.
   Open: slider lock-bitmask gate, op0D chase-cam cue, flags2
   single-leaf side inversion, mode-6 stop-skid anims.
+
+## 2026-06-11 (s53) — weapon-visual fidelity: true reload clip, semi cadence, laser hide, light cone
+
+- **RELOAD = clip 0x11B (283), NOT 0x33** (FINDINGS s53 §1): the
+  reload anim is func_0016F600's per-sub-weapon table pick D_00248B98
+  (stance B: D_00248C78); 0x33 is the +0x1F0 action CODE, and library
+  clip 51 is a KNOCKDOWN — the user's "stagger". 283 motion-audited:
+  60-fr shouldered reload (gun up, support hand to the pouch).
+  CORRECTS the s47 id-51 motion verdict. Canonical player.emdl CLI
+  gains 283 (export_native.py header).
+- **SEMI fire interval = the aim-ladder clip length** (§2):
+  func_0017A8B0 stores +0x2F4 = clip frames (25 for the SPR4) on every
+  trigger press -> 13-tick semi spacing (~4.6 rds/s = the recoil
+  replay); burst/auto fire states overwrite 12.0 (in-burst 6-frame).
+  Queue window counter >= interval-8 drops early mash presses.
+- **LASER HIDE WINDOW = player +0x2F2** (§3): cleared by every shot
+  state, re-set at cadence expiry / WAIT — the laser vanishes while
+  firing, blinking one tick between chained rounds (the gun-tick gate
+  D_008105A2 = +0x2F2; player base 0x008102B0).
+- **LIGHT-CONE MESH FAMILY found** (§4): chunk27 0x10/0x11/0x16 =
+  7.13-deg additive cone shells (0x12/0x13 cross variants, 0x17/0x18
+  caps) on the aura glow sheet; new `export_props.py --cone` ->
+  assets/fx/light_cone.emdl. Flashlight: asset-derived cone angle
+  (disc = 2.5x dot at 30 u), barrel-tip origin, LEVEL-ONLY spot term,
+  visible cone mesh drawn from the muzzle.
+- **Muzzle-flash rotation lerp translated** (§5): tick>=4 rot +=
+  (-128 - rot)*0.35 deg (all 3 components) -> axial-quad roll
+  (em_gfx_beam_tex_roll); 0.8^t intensity stand-in retired (engine
+  has no color fade). Laser dot offsets half its size off the wall
+  along the hit normal (§6).
+- **Port**: all 16 self-tests PASS (weapon unit test rebuilt around
+  the engine cadence + laser window + an em_input event-API mash leg;
+  EM_WEAPON_TEST re-anchored); default capture byte-identical to a
+  pristine-HEAD build. Open: other subs' intervals/reloads, stance-B
+  laser, the engine's own cone-mesh draw site.

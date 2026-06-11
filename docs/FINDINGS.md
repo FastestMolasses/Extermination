@@ -11513,3 +11513,194 @@ Captures: closed approach / panels parted with the player standing /
 player mid-walk-through.
 
 _Last updated: 2026-06-11 (session 56)._
+
+## WEAPON-VISUAL FIDELITY WAVE — true reload clip, semi fire interval, laser hide window, light-cone mesh, flash rotation (2026-06-11, session 53)
+
+Six user-reported weapon defects run to ground: four were missing
+ENGINE decodes (now pinned from the .s + boot-ELF tables and ported),
+one an asset-identity error, one a port-side render placement bug.
+Player struct base note used throughout: the live globals D_008104xx /
+D_008105xx are the player struct at `0x008102B0` (gun ptr D_008102D0 =
+player +0x20; D_008105A2 = +0x2F2, D_008105C8 = +0x318).
+
+### 1. THE TRUE RELOAD CLIP IS 0x11B (283), NOT 0x33 — the "stagger" solved
+
+The user's persistent "reload plays a stagger" (surviving the s45
+directory fix) was an ID-IDENTITY error, the same code-vs-clip trap
+s25 sprang for the fire codes: **0x33 is the +0x1F0 ACTION CODE; the
+reload ANIM is a per-sub-weapon table pick.** The armed top's major
+state 3 (`func_0016FCF0` -> `.L00170000`) runs `func_0016F600`, whose
+reload entry requests TWO clips through func_001749A0:
+
+```
+stances 0x1D/0x1E: D_00248B88[sub] (blend 0)   then D_00248B98[sub] (blend 1)
+stances 0x1F/0x20: D_00248C68[sub] (blend 0)   then D_00248C78[sub] (blend 1)
++ sound 0x163 (the s29-pinned reload-start foley — confirms the site)
+```
+
+ELF table reads (file_off = vram - 0x100000 + 0x94):
+
+```
+D_00248B88 stance-A entry:  274 284 284 295 305 315   (274 = 0x112 ✓)
+D_00248B98 stance-A RELOAD: 283 293 294 304 314 324   <- sub 0 = 0x11B
+D_00248C68 stance-B entry:  394 404 404 415 425 435   (394 = 0x18A ✓)
+D_00248C78 stance-B RELOAD: 403 413 414 424 434 444
+```
+
+So each sub-weapon's clip family is entry/ladder 0x112..0x11A + reload
+0x11B (283), then the next sub starts at 0x11C — the reload fills the
+gap s25 left unexplained. Property row 0x11B: mode 1, rate 1.0.
+
+Motion audits (fixed-resolver bakes, node 4 = gun mount, 19/20 hands):
+
+- **clip 283 (0x11B), 60 fr** = the reload: root planted, gun STAYS
+  SHOULDERED (mount y 14.2..14.4 the whole clip), the support hand
+  leaves the grip for the mag work (inter-hand 2.5 -> 6.9 -> 2.1) — a
+  shouldered tactical reload. Port capture confirms the visual.
+- **clip 51 (0x33), 57 fr** = a KNOCKDOWN: the body folds toward the
+  ground (root pose collapses, arm flung out) — the literal "stagger"
+  the port played. CORRECTS the s47 motion-verdict row for id 51
+  ("RELOAD, not a stagger... inter-hand 0.6-1.1" — that audit's
+  numbers do not reproduce; the same bake measures inter-hand
+  3.2->11.9 and a fold-to-horizontal root). Clip 51 stays exported
+  (a real knockdown clip, future damage-reaction user).
+- Runtime trace (EM_WEAPON_TRACE=1) had FIRST verified the port's
+  request/commit chain was healthy (0x33=51 committed and played
+  frames 1..56 every reload) — the bug was purely which container.
+
+Port: WPN_ANIM_RELOAD = 0x11B; player.emdl re-exported with 283 in
+--clips (canonical CLI updated in export_native.py's header). The
+draw/reload requests are now HOLD-type (clamp the last frame until the
+aim hold replaces them): the old play-once release left ~2 frames of
+locomotion idle between clip end and the aim recommit — a full-pose
+snap at every reload end (the stagger's second face).
+
+### 2. SEMI FIRE INTERVAL — +0x2F4 = the ladder clip LENGTH (func_0017A8B0)
+
+The "still no fire rate" report: the port ran every family at the flat
+12.0 interval. Decode: **`func_0017A8B0`** (called by the action
+machine func_001607D0 on EVERY fire-button press, and by the
+sub-weapon action func_0017A970) sets `+0x274 = 1` (trigger latch) and
+**`+0x2F4 = (float)func_001C61D0(lib, ladder_clip)`** — the FRAME
+COUNT of the stance's aim-ladder base clip (func_001C61D0 returns the
+container header halfword +2; confirmed in matched C). For the SPR4
+ladder 0x112 (25 fr): counter +2/tick vs int(25) -> expiry 12 ticks
+after the shot tick, chained shot the 13th — **semi = one round per 13
+frames (~4.6/s), exactly the duration of the 12.5-tick recoil
+replay.** The burst/auto FIRE states overwrite +0x2F4 = 12.0 per round
+(the func_00170A60 0x15/0x1E stores already decoded in s47) — the
+6-frame cadence is IN-BURST only. The s47 reading "+0x2F4 (12.0
+default)" was the burst/auto store, not the semi default.
+
+Consequence for the +0x2A queue window (s47): sampling from
+`counter >= int(+0x2F4) - 8` = counter >= 17 = tick 8+ — presses in
+the FIRST ~7 ticks of the semi cadence are DROPPED, not queued.
+Port: per-press interval refresh from the honest 0x112 clip length
+(fallback 25), burst/auto rounds store 12; mash can no longer beat 13
+ticks (unit test 1a: 61-frame 2-frame mash = 5 shots at exact 13s;
+plus an event-API mash leg through the real em_input pad model).
+
+### 3. LASER HIDE WINDOW — player +0x2F2 (mirror D_008105A2) decoded
+
+The user correction "the laser is SUPPOSED to disappear while firing"
+is engine truth, and the gate is the THIRD term of the s23 gun-tick
+selection (func_00188630): code in {0x31,0x34} AND phase +0x1F1 == 1
+AND **+0x2F2 != 0**. The fire SM (func_00170A60) drives +0x2F2:
+
+```
+WAIT tick head (.L00170C08):       +0x2F2 = 1   (every tick)
+every SHOT state (semi 0xA .L00170D14, burst 0x15, auto 0x1E):
+                                   +0x2F2 = 0
+cadence EXPIRY (burst .L00170F50 / auto .L00171158 — unconditional;
+semi only on the QUEUED-shot path .L00170E4C):
+                                   +0x2F2 = 1
+stance-A draw entry (func_0016FCF0 +0x110 request site) also clears it.
+```
+
+So the laser hides from each shot tick until that shot's cadence
+expiry; under sustained fire it BLINKS for exactly the expiry tick of
+each chained round. (Also decoded in passing: the WAIT head re-copy
+of the hand matrix to +0x2A0 gates on +0x2F2.) Port: w.laser_vis
+mirrors the flag tick-for-tick; laser draws only in AIM with it set;
+unit-tested (hidden through the cadence, expiry blink, WAIT visible).
+
+### 4. LIGHT-CONE MESH FAMILY — chunk27 0x10/0x11/0x16 (+ flashlight geometry)
+
+Survey of the global chunk27 library (s7b geometry-stats + TEX0-key
+method) for the reference capture's visible beam: entries **0x10,
+0x11, 0x16** are tessellated LIGHT-CONE shells — apex at the local
+origin opening along +Z to radius 25.0 at z = 200 (half-angle
+atan(25/200) = **7.13 deg**), 4 rings + apex fan, 224 verts; **0x12/
+0x13** are the cheap 2-ring cross variants (32 v), **0x17/0x18** the
+z=200 end-cap discs. All sample the additive glow sheet
+0x041695113222E9 (the s7b player-aura texture) with a PLANAR XY
+projection across the aperture: uv = 0.5 + (x,y)/25 * 0.219 — the
+faint interior (lum 14-15/255), flat across the shell. Exported:
+`export_props.py --cone` (new mode) -> assets/fx/light_cone.emdl
+(entry 0x10, static 1-node EMDL + the glow texels from frame1.gs).
+
+Port flashlight rework (all four user notes):
+- cone angle ASSET-DERIVED: tan(theta) = 25/200 = 0.125 -> the spot
+  disc at the ~30-u aim wall distance is 7.5 u = 2.5x the 3-u laser
+  dot (the reference "2-3x dot"; the old ~12-deg cone read ~2x big).
+  Inner cos 6.13 deg, outer cos 7.13 deg (1-deg rim inside the asset
+  angle — the sharp disc).
+- origin = the barrel TIP (gun+0xB0, the muzzle-flash anchor), not
+  the in-receiver ray origin.
+- spot term LEVEL-ONLY: the Metal shader adds it on the baked-vertex-
+  color path alone; the directional character path takes none — the
+  player/gun never catch their own light.
+- the VISIBLE BEAM: the exported cone mesh drawn additively from the
+  tip along the aim ray through a new beam-pass triangle queue
+  (em_gfx_beam_tri_tex; depth test on / write off, cull none).
+  Intensity gain 3.0 is PORT-TUNED (the engine stacks shells
+  0x10/0x11/0x16; flagged).
+
+### 5. MUZZLE-FLASH ROTATION LERP translated (s43 open item closed)
+
+func_001F5040 `.L001F53A8` (tick >= 4, all variants): one scalar
+`rot += (-128.0 - rot) * 0.35` per tick written to ALL THREE rotation
+components (+0x80/84/88; variant 0 inits 0, variants 3/4 init -96.0 —
+DEGREES). The dying star rolls ~45 deg in its first lerp tick and
+settles toward -128. Port: em_gfx_beam_tex_roll rotates the axial
+star quad's width vector around the gun axis (Rodrigues) by it — the
+dominant visible component of the uniform Euler triple (flagged
+interpretation). The 0.8^t INTENSITY decay stand-in is retired: the
+engine writes NO color fade (the 0.8 decay is the scale velocity's);
+the textured flash now draws at constant intensity and dies by the
+model swap + scale spread + roll, vanishing at tick 15. Honest
+remaining delta vs the original: the port's star is ONE axial quad
+(the engine model is a multi-fin rosette), the func_001F4F90
+line-burst spark pass (2.4-u point pairs) and tracer func_001860A0
+stay untranslated, and the abrupt 16-tick end is engine truth.
+
+### 6. Laser-dot clipping (port placement bug)
+
+The endpoint dot billboard drew centered ON the wall plane — half of
+it always failed the depth test. Port: the dot offsets HALF ITS SIZE
+along the world hit normal (EmCollHit.normal; enemy hits back along
+the ray) — engine sprites sit on the surface plane plus an offset.
+
+### Port verification (extermination-port, this session)
+
+All 16 self-tests PASS (input/weapon-unit incl. new mash+laser-window
++event-API legs / move / door / transit / weapon-scripted (schedule
+re-anchored to the 13-tick cadence) / pause / aim / melee / sfx /
+camregion / enemy 1-5); default capture byte-identical to a pristine
+HEAD worktree build (73d393a3…) with the re-exported player.emdl.
+Captures: EM_CAPTURE_AIM=1 laser+dot (offset off the wall);
+EM_CAPTURE_AIM=2 mid-recoil frame shows the laser GONE with the flash
+live; EM_CAPTURE_LIGHT=1 the sharp 7.13-deg disc + the visible cone
+mesh from the muzzle, player/gun unlit; EM_WEAPON_TEST mid-reload
+frame = the shouldered 0x11B reload (support hand at the pouch).
+
+### Open items (s53)
+
+- The semi interval for the OTHER sub-weapons (ladder lengths of subs
+  1-5) — port carries sub 0 only.
+- Stance-B (0x1E/0x20) reload clips 403+ and its dot-only laser.
+- The engine's cone-mesh DRAW SITE (which behavior binds 0x10/0x11/
+  0x16 — searchlights? the shoulder light in cutscenes?) — the port
+  uses it for the flashlight deviation regardless.
+- The +0x2A0 hand-matrix copy consumers beyond the laser (the WAIT
+  head copy gated on +0x2F2).

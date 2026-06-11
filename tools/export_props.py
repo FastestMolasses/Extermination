@@ -306,6 +306,11 @@ Usage (macOS arm64, decomp repo root):
   .venv/bin/python tools/export_props.py --fx \
       --gsdump extract/gsdump/frame1.gs \
       --fx-outdir ../extermination-port/assets/fx
+  # the LIGHT-CONE mesh (chunk27 0x10 — the flashlight cone the port
+  # draws from the muzzle; FINDINGS "LIGHT-CONE MESH FAMILY"):
+  .venv/bin/python tools/export_props.py --cone \
+      --gsdump extract/gsdump/frame1.gs \
+      --out ../extermination-port/assets/fx/light_cone.emdl
 """
 from __future__ import annotations
 
@@ -1323,6 +1328,47 @@ def export_fx(args):
 
 
 # ---------------------------------------------------------------------------
+# Mode 4c: --cone — the LIGHT-CONE mesh of the global chunk27 library
+# (surveyed 2026-06-11, the flashlight-cone hunt; decomp FINDINGS
+# "LIGHT-CONE MESH FAMILY"): entries 0x10/0x11/0x16 are tessellated
+# cone shells — apex at the local origin opening along +Z to radius
+# 25.0 at z = 200 (half-angle atan(25/200) = 7.13 deg), 4 rings + apex
+# fan, planar-projected UVs (0.281..0.719 across the aperture) into the
+# additive glow sheet 0x041695113222E9 (the s7b player-aura texture's
+# faint interior — the cone fades toward its wide end); 0x12/0x13 are
+# the cheap 2-ring cross variants, 0x17/0x18 the z=200 end-cap discs.
+# The port draws ONE shell (0x10) additively from the muzzle along the
+# aim ray (em_weapon.c "FLASHLIGHT CONE"); the beam pass draws it
+# cull-none, so the inward twin 0x11 is not needed.
+
+CONE_MODEL_ID = 0x10
+
+
+def export_cone(args):
+    d = Path(args.library).read_bytes()
+    sections, tex_table, _n = build_placed_mesh(
+        d, {CONE_MODEL_ID: [lvl.IDENT34]})
+    pos = sections[0][0]
+    if not pos:
+        raise SystemExit(f"cone 0x{CONE_MODEL_ID:02x}: no geometry")
+    tex_entries, tex_blob = lvl.build_texture_blob(
+        Path(args.gsdump) if args.gsdump else None, tex_table)
+    out = Path(args.out or
+               "../extermination-port/assets/fx/light_cone.emdl")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
+                  tex_entries, tex_blob, flags=1)
+    zs = [p[2] for p in pos]
+    import math as _m
+    rmax = max(_m.hypot(p[0], p[1]) for p in pos)
+    print(f"cone 0x{CONE_MODEL_ID:02x} -> {out}: {len(pos)} verts, "
+          f"{len(sections[0][2]) // 3} tris, z[{min(zs):.1f},"
+          f"{max(zs):.1f}] r_max {rmax:.1f} "
+          f"(half-angle {_m.degrees(_m.atan2(rmax, max(zs))):.2f} deg)")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Mode 5: --crate — the office crawler's intact crate disguise, from the
 # PER-AREA model table (see "CRATE" in the module docstring).
 
@@ -1473,6 +1519,10 @@ def main(argv):
     ap.add_argument("--gibs-outdir", default="../extermination-port/assets/gibs",
                     help="(--gibs) output directory (git-ignored, "
                     "disc-derived)")
+    ap.add_argument("--cone", action="store_true",
+                    help="export the chunk27 LIGHT-CONE mesh (entry 0x10) "
+                         "as a static EMDL for the port's flashlight cone "
+                         "(--out, default assets/fx/light_cone.emdl)")
     ap.add_argument("--fx", action="store_true",
                     help="export the weapon-visual sprite textures (laser "
                     "dot + the three muzzle-flash sheets) as raw-RGBA "
@@ -1548,6 +1598,8 @@ def main(argv):
         return export_gibs(args)
     if args.fx:
         return export_fx(args)
+    if args.cone:
+        return export_cone(args)
     if not args.out and not args.doors and not args.doors_office0 \
             and not args.doors_drawbridge:
         ap.error("--out is required (except with --doors/--doors-office0/"
