@@ -144,6 +144,38 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-12 (session 76): BUG BRAIN STATE MACHINES DECODED — closes
+> the headline s68 open item (work-queue #1). Static decode of the two
+> crate-hatchling BUG brains func_00128C10 (0xB6C) / func_0012A5D0
+> (0x7F0) + their helper tree (FINDINGS "BUG BRAIN STATE MACHINES").
+> Both share a 5-state top dispatch (entity +0x4: 0 spawn/pose-init,
+> 1 active brain, 2 hurt, 3 death-transition, 4 corpse/leap). Spawn:
+> func_00128AB0 binds variant A/B (event flag 0x30) + clip bank 0x11,
+> func_00129780 sets the nest spawn-pose. Active brain: gameplay gate
+> func_001B2140, a director gate, a 1-in-64 awareness tick
+> func_001B0D80, the EVERY-TICK mailbox poll func_00128B80, then a
+> behavior dispatch (func_00128C10: per-pose jtbl_0026CF70 → per-phase
+> jtbl_0026CF40; func_0012A5D0: 14-case jtbl_0026D000 of move helpers
+> func_0012ADC0..DD70 = walk/approach/bite-lunge/leap/swipe/claw).
+> func_00128B80 VERIFIED in full: +0x36 != 0 → state 2 (HURT); the
+> KEY new finding — the bug's PLAYER damage is NOT an inline latch but
+> the SHARED melee resolver func_001B5360 → func_0019A570 (radius-6
+> box +10u ahead, the worm/leech contact family); the bite clip is
+> 0x13 (func_0012C490). HP 15/30 (30/50 hard). PORT: the bug's
+> flagged-minimal walk brain is replaced by the real APPROACH →
+> WINDUP → IN-PLACE BITE (clip 0x13 + the verified +10u/r6 contact →
+> player-hit bridge) → RECOVER machine; the bug now bites for damage.
+> Bite TIMERS + BUG_BITE_DMG (5) stay flagged port constants; the
+> engine lunge MOTION is NOT modelled (decode gives the clip+box, not
+> a travel speed — so position behaviour matches the pre-s76 approach
+> and the deterministic enemy/melee tests keep their geometry). Gates:
+> EM_ENEMY_TEST=1/3 + EM_MELEE_TEST (7/3) + test-input/-weapon PASS
+> (melee 14/14, enemy1 28/28 under load); default EM_CAPTURE
+> byte-identical vs clean HEAD. s76 open: per-pose clip map, 14-case
+> move constants, the shared contact-damage VALUE, variant-B story
+> moment, player+0xA light gating. PORT_DIFFERENCES J14 updated
+> (SI: real bite brain; magnitudes flagged).
+
 > 2026-06-11 (session 66): LIVE VERIFICATION SWEEP — six flagged
 > s56-s63 items settled in one PCSX2 DebugServer session (FINDINGS
 > "LIVE VERIFICATION SWEEP"). (1) WORM NOT SHOOTABLE: both victim

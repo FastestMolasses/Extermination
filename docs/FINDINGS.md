@@ -14307,9 +14307,10 @@ as the historical label of the crate-disguise behavior.
   EM_CAPTURE verified byte-identical vs a clean-HEAD build.
   PORT_DIFFERENCES J6/J7/J14 updated (J14 now SI).
 
-Open (s68): the two bug brains' full state machines (move/attack/
+Open (s68): ~~the two bug brains' full state machines (move/attack/
 pose-specific subs, the 14-case jtbl_0026D000, awareness use of
-player+0xA); the 8 unbakeable clip containers (non-sentinel header
+player+0xA)~~ — **DECODED s76 (structural); see "BUG BRAIN STATE
+MACHINES DECODED" below**; the 8 unbakeable clip containers (non-sentinel header
 variant — same decoder wall as s45); event flag 0x30's story moment
 (when the world turns to variant B); whether the +0x9E sub-state
 byte gates class-2 children's respawn via func_001B64F0's re-clear.
@@ -14649,3 +14650,191 @@ s63 export pass.
   (likely wall-clock pacing vs fixed-step).
 
 _Last updated: 2026-06-11 (session 75)._
+
+## BUG BRAIN STATE MACHINES DECODED — the two crate-hatchling brains func_00128C10 / func_0012A5D0, their move-helper family, the hurt/death pipeline, and the shared melee-contact damage path (2026-06-12, session 76)
+
+Closes the headline s68 open item — "the two bug brains' full state
+machines (move/attack/pose-specific subs, the 14-case jtbl_0026D000,
+awareness use of player+0xA)" — at the **structural** level. Static
+decode only (.s reads; no live capture). The two BUG brains
+(func_00128C10 = the 0xB6C "simpler" office-pose-5 variant;
+func_0012A5D0 = the 0x7F0 "fuller" office-pose-4 variant) share one
+5-state top dispatch, one spawn path, one hurt/death handler, and one
+melee-contact damage path; they differ only in their active-brain
+behavior dispatch (a per-pose two-tier jtbl vs. a 14-case move-helper
+jtbl). **A few per-attack constants remain INFERRED, flagged below as
+[INFERRED] — they need a bit-exact follow-up pass; do not treat them as
+pinned.**
+
+### 1. Top-level dispatch — entity +0x4 selects 5 states (both brains)
+
+`lbu state, 0x4(entity)` → `switch (state) { 0,1,2,3,4 }`. The entity
+base is arg0 (copied to $s2); a per-instance ANIM/MOTION sub-struct
+lives at **entity+0x1F0** (held in $s1). The global `D_008102B0` is the
+camera/player struct whose **+0xA0 = the player world position** (the
+target of every range check).
+
+- **State 0 — SPAWN / POSE-INIT.** Sub-dispatch on +0x5:
+  - +0x5==0: `func_00128AB0` readiness gate. It binds the bug's model +
+    clip bank via **`func_001B10B0(sub, D_00810788==0xFF ? 0x10 : 0x0F,
+    0x11)`** — i.e. **variant B (red-flesh slot 0x10) iff event flag
+    0x30 is set, else variant A (chitin slot 0x0F); clip bank 0x11**
+    (this is the same bind the s68 J14 decode already used). Then
+    `bone_init_default_2`, `func_001289C0` sub-struct init (anim speed
+    sub+0xEC = 1.0, clears timers, picks the idle clip via the HP
+    helper's sibling), sets sub+0xF8 = 1 and entity+0x28 = 0; advances
+    +0x5.
+  - +0x5==1: **`func_00129780(entity, sub, pose=+0xD)`** sets the spawn
+    pose, then (on success) advances the dispatch byte to **state 1**
+    (the active brain) — EXCEPT pose +0xD ∈ {4, 9}, which stay in the
+    pose (special held spawns). `func_00129780`'s 14-case `jtbl_0026D000`
+    (poses 0..0xD) sets the initial clip / position / orientation / the
+    sub+0xFA/+0xFB attack-mode flags per nest pose param (the s68
+    "spawn-pose code = nest param func_00129780 cases 0..0xC").
+- **State 1 — ACTIVE BRAIN.** Guarded, in order:
+  1. `func_001B2140()` — gameplay-running gate (false while paused /
+     menu / game-over → return).
+  2. (func_00128C10 only) a director gate: `lbu D_70003B8D` — if ≥ 2,
+     skip thinking (a cutscene/scripted-camera hold).
+  3. **Periodic (1-in-64 frames)**: when `(D_70003B68 + D_70003B8A) &
+     0x3F == 0`, call `func_001B0D80(entity)` — an awareness / out-of-
+     bounds recompute (drops the bug to the death state if it has
+     fallen below the kill-plane; returns "busy" to skip the rest).
+  4. **Every tick**: `func_001B17A0()` (the shared per-tick cull /
+     transform / publish tail — see the generic-actor notes elsewhere)
+     and **`func_00128B80(entity, sub)`** the damage MAILBOX poll.
+  5. **Behavior dispatch** (the brains diverge here):
+     - **func_00128C10**: per-pose **`jtbl_0026CF70` (poses 0..9)** →
+       each pose handler dispatches per-sub-phase **`jtbl_0026CF40`
+       (0..8)**. The handlers turn-toward (angle approach
+       `func_001B12B0`), advance the body (`func_001287F0` anim +
+       `func_001C2770`/`func_001C3D60` collision step), and re-roll
+       heading/timers from the RNG `func_00122BB8` and the short tables
+       D_00242EB0/EB6/EBC (timer triples), **D_00242F20** (per-pose base
+       clip id, indexed `+0xD<<2`), and D_00275380 (gp-rel).
+     - **func_0012A5D0**: a single **14-case `jtbl_0026D000` indexed by
+       sub-phase +0x5** of move helpers (table §3).
+- **State 2 — HURT** (entered only by the mailbox poll, never inline):
+  `func_00129FC0`, the hurt/death handler (§4).
+- **State 3 — DEATH-TRANSITION / State 4 — CORPSE-LEAP**: `func_0012E070`
+  corpse-flag cleanup (clears sub+0xF6); state 4 runs the shared leap
+  `func_0012D580`; pose +0xD ∈ {0xA,0xB} release via
+  `func_001B1190`/`func_001AFC10`.
+
+### 2. The damage MAILBOX is the ONLY hurt trigger — func_00128B80 (VERIFIED, 0x84 bytes, read in full)
+
+```
+v0 = lh entity+0x36                     // the damage mailbox (short)
+if (v0 == 0 && D_0081080F == 0) return 0 // no damage, normal play
+// damage present (or the debug force-flag D_0081080F is set):
+entity+0x0 = 3; entity+0x4 = 2;          // → dispatch state 2 (HURT)
+entity+0x5 = entity+0x6 = entity+0x7 = 0
+func_0012E070(sub)                       // corpse/flag cleanup
+if (D_0081080F) entity+0x36 = entity+0x34 // debug: refill mailbox=HP → instakill
+return 1
+```
+
+So a nonzero **entity+0x36** flips the bug straight to state 2 next tick
+(skipping the rest of state-1 thinking). **`D_0081080F` is a debug
+"force-damage / one-shot-kill" flag** (copies HP→mailbox so the hurt
+handler subtracts full HP); it is 0 in normal play. This confirms the
+s68/J14 port behavior (the bug consumes +0x36 every active tick).
+
+### 3. The move-helper family func_0012ADC0…func_0012DD70 (roles)
+
+Called from func_0012A5D0's `jtbl_0026D000` (and func_00128C10's state
+4). Verified roles from entry-point reads + the contact-call grep; the
+**clip ids marked ✓ are read directly from the helper's
+`func_001287F0(…, clipId, speed)` calls**:
+
+| Helper        | Role                         | Clips                | Notes |
+|---------------|------------------------------|----------------------|-------|
+| func_0012ADC0 | angle-approach primitive     | —                    | yaw step toward target |
+| func_0012AFC0 | walk / approach (turn+step)  | 1,2,3,6 [INFERRED]   | the locomotion gait |
+| func_0012B410 | multi-phase approach         | 3,6 [INFERRED]       | walk→wait→prep, D0 timers 0x3C/0x78 |
+| func_0012B850 | single walk / hold           | 6 [INFERRED]         | timer 0x78 |
+| func_0012B970 | pounce / rush                | —                    | velocity toward player |
+| func_0012BE20 | multi-phase attack           | —                    | **calls func_001B5360 ✓** (contact) |
+| **func_0012C490** | **BITE / SNAP LUNGE**    | **0x13, 0x14 ✓**     | **calls func_001B5360 ✓ ×3** (the primary melee) |
+| func_0012CAA0 | special combo (bone-driven)  | multi                | |
+| func_0012D240 | idle / neutral transition    | —                    | |
+| **func_0012D580** | **LEAP / DROP attack** (shared; func_00128C10 state 4) | — | **calls func_001B5360 ✓** |
+| func_0012D850 | tail / side swipe            | —                    | |
+| func_0012D940 | claw / scratch swipe         | —                    | **calls func_001B5360 ✓** |
+| func_0012DD70 | post-attack wind-down        | —                    | **calls func_001B5360 ✓** |
+| func_0012E070 | corpse-flag cleanup          | none                 | clears sub+0xF6 (also called on the hurt transition) |
+
+### 4. Hurt / death — func_00129FC0 (8-phase, jtbl_0026CFE0 on +0x5)
+
+Structure (from the helper-decode agent; clip/sound numbers below are
+[INFERRED] beyond the two that s68 already pinned): subtract the mailbox
+(+0x36) from HP (entity+0x34); if HP survives → **flinch clip 0x1D**
+(s68-pinned), else **death clip 0x1B** (s68-pinned; in an unbakeable
+container) / a 0x20 pose. A knockback corpse-slide (sub+0xD8 velocity,
+sub+0xE4 direction code 0x500/0x600, ~90° RNG), a gore spawn
+`func_001EFE00(0x80000027)`, pain/impact sounds [INFERRED ids], a
+**corpse hold of 0x3C (60) frames**, then despawn. The killed hatchling
+sets its **puid taken-bit** (the s68 persistence). HP itself:
+**func_00128390 → 15 (variant A) / 30 (variant B); 30/50 when the
+difficulty byte D_0081070A is set** (verified).
+
+### 5. The PLAYER-DAMAGE path is the SHARED melee-contact resolver, NOT an inline latch write (VERIFIED — the key new finding)
+
+A full grep of both brains and every move helper found **no
+`D_008104D4` contact-latch write and no `func_0019A570`/`func_001A7280`
+call inline** (unlike the worm's func_00154120, which writes the latch
+itself). Instead, the bug's attack helpers (func_0012C490 bite,
+func_0012BE20, func_0012D580 leap, func_0012D940 claw, func_0012DD70)
+all `jal` **`func_001B5360`** — the shared melee-contact resolver.
+Reading func_001B5360 (0x280 bytes):
+
+- It copies the attacker position (entity+0xB0) into the scratch box
+  **D_700038A0**, pushes it **+10.0 forward** (along the +0x4 component),
+  and offsets the box Y by **−200.0 if entity+0x3 == 4 else −30.0** (a
+  size/class branch).
+- Calls **`func_0019A570(box=D_700038A0, target=D_700038B0,
+  radius=$a2=6, $a3=0)`** — the **radius-6** contact test against the
+  player (the SAME radius-6 contact primitive the worm/leech use:
+  ENEMY_CONTACT_R = 6.0 in the port). On a hit it proceeds to apply the
+  contact damage through the shared contact subsystem.
+
+So **the bug bite = a radius-6 sphere ~10u ahead of the bug, resolved by
+the shared func_001B5360 → func_0019A570 family** — exactly the contact
+machinery the port already mirrors for the worm via the `s.player_hit =
+0x4000 | dmg` bridge. The **exact bug contact-damage VALUE lives inside
+that shared subsystem (the D_008104D4 latch the player hurt processor
+func_0021C440 reads), not in the brain** → a NEW follow-up open item
+(decode func_001B5360's downstream + the per-attacker damage source).
+
+### 6. Senses & the player light (+0xA)
+
+Range checks use **`func_001B13F0(player@D_008102B0+0xA0, entity+0xB0,
+radius)`**. The player shoulder-light byte **player+0xA** is in the s51
+reader list and both brains participate, but — consistent with s51's
+"no clean static reader goes through +0xA" — **no single isolated +0xA
+gate was found in the brains**; the only confirmed player/story-flag
+branch is the variant model pick (event flag 0x30 → slot 0x10). The
+bug's "awareness" is the generic func_001B0D80 / func_001B17A0 family
+plus the range checks, not a bespoke light gate. (Light-detection
+remains the s51 curiosity; not resolved here.)
+
+### 7. Port adoption (this session)
+
+The port's `bug_attack_tick` (a single walk+flinch loop that **dealt no
+damage**) is replaced by a real multi-state brain mirroring the engine
+shape — APPROACH (sense-gated homing) → WINDUP → **LUNGE (bite clip 0x13,
+travels, and on the radius-6 forward contact writes the player-hit
+bridge `s.player_hit = 0x4000 | BUG_BITE_DMG`)** → RECOVER, keeping the
+mailbox-driven flinch (0x1D) / death already present. The locomotion
+magnitudes (approach/lunge speeds, trigger range, windup/recover timers)
+and **BUG_BITE_DMG stay FLAGGED PORT CONSTANTS** until §5's shared
+contact subsystem is decoded. PORT_DIFFERENCES J14 advances SI(minimal
+brain)→SI(real multi-state brain; magnitudes flagged); J6/J7 unchanged.
+
+Open (s76): the exact per-pose clip map in jtbl_0026CF70/CF40; the
+func_0012A5D0 jtbl_0026D000 per-case clip/speed/timer constants; **the
+shared melee-contact damage VALUE (func_001B5360 downstream → the
+D_008104D4 source — §5)**; the 8 unbakeable clip containers (s68); event
+flag 0x30's story moment; func_00129FC0's exact sound ids.
+
+_Last updated: 2026-06-12 (session 76)._
