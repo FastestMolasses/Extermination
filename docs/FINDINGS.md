@@ -14595,3 +14595,57 @@ Open (s74):
 - drawbridge deck walkability probe in the port.
 
 _Last updated: 2026-06-11 (session 74)._
+
+## PER-AREA ITEM MODEL EXPORT FIXED — area_item_ naming pinned writer-side; the office card ships (2026-06-11, session 75)
+
+The port logged `pickup 6: model props/area_item_18.emdl failed to
+load` in every office0 run. Root cause: a NAMING + SOURCE divergence
+between the manifest emitter and the model writer, introduced in the
+s63 export pass.
+
+- **The manifest side was right.** `export_level.py
+  emit_pickup_manifest` keys each item record's model byte: family 1
+  (`model & 0xF == 1`) binds through `*(D_0028A59C)` = the PER-AREA
+  model table → `props/area_item_XX.emdl`; anything else binds the
+  global chunk27 equipment library → `props/item_XX.emdl`. The prefix
+  keeps the two id spaces apart (per-area entry 0x18 ≠ chunk27 entry
+  0x18 — entirely different models).
+- **The writer side diverged.** The s63 office export ran ALL params
+  through `--pickup-items` (the chunk27 path), so the office's
+  family-1 record (type 0x04, param 0x18, uid 0x020D) got
+  `item_18.emdl` carved from **chunk27 entry 0x18** — wrong source
+  AND wrong name (verified byte-identical to a fresh
+  `--pickup-items 0x18 --gsdump extract/gsdump/frame1.gs` run: 21 v /
+  20 t). The drawbridge's family-1 record had been carved correctly
+  (s63 resolution, `--crate` + manual `--out area_item_0d.emdl`), so
+  only the office file was missing/wrong.
+- **Fix (tooling)**: new `export_props.py --area-items IDS` mode — the
+  per-area-table sibling of `--pickup-items`: same `--crate` source
+  flags (`--crate-dir`/`--crate-table`/`--crate-table-off`/
+  `--uploads`), one static model-local EMDL per table id, written as
+  `area_item_XX.emdl` so the writer's names match the manifest
+  emitter's by construction. Validated by reproducing the shipped
+  drawbridge `area_item_0d.emdl` byte-identically
+  (`--area-items 0x0d --crate-dir extract/chunk05.n0
+  --crate-table-off 0x3f2000 --uploads
+  extract/chunk05.n0/f00_id44.bin,extract/chunk27/f00_id35.bin`).
+- **Fix (asset)**: `--area-items 0x18 --crate-dir extract/chunk06.n0`
+  → `scene_office0/props/area_item_18.emdl` (chunk06.n0 concat table
+  @0x373800 entry 0x18: a 1-node flat textured quad, 4 v / 2 t, bbox
+  Y±2 — a card/paper item like the drawbridge's 0x0D; texels 1/1 from
+  the leaf's f02_id44 + chunk27 f00_id35 upload replay). The wrong
+  `item_18.emdl` deleted (nothing references it).
+- **Verified**: all four scenes (default, office0, drawbridge, snow)
+  boot with every manifest pickup model loading — zero `failed to
+  load` lines (office0 logs `pickup 6 … props/area_item_18.emdl`
+  cleanly); full suite 19/19 — 16 EM_*_TEST verdicts PASS
+  (slider/locked under EM_SCENE=assets/scene_drawbridge) +
+  test-input + test-weapon PASS + EM_AUDIO_TEST=1 frames delivered.
+  Note: EM_AIM_TEST failed ONCE mid-suite (body-turn overflow, blend
+  0.5) under 16 back-to-back windowed runs but passes 3/3 isolated —
+  a load-sensitive flake in the realtime-paced test, pre-existing,
+  unrelated (this change is assets-only; the default scene the test
+  runs in references no item_18 at all). Open: deflake aim_test_script
+  (likely wall-clock pacing vs fixed-step).
+
+_Last updated: 2026-06-11 (session 75)._

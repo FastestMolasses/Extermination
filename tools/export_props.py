@@ -1543,6 +1543,67 @@ def export_crate(args):
 
 
 # ---------------------------------------------------------------------------
+# Mode 3c: --area-items — PER-AREA model-table collectible-item models.
+#
+# The deferred-spawn registry's family-1 item records (model byte & 0xF
+# == 1) bind through *(D_0028A59C) = the PER-AREA model table, NOT the
+# chunk27 library — export_level.py emit_pickup_manifest names them
+# props/area_item_XX.emdl to keep the two id spaces apart. This writer
+# emits the same area_item_ prefix so the manifest and the files cannot
+# diverge (s74 regression: office entry 0x18 was exported from chunk27
+# as item_18.emdl — wrong source AND wrong name). One static EMDL per
+# id, model-local space: the --crate carve recipe in a loop, sharing
+# its source flags (--crate-dir/--crate-table/--crate-table-off/
+# --uploads).
+
+def export_area_items(args):
+    uploads = None
+    if args.crate_dir:
+        src = Path(args.crate_dir)
+        d = lvl.office0_concat(src)
+        table_off = (args.crate_table_off if args.crate_table_off is not None
+                     else lvl.OFFICE0_TABLE_OFF)
+        uploads = lvl.office0_uploads(src, args)
+        print(f"area-item source: {src}/ concat model-table @{table_off:#x}")
+        print(f"  texel source: GS-upload replay of "
+              f"{', '.join(p.name for p in uploads)}")
+    else:
+        src = Path(args.crate_table)
+        d = src.read_bytes()
+        table_off = (args.crate_table_off if args.crate_table_off is not None
+                     else CRATE_TABLE_OFF)
+        print(f"area-item source: {src} model-table @{table_off:#x}")
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    rc = 0
+    for mi in (int(s, 0) for s in args.area_items.split(",")):
+        off = table_entry_offset(d, table_off, mi)
+        nb, qwc, nn, size = struct.unpack_from("<4I", d, off)
+        if nn != 1:
+            print(f"  ! area item {mi:#04x}: {nn} nodes (expected a 1-node "
+                  f"static blob), skipped")
+            rc = 1
+            continue
+        sections, tex_table = build_blob_mesh(d, off)
+        pos = sections[0][0]
+        if not pos:
+            print(f"  ! area item {mi:#04x}: no geometry, skipped")
+            rc = 1
+            continue
+        tex_entries, tex_blob = lvl.build_texture_blob(
+            Path(args.gsdump) if args.gsdump else None, tex_table,
+            Path(args.p2s) if args.p2s else None, uploads)
+        out = outdir / f"area_item_{mi:02x}.emdl"
+        en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
+                      tex_entries, tex_blob, flags=1)
+        ys = [p[1] for p in pos]
+        print(f"area item {mi:#04x} -> {out}: {len(pos)} verts, "
+              f"{len(sections[0][2]) // 3} tris, "
+              f"Y[{min(ys):.1f},{max(ys):.1f}]")
+    return rc
+
+
+# ---------------------------------------------------------------------------
 
 def main(argv):
     ap = argparse.ArgumentParser(
@@ -1573,6 +1634,13 @@ def main(argv):
                     "item_XX.emdl files into --outdir — the collectible-"
                     "item models the deferred-spawn registry binds by "
                     "param (em_pickup; scene.txt pickup lines)")
+    ap.add_argument("--area-items", metavar="IDS",
+                    help="export these PER-AREA model-table entry ids "
+                    "(comma-separated) as static area_item_XX.emdl files "
+                    "into --outdir — the family-1 collectible models the "
+                    "manifest's props/area_item_XX.emdl pickup lines bind; "
+                    "table source flags shared with --crate (--crate-dir/"
+                    "--crate-table/--crate-table-off/--uploads)")
     ap.add_argument("--cone", action="store_true",
                     help="export the chunk27 LIGHT-CONE mesh (entry 0x10) "
                          "as a static EMDL for the port's flashlight cone "
@@ -1652,6 +1720,8 @@ def main(argv):
         return export_gibs(args)
     if args.pickup_items:
         return export_pickup_items(args)
+    if args.area_items:
+        return export_area_items(args)
     if args.fx:
         return export_fx(args)
     if args.cone:

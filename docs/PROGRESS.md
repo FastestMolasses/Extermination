@@ -6073,3 +6073,20 @@ exporter work, the assets, the verification harness and these docs).
   (single doors), drawbridge_f80 (the deck spanning the chasm).
 - Open: the s74 list in FINDINGS (bridge actor decode, fn 0x001C4820
   contract, fn 0x001E3D90 configs, deck walkability).
+
+### Update — 2026-06-11 s75: per-area item export fixed — `--area-items` mode pins the area_item_ naming; the office card model ships
+
+The office0 "pickup 6: model props/area_item_18.emdl failed to load"
+closed (FINDINGS s75). The s63 export pass had run the office's
+family-1 item (per-area model table, param 0x18) through
+`--pickup-items` — carving **chunk27 entry 0x18** as `item_18.emdl`:
+wrong source and wrong name (the manifest emitter correctly writes
+`area_item_XX.emdl` for family-1 records; the prefix separates the
+per-area and chunk27 id spaces). New `export_props.py --area-items
+IDS` writes per-area-table items under the manifest's own naming
+(validated byte-identical against the shipped drawbridge
+`area_item_0d.emdl`); office `area_item_18.emdl` regenerated from the
+chunk06.n0 table (a 4-vert card quad), the wrong file deleted. All
+four scenes boot with zero pickup load failures; suite 19/19 PASS
+(EM_AIM_TEST flaked once under back-to-back load, 3/3 isolated —
+deflake noted as an open item).
