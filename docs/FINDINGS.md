@@ -14801,10 +14801,29 @@ Reading func_001B5360 (0x280 bytes):
 So **the bug bite = a radius-6 sphere ~10u ahead of the bug, resolved by
 the shared func_001B5360 → func_0019A570 family** — exactly the contact
 machinery the port already mirrors for the worm via the `s.player_hit =
-0x4000 | dmg` bridge. The **exact bug contact-damage VALUE lives inside
-that shared subsystem (the D_008104D4 latch the player hurt processor
-func_0021C440 reads), not in the brain** → a NEW follow-up open item
-(decode func_001B5360's downstream + the per-attacker damage source).
+0x4000 | dmg` bridge.
+
+**The damage value — decoded (s76 follow-up)**: on a func_0019A570 hit,
+func_001B5360 stages the player position into the scratch box D_700038B0
+and dispatches on the attacker's **attack-class byte `entity+0x3`**
+(`sltiu < 0xD`) through **jtbl_0026DEA0** into a per-class damage applied
+via `func_001F9100` (or `func_001F9180` for the heavy cases) with the
+magnitude in `$f12`:
+
+| +0x3 class | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9..C | ≥D |
+|------------|---|---|---|---|---|---|---|---|---|------|----|
+| damage     |2.0|4.2|4.2|3.5|8.0|5.0|6.5|6.0|8.0| 4.2 |4.2 |
+
+(classes 4 and 8 route through func_001F9180, the rest through
+func_001F9100 — likely a knockback/no-knockback split.) So the bug's
+bite damage is **whichever class its `entity+0x3` carries** — NOT a
+single constant. The bug cluster never writes +0x3 (it is a persistent
+per-actor attack-class set at spawn/alloc, not yet located), so the
+exact bug value is still unpinned; **class 5 → 5.0** is the plausible
+candidate (a research agent inferred "type 5", consistent with the
+table, but the bug's +0x3 == 5 is UNVERIFIED — needs the actor-alloc
+path or a live read). The port keeps BUG_BITE_DMG = 5 as the flagged
+candidate. Remaining: pin the bug actor's +0x3 attack-class byte.
 
 ### 6. Senses & the player light (+0xA)
 
@@ -14833,8 +14852,9 @@ brain)→SI(real multi-state brain; magnitudes flagged); J6/J7 unchanged.
 
 Open (s76): the exact per-pose clip map in jtbl_0026CF70/CF40; the
 func_0012A5D0 jtbl_0026D000 per-case clip/speed/timer constants; **the
-shared melee-contact damage VALUE (func_001B5360 downstream → the
-D_008104D4 source — §5)**; the 8 unbakeable clip containers (s68); event
-flag 0x30's story moment; func_00129FC0's exact sound ids.
+bug's attack-class byte entity+0x3** (the §5 damage table is decoded —
+only which row the bug hits is unpinned; class 5 → 5.0 is the candidate);
+the 8 unbakeable clip containers (s68); event flag 0x30's story moment;
+func_00129FC0's exact sound ids.
 
 _Last updated: 2026-06-12 (session 76)._

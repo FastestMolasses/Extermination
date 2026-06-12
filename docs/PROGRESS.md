@@ -172,9 +172,31 @@ the dated sections later in the file are both authoritative.
 > EM_ENEMY_TEST=1/3 + EM_MELEE_TEST (7/3) + test-input/-weapon PASS
 > (melee 14/14, enemy1 28/28 under load); default EM_CAPTURE
 > byte-identical vs clean HEAD. s76 open: per-pose clip map, 14-case
-> move constants, the shared contact-damage VALUE, variant-B story
+> move constants, the bug's +0x3 attack-class, variant-B story
 > moment, player+0xA light gating. PORT_DIFFERENCES J14 updated
 > (SI: real bite brain; magnitudes flagged).
+
+> 2026-06-12 (session 76, follow-on research): three subagent decode
+> sweeps; one VERIFIED + folded in, two recorded as leads. (1) BUG
+> BITE DAMAGE — VERIFIED: func_001B5360 dispatches on the attacker's
+> attack-class byte entity+0x3 (jtbl_0026DEA0, func_00261544) into a
+> per-class damage {0:2, 1:4.2, 2:4.2, 3:3.5, 4:8, 5:5, 6:6.5, 7:6,
+> 8:8, ≥9:4.2} applied via func_001F9100/9180; the bug's +0x3 row is
+> unpinned (class 5→5.0 is the candidate) → FINDINGS s76 §5 table +
+> port BUG_BITE_DMG comment updated. (2) MENU-ACTOR PLACEMENT (E4,
+> work-queue #3) — the agent's "actor at WORLD (7.4,−2.4,40) +
+> identity camera" reading was CHECKED AND REJECTED: that projects
+> the model tiny/near-centered, which IS the symptom E4 already
+> records — so it is not the fix; the misread link is still
+> unidentified and needs a live PCSX2 read of actor +0xB0 + the cam
+> matrix with the menu open. (3) SCREEN-MODULE ART (P3, work-queue
+> #5) — UNVERIFIED lead: modules load via func_001FF080 →
+> func_001FF1E0 from INDEX.IDX (sector = module_id<<11) into DATA.DAT
+> chunks (agent: 0x27→game-over, 0x01→continue), drawn by
+> func_001ABF90 / func_001AC7F0; a new tools/export_screen_modules.py
+> (reusing export_ui's GS-packet replay) would feed em_hud — deferred
+> (a sizable new exporter; needs disc INDEX.IDX/DATA.DAT replay
+> verification before trusting the id→chunk map).
 
 > 2026-06-11 (session 66): LIVE VERIFICATION SWEEP — six flagged
 > s56-s63 items settled in one PCSX2 DebugServer session (FINDINGS
