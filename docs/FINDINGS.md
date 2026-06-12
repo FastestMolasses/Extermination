@@ -7600,9 +7600,20 @@ no-knockback arm) and missing gib assets keep the old sink placeholder.
 Launch speeds/spin are flagged port constants; the gore particle-FX
 pairs (func_001EFD90 ids) and nest-child spawns remain untranslated.
 
-Open: which husk (0x22 vs 0x29) binds to which crawler variant (the
-variant byte {6, 0x1E} gates the knockback, but the husk pick inside
-func_001551B0 state 2 is not yet pinned); whether the engine ALSO
+~~Open: which husk (0x22 vs 0x29) binds to which crawler variant~~ —
+**CLOSED 2026-06-11 (the wooden-crate wrong-debris report)**: the husk
+pick is inside func_001551B0 state 2's damage-kill arm, vaddr
+`0x156380` — `lbu +0x3` (the crawler MODEL byte), `byte == 6 →
+func_001C6120(D_0028A56C, 0x22)` else `(…, 0x29)`, then
+func_001CA6E0 rebinds the actor. Placements survey: byte 06 is EVERY
+crate in AREA02/11/13/18/20/22 (the wooden crate — husk A's brown
+tones match), 0x1C/0x1E/0x1F appear only in AREA03/06/07/08 (husk B's
+grey-cyan family). The rebind (and the knockback) runs on the DAMAGE
+arm only — a timer/suicide burst leaves no husk. Port adopted same
+day: the gib pool is split into the two families and the burst
+launches the matching one, husk first (the old mixed pool led with
+husk-B pieces — the user-visible wrong wooden-crate debris).
+Still open: whether the engine ALSO
 draws the shard/chunk meshes at burst time (the gore-FX effect ids may
 reference them) — check live during a crate burst.
 
@@ -14129,10 +14140,19 @@ for nest links, every referenced group parsed:
 
 | area | nest-linked crates | children per group | behaviors |
 |---|---|---|---|
+| 01 | 1 (link 0; the drawbridge crate at (−25, 0, −279), same link in tables A and B; 5 more crates link −1) | 4 bugs (puids 112–115, cond 1, pose param 4, ±1 u offsets; base=2, group @0x829360) | `func_0012A5D0` ×4 |
 | 02 office | 5 (links 0–4; same in sub-0 and sub-2 tables; 12 more crates link −1 = gore-only) | 2,2,3,2,2 (puids 121–131) | `func_00128C10` (param 5) / `func_0012A5D0` (param 4) |
 | 03 | 1 (link 0) | 1 ITEM + 2 bugs | `func_0015AFA0` (type 0x20 MTS VACCINE, lib model 0x4F) + `func_0012A5D0` ×2 |
 | 06 | 1 (link 1) | 1 ITEM only | `func_0015AFA0` (type 0x1F, lib model 0x4E) |
 | 22 | 1 (link 0) | 3 bugs | `func_00128C10` (params 1,1,5) |
+
+**SURVEY CORRECTION (2026-06-11, exporter session):** the original
+sweep MISSED AREA01 — wiring the nest resolver into export_level.py
+surfaced a nest-linked crate in the shipped drawbridge scene (row
+added above; verified from the raw table-A placement record @0x82BE68,
+link word 0x0000, and the registry walk `D_0024D820[1] + 4·(base 2 +
+0)` → group 0x829360). The drawbridge is NOT an all-gore-only area:
+its second crate hatches FOUR bugs.
 
 **NO nest record anywhere installs `func_00153F10` (the worm).**
 Exhaustive: raw-word scans of all 19 overlays AND the main-ELF data
@@ -14291,13 +14311,24 @@ player+0xA); the 8 unbakeable clip containers (non-sentinel header
 variant — same decoder wall as s45); event flag 0x30's story moment
 (when the world turns to variant B); whether the +0x9E sub-state
 byte gates class-2 children's respawn via func_001B64F0's re-clear.
-NEW (port adoption): export_level.py should emit the nest links —
-`enemy crate … bugs <n>` with the registry group size per crate (and
-0 for link −1 gore-only crates; the shipped office0/drawbridge
-manifests currently ride the flagged default 2) and an item-crate
-form for the AREA03/06 nests (em_pickup wiring).
+~~NEW (port adoption): export_level.py should emit the nest links~~ —
+**CLOSED 2026-06-11 (exporter session)**: export_level.py now resolves
+each crate placement's link through the nest registry (`_nest_children`:
+`D_0024D820[area]` entry `D_0024A850[area]` (0→1) `+ link`, the s68
+formula; group records via the shared `_parse_group`) and every emitted
+crate line carries `bugs <n>` = the group's bug-brain child count
+(fn 00128C10/0012A5D0; 0 for link −1 gore-only). Item-bearing nest
+records (fn 0015AFA0, the AREA03/06 vaccine/item crates) emit as
+flagged `# ^ ITEM-BEARING nest record` comment lines — the em_pickup
+wiring itself is STILL OPEN (no exported scene has one yet).
+Manifest-only re-export mode: `--enemies DIR --area A --sub S
+--overlay …` (office tables + drawbridge table A). office0,
+drawbridge, and the captured office scene (toggle lines) re-exported;
+office counts = the survey's 2,2,3,2,2; the run surfaced the AREA01
+survey correction above (drawbridge crate 2 = bugs 4).
 
-_Last updated: 2026-06-11 (session 68; port adoption noted same day)._
+_Last updated: 2026-06-11 (session 68; port adoption + exporter
+nest-link emission noted same day)._
 
 ## EXAMINE INTERACTION DECODED — placement-record examine objects, the overlay examine scripts, per-area text-bank census; PORTED as em_examine (2026-06-11, session 69)
 

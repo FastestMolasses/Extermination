@@ -5938,3 +5938,28 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   shipped manifests ride the flagged default 2); item-bearing nest
   crates (AREA03/06) through em_pickup; the bug brains' real state
   machines + attack moves (the minimal brain deals no damage).
+
+### Update — 2026-06-11 s72: wooden-crate burst debris fixed — the husk REBIND pick decoded (model byte 6 → 0x22, else 0x29) + the port gib pool split per family
+
+- **User report**: the wooden box burst into the wrong broken pieces.
+  Root cause: the port's single mixed gib pool led with the GREY-CYAN
+  husk-B set (0x28/0x26/0x27 — chosen in s24 when the burst was
+  believed to hatch a worm) for every crate.
+- **Decode (closes the s24 open item)**: func_001551B0 state 2's
+  damage-kill arm picks the rebind husk at `0x156380` — `lbu +0x3`
+  (the crawler MODEL byte): byte 6 → `D_0028A56C` library entry
+  **0x22** (husk A, the brown opened wooden-crate base + splinters
+  0x1C/0x1D/0x1E), else **0x29** (husk B, grey-cyan + 0x26/0x27/0x28).
+  Placement survey: byte 06 = EVERY crate in AREA02/11/13/18/20/22;
+  0x1C/0x1E/0x1F only in AREA03/06/07/08. The rebind and knockback
+  live on the damage arm only (a timer burst leaves no husk). Note:
+  AREA01 carries NO func_001551B0 placements — the drawbridge
+  manifest's crate lines are not engine placements (flagged).
+- **Port**: the gib pool is split into the two husk families; a
+  crate's burst launches the matching family — the husk itself first
+  (it IS the engine's rebind corpse), shards round-robin behind.
+  Crate variant byte added (manifest `enemy crate … variant <v>`,
+  default 6); the debug worm demo keeps the husk-B set (worms have
+  no engine rebind). Verified visually (brown wooden debris) and the
+  full suite + byte-identical default capture hold.
+- FINDINGS "GIB SET" open item closed; PORT_DIFFERENCES J6 updated.
