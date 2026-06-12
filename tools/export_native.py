@@ -85,11 +85,21 @@ Usage (macOS arm64, repo root):
   # flinches 0x56/0x57 (30/50 f, aim posture), normal death 0x2A
   # (130 f fall-to-ground, head y 14.6 -> 1.4), armed death 0x5C
   # (130 f), infected death 0x1C4 (300 f succumb), infected flinch
-  # 0x1C7 (90 f) — all motion-audited fall/stagger shapes):
+  # 0x1C7 (90 f) — all motion-audited fall/stagger shapes.
+  # ,54,94,115,375 = the four "non-sentinel" clips the old baker
+  # skipped (s76 baker fix; FINDINGS "NON-SENTINEL ANIM CONTAINER" +
+  # "WOODEN CRATE … unused player clips"): id 54 (60 f, arm-raised
+  # look-up/reach), 94 (20 f, crouch/duck), 115 (20 f, reach-to-back
+  # equip), 375 (80 f, two-handed weapon inspect). REAL animations (a
+  # research agent wrongly called them vestigial — confirmed real via
+  # EM_CLIP_DEMO). Baked-but-UNWIRED: the port plays none of them yet
+  # (their trigger states are undecoded — a follow-up); they ride the
+  # asset byte-safely (the player render resolves clips by id, so the
+  # default capture stays byte-identical):
   .venv/bin/python tools/export_native.py --attach --no-glow \
       --mesh extract/chunk28/f00_id3b.bin \
       --anim extract/chunk28/f01_id3c.bin \
-      --clips 349,2,3,69,67,75,272,273,283,51,274,275,276,277,278,279,280,281,282,1,267,268,269,270,271,0,450,10,70,68,30,31,32,33,86,87,42,92,452,455 \
+      --clips 349,2,3,69,67,75,272,273,283,51,274,275,276,277,278,279,280,281,282,1,267,268,269,270,271,0,450,10,70,68,30,31,32,33,86,87,42,92,452,455,54,94,115,375 \
       --gsdump extract/gsdump/frame1.gs \
       --out ../extermination-port/assets/player.emdl
   # ANIMATED export: bake clip N from an id 0x74 animation library file

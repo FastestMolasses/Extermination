@@ -14900,3 +14900,46 @@ instead of the frozen-pose stand-in. Also unblocks the player library's
 54/94/115/375 and any door-clip variants.
 
 _Last updated: 2026-06-12 (session 76)._
+
+## WOODEN CRATE behaviour corrections + the "unused" player clips identified (2026-06-12, session 76, user-driven)
+
+Three user-reported crate divergences, investigated (a subagent did live
+PCSX2 reads of the AREA01 crate actors `0x7AB440…0x7AC2F0` against
+func_001551B0) and fixed in the port:
+
+1. **Hit volume.** The office/AREA02 crate disguise (model id 0x0D) is a
+   **14×14×14 box, bbox X[-7,7] Z[-7,7] Y[0,14]** — origin at the FLOOR,
+   visual centre Y=7. The engine hits it as the **full box collision
+   hull** (the movable-object hull, func_0019A570 mask bit0 — any Y
+   0..14), so a shot lands anywhere on the box. The port's old hit-sphere
+   (centre Y=2, r=3.5) covered only the bottom ~40%, forcing the player
+   to aim BELOW the visual centre. Port: a ray-vs-OBB box test
+   (crate_ray_box) over the real 14³ hull; the reticle/aim-point moves to
+   the box centre (CRATE_AIM_Y 2→7).
+2. **Group alarm is INERT for placed crates.** func_001551B0's state-4
+   broadcast walks the whole live list and tests the model whitelist, but
+   its wake write `sb 1, +0x0A` is gated on the recipient's **+0x52
+   (on-surface) != 0** — and **+0x52 is 0 on every placed crate**
+   (live-read s76). So a destroyed crate wakes NO neighbour. The port's
+   enemy_alarm_broadcast woke every crate unconditionally → "break one,
+   the other hops." Fixed by modelling +0x52 (Enemy.on_surface, default
+   0). **This overturns the s62 J1 "match".**
+3. **Bug default.** Only nest-linked crates hatch; the 5 office nests
+   always carry an explicit `bugs <n>` and the gore-only majority is
+   link −1. The port's CRATE_BUGS_DEFAULT was 2, so a manifest crate
+   line WITHOUT a `bugs` tag invented a nest. Set to 0 (a tag-less crate
+   hatches nothing); the deterministic tests now request their nest
+   explicitly via em_enemy_add_crate(bugs=2).
+
+**The 4 "non-sentinel" player clips are NOT vestigial** (correcting the
+s76 research-agent "skip" verdict — confirmed by rendering them via the
+EM_CLIP_DEMO turntable in the port): directory ids **54** (60f — right
+arm raised, looking up: a reach / look-up / climb gesture), **94** (20f —
+a low crouch / duck), **115** (20f — arm sweeping to the back/shoulder: a
+reach-to-back equip motion), **375** (80f — a two-handed weapon inspect).
+They are real, deliberate player actions the port does not yet trigger;
+faithfully PLAYING them needs each one's trigger state decoded (which
+engine condition fires it) — a follow-up. They bake fine (s76 baker fix)
+and the player export CLI can carry them.
+
+_Last updated: 2026-06-12 (session 76, crate + clip pass)._
