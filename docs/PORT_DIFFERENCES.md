@@ -42,27 +42,33 @@ lists whole missing systems):
 
 | Severity | count |   | Status | count |
 |----------|------:|---|--------|------:|
-| B behavioral | 49 |  | SI simplification | 51 |
+| B behavioral | 48 |  | SI simplification | 52 |
 | V visual     | 41 |  | UT untranslated path | 30 |
-| S structural | 40 |  | FS flagged stand-in | 28 |
+| S structural | 40 |  | FS flagged stand-in | 27 |
 |              |    |  | PC port-invented constant | 13 |
-|              |    |  | SU suspected/unverified | 8 |
-| **total entries** | **130** | | whole missing systems (Q) | 24 |
+|              |    |  | SU suspected/unverified | 7 |
+| **total entries** | **129** | | whole missing systems (Q) | 24 |
 
 (s62 re-count: J1 closed to "(match)" — −1 B, the freed FS slot taken by
 J2's SU→FS reclassification. D3's s61 close is NOT yet folded in here —
 that session owns its own re-count. s64: D3's remaining aim stand-in is
 CLOSED — func_0018F870/0018CE60/0018D910 decoded + translated, −1 FS;
 D4 narrowed [the func_00191000 L1 arm is engine-true, the seek motion
-stays SI].)
+stays SI]. s70 re-count: J2 closed to "(match)" — −1 B, −1 FS; J3
+FS→SI [segment arm translated; the latch system inside it stays UT];
+E4 SU→FS [projection now the engine's; the re-derived placement is the
+flagged remainder].)
 
 **Top 10 worst divergences** (impact-ranked; section.entry cites):
 
 1. ~~**No player damage/death pipeline**~~ — CLOSED 2026-06-11 s58: decoded processor
    func_0021C440 translated (flinch/death/infection/i-frames/kill plane + corpse hold +
-   fade); the game-over SCREEN is a flagged stand-in (s66: the TRIGGER chain is now
-   decoded live — D_008106B9 latch → task swap to func_001AC070, see P3 — the screen
-   machine's draw path is what remains undecoded). The s33
+   fade); the game-over/continue FLOW is now fully decoded AND ported (s66 live trigger
+   + s70 static decode of the wait/continue machines — D_008106B9 latch → 240-frame
+   CROSS-skippable GAME OVER screen (module 0x27) → task swap to func_001AC070 → the
+   3-option continue prompt (module 1, cursor init 1 from death, 1200-frame timeout) →
+   cursor-0 confirm reinstalls gameplay; see P3 — only the two screen MODULES' art and
+   the option labels remain unexported, drawn as flagged stand-ins). The s33
    "event 3" pad write turned out to be INFECTION (+0x22C), not health — the old consume
    was wrong twice over (C12, C14, P3, Q5 all closed).
 2. ~~**No pickups / no inventory**~~ — CLOSED 2026-06-11 s63 (and the premise corrected:
@@ -206,7 +212,7 @@ stays SI].)
 | E1 | Anim request/commit | +0x1F2 request / +0x20C commit, one-frame latency, clip-end flag +0x200 & 0x1000 | translated (sa_* fields); hold/hold_restart model the stance re-selection and the fire-counter re-seed | — | (match) |
 | E2 | Menu turntable | engine renders the menu player under the RAW IDENTITY camera; room-rig lighting (mode-2 light path, office key 0x200 rec) | port orbits the rig to the shader stand-in light's azimuth so the camera-facing side is lit, and substitutes a camera-anchored spot FILL (rgb 0.62) for the room rig | V | FS |
 | E3 | Menu tint | engine ADDITIVE per-actor color delta over the GS 128 base | approximated MULTIPLICATIVELY: rgb_mul = (128+delta)/128 | V | FS |
-| E4 | UI projection | **READ LIVE s66**: with the hub open, ctx+0x2468 = 480.37 (unchanged from gameplay; the 0.37 is a stalled zoom-lerp tail) — the menu draws through the ORDINARY s≈480 P with V = identity-with-y-flip (m11 = −1). The s59-implied "menu s ≈ 324" is dead; there is no separate UI projection | tan(fovy/2) = 0.74 pinned empirically — now known NOT to be a zoom difference; the compensation belongs in the menu-scene model transform/placement (re-derive under s=480) | V | SU (re-scoped s66) |
+| E4 | UI projection | **READ LIVE s66**: with the hub open, ctx+0x2468 = 480.37 (unchanged from gameplay; the 0.37 is a stalled zoom-lerp tail) — the menu draws through the ORDINARY s≈480 P with V = identity-with-y-flip (m11 = −1). The s59-implied "menu s ≈ 324" is dead; there is no separate UI projection | **ADOPTED s70**: the UI scene now renders through `em_mat4_perspective_gs(480)` (the world P, 10/7 anisotropy and all) with the validated screen framing preserved by a RE-DERIVED view-space placement (7.929, 2.4, 63.43 — em_game.c UI_SCENE_* derivation). Open remainder: the s49 actor-position decode (7.4, 2.4, 40) cannot reproduce the observed framing under s=480 (it would project the model tiny and near-centered), so one link of that placement chain is misread — the re-derived placement is flagged port math until it is | V | FS (projection match; placement re-derived) |
 | E5 | Menu clip select | displayed-health copy (lags during count-up) picks 0x1C2 vs 0xA | port reads the status TARGET value instead of the lagging display copy | B | SI (documented) |
 
 ## F. Rendering contract + Metal backend (`em_gfx.h`, `em_gfx_metal.m`, `em_model.*`, `em_math.h`)
@@ -277,8 +283,8 @@ stays SI].)
 | # | Behavior | Engine truth | Port | Sev | Status |
 |---|----------|--------------|------|-----|--------|
 | J1 | Wake / acquisition | **DECODED s62** (func_001551B0 disasm): the placed crawler IDLE wakes ONLY via the group alarm or dies to damage — NO player-distance test exists anywhere in the function (no func_0019AA80/func_0019A570 call, no player-position global); the broadcast walks the WHOLE live list (no radius), whitelist models {6,0x1C,0x1E,0x1F,0x50} + on-surface. The WORM (func_00153F10) needs no wake: it has no idle state — born attacking, init yaw at the player (func_00154040) | matches: the invented 32-u wake REMOVED; crates wake on alarm/damage only; worms spawn attacking; broadcast wakes crates only (worms not whitelisted, engine-true) | — | (match, s62) |
-| J2 | Damage window | **DECODED s62; worm CLOSED s66 LIVE**: crate state 4 polls +0x36 every tick; state 1 NEVER polls — the only access is `sh zero, 0x36` on the burst (damage mid-run DEFERS, kills on the next IDLE tick via the boxed-in return path, and is ABSORBED by the suicide burst). **The worm is NOT SHOOTABLE, period**: both victim filters reject model 0xD by name (func_00183AC0/0x00183B80 — class IS 2, the model switch excludes 0xD/0xE/0xF..0x13; crate family 6 victim only while +0x9F==0), and a live full-lifecycle memcheck (s66) saw ZERO +0x34/+0x36 accesses besides func_001AFC10's teardown clear, with two shots fired into it mid-stalk. HP=10 is vestigial | crate matches exactly (poll windows + deferral + absorption); **the worm shootable stand-in is now KNOWN WRONG — remove it** (worms are dodged; their only deaths are own burst/despawn) | B | FS (engine verdict in; port removal pending) |
-| J3 | Lunge damage | **DECODED s62** (func_00154120): the worm damages the player only by LATCHING — D_008102BF=2, D_008104D4 = 5.0 (approach touch, status==1 gated) / 15.0 (lunge connect), status \|= 2; resolve test **CORRECTED s66 LIVE**: func_0019AA80(a,b,0x20) is a SEGMENT-vs-PLAYER-HITBOX query, not a 32-u radius — slots +0x34/+0x40 of the worm's OWN node table = rig nodes 13 (neck) and 16 (head), staged as a segment in spad 0x70003190 and swept against the player's hit-volume list (func_001A7280, s7=0x8102B0, filter mask 0x20); else radius-6 contact (func_0019A570) → burst, else clip end → silent despawn (state 3, no gore). The old 0x400A/10 was the swipe-pass ENEMY-victim code — an invention. Live: approach latch 5.0 + drain ticks observed (100→65) | lunge connect posts the decoded 15 through the player-mailbox bridge (health route — whether the latch drains health or infection is undecoded); connect test folds both arms into the radius-6 contact — now upgradeable to the real head-segment-vs-player test (flagged); the 5.0 approach latch + latch/shake-off mechanic UNTRANSLATED | B | FS (narrowed s66) |
+| J2 | Damage window | **DECODED s62; worm CLOSED s66 LIVE**: crate state 4 polls +0x36 every tick; state 1 NEVER polls — the only access is `sh zero, 0x36` on the burst (damage mid-run DEFERS, kills on the next IDLE tick via the boxed-in return path, and is ABSORBED by the suicide burst). **The worm is NOT SHOOTABLE, period**: both victim filters reject model 0xD by name (func_00183AC0/0x00183B80 — class IS 2, the model switch excludes 0xD/0xE/0xF..0x13; crate family 6 victim only while +0x9F==0), and a live full-lifecycle memcheck (s66) saw ZERO +0x34/+0x36 accesses besides func_001AFC10's teardown clear, with two shots fired into it mid-stalk. HP=10 is vestigial | **REMOVED s70**: crate matches exactly (poll windows + deferral + absorption); the worm's mailbox poll is gone — `enemy_victim()` mirrors the model filter in acquire/ray_test/targetable (rays pass THROUGH a worm to the world behind, auto-aim never locks it, melee whiffs), the FREE paths carry the teardown `mailbox = 0`, HP=10 kept as vestigial init. Tests restaged: EM_ENEMY_TEST=1 kill run shoots a CRATE + fires a witness shot through the hatched worm; =4 writes the old lethal code mid-stalk and asserts NO death; EM_MELEE_TEST's heavy stab whiffs through worm A | — | (match, s66/s70) |
+| J3 | Lunge damage | **DECODED s62** (func_00154120): the worm damages the player only by LATCHING — D_008102BF=2, D_008104D4 = 5.0 (approach touch, status==1 gated) / 15.0 (lunge connect), status \|= 2; resolve test **CORRECTED s66 LIVE**: func_0019AA80(a,b,0x20) is a SEGMENT-vs-PLAYER-HITBOX query, not a 32-u radius — slots +0x34/+0x40 of the worm's OWN node table = rig nodes 13 (neck) and 16 (head), staged as a segment in spad 0x70003190 and swept against the player's hit-volume list (func_001A7280, s7=0x8102B0: bone-anchored sphere records off player+0x58, three filter bytes vs player+0x5C..5E under mask channels 0x10/0x20/0x40 — s70 layout read); else radius-6 contact (func_0019A570) → burst, else clip end → silent despawn (state 3, no gore). The old 0x400A/10 was the swipe-pass ENEMY-victim code — an invention. Live: approach latch 5.0 + drain ticks observed (100→65) | **SEGMENT ARM TRANSLATED s70**: the lunge resolve sweeps the worm's REAL palette nodes 13→16 (world, the posed rig) against a PLAYER CAPSULE stand-in for the unexported volume list (r 4.5, y 2..15 — flagged constants) and posts the 15 on a hit; the radius-6 arm follows LATCH-FREE (engine order); rig-less runs fold both into radius-6 carrying the 15 (flagged fallback). Found en route: the decoded 0.5 worm actor scale (func_00154040 → +0x80) was never applied — now wired (the authored-size whip arced 28 u over the player). The 5.0 approach latch + latch/shake-off mechanic stay UNTRANSLATED; the stalk standoff (10 u) is a flagged port locomotion constant | B | SI (segment arm in; latch system UT) |
 | J4 | Movement constants | hop speed/airtime, probe length/lift not exported; **engine values now in (s62)**: stalk homing 0.0698 rad/t (0x3D8EFA35), stalk window 120 t (+0x28=0x78), windup-end yaw SNAP + sound 0x431, lunge root speed 21.27 u/s, crate attack timer 180 t (+0x2A=0xB4; variant 6 = 5×height), steer-away ±0.0524, gravity 0.052 (0x3D54FDF4), open-heading RNG perturb ±1/120 rad | `ENEMY_HOP_SPEED` 0.32, `ENEMY_HOP_VY` 0.42, probes 6.0/1.0 — port values (flagged); decoded values above adopted; worm sub-0/2/3 windows = the clip lengths 90/45/120 (the engine anim-gates those subs on the 0x1000 done bit; the bound-anim id chain is unverified) | B | PC (flagged, narrowed s62) |
 | J5 | Steering probes | func_0019AB20 directional probes over the actor's 4 precomputed diagonals | knee-height segment queries through em_collision | S | FS |
 | J6 | Death | state 2: nest children, gore FX, MODEL REBIND to gib entries 0x22/0x29, RNG 90° knockback corpse-slide (damage kills, variants 6/0x1E only — s62); worm burst = sound 0x434 + gore 0x80000052 + release; missed lunge = release with NO burst (s62). **Nest children DECODED s68** (FINDINGS "CREATURE IDENTITY CORRECTION"): group = D_0024D820[area][D_0024A850[area] (0→1) + link], 0x2C records — office crates hatch 2–3 BUGS (brains func_00128C10/func_0012A5D0, global mesh slots 0x0F/0x10 + 36-clip bank 0x11, HP 15–50, mailbox-shootable, taken-bit puid persistence); AREA03/06 crates drop ITEM records (func_0015AFA0); **no nest anywhere spawns the worm** | gibs launched with engine rotation steps + PORT launch constants (speed/vy/spin/jitter flagged); **the port's burst currently hatches a WORM — KNOWN WRONG (s68): rebind to 2–3 enemy_bug.emdl children (assets shipped: enemy_bug.emdl / enemy_bug_infected.emdl), item-bearing crates through em_pickup**; gore untranslated; no-gib cases get a 30-frame alpha corpse fade (placeholder); missed-lunge despawn matches (no burst, no corpse) | B | FS + PC (rebind pending, s68) |
@@ -350,7 +356,7 @@ stays SI].)
 |---|---------|-------|
 | P1 | Frame clear color (0.08, 0.09, 0.12) is an unflagged port value (see A2) | `em_frame.c:277` |
 | P2 | `TURN_SPEED` 12 rad/s facing seek has no engine citation and no flag (see C3) | `em_game.c:223` |
-| P3 | ~~No death/game-over handling at 0 HP~~ — CLOSED s58 (see C12); **the game-over TRIGGER is now DECODED s66 LIVE** (FINDINGS "LIVE VERIFICATION SWEEP" §5): vitals mirror ~0x0015CFB0 latches D_008106B9=1 at health ≤ 0 → func_001AE040 state-1 tail (D_008106B9 && fade==2) → func_001AD140 (task 3/2) → wait state func_001AD4E0 (black quad + skippable task+0x18 countdown) → func_001ADF00 REPLACES the game task fn with func_001AC070 (continue machine, jr-table 0x27DC90, gp-0x7794 = from-death flag). D_008106CE/CF never written on death (that's the end-of-level path). The SCREEN draw/module of func_001AC070 remains undecoded — the port stand-in should re-key on the decoded trigger | `em_game.c` PLAYER DAMAGE & DEATH |
+| P3 | ~~No death/game-over handling at 0 HP~~ — CLOSED s58 (see C12); ~~game-over screen a stand-in~~ — **FLOW DECODED s66/s70 AND PORTED**: vitals latch D_008106B9 → wait state func_001AD4E0 (launches SCREEN MODULE 0x27 = the GAME OVER art, FADES IN, 240-frame hold task+0x18 counted through the fade, CROSS (0x40) skip, audio cue func_001FA790(0,0x1B)) → fade-out → func_001ADF00 REPLACES the game task with func_001AC070 (continue machine, jtbl 0x26DC90): from-death → prompt sub-machine func_001AC480 — module 1, fade-in, cursor +0xF init 1 (death) / 0 (title), d-pad 0x1000/0x4000 walks 0..2 (sound 5), confirm mask 0x840 → sounds 0x5DD/5DE/5DF → fade-out → dispatch (0 = reinstall func_001ACEC0/CONTINUE with D_00275BE0=0; 1 = load screen func_00225A00/AC0; 2 = func_00200A40 sub-screen), idle timer +0x16 = 1200 → title/attract cycle. The port runs the full skeleton (em_game.c GO machine, world frozen like the menu pause = the task replacement); REMAINING flagged: the two modules' ART + option labels (em_hud stand-ins), options 1/2 + timeout return to the prompt (no save system / title scene) | `em_game.c` PLAYER DAMAGE & DEATH + GO machine |
 | P4 | `STICK_DEADZONE` dead constant (see C15) | `em_game.c:404` |
 | P5 | `em_door.h` step-4 walk-out comment labels anim id 2 "RUN" — stale vs the 2026-06-11 tier relabel (id 2 = JOG); behavior correct | `em_door.h:112` |
 | P6 | ~~Camera far/near clip planes (0.5 / 500–800) are port values inside the flagged projection TODO~~ — CLOSED s59 (engine planes 0.1 / 16711680 derived bit-exact from the GS Z-row literals; see D10) | `em_game.c` camera_commit |
@@ -378,8 +384,9 @@ the port (beyond the per-module gaps above).
    infected flinch/death variants, display-max swap) is in; the infected SKIN tint on the
    in-world player (s49 tint vec) and infection pickups/cures remain display-only.
 5. ~~**Player damage/knockdown/death/game-over**~~ — CLOSED 2026-06-11 s58 (see C12);
-   remaining inside it: typed/latch reaction paths 1..0xB, the engine game-over screen
-   module (port shows a flagged stand-in).
+   remaining inside it: typed/latch reaction paths 1..0xB; the game-over/continue FLOW
+   is decoded + ported s70 (see P3) — only the two screen modules' art/labels stay
+   flagged stand-ins.
 6. **Other weapons** — the weapon_equip cluster's NIGHT VISION SYSTEM, SPECIAL PURPOSE
    MISSILE LAUNCHER, DELTA AUTO SIGHT SYS, TACTICAL ADVANCED; the port has SPR4 + knife.
 7. **Lock-on / aim options** — PARTLY CLOSED s60: the D_008106E0 target lock (laser

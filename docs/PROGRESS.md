@@ -5854,3 +5854,44 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
 - FINDINGS: new section "EXAMINE INTERACTION DECODED" (s69).
 - **Open**: op00 second-vector semantics; live check of the office
   stale bank; the corpse-area exports; the blocked snow corridor.
+
+### Update — 2026-06-11 s70: s66 verdicts applied — worm unshootable, segment latch, game-over/continue machine decoded + ported, menu s=480
+
+- **Worm shootability removed from the port** (J2 closed to match):
+  `enemy_victim()` mirrors the engine's model-keyed victim filters
+  (func_00183AC0/func_00183B80 reject model 0xD) in acquire/ray_test/
+  targetable — bullets pass THROUGH a worm, auto-aim never locks it,
+  melee whiffs; the worm mailbox poll is gone (teardown-only clear,
+  engine-true); HP=10 kept vestigial.
+- **Lunge latch = the decoded segment query** (J3): the worm's palette
+  nodes 13→16 swept against a player-capsule stand-in (the +0x58
+  hit-volume list record layout partially read — bone-anchored spheres
+  with 3 filter bytes; radii unexported); radius-6 arm latch-free
+  behind it. Found en route: the decoded 0.5 worm actor scale was
+  never wired — applied (the authored-size whip arced 28 u over the
+  player's head; this is why the latch never connected).
+- **Game-over → continue machine fully decoded statically** (FINDINGS
+  s70: func_001AD4E0 wait = screen module 0x27 + fade-in + 240-frame
+  CROSS-skippable hold + cue 0x1B; func_001AC070/func_001AC480
+  continue = module 1, cursor +0xF init 1 from death, d-pad
+  0x1000/0x4000 walk over 3 options, confirm 0x840 with sounds
+  0x5DD/5DE/5DF, 1200-frame idle timeout to title/attract; dispatch:
+  0 = reinstall gameplay func_001ACEC0, 1 = load screen
+  func_00225A00/AC0, 2 = func_00200A40 sub-screen). PORTED as
+  em_game's GO machine (world frozen like the menu pause = the task
+  replacement; em_hud_game_over/em_hud_continue are the flagged
+  module-art stand-ins); the "GAME OVER / PRESS START" invention is
+  retired.
+- **Menu projection = the world s=480 P** (E4): ui_scene_render uses
+  em_mat4_perspective_gs(480) with a re-derived placement preserving
+  the validated framing; the s49 placement-decode misread stays open.
+- **Tests restaged honestly** (kill run shoots a CRATE + worm
+  pass-through witness; melee heavy stab whiffs through the worm;
+  generator test's mailbox kill → non-consumption witness;
+  EM_DEATH_TEST grew the continue-skeleton assertions). Full suite
+  PASS; default capture byte-identical.
+- **Open / next for em_enemy**: the s68 BUG rebinding (crate bursts
+  should hatch bugs/items per the nest registry — the worm hatch is
+  now a flagged known-wrong stand-in noted in em_enemy.h); the engine
+  hit-volume radii dump; the approach-latch/shake-off system; module
+  0x27/1 art + option-label export.

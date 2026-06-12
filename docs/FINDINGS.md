@@ -13750,7 +13750,160 @@ hard-copied to actual (D_008105D0/E0 identical), cam+0xA0 = 0x78,
 cam+0x0C = −31.2 (the per-record distance/fog copy). Every s56b number
 reproduced; D9 stays (match).
 
-_Last updated: 2026-06-11 (session 66)._
+## GAME-OVER WAIT + CONTINUE MACHINE DECODED — func_001AD4E0 / func_001AC070 / func_001AC480; PORT SHIPS THE FULL SKELETON (2026-06-11, session 70)
+
+Static decode completing s66 §5 (the live-captured trigger chain), plus
+a partial read of the player hit-volume walker for the s66 §2 latch.
+All read off the local splat disassembly; port adoption at the end.
+(Numbered s70: s67–s69 were taken by the parallel walk-camera /
+creature-identity / examine sessions. NOTE: this session's port
+adoption pre-dates the s68 creature-identity verdict — the crate-burst
+child here is still the port's kind-0xD stand-in; the s68 BUG
+rebinding is the em_enemy owner's next task.)
+
+### 1. The GAME-OVER WAIT (game task state 3 sub 2 — func_001AD140 arms it)
+
+`func_001AD140`: task+8 = 3, task+9 = 2, +0xA = +0xB = 0, then
+func_001FC9B0 / func_001FBC50 / func_001FABB0 (audio/stream teardown
+trio — identities flagged). `func_001AD4E0` then runs a 5-sub machine
+on task+0xA:
+
+- **sub 0**: func_001D2880 + func_001D1EF0; **task+0x18 = 0xF0 = 240**
+  (the screen hold); func_001AEDB0(0).
+- **sub 1**: busy gate D_00275BD8 = 1; **func_001FF080(0, 0x27) —
+  launch SCREEN MODULE 0x27**, the GAME OVER art screen (the same
+  launcher family as the s58 D_008106CF end-of-level path, different
+  id source).
+- **sub 2**: once the gate clears (module resident): **FADE-IN
+  func_001AEE10** + **func_001FA790(0, 0x1B)** — an audio cue start
+  (the game-over jingle/stream; id mapping flagged) + func_001D2830(3,1).
+- **sub 3**: per-frame GS backdrop quad (func_001ABF90, the prebuilt
+  packet regs). The 240 DECREMENTS EVERY TICK (through the fade-in);
+  all input is gated on the fade machine being idle (D_0028A9A0 == 0);
+  then **CROSS pressed-edge (D_00810E74 & 0x40 — the s37 pad map:
+  0x40 = CROSS, answering the s66 "0x40=Cross?" flag) OR timer 0 →
+  fade-out func_001AEDE0(4,0), sub 4**.
+- **sub 4**: same quad; at hold-black (fade == 2) **func_001FAB50**
+  (cue stop) → task+9 = 4 (the s66-captured arm state func_001ADF00 →
+  task replacement).
+
+So the "skippable black hold" of s66 is really a SCREEN: the wait
+fades the GAME OVER art IN, holds 240 frames (counted through the
+fade), and CROSS skips it.
+
+### 2. The CONTINUE machine func_001AC070 (7 states, jtbl_0026DC90; installed by func_001ADF00 with gp-0x7794 = 1, by the title path with 0)
+
+Every frame it clears spad 0x70003B90 and dispatches task+8:
+
+- **state 0 INIT**: func_001AEDB0(0), D_00275BD4 = 0, func_001D1EF0;
+  from-death flag D_00275BDC (= gp-0x7794): 0 → state 1 (+0xE = 1,
+  the TITLE flow), nonzero → **state 2 (+0xE = 3, the CONTINUE
+  prompt)**.
+- **state 1 / state 3**: the title/attract pair — state 1 polls
+  func_001AC3B0; state 3 waits anim_frame_top_a ∈ {2,3} then cycles
+  D_00275BD4 0..2, func_001FBC50/func_001D2880/func_001AEDB0(0) and
+  re-enters state 2 (D_00275BE0 = 0). The prompt's TIMEOUT result
+  toggles between these two via +0xE (title ↔ attract cycling).
+- **state 2 PROMPT** — the sub-machine **func_001AC480** (task+9):
+  - sub 0: func_00119828(0/1, 0x5998, 0x5998) (canvas pair setup);
+    **task+0x16 = 0x4B0 = 1200** (idle timeout); **cursor task+0xF =
+    0 (title) / 1 (FROM DEATH)** keyed on D_00275BDC; busy gate
+    D_00275BD8 = 1; **func_001FF080(0, 1) — launch SCREEN MODULE 1**,
+    the title/continue screen.
+  - sub 1: gate clear → func_001FB370(D_0028A4A8) poll → **fade-in
+    func_001AEE10(4, 0)**, sub 2.
+  - sub 2 (the interactive prompt): draw func_001AC7F0 every frame;
+    gated on fade idle. NO button held (D_00810E70 == 0) → decrement
+    +0x16; at 0 → fade-out + sub 4 (TIMEOUT). Any button held resets
+    +0x16 = 1200. Pressed edges (D_00810E74): **& 0x840 (START |
+    CROSS) = CONFIRM** → fade-out func_001AEDE0(4,0), sub 3, confirm
+    sound by cursor — func_001FB9F0(**0x5DD / 0x5DE / 0x5DF**, 0x1000
+    ×3); **& 0x4000 (d-pad DOWN)** → cursor++ while < 2 (3 options,
+    0..2) + sound 5; **& 0x1000 (d-pad UP)** → cursor-- while > 0 +
+    sound 5.
+  - sub 3: draw; at fade == 2 return CONFIRM (the caller dispatches).
+  - sub 4: draw; any held button before black → fade back IN + sub 2
+    (timeout canceled); at fade == 2 return TIMEOUT.
+  - **CONFIRM dispatch (state 2)**: cursor 0 → **state 4** with
+    D_00275BE0 = 0; cursor 1 → func_00225A00() + **state 5** with
+    D_00275BE0 = 1 (the LOAD-GAME / memory-card flow); cursor 2 →
+    **state 6** (+0xC = 0).
+- **state 4**: **func_001AB790(func_001ACEC0) — REINSTALL THE
+  GAMEPLAY TASK** and return (the only state that skips the
+  func_001D2830(3,1) tail). This is CONTINUE (and the title's NEW
+  GAME — same slot; D_00275BDC/BE0 tell the rebooted task apart).
+- **state 5**: poll func_00225AC0(0): 1 → back to state 2 (cancel);
+  2 → func_001AF150() + D_00275BE0 = 1 + state 4 (a successful LOAD
+  also reinstalls gameplay).
+- **state 6**: poll func_00200A40(); nonzero → back to state 2 (a
+  run-until-closed sub-screen — OPTIONS-shaped; unidentified).
+
+Option LABELS live in the module-1 screen data (unexported) — the
+title triple is presumably NEW GAME / LOAD / OPTIONS and the death
+screen reuses the slots with cursor INIT 1; label decode stays open.
+
+### 3. Player hit-volume list (func_001A7280 partial — the s66 §2 latch target)
+
+The walker stages the query segment from spad 0x70003190/A0, requires
+player event byte != 0 and **player+0x58 != NULL = the volume list**:
+header word = record count (an id == -2 first record is skipped via
+its +0x4 size), then per record: **bytes +0x00/+0x01/+0x02 = three
+FILTER bytes** tested against player+0x5C/+0x5D/+0x5E under the query
+mask channels 0x10/0x20/0x40 (the leech's 0x20 selects channel 1);
+**byte +0x03 = RIG NODE index** (the node's matrix is fetched from
+player+0x110[node] and cached); **s16 +0x06** (negative disables the
+record); **floats +0x08.. = the volume's node-local anchor**. I.e.
+the player hitbox = a list of BONE-ANCHORED SPHERE volumes with
+per-channel filter bytes; radii/anchor values not yet dumped (open —
+they would replace the port's capsule stand-in).
+
+### 4. Port adoption (extermination-port, this session = s70)
+
+- **Worm shootability REMOVED** (J2 closed): `enemy_victim()` mirrors
+  the model filter in acquire/ray_test/targetable — bullets pass
+  THROUGH a worm to the world behind, auto-aim never locks it, melee
+  whiffs; the worm's mailbox poll is gone (a write sits unconsumed;
+  the FREE paths carry the teardown `mailbox = 0`); HP=10 kept as
+  vestigial init.
+- **Lunge latch = the segment query** (J3): palette nodes 13→16
+  (world) swept against a player CAPSULE stand-in (r 4.5, y 2..15,
+  flagged) → burst + the 15; radius-6 arm latch-FREE behind it
+  (engine order); rig-less fallback folds to radius-6 + 15. Found en
+  route: **the decoded 0.5 worm actor scale (func_00154040 → +0x80)
+  was never wired** — the authored-size whip arced ~28 u OVER the
+  player, which is why the segment could never connect; now applied
+  (the drawn leech is also half-size, engine-true). A 10-u stalk
+  standoff (flagged port locomotion constant) keeps the connect on
+  the lunge resolve instead of the sliding stand-in.
+- **Game over → continue SKELETON ported** (P3): em_game's GO machine
+  runs the decoded chain — death fade → GAME OVER screen fades in
+  (240 hold counted through the fade, CROSS skip) → fade-out →
+  continue prompt (cursor init 1, d-pad walk + sound 5, confirm
+  START|CROSS + 0x5DD/5DE/5DF, 1200-frame idle timeout) → cursor-0
+  confirm = scene reload (the reinstalled-gameplay equivalent). The
+  world FREEZES under the screens like the menu pause (the engine's
+  task replacement). Flagged: module art/labels (em_hud_game_over /
+  em_hud_continue stand-ins), options 1/2 + timeout return to the
+  prompt (no save system / title scene).
+- **Menu projection = s 480** (E4): ui_scene_render now uses
+  em_mat4_perspective_gs(480); the validated framing is preserved by
+  a re-derived placement (7.929, 2.4, 63.43 — the s49 (7.4, 2.4, 40)
+  cannot reproduce the framing under s=480, so one link of that
+  decode is misread; flagged open).
+- **Tests restaged honestly**: EM_ENEMY_TEST=1 kill run shoots a
+  CRATE (12 u, inside the wall plane) then fires a witness shot
+  through the hatched worm (no lock, no damage); =2 asserts the
+  segment-arm latch 15; =3's close-distance assert → own-lifecycle
+  end (point-blank hatch); =4's mailbox kill → the non-consumption
+  witness + own-lunge despawn; EM_MELEE_TEST's heavy stab now WHIFFS
+  through worm A (hits 1, not 2); EM_DEATH_TEST grew the continue
+  skeleton (hold 240 armed, CROSS skip honored with frames left,
+  cursor init 1, UP walk, START confirm, restart). All listed tests +
+  pause/pickup/weapon/aim/proj/door/camregion/transit/slider/locked/
+  input PASS; the default EM_CAPTURE is byte-identical vs the
+  pre-change tree.
+
+_Last updated: 2026-06-11 (session 70)._
 
 ## WALK-STATE CAMERA DECODED — func_00230000 + the eye TETHER func_0022FCA0; the camera has NO heading policy while moving (2026-06-11, session 67)
 
