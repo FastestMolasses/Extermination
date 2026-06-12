@@ -5817,3 +5817,40 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
 - **Open**: the two bug brains' full state machines (move/attack
   subs, jtbl_0026D000), the 8 unbakeable clip containers, event flag
   0x30's story moment, the +0x9E respawn-re-clear interaction.
+
+### Update — 2026-06-11 s69: EXAMINE INTERACTION decoded + ported (CROSS near a corpse/station/switch -> input pause + radio line + camera cue)
+
+- **The examine contract is decoded end-to-end** (closes "prop
+  examines are not in the port", s65): interactive placement records
+  (class flag 0x80) with OVERLAY behavior fns; on the CROSS-edge
+  use-scan arm they prime+pump an overlay script — op07 enter, op00
+  camera cue, op0C message (GLOBAL slot-0x16 line or per-AREA chain),
+  chase restore, exit, RE-ARM. Examine desc D_002758E0 = {20, 10};
+  the AREA11 switch refusal adds a 300-frame cooldown. Census: the 8
+  corpse examines live in AREAs 00/03/07/08/13 (none exported yet);
+  the EXPORTED scenes carry 4 real examine objects (office prop param
+  0x17, drawbridge crank dialogue, snow AREA06 switch message, snow
+  AREA11 "Switch / No power..." GLOBAL-line refusal).
+- **Per-area text banks mapped** (slot 0x41 = the top chunk's id-0x41
+  file; record/line counts match per area). AREA02 ships NO bank —
+  its office examine presents the stale previous bank (engine quirk;
+  drawbridge lines on the shipped route, FLAGGED). The s65 duration
+  open item is CLOSED: full global table dumped — 6/0xA/0xC/0x12 =
+  118 frames, all else 148.
+- **Overlay vram truth**: the FULL overlay file maps at 0x823500
+  (header included; .text at 0x823540) — splat's overlay labels are
+  0x40 LOW. Triangulated three ways; tools already used the correct
+  mapping.
+- **Exporter**: `export_level.py --examine` emits the manifest
+  examine/examinetext block (all values read from the user's own
+  ELF/overlay/banks; addresses-only registry). Run for office0/
+  drawbridge/snow.
+- **Port** (82b75e9): new `em_examine.{h,c}` + em_game hunks — the
+  archetype scan, scripted input+menu pause, em_hud_radio for GLOBAL
+  lines, an engine-true mode-2 chain presenter for AREA-bank text,
+  camera-cue pin/restore, cooldown + re-arm. EM_EXAMINE_TEST PASS;
+  full suite PASS; default capture byte-identical;
+  EM_CAPTURE_EXAMINE=N captures both snow switch examines.
+- FINDINGS: new section "EXAMINE INTERACTION DECODED" (s69).
+- **Open**: op00 second-vector semantics; live check of the office
+  stale bank; the corpse-area exports; the blocked snow corridor.

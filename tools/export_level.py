@@ -977,6 +977,278 @@ def emit_pickup_manifest(scene_dir: Path, elf: BootElf, ov_path: Path,
 
 
 # ---------------------------------------------------------------------------
+# EXAMINE objects (scene.txt `examine` lines).
+#
+# Decoded 2026-06-11 (s66, FINDINGS "EXAMINE INTERACTION DECODED"):
+# examine-able objects are MAIN PLACEMENT-TABLE records with the
+# interactive class flag 0x80 whose behavior fn lives in the AREA
+# OVERLAY. On the use scan's CROSS arm (+0x0B = 4) the behavior pumps
+# an overlay-resident SCRIPT: op07 sub2 enter scripted mode, optional
+# op00 camera cue / op02 wait, op0C MESSAGE (the mode-2 radio/examine
+# machine — bit-31 line word = GLOBAL slot-0x16 bank, else the
+# per-AREA line-record chain D_00264DD0[area+1] presented from the
+# loaded slot-0x41 text bank), op07 sub4|STOP exit; then RE-ARM.
+#
+# This registry holds only ADDRESSES + structural facts from the
+# decode; every value/coordinate/text is read from the user's own
+# extracted files at export time (nothing disc-derived lives here).
+#
+# Per-entry keys:
+#   overlay   the record's AREAxx.BIN (may differ from the scene's
+#             --overlay: the snow world mesh spans AREA06 + AREA11)
+#   fn        behavior fn (engine vaddr) — locates the table record
+#   desc      ("elf"|"ov", vaddr) -> {dist, dy} floats; "ov+anchor"
+#             reads {point[3], dist, dy} (the AREA11 archetype-1
+#             desc-point — emitted AS the examine position)
+#   gline     ("ov", op0C_rec_va) -> GLOBAL line = rec+0x14 low bits
+#   chain     (line_area, op_rec_va, word_off, bank_relpath|None) ->
+#             AREA-bank chain: start line = u32 rec[word_off], records
+#             from D_00264DD0[line_area+1], text from the bank file
+#   delay     int | ("ov", vaddr) u32 | ("ovf", vaddr) f32 frames
+#   cam       ("ov", vaddr) -> 3 floats (the op00 cue eye) | None
+#   cooldown  re-arm cooldown frames (AREA11 +0x2A = 300)
+#   notes     provenance/flag comment lines
+
+EXAMINE_BANK_LINES = 0x00264DD0   # D_00264DD0: [0]=global, [area+1]=area
+                                  # line-record tables (8-byte records)
+
+EXAMINE_DECODE = {
+    (2, 0): [dict(
+        overlay="AREA02.BIN", fn=0x824FA0,
+        desc=("elf", 0x2758E0),            # the examine desc {20, 10}
+        gline=None,
+        chain=(2, 0x8276B0, 0x14, "chunk05/f00_id41.bin"),
+        delay=("ov", 0x8276B0 + 0x18),     # op0C pre-delay (30)
+        cam=("ov", 0x8276F0 + 0x20),       # op00 cue eye
+        cooldown=0,
+        notes=[
+            "the examined office prop (per-area model 0x17, baked in"
+            " 03_placed.emdl), placement [40] of the sub-0 table —",
+            "script 0x827670: enter(fade) -> message (AREA02 chain,"
+            " no voice) -> 2x op00 camera cue -> chase restore.",
+            "STALE-BANK QUIRK (decoded s66): AREA 2 ships NO id-0x41"
+            " text bank — the engine presents the LAST-LOADED bank;",
+            "entered from AREA01 (the port's only route in) that is"
+            " the drawbridge bank, exported here. FLAGGED.",
+            "second camera record (op00 sub1 @0x827730, rate 180) not"
+            " modeled — the port holds the first cue. FLAGGED.",
+        ])],
+    (1, 0): [dict(
+        overlay="AREA01.BIN", fn=0x825350,
+        desc=("ov", 0x82A7A0),             # {10, 20}
+        gline=None,
+        chain=(1, 0x829EA0, 0x08, "chunk05/f00_id41.bin"),
+        delay=0, cam=None, cooldown=0,
+        notes=[
+            "the drawbridge crank (lib model 0x47), placement [0] —"
+            " counter-0 script 0x829E60: op15 cutscene compound,",
+            "AREA01 bank line-0 dialogue chain (voice cues 2/3)."
+            " FLAGGED: the op15 player-anim arm and the VOICE.DAT",
+            "streams are not ported; the counter-0x80/0x81 scripts"
+            " (lines 0x0A bridge-lowering cutscene / 0x38) and the",
+            "second crank record [2] (script 0x82A7B0, line 0x48) are"
+            " story-state machines — not emitted.",
+        ])],
+    (6, 0): [dict(
+        overlay="AREA06.BIN", fn=0x824340,
+        desc=("elf", 0x275940),            # {10, 10}
+        gline=None,
+        chain=(6, 0x827100, 0x14, "chunk10/f00_id41.bin"),
+        delay=("ovf", 0x8270C0 + 0x0C),    # op02 WAIT 30.0
+        cam=("ov", 0x827080 + 0x20),
+        cooldown=0,
+        notes=[
+            "the AREA06 wall switch (placement [6], model 2 param 7)"
+            " — message script 0x827040: enter(fade) -> camera cue ->",
+            "wait 30 -> AREA06 bank line 0 (voice cue 40, dur 208) ->"
+            " exit. FLAGGED: in the engine this message is the",
+            "POST-THROW reminder (D_00810845 bit 0x20 set); the"
+            " initial state runs the throw cutscene 0x826D40 (player",
+            "anim 0x29 + fades + native 0x8242C0), which is not"
+            " ported. Voice stream omitted.",
+        ]), dict(
+        overlay="AREA11.BIN", fn=0x827B10,
+        desc=("ov+anchor", 0x82AB10),      # {(222,230,250.4), 5, 20}
+        gline=("ov", 0x82AA90),            # op0C line 0x8000001A
+        chain=None, delay=0, cam=None,
+        cooldown=300,                      # the +0x2A refusal cooldown
+        notes=[
+            "the AREA11 switch (placement [19], flags2 7 = unlock bit"
+            " 7 of D_00810841[11]) — UNPOWERED REFUSAL script",
+            "0x82A990: walk-to + face + chase cue (op0D sub5) +"
+            " GLOBAL line 0x1A + 300-frame cooldown. The powered",
+            "script 0x82A750 (anim 0x47 throw) is gated on the unlock"
+            " bit — 0 at new game; not emitted. The op01 walk-to and",
+            "op04 face are FLAGGED-omitted in the port (input pause"
+            " only). Emitted into the snow scene: the AREA11 region",
+            "shares the exported snow world mesh (the scene spawn"
+            " sits 50 u from this switch).",
+        ])],
+}
+
+EXAMINE_BLOCK_BEGIN = ("# --- examine (export_level.py --examine, "
+                       "use-scan examine objects) ---")
+EXAMINE_BLOCK_END = "# --- end examine ---"
+
+
+def _examine_chain(elf: BootElf, extract_root: Path, line_area: int,
+                   start_line: int, bank_rel):
+    """The AREA-bank message chain: 8-byte records {u16 dur, s16 cue,
+    u8 flag, u8 wait} from D_00264DD0[line_area+1], bank line text from
+    the extracted slot-0x41 bank (export_ui.parse_outer). Returns
+    ([(dur, gap, text)], [voice cues]) — empty-bank-line records fold
+    into the previous record's gap (the engine's blank odd lines)."""
+    tab = elf.u32(EXAMINE_BANK_LINES + 4 * (line_area + 1))
+    if not tab:
+        sys.exit(f"area {line_area} has no line-record table")
+    lines = None
+    if bank_rel:
+        bank = extract_root / bank_rel
+        if bank.exists():
+            ui = sys.modules.get("_export_ui_lvl") or _load(
+                "_export_ui_lvl", "export_ui.py")
+            lines, _ = ui.parse_outer(bank.read_bytes(), 0, str(bank))
+        else:
+            print(f"  WARNING: {bank} missing — durations only")
+    out, cues = [], []
+    i = start_line
+    while True:
+        dur, cue, _flag, wait = struct.unpack(
+            "<hhBB", elf.read(tab + 8 * i, 6))
+        if dur == 0 and wait == 1:
+            break                      # the terminal record
+        if cue >= 0:
+            cues.append(cue)
+        text = b""
+        if lines is not None and i < len(lines):
+            text = lines[i].rstrip(b"\x00")
+        if text.strip():
+            t = text.decode("latin1").rstrip()
+            out.append([dur, 0, t.replace("\n", "\\n")])
+        elif out:
+            out[-1][1] += dur          # blank line -> previous gap
+        i += 1
+        if i - start_line > 0x20:
+            sys.exit("runaway examine chain (no terminal record)")
+    return out, cues
+
+
+def emit_examine_manifest(scene_dir: Path, elf: BootElf, ov_path: Path,
+                          area: int, sub: int) -> int:
+    """--examine DIR: rewrite DIR/scene.txt's marker-delimited examine
+    block from the EXAMINE_DECODE registry (engine values read from the
+    user's own ELF/overlay/extract files)."""
+    entries = EXAMINE_DECODE.get((area, sub))
+    extract_root = ov_path.parent.parent
+    block = [EXAMINE_BLOCK_BEGIN]
+    block.append("# examine <x> <y> <z> <yaw> <dist> <dy> [gline 0xNN]"
+                 " [delay N] [cooldown N] [cam ex ey ez]")
+    block.append("# examinetext <dur> <gap> <text...> — chained "
+                 "AREA-bank record of the LAST examine line.")
+    n = 0
+    for e in (entries or []):
+        ovp = ov_path.parent / e["overlay"]
+        ov = ovp.read_bytes()
+
+        def ov32(va):
+            return struct.unpack_from("<I", ov, va - OVERLAY_VADDR)[0]
+
+        def ovf(va, cnt=1):
+            return struct.unpack_from(f"<{cnt}f", ov, va - OVERLAY_VADDR)
+
+        # the placement record (pos/yaw) by behavior fn — engine
+        # registry walk: D_0024D7C0[area] -> desc[0] -> 0x28 records
+        # (every registry record lives in its area's SUB-0 table)
+        ent_area = int(e["overlay"][4:6])
+        desc_va = elf.u32(0x0024D7C0 + 4 * ent_area)
+        tab_va = (struct.unpack_from(
+            "<I", ov, desc_va - OVERLAY_VADDR)[0]
+            if desc_va >= OVERLAY_VADDR else elf.u32(desc_va))
+        rec = None
+        r = tab_va
+        while True:
+            raw = ov[r - OVERLAY_VADDR:r - OVERLAY_VADDR + 0x28]
+            cls, = struct.unpack_from("<H", raw, 0)
+            if cls == 0xFF:
+                break
+            fn, = struct.unpack_from("<I", raw, 0x24)
+            if fn == e["fn"]:
+                rec = raw
+                break
+            r += 0x28
+        if rec is None:
+            print(f"  WARNING: fn {e['fn']:#x} not in {e['overlay']} "
+                  f"sub-0 table — skipped")
+            continue
+        pos = struct.unpack_from("<3f", rec, 0x0C)
+        yaw = struct.unpack_from("<3f", rec, 0x18)[1]
+
+        # the use-scan desc (+ optional archetype-1 anchor point)
+        kind, dva = e["desc"]
+        if kind == "elf":
+            dist, dy = struct.unpack("<2f", elf.read(dva, 8))
+        elif kind == "ov":
+            dist, dy = ovf(dva, 2)
+        else:                          # "ov+anchor": {point[3], d, dy}
+            vals = ovf(dva, 5)
+            pos = vals[0:3]
+            dist, dy = vals[3], vals[4]
+
+        delay = e["delay"]
+        if isinstance(delay, tuple):
+            delay = (int(ovf(delay[1])[0]) if delay[0] == "ovf"
+                     else ov32(delay[1]))
+
+        line = (f"examine {pos[0]:.6g} {pos[1]:.6g} {pos[2]:.6g} "
+                f"{yaw:.6g} {dist:.6g} {dy:.6g}")
+        if e["gline"]:
+            word = ov32(e["gline"][1] + 0x14)
+            assert word >> 31, "gline record is not a GLOBAL line word"
+            line += f" gline {word & 0x7FFFFFFF:#x}"
+        if delay:
+            line += f" delay {delay}"
+        if e["cooldown"]:
+            line += f" cooldown {e['cooldown']}"
+        if e["cam"]:
+            cx, cy, cz = ovf(e["cam"][1], 3)
+            line += f" cam {cx:.6g} {cy:.6g} {cz:.6g}"
+        for note in e["notes"]:
+            block.append("# " + note)
+        block.append(line)
+        if e["chain"]:
+            line_area, recva, woff, bank_rel = e["chain"]
+            start = ov32(recva + woff)
+            assert start >> 31 == 0, "chain start is a GLOBAL word"
+            chain, cues = _examine_chain(elf, extract_root, line_area,
+                                         start, bank_rel)
+            for dur, gap, text in chain:
+                block.append(f"examinetext {dur} {gap} {text}")
+            if cues:
+                block.append(f"# ^ engine voice cue(s) {cues} "
+                             "(VOICE.DAT) omitted — FLAGGED")
+        n += 1
+    if not entries:
+        block.append(f"# DECODE VERDICT (s66): no examine records in "
+                     f"AREA{area:02d} sub {sub}'s placement table.")
+    block.append(EXAMINE_BLOCK_END)
+
+    mf = scene_dir / "scene.txt"
+    lines = mf.read_text().splitlines() if mf.exists() else []
+    if EXAMINE_BLOCK_BEGIN in lines:
+        b = lines.index(EXAMINE_BLOCK_BEGIN)
+        eend = lines.index(EXAMINE_BLOCK_END) if EXAMINE_BLOCK_END in \
+            lines else len(lines) - 1
+        lines = lines[:b] + lines[eend + 1:]
+    while lines and not lines[-1].strip():
+        lines.pop()
+    lines += block
+    mf.write_text("\n".join(lines) + "\n")
+    print(f"manifest: {mf}: examine block — AREA{area:02d} sub {sub}: "
+          f"{n} examine object(s)")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Door DESTINATION links (scene.txt `door ... goto` annotation).
 #
 # Decoded 2026-06-10 (this session) from the BOOT ELF's static tables —
@@ -2413,6 +2685,13 @@ def main(argv):
                     "pickups block from the deferred-spawn registry "
                     "D_0024D820 (+ the placement table's kind-0xB "
                     "display props); needs --area/--sub/--overlay")
+    ap.add_argument("--examine", metavar="DIR",
+                    help="rewrite DIR/scene.txt's marker-delimited "
+                    "examine block from the EXAMINE_DECODE registry "
+                    "(s66 use-scan examine objects: positions/descs/"
+                    "lines read from the user's own ELF + overlay + "
+                    "extracted text banks); needs --area/--sub/"
+                    "--overlay")
     ap.add_argument("--camregions", metavar="DIR",
                     help="rewrite DIR/scene.txt's camera-region block "
                     "from the mode-0 director decode (use with --area; "
@@ -2469,6 +2748,13 @@ def main(argv):
                                     BootElf(Path(args.elf)),
                                     Path(args.overlay), args.area,
                                     args.sub)
+    if args.examine:
+        if args.sub is None:
+            ap.error("--examine needs --sub (the scene's sub-state)")
+        return emit_examine_manifest(Path(args.examine),
+                                     BootElf(Path(args.elf)),
+                                     Path(args.overlay), args.area,
+                                     args.sub)
     if args.camregions:
         return emit_camregion_manifest(Path(args.camregions),
                                        BootElf(Path(args.elf)), args.area,

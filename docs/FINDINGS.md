@@ -14121,3 +14121,144 @@ variant — same decoder wall as s45); event flag 0x30's story moment
 byte gates class-2 children's respawn via func_001B64F0's re-clear.
 
 _Last updated: 2026-06-11 (session 68)._
+
+## EXAMINE INTERACTION DECODED — placement-record examine objects, the overlay examine scripts, per-area text-bank census; PORTED as em_examine (2026-06-11, session 69)
+
+Closes the s63 open item "the interaction-UI machine candidates for
+examine actions" and the s65 note "prop examines are not in the port
+yet". Static decode only (.s + overlay/ELF data reads); exporter +
+port shipped. **Bonus infra finding: the overlay engine-vram mapping
+(below) — splat's overlay function labels are 0x40 LOW.**
+
+### 0. OVERLAY VRAM TRUTH — the full file maps at 0x823500
+
+Pinned by triangulation (the s63 office item group: main-ELF pointer
+`D_002758D8` = 0x825B50 parses the known items at file offset
+`0x825B50 - 0x823500`; in-code overlay immediates and all placement
+behavior pointers agree): **engine vaddr = overlay FILE offset +
+0x823500** — the 0x40-byte MWo3 header occupies 0x823500..0x823540
+and `.text` starts at 0x823540. Consequences:
+
+- splat's overlay function names (`func_overlay_AREAxx_VVVVVVVV`) use
+  file+0x8234C0 and are **0x40 LOW**: placement behavior 0x824FA0 =
+  splat's `func_overlay_AREA02_00824F60` (every behavior pointer
+  "landing mid-function +0x40" resolves this way).
+- tools (placements.py, export_level.py AreaMem) already used the
+  correct mapping; OVERLAYS.md's "text loads at load_address" wording
+  is imprecise (the header is loaded too / text is at +0x40).
+
+### 1. The examine contract (behaviors read in full)
+
+Examine-able objects are MAIN PLACEMENT-TABLE records with class flag
+0x80 whose behavior fn lives in the area overlay. Four behaviors read:
+AREA02 0x824FA0 (office), AREA07 0x823DA0 (corpses), AREA11 0x827B10
+(switch), AREA06 0x824340 (switch); AREA01 0x825350 (crank) partially.
+Shared shape:
+
+- INIT: model bind (func_001B0FD0) + TRS (func_001C6380); `+0x08` =
+  use-scan ARCHETYPE, `+0x30` = the use-scan DESC:
+  - office examine: archetype **3** (the item branch), desc
+    **D_002758E0 = {20.0, 10.0}** (XZ ring / dy — vs items {10, 3.5});
+  - AREA11 switch: archetype **1**, desc 0x82AB10 = **{point (222,
+    230, 250.4), 5.0, 20.0, 1.8378}** (the desc-POINT variant —
+    measured from the point, not the record);
+  - AREA06 switch: archetype 0 default, desc D_00275940 = {10, 10};
+    AREA01 crank: desc 0x82A7A0 = {10, 20}.
+- ARMED (`+0x0B & 4`, the s58 CROSS-edge scan): the behavior PRIMES a
+  script (func_001BA1A0) and pumps it (func_001BA1F0) in sub-state 1;
+  completion → `+0x0B = 0`, sub-state 0 — examines RE-ARM (repeatable).
+  The AREA11 refusal additionally sets a **300-frame cooldown**
+  (`+0x2A = 0x12C`).
+- SCRIPT shape (0x40-byte records): op07 sub2 enter-scripted(fade) →
+  [op00 camera cue / op02 wait] → op0C MESSAGE (the s65 mode-2
+  machine; line word rec+0x14: bit 31 = GLOBAL slot-0x16 bank, else
+  the per-AREA chain) → [op0D sub5 chase cue] → op07 sub4|5 STOP.
+
+### 2. Examine census (overlay op0C line-word scan, all 19 overlays)
+
+GLOBAL corpse-examine lines (slot-0x16 bank 0x26..0x34) fire from:
+AREA00 (0x26), AREA07 (0x28 @0x8271E0, 0x2A @0x8273A0), AREA08 (0x2C,
+0x2E), AREA03 (0x30), AREA13 (0x32, 0x34) — **eight corpse examines,
+none in the exported areas**. AREA07's two corpses pinned to records:
+class 0084/0088 param 0x11/0x10 at (309, 221, 550)/(444.2, 220,
+639.2), behavior 0x823DA0, scripts 0x8271A0/0x827360 (camera cues
+frame each corpse). Station line 0x1A ("Switch / No power...") fires
+from AREA11's refusal script 0x82A990; line 0x12 hits in AREA02 are
+op-0x12 script records, not line words.
+
+**Exported scenes' real examine objects:**
+
+| scene | record | behavior | trigger → script | line |
+|---|---|---|---|---|
+| office0 (A02 sub0) | [40] cls 0084, param 0x17 (the examined office prop, baked in 03_placed.emdl), kind 0x51, (-48, 0.2, -58) | 0x824FA0 | archetype-3 {20,10} → 0x827670: enter(fade 120) → op0C AREA line 0 delay 30 → op00 cue eye (-48.3, 8.9, -52.3) → op00 sub1 → op0C sub2 → op0D sub5 → exit + event flag 0xB | AREA02 chain (durs 158/54/128, no voice) |
+| drawbridge (A01 sub0) | [0] cls 00AA, model 1 param 0x47 (crank), (81, 0, -521) | 0x825350 | counter D_008107D9 == 0 → 0x829E60: op07 sub8 → **op15** (line word at rec+0x08) → END | AREA01 line-0 dialogue (9 records, durs 48/28/38/28/198/40/106/40/82, voice cues 2/3) |
+| snow (A06 part) | [6] cls 0086, model 2 param 7, (-306, 68, -650) | 0x824340 | flag D_00810845&0x20 picks: CLEAR → throw cutscene 0x826D40 (anim 0x29 + fades + native); SET → message 0x827040: cue (-294, 77.6, -660) → wait 30 → op0C line 0 | AREA06 line 0 (dur 208, voice cue 40) |
+| snow (A11 part) | [19] cls 0084, flags2 7, param 0x0F, (224, 230, 250.7) | 0x827B10 | unlock bit `D_00810841[11] >> 7`: CLEAR (new game) → REFUSAL 0x82A990: walk-to + face + op0D sub5 + op0C **GLOBAL 0x1A** + 300-f cooldown; SET → throw 0x82A750 | "Switch / No power..." (148 f) |
+
+The AREA01 crank's counter-0x80 script 0x829FA0 is the bridge-lowering
+cutscene (owner anim id 2 = the bridge clip, player anims 0x164/0x167,
+message line 0x0A chain); 0x81 → 0x82A660 (op15 line 0x38); the second
+crank record [2] (behavior 0x825740) → 0x82A7B0 (op15 line 0x48).
+
+### 3. Per-area text banks (slot 0x41) + the AREA02 stale-bank quirk
+
+The per-AREA line-record tables D_00264DD0[area+1] pair 1:1 with
+id-0x41 text banks in the areas' top-level chunks (record count ==
+bank line count): AREA00→chunk04 (53/54), AREA01→chunk05 (184 ✓),
+AREA03→chunk07 (42 ✓), AREA06→chunk10 (22 ✓), AREA07→chunk11 (46 ✓).
+Odd bank lines are empty (gap records), exactly like the global bank.
+**AREA02 has FOUR line records but NO id-0x41 bank anywhere in its
+load set** (chunk06* carries none; chunk06.n0/f05_id41.bin is a
+texture-data file with a colliding id) — the office examine presents
+whatever bank loaded LAST (engine stale-bank quirk). Entered from
+AREA01 (the shipped route), that is the drawbridge bank: lines 0/1/2 =
+"You find anything?" / (empty) / "Not yet." under AREA02's own
+158/54/128 durations.
+
+Also CLOSED (s65 open item "durations past the decoded prefix"): the
+FULL global record table 0x272DF0 is now dumped — **lines 6/0xA/0xC/
+0x12 = 118 frames; every other line 0x00..0x34 = 148** (so the port's
+148 default is engine-exact for all unlisted lines; 0x12 "Save
+Terminal" would need a 118 entry if ever wired).
+
+### 4. Exporter + port (extermination-port 82b75e9)
+
+- `tools/export_level.py --examine DIR --area A --sub S --overlay …`:
+  marker-delimited examine block — `examine x y z yaw dist dy [gline
+  0xNN] [delay N] [cooldown N] [cam ex ey ez]` + `examinetext dur gap
+  text` chain lines. Registry = addresses only; positions/descs/
+  delays/cues read from the user's ELF + overlay, chain durations from
+  D_00264DD0, text from the extracted id-0x41 banks (office: the
+  stale-bank chunk05 lines, FLAGGED in the emitted comments). Run for
+  office0 (1 object), drawbridge (1), snow (2 — the AREA11 entry rides
+  the AREA06 invocation; the snow world mesh spans both).
+- Port `em_examine.{h,c}` (decode ledger + flags in the header):
+  manifest instances, the archetype scan on the CROSS edge (desc-point
+  facing-yaw extra not modeled), scripted sequence = input+menu pause,
+  pre-delay, GLOBAL lines via em_hud_radio / AREA chains via an
+  engine-true mode-2 chain presenter (tall gray, centered, y 388,
+  24-px steps, terminal bookkeeping frame), op00 camera-cue pin +
+  one-shot chase restore (the op00 second vector's spline semantics
+  stay undecoded — target = the object, FLAGGED), re-arm + the AREA11
+  cooldown. FLAGGED omissions: enter/exit fades, op01 walk-to/op04
+  face, op15 player-anim arm, VOICE.DAT streams, story flags.
+- EM_EXAMINE_TEST (3 injected objects: gline+cue+cooldown / chain /
+  facing-gate) — **PASS**; full suite PASS at the staged tree
+  (move/weapon/door/pause/sfx/melee/death/aim/camregion/pickup/proj/
+  transit/slider/locked/enemy1-4 + test-input + test-weapon); default
+  capture byte-identical vs HEAD. EM_CAPTURE_EXAMINE=N captures: the
+  AREA06 switch message under its op00 cue and the AREA11 "Switch /
+  No power..." refusal at the snowfield switch cage.
+
+Open (s69):
+- the op00 camera-cue SECOND vector (rec+0x30) semantics (spline
+  target?) — the port frames the examined object instead.
+- the AREA02 stale-bank quirk: verify live which bank is resident on
+  the shipped office route (one PCSX2 examine at (-48, 0.2, -58)).
+- the corpse-examine areas (00/03/07/08/13) export when those scenes
+  land; the AREA07 records/scripts are fully decoded above.
+- the snow spawn-side corridor to the AREA11 switch is wall-blocked in
+  the exported collision (the engine approaches from elsewhere) — the
+  capture harness teleports; re-check when more of AREA11 exports.
+
+_Last updated: 2026-06-11 (session 69)._
