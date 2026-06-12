@@ -198,6 +198,27 @@ the dated sections later in the file are both authoritative.
 > (a sizable new exporter; needs disc INDEX.IDX/DATA.DAT replay
 > verification before trusting the id→chunk map).
 
+> 2026-06-12 (session 76, unbakeable clips): the s45/s68 "non-sentinel
+> anim container the baker cannot handle" wall is FALSE — RESOLVED
+> (FINDINGS "NON-SENTINEL ANIM CONTAINER"). The 8 bug clip-bank
+> containers (dir ids 14/16/20/22/23/27/33/34, incl. the DEATH clip
+> 0x1B = 27) and the player-library ids 54/94/115/375 differ from the
+> common form ONLY in two metadata halfwords (+0x04 = a clip-chain
+> link instead of 0xFFFF, +0x06 = 5 instead of 0); the pose streams
+> are identical and decode to full 15-bone unit-quat clips. The block
+> was rig_probe.scan_anim_headers keying container DETECTION on the
+> +0x04 0xFFFE/0xFFFF sentinel, and export_native bailing when its
+> DIRECTORY-resolved offset failed that scan. Fix: bake a directory-
+> resolved offset through a structural gate `_is_anim_container`
+> (the directory is authoritative); the id-agnostic whole-file scan
+> keeps the strict signature. Reproduce-then-extend verified: the old
+> 28-clip enemy_bug.emdl re-exports BYTE-IDENTICAL; the full 0..35
+> (36 clips, 2140 frames) adds the 8 + death. Port: the bug corpse
+> now plays the real DEATH clip 0x1B (collapse → hold → fade) — bug
+> tests + default EM_CAPTURE byte-identical; em_enemy.c/.h +
+> export_native.py committed (the re-exported assets are git-ignored).
+> PORT_DIFFERENCES J14 updated.
+
 > 2026-06-11 (session 66): LIVE VERIFICATION SWEEP — six flagged
 > s56-s63 items settled in one PCSX2 DebugServer session (FINDINGS
 > "LIVE VERIFICATION SWEEP"). (1) WORM NOT SHOOTABLE: both victim

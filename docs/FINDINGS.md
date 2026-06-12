@@ -14213,9 +14213,10 @@ the late-game "infected" look. **This is the crawling bug.**
   WALK (leg cycling, flat body); 7/8/10/12/13/17/19 = hop/lunge moves
   (body rises 1–5 u, 3–5 u travel); 21/28 = motionless holds (death
   poses). Containers 14,16,20,22,23,27,33,34 use the **non-sentinel
-  header variant the anim decoder cannot bake yet** (same wall as the
-  player-library ids 54/94/115/375) — flagged, includes used ids
-  0xE/0x10/0x14/0x1B/0x21.
+  header variant** (same form as the player-library ids 54/94/115/375) —
+  **RESOLVED s76**: these bake fine; the only blocker was an over-strict
+  scan signature (see "NON-SENTINEL ANIM CONTAINER" below). Includes the
+  used ids 0xE/0x10/0x14/**0x1B (death)**/0x21; all 36 now export.
 - Two AI variants: `func_00128C10` (0xB6C — simpler; office pose-5
   pair) and `func_0012A5D0` (0x7F0 + a 14-case sub jtbl and a dozen
   move helpers `func_0012ADC0..0012E070` — the fuller floor bug;
@@ -14275,10 +14276,11 @@ as the historical label of the crate-disguise behavior.
   (variant B, slot 0x10): same bank, 148 verts, red-flesh skin.
   Recorded CLIs: `tools/export_native.py --mesh
   extract/chunk03/f07_id0f.bin` (resp. `f08_id10.bin`) `--anim
-  extract/chunk03/f09_id11.bin --clips
-  0,1,2,3,4,5,6,7,8,9,10,11,12,13,15,17,18,19,21,24,25,26,28,29,30,31,32,35
-  --p2s <state 01> --out assets/enemy_bug.emdl`. No exporter code
-  changes (pure reuse of the s13/s15 machinery).
+  extract/chunk03/f09_id11.bin --clips <0..35>
+  --p2s <state 01> --out assets/enemy_bug.emdl`. **s76 UPDATE: the clip
+  list is now the full 0..35** (the 8 non-sentinel containers
+  14/16/20/22/23/27/33/34 — incl. the death clip 0x1B = 27 — bake since
+  the s76 baker fix; the old list skipped them). 2140 baked frames.
 - **Port rebinding (em_enemy mid-edit this session — NOT touched;
   documented for the owning agent):** crate burst should spawn the
   registry-true children — office: 2–3 BUGS (enemy_bug.emdl, walk
@@ -14854,7 +14856,47 @@ Open (s76): the exact per-pose clip map in jtbl_0026CF70/CF40; the
 func_0012A5D0 jtbl_0026D000 per-case clip/speed/timer constants; **the
 bug's attack-class byte entity+0x3** (the §5 damage table is decoded —
 only which row the bug hits is unpinned; class 5 → 5.0 is the candidate);
-the 8 unbakeable clip containers (s68); event flag 0x30's story moment;
-func_00129FC0's exact sound ids.
+~~the 8 unbakeable clip containers~~ **RESOLVED s76 (see "NON-SENTINEL
+ANIM CONTAINER" below — all 36 bug clips bake, incl. death 0x1B)**; event
+flag 0x30's story moment; func_00129FC0's exact sound ids.
+
+## NON-SENTINEL ANIM CONTAINER — the "unbakeable clip" wall was a false one (2026-06-12, session 76)
+
+The s45/s68 "non-sentinel header variant the anim decoder cannot bake"
+(the player library's anim ids 54/94/115/375; the bug clip bank's
+directory ids 14/16/20/22/23/27/33/34 — including the **death clip
+0x1B = 27**) turns out to be **fully bakeable**. The containers are
+structurally identical to the common form; the only difference is two
+metadata halfwords:
+
+| field | common ("sentinel") | variant |
+|-------|---------------------|---------|
+| u16 +0x00 bone_count | 15 | 15 |
+| u16 +0x02 clip_len   | n  | n  |
+| u16 **+0x04**        | **0xFFFF** | a small int (≈ the clip's own id; e.g. dir 20→0x15, 27→0x1C) |
+| u16 **+0x06**        | **0x0000** | **0x0005** |
+| u32 +0x08/+0x0C/+0x10 section offsets (rot/trn/event) | valid | valid |
+
+`+0x04/+0x06` are metadata (a clip-chain link + a category 5), null in
+the common case and populated here; the **pose data is identical** — all
+8 variant containers decode to full 15-bone, unit-quat, sane-root-motion
+clips (verified: rotation+translation streams present for every bone).
+The wall was purely `rig_probe.scan_anim_headers` keying its
+container-DETECTION signature on `+0x04 ∈ {0xFFFE,0xFFFF}` and skipping
+the rest, and `export_native.bake_id74_palettes` bailing when its
+DIRECTORY-resolved offset failed that scan.
+
+Fix (`tools/export_native.py`): a directory-resolved offset is
+authoritative, so bake through a structural gate `_is_anim_container`
+(bone_count/clip_len plausible, section offsets monotonic + in-bounds,
+section-1 per-bone dir entries in range) instead of demanding the
+sentinel signature. The id-agnostic whole-file scan (for directory-less
+in-file banks) keeps the strict sentinel signature — only the trusted
+directory path is relaxed. **Reproduce-then-extend verified**: the old
+28-clip `enemy_bug.emdl` re-exports byte-identical; the full 0..35
+(36-clip, 2140-frame) export adds the 8 + the death clip. Port: the bug
+corpse now plays the real DEATH clip 0x1B (collapse → hold → alpha-fade)
+instead of the frozen-pose stand-in. Also unblocks the player library's
+54/94/115/375 and any door-clip variants.
 
 _Last updated: 2026-06-12 (session 76)._

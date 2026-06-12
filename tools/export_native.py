@@ -408,6 +408,34 @@ def anim_directory(d: bytes) -> list[int] | None:
     return offs
 
 
+def _is_anim_container(d: bytes, hdr: int) -> bool:
+    """Structural check that `hdr` points at a keyed-animation container,
+    INDEPENDENT of the +0x04 0xFFFE/0xFFFF metadata sentinel that
+    rig_probe.scan_anim_headers keys on. A directory (anim_directory) is
+    the engine's own authoritative container list, so a directory-resolved
+    offset is baked through this looser gate — it admits the s45
+    "non-sentinel header variant" (+0x04 = a clip-chain link, +0x06 = a
+    category; populated instead of the null 0xFFFF/0x0000). The pose data
+    — bone_count, the per-bone section directories, the keyframe streams —
+    is structurally identical, so these bake the same (verified s76: bug
+    clip bank ids 14/16/20/22/23/27/33/34 all decode to full 15-bone,
+    unit-quat poses). Header: u16 bone_count(+0), u16 clip_len(+2), then
+    u32 section offsets at +8/+C/+10 (rotation/translation/event)."""
+    if hdr < 0 or hdr + 0x18 > len(d):
+        return False
+    bc, clen = struct.unpack_from("<HH", d, hdr)
+    s1, s2, s3 = struct.unpack_from("<III", d, hdr + 8)
+    if not (1 <= bc <= 0x80 and 1 <= clen <= 0x400):
+        return False
+    if not (0x14 <= s1 < s2 < s3 and hdr + s3 <= len(d)):
+        return False
+    if hdr + s1 + 4 * bc > len(d):
+        return False
+    seclen = s2 - s1                 # every section-1 dir entry inside sec 1
+    return all(struct.unpack_from("<I", d, hdr + s1 + 4 * i)[0] < seclen
+               for i in range(bc))
+
+
 def bake_id74_palettes(anim_path: Path, clip: int,
                        rig_nodes: int | None = None,
                        anim_hdr: int | None = None):
@@ -451,11 +479,17 @@ def bake_id74_palettes(anim_path: Path, clip: int,
             raise SystemExit(f"clip {clip} out of range (directory has "
                              f"{len(dirs)} containers in {anim_path.name})")
         hdr = dirs[clip]
-        if not any(h == hdr for h in scan_anim_containers(d)):
+        # The directory is authoritative — bake at its offset directly,
+        # through the structural gate (NOT the +0x04 sentinel signature
+        # that scan_anim_containers requires). This admits the s45/s76
+        # "non-sentinel header variant" (the bug bank's ids 14/16/20/22/
+        # 23/27/33/34 and the player library's 54/94/115/375): the metadata
+        # at +0x04/+0x06 is populated, but the pose streams are identical
+        # and bake fine. (Was a wrongful bail — the "undecoded format" wall.)
+        if not _is_anim_container(d, hdr):
             raise SystemExit(
-                f"clip {clip}: directory offset {hdr:#x} is a non-sentinel "
-                f"header variant (ids 54/94/115/375 in the player library) "
-                f"— container format undecoded, cannot bake")
+                f"clip {clip}: directory offset {hdr:#x} is not a parseable "
+                f"animation container in {anim_path.name}")
     else:
         if rig_nodes is None:
             hdrs = em.find_id74_headers(d)
