@@ -14933,13 +14933,67 @@ func_001551B0) and fixed in the port:
 
 **The 4 "non-sentinel" player clips are NOT vestigial** (correcting the
 s76 research-agent "skip" verdict — confirmed by rendering them via the
-EM_CLIP_DEMO turntable in the port): directory ids **54** (60f — right
-arm raised, looking up: a reach / look-up / climb gesture), **94** (20f —
-a low crouch / duck), **115** (20f — arm sweeping to the back/shoulder: a
-reach-to-back equip motion), **375** (80f — a two-handed weapon inspect).
-They are real, deliberate player actions the port does not yet trigger;
-faithfully PLAYING them needs each one's trigger state decoded (which
-engine condition fires it) — a follow-up. They bake fine (s76 baker fix)
-and the player export CLI can carry them.
+EM_CLIP_DEMO turntable, then **IDENTIFIED BY THE USER 2026-06-12, who
+plays the original — the oracle**):
 
-_Last updated: 2026-06-12 (session 76, crate + clip pass)._
+| dir id | frames | what it is (user-confirmed) |
+|--------|--------|-----------------------------|
+| **54** | 60 | **the player shaking the BUGS off him** — the bug-latch shake-off (ties to the s58/J3 untranslated latch/shake-off mechanic: bugs cling to the player, this throws them off) |
+| **94** | 20 | **the player CROUCHING** |
+| **115** | 20 | a **LANDING** animation (after a fall/drop) — "seems like" |
+| **375** | 80 | unknown — "possibly part of a CUTSCENE" (two-handed weapon-inspect pose) |
+
+These are real, deliberate player actions the port does not yet trigger.
+Faithfully PLAYING each needs its trigger state decoded (which engine
+condition fires it); **clip 54 is the highest-value — it completes the
+bug combat (the bug should LATCH onto the player, who shakes it off with
+54), connecting to the s76 bug brain + the untranslated latch system**.
+They bake fine (s76 baker fix) and ride the player export CLI byte-safely.
+
+### Clip trigger decode (2026-06-12, follow-up — subagent static + live)
+
+How the engine fires each of the 4 clips (request site = a clip id passed
+as `$a1` to `func_001749A0` / `anim_clip_arbiter`@0x1749F0, which writes
+`+0x20C` — the anim id IS the directory index):
+
+- **54 (0x36) — BUG SHAKE-OFF, fully decoded (the s58/J3 latch system):**
+  1. LATCH set on a bite (leech `func_00154120`@0x1541A4, shared lunge
+     `func_0014D7C0`@0x14DA50, the bug brains): writes `D_008102B0 |= 2`
+     (latched bit), `D_008102BF = 2` (type), `D_008104D4 = 5/15/20/25`
+     (drain), attach vector → `D_00810320`. Gated by `func_0021BE40`
+     (block during i-frames `+0x220`, pause, or busy).
+  2. COMMAND: the player↔enemy contact pass `func_001A8970`@0x1A8AE4
+     (enemy kind `+0x0D==0xE`) / `func_001A8660`@0x1A875C (`+0x0D==0xB`),
+     when `func_0021BD10()!=0` (latch pending + player free), sets player
+     `+0x0F = 2`.
+  3. DISPATCH: `func_0021C440` (the s58 hurt/command processor) reads
+     `+0x0F`; cmd-2 branch (0x21C5E0) → `func_0021D6C0`@0x21D7C0 (face the
+     attacker, reset aim, `+0x1F0 = 0x46`) → player `+0x04 = 2`,
+     `+0x05 = 0xD`.
+  4. SHAKE handler `func_002208C0`@0x2208C0 (sub-state 0xD): phase 0 →
+     clip **0x35** (53, intro); phase 1 (0x220A30) → **rumble
+     `func_001B61C0(0, 0xC0, 5, 1)`** (libpad vibe `D_00810E40`) + sound
+     `func_001FBD50(0x154)` + **clip 0x36 (54) the SHAKE**, wait on the
+     clip-end bit (`+0x200 & 0x1000`); then clip 0x35 (recover) and exit,
+     clearing the latch (`+0x0F`, `D_008102B0` → 1). So the shake = a
+     3-clip struggle 0x35→0x36→0x35 + rumble that DETACHES the bugs.
+  Port: UNTRANSLATED (the bug bites + backs off; no latch/cling/shake).
+  Wiring it completes the bug combat — but it is a milestone-sized rework
+  (a latch data model on bug AND player, a new player shake sub-state,
+  the detach loop; clip 0x35=53 must also be exported; rumble is skippable
+  on a keyboard build).
+- **94 (0x5E) — CROUCH:** `func_0016C6A0`@0x16C788 — requests 0x5E + a
+  -0.6 Y profile-lower. Combined "vertical-motion" handler. The crouch
+  INPUT pad bit is NOT statically pinnable — **needs one live PCSX2
+  capture** (hold crouch, watch `+0x05/+0x06/+0x20C`).
+- **115 (0x73) — LANDING:** `func_0016C6A0`@0x16CBC4 (and the jump/fall
+  sub-state `func_00162DB0`@0x1632EC) — the fall→ground-contact phase
+  (gravity ticks `+0xB4` until contact, then clip 0x73 + impact settle
+  `+0x2F4/+0x2E0`). Needs a port player airborne/fall state.
+- **375 (0x177) — CUTSCENE/SCRIPT:** does NOT appear as an `$a1`
+  immediate anywhere in `code/`; requested by a scripted/director caller
+  via a table-loaded/computed id (neighbours 0x152–0x154/0x187 are all
+  scripted-handler requests). **Needs a live `+0x20C == 0x177`
+  write-watchpoint** to name the caller. Defer.
+
+_Last updated: 2026-06-12 (session 76, crate + clip pass + trigger decode)._
