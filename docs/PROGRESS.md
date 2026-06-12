@@ -56,9 +56,12 @@ weapons, enemies, doors, audio and the real status screen.
   sounds (s26), walk-through transit + fade per the decoded scripts
   (s20/s23); sliders run their decoded variant brain — walk-into trigger,
   native slide, scripted walk-through, no fade/player anim (s56).
-- **Enemies**: crawler crates (burst → gibs + leech), worm generators with
-  decoded cadence (s28+), per-scene carved crate model (s34), tendril spike
-  asset shipped (s35); EM_ENEMY_TEST 1–4 self-tests.
+- **Enemies**: crawler crates (burst → gibs + the nest-group BUGS — the
+  s68 creature-identity correction, applied s71), the 15-node bug
+  hatchling (EM_ENEMY_KIND_BUG, flagged-minimal brain), worm generators
+  with decoded cadence (s28+; the worm's only spawner — engine-true),
+  per-scene carved crate model (s34), tendril spike
+  asset shipped (s35); EM_ENEMY_TEST 1–5 self-tests.
 - **Audio**: music cues + SFX at engine-exact ids/rates through the
   generated sfx registry (s12/s15/s26/s29/s30); two-layer footsteps (s30).
 - **UI**: the real status screen — game font (EMFN, s26b), decor textures
@@ -5890,8 +5893,48 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   generator test's mailbox kill → non-consumption witness;
   EM_DEATH_TEST grew the continue-skeleton assertions). Full suite
   PASS; default capture byte-identical.
-- **Open / next for em_enemy**: the s68 BUG rebinding (crate bursts
-  should hatch bugs/items per the nest registry — the worm hatch is
-  now a flagged known-wrong stand-in noted in em_enemy.h); the engine
+- **Open / next for em_enemy**: ~~the s68 BUG rebinding~~ **DONE s71**
+  (next section); the engine
   hit-volume radii dump; the approach-latch/shake-off system; module
   0x27/1 art + option-label export.
+
+### Update — 2026-06-11 s71: s68 CREATURE IDENTITY rebinding APPLIED in the port — crate bursts hatch BUGS; EM_ENEMY_KIND_BUG lands
+
+- **The known-wrong worm hatch is retired** (closes the s68/s70 open
+  item; PORT_DIFFERENCES J6/J7 re-closed, J14 → SI): crate bursts
+  (damage kill AND the alarm-run timer burst) hatch their nest-group
+  BUGS at the crate position; the worm's only spawner is the mode-2
+  generator pad — both now engine-true. Group size rides the
+  manifest (`enemy crate x y z yaw [bugs <n>]`, default 2 = the
+  office modal group; the registry counts are disc data) on a
+  deterministic 1.5-u hatch ring (flagged stand-in for the records'
+  per-child offsets/rot).
+- **New EM_ENEMY_KIND_BUG** (em_enemy.h "BUG KIND" carries the
+  ledger): variant-A mesh `assets/enemy_bug.emdl` (slot 0x0F) +
+  clip bank — decoded init/walk clip 1, flinch 0x1D; death 0x1B is
+  requested but sits in an unbakeable container (s68 decoder wall),
+  so death keeps the corpse alpha-fade until a future export bakes
+  it. HP 15 (func_00128390 variant A; B/difficulty recorded), the
+  EVERY-TICK func_00128B80 mailbox consumption (flinch below
+  lethal, death at it), victim in all three hitscan filters (the
+  worm stays rejected — the s66/s70 filters untouched). The BRAIN
+  is FLAGGED-MINIMAL walk/approach (homing/speed/standoff port
+  constants, deals no damage) — the real brains
+  func_00128C10/func_0012A5D0 stay the s68 open item. Manifest
+  `enemy bug` lines place one directly; variant B + event flag
+  0x30, pose codes and the player-light read are untranslated.
+- **Tests restaged + suite green**: EM_ENEMY_TEST=1 — shot 1 bursts
+  the crate, then the SHOOTABLE-BUG witness (lock re-fills on a
+  hatched bug, shot 2 flinches it 15→10); EM_ENEMY_TEST=3 — hatch
+  ring + engage + the mailbox ladder (5 → flinch, 15 → death, the
+  other bug lives); EM_MELEE_TEST — light crate kill → bug pair
+  hatch + crate-B broadcast, TWO one-stab bug heavies (15 vs HP
+  15), the worm-whiff witness kept via a direct spawn, whiff combo
+  with the new 7-swing/3-hit ledger, crate B self-burst + its pair
+  parked behind. All EM_* self-tests + make test-input/test-weapon
+  PASS; default EM_CAPTURE byte-identical vs a clean-HEAD rebuild.
+- **Open (new)**: exporter nest-link emission (`bugs <n>` with real
+  group sizes, 0 for the link −1 gore-only office majority — the
+  shipped manifests ride the flagged default 2); item-bearing nest
+  crates (AREA03/06) through em_pickup; the bug brains' real state
+  machines + attack moves (the minimal brain deals no damage).

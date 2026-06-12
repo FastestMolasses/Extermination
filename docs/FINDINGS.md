@@ -14265,6 +14265,25 @@ as the historical label of the crate-disguise behavior.
   (that path was already engine-true). AREA03/06-style item-bearing
   crates drop pickups through em_pickup. PORT_DIFFERENCES J6/J7
   updated.
+- **PORT ADOPTION (2026-06-11, follow-on session):** the rebinding is
+  APPLIED in extermination-port em_enemy.c/h — new EM_ENEMY_KIND_BUG
+  (variant-A mesh + bank: walk clip 1, flinch 0x1D; death 0x1B is in
+  an unbakeable container, so death keeps the corpse alpha-fade with
+  the engine id requested for a future export; HP 15; the EVERY-TICK
+  func_00128B80 mailbox consumption with flinch-below-lethal; victim
+  in all three hitscan filters) on a FLAGGED-MINIMAL walk/approach
+  brain (the real brains stay the s68 open item). Crate bursts hatch
+  the group on a deterministic 1.5-u ring (stand-in for the record
+  offsets); the group size rides the manifest (`enemy crate … bugs
+  <n>`, default 2 — exporter nest-link emission is a NEW open item
+  below); the worm hatch is REMOVED (generator pads only — already
+  engine-true). Tests restaged and passing: EM_ENEMY_TEST=1 (bug
+  shootability witness: lock re-fill + 5-damage flinch),
+  EM_ENEMY_TEST=3 (hatch ring + the mailbox ladder 5→flinch /
+  15→death), EM_MELEE_TEST (two one-stab bug heavies + the worm
+  whiff on a direct spawn + 7-swing/3-hit ledger). Default
+  EM_CAPTURE verified byte-identical vs a clean-HEAD build.
+  PORT_DIFFERENCES J6/J7/J14 updated (J14 now SI).
 
 Open (s68): the two bug brains' full state machines (move/attack/
 pose-specific subs, the 14-case jtbl_0026D000, awareness use of
@@ -14272,8 +14291,13 @@ player+0xA); the 8 unbakeable clip containers (non-sentinel header
 variant — same decoder wall as s45); event flag 0x30's story moment
 (when the world turns to variant B); whether the +0x9E sub-state
 byte gates class-2 children's respawn via func_001B64F0's re-clear.
+NEW (port adoption): export_level.py should emit the nest links —
+`enemy crate … bugs <n>` with the registry group size per crate (and
+0 for link −1 gore-only crates; the shipped office0/drawbridge
+manifests currently ride the flagged default 2) and an item-crate
+form for the AREA03/06 nests (em_pickup wiring).
 
-_Last updated: 2026-06-11 (session 68)._
+_Last updated: 2026-06-11 (session 68; port adoption noted same day)._
 
 ## EXAMINE INTERACTION DECODED — placement-record examine objects, the overlay examine scripts, per-area text-bank census; PORTED as em_examine (2026-06-11, session 69)
 
