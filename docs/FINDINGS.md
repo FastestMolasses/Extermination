@@ -14471,4 +14471,127 @@ Open (s69):
   the exported collision (the engine approaches from elsewhere) — the
   capture harness teleports; re-check when more of AREA11 exports.
 
-_Last updated: 2026-06-11 (session 69)._
+
+## THE DRAWBRIDGE FOUND & BAKED — AREA01 placed model-table objects; plus the doubled-door root cause and the locked/walk camera evidence (2026-06-11, session 74)
+
+Session context: a four-bug user report (locked-door camera regression,
+walk-camera foot dive, doubled office doors, the missing drawbridge).
+The first two were decoded by the predecessor session and committed in
+the port (8bf0c78); their engine evidence is recorded here. The last
+two are exporter work in this repo.
+
+### 1. The drawbridge — table-A placed objects were never exported
+
+The scene_drawbridge zone files (DRAWBRIDGE_ZONES) carry only the
+static world: every AREA01 table-A record that binds a per-area MODEL
+TABLE entry (concat 0x3F2000, 22 entries) was silently absent from the
+export. The namesake bridge is among them:
+
+- **Records [41]/[42]** — overlay brain `fn 0x008261A0`, params 2/3 =
+  model entries [2]/[3]: TWO MIRRORED bridge-deck halves, 775/776
+  verts, 452 tris, 15 textures each, local X[-30,30] Y[-12,7]
+  Z[-105,+7.4] / Z[-7.4,+105]. Placed yaw-pi at (0, 3, -525) and
+  (0, 3, -315): the halves span world z -532..-420 and -420..-307.6 —
+  meeting at exactly z = -420, a continuous 225-u deck across the
+  chasm, top at y 10. Each placement origin is its hinge end (the
+  leaf reaches to the center), i.e. a classic two-leaf drawbridge.
+- **Records [44]/[45]** — `fn 0x001C4820` (main ELF) / `fn 0x008267C0`
+  (overlay), param 0xC = entry [12] (a 40 x 40 flat panel): the HIGH
+  SUSPENSION fixtures at (0, 156.9, -502.3) pitch +0.349 and
+  (0, 156.9, -337.9) pitch +0.349 + yaw pi — one over each hinge.
+- **Record [43]** — `fn 0x001C4820` param 8 = entry [8] (a 1.4 x 1.7
+  x 2.6 piece) at (75.3, 7.2, -516.9) yaw -pi/4: the CRANK mechanism
+  piece, exactly at the s69 crank-examine record (81, 0, -521).
+  Record [40] (param 0) binds no model (the office param-0 rule).
+- **Records [13]/[20]** — creature-family fixtures (`fn 0x00158D30`
+  param 0x12 at the shaft bottom; `fn 0x00159B90` param 0xA at
+  (167, 7, -626.7)) — baked static like the office convention.
+
+Excluded, with reasons mirroring export_office0_placed: crawlers/
+generators (enemy lines), doors (door lines), class-0x0B deferred,
+cls-000d `fn 0x001E3D90` x14 (param is a CONFIG id like the
+generators', not a model bind — params 0/1/2 repeat at scattered
+shaft positions), cls-000c `fn 0x001E7D20`/record [40] (param 0),
+examine records, and the two `fn 0x00826CF0` records (param 0x6B
+absent from the 22-entry table).
+
+**Exporter**: `office0_bake_placed` generalized with a `table_off`
+parameter; `--drawbridge` now bakes the 7 placements into
+`12_placed.emdl` (1972 verts / 1144 tris / 31 textures, 31/31
+resolved from the uploads replay, 0 fallbacks) and the port's
+top-level `*.emdl` glob picks it up (12 of SCENE_MAX 16 used).
+**REST POSE ONLY, FLAGGED**: the leaves are 1-node models — the
+raise/lower is actor code in the AREA01 overlay (`fn 0x008261A0`,
+undecoded; the s69 examine census already pinned the counter-0x80
+script's line 0x0A as "the bridge-lowering cutscene"), and no
+object-anim bank clip can bind a 1-node rig (the s30 door-bank
+pattern needs the hinge rig), so the bridge ships LOWERED (the
+authored rest). Deck collision/walkability over the chasm is
+UNPROBED (visual only until then).
+
+Model-table survey (full 22-entry extents recorded in the session
+transcript; notable unbound entries: [16] a 4-node 457-vert assembly,
+[17] a 2-node 47-u-TALL hanging piece — likely other sub-states').
+
+### 2. Doubled office doors — root cause + fix
+
+User report: "an extra door covers the real one" in the office scenes.
+Root cause: s20's `export_props.py --doors` rebake dropped the
+RGN_DOOR replays from 00_level.emdl, but export_level.py's OWN region
+lists (CHUNK06N1_REGIONS + table_driven_regions) still carried them —
+any later direct re-export (the s63 pickup-era and s71 enemy-era
+manifest refreshes regenerate the level mesh too) re-included the
+baked CLOSED double-door on top of the articulated door EMDLs. Fix:
+the RGN_DOOR rows are removed from BOTH region paths at the source
+(the exporter prints `N door record(s) left OUT of the bake`);
+export_props' own filter still works (it filters by the RGN_DOOR
+range constant, now matching nothing). `00_level.emdl` regenerated:
+6115 verts / 4037 tris / 108 textures, byte-identical across
+re-runs; both office doorways verified single-door in port captures
+(mid-open, no closed copy).
+
+### 3. Locked-look camera — the D_00810374 yaw census (bug 1 evidence)
+
+`func_001BBBF0` (the locked-try camera) places the target at the door
+handle (door +0xB0/B4/B8 - 8 along the +0xC4 yaw, +10 up) and the eye
+13 u back along **the GLOBAL `D_00810374`** with eye.y = door.y + 12 —
+NOT the camera struct yaw. Full writer census (grep over the split
+.s): `func_00183160` (+= delta), `func_001B6F00` (actor yaw + offset),
+`func_001B6F80` (script-authored), `func_001B6FA0`, `func_001B73A0`,
+`func_001B9C10` (script ops), `func_00157B30`, and the per-area/boss
+writers `func_0013F770/144040/149B50/130AB0/13A3B0` — ALL script/
+cutscene/actor-cue paths; **the chase camera NEVER writes it**, so at
+a locked try it holds the last SCRIPTED camera yaw (deterministic per
+route). The port's s53 implementation read the live chase yaw — the
+user-visible regression once s67 made the chase yaw an output. Port
+fix (committed 8bf0c78): the kickoff through-door snap yaw stands in
+(FLAGGED — the engine global is per-route, the snap yaw per-door).
+Witness: EM_CAPTURE_LOCKED=1/2 (two approach orientations, prior cam
+yaw 0 vs -2.2) print the identical eye (-28.5, 12, -205) /
+tgt (-28.5, 10, -192).
+
+### 4. Walk-camera height — the func_00191390 per-state rows (bug 2)
+
+The pre-step's +0x8C/+0x5C table, re-read from the .s: player state
+(+0x230) **0x13 -> 11.0/2.0**; **8/9/7/6/0x2D/0x2C -> 0.0/2.0**;
+**0xF/4/2 -> -3.0/1.0**; **3/1 and DEFAULT -> 6.0/2.0** (swapped
+2.0/6.0 when cam+0x64 == -31.2). Ordinary ground locomotion is state
+3 = the DEFAULT row — the camera keeps eye +19 / target +17 while the
+player moves; the -3.0/1.0 row belongs to the +0x236 ELEVATED/hang
+family only. The s67 port binding applied the low row to every move
+(the user-visible dive toward the feet); fixed in 8bf0c78 (the
+pre-step writes the idle row unconditionally — the port models no
++0x236 family). Witness: EM_CAPTURE_WALK prints eye +19 / tgt +17
+mid-run.
+
+Open (s74):
+- the bridge raise/lower actor decode (`fn 0x008261A0`) + the
+  counter-0x80 cutscene script — articulated bridge, raised-at-entry
+  truth (does sub-0 start raised?), deck collision dynamics.
+- `fn 0x001C4820`'s render contract (shared by the crank piece and a
+  suspension panel — likely a generic placed-prop renderer).
+- the cls-000d `fn 0x001E3D90` config records (14 of them down the
+  shaft — emitters/fx?).
+- drawbridge deck walkability probe in the port.
+
+_Last updated: 2026-06-11 (session 74)._

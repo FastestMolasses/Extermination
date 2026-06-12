@@ -2214,12 +2214,14 @@ def office0_uploads(dirp: Path, args) -> list:
     return [p for p in ups if p.exists()]
 
 
-def office0_bake_placed(d: bytes, placements):
+def office0_bake_placed(d: bytes, placements, table_off=None):
     """Bake model-table entries at world placements: `placements` is a
     list of (param, mat34-or-None). All node slots are baked with the
     placement matrix — per-node rest offsets are runtime state we have no
     live capture of for this sub-state (FLAGGED: articulated sub-parts of
-    multi-node entries may sit at their model-local origin)."""
+    multi-node entries may sit at their model-local origin).
+    `table_off` selects the per-area MODEL TABLE (default: the office
+    OFFICE0_TABLE_OFF; the drawbridge bake passes DRAWBRIDGE_TABLE_OFF)."""
     props = sys.modules.get("_export_props_lvl") or _load(
         "_export_props_lvl", "export_props.py")
     raw_pos, raw_col, raw_bone, raw_uv, raw_tex = [], [], [], [], []
@@ -2244,7 +2246,8 @@ def office0_bake_placed(d: bytes, placements):
         return i
 
     for param, m in placements:
-        off = props.table_entry_offset(d, OFFICE0_TABLE_OFF, param)
+        off = props.table_entry_offset(
+            d, OFFICE0_TABLE_OFF if table_off is None else table_off, param)
         ntri = 0
         for q, corners, parity in props.model_tris(d, off):
             t = tex_of(q)
@@ -2474,6 +2477,64 @@ def export_drawbridge(args) -> int:
         out = scene_dir / f"{zi:02d}_{name.split('.')[0]}.emdl"
         en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]],
                       30.0, tex_entries, tex_blob, flags=1)
+
+    # THE DRAWBRIDGE + the other placed model-table objects (2026-06-11,
+    # closes "the scene_drawbridge level is missing its namesake"): the
+    # zone files carry only the static world — every placement record
+    # that binds a per-area MODEL TABLE entry was silently absent. The
+    # namesake is table A records [41]/[42] (overlay brain 0x8261A0,
+    # params 2/3): TWO mirrored 105 x 60 deck halves placed yaw-pi at
+    # (0, 3, -525)/(0, 3, -315), spanning z -532..-307 and meeting at
+    # exactly z = -420 — the lowered bridge across the chasm. Records
+    # [44]/[45] (fn 0x001C4820, param 0xC) are its high suspension
+    # panels (y 156.9, pitched 0.349), [43] the crank piece beside the
+    # crank-examine record, and [13]/[20] the area's creature-family
+    # fixtures (baked static like the office convention). Everything
+    # bakes at the placement matrix into 12_placed.emdl — REST POSE
+    # ONLY, FLAGGED: the bridge leaves are 1-node models whose
+    # raise/lower is actor code in the AREA01 overlay (fn 0x8261A0,
+    # undecoded); no object-anim bank clip binds a 1-node rig (the s30
+    # door-bank pattern needs the 2-node hinge rig), so articulation
+    # stays an open item and the bridge ships LOWERED (the authored
+    # rest).
+    DRAWBRIDGE_FN_PLACED = {0x008261A0: "bridge leaf (overlay brain)",
+                            0x001C4820: "crank/suspension fixture",
+                            0x008267C0: "suspension fixture (overlay)",
+                            0x00158D30: "creature-family fixture",
+                            0x00159B90: "creature-family fixture"}
+    pl = sys.modules.get("_placements") or _load("_placements",
+                                                 "placements.py")
+    ov_path = dirp.parent / "OVERLAY" / "AREA01.BIN"
+    ents = pl.parse_table(ov_path.read_bytes(), AREA01_TABLE_A) \
+        if ov_path.exists() else []
+    blob = bytearray()
+    for f in sorted(dirp.glob("*.bin")):
+        blob += f.read_bytes()
+    blob = bytes(blob)
+    tcnt = struct.unpack_from("<I", blob, DRAWBRIDGE_TABLE_OFF)[0]
+    placements = []
+    for e in ents:
+        why = DRAWBRIDGE_FN_PLACED.get(e.behavior)
+        if why is None:
+            continue
+        if e.param == 0 or e.param >= tcnt:
+            print(f"  placed [{e.index:2d}] fn {e.behavior:#x} param "
+                  f"{e.param:#x}: no model bind — skipped")
+            continue
+        placements.append((e.param, e.matrix34()))
+        print(f"  placed [{e.index:2d}] {why}: model entry {e.param:#x} "
+              f"at ({e.pos[0]:.1f}, {e.pos[1]:.1f}, {e.pos[2]:.1f})")
+    if placements:
+        sections, tex_table = office0_bake_placed(
+            blob, placements, table_off=DRAWBRIDGE_TABLE_OFF)
+        tex_entries, tex_blob = build_texture_blob(None, tex_table,
+                                                   None, ups)
+        out = scene_dir / "12_placed.emdl"
+        en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]],
+                      30.0, tex_entries, tex_blob, flags=1)
+        print(f"placed objects: {len(placements)} instances -> {out} "
+              f"(the DRAWBRIDGE leaves bake LOWERED — rest pose, "
+              f"flagged; raise/lower is undecoded overlay actor code)")
 
     update_manifest(scene_dir, "spawn",
                     " ".join(f"{v:g}" for v in DRAWBRIDGE_SPAWN))
