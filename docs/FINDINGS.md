@@ -15003,4 +15003,50 @@ as `$a1` to `func_001749A0` / `anim_clip_arbiter`@0x1749F0, which writes
   scripted-handler requests). **Needs a live `+0x20C == 0x177`
   write-watchpoint** to name the caller. Defer.
 
-_Last updated: 2026-06-12 (session 76, crate + clip pass + trigger decode)._
+## BUG LATCH / SHAKE-OFF — LIVE-VERIFIED: it is a CROSS-MASH STRUGGLE, the bug DIES, and INFECTION is the killer (2026-06-12, session 76, PCSX2 DebugServer)
+
+The user drove a live PCSX2 session (a bug latched onto the player); this
+**overturns the s76 port implementation** (which auto-shook, detached the
+bug to re-approach, and used a tiny health drain). The real mechanic:
+
+**Player actor = the FIXED global `D_008102B0`** (confirmed: find_pattern
+put the player position at `D_008102B0+0xA0` = 0x00810350, and the
+pending-health field `D_008104D4` = `D_008102B0+0x224`). Verified offsets:
+- `+0x00` status byte — `|= 2` (=0x03) while an attack is incoming /
+  a bug is latched; back to `0x01` when free. (NOT a body-latch flag —
+  it was 3 even for the projectile attack below, with `+0x224`/infection
+  untouched.)
+- `+0x04` major state (2 = reaction), `+0x05` sub-state (**0x0b** = latched
+  idle, **0x0c** = struggling), `+0x06` = the **MASH COUNTER**.
+- `+0x20C` scripted clip (0x008104bc); `+0x220` health (0x008104d0);
+  `+0x224` pending-health-damage (= `D_008104D4`); `+0x228` infection
+  (0x008104d8).
+
+**The mechanic (live):**
+1. A bug LATCHES → **10 health** on connect (`+0x224 = 10.0` → applied,
+   health 100→90).
+2. While latched (state 2, sub 0x0b/0x0c): the **infection `+0x228`
+   rises FAST** (live: 0 → 40 → 100 in seconds — the real killer; at 100
+   = infected, infected-death clip 0x1C4) AND **health drains** (90 → 60
+   → 1). Struggle clips cycle **0x2C** (clinging idle) / **0x2E** / **0x24**
+   (NOT the 0x35/0x36 the static decode guessed — those were a different
+   attacker kind).
+3. The player **MASHES CROSS** (0x4000) to shake off — **each press
+   increments the mash counter `+0x06`** (live 1→5). It is NOT automatic.
+4. At the counter threshold the bug is **thrown off and DIES**; the player
+   returns to normal (`+0x00` → 1).
+5. **Too slow / too many bugs → infected death** (the user died twice this
+   way; MCP presses are far slower than real mashing).
+
+**BONUS (live):** the bug ALSO has a **PROJECTILE attack** (the port models
+neither it nor the real struggle) — a separate move-helper to decode + port.
+
+**Port redo required:** replace the s76 auto-shake + detach + per-tick
+drain with: latch → 10-on-connect + a fast infection rise + health drain
+while clinging → a CROSS-mash struggle counter → at threshold the bug DIES
+and the player recovers; lose the struggle → infected death. (Exact
+threshold / infection rate / drain rate / clip ids: decode the player
+struggle sub-state handlers — func_0021C440 cmd path, the state-2 jtbl
+sub 0x0b/0x0c — from the .s.)
+
+_Last updated: 2026-06-12 (session 76, crate + clip pass + trigger decode + LIVE latch/shake verification)._
