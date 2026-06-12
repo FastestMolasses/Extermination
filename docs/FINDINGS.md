@@ -7606,8 +7606,10 @@ pick is inside func_001551B0 state 2's damage-kill arm, vaddr
 `0x156380` — `lbu +0x3` (the crawler MODEL byte), `byte == 6 →
 func_001C6120(D_0028A56C, 0x22)` else `(…, 0x29)`, then
 func_001CA6E0 rebinds the actor. Placements survey: byte 06 is EVERY
-crate in AREA02/11/13/18/20/22 (the wooden crate — husk A's brown
-tones match), 0x1C/0x1E/0x1F appear only in AREA03/06/07/08 (husk B's
+crate in AREA01/02/11/13/18/20/22 (the wooden crate — husk A's brown
+tones match; AREA01 added by the same-day exporter session — its 6
+table-A / 5 table-B crawlers were missed by the first sweep),
+0x1C/0x1E/0x1F appear only in AREA03/06/07/08 (husk B's
 grey-cyan family). The rebind (and the knockback) runs on the DAMAGE
 arm only — a timer/suicide burst leaves no husk. Port adopted same
 day: the gib pool is split into the two families and the burst

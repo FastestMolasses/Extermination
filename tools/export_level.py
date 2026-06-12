@@ -83,8 +83,17 @@ its own boot config in a plain-text `scene.txt` next to the .emdl files
     collision <file.emcl>       collision filename (export_collision.py
                                 writes this key)
     bgm <file.wav>              optional looping level-music cue WAV
-    enemy crate <x> <y> <z> <yaw>   placed disguised-container crawler
-                                (em_enemy.c EM_ENEMY_KIND_CRATE)
+    enemy crate <x> <y> <z> <yaw> bugs <n> variant <v>
+                                placed disguised-container crawler
+                                (em_enemy.c EM_ENEMY_KIND_CRATE); n =
+                                the s68 nest-registry group's bug-brain
+                                child count, hatched on the burst (0 =
+                                link -1 gore-only; token absent = the
+                                port's FLAGGED default 2); v = the
+                                placement MODEL byte (the husk-family
+                                key, func_001551B0 @0x156380: 6 =
+                                wooden husk 0x22 set, else the
+                                grey-cyan 0x29 set; absent = 6)
     enemy generator <x> <y> <z> <yaw> kind <k> link <n>
                                 generator floor pad (fn 0x0015A2C0,
                                 em_enemy.c "GENERATOR KIND")
@@ -98,7 +107,11 @@ rewrites a marker-delimited "enemies" block in scene.txt from the AREA02
 placement tables (FINDINGS "ENEMY AI ARCHITECTURE" census): records with
 behavior func_001551B0 (placed crawler — in the office a DISGUISED
 CONTAINER, param 0x000D = the cardboard-box model) become `enemy crate`
-lines; generator records with behavior func_0015A2C0 become active
+lines — since s68 each carries `bugs <n>`, the nest-registry group's
+bug-brain child count read from the user's ELF + overlay (see
+_nest_children; item-bearing nest records are flagged comment lines
+pending em_pickup wiring); generator records with behavior
+func_0015A2C0 become active
 `enemy generator` lines carrying the decoded placement fields (s28,
 FINDINGS "GENERATOR — func_0015A2C0 RESOLVED": kind = +0x08 config
 index 0-6 into the D_00248120 footprint recs, link = +0x0A mode-table
@@ -133,6 +146,11 @@ Usage (macOS arm64, decomp repo root):
   .venv/bin/python tools/export_level.py \
       --pickups ../extermination-port/assets/scene --area 2 --sub 1 \
       --overlay extract/OVERLAY/AREA02.BIN
+  # rewrite ONLY the scene.txt enemies block (s68 nest-registry crate
+  # `bugs <n>` counts; no mesh export):
+  .venv/bin/python tools/export_level.py \
+      --enemies ../extermination-port/assets/scene_office0 --area 2 \
+      --sub 0 --overlay extract/OVERLAY/AREA02.BIN
   # snow level main zone, textures from save state 01, true world coords,
   # manifest spawn = the live state-01 player position:
   .venv/bin/python tools/export_level.py \
@@ -275,8 +293,12 @@ CHUNK06N1_REGIONS = [
     (*RGN_CORRIDOR, "slots", SUBOBJ_SLOTS),
     (*RGN_PANEL,    "slots", SUBOBJ_9A100),
     (*RGN_STATION,  "slots", SUBOBJ_9AA80),
-    (*RGN_DOOR,     "slots", BLOB_A05C0),
-    (*RGN_DOOR,     "slots", BLOB_A05C0_W),   # second doorway instance
+    # 2026-06-11 (s71): the RGN_DOOR double-door replays are NO LONGER
+    # baked — the port draws the ARTICULATED door EMDLs (export_props.py
+    # --doors-office0, scene.txt `door` lines) at the same placements,
+    # so baking them too double-drew a closed door on top of the real
+    # animating one (user-reported: "an extra door covering the real
+    # ones"). Same rule as the kind-0xB pickup props below.
     (*RGN_CRATE,    "instances", BLOB_A2700),
     (*RGN_AMMO_C,   "instances", BLOB_A3040),
     (*RGN_AMMO_D,   "instances", BLOB_A3940),
@@ -563,9 +585,14 @@ def table_driven_regions(level_path: Path):
                     anchor_slots(SUBOBJ_9A100, fixture[0x36].matrix34())))
     regions.append((*RGN_STATION, "slots",
                     anchor_slots(SUBOBJ_9AA80, fixture[0x37].matrix34())))
-    for e in doors:           # one 2-slot replay per doorway in the table
-        regions.append((*RGN_DOOR, "slots",
-                        anchor_slots(BLOB_A05C0, e.matrix34())))
+    # 2026-06-11 (s71): the per-doorway RGN_DOOR replays are NO LONGER
+    # baked — the articulated door EMDLs (scene.txt `door` lines, the
+    # export_props.py --doors-office0 carves) draw at the same table
+    # placements, so the baked copy double-drew a closed door on top of
+    # the real animating one (user-reported).
+    if doors:
+        print(f"placements: {len(doors)} door record(s) left OUT of the "
+              f"bake (articulated door EMDLs — scene.txt door lines)")
     # 2026-06-11 (pickup decode): the kind-0xB box/ammo-stack records are
     # NO LONGER baked into the static level mesh — they are emitted as
     # `pickup ... prop` scene.txt lines (--pickups) and drawn by the
@@ -592,6 +619,9 @@ def table_driven_regions(level_path: Path):
 OFFICE_SCENE_SUBSTATE = 1      # the captured office scene's story sub-state
 
 FN_CRAWLER = 0x001551B0        # placed crawler / disguised container
+NEST_BASE_ARRAY = 0x0024A850   # D_0024A850: s16[23] per-area FIRST
+                               # NEST-GROUP registry index (0 -> 1) — s68
+FN_BUG_BRAINS = (0x00128C10, 0x0012A5D0)   # the hatchling bug brains (s68)
 FN_DOORS = (0x001BC350, 0x001BB860)
 FN_GENERATOR = 0x0015A2C0      # generator floor pad — implemented in the port
 FN_GENERATORS = {               # class-0x0D runtime enemy spawn points
@@ -637,10 +667,41 @@ def _placement_census(entries) -> dict:
     return c
 
 
-def _enemy_lines(entries, prefix: str = "") -> list[str]:
+def _nest_children(mem, area: int, link: int):
+    """The crate's NEST-GROUP records (FINDINGS s68 "CREATURE IDENTITY
+    CORRECTION"): registry entry
+
+        D_0024D820[area][ D_0024A850[area] (0 -> 1) + link ]
+
+    where link = placement +0x56. link 0xFFFF (-1) = gore-only, no
+    children -> []. Returns None when the area has no registry or the
+    entry is null (honest "unresolved", distinct from an empty group)."""
+    if link == 0xFFFF:
+        return []
+    reg = mem.elf.u32(DEFER_PTR_ARRAY + 4 * area)
+    if not reg:
+        return None
+    base, = struct.unpack("<h",
+                          mem.elf.read(NEST_BASE_ARRAY + 2 * area, 2))
+    grp = mem.u32(reg + 4 * ((base or 1) + link))
+    if not grp:
+        return None
+    return _parse_group(mem, grp)
+
+
+def _enemy_lines(entries, prefix: str = "", mem=None,
+                 area: int = 2) -> list[str]:
     """Manifest lines for one table's enemy-class records. Crawlers become
     `enemy crate` lines (the office placed crawler is a DISGUISED CONTAINER;
-    param 0x000D binds the cardboard-box model — FINDINGS s22/s23);
+    param 0x000D binds the cardboard-box model — FINDINGS s22/s23); with
+    `mem` (AreaMem over the ELF + this area's overlay) each crate line
+    carries `bugs <n>` = its s68 nest-group's bug-brain child count
+    (fn 00128C10/0012A5D0; 0 for the link -1 gore-only crates — without
+    the token the port falls back to its FLAGGED default 2) and
+    `variant <v>` = the placement MODEL byte (the husk-family key,
+    func_001551B0 @0x156380). Item-bearing
+    nest records (fn 0015AFA0 — the AREA03/06 vaccine/item crates) become
+    flagged comment lines for future em_pickup wiring.
     fn-0x0015A2C0 generators become `enemy generator` lines with the
     decoded kind/link placement fields (FINDINGS "GENERATOR —
     func_0015A2C0 RESOLVED"); the type-2 generator and the misc
@@ -651,7 +712,33 @@ def _enemy_lines(entries, prefix: str = "") -> list[str]:
         x, y, z = (f"{v:.6g}" for v in e.pos)
         yaw = f"{e.rot[1]:.6g}"
         if e.behavior == FN_CRAWLER:
-            out.append(f"{prefix}enemy crate {x} {y} {z} {yaw}")
+            line = f"{prefix}enemy crate {x} {y} {z} {yaw}"
+            if mem is None:
+                out.append(line)
+                continue
+            kids = _nest_children(mem, area, e.link)
+            if kids is None:
+                out.append(line)
+                out.append(f"# ^ nest link {e.link} did not resolve in "
+                           f"registry D_0024D820[{area}] — bugs token "
+                           f"omitted (port default 2). FLAGGED.")
+                continue
+            n_bugs = sum(1 for r in kids if r["fn"] in FN_BUG_BRAINS)
+            out.append(line + f" bugs {n_bugs} variant {e.model}")
+            for r in kids:
+                if r["fn"] in FN_BUG_BRAINS:
+                    continue
+                if r["fn"] in FN_PICKUPS:
+                    out.append(f"# ^ ITEM-BEARING nest record (fn "
+                               f"{r['fn']:#010x}): item type "
+                               f"{r['type']:#04x} model {r['param']:#04x} "
+                               f"puid {r['puid']} — hatches a PICKUP, not "
+                               f"counted in bugs; em_pickup wiring TBD "
+                               f"(s68 open item)")
+                else:
+                    out.append(f"# ^ nest child fn {r['fn']:#010x} "
+                               f"(unrecognized behavior) — NOT counted "
+                               f"in bugs. FLAGGED.")
         elif e.behavior == FN_GENERATOR:
             out.append(f"{prefix}enemy generator {x} {y} {z} {yaw} "
                        f"kind {e.kind} link {e.link}")
@@ -668,16 +755,23 @@ def _enemy_lines(entries, prefix: str = "") -> list[str]:
 def emit_enemy_manifest(scene_dir: Path, ov_path: Path,
                         substate: int = OFFICE_SCENE_SUBSTATE,
                         cap: int | None = None,
-                        spawn: tuple | None = None) -> None:
+                        spawn: tuple | None = None,
+                        elf=None) -> None:
     """Rewrite the marker-delimited enemies block of scene.txt from the
     AREA02 placement tables. The given sub-state's table drives the ACTIVE
     lines; when it places no crawlers (the sub-state-1 census result — see
     the module docstring) the sub-state-0 crawler placements are appended
     as a commented toggle instead. `cap` (the port's EM_ENEMY_MAX) bounds
     the active crawler lines: the placements FARTHEST from `spawn` (XZ
-    distance) overflow into commented lines with a note."""
+    distance) overflow into commented lines with a note. With `elf`
+    (BootElf) crate lines carry the s68 nest-group `bugs <n>` counts
+    (see _enemy_lines)."""
     pl = sys.modules.get("_placements") or _load("_placements",
                                                  "placements.py")
+    mem = AreaMem(elf, ov_path) if elf is not None else None
+    if mem is None:
+        print("note: no boot ELF — crate lines emitted WITHOUT the "
+              "`bugs <n>` nest counts (port default 2)")
     data = ov_path.read_bytes()
     tables = pl.KNOWN_TABLES[OFFICE_OVERLAY]
     per = [pl.parse_table(data, v) for v in tables]
@@ -715,6 +809,15 @@ def emit_enemy_manifest(scene_dir: Path, ov_path: Path,
                      "their own EM_GENERATOR_MAX")
         block.append('# pool — no crate-slot impact. FINDINGS "GENERATOR — '
                      'func_0015A2C0 RESOLVED".')
+    if mem is not None:
+        block.append("# crate `bugs <n>` = the s68 nest-group size: "
+                     "registry D_0024D820[2] entry")
+        block.append("# base+link (base = D_0024A850[2], link = placement "
+                     "+0x56), counting the")
+        block.append("# bug-brain children (fn 00128C10/0012A5D0). 0 = "
+                     "link -1, gore-only burst.")
+        block.append("# crate `variant <v>` = the placement MODEL byte "
+                     "(husk-family key @0x156380).")
 
     overflow = []
     emit_entries = scene_entries
@@ -725,7 +828,7 @@ def emit_enemy_manifest(scene_dir: Path, ov_path: Path,
         dropped = {id(e) for e in ranked[cap:]}
         overflow = [e for e in scene_entries if id(e) in dropped]
         emit_entries = [e for e in scene_entries if id(e) not in dropped]
-    active = _enemy_lines(emit_entries)
+    active = _enemy_lines(emit_entries, mem=mem)
     block += active
     if overflow:
         block.append(f"# OVERFLOW: the table places {len(crawlers)} "
@@ -733,7 +836,7 @@ def emit_enemy_manifest(scene_dir: Path, ov_path: Path,
                      f"{cap} manifest slots —")
         block.append("# the placement(s) FARTHEST from the spawn stay "
                      "commented out:")
-        block += _enemy_lines(overflow, prefix="#")
+        block += _enemy_lines(overflow, prefix="#", mem=mem)
     if cen["crawler"] == 0:
         block.append("# this sub-state places NO enemies — the faithful "
                      "default scene has none.")
@@ -746,7 +849,7 @@ def emit_enemy_manifest(scene_dir: Path, ov_path: Path,
         block.append("# spawn and take enemy slot 0, breaking the "
                      "self-tests' slot-0 asserts —")
         block.append("# keep them commented for deterministic test runs.")
-        block += _enemy_lines(per[0], prefix="#")
+        block += _enemy_lines(per[0], prefix="#", mem=mem)
     block.append(ENEMY_BLOCK_END)
 
     mf = scene_dir / "scene.txt"
@@ -849,6 +952,33 @@ class AreaMem:
         return struct.unpack("<I", self.read(vaddr, 4))[0]
 
 
+def _parse_group(mem: AreaMem, grp: int) -> list[dict]:
+    """One GROUP of 0x2C-byte deferred-spawn records at vaddr `grp`,
+    parsed up to the cond == -1 terminator (layout in the block comment
+    above). Shared by the per-sub-state item lists and the s68 NEST
+    groups (same registry, same record format)."""
+    out = []
+    r = grp
+    while True:
+        cond, = struct.unpack("<h", mem.read(r, 2))
+        if cond == -1:
+            break
+        raw = mem.read(r, 0x2C)
+        puid, sidx = raw[2], raw[3]
+        cls, = struct.unpack_from("<H", raw, 4)
+        model, itype = raw[6], raw[7]
+        param, uid, kind, link = struct.unpack_from("<4H", raw, 8)
+        pos = struct.unpack_from("<3f", raw, 0x10)
+        rot = struct.unpack_from("<3f", raw, 0x1C)
+        fn, = struct.unpack_from("<I", raw, 0x28)
+        out.append(dict(vaddr=r, cond=cond, puid=puid, sidx=sidx,
+                        cls=cls, model=model, type=itype, param=param,
+                        uid=uid, kind=kind, link=link, pos=pos,
+                        rot=rot, fn=fn))
+        r += 0x2C
+    return out
+
+
 def defer_records(mem: AreaMem, area: int, sub: int) -> list[dict]:
     """All deferred-spawn records of (area, sub), parsed (see the block
     comment above for the 0x2C layout)."""
@@ -865,24 +995,7 @@ def defer_records(mem: AreaMem, area: int, sub: int) -> list[dict]:
         li += 4
         if not grp:
             break
-        r = grp
-        while True:
-            cond, = struct.unpack("<h", mem.read(r, 2))
-            if cond == -1:
-                break
-            raw = mem.read(r, 0x2C)
-            puid, sidx = raw[2], raw[3]
-            cls, = struct.unpack_from("<H", raw, 4)
-            model, itype = raw[6], raw[7]
-            param, uid, kind, link = struct.unpack_from("<4H", raw, 8)
-            pos = struct.unpack_from("<3f", raw, 0x10)
-            rot = struct.unpack_from("<3f", raw, 0x1C)
-            fn, = struct.unpack_from("<I", raw, 0x28)
-            out.append(dict(vaddr=r, cond=cond, puid=puid, sidx=sidx,
-                            cls=cls, model=model, type=itype, param=param,
-                            uid=uid, kind=kind, link=link, pos=pos,
-                            rot=rot, fn=fn))
-            r += 0x2C
+        out += _parse_group(mem, grp)
     return out
 
 
@@ -2372,44 +2485,66 @@ def export_drawbridge(args) -> int:
 
     # Enemies block (AREA01 table A; see the AREA01 constants block —
     # sub-0 presumption flagged there).
-    pl = sys.modules.get("_placements") or _load("_placements",
-                                                 "placements.py")
     ov_path = dirp.parent / "OVERLAY" / "AREA01.BIN"
     if ov_path.exists():
-        ents = pl.parse_table(ov_path.read_bytes(), AREA01_TABLE_A)
-        cen = _placement_census(ents)
-        block = [ENEMY_BLOCK_BEGIN]
-        block.append(f"# scene table = AREA01 table A @{AREA01_TABLE_A:#x} "
-                     f"(SUB-0 PRESUMPTION, flagged: the overlay-brain "
-                     f"door id 0 + link-0 inert generators read as the "
-                     f"first-visit story beat), {len(ents)} records:")
-        block.append(f"#   {cen['crawler']} crawlers (fn 0x001551B0, "
-                     f"param 0x0004 — a DIFFERENT disguise model than the "
-                     f"office cardboard box; the port's crate enemy mesh "
-                     f"is a flagged visual stand-in), "
-                     f"{cen['generator']} generators (link 0 = inert), "
-                     f"{cen['door']} doors, {cen['pickup']} pickups, "
-                     f"{cen['prop']} fixtures/props, "
-                     f"{cen['deferred']} deferred(0x0B)")
-        block.append("# NOTE record [12] is an OVERLAY-BRAIN scripted "
-                     "door (fn 0x823580, door id 0) at (-35.5, -35, "
-                     "-1276.5) — likely the drawbridge cutscene; not a "
-                     "portable door record, omitted from the door lines.")
-        block += _enemy_lines(ents)
-        block.append(ENEMY_BLOCK_END)
-        mf = scene_dir / "scene.txt"
-        lines = mf.read_text().splitlines() if mf.exists() else []
-        if ENEMY_BLOCK_BEGIN in lines:
-            bidx = lines.index(ENEMY_BLOCK_BEGIN)
-            eidx = lines.index(ENEMY_BLOCK_END) if ENEMY_BLOCK_END in lines \
-                else len(lines) - 1
-            lines = lines[:bidx] + lines[eidx + 1:]
-        while lines and not lines[-1].strip():
-            lines.pop()
-        lines += block
-        mf.write_text("\n".join(lines) + "\n")
-        print(f"manifest: {mf}: enemies block — {cen['crawler']} crawler "
-              f"line(s), {cen['generator']} generator line(s)")
+        elf_path = Path(args.elf)
+        elf = BootElf(elf_path) if elf_path.exists() else None
+        emit_drawbridge_enemies(scene_dir, ov_path, elf)
+    return 0
+
+
+def emit_drawbridge_enemies(scene_dir: Path, ov_path: Path,
+                            elf=None) -> int:
+    """Rewrite the drawbridge scene.txt enemies block from AREA01 table A
+    (also the --enemies --area 1 entry point). With `elf` crate lines
+    carry the s68 `bugs <n>` nest counts — AREA01's nest survey (s68)
+    found NO nest-linked crates, so these are expected to be link -1
+    gore-only (bugs 0); the resolver reads the registry regardless."""
+    pl = sys.modules.get("_placements") or _load("_placements",
+                                                 "placements.py")
+    mem = AreaMem(elf, ov_path) if elf is not None else None
+    if mem is None:
+        print("note: no boot ELF — crate lines emitted WITHOUT the "
+              "`bugs <n>` nest counts (port default 2)")
+    ents = pl.parse_table(ov_path.read_bytes(), AREA01_TABLE_A)
+    cen = _placement_census(ents)
+    block = [ENEMY_BLOCK_BEGIN]
+    block.append(f"# scene table = AREA01 table A @{AREA01_TABLE_A:#x} "
+                 f"(SUB-0 PRESUMPTION, flagged: the overlay-brain "
+                 f"door id 0 + link-0 inert generators read as the "
+                 f"first-visit story beat), {len(ents)} records:")
+    block.append(f"#   {cen['crawler']} crawlers (fn 0x001551B0, "
+                 f"param 0x0004 — a DIFFERENT disguise model than the "
+                 f"office cardboard box; the port's crate enemy mesh "
+                 f"is a flagged visual stand-in), "
+                 f"{cen['generator']} generators (link 0 = inert), "
+                 f"{cen['door']} doors, {cen['pickup']} pickups, "
+                 f"{cen['prop']} fixtures/props, "
+                 f"{cen['deferred']} deferred(0x0B)")
+    block.append("# NOTE record [12] is an OVERLAY-BRAIN scripted "
+                 "door (fn 0x823580, door id 0) at (-35.5, -35, "
+                 "-1276.5) — likely the drawbridge cutscene; not a "
+                 "portable door record, omitted from the door lines.")
+    if mem is not None:
+        block.append("# crate `bugs <n>` = the s68 nest-group size "
+                     "(registry D_0024D820[1] entry base+link); 0 = "
+                     "link -1, gore-only burst. `variant <v>` = the "
+                     "placement MODEL byte (husk-family key).")
+    block += _enemy_lines(ents, mem=mem, area=AREA01)
+    block.append(ENEMY_BLOCK_END)
+    mf = scene_dir / "scene.txt"
+    lines = mf.read_text().splitlines() if mf.exists() else []
+    if ENEMY_BLOCK_BEGIN in lines:
+        bidx = lines.index(ENEMY_BLOCK_BEGIN)
+        eidx = lines.index(ENEMY_BLOCK_END) if ENEMY_BLOCK_END in lines \
+            else len(lines) - 1
+        lines = lines[:bidx] + lines[eidx + 1:]
+    while lines and not lines[-1].strip():
+        lines.pop()
+    lines += block
+    mf.write_text("\n".join(lines) + "\n")
+    print(f"manifest: {mf}: enemies block — {cen['crawler']} crawler "
+          f"line(s), {cen['generator']} generator line(s)")
     return 0
 
 
@@ -2685,6 +2820,12 @@ def main(argv):
                     "pickups block from the deferred-spawn registry "
                     "D_0024D820 (+ the placement table's kind-0xB "
                     "display props); needs --area/--sub/--overlay")
+    ap.add_argument("--enemies", metavar="DIR",
+                    help="rewrite DIR/scene.txt's marker-delimited "
+                    "enemies block ONLY (no mesh export) — crate lines "
+                    "carry the s68 nest-registry `bugs <n>` counts; "
+                    "needs --area/--sub/--overlay (area 2 = the office "
+                    "tables, area 1 = drawbridge table A)")
     ap.add_argument("--examine", metavar="DIR",
                     help="rewrite DIR/scene.txt's marker-delimited "
                     "examine block from the EXAMINE_DECODE registry "
@@ -2741,6 +2882,25 @@ def main(argv):
         return annotate_door_goto(args)
     if args.door_locked:
         return annotate_door_locked(args)
+    if args.enemies:
+        if args.sub is None:
+            ap.error("--enemies needs --sub (the scene's sub-state)")
+        elf_path = Path(args.elf)
+        if not elf_path.exists():
+            ap.error(f"--enemies needs the boot ELF ({elf_path} missing) "
+                     f"for the nest-registry bugs counts")
+        elf = BootElf(elf_path)
+        if args.area == AREA01:
+            return emit_drawbridge_enemies(Path(args.enemies),
+                                           Path(args.overlay), elf)
+        if args.area != AREA02:
+            ap.error("--enemies: only area 2 (office tables) and area 1 "
+                     "(drawbridge table A) have decoded placement tables")
+        kw = dict(substate=args.sub, elf=elf)
+        if args.sub == OFFICE0_SUBSTATE:
+            kw.update(cap=16, spawn=OFFICE0_SPAWN)   # the office0 scene
+        emit_enemy_manifest(Path(args.enemies), Path(args.overlay), **kw)
+        return 0
     if args.pickups:
         if args.sub is None:
             ap.error("--pickups needs --sub (the scene's sub-state)")
@@ -2819,13 +2979,15 @@ def main(argv):
     level_path = Path(args.level)
     ov_path = level_path.parent.parent / "OVERLAY" / OFFICE_OVERLAY
     if level_path.name == "f03_id43.bin" and ov_path.exists():
+        elf_path = Path(args.elf)
+        elf = BootElf(elf_path) if elf_path.exists() else None
         if level_path.stat().st_size == OFFICE0_F03_SIZE \
                 and level_path.parent.name == OFFICE0_DIRNAME:
             emit_enemy_manifest(Path(args.out).parent, ov_path,
                                 substate=OFFICE0_SUBSTATE, cap=16,
-                                spawn=OFFICE0_SPAWN)
+                                spawn=OFFICE0_SPAWN, elf=elf)
         else:
-            emit_enemy_manifest(Path(args.out).parent, ov_path)
+            emit_enemy_manifest(Path(args.out).parent, ov_path, elf=elf)
     return 0
 
 

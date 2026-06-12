@@ -57,7 +57,8 @@ weapons, enemies, doors, audio and the real status screen.
   (s20/s23); sliders run their decoded variant brain — walk-into trigger,
   native slide, scripted walk-through, no fade/player anim (s56).
 - **Enemies**: crawler crates (burst → gibs + the nest-group BUGS — the
-  s68 creature-identity correction, applied s71), the 15-node bug
+  s68 creature-identity correction, applied s71; registry-true group
+  sizes + husk-variant bytes ride the manifest since s73), the 15-node bug
   hatchling (EM_ENEMY_KIND_BUG, flagged-minimal brain), worm generators
   with decoded cadence (s28+; the worm's only spawner — engine-true),
   per-scene carved crate model (s34), tendril spike
@@ -5950,11 +5951,13 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   (the crawler MODEL byte): byte 6 → `D_0028A56C` library entry
   **0x22** (husk A, the brown opened wooden-crate base + splinters
   0x1C/0x1D/0x1E), else **0x29** (husk B, grey-cyan + 0x26/0x27/0x28).
-  Placement survey: byte 06 = EVERY crate in AREA02/11/13/18/20/22;
+  Placement survey: byte 06 = EVERY crate in AREA01/02/11/13/18/20/22;
   0x1C/0x1E/0x1F only in AREA03/06/07/08. The rebind and knockback
-  live on the damage arm only (a timer burst leaves no husk). Note:
-  AREA01 carries NO func_001551B0 placements — the drawbridge
-  manifest's crate lines are not engine placements (flagged).
+  live on the damage arm only (a timer burst leaves no husk).
+  (CORRECTED same day, exporter session: this entry originally said
+  AREA01 carries NO func_001551B0 placements — it carries 6 in table
+  A / 5 in table B, raw-scan verified at 11 pointer hits, all model
+  byte 6 → husk A; the drawbridge crate lines ARE engine placements.)
 - **Port**: the gib pool is split into the two husk families; a
   crate's burst launches the matching family — the husk itself first
   (it IS the engine's rebind corpse), shards round-robin behind.
@@ -5963,3 +5966,55 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   no engine rebind). Verified visually (brown wooden debris) and the
   full suite + byte-identical default capture hold.
 - FINDINGS "GIB SET" open item closed; PORT_DIFFERENCES J6 updated.
+
+### Update — 2026-06-11 s73: exporter emits the s68 nest-registry crate counts — `bugs <n>` (+ `variant <v>`) on every crate line; AREA01 survey corrected
+
+- **Closes the s71 open item "exporter nest-link emission"**:
+  `tools/export_level.py` now resolves each crate placement's link
+  through the nest registry — `_nest_children`: group =
+  `D_0024D820[area][ D_0024A850[area] (0→1) + link ]` (the s68
+  formula; link 0xFFFF = gore-only → []), records via the shared
+  `_parse_group` (factored out of `defer_records`; `--pickups`
+  output verified unchanged). Every emitted `enemy crate` line
+  carries `bugs <n>` = the group's bug-brain child count (fn
+  00128C10/0012A5D0) and `variant <v>` = the placement MODEL byte
+  (the s72 husk-family key, read straight from the record).
+  Item-bearing nest records (fn 0015AFA0) emit as flagged
+  `# ^ ITEM-BEARING nest record` comment lines — em_pickup wiring
+  stays open (no exported scene has one; AREA03/06 when they land).
+  Unresolvable links and unrecognized child behaviors emit flagged
+  comments instead of silent defaults.
+- **New manifest-only mode** `--enemies DIR --area A --sub S
+  --overlay …` (no mesh export; area 2 = the office tables with the
+  office0 cap/spawn ranking on sub 0, area 1 = drawbridge table A —
+  the drawbridge block factored into `emit_drawbridge_enemies`).
+  The mesh-export path passes the ELF through automatically (no ELF
+  → bugs token omitted with a printed note; port default 2).
+- **Re-exported locally**: scene_office0 (16 active + 1 overflow
+  crate lines; nest counts 2,2,3,2,2 on links 0–4 = the s68 survey
+  exactly, 12 gore-only `bugs 0`), scene_drawbridge (6 lines), and
+  the captured office scene (17 commented toggle lines). All
+  registry contents stay user-local (assets/ is git-ignored in the
+  port); the repo carries addresses + the resolver only.
+- **AREA01 SURVEY CORRECTION (new finding)**: the s68 19-area sweep
+  missed AREA01 — the resolver surfaced a nest-linked crate in the
+  shipped drawbridge scene: table-A record [7] @0x82BE68 at
+  (−25, 0, −279), link 0 (same in table B) → registry walk
+  `D_0024D820[1] + 4·(base 2 + 0)` → group @0x829360 = **4 bugs**
+  (fn 0012A5D0 ×4, puids 112–115, cond 1, pose param 4, ±1 u
+  offsets). The drawbridge crate now hatches its engine-true FOUR
+  bugs (was the flagged default 2). Also corrected the s72 note
+  "AREA01 carries NO func_001551B0 placements": it carries 6 in
+  table A / 5 in table B (11 raw pointer hits), all model byte 6 →
+  husk A — AREA01 added to the husk survey list in FINDINGS.
+- **Also in this exporter change (earlier in the session, labeled
+  s71 in the code comments)**: the captured office scene's RGN_DOOR
+  double-door replays are NO LONGER baked into the level mesh — the
+  articulated door EMDLs (scene.txt `door` lines) draw at the same
+  table placements, so the baked copy double-drew a closed door on
+  top of the real animating one (user-reported). `scene/00_level.emdl`
+  re-exported without them (the office0 scene was never affected —
+  its doors were always the separate `--doors-office0` carves).
+- FINDINGS s68 updated (survey table row + correction, the open
+  item closed); the em_pickup item-crate wiring and the real bug
+  brains remain the open items.
