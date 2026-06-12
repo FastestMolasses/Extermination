@@ -14977,11 +14977,18 @@ as `$a1` to `func_001749A0` / `anim_clip_arbiter`@0x1749F0, which writes
      clip-end bit (`+0x200 & 0x1000`); then clip 0x35 (recover) and exit,
      clearing the latch (`+0x0F`, `D_008102B0` → 1). So the shake = a
      3-clip struggle 0x35→0x36→0x35 + rumble that DETACHES the bugs.
-  Port: UNTRANSLATED (the bug bites + backs off; no latch/cling/shake).
-  Wiring it completes the bug combat — but it is a milestone-sized rework
-  (a latch data model on bug AND player, a new player shake sub-state,
-  the detach loop; clip 0x35=53 must also be exported; rumble is skippable
-  on a keyboard build).
+  **PORTED s76**: a connecting bug bite now LATCHES (em_enemy bug sub 5
+  — the bug clings on the player at a per-bug bearing) instead of
+  bite-and-back-off; while any bug clings the player DRAINS
+  (player_shake_tick, PD_SHAKE_DRAIN — flagged), and when free he SHAKES
+  them off (pd_sub 4 plays clip 0x36; em_enemy_shake_off detaches all with
+  a knockback + RECOVER cooldown). Clips 0x35/0x36 (53/54) exported; the
+  engine's 0x35->0x36->0x35 wrap is reduced to the recognisable 0x36
+  shake; rumble skipped (no FFB on the keyboard build). The drain
+  magnitude + cling geometry are flagged PORT constants (the engine
+  D_008104D4 drain / D_00810320 anchor). EM_MELEE_TEST reworked to witness
+  the latch+shake-off (bugs latch -> the player shakes -> they detach)
+  instead of stabbing them (you don't melee a clinging bug).
 - **94 (0x5E) — CROUCH:** `func_0016C6A0`@0x16C788 — requests 0x5E + a
   -0.6 Y profile-lower. Combined "vertical-motion" handler. The crouch
   INPUT pad bit is NOT statically pinnable — **needs one live PCSX2

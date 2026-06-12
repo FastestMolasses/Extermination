@@ -99,7 +99,7 @@ Usage (macOS arm64, repo root):
   .venv/bin/python tools/export_native.py --attach --no-glow \
       --mesh extract/chunk28/f00_id3b.bin \
       --anim extract/chunk28/f01_id3c.bin \
-      --clips 349,2,3,69,67,75,272,273,283,51,274,275,276,277,278,279,280,281,282,1,267,268,269,270,271,0,450,10,70,68,30,31,32,33,86,87,42,92,452,455,54,94,115,375 \
+      --clips 349,2,3,69,67,75,272,273,283,51,274,275,276,277,278,279,280,281,282,1,267,268,269,270,271,0,450,10,70,68,30,31,32,33,86,87,42,92,452,455,53,54,94,115,375 \
       --gsdump extract/gsdump/frame1.gs \
       --out ../extermination-port/assets/player.emdl
   # ANIMATED export: bake clip N from an id 0x74 animation library file
