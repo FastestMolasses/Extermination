@@ -14357,6 +14357,66 @@ in scene_snow (no load failures):
 
 _Last updated: 2026-06-12 (session 78)._
 
+## GROUND LOCOMOTION — the ease-in/out + turn/heading machine fully decoded (2026-06-12, session 78)
+
+Decode of the player ground-locomotion easing (the user-reported "instant
+start vs. the original's transition"). All speeds u/tick (×60 = u/s), turn
+rates rad/frame (×60 = rad/s). Spine: `func_0015BA50 → func_0015B130 →
+func_001612D0` (loco top, dispatch on `+0x06`) → per-frame move calls
+`func_00174AC0` (turn+target) → `func_0017BC40` (speed ramp,
+jtbl_0026D720) → `func_0017C030` (anim/skid, jtbl_0026D740) → the mover.
+State scalars: `+0x38` = current speed, `+0x25C` = tier (locIdx), `+0x1F0`
+phase, `+0x23F` gait, `+0xC4` body heading, `+0x240` target speed.
+
+### The pieces (engine truth)
+
+- **Quantizer `func_001B5CC0`**: `r = |stick − 0x80|`; rings 48/88/122 →
+  gait 0/1/2/3. No hysteresis/smoothing (easing is all downstream). [port OK]
+- **Target speed `func_00174AC0`**: gait→`+0x240` from `D_00248870`
+  {0,0.1,0.3,0.8} (=0/6/18/48 u/s). [port OK]
+- **Speed RAMP `func_0017BC40`** (the ease): LINEAR accel/decel toward target,
+  tier promote/demote at boundaries. accel `D_00248880` {0.05,0.05,0.0625,0},
+  decel `D_00248890` {0,0.05,0.025,0.0227}. [port OK]
+- **START entry (the ease-IN) — `func_001612D0` state `+0x06==2`**: on first
+  stick frame enters **ONE TIER BELOW target** (`+0x25C = gait−1`,
+  `+0x38 = speed[gait−1]`) then phase-1 ramp promotes up. NO separate
+  wind-up pose — the transient IS the gait−1 entry + the accel ramp. [port OK]
+- **TURN/HEADING (`func_00174AC0` + turn-toward `func_001B12B0`)** — the part
+  the port re-modeled (C3/C4). Desired world heading = atan2(stickX,stickY) +
+  camera yaw `D_008106A0`; the BODY heading `+0xC4` is EASED toward it at a
+  banded rate, and **velocity is emitted along `+0xC4` (body), not the raw
+  stick** — so motion CURVES into turns. `func_001B12B0` SNAPS when
+  |delta| ≤ rate (no overshoot). Rates (rad/frame):
+  - turn-in-place (speed 0): gait2 4.0° / gait1 8.0° / gait0|3 22.5°.
+  - moving, |delta|≤54°: walk 4° / jog 6° / run 7°.
+  - moving, |delta|>54°: walk 6° / jog 9° / run 10.5°.
+  Pivot (>135° reversal at speed>0.5, gait≥2) arms the pivot-turn (phase 6/7)
+  ending with `+0xC4 += π` (180° about-face).
+- **RUN-DOWN / STOP (release)**: `func_0017BC40` phase 2 bleeds `+0x38` by
+  0.03125/tick (**×2 = 0.0625 when carrying gear, `+0x314 & 0x1F`**) and
+  CASCADES tier-by-tier (run→jog→walk→stop) to each demote floor; tiers ≤2
+  with no carry can phase-3 instant-stop. **STOP-SKID (mode 6, `func_0017C030`
+  phase 3)**: at locIdx 3 on release, request skid clip `func_0017B490(6,...)`
+  ×6 rate — **anim ids 4 (jog-skid) / 5 (run-skid)** (mode-6 row {0,0,4,5}).
+- **CLIP RATE (`+0x204`) tracks the ramp**: tier-2 hard-codes 0.75; on the
+  ramp `0.5 + 0.5·frac`; `anim_matrix_player` blends toward the neighbor
+  tier's clip during accel(sub1)/decel(sub2) — the walk↔jog↔run cross-blend.
+
+### Port status (s78)
+
+ALREADY CORRECT (do not touch): quantizer, target speeds, accel/decel +
+promotion, the gait−1 START ease-in, the camera-relative desired-heading.
+MUST CHANGE (the user's complaint): (1) replace the invented `TURN_SPEED
+12 rad/s` with the banded turn-rate table + snap semantics; (2) emit velocity
+along the eased body heading (turn-then-translate), not the raw stick — this
+is the missing "curve into the direction"; (3) run-down cascade through all
+tiers (gear ×2 omitted — port has no gear-carry state, flagged). FLAGGED
+TODO (needs clips 4/5 re-exported): the stop-skid + pivot/about-face. Clip-
+rate interpolation is optional polish. (Implement pass in progress — C3/C4/
+C2/P2.) Live-flag: the `+0x314` gear-bit semantics + the skid clip durations.
+
+_Last updated: 2026-06-12 (session 78)._
+
 ## WALK-STATE CAMERA DECODED — func_00230000 + the eye TETHER func_0022FCA0; the camera has NO heading policy while moving (2026-06-11, session 67)
 
 Full static read of the last unread camera handler `func_00230000`
