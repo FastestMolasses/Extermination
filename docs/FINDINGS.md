@@ -14417,6 +14417,323 @@ C2/P2.) Live-flag: the `+0x314` gear-bit semantics + the skid clip durations.
 
 _Last updated: 2026-06-12 (session 78)._
 
+## AREA-11 OPENING CAMERA — the idle camera is EMERGENT (wall solver), not a seat (2026-06-13, session 79; LIVE-VERIFIED)
+
+> **FRAME-0 LIVE READ (s79d) — CORRECTS the "swing" premise of iterations 1-3.**
+> A live read at the very first frame (idle timer cam+0x08 = 0) shows the eye is at
+> the +X position (268.18, **248.92**, 182.78) FROM FRAME 0 — there is NO lateral
+> swing. Settled (idle ~230) = (268.18, **258.47**, 182.78); target (250.8,242.28,
+> 209) is fixed throughout. The ONLY motion is **eye.y rising 248.92 → 258.47 (+9.55)**
+> over the first frames (the user-observed "moves up slightly, adjusting from the
+> wall"). So `func_001B0080` seats the eye 46.8 behind the spawn yaw +0.611 (→ the
+> buried -X-Z corner) and the wall solver `func_0018DD20` RELOCATES it to the OPEN
+> +X side (→ 268.18,182.78, behind heading -0.586, dist pulled in to 31.46) **on
+> frame 0 itself (instant, same frame)** keeping y≈+19, THEN raises eye.y to +28.6
+> over the next frames to clear the wall. The miss: the port's solver relocates the
+> buried seat to -X (228, hugging the wall) instead of the engine's +X open side.
+> Both start (frame-0) AND settled values are now pinned exactly (s79d).
+> **RESOLVED s80 — value-exact (port commit "AREA-11 opening camera byte-exact"):**
+> iters 1-2 routed the idle camera through the engine solver+tether+derived-yaw +
+> corrected the solver side-stage gate + added the target-Y dip; iter 4 PROVED
+> func_0018DD20 is byte-faithful and structurally cannot relocate the buried -X seat
+> to +X (the engine reaches +X via a collision/entry path beyond the static decode),
+> so the result is captured as a DATA-DRIVEN `opencam` scene key (like the engine's
+> own spawn-record cameras) — eye/tgt match the live exactly, eye.y rise via the real
+> seek rate, disarm on any action. Residual: the +X DERIVATION mechanism (a likely
+> collision/entry-placement difference vs the live engine) is unresolved — value-exact
+> but not yet mechanism-derived.
+
+
+The AREA-11 opening camera (new game, no input, idle) is NOT the entry seat and
+NOT a director angle — it is the **wall solver `func_0018DD20` acting on a
+wall-buried entry seat**, with the camera heading a DERIVED OUTPUT. Live ground
+truth (PCSX2, frozen at the opening, idle timer cam+0x08 = 230, pre the 481-frame
+reorient; player (250.80, 229.89, 209.00) yaw 0.6109):
+- **EYE `D_008105D0` = (268.18, 258.47, 182.78)**, **TARGET `D_008105E0` =
+  (250.80, 242.28, 209.00)**. Relative: target = player + (0, +12.4, 0); eye =
+  player + (+17.4, +28.6, −26.2); horizontal eye↔target ≈ **31.5**.
+
+### Why these values (decoded + frozen-frame field reads)
+
+- **Frame 0**: `func_001B0080` (via `func_001B0460` unflagged arm ← `func_001B07C0`)
+  seats eye 46.8 BEHIND the spawn yaw at player.y+19 → xz (224.0, 170.7), looking
+  +0.611. **That eye lands buried in a wall.**
+- **Frames 1..N**: the **wall solver `func_0018DD20`** (s61: constant-height
+  pull-in + 5.5-u side probes / corner slide + eye-Y raise to clear) shoves the
+  buried eye **in (→31.5 horiz), laterally across to the +X side, and up
+  (→258.47)**. The idle camera runs through `func_001921D0`'s idle tail (the
+  mode-0 generic chase; the AREA-0B director gates all FAIL at the spawn, so no
+  director).
+- **The heading is an OUTPUT**: `cam+0x44` = `atan2(actual eye→target)`,
+  recomputed every frame (frozen-frame read = **−0.586**, exactly the look dir).
+  The eye sits "directly behind cam+0x44", but cam+0x44 ≠ the player facing
+  (+0.611) → the camera is **~68.6° off "directly behind the player."**
+- **The dead-band FREEZES it**: idle tether dead-band = [follow−slack, follow] =
+  [26.8, 46.8] (slack 20 since cam+0x64 = −46.8); 31.5 is inside it → the tether
+  never pushes the eye back out, and the bearing stays frozen until the **481-frame
+  reorient** (frozen-frame: cam+0x07 = 0, timer still incrementing; 230 < 0x1E1).
+- **Heights**: base = player.y + 11 + cam+0x5C(2.0) + cam+0x8C(6.0) = +19; the
+  **+23 eye-raise rider is OFF** (frozen-frame cam+0x6D = 0, cam+0x98 = 0), so the
+  +28.6 eye is the **solver's wall-clear raise**, not a rider; cam+0x54 (eye-Y
+  clamp) = 438.9 (not clamping). Target +12.4 = +17 base minus the idle
+  0.3·shaped(excess) dip (−4.6). NOTE the "+12 director tweak" (s50) does NOT
+  apply — the spawn fails the AREA-0B director rects (s67 corrected it to a
+  walk-only eye-Y swap). State: horizontal SETTLED (dead-band-frozen); vertical
+  solver-held (stable).
+
+### Port divergence + the fix (s79, iteration in progress)
+
+The port's IDLE camera is the **D14 simplification**: a yaw-anchored eye =
+player − (sin,cos)(cam->yaw)·CAM_DIST(33) + (0,+19,0), with cam->yaw treated as
+authoritative. It **cannot** reproduce a solver-shoved, derived-heading angle.
+The port's WALK branch already runs the engine machinery (s67: `cam_solver_0018DD20`
++ tether `camera_walk_eye_0022FCA0` + derived yaw). **Fix = route the IDLE branch
+through that same path + re-seat the entry eye at 46.8 behind the spawn yaw, and
+let the angle/height EMERGE from the solver+collision** (then A/B vs the live
+values). Caveats: it's EMERGENT (sensitive to the port solver + snow.emcl), and
+it changes the idle camera for ALL scenes (the office/default captures re-baseline;
+interacts with L1-orient / the 481-orbit / aim). The earlier "frame-0 seat"
+decode (this section's frame-0 bullet) was correct for frame 0 but is NOT the
+opening camera the player sees — the emergent idle settle above is.
+
+### Iteration 2 (s79b): two solver-gate corrections + the target dip; the +X shove is a COLLISION blocker, not solver logic
+
+Static re-read of `func_0018DD20.s` against the port's `cam_solver_0018DD20`
+found the s61 prose "SIDE STAGE (clear or glancing only)" is **BACKWARDS**. The
+engine gate at `.L0018E4A0` is `v0 = (s3==1) ? 1 : (s0==0 ? 1 : 0)` where **s3 =
+NOT-glancing** (set when dot(hdir, raw n) ≥ sin45, line 0018DEEC) — so the side
+stage runs for a **SQUARE-ON block OR a clear line, NEVER a glancing block**. And
+the per-side response window (−0.3, 0.9) is checked only on the `s3==0` path
+(`.L0018E8E8 beq s3,1 → apply`), i.e. the CLEAR case (where the gate dot stayed 0
+and always passes), not square-on. Port fixes (extermination-port em_game.c):
+`if (!blocked || glancing)` → `if (!blocked || !glancing)`; the inner
+`if (!glancing && window-fail)` → `if (!blocked && window-fail)`. These are
+engine-verbatim and the self-tests stay green.
+
+**BUT the side stage does NOT and CANNOT produce the −X→+X crossover** (the
+diagnosis premise is geometrically impossible). The side-probe unit `su` is built
+from `yaw − π/2` (0018E4D8, func_001B1240/0011E2A8) = **perpendicular to the
+sight line = PARALLEL to a square-on wall**, so a 5.5-u side probe runs ALONG the
+faced wall and never crosses it; even a hit yields ≤ ~5.5 u of lateral candidate
+(hit ∓ sv + 0.1·ray). It is a corridor/corner centerer, not a 44-u swing.
+
+Field-mapped the port's snow.emcl at the AREA-11 spawn (ring-cast + segment
+probes; the engine collision is **single-sided** — `dot(dir, n) ≤ −1e-5`
+required, em_collision.c): the entry seat (224.0, 170.7) AND the frame-0 pull-in
+(228.5, 177.2) both sit **OUTSIDE the room mesh**, behind the −X−Z diagonal
+corner wall (normal 0.51/0.86) — ring-cast from them hits a FRONT face in only
+2/16 and 5/16 directions vs ~14/16 from the player (enclosed). The primary probe
+(target → buried eye) hits the wall FRONT and the pull-in parks the eye 0.5 u on
+the BACK side every frame; from there every side/back probe hits a backface and
+is culled, so the eye is pinned at (228, 177→raised 255 by the floor+17 bound) on
+the −X side. The live engine settles at (268, 182, +X). **There is no
+single-sided-collision path from outside the −X−Z corner to inside the +X−Z
+corner via this solver** → the +X shove is a COLLISION-FIDELITY / entry-placement
+issue, not a solver-logic one. Most likely one of: (a) snow.emcl's −X−Z corner
+geometry differs from live AREA-11 (the seat should land INSIDE, near a wall it
+can pull in *toward the room* off, or the solver's first hit should be a
+different face), or (b) the live `func_001B0080` entry seat is NOT at the spawn
+yaw +0.611 — a seat behind yaw ≈ −0.57 lands directly at the live eye (268, 182)
+with no shove, and the live settled heading is −0.586; the frame-0 "seat at the
+spawn yaw" attribution may be the misread link. RECOMMEND iteration 3 verify the
+LIVE frame-0/1 eye in PCSX2 (does it START at −X (224) and cross, or START near
++X?) and the LIVE primary-hit normal at the spawn, to decide (a) vs (b).
+
+**Target-Y DIP (task 3) — DONE and CORRECT.** func_001916C0 idle case
+`.L00191834`: target.y want = player.y + 11 + cam+0x8C(6) + **0.3·excess**
+(0x3E99999A), excess = D_00810690 (desired horiz eye↔tgt dist) − |cam+0x0C|, with
+the over-close re-map (excess < −slack → −2·slack − excess, floored at −7.0;
+0xC0E00000). Ported (gated on g.move_speed==0 — the walk states hit other
+jumptable cases with no dip). It tracks the live formula exactly; it currently
+lands tgt.y player+14.6 (dip −2.4) ONLY because the unsolved eye sits at
+horiz_dist 38.8 not the live 31.5 — at the correct 31.5 the same code gives
+−4.6 → player+12.4 (the live read). So the dip converges automatically once the
+eye.x blocker is resolved.
+
+### Iteration 3 (s79c): VERDICT = (a) EMERGENT, not (c) scripted — every camera-writer path at AREA-11 entry exhaustively ruled out
+
+Iteration 3 chased hypothesis (c) (a scripted/director/spawn-record override that
+SETS the −0.586/+X opening camera) to ground and eliminated EVERY avenue. The
+opening camera is **emergent from the func_001B0080 chase seat + the wall solver
++ AREA-11 collision** — confirming iterations 1/2. Decisive static evidence:
+
+1. **The AREA-11 overlay (AREA11.BIN, vram 0x823500..0x82AC40) writes NO camera
+   eye/heading/target-XZ.** Full census of every 0x810xxx / 0x8105xx access in all
+   34 overlay .s: the ONLY camera-output write is `func_overlay_AREA11_00828010`
+   (the parachute/landing actor) accumulating ±0.26667/frame into **target.y
+   (0x8105E4)** AND player-ground-Y (0x810354) together for 150 frames — a
+   coordinated Y descent/settle, NOT a heading or an eye-XZ. No store to
+   D_008105D0 (eye), D_008105F0 (up), D_00810374 (heading), or cam struct
+   +0x34/+0x44 anywhere in the overlay.
+2. **The overlay calls NO cutscene-camera op** — no func_001B7B30 (op-0D placement),
+   no func_001B8FC0 (op-00), no func_001B9C10 (op dispatch), no func_001B0080/
+   func_001B0460 re-seat. Its engine API is object/actor/effect/matrix/audio only.
+3. **The heading global D_00810374 is irrelevant to the chase/idle camera.** The
+   generic path (func_001921D0 idle, func_0018BC20 dispatch, func_00195130
+   director, func_001B0080/func_001B0460 seat, func_0018C0D0 commit) NEVER reads
+   D_00810374 (verified: zero refs in all six). Its readers/writers are
+   exclusively the cutscene/boss-camera family (func_001BBBF0, func_001B41F0,
+   func_001B6FA0, func_00189FE0, the per-boss 0x13xxxx/0x14xxxx writers) — confirms
+   the s74 census "the chase camera never writes/reads it."
+4. **The director hook `jal 0x823FE0` does NOT fire for AREA-11** — it is inside the
+   area-0x0D (AREA13) case only, gated entry≥8 (FINDINGS "CORRECTION — the jal
+   0x823FE0 overlay hook"). The AREA-11 director region D_0024A5F0[1]
+   (X[319.6,339] Z[150,182] y289.8) is a func_00230000 AIM height tweak, NOT a
+   fixed eye, AND does not cover the spawn (250.8, 209, y229.9).
+5. **The spawn-record FIXED-camera flag is CLEAR for AREA-11 entry 0.** Opening
+   record = D_0024D650[11]=0x275540 → sub 0x24C850 → entry0 (offset 0; the
+   func_001B07C0 lookup is area*4 → sub*4 → entry*0x30). Its +0x10 word's bit 7
+   would set cam+0x05=1 and hard-copy a fixed eye from D_0024A8D0[idx] to BOTH
+   D_008105D0 and D_008105E0 (func_001B0460 fixed branch). **PROOF it is clear:**
+   when cam+0x05=1 the dispatch (func_0018BC20: `beq cam+0x05` → fixed path) skips
+   the chase AND the idle auto-orient (L1/orient dead). The LIVE frozen read shows
+   the generic idle path RUNNING — cam+0x44 recomputed every frame (=−0.586), the
+   481-frame idle timer cam+0x08 incrementing (230 < 0x1E1), the dead-band freeze.
+   The auto-orient timer cannot run unless cam+0x05=0. → entry-0 +0x10 bit7 = 0 →
+   the UNFLAGGED branch → func_001B0080 generic chase re-seat.
+
+**=> No code or script writes the −0.586 heading or the +X eye. The opening camera
+is the EMERGENT chase settle.** The heading is the pure OUTPUT cam+0x44 =
+atan2(actual eye→target).
+
+**STATIC-vs-EVOLVES: it EVOLVES (NOT static-from-frame-0).** func_001B0080 HARD-
+COPIES the computed seat to the ACTUAL eye D_008105D0 (func_00102948 at 0x1B0228),
+so on frame 0 the actual eye sits at the −X−Z buried seat (223.96, 248.89, 170.66)
+= eye 46.8 behind the spawn yaw +0.6109. Frames 1..N the chase/solver shoves it
+(horizontal cap 4.0 u/frame; solver side-probe 5.5-u steps): the eye travels ~45.9
+u from the −X seat to the +X settled eye (268.18, 258.47, 182.78) over ~10–15
+frames, the bearing swinging +0.611 → −0.585 (~68.5°), then the dead-band [26.8,
+46.8] freezes it at horiz 31.5 until the 481-frame reorient. **PREDICTION for the
+live frame-0/1 read: the eye STARTS at −X (~224, 170) and CROSSES to +X — it is
+NOT at +X immediately.** (A scripted fixed eye would be static at +X from frame 0;
+it is not.)
+
+**HYPOTHESIS (b) ("a no-shove seat at a different yaw lands directly at the live
+eye") is geometrically impossible.** Any func_001B0080 seat is |cam+0x0C|=46.8 from
+the player(=target XZ); the live eye is 31.46 from target. The 46.8→31.5 radial
+pull-in (~15 u) is ALWAYS the solver/dead-band, regardless of seat yaw. The seat
+yaw only sets the bearing; +0.611 puts the eye on −X, so reaching the −0.585/+X
+side REQUIRES the lateral solver crossover. (b) is retired; the seat IS behind
++0.611 (cam+0x34), as func_001B0080 reads.
+
+**THEREFORE the port gap is (a) COLLISION FIDELITY, the residual from iteration 2.**
+The −X→+X crossover is the engine's wall solver acting on AREA-11's REAL collision;
+the port's snow.emcl pins the eye on the −X side (iteration 2: seat outside the room
+mesh, single-sided culling). Two concrete suspects found this iteration:
+- snow.emcl IS sourced from chunk15 (= AREA-11; export_collision.py: chunk15
+  f07_id52/f08_id4d/f09_id53/f10_id5b/f11_id4a/**f12_id44**) — the RIGHT area's
+  collision, not area-6's. EMCL v1, 3474 v / 3183 poly, world AABB
+  X[−68.9,576.5] Y[−79.9,449.6] Z[−187.6,658.4]; 198 verts in the spawn
+  neighborhood (X200-290 Z150-230, Y 164→591) → the room walls ARE present.
+- **CORRECTION (s79d): the `--at 218.592,201.789` "mis-anchor" suspect is FALSE.**
+  export_collision.py (docstring line 71: "the bake ALWAYS runs in TRUE world
+  coordinates"; line 241-242: `--at` = "X,Z **floor-validation probe** in world
+  coordinates") — `--at` only PRINTS a sanity floor height; it does NOT offset/anchor
+  the collision. So snow.emcl IS true-world (the floor-probe y=229.85 at the live XZ
+  confirms it), the walls are NOT displaced, and the collision is NOT the defect.
+  The −X seat (224, 170.7) being outside the room is the TRUE geometry → the ENGINE's
+  seat is ALSO buried-outside, yet the engine settles the eye INSIDE at +X (268,
+  182.8), ~44 u away. So the gap is the **wall solver's buried/outside-eye
+  relocation** (func_0018DD20): the engine relocates the buried eye across to +X; the
+  port's solver does not (its 5.5-u side stage + pull-in barely move it off the −X
+  seat). The 44-u engine relocation MECHANISM is NOT yet identified (the 5.5-u side
+  stage cannot account for it). DECIDING DATUM still needed: a LIVE frame-0/1 read —
+  does the eye START at −X (224,170) and CROSS to +X (confirming the relocation), or
+  is it +X from frame 0 (the seat-yaw decode is wrong)? Until that, iteration 4 is
+  gated (a blind solver-relocation decode risks the wrong direction).
+
+### Iteration-3 PORT FIX (for iteration 4)
+1. **Verify/re-bake snow.emcl true-world.** Re-run export_collision.py on the
+   chunk15 id-0x44 set WITHOUT `--at` (or with the correct AREA-11 anchor), and
+   confirm the −X seat (224, 248.9, 170.7) lands INSIDE the room (ring-cast hits a
+   FRONT face in most directions) and the primary probe (target→buried eye) hits
+   the wall such that the constant-height pull-in + 5.5-u side stage carries the eye
+   toward +X. This is the byte-faithful seat-collision env.
+2. **Route the port IDLE branch through the engine chase machinery** (already noted
+   iteration 1): re-seat the entry actual eye at 46.8 behind the spawn yaw +0.6109
+   (func_001B0080 geometry, hard-copy to actual), then let the solver
+   (cam_solver_0018DD20) + tether dead-band emerge the heading/height — do NOT set
+   −0.586 by hand. The −0.586 and +X MUST emerge from the corrected collision; if
+   they don't after the true-world re-bake, the residual is a port single-sided /
+   side-probe fidelity bug in cam_solver_0018DD20, not a missing scripted value.
+3. The opening eye should VISIBLY swing from −X to +X over the first ~10–15 frames
+   (the engine behavior), then freeze — match that, do not snap to +X.
+
+NOTE: the genuinely live-only confirmations the user should capture in PCSX2
+(reserved): (i) the frame-0/1 actual eye D_008105D0 (expect ~224,170 then crossing,
+NOT +X immediately); (ii) the primary-hit normal at the spawn target→buried-eye ray
+(the face the solver pulls in toward); (iii) cam+0x05 == 0 at the opening (confirms
+the spawn-record flag is clear). These verify (a) end-to-end; nothing in the static
+trace supports any (c) writer.
+
+_Last updated: 2026-06-13 (session 79, iteration 3 — VERDICT: emergent/collision)._
+
+## CINEMATIC LETTERBOX (black bars) + AREA-TITLE CARD — architecture decoded (2026-06-13, session 80)
+
+The black bars + area-title ("Fort Stewart - Rear Entrance") at the snow start, the
+locked-door cutscene, and every scripted cinematic. Architecture pinned statically;
+the bar GEOMETRY + fade frame-counts + the zone-name source need a LIVE capture.
+
+### The two systems are SEPARATE (corrects the s79 area-card decode)
+
+- **LOAD shimmer (NOT the bars)**: `func_001ADF50` → `func_0021B180/0021B550/0021B840`
+  over `D_00275888` is the procedural 512-particle shimmer LOADING screen — no bars,
+  no text (the s79 "no name-card" decode was right, but only for the load phase).
+- **The bars + title run LATER**, during the opening CUTSCENE (gameplay/cutscene
+  frame), via a dedicated cinematic-gated overlay + the message machine.
+
+### The cinematic MODE flag + complete writer census ("all the right places")
+
+- **`D_008101E4`** = cinematic-mode byte (0 normal / 1 / 2 scripted / 3 full); **spad
+  `0x70003B8D`** = frame selector (`func_001AE040` @0x001AE294: 0 → gameplay
+  `func_001AE5E0`, nonzero → cutscene `func_001AE6B0`). Canonical "in a cinematic"
+  predicate = **`func_0022EBE0`**: `E4==3 || (sel!=0 && sel!=4)`.
+- **Writers (every on/off point — script op 0x07 `func_001B82D0`, jtbl_0026DFE0):**
+  sub 0/1 ENTER scripted (`E4=2`, sel=2; sub D sel=1) — the locked-door OPEN script
+  @24DE40 (no fade); sub 2/3/7/8 ENTER+fade (`func_001AEB60(4)`); sub 4 EXIT/RESTORE
+  (+fade-in `func_001AEBA0(4)`) — the locked-door finisher @24DBC0; sub 5 EXIT+event
+  flag; sub 6 EXIT+counter; sub 9–C area-transition teardown (`func_001AEDE0(4,0)`).
+  Plus `op04 sub 8 func_001B9C10` (`E4=1`), `func_001BAD40` (scripted-actor native),
+  `func_001B6BF0` (op 0x18 script END restore). Reader side-effects to mirror:
+  `func_001E67C0` (E4==3 → low-detail render), `func_001EF940` (E4==3 → skip
+  positional audio), `func_001DDE10` (cutscene camera proj), `func_0022DCD0` (AI gate).
+
+### The area-title text (CONFIRMED) + the per-area name table
+
+- Title text = **message GROUP 6** (asset slot 2, chunk00/f02_id02.bin; 11 entries,
+  `\n` = floor sub-name). Area → (map, floor) from **`D_008106CD`** (low nibble = map
+  index, `>>4 & 3` = floor). AREA 11 → group-6 entry 9 floor name = **"Rear Entrance"**.
+  (The full group-6 list is in the port's assets/messages.emsg.)
+- **"Fort Stewart" is the ZONE name — NOT in any text bank** (sourced separately:
+  map-screen art or a per-area string). The card = `<zone name> " - " <group-6 floor>`.
+  Zone-name source = LIVE-CAPTURE-pending (image module id / string ptr).
+- Presenter = the message machine **`D_002821B0` mode 3 → `func_001FD0E0`**
+  (slot-0x17 bank chunk03/f15_id17.bin; multi-line, centered, control codes 0xA/0xC,
+  top-region Y) — the s65 "mode-3 OPEN" item. Set by the area's opening script.
+- Locked-door case = bars-only (NO title); it uses the mode-2 radio subtitle
+  ("It's locked…", bottom-centered) instead.
+
+### LIVE-CAPTURE-PENDING (PCSX2; the bars are a cinematic-gated overlay not isolable statically)
+
+The bar-DRAW function, the bar GEOMETRY (top/bottom Y scanlines, full 512 width,
+true-black-opaque vs alpha, slide-in vs alpha-fade), the staggered FADE frame counts
+(bars-in / title-in / hold / bars-out / title-out — user: "bars fade first, then the
+title"), and the "Fort Stewart" zone-name source. The frame-0 camera state I have is
+post-bars (cinematic flag clear), so a bars-ACTIVE state (the opening cutscene) is
+needed to measure them.
+
+### PORT plan
+
+em_game/em_frame: mirror `D_008101E4` + the spad selector + `em_cinematic_active()`
+(the func_0022EBE0 predicate), driven from the op07 enter/exit points (already
+modeled for the locked door). em_hud: `em_hud_letterbox(progress)` = two full-width
+black quads (geometry placeholder until the capture, FLAGGED) gated on
+em_cinematic_active(); `em_hud_area_title(map,floor)` = group-6 floor name (+ zone
+name once captured), top-centered, own staggered fade. The area-name table (group 6)
+already ships in messages.emsg.
+
+_Last updated: 2026-06-13 (session 80)._
+
 ## WALK-STATE CAMERA DECODED — func_00230000 + the eye TETHER func_0022FCA0; the camera has NO heading policy while moving (2026-06-11, session 67)
 
 Full static read of the last unread camera handler `func_00230000`
