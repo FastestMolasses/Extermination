@@ -1481,6 +1481,129 @@ def build_blob_mesh(d: bytes, off: int):
     return [(raw_pos, raw_col, tris, raw_bone, raw_uv, raw_tex)], tex_table
 
 
+def _rest_world34(parents, rests):
+    """Compose each node's REST WORLD transform as a 3x4 [R|t] (the
+    mat_apply/mat_rotate convention) from the model record's node table.
+    The record stores rests in ROW-VECTOR layout (4 rows; rotation in the
+    upper-left 3x3 read row-by-row, translation in row 3 — bone_init_
+    default_1's 0x50-byte entry), so the column-major [R|t] is the
+    transpose of the rotation block with the row-3 translation; worlds
+    compose parent-first (W_b = W_parent . L_b), matching bone_init's
+    skeleton walk and bake_native_slide's frame-0."""
+    worlds = []
+    for b in range(len(parents)):
+        r = rests[b]
+        local = [[r[0][0], r[1][0], r[2][0], r[3][0]],
+                 [r[0][1], r[1][1], r[2][1], r[3][1]],
+                 [r[0][2], r[1][2], r[2][2], r[3][2]]]
+        p = parents[b]
+        worlds.append(local if p < 0 else lvl.mat34_mul(worlds[p], local))
+    return worlds
+
+
+def build_posed_blob_mesh(d: bytes, off: int):
+    """Multi-node per-area-table static blob -> one MODEL-LOCAL EMDL
+    section with each node's REST-POSE world transform baked into that
+    node's slot verts (so an n-node assembly collapses to a static mesh
+    posed exactly as bone_init_default_1 poses it at INIT — e.g. the
+    AREA11 egg/growth fixture, table id 0x0e: slot-1 top cap lifted by
+    its node-1 rest (0,12,0)). Normals are rotated slot-locally for the
+    stand-in light. The 1-node case is identical to build_blob_mesh."""
+    parents, rests = model_rec_nodes(d, off)
+    worlds = _rest_world34(parents, rests)
+
+    raw_pos, raw_col, raw_bone, raw_uv, raw_tex = [], [], [], [], []
+    tris = []
+    weld = {}
+    tex_table: list[dict] = []
+    tex_of = make_tex_of(tex_table, {})
+
+    def vid_of(p, c, uv, t):
+        key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
+               round(c[0], 3), round(c[1], 3), round(c[2], 3),
+               round(uv[0], 5), round(uv[1], 5), t)
+        i = weld.get(key)
+        if i is None:
+            i = len(raw_pos)
+            weld[key] = i
+            raw_pos.append(p)
+            raw_col.append(c)
+            raw_bone.append(0)
+            raw_uv.append(uv)
+            raw_tex.append(t)
+        return i
+
+    for q, corners, parity in model_tris_slots(d, off):
+        t = tex_of(q)
+        ids = []
+        for p, a, uv, s in corners:
+            m = worlds[s] if s < len(worlds) else lvl.IDENT34
+            ids.append(vid_of(lvl.mat_apply(m, p), attr_color(a, m), uv, t))
+        a, b, c = ids
+        if parity:
+            tris.extend((c, b, a))
+        else:
+            tris.extend((c, a, b))
+
+    return [(raw_pos, raw_col, tris, raw_bone, raw_uv, raw_tex)], \
+        tex_table, parents
+
+
+def export_egg(args):
+    """--egg: carve the AREA11 destructible egg/growth fixture (per-area
+    model-table id 0x0e — the func_00156620 / kind-0x46 mesh, placement
+    model byte 0x18) as a static MODEL-LOCAL EMDL with the 2-node rest
+    pose baked, written to --out (the port ships it as enemy_egg.emdl at
+    the assets root, the sibling of enemy_crate/enemy_bug). Source flags
+    mirror --crate (--crate-table/--crate-table-off/--crate-dir/--uploads
+    + --gsdump/--p2s for texels)."""
+    uploads = None
+    if args.crate_dir:
+        src = Path(args.crate_dir)
+        d = lvl.office0_concat(src)
+        table_off = (args.crate_table_off if args.crate_table_off is not None
+                     else lvl.OFFICE0_TABLE_OFF)
+        uploads = lvl.office0_uploads(src, args)
+        print(f"egg source: {src}/ concat model-table @{table_off:#x} "
+              f"entry {args.crate_id:#04x}")
+        print(f"  texel source: GS-upload replay of "
+              f"{', '.join(p.name for p in uploads)}")
+    else:
+        src = Path(args.crate_table)
+        d = src.read_bytes()
+        table_off = (args.crate_table_off if args.crate_table_off is not None
+                     else CRATE_TABLE_OFF)
+        print(f"egg source: {src} model-table @{table_off:#x} "
+              f"entry {args.crate_id:#04x}")
+    off = table_entry_offset(d, table_off, args.crate_id)
+    nb, qwc, nn, size = struct.unpack_from("<4I", d, off)
+    print(f"  blob: {nb} block(s), {nn} node(s), size {size:#x} -> blob @{off:#x}")
+
+    sections, tex_table, parents = build_posed_blob_mesh(d, off)
+    pos = sections[0][0]
+    if not pos:
+        raise SystemExit("no geometry produced")
+    xs = [p[0] for p in pos]; ys = [p[1] for p in pos]; zs = [p[2] for p in pos]
+    print(f"  mesh (rest-posed, {nn} nodes -> static, rig {parents}): "
+          f"{len(pos)} verts, {len(sections[0][2]) // 3} tris, "
+          f"{len(tex_table)} texture(s), local bbox "
+          f"X[{min(xs):.2f},{max(xs):.2f}] Y[{min(ys):.2f},{max(ys):.2f}] "
+          f"Z[{min(zs):.2f},{max(zs):.2f}]")
+    for tf in tex_table:
+        print(f"  tex: psm {tf['psm']:#x} {1 << tf['tw']}x{1 << tf['th']} "
+              f"tbp {tf['tbp0']:#x} cbp {tf['cbp']:#x}")
+
+    tex_entries, tex_blob = lvl.build_texture_blob(
+        Path(args.gsdump) if args.gsdump else None, tex_table,
+        Path(args.p2s) if args.p2s else None, uploads)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
+                  tex_entries, tex_blob, flags=1)
+    print(f"wrote {out}")
+    return 0
+
+
 def export_crate(args):
     uploads = None
     if args.crate_blob:
@@ -1680,6 +1803,13 @@ def main(argv):
     ap.add_argument("--crate-blob", help="(--crate) export this pre-carved "
                     "raw blob instead of a table entry (flagged non-office "
                     "stand-in; pair with the matching --p2s)")
+    ap.add_argument("--egg", action="store_true",
+                    help="export a MULTI-NODE per-area model-table fixture "
+                    "(e.g. the AREA11 destructible egg/growth prop, table id "
+                    "0x0e) as a static EMDL with the node REST POSE baked, to "
+                    "--out; shares --crate's source flags (--crate-table/"
+                    "--crate-table-off/--crate-dir/--uploads, --crate-id, "
+                    "--gsdump/--p2s)")
     ap.add_argument("--doors", action="store_true",
                     help="export the placement-table doors as separate "
                     "articulated EMDLs into <outdir>/doors/, write the "
@@ -1730,6 +1860,8 @@ def main(argv):
             and not args.doors_drawbridge:
         ap.error("--out is required (except with --doors/--doors-office0/"
                  "--doors-drawbridge)")
+    if args.egg:
+        return export_egg(args)
     if args.crate:
         return export_crate(args)
     if args.doors:

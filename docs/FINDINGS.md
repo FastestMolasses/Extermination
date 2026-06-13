@@ -14066,7 +14066,8 @@ reserve 60 / battery 0/0) is the remaining front-end work.
   pickups (11, negative coords), light-rig (key 0x0600), camregion, and one
   examine were exported from AREA 06 and are WRONG. Fix = a fresh
   export_level.py pass: `--area 11 --sub 0 --overlay extract/OVERLAY/AREA11.BIN`,
-  table 0x82A3C0, `--spawn 250.8,229.9,209,0.610864`, dest→area2,
+  table 0x82A3C0, `--spawn 250.8,229.9,209,0.610864`, dest = intra-area
+  room-move record (NOT →area2; corrected — see the registry bullet above),
   light key 0x0B00, pickups D_0024D820[11] (examine area-11 only); REMOVE the
   area-6 camregion + area-6 examine; ADD the 4 crawlers (+ the 2 nest
   fixtures once func_00156620 is ported). Caveat: the area-11 pickup models
@@ -14334,6 +14335,25 @@ husk pair. Class taxonomy (record +0x00 & 0xFF1F): 0x04 generic, 0x05/0x85
 double-door, 0x08 door-assembly, **0x09 = pos-0 scripted-system manager**, 0x0D
 scripted spawner (here a sound/fx emitter, NOT the enemy generator), 0x84/0x85/
 0x86 = class-4 interactive/variant, 0xAA = scripted interactive actor.
+
+### 8. AREA-11 item + egg MODELS carved (s78)
+
+The first level's collectible + egg meshes are carved (`tools/export_props.py`),
+verified loading via the port's `em_model.c`, and the 7 pickups are now ACTIVE
+in scene_snow (no load failures):
+- **model 0x72 = a SHARED chunk27 LIBRARY mesh** (`chunk27/f01_id37.bin` entry
+  0x72; 365 v / 220 t / 12 tex) — `props/item_72.emdl` is BYTE-IDENTICAL across
+  scene_snow / drawbridge / office0. The earlier "wrong area-06 variant" note
+  was FALSE; it's the same mesh everywhere. (`--pickup-items 0x72`.)
+- **model 0x0b = AREA-11 per-area table** (chunk15 model table @ file off
+  0x5000, entry 0x0b; 4 v / 2 t / 1 tex) → `props/area_item_0b.emdl`
+  (`--area-items 0x0b --crate-table extract/chunk15/f05_id97.bin --crate-table-off 0x5000`).
+- **egg model = per-area table entry 0x0e** (the placement model byte is 0x18
+  but records [14]/[15] bind via param 0x0e), a **2-node** assembly (node 1 =
+  top cap, rest +12 Y). The new additive `export_props.py --egg` mode bakes the
+  node rest pose into a static mesh → `assets/enemy_egg.emdl` (66 v / 56 t /
+  3 tex, bbox Y[0,12]) — staged for the future EM_ENEMY_KIND_EGG. (Drawbridge
+  `--area-items` reproduce stays byte-identical after the --egg addition.)
 
 _Last updated: 2026-06-12 (session 78)._
 
