@@ -14043,11 +14043,19 @@ reserve 60 / battery 0/0) is the remaining front-end work.
   entries, entry 0 = opening); placement `D_0024D7C0[11]`=0x2759AC→table
   **0x82A3C0** (21 records); deferred-spawn `D_0024D820[11]`=0x2759A8 (9
   records: 6 item-display + 1 collectible + 2 scripted); dest
-  `D_0024E140[11]`=0x002755F8 (**1 door, bytes 02 01 00 00 → AREA 2 office,
-  entry 1** — the first level's progression is snow→office); light-rig key
+  `D_0024E140[11]`=0x002755F8 (**1 door, bytes 02 01 00 00 — an INTRA-AREA
+  ROOM-MOVE, NOT snow→office** [CORRECTED s78]: the door's placement flags2
+  byte = 0x00 → actor +0x34 = 0 → `func_001BC150` takes the bit7-CLEAR
+  room-move branch (B8==2), so `02 01 00 00` is the {side0→entry 2, side1→
+  entry 1} room-move template, NOT {area 2, entry 1}. Entries 1/2 =
+  (413.7,184.8,299.4)/(424.2,184.8,274.5) flank the door at y=184.8 — a
+  textbook room-move pair. **The real snow→office progression is a SCRIPTED/
+  story transition, not a door** [unresolved — candidate: the powered
+  wall-switch path 0x82A750 or an end-of-level script]); light-rig key
   **0x0B00** (NOT 0x0600/area6); **NO fixed-camera region** (chase + the
   s67 eye-height rect only — the camregion in scene_snow is area 6's).
-- **AREA 11 placements** (table 0x82A3C0): a door (→office), 4 placed
+- **AREA 11 placements** (table 0x82A3C0): the room-move door (record 0, model
+  3, sounds 0x401/0x402, unlocked), 4 placed
   crawlers (model 6, fn 0x001551B0 — the crate-crawler the port models), 2
   destructible nest/egg fixtures (model 0x18, kind 0x46, fn **func_00156620**
   — UNMODELED in the port), the EXAMINE wall-switch (model 0, kind 3, fn
@@ -14064,8 +14072,28 @@ reserve 60 / battery 0/0) is the remaining front-end work.
   fixtures once func_00156620 is ported). Caveat: the area-11 pickup models
   (0x72 library / 0x1B objects) need the per-area model-table carve (same
   open item as the office items) — emit unavailable ones as commented lines.
+- **DONE (s78):** scene_snow is now AREA-11-faithful. export_level.py was
+  extended (additive, snow mesh export still byte-identical — reproduce
+  verified): `CAMREGION_NONE[11]` (accurate "director case exists but the
+  D_0024A5F0[1] binding is the func_00230000 AIM tweak, not a fixed eye"
+  verdict), an `EXAMINE_DECODE[(11, 0)]` key (the AREA11 switch alone, so
+  the snow scene exports its examine WITHOUT the AREA06 wall switch), and
+  the misleading "snow mesh shared by 6 & 11" docstring note corrected.
+  scene.txt regenerated via `--camregions/--lightrig/--pickups/--examine
+  --area 11`: light rig = key 0x0B00 (D_00251C50[30], amb 32 vs area-6's
+  26), area-6 camregion + area-6 examine + area-6 pickups REMOVED. Added:
+  4 `enemy crate ... bugs 0 variant 6` crawler lines (table 0x82A3C0
+  fn 0x1551b0, link -1 = gore-only; yaw 0 confirmed from the table), 2
+  egg props as COMMENTED `# enemy egg` placeholders (fn 0x156620 model
+  0x18 — EM_ENEMY_KIND_EGG ported separately), the door as a comment
+  (s78-CORRECTED to an intra-area ROOM-MOVE, not snow→office; no carved door
+  mesh yet — see §6), and the 7 area-11
+  pickups COMMENTED (models 0x72/0x0b need the per-area carve). Port load
+  verified (capture frame 90): spawn (250.8, 229.9, 209) yaw 0.611, light
+  amb (32,32,32), 4 enemies, 0 pickups, 1 examine, 0 doors, no load
+  failures, player standing on snow ground.
 
-_Last updated: 2026-06-12 (session 77)._
+_Last updated: 2026-06-12 (session 77; scene_snow AREA-11 fix s78)._
 
 ## SCREEN-MODULE ART EXPORTER — title (module 1) + game-over (module 0x27) extracted; tools/export_screen_modules.py (2026-06-12, session 77)
 
@@ -14266,7 +14294,48 @@ Remaining exact-match gaps (NONE affect the lamp-less snow first level):
 from `+0x8C`−1) into col/amb BEFORE the 255 clamp (port tints post-modulate).
 Static geometry uses BAKED vertex colors, not this kernel (port already does).
 
-_Last updated: 2026-06-12 (session 77)._
+### 7. AREA-11 first-level CONTENT — the scripting spine + mechanisms (s78)
+
+Beyond the 4 crawlers + 2 egg props + examine switch, the AREA-11 table
+(0x82A3C0) + deferred registry hold the level's scripted content.
+GAMEPLAY-relevant (model eventually):
+- **Scripting spine — 3 class-0x09 managers** (pos-0 system actors, overlay
+  fns 0x823CE0 / 0x8253F0 / 0x8257A0): a player-region + event-flag sequence
+  on `D_00810813` (steps 0→0x10→0x20→0xFF) + fade/music transitions, keyed to
+  the `D_00810758[]` flag array (`D_00810788`/`0792`/`0808`/`0814`). Drives the
+  opening beats, the bug story-stage swap, and the lead-out (likely the real
+  snow→office trigger lives here or in the wall-switch path).
+- **Scripted-event actor** (record 8, class 0xAA, fn 0x8237E0 @(331.7,290,192.5)):
+  story-byte anim + music + fade (cutscene-lite).
+- **Scripted key-item pickup** (record 10, class-4 kind-0xB, fn 0x823E80
+  @(235.1,230,185.6)): item type 0x11, take-CUTSCENE → `func_001C4760` key-item
+  acquire. A real collectible.
+- **Gated grate** (record 18, fn 0x00159210 @(240,245,232.8), model 0x24):
+  opens on its `D_00810841[11]` unlock bit — blocks a path.
+- **Moving mechanism + trigger volume** (records 16/17, fns 0x823FF0/0x8251E0,
+  SE corner ~(380,164,391), gated `D_00810792`): frame-counter-driven prop/lift
+  + an AABB event volume (exact motion unpinned — live-flag).
+- **Door-position creature/husk set-piece** (deferred `D_0024D820[11]` cond-0,
+  both @(387,231.8,290.3)): model 0x1A (fn 0x825940) = an FX-heavy scripted
+  creature that SPAWNS one child (`func_001AFA90`); model 0x29 (fn 0x827490) =
+  a shootable HP-1 husk (polls +0x36, burst FX 0x80000045), partner-linked.
+  The first-monster moment near the room-move door.
+- Doors: the intra-area room-move door (record 0, §6) + a door assembly
+  (record 9, fn 0x1C5C90).
+
+COSMETIC/ambient (skip first-pass): a looping-sound + steam/fx emitter (record
+7, class 0x0D, fn 0x8235F0, sound 0x413 @(452,278,277)); item-display decor
+(records 1/2, model 0x1B); a static prop (record 20, fn 0x1C4820).
+
+**KEY NEGATIVES**: AREA 11 has NO enemy GENERATOR/wave spawner (no class-0x0D
+model-3 `func_0015A2C0`) and NO weather-particle actor (weather is global
+render). First-level enemy content = 4 crawlers + 2 egg fixtures + the door
+husk pair. Class taxonomy (record +0x00 & 0xFF1F): 0x04 generic, 0x05/0x85
+double-door, 0x08 door-assembly, **0x09 = pos-0 scripted-system manager**, 0x0D
+scripted spawner (here a sound/fx emitter, NOT the enemy generator), 0x84/0x85/
+0x86 = class-4 interactive/variant, 0xAA = scripted interactive actor.
+
+_Last updated: 2026-06-12 (session 78)._
 
 ## WALK-STATE CAMERA DECODED — func_00230000 + the eye TETHER func_0022FCA0; the camera has NO heading policy while moving (2026-06-11, session 67)
 

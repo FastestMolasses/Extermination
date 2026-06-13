@@ -1193,9 +1193,33 @@ EXAMINE_DECODE = {
             "script 0x82A750 (anim 0x47 throw) is gated on the unlock"
             " bit — 0 at new game; not emitted. The op01 walk-to and",
             "op04 face are FLAGGED-omitted in the port (input pause"
-            " only). Emitted into the snow scene: the AREA11 region",
-            "shares the exported snow world mesh (the scene spawn"
-            " sits 50 u from this switch).",
+            " only). Emitted into the snow scene: AREA11 IS the snow",
+            "level (chunk15 = the port's scene_snow mesh; AREA06 ="
+            " chunk10 is a SEPARATE adjacent snow area, NOT a sub-state",
+            "of 11 — s77 correction). The scene spawn sits ~50 u from"
+            " this switch.",
+        ])],
+    # AREA 11 (the first snow level = scene_snow) examine block: the
+    # SAME AREA11 wall switch as the (6,0) composite's second entry, but
+    # registered under the area's own key so the snow scene exports its
+    # examine WITHOUT pulling in the AREA06 wall switch (which belongs to
+    # chunk10, a different area). s77, FINDINGS "NEW-GAME -> FIRST-LEVEL
+    # PATH" sec 6: scene_snow must carry the area-11 examine ONLY.
+    (11, 0): [dict(
+        overlay="AREA11.BIN", fn=0x827B10,
+        desc=("ov+anchor", 0x82AB10),      # {(222,230,250.4), 5, 20}
+        gline=("ov", 0x82AA90),            # op0C line 0x8000001A
+        chain=None, delay=0, cam=None,
+        cooldown=300,                      # the +0x2A refusal cooldown
+        notes=[
+            "the AREA11 switch (placement [19], flags2 7 = unlock bit"
+            " 7 of D_00810841[11]) — UNPOWERED REFUSAL script",
+            "0x82A990: walk-to + face + chase cue (op0D sub5) +"
+            " GLOBAL line 0x1A + 300-frame cooldown. The powered",
+            "script 0x82A750 (anim 0x47 throw) is gated on the unlock"
+            " bit — 0 at new game; not emitted. The op01 walk-to and",
+            "op04 face are FLAGGED-omitted in the port (input pause"
+            " only). This is the snow level's ONE examine object.",
         ])],
 }
 
@@ -1814,6 +1838,14 @@ CAMREGION_NONE = {
         "overlay never writes the camera struct/pool — but see the "
         "SPAWN-RECORD camera above: room-1 entry 3 pins the supply-room "
         "corner camera."),
+    11: ("AREA11 (the first snow level) HAS a func_00195130 director case, "
+         "but its D_0024A5F0[1] binding is a func_00230000 AIM "
+         "target-height tweak (+12 eye height), NOT a fixed-eye region "
+         "(s77, FINDINGS \"NEW-GAME -> FIRST-LEVEL PATH\" sec 6 + the "
+         "camera-region census). So the snow scene runs generic chase "
+         "with no pinned eye. (The area-6 fixed eye (-367.7, 90, -598.9) "
+         "in D_0024A5F0[2] belongs to AREA06/chunk10, a DIFFERENT area — "
+         "it must NOT appear here.)"),
 }
 
 
