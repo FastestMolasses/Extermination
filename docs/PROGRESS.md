@@ -144,6 +144,41 @@ Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
 
+> 2026-06-12 (session 77): THE BEGINNING OF THE GAME — boot→new-game→
+> first-level path decoded (live + static) and the first-level opening
+> fixed; screen-module ART exporter shipped. (1) BOOT FLOW: the title
+> front-end is the continue machine func_001AC070 (from-death flag 0 =
+> TITLE); NEW GAME → func_001ACEC0 → func_001AD230 → func_001AF2C0
+> (new-game init: health 100 / infection 0 / mag 30 / reserve 60 /
+> battery 0/0 — matched a LIVE read byte-for-byte). func_001AF2C0
+> leaves area=0; **PLAIN C sets area 11 — NO FMV/cutscene** (s77 trace
+> corrects the earlier inference): func_001AD360 sub3 (0x001AD460)
+> writes 0x810700=0x0B, then func_001ADF50 (load-gate + procedural
+> shimmer overlay, NO name-card) + func_001AE040 fade-in → gameplay;
+> area 0 is never loaded; the EXTER1.DAT FMV is a separate task. So the
+> port can reproduce the opening with NO media. (2) FIRST PLAYABLE LEVEL
+> = AREA 0x0B (11) snow, read LIVE
+> from a fresh new game (player parked at spawn entry 0, untouched
+> inventory): opening spawn (250.8, 229.9, 209.0), yaw 0.611, camdist
+> -46.8 (tbl 0x24C850). The port's scene_snow `spawn` line was stale
+> savestate data — CORRECTED + verified live (player stands on snow at
+> the base exterior, the game's opening view); snow-using gates
+> (EM_EXAMINE_TEST, EM_CAPTURE_EXAMINE) still PASS; default capture
+> byte-identical (no src change). (3) SCREEN-MODULE ART EXPORTER:
+> tools/export_screen_modules.py extracts module 1 (title/continue =
+> chunk01, 512x768) + module 0x27 (game over = chunk39, 512x576) to
+> title.emui/gameover.emui — module id == DATA.DAT chunk index;
+> reproduce-verify vs textures/chunk01_f00_id06.png PASS. NEW finding:
+> these atlases are V-correct but per-sprite H-mirrored (sprite sheets,
+> distinct from the VRAM PSMT4 V-flip convention). COLOR is capture-
+> gated (CLUTs are VRAM-synthesized, not on disc) — ships grayscale, the
+> --gs/--cbp color path is wired but UNVERIFIED. Per the user: gameplay-
+> first boot stays (title MENU wiring deferred); the art is extracted so
+> it's ready. FINDINGS: "NEW-GAME → FIRST-LEVEL PATH" + "SCREEN-MODULE
+> ART EXPORTER". Open (in flight, parallel decode): the opening
+> FMV/cutscene→area-11 mechanism, AREA 11 content + area-6/11 relation,
+> the bug projectile attack.
+
 > 2026-06-12 (session 76): BUG BRAIN STATE MACHINES DECODED — closes
 > the headline s68 open item (work-queue #1). Static decode of the two
 > crate-hatchling BUG brains func_00128C10 (0xB6C) / func_0012A5D0

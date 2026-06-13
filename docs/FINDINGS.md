@@ -13918,6 +13918,356 @@ they would replace the port's capsule stand-in).
 
 _Last updated: 2026-06-11 (session 70)._
 
+## NEW-GAME → FIRST-LEVEL PATH — boot front-end is the continue machine; new-game init `func_001AF2C0`; first PLAYABLE level = AREA 11 snow, opening spawn decoded live (2026-06-12, session 77)
+
+Closes "how the engine gets from boot to the first playable level" (the
+session-77 brief). Decoded from the local splat .s + a live PCSX2 read of
+a fresh new game parked at the opening (the running first-level session).
+
+### 1. The front-end IS the continue/title machine `func_001AC070`
+
+The title front-end is the SAME 7-state machine the s70 game-over decode
+already documented (jtbl 0x0026DC90), just installed with the from-death
+flag (`gp-0x7794` / `D_00275BDC`) = **0** for the TITLE path (install site
+`0x001AB9A0`) vs 1 from death (`func_001ADF00`). state 0 reads the flag:
+0 → state 1 (TITLE/attract), nonzero → state 2 (CONTINUE prompt). The
+state-2 prompt sub-machine `func_001AC480` shows SCREEN MODULE 1 (the
+title/continue screen) with cursor init 0 (title) / 1 (death); confirm
+cursor 0 → state 4 = `func_001AB790(func_001ACEC0)` — **reinstall the
+gameplay task** with `D_00275BE0` = 0, `D_00275BDC` = 0 (= NEW GAME).
+
+### 2. Game task `func_001ACEC0` routes NEW GAME vs LOAD
+
+The slot-0 game task (byte+8 machine, live state 3 in gameplay):
+- state 0 → `func_001AD1A0`; on ready, branch on **`D_00275BE0`**:
+  **0 → state 1** (NEW GAME), **else → state 2** (LOAD). +9 = +0xA = 0.
+- **state 1 = `func_001AD230`**: calls `func_001AF2C0` (new-game init)
+  and returns 4 → state 3. (It does NOT set the area — see §4.)
+- state 2 = `func_001AD230`-less load arm → state 3 (+9 = 5).
+- state 3 → `func_001AD250` (the in-game frame machine, live gameplay).
+
+### 3. New-game init `func_001AF2C0` (0x1A4 B) — the inventory/state reset
+
+(FINDINGS s21 cited "0x001AF380" — that address is MID this function.)
+- `func_00121A28(D_00810700, 0, 0x640)` — **memset the area+inventory
+  block 0x810700..0x810D40 to 0** (so AREA `0x810700` → 0, sub → 0,
+  entry → 0), then `D_00810703` (built-area mirror) = `D_00810704` =
+  `D_00810705` = **0xFF** (forces a load on the first frame; the request
+  bytes `0x8106B5..` are BELOW the memset range and stay 0).
+- Boot-config bytes `D_00810118/119/11C/120/122` copied to
+  `D_00810708/709/70C` + `D_00810754/756` (difficulty/option carry).
+- **The REAL new-game player state**: health `D_00810858` = 100.0
+  (0x42C80000), infection `D_0081085C` = 0, SPR4 mag `D_00810C62` =
+  **0x1E (30)**, SPR4 reserve `D_00810CB4` = **0x3C (60)**, battery
+  current `0xCB2` = 0 / max `0xCB7` = 0 (battery is acquired as an item
+  later — confirms s21), aim-options `0x810CA4` = 0xFF, `0x810CA5` = 5,
+  `0x810CA7` = 7, fire-mode `0x810C61` = 0, item-count seeds
+  `0x810C64/69/6B/D20..D23` = 1, `0x810C7B` = 1; `func_001C40B0(0x10, 2)`.
+  **All of these matched the live read byte-for-byte** on the parked
+  first-level session.
+
+### 4. The first PLAYABLE level = AREA 0x0B (11), the SNOW level
+
+**The area is set by PLAIN C CODE — NO FMV, NO cutscene** (s77 static
+trace, CORRECTING the earlier inference that an opening FMV/cutscene loads
+it). `func_001AF2C0` leaves area = 0, but **`func_001AD360` substate 3
+(vram `0x001AD460`) directly writes `D_00810700` = 0x0B (area 11), sub = 0,
+entry = 0** before any area load — so **area 0 is never a loaded
+transient**, just a momentarily-zeroed value. The sequence (sub-machine
+`func_001AD250` while game-task byte+8 == 3):
+```
+func_001ACEC0 state0  func_001AD1A0: load screen module 3 (func_001FF080(0,3) —
+                      a DATA.DAT load/intro IMAGE, NOT a movie); D_00275BE0==0 → state1
+        state1  func_001AD230 → func_001AF2C0 (init; area→0) → state3
+        state3  func_001AD250 sub0  func_001AD360  6-step seq; SUB 3 SETS area=0x0B
+                func_001AD250 sub5  func_001ADF50  area build + area-title-card + fade
+                                    (func_0021B180/550/840 + func_001D2830)
+                func_001AD250 sub1  func_001AD4D0 = j func_001AE040 (frame machine):
+                  state0  func_001AFCA0→func_001D0660→func_001E7780 overlay dispatch
+                          (area 11 → arm 0x0B00 → loads OVERLAY/AREA11.BIN);
+                          func_001B07C0 places player from D_0024D650[11] entry 0
+                  state1  per-frame; selector 0x70003B8D (cleared every frame by
+                          func_001AFCF0) == 0 → func_001AE5E0 = first gameplay frame
+```
+The EXTER1.DAT FMV + the libmpeg/movie cluster (0x203/0x206) EXIST but are
+a self-installed separate task with NO caller on this chain — no FMV gates
+reaching area-11 gameplay. The opening is interactive gameplay, not a
+pre-baked cutscene (any area-11 opening cutscene would be triggered by the
+area's own scripted actors via the 0x70003B8D → func_001AE6B0 variant).
+**Port upshot: "the beginning of the game" needs NO media — set area 11 /
+sub 0 / entry 0, build the area, place the player, fade in.** LIVE GROUND
+TRUTH (PCSX2 paused on a fresh new game): `0x810700` = **0B 00 00 0B**
+(area 11, sub 0, entry 0, built 11); the player actor `D_008102B0+0xA0`
+sat EXACTLY at spawn entry 0 with the §3 inventory unmodified (battery
+0/0, mag 30, reserve 60) = a brand-new game, unmoved.
+
+**Opening spawn** (area 11 / sub 0 / entry 0; spawn-chain
+`D_0024D650[11]`=0x275540 → sub-tbl 0x0024C850, entry 0):
+```
+pos   (250.8, 229.9, 209.0)      x=0x437ACCCD y=0x4365E666 z=0x43510000
+yaw    0.610864 rad (~35 deg)    0x3F1C61AB
+camdist -46.8 (+0x18)            0xC23B3333  (the default per-record dist)
+```
+The AREA11 wall switch is at (222, 230, 250.4); the spawn sits ~50 u
+from it (matches the snow scene.txt comment). NOTE: the port's
+`scene_snow` is a composite — its world MESH is the snow chunk shared by
+areas 6 & 11, its pickups/region/light-rig were exported from AREA06,
+and it carries the AREA11 examine switch. Its old
+`spawn 218.592 229.85 201.789 0` was a manual value from savestate-01's
+mid-level player pos (export_level.py recorded CLI), NOT the area-11
+opening. **Corrected to the values above** (verified live: player stands
+on valid snow ground at the base exterior — the game's opening view). A
+future re-export should pass `--spawn 250.8,229.9,209,0.610864`.
+
+### 5. Port status (s77) — gameplay-first, title deferred
+
+Per the user's call, the boot→title front-end WIRING is deferred (boot
+stays straight-to-gameplay for testability); the title MENU lands later.
+This session corrects the first-level opening spawn (above) and ships the
+screen-module art EXPORTER (next section) so the title/game-over art is
+ready when the front-end is wired. The continue machine is already ported
+as the from-death GO skeleton (s70); generalizing it to the from-death=0
+TITLE mode + new-game inventory seed (health 100 / infection 0 / mag 30 /
+reserve 60 / battery 0/0) is the remaining front-end work.
+
+### 6. AREA 11 content + the area-6/11 distinction (s77 decode)
+
+- **Area 6 ≠ Area 11** — DISTINCT adjacent snow areas, NOT one area in
+  different sub-states. AREA 11 render geometry = **chunk15** (= the port's
+  scene_snow mesh — CORRECT); AREA 6 = chunk10. They only touch at AREA 6
+  sub-3 (which also maps to chunk15). The "snow mesh shared by 6 & 11"
+  comment in export_level.py is misleading — correct it. AREA 11 is
+  single-sub-state (overlay dispatcher `func_001E7780` has only the 0x0B00
+  arm → arena 0x008237C0; area-state tick `func_008237A0`).
+- **AREA 11 registry**: spawn `D_0024D650[11]`=0x275540→0x0024C850 (7
+  entries, entry 0 = opening); placement `D_0024D7C0[11]`=0x2759AC→table
+  **0x82A3C0** (21 records); deferred-spawn `D_0024D820[11]`=0x2759A8 (9
+  records: 6 item-display + 1 collectible + 2 scripted); dest
+  `D_0024E140[11]`=0x002755F8 (**1 door, bytes 02 01 00 00 → AREA 2 office,
+  entry 1** — the first level's progression is snow→office); light-rig key
+  **0x0B00** (NOT 0x0600/area6); **NO fixed-camera region** (chase + the
+  s67 eye-height rect only — the camregion in scene_snow is area 6's).
+- **AREA 11 placements** (table 0x82A3C0): a door (→office), 4 placed
+  crawlers (model 6, fn 0x001551B0 — the crate-crawler the port models), 2
+  destructible nest/egg fixtures (model 0x18, kind 0x46, fn **func_00156620**
+  — UNMODELED in the port), the EXAMINE wall-switch (model 0, kind 3, fn
+  overlay 0x00827B10 at (224,230,250.7); unpowered-refusal default = GLOBAL
+  line 0x1A + 300-f cooldown, powered throw gated on unlock bit 7 of
+  D_00810841[11] = 0 at new game), plus manager/particle records.
+- **scene_snow is AREA-11-faithful in MESH/COLLISION/SPAWN only**; its
+  pickups (11, negative coords), light-rig (key 0x0600), camregion, and one
+  examine were exported from AREA 06 and are WRONG. Fix = a fresh
+  export_level.py pass: `--area 11 --sub 0 --overlay extract/OVERLAY/AREA11.BIN`,
+  table 0x82A3C0, `--spawn 250.8,229.9,209,0.610864`, dest→area2,
+  light key 0x0B00, pickups D_0024D820[11] (examine area-11 only); REMOVE the
+  area-6 camregion + area-6 examine; ADD the 4 crawlers (+ the 2 nest
+  fixtures once func_00156620 is ported). Caveat: the area-11 pickup models
+  (0x72 library / 0x1B objects) need the per-area model-table carve (same
+  open item as the office items) — emit unavailable ones as commented lines.
+
+_Last updated: 2026-06-12 (session 77)._
+
+## SCREEN-MODULE ART EXPORTER — title (module 1) + game-over (module 0x27) extracted; tools/export_screen_modules.py (2026-06-12, session 77)
+
+Closes work-queue #5's asset side (the title/attract + game-over ART). The
+new exporter `tools/export_screen_modules.py` extracts the engine's
+full-screen UI "screen modules" into port-ready `.emui` assets, reusing the
+GS-texture-packet decode in `extract_textures.py`.
+
+### 1. Module id == DATA.DAT chunk index (verified)
+
+A screen module loads via `func_001FF080(0, id)` → `func_001FF1E0`, which
+reads INDEX.IDX sector `id` as a header and pulls the chunk from DATA.DAT
+(s26 "STATUS SCREEN UI TEXTURES"; extract_data.py: "sector i is the
+descriptor for chunk i"). So **module id == chunk index** — no separate map
+to verify. The two full-screen art modules:
+
+| module | chunk file | launched by | TRXREG (32bpp) | PSMT8 atlas |
+|---|---|---|---|---|
+| **1** title/continue | `extract/chunk01/f00_id06.bin` | `func_001AC480` sub 0 → `func_001FF080(0, 1)` | 256x384 | **512x768** |
+| **0x27** game over | `extract/chunk39/f00_id00.bin` | `func_001AD4E0` sub 1 → `func_001FF080(0, 0x27)` | 256x288 | **512x576** |
+
+Each module file carries exactly ONE `07 XX 00 60` GS texture-upload packet
+at offset 0 (IMAGE GIF at 0x80); `extract_textures.deswizzle()` recovers the
+(w*2 x h*2) PSMT8 indexed atlas. The module-1 indexed plane is BYTE-IDENTICAL
+to the existing `textures/chunk01_f00_id06.png` (reproduce anchor, PASS).
+
+### 2. Orientation — V is correct, H is per-sprite mirrored (NEW finding)
+
+These DATA.DAT full-screen atlases differ from the resident-VRAM PSMT4 hub
+decor (export_ui.py, stored V-flipped):
+- **Vertical: already screen-oriented** (EXTERMINATION wordmark at top) — NO
+  V-flip, matching extract_textures.py and the anchor byte-for-byte.
+- **Horizontal: a SPRITE SHEET, not one background** — regions are blitted
+  with their own UVs at draw time and some are stored H-MIRRORED (e.g. the
+  footer copyright line is mirrored while the wordmark/"GAME OVER" heading is
+  not; a global H-flip just swaps which set is mirrored). So NO single global
+  flip makes the whole atlas read right. The exporter ships the **raw,
+  anchor-identical atlas verbatim**; the per-sprite UV/flip layout is the
+  port's title-menu job (deferred). `--vflip`/`--hflip` exist for inspection.
+
+### 3. COLOR is capture-gated (not on disc)
+
+The atlas is MULTI-PALETTE and its CLUTs are engine-synthesized in GS VRAM,
+NOT stored on disc (s26 proved zero disc-blob matches; "title-screen colour
+reproduction"). So the reproducible-from-disc export is correct
+**grayscale** (identity ramp). Color requires a user-supplied title-screen GS
+VRAM dump — the exporter's `--gs <gs.bin> --cbp <CBP>` path mirrors
+export_ui's resident-CLUT read (base = len−0x400000−84, csm1-unswizzle, alpha
+0..0x80→0..255) but is UNVERIFIED: the old menu02 capture survives only as
+pre-rendered PNGs in `scratch/color2/`, and the title is multi-palette
+(s26: wordmark CBP 12174-run, X-ray hand CBP 12158-66, blue region 12288, UI
+CBP 8368) so full color also needs the per-region CBP bindings from the title
+draw `func_001AC7F0` (undecoded). OPEN: a fresh title-screen VRAM capture +
+the func_001AC7F0 region decode would unblock faithful color.
+
+### 4. Output + CLI
+
+`title.emui` (512x768) and `gameover.emui` (512x576) → the port's git-ignored
+`assets/` (EMUI v1, one full-screen sprite record each). PNG previews →
+`scratch/screens/`. Recorded CLI (from repo root):
+```
+python3 tools/export_screen_modules.py --module 1    --out-dir ../extermination-port/assets --png scratch/screens
+python3 tools/export_screen_modules.py --module 0x27 --out-dir ../extermination-port/assets --png scratch/screens
+```
+Grayscale until a title VRAM capture is supplied; em_hud wiring deferred with
+the title menu.
+
+_Last updated: 2026-06-12 (session 77)._
+
+## ENEMY → PLAYER DAMAGE CONTRACT + AREA-11 ENEMIES (2026-06-12, session 77)
+
+Parallel-agent decode pass. Three results: the full damage contract (how any
+enemy hurts the player), the AREA-11 egg fixture, and corrections to two
+s76 reads.
+
+### 1. TWO mailboxes — do not conflate (corrects the port)
+
+- **`victim+0x36` (s16) is the ENEMY-side mailbox.** Producers = the
+  player's weapons + the hazard passes; consumers = enemy brains (poll +0x36
+  → own state-2 HURT → HP `+0x34` -= amount). It damages ENEMIES only.
+  Layout: high bits `0x4000`/`0x2000` = type, low byte = amount (e.g. 0x14
+  plain-20, 0x2014, 0x400A = 10+knockback with dir in `victim+0x70`).
+- **The PLAYER (`D_008102B0`) has NO +0x36.** It is damaged by writing
+  `+0x224` (pending health f32), `+0x22C` (pending infection f32), `+0x0F`
+  (type `D_008102BF`), `+0x00` (event: 1 vulnerable / 3 hit-pending) — the
+  s58 fields. **The port's `player_hit = 0x4000|dmg` is a FABRICATION** —
+  replace it with the path below.
+
+### 2. The real player-damage path — `func_001A8BE0`
+
+Per-frame collision tick **`func_001AAD00`** (from gameplay frame
+func_001AE5E0) runs `func_001A8BE0` (PLAYER damage) then `func_001A9000` /
+`func_001A97B0` (ENEMY damage), then double-buffers the actor lists.
+`func_001A8BE0(player)` walks the HAZARD list `D_00275BA0` (gated on no-fade
+`D_0028A9A0==0` + gameplay `0x70003B8D==0`) and dispatches on the hazard's
+class byte `+0x03`:
+- `+0x3==1` → `func_001A8660` (sphere overlap), tables `D_0024A740`/`_780`
+- `+0x3==3` → `func_001A8840` (breather PAD): `+0x22C = 5.0` INFECTION (the
+  s33 "event 3 INFECTS" — pure-infection producer)
+- `+0x3==5` → `func_001A8970` (AABB overlap), tables `D_0024A7C0`/`_800`
+
+Appliers index per-attacker damage by the **attacker's `+0x0D` (attack-kind)**
+and write the player's `+0x224`(/`+0x22C` for infection-paired kinds) + `+0x0F`
++ `+0x00=3`. Decoded magnitude tables (f32, index = `+0x0D`):
+```
+D_0024A7C0 (AABB, NORMAL): {5,5,5,5,30,100,5,10,10,15,10,2,15,15,20}
+D_0024A800 (AABB, HARD):   8/9→15, C/D/E→20 (rest same)
+D_0024A740 (sphere,NORM):  {5,5,5,16,16,8,5,10,10,10,10,15,5}
+D_0024A780 (sphere,HARD):  3/4→20
+```
+Index 5 = 100.0 = INSTAKILL (kind-5 arm sets `+0x224 = +0x220` = current
+health). Infection-paired kinds {9,C,D}(AABB) / {3,4}(sphere) write BOTH
+channels. HARD vs NORMAL selected by `D_0081070A`. Latch (type `+0x0F`=2)
+armed by `func_001A8970` kind-0xE via `func_0021BD10` (vulnerable AND not in
+the `func_0021BB00` anim blacklist = the producer-side i-frame/anim gate).
+These appliers ARE the input stage for `func_0021C440` (which reads `+0x0F`,
+then `func_0021C350` health-=`+0x224` / `func_0021C270` infection+=`+0x22C`).
+The hazard/target lists are grow-down stacks pushed by `func_001B1DA0`
+(hazard, cap 0x30) / `func_001B1D20` (target, cap 0x80), zeroed each frame.
+
+### 3. CORRECTION — the s76 bug "per-class damage table" is the BLOOD DECAL
+
+`func_001B5360 → jtbl_0026DEA0 → func_001F9100/9180 → func_001F8D30` is the
+**hit-FX / blood-decal SPRITE renderer**, NOT a damage applier. The
+{0:2.0,1/2:4.2,...} table is sprite SIZES ($f12) and 30.0/0.0 ($f14) a splat
+knockback distance — `func_001F8D30` does camera-projection + edge-test +
+`func_001CE300` draw and writes NO player field. **Do NOT port that table as
+damage.** The bug's real damage = the `func_001A8970` AABB pass + the
+live-verified latch (10 on connect + fast infection drain). (Confirms the
+sibling bug-brain finding: the bug brains spawn only VISUAL effects via the
+factory `func_001EF9D0`; no projectile/actor-allocator in either brain.) The
+port's `BUG_BITE_DMG=5` should become the latch contract. Live-read flag: the
+bug actor's `+0x0D`/`+0x03` (to pin which table row gives the connect-10).
+
+### 4. The beam enemy `func_001E3630` — a real placement-driven projectile
+
+A genuine damaging ENEMY BEAM behavior (lifecycle on `+0x04`: init/fly/
+impact/free; flies a radius-6 segment homing on the player; impact FX
+`0x8000001A`). It writes no damage field itself — it is a hazard-list actor
+caught by `func_001A8BE0` (its `+0x0D`/`+0x03` set by its spawner select the
+table row). NO static caller — installed via a placement/behavior record (the
+config near `func_0024CCC8` holds `.word func_001E3630` + floats 4.0, 2.0).
+This is the only true ENEMY beam/projectile behavior, and the likely source
+of the live "bug projectile" (a SEPARATE actor near the bugs, not the bug
+brain). PLACEMENT SCAN (s77, all 20 overlays / 1106 records): the beam is
+placed in **NO area** — it is a `kind`-indexed PROTOTYPE (kind 0x0D in the
+`func_0024CCC8` table @ 0x00258740: radius 6, behavior func_001E3630, floats
+4.0/2.0/1.0/2.0, count 4, 300.0, 4096.0), spawned at RUNTIME by code that
+stamps the new actor's `+0x03`/`+0x0D` — no static install site. **AREA 11
+(the first level) has NO ranged threat** — only the 4 melee crawlers + 2 egg
+props. To pin the spawner/encounter live: breakpoint 0x001E3630, backtrace
+the caller, read the spawned actor's `+0x03`/`+0x0D`.
+
+### 5. AREA-11 egg/growth fixture `func_00156620` (NEW kind, NOT a hatcher)
+
+CORRECTS the FINDINGS "egg/nest cluster" wording: `func_00156620` is a
+**stationary destructible animated PROP** (a pulsing infected egg/growth),
+NOT a nest that hatches. State machine on `+0x04` (0 init / 1 armed-idle /
+2 active-pulse / 3 free). HP `+0x34` = **1** (any `+0x36` kills); it registers
+itself as a damage TARGET (`func_001B1D20`) only when the player is within a
+proximity gate (so it's shootable up close). On death: a gore/effect BURST
+(`func_001EFD20` FX 0x8000001C/0x80000013/0x8000002E + `func_001F0460` puff +
+sound 0x1A0) then self-free (`func_001AFC10`) — **no children, no husk
+rebind, no player damage**. Procedural wobble (sin/cos of an RNG-seeded phase
+`+0x74`, amplitude tables `D_00246A00`/`D_00246A10`; slow yaw drift), mesh
+**model 0x18** (variants 0x2A/0x0A/0x0C select other FX/sounds), idle sound
+0x1A1 / break 0x1A0. (An AREA-21-only big-event arm `D_00810700==0x15` is dead
+code in AREA 11.) **AREA 11 has 2** at (300,249.7,327.9) and (292.2,249.7,
+326.1). PORT: a new `EM_ENEMY_KIND_EGG` (NOT a crate variant) — INIT →
+armed-idle (wobble + proximity-arm) → on damage → burst FX + alpha-fade
+corpse (reuse the gib/corpse path; no husk, no children); add model 0x18 to
+the victim whitelist; needs the area-11 model-table carve for the mesh.
+
+### 6. LIGHTING (F1) is largely ALREADY CLOSED in the port (verified)
+
+The per-actor light kernel is decoded AND the port already matches it
+(verified against the .s). Kernel (per-VERTEX normal, per-ACTOR matrices,
+VU1 0x23C780 + build `func_001D8690`):
+```
+I_i = max(dot(dir_i, N), 0)   (i=0,1,2; lower clamp 0, no upper clamp)
+rgb = min(ambient + Σ I_i·col_i, 255)        ; col/amb on the GS 0..128 scale
+shade = tex · rgb / 128                       ; 128 = identity, up to ~2× over-bright
+```
+Rig record `D_00251C50` (45×0x78, keyed `(area<<8)|sub`; miss→entry 0; menu→
+key 0xF00; dirs stored as ANGLE PAIRS → `dir=(sin ay·sin ax, cos ax, cos ay·
+sin ax)`, exporter resolves to vectors). **Slot 0 = the CAMERA FILL** (gated
+by actor `+0x2` bit 0x20, set on the player at init / on humans; camera-space
+dir rotated to world by the inverse view rotation each frame; zeroed when the
+flag is clear — the menu turntable). Point-light fold `func_001D7FA0`
+(≤32 slots; `k = 0.1·I / max(dist²,1)`; `dir0 += toL·10k`, `col0 += col·2k`;
+gate `func_001D8270` excludes types {3,8,9,0xB,0xD,0x15-0x17,0x3D,0x3E} +
+size≥30). The port's shader (`em_gfx_metal.m`) + `char_rig_build`
+(`em_game.c`) reproduce the kernel, camera fill, and lamp fold — VERIFIED.
+Remaining exact-match gaps (NONE affect the lamp-less snow first level):
+(a) the `func_001D8270` fold gate (port folds for every actor);
+(b) per-lamp ±1.8° flicker + story-flag lamp gates (office/area-0 only);
+(c) fold the actor RGB mult + self-glow (+64·rgb when +0x2 bit 0x40, glow
+from `+0x8C`−1) into col/amb BEFORE the 255 clamp (port tints post-modulate).
+Static geometry uses BAKED vertex colors, not this kernel (port already does).
+
+_Last updated: 2026-06-12 (session 77)._
+
 ## WALK-STATE CAMERA DECODED — func_00230000 + the eye TETHER func_0022FCA0; the camera has NO heading policy while moving (2026-06-11, session 67)
 
 Full static read of the last unread camera handler `func_00230000`
@@ -15038,8 +15388,25 @@ pending-health field `D_008104D4` = `D_008102B0+0x224`). Verified offsets:
 5. **Too slow / too many bugs → infected death** (the user died twice this
    way; MCP presses are far slower than real mashing).
 
-**BONUS (live):** the bug ALSO has a **PROJECTILE attack** (the port models
-neither it nor the real struggle) — a separate move-helper to decode + port.
+**BONUS (live) — RE-ATTRIBUTED (s77 static decode):** the live "PROJECTILE
+attack" is **NOT the bug**. An exhaustive read of BOTH bug brains
+(func_00128C10 / func_0012A5D0) and their entire move-helper family
+(func_0012ADC0..func_0012DD70) found **no actor allocator (func_001AFA90),
+no hazard push (func_001B1DA0), no weapon spawn** — the only things the bug
+"spawns" are non-damaging VISUAL EFFECTS via the effect factory
+func_001EF9D0 (dust/claw/gore: ids 0x80000006/08/09/2B). The bug's ONLY
+player-damage path is the melee bite (func_0012C490 → func_001B5360 →
+func_0019A570, radius-6 ~10u). So the live ranged hit (`+0x00`→3 with
+`+0x224`/infection untouched) came from a DIFFERENT creature in the
+encounter — most likely the **class-5 hazard pair-pass `func_001A9000`**
+(func_001A9480 writes victim+0x36 = 0x400A) used by crawlers/generators, or
+the **orphan beam `func_001E3630`** (impact FX 0x8000001A, no static caller
+— installed via a runtime actor pointer). **Do NOT add a projectile to the
+port's bug brain** (it would be a fabrication). To pin the real source: on
+the next death/hit capture, breakpoint the player `+0x36` / `+0x00`←3 write
+and read the ATTACKING actor's behavior pointer `actor+0x10` + class byte
+`+0x03`. (The s77 "enemy→player DAMAGE CONTRACT" decode covers func_001A9000
+/ the +0x36 mailbox in full.)
 
 **Port redo required:** replace the s76 auto-shake + detach + per-tick
 drain with: latch → 10-on-connect + a fast infection rise + health drain
