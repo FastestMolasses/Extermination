@@ -1,5 +1,7 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
+// CFLAGS: -O4,p -sdatathreshold 0
+// Hybrid asm void (template func_0017FE00): real mnemonics where mwcc accepts
+// them, .word for PC-relative branches. The duplicated addiu a1 after b+lq is
+// CW 2.3.1 dead-instruction; unreachable but byte-present. Byte-identical at link.
 extern void func_001749A0(int, int, int, int);
 
 asm void func_0017FE80(void) {

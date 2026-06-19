@@ -1,11 +1,107 @@
-// INCLUDE_ASM func_00200890  (vram 0x00200890, 216 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_00200890.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// CFLAGS: -O4,p -sdatathreshold 0
+/* exterm_prelude.h — inlined ahead of m2c --valid-syntax output so it compiles
+ * under CodeWarrior mwccmips (the project uses no system headers). Base int/float
+ * widths first, then the m2c_macros.h definitions. Local tooling only — never
+ * shipped, never part of a matched src file (matched C uses plain types, no header). */
+#ifndef EXTERM_M2C_PRELUDE_H
+#define EXTERM_M2C_PRELUDE_H
+
+typedef signed char        s8;
+typedef unsigned char      u8;
+typedef short              s16;
+typedef unsigned short     u16;
+typedef int                s32;
+typedef unsigned int       u32;
+typedef long long          s64;
+typedef unsigned long long u64;
+typedef float              f32;
+typedef double             f64;
+/* PERMUTER preprocesses base.c with `cpp -DPERMUTER` then parses it with pycparser,
+ * which can't handle GCC mode() attributes — give it a parseable struct form there.
+ * The real mwcc compile (no -DPERMUTER) gets the true 128-bit type. */
+#ifdef PERMUTER
+typedef struct { int _q0, _q1, _q2, _q3; } s128;
+typedef struct { unsigned _q0, _q1, _q2, _q3; } u128;
+#else
+typedef int   s128 __attribute__((mode(TI)));
+typedef unsigned u128 __attribute__((mode(TI)));
+#endif
+
+#ifndef NULL
+#define NULL ((void *)0)
+#endif
+
+extern void *memcpy(void *, const void *, unsigned int);
+
+/* ---- from m2c_macros.h (valid-syntax mode) ---- */
+typedef s32 M2C_UNK;
+typedef s8  M2C_UNK8;
+typedef s16 M2C_UNK16;
+typedef s32 M2C_UNK32;
+typedef s64 M2C_UNK64;
+
+#define M2C_FIELD(expr, type_ptr, offset) (*(type_ptr)((s8 *)(expr) + (offset)))
+#define M2C_BITWISE(type, expr) ((type)(expr))
+#define M2C_LWL(expr) (expr)
+#define M2C_FIRST3BYTES(expr) (expr)
+#define M2C_UNALIGNED32(expr) (expr)
+#define M2C_ERROR(desc) (0)
+#define M2C_TRAP_IF(cond) (0)
+#define M2C_BREAK() (0)
+#define M2C_SYNC() (0)
+#define GLUE_F64(a, b) (0.0)
+#define MULT_HI(a, b) (0)
+#define MULTU_HI(a, b) (0)
+#define DMULT_HI(a, b) (0)
+#define DMULTU_HI(a, b) (0)
+#define CLZ(x) (0)
+#define REVERSE_BITS(x) (0)
+#define ROTATE_RIGHT(x, shift) (0)
+#define ARM_RRX(x, carry) (0)
+#define BSWAP32(x) (0)
+#define BSWAP16(x) (0)
+#define BSWAP16X2(x) (0)
+#define M2C_CARRY 0
+#define M2C_OVERFLOW(a) (0)
+#define M2C_MEMCPY_ALIGNED memcpy
+#define M2C_MEMCPY_UNALIGNED memcpy
+#define M2C_STRUCT_COPY memcpy
+
+#endif
+
+M2C_UNK func_00200830(s32);                         /* extern */
+extern s32 D_0028A4B0;
+extern s32 D_0028A4B4;
+extern s32 D_0028A4B8;
+extern s32 D_0028A4BC;
+extern s32 D_0028A4C0;
+extern u8 D_00810707;
+extern u8 D_00810C60;
+
+void func_00200890(void) {
+    if (D_00810707 == 0) {
+        if (D_00810C60 != 2) {
+            if (D_00810C60 != 1) {
+                func_00200830(D_0028A4B0);
+                return;
+            }
+            func_00200830(D_0028A4BC);
+            return;
+        }
+        func_00200830(D_0028A4B8);
+        return;
+    }
+    if (D_00810707 == 1) {
+        if (D_00810C60 != 2) {
+            if (D_00810C60 != 1) {
+                func_00200830(D_0028A4C0);
+                return;
+            }
+            func_00200830(D_0028A4BC);
+            return;
+        }
+        func_00200830(D_0028A4B8);
+        return;
+    }
+    func_00200830(D_0028A4B4);
+}
