@@ -1666,7 +1666,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001A9480,func_001A9480,616,undecompiled,1,unknown_01
 0x001A96F0,func_001A96F0,192,word,1,unknown_01
 0x001A97B0,func_001A97B0,552,undecompiled,1,unknown_01
-0x001A99E0,func_001A99E0,296,word,1,unknown_01
+0x001A99E0,func_001A99E0,296,readable,1,unknown_01
 0x001A9B10,func_001A9B10,304,undecompiled,1,unknown_01
 0x001A9C40,func_001A9C40,224,undecompiled,1,unknown_01
 0x001A9D20,func_001A9D20,216,undecompiled,1,unknown_01
@@ -2020,7 +2020,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001C90D0,func_001C90D0,488,undecompiled,4,anim_runtime
 0x001C92C0,func_001C92C0,488,undecompiled,4,anim_runtime
 0x001C94B0,build_trs_matrix,184,undecompiled,21,anim_runtime
-0x001C9570,func_001C9570,152,word,1,anim_runtime
+0x001C9570,func_001C9570,152,readable,1,anim_runtime
 0x001C9610,func_001C9610,816,undecompiled,5,anim_runtime
 0x001C9940,func_001C9940,1032,undecompiled,5,anim_runtime
 0x001C9D50,func_001C9D50,232,undecompiled,5,anim_runtime
