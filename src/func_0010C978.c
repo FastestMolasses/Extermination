@@ -1,17 +1,8 @@
-// One-call non-leaf wrapper — asm void with extern decl for the
-// callee. mwccmips emits the jal + R_MIPS_26 relocation for the
-// referenced function symbol; the rest of the instructions are
-// passed through verbatim.
-extern void sceSifDmaStat(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+extern int sceSifDmaStat(int a, int *b);
 
-asm void func_0010C978(void) {
-    addiu $sp, $sp, -0x20
-    sw $a0, 0x0($sp)
-    daddu $a1, $sp, $zero
-    sd $ra, 0x10($sp)
-    jal sceSifDmaStat
-    addiu $a0, $zero, -0x9
-    ld $ra, 0x10($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+int func_0010C978(int a0) {
+    int x = a0;
+    return sceSifDmaStat(-9, &x);
 }

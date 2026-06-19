@@ -1,18 +1,11 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void sceSifDmaStat(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+extern int sceSifDmaStat(int chan, void *arg);
 
-asm void func_0010C8E8(void) {
-    addiu $sp, $sp, -0x20
-    daddu $v0, $a1, $zero
-    andi $a2, $a2, 0xFFFF
-    sw $a0, 0x0($sp)
-    sd $ra, 0x10($sp)
-    daddu $a1, $sp, $zero
-    sw $v0, 0x4($sp)
-    addiu $a0, $zero, -0x6
-    jal sceSifDmaStat
-    sw $a2, 0x8($sp)
-    ld $ra, 0x10($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+int func_0010C8E8(int a0, int a1, unsigned short a2) {
+    int local[3];
+    local[0] = a0;
+    local[1] = a1;
+    local[2] = a2;
+    return sceSifDmaStat(-6, local);
 }

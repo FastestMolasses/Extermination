@@ -1,23 +1,11 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_001157F0(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf (ee-gcc 2.9): unpack a packed word, dispatch id 0x41 (long args).
+extern int func_001157F0(int a0, long a1, long a2, int a3);
 
-asm void func_0011A658(void) {
-    lui $v0, (0xFFFFFF >> 16)
-    ori $v0, $v0, (0xFFFFFF & 0xFFFF)
-    dsrl $a2, $a0, 24
-    and $a0, $a0, $v0
-    daddu $a3, $a1, $zero
-    addiu $sp, $sp, -0x10
-    and $a2, $a2, $v0
-    dsll32 $a1, $a0, 0
-    dsra32 $a1, $a1, 0
-    sd $ra, 0x0($sp)
-    dsll32 $a2, $a2, 0
-    dsra32 $a2, $a2, 0
-    jal func_001157F0
-    addiu $a0, $zero, 0x41
-    ld $ra, 0x0($sp)
-    daddu $v0, $zero, $zero
-    jr $ra
-    addiu $sp, $sp, 0x10
+int func_0011A658(unsigned long a0, int a1) {
+    int lo = a0 & 0xFFFFFF;
+    int hi = (a0 >> 24) & 0xFFFFFF;
+    func_001157F0(0x41, lo, hi, a1);
+    return 0;
 }

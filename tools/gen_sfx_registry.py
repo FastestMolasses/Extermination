@@ -95,6 +95,21 @@ LOCKED_RATTLE_ID = 0x3F2
 
 # Office scene = AREA02 sub-state 1 (placement table 0x828170), engine
 # area key 2.1 in the soundmap's area tables.
+#
+# Snow scene = AREA11 save-state 01 (placement table 0x82A3C0, 21 entries;
+# FINDINGS s9 overlay-table census), engine area key 11.0 in the
+# soundmap's area tables -> region chunk15 (the opening snow level's
+# per-area sound bank; area_scene_map 11.0 -> chunk15, exact coverage
+# 1.0). This is the FIRST PLAYABLE level (MEMORY new-game-first-level).
+# Its chunk15 bank is a SMALL opening-area bank: it carries the
+# elevator/door/ambient set but NONE of the crawler/tendril combat-enemy
+# tones (0x42D/0x42F/0x430/0x431/0x434) — those have no chunk15 variant
+# in the soundmap, i.e. the engine never loads them in AREA-11 (faithful:
+# no combat enemies in the opening), so they are intentionally omitted.
+# The ids below are exactly those the port's snow scene fires (em_game.c
+# ELEV_SFX_DOWN 0x453 + the up 0x452, em_enemy.c EGG_SFX_BREAK 0x1A1 +
+# the burst pair 0x1A0, and the scene.txt `doorsfx 0x401 0x402`) AND
+# resolve to a real chunk15 (or GLOBAL) sample.
 SCENES = {
     "office": {
         "area": "2.1",
@@ -161,6 +176,110 @@ SCENES = {
                 0x189, 0x16A, LOCKED_RATTLE_ID,
                 0x152, 0x153, 0x146, 0x151, 0x156,   # player damage
                 0x14E, 0x14F, 0x149, 0x147, 0x14D, 0x159],
+    },
+    "snow": {
+        # AREA-11 opening snow level (area 11.0 -> chunk15). The first
+        # PLAYABLE level; sounds the port's snow scene actually triggers.
+        "area": "11.0",
+        "overlay": "AREA11.BIN",
+        "table_vaddr": 0x82A3C0,   # AREA11 save-state-01 placement table
+        # - ELEVATOR descent 0x453 (em_game.c ELEV_SFX_DOWN) + ascent 0x452
+        #   (chunk15: snd_0937 / snd_0942). The elevator-control terminal
+        #   gates the descent; both directions ship so the cab is not
+        #   silent in either travel.
+        # - DRUM/egg burst pair 0x1A0 (GLOBAL "fixture death", snd_0469) +
+        #   0x1A1 (GLOBAL, snd_0464; em_enemy.c EGG_SFX_BREAK). The
+        #   explodable snow drums + the egg-pod break reuse this global
+        #   fixture-death pair — global ids, area-independent.
+        # - DOOR front/back 0x401/0x402 (chunk15: snd_0520 / snd_0519).
+        #   AREA11's lone door (placement uid 0x00, link 0x0400) selects
+        #   D_0024DB80[4] = [0x401, 0x402]; the snow scene.txt's
+        #   `doorsfx 0x401 0x402` line consumes exactly this pair, and
+        #   office's 0x3FD/0x3FE stay registered alongside (no collision).
+        # - WEDGED-TRUCK fall crash 0x454 (em_truck.c TRUCK_SFX_FALL, the
+        #   §11.3 groan/crash cue fired with em_sfx_play_at on the fall).
+        #   AREA-TABLED: its chunk15 variant covers area 11.0 (snd_0938,
+        #   15480 Hz, 2-event — first event registered). Loaded by the
+        #   engine in AREA-11, so this ships (the s78 em_truck FLAG that
+        #   it "may be absent until the AREA-11 bank is exported" is now
+        #   resolved: present in chunk15).
+        # - STEAM/FX EMITTER LOOP 0x413 (the §11 steam-pipe emitter,
+        #   placement record 7 near (452,279,278); fired positionally by
+        #   the FX emitter when its em_sfx_play_at is wired). AREA-TABLED:
+        #   its chunk15 variant's area list explicitly carries area 11.0
+        #   (alongside 1.7/4.5/6.3/10.1), resolving exact-area to snd_0733
+        #   (12286 Hz, 2-event — first event registered), the same chunk15
+        #   resolution path as 0x452/0x401/0x454. The engine loads this id
+        #   into AREA-11's bank, so the steam emitter is audible once wired.
+        # - 0x19A (GLOBAL one-shot, snd_0405 33761 Hz; area-independent like
+        #   the 0x1A0/0x1A1 fixture pair and the 0x97/0x99 stings). A global
+        #   id is always resident, so it is loaded in AREA-11 and registered
+        #   here for the §11 emitter set (re-audit follow-up).
+        # - CINEMATIC opening-beat MUSIC STINGS 0x97 / 0x99 (em_game.c
+        #   director CINE_MUSIC_BEAT1 / BEAT2, played non-positionally via
+        #   em_sfx_play((unsigned)b->music) on beat ENTER). These are NOT
+        #   streamed MUSIC.DAT/BGM cues (those are the small 1..28 cue
+        #   indices of the D_0025DD30 cue table -> em_bgm; AREA-11's
+        #   looping BGM is cue 25/track_16). 0x97 (151) and 0x99 (153) are
+        #   GLOBAL SShd BANK trigger ids in chunk00/f05_id05.bin#bank0 —
+        #   the same global container as the weapon/UI set (0x162.. live in
+        #   #bank1; the egg/fixture pair 0x1A0/0x1A1 also there) — i.e.
+        #   short one-shot musical stings the bank fires by id, fully
+        #   addressable through em_sfx_play. No bgm/code change needed; they
+        #   just had to be in the registry (0x97 = snd_0117 30405 Hz,
+        #   4-event; 0x99 = snd_0192 19930 Hz). Below any shipped bank id so
+        #   no collision with the office/AREA-11 sets.
+        # OMITTED (no chunk15 variant -> not loaded by the engine in
+        # AREA-11, i.e. faithful silence, NOT a bug):
+        # - the locked-door rattle 0x3F2 and the crawler/tendril combat
+        #   tones 0x42D/0x42F/0x430/0x431/0x434 (no combat enemies in the
+        #   opening snow area);
+        # - the AREA POWER-ON cue 0x3EE (func_001580C0 master-unlock /
+        #   func_001FB9F0 0x3EE, fired when the powered flag sets). 0x3EE is
+        #   the near-universal power-on sting (snd_0536) loaded in 19 other
+        #   regions across 86 area sub-states, but it has NO chunk15 variant
+        #   and 11.0 is in none of its area lists — the engine never loads
+        #   it into AREA-11's bank, so the powered-flag cue is FAITHFULLY
+        #   SILENT in the opening area. Not registered (cannot fabricate a
+        #   sample the engine never loads there). FLAGGED for a later code
+        #   pass: if a live capture ever proves AREA-11 plays a power-on
+        #   sound, it would be a different chunk15 id, not 0x3EE.
+        # - PLAYER FOOTSTEPS on the snow ground (s82 decode, FINDINGS
+        #   "FOOTSTEP SURFACE TABLE"). The per-frame footstep slice
+        #   func_00187350 fires at the locomotion clip's property-table
+        #   frameA/frameB (the foot-plant frames: walk clip id 1 -> frames
+        #   72/21, run clip id 2 -> 26/3) — i.e. TWO steps per clip cycle,
+        #   cadence is clip-phase driven (the run clip is shorter, so steps
+        #   come faster), NOT a fixed interval / distance accumulator. Each
+        #   step submits TWO positional func_001FBD50(actor, id, 300.0, 0)
+        #   calls back-to-back: a SURFACE id and the GEAR/cloth id.
+        #     surface_id = BLOCK(attr) + GAIT_SUB(gait) + rand5()
+        #     gear_id    = 0x138 + rand5()   (independent 2nd rand5)
+        #   func_00182430 reads attr from actor +0x23A (the collision hit
+        #   record's surface byte +0x1A, copied by func_00175900). AREA-11's
+        #   snow GROUND is surface ATTR 4 (LIVE-CONFIRMED s82: player
+        #   +0x23A == 0x04, and the live floor-probe result record
+        #   *0x700031D0 +0x1A == 0x04 under the player) -> BLOCK base 0x54.
+        #   So the snow step block is 0x54..0x62: creep (gait 0/1) 0x54..58,
+        #   WALK (gait 2, +5) 0x59..5D, RUN (gait 3, +0xA) 0x5E..62; GAIT_SUB
+        #   from actor +0x25C (walk->+5, run->+0xA). rand5 = (rand()&7),
+        #   5..7 folded to 0..2. ALL 15 ids resolve to GLOBAL-bank WAVs
+        #   (snd_0077..0090), which are always resident -> loaded in AREA-11.
+        #   The GEAR layer 0x138..0x13C is the same global cloth set already
+        #   shipped via the office preset (so not re-added here; merge keeps
+        #   it). NOTE the office floor is attr 0 -> block 0x10 (0x15..0x1E):
+        #   the snow block 0x54..0x62 is a DISTINCT, non-colliding material.
+        "ids": [0x452, 0x453,            # elevator ascent / descent
+                0x1A0, 0x1A1,            # drum/egg burst pair (global)
+                0x401, 0x402,            # AREA11 door front / back
+                0x454,                   # wedged-truck fall crash (chunk15)
+                0x97, 0x99,              # opening-beat music stings (global)
+                0x413,                   # steam/FX emitter loop (chunk15)
+                0x19A,                   # §11 emitter set one-shot (global)
+                # SNOW FOOTSTEPS — surface attr 4, block base 0x54 (global):
+                0x54, 0x55, 0x56, 0x57, 0x58,   # creep (gait 0/1)
+                0x59, 0x5A, 0x5B, 0x5C, 0x5D,   # WALK  (gait 2, +5)
+                0x5E, 0x5F, 0x60, 0x61, 0x62],  # RUN   (gait 3, +0xA)
     },
 }
 
@@ -324,6 +443,12 @@ def main(argv=None) -> int:
                          "(default: the scene preset's, e.g. 2.1)")
     ap.add_argument("-o", "--out", default=None,
                     help="write the registry here (default: stdout)")
+    ap.add_argument("--merge", default=None, metavar="REGISTRY",
+                    help="append this scene's ids to an EXISTING shared "
+                         "registry, preserving its current ids (used to "
+                         "fold a second area's bank into the port's single "
+                         "assets/sfx/sfx.txt without dropping the first). "
+                         "An id already present is left untouched.")
     args = ap.parse_args(argv)
 
     ids = [int(t, 16) if t.lower().startswith("0x") else int(t)
@@ -338,9 +463,13 @@ def main(argv=None) -> int:
         ids = scene["ids"] + [i for i in ids if i not in scene["ids"]]
         door_ids, door_info, doorsfx = office_door_pairs(scene)
         ids += [i for i in door_ids if i not in ids]
-        vo_notes, vo_ids = locked_door_census()
-        door_info += vo_notes
-        ids += [i for i in vo_ids if i not in ids]
+        # The locked-door VO census is keyed to the m15 security doors of
+        # the office/drawbridge scenes (LOCKED_DOOR_TABLES); only run it
+        # for the office preset — AREA-11's opening has no lock-gated door.
+        if args.scene == "office":
+            vo_notes, vo_ids = locked_door_census()
+            door_info += vo_notes
+            ids += [i for i in vo_ids if i not in ids]
     if not ids:
         ap.error("no ids (pass ids and/or --scene)")
     if not area:
@@ -349,10 +478,31 @@ def main(argv=None) -> int:
     sm = load_soundmap()
     wav_root = SOUNDMAP.parent
 
+    # MERGE: keep every id already in the target registry (e.g. the office
+    # bank) and only add the ones this scene introduces. The shared
+    # assets/sfx/sfx.txt is a flat id->wav map, so two areas' banks
+    # coexist as long as their ids do not collide; em_sfx looks up by id.
+    merge_existing: list[str] = []
+    have: set[int] = set()
+    if args.merge:
+        import re as _re
+        for ln in Path(args.merge).read_text().splitlines():
+            merge_existing.append(ln)
+            m = _re.match(r"\s*0x([0-9A-Fa-f]+)\b", ln)
+            if m:
+                have.add(int(m.group(1), 16))
+        # drop ids the target already carries: faithful no-op for those
+        ids = [i for i in ids if i not in have]
+
     lines = [f"# sfx.txt — generated by tools/gen_sfx_registry.py "
              f"(scene {args.scene or '-'}, area {area})",
              "# <id-hex> <wav-path>; WAVs are this user's own local "
              "decodes (extract/audio_decoded/)."]
+    if args.merge:
+        lines = [f"# === appended by gen_sfx_registry.py --scene "
+                 f"{args.scene or '-'} --area {area} "
+                 f"--merge (AREA-11 bank folded into the shared "
+                 f"registry; {len(have)} pre-existing id(s) kept) ==="]
     for note in door_info:
         lines.append(f"# {note}")
     if doorsfx:
@@ -379,15 +529,31 @@ def main(argv=None) -> int:
                      f"{rate} Hz, {n_ev} event(s), {how}")
         lines.append(f"0x{sid:03X} {wav}")
 
+    added = sum(1 for ln in lines if _re_id_line(ln))
+    if args.merge:
+        # the kept existing registry first, then the freshly-resolved block
+        out_lines = list(merge_existing)
+        if out_lines and out_lines[-1].strip() != "":
+            out_lines.append("")
+        out_lines += lines
+        lines = out_lines
+
     text = "\n".join(lines) + "\n"
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(text)
-        print(f"wrote {args.out} ({len(ids)} id(s), {missing} "
-              f"unresolved)", file=sys.stderr)
+        scope = (f"{added} new id(s) appended, {len(have)} kept"
+                 if args.merge else f"{len(ids)} id(s)")
+        print(f"wrote {args.out} ({scope}, {missing} unresolved)",
+              file=sys.stderr)
     else:
         sys.stdout.write(text)
     return 1 if missing else 0
+
+
+def _re_id_line(ln: str) -> bool:
+    import re
+    return re.match(r"\s*0x[0-9A-Fa-f]+\s", ln) is not None
 
 
 if __name__ == "__main__":

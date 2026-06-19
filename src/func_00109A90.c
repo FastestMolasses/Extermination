@@ -1,11 +1,19 @@
-// INCLUDE_ASM func_00109A90  (vram 0x00109A90, 104 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_00109A90.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf (ee-gcc 2.9): for each live context, clear its field 0x28; return 1.
+extern int *D_00241300;
+extern int *D_0024130C;
+extern int *D_00241318;
+extern int *D_00241304;
+extern int *D_00241310;
+extern int *D_0024131C;
+
+int func_00109A90(void) {
+    if (D_00241300) D_00241300[0x28 / 4] = 0;
+    if (D_0024130C) D_0024130C[0x28 / 4] = 0;
+    if (D_00241318) D_00241318[0x28 / 4] = 0;
+    if (D_00241304) D_00241304[0x28 / 4] = 0;
+    if (D_00241310) D_00241310[0x28 / 4] = 0;
+    if (D_0024131C) D_0024131C[0x28 / 4] = 0;
+    return 1;
+}

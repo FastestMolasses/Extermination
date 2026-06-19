@@ -1,8 +1,11 @@
-// lw $v1,0x40($a0); li $v0,1; sw $v0,0xF8($v1); jr $ra; sd $a1,0xF0($v1)
-asm void func_00109C28(void) {
-    lw $3, 0x40($4)
-    addiu $2, $zero, 0x1
-    sw $2, 0xF8($3)
-    jr $ra
-    sd $5, 0xF0($3)
+// COMPILER: eegcc
+// CFLAGS: -O2
+struct s109C28 {
+    char pad[0x40];
+    char *p;
+};
+void func_00109C28(struct s109C28 *a0, long a1) {
+    char *v1 = a0->p;
+    *(long *)(v1 + 0xF0) = a1;
+    *(int *)(v1 + 0xF8) = 1;
 }

@@ -1,30 +1,16 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_0010E338(int, int, int, int);
-extern void func_0010DE78(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// Allocate via func_0010E338(a1), copy fields from s, set DMA tags, then
+// tail-call func_0010DE78.
+extern int *func_0010E338(int a0);
+extern void func_0010DE78(int a0, int a1, int a2, int a3, int a4, int a5);
 
-asm void func_0010E460(void) {
-    addiu      $sp, $sp, -0x20
-    .word 0xffb00000
-    daddu      $s0, $a0, $zero
-    .word 0xffbf0010
-    jal        func_0010E338
-    daddu     $a0, $a1, $zero
-    .word 0x8e050014
-    .word 0x3c038000
-    .word 0x8e04001c
-    .word 0x3463000c
-    .word 0xac450014
-    addiu      $a2, $zero, 0x40
-    .word 0xac44001c
-    daddu      $a1, $v0, $zero
-    .word 0xac430020
-    .word 0x3c048000
-    .word 0xdfbf0010
-    .word 0x34840008
-    .word 0x8e090028
-    .word 0x8e070020
-    .word 0x8e080024
-    .word 0xdfb00000
-    j         func_0010DE78
-    addiu     $sp, $sp, 0x20
+void func_0010E460(int *s, int a1) {
+    int *p = func_0010E338(a1);
+    int f14 = s[0x14 / 4];
+    int f1C = s[0x1C / 4];
+    p[0x14 / 4] = f14;
+    p[0x1C / 4] = f1C;
+    p[0x20 / 4] = 0x8000000C;
+    func_0010DE78(0x80000008, (int)p, 0x40, s[0x20 / 4], s[0x24 / 4], s[0x28 / 4]);
 }

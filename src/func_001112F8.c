@@ -1,15 +1,8 @@
-// One-call non-leaf wrapper — asm void with extern decl for the
-// callee. mwccmips emits the jal + R_MIPS_26 relocation for the
-// referenced function symbol; the rest of the instructions are
-// passed through verbatim.
-extern void func_001111F8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf (ee-gcc 2.96): call func_001111F8(a, b, 0).
+extern int func_001111F8(int a, int b, int c);
 
-asm void func_001112F8(void) {
-    addiu $sp, $sp, -0x10
-    sd $ra, 0x0($sp)
-    jal func_001111F8
-    daddu $a2, $zero, $zero
-    ld $ra, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x10
+int func_001112F8(int a, int b) {
+    return func_001111F8(a, b, 0);
 }

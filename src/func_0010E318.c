@@ -1,12 +1,7 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_0010E318(void) {
-    .word 0x8c830010
-    .word 0x3c02ffff
-    .word 0x3442fffe
-    .word 0xac800018
-    .word 0x00621824
-    .word 0x03e00008
-    .word 0xac830010
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf (ee-gcc 2.9): clear field 0x18, mask off bit0 of field 0x10.
+void func_0010E318(int *a0) {
+    a0[0x18 / 4] = 0;
+    a0[0x10 / 4] &= 0xFFFFFFFE;
 }

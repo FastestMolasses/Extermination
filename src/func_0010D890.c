@@ -1,19 +1,13 @@
-// Simple nonleaf asm void
-extern void func_0010D2C8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// Varargs forwarder: spills the GPR arg-save area and passes a pointer to
+// the start of the varargs (saved a1..t3) to func_0010D2C8. The (next_arg
+// - 0x38) adjustment reproduces ee-gcc's EABI va_start, which biases the
+// arg pointer back over the 7-dword (0x38) GPR save area.
+typedef char *va_list;
+extern void func_0010D2C8(int a0, va_list args);
 
-asm void func_0010D890(void) {
-    addiu      $sp, $sp, -0x90
-    sd         $a1, 0x58($sp)
-    sd         $ra, 0x0($sp)
-    addiu      $a1, $sp, 0x58
-    sd         $a2, 0x60($sp)
-    sd         $a3, 0x68($sp)
-    sd         $8, 0x70($sp)
-    sd         $9, 0x78($sp)
-    sd         $10, 0x80($sp)
-    jal        func_0010D2C8
-    sd        $11, 0x88($sp)
-    ld         $ra, 0x0($sp)
-    jr         $ra
-    addiu     $sp, $sp, 0x90
+void func_0010D890(int a0, ...) {
+    va_list args = (va_list)__builtin_next_arg(a0) - 0x38;
+    func_0010D2C8(a0, args);
 }

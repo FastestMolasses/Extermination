@@ -1,40 +1,30 @@
-// Hybrid: branches/j as .word, jal with extern decls
-extern void func_0010C710(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+extern void func_0010C710(int a0);
 
-asm void func_0010E818(void) {
-    lw         $a1, 0x34($a0)
-    lw         $a2, 0x40($a1)
-    lw         $v0, 0xC($a2)
-    .word 0x54400003
-    lw        $v0, 0x10($a2)
-    .word 0x10000002
-    sw        $a1, 0xC($a2)
-    sw         $a1, 0x3C($v0)
-    sw         $a1, 0x10($a2)
-    lw         $v0, 0x14($a0)
-    lw         $v1, 0x1C($a0)
-    sw         $v0, 0x20($a1)
-    sw         $v1, 0x1C($a1)
-    lw         $v0, 0x20($a0)
-    sw         $v0, 0x24($a1)
-    lw         $v1, 0x24($a0)
-    sw         $v1, 0xC($a1)
-    lw         $v0, 0x28($a0)
-    sw         $v0, 0x28($a1)
-    lw         $v1, 0x2C($a0)
-    sw         $v1, 0x2C($a1)
-    lw         $v0, 0x30($a0)
-    sw         $v0, 0x30($a1)
-    lw         $v1, 0x10($a0)
-    sw         $v1, 0x34($a1)
-    lw         $a0, 0x0($a2)
-    .word 0x04800006
-    nop
-    lw         $v0, 0x4($a2)
-    .word 0x14400003
-    nop
-    j         func_0010C710
-    nop
-    jr         $ra
-    nop
+#define W(p, off) (*(int *)((char *)(p) + (off)))
+
+void func_0010E818(void *a0) {
+    int a1 = W(a0, 0x34);
+    int a2 = W(a1, 0x40);
+    int t0, t1;
+    if (W(a2, 0xC) == 0) {
+        W(a2, 0xC) = a1;
+    } else {
+        W(W(a2, 0x10), 0x3C) = a1;
+    }
+    W(a2, 0x10) = a1;
+    t0 = W(a0, 0x14);
+    t1 = W(a0, 0x1C);
+    W(a1, 0x20) = t0;
+    W(a1, 0x1C) = t1;
+    W(a1, 0x24) = W(a0, 0x20);
+    W(a1, 0xC) = W(a0, 0x24);
+    W(a1, 0x28) = W(a0, 0x28);
+    W(a1, 0x2C) = W(a0, 0x2C);
+    W(a1, 0x30) = W(a0, 0x30);
+    W(a1, 0x34) = W(a0, 0x10);
+    if (W(a2, 0x0) >= 0 && W(a2, 0x4) == 0) {
+        func_0010C710(W(a2, 0x0));
+    }
 }

@@ -1,54 +1,16 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00205BC0(int, int, int, int);
-extern void func_00205C60(int, int, int, int);
-extern void func_00205CD0(int, int, int, int);
+// CFLAGS: -O4,p -sdatathreshold 0
+extern int func_00205BC0(int, int, int, int, int, int, int, int, long long, long long);
+extern int func_00205C60(int, int, int);
+extern int func_00205CD0(int, int, int, int);
 
-asm void func_00205810(void) {
-    addiu      $sp, $sp, -0x40
-    .word 0x7fbf0030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0x70a08628
-    addiu      $a3, $zero, 0x1
-    .word 0x70c08e28
-    .word 0xffa00000
-    addiu      $a1, $zero, 0x6
-    .word 0x70003628
-    .word 0x70004628
-    .word 0x70004e28
-    .word 0x70005628
-    .word 0x70e05e28
-    jal        func_00205BC0
-    .word 0xffa00008
-    .word 0x8e250000
-    .word 0x8e260004
-    jal        func_00205C60
-    .word 0x70402628
-    .word 0x8e050000
-    .word 0x8e060004
-    .word 0x70402628
-    jal        func_00205CD0
-    .word 0x70003e28
-    .word 0x8e270000
-    .word 0x8e250008
-    .word 0x8e260004
-    .word 0x8e23000c
-    .word 0x70402628
-    addu       $a1, $a3, $a1
-    jal        func_00205C60
-    addu      $a2, $a2, $v1
-    .word 0x8e080000
-    .word 0x8e050008
-    .word 0x8e060004
-    .word 0x8e03000c
-    .word 0x70402628
-    .word 0x70003e28
-    addu       $a1, $8, $a1
-    jal        func_00205CD0
-    addu      $a2, $a2, $v1
-    .word 0x7bbf0030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    jr         $ra
-    addiu     $sp, $sp, 0x40
+void func_00205810(int a0, int *a1, int *a2) {
+    int *s0 = a1;
+    int one = 1;
+    int *s1 = a2;
+    int v0;
+    v0 = func_00205BC0(a0, 6, 0, one, 0, 0, 0, one, 0, 0);
+    v0 = func_00205C60(v0, s1[0], s1[1]);
+    v0 = func_00205CD0(v0, s0[0], s0[1], 0);
+    v0 = func_00205C60(v0, s1[0] + s1[2], s1[1] + s1[3]);
+    func_00205CD0(v0, s0[0] + s0[2], s0[1] + s0[3], 0);
 }

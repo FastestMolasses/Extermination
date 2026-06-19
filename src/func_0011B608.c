@@ -1,32 +1,20 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_0011B6E0(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// Gate on func_0011B6E0(); then set MMIO 0x10003810 per mode a0; return status.
+extern int func_0011B6E0(void);
 
-asm void func_0011B608(void) {
-    addiu $sp, $sp, -0x20
-    sd $s0, 0x0($sp)
-    sd $ra, 0x10($sp)
-    jal func_0011B6E0
-    daddu $s0, $a0, $zero
-    .word 0x10400003
-    addiu $v1, $zero, 0x1
-    .word 0x14430003
-    nop
-    .word 0x1000000c
-    daddu $v0, $zero, $zero
-    .word 0x16000003
-    lui $v0, (0x10003810 >> 16)
-    .word 0x10000005
-    addiu $v1, $zero, 0x2
-    .word 0x16030006
-    addiu $v0, $zero, 0x1
-    lui $v0, (0x10003810 >> 16)
-    addiu $v1, $zero, 0x4
-    ori $v0, $v0, (0x10003810 & 0xFFFF)
-    sw $v1, 0x0($v0)
-    addiu $v0, $zero, 0x1
-    ld $ra, 0x10($sp)
-    ld $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+int func_0011B608(int a0) {
+    int st = func_0011B6E0();
+    if (st == 0) {
+        return 0;
+    }
+    if (st == 1) {
+        return 0;
+    }
+    if (a0 == 0) {
+        *(volatile int *)0x10003810 = 2;
+    } else if (a0 == 1) {
+        *(volatile int *)0x10003810 = 4;
+    }
+    return 1;
 }

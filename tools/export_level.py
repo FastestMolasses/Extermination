@@ -421,17 +421,77 @@ def mat_rotate(m, v):
             m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2])
 
 
-def attr_to_color(attr, m=None) -> tuple:
-    """Baked color, or a stand-in shade for normal-carrying records.
+# ROOM LIGHT FOLD for normal-carrying records (the level render mesh's
+# DYNAMIC sub-meshes — e.g. the snow level's f17 movables — store a unit
+# NORMAL, not a baked color, and are lit at runtime by the per-room rig).
+# Baking them as a static EMDL means folding the rig into a vertex color.
+# `RoomLight` reproduces the engine kernel (func_001D89D0/0x23C780,
+# FINDINGS "PER-ROOM LIGHT RIGS"):
+#   I_i = max(dot(N, dir_i), 0);  rgb = min(amb + sum I_i*col_i, 255);
+#   the EMD2 color is the GS-modulate value /128 (the port multiplies tex
+#   by it). amb/col are on the engine 0..128 scale. Slot 0 (camera fill)
+#   is INCLUDED only when its color is non-zero — AREA 11's slot-0 color
+#   is (0,0,0) (camera fill OFF), so it folds to nothing, exactly as the
+#   live rig dictates.
 
-    |xyz| ~= 1 with w ~= 0 marks a unit NORMAL; rotate it by the record's
-    placement and light it with the port's stand-in directional light so
-    the EMD2 normal slot can carry colors uniformly."""
+class RoomLight:
+    """A per-room directional light rig (the D_00251C50 record), used to
+    bake a faithful vertex color for normal-carrying render records.
+    `amb` and each (dir, col) are on the engine 0..128 scale (see the
+    section comment). Built from the real rig values, NOT a stand-in."""
+
+    def __init__(self, amb, dirs):
+        self.amb = tuple(float(c) for c in amb)
+        # keep only lights with a non-zero color (an OFF slot contributes
+        # nothing — e.g. AREA 11's slot-0 camera fill is (0,0,0))
+        self.dirs = [(tuple(float(v) for v in d), tuple(float(c) for c in col))
+                     for d, col in dirs if any(c != 0.0 for c in col)]
+
+    def shade(self, nx, ny, nz):
+        r, g, b = self.amb
+        for (dx, dy, dz), (cr, cg, cb) in self.dirs:
+            i = dx * nx + dy * ny + dz * nz
+            if i > 0.0:
+                r += i * cr
+                g += i * cg
+                b += i * cb
+        return (min(r, 255.0) / 128.0, min(g, 255.0) / 128.0,
+                min(b, 255.0) / 128.0)
+
+
+# AREA 11 (the snow level / scene_snow) rig — D_00251C50 key 0x0B00,
+# entry 30 (FINDINGS "PER-ROOM LIGHT RIGS"; INVESTIGATION_first_level_
+# area11 sec 6, both live-read). Slot-0 camera fill colour is (0,0,0) =
+# OFF, so the scene is lit only by ambient (32) + two dim directionals
+# (74 and 38). Directions are the rig's angle-pair vectors resolved by
+# lightrig_angles_to_dir (== the live-dumped unit dirs). These exact
+# values drive the snow movables' baked colour — NOT a fabricated light.
+AREA11_LIGHT = RoomLight(
+    amb=(32.0, 32.0, 32.0),
+    dirs=[((0.553, -0.249, -0.795), (0.0, 0.0, 0.0)),    # slot 0 cam-fill OFF
+          ((0.506, -0.212, -0.836), (74.0, 74.0, 74.0)),  # slot 1 dir
+          ((0.000, 1.000, 0.000), (38.0, 38.0, 38.0))])   # slot 2 dir
+
+
+def attr_to_color(attr, m=None, light=None) -> tuple:
+    """Baked color, or a lit shade for normal-carrying records.
+
+    A record's attr is either a BAKED VERTEX COLOR (r, g, b, w~=1; passed
+    through) or a unit NORMAL (|xyz|~=1, w~=0). For a normal: rotate it by
+    the record's placement, then either fold the supplied `light` (a real
+    per-room RoomLight rig — the faithful path) or, with no rig, apply the
+    port's legacy stand-in directional so the EMD2 normal slot can carry a
+    color uniformly. The stand-in stays the default ONLY to keep the
+    office/drawbridge exports byte-identical; level meshes with a decoded
+    rig (the snow level) MUST pass `light` so the baked color reflects the
+    real room lighting, not a fabricated 0.30-floor directional."""
     x, y, z, w = attr
     n = math.sqrt(x * x + y * y + z * z)
     if abs(n - 1.0) < 0.02 and abs(w) < 0.1:
         if m is not None:
             x, y, z = mat_rotate(m, (x, y, z))
+        if light is not None:
+            return light.shade(x, y, z)
         lx, ly, lz = 0.4, 0.8, 0.45     # port's stand-in light direction
         ll = math.sqrt(lx * lx + ly * ly + lz * lz)
         d = max((x * lx + y * ly + z * lz) / ll, 0.0)
@@ -445,7 +505,7 @@ def attr_to_color(attr, m=None) -> tuple:
 # Mesh build (GS tristrips -> welded indexed triangles, per-TRIANGLE texture)
 
 class MeshBuilder:
-    def __init__(self):
+    def __init__(self, light=None):
         self.pos, self.col, self.uv, self.tex = [], [], [], []
         self.bone = []
         self.tris = []
@@ -454,6 +514,10 @@ class MeshBuilder:
         self.tex_index: dict[int, int] = {}
         self.NO_TEX = 0xFFFFFFFF
         self.n_strip_tris = 0
+        # optional per-room RoomLight rig: when set, normal-carrying records
+        # bake the real room lighting instead of the legacy stand-in (see
+        # attr_to_color). None preserves the office/drawbridge behavior.
+        self.light = light
 
     def tex_of(self, q0: int) -> int:
         key = q0 & en.TEX0_KEY_MASK
@@ -500,7 +564,7 @@ class MeshBuilder:
             pos, wbits, q, uv, attr = rec
             m = placement(wbits) if placement else None
             wp = mat_apply(m, pos) if m else tuple(pos)
-            col = attr_to_color(attr, m)
+            col = attr_to_color(attr, m, self.light)
             run.append((wp, col, uv, q))
             if len(run) > 3:
                 run.pop(0)
@@ -2641,12 +2705,31 @@ def emit_drawbridge_enemies(scene_dir: Path, ov_path: Path,
     return 0
 
 
+# The AREA 11 (chunk15) snow level's six render-mesh files. Five carry
+# BAKED VERTEX COLORS (folded through the color pass-through); f17_id93 is
+# the MOVABLE / sub-object set whose records carry unit NORMALS, lit at
+# runtime by the room rig — so its baked color must fold the real AREA 11
+# rig (AREA11_LIGHT), not the legacy stand-in directional. Keyed by name
+# (the chunk loads contiguously; FINDINGS "SECOND SCENE END-TO-END").
+SNOW_RENDER_FILES = {
+    "f12_id44.bin", "f13_id50.bin", "f14_id5a.bin",
+    "f15_id47.bin", "f16_id88.bin", "f17_id93.bin",
+}
+
+
 def load_level_mesh(level_path: Path):
     """Decode the render mesh into one EMDL section using the per-file
     region map (live placements baked in). Returns (sections, tex_table,
     n_tris)."""
     d = level_path.read_bytes()
     sibling = None
+    # AREA 11 snow render files: bake normal-carrying records with the real
+    # room rig (the snow level is deliberately DARK — INVESTIGATION_first_
+    # level_area11 sec 6). Other levels keep the legacy stand-in (None).
+    light = AREA11_LIGHT if level_path.name in SNOW_RENDER_FILES else None
+    if light is not None:
+        print(f"light: AREA 11 rig key 0x0B00 (amb 32, dir 74/38, "
+              f"cam-fill OFF) folded into normal-carrying records")
     if len(d) == CHUNK06N1_SIZE and level_path.name == "f03_id43.bin":
         regions = table_driven_regions(level_path)
         if regions is None:
@@ -2670,7 +2753,7 @@ def load_level_mesh(level_path: Path):
               "mis-placed)")
         regions = [(0, len(d), "world", None)]
 
-    b = MeshBuilder()
+    b = MeshBuilder(light=light)
     if sibling is not None:
         sd, slo, shi = sibling
         b.add_stream((r if r is None else r[1:] for r in

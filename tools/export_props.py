@@ -1213,6 +1213,121 @@ def export_doors_drawbridge(args):
 
 
 # ---------------------------------------------------------------------------
+# Mode 3d: --area-door — a per-area model-table door entry as an articulated
+# EMD3 (the AREA-11 snow room-move door, 2026-06-17).
+#
+# The AREA-11 door (placement [0], model 3, fn 0x001BC350 — the SAME m03
+# brain as the office doors, INTRA-AREA room move, at 423 184.8 290.3 yaw
+# -0.401) was first carved by --egg, which bakes the node REST POSE into a
+# single static slot-0 mesh: closed-pose-only, no clip, so the port's
+# em_door.c falls back to its 90-degree PLACEHOLDER hinge swing. This mode
+# re-carves the door entry NODE-LOCAL (build_office0_door_mesh — per-vertex
+# slot bone kept) and bakes the GLOBAL slot-0x39 object-anim bank clips
+# [0, 2, 1, 3] (open back/front, locked back/front) via find_door_clip,
+# exactly like --doors-office0 / --doors-drawbridge for the m03/m15 brain.
+#
+# The clip bank (chunk27/f02_id39.bin = D_0028A490[0x39]) is GLOBALLY
+# resident and AREA-INDEPENDENT — the door INIT binds it the same way in
+# every area (s29). find_door_clip verifies each clip's frame-0 node-1
+# translation against THIS door's model-rec node-1 rest (-7.44, 9.0, 0,
+# within the 1.0-u tol of the office (-7.69, 9.0, -0.25) rest), so the
+# global swing applies to the AREA-11 door faithfully. The mesh + textures
+# come from the snow per-area table (chunk15 concat @0x123000, entry 0x14)
+# with the snow save-state VRAM (--p2s); only the source differs from
+# --doors-office0. The manifest door/doorsfx lines are NOT touched (the
+# AREA-11 room-move dest + sfx 0x401/0x402 are export_level's, s78).
+#
+# Source flags shared with --crate/--egg: --crate-dir (chunk leaf dir, the
+# default snow concat view), --crate-table-off (the table byte offset in
+# that view), --crate-id (the door's model-table entry), --p2s/--gsdump.
+
+AREA_DOOR_TABLE_OFF = 0x123000   # chunk15 concat model table (f05+0x5000)
+AREA_DOOR_ENTRY_ID  = 0x14       # AREA-11 door record's param (placement [0])
+
+
+def export_area_door(args):
+    if args.crate_dir:
+        src = Path(args.crate_dir)
+        d = lvl.office0_concat(src)
+        uploads = lvl.office0_uploads(src, args) if not args.p2s else None
+        print(f"area-door source: {src}/ concat model-table "
+              f"@{AREA_DOOR_TABLE_OFF:#x} entry {args.crate_id:#04x}")
+    else:
+        src = Path(args.crate_table)
+        d = src.read_bytes()
+        uploads = None
+        print(f"area-door source: {src} model-table "
+              f"@{AREA_DOOR_TABLE_OFF:#x} entry {args.crate_id:#04x}")
+    table_off = (args.crate_table_off if args.crate_table_off is not None
+                 else AREA_DOOR_TABLE_OFF)
+
+    off = table_entry_offset(d, table_off, args.crate_id)
+    nb, qwc, nn, size = struct.unpack_from("<4I", d, off)
+    print(f"  blob: {nb} block(s), {nn} node(s), size {size:#x} -> @{off:#x}")
+    parents, rests = model_rec_nodes(d, off)
+    if list(parents) != [-1, 0]:
+        raise SystemExit(f"area door: rig {parents} != the m03 2-node "
+                         "[-1, 0] hinge/lock-fixture shape")
+
+    sections, tex_table = build_office0_door_mesh(d, off)
+    pos = sections[0][0]
+    print(f"  mesh (node-local): {len(pos)} verts, "
+          f"{len(sections[0][2]) // 3} tris, slots "
+          f"{sorted(set(sections[0][3]))}, {len(tex_table)} texture(s), "
+          f"node-1 rest ({rests[1][3][0]:.3f}, {rests[1][3][1]:.3f}, "
+          f"{rests[1][3][2]:.3f})")
+
+    # The GLOBAL slot-0x39 bank clips [0, 2, 1, 3], verified against this
+    # door's own node-1 rest (find_door_clip is area-independent).
+    clip = find_door_clip(rests[1][3][:3])
+    if clip is None:
+        raise SystemExit("area door: slot-0x39 bank clips did not verify "
+                         "against this door's node-1 rest — the global "
+                         "swing does not apply (would need a per-area "
+                         "clip source; keep the placeholder)")
+    bank, baked = clip
+    if list(baked[0][1]) != list(parents):
+        raise SystemExit(f"area door: bank rig {baked[0][1]} != model rig "
+                         f"{parents}")
+    frames, clips = [], []
+    role = {0: "open back", 2: "open front",
+            1: "locked back", 3: "locked front"}
+    for cid, _par, frs, f in baked:
+        clips.append({"id": cid, "first": len(frames),
+                      "count": len(frs), "fps": f})
+        frames.extend(frs)
+        print(f"  clip {cid} ({role.get(cid, '?')}): {bank} directory id "
+              f"{cid} — {len(frs)} frames @ {f:g} fps")
+    fps = baked[0][3]
+
+    tex_entries, tex_blob = lvl.build_texture_blob(
+        Path(args.gsdump) if args.gsdump else None, tex_table,
+        Path(args.p2s) if args.p2s else None, uploads)
+
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    en.write_emdl(out, sections, [], parents, frames, fps,
+                  tex_entries, tex_blob, flags=1, clips=clips)
+
+    # Closed-pose verification: palette frame 0 must equal the model
+    # record's rest worlds (what bone_init_default_1 poses at INIT).
+    for b in range(len(parents)):
+        rest_world = rests[b][3][:3]
+        p = parents[b]
+        if p >= 0:
+            rest_world = tuple(rests[p][3][k] + rests[b][3][k]
+                               for k in range(3))
+        got = frames[0][b][3][:3]
+        err = max(abs(got[k] - rest_world[k]) for k in range(3))
+        if err > 0.30:
+            print(f"  ! frame-0 node {b} off rest by {err:.3f} u "
+                  f"(got {got}, rest {rest_world})")
+    print(f"wrote {out} — open clip baked (em_door.c plays it instead of "
+          "the placeholder swing)")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Mode 4: --gibs — the crawler burst-death model set, one static EMDL each
 # (see "GIBS" in the module docstring for the survey that picked these).
 
@@ -1810,6 +1925,15 @@ def main(argv):
                     "--out; shares --crate's source flags (--crate-table/"
                     "--crate-table-off/--crate-dir/--uploads, --crate-id, "
                     "--gsdump/--p2s)")
+    ap.add_argument("--area-door", action="store_true",
+                    help="export a PER-AREA model-table DOOR entry (the m03 "
+                    "hinge brain, e.g. the AREA-11 snow room-move door, "
+                    "table entry 0x14) as an articulated EMD3 to --out, "
+                    "with the GLOBAL slot-0x39 bank clips [0,2,1,3] baked "
+                    "(open + locked swing) — node-local mesh + the office "
+                    "door's clip source; shares --crate's source flags "
+                    "(--crate-dir/--crate-table/--crate-table-off/--crate-id,"
+                    " --gsdump/--p2s)")
     ap.add_argument("--doors", action="store_true",
                     help="export the placement-table doors as separate "
                     "articulated EMDLs into <outdir>/doors/, write the "
@@ -1862,6 +1986,8 @@ def main(argv):
                  "--doors-drawbridge)")
     if args.egg:
         return export_egg(args)
+    if args.area_door:
+        return export_area_door(args)
     if args.crate:
         return export_crate(args)
     if args.doors:

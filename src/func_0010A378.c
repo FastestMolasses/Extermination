@@ -1,17 +1,11 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_0010A3A8(int, int, int, int);
-extern void func_00122D10(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf (ee-gcc 2.9): build a local block then process it.
+extern void func_00122D10(void *buf, int a0, int a1);
+extern void func_0010A3A8(void *buf);
 
-asm void func_0010A378(void) {
-    daddu $a2, $a1, $zero
-    addiu $sp, $sp, -0x110
-    daddu $a1, $a0, $zero
-    sd $ra, 0x100($sp)
-    jal func_00122D10
-    daddu $a0, $sp, $zero
-    jal func_0010A3A8
-    daddu $a0, $sp, $zero
-    ld $ra, 0x100($sp)
-    jr $ra
-    addiu $sp, $sp, 0x110
+void func_0010A378(int a0, int a1) {
+    unsigned char buf[0x100];
+    func_00122D10(buf, a0, a1);
+    func_0010A3A8(buf);
 }

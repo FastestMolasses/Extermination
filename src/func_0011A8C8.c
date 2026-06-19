@@ -1,26 +1,15 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001157F0(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf (ee-gcc 2.9): bounds + range checked dispatch id 0x4D, else -1.
+extern int func_001157F0(int a0, int a1, int a2, int a3);
 
-asm void func_0011A8C8(void) {
-    addiu $sp, $sp, -0x10
-    daddu $a2, $a1, $zero
-    sd $ra, 0x0($sp)
-    slti $v0, $a0, 0x10
-    .word 0x1040000b
-    addiu $v1, $zero, -0x1
-    lui $v0, (0x1FFFFF >> 16)
-    ori $v0, $v0, (0x1FFFFF & 0xFFFF)
-    sltu $v0, $v0, $a2
-    .word 0x14400007
-    ld $ra, 0x0($sp)
-    daddu $a1, $a0, $zero
-    daddu $a3, $zero, $zero
-    jal func_001157F0
-    addiu $a0, $zero, 0x4D
-    daddu $v1, $zero, $zero
-    ld $ra, 0x0($sp)
-    daddu $v0, $v1, $zero
-    jr $ra
-    addiu $sp, $sp, 0x10
+int func_0011A8C8(int a0, unsigned int a1) {
+    int ret = -1;
+    if (a0 < 0x10) {
+        if (a1 <= 0x1FFFFF) {
+            func_001157F0(0x4D, a0, a1, 0);
+            ret = 0;
+        }
+    }
+    return ret;
 }

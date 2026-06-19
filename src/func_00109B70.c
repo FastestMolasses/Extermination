@@ -1,17 +1,10 @@
-// One-call non-leaf wrapper — asm void with extern decl for the
-// callee. mwccmips emits the jal + R_MIPS_26 relocation for the
-// referenced function symbol; the rest of the instructions are
-// passed through verbatim.
-extern void func_00109B20(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK wrapper: pass &local (local[0]=1) to func_00109B20(a0, &local).
+extern int func_00109B20(int a0, int *p);
 
-asm void func_00109B70(void) {
-    addiu $sp, $sp, -0x30
-    addiu $v0, $zero, 0x1
-    sd $ra, 0x20($sp)
-    daddu $a1, $sp, $zero
-    jal func_00109B20
-    sw $v0, 0x0($sp)
-    ld $ra, 0x20($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+int func_00109B70(int a0) {
+    int local[8];
+    local[0] = 1;
+    return func_00109B20(a0, local);
 }

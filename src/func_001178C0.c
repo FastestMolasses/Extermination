@@ -1,11 +1,28 @@
-// INCLUDE_ASM func_001178C0  (vram 0x001178C0, 88 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_001178C0.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf: probe a 16-byte-strided table in D_00281AC0 for key bounds.
+struct s001178C0 {
+    int unk0;
+    unsigned char *cur;
+};
+extern struct s001178C0 D_00281AC0;
+
+int func_001178C0(int a0, int idx, int key) {
+    int r;
+    if (a0 == 0xFF) {
+        r = 1;
+    } else {
+        struct s001178C0 *s = &D_00281AC0;
+        unsigned char *e;
+        idx <<= 4;
+        e = s->cur + idx;
+        s->cur = e;
+        r = 0;
+        if (key >= e[0]) {
+            int hi = e[1];
+            r = (hi >= key);
+        }
+        s->cur = e - idx;
+    }
+    return r;
+}

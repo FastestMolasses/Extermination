@@ -1,10 +1,6 @@
-// Tail-call / arg-shuffle wrapper — `asm void` with extern decls.
-extern void func_001FBD50(void);
+// CFLAGS: -O4,p -sdatathreshold 0
+extern void func_001FBD50(int a0, short a1, int a2, float f);
 
-asm void func_00187DC0(void) {
-    lui $v0, (0x43960000 >> 16)
-    mtc1 $v0, $f12
-    addiu $a1, $zero, 0x86
-    j func_001FBD50
-    paddub $a2, $zero, $zero
+void func_00187DC0(int a0) {
+    func_001FBD50(a0, 0x86, 0, 300.0f);
 }

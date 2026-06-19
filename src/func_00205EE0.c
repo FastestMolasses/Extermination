@@ -1,18 +1,9 @@
-// Hybrid: branches/j as .word, jal with extern decls
-extern void func_00205A50(int, int, int, int);
+// CFLAGS: -O4,p -sdatathreshold 0
+typedef unsigned long long u64;
+extern void func_00205A50(void *p, int a1, u64 a2);
 
-asm void func_00205EE0(void) {
-    dsll32     $v1, $a1, 0
-    dsll32     $v0, $a3, 0
-    dsrl32     $v0, $v0, 0
-    dsrl32     $v1, $v1, 0
-    dsll32     $v0, $v0, 16
-    dsll32     $v1, $v1, 27
-    or         $v1, $v1, $v0
-    dsll32     $v0, $a2, 0
-    dsrl32     $v0, $v0, 0
-    dsll32     $v0, $v0, 0
-    addiu      $a1, $zero, 0x51
-    j         func_00205A50
-    or        $a2, $v0, $v1
+void func_00205EE0(void *a0, unsigned int a1, unsigned int a2, unsigned int a3) {
+    u64 packed = ((u64)a1 << 59) | ((u64)a3 << 48);
+    int hdr = 0x51;
+    func_00205A50(a0, hdr, ((u64)a2 << 32) | packed);
 }

@@ -1,10 +1,8 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001157F0(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK wrapper: func_001157F0(0x47, 0, 0, 0).
+extern void func_001157F0(int a0, int a1, int a2, int a3);
 
-asm void func_0011A770(void) {
-    .word 0x24040047
-    .word 0x0000282d
-    .word 0x0000302d
-    j         func_001157F0
-    .word 0x0000382d
+void func_0011A770(void) {
+    func_001157F0(0x47, 0, 0, 0);
 }

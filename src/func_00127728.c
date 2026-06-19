@@ -1,19 +1,20 @@
-// One-call non-leaf wrapper — asm void with extern decl for the
-// callee. mwccmips emits the jal + R_MIPS_26 relocation for the
-// referenced function symbol; the rest of the instructions are
-// passed through verbatim.
-extern void func_00126AB8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+typedef struct {
+    int a;
+    int b;
+    int c;
+    int _pad;
+    long long d;
+} Args127728;
 
-asm void func_00127728(void) {
-    addiu $sp, $sp, -0x30
-    sw $a0, 0x0($sp)
-    sd $ra, 0x20($sp)
-    daddu $a0, $sp, $zero
-    sw $a1, 0x4($sp)
-    sw $a2, 0x8($sp)
-    jal func_00126AB8
-    sd $a3, 0x10($sp)
-    ld $ra, 0x20($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+extern void func_00126AB8(Args127728 *p);
+
+void func_00127728(int a0, int a1, int a2, long long a3) {
+    Args127728 args;
+    args.a = a0;
+    args.b = a1;
+    args.c = a2;
+    args.d = a3;
+    func_00126AB8(&args);
 }

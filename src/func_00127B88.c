@@ -1,29 +1,19 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_001277B0(int, int, int, int);
-extern void func_001278C0(int, int, int, int);
-extern void func_00127950(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf (ee-gcc 2.9): convert two floats and combine into a result.
+extern void func_001278C0(float *in, void *out);
+extern int func_00127950(void *a, void *b, void *out);
+extern int func_001277B0(int p);
 
-asm void func_00127B88(void) {
-    addiu $sp, $sp, -0x60
-    sd $s0, 0x40($sp)
-    addiu $a0, $sp, 0x30
-    sd $ra, 0x50($sp)
-    daddu $a1, $sp, $zero
-    swc1 $f12, 0x30($sp)
-    jal func_001278C0
-    swc1 $f13, 0x34($sp)
-    addiu $s0, $sp, 0x10
-    addiu $a0, $sp, 0x34
-    jal func_001278C0
-    daddu $a1, $s0, $zero
-    daddu $a1, $s0, $zero
-    addiu $a2, $sp, 0x20
-    jal func_00127950
-    daddu $a0, $sp, $zero
-    jal func_001277B0
-    daddu $a0, $v0, $zero
-    ld $ra, 0x50($sp)
-    ld $s0, 0x40($sp)
-    jr $ra
-    addiu $sp, $sp, 0x60
+int func_00127B88(float x, float y) {
+    char out0[0x10];
+    char out10[0x10];
+    char out20[0x10];
+    float fx;
+    float fy;
+    fx = x;
+    fy = y;
+    func_001278C0(&fx, out0);
+    func_001278C0(&fy, out10);
+    return func_001277B0(func_00127950(out0, out10, out20));
 }

@@ -1,18 +1,17 @@
-// Circular buffer write-slot increment (lw $a0 → write ptr + 1; wrap if at limit)
-asm void func_0010C9F0(void *a0) {
-    daddu $5, $4, $zero
-    lw $2, 0x4($5)
-    lw $4, 0xC($5)
-    lw $3, 0x0($5)
-    addiu $2, $2, 0x1
-    addiu $4, $4, 0x1
-    sw $2, 0x4($5)
-    addiu $3, $3, 0x10
-    addu $3, $5, $3
-    .word 0x14830003
-    sw $4, 0xC($5)
-    addiu $2, $5, 0x10
-    sw $2, 0xC($5)
-    jr $ra
-    nop
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf (ee-gcc 2.9): ring buffer write-slot advance with wrap.
+struct ring {
+    int size;       // 0x0
+    int count;      // 0x4
+    int read;       // 0x8
+    char *write;    // 0xC
+};
+
+void func_0010C9F0(struct ring *r) {
+    r->count++;
+    r->write++;
+    if (r->write == (char *)r + 0x10 + r->size) {
+        r->write = (char *)r + 0x10;
+    }
 }

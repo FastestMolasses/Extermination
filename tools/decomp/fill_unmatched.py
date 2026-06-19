@@ -646,8 +646,25 @@ def assemble_one(name: str, slot_size: int = 0) -> tuple[str, str, Exception | N
     # Cross-label functions need -L + globalize-symbol post-processing.
     keep_locals = name in CROSS_LABEL_FUNCS
 
+    # SAFETY: a function whose src/<name>.c is an INCLUDE_ASM stub is NOT a
+    # decompiled unit — its byte-exact code must come from the splat .s, never
+    # from a (possibly stale/non-matching) build/obj/<name>.o left behind by a
+    # tool or agent. Linking a stub's stale obj silently breaks byte-identity.
+    src_c = ROOT / "src" / f"{name}.c"
+    is_stub = False
+    if src_c.exists():
+        try:
+            for _line in src_c.open():
+                _s = _line.strip()
+                if not _s:
+                    continue
+                is_stub = _s.startswith("// INCLUDE_ASM")
+                break
+        except OSError:
+            pass
+
     obj_src = OBJ_DIR / f"{name}.o"
-    if obj_src.exists() and not force_asm:
+    if obj_src.exists() and not force_asm and not is_stub:
         # Use the compiled/asm-matched object from build/obj/.
         if _needs_rebuild(obj_src, out_path):
             shutil.copy2(obj_src, out_path)

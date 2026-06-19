@@ -46,7 +46,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]  # tools/verify_all.py -> repo root
-IMAGE = "exterm-toolchain"
+IMAGE = "exterm-permuter"  # superset of exterm-toolchain (+ i386 libs for ee-gcc, permuter deps)
 OBJDIFF_CLI = ROOT / "tools" / "bin" / "objdiff-cli"
 VENV_PY = Path(sys.executable)
 

@@ -1,20 +1,8 @@
-// Simple nonleaf asm void
-extern void func_0010DD00(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK forwarding wrapper: func_0010DD00(a0, 0, a1, a2, a3, a4, a5).
+extern int func_0010DD00(int a0, int a1, int a2, int a3, int a4, int a5, int a6);
 
-asm void func_0010DE38(void) {
-    daddu      $v0, $a2, $zero
-    daddu      $v1, $a3, $zero
-    daddu      $11, $8, $zero
-    addiu      $sp, $sp, -0x10
-    daddu      $10, $9, $zero
-    daddu      $a2, $a1, $zero
-    sd         $ra, 0x0($sp)
-    daddu      $a3, $v0, $zero
-    daddu      $8, $v1, $zero
-    daddu      $9, $11, $zero
-    jal        func_0010DD00
-    daddu     $a1, $zero, $zero
-    ld         $ra, 0x0($sp)
-    jr         $ra
-    addiu     $sp, $sp, 0x10
+int func_0010DE38(int a0, int a1, int a2, int a3, int a4, int a5) {
+    return func_0010DD00(a0, 0, a1, a2, a3, a4, a5);
 }

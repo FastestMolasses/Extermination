@@ -1,11 +1,17 @@
-// INCLUDE_ASM func_00122BE8  (vram 0x00122BE8, 96 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_00122BE8.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf (ee-gcc 2.9): libkernel call; on -1 with a pending code, report it.
+extern int D_008234E0;
+extern int sub__9PsIIlibkernl2000_2(int a0, int a1, int a2);
+
+int func_00122BE8(int *out, int a1, int a2, int a3) {
+    int ret;
+    D_008234E0 = 0;
+    ret = sub__9PsIIlibkernl2000_2(a1, a2, a3);
+    if (ret == -1) {
+        if (D_008234E0 != 0) {
+            *out = D_008234E0;
+        }
+    }
+    return ret;
+}

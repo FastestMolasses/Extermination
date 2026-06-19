@@ -1,8 +1,10 @@
-// lw $v0,0x40($a0); li $v1,1; sd $a1,0x78($v0); jr $ra; sw $v1,0x70($v0)
-asm void func_00109B98(void) {
-    lw $2, 0x40($4)
-    addiu $3, $zero, 0x1
-    sd $5, 0x78($2)
-    jr $ra
-    sw $3, 0x70($2)
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf: p = *(a0+0x40); p->[0x78] = a1 (64-bit); p->[0x70] = 1.
+struct S109B98 { unsigned char pad[0x70]; int flag; int _pad; long handle; };
+
+void func_00109B98(struct S109B98 **a0, long a1) {
+    struct S109B98 *p = a0[0x10];
+    p->flag = 1;
+    p->handle = a1;
 }

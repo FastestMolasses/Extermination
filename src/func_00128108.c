@@ -1,52 +1,37 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001277B0(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+extern float func_001277B0(int *);
 
-asm void func_00128108(void) {
-    addiu $sp, $sp, -0x20
-    addiu $v0, $zero, 0x3
-    srl $v1, $a0, 31
-    sd $ra, 0x10($sp)
-    sw $v0, 0x0($sp)
-    .word 0x14800004
-    sw $v1, 0x4($sp)
-    addiu $v0, $zero, 0x2
-    .word 0x10000020
-    sw $v0, 0x0($sp)
-    addiu $v0, $zero, 0x1E
-    .word 0x1060000a
-    sw $v0, 0x8($sp)
-    lui $v0, (0x80000000 >> 16)
-    .word 0x14820005
-    negu $v0, $a0
-    lui $at, (0xCF000000 >> 16)
-    mtc1 $at, $f0
-    .word 0x10000019
-    ld $ra, 0x10($sp)
-    .word 0x10000002
-    sw $v0, 0xC($sp)
-    sw $a0, 0xC($sp)
-    lw $a2, 0xC($sp)
-    lui $v0, (0x3FFFFFFF >> 16)
-    ori $v0, $v0, (0x3FFFFFFF & 0xFFFF)
-    sltu $v0, $v0, $a2
-    .word 0x1440000d
-    lui $a1, (0x3FFFFFFF >> 16)
-    lw $a0, 0x8($sp)
-    ori $a1, $a1, (0x3FFFFFFF & 0xFFFF)
-    nop
-    sll $v1, $a2, 1
-    addiu $a0, $a0, -0x1
-    daddu $a2, $v1, $zero
-    sltu $v0, $a1, $v1
-    nop
-    .word 0x1040fffa
-    nop
-    sw $a0, 0x8($sp)
-    sw $v1, 0xC($sp)
-    jal func_001277B0
-    daddu $a0, $sp, $zero
-    ld $ra, 0x10($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+float func_00128108(int a0) {
+    int s[4];
+    s[0] = 3;
+    s[1] = (unsigned int)a0 >> 31;
+    if (a0 == 0) {
+        s[0] = 2;
+    } else {
+        s[2] = 0x1E;
+        if (s[1] != 0) {
+            if (a0 == (int)0x80000000) {
+                return -2147483648.0f;
+            }
+            s[3] = -a0;
+        } else {
+            s[3] = a0;
+        }
+        {
+            unsigned int v = s[3];
+            if (v <= 0x3FFFFFFFU) {
+                int e = s[2];
+                unsigned int t;
+                do {
+                    t = v << 1;
+                    e--;
+                    v = t;
+                } while (t <= 0x3FFFFFFFU);
+                s[2] = e;
+                s[3] = v;
+            }
+        }
+    }
+    return func_001277B0(s);
 }

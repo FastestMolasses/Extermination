@@ -1,29 +1,17 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_00126AB8(int, int, int, int);
-extern void func_00126BE8(int, int, int, int);
-extern void func_00126C88(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK wrapper: decode two 64-bit values via func_00126BE8, combine, finalize.
+extern void func_00126BE8(long long *a0, int *a1);
+extern int func_00126C88(int *a0, int *a1, int *a2);
+extern int func_00126AB8(int a0);
 
-asm void func_00126EC8(void) {
-    addiu $sp, $sp, -0x90
-    sd $a0, 0x60($sp)
-    sd $a1, 0x68($sp)
-    addiu $a0, $sp, 0x60
-    sd $s0, 0x70($sp)
-    sd $ra, 0x80($sp)
-    jal func_00126BE8
-    daddu $a1, $sp, $zero
-    addiu $s0, $sp, 0x20
-    addiu $a0, $sp, 0x68
-    jal func_00126BE8
-    daddu $a1, $s0, $zero
-    daddu $a1, $s0, $zero
-    addiu $a2, $sp, 0x40
-    jal func_00126C88
-    daddu $a0, $sp, $zero
-    jal func_00126AB8
-    daddu $a0, $v0, $zero
-    ld $ra, 0x80($sp)
-    ld $s0, 0x70($sp)
-    jr $ra
-    addiu $sp, $sp, 0x90
+int func_00126EC8(long long a0, long long a1) {
+    long long s0 = a0;
+    long long s1 = a1;
+    int A[8];
+    int B[8];
+    int C[8];
+    func_00126BE8(&s0, A);
+    func_00126BE8(&s1, B);
+    return func_00126AB8(func_00126C88(A, B, C));
 }

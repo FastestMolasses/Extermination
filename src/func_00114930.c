@@ -1,11 +1,19 @@
-// INCLUDE_ASM func_00114930  (vram 0x00114930, 84 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_00114930.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf: copy three uncached MMIO words into optional global pointers.
+extern int *D_0027B0E8;
+extern int *D_0027B0EC;
+extern int *D_0027B0F0;
+
+void func_00114930(int a0) {
+    int *p = (int *)(a0 | 0x20000000);
+    if (D_0027B0E8) {
+        *D_0027B0E8 = p[0];
+    }
+    if (D_0027B0EC) {
+        *D_0027B0EC = p[1];
+    }
+    if (D_0027B0F0) {
+        *D_0027B0F0 = p[0x24];
+    }
+}

@@ -1,11 +1,20 @@
-// INCLUDE_ASM func_0010F968  (vram 0x0010F968, 120 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_0010F968.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf (ee-gcc 2.9): set up a transfer descriptor and kick the DMA helper.
+extern int D_00241C90;
+extern int D_00279300;
+extern int D_00279280;
+extern char D_00279240[];
+extern int func_0010E8A8(void *a0, int a1, int a2, void *a3, int a4, void *a5,
+                         int a6, int a7, int a8);
+
+int func_0010F968(int a0) {
+    if (D_00241C90 < 0) {
+        return 0;
+    }
+    D_00279300 = a0;
+    if (func_0010E8A8(D_00279240, 2, 0, &D_00279300, 4, &D_00279280, 4, 0, 0) < 0) {
+        return -1;
+    }
+    return D_00279280;
+}

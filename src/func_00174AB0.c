@@ -1,9 +1,7 @@
-// Tail-call / arg-shuffle wrapper — `asm void` with extern decls.
-extern void func_001749A0(void);
+// CFLAGS: -O4,p -sdatathreshold 0
+extern int func_001749A0(unsigned char *e, short clip, int flags, float blend);
 
-asm void func_00174AB0(void) {
-    mtc1 $zero, $f12
-    addiu $a2, $zero, 0x1
-    j func_001749A0
-    paddub $a1, $zero, $zero
+void func_00174AB0(unsigned char *e) {
+    int flags = 1;
+    func_001749A0(e, 0, flags, 0.0f);
 }

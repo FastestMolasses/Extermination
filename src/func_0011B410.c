@@ -1,31 +1,12 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_0011B3F8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+extern int func_0011B3F8(void);
 
-asm void func_0011B410(void) {
-    addiu      $sp, $sp, -0x10
-    .word 0x1480000b
-    .word 0xffbf0000
-    jal        func_0011B3F8
-    nop
-    .word 0x3c03ffff
-    .word 0x3c041000
-    .word 0x3463fffe
-    .word 0x34843010
-    and        $v0, $v0, $v1
-    .word 0xac820000
-    .word 0x1000000b
-    .word 0xdfbf0000
-    addiu      $v0, $zero, 0x1
-    .word 0x14820009
-    .word 0xdfbf0000
-    jal        func_0011B3F8
-    nop
-    .word 0x3c031000
-    ori        $v0, $v0, 0x1
-    .word 0x34633010
-    .word 0xac620000
-    .word 0xdfbf0000
-    addiu      $v0, $zero, 0x1
-    jr         $ra
-    addiu     $sp, $sp, 0x10
+int func_0011B410(int a0) {
+    if (a0 == 0) {
+        *(volatile int *)0x10003010 = func_0011B3F8() & 0xFFFFFFFE;
+    } else if (a0 == 1) {
+        *(volatile int *)0x10003010 = func_0011B3F8() | 1;
+    }
+    return 1;
 }

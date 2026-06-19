@@ -1,11 +1,34 @@
-// INCLUDE_ASM func_00203C90  (vram 0x00203C90, 156 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_00203C90.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// CFLAGS: -O4,p -sdatathreshold 0
+extern int D_007A55FC;
+extern int D_002DF7F0;
+extern int D_002DF7F4;
+extern char D_002DF740[];
+extern char D_002DF800[];
+
+extern void ExitThread(int a0);
+extern void _iReleaseAlarm(int a0);
+extern void AddDmacHandler(int a0, int a1);
+extern void AddIntcHandler2(int a0, int a1);
+extern void func_0010C360(int a0);
+extern void func_0010C290(int a0);
+extern void func_0010C2F8(int a0);
+extern void func_00206B30(void *a0);
+extern void func_002063A0(void *a0);
+extern int func_00113CD0(void);
+
+void func_00203C90(void) {
+    int r;
+    ExitThread(D_007A55FC);
+    _iReleaseAlarm(D_007A55FC);
+    func_0010C360(2);
+    AddDmacHandler(2, D_002DF7F0);
+    func_0010C290(2);
+    AddIntcHandler2(2, D_002DF7F4);
+    func_0010C2F8(2);
+    func_00206B30(D_002DF740);
+    func_002063A0(D_002DF800);
+    do {
+        r = func_00113CD0();
+        asm { nop; nop; nop; nop; nop }
+    } while (r == 0);
+}

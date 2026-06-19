@@ -1,23 +1,8 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void build_trs_matrix(int, int, int, int);
-extern void func_001C9940(int, int, int, int);
+// CFLAGS: -O4,p -sdatathreshold 0
+extern void build_trs_matrix(void *a, void *b, void *c, void *d);
+extern void func_001C9940(void *a, int b, void *c);
 
-asm void func_001C68C0(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    sq $s0, 0x0($sp)
-    paddub $s0, $a0, $zero
-    addiu $a0, $s0, 0xD0
-    addiu $a1, $s0, 0xB0
-    addiu $a2, $s0, 0xC0
-    jal build_trs_matrix
-    addiu $a3, $s0, 0x60
-    lbu $a1, 0xC($s0)
-    addiu $a0, $s0, 0x110
-    jal func_001C9940
-    addiu $a2, $s0, 0xD0
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+void func_001C68C0(char *o) {
+    build_trs_matrix(o + 0xD0, o + 0xB0, o + 0xC0, o + 0x60);
+    func_001C9940(o + 0x110, *(unsigned char *)(o + 0xC), o + 0xD0);
 }

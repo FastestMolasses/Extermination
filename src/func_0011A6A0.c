@@ -1,23 +1,8 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_001157F0(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+extern int func_001157F0(int a, long b, long c, int d);
 
-asm void func_0011A6A0(void) {
-    lui $v0, (0xFFFFFF >> 16)
-    ori $v0, $v0, (0xFFFFFF & 0xFFFF)
-    dsrl $a2, $a0, 24
-    and $a0, $a0, $v0
-    addiu $sp, $sp, -0x10
-    and $a2, $a2, $v0
-    dsll32 $a1, $a0, 0
-    dsra32 $a1, $a1, 0
-    sd $ra, 0x0($sp)
-    dsll32 $a2, $a2, 0
-    dsra32 $a2, $a2, 0
-    addiu $a0, $zero, 0x42
-    jal func_001157F0
-    daddu $a3, $zero, $zero
-    ld $ra, 0x0($sp)
-    daddu $v0, $zero, $zero
-    jr $ra
-    addiu $sp, $sp, 0x10
+int func_0011A6A0(unsigned long a0) {
+    func_001157F0(0x42, (int)(a0 & 0xFFFFFF), (int)((a0 >> 24) & 0xFFFFFF), 0);
+    return 0;
 }

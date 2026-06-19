@@ -1,20 +1,9 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void anim_clip_init(int, int, int, int);
+// CFLAGS: -O4,p -sdatathreshold 0
+extern void anim_clip_init(int, int, float, float);
 
-asm void func_00153ED0(void) {
-    addiu $sp, $sp, -0x10
-    sq $ra, 0x0($sp)
-    lh $a3, 0x0($a1)
-    dsll32 $v1, $a2, 16
-    dsra32 $v1, $v1, 16
-    .word 0x10e30005
-    nop
-    sh $a2, 0x0($a1)
-    mtc1 $zero, $f13
-    jal anim_clip_init
-    paddub $a1, $a2, $zero
-    lq $ra, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x10
+void func_00153ED0(int a0, short *a1, int a2, float f12) {
+    if (a1[0] != (short)a2) {
+        a1[0] = (short)a2;
+        anim_clip_init(a0, a2, f12, 0.0f);
+    }
 }

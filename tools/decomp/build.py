@@ -32,7 +32,7 @@ BUILD = ROOT / "build"
 SPLAT_YAML = CONFIG / "SCUS_971.12.yaml"
 OBJDIFF_JSON = ROOT / "objdiff.json"
 
-IMAGE = "exterm-toolchain"
+IMAGE = "exterm-permuter"  # superset of exterm-toolchain: + i386 libs (ee-gcc) + permuter deps
 # splat writes each auto-detected function's disassembly here.
 ASM_DIR = "build/asm/matchings/main/code"
 # mwccmips flags. -O4,p (speed) matches the trivial functions decompiled so
@@ -118,15 +118,46 @@ def file_cflags(name: str) -> str:
                     continue
                 if line.startswith("// CFLAGS:"):
                     return line[len("// CFLAGS:"):].strip()
+                if line.startswith("// COMPILER:"):
+                    continue  # keep scanning for a CFLAGS line
                 break
     except OSError:
         pass
-    return CFLAGS
+    return "-O2" if file_compiler(name) == "eegcc" else CFLAGS
+
+
+def file_compiler(name: str) -> str:
+    """Per-file compiler from a '// COMPILER: ...' comment in the leading block.
+
+    Returns 'eegcc' for Sony-SDK/crt0 functions built with the period EE GNU
+    compiler (ee-gcc 2.96), or 'mwcc' (default) for the CodeWarrior game code.
+    """
+    src = SRC / f"{name}.c"
+    try:
+        with src.open() as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                if line.startswith("// COMPILER:"):
+                    return line[len("// COMPILER:"):].strip()
+                if line.startswith("//"):
+                    continue
+                break
+    except OSError:
+        pass
+    return "mwcc"
 
 
 def compile_cmd(name: str) -> str:
-    """Compile src/<name>.c into an objdiff base object via mwccmips."""
+    """Compile src/<name>.c into an objdiff base object.
+
+    CodeWarrior game code uses mwccmips (via wibo); Sony-SDK functions marked
+    '// COMPILER: eegcc' use ee-gcc 2.96 via tools/eegcc/ee-compile.sh.
+    """
     flags = file_cflags(name)
+    if file_compiler(name) == "eegcc":
+        return f"tools/eegcc/ee-compile.sh src/{name}.c build/obj/{name}.o {flags}"
     return (f"qemu-i386 tools/bin/wibo32 tools/mwccps2/mwccmips.exe "
             f"-c {flags} -o build/obj/{name}.o src/{name}.c")
 
@@ -226,8 +257,9 @@ def single_file(obj: str) -> None:
     if not (SRC / f"{name}.c").exists():
         sys.exit(f"error: no src/{name}.c for {obj}")
     container(f"mkdir -p build/obj && {compile_cmd(name)}")
-    subprocess.run([sys.executable, str(ROOT / "tools/decomp/inject_relocs.py"), name],
-                   cwd=ROOT, check=False)
+    if file_compiler(name) != "eegcc":  # ee-gcc emits standard ELF relocs; no raw-cast injection
+        subprocess.run([sys.executable, str(ROOT / "tools/decomp/inject_relocs.py"), name],
+                       cwd=ROOT, check=False)
 
 
 def main(argv: list[str]) -> int:

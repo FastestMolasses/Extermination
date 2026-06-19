@@ -1,11 +1,26 @@
-// INCLUDE_ASM func_0010C5C8  (vram 0x0010C5C8, 124 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_0010C5C8.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK leaf (ee-gcc 2.9): scheduler service loop — signal sema, dispatch by state.
+extern int D_00276C98;
+extern int D_0026B7B0;
+extern void SignalSema(int sema);
+extern void iReferThreadStatus(int thid);
+extern void ChangeThreadPriority(int thid);
+extern void func_0010D890(int *a0);
+
+void func_0010C5C8(int *a0) {
+    for (;;) {
+        SignalSema(D_00276C98);
+        switch (a0[0]) {
+        case 0:
+            iReferThreadStatus(a0[1]);
+            break;
+        case 1:
+            ChangeThreadPriority(a0[1]);
+            break;
+        default:
+            func_0010D890(&D_0026B7B0);
+            break;
+        }
+    }
+}

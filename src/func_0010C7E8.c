@@ -1,11 +1,14 @@
-// INCLUDE_ASM func_0010C7E8  (vram 0x0010C7E8, 68 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_0010C7E8.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+// Build a 4-word DMA request on the stack and submit via sceSifDmaStat(1, &req).
+extern int D_00276CA0;
+extern int sceSifDmaStat(int chan, void *req);
+
+int func_0010C7E8(unsigned short a0, int a1, int a2) {
+    int req[4];
+    req[1] = a1;
+    req[0] = a0;
+    req[2] = a2;
+    req[3] = (int)&D_00276CA0 | 0x20000000;
+    return sceSifDmaStat(1, req);
+}

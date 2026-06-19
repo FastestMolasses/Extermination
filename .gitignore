@@ -94,3 +94,6 @@ __pycache__/
 
 # Personal textbook (not part of the project)
 textbook/
+tools/permuter/
+tools/eegcc/
+tools/m2c/

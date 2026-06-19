@@ -1,24 +1,16 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void ReferThreadStatus(int, int, int, int);
-extern void func_001152B0(int, int, int, int);
-extern void func_001192D0(int, int, int, int);
+// CFLAGS: -O4,p -sdatathreshold 0
+extern void ReferThreadStatus(void);
+extern int func_001192D0(void);
+extern void func_001152B0(void);
 
-asm void func_001FB0C0(void) {
-    addiu $sp, $sp, -0x10
-    sq $ra, 0x0($sp)
-    jal ReferThreadStatus
-    nop
-    jal func_001192D0
-    nop
-    nop
-    nop
-    nop
-    nop
-    .word 0x1440fff9
-    nop
-    jal func_001152B0
-    nop
-    .word 0x1000fff3
-    nop
+void func_001FB0C0(void) {
+    int r;
+    for (;;) {
+        ReferThreadStatus();
+        do {
+            r = func_001192D0();
+            asm { nop; nop; nop; nop; nop; }
+        } while (r != 0);
+        func_001152B0();
+    }
 }

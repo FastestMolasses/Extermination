@@ -1,53 +1,42 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00121EB8(void) {
-    .word 0x8c830000
-    .word 0x30620007
-    .word 0x1040000e
-    .word 0x30620001
-    .word 0x10400003
-    .word 0x30620002
-    .word 0x03e00008
-    .word 0x0000102d
-    .word 0x50400005
-    .word 0x00031882
-    .word 0x00031842
-    .word 0x24020001
-    .word 0x03e00008
-    .word 0xac830000
-    .word 0x24020002
-    .word 0x03e00008
-    .word 0xac830000
-    .word 0x3062ffff
-    .word 0x14400003
-    .word 0x0000282d
-    .word 0x24050010
-    .word 0x00031c02
-    .word 0x306200ff
-    .word 0x14400004
-    .word 0x3062000f
-    .word 0x24a50008
-    .word 0x00031a02
-    .word 0x3062000f
-    .word 0x14400004
-    .word 0x30620003
-    .word 0x24a50004
-    .word 0x00031902
-    .word 0x30620003
-    .word 0x14400004
-    .word 0x30620001
-    .word 0x24a50002
-    .word 0x00031882
-    .word 0x30620001
-    .word 0x54400007
-    .word 0xac830000
-    .word 0x00031842
-    .word 0x14600003
-    .word 0x24a50001
-    .word 0x03e00008
-    .word 0x24020020
-    .word 0xac830000
-    .word 0x03e00008
-    .word 0x00a0102d
+// COMPILER: eegcc
+// CFLAGS: -O2
+// Normalize a bitmask in *a0, returning a code or trailing-zero count.
+int func_00121EB8(int *a0) {
+    unsigned int v = *a0;
+    int n;
+    if (v & 7) {
+        if (v & 1)
+            return 0;
+        if (v & 2) {
+            *a0 = v >> 1;
+            return 1;
+        }
+        *a0 = v >> 2;
+        return 2;
+    }
+    n = 0;
+    if ((v & 0xFFFF) == 0) {
+        n = 0x10;
+        v >>= 16;
+    }
+    if ((v & 0xFF) == 0) {
+        n += 8;
+        v >>= 8;
+    }
+    if ((v & 0xF) == 0) {
+        n += 4;
+        v >>= 4;
+    }
+    if ((v & 3) == 0) {
+        n += 2;
+        v >>= 2;
+    }
+    if ((v & 1) == 0) {
+        v >>= 1;
+        if (v == 0)
+            return 0x20;
+        n += 1;
+    }
+    *a0 = v;
+    return n;
 }
