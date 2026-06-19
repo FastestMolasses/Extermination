@@ -2695,7 +2695,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x002065D0,func_002065D0,412,word,1,movie
 0x00206770,func_00206770,152,word,1,movie
 0x00206810,func_00206810,348,word,1,movie
-0x00206970,func_00206970,132,word,1,movie
+0x00206970,func_00206970,132,readable,1,movie
 0x00206A00,func_00206A00,256,undecompiled,1,movie
 0x00206B00,func_00206B00,8,readable,2,movie
 0x00206B10,func_00206B10,8,readable,2,movie
