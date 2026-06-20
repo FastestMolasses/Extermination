@@ -1,0 +1,34 @@
+m2c -> idiom -> mwcc matching pipeline (s83)
+============================================
+Scales the conversion of byte-exact INCLUDE_ASM stubs / asm-void units into true
+objdiff-100% readable C, using m2c to auto-generate base C and the documented idioms
+(docs/fanout/MATCHING_GUIDE.md) to hand-finish. Scratch lives in build/match/
+(git-ignored). Compiler: CodeWarrior mwccmips via container exterm-toolchain;
+objdiff-cli on the host. m2c pinned at tools/m2c/ (+ tools/m2c/exterm_prelude.h).
+
+SCRIPTS (run from repo root, .venv/bin/python3):
+  m2c_clean.py     - post-process m2c --valid-syntax so it compiles under mwcc
+                     (void*->s8*, *(void*)->*(s32*)).  Used as a library + CLI.
+  baseline.py F... - m2c each F, compile (mwcc) + assemble target, objdiff; prints
+                     the m2c-only match% distribution. Writes build/match/{src,obj,exp}.
+  classify.py LIST - bucket near-miss deltas by wall type (regalloc/schedule/idiom-13...).
+  next_wave.py [N] - emit the next N fan-out candidates (fresh hybrids, then stubs by
+                     baseline), excluding build/match/attempted.txt; appends to it.
+  integrate.py J   - J = [{func,c_source}]; write src/<f>.c, build.py --single-file,
+                     assemble expected on demand, accept only at canonical objdiff 100%
+                     (else git-checkout restores the stub).
+  process_wave.py O - O = a fan-out workflow's JSON output; extracts matched funcs and
+                     runs the full integrate -> trim_prelude -> re-verify -> FUNCTIONS.csv
+                     -> build.py objdiff. RETRIES rejects once (transient container races).
+  trim_prelude.py  - trim the inlined exterm prelude in a matched src to used symbols.
+  permute.py F...  - drive the decomp-permuter (tools/permuter) on near-misses.
+
+CAMPAIGN LOOP (orchestrator):
+  1. baseline.py over a candidate set -> rank by match%.
+  2. Launch a fan-out workflow: subagents get m2c base + MATCHING_GUIDE idioms, hand-finish
+     to true 100% in isolated build/agent_<id>/, return matching c_source. (See the s83
+     workflow scripts; the re-wave variant inlines the 11 wall-class idioms.)
+  3. process_wave.py <workflow output> -> integrate matches.
+  4. verify_all (boot-elf byte-identical gate) -> git commit.
+  5. next_wave.py -> repeat. Periodically RE new wall classes (controlled mwcc
+     compile+objdump experiments) -> add idioms to MATCHING_GUIDE -> re-wave.
