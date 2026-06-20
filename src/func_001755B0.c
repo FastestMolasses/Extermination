@@ -1,11 +1,19 @@
-// INCLUDE_ASM func_001755B0  (vram 0x001755B0, 132 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_001755B0.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// CFLAGS: -O4,p -sdatathreshold 0
+typedef signed char s8;
+typedef int s32;
+typedef float f32;
+
+f32 func_0011DF78(f32);
+f32 func_001B1470(f32);
+extern f32 D_008106A0;
+
+s32 func_001755B0(s8 *arg0) {
+    f32 temp_f0;
+
+    temp_f0 = func_0011DF78(func_001B1470(func_001B1470(3.1415927f + *(f32 *)(arg0 + 0x24C) + D_008106A0) - *(f32 *)(arg0 + 0xC4)));
+    *(f32 *)0x70003A20 = temp_f0;
+    if (temp_f0 > 1.5707964f) {
+        return 1;
+    }
+    return 0;
+}

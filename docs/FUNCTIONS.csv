@@ -1305,7 +1305,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001751A0,func_001751A0,484,undecompiled,6,actor_anim
 0x00175390,func_00175390,328,undecompiled,1,actor_anim
 0x001754E0,func_001754E0,208,undecompiled,4,actor_anim
-0x001755B0,func_001755B0,132,undecompiled,2,actor_anim
+0x001755B0,func_001755B0,132,readable,2,actor_anim
 0x00175640,func_00175640,156,undecompiled,1,actor_anim
 0x001756E0,func_001756E0,536,undecompiled,2,actor_anim
 0x00175900,func_00175900,1004,undecompiled,60,actor_anim
@@ -1549,7 +1549,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0018DD20,func_0018DD20,6984,undecompiled,1,init_io
 0x0018F870,func_0018F870,5796,undecompiled,1,init_io
 0x00190F20,func_00190F20,212,undecompiled,1,init_io
-0x00191000,func_00191000,284,undecompiled,2,init_io
+0x00191000,func_00191000,284,readable,2,init_io
 0x00191120,func_00191120,236,word,3,init_io
 0x00191210,func_00191210,160,undecompiled,4,init_io
 0x001912B0,func_001912B0,160,undecompiled,3,init_io
