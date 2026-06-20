@@ -1111,7 +1111,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0014E640,func_0014E640,48,readable,1,entity_logic
 0x0014E670,func_0014E670,304,word,2,entity_logic
 0x0014E7A0,func_0014E7A0,240,undecompiled,1,entity_logic
-0x0014E890,func_0014E890,300,word,2,entity_logic
+0x0014E890,func_0014E890,300,readable,2,entity_logic
 0x0014E9C0,func_0014E9C0,576,word,1,entity_logic
 0x0014EC00,func_0014EC00,264,word,0,entity_logic
 0x0014ED10,func_0014ED10,192,undecompiled,1,entity_logic
@@ -2774,7 +2774,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00210C00,func_00210C00,812,undecompiled,1,ui_screens
 0x00210F30,func_00210F30,780,undecompiled,1,ui_screens
 0x00211240,func_00211240,200,undecompiled,1,ui_screens
-0x00211310,func_00211310,236,word,1,ui_screens
+0x00211310,func_00211310,236,readable,1,ui_screens
 0x00211400,func_00211400,976,undecompiled,1,ui_screens
 0x002117D0,func_002117D0,416,undecompiled,1,ui_screens
 0x00211970,func_00211970,2088,undecompiled,1,ui_screens
