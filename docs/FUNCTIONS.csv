@@ -1401,8 +1401,8 @@ vram,name,size_bytes,status,callers,subsystem
 0x0017F9E0,func_0017F9E0,420,undecompiled,1,actor_anim
 0x0017FB90,func_0017FB90,228,undecompiled,1,actor_anim
 0x0017FC80,func_0017FC80,116,readable,6,actor_anim
-0x0017FD00,func_0017FD00,64,word,1,actor_anim
-0x0017FD40,func_0017FD40,64,word,1,actor_anim
+0x0017FD00,func_0017FD00,64,readable,1,actor_anim
+0x0017FD40,func_0017FD40,64,readable,1,actor_anim
 0x0017FD80,func_0017FD80,120,word,1,actor_anim
 0x0017FE00,func_0017FE00,120,word,1,actor_anim
 0x0017FE80,func_0017FE80,120,readable,1,actor_anim
@@ -1410,9 +1410,9 @@ vram,name,size_bytes,status,callers,subsystem
 0x0017FF80,func_0017FF80,116,readable,4,actor_anim
 0x00180000,func_00180000,4,word,1,actor_anim
 0x00180004,func_00180004,60,word,0,actor_anim
-0x00180040,func_00180040,64,word,1,actor_anim
-0x00180080,func_00180080,64,word,1,actor_anim
-0x001800C0,func_001800C0,64,word,1,actor_anim
+0x00180040,func_00180040,64,readable,1,actor_anim
+0x00180080,func_00180080,64,readable,1,actor_anim
+0x001800C0,func_001800C0,64,readable,1,actor_anim
 0x00180100,func_00180100,120,readable,1,actor_anim
 0x00180180,func_00180180,120,readable,1,actor_anim
 0x00180200,func_00180200,120,readable,1,actor_anim
@@ -1440,7 +1440,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00181D70,func_00181D70,168,undecompiled,2,actor_anim
 0x00181E20,func_00181E20,320,undecompiled,1,actor_anim
 0x00181F60,func_00181F60,296,undecompiled,1,actor_anim
-0x00182090,func_00182090,100,word,1,actor_anim
+0x00182090,func_00182090,100,readable,1,actor_anim
 0x00182100,func_00182100,212,word,1,actor_anim
 0x001821E0,func_001821E0,104,word,1,actor_anim
 0x00182250,func_00182250,400,undecompiled,1,actor_anim
@@ -2682,7 +2682,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00205F90,func_00205F90,124,word,1,unknown_05
 0x00206010,func_00206010,32,readable,1,movie
 0x00206030,func_00206030,320,undecompiled,0,movie
-0x00206170,func_00206170,60,word,0,movie
+0x00206170,func_00206170,60,readable,0,movie
 0x002061B0,func_002061B0,80,readable,1,movie
 0x00206200,func_00206200,16,readable,1,movie
 0x00206210,func_00206210,260,undecompiled,1,movie
