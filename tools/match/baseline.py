@@ -19,14 +19,32 @@ os.chdir(ROOT)
 for d in ("src", "obj", "exp"):
     os.makedirs(f"{PROTO}/{d}", exist_ok=True)
 
+def jtbl_inputs(func):
+    """If `func` is a jtbl dispatcher, resymbolize its jump tables and return the
+    (func.s, jtbl.s) pair m2c needs; otherwise return None. (Re-symbolization only
+    touches build/match/jtbl/ — the canonical splat .s is never modified.)"""
+    try:
+        r = subprocess.run([".venv/bin/python3", "tools/match/jtbl_prep.py", func],
+                           capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return None
+    out = r.stdout.strip()
+    if not out or out == "NOJTBL" or out.startswith("ERROR"):
+        return None
+    parts = out.split()
+    if len(parts) == 2 and all(os.path.exists(p) for p in parts):
+        return parts
+    return None
+
 def m2c(func):
     sp = f"{A}/{func}.s"
     if not os.path.exists(sp):
         return None
+    inputs = jtbl_inputs(func) or [sp]
     cmd = [".venv/bin/python3", "tools/m2c/m2c.py", "--target", "mipsee-mwcc-c", "--valid-syntax"]
     if os.path.exists(f"{PROTO}/context.c"):
         cmd += ["--context", f"{PROTO}/context.c"]
-    cmd.append(sp)
+    cmd += inputs
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     except subprocess.TimeoutExpired:
@@ -87,7 +105,7 @@ def objdiff(func):
     return None
 
 def main():
-    funcs = [x for x in sys.argv[1:] if x.startswith("func_")]
+    funcs = [x for x in sys.argv[1:] if os.path.exists(f"{A}/{x}.s")]
     flags = DEFAULT_FLAGS
     open(f"{PROTO}/cc_err.txt", "w").close()
     ok, m2c_fail = [], []
