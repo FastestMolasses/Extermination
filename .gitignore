@@ -92,6 +92,10 @@ subtextures/
 __pycache__/
 *.pyc
 
+# Root-level compile/debug scratch (objdiff probes, single-func test objects)
+/*.o
+/debug_*
+
 # Personal textbook (not part of the project)
 textbook/
 tools/permuter/
