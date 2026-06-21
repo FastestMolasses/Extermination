@@ -1,29 +1,23 @@
-// Hybrid: branches/j as .word, jal with extern decls
-extern void func_00205A50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// 64-bit GS-register bit-packer (idiom: dsll32/dsrl32 zero-extend + dsll/or). Packs
+// six unsigned 32-bit fields into a long long at distinct bit positions and tail-
+// calls func_00205A50(a0, 8, packed). a0 is passed through unchanged; func_00205A50
+// stores the low/high 32 bits of the packed value plus the int 8 into a 16-byte
+// record at a0. Field bit offsets: a1<<0, a2<<2, a3<<4, a4<<14, a5<<24, a6<<34.
+//
+// Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202 (66%). 2.3.3
+// is byte-identical. Verified objdiff 100% vs build/expected/func_00205E40.o.
+extern void func_00205A50(void *a0, int a1, long long a2);
 
-asm void func_00205E40(void) {
-    dsll32     $v0, $a3, 0
-    dsrl32     $v0, $v0, 0
-    dsll       $11, $v0, 4
-    dsll32     $v0, $8, 0
-    dsll32     $8, $a1, 0
-    dsrl32     $v0, $v0, 0
-    dsll32     $a1, $a2, 0
-    dsll       $a3, $v0, 14
-    dsrl32     $a1, $a1, 0
-    dsll32     $v0, $9, 0
-    dsrl32     $v0, $v0, 0
-    dsll       $v1, $v0, 24
-    dsll32     $v0, $10, 0
-    dsrl32     $v0, $v0, 0
-    dsrl32     $8, $8, 0
-    dsll       $a1, $a1, 2
-    or         $a1, $8, $a1
-    or         $a1, $11, $a1
-    or         $a1, $a3, $a1
-    or         $v1, $v1, $a1
-    dsll32     $v0, $v0, 2
-    addiu      $a1, $zero, 0x8
-    j         func_00205A50
-    or        $a2, $v0, $v1
+void func_00205E40(void *a0, unsigned int a1, unsigned int a2, unsigned int a3,
+                   unsigned int a4, unsigned int a5, unsigned int a6) {
+    func_00205A50(a0, 8,
+                  (long long)(unsigned int)a1
+                  | ((long long)(unsigned int)a2 << 2)
+                  | ((long long)(unsigned int)a3 << 4)
+                  | ((long long)(unsigned int)a4 << 14)
+                  | ((long long)(unsigned int)a5 << 24)
+                  | ((long long)(unsigned int)a6 << 34));
 }

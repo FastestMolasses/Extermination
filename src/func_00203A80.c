@@ -1,26 +1,12 @@
-asm void func_00203A80(void) {
-    lui $at, (0x50004 >> 16)
-    addu $at, $a0, $at
-    lw $v1, (0x50004 & 0xFFFF)($at)
-    .word 0x10600010
-    .word 0x3c010005
-    .word 0x3c010005
-    addu $at, $a0, $at
-    lw $a2, (0x50008 & 0xFFFF)($at)
-    lui $at, (0x50000 >> 16)
-    addu $at, $a0, $at
-    lw $v0, (0x50000 & 0xFFFF)($at)
-    subu $v0, $v0, $v1
-    addu $v0, $a2, $v0
-    .word 0x0046001a
-    nop
-    nop
-    mfhi $v0
-    addu $v0, $a0, $v0
-    sw $v0, 0x0($a1)
-    lui $at, (0x50004 >> 16)
-    addu $at, $a0, $at
-    jr $ra
-    lw $v0, (0x50004 & 0xFFFF)($at)
-    nop
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+int func_00203A80(int *arg0, int *arg1) {
+    int v1;
+
+    v1 = arg0[0x14001];
+    if (v1 != 0) {
+        int a2 = arg0[0x14002];
+        *arg1 = (int)arg0 + ((a2 + (arg0[0x14000] - v1)) % a2);
+    }
+    return arg0[0x14001];
 }
