@@ -1,15 +1,13 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001CB5C0(void) {
-    .word 0x70002e28
-    .word 0x24a50001
-    .word 0xac800000
-    .word 0xac804000
-    .word 0x28a31000
-    .word 0x24840004
-    .word 0x1460fffa
-    .word 0x00000000
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Leaf zeroing loop: clears two int arrays 0x4000 bytes apart, 0x1000 ints each
+// (a paired per-element clear of the structure at p and at p+0x4000). mwcc 2.3.3
+// reproduces the `paddub a1,zero,zero` zero-init idiom that 991202 does not (60.5%).
+void func_001CB5C0(int *p) {
+    int i;
+    for (i = 0; i < 0x1000; i++) {
+        p[0] = 0;
+        *(int *)((char *)p + 0x4000) = 0;
+        p++;
+    }
 }

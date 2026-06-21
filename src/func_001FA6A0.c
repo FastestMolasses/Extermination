@@ -1,19 +1,13 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_0010F8F8(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Align-up wrapper: calls func_0010F8F8(a0+0x10), rounds result up to 16.
+// Matched via mwcc 2.3.3 (clean-store idiom-13 beqz delay-slot nop that 991202 fills).
+extern int func_0010F8F8(int);
 
-asm void func_001FA6A0(void) {
-    addiu $sp, $sp, -0x10
-    sq $ra, 0x0($sp)
-    jal func_0010F8F8
-    addiu $a0, $a0, 0x10
-    andi $v1, $v0, 0xF
-    .word 0x10600004
-    nop
-    addiu $v1, $zero, -0x10
-    and $v0, $v0, $v1
-    addiu $v0, $v0, 0x10
-    lq $ra, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x10
+int func_001FA6A0(int a0) {
+    int v0 = func_0010F8F8(a0 + 0x10);
+    if (v0 & 0xF) {
+        v0 = (v0 & -0x10) + 0x10;
+    }
+    return v0;
 }

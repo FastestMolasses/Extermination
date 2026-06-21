@@ -1,19 +1,14 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_00121AF8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK/eegcc-convention leaf: 16-byte callee-save stride (sd s0/sd ra), ra-at-top
+// frame. Allocates via func_00121AF8(a0, 1), then initializes the returned record:
+// field [0x14] = caller's second arg, field [0x10] = 1; returns the pointer.
+// (Pure mwcc maxes at ~46-50% here -- wrong frame/save convention; ee-gcc 2.9 -O2 is byte-exact.)
+extern int *func_00121AF8(int a0, int a1);
 
-asm void func_00121F78(void) {
-    addiu $sp, $sp, -0x20
-    sd $s0, 0x0($sp)
-    daddu $s0, $a1, $zero
-    sd $ra, 0x10($sp)
-    jal func_00121AF8
-    addiu $a1, $zero, 0x1
-    daddu $v1, $v0, $zero
-    addiu $a0, $zero, 0x1
-    sw $s0, 0x14($v1)
-    ld $ra, 0x10($sp)
-    ld $s0, 0x0($sp)
-    sw $a0, 0x10($v1)
-    jr $ra
-    addiu $sp, $sp, 0x20
+int *func_00121F78(int a0, int a1) {
+    int *p = func_00121AF8(a0, 1);
+    p[5] = a1;
+    p[4] = 1;
+    return p;
 }
