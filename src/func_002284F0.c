@@ -1,20 +1,17 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_002284F0(void) {
-    .word 0x70003e28
-    .word 0x70003628
-    .word 0x00861821
-    .word 0x90650000
-    .word 0x24c60001
-    .word 0x00e52821
-    .word 0x2cc3063f
-    .word 0x1460fffa
-    .word 0x30a700ff
-    .word 0x24030001
-    .word 0xa083000f
-    .word 0x24030100
-    .word 0x00671823
-    .word 0x03e00008
-    .word 0xa083063f
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Leaf: byte-checksum over a 0x640-byte block.
+// Sums bytes [0..0x63E] with an 8-bit wrapping accumulator, sets a
+// validity flag byte at +0xF to 1, and writes the 8-bit two's-complement
+// of the sum at +0x63F so the whole region sums to zero.
+void func_002284F0(unsigned char *p) {
+    unsigned int i;
+    int sum;
+
+    sum = 0;
+    for (i = 0; i < 0x63F; i++) {
+        sum = (sum + p[i]) & 0xFF;
+    }
+    p[0xF] = 1;
+    p[0x63F] = 0x100 - sum;
 }

@@ -1,23 +1,21 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001B1630(int, int, int, int);
-extern void func_001B1B70(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Thin dispatcher on an actor struct (unsigned char *): calls func_001B1630,
+// stores its byte result into +0x1, and if that byte is nonzero calls
+// func_001B1B70(actor). Returns the +0x1 byte (re-loaded).
+//
+// Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: under
+// 991202 the lone residual was the clean-store `beqz` delay-slot nop (wall
+// #13) — 991202 fills it, CodeWarrior 2.3.3 leaves the nop. The 2.3.3 build is
+// byte-identical (.text cmp vs build/expected) → readable plain C, no asm void.
+extern unsigned char func_001B1630(unsigned char *);
+extern void func_001B1B70(unsigned char *);
 
-asm void func_001B1B30(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    sq $s0, 0x0($sp)
-    jal func_001B1630
-    paddub $s0, $a0, $zero
-    sb $v0, 0x1($s0)
-    lbu $v0, 0x1($s0)
-    .word 0x10400003
-    nop
-    jal func_001B1B70
-    paddub $a0, $s0, $zero
-    lbu $v0, 0x1($s0)
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+unsigned char func_001B1B30(unsigned char *arg0) {
+    arg0[1] = func_001B1630(arg0);
+    if (arg0[1] != 0) {
+        func_001B1B70(arg0);
+    }
+    return arg0[1];
 }

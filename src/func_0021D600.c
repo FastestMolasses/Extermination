@@ -1,19 +1,14 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_0021D600(void) {
-    .word 0x908301f1
-    .word 0x24020001
-    .word 0x10620006
-    .word 0x24020001
-    .word 0x2462fffd
-    .word 0x2c410002
-    .word 0x10200005
-    .word 0x70001628
-    .word 0x24020001
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Returns 1 if byte field at a0+0x1F1 is 1, 3, or 4; else 0.
+// Short-circuit OR (==1 || (v-3)<2) reproduces the CW branch lowering exactly
+// (beq + sltiu/beqz, redundant delay-slot addiu, unreachable trailing paddub)
+// instead of the movz that a plain if/return collapses to.
+int func_0021D600(int a0) {
+    unsigned char v;
+    v = *(unsigned char *)(a0 + 0x1F1);
+    if (v == 1 || (unsigned int)(v - 3) < 2) {
+        return 1;
+    }
+    return 0;
 }

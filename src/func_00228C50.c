@@ -1,19 +1,17 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00228C50(void) {
-    .word 0x70003628
-    .word 0x70002e28
-    .word 0x00851021
-    .word 0x90430000
-    .word 0x24a50001
-    .word 0x00c31821
-    .word 0x2ca20640
-    .word 0x1440fffa
-    .word 0x306600ff
-    .word 0x24030001
-    .word 0x30c400ff
-    .word 0x70001628
-    .word 0x03e00008
-    .word 0x0064100b
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Byte-sum checksum over a fixed 0x640-byte buffer; returns 1 if the low 8
+// bits of the running sum are nonzero, else 0. The init-to-zero of sum and the
+// 0/1 result both materialize via the mwcc paddub (128-bit clear) idiom; the
+// inverted ternary (== 0 ? 0 : 1) is required so 2.3.3 emits the
+// paddub-zero + addiu-1 + movn select rather than a movz with negated logic.
+int func_00228C50(unsigned char *buf) {
+    unsigned int i;
+    int sum;
+
+    sum = 0;
+    for (i = 0; i < 0x640U; i++) {
+        sum = (sum + buf[i]) & 0xFF;
+    }
+    return (sum & 0xFF) == 0 ? 0 : 1;
 }

@@ -1,20 +1,16 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Sets actor state byte +0x04 = 3 after calling func_001FBD50 with a float
+// constant 300.0f in $f12, id 0x875 in $a1, and 0 in $a2 (the actor pointer
+// arg0 is passed through in $a0 and preserved across the call in $s0).
+//
+// Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: under
+// 991202 the residual is the clean-store delay-slot wall. 2.3.3 is
+// byte-identical. Verified objdiff 100.0 vs build/expected/func_0014CCC0.o.
+extern void func_001FBD50(char *, int, int, float);
 
-asm void func_0014CCC0(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    lui $v0, (0x43960000 >> 16)
-    sq $s0, 0x0($sp)
-    mtc1 $v0, $f12
-    addiu $a1, $zero, 0x875
-    paddub $s0, $a0, $zero
-    jal func_001FBD50
-    paddub $a2, $zero, $zero
-    addiu $v1, $zero, 0x3
-    sb $v1, 0x4($s0)
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+void func_0014CCC0(char *arg0) {
+    func_001FBD50(arg0, 0x875, 0, 300.0f);
+    *(char *)(arg0 + 4) = 3;
 }

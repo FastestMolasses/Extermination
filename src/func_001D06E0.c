@@ -1,19 +1,23 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001D06E0(void) {
-    .word 0x8c830090
-    .word 0x24640070
-    .word 0x14a00009
-    .word 0xa0650080
-    .word 0x70001e28
-    .word 0x24630001
-    .word 0xac800020
-    .word 0x28610006
-    .word 0x24840004
-    .word 0x00000000
-    .word 0x1420fffa
-    .word 0x00000000
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Clamp-init leaf: store a1 byte at base+0x80; if a1==0, zero 6 ints
+// starting at base+0x90 (=base+0x70 +0x20). Counter lands in v1 only when
+// the a1!=0 test is hoisted into its own temp (frees a1 from the loop).
+void func_001D06E0(int a0, int a1) {
+    int base;
+    int i;
+    int skip;
+    int *p;
+
+    base = *(int *)(a0 + 0x90);
+    p = (int *)(base + 0x70);
+    *(unsigned char *)(base + 0x80) = a1;
+    skip = a1 != 0;
+    if (skip) {
+        return;
+    }
+    for (i = 0; i <= 6 - 1; i++) {
+        p[8] = 0;
+        p++;
+    }
 }

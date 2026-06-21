@@ -1,18 +1,11 @@
-// EE asm-void: leaf uses EE/COP2/VU instructions; reproduced verbatim
-// (mwccmips accepts Sony's syntax directly).
-asm void func_00203AE0(void) {
-    lui $at, (0x50004 >> 16)
-    addu $at, $a0, $at
-    lw $v0, (0x50004 & 0xFFFF)($at)
-    slt $at, $a1, $v0
-    movz $a1, $v0, $at
-    lui $at, (0x50004 >> 16)
-    addu $at, $a0, $at
-    lw $v1, (0x50004 & 0xFFFF)($at)
-    paddub $v0, $a1, $zero
-    lui $at, (0x50004 >> 16)
-    addu $at, $a0, $at
-    subu $v1, $v1, $a1
-    jr $ra
-    sw $v1, (0x50004 & 0xFFFF)($at)
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Far field at a0[0x14001] (byte offset 0x50004). Clamp a1 to min(a1, field)
+// then subtract it back into the field, returning the clamped amount.
+// int* indexing -> single lw with 0x50004 disp (assembler $at-expands, as in
+// target). Ternary forces slt+movz; compound -= re-reads (target's 2nd load).
+int func_00203AE0(int *a0, int a1) {
+    a1 = (a1 < a0[0x14001]) ? a1 : a0[0x14001];
+    a0[0x14001] -= a1;
+    return a1;
 }

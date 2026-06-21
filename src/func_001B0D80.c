@@ -1,20 +1,19 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001B0D80(void) {
-    .word 0xc48100b4
-    .word 0x3c02c348
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x45000006
-    .word 0x70001628
-    .word 0x24020003
-    .word 0xa0820004
-    .word 0x10000002
-    .word 0x24020001
-    .word 0x70001628
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// If float field +0xB4 < -200.0f, set state byte +0x04 = 3 and return 1;
+// otherwise return 0. The early-return shape is required to reproduce the
+// CW branch lowering: a `b` to the shared epilogue plus a dead trailing
+// `paddub v0,zero,zero` block.
+//
+// Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: under
+// 991202 the residual is the CW branch-lowering / clean-store delay-slot
+// wall. 2.3.3 is byte-identical. Verified objdiff 100.0 vs
+// build/expected/func_001B0D80.o.
+int func_001B0D80(char *arg0) {
+    if (*(float *)(arg0 + 0xB4) < -200.0f) {
+        *(char *)(arg0 + 4) = 3;
+        return 1;
+    }
+    return 0;
 }
