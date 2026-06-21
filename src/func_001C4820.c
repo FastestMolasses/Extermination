@@ -1,57 +1,38 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 //
 // SEMANTICS (2026-06-10 s15): generic placed-prop / item-pickup behavior —
 // the placement-record +0x24 target for every kind-0xB pickup. State machine
 // on actor byte +0x04: 0=INIT (func_001B0FD0 binds model/bones, then
 // func_001C6380 stamps the placement TRS into all bone slots), 1=ACTIVE
 // (func_001B17A0 common prop frame, then the anim-mode method at +0x4C),
-// 2/3=FREE (func_001AFC10). Readable-C attempt reached 89.74%: blocked by
-// the delay-slot-fill wall (idiom 13) — CW leaves `bnez v0,skip; nop` and
-// puts `paddub a0,s0` in func_001C6380's jal delay slot; mwcc always hoists
-// the paddub into the bnez delay slot. Same wall as func_001B57E0.
-extern void func_001AFC10(int, int, int, int);
-extern void func_001B0FD0(int, int, int, int);
-extern void func_001B17A0(int, int, int, int);
-extern void func_001C6380(int, int, int, int);
+// 2/3=FREE (func_001AFC10).
+//
+// Matched 100.0 with mwcc 2.3.3 (s84): the idiom-13 clean-store delay-slot
+// nop wall — the pinned 991202 build hoists func_001C6380's paddub a0,s0
+// into the bnez delay slot and stalls at 89.74%; 2.3.3 leaves
+// `bnez v0,skip; nop` and puts paddub in the jal delay slot, exactly as the
+// target. The other fix was single-argument callee signatures (the original
+// 4-arg decls forced spurious a1/a2/a3=0 arg materialization everywhere).
+extern void func_001AFC10(int);
+extern int func_001B0FD0(int);
+extern void func_001B17A0(int);
+extern void func_001C6380(int);
 
-asm void func_001C4820(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x90850004
-    .word 0x24030003
-    .word 0x10a3001a
-    .word 0x70808628
-    .word 0x24030002
-    .word 0x50a30018
-    .word 0x72002628
-    .word 0x24030001
-    .word 0x10a3000d
-    .word 0x00000000
-    .word 0x10a00003
-    .word 0x00000000
-    .word 0x10000014
-    .word 0x7bbf0010
-    jal       func_001B0FD0
-    .word 0x00000000
-    .word 0x1440000f
-    .word 0x00000000
-    jal       func_001C6380
-    .word 0x72002628
-    .word 0x1000000b
-    .word 0x00000000
-    jal       func_001B17A0
-    .word 0x00000000
-    .word 0x8e02004c
-    .word 0x0040f809
-    .word 0x72002628
-    .word 0x10000004
-    .word 0x00000000
-    .word 0x72002628
-    jal       func_001AFC10
-    .word 0x00000000
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+void func_001C4820(int a0) {
+    switch (*(unsigned char *)(a0 + 0x4)) {
+    case 0:
+        if (func_001B0FD0(a0) == 0) {
+            func_001C6380(a0);
+        }
+        break;
+    case 1:
+        func_001B17A0(a0);
+        (*(void (**)(int))(a0 + 0x4C))(a0);
+        break;
+    case 2:
+    case 3:
+        func_001AFC10(a0);
+        break;
+    }
 }
