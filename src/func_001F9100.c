@@ -1,26 +1,15 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-// asm void: instruction ordering with mov.s/lui/sq interleaved can't be reproduced
-// from pure C. The lui/addiu pairs for D_0025DAF0/D_0025DAE0 are hardcoded .word
-// (mwcc inline asm doesn't support %hi/%lo) -- 98.4% objdiff, byte-identical at link time.
-extern void func_001F8D30(void *, void *, float);
-extern char D_0025DAF0[];
+// Forwards (a0,a1,a2) through to func_001F8D30, plus a 16-byte struct passed BY VALUE
+// (D_0025DAF0) as the 4th arg -> invisible pointer in a3-reg; D_0025DAE0 ptr in t0;
+// floats f12,f13(=f12),f14(=30.0f). The local `Vec4 v = D_0025DAF0;` copy forces the
+// stack qword copy (sq) that the direct-global form would optimize/tailcall away.
+typedef struct { float x, y, z, w; } Vec4;
+extern void func_001F8D30(void *a0, void *a1, void *a2, Vec4 v, void *p, float f0, float f1, float f2);
+extern Vec4 D_0025DAF0;
 extern char D_0025DAE0[];
 
-asm void func_001F9100(float fa0) {
-    .word 0x27BDFFE0  // addiu sp, sp, -0x20
-    .word 0x46006346  // mov.s f13, f12
-    .word 0x3C020026  // lui v0, %hi(D_0025DAF0) [hardcoded]
-    .word 0x2442DAF0  // addiu v0, v0, %lo(D_0025DAF0) [hardcoded]
-    .word 0x7FBF0000  // sq ra, 0x0(sp)
-    .word 0x78430000  // lq v1, 0x0(v0)
-    .word 0x27A70010  // addiu a3, sp, 0x10
-    .word 0x3C0241F0  // lui v0, 0x41F0
-    .word 0x44827000  // mtc1 v0, f14
-    .word 0x7CE30000  // sq v1, 0x0(a3)
-    .word 0x3C020026  // lui v0, %hi(D_0025DAE0) [hardcoded]
-    jal func_001F8D30
-    .word 0x2448DAE0  // addiu t0, v0, %lo(D_0025DAE0) [hardcoded, delay slot]
-    .word 0x7BBF0000  // lq ra, 0x0(sp)
-    .word 0x03E00008  // jr ra
-    .word 0x27BD0020  // addiu sp, sp, 0x20
+void func_001F9100(void *a0, void *a1, void *a2, float fa0) {
+    Vec4 v = D_0025DAF0;
+    func_001F8D30(a0, a1, a2, v, D_0025DAE0, fa0, fa0, 30.0f);
 }
