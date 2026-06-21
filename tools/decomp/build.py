@@ -156,8 +156,15 @@ def compile_cmd(name: str) -> str:
     '// COMPILER: eegcc' use ee-gcc 2.96 via tools/eegcc/ee-compile.sh.
     """
     flags = file_cflags(name)
-    if file_compiler(name) == "eegcc":
+    comp = file_compiler(name)
+    if comp == "eegcc":
         return f"tools/eegcc/ee-compile.sh src/{name}.c build/obj/{name}.o {flags}"
+    if comp == "mwcc233":
+        # CodeWarrior mwcps2-2.3.3-000906 — byte-matches a handful of functions
+        # (notably the clean-store idiom-13 delay-slot case) that the pinned 991202
+        # build cannot. User-supplied at tools/mwccps2-233/ (see docs/PROGRESS.md).
+        return (f"qemu-i386 tools/bin/wibo32 tools/mwccps2-233/mwccps2.exe "
+                f"-c {flags} -o build/obj/{name}.o src/{name}.c")
     return (f"qemu-i386 tools/bin/wibo32 tools/mwccps2/mwccmips.exe "
             f"-c {flags} -o build/obj/{name}.o src/{name}.c")
 
