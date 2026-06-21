@@ -1,25 +1,22 @@
-// Hybrid: branches/j as .word, jal with extern decls
-extern void func_00205A50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-packing thunk: assembles the low byte of each of 5 unsigned-int args
+// into a 40-bit value (b0 | b1<<8 | b2<<16 | b3<<24 | (u64)b4<<32) and
+// tail-calls func_00205A50(dst, 1, packed). func_00205A50 stores packed.lo32
+// at dst+0, packed.hi32 (sign-extended) at dst+4, the constant 1 at dst+8,
+// and 0 at dst+0xC. The `j` (not jal) tail-call with the OR in its delay slot
+// is CW codegen the pinned 991202 build cannot reproduce (it reorders the two
+// dsrl32 ops and mis-fills the j delay slot -> walled at 79%); mwcc 2.3.3
+// (mwcps2-2.3.3-000906) is byte-identical. Verified objdiff 100% vs
+// build/expected/func_00205C80.o.
+extern void func_00205A50(void *dst, int kind, long long packed);
 
-asm void func_00205C80(void) {
-    dsll32     $v0, $a3, 0
-    dsrl32     $v0, $v0, 0
-    dsll       $a3, $v0, 16
-    dsll32     $v0, $8, 0
-    dsll32     $8, $a1, 0
-    dsll32     $a1, $a2, 0
-    dsrl32     $a1, $a1, 0
-    dsrl32     $v0, $v0, 0
-    dsll       $v1, $v0, 24
-    dsll32     $v0, $9, 0
-    dsrl32     $v0, $v0, 0
-    dsrl32     $8, $8, 0
-    dsll       $a1, $a1, 8
-    or         $a1, $8, $a1
-    or         $a1, $a3, $a1
-    or         $v1, $v1, $a1
-    dsll32     $v0, $v0, 0
-    addiu      $a1, $zero, 0x1
-    j         func_00205A50
-    or        $a2, $v0, $v1
+void func_00205C80(void *dst, unsigned int b0, unsigned int b1, unsigned int b2, unsigned int b3, unsigned int b4) {
+    func_00205A50(dst, 1,
+        (long long)b0
+        | ((long long)b1 << 8)
+        | ((long long)b2 << 16)
+        | ((long long)b3 << 24)
+        | ((long long)b4 << 32));
 }

@@ -1,26 +1,15 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_001B0EA0(int, int, int, int);
-extern void bone_init_default_1(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// If func_001B0EA0(p) is nonzero, return 1. Otherwise call
+// bone_init_default_1(p), increment the byte at p+4, and return 0.
+extern int func_001B0EA0(int);
+extern void bone_init_default_1(int);
 
-asm void func_001B0FD0(void) {
-    addiu      $sp, $sp, -0x20
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    jal        func_001B0EA0
-    .word 0x70808628
-    .word 0x10400004
-    .word 0x72002628
-    .word 0x10000008
-    addiu     $v0, $zero, 0x1
-    .word 0x72002628
-    jal        bone_init_default_1
-    nop
-    .word 0x92030004
-    .word 0x70001628
-    addiu      $v1, $v1, 0x1
-    .word 0xa2030004
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    jr         $ra
-    addiu     $sp, $sp, 0x20
+int func_001B0FD0(int a0)
+{
+    if (func_001B0EA0(a0) != 0)
+        return 1;
+    bone_init_default_1(a0);
+    *(unsigned char *)(a0 + 4) += 1;
+    return 0;
 }

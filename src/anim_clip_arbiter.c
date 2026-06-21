@@ -1,27 +1,24 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void anim_clip_init(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Animation-clip change arbiter: runs anim_clip_init(p, v) for side effects,
+// then compares the requested clip id (sign-extended low 16 bits of v) against
+// the currently-stored id at p+0x20C. If they differ it commits the new id
+// (sh) and returns 1; if unchanged it returns 0. The explicit
+// if(ne){store;return 1;}else{return 0;} shape reproduces CW's branch layout:
+// beq skips the store, the store sits in the unconditional `b` delay slot, and
+// a dead `paddub v0,zero` trails the branch. The pinned 991202 build inverts
+// to bne and merges that dead return block (walled at 87.6%); mwcc 2.3.3
+// (mwcps2-2.3.3-000906) emits the dead block and is byte-identical. Verified
+// objdiff 100% vs build/expected/anim_clip_arbiter.o.
+extern void anim_clip_init(int, int);
 
-asm void anim_clip_arbiter(void) {
-    addiu $sp, $sp, -0x30
-    sq $ra, 0x20($sp)
-    sq $s1, 0x10($sp)
-    sq $s0, 0x0($sp)
-    paddub $s1, $a0, $zero
-    jal anim_clip_init
-    paddub $s0, $a1, $zero
-    lh $v0, 0x20C($s1)
-    dsll32 $v1, $s0, 16
-    dsra32 $v1, $v1, 16
-    .word 0x10620005
-    paddub $v0, $zero, $zero
-    addiu $v0, $zero, 0x1
-    .word 0x10000002
-    sh $s0, 0x20C($s1)
-    paddub $v0, $zero, $zero
-    lq $ra, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+int anim_clip_arbiter(char *p, int v) {
+    anim_clip_init((int)p, v);
+    if ((short)v != *(short *)(p + 0x20C)) {
+        *(short *)(p + 0x20C) = (short)v;
+        return 1;
+    } else {
+        return 0;
+    }
 }

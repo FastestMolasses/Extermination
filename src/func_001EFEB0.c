@@ -1,28 +1,24 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void copy_qw4(int, int, int, int);
-extern void func_001EF9D0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Calls func_001EF9D0(arg0, arg1+0x30, 1.0f) (f12=1.0); on a non-null result
+// copies a quadword block via copy_qw4(result+0xD0, arg1) and returns the
+// result pointer. The float arg is written FIRST in the prototype so mwcc
+// materializes mtc1 f12 before the addiu a1 arg-setup (scheduler order match);
+// f12 is the first FPU arg slot regardless of textual position.
+//
+// Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: the lone
+// residual under 991202 is wall #13 (it fills the `beqz s0` clean delay slot;
+// CW/2.3.3 leave the nop). 2.3.3 is byte-identical (objdiff 100%).
+extern char *func_001EF9D0(float, int, int);
+extern void copy_qw4(int, int);
 
-asm void func_001EFEB0(void) {
-    addiu $sp, $sp, -0x30
-    sq $ra, 0x20($sp)
-    sq $s1, 0x10($sp)
-    paddub $s1, $a1, $zero
-    lui $v0, (0x3F800000 >> 16)
-    mtc1 $v0, $f12
-    addiu $a1, $s1, 0x30
-    jal func_001EF9D0
-    sq $s0, 0x0($sp)
-    paddub $s0, $v0, $zero
-    .word 0x12000005
-    paddub $v0, $s0, $zero
-    addiu $a0, $s0, 0xD0
-    jal copy_qw4
-    paddub $a1, $s1, $zero
-    paddub $v0, $s0, $zero
-    lq $ra, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+char *func_001EFEB0(int arg0, int arg1) {
+    char *v0;
+
+    v0 = func_001EF9D0(1.0f, arg0, arg1 + 0x30);
+    if (v0 != 0) {
+        copy_qw4((int)(v0 + 0xD0), arg1);
+    }
+    return v0;
 }
