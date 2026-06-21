@@ -1,21 +1,24 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001D0690(void) {
-    .word 0xa0800010
-    .word 0xac800000
-    .word 0xac800008
-    .word 0xac800014
-    .word 0xac80001c
-    .word 0xac800018
-    .word 0x70001e28
-    .word 0x24630001
-    .word 0xac800020
-    .word 0x28610006
-    .word 0x24840004
-    .word 0x00000000
-    .word 0x1420fffa
-    .word 0x00000000
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Zero-init of a small record at base a0: clears a byte at +0x10 and words at
+// +0x00/+0x08/+0x14/+0x1C/+0x18, then loops 6 times zeroing the word at a0+0x20
+// while advancing a0 by 4 each pass (i.e. zeroing +0x20,+0x24,...,+0x34). The
+// +0x08 store via a held pointer and the `i <= 5` loop bound are needed to land
+// the target's exact register allocation (counter in $v1, slti -> $at; mwcc
+// emits a `paddub v1,zero,zero` to materialize the zero counter). Found via the
+// permuter; verified objdiff 100% byte-identical vs build/expected.
+void func_001D0690(char *a0) {
+    int *p;
+    int i;
+    *(char *)(a0 + 0x10) = 0;
+    *(int *)(a0 + 0x00) = 0;
+    p = (int *)(a0 + 0x08);
+    *p = 0;
+    *(int *)(a0 + 0x14) = 0;
+    *(int *)(a0 + 0x1C) = 0;
+    *(int *)(a0 + 0x18) = 0;
+    for (i = 0; i <= 5; i++) {
+        *(int *)(a0 + 0x20) = 0;
+        a0 += 4;
+    }
 }

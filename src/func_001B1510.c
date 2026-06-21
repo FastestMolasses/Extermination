@@ -1,22 +1,11 @@
-asm void func_001B1510(void) {
-    lui $2, (0x40C90FDB >> 16)
-    ori $2, $2, (0x40C90FDB & 0xFFFF)
-    mtc1 $2, $0
-    nop
-    c.le.s $12, $0
-    nop
-    .word 0x4503000A
-    .word 0x46006006
-    .word 0x46006301
-    c.le.s $12, $0
-    nop
-    nop
-    nop
-    .word 0x4500FFFA
-    nop
-    nop
-    .word 0x46006006
-    jr $ra
-    nop
-    nop
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Range-reduce a float into (-inf, 2*PI] by repeatedly subtracting 2*PI
+// (0x40C90FDB = 6.2831855f). CW emits a bc1tl entry guard + bc1f loop;
+// mwcc 2.3.3 reproduces the exact branch-likely / mov.s scheduling byte-identically.
+float func_001B1510(float x) {
+    while (!(x <= 6.2831855f)) {
+        x -= 6.2831855f;
+    }
+    return x;
 }

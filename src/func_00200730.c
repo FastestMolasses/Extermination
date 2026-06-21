@@ -1,24 +1,21 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_00112D18(int, int, int, int);
-extern void func_00113680(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Two-stage gate/status query. Calls func_00112D18(1); if it returns nonzero,
+// returns 0. Otherwise calls func_00113680() and returns 1 when it is zero or
+// 2 when it is nonzero (`movn`-idiom select between the literals 1 and 2).
+//
+// Built with mwcc 2.3.3 (mwcps2-2.3.3-000906): the 991202 build lowers the
+// early-return guard with merged-tail / inverted branch sense (CW emits a
+// distinct bnez-to-epilogue with its own delay slot), leaving a branch-lowering
+// residual; 2.3.3 matches byte-identical. Verified objdiff 100% vs
+// build/expected/func_00200730.o.
+extern int func_00112D18(int);
+extern int func_00113680(void);
 
-asm void func_00200730(void) {
-    addiu $sp, $sp, -0x10
-    sq $ra, 0x0($sp)
-    jal func_00112D18
-    addiu $a0, $zero, 0x1
-    .word 0x14400009
-    paddub $v0, $zero, $zero
-    jal func_00113680
-    nop
-    addiu $a0, $zero, 0x1
-    addiu $v1, $zero, 0x2
-    movn $a0, $v1, $v0
-    .word 0x10000002
-    paddub $v0, $a0, $zero
-    paddub $v0, $zero, $zero
-    lq $ra, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x10
+int func_00200730(void) {
+    if (func_00112D18(1) == 0) {
+        return func_00113680() == 0 ? 1 : 2;
+    }
+    return 0;
 }

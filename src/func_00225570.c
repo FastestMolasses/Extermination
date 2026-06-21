@@ -1,24 +1,21 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0021D2E0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Dispatch on the byte state field at +6: case 1 calls func_0021D2E0(p,0x78,0)
+// directly; case 0 first bumps +6 and clears the +7 byte, then falls through
+// into the same call. mwcc emits beql/beqzl (descending case test order) with
+// pure-ALU delay-slot fills (li a1,0x78 / addiu v0,a1,1) per idiom-13. The 991202
+// build fills the second beql delay-slot copy differently (residual addiu); mwcc
+// 2.3.3 reproduces the target byte-for-byte.
+extern void func_0021D2E0(unsigned char *p, int a, int b);
 
-asm void func_00225570(void) {
-    .word 0x27bdfff0
-    .word 0x7fbf0000
-    .word 0x90850006
-    .word 0x24030001
-    .word 0x50a30009
-    .word 0x24050078
-    .word 0x50a00004
-    .word 0x24a20001
-    .word 0x10000008
-    .word 0x7bbf0000
-    .word 0x24a20001
-    .word 0xa0820006
-    .word 0xa0800007
-    .word 0x24050078
-    jal       func_0021D2E0
-    .word 0x70003628
-    .word 0x7bbf0000
-    .word 0x03e00008
-    .word 0x27bd0010
+void func_00225570(unsigned char *p) {
+    switch (p[6]) {
+    case 0:
+        p[6] = p[6] + 1;
+        p[7] = 0;
+        /* fallthrough */
+    case 1:
+        func_0021D2E0(p, 0x78, 0);
+        break;
+    }
 }

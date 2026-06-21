@@ -1,24 +1,20 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001662D0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Initializes an actor/object: sets state byte +0x23F = 2 and clears the
+// +0x24C word, then runs setup func_001662D0(obj). If the object's type/kind
+// byte +0x04 == 1, clears the global flag at 0x70003B8D. Returns void.
+//
+// Built with mwcc 2.3.3 (mwcps2-2.3.3-000906): the 991202 build mis-lowers the
+// `bne +0x4 != 1` guard, leaving a one-instruction residual; 2.3.3 matches
+// byte-identical. Verified objdiff 100% vs build/expected/func_001833F0.o.
+extern void func_001662D0(char *);
 
-asm void func_001833F0(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    sq $s0, 0x0($sp)
-    addiu $v0, $zero, 0x2
-    sb $v0, 0x23F($a0)
-    paddub $s0, $a0, $zero
-    jal func_001662D0
-    sw $zero, 0x24C($a0)
-    lbu $a0, 0x4($s0)
-    addiu $v1, $zero, 0x1
-    .word 0x14830003
-    nop
-    lui $at, (0x70003B8D >> 16)
-    sb $zero, (0x70003B8D & 0xFFFF)($at)
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+void func_001833F0(char *arg0) {
+    *(char *)(arg0 + 0x23F) = 2;
+    *(int *)(arg0 + 0x24C) = 0;
+    func_001662D0(arg0);
+    if (*(unsigned char *)(arg0 + 4) == 1) {
+        *(char *)0x70003B8D = 0;
+    }
 }

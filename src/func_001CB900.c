@@ -1,24 +1,18 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Thin two-call wrapper: calls func_001CB9B0(arg2) and feeds its return value
+// as the 4th argument to func_001CB6B0(arg0, arg1, 8, ret). Returns void.
+//
+// Built with mwcc 2.3.3 (mwcps2-2.3.3-000906): the 991202 build leaves an
+// 11%-residual on argument/return register shuffling here; 2.3.3 is
+// byte-identical. Verified objdiff 100% vs build/expected/func_001CB900.o.
+extern int func_001CB9B0(int);
 extern void func_001CB6B0(int, int, int, int);
-extern void func_001CB9B0(int, int, int, int);
 
-asm void func_001CB900(void) {
-    addiu $sp, $sp, -0x30
-    sq $ra, 0x20($sp)
-    sq $s1, 0x10($sp)
-    sq $s0, 0x0($sp)
-    paddub $s1, $a0, $zero
-    paddub $s0, $a1, $zero
-    jal func_001CB9B0
-    paddub $a0, $a2, $zero
-    addiu $a2, $zero, 0x8
-    paddub $a0, $s1, $zero
-    paddub $a1, $s0, $zero
-    jal func_001CB6B0
-    paddub $a3, $v0, $zero
-    lq $ra, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+void func_001CB900(int arg0, int arg1, int arg2) {
+    int v0;
+
+    v0 = func_001CB9B0(arg2);
+    func_001CB6B0(arg0, arg1, 8, v0);
 }

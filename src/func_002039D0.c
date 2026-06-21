@@ -1,18 +1,16 @@
-asm void func_002039D0(char *a0, int **a1) {
-    lui $at, (0x50008 >> 16)
-    addu $at, $a0, $at
-    lw $v1, (0x50008 & 0xFFFF)($at)
-    lui $at, (0x50004 >> 16)
-    addu $at, $a0, $at
-    lw $v0, (0x50004 & 0xFFFF)($at)
-    subu $v0, $v1, $v0
-    .word 0x10400006
-    nop
-    lui $at, (0x50000 >> 16)
-    addu $at, $a0, $at
-    lw $v1, (0x50000 & 0xFFFF)($at)
-    addu $v1, $a0, $v1
-    sw $v1, 0x0($a1)
-    jr $ra
-    nop
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Far record at a0[0x14000..0x14002] (byte offsets 0x50000/0x50004/0x50008).
+// Computes d = field(+8) - field(+4); when nonzero, writes base + field(+0)
+// into *a1. Returns the difference (the caller ignores it, but returning it is
+// what makes mwcc keep d in $v0 to match the target's register allocation).
+// The far int* indexing forces CW's `lui at; addu at,a0,at; lw disp(at)`
+// addressing macro per access; the clean store leaves the beqz delay slot as a
+// nop under 2.3.3 (991202 fills it -> only 93.75). Verified objdiff 100%.
+int func_002039D0(int *a0, int **a1) {
+    int d = a0[0x14002] - a0[0x14001];
+    if (d != 0) {
+        *a1 = (int *)((char *)a0 + a0[0x14000]);
+    }
+    return d;
 }
