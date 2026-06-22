@@ -1,33 +1,19 @@
-// Hybrid: branches/j as .word, jal with extern decls
-extern void func_00205A50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// 64-bit bitfield packer + tail call. Each of the 7 field inputs is masked to
+// 32 bits (dsll32/dsrl32 zero-extension) before being OR'd into a 64-bit word
+// at its shift offset, then func_00205A50(arg0, 0x14, packed) is tail-called.
+extern void func_00205A50(int, int, unsigned long long);
 
-asm void func_00205A90(void) {
-    dsll32     $v0, $a3, 0
-    dsrl32     $v0, $v0, 0
-    dsll       $12, $v0, 5
-    dsll32     $v0, $8, 0
-    dsrl32     $v0, $v0, 0
-    dsll       $8, $v0, 6
-    dsll32     $v0, $9, 0
-    dsll32     $9, $a1, 0
-    dsll32     $a1, $a2, 0
-    dsrl32     $v0, $v0, 0
-    dsrl32     $a1, $a1, 0
-    dsll       $a3, $v0, 9
-    dsll32     $v0, $10, 0
-    dsrl32     $v0, $v0, 0
-    dsll       $v1, $v0, 19
-    dsll32     $v0, $11, 0
-    dsrl32     $v0, $v0, 0
-    dsrl32     $9, $9, 0
-    dsll       $a1, $a1, 2
-    or         $a1, $9, $a1
-    or         $a1, $12, $a1
-    or         $a1, $8, $a1
-    or         $a1, $a3, $a1
-    or         $v1, $v1, $a1
-    dsll32     $v0, $v0, 0
-    addiu      $a1, $zero, 0x14
-    j         func_00205A50
-    or        $a2, $v0, $v1
+void func_00205A90(int a0, unsigned int p2, unsigned int p3, unsigned int p4,
+                   unsigned int p5, unsigned int p6, unsigned int p7, unsigned int p8) {
+    unsigned long long packed =
+          (unsigned long long)p2
+        | ((unsigned long long)p3 << 2)
+        | ((unsigned long long)p4 << 5)
+        | ((unsigned long long)p5 << 6)
+        | ((unsigned long long)p6 << 9)
+        | ((unsigned long long)p7 << 19)
+        | ((unsigned long long)p8 << 32);
+    func_00205A50(a0, 0x14, packed);
 }

@@ -1,36 +1,22 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001749A0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Dispatch: pick a value for func_001749A0's second arg based on `flag`
+// and a status byte at p[0x2F1]. flag selects the 0xF8/0xF2 vs 0xFB/0xF5
+// pair; the status byte selects within the pair (nonzero -> high value).
+extern void func_001749A0(unsigned char *p, int a1, int a2);
 
-asm void func_0017FD80(void) {
-    addiu $sp, $sp, -0x10
-    .word 0x14a0000e
-    sq $ra, 0x0($sp)
-    lbu $v0, 0x2F1($a0)
-    .word 0x14400007
-    addiu $a1, $zero, 0xF8
-    addiu $a1, $zero, 0xF2
-    jal func_001749A0
-    paddub $a2, $zero, $zero
-    .word 0x10000012
-    lq $ra, 0x0($sp)
-    addiu $a1, $zero, 0xF8
-    jal func_001749A0
-    paddub $a2, $zero, $zero
-    .word 0x1000000c
-    nop
-    lbu $v0, 0x2F1($a0)
-    .word 0x14400007
-    addiu $a1, $zero, 0xFB
-    addiu $a1, $zero, 0xF5
-    jal func_001749A0
-    paddub $a2, $zero, $zero
-    .word 0x10000004
-    nop
-    addiu $a1, $zero, 0xFB
-    jal func_001749A0
-    paddub $a2, $zero, $zero
-    lq $ra, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x10
+void func_0017FD80(unsigned char *p, int flag) {
+    if (flag == 0) {
+        if (p[0x2F1] == 0) {
+            func_001749A0(p, 0xF2, 0);
+        } else {
+            func_001749A0(p, 0xF8, 0);
+        }
+    } else {
+        if (p[0x2F1] == 0) {
+            func_001749A0(p, 0xF5, 0);
+        } else {
+            func_001749A0(p, 0xFB, 0);
+        }
+    }
 }
