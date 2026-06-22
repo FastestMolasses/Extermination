@@ -1,91 +1,65 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001749A0(int, int, int, int);
-extern void func_00174AC0(int, int, int, int);
-extern void func_00175900(int, int, int, int);
-extern void func_001764E0(int, int, int, int);
-extern void func_00178B90(int, int, int, int);
-extern void func_001796C0(int, int, int, int);
-extern void func_0017C440(int, int, int, int);
-extern void func_0017C540(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Per-frame state-machine tick for an actor (arg0). Dispatches on the
+// 1-byte state field arg0[0x7]:
+//   state 0: advance state (++), kick off anim/clip 0x6E at blend 1.0
+//            (func_001749A0).
+//   state 1: if the 0x200 flags word has bit 0x1000 set, advance state.
+//   state 2: func_00174AC0(arg0,0); if sub-state byte arg0[0x23F] > 1 then
+//            advance state and func_0017C440(arg0,0); else clear arg0[0x25C]
+//            and func_0017C540(arg0).
+//   state 3: func_00178B90(arg0,0); unless 0x200 flags bit 0x8000 set,
+//            func_0017C540(arg0).
+// Common tail (all states): func_001764E0(arg0); nudge float arg0[0xB4] by
+// -0.2; func_00175900(arg0,1); func_001796C0(arg0).
+//
+// Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: under
+// 991202 the residual was wall #13 (clean-store delay-slot fill) plus an
+// slti/sltiu lowering difference; the 2.3.3 build is byte-identical (objdiff
+// 100% vs build/expected/func_00163C10.o). NOTE: the state-2 sub-state test
+// is written `arg0[0x23F] > 1` (not `>= 2`): only `> 1` makes mwcc lower it to
+// `slti $at,v0,2; bnez $at`, matching the target's $at allocation.
+extern int func_001749A0(unsigned char *e, short clip, int flags, float blend);
+extern void func_00174AC0(unsigned char *e, int f);
+extern void func_0017C440(unsigned char *e, int f);
+extern void func_0017C540(unsigned char *e);
+extern void func_00178B90(unsigned char *e, int f);
+extern void func_001764E0(unsigned char *e);
+extern void func_00175900(unsigned char *e, int f);
+extern void func_001796C0(unsigned char *e);
 
-asm void func_00163C10(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x90830007
-    .word 0x24020003
-    .word 0x1062002f
-    .word 0x70808628
-    .word 0x24020002
-    .word 0x10620019
-    .word 0x70002e28
-    .word 0x24020001
-    .word 0x1062000e
-    .word 0x00000000
-    .word 0x10600004
-    .word 0x24620001
-    .word 0x1000002e
-    .word 0x72002628
-    .word 0x24620001
-    .word 0xa2020007
-    .word 0x3c023f80
-    .word 0x44826000
-    .word 0x2405006e
-    jal       func_001749A0
-    .word 0x70003628
-    .word 0x10000024
-    .word 0x00000000
-    .word 0x8e020200
-    .word 0x30421000
-    .word 0x10400020
-    .word 0x00000000
-    .word 0x24620001
-    .word 0x1000001d
-    .word 0xa2020007
-    .word 0x70002e28
-    jal       func_00174AC0
-    .word 0x00000000
-    .word 0x9202023f
-    .word 0x28410002
-    .word 0x1420000a
-    .word 0x72002628
-    .word 0x92020007
-    .word 0x72002628
-    .word 0x70002e28
-    .word 0x24420001
-    jal       func_0017C440
-    .word 0xa2020007
-    .word 0x1000000e
-    .word 0x00000000
-    .word 0x72002628
-    jal       func_0017C540
-    .word 0xa200025c
-    .word 0x10000009
-    .word 0x00000000
-    jal       func_00178B90
-    .word 0x70002e28
-    .word 0x8e020200
-    .word 0x30428000
-    .word 0x14400003
-    .word 0x00000000
-    jal       func_0017C540
-    .word 0x72002628
-    .word 0x72002628
-    jal       func_001764E0
-    .word 0x00000000
-    .word 0xc60100b4
-    .word 0x3c02be4c
-    .word 0x3442cccd
-    .word 0x44820000
-    .word 0x24050001
-    .word 0x46000800
-    .word 0x72002628
-    jal       func_00175900
-    .word 0xe60000b4
-    jal       func_001796C0
-    .word 0x72002628
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+void func_00163C10(unsigned char *arg0) {
+    switch (arg0[0x7]) {
+    case 0:
+        arg0[0x7] = arg0[0x7] + 1;
+        func_001749A0(arg0, 0x6E, 0, 1.0f);
+        break;
+    case 1:
+        if (*(int *)(arg0 + 0x200) & 0x1000) {
+            arg0[0x7] = arg0[0x7] + 1;
+        }
+        break;
+    case 2:
+        func_00174AC0(arg0, 0);
+        if (arg0[0x23F] > 1) {
+            arg0[0x7] = arg0[0x7] + 1;
+            func_0017C440(arg0, 0);
+        } else {
+            arg0[0x25C] = 0;
+            func_0017C540(arg0);
+        }
+        break;
+    case 3:
+        func_00178B90(arg0, 0);
+        if (!(*(int *)(arg0 + 0x200) & 0x8000)) {
+            func_0017C540(arg0);
+        }
+        break;
+    }
+
+    func_001764E0(arg0);
+    *(float *)(arg0 + 0xB4) += -0.2f;
+    func_00175900(arg0, 1);
+    func_001796C0(arg0);
 }

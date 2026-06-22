@@ -1,83 +1,17 @@
-// Simple nonleaf asm void
-extern void func_00207D00(int, int, int, int);
-extern void func_00207E40(int, int, int, int);
-extern void func_0020A7A0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Issues a fixed sequence of GS/GIF register setups: one 64-bit value to
+// func_0020A7A0, then four func_00207E40 calls (each: rect args + a color
+// constant + a packed 64-bit GS register value) bracketing a func_00207D00.
+extern void func_00207D00(int a, int b);
+extern void func_00207E40(int a, int b, int c, int d, int e, int f, unsigned long long g);
+extern void func_0020A7A0(unsigned long long v);
 
-asm void func_0020F170(void) {
-    lui        $v0, (0x2003C8A5 >> 16)
-    .word 0x3442c8a5
-    dsll32     $v1, $v0, 0
-    ori        $v0, $zero, 0x9D42
-    addiu      $sp, $sp, -0x10
-    dsll       $v0, $v0, 16
-    ori        $v0, $v0, 0x1DB0
-    sq         $ra, 0x0($sp)
-    jal        func_0020A7A0
-    or        $a0, $v0, $v1
-    lui        $v0, (0x40808080 >> 16)
-    .word 0x34498080
-    lui        $v0, (0x2003C405 >> 16)
-    .word 0x3442c405
-    dsll32     $v1, $v0, 0
-    ori        $v0, $zero, 0xDD32
-    addiu      $a3, $zero, 0x80
-    dsll       $v0, $v0, 16
-    ori        $v0, $v0, 0x1D00
-    addiu      $a0, $zero, 0x1
-    addiu      $a1, $zero, 0x7BC0
-    addiu      $a2, $zero, 0x7CF0
-    paddub     $8, $a3, $zero
-    jal        func_00207E40
-    or        $10, $v0, $v1
-    lui        $v0, (0x40808080 >> 16)
-    .word 0x34498080
-    lui        $v0, (0x2003CA85 >> 16)
-    .word 0x3442ca85
-    dsll32     $v1, $v0, 0
-    ori        $v0, $zero, 0xE142
-    dsll       $v0, $v0, 16
-    ori        $v0, $v0, 0x1D40
-    addiu      $a0, $zero, 0x1
-    addiu      $a1, $zero, 0x7800
-    addiu      $a3, $zero, 0x100
-    addiu      $8, $zero, 0x80
-    ori        $a2, $zero, 0x8300
-    jal        func_00207E40
-    or        $10, $v0, $v1
-    addiu      $a0, $zero, 0x1
-    jal        func_00207D00
-    addiu     $a1, $zero, 0x3
-    lui        $v0, (0x80808080 >> 16)
-    .word 0x34498080
-    lui        $v0, (0x2003CA25 >> 16)
-    .word 0x3442ca25
-    dsll32     $v1, $v0, 0
-    ori        $v0, $zero, 0xDD42
-    addiu      $a3, $zero, 0x80
-    dsll       $v0, $v0, 16
-    ori        $v0, $v0, 0x1D20
-    addiu      $a0, $zero, 0x1
-    addiu      $a1, $zero, 0x7000
-    ori        $a2, $zero, 0x8300
-    paddub     $8, $a3, $zero
-    jal        func_00207E40
-    or        $10, $v0, $v1
-    lui        $v0, (0x80808080 >> 16)
-    .word 0x34498080
-    lui        $v0, (0x2003C885 >> 16)
-    .word 0x3442c885
-    dsll32     $v1, $v0, 0
-    ori        $v0, $zero, 0x9D42
-    dsll       $v0, $v0, 16
-    ori        $v0, $v0, 0x1DA0
-    addiu      $a0, $zero, 0x1
-    addiu      $a1, $zero, 0x7100
-    addiu      $a2, $zero, 0x7900
-    addiu      $a3, $zero, 0x80
-    addiu      $8, $zero, 0x40
-    jal        func_00207E40
-    or        $10, $v0, $v1
-    lq         $ra, 0x0($sp)
-    jr         $ra
-    addiu     $sp, $sp, 0x10
+void func_0020F170(void) {
+    func_0020A7A0(0x2003C8A59D421DB0ULL);
+    func_00207E40(1, 0x7BC0, 0x7CF0, 0x80, 0x80, 0x40808080, 0x2003C405DD321D00ULL);
+    func_00207E40(1, 0x7800, 0x8300, 0x100, 0x80, 0x40808080, 0x2003CA85E1421D40ULL);
+    func_00207D00(1, 3);
+    func_00207E40(1, 0x7000, 0x8300, 0x80, 0x80, 0x80808080, 0x2003CA25DD421D20ULL);
+    func_00207E40(1, 0x7100, 0x7900, 0x80, 0x40, 0x80808080, 0x2003C8859D421DA0ULL);
 }

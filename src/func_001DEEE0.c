@@ -1,83 +1,54 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001D2910(int, int, int, int);
-extern void func_001DF110(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// State machine on the byte at p[0]. p[8] feeds the predicate func_001D2910
+// (advance test); p[0x1C] is an 8-step counter clamped to [0, p[4]]; p+0x10 is
+// handed to func_001DF110 (per-frame update) in the active states.
+//   0: init counter, advance to 1 if test passes else 3
+//   1: ramp counter up by 8 (clamp to p[4]); if test fails drop to 2
+//   2: ramp counter down by 8 (clamp to 0 -> state 3); if test passes go to 1
+//   3/default: idle; if test passes restart at 1
+extern int func_001D2910(int arg, unsigned char state);
+extern void func_001DF110(unsigned char *p);
 
-asm void func_001DEEE0(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x70808628
-    .word 0x92050000
-    .word 0x24030003
-    .word 0x10a3003c
-    .word 0x8c840008
-    .word 0x24020002
-    .word 0x10a20026
-    .word 0x00000000
-    .word 0x24020001
-    .word 0x10a2000f
-    .word 0x00000000
-    .word 0x10a00003
-    .word 0x00000000
-    .word 0x10000032
-    .word 0x00000000
-    jal       func_001D2910
-    .word 0xae00001c
-    .word 0x14400005
-    .word 0x24030001
-    .word 0x24030003
-    .word 0x10000031
-    .word 0xa2030000
-    .word 0x24030001
-    .word 0x1000002e
-    .word 0xa2030000
-    jal       func_001D2910
-    .word 0x00000000
-    .word 0x14400003
-    .word 0x00000000
-    .word 0x24020002
-    .word 0xa2020000
-    .word 0x8e02001c
-    .word 0x24420008
-    .word 0xae02001c
-    .word 0x8e02001c
-    .word 0x8e030004
-    .word 0x0043102a
-    .word 0x14400003
-    .word 0x26040010
-    .word 0xae03001c
-    .word 0x26040010
-    jal       func_001DF110
-    .word 0x00000000
-    .word 0x1000001b
-    .word 0x7bbf0010
-    .word 0x8e02001c
-    .word 0x2442fff8
-    .word 0xae02001c
-    .word 0x8e02001c
-    .word 0x1c400003
-    .word 0x00000000
-    .word 0xae00001c
-    .word 0xa2030000
-    jal       func_001D2910
-    .word 0x00000000
-    .word 0x10400004
-    .word 0x26040010
-    .word 0x24020001
-    .word 0xa2020000
-    .word 0x26040010
-    jal       func_001DF110
-    .word 0x00000000
-    .word 0x10000007
-    .word 0x00000000
-    jal       func_001D2910
-    .word 0x00000000
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x24030001
-    .word 0xa2030000
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+void func_001DEEE0(unsigned char *p) {
+    int a = *(int *)(p + 8);
+    unsigned char state = *(unsigned char *)(p + 0);
+
+    switch (state) {
+    case 0:
+        *(int *)(p + 0x1C) = 0;
+        if (func_001D2910(a, state) == 0) {
+            *(unsigned char *)(p + 0) = 3;
+            return;
+        }
+        *(unsigned char *)(p + 0) = 1;
+        return;
+    case 1:
+        if (func_001D2910(a, state) == 0) {
+            *(unsigned char *)(p + 0) = 2;
+        }
+        *(int *)(p + 0x1C) = *(int *)(p + 0x1C) + 8;
+        if (*(int *)(p + 0x1C) >= *(int *)(p + 4)) {
+            *(int *)(p + 0x1C) = *(int *)(p + 4);
+        }
+        func_001DF110(p + 0x10);
+        return;
+    case 2:
+        *(int *)(p + 0x1C) = *(int *)(p + 0x1C) - 8;
+        if (*(int *)(p + 0x1C) <= 0) {
+            *(int *)(p + 0x1C) = 0;
+            *(unsigned char *)(p + 0) = 3;
+        }
+        if (func_001D2910(a, state) != 0) {
+            *(unsigned char *)(p + 0) = 1;
+        }
+        func_001DF110(p + 0x10);
+        return;
+    case 3:
+    default:
+        if (func_001D2910(a, state) != 0) {
+            *(unsigned char *)(p + 0) = 1;
+        }
+        return;
+    }
 }
