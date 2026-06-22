@@ -1,44 +1,33 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_0015AC00(int, int, int, int);
-extern void func_0015AE20(int, int, int, int);
-extern void func_001AFC10(int, int, int, int);
-extern void func_001B1190(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// State dispatcher keyed on the actor's state byte at +0x04. The sub-struct
+// at +0x1F0 is passed as the second argument to each handler:
+//   state 0 -> func_0015AC00(actor, &actor[0x1F0])
+//   state 1 -> func_0015AE20(actor, &actor[0x1F0])
+//   state 2,3 / default -> func_001B1190(actor[0x9A], &actor[0x1F0]);
+//                          func_001AFC10(actor)
+extern void func_0015AC00(void *actor, void *sub);
+extern void func_0015AE20(void *actor, void *sub);
+extern void func_001AFC10(void *actor);
+extern void func_001B1190(int kind, void *sub);
 
-asm void func_0015AFA0(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    sq $s0, 0x0($sp)
-    lbu $v1, 0x4($a0)
-    paddub $s0, $a0, $zero
-    addiu $v0, $zero, 0x3
-    .word 0x10620013
-    addiu $a1, $s0, 0x1F0
-    addiu $v0, $zero, 0x2
-    .word 0x10620010
-    nop
-    addiu $v0, $zero, 0x1
-    .word 0x10620009
-    nop
-    .word 0x10600003
-    nop
-    .word 0x1000000a
-    lbu $a0, 0x9A($s0)
-    jal func_0015AC00
-    nop
-    .word 0x1000000b
-    lq $ra, 0x10($sp)
-    jal func_0015AE20
-    nop
-    .word 0x10000006
-    nop
-    lbu $a0, 0x9A($s0)
-    jal func_001B1190
-    nop
-    jal func_001AFC10
-    paddub $a0, $s0, $zero
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+void func_0015AFA0(char *actor) {
+    void *sub;
+
+    sub = actor + 0x1F0;
+    switch (*(unsigned char *)(actor + 4)) {
+    case 0:
+        func_0015AC00(actor, sub);
+        return;
+    case 1:
+        func_0015AE20(actor, sub);
+        return;
+    case 2:
+    case 3:
+    default:
+        func_001B1190(*(unsigned char *)(actor + 0x9A), sub);
+        func_001AFC10(actor);
+        return;
+    }
 }

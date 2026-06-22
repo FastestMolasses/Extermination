@@ -1,42 +1,30 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_001B0070(int, int, int, int);
-extern void func_001D7B30(int, int, int, int);
-extern void func_0021B8E0(int, int, int, int);
-extern void func_0021B970(int, int, int, int);
-extern void func_0021BA80(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Camera/transform update. Caches a struct pointer from func_001D7B30, then tests
+// bit 0x80 of func_001B0070's return. If set, drives the camera helpers with defaults
+// (func_0021B970(0.0f, 110.0f) where 110.0f = 0x42DC0000; func_0021BA80(0,0,0)).
+// Otherwise reads from the cached struct: func_0021B970(p+4, p+8) as floats and
+// func_0021BA80(p+0xC, p+0x10, p+0x14) as ints. Finally calls func_0021B8E0. No return.
+//
+// Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: 2.3.3 is
+// byte-identical; 991202 leaves a residual.
+extern char *func_001D7B30(void);
+extern int func_001B0070(void);
+extern void func_0021B970(float, float);
+extern void func_0021BA80(int, int, int);
+extern void func_0021B8E0(void);
 
-asm void func_001D8FD0(void) {
-    addiu      $sp, $sp, -0x20
-    .word 0x7fbf0010
-    jal        func_001D7B30
-    .word 0x7fb00000
-    jal        func_001B0070
-    .word 0x70408628
-    andi       $v0, $v0, 0x80
-    .word 0x1040000c
-    nop
-    .word 0x3c0242dc
-    mtc1       $zero, $f12
-    mtc1       $v0, $f13
-    jal        func_0021B970
-    nop
-    .word 0x70002628
-    .word 0x70002e28
-    jal        func_0021BA80
-    .word 0x70003628
-    .word 0x10000008
-    nop
-    .word 0xc60d0008
-    jal        func_0021B970
-    .word 0xc60c0004
-    .word 0x8e050010
-    .word 0x8e060014
-    jal        func_0021BA80
-    .word 0x8e04000c
-    jal        func_0021B8E0
-    nop
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    jr         $ra
-    addiu     $sp, $sp, 0x20
+void func_001D8FD0(void) {
+    char *p;
+
+    p = func_001D7B30();
+    if (func_001B0070() & 0x80) {
+        func_0021B970(0.0f, 110.0f);
+        func_0021BA80(0, 0, 0);
+    } else {
+        func_0021B970(*(float *)(p + 4), *(float *)(p + 8));
+        func_0021BA80(*(int *)(p + 0xC), *(int *)(p + 0x10), *(int *)(p + 0x14));
+    }
+    func_0021B8E0();
 }
