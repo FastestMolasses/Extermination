@@ -1,31 +1,22 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00213C50(void) {
-    .word 0x24030001
-    .word 0x14a30007
-    .word 0x90870019
-    .word 0x54e00005
-    .word 0x24e7ffff
-    .word 0x90830018
-    .word 0x10000002
-    .word 0x2467ffff
-    .word 0x24e7ffff
-    .word 0x70003628
-    .word 0x00871821
-    .word 0x90650050
-    .word 0x24e70001
-    .word 0x00861821
-    .word 0xa0650090
-    .word 0x90830018
-    .word 0x00e3182a
-    .word 0x54600003
-    .word 0x24c60001
-    .word 0x70003e28
-    .word 0x24c60001
-    .word 0x28c30009
-    .word 0x1460fff4
-    .word 0x00871821
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Wrap-around byte copy: builds a 9-byte window at offset 0x90 from a ring
+// of bytes starting at offset 0x50, indexed by p[0x19], length p[0x18].
+// When sel==1 the start index is rolled back by one (with wrap to len-1).
+// NOTE: requires 'i' declared before 'idx' (regalloc: idx->a3, i->a2) and the
+// idx==0-first conditional (to emit the bnezl branch-likely). 991202 caps at
+// 91.35 (it mis-lowers the decrement to beqz/nop/b); 2.3.3 emits the bnezl.
+void func_00213C50(unsigned char *p, int sel) {
+    int i;
+    int idx;
+    idx = p[0x19];
+    if (sel == 1) {
+        if (idx == 0) { idx = p[0x18] - 1; }
+        else { idx -= 1; }
+    }
+    for (i = 0; i < 9; i++) {
+        p[0x90 + i] = p[0x50 + idx];
+        idx += 1;
+        if (idx >= (int)p[0x18]) { idx = 0; }
+    }
 }

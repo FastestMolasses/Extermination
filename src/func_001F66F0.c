@@ -1,31 +1,28 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001D80B0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Release-handles sweep over a 0x28-stride record array starting at `self`.
+// Walks records while the leading signed short (record+0x0) is >= 0 (the
+// list terminator/sentinel is a negative short). For each live record whose
+// handle field (record+0x24) is not -1, releases it via func_001D80B0(handle)
+// and marks the slot free by writing -1 back to record+0x24. A NULL `self`
+// is a no-op.
+//
+// Matched with mwcc 2.3.3 (mwccps2-2.3.3-000906). The early-return guard
+// reproduces CW's loop rotation (entry jumps straight to the bottom
+// condition test). 991202 leaves a residual delay-slot wall; 2.3.3 is
+// byte-identical (objdiff 100%).
+extern void func_001D80B0(int handle);
 
-asm void func_001F66F0(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    sq $s0, 0x0($sp)
-    paddub $s0, $a0, $zero
-    .word 0x1600000d
-    nop
-    .word 0x1000000f
-    lq $ra, 0x10($sp)
-    lw $a0, 0x24($s0)
-    addiu $v1, $zero, -0x1
-    .word 0x50830006
-    addiu $s0, $s0, 0x28
-    jal func_001D80B0
-    nop
-    addiu $v1, $zero, -0x1
-    sw $v1, 0x24($s0)
-    addiu $s0, $s0, 0x28
-    nop
-    lh $v1, 0x0($s0)
-    .word 0x0461fff4
-    nop
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+void func_001F66F0(unsigned char *self) {
+    if (self == 0) {
+        return;
+    }
+    while (*(short *)self >= 0) {
+        if (*(int *)(self + 0x24) != -1) {
+            func_001D80B0(*(int *)(self + 0x24));
+            *(int *)(self + 0x24) = -1;
+        }
+        self += 0x28;
+    }
 }

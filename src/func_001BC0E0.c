@@ -1,32 +1,24 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001BA1F0(int, int, int, int);
-extern void anim_advance_time(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Actor sub-state tick wrapper: if the actor's anim block (blk) has its
+// "active" flag set (signed byte at blk+0xC != 0), advance its articulation
+// clip one step (1.0f) and store the resulting current-time (short) at blk+0xE.
+// Then run the per-actor update func_001BA1F0(self) and return whether it
+// reported a non-zero result (1) or not (0).
+//
+// Matched with mwcc 2.3.3 (mwccps2-2.3.3-000906), not the pinned 991202: the
+// signed `lb blk+0xC` is read; the residual under 991202 is the clean-store
+// delay-slot wall. 2.3.3 is byte-identical (objdiff 100%).
+extern short anim_advance_time(void *self, float step);
+extern int func_001BA1F0(void *self);
 
-asm void func_001BC0E0(void) {
-    addiu $sp, $sp, -0x30
-    sq $ra, 0x20($sp)
-    sq $s1, 0x10($sp)
-    sq $s0, 0x0($sp)
-    lb $v0, 0xC($a1)
-    paddub $s1, $a0, $zero
-    .word 0x10400006
-    paddub $s0, $a1, $zero
-    lui $v0, (0x3F800000 >> 16)
-    mtc1 $v0, $f12
-    jal anim_advance_time
-    nop
-    sh $v0, 0xE($s0)
-    jal func_001BA1F0
-    paddub $a0, $s1, $zero
-    .word 0x10400004
-    paddub $v0, $zero, $zero
-    .word 0x10000002
-    addiu $v0, $zero, 0x1
-    paddub $v0, $zero, $zero
-    lq $ra, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+int func_001BC0E0(unsigned char *self, unsigned char *blk) {
+    if (*(char *)(blk + 0xC) != 0) {
+        *(short *)(blk + 0xE) = anim_advance_time(self, 1.0f);
+    }
+    if (func_001BA1F0(self) != 0) {
+        return 1;
+    }
+    return 0;
 }

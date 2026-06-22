@@ -1,31 +1,17 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001821E0(void) {
-    .word 0xc4800224
-    .word 0x44800800
-    .word 0x00000000
-    .word 0x46010032
-    .word 0x00000000
-    .word 0x4500000b
-    .word 0x24020002
-    .word 0xc480022c
-    .word 0x46010032
-    .word 0x00000000
-    .word 0x45000005
-    .word 0x00000000
-    .word 0x9082000f
-    .word 0x30420002
-    .word 0x10400009
-    .word 0x70001628
-    .word 0x24020002
-    .word 0xa0820004
-    .word 0x24020009
-    .word 0xa0820005
-    .word 0x24020001
-    .word 0x10000002
-    .word 0xa0800006
-    .word 0x70001628
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// If the two floats at +0x224/+0x22C are both 0 and flag bit 2 at +0xF is
+// clear, do nothing and return 0. Otherwise set bytes +4=2, +5=9, +6=0 and
+// return 1.
+int func_001821E0(void *a) {
+    float zero = 0.0f;
+    if (*(float *)((char *)a + 0x224) != zero ||
+        *(float *)((char *)a + 0x22C) != zero ||
+        (*(unsigned char *)((char *)a + 0xF) & 2)) {
+        *(char *)((char *)a + 4) = 2;
+        *(char *)((char *)a + 5) = 9;
+        *(char *)((char *)a + 6) = 0;
+        return 1;
+    }
+    return 0;
 }

@@ -1,33 +1,23 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_00102948(int, int, int, int);
-extern void func_001EF9D0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Allocator/initializer: allocates an object via func_001EF9D0 (called with
+// f12=1.0f and the original a0 passed through), then if non-null initializes a
+// sub-structure at +0xB0 via func_00102948(obj+0xB0, arg1), zeroes fields
+// 0xC0/0xC4/0xC8/0xCC and sets float field 0xBC = 1.0f. Returns the object.
+extern char *func_001EF9D0(float, int);
+extern void func_00102948(char *, int);
 
-asm void func_001EFD20(void) {
-    addiu $sp, $sp, -0x30
-    sq $ra, 0x20($sp)
-    sq $s1, 0x10($sp)
-    lui $v0, (0x3F800000 >> 16)
-    mtc1 $v0, $f12
-    paddub $s1, $a1, $zero
-    jal func_001EF9D0
-    sq $s0, 0x0($sp)
-    paddub $s0, $v0, $zero
-    .word 0x1200000b
-    paddub $v0, $s0, $zero
-    addiu $a0, $s0, 0xB0
-    jal func_00102948
-    paddub $a1, $s1, $zero
-    sw $zero, 0xC4($s0)
-    sw $zero, 0xC0($s0)
-    sw $zero, 0xCC($s0)
-    sw $zero, 0xC8($s0)
-    lui $v0, (0x3F800000 >> 16)
-    sw $v0, 0xBC($s0)
-    paddub $v0, $s0, $zero
-    lq $ra, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+char *func_001EFD20(int arg0, int arg1) {
+    char *p;
+
+    p = func_001EF9D0(1.0f, arg0);
+    if (p) {
+        func_00102948(p + 0xB0, arg1);
+        *(int *)(p + 0xC4) = 0;
+        *(int *)(p + 0xC0) = 0;
+        *(int *)(p + 0xCC) = 0;
+        *(int *)(p + 0xC8) = 0;
+        *(float *)(p + 0xBC) = 1.0f;
+    }
+    return p;
 }
