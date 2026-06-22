@@ -1,36 +1,31 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00182D70(void) {
-    .word 0x3c017000
-    .word 0x90233b8f
-    .word 0x14600004
-    .word 0x00000000
-    .word 0x24030001
-    .word 0x3c017000
-    .word 0xa0233b8f
-    .word 0xac800224
-    .word 0xac80022c
-    .word 0xa080000f
-    .word 0x24030001
-    .word 0xa480020e
-    .word 0xa0830000
-    .word 0x8c85001c
-    .word 0x10a00003
-    .word 0x00000000
-    .word 0x24030002
-    .word 0xa0a30004
-    .word 0x8486020c
-    .word 0x3c053f80
-    .word 0x2403ffff
-    .word 0xa48601f2
-    .word 0xac8001f8
-    .word 0xa08002f3
-    .word 0xac8501f4
-    .word 0xa080023f
-    .word 0xac800038
-    .word 0xac800240
-    .word 0xac83024c
-    .word 0x03e00008
-    .word 0xa4800276
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Leaf one-time init/reset of an actor struct at p. Guard byte at 0x70003B8F
+// is set on first call. Clears counters/flags, sets state byte=1, propagates
+// state=2 to a linked object at p->0x1C, copies p->0x20C into p->0x1F2,
+// stores float 1.0 (0x3F800000) at p->0x1F4, and -1 at p->0x24C.
+// mwcc 2.3.3 reproduces the clean-store beqz delay-slot nop that 991202 fills (87.1%).
+void func_00182D70(unsigned char *p) {
+    unsigned char *q;
+    if (*(unsigned char *)0x70003B8F == 0) {
+        *(unsigned char *)0x70003B8F = 1;
+    }
+    *(int *)(p + 0x224) = 0;
+    *(int *)(p + 0x22C) = 0;
+    *(unsigned char *)(p + 0xF) = 0;
+    *(short *)(p + 0x20E) = 0;
+    *(unsigned char *)(p + 0) = 1;
+    q = *(unsigned char **)(p + 0x1C);
+    if (q != 0) {
+        *(unsigned char *)(q + 4) = 2;
+    }
+    *(short *)(p + 0x1F2) = *(short *)(p + 0x20C);
+    *(int *)(p + 0x1F8) = 0;
+    *(unsigned char *)(p + 0x2F3) = 0;
+    *(int *)(p + 0x1F4) = 0x3F800000;
+    *(unsigned char *)(p + 0x23F) = 0;
+    *(int *)(p + 0x38) = 0;
+    *(int *)(p + 0x240) = 0;
+    *(int *)(p + 0x24C) = -1;
+    *(short *)(p + 0x276) = 0;
 }
