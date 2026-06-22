@@ -1,11 +1,24 @@
-// INCLUDE_ASM func_00206D10  (vram 0x00206D10, 100 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_00206D10.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+
+// Decode/finalize step for an MPEG/stream object at arg0:
+//   func_00204250(arg0+0x48)  -- init/reset a sub-state at +0x48
+//   func_00203B70(&D_007A55A0) -- act on a global stream handle
+//   sub_sceMpegGetPicture_decode_error(arg0) -- kick off async decode
+//   spin until the global busy flag D_007A55AC clears
+//   func_00206B90(arg0, 3) -- finish with mode 3
+extern void func_00204250(int);
+extern void func_00203B70(void *);
+extern void sub_sceMpegGetPicture_decode_error(int);
+extern void func_00206B90(int, int);
+extern int D_007A55A0;
+extern volatile int D_007A55AC;
+
+void func_00206D10(int arg0) {
+    func_00204250(arg0 + 0x48);
+    func_00203B70(&D_007A55A0);
+    sub_sceMpegGetPicture_decode_error(arg0);
+    while (D_007A55AC != 0) {
+    }
+    func_00206B90(arg0, 3);
+}
