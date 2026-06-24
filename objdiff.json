@@ -5390,6 +5390,14 @@
       }
     },
     {
+      "name": "func_001434C0",
+      "target_path": "build/expected/func_001434C0.o",
+      "base_path": "build/obj/func_001434C0.o",
+      "metadata": {
+        "source_path": "src/func_001434C0.c"
+      }
+    },
+    {
       "name": "func_001450B0",
       "target_path": "build/expected/func_001450B0.o",
       "base_path": "build/obj/func_001450B0.o",
@@ -5518,6 +5526,14 @@
       }
     },
     {
+      "name": "func_0014D260",
+      "target_path": "build/expected/func_0014D260.o",
+      "base_path": "build/obj/func_0014D260.o",
+      "metadata": {
+        "source_path": "src/func_0014D260.c"
+      }
+    },
+    {
       "name": "func_0014D3B0",
       "target_path": "build/expected/func_0014D3B0.o",
       "base_path": "build/obj/func_0014D3B0.o",
@@ -5547,6 +5563,14 @@
       "base_path": "build/obj/func_0014E420.o",
       "metadata": {
         "source_path": "src/func_0014E420.c"
+      }
+    },
+    {
+      "name": "func_0014E4F0",
+      "target_path": "build/expected/func_0014E4F0.o",
+      "base_path": "build/obj/func_0014E4F0.o",
+      "metadata": {
+        "source_path": "src/func_0014E4F0.c"
       }
     },
     {
@@ -6150,6 +6174,14 @@
       }
     },
     {
+      "name": "func_00175390",
+      "target_path": "build/expected/func_00175390.o",
+      "base_path": "build/obj/func_00175390.o",
+      "metadata": {
+        "source_path": "src/func_00175390.c"
+      }
+    },
+    {
       "name": "func_001754E0",
       "target_path": "build/expected/func_001754E0.o",
       "base_path": "build/obj/func_001754E0.o",
@@ -6259,6 +6291,14 @@
       "base_path": "build/obj/func_00178B90.o",
       "metadata": {
         "source_path": "src/func_00178B90.c"
+      }
+    },
+    {
+      "name": "func_00178EC0",
+      "target_path": "build/expected/func_00178EC0.o",
+      "base_path": "build/obj/func_00178EC0.o",
+      "metadata": {
+        "source_path": "src/func_00178EC0.c"
       }
     },
     {
@@ -12339,6 +12379,14 @@
       "base_path": "build/obj/func_0020E1E0.o",
       "metadata": {
         "source_path": "src/func_0020E1E0.c"
+      }
+    },
+    {
+      "name": "func_0020E250",
+      "target_path": "build/expected/func_0020E250.o",
+      "base_path": "build/obj/func_0020E250.o",
+      "metadata": {
+        "source_path": "src/func_0020E250.c"
       }
     },
     {
