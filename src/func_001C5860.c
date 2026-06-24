@@ -1,11 +1,16 @@
-// INCLUDE_ASM func_001C5860  (vram 0x001C5860, 208 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_001C5860.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Maps (100.0 - D_008104D8) into a 0..5 band via descending float thresholds
+// (>80->0, >50->1, >30->2, >10->3, >0->4, else 5). Flat early-return cascade
+// reproduces CW's per-check bc1t-next / b-end branch lowering; mwcc233/24 match.
+extern float D_008104D8;
+
+int func_001C5860(void) {
+    float f = 100.0f - D_008104D8;
+    if (f > 80.0f) return 0;
+    if (f > 50.0f) return 1;
+    if (f > 30.0f) return 2;
+    if (f > 10.0f) return 3;
+    if (f > 0.0f) return 4;
+    return 5;
+}
