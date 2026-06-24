@@ -7014,6 +7014,14 @@
       }
     },
     {
+      "name": "func_00188250",
+      "target_path": "build/expected/func_00188250.o",
+      "base_path": "build/obj/func_00188250.o",
+      "metadata": {
+        "source_path": "src/func_00188250.c"
+      }
+    },
+    {
       "name": "func_00188340",
       "target_path": "build/expected/func_00188340.o",
       "base_path": "build/obj/func_00188340.o",
@@ -12115,6 +12123,14 @@
       "base_path": "build/obj/func_002072A0.o",
       "metadata": {
         "source_path": "src/func_002072A0.c"
+      }
+    },
+    {
+      "name": "func_00207BB0",
+      "target_path": "build/expected/func_00207BB0.o",
+      "base_path": "build/obj/func_00207BB0.o",
+      "metadata": {
+        "source_path": "src/func_00207BB0.c"
       }
     },
     {
