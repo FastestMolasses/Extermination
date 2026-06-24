@@ -159,13 +159,20 @@ def compile_cmd(name: str) -> str:
     comp = file_compiler(name)
     if comp == "eegcc":
         return f"tools/eegcc/ee-compile.sh src/{name}.c build/obj/{name}.o {flags}"
-    if comp == "mwcc233":
-        # CodeWarrior mwcps2-2.3.3-000906 — byte-matches a handful of functions
-        # (notably the clean-store idiom-13 delay-slot case) that the pinned 991202
-        # build cannot. User-supplied at tools/mwccps2-233/ (see docs/PROGRESS.md).
-        return (f"qemu-i386 tools/bin/wibo32 tools/mwccps2-233/mwccps2.exe "
-                f"-c {flags} -o build/obj/{name}.o src/{name}.c")
-    return (f"qemu-i386 tools/bin/wibo32 tools/mwccps2/mwccmips.exe "
+    # Per-file CodeWarrior build selection. byte-identity is what matters, not the
+    # .comment string (which isn't in the loadable region) — so a later build that
+    # reproduces a function's exact bytes is a valid match (same principle as the
+    # eegcc SDK funcs). All user-supplied at tools/mwccps2*/ (gitignored). 991202 is
+    # the default; 2.3.3 cracks the idiom-13 delay-slot family; 2.4/3.0/3.0.1 (the
+    # next codegen core) crack regalloc-order / branch-lowering ties 2.3.x miss.
+    MWCC = {
+        "mwcc233": "tools/mwccps2-233/mwccps2.exe",
+        "mwcc24":  "tools/mwccps2-24/mwccps2.exe",
+        "mwcc30":  "tools/mwccps2-30/mwccps2.exe",
+        "mwcc301": "tools/mwccps2-301/mwccps2.exe",
+    }
+    exe = MWCC.get(comp, "tools/mwccps2/mwccmips.exe")
+    return (f"qemu-i386 tools/bin/wibo32 {exe} "
             f"-c {flags} -o build/obj/{name}.o src/{name}.c")
 
 

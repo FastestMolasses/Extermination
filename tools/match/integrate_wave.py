@@ -14,7 +14,9 @@ import json, os, re, subprocess, sys, shutil
 ROOT = "/Users/abe/Documents/Extermination.nosync/Extermination"
 os.chdir(ROOT)
 A = "build/asm/matchings/main/code"
-CC = {"mwcc": "tools/mwccps2/mwccmips.exe", "mwcc233": "tools/mwccps2-233/mwccps2.exe"}
+CC = {"mwcc": "tools/mwccps2/mwccmips.exe", "mwcc233": "tools/mwccps2-233/mwccps2.exe",
+      "mwcc24": "tools/mwccps2-24/mwccps2.exe", "mwcc30": "tools/mwccps2-30/mwccps2.exe",
+      "mwcc301": "tools/mwccps2-301/mwccps2.exe"}
 
 d = json.load(open(sys.argv[1]))
 res = d.get("result", d)
