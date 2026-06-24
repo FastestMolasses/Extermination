@@ -34,6 +34,7 @@ THE PROVEN RECIPE (worked on func_001872C0):
 
 On a 100.0: report matched=true, compiler ("mwcc" or "mwcc233"), c_source = the FULL committed-ready file: a leading "// COMPILER: mwcc233" line (ONLY if compiler==mwcc233), then "// CFLAGS: ...", then any preserved SEMANTIC comments, then the plain-C body. pct_991202 + pct_233 = the two measured percentages.
 
+DO NOT run the decomp-permuter — it is slow and the orchestrator runs a dedicated permuter pass on parked regalloc/scheduling near-misses. If a func walls on a register-allocation-ORDER / scheduling / param-save-order / FP-coloring permutation (not the clean-store nop), get the best readable C, report best %, and PARK it — do not iterate past ~8 attempts.
 RULES: touch ONLY build/agent_${id}/; never canonical build/obj|expected, src/, objdiff.json, tools/; never run build.py/verify_all/git. No disc disasm to external context.
 Report per func: func, pct_991202, pct_233, matched, compiler, c_source (full file ONLY if matched), wall (if not matched).`
 
