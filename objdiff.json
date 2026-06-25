@@ -9342,6 +9342,14 @@
       }
     },
     {
+      "name": "func_001C67E0",
+      "target_path": "build/expected/func_001C67E0.o",
+      "base_path": "build/obj/func_001C67E0.o",
+      "metadata": {
+        "source_path": "src/func_001C67E0.c"
+      }
+    },
+    {
       "name": "func_001C68C0",
       "target_path": "build/expected/func_001C68C0.o",
       "base_path": "build/obj/func_001C68C0.o",
@@ -9382,6 +9390,14 @@
       }
     },
     {
+      "name": "func_001C82A0",
+      "target_path": "build/expected/func_001C82A0.o",
+      "base_path": "build/obj/func_001C82A0.o",
+      "metadata": {
+        "source_path": "src/func_001C82A0.c"
+      }
+    },
+    {
       "name": "func_001C8480",
       "target_path": "build/expected/func_001C8480.o",
       "base_path": "build/obj/func_001C8480.o",
@@ -9398,6 +9414,14 @@
       }
     },
     {
+      "name": "func_001C85D0",
+      "target_path": "build/expected/func_001C85D0.o",
+      "base_path": "build/obj/func_001C85D0.o",
+      "metadata": {
+        "source_path": "src/func_001C85D0.c"
+      }
+    },
+    {
       "name": "func_001C86A0",
       "target_path": "build/expected/func_001C86A0.o",
       "base_path": "build/obj/func_001C86A0.o",
@@ -9411,6 +9435,30 @@
       "base_path": "build/obj/func_001C8710.o",
       "metadata": {
         "source_path": "src/func_001C8710.c"
+      }
+    },
+    {
+      "name": "func_001C8D50",
+      "target_path": "build/expected/func_001C8D50.o",
+      "base_path": "build/obj/func_001C8D50.o",
+      "metadata": {
+        "source_path": "src/func_001C8D50.c"
+      }
+    },
+    {
+      "name": "func_001C8F10",
+      "target_path": "build/expected/func_001C8F10.o",
+      "base_path": "build/obj/func_001C8F10.o",
+      "metadata": {
+        "source_path": "src/func_001C8F10.c"
+      }
+    },
+    {
+      "name": "func_001C90D0",
+      "target_path": "build/expected/func_001C90D0.o",
+      "base_path": "build/obj/func_001C90D0.o",
+      "metadata": {
+        "source_path": "src/func_001C90D0.c"
       }
     },
     {
