@@ -1,73 +1,30 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001E2290(void) {
-    .word 0x2402006a
-    .word 0x1082003d
-    .word 0x24020001
-    .word 0x24020068
-    .word 0x10820039
-    .word 0x00000000
-    .word 0x24020061
-    .word 0x10820036
-    .word 0x00000000
-    .word 0x2402005a
-    .word 0x10820033
-    .word 0x00000000
-    .word 0x24020059
-    .word 0x10820030
-    .word 0x00000000
-    .word 0x24020058
-    .word 0x1082002d
-    .word 0x00000000
-    .word 0x24020055
-    .word 0x1082002a
-    .word 0x00000000
-    .word 0x24020054
-    .word 0x10820027
-    .word 0x00000000
-    .word 0x24020051
-    .word 0x10820024
-    .word 0x00000000
-    .word 0x24020050
-    .word 0x10820021
-    .word 0x00000000
-    .word 0x2402004f
-    .word 0x1082001e
-    .word 0x00000000
-    .word 0x2402004e
-    .word 0x1082001b
-    .word 0x00000000
-    .word 0x24020049
-    .word 0x10820018
-    .word 0x00000000
-    .word 0x24020048
-    .word 0x10820015
-    .word 0x00000000
-    .word 0x24020047
-    .word 0x10820012
-    .word 0x00000000
-    .word 0x24020040
-    .word 0x1082000f
-    .word 0x00000000
-    .word 0x2402003f
-    .word 0x1082000c
-    .word 0x00000000
-    .word 0x2402003e
-    .word 0x10820009
-    .word 0x00000000
-    .word 0x2402003d
-    .word 0x10820006
-    .word 0x00000000
-    .word 0x2402003b
-    .word 0x10820003
-    .word 0x00000000
-    .word 0x10000005
-    .word 0x70001628
-    .word 0x24020001
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Returns 1 if arg0 is one of a fixed set of key/scan codes, else 0.
+int func_001E2290(int arg0) {
+    switch (arg0) {
+    case 0x3B:
+    case 0x3D:
+    case 0x3E:
+    case 0x3F:
+    case 0x40:
+    case 0x47:
+    case 0x48:
+    case 0x49:
+    case 0x4E:
+    case 0x4F:
+    case 0x50:
+    case 0x51:
+    case 0x54:
+    case 0x55:
+    case 0x58:
+    case 0x59:
+    case 0x5A:
+    case 0x61:
+    case 0x68:
+    case 0x6A:
+        return 1;
+    default:
+        return 0;
+    }
 }

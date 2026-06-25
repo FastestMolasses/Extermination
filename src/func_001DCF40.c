@@ -1,48 +1,16 @@
-// Simple nonleaf asm void
-extern void func_001D1F80(int, int, int, int);
-extern void func_00207F80(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Thin registration/setup wrapper: resets via func_001D1F80(self, 0, 1) then
+// issues 4 six-arg func_00207F80(self, c0, c1, c2, c3, arg1) calls with fixed
+// 16-bit literal id pairs. (arg0=self in s1, arg1 in s0 carried across calls.)
+extern void func_001D1F80(int, int, int);
+extern void func_00207F80(int, int, int, int, int, int);
 
-asm void func_001DCF40(void) {
-    addiu      $sp, $sp, -0x30
-    sq         $ra, 0x20($sp)
-    sq         $s1, 0x10($sp)
-    sq         $s0, 0x0($sp)
-    paddub     $s0, $a1, $zero
-    addiu      $a2, $zero, 0x1
-    paddub     $s1, $a0, $zero
-    jal        func_001D1F80
-    paddub    $a1, $zero, $zero
-    addiu      $a1, $zero, 0x7730
-    addiu      $a2, $zero, 0x7F10
-    addiu      $a3, $zero, 0x7770
-    paddub     $a0, $s1, $zero
-    ori        $8, $zero, 0x80D0
-    jal        func_00207F80
-    paddub    $9, $s0, $zero
-    addiu      $a1, $zero, 0x7A70
-    addiu      $a2, $zero, 0x7F90
-    addiu      $a3, $zero, 0x7AB0
-    paddub     $a0, $s1, $zero
-    ori        $8, $zero, 0x8050
-    jal        func_00207F80
-    paddub    $9, $s0, $zero
-    addiu      $a2, $zero, 0x7F90
-    paddub     $a0, $s1, $zero
-    ori        $a1, $zero, 0x8550
-    ori        $a3, $zero, 0x8590
-    ori        $8, $zero, 0x8050
-    jal        func_00207F80
-    paddub    $9, $s0, $zero
-    addiu      $a2, $zero, 0x7F10
-    paddub     $a0, $s1, $zero
-    paddub     $9, $s0, $zero
-    ori        $a1, $zero, 0x8890
-    ori        $a3, $zero, 0x88D0
-    jal        func_00207F80
-    ori       $8, $zero, 0x80D0
-    lq         $ra, 0x20($sp)
-    lq         $s1, 0x10($sp)
-    lq         $s0, 0x0($sp)
-    jr         $ra
-    addiu     $sp, $sp, 0x30
+void func_001DCF40(int a0, int a1) {
+    func_001D1F80(a0, 0, 1);
+    func_00207F80(a0, 0x7730, 0x7F10, 0x7770, 0x80D0, a1);
+    func_00207F80(a0, 0x7A70, 0x7F90, 0x7AB0, 0x8050, a1);
+    func_00207F80(a0, 0x8550, 0x7F90, 0x8590, 0x8050, a1);
+    func_00207F80(a0, 0x8890, 0x7F10, 0x88D0, 0x80D0, a1);
 }
