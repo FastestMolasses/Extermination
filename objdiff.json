@@ -14054,6 +14054,22 @@
       }
     },
     {
+      "name": "sub_NIGHT_VISION_SYSTEM",
+      "target_path": "build/expected/sub_NIGHT_VISION_SYSTEM.o",
+      "base_path": "build/obj/sub_NIGHT_VISION_SYSTEM.o",
+      "metadata": {
+        "source_path": "src/sub_NIGHT_VISION_SYSTEM.c"
+      }
+    },
+    {
+      "name": "sub_TACTICAL_ADVANCED",
+      "target_path": "build/expected/sub_TACTICAL_ADVANCED.o",
+      "base_path": "build/obj/sub_TACTICAL_ADVANCED.o",
+      "metadata": {
+        "source_path": "src/sub_TACTICAL_ADVANCED.c"
+      }
+    },
+    {
       "name": "vif_append_ref_tag",
       "target_path": "build/expected/vif_append_ref_tag.o",
       "base_path": "build/obj/vif_append_ref_tag.o",
