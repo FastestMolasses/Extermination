@@ -10070,6 +10070,14 @@
       }
     },
     {
+      "name": "func_001D2E20",
+      "target_path": "build/expected/func_001D2E20.o",
+      "base_path": "build/obj/func_001D2E20.o",
+      "metadata": {
+        "source_path": "src/func_001D2E20.c"
+      }
+    },
+    {
       "name": "func_001D38A0",
       "target_path": "build/expected/func_001D38A0.o",
       "base_path": "build/obj/func_001D38A0.o",
