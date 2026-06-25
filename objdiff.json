@@ -10774,6 +10774,14 @@
       }
     },
     {
+      "name": "func_001DC610",
+      "target_path": "build/expected/func_001DC610.o",
+      "base_path": "build/obj/func_001DC610.o",
+      "metadata": {
+        "source_path": "src/func_001DC610.c"
+      }
+    },
+    {
       "name": "func_001DC890",
       "target_path": "build/expected/func_001DC890.o",
       "base_path": "build/obj/func_001DC890.o",
@@ -14054,11 +14062,27 @@
       }
     },
     {
+      "name": "sub_DELTA_AUTO_SIGHT_SYS",
+      "target_path": "build/expected/sub_DELTA_AUTO_SIGHT_SYS.o",
+      "base_path": "build/obj/sub_DELTA_AUTO_SIGHT_SYS.o",
+      "metadata": {
+        "source_path": "src/sub_DELTA_AUTO_SIGHT_SYS.c"
+      }
+    },
+    {
       "name": "sub_NIGHT_VISION_SYSTEM",
       "target_path": "build/expected/sub_NIGHT_VISION_SYSTEM.o",
       "base_path": "build/obj/sub_NIGHT_VISION_SYSTEM.o",
       "metadata": {
         "source_path": "src/sub_NIGHT_VISION_SYSTEM.c"
+      }
+    },
+    {
+      "name": "sub_SPECIAL_PURPOSE_MISSILE_LAUNCHER",
+      "target_path": "build/expected/sub_SPECIAL_PURPOSE_MISSILE_LAUNCHER.o",
+      "base_path": "build/obj/sub_SPECIAL_PURPOSE_MISSILE_LAUNCHER.o",
+      "metadata": {
+        "source_path": "src/sub_SPECIAL_PURPOSE_MISSILE_LAUNCHER.c"
       }
     },
     {
