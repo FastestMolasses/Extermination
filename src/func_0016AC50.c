@@ -1,104 +1,51 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001749A0(int, int, int, int);
-extern void func_001885B0(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Entity state-machine tick (state in arg0[6]): case0 inits fall timer + per-frame delta, case1 fires sound when flag set, case2 advances/decrements fall over 0x28 frames, case3 transitions on flag.
+extern void func_001749A0(unsigned char *, int, int, float);
+extern int func_001885B0(unsigned char *);
+extern void func_001FBD50(unsigned char *, int, int, float);
 
-asm void func_0016AC50(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x90850006
-    .word 0x24030003
-    .word 0x10a30044
-    .word 0x70808628
-    .word 0x24030002
-    .word 0x10a3002b
-    .word 0x00000000
-    .word 0x24030001
-    .word 0x10a3001a
-    .word 0x00000000
-    .word 0x50a00004
-    .word 0x24a20001
-    .word 0x1000004e
-    .word 0x7bbf0010
-    .word 0x24a20001
-    .word 0xa2020006
-    .word 0x24020008
-    .word 0xa2000007
-    .word 0xa6020028
-    .word 0xc6020254
-    .word 0xc60100b4
-    .word 0x3c024100
-    .word 0x44820000
-    .word 0x24050070
-    .word 0x3c023f80
-    .word 0x46011041
-    .word 0x70003628
-    .word 0x46000803
-    .word 0x44826000
-    .word 0x00000000
-    .word 0x00000000
-    jal       func_001749A0
-    .word 0xe60002e4
-    .word 0x10000038
-    .word 0x00000000
-    .word 0x8e030200
-    .word 0x30631000
-    .word 0x10600034
-    .word 0x00000000
-    .word 0x24a20001
-    .word 0xa2020006
-    .word 0x3c023f80
-    .word 0x44826000
-    .word 0x240500ba
-    jal       func_001749A0
-    .word 0x70003628
-    .word 0x24030003
-    .word 0x1000002a
-    .word 0xa203025f
-    .word 0x86030028
-    .word 0x1460000c
-    .word 0x00000000
-    .word 0x24a20001
-    .word 0xa2020006
-    .word 0xc6000254
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x24050110
-    .word 0x70003628
-    jal       func_001FBD50
-    .word 0xe60000b4
-    .word 0x1000001c
-    .word 0x00000000
-    .word 0xc60102e4
-    .word 0xc60000b4
-    .word 0x46010000
-    .word 0xe60000b4
-    .word 0x86030028
-    .word 0x2463ffff
-    .word 0x10000014
-    .word 0xa6030028
-    .word 0x8e030200
-    .word 0x30631000
-    .word 0x10600010
-    .word 0x00000000
-    .word 0x24020012
-    .word 0xa2020005
-    .word 0x24020022
-    .word 0xa2000006
-    .word 0xa20201f0
-    .word 0xa20001f1
-    .word 0xa200025d
-    jal       func_001885B0
-    .word 0xa20002f1
-    .word 0x3c033f80
-    .word 0x44836000
-    .word 0x72002628
-    .word 0x70402e28
-    jal       func_001749A0
-    .word 0x70003628
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+void func_0016AC50(unsigned char *arg0) {
+    unsigned char state;
+
+    state = arg0[6];
+    switch (state) {
+    case 0:
+        arg0[6] = (unsigned char)(state + 1);
+        arg0[7] = 0;
+        *(short *)(arg0 + 0x28) = 8;
+        *(float *)(arg0 + 0x2E4) = (*(float *)(arg0 + 0x254) - *(float *)(arg0 + 0xB4)) / 8.0f;
+        func_001749A0(arg0, 0x70, 0, 1.0f);
+        break;
+    case 1:
+        if (*(int *)(arg0 + 0x200) & 0x1000) {
+            arg0[6] = (unsigned char)(state + 1);
+            func_001749A0(arg0, 0xBA, 0, 1.0f);
+            arg0[0x25F] = 3;
+        }
+        break;
+    case 2:
+        if (*(short *)(arg0 + 0x28) == 0) {
+            arg0[6] = (unsigned char)(state + 1);
+            *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0x254);
+            func_001FBD50(arg0, 0x110, 0, 300.0f);
+        } else {
+            float d = *(float *)(arg0 + 0x2E4);
+            d = d;
+            *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0xB4) + d;
+            *(short *)(arg0 + 0x28) = (short)(*(short *)(arg0 + 0x28) - 1);
+        }
+        break;
+    case 3:
+        if (*(int *)(arg0 + 0x200) & 0x1000) {
+            arg0[5] = 0x12;
+            arg0[6] = 0;
+            arg0[0x1F0] = 0x22;
+            arg0[0x1F1] = 0;
+            arg0[0x25D] = 0;
+            arg0[0x2F1] = 0;
+            func_001749A0(arg0, func_001885B0(arg0), 0, 1.0f);
+        }
+        break;
+    }
 }
