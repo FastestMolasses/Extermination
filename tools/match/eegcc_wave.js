@@ -37,6 +37,13 @@ PER-FUNCTION LOOP:
 4. Iterate to 100.0 (cap ~6 attempts). Most SDK leaves match at plain -O2. If it resists, try -O1 or -O0 in the CFLAGS line. ee-gcc notes: tail-call wrappers (j func) may need a non-tail-call rewrite (gcc 2.9 has no -fno-optimize-sibling-calls); 64-bit long arithmetic uses dsll32/dsra32; globals via lui/addiu (la) — plain externs first, rarely gp-rel.
 5. PARK (report wall) only after ~6 tries: genuine ee-gcc regalloc/coloring permutation (note best%), MMI 128-bit SIMD (asm-void), or a different SDK compiler.
 
+FAST-PARK (≤2 tries — these are CONFIRMED uncrackable s84, do NOT burn the full budget):
+- **Forward branch-likely**: expected has bgezl/blezl/bgtzl/bltzl/beql/bnel/beqzl/bnezl on a NON-loop conditional (classic: the \`func_0010E8A8(...) < 0\` / syscall-return success check), your clean C compiles to the same op WITHOUT the trailing 'l' (non-annul) at ~75-92%. Our ee-gcc 2.9-991111-01 only emits branch-likely for LOOP BACK-EDGES, never forward annul — proven not flag/ISA/source-crackable. PARK as "eegcc forward-branch-likely wall (confirmed s84)". (Loop back-edge branch-likely IS reproducible — only forward is walled.)
+- **Frame-size stride**: body byte-identical, only the frame immediate / an unstored reserved stack slot differs. PARK "eegcc frame-stride wall".
+- **List-scheduler adjacent-op swap**: two adjacent independent ops swapped (e.g. const-materialize-first vs address-first); ee-gcc 2.9 deterministic. PARK "eegcc list-scheduler wall".
+- **Sibling/tail-call**: final discarded call emitted as \`j func_\` (gcc 2.9 has no -fno-optimize-sibling-calls). PARK "eegcc sibling-call wall".
+Do NOT run the permuter on any of the four above (scorer normalizes the diff / plateaus).
+
 On a TRUE 100.0 (objdiff AND .text size == expected): matched=true, c_source = FULL committed-ready file (the two markers + readable C body), pct=100. Else matched=false, pct=best, wall=precise reason.
 RULES: touch ONLY build/agent_${id}/ ; never canonical build/obj|expected, src/, objdiff.json, tools/; never run build.py/verify_all/git. No disc disasm to external context.
 Report per func: func, pct, matched, c_source (full file ONLY if matched), wall (if not).`
