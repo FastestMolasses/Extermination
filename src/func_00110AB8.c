@@ -1,11 +1,14 @@
-// INCLUDE_ASM func_00110AB8  (vram 0x00110AB8, 96 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_00110AB8.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+extern unsigned char D_00279750[];
+extern void func_0010C0C8(void *a, void *b);
+
+void *func_00110AB8(int a0, int a1)
+{
+    unsigned char *e = (a1 * 0x60 + a0 * 0x180) + D_00279750;
+    unsigned char *p = *(unsigned char **)(e + 0xC);
+    int n;
+    func_0010C0C8(p, p + 0x100);
+    n = (*(int *)(p + 0x58) < *(int *)(p + 0xD8)) << 7;
+    return p + n;
+}

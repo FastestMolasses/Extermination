@@ -46,20 +46,23 @@ def directives(f):
         elif l.startswith("// CFLAGS:"): fl = l.split(":", 1)[1].strip()
         elif l and not l.startswith("//"): break
     return comp, fl
-parts = []
+# eegcc compiles need ee-compile.sh's i386 libs (exterm-permuter image); mwcc needs
+# exterm-toolchain. Route per-image; run a container call per image actually used.
+img_parts = {"exterm-toolchain": [], "exterm-permuter": []}
 for r in matched:
     f = r["func"]; comp, fl = directives(f)
     cc = CC.get(comp, CC["mwcc"])
-    parts.append(f'[ -f build/expected/{f}.o ] || mipsel-linux-gnu-as -march=r5900 '
-                 f'config/asm_prelude.inc build/macro.inc {A}/{f}.s -o build/expected/{f}.o 2>/dev/null')
+    asm = (f'[ -f build/expected/{f}.o ] || mipsel-linux-gnu-as -march=r5900 '
+           f'config/asm_prelude.inc build/macro.inc {A}/{f}.s -o build/expected/{f}.o 2>/dev/null')
     if comp == "eegcc":
-        parts.append(f'tools/eegcc/ee-compile.sh src/{f}.c build/obj/{f}.o {fl} >/dev/null 2>&1')
+        img_parts["exterm-permuter"] += [asm, f'tools/eegcc/ee-compile.sh src/{f}.c build/obj/{f}.o {fl} >/dev/null 2>&1']
     else:
-        parts.append(f'qemu-i386 tools/bin/wibo32 {cc} -c {fl} -o build/obj/{f}.o src/{f}.c >/dev/null 2>&1')
-script = "; ".join(parts) + "; echo BATCH_DONE"
-print("compiling (one container call)...")
-subprocess.run(["container", "run", "--rm", "-v", f"{ROOT}:/work", "-w", "/work",
-                "exterm-toolchain", "sh", "-c", script], capture_output=True, text=True, timeout=900)
+        img_parts["exterm-toolchain"] += [asm, f'qemu-i386 tools/bin/wibo32 {cc} -c {fl} -o build/obj/{f}.o src/{f}.c >/dev/null 2>&1']
+print("compiling (one container call per image)...")
+for img, parts in img_parts.items():
+    if not parts: continue
+    subprocess.run(["container", "run", "--rm", "-v", f"{ROOT}:/work", "-w", "/work",
+                    img, "sh", "-c", "; ".join(parts) + "; echo BATCH_DONE"], capture_output=True, text=True, timeout=900)
 
 # 3. inject relocs (host) + objdiff (host)
 def text_size(path):

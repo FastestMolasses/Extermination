@@ -1,11 +1,26 @@
-// INCLUDE_ASM func_00118E60  (vram 0x00118E60, 96 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_00118E60.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+extern unsigned char *D_00281AD4;
+void func_00118E60(void *arg)
+{
+  unsigned char *p = (unsigned char *) arg;
+  unsigned char *base;
+  unsigned int acc;
+  unsigned int flag = *((unsigned short *) (p + 0x54));
+  unsigned char b;
+  base = D_00281AD4;
+  acc = 0;
+  do
+  {
+    int off = *((int *) (p + 0x8));
+    acc <<= 7;
+    b = base[off];
+    *((int *) (p + 0x8)) = off + 1;
+    acc |= b & 0x7F;
+  }
+  while (b & 0x80);
+  if ((*((unsigned short *) (p + 0x54))) & 0xFFFF)
+  {
+    *((int *) (p + 0x20)) += acc << 12;
+  }
+}

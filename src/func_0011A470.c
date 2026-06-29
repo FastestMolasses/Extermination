@@ -1,11 +1,23 @@
-// INCLUDE_ASM func_0011A470  (vram 0x0011A470, 72 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_0011A470.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+extern unsigned char D_0027CCC0[];
+
+int func_0011A470(int idx)
+{
+    unsigned char *t, *q;
+    int off;
+
+    if (idx < 0x30) {
+        t = D_0027CCC0;
+        q = t + 0x1A;
+        off = idx * 0x6A;
+        if (*(unsigned short *)(q + off) == 3) {
+            goto ok;
+        }
+    }
+    return -1;
+ok:
+    *(unsigned short *)(t + off) = 0;
+    *(unsigned short *)(q + off) = 0;
+    return 0;
+}
