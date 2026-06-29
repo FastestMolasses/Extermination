@@ -1,148 +1,64 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_001749A0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Charge/whiff weapon-anim dispatcher: toggles state byte 0x2F1 (1<->2),
+// branches on aim-mode 0x25C (==3 hip vs other) and sub-mode 0x23F (1/2/other),
+// fires anim id via func_001749A0(e, id, 0, 1.0f), and writes a float-bits
+// recoil/scale word at 0x26C (0.7f=0x3F333333 for sub-mode 1, else 1.0f).
+// Each leaf assigns *(int*)(e+0x26C) directly so mwcc tail-merges the store
+// into the branch delay slots to the shared epilogue (target's b 0x22c shape);
+// a single trailing temp store instead branches past the store and misses.
+extern void func_001749A0(unsigned char *e, int id, int z, float f);
 
-asm void func_001811F0(void) {
-    addiu      $sp, $sp, -0x20
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x908202f1
-    addiu      $a2, $zero, 0x1
-    .word 0x14460043
-    .word 0x70808628
-    addiu      $a1, $zero, 0x2
-    .word 0xa20502f1
-    .word 0x9203025c
-    addiu      $v0, $zero, 0x3
-    .word 0x1462001f
-    nop
-    .word 0x9202023f
-    .word 0x1446000a
-    nop
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xC5
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x3c033f33
-    .word 0x34633333
-    .word 0x10000073
-    .word 0xae03026c
-    .word 0x1445000a
-    .word 0x3c023f80
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xC5
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x3c033f80
-    .word 0x10000069
-    .word 0xae03026c
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xC7
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x3c033f80
-    .word 0x10000061
-    .word 0xae03026c
-    .word 0x9202023f
-    .word 0x1446000a
-    nop
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xC4
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x3c033f33
-    .word 0x34633333
-    .word 0x10000055
-    .word 0xae03026c
-    .word 0x1445000a
-    .word 0x3c023f80
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xC4
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x3c033f80
-    .word 0x1000004b
-    .word 0xae03026c
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xC6
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x3c033f80
-    .word 0x10000043
-    .word 0xae03026c
-    .word 0xa20602f1
-    .word 0x9203025c
-    addiu      $v0, $zero, 0x3
-    .word 0x14620020
-    nop
-    .word 0x9203023f
-    .word 0x1466000b
-    addiu     $v0, $zero, 0x2
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xBD
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x3c033f33
-    .word 0x34633333
-    .word 0x10000032
-    .word 0xae03026c
-    addiu      $v0, $zero, 0x2
-    .word 0x1462000a
-    .word 0x3c023f80
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xBD
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x3c033f80
-    .word 0x10000027
-    .word 0xae03026c
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xBF
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x3c033f80
-    .word 0x1000001f
-    .word 0xae03026c
-    .word 0x9203023f
-    .word 0x1466000b
-    addiu     $v0, $zero, 0x2
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xBE
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x3c033f33
-    .word 0x34633333
-    .word 0x10000013
-    .word 0xae03026c
-    addiu      $v0, $zero, 0x2
-    .word 0x1462000a
-    .word 0x3c023f80
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xBE
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x3c033f80
-    .word 0x10000008
-    .word 0xae03026c
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xC0
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x3c033f80
-    .word 0xae03026c
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    jr         $ra
-    addiu     $sp, $sp, 0x20
+void func_001811F0(unsigned char *e) {
+    if (e[0x2F1] == 1) {
+        e[0x2F1] = 2;
+        if (e[0x25C] == 3) {
+            if (e[0x23F] == 1) {
+                func_001749A0(e, 0xC5, 0, 1.0f);
+                *(int *)(e + 0x26C) = 0x3F333333;
+            } else if (e[0x23F] == 2) {
+                func_001749A0(e, 0xC5, 0, 1.0f);
+                *(int *)(e + 0x26C) = 0x3F800000;
+            } else {
+                func_001749A0(e, 0xC7, 0, 1.0f);
+                *(int *)(e + 0x26C) = 0x3F800000;
+            }
+        } else {
+            if (e[0x23F] == 1) {
+                func_001749A0(e, 0xC4, 0, 1.0f);
+                *(int *)(e + 0x26C) = 0x3F333333;
+            } else if (e[0x23F] == 2) {
+                func_001749A0(e, 0xC4, 0, 1.0f);
+                *(int *)(e + 0x26C) = 0x3F800000;
+            } else {
+                func_001749A0(e, 0xC6, 0, 1.0f);
+                *(int *)(e + 0x26C) = 0x3F800000;
+            }
+        }
+    } else {
+        e[0x2F1] = 1;
+        if (e[0x25C] == 3) {
+            if (e[0x23F] == 1) {
+                func_001749A0(e, 0xBD, 0, 1.0f);
+                *(int *)(e + 0x26C) = 0x3F333333;
+            } else if (e[0x23F] == 2) {
+                func_001749A0(e, 0xBD, 0, 1.0f);
+                *(int *)(e + 0x26C) = 0x3F800000;
+            } else {
+                func_001749A0(e, 0xBF, 0, 1.0f);
+                *(int *)(e + 0x26C) = 0x3F800000;
+            }
+        } else {
+            if (e[0x23F] == 1) {
+                func_001749A0(e, 0xBE, 0, 1.0f);
+                *(int *)(e + 0x26C) = 0x3F333333;
+            } else if (e[0x23F] == 2) {
+                func_001749A0(e, 0xBE, 0, 1.0f);
+                *(int *)(e + 0x26C) = 0x3F800000;
+            } else {
+                func_001749A0(e, 0xC0, 0, 1.0f);
+                *(int *)(e + 0x26C) = 0x3F800000;
+            }
+        }
+    }
 }

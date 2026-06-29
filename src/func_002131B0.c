@@ -1,201 +1,35 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001FCF30(int, int, int, int);
-extern void func_00207D00(int, int, int, int);
-extern void func_00207E40(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Emits a GS/GIF register-write sequence (func_00207E40) bracketed by
+// func_00207D00(1,0)/(1,3), selected by arg1. Each func_00207E40 call passes
+// a base color (arg f) and a packed 64-bit GIF/texture tag (arg g, built by
+// CW/mwcc as dsll32/ori/or). arg1!=0 vs ==0 picks one of two 4-call blocks
+// for the first group; a second arg1 test either emits a final 0x7A80 write
+// or falls through to func_001FCF30(p[0x12],0x64,0x2F).
+extern void func_001FCF30(int a, int b, int c);
+extern void func_00207D00(int a, int b);
+extern void func_00207E40(int a, int b, int c, int d, int e, int f, unsigned long long g);
 
-asm void func_002131B0(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x70808e28
-    .word 0x70a08628
-    .word 0x24040001
-    jal       func_00207D00
-    .word 0x70002e28
-    .word 0x12000040
-    .word 0x3c024080
-    .word 0x3c024080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34424a05
-    .word 0x0002183c
-    .word 0x3402e132
-    .word 0x00021438
-    .word 0x34421d00
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x24067ba0
-    .word 0x24070100
-    .word 0x24080080
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x3c024080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34424c05
-    .word 0x0002183c
-    .word 0x3402e132
-    .word 0x00021438
-    .word 0x34421e00
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x24067fa0
-    .word 0x24070100
-    .word 0x24080080
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x3c024080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34424a85
-    .word 0x0002183c
-    .word 0x3402e132
-    .word 0x00021438
-    .word 0x34421d40
-    .word 0x24040001
-    .word 0x24067ba0
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x34058000
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x3c024080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34424c85
-    .word 0x0002183c
-    .word 0x3402e132
-    .word 0x00021438
-    .word 0x34421e40
-    .word 0x24040001
-    .word 0x24067fa0
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x34058000
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x1000003e
-    .word 0x24040001
-    .word 0x3c024080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34424e85
-    .word 0x0002183c
-    .word 0x3402e132
-    .word 0x00021438
-    .word 0x34421f00
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x24067ba0
-    .word 0x24070100
-    .word 0x24080080
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x3c024080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34424385
-    .word 0x0002183c
-    .word 0x3402e132
-    .word 0x00021438
-    .word 0x34422000
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x24067fa0
-    .word 0x24070100
-    .word 0x24080080
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x3c024080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34424305
-    .word 0x0002183c
-    .word 0x3402e132
-    .word 0x00021438
-    .word 0x34421f40
-    .word 0x24040001
-    .word 0x24067ba0
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x34058000
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x3c024080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34424505
-    .word 0x0002183c
-    .word 0x3402e132
-    .word 0x00021438
-    .word 0x34422040
-    .word 0x24040001
-    .word 0x24067fa0
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x34058000
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x24040001
-    jal       func_00207D00
-    .word 0x24050003
-    .word 0x3c028080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34425005
-    .word 0x0002183c
-    .word 0x3402dd42
-    .word 0x24070080
-    .word 0x00021438
-    .word 0x344221e0
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x34068300
-    .word 0x70e04628
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x3c028080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34424785
-    .word 0x0002183c
-    .word 0x3402a132
-    .word 0x00021438
-    .word 0x34422180
-    .word 0x24040001
-    .word 0x24057100
-    .word 0x24067900
-    .word 0x24070100
-    .word 0x24080040
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x12000012
-    .word 0x00000000
-    .word 0x3c028080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34424e05
-    .word 0x0002183c
-    .word 0x34029d32
-    .word 0x00021438
-    .word 0x344221c0
-    .word 0x24040001
-    .word 0x24067a80
-    .word 0x24070080
-    .word 0x24080040
-    .word 0x34058400
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x10000006
-    .word 0x7bbf0020
-    .word 0x92240012
-    .word 0x24050064
-    jal       func_001FCF30
-    .word 0x2406002f
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_002131B0(unsigned char *p, int arg1) {
+    func_00207D00(1, 0);
+    if (arg1 != 0) {
+        func_00207E40(1, 0x7000, 0x7BA0, 0x100, 0x80, 0x40808080, 0x20044A05E1321D00ULL);
+        func_00207E40(1, 0x7000, 0x7FA0, 0x100, 0x80, 0x40808080, 0x20044C05E1321E00ULL);
+        func_00207E40(1, 0x8000, 0x7BA0, 0x100, 0x80, 0x40808080, 0x20044A85E1321D40ULL);
+        func_00207E40(1, 0x8000, 0x7FA0, 0x100, 0x80, 0x40808080, 0x20044C85E1321E40ULL);
+    } else {
+        func_00207E40(1, 0x7000, 0x7BA0, 0x100, 0x80, 0x40808080, 0x20044E85E1321F00ULL);
+        func_00207E40(1, 0x7000, 0x7FA0, 0x100, 0x80, 0x40808080, 0x20044385E1322000ULL);
+        func_00207E40(1, 0x8000, 0x7BA0, 0x100, 0x80, 0x40808080, 0x20044305E1321F40ULL);
+        func_00207E40(1, 0x8000, 0x7FA0, 0x100, 0x80, 0x40808080, 0x20044505E1322040ULL);
+    }
+    func_00207D00(1, 3);
+    func_00207E40(1, 0x7000, 0x8300, 0x80, 0x80, 0x80808080, 0x20045005DD4221E0ULL);
+    func_00207E40(1, 0x7100, 0x7900, 0x100, 0x40, 0x80808080, 0x20044785A1322180ULL);
+    if (arg1 != 0) {
+        func_00207E40(1, 0x8400, 0x7A80, 0x80, 0x40, 0x80808080, 0x20044E059D3221C0ULL);
+        return;
+    }
+    func_001FCF30(p[0x12], 0x64, 0x2F);
 }

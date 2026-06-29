@@ -1,172 +1,58 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00207D00(int, int, int, int);
-extern void func_00207E40(int, int, int, int);
-extern void func_00208AD0(int, int, int, int);
-extern void func_00209280(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Emits a fixed sequence of GS/DMA packet helper calls (func_00207E40, 7-arg
+// register-convention helper a0..t2 with t2=the 64-bit ld payload) bracketed by
+// func_00207D00(1,0)/(1,3). Flag bits in arg2 select packet variants:
+//   0x40 -> alternate first-group/last-group packets
+//   0x02 -> extra packet + either func_00208AD0 (if 0x08) or func_00209280
+//   ==0x20 -> 0x71D0 vs 0x7100 variant of the trailing 0x68 packet.
+extern void func_00207D00(int a, int b);
+extern void func_00207E40(int a0, int a1, int a2, int a3, int t0, unsigned int t1, long long t2);
+extern void func_00208AD0(void *a, int b, int c);
+extern void func_00209280(void *a, int b, int c, long long d, int e);
 
-asm void func_0020AE40(void) {
-    .word 0x27bdffa0
-    .word 0x7fbf0050
-    .word 0x7fb40040
-    .word 0x7fb30030
-    .word 0x7fb20020
-    .word 0x7fb10010
-    .word 0x70809e28
-    .word 0x70a09628
-    .word 0x24040001
-    .word 0x70c08e28
-    .word 0x70002e28
-    jal       func_00207D00
-    .word 0x7fb00000
-    .word 0xde4a0000
-    .word 0x3c024080
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x24067b40
-    .word 0x24070100
-    .word 0x24080080
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0xde4a0010
-    .word 0x3c024080
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x24067f40
-    .word 0x24070100
-    .word 0x24080080
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0xde4a0008
-    .word 0x3c024080
-    .word 0x24040001
-    .word 0x24067b40
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x34058000
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0xde4a0018
-    .word 0x3c024080
-    .word 0x24040001
-    .word 0x24067f40
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x34058000
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0x32300040
-    .word 0x1200000c
-    .word 0x00000000
-    .word 0xde4a0040
-    .word 0x3c024080
-    .word 0x24040001
-    .word 0x24057800
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x34068300
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0x10000014
-    .word 0x32340002
-    .word 0xde4a0020
-    .word 0x3c024080
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x34068300
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0xde4a0028
-    .word 0x3c024080
-    .word 0x24040001
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x34058000
-    .word 0x34068300
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0x32340002
-    .word 0x1280000b
-    .word 0x32220008
-    .word 0xde4a0078
-    .word 0x3c028080
-    .word 0x24040001
-    .word 0x24057800
-    .word 0x24067e00
-    .word 0x24070100
-    .word 0x24080080
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0x32220008
-    .word 0x10400007
-    .word 0x00000000
-    .word 0x240501b6
-    .word 0x2406006e
-    jal       func_00208AD0
-    .word 0x72602628
-    .word 0x1000000a
-    .word 0x24040001
-    .word 0x12800007
-    .word 0x00000000
-    .word 0xde470070
-    .word 0x24050096
-    .word 0x240600b4
-    .word 0x24080001
-    jal       func_00209280
-    .word 0x72602628
-    .word 0x24040001
-    jal       func_00207D00
-    .word 0x24050003
-    .word 0xde4a0038
-    .word 0x24070080
-    .word 0x3c028080
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x34068300
-    .word 0x70e04628
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0x1600000b
-    .word 0x24020020
-    .word 0xde4a0030
-    .word 0x24070080
-    .word 0x3c028080
-    .word 0x24040001
-    .word 0x34058780
-    .word 0x34068300
-    .word 0x70e04628
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0x24020020
-    .word 0x1622000c
-    .word 0x00000000
-    .word 0xde4a0068
-    .word 0x3c028080
-    .word 0x24040001
-    .word 0x240571d0
-    .word 0x24067900
-    .word 0x24070100
-    .word 0x24080040
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0x1000000b
-    .word 0x7bbf0050
-    .word 0xde4a0068
-    .word 0x3c028080
-    .word 0x24040001
-    .word 0x24057100
-    .word 0x24067900
-    .word 0x24070100
-    .word 0x24080040
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0x7bbf0050
-    .word 0x7bb40040
-    .word 0x7bb30030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0060
+void func_0020AE40(void *a0arg, void *p, int flags)
+{
+    int s0_flag;
+    int s4_flag;
+
+    func_00207D00(1, 0);
+
+    func_00207E40(1, 0x7000, 0x7B40, 0x100, 0x80, 0x40808080, *(long long *)((char *)p + 0x0));
+    func_00207E40(1, 0x7000, 0x7F40, 0x100, 0x80, 0x40808080, *(long long *)((char *)p + 0x10));
+    func_00207E40(1, 0x8000, 0x7B40, 0x100, 0x80, 0x40808080, *(long long *)((char *)p + 0x8));
+    func_00207E40(1, 0x8000, 0x7F40, 0x100, 0x80, 0x40808080, *(long long *)((char *)p + 0x18));
+
+    s0_flag = flags & 0x40;
+    if (s0_flag) {
+        func_00207E40(1, 0x7800, 0x8300, 0x100, 0x80, 0x40808080, *(long long *)((char *)p + 0x40));
+    } else {
+        func_00207E40(1, 0x7000, 0x8300, 0x100, 0x80, 0x40808080, *(long long *)((char *)p + 0x20));
+        func_00207E40(1, 0x8000, 0x8300, 0x100, 0x80, 0x40808080, *(long long *)((char *)p + 0x28));
+    }
+
+    s4_flag = flags & 0x2;
+    if (s4_flag) {
+        func_00207E40(1, 0x7800, 0x7E00, 0x100, 0x80, 0x80808080, *(long long *)((char *)p + 0x78));
+    }
+
+    if (flags & 0x8) {
+        func_00208AD0(a0arg, 0x1B6, 0x6E);
+    } else if (s4_flag) {
+        func_00209280(a0arg, 0x96, 0xB4, *(long long *)((char *)p + 0x70), 1);
+    }
+
+    func_00207D00(1, 3);
+
+    func_00207E40(1, 0x7000, 0x8300, 0x80, 0x80, 0x80808080, *(long long *)((char *)p + 0x38));
+
+    if (!s0_flag) {
+        func_00207E40(1, 0x8780, 0x8300, 0x80, 0x80, 0x80808080, *(long long *)((char *)p + 0x30));
+    }
+
+    if (flags == 0x20) {
+        func_00207E40(1, 0x71D0, 0x7900, 0x100, 0x40, 0x80808080, *(long long *)((char *)p + 0x68));
+    } else {
+        func_00207E40(1, 0x7100, 0x7900, 0x100, 0x40, 0x80808080, *(long long *)((char *)p + 0x68));
+    }
 }

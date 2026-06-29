@@ -1,152 +1,89 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001B4CF0(int, int, int, int);
-extern void func_001EFE00(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Reload/cooldown tick for one weapon entity: gates on pending count 0x36, when
+// a reload-lock 0x52 is busy just resets to state 1; otherwise advances state 2,
+// computes per-tick step d = sign-extend16(0x36 & 0xFFF), x5 when the 0x8000
+// (fast) flag is set, accumulates into 0x54, sets a 0x19 timer at 0x5A, fires a
+// one-shot event func_001EFE00(0x80000027) once per 0x4000 flag via the 0x5B
+// gate. When step >= remaining 0x34 the magazine finishes (state 2, sub 1) and
+// func_001B4CF0 commits; else decrements 0x34, handles the 0x8000/0x2000 flags,
+// emits a sound func_001FBD50(e,0x866,0,300.0f), and finally idles state 1 and
+// eases a 0.0..0.9 ramp at 0x20 by +0.1.
+// 233-specific: compare written `0x34 <= (short)d` to get the target's blt/slt-$at
+// branch shape; the 0.1f added via a named local `c` so the loaded value stays in
+// f1 and the add emits `f1 + f0` (FP-coloring match) instead of recoloring to f0.
+extern void func_001B4CF0(unsigned char *e);
+extern void func_001EFE00(int a, unsigned char *e);
+extern void func_001FBD50(unsigned char *e, int a, int b, float f);
 
-asm void func_0014E9C0(void) {
-    addiu $sp, $sp, -0x40
-    sq $ra, 0x30($sp)
-    sq $s2, 0x20($sp)
-    sq $s1, 0x10($sp)
-    sq $s0, 0x0($sp)
-    lh $v0, 0x36($a0)
-    paddub $s1, $a1, $zero
-    .word 0x14400003
-    paddub $s2, $a0, $zero
-    .word 0x10000080
-    paddub $v0, $zero, $zero
-    lh $v0, 0x52($s1)
-    .word 0x10400007
-    addiu $v0, $zero, 0x2
-    addiu $v0, $zero, 0x1
-    sb $v0, 0x0($s2)
-    sh $zero, 0x36($s2)
-    .word 0x10000078
-    paddub $v0, $zero, $zero
-    addiu $v0, $zero, 0x2
-    sb $v0, 0x0($s2)
-    addiu $v0, $zero, 0xFF
-    sh $v0, 0x52($s1)
-    lh $v1, 0x36($s2)
-    andi $v0, $v1, 0xFFF
-    dsll32 $s0, $v0, 16
-    andi $v0, $v1, 0x8000
-    .word 0x10400005
-    dsra32 $s0, $s0, 16
-    sll $v0, $s0, 2
-    addu $v0, $v0, $s0
-    dsll32 $s0, $v0, 16
-    dsra32 $s0, $s0, 16
-    lb $v0, 0x5A($s1)
-    .word 0x10400005
-    nop
-    lh $v0, 0x54($s1)
-    addu $v0, $v0, $s0
-    .word 0x10000002
-    sh $v0, 0x54($s1)
-    sh $s0, 0x54($s1)
-    addiu $v0, $zero, 0x19
-    sb $v0, 0x5A($s1)
-    lb $v0, 0x5B($s1)
-    .word 0x1440000b
-    nop
-    lh $v0, 0x36($s2)
-    andi $v0, $v0, 0x4000
-    .word 0x10400007
-    nop
-    addiu $v0, $zero, 0x3C
-    sb $v0, 0x5B($s1)
-    lui $v0, (0x80000027 >> 16)
-    ori $a0, $v0, (0x80000027 & 0xFFFF)
-    jal func_001EFE00
-    paddub $a1, $s2, $zero
-    lh $v1, 0x34($s2)
-    dsll32 $v0, $s0, 16
-    dsra32 $v0, $v0, 16
-    slt $at, $v0, $v1
-    .word 0x1420000c
-    subu $v0, $v1, $s0
-    addiu $v0, $zero, 0x2
-    sh $zero, 0x34($s2)
-    sb $v0, 0x4($s2)
-    addiu $v0, $zero, 0x1
-    sb $v0, 0x5($s2)
-    paddub $a0, $s2, $zero
-    jal func_001B4CF0
-    sb $zero, 0x6($s2)
-    .word 0x10000043
-    addiu $v0, $zero, 0x1
-    subu $v0, $v1, $s0
-    sh $v0, 0x34($s2)
-    lh $v1, 0x36($s2)
-    andi $v0, $v1, 0x8000
-    .word 0x10400008
-    nop
-    addiu $v0, $zero, 0x2
-    sb $v0, 0x4($s2)
-    sb $zero, 0x5($s2)
-    sb $zero, 0x6($s2)
-    addiu $v0, $zero, 0x1
-    .word 0x10000036
-    sh $zero, 0x54($s1)
-    lh $v0, 0x54($s1)
-    slti $at, $v0, 0x19
-    .word 0x10200005
-    addiu $v0, $zero, 0x1
-    andi $v0, $v1, 0x2000
-    .word 0x1040000a
-    nop
-    addiu $v0, $zero, 0x1
-    sh $zero, 0x54($s1)
-    sb $v0, 0x5C($s1)
-    lui $v0, (0x43960000 >> 16)
-    mtc1 $v0, $f12
-    addiu $a1, $zero, 0x866
-    paddub $a0, $s2, $zero
-    jal func_001FBD50
-    paddub $a2, $zero, $zero
-    lh $v1, 0x36($s2)
-    andi $v0, $v1, 0x5000
-    .word 0x10400005
-    andi $v0, $v1, 0x2000
-    addiu $v0, $zero, 0x1E
-    .word 0x10000008
-    sh $v0, 0x52($s1)
-    andi $v0, $v1, 0x2000
-    .word 0x10400004
-    nop
-    addiu $v0, $zero, 0x50
-    .word 0x10000002
-    sh $v0, 0x52($s1)
-    sh $zero, 0x52($s1)
-    addiu $v0, $zero, 0x1
-    sb $v0, 0x0($s2)
-    sh $zero, 0x36($s2)
-    sh $zero, 0x50($s1)
-    lb $v0, 0x5D($s1)
-    .word 0x10400011
-    paddub $v0, $zero, $zero
-    lwc1 $f1, 0x20($s1)
-    lui $v0, (0x3F666666 >> 16)
-    ori $v0, $v0, (0x3F666666 & 0xFFFF)
-    mtc1 $v0, $f0
-    nop
-    c.le.s $f1, $f0
-    nop
-    .word 0x45000007
-    nop
-    lui $v0, (0x3DCCCCCD >> 16)
-    ori $v0, $v0, (0x3DCCCCCD & 0xFFFF)
-    mtc1 $v0, $f0
-    nop
-    add.s $f0, $f1, $f0
-    swc1 $f0, 0x20($s1)
-    paddub $v0, $zero, $zero
-    lq $ra, 0x30($sp)
-    lq $s2, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x40
+int func_0014E9C0(unsigned char *e, unsigned char *p) {
+    short m;
+    int d;
+
+    if (*(short *)(e + 0x36) == 0) {
+        return 0;
+    }
+    if (*(short *)(p + 0x52) != 0) {
+        e[0] = 1;
+        *(short *)(e + 0x36) = 0;
+        return 0;
+    }
+    e[0] = 2;
+    *(short *)(p + 0x52) = 0xFF;
+    m = *(short *)(e + 0x36);
+    d = (short)(m & 0xFFF);
+    if (m & 0x8000) {
+        d = (short)(d * 5);
+    }
+    if (*(signed char *)(p + 0x5A) != 0) {
+        *(short *)(p + 0x54) = *(short *)(p + 0x54) + d;
+    } else {
+        *(short *)(p + 0x54) = d;
+    }
+    p[0x5A] = 0x19;
+    if (*(signed char *)(p + 0x5B) == 0 && (*(short *)(e + 0x36) & 0x4000)) {
+        p[0x5B] = 0x3C;
+        func_001EFE00(0x80000027, e);
+    }
+    if (*(short *)(e + 0x34) <= (short)d) {
+        *(short *)(e + 0x34) = 0;
+        e[4] = 2;
+        e[5] = 1;
+        e[6] = 0;
+        func_001B4CF0(e);
+        return 1;
+    }
+    *(short *)(e + 0x34) = *(short *)(e + 0x34) - d;
+    m = *(short *)(e + 0x36);
+    if (m & 0x8000) {
+        e[4] = 2;
+        e[5] = 0;
+        e[6] = 0;
+        *(short *)(p + 0x54) = 0;
+        return 1;
+    }
+    if (*(short *)(p + 0x54) >= 0x19 || (m & 0x2000)) {
+        *(short *)(p + 0x54) = 0;
+        p[0x5C] = 1;
+        func_001FBD50(e, 0x866, 0, 300.0f);
+    }
+    m = *(short *)(e + 0x36);
+    if (m & 0x5000) {
+        *(short *)(p + 0x52) = 0x1E;
+    } else if (m & 0x2000) {
+        *(short *)(p + 0x52) = 0x50;
+    } else {
+        *(short *)(p + 0x52) = 0;
+    }
+    e[0] = 1;
+    *(short *)(e + 0x36) = 0;
+    *(short *)(p + 0x50) = 0;
+    if (*(signed char *)(p + 0x5D) != 0) {
+        float f = *(float *)(p + 0x20);
+        if (f <= 0.9f) {
+            float c = 0.1f;
+            *(float *)(p + 0x20) = f + c;
+        }
+    }
+    return 0;
 }

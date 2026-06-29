@@ -1,168 +1,131 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001B4CF0(int, int, int, int);
-extern void func_001EFE00(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Per-tick handler for an entity 'a' driven by a controller 'b'. Counts down a
+// timer a->f34 by an amount derived from a->f36 (low 12 bits, x5 when 0x8000 set).
+// Manages cooldowns/flags on b (f38/f70/f72/f85/f89) and, when the timer expires,
+// transitions the entity state (f0/f4/f5/f6) and may fire func_001EFE00 / func_001B4CF0.
+// Returns 1 when an action was taken this tick, 0 when idle/blocked.
+extern void func_001B4CF0(void *);
+extern void func_001EFE00(int, void *);
 
-asm void func_0014BE20(void) {
-    .word 0x27bdffc0
-    .word 0x7fbf0030
-    .word 0x7fb20020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x84820034
-    .word 0x70a08e28
-    .word 0x10400004
-    .word 0x70809628
-    .word 0x86420036
-    .word 0x14400003
-    .word 0x00000000
-    .word 0x1000008f
-    .word 0x70001628
-    .word 0x82220085
-    .word 0x14400004
-    .word 0x00000000
-    .word 0x82220086
-    .word 0x10400005
-    .word 0x24020002
-    .word 0xa6400036
-    .word 0x10000086
-    .word 0x70001628
-    .word 0x24020002
-    .word 0xa2420000
-    .word 0x240200f0
-    .word 0xae220038
-    .word 0x2402ffff
-    .word 0xa2220085
-    .word 0x86430036
-    .word 0x30620fff
-    .word 0x0002843c
-    .word 0x30628000
-    .word 0x10400005
-    .word 0x0010843f
-    .word 0x00101080
-    .word 0x00501021
-    .word 0x0002843c
-    .word 0x0010843f
-    .word 0x82220089
-    .word 0x1440000a
-    .word 0x00000000
-    .word 0x30624000
-    .word 0x10400007
-    .word 0x00000000
-    .word 0x2402003c
-    .word 0xa2220089
-    .word 0x3c028000
-    .word 0x34440027
-    jal       func_001EFE00
-    .word 0x72402e28
-    .word 0x86220070
-    .word 0x10400007
-    .word 0x00000000
-    .word 0x86430036
-    .word 0x86220072
-    .word 0x30630fff
-    .word 0x00431021
-    .word 0x10000004
-    .word 0xa6220072
-    .word 0x86420036
-    .word 0x30420fff
-    .word 0xa6220072
-    .word 0x24020019
-    .word 0xa6220070
-    .word 0x86430034
-    .word 0x0010143c
-    .word 0x0002143f
-    .word 0x0043082a
-    .word 0x1420001b
-    .word 0x00701023
-    .word 0x24020002
-    .word 0xa6400034
-    .word 0xa2420004
-    .word 0xa2420005
-    .word 0x72402628
-    jal       func_001B4CF0
-    .word 0xa2400006
-    .word 0x82220087
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x1000004a
-    .word 0x24020001
-    .word 0x82220081
-    .word 0x30420002
-    .word 0x10400006
-    .word 0x24020001
-    .word 0x86420036
-    .word 0x30422000
-    .word 0x10400004
-    .word 0x24020001
-    .word 0x24020001
-    .word 0xa2420005
-    .word 0x24020001
-    .word 0x1000003e
-    .word 0x7bbf0030
-    .word 0x00701023
-    .word 0xa6420034
-    .word 0x86440036
-    .word 0x30822000
-    .word 0x1040000d
-    .word 0x00000000
-    .word 0x24020002
-    .word 0xa2420004
-    .word 0xa2400006
-    .word 0x82220087
-    .word 0x10400004
-    .word 0x24020001
-    .word 0x10000003
-    .word 0xa2400005
-    .word 0x24020001
-    .word 0xa2420005
-    .word 0x1000002b
-    .word 0x24020001
-    .word 0x92420004
-    .word 0x24030001
-    .word 0x10430005
-    .word 0x00000000
-    .word 0xa2430000
-    .word 0xa6400036
-    .word 0x10000023
-    .word 0x70001628
-    .word 0x86220072
-    .word 0x28410019
-    .word 0x10200005
-    .word 0x24020002
-    .word 0x30828000
-    .word 0x10400010
-    .word 0x24020002
-    .word 0x24020002
-    .word 0xa2420004
-    .word 0xa2400006
-    .word 0xa6200072
-    .word 0x82220081
-    .word 0x30420002
-    .word 0x10400004
-    .word 0x24020001
-    .word 0x10000003
-    .word 0xa2400005
-    .word 0x24020001
-    .word 0xa2420005
-    .word 0x1000000e
-    .word 0x24020001
-    .word 0x24020002
-    .word 0xa2430000
-    .word 0xa222008c
-    .word 0xa6400036
-    .word 0x86420036
-    .word 0x30425000
-    .word 0x10400004
-    .word 0x00000000
-    .word 0x2402001e
-    .word 0x10000002
-    .word 0xa2220085
-    .word 0xa2200085
-    .word 0x70001628
-    .word 0x7bbf0030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0040
+typedef struct {
+    char f0;
+    char pad1[3];
+    char f4;
+    char f5;
+    char f6;
+    char pad7[0x2D];
+    short f34;
+    short f36;
+} A;
+
+typedef struct {
+    char pad0[0x38];
+    int f38;
+    char pad3C[0x34];
+    short f70;
+    short f72;
+    char pad74[0xD];
+    char f81;
+    char pad82[3];
+    char f85;
+    char f86;
+    char f87;
+    char pad88;
+    char f89;
+    char pad8A[2];
+    char f8C;
+} B;
+
+int func_0014BE20(A *a, B *b)
+{
+    int t;
+    short m;
+    short delta;
+
+    if (a->f34 == 0 || a->f36 == 0)
+        return 0;
+
+    if (b->f85 != 0 || b->f86 != 0) {
+        a->f36 = 0;
+        return 0;
+    }
+
+    a->f0 = 2;
+    b->f38 = 0xF0;
+    b->f85 = -1;
+
+    m = a->f36;
+    delta = (short)(m & 0xFFF);
+    if (m & 0x8000)
+        delta = (short)(delta * 5);
+
+    if (b->f89 == 0 && (m & 0x4000)) {
+        b->f89 = 0x3C;
+        func_001EFE00(0x80000027, a);
+    }
+
+    if (b->f70 != 0) {
+        m = a->f36 & 0xFFF;
+        b->f72 = b->f72 + m;
+    } else {
+        b->f72 = a->f36 & 0xFFF;
+    }
+    b->f70 = 0x19;
+
+    t = a->f34;
+    if (t <= delta) {
+    a->f34 = 0;
+    a->f4 = 2;
+    a->f5 = 2;
+    a->f6 = 0;
+    func_001B4CF0(a);
+    if (b->f87 != 0)
+        return 1;
+    if ((b->f81 & 2) != 0) {
+        if ((a->f36 & 0x2000) == 0)
+            goto skip5;
+    }
+    a->f5 = 1;
+skip5:
+    return 1;
+    }
+
+    a->f34 = t - delta;
+    m = a->f36;
+    if (m & 0x2000) {
+        a->f4 = 2;
+        a->f6 = 0;
+        if (b->f87 != 0)
+            a->f5 = 0;
+        else
+            a->f5 = 1;
+        return 1;
+    }
+
+    if ((unsigned char)a->f4 != 1) {
+        a->f0 = 1;
+        a->f36 = 0;
+        return 0;
+    }
+
+    if (b->f72 >= 0x19 || (m & 0x8000)) {
+        a->f4 = 2;
+        a->f6 = 0;
+        b->f72 = 0;
+        if (b->f81 & 2)
+            a->f5 = 0;
+        else
+            a->f5 = 1;
+        return 1;
+    }
+
+    a->f0 = 1;
+    b->f8C = 2;
+    a->f36 = 0;
+    if (a->f36 & 0x5000)
+        b->f85 = 0x1E;
+    else
+        b->f85 = 0;
+    return 0;
 }
