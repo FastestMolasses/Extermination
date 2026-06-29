@@ -1,176 +1,70 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001B4CF0(int, int, int, int);
-extern void func_001C6160(int, int, int, int);
-extern void func_001EFE00(int, int, int, int);
-
-asm void func_00133A20(void) {
-    .word 0x27bdffc0
-    .word 0x7fbf0030
-    .word 0x7fb20020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x84820036
-    .word 0x70a08e28
-    .word 0x14400003
-    .word 0x70809628
-    .word 0x10000099
-    .word 0x70001628
-    .word 0x9222006a
-    .word 0x14400004
-    .word 0x00000000
-    .word 0x92220065
-    .word 0x10400005
-    .word 0x24020002
-    .word 0xa6400036
-    .word 0x10000090
-    .word 0x70001628
-    .word 0x24020002
-    .word 0xa2420000
-    .word 0x24020078
-    .word 0xa6220056
-    .word 0xa620005a
-    .word 0x9222006c
-    .word 0x1440000b
-    .word 0x00000000
-    .word 0x86420036
-    .word 0x30424000
-    .word 0x10400007
-    .word 0x00000000
-    .word 0x2402003c
-    .word 0xa222006c
-    .word 0x3c028000
-    .word 0x34440027
-    jal       func_001EFE00
-    .word 0x72402e28
-    .word 0x92300061
-    .word 0x12000013
-    .word 0x00000000
-    .word 0x9243002c
-    .word 0x24020004
-    .word 0x1462000f
-    .word 0x00000000
-    jal       func_001C6160
-    .word 0x72402628
-    .word 0x44820800
-    .word 0xc640003c
-    .word 0x46800860
-    .word 0x3c024282
-    .word 0x46000841
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x45010002
-    .word 0x00000000
-    .word 0x70008628
-    .word 0x92220066
-    .word 0x10400007
-    .word 0x00000000
-    .word 0x92430036
-    .word 0x92220067
-    .word 0x30630fff
-    .word 0x00431021
-    .word 0x10000004
-    .word 0xa2220067
-    .word 0x92420036
-    .word 0x30420fff
-    .word 0xa2220067
-    .word 0x24020014
-    .word 0xa2220066
-    .word 0x86430036
-    .word 0x30620fff
-    .word 0x0002243c
-    .word 0x30628000
-    .word 0x10400005
-    .word 0x0004243f
-    .word 0x00041080
-    .word 0x00441021
-    .word 0x0002243c
-    .word 0x0004243f
-    .word 0x86430034
-    .word 0x0004143c
-    .word 0x0002143f
-    .word 0x0043082a
-    .word 0x1420001b
-    .word 0x00641023
-    .word 0x24020002
-    .word 0xa2420000
-    .word 0xa6400034
-    .word 0xa2420004
-    .word 0xa2400005
-    .word 0x72402628
-    jal       func_001B4CF0
-    .word 0xa2400006
-    .word 0x12000003
-    .word 0x00000000
-    .word 0x1000003f
-    .word 0x24020001
-    .word 0x92220060
-    .word 0x30420002
-    .word 0x10400006
-    .word 0x24020001
-    .word 0x86420036
-    .word 0x30422000
-    .word 0x10400004
-    .word 0x24020001
-    .word 0x24020001
-    .word 0xa2420005
-    .word 0x24020001
-    .word 0x10000033
-    .word 0x7bbf0030
-    .word 0x00641023
-    .word 0xa6420034
-    .word 0x86430036
-    .word 0x30622000
-    .word 0x1040000d
-    .word 0x00000000
-    .word 0x24020002
-    .word 0xa2420004
-    .word 0xa2400006
-    .word 0xa220006b
-    .word 0x12000003
-    .word 0xa2200067
-    .word 0x10000003
-    .word 0xa2400005
-    .word 0x24020001
-    .word 0xa2420005
-    .word 0x10000020
-    .word 0x24020001
-    .word 0x92220067
-    .word 0x28410019
-    .word 0x10200005
-    .word 0x24020002
-    .word 0x30628000
-    .word 0x10400011
-    .word 0x30625000
-    .word 0x24020002
-    .word 0xa2420004
-    .word 0xa2400006
-    .word 0xa2200067
-    .word 0xa220006b
-    .word 0x92220060
-    .word 0x30420002
-    .word 0x10400004
-    .word 0x24020001
-    .word 0x10000003
-    .word 0xa2400005
-    .word 0x24020001
-    .word 0xa2420005
-    .word 0x1000000a
-    .word 0x24020001
-    .word 0x30625000
-    .word 0x10400004
-    .word 0x24020001
-    .word 0x2402001e
-    .word 0xa222006a
-    .word 0x24020001
-    .word 0xa2420000
-    .word 0xa6400036
-    .word 0x70001628
-    .word 0x7bbf0030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0040
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Weapon charge-state tick (sibling of func_001513B0/func_001381D0): 12-bit charge
+// field (x5 if 0x8000), updates counters/ammo on two state blocks; arg1[0x61] gate
+// (s0) decides set-2 vs decrement path; calls range-check func_001C6160 < 65.0f.
+extern int func_001B4CF0(char *a);
+extern int func_001C6160(char *a);
+extern int func_001EFE00(int a, char *b);
+int func_00133A20(char *arg0, char *arg1) {
+    short var_a0; short temp_v1; short temp_v1_2; int s0;
+    if (*(short *)(arg0 + 0x36) == 0) return 0;
+    if (*(unsigned char *)(arg1 + 0x6A) != 0) goto clear36;
+    if (*(unsigned char *)(arg1 + 0x65) == 0) goto body;
+clear36:
+    *(short *)(arg0+0x36)=0; return 0;
+body:
+    *(char *)(arg0+0)=2;
+    *(short *)(arg1+0x56)=0x78; *(short *)(arg1+0x5A)=0;
+    if ((*(unsigned char *)(arg1+0x6C)==0)&&(*(short *)(arg0+0x36)&0x4000)) { *(char *)(arg1+0x6C)=0x3C; func_001EFE00(0x80000027,arg0); }
+    s0 = *(unsigned char *)(arg1+0x61);
+    if (s0==0) goto after_c6160;
+    if (*(unsigned char *)(arg0+0x2C)!=4) goto after_c6160;
+    if (!((float)func_001C6160(arg0) - *(float *)(arg0+0x3C) < 65.0f)) s0 = 0;
+after_c6160:
+    if (*(unsigned char *)(arg1+0x66)!=0) *(unsigned char *)(arg1+0x67)+=(unsigned char)(*(short *)(arg0+0x36)&0xFFF);
+    else *(unsigned char *)(arg1+0x67)=(unsigned char)(*(short *)(arg0+0x36)&0xFFF);
+    *(char *)(arg1+0x66)=0x14;
+    temp_v1=*(short *)(arg0+0x36);
+    var_a0 = temp_v1 & 0xFFF;
+    if (temp_v1 & 0x8000) var_a0 = var_a0 * 5;
+    temp_v1_2=*(short *)(arg0+0x34);
+    if (temp_v1_2 <= var_a0) {
+        *(char *)(arg0+0)=2; *(short *)(arg0+0x34)=0; *(char *)(arg0+4)=2; *(char *)(arg0+5)=0; *(char *)(arg0+6)=0;
+        func_001B4CF0(arg0);
+        if (s0!=0) return 1;
+        if ((*(unsigned char *)(arg1+0x60)&2)==0) goto set5b;
+        if ((*(short *)(arg0+0x36)&0x2000)==0) goto ret5;
+    set5b:
+        *(char *)(arg0+5)=1;
+    ret5:
+        return 1;
+    }
+    *(short *)(arg0+0x34)=(short)(temp_v1_2-var_a0);
+    {
+        short f = *(short *)(arg0+0x36);
+        if (f & 0x2000) {
+            *(char *)(arg0+4)=2; *(char *)(arg0+6)=0; *(char *)(arg1+0x6B)=0; *(char *)(arg1+0x67)=0;
+            if (s0==0) goto s5one;
+            *(char *)(arg0+5)=0;
+            goto rdone;
+        s5one:
+            *(char *)(arg0+5)=1;
+        rdone:
+            return 1;
+        }
+        if ((*(unsigned char *)(arg1+0x67) >= 0x19) || (f & 0x8000)) {
+            *(char *)(arg0+4)=2; *(char *)(arg0+6)=0; *(char *)(arg1+0x67)=0; *(char *)(arg1+0x6B)=0;
+            if ((*(unsigned char *)(arg1+0x60)&2)==0) goto s5two;
+            *(char *)(arg0+5)=0;
+            goto rtwo;
+        s5two:
+            *(char *)(arg0+5)=1;
+        rtwo:
+            return 1;
+        }
+        if (f & 0x5000) *(char *)(arg1+0x6A)=0x1E;
+        *(char *)(arg0+0)=1;
+    }
+    *(short *)(arg0+0x36)=0; return 0;
 }
