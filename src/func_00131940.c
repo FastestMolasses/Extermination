@@ -1,124 +1,63 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011DF78(int, int, int, int);
-extern void func_0011E620(int, int, int, int);
-extern void func_001B1470(int, int, int, int);
-extern void anim_clip_init(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Per-state init driver dispatched on the state byte at arg0+6.
+// State 0: advance state, set up flags/floats, compute an angle via
+// func_001B1470(func_0011E620(arg0+0x70, arg0+0x78) - arg0+0xC4), branch on
+// func_0011DF78(angle) < PI/2 to pick +/-1.0f facing and the 0x25/0x26 clip.
+// State 1: when arg1+0x60 has bit 2, re-arm timer, clear arg1+0x3C, and when
+// arg1+0x58 has bit 0x1000 either fully re-init (arg0+0x34 set) or just mark.
 
-asm void func_00131940(void) {
-    .word 0x27bdffc0
-    .word 0x7fbf0030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0xe7b40000
-    .word 0x70a08628
-    .word 0x90850006
-    .word 0x24030001
-    .word 0x10a30042
-    .word 0x70808e28
-    .word 0x50a00004
-    .word 0x24a20001
-    .word 0x10000061
-    .word 0x7bbf0030
-    .word 0x24a20001
-    .word 0xa2220006
-    .word 0xa2000063
-    .word 0x3c023f80
-    .word 0xae020034
-    .word 0x3c023fc0
-    .word 0xae020038
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x240507d4
-    .word 0xa6030054
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0xc62d0078
-    jal       func_0011E620
-    .word 0xc62c0070
-    .word 0xc62100c4
-    jal       func_001B1470
-    .word 0x46010301
-    .word 0x46000506
-    jal       func_0011DF78
-    .word 0x4600a306
-    .word 0x3c023fc9
-    .word 0x34420fdb
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x46010034
-    .word 0x00000000
-    .word 0x45010014
-    .word 0x3c023f80
-    .word 0x3c02bf80
-    .word 0xae02003c
-    .word 0xc62100c4
-    .word 0x3c024049
-    .word 0x34420fdb
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x46140840
-    jal       func_001B1470
-    .word 0x46010300
-    .word 0x44806000
-    .word 0x24050025
-    .word 0x46006346
-    .word 0xe62000c4
-    jal       anim_clip_init
-    .word 0x72202628
-    .word 0x10000030
-    .word 0x00000000
-    .word 0x3c023f80
-    .word 0xae02003c
-    .word 0xc62000c4
-    jal       func_001B1470
-    .word 0x46140300
-    .word 0x44806000
-    .word 0x24050026
-    .word 0x46006346
-    .word 0xe62000c4
-    jal       anim_clip_init
-    .word 0x72202628
-    .word 0x10000023
-    .word 0x00000000
-    .word 0x92030060
-    .word 0x30630002
-    .word 0x1060001f
-    .word 0x00000000
-    .word 0x96030054
-    .word 0x10600007
-    .word 0x00000000
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x240507d5
-    .word 0x70003628
-    jal       func_001FBD50
-    .word 0xa6000054
-    .word 0xae00003c
-    .word 0x96030058
-    .word 0x30631000
-    .word 0x10600011
-    .word 0x00000000
-    .word 0x86230034
-    .word 0x1060000c
-    .word 0x24030002
-    .word 0x24030001
-    .word 0xa2030061
-    .word 0xa2230004
-    .word 0xa2200005
-    .word 0xa2200006
-    .word 0xa6200036
-    .word 0xa2230000
-    .word 0x2403003c
-    .word 0x10000004
-    .word 0xa203006a
-    .word 0x24030002
-    .word 0xa2230005
-    .word 0xa2200006
-    .word 0x7bbf0030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0040
+extern void func_001FBD50(char *self, int a, int b, float f);
+extern float func_0011E620(float a, float b);
+extern float func_001B1470(float a);
+extern float func_0011DF78(float a);
+extern void anim_clip_init(char *self, int clip, float a, float b);
+
+void func_00131940(char *arg0, char *arg1) {
+    float ang;
+
+    switch (*(unsigned char *)(arg0 + 6)) {
+    case 0:
+        *(unsigned char *)(arg0 + 6) = *(unsigned char *)(arg0 + 6) + 1;
+        *(char *)(arg1 + 0x63) = 0;
+        *(int *)(arg1 + 0x34) = 0x3F800000;
+        *(int *)(arg1 + 0x38) = 0x3FC00000;
+        *(unsigned short *)(arg1 + 0x54) = 1;
+        func_001FBD50(arg0, 0x7D4, 0, 300.0f);
+        ang = func_001B1470(func_0011E620(*(float *)(arg0 + 0x70), *(float *)(arg0 + 0x78)) - *(float *)(arg0 + 0xC4));
+        if (!(func_0011DF78(ang) < 1.5707964f)) {
+            *(int *)(arg1 + 0x3C) = 0xBF800000;
+            *(float *)(arg0 + 0xC4) = func_001B1470(3.1415927f + (*(float *)(arg0 + 0xC4) + ang));
+            anim_clip_init(arg0, 0x25, 0.0f, 0.0f);
+        } else {
+            *(int *)(arg1 + 0x3C) = 0x3F800000;
+            *(float *)(arg0 + 0xC4) = func_001B1470(*(float *)(arg0 + 0xC4) + ang);
+            anim_clip_init(arg0, 0x26, 0.0f, 0.0f);
+        }
+        break;
+    case 1:
+        if (*(unsigned char *)(arg1 + 0x60) & 2) {
+            if (*(unsigned short *)(arg1 + 0x54) != 0) {
+                *(unsigned short *)(arg1 + 0x54) = 0;
+                func_001FBD50(arg0, 0x7D5, 0, 300.0f);
+            }
+            *(int *)(arg1 + 0x3C) = 0;
+            if (*(unsigned short *)(arg1 + 0x58) & 0x1000) {
+                if (*(short *)(arg0 + 0x34) != 0) {
+                    *(char *)(arg1 + 0x61) = 1;
+                    *(char *)(arg0 + 4) = 1;
+                    *(char *)(arg0 + 5) = 0;
+                    *(unsigned char *)(arg0 + 6) = 0;
+                    *(short *)(arg0 + 0x36) = 0;
+                    *(char *)(arg0 + 0) = 1;
+                    *(char *)(arg1 + 0x6A) = 0x3C;
+                } else {
+                    *(char *)(arg0 + 5) = 2;
+                    *(unsigned char *)(arg0 + 6) = 0;
+                }
+            }
+        }
+        break;
+    }
 }
