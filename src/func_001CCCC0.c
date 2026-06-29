@@ -1,118 +1,81 @@
-// Simple nonleaf asm void
-extern void DisableDmacHandler(int, int, int, int);
-extern void dmac_channel_base(int, int, int, int);
-extern void dma_kick(int, int, int, int);
-extern void func_00102468(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Builds a 0x180-byte DMA tag/transfer chain on the stack, then issues it.
+// dmac_channel_base(1) -> channel; DisableDmacHandler(0); dma_kick(ch, buf, 0x18);
+// func_00102468(ch, 0, 0). Leading qword at 0x20 is zeroed as one sq; the two
+// 32-bit words at 0x28/0x2C are the DMA tag header (0x11000000 / 0x50000017).
+typedef unsigned u128 __attribute__((mode(TI)));
+extern int dmac_channel_base(int);
+extern void DisableDmacHandler(int);
+extern void dma_kick(int, void *, int);
+extern void func_00102468(int, int, int);
 
-asm void func_001CCCC0(void) {
-    addiu      $sp, $sp, -0x220
-    sq         $ra, 0x10($sp)
-    sq         $s0, 0x0($sp)
-    sq         $zero, 0x20($sp)
-    lui        $v0, (0x11000000 >> 16)
-    sw         $v0, 0x28($sp)
-    lui        $v0, (0x50000017 >> 16)
-    .word 0x34420017
-    sw         $v0, 0x2C($sp)
-    lui        $v0, (0x10000000 >> 16)
-    dsll32     $v1, $v0, 0
-    ori        $v0, $zero, 0x8016
-    or         $v0, $v0, $v1
-    sd         $v0, 0x30($sp)
-    addiu      $v0, $zero, 0xE
-    sd         $v0, 0x38($sp)
-    addiu      $v0, $zero, 0x18
-    sd         $v0, 0x48($sp)
-    addiu      $v0, $zero, 0x19
-    sd         $zero, 0x40($sp)
-    sd         $v0, 0x58($sp)
-    addiu      $v0, $zero, 0x6
-    sd         $zero, 0x50($sp)
-    sd         $v0, 0x68($sp)
-    lui        $v1, (0x20000006 >> 16)
-    .word 0x34620006
-    dsll32     $v0, $v0, 0
-    or         $a0, $v1, $v0
-    addiu      $v0, $zero, 0x7
-    sd         $a0, 0x60($sp)
-    sd         $v0, 0x78($sp)
-    sd         $a0, 0x70($sp)
-    addiu      $v0, $zero, 0x14
-    sd         $v0, 0x88($sp)
-    addiu      $v0, $zero, 0x15
-    sd         $zero, 0x80($sp)
-    sd         $v0, 0x98($sp)
-    addiu      $v0, $zero, 0x16
-    sd         $zero, 0x90($sp)
-    sd         $v0, 0xA8($sp)
-    dsll32     $v1, $v1, 0
-    addiu      $v0, $zero, 0x17
-    sd         $v1, 0xA0($sp)
-    sd         $v0, 0xB8($sp)
-    addiu      $v0, $zero, 0x8
-    sd         $v1, 0xB0($sp)
-    sd         $v0, 0xC8($sp)
-    addiu      $v0, $zero, 0x9
-    sd         $zero, 0xC0($sp)
-    sd         $v0, 0xD8($sp)
-    addiu      $v0, $zero, 0x34
-    sd         $zero, 0xD0($sp)
-    sd         $v0, 0xE8($sp)
-    addiu      $v0, $zero, 0x35
-    sd         $zero, 0xE0($sp)
-    sd         $v0, 0xF8($sp)
-    addiu      $v0, $zero, 0x36
-    sd         $zero, 0xF0($sp)
-    sd         $v0, 0x108($sp)
-    addiu      $v0, $zero, 0x37
-    sd         $zero, 0x100($sp)
-    sd         $v0, 0x118($sp)
-    addiu      $v0, $zero, 0x40
-    sd         $zero, 0x110($sp)
-    sd         $v0, 0x128($sp)
-    lui        $v0, (0xE00000 >> 16)
-    dsll32     $v1, $v0, 0
-    lui        $v0, (0x2000000 >> 16)
-    or         $v1, $v0, $v1
-    addiu      $v0, $zero, 0x41
-    sd         $v1, 0x120($sp)
-    sd         $v0, 0x138($sp)
-    sd         $v1, 0x130($sp)
-    addiu      $v0, $zero, 0x42
-    sd         $v0, 0x148($sp)
-    addiu      $v1, $zero, 0x48
-    addiu      $v0, $zero, 0x43
-    sd         $v1, 0x140($sp)
-    sd         $v0, 0x158($sp)
-    addiu      $v0, $zero, 0x47
-    sd         $v1, 0x150($sp)
-    sd         $v0, 0x168($sp)
-    lui        $v0, (0x5000C >> 16)
-    .word 0x3442000c
-    sd         $v0, 0x160($sp)
-    sd         $v1, 0x178($sp)
-    sd         $v0, 0x170($sp)
-    addiu      $v0, $zero, 0x4A
-    sd         $v0, 0x188($sp)
-    addiu      $v0, $zero, 0x4B
-    sd         $zero, 0x180($sp)
-    sd         $v0, 0x198($sp)
-    addiu      $a0, $zero, 0x1
-    jal        dmac_channel_base
-    sd        $zero, 0x190($sp)
-    paddub     $s0, $v0, $zero
-    jal        DisableDmacHandler
-    paddub    $a0, $zero, $zero
-    addiu      $a1, $sp, 0x20
-    addiu      $a2, $zero, 0x18
-    jal        dma_kick
-    paddub    $a0, $s0, $zero
-    paddub     $a0, $s0, $zero
-    paddub     $a1, $zero, $zero
-    jal        func_00102468
-    paddub    $a2, $zero, $zero
-    lq         $ra, 0x10($sp)
-    lq         $s0, 0x0($sp)
-    jr         $ra
-    addiu     $sp, $sp, 0x220
+typedef union {
+    u128 q0;
+    struct { unsigned long long z; unsigned int w2; unsigned int w3; } h;
+    unsigned long long d[64];
+} DmaBuf;
+
+void func_001CCCC0(void) {
+    DmaBuf buf;
+    int ch;
+    unsigned long long t0;
+    unsigned long long t1;
+
+    buf.q0 = 0;
+    buf.h.w2 = 0x11000000;
+    buf.h.w3 = 0x50000017;
+    buf.d[2] = (unsigned long long)0x8016 | ((unsigned long long)0x10000000 << 32);
+    buf.d[3] = 0xE;
+    buf.d[5] = 0x18;
+    buf.d[4] = 0;
+    buf.d[7] = 0x19;
+    buf.d[6] = 0;
+    buf.d[9] = 6;
+    t0 = (unsigned long long)0x20000000 | ((unsigned long long)0x20000006 << 32);
+    buf.d[8] = t0;
+    buf.d[11] = 7;
+    buf.d[10] = t0;
+    buf.d[13] = 0x14;
+    buf.d[12] = 0;
+    buf.d[15] = 0x15;
+    buf.d[14] = 0;
+    buf.d[17] = 0x16;
+    t1 = (unsigned long long)0x20000000 << 32;
+    buf.d[16] = t1;
+    buf.d[19] = 0x17;
+    buf.d[18] = t1;
+    buf.d[21] = 8;
+    buf.d[20] = 0;
+    buf.d[23] = 9;
+    buf.d[22] = 0;
+    buf.d[25] = 0x34;
+    buf.d[24] = 0;
+    buf.d[27] = 0x35;
+    buf.d[26] = 0;
+    buf.d[29] = 0x36;
+    buf.d[28] = 0;
+    buf.d[31] = 0x37;
+    buf.d[30] = 0;
+    buf.d[33] = 0x40;
+    t1 = (unsigned long long)0x02000000 | ((unsigned long long)0xE00000 << 32);
+    buf.d[32] = t1;
+    buf.d[35] = 0x41;
+    buf.d[34] = t1;
+    buf.d[37] = 0x42;
+    buf.d[36] = 0x48;
+    buf.d[39] = 0x43;
+    buf.d[38] = 0x48;
+    buf.d[41] = 0x47;
+    buf.d[40] = 0x5000C;
+    buf.d[43] = 0x48;
+    buf.d[42] = 0x5000C;
+    buf.d[45] = 0x4A;
+    buf.d[44] = 0;
+    buf.d[47] = 0x4B;
+    buf.d[46] = 0;
+    ch = dmac_channel_base(1);
+    DisableDmacHandler(0);
+    dma_kick(ch, &buf, 0x18);
+    func_00102468(ch, 0, 0);
 }

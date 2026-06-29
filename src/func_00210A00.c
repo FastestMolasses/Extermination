@@ -1,134 +1,24 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00207D00(int, int, int, int);
-extern void func_00207E40(int, int, int, int);
-extern void func_0020A7A0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// GS/GIF register-setup sequence (same idiom as func_002125B0). Builds 64-bit
+// GIF tag/register-write values and issues a fixed series of func_00207E40
+// blits bracketed by func_00207D00, with one optional extra blit when arg0!=0.
+extern void func_00207D00(int a, int b);
+extern void func_00207E40(int a, int b, int c, int d, int e, int f, unsigned long long g);
+extern void func_0020A7A0(unsigned long long a);
 
-asm void func_00210A00(void) {
-    .word 0x3c022004
-    .word 0x27bdffe0
-    .word 0x34423c25
-    .word 0x0002183c
-    .word 0x7fbf0010
-    .word 0x34029d42
-    .word 0x7fb00000
-    .word 0x00021438
-    .word 0x70808628
-    .word 0x34422050
-    jal       func_0020A7A0
-    .word 0x00432025
-    .word 0x24040001
-    jal       func_00207D00
-    .word 0x70002e28
-    .word 0x3c024c80
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34422e86
-    .word 0x0002183c
-    .word 0x24070100
-    .word 0x3c022132
-    .word 0x34421d00
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x24067900
-    .word 0x70e04628
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x3c024c80
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34422e86
-    .word 0x0002183c
-    .word 0x24070100
-    .word 0x3c022132
-    .word 0x34421d40
-    .word 0x24040001
-    .word 0x24067900
-    .word 0x34058000
-    .word 0x70e04628
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x3c024c80
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34422e85
-    .word 0x0002183c
-    .word 0x3402a132
-    .word 0x00021438
-    .word 0x34421f40
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x24070100
-    .word 0x24080040
-    .word 0x34068100
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x3c024c80
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34422e85
-    .word 0x0002183c
-    .word 0x3402a132
-    .word 0x00021438
-    .word 0x34421fc0
-    .word 0x24040001
-    .word 0x24070100
-    .word 0x24080040
-    .word 0x34058000
-    .word 0x34068100
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x3c024080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34423205
-    .word 0x0002183c
-    .word 0x3402e132
-    .word 0x00021438
-    .word 0x34421f00
-    .word 0x24040001
-    .word 0x24057800
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x34068300
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x12000011
-    .word 0x24040001
-    .word 0x3c028080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34423a85
-    .word 0x0002183c
-    .word 0x34029d42
-    .word 0x00021438
-    .word 0x34422040
-    .word 0x24040001
-    .word 0x24070080
-    .word 0x24080040
-    .word 0x34058790
-    .word 0x34068420
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x24040001
-    jal       func_00207D00
-    .word 0x24050003
-    .word 0x3c028080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34423a25
-    .word 0x0002183c
-    .word 0x3402dd42
-    .word 0x24070080
-    .word 0x00021438
-    .word 0x34422020
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x34068300
-    .word 0x70e04628
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+void func_00210A00(int arg0) {
+    func_0020A7A0(0x20043C259D422050ULL);
+    func_00207D00(1, 0);
+    func_00207E40(1, 0x7000, 0x7900, 0x100, 0x100, 0x4C808080, 0x20042E8621321D00ULL);
+    func_00207E40(1, 0x8000, 0x7900, 0x100, 0x100, 0x4C808080, 0x20042E8621321D40ULL);
+    func_00207E40(1, 0x7000, 0x8100, 0x100, 0x40, 0x4C808080, 0x20042E85A1321F40ULL);
+    func_00207E40(1, 0x8000, 0x8100, 0x100, 0x40, 0x4C808080, 0x20042E85A1321FC0ULL);
+    func_00207E40(1, 0x7800, 0x8300, 0x100, 0x80, 0x40808080, 0x20043205E1321F00ULL);
+    if (arg0 != 0) {
+        func_00207E40(1, 0x8790, 0x8420, 0x80, 0x40, 0x80808080, 0x20043A859D422040ULL);
+    }
+    func_00207D00(1, 3);
+    func_00207E40(1, 0x7000, 0x8300, 0x80, 0x80, 0x80808080, 0x20043A25DD422020ULL);
 }

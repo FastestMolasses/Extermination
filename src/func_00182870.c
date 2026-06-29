@@ -1,130 +1,67 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001FBD50(int, int, int, int);
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Selects a sound/voice id from a per-entity state byte at p[0x23A] and an
+// arg1 variant flag, then plays it via func_001FBD50(p, id, 0, 300.0f). Each
+// state maps to a high/low id pair chosen by arg1; states 0x5A/0x5B/0x5C are
+// played only when arg1==0 (else early return). State 0x5B further branches on
+// the sub-flag p[0x23C].
+extern void func_001FBD50(char *p, int id, int b, float f);
 
-asm void func_00182870(void) {
-    .word 0x27bdfff0
-    .word 0x7fbf0000
-    .word 0x9086023a
-    .word 0x2403000e
-    .word 0x10c30068
-    .word 0x2403000d
-    .word 0x10c30060
-    .word 0x2403005b
-    .word 0x10c30052
-    .word 0x24030007
-    .word 0x10c3004a
-    .word 0x24030006
-    .word 0x10c30048
-    .word 0x2403005c
-    .word 0x10c30042
-    .word 0x24030008
-    .word 0x10c3003a
-    .word 0x2403005a
-    .word 0x10c30034
-    .word 0x00000000
-    .word 0x24020005
-    .word 0x10c2002b
-    .word 0x24020004
-    .word 0x10c20023
-    .word 0x24020003
-    .word 0x10c2001b
-    .word 0x24020002
-    .word 0x10c20013
-    .word 0x24020001
-    .word 0x10c2000b
-    .word 0x00000000
-    .word 0x10c00003
-    .word 0x00000000
-    .word 0x10000051
-    .word 0x00000000
-    .word 0x14a00003
-    .word 0x24050020
-    .word 0x10000050
-    .word 0x2405001f
-    .word 0x1000004f
-    .word 0x3c024396
-    .word 0x14a00003
-    .word 0x24050031
-    .word 0x1000004a
-    .word 0x24050030
-    .word 0x10000048
-    .word 0x00000000
-    .word 0x14a00003
-    .word 0x24050042
-    .word 0x10000044
-    .word 0x24050041
-    .word 0x10000042
-    .word 0x00000000
-    .word 0x14a00003
-    .word 0x24050053
-    .word 0x1000003e
-    .word 0x24050052
-    .word 0x1000003c
-    .word 0x00000000
-    .word 0x14a00003
-    .word 0x24050064
-    .word 0x10000038
-    .word 0x24050063
-    .word 0x10000036
-    .word 0x00000000
-    .word 0x14a00003
-    .word 0x24050075
-    .word 0x10000032
-    .word 0x24050074
-    .word 0x10000030
-    .word 0x00000000
-    .word 0x14a00032
-    .word 0x24050085
-    .word 0x1000002c
-    .word 0x00000000
-    .word 0x14a00003
-    .word 0x24050097
-    .word 0x10000028
-    .word 0x24050096
-    .word 0x10000026
-    .word 0x00000000
-    .word 0x14a00028
-    .word 0x240500a7
-    .word 0x10000022
-    .word 0x00000000
-    .word 0x14a00003
-    .word 0x240500b9
-    .word 0x1000001e
-    .word 0x240500b8
-    .word 0x1000001c
-    .word 0x00000000
-    .word 0x9086023c
-    .word 0x24030001
-    .word 0x14c30005
-    .word 0x00000000
-    .word 0x14a0001a
-    .word 0x240500c9
-    .word 0x10000014
-    .word 0x00000000
-    .word 0x14a00016
-    .word 0x240500da
-    .word 0x10000010
-    .word 0x00000000
-    .word 0x14a00003
-    .word 0x240500ec
-    .word 0x1000000c
-    .word 0x240500eb
-    .word 0x1000000a
-    .word 0x00000000
-    .word 0x14a00003
-    .word 0x240500fd
-    .word 0x10000006
-    .word 0x240500fc
-    .word 0x10000004
-    .word 0x00000000
-    .word 0x14a00002
-    .word 0x24050020
-    .word 0x2405001f
-    .word 0x3c024396
-    .word 0x44826000
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x7bbf0000
-    .word 0x03e00008
-    .word 0x27bd0010
+void func_00182870(char *arg0, int arg1) {
+    int id;
+
+    switch (*(unsigned char *)(arg0 + 0x23A)) {
+    case 0:
+        if (arg1 == 0) { id = 0x1F; } else { id = 0x20; }
+        break;
+    case 1:
+        if (arg1 == 0) { id = 0x30; } else { id = 0x31; }
+        break;
+    case 2:
+        if (arg1 == 0) { id = 0x41; } else { id = 0x42; }
+        break;
+    case 3:
+        if (arg1 == 0) { id = 0x52; } else { id = 0x53; }
+        break;
+    case 4:
+        if (arg1 == 0) { id = 0x63; } else { id = 0x64; }
+        break;
+    case 5:
+        if (arg1 == 0) { id = 0x74; } else { id = 0x75; }
+        break;
+    case 0x5A:
+        if (arg1) return;
+        id = 0x85;
+        break;
+    case 8:
+        if (arg1 == 0) { id = 0x96; } else { id = 0x97; }
+        break;
+    case 0x5C:
+        if (arg1) return;
+        id = 0xA7;
+        break;
+    case 6:
+    case 7:
+        if (arg1 == 0) { id = 0xB8; } else { id = 0xB9; }
+        break;
+    case 0x5B:
+        if (*(unsigned char *)(arg0 + 0x23C) == 1) {
+            if (arg1) return;
+            id = 0xC9;
+        } else {
+            if (arg1) return;
+            id = 0xDA;
+        }
+        break;
+    case 0xD:
+        if (arg1 == 0) { id = 0xEB; } else { id = 0xEC; }
+        break;
+    case 0xE:
+        if (arg1 == 0) { id = 0xFC; } else { id = 0xFD; }
+        break;
+    default:
+        if (arg1 == 0) { id = 0x1F; } else { id = 0x20; }
+        break;
+    }
+    func_001FBD50(arg0, id, 0, 300.0f);
 }

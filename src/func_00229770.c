@@ -1,130 +1,66 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001FE8D0(int, int, int, int);
-extern void func_001FE9A0(int, int, int, int);
-extern void func_001FECB0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+extern void func_001FE8D0(void);
+extern int func_001FE9A0(int, char *, char *);
+extern int func_001FECB0(int, int, char *, char *, char *);
 
-asm void func_00229770(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x70808628
-    .word 0x24040001
-    .word 0x26050050
-    jal       func_001FE9A0
-    .word 0x26060054
-    .word 0x14400003
-    .word 0x00000000
-    .word 0x1000006c
-    .word 0x70001628
-    .word 0x92030002
-    .word 0x24020002
-    .word 0x10620039
-    .word 0x00000000
-    .word 0x24040001
-    .word 0x1064001f
-    .word 0x26060058
-    .word 0x10600004
-    .word 0x26060058
-    .word 0x10000061
-    .word 0x70001628
-    .word 0x26060058
-    .word 0x2607005c
-    .word 0x26080060
-    .word 0x70002628
-    jal       func_001FECB0
-    .word 0x70002e28
-    .word 0x2403ffff
-    .word 0x10430057
-    .word 0x00000000
-    .word 0x8e030058
-    .word 0x24020001
-    .word 0xae030030
-    .word 0x8e03005c
-    .word 0xae030038
-    .word 0x8e030060
-    .word 0xae030040
-    jal       func_001FE8D0
-    .word 0xa2020002
-    .word 0x8e030058
-    .word 0x24020002
-    .word 0x1462004a
-    .word 0x00000000
-    .word 0x24020001
-    .word 0x10000047
-    .word 0xae020028
-    .word 0x26060058
-    .word 0x2607005c
-    .word 0x26080060
-    jal       func_001FECB0
-    .word 0x70002e28
-    .word 0x2403ffff
-    .word 0x1043003f
-    .word 0x00000000
-    .word 0x8e020058
-    .word 0xae020034
-    .word 0x8e02005c
-    .word 0xae02003c
-    .word 0x8e020060
-    jal       func_001FE8D0
-    .word 0xae020044
-    .word 0x8e030058
-    .word 0x24020002
-    .word 0x14620004
-    .word 0x24020002
-    .word 0x24020001
-    .word 0xae02002c
-    .word 0x24020002
-    .word 0x1000002f
-    .word 0xa2020002
-    .word 0x8e030030
-    .word 0x14620008
-    .word 0x00000000
-    .word 0x8e020040
-    .word 0x14400005
-    .word 0x00000000
-    .word 0x24020003
-    .word 0xa2020000
-    .word 0x10000026
-    .word 0x24020001
-    .word 0x8e040034
-    .word 0x24020002
-    .word 0x14820009
-    .word 0x24020002
-    .word 0x8e020044
-    .word 0x14400005
-    .word 0x00000000
-    .word 0x24020003
-    .word 0xa2020000
-    .word 0x1000001b
-    .word 0x24020001
-    .word 0x24020002
-    .word 0x14620009
-    .word 0x24020002
-    .word 0x8e030040
-    .word 0x24020001
-    .word 0x14620004
-    .word 0x00000000
-    .word 0xa2020001
-    .word 0x10000011
-    .word 0xa2000002
-    .word 0x24020002
-    .word 0x14820009
-    .word 0x24020002
-    .word 0x8e030044
-    .word 0x24020001
-    .word 0x14620004
-    .word 0x00000000
-    .word 0xa2020001
-    .word 0x10000007
-    .word 0xa2000002
-    .word 0x24020002
-    .word 0xa2020001
-    .word 0x24020001
-    .word 0x10000002
-    .word 0xa2000002
-    .word 0x70001628
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+int func_00229770(char *arg0) {
+    int a0;
+    int v1b;
+
+    if (func_001FE9A0(1, arg0 + 0x50, arg0 + 0x54) == 0) {
+        return 0;
+    }
+    switch (*(unsigned char *)(arg0 + 2)) {
+    case 0:
+        if (func_001FECB0(0, 0, arg0 + 0x58, arg0 + 0x5C, arg0 + 0x60) != -1) {
+            *(int *)(arg0 + 0x30) = *(int *)(arg0 + 0x58);
+            *(int *)(arg0 + 0x38) = *(int *)(arg0 + 0x5C);
+            *(int *)(arg0 + 0x40) = *(int *)(arg0 + 0x60);
+            *(unsigned char *)(arg0 + 2) = 1;
+            func_001FE8D0();
+            if (*(int *)(arg0 + 0x58) == 2) {
+                *(int *)(arg0 + 0x28) = 1;
+            }
+        }
+        goto ret0;
+    case 1:
+        if (func_001FECB0(1, 0, arg0 + 0x58, arg0 + 0x5C, arg0 + 0x60) != -1) {
+            *(int *)(arg0 + 0x34) = *(int *)(arg0 + 0x58);
+            *(int *)(arg0 + 0x3C) = *(int *)(arg0 + 0x5C);
+            *(int *)(arg0 + 0x44) = *(int *)(arg0 + 0x60);
+            func_001FE8D0();
+            if (*(int *)(arg0 + 0x58) == 2) {
+                *(int *)(arg0 + 0x2C) = 1;
+            }
+            *(unsigned char *)(arg0 + 2) = 2;
+        }
+        goto ret0;
+    case 2:
+        v1b = *(int *)(arg0 + 0x30);
+        if (v1b == 2 && *(int *)(arg0 + 0x40) == 0) {
+            *(signed char *)(arg0 + 0) = 3;
+            return 1;
+        }
+        a0 = *(int *)(arg0 + 0x34);
+        if (a0 == 2 && *(int *)(arg0 + 0x44) == 0) {
+            *(signed char *)(arg0 + 0) = 3;
+            return 1;
+        }
+        if (v1b == 2 && *(int *)(arg0 + 0x40) == 1) {
+            *(signed char *)(arg0 + 1) = 1;
+            *(unsigned char *)(arg0 + 2) = 0;
+            return 1;
+        }
+        if (a0 == 2 && *(int *)(arg0 + 0x44) == 1) {
+            *(signed char *)(arg0 + 1) = 1;
+            *(unsigned char *)(arg0 + 2) = 0;
+            return 1;
+        }
+        *(signed char *)(arg0 + 1) = 2;
+        *(unsigned char *)(arg0 + 2) = 0;
+        return 1;
+    }
+ret0:
+    return 0;
 }
