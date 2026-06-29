@@ -1,97 +1,46 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_0011DE90(int, int, int, int);
-extern void func_0011E2A8(int, int, int, int);
-extern void func_0011E620(int, int, int, int);
-extern void func_0011E748(int, int, int, int);
-extern void func_001B1470(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Circle/range collision-resolve between two actors a0,a1. Computes the
+// horizontal (X/Z) separation dx,dy between a0+0xA0/0xA8 and a1+0xB0/0xB8,
+// takes its length via func_0011E748 (sqrtf of dx*dx+dy*dy, FMAC), and if the
+// distance is within the summed radii (each actor's radius is the first float
+// of its +0x30 sub-struct) checks the vertical/secondary axis (the half-radius
+// box test at +0xA4/+0xB4) and that a1 is not flagged-busy (a1[3]==0). On a hit
+// it pushes a1 out along the contact angle: ang = normalize(atan2(dx,dy)) via
+// func_0011E620/func_001B1470, then a1.x/a1.z = a0.x/a0.z - sum*cos/sin(ang)
+// (func_0011E2A8=cos, func_0011DE90=sin), and sets a1[0xB]=1 unless a0 is
+// flagged (a0[0]&4). The radii p0/p1 must be reloaded AFTER the sqrtf call
+// (not hoisted) so only a0/a1 occupy callee-saved regs (frame 0x40); hoisting
+// them grows the frame to 0x60 and breaks the match.
+// Built with mwcc 2.3.3 (mwcps2-2.3.3-000906): the pinned 991202 stalls at
+// 96.59% (clean-store delay-slot codegen), 2.3.3 reaches objdiff 100%.
+extern float func_0011DE90(float);
+extern float func_0011E2A8(float);
+extern float func_0011E620(float, float);
+extern float func_0011E748(float);
+extern float func_001B1470(float);
 
-asm void func_001A9E00(void) {
-    addiu      $sp, $sp, -0x40
-    .word 0x7fbf0030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0xe7b60008
-    .word 0xe7b50004
-    .word 0xe7b40000
-    .word 0xc48300a0
-    .word 0xc4a200b0
-    .word 0xc48100a8
-    .word 0xc4a000b8
-    .word 0x70808e28
-    .word 0x70a08628
-    sub.s      $f20, $f3, $f2
-    sub.s      $f21, $f1, $f0
-    mula.s     $f20, $f20
-    jal        func_0011E748
-    madd.s    $f12, $f21, $f21
-    .word 0x8e230030
-    .word 0x8e040030
-    .word 0xc4620000
-    .word 0xc4810000
-    add.s      $f22, $f2, $f1
-    c.le.s     $f0, $f22
-    nop
-    .word 0x45000036
-    nop
-    .word 0xc4630004
-    .word 0xc62200a4
-    .word 0xc60100b4
-    mtc1       $zero, $f0
-    .word 0x3c034000
-    mtc1       $v1, $f4
-    nop
-    div.s      $f3, $f3, $f4
-    add.s      $f2, $f2, $f3
-    sub.s      $f2, $f2, $f1
-    c.lt.s     $f2, $f0
-    nop
-    .word 0x45000002
-    nop
-    neg.s      $f2, $f2
-    .word 0xc4800004
-    .word 0x3c034000
-    mtc1       $v1, $f1
-    nop
-    div.s      $f0, $f0, $f1
-    nop
-    add.s      $f0, $f3, $f0
-    c.le.s     $f2, $f0
-    nop
-    .word 0x4500001c
-    nop
-    .word 0x92030003
-    .word 0x14600019
-    nop
-    mov.s      $f12, $f20
-    jal        func_0011E620
-    mov.s     $f13, $f21
-    jal        func_001B1470
-    mov.s     $f12, $f0
-    mov.s      $f20, $f0
-    jal        func_0011DE90
-    mov.s     $f12, $f20
-    mov.s      $f12, $f20
-    jal        func_0011E2A8
-    mul.s     $f20, $f22, $f0
-    mul.s      $f1, $f22, $f0
-    .word 0xc62000a0
-    sub.s      $f0, $f0, $f1
-    .word 0xe60000b0
-    .word 0xc62000a8
-    sub.s      $f0, $f0, $f20
-    .word 0xe60000b8
-    .word 0x92230000
-    andi       $v1, $v1, 0x4
-    .word 0x14600003
-    nop
-    addiu      $v1, $zero, 0x1
-    .word 0xa203000b
-    .word 0x7bbf0030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    .word 0xc7b60008
-    .word 0xc7b50004
-    .word 0xc7b40000
-    jr         $ra
-    addiu     $sp, $sp, 0x40
+void func_001A9E00(unsigned char *a0, unsigned char *a1) {
+    float dx = *(float *)(a0 + 0xA0) - *(float *)(a1 + 0xB0);
+    float dy = *(float *)(a0 + 0xA8) - *(float *)(a1 + 0xB8);
+    float dist = func_0011E748(dx * dx + dy * dy);
+    unsigned char *p0 = *(unsigned char **)(a0 + 0x30);
+    unsigned char *p1 = *(unsigned char **)(a1 + 0x30);
+    float sum = *(float *)p0 + *(float *)p1;
+    if (dist <= sum) {
+        float h = *(float *)(p0 + 4) / 2.0f;
+        float d = (*(float *)(a0 + 0xA4) + h) - *(float *)(a1 + 0xB4);
+        if (d < 0.0f) {
+            d = -d;
+        }
+        if (d <= (h + *(float *)(p1 + 4) / 2.0f) && *(unsigned char *)(a1 + 3) == 0) {
+            float ang = func_001B1470(func_0011E620(dx, dy));
+            float s = sum * func_0011DE90(ang);
+            *(float *)(a1 + 0xB0) = *(float *)(a0 + 0xA0) - sum * func_0011E2A8(ang);
+            *(float *)(a1 + 0xB8) = *(float *)(a0 + 0xA8) - s;
+            if (!(*(unsigned char *)(a0 + 0) & 4)) {
+                *(unsigned char *)(a1 + 0xB) = 1;
+            }
+        }
+    }
 }

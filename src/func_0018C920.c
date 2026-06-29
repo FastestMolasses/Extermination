@@ -1,95 +1,48 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011DF78(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Per-axis position smoothing/clamp. For two axes (struct offsets 0 and 8),
+// moves arg1's value toward arg0's by at most a capped step:
+//   d = arg0[axis] - arg1[axis]; a = fabs(d) (func_0011DF78)
+//   if (a <= maxstep) snap exactly: arg1[axis] = arg0[axis], set result bit
+//   else step by min(maxstep, a*0.5*maxstep) toward arg0 (sign from d)
+// Returns a bitmask: bit0 = axis0 snapped exactly, bit1 = axis8 snapped exactly.
+extern float func_0011DF78(float);
 
-asm void func_0018C920(void) {
-    .word 0x27bdffb0
-    .word 0x7fbf0040
-    .word 0x7fb20030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0xe7b50004
-    .word 0xe7b40000
-    .word 0xc4810000
-    .word 0xc4a00000
-    .word 0x46006506
-    .word 0x70809628
-    .word 0x70a08e28
-    .word 0x70008628
-    .word 0x46000d41
-    jal       func_0011DF78
-    .word 0x4600ab06
-    .word 0x46140036
-    .word 0x00000000
-    .word 0x45010018
-    .word 0x00000000
-    .word 0x3c023f00
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x46140842
-    .word 0x46010042
-    .word 0x4601a034
-    .word 0x00000000
-    .word 0x45020004
-    .word 0x4600a046
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x4600a046
-    .word 0x44800000
-    .word 0x00000000
-    .word 0x4600a834
-    .word 0x00000000
-    .word 0x45000002
-    .word 0x00000000
-    .word 0x46000847
-    .word 0xc6200000
-    .word 0x46010000
-    .word 0x10000004
-    .word 0xe6200000
-    .word 0xc6400000
-    .word 0x24100001
-    .word 0xe6200000
-    .word 0xc6410008
-    .word 0xc6200008
-    .word 0x46000d41
-    jal       func_0011DF78
-    .word 0x4600ab06
-    .word 0x46140036
-    .word 0x00000000
-    .word 0x45010018
-    .word 0x00000000
-    .word 0x3c023f00
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x46140842
-    .word 0x46010042
-    .word 0x4601a034
-    .word 0x00000000
-    .word 0x45020004
-    .word 0x4600a046
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x4600a046
-    .word 0x44800000
-    .word 0x00000000
-    .word 0x4600a834
-    .word 0x00000000
-    .word 0x45000002
-    .word 0x00000000
-    .word 0x46000847
-    .word 0xc6200008
-    .word 0x46010000
-    .word 0x10000004
-    .word 0xe6200008
-    .word 0xc6400008
-    .word 0x36100002
-    .word 0xe6200008
-    .word 0x72001628
-    .word 0x7bbf0040
-    .word 0x7bb20030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    .word 0xc7b50004
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0050
+int func_0018C920(char *arg0, char *arg1, float maxstep) {
+    int flags;
+    float d;
+    float a;
+    float v;
+
+    flags = 0;
+
+    d = *(float *)(arg0 + 0) - *(float *)(arg1 + 0);
+    a = func_0011DF78(d);
+    if (!(a <= maxstep)) {
+        v = a * (0.5f * maxstep);
+        v = maxstep < v ? v : maxstep;
+        if (d < 0.0f) {
+            v = -v;
+        }
+        *(float *)(arg1 + 0) = *(float *)(arg1 + 0) + v;
+    } else {
+        *(float *)(arg1 + 0) = *(float *)(arg0 + 0);
+        flags = 1;
+    }
+
+    d = *(float *)(arg0 + 8) - *(float *)(arg1 + 8);
+    a = func_0011DF78(d);
+    if (!(a <= maxstep)) {
+        v = a * (0.5f * maxstep);
+        v = maxstep < v ? v : maxstep;
+        if (d < 0.0f) {
+            v = -v;
+        }
+        *(float *)(arg1 + 8) = *(float *)(arg1 + 8) + v;
+    } else {
+        *(float *)(arg1 + 8) = *(float *)(arg0 + 8);
+        flags |= 2;
+    }
+
+    return flags;
 }

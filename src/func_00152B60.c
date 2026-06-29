@@ -1,93 +1,62 @@
-// All-word: everything as .word except jal/j-external
-extern void anim_clip_init(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Per-state init driver dispatched on the state byte at arg0+6 (arg0 = entity,
+// arg1 = sibling/owner state block).
+// State 0: advance state, set arg0+0=2, zero the 0xC0/0xC4/0xC8 vector and seed
+//   the 0xB0..0xCC float block (100.0f/35.0f/95.0f/1.0f and two 1.0f), then
+//   anim_clip_init(arg0, 0x18, 0,0).
+// State 1: when arg1+0 has bit 0x1000, advance state, clear arg1+4, and run
+//   anim_clip_init(arg0, 0x19, 0,0).
+// State 2: if arg1+4==0 and the float at arg0+0x3C <= 150.0f, latch arg1+4=1 and
+//   func_001FBD50(arg0, 0x88D, 0, 500.0f); then on bit 0x1000 fully re-arm
+//   (arg0+0=1, arg0+5=0, state=0, arg1+0x42=0x258) and clear arg0->0x20 child +5.
+extern void anim_clip_init(char *self, int clip, float a, float b);
+extern void func_001FBD50(char *self, int a, int b, float f);
 
-asm void func_00152B60(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x90860006
-    .word 0x70a08628
-    .word 0x24050002
-    .word 0x10c5002a
-    .word 0x70808e28
-    .word 0x24030001
-    .word 0x10c3001a
-    .word 0x00000000
-    .word 0x50c00004
-    .word 0x24c20001
-    .word 0x10000044
-    .word 0x7bbf0020
-    .word 0x24c20001
-    .word 0x44806000
-    .word 0xa2220006
-    .word 0xa2250000
-    .word 0xae2000c8
-    .word 0xae2000c4
-    .word 0xae2000c0
-    .word 0x3c033f80
-    .word 0xae2300cc
-    .word 0x3c0242c8
-    .word 0xae2200b0
-    .word 0x3c02420c
-    .word 0xae2200b4
-    .word 0x3c0242be
-    .word 0xae2200b8
-    .word 0x24050018
-    .word 0x46006346
-    jal       anim_clip_init
-    .word 0xae2300bc
-    .word 0x1000002e
-    .word 0x00000000
-    .word 0x8e030000
-    .word 0x30631000
-    .word 0x1060002a
-    .word 0x00000000
-    .word 0x24c20001
-    .word 0x44806000
-    .word 0xa2220006
-    .word 0x24050019
-    .word 0x46006346
-    jal       anim_clip_init
-    .word 0xae000004
-    .word 0x10000021
-    .word 0x00000000
-    .word 0x8e030004
-    .word 0x14600010
-    .word 0x00000000
-    .word 0xc621003c
-    .word 0x3c034316
-    .word 0x44830000
-    .word 0x00000000
-    .word 0x46000836
-    .word 0x00000000
-    .word 0x45000008
-    .word 0x00000000
-    .word 0x24020001
-    .word 0xae020004
-    .word 0x3c0243fa
-    .word 0x44826000
-    .word 0x2405088d
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x8e030000
-    .word 0x30631000
-    .word 0x1060000b
-    .word 0x00000000
-    .word 0x24030001
-    .word 0xa2230000
-    .word 0xa2200005
-    .word 0x24030258
-    .word 0xa2200006
-    .word 0xa6030042
-    .word 0x8e230020
-    .word 0x10600002
-    .word 0x00000000
-    .word 0xa0600005
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_00152B60(char *arg0, char *arg1) {
+    unsigned char st;
+
+    st = *(unsigned char *)(arg0 + 6);
+    switch (st) {
+    case 0:
+        *(unsigned char *)(arg0 + 6) = st + 1;
+        *(char *)(arg0 + 0) = 2;
+        *(int *)(arg0 + 0xC8) = 0;
+        *(int *)(arg0 + 0xC4) = 0;
+        *(int *)(arg0 + 0xC0) = 0;
+        *(int *)(arg0 + 0xCC) = 0x3F800000;
+        *(int *)(arg0 + 0xB0) = 0x42C80000;
+        *(int *)(arg0 + 0xB4) = 0x420C0000;
+        *(int *)(arg0 + 0xB8) = 0x42BE0000;
+        *(int *)(arg0 + 0xBC) = 0x3F800000;
+        anim_clip_init(arg0, 0x18, 0.0f, 0.0f);
+        break;
+    case 1:
+        if (*(int *)(arg1 + 0) & 0x1000) {
+            *(unsigned char *)(arg0 + 6) = st + 1;
+            *(int *)(arg1 + 4) = 0;
+            anim_clip_init(arg0, 0x19, 0.0f, 0.0f);
+        }
+        break;
+    case 2:
+        if (*(int *)(arg1 + 4) == 0) {
+            if (*(float *)(arg0 + 0x3C) <= 150.0f) {
+                *(int *)(arg1 + 4) = 1;
+                func_001FBD50(arg0, 0x88D, 0, 500.0f);
+            }
+        }
+        if (*(int *)(arg1 + 0) & 0x1000) {
+            char *p;
+            *(char *)(arg0 + 0) = 1;
+            *(char *)(arg0 + 5) = 0;
+            *(unsigned char *)(arg0 + 6) = 0;
+            *(short *)(arg1 + 0x42) = 0x258;
+            p = *(char **)(arg0 + 0x20);
+            if (p != 0) {
+                *(char *)(p + 5) = 0;
+            }
+        }
+        break;
+    }
 }

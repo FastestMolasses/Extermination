@@ -1,92 +1,44 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00206970(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// 8-argument layout splitter (args 5-8 arrive in t0-t3 under the EE ABI).
+// Given two paired spans (a1+a3 vs t1+t3 totals), it clamps the t1/t3 lengths so
+// the totals balance, then emits up to three func_00206970(dst, src, len) runs
+// choosing one of three split shapes by comparing the (clamped) t1/t3 lengths.
+// The inner (a1 - t1) subexpression is inlined at every use (idiom-19): mwcc
+// would otherwise CSE it into a callee-saved reg, dropping the target's repeated
+// 'subu s0,s6,s3' and shifting every branch target by 4. Inlining keeps the
+// recompute and the exact register coloring/branch offsets. Verified objdiff
+// 100.0% with mwcc 2.3.3 (the pinned 991202 build walls at 88.4%).
+extern void func_00206970(int a, int b, int c);
 
-asm void func_00206810(void) {
-    addiu      $sp, $sp, -0x90
-    .word 0x7fbf0080
-    .word 0x7fb70070
-    .word 0x7fb60060
-    .word 0x7fb50050
-    .word 0x7fb40040
-    .word 0x7fb30030
-    .word 0x7fb20020
-    .word 0x7fb10010
-    addu       $v0, $a1, $a3
-    addu       $v1, $9, $11
-    slt        $at, $v0, $v1
-    .word 0x7fb00000
-    .word 0x7080be28
-    .word 0x70c0ae28
-    .word 0x7100a628
-    .word 0x71409628
-    .word 0x70a0b628
-    .word 0x71209e28
-    .word 0x1020000a
-    .word 0x71608e28
-    subu       $v1, $v1, $v0
-    slt        $v0, $v1, $s1
-    .word 0x54400006
-    subu      $s1, $s1, $v1
-    subu       $v0, $v1, $s1
-    subu       $s3, $s3, $v0
-    .word 0x10000002
-    .word 0x70008e28
-    subu       $s1, $s1, $v1
-    slt        $v0, $s3, $s6
-    .word 0x14400011
-    subu      $s0, $s6, $s3
-    .word 0x72e02628
-    .word 0x72802e28
-    jal        func_00206970
-    .word 0x72c03628
-    addu       $a1, $s4, $s6
-    subu       $a2, $s3, $s6
-    jal        func_00206970
-    .word 0x72a02628
-    addu       $v0, $s5, $s3
-    subu       $a0, $v0, $s6
-    .word 0x72402e28
-    jal        func_00206970
-    .word 0x72203628
-    .word 0x1000001d
-    addu      $v0, $s3, $s1
-    subu       $s0, $s6, $s3
-    slt        $v0, $s1, $s0
-    .word 0x14400011
-    .word 0x72802e28
-    .word 0x72802e28
-    .word 0x72e02628
-    jal        func_00206970
-    .word 0x72603628
-    addu       $a0, $s7, $s3
-    .word 0x72402e28
-    jal        func_00206970
-    .word 0x72003628
-    addu       $v0, $s2, $s6
-    subu       $a1, $v0, $s3
-    subu       $a2, $s1, $s0
-    jal        func_00206970
-    .word 0x72a02628
-    .word 0x10000009
-    nop
-    .word 0x72802e28
-    .word 0x72e02628
-    jal        func_00206970
-    .word 0x72603628
-    addu       $a0, $s7, $s3
-    .word 0x72402e28
-    jal        func_00206970
-    .word 0x72203628
-    addu       $v0, $s3, $s1
-    .word 0x7bbf0080
-    .word 0x7bb70070
-    .word 0x7bb60060
-    .word 0x7bb50050
-    .word 0x7bb40040
-    .word 0x7bb30030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    jr         $ra
-    addiu     $sp, $sp, 0x90
+int func_00206810(int a0, int a1, int a2, int a3, int t0, int t1, int t2, int t3) {
+    int total_lo;
+    int total_hi;
+    int rem;
+
+    total_lo = a1 + a3;
+    total_hi = t1 + t3;
+    if (total_lo < total_hi) {
+        rem = total_hi - total_lo;
+        if (rem >= t3) {
+            t1 -= rem - t3;
+            t3 = 0;
+        } else {
+            t3 -= rem;
+        }
+    }
+    if (t1 >= a1) {
+        func_00206970(a0, t0, a1);
+        func_00206970(a2, t0 + a1, t1 - a1);
+        func_00206970((a2 + t1) - a1, t2, t3);
+    } else if (t3 >= a1 - t1) {
+        func_00206970(a0, t0, t1);
+        func_00206970(a0 + t1, t2, a1 - t1);
+        func_00206970(a2, (t2 + a1) - t1, t3 - (a1 - t1));
+    } else {
+        func_00206970(a0, t0, t1);
+        func_00206970(a0 + t1, t2, t3);
+    }
+    return t1 + t3;
 }
