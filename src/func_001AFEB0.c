@@ -1,10 +1,24 @@
-// INCLUDE_ASM func_001AFEB0  (vram 0x001AFEB0, 0x54 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// (Restored as a stub during s84 recovery: this file was committed EMPTY
-// in a prior session, which broke a clean rebuild. The matching C is lost;
-// the bytes come from the splat .s. Re-decode against build/expected/func_001AFEB0.o.)
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Iterates the 24-entry array D_0028B020 (stride 0x2F0); for every entry whose
+// first byte is nonzero, calls func_001AF800(entry). The empty-slot test is a
+// branch-likely (beqzl) with the loop counter bump in its delay slot. mwcc 2.3.3
+// is byte-identical; the pinned 991202 build reaches 99.52% -- it colors the
+// loop-limit compare into $at (slti at) instead of reusing $v1 (the just-loaded
+// byte reg) as 2.3.3 does. Verified objdiff 100% vs build/expected.
+extern void func_001AF800(char *);
+extern char D_0028B020[24][0x2f0];
+
+void func_001AFEB0(void) {
+    char *p;
+    int i;
+    p = D_0028B020[0];
+    i = 0;
+    do {
+        if (*(unsigned char *)p != 0) {
+            func_001AF800(p);
+        }
+        i++;
+        p += 0x2f0;
+    } while (i < 0x18);
+}
