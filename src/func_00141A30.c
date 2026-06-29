@@ -1,156 +1,56 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001B4CF0(int, int, int, int);
-extern void func_001EFE00(int, int, int, int);
-
-asm void func_00141A30(void) {
-    .word 0x27bdffc0
-    .word 0x7fbf0030
-    .word 0x7fb20020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x84820036
-    .word 0x70a08e28
-    .word 0x14400003
-    .word 0x70809628
-    .word 0x10000086
-    .word 0x70001628
-    .word 0x82220088
-    .word 0x14400004
-    .word 0x00000000
-    .word 0x82220089
-    .word 0x10400005
-    .word 0x24020002
-    .word 0xa6400036
-    .word 0x1000007d
-    .word 0x70001628
-    .word 0x24020002
-    .word 0xa2420000
-    .word 0x240200f0
-    .word 0xa6220070
-    .word 0x2402ffff
-    .word 0xa2220088
-    .word 0x86430036
-    .word 0x30620fff
-    .word 0x0002843c
-    .word 0x30628000
-    .word 0x10400005
-    .word 0x0010843f
-    .word 0x00101080
-    .word 0x00501021
-    .word 0x0002843c
-    .word 0x0010843f
-    .word 0x8222008a
-    .word 0x10400005
-    .word 0x00000000
-    .word 0x86220074
-    .word 0x00501021
-    .word 0x10000002
-    .word 0xa6220074
-    .word 0xa6300074
-    .word 0x24020019
-    .word 0xa222008a
-    .word 0x8222008b
-    .word 0x1440000b
-    .word 0x00000000
-    .word 0x86420036
-    .word 0x30424000
-    .word 0x10400007
-    .word 0x00000000
-    .word 0x2402003c
-    .word 0xa222008b
-    .word 0x3c028000
-    .word 0x34440027
-    jal       func_001EFE00
-    .word 0x72402e28
-    .word 0x86430034
-    .word 0x0010143c
-    .word 0x0002143f
-    .word 0x0043082a
-    .word 0x14200017
-    .word 0x00701023
-    .word 0xa6400034
-    .word 0x24020002
-    .word 0xa220008c
-    .word 0xa2420004
-    .word 0xa2420005
-    .word 0x72402628
-    jal       func_001B4CF0
-    .word 0xa2400006
-    .word 0x82220080
-    .word 0x30420002
-    .word 0x10400006
-    .word 0x24020001
-    .word 0x86420036
-    .word 0x3042a000
-    .word 0x10400004
-    .word 0x24020001
-    .word 0x24020001
-    .word 0xa2420005
-    .word 0x24020001
-    .word 0x1000003c
-    .word 0x7bbf0030
-    .word 0x00701023
-    .word 0xa6420034
-    .word 0x86440036
-    .word 0x30822000
-    .word 0x10400007
-    .word 0x00000000
-    .word 0x24020002
-    .word 0xa2420004
-    .word 0x24020001
-    .word 0xa2420005
-    .word 0x1000002f
-    .word 0xa2400006
-    .word 0x92430004
-    .word 0x24020001
-    .word 0x14620006
-    .word 0x30828000
-    .word 0x86220074
-    .word 0x28410019
-    .word 0x10200005
-    .word 0x24020002
-    .word 0x30828000
-    .word 0x10400010
-    .word 0x30825000
-    .word 0x24020002
-    .word 0xa2420004
-    .word 0xa2400006
-    .word 0xa6200074
-    .word 0x82220080
-    .word 0x30420002
-    .word 0x10400004
-    .word 0x24020001
-    .word 0x10000003
-    .word 0xa2400005
-    .word 0x24020001
-    .word 0xa2420005
-    .word 0x10000016
-    .word 0x24020001
-    .word 0x30825000
-    .word 0x10400004
-    .word 0x00000000
-    .word 0x2402001e
-    .word 0x10000002
-    .word 0xa2220088
-    .word 0xa2200088
-    .word 0x24030001
-    .word 0xa2430000
-    .word 0xa6400036
-    .word 0x92420004
-    .word 0x14430009
-    .word 0x70001628
-    .word 0x92420005
-    .word 0x28410005
-    .word 0x10200004
-    .word 0x00000000
-    .word 0x24020006
-    .word 0xa2420005
-    .word 0xa2400006
-    .word 0x70001628
-    .word 0x7bbf0030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0040
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Weapon charge/reload tick: reads the 12-bit charge field at +0x36 (x5 when the
+// 0x8000 bit is set), distributes it to the live ammo/timer counters on the second
+// state block (arg1), and advances the weapon state machine (arg0 fields 0/4/5/6).
+extern void func_001B4CF0(char *a);
+extern void func_001EFE00(int a, char *b);
+int func_00141A30(char *arg0, char *arg1) {
+    short temp_v1; short var_s0; short temp_v1_2; short temp_a0;
+    if (*(short *)(arg0 + 0x36) == 0) return 0;
+    if ((*(char *)(arg1 + 0x88) != 0) || (*(char *)(arg1 + 0x89) != 0)) { *(short *)(arg0+0x36)=0; return 0; }
+    *(char *)(arg0+0)=2;
+    *(short *)(arg1+0x70)=0xF0;
+    *(char *)(arg1+0x88)=-1;
+    temp_v1 = *(short *)(arg0+0x36);
+    var_s0 = temp_v1 & 0xFFF;
+    if (temp_v1 & 0x8000) var_s0 = var_s0 * 5;
+    if (*(char *)(arg1+0x8A)!=0) *(short *)(arg1+0x74)=(short)(*(short *)(arg1+0x74)+var_s0);
+    else *(short *)(arg1+0x74)=var_s0;
+    *(char *)(arg1+0x8A)=0x19;
+    if ((*(char *)(arg1+0x8B)==0)&&(*(short *)(arg0+0x36)&0x4000)) { *(char *)(arg1+0x8B)=0x3C; func_001EFE00(0x80000027,arg0); }
+    temp_v1_2=*(short *)(arg0+0x34);
+    if (temp_v1_2 <= var_s0) {
+        *(short *)(arg0+0x34)=0;
+        *(char *)(arg1+0x8C)=0;
+        *(char *)(arg0+4)=2; *(char *)(arg0+5)=2; *(char *)(arg0+6)=0;
+        func_001B4CF0(arg0);
+        if (!(*(char *)(arg1+0x80)&2)) goto set5;
+        if (*(short *)(arg0+0x36)&0xA000) { set5: *(char *)(arg0+5)=1; }
+        return 1;
+    }
+    *(short *)(arg0+0x34)=(short)(temp_v1_2-var_s0);
+    temp_a0=*(short *)(arg0+0x36);
+    if (temp_a0 & 0x2000) {
+        *(char *)(arg0+4)=2; *(char *)(arg0+5)=1; *(char *)(arg0+6)=0; return 1;
+    }
+    if (*(unsigned char *)(arg0+4)==1) {
+        if (*(short *)(arg1+0x74) < 0x19) goto check8000;
+        goto setstate;
+    }
+check8000:
+    if (temp_a0 & 0x8000) {
+    setstate:
+        *(char *)(arg0+4)=2; *(char *)(arg0+6)=0; *(short *)(arg1+0x74)=0;
+        if (*(char *)(arg1+0x80)&2) *(char *)(arg0+5)=0;
+        else *(char *)(arg0+5)=1;
+        return 1;
+    }
+    if (temp_a0 & 0x5000) *(char *)(arg1+0x88)=0x1E;
+    else *(char *)(arg1+0x88)=0;
+    *(char *)(arg0+0)=1; *(short *)(arg0+0x36)=0;
+    if (*(unsigned char *)(arg0+4)==1) {
+        if ((int)*(unsigned char *)(arg0+5) < 5) { *(char *)(arg0+5)=6; *(char *)(arg0+6)=0; }
+    }
+    return 0;
 }
