@@ -1,106 +1,62 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001B1190(int, int, int, int);
-extern void anim_clip_init(int, int, int, int);
-extern void func_001EFE00(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Per-state behavior driver dispatched on the state byte at arg0+6 (3-way switch
+// 0/1/2). arg0 = self entity, arg1 = a linked controller/physics block.
+// State 0: bumps state, sets arg1+0x40 = 1.0f, zeroes arg1+0x80/+0x88 (bytes) and
+//   arg1+0x50/+0x4C (words), kicks func_001B1190(*(u8*)(arg0+0x9A)), fires
+//   func_001FBD50(self, 0x7EB, 0, 300.0f), then starts clip 0x2F (if arg1+0x87 set)
+//   or 0x31 via anim_clip_init(self, clip, 1.0f, 0.0f).
+// State 1: if (lh(arg0+0x2C) & 0xFFFF7FFF)==0x31 and arg0+0x3C == 54.0f, fires
+//   func_001FBD50(self, 0x7E8, 0, 300.0f); then once arg1+0x20 has bit 0x1000 set,
+//   advances state, zeroes arg1+0x8A, fires func_001FBD50(self,0x7EA,0,300.0f) and
+//   (if func_001EFE00(0x8000001E,self)==0) sets self+4 = 3.
+// State 2: idle.
+//
+// Matched with mwcc 2.3.3 (mwcps2-2.3.3-000906); the pinned 991202 build reaches
+// 84.6%. Keys: anim_clip_init's real signature is (self, clip, float, float) -- the
+// trailing 0.0f emits the mtc1 zero,$f13 the target has; ascending switch cases
+// reproduce the target's 2->1->0 descending dispatch with the case-0 branch-likely
+// (beql). objdiff 100.0 vs expected.
+extern void anim_clip_init(char *self, int clip, float a, float b);
+extern void func_001B1190(unsigned char a);
+extern int func_001EFE00(int a, char *p);
+extern void func_001FBD50(char *self, int idx, int flags, float f);
 
-asm void func_0014ACC0(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x70a08628
-    .word 0x90850006
-    .word 0x24030002
-    .word 0x10a30055
-    .word 0x70808e28
-    .word 0x24030001
-    .word 0x10a30028
-    .word 0x00000000
-    .word 0x50a00004
-    .word 0x24a20001
-    .word 0x1000004f
-    .word 0x7bbf0020
-    .word 0x24a20001
-    .word 0xa2220006
-    .word 0x3c023f80
-    .word 0xae020040
-    .word 0xa2000080
-    .word 0xa2000088
-    .word 0xae000050
-    .word 0xae00004c
-    jal       func_001B1190
-    .word 0x9224009a
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x240507eb
-    .word 0x72202628
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x82020087
-    .word 0x1040000a
-    .word 0x3c023f80
-    .word 0x3c023f80
-    .word 0x44826000
-    .word 0x44806800
-    .word 0x2405002f
-    jal       anim_clip_init
-    .word 0x72202628
-    .word 0x10000033
-    .word 0x00000000
-    .word 0x3c023f80
-    .word 0x44826000
-    .word 0x44806800
-    .word 0x24050031
-    jal       anim_clip_init
-    .word 0x72202628
-    .word 0x1000002b
-    .word 0x00000000
-    .word 0x8626002c
-    .word 0x3c03ffff
-    .word 0x34657fff
-    .word 0x24030031
-    .word 0x00c52824
-    .word 0x14a3000e
-    .word 0x00000000
-    .word 0xc621003c
-    .word 0x3c034258
-    .word 0x44830000
-    .word 0x00000000
-    .word 0x46010032
-    .word 0x00000000
-    .word 0x45000006
-    .word 0x00000000
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x240507e8
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x8e030020
-    .word 0x30631000
-    .word 0x10600013
-    .word 0x00000000
-    .word 0x92230006
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x240507ea
-    .word 0x72202628
-    .word 0x24620001
-    .word 0xa2220006
-    .word 0x70003628
-    jal       func_001FBD50
-    .word 0xa200008a
-    .word 0x3c028000
-    .word 0x3444001e
-    jal       func_001EFE00
-    .word 0x72202e28
-    .word 0x14400003
-    .word 0x00000000
-    .word 0x24030003
-    .word 0xa2230004
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_0014ACC0(char *arg0, char *arg1) {
+    unsigned char st;
+
+    st = *(unsigned char *)(arg0 + 6);
+    switch (st) {
+    case 0:
+        *(unsigned char *)(arg0 + 6) = st + 1;
+        *(float *)(arg1 + 0x40) = 1.0f;
+        *(char *)(arg1 + 0x80) = 0;
+        *(char *)(arg1 + 0x88) = 0;
+        *(int *)(arg1 + 0x50) = 0;
+        *(int *)(arg1 + 0x4C) = 0;
+        func_001B1190(*(unsigned char *)(arg0 + 0x9A));
+        func_001FBD50(arg0, 0x7EB, 0, 300.0f);
+        if (*(char *)(arg1 + 0x87) != 0) {
+            anim_clip_init(arg0, 0x2F, 1.0f, 0.0f);
+        } else {
+            anim_clip_init(arg0, 0x31, 1.0f, 0.0f);
+        }
+        break;
+    case 1:
+        if ((*(short *)(arg0 + 0x2C) & 0xFFFF7FFF) == 0x31 && *(float *)(arg0 + 0x3C) == 54.0f) {
+            func_001FBD50(arg0, 0x7E8, 0, 300.0f);
+        }
+        if (*(int *)(arg1 + 0x20) & 0x1000) {
+            *(unsigned char *)(arg0 + 6) = *(unsigned char *)(arg0 + 6) + 1;
+            *(char *)(arg1 + 0x8A) = 0;
+            func_001FBD50(arg0, 0x7EA, 0, 300.0f);
+            if (func_001EFE00(0x8000001E, arg0) == 0) {
+                *(char *)(arg0 + 4) = 3;
+            }
+        }
+        break;
+    case 2:
+        break;
+    }
 }
