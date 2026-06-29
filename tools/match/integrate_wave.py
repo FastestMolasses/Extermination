@@ -62,6 +62,31 @@ subprocess.run(["container", "run", "--rm", "-v", f"{ROOT}:/work", "-w", "/work"
                 "exterm-toolchain", "sh", "-c", script], capture_output=True, text=True, timeout=900)
 
 # 3. inject relocs (host) + objdiff (host)
+def text_size(path):
+    """ELF32-LE .text section size, host-side (no toolchain). objdiff scores the
+    EXPECTED instructions and ignores EXTRA trailing compiled instrs, so a func
+    that compiles oversized can false-positive at 100% (e.g. func_001DEE80 s84:
+    0x6c vs 0x34 -> +0x2c link shift broke boot-ELF byte-identity). A size==size
+    guard catches that class."""
+    try:
+        d = open(path, "rb").read()
+        if d[:4] != b"\x7fELF": return None
+        import struct
+        shoff = struct.unpack_from("<I", d, 0x20)[0]
+        shentsize = struct.unpack_from("<H", d, 0x2E)[0]
+        shnum = struct.unpack_from("<H", d, 0x30)[0]
+        shstrndx = struct.unpack_from("<H", d, 0x32)[0]
+        strtab_off = struct.unpack_from("<I", d, shoff + shstrndx*shentsize + 0x10)[0]
+        for i in range(shnum):
+            base = shoff + i*shentsize
+            name_off = struct.unpack_from("<I", d, base)[0]
+            name = d[strtab_off+name_off:d.index(b"\0", strtab_off+name_off)].decode("latin1")
+            if name == ".text":
+                return struct.unpack_from("<I", d, base + 0x14)[0]
+    except Exception:
+        return None
+    return None
+
 def pct(f):
     e, o = f"build/expected/{f}.o", f"build/obj/{f}.o"
     if not (os.path.exists(e) and os.path.exists(o)): return None
@@ -80,8 +105,11 @@ for r in matched:
     if comp != "eegcc":
         subprocess.run([sys.executable, "tools/decomp/inject_relocs.py", f], capture_output=True)
     p = pct(f)
-    ok = p == 100.0
-    print(f"  {f} -> {p} {'KEEP' if ok else 'REVERT'}")
+    ts_o, ts_e = text_size(f"build/obj/{f}.o"), text_size(f"build/expected/{f}.o")
+    size_ok = (ts_o is not None and ts_o == ts_e)
+    ok = p == 100.0 and size_ok
+    note = "" if size_ok else f" SIZE-MISMATCH text={ts_o:#x} vs expected={ts_e:#x}" if (ts_o and ts_e) else " SIZE-UNKNOWN"
+    print(f"  {f} -> {p} {'KEEP' if ok else 'REVERT'}{'' if ok else note}")
     if ok:
         kept.append(f)
     elif f in bak:
