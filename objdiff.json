@@ -8190,14 +8190,6 @@
       }
     },
     {
-      "name": "func_001AFEB0",
-      "target_path": "build/expected/func_001AFEB0.o",
-      "base_path": "build/obj/func_001AFEB0.o",
-      "metadata": {
-        "source_path": "src/func_001AFEB0.c"
-      }
-    },
-    {
       "name": "func_001AFF10",
       "target_path": "build/expected/func_001AFF10.o",
       "base_path": "build/obj/func_001AFF10.o",

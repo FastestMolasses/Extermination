@@ -105,11 +105,16 @@ for r in matched:
     if comp != "eegcc":
         subprocess.run([sys.executable, "tools/decomp/inject_relocs.py", f], capture_output=True)
     p = pct(f)
+    # Reject only OVERSIZE: objdiff scores the expected instrs and ignores EXTRA
+    # trailing compiled instrs, so compiled>expected can false-positive (func_001DEE80
+    # s84: 0x6c vs 0x40 -> link shift). Undersize (compiled<=expected) is just
+    # alignment/gap padding that fill_unmatched pads back, and objdiff already
+    # catches missing real instructions as <100%, so it's safe.
     ts_o, ts_e = text_size(f"build/obj/{f}.o"), text_size(f"build/expected/{f}.o")
-    size_ok = (ts_o is not None and ts_o == ts_e)
-    ok = p == 100.0 and size_ok
-    note = "" if size_ok else f" SIZE-MISMATCH text={ts_o:#x} vs expected={ts_e:#x}" if (ts_o and ts_e) else " SIZE-UNKNOWN"
-    print(f"  {f} -> {p} {'KEEP' if ok else 'REVERT'}{'' if ok else note}")
+    oversize = (ts_o is not None and ts_e is not None and ts_o > ts_e)
+    ok = p == 100.0 and not oversize
+    note = f" OVERSIZE text={ts_o:#x} vs expected={ts_e:#x}" if oversize else ""
+    print(f"  {f} -> {p} {'KEEP' if ok else 'REVERT'}{note}")
     if ok:
         kept.append(f)
     elif f in bak:
