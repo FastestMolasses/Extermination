@@ -1,219 +1,44 @@
-// All-word: everything as .word except jal/j-external
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Maps an item/object id to a small category code (1..0xC), default 9.
 
-asm void func_001CBE10(void) {
-    .word 0x240200a6
-    .word 0x108200d0
-    .word 0x24020006
-    .word 0x240200a1
-    .word 0x108200ca
-    .word 0x24020004
-    .word 0x2402009b
-    .word 0x108200c4
-    .word 0x24020009
-    .word 0x24020094
-    .word 0x108200be
-    .word 0x24020008
-    .word 0x24020093
-    .word 0x108200b8
-    .word 0x24020008
-    .word 0x24020092
-    .word 0x108200b2
-    .word 0x24020006
-    .word 0x24020091
-    .word 0x108200ac
-    .word 0x24020006
-    .word 0x2402008b
-    .word 0x108200a6
-    .word 0x24020009
-    .word 0x24020084
-    .word 0x108200a0
-    .word 0x24020008
-    .word 0x24020082
-    .word 0x1082009a
-    .word 0x24020006
-    .word 0x24020077
-    .word 0x10820094
-    .word 0x2402000c
-    .word 0x24020072
-    .word 0x1082008e
-    .word 0x24020009
-    .word 0x2402006d
-    .word 0x10820088
-    .word 0x2402000c
-    .word 0x2402006c
-    .word 0x10820082
-    .word 0x24020004
-    .word 0x2402006a
-    .word 0x1082007c
-    .word 0x24020006
-    .word 0x24020069
-    .word 0x10820076
-    .word 0x24020004
-    .word 0x24020066
-    .word 0x10820070
-    .word 0x24020008
-    .word 0x24020060
-    .word 0x1082006a
-    .word 0x24020005
-    .word 0x2402005d
-    .word 0x10820064
-    .word 0x24020008
-    .word 0x2402005c
-    .word 0x1082005e
-    .word 0x24020008
-    .word 0x2402005b
-    .word 0x10820058
-    .word 0x24020008
-    .word 0x24020057
-    .word 0x10820052
-    .word 0x2402000c
-    .word 0x2402004d
-    .word 0x1082004c
-    .word 0x2402000c
-    .word 0x2402004a
-    .word 0x10820046
-    .word 0x24020007
-    .word 0x24020049
-    .word 0x10820040
-    .word 0x24020004
-    .word 0x2402003b
-    .word 0x1082003a
-    .word 0x24020008
-    .word 0x2402003a
-    .word 0x10820034
-    .word 0x24020007
-    .word 0x2402002f
-    .word 0x1082002e
-    .word 0x24020008
-    .word 0x2402002e
-    .word 0x10820028
-    .word 0x24020005
-    .word 0x2402002c
-    .word 0x10820022
-    .word 0x24020006
-    .word 0x24020029
-    .word 0x1082001c
-    .word 0x24020008
-    .word 0x24020028
-    .word 0x10820016
-    .word 0x24020008
-    .word 0x24020027
-    .word 0x10820010
-    .word 0x24020004
-    .word 0x24020021
-    .word 0x1082000a
-    .word 0x24020004
-    .word 0x24020020
-    .word 0x10820004
-    .word 0x24020005
-    .word 0x1000006b
-    .word 0x24020009
-    .word 0x24020005
-    .word 0x10000068
-    .word 0x00000000
-    .word 0x24020004
-    .word 0x10000065
-    .word 0x00000000
-    .word 0x24020004
-    .word 0x10000062
-    .word 0x00000000
-    .word 0x24020008
-    .word 0x1000005f
-    .word 0x00000000
-    .word 0x24020008
-    .word 0x1000005c
-    .word 0x00000000
-    .word 0x24020006
-    .word 0x10000059
-    .word 0x00000000
-    .word 0x24020005
-    .word 0x10000056
-    .word 0x00000000
-    .word 0x24020008
-    .word 0x10000053
-    .word 0x00000000
-    .word 0x24020007
-    .word 0x10000050
-    .word 0x00000000
-    .word 0x24020008
-    .word 0x1000004d
-    .word 0x00000000
-    .word 0x24020004
-    .word 0x1000004a
-    .word 0x00000000
-    .word 0x24020007
-    .word 0x10000047
-    .word 0x00000000
-    .word 0x2402000c
-    .word 0x10000044
-    .word 0x00000000
-    .word 0x2402000c
-    .word 0x10000041
-    .word 0x00000000
-    .word 0x24020008
-    .word 0x1000003e
-    .word 0x00000000
-    .word 0x24020008
-    .word 0x1000003b
-    .word 0x00000000
-    .word 0x24020008
-    .word 0x10000038
-    .word 0x00000000
-    .word 0x24020005
-    .word 0x10000035
-    .word 0x00000000
-    .word 0x24020008
-    .word 0x10000032
-    .word 0x00000000
-    .word 0x24020004
-    .word 0x1000002f
-    .word 0x00000000
-    .word 0x24020006
-    .word 0x1000002c
-    .word 0x00000000
-    .word 0x24020004
-    .word 0x10000029
-    .word 0x00000000
-    .word 0x2402000c
-    .word 0x10000026
-    .word 0x00000000
-    .word 0x24020009
-    .word 0x10000023
-    .word 0x00000000
-    .word 0x2402000c
-    .word 0x10000020
-    .word 0x00000000
-    .word 0x24020006
-    .word 0x1000001d
-    .word 0x00000000
-    .word 0x24020008
-    .word 0x1000001a
-    .word 0x00000000
-    .word 0x24020009
-    .word 0x10000017
-    .word 0x00000000
-    .word 0x24020006
-    .word 0x10000014
-    .word 0x00000000
-    .word 0x24020006
-    .word 0x10000011
-    .word 0x00000000
-    .word 0x24020008
-    .word 0x1000000e
-    .word 0x00000000
-    .word 0x24020008
-    .word 0x1000000b
-    .word 0x00000000
-    .word 0x24020009
-    .word 0x10000008
-    .word 0x00000000
-    .word 0x24020004
-    .word 0x10000005
-    .word 0x00000000
-    .word 0x24020006
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x24020009
-    .word 0x03e00008
-    .word 0x00000000
+int func_001CBE10(int id) {
+    switch (id) {
+    case 0x20: return 5;
+    case 0x21: return 4;
+    case 0x27: return 4;
+    case 0x28: return 8;
+    case 0x29: return 8;
+    case 0x2C: return 6;
+    case 0x2E: return 5;
+    case 0x2F: return 8;
+    case 0x3A: return 7;
+    case 0x3B: return 8;
+    case 0x49: return 4;
+    case 0x4A: return 7;
+    case 0x4D: return 0xC;
+    case 0x57: return 0xC;
+    case 0x5B: return 8;
+    case 0x5C: return 8;
+    case 0x5D: return 8;
+    case 0x60: return 5;
+    case 0x66: return 8;
+    case 0x69: return 4;
+    case 0x6A: return 6;
+    case 0x6C: return 4;
+    case 0x6D: return 0xC;
+    case 0x72: return 9;
+    case 0x77: return 0xC;
+    case 0x82: return 6;
+    case 0x84: return 8;
+    case 0x8B: return 9;
+    case 0x91: return 6;
+    case 0x92: return 6;
+    case 0x93: return 8;
+    case 0x94: return 8;
+    case 0x9B: return 9;
+    case 0xA1: return 4;
+    case 0xA6: return 6;
+    default: return 9;
+    }
 }
