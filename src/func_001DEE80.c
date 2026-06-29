@@ -1,17 +1,18 @@
-// CFLAGS: -O4,p -sdatathreshold 0
-extern char *D_00275670;
+// Multi-call non-leaf — asm void with extern decls for every callee.
+extern void func_001DEDB0(int, int, int, int);
 
-static char *func_001DEDB0(int a0) {
-    if (a0 != 9) {
-        return D_00275670 + 0x2470;
-    }
-    return D_00275670 + 0x2490;
-}
-
-void func_001DEE80(int a0, int *src) {
-    char *dst;
-    dst = func_001DEDB0(a0);
-    *(int *)(dst + 0x10) = src[0];
-    *(int *)(dst + 0x14) = src[1];
-    *(int *)(dst + 0x18) = src[2];
+asm void func_001DEE80(void) {
+    addiu $sp, $sp, -0x10
+    sq $ra, 0x0($sp)
+    jal func_001DEDB0
+    nop
+    lw $v1, 0x0($a1)
+    sw $v1, 0x10($v0)
+    lw $v1, 0x4($a1)
+    sw $v1, 0x14($v0)
+    lw $v1, 0x8($a1)
+    sw $v1, 0x18($v0)
+    lq $ra, 0x0($sp)
+    jr $ra
+    addiu $sp, $sp, 0x10
 }
