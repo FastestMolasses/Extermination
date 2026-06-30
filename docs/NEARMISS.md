@@ -305,3 +305,16 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00181E20 | 0x00181E20 | 0x140 | 97.12% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual artifacts at 97.125% on mwcc233 (best). (1) FP even/odd register-coloring on  |
 | func_0018CA90 | 0x0018CA90 | 0x140 | 87.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP even/odd register-coloring + load-batch scheduling permutation. Body fully recovered. T |
 | func_0019C6F0 | 0x0019C6F0 | 0x140 | 72.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation/coloring permutation (identical instruction sequence and operands, onl |
+| func_00226D50 | 0x00226D50 | 0x140 | 99.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Cross-branch shared-constant delay-slot fill: target hoists a0=1 into the beqz delay slot  |
+| func_001FC280 | 0x001FC280 | 0x140 | 84.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Dead-temporary register coloring: the final pointer add (record + D_00810702*0x30) and its |
+| func_001ACEC0 | 0x001ACEC0 | 0x148 | 97.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Delay-slot-fill scheduling wall: in the case-0 arm mwcc speculatively hoists `lui at, 0x70 |
+| func_00182BF0 | 0x00182BF0 | 0x148 | 69.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW branch-inversion/dead-b idiom dominates: each of the ~7 `return 1` exits is lowered by  |
+| func_001D42E0 | 0x001D42E0 | 0x14C | 94.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | param-save emit order in prologue: target emits paddub s1,a1 before sq s0 and fills the fi |
+| func_001FCF90 | 0x001FCF90 | 0x148 | 93.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | saved-register coloring permutation: q/loop-counter/count/buffer-pointer occupy a permuted |
+| func_00176390 | 0x00176390 | 0x14C | 91.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | backend artifacts: (1) target speculates paddub a0,s2 into the 'if(e==NULL)' beqz delay sl |
+| func_001582E0 | 0x001582E0 | 0x150 | 96.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation + scheduling near-miss (best on mwcc 2.3.3, 96.4%; 991202 only 83.7%). |
+| func_001ECFB0 | 0x001ECFB0 | 0x14C | 67.36% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + scheduling near-miss (best on mwcc 991202, 84.1%; 233 only 67.4%). Bod |
+| func_00120B98 | 0x00120B98 | 0x150 | 83.60% | ee-gcc 2.9-991111-01 | This is an EE-GCC function, NOT mwcc (target uses sd/ld + daddu register saves, not mwcc s |
+| func_00180850 | 0x00180850 | 0x154 | 99.76% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | prologue parameter-save MOVE-ORDER permutation: target emits a1->s1 (flag) before a0->s3 ( |
+| func_00158BD0 | 0x00158BD0 | 0x154 | 90.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | two regalloc/scheduling permutations: (1) dispatch save-sink — target keeps switch byte in |
+| func_0018D7B0 | 0x0018D7B0 | 0x154 | 96.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch lowering: target keeps explicit `beq s1,1,body / nop / b epilogue` (ente |
