@@ -239,3 +239,15 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001EBD20 | 0x001EBD20 | 0xE4 | 73.30% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order / instruction-scheduling permutation, identical to func_001EBC30 (s |
 | func_001FD6A0 | 0x001FD6A0 | 0xE4 | 60.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / loop-induction-variable permutation. Instruction content matches (sa |
 | func_0019B7D0 | 0x0019B7D0 | 0xE8 | 92.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Scheduler delay-slot-fill artifact (mwcc 2.3.3 vs 2.3.1 target). 233 fills the `beqz s0` b |
+| func_001D4650 | 0x001D4650 | 0xE8 | 88.34% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + instruction-scheduling permutation: 88.34% on 2.3.3, body/values fully |
+| func_001D63B0 | 0x001D63B0 | 0xE8 | 95.78% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-ORDER wall. Body + structure are byte-exact under mwcc 2.3.3 (zero ins |
+| func_001AFD70 | 0x001AFD70 | 0xEC | 97.46% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Saved-register-allocation-ORDER wall (identical residual under 991202 and 2.3.3). Entire b |
+| func_001BA7F0 | 0x001BA7F0 | 0xEC | 99.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jal arg-setup / delay-slot scheduling order. Logic + structure are byte-exact under mwcc 2 |
+| func_00213F30 | 0x00213F30 | 0xF0 | 99.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation: hoisted fill const 0x6D and the loop's 0x18 counter swap be |
+| func_001D6BA0 | 0x001D6BA0 | 0xEC | 90.34% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation cascade (buffer base $t0 vs $a3) + scheduling order of the +0x4 header |
+| func_001575E0 | 0x001575E0 | 0xF4 | 78.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation: target reuses $v0 for the three scratchpad flo |
+| func_0018C5A0 | 0x0018C5A0 | 0xF4 | 92.21% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Branch-likely SENSE (target bc1tl vs mwcc bc1fl) on the min-clamp, plus FP register colori |
+| func_00197390 | 0x00197390 | 0xF4 | 96.30% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling / delay-slot-fill: (1) the func_00102948 call sets its two args in  |
+| func_001A8BE0 | 0x001A8BE0 | 0xF4 | 94.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling / delay-slot-fill artifact: target emits the two init loads (D_0027 |
+| func_001D6E60 | 0x001D6E60 | 0xF8 | 84.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation: target materialises constants into temporaries t0-t |
+| func_0017C440 | 0x0017C440 | 0xFC | 96.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch-delay-slot scheduling: target leaves the `bne v1,v0` (idx==2 selector) d |
