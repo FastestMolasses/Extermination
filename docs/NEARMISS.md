@@ -197,3 +197,12 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00228320 | 0x00228320 | 0x8C | 76.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation / instruction-scheduling: CW keeps the 3-int stack temp via dead-store |
 | func_0017F130 | 0x0017F130 | 0x90 | 84.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc-vs-CW branch lowering + FP move order: CW lowers the mode-4 `return func()!=0` as an  |
 | func_00183910 | 0x00183910 | 0x90 | 94.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-coloring / delay-slot scheduling: CW keeps arg0 in $a0 across the dispatch and co |
+| func_00194D10 | 0x00194D10 | 0x94 | 84.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-compare branch-lowering wall + arg-eval scheduling. Logic fully recovered. Residual 1:  |
+| func_001D4B80 | 0x001D4B80 | 0x98 | 77.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation: body/structure byte-identical to confirmed sibling func_0 |
+| func_001D4C30 | 0x001D4C30 | 0x98 | 77.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation (identical to func_001D4B80, differs only in bank base D_0 |
+| func_0019AA80 | 0x0019AA80 | 0x9C | 90.51% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | branch-delay-slot scheduling: target keeps nop in the beqz delay slot, both 991202 and 233 |
+| func_001AF220 | 0x001AF220 | 0x9C | 76.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | constant-propagation era difference: target reloads (lbu) D_00810700/D_00810701 before the |
+| func_001CB2C0 | 0x001CB2C0 | 0x9C | 83.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | instruction-scheduling permutation: target emits `addiu s1,a2,0x10` before `sw zero,0x10(a |
+| func_001AB6A0 | 0x001AB6A0 | 0xA0 | 90.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch lowering + delay-slot address hoist. Two residuals: (1) mwcc fills the ` |
+| func_001B32F0 | 0x001B32F0 | 0xA0 | 91.88% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Delay-slot move scheduling on the first call result. Entire tail (3 if-guards, c.le.s test |
+| func_001B65C0 | 0x001B65C0 | 0xA0 | 88.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register allocation: caller-saved temp held across a call. Body/structure fully match (gp_ |
