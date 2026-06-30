@@ -277,3 +277,17 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0015C1F0 | 0x0015C1F0 | 0x118 | 80.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Inner 3-way select (sel 0/2/1) dispatch-shape / branch-scheduling permutation: mwcc emits  |
 | func_00189EC0 | 0x00189EC0 | 0x118 | 73.00% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | switch case-body layout / branch-lowering permutation: target places the return-1/return-2 |
 | func_001FD580 | 0x001FD580 | 0x118 | 91.19% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation: instruction stream is 1:1 with the target (same opcodes,  |
+| func_001AE7E0 | 0x001AE7E0 | 0x120 | 99.10% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single delay-slot scheduling artifact: mwcc233 hoists the raw-constant `lui at,0x7000` (ab |
+| func_001B2E50 | 0x001B2E50 | 0x120 | 86.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Compiler-version guard-elision + register-allocation permutation. Target (mwcc 2.3.1.01) o |
+| func_0019A440 | 0x0019A440 | 0x124 | 83.41% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | GPR register-coloring permutation: target colors ret=$s0 / buf-base=$s1, my build swaps to |
+| func_001D9070 | 0x001D9070 | 0x124 | 96.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Pure register-coloring permutation (FPR + GPR). After splitting the inner loop into two pa |
+| func_0022A460 | 0x0022A460 | 0x124 | 82.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + scheduling permutation on a recovered nested state-machine switch. Rew |
+| func_001E7310 | 0x001E7310 | 0x128 | 99.11% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register coloring: entire float block uniformly shifted ~2 FP registers (target uses f1 |
+| func_001E7440 | 0x001E7440 | 0x128 | 99.11% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register coloring: same uniform ~2 FP-register shift as func_001E7310 (target f1/f2/f4  |
+| func_00181F60 | 0x00181F60 | 0x128 | 94.46% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two compiler artifacts: (1) instruction scheduling -- mwcc 2.3.3 emits jal func_0019A570 b |
+| func_001E7570 | 0x001E7570 | 0x128 | 98.11% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Permuter-class FP register coloring: float temp `v` and the 0.2/0.05/0.015 literal scratch |
+| func_00203D30 | 0x00203D30 | 0x128 | 78.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Permuter-class regalloc / frame-size: target keeps 5 callee-saved regs (s0-s4 = arg1/arg2/ |
+| func_001AD010 | 0x001AD010 | 0x12C | 83.45% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW instruction-scheduling + CW-specific redundant mask (same family as sibling func_001ACE |
+| func_001BBBF0 | 0x001BBBF0 | 0x12C | 84.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | instruction-scheduling permutation: original CW 2.3.1 schedules the absolute-address minue |
+| func_001A8840 | 0x001A8840 | 0x130 | 97.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | branch-delay-slot scheduling artifact: both mwcc 2.3.3 and 991202 hoist the trailing *(sho |
+| func_001A9B10 | 0x001A9B10 | 0x130 | 87.30% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + scheduling permutation (NOT clean-store nop). Body/structure 100% reco |
