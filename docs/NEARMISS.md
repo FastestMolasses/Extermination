@@ -216,3 +216,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00121870 | 0x00121870 | 0xB0 | 60.48% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Hand-written-assembly memcpy: register coloring (immutable dst base in t0, running ptrs v1 |
 | func_001AB430 | 0x001AB430 | 0xB0 | 82.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling near-miss: target hoists shared lui %hi(D_00810118) and keeps sourc |
 | func_001AB4E0 | 0x001AB4E0 | 0xB0 | 88.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Constant-materialization + register-coloring near-miss: target keeps the masked-0 (andi a2 |
+| func_001A8F40 | 0x001A8F40 | 0xBC | 85.21% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-coloring/scheduling permutation: target reloads *0x70003A20 early into $f1 and colors v |
+| func_001B0EA0 | 0x001B0EA0 | 0xC0 | 95.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Prologue instruction-scheduling artifact: body 100% identical except one instruction's pos |
+| func_001D7FA0 | 0x001D7FA0 | 0xC0 | 97.29% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-save / prologue scheduling-order permutation: target saves both callee fprs (f12- |
