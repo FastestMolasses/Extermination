@@ -10,6 +10,12 @@
 
 _start = 0x00100008;  // type:func
 
+// Split-function boundary fix (s84): splat false-split one function into a HEAD
+// (prologue, no jr ra) + TAIL (no prologue, real epilogue). 0x00140004 has zero
+// jal/jalr references — it is fall-through, not a callee. Explicit size merges
+// the pair back into one function (0x13F770..0x14043C = 0x894 + 0x438 = 0xCCC).
+func_0013F770 = 0x0013F770;  // type:func size:0xCCC
+
 // EE-kernel syscall stubs (auto-named from the public PS2 SDK
 // syscall-number table; mapped via the addiu $v1,$zero,N in each
 // stub).
