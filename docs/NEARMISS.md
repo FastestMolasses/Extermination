@@ -251,3 +251,14 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001A8BE0 | 0x001A8BE0 | 0xF4 | 94.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling / delay-slot-fill artifact: target emits the two init loads (D_0027 |
 | func_001D6E60 | 0x001D6E60 | 0xF8 | 84.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation: target materialises constants into temporaries t0-t |
 | func_0017C440 | 0x0017C440 | 0xFC | 96.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch-delay-slot scheduling: target leaves the `bne v1,v0` (idx==2 selector) d |
+| func_00187CC0 | 0x00187CC0 | 0x100 | 88.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation + instruction-scheduling permutation (logic fully recovered, structure |
+| func_001221E0 | 0x001221E0 | 0x100 | 87.08% | ee-gcc 2.9-991111-01 | ee-gcc register-allocation permutation (NOT mwcc; target uses sd/ld/daddu EABI saves -> co |
+| func_001D2730 | 0x001D2730 | 0x100 | 95.12% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation: target colors bit->s1/flags->s0/hit->s2, mwcc picks bit->s0 |
+| func_001D7410 | 0x001D7410 | 0x100 | 99.14% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation of the two loop vars: target e->s1/off->s2 with field temp i |
+| func_00206A00 | 0x00206A00 | 0x100 | 98.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling permutation: target sinks a0->s5 save into the first call's delay s |
+| func_00179450 | 0x00179450 | 0x104 | 99.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register coloring: target keeps `thr` (the +0xB4 field) in $f1 (fv0f) but mwcc 2.3.3 co |
+| func_0019B6C0 | 0x0019B6C0 | 0x104 | 81.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation ordering in the two 3-element copy loops: the target assigns the loop  |
+| func_001C5570 | 0x001C5570 | 0x108 | 98.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-materialization artifact: target holds a 16-bit-masked zero (andi v0,zero,0xffff) |
+| func_00124F58 | 0x00124F58 | 0x10C | 84.03% | ee-gcc 2.9-991111-01 | EE-GCC function, not mwcc: disasm has daddu register moves, sd/ld 8-byte saves, and pervas |
+| func_001FEE60 | 0x001FEE60 | 0x10C | 96.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation permutation: body/control-flow/gp-rel all byte-faithful (96.69% mwcc23 |
+| func_0021E9C0 | 0x0021E9C0 | 0x10C | 96.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-coloring + constant-CSE artifact: target uses call-clobbered a1 for the switch-di |
