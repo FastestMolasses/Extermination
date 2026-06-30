@@ -344,3 +344,17 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0019A570 | 0x0019A570 | 0x178 | 84.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation COLORING permuter near-miss (84.72% mwcc 2.3.3). Structure+frame size  |
 | func_001DFF70 | 0x001DFF70 | 0x178 | 91.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation COLORING + minor FP scheduling near-miss (91.97% mwcc 2.3.3). Switch l |
 | func_001D9720 | 0x001D9720 | 0x178 | 57.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | u64 GS-register bitfield-struct reconstruction wall (57.95% mwcc 2.3.3, ~75/101 instructio |
+| func_001C3BE0 | 0x001C3BE0 | 0x180 | 99.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring permutation: target colors the final vec3 copy temps f2/f1/f0 (descen |
+| func_001B6BF0 | 0x001B6BF0 | 0x180 | 92.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Multi-artifact near-miss (93.58% mwcc991): inverse-CSE of constant 8, CW empty branch-dela |
+| func_001EC270 | 0x001EC270 | 0x180 | 66.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + instruction-scheduling near-miss (82.18% mwcc991). All addressing m |
+| func_001EC470 | 0x001EC470 | 0x180 | 66.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU register-coloring + commutative add.s operand-order permutation. CW colors the int->fl |
+| func_001EC820 | 0x001EC820 | 0x180 | 66.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU register-coloring + commutative add.s operand-order permutation (identical class to fu |
+| func_001FABF0 | 0x001FABF0 | 0x180 | 98.75% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Parameter-save-order permutation. CW target saves arg2(scale)->s0 before the 'beqz a3' gua |
+| func_00158D30 | 0x00158D30 | 0x184 | 86.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring on the outer 4-way dispatch (dispatch-save-sink): the target  |
+| func_00164220 | 0x00164220 | 0x184 | 99.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring permutation at 99.588% (mwcc233). Body and all four state-mac |
+| func_0019F1A0 | 0x0019F1A0 | 0x184 | 92.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring at 92.268% (mwcc233). Every instruction is in the EXACT targe |
+| func_0021E830 | 0x0021E830 | 0x184 | 99.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | branch-likely-sense permutation: the case-1 float guard `if(arg0[0x3C] <= 160.0f)` emits a |
+| func_001CD390 | 0x001CD390 | 0x188 | 97.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | branch-delay-slot scheduling permutation: the dual float-equality guard `if (arg1[0]==0.0f |
+| func_00210030 | 0x00210030 | 0x188 | 87.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring permutation (target pins temps to volatile $f2/$f3 across whole funct |
+| func_001DD7B0 | 0x001DD7B0 | 0x188 | 64.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Whole-function instruction scheduling + register coloring over a packed GS-bitfield read-m |
+| func_0019A180 | 0x0019A180 | 0x18C | 86.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-register-coloring permutation: target colors v into f1 + each const into f0 (c.lt.s/c.l |
