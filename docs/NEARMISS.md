@@ -178,3 +178,13 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0014FBC0 | 0x0014FBC0 | 0x5CC | 72.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Scheduling/regalloc permutation. Logic fully recovered. The 991202+target leave the clean  |
 | func_001D98A0 | 0x001D98A0 | 0x638 | 83.80% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU-MAC (3-term dot-product no madd fusion) + shared-0.0f FP constant coloring in callee-s |
 | func_00196CE0 | 0x00196CE0 | 0x6B0 | 95.32% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / rematerialization + call-arg-register scheduling (permuter class), N |
+| func_0012CAA0 | 0x0012CAA0 | 0x7A0 | 98.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Permuter-class register/scheduling artifacts on an otherwise byte-faithful body (3 residua |
+| func_001809B0 | 0x001809B0 | 0x760 | 83.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Permuter-class register-coloring + FP-arg scheduling on a fully-recovered body. Residual c |
+| func_00156620 | 0x00156620 | 0x910 | 95.01% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 95.0% (mwcc233) near-miss, logic fully recovered. Residuals are NOT the clean-store nop: 4 |
+| func_001EC1F0 | 0x001EC1F0 | 0x7C | 76.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body 100% correct (93.5% mwcc991202). Two residuals, both pure scheduling artifacts no C c |
+| func_001EC3F0 | 0x001EC3F0 | 0x7C | 80.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order/instruction-scheduling permutation. CW target emits f15(1e-6f, 2-in |
+| func_001EC9A0 | 0x001EC9A0 | 0x7C | 80.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order/instruction-scheduling permutation (same class as func_001EC3F0/fun |
+| func_001ECE70 | 0x001ECE70 | 0x7C | 80.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order/instruction-scheduling permutation (same class as func_001EC3F0/fun |
+| func_001D4DA0 | 0x001D4DA0 | 0x80 | 98.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation: instruction structure byte-identical to confirmed sibling |
+| func_001FE920 | 0x001FE920 | 0x7C | 92.74% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Calling-convention/regalloc permutation: control flow, 0x20 frame with s0 save, and switch |
+| func_001D4F30 | 0x001D4F30 | 0x80 | 82.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation + scheduling permutation: loop structure, the min(t1,0x1f8) clamp, and |
