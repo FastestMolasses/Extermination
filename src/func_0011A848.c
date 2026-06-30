@@ -1,21 +1,10 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001157F0(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+extern int func_001157F0(int a, long b, int c, int d);
 
-asm void func_0011A848(void) {
-    addiu $sp, $sp, -0x10
-    ori $v0, $zero, 0xFFFF
-    sltu $v0, $v0, $a0
-    .word 0x14400007
-    sd $ra, 0x0($sp)
-    dsll32 $a1, $a0, 0
-    dsra32 $a1, $a1, 0
-    daddu $a2, $zero, $zero
-    addiu $a0, $zero, 0x4B
-    jal func_001157F0
-    daddu $a3, $zero, $zero
-    ld $ra, 0x0($sp)
-    daddu $v0, $zero, $zero
-    jr $ra
-    addiu $sp, $sp, 0x10
+int func_0011A848(unsigned long a0) {
+    if (a0 <= 0xFFFF) {
+        func_001157F0(0x4B, (long)(int)a0, 0, 0);
+    }
+    return 0;
 }
