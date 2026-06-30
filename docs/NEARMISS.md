@@ -372,3 +372,16 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001747F0 | 0x001747F0 | 0x1A4 | 97.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two register-coloring/scheduling permutations (body byte-identical): (1) original CW defer |
 | func_0017F9E0 | 0x0017F9E0 | 0x1A4 | 99.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single speculative delay-slot fill (body byte-identical): mwcc hoists the post-if merge bl |
 | func_001AF2C0 | 0x001AF2C0 | 0x1A4 | 80.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling permutation of trailing independent global stores. Insns 0-29 (zero |
+| func_0021D2E0 | 0x0021D2E0 | 0x1A4 | 99.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP operand-coloring on a single commutative add.s. Body + structure 100% recovered and byt |
+| func_00151200 | 0x00151200 | 0x1A8 | 90.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + branch-likely-sense permutation in the 4-iteration loop. Body + struct |
+| func_001B55E0 | 0x001B55E0 | 0x1A8 | 87.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/instruction-scheduling permutation. Body+structure fully recovered. Tw |
+| func_001D4FC0 | 0x001D4FC0 | 0x1A8 | 81.12% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation. Body+control-flow byte-correct in shape (caching D_ |
+| func_0019B8C0 | 0x0019B8C0 | 0x1B4 | 91.32% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / instruction-scheduling permutation. Body+structure fully recovered ( |
+| func_00148520 | 0x00148520 | 0x1B8 | 99.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + instruction-scheduling permutation at 99.27% (mwcc 2.3.3). Body fully  |
+| func_002079F0 | 0x002079F0 | 0x1B4 | 98.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + branch-sense permutation at 98.73% (mwcc 2.3.3). Body fully correct. R |
+| func_0019BA80 | 0x0019BA80 | 0x1B4 | 92.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Callee-saved register-coloring ROTATION at 92.84% (mwcc 2.3.3). Body fully correct, frame  |
+| func_001A9000 | 0x001A9000 | 0x1B8 | 94.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch-delay-slot fill at the two loop back-edges: the CW target leaves the bac |
+| func_001EB440 | 0x001EB440 | 0x1B8 | 94.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring permutation in the SECOND of two identical spawn passes (the first pa |
+| func_00188ED0 | 0x00188ED0 | 0x1BC | 93.47% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two genuine compiler artifacts downstream of correct logic: (1) one-slot scheduling of the |
+| func_001FD790 | 0x001FD790 | 0x1C0 | 57.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order swap: target colors idx->$s2 / frame->$s0, mwcc colors idx->$s0  |
+| func_0022E630 | 0x0022E630 | 0x1C0 | 85.01% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP odd-half register coloring + scheduling permutation. Body/structure/signature/all-globa |
