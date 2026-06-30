@@ -358,3 +358,17 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00210030 | 0x00210030 | 0x188 | 87.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring permutation (target pins temps to volatile $f2/$f3 across whole funct |
 | func_001DD7B0 | 0x001DD7B0 | 0x188 | 64.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Whole-function instruction scheduling + register coloring over a packed GS-bitfield read-m |
 | func_0019A180 | 0x0019A180 | 0x18C | 86.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-register-coloring permutation: target colors v into f1 + each const into f0 (c.lt.s/c.l |
+| func_0015A070 | 0x0015A070 | 0x190 | 88.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation on the outer switch dispatch: target keeps state byte live i |
+| func_00229A70 | 0x00229A70 | 0x18C | 78.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two CodeWarrior codegen artifacts: (1) arg-eval/scheduling order on the leading func_001FE |
+| func_001F1DD0 | 0x001F1DD0 | 0x190 | 97.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling near-miss (permuter territory). Body and control flow byte- |
+| func_001E0E80 | 0x001E0E80 | 0x190 | 86.12% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring near-miss (permuter territory). Body, control flow, stack layout (sp50 a |
+| func_00181730 | 0x00181730 | 0x1A0 | 95.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register coloring on the (20.5+B4) temp: target colors the 5.0f constant into f1 / B4 i |
+| func_00182DF0 | 0x00182DF0 | 0x1A0 | 99.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two artifacts at 99.18% (233): (1) mwcc hoists the lui at,0x7000 of the post-`b` 0x70003B8 |
+| func_00189FE0 | 0x00189FE0 | 0x1A0 | 98.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two artifacts at 98.26% (233): (1) mwcc materializes the sp+0x3C store address (addiu v0,s |
+| func_001AEBE0 | 0x001AEBE0 | 0x1A0 | 99.47% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation. Body + structure fully recovered and byte-identical |
+| func_002117D0 | 0x002117D0 | 0x1A0 | 90.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation (FP odd-half coloring + arg-pointer lifetime split). Full  |
+| func_00128640 | 0x00128640 | 0x1A4 | 99.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring permutation. Full logic recovered (three early-return gates on 0x7000 |
+| func_0012E0B0 | 0x0012E0B0 | 0x1A4 | 99.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW branch-target-alignment nop: original CodeWarrior pads a trailing `nop` (in the bnez de |
+| func_001747F0 | 0x001747F0 | 0x1A4 | 97.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two register-coloring/scheduling permutations (body byte-identical): (1) original CW defer |
+| func_0017F9E0 | 0x0017F9E0 | 0x1A4 | 99.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single speculative delay-slot fill (body byte-identical): mwcc hoists the post-if merge bl |
+| func_001AF2C0 | 0x001AF2C0 | 0x1A4 | 80.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling permutation of trailing independent global stores. Insns 0-29 (zero |
