@@ -1,4 +1,6 @@
-// INCLUDE_ASM func_00200A40  (vram 0x00200A40, 1472 bytes)
+// INCLUDE_ASM func_00200A40  (vram 0x00200A40, 2120 bytes)
+// NOTE (s84): merged splat false-split TAIL func_00201000 via size:0x848 in
+// symbol_addrs.txt (0x201000 has zero jal references — fall-through, not a callee).
 // UNDECOMPILED placeholder. The byte-identical machine code for this
 // function is assembled from the local splat disassembly (git-ignored;
 // regenerate with `build.py setup` from your own disc) and linked by
