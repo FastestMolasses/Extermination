@@ -88,3 +88,30 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00111950 | 0x00111950 | 0x68 | 70.38% | ee-gcc 2.9-991111-01 | Body is logically byte-correct (same instruction count, same relocs, same control flow: if |
 | func_00107098 | 0x00107098 | 0xE0 | 70.09% | ee-gcc 2.9-991111-01 | eegcc register-allocation near-miss (permuter territory). Body logic decompiled correctly  |
 | func_00117CB0 | 0x00117CB0 | 0x64 | 70.00% | ee-gcc 2.9-991111-01 | Body decoded correctly and compiles at 70%. Two residual diffs are genuine ee-gcc EE-codeg |
+| func_001021B0 | 0x001021B0 | 0xC4 | 69.98% | ee-gcc 2.9-991111-01 | Frame-size stride wall: correct readable C (DMA/IRQ spin-wait; loop body, srl, li constant |
+| func_00101CD0 | 0x00101CD0 | 0x1D8 | 69.44% | ee-gcc 2.9-991111-01 | MMIO config writer: validation branches, the 0xe000 bit-twiddle (D_002410B8/C8/D8 table lo |
+| func_001176E0 | 0x001176E0 | 0x104 | 68.60% | ee-gcc 2.9-991111-01 | eegcc forward-branch-likely wall + list-scheduler wall. Logic fully recovered: scan 0x30 e |
+| func_0011D878 | 0x0011D878 | 0x294 | 66.98% | ee-gcc 2.9-991111-01 | eegcc float-constant codegen wall. Function is fdlibm __kernel_tanf(float x,float y,int iy |
+| func_00101F08 | 0x00101F08 | 0xD8 | 66.39% | ee-gcc 2.9-991111-01 | eegcc degenerate dead-backedge codegen wall (NOT the branch-likely wall). The terminal bne |
+| func_00119C98 | 0x00119C98 | 0x6C | 65.19% | ee-gcc 2.9-991111-01 | ee-gcc reg-alloc/delay-slot wall. C reaches objdiff 96.3% (permuter best, score 100); body |
+| func_00101FE0 | 0x00101FE0 | 0xE4 | 64.70% | ee-gcc 2.9-991111-01 | Two stacked compiler-internal walls, both non-permutable. (1) Degenerate do{}while(0) inne |
+| func_0010F3B0 | 0x0010F3B0 | 0xE0 | 64.12% | ee-gcc 2.9-991111-01 | eegcc forward-branch-likely wall (confirmed s84). Decoded as a wrapper: s0=func_0010EFA8() |
+| func_00108818 | 0x00108818 | 0x88 | 63.06% | ee-gcc 2.9-991111-01 | gcc-2.9 emits movn (conditional move) for the (hi==0xFF00<<24)?0x20:0 sh-selection; target |
+| func_00114708 | 0x00114708 | 0x140 | 63.02% | ee-gcc 2.9-991111-01 | Semantics fully decoded and compile correct (D_00241D68 guard, D_0027B0C0->0x24 check retu |
+| func_001020C8 | 0x001020C8 | 0xE4 | 62.98% | ee-gcc 2.9-991111-01 | eegcc dead-single-iteration-loop shape + regalloc wall: body decoded correctly (flag-poll  |
+| func_00102368 | 0x00102368 | 0xF0 | 61.92% | ee-gcc 2.9-991111-01 | eegcc regalloc + dead-loop-codegen wall. Branch-likely actually matched here (our `bnel v1 |
+| func_001172B8 | 0x001172B8 | 0x170 | 61.66% | ee-gcc 2.9-991111-01 | eegcc forward-branch-likely wall (confirmed s84). The two table-scan loops are built entir |
+| func_00106830 | 0x00106830 | 0x114 | 60.94% | ee-gcc 2.9-991111-01 | eegcc register-hoist / frame-stride wall. Logic recovered but our ee-gcc 2.9-991111-01 all |
+| func_00110608 | 0x00110608 | 0x84 | 60.70% | ee-gcc 2.9-991111-01 | ee-gcc reg-alloc + frame-size wall. Correct-frame (0x110) C reaches objdiff 86.3% (permute |
+| func_0010A248 | 0x0010A248 | 0x4C | 57.26% | ee-gcc 2.9-991111-01 | ee-gcc list-scheduler permutation wall. Reg-alloc and all instructions match the target ex |
+| func_0010F9E0 | 0x0010F9E0 | 0xF0 | 57.15% | ee-gcc 2.9-991111-01 | eegcc codegen-shape wall (confirmed). C is semantically correct and reaches 57.15% best at |
+| func_001177E8 | 0x001177E8 | 0xD8 | 56.35% | ee-gcc 2.9-991111-01 | eegcc forward-branch-likely wall (confirmed s84). Expected emits bnel/beqzl/bnezl on the n |
+| func_0010E6F8 | 0x0010E6F8 | 0x11C | 56.27% | ee-gcc 2.9-991111-01 | eegcc forward-branch-likely + return-value coloring wall. Two non-source-crackable artifac |
+| func_0010E4C0 | 0x0010E4C0 | 0x134 | 56.21% | ee-gcc 2.9-991111-01 | Body byte-identical at correct 0x90 frame, but two deterministic ee-gcc 2.9 codegen select |
+| func_00119EA0 | 0x00119EA0 | 0x1CC | 56.05% | ee-gcc 2.9-991111-01 | eegcc forward-branch-likely wall (confirmed s84). The inner slot-scan loop (.L00119FD8) re |
+| func_00117088 | 0x00117088 | 0x22C | 55.16% | ee-gcc 2.9-991111-01 | eegcc coloring/reg-alloc wall (confirmed s84). Function fully decoded to logically-correct |
+| func_00102278 | 0x00102278 | 0xEC | 54.73% | ee-gcc 2.9-991111-01 | eegcc multi-wall (o32-vs-eabi regalloc + dead-loop idiom + frame stride). Decompiled seman |
+| func_0011A2B0 | 0x0011A2B0 | 0x1C0 | 53.72% | ee-gcc 2.9-991111-01 | eegcc frame-stride + coloring wall. Expected frame is 0x50 (4 callee-saved: keeps the 0xFF |
+| func_00112E28 | 0x00112E28 | 0x170 | 51.49% | ee-gcc 2.9-991111-01 | Structurally identical sibling of func_00111F18 (semaphore re-init, different data symbols |
+| func_00111F18 | 0x00111F18 | 0x170 | 51.49% | ee-gcc 2.9-991111-01 | Two confirmed-s84 ee-gcc walls. (1) eegcc forward-branch-likely wall: expected emits bgezl |
+| func_00106948 | 0x00106948 | 0x168 | 50.74% | ee-gcc 2.9-991111-01 | eegcc reg-alloc wall / saved-register-count divergence (confirmed s84). Instruction-for-in |
