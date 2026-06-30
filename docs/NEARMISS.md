@@ -219,3 +219,11 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001A8F40 | 0x001A8F40 | 0xBC | 85.21% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-coloring/scheduling permutation: target reloads *0x70003A20 early into $f1 and colors v |
 | func_001B0EA0 | 0x001B0EA0 | 0xC0 | 95.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Prologue instruction-scheduling artifact: body 100% identical except one instruction's pos |
 | func_001D7FA0 | 0x001D7FA0 | 0xC0 | 97.29% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-save / prologue scheduling-order permutation: target saves both callee fprs (f12- |
+| func_001AE5E0 | 0x001AE5E0 | 0xC4 | 89.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body fully recovered. Sole residual is a pure list-scheduler permutation of the two indepe |
+| func_001D37D0 | 0x001D37D0 | 0xC4 | 95.41% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body fully recovered (reload idiom #10 applied: *slot is reloaded before each of the 4 fie |
+| func_00180460 | 0x00180460 | 0xC8 | 99.80% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-register-coloring on the commutative add.s. Target loads *(float*)0x700038A4 into $f1 a |
+| func_0021D530 | 0x0021D530 | 0xC4 | 98.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Delay-slot scheduling (inverse of the clean-store-nop case). The original CodeWarrior buil |
+| func_00206BF0 | 0x00206BF0 | 0xC8 | 97.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single-store addressing-mode/scheduling artifact: the CW target materializes &v34 into a r |
+| func_001AF5C0 | 0x001AF5C0 | 0xCC | 81.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Store-scheduling artifact: source order already matches the CW target exactly (C4,B2, floa |
+| func_00205740 | 0x00205740 | 0xCC | 94.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling near-miss (94.9%, mwcc233): logic fully recovered, identical instru |
+| func_001D7510 | 0x001D7510 | 0xD0 | 57.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling near-miss (57.7%, mwcc233): logic fully recovered, identica |
