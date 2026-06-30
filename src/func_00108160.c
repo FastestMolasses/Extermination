@@ -1,11 +1,35 @@
-// INCLUDE_ASM func_00108160  (vram 0x00108160, 232 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_00108160.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+
+extern void func_001063B8(int arg);
+extern int func_00109B20(int chan, void *buf);
+extern int D_002412F4;
+
+void func_00108160(int src, int qwc)
+{
+  int local[8];
+  while ((*((volatile int *) 0x10002010)) < 0)
+  {
+    ;
+  }
+
+  *((volatile int *) 0x1000B010) = src & 0x0FFFFFFF;
+  *((volatile int *) 0x1000B020) = qwc << 6;
+  *((volatile int *) 0x1000B000) = 0x100;
+  func_001063B8(0x70000000 | qwc);
+  {
+    int chan = D_002412F4;
+    local[0] = 4;
+    func_00109B20(chan, local);
+  }
+  while (((*((volatile unsigned int *) 0x1000B000)) >> 8) & 1)
+  {
+    ;
+  }
+
+  while ((*((volatile int *) 0x10002010)) < 0)
+  {
+    ;
+  }
+
+}
