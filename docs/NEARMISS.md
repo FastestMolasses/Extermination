@@ -318,3 +318,16 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00180850 | 0x00180850 | 0x154 | 99.76% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | prologue parameter-save MOVE-ORDER permutation: target emits a1->s1 (flag) before a0->s3 ( |
 | func_00158BD0 | 0x00158BD0 | 0x154 | 90.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | two regalloc/scheduling permutations: (1) dispatch save-sink — target keeps switch byte in |
 | func_0018D7B0 | 0x0018D7B0 | 0x154 | 96.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch lowering: target keeps explicit `beq s1,1,body / nop / b epilogue` (ente |
+| func_001FC3C0 | 0x001FC3C0 | 0x154 | 86.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring (s0/s1/s2 assignment order) + one scheduling reorder of the f |
+| func_00199C50 | 0x00199C50 | 0x158 | 90.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Loop-counter / table-index register coloring + minor scheduling of the 2nd loop's mult set |
+| func_00176180 | 0x00176180 | 0x158 | 97.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single FP-load scheduling/coloring artifact: target hoists the *0x700031C8 lwc1 into the s |
+| func_001DA080 | 0x001DA080 | 0x158 | 98.81% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring permutation: body and structure are byte-correct except for a |
+| func_001E0380 | 0x001E0380 | 0x158 | 94.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-register coloring + scheduling permutation. After fixing frame size (sp90 is a 0x40-byt |
+| func_001AA140 | 0x001AA140 | 0x15C | 93.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + instruction-scheduling permutation (NOT the clean-store nop). Body 100 |
+| func_001AAA90 | 0x001AAA90 | 0x164 | 99.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single-instruction residual: both mwcc builds speculatively hoist the store-block address  |
+| func_001C5FB0 | 0x001C5FB0 | 0x164 | 86.57% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/control-flow byte-identical; every residual is a saved-register coloring permutation  |
+| func_00127E40 | 0x00127E40 | 0x160 | 50.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Compiler-version / stack-codegen wall: target uses a 0x50 frame with 8-byte `sd` $ra/$s0 s |
+| func_001D3F60 | 0x001D3F60 | 0x164 | 88.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring + entry callee-save order. Body/structure fully faithful (op- |
+| func_00177B80 | 0x00177B80 | 0x168 | 95.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Argument-setup scheduling + one int-constant regalloc. Body/structure/logic fully faithful |
+| func_00127230 | 0x00127230 | 0x168 | 94.56% | ee-gcc 2.9-991111-01 | ee-gcc register-allocation coloring. NOTE: this func is Sony PS2 SDK softfloat-library cod |
+| func_001B30E0 | 0x001B30E0 | 0x168 | 98.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation. Body/structure/control-flow/branch-senses/FP-compare orde |
