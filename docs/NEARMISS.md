@@ -188,3 +188,12 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001D4DA0 | 0x001D4DA0 | 0x80 | 98.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation: instruction structure byte-identical to confirmed sibling |
 | func_001FE920 | 0x001FE920 | 0x7C | 92.74% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Calling-convention/regalloc permutation: control flow, 0x20 frame with s0 save, and switch |
 | func_001D4F30 | 0x001D4F30 | 0x80 | 82.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation + scheduling permutation: loop structure, the min(t1,0x1f8) clamp, and |
+| func_00128B80 | 0x00128B80 | 0x84 | 83.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch lowering / dead trailing return-0 block. Body, stores, call, and the con |
+| func_001AA840 | 0x001AA840 | 0x84 | 84.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation wall: live-across-call values in caller-saved temps vs mwcc's callee-s |
+| func_001AF800 | 0x001AF800 | 0x84 | 59.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two compounding 2.3.1 artifacts neither 991 nor 233 fixes (991=73.42% best; 233 regresses  |
+| func_001FECB0 | 0x001FECB0 | 0x84 | 84.70% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Regalloc/constant-rematerialization permutation: target keeps compare constant 1 live in v |
+| func_001FE9E0 | 0x001FE9E0 | 0x88 | 78.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Constant-rematerialization + branch-sense permutation: target re-emits li v0,1 inside each |
+| func_00173DD0 | 0x00173DD0 | 0x8C | 94.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | reloc-pair interleave: CW materializes &D_002486F0 as split lui/addiu/lq (full GPR address |
+| func_00228320 | 0x00228320 | 0x8C | 76.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation / instruction-scheduling: CW keeps the 3-int stack temp via dead-store |
+| func_0017F130 | 0x0017F130 | 0x90 | 84.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc-vs-CW branch lowering + FP move order: CW lowers the mode-4 `return func()!=0` as an  |
+| func_00183910 | 0x00183910 | 0x90 | 94.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-coloring / delay-slot scheduling: CW keeps arg0 in $a0 across the dispatch and co |
