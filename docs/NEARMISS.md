@@ -227,3 +227,15 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001AF5C0 | 0x001AF5C0 | 0xCC | 81.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Store-scheduling artifact: source order already matches the CW target exactly (C4,B2, floa |
 | func_00205740 | 0x00205740 | 0xCC | 94.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling near-miss (94.9%, mwcc233): logic fully recovered, identical instru |
 | func_001D7510 | 0x001D7510 | 0xD0 | 57.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling near-miss (57.7%, mwcc233): logic fully recovered, identica |
+| func_001FAFD0 | 0x001FAFD0 | 0xD8 | 70.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Branch-lowering + delay-slot-scheduling permutation: distinct early-return epilogue (ra-re |
+| func_001A8DA0 | 0x001A8DA0 | 0xDC | 87.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling / delay-slot-fill permutation only (register coloring s0=e,s1=p,s2= |
+| func_001D64A0 | 0x001D64A0 | 0xDC | 90.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring (target colors address/const temporaries $t0-$t4; mwcc picks  |
+| func_001FCE30 | 0x001FCE30 | 0xE0 | 74.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/addressing/both dispatch arms byte-identical. Sole residual is the packed-p |
+| func_00203E60 | 0x00203E60 | 0xE0 | 91.00% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/control-flow/param-mapping (leading unused arg, real params $a1/$a2)/addressing (0x50 |
+| func_00157F60 | 0x00157F60 | 0xE4 | 96.75% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation-order permutation: body 100% correct (all opcodes/order match), sole r |
+| func_0017FB90 | 0x0017FB90 | 0xE4 | 99.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-register-coloring permutation: single commutative add.s where target uses the pi/2 cons |
+| func_001CEEE0 | 0x001CEEE0 | 0xE4 | 83.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | prologue instruction-scheduling + 128-bit-load register coloring: logic fully recovered an |
+| func_001EBC30 | 0x001EBC30 | 0xE4 | 73.30% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order / instruction-scheduling permutation. Body 100% logically correct,  |
+| func_001EBD20 | 0x001EBD20 | 0xE4 | 73.30% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order / instruction-scheduling permutation, identical to func_001EBC30 (s |
+| func_001FD6A0 | 0x001FD6A0 | 0xE4 | 60.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / loop-induction-variable permutation. Instruction content matches (sa |
+| func_0019B7D0 | 0x0019B7D0 | 0xE8 | 92.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Scheduler delay-slot-fill artifact (mwcc 2.3.3 vs 2.3.1 target). 233 fills the `beqz s0` b |
