@@ -1,71 +1,62 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00110AB8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_00110E58(void) {
-    .word 0x27bdffd0
-    .word 0xffb10010
-    .word 0xffb00000
-    .word 0x00e0882d
-    .word 0xffbf0020
-    jal       func_00110AB8
-    .word 0x00c0802d
-    .word 0x0040202d
-    .word 0x90830072
-    .word 0x24020001
-    .word 0x14620032
-    .word 0x0000102d
-    .word 0x90820071
-    .word 0x24050002
-    .word 0x1045002e
-    .word 0x0000102d
-    .word 0x12050013
-    .word 0x2a020003
-    .word 0x10400005
-    .word 0x24020003
-    .word 0x12030009
-    .word 0x0000102d
-    .word 0x10000027
-    .word 0xdfbf0020
-    .word 0x12020011
-    .word 0x24020004
-    .word 0x12020014
-    .word 0x0000102d
-    .word 0x10000021
-    .word 0xdfbf0020
-    .word 0x90830065
-    .word 0x240200f3
-    .word 0x1062001b
-    .word 0x00031102
-    .word 0x1000001b
-    .word 0xdfbf0020
-    .word 0x90820064
-    .word 0x10430017
-    .word 0x0000102d
-    .word 0x90830069
-    .word 0x10000010
-    .word 0x00031840
-    .word 0x90820064
-    .word 0x10430011
-    .word 0x0000102d
-    .word 0x1000000f
-    .word 0x90820069
-    .word 0x90820064
-    .word 0x1043000b
-    .word 0x2402ffff
-    .word 0x16220003
-    .word 0x90820068
-    .word 0x10000009
-    .word 0xdfbf0020
-    .word 0x0222102a
-    .word 0x10400004
-    .word 0x00111840
-    .word 0x00831821
-    .word 0x10000002
-    .word 0x94620050
-    .word 0x0000102d
-    .word 0xdfbf0020
-    .word 0xdfb10010
-    .word 0xdfb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+extern unsigned char *func_00110AB8(int a, int b, int c, int d);
+int func_00110E58(int a, int b, int c, int d)
+{
+  unsigned char *p = func_00110AB8(a, b, c, d);
+  unsigned char e = p[0x72];
+  int new_var;
+  if (e != 1)
+  {
+    return 0;
+  }
+  if (p[0x71] == 2)
+  {
+    return 0;
+  }
+  switch (c)
+  {
+    case 1:
+      if (p[0x65] == 0xF3)
+    {
+      return 0;
+    }
+      return p[0x65] >> 4;
+
+    case 2:
+      if (p[0x64] == e)
+    {
+      return 0;
+    }
+      return *((unsigned short *) ((p + 0x50) - (-(p[0x69] << 1))));
+
+    case 3:
+      if (p[0x64] == e)
+    {
+      return 0;
+    }
+      return p[0x69];
+
+    case 4:
+      if (p[0x64] == e)
+    {
+      return 0;
+    }
+      new_var = d;
+      if (d == (-1))
+    {
+      return p[0x68];
+    }
+      if (new_var >= p[0x68])
+    {
+      return 0;
+    }
+      return *((unsigned short *) ((p + 0x50) - (-(new_var << 1))));
+
+    default:
+      return 0;
+
+  }
+
 }
