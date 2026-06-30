@@ -124,3 +124,15 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001EAF00 | 0x001EAF00 | 0x7C | 80.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical wall to func_001EACF0 (same template, const 5.0f, table D_002557D0, flag 1): FP- |
 | func_001EBBB0 | 0x001EBBB0 | 0x7C | 80.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical wall to func_001EACF0 (same template, const 3.0f, table D_002561F0, flag 1): FP- |
 | func_001EBE10 | 0x001EBE10 | 0x7C | 80.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order / instruction-scheduling permutation: CW target emits the f15(1e-6f |
+| func_001281C0 | 0x001281C0 | 0x8C | 78.29% | ee-gcc 2.9-991111-01 | ee-gcc codegen function (not mwcc): boot uses sd/ld $ra, xori-equality, sltiu, movn. Body  |
+| func_001D9EE0 | 0x001D9EE0 | 0x194 | 99.75% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.75% mwcc 2.3.3 (-sdatathreshold 4). Body byte-identical; sole residual is a register-co |
+| func_001EF780 | 0x001EF780 | 0x1B4 | 97.60% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register coloring / paired-single allocation + order of materializing the two call-argu |
+| func_001F6BB0 | 0x001F6BB0 | 0x1A8 | 78.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch lowering (NOT logic): (1) original CodeWarrior left an unfilled nop in t |
+| func_001D8690 | 0x001D8690 | 0x220 | 97.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body fully correct (gp-rel reload-per-access reproduced, sized-array non-gp 0x28 symbols). |
+| func_001D89D0 | 0x001D89D0 | 0x21C | 97.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body fully correct: 5-arg func_001D8340 (pointer as 5th arg) per matched sibling func_001D |
+| func_001FA330 | 0x001FA330 | 0x234 | 95.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | regalloc |
+| func_001EF510 | 0x001EF510 | 0x26C | 98.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | instruction-scheduling permutation: the target reverses the f14(1.0f)/f15(9.99e-7) immedia |
+| func_001E7050 | 0x001E7050 | 0x2B4 | 97.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation-order (coloring) permutation: target colors src->s1 and the 0x1F0 tabl |
+| func_0012D580 | 0x0012D580 | 0x2C4 | 96.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | branch-delay-slot scheduling permutation: target (CW 2.3.1) leaves explicit NOPs in the sw |
+| func_001FF3F0 | 0x001FF3F0 | 0x19C | 87.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 87.9% mwcc 2.3.3 (-sdatathreshold 4). Body/4-state control flow byte-correct (gp-rel point |
+| func_001FF1E0 | 0x001FF1E0 | 0x210 | 82.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body fully correct (resource-bank streamer): gp-rel D_00275C70 vs non-gp 0x28xxxx symbols  |

@@ -127,7 +127,12 @@ for r in cand:
             p = pct(f)
         if p == 100.0:
             kept.append(f); print(f"  {f} -> 100.0 KEEP (match)"); continue
-    if p is not None and NEARMISS_MIN <= p < 100.0 and not oversize:
+    # NOTE: oversize is IRRELEVANT for NEARMISS — the linker fills bytes from the
+    # splat .s, never the (oversize) build/obj, so byte-identity holds regardless.
+    # The oversize guard only matters for the 100%-match path above (where build/obj
+    # IS linked). objdiff's % may be slightly inflated on an oversize obj (it ignores
+    # extra trailing instrs); that only affects the documented %, not correctness.
+    if p is not None and NEARMISS_MIN <= p < 100.0:
         content, sz, reason, cc = nearmiss_file(f, r["c_source"], p, comp, fl, r.get("wall", ""))
         open(f"src/{f}.c", "w").write(content)
         if os.path.exists(f"build/obj/{f}.o"): os.remove(f"build/obj/{f}.o")
