@@ -136,3 +136,18 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0012D580 | 0x0012D580 | 0x2C4 | 96.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | branch-delay-slot scheduling permutation: target (CW 2.3.1) leaves explicit NOPs in the sw |
 | func_001FF3F0 | 0x001FF3F0 | 0x19C | 87.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 87.9% mwcc 2.3.3 (-sdatathreshold 4). Body/4-state control flow byte-correct (gp-rel point |
 | func_001FF1E0 | 0x001FF1E0 | 0x210 | 82.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body fully correct (resource-bank streamer): gp-rel D_00275C70 vs non-gp 0x28xxxx symbols  |
+| func_0018B9C0 | 0x0018B9C0 | 0x25C | 84.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + branch-likely-lowering scheduling permuter class. Logic fully recovere |
+| func_001FA0D0 | 0x001FA0D0 | 0x260 | 92.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring / store-scheduling permuter class. Logic fully recovered. Two artifacts  |
+| func_0017F320 | 0x0017F320 | 0x2C4 | 97.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Pure delay-slot-fill / scheduling permuter class. Logic fully recovered (97.6%). The three |
+| func_0017C580 | 0x0017C580 | 0x2D4 | 98.78% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.78% near-miss, logic fully recovered. 2 residual instrs: (1) register-allocation permut |
+| func_00191D40 | 0x00191D40 | 0x2C4 | 91.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 91.27% near-miss, logic fully recovered and FP register coloring (fparg1=f21, delta=f20, f |
+| func_001F9820 | 0x001F9820 | 0x300 | 95.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling permutation in channels 3 and 4: mwcc places the D_00275B24/B20 sou |
+| func_001EEBA0 | 0x001EEBA0 | 0x30C | 97.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two permuter-class residuals (NOT the clean-store nop): (1) the middle of three identical  |
+| func_001EEEB0 | 0x001EEEB0 | 0x30C | 97.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical residual class to its twin func_001EEBA0 (NOT the clean-store nop): middle-itera |
+| func_001FBF50 | 0x001FBF50 | 0x328 | 99.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + 2-instruction delay-slot scheduling near-miss. Body/structure fully |
+| func_001FA790 | 0x001FA790 | 0x328 | 89.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-ORDER permutation. Body and control flow fully recovered and logically |
+| func_0017B910 | 0x0017B910 | 0x330 | 80.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Branch-likely scheduling + FP register-coloring near-miss. Body and control flow fully rec |
+| func_0012D240 | 0x0012D240 | 0x33C | 98.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | State-dispatch register coloring + branch-likely lowering + addu operand commutation; see  |
+| func_001ED450 | 0x001ED450 | 0x348 | 94.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant register-coloring permutation in the func_001CFB50 call setup. Body/structure  |
+| func_001ED7A0 | 0x001ED7A0 | 0x34C | 95.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant register-coloring permutation in the func_001CFB50 call setup -- same class an |
+| func_001EDAF0 | 0x001EDAF0 | 0x34C | 82.52% | mwcc 2.3 (mwcps2-2.3-991202) | FP-constant emit-order + float-div/int-mul instruction scheduling + FP register-coloring p |
