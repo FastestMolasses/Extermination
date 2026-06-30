@@ -100,8 +100,17 @@ def nearmiss_file(f, c_source, p, comp, fl, wall):
         m = re.search(r'0x([0-9A-Fa-f]+)', open(f"{A}/{f}.s").readline())
         if m: sz = f"0x{int(m.group(1),16):X} bytes"
     except Exception: pass
-    body = "\n".join(l for l in c_source.splitlines()
-                     if not l.strip().startswith("// COMPILER:") and not l.strip().startswith("// CFLAGS:")).lstrip("\n")
+    # Body = everything AFTER the last // COMPILER / // CFLAGS directive line. This
+    # drops any agent-supplied // NEARMISS header (which precedes // COMPILER) so we
+    # never double-wrap, while KEEPING a // SEMANTICS comment block that follows the
+    # directives (valuable function documentation).
+    lines = c_source.splitlines()
+    start = 0
+    for i, l in enumerate(lines):
+        s = l.strip()
+        if s.startswith("// COMPILER:") or s.startswith("// CFLAGS:"):
+            start = i + 1
+    body = "\n".join(lines[start:]).lstrip("\n")
     reason = re.sub(r'\s+', ' ', (wall or "compiler artifact (register coloring / scheduling)").strip())
     if len(reason) > 300: reason = reason[:297] + "..."
     cc = COMPILER_LONG.get(comp, comp)

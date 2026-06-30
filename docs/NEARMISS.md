@@ -151,3 +151,17 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001ED450 | 0x001ED450 | 0x348 | 94.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant register-coloring permutation in the func_001CFB50 call setup. Body/structure  |
 | func_001ED7A0 | 0x001ED7A0 | 0x34C | 95.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant register-coloring permutation in the func_001CFB50 call setup -- same class an |
 | func_001EDAF0 | 0x001EDAF0 | 0x34C | 82.52% | mwcc 2.3 (mwcps2-2.3-991202) | FP-constant emit-order + float-div/int-mul instruction scheduling + FP register-coloring p |
+| func_001EDE40 | 0x001EDE40 | 0x34C | 82.52% | mwcc 2.3 (mwcps2-2.3-991202) | Body and structure fully recovered (objdiff 82.52% via mwcc 991202 -O4,p -sdatathreshold 4 |
+| func_001EE190 | 0x001EE190 | 0x350 | 83.68% | mwcc 2.3 (mwcps2-2.3-991202) | Body and structure fully recovered (objdiff 83.68% via mwcc 991202 -O4,p -sdatathreshold 4 |
+| func_001EE4E0 | 0x001EE4E0 | 0x350 | 85.78% | mwcc 2.3 (mwcps2-2.3-991202) | see above |
+| func_001EF1C0 | 0x001EF1C0 | 0x350 | 96.57% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring permutation in the func_001CFB50 call setup. Body/structure/init-bloc |
+| func_001EE830 | 0x001EE830 | 0x364 | 95.88% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring permutation in the func_001CFB50 call setup, identical to sibling fun |
+| func_001EF9D0 | 0x001EF9D0 | 0x350 | 88.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Integer register-allocation/coloring permutation. Logic, control flow, both switch dispatc |
+| func_001D91A0 | 0x001D91A0 | 0x388 | 94.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation (permuter territory): callee-saved coloring of the 4 |
+| func_001DA310 | 0x001DA310 | 0x384 | 93.21% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation (permuter territory). Body+control flow fully r |
+| func_0018ABA0 | 0x0018ABA0 | 0x3A4 | 99.57% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-compare delay-slot scheduling: target speculates `addiu a0,s0,0xA0` (else-arm call arg) |
+| func_001509A0 | 0x001509A0 | 0x400 | 96.48% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP even/odd register-coloring permutation: in the three easing tails the target pairs the  |
+| func_0012B410 | 0x0012B410 | 0x434 | 98.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring near-miss (98.31% on mwcc 2.3.3; logic fully recovered). Body, the 5-way |
+| func_00156F30 | 0x00156F30 | 0x430 | 91.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-register-half coloring + scheduling near-miss (91.50% on mwcc 2.3.3; logic fully recove |
+| func_0015FDF0 | 0x0015FDF0 | 0x42C | 91.01% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | see above |
+| func_001F88C0 | 0x001F88C0 | 0x46C | 93.45% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation + FP-register coloring permutation. Body and control flow are byte-ide |
