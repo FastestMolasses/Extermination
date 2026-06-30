@@ -412,3 +412,18 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001EB600 | 0x001EB600 | 0x1F0 | 89.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + float-constant scheduling in the two func_001CFB50 arg setups. Body |
 | func_00205050 | 0x00205050 | 0x1F0 | 88.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual codegen artifacts after full logic recovery (88.9% mwcc233 vs 69.6% 991202):  |
 | func_00131740 | 0x00131740 | 0x1F4 | 93.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling / delay-slot-fill / branch-likely lowering permutation. Body and st |
+| func_0016BC40 | 0x0016BC40 | 0x1F8 | 94.41% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body-correct near-miss at 94.4% (mwcc 2.3.3; 991202=85.9%). Full per-state switch dispatch |
+| func_001D40E0 | 0x001D40E0 | 0x1F8 | 96.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body-correct near-miss at 96.5% (mwcc 2.3.3; 991202=76.2%). Full logic recovered: VIF/DMA  |
+| func_001D4440 | 0x001D4440 | 0x1F8 | 96.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body-correct near-miss at 96.5% (mwcc 2.3.3; 991202=75.7%). Exact twin of func_001D40E0 (s |
+| func_00137C80 | 0x00137C80 | 0x200 | 99.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-arg emit-order artifact. Body is byte-identical except ONE swapped pair: the anim_clip_ |
+| func_00198240 | 0x00198240 | 0x200 | 98.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Branch delay-slot fill artifact. Body byte-identical except the `r == 1` dispatch branch:  |
+| func_0012ADC0 | 0x0012ADC0 | 0x1FC | 84.02% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | List-scheduling + param-save-order artifact across a large global-store block. The control |
+| func_0019B2C0 | 0x0019B2C0 | 0x200 | 96.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | idiom-13 const-store delay-slot NOP x2: target leaves a NOP in the beqz delay slot before  |
+| func_0019B4C0 | 0x0019B4C0 | 0x200 | 96.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | idiom-13 const-store delay-slot NOP x2 (else-store 0x700031D0 + flags&0x80000000 guard, ta |
+| func_001FC7B0 | 0x001FC7B0 | 0x200 | 61.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Whole-function register-allocation ORDER on a recursive text-wrap parser: structure, branc |
+| func_00225AC0 | 0x00225AC0 | 0x200 | 95.54% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Scheduling near-miss. Body byte-identical after goto-shared-return-0 reshape + large-array |
+| func_00198440 | 0x00198440 | 0x204 | 96.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-coloring + scheduling near-miss. Body byte-identical after fixing the float const (0.4f |
+| func_002044F0 | 0x002044F0 | 0x204 | 92.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation near-miss. Logic fully recovered & body byte-identical (fixed the 64-b |
+| func_00147390 | 0x00147390 | 0x210 | 95.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Outer mode-switch dispatch lowering: the target tests the mode byte in DESCENDING order (b |
+| func_001D4750 | 0x001D4750 | 0x210 | 93.42% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual regions, both compiler artifacts (not the clean-store nop). (1) GS/DMA packet |
+| func_0013EB90 | 0x0013EB90 | 0x214 | 92.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation (NOT clean-store delay-slot nop). Logic + struc |
