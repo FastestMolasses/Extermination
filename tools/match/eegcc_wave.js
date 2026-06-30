@@ -43,6 +43,8 @@ FAST-PARK (≤2 tries — these are CONFIRMED uncrackable s84, do NOT burn the f
 - **List-scheduler adjacent-op swap**: two adjacent independent ops swapped (e.g. const-materialize-first vs address-first); ee-gcc 2.9 deterministic. PARK "eegcc list-scheduler wall".
 - **Sibling/tail-call**: final discarded call emitted as \`j func_\` (gcc 2.9 has no -fno-optimize-sibling-calls). PARK "eegcc sibling-call wall".
 Do NOT run the permuter on any of the four above (scorer normalizes the diff / plateaus).
+- **"o32-vs-eabi" is a MISDIAGNOSIS (confirmed s84)**: o32 is NOT available in ee-gcc 2.9-991111-01 (cc1 rejects -mabi=o32 "bad value" and -mabi=32 "does not work yet"; eabi is the only/default ABI, and the 211 matched funcs prove eabi is correct). The t0/t1/t2/t3-vs-a4/a5/a6/a7 naming objdiff shows is COSMETIC (identical physical regs $12-$15, non-counting). If you think you see "o32 arg passing", it's really a list-scheduler/regalloc wall — PARK as that, do NOT try to change ABI (there's no flag).
+- **eegcc coloring/reg-alloc near-misses have NO permuter lever (confirmed s84)**: unlike mwcc, the ee-gcc permuter NEVER reaches score 0 on coloring (tested on 5 cleanest, all plateaued). If the sole residual is GPR coloring (e.g. v0-vs-v1, s0<->s1, a0-vs-a2 for a pointer), PARK directly — don't run the permuter.
 
 On a TRUE 100.0 (objdiff AND .text size == expected): matched=true, c_source = FULL committed-ready file (the two markers + readable C body), pct=100. Else matched=false, pct=best, wall=precise reason.
 RULES: touch ONLY build/agent_${id}/ ; never canonical build/obj|expected, src/, objdiff.json, tools/; never run build.py/verify_all/git. No disc disasm to external context.
