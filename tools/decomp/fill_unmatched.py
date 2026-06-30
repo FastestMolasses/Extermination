@@ -646,10 +646,12 @@ def assemble_one(name: str, slot_size: int = 0) -> tuple[str, str, Exception | N
     # Cross-label functions need -L + globalize-symbol post-processing.
     keep_locals = name in CROSS_LABEL_FUNCS
 
-    # SAFETY: a function whose src/<name>.c is an INCLUDE_ASM stub is NOT a
-    # decompiled unit — its byte-exact code must come from the splat .s, never
-    # from a (possibly stale/non-matching) build/obj/<name>.o left behind by a
-    # tool or agent. Linking a stub's stale obj silently breaks byte-identity.
+    # SAFETY: a function whose src/<name>.c is an INCLUDE_ASM stub OR a NEARMISS
+    # file is NOT a byte-matched unit — its byte-exact code must come from the
+    # splat .s, never from a (possibly stale/non-matching) build/obj/<name>.o.
+    # INCLUDE_ASM = undecompiled placeholder; NEARMISS = readable-but-not-byte-
+    # identical decompilation (compiler artifact). Both: link from .s, never the
+    # compiled obj — linking a non-matching obj silently breaks byte-identity.
     src_c = ROOT / "src" / f"{name}.c"
     is_stub = False
     if src_c.exists():
@@ -658,7 +660,7 @@ def assemble_one(name: str, slot_size: int = 0) -> tuple[str, str, Exception | N
                 _s = _line.strip()
                 if not _s:
                     continue
-                is_stub = _s.startswith("// INCLUDE_ASM")
+                is_stub = _s.startswith("// INCLUDE_ASM") or _s.startswith("// NEARMISS")
                 break
         except OSError:
             pass

@@ -41,13 +41,19 @@ CFLAGS = "-O4,p"
 
 
 def is_asm_stub(path: Path) -> bool:
-    """True if src/<name>.c is an INCLUDE_ASM stub (undecompiled placeholder).
+    """True if src/<name>.c's bytes come from the splat .s, not from compiling it.
 
-    A stub is a committed per-function file whose byte-identical machine code is
-    supplied by the locally-assembled splat disassembly (fill_unmatched.py), NOT
-    by compiling this C.  It exists so every function is a claimable unit without
-    committing the disassembly.  Marked by a first-line `// INCLUDE_ASM` comment.
-    Stubs are skipped by compile/expected/objdiff; the linker assembles their .s.
+    Two kinds qualify, both marked by a first-line comment:
+      • `// INCLUDE_ASM` — undecompiled placeholder (no readable C body).
+      • `// NEARMISS`    — readable decompilation that is NOT byte-identical (a
+        genuine compiler artifact: register coloring / scheduling / branch-likely
+        / etc. that no source change can fix). The readable C body IS present as
+        faithful ground truth for the port, but the linker fills the function from
+        the splat .s (byte-identical), and it is NOT compiled or counted as an
+        objdiff unit (so matched_code measures only true byte-match attempts).
+        Each NEARMISS file documents its objdiff % and the precise divergence; the
+        global registry is docs/NEARMISS.md.
+    Both are skipped by compile/expected/objdiff; the linker assembles their .s.
     """
     try:
         with path.open() as f:
@@ -55,7 +61,7 @@ def is_asm_stub(path: Path) -> bool:
                 line = line.strip()
                 if not line:
                     continue
-                return line.startswith("// INCLUDE_ASM")
+                return line.startswith("// INCLUDE_ASM") or line.startswith("// NEARMISS")
     except OSError:
         pass
     return False
