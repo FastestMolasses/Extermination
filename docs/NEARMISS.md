@@ -262,3 +262,18 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00124F58 | 0x00124F58 | 0x10C | 84.03% | ee-gcc 2.9-991111-01 | EE-GCC function, not mwcc: disasm has daddu register moves, sd/ld 8-byte saves, and pervas |
 | func_001FEE60 | 0x001FEE60 | 0x10C | 96.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation permutation: body/control-flow/gp-rel all byte-faithful (96.69% mwcc23 |
 | func_0021E9C0 | 0x0021E9C0 | 0x10C | 96.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-coloring + constant-CSE artifact: target uses call-clobbered a1 for the switch-di |
+| func_0014A620 | 0x0014A620 | 0x110 | 96.76% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation/scheduling artifact. Body 100% logically correct (3-way state dispatch |
+| func_001CABA0 | 0x001CABA0 | 0x110 | 93.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation/scheduling artifact. Body 100% logically complete & faithful. Keys tha |
+| func_001D3E40 | 0x001D3E40 | 0x110 | 71.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation/scheduling artifact. Body logically complete & faithful (verified op-f |
+| func_001284E0 | 0x001284E0 | 0x114 | 99.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring (permuter-class): the < 0xB guard's slti destination is $v0 ( |
+| func_00145880 | 0x00145880 | 0x114 | 99.57% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-register coloring (permuter-class): several reloaded float temps land in $f2/$ft0 vs ta |
+| func_002081A0 | 0x002081A0 | 0x110 | 50.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Pervasive register-allocation coloring + mwcc list-scheduling of the GIF-tag constant comp |
+| func_0014AE80 | 0x0014AE80 | 0x114 | 99.54% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring permutation: target carries the decayed timer t in $f0 and freshly-lo |
+| func_00188430 | 0x00188430 | 0x114 | 82.04% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Three stacked artifacts: (1) GPR coloring swap arg0=$s1/n=$s0 (mwcc emits $s0/$s1, cascade |
+| func_001A9360 | 0x001A9360 | 0x114 | 92.45% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + load-scheduling permutation around the v/sq compute: target loads t |
+| func_001CA0A0 | 0x001CA0A0 | 0x114 | 99.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body byte-identical (insns 7-68). Sole residual: clamp branch delay-slot fill. Target leav |
+| func_001D21E0 | 0x001D21E0 | 0x114 | 70.78% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Head (dma_wait_and_submit block, insns 18-22) and tail (func_00101F08 with field_9C<<14, i |
+| func_001F9660 | 0x001F9660 | 0x114 | 96.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | All logic, case constants, store values, branch-likely (beql) dispatch, and single shared  |
+| func_0015C1F0 | 0x0015C1F0 | 0x118 | 80.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Inner 3-way select (sel 0/2/1) dispatch-shape / branch-scheduling permutation: mwcc emits  |
+| func_00189EC0 | 0x00189EC0 | 0x118 | 73.00% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | switch case-body layout / branch-lowering permutation: target places the return-1/return-2 |
+| func_001FD580 | 0x001FD580 | 0x118 | 91.19% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation: instruction stream is 1:1 with the target (same opcodes,  |
