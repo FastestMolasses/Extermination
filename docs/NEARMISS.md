@@ -331,3 +331,16 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00177B80 | 0x00177B80 | 0x168 | 95.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Argument-setup scheduling + one int-constant regalloc. Body/structure/logic fully faithful |
 | func_00127230 | 0x00127230 | 0x168 | 94.56% | ee-gcc 2.9-991111-01 | ee-gcc register-allocation coloring. NOTE: this func is Sony PS2 SDK softfloat-library cod |
 | func_001B30E0 | 0x001B30E0 | 0x168 | 98.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation. Body/structure/control-flow/branch-senses/FP-compare orde |
+| func_0019A910 | 0x0019A910 | 0x16C | 81.29% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring + delay-slot scheduling. Body/structure fully recovered and v |
+| func_001B1630 | 0x001B1630 | 0x16C | 96.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP instruction-scheduling / register-coloring permutation of the three independent anchor- |
+| func_001BC560 | 0x001BC560 | 0x16C | 90.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc software-pipelines the three independent trailing global float accumulates (D_008101F |
+| func_001AF8E0 | 0x001AF8E0 | 0x170 | 89.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling / register-coloring permutation of the trailing gp-rel pointer-tabl |
+| func_001B2F70 | 0x001B2F70 | 0x170 | 98.37% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation permutation (callee-saved coloring + a0/a1 param-save order); body byt |
+| func_001D5170 | 0x001D5170 | 0x170 | 78.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation permutation (s-reg coloring of arg0/dst/savedip + cached gp-ptr temp t |
+| func_00184BA0 | 0x00184BA0 | 0x174 | 98.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation permutation (callee-saved coloring cnt/pp/obj/winner across s0-s3); bo |
+| func_00198D90 | 0x00198D90 | 0x174 | 98.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP add.s operand coloring (+3.0f: target f1+f0 vs mwcc f0+f1) and case-0 branch-likely spe |
+| func_001383C0 | 0x001383C0 | 0x178 | 98.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Outer mode-switch dispatch lowering: target hoists the beqz (mode 0) test ahead of the beq |
+| func_0015AE20 | 0x0015AE20 | 0x178 | 99.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Switch default-branch delay slot: when state >= 2 the target branches to the tail with an  |
+| func_0019A570 | 0x0019A570 | 0x178 | 84.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation COLORING permuter near-miss (84.72% mwcc 2.3.3). Structure+frame size  |
+| func_001DFF70 | 0x001DFF70 | 0x178 | 91.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation COLORING + minor FP scheduling near-miss (91.97% mwcc 2.3.3). Switch l |
+| func_001D9720 | 0x001D9720 | 0x178 | 57.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | u64 GS-register bitfield-struct reconstruction wall (57.95% mwcc 2.3.3, ~75/101 instructio |
