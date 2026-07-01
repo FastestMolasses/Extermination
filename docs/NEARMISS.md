@@ -596,3 +596,17 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001E8E80 | 0x001E8E80 | 0x3F4 | 87.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/addressing-derivation permutation (idiom exhaustion reached). The mula |
 | func_0013C4C0 | 0x0013C4C0 | 0x3F8 | 98.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.98% -- extremely close. Fully recovered logic (fixed a spurious extra func_001B39F0 cal |
 | func_001C02E0 | 0x001C02E0 | 0x3F8 | 94.51% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Cluster of genuine mwcc-vs-CW artifacts, logic/structure fully recovered: (1) CW emits an  |
+| func_0016A4B0 | 0x0016A4B0 | 0x3FC | 94.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 94.05% mwcc233 (991202 83.79%). Fully recovered state-machine switch (all 7 state |
+| func_001B6FA0 | 0x001B6FA0 | 0x3FC | 88.19% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 88.19% mwcc233 (991202 84.12%). Fully recovered 5-state anim blend dispatcher: al |
+| func_0014CDD0 | 0x0014CDD0 | 0x408 | 94.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 94.65% (233; 991202=84.36%). Body/logic and all data fully recovered (verified against sib |
+| func_0018D910 | 0x0018D910 | 0x408 | 81.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 81.89% (233; 991202=78.47%). Logic and every branch/call/global fully recovered (a large F |
+| func_001399F0 | 0x001399F0 | 0x410 | 95.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| func_0014DC30 | 0x0014DC30 | 0x414 | 91.28% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (all 4 states decoded and structurally landed: idiom-20 bra |
+| func_00185A10 | 0x00185A10 | 0x41C | 90.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (both the fast-path locked-target re-check and the full ent |
+| func_00177030 | 0x00177030 | 0x430 | 92.32% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + list-scheduling residual: at the switch-dispatch delay slots (case  |
+| func_001F6210 | 0x001F6210 | 0x424 | 80.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / callee-save-count wall: the target's per-record body fits in 5 saved |
+| func_001DF180 | 0x001DF180 | 0x41C | 57.19% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / stack-frame-size wall in a very large function (10 saved GPR incl. $ |
+| func_00132490 | 0x00132490 | 0x43C | 81.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/semantics fully recovered (heading-integration table dispatch: decays arg1+ |
+| func_00132FB0 | 0x00132FB0 | 0x434 | 88.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/semantics fully recovered (same family as func_001416D0/func_0012F6C0: seed |
+| func_0019D330 | 0x0019D330 | 0x440 | 84.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/semantics fully recovered (byte-identical twin of func_0019CF50/func_0019D7 |
+| func_0019E930 | 0x0019E930 | 0x444 | 90.37% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring (a2/a1/a0/v0/v1 consistently swapped vs target) plus a stack- |

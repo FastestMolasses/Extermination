@@ -14046,6 +14046,14 @@
       }
     },
     {
+      "name": "func_002121A0",
+      "target_path": "build/expected/func_002121A0.o",
+      "base_path": "build/obj/func_002121A0.o",
+      "metadata": {
+        "source_path": "src/func_002121A0.c"
+      }
+    },
+    {
       "name": "func_002125B0",
       "target_path": "build/expected/func_002125B0.o",
       "base_path": "build/obj/func_002125B0.o",
