@@ -534,3 +534,17 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0019C830 | 0x0019C830 | 0x32C | 85.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation. Instruction count is EXACTLY equal (219==219) be |
 | func_00154120 | 0x00154120 | 0x340 | 96.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two small residual clusters after full logic/structure recovery and the gp-rel array-over- |
 | func_001E10A0 | 0x001E10A0 | 0x340 | 60.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Cross-compiler FP list-scheduling divergence: mwcc233/991202's -O4,p scheduler hoists the  |
+| func_00171320 | 0x00171320 | 0x344 | 83.99% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation-ORDER (entity-ptr vs picked-flag colored s1/s0 opposite of target) + m |
+| func_001C1F50 | 0x001C1F50 | 0x344 | 72.13% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/constants/call-arg-order fully recovered: two independent linear dispatch c |
+| func_0014C680 | 0x0014C680 | 0x348 | 98.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (readable plain C matching the func_0014C9D0 sibling idiom  |
+| func_001ED100 | 0x001ED100 | 0x348 | 94.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered -- exact template match with proven sibling func_001ED450 ( |
+| func_00153B50 | 0x00153B50 | 0x34C | 99.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | f13-before-f12 mtc1 argument-order swap in the case-1 anim_clip_init(self,0x33,10.0f,0.0f) |
+| func_0014B7B0 | 0x0014B7B0 | 0x358 | 96.22% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling artifacts inside the spad (0x700038xx) transform-block writ |
+| func_001B0460 | 0x001B0460 | 0x358 | 98.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two isolated residuals after extensive iteration (ternary->if/else restructure fixed the v |
+| func_0022FCA0 | 0x0022FCA0 | 0x358 | 88.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring wall (target keeps the heading-error scratch value in caller-saved fv |
+| func_00208750 | 0x00208750 | 0x35C | 72.00% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Stack-frame-layout / base-pointer-sharing wall: target hoists &D_00265160 into ONE registe |
+| func_00131B10 | 0x00131B10 | 0x368 | 95.14% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc-vs-CW branch-lowering / dead-trailing-block wall: target's beql-dispatched case-0 lea |
+| func_00173E60 | 0x00173E60 | 0x368 | 99.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Sole residual is a genuine $at-vs-GPR register-coloring artifact: the `if((u8)(arg0+0x23F) |
+| func_001ECB00 | 0x001ECB00 | 0x368 | 77.19% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-register-coloring / GPR-scheduling noise, not a missing/wrong operation: (1) the GS-alp |
+| func_001368D0 | 0x001368D0 | 0x36C | 89.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual artifacts, both scheduling/coloring not logic: (1) the first early-return gua |
+| func_00162A40 | 0x00162A40 | 0x36C | 94.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Compound scheduler/register-coloring residual (three independent sites): (1) dispatch-chai |
