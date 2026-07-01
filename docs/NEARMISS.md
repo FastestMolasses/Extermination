@@ -493,3 +493,15 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0014A350 | 0x0014A350 | 0x2C4 | 97.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Idiom-13b dead-const re-materialization: two dispatch-chain constants (the case-2/3 `addiu |
 | func_001F28D0 | 0x001F28D0 | 0x2C4 | 82.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation across the two 8-iteration loops (same class as sibling fu |
 | func_0013BF20 | 0x0013BF20 | 0x2CC | 94.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | clean-store delay-slot-nop x2 + independent-instruction scheduling swap x2 (scheduler-inte |
+| func_00179D20 | 0x00179D20 | 0x2CC | 99.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (per-bone anim-clip pose seed loop over D_00275B40[]; scala |
+| func_00148130 | 0x00148130 | 0x2D0 | 95.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: 4-state animation blend-transition state machine (state fi |
+| func_00159B90 | 0x00159B90 | 0x2D4 | 85.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: outer 4-state actor dispatch (p[4], cases 0-3) with case1  |
+| func_00198650 | 0x00198650 | 0x2D4 | 94.17% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Idiom-13 conditional-branch delay-slot NOP (3 instances, mwcc fills with next compare's sp |
+| func_001DB9D0 | 0x001DB9D0 | 0x2D4 | 73.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU-MAC wall (genuine, confirmed against sibling func_001D66A0 which documents the identic |
+| func_001EBF10 | 0x001EBF10 | 0x2D4 | 56.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order / instruction-scheduling permutation, same wall class already docum |
+| func_001F3340 | 0x001F3340 | 0x2D8 | 80.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Switch-dispatch head (15 case labels, non-monotonic target test order) fully recovered by  |
+| func_0022B420 | 0x0022B420 | 0x2D8 | 87.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/logic fully recovered (state dispatch 0/1/2, screen-position compute via float_to_int |
+| func_0012E560 | 0x0012E560 | 0x2DC | 91.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/logic fully recovered (spawn-counter bump, owner-record init via two func_00102948 co |
+| func_001B3F10 | 0x001B3F10 | 0x2DC | 97.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 97.97% (mwcc233; 991202 82.34%). Logic and structure fully recovered and body-ide |
+| func_001F2BA0 | 0x001F2BA0 | 0x2E4 | 94.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation across the case-1 scan loop (s0-s4 relabeled end-to-end vs |
+| func_0021B550 | 0x0021B550 | 0x2E4 | 98.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residuals prevent 100.0 on mwcc233: (1) case-2 'st2 != 1 / st2 != 0' guard -- target k |
