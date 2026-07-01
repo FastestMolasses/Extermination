@@ -709,3 +709,13 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001A1390 | 0x001A1390 | 0x7F0 | 76.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same wall class as sibling func_001A1B80 (identical body/shape, only the kind threshold co |
 | func_001A1B80 | 0x001A1B80 | 0x7F0 | 76.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Genuine register-coloring + branch-likely-sense scheduling artifact. Full logic/structure  |
 | func_002177B0 | 0x002177B0 | 0x7F0 | 95.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact: register-allocation/coloring permutation (at-vs-v0/v1/a0 naming) throug |
+| func_00139240 | 0x00139240 | 0x7A8 | 99.15% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-companion register coloring on direct lwc1 loads (documented un-leverable class): in th |
+| func_0014AFA0 | 0x0014AFA0 | 0x808 | 99.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Clean-store idiom-13 delay-slot fill (branch-target-advance): after the bnez guarding the  |
+| func_001A5C30 | 0x001A5C30 | 0x808 | 96.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring / RA-order permutation (body-shape identical): (1) FP temp coloring swap |
+| func_001F3620 | 0x001F3620 | 0x80C | 99.92% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single register-allocation swap (a0<->v1) on one 7-instruction pair: in the D_00275C44 sou |
+| func_001735C0 | 0x001735C0 | 0x810 | 99.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 99.08% mwcc233 (991202 89.81% - idiom-13 nops + unsigned-char andi artifacts prov |
+| func_002101C0 | 0x002101C0 | 0x83C | 87.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 89.09% mwcc/991202 (233 87.91% - target FILLS branch slots with lui/li, so 991202 |
+| func_001607D0 | 0x001607D0 | 0x850 | 97.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body byte-identical; SOLE residual class (15 uniform sites) = mwcc 2.3.3 speculates the li |
+| func_00186A60 | 0x00186A60 | 0x860 | 96.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (521/536 instrs identical); 3 residual regions, all 2.3.1.0 |
+| func_001E3D90 | 0x001E3D90 | 0x870 | 74.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (every block traced against the .s; m2c cross-checked); bes |
+| func_001A0B10 | 0x001A0B10 | 0x878 | 95.37% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation web permutation + list-scheduling residual (NEARMISS harvest; body and |
