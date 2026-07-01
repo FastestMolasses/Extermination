@@ -682,3 +682,18 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00217FA0 | 0x00217FA0 | 0x69C | 99.15% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered and verified byte-for-byte against the .s (weapon-reload FS |
 | func_001936E0 | 0x001936E0 | 0x6AC | 94.99% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (melee-grab/lunge-attack FSM; real switch(kind) case values |
 | func_001A3980 | 0x001A3980 | 0x6AC | 63.48% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Broad register-allocation/instruction-scheduling permutation across the whole 1708-byte bo |
+| func_001A32C0 | 0x001A32C0 | 0x6B4 | 61.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation (multiple saved-reg groups from the two nested passe |
+| func_0016C6A0 | 0x0016C6A0 | 0x6C4 | 93.70% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | anim_clip_arbiter dead-float-argument scheduling + func_00224290 branch-likely tail schedu |
+| func_0017A130 | 0x0017A130 | 0x6C8 | 93.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order wall (highest-vs-lowest saved reg for the sole long-lived param) |
+| func_00219870 | 0x00219870 | 0x6D4 | 92.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered and byte-identical up to a register-allocation-order permut |
+| func_001328D0 | 0x001328D0 | 0x6D8 | 96.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (96.6% on 233). Two residual classes, both genuine compiler |
+| func_0020F950 | 0x0020F950 | 0x6D8 | 85.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 3-state actor-tick dispatcher (mode 0 init / mode 1 setup / mode 2 render-config), gated b |
+| func_00162DB0 | 0x00162DB0 | 0x6E4 | 91.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 91.18% mwcc233 (82.29% 991202). Body/structure fully recovered, all state-machine |
+| func_001E3630 | 0x001E3630 | 0x6E4 | 93.92% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 93.92% mwcc233 (85.70% 991202). Body/structure/control-flow fully recovered acros |
+| func_0016F600 | 0x0016F600 | 0x6EC | 79.81% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 79.81% mwcc233 (76.40% 991202). Logic and control flow fully recovered (validated |
+| func_001764E0 | 0x001764E0 | 0x6F4 | 83.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation-ORDER across the whole body: mwcc233 puts arg0 in s4 (target: s0), wit |
+| func_001BECC0 | 0x001BECC0 | 0x6FC | 94.21% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | residual register-allocation / instruction-scheduling deltas (a couple of lh/sh reg-name s |
+| func_00217090 | 0x00217090 | 0x71C | 97.30% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| func_001D30A0 | 0x001D30A0 | 0x724 | 92.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Bulk per-slot-array initializer (dynamic index shift = D_00275670->0x9c << 7, sibling of m |
+| func_00226070 | 0x00226070 | 0x730 | 69.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Larger weapon-swap FSM (state on arg0+1, dispatched via 5-way beq chain matching switch-de |
+| func_00140F80 | 0x00140F80 | 0x744 | 98.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual compiler artifacts, logic/structure fully recovered: (1) clean-store idiom-13 |
