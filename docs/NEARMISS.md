@@ -610,3 +610,18 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00132FB0 | 0x00132FB0 | 0x434 | 88.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/semantics fully recovered (same family as func_001416D0/func_0012F6C0: seed |
 | func_0019D330 | 0x0019D330 | 0x440 | 84.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/semantics fully recovered (byte-identical twin of func_0019CF50/func_0019D7 |
 | func_0019E930 | 0x0019E930 | 0x444 | 90.37% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring (a2/a1/a0/v0/v1 consistently swapped vs target) plus a stack- |
+| func_00169250 | 0x00169250 | 0x450 | 85.12% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU register-coloring/scheduling wall in the two func_0011E748 (dx*dx+dz*dz distance) MAC  |
+| func_001ACA20 | 0x001ACA20 | 0x450 | 93.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring wall: the target keeps slot in a1 and the precomputed &slot[9] pointer i |
+| func_001F5040 | 0x001F5040 | 0x450 | 80.45% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring wall: mwcc233 assigns arg0 to s2/step to s0/frame to s1 while the target |
+| func_001486E0 | 0x001486E0 | 0x458 | 92.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Full 4-state logic/structure recovered (clip-init dispatch, RNG-seeded timers, quaternion- |
+| func_0014D7C0 | 0x0014D7C0 | 0x46C | 91.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Full logic/structure recovered; notably decoded that the shipped binary reads a stale FPU  |
+| func_001A06A0 | 0x001A06A0 | 0x46C | 86.42% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Full AABB-narrowing scan + hitbox-type dispatch logic recovered (types 0x1000/0x2000/0x400 |
+| func_00214570 | 0x00214570 | 0x478 | 95.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / branch-likely-choice permutation only. Logic, globals, and control f |
+| func_001373B0 | 0x001373B0 | 0x47C | 93.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / branch-likely-choice permutation only (same class as func_00214570). |
+| func_001A4030 | 0x001A4030 | 0x480 | 81.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Fully recovered logic/structure (convex n-gon segment test, per-axis interval reject, edge |
+| func_00171670 | 0x00171670 | 0x484 | 91.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Fully recovered logic/structure (entity fire-state-machine, sibling of matched func_00171B |
+| func_0013C8C0 | 0x0013C8C0 | 0x488 | 93.30% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Fully recovered logic/structure using sibling func_0013C4C0 (98.98% NEARMISS) as the steer |
+| func_0013EDB0 | 0x0013EDB0 | 0x488 | 94.96% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | residual scheduling artifact (see above) |
+| func_00144C20 | 0x00144C20 | 0x488 | 93.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (enemy engage/disengage state machine, cases 0/1/2/3 on sta |
+| func_001DE920 | 0x001DE920 | 0x488 | 69.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Full VU0/GS particle (exhaust-trail) packet-builder logic recovered (2 batches x 16 groups |
+| func_0015A2C0 | 0x0015A2C0 | 0x48C | 96.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring / instruction-scheduling residual only (same documented family as src/fu |
