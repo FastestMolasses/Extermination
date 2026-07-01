@@ -451,3 +451,16 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00199770 | 0x00199770 | 0x250 | 97.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU register-coloring permutation in the distance sqrt inputs and the two-coordinate scale |
 | func_00120CE8 | 0x00120CE8 | 0x254 | 75.62% | ee-gcc 2.9-991111-01 | ee-gcc register-allocation-ORDER permutation across the whole body (target holds -1 in s5, |
 | func_001CC8A0 | 0x001CC8A0 | 0x254 | 77.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc-build ABI/register-model mismatch (NOT clean-store nop, NOT fixable by C reshaping).  |
+| func_001FB9F0 | 0x001FB9F0 | 0x254 | 82.00% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/instruction-scheduling permutation across a large (0x254-byte) 6-way s |
+| func_00146F80 | 0x00146F80 | 0x260 | 87.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling / boolean-materialization permutation, same family as the documente |
+| func_0014A730 | 0x0014A730 | 0x264 | 95.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (3-state switch/fallthrough dispatcher on arg0+6, anim_clip |
+| func_001A9480 | 0x001A9480 | 0x268 | 85.47% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: dispatch on arg1+3==0xB (special-item path scans a 12-entr |
+| func_001BA580 | 0x001BA580 | 0x268 | 91.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: a 21-level cascading != chain classifying the sound-effect |
+| func_00185E30 | 0x00185E30 | 0x26C | 96.10% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Pure FP odd/even register coloring (fv0/fv0f/fv1/fv1f family) on the sum-of-squares distan |
+| func_001A8970 | 0x001A8970 | 0x26C | 98.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Pure FP saved-register coloring: target keeps the f21 running total (proximity guard's hal |
+| func_0014A0D0 | 0x0014A0D0 | 0x274 | 93.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two stacked genuine compiler artifacts (body/structure fully recovered, byte-verified equi |
+| func_0014E050 | 0x0014E050 | 0x270 | 97.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two stacked genuine compiler artifacts (body/structure fully recovered): (1) the documente |
+| func_00178910 | 0x00178910 | 0x27C | 92.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation of the loop-pointer set (flags/tsin/tpos/i shifted by one re |
+| func_00158590 | 0x00158590 | 0x278 | 86.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-half coloring in the three vec3-add chains plus argument-emission-order for fu |
+| func_001BB860 | 0x001BB860 | 0x274 | 57.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Deep register-allocation + branch-shape permutation across the nested state-dispatch (targ |
+| func_001C1A80 | 0x001C1A80 | 0x27C | 97.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two fused compiler artifacts, both confirmed by full instruction-level diff (every branch/ |
