@@ -464,3 +464,17 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00158590 | 0x00158590 | 0x278 | 86.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-half coloring in the three vec3-add chains plus argument-emission-order for fu |
 | func_001BB860 | 0x001BB860 | 0x274 | 57.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Deep register-allocation + branch-shape permutation across the nested state-dispatch (targ |
 | func_001C1A80 | 0x001C1A80 | 0x27C | 97.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two fused compiler artifacts, both confirmed by full instruction-level diff (every branch/ |
+| func_00179910 | 0x00179910 | 0x280 | 89.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / delay-slot-fill order permutation. Body and control flow are 100% co |
+| func_001854E0 | 0x001854E0 | 0x280 | 88.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring on the sum-of-squares (adda.s/madd.s) idiom -- identical wall class a |
+| func_001D2300 | 0x001D2300 | 0x280 | 80.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation (extra callee-saved register / one different cached  |
+| func_0018CBD0 | 0x0018CBD0 | 0x284 | 91.78% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc saved-float-register-coloring wall: target allocates $f21 for the speed->dist->ang ca |
+| func_001C7EB0 | 0x001C7EB0 | 0x28C | 89.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same class of mwcc saved-register-coloring wall as func_0018CBD0: target assigns s1=tail/s |
+| func_0020E460 | 0x0020E460 | 0x28C | 93.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Switch-dispatch register-coloring / delay-slot-hoist / CSE-sharing scheduling artifact: ta |
+| func_001999C0 | 0x001999C0 | 0x290 | 83.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation ($s0/$s1 hold scratch/result swapped vs. target) plus per-br |
+| func_001D66A0 | 0x001D66A0 | 0x28C | 67.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU-MAC wall (confirmed, dead class): the target computes the four rotation-seed floats us |
+| func_001E2560 | 0x001E2560 | 0x294 | 98.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Genuine idiom-13 clean-constant-store nop wall: `*(arg0+4)=3` early-return stores material |
+| func_002036E0 | 0x002036E0 | 0x294 | 93.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two backend artifacts, both confirmed non-C-reproducible: (1) $at-vs-GPR register naming o |
+| func_00187EE0 | 0x00187EE0 | 0x298 | 90.00% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | idiom-13 delay-slot wall on address-lui speculation, 3 residual branches (case 0x5A/0x5B/0 |
+| func_001DDB70 | 0x001DDB70 | 0x29C | 63.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | GS-packet struct-field/scheduling divergence: deep-offset field writes and a &D_0026E810 a |
+| func_0015BCF0 | 0x0015BCF0 | 0x2A0 | 97.34% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc canonicalization of a 2-case dense switch (case 3/case 4 shared body): mwcc always te |
+| func_001C7C00 | 0x001C7C00 | 0x2A4 | 93.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | see wall field above |
