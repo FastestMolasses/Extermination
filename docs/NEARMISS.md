@@ -625,3 +625,18 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00144C20 | 0x00144C20 | 0x488 | 93.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (enemy engage/disengage state machine, cases 0/1/2/3 on sta |
 | func_001DE920 | 0x001DE920 | 0x488 | 69.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Full VU0/GS particle (exhaust-trail) packet-builder logic recovered (2 batches x 16 groups |
 | func_0015A2C0 | 0x0015A2C0 | 0x48C | 96.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring / instruction-scheduling residual only (same documented family as src/fu |
+| func_00135870 | 0x00135870 | 0x490 | 97.11% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Saved-reg allocation-ORDER permutation: target copies arg1(p1)->s1 THEN arg0(e)->s2 (dispa |
+| func_001723D0 | 0x001723D0 | 0x48C | 86.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register/scheduling-artifact noise in the twice-duplicated animdispatch+copy_qw4 tail bloc |
+| func_0018AF50 | 0x0018AF50 | 0x48C | 93.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 materializes small dispatch-chain constants (the case-3 literal 3) into a differen |
+| func_002217C0 | 0x002217C0 | 0x4B0 | 93.75% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-permutation wall in the switch dispatch chain: body/structure/frame are byte-iden |
+| func_00197870 | 0x00197870 | 0x4A4 | 93.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (two-exit float-clamp shape via the bc1t-jump-into-body idi |
+| func_002082B0 | 0x002082B0 | 0x49C | 90.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/frame fully recovered (all 9 saved regs match after applying the D_00275670 |
+| func_0013E6D0 | 0x0013E6D0 | 0x4B4 | 99.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order artifact (2 instructions of 301): the hit_count>=3 sign-extend c |
+| func_0018A1F0 | 0x0018A1F0 | 0x4B8 | 99.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual clusters: (1) copy_qw4 arg register swap (v0/v1 evaluation-order regalloc noi |
+| func_001C50B0 | 0x001C50B0 | 0x4BC | 88.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Three residual clusters at 88.24% (both compilers agree on cluster 1, ruling out a build-v |
+| func_0018CE60 | 0x0018CE60 | 0x4C4 | 94.60% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/list-scheduling permutation. mwcc233's scheduler defers the 'lw a2, 0x |
+| func_0013CD50 | 0x0013CD50 | 0x4C8 | 88.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation. Both mwcc builds place the exact same four live val |
+| func_0020A7A0 | 0x0020A7A0 | 0x4C8 | 94.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation. Target keeps the per-slot pointer in s5 and the loo |
+| func_001E55F0 | 0x001E55F0 | 0x4CC | 93.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation: target keeps the actor+0x1F0 pointer in $s2 and the |
+| func_001C1030 | 0x001C1030 | 0x4D0 | 95.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation (arg0 copy colored to $s0 vs target's $s1) plus one  |
+| func_001348E0 | 0x001348E0 | 0x4D8 | 95.51% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | See detailed wall description above (dead-block artifact + FPU register-pairing permutatio |

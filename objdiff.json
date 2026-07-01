@@ -11950,6 +11950,14 @@
       }
     },
     {
+      "name": "func_001E7780",
+      "target_path": "build/expected/func_001E7780.o",
+      "base_path": "build/obj/func_001E7780.o",
+      "metadata": {
+        "source_path": "src/func_001E7780.c"
+      }
+    },
+    {
       "name": "func_001E7C60",
       "target_path": "build/expected/func_001E7C60.o",
       "base_path": "build/obj/func_001E7C60.o",
