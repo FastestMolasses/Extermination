@@ -548,3 +548,19 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001ECB00 | 0x001ECB00 | 0x368 | 77.19% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-register-coloring / GPR-scheduling noise, not a missing/wrong operation: (1) the GS-alp |
 | func_001368D0 | 0x001368D0 | 0x36C | 89.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual artifacts, both scheduling/coloring not logic: (1) the first early-return gua |
 | func_00162A40 | 0x00162A40 | 0x36C | 94.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Compound scheduler/register-coloring residual (three independent sites): (1) dispatch-chai |
+| func_0019DF10 | 0x0019DF10 | 0x370 | 91.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation, same class as siblings func_0019C830 (85.2%) and |
+| func_001AC480 | 0x001AC480 | 0x370 | 97.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single delay-slot/scheduling residual around the D_00275BDC branch in state 0 (one nop/lui |
+| func_001D7C30 | 0x001D7C30 | 0x370 | 86.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring (fv0/fv1/ft0 assignment permutation) plus a mwcc-vs-CW branch-lowerin |
+| func_00194DB0 | 0x00194DB0 | 0x374 | 86.15% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling/materialization-order permutation. Body and structure are fully rec |
+| func_001E13E0 | 0x001E13E0 | 0x37C | 81.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/frame-spill permutation. Both builds fully recover the logic (channel- |
+| func_00171B00 | 0x00171B00 | 0x388 | 92.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation (same documented class as sibling func_00171320.c, w |
+| func_0017AF70 | 0x0017AF70 | 0x388 | 87.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | see summary |
+| func_0021FB40 | 0x0021FB40 | 0x388 | 91.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Switch-dispatch branch-scheduling artifact: frame size (0x20), single callee-saved reg (s0 |
+| func_001E1AD0 | 0x001E1AD0 | 0x38C | 53.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-pressure/spill wall in a large (908-byte) 32x32-grid generator, same class as its |
+| func_00193EB0 | 0x00193EB0 | 0x390 | 87.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | see above |
+| func_001B07C0 | 0x001B07C0 | 0x390 | 99.04% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | D_00275BE0 is addressed absolute (lui+lbu) under -sdatathreshold 0 here, but the target ad |
+| func_001FD0E0 | 0x001FD0E0 | 0x38C | 91.42% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring / branch-likely scheduling on a large (908-byte) 3-nested-loop state mac |
+| func_00133640 | 0x00133640 | 0x394 | 91.45% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation on the parallel struct-copy burst that seeds th |
+| func_00146110 | 0x00146110 | 0x394 | 96.48% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same class as the sibling func_0014B7B0 (already-parked NEARMISS): register-allocation/sch |
+| func_0016A8B0 | 0x0016A8B0 | 0x394 | 94.02% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CFG-shape-dependent instruction-scheduling artifact: in each of the 4 switch-case's true-b |
+| func_001E9E60 | 0x001E9E60 | 0x3A4 | 79.75% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Genuine FPU-MAC pipeline (mula.s/madd.s) computing a per-axis lerp result=base+(target-bas |
