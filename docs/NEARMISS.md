@@ -441,3 +441,13 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00153540 | 0x00153540 | 0x22C | 99.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residuals at 99.58%: (1) commutative add.s operand-coloring on the three pose+=velocit |
 | func_001B62C0 | 0x001B62C0 | 0x228 | 88.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch lowering of the 4-way octant selector. The mula.s/madd.s MAC pair for dx |
 | func_001FD950 | 0x001FD950 | 0x22C | 85.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation + instruction-scheduling + branch-likely-sense permutation. Body fully |
+| func_001EB020 | 0x001EB020 | 0x230 | 95.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + constant-emit-order permutation in the 3rd of 3 identical passes (f |
+| func_002280F0 | 0x002280F0 | 0x22C | 85.14% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation + branch-likely-sense + arg-emit-order permutation across the state ma |
+| func_001B18F0 | 0x001B18F0 | 0x238 | 99.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation: mwcc 2.3.3 (and 991202) map the three pointer param |
+| func_00157360 | 0x00157360 | 0x248 | 91.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + arg-eval-order + FP odd/even-half coloring scheduling artifacts in a 0 |
+| func_001814E0 | 0x001814E0 | 0x248 | 97.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 97.35% mwcc233 near-miss (logic fully recovered). Residual = arg-setup register order for  |
+| func_001D1C50 | 0x001D1C50 | 0x248 | 95.96% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 95.96% mwcc233 near-miss (logic fully recovered). Residual = register coloring in the D_00 |
+| func_00177CF0 | 0x00177CF0 | 0x250 | 99.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + arg-move-order permutation (f0/f1 swap on the local-vector setup an |
+| func_00199770 | 0x00199770 | 0x250 | 97.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU register-coloring permutation in the distance sqrt inputs and the two-coordinate scale |
+| func_00120CE8 | 0x00120CE8 | 0x254 | 75.62% | ee-gcc 2.9-991111-01 | ee-gcc register-allocation-ORDER permutation across the whole body (target holds -1 in s5, |
+| func_001CC8A0 | 0x001CC8A0 | 0x254 | 77.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc-build ABI/register-model mismatch (NOT clean-store nop, NOT fixable by C reshaping).  |
