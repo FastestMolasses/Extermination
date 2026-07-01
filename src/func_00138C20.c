@@ -1,11 +1,173 @@
-// INCLUDE_ASM func_00138C20  (vram 0x00138C20, 1560 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
+// NEARMISS func_00138C20  (vram 0x00138C20, 0x618 bytes) — readable decompilation, NOT byte-identical.
 //
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_00138C20.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// objdiff 99.64% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// diff is a genuine compiler artifact that no source change fixes here:
+// Body/structure/globals/float-constants fully recovered. Two residuals: (1) top dispatch delay-slot fill (idiom-13 address-hi speculation) -- genuine wall, no C lever. (2) arg1+0x30 busy-timer bnez keeps its slti result in $v0 where target uses $at (register-choice scheduler artifact on a pure/unu...
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+
+extern void func_0013C8C0(void);
+extern int func_00122BB8(void);
+extern float func_001B1240(void *origin, float x, float z);
+extern float func_001B1270(void *origin, float x, float z);
+extern float func_001B12B0(float goal, float cur, float rate);
+extern float func_0011DF78(float a);
+extern int func_001B13F0(void *a, void *b, float f);
+extern int func_001B2F70(void *a, void *b);
+extern void func_001FBD50(unsigned char *e, int a, int b, float f);
+extern int func_0021BE40(void *a, void *b);
+extern int func_0019AFE0(unsigned char *a, void *b, void *c, int d);
+extern void func_0013BBB0(unsigned char *a, unsigned char *b);
+extern void func_0013BA20(unsigned char *a, unsigned char *b);
+extern float D_00810360;
+extern float D_008102B0;
+extern float D_700038A0;
+extern float D_700038B0;
+
+void func_00138C20(unsigned char *arg0, unsigned char *arg1) {
+    func_0013C8C0();
+    if (*(float *)(arg1 + 0x44) < 0.4f) {
+        *(int *)(arg1 + 0x48) = 0x3D4CCCCD;
+    } else {
+        *(int *)(arg1 + 0x48) = 0;
+        *(float *)(arg1 + 0x44) = 0.4f;
+    }
+
+    switch (*(unsigned char *)(arg0 + 6)) {
+    case 0:
+        if (!((*(int *)0x70003B68 + *(short *)0x70003B8A) & 0x3F)) {
+            *(float *)0x700038A0 = *(float *)(arg0 + 0xB0);
+            *(float *)0x700038A4 = *(float *)(arg0 + 0xB4);
+            *(float *)0x700038A8 = *(float *)(arg0 + 0xB8);
+            *(float *)0x700038AC = *(float *)(arg0 + 0xBC);
+            *(float *)0x700038B0 = *(float *)(arg1 + 0);
+            *(float *)0x700038B4 = *(float *)(arg1 + 4);
+            *(float *)0x700038B8 = *(float *)(arg1 + 8);
+            *(float *)0x700038BC = *(float *)(arg1 + 0xC);
+            if (func_001B13F0(&D_700038A0, &D_700038B0, 70.0f) == 0) {
+                *(unsigned char *)(arg0 + 6) = (*(unsigned char *)(arg0 + 6)) + 1;
+                *(short *)(arg1 + 0x20) = 0;
+                goto tail;
+            }
+        }
+        if (*(signed char *)(arg1 + 0x80) & 0xC) {
+            *(short *)(arg1 + 0x20) = 0x3C;
+        } else {
+            unsigned short t = *(unsigned short *)(arg1 + 0x20);
+            if (t != 0) {
+                *(unsigned short *)(arg1 + 0x20) = t - 1;
+            } else {
+                *(unsigned short *)(arg1 + 0x20) = ((func_00122BB8() >> 0x11) & 0x7F) + 0x3C;
+                *(float *)(arg1 + 0x58) = (6.2831855f * ((float)((func_00122BB8() >> 9) & 0xFF) / 255.0f)) - 3.1415927f;
+            }
+        }
+        if (*(signed char *)(arg1 + 0x80) & 3) {
+            *(short *)(arg1 + 0x22) = 0x3C;
+        } else {
+            unsigned short t = *(unsigned short *)(arg1 + 0x22);
+            if (t != 0) {
+                *(unsigned short *)(arg1 + 0x22) = t - 1;
+                if (!(*(float *)(arg1 + 0x5C) < 0.0f)) {
+                    goto tail;
+                }
+                if (func_001B2F70(arg0 + 0xB0, &D_700038A0) == 0) {
+                    goto tail;
+                }
+                if (20.0f + *(float *)0x700038A0 <= *(float *)(arg0 + 0xB4)) {
+                    goto tail;
+                }
+                *(float *)(arg1 + 0x5C) = func_0011DF78(*(float *)(arg1 + 0x5C));
+            } else {
+                *(unsigned short *)(arg1 + 0x22) = ((func_00122BB8() >> 0xC) & 0x7F) + 0x3C;
+                *(float *)(arg1 + 0x5C) = (2.4434612f * ((float)((func_00122BB8() >> 6) & 0xFF) / 255.0f)) - 1.2217306f;
+                if (!(*(float *)(arg1 + 0x5C) < 0.0f)) {
+                    goto tail;
+                }
+                if (func_001B2F70(arg0 + 0xB0, &D_700038A0) == 0) {
+                    goto tail;
+                }
+                if (20.0f + *(float *)0x700038A0 <= *(float *)(arg0 + 0xB4)) {
+                    goto tail;
+                }
+                *(float *)(arg1 + 0x5C) = func_0011DF78(*(float *)(arg1 + 0x5C));
+            }
+        }
+        break;
+    case 1:
+        if (!((*(int *)0x70003B68 + *(short *)0x70003B8A) & 0x3F)) {
+            *(float *)0x700038A0 = *(float *)(arg0 + 0xB0);
+            *(float *)0x700038A4 = *(float *)(arg0 + 0xB4);
+            *(float *)0x700038A8 = *(float *)(arg0 + 0xB8);
+            *(float *)0x700038AC = *(float *)(arg0 + 0xBC);
+            *(float *)0x700038B0 = *(float *)(arg1 + 0);
+            *(float *)0x700038B4 = *(float *)(arg1 + 4);
+            *(float *)0x700038B8 = *(float *)(arg1 + 8);
+            *(float *)0x700038BC = *(float *)(arg1 + 0xC);
+            if (func_001B13F0(&D_700038A0, &D_700038B0, 30.0f) != 0) {
+                *(unsigned char *)(arg0 + 6) = 0;
+                *(short *)(arg1 + 0x20) = 0;
+                goto tail;
+            }
+        }
+        if (!(*(signed char *)(arg1 + 0x80) & 0xC)) {
+            *(float *)(arg1 + 0x58) = func_001B1240(arg0 + 0xB0, *(float *)(arg1 + 0), *(float *)(arg1 + 8));
+        }
+        if (*(signed char *)(arg1 + 0x80) & 3) {
+            *(short *)(arg1 + 0x20) = 0x78;
+        } else {
+            unsigned short t = *(unsigned short *)(arg1 + 0x20);
+            if (t != 0) {
+                *(unsigned short *)(arg1 + 0x20) = t - 1;
+            } else {
+                *(float *)(arg1 + 0x5C) = -1.0f * func_001B1270(arg0 + 0xB0, *(float *)(arg1 + 4), *(float *)(arg1 + 8));
+            }
+        }
+        break;
+    }
+
+tail:
+    if (*(unsigned char *)(arg0 + 0xD) & 1) {
+        unsigned short t = *(unsigned short *)(arg1 + 0x30) + 1;
+        *(unsigned short *)(arg1 + 0x30) = t;
+        if (t >= 0x97) {
+            *(char *)(arg0 + 5) = 0;
+            *(unsigned char *)(arg0 + 6) = 0;
+        }
+    }
+    if (*(unsigned char *)(arg0 + 0xA) & 1) {
+        *(char *)(arg0 + 5) = 2;
+        *(unsigned char *)(arg0 + 6) = 0;
+        *(short *)(arg1 + 0x22) = 0;
+        *(short *)(arg1 + 0x20) = 0;
+        func_001FBD50(arg0, 0x816, 0, 300.0f);
+    } else if (*(unsigned short *)(arg1 + 0x2E) == 0) {
+        if (func_001B13F0(&D_00810360, arg0 + 0xB0, 150.0f) != 0 &&
+            func_0021BE40(&D_008102B0, arg0) == 0 &&
+            func_0019AFE0(arg0, arg0 + 0xB0, &D_00810360, 6) == 0) {
+            unsigned short t = *(unsigned short *)(arg1 + 0x2C) + 1;
+            *(unsigned short *)(arg1 + 0x2C) = t;
+            if (t >= 0x78) {
+                *(char *)(arg0 + 5) = 2;
+                *(unsigned char *)(arg0 + 6) = 0;
+                *(short *)(arg1 + 0x22) = 0;
+                *(short *)(arg1 + 0x20) = 0;
+                func_001FBD50(arg0, 0x816, 0, 300.0f);
+            }
+        } else {
+            *(short *)(arg1 + 0x2C) = 0;
+        }
+    }
+    if (*(signed char *)(arg1 + 0x86) == 0) {
+        *(signed char *)(arg1 + 0x86) = func_00122BB8() >> 4;
+        func_001FBD50(arg0, 0x826, 0, 300.0f);
+    }
+    *(float *)(arg0 + 0xC4) = func_001B12B0(*(float *)(arg1 + 0x58), *(float *)(arg0 + 0xC4), 3.1415927f / 120.0f);
+    *(float *)(arg1 + 0x50) = func_001B12B0(*(float *)(arg1 + 0x5C), *(float *)(arg1 + 0x50), 0.0314159244f);
+    func_0013BBB0(arg0, arg1);
+    func_0013BA20(arg0, arg1);
+}

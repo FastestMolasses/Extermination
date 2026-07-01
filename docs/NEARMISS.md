@@ -668,3 +668,17 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00221FC0 | 0x00221FC0 | 0x5B4 | 89.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 89.97% — the state-machine dispatch/body logic is fully recovered (all 12 case bodies byte |
 | func_0021A500 | 0x0021A500 | 0x5BC | 89.22% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 89.22% — full logic recovered (state machine on e[4] driving a particle/twinkle-light init |
 | func_001963A0 | 0x001963A0 | 0x5C4 | 96.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation: mwcc233 colors the switch(arg0[1]) dispatch temp in |
+| func_00221060 | 0x00221060 | 0x5CC | 90.36% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order wall: mwcc picks $a4/$t0 for the switch-dispatch byte across the |
+| func_00147B50 | 0x00147B50 | 0x5D4 | 99.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.25%, byte count matches target exactly (0x5D4). Two tiny residuals, both compiler-inter |
+| func_0016EF50 | 0x0016EF50 | 0x5D4 | 90.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Compiler scheduling/register-choice wall (idiom-13 family): the drift-add pair (arg0+0xB0/ |
+| func_0018B3E0 | 0x0018B3E0 | 0x5D4 | 97.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (state machine, all field offsets, calls, and idiom-15 relo |
+| func_001A7280 | 0x001A7280 | 0x5F0 | 72.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 72.05% (233) -- body-level control flow, offsets, and call sequence recovered with reasona |
+| func_00223C70 | 0x00223C70 | 0x614 | 99.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered; genuine residual is the documented D_00810E70/0x70003B7x d |
+| func_00138C20 | 0x00138C20 | 0x618 | 99.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/globals/float-constants fully recovered. Two residuals: (1) top dispatch de |
+| func_002230A0 | 0x002230A0 | 0x650 | 98.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/every field/global access and all call-argument shapes are byte-identical. Sole resid |
+| func_0020D930 | 0x0020D930 | 0x668 | 66.34% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation-ORDER permutation: target colors arg0->$s1 (high)/arg1->$s0 (low); thi |
+| func_001C40B0 | 0x001C40B0 | 0x670 | 89.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | $at-vs-GPR compare, shared-epilogue edge case: every clamp-to-99 test's slti result lives  |
+| func_001A6440 | 0x001A6440 | 0x690 | 88.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Not a genuine idiom-13 wall: body/logic fully recovered (segment-vs-collision-mesh sweep m |
+| func_00217FA0 | 0x00217FA0 | 0x69C | 99.15% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered and verified byte-for-byte against the .s (weapon-reload FS |
+| func_001936E0 | 0x001936E0 | 0x6AC | 94.99% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (melee-grab/lunge-attack FSM; real switch(kind) case values |
+| func_001A3980 | 0x001A3980 | 0x6AC | 63.48% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Broad register-allocation/instruction-scheduling permutation across the whole 1708-byte bo |
