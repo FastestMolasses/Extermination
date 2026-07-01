@@ -427,3 +427,17 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00147390 | 0x00147390 | 0x210 | 95.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Outer mode-switch dispatch lowering: the target tests the mode byte in DESCENDING order (b |
 | func_001D4750 | 0x001D4750 | 0x210 | 93.42% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual regions, both compiler artifacts (not the clean-store nop). (1) GS/DMA packet |
 | func_0013EB90 | 0x0013EB90 | 0x214 | 92.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation (NOT clean-store delay-slot nop). Logic + struc |
+| func_0015AC00 | 0x0015AC00 | 0x214 | 91.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling/CSE artifact (NOT clean-store nop): target folds the shared 2.0f co |
+| func_00159970 | 0x00159970 | 0x214 | 77.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Stacked artifacts (NOT clean-store nop): (1) argument hoisting -- target computes anim=arg |
+| func_001416D0 | 0x001416D0 | 0x214 | 80.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc list-scheduling artifact (NOT clean-store nop): the float-copy block interleaves lwc1 |
+| func_0019A6F0 | 0x0019A6F0 | 0x214 | 93.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register coloring (s0=mode,s1=flags,s2=base,s3=arg0) and the 3-way sub-update dispatch now |
+| func_001756E0 | 0x001756E0 | 0x218 | 94.34% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body and control flow fully correct (branch-likely beql on func_001760C0 reproduced). Sole |
+| func_001B37D0 | 0x001B37D0 | 0x218 | 81.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical call set, arguments, and nested (7 rings x 2 signs) loop structure as the target |
+| func_002034C0 | 0x002034C0 | 0x220 | 96.10% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling permutation (body/logic 100% correct): (1) the two func_00108DB0 ca |
+| func_00178080 | 0x00178080 | 0x220 | 89.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation (body/logic/structure 100% correct): the target keeps the th |
+| func_001FDB80 | 0x001FDB80 | 0x224 | 59.74% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation + inverse-CSE near-miss. Logic fully recovered and correct. Residuals  |
+| func_00228C90 | 0x00228C90 | 0x220 | 86.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Pure register-allocation permutation near-miss. Logic fully recovered and correct (all ins |
+| func_001EC5F0 | 0x001EC5F0 | 0x22C | 95.32% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant scheduling permutation isolated to the MIDDLE (2nd) of three identical passes: |
+| func_00153540 | 0x00153540 | 0x22C | 99.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residuals at 99.58%: (1) commutative add.s operand-coloring on the three pose+=velocit |
+| func_001B62C0 | 0x001B62C0 | 0x228 | 88.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch lowering of the 4-way octant selector. The mula.s/madd.s MAC pair for dx |
+| func_001FD950 | 0x001FD950 | 0x22C | 85.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation + instruction-scheduling + branch-likely-sense permutation. Body fully |
