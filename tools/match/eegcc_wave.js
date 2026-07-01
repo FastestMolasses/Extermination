@@ -47,8 +47,11 @@ Do NOT run the permuter on any of the four above (scorer normalizes the diff / p
 - **eegcc coloring/reg-alloc near-misses have NO permuter lever (confirmed s84)**: unlike mwcc, the ee-gcc permuter NEVER reaches score 0 on coloring (tested on 5 cleanest, all plateaued). If the sole residual is GPR coloring (e.g. v0-vs-v1, s0<->s1, a0-vs-a2 for a pointer), PARK directly — don't run the permuter.
 
 On a TRUE 100.0 (objdiff AND .text size == expected): matched=true, c_source = FULL committed-ready file (the two markers + readable C body), pct=100. Else matched=false, pct=best, wall=precise reason.
+
+NEARMISS HARVEST (IMPORTANT — readable near-miss C is now committable as port ground truth): if you canNOT reach 100.0 but you FULLY RECOVERED THE LOGIC and the sole residual is a genuine compiler artifact (any of the FAST-PARK walls above — forward branch-likely, frame-stride, list-scheduler swap, sibling-call, GPR coloring — body/structure correct, only the artifact differs), STILL return your best READABLE c_source (the full file: // COMPILER: eegcc + // CFLAGS: lines + plain-C body, NOT permuter-mangled) with matched=false, the real measured pct, and a precise wall. The orchestrator commits these as documented // NEARMISS files (boot ELF stays byte-identical via the splat .s; matched_code unaffected). Leave c_source EMPTY only for: MMI/SIMD asm (no valid C), or a decode you are NOT confident is logically correct. Better to return faithful readable C at 70% than nothing.
+
 RULES: touch ONLY build/agent_${id}/ ; never canonical build/obj|expected, src/, objdiff.json, tools/; never run build.py/verify_all/git. No disc disasm to external context.
-Report per func: func, pct, matched, c_source (full file ONLY if matched), wall (if not).`
+Report per func: func, pct, matched, c_source (full committed-ready file if matched=true at 100.0, OR best readable near-miss file if body-correct per NEARMISS HARVEST), wall (precise reason if not 100.0).`
 
 phase('EEGCC')
 const results = await parallel(batches.map((funcs, i) => () =>
