@@ -505,3 +505,18 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001B3F10 | 0x001B3F10 | 0x2DC | 97.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 97.97% (mwcc233; 991202 82.34%). Logic and structure fully recovered and body-ide |
 | func_001F2BA0 | 0x001F2BA0 | 0x2E4 | 94.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation across the case-1 scan loop (s0-s4 relabeled end-to-end vs |
 | func_0021B550 | 0x0021B550 | 0x2E4 | 98.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residuals prevent 100.0 on mwcc233: (1) case-2 'st2 != 1 / st2 != 0' guard -- target k |
+| func_00152040 | 0x00152040 | 0x2E8 | 98.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation SAVE-ORDER permutation: with two pointer params both live across calls |
+| func_00225D20 | 0x00225D20 | 0x2E8 | 99.30% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | idiom-13 refined wall (proven ungeneralizable): the sole residual is a conditional-branch  |
+| func_001370C0 | 0x001370C0 | 0x2E8 | 96.88% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Paired float-register scheduling/coloring artifact (FPU-coloring class): after the func_00 |
+| func_0019E640 | 0x0019E640 | 0x2EC | 93.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/regalloc-order residual only: instruction count matches (191==191 mwcc23 |
+| func_001E8B90 | 0x001E8B90 | 0x2EC | 71.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling residual in the FP compare chain (198==198 instructions, stru |
+| func_001C64F0 | 0x001C64F0 | 0x2F0 | 92.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Best build is mwcc991202 (93.16%) vs mwcc233 (92.39%). Body/control-flow fully recovered ( |
+| func_0021AE90 | 0x0021AE90 | 0x2F0 | 91.60% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Best build is mwcc233 (91.60%) vs mwcc991202 (87.39%). Full logic recovered and confirmed  |
+| func_001E9280 | 0x001E9280 | 0x2F4 | 84.76% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Best build is mwcc233 (84.76%) vs mwcc991202 (75.04%). Full logic recovered: a GS/DMA disp |
+| func_001C3DB0 | 0x001C3DB0 | 0x2FC | 93.46% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | fp-register-coloring + list-scheduler-interleave: body/structure fully recovered (cross-pr |
+| func_001437E0 | 0x001437E0 | 0x304 | 96.11% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | dead-instruction-padding + fp-register-coloring: body/structure fully recovered (2-state a |
+| func_00198F10 | 0x00198F10 | 0x308 | 91.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | dead-instruction-padding + fp-register-coloring + call-arg-schedule: body/structure fully  |
+| func_001BFFD0 | 0x001BFFD0 | 0x308 | 97.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (switch on state byte at e+4, 4 cases dispatched by mwcc in |
+| func_001A7870 | 0x001A7870 | 0x30C | 93.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: O(N^2) all-pairs entity check over D_00275B90[D_00275B98]  |
+| func_001DD2F0 | 0x001DD2F0 | 0x30C | 69.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: two near-identical GS/DMA quad-strip particle builders. Ea |
+| func_00210F30 | 0x00210F30 | 0x30C | 84.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/instruction-scheduling permutation, two spots: (1) the D_700038A0/B0/C |
