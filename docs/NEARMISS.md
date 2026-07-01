@@ -697,3 +697,15 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001D30A0 | 0x001D30A0 | 0x724 | 92.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Bulk per-slot-array initializer (dynamic index shift = D_00275670->0x9c << 7, sibling of m |
 | func_00226070 | 0x00226070 | 0x730 | 69.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Larger weapon-swap FSM (state on arg0+1, dispatched via 5-way beq chain matching switch-de |
 | func_00140F80 | 0x00140F80 | 0x744 | 98.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual compiler artifacts, logic/structure fully recovered: (1) clean-store idiom-13 |
+| func_00218640 | 0x00218640 | 0x744 | 97.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order / instruction-scheduling permutation, same class as the sibling  |
+| func_001459A0 | 0x001459A0 | 0x770 | 90.01% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Delay-slot/instruction-scheduling artifact repeated across the six capsule-test call sites |
+| func_00165B60 | 0x00165B60 | 0x770 | 99.54% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/control-flow/data 100% byte-faithful except D_00275B40 (a pointer global near $gp): t |
+| func_0017D080 | 0x0017D080 | 0x780 | 81.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring / parameter-register-choice permutation (a0-vs-a1 for a loop bound) plus |
+| func_001E67C0 | 0x001E67C0 | 0x7A0 | 71.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Frame-size/register-pressure mismatch: this build colors one extra callee-saved integer re |
+| func_00218D90 | 0x00218D90 | 0x7B8 | 94.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | residual: (a) fixed D_002821B0/B4/00282240 store-reorder mwcc always emits regardless of s |
+| func_0017C860 | 0x0017C860 | 0x7DC | 82.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | VU0/FPU register-coloring and instruction-scheduling spread across many mula.s/madd.s sum- |
+| func_001861C0 | 0x001861C0 | 0x7D8 | 62.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | large-function (7 saved regs, ~500 instructions, dense 0x700038xx GS/VU0 scratch traffic)  |
+| func_001A2AE0 | 0x001A2AE0 | 0x7DC | 77.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Genuine register-coloring + branch-likely-sense scheduling artifact (not idiom-13/inverse- |
+| func_001A1390 | 0x001A1390 | 0x7F0 | 76.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same wall class as sibling func_001A1B80 (identical body/shape, only the kind threshold co |
+| func_001A1B80 | 0x001A1B80 | 0x7F0 | 76.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Genuine register-coloring + branch-likely-sense scheduling artifact. Full logic/structure  |
+| func_002177B0 | 0x002177B0 | 0x7F0 | 95.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact: register-allocation/coloring permutation (at-vs-v0/v1/a0 naming) throug |
