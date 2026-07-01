@@ -478,3 +478,18 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001DDB70 | 0x001DDB70 | 0x29C | 63.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | GS-packet struct-field/scheduling divergence: deep-offset field writes and a &D_0026E810 a |
 | func_0015BCF0 | 0x0015BCF0 | 0x2A0 | 97.34% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc canonicalization of a 2-case dense switch (case 3/case 4 shared body): mwcc always te |
 | func_001C7C00 | 0x001C7C00 | 0x2A4 | 93.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | see wall field above |
+| func_00161020 | 0x00161020 | 0x2A8 | 81.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 81.5% (mwcc233; 991202 69.0%). register-allocation-ORDER: dispatch structure, all |
+| func_00126F88 | 0x00126F88 | 0x2A8 | 59.59% | ee-gcc 2.9-991111-01 | This function is Sony PS2 SDK softfloat-library code (module tag 'lowmem' in FUNCTIONS.csv |
+| func_001BD9F0 | 0x001BD9F0 | 0x2AC | 78.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS: 6-way state-machine switch (arg0+4) with nested 5-way switch on arg0+5, fully re |
+| func_00197490 | 0x00197490 | 0x2AC | 91.04% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS: 3-arg outer-switch on arg1+0x230 (an animation/anim-event id) dispatching to a s |
+| func_0017B660 | 0x0017B660 | 0x2A8 | 82.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS: player-character bone-matrix-transition writer (documented in docs/FINDINGS.md ~ |
+| func_001F5F60 | 0x001F5F60 | 0x2AC | 93.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation only. Body and control flow are byte-for-byte s |
+| func_00153290 | 0x00153290 | 0x2B0 | 93.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation only. Body and control flow structurally identi |
+| func_00185760 | 0x00185760 | 0x2B0 | 96.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation confined to the opening prologue block. Structurally ident |
+| func_00150F40 | 0x00150F40 | 0x2B4 | 93.01% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-coloring permutation across the table-lookup block (see wall notes) |
+| func_0017E250 | 0x0017E250 | 0x2B8 | 99.42% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Arg-setup-order/scheduling wall on func_00102C58(&D_700036A0,&D_700036A0,arg0+0xC0): targe |
+| func_001FDDB0 | 0x001FDDB0 | 0x2B8 | 94.57% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Multiple scheduling/branch-shape artifacts on an otherwise byte-faithful 96-instruction bo |
+| func_0012F6C0 | 0x0012F6C0 | 0x2BC | 99.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Sole residual is a single instruction: idiom-13 clean-constant-store delay-slot wall. Both |
+| func_0014A350 | 0x0014A350 | 0x2C4 | 97.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Idiom-13b dead-const re-materialization: two dispatch-chain constants (the case-2/3 `addiu |
+| func_001F28D0 | 0x001F28D0 | 0x2C4 | 82.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation across the two 8-iteration loops (same class as sibling fu |
+| func_0013BF20 | 0x0013BF20 | 0x2CC | 94.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | clean-store delay-slot-nop x2 + independent-instruction scheduling swap x2 (scheduler-inte |
