@@ -580,3 +580,19 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0017ABA0 | 0x0017ABA0 | 0x3CC | 97.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Residual is confined to the st2==0x31/0x34 pitch-band-scale sub-block: (1) a genuine mwcc  |
 | func_001DFA40 | 0x001DFA40 | 0x3CC | 71.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Whole-function saved-register allocation ORDER permutation on both GP (s0-s7) and FP (f20- |
 | func_00211400 | 0x00211400 | 0x3D0 | 99.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring/scheduling: at each of the 5 dispatch sites, mwcc233 loads the 3 seed |
+| func_001E4610 | 0x001E4610 | 0x3D4 | 88.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 88.31% (233) / 82.19% (991202). Body/logic fully recovered: 4-state dispatch (0=i |
+| func_00134500 | 0x00134500 | 0x3D8 | 96.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 96.82% (233) / 90.79% (991202) -- essentially body-complete. Two residual mwcc sc |
+| func_0018C0D0 | 0x0018C0D0 | 0x3D8 | 82.52% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 82.52% (233) / 76.11% (991202). Body/logic fully recovered: two mula.s/madd.s squ |
+| func_0019D770 | 0x0019D770 | 0x3D8 | 86.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-ORDER wall (residual, not clean-store nop). Body/control-flow/addressi |
+| func_0019CF50 | 0x0019CF50 | 0x3E0 | 86.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Byte-for-byte the same function as func_0019D770 (near-identical twin, only 2 structural d |
+| func_001F9CF0 | 0x001F9CF0 | 0x3DC | 86.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-ORDER wall (residual). Same instruction COUNT as target (256=256), fra |
+| func_0017F5F0 | 0x0017F5F0 | 0x3E8 | 99.75% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP odd/even register-coloring on two timer-expiry float add/sub ops (target picks a differ |
+| func_0022E7F0 | 0x0022E7F0 | 0x3E8 | 80.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 packs the three stack-scratch locals by SIZE (largest array always lowest offset)  |
+| func_00175900 | 0x00175900 | 0x3EC | 88.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-permutation wall already characterized on sibling func_001756E0 (ident |
+| func_002267A0 | 0x002267A0 | 0x3EC | 62.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/logic fully recovered (verified instruction-by-instruction against the raw .s: the ou |
+| func_0019CB60 | 0x0019CB60 | 0x3F0 | 81.49% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Logic fully recovered from raw disasm: the two float-compare flag setups (D_70003190<=D_70 |
+| func_001FE070 | 0x001FE070 | 0x3F0 | 85.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Logic fully recovered and cross-checked against a sibling caller (func_001FD0E0.c, which c |
+| func_001BE6C0 | 0x001BE6C0 | 0x3F4 | 95.29% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-ORDER permutation (idiom exhaustion reached): after applying the 64-bi |
+| func_001E8E80 | 0x001E8E80 | 0x3F4 | 87.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/addressing-derivation permutation (idiom exhaustion reached). The mula |
+| func_0013C4C0 | 0x0013C4C0 | 0x3F8 | 98.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.98% -- extremely close. Fully recovered logic (fixed a spurious extra func_001B39F0 cal |
+| func_001C02E0 | 0x001C02E0 | 0x3F8 | 94.51% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Cluster of genuine mwcc-vs-CW artifacts, logic/structure fully recovered: (1) CW emits an  |
