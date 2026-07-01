@@ -655,3 +655,16 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00143AF0 | 0x00143AF0 | 0x544 | 91.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order artifact: mwcc assigns arg1->s0 / arg0->s1 (opposite of the natu |
 | func_00187780 | 0x00187780 | 0x53C | 78.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two independent non-idiom-fixable classes. (1) The stack frame carries a dead 64-bit magic |
 | func_00199220 | 0x00199220 | 0x544 | 87.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP+GPR register-coloring permutation (documented wall class) |
+| func_001D0720 | 0x001D0720 | 0x548 | 90.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two-phase particle-alpha/color-blend state machine (states 0-3 twice, on fields s0+0x70 an |
+| func_00214020 | 0x00214020 | 0x548 | 98.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | UI/screen-state manager: a 5-state (0-4) machine gating sound-effect selection (func_00213 |
+| func_00149B50 | 0x00149B50 | 0x574 | 94.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Explosion/effect-trigger state machine (5 states on arg0+6) driving anim_clip_init transit |
+| func_00224600 | 0x00224600 | 0x574 | 96.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring (4x c.eq.s operand-order swaps on reused ==0.0f/!=0.0f tests) + mwcc  |
+| func_002236F0 | 0x002236F0 | 0x57C | 99.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring: 3 residual instructions (two !=0.0f compares reloaded into swapped f |
+| func_00209860 | 0x00209860 | 0x584 | 92.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order/liveness-coloring permutation on the callee-saved set (target us |
+| func_001C87C0 | 0x001C87C0 | 0x590 | 98.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation across the three near-identical (rotation/transla |
+| func_0016BF80 | 0x0016BF80 | 0x5A0 | 93.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Persistent a0/a1 register-role swap for the state byte vs the `arg0` pointer across nearly |
+| func_00139E00 | 0x00139E00 | 0x5A4 | 96.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation: func_001B1270's two float args are evaluated in  |
+| func_00202D10 | 0x00202D10 | 0x5AC | 99.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.97% (mwcc233) — a single 2-instruction residual: target's `slti at,v0,3; bnez at,...` k |
+| func_00221FC0 | 0x00221FC0 | 0x5B4 | 89.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 89.97% — the state-machine dispatch/body logic is fully recovered (all 12 case bodies byte |
+| func_0021A500 | 0x0021A500 | 0x5BC | 89.22% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 89.22% — full logic recovered (state machine on e[4] driving a particle/twinkle-light init |
+| func_001963A0 | 0x001963A0 | 0x5C4 | 96.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation: mwcc233 colors the switch(arg0[1]) dispatch temp in |
