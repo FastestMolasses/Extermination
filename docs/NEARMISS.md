@@ -640,3 +640,18 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001E55F0 | 0x001E55F0 | 0x4CC | 93.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation: target keeps the actor+0x1F0 pointer in $s2 and the |
 | func_001C1030 | 0x001C1030 | 0x4D0 | 95.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation (arg0 copy colored to $s0 vs target's $s1) plus one  |
 | func_001348E0 | 0x001348E0 | 0x4D8 | 95.51% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | See detailed wall description above (dead-block artifact + FPU register-pairing permutatio |
+| func_001305B0 | 0x001305B0 | 0x4F8 | 99.19% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation on 4 stack-temp float reloads (target always re |
+| func_00131F90 | 0x00131F90 | 0x500 | 97.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order artifact: target always keeps the local angular-error bucket val |
+| func_001CC3B0 | 0x001CC3B0 | 0x4E8 | 62.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | SAME wall as sibling func_001CC8A0 (already registered in docs/NEARMISS.md): CW 2.3.1.01 A |
+| func_001B8AB0 | 0x001B8AB0 | 0x504 | 84.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Prologue register-allocation permutation (which register holds the switch discriminant/arg |
+| func_001C1570 | 0x001C1570 | 0x504 | 71.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Broad register-allocation/scheduling churn in the LCG loop and trig/matrix chain (large re |
+| func_001424C0 | 0x001424C0 | 0x510 | 96.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Prologue register-allocation permutation (switch-discriminant register: target reuses $a2, |
+| func_0021F330 | 0x0021F330 | 0x520 | 99.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring: at the arg0+0x224 and arg0+0x22C `!= 0.0f` zero-compares, target col |
+| func_0013F240 | 0x0013F240 | 0x528 | 93.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring at the D_700038A4+=10.0f add (target: add.s f0,f1,f0 field-first; mwc |
+| func_00201720 | 0x00201720 | 0x52C | 98.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single root-cause delay-slot-fill artifact: target leaves the unhandled-switch-value branc |
+| func_002134C0 | 0x002134C0 | 0x534 | 99.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation: body/schedule are byte-identical (same instruction  |
+| func_001634A0 | 0x001634A0 | 0x53C | 95.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual classes: (1) FP-register-coloring in the velocity-integration expr (self+0x2E |
+| func_00171E90 | 0x00171E90 | 0x53C | 95.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same documented saved-register-allocation-order class as sibling func_00171B00.c (already  |
+| func_00143AF0 | 0x00143AF0 | 0x544 | 91.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order artifact: mwcc assigns arg1->s0 / arg0->s1 (opposite of the natu |
+| func_00187780 | 0x00187780 | 0x53C | 78.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two independent non-idiom-fixable classes. (1) The stack frame carries a dead 64-bit magic |
+| func_00199220 | 0x00199220 | 0x544 | 87.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP+GPR register-coloring permutation (documented wall class) |
