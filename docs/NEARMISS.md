@@ -726,3 +726,11 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001FCBD0 | 0x001FCBD0 | 0x260 | 91.81% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Packed-5th-arg extract wall — same proven wall as sibling func_001FCE30 (parked 74.4%), he |
 | func_0019AD00 | 0x0019AD00 | 0x2E0 | 95.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation + 3 scheduling artifacts (mwcc 2.3.3; body, all five loops,  |
 | func_0019AFE0 | 0x0019AFE0 | 0x2E0 | 95.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical residual set to its twin func_0019AD00 (byte-for-byte the same body past the ent |
+| func_001C5C90 | 0x001C5C90 | 0x318 | 97.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | List-scheduler artifacts only — body/logic fully recovered, all 6 residual rows are pure s |
+| func_00137EB0 | 0x00137EB0 | 0x31C | 97.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Three residual allocator/scheduler artifact clusters, body/structure fully recovered (19 r |
+| func_001E1E60 | 0x001E1E60 | 0x400 | 99.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | PARK/NEARMISS — mwcc 2.3.3 saved-register allocation-ORDER permutation (the documented '2. |
+| func_00209280 | 0x00209280 | 0x5D4 | 99.10% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | GPR saved-register coloring permutation (the documented CW-declaration-order vs mwcc-web-s |
+| func_0019F730 | 0x0019F730 | 0x718 | 88.78% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 web-coloring-order permutation, same family wall as committed NEARMISS siblings fu |
+| func_001A2370 | 0x001A2370 | 0x768 | 80.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 register-coloring + list-scheduler permutation. Structure/logic fully recovered an |
+| func_0019FE50 | 0x0019FE50 | 0x850 | 93.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS: register-allocation web-ORDER permutation in the pass-2 (actor-list) loop. Both  |
+| func_00230230 | 0x00230230 | 0x5B4 | 98.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Regalloc/scheduling permutation class (mwcc 2.3.3), NOT the clean-store nop. Body byte-ide |
