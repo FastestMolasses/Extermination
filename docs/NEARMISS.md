@@ -719,3 +719,10 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00186A60 | 0x00186A60 | 0x860 | 96.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (521/536 instrs identical); 3 residual regions, all 2.3.1.0 |
 | func_001E3D90 | 0x001E3D90 | 0x870 | 74.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (every block traced against the .s; m2c cross-checked); bes |
 | func_001A0B10 | 0x001A0B10 | 0x878 | 95.37% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation web permutation + list-scheduling residual (NEARMISS harvest; body and |
+| func_001F6640 | 0x001F6640 | 0xA4 | 89.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-arg emit-order artifact, exactly the committed func_00137C80-class wall (99.84% parked  |
+| func_001C4A00 | 0x001C4A00 | 0xE8 | 86.78% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 86.78% (mwcc233). Logic/structure fully recovered (4-state switch dispatcher, all |
+| func_001DD600 | 0x001DD600 | 0x1A4 | 51.30% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | temp-register-coloring + list-scheduler slot permutation (sibling class of committed NEARM |
+| func_001CBC20 | 0x001CBC20 | 0x1F0 | 62.15% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | temp-register-coloring + list-scheduler slot permutation (same class as committed NEARMISS |
+| func_001FCBD0 | 0x001FCBD0 | 0x260 | 91.81% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Packed-5th-arg extract wall — same proven wall as sibling func_001FCE30 (parked 74.4%), he |
+| func_0019AD00 | 0x0019AD00 | 0x2E0 | 95.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation + 3 scheduling artifacts (mwcc 2.3.3; body, all five loops,  |
+| func_0019AFE0 | 0x0019AFE0 | 0x2E0 | 95.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical residual set to its twin func_0019AD00 (byte-for-byte the same body past the ent |
