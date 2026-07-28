@@ -734,3 +734,17 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001A2370 | 0x001A2370 | 0x768 | 80.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 register-coloring + list-scheduler permutation. Structure/logic fully recovered an |
 | func_0019FE50 | 0x0019FE50 | 0x850 | 93.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS: register-allocation web-ORDER permutation in the pass-2 (actor-list) loop. Both  |
 | func_00230230 | 0x00230230 | 0x5B4 | 98.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Regalloc/scheduling permutation class (mwcc 2.3.3), NOT the clean-store nop. Body byte-ide |
+| func_001EA240 | 0x001EA240 | 0x908 | 99.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP constant-materialization SCHEDULING order at ONE call site (4 instructions): in the sta |
+| func_0016AE40 | 0x0016AE40 | 0x948 | 99.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single register-coloring permutation (2 instructions): in case 1 the target loads the pad  |
+| func_0022D380 | 0x0022D380 | 0x94C | 97.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-coloring permutation ONLY: on mwcc 2.3.3 the body is instruction-for-instruction  |
+| func_0022DCD0 | 0x0022DCD0 | 0x95C | 89.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | beql+lui-likely-slot dispatch speculation (systematic, unreproducible): the target's 13-wa |
+| func_0017E7C0 | 0x0017E7C0 | 0x968 | 99.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | single FP-arg emit-order pair swap (func_00137C80 committed-wall class): body is byte-iden |
+| func_001F1F60 | 0x001F1F60 | 0x968 | 90.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP web-targeting/coloring + list-scheduler permutation (permuter class, NOT the clean-stor |
+| func_0013DD40 | 0x0013DD40 | 0x988 | 95.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Scheduling/regalloc permutation (permuter class, NOT the clean-store nop; 991202 lane best |
+| func_0012FC10 | 0x0012FC10 | 0x9A0 | 97.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Address-mode/list-scheduling + register-coloring permutation (permuter class, NOT the clea |
+| func_0020B210 | 0x0020B210 | 0x9CC | 99.70% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/canonicalization permutation (mwcc233 vs pinned 991202) — body and str |
+| func_0015D4C0 | 0x0015D4C0 | 0x9F8 | 96.34% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 991202 list-scheduler / FP-coloring shapes that mwcc233 cannot reproduce — body and struct |
+| func_0019BC40 | 0x0019BC40 | 0xAB0 | 95.42% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 web-coloring-order permutation + list-sched ties (sibling family wall of func_0019 |
+| func_001A7BA0 | 0x001A7BA0 | 0xABC | 94.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single s0/s1 web-coloring transposition (eb<->n) that cascades through vb/k/pk (~40 diff l |
+| func_001DDE10 | 0x001DDE10 | 0xB08 | 99.11% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.11% — residual is ~54 instrs of pure compiler artifact: (1) two CW branch-target alignm |
+| func_00144040 | 0x00144040 | 0xBD4 | 96.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (757 insns, 70 diff rows, all clusters are documented compi |
