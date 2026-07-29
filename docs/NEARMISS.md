@@ -748,3 +748,15 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001A7BA0 | 0x001A7BA0 | 0xABC | 94.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single s0/s1 web-coloring transposition (eb<->n) that cascades through vb/k/pk (~40 diff l |
 | func_001DDE10 | 0x001DDE10 | 0xB08 | 99.11% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.11% — residual is ~54 instrs of pure compiler artifact: (1) two CW branch-target alignm |
 | func_00144040 | 0x00144040 | 0xBD4 | 96.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (757 insns, 70 diff rows, all clusters are documented compi |
+| func_00201F70 | 0x00201F70 | 0xC2C | 99.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.33% on mwcc 2.3.3 (991202 only 82.34%). Body/structure fully recovered; two independent |
+| func_001E5AC0 | 0x001E5AC0 | 0xD00 | 92.45% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 92.45% on mwcc 2.3.3 (991202 89.19%). Logic fully recovered (112 differing rows of 832, al |
+| func_0021C440 | 0x0021C440 | 0xD60 | 99.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc dead-code-eliminates one redundant compare that the target keeps. In the `p[0x1F0] == |
+| func_0015DF10 | 0x0015DF10 | 0xD38 | 94.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + list-scheduling permutation (permuter class, NOT the clean-store de |
+| func_00169730 | 0x00169730 | 0xD78 | 99.99% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation (2 of 862 instructions). In case 1 the target loads the pad  |
+| func_0022EEF0 | 0x0022EEF0 | 0xDA8 | 99.12% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + scheduling artifacts, 31 of 876 instructions. (a) 4x: the read-modify- |
+| func_001E7D20 | 0x001E7D20 | 0xE18 | 84.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | GPR allocation permutation + delay-slot constant sharing. Body/structure fully recovered ( |
+| func_00148B40 | 0x00148B40 | 0x1010 | 96.60% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two genuine compiler artifacts, 967/1028 instructions byte-identical. (1) SCRATCHPAD-ALIAS |
+| func_0015EC50 | 0x0015EC50 | 0x11A0 | 96.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same two artifacts as func_00148B40; 1080/1128 instructions byte-identical. All logic reco |
+| func_001647D0 | 0x001647D0 | 0x138C | 98.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 98.84 (mwcc233). Logic fully recovered; all 1251 instructions structurally reprod |
+| func_00195130 | 0x00195130 | 0x1270 | 88.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 88.24 (mwcc233), up from 41.30 at the start of this session. KEY REUSABLE FINDING |
+| func_001551B0 | 0x001551B0 | 0x1464 | 97.41% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Permuter-class register-coloring + instruction-scheduling residue on an otherwise body-fai |
