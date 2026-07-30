@@ -283,6 +283,26 @@ callee-saved register (tell: the frame grows), inline the expression at every us
 
 ---
 
+## 6a. Translation-unit boundaries are a real lever (and a real trade-off)
+
+One-function-per-file is convenient but **not how the original was built**. When the original
+compiler could see two functions in the same TU, it optimizes across them — most visibly by
+keeping a value in a **caller-saved** register across a call it knows is local, where a
+standalone file must spill to a callee-saved register and grow the frame.
+
+**Tell:** your version has an extra `sN` save and a larger frame than the target, and the
+residual concentrates around call sites.
+
+**How to confirm cheaply:** paste `static` copies of the neighbouring functions into a scratch
+file and re-measure. We took a dispatcher from 88.2% → 99.6% this way, which *proved* four
+contiguous functions were one original TU.
+
+**The trade-off:** actually merging them means one file emitting several symbols. If your
+build is one-unit-per-function, a merged file may stop being scored — and can *remove*
+functions that already matched. Treat TU discovery as information first; only restructure if
+your build system can score multi-symbol units. Record the discovered boundary either way, as
+it explains a whole neighbourhood of near-misses.
+
 ## 7. Orchestration notes (parallel agents)
 
 - **One wave at a time.** The container daemon can wedge under concurrent `container run`
