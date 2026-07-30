@@ -187,6 +187,27 @@ either direction, confirm *which tool produced each object* before believing or 
 it. And periodically delete the whole object tree and rebuild — a from-scratch build is the
 only result that proves the pipeline, and it costs one coffee.
 
+### Keep ONE definition of "the expected object" — divergent measurements hide matches
+
+A mature project grows several places that build the target object: the main build, the
+integrator that commits results, and whatever the agents/workers do themselves. **They drift,
+and the drift silently under-reports matches.**
+
+We fixed the expected-object construction in the build, and the very next batch still scored
+~99.9 instead of 100 — because the *integrator* had its own copy of the assemble command,
+reading the raw disassembly and skipping every fixup. It filed six genuine byte-matches as
+near-misses.
+
+**Rules:**
+- Exactly one function builds the normalized target. Every other path calls it. Never
+  hand-copy an assemble command into a second tool.
+- Drop `[ -f out.o ] || build` guards on target objects. A stale object from before a fixup
+  is exactly the failure you are trying to prevent.
+- **When two independent measurements of the same thing disagree, the disagreement is the
+  finding.** Do not average them, do not take the pessimistic one, and do not assume the
+  worker is wrong because it is "just an agent". Chase it — ours was worth six matches, and
+  the same disagreement had already exposed a stale-object bug earlier the same day.
+
 ### Assembler *version* changes delay-slot behaviour
 
 Different `as` builds differ in whether they will move a preceding instruction into an
