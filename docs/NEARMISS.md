@@ -827,3 +827,11 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001FF590 | 0x001FF590 | 0x29C | 94.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Decode is fully verified against the .s (every case, every offset/width, the case-0 -> cas |
 | func_001F5940 | 0x001F5940 | 0x2DC | 99.92% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 2 instructions, both in the final call of the mode-2 arm: func_0021B9A0(1, 0.0f, 0.0f). Ta |
 | func_001AEE70 | 0x001AEE70 | 0x2E0 | 99.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 12 instructions, all in the final `if (st != 0)` display-list-append block, and all a sing |
+| func_001B9CF0 | 0x001B9CF0 | 0x2FC | 97.54% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body is fully decoded and 178/193 instructions are byte-identical; the whole residual is O |
+| func_0020EE50 | 0x0020EE50 | 0x31C | 99.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | JUMP-TABLE .rodata LAYOUT ORDER, not a code difference. Every instruction opcode and opera |
+| func_0012E840 | 0x0012E840 | 0x318 | 98.78% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body is fully decoded and the jr-table dispatch matches exactly (jtbl_0026D0D0 reloc inclu |
+| func_00158EC0 | 0x00158EC0 | 0x348 | 99.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.67 with mwcc233 -O4,p -sdatathreshold 4 (o991: 86.59). Instruction SEQUENCE is byte-ide |
+| func_001AC070 | 0x001AC070 | 0x334 | 97.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 97.95 with mwcc233 -O4,p -sdatathreshold 4 (o991: 93.1). Dispatch, all 7 case bodies, the  |
+| func_001F0720 | 0x001F0720 | 0x334 | 86.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 86.25 with mwcc233 -O4,p -sdatathreshold 4 (o991 69.09, o24 86.25). Dispatch, all 7 preset |
+| func_00163E90 | 0x00163E90 | 0x38C | 99.96% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 2 of 227 instructions, both the SAME compare in case 3 (the func_00174AC0 arm): target `sl |
+| func_00118828 | 0x00118828 | 0x374 | 99.02% | ee-gcc 2.9-991111-01 | IMPORTANT: this is an ee-gcc function, NOT mwcc (0x118828 sits inside the SDK/lowmem eegcc |
