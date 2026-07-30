@@ -836,3 +836,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001152D8 | 0x001152D8 | 0x514 | 98.53% | ee-gcc 2.9-991111-01 | 98.5262 (ee-gcc 2.9-991111-01, -O2). 323 of 327 instructions are identical in order, opera |
 | func_001B8FC0 | 0x001B8FC0 | 0x528 | 97.11% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 13 residual instructions of ~340, in three clusters. (1) DISPATCH, 2 instrs, NOT a compile |
 | func_001FB3E0 | 0x001FB3E0 | 0x524 | 86.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single jump table, and the jtbl_0026EBF0 dispatch IS byte-identical (reloc clean) — the re |
+| func_0010D2C8 | 0x0010D2C8 | 0x5C8 | 81.71% | ee-gcc 2.9-991111-01 | NOT an mwcc unit — this is an ee-gcc (SDK/lowmem) function: sd/ld 64-bit callee saves at 1 |
+| func_001A50A0 | 0x001A50A0 | 0x600 | 95.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 69 of 387 instructions differ; the instruction SEQUENCE is aligned 1:1 with the target eve |
+| func_001741D0 | 0x001741D0 | 0x614 | 97.02% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 97.018 (mwcc233; 93.21 on 991202, 93.50 on mwcc24). The jtbl dispatch itself MATCHES (lui  |
+| func_001B41F0 | 0x001B41F0 | 0x61C | 94.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 94.734 (mwcc233; 80.95 on 991202). IMPORTANT: the old src stub's three-wall verdict is lar |
