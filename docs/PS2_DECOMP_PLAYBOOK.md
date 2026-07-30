@@ -144,6 +144,31 @@ each stage actually receives before blaming the compiler.
 both ways and compare hashes. Ours: 255 units, 0 differences — so the flag could only affect
 the unmatched ones. Do this *before* trusting the change, not after.
 
+### Stale objects lie to you — check provenance before believing a number
+
+Intermediate object directories accumulate objects from *different sources*. In a project
+that links unmatched functions by assembling the disassembly, `build/obj/<f>.o` may hold an
+object **assembled from the .s** rather than **compiled from the C** — and it survives when
+you later promote that function to a real compiled unit.
+
+We hit exactly this: a function measured 99.94% immediately after being promoted and
+reported as 100.0. The expected object was correct; the *compiled* object was a leftover
+assembled one. Recompiling gave a true 100.0 — the claim was right, but only verifiable
+after checking provenance.
+
+**Rules:** a promotion must invalidate the old object. When a percentage surprises you in
+either direction, confirm *which tool produced each object* before believing or dismissing
+it. And periodically delete the whole object tree and rebuild — a from-scratch build is the
+only result that proves the pipeline, and it costs one coffee.
+
+### Assembler *version* changes delay-slot behaviour
+
+Different `as` builds differ in whether they will move a preceding instruction into an
+unfilled delay slot. If your residual is consistently "target has X in the delay slot, we
+emit X then an unfilled slot", try another assembler from the same era before concluding the
+compiler is at fault. Validate the same way as any pipeline change: rebuild every
+already-matched object with both and compare hashes.
+
 ### PS2 assembler syntax gotchas
 splat emits VU0 macro-mode operands that binutils rejects:
 - accumulator: emitted `ACC`, binutils wants **`$ACC`**
