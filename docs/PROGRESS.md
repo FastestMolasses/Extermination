@@ -1,5 +1,70 @@
 # Extermination Decomp — Progress
 
+## s84 update (2026-06-24/25) — readable-C matching campaign + frontier reached
+
+Landmark readable-C session: **~502 functions converted stub/asm-void → readable byte-matched C**,
+**matched_code 96.51% → 97.74%** (1668/1764 units at 100%), **boot ELF byte-identical on a CLEAN
+build** (verify_all green: boot-elf 0x175b00 + 19/19 overlays; verified repeatedly), ~118 commits.
+
+> **CRITICAL recovery mid-session:** the boot-ELF "byte-identical" had been passing only on STALE
+> build/obj — a clean rebuild exposed two latent bugs: (1) 22 src/*.c committed EMPTY since s83
+> (`6d6ffe7`) → undefined-symbol link failures; (2) func_001DEE80's readable C compiled 0x6c vs the
+> real 0x34 (+0x2c shift broke the D_00241010 reloc at 0x100270), and **objdiff false-positived it
+> at 100%** (it scores expected instrs, ignores extra trailing compiled instrs). Both fixed; clean
+> build now genuinely byte-identical. `integrate_wave.py` hardened with a compiled-`.text`-size ≤
+> expected guard (rejects the oversize class). See memory cleanbuild-byteid-broken.
+
+Drivers:
+- **mwcc 2.3.3 (`// COMPILER: mwcc233`)** byte-matches the idiom-13 delay-slot-nop family the pinned
+  991202 mis-fills — the session's workhorse (see memory mwcc233-idiom13-unlock).
+- **idiom-20 BREAKTHROUGH: mwcc DOES emit branch-likely (beql/bnel/beqzl)** — the "mwcc can't do
+  branch-likely" parks were wrong (73 matched mwcc funcs prove it). Re-attack wave = 7/12. Trigger:
+  `switch(st)` on a local with case bodies writing `field = st+1` (reuses switch local) → mwcc fills
+  the dispatch slot via beql/beqzl. tools/match/brlikely_wave.js.
+- **idiom-19 inverse-CSE**: inline a repeated subexpr at every use (incl. the guard) to stop mwcc
+  CSE-ing it into a saved reg / growing the frame.
+- **seeded permuter** (tools/match/permuter_seeded_wave.js): 50–67% yield on the CRACKABLE class
+  (GPR register-naming/order, saved-reg coloring, call-arg/store delay-slot scheduling), ~8 matches/
+  M-tokens. RESISTANT (don't feed it): FP-coloring, commutative-canon, mtc1-order, LICM, induction-var,
+  branch-likely-multi-residual, genuine idiom-13.
+- CORRECTED s84: **FPU-MAC is NOT a wall** (mwcc emits mula.s/madd.s); a permuter wave is ~50–130 min
+  (the one "3.6h" wave was a stuck permission popup, not the permuter).
+
+**FRONTIER**: the readily-matchable veins (idiom-13, branch-likely-sole-residual, GPR-crackable
+reg-perms) are essentially mined out. Producer now yields 0–1/16 (0/16 in FP-heavy regions like
+0x1E0000); GPR-crackable permuter pool down to ~5. Remaining stubs are the genuine hard frontier:
+FP-register-coloring, commutative-operand canonicalization, LICM/scheduling, branch-likely with a
+2nd residual, genuine idiom-13 const-store nop, VU0 macro-mode (asm-void only), jr-table (dead).
+Memory: producer-vein-mined-out, branch-likely-unlock, permuter-campaign-ready, matching-is-the-priority.
+
+### s84 continuation (2026-06-29/30) — SDK lane + split-functions; readable-C frontier reached
+
+**+~37 more readable funcs this session (542 total)** via the ee-gcc SDK lane, **boot ELF byte-identical
+throughout** (verify_all all-pass repeatedly). Work + findings:
+- **ee-gcc SDK lane** (vaddr 0x100000–0x11FFFF, `// COMPILER: eegcc`): two veins — INCLUDE_ASM stubs
+  (~16 matched, ~20% then declining) and a NEW zero-byte-risk **SDK asm-void→readable** vein (15 matched,
+  44→19→31%). Integrator routes eegcc compiles to the exterm-permuter image. A **wall-aware ranking**
+  (score = nins + 4·calls + 8·callee-saves + 40·func_0010E8A8-init-wrapper + 12·branch-likely + 30·reloc-
+  counter) perfectly predicts matchability; a strict "matchable-signature" filter now returns 0 → lane
+  drained.
+- **Every eegcc wall class host-characterized as NO-LEVER** (see memory eegcc-branch-likely-wall):
+  forward-branch-likely (ee-gcc only annuls loop back-edges; not flag/ISA/source-crackable), GPR/FP
+  coloring (ee-gcc permuter is DEAD — 5 cleanest tested, none reached score 0, unlike mwcc), list-
+  scheduler swap, frame-stride, sibling-call, %hi-caching-in-callee-reg, float-constant-pool, reloc-
+  counter (D_FFFFF HI16/LO16 — links byte-identical but objdiff can't reach 100% from C), and
+  "o32-vs-eabi" is a MISDIAGNOSIS (o32 uncompilable in this cc1; eabi is the only ABI; t0/a4 naming is
+  cosmetic/non-counting).
+- **All 5 splat split-function pairs MERGED** (commits ec5ff20 + 4478ae5): func_0013F770+00140004,
+  func_001BFFD0+001C0004, func_001C2770+001C2FF0, func_001FFCD0+00200004, func_00200A40+00201000. Each
+  TAIL had zero jal refs (fall-through, not a callee). Recipe (in memory readable-c-frontier-exhausted):
+  explicit `size:` in symbol_addrs.txt → re-splat → delete orphan TAIL .s → git rm placeholder. 4 of the
+  5 merged funcs are jr-table state machines (dead); func_001BFFD0 is a 95.88% scheduling near-miss
+  (permuter-attempted). Structural correctness for the port agents is the win.
+- **Whole-project readable-C frontier mapped & exhausted**: game region 0x120000+ mined out (0 fresh
+  stubs; ~941 genuine-asm + 87 parked), asm-void exhausted project-wide, mwcc permuter backlog 55/55 tried,
+  eegcc permuter dead, split-functions fixed. Further readable-C gains need multi-session compiler-RE.
+  Memory: readable-c-frontier-exhausted, eegcc-branch-likely-wall, eegcc-sdk-compiler.
+
 ## Current status (2026-06-10, through session ~s42)
 
 Two tracks, both far along. The matching decomp is verifiably byte-perfect
@@ -14,9 +79,59 @@ weapons, enemies, doors, audio and the real status screen.
   repacked ISO equals the original ("Whole-game extraction" section). Every
   function is a committed `src/` unit — matched C or an INCLUDE_ASM stub
   (stubs contain no disassembly; bytes come from locally assembled splat .s).
-- **Committed-C matching**: 1247/1344 game functions (92.78%) at 100%,
-  **matched_code 96.18%** at the 2026-06-02 census, plus singles since
-  (s17 +2, s22 +1, s23c re-verifications) → **~96.2% of game-code bytes**.
+- **Committed-C matching**: **matched_code 96.48%**, functions 1345/1441 at 100%
+  (s82: verify_all green — boot-elf byte-identical, overlays 19/19). CSV (2957 funcs):
+  **779 readable** / 654 word / 1524 undecompiled (up from ~534 readable at s82 start;
+  +245 this session, of which 196 are ee-gcc SDK functions).
+- **s82 FRONTIER EXHAUSTED at the matchable tier** (13 fan-out rounds + permuter +
+  ee-gcc): SDK parks are codegen-shape walls (delay-slot fill, EABI prologue ordering,
+  sibcall, branch-likely — need a different ee-gcc build, NOT a permutation); fresh mwcc
+  game-code yields ~1/round (idiom-13, switch-dispatch-order, branch-lowering, FPU
+  fusion). The permuter cracks ONLY true register-permutations (scarce in remaining).
+  Remaining ~1525 undec + ~654 word are genuine backend walls; 100% needs a toolchain/RE
+  breakthrough (new ee-gcc build for SDK prologue/delay walls, or mwcc scheduler RE).
+  NOTE: fill_unmatched now SKIPS build/obj for INCLUDE_ASM stubs (guard added s82
+  after a sub-agent left a stale non-matching obj that broke boot-elf byte-identity).
+- **s82 ee-gcc BREAKTHROUGH**: the ~710 `lowmem` functions are Sony PS2 SDK/crt0/
+  libkernel, built with **ee-gcc 2.9-991111-01** (Sony Tool-Chain DTL-S13010), NOT
+  CodeWarrior — mwcc can't match them. Sourced the period compiler from
+  decompme/compilers, integrated a per-file compiler path (`// COMPILER: eegcc` +
+  `// CFLAGS: -O2`), and matched **~131 SDK functions** byte-identically. ee-gcc 2.9
+  has the 16-byte saved-reg stride that matches multi-save functions (2.96 doesn't).
+  Idioms + guide in docs/fanout/EEGCC_GUIDE.md; see memory eegcc-sdk-compiler.
+  ~390 SDK candidates remain (next fan-out target).
+- **s82 PERMUTER outcome**: decomp-permuter set up + validated against mwcc
+  (exterm-permuter image; tools/permuter/{run_func.sh,sweep.sh}; PERMUTER_GUIDE.md;
+  patched objdump.py to -m mips:5900 for r5900/MMI). CRACKED 2 register-permutation
+  walls humans couldn't (func_00179CA0, func_001C6120) — new idiom `while(cond=i<N)`
+  forces `slti $vN` not `$at`. Reach CHARACTERIZED (modest): it cracks only 95%+
+  PURE source-reorderable register-permutation near-misses + an agent hand-finishing
+  the last 1-3 instrs. It does NOT crack scheduler-fixed ordering (swapped stores,
+  delay-slot fills), instruction-count diffs, or far (~84%) seeds. 34 near-match
+  base.c seeds preserved in tools/permuter/work/ for future hand-finish.
+- **s82 deep-dive RE outcome**: CRACKED the float-operand-order wall (float-constant
+  in a `float` local defeats mwcc literal-canonicalization; + int early-return branch
+  shape + verify-call-arity). RIGOROUSLY proved the remaining backend walls genuine:
+  idiom-13 = mwcc fills a branch delay slot with the first SPECULATABLE ALU op from
+  either successor (loads/stores never; globals via lui/lo never matchable; volatile
+  doesn't help); multi-function-TU scheduling FALSIFIED (per-function). The ~1,300
+  remaining game funcs bottleneck on these proven-genuine walls — pure C-level idiom
+  discovery is largely tapped out. SDK ~710 funcs need vintage ee-gcc (see
+  docs/fanout/EEGCC_FINDING.md; modern gcc-13 can't substitute). New idioms in
+  docs/fanout/MATCHING_GUIDE.md (~35 total); ~420 walls in STATE_parked.txt.
+- **Compiler confirmed EXACT (s82)**: our mwccps2 emits `.comment = "MW MIPS C
+  Compiler (2.3.1.01)"`, byte-identical to the boot ELF — so the walls below are
+  NOT a version mismatch; they are source-structure/build-flag puzzles, solvable
+  in principle. The idiom-13 "2.3 vs 2.3.1" note is misleading.
+- **The clean-matchable frontier is ~exhausted (s82)**: 4 fan-out rounds drove
+  yield 8→15→10→5; the ~119 matchable-shape candidates (≤1 branch, ≤3 float) are
+  worked through. Remaining frontier (~781 word + ~1604 undecompiled): ~315
+  confirmed walls (docs/fanout/STATE_parked.txt), ~710 lowmem = Sony SDK/crt0
+  (sd-frame/daddu-move codegen → ee-gcc-built, unmatchable with mwcc), the rest
+  dominated by mwcc-vs-CW BACKEND walls (delay-slot fill, register-allocation
+  ORDER, two-exit branch lowering, saved-reg-arg-in-jal-delay-slot) with no
+  C-level lever found despite exhaustive -O/-opt/-fp/-inline/#pragma + source
+  attempts. Fan-out infra + idiom additions live in docs/fanout/.
   The CodeWarrior 2.3.1 matching idioms are cracked (19 reusable idioms);
   the remaining gap is mostly catalogued compiler walls ("CONFIRMED GENUINE
   WALLS") — wall-blocked functions keep best-attempt C inline in their stubs.
@@ -143,6 +258,133 @@ below are kept as historical record; this block supersedes them.)
 Note: session numbers were assigned by parallel agents and collide in a few
 places (e.g. two distinct "s33"/"s30"/"s25" records); the digest below and
 the dated sections later in the file are both authoritative.
+
+> 2026-06-21 (session 84): JUMP-TABLE DISPATCHER CLASS UNLOCKED. Built
+> tools/match/jtbl_prep.py — splat had stored the game's jump tables as raw
+> `.word 0xADDR` blobs (not symbolic labels), so m2c errored "jump table is not
+> provided" and ~146 switch-dispatcher functions were entirely un-decodable (0%
+> stubs, no C). jtbl_prep, per function: finds each `%hi(jtbl_XXXX)` it
+> references; reads that jtbl's code-address entries (0x100000–0x300000) from
+> wherever it's defined (often a different .s); inserts `.L<addr>:` labels at each
+> target in the function .s; emits the resymbolized pair (function .s + a
+> `glabel jtbl_XXXX / .word .L<addr>` rodata block) to build/match/jtbl/ —
+> NOTHING canonical is touched (m2c-input only). m2c then decodes a real
+> `switch(){case…}`. Proven on func_00158EC0 (7-case dispatch recovered fully).
+> baseline.py m2c() now auto-detects jtbl dispatchers and feeds the pair.
+> RE-BASELINING all 146 still-stub jtbl dispatchers through the jtbl-aware
+> pipeline: **21 land ≥70% (5 ≥85%)** where they were previously 0% un-decodable;
+> 106 CCFAIL (m2c output has the usual decode artifacts an agent fixes — undefined
+> jtbl ident when m2c can't auto-trace a `jr $aN` computed jump, non-lvalue
+> stores), 5 M2CFAIL, 7 in the SDK/lowmem crt0 region (carved out). Ran
+> tools/match/jtbl_wave.js (jtbl-aware m2c base + switch idioms) on the 21 ≥70%
+> candidates: agents pushed them to 89–98% but **0/21 matched** — ALL parked on
+> ONE wall (the dense-switch DISPATCH SCHEDULE, open since s23). Then ran a
+> 5-hypothesis research workflow (tools/match/jtbl_research.js) which **DEFINITIVELY
+> PROVED THE CLASS UNMATCHABLE with our toolchain** (see FINDINGS "JUMP-TABLE
+> DISPATCHER WALL"). Core: the original emitted ALL jump tables to a consolidated
+> EXTERNAL rodata TU (0x0026xxxx–0x0027xxxx); a C `switch` makes mwcc emit its OWN
+> LOCAL `@NN` table which (a) the post-RA scheduler freely reorders (lui→delay
+> slot, addiu/sll swap) and (b) objdiff counts the local-vs-external reloc as a
+> mismatch even when the schedule is byte-identical (proven on func_001B9C10:
+> schedule matches, still <100% purely on `@13` vs external `jtbl_0026E0E0`).
+> Exhausted: every -O level / -opt / -sdatathreshold (sdt8 fixes an incidental
+> gp-rel s64 access, the mwcc default — lifts 97.6→98.3%, isolating the dispatch
+> as sole wall); ALL section/scheduling/gpopt pragmas are illegal in mwcc 2.3;
+> `#pragma schedule off` reproduces the EXACT dispatch but is function-global so it
+> wrecks the prologue (68%); inline-asm `la jtbl,EXTERNAL` emits the byte-exact
+> dispatch in isolation but mwcc 2.3 asm has no C-var operands / no reg-pinning and
+> dead-code-eliminates the case bodies; no computed goto (C89); reference mwccps2
+> projects (recvx/sssv/decompedia) document NO flag/pragma trick and treat such
+> cases as non-matches (mwcc has no INCLUDE_ASM escape — but OUR splat-stub build
+> DOES, so our 146 dispatchers stay byte-identical asm stubs, the correct
+> disposition). VALUE RETAINED: jtbl_prep + jtbl-aware m2c now DECODE these into
+> readable `switch` C — not matchable, but gold for the NATIVE PORT track (which
+> needs correct behavior, not byte-identity) and for documentation. Committed
+> jtbl_prep.py + jtbl_wave.js + jtbl_research.js + baseline.py integration; held
+> wave-2 (hand-decode wave) since plain-C dispatchers cannot byte-match.
+> FRONTIER RE-CONFIRMED EXHAUSTED (new angle): quantified the stub population
+> (1549 stubs = 192 SDK-carved + 146 jtbl-walled + 1218 game); of the 114
+> NEVER-measured game stubs, 10 baseline ≥85% / 4 at 70–85% (an MPEG-2 FMV-decoder
+> + streaming cluster). Ran general_wave.js on the 14 best: **0/14 matched** — the
+> `sub_*` MPEG funcs are ee-gcc library code (cross-compiler frameless-tail-call /
+> direct-into-arg-reg `la` wall; some are duplicate-address siblings of already-
+> matched eegcc src like func_0010AD58.c), the `func_0012xxxx` region hits
+> documented mwcc walls (CW branch-target alignment nop, idiom-13 const-store,
+> a dead trailing return-0 block mwcc eliminates [recurring on func_001283D0/
+> 001284E0/00128B80], regalloc permutation). INCIDENTAL: `-sdatathreshold 8` (mwcc
+> default) is the right flag — 4 mis-addresses 8-byte s64 globals (lui/lo vs the
+> correct `sd %gp_rel(g)(gp)`). Recorded all 260 new baselines to
+> build/match/baseline_results.txt. Committed general_wave.js + permuter_wave.js.
+> LAST LEVER: launched a decomp-permuter brute-force wave (permuter_wave.js) on the
+> 10 highest prior-session regalloc/scheduling near-misses (≥93%) — agents triage
+> by wall type (permuter only helps regalloc-ORDER/arrangement, not selection/
+> align/dead-block/ee-gcc) then sweep to objdiff score 0. NET: the matching decomp
+> is at its mwcc-2.3 toolchain limit; the remaining ~3.5% is genuine backend/
+> compiler-architecture walls + carved ee-gcc SDK. DECISION POINT for next session:
+> (a) port track (the jtbl/MPEG/etc. readable decodes are gold there — behavior,
+> not byte-identity), (b) accept current matching state, or (c) pursue a
+> toolchain/scheduler-RE breakthrough (the only thing that could move matching).
+> RESOLVED (same session): user chose (c) — keep grinding byte-matched C, do NOT
+> pitch the port (the port's LLM agents need the C as ground truth). BREAKTHROUGH
+> followed: **mwcc 2.3.3 (mwcps2-2.3.3-000906) per-file** (`// COMPILER: mwcc233`,
+> build.py dispatch parallel to eegcc; user-supplied at tools/mwccps2-233/,
+> gitignored) byte-matches the ENTIRE idiom-13 family that the pinned 991202
+> speculates into delay slots — clean-store nop, bc1t/bc1f & b & bnez delay-slot
+> lui, dead-const re-materialization (idiom-13b). Proven on func_001872C0; then
+> swept the comment-mined idiom-13 backlog (tools/match/mwcc233_wave.js, dual-
+> compile 991202+2.3.3, agents triage walls 2.3.3 can't fix). RESULT: **~60
+> functions converted stub/asm-void → READABLE byte-matched C this session**
+> (waves yielding 72–100%), incl. gameplay logic — grenade/missile fire
+> (func_001872C0/001869A0), footstep system (func_00187350), water-entry
+> (func_00187DE0), tendril-field gates (func_00154460/001545B0/001546C0),
+> generator spawn (func_0015A200), actor allocator (func_001AFA90), input/aim
+> reset (func_001B57E0), + many helpers. matched_code 96.51→96.60%, functions
+> 1352→1371+. The READABLE-C gap is the real metric (was ~493 genuine readable of
+> ~1456 non-stub; ~768 asm-void are byte-matched-but-opaque). 2.3.3's boundary
+> (parks): dead-trailing-block / two-exit branch-lowering, regalloc permutation,
+> paddub-move idiom, float-GPR-slot ABI, jr-table dispatch, ee-gcc — none are the
+> delay-slot-nop case. Campaign ongoing: draining the game-region asm-void backlog
+> (273 fresh medium remain) with dual-compile waves. See memory mwcc233-idiom13-unlock.
+>
+> 2026-06-19 (session 83): M2C + IDIOM + PERMUTER SCALE-MATCHING CAMPAIGN.
+> (1) RESEARCH OVERTURNED THE BRANCH-LIKELY PREMISE: our ee-gcc 2.9-991111-01
+> ALREADY emits branch-likely byte-perfectly — proven by 29 already-matched SDK
+> funcs containing bnel/beql (verified func_00109A90/0010BFB0/0010E368 at canonical
+> objdiff 100%). branch-likely is reorg-pass-driven (annulled delay slot), NOT a
+> flag; -mbranch-likely doesn't exist in this gcc lineage. The raw dtls13010 cc1.bin
+> actually WORKS (its SIGABRT is a cosmetic post-output exit crash) and is
+> byte-identical to our rebuild — DROPPED it (murky provenance + redundant). Per
+> field convention (sly1/Klonoa2/ICO/TMB), the vendor SDK/lowmem is CARVED OUT of
+> the matched-C metric; report two numbers (link-identity 100% + readable-C% over
+> game code). (2) BUILT THE PIPELINE: m2c (matt-kempster/m2c, --target mipsee-mwcc-c)
+> → cleaner (void*→s8*) → inline prelude → mwccmips → objdiff → idiom hand-finish via
+> parallel subagent fan-out → integrate.py (canonical objdiff-100% gate) → trim →
+> verify_all → commit. Tooling in build/proto/; m2c pinned at tools/m2c/ (gitignored).
+> (3) HARVESTED ~26 functions to clean readable C (~6 NEW stub→readable decompilations
+> + ~20 hybrid-asm→readable upgrades) across 9 breadth waves + 2 permuter waves;
+> matched functions 1345→1350+, verify_all GREEN throughout (boot ELF byte-identical).
+> Commits d2b5bae/e1f2c95/9d1fb0c/6d6ffe7/0f8e386/89d1ee5/b2f4120/c79dd9b. (4) BREADTH
+> SEARCH EXHAUSTED (~9% yield on ≥85%-baseline, ~0 on the low-baseline stub tail;
+> permuter hit-rate only ~6%) — BUT THEN (5) THE WALL-CLASS RE BREAKTHROUGH changed the
+> picture: instead of grinding individual wall-bound stubs, ran SYSTEMATIC mwcc-codegen
+> RE workflows (controlled compile+objdump experiments per wall class). FOUND 10 NEW
+> MATCHING IDIOMS, converting walls s82 had marked "no C lever" — see MATCHING_GUIDE.md
+> "WALL-CLASS IDIOMS" / "RESIDUAL-WALL IDIOMS": FP odd/even register coloring; 2nd-float-
+> arg f13 (a MISDIAGNOSIS = prototype hygiene); switch ascending-case-order; saved-reg
+> allocation direction (raw=top-down vs local-copy=bottom-up) + jal-delay-slot copy
+> placement; float early-return-0/two-exit epilogue (cracks "branch-lowering"); field-
+> address CSE hoist (pointer-alias cause); address-escaped loop counter; + conditional
+> levers (idiom-13 RMW subset, $at stored-boolean subset, sltiu->slti cache). Re-waving
+> near-misses with the growing idiom set harvested more matches each round (RE->idiom->
+> re-wave cycle). matched functions 1345→1352+; verify_all GREEN throughout. KEY
+> REFRAME: the "frontier" is NOT a hard wall — it's a MOVING RE TARGET; systematic
+> per-wall-class RE keeps converting "walls" into idioms. GENUINELY un-leverable
+> (confirmed): clean-CONSTANT-store idiom-13 nop, pure-branch (unstored) $at compare, CW
+> dead-copy duplication, branch-target alignment nop, li-hoist-above-store coloring,
+> FP-companion coloring on direct lwc1 LOADS, before-jal saved-reg sub-order, and
+> VU0-macro/FPU-MAC/handwritten code (NO C form — asm-void is canonical). Compiler pinned
+> EXACT (mwcc 2.3.1.01). Tooling: build/proto/ (baseline/process_wave/next_wave/trim);
+> m2c at tools/m2c/. See memory [[m2c-permuter-pipeline]], [[matching-frontier-wall-bound]].
 
 > 2026-06-12 (session 77): THE BEGINNING OF THE GAME — boot→new-game→
 > first-level path decoded (live + static) and the first-level opening
@@ -1853,6 +2095,31 @@ src/func_001C84D0.c — all still stubs, wall-blocked 82-93%):
     on a BYTE field did NOT stop mwcc sinking its `sb` into a jal delay
     slot — volatility blocks speculation across a branch, not sinking
     into an always-executed slot.)
+
+20. **Array over-declaration forces absolute addressing under -sdatathreshold 4**
+    (2026-06-18, s81, cracked func_001D52E0). When a TU mixes gp-relative globals
+    (small, within the threshold) with one global that the target accesses via an
+    absolute `lui/lo` pair, over-declare the absolute one as an array
+    (`extern int D_0028A5A0[2];`) so its declared size exceeds the small-data
+    threshold — mwcc then emits absolute `lui/lw` for it while keeping the others
+    gp-relative. Composes with the reload idiom #10. (The dual to idiom #8's
+    raw-`*(volatile int *)0xADDR` form, but keeps a real reloc.)
+
+> **s81 (2026-06-18) — Phase A5b proven + fan-out + tracker reconciled.**
+> The human matching round-trip is proven end-to-end: func_001CB5B0
+> (`D_00275B40 = D_00275B48 + 0x110`, gp-rel, -sdatathreshold 4) decompiled
+> fresh from C to a true objdiff 100%, linked byte-identical. A 3-subagent
+> fan-out (math_vector / actor_anim / render) added 8 more 100% matches
+> (func_00178440; func_001D80E0/8100/6B60/52E0, func_001F0310/0360/6850);
+> math_vector yielded zero — the remaining frontier is **wall-bound, not
+> idiom-bound** (most functions stall 75-96% on backend scheduler/regalloc/
+> branch-lowering with no C lever). docs/FUNCTIONS.csv was rebuilt from the
+> authoritative state (2957 funcs: 542 readable / 804 word / 1611 undecompiled);
+> the old `status` column was untrustworthy (stubs marked readable). Curated
+> easiest-first frontier lists + the subagent contract live in docs/fanout/.
+> Handoff candidates func_0015CF90 (idiom-#13 wall), func_001D2090 (regalloc-order
+> wall, 90.3%, 2nd half byte-perfect), func_00101BB8 (branch-lowering wall) parked
+> with analysis inline.
 
 NEW WALL DATUM — prologue ADDRESS-pair split (2026-06-10, func_001B61C0 /
 pad-rumble request, wall-blocked at 93.6% with every other row AND all
@@ -6200,3 +6467,133 @@ chunk06.n0 table (a 4-vert card quad), the wrong file deleted. All
 four scenes boot with zero pickup load failures; suite 19/19 PASS
 (EM_AIM_TEST flaked once under back-to-back load, 3/3 isolated —
 deflake noted as an open item).
+
+## PIPELINE VERIFIED + repo relocated out of iCloud (2026-06-18)
+
+The Apple `container` build had started failing: `tools/verify_all.py` reported
+**boot-elf FAIL + overlays FAIL in ~5s** (too fast to be a real build) while the
+host-side **match** gate still PASSed at 96.23%. Root cause was NOT a code
+regression — the repo lived in iCloud "Desktop & Documents" sync, the disk hit 99%
+full, and iCloud "Optimize Mac Storage" evicted ~19,336 git-ignored build files
+(`build/asm/*.s` etc.) to `SF_DATALESS` placeholders (`ls -lO` → `compressed,dataless`).
+The container's **virtiofs bind mount cannot materialize a dataless placeholder** →
+`OSError errno 35` (EDEADLK) inside `fill_unmatched.py`, crashing fill+link. (The
+File Provider later wedged on an upload backlog so even host reads hung; a reboot was
+needed.)
+
+FIX (user, 2026-06-18): relocated the repo to **`~/Documents/Extermination.nosync/
+Extermination/`** — the `.nosync` suffix makes iCloud skip it entirely (no sync, no
+eviction, no dataless). The user's copy silently dropped 65 `tools/` files (the
+`tools/bin/` binaries, `tools/decomp/*.py`, `tools/mwccps2/` compiler, `tools/overlay/
+*.py`, `__pycache__`) that were dataless at copy time; back-filled from the old repo,
+all checksum-verified identical. The old `~/Documents/Extermination` is now a stale
+iCloud copy.
+
+VERIFIED GREEN from the new path (`.venv/bin/python tools/verify_all.py --only
+boot-elf,overlays,match`):
+
+```
+boot-elf   PASS  boot ELF byte-identical (0x175b00 loadable bytes)  (124.4s)
+overlays   PASS  19/19 overlays passed                              (4.8s)
+match      PASS  matched_code 96.23% (floor 95.0), functions 1252/1348
+RESULT: all checks passed
+```
+
+Oracle re-proven (A5a): `build.py --single-file build/obj/func_00136600.o` then
+`objdiff-cli diff -u func_00136600` → **100.0%**. Phase-A pipeline is trustworthy
+again. PENDING before fan-out: A5b (first human undecompiled→readable round trip;
+candidate `func_0015CF90`).
+
+## Update — s85: 41 new byte-matches, 3 tooling bugs fixed, 1 standing "wall" overturned
+
+Ran waves 48-56 of the readable-C harvest (game region drained, SDK region
+nearly drained). Every wave verified with `tools/verify_all.py`: **boot ELF
+byte-identical throughout**.
+
+### Numbers
+
+| | |
+|---|---|
+| matched_code | **98.31%** (floor 95.0) |
+| objdiff functions matched | **1830 / 1926** |
+| byte-matched readable C | 1926 |
+| documented `// NEARMISS` readable C | 758 |
+| **readable C total** | **2684 / 2953 = 90.9%** |
+| remaining `INCLUDE_ASM` stubs | 269 |
+
+Stub breakdown: 140 jr-table dispatchers, 48 VU0/MMI, 14 tail-call
+trampolines, 6 four-byte fragments, 61 still-workable.
+
+### Three tooling bugs — all were inflating "walls" that did not exist
+
+1. **VU0 special registers (`$ACC` / `$Q`).** `cmd_expected` re-assembles every
+   unit unconditionally and `as` *deletes its output on error*, so the 23 VU0
+   units silently lost `build/expected/*.o` on any full build and the match gate
+   skipped with "expected stale". splat emits the accumulator and divide
+   registers bare (`ACC`, `Q`); binutils only accepts `$ACC`/`$Q`.
+   `assemble_cmd` now normalizes them. Expected-object coverage went to
+   **1926/1926 for the first time** — a clean build reproduces the match gate.
+   Masked for weeks because `objdiff`/`verify_all` never re-assemble.
+
+2. **`D_FFFFF` / `D_FFFFFF` pseudo-symbols** (51 `.s` files). splat paired a
+   delay loop's `lui rX,0x10` with the loop-*body* `addiu rX,rX,-1` — a
+   decrement executed 0x100000 times, past a branch label — as a `%hi`/`%lo`
+   pair, purely because the values combine to 0xFFFFF (which is *below* the
+   0x100000 load address, so it cannot be a real symbol). Expected objects
+   carried relocations where real code has plain immediates. Fixed; measured
+   honestly, this removed a false-mismatch class but promoted **no** function to
+   100% on its own (93.93→94.05, 93.56→93.74, 98.77→98.93).
+
+3. **`D_2000xxxx` uncached-mirror offsets** (5 symbols). splat rendered
+   `addiu a3,a2,0x10` as `%lo(D_20000010)`. Fixed — and this one **did** yield a
+   match: `func_0010F490` 99.72 → **100.0**, promoted to a compiled unit.
+
+### The "eegcc forward-branch-likely wall" was wrong
+
+An s84 finding declared forward (non-loop) branch-likely **uncrackable** in
+ee-gcc 2.9-991111-01, told agents to park the class in ≤2 tries, and estimated
+it at "10%+ of all SDK stubs". It was false. `func_00113F68.s` has a forward
+`bgezl` at 0x114058 targeting 0x114074 and its C compiles to **objdiff 100.0**.
+
+**eegcc idiom-1 (the real rule):** gcc's `fill_eager_delay_slots` emits the
+annulled form when the branch-*target* path's first instruction is a cheap
+speculatable op — in practice a `lw` of a global through an already-live base
+register. The s84 experiment led its taken path with a `lui` rematerialization,
+which is not speculatable; one negative result was generalized into a wall.
+
+Retesting the 7 functions that note named: **every one improved**, the
+branch-likely op now emits correctly in all of them, and `func_00119240` went
+from parked to **100.0**. The three `func_00112AD0` twins moved 75.67→96.67 and
+are now blocked on a genuine, precisely-described reorg deadlock (the `volatile`
+needed to force `must_annul` also makes `resource_conflicts_p` refuse the insn
+for the delay slot) — that is what a correct wall description looks like.
+
+Same over-generalization happened with mwcc idiom-20 in s84. **Lesson: one
+failed source shape is not a proof of impossibility.**
+
+### 47 phantom units removed
+
+A Jun 30 splat rename regenerated `build/asm` under real symbol names but left
+the old `func_ADDR.s` files behind, so 47 orphan `src/func_ADDR.c` still looked
+like valid units — 9 pairs compiled on *both* sides, double-counting 1392 bytes.
+Migrated the 27 phantoms holding the better work into their canonical names
+(each verified to keep its 100%), deleted the rest, repointed the registry.
+
+### New idioms documented (docs/fanout/MATCHING_GUIDE.md)
+
+- **idiom-21** — `x += y` vs `x = x + y` selects mwcc's `add.s` operand order;
+  the compound form is the CodeWarrior shape (9 sites: 99.87 → 100.0).
+- **idiom-22** — the original treats the 0x7000xxxx scratchpad as `volatile`;
+  marking those accesses volatile reproduces its access ordering.
+
+### Open items
+
+- `func_0010FE28` (99.91%): splat minted data label `D_00279448` for what the
+  compiler addresses as `D_00279440+8`. **Deliberately not "fixed"** — unlike
+  the three bugs above, 0x279448 is a legitimate address, so whether it is a
+  separate object or a struct field is a real RE question, not a tooling bug.
+- The 140 jr-table dispatchers remain provably unmatchable as compiled C
+  (external consolidated jump table ⇒ relocation mismatch, no source lever).
+  `tools/match/jtbl_nearmiss_wave.js` is written to harvest them as readable
+  NEARMISS C (they decode to real `switch` at 89-98%) — the largest remaining
+  readable-C opportunity, worth ~5% of the codebase.
