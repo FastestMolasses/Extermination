@@ -1,7 +1,7 @@
 export const meta = {
   name: 'exterm-jtbl-nearmiss-wave',
-  description: 'Harvest jump-table dispatchers as READABLE NEARMISS C (class is proven byte-unmatchable: external jtbl reloc wall)',
-  phases: [{ title: 'JtblNearmiss', detail: 'decode jr-table dispatchers via jtbl_prep+m2c, push body-identical, harvest as NEARMISS' }],
+  description: 'Match jump-table dispatchers to byte-identical readable C (s85: the old external-jtbl wall was a false premise; class is matchable)',
+  phases: [{ title: 'JtblNearmiss', detail: 'decode jr-table dispatchers via jtbl_prep+m2c, expected object carries its own table, push to 100.0' }],
 }
 const SCHEMA = {
   type: 'object', additionalProperties: false,
@@ -38,16 +38,16 @@ NO prelude/typedefs/M2C_ macros. PLAIN C: int/char/short/unsigned variants/float
 (-sdatathreshold 4 or 8 if the func uses %gp_rel small globals — pick what scores best.)
 
 === MEASURE (compile + diff each iteration) ===
-container run --rm -v "$PWD:/work" -w /work exterm-toolchain sh -c 'mkdir -p build/agent_${id}/exp build/agent_${id}/obj; mipsel-linux-gnu-as -march=r5900 config/asm_prelude.inc build/macro.inc build/asm/matchings/main/code/<F>.s -o build/agent_${id}/exp/<F>.o 2>/dev/null; qemu-i386 tools/bin/wibo32 tools/mwccps2/mwccmips.exe -c <FLAGS> -o build/agent_${id}/obj/<F>.o build/agent_${id}/src/<F>.c 2>&1 | grep -viE "MWCIncludes|Usage|environment"'
+container run --rm -v "$PWD:/work" -w /work exterm-toolchain sh -c 'mkdir -p build/agent_${id}/exp build/agent_${id}/obj; cat build/.asmnorm/<F>.s > build/agent_${id}/exp/<F>.src.s 2>/dev/null || cat build/asm/matchings/main/code/<F>.s build/jtblrodata/<F>.s > build/agent_${id}/exp/<F>.src.s; mipsel-linux-gnu-as -march=r5900 config/asm_prelude.inc build/macro.inc build/agent_${id}/exp/<F>.src.s -o build/agent_${id}/exp/<F>.o 2>/dev/null; qemu-i386 tools/bin/wibo32 tools/mwccps2/mwccmips.exe -c <FLAGS> -o build/agent_${id}/obj/<F>.o build/agent_${id}/src/<F>.c 2>&1 | grep -viE "MWCIncludes|Usage|environment"'
 Diff on HOST: tools/bin/objdiff-cli diff -1 build/agent_${id}/exp/<F>.o -2 build/agent_${id}/obj/<F>.o <F> -o - --format json   (read match_percent + instructions[].diff_kind)
 
-=== PUSH THE BODY (cap ~6 attempts; the dispatch reloc diff is EXPECTED and permanent) ===
+=== PUSH TO 100.0 (cap ~10 attempts; the dispatch is now comparable, so it must match too) ===
 The dispatch reloc is NO LONGER a permanent residual (the expected object now carries the table). If you still see a jtbl reloc mismatch, report it — it means build/jtblrodata/<F>.s is missing for your func, which the orchestrator can regenerate. Push the case bodies AND the dispatch to 100.0 — apply the standard idioms:
 A) ASCENDING case order (mwcc reverses to descending compare-chain / positional table).
 B) Per-case beql vs beq: a case gets beql only if its body's first emitted instr is speculatable pure-ALU; body leading with load/store/call -> beq+nop.
 C) Clean store of a live value leaves the slot nop (free); materialized-const store fills it.
 D) Struct field types/signatures, float-vs-int, if(p){...}return 0; shape, $at compares, saved-reg direction (see docs/fanout/MATCHING_GUIDE.md "MWCC POST-RA SCHEDULER MODEL").
-Target: 85%+ typical (prior wave hit 89-98%). Below 70%, re-check your decode for LOGIC errors (wrong case mapping, wrong field width, missed fallthrough) before blaming the scheduler.
+Target: 100.0 is achievable (10 of the first 23 got there). Below 70%, re-check your decode for LOGIC errors (wrong case mapping, wrong field width, missed fallthrough) before blaming the scheduler.
 
 === VERIFY THE DECODE (mandatory before reporting) ===
 Walk EVERY case body against the .s one more time: field offsets, widths (lb/lbu/lh/lhu/lw), constants, call targets, fallthroughs, the default path, loop bounds. A NEARMISS file is port ground truth — a wrong decode is worse than no decode. If you are NOT confident the logic is correct, return c_source EMPTY with wall="decode not confident: <why>".
