@@ -824,3 +824,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001AB9D0 | 0x001AB9D0 | 0x28C | 99.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_0015BA50 | 0x0015BA50 | 0x298 | 99.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_00189730 | 0x00189730 | 0x290 | 98.10% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 8 of ~166 instrs differ, in two independent spots inside case 3 (everything else, includin |
+| func_001FF590 | 0x001FF590 | 0x29C | 94.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Decode is fully verified against the .s (every case, every offset/width, the case-0 -> cas |
+| func_001F5940 | 0x001F5940 | 0x2DC | 99.92% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 2 instructions, both in the final call of the mode-2 arm: func_0021B9A0(1, 0.0f, 0.0f). Ta |
+| func_001AEE70 | 0x001AEE70 | 0x2E0 | 99.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 12 instructions, all in the final `if (st != 0)` display-list-append block, and all a sing |
