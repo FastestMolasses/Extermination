@@ -1,11 +1,22 @@
-// INCLUDE_ASM sub_Unknown_Extension  (vram unknown, 12 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
+// NEARMISS sub_Unknown_Extension  (vram 0x0010AD58, 0xC bytes) — readable decompilation, NOT byte-identical.
 //
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/sub_Unknown_Extension.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// objdiff 0.00% via mwcc 2.3 (mwcps2-2.3-991202) (-O4,p -sdatathreshold 0). The LOGIC is
+// faithful and complete; the residual is a genuine compiler artifact no source change fixes:
+// tail-call/sibling-call trampoline — the target is 3 instructions (lui / j func / addiu in
+// the delay slot); mwcc has no way to emit a tail `j` from C and always emits jal + epilogue,
+// so essentially every instruction differs and the percentage is meaningless here.
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc
+// CFLAGS: -O4,p -sdatathreshold 0
+
+extern int D_0026B728[];
+extern void func_0010A3A8(int *);
+
+void sub_Unknown_Extension(void) {
+    int *a0 = D_0026B728;
+    func_0010A3A8(a0);
+}

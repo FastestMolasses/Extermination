@@ -1,11 +1,16 @@
-// INCLUDE_ASM vtable_a0_at_0011FE90_off2C  (vram unknown, 32 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/vtable_a0_at_0011FE90_off2C.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// One-call non-leaf wrapper — asm void with extern decl for the
+// callee. mwccmips emits the jal + R_MIPS_26 relocation for the
+// referenced function symbol; the rest of the instructions are
+// passed through verbatim.
+extern void func_0011E938(int, int, int, int);
+
+asm void vtable_a0_at_0011FE90_off2C(void) {
+    addiu $sp, $sp, -0x10
+    sd $ra, 0x0($sp)
+    lh $a1, 0xE($a0)
+    jal func_0011E938
+    lw $a0, 0x54($a0)
+    ld $ra, 0x0($sp)
+    jr $ra
+    addiu $sp, $sp, 0x10
+}
