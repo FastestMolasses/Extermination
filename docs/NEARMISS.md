@@ -840,3 +840,11 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001A50A0 | 0x001A50A0 | 0x600 | 95.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 69 of 387 instructions differ; the instruction SEQUENCE is aligned 1:1 with the target eve |
 | func_001741D0 | 0x001741D0 | 0x614 | 97.02% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 97.018 (mwcc233; 93.21 on 991202, 93.50 on mwcc24). The jtbl dispatch itself MATCHES (lui  |
 | func_001B41F0 | 0x001B41F0 | 0x61C | 94.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 94.734 (mwcc233; 80.95 on 991202). IMPORTANT: the old src stub's three-wall verdict is lar |
+| func_001916C0 | 0x001916C0 | 0x674 | 98.80% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.80% / 409 vs 409 instructions, identical instruction multiset, ZERO logic or control-fl |
+| func_00207350 | 0x00207350 | 0x69C | 99.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 2 of 423 instructions, one site: inner case p[5]==4. Target emits `bnez $v0,.L0020787C` +  |
+| func_001FFCD0 | 0x001FFCD0 | 0x688 | 94.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 70 of 427 instructions, no opcode/structural differences left - every residual is scheduli |
+| func_0016FCF0 | 0x0016FCF0 | 0x6EC | 99.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 4 instructions (2 identical pairs), pure compare-result register allocation. At 0x270 and  |
+| func_00130AB0 | 0x00130AB0 | 0x754 | 99.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 6 instructions in two spots. (1) 0x198/0x19C -- call-arg materialization ORDER for func_00 |
+| func_00184D20 | 0x00184D20 | 0x6FC | 98.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 10 instructions in two independent spots. (1) 6 instrs -- FP temp PAIR coloring for the fi |
+| func_00129780 | 0x00129780 | 0x77C | 99.57% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 3 instructions, one site. At the FIRST of the six func_001C2540 axis probes (target 0x0012 |
+| func_001AD740 | 0x001AD740 | 0x7B8 | 99.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 14 instructions in three groups. (1) 2 instrs - MULTI-TABLE dispatch reloc: this function  |
