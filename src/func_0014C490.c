@@ -1,15 +1,7 @@
-// NEARMISS func_0014C490  (vram 0x0014C490, 0x1E8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.92% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP even/odd register-coloring permutation (permuter-class, same class as func_001509A0 NEARMISS). Body and the three-state switch structure are 100% recovered; o233 is 99.92% with a SINGLE residual block: in the case-0 `*(0x700038A4)+=4.0f` add and the case-1 `field < 3.5f+field38` / case-2 `fiel...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// Three-state (0/1/2) actor script step: seeds a random orientation and pushes a camera/effect
+// vector on entry, waits for a distance threshold, then resets state and fires the finish effect.
 
 extern void func_00102948(float *dst, char *src);
 extern int func_00122BB8(void);
@@ -37,7 +29,7 @@ void func_0014C490(char *arg0, char *arg1) {
         func_00102948((float *)(arg0 + 0xB0), &D_00245C60 + ((func_00122BB8() >> 9 & 7) * 0x10));
         *(float *)(arg1 + 0x38) = *(float *)(arg0 + 0xB4);
         func_00102948(&D_700038A0, arg0 + 0xB0);
-        *(volatile float *)0x700038A4 = *(volatile float *)0x700038A4 + 4.0f;
+        *(volatile float *)0x700038A4 += 4.0f;
         func_001EFD20(4, &D_700038A0);
         break;
     case 1:

@@ -1,37 +1,9 @@
-// NEARMISS func_0020EE50  (vram 0x0020EE50, 0x31C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// JUMP-TABLE .rodata LAYOUT ORDER, not a code difference. Every instruction opcode and operand matches; objdiff flags exactly 2 instructions (index 7 and 8, the outer dispatch `lui a1,%hi(jtbl_00273650)` / `addiu a1,a1,%lo(jtbl_00273650)`) as DIFF_ARG_MISMATCH. This function has TWO tables. The exp...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
 
-//
-// SEMANTICS: per-frame driver for the "controller / memory-card prompt" task
-// (t = the task block).  t[4] is the task state id (0..7, 8-entry jump table);
-// states 4..7 just forward the task to one of four sub-machines.
-//   t[4]    = task state id (main jump-table selector)
-//   t[5]    = per-state sub-step counter
-//   t[6]    = state to resume after the modal message finishes
-//   t[0x10] = result/abort code reported to the caller (0x63 = cancelled)
-//   t[0x11] = prompt/button selection produced by func_0020F2A0 (0 = none,
-//             1..5 = the five menu entries)
-//   t[0x15] = the accepted selection, latched from t[0x11]
-//   t[0x16] = message id kicked through func_001FF080
-//   D_002821B0 / D_002821B4 / D_002821B8 = UI mode / cursor-enabled /
-//             cursor-index globals of the prompt widget
-//   D_00282240 = "prompt is up" flag
-//   D_00810E74 = per-frame pressed-button mask (0x20 = cancel, 0x40 = confirm)
-//   D_00275BD8 = gp-rel "modal message in flight" flag
-// The four widget globals are declared volatile: the original keeps the
-// D_002821B4 store ahead of the D_002821B8 store in every arm, while mwcc233
-// otherwise hoists the store whose value needs no materialization.
-
+// SEMANTICS: per-frame state machine for the controller / memory-card prompt task; t[4] is
+// the 8-way state selector (jtbl_00273650), t[0x15] the latched menu selection (jtbl_00273630),
+// states 4..7 forward the task to one of four sub-machines.
 extern unsigned char D_00275BD8;
 extern volatile int D_002821B0[16];
 extern volatile int D_002821B4[16];

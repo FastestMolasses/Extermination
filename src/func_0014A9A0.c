@@ -1,15 +1,8 @@
-// NEARMISS func_0014A9A0  (vram 0x0014A9A0, 0x318 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.92% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two residual instructions: the anim_clip_init(arg0,0x2B,0.0f,0.0f) call at the end of state 0's true-branch has the same f12/f13 materialization-order artifact documented for func_00138900 (mtc1 zero,fa0f / mov.s fa0,fa0f in target vs mtc1 zero,fa0 / mov.s fa1,fa0 in ours); z-temp/volatile/assign...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// Enemy "turn to face target" behaviour: state 0 seeds the turn (rate, sound 0x7E7, random
+// jitter) and picks the left/right turn clip 0x2A/0x2B, state 1 spins until the turn beat
+// fires (sound 0x7E8, clip 0x2D), state 2 releases control back to the walk/idle state.
 
 extern void anim_clip_init(unsigned char *, int, float, float);
 extern void func_001FBD50(unsigned char *, int, int, float);
@@ -49,9 +42,12 @@ void func_0014A9A0(unsigned char *arg0, unsigned char *arg1) {
             *(float *)(arg0 + 0xC4) = func_001B1470(*(float *)(arg0 + 0xC4) + *(volatile float *)0x70003A20 + 3.1415927f);
             anim_clip_init(arg0, 0x2A, 0.0f, 0.0f);
         } else {
+            /* both float args are 0.0f; the in-argument assignment is what makes mwcc
+               materialise the zero into $f13 first and copy it down to $f12. */
+            float zero;
             *(float *)(arg1 + 0x4C) = 1.0f;
             *(float *)(arg0 + 0xC4) = func_001B1470(*(float *)(arg0 + 0xC4) + *(volatile float *)0x70003A20);
-            anim_clip_init(arg0, 0x2B, 0.0f, 0.0f);
+            anim_clip_init(arg0, 0x2B, (zero = 0.0f), zero);
         }
         break;
     case 1:

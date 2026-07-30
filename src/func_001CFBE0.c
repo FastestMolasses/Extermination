@@ -1,13 +1,3 @@
-// NEARMISS func_001CFBE0  (vram 0x001CFBE0, 0x400 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.96% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// EXPECTED-OBJECT CONSTRUCTION ISSUE, not a compiler wall - 2 of 256 instructions, both in the second dispatch (0xC0/0xC4). This function has TWO jump tables. mwcc emits each table into its OWN .rodata section (local objects @43 and @44, each 0x1C bytes, each at offset 0 of its section), so both di...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 

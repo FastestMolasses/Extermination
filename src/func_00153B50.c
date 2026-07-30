@@ -1,16 +1,10 @@
-// NEARMISS func_00153B50  (vram 0x00153B50, 0x34C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// f13-before-f12 mtc1 argument-order swap in the case-1 anim_clip_init(self,0x33,10.0f,0.0f) call (target: mtc1 zero,f13 then mtc1 v0,f12; mwcc233 emits them swapped). This is the documented recurring reversed-float-constant near-miss (func_00188250/func_00137C80/func_0013B5B0 class). Tried the FP-...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+// Enemy state machine tick: damage/death dispatch (sub-state 0), spawn-anim wait (1),
+// knock-back ballistic slide with collision probe (2), despawn hand-off (3), then the
+// common per-frame animation advance + post-update callback.
+// The `zi = 0; ... z = (float)zi;` staging is load-bearing: it is what makes mwcc
+// schedule `mtc1 zero,$f13` ahead of `mtc1 $v0,$f12` at the case-1 anim_clip_init call.
 extern void func_001FBD50(void *p, int a, int b, float f);
 extern void anim_clip_init(void *p, int clip, float a, float b);
 extern int anim_advance_time(void *p, float t);
@@ -49,7 +43,7 @@ extern int D_700038A0[];
 extern int D_700038B0[];
 
 void func_00153B50(Actor153 *self, Ctx153 *ctx, int state) {
-    Ctx153 *c; Actor153 *s; int hp; int clip; float z;
+    Ctx153 *c; Actor153 *s; int hp; int clip; int zi; float z;
     state = self->sub05; c = ctx; s = self;
     switch (state) {
     case 0:
@@ -70,8 +64,13 @@ void func_00153B50(Actor153 *self, Ctx153 *ctx, int state) {
         break;
     case 1:
         if (c->status00 & 0x1000) {
-            s->state04 = 1; s->sub05 = 0; s->ev00 = 1; s->dmg36 = 0;
-            anim_clip_init(self, 0x33, 10.0f, z = 0.0f);
+            s->state04 = 1;
+            s->sub05 = 0;
+            zi = 0;
+            s->ev00 = 1;
+            s->dmg36 = 0;
+            z = (float)zi;
+            anim_clip_init(self, 0x33, 10.0f, z);
         }
         break;
     case 2:

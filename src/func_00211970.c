@@ -1,13 +1,3 @@
-// NEARMISS func_00211970  (vram 0x00211970, 0x828 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.96% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// mwcc233 -O4,p -sdatathreshold 4 (991202 only 90.90). CODE IS BYTE-IDENTICAL: objcopy of the two .text sections differs in exactly 2 bytes, both inside relocated immediate fields — 0x20 `addiu a1,a1,56` vs `addiu a1,a1,0` (%lo of jtbl_002736B0) and 0x180 `addiu a0,a0,28` vs `addiu a0,a0,0` (%lo of...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
