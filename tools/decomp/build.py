@@ -115,7 +115,9 @@ def assemble_cmd(name: str) -> str:
     """
     norm = (r"-E -e 's/(v[a-z]+\.[a-z]+[[:space:]]+)ACC,/\1$ACC,/g'"
             r" -e 's/(v[a-z]+[[:space:]]+)Q,/\1$Q,/g'"
-            r" -e 's/,[[:space:]]*Q[[:space:]]*$/, $Q/'")
+            r" -e 's/,[[:space:]]*Q[[:space:]]*$/, $Q/'"
+            r" -e 's/%hi\(D_FFFFFF\)/0x100/g' -e 's/%lo\(D_FFFFFF\)/-1/g'"
+            r" -e 's/%hi\(D_FFFFF\)/0x10/g'  -e 's/%lo\(D_FFFFF\)/-1/g'")
     return (f"sed {norm} {ASM_DIR}/{name}.s > build/.asmnorm/{name}.s && "
             f"mipsel-linux-gnu-as -march=r5900 config/asm_prelude.inc "
             f"build/macro.inc build/.asmnorm/{name}.s -o build/expected/{name}.o")

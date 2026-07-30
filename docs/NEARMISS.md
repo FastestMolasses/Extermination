@@ -769,3 +769,14 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0011A4E8 | 0x0011A4E8 | 0xE0 | 82.55% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring + tail list-scheduler wall (fast-park class). .text size 224 == expecte |
 | func_00106B88 | 0x00106B88 | 0x124 | 99.73% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring wall (confirmed s84): body byte-identical and .text size exact (0x124 = |
 | func_001066F8 | 0x001066F8 | 0x134 | 98.25% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring wall (confirmed). Body/structure/opcodes all correct; the only residual |
+| func_001140C8 | 0x001140C8 | 0x158 | 93.93% | ee-gcc 2.9-991111-01 | splat D_FFFFF pseudo-symbol wall (HARD, unreachable from C) + GPR live-range-split colorin |
+| func_00111AE0 | 0x00111AE0 | 0x148 | 93.56% | ee-gcc 2.9-991111-01 | splat D_FFFFF pseudo-symbol wall (HARD, unreachable from C) + GPR coloring. libcdvd-family |
+| func_00117D70 | 0x00117D70 | 0x178 | 84.82% | ee-gcc 2.9-991111-01 | eegcc gcse address-hoist wall — target emits `lui %hi(D_00281AC0)` once per if/else arm (2 |
+| func_00118CF8 | 0x00118CF8 | 0x168 | 71.91% | ee-gcc 2.9-991111-01 | eegcc induction-variable-selection wall — target keeps base (s1) + byte-offset iv (s0) + c |
+| func_00107CF0 | 0x00107CF0 | 0x194 | 98.02% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall. 104/105 instructions byte-identical; the ONLY diff is the 4th c |
+| func_0010E8A8 | 0x0010E8A8 | 0x1B4 | 99.89% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall — ONE adjacent independent-store swap. Expected emits `sw v0,32( |
+| func_001179E0 | 0x001179E0 | 0x1C0 | 91.90% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring wall (+ minor list-scheduler). Body/structure fully recovered: all 8 fu |
+| func_00118EC0 | 0x00118EC0 | 0x1C0 | 82.71% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring wall + loop-iv/address-materialisation. Both loops are structurally rec |
+| func_0010FC38 | 0x0010FC38 | 0x1EC | 99.99% | ee-gcc 2.9-991111-01 | EXPECTED-SIDE (splat) symbolization artifact — NOT a codegen difference. The single diff i |
+| func_00113280 | 0x00113280 | 0x1F8 | 98.77% | ee-gcc 2.9-991111-01 | ee-gcc callee-saved GPR coloring permutation (confirmed s84 fast-park class). Instruction  |
+| func_00112440 | 0x00112440 | 0x1CC | 97.22% | ee-gcc 2.9-991111-01 | ee-gcc list-scheduler + delay-slot-fill wall. Body, control flow, register allocation and  |
