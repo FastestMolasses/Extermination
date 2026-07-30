@@ -50,12 +50,23 @@ for r in cand:
         bak[f] = f"/tmp/baknm_{f}.c"; shutil.copy(p, bak[f])
     open(p, "w").write(r["c_source"])
 
+# The expected object MUST be built from the normalized .s, exactly as
+# build.py does it: that applies the VU0 $ACC/$Q and invented-symbol fixups AND
+# appends the function's own jump-table rodata. Assembling the raw splat .s here
+# instead left jtbl_XXXX undefined-external, so a dispatcher that genuinely
+# byte-matches measured ~99.9 and was filed as a NEARMISS. Always REBUILD it (no
+# `[ -f ] ||` guard): a stale object from an earlier, un-normalized run is the
+# exact trap this is fixing.
+sys.path.insert(0, os.path.join(ROOT, "tools", "decomp"))
+import build as _b  # noqa: E402
+
 # batch-compile per image
 img_parts = {"exterm-toolchain": [], "exterm-permuter": []}
 for r in cand:
     f = r["func"]; comp, fl = directives(r["c_source"])
-    asm = (f'[ -f build/expected/{f}.o ] || mipsel-linux-gnu-as -march=r5900 '
-           f'config/asm_prelude.inc build/macro.inc {A}/{f}.s -o build/expected/{f}.o 2>/dev/null')
+    _b.normalize_asm(f)
+    asm = (f'mipsel-linux-gnu-as -march=r5900 config/asm_prelude.inc '
+           f'build/macro.inc build/.asmnorm/{f}.s -o build/expected/{f}.o 2>/dev/null')
     if comp == "eegcc":
         img_parts["exterm-permuter"] += [asm, f'tools/eegcc/ee-compile.sh src/{f}.c build/obj/{f}.o {fl} >/dev/null 2>&1']
     else:

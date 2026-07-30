@@ -813,3 +813,14 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001B7D60 | 0x001B7D60 | 0x228 | 92.24% | mwcc 2.3 (mwcps2-2.3-991202) | jr-table external-dispatch wall (proven s84): lui/addiu %hi/%lo(jtbl_0026DFA0) becomes a l |
 | func_001DB250 | 0x001DB250 | 0x228 | 89.22% | mwcc 2.3 (mwcps2-2.3-991202) | jr-table external-dispatch wall (proven s84): local @17/@18 table vs external jtbl_0026E6D |
 | func_0018A8D0 | 0x0018A8D0 | 0x230 | 84.14% | mwcc 2.3 (mwcps2-2.3-991202) | jr-table external-dispatch wall (proven s84): local @33/@34 table vs external jtbl_0026D8D |
+| func_001A91C0 | 0x001A91C0 | 0x19C | 99.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| func_001B8020 | 0x001B8020 | 0x1A8 | 99.76% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 2 of 106 instructions, case 4 only (float-arg register assignment, NOT a dispatch issue —  |
+| func_001AD360 | 0x001AD360 | 0x16C | 97.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 2 of 91 instructions, case 1 only (post-RA scheduler transposition, NOT a dispatch issue — |
+| func_0013D600 | 0x0013D600 | 0x250 | 99.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| func_00147700 | 0x00147700 | 0x258 | 99.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| func_00212F30 | 0x00212F30 | 0x280 | 99.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| func_001B5360 | 0x001B5360 | 0x280 | 98.49% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 5 residual instructions of 160 (mwcc233 -O4,p -sdatathreshold 0). NOT a jr-table wall: the |
+| func_00134090 | 0x00134090 | 0x270 | 93.45% | mwcc24 | 13 residual instructions of 156 (mwcc24 -O4,p -sdatathreshold 4). NOT a jr-table wall: the |
+| func_001AB9D0 | 0x001AB9D0 | 0x28C | 99.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| func_0015BA50 | 0x0015BA50 | 0x298 | 99.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| func_00189730 | 0x00189730 | 0x290 | 98.10% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 8 of ~166 instrs differ, in two independent spots inside case 3 (everything else, includin |
