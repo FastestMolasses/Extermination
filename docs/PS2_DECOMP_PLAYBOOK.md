@@ -73,6 +73,12 @@ wrong, the assembled *target* object carries a **relocation** where the real cod
 **plain immediate**. No C source can ever reproduce a relocation that isn't real, so the
 function is permanently unmatchable for a reason that has nothing to do with the compiler.
 
+> **Frequency check:** in one session we found **four** independent tooling artifacts —
+> assembler syntax, two invented-symbol variants, and a dropped flag — *every one of which
+> was presenting as a compiler wall*. If a function resists and the residual looks like a
+> relocation, an addressing form, or an entire category of constant, suspect your pipeline
+> before you suspect the compiler.
+
 Three variants we hit:
 
 | Variant | What splat did | Tell |
@@ -119,6 +125,24 @@ green. It only surfaced when a full build ran.
   prove very little.
 - Treat "gate skipped" as a **failure**, never as a pass. A skip is an untested claim.
 - Check expected-object coverage explicitly (`count(units) == count(expected/*.o)`).
+
+### Flags must reach *every* stage of the pipeline
+
+Our ee-gcc wrapper passed `-G0` to `cc1` but **not to `as`**. cc1 emits
+`li.s $fN,<const>` for single-precision constants; without `-G0` the assembler expands that
+through a **gp-relative `.lit4` pool** (`lwc1`) instead of building the value with
+`lui`/`ori`/`mtc1` via `$at` — which is what the original does. Every ee-gcc function
+containing a float constant was therefore unmatchable for a reason that had nothing to do
+with the compiler or the source. One word fixed it; a math routine went 83% → 100%.
+
+**Generalize this:** a multi-stage pipeline (preprocess → compile → assemble → link) can
+drop a flag at any stage, and the symptom shows up as a *codegen* difference. When a whole
+category of functions (all float users, all small-data users, …) resists, audit the flags
+each stage actually receives before blaming the compiler.
+
+**How to validate a build-wide flag change safely:** rebuild every already-matched object
+both ways and compare hashes. Ours: 255 units, 0 differences — so the flag could only affect
+the unmatched ones. Do this *before* trusting the change, not after.
 
 ### PS2 assembler syntax gotchas
 splat emits VU0 macro-mode operands that binutils rejects:
