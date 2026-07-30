@@ -824,3 +824,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00200360 | 0x00200360 | 0x3A0 | 94.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | The jr-table dispatch itself matches 100% (jtbl_002732B0 reloc included) and cases 1, 3, 4 |
 | func_00159210 | 0x00159210 | 0x408 | 99.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Pure register-allocation-ORDER permutation, 6 of 258 instructions, confined to the D_00810 |
 | func_001CFBE0 | 0x001CFBE0 | 0x400 | 99.96% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | EXPECTED-OBJECT CONSTRUCTION ISSUE, not a compiler wall - 2 of 256 instructions, both in t |
+| func_00135D00 | 0x00135D00 | 0x438 | 99.01% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.01% (mwcc233; mwcc 2.3.1 only reaches 83.7%). The jr-table dispatch is byte-identical I |
+| func_001CFFE0 | 0x001CFFE0 | 0x414 | 87.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 87.16% (mwcc233; mwcc 2.3.1 = 76.1%). Decode is complete and verified instruction-by-instr |
+| func_001BD560 | 0x001BD560 | 0x490 | 99.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 5 instructions, all diagnosed. (1) idx 58-59 `lui/addiu %hi/%lo(jtbl_0026E220)` vs mwcc's  |
+| func_0012AFC0 | 0x0012AFC0 | 0x444 | 98.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 20 instructions, two register-allocation classes, ZERO logic/count differences (every diff |
