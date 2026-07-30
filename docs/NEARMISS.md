@@ -803,18 +803,8 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0011A9F0 | 0x0011A9F0 | 0x60 | 99.58% | ee-gcc 2.9-991111-01 | jr-table external-dispatch wall (proven s84) — sole residual: lui/addiu %hi/%lo(jtbl_0026C |
 | func_0011AEA0 | 0x0011AEA0 | 0x60 | 99.58% | ee-gcc 2.9-991111-01 | jr-table external-dispatch wall (proven s84) — sole residual: lui/addiu %hi/%lo(jtbl_0026C |
 | func_0021B9A0 | 0x0021B9A0 | 0xC4 | 88.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — local @17 table vs external jtbl_00273790 ( |
-| func_001B6D70 | 0x001B6D70 | 0xD0 | 99.81% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) -- SOLE residual. The only two differing inst |
-| func_001A9D20 | 0x001A9D20 | 0xD8 | 99.81% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) -- SOLE residual. Only `lui a0, %hi(jtbl_0026 |
 | func_001B9C10 | 0x001B9C10 | 0xD8 | 99.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) -- 2 of the 5 residual instructions are the d |
-| func_001AD250 | 0x001AD250 | 0x108 | 99.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — ONLY residual. Under mwcc233 the emitted in |
-| func_001CA5F0 | 0x001CA5F0 | 0xEC | 99.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — ONLY residual (local @15 vs external jtbl_0 |
 | func_001A9C40 | 0x001A9C40 | 0xE0 | 99.02% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — local @14 vs external jtbl_0026DB30 on the  |
-| func_001BA080 | 0x001BA080 | 0x114 | 99.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — sole residual, 2 words: lui/addiu %hi/%lo(j |
-| func_001BBAE0 | 0x001BBAE0 | 0x110 | 99.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — sole residual, 2 words: lui/addiu %hi/%lo(j |
-| func_0017B490 | 0x0017B490 | 0x124 | 99.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — sole residual, 2 words: lui/addiu %hi/%lo(j |
-| func_00151770 | 0x00151770 | 0x1CC | 99.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — SOLE residual, 2 of 230 rows: `lui v1,%hi(j |
-| func_001B7840 | 0x001B7840 | 0x1E8 | 99.92% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — SOLE residual, 2 of 122 rows: `lui v1,%hi(j |
-| func_001AB7E0 | 0x001AB7E0 | 0x1F0 | 99.92% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — the only residual is the 2-instruction lui/ |
 | func_001386E0 | 0x001386E0 | 0x214 | 99.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — residuals: the 2-instruction lui/addiu jump |
 | func_001BC350 | 0x001BC350 | 0x204 | 99.46% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — residuals: the 2-instruction lui/addiu jump |
 | func_001643B0 | 0x001643B0 | 0x214 | 99.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84): lui/addiu %hi/%lo(jtbl_0026D640) vs mwcc's l |

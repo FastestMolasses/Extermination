@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -104,26 +105,63 @@ def assemble_cmd(name: str) -> str:
     coprocessor-2/VU instructions show as `ldc2`/`sdc2` instead of `lqc2`/`sqc2`,
     confusing the per-instruction comparison even when the bytes match.
 
-    The sed pass spells the VU0 special registers `$ACC` and `$Q`, the only
-    forms binutils accepts; splat emits them bare, so the 23 VU0 units
-    (vmulax/vmadday/vopmula/vdiv/vmulq/...) otherwise fail to assemble — and
-    because `as` deletes its output on error, a full `build` silently destroys
-    their build/expected/*.o and the match gate then skips with "expected
-    stale". Each rule is anchored to a `v<op>` mnemonic or an operand-position
-    comma so it cannot touch the many addresses and labels that merely contain
-    the letters (.L0015ACC0, 0xC26ACCCD, func_001CACC0, D_0026ACC0).
+    Normalization itself runs host-side in normalize_asm(); this only assembles
+    the already-normalized file, which keeps the batched container command short.
     """
-    norm = (r"-E -e 's/(v[a-z]+\.[a-z]+[[:space:]]+)ACC,/\1$ACC,/g'"
-            r" -e 's/(v[a-z]+[[:space:]]+)Q,/\1$Q,/g'"
-            r" -e 's/,[[:space:]]*Q[[:space:]]*$/, $Q/'"
-            r" -e 's/%hi\(D_FFFFFF\)/0x100/g' -e 's/%lo\(D_FFFFFF\)/-1/g'"
-            r" -e 's/%hi\(D_FFFFF\)/0x10/g'  -e 's/%lo\(D_FFFFF\)/-1/g'"
-            r" -e 's/%lo\(D_20000010\)/0x10/g' -e 's/%lo\(D_20000020\)/0x20/g'"
-            r" -e 's/%lo\(D_20000050\)/0x50/g' -e 's/%lo\(D_20000400\)/0x400/g'"
-            r" -e 's/%lo\(D_20000800\)/0x800/g'")
-    return (f"sed {norm} {ASM_DIR}/{name}.s > build/.asmnorm/{name}.s && "
-            f"mipsel-linux-gnu-as -march=r5900 config/asm_prelude.inc "
+    return (f"mipsel-linux-gnu-as -march=r5900 config/asm_prelude.inc "
             f"build/macro.inc build/.asmnorm/{name}.s -o build/expected/{name}.o")
+
+
+# splat emits the VU0 accumulator and divide registers bare (ACC / Q); binutils
+# accepts only $ACC / $Q, so the VU0 units otherwise fail to assemble — and since
+# `as` deletes its output on error, a full build silently destroys their
+# build/expected/*.o and the match gate then skips with "expected stale". The
+# D_FFFFF / D_20000xxx entries undo splat symbolizations that invented a symbol
+# for what the real code encodes as a plain immediate (0xFFFFF is below the
+# 0x100000 load address; the D_2000xxxx values are uncached-mirror offsets), which
+# left a relocation in the target that no C source can reproduce. Every pattern is
+# anchored to a `v<op>` mnemonic or a full `%hi(...)`/`%lo(...)` form so it cannot
+# touch the many labels and constants that merely contain the same characters
+# (.L0015ACC0, 0xC26ACCCD, func_001CACC0, D_0026ACC0).
+_ASM_FIXUPS = [
+    (re.compile(r'(v[a-z]+\.[a-z]+[ \t]+)ACC,'), r'\1$ACC,'),
+    (re.compile(r'(v[a-z]+[ \t]+)Q,'), r'\1$Q,'),
+    (re.compile(r',[ \t]*Q[ \t]*$', re.M), r', $Q'),
+    (re.compile(r'%hi\(D_FFFFFF\)'), '0x100'),
+    (re.compile(r'%lo\(D_FFFFFF\)'), '-1'),
+    (re.compile(r'%hi\(D_FFFFF\)'), '0x10'),
+    (re.compile(r'%lo\(D_FFFFF\)'), '-1'),
+    (re.compile(r'%lo\(D_20000010\)'), '0x10'),
+    (re.compile(r'%lo\(D_20000020\)'), '0x20'),
+    (re.compile(r'%lo\(D_20000050\)'), '0x50'),
+    (re.compile(r'%lo\(D_20000400\)'), '0x400'),
+    (re.compile(r'%lo\(D_20000800\)'), '0x800'),
+]
+
+
+def normalize_asm(name: str) -> None:
+    """Write build/.asmnorm/<name>.s: splat's disassembly, fixed up and with the
+    function's own jump table appended.
+
+    A switch dispatcher's jump table is .rodata of the SAME translation unit as its
+    function. Proven s85: across 159 adjacent function->table pairs, table addresses
+    are monotonic in function addresses with ZERO inversions — exactly what you get
+    when the linker gathers each object's .text and .rodata into separate output
+    regions. Assembling a function WITHOUT its table left the jtbl symbol
+    undefined-external in the expected object, so its dispatch relocation could never
+    match the local table mwcc necessarily emits. That artifact — not any compiler
+    limitation — is what was recorded for two sessions as the "jr-table
+    external-dispatch wall". Appending the table gives both sides a local one.
+    """
+    src = (ROOT / ASM_DIR / f"{name}.s").read_text(errors="ignore")
+    for pat, rep in _ASM_FIXUPS:
+        src = pat.sub(rep, src)
+    jtbl = ROOT / "build" / "jtblrodata" / f"{name}.s"
+    if jtbl.exists():
+        src += "\n" + jtbl.read_text(errors="ignore")
+    out = ROOT / "build" / ".asmnorm" / f"{name}.s"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(src)
 
 
 def file_cflags(name: str) -> str:
@@ -262,6 +300,8 @@ def cmd_expected(_a: argparse.Namespace) -> None:
     if not names:
         print("[expected] no src/*.c — nothing to assemble")
         return
+    for n in names:
+        normalize_asm(n)
     _run_chunked("mkdir -p build/expected build/.asmnorm",
                  [assemble_cmd(n) for n in names])
     print(f"[expected] assembled {len(names)} target object(s)")

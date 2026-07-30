@@ -1,13 +1,3 @@
-// NEARMISS func_001B6D70  (vram 0x001B6D70, 0xD0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.81% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84) -- SOLE residual. The only two differing instructions are the dispatch `lui v1, %hi(jtbl_0026DF00)` / `addiu v1, v1, %lo(jtbl_0026DF00)`: mwcc emits a local @10 table, the target relocates against the consolidated external rodata TU. Every other instru...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 

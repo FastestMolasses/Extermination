@@ -1,13 +1,3 @@
-// NEARMISS func_001A9D20  (vram 0x001A9D20, 0xD8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.81% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84) -- SOLE residual. Only `lui a0, %hi(jtbl_0026DB50)` / `addiu a0, a0, %lo(jtbl_0026DB50)` differ (local @29 vs external jtbl symbol). Both loops, the gp-rel accesses, the saved-register assignment, the sltiu bound, the delay-slot fills and the trailing ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
