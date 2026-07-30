@@ -1,32 +1,30 @@
-// NEARMISS func_00131B10  (vram 0x00131B10, 0x368 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.14% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// mwcc-vs-CW branch-lowering / dead-trailing-block wall: target's beql-dispatched case-0 leaves a duplicated dead addiu v0,a3,1 after the not-taken exit branch (CW's lowering keeps a redundant recompute that mwcc's dead-code pass elides), plus one anim_clip_init(arg0,5,5.0f,0.0f) call site emits it...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+// Per-state animation/AI driver for actor `self`, dispatched on the state byte at
+// self+6 and driving the owner/anim context `ctx`.  State 0: advances the state,
+// plays the "ready" cue (func_001B1190 + event 0x7D8) and then either — when the
+// owner flag at self+0xD bit1 is set — jumps straight to state 3, sets the global
+// hint D_008107EA and kicks clip 4 or 5 depending on ctx+0x61, or otherwise kicks
+// clip 0x29 / 0x2A / 0x2B (the 0x2A-vs-0x2B pick gated by bit 9 of func_00122BB8).
+// State 1: plays the transition cue 0x7D5 when the current clip (self+0x2C masked)
+// and pose angle (self+0x3C) form the (0x2A,34.0) or (0x2B,21.0) pair, then on the
+// owner's 0x1000 input bit advances the state and — unless the owner flag is set —
+// fires the unbind event 0x7D7 and releases the handler via func_001EFE00, marking
+// self+4 = 3 if the release fails.  State 2: on the owner flag plus the two gate
+// globals, marks self+4 = 3 and propagates it to the linked actor at self+0x24
+// (clearing the link).  State 3: waits for D_008107EA == 2, reverts to state 1,
+// resets ctx+0x34, rebinds via func_001EFE00 and kicks clip 0x2A / 0x2B.
 //
-// Per-state animation/AI driver dispatched on the state byte at arg0+6 (states
-// 0-3). State 0: advances state, plays a "ready" sound cue via func_001B1190 and
-// a text/HUD event func_001FBD50(0x7D8), then either (owner flag arg0+0xD bit1
-// set) jumps straight to state 3 and kicks clip 4 or 5 depending on arg1+0x61,
-// or otherwise picks clip 0x29/0x2A/0x2B (0x2A gated by func_00122BB8 bit 9,
-// a difficulty/RNG-style check) when arg1+0x61 is clear. State 1: plays a
-// transition sound when the current clip (arg0+0x2C masked) and pose angle
-// (arg0+0x3C) match specific clip/angle pairs, then on the owner's 0x1000 input
-// bit advances state and (unless owner flag bit1 set) fires an unbind event
-// func_001FBD50(0x7D7) and calls func_001EFE00(0x8000001E) to release a handler,
-// marking arg0+4=3 if that fails. State 2: on owner flag bit1 + the two D_0028A9A0/
-// D_0028A9A2 gate globals, marks arg0+4=3 and propagates that to a linked actor at
-// arg0+0x24 (clearing the link). State 3: waits for D_008107EA==2, then reverts to
-// state 1, resets arg1+0x34, rebinds via func_001EFE00(0x80000046), and kicks clip
-// 0x2A/0x2B (same func_00122BB8 bit-9 gate as state 0).
+// Two source shapes are load-bearing for the match:
+//  * every early exit is written as `goto done` to a single trailing label.  That
+//    shared-exit CFG is what makes mwcc 2.3.3 reproduce CodeWarrior's conservative
+//    branch-delay-slot filling — the unfilled NOPs after the dispatch/guard branches
+//    and the dead const re-materialisations sitting just before the branch-target
+//    labels.  With plain `return;` statements mwcc speculates those ops into the
+//    delay slots and drops the dead copies (95.4%).
+//  * idiom-24 (`zi = 0; z = (float)zi;`) at the three anim_clip_init sites whose
+//    trailing 0.0f argument must be emitted as `mtc1 zero,$f13` BEFORE `mtc1 $v0,$f12`;
+//    each site needs its OWN int/float pair (sharing one pair loses the ordering).
 extern void anim_clip_init(char *self, int clip, float a, float b);
 extern int func_00122BB8(void);
 extern void func_001B1190(int a0);
@@ -36,87 +34,94 @@ extern short D_0028A9A0;
 extern char D_0028A9A2;
 extern unsigned char D_008107EA;
 
-void func_00131B10(char *arg0, char *arg1) {
+void func_00131B10(char *self, char *ctx) {
     unsigned char st;
-    int a1v;
-    char *n;
+    int clip;
+    char *link;
+    int zi0;
+    float z0;
+    int zi2;
+    float z2;
+    int zi3;
+    float z3;
 
-    st = *(unsigned char *)(arg0 + 6);
+    st = *(unsigned char *)(self + 6);
     switch (st) {
     case 0:
-        *(unsigned char *)(arg0 + 6) = st + 1;
-        func_001B1190(*(unsigned char *)(arg0 + 0x9A));
-        func_001FBD50(arg0, 0x7D8, 0, 300.0f);
-        if (*(unsigned char *)(arg0 + 0xD) & 2) {
-            *(unsigned char *)(arg0 + 6) = 3;
-            *(int *)(arg1 + 0x34) = 0x3F800000;
+        *(unsigned char *)(self + 6) = st + 1;
+        func_001B1190(*(unsigned char *)(self + 0x9A));
+        func_001FBD50(self, 0x7D8, 0, 300.0f);
+        if (*(unsigned char *)(self + 0xD) & 2) {
+            *(unsigned char *)(self + 6) = 3;
+            *(int *)(ctx + 0x34) = 0x3F800000;
             D_008107EA = 1;
-            if (*(unsigned char *)(arg1 + 0x61) != 0) {
-                anim_clip_init(arg0, 4, 5.0f, 0.0f);
-                return;
+            if (*(unsigned char *)(ctx + 0x61) != 0) {
+                anim_clip_init(self, 4, 5.0f, 0.0f);
+                goto done;
             }
-            anim_clip_init(arg0, 5, 5.0f, 0.0f);
-            return;
+            zi0 = 0;
+            z0 = (float)zi0;
+            anim_clip_init(self, 5, 5.0f, z0);
+            goto done;
         }
-        *(int *)(arg1 + 0x34) = 0x3F800000;
-        if (*(unsigned char *)(arg1 + 0x61) != 0) {
-            anim_clip_init(arg0, 0x29, 5.0f, 0.0f);
-            return;
+        *(int *)(ctx + 0x34) = 0x3F800000;
+        if (*(unsigned char *)(ctx + 0x61) != 0) {
+            anim_clip_init(self, 0x29, 5.0f, 0.0f);
+            goto done;
         }
         if ((func_00122BB8() >> 9) & 1) {
-            anim_clip_init(arg0, 0x2A, 5.0f, 0.0f);
-            return;
+            anim_clip_init(self, 0x2A, 5.0f, 0.0f);
+            goto done;
         }
-        anim_clip_init(arg0, 0x2B, 5.0f, 0.0f);
-        return;
+        anim_clip_init(self, 0x2B, 5.0f, 0.0f);
+        goto done;
     case 1:
-        a1v = *(short *)(arg0 + 0x2C) & 0xFFFF7FFF;
-        if (a1v == 0x2A) {
-            if (*(float *)(arg0 + 0x3C) == 34.0f) {
-                func_001FBD50(arg0, 0x7D5, 0, 300.0f);
-            } else {
-                goto check21;
-            }
-        } else {
-check21:
-            if (a1v == 0x2B && *(float *)(arg0 + 0x3C) == 21.0f) {
-                func_001FBD50(arg0, 0x7D5, 0, 300.0f);
-            }
+        clip = *(short *)(self + 0x2C) & 0xFFFF7FFF;
+        if (clip == 0x2A && *(float *)(self + 0x3C) == 34.0f) {
+            func_001FBD50(self, 0x7D5, 0, 300.0f);
+        } else if (clip == 0x2B && *(float *)(self + 0x3C) == 21.0f) {
+            func_001FBD50(self, 0x7D5, 0, 300.0f);
         }
-        if (*(unsigned short *)(arg1 + 0x58) & 0x1000) {
-            *(unsigned char *)(arg0 + 6) = *(unsigned char *)(arg0 + 6) + 1;
-            if (!(*(unsigned char *)(arg0 + 0xD) & 2)) {
-                *(char *)(arg1 + 0x6D) = 0;
-                func_001FBD50(arg0, 0x7D7, 0, 300.0f);
-                if (func_001EFE00(0x8000001E, arg0) == 0) {
-                    *(char *)(arg0 + 4) = 3;
-                    return;
+        if (*(unsigned short *)(ctx + 0x58) & 0x1000) {
+            *(unsigned char *)(self + 6) = *(unsigned char *)(self + 6) + 1;
+            if (!(*(unsigned char *)(self + 0xD) & 2)) {
+                *(char *)(ctx + 0x6D) = 0;
+                func_001FBD50(self, 0x7D7, 0, 300.0f);
+                if (func_001EFE00(0x8000001E, self) == 0) {
+                    *(char *)(self + 4) = 3;
+                    goto done;
                 }
             }
         }
-        return;
+        goto done;
     case 2:
-        if ((*(unsigned char *)(arg0 + 0xD) & 2) && D_0028A9A2 != 0 && D_0028A9A0 == 2) {
-            *(char *)(arg0 + 4) = 3;
-            n = *(char **)(arg0 + 0x24);
-            if (n != 0) {
-                *(char *)(n + 4) = 3;
-                *(char **)(arg0 + 0x24) = 0;
-                return;
+        if ((*(unsigned char *)(self + 0xD) & 2) && D_0028A9A2 != 0 && D_0028A9A0 == 2) {
+            *(char *)(self + 4) = 3;
+            link = *(char **)(self + 0x24);
+            if (link != 0) {
+                *(char *)(link + 4) = 3;
+                *(char **)(self + 0x24) = 0;
+                goto done;
             }
         }
         break;
     case 3:
         if (D_008107EA == 2) {
-            *(unsigned char *)(arg0 + 6) = 1;
-            *(int *)(arg1 + 0x34) = 0x3EB33333;
-            *(char **)(arg0 + 0x24) = func_001EFE00(0x80000046, arg0);
+            *(unsigned char *)(self + 6) = 1;
+            *(int *)(ctx + 0x34) = 0x3EB33333;
+            *(char **)(self + 0x24) = func_001EFE00(0x80000046, self);
             if ((func_00122BB8() >> 9) & 1) {
-                anim_clip_init(arg0, 0x2A, 5.0f, 0.0f);
-                return;
+                zi2 = 0;
+                z2 = (float)zi2;
+                anim_clip_init(self, 0x2A, 5.0f, z2);
+                goto done;
             }
-            anim_clip_init(arg0, 0x2B, 5.0f, 0.0f);
+            zi3 = 0;
+            z3 = (float)zi3;
+            anim_clip_init(self, 0x2B, 5.0f, z3);
         }
         break;
     }
+done:
+    ;
 }

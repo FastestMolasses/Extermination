@@ -391,6 +391,19 @@ The decider is the FIRST EMITTED instr (after value materialization), not the C 
   `add.s $f0,$f1,$f0` (loaded value as `fs`); the expanded `*p = *p + -0.2f;` and `*p = -0.2f + *p;`
   both emit `add.s $f0,$f0,$f1`. A `float cv = -0.2f;` temp also gives the correct order. Beware
   `*p = *p - 0.2f;` — that emits `sub.s` and is a different instruction. (Generalizes idiom-21.)
+- **idiom-27 (BREAK-NOT-RETURN — stops delay-slot speculation in switch dispatchers)**: in a switch
+  state machine where the switch is the LAST thing in the function, terminate each case with
+  `break;` rather than `return;`. It is a pure CFG-join change (semantically identical when no code
+  follows the switch) but it stops mwcc 2.3.3 speculating constant materializations into
+  conditional-branch delay slots, restoring the target's unfilled NOPs. On func_0012D580 it fixed
+  two separate residuals at once — the switch-dispatch slot AND one three levels deep inside a case
+  — for 96.84% → 98.50% in a single edit. **Precondition:** nothing after the switch, or `break`
+  and `return` are not equivalent. Related: a shared `goto done;` trailing-label exit has the same
+  effect and is what made func_00131B10 match (plain `return;` there scored 95.4%).
+- **NOTE on idiom-24's scope**: it applies only when the residual really is the f13/f12 arg-emit
+  order. On func_0012D580 the same headline symptom turned out to be four different residuals and
+  zero-staging produced a byte-identical object. Confirm the actual per-instruction diff before
+  reaching for it.
 - GENUINE (no lever): LI-HOIST — a plain-literal `li`/`lui` hoisted above an unrelated store while
   kept in the immediate-scratch $v1. $v1 is rewritten per literal; a value living across a store gets
   a DISTINCT value reg (a0/a1), so "hoisted order" and "$v1 coloring" are mutually exclusive. (A
