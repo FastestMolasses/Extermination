@@ -79,8 +79,12 @@ PER-FUNCTION LOOP:
    ALSO confirm .our.o .text SIZE == .exp.o .text size (objdiff false-positives an oversize compile).
 4. Iterate to 100.0 (cap ~6 attempts). Most SDK leaves match at plain -O2. If it resists, try -O1 or -O0. Notes: 64-bit long arithmetic uses dsll32/dsra32; globals via lui/addiu (la) — plain externs first, rarely gp-rel; static helpers in the same TU inline (e.g. __udivmoddi4 static-inlined into __divdi3).
 
-FAST-PARK (<=2 tries — CONFIRMED uncrackable s84, do NOT burn the budget, but DO return the readable C as NEARMISS):
-- **Forward branch-likely**: expected has bgezl/blezl/bgtzl/bltzl/beql/bnel/beqzl/bnezl on a NON-loop conditional, yours compiles the same op WITHOUT the trailing 'l' at ~75-92%. Our ee-gcc only emits branch-likely for LOOP BACK-EDGES. PARK "eegcc forward-branch-likely wall (confirmed s84)".
+EEGCC IDIOM-1 — FORWARD BRANCH-LIKELY IS MATCHABLE (s85; do NOT park it, the old "wall" was WRONG):
+If expected has bgezl/blezl/bgtzl/bltzl/beql/bnel/beqzl/bnezl on a FORWARD (non-loop) conditional and yours emits the same op without the trailing 'l', that is NOT a wall. gcc's fill_eager_delay_slots emits the annulled form when the BRANCH-TARGET path's FIRST instruction is a cheap speculatable op — in practice a \`lw\` of a global through a base register that is ALREADY LIVE (no lui setup needed). PROOF: func_00113F68 matches 100.0 with a forward \`bgezl $v0,.L00114074\` whose annul slot holds \`lw $v0,%lo(D_00241CF8)($s6)\`, from this shape:
+    if (func_0010E8A8(...) < 0) { CreateSema(D_00241D08); return 0; }
+    if (D_00241CF8 > 0)            /* this global read fills the annul slot */
+        func_00122B58(D_0026BC78);
+So: read the target .s to see WHICH op sits in the annul slot, then reshape the C so that op is the first statement of the fall-through/taken path (usually "hoist the next global-flag test to immediately after the guard"). A taken path that leads with a lui re-materialization will NOT annul — that specific failure is what was over-generalized into a bogus wall. Spend real attempts here.
 - **Frame-size stride**: body byte-identical, only the frame immediate / an unstored reserved slot differs. PARK "eegcc frame-stride wall".
 - **List-scheduler adjacent-op swap**: two adjacent independent ops swapped. PARK "eegcc list-scheduler wall".
 - **Sibling/tail-call**: final discarded call emitted as \`j func_\` (gcc 2.9 has no -fno-optimize-sibling-calls). PARK "eegcc sibling-call wall".
