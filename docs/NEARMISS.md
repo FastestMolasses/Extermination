@@ -796,3 +796,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00115850 | 0x00115850 | 0x5FC | 68.60% | ee-gcc 2.9-991111-01 | eegcc register-allocation / spill-placement wall. Instruction stream and control flow are  |
 | func_00115E50 | 0x00115E50 | 0x744 | 63.70% | ee-gcc 2.9-991111-01 | eegcc register-allocation wall (parameter spill decision). Logic is fully recovered: the t |
 | func_0011CE20 | 0x0011CE20 | 0x94C | 75.73% | ee-gcc 2.9-991111-01 | eegcc strength-reduction / register-allocation wall. Full algorithm recovered: signed (pre |
+| func_0010DEB8 | 0x0010DEB8 | ? | 95.00% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring + list-scheduler wall, confined to the prologue/qword-copy region. Obje |
+| func_0010EAA0 | 0x0010EAA0 | ? | 95.56% | ee-gcc 2.9-991111-01 | eegcc ASSEMBLER delay-slot-swap wall — PIPELINE BUG, fixable, and this C is then a TRUE 10 |
+| func_0010E088 | 0x0010E088 | ? | 89.14% | ee-gcc 2.9-991111-01 | TWO stacked walls; body/structure fully recovered (prologue, both DI spin loops, the D_002 |
+| func_0010ED18 | 0x0010ED18 | ? | 99.92% | ee-gcc 2.9-991111-01 | compiler artifact (register coloring / scheduling) |
