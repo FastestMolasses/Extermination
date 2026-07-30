@@ -18,7 +18,7 @@ const BATCH = 3
 const batches = []
 for (let i = 0; i < cands.length; i += BATCH) batches.push(cands.slice(i, i + BATCH))
 
-const PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination, jr-table NEARMISS lane. Your funcs are JUMP-TABLE DISPATCHERS (switch on a field via a jtbl_XXXX table). This class is PROVEN BYTE-UNMATCHABLE (s84, 5-hypothesis research): the original consolidated ALL jump tables into an external rodata TU, so mwcc's local @NN table counts as a reloc mismatch no matter what — there is NO source/flag lever; 100.0 is IMPOSSIBLE. Do NOT chase 100.0. Your goal is the best READABLE, LOGICALLY-FAITHFUL plain C — it will be committed as a documented // NEARMISS file (boot ELF stays byte-identical via the splat .s). Faithfulness of the decode is everything; NEVER guess semantics you have not verified against the .s.
+const PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination, jr-table NEARMISS lane. Your funcs are JUMP-TABLE DISPATCHERS (switch on a field via a jtbl_XXXX table). CORRECTED s85 — THIS CLASS IS MATCHABLE. The old 'proven unmatchable' verdict was based on a FALSE premise (that the original put all jump tables in one external rodata TU). In fact each table is .rodata of the SAME TU as its function, and our expected object was simply being assembled WITHOUT it. That is fixed (build/jtblrodata + normalize_asm), and 10 of the first 23 dispatchers now byte-match at 100.0. So DO chase 100.0 — treat the dispatch like any other code. Your goal is TRUE objdiff 100.0 byte-identical READABLE plain C — it will be committed as a documented // NEARMISS file (boot ELF stays byte-identical via the splat .s). Faithfulness of the decode is everything; NEVER guess semantics you have not verified against the .s.
 
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}   SCRATCH: build/agent_${id}/ (ONLY this)
 YOUR FUNCS: ${funcs.join(' ')}
@@ -42,7 +42,7 @@ container run --rm -v "$PWD:/work" -w /work exterm-toolchain sh -c 'mkdir -p bui
 Diff on HOST: tools/bin/objdiff-cli diff -1 build/agent_${id}/exp/<F>.o -2 build/agent_${id}/obj/<F>.o <F> -o - --format json   (read match_percent + instructions[].diff_kind)
 
 === PUSH THE BODY (cap ~6 attempts; the dispatch reloc diff is EXPECTED and permanent) ===
-Expected permanent residuals (do not fight): the local-@NN-vs-external-jtbl_XXXX reloc on the lw, and possibly a lui/addiu/sll dispatch-sequence reorder by the post-RA scheduler. Everything ELSE (the case bodies) should converge — apply the standard idioms:
+The dispatch reloc is NO LONGER a permanent residual (the expected object now carries the table). If you still see a jtbl reloc mismatch, report it — it means build/jtblrodata/<F>.s is missing for your func, which the orchestrator can regenerate. Push the case bodies AND the dispatch to 100.0 — apply the standard idioms:
 A) ASCENDING case order (mwcc reverses to descending compare-chain / positional table).
 B) Per-case beql vs beq: a case gets beql only if its body's first emitted instr is speculatable pure-ALU; body leading with load/store/call -> beq+nop.
 C) Clean store of a live value leaves the slot nop (free); materialized-const store fills it.
@@ -53,7 +53,7 @@ Target: 85%+ typical (prior wave hit 89-98%). Below 70%, re-check your decode fo
 Walk EVERY case body against the .s one more time: field offsets, widths (lb/lbu/lh/lhu/lw), constants, call targets, fallthroughs, the default path, loop bounds. A NEARMISS file is port ground truth — a wrong decode is worse than no decode. If you are NOT confident the logic is correct, return c_source EMPTY with wall="decode not confident: <why>".
 
 RULES: touch ONLY build/agent_${id}/; never canonical build/obj|expected, src/, objdiff.json, tools/; never run build.py/verify_all/git. No disc disasm to external context.
-Report per func: func, pct (best measured %), matched (true ONLY if verified objdiff 100.0 — not expected here), c_source (FULL committed-ready file: // COMPILER: mwcc + // CFLAGS: + optional // SEMANTICS + plain-C body; EMPTY only if decode unconfident), wall (always include "jr-table external-dispatch wall (proven s84)" plus any other residual you saw).`
+Report per func: func, pct (best measured %), matched (true ONLY if verified objdiff 100.0 — now genuinely achievable, aim for it), c_source (FULL committed-ready file: // COMPILER: mwcc + // CFLAGS: + optional // SEMANTICS + plain-C body; EMPTY only if decode unconfident), wall (precise per-instruction reason if not 100.0; do NOT cite the old "external-dispatch wall", it is disproven).`
 
 phase('JtblNearmiss')
 const results = await parallel(batches.map((funcs, i) => () =>

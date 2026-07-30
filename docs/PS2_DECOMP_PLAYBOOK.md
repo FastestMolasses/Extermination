@@ -144,6 +144,32 @@ each stage actually receives before blaming the compiler.
 both ways and compare hashes. Ours: 255 units, 0 differences — so the flag could only affect
 the unmatched ones. Do this *before* trusting the change, not after.
 
+### 2a. Build each expected object the way the ORIGINAL object was built
+
+The most expensive mistake we made was assembling each expected object from its function's
+disassembly **alone**. Real objects contain more than `.text`.
+
+A `switch` jump table is `.rodata` of the **same** object as its function. Because the linker
+gathers every object's `.text` into one output region and every object's `.rodata` into
+another, the tables end up far away in address space — which we misread as "the original put
+all jump tables in one external unit". Assembling the function without its table left the
+table symbol undefined-external in our target, so the dispatch relocation could never match
+the local table the compiler necessarily emits. We recorded that as a **proven unmatchable
+class** and parked ~140 functions behind it for two sessions.
+
+**How to detect the same error anywhere:** check whether per-object auxiliary data (jump
+tables, string literals, float constant pools, vtables) is being split away from its function
+in your expected objects. The giveaway is a residual that is *only* a relocation-target-name
+difference on an otherwise byte-identical instruction.
+
+**Cheap, decisive test that the data belongs to the function's object:** sort every
+function→data reference by function address and count order inversions in the data addresses.
+Ours: **0 inversions across 159 pairs.** Per-object data preserves link order in both
+sections; genuinely shared/external data does not.
+
+**Result of fixing it:** 21 of 23 already-decoded dispatchers improved and 10 jumped straight
+to 100.0 — from a class documented as impossible.
+
 ### Stale objects lie to you — check provenance before believing a number
 
 Intermediate object directories accumulate objects from *different sources*. In a project
@@ -235,11 +261,9 @@ captures the *reason* each function resists — which is exactly what lets a lat
 notice that a whole class of "walls" was misdiagnosed.
 
 **Known-unmatchable classes worth harvesting this way:**
-- **Jump-table dispatchers.** If the original consolidated all jump tables into one external
-  rodata unit, a C `switch` makes the compiler emit its *own local* table, and the
-  local-vs-external relocation counts as a mismatch no matter how the schedule lines up.
-  No `-O`/pragma/inline-asm lever exists (we tested five hypotheses). They decode to perfectly
-  readable `switch` statements at 89-98% — harvest, don't fight.
+- ~~**Jump-table dispatchers.**~~ **We wrote this entry, believed it for two sessions, and it
+  was wrong — see §2a. Jump-table dispatchers ARE matchable.** Left here deliberately as a
+  worked example of how a confident wall entry gets written from a false premise.
 - **VU0/COP2 and MMI 128-bit SIMD** — often has no faithful C form at all.
 - **Tail-call trampolines** (`j func` instead of `jal`) — gcc 2.9 has no
   `-fno-optimize-sibling-calls`; the C is trivially correct but can never match.
