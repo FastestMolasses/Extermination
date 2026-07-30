@@ -1,16 +1,11 @@
-// NEARMISS func_0013E6D0  (vram 0x0013E6D0, 0x4B4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-order artifact (2 instructions of 301): the hit_count>=3 sign-extend compare picks $at in target vs $v0 in mwcc233. Not the clean-store nop; tried s64-cast idiom, plain-int local, inline reload -- none closed it. Parked as a regalloc near-miss (99.97%).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// SEMANTICS: enemy "search/turn" AI state machine (arg0 = entity, arg1 = its AI block):
+// state 0 arms the search timers and plays clip 3; 1 waits for input flag 0x1000;
+// 2 turns toward the target yaw, counting 3 aligned frames before ending the search;
+// 3 sweeps the yaw left/right and probes for a clear path (func_001B3250) before
+// returning to state 2; the shared tail ticks the 0x24 timer and bails to state 4/0.
 extern void anim_clip_init(char *self, int idx, float a, float b);
 extern int func_001416D0(char *arg0, char *arg1);
 extern int func_00122BB8(void);
@@ -63,7 +58,7 @@ void func_0013E6D0(char *arg0, char *arg1) {
                 func_0011DF78(func_001B1470(*(float *)(arg1 + 0x44) - func_001B1470(3.14159274f + *(float *)(arg0 + 0xC4)))) <= 0.3926991f) {
                 m = *(signed char *)(arg1 + 0x82) + 1;
                 *(signed char *)(arg1 + 0x82) = m;
-                if (m >= 3) {
+                if (!(m <= 2)) {
                     *(int *)(arg1 + 0x24) = 0;
                 }
             }

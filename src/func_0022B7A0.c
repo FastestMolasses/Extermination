@@ -2,7 +2,7 @@
 //
 // objdiff 99.96% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// ALL 243 instruction encodings are byte-identical; the ONLY residual is the 2-instruction reloc pair for the OUTER table (`lui a0,%hi(jtbl_00273EF0)` / `addiu a0,a0,%lo(jtbl_00273EF0)` vs my `@60`). This is a build-side artifact of MULTI-TABLE functions, not the C: this function has two jump table...
+// compiler artifact (register coloring / scheduling)
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

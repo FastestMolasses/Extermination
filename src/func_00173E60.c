@@ -1,30 +1,10 @@
-// NEARMISS func_00173E60  (vram 0x00173E60, 0x368 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Sole residual is a genuine $at-vs-GPR register-coloring artifact: the `if((u8)(arg0+0x23F) >= 2)` compare feeding the state 0x63/0x64 dispatch materializes into $at in the target (`slti at,v0,2; bnez at,...`) but into $v0 in mwcc in every source shape tried (int local, inverted condition, direct ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// Per-entity state machine (dispatch on *(arg0+6)): spawn/wait/advance via anim-clip
+// threshold tables D_00248700/D_00248704, then rewind (func_0017C440) or reset
+// (func_0017C540); always runs func_001764E0, decays arg0+0xB4 by 0.2, func_00175900,
+// func_001796C0.
 
-//
-// Per-entity state machine (dispatch on *(arg0+6)): state 0 spawns via
-// func_001749A0(anim clip from D_002754A8[gait]), clears the linked-list-node
-// flag at *(arg0+0x18)+0xA; state 1 waits for the 0x8000 flag in arg0+0x200;
-// states 2/3 run func_00173DD0 then compare arg0+0x3C against threshold
-// tables D_00248700/D_00248704 (indexed by arg0+0x236, stride 8 bytes) to
-// advance, arm a queued clip via func_001FBD50, and set up node fields; state
-// 3's "node busy" branch instead resolves the queued clip index via
-// func_0011A070 and advances to state 0x50; states 0x50/0x51 run a 4-tick
-// countdown then fire an anim-clip cue (id depends on arg0+0x236) via
-// func_001749A0; states 0x63/0x64 drive per-tick aim update via
-// func_00174AC0 and either arm a rewind (func_0017C440) or reset
-// (func_0017C540) depending on arg0+0x23F. Always: func_001764E0(arg0);
-// decay arg0+0xB4 by 0.2; func_00175900(arg0,1); func_001796C0(arg0).
 extern int func_001749A0(unsigned char *e, short clip, int flags, float blend);
 extern void func_00173DD0(unsigned char *self);
 extern unsigned char func_00174AC0(unsigned char *arg0, int arg1);
@@ -118,7 +98,7 @@ void func_00173E60(unsigned char *arg0) {
         break;
     case 0x63:
         func_00174AC0(arg0, 1);
-        if ((int)*(unsigned char *)(arg0 + 0x23F) >= 2) {
+        if (*(unsigned char *)(arg0 + 0x23F) > 1) {
             arg0[6] = arg0[6] + 1;
             func_0017C440(arg0, 0);
         } else {

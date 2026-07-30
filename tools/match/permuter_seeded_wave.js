@@ -12,7 +12,18 @@ const SCHEMA = {
     required: ['func', 'matched', 'best_score', 'compiler', 'c_source', 'notes'],
   } } }, required: ['results'],
 }
-const cands = (typeof args === 'string' ? JSON.parse(args) : args)
+// Accept EITHER ["func_x", ...] or [{func,pct,sdt,wall}, ...]. s85: this script was
+// handed a bare string array and every ${o.func}/${o.pct}/${o.sdt}/${o.wall} in the
+// prompt rendered the literal text "undefined", so agents got a task with no function
+// named in it. They recovered by inferring their assignment from the candidate file and
+// the registry -- several still produced real matches -- but two burned part of their
+// budget on it and some worked on functions the orchestrator never selected. Normalizing
+// here means a bare-string call degrades to "look these up yourself", never to "undefined".
+const raw = (typeof args === 'string' ? JSON.parse(args) : args)
+const cands = (raw || []).map(o => (typeof o === 'string'
+  ? { func: o, pct: 'see docs/NEARMISS.md', sdt: 'the value in the file\'s // CFLAGS line',
+      wall: 'see the // NEARMISS header in src/<func>.c and its docs/NEARMISS.md row' }
+  : o))
 // BATCH=1: each func gets a full agent time budget for permute + reseeds (BATCH=2 starved
 // the second func's sweep in s84 wave1). Cap is 8 concurrent agents -> <=8 funcs/wave.
 const BATCH = 1

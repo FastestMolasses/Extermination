@@ -1,13 +1,3 @@
-// NEARMISS func_00163E90  (vram 0x00163E90, 0x38C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.96% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 2 of 227 instructions, both the SAME compare in case 3 (the func_00174AC0 arm): target `slti $at,$v0,0x2` + `bnez $at,...`; mwcc 2.3.3 emits `slti $v0,$v0,0x2` + `bnez $v0,...` (it reuses the now-dead lbu destination instead of the assembler temp). Pure register choice for a branch-feeding compar...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
 
@@ -94,7 +84,7 @@ void func_00163E90(char *e) {
         break;
     case 3:
         func_00174AC0(e, 0);
-        if (!(*(unsigned char *)(e + 0x23F) < 2)) {
+        if (!(*(unsigned char *)(e + 0x23F) <= 1)) {
             *(unsigned char *)(e + 7) = *(unsigned char *)(e + 7) + 1;
             func_0017C440(e, 0);
         } else {

@@ -1,23 +1,16 @@
-// NEARMISS func_001284E0  (vram 0x001284E0, 0x114 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.86% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation coloring (permuter-class): the < 0xB guard's slti destination is $v0 (overwriting the loaded global) where the target uses $at to preserve $v0; single-instruction residual, unaffected by structure/flags. Not the clean-store nop.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// SEMANTICS: spawns a type-2 particle/effect entity at position arg1 (direction arg3 when
+// arg2 == 1), copies the owner's 0x9D/0x9E ids and a unit 0x60 colour, installs
+// func_0012A5D0 as its think handler, and keeps the live count at 0x700031F4 below 11.
 extern char *func_001AFA90(int);
 extern void func_0012A5D0();
 
 int func_001284E0(char *arg0, char *arg1, int arg2, char *arg3) {
     char *p;
 
-    if (*(int *)0x700031F4 >= 0xB) {
+    if (!(*(int *)0x700031F4 <= 0xA)) {
         return 0;
     }
     p = func_001AFA90(2);

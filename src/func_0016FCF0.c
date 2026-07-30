@@ -1,16 +1,12 @@
-// NEARMISS func_0016FCF0  (vram 0x0016FCF0, 0x6EC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 4 instructions (2 identical pairs), pure compare-result register allocation. At 0x270 and 0x634 the target emits `slti $at,$v0,K; bnez $at` (K=3 for p[0x2F0]>=3, K=2 for p[0x23F]>=2); mwcc 2.3.3 emits `slti $v0,$v0,K; bnez $v0`. This is a COMPILER-VERSION split, not a C-shape issue: mwcc 2.3 (991...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
+// SEMANTICS: boss/large-enemy master state machine on p[6] (switch dispatched through
+// jtbl_0026D660): 0-3 are the intro/active states (sub-behaviour p[0x275] selects one of
+// six per-frame handlers and p[0x2F0] cycles 0..2 while p[0x274] is set), 0x63/0x64 blend
+// the 0x27C/0x278 weights over 4 ticks while re-aiming at the target, 0x65/0x66 play the
+// exit clip and turn to the stored yaw, and 0x6E/0x6F run the death/knockdown handoff.
+// The shared tail always runs func_001764E0, decays p[0xB4] and republishes the actor.
 extern void func_0017B300(unsigned char *, int);
 extern void func_001749A0(unsigned char *, int, int, float);
 extern void func_0016F530(unsigned char *, int);
@@ -99,7 +95,7 @@ void func_0016FCF0(unsigned char *p) {
         }
         if (D_00810CA4[0] == 0 && p[0x274] != 0) {
             p[0x2F0] = p[0x2F0] + 1;
-            if (p[0x2F0] >= 3) {
+            if (!(p[0x2F0] <= 2)) {
                 p[0x2F0] = 0;
             }
         }
@@ -199,7 +195,7 @@ void func_0016FCF0(unsigned char *p) {
         break;
     case 0x6E:
         func_00174AC0(p, 1);
-        if (p[0x23F] >= 2) {
+        if (!(p[0x23F] <= 1)) {
             p[6] = p[6] + 1;
             func_0017C440(p, 0);
         } else {
