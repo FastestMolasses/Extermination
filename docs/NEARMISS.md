@@ -58,7 +58,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0010A400 | 0x0010A400 | 0xD4 | 87.17% | ee-gcc 2.9-991111-01 | eegcc volatile-store delay-slot-fill wall. The entire DMA-tag-build loop (slt/movz min, (c |
 | func_00112C58 | 0x00112C58 | 0xC0 | 86.12% | ee-gcc 2.9-991111-01 | Near-identical twin of func_00112AD0 (only constants differ: func_00111F18(0xC), D_00241D4 |
 | func_00112AD0 | 0x00112AD0 | 0xC0 | 86.12% | ee-gcc 2.9-991111-01 | branch-likely wall: expected emits a forward 'bgezl v0' on the func_0010E8A8(...) < 0 chec |
-| func_0010F490 | 0x0010F490 | 0x90 | 85.69% | ee-gcc 2.9-991111-01 | Branch-likely wall (oversized +4 instrs). Two identical byte-copy loops over a struct at b |
 | func_00107E88 | 0x00107E88 | 0x118 | 85.64% | ee-gcc 2.9-991111-01 | eegcc sibling-call wall. Expected emits a true tail call to func_00107CB8 (full epilogue t |
 | func_00118790 | 0x00118790 | 0x98 | 85.61% | ee-gcc 2.9-991111-01 | ee-gcc register-allocation + minor store-ordering near-miss. C is semantically correct and |
 | func_00119240 | 0x00119240 | 0x90 | 85.36% | ee-gcc 2.9-991111-01 | Frame-size / reg-alloc wall (off by 1 instr). Calls DisableDmacHandler(0), func_0010E088(0 |
@@ -780,3 +779,14 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0010FC38 | 0x0010FC38 | 0x1EC | 99.99% | ee-gcc 2.9-991111-01 | EXPECTED-SIDE (splat) symbolization artifact — NOT a codegen difference. The single diff i |
 | func_00113280 | 0x00113280 | 0x1F8 | 98.77% | ee-gcc 2.9-991111-01 | ee-gcc callee-saved GPR coloring permutation (confirmed s84 fast-park class). Instruction  |
 | func_00112440 | 0x00112440 | 0x1CC | 97.22% | ee-gcc 2.9-991111-01 | ee-gcc list-scheduler + delay-slot-fill wall. Body, control flow, register allocation and  |
+| func_00112AD0 | 0x00112AD0 | 0xC0 | 96.67% | ee-gcc 2.9-991111-01 | eegcc volatile-vs-delay-slot deadlock (NOT the branch-likely wall — that diagnosis is disp |
+| func_00112B90 | 0x00112B90 | 0xC4 | 96.73% | ee-gcc 2.9-991111-01 | Identical family member to func_00112AD0 — same eegcc volatile-vs-delay-slot deadlock, sam |
+| func_00112C58 | 0x00112C58 | 0xC0 | 96.67% | ee-gcc 2.9-991111-01 | Exact twin of func_00112AD0 (only constants differ: func_00111F18(0xC), D_00241D48=7, func |
+| func_00113478 | 0x00113478 | 0xB4 | 97.78% | ee-gcc 2.9-991111-01 | eegcc %hi-CSE rematerialization wall (one instruction short: 44 vs 45). Improved 91.11% -> |
+| func_00119AA0 | 0x00119AA0 | 0x1F8 | 94.26% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall. Body/structure/regalloc fully recovered (128 instrs both sides, |
+| func_001118B8 | 0x001118B8 | 0x94 | 86.70% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall (sched1/pre-reload). Logic fully recovered: 39 instrs both sides |
+| func_0010FE28 | 0x0010FE28 | 0x200 | 99.91% | ee-gcc 2.9-991111-01 | EXPECTED-SIDE splat symbolization artifact only — NOT a codegen difference. 3 instructions |
+| func_001181B0 | 0x001181B0 | 0x264 | 93.84% | ee-gcc 2.9-991111-01 | eegcc loop strength-reduction (giv-splitting) wall + downstream GPR coloring. Body and con |
+| func_00112758 | 0x00112758 | 0x290 | 98.60% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall — exactly one adjacent-op swap (sw D_00241D48 vs lui %hi(D_00241 |
+| func_00117428 | 0x00117428 | 0x2B4 | 88.05% | ee-gcc 2.9-991111-01 | eegcc global-address-form wall (target uses `la sym` + `lw 0x30(reg)`; ee-gcc folds the of |
+| func_00118418 | 0x00118418 | 0x294 | 77.58% | ee-gcc 2.9-991111-01 | eegcc loop-IV strength-reduction wall — the target recomputes `mult i,0x6A` per iteration  |
