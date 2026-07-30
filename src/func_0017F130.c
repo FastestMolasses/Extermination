@@ -1,40 +1,25 @@
-// NEARMISS func_0017F130  (vram 0x0017F130, 0x90 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 84.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// mwcc-vs-CW branch lowering + FP move order: CW lowers the mode-4 `return func()!=0` as an explicit branch (beqz/b/li) but both mwcc builds emit a movz conditional-move; additionally CW emits the two FP arg moves f13-before-f12 vs mwcc's f12-before-f13. Body, both float constants, and the mode-17 ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
-// Dispatch on the global mode byte D_00810700.
-//  mode 4 : return (func_0017E6E0(0.0f, 1.0f) != 0).
-//  mode 17: if arg0->field_0x316 != 0, return (func_0017E6E0(19.0f, 1.0f) != 0).
-//  otherwise / on a zero call result: return 0.
-// NEARMISS (84.7% vs build/expected/func_0017F130.o, mwcc 2.3.3): full logic and
-// the mode-17 path match; both float constants (1.0f, 19.0f) and the +0x316
-// guard are exact. Two residuals, both compiler-version codegen differences:
-//  (1) for mode 4, CodeWarrior lowers `return func()!=0` as an explicit
-//      branch (beqz / b ; li v0,1) where both our mwcc builds emit a movz
-//      conditional-move.
-//  (2) the two FP argument moves for the mode-4 call are emitted f13-before-f12
-//      by CW vs f12-before-f13 by mwcc (the f13-temp flip idiom did not change
-//      mwcc's order here). Logic is exact.
+// Game-mode gated proximity/aim probe: in mode 4 it calls func_0017E6E0 with
+// (0.0f, 1.0f); in mode 17 it first requires arg0's flag byte at +0x316 to be set,
+// then calls func_0017E6E0 with (19.0f, 1.0f). Returns 1 when the probe reports
+// non-zero, 0 otherwise (and 0 for every other mode).
+// The `int oi = 1; float one = (float)oi;` staging is load-bearing: the int->float
+// cast survives as an IR node and makes mwcc emit `mtc1 v0,$f13` BEFORE
+// `mtc1 zero,$f12` (the inverse of idiom-24). The `else if` with a single trailing
+// `return 0` (no `return 0` inside the mode-4 arm) is what keeps the mode-4 result
+// as CW's beqz/b/li branch pair instead of collapsing it to a movz/movn select.
 extern unsigned char D_00810700;
-extern int func_0017E6E0(float, float);
+extern int func_0017E6E0(float yaw, float range);
 
 int func_0017F130(char *arg0) {
     if (D_00810700 == 4) {
-        if (func_0017E6E0(0.0f, 1.0f) != 0) {
+        int oi = 1;
+        float one = (float)oi;
+        if (func_0017E6E0(0.0f, one) != 0) {
             return 1;
         }
-        return 0;
-    }
-    if (D_00810700 == 0x11) {
+    } else if (D_00810700 == 0x11) {
         if (*(unsigned char *)(arg0 + 0x316) != 0) {
             if (func_0017E6E0(19.0f, 1.0f) != 0) {
                 return 1;

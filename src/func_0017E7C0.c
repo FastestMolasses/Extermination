@@ -1,13 +1,3 @@
-// NEARMISS func_0017E7C0  (vram 0x0017E7C0, 0x968 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// single FP-arg emit-order pair swap (func_00137C80 committed-wall class): body is byte-identical on 2.3.3 except the (12.0f, -5.0f) probe in the 8-probe cascade, where the target emits the trailing -5.0f (lui 0xC0A0 + mtc1 f13) BEFORE the 12.0f (lui 0x4140 + mtc1 f12); mwcc emits f12-then-f13 (eve...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
@@ -21,6 +11,9 @@
 // (0x32/0x3B/0x33/0x3D). The 120..130 x 160..170 box on (+0xB0,+0xB8) with
 // D_00810700/1 == 8/3 triggers the special action 5 (stores 123.5/257.5/156.4
 // into +0x2E0/4/8 and copies +0xC4 to +0x218).
+// The `ni = -5; n5 = (float)ni;` staging on the 12.0f probe is load-bearing
+// (idiom-24 generalized to a non-zero constant): it is what makes mwcc emit
+// `lui 0xC0A0 / mtc1 $v0,$f13` ahead of `lui 0x4140 / mtc1 $v0,$f12` there.
 
 #define WA0 (*(volatile float *)0x700038A0)
 #define WA1 (*(volatile float *)0x700038A4)
@@ -63,6 +56,8 @@ int func_0017E7C0(unsigned char *p, int side)
     int found;
     unsigned char v;
     float f;
+    int ni;
+    float n5;
 
     found = 0;
     if (*(unsigned char *)(p + 0xD) == 1) {
@@ -218,7 +213,9 @@ int func_0017E7C0(unsigned char *p, int side)
     if (func_0017E6E0(p, side, 20.0f, -5.0f)) {
         goto ret0;
     }
-    if (func_0017E6E0(p, side, 12.0f, -5.0f) == 0
+    ni = -5;
+    n5 = (float)ni;
+    if (func_0017E6E0(p, side, 12.0f, n5) == 0
      && func_0017E6E0(p, side, 4.01f, -5.0f) == 0
      && func_0017E6E0(p, side, -0.5f, -5.0f) == 0
      && func_0017E6E0(p, side, 20.0f, 0.0f) == 0
