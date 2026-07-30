@@ -1,16 +1,9 @@
-// NEARMISS func_00137C80  (vram 0x00137C80, 0x200 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.84% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP-arg emit-order artifact. Body is byte-identical except ONE swapped pair: the anim_clip_init(arg0, clip, 5.0f, 0.0f) call. Target emits `mtc1 zero,f13` (the trailing 0.0f) BEFORE `mtc1 v0,f12` (the 5.0f) -- the f13-zero fills the lui->mtc1 load-use latency slot. mwcc 2.3.3 emits f12 then f13. T...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+// Actor sub-state tick: spawn/clip setup (0), activation-flag wait (1), scripted-exit
+// handshake (2), then the common per-frame animation advance + post-update callback.
+// The `zi = 0; z = (float)zi;` staging is load-bearing: it is what makes mwcc schedule
+// `mtc1 zero,$f13` ahead of `mtc1 $v0,$f12` at the case-0 anim_clip_init call.
 extern void anim_clip_init(int self, int clip, float a, float b);
 extern int anim_advance_time(int self, float t);
 extern int func_00122BB8(int self, int a);
@@ -26,6 +19,8 @@ extern char D_0081080F;
 
 void func_00137C80(int arg0, int arg1) {
     unsigned char st;
+    int zi;
+    float z;
 
     st = *(unsigned char *)(arg0 + 5);
     switch (st) {
@@ -34,7 +29,9 @@ void func_00137C80(int arg0, int arg1) {
         *(char *)(arg0 + 0xD) = 0;
         *(float *)(arg1 + 0x28) = 1.0f;
         if (*(short *)(arg0 + 0x34) != 0) {
-            anim_clip_init(arg0, 2, 5.0f, 0.0f);
+            zi = 0;
+            z = (float)zi;
+            anim_clip_init(arg0, 2, 5.0f, z);
             func_001FBD50(arg0, 0x89A, 0, 500.0f);
         } else {
             D_0081080F = 1;

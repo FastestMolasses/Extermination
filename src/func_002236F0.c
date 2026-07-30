@@ -1,15 +1,7 @@
-// NEARMISS func_002236F0  (vram 0x002236F0, 0x57C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP register-coloring: 3 residual instructions (two !=0.0f compares reloaded into swapped fv0/fv1 halves, one -0.2f add operand-order swap). Body/structure 100% correct (all callee implicit-arg0 signatures, D_700038A0 literal-vs-symbolic addressing split, and func_00188610 non-sign-extended return...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+// Player/actor state-machine tick: dispatches on the actor state byte at +6 and drives
+// per-state transitions, timers, camera-shake/effect calls and the 0xB4 accumulator.
 
 extern int func_00122BB8(void);
 extern void func_001026A0(void *a, void *b, void *c);
@@ -47,11 +39,11 @@ void func_002236F0(unsigned char *arg0) {
             flag = 1;
             *(unsigned char *)(arg0 + 0xF) = 0;
         }
-        if (*(float *)(arg0 + 0x224) != 0.0f) {
+        if (*(float *)(arg0 + 0x224)) {
             func_001FBD50(arg0, 0x152, 0, 300.0f);
             func_0021C350(arg0);
         }
-        if (*(float *)(arg0 + 0x22C) != 0.0f) {
+        if (*(float *)(arg0 + 0x22C)) {
             func_001FBD50(arg0, 0x153, 0, 300.0f);
             func_0021C270(arg0);
         }
@@ -100,7 +92,7 @@ void func_002236F0(unsigned char *arg0) {
             *(int *)0x700038A8 = 0x40A00000;
             *(int *)0x700038AC = 0x3F800000;
             func_001026A0(arg0 + 0xB0, arg0 + 0xD0, D_700038A0);
-            *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0xB4) + -0.2f;
+            *(float *)(arg0 + 0xB4) += -0.2f;
             func_001749A0(arg0, 0x72, 0, 1.0f);
             *(char *)(arg0 + 0x1F0) = 0xD;
             break;

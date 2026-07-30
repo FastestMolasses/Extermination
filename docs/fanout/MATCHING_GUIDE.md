@@ -367,6 +367,30 @@ The decider is the FIRST EMITTED instr (after value materialization), not the C 
   around a compare with zero. (Cracked func_0021F330 s85 — analytically, after ~thousands of
   permuter iterations had failed on the same function; the permuter cannot reach it because mwcc
   folds the temp back before scheduling.)
+- **idiom-24 (FP-ARG-ZERO-STAGING — the f13-before-f12 wall, CRACKED)**: when the target emits the
+  trailing `0.0f` argument's `mtc1 zero,$f13` BEFORE `mtc1 <r>,$f12`, stage the zero through an
+  **int converted to float**: `int zi = 0; float z = (float)zi; f(self, clip, 5.0f, z);`
+  The int→float CAST survives as a real IR node and gets scheduled ahead of the constant
+  materialization; a plain `float z = 0.0f;` is const-folded straight back into the call and does
+  NOT work (measured 99.826% — this is the obvious variant that made prior agents declare the class
+  unmatchable). Placement is forgiving: before the guarding `if`, at the top of the case, or inside
+  the arm all reach 100.0. (Cracked func_00137C80 and func_0014D5F0 s85, both of whose NEARMISS
+  headers had asserted "no source change fixes here" — those assertions were wrong.)
+  **This is a class lever**, not a one-off: the same f13-then-f12 residual is recorded on
+  func_0012D580, func_00131B10, func_0013B5B0, func_0013DD40, func_001424C0, func_001437E0,
+  func_00147960, func_00148520, func_00149B50, func_0014A350, func_0014D7C0, func_0017F130,
+  func_001F6640 and func_0017E7C0. Try this before spending any permuter time on them.
+- **idiom-25 (FLOAT TRUTHINESS — steers c.eq.s operand order without touching FP coloring)**:
+  `if (x)` / `if (!x)` on a float lvalue emits `mtc1 zero,$f0 ; c.eq.s $f1,$f0` (the VALUE as `fs`).
+  Every explicit spelling — `x != 0.0f`, `0.0f != x`, `!(x == 0.0f)`, `x != 0`, `x != (float)0`, and
+  a hoisted `float fv = x; fv != 0.0f` — instead emits `c.eq.s $f0,$f1` (zero as `fs`). Note this is
+  a *different* dimension from idiom-23: idiom-23's `x != (z = 0.0f)` moves the compare-operand order
+  but also swaps the FPRs, trading one two-instruction diff for another; truthiness moves the operand
+  order alone. (Cracked func_002236F0 s85 via a 49-cell variant sweep.)
+- **idiom-26 (COMPOUND-ASSIGN steers add.s operand order)**: `*p += -0.2f;` emits
+  `add.s $f0,$f1,$f0` (loaded value as `fs`); the expanded `*p = *p + -0.2f;` and `*p = -0.2f + *p;`
+  both emit `add.s $f0,$f0,$f1`. A `float cv = -0.2f;` temp also gives the correct order. Beware
+  `*p = *p - 0.2f;` — that emits `sub.s` and is a different instruction. (Generalizes idiom-21.)
 - GENUINE (no lever): LI-HOIST — a plain-literal `li`/`lui` hoisted above an unrelated store while
   kept in the immediate-scratch $v1. $v1 is rewritten per literal; a value living across a store gets
   a DISTINCT value reg (a0/a1), so "hoisted order" and "$v1 coloring" are mutually exclusive. (A
