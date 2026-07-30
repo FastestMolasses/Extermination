@@ -779,14 +779,20 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0010FC38 | 0x0010FC38 | 0x1EC | 99.99% | ee-gcc 2.9-991111-01 | EXPECTED-SIDE (splat) symbolization artifact — NOT a codegen difference. The single diff i |
 | func_00113280 | 0x00113280 | 0x1F8 | 98.77% | ee-gcc 2.9-991111-01 | ee-gcc callee-saved GPR coloring permutation (confirmed s84 fast-park class). Instruction  |
 | func_00112440 | 0x00112440 | 0x1CC | 97.22% | ee-gcc 2.9-991111-01 | ee-gcc list-scheduler + delay-slot-fill wall. Body, control flow, register allocation and  |
-| func_00112AD0 | 0x00112AD0 | 0xC0 | 96.67% | ee-gcc 2.9-991111-01 | eegcc volatile-vs-delay-slot deadlock (NOT the branch-likely wall — that diagnosis is disp |
-| func_00112B90 | 0x00112B90 | 0xC4 | 96.73% | ee-gcc 2.9-991111-01 | Identical family member to func_00112AD0 — same eegcc volatile-vs-delay-slot deadlock, sam |
-| func_00112C58 | 0x00112C58 | 0xC0 | 96.67% | ee-gcc 2.9-991111-01 | Exact twin of func_00112AD0 (only constants differ: func_00111F18(0xC), D_00241D48=7, func |
-| func_00113478 | 0x00113478 | 0xB4 | 97.78% | ee-gcc 2.9-991111-01 | eegcc %hi-CSE rematerialization wall (one instruction short: 44 vs 45). Improved 91.11% -> |
 | func_00119AA0 | 0x00119AA0 | 0x1F8 | 94.26% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall. Body/structure/regalloc fully recovered (128 instrs both sides, |
-| func_001118B8 | 0x001118B8 | 0x94 | 86.70% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall (sched1/pre-reload). Logic fully recovered: 39 instrs both sides |
 | func_0010FE28 | 0x0010FE28 | 0x200 | 99.91% | ee-gcc 2.9-991111-01 | EXPECTED-SIDE splat symbolization artifact only — NOT a codegen difference. 3 instructions |
 | func_001181B0 | 0x001181B0 | 0x264 | 93.84% | ee-gcc 2.9-991111-01 | eegcc loop strength-reduction (giv-splitting) wall + downstream GPR coloring. Body and con |
 | func_00112758 | 0x00112758 | 0x290 | 98.60% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall — exactly one adjacent-op swap (sw D_00241D48 vs lui %hi(D_00241 |
 | func_00117428 | 0x00117428 | 0x2B4 | 88.05% | ee-gcc 2.9-991111-01 | eegcc global-address-form wall (target uses `la sym` + `lw 0x30(reg)`; ee-gcc folds the of |
 | func_00118418 | 0x00118418 | 0x294 | 77.58% | ee-gcc 2.9-991111-01 | eegcc loop-IV strength-reduction wall — the target recomputes `mult i,0x6A` per iteration  |
+| func_00116DB8 | 0x00116DB8 | 0x2D0 | 97.22% | ee-gcc 2.9-991111-01 | eegcc CSE wall (local, 4 instrs) — everything except one 4-instruction cluster in the `mod |
+| func_00112F98 | 0x00112F98 | 0x2E8 | 70.56% | ee-gcc 2.9-991111-01 | TWO stacked walls. (1) eegcc LICM + callee-saved coloring wall: expected hoists NINE value |
+| func_00111C28 | 0x00111C28 | 0x2EC | 98.26% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring wall (+2-insn address-form residual). Instruction count is EXACT (0x2EC |
+| func_00112150 | 0x00112150 | 0x2F0 | 88.85% | ee-gcc 2.9-991111-01 | eegcc list-scheduler + switch-tree + GPR-coloring wall (0x2EC vs 0x2F0, one insn short). L |
+| func_00107648 | 0x00107648 | 0x3DC | 78.40% | ee-gcc 2.9-991111-01 | eegcc cross-jump-merge + list-scheduler wall (0x3C8 vs 0x3DC, 5 insns short). Body/structu |
+| func_0011C7B0 | 0x0011C7B0 | 0x3E0 | 90.81% | ee-gcc 2.9-991111-01 | TWO issues. (1) TOOLCHAIN BUG (not a source wall): ee-gcc emits `li.s $fN,<const>` for SFm |
+| func_00109068 | 0x00109068 | 0x588 | 96.18% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring wall. Expected colors the bitstream pointer into $s3 and the three PTS/ |
+| func_00103DC8 | 0x00103DC8 | 0x420 | 51.59% | ee-gcc 2.9-991111-01 | eegcc register-allocation + list-scheduler wall. The control flow, every arithmetic expres |
+| func_00115850 | 0x00115850 | 0x5FC | 68.60% | ee-gcc 2.9-991111-01 | eegcc register-allocation / spill-placement wall. Instruction stream and control flow are  |
+| func_00115E50 | 0x00115E50 | 0x744 | 63.70% | ee-gcc 2.9-991111-01 | eegcc register-allocation wall (parameter spill decision). Logic is fully recovered: the t |
+| func_0011CE20 | 0x0011CE20 | 0x94C | 75.73% | ee-gcc 2.9-991111-01 | eegcc strength-reduction / register-allocation wall. Full algorithm recovered: signed (pre |

@@ -4518,6 +4518,14 @@
       }
     },
     {
+      "name": "func_0011C4C8",
+      "target_path": "build/expected/func_0011C4C8.o",
+      "base_path": "build/obj/func_0011C4C8.o",
+      "metadata": {
+        "source_path": "src/func_0011C4C8.c"
+      }
+    },
+    {
       "name": "func_0011CB90",
       "target_path": "build/expected/func_0011CB90.o",
       "base_path": "build/obj/func_0011CB90.o",

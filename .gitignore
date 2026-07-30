@@ -99,5 +99,9 @@ __pycache__/
 # Personal textbook (not part of the project)
 textbook/
 tools/permuter/
-tools/eegcc/
+# Third-party ee-gcc distributions stay OUT (tarballs + extracted trees), but our own
+# thin wrapper scripts are original build tooling and must be tracked -- the assembler
+# flags in them are load-bearing for matching (see the -G0 note in ee-compile.sh).
+tools/eegcc/*
+!tools/eegcc/*.sh
 tools/m2c/
