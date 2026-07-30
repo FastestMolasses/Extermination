@@ -354,6 +354,19 @@ The decider is the FIRST EMITTED instr (after value materialization), not the C 
   `*(volatile int *)0x700038A0` / `*(volatile float *)…`. (Found s85 on func_00144040: 94.6 -> 96.8;
   recommended for the whole parked scratchpad-copy sibling family — func_0013F240, func_0014A0D0,
   func_00143AF0, func_00135870.)
+- **idiom-23 (INLINE ZERO-TEMP — float compare against 0.0f)**: mwcc 2.3.3 chooses BOTH which FPR
+  holds the loaded value vs. the zero AND which operand lands in `fs` of the `c.eq.s`, and the two
+  are separately steerable. Measured on a micro-testbed at `-O4,p`:
+  - `x != 0.0f` / `0.0f != x` / `!(x == 0.0f)` / `x == 0.0f` → `mtc1 zero,$f1` ; `lwc1 $f0` ;
+    `c.eq.s $f1,$f0` (zero is `fs`).
+  - `float z; z = 0.0f; ... x != z` (zero assigned in a SEPARATE statement) → `mtc1 zero,$f0` ;
+    `lwc1 $f1` — the loaded value moves to the second FPR.
+  - `x != (z = 0.0f)` (assignment INLINE in the condition) → flips both dimensions, giving the
+    CodeWarrior form `lwc1 $f0` ; `mtc1 zero,$f1` ; `c.eq.s $f0,$f1`.
+  Reach for this whenever the sole residual is an `mtc1`/`lwc1` ordering or a `c.eq.s` operand swap
+  around a compare with zero. (Cracked func_0021F330 s85 — analytically, after ~thousands of
+  permuter iterations had failed on the same function; the permuter cannot reach it because mwcc
+  folds the temp back before scheduling.)
 - GENUINE (no lever): LI-HOIST — a plain-literal `li`/`lui` hoisted above an unrelated store while
   kept in the immediate-scratch $v1. $v1 is rewritten per literal; a value living across a store gets
   a DISTINCT value reg (a0/a1), so "hoisted order" and "$v1 coloring" are mutually exclusive. (A
