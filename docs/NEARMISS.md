@@ -820,3 +820,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001F0720 | 0x001F0720 | 0x334 | 86.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 86.25 with mwcc233 -O4,p -sdatathreshold 4 (o991 69.09, o24 86.25). Dispatch, all 7 preset |
 | func_00163E90 | 0x00163E90 | 0x38C | 99.96% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 2 of 227 instructions, both the SAME compare in case 3 (the func_00174AC0 arm): target `sl |
 | func_00118828 | 0x00118828 | 0x374 | 99.02% | ee-gcc 2.9-991111-01 | IMPORTANT: this is an ee-gcc function, NOT mwcc (0x118828 sits inside the SDK/lowmem eegcc |
+| func_0022B7A0 | 0x0022B7A0 | 0x3CC | 99.96% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | ALL 243 instruction encodings are byte-identical; the ONLY residual is the 2-instruction r |
+| func_00200360 | 0x00200360 | 0x3A0 | 94.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | The jr-table dispatch itself matches 100% (jtbl_002732B0 reloc included) and cases 1, 3, 4 |
+| func_00159210 | 0x00159210 | 0x408 | 99.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Pure register-allocation-ORDER permutation, 6 of 258 instructions, confined to the D_00810 |
+| func_001CFBE0 | 0x001CFBE0 | 0x400 | 99.96% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | EXPECTED-OBJECT CONSTRUCTION ISSUE, not a compiler wall - 2 of 256 instructions, both in t |
