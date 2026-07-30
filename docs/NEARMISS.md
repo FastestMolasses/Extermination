@@ -60,7 +60,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00112AD0 | 0x00112AD0 | 0xC0 | 86.12% | ee-gcc 2.9-991111-01 | branch-likely wall: expected emits a forward 'bgezl v0' on the func_0010E8A8(...) < 0 chec |
 | func_00107E88 | 0x00107E88 | 0x118 | 85.64% | ee-gcc 2.9-991111-01 | eegcc sibling-call wall. Expected emits a true tail call to func_00107CB8 (full epilogue t |
 | func_00118790 | 0x00118790 | 0x98 | 85.61% | ee-gcc 2.9-991111-01 | ee-gcc register-allocation + minor store-ordering near-miss. C is semantically correct and |
-| func_00119240 | 0x00119240 | 0x90 | 85.36% | ee-gcc 2.9-991111-01 | Frame-size / reg-alloc wall (off by 1 instr). Calls DisableDmacHandler(0), func_0010E088(0 |
 | func_001114B8 | 0x001114B8 | 0x64 | 85.20% | ee-gcc 2.9-991111-01 | Branch-likely wall: original emits `bgezl $v0` (branch-likely) in the post-jal sign test,  |
 | func_0011A070 | 0x0011A070 | 0x124 | 84.68% | ee-gcc 2.9-991111-01 | eegcc coloring + list-scheduler wall (confirmed s84, no permuter lever). The loop body is  |
 | func_00108300 | 0x00108300 | 0x1B0 | 83.50% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall. Body matches 100% from RemoveIntcHandler onward; only the prolo |
@@ -800,29 +799,15 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0010EAA0 | 0x0010EAA0 | ? | 95.56% | ee-gcc 2.9-991111-01 | eegcc ASSEMBLER delay-slot-swap wall — PIPELINE BUG, fixable, and this C is then a TRUE 10 |
 | func_0010E088 | 0x0010E088 | ? | 89.14% | ee-gcc 2.9-991111-01 | TWO stacked walls; body/structure fully recovered (prologue, both DI spin loops, the D_002 |
 | func_0010ED18 | 0x0010ED18 | ? | 99.92% | ee-gcc 2.9-991111-01 | compiler artifact (register coloring / scheduling) |
-| func_0011A9F0 | 0x0011A9F0 | 0x60 | 99.58% | ee-gcc 2.9-991111-01 | jr-table external-dispatch wall (proven s84) — sole residual: lui/addiu %hi/%lo(jtbl_0026C |
 | func_0011AEA0 | 0x0011AEA0 | 0x60 | 99.58% | ee-gcc 2.9-991111-01 | jr-table external-dispatch wall (proven s84) — sole residual: lui/addiu %hi/%lo(jtbl_0026C |
 | func_0021B9A0 | 0x0021B9A0 | 0xC4 | 88.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — local @17 table vs external jtbl_00273790 ( |
-| func_001B9C10 | 0x001B9C10 | 0xD8 | 99.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) -- 2 of the 5 residual instructions are the d |
 | func_001A9C40 | 0x001A9C40 | 0xE0 | 99.02% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — local @14 vs external jtbl_0026DB30 on the  |
-| func_001386E0 | 0x001386E0 | 0x214 | 99.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — residuals: the 2-instruction lui/addiu jump |
 | func_001BC350 | 0x001BC350 | 0x204 | 99.46% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — residuals: the 2-instruction lui/addiu jump |
-| func_001643B0 | 0x001643B0 | 0x214 | 99.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84): lui/addiu %hi/%lo(jtbl_0026D640) vs mwcc's l |
 | func_001A97B0 | 0x001A97B0 | 0x228 | 95.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84): lui/addiu %hi/%lo(jtbl_0026DAE0) vs local @6 |
-| func_001B7B30 | 0x001B7B30 | 0x228 | 95.28% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84): lui/addiu %hi/%lo(jtbl_0026DF70) vs local @1 |
-| func_001B7D60 | 0x001B7D60 | 0x228 | 92.24% | mwcc 2.3 (mwcps2-2.3-991202) | jr-table external-dispatch wall (proven s84): lui/addiu %hi/%lo(jtbl_0026DFA0) becomes a l |
-| func_001DB250 | 0x001DB250 | 0x228 | 89.22% | mwcc 2.3 (mwcps2-2.3-991202) | jr-table external-dispatch wall (proven s84): local @17/@18 table vs external jtbl_0026E6D |
-| func_0018A8D0 | 0x0018A8D0 | 0x230 | 84.14% | mwcc 2.3 (mwcps2-2.3-991202) | jr-table external-dispatch wall (proven s84): local @33/@34 table vs external jtbl_0026D8D |
-| func_001A91C0 | 0x001A91C0 | 0x19C | 99.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001B8020 | 0x001B8020 | 0x1A8 | 99.76% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 2 of 106 instructions, case 4 only (float-arg register assignment, NOT a dispatch issue —  |
 | func_001AD360 | 0x001AD360 | 0x16C | 97.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 2 of 91 instructions, case 1 only (post-RA scheduler transposition, NOT a dispatch issue — |
-| func_0013D600 | 0x0013D600 | 0x250 | 99.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
-| func_00147700 | 0x00147700 | 0x258 | 99.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
-| func_00212F30 | 0x00212F30 | 0x280 | 99.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001B5360 | 0x001B5360 | 0x280 | 98.49% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 5 residual instructions of 160 (mwcc233 -O4,p -sdatathreshold 0). NOT a jr-table wall: the |
 | func_00134090 | 0x00134090 | 0x270 | 93.45% | mwcc24 | 13 residual instructions of 156 (mwcc24 -O4,p -sdatathreshold 4). NOT a jr-table wall: the |
-| func_001AB9D0 | 0x001AB9D0 | 0x28C | 99.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
-| func_0015BA50 | 0x0015BA50 | 0x298 | 99.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_00189730 | 0x00189730 | 0x290 | 98.10% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 8 of ~166 instrs differ, in two independent spots inside case 3 (everything else, includin |
 | func_001FF590 | 0x001FF590 | 0x29C | 94.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Decode is fully verified against the .s (every case, every offset/width, the case-0 -> cas |
 | func_001F5940 | 0x001F5940 | 0x2DC | 99.92% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 2 instructions, both in the final call of the mode-2 arm: func_0021B9A0(1, 0.0f, 0.0f). Ta |
