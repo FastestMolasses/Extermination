@@ -848,3 +848,15 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00184D20 | 0x00184D20 | 0x6FC | 98.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 10 instructions in two independent spots. (1) 6 instrs -- FP temp PAIR coloring for the fi |
 | func_00129780 | 0x00129780 | 0x77C | 99.57% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 3 instructions, one site. At the FIRST of the six func_001C2540 axis probes (target 0x0012 |
 | func_001AD740 | 0x001AD740 | 0x7B8 | 99.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 14 instructions in three groups. (1) 2 instrs - MULTI-TABLE dispatch reloc: this function  |
+| func_0012A5D0 | 0x0012A5D0 | 0x7F0 | 99.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 5 residual instructions out of 508; instruction count, order and every reloc (incl. the jt |
+| func_001BC960 | 0x001BC960 | 0x81C | 99.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 20 residual instructions out of 519, ALL pure register-allocation permutation -- instructi |
+| func_001B82D0 | 0x001B82D0 | 0x7DC | 98.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 25 residual instructions out of 506; the jtbl_0026DFE0 dispatch, the case-5 -> case-4 fall |
+| func_00211970 | 0x00211970 | 0x828 | 99.96% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 -O4,p -sdatathreshold 4 (991202 only 90.90). CODE IS BYTE-IDENTICAL: objcopy of th |
+| func_0022A650 | 0x0022A650 | 0x848 | 98.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 -O4,p -sdatathreshold 0 (991202 only 87.51). 524/530 instructions identical; 6 res |
+| func_00200A40 | 0x00200A40 | 0x848 | 98.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 -O4,p -sdatathreshold 4 (991202 only 89.76; threshold 4 needed for the gp-rel `uns |
+| func_001B2140 | 0x001B2140 | 0x9C4 | 97.68% | mwcc 2.3 (mwcps2-2.3-991202) | 97.68 with mwcc 991202 (-O4,p -sdatathreshold 0); 18 diff rows out of 625 instructions. De |
+| func_001BF6B0 | 0x001BF6B0 | 0x8DC | 95.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 95.90 with mwcc 2.3.3 (-O4,p -sdatathreshold 4); 34 diff rows out of 567 instructions (991 |
+| func_001E4CE0 | 0x001E4CE0 | 0x910 | 83.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 83.90 with mwcc 2.3.3 (-O4,p -sdatathreshold 4); ~185 diff rows out of 580 instructions (9 |
+| func_001429D0 | 0x001429D0 | 0xAEC | 99.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.68% (22 of ~700 instrs). Dispatch itself is byte-identical except register colouring; j |
+| func_00128C10 | 0x00128C10 | 0xB6C | 97.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 97.97% (26 of ~730 instrs). Both jr-table dispatches are byte-identical in code; the 9-ent |
+| func_00183EF0 | 0x00183EF0 | 0xCA8 | 99.41% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 17 residual instructions / 810 (99.41%, mwcc 2.3.3, -O4,p -sdatathreshold 0). The jump-tab |
