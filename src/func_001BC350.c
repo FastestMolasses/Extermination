@@ -1,8 +1,8 @@
 // NEARMISS func_001BC350  (vram 0x001BC350, 0x204 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.46% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.53% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84) — residuals: the 2-instruction lui/addiu jump-table reloc pair (local @34 vs external jtbl_0026E1C0), plus a scratch-register naming tie in the unlock-bit test (target uses a0/v1/v0 where mwcc233 picks v1/v0/a0 — identical instruction sequence and oper...
+// Register-allocation rotation (7 instrs, all ARG_MISMATCH; opcodes/order/branch targets/relocs all identical) inside the sub-state-0 door-unlock bit test. Target: idx($a0) = lbu %lo(D_00810700)($at); base($v1) = addiu $v1,$v0,%lo(D_00810841) [%hi temp stays in $v0 and is NOT coalesced]; shift($v0)...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,7 +11,7 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// SEMANTICS (2026-06-10 s15, verified against the disassembly s85): DOOR
+// SEMANTICS (2026-06-10 s15, re-verified instruction-by-instruction s85): DOOR
 // behavior (placement +0x24 target for class-5 double doors).  `blk` is
 // self+0x1F0.  Outer lifecycle byte +0x04:
 //   0 INIT  func_001BBDA0 (model bind, +0x34 = door id from +0x2E, scale from
@@ -36,11 +36,11 @@
 // RUN then ALWAYS calls func_001BC300 (evaluate articulation via
 // func_001C68C0, cull at pos+(0,10,0), run the +0x4C method) - including
 // when the sub-state is out of range.  See docs/FINDINGS.md s15.
-// func_001BBDA0 is called with no argument set-up in the original ($a0 still
-// holds self), so it is declared argument-less here.
-// NEARMISS: 99.46% - residuals are the jump-table reloc (local @NN vs. the
-// original's external jtbl_0026E1C0) and a scratch-register naming tie in
-// the unlock-bit test (v0/v1/a0 permuted; same instruction sequence).
+// func_001BBDA0 and the inner func_001BC0E0/func_001BC240/func_001BC290 calls
+// reached from the jump table are entered with $a0 still holding `self` from
+// the function's own prologue (never clobbered), so the first argument is
+// never re-materialised in the original.  func_001BBDA0 consumes no register
+// argument at all, hence the argument-less declaration.
 
 extern void func_001BBDA0();
 extern int func_001BBE40(unsigned char *, unsigned char *, int);

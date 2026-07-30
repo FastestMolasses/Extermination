@@ -1,15 +1,15 @@
 // NEARMISS func_0021B9A0  (vram 0x0021B9A0, 0xC4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 88.20% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 88.61% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84) — local @17 table vs external jtbl_00273790 (lui/addiu/sll/addu/lw/jr). SECOND residual: same-TU interprocedural register-usage. The target keeps `mode` in caller-saved $a2 (paddub $a2,$a0,$zero) across BOTH jals with a 0x10 frame saving only $ra; a st...
+// NOT a jr-table wall — the dispatch and all six case bodies match. Single residual class: CodeWarrior same-TU INTERPROCEDURAL REGISTER-USAGE analysis. The target keeps `mode` in caller-saved $a2 (`paddub $a2,$a0,$zero`) live across `jal func_0021B920`, with a 0x10 frame saving only $ra (`sq $ra,0(...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: mwcc233
-// CFLAGS: -O4,p
+// CFLAGS: -O4,p -sdatathreshold 4
 
 //
 // SEMANTICS: fog / depth-range programmer for the per-frame render context
@@ -63,7 +63,7 @@ void func_0021B9A0(int mode, float scale, float bias) {
     p = D_00275670;
     *(float *)((char *)p + 0xBC) = far;
     func_0021B920(near, far);
-    if ((unsigned int)(mode - 4) < 2 || (unsigned int)mode < 2) {
+    if (mode == 4 || mode == 5 || mode == 0 || mode == 1) {
         func_0021B900();
     }
 }

@@ -1,17 +1,6 @@
-// NEARMISS func_001643B0  (vram 0x001643B0, 0x214 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.77% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84): lui/addiu %hi/%lo(jtbl_0026D640) vs mwcc's local @28 -- 2 instrs, permanent. Only 3 other instructions differ out of 133: (a) the e[0x23F]>=2 test allocates the compare temp in $v0 while the target uses $at (target emitted the assembler-macro branch f...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-//
 // SEMANTICS: per-frame step of an entity behaviour driven by the state byte at
 // e[7] (jump table jtbl_0026D640, 6 states, default = fall straight through to
 // the shared tail).
@@ -23,7 +12,7 @@
 //      otherwise zero the float at e+0x204.
 //   3: if bit 0x1000 of the int at e+0x200 is set bump state (computed from the
 //      switch value still live in a register), else write 0.25 to e+0x204.
-//   4: func_00174AC0(e,0); if the byte at e+0x23F >= 2 bump state and
+//   4: func_00174AC0(e,0); if the byte at e+0x23F > 1 bump state and
 //      func_0017C440(e,0), else clear e[0x25C] and func_0017C540(e).
 //   5: func_00178B90(e,0); unless bit 0x8000 of e+0x200 is set, func_0017C540(e).
 // Shared tail: func_001764E0(e), then either (flag e[0x302] set)
@@ -81,7 +70,7 @@ void func_001643B0(unsigned char *e) {
         break;
     case 4:
         func_00174AC0(e, 0);
-        if (e[0x23F] >= 2) {
+        if (e[0x23F] > 1) {
             e[7] = e[7] + 1;
             func_0017C440(e, 0);
         } else {
@@ -103,7 +92,7 @@ void func_001643B0(unsigned char *e) {
         func_00179880(e, e + 0x2EC);
         func_00175900(e, 1);
     } else {
-        *(float *)(e + 0xB4) = *(float *)(e + 0xB4) + -0.2f;
+        *(float *)(e + 0xB4) += -0.2f;
         func_00175900(e, 1);
         func_001796C0(e);
     }

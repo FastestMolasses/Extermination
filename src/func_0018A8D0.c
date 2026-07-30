@@ -1,28 +1,6 @@
-// NEARMISS func_0018A8D0  (vram 0x0018A8D0, 0x230 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 84.14% via mwcc 2.3 (mwcps2-2.3-991202) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84): local @33/@34 table vs external jtbl_0026D8D0 plus the addiu/sll reorder. Dominant OTHER residual is the CW 2.3.1 dead-instruction class already documented for func_001AF780: CodeWarrior emits an unreachable DUPLICATE of every branch-likely delay-slot...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// COMPILER: mwcc
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
-//
-// NEARMISS: jr-table external-dispatch wall (proven s84). The 13-entry
-// table is the external jtbl_0026D8D0 and mwcc emits a local @NN table.
-// Other residuals, all CodeWarrior backend artifacts with no C lever:
-//   * CW emits a DEAD duplicate of each branch-likely delay-slot payload
-//     (the three `addiu a1, 0x30/0x40/0x6d` copies after the beql chain and
-//     the second `paddub s1, zero, zero`); mwcc 2.3.1 does not.
-//   * CW parks the `default: return 1` epilogue as its own block after the
-//     case bodies; mwcc inlines it into the compare chain.
-//   * CW leaves the `p[3] == 2` compare's delay slot as a nop (idiom-13).
-//   * per-case delay-slot pick (store vs. the id constant) in cases 0, 4, 9
-//     and 11, and $at vs. $v0 for the loop's slt.
 //
 // SEMANTICS:
 //   Actor (re)initialisation. p[3] selects the init flavour and p[0xD] the

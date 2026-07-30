@@ -1,13 +1,3 @@
-// NEARMISS func_001B7B30  (vram 0x001B7B30, 0x228 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.28% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84): lui/addiu %hi/%lo(jtbl_0026DF70) vs local @16. Two other residuals, both post-RA scheduler / dead-code artifacts of the original build: (a) mwcc233 hoists `sw zero, D_008105F8` up next to `sw zero, D_008105F0` (it groups the two zero stores); reorderi...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
@@ -32,6 +22,11 @@
 //
 // Case bodies are emitted in the source order 0, 7, 1, 2/3, 4, 5, 6, 8 -- that
 // is the order the target lays them out, and it is what the jump table indexes.
+//
+// The four D_008105Fx quad slots are declared volatile so the post-RA list
+// scheduler keeps them in program order; without it mwcc groups the two
+// `sw zero` stores (F0, F8) together, which is the only way this block differs.
+//
 
 extern void func_00102948(void *dst, void *src);
 extern void func_0018CBD0(char *a, char *b, float f);
@@ -48,10 +43,10 @@ extern char  D_008102B0[];
 extern float D_00810354;
 extern char  D_008105D0[];
 extern char  D_008105E0[];
-extern float D_008105F0;
-extern float D_008105F4;
-extern float D_008105F8;
-extern float D_008105FC;
+extern volatile float D_008105F0;
+extern volatile float D_008105F4;
+extern volatile float D_008105F8;
+extern volatile float D_008105FC;
 
 int func_001B7B30(int arg0, int arg1, char *arg2) {
     char *cam;
@@ -70,12 +65,15 @@ int func_001B7B30(int arg0, int arg1, char *arg2) {
             D_008105F8 = 0.0f;
             D_008105FC = 1.0f;
             return 1;
+        } else {
+            ret = 0;
         }
-        return 0;
+        return ret;
     case 7:
-        ret = 0;
-        if (!(*(float *)(cam + 0x74) < *(float *)(arg2 + 0xC))) {
+        if (*(float *)(cam + 0x74) >= *(float *)(arg2 + 0xC)) {
             ret = 1;
+        } else {
+            ret = 0;
         }
         return ret;
     case 1:

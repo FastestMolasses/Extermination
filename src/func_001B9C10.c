@@ -1,13 +1,3 @@
-// NEARMISS func_001B9C10  (vram 0x001B9C10, 0xD8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.26% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84) -- 2 of the 5 residual instructions are the dispatch `lui v0, %hi(jtbl_0026E0E0)` / `addiu v1, v0, %lo(jtbl_0026E0E0)` (local @16 vs external jtbl symbol). PLUS a secondary residual: 3x addu commutative-operand-order (`addu v0, v1, a2` target vs `addu ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
@@ -31,6 +21,10 @@
 //   target relocates against D_00810354 (= &D_00810370 - 0x1C) there and against
 //   the individual element symbols in the op 10 arm. Both forms are kept so the
 //   emitted relocations match the target's.
+//   The `(char *)(op * 4) + (int)ptr` spelling is deliberate: it is byte-offset
+//   arithmetic with the scaled index as the ADDU's first operand, which is the
+//   operand order the target emits (`addu v0, v1, a2`). Writing it as
+//   `ptr + op * 4` makes mwcc canonicalize the pointer into the first operand.
 
 extern float D_00810354[];
 extern float D_00810370;
@@ -47,7 +41,7 @@ int func_001B9C10(char *arg0, int arg1, char *arg2)
     case 0:
     case 1:
     case 2:
-        *(float *)(op * 4 + arg0 + 0xC0) = *(float *)(op * 4 + arg2 + 0x20);
+        *(float *)((char *)(op * 4) + (int)arg0 + 0xC0) = *(float *)((char *)(op * 4) + (int)arg2 + 0x20);
         *(float *)(arg0 + 0xCC) = 1.0f;
         break;
     case 3:
@@ -63,7 +57,7 @@ int func_001B9C10(char *arg0, int arg1, char *arg2)
     case 7:
     case 8:
     case 9:
-        D_00810354[op] = *(float *)(op * 4 + arg2 + 4);
+        D_00810354[op] = *(float *)((char *)(op * 4) + (int)arg2 + 4);
         D_0081037C = 1.0f;
         break;
     case 10:

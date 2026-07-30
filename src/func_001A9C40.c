@@ -1,8 +1,8 @@
 // NEARMISS func_001A9C40  (vram 0x001A9C40, 0xE0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.02% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.20% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84) — local @14 vs external jtbl_0026DB30 on the dispatch lw. PLUS one residual: FP register allocation for dy/dz is swapped ($f2<->$f3) vs the target, costing 4 instructions (the two sub.s dests, the second mul.s operand, the madd.s operand). 9 variants t...
+// Dispatch (lui/addiu %hi/%lo jtbl_0026DB30, sll, addu, lw, jr) byte-matches. Residual = 4 instructions of FP register COLORING only: target `sub.s $f3,$f3,$f2` (dy) / `sub.s $f2,$f1,$f0` (dz) / `mul.s $f0,$f3,$f3` / `madd.s $f12,$f2,$f2`; mwcc233 emits dy->$f2 and dz->$f3 (`sub.s $f2,$f3,$f2`, `su...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,7 +11,6 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-//
 // SEMANTICS: proximity/awareness test between `self` and `other`.
 // Skipped entirely when bit 1 of other[0] is set. Otherwise the 3D distance
 // between the two position vectors (floats at +0xB0/+0xB4/+0xB8) is measured
@@ -22,11 +21,11 @@
 //   kinds 2,3, >=8   -> 0.0f (radius 0 == "never alerts", early out)
 // Within radius, bit 0 of other[0xA] is set (the "noticed/alerted" flag).
 //
-// NEARMISS 99.0% — jr-table external-dispatch wall (proven s84): the original
-// consolidated all jump tables into an external rodata TU, so mwcc's local
-// @14 table is a permanent reloc mismatch. Additional residual: the dy/dz
-// sub.s destinations are allocated $f2/$f3 swapped relative to the target
-// (4 instructions); logic and instruction sequence are otherwise identical.
+// The jump-table dispatch itself now byte-matches. The only residual is FP
+// register COLORING: the target puts dy in $f3 and dz in $f2, mwcc 2.3.3 puts
+// dy in $f2 and dz in $f3 (4 instructions: the two sub.s dests, the 2nd mul.s
+// operand and the madd.s operand). The instruction sequence, load order and
+// summation order are otherwise identical.
 
 extern float func_0011E748(float x);
 

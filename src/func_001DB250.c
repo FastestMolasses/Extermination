@@ -1,42 +1,25 @@
-// NEARMISS func_001DB250  (vram 0x001DB250, 0x228 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 89.22% via mwcc 2.3 (mwcps2-2.3-991202) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84): local @17/@18 table vs external jtbl_0026E6D0, plus mwcc fills the sltiu range-check's delay slot with the table %hi where the target leaves a nop, and swaps the addiu/sll. Other residuals: (a) prologue order — mwcc sinks `addiu sp,-0x10` below the D_...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// COMPILER: mwcc
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
 //
-// NEARMISS: jr-table external-dispatch wall (proven s84). The 7-entry
-// dispatch table is the external jtbl_0026E6D0; mwcc emits a local @NN
-// table, and it also fills the range-check's delay slot with the table
-// %hi instead of leaving the target's nop. Other residuals: the post-RA
-// scheduler interleaves the two 0x4030/0x4034 constants differently, hoists
-// both float constants of the tail block above the integer work instead of
-// spreading them across the two groups, and picks $at rather than $v1 for
-// the `state < 3` slti.
-//
 // SEMANTICS:
-//   Per-frame update of the parameter block at D_00818000. The progress
-//   byte at +0x4011 (aliased by the symbol D_0081C011) is both the switch
-//   selector and a stage counter. Stage 0 (and any out-of-range value,
-//   which first resets the byte to 0) installs the initial integer set
-//   0x4030/0x4034/0x4038/0x403C and the float set 0x4000/0x4004/0x4008/
-//   0x400C; stage 1 installs a second float set; stage 2 resets the counter;
-//   stages 3 and 4 slam 0x400C to 2.0 and advance the counter; stage 5
-//   decays 0x4000/0x4004/0x400C, clears 0x4008, and advances the counter
-//   once 0x400C drops below 0.5; stage 6 does nothing.
+//   Per-frame update of the parameter block at D_00818000, dispatched on the
+//   progress byte at +0x4011 (aliased by the symbol D_0081C011) through
+//   jtbl_0026E6D0 (7 entries).  That byte is both the switch selector and a
+//   stage counter.  Stage 0 -- and any out-of-range value, which first resets
+//   the byte to 0 and falls into stage 0 -- installs the initial integer set
+//   0x4030/0x4034/0x4038/0x403C and the float set 0x4000/0x4004/0x4008/0x400C;
+//   stage 1 installs a second float set; stage 2 resets the counter; stages 3
+//   and 4 slam 0x400C to 2.0 and advance the counter; stage 5 decays
+//   0x4000/0x4004/0x400C, clears 0x4008, and advances the counter once 0x400C
+//   drops below 0.5; stage 6 does nothing.
 //   From stage 3 onwards the four integers ease toward 0xC0 by 1/64 of the
 //   remaining distance each call and the float at 0x4028 eases toward
-//   452.2256 at rate 0.1. Unless the counter has reached 6 the block is then
+//   452.2256 at rate 0.1.  Unless the counter has reached 6 the block is then
 //   handed to func_001DB040, which reads only $a0 (its first act is to
 //   clobber $a1), so the call is single-argument -- the live $a1 at the call
 //   site is just the value the `!= 6` compare left behind.
+//
 
 extern char D_00818000[];
 extern unsigned char D_0081C011;

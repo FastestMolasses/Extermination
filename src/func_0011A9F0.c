@@ -1,13 +1,3 @@
-// NEARMISS func_0011A9F0  (vram 0x0011A9F0, 0x60 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.58% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84) — sole residual: lui/addiu %hi/%lo(jtbl_0026C120) vs local %hi/%lo([.rodata]). Everything else (prologue, jal+delay slot, sltiu/beqz range check, sll/addu/lw/jr dispatch, all case bodies incl. the cfc2.ni/ori/ctc2.ni FBRST block, epilogue) is byte-iden...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 

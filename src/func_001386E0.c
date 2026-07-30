@@ -1,18 +1,8 @@
-// NEARMISS func_001386E0  (vram 0x001386E0, 0x214 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.77% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84) — residuals: the 2-instruction lui/addiu jump-table reloc pair (local @31 vs external jtbl_0026D1C0), plus a 2-instruction prologue emission-order tie (target emits `paddub s0,a1` then `paddub s1,a0` in the jal delay slot; mwcc233 emits them swapped). ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
 // SEMANTICS: per-frame update for an actor (self) against its owning
-// entity/context record (ent).  Runs only while func_001B2140() is true.
+// entity/context record (ent).  Runs only while func_001B2140(self) is true.
 // Dispatches the actor sub-state byte self+0x05 through jtbl_0026D1C0
 // (6 states -> func_00138900 / func_00138C20 / func_00139240 /
 // func_001399F0 / func_00139E00 / func_0013A3B0, each called (self, ent)).
@@ -34,11 +24,14 @@
 //     func_00131ED0/func_001C6910/func_001B17A0(self), then the virtual
 //     method at self+0x4C.
 // Note ent+0x70 is read as a byte but written as a word.
-// NEARMISS: 99.77% - residuals are the jump-table reloc (local @NN vs. the
-// original's external jtbl_0026D1C0) and the emission order of the two
-// prologue parameter saves (paddub s0,a1 / paddub s1,a0 swapped).
+//
+// func_001B2140 takes no register argument in its own body (it only reads
+// globals), but the call site here is byte-identical ONLY if it is prototyped
+// as taking one pointer: the original passes `self`, which is already in $a0,
+// so no argument set-up is emitted and the two parameter saves come out as
+// `paddub s0,a1` / `paddub s1,a0` (a1 first) instead of the reverse.
 
-extern int func_001B2140();
+extern int func_001B2140(char *);
 extern void func_00138900(char *, char *);
 extern void func_00138C20(char *, char *);
 extern void func_00139240(char *, char *);
@@ -58,7 +51,7 @@ extern void func_001B17A0(char *);
 void func_001386E0(char *self, char *ent) {
     int t;
 
-    if (func_001B2140() != 0) {
+    if (func_001B2140(self) != 0) {
         switch (*(unsigned char *)(self + 5)) {
         case 0:
             func_00138900(self, ent);

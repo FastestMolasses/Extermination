@@ -1,8 +1,8 @@
 // NEARMISS func_001A97B0  (vram 0x001A97B0, 0x228 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 95.58% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 95.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// jr-table external-dispatch wall (proven s84): lui/addiu %hi/%lo(jtbl_0026DAE0) vs local @65. Second, independent residual: 4 occurrences of `lui $at, 0x7000` speculated by mwcc into a branch delay slot where the target has nop (plus one coupled lw reschedule). The original build clearly emitted t...
+// Dispatch (lui/addiu %hi/%lo jtbl_0026DAE0, sll, addu, lw, jr, 20 entries) byte-matches. Residual = idiom-13 delay-slot speculation of the EE-scratchpad address materialiser. At 4 conditional branches the target keeps a `nop` in the slot and mwcc 2.3.3 speculates `lui $at, 0x7000` (the %hi half of...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,7 +11,6 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
-//
 // SEMANTICS: pairwise interaction pass between two global object lists.
 // D_00275BA0 / D_00275BA8 are the "A" list (pointer array + count) and
 // D_00275B90 / D_00275B98 the "B" list.  Both loop counters live in EE
@@ -33,6 +32,13 @@
 //   classes 8,12..15           -- skipped.
 // Interaction picks the handler from the A class: 5 -> func_001A9360,
 // 3 -> func_001A96F0, otherwise func_001A9480.
+
+// The jump-table dispatch itself now byte-matches. The residual is idiom-13:
+// mwcc 2.3.3 speculates the scratchpad address materialiser `lui $at, 0x7000`
+// into 4 conditional-branch delay slots where the target keeps a nop (plus one
+// coupled `lw s2, %gp_rel(D_00275B90)` reschedule). This is the documented
+// "global address lui hoists independently of its load" wall - volatile,
+// statement reordering and -sdatathreshold all fail to suppress it.
 
 extern void func_001A9360(char *a, char *b);
 extern void func_001A9480(char *a, char *b);
