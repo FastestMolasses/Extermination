@@ -760,3 +760,5 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001647D0 | 0x001647D0 | 0x138C | 98.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 98.84 (mwcc233). Logic fully recovered; all 1251 instructions structurally reprod |
 | func_00195130 | 0x00195130 | 0x1270 | 88.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 88.24 (mwcc233), up from 41.30 at the start of this session. KEY REUSABLE FINDING |
 | func_001551B0 | 0x001551B0 | 0x1464 | 97.41% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Permuter-class register-coloring + instruction-scheduling residue on an otherwise body-fai |
+| func_001AAE40 | 0x001AAE40 | ? | 82.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | STRUCTURAL, not a codegen wall — the emitted code IS byte-identical. splat gives this one  |
+| func_0018DD20 | 0x0018DD20 | 0x1B48 | 91.21% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation (permuter class), not logic. 1750-instruction function; ~1 |
