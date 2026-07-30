@@ -1,11 +1,79 @@
-// INCLUDE_ASM func_0017B490  (vram 0x0017B490, 292 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
+// NEARMISS func_0017B490  (vram 0x0017B490, 0x124 bytes) — readable decompilation, NOT byte-identical.
 //
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_0017B490.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// objdiff 99.86% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// diff is a genuine compiler artifact that no source change fixes here:
+// jr-table external-dispatch wall (proven s84) — sole residual, 2 words: lui/addiu %hi/%lo(jtbl_0026D700) resolve to a TU-local @22 table instead of the external consolidated one. Generated table content is byte-identical to the target's 7 entries (+0x58,+0xac,+0x58,+0x58,+0x58,+0x58,+0xac), includ...
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+
+// SEMANTICS:
+// Thin argument-selecting wrapper around func_0017B460(cmd, arg), dispatching on `cmd` (0..6).
+// Only TWO distinct bodies exist; the 7-entry table maps cmds 0,2,3,4,5 -> body A and cmds 1,6 -> body B.
+//
+// On entry it calls func_001B0070() and keeps bit 2 of the result as `flag` (a global mode/config
+// query — the same gate is consulted by both bodies).
+//
+// Both bodies apply the identical 3-part override gate:
+//     obj[0x236] == 0  &&  (obj[0x235] & 1) == 0  &&  flag != 0
+// When the gate passes, the second argument is REPLACED by a fixed "override" value; otherwise the
+// caller-supplied value is used:
+//     body A (cmds 0,2,3,4,5): gate -> func_0017B460(cmd, 4)          else func_0017B460(cmd, idx)
+//     body B (cmds 1,6):       gate -> func_0017B460(cmd, &tbl[4])    else func_0017B460(cmd, &tbl[idx])
+// So body A passes an int BY VALUE and body B passes a POINTER into `tbl` — the callee is
+// prototype-less in the original (declared `int f();`), which is why both forms coexist.
+// obj[0x236] reads like a "special/alternate mode active" byte and obj[0x235] bit 0 like a
+// per-object "no override" opt-out.
+//
+// The 16-bit result of each call is sign-extended (dsll32/dsra32 16) into the return slot, i.e. the
+// function returns a `short`.
+//
+// UNINITIALIZED DEFAULT, faithfully reproduced: for cmd >= 7 the switch has NO default arm and the
+// function falls straight to the epilogue returning `ret` UNSET (the target likewise returns
+// whatever $s0 happens to hold — $s0 is saved in the jal delay slot and never written on that path).
+// This is original-source behaviour, not a decode error; callers are expected never to pass cmd >= 7.
+
+extern int func_001B0070();
+extern int func_0017B460();
+
+short func_0017B490(char *obj, int cmd, int idx, int *tbl)
+{
+    short ret;
+    int flag;
+
+    flag = func_001B0070() & 4;
+    switch (cmd) {
+    case 0:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+        if (*(unsigned char *)(obj + 0x236) == 0) {
+            if ((*(unsigned char *)(obj + 0x235) & 1) == 0) {
+                if (flag) {
+                    ret = func_0017B460(cmd, 4);
+                    break;
+                }
+            }
+        }
+        ret = func_0017B460(cmd, idx);
+        break;
+    case 1:
+    case 6:
+        if (*(unsigned char *)(obj + 0x236) == 0) {
+            if ((*(unsigned char *)(obj + 0x235) & 1) == 0) {
+                if (flag) {
+                    ret = func_0017B460(cmd, tbl + 4);
+                    break;
+                }
+            }
+        }
+        ret = func_0017B460(cmd, tbl + idx);
+        break;
+    }
+    return ret;
+}

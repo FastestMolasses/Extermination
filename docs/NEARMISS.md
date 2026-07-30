@@ -800,3 +800,15 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0010EAA0 | 0x0010EAA0 | ? | 95.56% | ee-gcc 2.9-991111-01 | eegcc ASSEMBLER delay-slot-swap wall — PIPELINE BUG, fixable, and this C is then a TRUE 10 |
 | func_0010E088 | 0x0010E088 | ? | 89.14% | ee-gcc 2.9-991111-01 | TWO stacked walls; body/structure fully recovered (prologue, both DI spin loops, the D_002 |
 | func_0010ED18 | 0x0010ED18 | ? | 99.92% | ee-gcc 2.9-991111-01 | compiler artifact (register coloring / scheduling) |
+| func_0011A9F0 | 0x0011A9F0 | 0x60 | 99.58% | ee-gcc 2.9-991111-01 | jr-table external-dispatch wall (proven s84) — sole residual: lui/addiu %hi/%lo(jtbl_0026C |
+| func_0011AEA0 | 0x0011AEA0 | 0x60 | 99.58% | ee-gcc 2.9-991111-01 | jr-table external-dispatch wall (proven s84) — sole residual: lui/addiu %hi/%lo(jtbl_0026C |
+| func_0021B9A0 | 0x0021B9A0 | 0xC4 | 88.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — local @17 table vs external jtbl_00273790 ( |
+| func_001B6D70 | 0x001B6D70 | 0xD0 | 99.81% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) -- SOLE residual. The only two differing inst |
+| func_001A9D20 | 0x001A9D20 | 0xD8 | 99.81% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) -- SOLE residual. Only `lui a0, %hi(jtbl_0026 |
+| func_001B9C10 | 0x001B9C10 | 0xD8 | 99.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) -- 2 of the 5 residual instructions are the d |
+| func_001AD250 | 0x001AD250 | 0x108 | 99.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — ONLY residual. Under mwcc233 the emitted in |
+| func_001CA5F0 | 0x001CA5F0 | 0xEC | 99.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — ONLY residual (local @15 vs external jtbl_0 |
+| func_001A9C40 | 0x001A9C40 | 0xE0 | 99.02% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — local @14 vs external jtbl_0026DB30 on the  |
+| func_001BA080 | 0x001BA080 | 0x114 | 99.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — sole residual, 2 words: lui/addiu %hi/%lo(j |
+| func_001BBAE0 | 0x001BBAE0 | 0x110 | 99.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — sole residual, 2 words: lui/addiu %hi/%lo(j |
+| func_0017B490 | 0x0017B490 | 0x124 | 99.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — sole residual, 2 words: lui/addiu %hi/%lo(j |

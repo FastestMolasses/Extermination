@@ -1,9 +1,16 @@
-// INCLUDE_ASM func_001AD250  (vram 0x001AD250, 264 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
+// NEARMISS func_001AD250  (vram 0x001AD250, 0x108 bytes) — readable decompilation, NOT byte-identical.
+//
+// objdiff 99.85% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// diff is a genuine compiler artifact that no source change fixes here:
+// jr-table external-dispatch wall (proven s84) — ONLY residual. Under mwcc233 the emitted instruction stream is identical to the target; the sole diff is the lw's reloc (local @13 vs external jtbl_0026DCB0). NOTE: requires // COMPILER: mwcc233 — the pinned 991202 mwcc caps at 92.3% (mis-fills the t...
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+
 //
 // SEMANTICS (resolved — see docs/FINDINGS.md "ENGINE FRAME ANATOMY"):
 // game-task sub-state machine (func_001ACEC0 -> HERE). Dispatches on byte +9
@@ -15,49 +22,49 @@
 //   2: func_001AD4E0   3: func_001AD740   4: func_001ADF00
 //   5: end poll func_001ADF50; when done -> back to state 1, clear +0xA/+0xB
 //
-// DECOMP ATTEMPT 2026-06-09 — wall-blocked at 92.3% (switch form below).
-// The jump-table lowering, jr dispatch, all six bodies, the early-epilogue
-// b-with-lq-delay of case 0, and the paddub arg-zero all match. Residual
-// diffs are documented walls (docs/PROGRESS.md):
-//   1. Delay-slot fill: three `beqz; nop` (table guard, case 0's and case
-//      5's call-result tests) — mwcc fills each with the following safe
-//      `lui` (jtbl pair / $at 0x7000); CW 2.3.1 leaves nops. mwcc provably
-//      fills only when a safe candidate exists (cf. matched func_001F0060,
-//      where the candidate would change semantics) — here candidates exist.
-//   2. Reloc-pair interleave: mwcc schedules `sll v1,v1,2` between the
-//      jtbl lui/addiu pair; CW keeps the pair adjacent.
-//
-// Best attempt (92.3%, semantics verified):
-//   extern int func_001AD360(void);
-//   extern void func_001AD4D0(void), func_001AD4E0(void), func_001AD740(void);
-//   extern void func_001ADF00(void);
-//   extern int func_001ADF50(void);
-//   extern void func_001AEDB0(int);
-//   void func_001AD250(void) {
-//       switch (*(unsigned char *)(*(char * volatile *)0x70003B6C + 0x9)) {
-//       case 0:
-//           if (func_001AD360()) {
-//               *(unsigned char *)(*(char * volatile *)0x70003B6C + 0x9) = 5;
-//               *(unsigned char *)(*(char * volatile *)0x70003B6C + 0xA) = 0;
-//               *(unsigned char *)(*(char * volatile *)0x70003B6C + 0xB) = 0;
-//               func_001AEDB0(0);
-//           }
-//           break;
-//       case 1: func_001AD4D0(); break;
-//       case 2: func_001AD4E0(); break;
-//       case 3: func_001AD740(); break;
-//       case 4: func_001ADF00(); break;
-//       case 5:
-//           if (func_001ADF50()) {
-//               *(unsigned char *)(*(char * volatile *)0x70003B6C + 0x9) = 1;
-//               *(unsigned char *)(*(char * volatile *)0x70003B6C + 0xA) = 0;
-//               *(unsigned char *)(*(char * volatile *)0x70003B6C + 0xB) = 0;
-//           }
-//           break;
-//       }
-//   }
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_001AD250.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// NEARMISS 99.85% — jr-table external-dispatch wall (proven s84): the original
+// consolidated all jump tables into an external rodata TU, so mwcc's local @13
+// table is a permanent reloc mismatch. Everything else — all six bodies, the
+// three beqz+nop delay slots, the jtbl lui/addiu/sll ordering and case 0's
+// early-epilogue `b` with the `lq $ra` delay slot — is byte-identical under
+// mwcc 2.3.3 (the pinned 991202 build mis-filled the delay slots, 92.3%).
+
+extern int func_001AD360(void);
+extern void func_001AD4D0(void);
+extern void func_001AD4E0(void);
+extern void func_001AD740(void);
+extern void func_001ADF00(void);
+extern int func_001ADF50(void);
+extern void func_001AEDB0(int);
+
+void func_001AD250(void) {
+    switch (*(unsigned char *)(*(char *volatile *)0x70003B6C + 0x9)) {
+    case 0:
+        if (func_001AD360()) {
+            *(unsigned char *)(*(char *volatile *)0x70003B6C + 0x9) = 5;
+            *(unsigned char *)(*(char *volatile *)0x70003B6C + 0xA) = 0;
+            *(unsigned char *)(*(char *volatile *)0x70003B6C + 0xB) = 0;
+            func_001AEDB0(0);
+        }
+        break;
+    case 1:
+        func_001AD4D0();
+        break;
+    case 2:
+        func_001AD4E0();
+        break;
+    case 3:
+        func_001AD740();
+        break;
+    case 4:
+        func_001ADF00();
+        break;
+    case 5:
+        if (func_001ADF50()) {
+            *(unsigned char *)(*(char *volatile *)0x70003B6C + 0x9) = 1;
+            *(unsigned char *)(*(char *volatile *)0x70003B6C + 0xA) = 0;
+            *(unsigned char *)(*(char *volatile *)0x70003B6C + 0xB) = 0;
+        }
+        break;
+    }
+}

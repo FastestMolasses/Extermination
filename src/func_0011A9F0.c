@@ -1,11 +1,50 @@
-// INCLUDE_ASM func_0011A9F0  (vram 0x0011A9F0, 96 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
+// NEARMISS func_0011A9F0  (vram 0x0011A9F0, 0x60 bytes) — readable decompilation, NOT byte-identical.
 //
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_0011A9F0.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// objdiff 99.58% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
+// diff is a genuine compiler artifact that no source change fixes here:
+// jr-table external-dispatch wall (proven s84) — sole residual: lui/addiu %hi/%lo(jtbl_0026C120) vs local %hi/%lo([.rodata]). Everything else (prologue, jal+delay slot, sltiu/beqz range check, sll/addu/lw/jr dispatch, all case bodies incl. the cfc2.ni/ori/ctc2.ni FBRST block, epilogue) is byte-iden...
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: eegcc
+// CFLAGS: -O2
+
+//
+// SEMANTICS: VU0 stop/force-break helper (Sony SDK / lowmem region).
+// func_0011AB20 reads COP2 control register 29 (VPU_STAT) and returns a VU0
+// run-state code decoded from the VU0 half of that register:
+//   0 = idle, 1 = VSS0 (stopped on E-bit), 2 = VFS0 (stopped by force break),
+//   3 = VIS0 (stopped by interrupt), 4 = VBS0 (running).
+// This function returns 1 for states 0, 3 and 4, and 0 for states 1 and 2.
+// In state 4 (VU0 still running) it first sets bit 0 (FBK0, VU0 force break)
+// in COP2 control register 28 (FBRST) before returning 1.
+// The sibling func_0011AEA0 is the identical routine for VU1 (FBRST bit 8).
+
+extern int func_0011AB20(void);
+
+int func_0011A9F0(void) {
+    int ok;
+
+    ok = 0;
+    switch (func_0011AB20()) {
+    case 0:
+    case 3:
+        ok = 1;
+        break;
+    case 1:
+    case 2:
+        break;
+    case 4:
+        /* FBRST |= 0x001  — force-break VU0 */
+        __asm__ __volatile__(
+            "cfc2.ni $2, $vi28\n"
+            "\tori   $2, $2, 0x1\n"
+            "\tctc2.ni $2, $vi28"
+            ::: "$2");
+        ok = 1;
+        break;
+    }
+    return ok;
+}
