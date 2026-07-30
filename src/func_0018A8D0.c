@@ -1,11 +1,155 @@
-// INCLUDE_ASM func_0018A8D0  (vram 0x0018A8D0, 560 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
+// NEARMISS func_0018A8D0  (vram 0x0018A8D0, 0x230 bytes) — readable decompilation, NOT byte-identical.
 //
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_0018A8D0.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// objdiff 84.14% via mwcc 2.3 (mwcps2-2.3-991202) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// diff is a genuine compiler artifact that no source change fixes here:
+// jr-table external-dispatch wall (proven s84): local @33/@34 table vs external jtbl_0026D8D0 plus the addiu/sll reorder. Dominant OTHER residual is the CW 2.3.1 dead-instruction class already documented for func_001AF780: CodeWarrior emits an unreachable DUPLICATE of every branch-likely delay-slot...
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc
+// CFLAGS: -O4,p -sdatathreshold 4
+
+//
+// NEARMISS: jr-table external-dispatch wall (proven s84). The 13-entry
+// table is the external jtbl_0026D8D0 and mwcc emits a local @NN table.
+// Other residuals, all CodeWarrior backend artifacts with no C lever:
+//   * CW emits a DEAD duplicate of each branch-likely delay-slot payload
+//     (the three `addiu a1, 0x30/0x40/0x6d` copies after the beql chain and
+//     the second `paddub s1, zero, zero`); mwcc 2.3.1 does not.
+//   * CW parks the `default: return 1` epilogue as its own block after the
+//     case bodies; mwcc inlines it into the compare chain.
+//   * CW leaves the `p[3] == 2` compare's delay slot as a nop (idiom-13).
+//   * per-case delay-slot pick (store vs. the id constant) in cases 0, 4, 9
+//     and 11, and $at vs. $v0 for the loop's slt.
+//
+// SEMANTICS:
+//   Actor (re)initialisation. p[3] selects the init flavour and p[0xD] the
+//   variant within it; both map onto an animation id that defaults to the
+//   caller-supplied `id` when no variant matches. Flavour 0 also clears the
+//   16-bit field at +0x2E and the two words at +0x210/+0x214 (q = p + 0x1F0);
+//   flavour 4 clears the 16-bit field at +0x28; flavour 2 uses the jump table
+//   and, for variants 8..12, additionally records 1..5 in the global
+//   D_008106C6. Any other flavour bails out with 1.
+//   The tail resolves the animation (func_001C6120 on the table pointed to by
+//   D_0028A56C, then func_001CA6E0 to install it), reads the bone count via
+//   func_001C6150(*(int *)(p + 0x44)) into p[0xC], and refuses with 1 if that
+//   count exceeds the free-node counter D_00275BCC. Otherwise it pulls
+//   p[0xC] nodes from the free list (func_001AF780) into the pointer array at
+//   p + 0x110, mirrors the count into p[9], and runs the bone setup helpers.
+//   anim_bone_array_setup ignores its argument (its body only touches
+//   D_00275B40/D_00275B48) but the original call site does materialise
+//   p[0xC] into $a0, so the argument is kept to reproduce that.
+
+extern short D_00275BCC;
+extern char *D_0028A56C[2];
+extern unsigned char D_008106C6[8];
+
+extern char *func_001C6120();
+extern unsigned char func_001C6150();
+extern void func_001CA6E0();
+extern int func_001AF780();
+extern void anim_bone_array_setup();
+extern void bone_init_default_1();
+
+int func_0018A8D0(unsigned char *p, int id)
+{
+    unsigned char *q;
+    int i;
+    unsigned char *e;
+
+    q = p + 0x1F0;
+    switch (p[3]) {
+    case 0:
+        id = 0x2F;
+        *(short *)(p + 0x2E) = 0;
+        *(int *)(q + 0x20) = 0;
+        *(int *)(q + 0x24) = 0;
+        break;
+    case 1:
+        switch (p[0xD]) {
+        case 0:
+            id = 0x30;
+            break;
+        case 0x10:
+            id = 0x40;
+            break;
+        case 0x15:
+            id = 0x6D;
+            break;
+        }
+        break;
+    case 2:
+        switch (p[0xD]) {
+        case 0:
+            id = 0x32;
+            break;
+        case 1:
+            id = 0x33;
+            break;
+        case 2:
+            id = 0x34;
+            break;
+        case 3:
+            id = 0x35;
+            break;
+        case 4:
+            id = 0x36;
+            break;
+        case 5:
+            id = 0x31;
+            break;
+        case 6:
+            id = 0x37;
+            break;
+        case 7:
+            id = 0x38;
+            break;
+        case 8:
+            id = 0x39;
+            D_008106C6[0] = 1;
+            break;
+        case 9:
+            id = 0x3A;
+            D_008106C6[0] = 2;
+            break;
+        case 10:
+            id = 0x3B;
+            D_008106C6[0] = 3;
+            break;
+        case 11:
+            id = 0x3C;
+            D_008106C6[0] = 4;
+            break;
+        case 12:
+            id = 0x3D;
+            D_008106C6[0] = 5;
+            break;
+        }
+        break;
+    case 4:
+        id = 0x6A;
+        *(short *)(p + 0x28) = 0;
+        break;
+    default:
+        return 1;
+    }
+
+    func_001CA6E0(p, func_001C6120(D_0028A56C[0], id));
+    p[0xC] = func_001C6150(*(int *)(p + 0x44));
+    if (D_00275BCC < (int)p[0xC]) {
+        return 1;
+    }
+    i = 0;
+    e = p;
+    while (i < (int)p[0xC]) {
+        *(int *)(e + 0x110) = func_001AF780();
+        e += 4;
+        i++;
+    }
+    p[9] = p[0xC];
+    anim_bone_array_setup(p[0xC]);
+    bone_init_default_1(p);
+    return 0;
+}

@@ -1,11 +1,98 @@
-// INCLUDE_ASM func_001B7840  (vram 0x001B7840, 488 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
+// NEARMISS func_001B7840  (vram 0x001B7840, 0x1E8 bytes) — readable decompilation, NOT byte-identical.
 //
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/func_001B7840.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// objdiff 99.92% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// diff is a genuine compiler artifact that no source change fixes here:
+// jr-table external-dispatch wall (proven s84) — SOLE residual, 2 of 122 rows: `lui v1,%hi(jtbl_0026DF40)` / `addiu v1,v1,%lo(jtbl_0026DF40)` vs mwcc's local `@27` table. Everything else byte-identical, including both nested blk[4] state machines (descending 1-then-0 switch chain, the idiom-13b dea...
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+
+//
+// SEMANTICS: door/cutscene-script opcode handler (see docs/FINDINGS.md
+// "DOOR SCRIPTS DECODED"), signature (actor, blk, rec). Sub-opcode is
+// rec[+0x8]; a 10-entry jump table selects one of ten fade/sound/wait
+// actions. Return 1 = step complete (advance the script), 0 = still busy.
+//   rec[+0x8]  = sub-opcode (0..9)
+//   rec[+0x14] = handle passed to the fade/sound helpers
+//   rec[+0xC]  = wait duration in frames (float)
+//   rec[+0x10] = wait timer in frames (float), reset to 0 on entry
+//   blk[+0x4]  = per-step state byte (0 = first frame, 1 = counting)
+//   D_0028A9A0 = global fade/transition state (short)
+// Sub-opcodes 0/1/2 are the "off/0" variants of 6/7/8 ("on/1"); 3 and 9 are
+// the same timed-wait step with helper argument 0 vs 1.
+
+extern short D_0028A9A0;
+
+extern void func_001AED80(int mode);
+extern void func_001AEDB0(int mode);
+extern void func_001AEDE0(int handle, int mode);
+extern void func_001AEE10(int handle, int mode);
+
+int func_001B7840(unsigned char *actor, unsigned char *blk, unsigned char *rec)
+{
+    switch (*(int *)(rec + 0x8)) {
+    case 0:
+        func_001AEE10(*(int *)(rec + 0x14), 0);
+        break;
+    case 1:
+        func_001AEDE0(*(int *)(rec + 0x14), 0);
+        break;
+    case 2:
+        func_001AED80(0);
+        break;
+    case 3:
+        switch (blk[4]) {
+        case 0:
+            func_001AEDB0(0);
+            blk[4] = blk[4] + 1;
+            *(float *)(rec + 0x10) = 0.0f;
+            return 0;
+        case 1:
+            if (*(float *)(rec + 0x10) < *(float *)(rec + 0xC)) {
+                *(float *)(rec + 0x10) += 1.0f;
+                return 0;
+            }
+            break;
+        }
+        break;
+    case 4:
+        if (D_0028A9A0 != 0) {
+            return 0;
+        }
+        break;
+    case 5:
+        if (D_0028A9A0 != 2) {
+            return 0;
+        }
+        break;
+    case 6:
+        func_001AEE10(*(int *)(rec + 0x14), 1);
+        break;
+    case 7:
+        func_001AEDE0(*(int *)(rec + 0x14), 1);
+        break;
+    case 8:
+        func_001AED80(1);
+        break;
+    case 9:
+        switch (blk[4]) {
+        case 0:
+            func_001AEDB0(1);
+            blk[4] = blk[4] + 1;
+            *(float *)(rec + 0x10) = 0.0f;
+            return 0;
+        case 1:
+            if (*(float *)(rec + 0x10) < *(float *)(rec + 0xC)) {
+                *(float *)(rec + 0x10) += 1.0f;
+                return 0;
+            }
+            break;
+        }
+        break;
+    }
+    return 1;
+}
