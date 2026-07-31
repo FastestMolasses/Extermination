@@ -1,26 +1,14 @@
-// NEARMISS func_001F6210  (vram 0x001F6210, 0x424 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 80.82% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation / callee-save-count wall: the target's per-record body fits in 5 saved GPRs (s0-s4, all address-reused across the DMA-tag writes and the search loop) while this compile's regalloc keeps 2-3 extra stack-array base addresses (sp90/spA0/the search pointer) resident in s5-s7 inste...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
-
 //
-// fx_render: iterates the func_001F5CA0() particle/fx record list, computes
-// each record's world transform (func_001029C0/func_00102C58/func_00102918),
-// resolves its sound-cue id via a linear search over D_0025CA40[] (idx*8
-// entries, offset+4 = cue table row into D_0026EB20), applies a random blend
-// jitter (func_00122BB8), then emits three DMA tag/packet blocks (types 5/9/0)
-// into the actor ring at D_00275670->+0x1C before dispatching func_001D3D90 and
-// func_001CAAC0. Logic/structure fully recovered; residual is register
-// allocation (target uses 5 saved GPRs, this compile uses 7-8) -- a frame-size/
-// callee-save-count scheduling wall in the large per-record body.
+// fx_render: walks the func_001F5CA0() particle/FX record list (0x28-byte records,
+// terminated by a negative halfword at +0) and, for each record, builds its world
+// transform (identity via func_001029C0, then translate by rec+0x18..0x20 and scale
+// by rec+0xC..0x14), resolves the record's colour row by linear-searching the
+// 17-entry D_0025CA40[] table for (((D_00810700<<8)+D_00810701)<<8) + rec->id,
+// applies a random blend jitter from func_00122BB8() to the resolved colour, then
+// emits three DMA tag blocks (types 5, 9 and 0) into the display-list ring at
+// D_00275670->+0x1C before dispatching func_001D3D90 and func_001CAAC0.
 //
 extern char *func_001F5CA0(void);
 extern void func_001D8C20(int);
@@ -30,152 +18,172 @@ extern void func_00102C58(void *out, void *a, void *b);
 extern void func_00102918(void *out, void *a, void *b);
 extern void func_00102948(void *out, void *a);
 extern int func_00122BB8(void);
-extern void func_001028B8(void *out, void *a, void *b, int n);
+extern void func_001028B8(void *out, void *a, void *b);
 extern void func_001026D0(void *out, void *a, void *b);
 extern void func_001D3D90(int);
 extern void func_001CAAC0(void *out, char *a, char *b);
 
 typedef int s128 __attribute__((mode(TI)));
 
+typedef struct { float x, y, z; int w; } VEC;
+
 extern char *D_00275670;
-extern int D_0028A59C;
-extern unsigned char D_00810700;
-extern unsigned char D_00810701;
+extern int D_0028A59C[];
+extern unsigned char D_00810700[];
+extern unsigned char D_00810701[];
 extern char D_0025CA40[];
 extern char D_0026EB20[];
 extern char D_0026EB60[];
-extern int D_70003400[28];
+extern char D_70003400[];
 extern char D_70003440[];
 extern char D_70003470[];
 extern char D_70003AC0[];
 
 void func_001F6210(void) {
     char *rec = func_001F5CA0();
-    int base = ((D_00810700 << 8) + D_00810701) << 8;
+    char *slot;
+    int base = ((D_00810700[0] << 8) + D_00810701[0]) << 8;
+
     if (rec == 0) {
         return;
     }
     func_001D8C20(1);
     while (*(short *)(rec + 0) >= 0) {
-        char *owner = *(char **)(D_00275670 + 0x1C);
-        int handle = func_001C6120(D_0028A59C, *(short *)(rec + 4));
-        float sp80[4];
-        float sp70[4];
-        float spA0[4];
+        VEC sp70;
+        VEC sp80;
         float sp90[4];
+        float spA0[16];
+        char *g;
+        char *q;
+        s128 *src;
+        unsigned int i;
+        int id;
+        int handle;
+        char *owner;
         int key;
-        char *p;
-        unsigned int idx;
+        char *tag;
 
-        sp80[0] = *(float *)(rec + 0x18);
-        sp80[1] = *(float *)(rec + 0x1C);
-        sp80[2] = *(float *)(rec + 0x20);
-        *(int *)&sp80[3] = 0;
-        sp70[0] = *(float *)(rec + 0xC);
-        sp70[1] = *(float *)(rec + 0x10);
-        sp70[2] = *(float *)(rec + 0x14);
-        *(int *)&sp70[3] = 0x3F800000;
+        g = D_00275670;
+        id = D_0028A59C[0];
+        owner = *(char **)(g + 0x1C);
+        handle = func_001C6120(id, (short)*(short *)(rec + 4));
+
+        sp80.x = *(float *)(rec + 0x18);
+        sp80.y = *(float *)(rec + 0x1C);
+        sp80.z = *(float *)(rec + 0x20);
+        sp80.w = 0;
+        sp70.x = *(float *)(rec + 0xC);
+        sp70.y = *(float *)(rec + 0x10);
+        sp70.z = *(float *)(rec + 0x14);
+        sp70.w = 0x3F800000;
 
         func_001029C0(spA0);
-        func_00102C58(spA0, spA0, sp80);
-        func_00102918(spA0, spA0, sp70);
+        func_00102C58(spA0, spA0, &sp80);
+        func_00102918(spA0, spA0, &sp70);
 
         key = *(short *)(rec + 4) + base;
         func_00102948(sp90, D_0026EB20);
-        p = D_0025CA40;
-        idx = 0;
+        i = 0;
         while (1) {
-            if (key == *(int *)p) {
-                func_00102948(sp90, D_0026EB20 + (*(short *)(p + 4) * 0x10));
+            if (key == *(int *)(D_0025CA40 + i * 8)) {
+                func_00102948(sp90, D_0026EB20 + (*(short *)(D_0025CA40 + i * 8 + 4) * 0x10));
                 break;
             }
-            idx += 1;
-            p += 8;
-            if (idx >= 0x11U) {
+            i += 1;
+            if (i >= 0x11U) {
                 break;
             }
         }
 
         {
-            float az = sp90[3];
-            float negaz = -az;
-            float t = negaz + ((az - negaz) * (4.656613e-10f * (float) func_00122BB8()));
+            float negaz;
+            float az;
+            float t;
+            az = sp90[3];
+            negaz = -az;
+            t = negaz + ((az - negaz) * (4.656613e-10f * (float)func_00122BB8()));
             sp90[0] += sp90[0] * t;
             sp90[1] += sp90[1] * t;
             sp90[2] += sp90[2] * t;
             sp90[3] = 0.0f;
         }
 
-        *(unsigned char *)(*(char **)(D_00275670 + 0x1C) + 3) = 0x10;
-        *(int *)(*(char **)(D_00275670 + 0x1C) + 4) = 0;
-        *(short *)(*(char **)(D_00275670 + 0x1C) + 0) = 5;
-        {
-            char *base0 = *(char **)(D_00275670 + 0x1C);
-            char *tag = base0 + 0x10;
-            *(char **)(D_00275670 + 0x1C) = base0 + 0x60;
+        /* DMA tag block, type 5 */
+        g = D_00275670;
+        *(unsigned char *)(*(char **)(g + 0x1C) + 3) = 0x10;
+        *(int *)(*(char **)(g + 0x1C) + 4) = 0;
+        *(short *)(*(char **)(g + 0x1C) + 0) = 5;
+        q = *(char **)(g + 0x1C);
+        tag = q + 0x10;
+        *(char **)(g + 0x1C) = q + 0x60;
 
-            D_70003400[0] = 0;
-            D_70003400[1] = 0;
-            D_70003400[2] = 0;
-            D_70003400[3] = 0;
-            D_70003400[4] = 0;
-            D_70003400[5] = 0;
-            D_70003400[6] = 0;
-            D_70003400[7] = 0;
-            D_70003400[8] = 0;
-            D_70003400[9] = 0;
-            D_70003400[10] = 0;
-            D_70003400[11] = 0;
-            D_70003400[12] = 0;
-            D_70003400[13] = 0;
-            D_70003400[14] = 0;
-            D_70003400[15] = 0;
-            D_70003400[16] = 0;
-            D_70003400[17] = 0;
-            D_70003400[18] = 0;
-            D_70003400[19] = 0;
-            D_70003400[20] = 0;
-            D_70003400[21] = 0;
-            D_70003400[22] = 0;
-            D_70003400[23] = 0;
-            D_70003400[24] = 0;
-            D_70003400[25] = 0;
-            D_70003400[26] = 0;
-            D_70003400[27] = 0;
+        *(int *)0x70003400 = 0;
+        *(int *)0x70003404 = 0;
+        *(int *)0x70003408 = 0;
+        *(int *)0x7000340C = 0;
+        *(int *)0x70003410 = 0;
+        *(int *)0x70003414 = 0;
+        *(int *)0x70003418 = 0;
+        *(int *)0x7000341C = 0;
+        *(int *)0x70003420 = 0;
+        *(int *)0x70003424 = 0;
+        *(int *)0x70003428 = 0;
+        *(int *)0x7000342C = 0;
+        *(int *)0x70003430 = 0;
+        *(int *)0x70003434 = 0;
+        *(int *)0x70003438 = 0;
+        *(int *)0x7000343C = 0;
+        *(int *)0x70003440 = 0;
+        *(int *)0x70003444 = 0;
+        *(int *)0x70003448 = 0;
+        *(int *)0x7000344C = 0;
+        *(int *)0x70003450 = 0;
+        *(int *)0x70003454 = 0;
+        *(int *)0x70003458 = 0;
+        *(int *)0x7000345C = 0;
+        *(int *)0x70003460 = 0;
+        *(int *)0x70003464 = 0;
+        *(int *)0x70003468 = 0;
+        *(int *)0x7000346C = 0;
 
-            func_001028B8(D_70003470, sp90, D_0026EB60, 0x10);
+        func_001028B8(D_70003470, sp90, D_0026EB60);
 
-            *(int *)(base0 + 0x10) = 0x11000000;
-            *(int *)(tag + 4) = 0x01000101;
-            *(int *)(tag + 8) = 0;
-            *(int *)(tag + 0xC) = 0x6C0403F5;
-            ((s128 *)(tag + 0x10))[0] = ((s128 *)D_70003440)[0];
-            ((s128 *)(tag + 0x20))[0] = ((s128 *)D_70003440)[1];
-            ((s128 *)(tag + 0x30))[0] = ((s128 *)D_70003440)[2];
-            ((s128 *)(tag + 0x40))[0] = ((s128 *)D_70003440)[3];
-        }
+        *(int *)(tag + 0) = 0x11000000;
+        *(int *)(tag + 4) = 0x01000101;
+        *(int *)(tag + 8) = 0;
+        *(int *)(tag + 0xC) = 0x6C0403F5;
+        src = (s128 *)D_70003440;
+        *(s128 *)(tag + 0x10) = src[0];
+        *(s128 *)(tag + 0x20) = src[1];
+        *(s128 *)(tag + 0x30) = src[2];
+        *(s128 *)(tag + 0x40) = src[3];
 
-        *(unsigned char *)(*(char **)(D_00275670 + 0x1C) + 3) = 0x10;
-        *(int *)(*(char **)(D_00275670 + 0x1C) + 4) = 0;
-        *(short *)(*(char **)(D_00275670 + 0x1C) + 0) = 9;
-        {
-            char *tag2 = *(char **)(D_00275670 + 0x1C);
-            *(char **)(D_00275670 + 0x1C) = tag2 + 0xA0;
-            *(s128 *)(tag2 + 0x10) = 0;
-            *(int *)(tag2 + 0x14) = 0x01000101;
-            *(int *)(tag2 + 0x18) = 0;
-            *(int *)(tag2 + 0x1C) = 0x6C080000;
-            func_001026D0(tag2 + 0x10 + 0x10, D_70003AC0, spA0);
-            func_001026D0(tag2 + 0x10 + 0x50, D_70003400, spA0);
-        }
+        /* DMA tag block, type 9 */
+        g = D_00275670;
+        slot = g + 0x1C;
+        *(unsigned char *)(*(char **)slot + 3) = 0x10;
+        *(int *)(*(char **)slot + 4) = 0;
+        *(short *)(*(char **)slot + 0) = 9;
+        q = *(char **)slot;
+        *(char **)slot = q + 0xA0;
+        *(s128 *)(q + 0x10) = 0;
+        *(int *)(q + 0x14) = 0x01000101;
+        *(int *)(q + 0x18) = 0;
+        tag = q + 0x10;
+        *(int *)(q + 0x1C) = 0x6C080000;
+        func_001026D0(tag + 0x10, D_70003AC0, spA0);
+        func_001026D0(tag + 0x50, D_70003400, spA0);
 
         func_001D3D90(handle);
-        *(unsigned char *)(*(char **)(D_00275670 + 0x1C) + 3) = 0x60;
-        *(int *)(*(char **)(D_00275670 + 0x1C) + 4) = 0;
-        *(short *)(*(char **)(D_00275670 + 0x1C) + 0) = 0;
-        *(char **)(D_00275670 + 0x1C) = *(char **)(D_00275670 + 0x1C) + 0x10;
 
-        func_001CAAC0(sp70, owner, D_00275670);
+        /* DMA tag block, type 0 (terminator) */
+        g = D_00275670;
+        *(unsigned char *)(*(char **)(g + 0x1C) + 3) = 0x60;
+        *(int *)(*(char **)(g + 0x1C) + 4) = 0;
+        *(short *)(*(char **)(g + 0x1C) + 0) = 0;
+        *(char **)(g + 0x1C) = *(char **)(g + 0x1C) + 0x10;
+
+        func_001CAAC0(&sp70, owner, g);
         rec += 0x28;
     }
     func_001D8C20(0);

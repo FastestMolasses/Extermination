@@ -569,7 +569,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0014DC30 | 0x0014DC30 | 0x414 | 91.28% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (all 4 states decoded and structurally landed: idiom-20 bra |
 | func_00185A10 | 0x00185A10 | 0x41C | 90.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (both the fast-path locked-target re-check and the full ent |
 | func_00177030 | 0x00177030 | 0x430 | 92.32% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + list-scheduling residual: at the switch-dispatch delay slots (case  |
-| func_001F6210 | 0x001F6210 | 0x424 | 80.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / callee-save-count wall: the target's per-record body fits in 5 saved |
 | func_001DF180 | 0x001DF180 | 0x41C | 57.19% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / stack-frame-size wall in a very large function (10 saved GPR incl. $ |
 | func_00132490 | 0x00132490 | 0x43C | 81.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/semantics fully recovered (heading-integration table dispatch: decays arg1+ |
 | func_00132FB0 | 0x00132FB0 | 0x434 | 88.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/semantics fully recovered (same family as func_001416D0/func_0012F6C0: seed |
@@ -596,7 +595,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00197870 | 0x00197870 | 0x4A4 | 93.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (two-exit float-clamp shape via the bc1t-jump-into-body idi |
 | func_002082B0 | 0x002082B0 | 0x49C | 90.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/frame fully recovered (all 9 saved regs match after applying the D_00275670 |
 | func_0018A1F0 | 0x0018A1F0 | 0x4B8 | 99.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual clusters: (1) copy_qw4 arg register swap (v0/v1 evaluation-order regalloc noi |
-| func_001C50B0 | 0x001C50B0 | 0x4BC | 88.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Three residual clusters at 88.24% (both compilers agree on cluster 1, ruling out a build-v |
 | func_0018CE60 | 0x0018CE60 | 0x4C4 | 94.60% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/list-scheduling permutation. mwcc233's scheduler defers the 'lw a2, 0x |
 | func_0013CD50 | 0x0013CD50 | 0x4C8 | 88.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation. Both mwcc builds place the exact same four live val |
 | func_0020A7A0 | 0x0020A7A0 | 0x4C8 | 94.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation. Target keeps the per-slot pointer in s5 and the loo |
@@ -695,7 +693,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0016AE40 | 0x0016AE40 | 0x948 | 99.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single register-coloring permutation (2 instructions): in case 1 the target loads the pad  |
 | func_0022D380 | 0x0022D380 | 0x94C | 97.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-coloring permutation ONLY: on mwcc 2.3.3 the body is instruction-for-instruction  |
 | func_0022DCD0 | 0x0022DCD0 | 0x95C | 89.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | beql+lui-likely-slot dispatch speculation (systematic, unreproducible): the target's 13-wa |
-| func_001F1F60 | 0x001F1F60 | 0x968 | 90.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP web-targeting/coloring + list-scheduler permutation (permuter class, NOT the clean-stor |
 | func_0012FC10 | 0x0012FC10 | 0x9A0 | 97.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Address-mode/list-scheduling + register-coloring permutation (permuter class, NOT the clea |
 | func_0020B210 | 0x0020B210 | 0x9CC | 99.70% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/canonicalization permutation (mwcc233 vs pinned 991202) — body and str |
 | func_0015D4C0 | 0x0015D4C0 | 0x9F8 | 96.34% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 991202 list-scheduler / FP-coloring shapes that mwcc233 cannot reproduce — body and struct |
