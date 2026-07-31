@@ -22,7 +22,7 @@ const PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Exterminatio
 
 READ FIRST: docs/fanout/EEGCC_GUIDE.md (full workflow + ee-gcc codegen notes).
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}   SCRATCH: build/agent_${id}/ (ONLY this)
-YOUR FUNCS: ${funcs.join(' ')}
+YOUR FUNCS: ${funcs.map(f => (typeof f === 'string' ? f : `${f.func}${f.pct != null ? ` (currently ${f.pct}%` + (f.cflags ? `, CFLAGS ${f.cflags}` : '') + ')' : ''}`)).join('  ')}
 
 PER-FUNCTION LOOP:
 1. Read build/asm/matchings/main/code/<F>.s — decode as normal gcc-2.x MIPS (sd/ld 64-bit saves, daddu moves, unfilled jal;nop are NORMAL). Many SDK funcs are small syscall stubs / thin wrappers / list ops / bignum-math — very matchable. The existing src/<F>.c (stub) may document semantics.
