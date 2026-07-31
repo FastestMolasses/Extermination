@@ -404,6 +404,21 @@ The decider is the FIRST EMITTED instr (after value materialization), not the C 
   order. On func_0012D580 the same headline symptom turned out to be four different residuals and
   zero-staging produced a byte-identical object. Confirm the actual per-instruction diff before
   reaching for it.
+- **idiom-28 (STRICT-RELATIONAL RESPELL — steers the compare temp between `$at` and a GPR)**: when
+  the sole residual is a `slt`/`slti` whose destination is `$at` in the target but a GPR in yours
+  (or vice versa), respell the relational in its strict form against the adjacent constant —
+  `x > K-1` for `x >= K`, and the reverse. Semantically identical for integers, but it flips mwcc's
+  compare-temp allocation. Measured on func_00164220's case-2 guard: `>= 2` → 99.897, `> 1` →
+  **100.0**, `2 <= x` → 99.897, `!(x < 2)` → 99.897, hoisted int temp → 99.897, unsigned `>= 2u` →
+  99.330, `x - 2 >= 0` → 98.763. Do NOT reach this by swapping the if/else arms — that reorders the
+  whole case (92.35%, 100 vs 97 instructions).
+- **CHECK THE EXTERN PROTOTYPES BEFORE BLAMING CODEGEN.** A wrong `extern` declaration in a parked
+  file produces a residual that *looks* like an FP-arg-order or coloring artifact and will survive
+  every idiom and any amount of permuting. func_00164220 sat at 99.588% because its file declared
+  `func_001749A0(float, int, int)` when the real signature — confirmed against five already-matched
+  callers — is `(char *self, int code, int flags, float blend)`. Fixing the prototype took it
+  straight to 99.897%, and one idiom-28 respell finished it. **Verify every extern against an
+  already-byte-matched caller first**; the corpus is the authority, not the parked file's own header.
 - GENUINE (no lever): LI-HOIST — a plain-literal `li`/`lui` hoisted above an unrelated store while
   kept in the immediate-scratch $v1. $v1 is rewritten per literal; a value living across a store gets
   a DISTINCT value reg (a0/a1), so "hoisted order" and "$v1 coloring" are mutually exclusive. (A

@@ -211,7 +211,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001AB4E0 | 0x001AB4E0 | 0xB0 | 88.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Constant-materialization + register-coloring near-miss: target keeps the masked-0 (andi a2 |
 | func_001A8F40 | 0x001A8F40 | 0xBC | 85.21% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-coloring/scheduling permutation: target reloads *0x70003A20 early into $f1 and colors v |
 | func_001B0EA0 | 0x001B0EA0 | 0xC0 | 95.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Prologue instruction-scheduling artifact: body 100% identical except one instruction's pos |
-| func_001D7FA0 | 0x001D7FA0 | 0xC0 | 97.29% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-save / prologue scheduling-order permutation: target saves both callee fprs (f12- |
 | func_001AE5E0 | 0x001AE5E0 | 0xC4 | 89.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body fully recovered. Sole residual is a pure list-scheduler permutation of the two indepe |
 | func_001D37D0 | 0x001D37D0 | 0xC4 | 95.41% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body fully recovered (reload idiom #10 applied: *slot is reloaded before each of the 4 fie |
 | func_00180460 | 0x00180460 | 0xC8 | 99.80% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-register-coloring on the commutative add.s. Target loads *(float*)0x700038A4 into $f1 a |
@@ -342,7 +341,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001EC820 | 0x001EC820 | 0x180 | 66.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU register-coloring + commutative add.s operand-order permutation (identical class to fu |
 | func_001FABF0 | 0x001FABF0 | 0x180 | 98.75% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Parameter-save-order permutation. CW target saves arg2(scale)->s0 before the 'beqz a3' gua |
 | func_00158D30 | 0x00158D30 | 0x184 | 86.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring on the outer 4-way dispatch (dispatch-save-sink): the target  |
-| func_00164220 | 0x00164220 | 0x184 | 99.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring permutation at 99.588% (mwcc233). Body and all four state-mac |
 | func_0019F1A0 | 0x0019F1A0 | 0x184 | 92.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring at 92.268% (mwcc233). Every instruction is in the EXACT targe |
 | func_0021E830 | 0x0021E830 | 0x184 | 99.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | branch-likely-sense permutation: the case-1 float guard `if(arg0[0x3C] <= 160.0f)` emits a |
 | func_001CD390 | 0x001CD390 | 0x188 | 97.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | branch-delay-slot scheduling permutation: the dual float-equality guard `if (arg1[0]==0.0f |
@@ -476,7 +474,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001F28D0 | 0x001F28D0 | 0x2C4 | 82.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation across the two 8-iteration loops (same class as sibling fu |
 | func_0013BF20 | 0x0013BF20 | 0x2CC | 94.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | clean-store delay-slot-nop x2 + independent-instruction scheduling swap x2 (scheduler-inte |
 | func_00179D20 | 0x00179D20 | 0x2CC | 99.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (per-bone anim-clip pose seed loop over D_00275B40[]; scala |
-| func_00148130 | 0x00148130 | 0x2D0 | 95.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: 4-state animation blend-transition state machine (state fi |
 | func_00159B90 | 0x00159B90 | 0x2D4 | 85.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: outer 4-state actor dispatch (p[4], cases 0-3) with case1  |
 | func_00198650 | 0x00198650 | 0x2D4 | 94.17% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Idiom-13 conditional-branch delay-slot NOP (3 instances, mwcc fills with next compare's sp |
 | func_001DB9D0 | 0x001DB9D0 | 0x2D4 | 73.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU-MAC wall (genuine, confirmed against sibling func_001D66A0 which documents the identic |
@@ -507,7 +504,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001BA1F0 | 0x001BA1F0 | 0x31C | 71.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Script-interpreter pump loop (opcode dispatch via ftab_0024D880). Body/control-flow fully  |
 | func_00219550 | 0x00219550 | 0x31C | 83.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Item armed-handler pump. Body/logic fully recovered against the documented func_0015AE20-f |
 | func_001BA8E0 | 0x001BA8E0 | 0x320 | 72.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NPC-spawner type dispatch (sparse compare-chain, no jump table). Body/mapping table fully  |
-| func_00152330 | 0x00152330 | 0x324 | 97.96% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully correct (state-machine dispatch, all anim_clip_init calls matched via |
 | func_00197D20 | 0x00197D20 | 0x324 | 89.28% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered including two fixed callee-signature bugs (func_001D2610 is |
 | func_001F1AA0 | 0x001F1AA0 | 0x328 | 76.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Full logic recovered: the FPU-MAC dot-product (dx*dx+dy*dy+dz*dz) auto-fuses to adda.s/mad |
 | func_00220D30 | 0x00220D30 | 0x328 | 85.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation wall on a 3-state (0/1/2) switch dispatcher wit |
@@ -548,7 +544,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0016CD70 | 0x0016CD70 | 0x3B4 | 99.19% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.19% on mwcc233, logic and structure fully recovered (matrix/quat blend setup via func_0 |
 | func_0019E280 | 0x0019E280 | 0x3B8 | 99.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.43% on mwcc233. Full logic recovered including two bugs found and fixed versus the init |
 | func_0019DB50 | 0x0019DB50 | 0x3C0 | 87.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation, same class as sibling family func_0019DF10 (91.8 |
-| func_001D2960 | 0x001D2960 | 0x3C0 | 97.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two tiny residual scheduling clusters remain out of ~240 instructions: (1) the FIRST func_ |
 | func_00167C80 | 0x00167C80 | 0x3C4 | 95.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | State-machine dispatch (switch on arg0[6], ascending case labels 0-3 with nested sub-switc |
 | func_00175CF0 | 0x00175CF0 | 0x3C4 | 99.15% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Clean-store/delay-slot-fill duplication: at the 'v1==0x35' guard bne, mwcc233 (and 991202  |
 | func_001DF600 | 0x001DF600 | 0x3C4 | 69.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Deep register-allocation / stack-layout divergence in a large (964-byte, 0x10F0-frame) fun |
@@ -776,7 +771,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0010ED18 | 0x0010ED18 | ? | 99.92% | ee-gcc 2.9-991111-01 | compiler artifact (register coloring / scheduling) |
 | func_0011AEA0 | 0x0011AEA0 | 0x60 | 99.58% | ee-gcc 2.9-991111-01 | jr-table external-dispatch wall (proven s84) — sole residual: lui/addiu %hi/%lo(jtbl_0026C |
 | func_0021B9A0 | 0x0021B9A0 | 0xC4 | 88.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — local @17 table vs external jtbl_00273790 ( |
-| func_001A9C40 | 0x001A9C40 | 0xE0 | 99.02% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — local @14 vs external jtbl_0026DB30 on the  |
 | func_001BC350 | 0x001BC350 | 0x204 | 99.46% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — residuals: the 2-instruction lui/addiu jump |
 | func_001A97B0 | 0x001A97B0 | 0x228 | 95.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84): lui/addiu %hi/%lo(jtbl_0026DAE0) vs local @6 |
 | func_001B8020 | 0x001B8020 | 0x1A8 | 99.76% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 2 of 106 instructions, case 4 only (float-arg register assignment, NOT a dispatch issue —  |

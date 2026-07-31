@@ -98,7 +98,17 @@ __pycache__/
 
 # Personal textbook (not part of the project)
 textbook/
-tools/permuter/
+# Vendored decomp-permuter (third-party, has its own LICENSE) stays OUT. Our own
+# EE/mwcc wrapper scripts around it are original tooling and must be tracked --
+# they encode load-bearing setup (e.g. run_func233.sh assembling the target from
+# build/.asmnorm so jr-table dispatch relocs are comparable).
+tools/permuter/*
+!tools/permuter/run_func.sh
+!tools/permuter/run_func233.sh
+!tools/permuter/run_ee_perm_batch.sh
+!tools/permuter/ee_compile_wrapper.sh
+!tools/permuter/sweep.sh
+!tools/permuter/sort_cands.sh
 # Third-party ee-gcc distributions stay OUT (tarballs + extracted trees), but our own
 # thin wrapper scripts are original build tooling and must be tracked -- the assembler
 # flags in them are load-bearing for matching (see the -G0 note in ee-compile.sh).

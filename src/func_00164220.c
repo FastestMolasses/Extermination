@@ -1,18 +1,11 @@
-// NEARMISS func_00164220  (vram 0x00164220, 0x184 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.59% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation coloring permutation at 99.588% (mwcc233). Body and all four state-machine cases are exact and in target order; only register names differ on three sites: (1) the func_001749A0(1.0f,0x74,0) call args colored a0/a1 vs target a1/a2 (the float-in-f12 a0-slot reservation differs b...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// Entity state-machine tick: advances the 4-state counter at p[7] (spawn cue, timer
+// fade-out at p+0x38, ready/idle branch on p[0x23F], teardown), then runs the common
+// per-frame tail (update, p+0xB4 -= 0.2f, animate, post).
 
-extern void func_001749A0(float a, int b, int c);
-extern void func_00174AC0(int a);
+extern void func_001749A0(char *p, int code, int flags, float blend);
+extern void func_00174AC0(char *p, int a);
 extern void func_00175900(char *p, int a);
 extern void func_001764E0(char *p);
 extern void func_00178B90(char *p, int a);
@@ -29,7 +22,7 @@ void func_00164220(char *p) {
     switch (st) {
     case 0:
         *(unsigned char *)(p + 7) = st + 1;
-        func_001749A0(1.0f, 0x74, 0);
+        func_001749A0(p, 0x74, 0, 1.0f);
         *(float *)(p + 0x38) = 0.8f;
         break;
     case 1:
@@ -45,8 +38,8 @@ void func_00164220(char *p) {
         }
         break;
     case 2:
-        func_00174AC0(0);
-        if ((int)*(unsigned char *)(p + 0x23F) >= 2) {
+        func_00174AC0(p, 0);
+        if ((int)*(unsigned char *)(p + 0x23F) > 1) {
             *(unsigned char *)(p + 7) = *(unsigned char *)(p + 7) + 1;
             func_0017C440(p, 0);
         } else {
@@ -62,7 +55,7 @@ void func_00164220(char *p) {
         break;
     }
     func_001764E0(p);
-    *(float *)(p + 0xB4) = *(float *)(p + 0xB4) + -0.2f;
+    *(float *)(p + 0xB4) += -0.2f;
     func_00175900(p, 1);
     func_001796C0(p);
 }

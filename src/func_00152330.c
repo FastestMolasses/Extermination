@@ -1,15 +1,7 @@
-// NEARMISS func_00152330  (vram 0x00152330, 0x324 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.96% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure fully correct (state-machine dispatch, all anim_clip_init calls matched via the FP-ARG-ORDER idiom for the 0x10/0xD/0x11 clip calls, D_008102B0 unsigned-lbu fix). Sole residual: branch-delay-slot filler choice for two independent stores (D_008102B0 |= 2; D_008102BF = 2;) guarding t...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// Player/entity state-machine tick: dispatches on state byte at +6, driving anim clips,
+// the global alert/danger flags (D_008102B0/D_008102BF/D_008104D4) and the camera shake setup.
 
 extern void anim_clip_init(int self, int clip, float a, float b);
 extern void func_001026A0(void *a0, void *a1, void *a2);
@@ -22,8 +14,8 @@ extern void func_001B55E0(char *a, int b);
 extern void func_001FBD50(char *p, int a, int b, float f);
 extern int func_0021BE40(char *a, char *b, int c);
 
-extern unsigned char D_008102B0;
-extern char D_008102BF;
+extern volatile unsigned char D_008102B0;
+extern volatile char D_008102BF;
 extern float D_00810320;
 extern int D_00810324;
 extern float D_00810328;
