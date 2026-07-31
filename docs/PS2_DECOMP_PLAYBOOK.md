@@ -109,6 +109,53 @@ make the target *correct*, not because they are a match faucet.
 
 ---
 
+## 2b. A 100% object can still produce the wrong binary
+
+This is the most dangerous failure mode in the whole pipeline, because **every metric
+says you are fine.** objdiff reports 100%, your function count goes up, and the linked
+binary is wrong at an address hundreds of kilobytes away from the function you touched.
+
+The cause: a compiled object that carries **initialized data of its own**. A `switch`
+compiles to a jump table in the object's `.rodata`. A `static const` array or a string
+literal does the same. In the original binary that data lives at a fixed address inside
+the data region. In your object it is anonymous `.rodata` that the linker places wherever
+the section flows — so the function's `lui`/`addiu` pair encodes a completely different
+base address.
+
+**Why objdiff cannot see it.** If you build the expected object by appending the
+function's own jump table to its `.s` (which you must, or the table is an undefined
+external and every jr-table function shows a permanent bogus residual), then *both* sides
+carry a local copy of the table and compare equal. The reference is correct relative to
+each object. The divergence exists **only after linking**, where the real `.s` instead
+references the address-pinned `jtbl_XXXXXXXX` symbol defined by the data-region object.
+Per-object comparison is structurally incapable of catching this.
+
+**The rule:** a compiled object may supply `.text` and nothing else. If
+`.rodata`/`.data`/`.sdata` is non-empty, link that function from its address-pinned `.s`.
+This costs nothing — the match metric is computed from objects, not from the link — and it
+is byte-exact by construction. Assert it in the fill/link step rather than maintaining a
+list of known offenders; a hand-maintained list cannot cover a unit that only just became
+compilable, which is exactly when this bites.
+
+Two symptoms that should send you straight here:
+
+- The first differing byte is the **low byte of an `addiu` immediate** following a `lui`.
+  That pair is an address being materialized, so the byte difference is telling you a
+  symbol resolved somewhere unexpected — not that an instruction was mis-encoded.
+- The first difference is in a function you **did not touch**. Sequential linkers place
+  objects cumulatively, so one object of the wrong size shifts everything after it. Resolve
+  the *symbol* in the linked output (`objdump -t`) before you start reading the function:
+  if the symbol is at its correct address, the object referencing it is the problem, not
+  the object defining it.
+
+**Related: pin every object's `.text` to its original slot size.** Compute
+`next_vram - this_vram` and resize each object's `.text` to exactly that, padding as well as
+truncating. Assemblers round `.text` up to an alignment boundary, and originals often carry
+larger inter-function gaps than that rounding produces. Without the resize, sizes drift and
+the whole layout slides.
+
+---
+
 ## 3. Build fragility that hides for weeks
 
 **`as` deletes its output file on error.** Combine that with a build step that
