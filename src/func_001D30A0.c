@@ -2,7 +2,7 @@
 //
 // objdiff 92.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Bulk per-slot-array initializer (dynamic index shift = D_00275670->0x9c << 7, sibling of matched func_001D2E20/func_001D38A0). Body/logic fully recovered: 12 base arrays each get a 3x func_00102948 quadword-copy at +0x60/+0x70/+0x50 from ctx+0x2220/0x2230/0xA0; D_00816B98/B9C/C98/C9C get inline f...
+// Bulk per-slot-array initializer (dynamic index shift = D_00275670->0x9c << 7, sibling of matched skin_arena_init/func_001D38A0). Body/logic fully recovered: 12 base arrays each get a 3x func_00102948 quadword-copy at +0x60/+0x70/+0x50 from ctx+0x2220/0x2230/0xA0; D_00816B98/B9C/C98/C9C get inline f...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

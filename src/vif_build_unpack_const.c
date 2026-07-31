@@ -19,10 +19,10 @@
 // (word stride); the live packet pointer is slot[4] (offset 0x10). Packet 1 writes
 // a GIFtag header (byte +3 = 0x10 EOP/flags, word +4 = 0, half +0 = NLOOP 9),
 // advances slot[4] by 0xA0, zeroes the qword at +0x10, writes 0x11000000 at +0x18
-// and (0x80000|0x6C000000) at +0x1C, then issues two matrix copies (func_00102958)
+// and (0x80000|0x6C000000) at +0x1C, then issues two matrix copies (copy_qw4)
 // for the +0x10 and +0x50 sub-blocks (src = D_70003AC0 and the D_00817240 matrix).
 // Packet 2 mirrors this with NLOOP 5, stride 0x60, +0x1C = 0x6C0403F5, one copy
-// from the D_00817280 sub-block. func_00102958 is a 2-arg qword matrix copy
+// from the D_00817280 sub-block. copy_qw4 is a 2-arg qword matrix copy
 // (a2/a3 at the call sites are register leftovers).
 //
 // NEARMISS 93.42% (mwcc 2.3.3; pinned 991202 = 83.1%). The matrix-init block is
@@ -68,7 +68,7 @@ extern volatile int D_008172B8[2];
 extern volatile int D_008172BC[2];
 
 extern int D_70003AC0[2];
-extern void func_00102958(int dst, int src);
+extern void copy_qw4(int dst, int src);
 #define SQZERO(a) (*(uint128 *)(a) = 0)
 
 void vif_build_unpack_const(int arg0) {
@@ -119,9 +119,9 @@ void vif_build_unpack_const(int arg0) {
     *(int *)(p + 0x18) = 0x11000000;
     s1 = p + 0x10;
     *(int *)(p + 0x1C) = 0x80000 | 0x6C000000;
-    func_00102958(s1 + 0x10, (int)D_70003AC0);
+    copy_qw4(s1 + 0x10, (int)D_70003AC0);
 
-    func_00102958(s1 + 0x50, (int)D_00817240);
+    copy_qw4(s1 + 0x50, (int)D_00817240);
 
     slot = (int *)((char *)D_00275670 + arg0 * 4);
     *(unsigned char *)(slot[4] + 3) = 0x10;
@@ -132,5 +132,5 @@ void vif_build_unpack_const(int arg0) {
     slot[4] = p + 0x60;
     SQZERO(p + 0x10);
     *(int *)(p + 0x1C) = 0x6C0403F5;
-    func_00102958(s1 + 0x10, (int)D_00817280);
+    copy_qw4(s1 + 0x10, (int)D_00817280);
 }

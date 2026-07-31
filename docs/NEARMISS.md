@@ -809,3 +809,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001429D0 | 0x001429D0 | 0xAEC | 99.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.68% (22 of ~700 instrs). Dispatch itself is byte-identical except register colouring; j |
 | func_00128C10 | 0x00128C10 | 0xB6C | 97.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 97.97% (26 of ~730 instrs). Both jr-table dispatches are byte-identical in code; the 9-ent |
 | func_00183EF0 | 0x00183EF0 | 0xCA8 | 99.41% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 17 residual instructions / 810 (99.41%, mwcc 2.3.3, -O4,p -sdatathreshold 0). The jump-tab |
+| func_00118828 | 0x00118828 | 0x374 | 99.05% | ee-gcc 2.9-991111-01 | ee-gcc loop-preheader / giv-init ORDERING. All 222 instructions match one-for-one in opcod |
+| func_00113280 | 0x00113280 | 0x1F8 | 98.93% | ee-gcc 2.9-991111-01 | ee-gcc callee-saved GPR coloring permutation (confirmed fast-park class). All 126 instruct |
+| func_00111818 | 0x00111818 | 0xA0 | 86.75% | ee-gcc 2.9-991111-01 | eegcc delay-slot-fill placement wall. Logic/structure fully recovered: uncached-segment al |
+| func_00119650 | 0x00119650 | 0x13C | 79.62% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring + preheader address-materialization permutation (confirmed no-lever cla |

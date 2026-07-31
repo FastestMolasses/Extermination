@@ -2,7 +2,7 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 // Per-bone clip-change sampler driver. For each of n bones: NLERP the current
 // pose quat A/B by blend into the VU0 scratch quat (0x70003600) and copy back
-// to quat A (+0x30); sample the new rotation keyframe (func_001C8F10, channel
+// to quat A (+0x30); sample the new rotation keyframe (anim_sample_rotation, channel
 // state @D_008111F0), NLERP the channel quats (D_00811220/30, t=D_00811240)
 // into scratch and copy to quat B (+0x40); write rotation drive state
 // (dur+0x60=prev_t, kind+0x66=D_00811256, blend+0x50=0, inv_dur+0x54=1/prev_t);
@@ -51,9 +51,9 @@ extern unsigned short D_00811256;
 extern unsigned short D_00811258;
 extern unsigned short D_0081125A;
 
-extern void func_001CA0A0(float *, float *, float *, float);
-extern int func_001281C0(float);
-extern void func_001C8F10(char *, int, int);
+extern void quat_nlerp(float *, float *, float *, float);
+extern int float_to_int(float);
+extern void anim_sample_rotation(char *, int, int);
 extern void func_001C90D0(char *, int, int);
 extern void func_001C92C0(char *, int, int);
 extern void func_001C86A0(float *, float *, float *, float);
@@ -64,20 +64,20 @@ void anim_sample_bones(Bone **arg_bones, int n, float new_t, float prev_t) {
 
     for (i = 0; i < n; i++) {
         bones = arg_bones + i;
-        func_001CA0A0(D_70003600, bones[0]->quat_a.f, bones[0]->quat_b.f, bones[0]->blend);
+        quat_nlerp(D_70003600, bones[0]->quat_a.f, bones[0]->quat_b.f, bones[0]->blend);
         bones[0]->quat_a.q = *(uint128 *)D_70003600;
-        func_001C8F10(D_008111F0, i, func_001281C0(new_t));
-        func_001CA0A0(D_70003600, D_00811220, D_00811230, D_00811240);
+        anim_sample_rotation(D_008111F0, i, float_to_int(new_t));
+        quat_nlerp(D_70003600, D_00811220, D_00811230, D_00811240);
         bones[0]->quat_b.q = *(uint128 *)D_70003600;
         bones[0]->dur = prev_t;
         bones[0]->kind_r = D_00811256;
         *(int *)&bones[0]->blend = 0;
         bones[0]->inv_dur = 1.0f / prev_t;
-        func_001C90D0(D_008111F0, i, func_001281C0(new_t));
+        func_001C90D0(D_008111F0, i, float_to_int(new_t));
         bones[0]->dur_t = prev_t;
         bones[0]->kind_t = D_00811258;
         func_001C86A0(bones[0]->trans_a, (float *)D_008111F0, (float *)bones[0], prev_t);
-        func_001C92C0(D_008111F0, i, func_001281C0(new_t));
+        func_001C92C0(D_008111F0, i, float_to_int(new_t));
         bones[0]->dur_s = prev_t;
         bones[0]->kind_s = D_0081125A;
         func_001C86A0(bones[0]->scale_a, D_00811208, bones[0]->scratch18, prev_t);

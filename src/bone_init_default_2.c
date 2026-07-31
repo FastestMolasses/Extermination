@@ -4,7 +4,7 @@
 // unsigned->float idiom into +0x3C; then for each of *(arg0+0xC) entries seed
 // the 0x110-pointed sub-struct (copy *src into +0x64, set +0x88/8A/8C=0x1000,
 // zero +0x70/74/78/7C/80/84) and finish with func_001C8710(...,0.0f).
-extern void func_001C8480(int, short);
+extern void anim_clip_resolve(int, short);
 extern void func_001C8710(char *, unsigned char, int, short *, float);
 extern char *D_00275BF8;
 
@@ -15,7 +15,7 @@ void bone_init_default_2(char *arg0, short arg1) {
     int i;
 
     *(short *)(arg0 + 0x2C) = arg1;
-    func_001C8480(*(int *)(arg0 + 0x40), *(short *)(arg0 + 0x2C));
+    anim_clip_resolve(*(int *)(arg0 + 0x40), *(short *)(arg0 + 0x2C));
     v = *(unsigned short *)(D_00275BF8 + 2);
     *(float *)(arg0 + 0x3C) = (float) (unsigned int) v;
     i = 0;

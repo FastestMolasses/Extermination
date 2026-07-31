@@ -1,8 +1,8 @@
 // NEARMISS func_00118828  (vram 0x00118828, 0x374 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.02% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.05% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// IMPORTANT: this is an ee-gcc function, NOT mwcc (0x118828 sits inside the SDK/lowmem eegcc region -- sd/ld 16-byte-stride saves, daddu moves; mwcc caps at 65.7% because it emits sq/lq + paddub). At ee-gcc 2.9-991111-01 -O2 the residual is 4 of 222 instructions, all in the loop PREHEADER of the de...
+// ee-gcc loop-preheader / giv-init ORDERING. All 222 instructions match one-for-one in opcode, operands, registers and delay slots; only the `addiu s1,v0,0xe` preheader init sits in the wrong slot. Expected preheader order is [addiu s3,v0,6 / daddu s2,zero,zero / addiu s5,zero,1 / addiu s1,v0,0xe /...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -176,9 +176,9 @@ void func_00118828(char *e) {
     scan:
         base = D_0027CCC0;
         g = D_00281AC0;
-        r3 = base + 6;
-        i = 0;
         r1 = base + 0xE;
+        i = 0;
+        r3 = base + 6;
         do {
             if (*(unsigned short *)(r1 - 0xC) == 1
                 && *(unsigned short *)(r1 - 0xA) == (*(unsigned char *)(e + 0) & 0xF)

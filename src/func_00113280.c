@@ -1,8 +1,8 @@
 // NEARMISS func_00113280  (vram 0x00113280, 0x1F8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.77% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 98.93% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc callee-saved GPR coloring permutation (confirmed s84 fast-park class). Instruction count, control flow, scheduling and every delay slot match one-for-one; .text size 0x1F8 == expected. Expected colors D_00241CF8->s6, mode->s2, D_00241D30->s1, D_0027AFB0->s5, D_0027B060->s4, D_0027AB40->s7;...
+// ee-gcc callee-saved GPR coloring permutation (confirmed fast-park class). All 126 instructions, control flow, scheduling and every delay slot match one-for-one; .text size 0x1F8 == expected. Only the callee-saved assignment differs: expected D_00241CF8->s6, mode->s2, D_00241D30->s1, D_0027AFB0->s...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,7 +11,7 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-// libcdvd: sceCdInit(mode) — binds the cdvd "S" RPC server (sid 0x8000059A),
+// libcdvd: sceCdInit(mode) - binds the cdvd "S" RPC server (sid 0x8000059A),
 // retrying with a busy-wait, then issues fno 0 with the init mode.
 
 extern int D_00241CF8;

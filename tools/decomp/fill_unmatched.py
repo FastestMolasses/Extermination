@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import re
 import shutil
+import struct
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -205,6 +206,15 @@ WEAKEN_SYMBOLS: dict[str, list[str]] = {
 # (e.g. dead-store elimination of delay-slot daddu zeroing, or extra prologue).
 # We fall back to assembling from the splat .s (which contains the exact original
 # bytes) to obtain the correct .text size and content.
+# Populated by the automatic size-drift guard in assemble_one(): name -> (compiled, slot).
+# Written from worker threads; dict item assignment is atomic under the GIL and each
+# key is touched by exactly one worker, so no lock is needed.
+DRIFT_DETECTED: dict[str, tuple[int, int]] = {}
+
+# Functions force-assembled because their compiled object carries initialized data
+# of its own (see the JUMP-TABLE / LOCAL-DATA FORCE-ASM note in assemble_one).
+LOCALDATA_FORCED: set[str] = set()
+
 SIZE_DRIFT_FORCE_ASM = {
     "func_00100610",
     "func_001046C0",
@@ -665,7 +675,49 @@ def assemble_one(name: str, slot_size: int = 0) -> tuple[str, str, Exception | N
         except OSError:
             pass
 
+    # JUMP-TABLE FORCE-ASM (s85). A switch dispatcher compiled from C emits its
+    # OWN jump table into the object's .rodata. That table is not pinned to the
+    # original table's address, so the linker places it wherever .rodata flows and
+    # the dispatcher's lui/addiu pair ends up encoding the wrong base — the linked
+    # bytes are wrong even though the object is a genuine 100% objdiff match.
+    #
+    # objdiff CANNOT see this: build/expected/<f>.o is assembled from the
+    # normalized .s with the function's own table appended (gen_jtbl_rodata), so
+    # both sides carry a local table and compare equal. The divergence only exists
+    # at link time, where the splat .s instead references the address-pinned
+    # jtbl_XXXXXXXX symbol defined in the rodata-region object.
+    #
+    # So: whenever the splat .s references a jtbl_ symbol, link that function from
+    # the .s. This costs nothing — matched_code is an objdiff metric and is
+    # unaffected — and it is byte-exact by construction. Found via func_0011A9F0,
+    # whose table resolved to 0x275b80 instead of 0x26c120.
+    # The check is on the OBJECT, not the .s: any non-empty allocated data section
+    # in a compiled object means that object is supplying bytes that belong to the
+    # pinned data region. That covers switch tables (.rodata jump tables), static
+    # const arrays, and string literals in one rule. func_001258E0 is the non-jtbl
+    # case: it defines D_0026CC38 in its own 0x100-byte .rodata.
+    if not force_asm and not is_stub and (OBJ_DIR / f"{name}.o").exists():
+        _obj = OBJ_DIR / f"{name}.o"
+        if any(_section_size(_obj, sec) > 0 for sec in (".rodata", ".data", ".sdata")):
+            force_asm = True
+            LOCALDATA_FORCED.add(name)
+
     obj_src = OBJ_DIR / f"{name}.o"
+    # AUTOMATIC SIZE-DRIFT GUARD (s85). The .lcf lays objects out sequentially,
+    # so an object whose .text overflows its original slot shifts every function
+    # AFTER it — the boot ELF then fails byte-identity at some unrelated address
+    # far downstream, which is extremely expensive to trace back to its cause.
+    # SIZE_DRIFT_FORCE_ASM was a hand-maintained list of known offenders; it
+    # cannot cover a unit that only just became compilable. Measure instead:
+    # if the compiled .text does not fit the slot, fall back to the splat .s,
+    # which is byte-exact by construction. Under-size is fine — _strip() pads
+    # it back out to the slot with the original inter-function gap bytes.
+    if obj_src.exists() and not force_asm and not is_stub and slot_size > 0:
+        _sz = _text_size(obj_src)
+        if _sz > slot_size:
+            force_asm = True
+            DRIFT_DETECTED[name] = (_sz, slot_size)
+
     if obj_src.exists() and not force_asm and not is_stub:
         # Use the compiled/asm-matched object from build/obj/.
         if _needs_rebuild(obj_src, out_path):
@@ -694,6 +746,40 @@ def assemble_one(name: str, slot_size: int = 0) -> tuple[str, str, Exception | N
         else:
             status = "assembled"
         return name, status, None
+
+
+def _text_size(obj: Path) -> int:
+    """Return the .text section size of an ELF32 object, or 0 if unreadable."""
+    return _section_size(obj, ".text")
+
+
+def _section_size(obj: Path, section: str = ".text") -> int:
+    """Return the size of `section` in an ELF32 object, or 0 if absent/unreadable.
+
+    Parsed directly rather than shelling out to objdump: this runs once per
+    function over ~3000 objects, and the cross objdump only exists inside the
+    container.
+    """
+    try:
+        d = obj.read_bytes()
+        if len(d) < 52 or d[:4] != b"\x7fELF" or d[5] != 1:  # ELF32 little-endian
+            return 0
+        e_shoff = struct.unpack_from("<I", d, 0x20)[0]
+        e_shentsize = struct.unpack_from("<H", d, 0x2E)[0]
+        e_shnum = struct.unpack_from("<H", d, 0x30)[0]
+        e_shstrndx = struct.unpack_from("<H", d, 0x32)[0]
+        if not e_shoff or not e_shnum:
+            return 0
+        str_off = struct.unpack_from("<I", d, e_shoff + e_shstrndx * e_shentsize + 0x10)[0]
+        for i in range(e_shnum):
+            sh = e_shoff + i * e_shentsize
+            name_off = struct.unpack_from("<I", d, sh)[0]
+            end = d.index(b"\0", str_off + name_off)
+            if d[str_off + name_off:end] == section.encode():
+                return struct.unpack_from("<I", d, sh + 0x14)[0]
+    except (OSError, ValueError, struct.error, IndexError):
+        return 0
+    return 0
 
 
 def _strip(obj: Path, expected_size: int = 0) -> None:
@@ -757,6 +843,14 @@ def main(argv: list[str]) -> int:
         f"{counts['cached']} cached, "
         f"{counts.get('asm_error', 0)} errors"
     )
+    if LOCALDATA_FORCED:
+        print(f"[fill_unmatched] local-data guard: {len(LOCALDATA_FORCED)} function(s) linked "
+              f"from .s so their jump tables / const data keep the original pinned addresses")
+    if DRIFT_DETECTED:
+        print(f"[fill_unmatched] size-drift guard: {len(DRIFT_DETECTED)} compiled object(s) "
+              f"overflowed their slot and were assembled from .s instead")
+        for _n, (_c, _s) in sorted(DRIFT_DETECTED.items()):
+            print(f"[fill_unmatched]   {_n}: compiled .text 0x{_c:x} > slot 0x{_s:x}")
     if errors:
         print(f"[fill_unmatched] {len(errors)} assembly error(s) — link will likely fail",
               file=sys.stderr)

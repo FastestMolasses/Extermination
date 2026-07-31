@@ -17,7 +17,7 @@
 // keyframe stream (D_00275BF4/BF0/BEC directories) is walked forward by
 // one record via func_001C84D0 (rotation) / anim_decode_translation
 // (translation, scale) and the channel's drive state (blend/inv_dur/dur,
-// step counter) is refreshed exactly like func_001C8F10/func_001C90D0;
+// step counter) is refreshed exactly like anim_sample_rotation/func_001C90D0;
 // otherwise the channel is advanced in place by lerping its stored delta
 // into the live vector. The scale channel additionally captures the
 // record's bit-0x8000 "clip end" flag (end_flag) into var_s3.  If that

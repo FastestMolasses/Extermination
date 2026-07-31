@@ -12,11 +12,11 @@
 // CFLAGS: -O4,p -sdatathreshold 4
 
 extern char *D_00275BF8;
-extern void func_001C8480(int base, short index);
-extern int func_001281C0(float t);
+extern void anim_clip_resolve(int base, short index);
+extern int float_to_int(float t);
 extern void func_001C8710(char *p, unsigned char c, float a);
 extern void func_001C87C0(char *p, unsigned char c, float a);
-extern void func_001C8D50(char *p, unsigned char c, float a, float b);
+extern void anim_sample_bones(char *p, unsigned char c, float a, float b);
 
 short anim_advance_time(char *arg0, float dt) {
     float t;
@@ -33,7 +33,7 @@ short anim_advance_time(char *arg0, float dt) {
         step = (t <= 1.0f) ? t : 1.0f;
         t -= step;
 
-        func_001C8480(*(int *)(arg0 + 0x40), *(short *)(arg0 + 0x2C));
+        anim_clip_resolve(*(int *)(arg0 + 0x40), *(short *)(arg0 + 0x2C));
         hdr = D_00275BF8;
         if (*(int *)(hdr + 0x14) != 0) {
             if (!(*(short *)(arg0 + 0x2C) & 0x8000)) {
@@ -41,7 +41,7 @@ short anim_advance_time(char *arg0, float dt) {
                 nrec = *(short *)rec;
                 rec += 4;
                 for (i = 0; i < nrec; i++, rec += 4) {
-                    if (*(short *)rec == (short)func_001281C0(*(float *)(arg0 + 0x3C))) {
+                    if (*(short *)rec == (short)float_to_int(*(float *)(arg0 + 0x3C))) {
                         flags |= *(short *)(rec + 2);
                         break;
                     }
@@ -60,8 +60,8 @@ short anim_advance_time(char *arg0, float dt) {
                     *(short *)(arg0 + 0x2C) = *(short *)(hdr + 4) | 0x8000;
                     flags |= 0x4000;
                     *(float *)(arg0 + 0x3C) = (float)*(short *)(D_00275BF8 + 6);
-                    func_001C8480(*(int *)(arg0 + 0x40), *(short *)(arg0 + 0x2C));
-                    func_001C8D50(arg0 + 0x110, *(unsigned char *)(arg0 + 0xC), 0.0f, *(float *)(arg0 + 0x3C));
+                    anim_clip_resolve(*(int *)(arg0 + 0x40), *(short *)(arg0 + 0x2C));
+                    anim_sample_bones(arg0 + 0x110, *(unsigned char *)(arg0 + 0xC), 0.0f, *(float *)(arg0 + 0x3C));
                 } else {
                     flags |= 0x3000;
                     *(float *)(arg0 + 0x3C) = (float)(unsigned int)*(unsigned short *)(hdr + 2);

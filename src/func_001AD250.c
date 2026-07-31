@@ -8,7 +8,7 @@
 // 6-entry jr-table at 0x0026DCB0:
 //   0: bring-up poll func_001AD360; when done -> state 5, clear +0xA/+0xB,
 //      kick func_001AEDB0(0)
-//   1: func_001AD4D0 (trampoline to the in-game frame machine func_001AE040)
+//   1: func_001AD4D0 (trampoline to the in-game frame machine anim_frame_top_b)
 //   2: func_001AD4E0   3: func_001AD740   4: func_001ADF00
 //   5: end poll func_001ADF50; when done -> back to state 1, clear +0xA/+0xB
 //

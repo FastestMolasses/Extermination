@@ -56,20 +56,20 @@ extern char D_700038B0[];
 
 extern int func_00122BB8();
 extern int func_001B1560();
-extern void func_00102958(void *dst, void *src);
+extern void copy_qw4(void *dst, void *src);
 extern void func_001026A0(void *dst, void *a, void *b);
 extern void func_001028B8(void *dst, void *a, void *b);
 extern float func_0011DF78(float x);
 extern float func_0011E620(float x, float z);
 extern float func_0011E748(float x);
-extern int func_001281C0(float t);
+extern int float_to_int(float t);
 extern int func_0019A570(void *a, void *b, int c, int d);
 extern float func_001B1240(void *pos, float px, float pz);
 extern float func_001B12B0(float target, float cur, float step);
 extern float func_001B1470(float a);
 extern void func_001B2B10(void *e, void *a, void *b);
 extern void func_001B3C30(void *e, void *m, void *c, float a, float b);
-extern void func_001C67E0(void *e, int id, float a, float b);
+extern void anim_clip_init(void *e, int id, float a, float b);
 extern void func_001C81C0(int a, int clip, int frame, void *dst);
 extern void func_001C82A0(void *e, void *pose);
 extern void func_001C9D50(void *dst, void *a, void *b, float t);
@@ -97,9 +97,9 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
         *(int *)(st + 0x50) = 0;
         *(int *)(st + 0x4C) = 0;
         if (e[0xD] & 0x80) {
-            func_001C67E0(e, 0xB, 5.0f, turn);
+            anim_clip_init(e, 0xB, 5.0f, turn);
         } else {
-            func_001C67E0(e, 9, 5.0f, turn);
+            anim_clip_init(e, 9, 5.0f, turn);
         }
         break;
     case 1:
@@ -169,27 +169,27 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
         }
         if (*(float *)(st + 0x54) < 0.0f) {
             func_001C81C0(*(int *)(e + 0x40), D_00245B50[((int)(e[0xD] & 0x80) >> 7) * 9],
-                          func_001281C0(*(float *)(e + 0x3C)), D_00288D40);
+                          float_to_int(*(float *)(e + 0x3C)), D_00288D40);
             func_001C81C0(*(int *)(e + 0x40), D_00245B5C[((int)(e[0xD] & 0x80) >> 7) * 9],
-                          func_001281C0(*(float *)(e + 0x3C)), D_00287F40);
+                          float_to_int(*(float *)(e + 0x3C)), D_00287F40);
             for (i = 0; i < e[0xC]; i++) {
                 func_001C9D50(&D_00287140[i * 0x40], &D_00288D40[i * 0x40],
                               &D_00287F40[i * 0x40], wy);
             }
             if (*(float *)(st + 0x58) < 0.0f) {
                 func_001C81C0(*(int *)(e + 0x40), D_00245B4C[((int)(e[0xD] & 0x80) >> 7) * 9],
-                              func_001281C0(*(float *)(e + 0x3C)), D_00288D40);
+                              float_to_int(*(float *)(e + 0x3C)), D_00288D40);
                 func_001C81C0(*(int *)(e + 0x40), D_00245B58[((int)(e[0xD] & 0x80) >> 7) * 9],
-                              func_001281C0(*(float *)(e + 0x3C)), D_00287F40);
+                              float_to_int(*(float *)(e + 0x3C)), D_00287F40);
                 for (i = 0; i < e[0xC]; i++) {
                     func_001C9D50(&D_00286340[i * 0x40], &D_00288D40[i * 0x40],
                                   &D_00287F40[i * 0x40], wy);
                 }
             } else {
                 func_001C81C0(*(int *)(e + 0x40), D_00245B54[((int)(e[0xD] & 0x80) >> 7) * 9],
-                              func_001281C0(*(float *)(e + 0x3C)), D_00288D40);
+                              float_to_int(*(float *)(e + 0x3C)), D_00288D40);
                 func_001C81C0(*(int *)(e + 0x40), D_00245B60[((int)(e[0xD] & 0x80) >> 7) * 9],
-                              func_001281C0(*(float *)(e + 0x3C)), D_00287F40);
+                              float_to_int(*(float *)(e + 0x3C)), D_00287F40);
                 for (i = 0; i < e[0xC]; i++) {
                     func_001C9D50(&D_00286340[i * 0x40], &D_00288D40[i * 0x40],
                                   &D_00287F40[i * 0x40], wy);
@@ -201,27 +201,27 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
             }
         } else {
             func_001C81C0(*(int *)(e + 0x40), D_00245B50[((int)(e[0xD] & 0x80) >> 7) * 9],
-                          func_001281C0(*(float *)(e + 0x3C)), D_00288D40);
+                          float_to_int(*(float *)(e + 0x3C)), D_00288D40);
             func_001C81C0(*(int *)(e + 0x40), D_00245B44[((int)(e[0xD] & 0x80) >> 7) * 9],
-                          func_001281C0(*(float *)(e + 0x3C)), D_00287F40);
+                          float_to_int(*(float *)(e + 0x3C)), D_00287F40);
             for (i = 0; i < e[0xC]; i++) {
                 func_001C9D50(&D_00287140[i * 0x40], &D_00288D40[i * 0x40],
                               &D_00287F40[i * 0x40], wy);
             }
             if (*(float *)(st + 0x58) < 0.0f) {
                 func_001C81C0(*(int *)(e + 0x40), D_00245B4C[((int)(e[0xD] & 0x80) >> 7) * 9],
-                              func_001281C0(*(float *)(e + 0x3C)), D_00288D40);
+                              float_to_int(*(float *)(e + 0x3C)), D_00288D40);
                 func_001C81C0(*(int *)(e + 0x40), D_00245B40[((int)(e[0xD] & 0x80) >> 7) * 9],
-                              func_001281C0(*(float *)(e + 0x3C)), D_00287F40);
+                              float_to_int(*(float *)(e + 0x3C)), D_00287F40);
                 for (i = 0; i < e[0xC]; i++) {
                     func_001C9D50(&D_00286340[i * 0x40], &D_00288D40[i * 0x40],
                                   &D_00287F40[i * 0x40], wy);
                 }
             } else {
                 func_001C81C0(*(int *)(e + 0x40), D_00245B54[((int)(e[0xD] & 0x80) >> 7) * 9],
-                              func_001281C0(*(float *)(e + 0x3C)), D_00288D40);
+                              float_to_int(*(float *)(e + 0x3C)), D_00288D40);
                 func_001C81C0(*(int *)(e + 0x40), D_00245B48[((int)(e[0xD] & 0x80) >> 7) * 9],
-                              func_001281C0(*(float *)(e + 0x3C)), D_00287F40);
+                              float_to_int(*(float *)(e + 0x3C)), D_00287F40);
                 for (i = 0; i < e[0xC]; i++) {
                     func_001C9D50(&D_00286340[i * 0x40], &D_00288D40[i * 0x40],
                                   &D_00287F40[i * 0x40], wy);
@@ -245,7 +245,7 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
             } else {
                 *(int *)(st + 0x28) = 7;
             }
-            func_00102958(D_700036A0, (void *)(*(int *)(e + 0x17C) + 0x90));
+            copy_qw4(D_700036A0, (void *)(*(int *)(e + 0x17C) + 0x90));
             *(float *)0x700038A0 = 11.0f;
             *(int *)0x700038A4 = 0;
             *(int *)0x700038A8 = 0;
@@ -281,7 +281,7 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
                 *(int *)(st + 0x2C) = *(int *)(st + 0x2C) - 1;
             } else {
                 *(int *)(st + 0x2C) = 10;
-                func_00102958(D_700036A0, (void *)(*(int *)(e + 0x180) + 0x90));
+                copy_qw4(D_700036A0, (void *)(*(int *)(e + 0x180) + 0x90));
                 *(float *)0x700038A0 = 8.0f;
                 *(int *)0x700038A4 = 0;
                 *(int *)0x700038A8 = 0;
@@ -340,9 +340,9 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
             e[6] = e[6] + 1;
             st[0x83] = 0;
             if (e[0xD] & 0x80) {
-                func_001C67E0(e, 0xC, 5.0f, 0.0f);
+                anim_clip_init(e, 0xC, 5.0f, 0.0f);
             } else {
-                func_001C67E0(e, 0xA, 5.0f, 0.0f);
+                anim_clip_init(e, 0xA, 5.0f, 0.0f);
             }
         }
         break;

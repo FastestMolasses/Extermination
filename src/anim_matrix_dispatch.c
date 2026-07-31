@@ -18,18 +18,18 @@
 // obj+0x27C, then publishes the fully blended matrices to the per-bone
 // scratch table (D_00275B40) and applies a post-process (func_00102760) to
 // each of the first 3 words per bone matrix, before handing off to the clip
-// arbiter func_001749F0.
+// arbiter anim_clip_arbiter.
 typedef struct Mat4 { unsigned char _b[0x40]; } Mat4;
 extern int *D_00275B40;
 extern Mat4 D_00286340;
 extern Mat4 D_00287140;
 extern Mat4 D_00287F40;
 extern Mat4 D_00288D40;
-extern short func_0017A0B0(unsigned char *, int);
-extern void func_00179BC0(unsigned char *, int, Mat4 *);
+extern short anim_slot_index(unsigned char *, int);
+extern void bone_matrix_publish(unsigned char *, int, Mat4 *);
 extern void func_00179CA0(Mat4 *, Mat4 *, Mat4 *, float);
 extern void func_00102760(void *, void *);
-extern int func_001749F0(unsigned char *, int, int, float);
+extern int anim_clip_arbiter(unsigned char *, int, int, float);
 
 void anim_matrix_dispatch(unsigned char *obj)
 {
@@ -37,17 +37,17 @@ void anim_matrix_dispatch(unsigned char *obj)
     Mat4 *m1, *m2, *m3;
 
     if (*(float *)(obj + 0x278) <= 0.0f) {
-        func_00179BC0(obj, func_0017A0B0(obj, 2), &D_00287140);
+        bone_matrix_publish(obj, anim_slot_index(obj, 2), &D_00287140);
     } else if (*(float *)(obj + 0x278) >= 1.0f) {
-        func_00179BC0(obj, func_0017A0B0(obj, 1), &D_00287140);
+        bone_matrix_publish(obj, anim_slot_index(obj, 1), &D_00287140);
     } else {
-        func_00179BC0(obj, func_0017A0B0(0, 0), &D_00288D40);
+        bone_matrix_publish(obj, anim_slot_index(0, 0), &D_00288D40);
         if (*(float *)(obj + 0x278) <= 0.5f) {
             *(float *)0x70003A20 = 0.5f - *(float *)(obj + 0x278);
-            func_00179BC0(obj, func_0017A0B0(obj, 2), &D_00287F40);
+            bone_matrix_publish(obj, anim_slot_index(obj, 2), &D_00287F40);
         } else {
             *(float *)0x70003A20 = *(float *)(obj + 0x278) - 0.5f;
-            func_00179BC0(obj, func_0017A0B0(obj, 1), &D_00287F40);
+            bone_matrix_publish(obj, anim_slot_index(obj, 1), &D_00287F40);
         }
         m1 = &D_00287F40;
         m2 = &D_00288D40;
@@ -62,17 +62,17 @@ void anim_matrix_dispatch(unsigned char *obj)
 
     if (*(float *)(obj + 0x27C) <= 0.5f) {
         if (*(float *)(obj + 0x278) <= 0.0f) {
-            func_00179BC0(obj, func_0017A0B0(obj, 8), &D_00286340);
+            bone_matrix_publish(obj, anim_slot_index(obj, 8), &D_00286340);
         } else if (*(float *)(obj + 0x278) >= 1.0f) {
-            func_00179BC0(obj, func_0017A0B0(obj, 7), &D_00286340);
+            bone_matrix_publish(obj, anim_slot_index(obj, 7), &D_00286340);
         } else {
-            func_00179BC0(obj, func_0017A0B0(obj, 4), &D_00288D40);
+            bone_matrix_publish(obj, anim_slot_index(obj, 4), &D_00288D40);
             if (*(float *)(obj + 0x278) <= 0.5f) {
                 *(float *)0x70003A20 = 0.5f - *(float *)(obj + 0x278);
-                func_00179BC0(obj, func_0017A0B0(obj, 8), &D_00287F40);
+                bone_matrix_publish(obj, anim_slot_index(obj, 8), &D_00287F40);
             } else {
                 *(float *)0x70003A20 = *(float *)(obj + 0x278) - 0.5f;
-                func_00179BC0(obj, func_0017A0B0(obj, 7), &D_00287F40);
+                bone_matrix_publish(obj, anim_slot_index(obj, 7), &D_00287F40);
             }
             m1 = &D_00287F40;
             m2 = &D_00288D40;
@@ -86,17 +86,17 @@ void anim_matrix_dispatch(unsigned char *obj)
         }
     } else {
         if (*(float *)(obj + 0x278) <= 0.0f) {
-            func_00179BC0(obj, func_0017A0B0(obj, 6), &D_00286340);
+            bone_matrix_publish(obj, anim_slot_index(obj, 6), &D_00286340);
         } else if (*(float *)(obj + 0x278) >= 1.0f) {
-            func_00179BC0(obj, func_0017A0B0(obj, 5), &D_00286340);
+            bone_matrix_publish(obj, anim_slot_index(obj, 5), &D_00286340);
         } else {
-            func_00179BC0(obj, func_0017A0B0(obj, 3), &D_00288D40);
+            bone_matrix_publish(obj, anim_slot_index(obj, 3), &D_00288D40);
             if (*(float *)(obj + 0x278) <= 0.5f) {
                 *(float *)0x70003A20 = 0.5f - *(float *)(obj + 0x278);
-                func_00179BC0(obj, func_0017A0B0(obj, 6), &D_00287F40);
+                bone_matrix_publish(obj, anim_slot_index(obj, 6), &D_00287F40);
             } else {
                 *(float *)0x70003A20 = *(float *)(obj + 0x278) - 0.5f;
-                func_00179BC0(obj, func_0017A0B0(obj, 5), &D_00287F40);
+                bone_matrix_publish(obj, anim_slot_index(obj, 5), &D_00287F40);
             }
             m1 = &D_00287F40;
             m2 = &D_00288D40;
@@ -139,5 +139,5 @@ void anim_matrix_dispatch(unsigned char *obj)
     }
 
     obj[0x303] = 1;
-    func_001749F0(obj, func_0017A0B0(obj, 0), 0, (float)*(short *)(obj + 0x276));
+    anim_clip_arbiter(obj, anim_slot_index(obj, 0), 0, (float)*(short *)(obj + 0x276));
 }

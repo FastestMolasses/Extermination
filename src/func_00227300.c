@@ -7,7 +7,7 @@
 //   mode 0/1: tag the OSD (sub-state 9), run the "approach" evaluator
 //     (func_002280F0/func_002283B0) and transition arg0+1/arg0+2 per its
 //     result code (0..4).
-//   mode 2: run func_002293B0 (a housekeeping pass), then dispatch on the
+//   mode 2: run sub__02d_02d_02d (a housekeeping pass), then dispatch on the
 //     sub-state byte arg0+2 (0..4) into the melee/attack sub-machine, each
 //     branch running its own evaluator (func_00229170/func_00227980/the
 //     grapple-vs-strike selector) and transitioning arg0+1/arg0+2 again;

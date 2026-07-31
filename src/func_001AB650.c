@@ -1,7 +1,7 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 // Frame-task table zero: memset(slot, 0, 0x20) over the 3 slots at D_0028A750
 // (func_00121A28 is the engine memset). Called once from the main loop's init
-// block (func_001AAE40) before task_register(0, boot task 0x001AB7E0).
+// block (gs_readback_queue_run) before task_register(0, boot task 0x001AB7E0).
 //
 // DECOMP WIP — NOT byte-matching (89.5%, up from 68.7%); linked from the
 // splat .s via fill_unmatched SIZE_DRIFT_FORCE_ASM. Two residual diffs, both

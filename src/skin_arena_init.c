@@ -3,14 +3,14 @@
 //
 // Double-buffer initializer: copies 14 fixed 0x80-byte source blocks
 // (D_002514D0 .. D_00251B50, contiguous at 0x80 stride) into 14 destination
-// buffers (D_00816440 .. D_00817140) via func_00121870(dst, src, 0x80), then
+// buffers (D_00816440 .. D_00817140) via block_copy(dst, src, 0x80), then
 // runs the whole batch a second time with every destination advanced by 0x80
 // (so each of the 14 buffers is 0x100 bytes, filled in two halves). 9 of the
 // destination cursors live in callee-saved regs; the 5 stored on the stack
 // occupy 0xB0..0xF0 with the loop counter spilled to 0xA0 -- declaring the
 // counter first makes mwcc assign it the low 0xA0 slot, which is the key to
 // the match. mwcc 2.3.3 byte-identical; pinned 991202 build reaches 75.9%.
-extern void func_00121870(char *dst, char *src, int n);
+extern void block_copy(char *dst, char *src, int n);
 
 extern char D_002514D0;
 extern char D_00251550;
@@ -75,20 +75,20 @@ void skin_arena_init(void) {
     ps6 = &D_00817140;
 
     for (i = 0; i < 2; i++) {
-        func_00121870(pB0, &D_002514D0, 0x80);
-        func_00121870(pC0, &D_00251550, 0x80);
-        func_00121870(pD0, &D_002515D0, 0x80);
-        func_00121870(pE0, &D_00251650, 0x80);
-        func_00121870(pF0, &D_002516D0, 0x80);
-        func_00121870(pfp, &D_00251750, 0x80);
-        func_00121870(ps7, &D_002517D0, 0x80);
-        func_00121870(ps0, &D_00251850, 0x80);
-        func_00121870(ps1, &D_002518D0, 0x80);
-        func_00121870(ps2, &D_00251950, 0x80);
-        func_00121870(ps3, &D_002519D0, 0x80);
-        func_00121870(ps4, &D_00251A50, 0x80);
-        func_00121870(ps5, &D_00251AD0, 0x80);
-        func_00121870(ps6, &D_00251B50, 0x80);
+        block_copy(pB0, &D_002514D0, 0x80);
+        block_copy(pC0, &D_00251550, 0x80);
+        block_copy(pD0, &D_002515D0, 0x80);
+        block_copy(pE0, &D_00251650, 0x80);
+        block_copy(pF0, &D_002516D0, 0x80);
+        block_copy(pfp, &D_00251750, 0x80);
+        block_copy(ps7, &D_002517D0, 0x80);
+        block_copy(ps0, &D_00251850, 0x80);
+        block_copy(ps1, &D_002518D0, 0x80);
+        block_copy(ps2, &D_00251950, 0x80);
+        block_copy(ps3, &D_002519D0, 0x80);
+        block_copy(ps4, &D_00251A50, 0x80);
+        block_copy(ps5, &D_00251AD0, 0x80);
+        block_copy(ps6, &D_00251B50, 0x80);
         pfp += 0x80;
         ps7 += 0x80;
         ps0 += 0x80;

@@ -2,7 +2,7 @@
 //
 // objdiff 96.50% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Same two artifacts as func_00148B40; 1080/1128 instructions byte-identical. All logic recovered and cross-checked instruction-by-instruction: the 6 level/sub-level exclusion-box chains (including the nested shared-Y test that only level 0xF uses), the forward/side probe combination and the descen...
+// Same two artifacts as anim_matrix_multi; 1080/1128 instructions byte-identical. All logic recovered and cross-checked instruction-by-instruction: the 6 level/sub-level exclusion-box chains (including the nested shared-Y test that only level 0xF uses), the forward/side probe combination and the descen...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

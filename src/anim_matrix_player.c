@@ -2,7 +2,7 @@
 //
 // objdiff 82.85% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// NEARMISS: player-character bone-matrix-transition writer (documented in docs/FINDINGS.md ~line 2723 as the writer of D_00287F40/D_00288D40, driven by D_00275B40, the per-bone source-pointer table published by func_001CB5B0). Fully recovered logic: state-driven branch on arg0+0x1F1 selecting a sin...
+// NEARMISS: player-character bone-matrix-transition writer (documented in docs/FINDINGS.md ~line 2723 as the writer of D_00287F40/D_00288D40, driven by D_00275B40, the per-bone source-pointer table published by anim_bone_array_setup). Fully recovered logic: state-driven branch on arg0+0x1F1 selecting a sin...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,8 +11,8 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
-extern void func_00102958(void *, void *);
-extern void func_001749F0(char *, int, int, float);
+extern void copy_qw4(void *, void *);
+extern void anim_clip_arbiter(char *, int, int, float);
 extern void func_00179D20(char *);
 extern void func_00179FF0(char *);
 extern int func_0017B490(int, unsigned char, int);
@@ -37,7 +37,7 @@ void anim_matrix_player(char *arg0) {
         if (s1 != a1) {
             f20 = func_001C61D0(*(int *)(s0 + 0x40), a1);
             f0 = func_001C61D0(*(int *)(s0 + 0x40), s1);
-            func_001749F0(s0, s1, 0, f0 * ((f20 - *(float *)(s0 + 0x3C)) / f20));
+            anim_clip_arbiter(s0, s1, 0, f0 * ((f20 - *(float *)(s0 + 0x3C)) / f20));
         }
         return;
     }
@@ -55,16 +55,16 @@ void anim_matrix_player(char *arg0) {
 
     p = &D_00288D40;
     for (i = 0; i < *(unsigned char *)(s0 + 0xC); i++) {
-        func_00102958(p, D_00275B40[i] + 0x90);
+        copy_qw4(p, D_00275B40[i] + 0x90);
         p += 0x40;
     }
 
-    func_001749F0(s0, s5, 0, f22 * ((f21 - f20) / f21));
+    anim_clip_arbiter(s0, s5, 0, f22 * ((f21 - f20) / f21));
     func_00179D20(s0);
 
     p = &D_00287F40;
     for (i = 0; i < *(unsigned char *)(s0 + 0xC); i++) {
-        func_00102958(p, D_00275B40[i] + 0x90);
+        copy_qw4(p, D_00275B40[i] + 0x90);
         p += 0x40;
     }
 
@@ -80,6 +80,6 @@ void anim_matrix_player(char *arg0) {
 
     func_00179FF0(s0);
     if (*(float *)(s0 + 0x208) < 1.0f) {
-        func_001749F0(s0, a1, 0, f21 - f20);
+        anim_clip_arbiter(s0, a1, 0, f21 - f20);
     }
 }

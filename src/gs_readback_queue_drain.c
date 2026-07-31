@@ -22,10 +22,10 @@
 // Semantics: if global count D_00275C08 != 0, iterate i over [0,count). Each
 // iteration indexes a 0x48-stride record e within a per-actor row of the
 // D_008172C0 table (row = (D_00275670+0x9C)*0x480). Reads two floats e[0],e[1],
-// passes them through func_001281C0, then builds a DMA/transfer descriptor in a
-// 0x70-byte stack scratch via func_00100D78 (args: scratch, sign-extended
+// passes them through float_to_int, then builds a DMA/transfer descriptor in a
+// 0x70-byte stack scratch via gs_readback_build_packet (args: scratch, sign-extended
 // (D_00810F10 & 0x1FF)<<5, D_00810F02 & 0x3F, 0x31, the two float results, 8, 8),
-// disables a DMAC handler, copies e+8 into the scratch (func_00100EB8), and kicks
+// disables a DMAC handler, copies e+8 into the scratch (gs_vram_readback), and kicks
 // the transfer (sub_D2_TADR_08x). After the loop, clears the count D_00275C08 = 0.
 // Note D_00810F10/D_00810F02 are absolute-addressed (declared as arrays to push
 // them past the sdata threshold so they are NOT gp-relative, matching the target).
@@ -36,10 +36,10 @@ extern unsigned char D_00810F02[];
 extern unsigned short D_00810F10[];
 extern char D_008172C0[];
 
-extern int func_001281C0(float f);
-extern void func_00100D78(void *p, long a1, int a2, int a3, int t0, int t1, int t2, int t3);
+extern int float_to_int(float f);
+extern void gs_readback_build_packet(void *p, long a1, int a2, int a3, int t0, int t1, int t2, int t3);
 extern void DisableDmacHandler(int ch);
-extern void func_00100EB8(void *p, char *src);
+extern void gs_vram_readback(void *p, char *src);
 extern void sub_D2_TADR_08x(int a, int b);
 
 void gs_readback_queue_drain(void) {
@@ -55,11 +55,11 @@ void gs_readback_queue_drain(void) {
         off = 0;
         while (i < D_00275C08) {
             e = off + (D_008172C0 + *(int *)((char *)D_00275670 + 0x9C) * 0x480);
-            r0 = func_001281C0(*(float *)(e + 0));
-            r1 = func_001281C0(*(float *)(e + 4));
-            func_00100D78(sp50, (short)((D_00810F10[0] & 0x1FF) << 5), D_00810F02[0] & 0x3F, 0x31, r0, r1, 8, 8);
+            r0 = float_to_int(*(float *)(e + 0));
+            r1 = float_to_int(*(float *)(e + 4));
+            gs_readback_build_packet(sp50, (short)((D_00810F10[0] & 0x1FF) << 5), D_00810F02[0] & 0x3F, 0x31, r0, r1, 8, 8);
             DisableDmacHandler(0);
-            func_00100EB8(sp50, e + 8);
+            gs_vram_readback(sp50, e + 8);
             sub_D2_TADR_08x(0, 0);
             off += 0x48;
             i += 1;

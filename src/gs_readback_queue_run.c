@@ -73,7 +73,7 @@ extern void func_0011B5E0(void);
 extern void func_0011B328(void);
 extern void func_0011AE88(void);
 extern void func_0011A9D8(void);
-extern void func_001D7410(void);
+extern void gs_readback_queue_drain(void);
 extern void func_001AB590(void);
 extern void func_00203350(void);
 extern void func_001D1C10(int);
@@ -135,7 +135,7 @@ void gs_readback_queue_run(void) {
             func_0011AE88();
             func_0011A9D8();
         }
-        func_001D7410();
+        gs_readback_queue_drain();
         func_001AB590();
         if (D_00821058 == 1) {
             func_00203350();
