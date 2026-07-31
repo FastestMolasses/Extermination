@@ -1,11 +1,20 @@
-// INCLUDE_ASM sub_work_area_size_is_too_small  (vram unknown, 104 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/sub_work_area_size_is_too_small.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+
+extern void func_0010A3A8(const char *msg);
+extern const char D_0026B5E8[];
+
+unsigned int sub_work_area_size_is_too_small(unsigned int *heap, unsigned int size, unsigned int align)
+{
+    unsigned int cur;
+    unsigned int end;
+
+    cur = (heap[2] + align - 1) / align * align;
+    end = cur + size;
+    if (heap[0] + heap[1] >= end) {
+        heap[2] = end;
+        return cur;
+    }
+    func_0010A3A8(D_0026B5E8);
+    return 0;
+}

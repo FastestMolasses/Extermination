@@ -1766,6 +1766,14 @@
       }
     },
     {
+      "name": "func_00106CB0",
+      "target_path": "build/expected/func_00106CB0.o",
+      "base_path": "build/obj/func_00106CB0.o",
+      "metadata": {
+        "source_path": "src/func_00106CB0.c"
+      }
+    },
+    {
       "name": "func_00106E30",
       "target_path": "build/expected/func_00106E30.o",
       "base_path": "build/obj/func_00106E30.o",
@@ -1779,6 +1787,14 @@
       "base_path": "build/obj/func_00107060.o",
       "metadata": {
         "source_path": "src/func_00107060.c"
+      }
+    },
+    {
+      "name": "func_00107178",
+      "target_path": "build/expected/func_00107178.o",
+      "base_path": "build/obj/func_00107178.o",
+      "metadata": {
+        "source_path": "src/func_00107178.c"
       }
     },
     {
@@ -1798,11 +1814,27 @@
       }
     },
     {
+      "name": "func_00107AC8",
+      "target_path": "build/expected/func_00107AC8.o",
+      "base_path": "build/obj/func_00107AC8.o",
+      "metadata": {
+        "source_path": "src/func_00107AC8.c"
+      }
+    },
+    {
       "name": "func_00107CB8",
       "target_path": "build/expected/func_00107CB8.o",
       "base_path": "build/obj/func_00107CB8.o",
       "metadata": {
         "source_path": "src/func_00107CB8.c"
+      }
+    },
+    {
+      "name": "func_00107FA0",
+      "target_path": "build/expected/func_00107FA0.o",
+      "base_path": "build/obj/func_00107FA0.o",
+      "metadata": {
+        "source_path": "src/func_00107FA0.c"
       }
     },
     {
@@ -3659,6 +3691,14 @@
       "base_path": "build/obj/func_00117D18.o",
       "metadata": {
         "source_path": "src/func_00117D18.c"
+      }
+    },
+    {
+      "name": "func_00117EE8",
+      "target_path": "build/expected/func_00117EE8.o",
+      "base_path": "build/obj/func_00117EE8.o",
+      "metadata": {
+        "source_path": "src/func_00117EE8.c"
       }
     },
     {
@@ -16294,11 +16334,27 @@
       }
     },
     {
+      "name": "sub_Invalid_macroblock_address_incre",
+      "target_path": "build/expected/sub_Invalid_macroblock_address_incre.o",
+      "base_path": "build/obj/sub_Invalid_macroblock_address_incre.o",
+      "metadata": {
+        "source_path": "src/sub_Invalid_macroblock_address_incre.c"
+      }
+    },
+    {
       "name": "sub_NIGHT_VISION_SYSTEM",
       "target_path": "build/expected/sub_NIGHT_VISION_SYSTEM.o",
       "base_path": "build/obj/sub_NIGHT_VISION_SYSTEM.o",
       "metadata": {
         "source_path": "src/sub_NIGHT_VISION_SYSTEM.c"
+      }
+    },
+    {
+      "name": "sub_PsIIlibpad_2000_2",
+      "target_path": "build/expected/sub_PsIIlibpad_2000_2.o",
+      "base_path": "build/obj/sub_PsIIlibpad_2000_2.o",
+      "metadata": {
+        "source_path": "src/sub_PsIIlibpad_2000_2.c"
       }
     },
     {
@@ -16310,11 +16366,123 @@
       }
     },
     {
+      "name": "sub_Skip_to_the_next_picture",
+      "target_path": "build/expected/sub_Skip_to_the_next_picture.o",
+      "base_path": "build/obj/sub_Skip_to_the_next_picture.o",
+      "metadata": {
+        "source_path": "src/sub_Skip_to_the_next_picture.c"
+      }
+    },
+    {
       "name": "sub_TACTICAL_ADVANCED",
       "target_path": "build/expected/sub_TACTICAL_ADVANCED.o",
       "base_path": "build/obj/sub_TACTICAL_ADVANCED.o",
       "metadata": {
         "source_path": "src/sub_TACTICAL_ADVANCED.c"
+      }
+    },
+    {
+      "name": "sub_Too_many_macroblocks_in_picture",
+      "target_path": "build/expected/sub_Too_many_macroblocks_in_picture.o",
+      "base_path": "build/obj/sub_Too_many_macroblocks_in_picture.o",
+      "metadata": {
+        "source_path": "src/sub_Too_many_macroblocks_in_picture.c"
+      }
+    },
+    {
+      "name": "sub__9PsIIlibkernl2000",
+      "target_path": "build/expected/sub__9PsIIlibkernl2000.o",
+      "base_path": "build/obj/sub__9PsIIlibkernl2000.o",
+      "metadata": {
+        "source_path": "src/sub__9PsIIlibkernl2000.c"
+      }
+    },
+    {
+      "name": "sub__9PsIIlibkernl2000_2",
+      "target_path": "build/expected/sub__9PsIIlibkernl2000_2.o",
+      "base_path": "build/obj/sub__9PsIIlibkernl2000_2.o",
+      "metadata": {
+        "source_path": "src/sub__9PsIIlibkernl2000_2.c"
+      }
+    },
+    {
+      "name": "sub__9PsIIlibkernl2000_3",
+      "target_path": "build/expected/sub__9PsIIlibkernl2000_3.o",
+      "base_path": "build/obj/sub__9PsIIlibkernl2000_3.o",
+      "metadata": {
+        "source_path": "src/sub__9PsIIlibkernl2000_3.c"
+      }
+    },
+    {
+      "name": "sub__9PsIIlibkernl2000_4",
+      "target_path": "build/expected/sub__9PsIIlibkernl2000_4.o",
+      "base_path": "build/obj/sub__9PsIIlibkernl2000_4.o",
+      "metadata": {
+        "source_path": "src/sub__9PsIIlibkernl2000_4.c"
+      }
+    },
+    {
+      "name": "sub_intra_skip_MB",
+      "target_path": "build/expected/sub_intra_skip_MB.o",
+      "base_path": "build/obj/sub_intra_skip_MB.o",
+      "metadata": {
+        "source_path": "src/sub_intra_skip_MB.c"
+      }
+    },
+    {
+      "name": "sub_load_chroma_non_intra_quantizer_",
+      "target_path": "build/expected/sub_load_chroma_non_intra_quantizer_.o",
+      "base_path": "build/obj/sub_load_chroma_non_intra_quantizer_.o",
+      "metadata": {
+        "source_path": "src/sub_load_chroma_non_intra_quantizer_.c"
+      }
+    },
+    {
+      "name": "sub_odd_number_of_field_pictures",
+      "target_path": "build/expected/sub_odd_number_of_field_pictures.o",
+      "base_path": "build/obj/sub_odd_number_of_field_pictures.o",
+      "metadata": {
+        "source_path": "src/sub_odd_number_of_field_pictures.c"
+      }
+    },
+    {
+      "name": "sub_skiped_macroblock_in_I_picure_is",
+      "target_path": "build/expected/sub_skiped_macroblock_in_I_picure_is.o",
+      "base_path": "build/obj/sub_skiped_macroblock_in_I_picure_is.o",
+      "metadata": {
+        "source_path": "src/sub_skiped_macroblock_in_I_picure_is.c"
+      }
+    },
+    {
+      "name": "sub_slice_start_code_0x_08x_out_of_r",
+      "target_path": "build/expected/sub_slice_start_code_0x_08x_out_of_r.o",
+      "base_path": "build/obj/sub_slice_start_code_0x_08x_out_of_r.o",
+      "metadata": {
+        "source_path": "src/sub_slice_start_code_0x_08x_out_of_r.c"
+      }
+    },
+    {
+      "name": "sub_the_second_field_is_missing",
+      "target_path": "build/expected/sub_the_second_field_is_missing.o",
+      "base_path": "build/obj/sub_the_second_field_is_missing.o",
+      "metadata": {
+        "source_path": "src/sub_the_second_field_is_missing.c"
+      }
+    },
+    {
+      "name": "sub_vertical_size_2800",
+      "target_path": "build/expected/sub_vertical_size_2800.o",
+      "base_path": "build/obj/sub_vertical_size_2800.o",
+      "metadata": {
+        "source_path": "src/sub_vertical_size_2800.c"
+      }
+    },
+    {
+      "name": "sub_work_area_size_is_too_small",
+      "target_path": "build/expected/sub_work_area_size_is_too_small.o",
+      "base_path": "build/obj/sub_work_area_size_is_too_small.o",
+      "metadata": {
+        "source_path": "src/sub_work_area_size_is_too_small.c"
       }
     },
     {

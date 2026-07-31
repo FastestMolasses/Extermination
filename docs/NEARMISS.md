@@ -813,3 +813,9 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00113280 | 0x00113280 | 0x1F8 | 98.93% | ee-gcc 2.9-991111-01 | ee-gcc callee-saved GPR coloring permutation (confirmed fast-park class). All 126 instruct |
 | func_00111818 | 0x00111818 | 0xA0 | 86.75% | ee-gcc 2.9-991111-01 | eegcc delay-slot-fill placement wall. Logic/structure fully recovered: uncached-segment al |
 | func_00119650 | 0x00119650 | 0x13C | 79.62% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring + preheader address-materialization permutation (confirmed no-lever cla |
+| init_vtable_a0_at_0011FE90 | 0xvtable_a0_at_0011FE90 | 0x58 | 99.27% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall (register-pressure variant). All 22 instructions are correct; on |
+| sub_PsIIlibpad_2000 | 0xsIIlibpad_2000 | 0x134 | 99.74% | ee-gcc 2.9-991111-01 | splat D_FFFF pseudo-symbol wall (HARD, unreachable from C — same class as the documented D |
+| dma_wait_and_submit | 0xait_and_submit | 0x314 | 89.69% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall (+ minor GPR coloring). Body/structure fully recovered: all 5 po |
+| sub_The_size_of_work_area_is_too_sma | 0xhe_size_of_work_area_is_too_sma | 0x23C | 70.95% | ee-gcc 2.9-991111-01 | eegcc sibling-call wall + downstream list-scheduler wall. Everything up to the three trail |
+| func_001002E0 | 0x001002E0 | 0x270 | 65.22% | ee-gcc 2.9-991111-01 | eegcc list-scheduler + regalloc wall inside the four DISPLAY-building arms. Head is byte-i |
+| sub_TTY_receive_error | 0xTY_receive_error | 0x194 | 97.11% | ee-gcc 2.9-991111-01 | eegcc GPR coloring wall (no permuter lever). Body/structure/size are exact: our .text = 0x |

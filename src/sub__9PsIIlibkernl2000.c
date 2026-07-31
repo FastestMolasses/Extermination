@@ -1,11 +1,20 @@
-// INCLUDE_ASM sub__9PsIIlibkernl2000  (vram unknown, 124 bytes)
-// UNDECOMPILED placeholder. The byte-identical machine code for this
-// function is assembled from the local splat disassembly (git-ignored;
-// regenerate with `build.py setup` from your own disc) and linked by
-// fill_unmatched.py — so the rebuilt ELF stays byte-identical with or
-// without this file. build.py does NOT compile INCLUDE_ASM stubs.
-//
-// To decompile: replace this file with C that compiles byte-identical,
-// verified with objdiff against build/expected/sub__9PsIIlibkernl2000.o. See
-// docs/PROGRESS.md for the matching idioms and the function index in
-// docs/FUNCTIONS.csv.
+// COMPILER: eegcc
+// CFLAGS: -O2
+
+extern int func_0010CE28(void);
+extern int func_0010CC08(char *buf, int len);
+extern int D_00241C60;
+
+int sub__9PsIIlibkernl2000(int fd, char *buf, int len)
+{
+    if (fd != 1 && fd != 2)
+        goto error;
+    if (D_00241C60 == 0) {
+        if (func_0010CE28() == 0)
+            goto error;
+        D_00241C60 = 1;
+    }
+    return func_0010CC08(buf, len);
+error:
+    return -1;
+}
