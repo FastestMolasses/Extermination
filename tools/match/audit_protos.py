@@ -14,6 +14,22 @@ takes K arguments, a parked file declaring something else is almost certainly
 wrong — matched files compile to the original bytes, so their view of the ABI is
 confirmed by construction.
 
+BUT NOT EVERY MISMATCH CHANGES CODEGEN, and the difference is worth ranking on.
+mwcc lowers a call by what the CALLER materializes, so if every parameter is
+pointer- or integer-sized, a wrong arity is inert: func_00177B80 had three flagged
+externs, all pointer-only, and correcting all three produced a BYTE-IDENTICAL
+object (score unchanged at 95.07%) — a true but useless finding that cost an agent
+most of its budget.
+
+The mismatches that bite are the ones that move a value between register CLASSES —
+i.e. where a float is present on one side and not the other, since floats go in
+$f12/$f13 and displace nothing in $a0-$a3. That is exactly the func_001749A0 case:
+declaring `(float, int, int)` put a float in $f12 and shifted the integers, while
+the real `(char*, int, int, float)` leaves $a0 holding the incoming pointer.
+
+So findings are ranked FLOAT-CLASS (likely to change codegen) above INT-ONLY
+(likely inert), and the summary reports both counts.
+
 Usage:
   audit_protos.py                 # report every disagreement, worst first
   audit_protos.py --min-votes 5   # only callees with >=5 agreeing matched files
@@ -77,6 +93,17 @@ def main() -> None:
         if n >= a.min_votes and n >= sum(tally.values()) * 0.8:
             auth[name] = (k, n)
 
+    # remember a representative corpus signature per callee, to judge float class
+    sig = {}
+    for fp in glob.glob("src/*.c"):
+        if classify(fp) != "matched":
+            continue
+        with open(fp, errors="ignore") as f:
+            text = f.read(8000)
+        for m in DECL.finditer(text):
+            if m.group(1) in auth and arity(m.group(2)) == auth[m.group(1)][0]:
+                sig.setdefault(m.group(1), m.group(2))
+
     findings = defaultdict(list)
     for fp in glob.glob("src/func_*.c"):
         if classify(fp) != "nearmiss":
@@ -87,22 +114,34 @@ def main() -> None:
             name = m.group(1)
             if name not in auth:
                 continue
-            got = arity(m.group(2))
+            got, want_args = arity(m.group(2)), sig.get(name, "")
             want, n = auth[name]
-            if got != want:
-                findings[os.path.basename(fp)[:-2]].append((name, got, want, n))
+            if got == want:
+                continue
+            # A mismatch only moves a value between register classes when a float
+            # is involved on one side and not the other. All-integer/pointer
+            # mismatches are inert for mwcc's call lowering (proven: func_00177B80).
+            floaty = ("float" in m.group(2)) != ("float" in want_args)
+            findings[os.path.basename(fp)[:-2]].append((name, got, want, n, floaty))
+
+    def rank(items):
+        return (any(v[4] for v in items), max(v[3] for v in items))
 
     if a.list:
-        for f in sorted(findings, key=lambda k: -max(v[3] for v in findings[k])):
+        for f in sorted(findings, key=lambda k: rank(findings[k]), reverse=True):
             print(f)
         return
 
-    ranked = sorted(findings.items(), key=lambda kv: -max(v[3] for v in kv[1]))
+    ranked = sorted(findings.items(), key=lambda kv: rank(kv[1]), reverse=True)
+    hi = sum(1 for _, v in ranked if any(x[4] for x in v))
     print(f"parked files with an extern contradicting the matched corpus: {len(ranked)}")
+    print(f"  FLOAT-CLASS (likely to change codegen): {hi}")
+    print(f"  INT-ONLY    (likely inert, deprioritize): {len(ranked) - hi}")
     print(f"(callees trusted only with >={a.min_votes} agreeing matched files and >=80% consensus)\n")
     for f, items in ranked[:30]:
         worst = max(items, key=lambda v: v[3])
-        print(f"  {f:20s} {len(items)} bad decl(s); worst: {worst[0]} "
+        tag = "FLOAT-CLASS" if any(x[4] for x in items) else "int-only   "
+        print(f"  {tag} {f:20s} {len(items)} bad decl(s); worst: {worst[0]} "
               f"declared {worst[1]}, corpus says {worst[2]} ({worst[3]} files)")
 
 

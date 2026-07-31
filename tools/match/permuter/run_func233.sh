@@ -47,7 +47,16 @@ chmod +x "$D/compile.sh"
 # permanent residual the permuter can never fix — it would burn a full budget chasing an
 # artifact of its own setup. (s85: caught by an agent on func_001A9C40.) Regenerate the
 # normalized file if it is missing or stale.
-.venv/bin/python3 -c "import sys;sys.path.insert(0,'tools/decomp');import build;build.normalize_asm('$FN')" 2>/dev/null
+# MUST NOT be fatal. This script runs both on the macOS host and INSIDE the
+# exterm-permuter container; .venv is a macOS venv, so in-container the interpreter
+# exits 127. Under `set -e` that aborted the whole script BEFORE assembling target.o
+# and before clearing output-*, so the run became a silent no-op that still exited
+# non-zero — an agent burned most of a budget working around it. Try the venv, then
+# any python3, and fall through to the raw .s if neither is usable.
+_norm='import sys;sys.path.insert(0,"tools/decomp");import build;build.normalize_asm("'"$FN"'")'
+.venv/bin/python3 -c "$_norm" 2>/dev/null \
+  || python3 -c "$_norm" 2>/dev/null \
+  || echo "[run_func233] note: could not regenerate build/.asmnorm/$FN.s; using whatever exists" >&2
 SRC_S="build/.asmnorm/$FN.s"
 [ -f "$SRC_S" ] || SRC_S="build/asm/matchings/main/code/$FN.s"
 mipsel-linux-gnu-as -march=r5900 config/asm_prelude.inc build/macro.inc \

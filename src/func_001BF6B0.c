@@ -1,8 +1,25 @@
 // NEARMISS func_001BF6B0  (vram 0x001BF6B0, 0x8DC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 95.90% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 95.90 with mwcc 2.3.3 (-O4,p -sdatathreshold 4); 34 diff rows out of 567 instructions (991202 gives 88.80, mwcc 2.4 gives 92.63). Decode verified line-by-line against the whole .s. The jtbl_0026E260 dispatch itself is CLEAN (no reloc or schedule residual). Residual breakdown: (1) 13 rows of idiom...
+// objdiff 99.958% via mwcc 2.3.3 (-O4,p -sdatathreshold 4); 7 diff rows / 567 instructions.
+// (Was 95.90%. s86: fixed 6 externs, applied idiom-27 + idiom-28, and switched the two
+// block-leading scratchpad zero-stores to the SYMBOL form.)
+//
+// Residual, exactly:
+//   (a) 4 rows: `lui at,%hi(D_700038A0)` / `sw zero,%lo(D_700038A0)(at)` at the head of
+//       case 0 and of the case-3 spread branch. These RELOCATE to precisely the target's
+//       `lui at,0x7000` / `sw zero,0x38a0(at)` — byte-identical after linking. They only
+//       show as a diff because splat symbolizes lui+addiu pairs for 0x700038A0 but leaves
+//       the lui+sw pairs as raw constants, so the expected object cannot carry the reloc.
+//       PROVEN (minimal probe, build/agent_ps_1/probe/p1..p6.c): mwcc 2.3.3 speculates a
+//       RAW `lui at,0x7000` into the preceding conditional-branch delay slot (and
+//       re-materializes it dead at the label) for EVERY raw spelling — absolute cast,
+//       volatile, base+index, live-zero value, added `default:`, pointer local. Only the
+//       RELOCATED lui is never speculated, which is what leaves the target's NOP. The
+//       original source therefore referenced these words by symbol.
+//   (b) 3 rows: `sll v1,v0,3 / sra v1,v1,15 / addiu v0,v1,0x12c` vs the same in v0 — a
+//       pure two-register colouring permutation in the cooldown RNG. No source spelling
+//       moves it (12 respellings tried; a minimal probe colours it differently again, so
+//       it is set by surrounding pressure, not by the expression). Permuter territory.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -53,10 +70,10 @@ extern int func_001D0C80();
 extern int func_001D0D40();
 extern int bone_init_default_1();
 extern int func_001C6380();
-extern int func_001026A0();
-extern int func_001028D0();
-extern int func_001028B8();
-extern int func_00102760();
+extern void func_001026A0(void *dst, void *m, void *src);
+extern void func_001028D0(void *dst, void *a, void *b);
+extern void func_001028B8(void *dst, void *a, void *b);
+extern void func_00102760(void *dst, void *src);
 extern float func_00102738(void *u, void *v);
 extern int func_001B17A0();
 extern int func_001B2140();
@@ -67,12 +84,12 @@ extern int func_001284E0();
 extern float func_0011E620(float y, float x);
 extern float func_001B1470(float x);
 extern int func_00122BB8();
-extern int func_001EFE00();
+extern int func_001EFE00(int a, void *b);
 extern void func_001C1500(void *actor, int mode, float x, float y, float z);
 extern int func_001C1570();
 extern int func_001D0D60(int model, float rate);
 extern int func_001AF890();
-extern int func_001B1190();
+extern void func_001B1190(int a);
 extern int func_001AFC10();
 extern int func_001BFFD0();
 
@@ -99,14 +116,14 @@ void func_001BF6B0(unsigned char *a) {
     tbl = D_008102B0;
     switch (a[4]) {
     case 0:
-        *(volatile int *)0x700038A0 = 0;
+        D_700038A0[0] = 0;
         *(volatile int *)0x700038A4 = 0x40000000;
         *(volatile int *)0x700038A8 = 0x40A00000;
         *(volatile int *)0x700038AC = 0x3F800000;
         *(int *)(a + 0x20) = func_001BEAC0(a, D_700038A0, 0x64, 1);
         if (*(int *)(a + 0x20) == 0) {
             a[4] = 3;
-            return;
+            break;
         }
         mate = func_001AFA90(2);
         if (mate != 0) {
@@ -119,7 +136,7 @@ void func_001BF6B0(unsigned char *a) {
             *(int *)(a + 0x24) = (int)mate;
         } else {
             a[4] = 3;
-            return;
+            break;
         }
         func_001D0C80(a, D_0028A518[0]);
         func_001D0D40(a, D_0024FD50, 0x5B, 1);
@@ -158,12 +175,12 @@ void func_001BF6B0(unsigned char *a) {
         func_00102760(D_700038F0, D_700038F0);
         *(float *)(sub + 8) = func_00102738(D_700038E0, D_700038F0);
         *(int *)(sub + 0x1C) = 0;
-        return;
+        break;
     case 1:
         func_001B17A0(a, a[4]);
         a[1] = 0;
         if (func_001B2140(a) == 0) {
-            return;
+            break;
         }
         a[1] = 1;
         switch (a[5]) {
@@ -177,7 +194,7 @@ void func_001BF6B0(unsigned char *a) {
                     func_001FBD50(a, 0x444, 0, 300.0f);
                 }
                 *(short *)(a + 0x28) += 1;
-                if (*(short *)(a + 0x28) >= 0x3D) {
+                if (*(short *)(a + 0x28) > 0x3C) {
                     a[5] = a[5] + 1;
                 }
             } else {
@@ -190,7 +207,7 @@ void func_001BF6B0(unsigned char *a) {
             }
             if (*(short *)(sub + 0) & 0x1000) {
                 a[5] = a[5] + 1;
-                if (*(volatile int *)0x700031F4 >= 0xB) {
+                if (*(volatile int *)0x700031F4 > 0xA) {
                     a[5] = 0;
                 } else {
                     func_001BF5B0(a, sub, 1);
@@ -200,7 +217,7 @@ void func_001BF6B0(unsigned char *a) {
             break;
         case 3:
             *(short *)(a + 0x28) += 1;
-            if (*(short *)(a + 0x28) >= 0x15) {
+            if (*(short *)(a + 0x28) > 0x14) {
                 *(volatile int *)0x700038B0 = 0;
                 *(volatile int *)0x700038B4 = 0x41200000;
                 *(volatile int *)0x700038B8 = 0;
@@ -212,7 +229,7 @@ void func_001BF6B0(unsigned char *a) {
                         func_001FBD50(a, 0x445, 0, 300.0f);
                     }
                 } else {
-                    *(volatile int *)0x700038A0 = 0;
+                    D_700038A0[0] = 0;
                     *(volatile float *)0x700038A4 = func_001B1470(func_0011E620(*(float *)(sub + 0xC), *(float *)(sub + 0x14)));
                     *(volatile int *)0x700038A8 = 0;
                     *(volatile int *)0x700038AC = 0x3F800000;
@@ -276,7 +293,7 @@ void func_001BF6B0(unsigned char *a) {
         func_001C6380(a);
         *(short *)(sub + 0) = func_001D0D60(*(int *)(a + 0x90), 1.0f);
         (*(void (**)(unsigned char *))(a + 0x4C))(a);
-        return;
+        break;
     case 2:
         if (func_001C1570(a) != 0) {
             a[4] = 3;
@@ -295,11 +312,11 @@ void func_001BF6B0(unsigned char *a) {
         if (*(float *)(a + 0x64) != 0.0f) {
             (*(void (**)(unsigned char *))(a + 0x4C))(a);
         }
-        return;
+        break;
     case 3:
         func_001AF890(*(int *)(a + 0x90), a[4]);
         func_001B1190(a[0x9A]);
         func_001AFC10(a);
-        return;
+        break;
     }
 }
