@@ -21,7 +21,7 @@ for (let i = 0; i < cands.length; i += BATCH) batches.push(cands.slice(i, i + BA
 const PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination. These functions are JUMP-TABLE DISPATCHERS (they switch on a field via a jtbl_XXXX jump table). They were previously un-decodable because splat stored the jump tables as raw \`.word 0xADDR\` blobs; we built tools/match/jtbl_prep.py which re-symbolizes them so m2c can now decode the switch. Your job: turn the m2c base into TRUE objdiff 100% byte-identical C. NEVER fake a match.
 
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}   SCRATCH: build/agent_${id}/ (use ONLY this)
-YOUR FUNCS: ${funcs.join(' ')}
+YOUR FUNCS: ${funcs.map(f => (typeof f === 'string' ? f : `${f.func}${f.pct != null ? ' (currently ' + f.pct + '%' + (f.cflags ? ', CFLAGS ' + f.cflags : '') + ')' : ''}`)).join('  ')}
 
 === STEP 0 — GET THE JTBL-AWARE m2c BASE (critical, do this FIRST per func) ===
 Run jtbl_prep to resymbolize the jump table, then feed BOTH files to m2c:

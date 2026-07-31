@@ -21,7 +21,7 @@ for (let i = 0; i < cands.length; i += BATCH) batches.push(cands.slice(i, i + BA
 const PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination. These are FRESH high-baseline (70-97% m2c) game stubs never before attempted. Turn each into TRUE objdiff 100.0 byte-identical C. NEVER fake a match. Several look like MPEG-2 FMV decoder / streaming library functions (names like pictureSpatialScalableExtension, load_chroma_non_intra_quantizer) — if one walls like SDK/ee-gcc codegen (EABI prologue, branch-likely you can't reproduce), PARK it and say so (it may be ee-gcc library code, not mwcc).
 
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}   SCRATCH: build/agent_${id}/ (ONLY this)
-YOUR FUNCS: ${funcs.join(' ')}
+YOUR FUNCS: ${funcs.map(f => (typeof f === 'string' ? f : `${f.func}${f.pct != null ? ' (currently ' + f.pct + '%' + (f.cflags ? ', CFLAGS ' + f.cflags : '') + ')' : ''}`)).join('  ')}
 
 PER-FUNCTION LOOP (S=build/agent_${id}):
 1. m2c base: PAIR=\$(.venv/bin/python3 tools/match/jtbl_prep.py <F>); if it prints two paths use \${=PAIR} (jtbl dispatcher — but note jr-table dispatchers are a PROVEN WALL, park them); else m2c on the plain .s:

@@ -21,7 +21,7 @@ for (let i = 0; i < cands.length; i += BATCH) batches.push(cands.slice(i, i + BA
 const PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination, jr-table NEARMISS lane. Your funcs are JUMP-TABLE DISPATCHERS (switch on a field via a jtbl_XXXX table). CORRECTED s85 — THIS CLASS IS MATCHABLE. The old 'proven unmatchable' verdict was based on a FALSE premise (that the original put all jump tables in one external rodata TU). In fact each table is .rodata of the SAME TU as its function, and our expected object was simply being assembled WITHOUT it. That is fixed (build/jtblrodata + normalize_asm), and 10 of the first 23 dispatchers now byte-match at 100.0. So DO chase 100.0 — treat the dispatch like any other code. Your goal is TRUE objdiff 100.0 byte-identical READABLE plain C — it will be committed as a documented // NEARMISS file (boot ELF stays byte-identical via the splat .s). Faithfulness of the decode is everything; NEVER guess semantics you have not verified against the .s.
 
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}   SCRATCH: build/agent_${id}/ (ONLY this)
-YOUR FUNCS: ${funcs.join(' ')}
+YOUR FUNCS: ${funcs.map(f => (typeof f === 'string' ? f : `${f.func}${f.pct != null ? ' (currently ' + f.pct + '%' + (f.cflags ? ', CFLAGS ' + f.cflags : '') + ')' : ''}`)).join('  ')}
 
 === STEP 0 — GET THE JTBL-AWARE m2c BASE (critical, do this FIRST per func) ===
   PAIR=$(.venv/bin/python3 tools/match/jtbl_prep.py <F>)          # prints two paths: "<F>.s <F>.jtbl.s"

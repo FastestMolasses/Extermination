@@ -21,7 +21,7 @@ for (let i = 0; i < cands.length; i += BATCH) batches.push(cands.slice(i, i + BA
 const PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination. RESEARCH ROUND: these funcs are PARKED near-misses (90-99.8% on mwcc 2.3.3) walled on REGISTER-ALLOCATION-ORDER or mwcc-vs-CW BRANCH-LOWERING — the function BODY already matches; only a register-numbering or scheduling/branch tie-break differs. We just integrated 3 additional CodeWarrior builds; a DIFFERENT build's allocator/scheduler may resolve that tie-break our way and hit TRUE objdiff 100.0. Your job: per func, decode the near-miss C, then sweep ALL FIVE builds and find which (if any) byte-matches. NEVER fake a match.
 
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}   SCRATCH: build/agent_${id}/ (ONLY this)
-YOUR FUNCS: ${funcs.join(' ')}
+YOUR FUNCS: ${funcs.map(f => (typeof f === 'string' ? f : `${f.func}${f.pct != null ? ' (currently ' + f.pct + '%' + (f.cflags ? ', CFLAGS ' + f.cflags : '') + ')' : ''}`)).join('  ')}
 
 THE FIVE BUILDS (all run: qemu-i386 tools/bin/wibo32 <exe> -c <FLAGS> -o <out> <src>):
   mwcc      = tools/mwccps2/mwccmips.exe       (991202, 2.3.1.01 core — default)

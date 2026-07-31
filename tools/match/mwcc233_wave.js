@@ -21,7 +21,7 @@ for (let i = 0; i < cands.length; i += BATCH) batches.push(cands.slice(i, i + BA
 const PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination. PROVEN s84: mwcc 2.3.3 (mwcps2-2.3.3-000906) byte-matches the clean-store idiom-13 delay-slot-nop case that the pinned 991202 build CANNOT (it fills the beqz delay slot with the safe li/lui). Your funcs are walled (stub or asm-void) on that wall. Produce TRUE objdiff 100.0 byte-identical READABLE C — the goal is readable C (so it must NOT be asm-void; write plain C with normal control flow), matched with whichever mwcc build hits 100.0. NEVER fake a match.
 
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}   SCRATCH: build/agent_${id}/ (ONLY this)
-YOUR FUNCS: ${funcs.join(' ')}
+YOUR FUNCS: ${funcs.map(f => (typeof f === 'string' ? f : `${f.func}${f.pct != null ? ' (currently ' + f.pct + '%' + (f.cflags ? ', CFLAGS ' + f.cflags : '') + ')' : ''}`)).join('  ')}
 
 THE PROVEN RECIPE (worked on func_001872C0):
 1. DECODE to readable PLAIN C: m2c base — .venv/bin/python3 tools/m2c/m2c.py --target mipsee-mwcc-c --valid-syntax build/asm/matchings/main/code/<F>.s 2>/dev/null | .venv/bin/python3 tools/match/m2c_clean.py — then rewrite in the COMMITTED-SRC convention: NO prelude/typedefs/M2C_ macros; use PLAIN C (int/char/unsigned char/float, explicit casts, \`extern\` decls, struct access as \`*(type *)(p + off)\` or array index). Apply MATCHING_GUIDE idioms to fix structure (struct field types, signatures, float vs int, the if(p){...}return 0; shape). Existing stub/asm-void file in src/<F>.c often documents SEMANTICS and the near-miss C — read it and PRESERVE the semantic comments.

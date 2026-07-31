@@ -32,7 +32,7 @@ const chunk = (a) => { const o = []; for (let i = 0; i < a.length; i += BATCH) o
 const MWCC_PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination. PROVEN s84: mwcc 2.3.3 (mwcps2-2.3.3-000906) byte-matches the clean-store idiom-13 delay-slot-nop case that the pinned 991202 build CANNOT (it fills the beqz delay slot with the safe li/lui). Your funcs are walled (stub or asm-void) on that wall. Produce TRUE objdiff 100.0 byte-identical READABLE C — the goal is readable C (so it must NOT be asm-void; write plain C with normal control flow), matched with whichever mwcc build hits 100.0. NEVER fake a match.
 
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}   SCRATCH: build/agent_${id}/ (ONLY this)
-YOUR FUNCS: ${funcs.join(' ')}
+YOUR FUNCS: ${funcs.map(f => (typeof f === 'string' ? f : `${f.func}${f.pct != null ? ' (currently ' + f.pct + '%' + (f.cflags ? ', CFLAGS ' + f.cflags : '') + ')' : ''}`)).join('  ')}
 
 THE PROVEN RECIPE:
 1. DECODE to readable PLAIN C: m2c base — .venv/bin/python3 tools/m2c/m2c.py --target mipsee-mwcc-c --valid-syntax build/asm/matchings/main/code/<F>.s 2>/dev/null | .venv/bin/python3 tools/match/m2c_clean.py — then rewrite in the COMMITTED-SRC convention: NO prelude/typedefs/M2C_ macros; use PLAIN C (int/char/unsigned char/float, explicit casts, \`extern\` decls, struct access as \`*(type *)(p + off)\` or array index). Apply docs/fanout/MATCHING_GUIDE.md idioms. Existing stub/asm-void file in src/<F>.c often documents SEMANTICS and the near-miss C — read it and PRESERVE the semantic comments.
@@ -65,7 +65,7 @@ const EEGCC_PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Exterm
 
 READ FIRST: docs/fanout/EEGCC_GUIDE.md (full workflow + ee-gcc codegen notes).
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}   SCRATCH: build/agent_${id}/ (ONLY this)
-YOUR FUNCS: ${funcs.join(' ')}
+YOUR FUNCS: ${funcs.map(f => (typeof f === 'string' ? f : `${f.func}${f.pct != null ? ' (currently ' + f.pct + '%' + (f.cflags ? ', CFLAGS ' + f.cflags : '') + ')' : ''}`)).join('  ')}
 
 PER-FUNCTION LOOP:
 1. Read build/asm/matchings/main/code/<F>.s — decode as normal gcc-2.x MIPS. Many SDK funcs are small syscall stubs / thin wrappers / list ops / bignum-math / libgcc soft-float — very matchable. IDENTIFY THE ORIGINAL SOURCE: much of this region is stock newlib / libgcc2.c / fp-bit.c (recent wins: __divdi3, __udivdi3, __mulsf3, _malloc_trim_r, sprintf). If you recognize the routine, reconstruct the canonical implementation — that is usually an exact match, not an approximation.

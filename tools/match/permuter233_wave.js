@@ -20,7 +20,7 @@ for (let i = 0; i < cands.length; i += BATCH) batches.push(cands.slice(i, i + BA
 const PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination. These funcs are PURE register-allocation-permutation near-misses: the function BODY already byte-matches at 97-99.8% on mwcc 2.3.3, and the ONLY residual is a saved-register numbering / coloring permutation (e.g. target s1/s0/s2 vs mwcc s0/s1/s2). The decomp-permuter is built for exactly this. Your job: get each to TRUE objdiff score 0 (100.0) by running the TUNED 2.3.3 permuter. NEVER fake a match.
 
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}
-YOUR FUNCS: ${funcs.join(' ')}
+YOUR FUNCS: ${funcs.map(f => (typeof f === 'string' ? f : `${f.func}${f.pct != null ? ' (currently ' + f.pct + '%' + (f.cflags ? ', CFLAGS ' + f.cflags : '') + ')' : ''}`)).join('  ')}
 READ FIRST: docs/fanout/PERMUTER_GUIDE.md (workflow) and the prior MATCH-ATTEMPT comments in each src/<F>.c / earlier wall notes (they describe the exact near-miss body + which sdatathreshold + the register permutation).
 
 PER-FUNCTION:

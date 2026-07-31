@@ -21,7 +21,7 @@ for (let i = 0; i < cands.length; i += BATCH) batches.push(cands.slice(i, i + BA
 const PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination. These are >=93% near-miss STUBS where the function BODY largely matches. Your job: re-derive a near-matching C, then BRUTE-FORCE the last register/scheduling delta with the decomp-permuter to TRUE objdiff score 0 (100.0). NEVER fake a match.
 
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}
-YOUR FUNCS: ${funcs.join(' ')}
+YOUR FUNCS: ${funcs.map(f => (typeof f === 'string' ? f : `${f.func}${f.pct != null ? ' (currently ' + f.pct + '%' + (f.cflags ? ', CFLAGS ' + f.cflags : '') + ')' : ''}`)).join('  ')}
 READ FIRST: docs/fanout/PERMUTER_GUIDE.md (the exact workflow) and docs/fanout/MATCHING_GUIDE.md (idioms + KNOWN WALLS).
 
 PER-FUNCTION:

@@ -21,7 +21,7 @@ for (let i = 0; i < cands.length; i += BATCH) batches.push(cands.slice(i, i + BA
 const PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination. BREAKTHROUGH you MUST believe: **mwcc 2.3.3 DOES emit MIPS branch-likely instructions (beql/bnel/beqzl/bnezl/blezl/bgezl/bc1tl/bc1fl).** 73 already-MATCHED mwcc funcs contain them. Prior agents WRONGLY parked your funcs claiming "mwcc cannot generate branch-likely from C" — that is FALSE. Your job: produce TRUE objdiff 100.0 byte-identical READABLE C for each, by writing the C shape that makes mwcc's scheduler emit the branch-likely the target uses. NEVER fake a match. Goal is READABLE plain C (not asm-void).
 
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}   SCRATCH: build/agent_${id}/ (ONLY this)
-YOUR FUNCS: ${funcs.join(' ')}
+YOUR FUNCS: ${funcs.map(f => (typeof f === 'string' ? f : `${f.func}${f.pct != null ? ' (currently ' + f.pct + '%' + (f.cflags ? ', CFLAGS ' + f.cflags : '') + ')' : ''}`)).join('  ')}
 
 STUDY THESE MATCHED EXAMPLES FIRST (read the src/ + the .s side by side to SEE the C->branch-likely correspondence):
   - src/func_0014E4F0.c  (mwcc233): switch(state) state-machine -> descending dispatch with 'beql a3,zero' + 'addiu v0,a3,1' (state+1) in the delay slot.
