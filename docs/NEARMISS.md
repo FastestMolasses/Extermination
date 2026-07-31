@@ -204,7 +204,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0013D220 | 0x0013D220 | 0xA4 | 98.41% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single branch delay-slot scheduling difference: target emits 'bnez v0,0x74; nop' (empty sl |
 | func_001B3440 | 0x001B3440 | 0xA4 | 92.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Delay-slot move scheduling on first call result: CW tests raw return reg (bnez v0) with `p |
 | func_001F4010 | 0x001F4010 | 0xA8 | 92.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation. Full logic recovered; needs -sdatathreshold 8 (D_00275C40 m |
-| func_001762E0 | 0x001762E0 | 0xAC | 94.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling / pointer-copy-direction artifact. Full logic recovered (hoisting t |
 | func_001D7A80 | 0x001D7A80 | 0xAC | 57.42% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation (permuter territory). Body fully recovered and struc |
 | func_001AB430 | 0x001AB430 | 0xB0 | 82.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling near-miss: target hoists shared lui %hi(D_00810118) and keeps sourc |
 | func_001AB4E0 | 0x001AB4E0 | 0xB0 | 88.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Constant-materialization + register-coloring near-miss: target keeps the masked-0 (andi a2 |
