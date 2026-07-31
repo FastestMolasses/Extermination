@@ -253,7 +253,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001C5570 | 0x001C5570 | 0x108 | 98.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-materialization artifact: target holds a 16-bit-masked zero (andi v0,zero,0xffff) |
 | func_00124F58 | 0x00124F58 | 0x10C | 84.03% | ee-gcc 2.9-991111-01 | EE-GCC function, not mwcc: disasm has daddu register moves, sd/ld 8-byte saves, and pervas |
 | func_001FEE60 | 0x001FEE60 | 0x10C | 96.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation permutation: body/control-flow/gp-rel all byte-faithful (96.69% mwcc23 |
-| func_0021E9C0 | 0x0021E9C0 | 0x10C | 96.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-coloring + constant-CSE artifact: target uses call-clobbered a1 for the switch-di |
 | func_0014A620 | 0x0014A620 | 0x110 | 96.76% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation/scheduling artifact. Body 100% logically correct (3-way state dispatch |
 | func_001CABA0 | 0x001CABA0 | 0x110 | 93.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation/scheduling artifact. Body 100% logically complete & faithful. Keys tha |
 | func_001D3E40 | 0x001D3E40 | 0x110 | 71.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation/scheduling artifact. Body logically complete & faithful (verified op-f |
@@ -357,7 +356,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001AEBE0 | 0x001AEBE0 | 0x1A0 | 99.47% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation. Body + structure fully recovered and byte-identical |
 | func_002117D0 | 0x002117D0 | 0x1A0 | 90.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation (FP odd-half coloring + arg-pointer lifetime split). Full  |
 | func_0012E0B0 | 0x0012E0B0 | 0x1A4 | 99.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW branch-target-alignment nop: original CodeWarrior pads a trailing `nop` (in the bnez de |
-| func_001747F0 | 0x001747F0 | 0x1A4 | 97.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two register-coloring/scheduling permutations (body byte-identical): (1) original CW defer |
 | func_0017F9E0 | 0x0017F9E0 | 0x1A4 | 99.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single speculative delay-slot fill (body byte-identical): mwcc hoists the post-if merge bl |
 | func_001AF2C0 | 0x001AF2C0 | 0x1A4 | 80.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling permutation of trailing independent global stores. Insns 0-29 (zero |
 | func_00151200 | 0x00151200 | 0x1A8 | 90.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + branch-likely-sense permutation in the 4-iteration loop. Body + struct |
@@ -506,7 +504,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001BA8E0 | 0x001BA8E0 | 0x320 | 72.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NPC-spawner type dispatch (sparse compare-chain, no jump table). Body/mapping table fully  |
 | func_00197D20 | 0x00197D20 | 0x324 | 89.28% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered including two fixed callee-signature bugs (func_001D2610 is |
 | func_001F1AA0 | 0x001F1AA0 | 0x328 | 76.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Full logic recovered: the FPU-MAC dot-product (dx*dx+dy*dy+dz*dz) auto-fuses to adda.s/mad |
-| func_00220D30 | 0x00220D30 | 0x328 | 85.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation wall on a 3-state (0/1/2) switch dispatcher wit |
 | func_0019C830 | 0x0019C830 | 0x32C | 85.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation. Instruction count is EXACTLY equal (219==219) be |
 | func_00154120 | 0x00154120 | 0x340 | 96.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two small residual clusters after full logic/structure recovery and the gp-rel array-over- |
 | func_001E10A0 | 0x001E10A0 | 0x340 | 60.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Cross-compiler FP list-scheduling divergence: mwcc233/991202's -O4,p scheduler hoists the  |
@@ -629,13 +626,11 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00224600 | 0x00224600 | 0x574 | 96.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring (4x c.eq.s operand-order swaps on reused ==0.0f/!=0.0f tests) + mwcc  |
 | func_00209860 | 0x00209860 | 0x584 | 92.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order/liveness-coloring permutation on the callee-saved set (target us |
 | func_001C87C0 | 0x001C87C0 | 0x590 | 98.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation across the three near-identical (rotation/transla |
-| func_0016BF80 | 0x0016BF80 | 0x5A0 | 93.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Persistent a0/a1 register-role swap for the state byte vs the `arg0` pointer across nearly |
 | func_00139E00 | 0x00139E00 | 0x5A4 | 96.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation: func_001B1270's two float args are evaluated in  |
 | func_00202D10 | 0x00202D10 | 0x5AC | 99.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.97% (mwcc233) — a single 2-instruction residual: target's `slti at,v0,3; bnez at,...` k |
 | func_00221FC0 | 0x00221FC0 | 0x5B4 | 89.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 89.97% — the state-machine dispatch/body logic is fully recovered (all 12 case bodies byte |
 | func_0021A500 | 0x0021A500 | 0x5BC | 89.22% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 89.22% — full logic recovered (state machine on e[4] driving a particle/twinkle-light init |
 | func_001963A0 | 0x001963A0 | 0x5C4 | 96.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation: mwcc233 colors the switch(arg0[1]) dispatch temp in |
-| func_00221060 | 0x00221060 | 0x5CC | 90.36% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order wall: mwcc picks $a4/$t0 for the switch-dispatch byte across the |
 | func_00147B50 | 0x00147B50 | 0x5D4 | 99.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.25%, byte count matches target exactly (0x5D4). Two tiny residuals, both compiler-inter |
 | func_0016EF50 | 0x0016EF50 | 0x5D4 | 90.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Compiler scheduling/register-choice wall (idiom-13 family): the drift-add pair (arg0+0xB0/ |
 | func_0018B3E0 | 0x0018B3E0 | 0x5D4 | 97.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (state machine, all field offsets, calls, and idiom-15 relo |
