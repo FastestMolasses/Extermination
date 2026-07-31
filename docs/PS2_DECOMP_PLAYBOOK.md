@@ -170,6 +170,29 @@ sections; genuinely shared/external data does not.
 **Result of fixing it:** 21 of 23 already-decoded dispatchers improved and 10 jumped straight
 to 100.0 — from a class documented as impossible.
 
+### Symbolization is a global decision — a local win can be a net loss
+
+A tempting variant of §2a: if the disassembler renders an address as a bare literal, symbolize it
+so the target carries a relocation. We had a specific, well-evidenced reason to want this —
+measured over 564 byte-matched objects, the compiler speculates a *literal* `lui` from a branch
+target into an empty delay slot (45 times on `beq`, 83 on `bne`) but never a *relocated* one (all
+54 nop-preserving cases carry a `%hi`). Symbolizing therefore removes a whole class of false
+residuals, and it did: the target function went 99.24% → **100.0**.
+
+**It was still a net loss and we reverted it.** Seven already-matched functions referenced the same
+addresses *as literals in their C*, so giving the target a relocation their objects didn't have
+broke all seven (matched_code 98.65% → 97.54%). One gained, seven lost.
+
+**The lesson:** symbolizing an address changes every target object that mentions it, while the
+matching C files still spell it the old way. Before doing it, enumerate every file referencing the
+address and budget for updating all of them together — including any hand-written assembly, where
+the literal lives in the asm text and is riskiest to touch. A change that is correct for one
+function and wrong for the tree is not an improvement.
+
+**And restore green before exploring further.** We left the tree regressed while investigating,
+which is the wrong order: revert to the verified state first, then pursue the lead as its own
+scoped change with its own verification.
+
 ### Stale objects lie to you — check provenance before believing a number
 
 Intermediate object directories accumulate objects from *different sources*. In a project

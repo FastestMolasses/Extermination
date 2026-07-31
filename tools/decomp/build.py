@@ -139,6 +139,7 @@ _ASM_FIXUPS = [
 ]
 
 
+
 def normalize_asm(name: str) -> None:
     """Write build/.asmnorm/<name>.s: splat's disassembly, fixed up and with the
     function's own jump table appended.
