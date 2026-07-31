@@ -6597,3 +6597,91 @@ Migrated the 27 phantoms holding the better work into their canonical names
   `tools/match/jtbl_nearmiss_wave.js` is written to harvest them as readable
   NEARMISS C (they decode to real `switch` at 89-98%) — the largest remaining
   readable-C opportunity, worth ~5% of the codebase.
+
+## s85 FINAL — 242 new byte-matches; the recurring lesson is that "walls" were our own bugs
+
+### Numbers (all verified from a clean rebuild; boot ELF byte-identical on every one of 46 commits)
+
+| | session start | end |
+|---|---|---|
+| matched_code | 98.12% | **98.66%** |
+| byte-matched functions | 1800 | **2042** |
+| documented NEARMISS | 693 | 783 |
+| readable C | 2442/2772 (88.1%) | **2825/2953 (95.7%)** |
+| remaining stubs | 330 | **128** |
+
+Remaining 128: 44 VU0/MMI, 21 jr-table, 14 tail-call trampolines, 6 fragments,
+43 still workable.
+
+### Seven defects in our own inputs, every one presenting as a compiler wall
+
+1. **VU0 `$ACC`/`$Q`** — splat emits them bare; binutils rejects it; `as` deletes its
+   output on error, so 23 units silently lost their expected objects on every full
+   build and the match gate skipped. Expected-object coverage is now 100%.
+2. **`D_FFFFF`** — splat paired a delay loop's `lui` with the loop *body's* decrement,
+   inventing a symbol below the load address. Fixed; yielded no match by itself (said so).
+3. **`D_2000xxxx`** — uncached-mirror offsets turned into relocations. Yielded one match.
+4. **`-G0` never reached the assembler** — float constants routed through a literal pool.
+   Verified safe by rebuilding all 255 ee-gcc units both ways: zero differences.
+5. **47 phantom units** — a rename pass left orphans; 9 pairs compiled on *both* sides,
+   double-counting 1392 bytes.
+6. **Expected objects assembled without their jump table** — this was the entire
+   "jr-table external-dispatch wall". 60+ matches recovered from a class two prior
+   sessions recorded as provably impossible.
+7. **Wrong `extern` prototypes** — the largest. A bad extern changes argument setup,
+   which surfaces as a plausible coloring/FP residual, and that fiction gets written
+   into the header as the wall. At least five headers carried such fictions.
+
+### Corrections to previously-recorded "proofs"
+
+- **jr-table class**: premise was false. Each table is `.rodata` of its own function's
+  object — proven by sorting 159 function→table references and finding **zero** address
+  inversions. 60+ matches followed.
+- **ee-gcc forward branch-likely**: declared "confirmed uncrackable" and fast-park
+  mandated. A matched function in our own corpus contained one. Real rule: the annul slot
+  needs a speculatable load from the taken path.
+- **f13-before-f12 FP-arg order**: multiple headers asserted "no source change fixes
+  here". Staging the zero through an int→float *cast* fixes it (idiom-24); a plain
+  `float z = 0.0f` is const-folded, which is why earlier attempts concluded it was dead.
+
+Four separate times, the counterexample to a recorded wall was already sitting in our own
+matched corpus. **Grep the matched corpus before recording any wall.**
+
+### New idioms (docs/fanout/MATCHING_GUIDE.md)
+
+21 float compound-assign · 22 volatile scratchpad · 23 inline zero-temp · 24 FP-arg
+zero-staging (class lever) · 25 float truthiness · 26 compound-assign add.s · 27
+break-not-return (+3.5pp in one edit) · 28 strict-relational respell · plus
+volatile-for-reload and load-into-locals-before-store-burst.
+
+### Walls that ARE real (evidence, not assertion)
+
+- `func_002134C0` — ~25,000 permuter iterations, three weighting schemes, zero improvement.
+- `func_00169730` — ~31,500 iterations plus a 30-combination flag sweep across three builds.
+- **lui-literal delay-slot duplication** — mwcc 2.3.x/2.4 speculate a relocation-free `lui`
+  from a branch target into an empty slot; the shipped 2.3.1.01 did not. Confirmed across
+  the byte-matched corpus (215 sites, 112 functions, zero in any matched file).
+
+All three come down to CodeWarrior 2.3.1.01's behaviour. Not reachable without that binary.
+
+### Tested and REVERTED (negative results worth keeping)
+
+- **Scratchpad symbolization** — produced the predicted match, but broke 7 already-matched
+  functions (98.65 → 97.54). Net −6, reverted. Symbolization is a global decision.
+- **Per-table `.rodata` sections with unique NAMES** — plausible and wrong; the name must
+  stay `.rodata` and only the section *identity* may differ (`unique,N`).
+
+### Tooling added
+
+`audit_protos.py` (ranks float-class vs inert int-only), `clean_registry.py`,
+`gen_jtbl_rodata.py`, `combined_wave.js`, `jtbl_nearmiss_wave.js`; our permuter wrappers
+moved out of the vendored clone into tracked space; `docs/PS2_DECOMP_PLAYBOOK.md` written
+to be portable to other PS2 projects.
+
+### Next
+
+1. 43 workable stubs + the ≥99% near-miss pool via idioms 24/27/28 (not the permuter —
+   its asm-differ score is *anti-correlated* with objdiff for the delay-slot class).
+2. Semantic-documentation sweep for the ~60 hand-written asm functions: the port needs an
+   implementable spec for each, and they will never byte-match from C because they were
+   assembly in the original source tree too.
