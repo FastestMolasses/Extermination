@@ -2190,6 +2190,14 @@
       }
     },
     {
+      "name": "func_0010A298",
+      "target_path": "build/expected/func_0010A298.o",
+      "base_path": "build/obj/func_0010A298.o",
+      "metadata": {
+        "source_path": "src/func_0010A298.c"
+      }
+    },
+    {
       "name": "func_0010A368",
       "target_path": "build/expected/func_0010A368.o",
       "base_path": "build/obj/func_0010A368.o",
@@ -4827,6 +4835,14 @@
       "base_path": "build/obj/func_00120058.o",
       "metadata": {
         "source_path": "src/func_00120058.c"
+      }
+    },
+    {
+      "name": "func_001200E8",
+      "target_path": "build/expected/func_001200E8.o",
+      "base_path": "build/obj/func_001200E8.o",
+      "metadata": {
+        "source_path": "src/func_001200E8.c"
       }
     },
     {
@@ -16334,6 +16350,14 @@
       }
     },
     {
+      "name": "sub_Error_code_detected_BDEC",
+      "target_path": "build/expected/sub_Error_code_detected_BDEC.o",
+      "base_path": "build/obj/sub_Error_code_detected_BDEC.o",
+      "metadata": {
+        "source_path": "src/sub_Error_code_detected_BDEC.c"
+      }
+    },
+    {
       "name": "sub_Invalid_macroblock_address_incre",
       "target_path": "build/expected/sub_Invalid_macroblock_address_incre.o",
       "base_path": "build/obj/sub_Invalid_macroblock_address_incre.o",
@@ -16419,6 +16443,22 @@
       "base_path": "build/obj/sub__9PsIIlibkernl2000_4.o",
       "metadata": {
         "source_path": "src/sub__9PsIIlibkernl2000_4.c"
+      }
+    },
+    {
+      "name": "sub_chroma_format_needs_to_be_1_420",
+      "target_path": "build/expected/sub_chroma_format_needs_to_be_1_420.o",
+      "base_path": "build/obj/sub_chroma_format_needs_to_be_1_420.o",
+      "metadata": {
+        "source_path": "src/sub_chroma_format_needs_to_be_1_420.c"
+      }
+    },
+    {
+      "name": "sub_image_buffer_needs_to_be_aligned",
+      "target_path": "build/expected/sub_image_buffer_needs_to_be_aligned.o",
+      "base_path": "build/obj/sub_image_buffer_needs_to_be_aligned.o",
+      "metadata": {
+        "source_path": "src/sub_image_buffer_needs_to_be_aligned.c"
       }
     },
     {

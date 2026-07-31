@@ -819,3 +819,11 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | sub_The_size_of_work_area_is_too_sma | 0xhe_size_of_work_area_is_too_sma | 0x23C | 70.95% | ee-gcc 2.9-991111-01 | eegcc sibling-call wall + downstream list-scheduler wall. Everything up to the three trail |
 | func_001002E0 | 0x001002E0 | 0x270 | 65.22% | ee-gcc 2.9-991111-01 | eegcc list-scheduler + regalloc wall inside the four DISPLAY-building arms. Head is byte-i |
 | sub_TTY_receive_error | 0xTY_receive_error | 0x194 | 97.11% | ee-gcc 2.9-991111-01 | eegcc GPR coloring wall (no permuter lever). Body/structure/size are exact: our .text = 0x |
+| func_0010D9A0 | 0x0010D9A0 | ? | 94.11% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring + list-scheduler wall. Body/structure FULLY recovered: .text size is by |
+| func_0010D160 | 0x0010D160 | 0x168 | 85.94% | ee-gcc 2.9-991111-01 | eegcc addressing + list-scheduler residual (4 bytes over: 364 vs 360). Frame size 0x40, ca |
+| func_0010A650 | 0x0010A650 | 0x344 | 95.61% | ee-gcc 2.9-991111-01 | eegcc list-scheduler / GPR-coloring wall on the last ~9 instructions. Whole tail (heap all |
+| sub_Invalid_macroblock_type_code_0 | 0xnvalid_macroblock_type_code_0 | 0x524 | 93.09% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring wall + one spill-reload/delay-slot divergence. The instruction sequence |
+| sub_Invalid_modion_type_ignored_d | 0xnvalid_modion_type_ignored_d | 0x334 | 88.94% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring wall, PLUS two splat symbol-resolution artifacts that make a true objdi |
+| sub_c_invalid_motion_type_d_2 | 0x_invalid_motion_type_d_2 | 0x6B0 | 93.41% | ee-gcc 2.9-991111-01 | eegcc callee-saved coloring tie-break: body is instruction-for-instruction identical (438/ |
+| gs_vram_readback | 0xam_readback | 0x68C | 88.39% | ee-gcc 2.9-991111-01 | jr-table (external-table dispatch) wall + eegcc coloring: the PSM switch dispatches throug |
+| func_00116598 | 0x00116598 | 0x820 | 62.35% | ee-gcc 2.9-991111-01 | eegcc register pressure / dual-pipeline scheduling. Structure is recovered (frame 0xb0 mat |
