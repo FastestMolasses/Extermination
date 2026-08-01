@@ -8526,6 +8526,14 @@
       }
     },
     {
+      "name": "func_00181BA0",
+      "target_path": "build/expected/func_00181BA0.o",
+      "base_path": "build/obj/func_00181BA0.o",
+      "metadata": {
+        "source_path": "src/func_00181BA0.c"
+      }
+    },
+    {
       "name": "func_00181D70",
       "target_path": "build/expected/func_00181D70.o",
       "base_path": "build/obj/func_00181D70.o",
@@ -9219,6 +9227,14 @@
       "base_path": "build/obj/func_00194240.o",
       "metadata": {
         "source_path": "src/func_00194240.c"
+      }
+    },
+    {
+      "name": "func_001944B0",
+      "target_path": "build/expected/func_001944B0.o",
+      "base_path": "build/obj/func_001944B0.o",
+      "metadata": {
+        "source_path": "src/func_001944B0.c"
       }
     },
     {
@@ -13470,6 +13486,14 @@
       }
     },
     {
+      "name": "func_001F4840",
+      "target_path": "build/expected/func_001F4840.o",
+      "base_path": "build/obj/func_001F4840.o",
+      "metadata": {
+        "source_path": "src/func_001F4840.c"
+      }
+    },
+    {
       "name": "func_001F4A00",
       "target_path": "build/expected/func_001F4A00.o",
       "base_path": "build/obj/func_001F4A00.o",
@@ -15318,6 +15342,14 @@
       }
     },
     {
+      "name": "func_0020E3A0",
+      "target_path": "build/expected/func_0020E3A0.o",
+      "base_path": "build/obj/func_0020E3A0.o",
+      "metadata": {
+        "source_path": "src/func_0020E3A0.c"
+      }
+    },
+    {
       "name": "func_0020E6F0",
       "target_path": "build/expected/func_0020E6F0.o",
       "base_path": "build/obj/func_0020E6F0.o",
@@ -16707,6 +16739,14 @@
       "base_path": "build/obj/sub__9PsIIlibkernl2000_4.o",
       "metadata": {
         "source_path": "src/sub__9PsIIlibkernl2000_4.c"
+      }
+    },
+    {
+      "name": "sub_cdrom0_IRX_SNDN2DRV_IRX_1",
+      "target_path": "build/expected/sub_cdrom0_IRX_SNDN2DRV_IRX_1.o",
+      "base_path": "build/obj/sub_cdrom0_IRX_SNDN2DRV_IRX_1.o",
+      "metadata": {
+        "source_path": "src/sub_cdrom0_IRX_SNDN2DRV_IRX_1.c"
       }
     },
     {
