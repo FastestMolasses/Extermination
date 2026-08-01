@@ -62,6 +62,15 @@ LEVERS PROVEN THIS SESSION (try these BEFORE concluding a build tie-break is a w
   pre-reload-scheduler verdict (INSN_REG_WEIGHT ranking) and matched at 100.0 on a plain
   retry. A confident mechanism in a header comment is not evidence.
 
+* BRANCH-TARGET PEEL, and its trap. mwcc peels the first speculatable instruction of an
+  unconditional branch's TARGET block into the delay slot and retargets +4. Writing an
+  absolute scratchpad store through an extern SYMBOL instead of a literal address blocks the
+  peel outright (mwcc never speculates a relocated lui). BUT if the target itself uses the
+  LITERAL form you have merely traded a scheduling residual for a reloc-vs-literal one — the
+  bytes would link identically, yet your object carries relocations the original does not.
+  Check which form the target uses before reaching for this. func_00182DF0: 99.375 -> 99.98,
+  still not 100.
+
 KNOWN-GENUINE class, do not burn budget on it: an access through an ABSOLUTE 0x7000xxxx
 scratchpad global always exposes a speculatable address 'lui' that CodeWarrior speculates into
 a branch delay slot and mwcc leaves as nop. Marking the access volatile does NOT help — the
