@@ -1718,6 +1718,14 @@
       }
     },
     {
+      "name": "func_00105390",
+      "target_path": "build/expected/func_00105390.o",
+      "base_path": "build/obj/func_00105390.o",
+      "metadata": {
+        "source_path": "src/func_00105390.c"
+      }
+    },
+    {
       "name": "func_00106070",
       "target_path": "build/expected/func_00106070.o",
       "base_path": "build/obj/func_00106070.o",
@@ -2171,6 +2179,14 @@
       "base_path": "build/obj/func_00109CE0.o",
       "metadata": {
         "source_path": "src/func_00109CE0.c"
+      }
+    },
+    {
+      "name": "func_00109F90",
+      "target_path": "build/expected/func_00109F90.o",
+      "base_path": "build/obj/func_00109F90.o",
+      "metadata": {
+        "source_path": "src/func_00109F90.c"
       }
     },
     {
@@ -15398,6 +15414,14 @@
       }
     },
     {
+      "name": "func_00213F30",
+      "target_path": "build/expected/func_00213F30.o",
+      "base_path": "build/obj/func_00213F30.o",
+      "metadata": {
+        "source_path": "src/func_00213F30.c"
+      }
+    },
+    {
       "name": "func_00215870",
       "target_path": "build/expected/func_00215870.o",
       "base_path": "build/obj/func_00215870.o",
@@ -15758,6 +15782,14 @@
       }
     },
     {
+      "name": "func_0021E830",
+      "target_path": "build/expected/func_0021E830.o",
+      "base_path": "build/obj/func_0021E830.o",
+      "metadata": {
+        "source_path": "src/func_0021E830.c"
+      }
+    },
+    {
       "name": "func_0021E9C0",
       "target_path": "build/expected/func_0021E9C0.o",
       "base_path": "build/obj/func_0021E9C0.o",
@@ -16003,6 +16035,14 @@
       "base_path": "build/obj/func_00226B90.o",
       "metadata": {
         "source_path": "src/func_00226B90.c"
+      }
+    },
+    {
+      "name": "func_00226D50",
+      "target_path": "build/expected/func_00226D50.o",
+      "base_path": "build/obj/func_00226D50.o",
+      "metadata": {
+        "source_path": "src/func_00226D50.c"
       }
     },
     {
@@ -16427,6 +16467,14 @@
       "base_path": "build/obj/iTerminateThread.o",
       "metadata": {
         "source_path": "src/iTerminateThread.c"
+      }
+    },
+    {
+      "name": "init_vtable_a0_at_0011FE90",
+      "target_path": "build/expected/init_vtable_a0_at_0011FE90.o",
+      "base_path": "build/obj/init_vtable_a0_at_0011FE90.o",
+      "metadata": {
+        "source_path": "src/init_vtable_a0_at_0011FE90.c"
       }
     },
     {

@@ -1,16 +1,17 @@
-// NEARMISS func_00109F90  (vram 0x00109F90, 0x3C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.33% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc register-coloring wall. Entire instruction stream, branch order (beq v1,v0 -> E68; fall-through FD0), jal-not-tail-call shape (achieved via trailing asm volatile("") + early return), and both delay slots are byte-identical. The ONLY diff (1 instruction, 14/15 match): the comparison constant 0x3 is allocated t...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
-// CFLAGS: -O2
-
+// CFLAGS: -Os -fno-schedule-insns
+// Tiny SDK dispatch shim: when the mode word D_002414AC has reached state 3 run
+// func_00109E68, otherwise run func_00109FD0. Neither call is a tail call in the
+// original (the frame is set up and $ra saved/restored around both), so the
+// trailing `asm volatile("")` barriers are needed to stop ee-gcc turning them
+// into `j` sibling calls.
+//
+// CFLAGS note: `-Os -fno-schedule-insns` is load-bearing, not cosmetic. At the
+// usual -O2 ee-gcc colours the compare constant into $a0 (`li a0,3`); the
+// original reuses the now-dead %hi address register, `addiu $v0,$zero,3`. -Os
+// alone colours the load into $v0 instead, and -O2 -fno-schedule-insns colours
+// the load into $a0 — only the pair reproduces the original's
+// lui $v0 / lw $v1 / addiu $v0,$zero,3 assignment.
 extern int D_002414AC;
 
 extern void func_00109FD0(void);
