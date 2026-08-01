@@ -6094,6 +6094,14 @@
       }
     },
     {
+      "name": "func_0013A3B0",
+      "target_path": "build/expected/func_0013A3B0.o",
+      "base_path": "build/obj/func_0013A3B0.o",
+      "metadata": {
+        "source_path": "src/func_0013A3B0.c"
+      }
+    },
+    {
       "name": "func_0013B350",
       "target_path": "build/expected/func_0013B350.o",
       "base_path": "build/obj/func_0013B350.o",
@@ -16638,6 +16646,22 @@
       }
     },
     {
+      "name": "sub_BASCUS_97112_DS00_00_EX_DATA_00_4",
+      "target_path": "build/expected/sub_BASCUS_97112_DS00_00_EX_DATA_00_4.o",
+      "base_path": "build/obj/sub_BASCUS_97112_DS00_00_EX_DATA_00_4.o",
+      "metadata": {
+        "source_path": "src/sub_BASCUS_97112_DS00_00_EX_DATA_00_4.c"
+      }
+    },
+    {
+      "name": "sub_BASCUS_97112_DS00_00_EX_ico",
+      "target_path": "build/expected/sub_BASCUS_97112_DS00_00_EX_ico.o",
+      "base_path": "build/obj/sub_BASCUS_97112_DS00_00_EX_ico.o",
+      "metadata": {
+        "source_path": "src/sub_BASCUS_97112_DS00_00_EX_ico.c"
+      }
+    },
+    {
       "name": "sub_DELTA_AUTO_SIGHT_SYS",
       "target_path": "build/expected/sub_DELTA_AUTO_SIGHT_SYS.o",
       "base_path": "build/obj/sub_DELTA_AUTO_SIGHT_SYS.o",
@@ -16667,6 +16691,14 @@
       "base_path": "build/obj/sub_NIGHT_VISION_SYSTEM.o",
       "metadata": {
         "source_path": "src/sub_NIGHT_VISION_SYSTEM.c"
+      }
+    },
+    {
+      "name": "sub_O_STREAM_MUSIC_DAT_1",
+      "target_path": "build/expected/sub_O_STREAM_MUSIC_DAT_1.o",
+      "base_path": "build/obj/sub_O_STREAM_MUSIC_DAT_1.o",
+      "metadata": {
+        "source_path": "src/sub_O_STREAM_MUSIC_DAT_1.c"
       }
     },
     {
@@ -16787,6 +16819,14 @@
       "base_path": "build/obj/sub_odd_number_of_field_pictures.o",
       "metadata": {
         "source_path": "src/sub_odd_number_of_field_pictures.c"
+      }
+    },
+    {
+      "name": "sub_s_EX_DATA_02d",
+      "target_path": "build/expected/sub_s_EX_DATA_02d.o",
+      "base_path": "build/obj/sub_s_EX_DATA_02d.o",
+      "metadata": {
+        "source_path": "src/sub_s_EX_DATA_02d.c"
       }
     },
     {

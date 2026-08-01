@@ -840,3 +840,11 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | sub_sceMpegGetPicture_decode_error | 0xceMpegGetPicture_decode_error | 0x2D8 | 96.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual classes, both backend permutations on an otherwise byte-faithful 202-instruct |
 | func_001E2E80 | 0x001E2E80 | ? | 99.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc jal-delay-slot argument-materialization order (4 instructions of 510, 99.87%). At two |
 | func_001F4190 | 0x001F4190 | ? | 75.74% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + list-scheduling wall across the whole particle loop (153 of 470 row |
+| bone_root_pulse | 0xroot_pulse | 0x94C | 98.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.27% via mwcc 2.3.3 (-O4,p -sdatathreshold 8); logic and structure fully recovered (593  |
+| func_001C2770 | 0x001C2770 | 0x1278 | 98.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.257% on mwcc 2.3.3 (-O4,p -sdatathreshold 0); 20 of 1182 instructions differ, all diagn |
+| func_0022BBC0 | 0x0022BBC0 | 0x1794 | 88.76% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 88.728% on mwcc 2.3.3 (-O4,p -sdatathreshold 0), 1509 instructions. Body/structure fully r |
+| func_0013F770 | 0x0013F770 | 0xCCC | 99.49% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body, control flow, all constants and both epilogue shapes are byte-identical; a single 7- |
+| func_0020CDC0 | 0x0020CDC0 | 0xB6C | 91.52% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Structure, all constants, both jr-table dispatches (jtbl_002735B0 and jtbl_00273590, reloc |
+| sub_EXTERMINATION | 0xXTERMINATION | 0xAA8 | 91.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | REGISTER-ALLOCATION-ORDER wall (park / permuter candidate). Instruction COUNT matches exac |
+| func_002160B0 | 0x002160B0 | 0xFD8 | 99.22% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.216% (mwcc233 -O4,p -sdatathreshold 0); ~24 of 1014 instructions differ, in three clust |
+| func_002149F0 | 0x002149F0 | 0xE80 | 98.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.694% (mwcc233 -O4,p -sdatathreshold 0); ~24 of 928 instructions differ, in five cluster |
