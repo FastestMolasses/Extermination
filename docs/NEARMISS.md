@@ -827,3 +827,4 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | sub_c_invalid_motion_type_d_2 | 0x_invalid_motion_type_d_2 | 0x6B0 | 93.41% | ee-gcc 2.9-991111-01 | eegcc callee-saved coloring tie-break: body is instruction-for-instruction identical (438/ |
 | gs_vram_readback | 0xam_readback | 0x68C | 88.39% | ee-gcc 2.9-991111-01 | jr-table (external-table dispatch) wall + eegcc coloring: the PSM switch dispatches throug |
 | func_00116598 | 0x00116598 | 0x820 | 62.35% | ee-gcc 2.9-991111-01 | eegcc register pressure / dual-pipeline scheduling. Structure is recovered (frame 0xb0 mat |
+| func_001AE7E0 | 0x001AE7E0 | 0x120 | 99.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NOT a compiler wall — a splat/objdiff RENDERING artifact, and the object is PROVEN byte-id |

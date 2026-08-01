@@ -1,32 +1,22 @@
-// NEARMISS func_001DDE10  (vram 0x001DDE10, 0xB08 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.11% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 99.11% — residual is ~54 instrs of pure compiler artifact: (1) two CW branch-target alignment nops the 991-built target emits to 8-align join labels (after switch-2 case-3 fallthrough at 0x28C and after the copy loop at 0x918) — documented genuine wall, mwcc233 never emits them, and they shift ~3...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
 
 // SEMANTICS: radar/altimeter HUD bar builder. Transforms the tracked point at
 // player+0x2450 through the camera matrix D_70003AC0 (in cutscene/alt mode
-// func_0022EBE0!=0 the depth/height pair q[2]/q[3] is |abs|'d and biased +100, else
-// the point is seeded from D_00810360 with 1/D_00275690 scale and q[3] biased by the
-// zoom D_00275694), scales q[2] to a 0..4 bar value. Mode from func_0015D2F0
-// (forced 2 when level id D_008104E0 is 0x29/0xC/0xD) picks the zoom-target spring
-// constants (8500/50, 30500/1500, 40500/1500 at 0.05 rate). Four bar slots: when
-// signal func_001D2910(7) is up, slot value eases toward q[2] with per-slot gain
+// func_0022EBE0()!=0 the depth/height pair q[2]/q[3] is |abs|'d and biased +100,
+// else the point is seeded from D_00810360 with 1/D_00275690 scale and q[3] biased
+// by the zoom D_00275694), then scales q[2] into a 0..4 bar value. Mode comes from
+// func_0015D2F0 (forced to 2 on level ids 0x29/0xC/0xD) and picks the zoom-target
+// spring constants (8500/50, 30500/1500, 40500/1500 at 0.05 rate). Four bar slots:
+// when signal func_001D2910(7) is up, each slot eases toward q[2] with per-slot gain
 // (8, 4+3.5w, 1.5+5.5w, 1+5w)/8 where w = 2*player.f1F4, width 62+30w; otherwise
-// per-mode gain tables (alt: 4/2/1/0.5, level 0xB00: 8/7/6/5 with widths
-// 0x18/28/38/48, default: 8/4/1.5/1, width 0x3E). Values smooth into the
-// persistent block player+0x24F0 (0.15 ease when returning from alt mode and flag
-// +0x20 clear, else snap; flag +0x20 = alt mode). Then for each of the 4 bars
-// emits a GS sprite pair (GIF tag 0x50000006/0x50AB4000:8001, TEST 0x43431,
-// RGB 0x80, XYZ rows rr, cols 0x7000/0x7900 and 0x9000/0x8700 at width cc) into
-// the display list at player+0x1C, then a 0x60 end packet and
+// per-mode gain tables (alt: 4/2/1/0.5, level key 0xB00: 8/7/6/5 with widths
+// 0x18/28/38/48, default: 8/4/1.5/1, width 0x3E). Values smooth into the persistent
+// block player+0x24F0 (0.15 ease when NOT returning from alt mode and flag +0x20 is
+// clear, else snap; flag +0x20 records the alt-mode state). Then for each of the 4
+// bars a GS sprite pair (GIF tag 0x50000006/0x50AB4000:8001, TEST 0x43431, RGB 0x80,
+// XYZ rows rr, cols 0x7000/0x7900 and 0x9000/0x8700 at width cc) is emitted into the
+// display list at player+0x1C, followed by a 0x60 end packet and
 // func_001CB760(D_007635C0, 0xFFF000, base, 0x60) to kick the DMA.
 
 typedef int u128 __attribute__((mode(TI)));
@@ -70,30 +60,32 @@ void func_001DDE10(void)
     int r1;
     int r2;
     float f20;
-    int j;
     char *pp;
-    int rr;
+    int j;
+    char *qq;
+    int jj;
     int cc;
+    int rr;
     int k;
     char *e;
 
     rp = D_00275670 + 0x24F0;
     key = (D_00810700[0] << 8) + D_00810701[0];
     mode = func_0015D2F0(D_00275670);
-    if ((D_008104E0[0] != 0x29) && (D_008104E0[0] != 0xC) && (D_008104E0[0] != 0xD)) {
-    } else {
+    switch (D_008104E0[0]) {
+    case 0xD:
+    case 0xC:
+    case 0x29:
         mode = 2;
+        break;
     }
     v = func_0022EBE0();
     if (v != 0) {
         func_00102948(q, D_00275670 + 0x2450);
         func_001026A0(q, D_70003AC0, q);
         q[2] = func_0011DF78(q[2]);
-        {
-            float t = func_0011DF78(q[3]);
-            q[3] = t;
-            q[3] = t + 100.0f;
-        }
+        q[3] = func_0011DF78(q[3]);
+        q[3] += 100.0f;
         q[2] = (16.0f * q[2]) / q[3];
         q[2] = q[2] / 4.0f;
     } else {
@@ -237,34 +229,32 @@ void func_001DDE10(void)
         arr2[i] = (float)r2;
     }
 
-    j = 0;
     if ((v == 0) && (*(int *)(rp + 0x20) == 0)) {
+        j = 0;
         pp = rp;
-        for (j = 0; j < 4; j++) {
+        for (; j < 4; j++) {
             float a = arr1[j];
             float b = *(float *)pp;
-            *(float *)pp = b + 0.15f * (a - b);
+            *(float *)pp += 0.15f * (a - b);
             a = arr2[j];
             b = *(float *)(pp + 0x10);
-            *(float *)(pp + 0x10) = b + 0.15f * (a - b);
+            *(float *)(pp + 0x10) += 0.15f * (a - b);
             pp += 4;
         }
     } else {
-        pp = rp;
-        for (; j < 4; j++) {
-            *(float *)pp = arr1[j];
-            *(float *)(pp + 0x10) = arr2[j];
-            pp += 4;
+        jj = 0;
+        qq = rp;
+        for (; jj < 4; jj++) {
+            *(float *)qq = arr1[jj];
+            *(float *)(qq + 0x10) = arr2[jj];
+            qq += 4;
         }
     }
     *(int *)(rp + 0x20) = v;
 
     for (k = 0; k < 4; k++) {
         cc = float_to_int(*(float *)(rp + k * 4));
-        {
-            int r0 = float_to_int(*(float *)(rp + k * 4 + 0x10));
-            rr = r0;
-        }
+        rr = float_to_int(*(float *)(rp + k * 4 + 0x10));
         func_001D6B10(3, D_0027568C, 8, 8);
         func_001D6BA0(3, D_0027568C, 8, 8, 0, 0);
         func_001D1FF0(3, 3);

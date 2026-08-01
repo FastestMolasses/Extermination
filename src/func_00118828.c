@@ -1,13 +1,3 @@
-// NEARMISS func_00118828  (vram 0x00118828, 0x374 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.05% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc loop-preheader / giv-init ORDERING. All 222 instructions match one-for-one in opcode, operands, registers and delay slots; only the `addiu s1,v0,0xe` preheader init sits in the wrong slot. Expected preheader order is [addiu s3,v0,6 / daddu s2,zero,zero / addiu s5,zero,1 / addiu s1,v0,0xe /...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
@@ -41,6 +31,25 @@
 // D_00281AC4 IS *(void **)(D_00281AC0 + 4) -- the case bodies address it as its
 // own global while the rescan reaches it through D_00281AC0; both spellings are
 // reproduced because that is how the target encodes them.
+//
+// Match notes (this had been recorded as an "ee-gcc loop-preheader / giv-init
+// ORDERING" wall at 99.05 -- it is NOT a wall):
+//  1. The scan preheader order is decided by ee-gcc's pre-reload haifa
+//     scheduler: the insn carrying the base register's REG_DEAD note goes
+//     first, the rest follow in RTL order. Loop-invariant constants hoisted
+//     out of the loop are always appended at the END of the preheader, so
+//     `r1 = base + 0xE` can never land between them -- unless the constant 1
+//     is materialized by SOURCE in the preheader. `one = 1;` written between
+//     `i = 0;` and `r1 = ...` puts `addiu $s5,$zero,1` in exactly the target's
+//     slot. Permuting the initializer statements alone caps at 99.855; no
+//     -O/-fno-* flag combination helps (all measured).
+//  2. `t` caches the first loaded field so the third comparison reuses it
+//     (`bnel $v0,$a0`), which is what CSE does in the target; comparing that
+//     field against `one` a second time emits `bnel $v0,$s5` and also swaps
+//     the $s4/$s5 colouring.
+//  3. Measure against an expected object built through build.normalize_asm
+//     (it appends build/jtblrodata/func_00118828.s). Assembling the raw splat
+//     .s leaves jtbl_0026C0D0 undefined-external and caps the score at 99.955.
 extern int func_001157F0(int a, int b, int c, int d);
 extern int func_00119810(int a, int b);
 extern int func_00119828(int a, int b, int c);
@@ -57,6 +66,8 @@ void func_00118828(char *e) {
     char *r1;
     char *r3;
     int i;
+    int one;
+    int t;
 
     switch (*(unsigned short *)(e + 0x5E)) {
     case 0:
@@ -176,13 +187,15 @@ void func_00118828(char *e) {
     scan:
         base = D_0027CCC0;
         g = D_00281AC0;
-        r1 = base + 0xE;
         i = 0;
+        one = 1;
+        r1 = base + 0xE;
         r3 = base + 6;
         do {
-            if (*(unsigned short *)(r1 - 0xC) == 1
+            t = *(unsigned short *)(r1 - 0xC);
+            if (t == one
                 && *(unsigned short *)(r1 - 0xA) == (*(unsigned char *)(e + 0) & 0xF)
-                && *(unsigned short *)(r3 + 0x14) == 1
+                && *(unsigned short *)(r3 + 0x14) == t
                 && *(unsigned short *)(r3 + 0) == *(int *)(e + 0x18)
                 && (*(unsigned short *)(e + 0x60) == 0xFF
                     || *(unsigned short *)(r1 + 0) == *(unsigned short *)(e + 0x60))) {

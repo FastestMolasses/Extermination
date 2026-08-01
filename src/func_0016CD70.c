@@ -1,15 +1,23 @@
-// NEARMISS func_0016CD70  (vram 0x0016CD70, 0x3B4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.19% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 99.19% on mwcc233, logic and structure fully recovered (matrix/quat blend setup via func_001029C0/func_00102BB0/func_001026A0, angle-delta gate at 0.5235988f, position integration, yaw-facing pitch correction with -0.6f trim, footstep/state-machine dispatch on func_00175900 return, the func_0017B...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Enemy "fall / land" per-frame step for actor `e` (arg1 = suppress-state-change flag).
+//   Builds a blend quaternion in scratchpad D_700036A0 (func_001029C0 identity,
+//   func_00102BB0 rotate) using the model yaw e+0xC4 when the wrapped delta between
+//   the desired heading e+0x218 and e+0xC4 is within 30 deg (0.5235988 rad), else the
+//   desired heading; rotates the velocity vector D_700038A0 through it into D_700038B0
+//   (func_001026A0) and integrates x/z (e+0xB0, e+0xB8).
+//   func_001791D0 advances the fall animation, then y (e+0xB4) is corrected by the
+//   pitch term e+0x38 * sin(e+0x9C), a constant -0.6 trim and the fall accumulator
+//   e+0x2EC.
+//   func_00175900 == ground contact: on landing (and when e+0x237 is clear) the impact
+//   strength e+0x26C = speed/0.75 clamped to 1.0, speed e+0x38 is zeroed and, unless
+//   suppressed, the actor enters state 0xA (return 1). In the air the accumulator
+//   e+0x2EC ramps by -0.04 down to -0.2, after which the actor enters state 0x14 with
+//   sub-state 0xB (return 2).
+//   Tail: re-arms sound handle e+0x31B (func_001FBD50, id 0x12E) and, every 8th frame,
+//   emits a footstep/scuff effect (func_001EFD90) whose id depends on the surface type
+//   byte e+0x23A.
 
 extern void func_001026A0(float *a, float *b, float *c);
 extern void func_001029C0(float *a);
@@ -43,7 +51,7 @@ int func_0016CD70(unsigned char *e, int arg1) {
     func_001791D0(e, 0);
     *(float *)(e + 0xB4) = *(float *)(e + 0xB4) - (*(float *)(e + 0x38) * func_0011E2A8(*(float *)(e + 0x9C)));
     *(float *)(e + 0xB4) += -0.6f;
-    *(float *)(e + 0xB4) = *(float *)(e + 0xB4) + *(float *)(e + 0x2EC);
+    *(float *)(e + 0xB4) += *(float *)(e + 0x2EC);
     if (func_00175900(e, 0) != 0) {
         if (*(unsigned char *)(e + 0x237) == 0) {
             float zero = 0.0f;
@@ -67,7 +75,7 @@ int func_0016CD70(unsigned char *e, int arg1) {
     } else {
         float v = *(float *)(e + 0x2EC);
         if (!(v <= -0.19999999f)) {
-            *(float *)(e + 0x2EC) = v + -0.04f;
+            *(float *)(e + 0x2EC) += -0.04f;
         } else if (arg1 == 0 && (int)*(unsigned char *)(e + 6) >= 3) {
             *(unsigned char *)(e + 6) = 0x14;
             *(unsigned char *)(e + 0x1F0) = 0xB;
