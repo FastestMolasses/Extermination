@@ -828,3 +828,4 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | gs_vram_readback | 0xam_readback | 0x68C | 88.39% | ee-gcc 2.9-991111-01 | jr-table (external-table dispatch) wall + eegcc coloring: the PSM switch dispatches throug |
 | func_00116598 | 0x00116598 | 0x820 | 62.35% | ee-gcc 2.9-991111-01 | eegcc register pressure / dual-pipeline scheduling. Structure is recovered (frame 0xb0 mat |
 | func_001AE7E0 | 0x001AE7E0 | 0x120 | 99.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NOT a compiler wall — a splat/objdiff RENDERING artifact, and the object is PROVEN byte-id |
+| func_001796C0 | 0x001796C0 | 0x1B8 | 99.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | REGALLOC COLORING of one short-lived scratch GPR — 2 of 112 instructions differ (99.909%). |
