@@ -160,8 +160,25 @@ for r in cand:
         print(f"  {f} -> {p:.2f} NEARMISS")
     else:
         reverted.append(f)
-        if f in bak: shutil.copy(bak[f], f"src/{f}.c")
-        print(f"  {f} -> {p} REVERT (oversize={oversize})")
+        if f in bak:
+            shutil.copy(bak[f], f"src/{f}.c")
+        # POST-CONDITION (s86). A REVERT that does not actually restore the file
+        # is silent and dangerous: the candidate C stays on disk, and because a
+        # NEARMISS is never compiled by the canonical build, every downstream
+        # check still passes — boot ELF included. A whole batch of C that FAILED
+        # TO COMPILE was left committed-pending that way, looking like readable
+        # ground truth for the port. Verify the restore instead of assuming it.
+        head = ""
+        try:
+            with open(f"src/{f}.c") as fp:
+                head = fp.read(200).lstrip()
+        except OSError:
+            pass
+        if head.startswith("// NEARMISS") or f not in bak:
+            print(f"  {f} -> {p} REVERT **FAILED** (no backup restored; "
+                  f"src/{f}.c still holds the candidate C — fix by hand)")
+        else:
+            print(f"  {f} -> {p} REVERT (oversize={oversize})")
 
 if docrows:
     with open("docs/NEARMISS.md", "a") as fp:
