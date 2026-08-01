@@ -34,6 +34,32 @@ never write 'invariant across every build' when you only swept the three that ex
 say 'invariant across the three installed builds'. 3.0/3.0.1 share the 2.4.1.01 core,
 so they are unlikely to break a tie 2.4 does not, but that is an inference, not a test.
 
+LEVERS PROVEN THIS SESSION (try these BEFORE concluding a build tie-break is a wall):
+* COMPOUND ASSIGNMENT is not cosmetic. mwcc's canonical shape for 'x = a + b' is load a,
+  load b, add f0,f1,f0. If the target loads the RHS first and emits add f0,f0,f1 (LHS as the
+  FIRST add operand), the source is 'x += y;'. Neither 'x + y' nor 'y + x' nor an explicit
+  temp reproduces it. Cracked func_00153540.
+* SCRATCHPAD: literal address vs symbol changes codegen. '*(int*)0x700038A0 = 0' emits
+  'lui at,0x7000' + sw; '&D_700038A0' emits a %hi/%lo reloc pair. One function can need the
+  LITERAL form for its stores and the SYMBOL form for pointer arguments simultaneously —
+  match each site to what the target actually does. Cracked func_00153540.
+* COMPARISON RESPELLING (idiom-28 extension) flips mwcc's compare temp between $v0 and $at:
+  'if (t > 0x96)' instead of 'if (t >= 0x97)'. 'if (0x96 < t)' is equivalent; the negated
+  form 'if (!(t < 0x97))' does NOT work. Cracked a residual on func_00138C20.
+* FLOAT LOCALS colour in DECLARATION order ($f0,$f1,$f2). If the target colours them
+  $f2/$f1/$f0, declare the temporaries in REVERSE use order. Cracked func_001C3BE0.
+* An UNREFERENCED stack local can be load-bearing: ee-gcc 2.9 keeps a dead array's slot, which
+  is what produces a 0x40 frame instead of 0x30 and keeps every save offset in place.
+  Cracked func_0010F7D8.
+
+KNOWN-GENUINE class, do not burn budget on it: an access through an ABSOLUTE 0x7000xxxx
+scratchpad global always exposes a speculatable address 'lui' that CodeWarrior speculates into
+a branch delay slot and mwcc leaves as nop. Marking the access volatile does NOT help — the
+lui hoists independently of the store. If that is your only residual, report it and move on.
+
+If the residual is a pure register PERMUTATION at >99% with the instruction sequence already
+exact, say so and recommend tools/permuter — more hand idioms will not move it.
+
 PER-FUNCTION LOOP (S=build/agent_${id}):
 1. DECODE to plain readable C: m2c base (.venv/bin/python3 tools/m2c/m2c.py --target mipsee-mwcc-c --valid-syntax build/asm/matchings/main/code/<F>.s 2>/dev/null | .venv/bin/python3 tools/match/m2c_clean.py) then rewrite in committed-src convention (PLAIN C, externs, *(type*)(p+off), NO prelude/macros). The existing src/<F>.c (stub or asm-void) and prior MATCH-ATTEMPT comments often document the exact body + the wall — read & reuse. Apply MATCHING_GUIDE idioms to get the BODY byte-identical first.
 2. Build build/agent_${id}/src/<F>.c with a leading "// CFLAGS: -O4,p -sdatathreshold 0" (or 4/8 if it uses gp-rel/small globals — match what the prior near-miss used).
