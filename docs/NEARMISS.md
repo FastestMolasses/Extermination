@@ -848,3 +848,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | sub_EXTERMINATION | 0xXTERMINATION | 0xAA8 | 91.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | REGISTER-ALLOCATION-ORDER wall (park / permuter candidate). Instruction COUNT matches exac |
 | func_002160B0 | 0x002160B0 | 0xFD8 | 99.22% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.216% (mwcc233 -O4,p -sdatathreshold 0); ~24 of 1014 instructions differ, in three clust |
 | func_002149F0 | 0x002149F0 | 0xE80 | 98.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.694% (mwcc233 -O4,p -sdatathreshold 0); ~24 of 928 instructions differ, in five cluster |
+| func_0011EBA8 | 0x0011EBA8 | 0x11CC | 48.54% | ee-gcc 2.9-991111-01 | eegcc GPR-colouring + branch-likely + list-scheduler residual across a 1139-instruction fu |
+| func_0010A998 | 0x0010A998 | 0xE8 | 41.76% | ee-gcc 2.9-991111-01 | eegcc CSE wall + GPR coloring. Body fully recovered (prologue, both global loads, mult, th |
+| func_00111680 | 0x00111680 | 0x194 | 44.41% | ee-gcc 2.9-991111-01 | SPLIT-SYMBOL (missing symbol at 0x00111740) -- 100% is structurally impossible, not a comp |

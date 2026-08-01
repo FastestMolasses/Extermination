@@ -443,3 +443,4 @@ bone_init_default_2 = 0x001C63E0;  // type:func
 bone_root_pulse = 0x001C06E0;  // type:func
 bone_wobble_decay_0 = 0x001BDD70;  // type:func
 bone_wobble_decay_1 = 0x001BDCA0;  // type:func
+func_00111740 = 0x00111740;  // type:func
