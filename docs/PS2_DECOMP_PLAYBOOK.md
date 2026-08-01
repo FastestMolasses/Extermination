@@ -109,6 +109,56 @@ make the target *correct*, not because they are a match faucet.
 
 ---
 
+## 2a-bis. splat also FAILS to symbolize — the hoisted %hi
+
+The sibling of "splat invents symbols": sometimes it declines to emit one it should.
+
+splat pairs a `%hi`/`%lo` couple by PROXIMITY. When the compiler **hoists** the `%hi` far
+from its `%lo` — out of a loop, above a branch, into a callee-saved register at function
+entry — splat gives up and writes the raw immediate (`lui $a1, (0x280000 >> 16)`) instead of
+`%hi(SYMBOL)`. Your expected object then holds a bare constant where your compiled object
+correctly holds an `R_MIPS_HI16` relocation.
+
+**Both forms assemble to the identical word.** The linked binary is unaffected. Only
+objdiff's relocation comparison differs — so the function sits at 99.9x% forever on one
+instruction, and every source-level attempt to "fix" it fails, because there is nothing
+wrong with the source.
+
+What makes this genuinely deceptive: the *other* `%hi` references to the same symbol, the
+ones near their `%lo`, ARE symbolized correctly. So the diff shows one lonely relocation
+mismatch surrounded by correct ones, which reads exactly like a register-allocation or
+scheduling artifact.
+
+**Fix it in the expected object, never in the source.** Rewriting the C to emit a bare
+literal would de-relocate *every* reference to that symbol — fixing the one site splat got
+wrong and breaking the ones it got right. §2a's rule again: build the expected object the way
+the original object was built.
+
+Detection worth copying (`_symbolize_hoisted_hi` in `tools/decomp/build.py`): rewrite a bare
+`lui $r, IMM` to `%hi(SYM)` only when a LATER instruction uses `%lo(SYM)` **through the same
+register** and `%hi(SYM) == IMM` (remembering the sign-extension carry: `hi = (addr >> 16) +
+(1 if addr & 0x8000 else 0)`). Note `%lo` appears in two shapes — `addiu $rd, $rs, %lo(SYM)`
+and `op $rt, %lo(SYM)($rs)` — and a detector that handles only the load form finds nothing.
+
+**Two process lessons, both learned the hard way here:**
+
+1. **Validate the detector against a known-positive case BEFORE generalizing.** Mine returned
+   zero twice on the very function it was written for. First it missed splat's `(0xNNNNNN >>
+   16)` shift form; then it anchored the mnemonic at line start, forgetting that splat
+   prefixes every line with a `/* vram encoding */` comment. A detector that silently finds
+   nothing looks exactly like a clean codebase.
+2. **Do not size the class by the raw pattern count.** There were 20,019 bare `lui`s in this
+   corpus — most legitimately load hardware bases or constants. The precise signature matched
+   **11 sites across 10 functions**. Reporting the big number would have been a lie dressed
+   as a finding.
+
+**Yield, honestly:** of the 10 affected functions only ONE reached 100.0. The other nine had
+real residuals that the artifact was merely stacked on top of. The fix's value is not the
+single match — it is that those nine now measure *actual* divergence instead of a phantom,
+so the next attempt on them is not chasing a ghost.
+
+---
+
 ## 2b. A 100% object can still produce the wrong binary
 
 This is the most dangerous failure mode in the whole pipeline, because **every metric
