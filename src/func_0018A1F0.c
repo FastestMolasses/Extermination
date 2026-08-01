@@ -1,8 +1,8 @@
 // NEARMISS func_0018A1F0  (vram 0x0018A1F0, 0x4B8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Two residual clusters: (1) copy_qw4 arg register swap (v0/v1 evaluation-order regalloc noise); (2) mwcc233 speculatively hoists a pure lui (address-hi computation, no side effect) into a branch delay slot the target leaves as nop -- confirmed not blockable via volatile. Neither is the clean-store...
+// NOT A WALL — 100.0 IS VERIFIED, but it is gated on a 2-line project config change I am not permitted to make, so I am reporting matched=false rather than overclaim. (1) A REAL SEMANTIC BUG in the parked NEARMISS: the copy_qw4 arguments were REVERSED. Target is a0=*D_00275B40+0x90 (dst), a1=D_0081...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,35 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+//
+// REQUIRES the scratchpad-symbol opt-in to be extended to 0x700031D0:
+//   tools/decomp/build.py  _SPAD_SYMS += "0x700031D0"
+//   config/SCUS_971.12.lcf  D_700031D0 = 0x700031D0;
+// Same mechanism already shipped for D_70003B6C/D_70003B8D. Without it objdiff
+// reports 99.974% (reloc-vs-literal spelling only); the LINKED bytes are identical
+// either way. CAUTION: the current opt-in predicate is "the C mentions the symbol",
+// and the already-matched src/func_001787B0.c declares `extern char D_700031D0[];`
+// for an address-taken use — enabling 0x700031D0 globally would symbolize THAT
+// target too and break it. The predicate needs to be per-file explicit first.
+//
+// SEMANTICS: player/camera collision-probe tick.
+//   Copies the 4-qword transform at D_008103F8[0]+0x90 into *D_00275B40+0x90.
+//   NOTE the argument order: the target's dst is *D_00275B40+0x90 and its src is
+//   D_008103F8[0]+0x90 — the earlier NEARMISS had these reversed, which was the
+//   first of its two residuals (target: a0 = v1+0x90 with v1 = *D_00275B40).
+//   When arg0[0]&1: builds the probe vector (0.25,1.0,0.0,1.0) at D_700038A0,
+//   transforms it by the same matrix and, if func_0019B2C0 accepts it, fires the
+//   0x80000003 effect through func_001F00A0 at the object named by the scratchpad
+//   pointer 0x700031D0 (gated on func_00189EC0 when 0x700031D4 is non-null and on
+//   that object's +0x1A class field being 0x2000).
+//   Then sweeps six D_0024A440 probe rays plus one D_0024A4A0 ray through
+//   func_0019A570, reporting hits 1..2 to func_00189FE0, and finishes with
+//   func_00189D30.
+//
+// D_700031D0 is declared as an ARRAY OF POINTERS (used as D_700031D0[0]) rather
+// than a plain `char *`: at -sdatathreshold 4 a 4-byte scalar extern would be
+// placed in .sdata and accessed %gp_rel, but the target uses a %hi/%lo pair.
 
 extern void copy_qw4(void *dst, void *src);
 extern int func_001026A0(void *dst, void *src, void *m);
@@ -26,6 +55,8 @@ extern void func_001AA840(unsigned char *arg0);
 extern void func_001F00A0(int a, void *b, void *c, int d);
 
 extern int **D_00275B40;
+extern char *D_700031D0[];
+
 extern int D_008103F8[2];
 extern float D_00810360[2];
 extern int D_0024A440[];
@@ -45,7 +76,7 @@ void func_0018A1F0(unsigned char *arg0) {
     int n;
     char *p;
 
-    copy_qw4((char *)D_008103F8[0] + 0x90, (char *)*D_00275B40 + 0x90);
+    copy_qw4((char *)*D_00275B40 + 0x90, (char *)D_008103F8[0] + 0x90);
 
     if (*arg0 & 1) {
         func_001AA840(arg0);
@@ -56,9 +87,9 @@ void func_0018A1F0(unsigned char *arg0) {
         func_001026A0(D_700038A0, (char *)*D_00275B40 + 0x90, D_700038A0);
         if (func_0019B2C0(D_00810360, D_700038A0, 6) != 0) {
             if (*(int *)0x700031D4 != 0) {
-                if (func_00189EC0(*(int *)0x700031D4) == 0 && (*(short *)(*(int *)0x700031D0 + 0x1A) & 0xFF00) == 0x2000) {
+                if (func_00189EC0(*(int *)0x700031D4) == 0 && (*(short *)(D_700031D0[0] + 0x1A) & 0xFF00) == 0x2000) {
                     func_001031E0(D_700038C0, D_700031B0);
-                    p = *(char **)0x700031D0;
+                    p = D_700031D0[0];
                     *(float *)0x700038B0 = *(float *)(p + 0x24);
                     *(float *)0x700038B4 = *(float *)(p + 0x28);
                     *(float *)0x700038B8 = *(float *)(p + 0x2C);
@@ -67,9 +98,9 @@ void func_0018A1F0(unsigned char *arg0) {
                     func_001F00A0(0x80000003, D_700038A0, D_700038B0, 0);
                     func_0018A180(arg0);
                 }
-            } else if ((*(short *)(*(int *)0x700031D0 + 0x1A) & 0xFF00) == 0x2000) {
+            } else if ((*(short *)(D_700031D0[0] + 0x1A) & 0xFF00) == 0x2000) {
                 func_001031E0(D_700038C0, D_700031B0);
-                p = *(char **)0x700031D0;
+                p = D_700031D0[0];
                 *(float *)0x700038B0 = *(float *)(p + 0x24);
                 *(float *)0x700038B4 = *(float *)(p + 0x28);
                 *(float *)0x700038B8 = *(float *)(p + 0x2C);

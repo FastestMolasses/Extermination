@@ -1,8 +1,8 @@
 // NEARMISS func_00138C20  (vram 0x00138C20, 0x618 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.64% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.99% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure/globals/float-constants fully recovered. Two residuals: (1) top dispatch delay-slot fill (idiom-13 address-hi speculation) -- genuine wall, no C lever. (2) arg1+0x30 busy-timer bnez keeps its slti result in $v0 where target uses $at (register-choice scheduler artifact on a pure/unu...
+// NOT A WALL — 100.0 IS VERIFIED, gated on a 2-line config change I am not permitted to make (matched=false to avoid overclaiming). Three residuals, all cracked: (a)+(b) the two state-dispatch conditional branches (`beq v1,v0` and `beqz v1`) each had mwcc peel `lui at,(0x70003B8A>>16)` — the addres...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,32 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+//
+// REQUIRES the scratchpad-symbol opt-in to be extended to 0x70003B8A:
+//   tools/decomp/build.py  _SPAD_SYMS += "0x70003B8A"
+//   config/SCUS_971.12.lcf  D_70003B8A = 0x70003B8A;
+// Without it objdiff reports 99.99% (reloc-vs-literal spelling only); the LINKED
+// bytes are identical either way. CAUTION: src/func_0013C8C0.c, func_00146F80.c and
+// func_001BF6B0.c also mention D_70003B8A — check each before enabling globally.
+//
+// SEMANTICS: enemy wander/approach brain (arg0 = actor, arg1 = brain block).
+// Clamps the arg1+0x44 speed ramp (0.4f cap, +0.05f accel at arg1+0x48), then
+// dispatches on actor[6]. State 0 (idle wander): every 64th frame, when the player
+// is farther than 70 units, promotes to state 1; otherwise re-rolls the yaw
+// (arg1+0x58) and pitch (arg1+0x5C) targets on the arg1+0x20 / arg1+0x22 timers.
+// State 1 (approach): drops back to state 0 inside 30 units, else steers yaw/pitch
+// at the player with func_001B1240/func_001B1270. Shared tail: the actor+0xD hit
+// flag runs the arg1+0x30 stun counter to 0x97 and resets; actor+0xA (or a 0x78
+// line-of-sight countdown at arg1+0x2C) switches to state 2 and plays SFX 0x816;
+// the arg1+0x86 idle-chirp timer plays 0x826; finally the yaw (actor+0xC4) and
+// pitch (arg1+0x50) are slewed by func_001B12B0 and the pose is published by
+// func_0013BBB0/func_0013BA20.
+//
+// Two idioms are load-bearing: (a) D_70003B8A as a symbol, which stops mwcc
+// speculating that load's address-`lui` into the two state-dispatch delay slots;
+// (b) idiom-28 — the stun test is spelled `t > 0x96`, not `t >= 0x97`, which puts
+// the compare temp in $at as the target does.
 
 extern void func_0013C8C0(void);
 extern int func_00122BB8(void);
@@ -26,6 +52,7 @@ extern void func_0013BBB0(unsigned char *a, unsigned char *b);
 extern void func_0013BA20(unsigned char *a, unsigned char *b);
 extern float D_00810360;
 extern float D_008102B0;
+extern short D_70003B8A;
 extern float D_700038A0;
 extern float D_700038B0;
 
@@ -40,7 +67,7 @@ void func_00138C20(unsigned char *arg0, unsigned char *arg1) {
 
     switch (*(unsigned char *)(arg0 + 6)) {
     case 0:
-        if (!((*(int *)0x70003B68 + *(short *)0x70003B8A) & 0x3F)) {
+        if (!((*(int *)0x70003B68 + D_70003B8A) & 0x3F)) {
             *(float *)0x700038A0 = *(float *)(arg0 + 0xB0);
             *(float *)0x700038A4 = *(float *)(arg0 + 0xB4);
             *(float *)0x700038A8 = *(float *)(arg0 + 0xB8);
@@ -99,7 +126,7 @@ void func_00138C20(unsigned char *arg0, unsigned char *arg1) {
         }
         break;
     case 1:
-        if (!((*(int *)0x70003B68 + *(short *)0x70003B8A) & 0x3F)) {
+        if (!((*(int *)0x70003B68 + D_70003B8A) & 0x3F)) {
             *(float *)0x700038A0 = *(float *)(arg0 + 0xB0);
             *(float *)0x700038A4 = *(float *)(arg0 + 0xB4);
             *(float *)0x700038A8 = *(float *)(arg0 + 0xB8);
@@ -134,7 +161,7 @@ tail:
     if (*(unsigned char *)(arg0 + 0xD) & 1) {
         unsigned short t = *(unsigned short *)(arg1 + 0x30) + 1;
         *(unsigned short *)(arg1 + 0x30) = t;
-        if (t >= 0x97) {
+        if (t > 0x96) {
             *(char *)(arg0 + 5) = 0;
             *(unsigned char *)(arg0 + 6) = 0;
         }

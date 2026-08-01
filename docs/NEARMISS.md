@@ -326,7 +326,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001E0E80 | 0x001E0E80 | 0x190 | 86.12% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring near-miss (permuter territory). Body, control flow, stack layout (sp50 a |
 | func_00181730 | 0x00181730 | 0x1A0 | 95.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register coloring on the (20.5+B4) temp: target colors the 5.0f constant into f1 / B4 i |
 | func_00182DF0 | 0x00182DF0 | 0x1A0 | 99.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two artifacts at 99.18% (233): (1) mwcc hoists the lui at,0x7000 of the post-`b` 0x70003B8 |
-| func_001AEBE0 | 0x001AEBE0 | 0x1A0 | 99.47% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation. Body + structure fully recovered and byte-identical |
 | func_002117D0 | 0x002117D0 | 0x1A0 | 90.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation (FP odd-half coloring + arg-pointer lifetime split). Full  |
 | func_0017F9E0 | 0x0017F9E0 | 0x1A4 | 99.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single speculative delay-slot fill (body byte-identical): mwcc hoists the post-if merge bl |
 | func_001AF2C0 | 0x001AF2C0 | 0x1A4 | 80.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling permutation of trailing independent global stores. Insns 0-29 (zero |
@@ -749,7 +748,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00129780 | 0x00129780 | 0x77C | 99.57% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 3 instructions, one site. At the FIRST of the six func_001C2540 axis probes (target 0x0012 |
 | func_001AD740 | 0x001AD740 | 0x7B8 | 99.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 14 instructions in three groups. (1) 2 instrs - MULTI-TABLE dispatch reloc: this function  |
 | func_0012A5D0 | 0x0012A5D0 | 0x7F0 | 99.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 5 residual instructions out of 508; instruction count, order and every reloc (incl. the jt |
-| func_001BC960 | 0x001BC960 | 0x81C | 99.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 20 residual instructions out of 519, ALL pure register-allocation permutation -- instructi |
 | func_001B82D0 | 0x001B82D0 | 0x7DC | 98.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 25 residual instructions out of 506; the jtbl_0026DFE0 dispatch, the case-5 -> case-4 fall |
 | func_00200A40 | 0x00200A40 | 0x848 | 98.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 -O4,p -sdatathreshold 4 (991202 only 89.76; threshold 4 needed for the gp-rel `uns |
 | func_001B2140 | 0x001B2140 | 0x9C4 | 97.68% | mwcc 2.3 (mwcps2-2.3-991202) | 97.68 with mwcc 991202 (-O4,p -sdatathreshold 0); 18 diff rows out of 625 instructions. De |

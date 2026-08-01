@@ -1,13 +1,3 @@
-// NEARMISS func_001BC960  (vram 0x001BC960, 0x81C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.69% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 20 residual instructions out of 519, ALL pure register-allocation permutation -- instruction count, opcodes, order, branch offsets and every reloc (incl. the jtbl_0026E1E0 dispatch) match exactly. (1) 14 instrs: the room-mask test `D_00810841[D_00810700[0]] & (1 << p[0x2E])` in case-2 sub-cases 0...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
@@ -226,17 +216,19 @@ void func_001BC960(unsigned char *p) {
     case 2:
         switch (p[5]) {
         case 0:
-            if (D_00810841[D_00810700[0]] & (1 << *(unsigned short *)(p + 0x2E))) {
+            if (D_00810841[D_00810700[0]] & (1U << *(unsigned short *)(p + 0x2E))) {
                 func_00158590(p, 0, 0);
                 if (*(unsigned short *)0x70003B84 == 0x208) {
-                    (*(unsigned char **)(*(unsigned char **)(p + 0x18) + 0x18))[0xB] = 2;
+                    q = *(unsigned char **)(p + 0x18);
+                    q = *(unsigned char **)(q + 0x18);
+                    q[0xB] = 2;
                     p[4] = 1;
                     p[5] = 5;
                 }
             }
             break;
         case 1:
-            if (D_00810841[D_00810700[0]] & (1 << *(unsigned short *)(p + 0x2E))) {
+            if (D_00810841[D_00810700[0]] & (1U << *(unsigned short *)(p + 0x2E))) {
                 if (D_0081076A[0] == 0xFF) {
                     p[5] = p[5] + 1;
                 } else if (D_008107EA[0] == 0x10) {
@@ -249,7 +241,7 @@ void func_001BC960(unsigned char *p) {
                         }
                     } else {
                         n = D_008106C0[0][4];
-                        if (n > 1) {
+                        if (n >= 2) {
                             p[5] = p[5] + 1;
                         } else {
                             if (*(float *)(D_008106C0[0] + 0xB0) < 554.0f) {
