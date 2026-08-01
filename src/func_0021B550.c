@@ -1,39 +1,34 @@
-// NEARMISS func_0021B550  (vram 0x0021B550, 0x2E4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.43% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two residuals prevent 100.0 on mwcc233: (1) case-2 'st2 != 1 / st2 != 0' guard -- target keeps beqz+nop+explicit-b (3 insns) for the fallthrough-to-default path, mwcc233 collapses the logically-equivalent double-negative test into a single bnez (1 insn shorter); tried nested if, chained if/break,...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-
 //
-// State machine for the loading-screen particle effect driven off the global
-// struct at D_00275888 (state byte at +0, sub-state bytes at +1/+2, float
-// intensity fields at +8/+0xC/+0x10). State 0: sub-state 0/1 kick particle
-// groups 2 and 3 via func_001D2830(group, enable) and bump the sub-state;
-// sub-state >=2 resets the three intensity floats and advances to state 1.
-// State 1: kicks group 3, ramps each intensity float up (by 0.01/0.008/0.006)
-// clamped to 1.0, then updates the particle system via func_0021B1B0/
-// func_0021B500. State 2: sub-state 1 kicks group 2, then a further sub-state
-// counter at +2 (0/1/2 bump, else -> state 3, "done"); sub-state 0 decays the
-// three intensity floats (*0.9/0.92/0.94), kicks group 3, updates via
-// func_0021B1B0/func_0021B500, and once all three floats are below 0.01
-// advances the sub-state to 1. State 3 (default): kicks group 2 and returns 1
-// (effect finished); all other states return 0.
+// Loading-screen particle-veil state machine, driven off the global struct
+// pointed to by D_00275888: state byte at +0, sub-state at +1, second-level
+// sub-state at +2, and three intensity floats at +8 / +0xC / +0x10.
 //
-// NEARMISS 98.4% (mwcc 2.3.3; 991202 = 82.1%). Body and control flow are
-// fully recovered, including the branch-likely dispatch on case 2's
-// sub-state (`beql st2==1`, delay slot reusing the outer switch's literal-2
-// value for func_001D2830's first arg) and the fresh-reload-after-call shape
-// (state bytes are NOT carried across func_001D2830 calls; they are reloaded
-// from memory post-call, matching target's register pressure and avoiding a
-// spurious $s2 save). The residual is a scheduling/coloring artifact
-// (permuter class), not a logic gap.
+//   state 0 (fade-in warm-up): sub-state 0 and 1 stop particle group 2, start
+//     group 3 and bump the sub-state; any other sub-state zeroes the three
+//     intensities and advances to state 1.
+//   state 1 (ramp up): keeps group 3 alive and ramps the intensities by
+//     0.01 / 0.008 / 0.006 per frame, clamped to 1.0, then drives the particle
+//     system via func_0021B1B0 + func_0021B500.
+//   state 2 (fade-out): sub-state 0 decays the intensities by 0.9 / 0.92 /
+//     0.94, keeps group 3 alive, updates the system, and once all three drop
+//     below 0.01 moves to sub-state 1. Sub-state 1 stops group 2 and runs a
+//     three-frame tail on the +2 counter before advancing to state 3.
+//   state 3 / default: stops group 2 and returns 1 (effect finished); every
+//     other state returns 0.
+//
+// Matching keys: (1) the state-2 sub-state test must be a `switch (st2)` with
+// ascending `case 0` / `case 1` - mwcc then emits the target's descending
+// `beql st2,1` (with func_001D2830's literal-2 first argument reused from the
+// outer switch in the delay slot) followed by `beqz st2` + explicit `b` to the
+// state-2 exit. Written as `if (st2 != 1) { if (st2 != 0) break; ... }` mwcc
+// collapses the double negative into one `bnez` and loses two instructions.
+// (2) the three decays must be compound assignments (`*= 0.9f`), which puts
+// the loaded field first: `mul.s $f0,$f0,$f1`. Spelled `x = x * 0.9f` mwcc
+// emits `mul.s $f0,$f1,$f0`.
+// (3) mwcc 2.3.3 is required: the pinned 991202 build caps at 83.66% and
+// 2.4.1 at 99.03%.
 extern void func_001D2830(int group, int enable);
 extern void func_0021B1B0(char *particleState);
 extern void func_0021B500(char *particleState);
@@ -81,13 +76,11 @@ int func_0021B550(void) {
         break;
     case 2:
         st2 = *(unsigned char *)(s + 1);
-        if (st2 != 1) {
-            if (st2 != 0) {
-                break;
-            }
-            *(float *)(s + 8) = *(float *)(s + 8) * 0.9f;
-            *(float *)(s + 0xC) = *(float *)(s + 0xC) * 0.92f;
-            *(float *)(s + 0x10) = *(float *)(s + 0x10) * 0.94f;
+        switch (st2) {
+        case 0:
+            *(float *)(s + 8) *= 0.9f;
+            *(float *)(s + 0xC) *= 0.92f;
+            *(float *)(s + 0x10) *= 0.94f;
             func_001D2830(3, 1);
             func_0021B1B0(s);
             func_0021B500(s);
@@ -95,18 +88,20 @@ int func_0021B550(void) {
                 *(unsigned char *)(s + 1) = 1;
             }
             break;
-        }
-        func_001D2830(2, 0);
-        st3 = *(unsigned char *)(s + 2);
-        switch (st3) {
-        case 0:
         case 1:
-        case 2:
-            func_001D2830(3, 1);
-            *(unsigned char *)(s + 2) = *(unsigned char *)(s + 2) + 1;
-            break;
-        default:
-            *(char *)(s + 0) = 3;
+            func_001D2830(2, 0);
+            st3 = *(unsigned char *)(s + 2);
+            switch (st3) {
+            case 0:
+            case 1:
+            case 2:
+                func_001D2830(3, 1);
+                *(unsigned char *)(s + 2) = *(unsigned char *)(s + 2) + 1;
+                break;
+            default:
+                *(char *)(s + 0) = 3;
+                break;
+            }
             break;
         }
         break;

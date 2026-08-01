@@ -1,8 +1,8 @@
 // NEARMISS func_001B5360  (vram 0x001B5360, 0x280 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.56% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 98.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// 5 residual instructions of 160 (mwcc233 -O4,p -sdatathreshold 0). NOT a jr-table wall: the 13-entry jtbl_0026DEA0 dispatch, its beql-with-lui-in-the-delay-slot out-of-range path, the duplicated default-block head (.L001B5494 lui / .L001B5498 ori) and all eight case bodies match byte-for-byte, jtb...
+// IMPROVED 98.56 -> 98.7188 (mwcc233, -O4,p -sdatathreshold 0). One residual instruction left, invariant across the three installed builds (991202 / 2.3.3 / 2.4 all show it). FIXED this round (was 2 of the 3 residual instrs): the first call's argument-setup order. The parked file declared the param...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -45,14 +45,14 @@ extern int func_0019A570(char *, char *, int, int);
 extern void func_001F9100(char *, char *, char *, float);
 extern void func_001F9180(char *, char *, char *, float);
 
-void func_001B5360(unsigned char *p)
+void func_001B5360(char *p)
 {
     char *q;
 
-    func_00102948(D_700038A0, (char *)(p + 0xB0));
+    func_00102948(D_700038A0, p + 0xB0);
     func_00102948(D_700038B0, D_700038A0);
     *(volatile float *)0x700038A4 += 10.0f;
-    if (p[3] == 4) {
+    if (*(unsigned char *)(p + 3) == 4) {
         *(volatile float *)0x700038B4 = *(volatile float *)0x700038A4 - 200.0f;
     } else {
         *(volatile float *)0x700038B4 = *(volatile float *)0x700038A4 - 30.0f;
@@ -63,7 +63,7 @@ void func_001B5360(unsigned char *p)
         *(volatile float *)0x700038B0 = *(float *)(q + 0x24);
         *(volatile float *)0x700038B4 = *(float *)(q + 0x28);
         *(volatile float *)0x700038B8 = *(float *)(q + 0x2C);
-        switch (p[3]) {
+        switch (*(unsigned char *)(p + 3)) {
         case 1:
         case 2:
         case 9:
@@ -71,28 +71,28 @@ void func_001B5360(unsigned char *p)
         case 11:
         case 12:
         default:
-            func_001F9100((char *)(p + 0xB0), D_700038A0, D_700038B0, 4.2f);
+            func_001F9100(p + 0xB0, D_700038A0, D_700038B0, 4.2f);
             break;
         case 3:
-            func_001F9100((char *)(p + 0xB0), D_700038A0, D_700038B0, 3.5f);
+            func_001F9100(p + 0xB0, D_700038A0, D_700038B0, 3.5f);
             break;
         case 0:
-            func_001F9100((char *)(p + 0xB0), D_700038A0, D_700038B0, 2.0f);
+            func_001F9100(p + 0xB0, D_700038A0, D_700038B0, 2.0f);
             break;
         case 4:
-            func_001F9180((char *)(p + 0xB0), D_700038A0, D_700038B0, 2.0f);
+            func_001F9180(p + 0xB0, D_700038A0, D_700038B0, 2.0f);
             break;
         case 5:
-            func_001F9100((char *)(p + 0xB0), D_700038A0, D_700038B0, 5.0f);
+            func_001F9100(p + 0xB0, D_700038A0, D_700038B0, 5.0f);
             break;
         case 6:
-            func_001F9100((char *)(p + 0xB0), D_700038A0, D_700038B0, 6.5f);
+            func_001F9100(p + 0xB0, D_700038A0, D_700038B0, 6.5f);
             break;
         case 7:
-            func_001F9100((char *)(p + 0xB0), D_700038A0, D_700038B0, 6.0f);
+            func_001F9100(p + 0xB0, D_700038A0, D_700038B0, 6.0f);
             break;
         case 8:
-            func_001F9180((char *)(p + 0xB0), D_700038A0, D_700038B0, 8.0f);
+            func_001F9180(p + 0xB0, D_700038A0, D_700038B0, 8.0f);
             break;
         }
     }

@@ -1,8 +1,8 @@
 // NEARMISS func_0012CAA0  (vram 0x0012CAA0, 0x7A0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.50% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Permuter-class register/scheduling artifacts on an otherwise byte-faithful body (3 residual clusters): (1) commutative addu operand canonicalization 'addu v0,v0,s0' vs target 'addu v0,s0,v0' at the D_00242DD0[s1] bin-pointer compute (x3 sites); (2) two-immediate-const FP arg ordering for the 3rd ...
+// IMPROVED 98.50 -> 99.9713 (mwcc233, -O4,p -sdatathreshold 0). Three of the four residual clusters recorded in the parked header were OUR BUGS, not compiler walls: (1) FIXED - 'zero-store vs 0x3F800000-store scheduling in the s1>=4 matrix branch' was really a CFG shape error. The target DUPLICATES...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -27,11 +27,10 @@
 // and func_001FBD50(self,0x1B2,0,300.0f); then counts down the 0xD0 timer and on 0 returns the enemy to state 7.
 // Tail: a global stun check (D_008106BC / *0x70003B8D) forces state 0xA.
 //
-// WALL: permuter-class register-coloring + scheduling on an otherwise byte-faithful body. Residuals: commutative
-// addu operand order at the D_00242DD0[s1] bin-pointer compute (addu v0,v0,s0 vs v0,s0,v0, x3); two-immediate FP arg
-// ordering on func_001B12B0(-1.5707964f,...,0.06981317f) (target loads 0.06981317->f14 before -1.5707964->f12; the
-// assign-in-arg idiom cannot flip two lui/ori immediates); and zero-store vs 0x3F800000-store scheduling in the
-// s1>=4 matrix-setup branch. Not the clean-store nop, not idiom-fixable -> parked.
+// MATCH NOTES (s86): the `(char *)(D_00242DD0[s1] * 4)` cast is load-bearing -- it puts the scaled index first in
+// mwcc's commutative `addu`, matching the target's `addu v0,v0,s0`. `*(int *)0x700038BC = 0x3F800000;` is duplicated
+// into BOTH arms of the s1>=4 test on purpose: the target emits it twice. And the arg1+0xD4 decrement is written as a
+// store followed by a RELOAD (not a temp) so mwcc forwards the stored value as `mov.s $f12,$f0` in the jal slot.
 extern void func_001029C0(void *a0);
 extern void func_00102B08(void *a0, void *a1, float f);
 extern void func_00102BB0(void *a0, void *a1, float f);
@@ -84,7 +83,7 @@ void func_0012CAA0(char *arg0, char *arg1) {
         func_00102BB0(D_700036A0, D_700036A0, *(float *)(arg1 + 0x44));
         func_00102A60(D_700036A0, D_700036A0, *(float *)(arg1 + 0x48));
         func_001031E0(D_700036D0, arg1 + 0x30);
-        func_001026D0(D_700036A0, *(char **)(D_00242DD0[s1] * 4 + (int)plr + 0x110) + 0x90, D_700036A0);
+        func_001026D0(D_700036A0, *(char **)((char *)(D_00242DD0[s1] * 4) + (int)plr + 0x110) + 0x90, D_700036A0);
         *(float *)(arg1 + 0x10) = *(float *)0x700036D0 - *(float *)(arg0 + 0xB0);
         *(float *)(arg1 + 0x14) = *(float *)0x700036D4 - *(float *)(arg0 + 0xB4);
         *(float *)(arg1 + 0x18) = *(float *)0x700036D8 - *(float *)(arg0 + 0xB8);
@@ -99,11 +98,8 @@ void func_0012CAA0(char *arg0, char *arg1) {
             *(float *)(arg0 + 0xC4) = func_001B12B0(3.1415927f + *(float *)(plr + 0xC4), *(float *)(arg0 + 0xC4), 0.06981317f);
         }
         *(float *)(arg0 + 0xC0) = func_001B12B0(-1.5707964f, *(float *)(arg0 + 0xC0), 0.06981317f);
-        {
-            float d = *(float *)(arg1 + 0xD4) - 0.02f;
-            *(float *)(arg1 + 0xD4) = d;
-            func_00103230(arg1 + 0x10, arg1 + 0x10, d);
-        }
+        *(float *)(arg1 + 0xD4) = *(float *)(arg1 + 0xD4) - 0.02f;
+        func_00103230(arg1 + 0x10, arg1 + 0x10, *(float *)(arg1 + 0xD4));
         {
             float ang = func_001B1470(*(float *)(plr + 0xC4) - *(float *)(arg1 + 0xE8));
             func_001029C0(D_700036A0);
@@ -115,7 +111,7 @@ void func_0012CAA0(char *arg0, char *arg1) {
         func_00102BB0(D_700036A0, D_700036A0, *(float *)(arg1 + 0x44));
         func_00102A60(D_700036A0, D_700036A0, *(float *)(arg1 + 0x48));
         func_001031E0(D_700036D0, arg1 + 0x30);
-        func_001026D0(D_700036A0, *(char **)(D_00242DD0[s1] * 4 + (int)plr + 0x110) + 0x90, D_700036A0);
+        func_001026D0(D_700036A0, *(char **)((char *)(D_00242DD0[s1] * 4) + (int)plr + 0x110) + 0x90, D_700036A0);
         *(float *)(arg0 + 0xB0) = *(float *)0x700036D0 + *(float *)0x700038A0;
         *(float *)(arg0 + 0xB4) = *(float *)0x700036D4 - *(float *)0x700038A4;
         *(float *)(arg0 + 0xB8) = *(float *)0x700036D8 + *(float *)0x700038A8;
@@ -144,7 +140,7 @@ void func_0012CAA0(char *arg0, char *arg1) {
         func_00102BB0(D_70003000, D_70003000, *(float *)(arg0 + 0xC4));
         func_00102A60(D_70003000, D_70003000, *(float *)(arg0 + 0xC8));
         func_001031E0(D_70003030, arg1 + 0x30);
-        func_001026D0(D_70003000, *(char **)(D_00242DD0[s1] * 4 + (int)plr + 0x110) + 0x90, D_70003000);
+        func_001026D0(D_70003000, *(char **)((char *)(D_00242DD0[s1] * 4) + (int)plr + 0x110) + 0x90, D_70003000);
         func_001031E0(arg0 + 0xB0, D_70003030);
         if (*(unsigned char *)(arg0 + 7) == 0 && (*(short *)(arg1 + 0xF4) & 0x4000)) {
             float f20;
@@ -171,13 +167,14 @@ void func_0012CAA0(char *arg0, char *arg1) {
                 *(int *)0x700038B0 = 0;
                 *(float *)0x700038B4 = f20;
                 *(int *)0x700038B8 = 0;
+                *(int *)0x700038BC = 0x3F800000;
             } else {
                 f20 = *(float *)(plr + 0xC4);
                 *(int *)0x700038B0 = 0;
                 *(float *)0x700038B4 = f20;
                 *(int *)0x700038B8 = 0;
+                *(int *)0x700038BC = 0x3F800000;
             }
-            *(int *)0x700038BC = 0x3F800000;
             *(float *)(plr + 0x70) = func_0011E2A8(f20);
             *(int *)(plr + 0x74) = 0;
             *(float *)(plr + 0x78) = func_0011DE90(f20);

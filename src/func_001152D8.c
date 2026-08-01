@@ -1,8 +1,8 @@
 // NEARMISS func_001152D8  (vram 0x001152D8, 0x514 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.53% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 100.00% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// 98.5262 (ee-gcc 2.9-991111-01, -O2). 323 of 327 instructions are identical in order, operands and delay-slot fills — including the whole 99-entry controller jump table, both branch-likely idioms and the full flush tail. Two residuals, NEITHER of which is a jump-table/dispatch problem: (1) EXPECTE...
+// IMPROVED 98.5262 -> 99.9969 (ee-gcc 2.9-991111-01, -O2). This is SDK-region ee-gcc code, so the CodeWarrior build sweep is confirmatory only — all three installed mwcc builds are 38-44%. FIXED (the whole epilogue cluster, 8 rows): the parked header's 'expected/ours epilogue interleave' residual w...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -19,7 +19,7 @@
 // (state@0x2E == 0, word@0x30 == 0x10000, half@0x34 == 1). While the delta-time
 // accumulator at +0x20 is <= 0 it pulls events with func_00117088 and dispatches
 // on the MIDI-style status nibble p[0] & 0xF0: 0x80/0x90/0xA0 (note off / note on /
-// aftertouch), 0xB0 (controller — a 99-entry jump table indexed by p[2] - 1, with
+// aftertouch), 0xB0 (controller -- a 99-entry jump table indexed by p[2] - 1, with
 // live cases 1, 2, 6, 7, 0xA, 0x40, 0x41, 0x60, 0x62, 0x63), 0xC0 (program change),
 // 0xE0 (pitch bend) and 0xF0 (meta: 0x2F end-of-track, 0x51 set-tempo). Controller
 // 0x0A is handled inline: if the global flag at D_0027F740+0x38 is 1 it copies one
@@ -30,6 +30,10 @@
 // to the hardware via func_001157F0 (ids 0xD/0xC/0xA/0xB, split into low 24 bits and
 // bits 24..47) and func_001191F0 kicks the DMA using the double-buffer index at +0x3C,
 // which is then toggled.
+//
+// MATCH NOTES (s86): the two `volatile` qualifiers in the tail are load-bearing. Without
+// them ee-gcc proves g+0x40 and g+0x3C cannot alias and hoists the 0x3C load above the
+// 0x40 store, shifting the whole restore/body interleave by one slot (98.53 vs 99.997).
 
 extern unsigned char D_0027E0C0[];
 extern unsigned char D_0027F740[];
@@ -227,6 +231,6 @@ void func_001152D8(void)
 
     func_001191F0(0x64, 1, D_0027F7C0 + (*(int *)(g + 0x3C) << 12), D_002817C0,
                   *(int *)(g + 0x40) << 4, 0x200);
-    *(int *)(g + 0x40) = 0;
-    *(int *)(g + 0x3C) = (*(int *)(g + 0x3C) + 1) & 1;
+    *(volatile int *)(g + 0x40) = 0;
+    *(volatile int *)(g + 0x3C) = (*(volatile int *)(g + 0x3C) + 1) & 1;
 }

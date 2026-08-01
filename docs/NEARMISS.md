@@ -851,3 +851,9 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0011EBA8 | 0x0011EBA8 | 0x11CC | 48.54% | ee-gcc 2.9-991111-01 | eegcc GPR-colouring + branch-likely + list-scheduler residual across a 1139-instruction fu |
 | func_0010A998 | 0x0010A998 | 0xE8 | 41.76% | ee-gcc 2.9-991111-01 | eegcc CSE wall + GPR coloring. Body fully recovered (prologue, both global loads, mult, th |
 | func_00111680 | 0x00111680 | 0x194 | 44.41% | ee-gcc 2.9-991111-01 | SPLIT-SYMBOL (missing symbol at 0x00111740) -- 100% is structurally impossible, not a comp |
+| func_001B5360 | 0x001B5360 | 0x280 | 98.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | IMPROVED 98.56 -> 98.7188 (mwcc233, -O4,p -sdatathreshold 0). One residual instruction lef |
+| func_0012CAA0 | 0x0012CAA0 | 0x7A0 | 99.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | IMPROVED 98.50 -> 99.9713 (mwcc233, -O4,p -sdatathreshold 0). Three of the four residual c |
+| func_001152D8 | 0x001152D8 | 0x514 | 100.00% | ee-gcc 2.9-991111-01 | IMPROVED 98.5262 -> 99.9969 (ee-gcc 2.9-991111-01, -O2). This is SDK-region ee-gcc code, s |
+| func_0013D220 | 0x0013D220 | 0xA4 | 99.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NOT a build/allocator tie-break — a splat SYMBOLIZATION artifact in our own target object. |
+| func_00140F80 | 0x00140F80 | 0x744 | 99.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Three real input defects were fixed (98.402 -> 99.985); the last residual is the same spla |
+| func_00198240 | 0x00198240 | 0x200 | 99.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same splat symbolization artifact as func_0013D220, same fix, same ceiling. Sole residual  |

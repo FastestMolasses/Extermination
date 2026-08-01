@@ -1,8 +1,8 @@
 // NEARMISS func_00198240  (vram 0x00198240, 0x200 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.40% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Branch delay-slot fill artifact. Body byte-identical except the `r == 1` dispatch branch: target emits `beq v0,v1,L344` with an EMPTY (nop) delay slot, leaving the fall-through `lui at,0x7000` (start of the *(int*)0x700031D0 deref for the &0x2000 check) as the next instruction; mwcc 2.3.3 fills t...
+// Same splat symbolization artifact as func_0013D220, same fix, same ceiling. Sole residual is the 'beq $v0,$v1' r==1 dispatch: target leaves the delay slot EMPTY, mwcc233 peels the target block's 'lui $at,0x7000' (the *(int*)0x700031D4 deref) into it and retargets +4. Declaring 'extern char *D_700...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,6 +11,16 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Camera/aim helper: builds the vector from arg1->0xA0 (eye) to arg1->0xB0 (focus) in the
+// scratchpad at 0x700038B0, zeroes its Y, and squared-length-tests it (func_00102738 into
+// 0x70003A20). Under 9.0 the vector is renormalized to length 3.0 and re-anchored at
+// arg1+0xA0; otherwise arg1->0xB0 is copied wholesale. func_0019A910(eye, dir, 7) then does
+// the world trace. On a hit that is either code 1 or a surface whose flag halfword at
+// (*0x700031D0)+0x1A has 0x2000 set, it early-outs with 1 if the secondary hit object
+// (*0x700031D4) has type byte +3 == 0x54; otherwise it builds the reflected/aligned basis
+// (func_001028D0 against D_700031B0, func_0011DF78 on X and Z, hit normal at +0x24..0x2C,
+// w = 1.0) into 0x700038C0, composes it via func_001028E8 into 0x700038A0, and submits it
+// with func_00183010(arg0, ...). Returns 1 when it produced/short-circuited a result, else 0.
 extern void func_001028D0(void *a, void *b, void *c);
 extern float func_00102738(void *a, void *b);
 extern void func_00102760(void *a, void *b);
@@ -22,6 +32,7 @@ extern float func_0011DF78(float a);
 extern void func_00183010(int a, void *b);
 extern int func_0019A910(void *a, void *b, int n);
 extern char D_700031B0[];
+extern char *D_700031D4;
 extern char D_700038A0[];
 extern char D_700038B0[];
 extern char D_700038C0[];
@@ -42,7 +53,7 @@ int func_00198240(int arg0, char *arg1) {
     }
     r = func_0019A910(arg1 + 0xA0, D_700038B0, 7);
     if (r != 0 && (r == 1 || (*(short *)(*(int *)0x700031D0 + 0x1A) & 0x2000))) {
-        p = *(char **)0x700031D4;
+        p = D_700031D4;
         if (p != 0 && *(unsigned char *)(p + 3) == 0x54) {
             return 1;
         }

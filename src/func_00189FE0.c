@@ -1,24 +1,20 @@
-// NEARMISS func_00189FE0  (vram 0x00189FE0, 0x1A0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.26% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two artifacts at 98.26% (233): (1) mwcc materializes the sp+0x3C store address (addiu v0,sp,0x3c; sw v1,0(v0)) with a v0/v1 coloring diff where target stores direct (sw v0,0x3c(sp)); (2) mwcc hoists lui at,0x7000 into the bc1f delay slot, target leaves nop. Both scheduling/coloring permutations, ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
-// NEARMISS 98.26% (mwcc 2.3.3; 991202=82.68%). Body/structure byte-identical.
-// Two residuals, both compiler artifacts: (1) for the `*(int*)(sp30+0xC) =
-// 0x3F800000` store, mwcc 2.3.3 materializes the stack address into a reg
-// (`addiu v0,sp,0x3c; sw v1,0(v0)`) plus a v0/v1 coloring difference where the
-// target stores sp-relative directly (`sw v0,0x3c(sp)`); (2) mwcc hoists the
-// next `lui at,0x7000` into the `bc1f` delay slot where the target leaves a
-// nop. Both are scheduling/coloring permutations, NOT the clean-store nop.
-// func_001B41F0 is a 6-arg call (recovered: ...,0x1000, *(short*)(arg0+0x36)).
+// Per-frame update for the scratchpad-resident "active effect" record at 0x700031D4.
+// Runs only while the record's state byte is 1. Builds a unit-scale transform in a local
+// 4-float vector (func_001028D0 seeds it, w = 1.0, func_00102760 normalises/commits it),
+// then dispatches on the record's kind nibble (byte+2 with the top three bits masked off):
+//   kind 2 - clamp the y component up to 0 (re-committing when it was negative) and hand the
+//            record, the scratchpad transform block and the camera field at 0x700031D0+0x1C
+//            to func_001B41F0 with flag 0x1000 and the caller's 0x36 flag word.
+//   kind 4 - ask func_00189EC0 what to do; status 2 stages a rotation (yaw = pi + D_00810374,
+//            scale 1.0) in the scratchpad quad at 0x700038D0 and posts event 0x80000007;
+//            status 3 posts event 0x80000019; status 0 bails. Either way the record inherits
+//            the caller's 0x36 flag word with 0x1000 forced on, and the transform is copied
+//            into the record at +0x70.
+// The empty-effect `else` on the y clamp is load-bearing: the self-store is dead-code
+// eliminated (zero instructions emitted), but the extra CFG edge stops mwcc speculating the
+// following `lui $at, 0x7000` from the join block into the `bc1f` delay slot.
 
 extern void func_001028D0(void *);
 extern void func_00102760(void *, void *);
@@ -34,7 +30,7 @@ extern int D_700031B0;
 extern int D_700038D0;
 
 void func_00189FE0(char *arg0) {
-    char sp30[16];
+    float sp30[4];
     char *e;
     int kind;
     int st;
@@ -42,14 +38,16 @@ void func_00189FE0(char *arg0) {
     e = *(char **)0x700031D4;
     if (e != 0 && *(unsigned char *)e == 1) {
         func_001028D0(sp30);
-        *(int *)(sp30 + 0xC) = 0x3F800000;
+        sp30[3] = 1.0f;
         func_00102760(sp30, sp30);
 
         kind = *(unsigned char *)(e + 2) & ~0xE0;
         if (kind == 2) {
-            if (*(float *)(sp30 + 4) < 0.0f) {
-                *(int *)(sp30 + 4) = 0;
+            if (sp30[1] < 0.0f) {
+                sp30[1] = 0.0f;
                 func_00102760(sp30, sp30);
+            } else {
+                *(short *)(arg0 + 0x36) = *(short *)(arg0 + 0x36);
             }
             func_001B41F0(e, &D_700031B0, sp30, *(int *)(*(char **)0x700031D0 + 0x1C), 0x1000, *(short *)(arg0 + 0x36));
             return;
