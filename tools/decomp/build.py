@@ -208,6 +208,17 @@ def _symbolize_hoisted_hi(src: str) -> str:
 # leaves as `nop`.
 _SPAD_SYMS = ("0x70003B6C", "0x70003B8D")
 
+# TESTED AND REJECTED (s86) — do not retry without new evidence. splat leaves
+# `lui`+`sw` pairs as literals even for addresses it symbolizes in the adjacent
+# `lui`+`addiu` pair, so func_001BF6B0 carries both spellings of D_700038A0 and
+# shows a 4-row residual there. It looks like the same fix as above, and a wave
+# agent predicted symbolizing those pairs would clear it. Generalizing this
+# function to symbolize ANY 0x7000xxxx literal whose D_ symbol the C references
+# was measured on that exact function: 99.9577 -> 99.7531. It makes things
+# WORSE — symbolizing the store sites introduces more mismatches than the four
+# it resolves. The residual is also harmless: both forms relocate to the same
+# bytes, so the linked ELF is already byte-identical there.
+
 
 def _symbolize_scratchpad(name: str, src: str) -> str:
     """Rewrite scratchpad literals to %hi/%lo, but ONLY where the C opted in.
