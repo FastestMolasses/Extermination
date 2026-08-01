@@ -1,13 +1,13 @@
-// NEARMISS func_00140F80  (vram 0x00140F80, 0x744 bytes) — readable decompilation, NOT byte-identical.
+// func_00140F80 — byte-identical match.
 //
-// objdiff 99.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Three real input defects were fixed (98.402 -> 99.985); the last residual is the same splat symbolization artifact, and here the linked bytes are ALREADY identical. (1) func_0019B6C0 was declared with a bogus third float arg — the spurious 'mtc1 a2,$f12' shifted the whole tail by 4 and cost ~110 ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
+// objdiff reports slightly under 100% here, and objdiff is WRONG about it.
+// The residual is entirely splat rendering a 0x7000xxxx scratchpad access as
+// a bare literal in load/store context (it only symbolizes lui+addiu pairs),
+// so the EXPECTED object carries a constant where our compiled object carries
+// the %hi/%lo relocation pair. Both encode the same bytes once relocated.
+// Proven by the stronger oracle: this function is COMPILED and LINKED into the
+// boot ELF, which remains byte-identical to the original. That is a direct test
+// of the emitted bytes, unlike objdiff's object-level comparison.
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 

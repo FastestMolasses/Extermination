@@ -5806,6 +5806,14 @@
       }
     },
     {
+      "name": "func_0012F6C0",
+      "target_path": "build/expected/func_0012F6C0.o",
+      "base_path": "build/obj/func_0012F6C0.o",
+      "metadata": {
+        "source_path": "src/func_0012F6C0.c"
+      }
+    },
+    {
       "name": "func_0012F980",
       "target_path": "build/expected/func_0012F980.o",
       "base_path": "build/obj/func_0012F980.o",
@@ -6118,6 +6126,14 @@
       }
     },
     {
+      "name": "func_00138C20",
+      "target_path": "build/expected/func_00138C20.o",
+      "base_path": "build/obj/func_00138C20.o",
+      "metadata": {
+        "source_path": "src/func_00138C20.c"
+      }
+    },
+    {
       "name": "func_0013A3B0",
       "target_path": "build/expected/func_0013A3B0.o",
       "base_path": "build/obj/func_0013A3B0.o",
@@ -6203,6 +6219,14 @@
       "base_path": "build/obj/func_0013C4C0.o",
       "metadata": {
         "source_path": "src/func_0013C4C0.c"
+      }
+    },
+    {
+      "name": "func_0013D220",
+      "target_path": "build/expected/func_0013D220.o",
+      "base_path": "build/obj/func_0013D220.o",
+      "metadata": {
+        "source_path": "src/func_0013D220.c"
       }
     },
     {
@@ -6323,6 +6347,14 @@
       "base_path": "build/obj/func_00140C30.o",
       "metadata": {
         "source_path": "src/func_00140C30.c"
+      }
+    },
+    {
+      "name": "func_00140F80",
+      "target_path": "build/expected/func_00140F80.o",
+      "base_path": "build/obj/func_00140F80.o",
+      "metadata": {
+        "source_path": "src/func_00140F80.c"
       }
     },
     {
@@ -6579,6 +6611,14 @@
       "base_path": "build/obj/func_0014AE80.o",
       "metadata": {
         "source_path": "src/func_0014AE80.c"
+      }
+    },
+    {
+      "name": "func_0014AFA0",
+      "target_path": "build/expected/func_0014AFA0.o",
+      "base_path": "build/obj/func_0014AFA0.o",
+      "metadata": {
+        "source_path": "src/func_0014AFA0.c"
       }
     },
     {
@@ -9126,6 +9166,14 @@
       }
     },
     {
+      "name": "func_0018A1F0",
+      "target_path": "build/expected/func_0018A1F0.o",
+      "base_path": "build/obj/func_0018A1F0.o",
+      "metadata": {
+        "source_path": "src/func_0018A1F0.c"
+      }
+    },
+    {
       "name": "func_0018A880",
       "target_path": "build/expected/func_0018A880.o",
       "base_path": "build/obj/func_0018A880.o",
@@ -9331,6 +9379,14 @@
       "base_path": "build/obj/func_00197740.o",
       "metadata": {
         "source_path": "src/func_00197740.c"
+      }
+    },
+    {
+      "name": "func_00198240",
+      "target_path": "build/expected/func_00198240.o",
+      "base_path": "build/obj/func_00198240.o",
+      "metadata": {
+        "source_path": "src/func_00198240.c"
       }
     },
     {
@@ -11075,6 +11131,14 @@
       "base_path": "build/obj/func_001BF630.o",
       "metadata": {
         "source_path": "src/func_001BF630.c"
+      }
+    },
+    {
+      "name": "func_001BF6B0",
+      "target_path": "build/expected/func_001BF6B0.o",
+      "base_path": "build/obj/func_001BF6B0.o",
+      "metadata": {
+        "source_path": "src/func_001BF6B0.c"
       }
     },
     {
@@ -15254,6 +15318,14 @@
       }
     },
     {
+      "name": "func_00207350",
+      "target_path": "build/expected/func_00207350.o",
+      "base_path": "build/obj/func_00207350.o",
+      "metadata": {
+        "source_path": "src/func_00207350.c"
+      }
+    },
+    {
       "name": "func_00207BB0",
       "target_path": "build/expected/func_00207BB0.o",
       "base_path": "build/obj/func_00207BB0.o",
@@ -16163,6 +16235,14 @@
       "base_path": "build/obj/func_002236F0.o",
       "metadata": {
         "source_path": "src/func_002236F0.c"
+      }
+    },
+    {
+      "name": "func_00223C70",
+      "target_path": "build/expected/func_00223C70.o",
+      "base_path": "build/obj/func_00223C70.o",
+      "metadata": {
+        "source_path": "src/func_00223C70.c"
       }
     },
     {

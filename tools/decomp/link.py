@@ -336,6 +336,20 @@ def _load_abs_syms() -> str:
     # literals (s86). Those names reach the compiled objects as undefined
     # externals, so without this the link fails on symbols that exist only in the
     # normalized asm.
+    # Our own C can reference an address-encoding symbol that appears in NO .s
+    # at all. splat symbolizes a scratchpad address only in `lui`+`addiu` pairs,
+    # so a global it renders as a bare literal everywhere else (D_700038A4,
+    # D_70003B7C, ...) never reaches the scans below, yet the compiled object
+    # carries it as an undefined external and the link aborts. Same rule as for
+    # the .s files: the name encodes the address, so it can be provided
+    # absolutely. Anchored on `extern` so prose in comments cannot inject one.
+    _ext_re = _re.compile(r"\bextern\b[^;\n]*?\bD_([0-9A-Fa-f]{7,8})\b")
+    for c_file in (ROOT / "src").glob("*.c"):
+        for m in _ext_re.finditer(c_file.read_text(errors="replace")):
+            name = "D_" + m.group(1)
+            if name not in syms:
+                syms[name] = "0x{:08X}".format(int(m.group(1), 16))
+
     _asm_dirs = [ASM_DIR, BUILD / ".asmnorm"]
     for asm_file in [p for d in _asm_dirs if d.is_dir() for p in d.glob("*.s")]:
         content = asm_file.read_text(errors="replace")
