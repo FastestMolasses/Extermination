@@ -2,7 +2,7 @@
 //
 // objdiff 99.74% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// splat D_FFFF pseudo-symbol wall (HARD, unreachable from C — same class as the documented D_FFFFF wall in docs/PROGRESS.md #2 / docs/NEARMISS.md). 73 of 77 instructions are identical, .text size identical (308 == 308), control flow / registers / delay slots all exact. The only 4 residual rows are ...
+// PREREQUISITE FOR THE 100.0 (must land before integrating): the recorded 99.74% was NEVER a compiler wall - it is a defect in OUR expected object. splat invented a pseudo-symbol D_FFFF (four F's, addr 0x0000FFFF) and paired the delay loop's `lui $v0,0x1` with the loop body's `addiu $v0,$v0,-1` int...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,15 @@
 //
 // COMPILER: eegcc
 // CFLAGS: -O2
+
+//
+// libpad bring-up: publishes the "pad system active" flag, then opens the two
+// controller ports through the SIF helper func_0010E6F8, spinning on a
+// 0x10000-iteration nop delay loop until each port's ready word (D_00279700[9]
+// for port 0, [19] for port 1) goes non-zero. Once both are up it queries the
+// libpad module version (func_001114B8): the high byte must be 3, otherwise it
+// prints the two diagnostic strings and bails with 0. On success it tail-calls
+// func_001107C8 with the caller's argument.
 
 extern int func_0010E6F8(int a0, int a1, int a2);
 extern int func_001114B8(void);

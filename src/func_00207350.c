@@ -1,8 +1,8 @@
 // NEARMISS func_00207350  (vram 0x00207350, 0x69C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.85% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 100.00% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// 2 of 423 instructions, one site: inner case p[5]==4. Target emits `bnez $v0,.L0020787C` + `nop`; mwcc 2.3.3 speculates the branch TARGET's first instruction, `lui $at,0x7000` (the address half of the `*(int *)0x70003B64` scratchpad read), into the delay slot and then re-emits it dead at the label...
+// MATCHED, but with a BUILD PREREQUISITE the parent must apply or the claim will not reproduce: the expected object must spell the scratchpad word 0x70003B64 as the extern D_70003B64 (%hi/%lo). Two one-line additions: (1) tools/decomp/build.py -- add "0x70003B64" to _SPAD_SYMS; (2) config/SCUS_971....
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,31 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+// SPADSYM: 0x70003B64
+//
+// func_00207350 — byte-identical match (objdiff 100.0, mwcc 2.3.3 / 000906).
+//
+// BUILD PREREQUISITE. Two one-line additions on the target-object side:
+//   1. tools/decomp/build.py: add "0x70003B64" to _SPAD_SYMS.
+//   2. config/SCUS_971.12.lcf: add `D_70003B64 = 0x70003B64;`.
+// This is exactly the treatment 0x70003B6C and 0x70003B8D already get. Blast
+// radius is one other file: src/func_001BF6B0.c names D_70003B64 in a COMMENT,
+// so the mention-based opt-in would symbolize its target too — either scope the
+// opt-in to a "// SPADSYM:" directive (preferred, see func_0014AFA0) or reword
+// that comment. func_001BF6B0 is a NEARMISS, not part of matched_code.
+//
+// WHY IT IS NEEDED. 0x70003B64 occurs exactly once in this function, at the top
+// of the block the `p[5]==4` timer branch jumps over. With the literal spelling,
+// mwcc peels that block's bare `lui at,0x7000` into the branch's empty delay slot
+// and retargets +4; the original has a nop. As an extern the lui carries an
+// R_MIPS_HI16 relocation, which mwcc will not speculate, and the slot stays nop.
+// Declared as an INCOMPLETE ARRAY on purpose: `extern int D_70003B64;` is a
+// small-data candidate under -sdatathreshold 8 and comes out as %gp_rel.
+//
+// Sweep (objdiff, expected object symbolized as above):
+//   mwcc 991202 = 91.30   mwcc233 000906 = 100.0   mwcc24 001213 = 97.35
+//   mwcc30 / mwcc301 are NOT installed on this machine — not swept.
 
 // SEMANTICS: On-screen numeric keypad / code-entry panel state machine.
 // p[4] is the outer state, p[5] the entry sub-state dispatched through
@@ -50,7 +75,7 @@
 //                D_008106C5 = 0xFF, func_001AFF90(p).
 //
 // NOTE: the D_0028xxxx globals are declared `volatile` and the non-%gp_rel
-// globals as incomplete arrays on purpose - see the header note below.
+// globals as incomplete arrays on purpose.
 
 extern int func_00123020();
 extern int func_001AEDB0();
@@ -74,6 +99,7 @@ extern volatile int D_00282228[];
 extern unsigned char D_008106C5[];
 extern unsigned char D_00810845[];
 extern unsigned short D_00810E74[];
+extern int D_70003B64[];
 
 void func_00207350(unsigned char *p) {
     unsigned char state = p[4];
@@ -207,7 +233,7 @@ void func_00207350(unsigned char *p) {
                 p[5] = p[5] + 1;
                 *(short *)(p + 0x2A) = 0xF0;
             }
-            if (!(*(int *)0x70003B64 & 0x20)) {
+            if (!(D_70003B64[0] & 0x20)) {
                 func_00207CD0(D_00275860[p[0xB]]);
             }
             func_00207CA0(D_00275860[p[0xB]]);

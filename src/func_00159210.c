@@ -1,16 +1,6 @@
-// NEARMISS func_00159210  (vram 0x00159210, 0x408 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.77% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Pure register-allocation-ORDER permutation, 6 of 258 instructions, confined to the D_00810841[D_00810700] bit test at 0xD4..0xF4. Instruction SEQUENCE is identical; only the 4 temporaries are permuted: target {index=a2, table-base=a1, shift-amount=a0, const-1=v1}, mwcc233 {index=a0, table-base=v1...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-
+//
 // SEMANTICS: Per-frame tick for a scripted actor; `q = p + 0x1F0` is its animation/
 //   sub-object. Outer state is the byte p[4]:
 //     0 - spawn/enter. func_001B0FD0(p,q,p[4],2) gates it; on 0 it runs func_001C6380(p),
@@ -18,10 +8,9 @@
 //         actor type byte p[3]:
 //           type 0x2C -> vtable p+0x30 = &D_00275478, p[5]=0, p[0]=1, load the 2x2
 //                        transform at 0x700038A0 with {0, 1.0f, 0, 1.0f} (raw bit
-//                        patterns 0x00000000 / 0x3F800000) and
-//                        p+0x20 = func_001C5570(p, D_700038A0, 0x74, 1).
+//                        patterns) and p+0x20 = func_001C5570(p, D_700038A0, 0x74, 1).
 //           otherwise  -> vtable p+0x30 = &D_00275480; if bit (p[0x2E]) of the
-//                        per-stage mask byte D_00810841[D_00810700] is set, park the
+//                        per-stage mask byte D_00810841[D_00810700[0]] is set, park the
 //                        actor (p[0]=2, p[5]=3); else pick the variant count
 //                        p[0x34] = 2 / 4 / 6 for type 0x24 / 0x25 / other, set p[0]=1,
 //                        load the transform with {1.0f, 0, 0, 1.0f} and
@@ -43,6 +32,14 @@
 //     3 - func_001AFC10(p, q, p[4]); no tail work.
 //     other - nothing.
 //   All animation plays go through func_001BA1A0(q, clip, sub, 2).
+//
+// MATCH NOTE: the per-stage bit test must be spelled with POINTER arithmetic,
+// `*(unsigned char *)(D_00810841 + D_00810700[0]) & (1 << p[0x2E])`, not with array
+// subscripting `D_00810841[D_00810700[0]] & ...`. Both are the same C value, but the
+// subscript form makes mwcc create the four temporaries in a different order and the
+// whole test comes out as a 6-register permutation (index/base/shift/const-1 land in
+// {a0,v1,a2,a1} instead of the target's {a2,a1,a0,v1}). The AND operand order is
+// separately load-bearing: table byte on the LEFT, (1 << shift) on the RIGHT.
 
 extern unsigned char D_00810700[16];
 extern unsigned char D_00810841[256];
@@ -90,7 +87,7 @@ void func_00159210(char *p) {
                 *(char **)(p + 0x20) = func_001C5570(p, D_700038A0, 0x74, 1);
             } else {
                 *(int *)(p + 0x30) = (int)&D_00275480;
-                if ((1 << *(unsigned short *)(p + 0x2E)) & D_00810841[D_00810700[0]]) {
+                if (*(unsigned char *)(D_00810841 + D_00810700[0]) & (1 << *(unsigned short *)(p + 0x2E))) {
                     *(char *)(p + 0) = 2;
                     *(char *)(p + 5) = 3;
                 } else {

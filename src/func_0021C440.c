@@ -1,16 +1,6 @@
-// NEARMISS func_0021C440  (vram 0x0021C440, 0xD60 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.77% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// mwcc dead-code-eliminates one redundant compare that the target keeps. In the `p[0x1F0] == 0x3C` arm the target emits a 3-way dispatch on p[0xD] as `bnez v0,X / <case-0 body> / X: beq v0,a2(1),tail / beq v0,a1(2),tail / b tail` - i.e. it keeps BOTH the ==1 and the ==2 compares even though all thr...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+//
 // Damage/knockback reaction state machine. p+0xF is a pending-hit request code
 // (bit 0x80 = "already serviced this frame"); p+4/p+5/p+6 are the animation
 // bank/clip/frame triple, p+0x1F0/0x1F1 the reaction mode + variant, p+0x220 is
@@ -18,6 +8,14 @@
 // Return value: 1 when the entity entered a fresh reaction this frame.
 // `s` accumulates two flags: 0x80 = refresh the collision/anim state via
 // func_0017C370, 0x01 = a reaction actually started.
+//
+// MATCH NOTE: in the `mode == 0x3C` arm the hit-kind byte p[0xD] is dispatched
+// as a chain of equality tests whose 1/2/3 arms are all empty (only kind 0 does work).
+// mwcc runs a single, non-iterative peephole that folds the LAST `beq r,k,L` into the
+// `b L` that follows it, so a chain written with only the 1 and 2 tests loses the
+// `== 2` compare that the target keeps. Writing the (behaviourally identical) third
+// `== 3` arm absorbs that peephole and reproduces the target's
+// `beq v0,a2(1) / beq v0,a1(2) / b tail` exactly.
 
 extern unsigned char D_008106F1;
 extern unsigned char D_0081083C;
@@ -220,6 +218,9 @@ int func_0021C440(char *p)
                     goto tail;
                 }
                 if (*(unsigned char *)(p + 0xD) == 2) {
+                    goto tail;
+                }
+                if (*(unsigned char *)(p + 0xD) == 3) {
                     goto tail;
                 }
             }
