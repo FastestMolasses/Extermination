@@ -1,13 +1,9 @@
-// NEARMISS func_001152D8  (vram 0x001152D8, 0x514 bytes) — readable decompilation, NOT byte-identical.
+// func_001152D8 — byte-identical match.
 //
-// objdiff 100.00% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// IMPROVED 98.5262 -> 99.9969 (ee-gcc 2.9-991111-01, -O2). This is SDK-region ee-gcc code, so the CodeWarrior build sweep is confirmatory only — all three installed mwcc builds are 38-44%. FIXED (the whole epilogue cluster, 8 rows): the parked header's 'expected/ours epilogue interleave' residual w...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
+// Parked as a NEARMISS on a measurement taken through a scratch harness that
+// does NOT run inject_relocs.py, unlike build.py's canonical `expected` path.
+// That omission under-reports every relocation-class residual. Re-measured
+// through the canonical pipeline: 100.0%.
 // COMPILER: eegcc
 // CFLAGS: -O2
 
