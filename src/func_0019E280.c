@@ -1,15 +1,24 @@
-// NEARMISS func_0019E280  (vram 0x0019E280, 0x3B8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.43% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 99.43% on mwcc233. Full logic recovered including two bugs found and fixed versus the initial draft: (1) the odd/even index handling in the best-candidate search loop had the +1 correction on the wrong parity branch (target applies +1 only on the EVEN i case, not odd); fixing this alone jumped th...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+//
+// Camera / line-of-sight AABB sweep. Builds two complementary 6-bit axis masks from a
+// componentwise compare of the two vec3s at D_70003190 / D_700031A0, runs the prepare/swap
+// helper func_0019F1A0 with the masks in both orders, snapshotting the six per-slot start
+// indices from D_70003240 into a stack array in between. Then picks the slot `cand` whose
+// [lo,hi) index span is narrowest, where the span endpoints come from D_70003240[i] and
+// D_70003228[i][sp80[i]] with the two sources swapped on odd i and a +1 correction applied
+// only on the EVEN-i case. Walks that slot's index list D_70003210[cand][lo..hi); each entry
+// selects a 64-byte record from *(char**)0x70003208. A record qualifies when its type byte
+// (+0x1A) is 0x78 and its three AABB ranges (+0xC/+0xE, +0x14/+0x16, +0x10/+0x12) overlap the
+// query box at 0x70003240..0x7000324A, and func_0019ED80 confirms the hit; on a hit the vec3
+// at D_70003190+0x20 is copied down to +0x10 and stashed, and the hit id is latched from
+// 0x700031D0. If anything hit, the stashed vec3 is written back to +0x20, the hit id restored
+// and 1 returned, else 0.
+//
+// NOTE (matching): the six AABB tests must be written with the RECORD field as the left
+// operand (`node->lo <= query`), and every saved-reg scalar must be declared BEFORE the
+// `sp80[6]` stack array — see the decl-order pivot model in the wall notes.
 
 extern void func_0019F1A0(void *p, unsigned int flags);
 extern int func_0019ED80(void *p, void *hit);
@@ -21,15 +30,16 @@ extern short *D_70003228[6]; // per-slot short-array pointer table
 extern short D_70003240[6];  // per-slot short table (index src)
 
 int func_0019E280(void) {
+    int lo, hi;
+    int hitfound;
+    int cand;
     int maskA, maskB;
     int i;
-    int sp80[6];
     int best;
-    int cand, lo, hi;
     short *e;
-    float spA0[3];
-    int hitfound;
     int k;
+    float spA0[3];
+    int sp80[6];
 
     hitfound = 0;
 
@@ -94,11 +104,11 @@ int func_0019E280(void) {
             char *node = *(char **)0x70003208 + (*e << 6);
             e += 1;
             if (*(unsigned char *)(node + 0x1A) == 0x78 &&
-                *(short *)0x70003240 >= *(short *)(node + 0xC) &&
+                *(short *)(node + 0xC) <= *(short *)0x70003240 &&
                 *(short *)(node + 0xE) >= *(short *)0x70003242 &&
-                *(short *)0x70003248 >= *(short *)(node + 0x14) &&
+                *(short *)(node + 0x14) <= *(short *)0x70003248 &&
                 *(short *)(node + 0x16) >= *(short *)0x7000324A &&
-                *(short *)0x70003244 >= *(short *)(node + 0x10) &&
+                *(short *)(node + 0x10) <= *(short *)0x70003244 &&
                 *(short *)(node + 0x12) >= *(short *)0x70003246 &&
                 func_0019ED80(D_70003190, node) != 0) {
                 for (k = 0; k < 3; k++) {

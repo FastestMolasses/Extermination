@@ -6685,3 +6685,108 @@ to be portable to other PS2 projects.
 2. Semantic-documentation sweep for the ~60 hand-written asm functions: the port needs an
    implementable spec for each, and they will never byte-match from C because they were
    assembly in the original source tree too.
+
+## s86 — boot-ELF byte-identity restored after a latent link defect
+
+Regenerating `objdiff.json` (`build.py setup`) pulled units into the link for the first
+time and broke boot-ELF byte-identity. Three defects, all in our own build inputs:
+
+1. **Stale renamed symbols.** 24 `func_XXXXXXXX` references in `src/` pointed at functions
+   that had been renamed to semantic names (`func_00121870` -> `block_copy`,
+   `func_001CA0A0` -> `quat_nlerp`, ...). Only 5 surfaced as link errors; the rest were
+   latent, waiting for their caller to become compilable. They also faked sub-1% objdiff
+   residuals, which is what made `verify.py` (1941 perfect) disagree with the objdiff report
+   (1947 matched). 17 renames applied; five units went straight to 100% and the counters now
+   agree.
+
+2. **Local data in compiled objects — the actual byte-identity break.** A `switch`
+   dispatcher or a function with `static const` data compiles to an object carrying its own
+   `.rodata`. That data is not address-pinned, so the linker places it wherever `.rodata`
+   flows and the function's `lui`/`addiu` pair encodes the wrong base. objdiff still scores
+   the object a genuine 100%, because `build/expected/<f>.o` carries the same table appended
+   (`gen_jtbl_rodata`) — both sides agree per-object and the divergence exists only after
+   linking. `func_0011A9F0`'s jump table resolved to 0x275b80 instead of 0x26c120;
+   `func_001258E0` defined `D_0026CC38` in its own 0x100-byte `.rodata`.
+   `fill_unmatched.py` now links any object with non-empty `.rodata`/`.data`/`.sdata` from
+   the pinned `.s` (68 functions). `matched_code` is unaffected — it is an object metric.
+
+3. **Size-drift guard automated.** `SIZE_DRIFT_FORCE_ASM` was a hand-maintained list, which
+   cannot cover a unit that only just became compilable. Compiled `.text` is now measured
+   against the original slot (`next_vram - this_vram`) with a `.s` fallback on overflow.
+   Both guards print what they caught, so the class cannot fail silently again.
+
+Written up as PS2_DECOMP_PLAYBOOK.md §2b, since it generalizes to any sequential-link
+matching decomp.
+
+Also integrated an ee-gcc wave: `func_001108E8` byte-matched (100.0), plus four documented
+NEARMISS files (`func_00118828` 99.05, `func_00113280` 98.93, `func_00111818` 86.75,
+`func_00119650` 79.62). Two candidates at ~41% were reverted as below the NEARMISS floor.
+
+Tooling defect fixed along the way: `eegcc_wave.js` interpolated candidate *objects* into
+the prompt, so agents received `[object Object]` instead of function names and self-selected
+their own targets. Same class as the `permuter_seeded_wave.js` bug fixed earlier. The eegcc
+prompt also now carries idioms 29/30/31 and the volatile anti-idiom.
+
+**Verified state at that point:** boot-elf PASS, overlays 19/19, matched_code 98.66%,
+functions 1948/2044.
+
+---
+
+## s86 (continued) — matches, a metric correction, and the port fidelity audit
+
+**Decomp: 1986/2082 byte-matched**, boot ELF byte-identical, overlays 19/19. The rebuilt ISO
+also **boots and runs clean in PCSX2** (serial SCUS-97112, CRC 4CDC5F74, entry 0x00100008,
+zero exceptions over 90s) — which byte-comparison cannot prove on its own, because it
+validates the strip-and-repack path rather than the content.
+
+### The headline metric was flattering itself
+
+"1974/2070 = 95.4%" is *matched units over compiled units*, and NEARMISS files are excluded
+from that denominator by construction — so it approaches 100% while hundreds of functions
+remain unmatched. Against the real population of 2953 functions:
+
+| | count | share |
+|---|---|---|
+| byte-matched C | 2082 | 70.5% |
+| NEARMISS (readable, not byte-identical) | 787 | 26.7% |
+| stubs (assembly) | 84 | 2.8% |
+
+Report against 2953 from here on. About 76 of the 84 stubs can never become C (VU0 macro
+mode, arithmetic MMI, COP0, hand-written crt0), so the ceiling on C coverage is ~97%.
+
+### Two more "walls" that were our own tooling
+
+* **Hoisted %hi symbolization.** splat pairs %hi/%lo by proximity; a %hi hoisted far from its
+  %lo gets emitted as a bare immediate, so the expected object holds a constant where our
+  object holds an R_MIPS_HI16 reloc. Same assembled word — the linked binary never differed —
+  but objdiff scores a permanent 99.9x%. Fixed in the expected object
+  (`build.py _symbolize_hoisted_hi`), playbook §2a-bis. 11 sites in 10 functions; one reached
+  100.0, the other nine had real residuals stacked on top.
+* **Routing by address is wrong.** ee-gcc and mwcc objects INTERLEAVE (ee-gcc runs to
+  0x00128320; 33 mwcc units sit below it). func_001200E8 went to the mwcc lane on the address
+  rule and is unmatchable there; it is ee-gcc dlmalloc `free`, matched at 100.0. Route on
+  codegen tell-tales.
+
+### Levers worth reusing
+
+* Float locals colour in DECLARATION order — declaring temporaries in reverse use order
+  reproduces a target colouring them $f2/$f1/$f0 (func_001C3BE0).
+* An UNREFERENCED stack local can be load-bearing: ee-gcc 2.9 keeps a dead array's slot, which
+  is what yields a 0x40 frame instead of 0x30 (func_0010F7D8).
+
+### Tooling defects, all silently producing confident wrong output
+
+Nine wave scripts interpolated candidate OBJECTS into prompts, so agents got
+`[object Object]` and self-selected targets. The multicc wave advertised a 5-build sweep while
+only three builds exist here. A detector written this session returned zero twice on the very
+function it was built for. **Validate against a known-positive before trusting a tool** — one
+that finds nothing looks exactly like a clean codebase.
+
+### Port (sibling repo)
+
+Restored a non-building tree (9 missing platform/gfx/audio sources; an unimplemented fog API),
+then ran two claim-audit rounds over all 457 DECODED/VERIFIED assertions: **110 corrections**,
+including real gameplay bugs — an invented drum wobble, the bug's "death" clip actually being
+its knockdown reaction, one-sided tendril scatter, a missing hurt sound. Round 2 **overturned a
+regression round 1 introduced**, which is why the audit runs at least twice. em_game.c split
+11,808 → 7,231 lines (em_camera / em_scene / em_props).

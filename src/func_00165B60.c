@@ -1,27 +1,37 @@
-// NEARMISS func_00165B60  (vram 0x00165B60, 0x770 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.54% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/control-flow/data 100% byte-faithful except D_00275B40 (a pointer global near $gp): the real linked binary accesses it via %gp_rel(D_00275B40)($gp), but a per-translation-unit standalone recompile against this stub source always lowers it to lui/lw absolute addressing regardless of -sdatathr...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// CFLAGS: -O4,p -sdatathreshold 4
 
+// SEMANTICS: entity think-state dispatcher on the state byte e[6].
+//   case 0: if the world/camera mode (D_00810700[0]) is 0xD and the entity
+//           position (e+0xB0..0xB8) is inside a fixed box, snap to state 0xA
+//           and stamp e[0x1F0]=0x15; otherwise advance the state and play the
+//           fallback anim 0xE3 or 0xE4 depending on e[0x1F0].
+//   case 1: wait until input bit 0x8000 clears, then advance.
+//   case 2: the big body. On the advance signal (bit 0x1000) rebuild the
+//           orientation matrix at e+0xD0, transform the fixed offset staged in
+//           the scratchpad at 0x700038A0 through it, re-anchor the entity onto
+//           the active camera record (*(D_00275B40+4) + 0xC0), then start clip
+//           D_002754D0[0] and hand off to outer state 0xC. Otherwise, for the
+//           0x16 variant, drive a two-step ledge/drop interpolation on e[7]
+//           (measuring the drop with func_00199FA0/func_0011DF78 into
+//           0x70003A20 and easing e+0xB4 by e+0x2E4 per frame). Independently
+//           step the footstep/impact sub-state machine (e+0x28 for the 0x16
+//           variant, e[7] otherwise) off the clip frame counter e+0x3C,
+//           firing sound cue 0x107 at 300.0 on the last step.
+//   case 10: bump the state and kick off clip 0x70.
+//   case 11: on the advance signal seed the fixed pose (1021.9/187.2/836.3)
+//            and play clip 0xFE.
+//   case 12: on the advance signal restart clip D_002754D0[0] and hand off to
+//            outer state 0xC.
+//   Tail: if the world/camera mode is 2, run func_00176DC0.
 //
-// Entity think-state dispatcher on state byte e[6]. Case 0 checks the current
-// world/camera mode (D_00810700==0xD) and whether the camera pos (e+0xB0..0xB8)
-// is within a fixed box; if so snaps state to 0xA and sets e[0x1F0]=0x15,
-// otherwise advances the state and plays a fallback anim (0xE3/0xE4) depending
-// on e[0x1F0]. Case 1 waits for input bit 0x8000. Case 2 is the big body: builds
-// a rotation/translation matrix from e+0xD0/e+0xB0/e+0xC0, drives sub-state
-// machines on e[7] / e+0x28 to step a camera interpolation, and starts an anim
-// clip (D_002754D0) + sound (0x1FBD50). Case 10 bumps state and kicks off clip
-// 0x70. Case 11/12 seed a fixed camera pose (e+0xB0..0xB8 = 1021.9/187.2/836.3)
-// or restart clip D_002754D0. At the end, if D_00810700==2, calls func_00176DC0.
+//   NOTE on the declarations: the original TU was built with a small-data
+//   threshold, so D_00275B40 (a 4-byte pointer) is reached via
+//   %gp_rel($gp) while every other global here stays absolute %hi/%lo. That is
+//   reproduced by compiling with -sdatathreshold 4 and declaring the far
+//   globals as arrays larger than the threshold; with -sdatathreshold 0 the
+//   D_00275B40 loads lower to lui/lw and the function stops at 99.54%.
+
 extern void *build_trs_matrix(void *mtx, void *pos, void *rot, void *scale);
 extern void func_001026A0(void *dst, void *src, void *xf);
 extern void func_001028B8(void *dst, void *a, void *b);
@@ -39,11 +49,11 @@ extern int func_00199FA0(char *arg0, char *arg1);
 extern float func_001B1470(float a);
 extern void func_001FBD50(unsigned char *e, int id, int b, float f);
 
-extern short D_002754D0;
+extern short D_002754D0[16];
 extern int *D_00275B40;
-extern unsigned char D_00810700;
-extern int D_700038A0;
-extern int D_700038B0;
+extern unsigned char D_00810700[16];
+extern int D_700038A0[16];
+extern int D_700038B0[16];
 
 void func_00165B60(unsigned char *e) {
     unsigned char st;
@@ -54,7 +64,7 @@ void func_00165B60(unsigned char *e) {
     st = e[6];
     switch (st) {
     case 0:
-        if (D_00810700 == 0xD && *(float *)(e + 0xB0) >= 1010.0f && *(float *)(e + 0xB0) <= 1030.0f
+        if (D_00810700[0] == 0xD && *(float *)(e + 0xB0) >= 1010.0f && *(float *)(e + 0xB0) <= 1030.0f
             && *(float *)(e + 0xB4) >= 170.0f && *(float *)(e + 0xB4) <= 180.0f
             && *(float *)(e + 0xB8) >= 830.0f && *(float *)(e + 0xB8) <= 850.0f) {
             e[6] = 0xA;
@@ -88,15 +98,15 @@ void func_00165B60(unsigned char *e) {
             *(int *)0x700038A4 = 0xC1266666;
             *(int *)0x700038A8 = 0x40C9999A;
             *(int *)0x700038AC = 0;
-            func_001026A0(&D_700038B0, e + 0xD0, &D_700038A0);
-            func_001028B8(e + 0xB0, (void *)(*(int *)((char *)D_00275B40 + 4) + 0xC0), &D_700038B0);
+            func_001026A0(D_700038B0, e + 0xD0, D_700038A0);
+            func_001028B8(e + 0xB0, (void *)(*(int *)((char *)D_00275B40 + 4) + 0xC0), D_700038B0);
             *(int *)(e + 0xBC) = 0x3F800000;
             func_00102918(e + 0xD0, e + 0xD0, e + 0xB0);
             if (e[0x1F0] == 0x16) {
                 *(float *)(e + 0xB4) = *(float *)(e + 0x294);
             }
             e[0x2F1] = 0;
-            func_001749A0(e, D_002754D0, 0, 0.0f);
+            func_001749A0(e, D_002754D0[0], 0, 0.0f);
             func_0017FC80(e, 16.0f);
             e[5] = 0xC;
             e[6] = 0;
@@ -105,10 +115,10 @@ void func_00165B60(unsigned char *e) {
             switch (e[7]) {
             case 0:
                 if (*(float *)(e + 0x3C) <= 25.0f) {
-                    func_001031E0(&D_700038A0, (void *)(*(int *)((char *)D_00275B40 + 4) + 0xC0), st);
+                    func_001031E0(D_700038A0, (void *)(*(int *)((char *)D_00275B40 + 4) + 0xC0), st);
                     *(float *)(e + 0xC4) = func_001B1470(3.1415927f + *(float *)(e + 0xC4));
                     build_trs_matrix(e + 0xD0, e + 0xB0, e + 0xC0, e + 0x60);
-                    if (func_00180300(e, &D_700038A0, 0) == 0 && func_00199FA0((char *)sp20, (char *)sp30) != 0) {
+                    if (func_00180300(e, D_700038A0, 0) == 0 && func_00199FA0((char *)sp20, (char *)sp30) != 0) {
                         *(float *)0x70003A20 = func_0011DF78(sp30[1] - sp20[1]);
                         *(float *)0x70003A20 = *(float *)0x70003A20 - 16.0f;
                         do {
@@ -190,7 +200,7 @@ void func_00165B60(unsigned char *e) {
     case 12:
         if (*(int *)(e + 0x200) & 0x1000) {
             e[0x2F1] = 0;
-            func_001749A0(e, D_002754D0, 0, 0.0f);
+            func_001749A0(e, D_002754D0[0], 0, 0.0f);
             func_0017FC80(e, 16.0f);
             e[5] = 0xC;
             e[6] = 0;
@@ -199,7 +209,7 @@ void func_00165B60(unsigned char *e) {
         }
         break;
     }
-    if (D_00810700 == 2) {
+    if (D_00810700[0] == 2) {
         func_00176DC0(e);
     }
 }

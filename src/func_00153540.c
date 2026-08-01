@@ -1,31 +1,28 @@
-// NEARMISS func_00153540  (vram 0x00153540, 0x22C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.58% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two residuals at 99.58%: (1) commutative add.s operand-coloring on the three pose+=velocity adds (target f0+f1 vs mwcc f1+f0 - load order already matched by putting the velocity operand first); (2) the D_700038A0..AC scratchpad quaternion-identity stores use %hi/%lo relocations and AC(1.0f)-first...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
-// NEARMISS 99.58% (mwcc233). Actor state-machine step, dispatched on the
-// 1-byte state at e+4 (states 0..3):
-//   0: init - rotate matrix block (func_00103230, 2.5f), acquire a resource
-//      handle into e+0x20, snapshot pose e+0xB0.. into e+0xA0.., advance.
-//   1: integrate - add velocity e+0xC0.. into pose e+0xB0.., collision probe
-//      (func_0019A570); on hit or when the primary angle e+0xB0 leaves
-//      [ -inf,20] (falling) / [180,+inf] (rising) advance to 2. Snapshot pose,
-//      zero a quaternion scratch (D_700038A0..A8=0, D_700038AC=1.0f), build TRS.
-//   2: fire - flag the resource (+4=2), submit two effect calls, advance.
-//   3: teardown (func_001AFC10).
-// RESIDUAL WALL: (1) commutative add.s operand-coloring on the three
-// pose+=velocity adds (target f0+f1 vs mwcc f1+f0); (2) the D_700038A0..AC
-// scratchpad stores use %hi/%lo relocations + AC-first order in the target,
-// while mwcc materializes the fixed 0x70003xxx addresses as absolute lui and
-// keeps A0-first order. Both are compiler/linker artifacts, not source-fixable.
+//
+// SEMANTICS: actor state-machine step, dispatched on the 1-byte state at e+4
+// (states 0..3).
+//   0 init      - spin the direction block at e+0xC0 by 2.5 (func_00103230),
+//                 acquire resource handle 0x80000037 into e+0x20, snapshot the
+//                 pose e+0xB0..0xBC into the previous-pose slot e+0xA0..0xAC,
+//                 advance to state 1.
+//   1 integrate - add the per-frame velocity e+0xC0..0xC8 into the pose
+//                 e+0xB0..0xB8, then sweep-test the motion with func_0019A570
+//                 (prev pose, new pose, mask 7, 0x20); on a hit snap the pose to
+//                 D_700031B0 and go to state 2. Independently, when the primary
+//                 angle e+0xB0 is falling (velocity e+0xC0 < 0) and has dropped
+//                 to <= 20, or is rising and has reached >= 180, also go to
+//                 state 2. Re-snapshot the pose, build an identity quaternion in
+//                 the scratchpad at 0x700038A0 (0,0,0,1) and rebuild the object
+//                 matrix at e+0xD0 from pose + that quaternion.
+//   2 fire      - flag the acquired resource (+4 = 2), post effect 0x8000006B at
+//                 the pose and effect 0x88A with lifetime 300, advance to 3.
+//   3 teardown  - func_001AFC10(e).
+//
+// The quaternion stores go through the literal scratchpad addresses (absolute
+// `lui at,0x7000`) while the two build_trs_matrix arguments take &D_700038A0
+// (a %hi/%lo symbol pair) — that split is what the original object encodes.
 extern void func_00103230(void *a, void *b, float angle);
 extern int func_001EFE00(int a, void *p);
 extern int func_0019A570(void *a, void *b, int c, int d);
@@ -37,9 +34,6 @@ extern void build_trs_matrix(void *mtx, void *pos, void *rot, void *scale);
 
 extern char D_700031B0[];
 extern int D_700038A0;
-extern int D_700038A4;
-extern int D_700038A8;
-extern int D_700038AC;
 
 void func_00153540(char *e) {
     unsigned char st;
@@ -56,9 +50,9 @@ void func_00153540(char *e) {
         *(float *)(e + 0xAC) = *(float *)(e + 0xBC);
         break;
     case 1:
-        *(float *)(e + 0xB0) = *(float *)(e + 0xC0) + *(float *)(e + 0xB0);
-        *(float *)(e + 0xB4) = *(float *)(e + 0xC4) + *(float *)(e + 0xB4);
-        *(float *)(e + 0xB8) = *(float *)(e + 0xC8) + *(float *)(e + 0xB8);
+        *(float *)(e + 0xB0) += *(float *)(e + 0xC0);
+        *(float *)(e + 0xB4) += *(float *)(e + 0xC4);
+        *(float *)(e + 0xB8) += *(float *)(e + 0xC8);
         if (func_0019A570(e + 0xA0, e + 0xB0, 7, 0x20) != 0) {
             func_001031E0(e + 0xB0, D_700031B0);
             *(unsigned char *)(e + 4) = 2;
@@ -74,10 +68,10 @@ void func_00153540(char *e) {
         *(float *)(e + 0xA4) = *(float *)(e + 0xB4);
         *(float *)(e + 0xA8) = *(float *)(e + 0xB8);
         *(float *)(e + 0xAC) = *(float *)(e + 0xBC);
-        D_700038AC = 0x3F800000;
-        D_700038A0 = 0;
-        D_700038A4 = 0;
-        D_700038A8 = 0;
+        *(int *)0x700038A0 = 0;
+        *(int *)0x700038A4 = 0;
+        *(int *)0x700038A8 = 0;
+        *(int *)0x700038AC = 0x3F800000;
         build_trs_matrix(e + 0xD0, e + 0xB0, &D_700038A0, &D_700038A0);
         break;
     case 2:
