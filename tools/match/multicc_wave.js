@@ -1,6 +1,6 @@
 export const meta = {
   name: 'exterm-multicc-wave',
-  description: 'Sweep 5 CodeWarrior builds (991202/2.3.3/2.4/3.0/3.0.1) over parked regalloc/branch-lowering near-misses — find which build byte-matches each',
+  description: 'Sweep the INSTALLED CodeWarrior builds (991202/2.3.3/2.4) over parked regalloc/branch-lowering near-misses — find which build byte-matches each',
   phases: [{ title: 'MultiCC', detail: 'decode near-miss C, compile with all 5 builds, keep the winner' }],
 }
 const SCHEMA = {
@@ -27,8 +27,12 @@ THE FIVE BUILDS (all run: qemu-i386 tools/bin/wibo32 <exe> -c <FLAGS> -o <out> <
   mwcc      = tools/mwccps2/mwccmips.exe       (991202, 2.3.1.01 core — default)
   mwcc233   = tools/mwccps2-233/mwccps2.exe    (000906, 2.3.1.01 core — idiom-13 fix)
   mwcc24    = tools/mwccps2-24/mwccps2.exe     (001213, 2.4.1.01 core)
-  mwcc30    = tools/mwccps2-30/mwccps2.exe     (3.0-011126, 2.4.1.01 core)
-  mwcc301   = tools/mwccps2-301/mwccps2.exe    (3.0.1-020123, 2.4.1.01 core)
+  mwcc30    = tools/mwccps2-30/mwccps2.exe     (3.0-011126)  -- NOT INSTALLED on this machine
+  mwcc301   = tools/mwccps2-301/mwccps2.exe    (3.0.1-020123) -- NOT INSTALLED on this machine
+ONLY THREE BUILDS EXIST HERE. Check with `ls -d tools/mwccps2*` before you start, and
+never write 'invariant across every build' when you only swept the three that exist —
+say 'invariant across the three installed builds'. 3.0/3.0.1 share the 2.4.1.01 core,
+so they are unlikely to break a tie 2.4 does not, but that is an inference, not a test.
 
 PER-FUNCTION LOOP (S=build/agent_${id}):
 1. DECODE to plain readable C: m2c base (.venv/bin/python3 tools/m2c/m2c.py --target mipsee-mwcc-c --valid-syntax build/asm/matchings/main/code/<F>.s 2>/dev/null | .venv/bin/python3 tools/match/m2c_clean.py) then rewrite in committed-src convention (PLAIN C, externs, *(type*)(p+off), NO prelude/macros). The existing src/<F>.c (stub or asm-void) and prior MATCH-ATTEMPT comments often document the exact body + the wall — read & reuse. Apply MATCHING_GUIDE idioms to get the BODY byte-identical first.

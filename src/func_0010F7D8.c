@@ -1,16 +1,19 @@
-// NEARMISS func_0010F7D8  (vram 0x0010F7D8, 0x98 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.79% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eabi frame-size stride wall: body is byte-identical (branch-likely region, all loads/stores/branches match exactly). Only diff is the frame immediate: expected reserves 0x40 with saves s0@0x10/s1@0x20/ra@0x30 (16 bytes outgoing-arg space below saves, with NO stack store), mine emits 0x30. No matched eegcc func in tr...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
+// SDK pad/device query. Resolves the per-port control block with
+// func_0010EFA8(a0); fails with -1 if the subsystem flag D_00241C88 is clear
+// and with -9 if the block is missing or its state word (+4) is zero.
+// For mode 1 it reports through *a2 whether the secondary device is present
+// (func_0010EA60(&D_00279210) -> a1 when nonzero, 0 otherwise) and returns 0;
+// otherwise it returns 0 when the state word has bit 0x8000 set, and the
+// cached status word D_00279040 when it does not.
+//
+// `d` is the 16-byte stack local the target's frame reserves: the prologue
+// allocates 0x40 and parks s0/s1/ra at 0x10/0x20/0x30, leaving 16 unused bytes
+// at the bottom of the frame. ee-gcc 2.9 keeps an unreferenced local array's
+// slot, which is what reproduces that frame size (without it the frame is 0x30
+// and every save offset shifts down by 16).
 extern void *func_0010EFA8(int);
 extern int func_0010EA60(void *);
 
@@ -19,6 +22,7 @@ extern char D_00279210;
 extern int D_00279040;
 
 int func_0010F7D8(int a0, int a1, int *a2) {
+    int d[4];
     int *p;
     int flags;
 
