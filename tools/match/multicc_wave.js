@@ -29,7 +29,7 @@ THE FIVE BUILDS (all run: qemu-i386 tools/bin/wibo32 <exe> -c <FLAGS> -o <out> <
   mwcc24    = tools/mwccps2-24/mwccps2.exe     (001213, 2.4.1.01 core)
   mwcc30    = tools/mwccps2-30/mwccps2.exe     (3.0-011126)  -- NOT INSTALLED on this machine
   mwcc301   = tools/mwccps2-301/mwccps2.exe    (3.0.1-020123) -- NOT INSTALLED on this machine
-ONLY THREE BUILDS EXIST HERE. Check with `ls -d tools/mwccps2*` before you start, and
+ONLY THREE BUILDS EXIST HERE. Check with 'ls -d tools/mwccps2*' before you start, and
 never write 'invariant across every build' when you only swept the three that exist —
 say 'invariant across the three installed builds'. 3.0/3.0.1 share the 2.4.1.01 core,
 so they are unlikely to break a tie 2.4 does not, but that is an inference, not a test.
