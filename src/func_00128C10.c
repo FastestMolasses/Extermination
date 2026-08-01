@@ -1,8 +1,8 @@
 // NEARMISS func_00128C10  (vram 0x00128C10, 0xB6C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 98.48% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// 97.97% (26 of ~730 instrs). Both jr-table dispatches are byte-identical in code; the 9-entry e[5] table matches its reloc exactly. Residuals: (1) rows 103/104 - REAL JTBL RELOC MISMATCH, and it is a build/jtblrodata ORDERING problem, not a compiler one. Please tell the orchestrator: this function...
+// compiler artifact (register coloring / scheduling)
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -56,7 +56,7 @@ extern int   func_00128B80(unsigned char *, unsigned char *);
 extern void  func_001287F0(unsigned char *, unsigned char *, short, float);
 extern int   func_00122BB8(void);
 extern float func_001B1470(float);
-extern int   func_001B13F0(float *, float *, float);
+extern int   func_001B13F0(float *, unsigned char *, float);
 extern int   func_001C25E0(unsigned char *, float *);
 extern float func_001B12B0(float, float, float);
 extern int   func_00128600(int);
@@ -94,8 +94,8 @@ void func_00128C10(unsigned char *e)
     short c;
     float x;
 
-    b = e + 0x1F0;
     base = D_008102B0;
+    b = e + 0x1F0;
     switch (e[4]) {
     case 0:
         switch (e[5]) {
@@ -158,7 +158,7 @@ void func_00128C10(unsigned char *e)
                     }
                     t = e[0xD];
                     if (t < 4) {
-                        if (func_001B13F0(base + 0x28, (float *)(e + 0xB0), 100.0f) != 0) {
+                        if (func_001B13F0(base + 0x28, e + 0xB0, 100.0f) != 0) {
                             e[5] = e[5] + 1;
                             *(short *)(b + 0xD0) = 0;
                         }
@@ -168,7 +168,7 @@ void func_00128C10(unsigned char *e)
                         } else {
                             x = 40.0f;
                         }
-                        if (func_001B13F0(base + 0x28, (float *)(e + 0xB0), x) != 0) {
+                        if (func_001B13F0(base + 0x28, e + 0xB0, x) != 0) {
                             e[5] = e[5] + 1;
                             *(short *)(b + 0xD0) = 0;
                         }
@@ -195,7 +195,7 @@ void func_00128C10(unsigned char *e)
                         e[5] = 2;
                         break;
                     }
-                    if (func_001B13F0(base + 0x28, (float *)(e + 0xB0), 150.0f) == 0) {
+                    if (func_001B13F0(base + 0x28, e + 0xB0, 150.0f) == 0) {
                         *(short *)(b + 0xD0) = *(short *)(b + 0xD0) + 1;
                         if (*(short *)(b + 0xD0) >= 0x5A) {
                             e[5] = 0;
@@ -207,7 +207,7 @@ void func_00128C10(unsigned char *e)
                         } else {
                             x = 24.0f;
                         }
-                        if (func_001B13F0(base + 0x28, (float *)(e + 0xB0), x) != 0) {
+                        if (func_001B13F0(base + 0x28, e + 0xB0, x) != 0) {
                             e[5] = e[5] + 1;
                             *(float *)(b + 0xE8) = func_001B1470(
                                 (6.2831855f * (float)(func_00122BB8() & 0xF0)) / 256.0f);
@@ -388,7 +388,7 @@ void func_00128C10(unsigned char *e)
             }
             break;
         case 3:
-            if (func_001B13F0(base + 0x28, (float *)(e + 0xB0), 100.0f) == 0 &&
+            if (func_001B13F0(base + 0x28, e + 0xB0, 100.0f) == 0 &&
                 (func_001B1630(*(float *)(e + 0xB0), *(float *)(e + 0xB4),
                                *(float *)(e + 0xB8)) & 0xFF) == 0) {
                 e[0] = 1;

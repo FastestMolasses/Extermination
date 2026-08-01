@@ -1,8 +1,8 @@
 // NEARMISS func_001551B0  (vram 0x001551B0, 0x1464 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.41% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 97.92% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Permuter-class register-coloring + instruction-scheduling residue on an otherwise body-faithful 1326-instruction state machine (70 of 1326 instructions differ; body/structure/constants are correct). Five residual clusters, none of them the clean-store delay-slot nop, none idiom-fixable: (1) ARG-S...
+// compiler artifact (register coloring / scheduling)
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -54,6 +54,9 @@
 //          timer runs and returns to state 3 once fewer than three corners are blocked.
 // state 3 / default: death/despawn - type 0x50 notifies its owner (func_001B1190) first, then
 //          func_001AFC10 frees the actor.
+
+/* the 0x1F0 scratch sub-object: +0x40 is its rotation matrix. */
+typedef struct { char pad[0x40]; char mtx[0x40]; } SubObj;
 
 extern int func_001B0FD0();
 extern void func_001B1B70(void *self);
@@ -223,13 +226,14 @@ void func_001551B0(char *arg0, int arg1, int arg2)
                         *(float *)(D_002468B8 + *pm * 0x30 + ((*pn - 1) >> 1) * 0xC);
                 }
                 if (*pn == 0) {
-                    copy_qw4(arg0 + 0xD0, arg0 + 0x1F0);
+                    copy_qw4(arg0 + 0xD0, ((SubObj *)(arg0 + 0x1F0))->pad);
                 }
                 *pn = *pn - 1;
             } else {
                 func_001FBD50(arg0, 0x19C, 0, 300.0f);
                 *pn = ((func_00122BB8() >> 16) << 8) >> 15;
-                *(int *)(arg0 + 0x23C) = ((func_00122BB8() >> 16) * 7) >> 15;
+                { int x = func_00122BB8() >> 16; x *= 7; x >>= 15;
+                  *(int *)(arg0 + 0x23C) = x; }
             }
         }
         copy_qw4((char *)*(int *)D_00275B40 + 0x90, arg0 + 0xD0);
@@ -298,10 +302,7 @@ void func_001551B0(char *arg0, int arg1, int arg2)
                     break;
                 }
             }
-            {
-                char *subA = arg0 + 0x1F0;
-                mtx = subA + 0x40;
-            }
+            mtx = ((SubObj *)(arg0 + 0x1F0))->mtx;
             func_001029C0(mtx);
             *(short *)(arg0 + 0x28) = 0x1E;
             {
@@ -365,8 +366,7 @@ void func_001551B0(char *arg0, int arg1, int arg2)
             *(short *)(arg0 + 0x28) = *(short *)(arg0 + 0x28) - 1;
             *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0x2C8) + *(float *)(arg0 + 0xB4);
             if (*(short *)(arg0 + 0x28) < 2) {
-                char *sub3 = arg0 + 0x1F0;
-                char *m2 = sub3 + 0x40;
+                char *m2 = ((SubObj *)(arg0 + 0x1F0))->mtx;
                 func_001029C0(m2);
                 *(float *)(arg0 + 0x2CC) = 11.0f * -*(float *)(arg0 + 0x2B8);
                 *(float *)(arg0 + 0x2C4) = 11.0f * *(float *)(arg0 + 0x2C0);
@@ -400,8 +400,8 @@ void func_001551B0(char *arg0, int arg1, int arg2)
             }
         ljoin:
             {
-                char *sub2 = arg0 + 0x1F0;
-                func_001026D0(arg0 + 0xD0, arg0 + 0xD0, sub2 + 0x40);
+                func_001026D0(arg0 + 0xD0, arg0 + 0xD0,
+                              ((SubObj *)(arg0 + 0x1F0))->mtx);
             }
             *(float *)(arg0 + 0x100) = *(float *)(arg0 + 0xB0);
             *(float *)(arg0 + 0x104) = *(float *)(arg0 + 0xB4);
@@ -489,7 +489,7 @@ void func_001551B0(char *arg0, int arg1, int arg2)
                 } else {
                     int r;
                     func_001029C0(D_700036E0);
-                    r = ((func_00122BB8() >> 16) << 2) >> 15;
+                    r = func_00122BB8() >> 16; r <<= 2; r >>= 15;
                     switch (r) {
                     case 1:
                         func_00102BB0(D_700036E0, D_700036E0, 1.5707964f);

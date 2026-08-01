@@ -7126,6 +7126,14 @@
       }
     },
     {
+      "name": "func_001549C0",
+      "target_path": "build/expected/func_001549C0.o",
+      "base_path": "build/obj/func_001549C0.o",
+      "metadata": {
+        "source_path": "src/func_001549C0.c"
+      }
+    },
+    {
       "name": "func_00154F00",
       "target_path": "build/expected/func_00154F00.o",
       "base_path": "build/obj/func_00154F00.o",

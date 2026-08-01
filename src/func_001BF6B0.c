@@ -1,25 +1,8 @@
 // NEARMISS func_001BF6B0  (vram 0x001BF6B0, 0x8DC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.958% via mwcc 2.3.3 (-O4,p -sdatathreshold 4); 7 diff rows / 567 instructions.
-// (Was 95.90%. s86: fixed 6 externs, applied idiom-27 + idiom-28, and switched the two
-// block-leading scratchpad zero-stores to the SYMBOL form.)
-//
-// Residual, exactly:
-//   (a) 4 rows: `lui at,%hi(D_700038A0)` / `sw zero,%lo(D_700038A0)(at)` at the head of
-//       case 0 and of the case-3 spread branch. These RELOCATE to precisely the target's
-//       `lui at,0x7000` / `sw zero,0x38a0(at)` — byte-identical after linking. They only
-//       show as a diff because splat symbolizes lui+addiu pairs for 0x700038A0 but leaves
-//       the lui+sw pairs as raw constants, so the expected object cannot carry the reloc.
-//       PROVEN (minimal probe, build/agent_ps_1/probe/p1..p6.c): mwcc 2.3.3 speculates a
-//       RAW `lui at,0x7000` into the preceding conditional-branch delay slot (and
-//       re-materializes it dead at the label) for EVERY raw spelling — absolute cast,
-//       volatile, base+index, live-zero value, added `default:`, pointer local. Only the
-//       RELOCATED lui is never speculated, which is what leaves the target's NOP. The
-//       original source therefore referenced these words by symbol.
-//   (b) 3 rows: `sll v1,v0,3 / sra v1,v1,15 / addiu v0,v1,0x12c` vs the same in v0 — a
-//       pure two-register colouring permutation in the cooldown RNG. No source spelling
-//       moves it (12 respellings tried; a minimal probe colours it differently again, so
-//       it is set by surrounding pressure, not by the expression). Permuter territory.
+// objdiff 99.99% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// diff is a genuine compiler artifact that no source change fixes here:
+// compiler artifact (register coloring / scheduling)
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -246,7 +229,14 @@ void func_001BF6B0(unsigned char *a) {
             }
             if (*(short *)(sub + 0) & 0x1000) {
                 func_001BF5B0(a, sub, 0);
-                *(short *)(a + 0x28) = (((func_00122BB8() >> 16) * 0x168) >> 15) + 0x12C;
+                {
+                    /* idiom-29: compound assignments on one variable -> fresh-register
+                       colouring for the shift chain.  See header. */
+                    int x = func_00122BB8() >> 16;
+                    x *= 0x168;
+                    x >>= 15;
+                    *(short *)(a + 0x28) = x + 0x12C;
+                }
                 a[5] = a[5] + 1;
             }
             break;

@@ -1,8 +1,8 @@
 // NEARMISS func_001C1A80  (vram 0x001C1A80, 0x27C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.83% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 98.74% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Two fused compiler artifacts, both confirmed by full instruction-level diff (every branch/call/store address matches): (1) constant-multiply register-coloring — the (rand>>16)*15-chain idiom (used for both the *0xF0 and *0xB4 randomized-timer reload) always gets a second sll/sra step; target colo...
+// compiler artifact (register coloring / scheduling)
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -73,16 +73,19 @@ void func_001C1A80(unsigned char *self) {
         *(int *)(tail + 0x18) = (int)&D_00275660;
         self[4] = 1;
         self[0xA] = 0;
-        *(short *)(self + 0x28) = (short)((((func_00122BB8() >> 16) * 0xF0) >> 15) + 0xF0);
-        func_001D0D60(*(int *)(self + 0x90), 0x30000000,
-                      1.0f + 19.0f * (4.656613e-10f * (float)func_00122BB8()));
+        { int x = func_00122BB8() >> 16; x *= 0xF0; x >>= 15;
+          *(short *)(self + 0x28) = (short)(x + 0xF0); }
+        { float fr = (float)func_00122BB8();
+          func_001D0D60(*(int *)(self + 0x90), 0x30000000,
+                        1.0f + 19.0f * (4.656613e-10f * fr)); }
         break;
     case 1:
         if (func_001B17A0(self) != 0) {
             short cd = *(short *)(self + 0x28);
             if (cd == 0) {
                 func_001FBD50(self, 0x441, 0, 300.0f);
-                cd = (short)((((func_00122BB8() >> 16) * 0xB4) >> 15) + 0x12C);
+                { int x = func_00122BB8() >> 16; x *= 0xB4; x >>= 15;
+                  cd = (short)(x + 0x12C); }
                 *(short *)(self + 0x28) = cd;
             } else {
                 cd = cd - 1;

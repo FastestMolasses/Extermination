@@ -159,7 +159,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001F91C0 | 0x001F91C0 | 0x494 | 69.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Stack-frame layout + callee-saved regalloc permutation. mwcc hoists several &v[N] field-ad |
 | func_00151940 | 0x00151940 | 0x504 | 97.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Scheduling/regalloc artifacts: (1) `*-1.0f` negate emitted with commuted mul operands (mul |
 | func_001F7E40 | 0x001F7E40 | 0x508 | 55.17% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling/regalloc divergence across the 32-iter inner loop: target keeps the |
-| func_001549C0 | 0x001549C0 | 0x540 | 63.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Callee-saved register-allocation permutation. The target colors the SCAN loop counter -> $ |
 | func_001F77B0 | 0x001F77B0 | 0x540 | 77.13% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Callee-saved register-allocation permutation. The persistent work pointer (s0+0x1F0) lands |
 | func_0012F100 | 0x0012F100 | 0x5BC | 91.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Scheduling/regalloc permutation. Body fully recovered and structurally byte-identical (367 |
 | func_0014FBC0 | 0x0014FBC0 | 0x5CC | 72.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Scheduling/regalloc permutation. Logic fully recovered. The 991202+target leave the clean  |
