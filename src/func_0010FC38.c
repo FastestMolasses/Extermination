@@ -1,17 +1,19 @@
-// NEARMISS func_0010FC38  (vram 0x0010FC38, 0x1EC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.99% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// EXPECTED-SIDE (splat) symbolization artifact — NOT a codegen difference. The single diff instruction is `lui $a1, (0x280000 >> 16)` (bare literal in the .s) vs our `lui $a1, %hi(D_00279640)` (HI16 reloc). %hi(D_00279640) == 0x28, so both encode to 0x3C050028 and the LINKED bytes are identical; .t...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
-
-// SIF loadfile RPC: sceSifLoadModuleBuffer(ptr, arg_len, args) — fno 6.
+//
+// BYTE-MATCHED (objdiff 100.0). This function sat at 99.9919% for two sessions on
+// a single instruction, recorded as an unfixable compiler artifact. It was neither
+// unfixable nor a compiler artifact: splat had failed to pair one HOISTED %hi with
+// its %lo partner (they sit ~75 instructions apart, across the copy loops) and
+// emitted a bare `lui $a1, (0x280000 >> 16)` instead of `%hi(D_00279640)`. The two
+// nearby %hi references to the SAME symbol were paired correctly, which is what
+// made the residual look like codegen.
+//
+// Both forms assemble to the identical word, so the linked binary never differed —
+// only objdiff's relocation comparison did. Fixed in the EXPECTED object by
+// build.py's _symbolize_hoisted_hi() pass, not by contorting this source: emitting
+// a bare literal here would have fixed the one site and broken the two that splat
+// got right.
 
 typedef struct {
     int p;              /* 0x000  in: module buffer ptr / out: result */

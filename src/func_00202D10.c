@@ -1,15 +1,22 @@
-// NEARMISS func_00202D10  (vram 0x00202D10, 0x5AC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 99.97% (mwcc233) — a single 2-instruction residual: target's `slti at,v0,3; bnez at,...` keeps the comparison boolean in $at (idiom: pure-branch compare should color to $at), but this build colors it to a named GPR ($v0) instead. Tried: int-cache, signed-char cast, swapped if/else, operand reorde...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SEMANTICS: options/difficulty-select screen tick. arg0 points at the current
+// menu cursor byte (0..2). The screen block at *(void**)0x70003B6C holds the
+// per-screen phase byte at +0xD and a saved-cursor byte at +0x13:
+//   phase 0: first frame — bump the phase and snapshot the incoming cursor into
+//            +0x13 so a cancel can restore it; falls through into phase 1.
+//   phase 1: pad handling from the button word D_00810E74 — 0x2000 (down) steps
+//            the cursor up, clamping at 2 (no click at the clamp); 0x8000 (up)
+//            steps it down, clamping at 0. Every accepted move clicks
+//            func_0020CDA0. The cursor then indexes D_00264F98 for the row of
+//            seven 64-bit sprite descriptors drawn on the right-hand gauge.
+// The body then draws the whole page: title sprite, the 0x12/0x16 header text,
+// the three difficulty buttons (highlighted variant for the selected row), the
+// seven option labels 0x1B..0x20 + 0x24, the seven gauge icons from the table,
+// and the footer sprite.
+// Returns 0 while the screen stays up; on 0x40 (confirm) it commits the choice
+// through func_001AF470 and returns 1; on 0x30 (cancel/back) it restores the
+// saved cursor from +0x13 and returns 2 for 0x10, else 1.
 
 extern void func_001AF470(unsigned char);
 extern int func_001FCBD0(int, int, int, int, unsigned int);
@@ -40,7 +47,7 @@ int func_00202D10(unsigned char *arg0) {
     case 1:
         if (D_00810E74 & 0x2000) {
             *arg0 += 1;
-            if (*arg0 >= 3) {
+            if (*arg0 > 2) {
                 *arg0 = 2;
             } else {
                 func_0020CDA0();

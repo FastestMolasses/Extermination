@@ -1,16 +1,5 @@
-// NEARMISS func_001B8020  (vram 0x001B8020, 0x1A8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.86% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 2 of 106 instructions, case 4 only (float-arg register assignment, NOT a dispatch issue — jr-table + all 7 case bodies are byte-identical). For anim_clip_init(self, clip, 0.0f, 0.0f) CW materializes the shared zero into the SECOND float arg reg and copies down: `mtc1 zero,$f13` ... `mov.s $f12,$f...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
 //
 // SEMANTICS: animation-clip state-machine step. Dispatches on the mode word at
 // cfg+8 through the 7-entry jr-table at 0x0026DFC0. Returns 1 when the step is
@@ -29,6 +18,14 @@
 //   5: self+0x40 = D_0028A490[cfg+0x1C];
 //      bone_init_default_2(self, (short)cfg+0x14); clear st+0xE; return 1
 //   mode >= 7: return 1
+//
+// MATCHING NOTE (idiom-24 variant, "INLINE-ASSIGN FP ARG"): in case 4 both float
+// args are the same 0.0f. CW stages the shared zero in the SECOND arg register and
+// copies down (`mtc1 zero,$f13` ... `mov.s $f12,$f13`); every plain spelling
+// (`0.0f, 0.0f`, a `float z = 0.0f` temp, `(float)zi` int-staging) makes mwcc stage
+// into $f12 and copy up instead. Writing the assignment INLINE as the third
+// argument -- `f(..., (b4 = 0.0f), b4)` -- defers the materialization to the arg
+// setup and reproduces CW's f13-first order exactly. 99.76% -> 100.0.
 
 extern short anim_advance_time(char *p, float dt);
 extern void anim_clip_init(char *p, int clip, float a, float b);
@@ -73,10 +70,10 @@ int func_001B8020(char *self, char *st, char *cfg) {
         break;
     case 4:
         {
-            float zero = 0.0f;
+            float b4 = 0.0f;
 
             *(int *)(self + 0x40) = D_0028A490[*(int *)(cfg + 0x1C)];
-            anim_clip_init(self, *(short *)(cfg + 0x14), zero, zero);
+            anim_clip_init(self, *(short *)(cfg + 0x14), (b4 = 0.0f), b4);
             *(short *)(st + 0xE) = 0;
         }
         break;

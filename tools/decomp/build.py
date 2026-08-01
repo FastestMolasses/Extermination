@@ -140,6 +140,66 @@ _ASM_FIXUPS = [
 
 
 
+# splat prefixes every instruction with a `/* vram encoding */` comment, so the
+# mnemonic is NOT at line start — anchoring on ^ silently matches nothing.
+_HOIST_LUI = re.compile(r'^(.*?\blui\s+)\$(\w+),(\s*)\((0x[0-9A-Fa-f]+)\s*>>\s*16\)\s*$', re.M)
+_HOIST_LO_ADD = re.compile(r'\b(?:addiu|addu|ori)\s+\$\w+,\s*\$(\w+),\s*%lo\((D_[0-9A-Fa-f]+)\)')
+_HOIST_LO_MEM = re.compile(r'%lo\((D_[0-9A-Fa-f]+)\)\(\$(\w+)\)')
+
+
+def _symbolize_hoisted_hi(src: str) -> str:
+    """Re-symbolize a hoisted `lui $r, (0xNNNNNN >> 16)` back to `%hi(D_...)`.
+
+    WHY (s86). splat pairs a `%hi`/`%lo` couple by proximity. When the compiler
+    HOISTS the `%hi` far from its `%lo` — out of a loop, or above a branch — splat
+    gives up and writes the raw immediate instead of the symbol. The expected
+    object then holds a bare constant where our compiled object correctly holds an
+    R_MIPS_HI16 relocation. Both assemble to the SAME word, so the linked binary is
+    byte-identical either way, but objdiff compares relocations and scores the
+    function a permanent near-miss it can never source-fix: func_0010FC38 sat at
+    99.9919% on exactly one such instruction, while the two nearby `%hi`s of the
+    same symbol WERE paired correctly.
+
+    This is the playbook's §2a rule — build the expected object the way the
+    original object was built. Rewriting the source to emit a bare literal would
+    "fix" the one site and break the two that splat got right.
+
+    The rewrite is deliberately conservative: only when a LATER instruction uses
+    `%lo(D_xxxxxxxx)` through the SAME register and that symbol's `%hi` equals the
+    hoisted immediate. Anything else (hardware register bases like 0x10000000,
+    genuine constants) is left alone. Validated against func_0010FC38 before being
+    generalized; it fires on 11 sites across 10 functions.
+    """
+    def hi_of(addr: int) -> int:
+        return ((addr >> 16) + (1 if (addr & 0xFFFF) & 0x8000 else 0)) & 0xFFFF
+
+    lines = src.splitlines(keepends=True)
+    los: list[tuple[int, str, str]] = []   # (line, reg, symbol)
+    for i, l in enumerate(lines):
+        m = _HOIST_LO_ADD.search(l)
+        if m:
+            los.append((i, m.group(1), m.group(2)))
+            continue
+        m = _HOIST_LO_MEM.search(l)
+        if m:
+            los.append((i, m.group(2), m.group(1)))
+
+    changed = False
+    for i, l in enumerate(lines):
+        m = _HOIST_LUI.match(l.rstrip("\n"))
+        if not m:
+            continue
+        reg, imm = m.group(2), int(m.group(4), 16) >> 16
+        for lj, lreg, sym in los:
+            if lreg != reg or lj <= i:
+                continue
+            if hi_of(int(sym[2:], 16)) == imm:
+                lines[i] = f"{m.group(1)}${reg},{m.group(3)}%hi({sym})\n"
+                changed = True
+                break
+    return "".join(lines) if changed else src
+
+
 def normalize_asm(name: str) -> None:
     """Write build/.asmnorm/<name>.s: splat's disassembly, fixed up and with the
     function's own jump table appended.
@@ -157,6 +217,7 @@ def normalize_asm(name: str) -> None:
     src = (ROOT / ASM_DIR / f"{name}.s").read_text(errors="ignore")
     for pat, rep in _ASM_FIXUPS:
         src = pat.sub(rep, src)
+    src = _symbolize_hoisted_hi(src)
     jtbl = ROOT / "build" / "jtblrodata" / f"{name}.s"
     if jtbl.exists():
         src += "\n" + jtbl.read_text(errors="ignore")

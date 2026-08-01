@@ -1,29 +1,20 @@
-// NEARMISS func_00160220  (vram 0x00160220, 0x5A4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.81% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP-register-coloring permutation in the D_00810700==1 range-check arm; the other two mode arms already match byte-for-byte. Permuter territory, not the clean-store nop.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
-// NEARMISS 99.81% (mwcc 2.3.3). Logic fully recovered; sole residual is an
-// FP-register-coloring permutation in the D_00810700==1 range-check block
-// (target uses $f1/$f2 for the loaded coord + $f0 for the constant; mwcc
-// colors them $f4/$f5 + $f1). Permuter territory, not the clean-store nop.
 //
-// SEMANTICS: per-tick driver for a footprint/zone actor. Gate on
-// (D_00810E74 & *0x70003B76). One-shot func_00184BA0 -> teardown anim
-// (state 0x25). In mode 0x15, classify via func_001AAC00 and arm a 0x38/0x39
-// cinematic. Otherwise, if the actor position (+0xB0/B4/B8) lies inside the
-// per-mode axis-aligned box, mark "trigger"; else, unless suppressed
-// (+0x236 / +0x23B==0x35), sweep build_trs_matrix at C4-angle +/- pi/4 and
-// probe via func_0015DF10. Trigger -> func_0015EC50 / func_0015FDF0 spawn
-// (state 0x24, +0x1F0=0x3A, +0=3).
+// Per-tick driver for a footprint/zone actor. Gate on (D_00810E74 &
+// *0x70003B76). One-shot func_00184BA0 -> teardown anim (state 0x25). In level
+// 0x15, classify via func_001AAC00 and arm a 0x38/0x39 cinematic (state 0x23).
+// Otherwise, if the actor position (+0xB0/B4/B8) lies inside the per-level
+// axis-aligned box, mark "trigger"; else, unless suppressed (+0x236 /
+// +0x23B==0x35), sweep build_trs_matrix at C4-angle, C4-pi/4 and C4+pi/4 and
+// probe via func_0015DF10, restoring the original angle afterwards.
+// Trigger -> func_0015EC50 / func_0015FDF0 spawn (state 0x24, +0x1F0=0x3A, +0=3).
+//
+// NOTE: in the level-0xD box the +0xB8 lower bound is 800.0f (NOT 720.0f -- an
+// earlier decode's typo). mwcc CSEs it with the +0xB0 upper bound already live in
+// $f0, and that one shared constant is what keeps the whole block's FP coloring on
+// $f0/$f1/$f2; the spurious 720.0f forced a second live FPR and shifted every
+// c.lt.s/c.le.s operand by one register (the 99.81% near-miss).
 extern unsigned short D_00810E74;
 extern unsigned char D_00810700;
 extern int func_00184BA0(void);
@@ -88,7 +79,7 @@ int func_00160220(char *s0) {
             if (*(float *)(s0 + 0xB4) >= 150.0f) {
                 if (*(float *)(s0 + 0xB4) <= 210.0f) {
                     if (*(float *)(s0 + 0xB0) >= 720.0f && *(float *)(s0 + 0xB0) <= 800.0f) {
-                        if (*(float *)(s0 + 0xB8) >= 720.0f && *(float *)(s0 + 0xB8) <= 840.0f) {
+                        if (*(float *)(s0 + 0xB8) >= 800.0f && *(float *)(s0 + 0xB8) <= 840.0f) {
                             goto trigger;
                         }
                     }
