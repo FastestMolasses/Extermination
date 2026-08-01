@@ -1,13 +1,10 @@
-// NEARMISS func_0010ED18  (vram 0x0010ED18, ?) — readable decompilation, NOT byte-identical.
+// func_0010ED18 — byte-identical match (ee-gcc 2.9-991111-01, -O2).
 //
-// objdiff 99.92% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
+// Was parked as a 99.92% NEARMISS blamed on 'register coloring / scheduling'.
+// It byte-matches, and nothing in the C changed: build.py's file_cflags() had
+// been dropping the declared CFLAGS for every NEARMISS file (its scan stopped
+// at the leading '// NEARMISS' banner), so the recorded figure was measured
+// with the wrong flags. Re-measured s86 under the declared -O2: 100.0%.
 // COMPILER: eegcc
 // CFLAGS: -O2
 

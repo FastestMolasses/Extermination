@@ -715,7 +715,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0010DEB8 | 0x0010DEB8 | ? | 95.00% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring + list-scheduler wall, confined to the prologue/qword-copy region. Obje |
 | func_0010EAA0 | 0x0010EAA0 | ? | 95.56% | ee-gcc 2.9-991111-01 | eegcc ASSEMBLER delay-slot-swap wall — PIPELINE BUG, fixable, and this C is then a TRUE 10 |
 | func_0010E088 | 0x0010E088 | ? | 89.14% | ee-gcc 2.9-991111-01 | TWO stacked walls; body/structure fully recovered (prologue, both DI spin loops, the D_002 |
-| func_0010ED18 | 0x0010ED18 | ? | 99.92% | ee-gcc 2.9-991111-01 | compiler artifact (register coloring / scheduling) |
 | func_0021B9A0 | 0x0021B9A0 | 0xC4 | 88.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — local @17 table vs external jtbl_00273790 ( |
 | func_001BC350 | 0x001BC350 | 0x204 | 99.46% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — residuals: the 2-instruction lui/addiu jump |
 | func_001A97B0 | 0x001A97B0 | 0x228 | 95.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84): lui/addiu %hi/%lo(jtbl_0026DAE0) vs local @6 |

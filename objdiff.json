@@ -3006,6 +3006,14 @@
       }
     },
     {
+      "name": "func_0010ED18",
+      "target_path": "build/expected/func_0010ED18.o",
+      "base_path": "build/obj/func_0010ED18.o",
+      "metadata": {
+        "source_path": "src/func_0010ED18.c"
+      }
+    },
+    {
       "name": "func_0010EEF8",
       "target_path": "build/expected/func_0010EEF8.o",
       "base_path": "build/obj/func_0010EEF8.o",
