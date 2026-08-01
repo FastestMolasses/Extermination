@@ -1,16 +1,5 @@
-// NEARMISS func_001B07C0  (vram 0x001B07C0, 0x390 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.04% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// D_00275BE0 is addressed absolute (lui+lbu) under -sdatathreshold 0 here, but the target addresses it gp-relative (lbu v1,0($gp)) at both of its two reads in this function. This is the same documented, unresolved gp-rel-vs-absolute wall already recorded on sibling func_001B0460.c (shares the same ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
-
+// CFLAGS: -O4,p -sdatathreshold 1
 //
 // Per-frame HUD/camera-target record builder, sibling of func_001B0250/func_001B0300/
 // func_001B0460 (same D_0024D650[area][slot] + D_00810702*0x30 record lookup). Builds the record
@@ -19,7 +8,7 @@
 // D_00810710/14/18 with an extra rotation/scale block (0xC0..0xC8) copied from D_00810720/24/28;
 // otherwise both slots are seeded from the live record `p` (p+0/4/8), with the rotation block
 // zeroed. All 8 vectors (0xB0..0xCC) are then mirrored out to the fixed hardware/DMA staging
-// addresses 0x70003B40-0x7000B35C. D_00810706 (a 1-bit "active" flag, masked &1) is written back
+// addresses 0x70003B40-0x70003B5C. D_00810706 (a 1-bit "active" flag, masked &1) is written back
 // and mirrored to base+0x235/0x234 together with D_00810707. Wind/ambient floats D_00810858/5C are
 // copied to base+0x220/0x228. If D_008106C8 bit 2 is set, a tri-state D_00810C60 selector is
 // derived from D_00810C7D/7E and, if bits 0x60 are also set, func_001EFE00(0x80000018, base) is
@@ -32,15 +21,23 @@
 // pending +0xE==1 "cut" request re-arms itself (4=5,5=1,6=0), a live +0x1C listener is notified
 // (+4=1) unless the hard gate *0x70003B8D is set, and any nonzero pending pan offset (+0x224/
 // +0x22C) is consumed and flagged via +0x0=1. func_001B0460(arg0) runs last (unconditionally).
+//
+// MATCH NOTE (load-bearing, do not "clean up"): the target reads D_00275BE0 gp-relative
+// (%gp_rel) but every D_008107xx/D_00810Cxx byte absolutely (%hi/%lo). mwcc picks gp-rel for an
+// extern whose declared size is <= -sdatathreshold, so this file is built with
+// `-sdatathreshold 1` and the byte globals that must stay ABSOLUTE are declared as
+// `unsigned char X[2]` (size 2 > 1) and read through `X[0]`. Keeping the symbol name on the
+// array preserves the relocation symbol. With `-sdatathreshold 0` everything is absolute
+// (99.04%); with the mwcc default threshold everything is gp-relative (85.44%).
 
 extern void func_001B0250(void *a, int b);
 extern int func_001EFE00(int a, void *b);
 extern void func_0015C1F0(void *a);
 extern void func_001B0460(int a0);
 
-extern unsigned char D_00810700;
-extern unsigned char D_00810701;
-extern unsigned char D_00810702;
+extern unsigned char D_00810700[2];
+extern unsigned char D_00810701[2];
+extern unsigned char D_00810702[2];
 extern unsigned char D_00275BE0;
 extern void *D_0024D650[];
 extern void *D_008102B0;
@@ -50,14 +47,14 @@ extern float D_00810718;
 extern float D_00810720;
 extern float D_00810724;
 extern float D_00810728;
-extern volatile unsigned char D_00810706;
-extern unsigned char D_00810707;
+extern volatile unsigned char D_00810706[2];
+extern unsigned char D_00810707[2];
 extern float D_00810858;
 extern float D_0081085C;
 extern int D_008106C8;
-extern unsigned char D_00810C7D;
-extern unsigned char D_00810C7E;
-extern unsigned char D_00810C60;
+extern unsigned char D_00810C7D[2];
+extern unsigned char D_00810C7E[2];
+extern unsigned char D_00810C60[2];
 
 void func_001B07C0(int arg0) {
     unsigned char *base;
@@ -65,10 +62,10 @@ void func_001B07C0(int arg0) {
     unsigned char flags;
 
     base = (unsigned char *)&D_008102B0;
-    p = (unsigned char *)((void **)D_0024D650[D_00810700])[D_00810701];
-    p += D_00810702 * 0x30;
+    p = (unsigned char *)((void **)D_0024D650[D_00810700[0]])[D_00810701[0]];
+    p += D_00810702[0] * 0x30;
 
-    func_001B0250((void *)D_0024D650[D_00810700], D_00810701 * 4);
+    func_001B0250((void *)D_0024D650[D_00810700[0]], D_00810701[0] * 4);
 
     if (D_00275BE0 == 1) {
         *(float *)(base + 0xA0) = D_00810710;
@@ -98,7 +95,7 @@ void func_001B07C0(int arg0) {
         *(int *)(base + 0xCC) = 0x3F800000;
     }
 
-    flags = D_00810706;
+    flags = D_00810706[0];
     *(volatile float *)0x70003B40 = *(float *)(base + 0xB0);
     *(volatile float *)0x70003B44 = *(float *)(base + 0xB4);
     *(volatile float *)0x70003B48 = *(float *)(base + 0xB8);
@@ -109,27 +106,27 @@ void func_001B07C0(int arg0) {
     *(volatile float *)0x70003B58 = *(float *)(base + 0xC8);
     *(volatile float *)0x70003B5C = *(float *)(base + 0xCC);
 
-    D_00810706 = flags;
-    *(base + 0x235) = D_00810706;
-    *(base + 0x234) = D_00810707;
+    D_00810706[0] = flags;
+    *(base + 0x235) = D_00810706[0];
+    *(base + 0x234) = D_00810707[0];
     *(float *)(base + 0x220) = D_00810858;
     *(float *)(base + 0x228) = D_0081085C;
 
     if (D_008106C8 & 4) {
-        if (D_00810C7E != 0) {
-            if (D_00810C7D != 0) {
-                D_00810C60 = 2;
+        if (D_00810C7E[0] != 0) {
+            if (D_00810C7D[0] != 0) {
+                D_00810C60[0] = 2;
             } else {
-                D_00810C60 = 1;
+                D_00810C60[0] = 1;
             }
         } else {
-            D_00810C60 = 0;
+            D_00810C60[0] = 0;
         }
         if (D_008106C8 & 0x60) {
             *(int *)(base + 0x304) = func_001EFE00(0x80000018, base);
         }
     } else {
-        D_00810C60 = 0;
+        D_00810C60[0] = 0;
         if (*(int *)(base + 0x304) != 0) {
             *(*(unsigned char **)(base + 0x304) + 4) = 2;
             *(int *)(base + 0x304) = 0;

@@ -1,16 +1,30 @@
-// NEARMISS func_00184D20  (vram 0x00184D20, 0x6FC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.87% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 10 instructions in two independent spots. (1) 6 instrs -- FP temp PAIR coloring for the first `sub.s` of the b[8]==1 and b[8]==2 blocks. Target: `lwc1 $f2,0xA0(s2); lwc1 $f1,0xA8(s2); lwc1 $f3,0(v0); lwc1 $f0,8(v0); sub.s $f20,$f2,$f3`; mwcc swaps only the f2/f3 pair: `lwc1 $f3,0xA0(s2) ... lwc1 ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+//
+// Perception / "can actor `a` sense event `ev` from sensor `b`?" predicate.
+// Stage 1: gate on the sensor class in b[2]&0x1F (4 or 6) crossed with the
+// event id `ev` and the sub-id b[3]; any unlisted pair returns 0.
+// Stage 2: dispatch on the sensor shape b[8] and test `a`'s position against
+// the shape's parameter block at *(float**)(b+0x30):
+//   0 = sphere about b's own origin (b+0xB0/B4/B8), radii [0]=xz, [1]=y
+//   1 = sphere about an explicit centre q[0..2], radii q[3]/q[4]
+//   2 = same sphere, delta taken centre-minus-actor
+//   3/4 = cone/box toward b, with a 17.0 slack below the plane
+//   5 = fixed 14.0 xz radius, 4.0 y band -> immediate yes/no
+// Shapes 0/1/2 fall through to the shared facing test: the residual angle
+// must be within PI/4; shapes 3/4 use PI/2. func_0011E748=sqrtf,
+// func_0011DF78=fabsf, func_0011E620=atan2f, func_001B1470=wrap to (-PI,PI].
+//
+// Matching notes (all three are load-bearing, do not "simplify"):
+//  * case 5's tail must be spelled `if (fabs(dz) > 4.0f) return 0; return 1;`.
+//    `if (... <= 4.0f) return 1; return 0;` and `if (!(... <= 4.0f)) return 0;
+//    return 1;` both emit bc1f with the return-1 block first; only the `>`
+//    form gives the target's bc1t with the return-0 block laid out first.
+//  * case 1's dx/dy must dereference the parameter block as
+//    `((float *)(*(int *)(b + 0x30)))[i]` and case 2's as
+//    `(*(float **)(b + 0x30))[i]`. The int-load-then-cast form flips which
+//    subtraction operand mwcc evaluates first, which is what colours the
+//    first temp pair $f2/$f3 instead of $f3/$f2.
 extern float func_0011DF78(float);
 extern float func_0011E620(float, float);
 extern float func_0011E748(float);
@@ -106,9 +120,8 @@ int func_00184D20(unsigned char *a, unsigned char *b, int ev) {
         ang = func_001B1470(3.1415927410125732f + *(float *)(a + 0xC4) - *(float *)(b + 0xC4));
         break;
     case 1:
-        q = *(float **)(b + 0x30);
-        dx = *(float *)(a + 0xA0) - q[0];
-        dy = *(float *)(a + 0xA8) - q[2];
+        dx = *(float *)(a + 0xA0) - ((float *)(*(int *)(b + 0x30)))[0];
+        dy = *(float *)(a + 0xA8) - ((float *)(*(int *)(b + 0x30)))[2];
         if (!(func_0011E748(dx * dx + dy * dy) <= (*(float **)(b + 0x30))[3])) {
             return 0;
         }
@@ -124,9 +137,8 @@ int func_00184D20(unsigned char *a, unsigned char *b, int ev) {
         }
         break;
     case 2:
-        q = *(float **)(b + 0x30);
-        dx = q[0] - *(float *)(a + 0xA0);
-        dy = q[2] - *(float *)(a + 0xA8);
+        dx = (*(float **)(b + 0x30))[0] - *(float *)(a + 0xA0);
+        dy = (*(float **)(b + 0x30))[2] - *(float *)(a + 0xA8);
         if (!(func_0011E748(dx * dx + dy * dy) <= (*(float **)(b + 0x30))[3])) {
             return 0;
         }
@@ -171,10 +183,10 @@ int func_00184D20(unsigned char *a, unsigned char *b, int ev) {
         if (!(dx * dx + dy * dy <= 196.0f)) {
             return 0;
         }
-        if (func_0011DF78(*(float *)(b + 0xB4) - *(float *)(a + 0xA4)) <= 4.0f) {
-            return 1;
+        if (func_0011DF78(*(float *)(b + 0xB4) - *(float *)(a + 0xA4)) > 4.0f) {
+            return 0;
         }
-        return 0;
+        return 1;
     }
     if (func_0011DF78(ang) <= 0.7853981852531433f) {
         return 1;

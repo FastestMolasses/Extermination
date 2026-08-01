@@ -1,15 +1,27 @@
-// NEARMISS func_0013C4C0  (vram 0x0013C4C0, 0x3F8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 98.98% -- extremely close. Fully recovered logic (fixed a spurious extra func_001B39F0 call the m2c decode hallucinated at the tail, corrected func_00102C58's real 3-pointer signature which fixed the D_700036A0/D_700038A0 staging order, and forced signed 'lb' byte loads via a signed char* arg1 ty...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// SEMANTICS: steering-obstacle probe for a moving actor (arg0), writing its
+// turn decision into the control block arg1. arg1+0x80/0x81 are flag bytes and
+// arg1+0x5C a scan-angle bias, chosen +pi/8 (turn-mode 4) or -pi/8 (turn-mode 2)
+// from arg1+0x80 bit 0. First probes straight ahead (arg0+0xC4 heading) for 25
+// units; on a hit it measures the hit distance (func_001B15D0) and, if close
+// (<= 5.0) or the relevant turn-mode bit is already latched in arg1+0x81,
+// records a turn decision via func_001B39F0 (only once, gated by arg1+0x80 bits
+// 2/3) and latches the corresponding turn bit (1 or 2) into arg1+0x80, clearing
+// the gate bits first. On a miss straight ahead: if the turn-mode bit is set in
+// arg1+0x81, do the same latch without a new probe. Otherwise probe again along
+// a facing rotated by the chosen bias; a hit there always records the turn
+// decision and returns 1. A miss falls through to: if the opposite turn-mode is
+// already active (arg1+0x80 bit 1) or func_0013D220(arg0) reports the path
+// clear, clear the turn bits, reset arg1+0x5C to 0.0f and return 0; otherwise
+// return 1.
+//
+// NOTE: the `goto ret1` is load-bearing. Spelling the inner escape as a second
+// `return 1` makes mwcc emit its own `b <epilogue> / addiu v0,1` pair instead of
+// branching to the shared `addiu v0,1` block the original falls into (2 extra
+// instructions, 98.98%). Sharing one labelled `return 1` reproduces the
+// original's `bnez v0, <set1>` exactly.
 
 extern void func_001029C0(void *a0);
 extern void func_00102B08(void *obj, void *obj2, float v);
@@ -27,21 +39,6 @@ extern float D_700036A0[];
 extern float D_700038A0[];
 extern float D_700038D0[];
 
-// Steering-obstacle probe for a moving actor (arg0) writing state into its
-// control block arg1. arg1+0x80/0x81 hold flag bytes; arg1+0x5C a scan-angle
-// bias, chosen +pi/8 (turn-mode 4) or -pi/8 (turn-mode 2) from arg1+0x80 bit0.
-// First probes straight ahead (arg0+0xC4 heading) for 25 units; on a hit,
-// measures the hit distance (func_001B15D0) and if close (<=5.0) or the
-// relevant turn-mode bit is already latched in arg1+0x81, records a turn
-// decision via func_001B39F0 (only once, gated by arg1+0x80 bits 2/3) and
-// latches the corresponding turn bit (1 or 2) into arg1+0x80, clearing the
-// gate bits first. On a miss straight ahead: if the turn-mode bit is set in
-// arg1+0x81, do the same turn-bit latch without a new probe. Otherwise probe
-// again along a facing rotated by the chosen bias; a hit there always
-// records the turn decision and returns 1; a miss falls through to: if the
-// opposite turn-mode is already active (bit 2 of arg1+0x80) or
-// func_0013D220(arg0) reports the path clear, clear the turn bits and reset
-// arg1+0x5C to 0.0f, returning 0; otherwise return 1.
 int func_0013C4C0(unsigned char *arg0, signed char *arg1) {
     float ang;
     int mode;
@@ -118,12 +115,13 @@ int func_0013C4C0(unsigned char *arg0, signed char *arg1) {
     if (func_0019AFE0((char *)arg0, arg0 + 0xB0, D_700038A0, 6) == 0) {
         if (!(arg1[0x80] & 2)) {
             if (func_0013D220(arg0) != 0) {
-                return 1;
+                goto ret1;
             }
         }
         arg1[0x80] = arg1[0x80] & 0xC;
         *(int *)(arg1 + 0x5C) = 0;
         return 0;
     }
+ret1:
     return 1;
 }

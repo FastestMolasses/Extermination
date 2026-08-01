@@ -1,13 +1,3 @@
-// NEARMISS sub_BASCUS_97112_DS00_00_EX_DATA_00_3  (vram 0xASCUS_97112_DS00_00_EX_DATA_00_3, 0x2B8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.94% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// ONE instruction: commutative addu operand order. Target `addu v1,v0,s1` (offset+base) vs mwcc `addu v1,s1,v0` (base+offset) on the p+n*12 record-pointer CSE. Everything else (176 instructions) is byte-identical: schedule, regalloc, branch-likely, dead-const rematerialization all match. mwcc canon...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
@@ -104,12 +94,12 @@ int sub_BASCUS_97112_DS00_00_EX_DATA_00_3(unsigned char *p) {
                     }
                     p[0x6C + n] = 1;
                     v = D_00822050[0];
-                    /* idiom-19: the first record store is written with the
-                     * address inlined and `q` re-derived afterwards, so mwcc
-                     * schedules the header load ahead of the address chain the
-                     * way CodeWarrior did. Both spellings address p + n*12. */
-                    *(unsigned char *)(p + n * 12 + 0x74) = v;
-                    q = (unsigned char *)((int)p + n * 12);
+                    /* Both record stores must be spelled as ARRAY
+                     * SUBSCRIPTS on p: mwcc emits `addu d, index, base` for
+                     * p[i] but `addu d, base, index` for (p + i), and the
+                     * target CSE is the index-first form. */
+                    p[n * 12 + 0x74] = v;
+                    q = &p[n * 12];
                     q[0x75] = D_00822051[0];
                     q[0x76] = D_00822052[0];
                     q[0x77] = D_00822053[0];

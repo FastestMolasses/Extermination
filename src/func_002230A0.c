@@ -1,16 +1,18 @@
-// NEARMISS func_002230A0  (vram 0x002230A0, 0x650 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.90% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/every field/global access and all call-argument shapes are byte-identical. Sole residual: the arg0+0x2F1 sub-state->flag classifier ('flag=1; if(sub==0) flag=0; else if(sub!=1) flag=2;') triggers a dead re-materialization of the literal 1 and 2 at the merge point (idiom-13b) -- a 12-byte sch...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
+// Entity state-machine step, dispatched on the byte state at arg0+6.
+// State 0 fires the intro cue (func_001B61C0), classifies the sub-state byte at
+// arg0+0x2F1 into a 0/1/2 animation selector, honours the "force stand" bit
+// arg0+0xF&2, flushes the two pending hit effects (floats at 0x224 / 0x22C) via
+// func_001FBD50 + func_0021C350/func_0021C270, then branches to the knockdown
+// chain (0xA) on a dead 0x220 gauge or to the alternate exit (0x14) when 0x228 has
+// run past 100.0 and the global gate D_008106F1 is set; otherwise it starts the
+// selected idle animation and latches the 0x290/0x298 position floats into
+// 0xB0/0xB8. States 1 and 0x16 wait for the 0x1000 input bit and re-enter through
+// func_001885B0. States 0xA-0x10 run the knockdown/get-up chain (0xC integrates
+// per-frame deltas from *D_00275B40, 0xD lands it), and 0x14-0x16 the alternate
+// exit sequence.
 extern void func_001B61C0(int a, int b, int c, int d);
 extern void func_001FBD50(unsigned char *e, int a, int b, float f);
 extern void func_0021C350(unsigned char *e);
@@ -42,10 +44,11 @@ void func_002230A0(unsigned char *arg0) {
         *(char *)(arg0 + 7) = 0;
         {
             unsigned char sub = *(unsigned char *)(arg0 + 0x2F1);
-            flag = 1;
             if (sub == 0) {
                 flag = 0;
-            } else if (sub != 1) {
+            } else if (sub == 1) {
+                flag = 1;
+            } else {
                 flag = 2;
             }
         }
@@ -55,11 +58,11 @@ void func_002230A0(unsigned char *arg0) {
             }
             *(unsigned char *)(arg0 + 0xF) = 0;
         }
-        if (*(float *)(arg0 + 0x224) != 0.0f) {
+        if (*(float *)(arg0 + 0x224)) {
             func_001FBD50(arg0, 0x152, 0, 300.0f);
             func_0021C350(arg0);
         }
-        if (*(float *)(arg0 + 0x22C) != 0.0f) {
+        if (*(float *)(arg0 + 0x22C)) {
             func_001FBD50(arg0, 0x153, 0, 300.0f);
             func_0021C270(arg0);
         }

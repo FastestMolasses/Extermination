@@ -1,13 +1,3 @@
-// NEARMISS func_001E2E80  (vram 0x001E2E80, ?) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.87% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// mwcc jal-delay-slot argument-materialization order (4 instructions of 510, 99.87%). At two call sites whose LAST argument is a reg+imm (`addiu a2,s3,0xb0`) and an EARLIER argument is a %hi/%lo global address, mwcc 2.3.3 sinks the global's `addiu aN,v0,%lo(...)` into the jal delay slot and emits t...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
@@ -26,19 +16,26 @@
 //            b+0x34 = decay-delay counter, b+0x38 = lifetime ticks (150 -> 0).
 //   0x700031D0 / 0x700031D4 = scratchpad pointers to the two collision results;
 //   the hit target's byte 0 gets bit 1 set and its +0x22C receives the damage.
+//
+// MATCHING NOTE: func_001028D0 / func_00102918 MUST be prototyped `void *` and
+// their pointer args passed WITHOUT an explicit (float *) cast. The implicit
+// pointer conversion changes mwcc's call-argument materialization order: with
+// float* prototypes mwcc splits the %hi/%lo pair of a non-final global argument
+// and sinks the %lo addiu into the jal delay slot; with void* it keeps the pair
+// adjacent and sinks the trailing reg+imm arg, which is what the target does.
 
 extern int   func_00122BB8();
 extern void  func_00102948(float *, float *);
 extern void  func_00102900(float *, float *, float);
 extern void  func_001028B8(float *, float *, float *);
-extern void  func_001028D0(float *, float *, float *);
+extern void  func_001028D0(void *, void *, void *);
 extern void  func_00102760(float *, float *);
 extern void  func_001CD390(float *, float *);
 extern int   func_0019A570(float *, float *, int, int);
 extern int   func_0019AA80(float *, float *, int);
 extern void  func_001EFD20(int, float *);
 extern void  func_001031E0(float *, float *);
-extern void  func_00102918(float *, float *, float *);
+extern void  func_00102918(void *, void *, void *);
 extern void  func_001EFEB0(int, float *);
 extern void  func_001F02C0(float *, int, float);
 extern void  func_001029C0(float *);
@@ -106,7 +103,7 @@ void func_001E2E80(unsigned char *e)
         if (*(int *)(b + 0x38) < 0) {
             e[4] = 3;
         }
-        func_001028D0(D_700038A0, (float *)(b + 0x10), (float *)(e + 0xB0));
+        func_001028D0(D_700038A0, b + 0x10, e + 0xB0);
         func_00102760(D_700038A0, D_700038A0);
         func_001CD390((float *)(e + 0xD0), D_700038A0);
         hit = hit | func_0019A570((float *)(b + 0x10), (float *)(e + 0xB0), 6, 0);
@@ -172,7 +169,7 @@ void func_001E2E80(unsigned char *e)
                     if (amt != 0.0f) {
                         *(float *)(tgt + 0x22C) = amt;
                         tgt[0] = tgt[0] | 2;
-                        func_001028D0((float *)(tgt + 0x70), (float *)(e + 0xB0), (float *)(b + 0x10));
+                        func_001028D0(tgt + 0x70, e + 0xB0, b + 0x10);
                         func_00102760((float *)(tgt + 0x70), (float *)(tgt + 0x70));
                         func_001EFD20(0x8000001B, (float *)(e + 0xB0));
                     }
@@ -182,7 +179,7 @@ void func_001E2E80(unsigned char *e)
         if (hit != 0) {
             func_001031E0(D_700038B0, D_700031B0);
             *(volatile int *)0x700038BC = 0x3F800000;
-            func_00102918(D_700036A0, (float *)(e + 0xD0), D_700038B0);
+            func_00102918(D_700036A0, e + 0xD0, D_700038B0);
             func_001EFEB0(0x8000002A, D_700036A0);
             func_001F02C0(D_700036D0, 0x1B3, 500.0f);
             e[4] = 3;
@@ -193,10 +190,10 @@ void func_001E2E80(unsigned char *e)
             func_001029C0(D_700036A0);
             func_00102BB0(D_700036A0, D_700036A0, 3.14159274f);
             func_001026D0(D_700036A0, (float *)(e + 0xD0), D_700036A0);
-            func_00102918(D_700036A0, D_700036A0, (float *)(e + 0xB0));
+            func_00102918(D_700036A0, D_700036A0, e + 0xB0);
             func_001EFEB0(0x80000029, D_700036A0);
         }
-        func_00102918((float *)(e + 0xD0), (float *)(e + 0xD0), (float *)(e + 0xB0));
+        func_00102918(e + 0xD0, e + 0xD0, e + 0xB0);
         switch (e[0xD]) {
         case 3:
             func_001D04B0((float *)(e + 0xD0), 1, &D_00253740, *(float *)(b + 0x20), *(float *)(b + 0x24));
