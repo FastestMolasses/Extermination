@@ -11,15 +11,17 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+extern char * volatile D_70003B6C;                  /* PS2 scratchpad @ 0x70003B6C */
+
 extern char D_0028A750[];
 extern char D_0028A7B0[];
 
 void func_001AB6A0(void) {
     char *slot;
     unsigned char state;
-    *(char * volatile *)0x70003B6C = D_0028A750;
+    D_70003B6C = D_0028A750;
     do {
-        slot = *(char * volatile *)0x70003B6C;
+        slot = D_70003B6C;
         state = *(unsigned char *)slot;
         if (state == 2) goto run;
         if (state == 1) goto promote;
@@ -28,11 +30,11 @@ void func_001AB6A0(void) {
     promote:
         *(unsigned char *)slot = 2;
     run:
-        slot = *(char * volatile *)0x70003B6C;
+        slot = D_70003B6C;
         (*(void (**)(void))(slot + 4))();
     next:
-        slot = *(char * volatile *)0x70003B6C;
+        slot = D_70003B6C;
         slot += 0x20;
-        *(char * volatile *)0x70003B6C = slot;
+        D_70003B6C = slot;
     } while (slot < D_0028A7B0);
 }

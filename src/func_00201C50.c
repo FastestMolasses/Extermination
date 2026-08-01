@@ -11,6 +11,8 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+extern unsigned char *D_70003B6C;                   /* PS2 scratchpad @ 0x70003B6C */
+
 extern int float_to_int(float);
 extern void func_00207E40(int a0, int a1, int a2, int a3, int t0, unsigned int t1, unsigned long long t2);
 extern void func_0020CD40(void);
@@ -27,7 +29,7 @@ int func_00201C50(unsigned char *arg0, int arg1, unsigned char *arg2, int *arg3)
     int off;
     int ret;
 
-    g = *(unsigned char **)0x70003B6C;
+    g = D_70003B6C;
     p = g + 0xD;
     switch (*(unsigned char *)(g + 0xD)) {
     case 0:
@@ -37,15 +39,15 @@ int func_00201C50(unsigned char *arg0, int arg1, unsigned char *arg2, int *arg3)
     case 1:
         if (D_00810E74 & 0x2000) {
             func_0020CDA0(p, g);
-            g = *(unsigned char **)0x70003B6C;
+            g = D_70003B6C;
             g[0xD] = g[0xD] + 1;
-            *(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1E) = 0xA;
-            idx = *(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C);
+            *(unsigned short *)(D_70003B6C + 0x1E) = 0xA;
+            idx = *(unsigned short *)(D_70003B6C + 0x1C);
             off = ((arg1 + arg3[idx] * 0x18) >> 1) + 0x790;
             func_00207E40(1, 0x88D0, float_to_int((float) off * 16.0f), 0x20, 0x20, 0x80808080, *(unsigned long long *)(arg2 + 0x10));
             arg0[3] = 1 - arg0[3];
         } else {
-            idx = *(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C);
+            idx = *(unsigned short *)(D_70003B6C + 0x1C);
             off = ((arg1 + arg3[idx] * 0x18) >> 1) + 0x790;
             func_00207E40(1, 0x88D0, float_to_int((float) off * 16.0f), 0x20, 0x20, 0x80808080, *(unsigned long long *)(arg2 + 0x8));
         }
@@ -55,10 +57,10 @@ int func_00201C50(unsigned char *arg0, int arg1, unsigned char *arg2, int *arg3)
         dec = *(unsigned short *)(g + 0x1E) - 1;
         *(unsigned short *)(g + 0x1E) = (unsigned short) dec;
         if (!(dec & 0xFFFF)) {
-            g = *(unsigned char **)0x70003B6C;
+            g = D_70003B6C;
             g[0xD] = g[0xD] - 1;
         }
-        idx = *(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C);
+        idx = *(unsigned short *)(D_70003B6C + 0x1C);
         off = ((arg1 + arg3[idx] * 0x18) >> 1) + 0x790;
         func_00207E40(1, 0x88D0, float_to_int((float) off * 16.0f), 0x20, 0x20, 0x80808080, *(unsigned long long *)(arg2 + 0x10));
         break;

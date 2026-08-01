@@ -33,6 +33,8 @@
 //   op 6       - records D_008107D8[ev->0x14] = ev->0x18 then the same teardown.
 // arg0 is unused by the body (the caller's context pointer).
 
+extern unsigned char D_70003B8D;                    /* PS2 scratchpad @ 0x70003B8D */
+
 extern unsigned char D_008101E1;
 extern unsigned char D_008101E2;
 extern unsigned char D_008101E3;
@@ -80,9 +82,9 @@ int func_001B82D0(int arg0, unsigned char *st, unsigned char *ev) {
             }
             D_008101E4 = 2;
             if (*(int *)(ev + 8) == 0xD) {
-                *(unsigned char *)0x70003B8D = 1;
+                D_70003B8D = 1;
             } else {
-                *(unsigned char *)0x70003B8D = 2;
+                D_70003B8D = 2;
             }
             st[4] = st[4] + 1;
             *(unsigned short *)0x70003B84 = 0;
@@ -122,7 +124,7 @@ int func_001B82D0(int arg0, unsigned char *st, unsigned char *ev) {
                 return 1;
             }
             D_008101E4 = 1;
-            *(unsigned char *)0x70003B8D = 2;
+            D_70003B8D = 2;
             func_001AEB60(4);
             st[4] = st[4] + 1;
             *(unsigned short *)0x70003B84 = 0;
@@ -169,7 +171,7 @@ int func_001B82D0(int arg0, unsigned char *st, unsigned char *ev) {
                 return 1;
             }
             D_008101E4 = 1;
-            *(unsigned char *)0x70003B8D = 2;
+            D_70003B8D = 2;
             *(unsigned short *)0x70003B84 = 0;
             *(unsigned char *)0x70003B91 = 0;
             func_001BA510();
@@ -231,7 +233,7 @@ int func_001B82D0(int arg0, unsigned char *st, unsigned char *ev) {
         D_00810758[*(int *)(ev + 0x14)] = 0xFF;
         /* fallthrough */
     case 4:
-        if (*(unsigned char *)0x70003B8D == 0) {
+        if (D_70003B8D == 0) {
             return 1;
         }
         D_008106F3 = 0;
@@ -261,19 +263,19 @@ int func_001B82D0(int arg0, unsigned char *st, unsigned char *ev) {
             func_001FAE70(0);
             func_001AEE10(4, 0);
             st[0xC] = 0;
-            *(unsigned char *)0x70003B8D = 0;
+            D_70003B8D = 0;
             *(unsigned char *)0x70003B92 = 0;
             *(unsigned char *)0x70003B91 = 0;
             return 3;
         }
         st[0xC] = 0;
-        *(unsigned char *)0x70003B8D = 0;
+        D_70003B8D = 0;
         *(unsigned char *)0x70003B92 = 0;
         *(unsigned char *)0x70003B91 = 0;
         return 1;
     case 6:
         D_008107D8[*(int *)(ev + 0x14)] = *(unsigned char *)(ev + 0x18);
-        if (*(unsigned char *)0x70003B8D == 0) {
+        if (D_70003B8D == 0) {
             return 1;
         }
         D_008106F3 = 0;
@@ -296,13 +298,13 @@ int func_001B82D0(int arg0, unsigned char *st, unsigned char *ev) {
             func_001FAE70(0);
             func_001AEE10(4, 0);
             st[0xC] = 0;
-            *(unsigned char *)0x70003B8D = 0;
+            D_70003B8D = 0;
             *(unsigned char *)0x70003B92 = 0;
             *(unsigned char *)0x70003B91 = 0;
             return 3;
         }
         st[0xC] = 0;
-        *(unsigned char *)0x70003B8D = 0;
+        D_70003B8D = 0;
         *(unsigned char *)0x70003B92 = 0;
         *(unsigned char *)0x70003B91 = 0;
         return 1;

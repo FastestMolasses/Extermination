@@ -11,6 +11,8 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+extern char *D_70003B6C;                            /* PS2 scratchpad @ 0x70003B6C */
+
 extern int float_to_int(float);
 extern int func_00207E40(int, int, int, int, int, int, long long);
 extern void func_0020CD40(void);
@@ -26,25 +28,25 @@ int func_0022B420(int arg0, char *arg1, char *arg2, int *arg3) {
     float f;
     int result;
 
-    p = *(char **)0x70003B6C;
+    p = D_70003B6C;
     state = *(unsigned char *)(p + 0xD);
     if (state == 2) {
         goto state2;
     }
     if (state == 1 || state == 0) {
         if (state == 0) {
-            p = *(char **)0x70003B6C;
+            p = D_70003B6C;
             *(unsigned char *)(p + 0xD) = *(unsigned char *)(p + 0xD) + 1;
-            p = *(char **)0x70003B6C;
+            p = D_70003B6C;
             *(unsigned char *)(p + 0x13) = 0;
         }
         if (D_00810E74 & 0x2000) {
             func_0020CDA0(p + 0xD, p);
-            p = *(char **)0x70003B6C;
+            p = D_70003B6C;
             *(unsigned char *)(p + 0xD) = *(unsigned char *)(p + 0xD) + 1;
-            p = *(char **)0x70003B6C;
+            p = D_70003B6C;
             *(unsigned short *)(p + 0x1E) = 0xA;
-            p = *(char **)0x70003B6C;
+            p = D_70003B6C;
             idx = *(unsigned short *)(p + 0x1C);
             v0 = arg3[idx];
             v0 = ((v0 * 3) << 3);
@@ -53,7 +55,7 @@ int func_0022B420(int arg0, char *arg1, char *arg2, int *arg3) {
             f = 16.0f * (float) v0;
             result = float_to_int(f);
             func_00207E40(1, 0x88D0, result, 0x20, 0x20, (int) 0x80808080, *(long long *)(arg2 + 0x10));
-            p = *(char **)0x70003B6C;
+            p = D_70003B6C;
             *(unsigned char *)(p + 0x13) = 1 - *(unsigned char *)(p + 0x13);
         } else {
             idx = *(unsigned short *)(p + 0x1C);
@@ -75,10 +77,10 @@ state2:
         cnt = *(unsigned short *)((char *)arg3 + 0x1E) - 1;
         *(unsigned short *)((char *)arg3 + 0x1E) = cnt;
         if (cnt == 0) {
-            p = *(char **)0x70003B6C;
+            p = D_70003B6C;
             *(unsigned char *)(p + 0xD) = *(unsigned char *)(p + 0xD) - 1;
         }
-        p = *(char **)0x70003B6C;
+        p = D_70003B6C;
         idx = *(unsigned short *)(p + 0x1C);
         v0 = arg3[idx];
         v0 = ((v0 * 3) << 3);
@@ -93,7 +95,7 @@ tail:
     if (D_00810E74 & 0x40) {
         func_0020CD40();
         v0 = 1;
-        p = *(char **)0x70003B6C;
+        p = D_70003B6C;
         if (*(unsigned char *)(p + 0x13) == 1) {
             v0 = 3;
         }

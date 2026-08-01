@@ -20,9 +20,11 @@
 // Callees func_001B0BA0 / func_001AB9D0 / func_001ABC60 / func_001ABE10 are
 // invoked with no argument set-up (the record pointer happens to still be
 // live in $a0), so they are declared and called argument-less here.
-// NEARMISS: 99.92% - the only residual is the jump-table reloc (local @NN
-// vs. the original's external jtbl_0026DC50); see docs on the jr-table
-// external-dispatch wall.
+// BYTE-IDENTICAL. This carried a "NEARMISS 99.92%" note blaming a jump-table
+// reloc (local @NN vs. an external jtbl_0026DC50) on the jr-table
+// external-dispatch wall. That wall was disproven in s85 — the table is
+// .rodata of the same TU and normalize_asm() appends it to the target — so
+// both sides now carry a local table. Re-measured s86: 100.0%.
 
 extern void func_001B0BA0();
 extern int func_001FB370(int);

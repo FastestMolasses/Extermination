@@ -39,6 +39,8 @@
 //  (3) CW emits a redundant `andi v1,v1,0xff` after the unsigned `lbu`
 //      0x70003B93 before the ==2 compare; mwcc proves it unnecessary and drops
 //      it. CW-specific codegen; not reachable from C.
+extern int D_70003B6C;                              /* PS2 scratchpad @ 0x70003B6C */
+
 extern void func_001FABB0(void);
 extern void func_001FBC50(int, int);
 extern unsigned char D_008106B5;
@@ -55,7 +57,7 @@ void func_001AD010(void) {
 
     if (D_008106B8 == 2) {
         D_00810702 = D_008106B7;
-        *(unsigned char *)(*(int *)0x70003B6C + 0xB) = 4;
+        *(unsigned char *)(D_70003B6C + 0xB) = 4;
         return;
     }
     st = *(unsigned char *)0x70003B93;
@@ -63,9 +65,9 @@ void func_001AD010(void) {
         if (st == 2) {
             func_001FABB0();
         }
-        *(unsigned char *)(*(int *)0x70003B6C + 9) = 3;
-        *(unsigned char *)(*(int *)0x70003B6C + 0xA) = 0;
-        *(unsigned char *)(*(int *)0x70003B6C + 0xB) = 0;
+        *(unsigned char *)(D_70003B6C + 9) = 3;
+        *(unsigned char *)(D_70003B6C + 0xA) = 0;
+        *(unsigned char *)(D_70003B6C + 0xB) = 0;
         return;
     }
     D_00810700 = D_008106B5;
@@ -75,9 +77,9 @@ void func_001AD010(void) {
     } else {
         D_00810701 = D_008106B6;
     }
-    *(unsigned char *)(*(int *)0x70003B6C + 9) = 5;
-    *(unsigned char *)(*(int *)0x70003B6C + 0xA) = 0;
-    *(unsigned char *)(*(int *)0x70003B6C + 0xB) = 0;
+    *(unsigned char *)(D_70003B6C + 9) = 5;
+    *(unsigned char *)(D_70003B6C + 0xA) = 0;
+    *(unsigned char *)(D_70003B6C + 0xB) = 0;
     func_001FBC50(D_008106B7, D_008106B5);
     func_001FABB0();
 }

@@ -26,6 +26,8 @@
 // off D_00275670: copies the 0xB0 qword to slot 0x360, writes the 0x10 command
 // pointer (byte3=0x30, +4=off, halfword=3, advance +0x10), issues func_001D2960,
 // copies two 4-qword blocks (D_70003A40/AC0) and finalizes via func_001D7C30/30A0.
+extern unsigned char D_70003B8D;                    /* PS2 scratchpad @ 0x70003B8D */
+
 extern void func_001D2830(int, int);
 extern int func_0015D2F0(void);
 extern int func_001B0070(void);
@@ -77,7 +79,7 @@ void func_001D1C50(void) {
         func_001D2830(6, 1);
     } else {
         flag = 0;
-        if ((*(unsigned char *)0x70003B8D == 0) || (*(unsigned char *)0x70003B8D == 4)) {
+        if ((D_70003B8D == 0) || (D_70003B8D == 4)) {
             if ((func_0015D2F0() == 2) && (D_008106C6[0] == 2)) {
                 flag = 1;
             }

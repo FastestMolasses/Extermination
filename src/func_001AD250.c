@@ -12,12 +12,14 @@
 //   2: func_001AD4E0   3: func_001AD740   4: func_001ADF00
 //   5: end poll func_001ADF50; when done -> back to state 1, clear +0xA/+0xB
 //
-// NEARMISS 99.85% — jr-table external-dispatch wall (proven s84): the original
-// consolidated all jump tables into an external rodata TU, so mwcc's local @13
-// table is a permanent reloc mismatch. Everything else — all six bodies, the
-// three beqz+nop delay slots, the jtbl lui/addiu/sll ordering and case 0's
-// early-epilogue `b` with the `lq $ra` delay slot — is byte-identical under
-// mwcc 2.3.3 (the pinned 991202 build mis-filled the delay slots, 92.3%).
+// BYTE-IDENTICAL under mwcc 2.3.3 (the pinned 991202 build mis-fills the delay
+// slots, 92.3%). This carried a "NEARMISS 99.85% — jr-table external-dispatch
+// wall" note claiming the original consolidated jump tables into an external
+// rodata TU, making mwcc's local @13 table a permanent reloc mismatch. That
+// wall was disproven in s85: a switch's jump table is .rodata of the SAME
+// translation unit, and normalize_asm() now appends it to the target, so both
+// sides carry a local table. Re-measured s86: 100.0%. The note was stale, not
+// the code — nothing here changed.
 
 extern int func_001AD360(void);
 extern void func_001AD4D0(void);

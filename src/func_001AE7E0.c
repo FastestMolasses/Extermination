@@ -1,13 +1,4 @@
-// NEARMISS func_001AE7E0  (vram 0x001AE7E0, 0x120 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// NOT a compiler wall — a splat/objdiff RENDERING artifact, and the object is PROVEN byte-identical to the target after linking. Mechanism: mwcc233/mwcc24 never speculate a RELOC-carrying `lui $r,%hi(sym)` into a branch delay slot, but they DO speculate a bare-CONSTANT `lui $at,0x7000`. The old sou...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
+// func_001AE7E0 — byte-identical match (re-measured 100% with its declared CFLAGS).
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 

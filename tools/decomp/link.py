@@ -330,7 +330,14 @@ def _load_abs_syms() -> str:
     # data-table references that are absent from the auto files.
     _d_re = _re.compile(r"\bD_([0-9A-Fa-f]{7,8})\b")
     _f_re = _re.compile(r"\bfunc_([0-9A-Fa-f]{7,8})\b")
-    for asm_file in ASM_DIR.glob("*.s"):
+    # build/.asmnorm is scanned as well as the raw splat output because
+    # normalize_asm() INTRODUCES symbols that splat never emitted — currently the
+    # scratchpad globals D_70003B6C / D_70003B8D, which splat renders as address
+    # literals (s86). Those names reach the compiled objects as undefined
+    # externals, so without this the link fails on symbols that exist only in the
+    # normalized asm.
+    _asm_dirs = [ASM_DIR, BUILD / ".asmnorm"]
+    for asm_file in [p for d in _asm_dirs if d.is_dir() for p in d.glob("*.s")]:
         content = asm_file.read_text(errors="replace")
         for m in _d_re.finditer(content):
             name = m.group(0)

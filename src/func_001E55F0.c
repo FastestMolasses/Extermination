@@ -25,6 +25,8 @@
 // (writes header byte+3=0x60, word+4=0, half+0=0, advances by 0x10) and frees
 // the previous node via func_001D2DE0. Finally, if D_008106B8==2 and
 // D_0028A9A0==2, sets state to 3 and returns early.
+extern unsigned char D_70003B8D;                    /* PS2 scratchpad @ 0x70003B8D */
+
 extern float func_0011DF78(float);
 extern int func_00122BB8(void);
 extern char func_00128250(int, float);
@@ -87,7 +89,7 @@ void func_001E55F0(char *arg0) {
                     }
                 }
             }
-            if (*(unsigned char *)0x70003B8D != 0) {
+            if (D_70003B8D != 0) {
                 if (!(*(float *)(s2 + 0x34) <= 90.0f)) {
                     *(float *)(s2 + 0x34) = 90.0f;
                 }

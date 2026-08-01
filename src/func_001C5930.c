@@ -11,6 +11,8 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+extern volatile unsigned char D_70003B8D;           /* PS2 scratchpad @ 0x70003B8D */
+
 extern void func_001AFC10(unsigned char *);
 extern int func_001C5860(void);
 extern int func_001CC170(int);
@@ -51,7 +53,7 @@ void func_001C5930(unsigned char *arg0) {
         *(short *)(sub + 4) = 0x12C;
         break;
     case 1:
-        spad = *(volatile unsigned char *)0x70003B8D;
+        spad = D_70003B8D;
         flag = 1;
         if (spad != 1) {
             if ((unsigned)(spad - 2) < 2) {

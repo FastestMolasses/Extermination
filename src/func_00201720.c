@@ -1,13 +1,4 @@
-// NEARMISS func_00201720  (vram 0x00201720, 0x52C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.79% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Single root-cause delay-slot-fill artifact: target leaves the unhandled-switch-value branch's delay slot as nop; mwcc 2.3.3 hoists the next block's `lui at,%hi(0x70003B6C)` load into it (cross-block speculative hoist not present in the original build). This shifts every later branch target addres...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
+// func_00201720 — byte-identical match (scratchpad-symbol conversion (D_70003B6C)).
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
@@ -38,6 +29,8 @@
 //  the "cancel/back" flags D_00810E74&0x30 are set, run func_0020CD60, latch the selected
 //  column's byte from g[0x13] into arg0[1] or arg0[4], and return 2 if the "back" bit
 //  D_00810E74&0x10 is additionally set, else return 1. Otherwise return 0 (idle).
+extern unsigned char *D_70003B6C;                   /* PS2 scratchpad @ 0x70003B6C */
+
 extern int float_to_int(float);
 extern void func_001B61C0(int a, int b, int c, int d);
 extern void func_00207E40(int a0, int a1, int a2, int a3, int t0, unsigned int t1, unsigned long long t2);
@@ -55,13 +48,13 @@ int func_00201720(unsigned char *arg0, int arg1, unsigned char *arg2, int *arg3)
     int off;
     int ret;
 
-    g = *(unsigned char **)0x70003B6C;
+    g = D_70003B6C;
     p = g + 0xD;
     switch (*(unsigned char *)(g + 0xD)) {
     case 0: {
         unsigned char *g2;
         *p = *p + 1;
-        g2 = *(unsigned char **)0x70003B6C;
+        g2 = D_70003B6C;
         idx = *(unsigned short *)(g2 + 0x1C);
         if (arg3[idx] == 0) {
             g2[0x13] = arg0[1];
@@ -73,10 +66,10 @@ int func_00201720(unsigned char *arg0, int arg1, unsigned char *arg2, int *arg3)
     case 1:
         if (D_00810E74 & 0x2000) {
             func_0020CDA0(p, g);
-            g = *(unsigned char **)0x70003B6C;
+            g = D_70003B6C;
             g[0xD] = g[0xD] + 1;
-            *(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1E) = 0xA;
-            idx = *(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C);
+            *(unsigned short *)(D_70003B6C + 0x1E) = 0xA;
+            idx = *(unsigned short *)(D_70003B6C + 0x1C);
             if (arg3[idx] == 0) {
                 arg0[1] = 1 - arg0[1];
                 if (arg0[1] == 1) {
@@ -85,19 +78,19 @@ int func_00201720(unsigned char *arg0, int arg1, unsigned char *arg2, int *arg3)
             } else {
                 arg0[4] = 1 - arg0[4];
             }
-            if (arg3[*(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C)] == 0) {
-                off = ((arg1 + arg3[*(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C)] * 0x18) >> 1) + 0x790;
+            if (arg3[*(unsigned short *)(D_70003B6C + 0x1C)] == 0) {
+                off = ((arg1 + arg3[*(unsigned short *)(D_70003B6C + 0x1C)] * 0x18) >> 1) + 0x790;
                 func_00207E40(1, 0x88D0, float_to_int((float) off * 16.0f), 0x20, 0x20, 0x80808080, *(unsigned long long *)(arg2 + 0x10));
             } else {
-                off = ((arg1 + arg3[*(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C)] * 0x18) >> 1) + 0x790;
+                off = ((arg1 + arg3[*(unsigned short *)(D_70003B6C + 0x1C)] * 0x18) >> 1) + 0x790;
                 func_00207E40(1, 0x8A40, float_to_int((float) off * 16.0f), 0x20, 0x20, 0x80808080, *(unsigned long long *)(arg2 + 0x10));
             }
         } else {
-            if (arg3[*(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C)] == 0) {
-                off = ((arg1 + arg3[*(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C)] * 0x18) >> 1) + 0x790;
+            if (arg3[*(unsigned short *)(D_70003B6C + 0x1C)] == 0) {
+                off = ((arg1 + arg3[*(unsigned short *)(D_70003B6C + 0x1C)] * 0x18) >> 1) + 0x790;
                 func_00207E40(1, 0x88D0, float_to_int((float) off * 16.0f), 0x20, 0x20, 0x80808080, *(unsigned long long *)(arg2 + 0x8));
             } else {
-                off = ((arg1 + arg3[*(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C)] * 0x18) >> 1) + 0x790;
+                off = ((arg1 + arg3[*(unsigned short *)(D_70003B6C + 0x1C)] * 0x18) >> 1) + 0x790;
                 func_00207E40(1, 0x8A40, float_to_int((float) off * 16.0f), 0x20, 0x20, 0x80808080, *(unsigned long long *)(arg2 + 0x8));
             }
         }
@@ -107,20 +100,20 @@ int func_00201720(unsigned char *arg0, int arg1, unsigned char *arg2, int *arg3)
         dec = *(unsigned short *)(g + 0x1E) - 1;
         *(unsigned short *)(g + 0x1E) = (unsigned short) dec;
         if (!(dec & 0xFFFF)) {
-            g = *(unsigned char **)0x70003B6C;
+            g = D_70003B6C;
             g[0xD] = g[0xD] - 1;
         }
-        if (arg3[*(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C)] == 0) {
-            off = ((arg1 + arg3[*(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C)] * 0x18) >> 1) + 0x790;
+        if (arg3[*(unsigned short *)(D_70003B6C + 0x1C)] == 0) {
+            off = ((arg1 + arg3[*(unsigned short *)(D_70003B6C + 0x1C)] * 0x18) >> 1) + 0x790;
             func_00207E40(1, 0x88D0, float_to_int((float) off * 16.0f), 0x20, 0x20, 0x80808080, *(unsigned long long *)(arg2 + 0x10));
         } else {
-            off = ((arg1 + arg3[*(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1C)] * 0x18) >> 1) + 0x790;
+            off = ((arg1 + arg3[*(unsigned short *)(D_70003B6C + 0x1C)] * 0x18) >> 1) + 0x790;
             func_00207E40(1, 0x8A40, float_to_int((float) off * 16.0f), 0x20, 0x20, 0x80808080, *(unsigned long long *)(arg2 + 0x10));
         }
         break;
     }
     }
-    g = *(unsigned char **)0x70003B6C;
+    g = D_70003B6C;
     idx = *(unsigned short *)(g + 0x1C);
     if (arg3[idx] == 0 && (D_00810E6A != 7 || D_00810E50 != 4)) {
         if (D_00810E50 != 4) {
@@ -137,7 +130,7 @@ int func_00201720(unsigned char *arg0, int arg1, unsigned char *arg2, int *arg3)
     ret = 0;
     if (D_00810E74 & 0x30) {
         func_0020CD60();
-        g = *(unsigned char **)0x70003B6C;
+        g = D_70003B6C;
         idx = *(unsigned short *)(g + 0x1C);
         if (arg3[idx] == 0) {
             arg0[1] = g[0x13];

@@ -200,6 +200,40 @@ def _symbolize_hoisted_hi(src: str) -> str:
     return "".join(lines) if changed else src
 
 
+# The two PS2 scratchpad globals that are in no symbol list, so splat renders
+# them as address literals. See tools/match/spad_symbolize.py for the full
+# argument; in brief, the original build referenced them as ordinary externs, so
+# every access carries a %hi/%lo relocation, and handing mwcc a plain constant
+# instead lets it CSE the `lui` and speculate it into delay slots the target
+# leaves as `nop`.
+_SPAD_SYMS = ("0x70003B6C", "0x70003B8D")
+
+
+def _symbolize_scratchpad(name: str, src: str) -> str:
+    """Rewrite scratchpad literals to %hi/%lo, but ONLY where the C opted in.
+
+    PER-FILE BY DESIGN. 35 already-matched functions still spell these
+    addresses as literals and match precisely because BOTH sides do: the
+    expected object and the compiled object each carry a bare constant and no
+    relocation. Symbolizing every .s unconditionally would give the expected
+    objects relocations their C cannot produce and break all 35 at once. So a
+    function's target is symbolized only once its own source references the
+    symbol, which makes the migration incremental and self-consistent.
+    """
+    csrc = SRC / f"{name}.c"
+    try:
+        c = csrc.read_text(errors="ignore")
+    except OSError:
+        return src
+    for lit in _SPAD_SYMS:
+        sym = "D_" + lit[2:]
+        if not re.search(r'\b' + sym + r'\b', c):
+            continue
+        src = src.replace(f"({lit} >> 16)", f"%hi({sym})")
+        src = src.replace(f"({lit} & 0xFFFF)", f"%lo({sym})")
+    return src
+
+
 def normalize_asm(name: str) -> None:
     """Write build/.asmnorm/<name>.s: splat's disassembly, fixed up and with the
     function's own jump table appended.
@@ -218,6 +252,7 @@ def normalize_asm(name: str) -> None:
     for pat, rep in _ASM_FIXUPS:
         src = pat.sub(rep, src)
     src = _symbolize_hoisted_hi(src)
+    src = _symbolize_scratchpad(name, src)
     jtbl = ROOT / "build" / "jtblrodata" / f"{name}.s"
     if jtbl.exists():
         src += "\n" + jtbl.read_text(errors="ignore")
@@ -229,9 +264,18 @@ def normalize_asm(name: str) -> None:
 def file_cflags(name: str) -> str:
     """Read per-file CFLAGS from a '// CFLAGS: ...' comment in src/<name>.c.
 
-    If the first non-blank line of the file is a C++ comment starting with
-    '// CFLAGS:', the remainder of that line replaces the default CFLAGS.
-    Otherwise the global CFLAGS constant is used.
+    If a C++ comment starting with '// CFLAGS:' appears anywhere in the file's
+    LEADING COMMENT BLOCK, the remainder of that line replaces the default
+    CFLAGS. Otherwise the global CFLAGS constant is used.
+
+    Scan the whole leading comment block, exactly as file_compiler() does (s86).
+    This used to `break` on the first comment line that was neither '// CFLAGS:'
+    nor '// COMPILER:' — which is every NEARMISS file, since those open with a
+    '// NEARMISS <func> ...' banner. 628 files silently fell back to the global
+    '-O4,p' and lost their declared '-sdatathreshold 0'. It stayed invisible
+    because NEARMISS files are not compiled by the canonical build and because
+    integrate_nearmiss.py has its own (correct) directive parser, so the two
+    disagreed only when a NEARMISS was re-measured through build.py.
     """
     src = SRC / f"{name}.c"
     try:
@@ -242,8 +286,8 @@ def file_cflags(name: str) -> str:
                     continue
                 if line.startswith("// CFLAGS:"):
                     return line[len("// CFLAGS:"):].strip()
-                if line.startswith("// COMPILER:"):
-                    continue  # keep scanning for a CFLAGS line
+                if line.startswith("//"):
+                    continue  # keep scanning the leading comment block
                 break
     except OSError:
         pass

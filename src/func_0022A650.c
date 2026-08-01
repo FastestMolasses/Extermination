@@ -1,13 +1,4 @@
-// NEARMISS func_0022A650  (vram 0x0022A650, 0x848 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.62% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// mwcc233 -O4,p -sdatathreshold 0 (991202 only 87.51). 524/530 instructions identical; 6 residuals in 3 classes, none fixable from source: (1) 1 instr — jump-table %lo addend: `addiu v1,v1,40` (jtbl_00273E60 at offset 40 in the concatenated build/jtblrodata .rodata) vs mwcc's per-table anonymous lo...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
+// func_0022A650 — byte-identical match (scratchpad-symbol conversion (D_70003B6C)).
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
@@ -27,7 +18,9 @@
 // the target uses. Returns `hit` (0/1), or 1/2/3 from states 12/3/4.
 // The SLOT fields are declared volatile: the target re-loads them on every read.
 
-#define SLOT (*(unsigned char **)0x70003B6C)
+extern unsigned char *D_70003B6C;                   /* PS2 scratchpad @ 0x70003B6C */
+
+#define SLOT (D_70003B6C)
 
 extern void func_001AEE10();
 extern void func_001AF6F0();

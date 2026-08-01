@@ -42,6 +42,8 @@
 //               low nibble is 9 the actor fires sound cue 0x7D3 at 300.0f.
 //   act[0x4C] = per-actor callback invoked with the actor itself.
 
+extern volatile unsigned char D_70003B8D;           /* PS2 scratchpad @ 0x70003B8D */
+
 extern char D_700038A0[];
 extern char D_700038B0[];
 extern float D_00810360[4];
@@ -119,7 +121,7 @@ void func_0012E840(unsigned char *act, unsigned char *ent)
         break;
     }
 
-    if (*(volatile unsigned char *)0x70003B8D != 0) {
+    if (D_70003B8D != 0) {
         if (act[5] != 0) {
             st = act[5];
             if (st != 3 && st != 4 && st != 9) {

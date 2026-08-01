@@ -21,6 +21,8 @@
 // SEMANTICS (resolved s33): ACTIVE tick of the kind-0xE tendril field.
 // Sub-state +0x05 switch (0 SCAN / 1 DEPLOY / 2 HOLD / 3 RETRACT / 4 reset),
 // then blend the tail RGB toward green and dispatch the renderer.
+extern volatile unsigned char D_70003B8D;           /* PS2 scratchpad @ 0x70003B8D */
+
 extern float D_008102B0[];
 extern short D_0026D320[];
 extern unsigned char D_00248124[];
@@ -106,7 +108,7 @@ int func_001549C0(unsigned char *s7, unsigned char *s6) {
         break;
     }
     case 2:
-        if (*(volatile unsigned char *)0x70003B8D != 0) {
+        if (D_70003B8D != 0) {
             *(short *)(s7 + 0x28) = 8;
             s7[5] = s7[5] + 1;
         } else {
