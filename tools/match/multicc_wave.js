@@ -52,6 +52,16 @@ LEVERS PROVEN THIS SESSION (try these BEFORE concluding a build tie-break is a w
   is what produces a 0x40 frame instead of 0x30 and keeps every save offset in place.
   Cracked func_0010F7D8.
 
+* AN ARGUMENT CAN BE LOAD-BEARING. Passing a pointer the callee seems not to need keeps that
+  register live across a guard, which can force mwcc to emit a BRANCH-LIKELY whose delay slot
+  speculates the register copy for the following call. Drop it and mwcc clobbers the register
+  in a plain branch slot instead. If your only residual is a branch-likely that the target has
+  and you do not, check whether an argument list you 'simplified' was holding a register live.
+  Cracked func_0021E830 (99.38 -> 100.0).
+* RE-TEST RECORDED WALLS. init_vtable_a0_at_0011FE90 carried a detailed ee-gcc
+  pre-reload-scheduler verdict (INSN_REG_WEIGHT ranking) and matched at 100.0 on a plain
+  retry. A confident mechanism in a header comment is not evidence.
+
 KNOWN-GENUINE class, do not burn budget on it: an access through an ABSOLUTE 0x7000xxxx
 scratchpad global always exposes a speculatable address 'lui' that CodeWarrior speculates into
 a branch delay slot and mwcc leaves as nop. Marking the access volatile does NOT help — the
