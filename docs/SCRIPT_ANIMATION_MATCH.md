@@ -2,6 +2,17 @@
 
 ## Clip initialization and explicit float arguments
 
+`anim_clip_arbiter` now also declares and forwards both incoming float
+arguments explicitly. Its previous C happened to preserve f12/f13 because
+the function never touched them, but omitted those values from both its
+signature and the initializer declaration. The corrected84-byte body remains
+100% in objdiff and supplies ordinary compiled C to its96-byte linker slot.
+All six checks pass again, including the entire boot loadable region and
+19/19 overlays. Fresh source/object and prepared-text/relocation provenance
+is recorded in `build/interaction_init/arbiter_link_provenance.json`; the
+full gate is `build/interaction_init/arbiter_verify_all.log`. Classification
+and linked-C counts are unchanged by this signature correction.
+
 The subsequent continuation also converts `anim_clip_init` into212 bytes of
 readable exact C and corrects `func_001749A0`'s omitted float arguments. The
 latter now explicitly forwards the caller's blend and sets source frame0;

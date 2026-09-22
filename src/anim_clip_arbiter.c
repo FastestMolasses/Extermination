@@ -11,10 +11,11 @@
 // to bne and merges that dead return block (walled at 87.6%); mwcc 2.3.3
 // (mwcps2-2.3.3-000906) emits the dead block and is byte-identical. Verified
 // objdiff 100% vs build/expected/anim_clip_arbiter.o.
-extern void anim_clip_init(int, int);
+// Both incoming floating arguments are forwarded unchanged in f12/f13.
+extern void anim_clip_init(int, int, float, float);
 
-int anim_clip_arbiter(char *p, int v) {
-    anim_clip_init((int)p, v);
+int anim_clip_arbiter(char *p, int v, float blend, float frame) {
+    anim_clip_init((int)p, v, blend, frame);
     if ((short)v != *(short *)(p + 0x20C)) {
         *(short *)(p + 0x20C) = (short)v;
         return 1;
