@@ -8,6 +8,8 @@
 // branch target by four bytes. The other 67 instructions match exactly.
 // The original assembly remains the linked implementation until this last
 // scheduling difference is resolved. mwcc991202 measured 92.46377%/264 bytes.
+// A later bounded search also reproduced the same residual with mwcc 2.4
+// and alternate readable clamp/control-flow forms. See docs/QUATERNION_MATCH.md.
 //
 // Despite the historical name, this does NOT normalize the result or use
 // spherical interpolation. It clamps only the upper blend bound, computes
