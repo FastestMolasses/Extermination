@@ -416,7 +416,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001C7EB0 | 0x001C7EB0 | 0x28C | 89.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same class of mwcc saved-register-coloring wall as func_0018CBD0: target assigns s1=tail/s |
 | func_0020E460 | 0x0020E460 | 0x28C | 93.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Switch-dispatch register-coloring / delay-slot-hoist / CSE-sharing scheduling artifact: ta |
 | func_001999C0 | 0x001999C0 | 0x290 | 83.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation ($s0/$s1 hold scratch/result swapped vs. target) plus per-br |
-| func_001D66A0 | 0x001D66A0 | 0x28C | 67.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU-MAC wall (confirmed, dead class): the target computes the four rotation-seed floats us |
+| func_001D66A0 | 0x001D66A0 | 0x28C | 68.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected draw-context pointer/slot scaling and false particle semantics; original fixed16 Gouraud geometry independently validated. Assembly-backed. |
 | func_001E2560 | 0x001E2560 | 0x294 | 98.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Genuine idiom-13 clean-constant-store nop wall: `*(arg0+4)=3` early-return stores material |
 | func_002036E0 | 0x002036E0 | 0x294 | 93.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two backend artifacts, both confirmed non-C-reproducible: (1) $at-vs-GPR register naming o |
 | func_00187EE0 | 0x00187EE0 | 0x298 | 90.00% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | idiom-13 delay-slot wall on address-lui speculation, 3 residual branches (case 0x5A/0x5B/0 |
