@@ -1,147 +1,72 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001ABF90(int, int, int, int);
-extern void func_001FB9F0(int, int, int, int);
-extern void func_00207D00(int, int, int, int);
-extern void func_00207E40(int, int, int, int);
+// NEARMISS func_001AC7F0  (vram 0x001AC7F0, 0x22C bytes) — readable decompilation, NOT byte-identical.
+//
+// objdiff 97.84% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful.
+// Remaining differences in this candidate:
+// mwcc233 -O4,p -sdatathreshold 0: 97.84173%; original 556 bytes, compiled
+// 544 bytes. All live instructions and registers match; the original retains
+// three unreachable duplicate lui v0,0x2005 instructions immediately before
+// case-entry labels at 0x001AC8E8, 0x001AC920, and 0x001AC958.
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_001AC7F0(void) {
-    .word 0x27bdffc0
-    .word 0x7fbf0030
-    .word 0x7fb20020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x3c017000
-    .word 0x8c243b6c
-    .word 0x24030001
-    .word 0x2487000a
-    .word 0x9084000a
-    .word 0x10830014
-    .word 0x3c082005
-    .word 0x10800003
-    .word 0x00000000
-    .word 0x10000077
-    .word 0x7bbf0030
-    .word 0x90e20000
-    .word 0x24051000
-    .word 0x3c017000
-    .word 0x240405dc
-    .word 0x24420001
-    .word 0xa0e20000
-    .word 0x8c223b6c
-    .word 0x70a03628
-    .word 0x70a03e28
-    .word 0xa4400018
-    .word 0x3c017000
-    .word 0x8c223b6c
-    jal       func_001FB9F0
-    .word 0xa0400010
-    .word 0x3c082005
-    .word 0x3502f006
-    .word 0x0002183c
-    .word 0x3c072132
-    .word 0x34e22a00
-    .word 0x00432025
-    .word 0x3502f086
-    .word 0x0002183c
-    .word 0x34e22a40
-    .word 0x00432825
-    .word 0x3502f206
-    .word 0x0002303c
-    .word 0x3502f286
-    .word 0x0002183c
-    .word 0x34e22c00
-    .word 0x00463025
-    .word 0x34e22c40
-    jal       func_001ABF90
-    .word 0x00433825
-    .word 0x3c017000
-    .word 0x8c233b6c
-    .word 0x24020002
-    .word 0x9063000f
-    .word 0x10620025
-    .word 0x3c022005
-    .word 0x24020001
-    .word 0x10620014
-    .word 0x3c022005
-    .word 0x10600004
-    .word 0x3c022005
-    .word 0x1000002b
-    .word 0x24040001
-    .word 0x3c022005
-    .word 0x3443f425
-    .word 0x0003283c
-    .word 0x3442f405
-    .word 0x0002183c
-    .word 0x3402e142
-    .word 0x00022438
-    .word 0x34822e40
-    .word 0x00458025
-    .word 0x34822e80
-    .word 0x00438825
-    .word 0x34822f00
-    .word 0x1000001c
-    .word 0x00439025
-    .word 0x3c022005
-    .word 0x3443f405
-    .word 0x0003283c
-    .word 0x3442f485
-    .word 0x0002183c
-    .word 0x3402e142
-    .word 0x00022438
-    .word 0x34822e00
-    .word 0x00458025
-    .word 0x34822ec0
-    .word 0x00438825
-    .word 0x34822f00
-    .word 0x1000000e
-    .word 0x00459025
-    .word 0x3c022005
-    .word 0x3443f405
-    .word 0x0003283c
-    .word 0x3442f4a5
-    .word 0x0002183c
-    .word 0x3402e142
-    .word 0x00022438
-    .word 0x34822e00
-    .word 0x00458025
-    .word 0x34822e80
-    .word 0x00458825
-    .word 0x34822f40
-    .word 0x00439025
-    .word 0x24040001
-    jal       func_00207D00
-    .word 0x70002e28
-    .word 0x3c028080
-    .word 0x24040001
-    .word 0x240577f0
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x72005628
-    .word 0x34068120
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0x3c028080
-    .word 0x24040001
-    .word 0x240577f0
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x72205628
-    .word 0x34068230
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0x3c028080
-    .word 0x24040001
-    .word 0x240577f0
-    .word 0x24070100
-    .word 0x24080080
-    .word 0x72405628
-    .word 0x34068320
-    jal       func_00207E40
-    .word 0x34498080
-    .word 0x7bbf0030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0040
+// Title-menu compositor. The task's byte +0xA controls one-time audio/
+// highlight setup; byte +0xF selects the highlighted menu texture.
+// The sprite primitive's seventh parameter is the full 64-bit TEX0.
+extern void func_001ABF90(long long, long long, long long, long long);
+extern int func_001FB9F0(int, int, int, int);
+extern void func_00207D00(int, int);
+extern void func_00207E40(int, int, int, int, int, unsigned int, long long);
+
+#define TITLE_TASK (*(unsigned char **)0x70003B6C)
+
+void func_001AC7F0(void)
+{
+    long long new_game;
+    long long load_game;
+    long long options;
+    unsigned char *task;
+    unsigned char *sub;
+
+    task = TITLE_TASK;
+    sub = task + 0xA;
+    switch (task[0xA]) {
+    case 0:
+        sub[0]++;
+        *(short *)(TITLE_TASK + 0x18) = 0;
+        TITLE_TASK[0x10] = 0;
+        func_001FB9F0(1500, 4096, 4096, 4096);
+        /* fall through */
+    case 1:
+        func_001ABF90(0x2005F00621322A00LL, 0x2005F08621322A40LL,
+                       0x2005F20621322C00LL, 0x2005F28621322C40LL);
+        /* Valid menu selectors are 0..2. The original has no default
+         * assignments, so an invalid selector has no defined textures. */
+        switch (TITLE_TASK[0xF]) {
+        case 0:
+            new_game = 0x2005F425E1422E40LL;
+            load_game = 0x2005F405E1422E80LL;
+            options = 0x2005F405E1422F00LL;
+            break;
+        case 1:
+            new_game = 0x2005F405E1422E00LL;
+            load_game = 0x2005F485E1422EC0LL;
+            options = 0x2005F405E1422F00LL;
+            break;
+        case 2:
+            new_game = 0x2005F405E1422E00LL;
+            load_game = 0x2005F405E1422E80LL;
+            options = 0x2005F4A5E1422F40LL;
+            break;
+        }
+        func_00207D00(1, 0);
+        func_00207E40(1, 0x77F0, 0x8120, 256, 128, 0x80808080U, new_game);
+        func_00207E40(1, 0x77F0, 0x8230, 256, 128, 0x80808080U, load_game);
+        func_00207E40(1, 0x77F0, 0x8320, 256, 128, 0x80808080U, options);
+        return;
+    }
 }

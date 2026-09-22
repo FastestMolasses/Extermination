@@ -9782,14 +9782,6 @@
       }
     },
     {
-      "name": "func_001AC7F0",
-      "target_path": "build/expected/func_001AC7F0.o",
-      "base_path": "build/obj/func_001AC7F0.o",
-      "metadata": {
-        "source_path": "src/func_001AC7F0.c"
-      }
-    },
-    {
       "name": "func_001ACE70",
       "target_path": "build/expected/func_001ACE70.o",
       "base_path": "build/obj/func_001ACE70.o",

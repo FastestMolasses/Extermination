@@ -816,3 +816,4 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001D5370 | 0x001D5370 | 0x700 | 39.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001D5C80 | 0x001D5C80 | 0x728 | 47.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_00135D00 | 0x00135D00 | 0x438 | 100.00% | mwcc 2.3.3 | Object matches; local 36-byte jump table needs pinning at jtbl_0026D190 before C can link. |
+| func_001AC7F0 | 0x001AC7F0 | 0x22C | 97.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | All live instructions match; C omits three unreachable duplicate lui instructions (544 vs 556 bytes). Original assembly remains linked. |
