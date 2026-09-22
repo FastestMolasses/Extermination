@@ -412,7 +412,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00179910 | 0x00179910 | 0x280 | 89.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / delay-slot-fill order permutation. Body and control flow are 100% co |
 | func_001854E0 | 0x001854E0 | 0x280 | 88.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring on the sum-of-squares (adda.s/madd.s) idiom -- identical wall class a |
 | func_001D2300 | 0x001D2300 | 0x280 | 80.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation (extra callee-saved register / one different cached  |
-| func_0018CBD0 | 0x0018CBD0 | 0x284 | 91.78% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc saved-float-register-coloring wall: target allocates $f21 for the speed->dist->ang ca |
+| func_0018CBD0 | 0x0018CBD0 | 0x284 | 94.04% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected zero falloff and -7 clamp from original instructions. Remaining object differenc |
 | func_001C7EB0 | 0x001C7EB0 | 0x28C | 89.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same class of mwcc saved-register-coloring wall as func_0018CBD0: target assigns s1=tail/s |
 | func_0020E460 | 0x0020E460 | 0x28C | 93.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Switch-dispatch register-coloring / delay-slot-hoist / CSE-sharing scheduling artifact: ta |
 | func_001999C0 | 0x001999C0 | 0x290 | 83.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation ($s0/$s1 hold scratch/result swapped vs. target) plus per-br |
