@@ -460,7 +460,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00210F30 | 0x00210F30 | 0x30C | 84.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/instruction-scheduling permutation, two spots: (1) the D_700038A0/B0/C |
 | func_001C5930 | 0x001C5930 | 0x318 | 69.04% | mwcc 2.3.3 | Corrected inverted area-title selector gate; all256 selectors checked against original branches. Other object residuals remain; assembly links. |
 | func_00201C50 | 0x00201C50 | 0x318 | 97.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | see summary above |
-| func_001BA1F0 | 0x001BA1F0 | 0x31C | 71.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Script-interpreter pump loop (opcode dispatch via ftab_0024D880). Body/control-flow fully  |
+| func_001BA1F0 | 0x001BA1F0 | 0x31C | 73.65% | mwcc 2.3.3 | Corrected signed skip gates, opcode18 stops and stale record sequencing; original/compiled-C/native oracle passes43 cases. Other object differences remain; assembly links. |
 | func_00219550 | 0x00219550 | 0x31C | 83.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Item armed-handler pump. Body/logic fully recovered against the documented func_0015AE20-f |
 | func_001BA8E0 | 0x001BA8E0 | 0x320 | 72.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NPC-spawner type dispatch (sparse compare-chain, no jump table). Body/mapping table fully  |
 | func_00197D20 | 0x00197D20 | 0x324 | 89.28% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered including two fixed callee-signature bugs (func_001D2610 is |
@@ -817,3 +817,4 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001D5C80 | 0x001D5C80 | 0x728 | 47.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_00135D00 | 0x00135D00 | 0x438 | 100.00% | mwcc 2.3.3 | Object matches; local 36-byte jump table needs pinning at jtbl_0026D190 before C can link. |
 | func_001AC7F0 | 0x001AC7F0 | 0x22C | 97.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | All live instructions match; C omits three unreachable duplicate lui instructions (544 vs 556 bytes). Original assembly remains linked. |
+| quat_nlerp | 0x001CA0A0 | 0x114 | 99.06% | mwcc 2.3.3 | Readable unnormalized hemisphere blend; 67/69 instructions match, with two clamp branch/delay-slot scheduling differences. Assembly links. |

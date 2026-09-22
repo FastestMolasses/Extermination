@@ -225,9 +225,35 @@ except (Exception, KeyboardInterrupt):
     print(f"validation failed; restored {len(names)} candidate source(s)")
     raise
 
-if docrows:
-    with open("docs/NEARMISS.md", "a") as fp:
-        fp.write("\n".join(docrows) + "\n")
+if docrows or kept:
+    # Re-measuring an existing candidate must replace its row, not leave
+    # contradictory old/new scores. Collapse duplicates only for functions
+    # in this successful wave; unrelated registry content stays untouched.
+    registry = "docs/NEARMISS.md"
+    old = ""
+    if os.path.exists(registry):
+        with open(registry) as fp:
+            old = fp.read()
+    replacements = dict(zip(near, docrows))
+    changed = set(near) | set(kept)
+    seen = set()
+    updated = []
+    for line in old.splitlines(keepends=True):
+        match = re.match(r"^\|\s*([^|]+?)\s*\|", line)
+        name = match.group(1) if match else None
+        if name not in changed:
+            updated.append(line)
+        elif name not in seen:
+            if name in replacements:
+                updated.append(replacements[name] + "\n")
+            seen.add(name)
+    missing = [replacements[name] for name in near if name not in seen]
+    if missing:
+        if updated and not updated[-1].endswith("\n"):
+            updated.append("\n")
+        updated.append("\n".join(missing) + "\n")
+    with open(registry, "w") as fp:
+        fp.write("".join(updated))
 with open("/tmp/wave_pass.txt", "w") as fp:
     fp.write("\n".join(kept) + ("\n" if kept else ""))
 with open("/tmp/wave_nearmiss.txt", "w") as fp:

@@ -156,6 +156,27 @@ class IntegratorTests(unittest.TestCase):
         self.assertIn("objdiff 75.00%", self.src.read_text())
         self.assertFalse(self.obj.exists())
 
+    def test_remeasurement_replaces_duplicate_registry_rows(self):
+        registry = self.root / "docs/NEARMISS.md"
+        registry.write_text("# Registry\n| unrelated | unchanged |\n"
+                            f"| {FUNC} | old score |\n"
+                            "Keep this paragraph.\n"
+                            f"| {FUNC} | duplicate |\n")
+        self.execute(percent=75.0)
+        text = registry.read_text()
+        self.assertEqual(text.count("| " + FUNC + " |"), 1)
+        self.assertIn("75.00%", text)
+        self.assertIn("| unrelated | unchanged |\n", text)
+        self.assertIn("Keep this paragraph.\n", text)
+        self.assertNotIn("old score", text)
+        self.assertNotIn("duplicate", text)
+
+    def test_match_removes_prior_nearmiss_registry_rows(self):
+        registry = self.root / "docs/NEARMISS.md"
+        registry.write_text(f"# Registry\n| {FUNC} | old score |\n")
+        self.execute(percent=100.0)
+        self.assertEqual(registry.read_text(), "# Registry\n")
+
     def test_failed_objdiff_cannot_report_match(self):
         self.execute(percent=100.0, objdiff_status=1)
         self.assert_restored()

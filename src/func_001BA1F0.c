@@ -1,8 +1,8 @@
 // NEARMISS func_001BA1F0  (vram 0x001BA1F0, 0x31C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 71.33% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Script-interpreter pump loop (opcode dispatch via ftab_0024D880). Body/control-flow fully recovered per the documented interpreter contract (docs/FINDINGS.md 'Interpreter contract - func_001BA1F0'): loop over blk[0]>0, call handler(actor,blk,rec), switch on return code {0=stay,1=advance+yield,2=a...
+// objdiff 73.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Corrected both signed skip gates, opcode18 scan stops, and pre-advance record retention; compiled original-instruction oracle passes 43 cases. Residual control-flow layout and instruction differences remain unclassified (744-byte candidate vs 796-byte original).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,150 +11,108 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+//
+// Corrected 2026-09-21 against the original instructions: both skip gates
+// accept signed phase < 2 (001BA298/001BA404), not >= 2. Both scans check
+// STOP before advancing and stop at opcode18. Only a newly encountered
+// STOP record is executed during scanning. The former C had inverted
+// gates and a different second scan. Original assembly remains linked.
+// The compiled candidate and native sequencer both pass 43 synthetic
+// original-instruction cases in tools/test_script_reference.py (port repo).
+// These tests cover sequencing, not every command handler implementation.
+
 extern int (*ftab_0024D880[])();
 extern unsigned char D_70003B91;
 
-int func_001BA1F0(char *arg0) {
-    char *e = arg0 + 0x1F0;
-    char *n;
-    int r;
-    int f;
+int func_001BA1F0(char *actor) {
+    char *script = actor + 0x1F0;
+    char *record;
+    int result;
+    int flags;
 
-loop_1:
-    if (*(int *)(e + 0) <= 0) {
-        return 1;
-    }
-    n = *(char **)(e + 8);
-    r = ftab_0024D880[*(int *)(n + 0) & 0xFFF](arg0, e, n);
-    if (r == 3) {
-        *(int *)(e + 0) = -1;
-        *(int *)(e + 4) = 0;
-        return 3;
-    }
-    if (r == 2) {
-        goto adv;
-    }
-    if (r == 1) {
-        goto adv;
-    }
-    if (r == 0) {
-        goto stay;
-    }
-    r = 2;
+run:
+    if (*(int *)script <= 0) return 1;
+    record = *(char **)(script + 8);
+    result = ftab_0024D880[*(int *)record & 0xFFF](actor, script, record);
+    if (result == 3) goto abort;
+    if (result == 2) goto advance;
+    if (result == 1) goto advance;
+    if (result == 0) goto stay;
     goto tail;
-
 stay:
-    /* r == 0 : stay/wait */
-    if (D_70003B91 != 2) {
+    if (D_70003B91 != 2 || *(signed char *)(script + 0xC) >= 2)
         return 0;
-    }
-    if (*(signed char *)(e + 0xC) < 2) {
-        return 0;
-    }
-    *(char *)(e + 0xC) = 2;
-
-    /* fast-forward loop copy #1 (reached from the stay path) */
+    *(char *)(script + 0xC) = 2;
+    /* record intentionally remains the pre-advance pointer on entry
+     * from the advance path: 001BA410 jumps to the load at001BA4A8. */
     for (;;) {
-        f = *(int *)(n + 0);
-        if (f & 0x40000000) {
-            *(char **)(e + 8) = *(char **)(n + 4);
+        flags = *(int *)record;
+        if (flags & 0x80000000) goto abort;
+        if (flags & 0x40000000) {
+            *(char **)(script + 8) = *(char **)(record + 4);
         } else {
-            *(char **)(e + 8) = *(char **)(e + 8) + 0x40;
+            *(char **)(script + 8) += 0x40;
         }
-        n = *(char **)(e + 8);
-        f = *(int *)(n + 0);
-        if ((f & 0xFFF) == 0x18) {
-            *(int *)(e + 4) = 0;
+        record = *(char **)(script + 8);
+        flags = *(int *)record;
+        if ((flags & 0xFFF) == 0x18) {
+            *(int *)(script + 4) = 0;
             return 0;
         }
-        if (!(f & 0x80000000)) {
-            goto ff1_checkstop;
+        if (flags & 0x80000000) {
+            *(int *)(script + 4) = 0;
+            do {
+                result = ftab_0024D880[*(int *)record & 0xFFF](actor, script, record);
+            } while (result == 0);
         }
-        *(int *)(e + 4) = 0;
-        do {
-            r = ftab_0024D880[f & 0xFFF](arg0, e, n);
-            if (r != 0) {
-                break;
-            }
-            n = *(char **)(e + 8);
-            f = *(int *)(n + 0);
-        } while (1);
-
-    ff1_checkstop:
-        n = *(char **)(e + 8);
-        f = *(int *)(n + 0);
-        if (!(f & 0x80000000)) {
-            continue;
-        }
-        *(int *)(e + 0) = -1;
-        *(int *)(e + 4) = 0;
-        return 3;
     }
 
-adv:
-    f = *(int *)(n + 0);
-    if (f & 0x80000000) {
-        *(int *)(e + 0) = -1;
-        *(int *)(e + 4) = 0;
+advance:
+    flags = *(int *)record;
+    if (flags & 0x80000000) {
+        *(int *)script = -1;
+        *(int *)(script + 4) = 0;
         return 1;
     }
-    if (f & 0x40000000) {
-        *(char **)(e + 8) = *(char **)(n + 4);
-    } else if (f & 0x20000000) {
-        *(char **)(e + 8) = *(char **)(e + 8) + 0x40;
-        r = 2;
+    if (flags & 0x40000000) {
+        *(char **)(script + 8) = *(char **)(record + 4);
     } else {
-        *(char **)(e + 8) = *(char **)(e + 8) + 0x40;
+        *(char **)(script + 8) += 0x40;
+        if (flags & 0x20000000) result = 2;
     }
-    *(int *)(e + 4) = 0;
-
-    if (D_70003B91 != 2) {
-        goto tail;
-    }
-    if (*(signed char *)(e + 0xC) < 2) {
-        goto tail;
-    }
-    *(char *)(e + 0xC) = 2;
-
-    /* fast-forward loop copy #2 (reached from the advance path) */
-    for (;;) {
-        n = *(char **)(e + 8);
-        f = *(int *)(n + 0);
-        if (f & 0x40000000) {
-            *(char **)(e + 8) = *(char **)(n + 4);
-        } else {
-            *(char **)(e + 8) = *(char **)(e + 8) + 0x40;
-        }
-        n = *(char **)(e + 8);
-        f = *(int *)(n + 0);
-        if (f & 0x80000000) {
-            *(int *)(e + 0) = -1;
-            *(int *)(e + 4) = 0;
-            return 3;
-        }
-        do {
-            r = ftab_0024D880[f & 0xFFF](arg0, e, n);
-            if (r != 0) {
-                break;
+    *(int *)(script + 4) = 0;
+    if (D_70003B91 == 2 && *(signed char *)(script + 0xC) < 2) {
+        *(char *)(script + 0xC) = 2;
+        /* record intentionally remains the pre-advance pointer on entry
+         * from the advance path: 001BA410 jumps to the load at001BA4A8. */
+        for (;;) {
+            flags = *(int *)record;
+            if (flags & 0x80000000) goto abort;
+            if (flags & 0x40000000) {
+                *(char **)(script + 8) = *(char **)(record + 4);
+            } else {
+                *(char **)(script + 8) += 0x40;
             }
-            n = *(char **)(e + 8);
-            f = *(int *)(n + 0);
-        } while (1);
-
-        n = *(char **)(e + 8);
-        f = *(int *)(n + 0);
-        if (f & 0x80000000) {
-            break;
+            record = *(char **)(script + 8);
+            flags = *(int *)record;
+            if ((flags & 0xFFF) == 0x18) {
+                *(int *)(script + 4) = 0;
+                return 0;
+            }
+            if (flags & 0x80000000) {
+                *(int *)(script + 4) = 0;
+                do {
+                    result = ftab_0024D880[*(int *)record & 0xFFF](actor, script, record);
+                } while (result == 0);
+            }
         }
     }
-
-    *(int *)(e + 0) = -1;
-    *(int *)(e + 4) = 0;
-    return 3;
 
 tail:
-    if (r == 2) {
-        goto loop_1;
-    }
+    if (result == 2) goto run;
     return 0;
+abort:
+    *(int *)script = -1;
+    *(int *)(script + 4) = 0;
+    return 3;
 }
