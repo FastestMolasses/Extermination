@@ -1,8 +1,8 @@
 // NEARMISS func_001C5930  (vram 0x001C5930, 0x318 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 68.64% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Large (0x318-byte) multi-state HUD-overlay handler (area-title-card driver, per docs/FINDINGS.md 'AREA-TITLE CARD' section) with a 4-way state dispatch, a spad-derived 3-way flag classification, and 6+ nested branch points across two sub-state machines sharing the arg0+0x1F0/+0x1F4 sub-block. Log...
+// objdiff 69.04% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Semantic corrections were checked against original instructions; remaining code still needs audit.
+// Remaining differences in this candidate:
+// Semantic correction against original branches; canonical score remeasured. Assembly remains linked unless full compiled-C gate proves exactness.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -54,15 +54,13 @@ void func_001C5930(unsigned char *arg0) {
         break;
     case 1:
         spad = D_70003B8D;
-        flag = 1;
-        if (spad != 1) {
-            if ((unsigned)(spad - 2) < 2) {
-                flag = 0;
-                goto L_59F8;
-            }
+        /* 0x001C59E8..0x001C5A10: the branch-delay assignment clears
+         * the suppress flag for selectors outside 1..3.  The earlier
+         * readable reconstruction reversed this test for 0 and 2/3. */
+        flag = 0;
+        if (spad == 1 || (unsigned)(spad - 2) < 2) {
             flag = 1;
         }
-    L_59F8:
         st = *(unsigned char *)(arg0 + 5);
         if (st == 1) {
             goto L_5AA8;

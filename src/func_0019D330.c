@@ -1,8 +1,8 @@
 // NEARMISS func_0019D330  (vram 0x0019D330, 0x440 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 84.53% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure/semantics fully recovered (byte-identical twin of func_0019CF50/func_0019D770: picks the two closest world-axis segments via func_0019F1A0 + a per-axis min-gap scan into sp80/D_70003228, then walks the winning bucket's node list applying a bbox-vs-target overlap test plus a special...
+// objdiff 88.75% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Semantic corrections were checked against original instructions; remaining code still needs audit.
+// Remaining differences in this candidate:
+// Semantic correction against original branches; canonical score remeasured. Assembly remains linked unless full compiled-C gate proves exactness.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -30,7 +30,6 @@ int func_0019D330(void) {
     short *p;
     int *q;
     int v0;
-    short v1;
     short a2, a3;
     int t0;
 
@@ -61,7 +60,7 @@ int func_0019D330(void) {
     func_0019F1A0(&D_700031A0, s5);
 
     for (i = 0; i < 6; i++) {
-        sp80[i] = (&D_70003240)[i * 2];
+        sp80[i] = (&D_70003240)[i];
     }
 
     func_0019F1A0(&D_70003190, s5);
@@ -73,9 +72,9 @@ int func_0019D330(void) {
     for (i = 0; i < 6; i++) {
         if (i & 1) {
             *(short *)0x70003B86 = *p;
-            a2 = *(short *)(q[i] + sp80[i] * 2);
+            a2 = *(short *)(*q + sp80[i] * 2);
         } else {
-            *(short *)0x70003B86 = *(short *)(q[i] + sp80[i] * 2);
+            *(short *)0x70003B86 = *(short *)(*q + sp80[i] * 2);
             *(short *)0x70003B88 = *p;
             a2 = *(short *)0x70003B88 + 1;
         }
@@ -89,15 +88,15 @@ int func_0019D330(void) {
             s2 = a3;
             best_i = i;
         }
-        p += 2;
-        q += 4;
+        p += 1;
+        q += 1;
     }
 
     if (s1 < s2) {
         short *node = (short *)(*(&D_70003210 + best_i)) + s1;
         do {
             char *e = (char *)(*(int *)0x70003208) + (*node << 6);
-            node += 2;
+            node += 1;
             if (*(short *)0x70003240 >= *(short *)(e + 0xC) &&
                 *(short *)(e + 0xE) >= *(short *)0x70003242 &&
                 *(short *)0x70003248 >= *(short *)(e + 0x14) &&
@@ -107,11 +106,13 @@ int func_0019D330(void) {
                 short st = *(unsigned char *)(e + 0x1A);
                 *(short *)0x70003B88 = st;
                 st = *(short *)0x70003B88;
-                if (st != 0x50 &&
-                    (st < 0x50 || st >= 0x5A ||
-                     (st == 0x51 && *(short *)0x7000324E == 0) ||
-                     (st == 0x52 && *(short *)0x7000324E == 2) ||
-                     (st == 0x53 && *(short *)0x7000324E == -1))) {
+                /* Raw branches 0019D614..0019D694: skip >=0x5A,
+                 * skip 0x50, and apply independent ID exclusions.
+                 * In particular 0x53 skips ID -1; 0x54..0x59 pass. */
+                if (st < 0x5A && st != 0x50 &&
+                    (st != 0x51 || *(short *)0x7000324E == 0) &&
+                    (st != 0x52 || *(short *)0x7000324E == 2) &&
+                    (st != 0x53 || *(short *)0x7000324E != -1)) {
                     if (func_0019ED80(&D_70003190, e)) {
                         int k;
                         for (k = 0; k < 3; k++) {
@@ -126,14 +127,14 @@ int func_0019D330(void) {
         } while (s1 < s2);
     }
 
-    v0 = 1;
+    v0 = 0;
     if (hit != 0) {
         int k;
         *(int *)0x700031D0 = hit;
         for (k = 0; k < 3; k++) {
             *(float *)(0x70003190 + 0x20 + k * 4) = spA0[k];
         }
-        v0 = 0;
+        v0 = 1;
     }
     return v0;
 }

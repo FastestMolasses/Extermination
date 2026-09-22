@@ -458,7 +458,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001A7870 | 0x001A7870 | 0x30C | 93.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: O(N^2) all-pairs entity check over D_00275B90[D_00275B98]  |
 | func_001DD2F0 | 0x001DD2F0 | 0x30C | 69.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: two near-identical GS/DMA quad-strip particle builders. Ea |
 | func_00210F30 | 0x00210F30 | 0x30C | 84.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/instruction-scheduling permutation, two spots: (1) the D_700038A0/B0/C |
-| func_001C5930 | 0x001C5930 | 0x318 | 68.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Large (0x318-byte) multi-state HUD-overlay handler (area-title-card driver, per docs/FINDI |
+| func_001C5930 | 0x001C5930 | 0x318 | 69.04% | mwcc 2.3.3 | Corrected inverted area-title selector gate; all256 selectors checked against original branches. Other object residuals remain; assembly links. |
 | func_00201C50 | 0x00201C50 | 0x318 | 97.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | see summary above |
 | func_001BA1F0 | 0x001BA1F0 | 0x31C | 71.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Script-interpreter pump loop (opcode dispatch via ftab_0024D880). Body/control-flow fully  |
 | func_00219550 | 0x00219550 | 0x31C | 83.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Item armed-handler pump. Body/logic fully recovered against the documented func_0015AE20-f |
@@ -532,7 +532,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001DF180 | 0x001DF180 | 0x41C | 57.19% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / stack-frame-size wall in a very large function (10 saved GPR incl. $ |
 | func_00132490 | 0x00132490 | 0x43C | 81.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/semantics fully recovered (heading-integration table dispatch: decays arg1+ |
 | func_00132FB0 | 0x00132FB0 | 0x434 | 88.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/semantics fully recovered (same family as func_001416D0/func_0012F6C0: seed |
-| func_0019D330 | 0x0019D330 | 0x440 | 84.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/semantics fully recovered (byte-identical twin of func_0019CF50/func_0019D7 |
+| func_0019D330 | 0x0019D330 | 0x440 | 88.75% | mwcc 2.3.3 | Corrected attribute gates, pointer strides and hit return against original instructions. Other object residuals remain; assembly links. |
 | func_0019E930 | 0x0019E930 | 0x444 | 90.37% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring (a2/a1/a0/v0/v1 consistently swapped vs target) plus a stack- |
 | func_00169250 | 0x00169250 | 0x450 | 85.12% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU register-coloring/scheduling wall in the two func_0011E748 (dx*dx+dz*dz distance) MAC  |
 | anim_frame_top_a | 0x001ACA20 | 0x450 | 93.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring wall: the target keeps slot in a1 and the precomputed &slot[9] pointer i |

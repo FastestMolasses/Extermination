@@ -8,8 +8,8 @@ For a wave output JSON, integrate every result that carries c_source:
     drop build/obj so the linker fills bytes from the splat .s (boot ELF byte-identical).
   • otherwise -> revert to the prior stub/asm-void.
 
-Agents must return their best readable c_source for BODY-CORRECT non-matches (logic recovered,
-only a compiler artifact differs), not just for 100% matches. jr-table/VU0/incomplete -> no c_source.
+Agents should provide audited readable candidates, not just 100% matches. Object
+similarity alone cannot establish correct logic or classify a compiler artifact.
 
 Usage: integrate_nearmiss.py <workflow_output.json> [NEARMISS_MIN(default 50)]
 """
@@ -172,11 +172,11 @@ def nearmiss_file(f, c_source, p, comp, fl, wall):
         if s.startswith("// COMPILER:") or s.startswith("// CFLAGS:"):
             start = i + 1
     body = "\n".join(lines[start:]).lstrip("\n")
-    reason = re.sub(r'\s+', ' ', (wall or "compiler artifact (register coloring / scheduling)").strip())
+    reason = re.sub(r'\s+', ' ', (wall or "Residual differences have not been classified.").strip())
     if len(reason) > 300: reason = reason[:297] + "..."
     cc = COMPILER_LONG.get(comp, comp)
     hdr = (f"// NEARMISS {f}  (vram 0x{f[5:]}, {sz}) — readable decompilation, NOT byte-identical.\n//\n"
-           f"// objdiff {p:.2f}% via {cc} ({fl}). The LOGIC and STRUCTURE are faithful.\n"
+           f"// objdiff {p:.2f}% via {cc} ({fl}). Object similarity does not prove semantic equivalence.\n"
            f"// Remaining differences in this candidate:\n// {reason}\n//\n"
            f"// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT\n"
            f"// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /\n"
