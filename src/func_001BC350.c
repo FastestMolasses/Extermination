@@ -1,8 +1,8 @@
 // NEARMISS func_001BC350  (vram 0x001BC350, 0x204 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.53% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation rotation (7 instrs, all ARG_MISMATCH; opcodes/order/branch targets/relocs all identical) inside the sub-state-0 door-unlock bit test. Target: idx($a0) = lbu %lo(D_00810700)($at); base($v1) = addiu $v1,$v0,%lo(D_00810841) [%hi temp stays in $v0 and is NOT coalesced]; shift($v0)...
+// objdiff 99.57% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Seven register/scheduling differences remain in the persistent door-bit test (offsets 0xA0..0xC0); 516-byte function size matches. Corrected initializer actor forwarding. Fifteen bounded readable variants did not reach byte identity; no impossibility claim.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,19 +11,19 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// SEMANTICS (2026-06-10 s15, re-verified instruction-by-instruction s85): DOOR
-// behavior (placement +0x24 target for class-5 double doors).  `blk` is
+// Door lifecycle callback (0x001BC350). The original callback oracle checks
+// states and argument forwarding at the documented worker boundaries. `blk` is
 // self+0x1F0.  Outer lifecycle byte +0x04:
 //   0 INIT  func_001BBDA0 (model bind, +0x34 = door id from +0x2E, scale from
-//           link flags 0x40/0x80), then status byte +0x00 = 1
+//           link flags 0x40/0x80 written at +0x80), then status byte +0x00 = 1
 //   1 RUN   inner sub-state byte +0x05 via jtbl_0026E1C0 (below)
 //   2/3 FREE func_001AFC10
 //   other   nothing
 // RUN sub-states:
-//   0 closed   model 0x15 (+0x03) and unlock bit (D_00810841[D_00810700] >>
+//   0 closed   subtype 0x15 (+0x03) and unlock bit (D_00810841[D_00810700] >>
 //              self+0x34) set -> func_001BBE40(self, blk, 0) -> sub 3
 //              (walk-through); bit clear -> func_001BBE40(self, blk, 1) ->
-//              sub 1 (locked seq); other models -> func_001BBE40(self, blk, 0)
+//              sub 1 (locked seq); other subtypes -> func_001BBE40(self, blk, 0)
 //              -> sub 3
 //   1 locked   func_001BC0E0 pump; done -> func_001BA1A0(blk, D_0024DBC0)
 //              (queue script) -> sub 2
@@ -36,13 +36,9 @@
 // RUN then ALWAYS calls func_001BC300 (evaluate articulation via
 // func_001C68C0, cull at pos+(0,10,0), run the +0x4C method) - including
 // when the sub-state is out of range.  See docs/FINDINGS.md s15.
-// func_001BBDA0 and the inner func_001BC0E0/func_001BC240/func_001BC290 calls
-// reached from the jump table are entered with $a0 still holding `self` from
-// the function's own prologue (never clobbered), so the first argument is
-// never re-materialised in the original.  func_001BBDA0 consumes no register
-// argument at all, hence the argument-less declaration.
+// The initializer requires self in a0; the original keeps that argument live.
 
-extern void func_001BBDA0();
+extern void func_001BBDA0(unsigned char *);
 extern int func_001BBE40(unsigned char *, unsigned char *, int);
 extern int func_001BC0E0(unsigned char *, unsigned char *);
 extern void func_001BA1A0(unsigned char *, int *);
@@ -61,14 +57,14 @@ void func_001BC350(unsigned char *self) {
     blk = self + 0x1F0;
     switch (self[4]) {
     case 0:
-        func_001BBDA0();
+        func_001BBDA0(self);
         self[0] = 1;
         break;
     case 1:
         switch (self[5]) {
         case 0:
             if (self[3] == 0x15) {
-                if (D_00810841[D_00810700] & (1 << *(short *)(self + 0x34))) {
+                if ((1 << *(short *)(self + 0x34)) & D_00810841[D_00810700]) {
                     if (func_001BBE40(self, blk, 0) != 0) {
                         self[5] = 3;
                     }

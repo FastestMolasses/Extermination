@@ -2,7 +2,7 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 //
 // Door articulation step + clip restart: advance the door clip one step
-// (anim_advance_time(self, 1.0f) -> current time stored at blk+0xE). If the
+// (anim_advance_time(self, 1.0f) -> flags stored at blk+0xE). If the
 // global transition gate D_008106B8 is clear, restart the clip from time 0
 // (anim_clip_init(self,0,0,0)), clear self+0xB and return 1; otherwise return 0.
 // Sibling of func_001BC240 (which commits the transition instead of gating).

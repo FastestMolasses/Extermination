@@ -1,5 +1,5 @@
 // Door sub-state 4 (post-open hold): advance the door articulation clip one
-// step (result -> anim block +0xE current time), then commit the room/area
+// step (result -> anim block +0xE animation flags), then commit the room/area
 // transition request (func_001BC150 reads the door id at actor+0x34 and
 // writes the D_008106B5..B8 transition block). Caller func_001BC350 then
 // advances the door to sub-state 5 (await transition completion).

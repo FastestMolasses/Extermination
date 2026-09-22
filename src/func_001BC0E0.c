@@ -3,7 +3,7 @@
 //
 // Actor sub-state tick wrapper: if the actor's anim block (blk) has its
 // "active" flag set (signed byte at blk+0xC != 0), advance its articulation
-// clip one step (1.0f) and store the resulting current-time (short) at blk+0xE.
+// clip one step (1.0f) and store the returned animation flags (short) at blk+0xE.
 // Then run the per-actor update func_001BA1F0(self) and return whether it
 // reported a non-zero result (1) or not (0).
 //
