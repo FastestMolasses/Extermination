@@ -1,12 +1,11 @@
 // NEARMISS func_001D7C30  (vram 0x001D7C30, 0x370 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 86.53% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP register-coloring (fv0/fv1/ft0 assignment permutation) plus a mwcc-vs-CW branch-lowering/tail-duplication difference in the shared func_001029C0(s1+0x40) call site (target reaches it via 3 converging branches lowered differently than mwcc's merge). Body/control-flow and every constant fully re...
+// objdiff 86.54% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Correct scratch matrix extent from4 floats to16; original64-byte SDK matrix writes require the full object. Native controller and SDK calls have independent original-instruction comparisons.
 //
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// Original assembly remains linked. The corrected candidate is compiled and
+// measured separately; see docs/NEARMISS.md and docs/SCRIPT_ANIMATION_MATCH.md.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
@@ -31,7 +30,7 @@ void func_001D7C30(void) {
     int i;
     int off;
     int count;
-    float scratch[4];
+    float scratch[16];
 
     i = 0;
     off = 0;

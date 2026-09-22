@@ -481,7 +481,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00162A40 | 0x00162A40 | 0x36C | 94.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Compound scheduler/register-coloring residual (three independent sites): (1) dispatch-chai |
 | func_0019DF10 | 0x0019DF10 | 0x370 | 91.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation, same class as siblings func_0019C830 (85.2%) and |
 | func_001AC480 | 0x001AC480 | 0x370 | 97.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single delay-slot/scheduling residual around the D_00275BDC branch in state 0 (one nop/lui |
-| func_001D7C30 | 0x001D7C30 | 0x370 | 86.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring (fv0/fv1/ft0 assignment permutation) plus a mwcc-vs-CW branch-lowerin |
+| func_001D7C30 | 0x001D7C30 | 0x370 | 86.54% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Correct scratch matrix extent from4 floats to16; original64-byte SDK matrix writes require |
 | func_00194DB0 | 0x00194DB0 | 0x374 | 86.15% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling/materialization-order permutation. Body and structure are fully rec |
 | func_001E13E0 | 0x001E13E0 | 0x37C | 81.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/frame-spill permutation. Both builds fully recover the logic (channel- |
 | func_00171B00 | 0x00171B00 | 0x388 | 92.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation (same documented class as sibling func_00171320.c, w |
