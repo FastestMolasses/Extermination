@@ -1,5 +1,27 @@
 # Scripted-animation commit and light-buffer correction
 
+## Interaction placement arguments
+
+`func_001B6F00` now names the transformed interaction point and yaw offset,
+and declares the matrix-vector helper's final argument as a pointer. That
+argument was incorrectly named as an integer count. The120-byte function
+still matches100% and remains ordinary compiled C. Its player-ground Y
+retention and scratchpad writes are unchanged.
+
+`func_00182F90` now describes and names its actual translation: subtract
+actor+A0 from the target, add the delta to A0/B0/scratch3B40, then copy
+Euler C0 to scratch3B50. The earlier comment incorrectly called the
+temporary a transform and said C0 was another translated position. The
+116-byte function still matches100%. The byte scratch declaration and
+existing void-pointer helper prototypes are retained: two typed-float
+spellings measured99.24138% and99.10345%, so they were not promoted as
+exact replacements.
+
+All six checks pass in `build/interaction_alignment/verify_all.log`,
+including the complete boot executable and19/19 overlays. Fresh compiled
+object provenance is recorded alongside it. These changes do not alter
+the ordinary-C source or linked-slot counts.
+
 ## Clip initialization and explicit float arguments
 
 `anim_clip_arbiter` now also declares and forwards both incoming float

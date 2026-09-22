@@ -1,20 +1,20 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-// Build a transform scratch (func_001028D0 into a 16-byte stack temp), then
-// apply it (func_001028B8) to the entity's three 0xA0/0xB0/0xC0 vector slots
-// and to the shared workspace D_70003B40, finishing with func_00102948 into
-// D_70003B50. 2nd arg of func_001028D0 is the caller's leftover 2nd param.
-extern void func_001028D0(void *a, void *b, void *c);
-extern void func_001028B8(void *a, void *b, void *c);
-extern void func_00102948(void *a, void *b);
+// Align the player's position mirrors by a shared translation delta.
+// target - actor+A0 is added to actor+A0, actor+B0 and scratch3B40.
+// C0 is the Euler vector: copy it to scratch3B50 without translating it.
+// The SDK vector helpers operate on four floats; this is not a matrix.
+extern void func_001028D0(void *out, void *left, void *right);
+extern void func_001028B8(void *out, void *left, void *right);
+extern void func_00102948(void *out, void *source);
 extern char D_70003B40[];
 extern char D_70003B50[];
 
-void func_00182F90(char *p, void *a1) {
-    char tmp[16];
-    func_001028D0(tmp, a1, p + 0xA0);
-    func_001028B8(p + 0xA0, p + 0xA0, tmp);
-    func_001028B8(p + 0xB0, p + 0xB0, tmp);
-    func_001028B8(D_70003B40, D_70003B40, tmp);
-    func_00102948(D_70003B50, p + 0xC0);
+void func_00182F90(char *actor, void *target) {
+    char delta[16];
+    func_001028D0(delta, target, actor + 0xA0);
+    func_001028B8(actor + 0xA0, actor + 0xA0, delta);
+    func_001028B8(actor + 0xB0, actor + 0xB0, delta);
+    func_001028B8(D_70003B40, D_70003B40, delta);
+    func_00102948(D_70003B50, actor + 0xC0);
 }
