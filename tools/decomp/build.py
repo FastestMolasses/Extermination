@@ -116,7 +116,7 @@ def assemble_cmd(name: str) -> str:
 # accepts only $ACC / $Q, so the VU0 units otherwise fail to assemble — and since
 # `as` deletes its output on error, a full build silently destroys their
 # build/expected/*.o and the match gate then skips with "expected stale". The
-# D_FFFFF / D_20000xxx entries undo splat symbolizations that invented a symbol
+# D_FFFF / D_FFFFF / D_20000xxx entries undo splat symbolizations that invented a symbol
 # for what the real code encodes as a plain immediate (0xFFFFF is below the
 # 0x100000 load address; the D_2000xxxx values are uncached-mirror offsets), which
 # left a relocation in the target that no C source can reproduce. Every pattern is
@@ -131,6 +131,10 @@ _ASM_FIXUPS = [
     (re.compile(r'%lo\(D_FFFFFF\)'), '-1'),
     (re.compile(r'%hi\(D_FFFFF\)'), '0x10'),
     (re.compile(r'%lo\(D_FFFFF\)'), '-1'),
+    # libpad's countdown loads 0x10000, then decrements by one. Splat pairs
+    # the loop's decrement with the hoisted lui as a fictitious address.
+    (re.compile(r'%hi\(D_FFFF\)'), '0x1'),
+    (re.compile(r'%lo\(D_FFFF\)'), '-1'),
     (re.compile(r'%lo\(D_20000010\)'), '0x10'),
     (re.compile(r'%lo\(D_20000020\)'), '0x20'),
     (re.compile(r'%lo\(D_20000050\)'), '0x50'),

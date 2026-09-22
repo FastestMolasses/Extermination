@@ -1,12 +1,12 @@
-// NEARMISS func_00135D00  (vram 0x00135D00, 0x438 bytes) — readable decompilation, NOT byte-identical.
+// NEARMISS func_00135D00 (vram 0x00135D00, 0x438 bytes) — compiled-object match; linker integration pending.
 //
-// objdiff 99.01% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 99.01% (mwcc233; mwcc 2.3.1 only reaches 83.7%). The jr-table dispatch is byte-identical INCLUDING the jtbl_0026D190 reloc, and all 9 case bodies, offsets, widths, constants and call targets match. 12 residual instructions of 290, in 3 clusters, all FP-argument register/order artifacts of CW's po...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// objdiff 100.00% via mwcc 2.3.3 (-O4,p -sdatathreshold 0).
+// The compiled instructions match the normalized reference in objdiff.
+// The compiler emits a 36-byte local .rodata table, but the boot linker needs
+// that table pinned at jtbl_0026D190. LOCALDATA_FORCED currently assembles this
+// function from splat instead; a passing boot ELF therefore cannot verify its C.
+// Keep this marker until compiled-C table placement is implemented and verified.
+// Registry: docs/NEARMISS.md.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -60,7 +60,7 @@ extern void func_001370C0(int a, int b);
 extern float func_001B1240(unsigned char *pos, float px, float pz);
 extern float func_001B12B0(float goal, float cur, float rate);
 extern float func_001B15D0(char *a, char *b);
-extern void func_00102948(char *dst, float *src);
+extern void func_00102948(void *dst, void *src);
 
 void func_00135D00(unsigned char *act, unsigned char *ent)
 {
@@ -89,7 +89,11 @@ void func_00135D00(unsigned char *act, unsigned char *ent)
         }
         if (*(int *)ent & 0x1000) {
             act[6] = act[6] + 1;
-            anim_clip_init(act, 0x15, 0.0f, 0.0f);
+            {
+                int zi = 0;
+                float z = (float)zi;
+                anim_clip_init(act, 0x15, 0.0f, z);
+            }
         }
         break;
     case 2:
@@ -100,7 +104,11 @@ void func_00135D00(unsigned char *act, unsigned char *ent)
         }
         if (*(int *)ent & 0x1000) {
             act[6] = act[6] + 1;
-            anim_clip_init(act, 0x16, 0.0f, 0.0f);
+            {
+                int zi = 0;
+                float z = (float)zi;
+                anim_clip_init(act, 0x16, 0.0f, z);
+            }
         }
         break;
     case 3:
@@ -111,7 +119,12 @@ void func_00135D00(unsigned char *act, unsigned char *ent)
         }
         break;
     case 4:
-        *(float *)(ent + 0x24) = func_001B1240(act + 0xB0, 423.5f, 235.0f);
+        {
+            /* Integer staging preserves the original float-argument order. */
+            int zi = 235;
+            float z = (float)zi;
+            *(float *)(ent + 0x24) = func_001B1240(act + 0xB0, 423.5f, z);
+        }
         *(float *)(act + 0xC4) = func_001B12B0(*(float *)(ent + 0x24),
                                                *(float *)(act + 0xC4),
                                                0.0872664675f);
@@ -123,7 +136,7 @@ void func_00135D00(unsigned char *act, unsigned char *ent)
         *(volatile int *)0x700038A4 = 0;
         *(volatile float *)0x700038A8 = 235.0f;
         *(volatile float *)0x700038AC = 1.0f;
-        func_00102948(D_700038B0, (float *)(act + 0xB0));
+        func_00102948(D_700038B0, act + 0xB0);
         *(volatile int *)0x700038B4 = 0;
         d = func_001B15D0(D_700038A0, D_700038B0);
         if (d <= 40.0f) {

@@ -5742,6 +5742,14 @@
       }
     },
     {
+      "name": "func_0012CAA0",
+      "target_path": "build/expected/func_0012CAA0.o",
+      "base_path": "build/obj/func_0012CAA0.o",
+      "metadata": {
+        "source_path": "src/func_0012CAA0.c"
+      }
+    },
+    {
       "name": "func_0012D850",
       "target_path": "build/expected/func_0012D850.o",
       "base_path": "build/obj/func_0012D850.o",
@@ -8571,6 +8579,14 @@
       "base_path": "build/obj/func_00180790.o",
       "metadata": {
         "source_path": "src/func_00180790.c"
+      }
+    },
+    {
+      "name": "func_00180850",
+      "target_path": "build/expected/func_00180850.o",
+      "base_path": "build/obj/func_00180850.o",
+      "metadata": {
+        "source_path": "src/func_00180850.c"
       }
     },
     {
@@ -13430,6 +13446,14 @@
       }
     },
     {
+      "name": "func_001EA240",
+      "target_path": "build/expected/func_001EA240.o",
+      "base_path": "build/obj/func_001EA240.o",
+      "metadata": {
+        "source_path": "src/func_001EA240.c"
+      }
+    },
+    {
       "name": "func_001EAB50",
       "target_path": "build/expected/func_001EAB50.o",
       "base_path": "build/obj/func_001EAB50.o",
@@ -16963,6 +16987,14 @@
       "base_path": "build/obj/sub_O_STREAM_MUSIC_DAT_1.o",
       "metadata": {
         "source_path": "src/sub_O_STREAM_MUSIC_DAT_1.c"
+      }
+    },
+    {
+      "name": "sub_PsIIlibpad_2000",
+      "target_path": "build/expected/sub_PsIIlibpad_2000.o",
+      "base_path": "build/obj/sub_PsIIlibpad_2000.o",
+      "metadata": {
+        "source_path": "src/sub_PsIIlibpad_2000.c"
       }
     },
     {

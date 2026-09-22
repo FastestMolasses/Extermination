@@ -1,13 +1,3 @@
-// NEARMISS func_001EA240  (vram 0x001EA240, 0x908 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP constant-materialization SCHEDULING order at ONE call site (4 instructions): in the state-1 light-group pair, the target emits the second func_0021B9A0 call's args as f13(20.0f) before f12(1.0f); mwcc 2.3.3 emits f12-first. Body otherwise byte-identical. Tried 12+ shapes: (z=20.0f) assign-in-a...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
 
@@ -27,12 +17,8 @@
 // exceeded (limit 0.0f = endless with 2.0f decay clamp), then re-arms
 // channel 1 with (0,0). States 2/3: func_001AFC10 teardown.
 //
-// NEARMISS residual (mwcc 2.3.3, 99.98%): at the state-1 light-group pair,
-// the target materializes the second call's float args f13(20.0f) BEFORE
-// f12(1.0f); mwcc emits f12-first. Pure constant-materialization scheduling
-// artifact — 12+ source shapes tried (assign-in-arg temp, decl-init vars,
-// operand swaps, comma exprs); the order flips in reduced reproductions but
-// never in the full function (IR-numbering sensitive). Permuter territory.
+// In the state-1 light-group pair, integer-to-float staging makes mwcc
+// materialize the second call's f13(20.0f) before f12(1.0f), as in the target.
 //
 extern void func_001AFC10(unsigned char *e);
 extern int func_00122BB8(void);
@@ -156,7 +142,12 @@ void func_001EA240(unsigned char *e)
         case 3: case 0x14: case 0x15: case 4: case 0x16: case 0x17:
         case 0x19: case 0x1A: case 0x29: case 6:
             func_0021B9A0(2, 1.0f, 20.0f);
-            func_0021B9A0(3, 1.0f, 20.0f);
+            {
+                /* Integer staging preserves the original f13-before-f12 setup. */
+                int amp = 20;
+                float value = (float)amp;
+                func_0021B9A0(3, 1.0f, value);
+            }
             break;
         case 0x1C: case 0x1D: case 0x28:
             func_0021B9A0(2, 1.0f, 100.0f);

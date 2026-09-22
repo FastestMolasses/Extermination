@@ -1,9 +1,11 @@
 # Near-miss decompilations (readable C, NOT byte-identical)
 
-This registry lists functions committed as **readable C that does not compile byte-identical**
-to the original. Each is a genuine compiler artifact (register coloring, instruction scheduling,
-branch-likely, frame-stride, etc.) that **no source change can fix** under the matching compiler —
-the function's **logic and structure are faithful**, only the noted artifact differs.
+This registry lists **readable C not yet verified as byte-identical compiled code in the linked
+game**. An object can score 100% while its local data still prevents correct linking.
+Residual descriptions are working diagnoses, not proof that a source change
+cannot fix them. Check prototypes, source spelling, and generated reference relocations before
+calling a difference a compiler limitation; each has explained previously parked functions.
+The C aims to preserve the original logic, but remains subject to review and correction.
 
 ## Why these exist
 
@@ -164,7 +166,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0014FBC0 | 0x0014FBC0 | 0x5CC | 72.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Scheduling/regalloc permutation. Logic fully recovered. The 991202+target leave the clean  |
 | func_001D98A0 | 0x001D98A0 | 0x638 | 83.80% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU-MAC (3-term dot-product no madd fusion) + shared-0.0f FP constant coloring in callee-s |
 | func_00196CE0 | 0x00196CE0 | 0x6B0 | 95.32% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / rematerialization + call-arg-register scheduling (permuter class), N |
-| func_0012CAA0 | 0x0012CAA0 | 0x7A0 | 98.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Permuter-class register/scheduling artifacts on an otherwise byte-faithful body (3 residua |
 | func_001809B0 | 0x001809B0 | 0x760 | 83.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Permuter-class register-coloring + FP-arg scheduling on a fully-recovered body. Residual c |
 | func_00156620 | 0x00156620 | 0x910 | 95.01% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 95.0% (mwcc233) near-miss, logic fully recovered. Residuals are NOT the clean-store nop: 4 |
 | func_001EC1F0 | 0x001EC1F0 | 0x7C | 76.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body 100% correct (93.5% mwcc991202). Two residuals, both pure scheduling artifacts no C c |
@@ -280,7 +281,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001582E0 | 0x001582E0 | 0x150 | 96.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation + scheduling near-miss (best on mwcc 2.3.3, 96.4%; 991202 only 83.7%). |
 | func_001ECFB0 | 0x001ECFB0 | 0x14C | 67.36% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + scheduling near-miss (best on mwcc 991202, 84.1%; 233 only 67.4%). Bod |
 | func_00120B98 | 0x00120B98 | 0x150 | 83.60% | ee-gcc 2.9-991111-01 | This is an EE-GCC function, NOT mwcc (target uses sd/ld + daddu register saves, not mwcc s |
-| func_00180850 | 0x00180850 | 0x154 | 99.76% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | prologue parameter-save MOVE-ORDER permutation: target emits a1->s1 (flag) before a0->s3 ( |
 | func_00158BD0 | 0x00158BD0 | 0x154 | 90.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | two regalloc/scheduling permutations: (1) dispatch save-sink — target keeps switch byte in |
 | func_0018D7B0 | 0x0018D7B0 | 0x154 | 96.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch lowering: target keeps explicit `beq s1,1,body / nop / b epilogue` (ente |
 | func_001FC3C0 | 0x001FC3C0 | 0x154 | 86.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation coloring (s0/s1/s2 assignment order) + one scheduling reorder of the f |
@@ -640,7 +640,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001A2370 | 0x001A2370 | 0x768 | 80.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 register-coloring + list-scheduler permutation. Structure/logic fully recovered an |
 | func_0019FE50 | 0x0019FE50 | 0x850 | 93.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS: register-allocation web-ORDER permutation in the pass-2 (actor-list) loop. Both  |
 | func_00230230 | 0x00230230 | 0x5B4 | 98.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Regalloc/scheduling permutation class (mwcc 2.3.3), NOT the clean-store nop. Body byte-ide |
-| func_001EA240 | 0x001EA240 | 0x908 | 99.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP constant-materialization SCHEDULING order at ONE call site (4 instructions): in the sta |
 | func_0016AE40 | 0x0016AE40 | 0x948 | 99.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single register-coloring permutation (2 instructions): in case 1 the target loads the pad  |
 | func_0022D380 | 0x0022D380 | 0x94C | 97.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-coloring permutation ONLY: on mwcc 2.3.3 the body is instruction-for-instruction  |
 | func_0022DCD0 | 0x0022DCD0 | 0x95C | 89.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | beql+lui-likely-slot dispatch speculation (systematic, unreproducible): the target's 13-wa |
@@ -718,7 +717,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001AC070 | 0x001AC070 | 0x334 | 97.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 97.95 with mwcc233 -O4,p -sdatathreshold 4 (o991: 93.1). Dispatch, all 7 case bodies, the  |
 | func_001F0720 | 0x001F0720 | 0x334 | 86.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 86.25 with mwcc233 -O4,p -sdatathreshold 4 (o991 69.09, o24 86.25). Dispatch, all 7 preset |
 | func_00200360 | 0x00200360 | 0x3A0 | 94.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | The jr-table dispatch itself matches 100% (jtbl_002732B0 reloc included) and cases 1, 3, 4 |
-| func_00135D00 | 0x00135D00 | 0x438 | 99.01% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.01% (mwcc233; mwcc 2.3.1 only reaches 83.7%). The jr-table dispatch is byte-identical I |
 | func_001CFFE0 | 0x001CFFE0 | 0x414 | 87.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 87.16% (mwcc233; mwcc 2.3.1 = 76.1%). Decode is complete and verified instruction-by-instr |
 | func_001BD560 | 0x001BD560 | 0x490 | 99.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 5 instructions, all diagnosed. (1) idx 58-59 `lui/addiu %hi/%lo(jtbl_0026E220)` vs mwcc's  |
 | func_001BAD40 | 0x001BAD40 | 0x3A0 | 91.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 91.09 (mwcc233 -O4,p -sdatathreshold 2; 232 instrs). The jr-table dispatch is FULLY byte-i |
@@ -747,7 +745,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00183EF0 | 0x00183EF0 | 0xCA8 | 99.41% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 17 residual instructions / 810 (99.41%, mwcc 2.3.3, -O4,p -sdatathreshold 0). The jump-tab |
 | func_00111818 | 0x00111818 | 0xA0 | 86.75% | ee-gcc 2.9-991111-01 | eegcc delay-slot-fill placement wall. Logic/structure fully recovered: uncached-segment al |
 | func_00119650 | 0x00119650 | 0x13C | 79.62% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring + preheader address-materialization permutation (confirmed no-lever cla |
-| sub_PsIIlibpad_2000 | 0xsIIlibpad_2000 | 0x134 | 99.74% | ee-gcc 2.9-991111-01 | splat D_FFFF pseudo-symbol wall (HARD, unreachable from C — same class as the documented D |
 | dma_wait_and_submit | 0xait_and_submit | 0x314 | 89.69% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall (+ minor GPR coloring). Body/structure fully recovered: all 5 po |
 | sub_The_size_of_work_area_is_too_sma | 0xhe_size_of_work_area_is_too_sma | 0x23C | 70.95% | ee-gcc 2.9-991111-01 | eegcc sibling-call wall + downstream list-scheduler wall. Everything up to the three trail |
 | func_001002E0 | 0x001002E0 | 0x270 | 65.22% | ee-gcc 2.9-991111-01 | eegcc list-scheduler + regalloc wall inside the four DISPLAY-building arms. Head is byte-i |
@@ -818,3 +815,4 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001DA6A0 | 0x001DA6A0 | ? | 49.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001D5370 | 0x001D5370 | 0x700 | 39.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001D5C80 | 0x001D5C80 | 0x728 | 47.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| func_00135D00 | 0x00135D00 | 0x438 | 100.00% | mwcc 2.3.3 | Object matches; local 36-byte jump table needs pinning at jtbl_0026D190 before C can link. |

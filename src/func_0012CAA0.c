@@ -1,13 +1,3 @@
-// NEARMISS func_0012CAA0  (vram 0x0012CAA0, 0x7A0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// IMPROVED 98.50 -> 99.9713 (mwcc233, -O4,p -sdatathreshold 0). Three of the four residual clusters recorded in the parked header were OUR BUGS, not compiler walls: (1) FIXED - 'zero-store vs 0x3F800000-store scheduling in the s1>=4 matrix branch' was really a CFG shape error. The target DUPLICATES...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
@@ -97,7 +87,12 @@ void func_0012CAA0(char *arg0, char *arg1) {
         } else {
             *(float *)(arg0 + 0xC4) = func_001B12B0(3.1415927f + *(float *)(plr + 0xC4), *(float *)(arg0 + 0xC4), 0.06981317f);
         }
-        *(float *)(arg0 + 0xC0) = func_001B12B0(-1.5707964f, *(float *)(arg0 + 0xC0), 0.06981317f);
+        {
+            /* Staging degrees preserves the original f14-before-f12 setup. */
+            int degrees = 4;
+            float rate = (float)degrees * 0.0174532925f;
+            *(float *)(arg0 + 0xC0) = func_001B12B0(-1.5707964f, *(float *)(arg0 + 0xC0), rate);
+        }
         *(float *)(arg1 + 0xD4) = *(float *)(arg1 + 0xD4) - 0.02f;
         func_00103230(arg1 + 0x10, arg1 + 0x10, *(float *)(arg1 + 0xD4));
         {

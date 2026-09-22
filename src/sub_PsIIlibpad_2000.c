@@ -1,13 +1,3 @@
-// NEARMISS sub_PsIIlibpad_2000  (vram 0xsIIlibpad_2000, 0x134 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.74% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// PREREQUISITE FOR THE 100.0 (must land before integrating): the recorded 99.74% was NEVER a compiler wall - it is a defect in OUR expected object. splat invented a pseudo-symbol D_FFFF (four F's, addr 0x0000FFFF) and paired the delay loop's `lui $v0,0x1` with the loop body's `addiu $v0,$v0,-1` int...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
