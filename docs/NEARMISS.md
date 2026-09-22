@@ -609,7 +609,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00218640 | 0x00218640 | 0x744 | 97.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order / instruction-scheduling permutation, same class as the sibling  |
 | func_001459A0 | 0x001459A0 | 0x770 | 90.01% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Delay-slot/instruction-scheduling artifact repeated across the six capsule-test call sites |
 | func_0017D080 | 0x0017D080 | 0x780 | 81.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring / parameter-register-choice permutation (a0-vs-a1 for a loop bound) plus |
-| func_001E67C0 | 0x001E67C0 | 0x7A0 | 71.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Frame-size/register-pressure mismatch: this build colors one extra callee-saved integer re |
+| func_001E67C0 | 0x001E67C0 | 0x7A0 | 70.915985% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected all four weather submission floats; compiled C 1784 bytes vs original 1952, instruction allocation/structure still differs; assembly fallback retained. |
 | func_00218D90 | 0x00218D90 | 0x7B8 | 94.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | residual: (a) fixed D_002821B0/B4/00282240 store-reorder mwcc always emits regardless of s |
 | func_0017C860 | 0x0017C860 | 0x7DC | 82.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | VU0/FPU register-coloring and instruction-scheduling spread across many mula.s/madd.s sum- |
 | func_001861C0 | 0x001861C0 | 0x7D8 | 62.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | large-function (7 saved regs, ~500 instructions, dense 0x700038xx GS/VU0 scratch traffic)  |
