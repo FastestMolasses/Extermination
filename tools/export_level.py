@@ -1183,7 +1183,7 @@ def emit_pickup_manifest(scene_dir: Path, elf: BootElf, ov_path: Path,
 #             from D_00264DD0[line_area+1], text from the bank file
 #   delay     int | ("ov", vaddr) u32 | ("ovf", vaddr) f32 frames
 #   cam       ("ov", vaddr) -> 3 floats (the op00 cue eye) | None
-#   cooldown  re-arm cooldown frames (AREA11 +0x2A = 300)
+#   cooldown  optional legacy re-arm delay; AREA11 +0x2A is a sound counter
 #   notes     provenance/flag comment lines
 
 EXAMINE_BANK_LINES = 0x00264DD0   # D_00264DD0: [0]=global, [area+1]=area
@@ -1248,14 +1248,14 @@ EXAMINE_DECODE = {
         desc=("ov+anchor", 0x82AB10),      # {(222,230,250.4), 5, 20}
         gline=("ov", 0x82AA90),            # op0C line 0x8000001A
         chain=None, delay=0, cam=None,
-        cooldown=300,                      # the +0x2A refusal cooldown
+        cooldown=0,                        # +0x2A suppresses a delayed sound
         notes=[
             "the AREA11 switch (placement [19], flags2 7 = unlock bit"
             " 7 of D_00810841[11]) — UNPOWERED REFUSAL script",
-            "0x82A990: walk-to + face + chase cue (op0D sub5) +"
-            " GLOBAL line 0x1A + 300-frame cooldown. The powered",
+            "0x82A990: immediate alignment + yaw + chase cue (op0D sub5) +"
+            " GLOBAL line 0x1A. The powered",
             "script 0x82A750 (anim 0x47 throw) is gated on the unlock"
-            " bit — 0 at new game; not emitted. The op01 walk-to and",
+            " bit — 0 at new game; not emitted. The op01 alignment and",
             "op04 face are FLAGGED-omitted in the port (input pause"
             " only). Emitted into the snow scene: AREA11 IS the snow",
             "level (chunk15 = the port's scene_snow mesh; AREA06 ="
@@ -1274,14 +1274,14 @@ EXAMINE_DECODE = {
         desc=("ov+anchor", 0x82AB10),      # {(222,230,250.4), 5, 20}
         gline=("ov", 0x82AA90),            # op0C line 0x8000001A
         chain=None, delay=0, cam=None,
-        cooldown=300,                      # the +0x2A refusal cooldown
+        cooldown=0,                        # +0x2A suppresses a delayed sound
         notes=[
             "the AREA11 switch (placement [19], flags2 7 = unlock bit"
             " 7 of D_00810841[11]) — UNPOWERED REFUSAL script",
-            "0x82A990: walk-to + face + chase cue (op0D sub5) +"
-            " GLOBAL line 0x1A + 300-frame cooldown. The powered",
+            "0x82A990: immediate alignment + yaw + chase cue (op0D sub5) +"
+            " GLOBAL line 0x1A. The powered",
             "script 0x82A750 (anim 0x47 throw) is gated on the unlock"
-            " bit — 0 at new game; not emitted. The op01 walk-to and",
+            " bit — 0 at new game; not emitted. The op01 alignment and",
             "op04 face are FLAGGED-omitted in the port (input pause"
             " only). This is the snow level's ONE examine object.",
         ])],
@@ -2117,11 +2117,34 @@ LIGHTRIG_BLOCK_BEGIN = ("# --- character light rig (export_level.py "
 LIGHTRIG_BLOCK_END = "# --- end character light rig ---"
 
 
-def lightrig_angles_to_dir(ax: float, ay: float):
-    """func_001D8340's angle-pair -> unit direction (base (0,1,0),
-    M^T = RotY^T*RotZ^T(0)*RotX^T applied — see the section comment)."""
-    return (math.sin(ay) * math.sin(ax), math.cos(ax),
-            math.cos(ay) * math.sin(ax))
+def lightrig_angles_to_dir(ax: float, ay: float, coefficients):
+    """Original 001D8340 rotations of (0,1,0), using 001029E8's polynomial.
+
+    The original SDK rotates through its own finite binary32 arithmetic.
+    Host sin/cos and four-decimal formatting both lose authored direction
+    bits. Coefficients are read from the owner's original ELF at00241100.
+    """
+    def trunc32(value):
+        encoded = struct.unpack('<I', struct.pack('<f', value))[0]
+        rounded = struct.unpack('<f', struct.pack('<I', encoded))[0]
+        if abs(rounded) > abs(value):
+            rounded = struct.unpack('<f', struct.pack('<I', encoded-1))[0]
+        return rounded
+    def rotation(angle):
+        argument = trunc32(float.fromhex('0x1.921fb6p+0') - abs(angle))
+        square = trunc32(argument * argument)
+        terms = [trunc32(c * argument) for c in coefficients]
+        for count in (4, 3, 2, 1):
+            for i in range(count):
+                terms[i] = trunc32(terms[i] * square)
+        cosine = argument
+        for term in reversed(terms):
+            cosine = trunc32(cosine + term)
+        sine = trunc32(math.sqrt(max(trunc32(1.0-trunc32(cosine*cosine)), 0.0)))
+        return (-sine if angle < 0.0 else sine), cosine
+    sx, cx = rotation(ax)
+    sy, cy = rotation(ay)
+    return trunc32(sy*sx), cx, trunc32(cy*sx)
 
 
 def lightrig_read(elf: "BootElf", area: int, sub: int) -> tuple:
@@ -2138,9 +2161,10 @@ def lightrig_read(elf: "BootElf", area: int, sub: int) -> tuple:
     def f(o):
         return struct.unpack_from("<f", rec, o)[0]
     lights = []
+    coefficients = struct.unpack('<4f', elf.read(0x241100, 16))
     for base in (0x20, 0x38, 0x50):
         lights.append({"ang": (f(base), f(base + 4)),
-                       "dir": lightrig_angles_to_dir(f(base), f(base + 4)),
+                       "dir": lightrig_angles_to_dir(f(base), f(base + 4), coefficients),
                        "col": (f(base + 8), f(base + 0xC), f(base + 0x10),
                                f(base + 0x14))})
     return idx, matched, {
@@ -2192,8 +2216,8 @@ def emit_lightrig_manifest(scene_dir: Path, elf: "BootElf",
              " kernel computes",
              "# rgb = min(amb + sum max(dot(N, dir_i), 0)*col_i, 255),"
              " shade = tex*rgb/128.",
-             f"lightamb {rig['amb'][0]:g} {rig['amb'][1]:g}"
-             f" {rig['amb'][2]:g}"]
+             f"lightamb {rig['amb'][0]:.9g} {rig['amb'][1]:.9g}"
+             f" {rig['amb'][2]:.9g}"]
     l0 = rig["lights"][0]
     block.append("# slot 0 = the CAMERA FILL (player flag +0x2 bit 0x20):"
                  " dir is CAMERA-SPACE")
@@ -2201,14 +2225,14 @@ def emit_lightrig_manifest(scene_dir: Path, elf: "BootElf",
                  " world by the inverse")
     block.append("# view rotation per frame; w = the dir weight in the"
                  " point-light fold.")
-    block.append(f"lightcam {l0['dir'][0]:.4f} {l0['dir'][1]:.4f}"
-                 f" {l0['dir'][2]:.4f} {l0['col'][0]:g} {l0['col'][1]:g}"
-                 f" {l0['col'][2]:g} {l0['col'][3]:g}")
+    block.append(f"lightcam {l0['dir'][0]:.9g} {l0['dir'][1]:.9g}"
+                 f" {l0['dir'][2]:.9g} {l0['col'][0]:.9g} {l0['col'][1]:.9g}"
+                 f" {l0['col'][2]:.9g} {l0['col'][3]:.9g}")
     for li in (1, 2):
         l = rig["lights"][li]
-        block.append(f"lightdir {l['dir'][0]:.4f} {l['dir'][1]:.4f}"
-                     f" {l['dir'][2]:.4f} {l['col'][0]:g} {l['col'][1]:g}"
-                     f" {l['col'][2]:g}")
+        block.append(f"lightdir {l['dir'][0]:.9g} {l['dir'][1]:.9g}"
+                     f" {l['dir'][2]:.9g} {l['col'][0]:.9g} {l['col'][1]:.9g}"
+                     f" {l['col'][2]:.9g}")
     lamps_va = LAMP_LISTS.get(key)
     if lamps_va:
         gate = LAMP_GATES.get(key)
