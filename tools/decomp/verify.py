@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run objdiff-cli over every unit and report aggregate match status.
 
-Reads `objdiff.json`, diffs each unit's target + base object, and prints a
+Enumerates the current sources, diffs each unit's target + base object, and prints a
 summary (overall match %, perfect/partial counts, and the partial list with
 percentages). Useful as a "where are we?" check after `build.py build`.
 
@@ -17,6 +17,8 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+
+from build import objdiff_config
 
 ROOT = Path(__file__).resolve().parents[2]
 OBJDIFF_JSON = ROOT / "objdiff.json"
@@ -56,9 +58,9 @@ def main(argv: list[str]) -> int:
                    help="only show partials below this percent (default 100)")
     args = p.parse_args(argv)
 
-    if not OBJDIFF_JSON.exists():
-        sys.exit("error: objdiff.json missing — run `build.py setup` first")
-    cfg = json.loads(OBJDIFF_JSON.read_text())
+    # A function can become NEARMISS while old objects and an interactive
+    # objdiff.json still exist. Such a unit must disappear from this report.
+    cfg = objdiff_config()
     units = cfg.get("units", [])
 
     perfect: list[str] = []

@@ -16870,14 +16870,6 @@
       }
     },
     {
-      "name": "quat_nlerp",
-      "target_path": "build/expected/quat_nlerp.o",
-      "base_path": "build/obj/quat_nlerp.o",
-      "metadata": {
-        "source_path": "src/quat_nlerp.c"
-      }
-    },
-    {
       "name": "quat_to_mat3",
       "target_path": "build/expected/quat_to_mat3.o",
       "base_path": "build/obj/quat_to_mat3.o",

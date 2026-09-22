@@ -369,15 +369,22 @@ def run_splat() -> None:
     subprocess.run(cmd, cwd=ROOT, check=True)
 
 
-def write_objdiff() -> None:
-    """Regenerate objdiff.json from the translation units in src/."""
+def objdiff_config(*, absolute_paths: bool = False) -> dict:
+    """Build a fresh configuration from sources, never a cached unit list.
+
+    Report tools use absolute paths in a build-directory project so validation
+    stays read-only with respect to the checked-in interactive configuration.
+    """
+    def path(relative: str) -> str:
+        return str(ROOT / relative) if absolute_paths else relative
+
     unit_cfgs = [{
         "name": n,
-        "target_path": f"build/expected/{n}.o",
-        "base_path": f"build/obj/{n}.o",
-        "metadata": {"source_path": f"src/{n}.c"},
+        "target_path": path(f"build/expected/{n}.o"),
+        "base_path": path(f"build/obj/{n}.o"),
+        "metadata": {"source_path": path(f"src/{n}.c")},
     } for n in units()]
-    cfg = {
+    return {
         "$schema": "https://raw.githubusercontent.com/encounter/objdiff/main/config.schema.json",
         "min_version": "2.0.0",
         "custom_make": "python3",
@@ -386,8 +393,13 @@ def write_objdiff() -> None:
         "watch_patterns": ["*.c", "*.h", "*.s"],
         "units": unit_cfgs,
     }
+
+
+def write_objdiff() -> None:
+    """Regenerate objdiff.json from the translation units in src/."""
+    cfg = objdiff_config()
     OBJDIFF_JSON.write_text(json.dumps(cfg, indent=2) + "\n")
-    print(f"[objdiff] wrote {OBJDIFF_JSON.relative_to(ROOT)} ({len(unit_cfgs)} unit(s))")
+    print(f"[objdiff] wrote {OBJDIFF_JSON.relative_to(ROOT)} ({len(cfg['units'])} unit(s))")
 
 
 def cmd_setup(_a: argparse.Namespace) -> None:
@@ -440,6 +452,7 @@ def cmd_compile(_a: argparse.Namespace) -> None:
     # the compiler).  See tools/decomp/inject_relocs.py for the rationale.
     subprocess.run([sys.executable, str(ROOT / "tools/decomp/inject_relocs.py")],
                    cwd=ROOT, check=False)
+    write_objdiff()
 
 
 def cmd_build(a: argparse.Namespace) -> None:

@@ -45,6 +45,8 @@ import sys
 import time
 from pathlib import Path
 
+from decomp.build import objdiff_config
+
 ROOT = Path(__file__).resolve().parents[1]  # tools/verify_all.py -> repo root
 IMAGE = "exterm-permuter"  # superset of exterm-toolchain (+ i386 libs for ee-gcc, permuter deps)
 OBJDIFF_CLI = ROOT / "tools" / "bin" / "objdiff-cli"
@@ -141,8 +143,12 @@ def run_match(st: Stage, floor: float) -> None:
         return
     out_json = ROOT / "scratch" / "verify_report.json"
     out_json.parent.mkdir(exist_ok=True)
+    report_project = ROOT / "build" / "verify_objdiff"
+    report_project.mkdir(parents=True, exist_ok=True)
+    (report_project / "objdiff.json").write_text(
+        json.dumps(objdiff_config(absolute_paths=True), indent=2)+"\n")
     r = subprocess.run(
-        [str(OBJDIFF_CLI), "report", "generate", "-p", str(ROOT),
+        [str(OBJDIFF_CLI), "report", "generate", "-p", str(report_project),
          "-o", str(out_json)],
         capture_output=True, text=True,
     )
