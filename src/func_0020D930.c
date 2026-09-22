@@ -1,7 +1,7 @@
 // NEARMISS func_0020D930  (vram 0x0020D930, 0x668 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 67.98% via mwcc 2.3.3 (-O4,p -sdatathreshold 0), remeasured
-// after restoring both soft-double arguments (previous source:66.34%).
+// objdiff 72.58% via mwcc 2.3.3 (-O4,p -sdatathreshold 0), remeasured
+// after correcting table0's left sector and the alternate table's last sector.
 // Control/argument behavior is independently checked against the original
 // instructions; remaining code-generation differences are not classified.
 //
@@ -16,10 +16,12 @@
 // magnitude/angle. 00128350 converts binary32 to a soft-double bit pattern;
 // 00100130 compares two such patterns through 001274B0. The original gate
 // is magnitude >= double0.8 (3FE999999999999A), including float-to-double
-// conversion, rather than a raw stick dead zone. Table1 is the ITEM wheel.
+// conversion, rather than a raw stick dead zone. Table0 is the status hub;
+// table1 is the ITEM wheel.
 // A changed nonzero selection plays cue5; releasing the stick resets the
 // hover byte without a sound. Raw original-instruction validation lives in
-// the native port's tools/test_item_root_reference.py.
+// the native port's tools/test_menu_hover_source_reference.py (8,064 cases,
+// all selector tables, comparing this readable C with the original function).
 extern void func_001B62C0(float *out);
 extern int func_00100130(unsigned long long left, unsigned long long right);
 extern unsigned long long func_00128350(float x);
@@ -38,19 +40,11 @@ void func_0020D930(char *arg0, int arg1) {
             ang = D_700038AC;
             if (ang < -0.7853982f) {
                 if (ang < -2.3561945f) {
-                    if (ang < -2.670354f) {
-                        cur = arg0[0x11];
-                        if (cur != 1) {
-                            func_001FB9F0(5, 0x1000, 0x1000, 0x1000);
-                        }
-                        arg0[0x11] = 1;
-                        return;
-                    }
                     cur = arg0[0x11];
-                    if (cur != 2) {
+                    if (cur != 4) {
                         func_001FB9F0(5, 0x1000, 0x1000, 0x1000);
                     }
-                    arg0[0x11] = 2;
+                    arg0[0x11] = 4;
                     return;
                 }
                 cur = arg0[0x11];
@@ -135,10 +129,10 @@ void func_0020D930(char *arg0, int arg1) {
                 return;
             }
             cur = arg0[0x11];
-            if (cur != 3) {
+            if (cur != 1) {
                 func_001FB9F0(5, 0x1000, 0x1000, 0x1000);
             }
-            arg0[0x11] = 3;
+            arg0[0x11] = 1;
             return;
         }
 
