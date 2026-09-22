@@ -1,8 +1,9 @@
 // NEARMISS func_0020D930  (vram 0x0020D930, 0x668 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 66.34% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// register-allocation-ORDER permutation: target colors arg0->$s1 (high)/arg1->$s0 (low); this mwcc build always colors arg0->$s0/arg1->$s1 regardless of source shape. Body/structure/branch-shape fully correct; residual is purely the saved-reg swap propagated through every access site.
+// objdiff 67.98% via mwcc 2.3.3 (-O4,p -sdatathreshold 0), remeasured
+// after restoring both soft-double arguments (previous source:66.34%).
+// Control/argument behavior is independently checked against the original
+// instructions; remaining code-generation differences are not classified.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,17 +12,17 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// Menu hover-page angle quantizer: reads the left-stick angle (D_700038AC, a
-// PS2 pad-lib float register) and, if the stick deflection (D_700038A8) is
-// past the noise floor (gated by func_00128350/func_00100130), quantizes the
-// angle into an 8-direction hover state stored at arg0+0x11 (right=2,
-// down=1/3/4/5..., up, left, etc., depending on which of the three angle
-// tables arg1 selects). Whenever the state CHANGES it fires the hover sound
-// cue func_001FB9F0(5, 0x1000, 0x1000, 0x1000). If the gate fails, state
-// resets to 0 (stick released / no hover).
+// Menu hover-page angle quantizer. 001B62C0 produces normalized stick
+// magnitude/angle. 00128350 converts binary32 to a soft-double bit pattern;
+// 00100130 compares two such patterns through 001274B0. The original gate
+// is magnitude >= double0.8 (3FE999999999999A), including float-to-double
+// conversion, rather than a raw stick dead zone. Table1 is the ITEM wheel.
+// A changed nonzero selection plays cue5; releasing the stick resets the
+// hover byte without a sound. Raw original-instruction validation lives in
+// the native port's tools/test_item_root_reference.py.
 extern void func_001B62C0(float *out);
-extern int func_00100130(void);
-extern int func_00128350(float x);
+extern int func_00100130(unsigned long long left, unsigned long long right);
+extern unsigned long long func_00128350(float x);
 extern void func_001FB9F0(int a, int b, int c, int d);
 extern float D_700038A0;
 extern float D_700038A8;
@@ -32,9 +33,7 @@ void func_0020D930(char *arg0, int arg1) {
     unsigned char cur;
 
     func_001B62C0(&D_700038A0);
-    func_00128350(D_700038A8);
-
-    if (func_00100130() != 0) {
+    if (func_00100130(func_00128350(D_700038A8), 0x3FE999999999999AULL) != 0) {
         if (arg1 == 0) {
             ang = D_700038AC;
             if (ang < -0.7853982f) {

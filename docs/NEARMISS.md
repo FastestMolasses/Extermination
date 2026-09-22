@@ -586,7 +586,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0016EF50 | 0x0016EF50 | 0x5D4 | 90.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Compiler scheduling/register-choice wall (idiom-13 family): the drift-add pair (arg0+0xB0/ |
 | func_0018B3E0 | 0x0018B3E0 | 0x5D4 | 97.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (state machine, all field offsets, calls, and idiom-15 relo |
 | func_001A7280 | 0x001A7280 | 0x5F0 | 72.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 72.05% (233) -- body-level control flow, offsets, and call sequence recovered with reasona |
-| func_0020D930 | 0x0020D930 | 0x668 | 66.34% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation-ORDER permutation: target colors arg0->$s1 (high)/arg1->$s0 (low); thi |
+| func_0020D930 | 0x0020D930 | 0x668 | 67.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected dropped soft-double comparison arguments; original magnitude >= double0.8 verified in 540 ITEM hover cases. Remaining code-generation differences unclassified. |
 | func_001C40B0 | 0x001C40B0 | 0x670 | 89.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | $at-vs-GPR compare, shared-epilogue edge case: every clamp-to-99 test's slti result lives  |
 | func_001A6440 | 0x001A6440 | 0x690 | 88.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Not a genuine idiom-13 wall: body/logic fully recovered (segment-vs-collision-mesh sweep m |
 | func_00217FA0 | 0x00217FA0 | 0x69C | 99.15% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered and verified byte-for-byte against the .s (weapon-reload FS |
