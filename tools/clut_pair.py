@@ -52,9 +52,10 @@ Observed allocator structure (gameplay capture, SCUS-97112 snow level):
   * small cache entries pack at 16-block (64x64) / 4-block (32x32)
     granularity; a 64x64 entry occupies exactly 16 contiguous blocks,
     a 32x32 entry 4 blocks (GS block layout is hierarchical/Z-order).
-  * CLUTs are stored in CSM1 order: recover the linear palette with the
-    entries 8..15 <-> 16..23 swap per 32-entry group
-    (clut.psmct8_csm1_swizzle). Alpha is 0..0x80 (scale x2 for PNG).
+  * CLUT recovery requires BOTH the PSMCT32 16x16 physical-memory decode
+    and the CSM1 entries 8..15 <-> 16..23 swap per 32-entry group.
+    gs_vram.csm1_unswizzle_clut performs both steps. Alpha is 0..0x80
+    (scale x2 for PNG). Earlier exports omitted the physical-memory step.
 
 GS FREEZE LAYOUT -- VRAM BASE IS 425, NOT 509 (correction, 2026-06-09)
 ----------------------------------------------------------------------

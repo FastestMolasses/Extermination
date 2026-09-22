@@ -56,6 +56,7 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 from clut import psmct8_csm1_swizzle, write_png_rgba  # noqa: E402
+from extract_textures import psmct32_word  # noqa: E402
 
 
 GS_LOCALMEM_SIZE = 0x400000        # 4 MB GS local memory
@@ -99,12 +100,20 @@ def read_clut_at(localmem: bytes, cbp: int) -> bytes:
 # A 256-entry PSMCT32 CLUT occupies a 16x16 texel region of one GS page. In
 # CSM1 mode the GS reads it through the PSMCT32 swizzle, so a CLUT *stored* in
 # VRAM is in that swizzled order. The PS2 convention for a 16x16 PSMCT32 CLUT
-# is the same 8-entry block interleave that clut.py::psmct8_csm1_swizzle models
-# (within each 32-entry group, entries 8..15 <-> 16..23). That permutation is
-# its own inverse, so the same helper converts both directions.
+# is separate from the CSM1 index arrangement. First decode the physical
+# PSMCT32 block/column addresses, then exchange the CSM1 index groups. The
+# former implementation applied only the second step to physical VRAM bytes.
 def csm1_unswizzle_clut(clut1024: bytes) -> bytes:
     """Convert a VRAM CSM1-stored CLUT to the linear [R G B A]*256 order."""
-    return psmct8_csm1_swizzle(clut1024)
+    if len(clut1024) != CLUT_BYTES:
+        raise ValueError(f"CLUT must be {CLUT_BYTES} bytes, got {len(clut1024)}")
+    pixels = bytearray(CLUT_BYTES)
+    for y in range(16):
+        for x in range(16):
+            source = psmct32_word(x, y, 1) * 4
+            target = (y * 16 + x) * 4
+            pixels[target:target + 4] = clut1024[source:source + 4]
+    return psmct8_csm1_swizzle(pixels)
 
 
 # ---------------------------------------------------------------------------
