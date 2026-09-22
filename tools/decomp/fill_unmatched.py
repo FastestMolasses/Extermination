@@ -320,7 +320,8 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_001B1EA0",
     "func_001B2B80",
     "func_001B2BF0",
-    "anim_clip_init",  # was func_001C67E0
+    # anim_clip_init removed: readable C now supplies both float arguments
+    # and matches the original212-byte slot; verify actual compiled-C linkage.
     "func_001C8710",
     "func_001C9E40",
     "func_001CBE10",
@@ -427,7 +428,8 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_0012E070",
     "func_0014D1E0",
     "func_0016ADE0",
-    "func_001749A0",
+    # func_001749A0 removed: explicit caller blend and source-frame0 restore
+    # the omitted f13 initialization and exact72-byte compiled function.
     "func_0017B460",
     "func_001899C0",
     "func_0018A880",

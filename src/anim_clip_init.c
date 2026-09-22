@@ -1,61 +1,23 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00128250(int, int, int, int);
-extern void anim_advance_time(int, int, int, int);
-extern void anim_clip_resolve(int, int, int, int);
-extern void anim_sample_bones(int, int, int, int);
-
-asm void anim_clip_init(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb00010
-    .word 0xe7b50004
-    .word 0xe7b40000
-    .word 0x34a28000
-    .word 0x70808628
-    .word 0xa482002c
-    .word 0x8c840040
-    .word 0x8605002c
-    .word 0x46006546
-    jal       anim_clip_resolve
-    .word 0x46006d06
-    .word 0x44800000
-    .word 0x00000000
-    .word 0x46150032
-    .word 0x00000000
-    .word 0x45000014
-    .word 0x4600a306
-    .word 0x3c023f80
-    .word 0xae02003c
-    jal       func_00128250
-    .word 0x4600a306
-    .word 0x8e050110
-    .word 0x3c033f80
-    .word 0x44836800
-    .word 0x26040110
-    .word 0xa4a2008e
-    .word 0x9205000c
-    jal       anim_sample_bones
-    .word 0x4600a306
-    .word 0x3c023f80
-    .word 0x44826000
-    jal       anim_advance_time
-    .word 0x72002628
-    .word 0x1000000c
-    .word 0x7bbf0020
-    .word 0x4600a306
-    jal       func_00128250
-    .word 0xe615003c
-    .word 0x8e030110
-    .word 0x26040110
-    .word 0x4600a306
-    .word 0xa462008e
-    .word 0x9205000c
-    jal       anim_sample_bones
-    .word 0x4600ab46
-    .word 0x7bbf0020
-    .word 0x7bb00010
-    .word 0xc7b50004
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0030
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Initialize a clip at an explicit source frame. The high clip bit marks
+// the transition interval. Zero blend seeds a one-tick transition and
+// resolves it immediately; nonzero blend retains the requested interval.
+extern void anim_clip_resolve(void *, short);
+extern short func_00128250(float);
+extern void anim_sample_bones(void *, unsigned char, float, float);
+extern void anim_advance_time(void *, float);
+void anim_clip_init(unsigned char *actor, int clip, float blend, float frame) {
+    *(short *)(actor + 0x2C) = clip | 0x8000;
+    anim_clip_resolve(*(void **)(actor + 0x40), *(short *)(actor + 0x2C));
+    if (blend == 0.0f) {
+        *(float *)(actor + 0x3C) = 1.0f;
+        *(short *)(*(unsigned char **)(actor + 0x110) + 0x8E) = func_00128250(frame);
+        anim_sample_bones(actor + 0x110, actor[0xC], frame, 1.0f);
+        anim_advance_time(actor, 1.0f);
+        return;
+    }
+    *(float *)(actor + 0x3C) = blend;
+    *(short *)(*(unsigned char **)(actor + 0x110) + 0x8E) = func_00128250(frame);
+    anim_sample_bones(actor + 0x110, actor[0xC], frame, blend);
 }
