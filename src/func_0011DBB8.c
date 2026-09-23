@@ -1,8 +1,10 @@
 // NEARMISS func_0011DBB8  (vram 0x0011DBB8, 0x2A8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 95.41% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc constant-pool / list-scheduler wall. Function fully decompiled as fdlibm atanf (verified: func_0011DF78 is fabsf; tables D_0026C5F8=aT[11], D_0026C5E8=atanhi[4], D_0026C5D8=atanlo[4], D_0026C5E4/F4=atanhi[3]/atanlo[3]; huge=1.0e30f). Body + all branch-block ordering + polynomial Horner chains + range-reduction...
+// objdiff 97.06% via ee-gcc 2.9-991111-01 (-O2) (re-measured s87 after the atanhi/atanlo fix;
+// was 95.41% recorded, 96.94% on re-measure before the fix). Residual = prologue `sd ra`
+// placement + one extra nop at 0x0011DC04 after the NaN-return branch (all other diffs are
+// the resulting 4-byte branch-target shift); no flag variant moved it (the earlier
+// "constant-pool / list-scheduler wall" label is superseded). Function fully decompiled as fdlibm atanf (verified: func_0011DF78 is fabsf; tables D_0026C5F8=aT[11], D_0026C5D8=atanhi[4], D_0026C5E8=atanlo[4], D_0026C5E4/F4=atanhi[3]/atanlo[3]; huge=1.0e30f). Body + all branch-block ordering + polynomial Horner chains + range-reduction...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -13,8 +15,8 @@
 
 extern float func_0011DF78(float);
 
-extern float D_0026C5D8[];   /* atanlo[4] */
-extern float D_0026C5E8[];   /* atanhi[4] */
+extern float D_0026C5D8[];   /* atanhi[4] */
+extern float D_0026C5E8[];   /* atanlo[4] */
 extern float D_0026C5F8[];   /* aT[11]   */
 extern float D_0026C5E4;     /* atanhi[3] */
 extern float D_0026C5F4;     /* atanlo[3] */
@@ -71,7 +73,7 @@ float func_0011DBB8(float x)
     if (id < 0)
         return x - x * (s1 + s2);
     else {
-        z = D_0026C5E8[id] - ((x * (s1 + s2) - D_0026C5D8[id]) - x);
+        z = D_0026C5D8[id] - ((x * (s1 + s2) - D_0026C5E8[id]) - x);
         return (hx < 0) ? -z : z;
     }
 }

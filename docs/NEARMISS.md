@@ -34,7 +34,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0010DD00 | 0x0010DD00 | 0x134 | 95.95% | ee-gcc 2.9-991111-01 | eegcc coloring/list-scheduler wall. Body fully decoded and correct (DMA-chain/queue builde |
 | func_00114630 | 0x00114630 | 0xD8 | 95.93% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall (confirmed s84): body byte-identical (216/216, 95.93%); two dete |
 | func_00107A28 | 0x00107A28 | 0x9C | 95.77% | ee-gcc 2.9-991111-01 | ee-gcc branch-delay-slot fill choice. C is structurally correct and bytes match except one |
-| func_0011DBB8 | 0x0011DBB8 | 0x2A8 | 95.41% | ee-gcc 2.9-991111-01 | eegcc constant-pool / list-scheduler wall. Function fully decompiled as fdlibm atanf (veri |
+| func_0011DBB8 | 0x0011DBB8 | 0x2A8 | 97.06% | ee-gcc 2.9-991111-01 | fdlibm atanf; s87: atanhi=D_0026C5D8/atanlo=D_0026C5E8 fixed (0x11DE10..44); residual sd-ra + nop@0x11DC04 |
 | func_00106490 | 0x00106490 | 0xB0 | 94.89% | ee-gcc 2.9-991111-01 | gcc scheduling/regalloc: single redundant 'move v0,a1' copy difference. Expected materiali |
 | func_00108DB0 | 0x00108DB0 | 0xF4 | 94.23% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring wall (no permuter lever, confirmed s84). Body is structurally identical |
 | func_0011E748 | 0x0011E748 | 0x114 | 92.58% | ee-gcc 2.9-991111-01 | eegcc list-scheduler wall. Body byte-identical and float-register assignment correct (f20= |
@@ -504,7 +504,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001A06A0 | 0x001A06A0 | 0x46C | 86.42% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Full AABB-narrowing scan + hitbox-type dispatch logic recovered (types 0x1000/0x2000/0x400 |
 | func_00214570 | 0x00214570 | 0x478 | 95.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / branch-likely-choice permutation only. Logic, globals, and control f |
 | func_001373B0 | 0x001373B0 | 0x47C | 93.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / branch-likely-choice permutation only (same class as func_00214570). |
-| func_001A4030 | 0x001A4030 | 0x480 | 81.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Fully recovered logic/structure (convex n-gon segment test, per-axis interval reject, edge |
 | func_00171670 | 0x00171670 | 0x484 | 91.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Fully recovered logic/structure (entity fire-state-machine, sibling of matched func_00171B |
 | func_0013C8C0 | 0x0013C8C0 | 0x488 | 93.30% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Fully recovered logic/structure using sibling func_0013C4C0 (98.98% NEARMISS) as the steer |
 | func_0013EDB0 | 0x0013EDB0 | 0x488 | 94.96% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | residual scheduling artifact (see above) |

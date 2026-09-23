@@ -1,4 +1,463 @@
+## 2026-09-23 — EE float model settled; func_001A4030 byte-matched (2150/2211)
+
+- **EE/VU0 float arithmetic measured in PCSX2** (the user's saved settings):
+  33,800 single-instruction results from real ELF instances, plus 800 free
+  block runs of 001026A0 and 00102EA8. The rules are EE add/sub with a
+  one-guard-bit pre-trim, then truncate; mul truncates; div.s rounds to
+  nearest; MSUB is ACC - fs*ft; results saturate, operands don't. VU0
+  truncates and clamps per instruction form.
+  - Model and test: port `tools/ee_float_model.py`, `tools/test_ee_float_model.py`.
+  - Rules and the list of oracles to fix: port `docs/EE_FLOAT_MODEL.md`.
+  - Recorders: `tools/ee_float/`. Recordings are kept in
+    `build/startup-reference/ee_float/`, an oracle input that is never deleted.
+- **func_001A4030** (the n-gon edge test used by actor collision) went from
+  NEARMISS 81.64% to a 100% byte match. Two fixes did it: the edge-normal
+  pool is at plane + (3n+4)*4, and the final loop writes the plane normal
+  to record +0x24 (0x700030D4). The ratio store to scratchpad 0x70003680
+  also moved into C, through a per-file `// SPAD:` directive. The fresh
+  build + verify_all gives boot ELF byte-identical, 19/19 overlays, and
+  2150/2211 = 98.60%.
+  - Provenance: compiled_object_ordinary_c.
+- **func_0011DBB8** (SDK atanf): the id>=0 return had atanhi and atanlo
+  swapped in the readable C; it now follows the instructions at
+  0x11DE10..0x11DE44. It is still NEARMISS, now 97.06%. What remains is
+  the prologue `sd ra` slot and one nop in the target.
+- `tools/export_shadow_receivers.py` exports the drop-shadow receiver
+  grid, objects and box models for the port from the user's extracted
+  disc. It checks every byte against the route captures with `--verify-ram`.
+
+## 2026-09-23 — round 6: three dispatchers byte-matched, rand(void) corpus-wide
+
+Promoted (objdiff 100%, linked from the compiled object, local jump table
+pinned by rodata_pin): func_00158EC0, func_00183EF0, func_001FF590.
+- func_00158EC0: func_001C5570 takes four arguments. The phase-0 call passes
+  mode 1, which the target keeps in `$a3` and reuses for the `p[0] = 1` store
+  (99.95 -> 100). It also left GPREL_FORCE_ASM (fill_unmatched.py).
+- func_00183EF0: relocated scratchpad externs 0x70003B98 and 0x70003690
+  (`// SPAD:`), plus `dx = p[0]; dx = a - dx;` in case 1 for the sub.s
+  operand colouring (found by the permuter, confirmed by objdiff).
+- func_001FF590: 0x70003B6C extern, unsigned size read in case 0, the base
+  offset staged in `r`, and the chunk pointer formed through an int sum
+  (`(unsigned char *)((idx << 3) + (int)D_00275C70)`), which is the only
+  spelling that gave the target's addu operand order. The cast is commented
+  as a matching device.
+
+Improved NEARMISS (source and header updated, registry rows refreshed):
+func_001AD740 99.23 -> 99.98, func_001429D0 99.68 -> 99.94, func_001FFCD0
+94.62 -> 99.67, func_002149F0 98.69 -> 99.97. Measured, not improved:
+func_001C2770 (98.27), func_001D8C30 (89.45), and the jtbl candidates
+func_0022BBC0 88.76, func_001E4CE0 83.92, func_001F4190 75.74,
+func_0015A750 73.04, func_001CFFE0 87.20, func_001FB3E0 86.64, func_001F0720
+86.25 (automatic scratchpad symbolization changes none of them; they need
+real restructuring, e.g. func_001F0720 keeps three loop constants in saved
+registers).
+
+func_00122BB8 is rand(void). Every declaration in src/ now reads
+`extern int func_00122BB8(void);` (38 boot files plus the two overlay
+asm-void files that named it `func_122BB8(int, int, int, int)`). 14 call
+sites in 13 files passed arguments; not the ~120 the task estimated. Removing
+them left the five matched files byte-identical (the value was already in
+`$a0`) and improved four NEARMISS files: func_001305B0 99.19 -> 99.69,
+func_00146110 96.48 -> 96.74, func_0014B7B0 96.22 -> 96.50, func_00151200
+90.98 -> 93.43. One site keeps its argument: func_001F8350's
+`q[1] = func_00122BB8(i)` (the loop counter is in `$a0` in the target;
+without it the file drops 92.70 -> 92.56). That file declares the function
+unprototyped, with the comment "matching device: rand(void) ignores a0; the
+original sets it".
+
+Pointer/int cleanup (bytes unchanged, objdiff 100% before and after):
+func_00200360 now declares func_00200780 as `(void *file, void *buf, int
+offset, int size)` and passes `(void *)D_00289BC0` instead of the truncating
+`(int)` form (the cast is argument weight; dropping it costs 1%). The same
+prototype is in func_001FF830. func_001B82D0 calls func_001B81D0(char *actor)
+without the `(int)` cast. The int-typed pointer globals in func_00200360
+(D_0028A490/740/744/748) and the int casts left in func_001FF590/001FFCD0
+carry one-line comments naming the real pointer type.
+
+Gate: full build.py build, verify_all twice (boot ELF byte-identical, 19/19
+overlays; the two changed overlay files were recompiled separately and have
+identical .text and relocations), per-unit comparison against the fresh
+baseline (no unit regressed, three new 100% units), audit_link_provenance
+(no copied text, relocation or pinned-rodata mismatches). Before: 2146/2207,
+matched_code 98.58%, compiled_object_ordinary_c 1513, 107 pins. After:
+2149/2210, 98.60%, compiled_object_ordinary_c 1516, 110 pins,
+original_assembly_explicit_gprel 55 -> 54. Levers are in
+docs/fanout/MATCHING_GUIDE.md under "Round 6".
+
+## 2026-09-23 — jr-table lane: 14 NEARMISS dispatchers byte-matched
+
+Scope: the 51 NEARMISS/INCLUDE_ASM functions whose `.s` references a `jtbl_`
+symbol, first-level ones first. 14 now match objdiff 100% and link from their
+compiled objects. rodata_pin proves and pins each local jump table (pins 93 ->
+107). Promoted: func_00135D00, func_00129780, func_001B5360, func_0012A5D0,
+func_00200A40, func_0012E840, func_00130AB0, func_001BC350, func_00189730,
+func_002160B0, func_00200360, func_001B9CF0, func_001AC070, func_001FF830.
+First-level ones are func_001BC350, func_001AC070, func_002160B0,
+func_00200A40, func_0012A5D0, func_00189730 and func_00129780.
+func_0012A5D0 also left GPREL_FORCE_ASM (fill_unmatched.py).
+func_00134090 (still NEARMISS) had a readable-C error: it passed `act` to
+func_00122BB8, which is the engine rand() and takes no argument. That is now
+fixed (93.51 -> 93.90).
+
+Gate after each batch: full build.py build + verify_all (boot ELF
+byte-identical, 19/19 overlays). A per-unit comparison against the fresh
+baseline found no regressions, and audit_link_provenance found no copied
+text, relocation or pinned-rodata mismatches. Before the lane: 2132/2193
+units, matched_code 98.54%, compiled_object_ordinary_c 1499, 93 pins. After
+it: 2146/2207, 98.58%, compiled_object_ordinary_c 1513, 107 pins, and
+original_assembly_nearmiss 694 -> 681. The new levers are in
+docs/fanout/MATCHING_GUIDE.md under "idiom-35". They are: argument weight
+from casts, float truthiness, the `T[i] & (1U << n)` bit test, chained
+assignment, uncached volatile pointers, separate loop counters, and
+`(p + K)[j]`. The same section lists the classes still open:
+- callee register knowledge within one translation unit: func_001BD560,
+  func_0021B9A0;
+- the merged split symbol func_001B99F0;
+- the target materializing a constant argument first: func_0018BC20,
+  func_001916C0, func_00128C10.
+
+### Continuation through native f137482 (2026-09-22)
+
+Native checkpoints now include `5a29c4c` original status decoration and
+bounded4096-record queue; `d81656d` verified AREA11 panel sound bank;
+`3da97b0` original door transit/program and player43/45 channels;
+`c7d07b9` required AREA11 sound-scope lifecycle; `f137482` original Roger
+capture and player face allocation/reset/free proofs.
+
+Door both-side real-resource ASan/UBSan fixture reaches original room entry2
+after98 callbacks or entry1 after78. It stops at the room request; loading
+and ownership release are not claimed. Full original controller/program732
+callbacks, kickoff1349+destination112 and shared-frame11520 cases pass.
+Sound3EE is original silence;3EF pitch862 and Q14 gains2217 are verified
+through288 EE dispatch/end cases,216 pitch cases and336 original IOP/libsd
+register writes across48 voices. Corrected native bank uses10101.5625Hz;
+linear interpolation, reverb, envelope microtiming and scheduling remain
+boundaries. Host missing-bank cleanup/reload and prior panel flows pass.
+
+Fresh original Roger state15 was captured after a controlled position-only
+trigger from immutable state03. Both actors at source25.5 match1050 channel
+float words and126 key cursors exactly. Camera source25.0 eye/target bytes
+match; view-matrix error is at most0.000123. This is not movement or pixel
+fidelity evidence. Both actors have face objects and suppressed body head7.
+Full original allocator/reset/free execution proves captured first-control
+and status player face allocations start zeroed, AF890 clears208 bytes on
+free, and256 repeated attachments preserve existing weights/wait fields.
+Later whole-game RNG order remains open. Player dialogue calls D06E0
+straight from FD950; it does not consume Roger's activity-byte convention.
+
+Goal remains active and unfinished. The assembled host is still NOT wired
+into the complete live11-owner scene loop. Current parallel work: Dennis
+cinematic face host; dynamic status health/battery/ammo draw workers;
+BC350 readable-C actor forwarding and match verification. Root owns Roger
+camera/media integration and the eventual scene coordinator. PS2 container
+is reserved to area11_original; GPU is free. Never move/mount/restore the
+emulator or backups: user cancelled that. Preserve native user README.md
+and tests/run_suite.sh changes.
+
+## 2026-09-22 latest verified checkpoint
+
+### Continuation through native bc0a888 (2026-09-22)
+
+New native checkpoints: `5142f99` Roger actor/face adapter; `425dc6b`
+bank96 camera/player export and raw proofs; `2c439ee` original cinematic
+entry sub9–12; `3753a89` normal status hub/arc geometry/SDK ±4π;
+`e8a127e` initialized AREA11 door controller/resources; `bc0a888` deferred
+cinematic player-bank request, real half-rate player clock and release.
+Decomp remains `a73c2a7`, 98.16%; no additional byte-match claim.
+
+Roger camera passes1385 original samples and player5010 decoded keys.
+Cinematic entry passes6184 original state/service-order cases plus8 failed
+worker boundaries. Player bank request waits until the next player stage,
+then83090 initializes and advances SAME callback: first sample0.5,
+remaining690.5.1388 original clock callbacks+release match; actual-resource
+ASan/UBSan shared ownership/status freeze/world-palette fixture passes.
+Mode2 uses identity owner matrix (C6960), release restores default idle0 at80
+before next ordinary79. Body bank and face attachment are separate operations.
+CORRECTION: B81D0/CA700 attaches face at+90 and suppresses bone7; ready2 means
+face attached, not a replaced body skeleton. Shared runtime now acceptsready2
+only with an explicitly installed face/body worker; missingworkerfaults.
+The real Dennis face, Roger camera/media and live11-ownerloop are still open.
+
+Status hub17520 original cases; arc500cases/5562exactvertices; SDK6418trig
+results including±4π; page1460cases and normal-open→ITEM→Back→hub→exit
+sanitizerPASS. Actualstate12→fresh14hub captured with source12unchanged.
+Referenceagent owns original2D export/render; fixture exposed2376decorrecords
+versus1024capacity, narrow4096decorqueue change in progress. GPU currently
+reserved for its bounded fixture. No emulator relocation/recovery authorized.
+
+Door5662 original controller cases,123decodedkeys,50capturedfloats,
+16ownermatrix+32palettewords exact;240passive actualassetASan/UBSanPASS.
+Passive door does not advance animation. Areaagent owns BBE40/BC150 transit,
+frame/sub0, player43/45 source clips/timing/allowlists. Side chooses sound401/402
+(not open/close). Current transitworkers are still not installed in scene.
+
+Soundagent proved AREA11 cue3EE intentionally mapsFF/no sound;3EF is real.
+Raw FB9F0→119EA0→117088→115850→117918 path and residentSPURAM sample agree:
+pitch862/4096*48000=10101.5625Hz, direct Q14 gains2217/16384, ADSR80FF/5FD0,
+1312ADPCMbytes,no loop.288dispatch/end cases+216pitch casesPASS. Scoped
+nativebank/mixer under implementation; host must select(11,0), clear(-1,-1)
+when em_sfx_set_area APIready. Old manifestpitch15480wasincorrect.
+
+Goal remains active and unfinished. Host37ca9fe is built but NOT installed
+in the live scene loop. No claim of a finished faithful first-level checkpoint.
+UserREADME.md modification and tests/run_suite.sh remain untouched.
+
+
+
+Latest native checkpoints: `37ca9fe` assembled native panel/player/status
+host, `a7c175d` SDK reference-runner scalar-width/tailcall corrections,
+`a48a982` original door predicate/checked Use arbitration, `9e779aa` Roger
+controller/resources, `75d91ba` geometry/camera commit, `d88527f` battery
+pickup/device lookup, and `302124f` hip mirrors. Decomp `a73c2a7` corrects
+D930 hub/alternate branches;8064 compiled-readable-C state/sound cases pass,
+similarity67.97805->72.58049%, stillassembly-backed. Full6gatePASS in
+build/item_root/verify_d930_hub.log; PS2container is FREE. Earlier `4576740`
+anglewrapper ordinaryC100% remains selected; overall98.16%unchanged.
+
+Alignment passes1639 original B6F00/SDK cases. Projection passes1606 original
+DD980/DD950 cases, all24contextbytes. Camera commit gate passes1623cases;
+status's nonzero argument pushes4 even in top-mode3, except mode0A uses-1.
+Recovery is decremented at the real18B9C0 stage after player/owners, including
+top-mode1/2; status completion writes70 and its final consumed frame preserves
+70. Use seeing1 stays blocked until the next frame. The recovery oracle covers
+5120states,16frameorders,256Usegates,5statuspairs. Scope0 is bits43F02F4F
+(480.3695983886719), not480 or platformtan.
+
+Player face/align mirrors are fixed: raw3053cases pass including1624new order
+comparisons. Face must preserve cached hip and savedEuler; align translates
+that prior hip and savescurrentEuler. The next player tail republishes the
+new pose. CORRECTION: refusal align/face/D5 records yield betweencommands;
+there is no proven same-callback refusalD5 effect. Panel face->align does
+occur in a single ownerhook. Do not repeat the earlier timing assumption.
+
+Battery pickupstatus kind1/index1B..1D now runs real240-callbacknotice and
+original group4text; actualassetASan/UBSan passes, rawCDC0 1352cases and149F0
+11904callbacks+84init/inputcases pass. Device lookup uses first eligible
+publishedowner, not nearest or a rememberedpanelpointer (2764originalcases).
+Rogerbank4A has9rawclips;6258keys and2saved525float/63cursorstates match exactly.
+His controller6912, predicate900 and trigger324cases pass. Bank96 encounter
+camera/player/Roger clips0/1/2 remain under runtimeintegration. Distantdoor
+predicate3725casesincl75actualplacementcases passes; transit still separate.
+
+Native host37ca9fe is now built inCOMMON, but NOT installed in live scene
+loop. ActualassetASan/UBSan fixture passes panelno-battery156ordinaryticks,
+firstbatteryactualturn/settle118, defaultNo/reselect/cancel170, and61status-
+dischargecallbacks thenpower/release285. Rawpose/palettes/ownerscripts freeze
+throughstatus; final consumedframe70; acquiredowner teardown/reloadpasses.
+CLEAR_DRAW after END_PROJECTION initiallyfaulted; fixed separateUIpoollife.
+Pickupframecommands require camera_fields synchronization before laterowner
+begin_owner; pickupcamera sub8changes actualtargetonly, desiredunchanged.
+Frozen18B9C0 top1/2 onlycommitarg1 (no nativecamera_update timer/substate).
+The currentSFXmanifest lacks panelcue3EE/3EF; audioassetbindingsremainopen.
+Complete11-ownerwalker, normalstatushub, andRoger/doorlivehostsremainopen.
+
+Rootnewuncommitted tools/export_roger_cinematic.py +reference test export
+bank96camera0/player1:691frames,1385fulloriginalC7C00samples exact,5010raw
+playerkeys exact(+63sentinels). Ignoredassets roger/encounter_camera.emcc and
+encounter_player.empc. NPC96clip2 handledseparatelybyold_portagent. Roger
+runtime/newfacehelperpasses actualassetsanitizer butnotyetcommitted; its
+sharedplayer/camera/message/audio/scriptworkers are next. Areaagent is now
+recoveringoriginaldistantdoorBC350/BC300controller+realpublication; hubagent
+workingoriginalnormalstatushub+models/artwork. UserREADME.md modification
+andtests/run_suite.sh remain untouched.
+
+The goal remains active and unfinished. Keep working autonomously with
+parallel agents. GPU is free. Never move, mount, restore or recover the
+emulator/backup: the user cancelled that work with "Ok dont move it".
+
+
+## Active first-level checkpoint (2026-09-22 UTC)
+
+Continue autonomously with parallel agents. Current checkpoint is New Game,
+correct first-level cutscenes, and player interaction. Old port is an authorized
+read-only reference; original executable/runtime evidence remains authoritative.
+See HANDOFF.md for exact lanes, paths and current limitations.
+
+Native full opening-to-gameplay GPU run now completes (frame1304, capture1400).
+Native source checkpoints through3de0882 now record the integrated work; the user's
+README and test-suite script are preserved outside this commit.
+The original script, body animation, attached equipment, camera, dialogue/audio,
+fades and completion events are integrated. The scene still has visible
+rendering differences; snowfall now uses original-instruction-verified projection. Face morph/blink now passes original
+state/VU comparisons, but initial weights and whole-game RNG ordering remain
+unverified. The actual-input opening lock/handoff test passes. The90-degree heading error
+and accelerated movement startup are corrected: first30input frames now travel
+9.599989 units versus original9.599849. The endpoint differs0.000168 horizontally.
+Run-stop clip5 is bound; re-entry probe ordering62d02b8 is verified. Collision
+audit found five omitted compact faces on the original battery-panel actor;
+those faces plus missing upper radial probes explain the first-contact gap.
+f79be72 integrates those faces and upper probes:4,800 compact-face cases pass;
+GPU re-entry contact now matches original4141 X within0.000046 and Z exactly.
+Low-clearance/ledge writer, ankle response, other cells and stop poses remain work.
+Do not call the checkpoint faithful or finished.
+
+Vertex lighting6714643 passes6,720 original face/body records,1,000 synthetic
+cases and224 captured light-matrix bytes. Face/body rigs are separate and colors
+are quantized before interpolation. Precise source rig export80d35cb matches24
+original direction bytes. Auxiliary point-light controller is integrated inf79be72:256 pool updates,
+256 folds,40 registrations and captured64 matrix/12 color bytes match; global RNG ordering and complete raster fidelity remain unverified.
+Panel662f6ec and elevator8076198 programs are verified components, still awaiting
+live frame/player/camera bindings. Lever clip47 correction970a98a checks21 captured
+world matrices (max0.0000610352), preserves56 other clips and is idempotent.
+Camera CBD0 decomp87a097b improves91.78->94.04% after correcting real falloff logic;
+C440 argument correctionc356608 stays96.65%. Both retain assembly fallback and
+passed full six-stage gates. No new compiled-C promotion is claimed for them.
+
+New original-reference checks include6144 collision branch cases,43 script
+sequencing/skip cases,28672 random state/output pairs, exact six camera coordinate
+floats, and cinematic view agreement within0.000031. Opening orchestration and
+media/actor lifetime tests pass ASan/UBSan. Details and caveats are in the native
+port docs/STARTUP.md and ignored build reports.
+
+PS2 commit781be11 corrects collision0019D330 and selector001C5930; all6 gates
+pass, boot0x175b00 identical and19/19 overlays. Commitcdbe555 also adds corrected BA1F0 sequencing C (73.65%) and readable
+quat_nlerp (99.05797%); another full gate passed, with assembly still linked.
+Commitc6ba6c6 audits link provenance and removes stale match-report units. Source
+classification after animation-init promotion:1510 ordinary C,638 inline assembly,790 NEARMISS,15 INCLUDE_ASM.
+Of3010 canonical boot slots,1224 select ordinary compiled C (314,448 bytes),537
+select inline assembly objects and1249 use original assembly. All1761 selected
+objects match their prepared filler text/relocations. Fresh objdiff2051/2148,
+98.16%; six full gates pass. Three regressions cover stale/demoted/deleted units.
+Historical99.5% readable-C and465-wrapper claims were incomplete and are superseded.
+edda070 adds readable exact00183090 (208 bytes, actual compiled-C provenance)
+and repairs D7C30 scratch allocation to16 floats; all6 fresh gates pass.
+Native interaction clock662 cases and frame core2,592 cases pass. Shared runtime
+and elevator adapter now test actual animation, both ride directions and status
+freeze together. Original same-idle acquisition is a no-op, and47/15C release
+forces idle0/blend0; the new channel API implements those branches. Live host
+binding remains in progress. Nativeceda5ac saves the raw player channel core;
+2,100 captured float words and252 key cursors agree exactly across four states.
+13eba00 combines actual panel scripts/message with those channels, battery
+discharge and shared ownership; six full paths and eight failure bindings pass
+ASan/UBSan. 3de0882 adds original ITEM/status-page cores and ordered artwork;
+full scene/UI binding and native display comparison are still in progress.
+PS2261596a also corrects both arbiter float arguments, remaining100% ordinary
+compiled C after all six full gates. PS2fd8ca8e makes initializer212bytes and749A072bytes
+actual compiled C; all6freshgates/provenancepass. Native589895c integrates actual
+flame particles, UI blend modes and SDK camera rotation with original-reference,
+ASan and GPU evidence; see HANDOFF.md for remaining sound/contact/RNG limitations.
+Commit9034edf corrects two face-render semantics (D3E40 DMA channel argument,
+D0720 unknown-state talk fallback), keeps both assembly-backed NEARMISS, and
+passes the full gate. Native scenery removes the fabricated grate slide/blocker
+and Roger-as-console placement. Original battery/panel interaction remains work.
+
+PCSX2 relocation exposed missing nested source/Git contents. Preserve the
+incomplete parent/pcsx2. A pre-move snapshot exists, but its read-only mount was
+OS-denied. User then said "Ok dont move it":
+all further relocation/recovery attempts are stopped. Companion parent/PCSX2-MCP is verified,
+built and usable, with Desktop backup retained. Installed MCP-enabled emulator
+remains working. Source recovery must precede any upstream update.
+
 # Extermination Decomp — Progress
+
+## s87 (2026-09-22, Claude) — first-level audit, verified lanes, original frame trace
+
+Goal (user): the native port's FIRST LEVEL (New Game -> AREA11 -> exit) exactly
+original; decomp C stays byte-identical. Old port code is presumed unreliable until
+checked against original evidence.
+
+Decomp commits: `7fe983a` func_00209860 NEARMISS argument/digit-width fix (95.43%);
+`f997ee9` tools/pcsx2_session.py — frame-exact original PCSX2 sessions (breakpoint at
+the main-loop top 0x001AAF28 = one frame; pad input reaches 0x810E70 two frames later;
+snapshots extract EE/GS/scratchpad + screenshot without touching existing slots);
+`7ae3b07` misdescribed headers corrected (comments only) + fog exported from the
+light-rig record. verify_all after each: boot ELF byte-identical, 19/19 overlays,
+matched_code 98.16%.
+
+Port commits (all oracle-tested before commit; 105/105 make test-* targets pass on the
+combined tree): status draw/hub UI adapters, Roger camera timeline + media (dialogue
+clock record-state fix), Dennis face via the interaction host, FIRST_LEVEL_AUDIT.md
+(adversarial audit, 22 confirmed high problems, WP-0..WP-18), then WP-1/WP-2/WP-17
+lanes: original Continue reset (001AF2C0), invented truck fall / fan spin / director
+sounds / BGM auto-start / battery_terminal removed, GS fog from the record, pose
+source re-seeded on release (00182DF0), shared RNG, original 001B5940 pad block,
+cold-boot RNG seed 1, START-only movie skip.
+
+PCSX2 trace (docs/ORIGINAL_FRAME_ORDER.md in the port): the original runs 49-52 AREA11
+owners every frame through 001AFD70 (the old "one live actor" note is false); the render
+chain calls no owner callbacks; main-loop steps M/N/O are gated on D_00821058, step I is
+not. docs/SCENE_COORDINATOR_DESIGN.md (port) is the judged WP-3 plan (S1..S13).
+
+Next: coordinator Phase 1 (S1-S7 cores, running), then Phase 2 wiring (S8-S13), then
+WP-4 host install (panel/battery/elevator = level progression), WP-5 status, WP-6..11.
+
+
+
+## 2026-09-22 UTC — four new compiled-C matches; integration gates hardened
+
+User priority confirmed: continue PS2 byte matching. Commits `d80e74d` (integrator
+safeguards) and `acbbd32` (matching batch). Existing local documentation remains
+uncommitted, per project convention.
+
+- **Four new functions verified from compiled C in the linked boot ELF:**
+  `func_00180850`, `func_001EA240`, `func_0012CAA0`, `sub_PsIIlibpad_2000`.
+- Tracker: **2052/2953 functions at objdiff 100% (69.5%)**, 2150 compiled units,
+  **788 NEARMISS**, 15 INCLUDE_ASM; readable C unchanged at 2938/2953 (99.5%).
+- Full 2151-unit rebuild completed with no compiler errors before the jump-table
+  candidate was reclassified. Final 2150-unit configuration passed all six gates:
+  boot ELF identical (0x175b00 bytes), overlays 19/19, matched_code 98.14%, glTF,
+  animation self-test, and GS-offset validation. Integrator: **14 synthetic tests pass**.
+
+The prototype/argument correction in `func_00180850` restores prologue scheduling;
+its stale GPREL_FORCE_ASM entry was removed so verification exercises its C.
+Integer-to-float staging resolves two previously false-positive candidates:
+`func_001EA240` stages 20; `func_0012CAA0` stages a four-degree turn rate with
+identical binary32 bits. `sub_PsIIlibpad_2000` required only an expected-object
+normalization fix for the fictitious D_FFFF countdown relocation. See idiom-31.
+
+`func_00135D00` improves 99.01% -> **100% in objdiff**, but stays NEARMISS: its
+36-byte local jump table needs placement at jtbl_0026D190. LOCALDATA_FORCED still
+links assembly for it. Keep the improved C; do not count it as an ELF-verified
+compiled-C promotion.
+
+**Metric correction:** a passing full ELF is insufficient if filler selection
+substitutes assembly for the candidate. The existing tracker still contains
+**212 objdiff-100% units on explicit assembly-fallback lists**, plus possible
+local-data fallbacks. Therefore 2052 is an object-matching count, not an audited
+count of functions supplied by compiled C. The four new promotions were checked
+against every applicable fallback condition before the final gate. Auditing stale
+fallback entries is a useful next task; do not mass-remove them.
+
+The integrator now requires fresh successful build outputs, restores exact source
+bytes on build/validation failure or interruption, rejects duplicate candidates,
+and accepts direct JSON lists. Its size check rejects empty/oversized sections
+while allowing GNU assembler alignment padding. The near-miss registry no longer
+claims all residuals are impossible to source-fix.
+
+
+## s86 update (2026-08-01) — current standing
+
+| | count | of 2953 |
+|---|---|---|
+| byte-matched C (compiled units at 100%) | **2048** | 69.4% |
+| compiled units (byte-match attempts) | 2146 | 72.7% |
+| `// NEARMISS` (readable, body-correct, not byte-identical) | 792 | 26.8% |
+| `// INCLUDE_ASM` stubs (no readable C) | **15** | 0.5% |
+| **readable C** (everything but the stubs) | **2938** | **99.5%** |
+
+Of the 15 remaining stubs, 5 have decoded C that FAILED TO COMPILE (re-derive), and only ONE is a real undecoded function (func_001000B0, a
+2-instruction syscall thunk). Eight are splat false positives — data on a 0x24 stride whose
+words decode as branches, with zero references anywhere — and sub_D2_TADR_08x is an alias of
+an already-decompiled function.
+
+`verify_all`: boot ELF byte-identical (0x175b00), overlays 19/19, matched_code 98.79%.
+
+**Read the metric carefully.** `matched_code 98.79%` is matched over COMPILED units and
+excludes NEARMISS by construction — it is not the share of the game that byte-matches.
+The honest byte-match figure is **2032/2953 = 68.8%**.
+
+Session's structural finding: **"lui-literal delay-slot duplication", previously recorded as
+one of three PROVEN-REAL compiler walls, was partly our own input defect.** Two scratchpad
+globals were in no symbol list, so our C used address literals where the original used
+externs; a relocation-free `lui` is exactly what mwcc speculates into delay slots. The fix
+turns on the DECLARATION FORM (`extern unsigned char *D_X;`, used directly — not an array
+symbol behind a cast, which measures *worse* than the literal). It is a per-file lever: of 47
+files converted, 12 improved, 21 regressed, 14 unchanged. See `tools/match/spad_symbolize.py`.
+
+Also fixed: `build.py file_cflags()` stopped scanning at the first non-directive comment line,
+so all 628 NEARMISS files (which open with a banner) silently lost their declared
+`-sdatathreshold 0`. A full re-measurement of the 773 NEARMISS files under correct flags is
+the open follow-up — the first 47 sampled turned up 3 that already byte-match.
 
 ## s84 update (2026-06-24/25) — readable-C matching campaign + frontier reached
 

@@ -1,8 +1,303 @@
+### Continuation through native f137482 (2026-09-22)
+
+Native checkpoints now include `5a29c4c` original status decoration and
+bounded4096-record queue; `d81656d` verified AREA11 panel sound bank;
+`3da97b0` original door transit/program and player43/45 channels;
+`c7d07b9` required AREA11 sound-scope lifecycle; `f137482` original Roger
+capture and player face allocation/reset/free proofs.
+
+Door both-side real-resource ASan/UBSan fixture reaches original room entry2
+after98 callbacks or entry1 after78. It stops at the room request; loading
+and ownership release are not claimed. Full original controller/program732
+callbacks, kickoff1349+destination112 and shared-frame11520 cases pass.
+Sound3EE is original silence;3EF pitch862 and Q14 gains2217 are verified
+through288 EE dispatch/end cases,216 pitch cases and336 original IOP/libsd
+register writes across48 voices. Corrected native bank uses10101.5625Hz;
+linear interpolation, reverb, envelope microtiming and scheduling remain
+boundaries. Host missing-bank cleanup/reload and prior panel flows pass.
+
+Fresh original Roger state15 was captured after a controlled position-only
+trigger from immutable state03. Both actors at source25.5 match1050 channel
+float words and126 key cursors exactly. Camera source25.0 eye/target bytes
+match; view-matrix error is at most0.000123. This is not movement or pixel
+fidelity evidence. Both actors have face objects and suppressed body head7.
+Full original allocator/reset/free execution proves captured first-control
+and status player face allocations start zeroed, AF890 clears208 bytes on
+free, and256 repeated attachments preserve existing weights/wait fields.
+Later whole-game RNG order remains open. Player dialogue calls D06E0
+straight from FD950; it does not consume Roger's activity-byte convention.
+
+Goal remains active and unfinished. The assembled host is still NOT wired
+into the complete live11-owner scene loop. Current parallel work: Dennis
+cinematic face host; dynamic status health/battery/ammo draw workers;
+BC350 readable-C actor forwarding and match verification. Root owns Roger
+camera/media integration and the eventual scene coordinator. PS2 container
+is reserved to area11_original; GPU is free. Never move/mount/restore the
+emulator or backups: user cancelled that. Preserve native user README.md
+and tests/run_suite.sh changes.
+
+## 2026-09-22 latest verified checkpoint
+
+### Continuation through native bc0a888 (2026-09-22)
+
+New native checkpoints: `5142f99` Roger actor/face adapter; `425dc6b`
+bank96 camera/player export and raw proofs; `2c439ee` original cinematic
+entry sub9–12; `3753a89` normal status hub/arc geometry/SDK ±4π;
+`e8a127e` initialized AREA11 door controller/resources; `bc0a888` deferred
+cinematic player-bank request, real half-rate player clock and release.
+Decomp remains `a73c2a7`, 98.16%; no additional byte-match claim.
+
+Roger camera passes1385 original samples and player5010 decoded keys.
+Cinematic entry passes6184 original state/service-order cases plus8 failed
+worker boundaries. Player bank request waits until the next player stage,
+then83090 initializes and advances SAME callback: first sample0.5,
+remaining690.5.1388 original clock callbacks+release match; actual-resource
+ASan/UBSan shared ownership/status freeze/world-palette fixture passes.
+Mode2 uses identity owner matrix (C6960), release restores default idle0 at80
+before next ordinary79. Body bank and face attachment are separate operations.
+CORRECTION: B81D0/CA700 attaches face at+90 and suppresses bone7; ready2 means
+face attached, not a replaced body skeleton. Shared runtime now acceptsready2
+only with an explicitly installed face/body worker; missingworkerfaults.
+The real Dennis face, Roger camera/media and live11-ownerloop are still open.
+
+Status hub17520 original cases; arc500cases/5562exactvertices; SDK6418trig
+results including±4π; page1460cases and normal-open→ITEM→Back→hub→exit
+sanitizerPASS. Actualstate12→fresh14hub captured with source12unchanged.
+Referenceagent owns original2D export/render; fixture exposed2376decorrecords
+versus1024capacity, narrow4096decorqueue change in progress. GPU currently
+reserved for its bounded fixture. No emulator relocation/recovery authorized.
+
+Door5662 original controller cases,123decodedkeys,50capturedfloats,
+16ownermatrix+32palettewords exact;240passive actualassetASan/UBSanPASS.
+Passive door does not advance animation. Areaagent owns BBE40/BC150 transit,
+frame/sub0, player43/45 source clips/timing/allowlists. Side chooses sound401/402
+(not open/close). Current transitworkers are still not installed in scene.
+
+Soundagent proved AREA11 cue3EE intentionally mapsFF/no sound;3EF is real.
+Raw FB9F0→119EA0→117088→115850→117918 path and residentSPURAM sample agree:
+pitch862/4096*48000=10101.5625Hz, direct Q14 gains2217/16384, ADSR80FF/5FD0,
+1312ADPCMbytes,no loop.288dispatch/end cases+216pitch casesPASS. Scoped
+nativebank/mixer under implementation; host must select(11,0), clear(-1,-1)
+when em_sfx_set_area APIready. Old manifestpitch15480wasincorrect.
+
+Goal remains active and unfinished. Host37ca9fe is built but NOT installed
+in the live scene loop. No claim of a finished faithful first-level checkpoint.
+UserREADME.md modification and tests/run_suite.sh remain untouched.
+
+
+
+Latest native checkpoints: `37ca9fe` assembled native panel/player/status
+host, `a7c175d` SDK reference-runner scalar-width/tailcall corrections,
+`a48a982` original door predicate/checked Use arbitration, `9e779aa` Roger
+controller/resources, `75d91ba` geometry/camera commit, `d88527f` battery
+pickup/device lookup, and `302124f` hip mirrors. Decomp `a73c2a7` corrects
+D930 hub/alternate branches;8064 compiled-readable-C state/sound cases pass,
+similarity67.97805->72.58049%, stillassembly-backed. Full6gatePASS in
+build/item_root/verify_d930_hub.log; PS2container is FREE. Earlier `4576740`
+anglewrapper ordinaryC100% remains selected; overall98.16%unchanged.
+
+Alignment passes1639 original B6F00/SDK cases. Projection passes1606 original
+DD980/DD950 cases, all24contextbytes. Camera commit gate passes1623cases;
+status's nonzero argument pushes4 even in top-mode3, except mode0A uses-1.
+Recovery is decremented at the real18B9C0 stage after player/owners, including
+top-mode1/2; status completion writes70 and its final consumed frame preserves
+70. Use seeing1 stays blocked until the next frame. The recovery oracle covers
+5120states,16frameorders,256Usegates,5statuspairs. Scope0 is bits43F02F4F
+(480.3695983886719), not480 or platformtan.
+
+Player face/align mirrors are fixed: raw3053cases pass including1624new order
+comparisons. Face must preserve cached hip and savedEuler; align translates
+that prior hip and savescurrentEuler. The next player tail republishes the
+new pose. CORRECTION: refusal align/face/D5 records yield betweencommands;
+there is no proven same-callback refusalD5 effect. Panel face->align does
+occur in a single ownerhook. Do not repeat the earlier timing assumption.
+
+Battery pickupstatus kind1/index1B..1D now runs real240-callbacknotice and
+original group4text; actualassetASan/UBSan passes, rawCDC0 1352cases and149F0
+11904callbacks+84init/inputcases pass. Device lookup uses first eligible
+publishedowner, not nearest or a rememberedpanelpointer (2764originalcases).
+Rogerbank4A has9rawclips;6258keys and2saved525float/63cursorstates match exactly.
+His controller6912, predicate900 and trigger324cases pass. Bank96 encounter
+camera/player/Roger clips0/1/2 remain under runtimeintegration. Distantdoor
+predicate3725casesincl75actualplacementcases passes; transit still separate.
+
+Native host37ca9fe is now built inCOMMON, but NOT installed in live scene
+loop. ActualassetASan/UBSan fixture passes panelno-battery156ordinaryticks,
+firstbatteryactualturn/settle118, defaultNo/reselect/cancel170, and61status-
+dischargecallbacks thenpower/release285. Rawpose/palettes/ownerscripts freeze
+throughstatus; final consumedframe70; acquiredowner teardown/reloadpasses.
+CLEAR_DRAW after END_PROJECTION initiallyfaulted; fixed separateUIpoollife.
+Pickupframecommands require camera_fields synchronization before laterowner
+begin_owner; pickupcamera sub8changes actualtargetonly, desiredunchanged.
+Frozen18B9C0 top1/2 onlycommitarg1 (no nativecamera_update timer/substate).
+The currentSFXmanifest lacks panelcue3EE/3EF; audioassetbindingsremainopen.
+Complete11-ownerwalker, normalstatushub, andRoger/doorlivehostsremainopen.
+
+Rootnewuncommitted tools/export_roger_cinematic.py +reference test export
+bank96camera0/player1:691frames,1385fulloriginalC7C00samples exact,5010raw
+playerkeys exact(+63sentinels). Ignoredassets roger/encounter_camera.emcc and
+encounter_player.empc. NPC96clip2 handledseparatelybyold_portagent. Roger
+runtime/newfacehelperpasses actualassetsanitizer butnotyetcommitted; its
+sharedplayer/camera/message/audio/scriptworkers are next. Areaagent is now
+recoveringoriginaldistantdoorBC350/BC300controller+realpublication; hubagent
+workingoriginalnormalstatushub+models/artwork. UserREADME.md modification
+andtests/run_suite.sh remain untouched.
+
+The goal remains active and unfinished. Keep working autonomously with
+parallel agents. GPU is free. Never move, mount, restore or recover the
+emulator/backup: the user cancelled that work with "Ok dont move it".
+
+
+## 2026-09-22 continuation — source channels and shared interactions
+
+PS2fd8ca8e promotes the212-byte clip initializer and corrects749A0's real
+float arguments (72 bytes), both ordinary compiled C after the full gate.
+261596a also explicitly forwards the arbiter's two float arguments while
+preserving its84-byte exact body. Current classification is1510 ordinary C,
+638 inline-assembly wrappers,790 NEARMISS and15stubs;1224 ordinary-C boot
+slots occupy314448 padded bytes. All1761 copied objects pass prepared-text/
+relocation provenance; canonical objdiff2051/2148,98.16%. Older metrics below
+are historical. Evidence: build/interaction_init/arbiter_verify_all.log.
+
+Nativeceda5ac preserves raw quaternion/translation/scale channels:2100 captured
+float words and252 key cursors match across four original states;4700 raw keys
+match original decoding. Same-idle acquisition preserves its cursor. A changed
+clip starts blend8 with immediate readiness. Release from47/15C first forces
+idle0/blend0; the subsequent default blend16 request is a same-clip no-op.
+The older blanket acquisition8/release16 description below was incomplete.
+Hierarchy matrices retain the measured host tolerance of0.0000610352.
+
+Native13eba00 attaches the original panel owner/program to shared ownership;
+actual message/script assets plus raw player poses and battery-discharge core
+pass six complete sequence tests and eight failure cases under ASan/UBSan.
+Original menu/status and scene side effects remain explicit host boundaries.
+Native3de0882 adds original ITEM/status-page state machines and ordered artwork;
+107 root draw submissions match, but live menu binding and cursor raster checks
+remain work. The first-level checkpoint is not complete.
+
+## 2026-09-22 continuation — exact animation worker and first-contact correction
+
+Decompedda070 replaces00183090's assembly wrapper with208 bytes of readable,
+byte-exact compiled C. The redundant unsigned-byte mask must remain inside its
+nonzero branch for the original compiler schedule. Seventeen bounded spellings
+were checked; a fresh full six-stage gate and linker provenance confirm ordinary
+compiled C. Source classification1509 ordinary C/639 inline assembly/790 NEARMISS/
+15 stubs;1222 boot slots now use ordinary compiled C,314144 bytes. D7C30 scratch[4]
+was a real overflow; scratch[16] fixes it, ASan passes, and it remains assembly-backed.
+
+Nativef79be72 integrates the omitted panel collision cell18 plus upper radial probes.
+4800 original face cases and721 exact hits pass. Full opening/re-entry GPU run now
+matches original4141 X within0.000046 and Z exactly, block mask02. It also integrates
+the actual auxiliary point-light controller: captured64 matrix and12 body color bytes
+match, plus256 pool updates,256 folds and40 registration cases. Global RNG order remains
+unverified. No complete first-level or pixel fidelity claim.
+
+Interaction frame/animation/camera components are verified and ongoing shared runtime
+adapters preserve player-before-owner order, real animation end flags and status freeze.
+Elevator actual-asset integration ends lever201 callbacks after commit, carries150 ticks,
+then completes owner and releases player one callback later. Source pose channels are
+being recovered for actual acquisition8/release16 transitions; live scene binding is open.
+
+## Startup continuation corrections (2026-09-22 UTC)
+
+See `docs/STARTUP.md` for the cold-boot/movie/title control-flow evidence.
+The previous "no FMV/new game directly enters area11" conclusion is false:
+001AC3B0 and001AD360 set D_00821058, serviced by blocking movie driver00203350
+in the main loop. Selector0 resolves to MOVIE/E900.PSS. Main tasks/fades pause
+during playback; the second transition tick runs only after the movie returns.
+
+`tools/export_startup.py` now recovers full-color startup art directly from
+chunk40 (violence warning), chunk41 (Sony presentation and Deep Space logo),
+and chunk01 (title + three cursor states). The old capture-only palette claim
+is false for these modules: all referenced TEX0.CBP ranges lie inside the
+module's single PSMCT32 upload. A correct CSM1 read applies the index3/4-bit
+swap AND the PSMCT32 word mapping of the16x16 palette. Merely swapping entries
+in a linear1024-byte buffer scrambles colors. PSMT4 uses an8x2 CLUT region.
+The full-screen compositor flips each tile vertically and draws256x256tiles;
+512x448 output clips the bottom64lines of the full512x512tile arrangement.
+The menu draws separately at x127, y260/294/324, with256x128sprites.
+
+`func_001ABF90` is now readable C, a100% object match using mwcc233 and actual
+compiled-object linker input. Full verify_all passed: boot0x175b00 identical,
+19overlays, objdiff2052/2150, glTF,selftest,GS-offset. No aggregate object-count
+increase, because its old asm wrapper already matched. The old99.5%readable
+metric does not count hidden asm wrappers accurately.
+
+Native initial end-to-end startup passed with full movie completion at
+158.825seconds, then an interactive title menu. This is runtime bring-up,
+not yet an original/native screenshot-equality claim. Local generated files
+and captures remain ignored. Movie exporter preserves all4761video frame
+hashes and all30,983,168PCM bytes; the runtime uses native AVFoundation.
+
+## First-level runtime corrections (2026-09-22 continuation)
+
+The final opening camera record already held the exact original values. A stale
+native manifest latch replaced them on idle callbacks; clearing it reduces the
+first30input endpoint gap from0.0085 to0.000168. Readable motor/stop/re-entry
+helpers are tested against original instructions; subsequent railing collision
+still differs and is being audited separately from speed/animation timing.
+
+Original snow projection uses a1280x560 guard band, GS center2048, independent
+FTOI4 sprite corners and reversed ST corner order.5,375 original instruction
+cases and192 reconstructed matrix bytes match. Native integration keeps these
+corners and quantized GS depth but still uses native geometry depth/rasterization.
+See native docs/SNOW_PARTICLES.md and decomp docs/CLUT_LAYOUT.md.
+
+AREA11 elevator owner+2A=300 is a sentinel suppressing its delayed sound19A,
+not a300-frame refusal cooldown. The150-tick movement callback completes before
+the final camera/exit command and owner toggle. Native owner2520cases plus
+movement240cases pass original instructions; live adapter binding remains work.
+Original BATTERY page defaults No, uses horizontal selection and half-unit
+charge. Its936case oracle and29 captured sprite comparisons pass; clip15C keeps
+the player ground origin fixed while animating the hip. See native AREA11_PANEL.
+
+Original lever clip47 likewise has zero channel0 root translation. Its new
+stateful export agrees with21 source-frame39 world matrices within0.0000610352;
+the previous native bake differed0.00436401. Actor+3C=161 is remaining clip time.
+Original fixture arms only the real elevator owner from a post-panel saved state.
+
+The first re-entry collision discrepancy is a real missing cell: battery-panel
+actor7AA590 owns cell18 with five type2000 compact faces at X238..242,
+Y242.2..248.1,Z230.8..232.8. Original A4D10 confirms upper lane1 contacts its
+front Z230.800018 plane. The EMCL exporter omitted compact faces and native
+radial probes omitted the upper18-unit lane samples. Support is in progress.
+
+Original face/body kernels light authored normals per vertex, truncate color
+to packed GS bytes, then interpolate color affinely. Normalizing the authored
+normal or lighting per fragment changes results. Native6714643 matches6,720
+original record evaluations plus1,000 synthetic cases and224 captured matrix
+bytes; source rig80d35cb matches24 original direction bytes. This does not prove
+GS raster/texture/fog fidelity. The warm AREA11 point light comes from the second
+auxiliary selector1F6D60 and table25D5A0, not the steam actor; native integration
+is replacing the guessed light with separately verified original controller C.
+
 # Extermination — Reverse-Engineering Findings
 
 Technical reference for formats and facts established so far. The authoritative,
 exhaustive format details live in the docstrings of the `tools/` scripts; this
 file summarises them and records findings that have no other home.
+
+## Matching findings (2026-09-22)
+
+Nonzero integer-to-float staging resolves the materialization order in
+`func_001EA240`, `func_0012CAA0`, and part of `func_00135D00`; see matching-guide
+idiom-31. `func_00180850` also needed to pass its actor address to
+`func_00180420(int)`, and `func_00135D00` needed the copy helper's actual
+`(void *, void *)` signature without the unnecessary float-pointer cast.
+
+`sub_PsIIlibpad_2000` was byte-correct C with a bad expected relocation:
+splat paired a countdown's `lui 1` and decrement as `%hi/%lo(D_FFFF)`.
+Normalizing that exact pseudo-symbol back to immediates removes the mismatch.
+A corpus scan found this symbol only in this function. The existing five- and
+six-F fixups were insufficient; do not broaden this to real address symbols.
+
+`func_0016AE40` and `func_00169730` remain parked. Their pad-mask register
+residuals accompany omitted actor arguments to `func_00175390` and
+`func_001751A0`, respectively. The target reuses a0 across a preceding leaf
+call, while explicitly passing the argument in recovered C adds a reload.
+Original same-TU register-preservation knowledge is a hypothesis, not a proven
+fix; same-TU definition experiments did not remove the reload. Do not treat
+those no-argument calls as portable ground truth or rerun unguided permutations.
 
 ## glTF (.glb) export of the player rig (2026-05-27)
 
@@ -4230,9 +4525,11 @@ K  func_001D7410                     gated *(gp-0x7768): GS-VRAM READBACK path �
                                      the ONLY caller of func_00100EB8 (@0x001D74C4);
                                      disabled in all live samples
 L  func_001AB590                     DMA CHCR watchdog (D0/D1/D2 MOD bits)
-M  if byte 0x00821058==1: func_00203350   audio
-N  func_001D1C10(frame_idx)          frame-end render bookkeeping
-O  func_001AEE70                     (second fade update)
+M  if byte 0x00821058==1: {           GATED BLOCK (M, N and O together)
+     func_00203350                     audio
+N    func_001D1C10(frame_idx)          frame-end render bookkeeping
+O    func_001AEE70                     (second fade update)
+   }
 P  WAIT @0x001AAFF0: poll 0x00810E98 until nonzero   (vsync)
 Q  sw 0 -> 0x10000000                T0_COUNT reset
 R  func_001AB4E0(spad 3B94/3B96)     display-offset apply
@@ -4243,6 +4540,13 @@ U  func_00100550(0x00810EA0+idx*0x28) per-frame GS env (double-buffered)
 V  func_001D2300                     render frame-flip bookkeeping
 W  frame_idx ^= 1 (sh 0x00810E80); func_001D2580; (0x70003B64)++ -> A
 ```
+
+**CORRECTION (2026-09, first-level audit label fix):** steps N and O were
+listed as unconditional. They are inside the same conditional block as M:
+the loop loads byte D_00821058 and the branch at 0x001AAFCC, taken when it
+is not 1, goes straight to the vsync wait P (0x001AAFF0), so func_00203350,
+func_001D1C10(frame_idx) and the second func_001AEE70 all run only when
+D_00821058 == 1. No label lies inside the block.
 
 ### Vsync ISR — RESOLVED
 
@@ -4269,19 +4573,38 @@ func_001ACEC0  game task machine (byte+8)
  └ func_001AD250  sub-machine (jr-table 0x0026DCB0, 6 states)
    └ func_001AD4D0 = j func_001AE040 (trampoline — explains its "0 callers")
      └ func_001AE040  in-game frame machine (byte+0xB, jr-table 0x0026DD30)
-       state 1: func_001AFCF0 (per-frame flag reset), func_0018AB00
-       (difficulty map), func_001B07C0(1) (player placement vs area spawn
-       tables 0x0024D650, area ids @0x810700), func_001C1DC0 (camera),
-       func_0018D7B0/func_0018C0D0(0x008101E0,1) (HUD/weapon context),
-       func_001AEE10(4,0), func_001FAE70(0), func_001C5C50,
-       v=func_001AE7E0 (end-of-level/game-over poll),
-       then selector spad 0x70003B8D: -> func_001AE5E0 (gameplay frame)
-       or func_001AE6B0 (cutscene variant; polls buttons 0x0900 @0x810E74)
+       state 4 (room re-entry; falls through into state 1):
+       func_001AFCF0 (scratchpad 0x3B84..0x3B93 + request block
+       D_008106B0[0x48] reset), func_0018AB00 (difficulty map),
+       func_001B07C0(1) (player placement vs area spawn tables
+       0x0024D650, area ids @0x810700), func_001C1DC0,
+       func_0018D7B0/func_0018C0D0(0x008101E0,1) (camera block),
+       func_001AEE10(4,0), func_001FAE70(0), func_001C5C50
+       state 1 (every frame): r = func_001AE7E0 (THE FRAME CLASSIFIER):
+       1 -> state 2 (func_0022A650 screen), 2 -> state 3 (status
+       screen), 3 -> state 6 (end screen); r == 0 and D_00275BD8 == 0 ->
+       selector spad 0x70003B8D: 0 -> func_001AE5E0 (gameplay frame),
+       else func_001AE6B0 (cutscene variant; polls buttons 0x0900
+       @0x810E74)
 ```
+**CORRECTION (s87, cleanup-decomp lane):** the chain above used to list
+func_001AFCF0 ... func_001C5C50 as state-1 (per-frame) work and called
+func_001AE7E0 an "end-of-level/game-over poll". The frame machine
+(anim_frame_top_b.c, 0x1AE040; `jal func_001AFCF0` only at 0x1AE08C in
+state 0 and 0x1AE0E4 in state 4) calls **func_001AFCF0 only from states 0
+and 4 — it is NOT per-frame**; state 1 calls only func_001AE7E0
+(0x1AE154) and the world-frame variant. func_001AE7E0 (byte-matched) is
+the frame classifier; its order is B8->0, B9->0, CE->3, C5|B0->2,
+fade D_0028A9A0 != 0 ->0, 3B8D != 0 ->0, (E74 & 0x100) | (E50 != 4) ->1,
+B3 ->0, (E74 & 0x800) | (E74 & 0x10) ->2, else 0 (E74 in the byte-swapped
+pad layout: 0x800 = START, 0x10 = TRIANGLE, 0x100 = SELECT).
 **func_001AE5E0 — THE GAMEPLAY FRAME** (counters 0x00810750/0x70003B68++):
 ```
 func_001CB590(0x008102B0, 0x320, byte 0x008102B9)  actor-context begin
-                                  (sets the D_00275B40 node-table base)
+                                  (stores a0 to D_00275B44/B48 and sets the
+                                  D_00275B40 node-table base = a0 + 0x110;
+                                  the other args are unused, nothing is
+                                  cleared)
 func_0015BCF0(*(gp-0x782C)=0x008102B0)   PLAYER ACTOR UPDATE
 func_001CB5A0                            actor-context end
 func_001D1C50                            RENDER CHAIN BUILD (-> func_001D2830/
@@ -4289,12 +4612,24 @@ func_001D1C50                            RENDER CHAIN BUILD (-> func_001D2830/
                                          func_00101BB8/func_00101FE0)
 func_001C1D00(0x008101D0)                camera apply
 func_001AFD70(0); func_0015C160; func_001F0360     world services
-func_001CB590(0x008101E0, 0xD0, 0)       HUD/second context begin
-func_0018B9C0(0x008102B0)                view-target update (0x008105F0)
+func_001CB590(0x008101E0, 0xD0, 0)       camera-block context begin
+func_0018B9C0(*D_00275B44 = 0x008101E0)  camera state machine top (see the
+                                         correction below: NOT 0x008102B0)
 func_001CB5A0; func_001AAD00; func_001D1EA0(1)     close-out
 ```
-Idle-room census: ONE live actor, the player struct @0x008102B0 (size
-0x320). func_0015BCF0: per-actor spine — pos qword copies (func_00102948),
+The cutscene variant func_001AE6B0 orders it differently: func_001D1C50,
+func_001C1D00, **func_001AFD70(1)** (non-class-1 owners), func_001F0360,
+player func_0015BCF0, **func_001AFD70(2)** (class-1 owners), func_0015C160,
+camera block, func_001AAD00, func_001D1EA0(1) (PCSX2 trace, port
+docs/ORIGINAL_FRAME_ORDER.md section 3).
+
+~~Idle-room census: ONE live actor, the player struct @0x008102B0 (size
+0x320).~~ **CORRECTION (s87):** false for AREA11. The s87 PCSX2 frame
+trace (build/s87/frame_trace, addresses only) shows func_001AFD70 walking
+49-52 owner nodes every frame in states 02/03/04/07/15 (idle04 49,
+walk04 50, st03 49-51, cut02 52), all ticked once per frame. The player
+struct @0x008102B0 (size 0x320) is updated separately by func_0015BCF0.
+func_0015BCF0: per-actor spine — pos qword copies (func_00102948),
 state/AI via func_0015BA50, anim-evaluator SELECTION among func_001C6DA0 /
 func_001C68C0 / func_001C6960 via per-anim-id table @0x00248C90, physics
 (func_0015CF90/func_0015CBA0/func_00187350), death check (Y < -200.0f ->
@@ -4878,7 +5213,12 @@ boot/IOP; 0x18B9C0+ is the camera system).
   `func_0018D7B0`/`func_0018C0D0` are camera functions, not "HUD/weapon
   context". `func_00195130` (SUBSYSTEMS "area init outlier") is the
   **mode-0 area-camera director**. `func_0022EEF0` (labeled sdk_gs) is the
-  **scope/sniper camera** (variable zoom = 224.0/x via func_001D25F0).
+  **cutscene timeline camera** (CORRECTED 2026-09, first-level audit: it was
+  mislabeled "scope/sniper"; src/func_0022EEF0.c ticks the playback record's
+  time cursor +0x74 by 0.5, fires per-scene cues via func_001B1E20, samples
+  the camera spline D_008234C0 and sets zoom = 224.0/tan((fov/1.45) deg) from the
+  sampled fov clamped to [0.5, 45] via func_001D25F0; it drives the Roger
+  scene-1 camera).
 
 ### 1. The camera struct: 0x008101E0, size 0xD0
 
@@ -4888,7 +5228,7 @@ Live-verified fields (states 01/03):
 |---|---|---|
 | +0x00 | u8 | state: 0 = init (one-shot setup in func_0018B9C0), 1 = run |
 | +0x01 | u8 | sub-state (0→1 ramp on first run frame; zeroes timer +0x08) |
-| +0x04 | u8 | top mode: 0 = normal play, 1/2 = frozen (commit only), 3 = scope/sniper (func_0022EEF0) |
+| +0x04 | u8 | top mode: 0 = normal play, 1/2 = frozen (commit only), 3 = cutscene timeline camera (func_0022EEF0; formerly mislabeled scope/sniper) |
 | +0x05 | u8 | dispatch table select: 0 = "cut" jtbl_0026D950, 1 = "smooth" jtbl_0026D910 |
 | +0x06 | u8 | **camera MODE 0..15** (≥16 → func_00195130 too); live = 0 |
 | +0x07 | u8 | follow-solver result/hit byte (set by func_0018D7B0) |
@@ -4933,7 +5273,7 @@ func_0018B9C0(cam = *D_00275B44 = 0x008101E0)
     func_00191390(cam, player)       leaf pre-step
     func_0018BC20(cam, player)       MODE DISPATCH (table below)
     func_0018C0D0(cam, 1)            commit -> matrices
-  top-mode 3: func_0022EEF0 (scope cam) ; top-modes 1/2: commit only
+  top-mode 3: func_0022EEF0 (cutscene timeline cam) ; top-modes 1/2: commit only
 ```
 
 `func_0018BC20` dispatches byte+6 over **jtbl_0026D950** (cut, byte+5==0) /
@@ -5001,7 +5341,7 @@ which builds in the per-frame render ctx (`*D_00275670`, live 0x811CC0):
 - `ctx+0x2340` **projection P** from zoom s = ctx+0x2468, stored rows:
   (0.8s, 0, 0, 0), (0, 0.5s, 0, 0), (2048, 2048, 0.8996, 1),
   (0, 0, 1677721.5, 0). Default s = 480 (set via func_001D25F0; every
-  static caller passes 0x43F00000; the scope camera and func_001D2590
+  static caller passes 0x43F00000; the cutscene camera func_0022EEF0 and func_001D2590
   animate it): screen x = 384·x/z + 2048, y = 240·y/z + 2048 (GS center
   2048), w_clip = z_view, z = 0.8996·z + 1677721.5 (24-bit GS Z).
 - `ctx+0x2380` = view copy; `ctx+0x23C0` = **K = P·V** — verified == P·V to
@@ -5043,7 +5383,8 @@ At 60 Hz, in this order inside the gameplay frame:
 4. smooth actual ← desired per axis: step = |Δ|≤1 ? Δ/4 :
    sign(Δ)·min(|Δ|/6 horiz | |Δ|/8 vert, cap 4.0); then commit (step 1
    inputs for next frame).
-5. fog from the per-area table; zoom fixed 480 except scope (224/x) and
+5. fog from the per-area table; zoom fixed 480 except the cutscene camera
+   func_0022EEF0 (224/x) and
    scripted zoom lerps (func_001D2590).
 
 Confidence: struct map, smoothing math, commit/look-at path, P/K
@@ -5651,9 +5992,15 @@ class-2 records uid is NOT copied to +0x0E; instead +0x9D=D_00810701 and
 +0x9E=uid lo byte. If the pool empties the scan aborts.
 
 **Tick `func_001AFD70(mode)`** — called from the gameplay frame
-(`func_001AE5E0`, the "world services" slot after the player update):
-walks the active list; mode 1 = only class 1, mode 2 = all except
-class 1, mode 0 = all. Per actor: `func_001CB590(actor, 0x2F0,
+(`func_001AE5E0`, the "world services" slot after the player update)
+with mode 0, and twice from the cutscene frame `func_001AE6B0` (mode 1
+at 0x1AE758, mode 2 at 0x1AE790): walks the active list; **mode 0 =
+all, mode 1 = all EXCEPT class 1, mode 2 = ONLY class 1** (class =
+`+0x02 & 0x1F`; in the s87 AREA11 trace the class-1 nodes are the 7
+runtime player children whose behavior `+0x10` is func_0018A6B0). *s87 correction: this line had
+modes 1 and 2 swapped; the .s tests `bne mode,1` then `bne class,1 ->
+tick` (mode 1 skips class 1) and `beq class,1 -> tick` for mode 2.*
+Per actor: `func_001CB590(actor, 0x2F0,
 bonecount@+0x09)` — this just publishes `D_00275B48=D_00275B44=actor`
 ("current actor" globals) and sizes the shared bone work array — then
 clears byte +0x01 (per-frame visible flag) and calls the BEHAVIOR
@@ -5932,7 +6279,8 @@ D_008106B5..B8 consumed by the area loader), walking the player to
 
 - The INVENTORY WRITE on item pickup: not in the pickup behavior, not in
   the door/use scan; candidates are the interaction-UI machine
-  (`func_002149F0` cluster — its `func_00185420`/`func_00184D20` scans
+  (`func_002149F0` cluster [= the status ITEM > BATTERY page, see "STATUS
+  SUB-PAGES"] — its `func_00185420`/`func_00184D20` scans
   cover examine actions 0x1B-0x27 against class-4 models 0x14-0x2C, not
   kind-0xB items) or area-overlay handlers via the published class-4
   list. Needs one live breakpoint session on an office ammo-box take.
@@ -6427,7 +6775,7 @@ sub-weapon ×2 → clip id). Each top switches on MAJOR state `+0x06`:
 0     ENTER: reload-if-empty func_0017B300(·,0); on fresh draw
       (+0x317==0) anim 0x110 (draw) via clip arbiter func_001749A0,
       sound 0x162 @vol150 (func_0016F530, which also sets +0x1F1=1 and
-      D_008106C7 voice-line latch); aim blends +0x278/+0x27C = 0.5
+      D_008106C7 = 1 [s87: the gun-light draw enable, not a voice latch]); aim blends +0x278/+0x27C = 0.5
 1     WAIT until action mask +0x200 bit 0x1000 confirms hold; then
       aim-pose anim from the stance table
 2     AIM/FIRE loop: D_008106E0=0; func_0017ABA0 (pose);
@@ -7359,6 +7707,30 @@ state-1 records [5]/[6]) carry link 0x0200/0x0280 → selector 2 →
 this from the user's local ELF + overlay and feeds the port (scene.txt
 `doorsfx` line + sfx.txt registry).
 
+**AREA-11 (snow) sound bank — added 2026-06-17.** The port loads ONE
+shared `assets/sfx/sfx.txt` (`em_sfx_init`, fixed path, not scene-scoped),
+so AREA-11 sounds were silent: the registry held only the OFFICE bank
+(area 2.1 / chunk04.n0). `gen_sfx_registry.py` gained a **`snow` scene
+preset** (area 11.0 → region **chunk15**, AREA11.BIN save-state-01
+placement table 0x82A3C0) and a **`--merge`** mode that appends a scene's
+ids to an existing registry while keeping every pre-existing id (the
+office bank stays byte-identical; ids are a flat id→wav map so two area
+banks coexist). Folded in (43 office → 49 total, all resolved, all WAVs
+present, headless snow run loads `49 sound(s)` with no skips):
+- elevator **0x453 descent** / **0x452 ascent** — chunk15 snd_0937 @
+  11850 / snd_0942 @ 12286 Hz (em_game.c `ELEV_SFX_DOWN`);
+- drum/egg burst **0x1A0** (GLOBAL "fixture death", snd_0469) / **0x1A1**
+  (GLOBAL, snd_0464; em_enemy.c `EGG_SFX_BREAK`) — global, area-independent;
+- door **0x401 front / 0x402 back** — AREA11's lone door (placement uid
+  0x00, link 0x0400) → selector 4 → D_0024DB80[4] = [0x401,0x402], chunk15
+  snd_0520 @ 20293 / snd_0519 @ 21500 Hz; matches the snow scene.txt's
+  `doorsfx 0x401 0x402` line.
+**Intentionally OMITTED (faithful silence, NOT a port bug):** the
+crawler/tendril combat tones 0x42D/0x42F/0x430/0x431/0x434 and the
+locked-door rattle 0x3F2 have **no chunk15 variant** in the soundmap — the
+engine never loads them in the AREA-11 opening (no combat enemies / no
+lock-gated door there), so they remain silent no-ops in the snow scene.
+
 **Related scripts in the same region** (not door-specific, recorded for
 later): D_0024D900/D_0024D940... (op 7 / op 0D / op 17 / op 09 →
 func_001BB400 / op 01 walk-to 35.0 / op 09 → func_001BB310 / op 02 wait
@@ -7481,7 +7853,7 @@ runs the whole time the player aims, not only during fire frames.
 - Holding R1 draws the rifle into the shouldered aim pose and the camera
   cuts to a close over-shoulder AIM camera: camera struct +0x06 mode
   byte goes 0 → **1** (handler `func_00197D20`, smooth table), top mode
-  +0x04 stays 0 (NOT the scope cam 3); +0x8C target-height offset read
+  +0x04 stays 0 (NOT the cutscene timeline cam 3, func_0022EEF0); +0x8C target-height offset read
   **2.0** live in this area (the documented default is 6.0).
 - The laser: a **thin red beam from the rifle muzzle to the world hit
   point**, visibly dashed/shimmering along its length, terminated by a
@@ -9438,7 +9810,8 @@ switching on the attachment id `D_00810CA6`:
 
 ```
 att 0: press toggles D_00810D3C: 0->1 plays sound 0x179 vol 300 +
-       sets the voice latch D_008106C7; 1->0 silent.  <- the s29 capture
+       sets D_008106C7 (s87: the gun-light draw enable read by
+       func_00188ED0 -> the cone draw, not a voice latch); 1->0 silent.  <- the s29 capture
 att 1: press -> func_0017A8B0(p,3)     att 2: press -> func_0017A8B0(p,1)
 att 3: hold  -> func_0017A8B0(p,2)     att 4: hold  -> func_0017A8B0(p,1)
 aim option D_00810CA4==2: press -> func_0017A8B0(p,5)
@@ -11029,7 +11402,33 @@ method: exhaustive reader sweep of both flags across the full boot-ELF
 .s tree + the 19 overlay trees, then a decode of the render-side light
 pipeline those sweeps led into.
 
-### 1. VERDICT — no render-side consumer exists
+> **s87 CORRECTION — the gun light DOES have a render-side consumer.**
+> The sweep below looked for readers of D_00810D3C and player +0xA only
+> and missed the mirror flag **D_008106C7** (the gun-light draw enable).
+> `func_0017A970` att 0 sets D_008106C7 = 1 with D_00810D3C on the
+> rising edge and clears both on the falling edge (0016F530 re-sets it on
+> the rifle-draw replay; 0016F5D0 / 0018A6B0 clear it; 001AFCF0 zeroes it
+> with the D_008106B0 request block; func_00188ED0 itself clears it at
+> 0x00189070 whenever it is set but the player state pair D_008102B4/B5
+> is outside the accepted aim set {(1, 0x1D/0x1E..0x20), (2, 0x17/0x18)},
+> so the light turns off when the player leaves the aim states).
+> Draw path: the gun-actor behavior
+> func_0018A6B0, model-byte-2 update func_00188DF0 (its +0xD state 0) ->
+> **func_00188ED0**, which only while D_008106C7 != 0 (and the player
+> state pair D_008102B4/B5 is in its accepted set) calls
+> **func_00187780(arg0, arg1, mode)**; that builds the light matrix and
+> calls func_00187690 (a draw request via func_001CFBE0; a second pass
+> when mode == 1) and, unless area flag `func_001B0070() & 0x20000000` is set,
+> **func_001D9530(light matrix)**, which draws the chunk27 light-cone
+> shells 0x10/0x11/0x16 (s53 §4) via func_001D91A0. The cone length is
+> ray-tested (func_0019A570 mask 6, 250 u max) but func_001D9530 does not
+> read it. Other D_008106C7 readers: the render chain func_001D1C50
+> (area flag 0x80 path), enemy perception func_00138900 / func_00185A10.
+> So the verdict below and the "not a drawn beam/cone" line are wrong;
+> the port's visible cone is an approximation of an engine draw, not a
+> pure deviation. (Readable C: src/func_00187780.c, NEARMISS 90.79%.)
+
+### 1. VERDICT — no render-side consumer exists (SUPERSEDED, see s87 note above)
 
 - **`D_00810D3C` (gun-light arm, SQUARE-in-aim)**: its only readers in
   the entire image are the toggle itself (`func_0017A970` att 0), the
@@ -11361,7 +11760,7 @@ mode 1 under stance 0x1E.
   0x78 makes the actual TARGET re-blend toward the desired one at
   <= 1.0 u/frame for 120 frames (func_001916C0's tail) while the
   player walks through. Sub 5's siblings: the same shape at dist
-  -14 / cam+0x0C; sub 0 = scope-style zoom reset + view-dir reset.
+  -14 / cam+0x0C; sub 0 = cutscene-end zoom reset (as func_0022EEF0's end) + view-dir reset.
 - **LOCKED try** (record 2 of D_0024DEC0 = op 0x09 ->
   `func_001BBBF0(door)`): TARGET = door pos + (-8*cos(door yaw), +10,
   +8*sin(door yaw)) — **8 u to the door's LEFT = the HANDLE side, 10
@@ -11449,8 +11848,13 @@ no-op stub of the hook).
 ### 2. The transit "input lock" is TWO separate systems
 
 **MENU**: gameplay state 1 polls func_001AE7E0 every frame; return 2
-(via the C5/B0 request bytes OR internal-layout buttons 0x800 Triangle /
-0x10 Start in D_00810E74, with D_008106B3 inhibit) opens the status
+(via the C5/B0 request bytes OR internal-layout buttons 0x800 START /
+0x10 TRIANGLE in D_00810E74, with D_008106B3 inhibit; *s87 correction:
+this line had Start/Triangle swapped — in the byte-swapped pad layout
+value = (byte+2 << 8) | byte+3 with the active-low bits inverted, START (byte+2 bit 3) = 0x800 and TRIANGLE
+(byte+3 bit 4) = 0x10, as the "Pad-state map" table states; the button
+test itself is `(E74 & 0x800) | (E74 & 0x10)` in byte-matched
+func_001AE7E0*) opens the status
 screen (func_001AE040 state 3, D_008106C4=1). It returns 0 — press
 DROPPED — while: B8/B9 request pending, **fade machine D_0028A9A0 != 0**
 (fade-out 3 / hold 2 / fade-in 1), or **scripted spad 0x70003B8D != 0**.
@@ -11569,8 +11973,11 @@ row table D_00248AB0[1] families: 0 unarmed {0,1,2,3}, 1 {A,B,C,D},
 {0,A,4B,55,14}; mode-6 (stop) family-0 row {0,0,4,5} — ids 4/5 = the
 jog/run STOP-SKID anims (func_0017C030 phase 3 requests mode 6 at
 locIdx 3; untranslated in the port, flagged). Family byte +0x235 is a
-bitfield (bit0 armed — func_001B07C0 copies D_00810706; bit1 aim/
-special — func_001756E0), so default unarmed = row 0.
+bitfield (bit0 = low-health latch, health <= 35 — set by func_0015D100,
+cleared by func_0015C700 when health > 35, saved to D_00810706 by
+func_0015CF90 and restored &1 by func_001B07C0; *s87 correction: this
+line used to call bit0 "armed" — the armed-stance flag is +0x236*; bit1
+aim/special — func_001756E0), so default unarmed = row 0.
 
 Stick release: target 0 -> tiers <=2 stop INSTANTLY (phase 3, +0x38=0);
 tier 3 first runs DOWN (phase 2, 0x17BECC): 0.03125 u/tick/frame decay
@@ -11888,6 +12295,12 @@ frame = the shouldered 0x11B reload (support hand at the pouch).
 - The engine's cone-mesh DRAW SITE (which behavior binds 0x10/0x11/
   0x16 — searchlights? the shoulder light in cutscenes?) — the port
   uses it for the flashlight deviation regardless.
+  **CLOSED (s87):** the draw site is **func_001D9530** (byte-matched),
+  reached from func_00188ED0 -> func_00187780 while the gun-light enable
+  D_008106C7 is set; it draws 0x10, 0x11 and 0x16 with the colour
+  quadwords D_002531A0 / D_00253190 / D_002531B0 through func_001D91A0,
+  using func_00187780's light matrix. See the s87 note in "FLASHLIGHT
+  RENDER DECODE".
 - The +0x2A0 hand-matrix copy consumers beyond the laser (the WAIT
   head copy gated on +0x2F2).
 
@@ -12634,7 +13047,7 @@ the square-pixel 4/3: the 0.8/0.5 row anisotropy bakes the
 512x448→4:3 pixel aspect and leaves a real ~7% horizontal angular
 compression (a sphere renders ~93% as wide as tall on the original
 display) — a property of the original image, to be reproduced, not
-corrected. The scope camera's documented "s = 224.0/x" is this same
+corrected. The cutscene camera's (func_0022EEF0) "s = 224.0/x" is this same
 model: x is tan(vfov/2), 224 the field half-height. (The s23b-era
 phrasing "z = 0.8996·z + 1677721.5" was the pre-divide CLIP row; and
 the old "tan(half-hfov) = half_w_gs/(0.8s)" sketch left half_w/half_h
@@ -12659,7 +13072,7 @@ ambiguity).
   to the GS's reversed encoding; clip planes exact). The old 50°-at-
   window-aspect + invented 0.5/500–800 planes are retired.
 - Zoom s is wired through the camera (`EmCamera.zoom`, the native
-  ctx+0x2468): default 480 at init; scope (224/tan) and scripted lerps
+  ctx+0x2468): default 480 at init; cutscene camera (224/tan) and scripted lerps
   have their field ready.
 - The gfx backend letterboxes/pillarboxes every frame to the centered
   4:3 rect (viewport + scissor + in-frame clear; bars black) — the
@@ -13986,8 +14399,8 @@ func_001ACEC0 state0  func_001AD1A0: load screen module 3 (func_001FF080(0,3) �
                   state0  func_001AFCA0→func_001D0660→func_001E7780 overlay dispatch
                           (area 11 → arm 0x0B00 → loads OVERLAY/AREA11.BIN);
                           func_001B07C0 places player from D_0024D650[11] entry 0
-                  state1  per-frame; selector 0x70003B8D (cleared every frame by
-                          func_001AFCF0) == 0 → func_001AE5E0 = first gameplay frame
+                  state1  per-frame; selector 0x70003B8D (cleared by
+                          func_001AFCF0 in states 0/4 only, s87) == 0 → func_001AE5E0 = first gameplay frame
 ```
 The EXTER1.DAT FMV + the libmpeg/movie cluster (0x203/0x206) EXIST but are
 a self-installed separate task with NO caller on this chain — no FMV gates
@@ -14713,26 +15126,119 @@ the bar GEOMETRY + fade frame-counts + the zone-name source need a LIVE capture.
 - Locked-door case = bars-only (NO title); it uses the mode-2 radio subtitle
   ("It's locked…", bottom-centered) instead.
 
-### LIVE-CAPTURE-PENDING (PCSX2; the bars are a cinematic-gated overlay not isolable statically)
+### LIVE-CAPTURED — the BARS pinned (2026-06-15, session 81, PCSX2)
 
-The bar-DRAW function, the bar GEOMETRY (top/bottom Y scanlines, full 512 width,
-true-black-opaque vs alpha, slide-in vs alpha-fade), the staggered FADE frame counts
-(bars-in / title-in / hold / bars-out / title-out — user: "bars fade first, then the
-title"), and the "Fort Stewart" zone-name source. The frame-0 camera state I have is
-post-bars (cinematic flag clear), so a bars-ACTIVE state (the opening cutscene) is
-needed to measure them.
+Captured live on a fresh AREA-11 (snow) game at the **"Battery Pack Terminal"** —
+press CROSS at the empty terminal → a short scripted cutscene plays the letterbox +
+a mode-2 subtitle ("Battery Pack Terminal / For emergency battery power."). This is
+the SAME bars system as the locked-door cutscene (bars + mode-2 subtitle, no title),
+so it pins everything about the bars except the mode-3 area-title (still pending).
+
+- **Cinematic flags during the cutscene (confirms the gate):** `D_008101E4 = 1`
+  (NOT 3 for this sub-type), spad `0x70003B8D` = **2** (path 0 → 3 → 2 at entry).
+  Predicate `func_0022EBE0` = `E4==3 || (sel!=0 && sel!=4)` → **TRUE**. So the bars
+  gate is the func_0022EBE0 "in a cinematic" predicate, NOT `E4==3` specifically.
+  At cutscene end `E4` goes 1 → 0 and control returns.
+- **The bars are explicit, full-width, alpha-blended BLACK quads** — NOT a reduced
+  3D viewport. Proof: they **alpha-fade** (a scissor/viewport can only clip, it can't
+  fade), and the scene under a half-faded bar is faintly visible through it. Ruled out
+  by live test: NOT the load shimmer (that's the load phase), NOT the brightness fade
+  (`D_0028A8E0`/state `D_0028A9A3` stayed idle the whole cutscene), and NOT the
+  message machine — zeroing `D_002821B0`/`B4` (mode+active) left BOTH the bars and the
+  already-latched subtitle on screen, so the per-frame draw reads a **retained 2D
+  display list**, not the live ticker state.
+- **Bar GEOMETRY (screen-measured, 512×448 internal):** full **512** width; **top bar
+  ≈ 64 scanlines, bottom bar ≈ 63 scanlines** (≈ **1/7** of the 448-line frame each,
+  symmetric); **visible centre band ≈ 320 lines**. (In the engine's likely 224-line 2D
+  space that is ≈ 32 + 160 + 32.) Precision ±~5 lines — refine from the GS quad coords
+  if exactness is needed. Subtitle text is drawn **over** the bottom bar.
+- **FADE behaviour:** bars appear at **full height immediately and ALPHA-fade in**
+  (opacity 0 → opaque), then **HOLD opaque** for the whole cinematic and fade out at
+  the end. The subtitle fades in **together** with the bars (same onset) but has a
+  **shorter** life — it fades out while the bars stay up — so bars and subtitle have
+  **independent alpha lifetimes**. (The user's "bars fade first, then the title"
+  staggering is specific to the area-OPENING mode-3 title, not this bars+subtitle
+  type.) Onset is a few frames after `E4=1` (camera settles first). The subtitle alpha
+  was observed ramping at `0x0028A8D4` by **+4/frame** (0x04 → 0xFF); the bar alpha is
+  a separate, longer-held value (not isolated this session).
+- **Message machine for this cutscene = MODE 2** (radio/examine subtitle):
+  `D_002821B0`=2, `D_002821B4`=1 (active), `+0x08`=0x80000018, message refs at
+  `+0x68`(0x282218)=0x89 and `+0x6C`=0x0B. This is the bottom-centred subtitle path,
+  the same one the locked-door "It's locked…" uses. The **mode-3 area-title**
+  ("Fort Stewart - Rear Entrance") was NOT exercised here.
+- **Draw path (mechanism, not byte-pinned):** a per-frame 2D-overlay pass re-submits
+  the retained 2D list (the bars + the subtitle glyphs) each frame. `func_001D1C50`
+  turned out to be the camera / 3D-band compositor (it writes the view matrix at
+  `D_00810610` and a 2D region via `func_0021B970`→ctx `[D_00275670]+0xB8/0xBC`), and
+  `func_001FCA10` is only the subtitle TIMER. The exact GS submission of the two black
+  quads was not isolated (no GS-packet trace via the EE MCP); for the port it does not
+  matter — replicate as two alpha-blended black quads.
+
+### AREA-TITLE CARD DECODED (2026-06-15, s81) — DEFINITIVE (caught on the genuine card)
+
+Captured live with the VM **paused exactly on the AREA-11 opening card** (user savestate
+slot 1): "FORT STEWART – REAR ENTRANCE" top-centred in the top letterbox bar over a
+heavily **dimmed** scene. Read-watchpoint on the on-screen string → backtrace gives the
+exact draw path. This SUPERSEDES both the s80 "message machine mode 3" guess **and** the
+s81 forced-re-entry guess below (which was a *different*, load-phase overlay).
+
+- **It is rendered TEXT from a hardcoded string table — `item 6` answered.** The title
+  is one fixed ASCII string per area, **32-byte stride table at `0x00273B80`**:
+  `idx0 "Lvl 2 LAB - RESTRICTED AREA"`, **`idx1 "FORT STEWART - REAR ENTRANCE"`** (AREA-11
+  opening), `idx2 "FORT STEWART - MAIN COMPOUND"`, `idx3 "POWER REACTOR AREA"`,
+  `idx4 "BLDG. B, INFIRMARY / BAR"`, … . The **whole** zone+floor is ONE string — there
+  is no separate "zone image" + "group-6 floor" (corrects s80). Rendered as bitmap-font
+  sprite glyphs (which is why the low-level draw looks like textured sprites).
+- **Draw path (live backtrace from the string read at `func_001232DC`):** gameplay frame
+  `func_001AE5E0` → **`func_001AFD70`** (the per-frame HUD/overlay pass, present in BOTH
+  frame variants) → **`func_001C5930`** (the AREA-TITLE-CARD handler) → `func_001CC170`/
+  `func_001CC1E0` → text/font render. `func_001C5930` reads `D_00810700/701` (area/sub),
+  indexes via tables `D_002671C0`/`D_0026726C` into the `0x00273B80` strings; per-area
+  map at `D_00289B40` ((area,value) u16 pairs; area 0x0B→2). It is gated inside
+  `func_001AFD70` by `D_00275BC0` (HUD-overlay state: ptrs `0x007A5640`/`0x007AE920`).
+- **NOT the message machine, NOT E4, NOT the selector:** at the card, `D_002821B0`=0,
+  `D_008101E4`=0, spad `0x70003B8D`=0. The card rides the **normal gameplay frame**
+  (selector 0), gated only by its own HUD-overlay state — not the cinematic system.
+
+#### Separate thing — the LOAD-phase overlay `func_001FF080`/`func_001FF0D0` (NOT the title)
+
+The forced AREA-11 re-entry earlier this session caught `func_001ADF50` →
+`func_001FF080` → register cb `func_001FF0D0` (overlay slot `D_0028A790`, phase machine,
+per-area `D_0028A3C0[area]` → asset @~0x90000, GS-sprite DMA via `func_00200730/780/830`).
+That is a **load/area-build overlay** that runs during the black load and is **torn down
+(phase 0x63) before the title card shows** — its slot was inactive while the card was on
+screen. So it is NOT the area-title; treat it as a separate load-time presentation.
+
+### STILL OPEN (minor, visual-only) — exact opening geometry + fade counts
+
+Architecture + source fully pinned. What remains is fine measurement, awkward because the
+opening **dims the scene to near-black** (bar/scene edges blend): (1) exact top/bottom bar
+scanlines for the OPENING (the battery-cutscene bars are ≈64 each — the opening may
+differ); (2) exact staggered fade frame counts. User-observed order: **bars fade in
+first, then the title**. To measure: from the slot-1 (on-card) savestate, break at
+`func_001C5930` / `func_001AFD70` and frame-step, or watch the title alpha in the
+`D_00275BC0` overlay state.
 
 ### PORT plan
 
 em_game/em_frame: mirror `D_008101E4` + the spad selector + `em_cinematic_active()`
-(the func_0022EBE0 predicate), driven from the op07 enter/exit points (already
-modeled for the locked door). em_hud: `em_hud_letterbox(progress)` = two full-width
-black quads (geometry placeholder until the capture, FLAGGED) gated on
-em_cinematic_active(); `em_hud_area_title(map,floor)` = group-6 floor name (+ zone
-name once captured), top-centered, own staggered fade. The area-name table (group 6)
-already ships in messages.emsg.
+(the func_0022EBE0 predicate `E4==3 || (sel!=0 && sel!=4)`), driven from the op07
+enter/exit points (already modeled for the locked door). em_hud has **two independent
+overlays**:
+1. **Cinematic letterbox** (`em_hud_letterbox(alpha)`) — two full-width (512) black
+   quads, **≈64 scanlines** each top/bottom of the 448-line frame (visible band ≈320),
+   alpha-blended, fade-in/hold/fade-out, gated on `em_cinematic_active()`. Plus
+   `em_hud_subtitle()` (message-machine mode 2, bottom-centred over the bottom bar —
+   battery terminal / locked-door "It's locked…").
+2. **Area-title card** (`em_hud_area_title(area)`) — its OWN overlay on the normal frame
+   (not cinematic-gated): a letterbox + heavy scene dim + the hardcoded title **string**
+   (port the `0x00273B80` table as a plain string array, AREA 11 → "FORT STEWART - REAR
+   ENTRANCE"), bitmap-font, top-centred, staggered fade (bars first, then title text).
 
-_Last updated: 2026-06-13 (session 80)._
+_Last updated: 2026-06-15 (session 81 — bars LIVE-CAPTURED (battery terminal) + the
+opening AREA-TITLE caught on the genuine card: hardcoded string table @0x00273B80,
+drawn by func_001AFD70/func_001C5930 on the gameplay frame — NOT the message machine,
+NOT E4, and NOT the func_001FF0D0 load overlay)._
 
 ## WALK-STATE CAMERA DECODED — func_00230000 + the eye TETHER func_0022FCA0; the camera has NO heading policy while moving (2026-06-11, session 67)
 
@@ -14782,8 +15288,8 @@ by player state +0x230:
 
 | states | +0x8C | +0x5C | eye base (11+5C+8C) | target (11+8C) |
 |---|---|---|---|---|
-| 2 / 4 / 0xF (locomotion) | **−3.0** | **1.0** | player.y + **9** | player.y + **8** |
-| 1 / 3 / default (idle) | 6.0 | 2.0 | +19 | +17 |
+| 2 / 4 / 0xF (+0x236 elevated family; NOT ordinary locomotion, see correction below) | **−3.0** | **1.0** | player.y + **9** | player.y + **8** |
+| 1 / 3 / default (idle and ordinary ground walk) | 6.0 | 2.0 | +19 | +17 |
 | idle, cam+0x64 == −31.2 areas | 2.0 | 6.0 | +19 | +17 (same sums) |
 | 6/7/8/9/0x2C/0x2D (climb family) | 0.0 | 2.0 | +13 | +11 |
 | 0x13 | 11.0 | 2.0 | +24 | +22 |
@@ -14797,6 +15303,10 @@ what makes the low walking ride (eye player.y + 9) reachable under the
 solver's floor bound. The camera RIDES LOW AND NEARLY LEVEL while the
 player moves (eye +9 / target +8 vs idle +19/+17) and climbs back as he
 stops — a state change the port had never modeled.
+*(SUPERSEDED — CAM-08: func_0015CBA0 writes +0x230 = 2/4 only when player
+flag +0x236 is set, else 1/3; an ordinary ground walk is code 1/3 = the
+6.0/2.0 row, eye +19 / target +17. The low ride is the elevated family
+only. See "Walk-camera height — the func_00191390 per-state rows" below.)*
 
 ### 3. func_0022FCA0 — the desired-eye x/z TETHER ("tow-rope")
 
