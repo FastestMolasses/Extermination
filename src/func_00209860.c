@@ -1,12 +1,11 @@
-// NEARMISS func_00209860  (vram 0x00209860, 0x584 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 92.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-order/liveness-coloring permutation on the callee-saved set (target uses 7 regs s0-s6 via one register reused across 3 disjoint live ranges; mwcc here settles on 6 regs s0-s5). Body/structure fully recovered, 0 remaining logic/constant diffs (all residual instructions are ARG_...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// NEARMISS func_00209860 (0x00209860, 1412 original bytes).
+// Readable source; the original assembly remains linked.
+// Corrected ABI and ordinary-secondary digit count: 95.430595% similarity,
+// 1436 candidate bytes with mwcc233 -O4,p -sdatathreshold 0.
+// Supported inventory branches are checked against original instruction
+// execution. Invalid secondary selectors use an incoming saved register
+// as TEX0; this C does not define that caller-dependent state.
+// See docs/STATUS_AMMO.md.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -39,7 +38,7 @@ extern short D_00810CAE;
 extern short D_00810CB0;
 extern short D_00810CB4;
 
-void func_00209860(int arg0, int arg1) {
+void func_00209860(void *ui, int arg0, int arg1) {
     float x0f;
     int x0, y0, x1, y1;
     int reserveX, reserveX2, reserveX3;
@@ -75,7 +74,7 @@ void func_00209860(int arg0, int arg1) {
     func_001CBA50(1, reserveX3, float_to_int(16.0f * (float) (((arg1 + 0x4C) >> 1) + 0x790)) >> 4,
                   0x10, 0x10, &D_002862C0, &D_00265510);
 
-    n = 0;
+    n = reserveX2;
     if (D_00810CA4 == 2) {
         n = D_00810CB0;
         secColor = 0x20045385554221C2ULL;
@@ -98,12 +97,15 @@ void func_00209860(int arg0, int arg1) {
             secColor = 0x20045325554221B2ULL;
             break;
         default:
-            goto skip_second;
+            /* Invalid secondary selectors reach the draw with incoming s0
+             * as TEX0. That register state is not defined by this C ABI;
+             * the original assembly remains authoritative for this path. */
+            break;
         }
     }
 
     if (haveSecond == 0) {
-        s = func_001C5FB0(n, 4, 1);
+        s = func_001C5FB0(n, 3, 1);
         func_00123168((int) &D_002862C0, (int) s);
         func_001CBA50(1, reserveX3, float_to_int(16.0f * (float) (((arg1 + 0x64) >> 1) + 0x790)) >> 4,
                       0x10, 0x10, &D_002862C0, &D_00265510);
