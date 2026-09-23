@@ -42,6 +42,18 @@ s28b (battery), s25 (status screen), s22/s23.
 - Transition request: write bytes `0x008106B5..B8` (area, sub|0xFF, entry, mode
   1=inter-area/2=room) to force a transition (s22 lifecycle).
 
+## Frame-exact original sessions (s87)
+
+`tools/pcsx2_session.py` launches the MCP-enabled PCSX2 from one of the local
+save states (never modified; hashed before/after), parks it on a breakpoint at
+the main-loop top `0x001AAF28`, and then `step(n, buttons=..., lx=, ly=)`
+advances exactly `n` main-loop frames (the counter `0x70003B64` is checked to
+advance by one per step). `snapshot(dir)` saves to a free slot >= 16, extracts
+`eeMemory.bin`, `gs.bin`, `scratchpad.bin` and the embedded `original.png`,
+and moves the slot file into `dir`. Injected pad state reaches `0x810E70`
+two frames after it is set. State 03 has movement locked; state 04 walks.
+All output belongs in gitignored `build/`.
+
 ## Gotchas
 - Pause the VM before multi-byte pokes (`pcsx2_pause` / resume).
 - The status screen reads live values — open it (Triangle) to watch edits land.
