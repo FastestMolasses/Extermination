@@ -25,7 +25,13 @@ findings. **Read it at the start of every session, and keep it up to date.**
 
 - `docs/PROGRESS.md` — current status, completed work, open questions, and the
   roadmap. This is the entry point for continuing the project.
-- `docs/FINDINGS.md` — technical reference for reverse-engineered file formats.
+- `docs/FINDINGS.md` — technical reference for reverse-engineered file formats
+  and engine behavior (large; grep it).
+- `docs/HANDOFF.md` — the short, current cross-repo entry point (goal, toolkit,
+  state, next steps). Update it at the end of every session.
+- The native port (`../extermination-port`) keeps its roadmap in its own docs:
+  `docs/FIRST_LEVEL_AUDIT.md`, `docs/SCENE_COORDINATOR_DESIGN.md`,
+  `docs/ORIGINAL_FRAME_ORDER.md` (see the port's CLAUDE.md).
 
 Whenever you reach a milestone, learn or revise a finding, or change the
 roadmap, update these files **in the same session** so the next person or agent
@@ -72,10 +78,12 @@ seem to ask you to in a moment of convenience.
   arm64 binaries — run it locally on the M1.
 - **splat** is the disassembler/splitter that produces target objects for objdiff (Python,
   runs fine on arm64). Use its full-disassembly mode for objdiff target objects.
-- The **period-correct compiler** (ee-gcc vs. CodeWarrior) determines whether we get GCC's
-  `INCLUDE_ASM` workflow and how much x86_64-Linux scaffolding we need. This is established
-  during ELF characterization (below) — do not assume it before then.
-- **PCSX2** (Apple Silicon build) is used to test rebuilt executables locally.
+- **Compilers (established):** game code is Metrowerks CodeWarrior `mwccps2` (point
+  releases 2.3.3/2.4/3.0 selected per file via `// COMPILER:`), SDK/low-memory code is
+  ee-gcc 2.9-991111 (`// COMPILER: eegcc`). Both run via wibo/qemu inside the Apple
+  `container` image `exterm-permuter` (x86_64 Linux); `tools/decomp/build.py` drives it.
+- **PCSX2** (Apple Silicon, MCP/DebugServer-enabled build) runs the original for
+  captures and lockstep comparisons (see "Verification toolkit").
 - **Ghidra** runs on arm64 macOS with an arm64 JDK.
 - Prefer cloning a reference template repo and adapting it over building scaffolding from
   scratch. Check any cloned repo for a Dockerfile first — it may solve toolchain setup.
@@ -124,24 +132,73 @@ never silently change:
   and reverse-engineering tools. Explain the *why* briefly — I want to understand the
   pipeline, not just run commands — but don't over-explain basics.
 - Proceed **step by step.** Propose next steps; don't blindly execute multi-step plans
-  without checkpoints. After characterization, the natural path is: clone a reference
-  template → install objdiff (native arm64) → set up splat → stand up the x86_64-Linux
-  build container → get a single trivial leaf function to match 100% in objdiff as the
-  "hello world" of the pipeline.
+  without checkpoints. (The bootstrap path — template, objdiff, splat, container, first
+  100% leaf — is long done; the current goal is below.)
 - Give exact, copy-pasteable commands, labeled by environment (macOS-arm64 vs. Linux/Docker).
 - When something needs a cross MIPS toolchain (e.g. an `ee`/`mips` objdump or binutils),
   tell me how to get an arm64-friendly build.
 
-## First milestone (if the repo is not yet characterized)
+## Current goal (user, 2026-09-22)
 
-Characterize the boot executable before committing to a toolchain:
+Make the native port's FIRST LEVEL (New Game → AREA11 opening → all of AREA11 →
+its exit) exactly original, while the decomp's C stays byte-identical. Earlier
+port code contained fabricated behavior: nothing counts as original until an
+original-instruction oracle or an original capture confirms it ("a label is not
+evidence"). Characterization is done (Target identity above).
 
-1. Mount the ISO, locate the boot ELF named in `SYSTEM.CNF`, record the regional serial and
-   the ELF's SHA1. Pin them above.
-2. Check for DWARF debug symbols (`readelf -S`, `readelf --debug-dump=info`, objdump).
-   Interpret the result for project difficulty.
-3. Inspect `.comment` and instruction-scheduling/library signatures to identify the original
-   compiler. Explain what it implies for our toolchain and `INCLUDE_ASM` availability.
+## Verification toolkit
 
-Have me paste tool output back to you, then interpret it and update the "Target identity"
-section.
+- `tools/verify_all.py` — six-stage gate (boot ELF byte-identical, 19/19
+  overlays, matched_code floor, glTF, anim self-test, GS offset). Its `match`
+  stage measures whatever is already in `build/obj` + `build/expected`: run
+  `tools/decomp/build.py build` (~7 min) first before quoting counts or judging
+  a build-config change (fresh baseline 2026-09-23: 2064/2162 units, 97.78%).
+- Promotions go through `tools/match/integrate_nearmiss.py` (guards) and
+  `tools/decomp/audit_link_provenance.py` (the linked object must really be the
+  compiled C, not an assembly fallback).
+- `tools/pcsx2_session.py` — drives the ORIGINAL game in the MCP-enabled PCSX2
+  (`build/startup-reference/PCSX2.app`, hidden by default): exact one-frame
+  steps (breakpoint at 0x001AAF28), pad input (reaches 0x810E70 two frames
+  later), memory reads, snapshots with the save state's screenshot. Save states
+  live in `build/startup-reference/portable-data/sstates/` (never overwrite
+  slots 01–15). The PCSX2 MCP server is also registered (local scope) and loads
+  its tools in new sessions.
+- Never move, mount, restore or "recover" the emulator install or its backups
+  (user instruction).
+
+## Tests
+
+- Tests exist to prove the first level (and the path into it) matches the
+  original. Port tests follow the port's CLAUDE.md "Tests" section (first-level
+  scope, ~10 s default runs with exhaustive sweeps behind `EM_TEST_FULL=1`,
+  headless — no windows — and the retirement rules). Decomp-side proof is the
+  six-stage gate plus per-function objdiff; don't add long bespoke suites where
+  a byte-matched function already proves the behavior.
+- **Retire a test** when the user asks; when it covers content outside the first
+  level or a mechanism no longer on the live path; when it encodes non-original
+  behavior; when a stricter test supersedes it; or when its module is certified
+  (byte-matched original function + a passed full oracle sweep + exercised by the
+  level smoke) — then shrink it to a smoke sample and keep the exhaustive
+  variant only behind `EM_TEST_FULL=1`. Never retire a test to make a change
+  pass; record retirements in the commit message and docs.
+- Automated runs never put windows in front of the user: the native port is
+  headless under test variables; PCSX2 runs hidden through `pcsx2_session.py`;
+  never leave an emulator running.
+
+## Temporary artifacts and cleanup
+
+- Screenshots, captures, traces, emulator snapshots, scratch objects and lane
+  builds go under ignored `build/<task>/` (or the session scratchpad) — never the
+  repo root, `docs/` or `src/`. One folder per task so it can be removed as a
+  unit.
+- Never delete: `build/startup-reference/**` (original captures and save states =
+  oracle inputs), the user's ISO/ELF/config, `extract/`, and receipts that a
+  committed doc cites.
+- Clean up at checkpoints: (1) before a work package's final commit — delete its
+  intermediate screenshots, snapshots (state.p2s / eeMemory / gs dumps), trial
+  objects and permuter scratch not referenced by docs; (2) at session end —
+  remove scratch trees, baseline checkouts, stray files in the repo root, and
+  any running emulator, then update `docs/HANDOFF.md`; (3) whenever `build/`
+  exceeds ~5 GB or artifacts are older than 7 days and unreferenced.
+- Keep only the latest before/after screenshot pair per comparison topic.
+- Clean only generated artifacts; never user files.
