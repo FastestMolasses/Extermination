@@ -3287,6 +3287,488 @@ def build_texture_blob(gsdump: Path | None, tex_table: list[dict],
 
 
 # ---------------------------------------------------------------------------
+# LEVEL BACKGROUND (--background; port docs/BACKGROUND.md)
+#
+# The original fills the frame behind the level with a full-screen textured
+# grid, not a colour clear: 001C1F50 arms render flags 0x20/0x21 and stores
+# the area's TEX0 at render ctx +0x1D0; every world frame 001E1E60 builds
+# render channel 3's list (env class 7, CLAMP_1, TEX0, TEXA, RGBAQ, the VU1
+# upload of the GIF tag D_00253560 and the grid constants D_00253570..EF)
+# and 001D2300 CALLs it right after the per-frame Z-only clear. The VU1
+# kernel 0x0023C990 turns that upload into 31 triangle strips.
+#
+# This exporter reads the draw state from a captured frame's channel-3 list
+# (walked as the DMAC/VIF1/GIF would) and the grid constants from the pinned
+# ELF. The TEXELS come from the user's disc: both the PSMT8 indices at TBP0
+# and the CSM1 CLUT at CBP are written by the area's level-load GS upload,
+# which is replayed here exactly as the loader performs it:
+#
+#   - 001FFCD0 state 2 reads INDEX.IDX sector (D_00810700 + 4), the area's
+#     descriptor, into D_00289BC0.
+#   - state 4 runs 001FF590(0xAB, 0), then 001FF590(0xAB, 1). Call 0 loads
+#     table entry 0 (+0x20 {u32 off, u32 size}, off relative to +0x04) and
+#     hands it to 001FB370 (the 001FB3E0 IOP stream loader): no GS write.
+#     Call 1 loads each "group A" entry u16[+0x0C] .. + u16[+0x0E] - 1 into
+#     one buffer (D_0028A490[0xAB]) and calls 00200830 on it.
+#   - 00200830 = dmac_channel_base(1) (VIF1), 00102468 (wait), 00101F08
+#     (TADR = buffer, QWC 0, CHCR = DIR | MOD chain | STR; TTE 0), wait.
+#   - state 7 then DMAs the u32[+0x10] "group B" entries the same way from
+#     the resident region (region offset u32[+0x14], consecutive), and
+#     states 8/11 repeat both walks for nested block D_00810701 when
+#     u32[+0x18] != 0 (func_001FF590(0xAC, ..)).
+#
+# For AREA11 (INDEX sector 15) group A is one section starting at a DMA CNT
+# tag inside the directory's id 0x43 file and ending in id 0x97; its two
+# host-to-local PSMCT32 transfers (DBP 0x2A00 and DBP 0x3180, DBW 4) carry
+# IMAGE payloads that run on past the directory's file boundaries. The
+# second one's payload covers TBP0 0x3200 and CBP 0x34F8: the background
+# CLUT rows 0-2 come from the id 0x42 file, rows 3-15 from the id 0x46 file.
+# (Earlier notes that this CLUT is "runtime-synthesised" were a search
+# error: the per-file replay stopped each payload at its file's end.)
+# The replay refuses anything it does not model (address-carrying DMA tags,
+# VIF codes other than NOP/FLUSH/DIRECT, GIF registers other than the
+# transfer set, non-PSMCT32 or local-to-host transfers). An optional GS
+# freeze (--capture-gs) is compared with the disc texels. Everything lands
+# in the user's ignored assets.
+
+BG_CTX_PTR = 0x275670            # D_00275670 -> render ctx
+BG_GRID_CONSTANTS = 0x2535B0     # D_002535B0..D_002535EF (dmem 0x204..0x207)
+BG_TEMPLATE = 0x253560           # D_00253560, GIF tag at dmem 0/0x81/0x102
+BG_KERNEL = 0x23C990             # the kernel packet 001E1E60 CALLs
+BG_ASSET = "background.embg"
+
+
+def _bg_dma_walk(ram: bytes, start: int, limit: int = 4096):
+    """(tag id, qwc, addr, data address) of a DMAC source chain (TTE off)
+    from `start` until its RET/END."""
+    a, stack = start, []
+    for _ in range(limit):
+        w0, addr = struct.unpack_from("<2I", ram, a)
+        tid, qwc = (w0 >> 28) & 7, w0 & 0xFFFF
+        if tid == 1:                                   # CNT
+            yield tid, qwc, addr, a + 16
+            a += 16 * (qwc + 1)
+        elif tid == 2:                                 # NEXT
+            yield tid, qwc, addr, a + 16
+            a = addr
+        elif tid in (3, 4):                            # REF / REFS
+            yield tid, qwc, addr, addr
+            a += 16
+        elif tid == 5:                                 # CALL
+            yield tid, qwc, addr, a + 16
+            stack.append(a + 16 * (qwc + 1))
+            a = addr
+        elif tid == 6:                                 # RET
+            yield tid, qwc, addr, a + 16
+            if not stack:
+                return
+            a = stack.pop()
+        else:                                          # END / REFE
+            yield tid, qwc, addr, a + 16
+            return
+    raise SystemExit(f"background: DMA chain at {start:#x} does not end")
+
+
+def background_list_state(ram: bytes, node: int) -> dict:
+    """Replay one render-channel list: GS registers written through A+D
+    (REF'd env packets and DIRECT payloads), VU1 dmem written by
+    UNPACK V4-32, CALLed kernel packets and MSCAL addresses."""
+    stream = bytearray()
+    calls = []
+    for tid, qwc, addr, data in _bg_dma_walk(ram, node):
+        if tid == 5:
+            calls.append(addr)
+        if qwc:
+            stream += ram[data:data + 16 * qwc]
+    regs, dmem, mscal, kicks = {}, {}, [], []
+    cl = wl = 4
+    s, i = bytes(stream), 0
+    while i + 4 <= len(s):
+        code = struct.unpack_from("<I", s, i)[0]
+        i += 4
+        cmd, num, imm = (code >> 24) & 0x7F, (code >> 16) & 0xFF, code & 0xFFFF
+        if cmd == 0x01:
+            cl, wl = imm & 0xFF, imm >> 8
+        elif cmd in (0x14, 0x15, 0x17):
+            mscal.append(imm)
+            kicks.append((dict(regs), dict(dmem)))
+        elif cmd == 0x20:
+            i += 4
+        elif cmd in (0x30, 0x31):
+            i += 16
+        elif cmd == 0x4A:                              # MPG (the kernel)
+            i += 8 * (num or 256)
+        elif cmd in (0x50, 0x51):
+            end = i + 16 * (imm or 65536)
+            pos = i
+            while pos + 16 <= end:
+                lo, hi = struct.unpack_from("<QQ", s, pos)
+                pos += 16
+                nloop, flg = lo & 0x7FFF, (lo >> 58) & 3
+                nreg = (lo >> 60) or 16
+                if (lo >> 46) & 1:
+                    regs[0x00] = (lo >> 47) & 0x7FF
+                rl = [(hi >> (4 * k)) & 15 for k in range(nreg)]
+                if flg != 0:
+                    raise SystemExit("background: non-PACKED GIF in the "
+                                     "channel list")
+                for _ in range(nloop):
+                    for r in rl:
+                        d0, d1 = struct.unpack_from("<QQ", s, pos)
+                        pos += 16
+                        if r == 0xE:
+                            regs[d1 & 0xFF] = d0
+                        elif r == 0x0:
+                            regs[0x00] = d0 & 0x7FF
+                        elif r == 0x1:
+                            regs[0x01] = d0
+                        else:
+                            regs[r] = d0
+            i = end
+        elif cmd >= 0x60:
+            vn, vl, cnt = (cmd >> 2) & 3, cmd & 3, num or 256
+            size = ((32 >> vl) * (vn + 1) * cnt + 31) // 32 * 4
+            if vn == 3 and vl == 0 and not (imm >> 15) & 1 and wl <= cl:
+                for k in range(cnt):
+                    dst = (imm & 0x3FF) + (k // wl) * cl + k % wl
+                    dmem[dst & 0x3FF] = s[i + 16 * k:i + 16 * k + 16]
+            else:
+                raise SystemExit(f"background: unsupported UNPACK {code:#x}")
+            i += size
+        elif cmd not in (0x00, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                         0x10, 0x11, 0x13):
+            raise SystemExit(f"background: unknown VIF code {code:#010x}")
+    return {"regs": regs, "dmem": dmem, "calls": calls, "mscal": mscal,
+            "kicks": kicks}
+
+
+class BackgroundDisc:
+    """INDEX.IDX / DATA.DAT of the user's disc: a mounted disc or a copy of
+    its DATA/ directory (--disc DIR), or an ISO-9660 image (--iso FILE),
+    read in place (only the two files' extents are located)."""
+
+    def __init__(self, disc: str | None = None, iso: str | None = None):
+        if iso:
+            self.path = Path(iso)
+            with self.path.open("rb") as f:
+                pvd = self._sector(f, 16)
+                if pvd[1:6] != b"CD001":
+                    raise SystemExit(f"background: {iso} is not ISO-9660")
+                root = pvd[156:156 + 34]
+                data_dir = self._lookup(f, root, b"DATA")
+                self.index = self._lookup(f, data_dir, b"INDEX.IDX")
+                self.data = self._lookup(f, data_dir, b"DATA.DAT")
+        elif disc:
+            d = Path(disc)
+            base = d / "DATA" if (d / "DATA" / "INDEX.IDX").is_file() else d
+            self.path = None
+            self.index = (base / "INDEX.IDX", 0)
+            self.data = (base / "DATA.DAT", 0)
+            for p, _ in (self.index, self.data):
+                if not p.is_file():
+                    raise SystemExit(f"background: {p} missing")
+        else:
+            raise SystemExit("background: needs --disc DIR or --iso FILE "
+                             "(the user's own disc: INDEX.IDX + DATA.DAT)")
+
+    @staticmethod
+    def _sector(f, lba: int, n: int = 1) -> bytes:
+        f.seek(lba * 0x800)
+        return f.read(n * 0x800)
+
+    def _lookup(self, f, record: bytes, name: bytes):
+        lba, size = struct.unpack_from("<I", record, 2)[0], \
+            struct.unpack_from("<I", record, 10)[0]
+        blob = self._sector(f, lba, (size + 0x7FF) // 0x800)
+        pos = 0
+        while pos < size:
+            n = blob[pos]
+            if n == 0:                                  # sector padding
+                pos = (pos // 0x800 + 1) * 0x800
+                continue
+            ident = blob[pos + 33:pos + 33 + blob[pos + 32]].split(b";")[0]
+            if ident == name:
+                if name in (b"INDEX.IDX", b"DATA.DAT"):
+                    return (self.path, struct.unpack_from("<I", blob,
+                                                          pos + 2)[0] * 0x800)
+                return blob[pos:pos + n]
+            pos += n
+        raise SystemExit(f"background: {name.decode()} not on the image")
+
+    def read(self, which, off: int, size: int) -> bytes:
+        path, base = which
+        with Path(path).open("rb") as f:
+            f.seek(base + off)
+            out = f.read(size)
+        if len(out) != size:
+            raise SystemExit("background: short read from the disc")
+        return out
+
+    def descriptor(self, sector: int) -> bytes:
+        return self.read(self.index, sector * 0x800, 0x800)
+
+
+def _bg_section_chain(buf: bytes) -> bytes:
+    """The VIF1 data of a source chain started at the start of `buf`
+    (00101F08: TADR = buffer, TTE 0). Only CNT/RET/END are modelled; a tag
+    that carries an address would need the buffer's EE address."""
+    out, a = bytearray(), 0
+    while True:
+        if a + 16 > len(buf):
+            raise SystemExit(f"background: chain runs past its section "
+                             f"at {a:#x}")
+        w0 = struct.unpack_from("<I", buf, a)[0]
+        tid, qwc = (w0 >> 28) & 7, w0 & 0xFFFF
+        if tid not in (1, 6, 7):
+            raise SystemExit(f"background: DMA tag id {tid} at section "
+                             f"offset {a:#x} is not modelled")
+        if a + 16 + 16 * qwc > len(buf):
+            raise SystemExit("background: DMA data runs past its section")
+        out += buf[a + 16:a + 16 + 16 * qwc]
+        if tid != 1:                     # RET with an empty stack, or END
+            return bytes(out)
+        a += 16 * (qwc + 1)
+
+
+BG_UPLOAD_REGS = {0x3F, 0x50, 0x51, 0x52, 0x53}   # TEXFLUSH + transfer set
+
+
+def _bg_gs_upload(stream: bytes, lm: bytearray, log: list) -> None:
+    """Apply a VIF1 stream's DIRECT GIF data to GS local memory: A+D writes
+    to the transfer registers and host-to-local PSMCT32 IMAGE data."""
+    est = _load("_est_bg_up", "extract_subtextures.py")
+    regs = {}
+    xfer = None                            # [dbp, dbw, dx, dy, w, h, k]
+    i = 0
+    while i + 4 <= len(stream):
+        code = struct.unpack_from("<I", stream, i)[0]
+        i += 4
+        cmd, imm = (code >> 24) & 0x7F, code & 0xFFFF
+        if cmd in (0x00, 0x10, 0x11, 0x13):           # NOP / FLUSH*
+            continue
+        if cmd not in (0x50, 0x51):
+            raise SystemExit(f"background: VIF code {code:#010x} in the "
+                             "level upload is not modelled")
+        end = i + 16 * (imm or 65536)
+        if end > len(stream):
+            raise SystemExit("background: DIRECT runs past the chain data")
+        while i < end:
+            lo, hi = struct.unpack_from("<QQ", stream, i)
+            i += 16
+            nloop, flg = lo & 0x7FFF, (lo >> 58) & 3
+            nreg = (lo >> 60) or 16
+            if flg == 0:                                   # PACKED
+                rl = [(hi >> (4 * k)) & 15 for k in range(nreg)]
+                if (lo >> 46) & 1 or any(r != 0xE for r in rl):
+                    raise SystemExit("background: PACKED data other than "
+                                     "A+D in the level upload")
+                for _ in range(nloop * nreg):
+                    d0, d1 = struct.unpack_from("<QQ", stream, i)
+                    i += 16
+                    reg = d1 & 0xFF
+                    if reg not in BG_UPLOAD_REGS:
+                        raise SystemExit(f"background: GS register "
+                                         f"{reg:#x} in the level upload")
+                    regs[reg] = d0
+                    if reg == 0x53:                        # TRXDIR: start
+                        if d0 & 3 != 0:
+                            raise SystemExit("background: non host-to-"
+                                             "local transfer")
+                        bb, pos, rg = regs[0x50], regs[0x51], regs[0x52]
+                        if (bb >> 56) & 0x3F != 0:
+                            raise SystemExit("background: non-PSMCT32 "
+                                             "transfer")
+                        if (pos >> 59) & 3:
+                            raise SystemExit("background: TRXPOS DIR != 0")
+                        xfer = [(bb >> 32) & 0x3FFF, (bb >> 48) & 0x3F,
+                                (pos >> 32) & 0x7FF, (pos >> 48) & 0x7FF,
+                                rg & 0xFFF, (rg >> 32) & 0xFFF, 0]
+                        log.append(tuple(xfer[:6]))
+            elif flg == 2:                                 # IMAGE
+                if xfer is None:
+                    raise SystemExit("background: IMAGE data without a "
+                                     "transfer")
+                dbp, dbw, dx, dy, w, h, k = xfer
+                for n in range(nloop * 4):
+                    if k >= w * h:
+                        raise SystemExit("background: IMAGE data past the "
+                                         "transfer")
+                    x, y = dx + k % w, dy + k // w
+                    a = (dbp * 256 + est.psmct32_word(x, y, dbw) * 4) \
+                        & 0x3FFFFF
+                    lm[a:a + 4] = stream[i + 4 * n:i + 4 * n + 4]
+                    k += 1
+                xfer[6] = k
+                i += 16 * nloop
+            else:
+                raise SystemExit("background: REGLIST GIF data in the "
+                                 "level upload")
+        i = end
+
+
+def background_disc_localmem(disc: "BackgroundDisc", area: int, sub: int):
+    """GS local memory after the area's level-load uploads (001FFCD0 states
+    2/4/7 and, for a nested block, 8/11), from the user's disc. Returns
+    (localmem, [transfers], [(region offset, size) of each DMA'd section])."""
+    top = disc.descriptor(area + 4)
+    lm = bytearray(4 * 1024 * 1024)
+    log, sections = [], []
+
+    def run(desc: bytes) -> None:
+        off = struct.unpack_from("<I", desc, 4)[0]
+        first, count = struct.unpack_from("<2H", desc, 0x0C)
+        n_b, resident = struct.unpack_from("<2I", desc, 0x10)
+        table = lambda k: struct.unpack_from("<2I", desc, 0x20 + 8 * k)
+        # 001FF590(arg, 1): group A, one buffer each, 00200830 on it.
+        for k in range(first, first + count):
+            s_off, s_size = table(k)
+            sections.append((s_off, s_size))
+            buf = disc.read(disc.data, off + s_off, s_size)
+            _bg_gs_upload(_bg_section_chain(buf), lm, log)
+        # state 7 / 11: group B from the resident region, consecutive.
+        pos = resident
+        for k in range(first + count, first + count + n_b):
+            _s_off, s_size = table(k)
+            sections.append((pos, s_size))
+            buf = disc.read(disc.data, off + pos, s_size)
+            _bg_gs_upload(_bg_section_chain(buf), lm, log)
+            pos += s_size
+
+    run(top)
+    if struct.unpack_from("<I", top, 0x18)[0] != 0:     # nested sub-area
+        run(top[0x100 + sub * 0x70:0x100 + (sub + 1) * 0x70])
+    return bytes(lm), log, sections
+
+
+def background_texels(localmem: bytes, tex0: int) -> tuple:
+    """(w, h, RGBA8) of a PSMT8 texture with a PSMCT32 CSM1 CLUT, read from
+    GS local memory (the only format the AREA11 background uses)."""
+    est = _load("_est_bg", "extract_textures.py")
+    gv = _load("_gs_vram_bg", "gs_vram.py")
+    tbp, tbw = tex0 & 0x3FFF, (tex0 >> 14) & 0x3F
+    psm, tw, th = (tex0 >> 20) & 0x3F, (tex0 >> 26) & 0xF, (tex0 >> 30) & 0xF
+    cbp, cpsm = (tex0 >> 37) & 0x3FFF, (tex0 >> 51) & 0xF
+    csm, csa = (tex0 >> 55) & 1, (tex0 >> 56) & 0x1F
+    if psm != 0x13 or cpsm != 0 or csm != 0 or csa != 0 or tbw % 2:
+        raise SystemExit(f"background: TEX0 {tex0:#018x} is not PSMT8 with "
+                         "a PSMCT32 CSM1 CLUT at CSA 0")
+    clut = gv.csm1_unswizzle_clut(gv.read_clut_at(localmem, cbp))
+    w, h = 1 << tw, 1 << th
+    out = bytearray()
+    for y in range(h):
+        for x in range(w):
+            index = localmem[tbp * 256 + est.psmt8_byte(x, y, tbw // 2)]
+            r, g, b, a = clut[index * 4:index * 4 + 4]
+            out += bytes((r, g, b, min(255, a * 2)))
+    return w, h, bytes(out)
+
+
+BG_TEXELS_FROM_DISC = 1          # asset +84: texels = disc upload replay
+
+
+def background_state_refusal(test: int, zbuf: int) -> str | None:
+    """The backend draws with no depth test, no depth write and every pixel
+    kept; a channel-3 state that differs is refused, never approximated."""
+    if (test >> 16) & 1 != 1 or (test >> 17) & 3 != 1:
+        return f"TEST_1 {test:#x}: not ZTE 1 / ZTST ALWAYS"
+    if test & 1 and (test >> 1) & 7 != 1:
+        return f"TEST_1 {test:#x}: the alpha test can drop pixels"
+    if (test >> 14) & 1:
+        return f"TEST_1 {test:#x}: destination alpha test on"
+    if (zbuf >> 32) & 1 != 1:
+        return f"ZBUF_1 {zbuf:#x}: ZMSK 0 (writes Z)"
+    return None
+
+
+def export_background(scene_dir: Path, elf_path: Path, ee_path: Path,
+                      gs_path: Path | None, area: int, sub: int,
+                      disc: "BackgroundDisc") -> int:
+    import hashlib
+    raw = elf_path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != PINNED_ELF_SHA256:
+        raise SystemExit(f"background: {elf_path} is not the pinned "
+                         "SCUS-97112 boot ELF")
+    elf = lambda va, n: raw[va - 0x100000 + 0x300:va - 0x100000 + 0x300 + n]
+    ram = ee_path.read_bytes()
+    if ram[0x810700:0x810702] != bytes((area, sub)):
+        raise SystemExit(f"background: {ee_path} is area "
+                         f"{ram[0x810700]:#x}/{ram[0x810701]}, not "
+                         f"{area:#x}/{sub}")
+    ctx = struct.unpack_from("<I", ram, BG_CTX_PTR)[0] & 0x1FFFFFF
+    flags = struct.unpack_from("<I", ram, ctx + 0x174)[0]
+    if flags & 3 != 3:
+        raise SystemExit("background: render flags 0x20/0x21 are not armed "
+                         "in this capture (001C1F50 does not draw a "
+                         "background for this area)")
+    tex0 = struct.unpack_from("<Q", ram, ctx + 0x1D0)[0]
+    node = struct.unpack_from("<I", ram, ctx + 0x1D8)[0]
+    state = background_list_state(ram, node)
+    if state["calls"] != [BG_KERNEL] or state["mscal"] != [0]:
+        raise SystemExit(f"background: channel list calls "
+                         f"{[hex(c) for c in state['calls']]}, MSCAL "
+                         f"{state['mscal']}")
+    regs, dmem = state["kicks"][0]          # the GS state at the MSCAL
+    if regs.get(0x06) != tex0:
+        raise SystemExit("background: list TEX0 differs from ctx+0x1D0")
+    colour = struct.unpack_from("<4f", ram, ctx + 0x1C0)
+    rgbaq = 0
+    for lane, value in enumerate(colour):      # 00128250(128.0 * f)
+        rgbaq |= (int(128.0 * value) & 0xFF) << (8 * lane)
+    if regs.get(0x01, 0) & 0xFFFFFFFF != rgbaq:
+        raise SystemExit("background: list RGBAQ differs from ctx+0x1C0")
+    template = elf(BG_TEMPLATE, 16)
+    for base in (0x000, 0x081, 0x102):
+        if dmem.get(base) != template:
+            raise SystemExit(f"background: dmem {base:#x} is not D_00253560")
+    tag = struct.unpack_from("<Q", template)[0]
+    if not (tag >> 46) & 1:
+        raise SystemExit("background: D_00253560 has no PRIM (PRE 0)")
+    prim = (tag >> 47) & 0x7FF
+    consts = elf(BG_GRID_CONSTANTS, 0x40)
+    upload = b"".join(dmem.get(0x204 + k, b"") for k in range(4))
+    if upload[:8] + upload[12:] != consts[:8] + consts[12:]:
+        raise SystemExit("background: uploaded grid constants differ from "
+                         "D_002535B0..EF")
+    if 0x47 not in regs or 0x4E not in regs:
+        raise SystemExit("background: channel list sets no TEST_1/ZBUF_1")
+    test, zbuf = regs[0x47], regs[0x4E]
+    why = background_state_refusal(test, zbuf)
+    if why:
+        raise SystemExit(f"background: {why}")
+    f = struct.unpack_from("<16f", consts)
+    localmem, transfers, sections = background_disc_localmem(disc, area, sub)
+    for s_off, s_size in sections:
+        print(f"background: DMA'd section {s_off:#x}+{s_size:#x}")
+    for dbp, dbw, dx, dy, tw_, th_ in transfers:
+        print(f"background: transfer DBP {dbp:#x} DBW {dbw} ({dx},{dy}) "
+              f"{tw_}x{th_}")
+    w, h, texels = background_texels(localmem, tex0)
+    if gs_path is not None:
+        gv = _load("_gs_vram_bg2", "gs_vram.py")
+        _base, frozen = gv.read_localmem(gs_path)
+        if background_texels(frozen, tex0)[2] != texels:
+            raise SystemExit(f"background: disc texels differ from the GS "
+                             f"freeze {gs_path}")
+        print(f"background: disc texels == {gs_path}")
+    header = (b"EMBG" + struct.pack("<3I", 2, w, h) +
+              struct.pack("<3Q", tex0, regs[0x08], regs[0x14]) +
+              struct.pack("<2I", rgbaq, prim) +
+              struct.pack("<9f", f[0], f[1], f[4], f[5], f[8], f[9], f[10],
+                          f[12], f[13]) +
+              struct.pack("<I", BG_TEXELS_FROM_DISC) +
+              struct.pack("<2Q", test, zbuf))
+    assert len(header) == 104
+    scene_dir.mkdir(parents=True, exist_ok=True)
+    (scene_dir / BG_ASSET).write_bytes(header + texels)
+    print(f"background: {scene_dir / BG_ASSET}: TEX0 {tex0:#018x} "
+          f"{w}x{h}, CLAMP_1 {regs[0x08]:#x}, TEX1_1 {regs[0x14]:#x}, "
+          f"TEST_1 {test:#x}, ZBUF_1 {zbuf:#x}, "
+          f"RGBAQ {rgbaq:#010x}, PRIM {prim:#x}")
+    update_manifest(scene_dir, "background", BG_ASSET)
+    return 0
+
+
+# ---------------------------------------------------------------------------
 
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__)
@@ -3400,8 +3882,43 @@ def main(argv):
                     "AREA11 zone EMDLs in DIR (scene_snow) and DIR/"
                     "<zone>.gsmat.json; reads extract/chunk15 and the "
                     "pinned config/SCUS_971.12 (see export_gs_materials)")
+    ap.add_argument("--background", metavar="DIR",
+                    help="write DIR/background.embg, the original level "
+                    "background (001E1E60 + VU1 kernel 0x0023C990: draw "
+                    "state from the capture's render channel-3 list, grid "
+                    "constants from config/SCUS_971.12, texels from the "
+                    "area's level-load GS upload replayed from the disc) "
+                    "and its manifest line; needs --area/--sub, "
+                    "--capture-ee and --disc or --iso")
+    ap.add_argument("--capture-ee", default=None,
+                    help="--background: a 32 MB EE RAM capture taken "
+                    "inside the area (e.g. build/startup-reference/"
+                    "roger-encounter/eeMemory.bin)")
+    ap.add_argument("--capture-gs", default=None,
+                    help="--background (optional): a GS freeze blob "
+                    "(gs.bin) taken inside the area; the disc texels "
+                    "must equal the texture decoded from it")
+    ap.add_argument("--disc", default=None,
+                    help="--background: the user's disc (a mounted disc "
+                    "or a directory holding DATA/INDEX.IDX + "
+                    "DATA/DATA.DAT)")
+    ap.add_argument("--iso", default=None,
+                    help="--background: the user's disc image (ISO-9660), "
+                    "read in place instead of --disc")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
+
+    if args.background:
+        if args.sub is None or not args.capture_ee or not (args.disc or
+                                                            args.iso):
+            ap.error("--background needs --area, --sub, --capture-ee and "
+                     "--disc or --iso")
+        return export_background(Path(args.background),
+                                 Path("config/SCUS_971.12"),
+                                 Path(args.capture_ee),
+                                 Path(args.capture_gs) if args.capture_gs
+                                 else None, args.area, args.sub,
+                                 BackgroundDisc(args.disc, args.iso))
 
     if args.gs_materials:
         return export_gs_materials(Path(args.gs_materials),
