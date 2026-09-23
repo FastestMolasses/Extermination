@@ -372,18 +372,86 @@ def _load_abs_syms() -> str:
     return "".join(lines)
 
 
-def generate_lcf(funcs: list[str]) -> str:
-    """Generate the full LCF content."""
+def generate_lcf(funcs: list[str],
+                 region_layouts: dict[str, list[tuple[str, str]]] | None = None,
+                 pinned_abs: dict[str, int] | None = None) -> str:
+    """Generate the full LCF content.
+
+    region_layouts: data-region units split for local .rodata pinning (see
+        plan_rodata_layout); each is emitted as its pieces' .text with the
+        pinned objects' .rodata in between, at the original addresses.
+    pinned_abs: region symbols that sat inside a pinned span, defined absolutely.
+    """
     # LCF_HEADER uses {{/}} to escape braces for .format(); LCF_MIDDLE uses
     # single braces and is appended after a simple replace to avoid double-
     # brace confusion.
     abs_syms = _load_abs_syms()
+    if pinned_abs:
+        abs_syms += "\t#\tregion symbols inside pinned local .rodata spans (rodata_pin.py)\n"
+        abs_syms += "".join(f"\t{n} = 0x{a:08X};\n" for n, a in sorted(pinned_abs.items()))
     header = LCF_HEADER.format(n_funcs=len(funcs), abs_syms=abs_syms)
     # LCF_MIDDLE was written with {{ }} so it can share a .format() call;
     # normalize it here so the output has literal single-brace LCF syntax.
     middle = LCF_MIDDLE.replace("{{", "{").replace("}}", "}")
-    obj_lines = "".join(f"\t\t{name}.o (.text)\n" for name in funcs)
-    return header + obj_lines + "\n" + middle
+    region_layouts = region_layouts or {}
+    obj_lines = []
+    for name in funcs:
+        layout = region_layouts.get(name)
+        if layout is None:
+            obj_lines.append(f"\t\t{name}.o (.text)\n")
+            continue
+        obj_lines.append(f"\t\t#\t{name}: split around pinned local .rodata\n")
+        for kind, payload in layout:
+            if kind == "piece":
+                obj_lines.append(f"\t\t{Path(payload).name} (.text)\n")
+            else:
+                obj_lines.append(f"\t\t{payload}.o (.rodata)\n")
+    return header + "".join(obj_lines) + "\n" + middle
+
+
+def plan_rodata_layout(funcs: list[str]) -> tuple[dict[str, list[tuple[str, str]]],
+                                                   dict[str, int], list[str]]:
+    """Split data-region filler objects around the pinned local .rodata spans.
+
+    Reads build/rodata_pins.json (written by fill_unmatched) and RE-PROVES every
+    pin against the object that will actually be linked (build/filler/<f>.o):
+    a stale or wrong plan aborts the link instead of silently shifting data.
+    Returns (region layouts, absolute symbols, pinned function names).
+    """
+    import json
+    import shutil
+    import fill_unmatched as filler
+    import rodata_pin
+
+    if rodata_pin.PIECE_DIR.exists():
+        shutil.rmtree(rodata_pin.PIECE_DIR)
+    if not rodata_pin.PINS_JSON.exists():
+        return {}, {}, []
+    plan = json.loads(rodata_pin.PINS_JSON.read_text())
+    pins = plan.get("pins", [])
+    if not pins:
+        return {}, {}, []
+    slots = filler.compute_slot_sizes()
+    regions = filler.data_region_units(funcs, slots)
+    by_region: dict[str, list[dict]] = {}
+    for pin in pins:
+        name = pin["name"]
+        linked = FILLER_DIR / f"{name}.o"
+        again, reason = rodata_pin.plan_object(name, linked, pin["vram"], regions)
+        if again is None or any(again[k] != pin[k] for k in ("region", "start", "end", "vram")):
+            raise SystemExit(f"[link] pinned .rodata of {name} no longer proves out "
+                             f"({reason}); rerun fill_unmatched.py")
+        by_region.setdefault(pin["region"], []).append(pin)
+    region_vram = {name: lo for lo, hi, name in regions}
+    layouts: dict[str, list[tuple[str, str]]] = {}
+    absolute: dict[str, int] = {}
+    for region, carves in by_region.items():
+        layout, syms = rodata_pin.split_region(FILLER_DIR / f"{region}.o", region,
+                                               region_vram[region], carves,
+                                               rodata_pin.PIECE_DIR)
+        layouts[region] = layout
+        absolute.update(syms)
+    return layouts, absolute, sorted(p["name"] for p in pins)
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +517,42 @@ def compare_elf(linked: Path, original: Path) -> bool:
         return False
 
 
+def check_pinned_map(pinned: list[str]) -> bool:
+    """Every pinned object's .rodata must sit inside its planned original span.
+
+    The byte comparison already fails on a misplaced table (the relocated
+    lui/addiu and the region bytes would both differ); this names the culprit.
+    """
+    import json
+    import rodata_pin
+    if not pinned:
+        return True
+    spans = {p["name"]: (p["start"], p["end"])
+             for p in json.loads(rodata_pin.PINS_JSON.read_text())["pins"]}
+    xmap = ELF_OUT.with_name(ELF_OUT.name + ".xMAP")
+    seen: dict[str, int] = {}
+    bad = []
+    for line in xmap.read_text(errors="replace").splitlines():
+        parts = line.split()
+        if len(parts) < 5 or parts[2] != ".rodata" or not parts[-1].startswith("("):
+            continue
+        name = parts[-1].strip("()")
+        name = name[:-2] if name.endswith(".o") else name
+        if name not in spans:
+            continue
+        addr, size = int(parts[0], 16), int(parts[1], 16)
+        lo, hi = spans[name]
+        seen[name] = seen.get(name, 0) + 1
+        if not (lo <= addr and addr + size <= hi):
+            bad.append(f"{name} @0x{addr:08x}")
+    missing = sorted(set(pinned) - set(seen))
+    if bad or missing:
+        print(f"[verify] FAIL — pinned .rodata misplaced: {bad[:5]} missing from map: {missing[:5]}")
+        return False
+    print(f"[verify] pinned local .rodata: {len(seen)} object(s) at their original addresses")
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -479,7 +583,12 @@ def main(argv: list[str]) -> int:
     # Step 2: generate LCF
     funcs = sorted_functions()
     print(f"[link] {len(funcs)} functions in link order")
-    lcf_text = generate_lcf(funcs)
+    layouts, pinned_abs, pinned = plan_rodata_layout(funcs)
+    if pinned:
+        n_pieces = sum(1 for lay in layouts.values() for k, _ in lay if k == "piece")
+        print(f"[link] local .rodata pinned for {len(pinned)} compiled object(s); "
+              f"{len(layouts)} data region(s) split into {n_pieces} piece(s)")
+    lcf_text = generate_lcf(funcs, layouts, pinned_abs)
     LCF.write_text(lcf_text)
     print(f"[link] wrote {LCF.relative_to(ROOT)}")
 
@@ -487,6 +596,12 @@ def main(argv: list[str]) -> int:
     missing = []
     obj_paths = []
     for name in funcs:
+        if name in layouts:
+            # A split data region links as its pieces (the pinned objects are
+            # already listed under their own names).
+            obj_paths.extend(str(Path(p).relative_to(ROOT))
+                             for kind, p in layouts[name] if kind == "piece")
+            continue
         obj = FILLER_DIR / f"{name}.o"
         if not obj.exists():
             missing.append(name)
@@ -531,6 +646,7 @@ def main(argv: list[str]) -> int:
     # Step 5: verify
     if not args.no_verify:
         ok = compare_elf(ELF_OUT, ORIG_ELF)
+        ok = check_pinned_map(pinned) and ok
         return 0 if ok else 2
 
     return result.returncode

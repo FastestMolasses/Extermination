@@ -1,15 +1,8 @@
-// NEARMISS func_00188ED0  (vram 0x00188ED0, 0x1BC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// 7 rows: the target keeps the 0x700038CC store before the &D_700038C0 materialization and colors the D_00275B40 base in $v1; mwcc gives $a1 and sinks the store. m2-matching fixed the mode flag (|| if/else), the range test (> 2U) and the copy_qw4 direction comment.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x700038CC
+//
+// Byte-matched (objdiff 100%) from the former NEARMISS body. The scratchpad point at 0x700038CC is a relocated extern (idiom-32); its expected object is symbolized per file via // SPAD:.
 
 //
 // Copies the 64-byte matrix at D_008103D0[0]+0x90 into each of the first
@@ -28,6 +21,8 @@
 // local between the third and fourth scratchpad stores. Remaining: the target
 // keeps the fourth store before the &D_700038C0 materialization and colors the
 // base in $v1, where mwcc gives $a1 and sinks the store (7 rows).
+
+extern float D_700038CC[16];                        /* PS2 scratchpad @ 0x700038CC */
 
 extern void copy_qw4(int, int);
 extern void func_001026A0(unsigned char *, int, void *);
@@ -63,7 +58,7 @@ setup:
             *(float *)0x700038C4 = 0.5f;
             *(int *)0x700038C8 = 0;
             b = D_00275B40;
-            *(float *)0x700038CC = 1.0f;
+            D_700038CC[0] = 1.0f;
             func_001026A0(arg0 + 0xB0, *b + 0x90, &D_700038C0[0]);
             if (D_008104A0[0] == 0x31 || D_008104A0[0] == 0x34) {
                 mode = 0;

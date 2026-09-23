@@ -1,15 +1,8 @@
-// NEARMISS func_001A97B0  (vram 0x001A97B0, 0x228 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Dispatch (lui/addiu %hi/%lo jtbl_0026DAE0, sll, addu, lw, jr, 20 entries) byte-matches. Residual = idiom-13 delay-slot speculation of the EE-scratchpad address materialiser. At 4 conditional branches the target keeps a `nop` in the slot and mwcc 2.3.3 speculates `lui $at, 0x7000` (the %hi half of...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x70003B86 0x70003B88
+//
+// Byte-matched (objdiff 100%) from the former NEARMISS body. The scratchpad loop counters 0x70003B86/0x70003B88 are relocated externs (idiom-32).
 
 // SEMANTICS: pairwise interaction pass between two global object lists.
 // D_00275BA0 / D_00275BA8 are the "A" list (pointer array + count) and
@@ -40,6 +33,9 @@
 // "global address lui hoists independently of its load" wall - volatile,
 // statement reordering and -sdatathreshold all fail to suppress it.
 
+extern short D_70003B86[16];                        /* PS2 scratchpad @ 0x70003B86 */
+extern short D_70003B88[16];                        /* PS2 scratchpad @ 0x70003B88 */
+
 extern void func_001A9360(char *a, char *b);
 extern void func_001A9480(char *a, char *b);
 extern void func_001A96F0(char *a, char *b);
@@ -59,13 +55,13 @@ void func_001A97B0(void) {
     short n;
 
     n = D_00275BA8;
-    *(short *)0x70003B86 = n;
+    D_70003B86[0] = n;
     if ((n != 0) && (D_00275B98 != 0)) {
         pa = D_00275BA0;
-        while (*(short *)0x70003B86 != 0) {
+        while (D_70003B86[0] != 0) {
             a = *pa;
             hit = 0;
-            (*(short *)0x70003B86)--;
+            (D_70003B86[0])--;
             pa++;
             if (*(unsigned char *)a != 1) {
                 continue;
@@ -89,10 +85,10 @@ void func_001A97B0(void) {
                 continue;
             }
             pb = D_00275B90;
-            *(short *)0x70003B88 = D_00275B98;
-            while (*(short *)0x70003B88 != 0) {
+            D_70003B88[0] = D_00275B98;
+            while (D_70003B88[0] != 0) {
                 b = *pb;
-                (*(short *)0x70003B88)--;
+                (D_70003B88[0])--;
                 pb++;
                 if (*(unsigned char *)b != 1) {
                     continue;

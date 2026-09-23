@@ -18,6 +18,7 @@ import struct
 import build
 import fill_unmatched as filler
 import link
+import rodata_pin
 
 
 class Elf:
@@ -94,6 +95,13 @@ def prepared_text(obj: Elf, slot: int) -> tuple[bytes, list[tuple[int, int, str]
     return bytes(text), sorted(remaining)
 
 
+def rodata_pin_sections(obj: Elf) -> list[bytes]:
+    """Contents of every .rodata section (an object may carry several), in order."""
+    names = obj.contents(struct.unpack_from("<H", obj.data, 50)[0])  # e_shstrndx
+    return [obj.contents(i) for i, header in enumerate(obj.headers)
+            if obj.string(names, header[0]) == ".rodata"]
+
+
 def source_kind(path: Path) -> str:
     if not path.exists():
         return "missing"
@@ -117,6 +125,10 @@ def audit(match_report: Path | None = None) -> dict:
     if names != filler.all_asm_functions():
         raise ValueError("link.py and fill_unmatched.py disagree on function order")
     slots = filler.compute_slot_sizes()
+    # Objects whose local .rodata link.py pins at the original address link
+    # from the compiled object (build/rodata_pins.json, written by the fill).
+    pins = ({p["name"]: p for p in json.loads(rodata_pin.PINS_JSON.read_text())["pins"]}
+            if rodata_pin.PINS_JSON.exists() else {})
     rows = []
     for name in names:
         source = build.SRC / f"{name}.c"
@@ -133,7 +145,8 @@ def audit(match_report: Path | None = None) -> dict:
             route = "original_assembly_explicit_size"
         elif source_type in ("include_asm", "nearmiss"):
             route = f"original_assembly_{source_type}"
-        elif obj and any(obj.section(s) for s in (".rodata", ".data", ".sdata")):
+        elif (obj and any(obj.section(s) for s in (".rodata", ".data", ".sdata"))
+              and name not in pins):
             route = "original_assembly_local_data"
         elif obj and slots[name] > 0 and len(obj.section(".text")) > slots[name]:
             route = "original_assembly_automatic_size"
@@ -152,6 +165,12 @@ def audit(match_report: Path | None = None) -> dict:
             text, relocations = prepared_text(obj, slots[name])
             row["filler_matches_prepared_object_text"] = text == output.section(".text")
             row["filler_matches_prepared_object_relocations"] = relocations == output.text_relocations()
+            if name in pins:
+                pin = pins[name]
+                row["local_rodata_pinned"] = [f"0x{pin['start']:08X}-0x{pin['end']:08X}"]
+                # The linked copy must carry the compiled .rodata unchanged.
+                row["filler_matches_object_rodata"] = (
+                    rodata_pin_sections(obj) == rodata_pin_sections(output))
         rows.append(row)
     counts = Counter(row["route"] for row in rows)
     sizes = Counter()
@@ -159,8 +178,17 @@ def audit(match_report: Path | None = None) -> dict:
         sizes[row["route"]] += row["slot_bytes"]
     configured = {unit["name"] for unit in json.loads(build.OBJDIFF_JSON.read_text())["units"]}
     units = set(build.units())
-    listed = [Path(line.strip()).stem for line in link.OBJ_LIST.read_text().splitlines()
-              if line.strip().startswith("build/filler/")]
+    listed = []
+    for line in link.OBJ_LIST.read_text().splitlines():
+        line = line.strip()
+        if line.startswith("build/filler/"):
+            listed.append(Path(line).stem)
+        elif line.startswith("build/rodata_pin/"):
+            # A data region split around pinned .rodata links as consecutive
+            # pieces <region>__lrodNN.o; they stand for the one region slot.
+            parent = Path(line).stem.rsplit("__lrod", 1)[0]
+            if not listed or listed[-1] != parent:
+                listed.append(parent)
     result = {
         "scope": "canonical boot function slots; excludes separate data-region and overlay objects",
         "interpretation": "current selection policy plus existing object evidence; not proof of readable-C semantic fidelity",
@@ -174,6 +202,9 @@ def audit(match_report: Path | None = None) -> dict:
         "route_slot_bytes": dict(sorted(sizes.items())),
         "copied_text_mismatches": [row["name"] for row in rows if row.get("filler_matches_prepared_object_text") is False],
         "copied_relocation_mismatches": [row["name"] for row in rows if row.get("filler_matches_prepared_object_relocations") is False],
+        "pinned_local_rodata": sorted(name for name in pins if any(
+            row["name"] == name and row["route"].startswith("compiled_object_") for row in rows)),
+        "pinned_rodata_mismatches": [row["name"] for row in rows if row.get("filler_matches_object_rodata") is False],
         "missing_fillers": [row["name"] for row in rows if not row["filler_exists"]],
         "rows": rows,
     }
@@ -219,6 +250,7 @@ def main() -> int:
         args.output.write_text(json.dumps(result, indent=2)+"\n")
     print(json.dumps({key: value for key, value in result.items() if key != "rows"}, indent=2))
     return int(bool(result["copied_text_mismatches"] or result["copied_relocation_mismatches"] or
+                    result["pinned_rodata_mismatches"] or
                     result["missing_fillers"] or not result["link_object_list_matches_order"]))
 
 

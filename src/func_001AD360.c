@@ -1,15 +1,8 @@
-// NEARMISS func_001AD360  (vram 0x001AD360, 0x16C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.80% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 2 of 91 instructions, case 1 only (post-RA scheduler transposition, NOT a dispatch issue — the 6-entry jr-table and all other case bodies are byte-identical). Target emits `addiu v0,zero,1` / `sb zero,%gp_rel(D_00275C78)(gp)` / `lui at,%hi(D_00821058)` / `sb v0,%lo(D_00821058)(at)`; mwcc 2.3.3 ho...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+// SPAD: 0x70003B6C
+//
+// Byte-matched (objdiff 100%) from the former NEARMISS body. The scratchpad pointer 0x70003B6C is a relocated extern at every access (idiom-32).
 
 //
 // SEMANTICS: game-task bring-up poll (func_001AD250 case 0 -> HERE). Dispatches
@@ -27,6 +20,8 @@
 //      D_00810730[D_00810700] = D_00810701; advance
 //   5: func_001D1EF0(); return 4 (done)
 
+extern unsigned char *volatile D_70003B6C[16];      /* PS2 scratchpad @ 0x70003B6C */
+
 extern void func_001D1EF0(void);
 extern void func_001FABB0(void);
 extern void func_001D2830(int, int);
@@ -43,19 +38,19 @@ int func_001AD360(void) {
     unsigned char *slot;
     unsigned char *q;
 
-    p = *(unsigned char *volatile *)0x70003B6C;
+    p = D_70003B6C[0];
     slot = p + 0xA;
     switch (p[0xA]) {
     case 0:
         func_001D1EF0();
         func_001FABB0();
-        q = *(unsigned char *volatile *)0x70003B6C;
+        q = D_70003B6C[0];
         q[0xA] = q[0xA] + 1;
         break;
     case 1:
         func_001D1EF0();
         if (D_00282157[0] == 0) {
-            q = *(unsigned char *volatile *)0x70003B6C;
+            q = D_70003B6C[0];
             D_00275C78 = 0;
             D_00821058[0] = 1;
             q[0xA] = q[0xA] + 1;
@@ -63,13 +58,13 @@ int func_001AD360(void) {
         break;
     case 2:
         func_001D1EF0();
-        q = *(unsigned char *volatile *)0x70003B6C;
+        q = D_70003B6C[0];
         q[0xA] = q[0xA] + 1;
         break;
     case 3:
         *slot = *slot + 1;
-        *(short *)(*(unsigned char *volatile *)0x70003B6C + 0x18) = 0;
-        *(char *)(*(unsigned char *volatile *)0x70003B6C + 0x10) = 0;
+        *(short *)(D_70003B6C[0] + 0x18) = 0;
+        *(char *)(D_70003B6C[0] + 0x10) = 0;
         /* fallthrough */
     case 4:
         func_001D2830(3, 1);
@@ -77,7 +72,7 @@ int func_001AD360(void) {
         D_00810701[0] = 0;
         D_00810702[0] = 0;
         D_00810730[D_00810700[0]] = D_00810701[0];
-        q = *(unsigned char *volatile *)0x70003B6C;
+        q = D_70003B6C[0];
         q[0xA] = q[0xA] + 1;
         break;
     case 5:

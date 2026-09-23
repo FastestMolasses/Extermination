@@ -1,15 +1,7 @@
-// NEARMISS func_0018A6B0  (vram 0x0018A6B0, 0x1CC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 87.20% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring + constant-sharing + tail scheduling (991202==233, 87.2%). Body, the s1=arg0/s0=&D_008102B0 split and frame 0x30 all correct. Target reloads constant 1 with fresh 'li v1,1' per store/compare; mwcc CSEs 1 into a2 and reuses it (sb a2 / beq a1,a2). Trailing func-ptr-call guard and...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%) from the former NEARMISS body. Case labels ascend (0,1,2,3) so the sparse compare chain runs 3,2,1,0; the flag test is one || condition; func_001AFC10 receives the handle arg0.
 
 // NEARMISS 87.2% (991202 == 233, so 2.3.3 gives no edge). Body+structure
 // fully recovered, including the s1=arg0 / s0=&D_008102B0 register split and
@@ -30,7 +22,7 @@ extern void func_00188A50(char *, unsigned char);
 extern void func_00188DF0(char *, unsigned char);
 extern void func_0018A1F0(char *, unsigned char);
 extern int func_0018A8D0(void);
-extern void func_001AFC10(unsigned char);
+extern void func_001AFC10(char *);
 extern char D_008102B0;
 extern unsigned char D_008106C6;
 extern unsigned char D_008106C7;
@@ -48,15 +40,10 @@ void func_0018A6B0(char *arg0) {
     case 0:
         if (func_0018A8D0() == 0) {
             *(unsigned char *)(arg0 + 4) = 1;
-            return;
         }
-        /* fallthrough */
-    case 2:
-        return;
+        break;
     case 1:
-        if (*(unsigned char *)(g + 1) != 0) {
-            *(unsigned char *)(arg0 + 1) = 1;
-        } else if (*(unsigned char *)(g + 0x1F0) == 0x33) {
+        if (*(unsigned char *)(g + 1) != 0 || *(unsigned char *)(g + 0x1F0) == 0x33) {
             *(unsigned char *)(arg0 + 1) = 1;
         }
         sub = *(unsigned char *)(arg0 + 3);
@@ -85,11 +72,13 @@ void func_0018A6B0(char *arg0) {
         }
         if ((D_008106C6 == 0 || *(int *)(g + 0x230) != 0xC || *(unsigned char *)(g + 0x1F1) != 1) && *(unsigned char *)(arg0 + 1) != 0) {
             (*(void (**)(char *))(arg0 + 0x4C))(arg0);
-            return;
+            break;
         }
         break;
+    case 2:
+        break;
     case 3:
-        func_001AFC10(st);
+        func_001AFC10(arg0);
         break;
     }
 }

@@ -97,7 +97,9 @@ def run_boot_elf(st: Stage) -> None:
     r = container_sh(
         "python3 tools/decomp/link.py --no-fill 2>&1 | grep -E '(PASS|FAIL|verify)'")
     out = r.stdout
-    if "PASS — 0x175b00 loadable bytes are identical" in out:
+    # link.py also prints "[verify] FAIL" when a pinned local .rodata table is
+    # not at its original address (check_pinned_map); either failure fails.
+    if "PASS — 0x175b00 loadable bytes are identical" in out and "FAIL" not in out:
         st.ok = True
         st.detail = "boot ELF byte-identical (0x175b00 loadable bytes)"
     else:

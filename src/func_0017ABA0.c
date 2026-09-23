@@ -1,15 +1,7 @@
-// NEARMISS func_0017ABA0  (vram 0x0017ABA0, 0x3CC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.40% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Residual is confined to the st2==0x31/0x34 pitch-band-scale sub-block: (1) a genuine mwcc branch-lowering/scheduling choice for the `pitch<=0.3f || !(pitch<0.7f)` OR (bc1t/bc1f block-layout swap, tried both operand orderings of the OR, neither reproduced target's exact layout), and (2) target com...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%) from the former NEARMISS body. st2 is an int (no re-narrowing), and the pitch band test is if / else-if with the multiply in both arms.
 
 extern float func_0011E2A8(float);
 extern float func_001B1470(float);
@@ -82,7 +74,7 @@ void func_0017ABA0(char *arg0) {
     if (idx != 0) {
         float lim;
         float newpitch;
-        unsigned char st2;
+        int st2;
         unsigned int band;
 
         *(char *)(arg0 + 0x302) = 1;
@@ -90,7 +82,9 @@ void func_0017ABA0(char *arg0) {
         st2 = *(unsigned char *)(arg0 + 0x1F0);
         if (st2 == 0x31 || st2 == 0x34) {
             pitch = *(float *)(arg0 + 0x278);
-            if (pitch <= 0.3f || !(pitch < 0.7f)) {
+            if (pitch <= 0.3f) {
+                step *= 1.5f;
+            } else if (!(pitch < 0.7f)) {
                 step *= 1.5f;
             }
         }

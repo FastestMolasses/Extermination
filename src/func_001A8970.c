@@ -1,15 +1,7 @@
-// NEARMISS func_001A8970  (vram 0x001A8970, 0x26C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.77% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// FP register coloring of the third proximity gate (target opp_extent[1]=f0, self.A4=f2, opp.B4=f1, saved f21; mwcc233 f4/f2/f0 and f22). m2-matching fixed the state!=1 path (it clears D_70003B86; target branch to 0x001A8BB8).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%) from the former NEARMISS body. The block locals are declared first and f21 = half + ... is computed after d (statement order sets the float register colouring).
 
 //
 // LANE NOTE (m1-firstlevel-matching): 0x70003B86 is a relocated extern; objdiff
@@ -76,10 +68,13 @@ void func_001A8970(char *arg0, char *arg1) {
         return;
     }
     {
-        float half = (*(float **)(arg0 + 0x30))[1] / 2.0f;
-        float f21 = half + (*(float **)(arg1 + 0x30))[1];
-        float d = *(float *)(arg0 + 0xA4) + half;
+        float half;
+        float f21;
+        float d;
+        half = (*(float **)(arg0 + 0x30))[1] / 2.0f;
+        d = *(float *)(arg0 + 0xA4) + half;
         d -= *(float *)(arg1 + 0xB4);
+        f21 = half + (*(float **)(arg1 + 0x30))[1];
         if (!(func_0011DF78(d) <= f21)) {
             return;
         }

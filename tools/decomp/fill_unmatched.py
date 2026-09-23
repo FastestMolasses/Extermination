@@ -27,6 +27,7 @@ Pass --clean to wipe build/filler/ first.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import shutil
 import struct
@@ -34,6 +35,8 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+import rodata_pin
 
 ROOT = Path(__file__).resolve().parents[2]
 ASM_DIR = ROOT / "build" / "asm" / "matchings" / "main" / "code"
@@ -98,6 +101,10 @@ GPREL_FORCE_ASM = {
     # the split-function merges / splat regen (symbol_addrs.txt records
     # func_001C0004 as the merged tail of func_001BFFD0) -- so no lookup ever
     # consulted them.
+    # Local .rodata pinning (same day, later): the six .rodata-carrying 100%
+    # objects above were removed. rodata_pin.py proves their jump tables'
+    # original addresses and link.py places the compiled tables there; the
+    # boot ELF stayed byte-identical with all six linked from C.
     # Additional 107 discovered in subsequent link (obj/ compiled with GP-relative):
     "func_00128C10",
     "func_0012A5D0",
@@ -108,8 +115,6 @@ GPREL_FORCE_ASM = {
     "func_00153770",
     "func_00158810",
     "func_00158EC0",
-    "func_00159210",
-    "func_00159620",
     "func_00159970",
     "func_00159B90",
     "func_0015A070",
@@ -117,13 +122,10 @@ GPREL_FORCE_ASM = {
     "func_001647D0",
     "func_00181730",
     "func_00198440",
-    "func_001BC960",
     "func_001BD9F0",
-    "func_001BDFC0",
     "func_001BE6C0",
     "func_001BECC0",
     "func_001BF3C0",
-    "func_001BF6B0",
     "func_001C02E0",
     "bone_root_pulse",  # was func_001C06E0
     "func_001C1A80",
@@ -157,7 +159,6 @@ GPREL_FORCE_ASM = {
     "func_001FD950",
     "func_001FEE60",
     "func_00206BF0",
-    "func_00207350",
     "func_002134C0",
     "func_00219550",
     "func_00228C90",
@@ -183,6 +184,14 @@ DRIFT_DETECTED: dict[str, tuple[int, int]] = {}
 # Functions force-assembled because their compiled object carries initialized data
 # of its own (see the JUMP-TABLE / LOCAL-DATA FORCE-ASM note in assemble_one).
 LOCALDATA_FORCED: set[str] = set()
+
+# Local-data objects whose .rodata is PROVEN to belong at one original address
+# (tools/decomp/rodata_pin.py): these are linked from the compiled object and
+# link.py places their .rodata exactly there. Filled by plan_rodata_pins()
+# before the worker pool starts; read-only afterwards. name -> pin plan.
+RODATA_PINS: dict[str, dict] = {}
+# Local-data objects that could not be proven (kept under the guard): name -> reason.
+RODATA_PIN_REFUSED: dict[str, str] = {}
 
 SIZE_DRIFT_FORCE_ASM = {
     # 57 + 34 stale entries removed 2026-09-23 (m3-matching); see the prune
@@ -574,11 +583,20 @@ def assemble_one(name: str, slot_size: int = 0) -> tuple[str, str, Exception | N
     # pinned data region. That covers switch tables (.rodata jump tables), static
     # const arrays, and string literals in one rule. func_001258E0 is the non-jtbl
     # case: it defines D_0026CC38 in its own 0x100-byte .rodata.
+    #
+    # LOCAL .RODATA PINNING (2026-09-23). The guard now yields for an object
+    # whose .rodata rodata_pin.plan_object() proved: one original address per
+    # section, identical bytes once its relocations resolve, correct alignment,
+    # inside a splittable data-region unit. link.py splits that region object
+    # and places `<name>.o (.rodata)` at the original address, so the compiled
+    # object links whole. Anything unproven (and every .data/.sdata carrier)
+    # stays forced to the .s exactly as before.
     if not force_asm and not is_stub and (OBJ_DIR / f"{name}.o").exists():
         _obj = OBJ_DIR / f"{name}.o"
         if any(_section_size(_obj, sec) > 0 for sec in (".rodata", ".data", ".sdata")):
-            force_asm = True
-            LOCALDATA_FORCED.add(name)
+            if name not in RODATA_PINS:
+                force_asm = True
+                LOCALDATA_FORCED.add(name)
 
     obj_src = OBJ_DIR / f"{name}.o"
     # AUTOMATIC SIZE-DRIFT GUARD (s85). The .lcf lays objects out sequentially,
@@ -675,6 +693,85 @@ def _strip(obj: Path, expected_size: int = 0) -> None:
         pass  # Non-fatal; mwldmips will report the real error.
 
 
+def _is_stub_source(name: str) -> bool:
+    src_c = ROOT / "src" / f"{name}.c"
+    try:
+        for line in src_c.open():
+            line = line.strip()
+            if line:
+                return line.startswith("// INCLUDE_ASM") or line.startswith("// NEARMISS")
+    except OSError:
+        pass
+    return False
+
+
+def data_region_units(funcs: list[str], slot_sizes: dict[str, int]) -> list[tuple[int, int, str]]:
+    """(start, end, name) of link units that link.py may split around pinned .rodata.
+
+    Only splat DATA units (first label is `dlabel`) with no src/*.c qualify:
+    they are always assembled from the .s, so their bytes are the original ones
+    and nothing compiled competes for the slot.
+    """
+    regions = []
+    for name in funcs:
+        if (ROOT / "src" / f"{name}.c").exists():
+            continue
+        asm_path = ASM_DIR / f"{name}.s"
+        first = None
+        for line in asm_path.read_text(errors="replace").splitlines()[:40]:
+            tok = line.split()
+            if tok and tok[0] in ("glabel", "dlabel"):
+                first = tok[0]
+                break
+        if first == "dlabel":
+            start = _vram_from_asm(asm_path)
+            end = start + slot_sizes.get(name, 0)
+            if end == start:
+                # The last unit has no successor to size its slot; it runs to
+                # the end of the original load segment.
+                end = rodata_pin.ORIG_LOAD_VRAM + rodata_pin.ORIG_LOAD_FILESZ
+            regions.append((start, end, name))
+    return regions
+
+
+def plan_rodata_pins(funcs: list[str], slot_sizes: dict[str, int]) -> None:
+    """Prove the original address of every compiled local-.rodata object (see rodata_pin)."""
+    RODATA_PINS.clear()
+    RODATA_PIN_REFUSED.clear()
+    regions = data_region_units(funcs, slot_sizes)
+    spans: list[tuple[int, int, str]] = []
+    for name in funcs:
+        obj = OBJ_DIR / f"{name}.o"
+        if (name in GPREL_FORCE_ASM or name in SIZE_DRIFT_FORCE_ASM or not obj.exists()
+                or _is_stub_source(name)):
+            continue
+        if not any(_section_size(obj, sec) > 0 for sec in (".rodata", ".data", ".sdata")):
+            continue
+        if slot_sizes.get(name, 0) and _text_size(obj) > slot_sizes[name]:
+            continue  # the size-drift guard forces it anyway
+        pin, reason = rodata_pin.plan_object(name, obj, _vram_from_asm(ASM_DIR / f"{name}.s"),
+                                             regions)
+        if pin is None:
+            RODATA_PIN_REFUSED[name] = reason
+            continue
+        clash = next((n for lo, hi, n in spans if lo < pin["end"] and pin["start"] < hi), None)
+        if clash:
+            RODATA_PIN_REFUSED[name] = f"span overlaps the pin of {clash}"
+            RODATA_PIN_REFUSED.setdefault(clash, f"span overlaps the pin of {name}")
+            RODATA_PINS.pop(clash, None)
+            continue
+        spans.append((pin["start"], pin["end"], name))
+        RODATA_PINS[name] = pin
+
+
+def write_rodata_pins() -> None:
+    """Record the pins the filler actually used, for link.py (build/rodata_pins.json)."""
+    rodata_pin.PINS_JSON.parent.mkdir(parents=True, exist_ok=True)
+    rodata_pin.PINS_JSON.write_text(json.dumps(
+        {"pins": [RODATA_PINS[n] for n in sorted(RODATA_PINS)],
+         "refused": dict(sorted(RODATA_PIN_REFUSED.items()))}, indent=1) + "\n")
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Assemble filler objects for all boot-ELF functions")
     ap.add_argument("--jobs", "-j", type=int, default=8,
@@ -698,6 +795,7 @@ def main(argv: list[str]) -> int:
 
     # Precompute slot sizes once (avoids re-reading all .s files per function).
     slot_sizes = compute_slot_sizes()
+    plan_rodata_pins(funcs, slot_sizes)
 
     errors: list[tuple[str, Exception]] = []
     counts = {"copied": 0, "assembled": 0, "cached": 0, "no_asm": 0, "asm_error": 0}
@@ -721,9 +819,15 @@ def main(argv: list[str]) -> int:
         f"{counts['cached']} cached, "
         f"{counts.get('asm_error', 0)} errors"
     )
+    write_rodata_pins()
+    if RODATA_PINS:
+        print(f"[fill_unmatched] local .rodata pinned: {len(RODATA_PINS)} compiled object(s) "
+              f"linked with their .rodata placed at the original address (link.py)")
     if LOCALDATA_FORCED:
         print(f"[fill_unmatched] local-data guard: {len(LOCALDATA_FORCED)} function(s) linked "
               f"from .s so their jump tables / const data keep the original pinned addresses")
+        for _n in sorted(LOCALDATA_FORCED):
+            print(f"[fill_unmatched]   {_n}: {RODATA_PIN_REFUSED.get(_n, 'not planned')}")
     if DRIFT_DETECTED:
         print(f"[fill_unmatched] size-drift guard: {len(DRIFT_DETECTED)} compiled object(s) "
               f"overflowed their slot and were assembled from .s instead")

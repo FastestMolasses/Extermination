@@ -1,15 +1,7 @@
-// NEARMISS func_001B8FC0  (vram 0x001B8FC0, 0x528 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.11% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 13 residual instructions of ~340, in three clusters. (1) DISPATCH, 2 instrs, NOT a compiler wall but an EXPECTED-OBJECT bug: this function has TWO jump tables. mwcc emits each table into its OWN same-named `.rodata` section, each at offset 0, and in REVERSE order of appearance in the function (@3...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%) from the former NEARMISS body. The (void *) casts on &D_008105D0/&D_008105E0 were removed; casting away volatile changed the argument schedule.
 
 // SEMANTICS: camera-move sequencer, one step per frame. Two jump tables.
 //   arg0 = the player/actor block, arg1 = the camera state block,
@@ -74,36 +66,36 @@ int func_001B8FC0(char *arg0, char *arg1, char *arg2) {
     case 0:
         switch (*(int *)(arg2 + 8)) {
         case 0:
-            func_00102948((void *)&D_008105D0, arg2 + 0x20);
-            func_00102948((void *)&D_008105E0, arg2 + 0x30);
+            func_00102948(&D_008105D0, arg2 + 0x20);
+            func_00102948(&D_008105E0, arg2 + 0x30);
             func_00102948(g + 0x10, arg2 + 0x20);
             func_00102948(g + 0x20, arg2 + 0x30);
             break;
         case 1:
         case 5:
-            func_00102948(arg1 + 0x10, (void *)&D_008105D0);
-            func_00102948(arg1 + 0x20, (void *)&D_008105E0);
+            func_00102948(arg1 + 0x10, &D_008105D0);
+            func_00102948(arg1 + 0x20, &D_008105E0);
             break;
         case 3:
-            func_00102948((void *)&D_008105D0, arg2 + 0x20);
-            func_00102948((void *)&D_008105E0, arg2 + 0x30);
+            func_00102948(&D_008105D0, arg2 + 0x20);
+            func_00102948(&D_008105E0, arg2 + 0x30);
             func_00102948(g + 0x10, arg2 + 0x20);
             func_00102948(g + 0x20, arg2 + 0x30);
             return 1;
         case 4:
         case 7:
-            func_00102948((void *)&D_008105D0, arg2 + 0x20);
-            func_00102948((void *)&D_008105E0, &D_00810360);
+            func_00102948(&D_008105D0, arg2 + 0x20);
+            func_00102948(&D_008105E0, &D_00810360);
             func_00102948(g + 0x10, arg2 + 0x20);
             func_00102948(g + 0x20, &D_00810360);
             break;
         case 9:
         case 10:
-            func_00102948((void *)&D_008105D0, arg2 + 0x20);
-            func_00102948((void *)&D_008105E0, &D_00810360);
+            func_00102948(&D_008105D0, arg2 + 0x20);
+            func_00102948(&D_008105E0, &D_00810360);
             D_008105E4 += 6.0f;
-            func_00102948(g + 0x10, (void *)&D_008105D0);
-            func_00102948(g + 0x20, (void *)&D_008105E0);
+            func_00102948(g + 0x10, &D_008105D0);
+            func_00102948(g + 0x20, &D_008105E0);
             break;
         case 6:
             *(float **)(g + 0x70) = func_001C6120(D_0028A490[*(int *)(arg2 + 0x1C)], *(int *)(arg2 + 0x14));
@@ -119,29 +111,29 @@ int func_001B8FC0(char *arg0, char *arg1, char *arg2) {
         break;
     case 1:
         if (*(int *)(arg2 + 8) == 8) {
-            r = func_0018C6A0(arg0 + 0xB0, (void *)&D_008105E0, 0.4f);
-            r = r | func_0018C4B0((void *)&D_008105E0, *(float *)(arg0 + 0xB4), 0.3f);
+            r = func_0018C6A0(arg0 + 0xB0, &D_008105E0, 0.4f);
+            r = r | func_0018C4B0(&D_008105E0, *(float *)(arg0 + 0xB4), 0.3f);
             if (r == 7) {
-                func_001DD980((void *)&D_008105D0, (void *)&D_008105E0);
+                func_001DD980(&D_008105D0, &D_008105E0);
                 return 1;
             }
             break;
         }
         if (!(*(float *)(arg2 + 0x10) < *(float *)(arg2 + 0xC))) {
-            func_001DD980((void *)&D_008105D0, (void *)&D_008105E0);
+            func_001DD980(&D_008105D0, &D_008105E0);
             return 1;
         }
         *(float *)(arg2 + 0x10) += 1.0f;
         m = *(int *)(arg2 + 8);
         switch (m) {
         case 7:
-            func_00102948((void *)&D_008105E0, &D_00810360);
+            func_00102948(&D_008105E0, &D_00810360);
             func_00102948(g + 0x20, &D_00810360);
             break;
         case 10:
-            func_00102948((void *)&D_008105E0, &D_00810360);
+            func_00102948(&D_008105E0, &D_00810360);
             D_008105E4 += 6.0f;
-            func_00102948(g + 0x20, (void *)&D_008105E0);
+            func_00102948(g + 0x20, &D_008105E0);
             break;
         case 1:
         case 5:
@@ -149,16 +141,16 @@ int func_001B8FC0(char *arg0, char *arg1, char *arg2) {
             if (m == 1) {
                 t = (1.0f + func_0011E2A8(3.1415927f * t - 1.5707964f)) / 2.0f;
             }
-            func_001028D0((void *)&D_008105D0, arg2 + 0x20, arg1 + 0x10);
-            func_001028D0((void *)&D_008105E0, arg2 + 0x30, arg1 + 0x20);
+            func_001028D0(&D_008105D0, arg2 + 0x20, arg1 + 0x10);
+            func_001028D0(&D_008105E0, arg2 + 0x30, arg1 + 0x20);
             D_008105D0 = *(float *)(arg1 + 0x10) + D_008105D0 * t;
             D_008105D4 = *(float *)(arg1 + 0x14) + D_008105D4 * t;
             D_008105D8 = *(float *)(arg1 + 0x18) + D_008105D8 * t;
             D_008105E0 = *(float *)(arg1 + 0x20) + D_008105E0 * t;
             D_008105E4 = *(float *)(arg1 + 0x24) + D_008105E4 * t;
             D_008105E8 = *(float *)(arg1 + 0x28) + D_008105E8 * t;
-            func_00102948(g + 0x10, (void *)&D_008105D0);
-            func_00102948(g + 0x20, (void *)&D_008105E0);
+            func_00102948(g + 0x10, &D_008105D0);
+            func_00102948(g + 0x20, &D_008105E0);
             break;
         case 0:
         case 2:
@@ -171,6 +163,6 @@ int func_001B8FC0(char *arg0, char *arg1, char *arg2) {
         }
         break;
     }
-    func_001DD980((void *)&D_008105D0, (void *)&D_008105E0);
+    func_001DD980(&D_008105D0, &D_008105E0);
     return 0;
 }

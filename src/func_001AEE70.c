@@ -1,15 +1,7 @@
-// NEARMISS func_001AEE70  (vram 0x001AEE70, 0x2E0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.59% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 12 instructions, all in the final `if (st != 0)` display-list-append block, and all a single $a2 <-> $a3 permutation: target allocates the slot-record address (dst) to $a3 and the D_00275670 pointer (q) to $a2; mwcc allocates dst->$a2, q->$a3. Instruction sequence, scheduling, operand order and e...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+//
+// Byte-matched (objdiff 100%) from the former NEARMISS body. The display-list append goes through a local write-pointer w = (char **)(q + 0x14).
 
 //
 // SEMANTICS: per-frame update of the screen-fade / overlay-quad state block
@@ -56,6 +48,7 @@ void func_001AEE70(void) {
     int v;
     char *dst;
     char *q;
+    char **w;
 
     p = D_0028A8E0;
     st = D_0028A9A3[0];
@@ -128,9 +121,10 @@ void func_001AEE70(void) {
     if (st != 0) {
         dst = p + D_00810E80[0] * 0x60;
         q = D_00275670;
-        *(char *)(*(char **)(q + 0x14) + 3) = 0x30;
-        *(char **)(*(char **)(q + 0x14) + 4) = dst;
-        *(short *)(*(char **)(q + 0x14) + 0) = 6;
-        *(char **)(q + 0x14) = *(char **)(q + 0x14) + 0x10;
+        w = (char **)(q + 0x14);
+        *(char *)(*w + 3) = 0x30;
+        *(char **)(*w + 4) = dst;
+        *(short *)(*w + 0) = 6;
+        *w = *w + 0x10;
     }
 }
