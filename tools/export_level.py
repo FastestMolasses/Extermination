@@ -2918,6 +2918,204 @@ def load_level_mesh(level_path: Path):
 
 
 # ---------------------------------------------------------------------------
+# GS MATERIALS — the original per-texture draw state of the level kernel
+# (FIRST_LEVEL_AUDIT R10/R25; port docs/LEVEL_MATERIALS.md).
+#
+# A level record carries only TEX0. Everything else the GS uses for a level
+# triangle comes from state that does not depend on the texture:
+#   * PRIM: the level kernel (VU1 code DMA'd by the CALL 0x00237180 packet)
+#     copies the GIF tag at VU1 dmem 0x3FC verbatim into every output
+#     packet (lq vf01,1020(vi00) @0x2373F0; sq vf01,132(vi13) @0x2373F8;
+#     the clip kernel 0x239C90 uses dmem 0x3F9/0x3FA). The level chain
+#     uploads that tag from channel 0, D_00816440, which skin_arena_init
+#     copies from D_002514D0. Its dmem 0x3F9..0x3FC qwords are unchanged at
+#     runtime, so the PRIM is read here from the pinned ELF.
+#   * TEST_1 / ALPHA_1 / TEX1_1 / CLAMP_1: every level unit REFs the 9-qw
+#     env packet D_00815360, which 001D0F20 builds at arena
+#     (*(gp-0x7CFC) = 0x00814220) + 0xBA0 + 0x5A0*set + 0x90*class. The
+#     level uses set 1, class 0: TEST = (ZTST 2 << 17) | 0x1000D (built at
+#     0x1D16D4..0x1D16E0, stored by class 0 at 0x1D1804), ALPHA
+#     0x80000000A8 (0x1D17F8..0x1D1810), TEX1 0x60 (0x1D1764) and CLAMP 0
+#     (0x1D17B4) — the builder writes TEX1 and CLAMP with the same
+#     constants for every class.
+# The reference test (port tools/test_level_material_reference.py) decodes
+# these registers again from the captured DMA chains and requires an exact
+# match; the constants below are only the exporter's input.
+
+GS_CLASS0_TEST = 0x5000D
+GS_CLASS0_ALPHA = 0x80000000A8
+GS_CLASS0_TEX1 = 0x60
+GS_CLASS0_CLAMP = 0x0
+LEVEL_TEMPLATE_PACKET = 0x002514D0     # channel 0 source (-> D_00816440)
+LEVEL_TEMPLATE_DMEM = 0x3FC            # the level kernel's GIF tag slot
+PINNED_ELF_SHA256 = ("ee052236783e7d3e865754d3ff9fee71"
+                     "290addeb7d146c86caa7ff2724d1e17a")
+# AREA11 zone EMDLs (scene_snow) and the chunk15 render file each came from.
+AREA11_ZONE_SOURCES = [
+    ("00_zone_main.emdl", "f12_id44.bin"),
+    ("01_zone_e1.emdl", "f13_id50.bin"),
+    ("02_zone_e2.emdl", "f14_id5a.bin"),
+    ("03_zone_e3.emdl", "f15_id47.bin"),
+    ("04_zone_e4.emdl", "f16_id88.bin"),
+    ("05_movables.emdl", "f17_id93.bin"),
+]
+EMDL_FLAG_GSMAT = 8        # port em_model.h EM_MODEL_FLAG_GSMAT (bit 3:
+                           # binaries predating it ignore that bit)
+
+
+def level_template_prim(elf: "BootElf") -> int:
+    """PRIM of the GIF tag channel 0 uploads to VU1 dmem 0x3FC, read from
+    the ELF source of D_00816440. Faults unless the packet is the expected
+    UNPACK V4-32 and the tag is a PRE=1, 4-register (TEX0 ST RGBAQ XYZF2)
+    PACKED tag — the shape the level kernel relies on."""
+    head = elf.read(LEVEL_TEMPLATE_PACKET, 16)
+    unpack = struct.unpack_from("<I", head, 12)[0]
+    if unpack >> 24 != 0x6C:
+        raise SystemExit("gs-materials: channel-0 packet is not UNPACK V4-32")
+    base, num = unpack & 0x3FF, (unpack >> 16) & 0xFF
+    k = LEVEL_TEMPLATE_DMEM - base
+    if not 0 <= k < num:
+        raise SystemExit("gs-materials: channel-0 packet does not cover "
+                         "dmem 0x3FC")
+    lo, hi = struct.unpack("<QQ", elf.read(LEVEL_TEMPLATE_PACKET + 16
+                                           * (1 + k), 16))
+    if not (lo >> 46) & 1 or (lo >> 58) & 3 or (lo >> 60) != 4 \
+            or hi != 0x4126:
+        raise SystemExit("gs-materials: dmem 0x3FC tag is not the PACKED "
+                         "TEX0/ST/RGBAQ/XYZF2 template")
+    return (lo >> 47) & 0x7FF
+
+
+def gs_rgbaq_alpha(w: float) -> int:
+    """RGBAQ A the level kernel sends for a record colour w: ADDy adds
+    65536.0 (00237218/002373B0) and PACKED RGBAQ keeps bits 0..7."""
+    return struct.unpack("<I", struct.pack("<f", 65536.0 + w))[0] & 0xFF
+
+
+def gs_material_code(test: int, prim: int, alpha: int, tex0: int,
+                     tex1: int, clamp: int) -> int:
+    """Pack the port's EM_GFX_MESH_GSMAT code (em_gfx.h layout)."""
+    wms, wmt = clamp & 3, (clamp >> 2) & 3
+    if wms != wmt:
+        raise SystemExit("gs-materials: WMS != WMT cannot be encoded")
+    return ((test & 0x3FFF) | ((prim >> 6) & 1) << 14
+            | (alpha & 0xFF) << 15 | ((tex0 >> 34) & 1) << 23
+            | ((tex0 >> 35) & 3) << 24 | ((tex1 >> 5) & 1) << 26
+            | ((tex1 >> 6) & 7) << 27 | wms << 30)
+
+
+def level_texture_alphas(d: bytes) -> dict:
+    """{TEX0 key: set of RGBAQ A} over the three vertices of every
+    triangle each key textures (the kick vertex's TEX0, as MeshBuilder
+    assigns it) — the Af the GS modulates the texel alpha with."""
+    out: dict = {}
+    run = []
+    for rec in walk_records(d):
+        if rec is None:
+            run = []
+            continue
+        _o, _pos, wbits, q, _uv, attr = rec
+        run.append(gs_rgbaq_alpha(attr[3]))
+        if len(run) > 3:
+            run.pop(0)
+        if (wbits & 0x8000) == 0 and len(run) == 3:
+            out.setdefault(q & en.TEX0_KEY_MASK, set()).update(run)
+    return out
+
+
+def _emdl_layout(buf: bytes):
+    """(flags offset, tex-table offset, tex_count, vert offset, vert_count,
+    index offset, index_count) of an EMD3 file."""
+    if buf[:4] != b"EMD3":
+        raise SystemExit("gs-materials: expected an EMD3 file")
+    bc, vc, ic, _fc = struct.unpack_from("<4I", buf, 4)
+    tc, _flags, cc = struct.unpack_from("<3I", buf, 24)
+    tex_off = 36 + 4 * bc
+    v_off = tex_off + 16 * tc + 16 * cc
+    return 28, tex_off, tc, v_off, vc, v_off + 40 * vc, ic
+
+
+def export_gs_materials(scene_dir: Path, elf_path: Path,
+                        chunk_dir: Path) -> int:
+    """--gs-materials: write each AREA11 zone texture's original GS
+    draw-state code into its EMDL tex entry (`reserved`), set header flag
+    bit 3, and write <zone>.gsmat.json with the raw register values.
+
+    The zone's geometry is rebuilt from its chunk15 source first and must
+    match the shipped file exactly (vertex positions, UVs, texture slots,
+    indices), so every code lands on the texture it was computed for.
+    Nothing else in the file changes. Faults when a texture needs state
+    the port's backend does not implement (see em_gfx.h)."""
+    import hashlib
+    raw = elf_path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != PINNED_ELF_SHA256:
+        raise SystemExit(f"gs-materials: {elf_path} is not the pinned "
+                         "SCUS-97112 boot ELF")
+    prim = level_template_prim(BootElf(elf_path))
+    for zone, source in AREA11_ZONE_SOURCES:
+        zpath = scene_dir / zone
+        spath = chunk_dir / source
+        buf = bytearray(zpath.read_bytes())
+        f_off, t_off, tc, v_off, vc, i_off, ic = _emdl_layout(buf)
+        sections, tex_table, _n = load_level_mesh(spath)
+        pos, _col, tris, _bone, uv, tex = sections[0]
+        if len(tex_table) != tc or len(pos) != vc or len(tris) != ic:
+            raise SystemExit(f"gs-materials: {zone} does not match a "
+                             f"rebuild of {source} (counts)")
+        for i in range(vc):
+            v = struct.unpack_from("<8f2I", buf, v_off + 40 * i)
+            want = struct.unpack("<3f2f", struct.pack(
+                "<3f2f", *pos[i], *uv[i]))
+            t = tex[i] if 0 <= tex[i] < tc else 0xFFFFFFFF
+            if (v[0], v[1], v[2], v[6], v[7]) != want or v[9] != t:
+                raise SystemExit(f"gs-materials: {zone} vertex {i} differs "
+                                 f"from a rebuild of {source}")
+        if list(struct.unpack_from(f"<{ic}I", buf, i_off)) != list(tris):
+            raise SystemExit(f"gs-materials: {zone} indices differ from a "
+                             f"rebuild of {source}")
+        alphas = level_texture_alphas(spath.read_bytes())
+        records = []
+        for i, f in enumerate(tex_table):
+            key = f["key"]
+            tcc, tfx = (key >> 34) & 1, (key >> 35) & 3
+            af = sorted(alphas.get(key, ()))
+            # The backend reproduces modulate with Af 128 (As = At) and
+            # highlight with Af 0 (Cv = Ct*Cf + 0, As = At + 0) only.
+            if tcc != 1 or (tfx == 0 and af != [128]) \
+                    or (tfx == 2 and af != [0]) or tfx not in (0, 2):
+                raise SystemExit(f"gs-materials: {zone} texture {i} "
+                                 f"(TCC {tcc}, TFX {tfx}, Af {af}) is "
+                                 "outside the decoded material set")
+            code = gs_material_code(GS_CLASS0_TEST, prim, GS_CLASS0_ALPHA,
+                                    key, GS_CLASS0_TEX1, GS_CLASS0_CLAMP)
+            struct.pack_into("<I", buf, t_off + 16 * i + 12, code)
+            records.append({
+                "index": i, "tex0": f"0x{key:016X}", "tcc": tcc,
+                "tfx": tfx, "rgbaq_a": af, "prim": f"0x{prim:03X}",
+                "test_1": f"0x{GS_CLASS0_TEST:X}",
+                "alpha_1": f"0x{GS_CLASS0_ALPHA:X}",
+                "tex1_1": f"0x{GS_CLASS0_TEX1:X}",
+                "clamp_1": f"0x{GS_CLASS0_CLAMP:X}",
+                "code": f"0x{code:08X}"})
+        flags = struct.unpack_from("<I", buf, f_off)[0] | EMDL_FLAG_GSMAT
+        struct.pack_into("<I", buf, f_off, flags)
+        tmp = zpath.with_suffix(".emdl.tmp")
+        tmp.write_bytes(bytes(buf))
+        tmp.replace(zpath)
+        side = scene_dir / (zpath.stem + ".gsmat.json")
+        side.write_text(json.dumps({
+            "zone": zone, "source": f"chunk15/{source}",
+            "kernel": "0x00237180 (clip 0x00239C90)",
+            "env_packet": "001D0F20 arena+0xBA0+0x5A0 (D_00815360), "
+                          "set 1 class 0",
+            "template": "D_002514D0 -> D_00816440 -> VU1 dmem 0x3FC",
+            "textures": records}, indent=1) + "\n")
+        print(f"gs-materials: {zone}: {tc} texture codes, flags "
+              f"0x{flags:X}, {side.name}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Texture resolution from the GS dump's VRAM snapshot
 
 def read_psmct32_rgba(lm: bytes, tbp0: int, tbw: int, w: int, h: int) -> bytes:
@@ -3196,8 +3394,19 @@ def main(argv):
                     "(the engine's vent crawl is overlay-scripted, not a "
                     "placement object; arrival = the real office0 spawn "
                     "entry 5). Replaces the removed --synthetic-link.")
+    ap.add_argument("--gs-materials", metavar="DIR",
+                    help="write the original per-texture GS draw state "
+                    "(TEST/ALPHA/PRIM/TEX0 TCC+TFX/TEX1/CLAMP) into the "
+                    "AREA11 zone EMDLs in DIR (scene_snow) and DIR/"
+                    "<zone>.gsmat.json; reads extract/chunk15 and the "
+                    "pinned config/SCUS_971.12 (see export_gs_materials)")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
+
+    if args.gs_materials:
+        return export_gs_materials(Path(args.gs_materials),
+                                   Path("config/SCUS_971.12"),
+                                   Path("extract/chunk15"))
 
     if args.door_goto:
         return annotate_door_goto(args)
