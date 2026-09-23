@@ -1,6 +1,6 @@
 // NEARMISS func_001305B0  (vram 0x001305B0, 0x4F8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.19% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.69% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Register-allocation/scheduling permutation on 4 stack-temp float reloads (target always reloads 0x38a0 first regardless of C order; both mwcc builds reload in a fixed internal order) PLUS an idiom-13-class delay-slot-fill gap: target speculates 'lui at,0x7000' / 'move a0,arg0' into two branch del...
 //
@@ -27,7 +27,7 @@ extern void anim_clip_init(char *self, int clip, float a, float b);
 extern void func_001028B8(void *a, void *b, void *c);
 extern void func_00131F20(char *p, void *a, void *b);
 extern void func_00132490(char *self, char *owner);
-extern int func_00122BB8(char *p);
+extern int func_00122BB8(void);
 extern int func_001A7B80(char *p);
 extern float func_001B1240(char *p, float a, float b);
 extern float func_001B12B0(float a, float b, float c);
@@ -160,7 +160,7 @@ void func_001305B0(char *arg0, char *arg1) {
             if (c != 0) {
                 *(short *)(arg1 + 0x50) = c - 1;
             } else {
-                *(short *)(arg1 + 0x50) = ((func_00122BB8(arg0) >> 9) & 7) + 5;
+                *(short *)(arg1 + 0x50) = ((func_00122BB8() >> 9) & 7) + 5;
                 *(float *)0x700038A0 = *(float *)(arg0 + 0xB0);
                 *(float *)0x700038A4 = *(float *)(arg0 + 0xB4);
                 *(float *)0x700038A8 = *(float *)(arg0 + 0xB8);

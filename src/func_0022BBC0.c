@@ -84,7 +84,7 @@ extern void func_001028B8(float *dst, float *a, float *b);
 extern void func_00102948(char *dst, char *src);
 extern void func_001029C0(float *dst, int seed);
 extern void func_00103230(float *dst, float *src, float scale);
-extern int func_00122BB8();
+extern int func_00122BB8(void);
 extern void func_001AFC10();   /* K&R: the caller leaves the state byte in a1 */
 extern void func_001CA6E0(char *scn, int id);
 extern int func_001CCF70(float *pos);

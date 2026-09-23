@@ -1,7 +1,7 @@
 // Hybrid asm void: real mnemonics where mwcc accepts them,
 // .word for branch instructions (mwcc rejects PC-relative labels).
 // CFLAGS: -O4,p -sdatathreshold 4
-extern void func_122BB8(int, int, int, int);
+extern int func_122BB8(void);
 
 asm void func_overlay_AREA21_00829ED0(void) {
     addiu $sp, $sp, -0x20

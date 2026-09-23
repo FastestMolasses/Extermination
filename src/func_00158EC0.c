@@ -1,12 +1,9 @@
-// NEARMISS func_00158EC0  (vram 0x00158EC0, 0x348 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.67% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 99.67 with mwcc233 -O4,p -sdatathreshold 4 (o991: 86.59). Instruction SEQUENCE is byte-identical everywhere including both dispatches; the whole residual is 9 instructions of pure GPR permutation, no count/order difference: (a) the phase-0 mask test, 7 instrs, expected a2=D_00810700 index / a1=D_...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_00158EC0 -- byte-matched from C (objdiff 100%).
+// Jump-table dispatcher; the local .rodata table is pinned at its original
+// address (tools/decomp/rodata_pin.py). Promoted from NEARMISS in round 6
+// (2026-09-23): func_001C5570 takes four arguments (the phase-0 call passes mode
+// 1, which the target keeps in $a3 and reuses for the p[0] = 1 store), and the
+// byte-table bit test is spelled D_00810841[i] & (1U << n) (idiom-35).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
@@ -53,7 +50,7 @@
 
 extern int  func_001B0FD0(void);
 extern void func_001C6380(unsigned char *p);
-extern int  func_001C5570(unsigned char *p, void *mtx, int id);
+extern int  func_001C5570(unsigned char *p, void *mtx, int id, int mode);
 extern int  func_00157860(unsigned char *p, unsigned char *anim, int mode);
 extern void func_001BA1A0(unsigned char *anim, void *clip);
 extern int  func_001BA1F0(unsigned char *p);
@@ -85,7 +82,7 @@ void func_00158EC0(unsigned char *p)
             *(int **)(p + 0x30) = &D_00275480;
             p[0xA] = 0;
             *(int *)(p + 0x20) = 0;
-            if (((1 << *(unsigned short *)(p + 0x2E)) & D_00810841[D_00810700[0]]) != 0) {
+            if ((D_00810841[D_00810700[0]] & (1U << *(unsigned short *)(p + 0x2E))) != 0) {
                 p[0] = 2;
                 p[5] = 3;
             } else {
@@ -102,7 +99,7 @@ void func_00158EC0(unsigned char *p)
                 *(volatile int *)0x700038A4 = 0;
                 *(volatile int *)0x700038A8 = 0;
                 *(volatile int *)0x700038AC = 0x3F800000;
-                *(int *)(p + 0x20) = func_001C5570(p, D_700038A0, 0x75);
+                *(int *)(p + 0x20) = func_001C5570(p, D_700038A0, 0x75, 1);
             }
         }
         break;

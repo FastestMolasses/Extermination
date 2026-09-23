@@ -43,7 +43,7 @@ extern void func_001029C0(void *a0);
 extern void func_00102B08(void *obj, void *obj2, float v);
 extern void func_00102BB0(void *obj, void *obj2, float v);
 extern float func_0011E420(float a);
-extern int func_00122BB8(signed char a0);
+extern int func_00122BB8(void);
 extern short func_00128250(float a0);
 extern void func_0013C1F0(void *arg0, void *arg1);
 extern void func_0013C4C0(void *arg0, void *arg1);
@@ -102,7 +102,7 @@ void func_0013C8C0(char *arg0, signed char *arg1) {
                 }
             }
         } else if (result == 3) {
-            *(short *)(arg1 + 0x28) = func_00128250(66.666664f * ((float)((func_00122BB8(result) >> 7) & 0xFF) / 255.0f));
+            *(short *)(arg1 + 0x28) = func_00128250(66.666664f * ((float)((func_00122BB8() >> 7) & 0xFF) / 255.0f));
             *(short *)(arg1 + 0x2A) = 0;
             *(int *)0x700038A0 = 0;
             *(int *)0x700038A4 = 0;

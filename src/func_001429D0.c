@@ -1,8 +1,12 @@
 // NEARMISS func_001429D0  (vram 0x001429D0, 0xAEC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.68% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 99.68% (22 of ~700 instrs). Dispatch itself is byte-identical except register colouring; jtbl reloc is NOT a residual (matched). Residuals, all mwcc-vs-CW allocator/scheduler: (1) rows 5/8/9/10/12 prologue: mwcc emits `paddub s0,a1` before `paddub s1,a0` (ascending s-reg) and therefore colours th...
+// objdiff 99.94% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate (round 6, 2026-09-23):
+// Prologue only: the target copies a0 to s1 before a1 to s0 and puts the a1 copy in the dispatch
+// beqz delay slot, so the jump-table address uses a2; mwcc copies a1 first and uses a1. Round 6
+// fixed the func_00102948/func_001028B8 argument casts (void * parameters), zero staging
+// (idiom-24) at two anim_clip_init sites and the func_001B12B0 argument load order (target float
+// in a block local).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -49,14 +53,14 @@ extern int   func_001464B0(unsigned char *);
 extern int   func_00122BB8(void);
 extern float func_001B1240(float *, float, float);
 extern float func_001B12B0(float, float, float);
-extern void  func_00102948(float *, float *);
+extern void  func_00102948(void *, void *);
 extern int   func_001B13F0(float *, float *, float);
 extern void  anim_clip_init(unsigned char *, int, float, float);
 extern int   func_001B1560(unsigned char *, float *, float);
 extern float func_001B1470(float);
 extern float func_0011DF78(float);
 extern void  func_001B2B10(unsigned char *, float *, float *);
-extern void  func_001028B8(float *, float *, float *);
+extern void  func_001028B8(void *, void *, void *);
 extern int   func_0019AD00(unsigned char *, float *, int);
 extern int   func_00146AF0(unsigned char *, unsigned char *, float);
 extern int   func_001B39F0(unsigned char *, float *, float *);
@@ -117,12 +121,15 @@ void func_001429D0(unsigned char *e, unsigned char *d)
                     *(volatile float *)0x70003A20 =
                         0.043633234f +
                         (0.06981317f * ((float)((func_00122BB8() >> 14) & 0xFF) / 255.0f));
+                    {
+                    float tgt = *(float *)(d + 0x44);
                     cur = *(float *)(e + 0xC4);
-                    *(float *)(e + 0xC4) = func_001B12B0(*(float *)(d + 0x44), cur,
+                    *(float *)(e + 0xC4) = func_001B12B0(tgt, cur,
                                                          *(volatile float *)0x70003A20);
+                    }
                 }
-                func_00102948(D_700038A0, (float *)(e + 0xB0));
-                func_00102948(D_700038B0, (float *)(d + 0x10));
+                func_00102948(D_700038A0, e + 0xB0);
+                func_00102948(D_700038B0, d + 0x10);
                 *(volatile int *)0x700038B4 = 0;
                 *(volatile int *)0x700038A4 = 0;
                 if (func_001B13F0(D_700038A0, D_700038B0, 45.0f) != 0 ||
@@ -130,7 +137,7 @@ void func_001429D0(unsigned char *e, unsigned char *d)
                     e[6] = 4;
                     *(int *)(d + 0x40) = 0x40000000;
                     *(int *)(d + 0x50) = 0xBD4CCCCD;
-                    anim_clip_init(e, 6, 0.0f, 0.0f);
+                    { int zi = 0; float z = (float)zi; anim_clip_init(e, 6, 0.0f, z); }
                 }
                 break;
             }
@@ -145,7 +152,7 @@ void func_001429D0(unsigned char *e, unsigned char *d)
                         *(volatile int *)0x700038A8 = 0x420E0000;
                         *(volatile int *)0x700038AC = 0x3F800000;
                         func_001B2B10(e, D_700038A0, D_700038A0);
-                        func_001028B8(D_700038A0, (float *)(e + 0xB0), D_700038A0);
+                        func_001028B8(D_700038A0, e + 0xB0, D_700038A0);
                         if (func_0019AD00(e, D_700038A0, 7) == 0) {
                             e[5] = 7;
                             e[6] = 0;
@@ -252,11 +259,11 @@ void func_001429D0(unsigned char *e, unsigned char *d)
         *(volatile int *)0x700038A8 = 0x42060000;
         *(volatile int *)0x700038AC = 0x3F800000;
         func_001026A0(D_700038B0, D_700036A0, D_700038A0);
-        func_001028B8(D_700038B0, D_700038B0, (float *)(e + 0xB0));
+        func_001028B8(D_700038B0, D_700038B0, e + 0xB0);
         if (func_0019AD00(e, D_700038B0, 6) == 0) {
             func_00102BB0(D_700036A0, D_700036A0, *(volatile float *)0x70003A20);
             func_001026A0(D_700038B0, D_700036A0, D_700038A0);
-            func_001028B8(D_700038B0, D_700038B0, (float *)(e + 0xB0));
+            func_001028B8(D_700038B0, D_700038B0, e + 0xB0);
             if (func_0019AD00(e, D_700038B0, 6) == 0) {
                 e[6] = 2;
                 *(int *)(d + 0x20) = 0;
@@ -289,7 +296,7 @@ void func_001429D0(unsigned char *e, unsigned char *d)
             if (*(float *)(d + 0x48) <= 0.0f) {
                 e[7] = e[7] + 1;
                 *(int *)(d + 0x40) = 0x3F800000;
-                anim_clip_init(e, 9, 0.0f, 0.0f);
+                { int zi = 0; float z = (float)zi; anim_clip_init(e, 9, 0.0f, z); }
                 break;
             }
             if ((*(short *)(e + 0x2C) & 0xFFFF7FFF) != 8 &&

@@ -1,8 +1,10 @@
 // NEARMISS func_001AD740  (vram 0x001AD740, 0x7B8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.23% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 14 instructions in three groups. (1) 2 instrs - MULTI-TABLE dispatch reloc: this function has TWO jump tables (outer jtbl_0026DD10 at the state-0xA switch, inner jtbl_0026DCF0 at the state-3 sub-switch). mwcc emits each as its own anonymous local (@83/@84) in switch-encounter order, so the OUTER ...
+// objdiff 99.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate (round 6, 2026-09-23):
+// Two instructions: the saturating increment of D_0081070A lands in v1 in place (addiu v1,v1,1;
+// andi s2,v1) where the target writes a fresh v0 that already holds the 0xFF compare constant. The
+// outer jump-table relocation rows are the local .rodata symbol name only.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -53,23 +55,19 @@
 //      func_001D1EA0(0).
 //   6  teardown: slot+9 = 4, slot+0xA = 0, D_00810D38 = 0.
 //
-// NEARMISS 99.231 with mwcc 2.3.3 (mwcps2-2.3.3-000906) -O4,p -sdatathreshold 8.
-// Small globals are over-declared as arrays (idiom #20) to force absolute
-// addressing while D_00275BD8 stays gp-rel at threshold 8; D_00810700/701/702 are
-// additionally `volatile` so the 0xB store keeps source order.
-// RESIDUALS (14 instrs, all known walls):
-//  * 2 instrs - MULTI-TABLE jump-table layout: mwcc emits each switch table as its
-//    own anonymous local (@83/@84) and puts the OUTER table first, whereas the
-//    original .rodata has the inner table (jtbl_0026DCF0) first, so objdiff cannot
-//    pair the outer dispatch reloc. This is the documented multi-table ceiling
-//    recorded in tools/match/gen_jtbl_rodata.py (func_001CFBE0 / func_0022B7A0).
-//  * 6 instrs - idiom-13 delay-slot fill at three branches (the 0x70003B93 test in
-//    state 0 and the two `D_00810E74 & 0x800` tests in sub-states 2 and 5): mwcc
-//    speculates the successor's `lui at, 0x7000` into the delay slot where CW
-//    leaves a nop. Arm inversion made it worse (96.2%); volatile on the slot
-//    pointer had no effect.
-//  * 5 instrs - v0/v1 colouring of the D_0081070A read-modify pair; unaffected by
-//    declaration order, ternary vs if/else, unsigned char vs int, or double-read.
+// NEARMISS 99.98 with mwcc 2.3.3 (mwcps2-2.3.3-000906) -O4,p -sdatathreshold 8
+// (round 6). Small globals are over-declared as arrays (idiom #20) to force
+// absolute addressing while D_00275BD8 stays gp-rel at threshold 8;
+// D_00810700/701/702 are additionally `volatile` so the 0xB store keeps source
+// order. 0x70003B6C is a relocated scratchpad extern (idiom-32), which removed
+// the old delay-slot residuals, and the saturating increment is spelled
+// `next = D_0081070A[0]; if (next != 0xFF) next++;`.
+// RESIDUAL (1 instruction + its use): the target computes next + 1 into a fresh
+// v0 (the register holding the 0xFF compare constant); mwcc increments in place
+// in v1. Declaration order, int/u8/u32 types, ternary, if/else, loop-counter
+// reuse and compound spellings were all measured and leave it.
+extern unsigned char *D_70003B6C[16];               /* PS2 scratchpad @ 0x70003B6C */
+
 extern void func_001ABF90(long long, long long, long long, long long);
 extern void func_001AEBA0(int);
 extern void func_001AEDB0(int);
@@ -122,7 +120,7 @@ void func_001AD740(void) {
     int next;
     int nxt;
 
-    p = *(unsigned char **)0x70003B6C;
+    p = D_70003B6C[0];
     switch (p[0xA]) {
     case 0:
         func_001AEDB0(0);
@@ -131,11 +129,11 @@ void func_001AD740(void) {
         func_001AEBA0(0xFF);
         func_001D1EF0();
         if (*(unsigned char *)0x70003B93 == 1) {
-            q = *(unsigned char **)0x70003B6C;
+            q = D_70003B6C[0];
             q[0xA] = q[0xA] + 1;
-            *(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1A) = 0x30;
+            *(unsigned short *)(D_70003B6C[0] + 0x1A) = 0x30;
         } else {
-            (*(unsigned char **)0x70003B6C)[0xA] = 2;
+            (D_70003B6C[0])[0xA] = 2;
         }
         break;
     case 1:
@@ -144,7 +142,7 @@ void func_001AD740(void) {
             r = (unsigned short *)(p + 0x1A);
             if (--*r == 0) {
                 func_001AEE10(6, 0);
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[0xB] = q[0xB] + 1;
             }
             func_001D1EF0();
@@ -154,7 +152,7 @@ void func_001AD740(void) {
             func_001D2830(3, 1);
             if (func_0022D380() != 0 || (D_00810E74[0] & 0x800)) {
                 func_001B0C00(4);
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[0xB] = q[0xB] + 1;
             }
             func_001D1EA0(0);
@@ -165,18 +163,18 @@ void func_001AD740(void) {
             func_0022D380();
             func_001D1EA0(0);
             if (D_0028A9A0[0] == 2) {
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[0xA] = q[0xA] + 1;
-                (*(unsigned char **)0x70003B6C)[0xB] = 0;
+                (D_70003B6C[0])[0xB] = 0;
             }
             break;
         }
         break;
     case 2:
         func_001FABB0();
-        q = *(unsigned char **)0x70003B6C;
+        q = D_70003B6C[0];
         q[0xA] = q[0xA] + 1;
-        (*(unsigned char **)0x70003B6C)[0xB] = 0;
+        (D_70003B6C[0])[0xB] = 0;
         func_001AEDB0(0);
         n = 0;
         flag = 0;
@@ -188,10 +186,9 @@ void func_001AD740(void) {
                 n = n + 1;
             }
         }
-        raw = D_0081070A[0];
-        next = 0xFF;
-        if (raw != 0xFF) {
-            next = raw + 1;
+        next = D_0081070A[0];
+        if (next != 0xFF) {
+            next++;
         }
         saved = D_00810750[0];
         nxt = next & 0xFF;
@@ -226,15 +223,15 @@ void func_001AD740(void) {
             func_001D1EF0();
             D_00275BD8 = 1;
             func_001FF080(0, 0x37);
-            q = *(unsigned char **)0x70003B6C;
+            q = D_70003B6C[0];
             q[0xB] = q[0xB] + 1;
             break;
         case 1:
             if (D_00275BD8 == 0) {
                 func_001AEE10(4, 0);
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[0xB] = q[0xB] + 1;
-                *(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1A) = 0x1C60;
+                *(unsigned short *)(D_70003B6C[0] + 0x1A) = 0x1C60;
                 func_001D2830(3, 1);
             }
             break;
@@ -245,14 +242,14 @@ void func_001AD740(void) {
                           0x21323040LL | (0x20064686LL << 32));
             if (D_00810E74[0] & 0x800) {
                 func_001AEDE0(4, 0);
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[0xB] = q[0xB] + 1;
             } else {
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 r = (unsigned short *)(q + 0x1A);
                 if ((*r)-- == 0) {
                     func_001AEDE0(4, 0);
-                    (*(unsigned char **)0x70003B6C)[0xB] = 4;
+                    (D_70003B6C[0])[0xB] = 4;
                 }
             }
             break;
@@ -263,15 +260,15 @@ void func_001AD740(void) {
                           0x21323000LL | (0x20064606LL << 32),
                           0x21323040LL | (0x20064686LL << 32));
             if (D_0028A9A0[0] == 2) {
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 t = q + 0xB;
                 if (q[0xB] == 4) {
                     *t = *t + 1;
-                    *(unsigned short *)(*(unsigned char **)0x70003B6C + 0x1A) = 0x1AC;
+                    *(unsigned short *)(D_70003B6C[0] + 0x1A) = 0x1AC;
                     func_001AEE10(4, 0);
                 } else {
                     q[0xA] = q[0xA] + 1;
-                    (*(unsigned char **)0x70003B6C)[0xB] = 0;
+                    (D_70003B6C[0])[0xB] = 0;
                 }
             }
             break;
@@ -282,14 +279,14 @@ void func_001AD740(void) {
                           0x21322C40LL | (0x20064286LL << 32));
             if (D_00810E74[0] & 0x800) {
                 func_001AEDE0(4, 0);
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[0xB] = q[0xB] + 1;
             } else {
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 r = (unsigned short *)(q + 0x1A);
                 if ((*r)-- == 0) {
                     func_001AEDE0(4, 0);
-                    q = *(unsigned char **)0x70003B6C;
+                    q = D_70003B6C[0];
                     q[0xB] = q[0xB] + 1;
                 }
             }
@@ -300,9 +297,9 @@ void func_001AD740(void) {
                           0x21322C00LL | (0x20064206LL << 32),
                           0x21322C40LL | (0x20064286LL << 32));
             if (D_0028A9A0[0] == 2) {
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[0xA] = q[0xA] + 1;
-                (*(unsigned char **)0x70003B6C)[0xB] = 0;
+                (D_70003B6C[0])[0xB] = 0;
             }
             break;
         }
@@ -310,21 +307,21 @@ void func_001AD740(void) {
     case 4:
         func_001D1EF0();
         func_00225A00();
-        q = *(unsigned char **)0x70003B6C;
+        q = D_70003B6C[0];
         q[0xA] = q[0xA] + 1;
         break;
     case 5:
         func_001D1C50();
         func_001D2830(3, 1);
         if (func_00225AC0(1) != 0) {
-            q = *(unsigned char **)0x70003B6C;
+            q = D_70003B6C[0];
             q[0xA] = q[0xA] + 1;
         }
         func_001D1EA0(0);
         break;
     case 6:
         p[9] = 4;
-        (*(unsigned char **)0x70003B6C)[0xA] = 0;
+        (D_70003B6C[0])[0xA] = 0;
         D_00810D38[0] = 0;
         break;
     }

@@ -16,7 +16,7 @@
 
 extern float D_00810364;
 
-extern int func_00122BB8();
+extern int func_00122BB8(void);
 extern void func_00151940(unsigned char *self, unsigned char *st);
 extern void func_00151E50(unsigned char *self, unsigned char *st);
 extern void func_00152040(unsigned char *self, unsigned char *st);

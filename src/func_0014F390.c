@@ -14,7 +14,7 @@
 // 991202 walls at 91.5% (idiom-13 delay-slot nops + unsigned-char andi artifacts).
 
 extern int anim_clip_init(unsigned char *self, int a1, int a2, float f12, float f13);
-extern int func_00122BB8();
+extern int func_00122BB8(void);
 extern int func_00151200(unsigned char *p, unsigned char *e);
 extern int func_001FBD50(unsigned char *e, int idx, int a, float b);
 

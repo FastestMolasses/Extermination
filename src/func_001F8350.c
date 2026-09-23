@@ -36,7 +36,7 @@ extern void func_001026A0(void *a, void *b, void *c);
 extern void func_00102918(void *a, void *b, void *c);
 extern void func_00102948(void *a, void *b);
 extern void func_001029C0(void *a, int v);
-extern int func_00122BB8(int seed);
+extern int func_00122BB8(); /* rand(void); left unprototyped for the matching device below */
 extern void func_001AFC10(int state);
 extern int func_001CD070(void *a, int n);
 extern float func_001CD2B0(float a, float b, float c, float d);
@@ -79,7 +79,7 @@ void func_001F8350(char *p) {
             fp += 1;
         } while (i < 0x40);
         q[0] = 0;
-        q[1] = func_00122BB8(i);
+        q[1] = func_00122BB8(i); /* matching device: rand(void) ignores a0; the original sets it */
         *(unsigned char *)(p + 4) = 1;
         /* fallthrough */
     case 1:
@@ -90,7 +90,7 @@ void func_001F8350(char *p) {
         }
         if (*(unsigned char *)(p + 4) == 1) {
             if ((*(int *)0x70003B68 & 7) == 0) {
-                sel = func_00122BB8(*(unsigned char *)(obj + 4)) % 3;
+                sel = func_00122BB8() % 3;
                 idx = q[0];
                 switch (sel) {
                 case 0:

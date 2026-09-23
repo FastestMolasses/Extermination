@@ -1,8 +1,10 @@
 // func_00200360 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
 // compiled local .rodata table is pinned at its original address
 // (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
-// (2026-09-23): func_00200780 takes (void *, int, int, int), with the
-// table address passed as `(int)D_00289BC0`, and case 2 is the chained
+// (2026-09-23): func_00200780 takes (void *file, void *buf, int offset, int
+// size); the buffer is passed as `(void *)D_00289BC0` (the cast is argument
+// weight only, see idiom-35; round 6 replaced the old truncating `(int)`
+// spelling with the real pointer type at identical bytes), and case 2 is the chained
 // `D_00275C70 = m = D_00289BC0;` (keeps the address in a register; idiom-35).
 //
 // COMPILER: mwcc233
@@ -47,7 +49,7 @@ extern unsigned char *D_70003B6C[16];               /* PS2 scratchpad @ 0x70003B
 
 extern int func_00200730();
 extern int func_001FF590();
-extern int func_00200780(void *, int, int, int);
+extern int func_00200780(void *file, void *buf, int offset, int size);
 extern int func_00200830();
 
 extern unsigned char D_00810700[8];
@@ -56,10 +58,10 @@ extern unsigned char D_00810704[8];
 extern char D_00289BC0[0x1000];
 extern char D_0028A480[8];
 extern char D_0028A488[8];
-extern int D_0028A490[256];
-extern volatile int D_0028A740[2];
-extern volatile int D_0028A744[2];
-extern int D_0028A748[2];
+extern int D_0028A490[256];                       /* really char *[]: per-voice stream handles */
+extern volatile int D_0028A740[2];                /* really char *: stream buffer address */
+extern volatile int D_0028A744[2];                /* really char *: stream buffer end */
+extern int D_0028A748[2];                         /* really char *: copied from D_0028A744 */
 extern char *D_00275C70;
 
 void func_00200360(void) {
@@ -86,7 +88,7 @@ void func_00200360(void) {
         c = D_00810700[0] + 4;
         if (*(int *)D_00289BC0 != c) {
             *st = *st + 1;
-            func_00200780(D_0028A480, (int)D_00289BC0, c << 11, 0x800);
+            func_00200780(D_0028A480, (void *)D_00289BC0, c << 11, 0x800); /* cast = argument weight (matching device); D_00289BC0 is already a char buffer */
         } else {
             *st = 2;
         }
@@ -138,7 +140,7 @@ void func_00200360(void) {
         sum = *(int *)(m + 4) + *(int *)(m + 0x14);
         d = *(int *)(m + 8) - *(int *)(m + 0x14);
         D_0028A744[0] = D_0028A740[0] + d;
-        func_00200780(D_0028A488, D_0028A740[0], sum, d);
+        func_00200780(D_0028A488, (void *)D_0028A740[0], sum, d);
         break;
     case 5:
         r = func_00200730();

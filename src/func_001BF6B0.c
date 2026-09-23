@@ -66,7 +66,7 @@ extern int func_001BF5B0();
 extern int func_001284E0();
 extern float func_0011E620(float y, float x);
 extern float func_001B1470(float x);
-extern int func_00122BB8();
+extern int func_00122BB8(void);
 extern int func_001EFE00(int a, void *b);
 extern void func_001C1500(void *actor, int mode, float x, float y, float z);
 extern int func_001C1570();

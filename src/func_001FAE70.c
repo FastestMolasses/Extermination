@@ -21,7 +21,7 @@
 // 89.3%. Key: write the (s0 & 0x80) | id update as two in-place statements
 // (s0 &= 0x80; s0 |= id;) so the AND lands back in s0 (matching the target's
 // `andi s0,s0,0x80; or s0,s0,a1` register reuse) rather than a temp.
-extern int func_00122BB8(unsigned char a, int b);
+extern int func_00122BB8(void);
 extern void func_001FAAC0(int a, int b);
 extern void func_001FAB50(void);
 extern void func_001FABF0(int a, int b, int c, int d);
@@ -53,7 +53,7 @@ void func_001FAE70(int arg0) {
         }
         return;
     }
-    s2 = (func_00122BB8(a0, D_00810D38) >> 0x10) & 0x7F;
+    s2 = (func_00122BB8() >> 0x10) & 0x7F;
     if (arg0 != 0) {
         func_001FAB50();
         s0 = s0 & 0x7F;

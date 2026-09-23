@@ -116,7 +116,6 @@ GPREL_FORCE_ASM = {
     "func_0014FBC0",
     "func_00153770",
     "func_00158810",
-    "func_00158EC0",
     "func_00159970",
     "func_00159B90",
     "func_0015A070",

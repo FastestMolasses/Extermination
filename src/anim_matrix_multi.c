@@ -54,7 +54,7 @@ extern char D_700036A0[];
 extern char D_700038A0[];
 extern char D_700038B0[];
 
-extern int func_00122BB8();
+extern int func_00122BB8(void);
 extern int func_001B1560();
 extern void copy_qw4(void *dst, void *src);
 extern void func_001026A0(void *dst, void *a, void *b);

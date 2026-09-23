@@ -12,7 +12,7 @@
 // method (func_001CB1F0). Own pos/matrix saved+restored around the
 // loop (func_00102948 qword copy).
 extern void func_00102948(int, int, int, int);
-extern void func_00122BB8(int, int, int, int);
+extern int func_00122BB8(void);
 extern void float_to_int(int, int, int, int);
 extern void func_001C6380(int, int, int, int);
 

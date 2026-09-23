@@ -1,5 +1,5 @@
 // Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00122BB8(int, int, int, int);
+extern int func_00122BB8(void);
 extern void func_001B12B0(int, int, int, int);
 
 asm void func_0014E670(void) {

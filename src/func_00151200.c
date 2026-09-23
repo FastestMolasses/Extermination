@@ -1,6 +1,6 @@
 // NEARMISS func_00151200  (vram 0x00151200, 0x1A8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 90.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 93.43% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Register-coloring + branch-likely-sense permutation in the 4-iteration loop. Body + structure fully recovered and byte-identical through the scratch-block / call sequence. Three residual artifacts, all compiler-internal: (1) s0<->s1 swap -- target colors s0=loop counter / s1=D_00245FC0 cursor, mw...
 //
@@ -21,14 +21,14 @@
 //
 // If func_001B1EA0(0, self+0xB0, D_00246000, 4) passes, loops over 4 entries at
 // arg1+i: for each with byte +0x6C < 2, decrement the +0x68 cooldown if nonzero,
-// else bump +0x6C and reseed +0x68 = (func_00122BB8(e, e+0x6C)>>14)&0x1F, then seed
+// else bump +0x6C and reseed +0x68 = (func_00122BB8()>>14)&0x1F, then seed
 // the scratch vec4 at 0x700038A0 from the D_00245FC0[i] row (floats +4/+8/+0xC,
 // w=1.0f), copy the bone matrix *(D_00275B40 + row[0]*4)+0x90 into 0x700036A0,
 // combine via func_001026A0, zero the 0x700038B0 block (w=1.0f), then
 // func_001EFD90(5,..), func_001283D0(scratch,0,self+0xC0), and
 // func_001FBD50(self, 0x876, 0, 500.0f).
 extern int func_001B1EA0(int, int, void *, int);
-extern int func_00122BB8(char *, char *);
+extern int func_00122BB8(void);
 extern void copy_qw4(void *, void *);
 extern void func_001026A0(void *, void *, void *);
 extern void func_001EFD90(int, void *, void *);
@@ -56,7 +56,7 @@ void func_00151200(int arg0, int arg1) {
                     *(char *)(e + 0x68) = *(char *)(e + 0x68) - 1;
                 } else {
                     *(char *)(e + 0x6C) = *(char *)(e + 0x6C) + 1;
-                    *(char *)(e + 0x68) = (func_00122BB8(e, e + 0x6C) >> 0xE) & 0x1F;
+                    *(char *)(e + 0x68) = (func_00122BB8() >> 0xE) & 0x1F;
                     *(float *)0x700038A0 = *(float *)((char *)p + 4);
                     *(float *)0x700038A4 = *(float *)((char *)p + 8);
                     *(float *)0x700038A8 = *(float *)((char *)p + 0xC);

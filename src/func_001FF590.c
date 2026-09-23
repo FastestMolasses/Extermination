@@ -1,12 +1,10 @@
-// NEARMISS func_001FF590  (vram 0x001FF590, 0x29C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.20% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Decode is fully verified against the .s (every case, every offset/width, the case-0 -> case-1 fallthrough, the beql default). The jtbl_00273240 dispatch itself MATCHES (build/jtblrodata is present and objdiff accepts the local jtbl reloc) - there is no dispatch residual. 94.204 with mwcc233 -O4,p...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_001FF590 -- byte-matched from C (objdiff 100%).
+// Jump-table dispatcher; the local .rodata table is pinned at its original
+// address (tools/decomp/rodata_pin.py). Promoted from NEARMISS in round 6
+// (2026-09-23): 0x70003B6C is the relocated scratchpad extern (idiom-32); case 0
+// reads the transfer size as unsigned int; case 1 stages the base offset in r
+// before adding the chunk offset (permuter shape) and forms the chunk pointer
+// through an int sum, which orders the addu operands like the target.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
@@ -34,17 +32,19 @@
 //            reset to state 0 and report 1 (finished).
 // Any other state value, and every "still working" path, returns 0.
 
+extern unsigned char *D_70003B6C[16];               /* PS2 scratchpad @ 0x70003B6C */
+
 extern int func_00200730();
-extern int func_00200780(int *, int, int, int);
+extern int func_00200780(int *, int, int, int);    /* really (void *file, void *buf, int offset, int size) */
 extern int func_00200830(int);
 extern int func_001FB370(int);
 
 extern unsigned char *D_00275C70;
 extern int D_0028A488[2];
-extern int D_0028A490[];
+extern int D_0028A490[];                            /* really char *[]: per-voice stream handles */
 
 /* the state block pointer parked in scratchpad */
-#define ST (*(unsigned char **)0x70003B6C)
+#define ST (D_70003B6C[0])
 
 int func_001FF590(int arg0, int arg1)
 {
@@ -59,7 +59,7 @@ int func_001FF590(int arg0, int arg1)
             }
             func_00200780(D_0028A488, D_0028A490[arg0],
                           *(int *)(D_00275C70 + 0x20) + *(int *)(D_00275C70 + 4),
-                          *(int *)(D_00275C70 + 0x24));
+                          *(unsigned int *)(D_00275C70 + 0x24));
             ST[0xB] = 4;
             break;
         }
@@ -71,10 +71,12 @@ int func_001FF590(int arg0, int arg1)
         ST[0xB]++;
         /* fallthrough */
     case 1:
-        q = (*(unsigned short *)(ST + 0x16) * 8) + D_00275C70;
-        func_00200780(D_0028A488, D_0028A490[arg0],
-                      *(int *)(q + 0x20) + *(int *)(D_00275C70 + 4),
-                      *(int *)(q + 0x24));
+        /* matching device: the (int) round trip only orders the addu operands;
+           q is really D_00275C70 + idx * 8 (unsigned char *) */
+        q = (unsigned char *)((*(unsigned short *)(ST + 0x16) << 3) + (int)D_00275C70);
+        r = *(int *)(D_00275C70 + 4);
+        r = *(int *)(q + 0x20) + r;
+        func_00200780(D_0028A488, D_0028A490[arg0], r, *(int *)(q + 0x24));
         ST[0xB]++;
         break;
     case 2:

@@ -47,7 +47,7 @@
 extern char *volatile D_70003B6C[16];               /* PS2 scratchpad @ 0x70003B6C */
 extern unsigned char D_70003B90[16];                /* PS2 scratchpad @ 0x70003B90 */
 
-extern void func_00200780(char *a, char *b, int c, int d);
+extern void func_00200780(void *file, void *buf, int offset, int size);
 extern int func_00200730(void);
 extern void func_00200830(char *a);
 extern int func_001FF3F0(void);
@@ -121,7 +121,7 @@ void func_001FF830(int arg0) {
         }
         p = D_70003B6C[0];
         *(unsigned char *)(p + 9) += 1;
-        func_00200780(D_0028A480, (char *)D_00289BC0, arg0 << 0xB, 0x800);
+        func_00200780(D_0028A480, (char *)D_00289BC0, arg0 << 0xB, 0x800); /* no-op cast = argument weight (matching device) */
         break;
     case 1:
         r = func_00200730();

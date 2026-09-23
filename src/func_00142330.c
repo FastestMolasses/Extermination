@@ -1,5 +1,5 @@
 // All-word: everything as .word except jal/j-external
-extern void func_00122BB8(int, int, int, int);
+extern int func_00122BB8(void);
 extern void func_001469B0(int, int, int, int);
 extern void anim_clip_init(int, int, int, int);
 extern void func_001FBD50(int, int, int, int);

@@ -5,7 +5,7 @@ extern void func_001028B8(void *, void *, char *);
 extern void func_001029C0(void *);
 extern void func_00102BB0(void *, void *, float);
 extern void func_00102C58(void *, void *, void *);
-extern int func_00122BB8(int);
+extern int func_00122BB8(void);
 extern int func_0019AD00(char *, void *, int);
 extern float func_001B1470(int, float);
 extern char D_700036A0[];
@@ -38,7 +38,7 @@ int func_0013C1F0(char *arg0, char *arg1) {
                     *(char *)(arg1 + 0x80) = a0 | 1;
                 }
             } else {
-                a0 = (func_00122BB8(a0) >> 0xE) & 1;
+                a0 = (func_00122BB8() >> 0xE) & 1;
                 v1 = (char)(1 << a0);
                 *(char *)(arg1 + 0x80) = *(char *)(arg1 + 0x80) | v1;
             }

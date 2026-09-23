@@ -24,7 +24,7 @@
 extern void anim_clip_init(void *p, int idx, float a, float b);
 void func_00102760(float *dst, float *src);
 void func_00102948(float *dst, float *src);
-int func_00122BB8(unsigned char x);
+extern int func_00122BB8(void);
 int func_001A7B80(void *p);
 float func_001B1240(void *p, float x, float z);
 float func_001B12B0(float a, float b, float c);
@@ -135,7 +135,7 @@ void func_00135870(char *e, char *p1) {
             *(char *)(e + 5) = 0;
             *(unsigned char *)(e + 6) = 0;
             *(char *)(p1 + 0x5D) = 0;
-            *(short *)(p1 + 0x50) = ((func_00122BB8(st) >> 0xB) & 0x1F) + 0x3C;
+            *(short *)(p1 + 0x50) = ((func_00122BB8() >> 0xB) & 0x1F) + 0x3C;
         }
         break;
     }

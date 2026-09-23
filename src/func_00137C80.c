@@ -6,7 +6,7 @@
 // `mtc1 zero,$f13` ahead of `mtc1 $v0,$f12` at the case-0 anim_clip_init call.
 extern void anim_clip_init(int self, int clip, float a, float b);
 extern int anim_advance_time(int self, float t);
-extern int func_00122BB8(int self, int a);
+extern int func_00122BB8(void);
 extern void func_00131ED0(int self);
 extern void func_001B17A0(int self);
 extern void func_001B5360(int self);
@@ -49,7 +49,7 @@ void func_00137C80(int arg0, int arg1) {
                 *(unsigned char *)(arg0 + 5) = 0;
                 *(char *)(arg0 + 6) = 0;
                 *(int *)(arg1 + 4) = 0;
-                *(char *)(arg1 + 0x40) = ((func_00122BB8(arg0, 2) >> 13) & 0x3F) + 0x3C;
+                *(char *)(arg1 + 0x40) = ((func_00122BB8() >> 13) & 0x3F) + 0x3C;
                 if (*(short *)(arg0 + 0x36) & 0x8000) {
                     *(char *)(arg1 + 0x44) = -0x10;
                 }

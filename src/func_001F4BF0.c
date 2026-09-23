@@ -1,5 +1,5 @@
 // Simple nonleaf asm void
-extern void func_00122BB8(int, int, int, int);
+extern int func_00122BB8(void);
 extern void func_001CD520(int, int, int, int);
 
 asm void func_001F4BF0(void) {

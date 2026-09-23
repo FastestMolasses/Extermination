@@ -1,5 +1,5 @@
 // All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_00122BB8(int, int, int, int);
+extern int func_00122BB8(void);
 extern void func_00131ED0(int, int, int, int);
 extern void func_00145210(int, int, int, int);
 extern void func_001453C0(int, int, int, int);

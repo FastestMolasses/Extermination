@@ -56,7 +56,7 @@ extern void func_001AEB60(short a0);
 extern void func_001AEBA0(short a0);
 extern void func_001AEDE0(short a0, unsigned char a1);
 extern void func_001AEE10(short a0, unsigned char a1);
-extern void func_001B81D0(int arg0);
+extern void func_001B81D0(char *actor);
 extern void func_001BA510(void);
 extern void func_001CA770(char *a0);
 extern void func_001D25F0(float fa0);
@@ -138,7 +138,7 @@ int func_001B82D0(int arg0, unsigned char *st, unsigned char *ev) {
                     D_70003B91 = 1;
                 }
                 if (*(int *)(ev + 8) == 7 || *(int *)(ev + 8) == 8) {
-                    func_001B81D0((int)D_008102B0);
+                    func_001B81D0(D_008102B0);
                 }
                 func_001D2610(0.0f);
                 return 1;
@@ -152,7 +152,7 @@ int func_001B82D0(int arg0, unsigned char *st, unsigned char *ev) {
                     D_70003B91 = 1;
                 }
                 if (*(int *)(ev + 8) == 7 || *(int *)(ev + 8) == 8) {
-                    func_001B81D0((int)D_008102B0);
+                    func_001B81D0(D_008102B0);
                 }
                 func_001D2610(0.0f);
                 return 1;
@@ -189,7 +189,7 @@ int func_001B82D0(int arg0, unsigned char *st, unsigned char *ev) {
         case 2:
             if (*(int *)(ev + 0x14)) {
                 if (op == 11 || op == 12) {
-                    func_001B81D0((int)D_008102B0);
+                    func_001B81D0(D_008102B0);
                 }
                 st[4] = st[4] + 1;
                 func_001D2610(0.0f);
@@ -198,7 +198,7 @@ int func_001B82D0(int arg0, unsigned char *st, unsigned char *ev) {
                     break;
                 }
                 if (op == 11 || op == 12) {
-                    func_001B81D0((int)D_008102B0);
+                    func_001B81D0(D_008102B0);
                 }
                 func_001D2610(0.0f);
                 st[4] = st[4] + 1;

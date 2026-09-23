@@ -2,7 +2,7 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 
 extern void anim_clip_init(unsigned char *, int, float, float);
-extern int func_00122BB8();
+extern int func_00122BB8(void);
 extern void func_00132490(unsigned char *, unsigned char *);
 extern void func_001333F0(unsigned char *, unsigned char *);
 extern void func_00133640(unsigned char *, unsigned char *);

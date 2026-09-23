@@ -41,7 +41,7 @@
 //    — a broadphase/room query. On a hit, reads the global cursor object's type byte at
 //    *(int*)0x700031D0 + 0x1A; if it's 0x5B (a specific room/trigger type), sets bit 0 of
 //    arg1[0x86], copies the global float at 0x700031B4 into arg1[0x60], and if arg1[0x87]
-//    == 0 and arg1[0x4C] != 0 picks a sound/vfx variant ((func_00122BB8(type)>>9)&7)+7
+//    == 0 and arg1[0x4C] != 0 picks a sound/vfx variant ((func_00122BB8()>>9)&7)+7
 //    into arg1[0x87] and fires func_001EFD90(0x8000001D, pos, arg0+0xC0).
 //  f > 0: rebuilds a position+scale quad from arg0+0xB0..BC (position, +20.002f on the
 //    height component, band 15.0f at 0x700038B0..BC, scale 1.0) and calls
@@ -58,7 +58,7 @@ extern int func_001B32F0(void *a0, void *a1, float f12);
 extern int func_001B3440(void *a0, void *a1, void *a2, float f12);
 extern int func_001B2F70(void *a0, void *a1);
 extern int func_0019B6C0(void *a0, void *a1);
-extern int func_00122BB8(unsigned char a0);
+extern int func_00122BB8(void);
 extern void func_001EFD90(int a0, void *a1, void *a2);
 extern int func_0019AB20(void *a0, void *a1, void *a2, int a3);
 
@@ -178,7 +178,7 @@ void func_00140F80(char *arg0, char *arg1)
                 *(float *)(arg1 + 0x60) = *(float *)0x700031B4;
                 zero = 0.0f;
                 if (*(char *)(arg1 + 0x87) == 0 && *(float *)(arg1 + 0x4C) != zero) {
-                    *(char *)(arg1 + 0x87) = ((func_00122BB8(t) >> 9) & 7) + 7;
+                    *(char *)(arg1 + 0x87) = ((func_00122BB8() >> 9) & 7) + 7;
                     *(float *)0x700038A0 = *(float *)(arg0 + 0xB0);
                     *(float *)0x700038A4 = *(float *)(arg0 + 0xB4);
                     *(float *)0x700038A8 = *(float *)(arg0 + 0xB8);

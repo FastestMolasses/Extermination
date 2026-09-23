@@ -25,7 +25,7 @@
 // state 3; cases 2/3 hand off to func_001AFC10.
 
 extern int float_to_int(float);
-extern int func_00122BB8(unsigned char);
+extern int func_00122BB8(void);
 extern void func_001AFC10(char *);
 extern void func_001F7CF0(int *, int *, int *);
 
@@ -39,7 +39,7 @@ void func_001F7E40(char *arg0) {
     s3 = (int *)(arg0 + 0x1F0);
     switch (*(unsigned char *)(arg0 + 4)) {
     case 0:
-        s3[0] = func_00122BB8(*(unsigned char *)(arg0 + 4));
+        s3[0] = func_00122BB8();
         s3[1] = 0x3C;
         *(float *)(arg0 + 0x1F8) = 0.0f;
         *(unsigned char *)(arg0 + 4) = 1;

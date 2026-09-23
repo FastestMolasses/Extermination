@@ -1,8 +1,12 @@
 // NEARMISS func_002149F0  (vram 0x002149F0, 0xE80 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.69% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 98.694% (mwcc233 -O4,p -sdatathreshold 0); ~24 of 928 instructions differ, in five clusters, all body-correct. (1) REGALLOC PERMUTATION on `p[0x12] - (rec[0x34] << 1)` at two sites (8 instrs): identical sequence, but the target puts the `lh rec[0x34]` result in v1/v0 and `lbu p[0x12]` in a0/v1, m...
+// objdiff 99.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate (round 6, 2026-09-23):
+// One four-instruction cluster: in case 6 the compare D_00810CB2.h == p[0x12] - (rec[0x34] << 1)
+// loads rec[0x34] into v1 and p[0x12] into a0 in the target; mwcc swaps them. Round 6:
+// func_0020CDA0 is (void) with no argument, D_002821B0/B4 volatile, (p + 0x50)[i] in the scan,
+// case 2: shares the default arm of both p[0x34] switches (restores the target's dead li and scan-
+// loop nop), and the store site stages rec[0x34] in n.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -63,8 +67,8 @@
 // hence the union (that is what reproduces the target's per-access %hi/%lo pair).
 // D_00810E74 = this frame's button/event bits.
 
-extern int D_002821B0;
-extern int D_002821B4;
+extern volatile int D_002821B0;
+extern volatile int D_002821B4;
 extern int D_002821B8;
 extern int D_00282240;
 extern unsigned char D_008106B0;
@@ -94,7 +98,7 @@ extern void func_0020CCB0(void *p);
 extern void func_0020CD40();
 extern void func_0020CD60();
 extern void func_0020CD80();
-extern void func_0020CDA0(void *p);
+extern void func_0020CDA0(void);
 
 void func_002149F0(unsigned char *p) {
     char *rec;
@@ -146,6 +150,7 @@ void func_002149F0(unsigned char *p) {
                 p[6] = 1;
                 p[0x12] = D_00810CB2.b;
                 switch (*(short *)(rec + 0x34)) {
+                case 2:
                 default:
                     p[0x13] = 8;
                     break;
@@ -183,7 +188,7 @@ void func_002149F0(unsigned char *p) {
             i = 0;
             goto scan_test;
         scan_body:
-            if (p[0x50 + i] == p[0x1B]) {
+            if ((p + 0x50)[i] == p[0x1B]) {
                 p[0x17] = i;
                 D_00282240 = 4;
                 goto scan_done;
@@ -248,6 +253,7 @@ void func_002149F0(unsigned char *p) {
                     rec = *(char **)(p + 0x30);
                     p[0x12] = D_00810CB2.b;
                     switch (*(short *)(rec + 0x34)) {
+                    case 2:
                     default:
                         p[0x13] = 8;
                         break;
@@ -338,12 +344,12 @@ void func_002149F0(unsigned char *p) {
         if (ev & 0x8000) {
             if (p[6] != 0) {
                 p[6] = p[6] - 1;
-                func_0020CDA0(p);
+                func_0020CDA0();
             }
         } else if (ev & 0x2000) {
             if (p[6] == 0) {
                 p[6] = p[6] + 1;
-                func_0020CDA0(p);
+                func_0020CDA0();
             }
         }
         func_0020CCB0(p);
@@ -464,7 +470,8 @@ void func_002149F0(unsigned char *p) {
             }
         }
         if (D_00810E74 & 0x870) {
-            D_00810CB2.h = p[0x12] - (*(short *)(rec + 0x34) << 1);
+            n = *(short *)(rec + 0x34);
+            D_00810CB2.h = p[0x12] - (n << 1);
             func_0020CD40();
             D_008106C5 = 0xFF;
             rec[0xA] = 1;

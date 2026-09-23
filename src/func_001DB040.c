@@ -1,5 +1,5 @@
 // All-word: everything as .word except jal/j-external
-extern void func_00122BB8(int, int, int, int);
+extern int func_00122BB8(void);
 
 asm void func_001DB040(void) {
     .word 0x27bdffd0

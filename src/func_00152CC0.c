@@ -25,7 +25,7 @@
 // trailing 0.0f emits the `mtc1 zero,$f13` pair-clear the target has.
 extern void anim_clip_init(int self, int clip, float a, float b);
 extern int anim_advance_time(int self, float t);
-extern int func_00122BB8();
+extern int func_00122BB8(void);
 extern void func_00152EB0(int self);
 extern void func_001C68C0(int self);
 extern void func_001B17A0(int self);

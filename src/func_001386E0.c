@@ -39,7 +39,7 @@ extern void func_001399F0(char *, char *);
 extern void func_00139E00(char *, char *);
 extern void func_0013A3B0(char *, char *);
 extern void func_001B4810(char *);
-extern int func_00122BB8();
+extern int func_00122BB8(void);
 extern void func_001FBD50(char *, int, int, float);
 extern void func_0013BF20(char *, char *);
 extern void func_0013BE60(char *, char *);

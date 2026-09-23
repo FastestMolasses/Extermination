@@ -24,7 +24,7 @@
 // and sinks the %lo addiu into the jal delay slot; with void* it keeps the pair
 // adjacent and sinks the trailing reg+imm arg, which is what the target does.
 
-extern int   func_00122BB8();
+extern int func_00122BB8(void);
 extern void  func_00102948(float *, float *);
 extern void  func_00102900(float *, float *, float);
 extern void  func_001028B8(float *, float *, float *);

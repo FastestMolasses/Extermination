@@ -1,15 +1,14 @@
-// NEARMISS func_00183EF0  (vram 0x00183EF0, 0xCA8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.41% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 17 residual instructions / 810 (99.41%, mwcc 2.3.3, -O4,p -sdatathreshold 0). The jump-table dispatch itself matches 100% (lbu 0x8; sltiu 6; beql; lui/addiu %hi/%lo(jtbl_0026D810); sll; addu; lw; jr) and build/jtblrodata/func_00183EF0.s is present and correct — no jtbl reloc residual. Two residua...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_00183EF0 -- byte-matched from C (objdiff 100%).
+// Jump-table dispatcher; the local .rodata table is pinned at its original
+// address (tools/decomp/rodata_pin.py). Promoted from NEARMISS in round 6
+// (2026-09-23): 0x70003B98 and 0x70003690 are relocated scratchpad externs
+// (idiom-32, per-file // SPAD:), and case 1 loads the path point before the
+// actor coordinate (dx = p[0]; dx = a - dx;), which gives the target's sub.s
+// operand colouring (found by the permuter, confirmed by objdiff).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003B98 0x70003690
 
 //
 // SEMANTICS: "can the player interact with / target this object?" predicate.
@@ -61,6 +60,8 @@ extern float D_70003610[];
 extern float D_70003640[];
 extern float D_70003650[];
 extern float D_70003660[];
+extern float D_70003690;
+extern float D_70003B98;
 
 int func_00183EF0(char *arg0, char *arg1)
 {
@@ -92,7 +93,7 @@ int func_00183EF0(char *arg0, char *arg1)
         *(int *)0x7000365C = 0x3F800000;
         func_00102948(D_70003660, D_70003650);
         func_00102760(D_70003650, D_70003650);
-        *(float *)0x70003690 = func_00102738(D_70003640, D_70003650);
+        D_70003690 = func_00102738(D_70003640, D_70003650);
         dist = func_00102738(D_70003660, D_70003660);
         *(float *)0x70003694 = dist;
         if (!(dist <= 144.0f)) {
@@ -101,10 +102,10 @@ int func_00183EF0(char *arg0, char *arg1)
         if (dist < 4.0f) {
             return 2;
         }
-        if (*(float *)0x70003690 < 0.0f) {
+        if (D_70003690 < 0.0f) {
             return 0;
         }
-        if (*(float *)0x70003690 < 0.4f && !(dist <= 9.0f)) {
+        if (D_70003690 < 0.4f && !(dist <= 9.0f)) {
             return 0;
         }
         return 2;
@@ -124,7 +125,7 @@ int func_00183EF0(char *arg0, char *arg1)
                 if (!(dist <= **(float **)(arg1 + 0x30))) {
                     return 0;
                 }
-                *(float *)0x70003B98 = dist;
+                D_70003B98 = dist;
                 dy = *(float *)(arg0 + 0xA4) - *(float *)(arg1 + 0xB4);
                 if (!(func_0011E748(dy * dy) <= (*(float **)(arg1 + 0x30))[1])) {
                     return 0;
@@ -136,7 +137,7 @@ int func_00183EF0(char *arg0, char *arg1)
                 if (!(dist <= **(float **)(arg1 + 0x30))) {
                     return 0;
                 }
-                *(float *)0x70003B98 = dist;
+                D_70003B98 = dist;
                 dy = *(float *)(arg0 + 0xA4) - *(float *)(arg1 + 0xB4);
                 if (!(func_0011E748(dy * dy) <= (*(float **)(arg1 + 0x30))[1])) {
                     return 0;
@@ -157,7 +158,7 @@ int func_00183EF0(char *arg0, char *arg1)
         if (!(dist <= **(float **)(arg1 + 0x30))) {
             return 0;
         }
-        *(float *)0x70003B98 = dist;
+        D_70003B98 = dist;
         dy = *(float *)(arg0 + 0xA4) - *(float *)(arg1 + 0xB4);
         if (!(func_0011E748(dy * dy) <= (*(float **)(arg1 + 0x30))[1])) {
             return 0;
@@ -204,13 +205,14 @@ int func_00183EF0(char *arg0, char *arg1)
         break;
 
     case 1:
-        dx = *(float *)(arg0 + 0xA0) - (*(float **)(arg1 + 0x30))[0];
+        dx = (*(float **)(arg1 + 0x30))[0];
+        dx = *(float *)(arg0 + 0xA0) - dx;
         dz = *(float *)(arg0 + 0xA8) - (*(float **)(arg1 + 0x30))[2];
         dist = func_0011E748(dx * dx + dz * dz);
         if (!(dist <= (*(float **)(arg1 + 0x30))[3])) {
             return 0;
         }
-        *(float *)0x70003B98 = dist;
+        D_70003B98 = dist;
         dy = *(float *)(arg0 + 0xA4) - (*(float **)(arg1 + 0x30))[1];
         if (!(func_0011E748(dy * dy) <= (*(float **)(arg1 + 0x30))[4])) {
             return 0;
@@ -230,7 +232,7 @@ int func_00183EF0(char *arg0, char *arg1)
         if (!(dist <= (*(float **)(arg1 + 0x30))[3])) {
             return 0;
         }
-        *(float *)0x70003B98 = dist;
+        D_70003B98 = dist;
         dy = *(float *)(arg0 + 0xA4) - *(float *)(arg1 + 0xB4);
         if (!(func_0011E748(dy * dy) <= (*(float **)(arg1 + 0x30))[4])) {
             return 0;
@@ -251,7 +253,7 @@ int func_00183EF0(char *arg0, char *arg1)
         if (!(bd <= **(float **)(arg1 + 0x30))) {
             return 0;
         }
-        *(float *)0x70003B98 = bd;
+        D_70003B98 = bd;
         dy = *(float *)(arg0 + 0xA4) - *(float *)(arg1 + 0xB4);
         if (dy >= 0.0f) {
             if (!(dy <= (*(float **)(arg1 + 0x30))[1])) {

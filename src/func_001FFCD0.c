@@ -1,8 +1,12 @@
 // NEARMISS func_001FFCD0  (vram 0x001FFCD0, 0x688 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 94.62% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 70 of 427 instructions, no opcode/structural differences left - every residual is scheduling or register colouring. (1) DOMINANT, ~40 instructions across 5 sites: the same `lui $at,0x7000` delay-slot speculation as func_00207350. At `bne $v0,$v1,.L001FFDBC` (case 1), `bne` in case 3, `bne` in cas...
+// objdiff 99.67% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate (round 6, 2026-09-23):
+// Register colouring only, in three clusters: case 9 loads n1/n2 into a1/a3 where the target uses
+// a2/a1, and the two descriptor loops of cases 7 and 11 colour their counter, bound and cursor
+// differently. Round 6: 0x70003B6C relocated extern (idiom-32) and the (int)D_00289BC0 argument-
+// weight cast removed the old delay-slot residuals; case 9 spells n2 + n1. The permuter reached
+// 99.72 without a match.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -54,6 +58,8 @@
 // NOTE: the scratchpad state bytes are reached through `volatile` pointers and
 // the four load cursors are `volatile` so the loads/stores keep source order.
 
+extern unsigned char *D_70003B6C[16];               /* PS2 scratchpad @ 0x70003B6C */
+
 extern int func_001FF590();
 extern int func_00200730();
 extern int func_00200780();
@@ -79,7 +85,7 @@ extern unsigned char D_00810703[];
 extern unsigned char D_00810704[];
 
 void func_001FFCD0(void) {
-    unsigned char *p = *(unsigned char **)0x70003B6C;
+    unsigned char *p = D_70003B6C[0];
     volatile unsigned char *st = p + 9;
     volatile unsigned char *sub;
     unsigned char *q;
@@ -107,28 +113,28 @@ void func_001FFCD0(void) {
         res = func_00200730();
         if (res != 0) {
             if (res == 1) {
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[9] = q[9] + 1;
                 func_002009E0(D_00275304[0], *(int *)&D_0028A3C4[D_00810700[0] * 8]);
             } else {
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[9] = 0;
             }
         }
         break;
     case 2:
         *st = *st + 1;
-        func_00200780(D_0028A480, D_00289BC0, (D_00810700[0] + 4) << 11, 0x800);
+        func_00200780(D_0028A480, (int)D_00289BC0, (D_00810700[0] + 4) << 11, 0x800); /* matching device: argument weight; the parameter is really void *buf */
         break;
     case 3:
         res = func_00200730();
         if (res != 0) {
             if (res == 1) {
                 D_00810703[0] = D_00810700[0];
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[9] = q[9] + 1;
             } else {
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[9] = q[9] - 1;
             }
         }
@@ -144,16 +150,16 @@ void func_001FFCD0(void) {
             if (func_001FF590(0xAB, 0) == 0) {
                 break;
             }
-            q = *(unsigned char **)0x70003B6C;
+            q = D_70003B6C[0];
             q[0xA] = q[0xA] + 1;
             /* fallthrough */
         case 2:
             if (func_001FF590(0xAB, 1) == 0) {
                 break;
             }
-            q = *(unsigned char **)0x70003B6C;
+            q = D_70003B6C[0];
             q[0xA] = 0;
-            q = *(unsigned char **)0x70003B6C;
+            q = D_70003B6C[0];
             q[9] = q[9] + 1;
             break;
         }
@@ -171,10 +177,10 @@ void func_001FFCD0(void) {
         res = func_00200730();
         if (res != 0) {
             if (res == 1) {
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[9] = q[9] + 1;
             } else {
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[9] = q[9] - 1;
             }
         }
@@ -204,15 +210,15 @@ void func_001FFCD0(void) {
             D_00810701[0] = 0;
             D_00810704[0] = 0;
             v = D_0028A740[0];
-            q = *(unsigned char **)0x70003B6C;
+            q = D_70003B6C[0];
             D_0028A748[0] = v;
             D_0028A744[0] = v;
             q[8] = 0x63;
-            q = *(unsigned char **)0x70003B6C;
+            q = D_70003B6C[0];
             q[9] = 0;
         } else {
             D_00810704[0] = D_00810701[0];
-            q = *(unsigned char **)0x70003B6C;
+            q = D_70003B6C[0];
             D_00275C70 = &D_00289BC0[D_00810701[0] * 0x70] + 0x100;
             q[9] = q[9] + 1;
         }
@@ -223,16 +229,16 @@ void func_001FFCD0(void) {
             if (func_001FF590(0xAC, 0) == 0) {
                 break;
             }
-            q = *(unsigned char **)0x70003B6C;
+            q = D_70003B6C[0];
             q[0xA] = q[0xA] + 1;
             /* fallthrough */
         case 1:
             if (func_001FF590(0xAC, 1) == 0) {
                 break;
             }
-            q = *(unsigned char **)0x70003B6C;
+            q = D_70003B6C[0];
             q[0xA] = 0;
-            q = *(unsigned char **)0x70003B6C;
+            q = D_70003B6C[0];
             q[9] = q[9] + 1;
             break;
         }
@@ -244,17 +250,17 @@ void func_001FFCD0(void) {
         n2 = *(int *)(h + 0x14);
         n3 = *(int *)(h + 8);
         D_0028A744[0] = D_0028A740[0] + (n3 - n2);
-        func_00200780(D_0028A488, D_0028A740[0], n1 + n2, n3 - n2);
+        func_00200780(D_0028A488, D_0028A740[0], n2 + n1, n3 - n2);
         break;
     case 10:
         res = func_00200730();
         if (res != 0) {
             if (res == 1) {
                 D_0028A748[0] = D_0028A744[0];
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[9] = q[9] + 1;
             } else {
-                q = *(unsigned char **)0x70003B6C;
+                q = D_70003B6C[0];
                 q[9] = q[9] - 1;
             }
         }
@@ -279,9 +285,9 @@ void func_001FFCD0(void) {
                 t++;
             }
         }
-        q = *(unsigned char **)0x70003B6C;
+        q = D_70003B6C[0];
         q[8] = 0x63;
-        q = *(unsigned char **)0x70003B6C;
+        q = D_70003B6C[0];
         q[9] = 0;
         break;
     }

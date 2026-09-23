@@ -1,5 +1,5 @@
 // Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00122BB8(int, int, int, int);
+extern int func_00122BB8(void);
 
 asm void func_00150DA0(void) {
     addiu      $sp, $sp, -0x30
