@@ -1,34 +1,32 @@
-// NEARMISS func_001FD580  (vram 0x001FD580, 0x118 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 91.19% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation permutation: instruction stream is 1:1 with the target (same opcodes, same order) but physical register coloring differs (target key->t0/base->a1/ctr->a0/matchptr->a2/termptr->a3 vs mine a4/a0/a3/a1/a2). No idiom flips this; permuter territory. Body byte-faithful.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
 //
-// NEARMISS (o233 91.2%, o991 76.9%): logic fully recovered; instruction stream is
-// 1:1 with the target -- sole residual is a register-allocation permutation.
+// MATCH NOTE (m3-matching fix round, NEARMISS 91.21% -> 100%). Three source
+// changes, each checked against the target:
+//  1. The entry id is the short at +2 of each 8-byte entry (target 0x001FD654
+//     `lh v1,0x2(a0)` in the loop test and the call argument `lh a0,0x2(a0)`
+//     at 0x001FD670). The old C read +0. The old header called the stream 1:1
+//     with the target; it was not (73 instructions against the target's 70).
+//  2. The phase-2 scan is a rotated loop. The target branches straight to the
+//     test at 0x001FD620 and computes the entry address only there
+//     (0x001FD648..0x001FD650), so it is a for-loop whose condition indexes
+//     the table. The old "e = ...; while" form added a copy before the loop.
+//  3. arg0 is unsigned. The target recomputes arg0 + n after the call
+//     (0x001FD674 `addu v0,s2,s0`) instead of reusing the loop's sum. With a
+//     signed arg0, mwcc 2.3.3 CSEs the sum into a saved register. Declaring
+//     `i` second (a declaration-order sweep of the six locals) gives the
+//     target's register colouring (key t0, base a1, i a0, pa a2, pb a3).
 //
-// Two-phase lookup keyed by the global state byte D_00810700:
-//   base = D_00264DD4[key]            // pointer into a per-state entry array
-// Phase 1: walk the parallel table D_0026EC60 (0x10-byte entries) while entry->f0
-//   != -1. When entry->f0 == key AND entry->f8 == arg0, this (key,arg0) pair is
-//   already "claimed": clear D_008106F4, set *arg1 = -1, return 2.
-// Phase 2: from base, scan entries of stride 8 starting at index arg0, skipping
-//   slots whose short at +2 == -1. If such a skipped slot has a nonzero byte at +5,
-//   bail: *arg1 = -1, return 0. On the first slot with short@+2 != -1: set
-//   D_008106F5 = 2, func_001FA5A0(slot->short@+2), *arg1 = arg0 + n, return 1.
-//
-// WALL: register-allocation permutation. Every instruction matches in opcode and
-// order; only the physical registers differ -- the target colors key->t0, base->a1,
-// counter->a0, match-ptr->a2, term-ptr->a3, whereas mwcc here picks a4/a0/a3/a1/a2.
-// This is permuter territory (no idiom flips the coloring); body is byte-faithful.
+// Semantics (target 0x001FD580): a two-phase lookup keyed by the state byte
+// D_00810700. base = D_00264DD4[key] is that state's array of 8-byte entries.
+// Phase 1 walks the 16-byte table D_0026EC60 until word +0 is -1. If an entry
+// has word +0 == key and word +8 == arg0, the pair is already claimed: clear
+// D_008106F4, set *arg1 = -1 and return 2. Phase 2 scans base[arg0 + n] for
+// n = 0, 1, ... while the entry's id is -1. If such a skipped entry has a
+// nonzero flags byte (+5), set *arg1 = -1 and return 0. At the first entry
+// with a real id: D_008106F5 = 2, call func_001FA5A0(id), set *arg1 = arg0 + n
+// and return 1. The +0 short is the entry's frame and +5 its flags byte, as
+// read by the caller func_001FD790.
 
 extern unsigned char D_00810700;
 extern int D_00264DD4[];
@@ -37,14 +35,21 @@ extern unsigned char D_008106F4;
 extern unsigned char D_008106F5;
 extern void func_001FA5A0(int a);
 
-int func_001FD580(int arg0, int *arg1) {
+typedef struct {
+    short frame;            /* +0 */
+    short id;               /* +2: -1 = empty slot */
+    unsigned char f4;       /* +4 */
+    unsigned char flags;    /* +5: nonzero stops the scan */
+    unsigned char pad6[2];  /* +6 */
+} Entry8;
+
+int func_001FD580(unsigned int arg0, int *arg1) {
     unsigned char key;
+    int i;
     int *base;
     int *pa;
     int *pb;
-    int i;
     int n;
-    short *e;
 
     key = D_00810700;
     base = (int *)D_00264DD4[key];
@@ -64,18 +69,14 @@ int func_001FD580(int arg0, int *arg1) {
         i++;
     }
 
-    n = 0;
-    e = (short *)(base + (arg0 + n) * 2);
-    while (*e == -1) {
-        if (*((unsigned char *)e + 5) != 0) {
+    for (n = 0; ((Entry8 *)base)[arg0 + n].id == -1; n++) {
+        if (((Entry8 *)base)[arg0 + n].flags != 0) {
             *arg1 = -1;
             return 0;
         }
-        n++;
-        e = (short *)(base + (arg0 + n) * 2);
     }
     D_008106F5 = 2;
-    func_001FA5A0(*e);
+    func_001FA5A0(((Entry8 *)base)[arg0 + n].id);
     *arg1 = arg0 + n;
     return 1;
 }

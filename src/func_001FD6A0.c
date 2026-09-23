@@ -1,64 +1,60 @@
-// NEARMISS func_001FD6A0  (vram 0x001FD6A0, 0xE4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 60.44% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation / loop-induction-variable permutation. Instruction content matches (same loads, same beqzl branch-likely, same call), but CW promotes arg0 to a callee-saved reg ($s2, 4 saved regs, frame 0x40) to recompute arg0+1+i after the call; mwcc keeps a running arg0+1 in a caller reg an...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// MATCH NOTE (m3-matching fix round, NEARMISS 60.44% -> 100%). The old header
+// called the residual a register-allocation wall that C cannot reach. It was
+// the same source shape as the sibling func_001FD580:
+//  - arg0 is unsigned. The target keeps arg0 in $s2 and recomputes
+//    arg0 + 1 + n after the call (0x001FD75C `addiu v0,s2,1`, 0x001FD760
+//    `addu v0,v0,s0`). With a signed arg0, mwcc 2.3.3 keeps a running sum in
+//    a caller-saved register instead (3 saved registers, frame 0x30 against
+//    the target's 4 and 0x40). The only caller, func_001FDB80, passes the
+//    +0x34 field with bit 31 cleared (0x001FDCB8 dsll32 / 0x001FDCC4 dsrl32
+//    by 1), which fits an unsigned index.
+//  - The scan is a for-loop whose condition indexes the table. The target
+//    branches straight to the test (0x001FD708) and computes the entry
+//    address only there (0x001FD730..0x001FD738).
+// Declaring `int n` before `base` also matches 100%.
+//
+// Semantics (target 0x001FD6A0): base = D_00264DD4[D_00810700] is the current
+// state's array of 8-byte entries (+2 short id, -1 = empty; +5 flags byte).
+// If entry arg0 has flags == 1, set *arg1 = -1 and return 0. Otherwise scan
+// entries arg0 + 1 + n for n = 0, 1, ... while the id is -1. If such a skipped
+// entry has nonzero flags, set *arg1 = -1 and return 0. At the first entry
+// with a real id: D_008106F5 = 2, call func_001FA5A0(id), set
+// *arg1 = arg0 + 1 + n and return 1. func_001FD580 scans the same table
+// starting at entry arg0 itself.
 
-//
-// NEARMISS func_001FD6A0 (vram 0x001FD6A0, 0xE4 bytes) — readable decompilation, NOT byte-identical.
-// 60.4% via mwcc 2.3.3 (best); 49.9% via mwcc 991202. Logic + structure fully recovered.
-//
-// Table-walk lookup. base = D_00264DD4[D_00810700] (D_00264DD4 is an array of base pointers,
-// indexed by the current-set u8 D_00810700; each base points to 8-byte records, field +2 = s16
-// id, field +5 = u8 flag). If the record at index arg0 has flag(+5)==1, store -1 to *arg1 and
-// return 0. Otherwise scan records from index arg0+1 upward: the first record whose id(+2) != -1
-// is the hit -> set the global state byte D_008106F5 = 2, call func_001FA5A0(id), store the
-// found index (arg0+1+i) to *arg1, return 1. A record with id(+2)==-1 AND flag(+5)!=0 ends the
-// scan as a miss (store -1, return 0); id==-1 with flag==0 skips to the next record. The +5!=0
-// guard compiles to a branch-likely (beqzl) with the i++ in its delay slot.
-//
-// WALL: register-allocation / loop-induction permutation (NOT reachable from C). The instruction
-// CONTENT matches (same loads, same beqzl, same calls), but the CW target promotes arg0 to a
-// callee-saved reg ($s2) so it can recompute arg0+1+i for the post-call *arg1 store — 4 saved
-// regs, frame 0x40. mwcc instead keeps a running arg0+1 in a caller reg and post-increments it
-// (addiu a0,a0,1) — 3 saved regs, frame 0x30 — changing the loop back-edge and the saved-reg
-// set. Tested index-as-counter, running-pointer, and inverted-condition loop shapes; none flips
-// which quantity mwcc keeps callee-saved. This is the regalloc/IV-coloring class -> permuter.
 extern unsigned char D_00810700;
 extern char D_008106F5;
 extern char *D_00264DD4[];
-
 extern int func_001FA5A0(int);
 
-int func_001FD6A0(int arg0, int *arg1) {
-    char *base;
-    char *e;
-    int i;
+typedef struct {
+    short frame;            /* +0 */
+    short id;               /* +2: -1 = empty slot */
+    unsigned char f4;       /* +4 */
+    unsigned char flags;    /* +5 */
+    unsigned char pad6[2];  /* +6 */
+} Entry8;
 
-    base = D_00264DD4[D_00810700];
-    if (*(unsigned char *)(base + arg0 * 8 + 5) == 1) {
+int func_001FD6A0(unsigned int arg0, int *arg1) {
+    Entry8 *base;
+    int n;
+
+    base = (Entry8 *)D_00264DD4[D_00810700];
+    if (base[arg0].flags == 1) {
         *arg1 = -1;
         return 0;
     }
-    for (i = 0; ; i++) {
-        e = base + ((arg0 + 1) + i) * 8;
-        if (*(short *)(e + 2) == -1) {
-            if (*(unsigned char *)(e + 5) != 0) {
-                *arg1 = -1;
-                return 0;
-            }
-            continue;
+    for (n = 0; base[arg0 + 1 + n].id == -1; n++) {
+        if (base[arg0 + 1 + n].flags != 0) {
+            *arg1 = -1;
+            return 0;
         }
-        D_008106F5 = 2;
-        func_001FA5A0(*(short *)(e + 2));
-        *arg1 = (arg0 + 1) + i;
-        return 1;
     }
+    D_008106F5 = 2;
+    func_001FA5A0(base[arg0 + 1 + n].id);
+    *arg1 = arg0 + 1 + n;
+    return 1;
 }

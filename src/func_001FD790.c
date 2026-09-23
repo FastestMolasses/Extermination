@@ -1,6 +1,6 @@
 // NEARMISS func_001FD790  (vram 0x001FD790, 0x1C0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 57.38% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 57.64% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Register-allocation-order swap: target colors idx->$s2 / frame->$s0, mwcc colors idx->$s0 / frame->$s2, offsetting nearly the whole function by one slot; plus reversed switch dispatch order on D_008106F5. Pure regalloc/dispatch-order permutation class -- permuter territory.
 //
@@ -29,7 +29,10 @@
 // which offsets nearly every instruction by one slot. Secondary: the switch on
 // D_008106F5 dispatches in reverse case order under mwcc. Both are pure
 // regalloc/dispatch-order permutations -- permuter territory; idioms exhausted.
-extern int func_001FD580(unsigned long long idx, int p);
+/* m3-matching fix round: prototype corrected to func_001FD580's byte-matched
+ * signature (unsigned 31-bit index, int *out); was (unsigned long long, int).
+ * 57.38 -> 57.64%. */
+extern int func_001FD580(unsigned int idx, int *out);
 extern int D_00264DD0[];
 extern unsigned char D_008106F5;
 extern unsigned char D_00810700;
@@ -74,7 +77,7 @@ int func_001FD790(int arg0) {
                 if ((flags & 0xFF) != 0) {
                     goto common;
                 }
-                if (func_001FD580(idx, arg0 + 0x70) == 1) {
+                if (func_001FD580(idx, (int *)(arg0 + 0x70)) == 1) {
                     return 0;
                 }
                 goto common;

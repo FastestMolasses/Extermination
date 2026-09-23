@@ -1,4 +1,9 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// MATCH NOTE (m3-matching lane): 68.70% under mwcc 991202 -> 100%;
+// mwcc 2.3.3 reproduces the target scheduling. Source unchanged apart from the compiler line.
+
 extern void func_00121A28(int, int, int);
 extern int D_0028B020;
 

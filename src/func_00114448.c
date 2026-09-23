@@ -1,4 +1,9 @@
-// CFLAGS: -O4,p -sdatathreshold 0
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// MATCH NOTE (m3-matching lane): 69.23% under mwcc 991202 -> 100%;
+// SDK-region code built with ee-gcc (as the rest of the lowmem SDK). Source unchanged apart from the compiler line.
+
 extern int D_00241D68;
 extern int func_00114360(int, int, int, int);
 

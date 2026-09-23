@@ -1,6 +1,6 @@
 // NEARMISS func_001FDB80  (vram 0x001FDB80, 0x224 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 59.74% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 60.52% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Register-allocation + inverse-CSE near-miss. Logic fully recovered and correct. Residuals are compiler artifacts: (1) counter/pointer are colored s2/s1 vs the target's s1/s2 (swap cascades through the whole 12-bit loop); (2) mwcc CSEs the loop mask (1<<i) into a callee-saved reg s3 and grows the ...
 //
@@ -14,8 +14,13 @@
 // NEARMISS 60.3% (mwcc 2.3.3). Logic fully recovered; residual is a register-
 // allocation permutation (counter/pointer land in s2/s1 vs target s1/s2), the loop
 // mask (1<<i) being CSE'd into a callee-saved reg (frame 0x40->0x50 vs target which
-// recomputes it in v1 twice), and a dead dsll32/dsrl32 zero-extend of the 0x34 field
-// in the state1 path. Body/control-flow are correct.
+// recomputes it in v1 twice). Body/control-flow are correct.
+//
+// SEMANTIC FIX (m3-matching fix round, 59.74 -> 60.52%): the dsll32/dsrl32 pair
+// at 0x001FDCB8/0x001FDCC4 is NOT dead. It forms $a0 for the jal func_001FD6A0
+// at 0x001FDCF4: the +0x34 value with bit 31 cleared (a 31-bit index). The C used
+// to pass &D_002821B0 there. func_001FD6A0 (byte-matched) takes
+// (unsigned int index, int *out) and writes the found index to *out.
 //
 // s0 = &D_002821B0 (a global manager struct). arg0 != 0 is the "init/clear" entry:
 // zero fields 0x5C..0x76, then for each of 12 bits set in the mask at s0+0x64, write
@@ -25,14 +30,14 @@
 // on s0+0x5C (0/1): state 0 tries func_001FD790 to promote to state 1; state 1 reads
 // the signed value a1 = s0+0x34, and unless its sign bit is set, dispatches on the
 // mode byte D_008106F5 (2: nop; 1: if s0+0x70 == a1 clear D_008106F5; 0: if
-// a1 >= s0+0x70 call func_001FD6A0(&D_002821B0, &s0[0x70])). Then bumps s0+0x68,
+// a1 >= s0+0x70 call func_001FD6A0(a1 & 0x7FFFFFFF, &s0[0x70])). Then bumps s0+0x68,
 // calls func_001FD950; on 0 return 0; if s0+0x50 == 0 reset to state 0 and bump
 // s0+0x60; otherwise return 1 only when both flags D_00282155 and D_00282156 are 0.
 extern void func_001D06E0(int p, int a);
 extern void func_001FAB80(void);
 extern int func_001FD790(int p);
 extern int func_001FD950(int p);
-extern void func_001FD6A0(int p, int a);
+extern int func_001FD6A0(unsigned int idx, int *out);
 extern char D_002821B0;
 extern char D_008106B0;
 extern char D_008102B0;
@@ -99,7 +104,7 @@ state1:
             break;
         case 0:
             if (a1 >= *(int *)(s0 + 0x70)) {
-                func_001FD6A0((int)&D_002821B0, (int)(s0 + 0x70));
+                func_001FD6A0(((unsigned long long)a1 << 33) >> 33, (int *)(s0 + 0x70));
             }
             break;
         }
