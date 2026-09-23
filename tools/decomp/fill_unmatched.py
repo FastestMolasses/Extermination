@@ -105,9 +105,11 @@ GPREL_FORCE_ASM = {
     # objects above were removed. rodata_pin.py proves their jump tables'
     # original addresses and link.py places the compiled tables there; the
     # boot ELF stayed byte-identical with all six linked from C.
+    # jr-table lane (2026-09-23): func_0012A5D0 was removed after its C
+    # reached objdiff 100% (NEARMISS promoted); same proof as above -- full
+    # build + verify_all byte-identical, audit shows compiled_object_ordinary_c.
     # Additional 107 discovered in subsequent link (obj/ compiled with GP-relative):
     "func_00128C10",
-    "func_0012A5D0",
     "func_0012E560",
     "func_00131740",
     "func_001469B0",

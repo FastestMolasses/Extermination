@@ -1,12 +1,7 @@
-// NEARMISS func_00135D00 (vram 0x00135D00, 0x438 bytes) — compiled-object match; linker integration pending.
-//
-// objdiff 100.00% via mwcc 2.3.3 (-O4,p -sdatathreshold 0).
-// The compiled instructions match the normalized reference in objdiff.
-// The compiler emits a 36-byte local .rodata table, but the boot linker needs
-// that table pinned at jtbl_0026D190. LOCALDATA_FORCED currently assembles this
-// function from splat instead; a passing boot ELF therefore cannot verify its C.
-// Keep this marker until compiled-C table placement is implemented and verified.
-// Registry: docs/NEARMISS.md.
+// func_00135D00 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): the C already matched; the table pin made it linkable.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0

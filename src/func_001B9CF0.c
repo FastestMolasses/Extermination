@@ -1,12 +1,8 @@
-// NEARMISS func_001B9CF0  (vram 0x001B9CF0, 0x2FC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.54% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body is fully decoded and 178/193 instructions are byte-identical; the whole residual is ONE mwcc scheduling decision inside the case 7/8/9 (D_00810354) block. The target rematerializes %hi/%lo(D_00810354) TWICE up front, in the load-use shadow of the first `lw a0,0x8(s0)` (target order: lw a0,8(...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_001B9CF0 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): the arrival flag is `flag = (a == b);` instead of
+// `flag = 1; if (a != b) flag = 0;` (idiom-35).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -67,10 +63,7 @@ int func_001B9CF0(unsigned char *arg0, unsigned char *arg1, unsigned char *arg2)
         D_00810354[*(int *)(arg2 + 8)] = res;
         n = *(int *)(arg2 + 8);
         o = n * 4;
-        flag = 1;
-        if (D_00810354[n] != *(float *)(o + (int)arg2 + 4)) {
-            flag = 0;
-        }
+        flag = (D_00810354[n] == *(float *)(o + (int)arg2 + 4));
         if (flag != 0) {
             return 1;
         }

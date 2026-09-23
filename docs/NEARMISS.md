@@ -663,24 +663,16 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0010EAA0 | 0x0010EAA0 | ? | 95.56% | ee-gcc 2.9-991111-01 | eegcc ASSEMBLER delay-slot-swap wall — PIPELINE BUG, fixable, and this C is then a TRUE 10 |
 | func_0010E088 | 0x0010E088 | ? | 89.14% | ee-gcc 2.9-991111-01 | TWO stacked walls; body/structure fully recovered (prologue, both DI spin loops, the D_002 |
 | func_0021B9A0 | 0x0021B9A0 | 0xC4 | 88.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — local @17 table vs external jtbl_00273790 ( |
-| func_001BC350 | 0x001BC350 | 0x204 | 99.57% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Seven register/scheduling differences remain in the persistent door-bit test (offsets 0xA0 |
-| func_001B5360 | 0x001B5360 | 0x280 | 98.49% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 5 residual instructions of 160 (mwcc233 -O4,p -sdatathreshold 0). NOT a jr-table wall: the |
-| func_00134090 | 0x00134090 | 0x270 | 93.45% | mwcc24 | 13 residual instructions of 156 (mwcc24 -O4,p -sdatathreshold 4). NOT a jr-table wall: the |
-| func_00189730 | 0x00189730 | 0x290 | 98.10% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 8 of ~166 instrs differ, in two independent spots inside case 3 (everything else, includin |
+| func_00134090 | 0x00134090 | 0x270 | 93.90% | mwcc24 | jr-table lane 2026-09-23: func_00122BB8 is the engine rand() and takes no argument (the ol |
 | func_001FF590 | 0x001FF590 | 0x29C | 94.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Decode is fully verified against the .s (every case, every offset/width, the case-0 -> cas |
-| func_001B9CF0 | 0x001B9CF0 | 0x2FC | 97.54% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body is fully decoded and 178/193 instructions are byte-identical; the whole residual is O |
-| func_0012E840 | 0x0012E840 | 0x318 | 98.78% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body is fully decoded and the jr-table dispatch matches exactly (jtbl_0026D0D0 reloc inclu |
 | func_00158EC0 | 0x00158EC0 | 0x348 | 99.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.67 with mwcc233 -O4,p -sdatathreshold 4 (o991: 86.59). Instruction SEQUENCE is byte-ide |
-| func_001AC070 | 0x001AC070 | 0x334 | 97.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 97.95 with mwcc233 -O4,p -sdatathreshold 4 (o991: 93.1). Dispatch, all 7 case bodies, the  |
 | func_001F0720 | 0x001F0720 | 0x334 | 86.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 86.25 with mwcc233 -O4,p -sdatathreshold 4 (o991 69.09, o24 86.25). Dispatch, all 7 preset |
-| func_00200360 | 0x00200360 | 0x3A0 | 94.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | The jr-table dispatch itself matches 100% (jtbl_002732B0 reloc included) and cases 1, 3, 4 |
 | func_001CFFE0 | 0x001CFFE0 | 0x414 | 87.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 87.16% (mwcc233; mwcc 2.3.1 = 76.1%). Decode is complete and verified instruction-by-instr |
 | func_001BD560 | 0x001BD560 | 0x490 | 99.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 5 instructions, all diagnosed. (1) idx 58-59 `lui/addiu %hi/%lo(jtbl_0026E220)` vs mwcc's  |
 | func_001BAD40 | 0x001BAD40 | 0x3A0 | 91.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 91.09 (mwcc233 -O4,p -sdatathreshold 2; 232 instrs). The jr-table dispatch is FULLY byte-i |
 | func_001D8C30 | 0x001D8C30 | 0x394 | 89.45% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 89.45 (mwcc233 -O4,p -sdatathreshold 4; 233 instrs). The jr-table dispatch is FULLY byte-i |
 | func_0015A750 | 0x0015A750 | 0x3A0 | 73.04% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 73.04 (mwcc233 -O4,p -sdatathreshold 0; 232 instrs). Byte-identical: the whole prologue/se |
 | func_0018BC20 | 0x0018BC20 | 0x4A0 | 99.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 9 of 316 instructions differ, in two independent spots. (1) 2 instr: the jtbl reloc pair o |
-| func_001FF830 | 0x001FF830 | 0x494 | 94.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 18 of 308 instructions differ; the dispatch and every case body are logically exact (whole |
 | func_001FB3E0 | 0x001FB3E0 | 0x524 | 86.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single jump table, and the jtbl_0026EBF0 dispatch IS byte-identical (reloc clean) — the re |
 | func_0010D2C8 | 0x0010D2C8 | 0x5C8 | 81.71% | ee-gcc 2.9-991111-01 | NOT an mwcc unit — this is an ee-gcc (SDK/lowmem) function: sd/ld 64-bit callee saves at 1 |
 | func_001A50A0 | 0x001A50A0 | 0x600 | 95.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 69 of 387 instructions differ; the instruction SEQUENCE is aligned 1:1 with the target eve |
@@ -688,11 +680,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001B41F0 | 0x001B41F0 | 0x61C | 94.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 94.734 (mwcc233; 80.95 on 991202). IMPORTANT: the old src stub's three-wall verdict is lar |
 | func_001916C0 | 0x001916C0 | 0x674 | 98.80% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.80% / 409 vs 409 instructions, identical instruction multiset, ZERO logic or control-fl |
 | func_001FFCD0 | 0x001FFCD0 | 0x688 | 94.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 70 of 427 instructions, no opcode/structural differences left - every residual is scheduli |
-| func_00130AB0 | 0x00130AB0 | 0x754 | 99.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 6 instructions in two spots. (1) 0x198/0x19C -- call-arg materialization ORDER for func_00 |
-| func_00129780 | 0x00129780 | 0x77C | 99.57% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 3 instructions, one site. At the FIRST of the six func_001C2540 axis probes (target 0x0012 |
 | func_001AD740 | 0x001AD740 | 0x7B8 | 99.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 14 instructions in three groups. (1) 2 instrs - MULTI-TABLE dispatch reloc: this function  |
-| func_0012A5D0 | 0x0012A5D0 | 0x7F0 | 99.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 5 residual instructions out of 508; instruction count, order and every reloc (incl. the jt |
-| func_00200A40 | 0x00200A40 | 0x848 | 98.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 -O4,p -sdatathreshold 4 (991202 only 89.76; threshold 4 needed for the gp-rel `uns |
 | func_001B2140 | 0x001B2140 | 0x9C4 | 97.68% | mwcc 2.3 (mwcps2-2.3-991202) | 97.68 with mwcc 991202 (-O4,p -sdatathreshold 0); 18 diff rows out of 625 instructions. De |
 | func_001E4CE0 | 0x001E4CE0 | 0x910 | 83.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 83.90 with mwcc 2.3.3 (-O4,p -sdatathreshold 4); ~185 diff rows out of 580 instructions (9 |
 | func_001429D0 | 0x001429D0 | 0xAEC | 99.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.68% (22 of ~700 instrs). Dispatch itself is byte-identical except register colouring; j |
@@ -728,7 +716,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0013F770 | 0x0013F770 | 0xCCC | 99.49% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body, control flow, all constants and both epilogue shapes are byte-identical; a single 7- |
 | func_0020CDC0 | 0x0020CDC0 | 0xB6C | 91.52% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Structure, all constants, both jr-table dispatches (jtbl_002735B0 and jtbl_00273590, reloc |
 | sub_EXTERMINATION | 0xXTERMINATION | 0xAA8 | 91.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | REGISTER-ALLOCATION-ORDER wall (park / permuter candidate). Instruction COUNT matches exac |
-| func_002160B0 | 0x002160B0 | 0xFD8 | 99.22% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 99.216% (mwcc233 -O4,p -sdatathreshold 0); ~24 of 1014 instructions differ, in three clust |
 | func_002149F0 | 0x002149F0 | 0xE80 | 98.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.694% (mwcc233 -O4,p -sdatathreshold 0); ~24 of 928 instructions differ, in five cluster |
 | func_0011EBA8 | 0x0011EBA8 | 0x11CC | 48.54% | ee-gcc 2.9-991111-01 | eegcc GPR-colouring + branch-likely + list-scheduler residual across a 1139-instruction fu |
 | func_0010A998 | 0x0010A998 | 0xE8 | 41.76% | ee-gcc 2.9-991111-01 | eegcc CSE wall + GPR coloring. Body fully recovered (prologue, both global loads, mult, th |
@@ -770,6 +757,5 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001DA6A0 | 0x001DA6A0 | ? | 49.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001D5370 | 0x001D5370 | 0x700 | 39.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001D5C80 | 0x001D5C80 | 0x728 | 47.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
-| func_00135D00 | 0x00135D00 | 0x438 | 100.00% | mwcc 2.3.3 | Object matches; local 36-byte jump table needs pinning at jtbl_0026D190 before C can link. |
 | func_001AC7F0 | 0x001AC7F0 | 0x22C | 97.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | All live instructions match; C omits three unreachable duplicate lui instructions (544 vs 556 bytes). Original assembly remains linked. |
 | quat_nlerp | 0x001CA0A0 | 0x114 | 99.06% | mwcc 2.3.3 | Readable unnormalized hemisphere blend; 67/69 instructions match, with two clamp branch/delay-slot scheduling differences. Assembly links. |

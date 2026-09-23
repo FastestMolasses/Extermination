@@ -1,12 +1,10 @@
-// NEARMISS func_002160B0  (vram 0x002160B0, 0xFD8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.22% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 99.216% (mwcc233 -O4,p -sdatathreshold 0); ~24 of 1014 instructions differ, in three clusters, all body-correct. (1) REGALLOC PERMUTATION in the second scan loop (13 instrs): identical instruction sequence, but the target colours {bound=a1, counter=a2, element/address=a0, p[0x1B]=v1} while mwcc p...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_002160B0 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): func_0020CDA0 is called with no argument (it is (void));
+// D_002821B0/D_002821B4 are volatile so their stores keep source order;
+// locals are declared idx, n, c1, c2, j; and the slot scan reads
+// `(p + 0x50)[j]` (idiom-35).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -51,8 +49,8 @@
 // NOT initialised when state 4 is entered directly. That is faithful to the
 // original (the compiler keeps it in $s0 across the switch); mwcc warns about it.
 
-extern int D_002821B0;
-extern int D_002821B4;
+extern volatile int D_002821B0;
+extern volatile int D_002821B4;
 extern int D_002821B8;
 extern int D_00282240;
 extern unsigned char D_008102B0;
@@ -90,16 +88,16 @@ extern void func_0020CCB0(void *p);
 extern void func_0020CD40();
 extern void func_0020CD60();
 extern void func_0020CD80();
-extern void func_0020CDA0(void *p);
+extern void func_0020CDA0(void);
 extern void func_00215FE0(void *p);
 
 void func_002160B0(unsigned char *p) {
     char *rec;
     int idx;
     int n;
-    int j;
     int c1;
     int c2;
+    int j;
     int kind;
     int ev;
     float lvl;
@@ -165,7 +163,7 @@ void func_002160B0(unsigned char *p) {
             j = 0;
             goto scan2_test;
         scan2_body:
-            if (p[0x50 + j] == p[0x1B]) {
+            if ((p + 0x50)[j] == p[0x1B]) {
                 p[0x19] = (j >> 2) * 4;
                 p[0x17] = j % 4;
                 D_00282240 = 4;
@@ -345,12 +343,12 @@ void func_002160B0(unsigned char *p) {
         if (ev & 0x8000) {
             if (p[6] != 0) {
                 p[6] = p[6] - 1;
-                func_0020CDA0(p);
+                func_0020CDA0();
             }
         } else if (ev & 0x2000) {
             if (p[6] == 0) {
                 p[6] = p[6] + 1;
-                func_0020CDA0(p);
+                func_0020CDA0();
             }
         }
         func_0020CCB0(p);

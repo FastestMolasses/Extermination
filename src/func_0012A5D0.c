@@ -1,15 +1,12 @@
-// NEARMISS func_0012A5D0  (vram 0x0012A5D0, 0x7F0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 5 residual instructions out of 508; instruction count, order and every reloc (incl. the jtbl_0026D000 dispatch) match. (1) 2x conditional-branch delay-slot speculation: at the outer dispatch `beq a2,v1,<case2>` and at case 3's `beq v1,v0,<0xA-path>` the target leaves the slot NOP, but mwcc233 hoi...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_0012A5D0 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): scratchpad externs 0x700031F4/0x70003B8A, and the last
+// sub+0xD8 test is float truthiness `if (x)` (value-first c.eq.s, idiom-35).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x700031F4
 
 //
 // SEMANTICS: Player actor main tick. `p` is the player actor, `sub` = p+0x1F0 is
@@ -45,6 +42,9 @@
 //             the gp-relative table D_00275380, the countdown at p+0x28, and
 //             finally the ground/space test func_001B13F0(player+0xA0, p+0xB0,
 //             80.0) + func_001B1630 before returning to state 1.
+
+extern int D_700031F4[16];                          /* PS2 scratchpad @ 0x700031F4 */
+extern short D_70003B8A[16];                        /* PS2 scratchpad @ 0x70003B8A */
 
 extern char D_008102B0[];
 extern unsigned char D_0081078F[8];
@@ -132,7 +132,7 @@ void func_0012A5D0(unsigned char *p) {
             break;
         }
         func_001029C0(D_70003000);
-        if (((*(int *)0x70003B68 + *(short *)0x70003B8A) & 0x3F) == 0) {
+        if (((*(int *)0x70003B68 + D_70003B8A[0]) & 0x3F) == 0) {
             if (func_001B0D80((char *)p)) {
                 break;
             }
@@ -249,7 +249,7 @@ void func_0012A5D0(unsigned char *p) {
                 break;
             }
         }
-        if (*(float *)(sub + 0xD8) != 0.0f) {
+        if (*(float *)(sub + 0xD8)) {
             *(float *)(sub + 0xEC) = 1.8f;
         } else {
             *(float *)(sub + 0xEC) = 1.0f;
@@ -270,7 +270,7 @@ void func_0012A5D0(unsigned char *p) {
         *(short *)(p + 0x54) = 0;
         break;
     case 2:
-        if (((*(int *)0x70003B68 + *(short *)0x70003B8A) & 0x3F) == 0) {
+        if (((*(int *)0x70003B68 + D_70003B8A[0]) & 0x3F) == 0) {
             if (func_001B0D80((char *)p)) {
                 break;
             }
@@ -285,7 +285,7 @@ void func_0012A5D0(unsigned char *p) {
     case 3:
         func_0012E070((char *)sub);
         if (p[0xD] == 0xA || p[0xD] == 0xB || p[0xD] == 0xC) {
-            *(int *)0x700031F4 = *(int *)0x700031F4 - 1;
+            D_700031F4[0] = D_700031F4[0] - 1;
         } else if (sub[0xE0]) {
             p[0] = 2;
             p[4] = 4;

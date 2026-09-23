@@ -1,8 +1,8 @@
 // NEARMISS func_00134090  (vram 0x00134090, 0x270 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.51% via mwcc24 (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 13 residual instructions of 156 (mwcc24 -O4,p -sdatathreshold 4). NOT a jr-table wall: the 9-entry jtbl_0026D140 dispatch matches exactly (reloc included, entry 7 = the fall-through/default label), all eight case bodies match, both of CodeWarrior's dead duplicated `addiu v0,zero,1` branch-fill co...
+// objdiff 93.90% via mwcc24 (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// jr-table lane 2026-09-23: func_00122BB8 is the engine rand() and takes no argument (the old C passed act); fixing that clears the jal-slot residual. Left: 0x700038A4 is written twice and our literal form CSEs it into a register (ori), and symbolizing it (SPAD, array form) scores lower (91.5%); th...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -25,7 +25,7 @@
 //                ent[+0x52] (a signed short "busy/aborted" counter) is non-zero,
 //                otherwise 1.
 //   ent[+0x00] = byte tag on entry; when it is 9 the actor fires func_001FBD50
-//                with id 0x841 + ((func_00122BB8(act) >> 16) % 10) and 450.0f,
+//                with id 0x841 + ((func_00122BB8() >> 16) % 10) and 450.0f,
 //                i.e. one of ten variants picked from a rolling counter.
 //                The same field is overwritten below with anim_advance_time()'s
 //                result (a 32-bit store).
@@ -50,7 +50,7 @@ extern void func_00134FF0(unsigned char *, unsigned char *);
 extern void func_001352E0(unsigned char *, unsigned char *);
 extern void func_00135870(unsigned char *, unsigned char *);
 extern void func_00135D00(unsigned char *, unsigned char *);
-extern int func_00122BB8(unsigned char *);
+extern int func_00122BB8(void);
 extern void func_001FBD50(unsigned char *, int, int, float);
 extern void func_00136CB0(unsigned char *, unsigned char *);
 extern void func_001368D0(unsigned char *, unsigned char *);
@@ -123,7 +123,7 @@ void func_00134090(unsigned char *act, unsigned char *ent)
     }
 
     if (ent[0] == 9) {
-        func_001FBD50(act, ((func_00122BB8(act) >> 16) % 10) + 0x841, 0, 450.0f);
+        func_001FBD50(act, ((func_00122BB8() >> 16) % 10) + 0x841, 0, 450.0f);
     }
 
     func_00136CB0(act, ent);

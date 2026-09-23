@@ -1,15 +1,11 @@
-// NEARMISS func_00129780  (vram 0x00129780, 0x77C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.57% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 3 instructions, one site. At the FIRST of the six func_001C2540 axis probes (target 0x001299C0 `bnez $v0, .L00129B4C` + `nop`) mwcc-2.3.3 speculatively hoists `lui at, 0x7000` into the bnez delay slot and retargets the branch one instruction further in (0x3d0 vs 0x3cc), then re-emits the lui on t...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_00129780 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): 0x700031D0 is a relocated scratchpad extern (idiom-32).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700031D0
 
 // SEMANTICS: Per-frame move/collide step for a character (a = actor at arg0,
 // b = its motion/render block at arg1), dispatched by a move-type selector
@@ -42,17 +38,8 @@
 // *0x700031D0 (+0x24/0x28/0x2C) through func_001C3DB0/func_001031E0/func_001C3BE0,
 // copy the matrix, push it back by -4 (func_00103230 + func_001028B8), run one more
 // probe with the (0,-8,0) offset, store state<<8 into b+0xE4 and return 1; else 0.
-//
-// NEARMISS 99.572 with mwcc 2.3.3 (mwcps2-2.3.3-000906) -O4,p -sdatathreshold 0.
-// SOLE RESIDUAL (3 instrs): at the FIRST of the six func_001C2540 probes mwcc
-// speculatively hoists the `lui at, 0x7000` that both successors need (the next
-// probe's scratchpad store and the shared blocked-path load of *0x700031D0) into
-// the `bnez v0` delay slot and branches one instruction further in; CW leaves the
-// delay slot a nop and rebuilds the lui. The other five probes match exactly.
-// This is the documented idiom-13 delay-slot-fill wall (a global address `lui`
-// exposed in a successor is never matchable from C). Tried: volatile on the
-// 0x700031D0 pointer, fully-nested ifs instead of goto, -O3,p / -O4 / -O4,s and
-// mwcc 2.3.1 (89.5%) - all no better.
+extern char *D_700031D0;                            /* PS2 scratchpad @ 0x700031D0 */
+
 extern void copy_qw4(void *, void *);
 extern void func_001026A0(void *, void *, void *);
 extern void func_001028B8(void *, void *, void *);
@@ -169,7 +156,7 @@ int func_00129780(unsigned char *a, unsigned char *b, unsigned char sel) {
         *(float *)(a + 0xB4) -= 1.0f;
         break;
 blocked:
-        flags = *(short *)(*(char **)0x700031D0 + 0x1A);
+        flags = *(short *)(D_700031D0 + 0x1A);
         if (flags & 0x3800) {
             st = 2;
         } else if (flags & 0x8000) {
@@ -241,16 +228,16 @@ blocked:
     if (st != 0) {
     a[4] = a[4] + 1;
     a[5] = 0;
-    cam = *(char **)0x700031D0;
+    cam = D_700031D0;
     *(float *)0x70003610 = *(float *)(cam + 0x24);
     *(float *)0x70003614 = *(float *)(cam + 0x28);
     *(float *)0x70003618 = *(float *)(cam + 0x2C);
     *(float *)0x7000361C = 1.0f;
     func_001C3DB0(b + 0x80, &D_70003610, b + 0x70, &D_70003620);
     func_001031E0(b + 0x70, &D_70003620);
-    *(float *)(b + 0x80) = *(float *)(*(char **)0x700031D0 + 0x24);
-    *(float *)(b + 0x84) = *(float *)(*(char **)0x700031D0 + 0x28);
-    *(float *)(b + 0x88) = *(float *)(*(char **)0x700031D0 + 0x2C);
+    *(float *)(b + 0x80) = *(float *)(D_700031D0 + 0x24);
+    *(float *)(b + 0x84) = *(float *)(D_700031D0 + 0x28);
+    *(float *)(b + 0x88) = *(float *)(D_700031D0 + 0x2C);
     *(float *)(b + 0x8C) = 1.0f;
     func_001C3BE0(a, b);
     copy_qw4(a + 0xD0, &D_70003000);

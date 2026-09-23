@@ -1,12 +1,7 @@
-// NEARMISS func_00200A40  (vram 0x00200A40, 0x848 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.43% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// mwcc233 -O4,p -sdatathreshold 4 (991202 only 89.76; threshold 4 needed for the gp-rel `unsigned char D_00275BD8`, threshold 0 costs 0.5%). 525/530 instructions identical; 5 residuals in the SAME 3 classes as func_0022A650: (1) 1 instr — jump-table %lo addend `addiu v1,v1,28` (jtbl_002732F0 at off...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_00200A40 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): every dereferenced scratchpad address is a relocated extern (idiom-32).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
@@ -25,7 +20,9 @@
 // The SLOT fields are declared volatile: the target re-loads them on every read
 // instead of CSE-ing, which is what volatile reproduces.
 
-#define SLOT (*(unsigned char **)0x70003B6C)
+extern unsigned char *D_70003B6C[16];               /* PS2 scratchpad @ 0x70003B6C */
+
+#define SLOT (D_70003B6C[0])
 
 extern void func_001AEDE0();
 extern void func_001AEE10();

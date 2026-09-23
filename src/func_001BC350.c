@@ -1,12 +1,8 @@
-// NEARMISS func_001BC350  (vram 0x001BC350, 0x204 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.57% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// Seven register/scheduling differences remain in the persistent door-bit test (offsets 0xA0..0xC0); 516-byte function size matches. Corrected initializer actor forwarding. Fifteen bounded readable variants did not reach byte identity; no impossibility claim.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_001BC350 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): the door-bit test is `D_00810841[D_00810700] & (1U << n)`
+// (table first, unsigned shift; idiom-35).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -64,7 +60,7 @@ void func_001BC350(unsigned char *self) {
         switch (self[5]) {
         case 0:
             if (self[3] == 0x15) {
-                if ((1 << *(short *)(self + 0x34)) & D_00810841[D_00810700]) {
+                if (D_00810841[D_00810700] & (1U << *(short *)(self + 0x34))) {
                     if (func_001BBE40(self, blk, 0) != 0) {
                         self[5] = 3;
                     }

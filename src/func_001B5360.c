@@ -1,15 +1,11 @@
-// NEARMISS func_001B5360  (vram 0x001B5360, 0x280 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// IMPROVED 98.56 -> 98.7188 (mwcc233, -O4,p -sdatathreshold 0). One residual instruction left, invariant across the three installed builds (991202 / 2.3.3 / 2.4 all show it). FIXED this round (was 2 of the 3 residual instrs): the first call's argument-setup order. The parked file declared the param...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_001B5360 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): 0x700038A4 is a relocated scratchpad extern (idiom-32).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700038A4
 
 //
 // SEMANTICS: builds a vertical probe from an actor (p) and, on a hit, applies a
@@ -36,6 +32,8 @@
 //                1,2,9..12 and out-of-range -> func_001F9100, 4.2f
 //              Both appliers take (p+0xB0, D_700038A0, D_700038B0, weight).
 
+extern volatile float D_700038A4;                   /* PS2 scratchpad @ 0x700038A4 */
+
 extern char D_700038A0[];
 extern char D_700038B0[];
 extern char D_700031B0[];
@@ -51,11 +49,11 @@ void func_001B5360(char *p)
 
     func_00102948(D_700038A0, p + 0xB0);
     func_00102948(D_700038B0, D_700038A0);
-    *(volatile float *)0x700038A4 += 10.0f;
+    D_700038A4 += 10.0f;
     if (*(unsigned char *)(p + 3) == 4) {
-        *(volatile float *)0x700038B4 = *(volatile float *)0x700038A4 - 200.0f;
+        *(volatile float *)0x700038B4 = D_700038A4 - 200.0f;
     } else {
-        *(volatile float *)0x700038B4 = *(volatile float *)0x700038A4 - 30.0f;
+        *(volatile float *)0x700038B4 = D_700038A4 - 30.0f;
     }
     if (func_0019A570(D_700038A0, D_700038B0, 6, 0) != 0) {
         func_00102948(D_700038A0, D_700031B0);

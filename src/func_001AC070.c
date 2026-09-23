@@ -1,15 +1,13 @@
-// NEARMISS func_001AC070  (vram 0x001AC070, 0x334 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 97.95 with mwcc233 -O4,p -sdatathreshold 4 (o991: 93.1). Dispatch, all 7 case bodies, the bnezl/andi branch-likely and the whole tail are byte-identical. Two residual clusters, 216 expected instrs: (1) state 0, ONE extra instruction -- expected `bnez v0,else; nop` but mwcc speculates the else blo...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_001AC070 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): every dereferenced scratchpad address is a relocated extern
+// (idiom-32), and state 5 writes `GS[8] = 4` straight through the volatile
+// scratchpad pointer instead of caching it in a local (idiom-35).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x70003B90
 
 //
 // SEMANTICS: one tick of the game-mode / screen-flow state machine.  The state
@@ -41,6 +39,9 @@
 //   6 fade        : when func_00200A40() completes, back to state 2.
 // Every path except state 4 ends with func_001D2830(3, 1).
 
+extern unsigned char *volatile D_70003B6C[16];      /* PS2 scratchpad @ 0x70003B6C */
+extern volatile unsigned char D_70003B90[16];       /* PS2 scratchpad @ 0x70003B90 */
+
 extern void func_001AEDB0(int);
 extern void func_001D1EF0(void);
 extern int  func_001AC3B0(void);
@@ -60,7 +61,7 @@ extern int           D_00275BD4;
 extern unsigned char D_00275BDC;
 extern unsigned char D_00275BE0;
 
-#define GS (*(unsigned char *volatile *)0x70003B6C)
+#define GS (D_70003B6C[0])
 
 void func_001AC070(void)
 {
@@ -68,7 +69,7 @@ void func_001AC070(void)
     int r;
     int f;
 
-    *(volatile unsigned char *)0x70003B90 = 0;
+    D_70003B90[0] = 0;
 
     switch (GS[8]) {
     case 0:
@@ -148,9 +149,8 @@ void func_001AC070(void)
             GS[0xA] = 0;
         } else if (r == 2) {
             func_001AF150();
-            q = GS;
             D_00275BE0 = 1;
-            q[8] = 4;
+            GS[8] = 4;
             GS[9] = 0;
             GS[0xA] = 0;
         }

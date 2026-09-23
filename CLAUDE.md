@@ -152,7 +152,8 @@ evidence"). Characterization is done (Target identity above).
   overlays, matched_code floor, glTF, anim self-test, GS offset). Its `match`
   stage measures whatever is already in `build/obj` + `build/expected`: run
   `tools/decomp/build.py build` (~7 min) first before quoting counts or judging
-  a build-config change (fresh baseline 2026-09-23: 2064/2162 units, 97.78%).
+  a build-config change (fresh baseline 2026-09-23: 2146/2207 units, 98.58%; jump-table
+  dispatchers link from C since local .rodata pinning, tools/decomp/rodata_pin.py).
 - Promotions go through `tools/match/integrate_nearmiss.py` (guards) and
   `tools/decomp/audit_link_provenance.py` (the linked object must really be the
   compiled C, not an assembly fallback).

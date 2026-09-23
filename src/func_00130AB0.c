@@ -1,15 +1,14 @@
-// NEARMISS func_00130AB0  (vram 0x00130AB0, 0x754 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.50% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 6 instructions in two spots. (1) 0x198/0x19C -- call-arg materialization ORDER for func_001B1EA0(0, D_00810360, &m, 4): target emits `addiu a1,v0,%lo(D_00810360)` then `addiu a2,sp,0x50`; mwcc emits `addiu a2,sp,0x50` first (the stack-address arg is scheduled before the global-reloc arg). Tried: ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_00130AB0 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): 0x700038A8 is a relocated scratchpad extern (its int zero store
+// is written `D_700038A8 = 0.0f`), and func_001B1EA0 takes void * (idiom-35).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700038A8
+
+extern volatile float D_700038A8;                   /* PS2 scratchpad @ 0x700038A8 */
 
 typedef int u128 __attribute__((mode(TI)));
 
@@ -30,7 +29,7 @@ extern void func_00132490(unsigned char *, unsigned char *);
 extern int func_00133CD0(unsigned char *);
 extern void func_00182F90(unsigned char *, unsigned char *);
 extern float func_001B1470(float);
-extern int func_001B1EA0(int, unsigned char *, unsigned char *, int);
+extern int func_001B1EA0(int, void *, void *, int);
 extern void func_001B2B10(unsigned char *, unsigned char *, unsigned char *);
 extern void func_001EFD90(int, unsigned char *, unsigned char *);
 extern void func_001EFEB0(int, unsigned char *);
@@ -94,14 +93,14 @@ void func_00130AB0(unsigned char *p, unsigned char *e) {
                     i++;
                     q += 0x10;
                 } while (i < 4);
-                if (func_001B1EA0(0, D_00810360, (unsigned char *)&m, 4) != 0) {
+                if (func_001B1EA0(0, D_00810360, &m, 4) != 0) {
                     p[6] = p[6] + 1;
                     func_0021BF90((unsigned char *)&D_008102B0, p);
                     e[0x65] = 1;
                     D_00810374 = func_001B1470(3.1415927410125732f + *(float *)(p + 0xC4));
                     *(volatile int *)0x700038A0 = 0;
                     *(volatile int *)0x700038A4 = 0;
-                    *(volatile float *)0x700038A8 = 15.0f;
+                    D_700038A8 = 15.0f;
                     *(volatile int *)0x700038AC = 0;
                     func_00131F20(p, &D_700038A0, &D_700038A0);
                     func_001028B8(&D_700038A0, &D_700038A0, p + 0xB0);
@@ -186,7 +185,7 @@ void func_00130AB0(unsigned char *p, unsigned char *e) {
                     D_008104D4 = v;
                     D_008102B0 |= 2;
                 }
-                *(volatile int *)0x700038A8 = 0;
+                D_700038A8 = 0.0f;
                 *(volatile int *)0x700038A4 = 0;
                 *(volatile int *)0x700038A0 = 0;
                 *(volatile float *)0x700038AC = 1.0f;
@@ -207,13 +206,13 @@ void func_00130AB0(unsigned char *p, unsigned char *e) {
             func_00102BB0(&D_700036A0, &D_700036A0, *(float *)(p + 0xC4));
             *(volatile float *)0x700038A0 = 2.0f;
             *(volatile float *)0x700038A4 = 15.5f;
-            *(volatile float *)0x700038A8 = 1.0f;
+            D_700038A8 = 1.0f;
             *(volatile float *)0x700038AC = 1.0f;
             func_001B2B10(p, &D_700038A0, &D_700038A0);
             func_001028B8(&D_700038A0, p + 0xB0, &D_700038A0);
             w0 = *(volatile float *)0x700038A0;
             w1 = *(volatile float *)0x700038A4;
-            w2 = *(volatile float *)0x700038A8;
+            w2 = D_700038A8;
             w3 = *(volatile float *)0x700038AC;
             *(volatile float *)0x700036D0 = w0;
             *(volatile float *)0x700036D4 = w1;

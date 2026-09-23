@@ -1,27 +1,12 @@
-// NEARMISS func_00189730  (vram 0x00189730, 0x290 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.16% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 8 of ~166 instrs differ, in two independent spots inside case 3 (everything else, including the jr-table dispatch and all other 6 cases, is byte-identical). (1) 0x13c/0x140: target `bnez v1,.L00189880; nop`; mwcc speculates the taken path's first op `lui at,0x7000` (scratchpad 0x70003B68 address-...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_00189730 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): D_0024A410 is `int [][6]` and copy_qw4 is the real two-argument
+// call; the old four-argument call was a register-colouring device.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
 
-//
-// NEARMISS 98.16% (mwcc 2.3.3). Body verified instruction-for-instruction
-// against the target; two residuals, both compiler artifacts:
-//   * case 3: mwcc speculates the taken path's `lui at,0x7000` (scratchpad
-//     address-hi) into the `bnez` delay slot where the target keeps a nop
-//     (idiom-13 delay-slot fill; not cured by 2.3.3 nor by `volatile`).
-//   * case 3 table lookup: register-allocation permutation. The target keeps
-//     &D_0024A410 in $a2 (copy_qw4's arg-3 register) and reuses it as the index
-//     base, putting the arg-2 `addiu ...,0x90` in the jal delay slot; mwcc
-//     colours the base $a1 and therefore re-materializes lui/addiu %hi/%lo for
-//     arg 3. Same instruction order, +1 lui/addiu pair.
 //
 // SEMANTICS: 7-state scripted-camera/anim state machine. p is the script state
 // block (p[5] = state, p+0x28 = s16 timer/step counter, p+0x2A = s16 variant
@@ -33,15 +18,17 @@
 // scratchpad buffers D_700036A0/D_700036D0. Dropping e[4] out of state 1 resets
 // the machine to state 0.
 
+extern volatile int D_70003B68[16];                 /* PS2 scratchpad @ 0x70003B68 */
+
 extern short D_00248B9C[8];
 extern short D_00248C7C[8];
 extern int D_0024A3B0[];
-extern char D_0024A410[];
+extern int D_0024A410[][6];
 extern unsigned char *D_00275B40;
 extern int D_700036A0[];
 extern int D_700036D0[];
 
-extern int copy_qw4(int *, int, char *, int);
+extern void copy_qw4(void *, void *);
 extern int func_001026A0(int *, int, int *);
 extern int func_00122BB8(void);
 extern int func_001F4010(int, int *);
@@ -49,8 +36,6 @@ extern int func_001F4010(int, int *);
 void func_00189730(unsigned char *p, unsigned char *e) {
     int st;
     int n;
-    int k;
-    char *tbl;
 
     if (e[4] != 1) {
         p[5] = 0;
@@ -85,12 +70,10 @@ void func_00189730(unsigned char *p, unsigned char *e) {
     case 3:
         if (*(short *)(p + 0x28) >= 6) {
             p[5] = st + 1;
-        } else if ((*(volatile int *)0x70003B68 & 1) == 0) {
+        } else if ((D_70003B68[0] & 1) == 0) {
             *(short *)(p + 0x28) = *(short *)(p + 0x28) + 1;
-            tbl = D_0024A410;
-            k = *(short *)(p + 0x2A) * 3;
-            n = *(int *)(*(short *)(p + 0x28) * 4 + &tbl[k * 8]);
-            copy_qw4(D_700036A0, *(int *)(D_00275B40 + 8) + 0x90, tbl, k);
+            n = D_0024A410[*(short *)(p + 0x2A)][*(short *)(p + 0x28)];
+            copy_qw4(D_700036A0, *(char **)(D_00275B40 + 8) + 0x90);
             func_001026A0(D_700036D0, *(int *)(D_00275B40 + 8) + 0x90, &D_0024A3B0[n * 4]);
             func_001F4010(8, D_700036A0);
         }

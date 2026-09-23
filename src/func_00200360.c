@@ -1,12 +1,9 @@
-// NEARMISS func_00200360  (vram 0x00200360, 0x3A0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.25% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// The jr-table dispatch itself matches 100% (jtbl_002732B0 reloc included) and cases 1, 3, 4 and 6 are byte-identical. 25 residual instruction rows in three classes: (1) IDIOM-13 lui-in-branch-delay-slot, 3 sites, ~11 rows — the target leaves `nop` in the delay slots of `bne v0,v1,<else>` (case 1 @...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_00200360 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): func_00200780 takes (void *, int, int, int), with the
+// table address passed as `(int)D_00289BC0`, and case 2 is the chained
+// `D_00275C70 = m = D_00289BC0;` (keeps the address in a register; idiom-35).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
@@ -46,9 +43,11 @@
 // %gp_rel; `volatile` on D_0028A740 / D_0028A744 reproduces the original's
 // per-use reload of those two words.
 
+extern unsigned char *D_70003B6C[16];               /* PS2 scratchpad @ 0x70003B6C */
+
 extern int func_00200730();
 extern int func_001FF590();
-extern int func_00200780();
+extern int func_00200780(void *, int, int, int);
 extern int func_00200830();
 
 extern unsigned char D_00810700[8];
@@ -80,14 +79,14 @@ void func_00200360(void) {
     int t;
     unsigned int k;
 
-    p = *(unsigned char **)0x70003B6C;
+    p = D_70003B6C[0];
     st = p + 9;
     switch (p[9]) {
     case 0:
         c = D_00810700[0] + 4;
         if (*(int *)D_00289BC0 != c) {
             *st = *st + 1;
-            func_00200780(D_0028A480, D_00289BC0, c << 11, 0x800);
+            func_00200780(D_0028A480, (int)D_00289BC0, c << 11, 0x800);
         } else {
             *st = 2;
         }
@@ -96,20 +95,19 @@ void func_00200360(void) {
         r = func_00200730();
         if (r != 0) {
             if (r == 1) {
-                (*(unsigned char **)0x70003B6C)[9]++;
+                (D_70003B6C[0])[9]++;
             } else {
-                (*(unsigned char **)0x70003B6C)[9]--;
+                (D_70003B6C[0])[9]--;
             }
         }
         break;
     case 2:
-        m = D_00289BC0;
-        D_00275C70 = m;
+        D_00275C70 = m = D_00289BC0;
         if (*(int *)(m + 0x18) == 0) {
             D_00810701[0] = 0;
             D_00810704[0] = 0;
             p[8] = 0x63;
-            (*(unsigned char **)0x70003B6C)[9] = 0;
+            (D_70003B6C[0])[9] = 0;
         } else {
             c = D_00810701[0];
             D_00810704[0] = c;
@@ -123,14 +121,14 @@ void func_00200360(void) {
             if (func_001FF590(0xAC, 0) == 0) {
                 break;
             }
-            (*(unsigned char **)0x70003B6C)[10]++;
+            (D_70003B6C[0])[10]++;
             /* fall through */
         case 1:
             if (func_001FF590(0xAC, 1) == 0) {
                 break;
             }
-            (*(unsigned char **)0x70003B6C)[10] = 0;
-            (*(unsigned char **)0x70003B6C)[9]++;
+            (D_70003B6C[0])[10] = 0;
+            (D_70003B6C[0])[9]++;
             break;
         }
         break;
@@ -147,9 +145,9 @@ void func_00200360(void) {
         if (r != 0) {
             if (r == 1) {
                 D_0028A748[0] = D_0028A744[0];
-                (*(unsigned char **)0x70003B6C)[9]++;
+                (D_70003B6C[0])[9]++;
             } else {
-                (*(unsigned char **)0x70003B6C)[9]--;
+                (D_70003B6C[0])[9]--;
             }
         }
         break;
@@ -174,8 +172,8 @@ void func_00200360(void) {
                 w++;
             }
         }
-        (*(unsigned char **)0x70003B6C)[8] = 0x63;
-        (*(unsigned char **)0x70003B6C)[9] = 0;
+        (D_70003B6C[0])[8] = 0x63;
+        (D_70003B6C[0])[9] = 0;
         break;
     }
 }

@@ -1,12 +1,8 @@
-// NEARMISS func_0012E840  (vram 0x0012E840, 0x318 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.78% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body is fully decoded and the jr-table dispatch matches exactly (jtbl_0026D0D0 reloc included, all 10 case bodies byte-identical). Two residual clusters, 3 instructions of 198: (1) FIRST func_00102948 CALL - ARG SCHEDULING (2 instructions, swapped). Target: `lui v0,%hi(D_700038A0)` / `addiu a0,v0...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_0012E840 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): void * prototype for func_00102948 without the argument cast
+// (argument evaluation order, idiom-35).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -49,7 +45,7 @@ extern char D_700038B0[];
 extern float D_00810360[4];
 
 extern int func_001B2140(unsigned char *);
-extern void func_00102948(char *dst, float *src);
+extern void func_00102948(void *dst, void *src);
 extern float func_001B15D0(char *, char *);
 extern void func_0012EB60(unsigned char *, unsigned char *);
 extern void func_0012F100(unsigned char *, unsigned char *);
@@ -82,7 +78,7 @@ void func_0012E840(unsigned char *act, unsigned char *ent)
     }
     ent[0x6D] = 1;
 
-    func_00102948(D_700038A0, (float *)(act + 0xB0));
+    func_00102948(D_700038A0, act + 0xB0);
     func_00102948(D_700038B0, D_00810360);
     *(volatile int *)0x700038B4 = 0;
     *(volatile int *)0x700038A4 = 0;

@@ -1,15 +1,14 @@
-// NEARMISS func_001FF830  (vram 0x001FF830, 0x494 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.16% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 18 of 308 instructions differ; the dispatch and every case body are logically exact (whole-function mnemonic multiset delta is ONLY: target has 4 extra `nop` + 1 `addu`; mine has 4 extra `lui` + 1 `addiu` + 1 extra `sq`/`lq`/`paddub`). Two independent causes. (1) EXTRA INDUCTION VARIABLE, ~12 ins...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// func_001FF830 -- byte-matched from C (objdiff 100%). Jump-table dispatcher: the
+// compiled local .rodata table is pinned at its original address
+// (tools/decomp/rodata_pin.py). Promoted from NEARMISS in the jr-table lane
+// (2026-09-23): scratchpad externs (idiom-32); `(char *)D_00289BC0` in the
+// func_00200780 call (argument weight); the first loop indexes
+// `((h + (int)i) << 3)`; the second loop has its own counter `k`, and the
+// case-7 locals are declared h, n, i, base, off, q, cnt, e, k (idiom-35).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x70003B90
 
 // SEMANTICS: one step of the resource-bank streamer, driven by the slot record
 // whose pointer lives in EE scratchpad 0x70003B6C and dispatched on the slot's
@@ -45,6 +44,9 @@
 //      D_0028A490[e >> 24] = (e & 0xFFFFFF) + base.  Finally mark the slot done
 //      (slot[8] = 0x63, slot[9] = 0).
 
+extern char *volatile D_70003B6C[16];               /* PS2 scratchpad @ 0x70003B6C */
+extern unsigned char D_70003B90[16];                /* PS2 scratchpad @ 0x70003B90 */
+
 extern void func_00200780(char *a, char *b, int c, int d);
 extern int func_00200730(void);
 extern void func_00200830(char *a);
@@ -70,7 +72,7 @@ void func_001FF830(int arg0) {
     char *d;
     int r;
 
-    slot = *(char *volatile *)0x70003B6C;
+    slot = D_70003B6C[0];
     st = (unsigned char *)(slot + 9);
     switch (*(unsigned char *)(slot + 9)) {
     case 0:
@@ -105,7 +107,7 @@ void func_001FF830(int arg0) {
             break;
         case 0x2A:
         case 0x2B:
-            if (*(unsigned char *)0x70003B90 == 0) {
+            if (D_70003B90[0] == 0) {
                 D_00275C74 = (char *)0x01800000;
             } else {
                 D_00275C74 = D_0028A748[0];
@@ -117,25 +119,25 @@ void func_001FF830(int arg0) {
             slot[0xF] = 1;
             break;
         }
-        p = *(char *volatile *)0x70003B6C;
+        p = D_70003B6C[0];
         *(unsigned char *)(p + 9) += 1;
-        func_00200780(D_0028A480, D_00289BC0, arg0 << 0xB, 0x800);
+        func_00200780(D_0028A480, (char *)D_00289BC0, arg0 << 0xB, 0x800);
         break;
     case 1:
         r = func_00200730();
         if (r != 0) {
             if (r == 1) {
-                p = *(char *volatile *)0x70003B6C;
+                p = D_70003B6C[0];
                 *(unsigned char *)(p + 9) += 1;
             } else {
-                p = *(char *volatile *)0x70003B6C;
+                p = D_70003B6C[0];
                 p[9] = 0;
             }
         }
         break;
     case 2:
         if (func_001FF3F0() != 0) {
-            p = *(char *volatile *)0x70003B6C;
+            p = D_70003B6C[0];
             *(unsigned char *)(p + 9) += 1;
         }
         break;
@@ -152,10 +154,10 @@ void func_001FF830(int arg0) {
         r = func_00200730();
         if (r != 0) {
             if (r == 1) {
-                p = *(char *volatile *)0x70003B6C;
+                p = D_70003B6C[0];
                 *(unsigned char *)(p + 9) += 1;
             } else {
-                p = *(char *volatile *)0x70003B6C;
+                p = D_70003B6C[0];
                 *(unsigned char *)(p + 9) -= 1;
             }
         }
@@ -167,7 +169,7 @@ void func_001FF830(int arg0) {
             int f;
             *st = 7;
             d = D_00275C70;
-            p = *(char *volatile *)0x70003B6C;
+            p = D_70003B6C[0];
             cur = D_00275C74;
             delta = *(int *)(d + 8) - *(int *)(d + 0x14);
             f = *(unsigned char *)(p + 0xF);
@@ -187,21 +189,22 @@ void func_001FF830(int arg0) {
             res = func_001FB370(D_00275C74);
             if (res != 0) {
                 D_0028A748[0] = res;
-                p = *(char *volatile *)0x70003B6C;
+                p = D_70003B6C[0];
                 *(unsigned char *)(p + 9) += 1;
             }
         }
         break;
     case 7:
         {
+            int h;
+            int n;
+            unsigned int i;
             char *base;
             int off;
-            int n;
-            int h;
-            int cnt;
-            unsigned int i;
-            unsigned int e;
             int *q;
+            int cnt;
+            unsigned int e;
+            unsigned int k;
 
             d = D_00275C70;
             base = D_00275C74;
@@ -211,21 +214,21 @@ void func_001FF830(int arg0) {
             if (n != 0) {
                 for (i = 0; i < (unsigned int)n; i++) {
                     func_00200830(base + off);
-                    off += *(int *)((char *)D_00275C70 + (h + i) * 8 + 0x24);
+                    off += *(int *)(D_00275C70 + ((h + (int)i) << 3) + 0x24);
                 }
             }
             d = D_00275C70;
             cnt = *(int *)(d + 0x1C);
             if (cnt != 0) {
                 q = (int *)(d + (h + n) * 8 + 0x20);
-                for (i = 0; i < (unsigned int)cnt; i++) {
+                for (k = 0; k < (unsigned int)cnt; k++) {
                     e = *(unsigned int *)q;
                     D_0028A490[e >> 0x18] = (char *)((e & 0xFFFFFF) + (int)base);
                     q += 1;
                 }
             }
-            (*(char *volatile *)0x70003B6C)[8] = 0x63;
-            (*(char *volatile *)0x70003B6C)[9] = 0;
+            (D_70003B6C[0])[8] = 0x63;
+            (D_70003B6C[0])[9] = 0;
         }
         break;
     }
