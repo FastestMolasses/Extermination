@@ -474,29 +474,29 @@ AREA11_LIGHT = RoomLight(
 
 
 def attr_to_color(attr, m=None, light=None) -> tuple:
-    """Baked color, or a lit shade for normal-carrying records.
+    """Baked color, or a room-rig shade for normal-carrying records.
 
     A record's attr is either a BAKED VERTEX COLOR (r, g, b, w~=1; passed
-    through) or a unit NORMAL (|xyz|~=1, w~=0). For a normal: rotate it by
-    the record's placement, then either fold the supplied `light` (a real
-    per-room RoomLight rig — the faithful path) or, with no rig, apply the
-    port's legacy stand-in directional so the EMD2 normal slot can carry a
-    color uniformly. The stand-in stays the default ONLY to keep the
-    office/drawbridge exports byte-identical; level meshes with a decoded
-    rig (the snow level) MUST pass `light` so the baked color reflects the
-    real room lighting, not a fabricated 0.30-floor directional."""
+    through, clamped to [0, 1] — the level kernel submits floor(128*c),
+    LOI 65536 at 00237218 + ADDy 002373B0, so 1.0 is GS 128) or a unit
+    NORMAL (|xyz|~=1, w~=0) of a movable sub-object the original lights
+    per draw through the object kernel. For a normal: rotate it by the
+    record's placement and fold the supplied per-room RoomLight rig
+    (D_00251C50; a static approximation of 001D89D0 without the
+    point-light fold). There is NO rig-less fallback any more: the former
+    0.30+0.70*max(N.L, 0) stand-in was an invented light (FIRST_LEVEL_AUDIT
+    H18), so a normal record without `light` faults instead of guessing.
+    Pass lightrig_read's rig for the level's (area, sub) as a RoomLight."""
     x, y, z, w = attr
     n = math.sqrt(x * x + y * y + z * z)
     if abs(n - 1.0) < 0.02 and abs(w) < 0.1:
+        if light is None:
+            raise SystemExit("attr_to_color: normal-carrying record without "
+                             "a room rig — the stand-in light is retired "
+                             "(H18); pass the level's D_00251C50 RoomLight")
         if m is not None:
             x, y, z = mat_rotate(m, (x, y, z))
-        if light is not None:
-            return light.shade(x, y, z)
-        lx, ly, lz = 0.4, 0.8, 0.45     # port's stand-in light direction
-        ll = math.sqrt(lx * lx + ly * ly + lz * lz)
-        d = max((x * lx + y * ly + z * lz) / ll, 0.0)
-        s = 0.30 + 0.70 * d
-        return (s, s, s)
+        return light.shade(x, y, z)
     return (min(max(x, 0.0), 1.0), min(max(y, 0.0), 1.0),
             min(max(z, 0.0), 1.0))
 
@@ -514,9 +514,9 @@ class MeshBuilder:
         self.tex_index: dict[int, int] = {}
         self.NO_TEX = 0xFFFFFFFF
         self.n_strip_tris = 0
-        # optional per-room RoomLight rig: when set, normal-carrying records
-        # bake the real room lighting instead of the legacy stand-in (see
-        # attr_to_color). None preserves the office/drawbridge behavior.
+        # per-room RoomLight rig for normal-carrying records (see
+        # attr_to_color). None faults on such a record: the stand-in light
+        # it used to fall back to was invented (H18).
         self.light = light
 
     def tex_of(self, q0: int) -> int:
@@ -2439,7 +2439,18 @@ def office0_bake_placed(d: bytes, placements, table_off=None):
     live capture of for this sub-state (FLAGGED: articulated sub-parts of
     multi-node entries may sit at their model-local origin).
     `table_off` selects the per-area MODEL TABLE (default: the office
-    OFFICE0_TABLE_OFF; the drawbridge bake passes DRAWBRIDGE_TABLE_OFF)."""
+    OFFICE0_TABLE_OFF; the drawbridge bake passes DRAWBRIDGE_TABLE_OFF).
+
+    H18 / WP-13: the model-table entries are ACTOR models (captured
+    playable_ee.bin: the AREA11 001BC350 door and the 001C4820 fixture
+    both carry +0x4C = 001CAA00, draw mode 0 -> 001D89D0 rig -> object
+    kernel 0023C750). Their attr row is the authored normal the port
+    lights through em_lighting, so each vertex carries
+    export_props.attr_normal (write the EMDL with NORMAL_FLAGS). The former
+    0.30+0.70*max(N.L,0) colour (export_props.attr_color) was an invented
+    light and is gone. attr_normal faults on a rotated placement: a
+    world-rotated bake cannot keep the node-local normal the original
+    lights, so only model-local carves (m None / identity rotation) work."""
     props = sys.modules.get("_export_props_lvl") or _load(
         "_export_props_lvl", "export_props.py")
     raw_pos, raw_col, raw_bone, raw_uv, raw_tex = [], [], [], [], []
@@ -2449,9 +2460,10 @@ def office0_bake_placed(d: bytes, placements, table_off=None):
     tex_of = props.make_tex_of(tex_table, {})
 
     def vid_of(p, c, uv, t):
+        # c = the exact authored normal (never rounded: distinct normals
+        # must not weld — same key as export_props.build_placed_mesh).
         key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
-               round(c[0], 3), round(c[1], 3), round(c[2], 3),
-               round(uv[0], 5), round(uv[1], 5), t)
+               tuple(c), round(uv[0], 5), round(uv[1], 5), t)
         i = weld.get(key)
         if i is None:
             i = len(raw_pos)
@@ -2470,7 +2482,7 @@ def office0_bake_placed(d: bytes, placements, table_off=None):
         for q, corners, parity in props.model_tris(d, off):
             t = tex_of(q)
             ids = [vid_of(mat_apply(m, p) if m else tuple(p),
-                          props.attr_color(a, m), uv, t)
+                          props.attr_normal(a, m), uv, t)
                    for p, a, uv, _q in corners]
             a, b, c = ids
             if parity:
@@ -2504,7 +2516,9 @@ def _office0_placements(dirp: Path):
 
 
 def export_office0_placed(args):
-    """--office0-placed DIR: every static placed object of the AREA02
+    """--office0-placed DIR: RETIRED (H18 / WP-13) — reports the placement
+    census below, then faults instead of baking (see the raise). It was:
+    every static placed object of the AREA02
     sub-state-0 table baked at its placement matrix into one EMDL.
     Excluded (each reported): crawlers + generators (the scene.txt enemy
     block), doors (interactive, --office0-doors), class-0x0B deferred
@@ -2541,23 +2555,18 @@ def export_office0_placed(args):
               f"param={e.param:04x} at ({e.pos[0]:.1f}, {e.pos[1]:.1f}, "
               f"{e.pos[2]:.1f}): {why}")
 
-    sections, tex_table = office0_bake_placed(d, placements)
-    pos = sections[0][0]
-    if not pos:
-        sys.exit("no geometry produced")
-    xs = [p[0] for p in pos]
-    ys = [p[1] for p in pos]
-    zs = [p[2] for p in pos]
-    print(f"placed objects: {len(placements)} instances, {len(pos)} verts, "
-          f"{len(sections[0][2]) // 3} tris, {len(tex_table)} textures")
-    print(f"  bbox X[{min(xs):.1f},{max(xs):.1f}] "
-          f"Y[{min(ys):.1f},{max(ys):.1f}] Z[{min(zs):.1f},{max(zs):.1f}]")
-
-    tex_entries, tex_blob = build_texture_blob(
-        None, tex_table, None, office0_uploads(dirp, args))
-    en.write_emdl(Path(args.out), sections, [], [-1], [[en.mat_identity()]],
-                  30.0, tex_entries, tex_blob, flags=1)
-    return 0
+    # Retired (H18 / WP-13), after the census above so the placement list
+    # is still reported: these fixtures are actor models the original
+    # draws per actor through 001CAA00 (mode 0 of 001D89D0: the room rig +
+    # point-light fold) and the object kernel 0023C750. One static scene
+    # EMDL at world placement matrices has no rig and cannot carry the
+    # node-local normal under a rotated placement, and its old colour was
+    # the invented 0.30+0.70*max(N.L,0) light. Export each fixture as its
+    # own actor model (model-local, NORMAL_FLAGS) once the port places it.
+    raise SystemExit(f"office0 placed-object scene bake retired (H18): "
+                     f"{len(placements)} actor fixture(s) need per-actor "
+                     f"model-local exports lit by em_lighting, not a "
+                     f"baked stand-in light")
 
 
 def export_office0_doors(args):
@@ -2586,9 +2595,12 @@ def export_office0_doors(args):
         sections, tex_table = office0_bake_placed(d, [(e.param, None)])
         tex_entries, tex_blob = build_texture_blob(None, tex_table, None,
                                                    ups)
+        # Authored normals (office0_bake_placed / attr_normal), lit per
+        # draw by em_lighting like the AREA11 001BC350 door (H18).
+        props = sys.modules["_export_props_lvl"]
         en.write_emdl(scene_dir / name, sections, [], [-1],
                       [[en.mat_identity()]], 30.0, tex_entries, tex_blob,
-                      flags=1)
+                      flags=props.NORMAL_FLAGS)
         pos = sections[0][0]
         print(f"door [{e.index}] model {e.model:#04x} param {e.param:#04x} "
               f"link {e.link:#06x} -> {name}: {len(pos)} verts, "
@@ -2708,7 +2720,8 @@ def export_drawbridge(args) -> int:
     # panels (y 156.9, pitched 0.349), [43] the crank piece beside the
     # crank-examine record, and [13]/[20] the area's creature-family
     # fixtures (baked static like the office convention). Everything
-    # bakes at the placement matrix into 12_placed.emdl — REST POSE
+    # baked at the placement matrix into 12_placed.emdl (that bake is now
+    # RETIRED — H18, see below; the census still runs) — REST POSE
     # ONLY, FLAGGED: the bridge leaves are 1-node models whose
     # raise/lower is actor code in the AREA01 overlay (fn 0x8261A0,
     # undecoded); no object-anim bank clip binds a 1-node rig (the s30
@@ -2742,17 +2755,15 @@ def export_drawbridge(args) -> int:
         placements.append((e.param, e.matrix34()))
         print(f"  placed [{e.index:2d}] {why}: model entry {e.param:#x} "
               f"at ({e.pos[0]:.1f}, {e.pos[1]:.1f}, {e.pos[2]:.1f})")
-    if placements:
-        sections, tex_table = office0_bake_placed(
-            blob, placements, table_off=DRAWBRIDGE_TABLE_OFF)
-        tex_entries, tex_blob = build_texture_blob(None, tex_table,
-                                                   None, ups)
-        out = scene_dir / "12_placed.emdl"
-        en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]],
-                      30.0, tex_entries, tex_blob, flags=1)
-        print(f"placed objects: {len(placements)} instances -> {out} "
-              f"(the DRAWBRIDGE leaves bake LOWERED — rest pose, "
-              f"flagged; raise/lower is undecoded overlay actor code)")
+    # 12_placed.emdl is RETIRED (H18 / WP-13): these are actor models
+    # (captured playable_ee.bin: the 001C4820 fixture's +0x4C is 001CAA00,
+    # draw mode 0 -> 001D89D0 rig -> object kernel 0023C750), and the
+    # static world-placed bake carried the invented 0.30+0.70*max(N.L,0)
+    # light (the placements are rotated, e.g. yaw-pi leaves, so a baked
+    # normal cannot stay node-local either). The zones and the manifest
+    # lines below are still written; the export then FAULTS at the end so
+    # the missing placed objects are never silent.
+    retired_placed = len(placements)
 
     update_manifest(scene_dir, "spawn",
                     " ".join(f"{v:g}" for v in DRAWBRIDGE_SPAWN))
@@ -2769,6 +2780,12 @@ def export_drawbridge(args) -> int:
         elf_path = Path(args.elf)
         elf = BootElf(elf_path) if elf_path.exists() else None
         emit_drawbridge_enemies(scene_dir, ov_path, elf)
+    if retired_placed:
+        raise SystemExit(f"drawbridge: zones + manifest written, but "
+                         f"12_placed.emdl is retired (H18): "
+                         f"{retired_placed} placed actor model(s) need "
+                         f"per-actor model-local exports lit by "
+                         f"em_lighting, not a baked stand-in light")
     return 0
 
 
@@ -2831,7 +2848,7 @@ def emit_drawbridge_enemies(scene_dir: Path, ov_path: Path,
 # BAKED VERTEX COLORS (folded through the color pass-through); f17_id93 is
 # the MOVABLE / sub-object set whose records carry unit NORMALS, lit at
 # runtime by the room rig — so its baked color must fold the real AREA 11
-# rig (AREA11_LIGHT), not the legacy stand-in directional. Keyed by name
+# rig (AREA11_LIGHT); the former stand-in directional is retired (H18). Keyed by name
 # (the chunk loads contiguously; FINDINGS "SECOND SCENE END-TO-END").
 SNOW_RENDER_FILES = {
     "f12_id44.bin", "f13_id50.bin", "f14_id5a.bin",
@@ -2847,7 +2864,8 @@ def load_level_mesh(level_path: Path):
     sibling = None
     # AREA 11 snow render files: bake normal-carrying records with the real
     # room rig (the snow level is deliberately DARK — INVESTIGATION_first_
-    # level_area11 sec 6). Other levels keep the legacy stand-in (None).
+    # level_area11 sec 6). Other levels pass None and fault on a
+    # normal-carrying record until their (area, sub) rig is supplied (H18).
     light = AREA11_LIGHT if level_path.name in SNOW_RENDER_FILES else None
     if light is not None:
         print(f"light: AREA 11 rig key 0x0B00 (amb 32, dir 74/38, "
@@ -3089,9 +3107,9 @@ def main(argv):
                     "VRAM (texel source for scenes with NO captured state, "
                     "e.g. AREA02 sub-state 0; wins over --gsdump/--p2s)")
     ap.add_argument("--office0-placed", metavar="DIR",
-                    help="export the AREA02 sub-state-0 PLACED OBJECTS "
-                    "(model-table fixtures at their placement matrices) "
-                    "from this chunk06.n0 leaf dir into --out")
+                    help="RETIRED (H18): census of the AREA02 "
+                    "sub-state-0 PLACED OBJECTS, then a deliberate fault "
+                    "(the static placed bake carried an invented light)")
     ap.add_argument("--office0-doors", metavar="DIR",
                     help="carve the sub-state-0 interactive door meshes "
                     "from this chunk06.n0 leaf dir into --out/doors/ and "

@@ -79,11 +79,16 @@ port, not a correction of the evidence: until a faithful pulse/cube
 path exists, export player.emdl with --no-glow. Without the flag the
 old recorded CLIs still reproduce their bytes exactly.
 
-The default (no --attach) export bakes PLACED world models (the pickups)
-into a static EMDL v2 with the placements applied — currently model 106
-at its live floor pose (115.0, 1.5, -269.3), which is a REAL separate
-pickup instance (type-0xB entry in the live placement table @0x828330),
-independent of the holstered knife.
+The default (no --attach) export USED TO bake placed world models (the
+pickups, e.g. model 106 at its live floor pose (115.0, 1.5, -269.3)) into
+one static scene EMDL lit by an invented stand-in light. It is RETIRED
+(FIRST_LEVEL_AUDIT H18): those are actor models lit per draw by the room
+rig, so each must ship as its own actor (--pickup-items/--area-items).
+
+RELIGHT (--relight-area11 ASSETS, WP-13): see AREA11_RELIGHT — rewrites
+the shipped AREA11 actor models with their authored normals (flags 0),
+proving the geometry against the source blob first, and exports the
+AREA11 crate (per-area entry 0x0D) as scene_snow/props/enemy_crate.emdl.
 
 DOORS (--doors, 2026-06-10 interactive-objects session). The office
 double doors (placement-table class 5, model 3, behavior func_001BC350 —
@@ -174,8 +179,9 @@ each husk has small chunk/shard meshes textured with ITS OWN skin:
   0x25/0x2A/0x2B pair elsewhere — unrelated pickups/props.)
 
 --gibs exports each entry as its own STATIC 1-node EMDL v2 (model-local
-space, identity palette frame, normals -> baked colors with the standard
-stand-in light, texels resolved from the office GS dump exactly like the
+space, identity palette frame, authored normals with header flags 0 (the
+port lights them through em_lighting; H18 retired the old stand-in-light
+bake), texels resolved from the office GS dump exactly like the
 props above) into <outdir>/gib_<id>.emdl. The port's em_enemy.c launches the
 small chunks on the crawler's burst death and falls back to its old sink
 placeholder when the files are absent.
@@ -228,8 +234,8 @@ the 1-node MODEL RECORD (parent -1, identity rest) + zero pad to 0x2000,
 NOT a texture (corrects s33's "embedded texture blob at +0x18A0"; a
 GS-upload scan of the file finds 0 transfers). The engine colors the
 spike entirely through the actor RGB multiplier (room tint -> green as
-the parent pad opens — the s33 render contract), so the EMDL bakes the
-standard normals->grayscale stand-in light and honestly ships 0
+the parent pad opens — the s33 render contract), so the EMDL carries the
+authored normals (H18: no stand-in light is baked) and honestly ships 0
 textures; --p2s/--gsdump change nothing (verified byte-identical with
 and without --p2s state 01).
 
@@ -402,22 +408,33 @@ def model_records(d: bytes, off: int):
         yield recs
 
 
-def attr_color(attr, m) -> tuple:
-    """attr row -> baked color. Unit normals (|xyz|~1, w~0) are rotated
-    into world space and lit with the port's stand-in light; anything
-    else is already a color."""
-    x, y, z, w = attr
-    n = math.sqrt(x * x + y * y + z * z)
-    if abs(n - 1.0) < 0.05 and abs(w) < 0.1:
-        if m is not None:
-            x, y, z = lvl.mat_rotate(m, (x, y, z))
-        lx, ly, lz = 0.4, 0.8, 0.45
-        ll = math.sqrt(lx * lx + ly * ly + lz * lz)
-        d = max((x * lx + y * ly + z * lz) / ll, 0.0)
-        s = 0.30 + 0.70 * d
-        return (s, s, s)
-    return (min(max(x, 0.0), 1.0), min(max(y, 0.0), 1.0),
-            min(max(z, 0.0), 1.0))
+def _identity_rotation(m) -> bool:
+    return all(m[r][c] == (1.0 if r == c else 0.0)
+               for r in range(3) for c in range(3))
+
+
+def attr_normal(attr, m=None) -> tuple:
+    """attr row -> the AUTHORED object-kernel normal (H18 / WP-13).
+
+    Every model this tool carves is an actor model. The original draws
+    it through draw class 001CAA00 -> 001CA990 (lighting mode 0) ->
+    001C7420/001D89D0 and DMA CALL 0023C750, the object kernel whose
+    lighting slice (0023C878..0023C928) multiplies the record's attr xyz
+    by the per-node normal matrix. The attr is therefore a normal: it is
+    neither renormalized nor baked into a colour. The former
+    0.30+0.70*max(N.L,0) bake here was an invented light and is gone;
+    the port lights these vertices through em_lighting (flags 0).
+
+    `m` is the transform already baked into the vertex positions. Only an
+    identity rotation keeps the normal exact (the node basis the port's
+    palette supplies is then the original node basis); any other rotation
+    would need the per-node palette the original draws with, so it
+    faults instead of approximating."""
+    if m is not None and not _identity_rotation(m):
+        raise SystemExit("attr_normal: a rotated bake would move the "
+                         "original node-local normal; export the node as "
+                         "its own palette slot instead (H18)")
+    return (attr[0], attr[1], attr[2])
 
 
 def model_tris(d: bytes, off: int):
@@ -435,6 +452,12 @@ def model_tris(d: bytes, off: int):
                 if run[0][0] != run[1][0] and run[1][0] != run[2][0] \
                         and run[0][0] != run[2][0]:
                     yield q, list(run), (wbits >> 14) & 1
+
+
+# EMDL header flags for object-kernel actor models: 0 = the "normal" slot
+# is the authored normal the port lights through em_lighting (bit 0 set
+# would mean a baked LEVEL-kernel colour, which these models never carry).
+NORMAL_FLAGS = 0
 
 
 # ---------------------------------------------------------------------------
@@ -461,7 +484,9 @@ def make_tex_of(tex_table, tex_index):
 
 
 # ---------------------------------------------------------------------------
-# Mode 1: static world pickups (placements baked)
+# Mode 1: static world pickups (placements baked) — the builder remains for
+# the library carves (--gibs/--pickup-items/--cone, identity placement);
+# the multi-placement scene bake is retired (see main).
 
 def build_placed_mesh(d: bytes, placements: dict[int, list]):
     offs = read_directory(d)
@@ -472,9 +497,10 @@ def build_placed_mesh(d: bytes, placements: dict[int, list]):
     tex_of = make_tex_of(tex_table, {})
 
     def vid_of(p, c, uv, t):
+        # c = the exact authored normal (never rounded: distinct normals
+        # must not weld).
         key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
-               round(c[0], 3), round(c[1], 3), round(c[2], 3),
-               round(uv[0], 5), round(uv[1], 5), t)
+               tuple(c), round(uv[0], 5), round(uv[1], 5), t)
         i = weld.get(key)
         if i is None:
             i = len(raw_pos)
@@ -496,7 +522,7 @@ def build_placed_mesh(d: bytes, placements: dict[int, list]):
             ntri = 0
             for q, corners, parity in model_tris(d, offs[mi]):
                 t = tex_of(q)
-                ids = [vid_of(lvl.mat_apply(m, p), attr_color(a, m), uv, t)
+                ids = [vid_of(lvl.mat_apply(m, p), attr_normal(a, m), uv, t)
                        for p, a, uv, _q in corners]
                 a, b, c = ids
                 if parity:
@@ -698,9 +724,11 @@ def find_door_clip(want, tol=1.0):
 def build_door_mesh(level: bytes, locals34):
     """RGN_DOOR records -> one door-local EMDL section: per-record slot
     bits become the vertex bone, positions stay slot-model-space (the
-    closed-pose palette frame supplies the slot offsets), colors follow
-    export_level's normal-or-baked-color rule with the slot's local
-    rotation."""
+    closed-pose palette frame supplies the slot offsets), and the attr
+    row stays the authored slot-local normal (attr_normal): the palette
+    frame supplies the node basis the object kernel lights it with, so
+    no slot rotation is baked (`locals34` is no longer consulted here;
+    the caller still uses it for the palette frames)."""
     raw_pos, raw_col, raw_bone, raw_uv, raw_tex = [], [], [], [], []
     tris = []
     weld = {}
@@ -709,8 +737,7 @@ def build_door_mesh(level: bytes, locals34):
 
     def vid_of(p, c, b, uv, t):
         key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
-               round(c[0], 3), round(c[1], 3), round(c[2], 3), b,
-               round(uv[0], 5), round(uv[1], 5), t)
+               tuple(c), b, round(uv[0], 5), round(uv[1], 5), t)
         i = weld.get(key)
         if i is None:
             i = len(raw_pos)
@@ -729,8 +756,7 @@ def build_door_mesh(level: bytes, locals34):
             continue
         _off, pos, wbits, q, uv, attr = rec
         slot = (wbits & 0x3FF) >> 3
-        m = locals34[slot] if slot < len(locals34) else lvl.IDENT34
-        col = lvl.attr_to_color(attr, m)     # rotate normals slot-locally
+        col = attr_normal(attr)              # node-local authored normal
         run.append((tuple(pos), col, slot, uv, q))
         if len(run) > 3:
             run.pop(0)
@@ -877,7 +903,7 @@ def export_doors(args):
     door_file = "doors/door_m03.emdl"
     out = scene_dir / door_file
     en.write_emdl(out, sections, [], parents, frames, fps,
-                  tex_entries, tex_blob, flags=1, clips=clips)
+                  tex_entries, tex_blob, flags=NORMAL_FLAGS, clips=clips)
 
     lines = []
     for e in doors:
@@ -947,8 +973,8 @@ def model_tris_slots(d: bytes, off: int):
 def build_office0_door_mesh(d: bytes, rec_off: int):
     """One model-table door blob -> a node-local EMDL section with the
     per-vertex bone = the record's slot bits (the EMD3 palette supplies
-    the rest/anim node offsets). Colors use the stand-in light with no
-    placement rotation (door rest rotations are identity)."""
+    the rest/anim node offsets). The attr row stays the authored
+    node-local normal (attr_normal) for the original object kernel."""
     raw_pos, raw_col, raw_bone, raw_uv, raw_tex = [], [], [], [], []
     tris = []
     weld = {}
@@ -957,8 +983,7 @@ def build_office0_door_mesh(d: bytes, rec_off: int):
 
     def vid_of(p, c, b, uv, t):
         key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
-               round(c[0], 3), round(c[1], 3), round(c[2], 3), b,
-               round(uv[0], 5), round(uv[1], 5), t)
+               tuple(c), b, round(uv[0], 5), round(uv[1], 5), t)
         i = weld.get(key)
         if i is None:
             i = len(raw_pos)
@@ -972,7 +997,7 @@ def build_office0_door_mesh(d: bytes, rec_off: int):
 
     for q, corners, parity in model_tris_slots(d, rec_off):
         t = tex_of(q)
-        ids = [vid_of(p, attr_color(a, None), s, uv, t)
+        ids = [vid_of(p, attr_normal(a), s, uv, t)
                for p, a, uv, s in corners]
         a, b, c = ids
         if parity:
@@ -1086,7 +1111,7 @@ def export_doors_office0(args):
                                                        None, ups)
         out = scene_dir / name
         en.write_emdl(out, sections, [], parents, frames, fps,
-                      tex_entries, tex_blob, flags=1, clips=clips)
+                      tex_entries, tex_blob, flags=NORMAL_FLAGS, clips=clips)
 
         # Closed-pose verification: palette frame 0 must equal the model
         # record's rest worlds (what bone_init_default_1 poses at INIT).
@@ -1206,7 +1231,7 @@ def export_doors_drawbridge(args):
         tex_entries, tex_blob = lvl.build_texture_blob(None, tex_table,
                                                        None, ups)
         en.write_emdl(scene_dir / name, sections, [], parents, frames,
-                      fps, tex_entries, tex_blob, flags=1, clips=clips)
+                      fps, tex_entries, tex_blob, flags=NORMAL_FLAGS, clips=clips)
 
     update_doors_manifest(scene_dir, lines)
     return 0
@@ -1307,7 +1332,7 @@ def export_area_door(args):
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     en.write_emdl(out, sections, [], parents, frames, fps,
-                  tex_entries, tex_blob, flags=1, clips=clips)
+                  tex_entries, tex_blob, flags=NORMAL_FLAGS, clips=clips)
 
     # Closed-pose verification: palette frame 0 must equal the model
     # record's rest worlds (what bone_init_default_1 poses at INIT).
@@ -1353,7 +1378,7 @@ def export_gibs(args):
     outdir = Path(args.gibs_outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     for mi, role in GIB_ENTRIES:
-        # model-local export: identity placement, baked stand-in lighting
+        # model-local export: identity placement, authored normals
         sections, tex_table, _n = build_placed_mesh(d, {mi: [lvl.IDENT34]})
         pos = sections[0][0]
         if not pos:
@@ -1363,7 +1388,7 @@ def export_gibs(args):
             Path(args.gsdump) if args.gsdump else None, tex_table)
         out = outdir / f"gib_{mi:02x}.emdl"
         en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
-                      tex_entries, tex_blob, flags=1)
+                      tex_entries, tex_blob, flags=NORMAL_FLAGS)
         ys = [p[1] for p in pos]
         print(f"gib 0x{mi:02x} -> {out.name}: {len(pos)} verts, "
               f"{len(sections[0][2]) // 3} tris, Y[{min(ys):.1f},"
@@ -1401,7 +1426,7 @@ def export_pickup_items(args):
             Path(args.gsdump) if args.gsdump else None, tex_table)
         out = outdir / f"item_{mi:02x}.emdl"
         en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
-                      tex_entries, tex_blob, flags=1)
+                      tex_entries, tex_blob, flags=NORMAL_FLAGS)
         ys = [p[1] for p in pos]
         print(f"item {mi:#04x} -> {out}: {len(pos)} verts, "
               f"{len(sections[0][2]) // 3} tris, "
@@ -1520,7 +1545,7 @@ def export_cone(args):
                "../extermination-port/assets/fx/light_cone.emdl")
     out.parent.mkdir(parents=True, exist_ok=True)
     en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
-                  tex_entries, tex_blob, flags=1)
+                  tex_entries, tex_blob, flags=NORMAL_FLAGS)
     zs = [p[2] for p in pos]
     import math as _m
     rmax = max(_m.hypot(p[0], p[1]) for p in pos)
@@ -1559,9 +1584,9 @@ def table_entry_offset(d: bytes, table_off: int, mid: int) -> int:
 
 def build_blob_mesh(d: bytes, off: int):
     """One raw mesh blob at byte offset `off` -> a static EMDL section in
-    MODEL-LOCAL space (identity placement, attr rows baked through the
-    standard normals-or-colors rule) — the per-area model-table sibling
-    of build_placed_mesh's library path."""
+    MODEL-LOCAL space (identity placement, attr rows kept as the authored
+    object-kernel normals — attr_normal) — the per-area model-table
+    sibling of build_placed_mesh's library path."""
     raw_pos, raw_col, raw_bone, raw_uv, raw_tex = [], [], [], [], []
     tris = []
     weld = {}
@@ -1570,8 +1595,7 @@ def build_blob_mesh(d: bytes, off: int):
 
     def vid_of(p, c, uv, t):
         key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
-               round(c[0], 3), round(c[1], 3), round(c[2], 3),
-               round(uv[0], 5), round(uv[1], 5), t)
+               tuple(c), round(uv[0], 5), round(uv[1], 5), t)
         i = weld.get(key)
         if i is None:
             i = len(raw_pos)
@@ -1585,7 +1609,7 @@ def build_blob_mesh(d: bytes, off: int):
 
     for q, corners, parity in model_tris(d, off):
         t = tex_of(q)
-        ids = [vid_of(tuple(p), attr_color(a, None), uv, t)
+        ids = [vid_of(tuple(p), attr_normal(a), uv, t)
                for p, a, uv, _q in corners]
         a, b, c = ids
         if parity:
@@ -1622,8 +1646,10 @@ def build_posed_blob_mesh(d: bytes, off: int):
     node's slot verts (so an n-node assembly collapses to a static mesh
     posed exactly as bone_init_default_1 poses it at INIT — e.g. the
     AREA11 egg/growth fixture, table id 0x0e: slot-1 top cap lifted by
-    its node-1 rest (0,12,0)). Normals are rotated slot-locally for the
-    stand-in light. The 1-node case is identical to build_blob_mesh."""
+    its node-1 rest (0,12,0)). Normals stay the authored node-local
+    attr rows; attr_normal faults unless every baked rest rotation is
+    exactly identity (true for the AREA11 husk pair and egg). The 1-node
+    case is identical to build_blob_mesh."""
     parents, rests = model_rec_nodes(d, off)
     worlds = _rest_world34(parents, rests)
 
@@ -1635,8 +1661,7 @@ def build_posed_blob_mesh(d: bytes, off: int):
 
     def vid_of(p, c, uv, t):
         key = (round(p[0], 4), round(p[1], 4), round(p[2], 4),
-               round(c[0], 3), round(c[1], 3), round(c[2], 3),
-               round(uv[0], 5), round(uv[1], 5), t)
+               tuple(c), round(uv[0], 5), round(uv[1], 5), t)
         i = weld.get(key)
         if i is None:
             i = len(raw_pos)
@@ -1653,7 +1678,7 @@ def build_posed_blob_mesh(d: bytes, off: int):
         ids = []
         for p, a, uv, s in corners:
             m = worlds[s] if s < len(worlds) else lvl.IDENT34
-            ids.append(vid_of(lvl.mat_apply(m, p), attr_color(a, m), uv, t))
+            ids.append(vid_of(lvl.mat_apply(m, p), attr_normal(a, m), uv, t))
         a, b, c = ids
         if parity:
             tris.extend((c, b, a))
@@ -1714,7 +1739,7 @@ def export_egg(args):
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
-                  tex_entries, tex_blob, flags=1)
+                  tex_entries, tex_blob, flags=NORMAL_FLAGS)
     print(f"wrote {out}")
     return 0
 
@@ -1776,7 +1801,7 @@ def export_crate(args):
         Path(args.p2s) if args.p2s else None, uploads)
     out = Path(args.out)
     en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
-                  tex_entries, tex_blob, flags=1)
+                  tex_entries, tex_blob, flags=NORMAL_FLAGS)
     return 0
 
 
@@ -1833,12 +1858,177 @@ def export_area_items(args):
             Path(args.p2s) if args.p2s else None, uploads)
         out = outdir / f"area_item_{mi:02x}.emdl"
         en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
-                      tex_entries, tex_blob, flags=1)
+                      tex_entries, tex_blob, flags=NORMAL_FLAGS)
         ys = [p[1] for p in pos]
         print(f"area item {mi:#04x} -> {out}: {len(pos)} verts, "
               f"{len(sections[0][2]) // 3} tris, "
               f"Y[{min(ys):.1f},{max(ys):.1f}]")
     return rc
+
+
+# ---------------------------------------------------------------------------
+# Mode 5: --relight-area11 ASSETS — replace the invented stand-in bake in the
+# AREA11 actor models the port already ships (FIRST_LEVEL_AUDIT H18/WP-13).
+#
+# Every file below was exported with the retired 0.30+0.70*max(N.L,0) bake
+# (flags 1). The original draws each through 001CAA00 (lighting mode 0 of
+# 001D89D0) and the object kernel CALL 0023C750, which lights the record's
+# authored normal. This mode re-walks the SAME source blob with the SAME
+# strip assembly, proves the triangle list (positions, UVs, texture slot,
+# palette slot, in order) is bit-identical to the shipped file, and rewrites
+# only the vertex "normal" slot (now the authored normal) and the header
+# flags (0). Parents, palette frames, clips, texture entries and texels are
+# copied byte-for-byte from the shipped file, so no texel source is needed.
+# A shipped file whose geometry does not match its declared source faults.
+#
+# Sources (AREA11 capture playable_ee.bin: *(D_0028A59C) = 0x01335F40 is
+# this table; every listed actor's +0x44 model pointer resolves into it):
+#   area table = extract/chunk15 concat view @0x123000 (--area-door's view;
+#   the f05+f06 pair alone truncates entry 0x14), entries named below;
+#   library   = the chunk27 equipment library (gib set, GIB_ENTRIES).
+# The AREA11 crate is NOT the shipped global enemy_crate.emdl (office n0
+# entry 0x0D, 12 triangles): the captured crates (behaviour 001551B0, type
+# byte 06) bind per-area entry 0x0D (90 triangles). It is exported NEW to
+# scene_snow/props/enemy_crate.emdl (em_enemy.c probes the scene-local
+# crate first) with texels from --p2s (default: the opening GS freeze).
+# The global office crate is relit in place like the others.
+
+AREA11_TABLE_OFF = AREA_DOOR_TABLE_OFF
+
+AREA11_RELIGHT = (
+    # (asset path under ASSETS, source, entry)
+    ("scene_snow/props/area_parachute.emdl", "area", 0x11),   # 00823E80
+    ("scene_snow/props/area_truck.emdl", "area", 0x09),       # 00823FF0
+    ("scene_snow/props/area_husk_creature.emdl", "area", 0x08),  # 00825940
+    ("scene_snow/props/area_husk_partner.emdl", "area", 0x06),   # 00827490
+    ("scene_snow/props/area_item_13.emdl", "area", 0x13),     # fans 00827630
+    ("scene_snow/props/area_item_0b.emdl", "area", 0x0B),     # 0015AFA0
+    ("scene_snow/doors/door_m03.emdl", "door", 0x14),         # 001BC350
+    ("enemy_egg.emdl", "area", 0x0E),                         # 00156620
+    ("enemy_crate.emdl", "office0", CRATE_MODEL_ID),          # office n0 crate
+) + tuple((f"gibs/gib_{mi:02x}.emdl", "library", mi)
+          for mi, _role in GIB_ENTRIES)
+
+AREA11_NEW_CRATE = ("scene_snow/props/enemy_crate.emdl", 0x0D)   # 001551B0
+
+
+def read_emdl(path: Path) -> dict:
+    """Parse an EMD3 file written by export_native.write_emdl."""
+    d = path.read_bytes()
+    if d[:4] != b"EMD3":
+        raise SystemExit(f"{path}: not an EMD3 file")
+    nb, nv, ni, nf, fps, nt, flags, nc = struct.unpack_from("<4If3I", d, 4)
+    o = 36
+    parents = list(struct.unpack_from(f"<{nb}i", d, o)); o += 4 * nb
+    tex = [struct.unpack_from("<4I", d, o + 16 * i) for i in range(nt)]
+    o += 16 * nt
+    clips = [struct.unpack_from("<3If", d, o + 16 * i) for i in range(nc)]
+    o += 16 * nc
+    verts = [struct.unpack_from("<8f2I", d, o + 40 * i) for i in range(nv)]
+    vraw = d[o:o + 40 * nv]
+    o += 40 * nv
+    indices = list(struct.unpack_from(f"<{ni}I", d, o)); o += 4 * ni
+    frames = []
+    for _f in range(nf):
+        frames.append([tuple(struct.unpack_from("<4f", d, o + 64 * b + 16 * c)
+                             for c in range(4)) for b in range(nb)])
+        o += 64 * nb
+    return dict(nb=nb, fps=fps, flags=flags, parents=parents, tex=tex,
+                clips=clips, verts=verts, vraw=vraw, indices=indices,
+                frames=frames, texels=d[o:], raw=d)
+
+
+def _f32(x) -> bytes:
+    return struct.pack("<f", x)
+
+
+def _emdl_triangles(e: dict) -> list:
+    out = []
+    for i in range(0, len(e["indices"]), 3):
+        out.append(tuple((b"".join(map(_f32, e["verts"][j][:3])),
+                          b"".join(map(_f32, e["verts"][j][6:8])),
+                          e["verts"][j][9], e["verts"][j][8] & 0x00FFFFFF)
+                         for j in e["indices"][i:i + 3]))
+    return out
+
+
+def _section_triangles(section) -> list:
+    pos, _nrm, tris, bones, uvs, texs = section
+    return [tuple((b"".join(map(_f32, pos[j])), b"".join(map(_f32, uvs[j])),
+                   texs[j], bones[j]) for j in tris[i:i + 3])
+            for i in range(0, len(tris), 3)]
+
+
+def _relight_sections(kind: str, entry: int, area: bytes, office0: bytes,
+                      library: bytes):
+    if kind == "library":
+        sections, _tt, _n = build_placed_mesh(library, {entry: [lvl.IDENT34]})
+        return sections
+    if kind == "door":
+        off = table_entry_offset(area, AREA11_TABLE_OFF, entry)
+        return build_office0_door_mesh(area, off)[0]
+    data, table = ((office0, lvl.OFFICE0_TABLE_OFF) if kind == "office0"
+                   else (area, AREA11_TABLE_OFF))
+    off = table_entry_offset(data, table, entry)
+    if struct.unpack_from("<I", data, off + 8)[0] > 1:
+        return build_posed_blob_mesh(data, off)[0]
+    return build_blob_mesh(data, off)[0]
+
+
+def export_relight_area11(args):
+    root = Path(args.relight_area11)
+    area = lvl.office0_concat(Path(args.area11_dir))
+    office0 = lvl.office0_concat(Path(args.office0_dir))
+    library = Path(args.library).read_bytes()
+    for rel, kind, entry in AREA11_RELIGHT:
+        path = root / rel
+        old = read_emdl(path)
+        sections = _relight_sections(kind, entry, area, office0, library)
+        if _section_triangles(sections[0]) != _emdl_triangles(old):
+            raise SystemExit(f"{path}: shipped geometry is not {kind} entry "
+                             f"{entry:#04x} — refusing to relight")
+        if old["frames"] and any(old["frames"][f][-1] != tuple(
+                tuple(float(i == j) for j in range(4)) for i in range(4))
+                for f in range(len(old["frames"]))):
+            raise SystemExit(f"{path}: trailing identity slot missing")
+        if old["flags"] == NORMAL_FLAGS:
+            print(f"{rel}: already flags {NORMAL_FLAGS}; rewriting anyway")
+        backup = path.with_name(path.name + ".standin.bak")
+        if not backup.exists():
+            backup.write_bytes(old["raw"])
+        nb = old["nb"] - 1
+        frames = [fr[:nb] for fr in old["frames"]]
+        clips = [{"id": c[0], "first": c[1], "count": c[2], "fps": c[3]}
+                 for c in old["clips"]]
+        tex_entries = [{"w": t[0], "h": t[1], "off": t[2]} for t in old["tex"]]
+        en.write_emdl(path, sections, [], old["parents"][:nb], frames,
+                      old["fps"], tex_entries, old["texels"],
+                      flags=NORMAL_FLAGS, clips=clips or None)
+        new = read_emdl(path)
+        same = (new["parents"] == old["parents"] and new["frames"] ==
+                old["frames"] and new["clips"] == old["clips"] and
+                new["tex"] == old["tex"] and new["texels"] == old["texels"]
+                and _emdl_triangles(new) == _emdl_triangles(old))
+        if not same or new["flags"] != NORMAL_FLAGS:
+            raise SystemExit(f"{path}: rewrite changed more than normals")
+        print(f"relit {rel}: {kind} {entry:#04x}, "
+              f"{len(new['indices']) // 3} tris, {len(old['verts'])} -> "
+              f"{len(new['verts'])} verts (welded by exact normal)")
+    rel, entry = AREA11_NEW_CRATE
+    off = table_entry_offset(area, AREA11_TABLE_OFF, entry)
+    sections, tex_table = build_blob_mesh(area, off)
+    tex_entries, tex_blob = lvl.build_texture_blob(None, tex_table,
+                                                   Path(args.p2s))
+    if len(tex_entries) != len(tex_table) or any(
+            e["w"] != 1 << t["tw"] or e["h"] != 1 << t["th"]
+            for e, t in zip(tex_entries, tex_table)):
+        raise SystemExit("AREA11 crate texture was not resolved")
+    out = root / rel
+    en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
+                  tex_entries, tex_blob, flags=NORMAL_FLAGS)
+    print(f"exported {rel}: area entry {entry:#04x}, "
+          f"{len(sections[0][2]) // 3} tris, texels from {args.p2s}")
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -1966,10 +2156,24 @@ def main(argv):
     ap.add_argument("--clip", type=int, default=346,
                     help="(--attach) clip index to bake (default 346, idle)")
     ap.add_argument("--segment", type=int, default=0)
+    ap.add_argument("--relight-area11", metavar="ASSETS",
+                    help="rewrite the shipped AREA11 actor EMDLs under this "
+                    "port assets root with authored normals and flags 0 "
+                    "(geometry-verified; see AREA11_RELIGHT) and export the "
+                    "AREA11 crate to scene_snow/props/enemy_crate.emdl")
+    ap.add_argument("--area11-dir", default="extract/chunk15",
+                    help="(--relight-area11) AREA11 leaf dir (concat view)")
+    ap.add_argument("--office0-dir", default="extract/chunk06.n0",
+                    help="(--relight-area11) office n0 leaf dir (the global "
+                    "crate's concat view)")
     ap.add_argument("--out", help="output EMDL (required except --doors, "
                     "which writes into --outdir)")
     args = ap.parse_args(argv)
 
+    if args.relight_area11:
+        if not args.p2s:
+            args.p2s = "build/startup-reference/opening_gs.bin"
+        return export_relight_area11(args)
     if args.gibs:
         return export_gibs(args)
     if args.pickup_items:
@@ -2009,31 +2213,14 @@ def main(argv):
                       tex_entries, tex_blob)
         return 0
 
-    placements = LIVE_PLACEMENTS
-    if args.placements:
-        raw = json.loads(Path(args.placements).read_text())
-        placements = {int(k): v for k, v in raw.items()}
-
-    d = Path(args.library).read_bytes()
-    sections, tex_table, n_inst = build_placed_mesh(d, placements)
-    pos = sections[0][0]
-    ntris = len(sections[0][2]) // 3
-    if not pos:
-        raise SystemExit("no geometry produced")
-    xs = [p[0] for p in pos]; ys = [p[1] for p in pos]; zs = [p[2] for p in pos]
-    print(f"props: {n_inst} placed instances, {len(pos)} verts, {ntris} tris, "
-          f"{len(tex_table)} textures")
-    print(f"  world bbox X[{min(xs):.1f},{max(xs):.1f}] "
-          f"Y[{min(ys):.1f},{max(ys):.1f}] Z[{min(zs):.1f},{max(zs):.1f}]")
-
-    tex_entries, tex_blob = lvl.build_texture_blob(
-        Path(args.gsdump) if args.gsdump else None, tex_table)
-
-    frames = [[en.mat_identity()]]
-    parents = [-1]
-    en.write_emdl(Path(args.out), sections, [], parents, frames, 30.0,
-                  tex_entries, tex_blob, flags=1)
-    return 0
+    # Mode 1 (placed pickups baked into ONE static scene mesh) is retired
+    # (H18 / WP-13): these are actor models the original lights per draw
+    # (001D89D0 rig + point-light fold) through the object kernel, and a
+    # scene part draws without that rig. Its old colours were the invented
+    # 0.30+0.70*max(N.L,0) light. Export each model as its own actor
+    # (--pickup-items / --area-items) so em_lighting shades it instead.
+    raise SystemExit("placed-props scene bake retired (H18): export the "
+                     "models as actors with --pickup-items/--area-items")
 
 
 if __name__ == "__main__":
