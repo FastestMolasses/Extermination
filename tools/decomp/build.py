@@ -210,7 +210,15 @@ def _symbolize_hoisted_hi(src: str) -> str:
 # every access carries a %hi/%lo relocation, and handing mwcc a plain constant
 # instead lets it CSE the `lui` and speculate it into delay slots the target
 # leaves as `nop`.
-_SPAD_SYMS = ("0x70003B6C", "0x70003B8D")
+_SPAD_SYMS = ("0x70003B6C", "0x70003B8D",
+              # s87: first-level functions whose C references these scratchpad
+              # bytes as externs (the original relocated every access). Each was
+              # measured file-by-file; 0x700031D0 is deliberately NOT here (it
+              # regresses a matched file).
+              "0x700031D4", "0x70003A20", "0x70003A24", "0x70003B68",
+              "0x70003B74", "0x70003B76", "0x70003B78", "0x70003B7C",
+              "0x70003B7E", "0x70003B84", "0x70003B86", "0x70003B8A",
+              "0x70003B8F", "0x70003B91", "0x70003B92")
 
 # TESTED AND REJECTED (s86) — do not retry without new evidence. splat leaves
 # `lui`+`sw` pairs as literals even for addresses it symbolizes in the adjacent

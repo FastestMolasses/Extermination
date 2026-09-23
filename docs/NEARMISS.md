@@ -221,14 +221,11 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_0019B7D0 | 0x0019B7D0 | 0xE8 | 99.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Only residual: the expected object renders scratchpad 0x700031D0,0x700031D4,0x700031D8 as  |
 | func_001D4650 | 0x001D4650 | 0xE8 | 88.34% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + instruction-scheduling permutation: 88.34% on 2.3.3, body/values fully |
 | func_001D63B0 | 0x001D63B0 | 0xE8 | 95.78% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-ORDER wall. Body + structure are byte-exact under mwcc 2.3.3 (zero ins |
-| func_001AFD70 | 0x001AFD70 | 0xEC | 99.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Only residual: the expected object renders scratchpad 0x70003B8A as literal operands (not  |
 | func_001D6BA0 | 0x001D6BA0 | 0xEC | 90.34% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation cascade (buffer base $t0 vs $a3) + scheduling order of the +0x4 header |
 | func_001575E0 | 0x001575E0 | 0xF4 | 78.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation: target reuses $v0 for the three scratchpad flo |
 | func_0018C5A0 | 0x0018C5A0 | 0xF4 | 92.21% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Branch-likely SENSE (target bc1tl vs mwcc bc1fl) on the min-clamp, plus FP register colori |
 | func_00197390 | 0x00197390 | 0xF4 | 96.30% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling / delay-slot-fill: (1) the func_00102948 call sets its two args in  |
-| func_001A8BE0 | 0x001A8BE0 | 0xF4 | 99.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Only residual: the expected object renders scratchpad 0x70003B86 as literal operands (not  |
 | func_001D6E60 | 0x001D6E60 | 0xF8 | 84.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation: target materialises constants into temporaries t0-t |
-| func_0017C440 | 0x0017C440 | 0xFC | 99.75% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Only residual: the expected object renders scratchpad 0x70003A20 as literal operands (not  |
 | func_00187CC0 | 0x00187CC0 | 0x100 | 88.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation + instruction-scheduling permutation (logic fully recovered, structure |
 | func_001221E0 | 0x001221E0 | 0x100 | 87.08% | ee-gcc 2.9-991111-01 | ee-gcc register-allocation permutation (NOT mwcc; target uses sd/ld/daddu EABI saves -> co |
 | func_001D2730 | 0x001D2730 | 0x100 | 95.12% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation: target colors bit->s1/flags->s0/hit->s2, mwcc picks bit->s0 |
@@ -257,15 +254,12 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00203D30 | 0x00203D30 | 0x128 | 78.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Permuter-class regalloc / frame-size: target keeps 5 callee-saved regs (s0-s4 = arg1/arg2/ |
 | func_001AD010 | 0x001AD010 | 0x12C | 83.45% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW instruction-scheduling + CW-specific redundant mask (same family as sibling func_001ACE |
 | func_001BBBF0 | 0x001BBBF0 | 0x12C | 84.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | instruction-scheduling permutation: original CW 2.3.1 schedules the absolute-address minue |
-| func_001A8840 | 0x001A8840 | 0x130 | 99.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Only residual: the expected object renders scratchpad 0x70003B86 as literal operands (not  |
 | func_001A9B10 | 0x001A9B10 | 0x130 | 87.30% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + scheduling permutation (NOT clean-store nop). Body/structure 100% reco |
-| func_001AE6B0 | 0x001AE6B0 | 0x130 | 99.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Only residual: the expected object renders scratchpad 0x70003B68,0x70003B84,0x70003B91,0x7 |
 | func_001D1AE0 | 0x001D1AE0 | 0x130 | 83.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | List-scheduler / register-allocation artifact (permuter territory). Body and logic fully r |
 | func_0016BE40 | 0x0016BE40 | 0x134 | 96.60% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body 100% correct on both builds (96.6% on 2.3.3, only 5 prologue instructions differ). Re |
 | func_001AAD00 | 0x001AAD00 | 0x134 | 68.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Documented scheduler-divergence wall, reproduced exactly. All instructions (every lw/lh lo |
 | func_001B7700 | 0x001B7700 | 0x138 | 91.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | branch-sense / block-layout artifact: outer (a2+8)==2||==0 lowers to beq+bnez vs target's  |
 | func_001581A0 | 0x001581A0 | 0x13C | 91.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-coloring permutation: body byte-correct, residual is the (1<<x) shift-base consta |
-| func_00191580 | 0x00191580 | 0x13C | 99.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Only residual: the expected object renders scratchpad 0x70003A20,0x70003A24 as literal ope |
 | func_001469B0 | 0x001469B0 | 0x140 | 93.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Regalloc + scheduling permutation: control flow and all memory ops byte-structure identica |
 | func_001D6C90 | 0x001D6C90 | 0x13C | 96.14% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Regalloc + scheduling permutation: all loads/stores/shifts and the wide bitfield packing a |
 | func_00177F40 | 0x00177F40 | 0x140 | 89.75% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring permutation. Body and structure fully recovered. The target computes  |
@@ -282,7 +276,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00120B98 | 0x00120B98 | 0x150 | 83.60% | ee-gcc 2.9-991111-01 | This is an EE-GCC function, NOT mwcc (target uses sd/ld + daddu register saves, not mwcc s |
 | func_00158BD0 | 0x00158BD0 | 0x154 | 90.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | two regalloc/scheduling permutations: (1) dispatch save-sink — target keeps switch byte in |
 | func_0018D7B0 | 0x0018D7B0 | 0x154 | 99.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Only the `b` after the mode-1 copies: target delay slot nop, mwcc233 copies the join's pad |
-| func_001FC3C0 | 0x001FC3C0 | 0x154 | 99.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Only residual: the expected object renders scratchpad 0x70003B68,0x70003B8A as literal ope |
 | func_00199C50 | 0x00199C50 | 0x158 | 90.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Loop-counter / table-index register coloring + minor scheduling of the 2nd loop's mult set |
 | func_00176180 | 0x00176180 | 0x158 | 97.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single FP-load scheduling/coloring artifact: target hoists the *0x700031C8 lwc1 into the s |
 | func_001E0380 | 0x001E0380 | 0x158 | 94.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-register coloring + scheduling permutation. After fixing frame size (sp90 is a 0x40-byt |
@@ -303,7 +296,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_00184BA0 | 0x00184BA0 | 0x174 | 98.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation permutation (callee-saved coloring cnt/pp/obj/winner across s0-s3); bo |
 | func_00198D90 | 0x00198D90 | 0x174 | 98.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP add.s operand coloring (+3.0f: target f1+f0 vs mwcc f0+f1) and case-0 branch-likely spe |
 | func_001383C0 | 0x001383C0 | 0x178 | 98.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Outer mode-switch dispatch lowering: target hoists the beqz (mode 0) test ahead of the beq |
-| func_0015AE20 | 0x0015AE20 | 0x178 | 99.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Only residual: the expected object renders scratchpad 0x70003B92 as literal operands (not  |
 | func_0019A570 | 0x0019A570 | 0x178 | 84.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation COLORING permuter near-miss (84.72% mwcc 2.3.3). Structure+frame size  |
 | func_001DFF70 | 0x001DFF70 | 0x178 | 91.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation COLORING + minor FP scheduling near-miss (91.97% mwcc 2.3.3). Switch l |
 | func_001D9720 | 0x001D9720 | 0x178 | 57.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | u64 GS-register bitfield-struct reconstruction wall (57.95% mwcc 2.3.3, ~75/101 instructio |
@@ -323,7 +315,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001F1DD0 | 0x001F1DD0 | 0x190 | 97.69% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling near-miss (permuter territory). Body and control flow byte- |
 | func_001E0E80 | 0x001E0E80 | 0x190 | 86.12% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring near-miss (permuter territory). Body, control flow, stack layout (sp50 a |
 | func_00181730 | 0x00181730 | 0x1A0 | 95.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register coloring on the (20.5+B4) temp: target colors the 5.0f constant into f1 / B4 i |
-| func_00182DF0 | 0x00182DF0 | 0x1A0 | 99.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Only residual: the expected object renders scratchpad 0x70003B8F as literal operands (not  |
 | func_002117D0 | 0x002117D0 | 0x1A0 | 90.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation (FP odd-half coloring + arg-pointer lifetime split). Full  |
 | func_0017F9E0 | 0x0017F9E0 | 0x1A4 | 99.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single speculative delay-slot fill (body byte-identical): mwcc hoists the post-if merge bl |
 | func_001AF2C0 | 0x001AF2C0 | 0x1A4 | 80.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling permutation of trailing independent global stores. Insns 0-29 (zero |
@@ -618,7 +609,6 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001A5C30 | 0x001A5C30 | 0x808 | 96.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring / RA-order permutation (body-shape identical): (1) FP temp coloring swap |
 | func_001F3620 | 0x001F3620 | 0x80C | 99.92% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single register-allocation swap (a0<->v1) on one 7-instruction pair: in the D_00275C44 sou |
 | func_002101C0 | 0x002101C0 | 0x83C | 87.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 89.09% mwcc/991202 (233 87.91% - target FILLS branch slots with lui/li, so 991202 |
-| func_001607D0 | 0x001607D0 | 0x850 | 99.88% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Only residual: the expected object renders scratchpad 0x70003B74,0x70003B76,0x70003B78,0x7 |
 | func_00186A60 | 0x00186A60 | 0x860 | 96.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (521/536 instrs identical); 3 residual regions, all 2.3.1.0 |
 | func_001E3D90 | 0x001E3D90 | 0x870 | 74.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (every block traced against the .s; m2c cross-checked); bes |
 | func_001A0B10 | 0x001A0B10 | 0x878 | 95.37% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation web permutation + list-scheduling residual (NEARMISS harvest; body and |
