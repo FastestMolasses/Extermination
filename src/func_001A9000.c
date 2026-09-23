@@ -1,27 +1,14 @@
-// NEARMISS func_001A9000  (vram 0x001A9000, 0x1B8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.55% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// CW-vs-mwcc branch-delay-slot fill at the two loop back-edges: the CW target leaves the back-edge bnez delay slots as nop and emits the next-iteration scratchpad-address lui after the branch, but mwcc 2.3.3 hoists that lui INTO the branch delay slot, shifting branch offsets by one instruction. Pur...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+// SPAD: 0x70003B88
 
 //
-// NEARMISS 94.5% (mwcc 2.3.3; 991202 caps 83.9%) — logic fully recovered.
-// Sole residual: CW-vs-mwcc branch-delay-slot fill at the two loop back-edges.
-// The CW target leaves the back-edge `bnez` delay slots as `nop` and emits the
-// next-iteration scratchpad-address materialization (`lui at,0x7000`) after the
-// branch; mwcc 2.3.3 instead hoists that `lui` INTO the branch delay slot,
-// shifting the branch offsets by one instruction. Every other instruction
-// (frame, gp-rel loads, the volatile counter reload+decrement, the e-header
-// gate, the o[3] switch dispatch order, both E80 call sites merged) is
-// byte-identical. Pure scheduling artifact -> not the clean-store nop;
-// documented delay-slot-fill wall.
+// MATCH NOTE (m2-matching lane, 94.55% -> 100.0%): the recorded
+// "delay-slot-fill wall" was the literal spelling of the two scratchpad
+// countdowns. As relocated volatile externs (idiom-22/32), over-declared as
+// arrays so -sdatathreshold 8 keeps them absolute (idiom #20), mwcc no longer
+// hoists `lui at,0x7000` into the back-edge slots. 0x70003B86 is in the global
+// _SPAD_SYMS; 0x70003B88 is opted in by `// SPAD: 0x70003B88`.
 //
 // Two-level scan over two gp-relative object lists. Outer list: pointer array
 // D_00275BA0, length D_00275BA8 (mirrored into the scratchpad counter at
@@ -40,6 +27,8 @@ extern int **D_00275B80;
 extern short D_00275B88;
 extern unsigned char D_00810700[16];
 extern unsigned char D_00810702[16];
+extern volatile short D_70003B86[8];
+extern volatile short D_70003B88[8];
 
 void func_001A9000(void) {
     int *e;
@@ -50,7 +39,7 @@ void func_001A9000(void) {
     short n;
 
     n = D_00275BA8;
-    *(short *)0x70003B86 = n;
+    D_70003B86[0] = n;
     if (n == 0) {
         return;
     }
@@ -58,20 +47,20 @@ void func_001A9000(void) {
         return;
     }
     outer = D_00275BA0;
-    while (*(volatile short *)0x70003B86 != 0) {
-        n = *(volatile short *)0x70003B86;
+    while (D_70003B86[0] != 0) {
+        n = D_70003B86[0];
         e = *outer;
-        *(volatile short *)0x70003B86 = n - 1;
+        D_70003B86[0] = n - 1;
         outer += 1;
         if (*(unsigned char *)((char *)e + 3) == 5 &&
             *(unsigned char *)((char *)e + 0xD) != 0xB &&
             *(unsigned char *)((char *)e + 0) == 1) {
             inner = D_00275B80;
-            *(short *)0x70003B88 = D_00275B88;
-            while (*(volatile short *)0x70003B88 != 0) {
-                n = *(volatile short *)0x70003B88;
+            D_70003B88[0] = D_00275B88;
+            while (D_70003B88[0] != 0) {
+                n = D_70003B88[0];
                 o = (unsigned char *)*inner;
-                *(volatile short *)0x70003B88 = n - 1;
+                D_70003B88[0] = n - 1;
                 inner += 1;
                 if (o[0] == 1) {
                     t = o[3];

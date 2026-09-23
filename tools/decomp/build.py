@@ -232,6 +232,39 @@ _SPAD_SYMS = ("0x70003B6C", "0x70003B8D",
 # bytes, so the linked ELF is already byte-identical there.
 
 
+_SPAD_DIRECTIVE = re.compile(r"^//\s*(SPAD|NOSPAD):(.*)$")
+_SPAD_ADDR = re.compile(r"^0[xX](7000[0-9A-Fa-f]{4})$")
+
+
+def _spad_directives(c: str) -> tuple[set[str], set[str]]:
+    """Parse '// SPAD: 0x7000xxxx ...' / '// NOSPAD: 0x7000xxxx ...' lines.
+
+    Read from the file's LEADING COMMENT BLOCK only, like // CFLAGS: and
+    // COMPILER:, so an address quoted in prose further down cannot opt a file
+    in. Addresses are normalized to splat's spelling ('0x' + upper-case hex).
+    Anything that is not a 0x7000xxxx scratchpad address is a hard error: a
+    typo here would otherwise silently measure the file without its opt-in.
+    """
+    add: set[str] = set()
+    drop: set[str] = set()
+    for line in c.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if not line.startswith("//"):
+            break
+        m = _SPAD_DIRECTIVE.match(line)
+        if not m:
+            continue
+        for tok in m.group(2).replace(",", " ").split():
+            a = _SPAD_ADDR.match(tok)
+            if not a:
+                raise ValueError(f"bad // {m.group(1)}: address {tok!r} "
+                                 "(expected 0x7000xxxx)")
+            (add if m.group(1) == "SPAD" else drop).add("0x" + a.group(1).upper())
+    return add, drop
+
+
 def _symbolize_scratchpad(name: str, src: str) -> str:
     """Rewrite scratchpad literals to %hi/%lo, but ONLY where the C opted in.
 
@@ -242,15 +275,36 @@ def _symbolize_scratchpad(name: str, src: str) -> str:
     objects relocations their C cannot produce and break all 35 at once. So a
     function's target is symbolized only once its own source references the
     symbol, which makes the migration incremental and self-consistent.
+
+    Naming the symbol is not always enough (s87). Some matched files name a
+    scratchpad symbol for one access (an `&D_x` argument, one load) yet spell
+    other accesses to the same address as literals, and they match only while
+    the target keeps its literals: 0x700031D0 fixes func_0013D220/func_0018A1F0
+    but breaks func_001787B0 (100 -> 99.88), and 0x700036xx breaks ~20 files.
+    Such addresses stay OUT of the global _SPAD_SYMS and are opted in per file
+    with a leading-comment directive:
+
+        // SPAD: 0x700031D0 0x700031D8     symbolize these for this file too
+        // NOSPAD: 0x70003B8A              never symbolize these for this file
+
+    The C must still name D_<addr> IN CODE (comments are ignored) for either
+    list to take effect; the directive only widens or narrows which named
+    symbols are symbolized.
     """
     csrc = SRC / f"{name}.c"
     try:
         c = csrc.read_text(errors="ignore")
     except OSError:
         return src
-    for lit in _SPAD_SYMS:
+    add, drop = _spad_directives(c)
+    # Match the symbol in CODE only. A comment that merely names D_<addr> (a
+    # semantics note quoting the address) used to opt the file in, which gave
+    # func_001BF6B0's expected object relocations for 0x70003B8A that its C,
+    # still spelling literals, cannot produce (99.993 -> 99.929, s87).
+    code = re.sub(r"//[^\n]*|/\*.*?\*/", " ", c, flags=re.S)
+    for lit in sorted((set(_SPAD_SYMS) | add) - drop):
         sym = "D_" + lit[2:]
-        if not re.search(r'\b' + sym + r'\b', c):
+        if not re.search(r'\b' + sym + r'\b', code):
             continue
         src = src.replace(f"({lit} >> 16)", f"%hi({sym})")
         src = src.replace(f"({lit} & 0xFFFF)", f"%lo({sym})")

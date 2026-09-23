@@ -1,8 +1,8 @@
 // NEARMISS func_0015BF90  (vram 0x0015BF90, 0x1C8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 90.62% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two CW-vs-mwcc compiler artifacts (not the clean-store nop): (1) min(a,b) lowers to bc1fl branch-likely + dead duplicated mov.s in the target, mwcc-2.3.3 emits plain bc1t (branch-likely-sense/dead-block branch-lowering wall); (2) instruction scheduling of the scratchpad stores in the ==0x41 block...
+// objdiff 92.99% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// 20 rows: a/b FP coloring of the min (target f0/f1, mwcc f2/f0) and scheduling of the 0x700038A4 reload in the state-0x41 block. m2-matching fixed the min lowering (ternary) and symbolized 0x70003A20/0x70003B8D.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,18 +11,31 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// Per-frame update on arg0 (entity) gated by state byte +0x1F0 != 0x19. Copies arg0+0xB0 matrix to
-// scratchpad D_700038A0, computes min of the two child +0xC4 floats (children at +0x154/+0x158),
-// stashes it at 0x70003A20 and 0x700038A4. If gate 0x70003B8D set and state==0x41: build a fixed
-// 0x700038B0 block, decrement +38A4 by 1.0, blend via func_001F9100. Else: blend D_700038B0<-D_700038A0,
-// -=100.0 on +38B4, and if func_0019A570 succeeds copy a source struct (*0x700031D0)+0x24/28/2C into the
-// block and blend again.
+// Per-frame update on arg0 (entity) gated by state byte +0x1F0 != 0x19.
+// func_00102948 is a quadword copy (dst, src). Copies the +0xB0 position to
+// scratchpad D_700038A0, takes the smaller of the two child +0xC4 floats
+// (children at +0x154/+0x158) and stores it at 0x70003A20 and 0x700038A4.
+// If gate 0x70003B8D is set and state == 0x41: sets D_700038B0 to
+// (0, 1.0, 0, 1.0), lowers +0x38A4 by 1.0 and calls func_001F9100(arg0+0xB0,
+// D_700038A0, D_700038B0, 4.2f). Otherwise copies D_700038A0 to D_700038B0,
+// lowers its y (+0x38B4) by 100.0, and if the segment probe func_0019A570
+// (flags 6, 0) hits, copies D_700031B0 to D_700038A0, takes the vector at
+// +0x24..+0x2C of the object at *0x700031D0 (w = 1.0) and calls
+// func_001F9100 with that object as a fifth argument.
+//
+// m2-matching lane (90.62% -> 92.99%): the min is the ternary
+// `a = (a < b) ? a : b`, which lowers to the target's bc1fl + `b join` + dead
+// mov.s. 0x70003A20 and 0x70003B8D are relocated externs (idiom-32; both in the
+// global _SPAD_SYMS). Remaining: a/b FP coloring (target f0/f1, mwcc f2/f0) and
+// scheduling of the 0x700038A4 reload in the state-0x41 block (20 rows).
 extern void func_00102948(void *, void *);
 extern int func_0019A570(void *, void *, int, int);
 extern void func_001F9100(char *, void *, void *, float, ...);
 extern int D_700031B0;
 extern int D_700038A0;
 extern int D_700038B0;
+extern float D_70003A20;
+extern unsigned char D_70003B8D;
 
 void func_0015BF90(char *arg0) {
     float a, b;
@@ -32,10 +45,10 @@ void func_0015BF90(char *arg0) {
         func_00102948(&D_700038A0, arg0 + 0xB0);
         a = *(float *)(*(char **)(arg0 + 0x154) + 0xC4);
         b = *(float *)(*(char **)(arg0 + 0x158) + 0xC4);
-        if (a >= b) a = b;
-        *(float *)0x70003A20 = a;
+        a = (a < b) ? a : b;
+        D_70003A20 = a;
         *(float *)0x700038A4 = a;
-        if (*(unsigned char *)0x70003B8D != 0 && *(unsigned char *)(arg0 + 0x1F0) == 0x41) {
+        if (D_70003B8D != 0 && *(unsigned char *)(arg0 + 0x1F0) == 0x41) {
             *(int *)0x700038B0 = 0;
             *(float *)0x700038B4 = 1.0f;
             *(int *)0x700038B8 = 0;

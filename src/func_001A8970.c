@@ -1,8 +1,8 @@
 // NEARMISS func_001A8970  (vram 0x001A8970, 0x26C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.73% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// objdiff 99.77% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
 // Remaining differences in this candidate:
-// FP register coloring of the third proximity gate (target opp_extent[1]=f0, self.A4=f2, opp.B4=f1; mwcc233 f2/f1/f0). Also needs 0x70003B86 in build.py _SPAD_SYMS: 99.74% with it.
+// FP register coloring of the third proximity gate (target opp_extent[1]=f0, self.A4=f2, opp.B4=f1, saved f21; mwcc233 f4/f2/f0 and f22). m2-matching fixed the state!=1 path (it clears D_70003B86; target branch to 0x001A8BB8).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -31,11 +31,15 @@
 // self+0xB0). If the opponent's resulting state byte (arg1+0xD) is 5 (a hard
 // knockdown/stagger reaction), self commits to a scripted follow-up: state
 // byte 0xF=0xA, poses 0x224 from the current 0x220 blend value, driver state
-// byte 0=3 (attack-commit), and stages+plays a transform via func_001028D0 /
-// func_00102760 into self+0x70. Otherwise, only if self is currently in state
-// 1 (idle/tracking) does it consider a follow-up: gated on either the
+// byte 0=3 (attack-commit), and writes the unit direction from the opponent
+// to self, normalize((self+0xA0) - (opp+0xB0)) via the VU0 vsub func_001028D0
+// into scratch D_700038A0 (w=1) and the normalize func_00102760, to self+0x70.
+// Otherwise, if self is NOT in state 1, it only clears the pending-hit flag
+// D_70003B86: the target's state test branches to the shared clear at
+// 0x001A8BB8 (corrected by the m2-matching lane; an earlier version returned
+// without clearing). In state 1 it considers a follow-up, gated on either the
 // opponent reaction NOT being a stagger-class value (a1-6 outside [0,2), i.e.
-// not 6/7/8) OR a leftover/uninitialized float register comparison
+// not 6/7) OR a leftover/uninitialized float register comparison
 // (f20 <= 0.8f*f20) inherited from the caller's register file -- a latent
 // quirk of the original binary reproduced verbatim (the local is never
 // written on this path in the disassembly, so this is preserved as literal
@@ -47,8 +51,8 @@
 // table (D_0024A7C0 or D_0024A800, chosen by the global D_0081070A toggle)
 // and reads the opponent's reaction byte again to pick a pose blend value
 // into self+0x224 (and also 0x22C when the reaction is 9 or in [0xC,0xE)),
-// commits driver state 3, and plays the same func_001028D0/func_00102760
-// transform sequence into self+0x70. Both commit paths end by clearing the
+// commits driver state 3, and writes the same normalized direction into
+// self+0x70. Both commit paths end by clearing the
 // pending-hit flag at scratchpad D_70003B86 (a shared tail in the original).
 
 extern short D_70003B86;
@@ -93,7 +97,7 @@ void func_001A8970(char *arg0, char *arg1) {
     }
 
     if (*(unsigned char *)(arg0 + 0) != 1) {
-        return;
+        goto clear;
     }
 
     {

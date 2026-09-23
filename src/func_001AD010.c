@@ -1,19 +1,7 @@
-// NEARMISS func_001AD010  (vram 0x001AD010, 0x12C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 83.45% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// CW instruction-scheduling + CW-specific redundant mask (same family as sibling func_001ACEC0 parked at 88.8%): CW hoists the D_00810702 store across the slot-ptr load and fills call/branch delay slots with the slot+0xB store interleaved with arg loads; CW also emits a redundant andi v1,v1,0xff af...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003B93
 
-// NEARMISS func_001AD010 (vram 0x001AD010, 0x12C bytes) — readable decompilation,
-// NOT byte-identical (best 83.45% via mwcc 2.3.3; 991202 77.27%).
-//
 // SEMANTICS: input/pad-state transition handler (sibling of func_001ACEC0).
 // The active frame-task slot ptr lives in scratchpad word 0x70003B6C; bytes
 // +9/+0xA/+0xB are sub-state fields. Reads gp/abs flag bytes D_008106B5..B8
@@ -26,23 +14,23 @@
 //                 D_00810701 = (D_008106B6==0xFF) ? (D_00810730[D_008106B5]&0x7F)
 //                                                 : D_008106B6;
 //                 slot[+9]=5; slot[+0xA]=0; slot[+0xB]=0;
-//                 func_001FBC50(D_008106B7, D_008106B5); func_001FABB0();
+//                 func_001FBC50(b7, b5); func_001FABB0();
 //
-// WALL (CW instruction-scheduling + redundant mask — same family as the
-// func_001ACEC0 88.8% wall): body/logic fully recovered. Residuals:
-//  (1) In the D_008106B8==2 arm CW hoists the D_00810702 store across the
-//      0x70003B6C slot-ptr load (lui/lbu/lui/sb interleaved); mwcc keeps the
-//      store adjacent to its load — statement reorder does not move it.
-//  (2) CW fills the func_00206B00/func_001FBC50 call delay slots and the b's
-//      delay slots with the slot[+0xB]=0 store and interleaves the B7/B5 arg
-//      loads; mwcc schedules them as separate ordered statements.
-//  (3) CW emits a redundant `andi v1,v1,0xff` after the unsigned `lbu`
-//      0x70003B93 before the ==2 compare; mwcc proves it unnecessary and drops
-//      it. CW-specific codegen; not reachable from C.
+// MATCH NOTE (m2-matching lane, 83.45% -> 100.0%). The recorded "CW-only"
+// residuals were two source facts:
+//  (1) The request byte 0x70003B93 is a relocated scratchpad extern
+//      (idiom-32), opted in per file by `// SPAD: 0x70003B93`. As a literal,
+//      mwcc speculated its `lui at,0x7000` into the D_008106B8 branch slot, and
+//      the redundant-looking `andi v1,v1,0xff` did not appear.
+//  (2) B5/B7 are read once into locals, and func_001FBC50 is called with them
+//      as `unsigned char` arguments. The target keeps both bytes in $a1/$a0
+//      from their first load to the call. The callee's byte-matched definition
+//      reads no arguments, but this caller passes them (see MATCHING_GUIDE:
+//      an ignoring callee does not prove the caller passed none).
 extern int D_70003B6C;                              /* PS2 scratchpad @ 0x70003B6C */
 
 extern void func_001FABB0(void);
-extern void func_001FBC50(int, int);
+extern void func_001FBC50(unsigned char, unsigned char);
 extern unsigned char D_008106B5;
 extern unsigned char D_008106B6;
 extern unsigned char D_008106B7;
@@ -51,16 +39,19 @@ extern unsigned char D_00810700;
 extern unsigned char D_00810701;
 extern unsigned char D_00810702;
 extern unsigned char D_00810730[];
+extern unsigned char D_70003B93;
 
 void func_001AD010(void) {
     unsigned char st;
+    unsigned char b5;
+    unsigned char b7;
 
     if (D_008106B8 == 2) {
         D_00810702 = D_008106B7;
         *(unsigned char *)(D_70003B6C + 0xB) = 4;
         return;
     }
-    st = *(unsigned char *)0x70003B93;
+    st = D_70003B93;
     if (st != 0) {
         if (st == 2) {
             func_001FABB0();
@@ -70,16 +61,18 @@ void func_001AD010(void) {
         *(unsigned char *)(D_70003B6C + 0xB) = 0;
         return;
     }
-    D_00810700 = D_008106B5;
-    D_00810702 = D_008106B7;
+    b5 = D_008106B5;
+    b7 = D_008106B7;
+    D_00810700 = b5;
+    D_00810702 = b7;
     if (D_008106B6 == 0xFF) {
-        D_00810701 = D_00810730[D_008106B5] & 0x7F;
+        D_00810701 = D_00810730[b5] & 0x7F;
     } else {
         D_00810701 = D_008106B6;
     }
     *(unsigned char *)(D_70003B6C + 9) = 5;
     *(unsigned char *)(D_70003B6C + 0xA) = 0;
     *(unsigned char *)(D_70003B6C + 0xB) = 0;
-    func_001FBC50(D_008106B7, D_008106B5);
+    func_001FBC50(b7, b5);
     func_001FABB0();
 }

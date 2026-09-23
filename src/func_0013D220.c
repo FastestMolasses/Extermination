@@ -1,15 +1,15 @@
 // func_0013D220 — byte-identical match.
 //
-// objdiff reports slightly under 100% here, and objdiff is WRONG about it.
-// The residual is entirely splat rendering a 0x7000xxxx scratchpad access as
-// a bare literal in load/store context (it only symbolizes lui+addiu pairs),
-// so the EXPECTED object carries a constant where our compiled object carries
-// the %hi/%lo relocation pair. Both encode the same bytes once relocated.
-// Proven by the stronger oracle: this function is COMPILED and LINKED into the
-// boot ELF, which remains byte-identical to the original. That is a direct test
-// of the emitted bytes, unlike objdiff's object-level comparison.
+// The C references the scratchpad pointer 0x700031D0 as a relocated extern,
+// as the original did; splat renders that address as a bare literal. The
+// `// SPAD: 0x700031D0` directive below symbolizes it in THIS file's expected
+// object only (build.py _symbolize_scratchpad), so a plain objdiff of the
+// compiled object reports 100.0% (m2-matching lane; it was 99.95/99.97 from
+// the reloc-vs-literal spelling). The canonical report already showed 100%
+// after inject_relocs.py. The boot ELF is byte-identical either way.
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700031D0
 
 // Copies arg0->{+0xB0,+0xB4,+0xB8} into the scratchpad vector at 0x700038E0, sets the
 // +0xC component to 1.0f, subtracts 10.0f from the y component, then calls

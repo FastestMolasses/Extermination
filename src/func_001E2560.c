@@ -1,13 +1,3 @@
-// NEARMISS func_001E2560  (vram 0x001E2560, 0x294 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// Frame 0xA0 in target vs 0x80 here (missing/undersized stack object), two nop branch slots, one add.s and one addu operand order. func_001AFC10 arity corrected (inert).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
@@ -32,12 +22,15 @@
 // projectile via func_001CFA60 + func_001CFBE0(handle, 1, &D_00253670,
 // &block, 0). States 2/3 both just forward to func_001AFC10(arg0).
 //
-// Residuals measured by the m1-firstlevel-matching lane (98.65% on mwcc233):
-// (1) the target frame is 0xA0 bytes and this C's is 0x80, so a stack object
-// is missing or undersized; (2) two conditional-branch delay slots that the
-// target leaves as nop; (3) one add.s and one addu operand order. func_001AFC10
-// takes one argument (its byte-matched definition). Removing the extra state
-// argument left the object unchanged.
+// MATCH NOTE (m2-matching lane, 98.65% -> 100.0%): (1) the shot's stack
+// object is the 0x58-byte projectile block func_001CFA60 fills (it writes
+// +0x40..+0x57), so it is int[22] and the frame is 0xA0 as in the target; the
+// earlier int[16] was undersized. (2) Every case ends in `break`, not `return`
+// (idiom-27): the switch is the last statement, and `return` let mwcc speculate
+// the `li 3` into two branch slots the target leaves as nop. (3) The blend ramp
+// is `+=` (idiom-26). (4) The slot index is written `idx << 2`, which gives the
+// target's `addu v0,v0,s1` operand order; `idx * 4` gave `addu v0,s1,v0`.
+// func_001AFC10 takes one argument (its byte-matched definition).
 extern int func_001026A0(char *dst, int src, char *m);
 extern void func_00102918(char *dst, char *src, char *m);
 extern void func_001029C0(char *m);
@@ -56,7 +49,7 @@ void func_001E2560(char *arg0) {
     char *s1;
     unsigned char st;
     unsigned char st2;
-    int sp40[16];
+    int sp40[22];
     int handle;
 
     s1 = *(char **)(arg0 + 0x24);
@@ -70,22 +63,22 @@ void func_001E2560(char *arg0) {
         *(unsigned char *)(arg0 + 4) = 1;
         if (func_001E23A0(arg0) != 0) {
             *(unsigned char *)(arg0 + 4) = 3;
-            return;
+            break;
         }
         if (func_001B0070() & 8) {
             *(unsigned char *)(arg0 + 4) = 3;
-            return;
+            break;
         }
-        return;
+        break;
     case 1:
         if (!(*(unsigned char *)(s1 + 2) & 0x1F)) {
             if (*(float *)(s1 + 0x220) <= 0.0f) {
                 *(unsigned char *)(arg0 + 4) = 3;
-                return;
+                break;
             }
         } else if ((int)*(unsigned char *)(s1 + 4) >= 2) {
             *(unsigned char *)(arg0 + 4) = 3;
-            return;
+            break;
         }
         if (*(unsigned char *)(s1 + 1) != 0) {
             st2 = *(unsigned char *)(arg0 + 5);
@@ -96,24 +89,24 @@ void func_001E2560(char *arg0) {
                     *(unsigned char *)(arg0 + 5) = *(unsigned char *)(arg0 + 5) + 1;
                     *(float *)(s0 + 0x54) = 0.0f;
                     *(float *)(s0 + 0x5C) = (float)func_00122BB8() / 2.1474836e9f;
-                    return;
+                    break;
                 }
                 break;
             case 1:
-                *(float *)(s0 + 0x54) = *(float *)(s0 + 0x54) + 0.02f;
+                *(float *)(s0 + 0x54) += 0.02f;
                 if (!(*(float *)(s0 + 0x54) <= 1.5f)) {
                     *(float *)(s0 + 0x54) = 1.5f;
                     *(int *)s0 = func_00122BB8() % 40 + 0x3C;
                     *(unsigned char *)(arg0 + 5) = 0;
                 }
-                func_001026A0(arg0 + 0xB0, *(int *)(*(int *)(arg0 + 0x28) * 4 + (int)s1 + 0x110) + 0x90, arg0 + 0xA0);
+                func_001026A0(arg0 + 0xB0, *(int *)((*(int *)(arg0 + 0x28) << 2) + (int)s1 + 0x110) + 0x90, arg0 + 0xA0);
                 func_001029C0(arg0 + 0xD0);
                 func_00102C58(arg0 + 0xD0, arg0 + 0xD0, s1 + 0xC0);
                 func_00102918(arg0 + 0xD0, arg0 + 0xD0, arg0 + 0xB0);
                 handle = func_001CCF70(arg0 + 0xB0);
                 func_001CFA60(sp40, arg0 + 0xD0, *(float *)(s0 + 0x54), *(float *)(s0 + 0x5C));
                 func_001CFBE0(handle, 1, &D_00253670, sp40, 0);
-                return;
+                break;
             }
         }
         break;

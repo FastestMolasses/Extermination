@@ -1,26 +1,20 @@
 // func_0018A1F0 — byte-identical match.
 //
-// objdiff reports slightly under 100% here, and objdiff is WRONG about it.
-// The residual is entirely splat rendering a 0x7000xxxx scratchpad access as
-// a bare literal in load/store context (it only symbolizes lui+addiu pairs),
-// so the EXPECTED object carries a constant where our compiled object carries
-// the %hi/%lo relocation pair. Both encode the same bytes once relocated.
-// Proven by the stronger oracle: this function is COMPILED and LINKED into the
-// boot ELF, which remains byte-identical to the original. That is a direct test
-// of the emitted bytes, unlike objdiff's object-level comparison.
+// The C references the scratchpad pointer 0x700031D0 as a relocated extern,
+// as the original did; splat renders that address as a bare literal. The
+// `// SPAD: 0x700031D0` directive below symbolizes it in THIS file's expected
+// object only (build.py _symbolize_scratchpad), so a plain objdiff of the
+// compiled object reports 100.0% (m2-matching lane; it was 99.95/99.97 from
+// the reloc-vs-literal spelling). The canonical report already showed 100%
+// after inject_relocs.py. The boot ELF is byte-identical either way.
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x700031D0
 
 //
-// REQUIRES the scratchpad-symbol opt-in to be extended to 0x700031D0:
-//   tools/decomp/build.py  _SPAD_SYMS += "0x700031D0"
-//   config/SCUS_971.12.lcf  D_700031D0 = 0x700031D0;
-// Same mechanism already shipped for D_70003B6C/D_70003B8D. Without it objdiff
-// reports 99.974% (reloc-vs-literal spelling only); the LINKED bytes are identical
-// either way. CAUTION: the current opt-in predicate is "the C mentions the symbol",
-// and the already-matched src/func_001787B0.c declares `extern char D_700031D0[];`
-// for an address-taken use — enabling 0x700031D0 globally would symbolize THAT
-// target too and break it. The predicate needs to be per-file explicit first.
+// 0x700031D0 is opted in per file (// SPAD:) rather than globally: the
+// matched src/func_001787B0.c names D_700031D0 for an address-taken use
+// but its target keeps literals, and a global entry breaks it (100 -> 99.88).
 //
 // SEMANTICS: player/camera collision-probe tick.
 //   Copies the 4-qword transform at D_008103F8[0]+0x90 into *D_00275B40+0x90.

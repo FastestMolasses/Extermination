@@ -1,23 +1,16 @@
-// NEARMISS func_001C5C90  (vram 0x001C5C90, 0x318 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.96% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// Only residual: the expected object renders scratchpad 0x7000360C,0x70003600 as literal operands (not in build.py _SPAD_SYMS) while this C uses relocated externs; linked bytes identical. objdiff 100.0% with _SPAD_SYMS += 0x7000360C,0x70003600.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x70003600 0x7000360C
 
 //
 // MATCH NOTE (m1-firstlevel-matching lane): the scratchpad globals at 0x7000360C, 0x70003600
 // are referenced as relocated externs (D_7000xxxx), as the original build did
 // (see tools/match/spad_symbolize.py). A literal address let mwcc CSE and
 // speculate `lui at,0x7000` into delay slots that the target leaves as nop.
-// objdiff is 100.0% once build.py _SPAD_SYMS lists these addresses (so the
-// expected object carries the same relocations); the linked bytes are identical.
+// The `// SPAD:` directive above opts THIS file's expected object into the
+// same %hi/%lo relocations (build.py _symbolize_scratchpad); the address stays
+// out of the global _SPAD_SYMS because other matched files name the symbol
+// yet store through literals. objdiff 100.0% (m2-matching lane).
 
 //
 // 4-state camera-track actor step, dispatched on the state byte at arg0+4,
@@ -30,9 +23,9 @@
 // copy the 4-quadword transform of the row *(parent+0x114) (offset +0x90)
 // over the current row **D_00275B40 (offset +0x90); builds two probe points
 // through the row transform via func_001026A0 and the spad vector at
-// 0x70003600: {0,1,0,1} -> va and {5.4,1,0,1} -> vb; makes a look-at frame at
-// arg0+0xC0 from vb/va (func_001028D0) and orthonormalizes it in place
-// (func_00102760); stores va to arg0+0xA0..AC and vb to arg0+0xB0..BC with
+// 0x70003600: {0,1,0,1} -> va and {5.4,1,0,1} -> vb; writes the direction
+// arg0+0xC0 = vb - va (func_001028D0, a VU0 vsub of its 2nd minus 3rd
+// argument) and normalizes it in place (func_00102760); stores va to arg0+0xA0..AC and vb to arg0+0xB0..BC with
 // both w components forced to 1.0f; sets the active byte arg0+1 = 1; and if
 // the parent's byte +1 is set, fires the virtual at arg0+0x4C. States 2/3:
 // func_001AFC10(self) (release/teardown tick).

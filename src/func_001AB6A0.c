@@ -1,15 +1,19 @@
-// NEARMISS func_001AB6A0  (vram 0x001AB6A0, 0xA0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 90.38% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// CW-vs-mwcc branch lowering + delay-slot address hoist. Two residuals: (1) mwcc fills the `beq state==2` delay slot with the `lui $at,0x7000` rematerialization of the volatile 0x70003B6C reload, CW leaves nop there; (2) CW emits `beq state,4,promote; nop; b next; nop` (explicit dead-b) while mwcc ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// MATCH NOTE (m2-matching lane): the state test is a `switch` whose case
+// labels are written 4, 1, 2. mwcc lowers a sparse switch to a compare chain in
+// REVERSE label order (2, 1, 4 here, as the target tests), falls to a `b` past
+// the body with a nop slot when no case matches, and keeps the case bodies in
+// label order, so promote (states 1/4 -> 2) falls through into run. The earlier
+// goto chain reached 90.38%.
+//
+// Semantics: the task-slot scheduler. Walks the 0x20-byte slots from
+// D_0028A750 up to D_0028A7B0, keeping the cursor in the scratchpad pointer
+// 0x70003B6C (re-read after every step, as the target does). A slot whose state
+// byte is 1 or 4 is promoted to 2; a slot in state 2 (including a just-promoted
+// one) has its function pointer at +4 called. The port's ORIGINAL_FRAME_ORDER.md
+// traces the world frame running from slot 0 here.
 
 extern char * volatile D_70003B6C;                  /* PS2 scratchpad @ 0x70003B6C */
 
@@ -23,16 +27,14 @@ void func_001AB6A0(void) {
     do {
         slot = D_70003B6C;
         state = *(unsigned char *)slot;
-        if (state == 2) goto run;
-        if (state == 1) goto promote;
-        if (state == 4) goto promote;
-        goto next;
-    promote:
-        *(unsigned char *)slot = 2;
-    run:
-        slot = D_70003B6C;
-        (*(void (**)(void))(slot + 4))();
-    next:
+        switch (state) {
+        case 4:
+        case 1:
+            *(unsigned char *)slot = 2;
+        case 2:
+            slot = D_70003B6C;
+            (*(void (**)(void))(slot + 4))();
+        }
         slot = D_70003B6C;
         slot += 0x20;
         D_70003B6C = slot;

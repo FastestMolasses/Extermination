@@ -1,23 +1,16 @@
-// NEARMISS func_0012D580  (vram 0x0012D580, 0x2C4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.99% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// Only residual: the expected object renders scratchpad 0x70003610 as literal operands (not in build.py _SPAD_SYMS) while this C uses relocated externs; linked bytes identical. objdiff 100.0% with _SPAD_SYMS += 0x70003610.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003610
 
 //
 // MATCH NOTE (m1-firstlevel-matching lane): the scratchpad globals at 0x70003610
 // are referenced as relocated externs (D_7000xxxx), as the original build did
 // (see tools/match/spad_symbolize.py). A literal address let mwcc CSE and
 // speculate `lui at,0x7000` into delay slots that the target leaves as nop.
-// objdiff is 100.0% once build.py _SPAD_SYMS lists these addresses (so the
-// expected object carries the same relocations); the linked bytes are identical.
+// The `// SPAD:` directive above opts THIS file's expected object into the
+// same %hi/%lo relocations (build.py _symbolize_scratchpad); the address stays
+// out of the global _SPAD_SYMS because other matched files name the symbol
+// yet store through literals. objdiff 100.0% (m2-matching lane).
 // The trailing func_00128830 call in state 3 stages its 1.0f argument through
 // an int (idiom-31) to reproduce the original argument order.
 
