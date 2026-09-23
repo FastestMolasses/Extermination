@@ -2169,7 +2169,9 @@ def lightrig_read(elf: "BootElf", area: int, sub: int) -> tuple:
                                f(base + 0x14))})
     return idx, matched, {
         "key": struct.unpack_from("<I", rec, 0)[0],
-        "fog": (f(4), f(8), f(0xC), f(0x10), f(0x14)),
+        # rec+0xC/10/14 are INTS (func_001D8FD0 passes them to
+        # func_0021BA80(int, int, int) -> GS FOGCOL bytes), not floats.
+        "fog": (f(4), f(8)) + struct.unpack_from("<3i", rec, 0xC),
         "p18": f(0x18), "p1c": f(0x1C),
         "lights": lights,
         "amb": (f(0x68), f(0x6C), f(0x70)),
@@ -2218,6 +2220,15 @@ def emit_lightrig_manifest(scene_dir: Path, elf: "BootElf",
              " shade = tex*rgb/128.",
              f"lightamb {rig['amb'][0]:.9g} {rig['amb'][1]:.9g}"
              f" {rig['amb'][2]:.9g}"]
+    fog = rig["fog"]
+    block.append("# DISTANCE FOG from the same record (func_001D8FD0 normal"
+                 " path): rec+4/+8 near/far")
+    block.append("# -> func_0021B970/0021B920 GS fog coefficients"
+                 " A=255*far/(far-near), B=-255/(far-near);")
+    block.append("# rec+0xC/10/14 ints -> func_0021BA80 GS FOGCOL"
+                 " (0..255 framebuffer units).")
+    block.append(f"fog {fog[0]:.9g} {fog[1]:.9g} {fog[2]:d} {fog[3]:d}"
+                 f" {fog[4]:d}")
     l0 = rig["lights"][0]
     block.append("# slot 0 = the CAMERA FILL (player flag +0x2 bit 0x20):"
                  " dir is CAMERA-SPACE")
@@ -2261,6 +2272,9 @@ def emit_lightrig_manifest(scene_dir: Path, elf: "BootElf",
         e = lines.index(LIGHTRIG_BLOCK_END) \
             if LIGHTRIG_BLOCK_END in lines else len(lines) - 1
         lines = lines[:b] + lines[e + 1:]
+    # The record is the single fog source: drop any older standalone
+    # `fog` line (e.g. a hand-written -208 value) so the loader sees one.
+    lines = [ln for ln in lines if not ln.startswith("fog ")]
     while lines and not lines[-1].strip():
         lines.pop()
     lines += block

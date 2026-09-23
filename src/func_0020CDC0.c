@@ -11,29 +11,45 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
 
-// SEMANTICS: per-frame driver for the save/load + memory-card task, dispatched on
-// the global state byte D_00810131 (jtbl_002735B0) over the task block at
-// D_00810130 (t[1] phase, t[2] sub-state, t[3] step, t[4] flags, t[0x10] screen id,
-// t[0x11] card status, t[0x15] message id, t[0x34]/t[0x38] the animated
-// progress-bar pair, t[0x3C]/t[0x3E] its tick/timeout counters).
+// SEMANTICS: per-frame controller of the in-game STATUS SCREEN (the pause
+// menu func_001AE7E0 opens on edge 0x800/0x10 or a pending B0/C5 request), run
+// by anim_frame_top_b state 3 sub-step 1 until it returns nonzero. NOT a
+// save/load driver (the old label). Dispatches on the phase byte t[1] =
+// D_00810131 (jtbl_002735B0) over the task block t = D_00810130 (t[2]
+// sub-state, t[3] step, t[4] flags, t[0x10] page id, t[0x11] hub hover 0..4
+// from func_0020D930, t[0x15] message id, t[0x34]/t[0x38] health/infection
+// targets, t[0x3C]/t[0x3E] tick/timeout). Help text goes through the message
+// state D_002821B0/B4/B8/D_00282240. Pages (FINDINGS "STATUS SUB-PAGES"):
+// 0 ITEM func_0020EE50, 1 MAP func_0020F950, 2 SPR4 func_00211970,
+// 3 DATABASE func_00214020, 4/5 passcode keypads func_002072C0.
 //   0  cold start: reset the block, run func_0020DFA0, then map the pending
-//      request D_008106B0 (6 = autosave, 5/4/2/1 = the load/save/format variants)
-//      and, for request 1, the detailed error code D_008106B1 onto a screen id
-//      (t[0x10]) and message id (t[0x15]); with no request, D_008106C5 picks the
-//      controller-unplugged (4) or wrong-card (5) screens.
-//   1,2 sub-state 0 installs the drawing callback func_0020E6F0 and arms the HUD
-//      counters; sub-state 1 pumps the card poll (func_0020D930/func_00209DF0) and
-//      converts either the card status t[0x11] or the free-space percentage
-//      (100 - float_to_int(D_0081085C)) into the gauge index D_002821B8; the input
-//      bits 0x830 cancel, 0x40 confirms; sub-state 2 animates the two gauge values
-//      toward D_00810858/D_0081085C one unit per 3 frames until both arrive or the
-//      0x78-frame timeout / an input in 0x870 ends it.
-//   3  message screens: sub-state 0 fades in, sub-state 1 fires the text request
-//      func_001FF080(0, id) for screen id 0..5 and waits for D_00275BD8 to clear,
-//      sub-state 2 dispatches to the per-screen handlers (func_0020EE50 /
-//      func_0020F950 / func_00211970 / func_00214020 / func_002072C0) or leaves.
-//   4  restart at phase 1.   5  run the card sub-task func_0020E0C0.
-//   6  shutdown: once func_00225AC0(1) reports done, tear the task down.
+//      status request D_008106B0 onto a page (t[0x10]) and message (t[0x15]):
+//      1 = item acquisition (type D_008106B1: bits 0xC0 or types by range,
+//      e.g. batteries 0x1B..0x1D -> ITEM page, message 3), 2 -> MAP, 5 -> SPR4
+//      (magazine refill), 4 -> ITEM, other -> DATABASE; request 6 also calls
+//      func_00225A00 and opens ITEM directly. With no request, D_008106C5
+//      selects passcode page 4 (!= 2) or 5 (== 2); otherwise phase 1 (hub).
+//   1,2 sub-state 0 resets the UI (func_0020E020), installs the draw callback
+//      func_0020E6F0 and resets the message state (phase 2 then skips to
+//      sub-state 2). Sub-state 1 is the HUB: draws via func_00209DF0, reads
+//      hover t[0x11] (func_0020D930) and picks the group-0 help line (hover
+//      1/2/3/4 -> line 0/9/2/1; idle -> lines 4..8/3 graded on
+//      100 - (int)infection D_0081085C); edge 0x830 closes (func_0020CD60,
+//      phase 5); edge 0x40 enters page 3/2/1/0 for hover 1/2/3/4
+//      (func_0020CD40) or buzzes func_0020CD80 with no hover. Sub-state 2
+//      animates displayed health D_00810858 up and infection D_0081085C down
+//      toward t[0x34]/t[0x38] one unit per 3 frames (sound 0xA every 64
+//      main-loop frames) until both arrive and the 0x78-frame timeout runs out
+//      or an edge in 0x870 ends it, then commits both values.
+//   3  page screens: sub-state 0 calls func_001AFEB0/func_001AFE60; sub-state
+//      1 fires the page module func_001FF080(0, chunk 0x1F/0x1E/0x2C/0x24/
+//      0x25/0x26) and waits for D_00275BD8 to clear; sub-state 2 ticks the
+//      page handler (page id 8 -> phase 2, 0x63/other -> phase 4) or leaves
+//      for phase 5 on D_008106C5 == 0xFF / an idle 0x810 edge.
+//   4  restart at phase 1.   5  exit: run func_0020E0C0 (nonzero when the
+//      exit sequence finishes).
+//   6  once func_00225AC0(1) reports done (the request-6 path), tear down and
+//      reset the block.
 // Returns the sub-task result (nonzero = finished).
 //
 // NEARMISS 95.085% (pinned mwcc 2.3.1.01; 91.52% on mwcc 2.3.3).  Structure,

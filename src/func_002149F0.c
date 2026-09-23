@@ -12,39 +12,54 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 
 //
-// SEMANTICS: memory-card / save-data browser page of the system menu. `p` is the
-// menu-page object; p[5] is the page sub-state, dispatched through a 9-entry jump
-// table (jtbl_00273720). The case bodies are emitted 0,1,2,8,3,4,5,6,7, so the
-// source case order must match (the table is positional). The shared per-frame
-// work is the func_0020A7A0 / func_0020AE40 / func_0020B210 / func_0020B0D0
-// quartet (GIF tag, window open, list draw with a per-state flag word, close).
-//   0  build the entry list from the three availability flags D_00810C7F/80/81
-//      (kinds 0/1/2 appended at p[0x50+n], count in p[0x18]); reset the HUD state
-//      words D_002821B0/B4/40; then branch on the pending request D_008106B0:
-//        == 6            -> take D_008106D0 as the active record and pick the
-//                           "not enough blocks" (state 5) or normal (state 4) path
-//                           from D_00810CB2 vs 2 * record[0x34];
-//        D_008106B1&0x80 -> direct load; icon id p[0x13] from the block count
-//                           (4->0xA, 6->0xC, 16->0xE, 24->0x10, else 8);
-//        D_008106B1&0x40 -> direct save, state 5 or 4 with icon 6;
-//        otherwise       -> select the entry whose kind matches D_008106B1-0x1B,
-//                           set the block budget (0xC / 0x24 / 0x30), state 3.
+// SEMANTICS: the status screen's ITEM > BATTERY sub-module page (ITEM
+// sub-module 0x21, FINDINGS "STATUS SUB-PAGES"; the port's
+// tools/test_battery_reference.py executes this function). NOT a memory-card /
+// save-data browser (the old label). `p` is the page object; p[5] is the page
+// sub-state, dispatched through a 9-entry jump table (jtbl_00273720). The case
+// bodies are emitted 0,1,2,8,3,4,5,6,7, so the source case order must match
+// (the table is positional). The shared per-frame work is the func_0020A7A0 /
+// func_0020AE40 / func_0020B210 / func_0020B0D0 quartet (GIF tag, window open,
+// list draw with a per-state flag word, close). D_00810CB2 is the battery
+// charge (half-units), D_00810CB7 the capacity, D_00810C7F/80/81 the owned
+// counts of battery items 0x1B/0x1C/0x1D, p[0x13] the message-bank group-5
+// line shown by states 4/5 (D_002821B8), record +0x34 the owner's cost.
+//   0  list the highest owned battery kind (2/1/0) at p[0x50]; reset the
+//      message state D_002821B0/B4/40; then branch on the pending request
+//      D_008106B0:
+//        == 6            -> take the owner record D_008106D0 and pick the
+//                           insufficient-charge result (state 5) or the
+//                           confirmation (state 4) from D_00810CB2 vs
+//                           2 * record[0x34];
+//        D_008106B1&0x80 -> confirmation for owner D_008106D0; line p[0x13]
+//                           from the cost (4->0xA, 6->0xC, 16->0xE, 24->0x10,
+//                           else 8);
+//        D_008106B1&0x40 -> recharge path for owner D_008106D0 (line 6; state
+//                           5 when charge == capacity, else 4);
+//        otherwise       -> acquisition of battery item D_008106B1 (kind =
+//                           type-0x1B): select it, set charge and capacity to
+//                           0xC / 0x24 / 0x30, notice state 3.
 //      With no pending request, advance to state 1 and fall through.
-//   1  idle list page: on cancel (0x20) close the page (p[1]=3); otherwise draw,
-//      and on confirm (0x40) resolve the highlighted entry through func_00185420
-//      into a record pointer, then pick state 4/5 and the icon id. A null record
-//      means "no card": state 8.
-//   2  page-close animation (func_0020BC50); steps back to state 1 when finished.
-//   8  error banner (message 0x19) for 240 frames or until a button.
-//   3  short banner (240 frames) before returning to the list.
-//   4  confirm dialog: cursor through func_0020CDA0, confirm/cancel through
-//      D_00810E74, then state 7 (icon 6 = delete) or state 6 / state 5.
-//   5  card-access banner; releases back to the list on 0x870 or on the timer.
-//   6  block-count roll-DOWN animation: steps D_00810CB2 down by 2 every 30 frames
-//      until it reaches p[0x12] - 2 * record[0x34], then finishes the operation
-//      (marks the record 1/5 and pokes the 0x70003B8D scratchpad flag).
-//   7  block-count roll-UP animation: the mirror of state 6, up to D_00810CB7.
-// D_00810CB2 is written as a 16-bit block counter but also read as its low byte,
+//   1  battery list: on cancel (0x20) back to the ITEM page (p[1]=3);
+//      otherwise draw, and on confirm (0x40) look up the use target for item
+//      0x1B+kind through func_00185420; record type 0x2C takes the recharge
+//      path, others the cost confirmation; no target -> func_0020CD80 and
+//      state 8.
+//   2  list-close animation (func_0020BC50); steps back to state 1.
+//   8  "no target" line 0x19 for 240 frames or until 0x60.
+//   3  acquisition notice (240 frames or input 0x5060) before the list.
+//   4  Yes/No confirmation (default No; 0x8000/0x2000 move the cursor via
+//      func_0020CDA0); Yes -> state 7 (recharge, line 6) or state 6 (discharge;
+//      insufficient charge -> state 5); under request 6 a sufficient-charge
+//      Yes instead leaves the page with p[1] = 6 (status phase 6). No/cancel
+//      returns to the list, or for request 6 sets D_008106C5 = 0xFF.
+//   5  result line p[0x13]+1; releases on 0x870/0x60 or on the timer.
+//   6  discharge: every 30 frames subtract 2 half-units (sound 6) until the
+//      charge reaches p[0x12] - 2 * record[0x34] (0x870 finishes at once), then
+//      mark the owner record +0xA=1/+0xB=5, set D_008106C5 = 0xFF and poke
+//      scratchpad 0x70003B8D = 3.
+//   7  recharge: the mirror of state 6, up to the capacity D_00810CB7.
+// D_00810CB2 is written as a 16-bit counter but also read as its low byte,
 // hence the union (that is what reproduces the target's per-access %hi/%lo pair).
 // D_00810E74 = this frame's button/event bits.
 

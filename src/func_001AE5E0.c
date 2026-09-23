@@ -15,15 +15,20 @@
 // NEARMISS (89.3% mwcc 2.3.3; 76.2% 991202) -- body/logic correct, sole residual
 // is a two-store instruction-scheduling permutation (see wall note).
 //
-// Frame/level init routine. Increments the level counter D_00810750 and the
-// device/DMA register at 0x70003B68, then memset-clears two work buffers and
-// runs the init sequence:
-//   func_001CB590(&D_008102B0, 0x320, D_008102B9, oldcount)  -- clear buf A
-//   func_0015BCF0(D_00275B44); func_001CB5A0(); func_001D1C50();
-//   func_001C1D00(&D_008101D0); func_001AFD70(0); func_0015C160(); func_001F0360();
-//   func_001CB590(&D_008101E0, 0xD0, 0, 0)                   -- clear buf B
-//   func_0018B9C0(D_00275B44); func_001CB5A0(); func_001AAD00();
-//   func_001D1EA0(1)
+// THE GAMEPLAY FRAME (FINDINGS "ENGINE FRAME ANATOMY"), run once per frame by
+// anim_frame_top_b state 1 when scratchpad selector 0x70003B8D == 0. NOT a
+// level init and it clears no buffers. Increments the gameplay frame counters
+// D_00810750 and scratchpad 0x70003B68, then:
+//   func_001CB590(&D_008102B0, 0x320, D_008102B9, oldcount) -- actor-context
+//       begin: func_001CB590 only stores its first argument to D_00275B44 /
+//       D_00275B48 and tail-calls anim_bone_array_setup (D_00275B40 =
+//       base + 0x110); the other arguments are unused
+//   func_0015BCF0(D_00275B44) player actor update; func_001CB5A0() (empty);
+//   func_001D1C50(); func_001C1D00(&D_008101D0); func_001AFD70(0);
+//   func_0015C160(); func_001F0360();
+//   func_001CB590(&D_008101E0, 0xD0, 0, 0) -- context = the camera block
+//   func_0018B9C0(D_00275B44) camera state machine; func_001CB5A0();
+//   func_001AAD00(); func_001D1EA0(1)
 // -sdatathreshold 4 keeps D_00275B44 gp-relative; the far 0x810xxx buffers are
 // over-declared as arrays for absolute %hi/%lo addressing (idiom #20).
 extern int func_001CB590(void *buf, int size, unsigned char c, int n);

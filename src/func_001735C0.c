@@ -11,17 +11,21 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// Boss/enemy attack-phase state machine on p[6] (states 0-3 intro/attack phases,
-// 0x50/0x51/0x52 stagger+recover with countdown at p+0x28, 0x63 defeat branch,
-// 0x64 death loop). Each attack phase runs an inner sub-state machine on p[7]:
-// plays a clip from the 6-byte-stride short table D_00248690/92/94 (indexed by
-// variant byte p[0x236]) via func_001749A0, waits on health thresholds from the
-// 0x18/0xC-stride float tables D_002486A0..B4/D0/D4, spawns effect func_001FBD50
-// (id 0x17D/0x17E/0x17F, 300.0f) storing its handle at p[0x302] (freed via
-// func_0011A070 when the sub-object at *(p+0x18) signals done at +0xA), and
-// latches pad input (D_00810E74 & *(u16*)0x70003B78) into p+0x2E to gate phase
-// advance. Common tail every tick: func_001764E0, gravity p+0xB4 += -0.2f,
-// func_00175900(p,1), func_001796C0.
+// PLAYER LIGHT MELEE: the unarmed 3-hit combo, player mode 0x21 (func_0015B130
+// case 33; FINDINGS "func_001735C0 - LIGHT 3-hit combo"). NOT a boss machine.
+// Major p[6]: 0 entry -> 1/2/3 = combo hits -> 0x50/0x51/0x52 hit-confirm
+// recover (countdown at p+0x28) -> 0x63/0x64 exit ramp (func_0017C440 when
+// gait p[0x23F] > 1, else func_0017C540). Each hit runs a phase p[7]: plays the
+// hit clip from the 6-byte-stride short table D_00248690/92/94 (row = p[0x236])
+// via func_001749A0; gates impact/release/chain on the anim clock p+0x3C
+// (compared <= T) against the 0x18/0xC-stride float tables
+// D_002486A0..B4/D0/D4. At impact it writes event 1 and damage 3/3/5 into the
+// object at *(p+0x18) (+0x00, +0x36), plays sound 0x17D/0x17E/0x17F at radius
+// 300.0 through func_001FBD50 (handle kept at p[0x302], stopped via
+// func_0011A070 when that object reports a hit at +0xA) and sets p[0x25E] =
+// 0x81/0x82. A press of D_00810E74 & *(u16*)0x70003B78 latches p+0x2E to chain
+// the next hit. Common tail every tick: func_001764E0, gravity p+0xB4 +=
+// -0.2f, func_00175900(p,1), func_001796C0.
 
 extern int func_0011A070(int a0);
 extern int func_001749A0(unsigned char *e, int clip, int flags, float blend);

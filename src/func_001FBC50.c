@@ -1,12 +1,18 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 //
-// Subsystem init. Resets a byte flag (D_008105CB=-1) and an int (D_00282160=-1),
-// memset-style inits two 0xC0-byte tables (D_00281C30, D_00281B70) via
-// func_00121A28, then walks the int table D_00281D50 for (signed char)D_0028215A
-// entries: for each handle, if func_00119D38(h)&3 it calls func_00119AA0(h,1).
-// Finally func_00119828(0,...) / (1,...) and clears a 10-element array of 0x10-
-// byte records at D_00281F30 (each: int 0 then int -1).
+// Stop-all SFX / audio reset (NOT a subsystem init). func_0011A198(1) first
+// walks the 0x30-entry sound-slot table D_0027E0C0 and stops each slot with
+// +0x32 == 1 and +0x2E == 0 through func_0011A070 (the same per-sound stop
+// used on func_001FBD50 play_sound handles). Then it resets D_008105CB=-1 and
+// D_00282160=-1 (the sound id func_001FC280 caches), fills two 0xC0-byte
+// tables (D_00281C30, D_00281B70) with -1 via func_00121A28, walks the int
+// table D_00281D50 for (signed char)D_0028215A entries issuing
+// func_00119AA0(h,1) for each handle whose func_00119D38(h)&3 is set, sends
+// driver command 0x16 (func_00119828) to channels 0 and 1 with 0x1999/0x1999,
+// and clears a 10-element array of 0x10-byte records at D_00281F30 (each: int 0
+// then int -1). Callers include anim_frame_top_b state 1 (status/SELECT/
+// end-screen entry) and the script stop ops.
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906): the lone 991202 residual was the
 // idiom-13 clean-store delay-slot nop. NOTE the declaration order (counter i
