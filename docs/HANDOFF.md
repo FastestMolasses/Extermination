@@ -44,31 +44,44 @@ is superseded.
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
 
-## State (2026-09-23)
-- **Live in the port:** the scene coordinator cores (classifier 001AE7E0, frame machine
-  0x1AE040, task chain, actor pool with the 49-52 AREA11 owners), area load/change
-  (S12a), the door through B8 (S12b), and the status frame machine (S11). The level
-  smoke's first phases pass against the captures. WP-4 (panel battery terminal,
-  no-power refusal with black bars, power, elevator descent) passed its route
-  captures frame for frame and is in review.
-- **Translated and verified but not wired yet:** area script host, director manager
-  0x8253F0, truck/crate/drum/fan owners, actor collision cells, ladder climb and slope
-  slide, the background layer, drop shadow (with its VU1 clip kernels), message
-  service, reversal skid, actor lighting contract.
-- **Player state machine:** the stage frame (0015BA50/0015BCF0/0015B130/0015B770/
-  0015D460) is wired but gated. The FLOOR (fall/slide) and Use (ledge/vault/ladder/
-  jump) gates list about 35 state routines and 9 stage workers that still need
-  translating. The closure also misses 0021C440's reaction states (port
-  `docs/FIRST_CONTROL.md`, "Known gap").
-- **In flight:** chain C1 (WP-4 fix, then WP-5 status stack + battery pop-up, WP-6
-  pickups + Use arbiter, WP-8 message service) and Phase B4 (standalone translations of
-  the missing workers behind the unwired modules).
-- **Next:** chain C2 binds the area script, crates/drums/fan, climb/slide (after the
-  player state closure), the truck with its 0x8292C0 camera preview, the director,
-  Roger (WP-9), the background, shadow and lighting, then runs a full-route smoke to
-  Roger against the route captures. After that: EE float harmonization of the oracles
-  and helpers (`docs/EE_FLOAT_MODEL.md` §5), the framebuffer-comparison harness
-  (Original profile), then AREA01.
+## State (2026-09-23, evening)
+- **Completion measure:** port `docs/FIRST_LEVEL_CENSUS.md`, built by `tools/route_census.py`
+  (one-shot breakpoints on every function entry while PCSX2 replays the route: title,
+  New Game, opening, beats 00..14 to Roger). 1184 original functions run: 478 platform
+  boundaries plus 706 game functions. Of the 706, 187 are live (an upper bound), 325 are
+  verified but unbound, 49 unverified, 40 stand-ins and 105 missing. They are grouped
+  into 41 gap lanes. Re-run the classification after each binding step.
+- **Live in the port:** the coordinator backbone (task chain, frame machine
+  0x1AE040/001AE5E0/6B0, classifier 001AE7E0, actor pool and roster, area load/change,
+  fades, input) and WP-4: panel battery terminal, the no-power refusal with black bars,
+  power and the elevator descent, each matching its route capture frame for frame.
+  WP-5 is also live: the status stack with translated status models, the ordered 2D
+  layer and the original SDK math; the module-load wait is still open.
+- **Translated and oracle-verified but unbound (committed this session):**
+  - player: the stage frame and workers, the whole FLOOR closure (fall, landing, hang,
+    recovery, the +4=2 and reaction states, 0xE..0x1A, weapon states), ladder entry and
+    climb, running jump, pose host workers and misc workers;
+  - collision: probes and the move and segment walkers;
+  - world: script-host workers plus a local exporter for the AREA11 overlay scripts,
+    Roger's actor lifecycle, owner model services, effect puff, head sprite, glyph
+    draw, stream and voice lanes;
+  - support: SDK math and the soft-float leaves, the shadow clip kernels and actor
+    route, load-veil particles, the follow camera and the AREA11 camera specials;
+  - the shared native EE float model `src/game/em_ee_float.h` (measured in PCSX2:
+    port docs/EE_FLOAT_MODEL.md).
+- **Guard:** `tools/check_no_disassembly.py` (same file in both repos). Comments and docs
+  never quote the original's instructions. The decomp's asm function bodies stay by
+  the user's decision.
+- **In flight:** chain C2 (WP-6 pickups and the Use arbiter, WP-8 message service,
+  housekeeping) and Phase B7 (14 census gap lanes: effects, equipment, collision list
+  passes, render heads and context, animation runtime, the BATTERY pop-up draw, startup
+  gaps, locomotion display, camera leftovers, script/door/fan, render verification,
+  and the main loop).
+- **Next (chain C3):** bind the census's verified-unbound lanes in dependency order
+  (L01 stage → collision → floor → crates → **box climb (beat 05)** → **hill slide (06)** →
+  script host, truck, director → Roger → camera → render). Each step must reproduce its
+  route capture in the level smoke. After that: EE-float harmonization of the old
+  oracles, a census beat 15 (level exit), the framebuffer-compare harness, then AREA01.
 
 ---
 ARCHIVE (pre-s87, partly stale — do not trust without re-checking)
