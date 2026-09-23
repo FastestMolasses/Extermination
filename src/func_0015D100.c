@@ -1,12 +1,17 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-// Per-frame timer/decay for an entity's "idle" animation. When func_0021BB00
-// says the entity is busy it does nothing. Otherwise, two timer tracks (at
-// +0x300 / +0x2FC depending on flag byte +0x234) count up; when a track
-// expires it decays the +0x220 blend value by a step (1.0 or 2.0). If the
-// blend underflows it forces state 2 and resets; otherwise once the blend is
-// small enough it clears the +0x235 bit-0 latch and re-triggers the clip via
-// func_0015C9D0.
+// Player passive health drain (FINDINGS "Passive ticks (state-1 tail)"; e is
+// the player struct: +0x220 health, +0x234 infected latch, +0x235 bit 0 the
+// low-health latch). Returns at once when the func_0021BB00 anim gate says
+// so. Not infected (+0x234 == 0): only with area flag bit 2
+// (func_001B0070() & 4), D_008106C8 & 0x60 and D_00810C7E == 0, the +0x300
+// counter ticks; every 360 frames health -= 1.0 (at <= 1.0 instead: event
+// byte +0 = 2, pending damage +0x224 = 1.0, +0x300 = -0x8000). Infected: the
+// +0x2FC counter ticks; every 240 frames health -= 2.0 with effect
+// func_001F0060(0x80000063, 0) (at <= 2.0 instead: event 2, +0x224 = 2.0,
+// +0xF = 0x63). In both paths, when health is then <= 35.0 and +0x235 bit 0 is
+// still clear, it SETS that latch (&0xFE then |1) and calls func_0015C9D0
+// (clip re-trigger).
 extern void func_0015C9D0(unsigned char *e);
 extern int func_001B0070(void);
 extern int func_0021BB00(unsigned char *e);

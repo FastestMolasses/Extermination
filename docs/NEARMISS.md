@@ -571,7 +571,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001634A0 | 0x001634A0 | 0x53C | 95.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual classes: (1) FP-register-coloring in the velocity-integration expr (self+0x2E |
 | func_00171E90 | 0x00171E90 | 0x53C | 95.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same documented saved-register-allocation-order class as sibling func_00171B00.c (already  |
 | func_00143AF0 | 0x00143AF0 | 0x544 | 91.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order artifact: mwcc assigns arg1->s0 / arg0->s1 (opposite of the natu |
-| func_00187780 | 0x00187780 | 0x53C | 78.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two independent non-idiom-fixable classes. (1) The stack frame carries a dead 64-bit magic |
+| func_00187780 | 0x00187780 | 0x53C | 90.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | s87: register coloring only (arg2 in $s5 vs $s0 shifts the saved GPRs; three FP temps colored f21/f22/f23 vs f22/f23/f21) plus a few scheduling slots. The old "dead 64-bit constant" and "frame too small" walls were source bugs (missing $t0 arg to func_00187690; spE0 is one 4x4 matrix) |
 | func_00199220 | 0x00199220 | 0x544 | 87.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP+GPR register-coloring permutation (documented wall class) |
 | func_001D0720 | 0x001D0720 | 0x548 | 97.28% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected unknown-state talk gate; residual FPR scheduling/branch layout; C +24 bytes. |
 | func_00214020 | 0x00214020 | 0x548 | 98.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | UI/screen-state manager: a 5-state (0-4) machine gating sound-effect selection (func_00213 |

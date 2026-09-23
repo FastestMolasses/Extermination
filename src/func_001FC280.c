@@ -11,15 +11,19 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// NEARMISS 91.625% on the pinned mwcc (991202) build. Weapon/animation arm-select:
-// indexes D_0024D650[D_00810700][D_00810701] to a record table, steps by
-// D_00810702*0x30, and reads the packed word at +0x20: low half (id, signed >>16)
-// and high half (lo, &0xFFFF). When the global weapon-id D_00810700==0xB and the
-// sub-flag D_00810788==0xFF, force id=0x44E. If the cached active id D_00282160
-// changed, tear down the old resource (func_0011A070(D_00282164) when prior id!=-1),
-// store the new id, and for a valid (!=-1) id allocate via func_001FB9F0 with three
-// 0x1000 budget params, caching the handle in D_00282164. Finally drive both arm
-// slots: func_00119828(0, lo, lo) and func_00119828(1, lo, lo). Logic fully recovered.
+// NEARMISS 91.625% on the pinned mwcc (991202) build. Room sound select from the
+// area spawn tables: indexes D_0024D650[area D_00810700][room D_00810701] to the
+// room's spawn-record table, steps by entry D_00810702*0x30, and reads the packed
+// word at record +0x20: high half (id, signed >>16) and low half (lo, &0xFFFF).
+// The original shift is arithmetic (sra at 0x001FC2E8), so a 0xFFFF high half
+// is id -1 ("no sound"); in ISO C the `(v & 0xFFFF0000) >> 16` below is an
+// unsigned shift, so a port must sign-extend explicitly.
+// When the current area D_00810700 == 0xB and event flag 0x30 (D_00810788) ==
+// 0xFF, force id = 0x44E. If the cached id D_00282160 changed, release the old
+// handle (func_0011A070(D_00282164) when the prior id != -1), store the new id,
+// and for a valid (!= -1) id submit it via func_001FB9F0(id, 0x1000, 0x1000,
+// 0x1000) (the raw sound submit, FINDINGS audio chain), caching the handle in
+// D_00282164. Finally func_00119828(0, lo, lo) and func_00119828(1, lo, lo).
 // Sole residual: the final pointer add `record + D_00810702*0x30` is colored into a0
 // by mwcc but a1 (the running accumulator) by the target -> two ARG_MISMATCH on a
 // dead temp (addu/lw dest register). Register-allocation artifact (permuter-class),

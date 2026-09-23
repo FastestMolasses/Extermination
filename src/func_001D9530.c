@@ -1,15 +1,25 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 //
-// HUD/overlay setup for actor arg0. Copies three 16-byte layout descriptor
-// quadwords (D_00253190/A0/B0) onto the stack, resolves three glyph/sprite
-// handles via func_001C6120(font D_0028A56C, code 0x10/0x11/0x16), then picks a
-// horizontal extent f20: 650.0 when func_001B0070() bit 0x80 is set or when the
-// level selector (D_00810700<<8 | D_00810701) is one of {0x201,0x300,0x1000,
-// 0x1200}, else 120.0. Runs func_001DA290(3,0), then lays out the three pieces
-// with func_001D91A0(actor, slot, handle, flag, f20). Finally writes through
-// the global cursor *(D_00275670+0x1C): byte +3 = 0x60, word +4 = 0, half +0 =
-// 0, advances the cursor by 0x10, and flushes via func_001CB760.
+// Gun-light (flashlight) cone-shell draw. Sole caller func_00187780
+// (0x00187BE4), reached from func_00188ED0 only while D_008106C7 (the
+// gun-light draw enable, set/cleared by func_0017A970 with D_00810D3C, and
+// cleared by func_00188ED0 at 0x00189070 when the player leaves its aim
+// states) is set,
+// and skipped when area flag func_001B0070() & 0x20000000 is set. arg0 is
+// that caller's 4x4 light matrix (sp+0xE0); the caller also loads a1..a3/$f12
+// but this function never reads them. Copies three 16-byte colour quadwords
+// (D_00253190/A0/B0) onto the stack, resolves the chunk27 library
+// (D_0028A56C) entries 0x10/0x11/0x16 (the light-cone shell meshes, FINDINGS
+// s53 "LIGHT-CONE MESH FAMILY") via func_001C6120, then picks a float f20:
+// 650.0 when area flag bit 0x80 is set or when (area<<8)|room
+// (D_00810700<<8 | D_00810701) is one of {0x201,0x300,0x1000,0x1200}, else
+// 120.0. Runs func_001DA290(3,0), then draws the three shells with
+// func_001D91A0(matrix, colour, mesh, flag, f20): 0x10 with D_002531A0,
+// 0x11 with D_00253190, 0x16 with D_002531B0 (flag 1 on the last). Finally
+// writes through the global cursor *(D_00275670+0x1C): byte +3 = 0x60,
+// word +4 = 0, half +0 = 0, advances the cursor by 0x10, and flushes via
+// func_001CB760.
 //
 // Built with mwcc 2.3.3 (mwccps2-2.3.3-000906), not the pinned 991202.
 // -sdatathreshold 4: the 4-byte pointer D_00275670 lives in gp range and is

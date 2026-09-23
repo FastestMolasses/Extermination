@@ -1,26 +1,33 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 1
 //
-// Per-frame HUD/camera-target record builder, sibling of func_001B0250/func_001B0300/
-// func_001B0460 (same D_0024D650[area][slot] + D_00810702*0x30 record lookup). Builds the record
-// at D_008102B0 (aliased here as `base`): when D_00275BE0==1 (a "fixed/cutscene camera" flag) both
-// the "from" (0xA0..0xAC) and "to" (0xB0..0xBC) transform slots are seeded from the fixed globals
-// D_00810710/14/18 with an extra rotation/scale block (0xC0..0xC8) copied from D_00810720/24/28;
-// otherwise both slots are seeded from the live record `p` (p+0/4/8), with the rotation block
-// zeroed. All 8 vectors (0xB0..0xCC) are then mirrored out to the fixed hardware/DMA staging
-// addresses 0x70003B40-0x70003B5C. D_00810706 (a 1-bit "active" flag, masked &1) is written back
-// and mirrored to base+0x235/0x234 together with D_00810707. Wind/ambient floats D_00810858/5C are
-// copied to base+0x220/0x228. If D_008106C8 bit 2 is set, a tri-state D_00810C60 selector is
-// derived from D_00810C7D/7E and, if bits 0x60 are also set, func_001EFE00(0x80000018, base) is
-// invoked and its result stashed at base+0x304 (an owned sub-object pointer); if bit 2 is clear,
-// D_00810C60 is reset to 0 and any existing base+0x304 owner is torn down (its +4 byte set to 2,
-// pointer cleared) before func_0015C1F0(base) runs the per-mode HUD-kind dispatch. base+0xE is
-// then set from the record's +0x14 byte and eight orientation/scale floats (0x60/64/68/6C/80/84/
-// 88/8C) reset to 1.0f, base+0x230 (a state/command byte) cleared. Finally, when D_00275BE0==1 the
-// +0xE byte is forced back to 0 (cutscene camera never targets); otherwise, if arg0 != 0: a
-// pending +0xE==1 "cut" request re-arms itself (4=5,5=1,6=0), a live +0x1C listener is notified
-// (+4=1) unless the hard gate *0x70003B8D is set, and any nonzero pending pan offset (+0x224/
-// +0x22C) is consumed and flagged via +0x0=1. func_001B0460(arg0) runs last (unconditionally).
+// Player placement from the area spawn tables D_0024D650 (FINDINGS "SPAWN-RECORD
+// FIXED CAMERAS" / opening spawn). Callers: the frame machine func_001AE040
+// (0x001AE094, 0x001AE0F4) and 0x001ACD30; not a per-frame function. The spawn
+// record is p = D_0024D650[area D_00810700][room D_00810701] + entry
+// D_00810702*0x30 (+0/4/8 position, +0xC yaw, +0x14 walk-out byte);
+// func_001B0250(area table, room*4) runs first. `base` is the player struct
+// D_008102B0. When D_00275BE0 == 1 (the LOAD-GAME flag set by the title/continue
+// flow) both position vectors +0xA0..+0xAC and +0xB0..+0xBC are seeded from
+// D_00810710/14/18 and the rotation block +0xC0..+0xC8 from D_00810720/24/28;
+// otherwise both come from the record position and the rotation is (0, record
+// yaw, 0) (+0xC4 = heading). w = 1.0 each. +0xB0..+0xCC are mirrored to the
+// scratchpad 0x70003B40..0x70003B5C. D_00810706 (saved from +0x235 by
+// func_0015CF90) is masked &1, written back and copied to +0x235 (bit 0 =
+// low-health latch, health <= 35, set by func_0015D100 and cleared by
+// func_0015C700; the &1 mask keeps only that bit), D_00810707 to +0x234
+// (infected latch), D_00810858 (health) to +0x220 and D_0081085C (infection)
+// to +0x228. With area
+// flag D_008106C8 & 4: D_00810C60 = 2/1/0 from D_00810C7E/D_00810C7D, and with
+// D_008106C8 & 0x60 also func_001EFE00(0x80000018, base) whose result is kept
+// at +0x304; with bit 2 clear, D_00810C60 = 0 and an existing +0x304 object
+// gets its +4 byte = 2 and is dropped. Then func_0015C1F0(base), +0xE = record
+// +0x14, eight floats (+0x60..+0x6C, +0x80..+0x8C) = 1.0f, +0x230 = 0. Tail:
+// load-game forces +0xE = 0; otherwise, if arg0 != 0: +0xE == 1 sets +4 = 5,
+// +5 = 1, +6 = 0; a non-null +0x1C gets its +4 byte = 1 unless the scratchpad
+// byte 0x70003B8D is set; a nonzero pending damage +0x224 or pending infection
+// +0x22C is zeroed and the event byte +0 = 1. func_001B0460(arg0) (camera
+// re-init from the spawn record) runs last, unconditionally.
 //
 // MATCH NOTE (load-bearing, do not "clean up"): the target reads D_00275BE0 gp-relative
 // (%gp_rel) but every D_008107xx/D_00810Cxx byte absolutely (%hi/%lo). mwcc picks gp-rel for an

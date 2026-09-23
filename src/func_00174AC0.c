@@ -1,29 +1,31 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 //
-// Per-entity aim/turn update for the gyro-driven aiming mode. If the
-// scratchpad disable flag at 0x70003B8D is set, clears the aim state
-// (+0x23F mode, +0x240 rate, +0x24C angle) and returns 0. Otherwise it
-// latches the global aim mode D_00810E57 into +0x23F and picks the per-mode
-// turn rate stored at +0x240 (0.1 / 0.3 / 0.8 as raw float bit patterns;
-// mode 0 clears and returns).
+// Player stick locomotion update: gait target speed + stick heading (FINDINGS
+// "LOCOMOTION TIER RAMP", s56). If the scratchpad byte 0x70003B8D is set, it
+// clears +0x23F (gait), +0x240 (target speed) and +0x24C (stick angle) and
+// returns 0. Otherwise it latches the pad gait byte D_00810E57 (stick-ring
+// quantizer 0..3 from func_001B5CC0) into +0x23F and writes the gait TARGET
+// SPEED +0x240 = {0, 0.1, 0.3, 0.8} u/tick for gaits 0/1/2/3 (raw float bit
+// patterns 0x3DCCCCCD/0x3E99999A/0x3F4CCCCD; gait 0 also clears +0x24C and
+// returns 0). func_0017BC40 ramps the speed +0x38 toward this target.
 //
-// The two gyro bytes D_00810E64/D_00810E65 are converted with the
-// (float)(unsigned int) idiom, scaled by pi/256, run through func_0011DE90
-// (sin/cos helper) into +0x244/+0x248, combined by func_0011E620 (atan2)
-// into +0x24C, and normalized by func_001B1470 (wrap to +-pi) to give the
-// desired heading `ang`.
+// The pad stick axis bytes D_00810E64 (X) / D_00810E65 (Y) are converted with
+// the (float)(unsigned int) idiom, scaled by pi/256, run through func_0011DE90
+// into +0x244/+0x248, combined by func_0011E620 (atan2) into +0x24C, offset by
+// pi and D_008106A0 (camera yaw) and normalized by func_001B1470 (wrap to
+// +-pi) to give the desired heading `ang`.
 //
-// If the entity is active (+5 == 1) and its action state (+0x1F0) is already
-// 6 or 7 (turning), aiming is suppressed (arg1 = 0). Otherwise, when the
-// entity is moving faster than 0.5 and the aim mode is >= 2, a heading error
-// beyond +-3pi/4 forces action state 7 with sub-state 4 (turn right) or 3
-// (turn left) and suppresses aiming.
+// If +5 == 1 and +0x1F0 is 6 or 7 (7 = the pivot-turn phase), heading update
+// is suppressed (arg1 = 0). Otherwise, when speed +0x38 > 0.5 and gait >= 2,
+// a heading error beyond +-3pi/4 sets +0x1F0 = 7 with +0x1F1 = 4 (error >
+// 3pi/4) or 3 (error < -3pi/4) and suppresses the update.
 //
-// arg1 == 1 then smooths the facing angle at +0xC4 toward `ang` through
-// func_001B12B0(target, current, max_step) with a rate chosen by aim mode
-// when standing still, or by heading error and speed when moving; arg1 == 2
-// only records `ang` into +0x218. Returns the latched aim mode.
+// arg1 == 1 then turns the facing angle +0xC4 toward `ang` through
+// func_001B12B0(target, current, max_step) with a step chosen by gait when
+// standing still (+0x38 == 0; gait < 2 with ang != +0xC4 also sets +0x25D = 1),
+// or by |heading error| (func_0011DF78) and speed when moving; arg1 == 2 only
+// records `ang` into +0x218. Returns the latched gait.
 //
 // Matching keys: (1) the 6/7 suppression test must be written as
 // `if (st == 7) goto zeroarg; if (st == 6) { zeroarg: arg1 = 0; } else {...}`
