@@ -1154,6 +1154,90 @@ def emit_pickup_manifest(scene_dir: Path, elf: BootElf, ov_path: Path,
 
 
 # ---------------------------------------------------------------------------
+# Fan owner suffix (scene.txt `pickup ... prop owner 0x827630 <flags2>`).
+#
+# The AREA11 fan pair is two main placement-table records whose behaviour
+# (+0x24) is the overlay function 0x827630. 001B6990 walks
+# D_0024D7C0[area][sub] (0x28-byte records until the halfword 0xFF, class
+# 0x0B skipped) and stores record byte +3 (the high byte of the halfword at
+# +2) at actor +0x2E; 0x827630's lifecycle-0 init sets rot.z +pi/4 when that
+# halfword is 0 and -pi/4 otherwise, and its flags2 == 1 record owns the
+# player box / area-change request (port: em_fan_original.c). The port's
+# manifest parser (em_scene.c) accepts an optional `owner <fn> <flags2>`
+# suffix on a `pickup ... prop` line. --fan-owner rewrites ONLY that suffix
+# on the fan lines already present in scene.txt (matched by the record
+# position) and corrects their stale "ELEVATOR TERMINAL pair" comment.
+
+FN_FAN_OWNER = 0x00827630
+PLACEMENT_TABLES = 0x0024D7C0    # D_0024D7C0[area] -> per-sub table list
+FAN_COMMENT_STALE = "# ELEVATOR TERMINAL pair"
+FAN_COMMENT = "# AREA11 fan pair:"
+
+
+def fan_owner_records(mem: AreaMem, area: int, sub: int) -> list[tuple]:
+    """(index, flags2, pos) of every 001B6990 placement whose behaviour is
+    0x827630."""
+    table = mem.elf.u32(PLACEMENT_TABLES + 4 * area)
+    if not table:
+        raise ValueError(f"D_0024D7C0[{area}] is 0: no placement table")
+    rec = mem.u32(table + 4 * sub)
+    out = []
+    for index in range(0x1000):
+        raw = mem.read(rec + 0x28 * index, 0x28)
+        cls, = struct.unpack_from("<h", raw, 0)
+        if cls == 0xFF:
+            return out
+        fn, = struct.unpack_from("<I", raw, 0x24)
+        if cls & 0xFF != 0x0B and fn == FN_FAN_OWNER:
+            out.append((index, raw[3], struct.unpack_from("<3f", raw, 0x0C)))
+    raise ValueError("unterminated placement table")
+
+
+def emit_fan_owner_suffix(scene_dir: Path, elf: BootElf, ov_path: Path,
+                          area: int, sub: int) -> int:
+    """--fan-owner DIR: append/replace ` owner 0x827630 <flags2>` on the
+    DIR/scene.txt `pickup ... prop` line of every fan placement."""
+    fans = fan_owner_records(AreaMem(elf, ov_path), area, sub)
+    if not fans:
+        sys.exit(f"--fan-owner: no 0x827630 placement in AREA{area:02d} "
+                 f"sub {sub}")
+    mf = scene_dir / "scene.txt"
+    lines = mf.read_text().splitlines()
+    first = None
+    for index, flags2, pos in fans:
+        hits = []
+        for n, line in enumerate(lines):
+            tok = line.split()
+            if len(tok) < 7 or tok[0] != "pickup" or "prop" not in tok:
+                continue
+            try:
+                xyz = [float(v) for v in tok[2:5]]
+            except ValueError:
+                continue
+            if all(abs(a - b) < 0.05 for a, b in zip(xyz, pos)):
+                hits.append(n)
+        if len(hits) != 1:
+            sys.exit(f"--fan-owner: placement [{index}] at "
+                     f"({pos[0]:.1f}, {pos[1]:.1f}, {pos[2]:.1f}) matches "
+                     f"{len(hits)} prop line(s) in {mf}; expected 1")
+        n = hits[0]
+        base = lines[n].split(" owner ")[0].rstrip()
+        lines[n] = f"{base} owner {FN_FAN_OWNER:#x} {flags2}"
+        first = n if first is None else min(first, n)
+    if first and (lines[first - 1].startswith(FAN_COMMENT_STALE) or
+                  lines[first - 1].startswith(FAN_COMMENT)):
+        lines[first - 1] = (
+            f"{FAN_COMMENT} placement records "
+            + "/".join(f"[{i}]" for i, _, _ in fans)
+            + f", behaviour {FN_FAN_OWNER:#x}, flags2 = record byte +3 "
+            "(owner suffix: export_level.py --fan-owner)")
+    mf.write_text("\n".join(lines) + "\n")
+    print(f"manifest: {mf}: fan owner suffix on {len(fans)} line(s): "
+          + ", ".join(f"[{i}] flags2 {f}" for i, f, _ in fans))
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # EXAMINE objects (scene.txt `examine` lines).
 #
 # Decoded 2026-06-11 (s66, FINDINGS "EXAMINE INTERACTION DECODED"):
@@ -3034,6 +3118,11 @@ def main(argv):
                     "pickups block from the deferred-spawn registry "
                     "D_0024D820 (+ the placement table's kind-0xB "
                     "display props); needs --area/--sub/--overlay")
+    ap.add_argument("--fan-owner", metavar="DIR",
+                    help="append `owner 0x827630 <flags2>` to DIR/scene.txt's "
+                    "fan prop lines from the D_0024D7C0 placement records "
+                    "(overlay behaviour 0x827630); needs --area/--sub/"
+                    "--overlay")
     ap.add_argument("--enemies", metavar="DIR",
                     help="rewrite DIR/scene.txt's marker-delimited "
                     "enemies block ONLY (no mesh export) — crate lines "
@@ -3122,6 +3211,13 @@ def main(argv):
                                     BootElf(Path(args.elf)),
                                     Path(args.overlay), args.area,
                                     args.sub)
+    if args.fan_owner:
+        if args.sub is None:
+            ap.error("--fan-owner needs --sub (the scene's sub-state)")
+        return emit_fan_owner_suffix(Path(args.fan_owner),
+                                     BootElf(Path(args.elf)),
+                                     Path(args.overlay), args.area,
+                                     args.sub)
     if args.examine:
         if args.sub is None:
             ap.error("--examine needs --sub (the scene's sub-state)")

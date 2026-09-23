@@ -1,6 +1,6 @@
 // NEARMISS anim_frame_top_b  (vram 0xframe_top_b, 0x594 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 91.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 92.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // NOT MATCHED — jr-table dispatch (the PROVEN-unmatchable class). Top-level dispatch is `lui %hi(jtbl_0026DD30); addiu %lo; sll idx,2; addu; lw; jr` on an EXTERNAL consolidated rodata table; mwcc emits its own LOCAL `@65` table, so objdiff counts the reloc as a mismatch even though the dispatch sch...
 //
@@ -22,7 +22,10 @@
 //             chain (func_001AFCA0 area/room logic install, player placement
 //             func_001B07C0(0), render-env func_001C1DC0, ...,
 //             func_001FAE70(1) music start).
-//   state 4 : re-entry setup (its entry writer is not traced here):
+//   state 4 : re-entry setup. Entered from state 1 through func_001AD010
+//             (called at fade hold-black with D_008106B8 != 0): when
+//             D_008106B8 == 2 it copies D_008106B7 to D_00810702 and writes
+//             g[0xB] = 4 (0x001AD020..0x001AD04C).
 //             func_001B07C0(1), camera func_0018D7B0/func_0018C0D0 on
 //             D_008101E0, fade-in func_001AEE10(4,0), music resume
 //             func_001FAE70(0); reset g[0xB] to 1 and FALL THROUGH into
@@ -41,10 +44,14 @@
 //             at fade hold-black (D_0028A9A0 == 2) either the death latch
 //             D_008106B9 enters the game-over wait (func_001AD140) or a
 //             pending room/area move D_008106B8 commits (func_001AD010).
+//             Both callees take no argument: the lh of D_0028A9A0 into $a0
+//             at 0x001AE2D0/0x001AE304 is only the == 2 compare operand, and
+//             neither callee reads $a0 before writing it.
 //   state 2 : poll the func_0022A650 screen: 1 = back out (D_008106C4 = 0,
 //             g[0xB]--, sound 0xD, func_001FAE70(0)); 2 = restart the game
 //             task (g[8]=3, g[9]=5, clear g[0xA]/g[0xB]/g[0xC]/g[0xD],
-//             D_00275BE0 = 1); 3 = func_001AD140 (game-over wait).
+//             D_00275BE0 = 1); 3 = func_001AD140() (game-over wait; no $a0
+//             set before the jal at 0x001AE410).
 //   state 3 : status screen. Sub-step 0 waits for D_00282157 to clear; sub-step
 //             1 runs func_001D1C50, func_001D2830(3,1) and func_0020CDC0()
 //             each frame until it returns nonzero, then g[0xB] = 5 with timer
@@ -67,8 +74,8 @@ extern void func_0018AB00(void);
 extern void func_0018C0D0(void *, int);
 extern void func_0018D7B0(void *, int);
 extern void func_00199C50(void);
-extern void func_001AD010(int);
-extern void func_001AD140(int);
+extern void func_001AD010(void);
+extern void func_001AD140(void);
 extern void func_001AE5E0(void);
 extern void func_001AE6B0(void);
 extern int func_001AE7E0(void);
@@ -184,11 +191,11 @@ void anim_frame_top_b(void) {
             }
             if (D_008106B9[0] != 0) {
                 if (D_0028A9A0[0] == 2) {
-                    func_001AD140(D_0028A9A0[0]);
+                    func_001AD140();
                 }
             } else if (D_008106B8[0] != 0) {
                 if (D_0028A9A0[0] == 2) {
-                    func_001AD010(D_0028A9A0[0]);
+                    func_001AD010();
                 }
             }
         }
@@ -214,7 +221,7 @@ void anim_frame_top_b(void) {
             (*(unsigned char **)0x70003B6C)[0xC] = 0;
             (*(unsigned char **)0x70003B6C)[0xD] = 0;
         } else if (r == 3) {
-            func_001AD140(0);
+            func_001AD140();
         }
         return;
     case 3:

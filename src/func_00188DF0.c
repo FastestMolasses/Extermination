@@ -3,8 +3,9 @@
 //
 // Per-object update dispatch keyed on the state byte at +0xD: cases 1/2/3/0xC
 // forward to the matching sub-updater (func_00189090 / func_00189330 /
-// func_001899C0 / func_00189A20); case 0 tail-calls func_00188ED0() and returns
-// early (skipping the default work). The default (any other state) publishes
+// func_001899C0 / func_00189A20); case 0 calls func_00188ED0(p) and returns
+// early (skipping the default work). 0x00188E40 jal's with a0 still = p (only
+// copied to s0), and func_00188ED0 reads its arg0 (+0xB0, +0xC). The default (any other state) publishes
 // the qword at D_008103D0[0]+0x90 into self+0xD0 (copy_qw4) then runs
 // func_001C9610(D_00275B40, self[0xC], self+0xD0).
 //
@@ -14,7 +15,7 @@
 // absolute via an oversized array decl; the func_001C9610 call written exactly
 // as the matched sibling func_001899C0 (proto int*, count inline as
 // *(unsigned char *)(p+0xC)) to get the target's a1-before-a0 arg schedule.
-extern void func_00188ED0(void);
+extern void func_00188ED0(unsigned char *p);
 extern void func_00189090(void *p);
 extern void func_00189330(void *p);
 extern void func_001899C0(void *p);
@@ -31,7 +32,7 @@ void func_00188DF0(unsigned char *p)
   switch (state)
   {
     case 0:
-      func_00188ED0();
+      func_00188ED0(p);
       return;
     case 1:
       func_00189090(p);

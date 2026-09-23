@@ -762,7 +762,7 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | sub_BASCUS_97112_DS00_00_EX_DATA_00_2 | 0xASCUS_97112_DS00_00_EX_DATA_00_2 | 0x1E8 | 96.48% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc list-scheduler + operand-order permutation (NOT the clean-store delay-slot nop, so 2. |
 | func_001E04E0 | 0x001E04E0 | 0x264 | 58.46% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two stacked walls; logic is fully recovered (setup calls, packet header/GIFtag layout, bot |
 | sub_BASCUS_97112_DS00_00_EX_DATA_00 | 0xASCUS_97112_DS00_00_EX_DATA_00 | 0x2F8 | 87.49% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + downstream scheduling (NOT the clean-store idiom-13 nop; 2.3.3 is WORS |
-| anim_frame_top_b | 0xframe_top_b | 0x594 | 91.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NOT MATCHED — jr-table dispatch (the PROVEN-unmatchable class). Top-level dispatch is `lui |
+| anim_frame_top_b | 0xframe_top_b | 0x594 | 92.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NOT MATCHED — jr-table dispatch (the PROVEN-unmatchable class). Top-level dispatch is `lui |
 | func_001DB480 | 0x001DB480 | 0x378 | 55.37% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | VU0 macro-mode + loop strength-reduction. (1) HARD WALL: after `func_001CD370(3)` the targ |
 | sub__02d_02d_02d | 0x02d_02d_02d | 0x288 | 98.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | TWO instructions, one store-sink: the `sb v0,%gp_rel(D_00275C94)(gp)` for `D_00275C94 = 0x |
 | sub_sceMpegGetPicture_decode_error | 0xceMpegGetPicture_decode_error | 0x2D8 | 96.64% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual classes, both backend permutations on an otherwise byte-faithful 202-instruct |

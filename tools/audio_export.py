@@ -41,7 +41,7 @@ tools/decode_sound.py for export jobs). It covers all three audio sources:
                      sample_off>>3, u16 adsr1, u16 adsr2, vol?, pan?, ?,
                      bend_range, ?, flags}.  sample_off<<3 is relative to
                      the bank's SPU upload base == its body start.
-                     The per-tone playback rate is exact (see tone_rate()).
+                     Per-note pitch: see a0_pitch() (integer SPU word).
 
 SPU2 ADPCM format (the "VAG" block codec): 16-byte frames =
   byte 0   = (predictor << 4) | shift    predictor 0..4, shift 0..12
@@ -54,16 +54,23 @@ pairs (c1,c2) in 1/64 units: (0,0) (60,0) (115,-52) (98,-55) (122,-60).
 
 Sample rates: streams play at 48000 Hz (evidence: clip_0000 "End Credits"
 duration-matches an official soundtrack rip; voice formants are natural at
-48000).  SFX rates are now EXACT, derived from the engine's voice-trigger
-path (func_00115E50/func_00115850 -> func_00117918, boot ELF):
-    pitch = T[0xD0 + 16*(note-center) + fine + ((bend-64)*range>>2)]
-with T the 2^(x/192) ladder at vram 0x241CA4 (T_eng[0xD0] = 12542 =
-4096*2^(310/192)), then pitch*44100/48000 into the SPU2 pitch register
-(0x1000 = 48000 Hz).  SFX sound records store bend=0 and the tone records
-store bend_range=12, so the net per-tone rate is
-    rate = 44100 * 2^((310 - 192 + 16*(note-center) + fine) / 192)
-For the direct-map programs used by SFX banks (prog[0] == 0xFF) the trigger
-note for tone t is prog.base_note + t, so every tone has one fixed rate.
+48000).  SFX pitch is an INTEGER SPU2 pitch register word (0x1000 = the
+48000 Hz base clock), derived exactly as the A0 trigger-script path does it
+(func_001152D8 -> func_00115850 -> func_00117918, boot ELF):
+    ladder = D_00241D70[(d%12)*16 + fine + 0xD0 + ((bend-0x40)*range>>2)]
+             << d/12                       (note >= center, d = note-center)
+           = D_00241D70[(12-d%12)*16 + fine + 0xD0 + ...] >> (d/12 + 1)
+                                           (note <  center, d = center-note)
+    pitch  = ladder * 44100 / 48000         (C int arithmetic, func_00115850)
+func_00115850 stores bend 0x40 into the sound record (+0xA) immediately
+before func_00117918, so the bend term is zero for every A0 note, and the
+anchor D_00241D70[0xD0] is 4096 (verified by executing the original
+routine; see a0_pitch()).  The effective source rate is 48000*pitch/4096.
+RETIRED (2026-09, WP-14/H19): the old tone_rate() formula assumed bend 0
+and a 12542 anchor; its rates were x1.531 (+118 ladder steps, ~7.4
+semitones) too high.  WAVs written by `sfx` are decoded source PCM whose
+header carries the rounded effective rate for PREVIEW only; the integer
+pitch in the manifest is the authoritative value.
 
 Engine SOUND IDS (`soundmap` subcommand, decoded 2026-06-10): gameplay code
 plays sounds through func_001FBD50/func_001FB9F0(id, ...).  The dispatcher
@@ -84,10 +91,12 @@ chunk00/f05_id05.bin (types [1,1,1,3] -> (1,0),(1,1),(1,2) + (3,0)),
 (4,0..2) enemy-set banks), 3 = swappable music banks (global bank3 and the
 chunk50..53 containers).  func_00119EA0(handle, scriptGroup, scriptIdx)
 then resolves the bank's trigger-script table (bank hdr +0x1C) and starts
-the script on a sequencer channel: events `A0 note vel prog` (note-on, the
-0xA0 direct-map form: tone = note - prog.base_note), `80 xx` (wait), ended
-by SMF `FF 2F 00`.  Tone -> sample/rate as in `sfx` above, so every sound
-id maps statically to exported WAV(s).
+the script on a sequencer channel.  Script grammar (func_001152D8 +
+func_00117088 + func_00118E60): an event (status byte, or running status),
+then a variable-length delta; `A0 note vel prog` is the SFX note-on
+(func_00115850: tone = note - prog.base_note), velocity 0 is the
+func_001176E0 key-off, `FF 2F 00` ends the track.  Other statuses
+(controllers etc.) are reported, not guessed (see parse_script()).
 
 Usage (run from the repo root; ISO mounted or STREAM files copied locally):
   audio_export.py music  /Volumes/<disc>/STREAM/MUSIC.DAT
@@ -459,24 +468,45 @@ def parse_programs(data: bytes, hd: int) -> list[dict]:
     return progs
 
 
-def tone_rate(tone: dict, bend: int = 0) -> float:
-    """Engine-exact playback rate in Hz for one tone record.
+PITCH_LADDER = 0x00241D70     # D_00241D70: func_00117918's u16 table base
+PAN_TABLE = 0x00242630        # D_00242630: packed (left<<8 | right) pan words
+A0_BEND = 0x40                # func_00115850: snd[3][0xA] = 0x40 before 117918
+SEQ_TICK = 0x1E0000 // 60     # func_00119EA0 track+0x1C with D_0027F740[0x1D]
+                              # = 60 (both AREA11 captures): 8 delta units/tick
 
-    Mirrors func_00117918 + the 44100/48000 rescale in func_00115E50/
-    func_00115850: a 2^(x/192) u16 ladder (4096-anchored at vram 0x241CA4;
-    the code's base pointer D_00241D70 is 102 entries in and indexes it at
-    +0xD0, so the trigger-time anchor is 4096*2^(310/192)), stepped by
-    16/semitone, +fine, + MIDI-style bend ((bend-64)*range>>2 steps).
-    SFX sound records store bend = 0 (wheel fully down -> -range
-    semitones); range = tone bend_range (12 in every bank inspected), or
-    the program's if tone flags bit 4 is set (not observed).
-    SPU2 pitch 0x1000 = 48000 Hz; the engine multiplies by 44100/48000,
-    so rate = 44100 * ladder/4096.
-    """
-    rng = tone["bend_range"]
-    steps = (310 + 16 * (tone["note"] - tone["center"]) + tone["fine"]
-             + (((bend - 0x40) * rng) >> 2))
-    return 44100.0 * 2.0 ** (steps / 192.0)
+
+def _s32(value: int) -> int:
+    value &= 0xFFFFFFFF
+    return value - (1 << 32) if value & 0x80000000 else value
+
+
+def a0_ladder(elf: "ElfImage", center: int, note: int, fine: int,
+              bend: int = A0_BEND, bend_range: int = 0) -> int:
+    """func_00117918 (NEARMISS C, logic authoritative) in integer form."""
+    base = (((bend - 0x40) * bend_range) >> 2) + 0xD0
+    if center <= note:
+        d = note - center
+        index = (d % 12) * 16 + fine + base
+        shift = d // 12
+        value = struct.unpack("<H", elf.read(PITCH_LADDER + 2 * index, 2))[0]
+        return _s32(value << shift)
+    d = center - note
+    index = (12 - d % 12) * 16 + fine + base
+    value = struct.unpack("<H", elf.read(PITCH_LADDER + 2 * index, 2))[0]
+    return value >> (d // 12 + 1)
+
+
+def a0_pitch(elf: "ElfImage", center: int, note: int, fine: int,
+             bend_range: int = 0) -> int:
+    """SPU2 pitch word func_00115850 submits as voice command 6.
+
+    32-bit mult low word, then signed division by 48000 (the C
+    `t * 44100 / 48000`).  bend_range is irrelevant at bend 0x40 but kept
+    for completeness (tone flag 0x10 selects the program's range)."""
+    ladder = a0_ladder(elf, center, note, fine, A0_BEND, bend_range)
+    product = _s32(ladder * 44100)
+    quotient = abs(product) // 48000
+    return -quotient if product < 0 else quotient
 
 
 def split_bank_sounds(body: bytes) -> list[tuple[int, int]]:
@@ -523,9 +553,20 @@ def find_containers(root: Path) -> list[tuple[str, bytes]]:
     return sources
 
 
-def build_wav_index(sources: list[tuple[str, bytes]]
+def tone_pitch(elf: "ElfImage", tone: dict) -> int:
+    """A0 pitch word for the note that selects this tone record."""
+    return a0_pitch(elf, tone["center"], tone["note"], tone["fine"],
+                    tone["bend_range"])
+
+
+def preview_rate(pitch: int) -> int:
+    """Rounded effective rate for WAV headers (preview only)."""
+    return (48000 * pitch + 2048) // 4096
+
+
+def build_wav_index(sources: list[tuple[str, bytes]], elf: "ElfImage"
                     ) -> dict[tuple[bytes, int], str]:
-    """(sha1(adpcm), rate) -> snd_NNNN.wav, exactly as `sfx` names them.
+    """(sha1(adpcm), pitch) -> snd_NNNN.wav, exactly as `sfx` names them.
 
     Reproduces cmd_sfx's id assignment (same iteration order, same skip
     rules) so `soundmap` can reference the exported files without
@@ -543,8 +584,7 @@ def build_wav_index(sources: list[tuple[str, bytes]]
                     raw = vag_block_at(data, pos)
                     if len(raw) < 2 * FRAME:
                         continue
-                    rate = int(round(tone_rate(tone)))
-                    key = (hashlib.sha1(raw).digest(), rate)
+                    key = (hashlib.sha1(raw).digest(), tone_pitch(elf, tone))
                     if key not in uniq:
                         uniq[key] = f"snd_{len(uniq):04d}.wav"
     return uniq
@@ -554,12 +594,15 @@ def cmd_sfx(args) -> int:
     root = Path(args.input)
     out = Path(args.out) / "sfx"
     out.mkdir(parents=True, exist_ok=True)
+    elf = ElfImage(Path(args.elf))
     uniq: dict[tuple[bytes, int], int] = {}
     manifest = [
-        "# Extermination SShd banks -> SFX at engine-exact rates",
-        "# rate = 44100 * 2^((310-192 + 16*(note-center) + fine)/192)"
-        "  (see docs/FINDINGS.md 'SShd bank format')",
-        "# columns: region bank prog tone note center fine rate_hz"
+        "# Extermination SShd banks -> decoded SFX source PCM",
+        "# pitch = integer SPU2 pitch word from the A0 path (a0_pitch():"
+        " func_00115850 bend 0x40 -> func_00117918 -> *44100/48000)",
+        "# effective rate = 48000*pitch/4096; WAV headers carry it rounded"
+        " for preview only",
+        "# columns: region bank prog tone note center fine pitch rate_preview"
         " body_off size wav", ""]
     n_containers = n_banks = refs = bad_offsets = 0
     sources = find_containers(root)
@@ -577,8 +620,9 @@ def cmd_sfx(args) -> int:
                     raw = vag_block_at(data, pos)
                     if len(raw) < 2 * FRAME:    # terminator / silence stub
                         continue
-                    rate = int(round(tone_rate(tone)))
-                    key = (hashlib.sha1(raw).digest(), rate)
+                    pitch = tone_pitch(elf, tone)
+                    rate = preview_rate(pitch)
+                    key = (hashlib.sha1(raw).digest(), pitch)
                     sid = uniq.get(key)
                     if sid is None:
                         sid = len(uniq)
@@ -589,12 +633,13 @@ def cmd_sfx(args) -> int:
                         f"{src_name} bank{bi} prog{prog['index']}"
                         f" tone{ti:02d} note=0x{tone['note']:02X}"
                         f" center={tone['center']:3d} fine={tone['fine']:4d}"
-                        f" rate={rate:5d} off=0x{tone['samp_off']:06X}"
+                        f" pitch={pitch:5d} rate_preview={rate:5d}"
+                        f" off=0x{tone['samp_off']:06X}"
                         f" len={len(raw):6d} snd_{sid:04d}.wav")
                     refs += 1
     (out / "manifest.txt").write_text("\n".join(manifest) + "\n")
     print(f"{n_containers} containers, {n_banks} banks, {refs} tone refs, "
-          f"{len(uniq)} unique (sound,rate) -> {out}/"
+          f"{len(uniq)} unique (sound,pitch) -> {out}/"
           + (f"  [{bad_offsets} out-of-range offsets skipped]"
              if bad_offsets else ""))
     return 0
@@ -667,29 +712,61 @@ def parse_script_offsets(data: bytes, hd: int) -> dict[int, dict[int, int]]:
     return out
 
 
-def parse_script(data: bytes, pos: int) -> tuple[list[dict], bool]:
-    """Decode one trigger script: [(note-on events)], clean-end flag.
+def read_delta(data: bytes, pos: int) -> tuple[int, int]:
+    """func_00118E60: big-endian 7-bit variable-length delta."""
+    value = 0
+    while True:
+        byte = data[pos]
+        pos += 1
+        value = (value << 7) | (byte & 0x7F)
+        if not byte & 0x80:
+            return value, pos
 
-    Events (sequencer func_001152D8): `A0 note vel prog` note-on (4 bytes),
-    `80 xx` wait/release (2 bytes), `FF 2F 00` end of track.
+
+def parse_script(data: bytes, pos: int, limit: int = 0x1000
+                 ) -> tuple[list[dict], str]:
+    """Decode one SFX trigger script into its A0 note events.
+
+    Grammar (func_001152D8 loop, func_00117088 fetch, func_00118E60 delta):
+    an event -- a status byte, or running status when bit 7 is clear
+    (00117088 then re-reads the byte as data) -- followed by a delta.
+    `A0 note vel prog` (3 data bytes) is func_00115850; `FF 2F 00` ends
+    the track (00117C28, no delta).  Each A0 event records its cumulative
+    delta `wait` and the sequencer TICK it is dispatched on: the track
+    accumulator (+0x20, starts 0) gains delta<<12 per event and loses
+    SEQ_TICK per tick, and events run while it is <= 0.
+
+    Returns (events, status): status "end" for a clean FF 2F 00, else
+    "unsupported status 0xNN" / "no status" / "truncated".  Events past an
+    unsupported status are not guessed.
     """
-    events, wait, ok = [], 0, False
-    end = min(pos + 0x100, len(data))
-    while pos + 1 < end:
-        st = data[pos]
-        if st == 0xFF:
-            ok = data[pos:pos + 3] == b"\xff\x2f\x00"
+    events: list[dict] = []
+    end = min(pos + limit, len(data))
+    running = None
+    wait = acc = tick = 0
+    while pos < end:
+        if data[pos] & 0x80:
+            running = data[pos]
+            pos += 1
+        if running is None:
+            return events, "no status"
+        if running == 0xFF:
+            ok = data[pos:pos + 2] == b"\x2f\x00"
+            return events, "end" if ok else f"unsupported meta 0x{data[pos]:02X}"
+        if running & 0xF0 != 0xA0:
+            return events, f"unsupported status 0x{running:02X}"
+        if pos + 3 > end:
             break
-        if (st & 0xF0) == 0xA0 and pos + 4 <= end:
-            events.append(dict(note=data[pos + 1], vel=data[pos + 2],
-                               prog=data[pos + 3], wait=wait))
-            pos += 4
-        elif (st & 0xF0) == 0x80:
-            wait += data[pos + 1]
-            pos += 2
-        else:
-            break                                  # unknown status byte
-    return events, ok
+        events.append(dict(note=data[pos], vel=data[pos + 1],
+                           prog=data[pos + 2], wait=wait, tick=tick,
+                           channel=running & 0x0F))
+        delta, pos = read_delta(data, pos + 3)
+        wait += delta
+        acc += delta << 12
+        while acc > 0:                  # tail of each tick: acc -= tick
+            acc -= SEQ_TICK
+            tick += 1
+    return events, "truncated"
 
 
 class _Bank:
@@ -704,40 +781,44 @@ class _Bank:
                       for p in parse_programs(data, self.bank["hd"])
                       if p["region"] == 0x24}      # SFX program region
 
-    def resolve(self, sg: int, si: int, wav_index) -> dict | None:
-        """(scriptGroup, scriptIdx) -> {events: [...]} or None."""
+    def resolve(self, sg: int, si: int, wav_index, elf) -> dict | None:
+        """(scriptGroup, scriptIdx) -> {events: [...]} or None.
+
+        A0 tone selection is func_00115850's direct index
+        note - program.base_note (no range scan); velocity 0 is the
+        func_001176E0 key-off and produces no voice."""
         pos = self.scripts.get(sg, {}).get(si)
         if pos is None:
             return None
-        events, ok = parse_script(self.data, pos)
+        events, status = parse_script(self.data, pos)
         out = []
         for ev in events:
             prog = self.progs.get(ev["prog"])
-            if prog is None:
+            if prog is None or ev["vel"] == 0:
                 continue
-            if prog["direct"]:                     # 0xA0 direct-map form
-                t = ev["note"] - prog["base_note"]
-            else:                                  # range-scan fallback
-                t = next((i for i, tn in enumerate(prog["tones"])
-                          if tn["note_lo"] <= ev["note"] <= tn["note_hi"]),
-                         -1)
+            t = ev["note"] - prog["base_note"]
             if not 0 <= t < len(prog["tones"]):
                 continue
             tone = prog["tones"][t]
-            rate = int(round(tone_rate(dict(tone, note=ev["note"]))))
+            pitch = a0_pitch(elf, tone["center"], ev["note"], tone["fine"],
+                             tone["bend_range"])
             raw = vag_block_at(self.data,
                                self.bank["body_base"] + tone["samp_off"])
             if len(raw) < 2 * FRAME:
                 continue                           # silence stub
-            wav = wav_index.get((hashlib.sha1(raw).digest(), rate))
+            wav = wav_index.get((hashlib.sha1(raw).digest(), pitch))
+            frames = len(raw) // FRAME * SAMPLES_PER_FRAME
             out.append(dict(
-                wav=(f"sfx/{wav}" if wav else None), rate=rate,
-                duration_ms=round(len(raw) // FRAME * SAMPLES_PER_FRAME
-                                  / rate * 1000),
-                note=ev["note"], prog=ev["prog"], tone=t, wait=ev["wait"]))
+                wav=(f"sfx/{wav}" if wav else None), pitch=pitch,
+                duration_ms=round(frames * 4096 * 1000 / (48000 * pitch)),
+                note=ev["note"], vel=ev["vel"], prog=ev["prog"], tone=t,
+                wait=ev["wait"], tick=ev["tick"]))
         if not out:
             return None
-        return dict(bank=f"{self.src}#bank{self.row}", events=out)
+        result = dict(bank=f"{self.src}#bank{self.row}", events=out)
+        if status != "end":
+            result["script_status"] = status
+        return result
 
 
 def read_sound_records(elf: ElfImage):
@@ -826,7 +907,7 @@ def cmd_soundmap(args) -> int:
     global_recs, area_recs = read_sound_records(elf)
 
     sources = find_containers(root)
-    wav_index = build_wav_index(sources)
+    wav_index = build_wav_index(sources, elf)
 
     # classify containers by their bank-row types (= registration groups)
     global_banks: dict[int, list[_Bank]] = {}    # groups 1 and 3
@@ -857,7 +938,7 @@ def cmd_soundmap(args) -> int:
         hits = []
         for pos, bk in enumerate(cands):
             if g == 3 or pos == b:               # group 3: any loaded bank
-                r = bk.resolve(sg, si, wav_index)
+                r = bk.resolve(sg, si, wav_index, elf)
                 if r:
                     hits.append(r)
         return hits
@@ -871,7 +952,7 @@ def cmd_soundmap(args) -> int:
             tabs = region_banks.get(name, {}).get(g, [])
             if b >= len(tabs):
                 continue
-            r = tabs[b].resolve(sg, si, wav_index)
+            r = tabs[b].resolve(sg, si, wav_index, elf)
             if not r:
                 continue
             key = json.dumps(r["events"], sort_keys=True)
@@ -942,7 +1023,8 @@ def cmd_soundmap(args) -> int:
                      "area remap+records) -> D_00281D50[group][bankIdx] "
                      "bank slot (group = container bank-row type) -> "
                      "func_00119EA0 script (hdr+0x1C, A0 note vel prog) -> "
-                     "tone record -> sample at engine-exact rate",
+                     "func_00115850 tone record -> sample + integer SPU "
+                     "pitch (a0_pitch: bend 0x40, D_00241D70, *44100/48000)",
             "record": "[group, bankIdx, scriptGroup, scriptIdx]",
             "groups": {"1": "global container (chunk00/f05_id05.bin)",
                        "2": "loaded region container, type-2 (common) bank",
@@ -997,10 +1079,12 @@ def main(argv: list[str]) -> int:
     sp.set_defaults(func=lambda a: cmd_stream(a, stereo=False))
 
     sp = sub.add_parser(
-        "sfx", help="decode all SShd banks at engine-exact per-tone rates")
+        "sfx", help="decode all SShd banks (source PCM + integer A0 pitch)")
     sp.add_argument("--in", dest="input", default="extract",
                     help="extract_data.py output directory")
     sp.add_argument("--out", default=str(DEFAULT_OUT))
+    sp.add_argument("--elf", default=str(DEFAULT_ELF),
+                    help="boot ELF holding the D_00241D70 pitch ladder")
     sp.set_defaults(func=cmd_sfx)
 
     sp = sub.add_parser(

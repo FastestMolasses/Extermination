@@ -18,9 +18,16 @@ Soundmap schema (commit 99cf57d):
     area wins; otherwise fall back to the area's region from
     `area_scene_map` (its best-coverage container bank).
   - Every event lists the WAV (relative to the soundmap's directory)
-    and the ENGINE-EXACT playback rate. The registry keeps the FIRST
-    event's WAV — the port's em_sfx is single-sample per id until the
-    multi-event (layer/delay) trigger scripts land.
+    and the integer SPU pitch word (audio_export.a0_pitch). The registry
+    keeps the FIRST event's WAV.
+
+RETIRED FOR PLAYBACK (2026-09, WP-14/H19): the native port no longer reads
+sfx.txt. Its em_sfx loads assets/sfx/sfx_registry.emsr, produced by the
+port's tools/export_sfx_registry.py, which carries every A0 event with its
+integer pitch, Q14 volume inputs and sequencer tick. The legacy WAV rates
+this file used to cite were x1.531 sharp (the retired tone_rate formula).
+This tool remains the source of the per-scene id presets (SCENES) and the
+door-pair / locked-door census, which the port exporter imports.
 
 DOOR PAIR IDS (FINDINGS.md "DOOR SCRIPTS DECODED" s23): a door's open
 sound is NOT a constant — `func_001BBD60` patches the op-0x0B sub-6
@@ -199,7 +206,7 @@ SCENES = {
         # - WEDGED-TRUCK fall crash 0x454 (em_truck.c TRUCK_SFX_FALL, the
         #   §11.3 groan/crash cue fired with em_sfx_play_at on the fall).
         #   AREA-TABLED: its chunk15 variant covers area 11.0 (snd_0938,
-        #   15480 Hz, 2-event — first event registered). Loaded by the
+        #   2-event). Loaded by the
         #   engine in AREA-11, so this ships (the s78 em_truck FLAG that
         #   it "may be absent until the AREA-11 bank is exported" is now
         #   resolved: present in chunk15).
@@ -208,10 +215,10 @@ SCENES = {
         #   the FX emitter when its em_sfx_play_at is wired). AREA-TABLED:
         #   its chunk15 variant's area list explicitly carries area 11.0
         #   (alongside 1.7/4.5/6.3/10.1), resolving exact-area to snd_0733
-        #   (12286 Hz, 2-event — first event registered), the same chunk15
+        #   (2-event), the same chunk15
         #   resolution path as 0x452/0x401/0x454. The engine loads this id
         #   into AREA-11's bank, so the steam emitter is audible once wired.
-        # - 0x19A (GLOBAL one-shot, snd_0405 33761 Hz; area-independent like
+        # - 0x19A (GLOBAL one-shot, snd_0405; area-independent like
         #   the 0x1A0/0x1A1 fixture pair and the 0x97/0x99 stings). A global
         #   id is always resident, so it is loaded in AREA-11 and registered
         #   here for the §11 emitter set (re-audit follow-up).
@@ -226,8 +233,8 @@ SCENES = {
         #   #bank1; the egg/fixture pair 0x1A0/0x1A1 also there) — i.e.
         #   short one-shot musical stings the bank fires by id, fully
         #   addressable through em_sfx_play. No bgm/code change needed; they
-        #   just had to be in the registry (0x97 = snd_0117 30405 Hz,
-        #   4-event; 0x99 = snd_0192 19930 Hz). Below any shipped bank id so
+        #   just had to be in the registry (0x97 = snd_0117,
+        #   4-event; 0x99 = snd_0192). Below any shipped bank id so
         #   no collision with the office/AREA-11 sets.
         # OMITTED (no chunk15 variant -> not loaded by the engine in
         # AREA-11, i.e. faithful silence, NOT a bug):
@@ -295,19 +302,19 @@ def sound_key(sid: int) -> str:
 
 
 def resolve(sm: dict, sid: int, area: str):
-    """id -> (wav_rel, rate_hz, label, n_events, how) or None."""
+    """id -> (wav_rel, spu_pitch, label, n_events, how) or None."""
     entry = sm["sounds"].get(sound_key(sid))
     if entry is None:
         return None
     label = entry.get("label", "")
     if "events" in entry:                       # global (fixed) id
         ev = entry["events"]
-        return ev[0]["wav"], ev[0]["rate"], label, len(ev), "global"
+        return ev[0]["wav"], ev[0]["pitch"], label, len(ev), "global"
     # area-tabled / region-dependent: prefer an exact area listing
     for var in entry.get("variants", []):
         if area in var.get("areas", []):
             ev = var["events"]
-            return (ev[0]["wav"], ev[0]["rate"], label, len(ev),
+            return (ev[0]["wav"], ev[0]["pitch"], label, len(ev),
                     f"area {area} ({var['regions'][0]})")
     # fall back to the area's best-coverage region bank
     region = sm["area_scene_map"].get(area, {}).get("region")
@@ -315,7 +322,7 @@ def resolve(sm: dict, sid: int, area: str):
         for var in entry.get("variants", []):
             if region in var.get("regions", []):
                 ev = var["events"]
-                return (ev[0]["wav"], ev[0]["rate"], label, len(ev),
+                return (ev[0]["wav"], ev[0]["pitch"], label, len(ev),
                         f"region {region} (area-map fallback)")
     return None
 
@@ -518,7 +525,7 @@ def main(argv=None) -> int:
                   file=sys.stderr)
             missing += 1
             continue
-        wav_rel, rate, label, n_ev, how = r
+        wav_rel, pitch, label, n_ev, how = r
         wav = (wav_root / wav_rel).resolve()
         if not wav.is_file():
             lines.append(f"# 0x{sid:03X} WAV MISSING: {wav}")
@@ -526,7 +533,7 @@ def main(argv=None) -> int:
             missing += 1
             continue
         lines.append(f"# 0x{sid:03X} {label or '(unlabeled)'} — "
-                     f"{rate} Hz, {n_ev} event(s), {how}")
+                     f"SPU pitch {pitch}, {n_ev} event(s), {how}")
         lines.append(f"0x{sid:03X} {wav}")
 
     added = sum(1 for ln in lines if _re_id_line(ln))
