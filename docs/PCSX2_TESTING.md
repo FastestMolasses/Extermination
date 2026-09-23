@@ -52,6 +52,9 @@ advance by one per step). `snapshot(dir)` saves to a free slot >= 16, extracts
 `eeMemory.bin`, `gs.bin`, `scratchpad.bin` and the embedded `original.png`,
 and moves the slot file into `dir`. Injected pad state reaches `0x810E70`
 two frames after it is set. State 03 has movement locked; state 04 walks.
+The emulator runs hidden by default (`open -g -j`, then kept hidden through
+System Events while it boots; frame stepping and save-state screenshots work
+while hidden). Pass `visible=True` / `--visible` to watch it.
 All output belongs in gitignored `build/`.
 
 ## Gotchas

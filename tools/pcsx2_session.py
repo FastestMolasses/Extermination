@@ -18,6 +18,10 @@ Mechanism (no emulator rebuild needed):
     zstd entries are extracted and the slot file is moved into the output
     directory so the user's existing save-state slots are never overwritten.
 
+The emulator runs HIDDEN by default (launched with `open -g -j`, then kept
+hidden through System Events while it boots) so automated captures never put
+a window in front of the user; pass visible=True (or --visible) to watch.
+
 Everything read or written here is derived from the user's own disc and stays
 in gitignored build/ output. The source save state is hashed before and after
 to prove it was not modified.
@@ -36,6 +40,7 @@ import hashlib
 import json
 import os
 import shutil
+import signal
 import socket
 import struct
 import subprocess
@@ -125,7 +130,7 @@ class Pine:
 class OriginalSession:
     def __init__(self, state: str | Path, emulator: Path = DEFAULT_EMULATOR,
                  iso: Path = DEFAULT_ISO, log_dir: Path | None = None,
-                 ready_timeout: float = 45.0):
+                 ready_timeout: float = 45.0, visible: bool = False):
         self.state = Path(state).resolve()
         if not self.state.exists():
             raise FileNotFoundError(self.state)
@@ -133,6 +138,8 @@ class OriginalSession:
         self.log_dir = Path(log_dir) if log_dir else ROOT / "build/pcsx2_session"
         self.ready_timeout = ready_timeout
         self.proc: subprocess.Popen | None = None
+        self.pid: int | None = None
+        self.visible = visible
         self.pine: Pine | None = None
         self.debug = DebugServer()
         self.frames_stepped = 0
@@ -149,14 +156,30 @@ class OriginalSession:
     def _start(self) -> "OriginalSession":
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self._log = open(self.log_dir / "launch.log", "w")
-        self.proc = subprocess.Popen(
-            [str(self.emulator), "-portable", "-fastboot", "-statefile", str(self.state),
-             "-elf", str(ELF), "-logfile", str(self.log_dir / "emulator.log"), str(self.iso)],
-            stdout=self._log, stderr=subprocess.STDOUT)
+        args = ["-portable", "-fastboot", "-statefile", str(self.state), "-elf", str(ELF),
+                "-logfile", str(self.log_dir / "emulator.log"), str(self.iso)]
+        if self.visible:
+            self.proc = subprocess.Popen([str(self.emulator), *args],
+                                         stdout=self._log, stderr=subprocess.STDOUT)
+            self.pid = self.proc.pid
+        else:
+            bundle = self.emulator.parents[2]          # .../PCSX2.app
+            before = set(self._emulator_pids())
+            subprocess.run(["open", "-g", "-j", "-n", "-a", str(bundle), "--args", *args],
+                           check=True, stdout=self._log, stderr=subprocess.STDOUT)
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline and self.pid is None:
+                fresh = [p for p in self._emulator_pids() if p not in before]
+                self.pid = max(fresh) if fresh else None
+                time.sleep(0.05)
+            if self.pid is None:
+                raise RuntimeError("hidden emulator launch: process not found")
         deadline = time.monotonic() + self.ready_timeout
         while time.monotonic() < deadline:
-            if self.proc.poll() is not None:
-                raise RuntimeError(f"emulator exited early ({self.proc.returncode})")
+            if not self._alive():
+                raise RuntimeError("emulator exited early")
+            if not self.visible:
+                self._hide()
             try:
                 self.pine = Pine()
                 if self.u32(FRAME_COUNTER) > 0:
@@ -166,6 +189,8 @@ class OriginalSession:
             time.sleep(0.1)
         else:
             raise RuntimeError("original state did not become ready")
+        if not self.visible:
+            self._hide()
         self.debug.call({"cmd": "pause"})
         self.debug.call({"cmd": "pad_set", "clear": True})
         self.debug.call({"cmd": "set_breakpoint", "address": LOOP_TOP,
@@ -178,7 +203,7 @@ class OriginalSession:
         self.close()
 
     def close(self) -> None:
-        if self.proc is None:
+        if self.pid is None:
             return
         try:
             self.debug.call({"cmd": "remove_breakpoint", "address": LOOP_TOP})
@@ -186,15 +211,53 @@ class OriginalSession:
             self.debug.call({"cmd": "pause"})
         except Exception:
             pass
-        self.proc.terminate()
-        try:
-            self.proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            self.proc.kill()
-            self.proc.wait()
+        self._terminate()
         self.proc = None
+        self.pid = None
         if hashlib.sha256(self.state.read_bytes()).hexdigest() != self._digest:
             raise RuntimeError(f"source save state changed: {self.state}")
+
+    # -- process helpers -------------------------------------------------------
+    def _emulator_pids(self) -> list[int]:
+        out = subprocess.run(["pgrep", "-f", str(self.emulator)], capture_output=True,
+                             text=True).stdout.split()
+        return [int(x) for x in out]
+
+    def _alive(self) -> bool:
+        if self.proc is not None:
+            return self.proc.poll() is None
+        try:
+            os.kill(self.pid, 0)
+            return True
+        except OSError:
+            return False
+
+    def _hide(self) -> None:
+        subprocess.run(["osascript", "-e", 'tell application "System Events" to set visible of '
+                        f"(first process whose unix id is {self.pid}) to false"],
+                       capture_output=True)
+
+    def _terminate(self) -> None:
+        if self.proc is not None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.wait()
+            return
+        try:
+            os.kill(self.pid, signal.SIGTERM)
+        except OSError:
+            return
+        for _ in range(50):
+            if not self._alive():
+                return
+            time.sleep(0.1)
+        try:
+            os.kill(self.pid, signal.SIGKILL)
+        except OSError:
+            pass
 
     # -- stepping ----------------------------------------------------------
     def _paused(self) -> bool:
@@ -207,7 +270,7 @@ class OriginalSession:
         while time.monotonic() < deadline:
             if self._paused():
                 return
-            time.sleep(0.002)
+            time.sleep(0.003)   # tighter polling exhausts local TCP ports
         raise TimeoutError("frame boundary breakpoint did not hit")
 
     def pad(self, buttons: int | list[str] = 0, lx: int = 0x7F, ly: int = 0x7F,
@@ -298,9 +361,10 @@ if __name__ == "__main__":
     ap.add_argument("--lx", type=lambda v: int(v, 0), default=0x7F)
     ap.add_argument("--ly", type=lambda v: int(v, 0), default=0x7F)
     ap.add_argument("--snapshot", help="output directory for a final snapshot")
+    ap.add_argument("--visible", action="store_true", help="show the emulator window")
     a = ap.parse_args()
     names = [b for b in a.buttons.split(",") if b]
-    with OriginalSession(a.state) as s:
+    with OriginalSession(a.state, visible=a.visible) as s:
         counters = s.step(a.frames, buttons=names, lx=a.lx, ly=a.ly)
         print(json.dumps({"counters": [counters[0], counters[-1]] if counters else []}))
         if a.snapshot:
