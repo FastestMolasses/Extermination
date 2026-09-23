@@ -47,15 +47,48 @@ EMCL v1 (little endian, our own original container):
 
   0x00 char[4] "EMCL"        0x04 u32 version = 1
   0x08 u32 vert_count        0x0C u32 poly_count
-  0x10 u32 index_count       0x14 u32 flags (bit0 = grid section decoded)
+  0x10 u32 index_count       0x14 u32 flags (bit0 = grid section decoded,
+                             bit1 = grid pad byte is the node class,
+                             bit2 = the grid rank section follows)
   0x18 f32[6] world bbox (min xyz, max xyz)
   0x30 f32 verts[vert_count*3]
        poly records, 24 B each:
          f32 plane[4]; u32 first (base into index/edge pools);
          u8 vcount; u8 set (2 = cell world, 4 = grid world -- the engine's
-         collision-set bits); u8 attr; u8 pad
+         collision-set bits); u8 attr; u8 pad (grid: node +0x1B, the class
+         byte, when flags bit1; cells: 0)
        u16 indices[index_count] (+2 B pad if odd)
        f32 edge_normals[index_count*3]
+
+  Grid node class (flags bit1). Every consumer of a grid hit reads the class
+  as `*(u16 *)(node + 0x1A) & 0xFF00` (00175CF0, 00176BE0, 001791D0,
+  0015DEC0): it is authored per node (+0x1B), not derived from the normal.
+
+  Grid rank section (flags bit2; the port's src/game/em_coll_probe_original.c
+  reads it), appended after the edge normals, every field in the level's own
+  RAM layout so --verify-ram can compare it byte for byte:
+    char[4] "EMRK"; u32 version = 1
+    u32 N (grid nodes); u32 first grid poly index in this EMCL (grid node i
+        is poly first + i); u32 V (grid vertex pool count)
+    f32 grid_verts[V*3]   the grid's own vertex pool (*0x700031FC), which
+                          0019F1A0 indexes by node +0x00 (the pool above is
+                          de-duplicated, so it cannot stand in for it)
+    s16 node_words[N][12] node +0x00..+0x17: the six boundary vertex indices
+                          and the six rank bounds (0019DF10 / 0019E640 test
+                          +0x0C/+0x0E/+0x14/+0x16)
+    s16 tables[12][N]     the 12 contiguous tables at header +0x18: tables
+                          0..5 are *(0x70003210 + 4k) (sorted node indices,
+                          0019F1A0), 6..11 are *(0x70003228 + 4k)
+                          (0019DF10 / 0019E640 span helpers)
+    (+2 B pad to a 4-byte boundary)
+
+  --verify-ram EEMEMORY checks the decoded grid against a captured EE RAM
+  image (the route beats' eeMemory.bin): the world-section directory
+  D_0028A598 entry 0 must name the same header, and node bytes
+  +0x00..+0x33 (words, count, attr, class, pool offsets, plane), the vertex,
+  vertex-index and edge-normal pools and all 12 tables must equal RAM; with a
+  scratchpad.bin beside it, the staged pointers 0x700031FC..0x7000323C and
+  the count 0x7000320C must name them too.
 
 MULTI-FILE LEVELS (generalization, 2026-06-10 snow-level session): the
 extraction splits each level chunk into f00..fNN files, but the engine
@@ -167,6 +200,76 @@ def decode_grid(d: bytes, base: int):
     return verts, polys
 
 
+def decode_grid_ranks(d: bytes, base: int):
+    """The grid data the EMCL poly records do not carry: each node's class
+    byte (+0x1B) and its twelve s16 words +0x00..+0x17, the raw grid vertex
+    pool, and the 12 contiguous s16[N] tables at header +0x18 (form 0xC)."""
+    h = struct.unpack_from("<9I", d, base)
+    vert_off, vcnt, _en_off, _encnt, _il_off, _ilcnt, tab_off, form, node_off = h
+    (n_nodes,) = struct.unpack_from("<h", d, base + 0x24)
+    if form != 0xC:
+        raise SystemExit(f"grid form {form:#x}: no span helper tables")
+    nodes = [base + node_off + 64 * i for i in range(n_nodes)]
+    return {
+        "classes": bytes(d[o + 0x1B] for o in nodes),
+        "words": b"".join(d[o:o + 0x18] for o in nodes),
+        "verts": bytes(d[base + vert_off:base + vert_off + 12 * vcnt]),
+        "vert_count": vcnt,
+        "tables": bytes(d[base + tab_off:base + tab_off + 12 * 2 * n_nodes]),
+        "count": n_nodes,
+    }
+
+
+def rank_section(ranks, first_poly: int) -> bytes:
+    """The EMCL grid rank section (module docstring)."""
+    out = bytearray(b"EMRK")
+    out += struct.pack("<4I", 1, ranks["count"], first_poly, ranks["vert_count"])
+    out += ranks["verts"] + ranks["words"] + ranks["tables"]
+    if len(out) & 3:
+        out += b"\0" * (4 - (len(out) & 3))
+    return bytes(out)
+
+
+def verify_ram(d: bytes, gbase: int, ram_path: Path) -> None:
+    """Compare the grid decoded from the disc files with a captured EE RAM
+    image (module docstring, --verify-ram)."""
+    ram = ram_path.read_bytes()
+    u32 = lambda buf, a: struct.unpack_from("<I", buf, a)[0]
+    rbase = u32(ram, 0x28A598)
+    h = struct.unpack_from("<9I", d, gbase)
+    if struct.unpack_from("<9I", ram, rbase) != h or ram[rbase + 0x24:rbase + 0x26] != d[gbase + 0x24:gbase + 0x26]:
+        raise SystemExit(f"{ram_path}: D_0028A598[0] = {rbase:#x} is not this grid header")
+    vert_off, vcnt, en_off, encnt, il_off, ilcnt, tab_off, _form, node_off = h
+    (n,) = struct.unpack_from("<h", d, gbase + 0x24)
+    spans = ((vert_off, 12 * vcnt, "vertex pool"), (en_off, 12 * encnt, "edge-normal pool"),
+             (il_off, 2 * ilcnt, "vertex-index pool"), (tab_off, 24 * n, "12 rank tables"))
+    for off, size, what in spans:
+        if ram[rbase + off:rbase + off + size] != d[gbase + off:gbase + off + size]:
+            raise SystemExit(f"{ram_path}: grid {what} differs from RAM")
+    for i in range(n):
+        o = node_off + 64 * i
+        # +0x00..+0x33: the words, count, attr, class, the pool offsets and
+        # the plane (+0x34.. is not read by any routine the EMCL serves).
+        if ram[rbase + o:rbase + o + 0x34] != d[gbase + o:gbase + o + 0x34]:
+            raise SystemExit(f"{ram_path}: grid node {i} differs from RAM")
+    note = ""
+    spad_path = ram_path.parent / "scratchpad.bin"
+    if spad_path.exists():
+        sp = spad_path.read_bytes()
+        s = lambda a: u32(sp, a - 0x70000000)
+        want = {0x700031FC: vert_off, 0x70003200: en_off, 0x70003204: il_off, 0x70003208: node_off}
+        for k in range(12):
+            want[0x70003210 + 4 * k] = tab_off + 2 * n * k
+        for addr, off in want.items():
+            if s(addr) != rbase + off:
+                raise SystemExit(f"{ram_path.parent}: scratchpad {addr:#x} = {s(addr):#x}, not {rbase + off:#x}")
+        if s(0x7000320C) != n:
+            raise SystemExit(f"{ram_path.parent}: scratchpad 0x7000320C = {s(0x7000320C)}, not {n}")
+        note = "; scratchpad 0x700031FC..0x7000323C and 0x7000320C name them"
+    print(f"verified against {ram_path}: header {rbase:#x}, {n} nodes (+0x00..+0x33), "
+          f"{vcnt} grid verts, {encnt} edge normals, {ilcnt} indices, 12 x {n} table entries equal{note}")
+
+
 # ---------------------------------------------------------------------------
 # Cell n-gon decode (narrow + wide), reusing collision_probe's cell walk
 
@@ -241,6 +344,14 @@ def main(argv=None):
     ap.add_argument("--at", default=None,
                     help="X,Z floor-validation probe in world coordinates "
                     "(expects a hit)")
+    ap.add_argument("--node-class", action="store_true",
+                    help="also export the grid node class byte (+0x1B, flags "
+                    "bit1) and the grid rank section (flags bit2). Off by "
+                    "default: the live legacy collision reads the pad as 0 "
+                    "until the coordinator binds the original floor service")
+    ap.add_argument("--verify-ram", type=Path, action="append", default=[],
+                    help="a captured EE RAM image (eeMemory.bin) to check the "
+                    "grid against (repeatable; module docstring)")
     args = ap.parse_args(argv)
 
     d = b"".join(Path(p).read_bytes() for p in args.id44)
@@ -256,31 +367,47 @@ def main(argv=None):
         return i
 
     flags = 0
+    ranks = None
     gbase = find_grid_header(d)
     if gbase is not None:
         gverts, gpolys = decode_grid(d, gbase)
         print(f"grid section @0x{gbase:X}: {len(gverts)} verts, "
               f"{len(gpolys)} polygon nodes")
         remap = [intern(v) for v in gverts]
+        # The pool de-duplicates by float equality (-0.0 == 0.0): every ring
+        # vertex the EMCL names must keep the grid pool's exact bits.
+        for i, v in enumerate(gverts):
+            if struct.pack("<3f", *pool[remap[i]]) != struct.pack("<3f", *v):
+                sys.exit(f"grid vertex {i}: the de-duplicated pool changes its bits")
         ok = validate(gverts, gpolys, "grid")
+        for ram_path in args.verify_ram:
+            verify_ram(d, gbase, ram_path)
         if ok:
             flags |= 1
-            for plane, idxs, ens, attr in gpolys:
+            ranks = None
+            classes = bytes(len(gpolys))
+            if args.node_class:
+                ranks = decode_grid_ranks(d, gbase)
+                flags |= 2 | 4
+                classes = ranks["classes"]
+            for (plane, idxs, ens, attr), cls in zip(gpolys, classes):
                 polys.append((plane, [remap[i] for i in idxs], ens,
-                              SET_GRID, attr))
+                              SET_GRID, attr, cls))
         else:
             print("  grid validation FAILED -- exporting cells only "
                   "(flat-floor fallback in the port)")
     else:
         print("no grid section header found -- exporting cells only "
               "(flat-floor fallback in the port)")
+        if args.verify_ram:
+            sys.exit("--verify-ram: no grid section to verify")
 
     cngons = decode_cell_ngons(d)
-    cpolys = [(pl, [intern(v) for v in vs], ens, SET_CELLS, 0)
+    cpolys = [(pl, [intern(v) for v in vs], ens, SET_CELLS, 0, 0)
               for pl, vs, ens in cngons]
-    cv = {i for _pl, idxs, _e, _s, _a in cpolys for i in idxs}
+    cv = {i for _pl, idxs, _e, _s, _a, _c in cpolys for i in idxs}
     print(f"cell world: {len(cpolys)} n-gons ({len(cv)} verts)")
-    validate(pool, [(pl, ix, e, a) for pl, ix, e, _s, a in cpolys], "cells")
+    validate(pool, [(pl, ix, e, a) for pl, ix, e, _s, a, _c in cpolys], "cells")
     polys.extend(cpolys)
 
     if not polys:
@@ -289,7 +416,7 @@ def main(argv=None):
     if args.at:
         px, pz = (float(x) for x in args.at.split(","))
         hits = floor_probe(pool, [(pl, ix, e, a)
-                                  for pl, ix, e, _s, a in polys], px, pz)
+                                  for pl, ix, e, _s, a, _c in polys], px, pz)
         print(f"floor probe at ({px:.1f},{pz:.1f}): "
               + (f"y = {[round(h, 3) for h in hits]}" if hits else "NO HIT"))
         if not hits:
@@ -308,9 +435,9 @@ def main(argv=None):
     for v in pool:
         blob += struct.pack("<3f", *v)
     edge_blob = bytearray()
-    for plane, idxs, ens, pset, attr in polys:
+    for plane, idxs, ens, pset, attr, cls in polys:
         blob += struct.pack("<4fIBBBB", *plane, len(indices), len(idxs),
-                            pset, attr, 0)
+                            pset, attr, cls)
         indices.extend(idxs)
         for en in ens:
             edge_blob += struct.pack("<3f", *en)
@@ -319,6 +446,8 @@ def main(argv=None):
         blob += b"\0\0"
     blob += edge_blob
     struct.pack_into("<I", blob, 0x10, len(indices))
+    if ranks is not None:
+        blob += rank_section(ranks, 0)   # the grid polys come first
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
