@@ -1,8 +1,8 @@
 // NEARMISS func_00191580  (vram 0x00191580, 0x13C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.38% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP-register-coloring permutation: body and control flow byte-structure identical; target uses the f1/f3 FP-temp pair where mwcc colors f4..f6 (consistent throughout). Not the clean-store delay-slot nop, so 2.3.3 does not fix it. Permuter (FP-coloring) territory.
+// objdiff 99.68% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Only residual: the expected object renders scratchpad 0x70003A20,0x70003A24 as literal operands (not in build.py _SPAD_SYMS) while this C uses relocated externs; linked bytes identical. objdiff 100.0% with _SPAD_SYMS += 0x70003A20,0x70003A24.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,18 +11,22 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// NEARMISS 96.9% (mwcc 991202) / 96.4% (mwcc 2.3.3). Body + control flow
-// fully recovered and structurally identical; sole residual is FP-register
-// coloring (target keeps f1/f3 pair where mwcc allocates f4..f6) on the
-// camera/offset math. Not the clean-store nop -> 2.3.3 does not help.
-// Permuter territory (FP-coloring permutation).
 //
+// MATCH NOTE (m1-firstlevel-matching lane): the scratchpad globals at 0x70003A20, 0x70003A24
+// are referenced as relocated externs (D_7000xxxx), as the original build did
+// (see tools/match/spad_symbolize.py). A literal address let mwcc CSE and
+// speculate `lui at,0x7000` into delay slots that the target leaves as nop.
+// objdiff is 100.0% once build.py _SPAD_SYMS lists these addresses (so the
+// expected object carries the same relocations); the linked bytes are identical.
+
 // Semantics: writes a smoothed pitch delta to scratchpad 0x70003A20
 // (= D_0081069C - func_0011DF78(arg0+0xC)); if below a per-state floor
 // (-20 when arg0+0x64 == -46.8f else -10) it damps the excess by 0.5 and
 // clamps the stored value at 0x70003A24 to >= -1.5, then calls
 // func_0018C5A0(arg0+0x10, 11.0 + composed_height, 4.0).
 
+extern float D_70003A20;
+extern float D_70003A24;
 extern float func_0011DF78(float);
 extern void func_0018C5A0(unsigned char *, float, float);
 extern void func_001916C0(unsigned char *, unsigned char *, int);
@@ -35,20 +39,20 @@ void func_00191580(unsigned char *arg0, unsigned char *arg1) {
     float v;
 
     func_001916C0(arg0, arg1, 0);
-    *(float *)0x70003A20 = D_0081069C - func_0011DF78(*(float *)(arg0 + 0xC));
+    D_70003A20 = D_0081069C - func_0011DF78(*(float *)(arg0 + 0xC));
     if (*(float *)(arg0 + 0x64) == -46.8f) {
         lo = -20.0f;
     } else {
         lo = -10.0f;
     }
-    t = *(float *)0x70003A20;
+    t = D_70003A20;
     if (t < lo) {
         d = 0.5f * (t - lo);
-        *(float *)0x70003A24 = d;
+        D_70003A24 = d;
         if (d < -1.5f) {
-            *(float *)0x70003A24 = -1.5f;
+            D_70003A24 = -1.5f;
         }
-        v = 11.0f + (*(float *)(arg0 + 0x8C) + (*(float *)(arg1 + 0xA4) + (*(float *)(arg0 + 0x5C) - *(float *)0x70003A24)));
+        v = 11.0f + (*(float *)(arg0 + 0x8C) + (*(float *)(arg1 + 0xA4) + (*(float *)(arg0 + 0x5C) - D_70003A24)));
     } else {
         v = 11.0f + (*(float *)(arg0 + 0x8C) + (*(float *)(arg0 + 0x5C) + *(float *)(arg1 + 0xA4)));
     }

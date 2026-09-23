@@ -1,8 +1,8 @@
 // NEARMISS func_001AFD70  (vram 0x001AFD70, 0xEC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.46% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Saved-register-allocation-ORDER wall (identical residual under 991202 and 2.3.3). Entire body matches: mode dispatch, class-1 skip paths, func_001CB590 call, behavior-pointer dispatch, scratchpad walk counter, link refresh. Sole residual is the cur/next saved-register SWAP -- CW colors cur=s1/nex...
+// objdiff 99.90% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Only residual: the expected object renders scratchpad 0x70003B8A as literal operands (not in build.py _SPAD_SYMS) while this C uses relocated externs; linked bytes identical. objdiff 100.0% with _SPAD_SYMS += 0x70003B8A.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,14 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+//
+// MATCH NOTE (m1-firstlevel-matching lane): the scratchpad globals at 0x70003B8A
+// are referenced as relocated externs (D_7000xxxx), as the original build did
+// (see tools/match/spad_symbolize.py). A literal address let mwcc CSE and
+// speculate `lui at,0x7000` into delay slots that the target leaves as nop.
+// objdiff is 100.0% once build.py _SPAD_SYMS lists these addresses (so the
+// expected object carries the same relocations); the linked bytes are identical.
 
 // Actor active-list TICK (the per-frame "world services" walker, called
 // from the gameplay frame func_001AE5E0 after the player update). Walks the
@@ -21,18 +29,7 @@
 // cleared and the BEHAVIOR POINTER *(+0x10) is invoked. Afterwards the
 // canonical actor's +0x18/+0x1C links are refreshed from the walked node.
 // A per-frame walk counter lives in scratchpad at 0x70003B8A.
-//
-// NEARMISS 97.46% (mwcc 991202 AND 2.3.3 identical): the entire body matches
-// (mode dispatch, skip paths, func_001CB590 call, behavior-pointer dispatch,
-// link refresh, scratchpad counter). Sole residual is the cur/next
-// saved-register SWAP -- CW colors cur=s1/next=s0 (next=s0 by declaration
-// order); mwcc allocates by web start and cur's web (head load + loop guard +
-// phi) necessarily starts first, so mwcc gives cur s0. Seeding `cur=next`
-// before the loop is copy-propagated away. This is the documented
-// saved-register-allocation-ORDER wall (late-init case), plus the one
-// matching delay-slot fill at the loop bottom (CW `bnez s1; nop` vs mwcc
-// hoisting the next iteration's `lui at,0x7000` into the slot). 2.3.3 does
-// NOT crack this class -- permuter territory.
+extern volatile short D_70003B8A[16];
 extern unsigned char *D_00275BC0;
 extern unsigned char *D_00275B44;
 extern void func_001CB590(unsigned char *actor, int size, int nbones);
@@ -46,10 +43,10 @@ void func_001AFD70(int mode) {
 
     m = mode;
     cur = D_00275BC0;
-    *(volatile short *)0x70003B8A = 0;
+    D_70003B8A[0] = 0;
     while (cur != 0) {
         next = *(unsigned char **)(cur + 0x1C);
-        *(volatile short *)0x70003B8A += 1;
+        D_70003B8A[0] += 1;
         if (m == 1) {
             if ((cur[0x2] & ~0xE0) == 1) { cur = next; continue; }
         } else if (m == 2) {

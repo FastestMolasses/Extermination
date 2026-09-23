@@ -1,8 +1,8 @@
 // NEARMISS func_0012D580  (vram 0x0012D580, 0x2C4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.84% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// branch-delay-slot scheduling permutation: target (CW 2.3.1) leaves explicit NOPs in the switch-dispatch beq a3,v1 delay slots (cases 1/2/0) and two inner branches; mwcc 2.3.3 fills those slots by hoisting the next li/lui, shrinking the function and shifting all branch offsets. Not the clean-store...
+// objdiff 99.99% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Only residual: the expected object renders scratchpad 0x70003610 as literal operands (not in build.py _SPAD_SYMS) while this C uses relocated externs; linked bytes identical. objdiff 100.0% with _SPAD_SYMS += 0x70003610.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,16 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+//
+// MATCH NOTE (m1-firstlevel-matching lane): the scratchpad globals at 0x70003610
+// are referenced as relocated externs (D_7000xxxx), as the original build did
+// (see tools/match/spad_symbolize.py). A literal address let mwcc CSE and
+// speculate `lui at,0x7000` into delay slots that the target leaves as nop.
+// objdiff is 100.0% once build.py _SPAD_SYMS lists these addresses (so the
+// expected object carries the same relocations); the linked bytes are identical.
+// The trailing func_00128830 call in state 3 stages its 1.0f argument through
+// an int (idiom-31) to reproduce the original argument order.
 
 extern void func_001287F0(int a0, int a1, int a2, float f0);
 extern void func_00128830(int a0, float f0, float f1, float f2);
@@ -36,7 +46,7 @@ void func_0012D580(unsigned char *arg0, unsigned char *arg1, int arg2) {
         break;
     case 1:
         if (*(short *)(arg1 + 0xF8) == 8 || (*(short *)(arg1 + 0xF4) & 0x1000)) {
-            *(int *)0x70003610 = 0;
+            D_70003610 = 0;
             *(int *)0x70003614 = 0x3F800000;
             *(int *)0x70003618 = 0;
             *(int *)0x7000361C = 0x3F800000;
@@ -69,7 +79,9 @@ void func_0012D580(unsigned char *arg0, unsigned char *arg1, int arg2) {
         break;
     case 3:
         if (*(short *)(arg1 + 0xF4) & 0x1000) {
-            func_00128830((int)arg0, 0.0f, 0.0f, 1.0f);
+            int oi = 1;
+            float o = (float)oi;
+            func_00128830((int)arg0, 0.0f, 0.0f, o);
             func_001287F0((int)arg0, (int)arg1, 0, 0.0f);
             func_001287F0((int)arg0, (int)arg1, 2, 6.0f);
             if (arg0[4] == 2) {

@@ -1,8 +1,8 @@
 // NEARMISS func_0018D7B0  (vram 0x0018D7B0, 0x154 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.94% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// CW-vs-mwcc branch lowering: target keeps explicit `beq s1,1,body / nop / b epilogue` (enter-then-skip pair) for the inner `if (arg1 == 1)`; mwcc collapses it to a single fall-through `bne s1,1,epilogue`. 3 of 85 instructions differ (the merged branch + its delay-slot nop + the b epilogue); all ot...
+// objdiff 99.24% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Only the `b` after the mode-1 copies: target delay slot nop, mwcc233 copies the join's paddub v0,s0 into it (goto join / prototype / arg spelling variants unchanged).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,15 +11,14 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// NEARMISS 96.9% (mwcc233; 991202 = 86.2%) — logic fully recovered.
-// Sole residual: CW-vs-mwcc branch lowering for the inner `if (arg1 == 1)`.
-// Target emits `beq s1,1,body / nop / b epilogue` (CW keeps the explicit
-// enter-then-skip pair, body reached by forward beq); mwcc merges this into
-// a single fall-through `bne s1,1,epilogue`. Every other instruction is
-// byte-identical (frame, callee-saved set, the &D_008102B0 CSE into s0, all
-// three dispatch calls, arg order, the float branch). Documented wall —
-// 2.3.3 does not fix mwcc-vs-CW branch lowering.
 //
+// LANE NOTE (m1-firstlevel-matching): writing the mode-1 test as an early
+// `return s0` for arg1 != 1 reproduces the target's `beq s1,1 / b epilogue`
+// shape (96.94% -> 99.24%). The only residual is the delay slot of the `b` after
+// the two func_00102948 copies: the target leaves a nop and mwcc copies the
+// join's `paddub v0,s0,zero` into it. A goto join, a void callee prototype and
+// float-pointer argument spellings did not change it.
+
 // Semantics: dispatch on mode arg1.
 //   s3 = (arg1==2) ? 7 : 6
 //   func_0018D330(arg0, &D_008102B0, arg1, s3)
@@ -64,10 +63,11 @@ int func_0018D7B0(unsigned char *arg0, int arg1) {
     }
     *(unsigned char *)(arg0 + 7) = s0;
     if (arg1 != 0) {
-        if (arg1 == 1) {
+        if (arg1 != 1) {
+            return s0;
+        }
             func_00102948(D_008105E0, arg0 + 0x20);
             func_00102948(D_008105D0, arg0 + 0x10);
-        }
     } else {
         func_0018C6A0(arg0 + 0x10, D_008105D0, 4.0f);
         func_0018C4B0(D_008105D0, *(float *)(arg0 + 0x14), 4.0f);

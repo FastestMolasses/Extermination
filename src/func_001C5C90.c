@@ -1,8 +1,8 @@
 // NEARMISS func_001C5C90  (vram 0x001C5C90, 0x318 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// List-scheduler artifacts only — body/logic fully recovered, all 6 residual rows are pure scheduling: (1) both compilers pull the join block's `lui at,0x7000` into the inner-switch DEFAULT's unconditional-b delay slot and retarget the branch +4, while the target leaves `b join; nop` (the six case-...
+// objdiff 99.96% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Only residual: the expected object renders scratchpad 0x7000360C,0x70003600 as literal operands (not in build.py _SPAD_SYMS) while this C uses relocated externs; linked bytes identical. objdiff 100.0% with _SPAD_SYMS += 0x7000360C,0x70003600.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,14 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+//
+// MATCH NOTE (m1-firstlevel-matching lane): the scratchpad globals at 0x7000360C, 0x70003600
+// are referenced as relocated externs (D_7000xxxx), as the original build did
+// (see tools/match/spad_symbolize.py). A literal address let mwcc CSE and
+// speculate `lui at,0x7000` into delay slots that the target leaves as nop.
+// objdiff is 100.0% once build.py _SPAD_SYMS lists these addresses (so the
+// expected object carries the same relocations); the linked bytes are identical.
 
 //
 // 4-state camera-track actor step, dispatched on the state byte at arg0+4,
@@ -28,12 +36,7 @@
 // both w components forced to 1.0f; sets the active byte arg0+1 = 1; and if
 // the parent's byte +1 is set, fires the virtual at arg0+0x4C. States 2/3:
 // func_001AFC10(self) (release/teardown tick).
-//
-// NEARMISS: mwcc 2.3.3 reaches 97.65 (991202: 93.01). Residual is scheduling
-// only: the target leaves the inner-switch default's `b join` slot as nop
-// where both compilers hoist the join's `lui at,0x7000` into it (+4 retarget),
-// and the target orders `lui %hi(D_70003600)` before `lw %gp_rel(D_00275B40)`
-// at both func_001026A0 call sites where both compilers swap the pair.
+extern int D_7000360C[16];
 extern void copy_qw4(void *dst, void *src);
 extern void func_001026A0(void *dst, void *src, void *mtx);
 extern void func_00102760(void *a, void *b);
@@ -41,7 +44,7 @@ extern void func_001028D0(void *dst, void *a, void *b);
 extern void func_001AFC10(char *p);
 extern void func_001B1020(char *p, unsigned char t, int a, int b);
 extern char **D_00275B40;
-extern char D_70003600[16];
+extern int D_70003600[16];
 
 void func_001C5C90(char *arg0) {
     unsigned char st;
@@ -92,15 +95,15 @@ void func_001C5C90(char *arg0) {
             copy_qw4(*D_00275B40 + 0x90, *(char **)(other + 0x114) + 0x90);
             break;
         }
-        *(int *)0x70003600 = 0;
+        D_70003600[0] = 0;
         *(int *)0x70003604 = 0x3F800000;
         *(int *)0x70003608 = 0;
-        *(int *)0x7000360C = 0x3F800000;
+        D_7000360C[0] = 0x3F800000;
         func_001026A0(va, *D_00275B40 + 0x90, D_70003600);
-        *(int *)0x70003600 = 0x40ACCCCD;
+        D_70003600[0] = 0x40ACCCCD;
         *(int *)0x70003604 = 0x3F800000;
         *(int *)0x70003608 = 0;
-        *(int *)0x7000360C = 0x3F800000;
+        D_7000360C[0] = 0x3F800000;
         func_001026A0(vb, *D_00275B40 + 0x90, D_70003600);
         func_001028D0(arg0 + 0xC0, vb, va);
         func_00102760(arg0 + 0xC0, arg0 + 0xC0);

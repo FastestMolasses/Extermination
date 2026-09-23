@@ -1,8 +1,8 @@
 // NEARMISS func_001A8970  (vram 0x001A8970, 0x26C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.23% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Pure FP saved-register coloring: target keeps the f21 running total (proximity guard's half-extent sum) in one callee-saved float slot (fs0f), mwcc233 colors it into a different callee-saved slot (fs1) across the func_0011DF78 call -- same instruction sequence, plus one downstream branch-offset k...
+// objdiff 99.73% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// FP register coloring of the third proximity gate (target opp_extent[1]=f0, self.A4=f2, opp.B4=f1; mwcc233 f2/f1/f0). Also needs 0x70003B86 in build.py _SPAD_SYMS: 99.74% with it.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,15 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+//
+// LANE NOTE (m1-firstlevel-matching): 0x70003B86 is a relocated extern; objdiff
+// needs it in build.py _SPAD_SYMS. Both commit paths share the D_70003B86 clear
+// through `goto clear`, as the target does at one address. With the extended
+// symbol list, the only residual is FP register coloring of the third
+// proximity gate: the target has opp_extent[1]=f0, self.A4=f2 and opp.B4=f1,
+// and mwcc 2.3.3 gives f2/f1/f0. Declaration order and compound assignment do
+// not change it. The permuter plateaued (10 minutes, best candidate 97.13%).
 
 //
 // Melee/proximity attack commit for an AI actor (self = arg0, opponent = arg1).
@@ -32,19 +41,21 @@
 // written on this path in the disassembly, so this is preserved as literal
 // undefined-behavior register content, not a bug in this decompilation).
 // When taken, and if the opponent's reaction is exactly 0xE and
-// func_0021BD10(self's driver byte, 0xE) approves, self's state byte 0xF is
+// func_0021BD10() approves (the callee reads no arguments; its byte-matched
+// definition is int func_0021BD10(void)), self's state byte 0xF is
 // set to 2 (alternate stagger response). It then selects a per-region blend
 // table (D_0024A7C0 or D_0024A800, chosen by the global D_0081070A toggle)
 // and reads the opponent's reaction byte again to pick a pose blend value
 // into self+0x224 (and also 0x22C when the reaction is 9 or in [0xC,0xE)),
 // commits driver state 3, and plays the same func_001028D0/func_00102760
 // transform sequence into self+0x70. Both commit paths end by clearing the
-// pending-hit flag at the raw scratch address 0x70003B86.
+// pending-hit flag at scratchpad D_70003B86 (a shared tail in the original).
 
+extern short D_70003B86;
 extern void func_00102760(void *a, void *b);
 extern void func_001028D0(void *a, void *b, void *c);
 extern float func_0011DF78(float x);
-extern int func_0021BD10(unsigned char a, unsigned char b);
+extern int func_0021BD10(void);
 
 extern float D_0024A7C0;
 extern float D_0024A800;
@@ -63,7 +74,9 @@ void func_001A8970(char *arg0, char *arg1) {
     {
         float half = (*(float **)(arg0 + 0x30))[1] / 2.0f;
         float f21 = half + (*(float **)(arg1 + 0x30))[1];
-        if (!(func_0011DF78((*(float *)(arg0 + 0xA4) + half) - *(float *)(arg1 + 0xB4)) <= f21)) {
+        float d = *(float *)(arg0 + 0xA4) + half;
+        d -= *(float *)(arg1 + 0xB4);
+        if (!(func_0011DF78(d) <= f21)) {
             return;
         }
     }
@@ -76,8 +89,7 @@ void func_001A8970(char *arg0, char *arg1) {
         func_001028D0(&D_700038A0, arg0 + 0xA0, arg1 + 0xB0);
         *(int *)0x700038AC = 0x3F800000;
         func_00102760(arg0 + 0x70, &D_700038A0);
-        *(short *)0x70003B86 = 0;
-        return;
+        goto clear;
     }
 
     if (*(unsigned char *)(arg0 + 0) != 1) {
@@ -90,7 +102,7 @@ void func_001A8970(char *arg0, char *arg1) {
             float *v1;
             unsigned char a0;
 
-            if (a1 == 0xE && func_0021BD10(*(unsigned char *)(arg0 + 0), a1) != 0) {
+            if (a1 == 0xE && func_0021BD10() != 0) {
                 *(unsigned char *)(arg0 + 0xF) = 2;
             }
             if (D_0081070A == 0) {
@@ -109,7 +121,8 @@ void func_001A8970(char *arg0, char *arg1) {
             func_001028D0(&D_700038A0, arg0 + 0xA0, arg1 + 0xB0);
             *(int *)0x700038AC = 0x3F800000;
             func_00102760(arg0 + 0x70, &D_700038A0);
-            *(short *)0x70003B86 = 0;
+        clear:
+            D_70003B86 = 0;
         }
     }
 }

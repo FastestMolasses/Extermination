@@ -1,15 +1,9 @@
-// NEARMISS func_001735C0  (vram 0x001735C0, 0x810 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// NEARMISS 99.08% mwcc233 (991202 89.81% - idiom-13 nops + unsigned-char andi artifacts prove 233 is the lane). Body 100% recovered: full 9-state (0,1,2,3,0x50,0x51,0x52,0x63,0x64) nested switch state machine, all three inner switches, all call args/prototypes verified per-instruction, dispatch-con...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// MATCH NOTE (m1-firstlevel-matching lane): the chained-hit clip call stages its 1.0f
+// blend argument through an int (idiom-31). The plain literal made mwcc emit the
+// arguments in a different order (the former 99.08% NEARMISS residual).
 
 // PLAYER LIGHT MELEE: the unarmed 3-hit combo, player mode 0x21 (func_0015B130
 // case 33; FINDINGS "func_001735C0 - LIGHT 3-hit combo"). NOT a boss machine.
@@ -182,7 +176,11 @@ void func_001735C0(unsigned char *p)
           {
             p[6] = p[6] + 1;
             p[7] = 0;
-            func_001749A0(p, D_00248694[p[0x236] * 3], 0, 1.0f);
+            {
+              int one = 1;               /* idiom-31 staging */
+              float blend = (float)one;
+              func_001749A0(p, D_00248694[p[0x236] * 3], 0, blend);
+            }
             (*(unsigned char **)(p + 0x18))[0] = 2;
           }
           else

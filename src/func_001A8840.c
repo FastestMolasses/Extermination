@@ -1,8 +1,8 @@
 // NEARMISS func_001A8840  (vram 0x001A8840, 0x130 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.24% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// branch-delay-slot scheduling artifact: both mwcc 2.3.3 and 991202 hoist the trailing *(short*)0x70003B86 store's address-load (lui at,0x7000) into the inner beqz delay slot; original CW 2.3.1 leaves the slot nop and materializes the address at the merge. Single-instruction difference, inverse of ...
+// objdiff 99.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Only residual: the expected object renders scratchpad 0x70003B86 as literal operands (not in build.py _SPAD_SYMS) while this C uses relocated externs; linked bytes identical. objdiff 100.0% with _SPAD_SYMS += 0x70003B86.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,6 +12,17 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 
 //
+// MATCH NOTE (m1-firstlevel-matching lane): the scratchpad globals at 0x70003B86
+// are referenced as relocated externs (D_7000xxxx), as the original build did
+// (see tools/match/spad_symbolize.py). A literal address let mwcc CSE and
+// speculate `lui at,0x7000` into delay slots that the target leaves as nop.
+// objdiff is 100.0% once build.py _SPAD_SYMS lists these addresses (so the
+// expected object carries the same relocations); the linked bytes are identical.
+//
+// The lbu-vs-lb narrowing on arg1+0x56 is fixed by typing func_00187EC0's 2nd
+// param `unsigned char`.
+
+//
 // Proximity/collision check between entity arg0 and entity arg1. Using
 // func_0011DF78 (fabs), tests |arg0.x(0xA0)-arg1.x(0xB0)| <= bounds[0],
 // |arg0.z(0xA8)-arg1.z(0xB8)| <= bounds[2], |arg0.y(0xA4)-arg1.y(0xB4)| <=
@@ -19,16 +30,7 @@
 // state byte arg1+0xD: state 0 -> sets arg1+0xA=1, fires func_00187EC0(6, arg1+0x56),
 // and if (arg1+0xB && D_00810707!=1 && arg0[0]==1) sets arg0+0x22C=5.0f bits and
 // arg0[0]=3; state 1 -> func_00187EC0(7, 0). Always clears the short at 0x70003B86.
-//
-// NEARMISS (best 97.24% on mwcc 2.3.3, 93.29% on 991202). Logic fully recovered;
-// everything is byte-identical EXCEPT one instruction: the trailing store
-// *(short*)0x70003B86 = 0 has its address-load (lui at,0x7000) hoisted by mwcc
-// into the delay slot of the inner `beqz` (arg1+0xB == 0 test), shifting the
-// branch target by one. The original CW 2.3.1 leaves that delay slot a nop and
-// materializes the store address only at the merge point. Single branch-delay-slot
-// scheduling artifact; both mwcc builds hoist, 2.3.3 does not undo it (it is the
-// inverse of the clean-store-nop case 2.3.3 cracks). The lbu-vs-lb narrowing on
-// arg1+0x56 was fixed by typing func_00187EC0's 2nd param `unsigned char`.
+extern short D_70003B86;
 extern float func_0011DF78(float a);
 extern void func_00187EC0(char a0, unsigned char a1);
 extern unsigned char D_00810707;
@@ -50,6 +52,6 @@ void func_001A8840(char *arg0, char *arg1) {
         } else if (t == 1) {
             func_00187EC0(7, 0);
         }
-        *(short *)0x70003B86 = 0;
+        D_70003B86 = 0;
     }
 }

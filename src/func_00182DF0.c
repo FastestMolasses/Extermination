@@ -1,8 +1,8 @@
 // NEARMISS func_00182DF0  (vram 0x00182DF0, 0x1A0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.18% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two artifacts at 99.18% (233): (1) mwcc hoists the lui at,0x7000 of the post-`b` 0x70003B8F store into the branch delay slot; target leaves nop (delay-slot scheduling). (2) FP register coloring on c.eq.s zero compares (target f0,f1 vs mwcc f1,f0). Both permuter-class scheduling/coloring, not the ...
+// objdiff 99.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Only residual: the expected object renders scratchpad 0x70003B8F as literal operands (not in build.py _SPAD_SYMS) while this C uses relocated externs; linked bytes identical. objdiff 100.0% with _SPAD_SYMS += 0x70003B8F.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,16 +11,20 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// NEARMISS 99.18% (mwcc 2.3.3; 991202=81.59%). Body/structure byte-identical.
-// Two residuals, both compiler artifacts: (1) mwcc 2.3.3 hoists the
-// `lui at,0x7000` address-load of the 0x70003B8F store into the delay slot of
-// the `b` that skips out of the bone-init branch, where the target leaves a
-// nop (branch-delay-slot scheduling); (2) FP register coloring on the
-// `c.eq.s` zero compares (target c.eq.s f0,f1 vs. mwcc f1,f0). Both are
-// scheduling/coloring permutations, NOT the clean-store nop. The double
-// `if (cur < 0)` mirrors the target's two `bltz s1` emissions reaching a
-// single shared func_00174AB0 call (goto form keeps one call site).
+//
+// MATCH NOTE (m1-firstlevel-matching lane): the scratchpad globals at 0x70003B8F
+// are referenced as relocated externs (D_7000xxxx), as the original build did
+// (see tools/match/spad_symbolize.py). A literal address let mwcc CSE and
+// speculate `lui at,0x7000` into delay slots that the target leaves as nop.
+// objdiff is 100.0% once build.py _SPAD_SYMS lists these addresses (so the
+// expected object carries the same relocations); the linked bytes are identical.
+//
+// The double `if (cur < 0)` mirrors the target's two `bltz s1` emissions
+// reaching a single shared func_00174AB0 call (goto form keeps one call site).
+// The final zero tests use float truthiness (idiom-25), which gives the target's
+// c.eq.s operand order.
 
+extern signed char D_70003B8F;
 extern signed char func_001C6150(int);
 extern void bone_init_default_2(char *, short);
 extern int func_00182D40();
@@ -60,7 +64,7 @@ void func_00182DF0(char *arg0) {
         }
     }
 
-    *(signed char *)0x70003B8F = 0;
+    D_70003B8F = 0;
     *(signed char *)(arg0 + 4) = 1;
     *(signed char *)(arg0 + 6) = 0;
     if (func_00182D40(arg0) == 0) {
@@ -77,7 +81,7 @@ void func_00182DF0(char *arg0) {
         }
     }
 
-    if (*(float *)(arg0 + 0x224) != 0.0f || *(float *)(arg0 + 0x22C) != 0.0f) {
+    if (*(float *)(arg0 + 0x224) || *(float *)(arg0 + 0x22C)) {
         *(int *)(arg0 + 0x224) = 0;
         *(int *)(arg0 + 0x22C) = 0;
         *(signed char *)(arg0 + 0) = 1;

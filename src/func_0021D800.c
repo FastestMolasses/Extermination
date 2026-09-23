@@ -1,8 +1,8 @@
 // NEARMISS func_0021D800  (vram 0x0021D800, 0x3B0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.56% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation/scheduling wall: mwcc233 re-materializes 'paddub a0,s0,zero' before the func_0021D600 calls where the target keeps a0 live from the previous call (saved-reg-arg-in-jal-delay-slot class); residual branch-offset cascade from that + one more insertion in the epilogue region. Body...
+// objdiff 97.99% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// At both func_001FBD50 sound calls after func_0021D600 the target never sets a0 (original passes an unset first arg; this C passes arg0); plus a b-slot fill and one extra b. func_0017C540 arity fixed.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,12 +11,22 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
+//
+// LANE NOTE (m1-firstlevel-matching): func_0017C540 takes one argument (its
+// byte-matched definition), so the spurious `, 1` was removed (97.56% -> 97.99%).
+// At both func_001FBD50(..., 0x146/0x147, 0, 300.0f) sites after
+// func_0021D600(arg0) returns, the target never sets $a0 before the jal. The
+// original therefore passes an unset first argument (a0 is left by
+// func_0021D600). Here it is written as arg0. Declaring an uninitialized local
+// made mwcc allocate it to s0 (95.69%). The other residuals are a filled `b`
+// delay slot and an extra `b` at the end.
+
 extern int func_00122BB8(void);
 extern void func_001749A0(char *a0, int a1, int a2, float f12);
 extern int func_00175900(char *p, int a);
 extern void func_00178B90(char *p, int a);
 extern void func_00179880(char *a0, float *a1);
-extern void func_0017C540(char *p, int flags);
+extern void func_0017C540(char *p);
 extern void func_001B61C0(int a0, int a1, int a2, int a3);
 extern void func_001FBD50(char *a0, int a1, int a2, float f12);
 extern int func_0021D1A0(char *a0);
@@ -92,7 +102,7 @@ void func_0021D800(char *arg0) {
             func_00179880((char *)arg0, (float *)(arg0 + 0x2EC));
             if (func_00175900(arg0, 1) != 0) {
                 *(char *)(arg0 + 0x25C) = 0;
-                func_0017C540(arg0, 1);
+                func_0017C540(arg0);
                 return;
             }
             *(float *)(arg0 + 0x2F4) = *(float *)(arg0 + 0xB4);

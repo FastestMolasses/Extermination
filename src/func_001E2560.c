@@ -1,8 +1,8 @@
 // NEARMISS func_001E2560  (vram 0x001E2560, 0x294 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Genuine idiom-13 clean-constant-store nop wall: `*(arg0+4)=3` early-return stores materialize `li v1,3` which mwcc speculates into the guarding beqz/bnez delay slot; target leaves a real nop there. Not fixable from C (confirmed with a named-local retry, no codegen change).
+// objdiff 98.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Frame 0xA0 in target vs 0x80 here (missing/undersized stack object), two nop branch slots, one add.s and one addu operand order. func_001AFC10 arity corrected (inert).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -30,23 +30,20 @@
 // per-slot transform (func_001026A0/func_001029C0/func_00102C58/
 // func_00102918), resolves a spawn handle (func_001CCF70), and launches a
 // projectile via func_001CFA60 + func_001CFBE0(handle, 1, &D_00253670,
-// &block, 0). States 2/3 both just forward to func_001AFC10(arg0, state).
+// &block, 0). States 2/3 both just forward to func_001AFC10(arg0).
 //
-// Body/control-flow fully recovered; walled at 98.65% on the pinned
-// mwcc233 build (89.2% on 991202) by the documented clean-constant-store
-// idiom-13 nop: the two early-return `*(arg0+4) = 3;` stores in state 0
-// materialize the literal 3 via `li v1,3`, which mwcc always speculates
-// into the preceding conditional branch's delay slot (target leaves a
-// genuine nop there) -- a known GENUINE wall, not fixable from C source
-// (confirmed: forcing the constant through a named local doesn't change
-// the codegen). All other residual bytes are just the following
-// instructions' addresses shifting by the same +4/+8 from that one nop.
+// Residuals measured by the m1-firstlevel-matching lane (98.65% on mwcc233):
+// (1) the target frame is 0xA0 bytes and this C's is 0x80, so a stack object
+// is missing or undersized; (2) two conditional-branch delay slots that the
+// target leaves as nop; (3) one add.s and one addu operand order. func_001AFC10
+// takes one argument (its byte-matched definition). Removing the extra state
+// argument left the object unchanged.
 extern int func_001026A0(char *dst, int src, char *m);
 extern void func_00102918(char *dst, char *src, char *m);
 extern void func_001029C0(char *m);
 extern void func_00102C58(char *dst, char *src, char *v);
 extern int func_00122BB8(void);
-extern void func_001AFC10(char *p, int a);
+extern void func_001AFC10(char *p);
 extern int func_001B0070(void);
 extern int func_001CCF70(char *a0);
 extern void func_001CFA60(void *obj, char *src, float f12, float f13);
@@ -122,7 +119,7 @@ void func_001E2560(char *arg0) {
         break;
     case 2:
     case 3:
-        func_001AFC10(arg0, st);
+        func_001AFC10(arg0);
         break;
     }
 }
