@@ -2,7 +2,7 @@
 //
 // objdiff 55.16% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc coloring/reg-alloc wall (confirmed s84). Function fully decoded to logically-correct C (leaf, returns 0/1, manipulates D_00281AC0 packet struct from D_0027C6C0[t3->0x24*12+4]). GPR coloring diverges at the very first instruction (expected lhu v1,36/li a1,12 vs ours lhu v0,36/li a0,12) and cascades through the ...
+// eegcc coloring/reg-alloc wall (confirmed s84). Function fully decoded to logically-correct C (leaf, returns 0/1, manipulates D_00281AC0 packet struct from D_0027C6C0[t3->0x24*12+4]). GPR coloring diverges at the very first instruction (expected puts the halfword at +36 in v1 and the constant 12 in a1; ours uses v0 and a0) and cascades through the ...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

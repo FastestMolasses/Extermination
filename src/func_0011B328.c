@@ -1,4 +1,4 @@
-// lui $v0,(0x10003000>>16); addiu $v1,$zero,0x1; ori $v0,$v0,(0x10003000&0xFFFF); jr $ra; sw $v1,0x0($v0)
+// Writes 1 to the hardware register at 0x10003000.
 asm void func_0011B328(void) {
     lui $2, 0x1000
     addiu $3, $zero, 0x1

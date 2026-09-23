@@ -2,7 +2,7 @@
 //
 // objdiff 96.56% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// idiom-13 const-store delay-slot NOP x2 (else-store 0x700031D0 + flags&0x80000000 guard, target NOP vs mwcc-filled global lui) PLUS one permuter-class FP add-operand-order/register-coloring permutation in the final a0+0xB0 accumulate loop (target add.s f0,f0,f1 vs mwcc add.s f0,f1,f0; flipping ope...
+// idiom-13 const-store delay-slot NOP x2 (else-store 0x700031D0 + flags&0x80000000 guard, target NOP vs mwcc-filled global lui) PLUS one permuter-class FP add-operand-order/register-coloring permutation in the final a0+0xB0 accumulate loop (target f0 = f0 + f1 vs mwcc f0 = f1 + f0; flipping ope...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -27,10 +27,10 @@
 // middle arg — using the +4 addend would mis-match the reloc symbol; declare D_700031A0 as its own extern.
 //
 // WALL: (1) idiom-13 const-store delay-slot NOP x2 — same shape as func_0019B2C0 (the else-store at
-// 0x700031D0 and the flags&0x80000000 guard; target NOP vs mwcc-filled global `lui at`). (2) In the final
+// 0x700031D0 and the flags&0x80000000 guard; target NOP vs mwcc-filled global address high-half load). (2) In the final
 // `a0+0xB0 += D_70003190[12+i]` loop the target colors D into $f1, the field into $f0, and emits
-// `add.s f0,f0,f1` (field+D); mwcc reaches the matching load coloring with `p[12] + f` but then emits the
-// commuted `add.s f0,f1,f0`. Forcing the other operand order flips the load coloring instead. Permuter-class
+// f0 = f0 + f1 (field+D); mwcc reaches the matching load coloring with `p[12] + f` but then emits the
+// commuted f0 = f1 + f0. Forcing the other operand order flips the load coloring instead. Permuter-class
 // FP-coloring/operand-order permutation; body and addressing are otherwise byte-identical.
 extern void func_001028D0(void *a, void *b, void *c);
 extern void func_00102760(void *a, void *b);

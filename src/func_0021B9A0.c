@@ -2,7 +2,7 @@
 //
 // objdiff 88.61% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// NOT a jr-table wall — the dispatch and all six case bodies match. Single residual class: CodeWarrior same-TU INTERPROCEDURAL REGISTER-USAGE analysis. The target keeps `mode` in caller-saved $a2 (`paddub $a2,$a0,$zero`) live across `jal func_0021B920`, with a 0x10 frame saving only $ra (`sq $ra,0(...
+// NOT a jr-table wall — the dispatch and all six case bodies match. Single residual class: CodeWarrior same-TU INTERPROCEDURAL REGISTER-USAGE analysis. The target keeps `mode` in caller-saved $a2 (a copy of a0) live across the call to func_0021B920, with a 0x10 frame saving only $ra (a quadword save at 0(...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

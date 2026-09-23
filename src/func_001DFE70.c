@@ -11,9 +11,10 @@
 // mwcc 2.3.3 byte-matches; the pinned 991202 build caps at 77.2%. KEY: the two
 // constant copies must be STRUCT assignments (a named 4-int struct type), not
 // u128/value loads -- the struct copy makes mwcc materialize the source address
-// (lui/addiu + lq 0(reg)) and the dest stack address (addiu sp,0x40) as
+// (a %hi/%lo pair, then a quadword load through it) and the dest stack
+// address (sp + 0x40) as
 // separate pointers, exactly matching CW. A plain u128 assignment folds to
-// lui+lq %lo() and mis-schedules. Local declaration order col,buf0,buf1 pins
+// a quadword load straight off the %lo half and mis-schedules. Local declaration order col,buf0,buf1 pins
 // the stack offsets (col@0x30, buf0@0x40, buf1@0x50). Verified objdiff 100.0%.
 typedef struct { int a, b, c, d; } Vec4;
 extern int float_to_int(float);

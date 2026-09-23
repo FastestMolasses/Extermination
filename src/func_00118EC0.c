@@ -2,7 +2,7 @@
 //
 // objdiff 82.71% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// eegcc GPR-coloring wall + loop-iv/address-materialisation. Both loops are structurally recovered — same rotated do-while shapes, same `bnel` back-edge fills, same annulled `bnel v0,s8` skip, same store set, correct sizes (440 vs 448, 2 insns). Residuals: (a) loop 1 outer/inner counters are colour...
+// eegcc GPR-coloring wall + loop-iv/address-materialisation. Both loops are structurally recovered — same rotated do-while shapes, same `bnel` back-edge fills, same annulled branch-likely skip on v0 != s8, same store set, correct sizes (440 vs 448, 2 insns). Residuals: (a) loop 1 outer/inner counters are colour...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

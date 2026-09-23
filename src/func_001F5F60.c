@@ -18,7 +18,7 @@
 // 0x70003400..0x7000346C VU0 scratch quadword block, and calls func_001028B8
 // with the composed args (D_70003470, arg2, D_0026EB50, cursor-record ptr).
 // Writes a second inline matrix-ish record at s1 (header words + a 4x
-// interleaved-lq/sq copy of the 0x40-byte block at D_70003440), then a third
+// interleaved quadword load/store copy of the 0x40-byte block at D_70003440), then a third
 // type=9 (0xA0-byte) cursor record whose body is built from func_001026D0
 // twice (once against D_70003AC0, once against D_70003400) using sp50 as the
 // working matrix, followed by func_001D3990(arg3). Finally writes a fourth
@@ -31,14 +31,14 @@
 // 0x7000xxxx VU0-scratch overlay far outside gp range, so each is
 // over-declared as int[4] to force absolute lui/%hi %lo addressing at that
 // same threshold (array-over-declaration idiom). (2) The 0x40-byte block
-// copy from D_70003440 uses the interleaved-lq/sq idiom via a
+// copy from D_70003440 uses the interleaved quadword load/store idiom via a
 // `typedef int u128 __attribute__((mode(TI)))`. (3) The base pointer
 // D_00275670 is cached into a local once per call-free span (matching the
 // target's $t1 reuse across a JAL-free instruction run) rather than
 // re-dereferenced per access. (4) The delayed `sp90[3]=1.0f` word write uses
 // a `struct{float x,y,z; int w;}` local instead of `float[4]`+int-cast, per
 // the mixed-type vec4 stack buffer idiom, to reproduce the direct
-// `sw v0,0xc(sp)` instead of an extra pointer-materializing `addiu`.
+// store to sp+0xC instead of an extra pointer-materializing add.
 // Residual: pure register-coloring/scheduling permutation -- parked for the
 // permuter pass.
 

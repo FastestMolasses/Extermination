@@ -57,7 +57,7 @@ tools/bin/objdiff-cli diff -1 build/agent_<AGENT>/expected/func_XXXXXXXX.o -2 bu
    <100%, `git checkout -- src/func_XXXXXXXX.c` and move on. Breadth over grinding.
 
 ## CFLAGS / addressing
-- `&D_xxxx` extern + `-sdatathreshold 0` → `lui/addiu` reloc pair.
+- `&D_xxxx` extern + `-sdatathreshold 0` → a relocated %hi/%lo address pair.
 - `%gp_rel` globals → `extern T D_xxxx;` (or `extern T *D_xxxx;`) + `-sdatathreshold 4`.
 - Force ABSOLUTE addressing for one small global while others stay gp-rel: over-declare
   it as an array, `extern int D_xxxx[2];` (idiom #20).
@@ -70,43 +70,43 @@ alloc = declaration/first-use order. 10 reload defeats CSE. 12 mwcc emits indepe
 scalar stmts in SOURCE order (split/reorder/materialize-arg-as-stmt to steer). 15 hoist
 a global load to first statement to win a register. 16c park a constant in a dead PARAM
 var to pin its register. 18 `volatile` a function-pointer FIELD to keep a beqz nop. 19
-tail call = last statement → `j target`. 20 array over-decl forces absolute addressing.
+tail call = last statement → a plain jump to the target (no link). 20 array over-decl forces absolute addressing.
 
 ## Recently discovered levers (rounds 1-2 — try these)
 - **slti vs sltiu split**: `if (p[5] < 3)` on an unsigned-byte field yields `sltiu`;
   to get the target's SIGNED `slti`, cache into an int first: `int v=p[5]; if(v<3)`.
 - **per-access global recompute**: `*(volatile int *)0x700031F4 = x;` reproduces CW's
-  per-store `lui hi; sw lo(at)` recompute (full-constant address only — `volatile`
-  on `base+offset` FAILS, mwcc splits the offset into lui/ori).
+  per-store recompute of the address's upper half followed by a store through its low half (full-constant address only — `volatile`
+  on `base+offset` FAILS, mwcc splits the offset into an upper-half load plus an OR-immediate).
 - **return-value-before-void-call**: compute a call's result into a local BEFORE a
   following void call, so the computation emits before the call (matches CW).
-- **interleaved lq/sq copy**: assign 128-bit elements (`__attribute__((mode(TI)))`)
-  one at a time to get CW's `lq v1,X; sq v1,X` per-slot (vs mwcc's batch load/store).
+- **interleaved quadword load/store copy**: assign 128-bit elements (`__attribute__((mode(TI)))`)
+  one at a time to get CW's load-then-store per slot (vs mwcc's batch load/store).
 - **idiom 12c (const call-arg)**: `n=K; f(p,0,n);` — materialize a constant arg as its
   own statement to fix "a2-before-a1" / const-vs-forwarded call-arg ordering.
 - **sq-frame call-wrappers** (return a comparison of a callee result, e.g.
   `return f() < 0;`) match cleanly; `sd`-frame SDK functions do NOT (mwcc always
-  emits `sq $ra`) — skip those, they're a toolchain wall.
+  emits a 128-bit return-address save) — skip those, they're a toolchain wall.
 - **branch-arm store duplication**: when CW duplicates a common store block into
   BOTH if/else arms (keeping a shared const live), write the stores INSIDE each arm
   in the C source, not once after the branch.
 - **named-symbol call args**: pass a global as a named symbol (`extern T D_xxxx[];`
-  then pass `D_xxxx`/`&D_xxxx`) so the call-arg gets a `%hi/%lo` reloc (`lui;addiu`);
-  a raw `(void*)0xADDR` cast lowers to `lui;ori` and won't match. (Stores can still
+  then pass `D_xxxx`/`&D_xxxx`) so the call-arg gets a `%hi/%lo` reloc pair;
+  a raw `(void*)0xADDR` cast lowers to an upper-half load plus OR-immediate of the constant and won't match. (Stores can still
   be raw `*(volatile T*)0xADDR`; only pointer ARGS need the named symbol.)
 - **quadword-store offset folding**: `*(u128*)(base+off)=0` does NOT fold (emits
-  `addiu;sq`); use a struct member (`p->q10=0`) or array index (`((u128*)p)[1]=0`)
-  to get `sq zero,16(p)`. (`typedef int u128 __attribute__((mode(TI)));`)
-- **mixed-type vec4 stack buffer**: to get `swc1...; sw 0x3F800000` without an extra
+  an address add, then the quadword store); use a struct member (`p->q10=0`) or array index (`((u128*)p)[1]=0`)
+  to get a zero quadword store at `p+16`. (`typedef int u128 __attribute__((mode(TI)));`)
+- **mixed-type vec4 stack buffer**: to get float stores plus an int store of 0x3F800000 without an extra
   pointer reg, use `struct{float x,y,z; int w;}` not `float buf[4]`+`*(int*)&buf[3]`.
 - **large struct-member offset (>0x7FFF)**: declare the field at its exact offset in a
   struct (`struct{char _p[0xA0B8]; char *pA0B8;}`) to reproduce CW's
-  `lui at,hi; addu at,base,at; lw lo(at)` (raw `*(int*)((char*)p+0xA0B8)` gives `addiu`).
+  %hi-of-offset added to the base, then the load at the %lo offset (raw `*(int*)((char*)p+0xA0B8)` gives `addiu`).
 - **0.0% diff = addressing-mode divergence**: if objdiff reads 0.0% but the disasm
   looks structurally right, the FIRST instruction's addressing mode is wrong (gp-rel
   vs absolute) — fix `-sdatathreshold` or the array-overdecl size first.
-- **64-bit bit-packer idiom**: GS-register packers using `dsll32/dsra32` (signed) or
-  `dsll32/dsrl32` (unsigned) + `dsll`/`or` are matched by a `long long` expression
+- **64-bit bit-packer idiom**: GS-register packers using a 32-bit left shift then arithmetic right shift (signed) or
+  a 32-bit left shift then logical right shift (unsigned), plus shifts and ORs, are matched by a `long long` expression
   with EACH field cast/shifted individually: signed→`(long long)(int)f<<k`,
   unsigned→`(long long)(unsigned)f<<k`; the callee's packed param must be `long long`.
   Do NOT group: `(long long)(a|b<<16)` fails; cast per-operand.
@@ -119,23 +119,23 @@ tail call = last statement → `j target`. 20 array over-decl forces absolute ad
 ## DEEP-DIVE idioms (s82 — high value, recently cracked)
 - **Float-constant-local (CRACKS the float-operand-order wall)**: mwcc canonicalizes a
   float LITERAL to the first operand of `c.eq.s`/`add.s` (losing source order). Put the
-  constant in a `float` LOCAL: `float zero=0.0f; if (x==zero)` → `c.eq.s value,zero`
-  (matches); `x+one` with `float one=1.0f;` → `add.s value,one`. Source operand-swap of
+  constant in a `float` LOCAL: `float zero=0.0f; if (x==zero)` → the compare with the value first and zero second
+  (matches); `x+one` with `float one=1.0f;` → the add with the value first and the constant second. Source operand-swap of
   a literal does NOT work; the local does.
 - **Float-compare branch shape (controls f0/f1 + polarity)**: write the body as the
   if-TRUE arm with the condition NEGATED — `if (x!=zero || ... || (flags&bit)) { body;
-  return 1; } return 0;` — gives `c.eq.s f0,f1; bc1f→body; beqz→end`. The `&&`-early-
-  return form gives the wrong `bnez` polarity.
+  return 1; } return 0;` — gives the float equality compare with f0 as its first operand, a
+  branch-on-false into the body, then a branch-if-zero to the end. The `&&`-early-return form gives the wrong `bnez` polarity.
 - **VERIFY CALL ARITY first (diagnostic)**: a "swapped prologue saved-reg move" near-miss
   (99%+) is very often a WRONG call argument count, not a backend wall. Read the callee's
   prologue (how many of a0..a3 it consumes) and forward ALL the real params — when a
-  function saves both params and its first call forwards both, mwcc emits `paddub s1,a0`
-  before the jal and `paddub s0,a1` in the delay slot, matching CW. (Cracked func_001914A0.)
+  function saves both params and its first call forwards both, mwcc copies a0 into s1
+  before the jal and a1 into s0 in the delay slot, matching CW. (Cracked func_001914A0.)
 - **idiom-13 REFINED**: mwcc fills a conditional-branch delay slot with the first
-  SPECULATABLE (pure-ALU: lui/li/addiu/sll/addu/mtc1-feeder) instruction from EITHER
+  SPECULATABLE (pure-ALU: upper-half load, load-immediate, add-immediate, shift, add, mtc1-feeder) instruction from EITHER
   successor; loads/stores are never speculated. Matchable from C ONLY when every
   candidate first-instruction in both successors is a memory op off an ALREADY-LIVE base
-  register (no separate `lui` exposed). Globals via lui/lo are NEVER matchable (volatile
+  register (no separate `lui` exposed). Globals via %hi/%lo pairs are NEVER matchable (volatile
   doesn't help — the address `lui` hoists independently of the load). Multi-function TU
   does NOT change scheduling (per-function — falsified).
 
@@ -171,14 +171,14 @@ with objdiff-cli to pick the real best candidate to reseed.
   it, unmatchable (cure ONLY if the slot candidate is a memory LOAD: make it `volatile`).
 - **register-allocation-ORDER**: sequence matches but registers are a permutation that
   declaration-order tricks won't fix (high register pressure). Park after ~3 tries.
-- **mwcc-vs-CW branch lowering**: CW two-exit (two `jr ra`, useful delay slots); mwcc
-  merges via `b`, uses `$at` compare + `paddub` zero. No known C lever. Park.
-- **saved-reg-arg-in-jal-delay-slot**: CW puts `paddub aN,s0` (a saved-reg arg move) in
+- **mwcc-vs-CW branch lowering**: CW two-exit (two separate returns, useful delay slots); mwcc
+  merges via an unconditional branch, compares into `$at` and zeroes with a byte-add move. No known C lever. Park.
+- **saved-reg-arg-in-jal-delay-slot**: CW puts the move of a saved register into an argument register in
   a call's delay slot; mwcc hoists it out. Park.
 - **FPU div/madd latency nops** and **dead-`paddub`/`b` coalescing**: backend. Park.
 - **DENSE-SWITCH JUMP-TABLE DISPATCH (the jtbl wall — ~146 funcs, PROVEN unmatchable s84)**:
-  any function whose target `.s` does `lui %hi(jtbl_XXXX); addiu %lo; sll idx,2; addu; lw;
-  jr` (a real jr-table) is UNMATCHABLE as a C `switch`. Root cause: the original emitted ALL
+  any function whose target `.s` builds the table address from %hi/%lo of a `jtbl_` symbol, scales the
+  index by 4, adds, loads the entry and jumps through it (a real jr-table) is UNMATCHABLE as a C `switch`. Root cause: the original emitted ALL
   jump tables to a consolidated EXTERNAL rodata TU (0x0026xxxx–0x0027xxxx; `jtbl_XXXX` is an
   *undefined external* in the expected .o, defined in a splat data .s). A C `switch` makes
   mwcc emit its OWN LOCAL `@NN` table → (a) the post-RA scheduler freely reorders it (`lui`
@@ -188,7 +188,7 @@ with objdiff-cli to pick the real best candidate to reseed.
   no -O/-opt/-sdatathreshold/-model/-gpopt lever (all illegal or no effect; `-sdatathreshold 8`
   is the right default — fixes an incidental 8-byte gp-rel s64 access, NOT the wall);
   ALL section/scheduling pragmas illegal in mwcc 2.3; `#pragma schedule off` reproduces the
-  EXACT dispatch but is function-global (wrecks prologue → 68%); inline-asm `la jtbl,EXTERNAL`
+  EXACT dispatch but is function-global (wrecks prologue → 68%); inline asm that loads the external table's address
   emits the byte-exact dispatch but mwcc-2.3 asm has no C-var operands / no reg-pinning and
   dead-code-eliminates the case bodies; no computed goto (C89). Reference mwccps2 projects
   (recvx/sssv/decompedia) document NO trick and treat these as non-matches. DISPOSITION: leave
@@ -207,7 +207,8 @@ with objdiff-cli to pick the real best candidate to reseed.
   colors its dest to the EVEN reg (f0/f2) in isolation, but to the ODD companion (f1/f3 — the target's
   form) when it is the FIRST/longer-lived operand of a float binop whose 2nd operand is ALSO a
   materialized float. Idiom: chain the conversion into a binop, e.g. `float a=(float)(u8)G; a=a+a;
-  return a/256.0f;` → `cvt.s.w f1,f0; add.s f1,f1,f1; div.s f1,f1,f0`. CONSTRAINT: only ONE float
+  return a/256.0f;` → the conversion, the self-add and the divide all accumulate in the ODD f1
+  while the constant stays in f0. CONSTRAINT: only ONE float
   constant may be live at a time — two simultaneously-live consts co-hoist into f0/f1 and bump the
   accumulator back to EVEN f2 (separate the 2nd const by control flow / a call).
 - **2nd-float-arg f13 (NOT a wall — prototype hygiene)**: mwcc passes single-`float` args in
@@ -230,19 +231,20 @@ with objdiff-cli to pick the real best candidate to reseed.
 - **Float early-return-0 / two-exit epilogue (CRACKS "branch-lowering, no C lever")**: write a float
   early `return 0` as the FALL-THROUGH after a POSITIVE-condition if-block: `if (x > K) { work;
   return 1; } return 0;` (negate the test into the if-TRUE arm). mwcc then places the return-0
-  `paddub v0,zero,zero` directly in the `bc1t` delay slot, landing on the shared `lq ra` epilogue —
+  zeroing of v0 directly in the `bc1t` delay slot, landing on the shared epilogue —
   the target form. The `if (x <= K) return 0;` form instead gives `bc1f` + an extra `b` + shared
   paddub (the near-miss). Duplicate `return 0` at EACH nesting level to reproduce CW's two-exit /
-  duplicated-`lq ra` epilogue. (Float-domain analog of the int work-as-if-TRUE-arm idiom.)
+  duplicated return-address-restore epilogue. (Float-domain analog of the int work-as-if-TRUE-arm idiom.)
 - **idiom-13 nop, RMW subset**: the conditional-branch delay-slot NOP is reproducible at zero regalloc
   cost ONLY when the success block's first instr is non-speculatable. A read-modify-write field write
-  (`p->f |= 1` → `lb; ori; sb`) leads with a `lb`, giving `bc1f; nop; lb; ori; sb`. So this matches
+  (`p->f |= 1` → load byte, OR, store byte) leads with the byte load, so the branch keeps its NOP slot and the RMW follows. So this matches
   ONLY when the target's success block is genuinely RMW. For a CLEAN constant store (`p->f = 1` →
-  `li; sb`) mwcc always fills the slot with the `li` — GENUINE WALL (the `int one=1;` hoist makes the
+  load-immediate, then the byte store) mwcc always fills the slot with the load-immediate — GENUINE WALL (the `int one=1;` hoist makes the
   nop but burns a saved reg + grows the frame; only use it if the target pays that same cost).
 - **$at-vs-GPR compare, stored-boolean subset**: mwcc keeps a branch-feeding compare in a NAMED GPR
-  (`slti vN,..; bnez vN`) only when the boolean is ALSO stored to memory: `c = v < N; p->flag = c;
-  if (c) {...}` → `slti v1,v1,N; bnez v1; sw v1,...(delay)`. For a PURE branch (boolean never stored)
+  (set-less-than into vN, then branch on vN) only when the boolean is ALSO stored to memory:
+  `c = v < N; p->flag = c; if (c) {...}` → the compare lands in v1, the branch tests v1, and the
+  store of v1 fills the delay slot. For a PURE branch (boolean never stored)
   there is NO lever — mwcc always uses $at. Secondary: cache an unsigned-byte field into an int
   before comparing (`int v=(u8)x; if (v < K)`) to flip mwcc's `sltiu` to the target's signed `slti`.
 
@@ -251,7 +253,7 @@ with objdiff-cli to pick the real best candidate to reseed.
   (`u8 *q = &p->f6; ... *q = *q+1;`) makes mwcc hoist `&p->f6` into a saved reg + keep the base
   separately = extra saved reg + bigger frame (the wall). CURE: access `p->field` DIRECTLY (member/
   index off the single base pointer) in every read AND write — mwcc copies the BASE into the saved
-  reg (`paddub sN,base,zero`) and recomputes `off(sN)` inline (target form, smaller frame). An INT
+  reg (a byte-add-with-zero register move) and recomputes each field offset from that saved reg inline (target form, smaller frame). An INT
   value-local (`int s=p->st; ...; p->st=s+1;`) is SAFE (does not hoist) — only a pointer alias does.
 - **jal-delay-slot saved-reg copy (cracks "saved-reg-arg-in-jal-delay-slot")**: mwcc fills a call's
   delay slot with the LAST callee-saved param copy when (a) 2+ params live across the call, (b) the
@@ -260,18 +262,18 @@ with objdiff-cli to pick the real best candidate to reseed.
   NUMBER = first-use-after-call order; before-jal copy order is locked ascending-source-param (a
   residual if the target's order differs, e.g. func_001B1020 a3-then-a0).
 - **Address-escaped loop counter (cracks counter inc/store/reload/compare scheduling)**: when the
-  target reloads the counter from the stack each iter (`lw;addiu;sw;lw;slti;bnez`), make the counter
+  target reloads the counter from the stack each iter (load, increment, store, reload, compare, branch), make the counter
   memory-pinned by letting its ADDRESS ESCAPE once (`int i; h(&i);`). Use `do{ body; i++; }while(i<K);`
-  (matches a fall-through init `sw zero,off(sp)`; a for/while top-test instead emits a leading `b`).
+  (matches a fall-through zero-store init of the stack slot; a for/while top-test instead emits a leading `b`).
   A trailing body pointer-advance (`p+=K;`) lands in the bnez DELAY SLOT. `i<K` signed -> slti, unsigned
   -> sltiu. NON-lever: a struct-FIELD counter with a NOP branch slot (func_0014BB10) is idiom-13 — park.
 
 ## FP-LOAD-COLORING IDIOM (s83 RE round 4) — operand position
 - **FP odd-companion coloring on a plain lwc1 LOAD = OPERAND POSITION** (generalizes idiom-1 beyond
-  cvt.s.w producers). The LEFT (first) operand of a single-precision binop (sub.s/add.s/mul.s) whose
+  cvt.s.w producers). The LEFT (first) operand of a single-precision binop (subtract, add or multiply) whose
   result targets f12 colors to the ODD companion f1 (f3 for a nested pair); the RIGHT operand -> EVEN
-  f0. So to match `lwc1 f1,off(p); lwc1 f0,off(q); sub.s f12,f1,f0`, put the value that must land in
-  f1 on the LEFT of the binop: `fabsf(p->field - q->field)`. No materialized const / 2nd-float needed.
+  f0. So to match a target that loads p's field into f1, q's field into f0 and computes f12 = f1 - f0,
+  put the value that must land in f1 on the LEFT of the binop: `fabsf(p->field - q->field)`. No materialized const / 2nd-float needed.
   Holds even when the loaded value is the syntactic right operand (rule is positional in the EMITTED
   binop). The li-hoist-above-store wall (func_00179680/001CB950) is CONFIRMED GENUINE — mwcc can't
   hoist a `li` past an unrelated store while keeping it in the same caller-saved reg (mutually
@@ -279,15 +281,15 @@ with objdiff-cli to pick the real best candidate to reseed.
 
 ## MWCC POST-RA SCHEDULER MODEL + idioms 12-18 (s83 RE — comprehensive)
 ### Conditional-branch delay-slot fill (refines/partly de-walls idiom-13)
-mwcc fills a cond-branch (beq/bne/beqz/bnez/bc1f/bc1t/blez/bgtz) delay slot with the FIRST
+mwcc fills a cond-branch (any of the equal, not-equal, zero, nonzero, FP-condition, <= 0 or > 0 forms) delay slot with the FIRST
 EMITTED instr of a successor IFF it is a speculatable pure-ALU/immediate op (li, lui, addiu,
-addu/subu, sll/sra/srl, mtc1-feeder, global/float-const address lui). LOADS (lw/lb/lwc1),
-STORES (sw/sb/sh/swc1, incl `sw zero`), and CALLS (jal) are NEVER speculated -> slot stays NOP.
+addu/subu, sll/sra/srl, mtc1-feeder, global/float-const address lui). LOADS (word, byte or FPU loads),
+STORES (word, byte, halfword or FPU stores, including a store of the zero register), and CALLS (jal) are NEVER speculated -> slot stays NOP.
 The decider is the FIRST EMITTED instr (after value materialization), not the C source order.
 - **idiom-14 (store-of-LIVE-value = nop, the big de-wall)**: a clean store whose VALUE is already
   live needs no materializer, so the STORE is emitted first -> NOP at zero cost. `p->f = 0`,
-  `p->f = <live param/saved reg>`, or `p->f = <precomputed local>` all give `beqz; nop; sw...`.
-  Only a store whose value must be MATERIALIZED (`p->f = 3` -> `li;sb`) lets the `li` fill the slot
+  `p->f = <live param/saved reg>`, or `p->f = <precomputed local>` all give the branch, an empty NOP slot, then the store.
+  Only a store whose value must be MATERIALIZED (`p->f = 3` -> load-immediate, then the byte store) lets the load-immediate fill the slot
   = GENUINE wall. Also: if the success block genuinely begins with a load/store/call, write THAT
   memory op as the FIRST if-body statement -> nop (multi-stmt blocks fine; const stores emit after).
 - Unconditional `b`/`j` ASYMMETRY: a `b`/`j` slot CAN take a STORE (and arg addiu). So a store in a
@@ -296,7 +298,7 @@ The decider is the FIRST EMITTED instr (after value materialization), not the C 
   branch-target alignment nop (that CW-only nop = genuine wall). The filler may come from either
   successor (whichever leads with a speculatable op); branch polarity is irrelevant.
 - GENUINE (no lever): clean-CONSTANT-store idiom-13 (materialized value, no leading mem op);
-  global-store-first still fills via its `lui at,hi`.
+  global-store-first still fills via its %hi load.
 
 ### List-scheduling / instruction order
 - **idiom-15 (reload-vs-CSE across a call)**: a call is an aliasing barrier — a field read placed
@@ -305,33 +307,33 @@ The decider is the FIRST EMITTED instr (after value materialization), not the C 
   the field into a surviving local BEFORE the call (mwcc loads the value into a saved reg, keeps it).
 - **idiom-16 (const-in-delay-slot)**: write a const store / const call-arg as the LAST statement
   before a call -> mwcc sinks the store/li into the j/jal delay slot and hoists the value
-  materialization (li / lui / lui+ori, width-independent) to the earliest free slot. The address
-  half of a global store (`lui at,%hi`) is formed per-store, not hoisted. For multi-const call args,
-  the LAST arg's li/addiu fills the jal slot; earlier ones materialize before in arg order.
+  materialization (load-immediate, upper-half load, or upper-half load plus OR-immediate, width-independent) to the earliest free slot. The address
+  half of a global store (its %hi) is formed per-store, not hoisted. For multi-const call args,
+  the LAST arg's load-immediate or add-immediate fills the jal slot; earlier ones materialize before in arg order.
 - **idiom-17 (paddub timing)**: with >=2 params live across a call, exactly ONE saved-reg param copy
-  (`paddub sX,aY`) fills the following branch/jal delay slot, the rest hoist before it; saved-reg
+  (argument register into saved register) fills the following branch/jal delay slot, the rest hoist before it; saved-reg
   NUMBER follows first-use-after-call order. A single param forwarded as a tail-call arg needs no paddub.
-- **idiom-18 (s64-param direct store)**: declare a 64-bit-stored param `long long` to get `sd sN,off`
-  with no `dsll32/dsra32` sign-extension (an `int` widened to 64 adds the spurious extend).
+- **idiom-18 (s64-param direct store)**: declare a 64-bit-stored param `long long` to get a direct 64-bit store of the
+  saved register with no 32-bit shift-pair sign-extension (an `int` widened to 64 adds the spurious extend).
 - **idiom-19 (inverse-CSE / anti-frame-growth)**: when the TARGET recomputes a repeated subexpression
-  at each use (e.g. two identical `subu s0,s6,s3` emissions) but mwcc CSEs it into a callee-saved reg —
+  at each use (e.g. two identical `s6 - s3` subtractions) but mwcc CSEs it into a callee-saved reg —
   adding a save and GROWING the frame (the classic `0x90 -> 0xa0` tell) — do NOT share a temp: INLINE
   the expression literally at every use site, including inside the branch CONDITION that guards it.
   mwcc then recomputes it per-path, matching the target's separate emissions and keeping the frame
   small. Pairs with the no-prototype call trick (`int f();`) when the arms pass a varying arg count /
   carry a leftover param. (Cracked func_00203F40 s84: inlined `(a1-t1)` into its `if` condition + both
   use sites; was 99.87% with the shared temp, 100.0 inlined.)
-- **idiom-20 (BRANCH-LIKELY dispatch — mwcc DOES emit beql/bnel/beqzl; NOT a wall)**: the s84
+- **idiom-20 (BRANCH-LIKELY dispatch — mwcc DOES emit the equal, not-equal and equal-zero likely forms; NOT a wall)**: the s84
   "mwcc cannot generate branch-likely from C" parks were WRONG — 73 matched mwcc funcs contain
-  branch-likely (e.g. src/func_0014E4F0.c switch-dispatch `beql a3,zero`+`addiu v0,a3,1`;
-  src/func_00154F00.c loop `beql v0,zero`+counter `addiu s1,s1,1`; src/func_001AF7C0.c early-return
-  `if(g>0){...}return 0;` -> `blezl`+`paddub v0,zero,zero`). mwcc emits a LIKELY branch (nullifies its
+  branch-likely (e.g. src/func_0014E4F0.c switch dispatch whose likely slot computes `st + 1`;
+  src/func_00154F00.c loop whose likely slot increments the counter; src/func_001AF7C0.c early-return
+  `if(g>0){...}return 0;` -> a likely branch-if-<=0 whose slot zeroes the return value). mwcc emits a LIKELY branch (nullifies its
   delay slot when NOT taken) whenever it can fill that slot with a SPECULATABLE pure-ALU op from the
   TAKEN (branch-target) path. The C must make that op the FIRST emitted op of the taken path:
   - SWITCH state-machine: `switch(st)` on a LOCAL `st = *(unsigned char*)(e+6)`; case labels ASCENDING
     0,1,2,… (mwcc reverses to descending compare chain 2,1,0 = CW). Write the state advance as
     `*(unsigned char*)(e+6) = st + 1;` USING THE SWITCH LOCAL `st` (NOT `(*(e+6))++`, NOT
-    `*(e+6)=*(e+6)+1` which RELOADS) -> mwcc drops `addiu v0,st,1` into the dispatch branch slot via
+    `*(e+6)=*(e+6)+1` which RELOADS) -> mwcc drops the `st + 1` into the dispatch branch slot via
     beql/beqzl. Keep `st` live. (Verified synthetically + on matched siblings.)
   - EARLY-RETURN GUARD: `if(cond){body} return X;` with X simple -> `<inv-cond>l epilogue` + X-setup slot.
   - LOOP counter: the `i++` fills the loop-test likely-branch slot.
@@ -339,8 +341,8 @@ The decider is the FIRST EMITTED instr (after value materialization), not the C 
     plain beq/bne (+nop)", read the target .s to see which op sits in the likely slot, then make THAT op
     the natural first statement of the taken path. DEFAULT: branch-likely IS matchable — don't park it.
 - **idiom-21 (FLOAT COMPOUND-ASSIGN picks the add.s operand order)**: `x = x + y` makes mwcc load the
-  LHS first into `$f2` and emit `add.s $f0,$f2,$f0`; `x += y` makes it load the RHS first into `$f1`
-  and emit `add.s $f0,$f0,$f1` — the CW form. Whenever the sole residual on a float accumulate is the
+  LHS first into `$f2` and add with `$f2` as the first source; `x += y` makes it load the RHS first
+  into `$f1` and add with the `$f0` accumulator first and `$f1` second — the CW form. Whenever the sole residual on a float accumulate is the
   add.s operand order (or its FP register numbering), flip the statement between the two spellings.
   (Cracked func_0016D130 s85: 9 accumulate sites converted to `+=`, 99.87% -> 100.0.) Corollary
   confirmed on the same func: mwcc lowers `switch` to a DESCENDING beq chain, so an ASCENDING
@@ -357,18 +359,18 @@ The decider is the FIRST EMITTED instr (after value materialization), not the C 
 - **idiom-23 (INLINE ZERO-TEMP — float compare against 0.0f)**: mwcc 2.3.3 chooses BOTH which FPR
   holds the loaded value vs. the zero AND which operand lands in `fs` of the `c.eq.s`, and the two
   are separately steerable. Measured on a micro-testbed at `-O4,p`:
-  - `x != 0.0f` / `0.0f != x` / `!(x == 0.0f)` / `x == 0.0f` → `mtc1 zero,$f1` ; `lwc1 $f0` ;
-    `c.eq.s $f1,$f0` (zero is `fs`).
-  - `float z; z = 0.0f; ... x != z` (zero assigned in a SEPARATE statement) → `mtc1 zero,$f0` ;
-    `lwc1 $f1` — the loaded value moves to the second FPR.
+  - `x != 0.0f` / `0.0f != x` / `!(x == 0.0f)` / `x == 0.0f` → zero is moved into `$f1`, the
+    value is loaded into `$f0`, and the compare takes `$f1` first (zero is `fs`).
+  - `float z; z = 0.0f; ... x != z` (zero assigned in a SEPARATE statement) → zero goes into `$f0`
+    and the loaded value moves to the second FPR, `$f1`.
   - `x != (z = 0.0f)` (assignment INLINE in the condition) → flips both dimensions, giving the
-    CodeWarrior form `lwc1 $f0` ; `mtc1 zero,$f1` ; `c.eq.s $f0,$f1`.
+    CodeWarrior form: load into `$f0` first, then zero into `$f1`, compare `$f0` first.
   Reach for this whenever the sole residual is an `mtc1`/`lwc1` ordering or a `c.eq.s` operand swap
   around a compare with zero. (Cracked func_0021F330 s85 — analytically, after ~thousands of
   permuter iterations had failed on the same function; the permuter cannot reach it because mwcc
   folds the temp back before scheduling.)
 - **idiom-24 (FP-ARG-ZERO-STAGING — the f13-before-f12 wall, CRACKED)**: when the target emits the
-  trailing `0.0f` argument's `mtc1 zero,$f13` BEFORE `mtc1 <r>,$f12`, stage the zero through an
+  trailing `0.0f` argument's move of zero into `$f13` BEFORE the move into `$f12`, stage the zero through an
   **int converted to float**: `int zi = 0; float z = (float)zi; f(self, clip, 5.0f, z);`
   The int→float CAST survives as a real IR node and gets scheduled ahead of the constant
   materialization; a plain `float z = 0.0f;` is const-folded straight back into the call and does
@@ -381,15 +383,15 @@ The decider is the FIRST EMITTED instr (after value materialization), not the C 
   func_00147960, func_00148520, func_00149B50, func_0014A350, func_0014D7C0, func_0017F130,
   func_001F6640 and func_0017E7C0. Try this before spending any permuter time on them.
 - **idiom-25 (FLOAT TRUTHINESS — steers c.eq.s operand order without touching FP coloring)**:
-  `if (x)` / `if (!x)` on a float lvalue emits `mtc1 zero,$f0 ; c.eq.s $f1,$f0` (the VALUE as `fs`).
+  `if (x)` / `if (!x)` on a float lvalue puts zero in `$f0` and compares `$f1` first (the VALUE as `fs`).
   Every explicit spelling — `x != 0.0f`, `0.0f != x`, `!(x == 0.0f)`, `x != 0`, `x != (float)0`, and
-  a hoisted `float fv = x; fv != 0.0f` — instead emits `c.eq.s $f0,$f1` (zero as `fs`). Note this is
+  a hoisted `float fv = x; fv != 0.0f` — instead compares `$f0` first (zero as `fs`). Note this is
   a *different* dimension from idiom-23: idiom-23's `x != (z = 0.0f)` moves the compare-operand order
   but also swaps the FPRs, trading one two-instruction diff for another; truthiness moves the operand
   order alone. (Cracked func_002236F0 s85 via a 49-cell variant sweep.)
-- **idiom-26 (COMPOUND-ASSIGN steers add.s operand order)**: `*p += -0.2f;` emits
-  `add.s $f0,$f1,$f0` (loaded value as `fs`); the expanded `*p = *p + -0.2f;` and `*p = -0.2f + *p;`
-  both emit `add.s $f0,$f0,$f1`. A `float cv = -0.2f;` temp also gives the correct order. Beware
+- **idiom-26 (COMPOUND-ASSIGN steers add.s operand order)**: `*p += -0.2f;` adds with the loaded
+  value (`$f1`) as `fs`; the expanded `*p = *p + -0.2f;` and `*p = -0.2f + *p;` both put `$f0`
+  first and `$f1` second. A `float cv = -0.2f;` temp also gives the correct order. Beware
   `*p = *p - 0.2f;` — that emits `sub.s` and is a different instruction. (Generalizes idiom-21.)
 - **idiom-27 (BREAK-NOT-RETURN — stops delay-slot speculation in switch dispatchers)**: in a switch
   state machine where the switch is the LAST thing in the function, terminate each case with
@@ -428,17 +430,17 @@ The decider is the FIRST EMITTED instr (after value materialization), not the C 
 - **idiom-12 (FP-param companion pairing = positional)**: NOT a wall. N single-`float` params live
   across a call are saved TOP-DOWN by decl order: param k (incoming f(12+k)) -> f(20 + (N-1) - k).
   N=2 -> f12:f21(odd), f13:f20(even). Just write natural code in true param order; inline `0.0f`
-  literal in a compare for `c.eq.s f0,f21` (a `float zero` local reverses it).
+  literal in a compare for compare operands f0-then-f21 (a `float zero` local reverses it).
 - **idiom-13b (dead-const re-materialization)**: when mwcc speculates a const into a cond-branch
   delay slot it ALSO re-emits it DEAD at the target label (no cross-branch CSE of the const). Force
-  it with: an if/else-if chain where every arm passes the SAME large lui+ori const to a call (dead
+  it with: an if/else-if chain where every arm passes the SAME large two-half (upper/lower immediate) const to a call (dead
   lui); or two stores of the SAME nonzero const straddling a branch whose delay slot has NO real
   store available (dead li). A store schedulable into the branch slot OUTRANKS const speculation.
 
 ### idiom-29 (strength-reduced multiply: fresh vs in-place shift destination) — s86
 - **The wall**: for the final shift of a strength-reduced multiply, the original allocates a
   **FRESH** register and adds into the other one
-  (`sll FRESH,src,k` / `sra FRESH,FRESH,15` / `addiu src,FRESH,B`), while mwcc 991202/2.3.3/2.4
+  (`FRESH = src << k; FRESH >>= 15; src = FRESH + B`), while mwcc 991202/2.3.3/2.4
   all reuse the dying source register **in place**. Found on the random-scaling idiom
   `(func_00122BB8() >> 16) * K >> 15`, which had **no matched exemplar anywhere in the corpus** —
   all seven users of it were parked as near-misses.
@@ -516,7 +518,7 @@ the linker substitutes assembly is not evidence about the candidate C.
 
 ### idiom-32 (scratchpad literals as relocated externs, per address) — 2026-09-22
 
-Many parked functions have one residual: `lui at,0x7000` sits in a delay slot
+Many parked functions have one residual: the scratchpad upper-half load (0x7000) sits in a delay slot
 that the target leaves as `nop`. This is often a conditional-branch slot or the
 unconditional `b` of a switch default or join. The source spells a scratchpad
 global as a literal, such as `*(unsigned char *)0x70003B92`. mwcc treats that
@@ -603,31 +605,31 @@ func_001A9000, func_001AA140 and func_001A9B10 (0x70003B88), func_00184BA0
 
 ### idiom-33 (switch vs if/else controls the `b` delay slot and compare order) — m2-matching
 
-- **A switch `break` leaves its `b join` slot as nop.** An if/else join lets
-  mwcc retarget the `b` past the join and copy the join's first instruction
-  into the slot. If the target has `b X; nop` where yours has
-  `b X+4; <first instr of X>`, write that tail as a `switch` (func_0018D7B0).
+- **A switch `break` leaves the delay slot of its unconditional branch to the join as nop.** An if/else join lets
+  mwcc retarget that branch past the join's first instruction and copy that instruction
+  into the slot. If the target branches to the join with a NOP slot where yours branches one
+  instruction past it with the join's first instruction in the slot, write that tail as a `switch` (func_0018D7B0).
 - **A sparse switch compares in REVERSE label order** and ends with
-  `b default; nop`. Case bodies stay in label order and fall through. Target
+  an unconditional branch to the default with a NOP slot. Case bodies stay in label order and fall through. Target
   compares 2, 1, 4 means labels are written `case 4: case 1: ... case 2:`
   (func_001AB6A0). A one-case `switch (x) { case 7: ... }` gives
-  `beq x,7 / b next` where `if (x == 7)` gives `bne` (func_001A9B10).
-- **`a == K1 || a == K2` with an if/else** lowers to `beq K1 -> THEN` and
-  `bne K2 -> ELSE`, with both slots filled from the successors. It also leaves
-  the ELSE block's first instruction as DEAD code after THEN's `b join`. If the
-  target shows `b join; nop; <instr>` and nothing reaches that instruction,
+  a branch-if-equal to the case followed by an unconditional branch past it, where `if (x == 7)` gives a single branch-if-not-equal (func_001A9B10).
+- **`a == K1 || a == K2` with an if/else** lowers to a branch-if-equal on K1 to THEN and
+  a branch-if-not-equal on K2 to ELSE, with both slots filled from the successors. It also leaves
+  the ELSE block's first instruction as DEAD code after THEN's unconditional branch to the join. If the
+  target shows that branch, an empty NOP slot, then an unreachable instruction,
   that is this shape (func_00188ED0, func_0015BCF0, func_001A8660). Adjacent
   constants (3 || 4) are merged into a range test, which the target does not
   do. Compare `(unsigned char)d` on an int `d` to keep two compares. The cast
-  also produces the target's `andi v,v,0xff` copy.
-- **Ternary min/max** `a = (a < b) ? a : b` gives `bc1fl` + likely-slot `mov.s`
-  + `b join; nop` + dead `mov.s` (func_0015BF90). `if (a >= b) a = b` gives
+  also produces the target's in-place mask-to-byte (AND with 0xff) of the value.
+- **Ternary min/max** `a = (a < b) ? a : b` gives a float-false branch-likely with a float move in its likely slot,
+  then an unconditional branch to the join with a NOP slot, then a dead float move (func_0015BF90). `if (a >= b) a = b` gives
   `bc1t`.
 
 ### idiom-34 (small levers found in the same round) — m2-matching
 
 - **`idx << 2` instead of `idx * 4`** in hand-written address arithmetic
-  reverses the `addu` operands (`addu v0,v0,base` vs `addu v0,base,v0`)
+  reverses the `addu` operands (`v0 + base` vs `base + v0`)
   (func_001E2560).
 - **Read a global before an unrelated guard** to get its load into the guard's
   own delay slot. mwcc never speculates a load from a successor, but it moves
@@ -636,8 +638,8 @@ func_001A9000, func_001AA140 and func_001A9B10 (0x70003B88), func_00184BA0
 - **Size stack objects by what the callee writes.** A frame 0x20 smaller than
   the target is usually an undersized local. func_001E2560's projectile block
   is 0x58 bytes (func_001CFA60 writes +0x40..+0x57), not 0x40.
-- **GS register fields are 64-bit bitfields.** An unfolded `andi a2,zero,0x1FF`
-  plus `daddiu a0,zero,K` next to `lhu/and/or/sh` is
+- **GS register fields are 64-bit bitfields.** An unfolded and-immediate of zero
+  with 0x1FF plus a 64-bit constant load next to a halfword load/and/or/store is
   `unsigned long long FBP : 9` style bitfield stores (func_001AB4E0,
   DISPFB). Declare the globals `volatile` if the target keeps the load after
   the previous store.
@@ -679,18 +681,18 @@ func_001A9000, func_001AA140 and func_001A9B10 (0x70003B88), func_00184BA0
   split as `-sdatathreshold 8`. A plain scalar extern is only %hi/%lo under
   an explicit `-sdatathreshold 0`. `spad_symbolize.py --selftest` covers
   this and the lvalue cases.
-- **`paddub rd,rs,$zero` is a register move, not byte evidence.** mwcc uses
-  it for any 64-bit-clean copy or zero (`paddub v0,zero,zero` returns an int
+- **The EE byte-add with zero is a register move, not byte evidence.** mwcc uses
+  it for any 64-bit-clean copy or zero (zeroing v0 this way returns an int
   0 in func_001B6E40). func_001B0C60 and func_0018A880 match with int or
   unsigned char parameters, so the width comes from callers; theirs pass
   constants and declare int, so both files now use int.
-- **Volatile pins global store order.** mwcc moves a constant or `sw zero`
+- **Volatile pins global store order.** mwcc moves a constant or zero-register
   store past neighbouring stores to other globals. Declaring the stored
   globals `volatile` keeps source order, which was the target's order in
   func_001B0C60 (77.6 -> 100) and func_001AF5C0 (NEARMISS 81.55 -> 100; its
   "store-scheduling artifact" note was this). Try it before calling a store
   permutation a wall. It did not fix func_001FC9B0 (90.48; the residual is
-  one `lui at` placed a store early).
+  one upper-half load into `$at` placed a store early).
 - **Check the compiler before the source.** 85 ordinary-C units were
   force-listed in fill_unmatched at <100% under the default mwcc 991202.
   Recompiling their unchanged C found 29 exact matches: all 19 SDK-region
@@ -704,7 +706,7 @@ func_001A9000, func_001AA140 and func_001A9B10 (0x70003B88), func_00184BA0
   function, relink without the entry and check the ELF.
 - **An old header is not proof.** func_001FD580's NEARMISS note said the
   instruction stream was 1:1 with the target, but the C read the entry id at
-  +0. The target reads `lh 0x2` at 0x001FD654 and 0x001FD670. Diffing the
+  +0. The target reads the signed halfword at +0x2 at 0x001FD654 and 0x001FD670. Diffing the
   mnemonic sequence (73 instructions against 70) showed the "register
   colouring only" diagnosis was wrong too. It is now 100% (fix round):
   - **Rotated scan loop.** The target branches straight to the loop test and
@@ -725,7 +727,7 @@ func_001A9000, func_001AA140 and func_001A9B10 (0x70003B88), func_00184BA0
 **Mechanism.** A switch dispatcher or a function with a static const table
 carries its own `.rodata`. The original keeps those bytes in the data region
 (link units `func_00261544` and `func_00271DF8`), and the function's
-`lui/addiu` pair points there. link.py used to let `*(.rodata)` place compiled
+%hi/%lo pair points there. link.py used to let `*(.rodata)` place compiled
 tables after the whole image. That relocated the pair to the wrong address, so
 fill_unmatched's local-data guard linked every such function from its .s.
 
@@ -806,11 +808,11 @@ What worked, with the function that proved it:
   reverse also happens: func_0018A6B0 wants `a || b` where the old C had an
   else-if.
 - **int locals for re-narrowed bytes.** `unsigned char st2; band = st2 - 0x31`
-  adds an `andi 0xff` that the target lacks, so declare `int st2`
+  adds a mask-to-byte (AND with 0xff) that the target lacks, so declare `int st2`
   (func_0017ABA0).
 - **`break`, not `return`, in switch cases.** With `return;` mwcc filled the
   compare-chain `beq` slots from the fall-through and turned some into
-  `beql`. `break;` gives the target's `beq; nop` (func_00187EE0, 90.0 -> 100).
+  `beql`. `break;` gives the target's unfilled `beq` slots (func_00187EE0, 90.0 -> 100).
   It also helped func_0018A6B0 (87.2 -> 95.6 before the other fixes).
 - **Sparse switch label order (idiom-33).** func_0018A6B0's 0 -> 2
   fall-through put the labels out of order. Ascending labels plus a plain
@@ -879,12 +881,12 @@ declaration-order sweep.
   singles missed (func_0012A5D0 needed 0x700031F4 and 0x70003B8A together).
   When spad_symbolize leaves a second-type store as a literal, write it
   through the extern's own type. `D_700038A8 = 0.0f;` gives the target's
-  `lui at / sw zero`. `*(volatile int *)&D_700038A8 = 0` materializes the
-  address with lui/addiu (func_00130AB0). Under `-sdatathreshold 4` a new
+  upper-half address load into `$at` followed by a store of the zero register. `*(volatile int *)&D_700038A8 = 0` materializes the
+  full address as a %hi/%lo pair (func_00130AB0). Under `-sdatathreshold 4` a new
   scalar extern must be over-declared as an array (idiom #20), or it goes
   gp-relative.
-- **Float truthiness.** `if (x)` on a float emits `c.eq.s x, zero` (value
-  first). `x != 0.0f` and `0.0f != x` both emit `c.eq.s zero, x`
+- **Float truthiness.** `if (x)` on a float emits the equality compare with the value
+  as first operand and zero second. `x != 0.0f` and `0.0f != x` both emit it with zero first and the value second
   (func_0012A5D0).
 - **Argument evaluation order follows expression weight, and a cast counts
   as weight.** mwcc computes the heavier argument first, and the
@@ -940,7 +942,7 @@ Classes found and not cracked (the source is unchanged unless noted):
   argument. func_0018BC20's default case (the identical case 0xA matches),
   func_001916C0, func_00128C10 and bone_root_pulse show this. No cast,
   prototype, temporary, double/int literal or operand order changed it.
-- **func_001741D0.** The target leaves `beqz; nop` where mwcc 2.3.3 fills
+- **func_001741D0.** The target leaves a `beqz` NOP slot where mwcc 2.3.3 fills
   the slot from the fall-through block (5 sites). No compiler/flag
   combination reproduced it.
 - Near-misses measured but not landed: func_001AD740 99.98 (`next =
@@ -957,23 +959,23 @@ Classes found and not cracked (the source is unchanged unless noted):
 Promoted func_00158EC0, func_00183EF0 and func_001FF590 (details in
 docs/PROGRESS.md). Levers, with the function that proved each:
 - **Read the callee's arity before anything else.** func_00158EC0's last
-  residual was `li a3,1` feeding a `p[0] = 1` store. func_001C5570 takes four
+  residual was the constant 1 in a3 feeding a `p[0] = 1` store. func_001C5570 takes four
   arguments; the file declared three. Grep the corpus for other calls
   (`func_001C5570(p, D_700038A0, 0x75, 1)`).
 - **A `case K:` label on the default arm restores a dead `li`.** func_002149F0's
-  sparse switch on `rec[0x34]` had `addiu v1,zero,2` directly before the
-  default's `li 8` in the target, and a lone `nop` at a scan-loop label. Adding
+  sparse switch on `rec[0x34]` had a constant 2 loaded into v1 directly before the
+  default's constant 8 in the target, and a lone `nop` at a scan-loop label. Adding
   `case 2:` to the default arm of both switches fixed all three rows. A dead
   constant load right before a default arm is a case value with the default's
   body.
 - **Int round trip orders `addu` operands.** `q = (unsigned char *)((idx << 3)
-  + (int)base);` gave the target's `addu q, idx8, base`; pointer arithmetic in
+  + (int)base);` gave the target's `q = idx8 + base` operand order; pointer arithmetic in
   either operand order, `&base[idx * 8]`, `idx * 8` and `idx << 3` all gave
   the reverse (func_001FF590). Comment such casts as matching devices.
 - **Stage the right operand of a float subtraction first.** `dx = p[0]; dx = a
   - dx;` swapped the lwc1 colouring of `a - p[0]` (func_00183EF0, permuter).
-- **Per-site zero staging (idiom-24).** Apply it only where the target has
-  `mtc1 zero,$f13` first; staging every `anim_clip_init(e, n, 0.0f, 0.0f)` in
+- **Per-site zero staging (idiom-24).** Apply it only where the target moves
+  zero into `$f13` first; staging every `anim_clip_init(e, n, 0.0f, 0.0f)` in
   func_001429D0 made it worse, the two right sites gained 0.07%.
 - **Load order of call arguments.** Put the first argument in a block local
   declared before the second (`float tgt = d->x; cur = e->y; f(tgt, cur, ...)`)

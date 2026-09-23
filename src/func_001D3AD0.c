@@ -6,7 +6,7 @@
 // only when func_001D2910(0)==0, then an unconditional second entry
 // (ptr=a1+0x40, size=*(int*)(a1+0x4)). Match lever: the second entry's
 // size word *(int*)(a1+0x4) must be hoisted to a temp BEFORE the header
-// stores so mwcc 2.3.3 schedules the lw a3,0x4(s0) early (the pinned
+// stores so mwcc 2.3.3 schedules the +0x4 size-word load into a3 early (the pinned
 // 991202 build loses this regalloc/schedule tie-break).
 extern void vif_append_ref_tag(int a0, void *a1);
 extern int func_001D2910(int a0);

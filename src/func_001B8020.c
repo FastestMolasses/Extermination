@@ -21,7 +21,7 @@
 //
 // MATCHING NOTE (idiom-24 variant, "INLINE-ASSIGN FP ARG"): in case 4 both float
 // args are the same 0.0f. CW stages the shared zero in the SECOND arg register and
-// copies down (`mtc1 zero,$f13` ... `mov.s $f12,$f13`); every plain spelling
+// copies down (zero into $f13 ... then $f12 = $f13); every plain spelling
 // (`0.0f, 0.0f`, a `float z = 0.0f` temp, `(float)zi` int-staging) makes mwcc stage
 // into $f12 and copy up instead. Writing the assignment INLINE as the third
 // argument -- `f(..., (b4 = 0.0f), b4)` -- defers the materialization to the arg

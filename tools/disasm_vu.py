@@ -210,7 +210,8 @@ LOWER_PRIMARY = {
 # 11-bit fingerprint dict here was shifted (e.g. 0x3BC was called WAITQ
 # but is canonically DIV; 0x6FC=XGKICK was the only correct anchor).
 # Verified anchors in this binary: lower NOP 0x8000033C = T3_00[0xC] =
-# MOVE vf00,vf00 (canonical pseudo-NOP); XGKICK sub 0x6FC = T3_00[0x1B].
+# a MOVE from the constant register vf00 onto itself (canonical pseudo-NOP);
+# XGKICK sub 0x6FC = T3_00[0x1B].
 LOWER_T3 = {
     0x3c: {0x0c: 'move', 0x0d: 'lqi', 0x0e: 'div', 0x0f: 'mtir',
            0x10: 'rnext', 0x19: 'mfp', 0x1a: 'xtop', 0x1b: 'xgkick',

@@ -27,9 +27,9 @@
 // 3 -> func_001A96F0, otherwise func_001A9480.
 
 // The jump-table dispatch itself now byte-matches. The residual is idiom-13:
-// mwcc 2.3.3 speculates the scratchpad address materialiser `lui $at, 0x7000`
+// mwcc 2.3.3 speculates the scratchpad address materialiser (high half 0x7000 in $at)
 // into 4 conditional-branch delay slots where the target keeps a nop (plus one
-// coupled `lw s2, %gp_rel(D_00275B90)` reschedule). This is the documented
+// coupled reschedule of the gp-relative D_00275B90 load into s2). This is the documented
 // "global address lui hoists independently of its load" wall - volatile,
 // statement reordering and -sdatathreshold all fail to suppress it.
 

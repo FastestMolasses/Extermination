@@ -16,15 +16,15 @@
 //    variable (`s3 <<= 2; s3 >>= 15;` and `v0 *= 0x50; v0 >>= 15;`). That is
 //    what gives the shift chain a home register instead of an expression temp,
 //    reproducing the target's fresh-register colouring
-//    (`sll v1,v0,4 / sra v1,v1,15 / addiu v0,v1,0x30`).
+//    (v1 = (v0 << 4) >> 15 arithmetic, then v0 = v1 + 0x30).
 //  * The DEPLOY/RETRACT clamps store the incremented value, RELOAD it, clamp,
 //    and store again — the target really does the redundant lh. The clamp temp
 //    must be `int` (a `short` makes mwcc hoist the limit constant and
-//    dsll32/dsra32 it every iteration), `b` must be declared before `i` (that
+//    re-sign-extend it with a 64-bit shift pair every iteration), `b` must be declared before `i` (that
 //    is what puts the pointer in $v1 and the counter in $a0), and the clamp
 //    comparisons must be spelled `(t > 0x12C)` and `(0 > t)`: `(t < 0)` lets
 //    mwcc collapse the test into a real `bgez`, while the constant-on-the-left
-//    form keeps the target's `slt at,v0,zero / beqz at`.
+//    form keeps the target's (v0 < 0)-into-$at test and a branch on $at.
 //  * In case 2 the "arm the timer and advance" tail is written out in BOTH
 //    arms of the distance test; the target emits three copies of it.
 //  * The two trig products go into temps `t`/`u` and are stored only after

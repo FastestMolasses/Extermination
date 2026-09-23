@@ -9,7 +9,7 @@
 //
 // Matched with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202 build
 // (which scores 85.24%). The loop guard written as `if (0 < count)` (not
-// `count > 0`) yields the target `slt at,zero,s0; beqz at` entry test;
+// `count > 0`) yields the target's `0 < count` compare into $at + branch-on-zero entry test;
 // declaration order (count, then ptr) gives the target saved-reg mapping
 // (count->s0, ptr->s1). D_0028A5A4 is a far global (hi/lo, sdatathreshold 0).
 // Verified TRUE objdiff 100.0 byte-identical vs build/expected/func_001D5BD0.o.

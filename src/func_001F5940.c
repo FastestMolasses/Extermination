@@ -108,7 +108,7 @@ void func_001F5940(unsigned int kind, int arg, int t) {
         func_0021B9A0(3, 0.0f, 1000000.0f);
         func_001F4D40(arg, col, size, half);
         /* The shared 0.0f of the restore call is materialised into the SECOND float-arg
-           register and copied down (mtc1 zero,$f13 / mov.s $f12,$f13).  Spelling arg2 as
+           register and copied down (zero moved into $f13, then copied to $f12).  Spelling arg2 as
            an assignment to the variable that also supplies arg3 is what makes CW bind the
            constant to $f13 first; a plain `func_0021B9A0(1, 0.0f, 0.0f)` binds it to $f12
            and copies up.  Value is 0.0f either way. */

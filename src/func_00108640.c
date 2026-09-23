@@ -1,5 +1,5 @@
-// ld $v0,0($a0); li $v1,64; subu $v1,$v1,$a1; dsrlv $v0,$v0,$v1;
-// dsll32 $v0,$v0,0; jr $ra; dsra32 $v0,$v0,0
+// func_00108640: returns the top a1 bits of the 64-bit value at *a0 (logical
+// shift right by 64 - a1), sign-extended from its low 32 bits.
 asm long long func_00108640(long long *a0, int a1) {
     ld $2, 0x0($4)
     addiu $3, $zero, 0x40

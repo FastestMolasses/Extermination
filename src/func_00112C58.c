@@ -2,7 +2,7 @@
 //
 // objdiff 96.67% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Exact twin of func_00112AD0 (only constants differ: func_00111F18(0xC), D_00241D48=7, func_0010E8A8 a1=8). Same eegcc volatile-vs-delay-slot deadlock, same single-instruction residual: fall-through `lw $a0,%lo(D_00241D08)($v0)` does not enter the `jal CreateSema` delay slot, giving `lw; jal; nop`...
+// Exact twin of func_00112AD0 (only constants differ: func_00111F18(0xC), D_00241D48=7, func_0010E8A8 a1=8). Same eegcc volatile-vs-delay-slot deadlock, same single-instruction residual: the fall-through load of D_00241D08 into a0 does not enter the CreateSema call's delay slot, giving load, call, empty slot...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

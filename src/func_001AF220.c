@@ -2,7 +2,7 @@
 //
 // objdiff 76.87% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// constant-propagation era difference: target reloads (lbu) D_00810700/D_00810701 before the indexed sb into D_00810730; both 991202 and 233 const-fold the just-stored values into a single `sb zero, D_00810730+0xb`. Not fixable by 2.3.3 (both modern builds fold).
+// constant-propagation era difference: target reloads (lbu) D_00810700/D_00810701 before the indexed sb into D_00810730; both 991202 and 233 const-fold the just-stored values into a single zero byte store to D_00810730+0xb. Not fixable by 2.3.3 (both modern builds fold).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -21,11 +21,11 @@
 // len). The two 0x70000640 args differ only in which base reg holds them.
 //
 // WALL: a compiler-era constant-propagation difference, NOT fixable by 2.3.3.
-// The target reloads the just-stored bytes (`lbu D_00810700` for the index and
-// `lbu D_00810701` for the value) before the indexed `sb` into D_00810730 --
+// The target reloads the just-stored bytes (byte reloads of D_00810700 for the index and
+// D_00810701 for the value) before the indexed byte store into D_00810730 --
 // the original 2.3.1 does not propagate the stored constants across the
 // statements. Both 991202 and 233 const-fold them, emitting a single
-// `sb zero, D_00810730+0xb`. Tried plain &-symbol and `[]`-array forms: both
+// zero byte store to D_00810730+0xb. Tried plain &-symbol and `[]`-array forms: both
 // fold identically. Const-prop-era wall.
 extern void block_copy(unsigned char *dst, unsigned char *src, int len);
 extern void func_001AF2C0(void);

@@ -20,13 +20,14 @@
 //
 // Matching keys: (1) the state-2 sub-state test must be a `switch (st2)` with
 // ascending `case 0` / `case 1` - mwcc then emits the target's descending
-// `beql st2,1` (with func_001D2830's literal-2 first argument reused from the
-// outer switch in the delay slot) followed by `beqz st2` + explicit `b` to the
+// branch-likely on st2 == 1 (with func_001D2830's literal-2 first argument reused
+// from the outer switch in the delay slot) followed by a branch on st2 == 0 + an
+// explicit unconditional branch to the
 // state-2 exit. Written as `if (st2 != 1) { if (st2 != 0) break; ... }` mwcc
 // collapses the double negative into one `bnez` and loses two instructions.
 // (2) the three decays must be compound assignments (`*= 0.9f`), which puts
-// the loaded field first: `mul.s $f0,$f0,$f1`. Spelled `x = x * 0.9f` mwcc
-// emits `mul.s $f0,$f1,$f0`.
+// the loaded field first in the multiply (field * 0.9f). Spelled `x = x * 0.9f`
+// mwcc emits the operands commuted (0.9f * field).
 // (3) mwcc 2.3.3 is required: the pinned 991202 build caps at 83.66% and
 // 2.4.1 at 99.03%.
 extern void func_001D2830(int group, int enable);

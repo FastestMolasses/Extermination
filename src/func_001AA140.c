@@ -19,8 +19,8 @@
 // `// SPAD: 0x70003B88`. The inner counter 0x70003B86 is VOLATILE (reloaded at
 // each access, as the target does) and the outer 0x70003B88 is not (the
 // target seeds the inner counter from the value its loop test loaded). The
-// `>= 2` guard is written `> 1` (idiom-28: slti into $at). The literal
-// spelling let mwcc speculate `lui at,0x7000` into two bnez slots.
+// `>= 2` guard is written `> 1` (idiom-28: a signed less-than-immediate compare into $at). The literal
+// spelling let mwcc speculate the scratchpad-base lui (0x7000) into two bnez slots.
 extern void func_001AA000(char *a, char *b, char *c, char *d);
 extern char **D_00275B90;
 extern short D_00275B98;

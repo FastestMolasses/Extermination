@@ -23,8 +23,8 @@ extern Vec4 *func_001CD370(int variant);      /* ctx + 0x2240 + variant*0x40 */
 extern int   float_to_int(float v);
 
 /* COP2 primitives; see src/func_001D72D0.c. */
-extern void vu0_load_fog_quad(const void *quad);              /* lqc2 vf23 */
-extern int  vu0_clip_flags(const Vec4 *matClip, const Vec4 *p); /* vclipw + cfc2 */
+extern void vu0_load_fog_quad(const void *quad);              /* loads the fog quad into a VU0 register */
+extern int  vu0_clip_flags(const Vec4 *matClip, const Vec4 *p); /* VU0 clip test + clip-flag read */
 extern void vu0_project(const Vec4 *matK, const Vec4 *p,
                         Vec4 *clip_out, IVec4 *screen_12_4);
 

@@ -18,8 +18,8 @@
 // 92.3%. Keys: (1) -sdatathreshold 4 makes the int global D_00275C58 gp-relative
 // while the 16-bit flag words D_00810E74/E78 are declared as arrays (>4 bytes) so
 // they stay absolute; (2) the arg0[arg0[0xA]+0x6C] address is built as an int
-// (byteval + (int)arg0) so mwcc emits `addu v1,v1,s0` in the target's operand
-// order rather than `addu v1,s0,v1`.
+// (byteval + (int)arg0) so mwcc emits the add as value + base (the target's
+// operand order) rather than base + value.
 extern void func_001FCBD0(int, int, int, int, int);
 extern void func_001FE8D0(void);
 extern int func_001FE9A0(int, void *, void *);

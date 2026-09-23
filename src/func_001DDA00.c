@@ -8,11 +8,11 @@
 //   - if func_0015D2F0() == 2 (state 2) AND byte D_008106C6 == 2 AND
 //     func_001D2910(6) is nonzero, run func_001DDB70().
 //   - if func_001D2910(7) is nonzero, run func_001DFF70().
-// Returns void; sq/lq $ra frame (0x10).
+// Returns void; 0x10 frame with ra saved and restored as a 128-bit quadword.
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906): the pinned 991202 build lowers the
 // nested state-2 guard with a merged-tail / inverted branch sense (it reorders the
-// jal func_001D2910(6) and its addiu a0,0x6 across the bne), leaving a
+// func_001D2910(6) call and its argument setup across the bne), leaving a
 // branch-lowering residual (89.7%). 2.3.3 matches the target's two-exit shape
 // byte-identical. D_00275670 is gp-rel (-sdatathreshold 4); D_008106C6 is forced
 // absolute by the [8]-array over-declaration (idiom #20). Verified objdiff 100.0%.

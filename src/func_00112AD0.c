@@ -2,7 +2,7 @@
 //
 // objdiff 96.67% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// eegcc volatile-vs-delay-slot deadlock (NOT the branch-likely wall — that diagnosis is disproven). bgezl IS now emitted correctly. Residual = exactly 1 instruction: the fall-through's `lw $a0,%lo(D_00241D08)($v0)` must occupy the `jal CreateSema` delay slot (expected 0x8C/0x90), but ours emits `lw...
+// eegcc volatile-vs-delay-slot deadlock (NOT the branch-likely wall — that diagnosis is disproven). bgezl IS now emitted correctly. Residual = exactly 1 instruction: the fall-through's load of D_00241D08 into $a0 must occupy the delay slot of the CreateSema call (expected 0x8C/0x90), but ours emits the load...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

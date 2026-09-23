@@ -2,7 +2,7 @@
 //
 // objdiff 86.64% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Single jump table, and the jtbl_0026EBF0 dispatch IS byte-identical (reloc clean) — the residual is all body scheduling/regalloc, ~45 instructions of ~350, in five clusters. (a) 20-byte struct copy of D_00264890 into the stack local: CW ends it with `lw v0,0x10(v0); sw v0,0x10(a0)`, mwcc with `lw...
+// Single jump table, and the jtbl_0026EBF0 dispatch IS byte-identical (reloc clean) — the residual is all body scheduling/regalloc, ~45 instructions of ~350, in five clusters. (a) 20-byte struct copy of D_00264890 into the stack local: CW ends it with the +0x10 word copied through v0, mwcc with...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -55,7 +55,7 @@
 //   NOTE: the array over-declarations (D_00282150[8], D_00282190[2], ...) are
 //   idiom #20 MATCHING DEVICES: with -sdatathreshold 4 they push these globals
 //   past the small-data threshold so they keep the original's absolute
-//   lui/%lo addressing while D_00275B18/D_00275B1C stay %gp_rel. Only element
+//   %hi/%lo addressing while D_00275B18/D_00275B1C stay gp-relative. Only element
 //   [0] is ever touched; the declared sizes carry no semantics. The `volatile`
 //   reads are likewise matching devices (they reproduce CW's re-loads).
 

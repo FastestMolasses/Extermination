@@ -17,9 +17,9 @@
 // form `&D_00275670[arg0]` makes mwcc load the gp-rel base pointer BEFORE
 // computing arg0*4 (CW's operand-evaluation order) — the `(char*)D_00275670 +
 // arg0*4` form evaluates the shift first and diverges; (2) the explicit
-// `ret = t1 + 0x10` local reproduces CW's early `addiu v0, t1, 0x10`
+// `ret = t1 + 0x10` local reproduces CW's early v0 = t1 + 0x10
 // materialization of the return value. The four 0x40-byte payload slots use a
-// 128-bit type to emit the interleaved lq/sq block. Verified objdiff 100% vs
+// 128-bit type to emit the interleaved quadword load/store block. Verified objdiff 100% vs
 // build/expected/func_001DA1E0.o (991202 = 65.88%).
 typedef unsigned __int128 u128;
 extern char **D_00275670;

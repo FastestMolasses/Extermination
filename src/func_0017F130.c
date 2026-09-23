@@ -5,10 +5,11 @@
 // then calls func_0017E6E0 with (19.0f, 1.0f). Returns 1 when the probe reports
 // non-zero, 0 otherwise (and 0 for every other mode).
 // The `int oi = 1; float one = (float)oi;` staging is load-bearing: the int->float
-// cast survives as an IR node and makes mwcc emit `mtc1 v0,$f13` BEFORE
-// `mtc1 zero,$f12` (the inverse of idiom-24). The `else if` with a single trailing
+// cast survives as an IR node and makes mwcc emit the v0 move into $f13 BEFORE
+// the zero move into $f12 (the inverse of idiom-24). The `else if` with a single trailing
 // `return 0` (no `return 0` inside the mode-4 arm) is what keeps the mode-4 result
-// as CW's beqz/b/li branch pair instead of collapsing it to a movz/movn select.
+// as CW's branch pair (zero-test branch, unconditional branch, constant load)
+// instead of collapsing it to a conditional-move select.
 extern unsigned char D_00810700;
 extern int func_0017E6E0(float yaw, float range);
 

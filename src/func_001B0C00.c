@@ -2,7 +2,7 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 // Multi-call non-leaf: func_001AEDE0(p, 0) then 3x func_001FAD70(i, p, 1).
 // First callee must be declared with 2 args (not 3) or mwcc hoists the
-// shared `li a2,1` constant before the first call, breaking the match.
+// shared a2 = 1 constant before the first call, breaking the match.
 extern void func_001AEDE0(int, int);
 extern void func_001FAD70(int, int, int);
 

@@ -20,8 +20,8 @@
 // residuals were two source facts:
 //  (1) The request byte 0x70003B93 is a relocated scratchpad extern
 //      (idiom-32), opted in per file by `// SPAD: 0x70003B93`. As a literal,
-//      mwcc speculated its `lui at,0x7000` into the D_008106B8 branch slot, and
-//      the redundant-looking `andi v1,v1,0xff` did not appear.
+//      mwcc speculated its scratchpad-base lui (0x7000) into the D_008106B8
+//      branch slot, and the redundant-looking 0xFF mask of v1 did not appear.
 //  (2) B5/B7 are read once into locals, and func_001FBC50 is called with them
 //      as `unsigned char` arguments. The target keeps both bytes in $a1/$a0
 //      from their first load to the call. The callee's byte-matched definition

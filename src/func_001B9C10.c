@@ -23,7 +23,7 @@
 //   emitted relocations match the target's.
 //   The `(char *)(op * 4) + (int)ptr` spelling is deliberate: it is byte-offset
 //   arithmetic with the scaled index as the ADDU's first operand, which is the
-//   operand order the target emits (`addu v0, v1, a2`). Writing it as
+//   operand order the target emits (scaled index first, pointer second). Writing it as
 //   `ptr + op * 4` makes mwcc canonicalize the pointer into the first operand.
 
 extern float D_00810354[];

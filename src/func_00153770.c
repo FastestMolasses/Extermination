@@ -2,7 +2,7 @@
 //
 // objdiff 87.10% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// scheduling + block-ordering near-miss (87.1% mwcc233): target schedules `subu t34-step` into the branch delay slot so the timer compare emits `slt $at` (mwcc emits `slt v0`); target orders the block_22 reset block before the flag-class else-chain, mwcc reverses. Not the clean-store nop -> permuter.
+// scheduling + block-ordering near-miss (87.1% mwcc233): target schedules the t34-step subtraction into the branch delay slot so the timer compare lands in $at (mwcc computes it in v0); target orders the block_22 reset block before the flag-class else-chain, mwcc reverses. Not the clean-store nop -> permuter.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -26,10 +26,10 @@
 // arg0[0]=1, clear flags, return 0.
 //
 // Body + logic fully recovered; the residual is CW-vs-mwcc instruction
-// scheduling/layout, NOT the clean-store nop: (1) the timer compare emits `slt
-// at,...; bnez at` in the target (CW schedules `subu v1,s0` = t34-step into the
-// branch delay slot, freeing v0 so the slt lands in $at) where mwcc materializes
-// the compare in v0 (`slt v0`); (2) the target lays out the block_22 reset block
+// scheduling/layout, NOT the clean-store nop: (1) the target computes the timer
+// compare into $at and branches on nonzero (CW schedules the t34-step subtraction
+// into the branch delay slot, freeing v0 so the compare lands in $at) where mwcc
+// materializes the compare in v0; (2) the target lays out the block_22 reset block
 // before the flag-class else-chain, mwcc orders them the other way. Both are
 // scheduling/basic-block-ordering artifacts -> permuter territory.
 extern signed char D_00275438;

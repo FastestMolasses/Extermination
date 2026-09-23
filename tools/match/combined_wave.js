@@ -44,12 +44,12 @@ THE PROVEN RECIPE:
 5. ALSO verify SIZE: the compiled .text size must EQUAL the expected .text size (objdiff ignores extra trailing instructions and will false-positive an oversized compile).
 
 KEY IDIOMS (full catalogue in docs/fanout/MATCHING_GUIDE.md — READ IT):
-- idiom-21 FLOAT COMPOUND-ASSIGN: \`x = x + y\` loads LHS first (add.s f0,f2,f0); \`x += y\` loads RHS first (add.s f0,f0,f1) = the CW form. Flip the spelling when the residual is add.s operand order / FP numbering. (Cracked func_0016D130: 9 sites, 99.87 -> 100.0.)
+- idiom-21 FLOAT COMPOUND-ASSIGN: \`x = x + y\` loads the LHS first (into $f2, and the float add's first source is that LHS); \`x += y\` loads the RHS first (into $f1) but the add still takes the LHS/accumulator ($f0) as its first source and the freshly loaded RHS ($f1) second = the CW form. Flip the spelling when the residual is add.s operand order / FP numbering. (Cracked func_0016D130: 9 sites, 99.87 -> 100.0.)
 - idiom-22 VOLATILE SCRATCHPAD: the original treats 0x7000xxxx as volatile — accesses never reorder or CSE. When the residual is scratchpad load/store ORDER, declare them \`*(volatile int *)0x700038A0\`. (func_00144040: 94.6 -> 96.8; also load-bearing in func_00206030's D_00275C7C/D_00275C80.)
 - idiom-20 BRANCH-LIKELY: mwcc DOES emit beql/bnel/beqzl — never park "mwcc can't do branch-likely". It emits one when the delay slot can hold a speculatable pure-ALU op from the TAKEN path. Switch state machines: \`switch(st)\` on a LOCAL \`st = *(unsigned char*)(e+6)\`, ASCENDING case labels, advance written as \`*(unsigned char*)(e+6) = st + 1;\` USING the local.
 - SWITCH vs IF-CHAIN: mwcc lowers \`switch\` to a DESCENDING beq chain. If the target has an ASCENDING bnez/bne chain, write if/else-if, NOT a switch.
 - idiom-19 INVERSE-CSE: if the target recomputes a subexpression at each use but mwcc CSEs it into a callee-saved reg (frame grows 0x90->0xa0), INLINE the expression at every use site INCLUDING inside the guarding branch condition.
-- FP-ARG-ORDER: when the target emits \`mtc1 zero,f13\` (trailing 0.0f) BEFORE \`mtc1 v0,f12\`, write the trailing 0.0f as an assign-in-arg temp: \`f(p, idx, A, (z = 0.0f));\`. (Does NOT work for lui-materialized nonzero constants.)
+- FP-ARG-ORDER: when the target moves the trailing 0.0f into f13 BEFORE it moves the preceding float arg into f12, write the trailing 0.0f as an assign-in-arg temp: \`f(p, idx, A, (z = 0.0f));\`. (Does NOT work for lui-materialized nonzero constants.)
 - saved-reg direction, $at compares, field-address CSE, FP odd/even coloring: see the guide.
 
 KNOWN WALLS 2.3.3 does NOT fix (park, report wall): jr-table dispatch (PROVEN dead), CW branch-target alignment nop, FPU-MAC, regalloc/coloring permutation, list-scheduler adjacent-op swap, ee-gcc codegen.
@@ -61,7 +61,7 @@ STRUCTURAL NOTE: if objdiff caps below 100 because splat gave the symbol TWO ent
 
 Report per func: func, pct_991202, pct_233, matched, compiler, c_source (full committed-ready file: "// COMPILER: mwcc233" line ONLY if compiler==mwcc233, then "// CFLAGS: ...", then semantic comments, then plain-C body), wall (precise reason if not 100.0).`
 
-const EEGCC_PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination, ee-gcc/SDK lane. These funcs are Sony PS2 SDK / crt0 / libkernel / libc / libgcc code built with **ee-gcc 2.9-991111-01**, NOT CodeWarrior — tell-tales: sd/ld $ra (64-bit saves), daddu rd,rs,zero register moves, unfilled jal;nop slots, move s8,sp frame pointers. mwcc CANNOT match them; you MUST use ee-gcc. Produce TRUE objdiff 100.0 byte-identical READABLE C. NEVER fake a match.
+const EEGCC_PROTO = (id, funcs) => `Matching-decomp subagent for PS2 game Extermination, ee-gcc/SDK lane. These funcs are Sony PS2 SDK / crt0 / libkernel / libc / libgcc code built with **ee-gcc 2.9-991111-01**, NOT CodeWarrior — tell-tales: 64-bit sd/ld saves of the return address, register copies done as a 64-bit add of zero, unfilled call delay slots, frame pointers kept in s8. mwcc CANNOT match them; you MUST use ee-gcc. Produce TRUE objdiff 100.0 byte-identical READABLE C. NEVER fake a match.
 
 READ FIRST: docs/fanout/EEGCC_GUIDE.md (full workflow + ee-gcc codegen notes).
 DIR: /Users/abe/Documents/Extermination.nosync/Extermination   AGENT: ${id}   SCRATCH: build/agent_${id}/ (ONLY this)
@@ -77,17 +77,17 @@ PER-FUNCTION LOOP:
    container run --rm -v "$PWD:/work" -w /work exterm-permuter sh -c 'mkdir -p build/agent_${id}; mipsel-linux-gnu-as -march=r5900 config/asm_prelude.inc build/macro.inc build/asm/matchings/main/code/<F>.s -o build/agent_${id}/<F>.exp.o 2>/dev/null; tools/eegcc/ee-compile.sh build/agent_${id}/src/<F>.c build/agent_${id}/<F>.our.o -O2 2>&1 | grep -viE "warning|^$"'
    Diff on HOST (NOT in container): tools/bin/objdiff-cli diff -1 build/agent_${id}/<F>.exp.o -2 build/agent_${id}/<F>.our.o <F> -o - --format json 2>/dev/null | .venv/bin/python3 -c "import sys,json;d=json.load(sys.stdin);print([s['match_percent'] for s in d['left']['symbols'] if s['name']=='<F>'])"
    ALSO confirm .our.o .text SIZE == .exp.o .text size (objdiff false-positives an oversize compile).
-4. Iterate to 100.0 (cap ~6 attempts). Most SDK leaves match at plain -O2. If it resists, try -O1 or -O0. Notes: 64-bit long arithmetic uses dsll32/dsra32; globals via lui/addiu (la) — plain externs first, rarely gp-rel; static helpers in the same TU inline (e.g. __udivmoddi4 static-inlined into __divdi3).
+4. Iterate to 100.0 (cap ~6 attempts). Most SDK leaves match at plain -O2. If it resists, try -O1 or -O0. Notes: 64-bit long arithmetic uses the 32-bit shift pair for sign extension; globals via a %hi/%lo address pair — plain externs first, rarely gp-rel; static helpers in the same TU inline (e.g. __udivmoddi4 static-inlined into __divdi3).
 
 EEGCC IDIOM-1 — FORWARD BRANCH-LIKELY IS MATCHABLE (s85; do NOT park it, the old "wall" was WRONG):
-If expected has bgezl/blezl/bgtzl/bltzl/beql/bnel/beqzl/bnezl on a FORWARD (non-loop) conditional and yours emits the same op without the trailing 'l', that is NOT a wall. gcc's fill_eager_delay_slots emits the annulled form when the BRANCH-TARGET path's FIRST instruction is a cheap speculatable op — in practice a \`lw\` of a global through a base register that is ALREADY LIVE (no lui setup needed). PROOF: func_00113F68 matches 100.0 with a forward \`bgezl $v0,.L00114074\` whose annul slot holds \`lw $v0,%lo(D_00241CF8)($s6)\`, from this shape:
+If expected has bgezl/blezl/bgtzl/bltzl/beql/bnel/beqzl/bnezl on a FORWARD (non-loop) conditional and yours emits the same op without the trailing 'l', that is NOT a wall. gcc's fill_eager_delay_slots emits the annulled form when the BRANCH-TARGET path's FIRST instruction is a cheap speculatable op — in practice a \`lw\` of a global through a base register that is ALREADY LIVE (no lui setup needed). PROOF: func_00113F68 matches 100.0 with a forward branch-likely on the sign of the call result whose annul slot holds the word load of D_00241CF8 through an already-live base register, from this shape:
     if (func_0010E8A8(...) < 0) { CreateSema(D_00241D08); return 0; }
     if (D_00241CF8 > 0)            /* this global read fills the annul slot */
         func_00122B58(D_0026BC78);
 So: read the target .s to see WHICH op sits in the annul slot, then reshape the C so that op is the first statement of the fall-through/taken path (usually "hoist the next global-flag test to immediately after the guard"). A taken path that leads with a lui re-materialization will NOT annul — that specific failure is what was over-generalized into a bogus wall. Spend real attempts here.
 - **Frame-size stride**: body byte-identical, only the frame immediate / an unstored reserved slot differs. PARK "eegcc frame-stride wall".
 - **List-scheduler adjacent-op swap**: two adjacent independent ops swapped. PARK "eegcc list-scheduler wall".
-- **Sibling/tail-call**: final discarded call emitted as \`j func_\` (gcc 2.9 has no -fno-optimize-sibling-calls). PARK "eegcc sibling-call wall".
+- **Sibling/tail-call**: final discarded call emitted as a plain jump to the callee (gcc 2.9 has no -fno-optimize-sibling-calls). PARK "eegcc sibling-call wall".
 - **GPR coloring** (v0-vs-v1, s0<->s1, a0-vs-a2): the ee-gcc permuter NEVER reaches 0 on coloring (tested s84). PARK directly.
 - **"o32-vs-eabi" is a MISDIAGNOSIS**: o32 is NOT available in ee-gcc 2.9-991111-01; eabi is the only ABI and 211 matched funcs prove it correct. The t0/t1-vs-a4/a5 naming objdiff shows is COSMETIC (identical physical regs). If you think you see "o32 arg passing", it is really a list-scheduler/regalloc wall.
 Do NOT run the permuter on any of the above.

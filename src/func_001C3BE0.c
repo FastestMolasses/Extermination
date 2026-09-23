@@ -12,12 +12,13 @@
 // it into 0x70003000 (func_001026D0).
 //
 // The scratchpad accesses are absolute ($at-form) volatile stores, matching
-// the target's per-access `lui $at, 0x7000`; only the pointer arguments go
+// the target's per-access 0x7000 high half in $at; only the pointer arguments go
 // through the relocated D_70003xxx symbols.
 //
 // The three temporaries of the 0x3600 -> 0x3000 vec3 copy are declared in
-// REVERSE use order on purpose: mwcc assigns float locals to $f0,$f1,$f2 in
-// declaration order, and the target colours them $f2,$f1,$f0, so declaring
+// REVERSE use order on purpose: mwcc assigns float locals to $f0, then $f1, then
+// $f2 in declaration order, and the target colours them in the reverse order
+// ($f2 first, $f0 last), so declaring
 // c,b,a and using a,b,c reproduces the target's register numbering exactly.
 
 extern void func_001029C0(void *);

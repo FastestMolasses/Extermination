@@ -15,11 +15,12 @@
 // -0.2; func_00175900(arg0,1); func_001796C0(arg0).
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: under
-// 991202 the residual was wall #13 (clean-store delay-slot fill) plus an
-// slti/sltiu lowering difference; the 2.3.3 build is byte-identical (objdiff
+// 991202 the residual was wall #13 (clean-store delay-slot fill) plus a
+// signed-vs-unsigned less-than-immediate lowering difference; the 2.3.3 build is byte-identical (objdiff
 // 100% vs build/expected/func_00163C10.o). NOTE: the state-2 sub-state test
 // is written `arg0[0x23F] > 1` (not `>= 2`): only `> 1` makes mwcc lower it to
-// `slti $at,v0,2; bnez $at`, matching the target's $at allocation.
+// a signed less-than-2 compare into $at plus a nonzero branch, matching the
+// target's $at allocation.
 extern int func_001749A0(unsigned char *e, short clip, int flags, float blend);
 extern void func_00174AC0(unsigned char *e, int f);
 extern void func_0017C440(unsigned char *e, int f);

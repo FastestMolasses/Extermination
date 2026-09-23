@@ -14,8 +14,8 @@
 // symbols -- except func_001026A0's 3rd arg, which is the real data symbol
 // D_700038A0. The rotation constant is 1.5707964f (bits 0x3FC90FDB); 1.5707963f
 // rounds to 0x3FC90FDA and misses. The Y nudge must be spelled as the compound
-// assignment `+= -0.2f` (idiom-26) to get `add.s $f0,$f1,$f0` with the loaded
-// value as fs; the expanded `x = x + -0.2f` swaps the add.s source registers.
+// assignment `+= -0.2f` (idiom-26) to get $f0 = $f1 + $f0 with the loaded
+// value as the first source; the expanded `x = x + -0.2f` swaps the two sources.
 extern float func_0011E620(float y, float x);
 extern float func_001B1470(float a);
 extern void func_001026A0(void *a0, void *a1, void *a2);

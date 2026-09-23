@@ -8,7 +8,7 @@
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: the lone
 // residual under 991202 was wall #13 — it fills the `beqz` delay slot (and
-// reschedules `li v1,11` ahead of `sb zero,6(a0)`) where CodeWarrior 2.3.3
+// reschedules the v1 = 11 constant ahead of the zero byte store to a0+6) where CodeWarrior 2.3.3
 // leaves the clean store ordering + nop. The 2.3.3 build is byte-identical
 // (.text cmp vs build/expected) → readable plain C, no asm void.
 void func_00179680(unsigned char *arg0) {

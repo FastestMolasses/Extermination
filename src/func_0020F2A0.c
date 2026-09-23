@@ -14,7 +14,7 @@
 // reaches 84.3% (it schedules the prologue/store sequence differently).
 // Two keys: (1) func_0020D930 takes (self, 1) -- a0 stays the incoming arg0 and
 // 1 goes in a1; (2) the 0x700038A0/A4 config stores are absolute-address
-// (lui at,0x7000 / sw), so they are written via literal pointers, while the
+// (0x7000 upper half + store), so they are written via literal pointers, while the
 // &cfg passed to func_0020AC70 is the relocated &D_700038A0 symbol.
 extern void func_0020D930(char *self, int a);
 extern void func_0020AC70(char *self, void *p, int z);

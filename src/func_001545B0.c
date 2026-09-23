@@ -7,9 +7,9 @@
 // radius-at-angle r^2 = (a^2 b^2)/(a^2 sin^2 + b^2 cos^2) (a = 0.92*recZ,
 // b = 0.92*recX; sin = func_0011E2A8, cos = func_0011DE90) vs distXZ^2.
 // (locals c/s keep pre-s45 names: c holds sin(ang), s holds cos(ang).)
-// mwcc 2.3.3 reproduces the mula.s/nop/madd.s ACC-hazard nop that 991202
+// mwcc 2.3.3 reproduces the ACC multiply, hazard nop, then multiply-add shape that 991202
 // could not (991202 stalls at 95.45%). The `goto inside` tail reproduces
-// CW's branch-on-true + duplicated dead `li v0,1`.
+// CW's branch-on-true + duplicated dead v0 = 1.
 extern unsigned char D_00248120[];
 extern float func_001B1240(unsigned char *origin, float x, float z);
 extern float func_0011E2A8(float a); /* sin */

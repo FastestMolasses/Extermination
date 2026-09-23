@@ -2,7 +2,7 @@
 //
 // objdiff 84.73% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// FP-compare branch-lowering wall + arg-eval scheduling. Logic fully recovered. Residual 1: target schedules the a2 pointer setup (addu a2,v0,s0) before a1 setup (addiu a1,s1,0xa0); mwcc emits a1 first. Residual 2: CW leaves the `bc1f` delay slot as a nop and trails a dead `b/paddub v0,zero` block;...
+// FP-compare branch-lowering wall + arg-eval scheduling. Logic fully recovered. Residual 1: target sets up the a2 pointer (v0 + s0) before a1 (s1 + 0xA0); mwcc emits a1 first. Residual 2: CW leaves the `bc1f` delay slot as a nop and trails a dead return-0 block (details below).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -20,10 +20,10 @@
 // D_0024A5F0/D_0024A5F4 are two fields (off +0x00 / +0x04) of a stride-0x40
 // table indexed by a2.
 //
-// Residual 1: target schedules the a2 pointer setup (addu a2,v0,s0) before
-// the a1 setup (addiu a1,s1,0xa0); mwcc emits a1 first — arg-eval ordering.
+// Residual 1: target schedules the a2 pointer setup (a2 = v0 + s0) before
+// the a1 setup (a1 = s1 + 0xA0); mwcc emits a1 first — arg-eval ordering.
 // Residual 2: the FP-compare tail. CW leaves the `bc1f` delay slot as a nop
-// and trails a dead `b/paddub v0,zero` block; both mwcc builds (incl. 2.3.3)
+// and trails a dead branch + return-0 block; both mwcc builds (incl. 2.3.3)
 // fill the bc1f slot with the false-arm store and merge the block. This is
 // the mwcc-vs-CW FP-compare branch-lowering wall (unlike the integer-compare
 // case in anim_clip_arbiter, 2.3.3 does NOT emit the dead block here).

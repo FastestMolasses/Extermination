@@ -86,23 +86,28 @@ at load time. The `PT_LOAD` memsz for each overlay slot confirms this:
 
 The first **0x40 bytes** of the text section (vram 0x823500–0x82353F) are
 **always zero**. This is a nop sled / reserved vector-table area. It is 16
-words of `nop (0x00000000)`. The actual first function of each overlay begins
+zero words (each decodes as a nop). The actual first function of each overlay begins
 at **vram 0x823540** (offset +0x40 within the text section).
 
 AREA18 and AREA22 (the two stub overlays) contain exactly one tiny function
-at 0x823540 — a 7-instruction leaf that writes a constant (0x20 = area index),
-a data-section base pointer, and zeroes into three `$gp`-relative slots:
+at 0x823540: an 8-word leaf (0x823540..0x82355C, the last store in the
+return's delay slot) that writes four `$gp`-relative words ($gp = 0x27D370)
+and returns. In C terms:
 
-```mips
-0x00823540:  addiu  $v1, $zero, 0x20      # area type constant
-0x00823544:  sw     $v1, -30536($gp)      # store to GP-relative slot
-0x00823548:  lui    $v1, 0x0082
-0x0082354c:  addiu  $v1, $v1, <data_base> # pointer to data section start
-0x00823550:  sw     $zero, -30532($gp)
-0x00823554:  sw     $zero, -30540($gp)
-0x00823558:  jr     $ra
-0x0082355c:  sw     $v1, -30548($gp)      # delay slot store
+```c
+/* 0x00823540 (AREA18 and AREA22 alike) */
+D_00275C28 = 0x20;        /* area type constant                    */
+D_00275C2C = 0;
+D_00275C24 = 0;
+D_00275C1C = image_end;   /* 0x00823D80 in AREA18, 0x00823E00 in AREA22 */
 ```
+
+`image_end` is built from a `%hi`/`%lo` pair and equals the table's "End
+vram" column: 0x00823500 + 0x40 + text_size + data_size, the first byte after
+the loaded file image, which is where the zeroed `.bss` begins (an earlier
+version of this note called it the data-section start; the numbers say
+otherwise). The four slots are the same in both stubs; the boot ELF's own code
+uses D_00275C1C as a pool base (`D_00275C1C + uid*0xA060`).
 
 This is the overlay's minimal init function — it registers itself with the
 boot ELF's area-manager subsystem. Real overlays (AREA07 etc.) have dozens
@@ -142,7 +147,7 @@ The boot ELF reads the correct entry by overlay_id to open the file.
 dispatcher. It reads a two-byte area/state identifier from two consecutive BSS
 bytes at `D_00810700`/`D_00810701`, combines them, and dispatches to the
 matching overlay function via a 40+ arm `beq` chain. Every branch terminates
-with a hardcoded `jal func_8XXXXXX` into the overlay vram space.
+with a hardcoded direct call into the overlay vram space.
 
 ### Boot ELF → overlay call sites (all 17 unique targets)
 
@@ -216,7 +221,7 @@ The configs live in `config/overlays/AREAXX.yaml` (splat) and
 3. **`fill_overlay.py AREAXX`** — pre-assembly fixups on the `.s` files, then
    parallel assembly to `build/overlays/AREAXX/filler/*.o`:
    - **VU0 fixup** (`fix_vu0_instructions`): replaces COP2 vector mnemonics
-     (`vmulax`, `vmadday`, etc.) with `.word` directives. Splat's comment
+     (the macro broadcast multiply-accumulate forms, etc.) with `.word` directives. Splat's comment
      contains the raw 8-hex-char opcode; the LE integer is
      `int.from_bytes(bytes.fromhex(opcode), 'little')`.
    - **Cross-file label fixup** (`fix_cross_file_local_labels`): finds `.L`
@@ -339,8 +344,8 @@ those addresses.** The addresses are:
 0x826180  area_func_2C80 (only AREA19 — largest overlay)
 ```
 
-Not all overlays implement all functions; smaller overlays have `nop` / `jr $ra`
-stubs at unused addresses. The consistent layout across overlays means symbol
+Not all overlays implement all functions; smaller overlays have nop-filled or
+bare-return stubs at unused addresses. The consistent layout across overlays means symbol
 recovery from one overlay transfers easily to others.
 
 ---
@@ -355,24 +360,24 @@ in for the splat-disassembled `.s`. See `src/overlays/AREAXX/` for the source.
 
 | Overlay | C funcs matched | Notes |
 |---|---|---|
-| AREA00 | 3 | init (6 gp-rel stores) + struct field setter + jr+nop stub |
+| AREA00 | 3 | init (6 gp-rel stores) + struct field setter + bare-return stub |
 | AREA01 | 1 | init (6 gp-rel stores) |
 | AREA02 | 1 | init (5 gp-rel stores, "extended" variant) |
 | AREA03 | 3 | init + a2[2]→gp setter + !! boolean inverter |
 | AREA04 | 1 | init (5 stores, 2 pointers) |
 | AREA06 | 1 | init (5 stores) |
-| AREA07 | 2 | init + jr+nop stub |
+| AREA07 | 2 | init + bare-return stub |
 | AREA08 | 1 | init |
 | AREA11 | 3 | init + two thin wrappers (`func(); return 1`) |
-| AREA13 | 4 | init + jr+nop stub + short[0x17]=0xFF setter + abs-addr byte increment |
+| AREA13 | 4 | init + bare-return stub + short[0x17]=0xFF setter + abs-addr byte increment |
 | AREA14 | 2 | init + thin wrapper (`func(0); return 1`) |
 | AREA15 | 1 | init |
 | AREA16 | 2 | init + struct field a0[0xB8] = -1 |
 | AREA17 | 1 | init |
 | AREA18 | 1 | init (stub overlay — only function) |
-| AREA19 | 4 | init + jr+nop stub + short[0x14]=1 + abs-addr byte setter |
+| AREA19 | 4 | init + bare-return stub + short[0x14]=1 + abs-addr byte setter |
 | AREA20 | 1 | init |
-| AREA21 | 3 | init + two jr+nop stubs |
+| AREA21 | 3 | init + two bare-return stubs |
 | AREA22 | 1 | init (stub overlay — only function) |
 
 ### Decomp patterns used
@@ -385,8 +390,8 @@ All matches use pure C compiled with `mwccmips.exe -O4,p -sdatathreshold N`.
    `-sdatathreshold 4` (gp_rel for int globals). Three variants: 4-slot (most
    overlays), 5-slot (AREA02/04/06/19), 6-slot (AREA00/01).
 
-2. **jr+nop stubs**: `void func(void) {}` — empty C function. mwcc emits
-   `jr $ra; nop` exactly.
+2. **Bare-return stubs**: `void func(void) {}` — empty C function. mwcc emits
+   a bare return with an empty delay slot, exactly.
 
 3. **Thin wrappers**: `funcN(args); return 1;` — pure C. Matches when the
    callee args fit naturally in the calling convention (mwcc 2.3 schedules
@@ -400,8 +405,8 @@ All matches use pure C compiled with `mwccmips.exe -O4,p -sdatathreshold N`.
    generates `R_MIPS_GPREL16` for `int` globals (4 ≤ threshold).
 
 6. **Absolute hi/lo addresses** (e.g. `D_008107F4`, outside gp ±32KB range):
-   `-sdatathreshold 0` forces mwcc to use `lui/lbu` (R_MIPS_HI16/LO16) via
-   `$at` instead of gp_rel. Required for any global outside the ~64KB GP
+   `-sdatathreshold 0` forces mwcc to use a %hi load into `$at` plus a byte
+   load at %lo (R_MIPS_HI16/LO16) instead of gp_rel. Required for any global outside the ~64KB GP
    window around 0x27D370.
 
 ### Infrastructure additions
@@ -453,7 +458,7 @@ Remaining low-hanging:
 **+50 additional overlay functions matched** via the hybrid asm-void technique
 ported from the boot ELF (`/tmp/gen_hybrid.py`). New generator:
 `tools/overlay/gen_asm_void.py` walks each overlay's per-function `.s`, applies
-the boot-ELF skip filter (no `%hi/%lo/%gp_rel`, no `jalr`/`syscall`/`j SYM`,
+the boot-ELF skip filter (no `%hi/%lo/%gp_rel`, no `jalr`/`syscall`/plain jumps to symbols,
 3–300 insns), generates `.word`-encoded branches with named `jal` callees, and
 verifies per-candidate by raw-byte + relocation comparison of the
 mwcc-compiled `.o` against the GNU-as-assembled reference `.o`. Candidates that
@@ -477,15 +482,15 @@ reflects what's in `src/`.
 
 **+12 additional overlay functions matched** (one AREA13 asm-void hi/lo candidate
 the generator's verifier reported as 100% turned out to be wrong on parent
-re-verification: splat had folded a stranded basic block — `lbu $v1, 0xB($s0)` at
-0x0082417C — into func_overlay_AREA13_00824160's slot, and the C decomp couldn't
+re-verification: splat had folded a stranded basic block — a single byte load
+of +0xB from a saved-register base at 0x0082417C — into func_overlay_AREA13_00824160's slot, and the C decomp couldn't
 reproduce that tail byte. Dropped). New total: **98 functions at 100%**.
 
 The matches fall into two groups:
 
 1. **4 hand-written pure-C decompilations** for "jal-with-hi/lo arg + return 1"
    wrappers — the simplest non-leaf hi/lo pattern. Compiled with
-   `// CFLAGS: -O4,p -sdatathreshold 0` so mwcc emits `lui/addiu` for the
+   `// CFLAGS: -O4,p -sdatathreshold 0` so mwcc emits a %hi/%lo pair for the
    address (the global is outside the gp ±32KB window). Matched:
    - AREA00 `func_overlay_AREA00_00826070` — two `func_1EFD20(K, &D_..)` calls.
    - AREA17 `func_overlay_AREA17_00824240` — three init calls.
@@ -495,13 +500,14 @@ The matches fall into two groups:
      work" below).
 
 2. **9 asm-void hi/lo matches** via the new hi/lo-aware path in
-   `gen_asm_void.py`. The key discovery: **mwcc's `la $reg, SYM` pseudo emits
-   exactly `lui $reg, %hi(SYM); addiu $reg, $reg, %lo(SYM)`** with proper
+   `gen_asm_void.py`. The key discovery: **mwcc's load-address pseudo emits
+   exactly a %hi load plus a %lo add in the same register** with proper
    `R_MIPS_HI16/LO16` relocations — the same byte pattern as the original
    when the original used the destination register as the lui scratch. So
    functions whose only %hi/%lo usage is the same-register form
-   (`lui $R, %hi(SYM); addiu $R, $R, %lo(SYM)`) can be matched as hybrid
-   asm-void by collapsing each pair into a single `la $R, SYM` instruction.
+   (the %hi load and the %lo add both in the same register) can be matched
+   as hybrid asm-void by collapsing each pair into a single load-address
+   pseudo-instruction for SYM.
 
    Per-overlay delta this batch: AREA00 +1, AREA01 +1, AREA02 +1, AREA04 +2,
    AREA13 +1, AREA19 +2, AREA20 +1, AREA21 +1 (asm-void hi/lo only).
@@ -512,40 +518,45 @@ The matches fall into two groups:
 
 ### Patterns that worked
 
-- `la $R, SYM` for paired-same-register `lui/addiu %hi/%lo` (the common
+- The load-address pseudo for a same-register %hi/%lo pair (the common
   "load symbol address into R" idiom).
-- mwcc inline-asm short forms `lw/sw/lb/sb/lh/sh/lhu/lbu $R, SYM` (no base)
-  emit `lui $at; <load> $R, %lo(SYM)($at)`. Only useful when the original
+- mwcc inline-asm short load/store forms that take a bare symbol (no base
+  register) emit a %hi load into `$at`, then the access at %lo(SYM) through
+  `$at`. Only useful when the original
   also used `$at` as scratch — rare.
 - Pure-C `func(K, D_extern); return 1;` wrappers (3 matched).
 
 ### Patterns that didn't work
 
-- **Cross-register `lui/addiu`**: `lui $X, %hi(SYM); addiu $Y, $X, %lo(SYM)`
-  with `Y != X` is unreachable. mwcc's `la` always uses the destination
+- **Cross-register %hi/%lo pair**: the %hi built in register X and the %lo
+  added into a different register Y is unreachable. mwcc's `la` always uses the destination
   reg for both halves; the `addiu` form with a symbol operand is rejected
   ("illegal constant expression"). This blocks the most common "load arg
-  before jal" idiom (`lui $v0, %hi(D); jal F; addiu $a1, $v0, %lo(D)`).
+  before jal" idiom (the %hi half built in one register before the call and
+  the %lo half added into the argument register in the call's delay slot).
   An estimated 60-70% of remaining unmatched hi/lo functions hit this.
-- **Split `lui $X, %hi(SYM); lw $Y, %lo(SYM)($X)`** with `X != $at`:
-  same constraint. mwcc's short `lw $Y, SYM` always uses `$at`.
+- **Split %hi in register X plus a word load at %lo(SYM) through X** with
+  `X != $at`: same constraint. mwcc's short bare-symbol word load always
+  uses `$at`.
 - **Delay-slot scheduling differences**: when mwcc -O4's scheduler picks a
   different instruction to fill a `jal` delay slot than the original (e.g.
   arg-setup vs. tail-load), the bytes diverge and no source-level tweak
   reliably forces a match (tried `int buf` vs `char buf[16]` for the
   AREA04 stack-buffer case).
 - **Mid-function fragments from splat mis-splitting**: AREA01/03/07/11/13/14/
-  19/20 all have an identical 20-instruction fragment ending in
-  `lq $ra, 0x20($sp); jr $ra; addiu $sp, $sp, 0x40` that splat treats as a
+  19/20 all have an identical 20-instruction fragment ending in a standard
+  epilogue (restore the return address from a 0x40-byte frame, return, pop the
+  frame in the delay slot) that splat treats as a
   standalone function. These have no entry prologue and rely on caller
   state — can't be expressed as a top-level C function.
 
 ### Infrastructure changes
 
 - **`tools/overlay/gen_asm_void.py`** — added hi/lo-aware second pass. New
-  `hilo_transform()` recognizes `lui+addiu %hi/%lo` pairs (same reg) and
-  emits `la $R, SYM`; recognizes `lui $at + (lw/sw/lh/sh/lb/sb/lhu/lbu)
-  %lo($at)` and emits the corresponding mwcc short-form pseudo. Generates
+  `hilo_transform()` recognizes same-register %hi/%lo pairs and
+  emits the load-address pseudo for SYM; recognizes an assembler-temporary %hi
+  followed by a word/half/byte load or store through its %lo, and emits the
+  corresponding mwcc short-form pseudo. Generates
   `extern int SYM;` decls for each collapsed symbol. Rejects any %hi/%lo
   that can't be cleanly paired. Uses `-sdatathreshold 0` for the hi/lo pass.
   Also fixed a regex bug in `rr()` (`$t0..$t9` register renaming) that was
@@ -586,8 +597,8 @@ unmatched functions fall into three buckets:
   2. **Mid-function fragments from splat mis-splitting** — start without a
      prologue and rely on caller-side register state. Cannot be expressed
      as top-level C functions at all.
-  3. **Cross-register hi/lo wrappers** (`lui $X,%hi(SYM); ...; addiu $Y,$X,%lo(SYM)`
-     with X≠Y) — mwcc emits these naturally from extern globals, but the
+  3. **Cross-register hi/lo wrappers** (the %hi built in register X, the %lo later
+     added into a different register Y) — mwcc emits these naturally from extern globals, but the
      remaining candidates (AREA04_00824A00, AREA21_00826960) suffer from
      scheduler differences: mwcc and the original disagree on which
      instruction fills the `jal` delay slot. Verified manually for
@@ -704,7 +715,8 @@ toolchain container so mwccmips + GNU as are available directly.
    may have aligned the code section to 0x40 bytes. The DCDecomp hex-pattern
    file (`overlay.hexpat`) does not address this.
 
-3. **`$gp` in overlays**: confirmed (by the AREA18 function using `sw $v1, -30536($gp)`)
+3. **`$gp` in overlays**: confirmed (the AREA18 init at 0x823540 stores to $gp − 0x7748 =
+   D_00275C28, a boot-ELF global)
    that overlays use the **same `$gp = 0x27D370`** as the boot ELF. Overlay-local
    globals in the 0x823500+ data section use `lui`/`lw` (not gp_rel), as expected
    (they're 3.5 MB outside the gp ±32KB window).

@@ -10,7 +10,7 @@
 //
 // NOTE: D_70003B8D is the VU0 scratchpad byte at absolute 0x70003B8D. It MUST
 // be spelled as a symbol, not as *(unsigned char*)0x70003B8D — the literal form
-// makes mwcc speculate the bare `lui at,0x7000` into the preceding beqz delay
+// makes mwcc speculate the bare scratchpad-base lui (0x7000) into the preceding beqz delay
 // slot, where the target has a nop. Requires `D_70003B8D = 0x70003B8D;` in
 // config/SCUS_971.12.lcf.
 extern unsigned char D_008106B0;

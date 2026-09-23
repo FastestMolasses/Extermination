@@ -6,7 +6,7 @@
 // MATCH NOTE (m1-firstlevel-matching lane): the scratchpad globals at 0x700031D0, 0x700031D4, 0x700031D8
 // are referenced as relocated externs (D_7000xxxx), as the original build did
 // (see tools/match/spad_symbolize.py). A literal address let mwcc CSE and
-// speculate `lui at,0x7000` into delay slots that the target leaves as nop.
+// speculate the scratchpad upper-half load into delay slots the target leaves as nop.
 // The `// SPAD:` directive above opts THIS file's expected object into the
 // same %hi/%lo relocations (build.py _symbolize_scratchpad); the address stays
 // out of the global _SPAD_SYMS because other matched files name the symbol

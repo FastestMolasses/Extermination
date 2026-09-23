@@ -2,7 +2,7 @@
 //
 // objdiff 99.25% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// 99.25%, byte count matches target exactly (0x5D4). Two tiny residuals, both compiler-internal register/scheduling choices, not logic: (1) a throwaway comparison result placed in $v0 instead of the target's $at for one slti/bnez; (2) one redundant lui $at,0x7000 filling an otherwise-nop delay slot...
+// 99.25%, byte count matches target exactly (0x5D4). Two tiny residuals, both compiler-internal register/scheduling choices, not logic: (1) a throwaway comparison result placed in $v0 instead of the target's $at for one compare-and-branch; (2) one redundant scratchpad upper-half load filling an otherwise-nop delay slot (details below).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -41,10 +41,10 @@
 //
 // Logic and structure fully recovered (byte-identical body, size matches
 // target exactly: 0x5D4). Two residual artifacts, both instruction-scheduling/
-// register-naming only (not logic): (1) one `slti $v0,$v0,3` / `bnez $v0,...`
+// register-naming only (not logic): (1) one `x < 3` compare-and-branch uses $v0
 // where the target uses `$at` for the same throwaway compare result (idiom-16
 // int-cache pattern applied; register choice itself is compiler-internal and
-// not C-addressable); (2) one redundant `lui $at,0x7000` duplicated into an
+// not C-addressable); (2) one redundant scratchpad upper-half load duplicated into an
 // otherwise-unused delay slot right after the arg1+0x82 dispatch (target
 // leaves that slot a `nop`). Both are the documented CW/mwcc delay-slot-fill
 // and temp-register-choice wall family (PROGRESS.md idiom 13), not

@@ -2,7 +2,7 @@
 //
 // objdiff 99.27% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Single-instruction residual: both mwcc builds speculatively hoist the store-block address `lui at,0x7000` into the second `bc1t` delay slot where the target keeps a `nop`. Pure mwcc delay-slot/branch-fill scheduling; source reshaping only lowers score. Permuter/compiler-version wall.
+// Single-instruction residual: both mwcc builds speculatively hoist the store-block address high half (0x7000) into the second `bc1t` delay slot where the target keeps a `nop`. Pure mwcc delay-slot/branch-fill scheduling; source reshaping only lowers score. Permuter/compiler-version wall.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -14,7 +14,7 @@
 // NEARMISS 99.27% (mwcc 2.3.3; 991202 = 88.60%). Body/structure fully recovered
 // and byte-identical except ONE residual instruction: the second `bc1t` (the
 // `func_0011DF78(...) <= 4.0f` proximity gate) delay slot. The target leaves a
-// `nop` in that slot and emits the store block's `lui at,0x7000` after; both
+// `nop` in that slot and emits the store block's 0x7000 high half after; both
 // available mwcc builds speculatively hoist that address-`lui` into the bc1t
 // delay slot (branch target shifts +4). Source-level reshaping (positive guard,
 // store-block reorder) only lowers the score; this is the mwcc delay-slot /

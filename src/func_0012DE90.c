@@ -2,7 +2,7 @@
 //
 // objdiff 98.25% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Permuter-class on a fully-recovered body. Residual 1: commutative add.s FP-coloring/operand-order on `*(float*)(arg0+0xD4)+0.02f` (target emits add.s f1,f2,f1 = field+const; mwcc colors field->ft0/const->fv1 and emits const+field; not fixed by temp or assign-in-arg). Residual 2: scheduling placem...
+// Permuter-class on a fully-recovered body. Residual 1: commutative float-add FP-coloring/operand-order on `*(float*)(arg0+0xD4)+0.02f` (the target's add takes the field first and the constant second, field+const, writing the constant's register; mwcc colors field->ft0/const->fv1 and emits const+field; not fixed by temp or assign-in-arg). Residual 2: scheduling placem...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

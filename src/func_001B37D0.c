@@ -2,7 +2,7 @@
 //
 // objdiff 81.85% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Identical call set, arguments, and nested (7 rings x 2 signs) loop structure as the target, including the beql/bnel branch-likely on func_001B3250. Residual is fp-register coloring plus entry-sequence scheduling: target promotes fparg0->$f22 and fparg1->$f20 at function entry and orders the arg-s...
+// Identical call set, arguments, and nested (7 rings x 2 signs) loop structure as the target, including the equal/not-equal branch-likely pair on func_001B3250. Residual is fp-register coloring plus entry-sequence scheduling: target promotes fparg0->$f22 and fparg1->$f20 at function entry and orders the arg-s...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -28,7 +28,7 @@
 // WALL: same calls, args, and nested-loop structure as the target; the residual
 // is fp-register coloring + instruction scheduling of the entry/per-iteration
 // call chain -- the target promotes fparg0->$f22 and fparg1->$f20 at entry and
-// orders the arg-save mov.s / add.s / sp50-block stores (swc1 $f22,sp+8)
+// orders the arg-save FP moves, FP adds and sp50-block stores (the $f22 store to sp+8)
 // differently from mwcc's schedule. FP-coloring + scheduling-permutation class.
 extern float func_001B1470(float);
 extern void func_001029C0(void *);

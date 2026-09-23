@@ -2,7 +2,7 @@
 //
 // objdiff 95.93% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler wall (confirmed s84): body byte-identical (216/216, 95.93%); two deterministic adjacent-op swaps remain -- addiu s0,%lo(D_0027B5C0) vs sw a0 ordering at 0x48, and the two func_0010DFD8 arg-moves (move a0,a3 / move a1,a2) at 0x50. Permuter ran twice full-window, never beat base score 80.
+// eegcc list-scheduler wall (confirmed s84): body byte-identical (216/216, 95.93%); two deterministic adjacent-op swaps remain -- the %lo add forming &D_0027B5C0 vs the a0 store at +0x48, and the order of the two func_0010DFD8 argument-register copies at +0x50. Permuter ran twice full-window, never beat base score 80.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

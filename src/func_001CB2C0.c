@@ -2,7 +2,7 @@
 //
 // objdiff 83.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// instruction-scheduling permutation: target emits `addiu s1,a2,0x10` before `sw zero,0x10(a2)`; mwcc's list scheduler emits the store first regardless of source form (tried store-through-s1 and full s1-relative rebasing). Permuter/scheduling-class wall, not the clean-store nop case.
+// instruction-scheduling permutation: target computes s1 = a2 + 0x10 before the zero store to a2+0x10; mwcc's list scheduler emits the store first regardless of source form (tried store-through-s1 and full s1-relative rebasing). Permuter/scheduling-class wall, not the clean-store nop case.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -25,7 +25,7 @@
 // -sdatathreshold >=4 so 233 reaches it via %gp_rel.
 //
 // WALL: the sole 2.3.3 residual is a 2-instruction schedule swap -- the target
-// emits `addiu s1, a2, 0x10` (the call-arg base) BEFORE `sw zero, 0x10(a2)`,
+// computes s1 = a2 + 0x10 (the call-arg base) BEFORE the zero store to a2+0x10,
 // while mwcc deterministically emits the store first. Tried writing the zero
 // store through s1 and rebasing all four field stores to s1; mwcc's list
 // scheduler always picks store-first. Pure scheduling/permuter-class wall.

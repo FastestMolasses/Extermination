@@ -1,9 +1,9 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 // Zero-init of a global state block, with two -1 sentinels at the end.
-// mwcc 2.3.3 schedules `li v1,-1` between the lui/sw of D_00264E34, matching
+// mwcc 2.3.3 schedules the -1 constant between the %hi and the store of D_00264E34, matching
 // the target; the pinned 991202 build does not. D_00264E30/34/38 are
-// large-data (lui/%lo) globals; D_00275xxx are small-data (gp-rel). Source
+// large-data (absolute %hi/%lo) globals; D_00275xxx are small-data (gp-rel). Source
 // store order is interleaved (D_00264E38 after D_00275C58/5C) to match the
 // target instruction scheduling exactly.
 extern int D_00264E30[2];

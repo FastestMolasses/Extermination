@@ -4,7 +4,7 @@
 // Remaining differences in this candidate:
 // mwcc233 -O4,p -sdatathreshold 0: 97.84173%; original 556 bytes, compiled
 // 544 bytes. All live instructions and registers match; the original retains
-// three unreachable duplicate lui v0,0x2005 instructions immediately before
+// three unreachable duplicate v0 = 0x2005 << 16 instructions immediately before
 // case-entry labels at 0x001AC8E8, 0x001AC920, and 0x001AC958.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT

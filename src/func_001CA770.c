@@ -4,8 +4,8 @@ extern void func_001AF890(void *);
 
 // Releases a handle stored at +0x90: if the handle is non-null, hand it to
 // func_001AF890, then clear the slot (+0x90 = 0) and reset the short at +0x94 to -1.
-// mwcc 991202 mis-schedules this case (delays addiu v1,zero,-1 until after the
-// sw zero,0x90(s0) store -> 87.5%); mwcc 2.3.3 emits the target ordering -> 100.0.
+// mwcc 991202 mis-schedules this case (delays the v1 = -1 materialization until after
+// the zero store to +0x90 -> 87.5%); mwcc 2.3.3 emits the target ordering -> 100.0.
 void func_001CA770(char *a0) {
     void *h = *(void **)(a0 + 0x90);
     if (h) {

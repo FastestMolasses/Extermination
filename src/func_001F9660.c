@@ -2,7 +2,7 @@
 //
 // objdiff 96.23% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// All logic, case constants, store values, branch-likely (beql) dispatch, and single shared call site match. Sole residual: the region-compare `(...)==0x1500` is lowered as `bne a0,v1,0x88` (else-block first, empty delay slot) but the target uses `beq a0,v1,0x50` (then-block first) with the ==switc...
+// All logic, case constants, store values, branch-likely (beql) dispatch, and single shared call site match. Sole residual: the region-compare `(...)==0x1500` is lowered as a branch-if-not-equal (else-block first, empty delay slot) but the target uses a branch-if-equal (then-block first) with the ==switc...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

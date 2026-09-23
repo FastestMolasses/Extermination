@@ -3,7 +3,7 @@
 // Actor sub-state tick: spawn/clip setup (0), activation-flag wait (1), scripted-exit
 // handshake (2), then the common per-frame animation advance + post-update callback.
 // The `zi = 0; z = (float)zi;` staging is load-bearing: it is what makes mwcc schedule
-// `mtc1 zero,$f13` ahead of `mtc1 $v0,$f12` at the case-0 anim_clip_init call.
+// the zero move into $f13 ahead of the $v0 move into $f12 at the case-0 anim_clip_init call.
 extern void anim_clip_init(int self, int clip, float a, float b);
 extern int anim_advance_time(int self, float t);
 extern int func_00122BB8(void);

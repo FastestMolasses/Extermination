@@ -19,7 +19,7 @@
 // threading 2.3.3 reproduces). Shape notes: multi-exit is load-bearing —
 // arm 0 uses bare `return 0;/return 1;`, arm 1 must `return r;` (reusing the
 // r=1 materialized before the arg2==1 test), and the miss path is the final
-// `return 2;` (mwcc fills the beqz delay slot with the li v0,2).
+// `return 2;` (mwcc fills the branch delay slot with v0 = 2).
 
 extern void func_001026A0(int *dst, char *src, int *params);
 extern void func_001028B8(int *dst, int *src, int arg2);

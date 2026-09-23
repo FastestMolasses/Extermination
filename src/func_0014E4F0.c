@@ -15,7 +15,7 @@
 // Matched with mwcc 2.3.3 (mwcps2-2.3.3-000906); the pinned 991202 build reaches
 // 90.2%. Two keys: (1) anim_clip_init's real signature is
 // (int self, int clip, float a, float b) -- the trailing 0.0f is what emits the
-// `mtc1 zero, $f13` pair-clear the target has and a single-float prototype omits;
+// zero-into-$f13 pair-clear the target has and a single-float prototype omits;
 // (2) writing the dispatch as a `switch` (not an if/else-if cascade) reproduces
 // the target's 2->1->0 compare order with the case-0 branch-likely (beqzl).
 // objdiff 100.0 vs expected (the only rendered deltas are objdiff naming the

@@ -83,8 +83,8 @@ Three variants we hit:
 
 | Variant | What splat did | Tell |
 |---|---|---|
-| **Bogus address** | Paired a delay loop's `lui rX,0x10` with the loop-*body* `addiu rX,rX,-1` (a decrement executed 0x100000 times, past a branch label) because the values combine to `0xFFFFF` | The "symbol" is **below the load address** — it cannot be real |
-| **Offset constant** | Rendered `addiu a3,a2,0x10` as `%lo(D_20000010)` | The "symbol" is an offset in the uncached mirror (`0x20000000 |` addr), not a global |
+| **Bogus address** | Paired a delay loop's counter init `rX = 0x10 << 16` with the loop-*body* `rX -= 1` (a decrement executed 0x100000 times, past a branch label) because the values combine to `0xFFFFF` | The "symbol" is **below the load address** — it cannot be real |
+| **Offset constant** | Rendered a small `base + 0x10` add as `%lo(D_20000010)` | The "symbol" is an offset in the uncached mirror (`0x20000000 |` addr), not a global |
 | **Split data label** | Minted `D_00279448` for what the compiler addresses as `D_00279440 + 8` | Both are legitimate addresses — see the caution below |
 
 **How to detect:** list every symbol referenced via `%hi`/`%lo` in your disassembly and
@@ -115,7 +115,7 @@ The sibling of "splat invents symbols": sometimes it declines to emit one it sho
 
 splat pairs a `%hi`/`%lo` couple by PROXIMITY. When the compiler **hoists** the `%hi` far
 from its `%lo` — out of a loop, above a branch, into a callee-saved register at function
-entry — splat gives up and writes the raw immediate (`lui $a1, (0x280000 >> 16)`) instead of
+entry — splat gives up and writes the raw immediate (`(0x280000 >> 16)` as the upper-half operand) instead of
 `%hi(SYMBOL)`. Your expected object then holds a bare constant where your compiled object
 correctly holds an `R_MIPS_HI16` relocation.
 
@@ -135,10 +135,10 @@ wrong and breaking the ones it got right. §2a's rule again: build the expected 
 the original object was built.
 
 Detection worth copying (`_symbolize_hoisted_hi` in `tools/decomp/build.py`): rewrite a bare
-`lui $r, IMM` to `%hi(SYM)` only when a LATER instruction uses `%lo(SYM)` **through the same
+upper-half immediate load of IMM to `%hi(SYM)` only when a LATER instruction uses `%lo(SYM)` **through the same
 register** and `%hi(SYM) == IMM` (remembering the sign-extension carry: `hi = (addr >> 16) +
-(1 if addr & 0x8000 else 0)`). Note `%lo` appears in two shapes — `addiu $rd, $rs, %lo(SYM)`
-and `op $rt, %lo(SYM)($rs)` — and a detector that handles only the load form finds nothing.
+(1 if addr & 0x8000 else 0)`). Note `%lo` appears in two shapes — as the immediate of an add
+(`rd = rs + %lo(SYM)`) and as the offset of a load/store (`%lo(SYM)` from base `rs`) — and a detector that handles only the load form finds nothing.
 
 **Two process lessons, both learned the hard way here:**
 
@@ -226,9 +226,9 @@ green. It only surfaced when a full build ran.
 ### Flags must reach *every* stage of the pipeline
 
 Our ee-gcc wrapper passed `-G0` to `cc1` but **not to `as`**. cc1 emits
-`li.s $fN,<const>` for single-precision constants; without `-G0` the assembler expands that
+the single-precision load-immediate pseudo-instruction (`li.s`) for float constants; without `-G0` the assembler expands that
 through a **gp-relative `.lit4` pool** (`lwc1`) instead of building the value with
-`lui`/`ori`/`mtc1` via `$at` — which is what the original does. Every ee-gcc function
+upper and lower immediates in `$at` and then moving it to the FPU — which is what the original does. Every ee-gcc function
 containing a float constant was therefore unmatchable for a reason that had nothing to do
 with the compiler or the source. One word fixed it; a math routine went 83% → 100%.
 
@@ -356,8 +356,8 @@ Read `.comment` in the boot ELF before choosing a toolchain. Two families domina
 
 A single game usually contains **both**: game code from the licensee's compiler, and SDK /
 libc / libgcc objects from Sony's. Tell-tales for the ee-gcc regions:
-`sd`/`ld $ra` (64-bit saves), `daddu rd,rs,zero` register moves, unfilled `jal;nop` slots,
-`move s8,sp` frame pointers.
+64-bit (`sd`/`ld`) saves of the return address, register copies done as a 64-bit add of zero,
+unfilled call delay slots, and frame pointers kept in s8.
 
 **Route per-file, not per-project.** We carry a `// COMPILER:` directive in each source
 file. Several functions sat parked for a long time only because they were being attacked
@@ -406,7 +406,7 @@ notice that a whole class of "walls" was misdiagnosed.
   was wrong — see §2a. Jump-table dispatchers ARE matchable.** Left here deliberately as a
   worked example of how a confident wall entry gets written from a false premise.
 - **VU0/COP2 and MMI 128-bit SIMD** — often has no faithful C form at all.
-- **Tail-call trampolines** (`j func` instead of `jal`) — gcc 2.9 has no
+- **Tail-call trampolines** (a plain jump instead of `jal`) — gcc 2.9 has no
   `-fno-optimize-sibling-calls`; the C is trivially correct but can never match.
 
 ---
@@ -426,7 +426,9 @@ in the slot, then reshape the C so that op is the first statement of that path.
   "wall" for us.
 
 **Float compound assignment picks operand order (mwcc).** `x = x + y` loads the LHS first
-(`add.s f0,f2,f0`); `x += y` loads the RHS first (`add.s f0,f0,f1`) — the CodeWarrior shape.
+(into `$f2`, which is the float add's first source); `x += y` loads the RHS first (into `$f1`,
+the add's second source) and the add takes the LHS/accumulator in `$f0` as its first source —
+the CodeWarrior shape.
 Nine sites converted took one function from 99.87 to 100.0.
 
 **Scratchpad memory behaves as `volatile`.** PS2 scratchpad (`0x70000000`) accesses in the

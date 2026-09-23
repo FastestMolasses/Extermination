@@ -1,6 +1,7 @@
 // CFLAGS: -O4,p -sdatathreshold 0
-// asm void: 2.3.1 dead instruction (addiu v0,zero,0x1 after b+paddub delay slot); beql
-// delay slot has addiu v0,zero,0x1. lui/addiu hardcoded. Byte-identical at link time.
+// asm void: 2.3.1 dead instruction (a v0 = 1 left after the unconditional branch whose
+// delay slot clears v0); the branch-likely delay slot also sets v0 = 1. Address halves
+// hardcoded. Byte-identical at link time.
 extern short D_00810CAC;
 extern short D_00810CAE;
 

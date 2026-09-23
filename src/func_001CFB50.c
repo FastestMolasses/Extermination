@@ -5,8 +5,8 @@
 // +0x48/+0x50, then calls func_001D0540(src+0x30, &D_70003AC0, f16) and stows
 // the returned float at dst+0x54; calls func_001CD370(a1) and stows its int
 // result at dst+0x40; finally copies four 128-bit quadwords (0x00..0x3F) from
-// src to dst via lq/sq. The 5th float param (f16) is forwarded as the float
-// arg to func_001D0540 (the target's `mov.s f12,f16`).
+// src to dst via quadword loads and stores. The 5th float param (f16) is forwarded as the float
+// arg to func_001D0540 (the target copies f16 into f12).
 typedef unsigned __int128 u128;
 
 extern float D_70003AC0;

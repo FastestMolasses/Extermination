@@ -10,7 +10,7 @@
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: the lone
 // residual under 991202 is wall #13 (it fills the `bne`/store delay slot and
-// reorders `sb zero,0x83(a1)` where CW leaves the nop). The 2.3.3 build leaves
+// reorders the zero byte store to +0x83 where CW leaves the nop). The 2.3.3 build leaves
 // that nop, so this readable C is byte-identical. Verified objdiff 100.0% vs
 // build/expected/func_0013B9A0.o.
 extern void func_0021C040(char *a, char *b);

@@ -24,7 +24,7 @@
 // the locals -- mwcc colours the callee-saved pointer/int pair in declaration
 // order, and the original holds &D_008102B0 in s0 with the mode code in s1.
 // (2) the dwell guards must be spelled `> 0x5A`, not `>= 0x5B`: the respelling
-// is what makes mwcc 2.3.3 emit the compare into `$at` (`slti at, v0, 0x5b`)
+// is what makes mwcc 2.3.3 put the compare result (v < 0x5B) in `$at`
 // rather than into the value register.
 
 extern int func_00122BB8(void);

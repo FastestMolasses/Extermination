@@ -2,7 +2,7 @@
 //
 // objdiff 94.89% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// gcc scheduling/regalloc: single redundant 'move v0,a1' copy difference. Expected materializes a copy of the loop counter (a1) into v0 before each 'slti v0,v0,5001'; ee-gcc -O2 deduped that copy and compares a1 directly (slti v0,a1,5001). Body and all other opcodes identical. Hoisting count=0 to function entry alread...
+// gcc scheduling/regalloc: one redundant register copy. The original copies the loop counter (a1) into v0 before each `count < 5001` compare; ee-gcc -O2 drops that copy and compares the counter directly. Body and all other opcodes identical. Tried variants: docs/NEARMISS.md.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

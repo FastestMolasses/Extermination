@@ -2,7 +2,7 @@
 //
 // objdiff 90.51% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// branch-delay-slot scheduling: target keeps nop in the beqz delay slot, both 991202 and 233 hoist the following `lui at,0x7000` into it (shifts branch target). Not the clean-store nop class; 233 over-fills here. Scheduling-era wall vs original 2.3.1.
+// branch-delay-slot scheduling: target keeps nop in the beqz delay slot, both 991202 and 233 hoist the following scratchpad upper-half load into it (shifts branch target). Not the clean-store nop class; 233 over-fills here. Scheduling-era wall vs original 2.3.1.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -22,7 +22,7 @@
 // via the PS2 paddub idiom, which 2.3.3 reproduces exactly (991202 does not).
 //
 // WALL: the sole 2.3.3 residual is the beqz delay slot -- the target leaves a
-// `nop` there, but both modern mwcc builds hoist the following `lui at,0x7000`
+// `nop` there, but both modern mwcc builds hoist the following scratchpad upper-half load
 // into the slot (and shift the branch target by 4). Inverting the if-condition
 // and adding the explicit `return` did not move it; this is a branch-delay-slot
 // scheduling difference vs the original 2.3.1 codegen, not the clean-store nop

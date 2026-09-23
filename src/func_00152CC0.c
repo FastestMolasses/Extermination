@@ -20,9 +20,9 @@
 // Matched with mwcc 2.3.3 (mwcps2-2.3.3-000906); the pinned 991202 build reaches
 // 91.7%. Key: func_00122BB8 takes no arguments (the target sets up no arg
 // registers for it) -- declaring it func_00122BB8() removes the spurious
-// `paddub a0` setup and resolves the a1/a2 register coloring on the switch
+// a0 argument copy and resolves the a1/a2 register coloring on the switch
 // scrutinee. anim_clip_init's real signature is (self, clip, float, float); the
-// trailing 0.0f emits the `mtc1 zero,$f13` pair-clear the target has.
+// trailing 0.0f emits the zero-into-$f13 pair-clear the target has.
 extern void anim_clip_init(int self, int clip, float a, float b);
 extern int anim_advance_time(int self, float t);
 extern int func_00122BB8(void);

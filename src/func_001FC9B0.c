@@ -4,9 +4,9 @@
 // NOT YET 100% (m3-matching lane): 52.6% -> 90.48%. Still force-listed in
 // fill_unmatched SIZE_DRIFT_FORCE_ASM, so the linker uses the original .s.
 // D_002821D0 is over-declared as an array (idiom #20) because the target
-// stores it with lui/sw while the other three bytes/words are gp-relative;
+// stores it with an absolute address (upper-half load plus word store) while the other three bytes/words are gp-relative;
 // the volatiles keep the target's store order 50, 54, 21D0, 55. Residual: our
-// `lui at,%hi(D_002821D0)` is scheduled one store earlier than the target's.
+// %hi(D_002821D0) address setup is scheduled one store earlier than the target's.
 // D_002821D0 lies inside the 0x9C bytes cleared at D_002821B0 (+0x20), but
 // spelling it as that field measured worse (89.95%).
 //

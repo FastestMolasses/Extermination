@@ -2,7 +2,7 @@
 //
 // objdiff 99.73% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// eegcc GPR-coloring wall (confirmed s84): body byte-identical and .text size exact (0x124 == expected 0x124); residual is 4 instructions where s7 and s8 are swapped on the two loop-hoisted %hi bases (lui s8,%hi(D_00241B90)/lui s7,%hi(D_00241B88) vs ours reversed, and the two matching sd). Register...
+// eegcc GPR-coloring wall (confirmed s84): body byte-identical and .text size exact (0x124 == expected 0x124); residual is 4 instructions where s7 and s8 are swapped on the two loop-hoisted %hi bases (target: s8 = high half of D_00241B90, s7 = high half of D_00241B88; ours reversed, and the two matching doubleword saves). Register...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

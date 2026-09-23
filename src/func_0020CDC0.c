@@ -60,7 +60,7 @@
 // -- no C spelling reaches it (a function-scope `hundred` local was measured and
 // does not).  (2) both jr-table dispatches emit `sll` one slot earlier.  (3) about
 // ten 2-instruction swaps where CW hoists a store's `li` above the preceding
-// volatile `sw`.  (4) one dead `addiu v0,1` CW re-materialises before the
+// volatile `sw`.  (4) one dead v0 = 1 CW re-materialises before the
 // D_008106C5 == 2 arm.
 extern int float_to_int(float);
 extern void func_0015C700(void *);

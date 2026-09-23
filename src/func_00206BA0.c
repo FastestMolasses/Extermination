@@ -3,8 +3,8 @@
 // Builds a 0x20-byte argument struct on the stack from the incoming params
 // (two long long, then int = a3 - a0->0x48, then the 5th int arg), then tail-
 // calls func_00204D60(D_002DF788, &struct). mwcc 2.3.3 fills the jal delay slot
-// with `sw t0,0x24(sp)` (matching the target); the pinned 991202 build instead
-// hoists `addiu a0,v0,0` into the delay slot, so it does not match.
+// with the t0 store to sp+0x24 (matching the target); the pinned 991202 build instead
+// hoists the a0 = v0 copy into the delay slot, so it does not match.
 extern void func_00204D60(void *, void *);
 extern char D_002DF788[];
 

@@ -2,7 +2,7 @@
 //
 // objdiff 84.70% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Regalloc/constant-rematerialization permutation: target keeps compare constant 1 live in v0 and reuses it for D_00275C58 stores (mwcc re-emits li v0,1 at merge tail); colors D_00275C64 reload as v1 (mwcc picks v0). Body/structure fully correct; permuter territory.
+// Regalloc/constant-rematerialization permutation: target keeps compare constant 1 live in v0 and reuses it for D_00275C58 stores (mwcc re-materializes v0 = 1 at the merge tail); colors D_00275C64 reload as v1 (mwcc picks v0). Body/structure fully correct; permuter territory.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -24,7 +24,7 @@
 // NEARMISS 84.7% (mwcc 2.3.3; 991202 = 84.5%). Body/structure fully recovered;
 // the sole residuals are a register-coloring + constant-rematerialization
 // permutation: the target keeps the compare constant 1 live in $v0 and reuses
-// it for the D_00275C58 stores (mwcc re-emits `li v0,1` at the merge tail), and
+// it for the D_00275C58 stores (mwcc re-materializes v0 = 1 at the merge tail), and
 // colors the D_00275C64 reload as $v1 (mwcc picks $v0). Regalloc/scheduling wall
 // -- permuter territory.
 

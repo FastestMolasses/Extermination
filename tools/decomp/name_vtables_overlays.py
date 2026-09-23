@@ -9,7 +9,7 @@ Three passes:
   1. Overlay-dispatch naming. func_001E7780 is the area-state dispatcher: it
      reads a two-byte ID at D_00810700/D_00810701 and jal's to one of 17
      unique vrams in the overlay arena (0x823500..). We parse the
-     `addiu $a0, $zero, K; beq $v1, $a0, .Lxxx; ...; .Lxxx: jal func_XXXXXX`
+     "load constant K, branch-if-equal to a label, ..., call at that label"
      structure and map each overlay entry-point vram to a name like
      `area_state_<HEX>_dispatch_entry`. The dominant area-state ID(s) for each
      vram inform the name. Both the boot-ELF references (added to
@@ -17,8 +17,9 @@ Three passes:
      updated so splat picks up the names everywhere.
 
   2. Vtable-init scanning. Walks every per-function .s file looking for
-     clusters of 3+ consecutive `sw $REG, +N($BASE)` where each $REG is
-     loaded from a `lui+addiu %hi/%lo(SYM)` pair naming a function (or via
+     clusters of 3+ consecutive word stores of a register at increasing
+     offsets from one common base, where each stored register holds a
+     %hi/%lo(SYM) address pair naming a function (or via
      a splat-resolved `D_00XXXXXX` symbol that is a function vram). Each
      such cluster is a vtable init: we name the slot-target functions
      `vtable_<BASE_TAG>_off<N>` and the host function (which contains the
@@ -121,7 +122,7 @@ def parse_dispatch_table() -> list[tuple[int, int]]:
             pending_beq_targets.append((pending_id, m.group(1)))
             pending_id = None
             continue
-        # beqz $v1 path (id=0 case)
+        # branch-if-zero path (id=0 case)
         m = BEQZ_LABEL_RE.search(ln)
         if m:
             pending_beq_targets.append((0, m.group(1)))
@@ -172,9 +173,9 @@ def overlay_dispatch_names(
 # ----- Vtable scan -----------------------------------------------------------
 
 # Patterns within a per-function .s (lines have /* off vram word */ stripped):
-#   lui   $rA, %hi(SYM_or_D)
-#   addiu $rA, $rA, %lo(SYM_or_D)        # rA now holds function pointer
-#   sw    $rA, OFF($rBASE)
+#   the %hi/%lo address pair of SYM_or_D built in one register rA (rA then
+#   holds the function pointer), followed by a word store of rA at offset OFF
+#   from a base register rBASE.
 # Multiple of these in a row, with increasing OFF and same rBASE, == vtable.
 
 LUI_RE = re.compile(r"lui\s+\$(\w+),\s*%hi\(([A-Za-z_][\w]*)\)")
@@ -227,7 +228,7 @@ def scan_vtable_inits(known_funcs: set[int]) -> list[VTHit]:
 
         # Track recent lui values per-register (clear on register overwrite).
         # We treat each line in order.
-        reg_func: dict[str, int] = {}   # reg -> resolved function vram (after lui+addiu)
+        reg_func: dict[str, int] = {}   # reg -> resolved function vram (after a %hi/%lo pair)
         pending_lui: dict[str, str] = {}  # reg -> symbol name from lui
 
         # Active vtable cluster.
@@ -315,7 +316,7 @@ def scan_vtable_inits(known_funcs: set[int]) -> list[VTHit]:
                         cluster_base = base
                         cluster_slots = [(off, fvram)]
                     # The store consumes the source's function-pointer
-                    # liveness for the next slot's lui+addiu sequence.
+                    # liveness for the next slot's %hi/%lo pair.
                     reg_func.pop(src, None)
                 else:
                     # sw of something that isn't a known func ptr —
@@ -326,7 +327,7 @@ def scan_vtable_inits(known_funcs: set[int]) -> list[VTHit]:
             # Any other instruction that writes to a register may invalidate
             # a tracked function pointer.  Conservative: look for `, $X` as
             # dest.  But this is fiddly; we just leave reg_func alone and
-            # rely on lui+addiu+sw being adjacent in vtable init code (which
+            # rely on the %hi/%lo pair and its store being adjacent in vtable init code (which
             # they generally are with mwcc).
 
         flush()

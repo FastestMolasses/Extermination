@@ -14,7 +14,7 @@
 // is indexed with explicit byte offsets (`D_00275B40 + off`, `+= 4`) to keep the
 // target's single addu and avoid an extra induction register; (2) the parent
 // index is `parent * 4` on the already sign-extended `int parent` (from the lh),
-// reproducing the plain `sll v0,v1,2` and avoiding the dsll32/dsra32 64-bit
+// reproducing the plain 32-bit shift-left-by-2 and avoiding the 64-bit shift-left/arithmetic-shift-right pair
 // re-sign-extension a short index would emit.
 extern void build_trs_matrix(void *, void *, void *, void *);
 extern void func_001026D0(unsigned char *, unsigned char *, unsigned char *);

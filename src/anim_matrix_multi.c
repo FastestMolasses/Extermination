@@ -2,7 +2,7 @@
 //
 // objdiff 96.60% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Two genuine compiler artifacts, 967/1028 instructions byte-identical. (1) SCRATCHPAD-ALIAS SCHEDULING WALL (new class): splat renders EE-scratchpad loads/stores as `lui $at,0x7000` + literal offset with NO relocation, so the C must be `*(float*)0x70003A20`. mwcc then treats those as unknown point...
+// Two genuine compiler artifacts, 967/1028 instructions byte-identical. (1) SCRATCHPAD-ALIAS SCHEDULING WALL (new class): splat renders EE-scratchpad loads/stores as an absolute 0x7000xxxx address (high half 0x7000 built in $at) + literal offset with NO relocation, so the C must be `*(float*)0x70003A20`. mwcc then treats those as unknown point...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

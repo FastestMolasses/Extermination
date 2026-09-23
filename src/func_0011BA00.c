@@ -1,4 +1,4 @@
-// lui $v1,(0x10003C20>>16); ori $v1,$v1,(0x10003C20&0xFFFF); jr $ra; lw $v0,0x0($v1)
+// Returns the VIF1 ERR register, *(volatile u32 *)0x10003C20 (load in the return delay slot).
 asm int func_0011BA00(void) {
     lui $3, 0x1000
     ori $3, $3, 0x3C20

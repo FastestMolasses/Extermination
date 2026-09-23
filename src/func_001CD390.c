@@ -2,7 +2,7 @@
 //
 // objdiff 97.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// branch-delay-slot scheduling permutation: the dual float-equality guard `if (arg1[0]==0.0f && arg1[2]==0.0f)` emits two CW `bc1f` branches to the same else-block, and the CW target leaves the SECOND bc1f's delay slot as an explicit `nop`; mwcc 2.3.3 fills it by hoisting the common `lui at,0x7000`...
+// branch-delay-slot scheduling permutation: the dual float-equality guard `if (arg1[0]==0.0f && arg1[2]==0.0f)` emits two CW `bc1f` branches to the same else-block, and the CW target leaves the SECOND bc1f's delay slot as an explicit `nop`; mwcc 2.3.3 fills it by hoisting the common scratchpad-base lui (0x7000)...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -28,7 +28,7 @@
 // `if (arg1[0]==0.0f && arg1[2]==0.0f)` emits two `bc1f` to the shared else
 // block; the CW (2.3.1) target leaves the SECOND bc1f's delay slot as an
 // explicit `nop`, while mwcc 2.3.3 fills it by hoisting the common
-// `lui at,0x7000` scratchpad-store address, shifting one branch offset. Same
+// scratchpad-base lui (0x7000) of the store address, shifting one branch offset. Same
 // class as the func_0012D580 NEARMISS; not the clean-store nop, not
 // source-fixable - parked.
 extern void func_00102718(void *a, void *b, void *c);

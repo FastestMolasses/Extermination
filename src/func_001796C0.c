@@ -2,7 +2,7 @@
 //
 // objdiff 99.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// REGALLOC COLORING of one short-lived scratch GPR — 2 of 112 instructions differ (99.909%). Sole residual, at the -4.01f test: target emits `lui v1,0xc080; ori a0,v1,0x51ec; mtc1 a0,$f0`, mwcc 2.3.3 emits `lui v1,0xc080; ori v0,v1,0x51ec; mtc1 v0,$f0`. mwcc picks v0 (lowest free temp) where CodeWa...
+// REGALLOC COLORING of one short-lived scratch GPR — 2 of 112 instructions differ (99.909%). Sole residual, at the -4.01f test: target builds the constant 0xC08051EC in v1 and then a0 before moving it into $f0; mwcc 2.3.3 uses v0 where the target uses a0. mwcc picks v0 (lowest free temp) where CodeWa...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

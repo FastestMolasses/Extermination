@@ -47,9 +47,9 @@ char *func_001D66A0(int arg0, float *arg1, int *arg2, int *arg3, float fparg0) {
     *(char **)(ctx + 0x10) = rec + 0x870;
 
     f21 = az * cosA;
-    f23 = cosStep * (aw * sinA) + (az * cosA) * sinStep;  /* mula.s f21,f26 / madd.s f23,f0,f2 */
+    f23 = cosStep * (aw * sinA) + (az * cosA) * sinStep;  /* ACC multiply, then multiply-add */
     f22 = az * sinA;
-    f24 = cosStep * (aw * cosA) - (az * sinA) * sinStep;  /* mula.s f22,f26 / msub.s f24,f0,f1 */
+    f24 = cosStep * (aw * cosA) - (az * sinA) * sinStep;  /* ACC multiply, then multiply-sub */
 
     *(int *)(rec + 0x10) = 0;
     *(int *)(rec + 0x14) = 0;

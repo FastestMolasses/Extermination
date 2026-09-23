@@ -2,7 +2,7 @@
 //
 // objdiff 88.92% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc forward-branch-likely + list-scheduler wall. Body matches structurally. Two divergences at -O2 (best of -O2/-O1/-O0; O1=50.7, O0=0): (1) at the D_002414AC==3 test, expected emits plain `beq a0,v1` with a filled delay slot (`lui v1` in slot), but ee-gcc 2.9-991111-01 emits branch-likely `bnel a0,v1` annulling `...
+// eegcc forward-branch-likely + list-scheduler wall. Body matches structurally. Divergences at -O2 (best of -O2/-O1/-O0; O1=50.7, O0=0): at the D_002414AC==3 test the original uses a plain branch whose delay slot holds the next constant's upper-half load, while ee-gcc 2.9-991111-01 inverts it into a branch-likely that annuls the slot (rest of the note: docs/NEARMISS.md).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

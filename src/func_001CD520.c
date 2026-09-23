@@ -40,7 +40,8 @@ typedef struct Vec4 {
     float x, y, z, w;
 } Vec4;
 
-/* vmulax/vmadday/vmaddaz/vmaddw ACC chain: row-vector point transform,
+/* VU0 multiply-accumulate chain (acc = row0*x + row1*y + row2*z,
+   out = acc + row3*1.0): row-vector point transform,
    with w taken from vf0.w == 1.0 rather than from the source vector. */
 static Vec4 vu0_transform_point(const volatile float *m, const Vec4 *v)
 {
@@ -52,7 +53,7 @@ static Vec4 vu0_transform_point(const volatile float *m, const Vec4 *v)
     return r;
 }
 
-/* vclipw.xyz + cfc2 $vi18: 1 if any of +/-x, +/-y, +/-z falls outside +/-w. */
+/* VU0 clip test of xyz against w, then the clip flags are read back: 1 if any of +/-x, +/-y, +/-z falls outside +/-w. */
 static int vu0_clip_outside(const Vec4 *p)
 {
     return p->x >  p->w || p->x < -p->w
@@ -96,9 +97,9 @@ int func_001CD520(int bucket, int mode, Vec4 *world, unsigned long long giftag,
     /* 3. depth bias, z divide, fog term, and the 28.4 conversion. */
     cs.w -= zbias;
     cs.z /= cs.w;
-    cs.w = fogp[2] + fogp[3] * cs.w;     /* vmulaz.w / vmaddw.w */
-    if (cs.w > fogp[0]) { cs.w = fogp[0]; }   /* vmini.w */
-    if (cs.w < 0.0f)    { cs.w = 0.0f; }      /* vmax.w  against vf0.x == 0 */
+    cs.w = fogp[2] + fogp[3] * cs.w;     /* w lane: multiply-accumulate */
+    if (cs.w > fogp[0]) { cs.w = fogp[0]; }   /* w clamped to fogp[0] */
+    if (cs.w < 0.0f)    { cs.w = 0.0f; }      /* w clamped at 0.0 */
     SCR_X   = vu0_ftoi4(cs.x);
     SCR_Y   = vu0_ftoi4(cs.y);
     SCR_Z   = vu0_ftoi4(cs.z);
@@ -112,7 +113,7 @@ int func_001CD520(int bucket, int mode, Vec4 *world, unsigned long long giftag,
         float ex = EXT_X_F;
         float ey = EXT_Y_F;
         float ez = EXT_W_F;
-        /* row 2's x,y are zeroed (vsub.xy $vf18,$vf18,$vf18): depth only feeds z,w. */
+        /* row 2's x,y lanes are zeroed: depth only feeds z,w. */
         ext.x = D_70003A40[0] * ex + D_70003A40[4] * ey + D_70003A40[12];
         ext.y = D_70003A40[1] * ex + D_70003A40[5] * ey + D_70003A40[13];
         ext.w = D_70003A40[3] * ex + D_70003A40[7] * ey

@@ -2,7 +2,7 @@
 //
 // objdiff 69.87% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// CW branch-inversion/dead-b idiom dominates: each of the ~7 `return 1` exits is lowered by the target as a forward `bnez/bc1t` with the v0=1 set in the delay slot and a `b` into a split epilogue that does `lq ra` in its delay slot; mwcc inverts every guard, nops the delay slot, and unifies all exi...
+// CW branch-inversion/dead-b idiom dominates: each of the ~7 `return 1` exits is lowered by the target as a forward zero-test or FP-condition branch with the v0=1 set in the delay slot and an unconditional branch into a split epilogue that reloads the return address in its delay slot; mwcc inverts every guard, nops the delay slot, and unifies all exi...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -23,13 +23,13 @@
 // Logic fully recovered (the trailing float-clear body at the bottom matches
 // instruction-for-instruction). DOMINANT WALL: the CW branch-inversion /
 // dead-b idiom -- each `return 1` is emitted by the target as
-// `<test> bnez/bc1t forward; addiu v0,1 (delay); b <split-epilogue>; lq ra(delay)`
-// jumping into a SECOND epilogue entry that does `lq ra` before the final
-// `lq s0; jr ra`. mwcc instead inverts every guard (`beqz/bc1f`), inserts a nop
-// delay slot, and routes all exits through one unified `b <end>` epilogue.
-// Secondary: FP-compare register coloring (target `c.eq.s f0,f1` with field in
-// f0/zero in f1; mwcc swaps to field in f1/zero in f0). Both are documented
-// CW-vs-mwcc lowering walls that 2.3.3 does not fix. Tried single-exit, OR-
+// a forward branch on the test with v0 = 1 in its delay slot, then an
+// unconditional branch (ra reload in its delay slot) into a SECOND epilogue
+// entry that restores ra before the final s0 restore and return. mwcc instead
+// inverts every guard, leaves the delay slot empty, and routes all exits through
+// one unified epilogue. Secondary: FP-compare register coloring (target compares
+// field == zero with the field in f0/zero in f1; mwcc swaps to field in f1/zero
+// in f0). Both are documented CW-vs-mwcc lowering walls that 2.3.3 does not fix. Tried single-exit, OR-
 // chaining the 0x3C/0x3D/<3 triple (best, +8%), separate ifs (worse). Parked.
 extern int func_0021BB00(char *p);
 extern unsigned char D_008106BC;

@@ -9,8 +9,8 @@
 // assigned back into the COMPARED variable after copying its value
 // out: `r = t; t = t < 5; if (!t)`. The kill-rename splits t's web
 // (def 1 = the andi, def 2 = the compare) and mwcc allocates the
-// compare web the next free register — CW's `slti v1, v0, 5; bnez
-// v1` exactly. The bnez delay-slot nop survives because the only
+// compare web the next free register — CW's compare into v1 then
+// branch on v1, exactly. The bnez delay-slot nop survives because the only
 // fall-through candidate (`r -= 5`) clobbers the live return value
 // (wall-#13 safe case).
 extern int func_00122BB8(void);

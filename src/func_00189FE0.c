@@ -14,7 +14,7 @@
 //            into the record at +0x70.
 // The empty-effect `else` on the y clamp is load-bearing: the self-store is dead-code
 // eliminated (zero instructions emitted), but the extra CFG edge stops mwcc speculating the
-// following `lui $at, 0x7000` from the join block into the `bc1f` delay slot.
+// following scratchpad upper-half load from the join block into the `bc1f` delay slot.
 
 extern void func_001028D0(void *);
 extern void func_00102760(void *, void *);

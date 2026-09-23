@@ -2,7 +2,7 @@
 //
 // objdiff 85.64% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc sibling-call wall. Expected emits a true tail call to func_00107CB8 (full epilogue then `j func_00107CB8`, with `daddu a0,s2,zero` materialized early as the sibling-call arg). Our ee-gcc 2.9-991111-01 refuses to sibling-call this shape (the tail call sits after an if/else merge), emitting `jal func_00107CB8` i...
+// eegcc sibling-call wall. Expected emits a true tail call to func_00107CB8 (full epilogue then a plain jump to func_00107CB8, with the a0 = s2 copy materialized early as the sibling-call arg). Our ee-gcc 2.9-991111-01 refuses to sibling-call this shape (the tail call sits after an if/else merge), emitting a linked call to func_00107CB8 i...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

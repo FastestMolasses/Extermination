@@ -7,7 +7,7 @@
 // array so -sdatathreshold 4 keeps it absolute; (2) func_001CB590 is
 // UNPROTOTYPED because the second call passes three arguments: the target sets
 // $a0-$a2 for it and leaves $a3 as whatever func_001F0360 returned with. With a
-// four-argument prototype mwcc emitted an extra `move a3,zero` and scheduled
+// four-argument prototype mwcc emitted an extra a3 = 0 and scheduled
 // the two counter stores differently.
 //
 // THE GAMEPLAY FRAME (FINDINGS "ENGINE FRAME ANATOMY"), run once per frame by

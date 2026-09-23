@@ -14,10 +14,10 @@
 // Matched with mwcc 2.3.3 (mwcps2-2.3.3-000906); pinned 991202 only reaches
 // 91.87% (tail register-allocation order). Sibling of func_001CB6B0/func_001CB760.
 // Key idioms: `arg1 = arg1 >> 0xC;` reassignment after the !=0xFFF000 guard ->
-// branch-likely `beql; sra` (idiom-13); upper clamp as `> 0xFFB000U` (not
-// `>= 0xFFB001`) -> idiom-13b dead-const two distinct `lui 0xff`; low-28-bit
-// mask as `(unsigned)(x & 0xFFFFFFFULL)` -> dsll32/dsrl32 pair; the +0x104 value
-// derived from `blk + 0x10` (so mwcc reuses the early `addiu a3,a0,0x100`); the
+// branch-likely with the shift in its delay slot (idiom-13); upper clamp as `> 0xFFB000U` (not
+// `>= 0xFFB001`) -> idiom-13b dead-const two distinct 0xFF high-half loads; low-28-bit
+// mask as `(unsigned)(x & 0xFFFFFFFULL)` -> a 64-bit shift-left/shift-right pair; the +0x104 value
+// derived from `blk + 0x10` (so mwcc reuses the early a3 = a0 + 0x100); the
 // final cursor advance written as `+=` so mwcc colors the D_00275670 reload into
 // a0 / the *0x10 delta into a1 like CW. D_00275670 is gp-relative (sdatathreshold 4).
 extern char *D_00275670;

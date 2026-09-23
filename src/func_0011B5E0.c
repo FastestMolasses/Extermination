@@ -1,5 +1,5 @@
-// lui $v0,(0x10003810>>16); addiu $a0,$zero,0x1; ori $v0,$v0,0x3810; lui $v1,(0x10003820>>16);
-// sw $a0,0x0($v0); ori $v1,$v1,0x3820; addiu $v0,$zero,0x6; jr $ra; sw $v0,0x0($v1)
+// Writes 1 to the hardware register at 0x10003810, then 6 to 0x10003820
+// (the second store sits in the return delay slot).
 asm void func_0011B5E0(void) {
     lui $2, 0x1000
     addiu $4, $zero, 0x1

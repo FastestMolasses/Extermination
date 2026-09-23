@@ -8,8 +8,8 @@
 //
 // ee-gcc note: gcc expands the switch BODIES in source order and then moves the dispatch
 // tree to the front (reorder_insns), so the case order must be 3, 1, 2, default — that is
-// what turns the case-3 test into the target's `bne v1,3 -> default` with case 3 falling
-// through, rather than `beq v1,3 -> case3`.
+// what turns the case-3 test into the target's not-equal-to-3 branch to default with case 3
+// falling through, rather than an equal-to-3 branch to case 3.
 
 extern int D_0024141C;
 extern int D_002414AC;

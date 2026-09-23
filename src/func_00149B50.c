@@ -19,12 +19,12 @@
 // Three source shapes are load-bearing for the byte match:
 //  * the 0x40-byte probe template copy is a single `struct S64` (four 128-bit
 //    members) assignment — that is what yields CodeWarrior's batched
-//    lq t0/a3/a2/a1 + sq block with the dest pointer staged in t1; four explicit
+//    four-quadword load-then-store block with the dest pointer staged in t1; four explicit
 //    128-bit temps instead colour the loads in the opposite direction.
 //  * every early exit is `goto done` to a single trailing label (idiom-27): the
 //    shared-exit CFG stops mwcc 2.3.3 speculating constant materialisations into
 //    the switch-dispatch and guard branch delay slots, restoring the unfilled
-//    NOPs and the dead `addiu v0, a1, 1` re-materialisation. Likewise the
+//    NOPs and the dead `a1 + 1` re-materialisation into v0. Likewise the
 //    D_008104DC store is written inside all four camera-distance arms rather
 //    than hoisted to the join.
 //  * `zi = 0; z = (float)zi;` (idiom-24) at the clip-0x12 call, and the

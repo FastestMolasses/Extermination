@@ -2,7 +2,7 @@
 //
 // objdiff 98.79% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Regalloc/scheduling permutation class (mwcc 2.3.3), NOT the clean-store nop. Body byte-identical except 28 bytes in 3 regions, each proven source-shape-invariant: (a) +0x27C c.eq.s operand order for f!=0.0f — 2.3.3 sorts commutative FP-compare operands (emits c.eq.s f0,f1; target f1,f0); f!=0 / 0...
+// Regalloc/scheduling permutation class (mwcc 2.3.3), NOT the clean-store nop. Body byte-identical except 28 bytes in 3 regions, each proven source-shape-invariant: (a) +0x27C FP equality-compare operand order for f!=0.0f — 2.3.3 sorts commutative FP-compare operands (f0 before f1; the target has f1 before f0); (b)/(c): docs/NEARMISS.md.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

@@ -3,11 +3,11 @@
 // Player/actor state-machine tick, dispatched on the u8 state byte at +6.
 // Sub-state byte at +0xD and the "outcome" byte at +0x1F1 select variants.
 // NOTE (matching): the inner sub-state dispatches are ASCENDING if/else-if
-// chains (bnez/bne), NOT switches -- mwcc lowers a switch to a DESCENDING
+// chains (a zero test, then not-equal tests), NOT switches -- mwcc lowers a switch to a DESCENDING
 // beq chain, which is what the outer state dispatch uses.
 // NOTE (matching): every float accumulate must be written as compound `+=`,
 // not `x = x + y`; `+=` is what makes mwcc pair the FP scratch as $f0/$f1
-// (add.s $f0,$f0,$f1) instead of $f0/$f2.
+// ($f0 = $f0 + $f1) instead of $f0/$f2.
 extern void anim_clip_arbiter(unsigned char *, int, float, float);
 extern void build_trs_matrix(unsigned char *, unsigned char *, unsigned char *, unsigned char *);
 extern int float_to_int(float);

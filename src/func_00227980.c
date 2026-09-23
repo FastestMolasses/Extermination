@@ -18,7 +18,7 @@
 // short[8]` and accessed [0] to force absolute addressing while D_00275C58
 // stays gp-rel at -sdatathreshold 8 (idiom #20); (3) arg0 is `unsigned char*`
 // with the selector written as the array index arg0[arg0[0xA]+0x6C] so mwcc
-// emits `addu v1,v1,s0` (value+base) matching the target. Verified objdiff
+// emits the add as value + base (v1 first, s0 second) matching the target. Verified objdiff
 // 100.0 vs build/expected/func_00227980.o.
 extern int func_001FCBD0(int, int, int, int, unsigned int);
 extern void func_001FE8D0(void);

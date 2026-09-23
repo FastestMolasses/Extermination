@@ -1,11 +1,11 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 // Copies a 4-float vector (struct+0xB0/B4/B8, w=1.0f) into the absolute
-// scratch region 0x700038A0, then func_00102948 (16-byte lq/sq copy)
+// scratch region 0x700038A0, then func_00102948 (16-byte quadword copy)
 // duplicates it into D_008105E0. Double indirection: a0->0x1C->0x1C.
-// The 0x70003xxx stores are absolute-addressed (lui 0x7000); the call
+// The 0x70003xxx stores are absolute-addressed (upper half 0x7000); the call
 // argument materializes &D_700038A0 as a relocated symbol. mwcc233
-// schedules the lui a2,0x3F80 / lui %hi(D_008105E0) pair as the target does
+// schedules the 1.0f argument's upper-half load and the %hi(D_008105E0) load as the target does
 // (the pinned 991202 build orders them differently).
 extern char D_008105E0[0x100];
 extern float D_700038A0;

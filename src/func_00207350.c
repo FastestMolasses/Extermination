@@ -2,7 +2,7 @@
 //
 // objdiff reports slightly under 100% here, and objdiff is WRONG about it.
 // The residual is entirely splat rendering a 0x7000xxxx scratchpad access as
-// a bare literal in load/store context (it only symbolizes lui+addiu pairs),
+// a bare literal in load/store context (it only symbolizes an upper-half load paired with an immediate add),
 // so the EXPECTED object carries a constant where our compiled object carries
 // the %hi/%lo relocation pair. Both encode the same bytes once relocated.
 // Proven by the stronger oracle: this function is COMPILED and LINKED into the
@@ -26,7 +26,7 @@
 //
 // WHY IT IS NEEDED. 0x70003B64 occurs exactly once in this function, at the top
 // of the block the `p[5]==4` timer branch jumps over. With the literal spelling,
-// mwcc peels that block's bare `lui at,0x7000` into the branch's empty delay slot
+// mwcc peels that block's bare scratchpad-base lui (0x7000) into the branch's empty delay slot
 // and retargets +4; the original has a nop. As an extern the lui carries an
 // R_MIPS_HI16 relocation, which mwcc will not speculate, and the slot stays nop.
 // Declared as an INCOMPLETE ARRAY on purpose: `extern int D_70003B64;` is a

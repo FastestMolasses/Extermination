@@ -2,7 +2,7 @@
 //
 // objdiff 92.36% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc o32-vs-eabi list-scheduler wall. Body decompiled correctly (sizes equal 232==232); diverges only in the func_00123418 argument-setup scheduling/delay-slot fill (expected fills delay slot with sw s0,0x10(s1) and orders addiu a2,0x3ff earlier; our eabi64 ee-gcc fills with addiu a2,0x3ff). objdump confirms ABI mi...
+// eegcc o32-vs-eabi list-scheduler wall. Body decompiled correctly (sizes equal 232==232); diverges only in the func_00123418 argument-setup scheduling/delay-slot fill (expected fills the delay slot with the store of s0 to s1+0x10 and orders the +0x3ff adjustment of a2 earlier; our eabi64 ee-gcc fills it with that +0x3ff adjustment). objdump confirms ABI mi...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

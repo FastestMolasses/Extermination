@@ -2,7 +2,7 @@
 //
 // objdiff 66.71% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// FPU register-coloring + commutative add.s operand-order permutation. CW colors the int->float conversion chain in $f13 (the 5th-arg reg): cvt.s.w f13,f2 / div.s f13,f13,f1 / add.s f13,f13,f0; mwcc spills through f2->f1 (cvt.s.w f2,f2 / div.s f1,f2,f1 / add.s f13,f0,f1) and uses a3 vs a2 for the +...
+// FPU register-coloring + commutative add.s operand-order permutation. CW colors the int->float conversion chain in $f13 (the 5th-arg reg): the convert, divide and add all write $f13; mwcc spills through f2->f1 (convert into f2, divide into f1, then the add into f13 with commuted operands) and uses a3 vs a2 for the +...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

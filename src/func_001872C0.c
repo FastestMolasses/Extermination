@@ -9,8 +9,8 @@
 // the gun's aim direction vector (+0xC0). Returns 0.
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: the lone
-// residual under 991202 was wall #13 (it fills the `beqz v0` delay slot with
-// the safe `li v1,3` where CW leaves a nop). The 2.3.3 build leaves that nop,
+// residual under 991202 was wall #13 (it fills the beqz delay slot with
+// the safe constant 3 into v1 where CW leaves a nop). The 2.3.3 build leaves that nop,
 // so this readable C is byte-identical. Verified objdiff 100% vs
 // build/expected/func_001872C0.o.
 extern char *func_001AFA90(int);

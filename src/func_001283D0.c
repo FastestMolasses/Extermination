@@ -12,7 +12,7 @@
 //
 // Matched with mwcc 2.3.3 (mwcps2-2.3.3-000906); the pinned 991202 build reaches
 // 96.9%. Keys: (1) the cap test written as `> 0x14` (not `>= 0x15`) reproduces the
-// target's `slti at,v0,0x15` temp-register lowering; (2) the success path written
+// target's (v0 < 0x15)-into-$at temp-register lowering; (2) the success path written
 // inline as `if (p != 0) { ...; return 1; } return 0;` reproduces the `beqzl`
 // branch-likely null check (delay slot = the v0=0 return clear).
 extern char *func_001AFA90(int);

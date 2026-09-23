@@ -47,7 +47,7 @@ extern void func_00102C58(void *dst, void *src, void *r); /* ZYX Euler rotate (s
 extern void quat_nlerp(float *out, float *a, float *b, float t);
 extern void quat_to_mat3(void *out, float *q, void *trans_src);
 
-/* vmulx.xyz $vf4, $vf4, $vf5x — scale a row's xyz by a scalar, leave w alone.
+/* VU0 broadcast multiply — scale a row's xyz by a scalar, leave w alone.
    Emitted inline here; the out-of-line twin is func_00103230. */
 static void vu0_scale_row_xyz(volatile float *row, float s)
 {
@@ -56,7 +56,7 @@ static void vu0_scale_row_xyz(volatile float *row, float s)
     row[2] *= s;
 }
 
-/* vmulax/vmadday/vmaddaz/vmaddw accumulator chain, four rows.
+/* VU0 ACC multiply / multiply-add chain over the four rhs rows, four output rows.
    Row-vector convention: out.row[i] = sum_j lhs[i][j] * rhs.row[j].
    Emitted inline here; the out-of-line twin is func_001026D0(out, rhs, lhs). */
 static void vu0_mul_matrix(volatile float *out, const volatile float *rhs,

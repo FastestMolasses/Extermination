@@ -2,7 +2,7 @@
 //
 // objdiff 95.01% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// 95.0% (mwcc233) near-miss, logic fully recovered. Residuals are NOT the clean-store nop: 4-way state dispatch holds state byte in $a3 vs mwcc-233's $a2 plus one extra delay-slot nop; odd/even FP-register coloring (fv0 vs fv0f) on a few field loads; and a CW `mov.s fv0,fv0` self-move idiom mwcc ne...
+// 95.0% (mwcc233) near-miss, logic fully recovered. Residuals are NOT the clean-store nop: 4-way state dispatch holds state byte in $a3 vs mwcc-233's $a2 plus one extra delay-slot nop; odd/even FP-register coloring (fv0 vs fv0f) on a few field loads; and a CW FP register self-move idiom mwcc never emits (details below).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -42,7 +42,7 @@
 // Keys recovered: (1) the 0x700038xx / 0x700036xx / 0x70003Axx scratch fields are
 // absolute hardware addresses -- the base ptr passed to callees is the symbol
 // &D_700038A0 but field accesses are literal *(float*)0x700038A4 (matches the
-// target's `lui at,0x7000; lwc1 off(at)`); (2) func_00102B08's 3rd arg is a float
+// target's absolute-address float loads); (2) func_00102B08's 3rd arg is a float
 // (PI/2 -> $f12); (3) the 50*50 must be written `*(int*)0x70003A24=0x42480000;`
 // then `v = *(float*)0x70003A24 * 50.0f` (int-store/float-reload defeats mwcc's
 // constant fold, keeping the runtime mul + reload-once compare); (4) the two
@@ -50,7 +50,7 @@
 // Residual deltas (NOT the clean-store nop): the 4-way state dispatch holds the
 // state byte in $a3 (mwcc 233 picks $a2) with one extra delay-slot nop, an
 // odd/even FP-register coloring on a few field loads (fv0 vs fv0f), and a CW
-// `mov.s fv0,fv0` self-move idiom mwcc does not emit -- scheduling / FP-coloring /
+// FP register self-move idiom mwcc does not emit -- scheduling / FP-coloring /
 // regalloc-permutation class, permuter territory, not idiom-fixable.
 
 extern int func_001B0FD0(void);

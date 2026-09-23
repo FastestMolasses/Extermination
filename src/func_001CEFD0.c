@@ -18,9 +18,9 @@ typedef struct { float x, y, z, w; } Vec4;
 typedef struct { Vec4 r[4]; }        Mtx4;   /* rows; r[3] is the translation row */
 
 /* EE scratchpad working set used by this routine. */
-#define SPR_PROJ_I  ((int   *)0x70003600)  /* vftoi4 output: X, Y, Z, F (12.4)     */
+#define SPR_PROJ_I  ((int   *)0x70003600)  /* 12.4 fixed-point output: X, Y, Z, F  */
 #define SPR_PROJ_F  ((float *)0x70003600)  /* words 0/1 rewritten as centred floats */
-#define SPR_COLOUR  ((float *)0x70003610)  /* faded colour, then vftoi0'd in place  */
+#define SPR_COLOUR  ((float *)0x70003610)  /* faded colour, then made integer in place */
 #define SPR_XY      ((int   *)0x70003620)  /* 12.4 GS position handed to the sprite */
 #define SPR_TMP0    (*(float *)0x70003A20) /* float scratch                         */
 #define SPR_TMP1    (*(float *)0x70003A24) /* float scratch                         */
@@ -37,7 +37,7 @@ extern char *func_001CD370(int which);     /* -> D_00275670 + (which<<6) + 0x224
 extern float func_0011E748(float x);       /* sqrtf (libm domain-error wrapper)     */
 extern int   float_to_int(float x);
 extern void  func_00102900(void *dst, const void *src, float s); /* dst = src * s  */
-extern void  func_00102990(void *dst, const void *src);          /* dst = vftoi0(src) */
+extern void  func_00102990(void *dst, const void *src);          /* dst = (int)src per lane */
 extern void  func_001CF320(int *xy12_4, float *rgba_i, u64 tex0, float size);
 extern void  func_001CB900(char *page, int sortkey, int tag);
 
@@ -59,7 +59,7 @@ void func_001CEFD0(const Vec4 *pos, const float *rgba)
 
     objm = *(Mtx4 *)func_001CD370(2);
 
-    /* ---- 1. frustum cull (vclipw.xyz + cfc2 $vi18, low 6 bits) -------------- */
+    /* ---- 1. frustum cull (VU0 clip test of xyz vs w; low 6 clip-flag bits) - */
     xf.x = objm.r[0].x * pos->x + objm.r[1].x * pos->y + objm.r[2].x * pos->z + objm.r[3].x;
     xf.y = objm.r[0].y * pos->x + objm.r[1].y * pos->y + objm.r[2].y * pos->z + objm.r[3].y;
     xf.z = objm.r[0].z * pos->x + objm.r[1].z * pos->y + objm.r[2].z * pos->z + objm.r[3].z;
@@ -80,14 +80,14 @@ void func_001CEFD0(const Vec4 *pos, const float *rgba)
     fog = *(Vec4 *)(D_00275670 + 0xA0);   /* NOT loaded here — vf23 is live-in */
 
     {
-        float q = 1.0f / clip.w;                  /* vdiv Q, vf0w, vf2w */
+        float q = 1.0f / clip.w;                  /* VU0 divide into Q */
         xf.x = clip.x * q;
         xf.y = clip.y * q;
         xf.z = clip.z * q;
-        xf.w = fog.z + fog.w * clip.w;            /* vmulaz.w + vmaddw.w  */
-        if (xf.w > fog.x) { xf.w = fog.x; }       /* vminix.w             */
-        if (xf.w < 0.0f)  { xf.w = 0.0f; }        /* vmaxx.w  (vf0.x = 0) */
-        SPR_PROJ_I[0] = (int)(xf.x * 16.0f);      /* vftoi4.xyzw          */
+        xf.w = fog.z + fog.w * clip.w;            /* w-lane multiply-acc */
+        if (xf.w > fog.x) { xf.w = fog.x; }       /* w-lane min vs fog.x */
+        if (xf.w < 0.0f)  { xf.w = 0.0f; }        /* w-lane max vs zero  */
+        SPR_PROJ_I[0] = (int)(xf.x * 16.0f);      /* to 12.4 fixed point  */
         SPR_PROJ_I[1] = (int)(xf.y * 16.0f);
         SPR_PROJ_I[2] = (int)(xf.z * 16.0f);
         SPR_PROJ_I[3] = (int)(xf.w * 16.0f);
@@ -103,11 +103,11 @@ void func_001CEFD0(const Vec4 *pos, const float *rgba)
     SPR_PROJ_F[0] = cx;
     SPR_PROJ_F[1] = cy;
 
-    r = func_0011E748(cx * cx + cy * cy);         /* mula.s / madd.s then sqrtf */
+    r = func_0011E748(cx * cx + cy * cy);         /* ACC multiply, multiply-add, sqrtf */
     SPR_TMP0 = r;
     t = r / 393.84616f;                           /* 0x43C4EC4F */
     SPR_TMP0 = t;
-    if (t > 1.0f) { t = 1.0f; }                   /* clamp via c.le.s / bc1t   */
+    if (t > 1.0f) { t = 1.0f; }                   /* clamp: float <= compare, branch on true */
     SPR_TMP0 = t;
     intensity = 1.0f - t;
     SPR_TMP0 = intensity;

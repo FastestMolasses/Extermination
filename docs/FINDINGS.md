@@ -286,7 +286,7 @@ idiom-31. `func_00180850` also needed to pass its actor address to
 `(void *, void *)` signature without the unnecessary float-pointer cast.
 
 `sub_PsIIlibpad_2000` was byte-correct C with a bad expected relocation:
-splat paired a countdown's `lui 1` and decrement as `%hi/%lo(D_FFFF)`.
+splat paired a countdown's init (`1 << 16`) and its decrement as `%hi/%lo(D_FFFF)`.
 Normalizing that exact pseudo-symbol back to immediates removes the mismatch.
 A corpus scan found this symbol only in this function. The existing five- and
 six-F fixups were insufficient; do not broaden this to real address symbols.
@@ -556,7 +556,7 @@ gap). First function of every overlay is at **vram 0x00823540** (+0x40 from aren
 
 **Boot ELF dispatch**: `func_001E7780` (0x4D4 bytes) reads a two-byte area/state ID
 from BSS at `D_00810700` and dispatches to one of 17 fixed overlay vram addresses
-(hardcoded `jal func_8XXXXXX` instructions in the boot ELF).
+(hardcoded direct calls into the overlay vram range in the boot ELF).
 
 **Inspector tool**: `tools/overlay/inspect_mwo3.py` (original code).
 
@@ -1353,7 +1353,7 @@ sequencer's own ramps). `func_001FBF50` in full:
    - mono option `D_0028215B == 1` → both gains = vol (no pan);
      `D_0027F778 == 1` is a second, driver-level mono (both = max|L,R|).
 3. **Radius is a per-call-site constant in f12**. Histogram across all
-   `jal func_001FBD50` sites: **300.0 × 281**, 500.0 × 17, 450.0 × 12,
+   call sites of func_001FBD50: **300.0 × 281**, 500.0 × 17, 450.0 × 12,
    1000.0 × 11, 800.0 × 6 (+ record-supplied: door script op 0x17 sub 1
    reads rec+0x20). Verified per-id: weapon draw 0x162 (func_0016F530),
    enemy death 0x7D8 (func_00153B50), leech spawn 0x430 (func_00154040),
@@ -2121,9 +2121,12 @@ in "Per-vertex bone binding lives in the position w field". Per
   VIF1 UNPACK; the matrix payload originates from the live-pose BSS
   arena `0x002863XX..0x002893XX`.
 - **Per-vertex selector decode** at vram `0x00230B70..0x00230B98`:
-  `ftoi4.x` + `iswr` round-trips the W-field float through a VI register
-  into `vi01`, which is then the base for `lq vf12, 0(vi01)` /
-  `lq vf13, 16(vi01)` (palette indexing with +16qw matrix-slot stride).
+  a float-to-fixed-point conversion (4 fractional bits, i.e. Q28.4 in the
+  32-bit lane) plus an integer-register store to VU memory round-trips the
+  W-field float through a VI register into an integer pointer register,
+  which is then the base for the
+  two matrix-row loads at `+0` and `+16 qw` (palette indexing with +16qw
+  matrix-slot stride).
 - **The kernel does NOT contain the global-bone-id list.** That mapping
   is supplied by the EE side: whichever function builds the
   matrix-palette VIF1 UNPACK reads a per-MESH-block 4-bone-index table
@@ -2233,10 +2236,10 @@ XGKICK — confirming the decoder is correct. Highlights:
 
 > **2026-05-27 CORRECTION.** The "#6/#8/#10 helper packets" identified
 > at vram `0x002346b0`/`0x002346f0`/etc. are **false positives** — the
-> catalog scanner mistook interior `jalr vi15` instructions
+> catalog scanner mistook interior register-indirect calls through vi15
 > (`0x4a0f0800`) for MPG tags. The skinner mains (#5/#7/#9) are real
 > kernels at vram `0x00234610`/`0x00234b30`/`0x00235010` (153/145/142
-> qw). The imem-0x800 helper IS used (the mains contain `jalr vi15`
+> qw). The imem-0x800 helper IS used (the mains contain register-indirect calls through vi15
 > calls) but lives in a separate VIF DMA upload that the catalog
 > scanner doesn't surface. The pseudocode below was inferred from
 > op-frequency profile; the **byte-decoded** version, including the
@@ -2255,45 +2258,32 @@ XGKICK — confirming the decoder is correct. Highlights:
 
 Pseudocode reconstruction of the main-routine pattern (~150 qw):
 
-```
-init:
-    xtop  vi01           ; read VIF UNPACK top-of-buffer marker
-    iaddiu vi02, vi00, 1 ; vertex count guard
-    ; load 4-row bone matrix from a fixed dmem offset into vf01..vf04
-    lq    vf01, BONE+0(vi00)
-    lq    vf02, BONE+1(vi00)
-    lq    vf03, BONE+2(vi00)
-    lq    vf04, BONE+3(vi00)
+```c
+/* init */
+in  = xtop();                        /* VIF UNPACK top-of-buffer marker   */
+out = 1;                             /* vertex count guard                */
+M[0..3] = dmem[BONE + 0..3];         /* 4-row bone matrix, fixed offset   */
 
-per_vertex_loop:
-    lqi   vfV, (vi01++)        ; load 1 quantized vertex qword from VIF stream
-    bal   imem_0x800           ; -> 15-qw helper: dequantize + transform
-    sqi   vfV, (vi02++)        ; write transformed vertex to output buffer
-    iaddiu vi03, vi03, -1      ; decrement count
-    ibne  vi03, vi00, per_vertex_loop
+/* per-vertex loop */
+do {
+    v = dmem[in++];                  /* 1 quantized vertex qword          */
+    v = xform_one_vertex(v);         /* 15-qw helper at imem 0x800        */
+    dmem[out++] = v;                 /* transformed vertex to output      */
+} while (--count != 0);
 
-emit:
-    ; write GIF tag preamble
-    sq   gif_tag, OUTBUF+0
-    xgkick  vi02               ; kick the assembled packet
-end:
-    nop ; [E]
-    nop
+/* emit */
+dmem[OUTBUF + 0] = gif_tag;          /* GIF tag preamble                  */
+xgkick(out_packet);                  /* kick the assembled packet; E-bit  */
 ```
 
 The 15-qw helper at imem 0x0800 (5 mul*, 2 ftoi/itof, 8 LQ) is the
 dequantize+transform inner kernel:
 
-```
-xform_one_vertex:
-    ; vfIN already has the raw quantized qword loaded by caller
-    itof12  vfTMP, vfIN         ; treat as Q4.12 fixed-point -> float
-    mulAi   ACC,   vf01, vfTMP.x ; bone row 0 * x
-    maddAi  ACC,   vf02, vfTMP.y ; + bone row 1 * y
-    maddAi  ACC,   vf03, vfTMP.z ; + bone row 2 * z
-    madd    vfOUT, vf04, vfTMP.w ; + translation row (w as 1.0 sentinel)
-    ftoi0   vfINT, vfOUT        ; convert to GS integer coord
-    jr      ra
+```c
+/* xform_one_vertex: the caller already loaded the raw quantized qword */
+t   = q4_12_to_float(in);                       /* Q4.12 fixed-point -> float     */
+out = M[0]*t.x + M[1]*t.y + M[2]*t.z + M[3]*t.w; /* w acts as the 1.0 sentinel    */
+return float_to_int(out);                       /* GS integer coord               */
 ```
 
 **This pseudocode is INFERRED from the op-frequency profile, not a
@@ -2365,13 +2355,13 @@ no faces -- the stream is pre-stripification quantised vertices) plus a
 
 Followed up the FINDINGS hypothesis that the EE-side bone-matrix DMA
 would lead back from kernel-pair #5/#6 via `func_0011AA50` →
-`func_0011AB60` (ctc2+vcallmsr dispatcher). Two concrete results:
+`func_0011AB60` (the CMSAR0-write + VCALLMSR microprogram dispatcher). Two concrete results:
 
 **1. VU1 dmem source of the bone matrix — RESOLVED.** The skinning
 kernel main at vram `0x00234610` loads its 4-row matrix into
 **vf28..vf31** from **VU1 dmem qwords `0x000..0x003`** (bytes
 `0x0000..0x003F`), via four absolute-address LQ instructions
-`lq vfNN, K(vi0)` with K in {0,1,2,3} (LQ immediate is 11-bit
+based on vi0 (always zero) with offsets K in {0,1,2,3} (LQ immediate is 11-bit
 **unsigned**, not sign-extended — corrected from initial reading).
 Additionally vf16..vf21 are loaded from the **top of dmem**
 (qw 0x3F8, 0x3FA, 0x3FB, 0x3FD, 0x3FE, 0x3FF) — six quadwords of
@@ -2400,7 +2390,8 @@ sets `BASE=0x0020` and `OFFSET=0x0190`, confirming VU1 dmem layout:
   snapshot to 0x40-byte struct, `func_0011BC38` VIF1-FIFO drain
   loop targeting `0x10005000`, `func_0011BC98` VIF1-FIFO read).
   Every one of these functions is statically unreferenced.
-- The `ctc2 vi27` + `vcallmsr` instructions appear exactly **once
+- The COP2 control write of vi27 (CMSAR0) and the VCALLMSR that starts
+  a microprogram from it appear exactly **once
   each in the whole boot ELF** (inside `func_0011AB60`); since
   AB60 is unreferenced, **`vcallmsr` is effectively unused** — VU1
   programs are kicked by VIF1 `MSCAL`/`MSCNT` tags in DMA chains,
@@ -2413,7 +2404,7 @@ helpers that the linker pulled in but no compiled code calls. The
 real engine inlines equivalent logic (or builds DMA tags directly).
 
 **3. The actual EE-side VU1/VIF1/GIF DMA pipeline.** Surveyed every
-`lui 0x1000`+`addiu/ori` pair in the boot ELF that resolves to an
+upper-half 0x1000 constant pair (low half added or OR-ed) in the boot ELF that resolves to an
 EE MMIO address. All hardware accesses concentrate in **boot/init
 code**, not overlays:
 
@@ -2676,7 +2667,7 @@ byte sizes for the readback, then issues:
      1-qword temp buffer at `$sp+0`  to dst — the sub-qword tail.
    - `.L00101464..L00101480` loop (gated on `$s6 > 0`): same FIFO-
      drain pattern, `$s6` extra qwords to scratch on the stack
-     (`sq $v0, 0($sp)`) — leftover that doesn't fit in dst.
+     (a qword store to `sp+0`) — leftover that doesn't fit in dst.
 
 10. **Restore state** (`.L001014D0`):
     - `VIF1_STAT = 0` (exit reverse-FIFO mode)
@@ -2877,7 +2868,7 @@ Each function builds a single REF tag pointing at a catalog packet
 search of `build/asm/matchings/main/code/*.s` (3014 functions, 100%
 coverage) and `src/` finds exactly **one writer** to any address in
 `D_00817240..D_008172BC`: `func_001D4750` itself. No other function
-contains a LUI/ADDIU pair, gp-rel reference, or symbol reference that
+contains a %hi/%lo pair, gp-rel reference, or symbol reference that
 resolves anywhere inside this range.
 
 What `func_001D4750` actually does (lines 4-77 of the splat asm):
@@ -2913,7 +2904,7 @@ wrong — there is one fixed transform + a constants triplet + VIF tags.
 mechanism — most likely the second UNPACK that `func_001D4750` appends
 (the `0x6C0403F5` immediate, V4-32 NUM=4 dest=0x03F5), whose source
 pointer is passed *as a chain-buffer field* and built by the CALLER
-of `func_001D4750`. The two `jal func_00102958` calls memcpy from
+of `func_001D4750`. The two calls to func_00102958 memcpy from
 `D_00817240` (the constants) — but the chain ALSO contains a REF tag
 appended by `func_001D2090` in each caller (see
 `func_001D4960` line 14: `D_00816440` as the catalog packet base
@@ -2929,7 +2920,7 @@ not `D_00817240`.
 ### D_00816440 arena — writer identified (2026-05-27)
 
 **Writer:** `func_001D2E20` (vram 0x001D2E20). One-shot initializer.
-Structure: a 2-iteration outer loop (`slti $v1, 0x2`), each iteration
+Structure: a 2-iteration outer loop (`i < 2`), each iteration
 calls `func_00121870(dst, src, 0x80)` (a generic block-copy) 14 times
 to fill 14 destination arenas from 14 contiguous source blobs, then
 advances all dst/src pointers by 0x80 and repeats.
@@ -2997,7 +2988,7 @@ range. The `D_00816440` arena and the four 21-matrix BSS buffers are
 Static disassembly of `build/asm/matchings/main/code/` finds exactly
 **three functions** that load the addresses of any of
 `D_00286340 / D_00287140 / D_00287F40 / D_00288D40` (the 4 live bone
-buffers identified via PCSX2 save state) with `lui+addiu`:
+buffers identified via PCSX2 save state) with %hi/%lo pairs:
 
 - `func_0017A130` (0x6C8) — **per-frame dispatcher**. Reads a float
   selector at `+0x278` of its sole arg (a per-actor struct also passed
@@ -3023,9 +3014,9 @@ buffers identified via PCSX2 save state) with `lui+addiu`:
 **The inner writer is `func_00179BC0`** (0xD4 bytes). Signature:
 `(actor *a0, short slot_idx_a1, matrix_buffer *a2)`. Body:
 
-1. Reads `lbu $v1, 0x1F0($a0)` — actor "kind" byte. Cases `0x31` and
-   `0x34` take one normalisation path (build a `cvt.s.w` of
-   `lh 0x276($a0)` and call `func_001749F0(actor, 0.0, n)`); otherwise
+1. Reads the byte `actor+0x1F0` — actor "kind" byte. Cases `0x31` and
+   `0x34` take one normalisation path (convert the halfword
+   `actor+0x276` to float and call `func_001749F0(actor, 0.0, n)`); otherwise
    call `func_001749F0(actor, 0.0, 1.0)` — these set up an
    animation-time / blend-weight before evaluation.
 2. Calls `func_001C6DA0(actor)` — likely the per-actor animation
@@ -3034,7 +3025,7 @@ buffers identified via PCSX2 save state) with `lui+addiu`:
    byte at offset `+0xC` of the actor struct.
 4. Per iteration: `ptr = *(D_00275B40 + i*4); func_00102958(dest, ptr + 0x90); dest += 0x40;`
 
-`func_00102958` is a pure 64-byte qword copy (`lq/sq` × 4) — confirmed
+`func_00102958` is a pure 64-byte qword copy (four quadword load/store pairs) — confirmed
 matrix-sized.
 
 **`D_00275B40` is a runtime-resolved pointer to a flat array of
@@ -3167,7 +3158,7 @@ by `func_00102958`).
 region used as transient matrix storage:
 - `D_70003400` = composed local 4x4 (output of `func_00102C58` per bone)
 - `D_70003440` = parent matrix (loaded into `vf04..vf07` and multiplied
-  with local via vmulax/vmadday/vmaddaz/vmaddw)
+  with local via the VU0 broadcast multiply-accumulate chain over x, y, z, w)
 - `D_70003450/0x60` = X/Y/Z basis-rotated identity rows used to apply
   the s16 fine scale (`+0x88..+0x8C`)
 - `D_70003600` = output of `func_001CA0A0` (the quaternion blend buffer)
@@ -3192,7 +3183,7 @@ region used as transient matrix storage:
 3. Final per-bone concatenation:
    - `vf04..vf07 = D_70003400` (local TRS)
    - `vf08..vf0B = D_70003440` (parent matrix)
-   - 4x4 multiply by `vmulax / vmadday / vmaddaz / vmaddw` → vf12..vf15
+   - 4x4 multiply by the broadcast multiply-accumulate chain (x, y, z, w) → vf12..vf15
    - Store **either** into `bone+0x90` (parent index != -1, parent matrix
      selected by `*(actor + 0x110 + 4*parent_idx) + 0x90`), **or** into
      `bone+0x90` using `actor+0xD0` (root bone, parent index == -1).
@@ -3310,7 +3301,7 @@ For each bone `i` in `[0, num_bones)`, with `bone = *(actor+0x110+4*i)`:
    `+0x30/+0x40/+0x50` quats with its current blend factor into the VU0
    scratchpad `D_70003600` via `func_001CA0A0(D_70003600, bone+0x30,
    bone+0x40, t=*(bone+0x50))`. Copy the result back to `bone+0x30`
-   with `sq $v0, 0x30($bone)`. This snapshots "where we were" before
+   with a qword store to `bone+0x30`. This snapshots "where we were" before
    the clip switch.
 2. **Quat B (next keyframe) sample.** Call
    `func_001281C0(f12=new_t)` -> scalar int (a fixed-point frame
@@ -3322,7 +3313,7 @@ For each bone `i` in `[0, num_bones)`, with `bone = *(actor+0x110+4*i)`:
 3. Second `func_001CA0A0(D_70003600, D_00811220, D_00811230,
    t=*D_00811240)` blends into scratchpad again.
 4. Copy scratchpad to **`bone+0x40` (quat B slot)** with
-   `sq $a0, 0x40($bone)`.
+   a qword store.
 5. Write blend-factor state:
    * `bone+0x50 = 0.0`            (blend t reset to 0)
    * `bone+0x54 = 1.0 / new_t`    (per-frame increment for the lerp)
@@ -3479,7 +3470,8 @@ t_blend = (time_now_int - t_prev) / (t_next - t_prev)   ; in [0, 1)
 ```
 
 (Implementation detail: time values are loaded with `lhu` and converted via
-the MWCC unsigned-16-to-float idiom `srl/andi/or; cvt.s.w; add.s`, so they
+the MWCC unsigned-16-to-float idiom (a shift right, a mask and an OR on the
+integer, an int-to-float conversion, then a float add), so they
 are **u16 frame counts**, not signed. Sample-decode helpers
 `func_001C84D0` and `func_001C85D0` are called with `$a0 = record + 0x00`,
 so the payload starts at byte 0 of the record.)
@@ -3508,8 +3500,8 @@ The shift amounts give the channel widths:
 
 | channel    | code path                              | shift used | width W |
 | ---------- | -------------------------------------- | ---------- | ------- |
-| rot.x/y/z/w | `func_001C84D0`                       | `sll $r,12` | **20 bits** |
-| tx/ty/tz   | `func_001C85D0`                        | `sll $r, 6` | **26 bits** |
+| rot.x/y/z/w | `func_001C84D0`                       | shift left 12 | **20 bits** |
+| tx/ty/tz   | `func_001C85D0`                        | shift left 6 | **26 bits** |
 
 Bit layout within the 10-byte payload:
 
@@ -3569,13 +3561,13 @@ scale) on each bone struct, since `func_001C6DA0` consumes them but the
 keyframe sampler chain (`func_001C8D50` → `func_001C90D0` /
 `func_001C92C0`) only writes the +0x18..+0x20, +0x24..+0x2C, +0x30..,
 +0x40.., +0x50..+0x60 region (rotation + translation samples). Search
-of all splat asm for `sh ..., 0x88($x)` / `sh ..., 0x8A($x)` /
-`sh ..., 0x8C($x)` returns ~9 functions; only four are clearly bone-
+of all splat asm for halfword stores at `+0x88` / `+0x8A` /
+`+0x8C` returns ~9 functions; only four are clearly bone-
 struct writers, and **none of them is a per-frame keyframe decoder**:
 
 | function | what it does | when it runs |
 |---|---|---|
-| `func_001C6200` | bone-state **reset**: for every bone `i < actor+0xC`, writes `+0x88=+0x8A=+0x8C=0x1000` (Q4.12 → 1.0), `+0x7C=+0x80=+0x84=0`, `+0x70=+0x74=+0x78=0`, `+0x64=-1` (clear current clip), then `jal func_001029C0` (probably matrix-identity). | Skeleton init / clip-clear |
+| `func_001C6200` | bone-state **reset**: for every bone `i < actor+0xC`, writes `+0x88=+0x8A=+0x8C=0x1000` (Q4.12 → 1.0), `+0x7C=+0x80=+0x84=0`, `+0x70=+0x74=+0x78=0`, `+0x64=-1` (clear current clip), then calls func_001029C0 (probably matrix-identity). | Skeleton init / clip-clear |
 | `func_001C62C0` | same as `func_001C6200` but with bone count taken from `$a1` and base pointer from `$a2`. Companion entry point. | Skeleton init |
 | `func_001C63E0` | same shape; takes pointer/count in different registers. | Skeleton init |
 | `func_001C06E0` (lines 484–502 and 603–611) | mutates **bone[0] only** (`actor+0x124`) — writes the same s16 value (`actor+0x2A`) to `+0x88`, `+0x8A`, `+0x8C`. `+0x2A` is a per-actor counter that decrements by `0x40` per frame and is clamped to `>= 0x1000` (1.0). This is a **uniform-scale pulse** on the actor's root bone — clearly a gameplay/animation effect (hit-react, breathing, growth), not skeletal animation. | Gameplay state update |
@@ -4043,7 +4035,7 @@ PCSX2's canonical tables (pcsx2/VUops.cpp `_vuTablesMess`):
    decode artifact (there is NO ITOF in the per-vertex path).
 3. LOWER special T3 tables were shifted (0x3BC = DIV, not WAITQ;
    0x33D = MR32; 0x73F = ERLENG; 0x7BF = WAITP; XGKICK = 0x6FC was the
-   only correct anchor; lower NOP 0x8000033C = MOVE vf00,vf00).
+   only correct anchor; the lower-pipe NOP word 0x8000033C encodes a register move of vf00 onto itself).
 4. I-bit immediates live in the SAME pair's lower word (not the next
    pair).
 5. SQ/SQI/SQD encode source in FS [15:11] and base in IT [20:16] —
@@ -4066,7 +4058,7 @@ Corrected kernel readings (decoded end-to-end):
   RGBA from a pseudo-normal directional term — a projected-shadow /
   env-effect kernel, NOT the per-bone rigid skinner. Its "helper at
   imem 0x800" is actually at instruction 0x31 of the SAME program
-  (`jalr vi15, vi01` with vi01=0x31); the tail after the main's E-bit
+  (a register call whose target is 0x31); the tail after the main's E-bit
   is that helper, fully decoded now.
 - The 12-byte anim records can never be VIF-unpacked (their fields are
   not 32-bit aligned) — consistent with their being EE-side animation
@@ -4119,15 +4111,15 @@ calls MESH_SIG is exactly that 8-byte STCYCL+UNPACK pair.
 Per 32-vertex batch (XTOP double-buffered input, 4 qw per record:
 [tex/marker][ST][normal][pos+w]):
 
-    ilw   vi10, 3(vi14).w        ; read the position W FLOAT AS AN INT
-    lq    vf28..vf31, 0..3(vi10) ; transform matrix  (absolute dmem!)
-    lq    vf24..vf26, 4..6(vi10) ; normal matrix (3 rows)
-    iand  vi02, vi12(=0x8000), vi10  ; bit15 = strip-restart flag
-    ...   pos' = M*pos; clip; div Q,1,w; fog (qw1021); ftoi4
-    ...   N' = NM*normal; light via matrix at qw 1013..1016; RGBA
-    ...   ST*Q perspective; marker qword copied through (texture regs)
-    sq    {marker,ST,RGBA,XYZ2} -> output at TOPS+0x81..0x84, +4/vert
-    xgkick at TOPS+0x84
+    m    = *(int *)&record.pos.w;     // position W BITS read AS AN INT = matrix ptr
+    M    = dmem[m + 0..3];            // transform matrix (absolute dmem!)
+    NM   = dmem[m + 4..6];            // normal matrix (3 rows)
+    adc  = m & 0x8000;                // bit15 = strip-restart flag
+    pos' = M*pos; clip; Q = 1/w; fog (qw1021); to Q4 int
+    N'   = NM*normal; light via matrix at qw 1013..1016; RGBA
+    ST*Q perspective; marker qword copied through (texture regs)
+    store {marker,ST,RGBA,XYZ2} -> output at TOPS+0x81..0x84, +4/vert
+    kick the GIF packet at TOPS+0x84
 
 **Per-vertex binding: the low bits of the position W float are a VU1
 dmem address.** W = ±(1 + small mantissa); reading its bit pattern:
@@ -4506,13 +4498,13 @@ func_001AB650 zeroes the 3-slot frame-task table at 0x0028A750;
 
 PER FRAME (ordered):
 ```
-A  sw 0 -> 0x00810E98                clear vsync flag (loop top 0x001AAF28)
+A  *(int*)0x00810E98 = 0             clear vsync flag (loop top 0x001AAF28)
 B  func_001D1AE0(frame_idx)          frame begin: select per-frame CPU packet
                                      arena (gp-0x7D00 stream: +0x9C idx, +0x10
                                      cursor; base 0x0028F700, ~0x95800/frame)
 C  func_001B57E0                     INPUT read/unpack (see Input below)
 D  func_001AEBE0                     screen-fade machine (0x0028A8D0)
-E  func_001AB6A0                     TASK DISPATCH: jalr *(slot+4) over the
+E  func_001AB6A0                     TASK DISPATCH: call *(slot+4) over the
                                      3x0x20 table @0x0028A750 -> ALL game logic
 F  func_001FCA10                     audio service
 G  func_001AEE70                     transition/brightness machine
@@ -4531,14 +4523,14 @@ N    func_001D1C10(frame_idx)          frame-end render bookkeeping
 O    func_001AEE70                     (second fade update)
    }
 P  WAIT @0x001AAFF0: poll 0x00810E98 until nonzero   (vsync)
-Q  sw 0 -> 0x10000000                T0_COUNT reset
+Q  *(int*)0x10000000 = 0             T0_COUNT reset
 R  func_001AB4E0(spad 3B94/3B96)     display-offset apply
 S  func_001015A8/func_00101810       PutDispEnv x2 (dispenv @0x810F00/0x811070
                                      and 0x810F80/0x8110F0, FIELD-indexed)
 T  func_0010BAA0(0)                  GS register apply
 U  func_00100550(0x00810EA0+idx*0x28) per-frame GS env (double-buffered)
 V  func_001D2300                     render frame-flip bookkeeping
-W  frame_idx ^= 1 (sh 0x00810E80); func_001D2580; (0x70003B64)++ -> A
+W  frame_idx ^= 1 (halfword at 0x00810E80); func_001D2580; (0x70003B64)++ -> A
 ```
 
 **CORRECTION (2026-09, first-level audit label fix):** steps N and O were
@@ -4571,7 +4563,7 @@ Chain (state bytes live 03/01/01 at task+8/+9/+0xB):
 ```
 func_001ACEC0  game task machine (byte+8)
  └ func_001AD250  sub-machine (jr-table 0x0026DCB0, 6 states)
-   └ func_001AD4D0 = j func_001AE040 (trampoline — explains its "0 callers")
+   └ func_001AD4D0 = tail jump to func_001AE040 (trampoline — explains its "0 callers")
      └ func_001AE040  in-game frame machine (byte+0xB, jr-table 0x0026DD30)
        state 4 (room re-entry; falls through into state 1):
        func_001AFCF0 (scratchpad 0x3B84..0x3B93 + request block
@@ -4590,7 +4582,7 @@ func_001ACEC0  game task machine (byte+8)
 **CORRECTION (s87, cleanup-decomp lane):** the chain above used to list
 func_001AFCF0 ... func_001C5C50 as state-1 (per-frame) work and called
 func_001AE7E0 an "end-of-level/game-over poll". The frame machine
-(anim_frame_top_b.c, 0x1AE040; `jal func_001AFCF0` only at 0x1AE08C in
+(anim_frame_top_b.c, 0x1AE040; the call to func_001AFCF0 only at 0x1AE08C in
 state 0 and 0x1AE0E4 in state 4) calls **func_001AFCF0 only from states 0
 and 4 — it is NOT per-frame**; state 1 calls only func_001AE7E0
 (0x1AE154) and the world-frame variant. func_001AE7E0 (byte-matched) is
@@ -5281,7 +5273,7 @@ func_0018B9C0(cam = *D_00275B44 = 0x008101E0)
 
 | Mode | Handler (cut table) | Notes |
 |---|---|---|
-| 0, ≥16 | **func_00195130** (4720 B) | DEFAULT: per-area camera director; 14× func_0018C4B0 + 10× func_0018C6A0 lerps, 12× func_0018D7B0, and a hardcoded `jal 0x823FE0` **overlay hook** — per-room camera logic lives in the area overlays (survival-horror room cameras) |
+| 0, ≥16 | **func_00195130** (4720 B) | DEFAULT: per-area camera director; 14× func_0018C4B0 + 10× func_0018C6A0 lerps, 12× func_0018D7B0, and a hardcoded call to 0x823FE0 (the **overlay hook**) — per-room camera logic lives in the area overlays (survival-horror room cameras) |
 | 1 | func_00197D20 | |
 | 2 | func_00198650 | |
 | 3 | func_001936E0 | |
@@ -5998,8 +5990,8 @@ at 0x1AE758, mode 2 at 0x1AE790): walks the active list; **mode 0 =
 all, mode 1 = all EXCEPT class 1, mode 2 = ONLY class 1** (class =
 `+0x02 & 0x1F`; in the s87 AREA11 trace the class-1 nodes are the 7
 runtime player children whose behavior `+0x10` is func_0018A6B0). *s87 correction: this line had
-modes 1 and 2 swapped; the .s tests `bne mode,1` then `bne class,1 ->
-tick` (mode 1 skips class 1) and `beq class,1 -> tick` for mode 2.*
+modes 1 and 2 swapped; the .s tests `mode != 1`, then `class != 1 ->
+tick` (mode 1 skips class 1) and `class == 1 -> tick` for mode 2.*
 Per actor: `func_001CB590(actor, 0x2F0,
 bonecount@+0x09)` — this just publishes `D_00275B48=D_00275B44=actor`
 ("current actor" globals) and sizes the shared bone work array — then
@@ -6387,7 +6379,7 @@ the player carries his own.)
 Live PCSX2 session (DebugServer + first end-to-end use of pad injection).
 This closes the s15 open item "the INVENTORY WRITE on item pickup":
 the inventory is a **static global block addressed absolutely**
-(`lui at,0x0081` + fixed offsets — NOT reached through the player actor
+(upper half 0x0081 + fixed offsets — NOT reached through the player actor
 or any heap object, which is why the actor-side scans never found it).
 
 ### Layout (all addresses absolute, BSS)
@@ -6426,8 +6418,8 @@ re-reads the canonical value every frame. Restored afterward.
   reserve only if mag empty; mode 1 = unconditional; else top-up
   (`need = 30 - mag`); mag = min(30, reserve). Confirms 0x810C62
   semantics and the 30-round magazine.
-- **Consume path** `~0x00170D40`: `lh/addiu -1/sh` on `0x810CB4`
-  (reserve decremented per shot) with a coupled `sb` to `0x810C62`.
+- **Consume path** `~0x00170D40`: a halfword decrement (`-= 1`) of `0x810CB4`
+  (reserve decremented per shot) with a coupled byte store to `0x810C62`.
 - 22 code references to immediate `0x0CB4` total (0x157E6C, 0x170D48/54,
   0x170ED0/DC, 0x1710D8/E4, 0x17B30C..F8 cluster, 0x1AF424,
   0x1C41CC..4230, 0x209A44, 0x211A00, 0x212098, 0x212434) — a ready-made
@@ -6618,9 +6610,9 @@ same frame. NOT 240-based, NOT 40-per-segment; the old 240-cap guess
 is dead (see the func_001418F0 resolution above).
 
 Overlay draw site (status screen module): `0x00209424`
-`lh 0xCB2(at=0x810000); sra a0,v0,1` -> 2-digit draw via the number
+`*(short *)0x810CB2 >> 1` -> 2-digit draw via the number
 formatter `0x001C5FB0(value, digits, flag)`; `0x00209460`
-`lbu 0xCB7; sra 1` for the max; the "/" sprite from `0x00273568`
+`*(u8 *)0x810CB7 >> 1` for the max; the "/" sprite from `0x00273568`
 between them; whole readout gated on `0x810C7F != 0`. (Same drawer
 reads `0x810CB4` at `0x00209A44` for the "120" reserve. The status
 strings "BATTERY"/"HEALTH"/... live at `0x00273DB0` etc., pointer
@@ -6645,7 +6637,7 @@ table around `0x00267290`.)
   **-2 half-units (= 1 displayed unit) per cycle** until the target is
   reached; the empty-threshold branch fires an event
   (`0x8106C5 = 0xFF`, scratch `0x70003B8D = 3`). Skippable via pad
-  mask 0x0870 (Start/Tri/O/X in the swapped layout, `lhu 0x810E74`).
+  mask 0x0870 (Start/Tri/O/X in the swapped layout, read as an unsigned halfword from `0x810E74`).
 - **Recharging** (station/depot events, `0x002277D4 / 0x00227800 /
   0x00227884`): **+4 half-units (= 2 displayed) per cycle**, same
   progressive-transfer pattern.
@@ -6693,8 +6685,8 @@ table around `0x00267290`.)
 ```
 
 Handlers and the config-mapped action masks come from scratchpad
-(`lhu 0x70003B76` and-ed with `0x810E74` at `0x00160234`); L3 is also
-tested raw (`andi 0x0200`) by the reload paths `0x00170C9C` /
+(the halfword `0x70003B76` AND-ed with `0x810E74` at `0x00160234`); L3 is also
+tested raw (`& 0x0200`) by the reload paths `0x00170C9C` /
 `0x00171060` (L3 doubles as reload when the weapon is drawn).
 
 ## WEAPON SYSTEM — full fire path, state machine, reload, port contract (2026-06-10, session 22)
@@ -6801,7 +6793,7 @@ per sub-weapon with their own ammo globals)
 Sub-state byte `+0x07`, three families chosen at trigger-press by the
 fire-mode byte `D_00810C61` (decimal 10/20/30 — CW constants 0xA/0x14/
 0x1E): **10/11 = SEMI** (one shot per press), **20..23 = 3-ROUND
-BURST** (`+0x28` counter, slti 3), **30..32 = FULL-AUTO** (interval
+BURST** (`+0x28` counter, `< 3` compare), **30..32 = FULL-AUTO** (interval
 refresh while held). Common per-SHOT block (states 0xB/0x15/0x1F...):
 
 ```
@@ -6947,7 +6939,7 @@ a runtime-built pointer (enemy weapon?). Open.
 - `src/func_0017B300.c` matched 100% via: idiom-8 raw volatile casts
   (all three globals through `$at`); **NEW: a `(short)` cast on an
   int-cached volatile-short load reproduces CW's redundant
-  `dsll32/dsra32` re-sign-extension before `slti`** (declaring the
+  64-bit shift-pair re-sign-extension before the set-less-than-immediate** (declaring the
   local `short` does NOT — mwcc knows lh extends); assigning a
   comparison back into the compared variable (`low = low < 30`) lands
   the slti result in CW's register; parking a value in the dead first
@@ -6956,7 +6948,7 @@ a runtime-built pointer (enemy weapon?). Open.
   into the second guard's delay slot (idiom-15 composition).
 - `func_001869A0` / `func_001872C0` (missile/grenade spawns) reached
   90.4%/93.6% but are **wall #13** (mwcc fills the `beqz` slot with the
-  safe `li v1,3`; CW leaves a nop) — stubs restored with analysis
+  safe constant load `v1 = 3`; CW leaves a nop) — stubs restored with analysis
   inline.
 
 ## ENEMY AI ARCHITECTURE — behavior inventory, crawler & leech state machines, damage system (2026-06-10, session 22)
@@ -7412,7 +7404,7 @@ against `extract/` files. Three corrections to s22 fell out.
 
 `func_001B0FD0` → `func_001B0EA0` (the crawler/pickup INIT bind) reads
 **actor+0x0D = placement PARAM low byte** and looks it up in
-`*(D_0028A59C)` (`lbu $a1, 0xD($a0)` at 0x001B0EB4). The placement
+`*(D_0028A59C)` (the byte read of `actor+0x0D` at 0x001B0EB4). The placement
 "model" byte (+0x03, the s22 6/0x1C/0x1E/0x1F/0x50 set) is only the
 behavior VARIANT tag (heading constants, hop timer, gore-effect pick).
 Crawler placements bind: AREA02 + AREA11 param 0x0D, AREA03 params
@@ -7975,7 +7967,7 @@ pairs (func_001EFD90 ids) and nest-child spawns remain untranslated.
 ~~Open: which husk (0x22 vs 0x29) binds to which crawler variant~~ —
 **CLOSED 2026-06-11 (the wooden-crate wrong-debris report)**: the husk
 pick is inside func_001551B0 state 2's damage-kill arm, vaddr
-`0x156380` — `lbu +0x3` (the crawler MODEL byte), `byte == 6 →
+`0x156380` — a byte read of `+0x3` (the crawler MODEL byte), `byte == 6 →
 func_001C6120(D_0028A56C, 0x22)` else `(…, 0x29)`, then
 func_001CA6E0 rebinds the actor. Placements survey: byte 06 is EVERY
 crate in AREA01/02/11/13/18/20/22 (the wooden crate — husk A's brown
@@ -8851,7 +8843,7 @@ the table+selector path needs no further live proof.
 
 ### Door/transit machine — new architecture details (from the recovery)
 
-- `func_001BBE40` arm gate is **door `+0x0B` bit 2** (`andi 4`); once
+- `func_001BBE40` arm gate is **door `+0x0B` bit 2** (`& 4`); once
   armed it unconditionally: patches the script records (anim id 0x45/0x43
   open Δ 0x46/0x44 locked, clip 2/0 / 3/1, wait 90.0/70.0), patches the
   sound id via `func_001BBD60`, snaps player yaw, **teleports the player
@@ -8897,8 +8889,8 @@ Consequences observed, in order:
    sound server never recovers even after the EE side is cleaned.
 3. **Fix that worked**: `pcsx2_clear_all_breakpoints` (restores full
    speed instantly) + drain the ring (read cursor := write cursor) +
-   patch the RPC busy predicate `0x0010EA60` → `jr ra; li v0,0`
-   (original words `0x8C850000 0x10A00009`) so the EE never blocks on
+   patch the RPC busy predicate `0x0010EA60` → `return 0;`
+   (its first two instructions replaced) so the EE never blocks on
    the dead client. Game logic runs fine; audio output stays dead until
    PCSX2 restarts (EE-side sound submission still observable in memory).
 
@@ -9482,7 +9474,7 @@ contract).
   `(pad, 0xE, 1)` — always a PAIR, once, at pad init. Exhaustive
   search: no other caller of `func_0015A200` in the boot ELF, no
   overlay references the helper or the brain (byte-scan of all
-  `build/overlays/AREA*.BIN` for `jal 0x0015A200` / the brain address:
+  `build/overlays/AREA*.BIN` for calls to 0x0015A200 / the brain address:
   0 hits). Worms (0xD) and tendril fields (0xE) are the only two
   dynamically-spawned generator children.
 - Child fields from the spawn helper: model byte +0x03 = 0xE, +0x0D =
@@ -9615,12 +9607,12 @@ the SAME 96-vert mesh.
 - `func_001546C0`: hybrid asm-void stub stays byte-matching ("word").
   Readable-C `switch` reproduces 29/30 instructions but hits **wall
   #13**: CW leaves the beq(case 2) delay slot as nop, mwcc fills it
-  with the next chain constant (`addiu v1,1`) — one-instruction-short
+  with the next chain constant (`v1 += 1`) — one-instruction-short
   body, every later branch off by one. Same family func_00153B50
   documented as unfixable.
 - `func_00154460`: readable attempt 67.5% structural — three mwcc
-  policy walls: (a) early-`return 0` sites — CW emits `b common-tail;
-  v0=0 in slot` + nop after bc1t, mwcc fills the bc1t slot and inlines
+  policy walls: (a) early-`return 0` sites — CW emits an unconditional branch
+  to the common tail with v0 = 0 in its slot, plus a nop after the FP-true branch, mwcc fills the bc1t slot and inlines
   the epilogue at the first return; (b) table-address pair vs `lbu`
   kind-byte scheduling order; (c) final `return cond;` polarity (CW
   bc1t + dead addiu, mwcc bc1f). Recorded in the src stubs; not
@@ -10101,8 +10093,8 @@ default block), plus singles 0x1F/0x37 (unmapped) and 0x50
 `func_00182430` (the mapper), `func_00187DC0`, `func_00187EA0`,
 `func_00179B90` are already committed byte-equivalent as gated asm
 (`word` form). `func_00187350` and `func_00187DE0` were assessed and
-are **wall #13 blocked** (beq;nop sites whose fall-through candidates
-are safe-to-speculate chain constants / lui — mwcc fills them): stubs
+are **wall #13 blocked** (branch sites with a nop delay slot whose fall-through candidates
+are safe-to-speculate chain constants / %hi loads — mwcc fills them): stubs
 annotated with the analysis, no compile attempt burned.
 
 ### Port contract (the s30 floor-probe hook is ready)
@@ -10314,8 +10306,8 @@ Tunnel", "A, B, and C Areas", "Supply Room", "Command Center"…);
   (256 px wide; heights 96–480) — `read_uploads_localmem` replays it;
   the page textures are PSMT4/PSMT8 (+16/256-entry CSM1 CT32 CLUTs at
   CBPs inside the same upload), stored v-flipped like the hub set.
-- The draw functions inline **raw 64-bit TEX0 values** (lui/ori +
-  dsll32/or pairs): TBP=lo&0x3FFF, TBW=(lo>>14)&0x3F, PSM=(lo>>20)&0x3F
+- The draw functions inline **raw 64-bit TEX0 values** (each 32-bit half built from upper and lower
+  immediates, then the halves combined by a 32-bit shift and an OR): TBP=lo&0x3FFF, TBW=(lo>>14)&0x3F, PSM=(lo>>20)&0x3F
   (0x14/0x13), TW/TH log2 (TH spans the word boundary), CBP=(hi>>5)
   &0x3FFF. A register-tracking scan of each page's draw-function
   closure yields 17/18/35/22 tokens for pages 0–3 (page 4: 0 — data-
@@ -10493,8 +10485,8 @@ dump pixel check); port ships it.
 ### The drawer: func_0020A7A0(tex0_token)
 
 Called at the head of every UI view's draw chain with a **per-screen
-128x64 PSMT4 tile** (raw 64-bit TEX0 token, same inline lui/ori//
-dsll32/or idiom as the page tokens). Confirmed callers (21): the hub
+128x64 PSMT4 tile** (raw 64-bit TEX0 token, same inline immediate-halves /
+shift-and-OR idiom as the page tokens). Confirmed callers (21): the hub
 (`func_0020CDC0` state 1/2, before `func_00209DF0`), the four pager
 pages (`func_0020F170` ITEM frame, `func_00210A00` MAP, `func_002121A0`
 SPR4, `func_00214020` DATABASE), the ITEM/SPR4 sub-views
@@ -11340,16 +11332,16 @@ cameras `func_001944B0(cam, player, idx)` (states 0x1D..0x25 via
 jtbl_0026DA50, eye tables D_0024A530/34/38 — ladder/scripted moments),
 and per-sub-state hardcoded eyes in the area 0x08/0x0D/0x11/0x13 cases.
 
-### 3. CORRECTION — the `jal 0x823FE0` "overlay hook"
+### 3. CORRECTION — the call to 0x823FE0 (the "overlay hook")
 
 The s10 note "per-room camera logic lives in the area overlays (jal
 0x823FE0 hook)" is WRONG in its generality. The director's single
-`jal 0x823FE0` (0x00195D18) is inside the **area 0x0D case only**, gated
+call to 0x823FE0 (0x00195D18) is inside the **area 0x0D case only**, gated
 `D_00810702 (entry idx) >= 8`; a nonzero return selects a second AREA13
 fixed eye (801.3, 282.3, 1171.0). And in the shipped AREA13.BIN, vram
 0x823FE0 is **mid-function** (inside the overlay's own region helper
 0x823FA0: quad at 0x82E1C0 + player.y > 210 test, full prologue at
-0x823FA0) — a call entering at 0x823FE0 would run `lq ra, 0(sp)` against
+0x823FA0) — a call entering at 0x823FE0 would reload the return address from `sp+0` against
 the caller's frame: dead or build-drifted code. (AREA02 happens to have a
 function boundary at 0x823FE0 — its overlay brain dispatcher — pure
 layout coincidence; nothing calls across.) Per-room fixed cameras are
@@ -11437,7 +11429,7 @@ pipeline those sweeps led into.
 - **player `+0xA` (shoulder light, L3)**: no static reader goes through
   the player base symbol at all (`D_008102BA` never appears; register-
   tracked scan of `%lo(D_008102B0)`-derived bases finds zero `+0xA`
-  loads). Every `lbu +0xA / andi 1` consumer is ENEMY-AI entity logic
+  loads). Every consumer that reads byte `+0xA` and tests bit 0 is ENEMY-AI entity logic
   (0x128C10, 0x12A5D0, 0x12EB60, 0x1333F0, 0x138900, 0x138C20,
   0x13D850, 0x13D980, 0x1418F0, 0x1469B0, 0x147960, 0x147B50,
   0x14BB10): the light flag feeds DETECTION. `func_001418F0` (callers
@@ -12459,7 +12451,7 @@ Full .s read + ELF data (jtbl_0026E1A0 @0x26E1A0, D_00264DD0
   func_001FDB80(0) reports the message done).
 - The line word's **bit 31 selects the GLOBAL message table**
   `D_00264DD0[0]` = 0x272DF0 (per-AREA tables live at D_00264DD0
-  [area+1] — func_001FD790 reads `lw 0x4(D_00264DD0 + area*4)`).
+  [area+1] — func_001FD790 reads the word at `D_00264DD0 + area*4 + 4`).
   8-byte line records `{u16 steps/duration, s16 voice_cue, u8 0xFF,
   u8 +4, u8 +5 wait_stream}`; a message = record pairs `{dur, -1, 0}`
   then `{0, .., +5=1}` (the +5 flag makes func_001FDB80 wait on the
@@ -12660,10 +12652,10 @@ world dirs every frame.
   8388608.0 (2^23 int-bias trick; w = 2^23 + 64·glow) where glow =
   max(actor[+0x8C] - 1, 0); actor flag +0x2 bit 0x40 adds 64·actorRGB
   onto row 3 (the s51 self-glow).
-- Kernel: `maxbcx vf12, vf11, vf00x` = **clamp I at 0** (no upper
-  clamp), `mulAx/maddAy/maddAz/maddw` with the color matrix, then
-  `minibcx vf14, vf13, vf17x` with vf17 = 2^23 + 255 = **clamp at
-  255**. The result IS the GS vertex color: shade = tex·rgb/128
+- Kernel: `vf12 = max(vf11, vf00.x)` = **clamp I at 0** (no upper
+  clamp), a broadcast multiply-accumulate chain over x, y, z, w with the
+  color matrix, then `vf14 = min(vf13, vf17.x)` with vf17 = 2^23 + 255 =
+  **clamp at 255**. The result IS the GS vertex color: shade = tex·rgb/128
   (modulate), so 128 = identity and rigs can over-brighten to ~2x.
 
 Verdict: per character vertex,
@@ -12904,12 +12896,11 @@ handlers `func_00160220` (0x16024C), `func_001612D0` (0x1613E4) and
 `func_0016DE40` (x3: 0x16E048/0x16E128/0x16E1F0) — and every one
 gates the call identically:
 
-```
-lhu  v1, D_00810E74          ; pad press-EDGE mask (see 2)
-lhu  v0, 0x70003B76          ; config-mask block "use" entry = 0x0040
-and  v0, v1, v0
-beqz v0, skip                ; no new CROSS press -> NO scan this frame
-jal  func_00184BA0
+```c
+/* D_00810E74 = pad press-EDGE mask (see 2);
+   spad 0x70003B76 = config-mask block "use" entry = 0x0040 */
+if (D_00810E74 & *(u16 *)0x70003B76)   /* no new CROSS press -> NO scan this frame */
+    func_00184BA0();
 ```
 
 spad `0x70003B76` is the s29-decoded config-mask block entry "X, use"
@@ -13254,7 +13245,7 @@ Full static read of the 6984-byte solver body (`func_0018DD20.s`, all
 PORT_DIFFERENCES item 8 / D3 (the port-invented rise model). Translated
 verbatim into `extermination-port` `em_game.c cam_solver_0018DD20`.
 
-### Who calls what — the style map (every `jal func_0018D7B0` audited)
+### Who calls what — the style map (every call to func_0018D7B0 audited)
 
 `func_0018D7B0(cam, style)` picks mask **7** (movables in) only for
 style 2, else mask **6**; always runs the pre-pass func_0018D330; then:
@@ -13404,7 +13395,7 @@ constants (PORT_DIFFERENCES item 6 / rows J1–J4, J7 — now updated).
   ONCE: sub 1 never returns to it (one long leap, velocity 11.0-scaled
   / 1.4-normalized components, gravity decrement 0x3D54FDF4 =
   0.0519999). Sub 1 burst condition: forward probe result 4 (surface
-  lost) OR `+0x2A < 0` → **`sh zero, 0x36` (mid-run damage is
+  lost) OR `+0x2A < 0` → **`+0x36 = 0` (halfword; mid-run damage is
   ABSORBED), `+0x2A = 0`, state = 2.** That store is the ONLY `+0x36`
   access in the entire attack state — the s22 "appears undamageable
   mid-lunge — verify live" open item is closed statically.
@@ -14043,7 +14034,7 @@ fade == 2).
   on a generator-spawned worm, spawn → approach → latch burst →
   release, with TWO SPR4 shots fired into it mid-stalk (mag 29→27):
   ZERO hits except the teardown — the single +0x36 access in its
-  whole life is func_001AFC10's release-clear `sh zero, 0x36`
+  whole life is func_001AFC10's release-clear `+0x36 = 0` (halfword)
   (PC 0x001afc64, brain → release call at 0x00154024). Nothing in
   the engine ever reads worm +0x34; HP=10 is vestigial init data.
 - Worm census detail: generator mode draw rolled 0 for all 8 office0
@@ -14395,7 +14386,7 @@ func_001ACEC0 state0  func_001AD1A0: load screen module 3 (func_001FF080(0,3) �
         state3  func_001AD250 sub0  func_001AD360  6-step seq; SUB 3 SETS area=0x0B
                 func_001AD250 sub5  func_001ADF50  area build + area-title-card + fade
                                     (func_0021B180/550/840 + func_001D2830)
-                func_001AD250 sub1  func_001AD4D0 = j func_001AE040 (frame machine):
+                func_001AD250 sub1  func_001AD4D0 = tail jump to func_001AE040 (frame machine):
                   state0  func_001AFCA0→func_001D0660→func_001E7780 overlay dispatch
                           (area 11 → arm 0x0B00 → loads OVERLAY/AREA11.BIN);
                           func_001B07C0 places player from D_0024D650[11] entry 0
@@ -14917,7 +14908,7 @@ engine gate at `.L0018E4A0` is `v0 = (s3==1) ? 1 : (s0==0 ? 1 : 0)` where **s3 =
 NOT-glancing** (set when dot(hdir, raw n) ≥ sin45, line 0018DEEC) — so the side
 stage runs for a **SQUARE-ON block OR a clear line, NEVER a glancing block**. And
 the per-side response window (−0.3, 0.9) is checked only on the `s3==0` path
-(`.L0018E8E8 beq s3,1 → apply`), i.e. the CLEAR case (where the gate dot stayed 0
+(at 0x0018E8E8: `if (s3 == 1) apply`), i.e. the CLEAR case (where the gate dot stayed 0
 and always passes), not square-on. Port fixes (extermination-port em_game.c):
 `if (!blocked || glancing)` → `if (!blocked || !glancing)`; the inner
 `if (!glancing && window-fail)` → `if (!blocked && window-fail)`. These are
@@ -14988,7 +14979,7 @@ opening camera is **emergent from the func_001B0080 chase seat + the wall solver
    exclusively the cutscene/boss-camera family (func_001BBBF0, func_001B41F0,
    func_001B6FA0, func_00189FE0, the per-boss 0x13xxxx/0x14xxxx writers) — confirms
    the s74 census "the chase camera never writes/reads it."
-4. **The director hook `jal 0x823FE0` does NOT fire for AREA-11** — it is inside the
+4. **The director hook (the call to 0x823FE0) does NOT fire for AREA-11** — it is inside the
    area-0x0D (AREA13) case only, gated entry≥8 (FINDINGS "CORRECTION — the jal
    0x823FE0 overlay hook"). The AREA-11 director region D_0024A5F0[1]
    (X[319.6,339] Z[150,182] y289.8) is a func_00230000 AIM height tweak, NOT a
@@ -14998,7 +14989,7 @@ opening camera is **emergent from the func_001B0080 chase seat + the wall solver
    func_001B07C0 lookup is area*4 → sub*4 → entry*0x30). Its +0x10 word's bit 7
    would set cam+0x05=1 and hard-copy a fixed eye from D_0024A8D0[idx] to BOTH
    D_008105D0 and D_008105E0 (func_001B0460 fixed branch). **PROOF it is clear:**
-   when cam+0x05=1 the dispatch (func_0018BC20: `beq cam+0x05` → fixed path) skips
+   when cam+0x05=1 the dispatch (func_0018BC20: a branch on cam+0x05 → fixed path) skips
    the chase AND the idle auto-orient (L1/orient dead). The LIVE frozen read shows
    the generic idle path RUNNING — cam+0x44 recomputed every frame (=−0.586), the
    481-frame idle timer cam+0x08 incrementing (230 < 0x1E1), the dead-band freeze.
@@ -15532,7 +15523,7 @@ the late-game "infected" look. **This is the crawling bug.**
   hurt/death handler `func_00129FC0`, death/flinch clips
   0x1B/0x1D/0x20) — a genuinely shootable enemy, unlike the worm
   (s66: not shootable).
-- Both brains are in the s51 **player-light reader list** (`lbu +0xA`)
+- Both brains are in the s51 **player-light reader list** (byte reads of `+0xA`)
   — the bug participates in the light-based detection curiosity.
 - Clip bank: **36 containers** (the worm has 4). Ids referenced by the
   brain family span 1..0x21; init clip = 1 = the 90-frame in-place
@@ -15996,7 +15987,7 @@ pinned.**
 
 ### 1. Top-level dispatch — entity +0x4 selects 5 states (both brains)
 
-`lbu state, 0x4(entity)` → `switch (state) { 0,1,2,3,4 }`. The entity
+`state = *(u8 *)(entity + 0x4)` → `switch (state) { 0,1,2,3,4 }`. The entity
 base is arg0 (copied to $s2); a per-instance ANIM/MOTION sub-struct
 lives at **entity+0x1F0** (held in $s1). The global `D_008102B0` is the
 camera/player struct whose **+0xA0 = the player world position** (the
@@ -16022,7 +16013,7 @@ target of every range check).
 - **State 1 — ACTIVE BRAIN.** Guarded, in order:
   1. `func_001B2140()` — gameplay-running gate (false while paused /
      menu / game-over → return).
-  2. (func_00128C10 only) a director gate: `lbu D_70003B8D` — if ≥ 2,
+  2. (func_00128C10 only) a director gate: the byte D_70003B8D — if ≥ 2,
      skip thinking (a cutscene/scripted-camera hold).
   3. **Periodic (1-in-64 frames)**: when `(D_70003B68 + D_70003B8A) &
      0x3F == 0`, call `func_001B0D80(entity)` — an awareness / out-of-
@@ -16134,7 +16125,7 @@ machinery the port already mirrors for the worm via the `s.player_hit =
 **The damage value — decoded (s76 follow-up)**: on a func_0019A570 hit,
 func_001B5360 stages the player position into the scratch box D_700038B0
 and dispatches on the attacker's **attack-class byte `entity+0x3`**
-(`sltiu < 0xD`) through **jtbl_0026DEA0** into a per-class damage applied
+(bounds check `< 0xD`) through **jtbl_0026DEA0** into a per-class damage applied
 via `func_001F9100` (or `func_001F9180` for the heavy cases) with the
 magnitude in `$f12`:
 
@@ -16244,7 +16235,7 @@ func_001551B0) and fixed in the port:
    the box centre (CRATE_AIM_Y 2→7).
 2. **Group alarm is INERT for placed crates.** func_001551B0's state-4
    broadcast walks the whole live list and tests the model whitelist, but
-   its wake write `sb 1, +0x0A` is gated on the recipient's **+0x52
+   its wake write (byte `+0x0A = 1`) is gated on the recipient's **+0x52
    (on-surface) != 0** — and **+0x52 is 0 on every placed crate**
    (live-read s76). So a destroyed crate wakes NO neighbour. The port's
    enemy_alarm_broadcast woke every crate unconditionally → "break one,

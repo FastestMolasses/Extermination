@@ -2,7 +2,7 @@
 //
 // objdiff 75.74% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// FP register-coloring + list-scheduling wall across the whole particle loop (153 of 470 rows differ, 75.74%). The CFG, the jr-table dispatch (jtbl_0026EA00, all 6 case bodies byte-identical including the dead default `sw zero,0x3a20`), the frame (0x70 with f20/f21 saved), the prologue/epilogue, th...
+// FP register-coloring + list-scheduling wall across the whole particle loop (153 of 470 rows differ, 75.74%). The CFG, the jr-table dispatch (jtbl_0026EA00, all 6 case bodies byte-identical including the dead default zero store to +0x3A20), the frame (0x70 with f20/f21 saved), the prologue/epilogue, th...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

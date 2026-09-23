@@ -2,7 +2,7 @@
 //
 // objdiff 77.56% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// mwcc-build ABI/register-model mismatch (NOT clean-store nop, NOT fixable by C reshaping). Target passes func_001CCE80's 5th arg on the stack (sd a2,0(sp); frame 0x40) and allocates temps in t0-t5/s0-s1 while homing params a1,a2 into t0,t1 at entry. Both available builds (991202 and 2.3.3) instead...
+// mwcc-build ABI/register-model mismatch (NOT clean-store nop, NOT fixable by C reshaping). Target passes func_001CCE80's 5th arg on the stack (a2 stored as a doubleword at sp+0; frame 0x40) and allocates temps in t0-t5/s0-s1 while homing params a1 and a2 into t0 and t1 at entry. Both available builds (991202 and 2.3.3) instead...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -13,10 +13,10 @@
 
 // NEARMISS 77.56% (mwcc233; 991202=74.9%). Body/logic fully recovered.
 // WALL: mwcc-build ABI/register-model mismatch, not a C-shape issue.
-//   - Target passes the 5th arg to func_001CCE80 on the STACK ('sd a2,0(sp)',
+//   - Target passes the 5th arg to func_001CCE80 on the STACK (a2 stored as a doubleword at sp+0,
 //     frame 0x40); both available mwcc builds pass it in register a4 (frame 0x30).
-//   - Target allocates temporaries in t0-t5/s0-s1 and homes params a1,a2 into
-//     t0,t1 at entry; the available builds allocate a4-a7 as temps and skip the
+//   - Target allocates temporaries in t0-t5/s0-s1 and homes params a1 and a2 into
+//     t0 and t1 at entry; the available builds allocate a4-a7 as temps and skip the
 //     param homing. This is the CW 2.3.1.01 arg-passing/reg model, unreachable
 //     from 991202 or 2.3.3. Everything else (dispatch order, header stores,
 //     packet call, both nibble-expansion loops, counts 0x20/10, dst strides

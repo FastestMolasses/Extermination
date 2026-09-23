@@ -2,7 +2,7 @@
 //
 // objdiff 86.39% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Compiler-version guard-elision + register-allocation permutation. Target (mwcc 2.3.1.01) omits the `slt at,zero,count; beqz` loop-entry guard that both mwcc233 and 991202 emit; this cascades into a full regalloc permutation (count/index/pf land in different registers) plus one tail branch-sense f...
+// Compiler-version guard-elision + register-allocation permutation. Target (mwcc 2.3.1.01) omits the count > 0 loop-entry guard that both mwcc233 and 991202 emit; this cascades into a full regalloc permutation (count/index/pf land in different registers) plus one tail branch-sense f...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -20,7 +20,7 @@
 // last==0 -> return 0, else bit0 of D_7000316E[last] -> output D_700030EC[last],
 // return 1, else 0. Body + the branch-likely loop test (idiom-20, recovered via the
 // inverted `if(!(*pf<f))` shape so mwcc emits bc1tl with pf++ in the slot) are
-// correct. Residual: mwcc 2.3.1.01 (target) elided the `slt at,zero,count; beqz`
+// correct. Residual: mwcc 2.3.1.01 (target) elided the count > 0
 // loop-entry guard that BOTH mwcc233 and 991202 emit, which cascades into a whole
 // register-allocation permutation (count->v1 vs a3, idx->a3 vs a2, pf->a2 vs v1)
 // and one tail branch-sense flip. Compiler-version guard-elision + regalloc wall.

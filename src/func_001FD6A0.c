@@ -5,12 +5,12 @@
 // called the residual a register-allocation wall that C cannot reach. It was
 // the same source shape as the sibling func_001FD580:
 //  - arg0 is unsigned. The target keeps arg0 in $s2 and recomputes
-//    arg0 + 1 + n after the call (0x001FD75C `addiu v0,s2,1`, 0x001FD760
-//    `addu v0,v0,s0`). With a signed arg0, mwcc 2.3.3 keeps a running sum in
+//    arg0 + 1 + n after the call (0x001FD75C: v0 = s2 + 1, 0x001FD760:
+//    v0 += s0). With a signed arg0, mwcc 2.3.3 keeps a running sum in
 //    a caller-saved register instead (3 saved registers, frame 0x30 against
 //    the target's 4 and 0x40). The only caller, func_001FDB80, passes the
-//    +0x34 field with bit 31 cleared (0x001FDCB8 dsll32 / 0x001FDCC4 dsrl32
-//    by 1), which fits an unsigned index.
+//    +0x34 field with bit 31 cleared (a 64-bit shift left by 33 at 0x001FDCB8,
+//    then a logical shift right by 33 at 0x001FDCC4), which fits an unsigned index.
 //  - The scan is a for-loop whose condition indexes the table. The target
 //    branches straight to the test (0x001FD708) and computes the entry
 //    address only there (0x001FD730..0x001FD738).

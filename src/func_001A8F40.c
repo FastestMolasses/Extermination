@@ -2,7 +2,7 @@
 //
 // objdiff 85.21% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// FP-coloring/scheduling permutation: target reloads *0x70003A20 early into $f1 and colors v into $f2 (mov.s/mul.s pairing); mwcc reloads it late and colors v into $f0, reordering the float-block stores/compare. Integer/setup half is byte-identical. Not the clean-store nop; not source-fixable. Perm...
+// FP-coloring/scheduling permutation: target reloads *0x70003A20 early into $f1 and colors v into $f2 (float move / float multiply pairing); mwcc reloads it late and colors v into $f0, reordering the float-block stores/compare. Integer/setup half is byte-identical. Not the clean-store nop; not source-fixable. Perm...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -25,9 +25,9 @@
 //
 // WALL (FP-coloring/scheduling permutation): the target reloads *0x70003A20 once,
 // EARLY (into $f1 before the 3.0 mtc1), keeps it across the body, and computes v
-// in $f2 (mov.s $f0,$f2 / mul.s $f0,$f2,$f0) so v survives for its own store. mwcc
+// in $f2 (copied to $f0 and multiplied from $f2) so v survives for its own store. mwcc
 // (both builds) schedules the *0x70003A20 reload LATE and colors v into $f0 / v*v
-// into $f1 (add.s $f0,$f0,$f1 / mul.s $f1,$f0,$f0), reordering the tail stores and
+// into $f1 (sum in $f0, square in $f1), reordering the tail stores and
 // the compare. Every byte of the integer/setup half matches; only the float block
 // schedule/coloring differs. Tried: lim-temp early read, comparing the stored
 // 0x70003A24, sq temp, sdatathreshold variants — all <= 85.2%.

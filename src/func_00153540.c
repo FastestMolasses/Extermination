@@ -21,7 +21,7 @@
 //   3 teardown  - func_001AFC10(e).
 //
 // The quaternion stores go through the literal scratchpad addresses (absolute
-// `lui at,0x7000`) while the two build_trs_matrix arguments take &D_700038A0
+// 0x7000 upper half) while the two build_trs_matrix arguments take &D_700038A0
 // (a %hi/%lo symbol pair) — that split is what the original object encodes.
 extern void func_00103230(void *a, void *b, float angle);
 extern int func_001EFE00(int a, void *p);

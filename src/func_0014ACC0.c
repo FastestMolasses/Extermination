@@ -15,7 +15,7 @@
 //
 // Matched with mwcc 2.3.3 (mwcps2-2.3.3-000906); the pinned 991202 build reaches
 // 84.6%. Keys: anim_clip_init's real signature is (self, clip, float, float) -- the
-// trailing 0.0f emits the mtc1 zero,$f13 the target has; ascending switch cases
+// trailing 0.0f emits the zero move into $f13 the target has; ascending switch cases
 // reproduce the target's 2->1->0 descending dispatch with the case-0 branch-likely
 // (beql). objdiff 100.0 vs expected.
 extern void anim_clip_init(char *self, int clip, float a, float b);

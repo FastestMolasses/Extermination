@@ -6,52 +6,44 @@ Bulk *pure-C* match generator for overlay functions.
 Where gen_asm_void.py wraps the original assembly verbatim in an `asm void`
 block, this generator emits natural C source for a set of recognized idioms
 that mwccmips compiles to the same bytes. Pure-C matches are valuable
-because they reach the cross-register `lui $X, %hi(SYM); addiu $Y, $X, %lo(SYM)`
-hi/lo pattern that mwcc's inline-asm `la $r, SYM` pseudo cannot express.
+because they reach the cross-register %hi/%lo pair (the %hi in one register,
+the %lo add into another) that mwcc's inline-asm load-address pseudo cannot
+express.
 
-Patterns recognised (in priority order):
+Patterns recognised (in priority order), described by shape:
 
   PURE_RET_CONST
-      addiu $v0, $zero, K
-      jr    $ra
-      nop
+      constant K into v0, return, empty delay slot
       → int f(void) { return K; }
 
   EMPTY_STUB
-      jr    $ra
-      nop
+      return, empty delay slot
       → void f(void) {}
 
   LOAD_GLOBAL_RETURN
-      lui   $v0, %hi(G)
-      lw    $v0, %lo(G)($v0)
-      jr    $ra
-      nop
+      %hi(G) into v0, word load of G through its %lo into v0, return,
+      empty delay slot
       → int f(void) { return G; }
 
-  STORE_CONST_GLOBAL    (sw/sh/sb)
-      addiu $v0, $zero, K        (optional, may be absent for K==0 using $zero)
-      lui   $at, %hi(G)
-      sw    $v0, %lo(G)($at)
-      jr    $ra
-      nop
+  STORE_CONST_GLOBAL    (word/half/byte store)
+      optional constant K into v0 (absent for K==0, which stores zero),
+      %hi(G) into the assembler temp, store through %lo(G), return,
+      empty delay slot
       → void f(void) { G = K; }
 
   RETURN_GLOBAL_ADDR
-      lui   $v0, %hi(G)
-      jr    $ra
-      addiu $v0, $v0, %lo(G)
+      %hi(G) into v0, return, %lo(G) added to v0 in the delay slot
       → int f(void) { return (int)&G; }
 
   SINGLE_CALL_RETURN1
   MULTI_CALL_RETURN1
-      Sequence of `jal F` calls with up to four register/hi-lo/const args,
-      ending with `addiu $v0,$zero,1; jr $ra; addiu $sp,$sp,K`.
+      Sequence of direct calls to F with up to four register/hi-lo/const args,
+      ending with v0 = 1, the return, and the stack release in its slot.
       → int f(void) { F1(...); F2(...); ...; return 1; }
 
   SINGLE_CALL_VOID
   MULTI_CALL_VOID
-      Same but no `addiu $v0,$zero,1` — function returns void.
+      Same but without the v0 = 1 — function returns void.
 
 For every candidate the script writes the C, compiles with mwccmips inside
 the toolchain container, compares text+relocs against the splat-assembled
@@ -171,24 +163,24 @@ def collect_externs(syms_int: set, syms_arr: set, callees: dict) -> str:
     return "\n".join(lines)
 
 
-# Pattern: empty stub  jr $ra; nop
+# Pattern: empty stub (return with an empty delay slot)
 def try_empty_stub(name, insns):
     ops = _ops(insns)
-    if len(ops) == 2 and ops[0] == "jr $ra" and ops[1] == "nop":
+    if len(ops) == 2 and ops[0] == "jr $ra" and ops[1] == "nop":  # no-disasm-ok: generic return pattern the tool matches
         return ("// CFLAGS: -O4,p -sdatathreshold 4\n"
                 f"void {name}(void) {{}}\n"), 4
     return None
 
 
 def try_return_const(name, insns):
-    """addiu $v0, $zero, K ; jr $ra ; nop"""
+    """Constant K into v0, return, empty delay slot."""
     ops = _ops(insns)
     if len(ops) != 3:
         return None
     m = _ADDIU_CONST_RE.match(ops[0])
     if not m or m.group(1) != "$v0":
         return None
-    if ops[1] != "jr $ra" or ops[2] != "nop":
+    if ops[1] != "jr $ra" or ops[2] != "nop":  # no-disasm-ok: generic return pattern the tool matches
         return None
     k = parse_int(m.group(2))
     return ("// CFLAGS: -O4,p -sdatathreshold 4\n"
@@ -196,7 +188,7 @@ def try_return_const(name, insns):
 
 
 def try_return_global_addr(name, insns):
-    """lui $v0,%hi(G) ; jr $ra ; addiu $v0,$v0,%lo(G)  (delay slot)"""
+    """%hi(G) into v0, return, %lo(G) added to v0 in the delay slot."""
     ops = _ops(insns)
     if len(ops) != 3:
         return None
@@ -204,7 +196,7 @@ def try_return_global_addr(name, insns):
     m3 = _LO_ADDIU_RE.match(ops[2])
     if not m1 or not m3:
         return None
-    if ops[1] != "jr $ra":
+    if ops[1] != "jr $ra":  # no-disasm-ok: generic return pattern the tool matches
         return None
     if m1.group(1) != "$v0" or m3.group(1) != "$v0" or m3.group(2) != "$v0":
         return None
@@ -218,7 +210,7 @@ def try_return_global_addr(name, insns):
 
 
 def try_load_global_return(name, insns):
-    """lui $v0,%hi(G); lw $v0,%lo(G)($v0); jr $ra; nop"""
+    """%hi(G) into v0, word load of G via %lo into v0, return, empty slot."""
     ops = _ops(insns)
     if len(ops) != 4:
         return None
@@ -226,7 +218,7 @@ def try_load_global_return(name, insns):
     m2 = _LO_LD_RE.match(ops[1])
     if not m1 or not m2:
         return None
-    if ops[2] != "jr $ra" or ops[3] != "nop":
+    if ops[2] != "jr $ra" or ops[3] != "nop":  # no-disasm-ok: generic return pattern the tool matches
         return None
     if m1.group(1) != "$v0" or m2.group(2) != "$v0" or m2.group(4) != "$v0":
         return None
@@ -261,9 +253,9 @@ def is_skippable(insns, labels) -> bool:
     if not insns:
         return True
     ops = _ops(insns)
-    # 1. Must end with jr $ra (any reg actually) + 1-insn delay slot, OR be a
-    #    pure-leaf without prologue (e.g. just jr$ra;nop).
-    if not any(o == "jr $ra" for o in ops):
+    # 1. Must end with a return + 1-insn delay slot, OR be a pure leaf
+    #    without prologue (e.g. just the return and an empty slot).
+    if not any(o == "jr $ra" for o in ops):  # no-disasm-ok: generic return pattern the tool matches
         return True
     # 2. No jalr/syscall.
     if any(o.startswith(("jalr", "syscall")) for o in ops):

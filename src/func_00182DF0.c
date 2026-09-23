@@ -4,11 +4,11 @@
 // MATCH NOTE (m1-firstlevel-matching lane): the scratchpad globals at 0x70003B8F
 // are referenced as relocated externs (D_7000xxxx), as the original build did
 // (see tools/match/spad_symbolize.py). A literal address let mwcc CSE and
-// speculate `lui at,0x7000` into delay slots that the target leaves as nop.
+// speculate the scratchpad upper-half load into delay slots the target leaves as nop.
 // objdiff is 100.0% once build.py _SPAD_SYMS lists these addresses (so the
 // expected object carries the same relocations); the linked bytes are identical.
 //
-// The double `if (cur < 0)` mirrors the target's two `bltz s1` emissions
+// The double `if (cur < 0)` mirrors the target's two separate sign branches on cur (held in s1)
 // reaching a single shared func_00174AB0 call (goto form keeps one call site).
 // The final zero tests use float truthiness (idiom-25), which gives the target's
 // c.eq.s operand order.

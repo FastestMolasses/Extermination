@@ -13,12 +13,12 @@
 //
 // Matched with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202 build
 // (which scores 90.24%). Key idioms: the `arg1 = arg1 >> 0xC;` reassignment
-// after the !=0xFFF000 guard yields the branch-likely `beql; sra a1,a1,12`
+// after the !=0xFFF000 guard yields the branch-likely with the >>12 in its annulled slot
 // (idiom-13); the upper clamp written as `> 0xFFB000U` (not `>= 0xFFB001`)
 // makes mwcc use $at for the throwaway 0xFFB001 compare and re-materialize
-// 0xFFB000 (idiom-13b dead-const, matching CW's two distinct `lui 0xff`);
+// 0xFFB000 (idiom-13b dead-const, matching CW's two separate upper-half loads of 0xFF);
 // the low-28-bit extraction as `(unsigned)(x & 0xFFFFFFFULL)` produces the
-// target dsll32/dsrl32 pair. Verified TRUE objdiff 100.0 byte-identical vs
+// target's 64-bit shift-left / shift-right-by-32+ pair. Verified TRUE objdiff 100.0 byte-identical vs
 // build/expected/func_001CB6B0.o. D_00275670 is gp-relative (sdatathreshold 8).
 extern char *D_00275670;
 

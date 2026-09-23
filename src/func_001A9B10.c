@@ -15,8 +15,9 @@
 // MATCH NOTE (m2-matching lane, 87.30% -> 100.0%): (1) both countdowns are
 // relocated, volatile scratchpad externs (idiom-22/32), over-declared as arrays
 // for -sdatathreshold 8; 0x70003B88 is opted in by `// SPAD: 0x70003B88`. This
-// stops mwcc hoisting `lui at,0x7000` into the loop slots. (2) The f[3] == 7
-// test is a one-case `switch`, which lowers to the target's `beq 7 / b next`.
+// stops mwcc hoisting the scratchpad upper-half load into the loop slots. (2) The f[3] == 7
+// test is a one-case `switch`, which lowers to the target's compare-with-7 branch into the
+// case body followed by an unconditional branch past it.
 // (3) Declaring p, e, q in that order gives the target's s0/s1/s2 coloring.
 extern void func_001A99E0(unsigned char *);
 extern unsigned char **D_00275B80;

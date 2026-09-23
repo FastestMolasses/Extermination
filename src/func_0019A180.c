@@ -2,7 +2,7 @@
 //
 // objdiff 86.83% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// FP-register-coloring permutation: target colors v into f1 + each const into f0 (c.lt.s/c.le.s f1,f0 natural sense); mwcc colors v into f0 + const into f1, emitting inverted c.le.s/c.lt.s with flipped bc1t/bc1f, which also reschedules the per-arm dsll32/dsra32 sign-extend and the top beqz delay sl...
+// FP-register-coloring permutation: target colors v into f1 + each const into f0 (compares f1 against f0 in the natural sense); mwcc colors v into f0 + const into f1, emitting inverted FP compares (less-or-equal vs less-than) with flipped FP-condition branch sense, which also reschedules the per-arm 64-bit shift-pair sign-extend and the top beqz delay sl...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -22,10 +22,10 @@
 //       u8 field at +0x54 of the struct pointed to by D_70003130[arg1].
 //   - else return the s16 field at +0x1A of that struct.
 // WALL: not the clean-store nop. Residual is an FP-register-coloring permutation:
-//   target keeps v in f1 and loads each constant into f0 (c.lt.s/c.le.s f1,f0,
-//   natural branch sense), whereas mwcc colors v into f0 and the constant into f1,
+//   target keeps v in f1 and loads each constant into f0 (f1 compared against
+//   f0, natural branch sense), whereas mwcc colors v into f0 and the constant into f1,
 //   emitting the inverted compare (c.le.s where source has '<') with flipped
-//   bc1t/bc1f. This also shifts the per-arm dsll32/dsra32 sign-extend scheduling
+//   FP-condition branch sense. This also shifts the per-arm 64-bit shift-pair sign-extend scheduling
 //   and the top beqz delay-slot fill. Body/structure correct; FP-coloring +
 //   scheduling artifact -> permuter territory.
 

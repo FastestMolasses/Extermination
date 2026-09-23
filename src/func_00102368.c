@@ -2,7 +2,7 @@
 //
 // objdiff 61.92% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc regalloc + dead-loop-codegen wall. Branch-likely actually matched here (our `bnel v1,v0` == expected). Two divergences: (1) the original expanded a degenerate empty `while` body (L1023D0: nop;nop;bnez v0 with v0 always 0) into 3 extra real instrs that ee-gcc 2.9-991111-01 optimizes away differently -- rewritin...
+// eegcc regalloc + dead-loop-codegen wall. The branch-likely edge already matches the original. Main divergence: the original expands a degenerate empty `while` body (near 0x001023D0, a loop whose condition is always 0) into three extra real instructions that ee-gcc 2.9-991111-01 optimizes away differently (rest of the note: docs/NEARMISS.md).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

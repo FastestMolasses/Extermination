@@ -2,7 +2,7 @@
 //
 // objdiff 97.27% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Delay-slot-fill / instruction-scheduling artifact on a fully-recovered body. The target hoists the 0x70003A24 store's address `lui at,0x7000` above the r<=PI/4 c.le.s compare and drops the `swc1 f0` into the bc1f branch delay slot; mwcc 2.3.3 instead fills that slot with the next band's `lui v1,0...
+// Delay-slot-fill / instruction-scheduling artifact on a fully-recovered body. The target hoists the 0x70003A24 store's address high half (0x7000) above the r<=PI/4 compare and drops the float store of f0 into the false-branch delay slot; mwcc 2.3.3 instead fills that slot with the next band's constant high-half load...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

@@ -9,7 +9,7 @@
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: the lone
 // residual under 991202 is wall #13 (clean-store branch lowering of the
-// return-0 path -- 991202 reorders/duplicates the `addiu v0,1`/`paddub v0,0`
+// return-0 path -- 991202 reorders/duplicates the return-1 / return-0
 // trailing block and fills the beqz delay slot, capping at 90.71%). 2.3.3
 // emits the byte-identical block (objdiff 100.0).
 extern short anim_advance_time(void *self, float step);

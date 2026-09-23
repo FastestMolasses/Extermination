@@ -2,7 +2,7 @@
 //
 // objdiff 78.56% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Two CodeWarrior codegen artifacts: (1) arg-eval/scheduling order on the leading func_001FE9A0 call (target fills jal delay slot with the last addr arg; mwcc schedules li a0,1 there); (2) CW emits a duplicated early-return epilogue for each `D_00275C58==0 -> return 0` path that mwcc merges into th...
+// Two CodeWarrior codegen artifacts: (1) arg-eval/scheduling order on the leading func_001FE9A0 call (target fills jal delay slot with the last addr arg; mwcc schedules a0 = 1 there); (2) CW emits a duplicated early-return epilogue for each `D_00275C58==0 -> return 0` path that mwcc merges into th...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -15,9 +15,9 @@
 // NEARMISS 78.6% (mwcc233). Logic fully recovered; the two residuals are pure
 // CodeWarrior codegen artifacts: (1) arg-eval/scheduling order on the leading
 // func_001FE9A0 call -- the target fills the jal delay slot with the last
-// address arg (addiu a2,s0,84) and emits li a0,1 first, while mwcc schedules
-// li a0,1 into the slot; (2) CW emits a DUPLICATED early-return epilogue for
-// each `D_00275C58==0 -> return 0` path (a separate `lq ra` / branch that
+// address arg (a2 = s0 + 84) and sets a0 = 1 first, while mwcc schedules
+// a0 = 1 into the slot; (2) CW emits a DUPLICATED early-return epilogue for
+// each `D_00275C58==0 -> return 0` path (a separate return-address reload and branch that
 // re-restores into the shared tail), which mwcc merges into the single shared
 // epilogue (known CW branch-lowering / dead-return-block wall, not the
 // idiom-13 clean-store nop). The body, the 6-arg func_001FEC20 calls (state,0,

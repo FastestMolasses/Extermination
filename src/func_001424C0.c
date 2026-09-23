@@ -49,8 +49,8 @@
 //
 // WALL: prologue register-allocation permutation, same class as
 // func_001B8AB0 -- target keeps the incoming arg0 in $a2 across the state-byte
-// load (paddub s1,a0,zero comes AFTER lbu a2,6(a0), using a2 not a0 for the
-// switch value), mwcc picks a fresh $a0. Confirmed not source-controllable.
+// load (the copy of arg0 into s1 comes AFTER the byte load of arg0[6] into a2,
+// using a2 not a0 for the switch value), mwcc picks a fresh $a0. Confirmed not source-controllable.
 extern void anim_clip_init(void *self, int a, float b, float c);
 extern int func_001000E0(int a, double b);
 extern void func_00102948(void *dst, void *src);

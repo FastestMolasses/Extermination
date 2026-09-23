@@ -5,10 +5,10 @@
 // at 0x700038A0 (int 0, int 0, float 20.0, float 1.0 at A0/A4/A8/AC), runs
 // func_001026A0(&D_700038B0, self+0xD0, &D_700038A0), then returns the boolean
 // normalization of func_0019AD00(self, &D_700038B0, 7) (1 if nonzero else 0 —
-// the addiu v1,1 / movz v1,zero,v0 / paddub idiom). Sibling of func_0017F1C0.
+// the increment / conditional-move / register-copy idiom). Sibling of func_0017F1C0.
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: under
-// 991202 the scheduler hoists `paddub a0,s0,zero` out of the jal delay slot
+// 991202 the scheduler hoists the s0 -> a0 argument copy out of the jal delay slot
 // (wall #13), capping at 87.5%. 2.3.3 leaves it in the delay slot → objdiff
 // 100.0.
 extern int func_001026A0(int, int, int);

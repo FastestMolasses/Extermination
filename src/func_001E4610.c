@@ -2,7 +2,7 @@
 //
 // objdiff 88.31% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// NEARMISS 88.31% (233) / 82.19% (991202). Body/logic fully recovered: 4-state dispatch (0=init emitter fields+ident transform+link to other-actor scratch; 1=tick; 2/3=free via func_001AFC10). Residual is a genuine scheduling artifact: a speculative dead prefetch pair (`ld t0,0x20(s0)`/`lw t1,0x1c(...
+// NEARMISS 88.31% (233) / 82.19% (991202). Body/logic fully recovered: 4-state dispatch (0=init emitter fields+ident transform+link to other-actor scratch; 1=tick; 2/3=free via func_001AFC10). Residual is a genuine scheduling artifact: a speculative dead prefetch pair (a doubleword load from s0+0x20 and a word load from +0x1c ...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

@@ -2,7 +2,7 @@
 //
 // objdiff 74.38% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure/addressing/both dispatch arms byte-identical. Sole residual is the packed-param field extract: target reads the 32-bit 5th arg directly out of $t0 (bare dsll32 $t0,8 / dsrl32 ,8 low-24 zero-extend + srl $t0,24 high byte) with NO operand extension; mwcc materializes a zero/sign-exte...
+// Body/structure/addressing/both dispatch arms byte-identical. Sole residual is the packed-param field extract: target reads the 32-bit 5th arg directly out of $t0 (a bare 64-bit shift pair for the low-24 zero-extend plus a 24-bit right shift for the high byte) with NO operand extension; mwcc materializes a zero/sign-exte...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -21,10 +21,10 @@
 // func_001CC1E0 and the default func_001FC770 draw) are byte-identical.
 //
 // Sole residual: the packed-param field extract. The target reads the 32-bit
-// 5th arg directly out of $t0 with a bare dsll32 $t0,8 / dsrl32 ,8 (low-24
-// zero-extend) plus srl $t0,24 (high byte), inserting no operand extension;
-// mwcc materializes a zero-/sign-extension of the incoming arg (dsll32/dsrl32
-// ,0) before the shift and re-extends the store value, which also reschedules
+// 5th arg directly out of $t0 with a bare 64-bit shift pair (low-24
+// zero-extend) plus a 24-bit right shift (high byte), inserting no operand extension;
+// mwcc materializes a zero-/sign-extension of the incoming arg (a 64-bit shift
+// pair by 32) before the shift and re-extends the store value, which also reschedules
 // the surrounding loads. Param-extension / instruction-scheduling artifact
 // (NOT the clean-store delay nop). -> permuter.
 //

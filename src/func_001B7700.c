@@ -2,7 +2,7 @@
 //
 // objdiff 91.73% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// branch-sense / block-layout artifact: outer (a2+8)==2||==0 lowers to beq+bnez vs target's beq+beqz two-branch-to-shared-block, plus epilogue paddub/return-block placement. Body byte-correct. 91.7% on mwcc233; permuter/branch-likely-sense territory.
+// branch-sense / block-layout artifact: outer (a2+8)==2||==0 lowers to an equal-branch then a nonzero-branch vs the target's equal-branch then zero-branch (two branches to a shared block), plus epilogue paddub/return-block placement. Body byte-correct. 91.7% on mwcc233; permuter/branch-likely-sense territory.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -28,8 +28,8 @@
 // it to the target's 2/1/0 compare order with the case-0 branch-likely fill.
 //
 // WALL: control-flow lowering artifact -- the outer (a2+8)==2 || ==0 test lowers to
-// `beq v1,2 / bnez v1,return` here vs the target's two separate forward branches to
-// the shared block (`beq v1,2 / beqz v1`), plus minor epilogue paddub/return-block
+// a branch on ==2 then a branch on !=0 to return here vs the target's two separate
+// forward branches to the shared block (on ==2, then on ==0), plus minor epilogue paddub/return-block
 // placement. Body and all memory effects are correct; residual is branch-sense /
 // block-layout (permuter / branch-likely-sense territory).
 extern unsigned char D_00275BD8;

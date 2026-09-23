@@ -2,7 +2,7 @@
 //
 // objdiff 94.69% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// reloc-pair interleave: CW materializes &D_002486F0 as split lui/addiu/lq (full GPR address before the load); mwcc 2.3.3 folds %lo into the lq (lui at; lq v1,%lo(at)) for the single-use address — robust across bare extern, pointer-stmt, array[1], forced-GPR forms. The fold shifts downstream FP reg...
+// reloc-pair interleave: CW materializes &D_002486F0 as a full GPR address (%hi, then a %lo add) before the 128-bit load; mwcc 2.3.3 folds the %lo into the load's displacement for the single-use address — robust across bare extern, pointer-stmt, array[1], forced-GPR forms. The fold shifts downstream FP register coloring (details below).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -19,12 +19,12 @@
 // +0x23F; the quadword table is copied to the stack first), gated on
 // func_00174AC0(self,2); the steer helper is func_001B12B0(goal,cur,rate)->yaw.
 //
-// 2.3.3 CRACKED the prior FP-stall scheduling wall (the explicit div.s; nop;
-// nop; jal padding now matches byte-exact). The SOLE residual is the documented
+// 2.3.3 CRACKED the prior FP-stall scheduling wall (the float divide followed by two
+// stall-padding no-ops before the call now matches byte-exact). The SOLE residual is the documented
 // reloc-pair-interleave artifact: CW materializes &D_002486F0 split as
-// `lui v0,%hi; addiu v0,v0,%lo; lq v0,0(v0)` (full GPR address, dest addr
-// addiu v1,sp,0x20 after the lq); mwcc folds the %lo into the load
-// (`lui at,%hi; lq v1,%lo(at)`) for the single-use address in every form tried
+// a full GPR address (%hi, then a %lo add, then the 128-bit load through it;
+// the sp+0x20 destination address is formed after the load); mwcc folds the
+// %lo into the load's displacement for the single-use address in every form tried
 // (bare extern, pointer-statement idiom 12a, array[1], idiom-7 forced GPR). The
 // fold shifts downstream FP register coloring (fv1/fv0f vs ft0/fv1) but the
 // body and control flow are byte-faithful. mwcc treats the reloc pair

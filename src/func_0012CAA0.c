@@ -18,9 +18,9 @@
 // Tail: a global stun check (D_008106BC / *0x70003B8D) forces state 0xA.
 //
 // MATCH NOTES (s86): the `(char *)(D_00242DD0[s1] * 4)` cast is load-bearing -- it puts the scaled index first in
-// mwcc's commutative `addu`, matching the target's `addu v0,v0,s0`. `*(int *)0x700038BC = 0x3F800000;` is duplicated
+// mwcc's commutative `addu`, matching the target's add operand order (scaled index first, base second). `*(int *)0x700038BC = 0x3F800000;` is duplicated
 // into BOTH arms of the s1>=4 test on purpose: the target emits it twice. And the arg1+0xD4 decrement is written as a
-// store followed by a RELOAD (not a temp) so mwcc forwards the stored value as `mov.s $f12,$f0` in the jal slot.
+// store followed by a RELOAD (not a temp) so mwcc forwards the stored value with an FPR copy into $f12 in the jal slot.
 extern void func_001029C0(void *a0);
 extern void func_00102B08(void *a0, void *a1, float f);
 extern void func_00102BB0(void *a0, void *a1, float f);

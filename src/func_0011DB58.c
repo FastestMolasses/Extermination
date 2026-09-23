@@ -1,6 +1,6 @@
-// dsll32 $v0,$a0,0; dsra32 $v0,$v0,0; dsra32 $a0,$a0,0; lui $v1,0x7fff; negu $a1,$v0;
-// ori $v1,$v1,0xffff; or $v0,$v0,$a1; and $a0,$a0,$v1; srl $v0,$v0,31; lui $v1,0x7ff0;
-// or $a0,$a0,$v0; subu $a0,$v1,$a0; jr $ra; srl $v0,$a0,31
+// func_0011DB58: NaN test on a double held in one 64-bit register. With hi/lo
+// its two words: returns 1 when ((hi & 0x7FFFFFFF) | (lo != 0)) > 0x7FF00000
+// (unsigned), else 0.
 asm int func_0011DB58(int a0) {
     dsll32 $2, $4, 0
     dsra32 $2, $2, 0

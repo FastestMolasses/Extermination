@@ -2,7 +2,7 @@
 //
 // objdiff 97.27% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Scheduling/regalloc artifacts: (1) `*-1.0f` negate emitted with commuted mul operands (mul f0,f1,f0 vs target f0,f0,f1) at 2 sites; (2) `D_008102B0|=2` uses a different scratch reg; (3) terminal (p+5)/(p+6) store-pairs scheduled in opposite branch-delay-slot order. Body byte-identical otherwise (...
+// Scheduling/regalloc artifacts: (1) the `*-1.0f` negate's float multiply has its two source operands commuted relative to the target at 2 sites; (2) `D_008102B0|=2` uses a different scratch reg; (3) terminal (p+5)/(p+6) store-pairs scheduled in opposite branch-delay-slot order. Body byte-identical otherwise (...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,8 +12,8 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 
 // NEARMISS 97.27% (mwcc 2.3.3). Body/logic fully recovered. Residuals are pure
-// codegen artifacts: (1) the `* -1.0f` negate is emitted as `mul.s f0,f1,f0`
-// (operand commute) vs target `mul.s f0,f0,f1` at two sites; (2) `D_008102B0|=2`
+// codegen artifacts: (1) the `* -1.0f` negate's float multiply has its two
+// source operands commuted relative to the target at two sites; (2) `D_008102B0|=2`
 // uses a different scratch reg (regalloc); (3) the terminal `(p+5)=N;(p+6)=0`
 // store/branch pairs are scheduled in the opposite slot order. Everything else
 // is byte-identical modulo a one-instruction offset cascade. 233 > 991202.

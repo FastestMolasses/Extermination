@@ -9,9 +9,9 @@
 // the 4-byte result D_00279440 -> D_00279668 and returns 0. Between polls it burns a
 // 0x100000-iteration hand-rolled delay loop.
 //
-// The unaligned 4-byte copy MUST be __builtin_memcpy to get ee-gcc's lwl/lwr/swl/swr
-// pair. NOTE for future measurement: the delay loop's `lui $v0,0x10` / `addiu $v0,$v0,-1`
-// pair is symbolized by splat as %hi(D_FFFFF)/%lo(D_FFFFF); the canonical expected
+// The unaligned 4-byte copy MUST be __builtin_memcpy to get ee-gcc's unaligned
+// left/right word load and store pairs. NOTE for future measurement: the delay loop's count 0xFFFFF (0x10 << 16, minus 1),
+// loaded as a %hi/%lo pair, is symbolized by splat as %hi(D_FFFFF)/%lo(D_FFFFF); the canonical expected
 // object is built from build/.asmnorm/, where tools/decomp/build.py's _ASM_FIXUPS undo
 // that invented symbol. Assembling build/asm/matchings/main/code/func_0010FAD0.s
 // directly leaves an unreproducible relocation and shows a false 99.84%.

@@ -21,7 +21,7 @@
 - **func_0011DBB8** (SDK atanf): the id>=0 return had atanhi and atanlo
   swapped in the readable C; it now follows the instructions at
   0x11DE10..0x11DE44. It is still NEARMISS, now 97.06%. What remains is
-  the prologue `sd ra` slot and one nop in the target.
+  the prologue's 64-bit ra-save slot and one nop in the target.
 - `tools/export_shadow_receivers.py` exports the drop-shadow receiver
   grid, objects and box models for the port from the user's extracted
   disc. It checks every byte against the route captures with `--verify-ram`.
@@ -476,7 +476,7 @@ build** (verify_all green: boot-elf 0x175b00 + 19/19 overlays; verified repeated
 Drivers:
 - **mwcc 2.3.3 (`// COMPILER: mwcc233`)** byte-matches the idiom-13 delay-slot-nop family the pinned
   991202 mis-fills — the session's workhorse (see memory mwcc233-idiom13-unlock).
-- **idiom-20 BREAKTHROUGH: mwcc DOES emit branch-likely (beql/bnel/beqzl)** — the "mwcc can't do
+- **idiom-20 BREAKTHROUGH: mwcc DOES emit branch-likely (the equal, not-equal and equal-zero likely forms)** — the "mwcc can't do
   branch-likely" parks were wrong (73 matched mwcc funcs prove it). Re-attack wave = 7/12. Trigger:
   `switch(st)` on a local with case bodies writing `field = st+1` (reuses switch local) → mwcc fills
   the dispatch slot via beql/beqzl. tools/match/brlikely_wave.js.
@@ -486,7 +486,7 @@ Drivers:
   (GPR register-naming/order, saved-reg coloring, call-arg/store delay-slot scheduling), ~8 matches/
   M-tokens. RESISTANT (don't feed it): FP-coloring, commutative-canon, mtc1-order, LICM, induction-var,
   branch-likely-multi-residual, genuine idiom-13.
-- CORRECTED s84: **FPU-MAC is NOT a wall** (mwcc emits mula.s/madd.s); a permuter wave is ~50–130 min
+- CORRECTED s84: **FPU-MAC is NOT a wall** (mwcc emits the float multiply-accumulate pair); a permuter wave is ~50–130 min
   (the one "3.6h" wave was a stuck permission popup, not the permuter).
 
 **FRONTIER**: the readily-matchable veins (idiom-13, branch-likely-sole-residual, GPR-crackable
@@ -563,7 +563,7 @@ weapons, enemies, doors, audio and the real status screen.
   (exterm-permuter image; tools/permuter/{run_func.sh,sweep.sh}; PERMUTER_GUIDE.md;
   patched objdump.py to -m mips:5900 for r5900/MMI). CRACKED 2 register-permutation
   walls humans couldn't (func_00179CA0, func_001C6120) — new idiom `while(cond=i<N)`
-  forces `slti $vN` not `$at`. Reach CHARACTERIZED (modest): it cracks only 95%+
+  forces the set-less-than-immediate result into a `$vN` register, not `$at`. Reach CHARACTERIZED (modest): it cracks only 95%+
   PURE source-reorderable register-permutation near-misses + an agent hand-finishing
   the last 1-3 instrs. It does NOT crack scheduler-fixed ordering (swapped stores,
   delay-slot fills), instruction-count diffs, or far (~84%) seeds. 34 near-match
@@ -572,7 +572,7 @@ weapons, enemies, doors, audio and the real status screen.
   in a `float` local defeats mwcc literal-canonicalization; + int early-return branch
   shape + verify-call-arity). RIGOROUSLY proved the remaining backend walls genuine:
   idiom-13 = mwcc fills a branch delay slot with the first SPECULATABLE ALU op from
-  either successor (loads/stores never; globals via lui/lo never matchable; volatile
+  either successor (loads/stores never; globals via %hi/%lo pairs never matchable; volatile
   doesn't help); multi-function-TU scheduling FALSIFIED (per-function). The ~1,300
   remaining game funcs bottleneck on these proven-genuine walls — pure C-level idiom
   discovery is largely tapped out. SDK ~710 funcs need vintage ee-gcc (see
@@ -733,7 +733,7 @@ the dated sections later in the file are both authoritative.
 > RE-BASELINING all 146 still-stub jtbl dispatchers through the jtbl-aware
 > pipeline: **21 land ≥70% (5 ≥85%)** where they were previously 0% un-decodable;
 > 106 CCFAIL (m2c output has the usual decode artifacts an agent fixes — undefined
-> jtbl ident when m2c can't auto-trace a `jr $aN` computed jump, non-lvalue
+> jtbl ident when m2c can't auto-trace a computed jump through an argument register, non-lvalue
 > stores), 5 M2CFAIL, 7 in the SDK/lowmem crt0 region (carved out). Ran
 > tools/match/jtbl_wave.js (jtbl-aware m2c base + switch idioms) on the 21 ≥70%
 > candidates: agents pushed them to 89–98% but **0/21 matched** — ALL parked on
@@ -743,14 +743,14 @@ the dated sections later in the file are both authoritative.
 > DISPATCHER WALL"). Core: the original emitted ALL jump tables to a consolidated
 > EXTERNAL rodata TU (0x0026xxxx–0x0027xxxx); a C `switch` makes mwcc emit its OWN
 > LOCAL `@NN` table which (a) the post-RA scheduler freely reorders (lui→delay
-> slot, addiu/sll swap) and (b) objdiff counts the local-vs-external reloc as a
+> slot, the %lo add and index shift swapped) and (b) objdiff counts the local-vs-external reloc as a
 > mismatch even when the schedule is byte-identical (proven on func_001B9C10:
 > schedule matches, still <100% purely on `@13` vs external `jtbl_0026E0E0`).
 > Exhausted: every -O level / -opt / -sdatathreshold (sdt8 fixes an incidental
 > gp-rel s64 access, the mwcc default — lifts 97.6→98.3%, isolating the dispatch
 > as sole wall); ALL section/scheduling/gpopt pragmas are illegal in mwcc 2.3;
 > `#pragma schedule off` reproduces the EXACT dispatch but is function-global so it
-> wrecks the prologue (68%); inline-asm `la jtbl,EXTERNAL` emits the byte-exact
+> wrecks the prologue (68%); an inline-asm load-address of the EXTERNAL jtbl symbol emits the byte-exact
 > dispatch in isolation but mwcc 2.3 asm has no C-var operands / no reg-pinning and
 > dead-code-eliminates the case bodies; no computed goto (C89); reference mwccps2
 > projects (recvx/sssv/decompedia) document NO flag/pragma trick and treat such
@@ -771,8 +771,8 @@ the dated sections later in the file are both authoritative.
 > documented mwcc walls (CW branch-target alignment nop, idiom-13 const-store,
 > a dead trailing return-0 block mwcc eliminates [recurring on func_001283D0/
 > 001284E0/00128B80], regalloc permutation). INCIDENTAL: `-sdatathreshold 8` (mwcc
-> default) is the right flag — 4 mis-addresses 8-byte s64 globals (lui/lo vs the
-> correct `sd %gp_rel(g)(gp)`). Recorded all 260 new baselines to
+> default) is the right flag — 4 mis-addresses 8-byte s64 globals (an absolute %hi/%lo pair vs the
+> correct gp-relative 64-bit store). Recorded all 260 new baselines to
 > build/match/baseline_results.txt. Committed general_wave.js + permuter_wave.js.
 > LAST LEVER: launched a decomp-permuter brute-force wave (permuter_wave.js) on the
 > 10 highest prior-session regalloc/scheduling near-misses (≥93%) — agents triage
@@ -833,7 +833,7 @@ the dated sections later in the file are both authoritative.
 > allocation direction (raw=top-down vs local-copy=bottom-up) + jal-delay-slot copy
 > placement; float early-return-0/two-exit epilogue (cracks "branch-lowering"); field-
 > address CSE hoist (pointer-alias cause); address-escaped loop counter; + conditional
-> levers (idiom-13 RMW subset, $at stored-boolean subset, sltiu->slti cache). Re-waving
+> levers (idiom-13 RMW subset, $at stored-boolean subset, unsigned-to-signed compare cache). Re-waving
 > near-misses with the growing idiom set harvested more matches each round (RE->idiom->
 > re-wave cycle). matched functions 1345→1352+; verify_all GREEN throughout. KEY
 > REFRAME: the "frontier" is NOT a hard wall — it's a MOVING RE TARGET; systematic
@@ -1458,13 +1458,13 @@ the dated sections later in the file are both authoritative.
 > +1 readable-C match: func_00179B90 (footstep rand 0..4 fold) at 100%,
 > converting its asm-void to C and PARTIALLY CRACKING the slt-into-
 > branch wall's fresh-temp case (copy-out + assign-compare-back-into-
-> compared-variable lands CW's `slti v1`; full datum in the idioms
+> compared-variable lands CW's set-less-than-immediate result in v1; full datum in the idioms
 > section). func_00187DC0/func_00187EA0 verified already 100%. Four
 > targets recognized as wall-blocked FAST (≤4 attempts each, best-
 > attempt C + full wall census inline in each stub): func_0015A200
 > kind-0xE pair-spawn helper 91.30% (dead-`b`-dup + prologue
-> interleave; saved-reg mapping + beqz/paddub slot matched),
-> func_001545B0 ellipse validity 95.45% (dead-`b`-dup + mula/madd
+> interleave; saved-reg mapping + the paddub in the branch-if-zero slot matched),
+> func_001545B0 ellipse validity 95.45% (dead-`b`-dup + float multiply-accumulate
 > stall nop; entire FP body incl. f20-f24 allocation matched first
 > try), func_00154740 tendril init 89.33% (dead-dup x5 incl. NEW
 > dead-srl-per-dance family member, wall-#13 store fills, pool order;
@@ -1753,7 +1753,7 @@ the dated sections later in the file are both authoritative.
 > 91.5% (all residuals known walls). NEW IDIOM 19: tail calls (`jr`
 > through a loaded pointer) ARE matchable. New datums: bare-params-first
 > for the reversed saved-reg mapping (param copies INVERT s1/s2); float
-> literals = CW's lui/ori→mtc1 (the bit-pattern int form allocates a
+> literals = CW's GPR bit-pattern build (upper and lower immediates) moved into an FPR (the bit-pattern int form allocates a
 > stack slot — keep it only for integer stores); volatile pins short
 > distinct-global blocks (2 more confirmations). Idioms section below.
 
@@ -1798,7 +1798,8 @@ the dated sections later in the file are both authoritative.
 > 0x46/0x44, scripted walks 0x4B-0x4E. FINDINGS: "DOOR SCRIPTS DECODED" +
 > "ANIM ID MAPPING". Match attempt func_001BA080 (op-6 flag/counter switch)
 > wall-blocked at 88.4% — NEW DATUM: mwcc orders dense-switch jump-table
-> dispatch [lui, sll, addiu %lo, addu] vs CW's [lui, addiu %lo, sll, addu]
+> dispatch with the index scale before the table's %lo add, vs CW's %lo add before
+> the index scale (both start with the %hi and end with the index add)
 > (+ wall #13 slot fills, shadow-fill interleave); analysis + best shape
 > inline in src/func_001BA080.c (stub restored).
 
@@ -2361,13 +2362,15 @@ scheduling/regalloc. Apply these when a readable-C decomp is 95-99% with
 only float-op / operand-order / saved-register diffs:
 
 1. **Compound assignment for float ops.** Write `x += K`, never `x = x + K`.
-   `x = a[i] + K` makes mwcc emit `add.s dst, const, value` with a spare
-   temp register; `a[i] += K` emits the target's `add.s dst, value, const`
+   `x = a[i] + K` makes mwcc emit the float add with the constant as first source and
+   the value second, with a spare temp register; `a[i] += K` emits the
+   target's order (value first, constant second)
    and reuses the right register. (func_0021B500, func_00179880.)
 
 2. **Call-result first in chained multiply.** For `acc += A * (B * C)`, the
    final multiply's asm operand order follows source order. To get
-   `mul.s dst, <call-result>, <product>` write the call result FIRST:
+   the float multiply with the call result as first source and the product
+   second, write the call result FIRST:
    `func(...) * (b * c)`, not `(b * c) * func(...)`. (func_00179150.)
 
 3. **Saved-register allocation follows declaration / first-use order.**
@@ -2377,7 +2380,8 @@ only float-op / operand-order / saved-register diffs:
    (func_0014CD30, func_00150900, func_00136630 — `*p += *q * func(...)`).
 
 4. **Duplicate the common tail-call in BOTH if/else branches.** When CW emits
-   a dead `b epilogue; <dup jal>` and the duplicated instruction is a CALL
+   a dead unconditional branch to the epilogue followed by a duplicated
+   instruction, and that duplicated instruction is a CALL
    whose per-branch value comes from another call result, writing the tail
    call explicitly inside each branch (instead of once after the if) makes
    mwcc emit the duplicated `jal` too, defeating its dead-`b` coalescing.
@@ -2386,7 +2390,7 @@ only float-op / operand-order / saved-register diffs:
 5. **Struct copy as explicit per-quadword copies.** Write a 0x40-byte block
    copy as `dst->q[i] = src->q[i]` for each 16-byte slot (or four explicit
    `*(u128*)(d+k) = *(u128*)(s+k)`), NOT a single aggregate struct assignment.
-   The explicit form yields CW's interleaved `lq;sq` per slot; a single
+   The explicit form yields CW's interleaved quadword load-then-store per slot; a single
    struct-assignment batches all loads then all stores and diverges.
    (func_001CFA60 object initialiser.)
 
@@ -2395,7 +2399,7 @@ only float-op / operand-order / saved-register diffs:
    `$f12` untouched, the callee has a *passthrough* float param. Declare the
    prototype with TWO trailing floats — `f(..., float passthru, ..., float k)` —
    forwarding the function's own float param to the first and the constant to
-   the second. mwcc then emits `mtc1 ...,$f13` (not `$f12`) and stops re-sign-
+   the second. mwcc then moves the constant into `$f13` (not `$f12`) and stops re-sign-
    extending int args. Cracks the FP-register CHOICE only; surrounding mtc1
    placement / delay-slot scheduling may still be a wall.
 
@@ -2429,7 +2433,7 @@ late-initialized loop counters; try the param-copy trick first.
 NEW WALL DATUM — address-pair shadow-fill hoist (2026-06-09, keyframe
 unpacker family func_001C84D0 / anim_decode_translation, blocked at
 92.6%/87.0%): for back-to-back volatile-scratchpad store blocks, mwcc -O3+
-hoists EVERY independent `lui/addiu` address-materialization pair maximally
+hoists EVERY independent %hi/%lo address-materialization pair maximally
 early — packing as many pairs as fit into the first `lhu` load shadow, past
 volatile stores, allocating fresh temps as needed. CW 2.3.1 emits at most
 one pair per load cluster, each gated on a dead temp register. Falsified:
@@ -2443,13 +2447,13 @@ src/anim_sample_bones.c, src/anim_decode_translation.c,
 src/func_001C84D0.c — all still stubs, wall-blocked 82-93%):
 8. **`-sdatathreshold 0` + `*(volatile int *)0xADDR`** reproduces CW's `$at`
    absolute addressing byte-exactly (raw constant, no reloc); `&D_xxx`
-   externs give the relocated `lui/addiu` form. Both coexist in CW output —
+   externs give the relocated %hi/%lo pair form. Both coexist in CW output —
    pick per access site.
-9. **Union'd `uint128` quat fields fold `sq` offsets** (`sq v, 0x30(base)`);
+9. **Union'd `uint128` quat fields fold `sq` offsets** (a quadword store at base+0x30);
    casting a `float[4]` field to u128 emits a stray `addiu` instead.
 10. **Struct field access defeats mwcc's address-CSE** on store-then-reload
     of the same field; the cast form `*(float *)(p+0x54)` produces a hoisted
-    `addiu a1, base, 0x54` that CW doesn't have.
+    `a1 = base + 0x54` that CW doesn't have.
 11. **Goto-shaped loops** (guards branching forward to a bottom advance
     block) reproduce CW's non-rotated while-loop layout; a plain `while`
     gets rotated by mwcc.
@@ -2467,24 +2471,24 @@ src/func_001C84D0.c — all still stubs, wall-blocked 82-93%):
     emit FIRST with another arg in the jal delay slot, matching CW's arg
     order. Composes with reusing a dead PARAMETER variable for a constant
     to land it in that param's register (`idx = 1; *slot = idx;` →
-    `addiu $a0, $zero, 1`, where a plain literal would allocate a temp).
+    the constant 1 loaded straight into `$a0`, where a plain literal would allocate a temp).
 13. **CW's delay-slot fill rule (when a `nop` is matchable).** CW 2.3.1
     fills a conditional-branch delay slot only from the TAKEN path's first
     instruction; mwcc 2.3 also fills from the fall-through whenever a SAFE
-    candidate exists (a `lui` etc.). Consequence: a CW `beqz; nop;
-    <safe-instr>` shape is matchable from C only when every fall-through
+    candidate exists (a `lui` etc.). Consequence: a CW shape of a branch-if-zero with a nop
+    delay slot followed by a safe instruction is matchable from C only when every fall-through
     candidate is unsafe to speculate (e.g. a store conditioned on the
     branch, cf. matched func_001F0060) — otherwise it is the delay-slot-fill
     wall (func_001B57E0 96.55%, func_001AB590 97.87%, func_001AD250 92.3%,
     all restored to stubs with the analysis inline).
 14. **`switch` reproduces CW's beql compare-chain switch lowering**
     (2026-06-10, func_001B1B70 attempt, 91.53%). A C `switch` makes mwcc
-    emit CW's exact sparse-switch shape: one `beql case-const` per case
+    emit CW's exact sparse-switch shape: one branch-likely compare against the case constant per case
     with the case block's first instruction (e.g. the call-arg `paddub`)
     duplicated into the likely slot, shared-label case pairs
     (`case A: case B:`) as beql(B)+beq(A)→out-of-line paddub stub
     falling into B's block, and out-of-line case blocks each ending
-    `b common-exit`. Ordering rule: mwcc emits the COMPARE CHAIN in
+    with an unconditional branch to the common exit. Ordering rule: mwcc emits the COMPARE CHAIN in
     REVERSE source-case order and the CASE BLOCKS in source-case order —
     same as CW — so transcribe the target's chain bottom-up into source
     case order (func_001B1B70: chain D,7,4,2,A,1 + blocks 1,2,4,7,D ⇒
@@ -2507,13 +2511,14 @@ src/func_001C84D0.c — all still stubs, wall-blocked 82-93%):
 16. **Forcing CW's redundant short re-sign-extension + temp-register
     choices** (2026-06-10, cracked func_0017B300 / SPR4 reload to 100%,
     src/func_0017B300.c). Four composable rules: (a) to reproduce CW's
-    redundant `dsll32/dsra32` before an `slti` on an lh-loaded short,
+    redundant 64-bit sign-extension shift pair before the set-less-than-immediate
+    compare on an lh-loaded short,
     cache the volatile short into an **int** local and compare
     `(short)local` — a `short` local does NOT work (mwcc knows lh
     already extends; the cast on an int forces the pair); (b) assigning
     a comparison back into the compared variable (`low = low < 30;
     if (!low) …`) lands the slti/slt RESULT in that variable's register
-    (CW's `slti v0, v0, k; bnez v0` shape) instead of `$at`, and also
+    (CW's shape: `v0 = v0 < k`, then branch on v0 non-zero) instead of `$at`, and also
     fixes the branch polarity/block order; (c) park a value in the dead
     first PARAMETER variable to pin it to `$a0` (`self = RESERVE;`) —
     temp-register analog of idiom 7's fake params; (d) idiom-15
@@ -2524,29 +2529,29 @@ src/func_001C84D0.c — all still stubs, wall-blocked 82-93%):
     exactly where CW put it (materializing at declaration parks it in
     the FIRST guard's slot instead; both beql conversions follow).
 
-17. **`switch` ALSO reproduces CW's plain beq+nop sparse chain — with
+17. **`switch` ALSO reproduces CW's plain (non-likely, nop-slot) equal-branch sparse chain — with
     cross-block case-constant reuse** (2026-06-10, func_00153B50 attempt,
     91.33% best, wall-blocked — analysis inline in the stub). Extends
     idiom 14 to the non-beql variant: a C `switch` on an idiom-16c
     fake-param-pinned value (`state = self->sub05` into the dead 3rd
-    param -> `lbu $a2`) made mwcc emit CW's exact chain — reverse
+    param -> a byte load into `$a2`) made mwcc emit CW's exact chain — reverse
     source-order compares with the SAME constant registers (v0,v0,a1,v1),
-    the case bodies CONSUMING the chain constants (`sb a1,0x5(s1)` /
-    `sb a1,D_008107FB` reusing the chain's `addiu a1,zero,2`), the
-    switch register live into a case body (`addiu v0,a2,1`), and the
+    the case bodies CONSUMING the chain constants (the byte stores to
+    `s1->+0x5` and `D_008107FB` reuse the chain's constant 2 in a1), the
+    switch register live into a case body (`v0 = a2 + 1`), and the
     dup'd common-tail head (`lui` in the default `b`'s delay slot).
     Compose with: idiom 12c for call-arg order (`clip = 0x34;
-    anim_clip_init(s, clip, 10.0f, 0.0f);` puts `li a1` before the jal
-    and `paddub a0,s1` in the slot — validated x3), `if ((short)hp <= 0)`
+    anim_clip_init(s, clip, 10.0f, 0.0f);` puts the load-immediate into a1 before the jal
+    and the s1-to-a0 copy in the slot — validated x3), `if ((short)hp <= 0)`
     polarity so the DEATH leg is the fall-through, and `*(int *)&f = K`
-    for CW's integer stores of float-constant bit patterns (the lui/ori
-    feeding both mtc1-compare and sw). Residual = wall #13 (the chain
+    for CW's integer stores of float-constant bit patterns (the upper/lower-immediate
+    bit-pattern build feeding both the FPU-move compare and the word store). Residual = wall #13 (the chain
     slots' fall-through candidates are the next chain constants — not
     C-addressable) + shadow-fill hoists + one f13-before-f12 swap.
 
 18. **`volatile` on a function-pointer FIELD preserves a beqz delay-slot
-    nop** (2026-06-10, same attempt). The tail `beqz v0; nop;
-    lw v0,0x4C(s1); jalr` shape: mwcc fills the slot with the (safe,
+    nop** (2026-06-10, same attempt). The tail shape "branch-if-zero with an
+    empty slot, then load the hook at +0x4C and call through it": mwcc fills the slot with the (safe,
     non-volatile) `lw` of the hook pointer; declaring the field
     `int (* volatile post4C)(...)` makes the load unsafe to speculate
     and recovers CW's nop. This is the field-level analog of the
@@ -2558,9 +2563,9 @@ src/func_001C84D0.c — all still stubs, wall-blocked 82-93%):
 20. **Array over-declaration forces absolute addressing under -sdatathreshold 4**
     (2026-06-18, s81, cracked func_001D52E0). When a TU mixes gp-relative globals
     (small, within the threshold) with one global that the target accesses via an
-    absolute `lui/lo` pair, over-declare the absolute one as an array
+    absolute %hi/%lo pair, over-declare the absolute one as an array
     (`extern int D_0028A5A0[2];`) so its declared size exceeds the small-data
-    threshold — mwcc then emits absolute `lui/lw` for it while keeping the others
+    threshold — mwcc then emits an absolute %hi plus %lo-offset word load for it while keeping the others
     gp-relative. Composes with the reload idiom #10. (The dual to idiom #8's
     raw-`*(volatile int *)0xADDR` form, but keeps a real reloc.)
 
@@ -2583,13 +2588,13 @@ src/func_001C84D0.c — all still stubs, wall-blocked 82-93%):
 NEW WALL DATUM — prologue ADDRESS-pair split (2026-06-10, func_001B61C0 /
 pad-rumble request, wall-blocked at 93.6% with every other row AND all
 registers matching — idiom-7 fake params pinned the pause byte to $t0 and
-the pad-block pointer to $t1, the bnezl+dup'd-`addiu v0,1` likely-slot
+the pad-block pointer to $t1, the branch-likely with a duplicated `v0 += 1` likely-slot
 shape and the `sh` slot fill reproduced, and all four branch nops
 survived because the lbu candidates were volatile). CW 2.3.1 emits the
-global-struct address pair adjacent BEFORE the ra save (`addiu sp; lui;
-addiu; sq ra`) — the address-materialization analog of the
-float-constant-prologue-hoist wall; mwcc 2.3 fills the lui->addiu stall
-with the `sq ra` at -O3,p/-O4/-O4,s/-O4,p and hoists `sq ra` above the
+global-struct address pair adjacent BEFORE the ra save (frame allocation,
+then the %hi/%lo address pair, then the return-address save) — the address-materialization analog of the
+float-constant-prologue-hoist wall; mwcc 2.3 fills the stall between the %hi and %lo halves
+with the ra save at -O3,p/-O4/-O4,s/-O4,p and hoists the ra save above the
 whole pair at -O2,p. Falsified: all four opt levels, pointer assigned
 before/after the first guard (after = worse, the pair sinks into the
 beqz slot). Once bytes match, inject_relocs.py supplies raw-cast
@@ -2625,10 +2630,10 @@ v1). The func_001AAD00 failure is specific to LONG gp-rel swap blocks.
 
 19. **Tail calls ARE matchable** (2026-06-10, func_001B99F0 op-09 handler,
     byte-identical 3-instr prefix). mwcc 2.3 emits the MIPS sibling-call
-    shape `lw v0, 0x4(a2); jr v0; nop` for
+    shape (load the pointer at `a2+0x4`, jump through it, empty slot) for
     `return ((int (*)(...))rec[1])(actor, blk, rec);` — a call in tail
     position whose arguments pass through unchanged. Do not skip
-    `jr <reg>`-tail functions assuming mwcc can't produce them.
+    functions ending in a register-indirect tail jump assuming mwcc can't produce them.
 
 NEW WALL DATUM — temp-register POOL ORDER (2026-06-10, func_001BC150 /
 door transition commit, wall-blocked at 85.61%; O3/O4 identical, O2
@@ -2642,8 +2647,8 @@ own pool order (idiom 7's matrix-copy temps worked because the loads were
 the webs' only def, feeding stores, call-free). Statement reorder
 (idiom 12) does not move the loads — the scheduler hoists all loads above
 the address pair regardless of source order. Same attempt also hit the
-prologue ADDRESS-pair split (pair interleaved around `sq s0`) and wall
-#13. NOTE: split-REGISTER reloc pairs (`lui v0; addiu s0, v0, %lo`) are
+prologue ADDRESS-pair split (pair interleaved around the s0 save) and wall
+#13. NOTE: split-REGISTER reloc pairs (the %hi half in one register, the %lo add into another) are
 NOT themselves a wall — mwcc emits them when the destination is a saved
 register or a second live temp (matched in func_001B9A00's prologue and
 cases 4/1); the same-register-pair divergence is specific to short temp
@@ -2662,18 +2667,18 @@ the target mapping deviates from that.
 
 NEW DATUM — float-constant forms (2026-06-10, func_001BBE40): plain
 float literals (e.g. `1.5707963705062866f`, `5.0f`) compile to CW's
-exact `lui/ori -> mtc1` integer materialization — including inside
+exact integer bit-pattern build (upper/lower immediates) moved into an FPR — including inside
 compares and `const * call()` products (idiom-2 operand order applies).
 `*(int *)&f = K` is the WRONG form for values consumed as floats: mwcc
-allocates a STACK slot and round-trips sw/lwc1 (cost ~15 rows + frame
+allocates a STACK slot and round-trips through a word store and an FPU load (cost ~15 rows + frame
 growth). Keep the bit-pattern form only for INTEGER stores of float
 constants (`D_0024DC8C = 0x42B40000`, `*(volatile int *)0x700038AC =
 0x3F800000` — both matched).
 
 NEW WALL DATUM — dense-switch jump-table dispatch order, 2nd confirmation
 (2026-06-10, func_001B99F0/func_001B9A00 op-0A player-anim handler,
-~93.5% genuine rows): mwcc [lui jtbl, sll idx, addiu %lo, addu] vs CW
-[lui, addiu, sll, addu], as in func_001BA080. Two additional structure
+~93.5% genuine rows): mwcc orders the table address build as [%hi, index shift, %lo add, final add] vs CW's
+[%hi, %lo add, index shift, final add], as in func_001BA080. Two additional structure
 datums from the same unit: (a) a TWO-FUNCTION translation unit compiles
 fine — mwcc emits one .text section per function, and the ftab's
 mid-function entry point (func_001B99F0+0x10) is just the second
@@ -2685,7 +2690,7 @@ table lives in the shared data region (jtbl_0026E0B0).
 
 NEW DATUM — slt-into-branch wall PARTIALLY CRACKED: the fresh-temp case
 (2026-06-10, func_00179B90 matched 100%, readable C committed). When CW's
-compare result lands in a FRESH register (`slti v1, v0, k; bnez v1`) — the
+compare result lands in a FRESH register (`v1 = v0 < k`, branch on v1) — the
 shape the wall writeup calls unbreakable — it IS matchable by copying the
 compared value OUT first and assigning the compare back into the compared
 variable: `r = t; t = t < 5; if (!t) r -= 5; return r;`. The kill-rename
@@ -2693,7 +2698,7 @@ splits t's web (def 1 = the real computation, def 2 = the compare); mwcc
 allocates the compare web the next free register instead of $at-folding.
 A plain `ok = r < 5` fresh local still $at-folds (99.17%). Validated 2nd
 time in func_00154740's tint-loop guard (`t = idx + 1; idx = t;
-t = (unsigned)t < 0x16; if (!t) break;` → CW's `sltiu v1; bnez v1` with
+t = (unsigned)t < 0x16; if (!t) break;` → CW's unsigned set-less-than-immediate into v1 and a branch on v1 != 0, with
 the increment in the bnel slot). Prereq: the compared variable's def 1
 must be a REAL op (andi/addiu), not a copy — a copy def collapses by
 copy-prop and re-folds to $at. The wall still stands when the result
@@ -2703,41 +2708,41 @@ NEW DATUM — idiom-7 fake-param pinning works for NON-LOAD defs
 (2026-06-10, func_00154740 attempt). The pool-order wall datum's "fake
 params FAIL for values assigned from memory loads" has a sharp boundary:
 pinning rec -> a2 / idx -> a3 via fake trailing parameters WORKED when
-their single defs are an address materialization (`rec = D_00246800;`
-lui/addiu) and a constant (`idx = 0;` paddub zero) — recovering the bnel
+their single defs are an address materialization (`rec = D_00246800;`,
+a %hi/%lo pair) and a constant (`idx = 0;`, a copy of the zero register) — recovering the bnel
 tint-scan loop's entire body base-register set. Memory-loaded values
 (lbu/lh) still kill-rename into mwcc's own pool order.
 
 COUNTER-DATUM to wall #13 (2026-06-10, func_00173DD0 attempt): a
-`beqz v0, exit; nop` slot SURVIVED in mwcc -O4,p even though the
+nop delay slot of a branch-if-zero on v0 to the exit SURVIVED in mwcc -O4,p even though the
 fall-through's first candidate is a safe `lui` (an FP-constant
-materialization chain lui/ori/mtc1). Wall #13's "mwcc always fills from
+materialization chain: upper/lower immediates, then a move to the FPU). Wall #13's "mwcc always fills from
 a safe fall-through candidate" is not universal — large FP-heavy
 fall-through blocks can keep the nop. Conversely (func_00154740) mwcc
 filled a loop-bottom `bnez` slot with a loop-invariant STORE
-(`sb v0,9(s1)`) — it will speculate stores into always-executed slots
+(a byte store to `s1->+9`) — it will speculate stores into always-executed slots
 when the value is loop-invariant, a fill CW never makes.
 
 NEW WALL INSTANCES (2026-06-10, dead-`b`-dup family, recognized in this
 session's targets — analyses inline in the stubs): func_0015A200 (dead
 return-0 `paddub` + `b`, blocked 91.30%), func_001545B0 (dead return-1
-`addiu` tail, blocked 95.45%), func_00154740 (dead `paddub s2` init dup
-under the bail beqz AND a dead `srl a0,v1,1` per u32->float conversion
+`addiu` tail, blocked 95.45%), func_00154740 (dead duplicate of the s2 init copy
+under the bail beqz AND a dead `a0 = v1 >> 1` per u32->float conversion
 dance x4 — the dance's bltz-slot dup is a new family member; blocked
 89.33%, also pool-order + FP-stall + prologue-interleave). func_00173DD0
 blocked 74.51% by the reloc-pair fold/interleave (mwcc folds %lo into a
 single-use load in every C form; CW splits the pair across the prologue
-sq's) + CW's `div.s; nop; nop` FP-stall pad before a jal (mwcc sinks the
+sq's) + CW's two-nop FP-stall pad after a float divide before a jal (mwcc sinks the
 div.s into the jal slot; same family as func_001545B0's missing
-`mula.s; nop; madd.s` pad — CW pads FP latency, mwcc's hazard model only
+nop pad inside the float multiply-accumulate pair — CW pads FP latency, mwcc's hazard model only
 pads compare->bc1x).
 
 NOT A WALL — paddub register moves (correction 2026-06-XX). mwcc DOES emit
-`paddub $rd, $rs, $zero` for EE register moves/arg-saves/arg-setup — proven by
+the EE byte-add-with-zero form for register moves/arg-saves/arg-setup — proven by
 committed readable-C matches func_00182A70, func_001BC300, func_001F0060 (each
 contains paddub and is byte-identical). A value (int OR pointer) used after a
 call is saved across it via paddub naturally; `arg = 0` becomes
-`paddub $aN, $zero, $zero`. Do NOT skip paddub functions (~1158 stubs have
+a paddub of the zero register into the argument register. Do NOT skip paddub functions (~1158 stubs have
 paddub). The real limiter on multi-call functions is SCHEDULER divergence
 (gp/scratchpad-address rematerialization order, delay-slot fill) — that, not
 paddub, is the wall.
@@ -2750,34 +2755,34 @@ attempts each across opt levels, control-flow shapes, casts, temps; STOP trying)
   a RETURNED value (changes semantics). Blocks bone_init_default_0 (97.6%) and
   every dynamic-bound loop/compare guard.
 - **Float-constant prologue hoist.** CW emits the const load (e.g.
-  `mtc1 $zero,$f12`) right after the stack-adjust, before register saves; mwcc
+  zero moved into `$f12`) right after the stack-adjust, before register saves; mwcc
   sinks it to just before the call. The const VALUE is matchable (rule 6); its
   PLACEMENT is not.
-- **Branch-delay-slot fill.** CW leaves `beq; nop`; mwcc fills the legal delay
+- **Branch-delay-slot fill.** CW leaves a nop in the branch delay slot; mwcc fills the legal delay
   slot with the next instruction, shifting everything after by one. No C
   structure forbids the fill; -O4 (no speed-sched) still fills.
 These three saturate the ~40-50 game-code near-misses; they stay as .word
 matches under strict matching (or become readable C only via hand-written asm).
 
 ADDITIONAL CONFIRMED WALLS (recurred in wave 3, not C-addressable):
-- **Float-constant materialization hoist.** CW emits `mtc1 zero,$f12` / a
+- **Float-constant materialization hoist.** CW emits the move of zero into `$f12` / a
   const load right after the stack-adjust (before register saves); mwcc emits
   it just before the call.
 - **Prologue spill/reload interleave.** CW interleaves an unrelated `lwc1`
   reload between a sub.s and its store around scratch RAM.
-- **slt-into-branch regalloc** (`slt $at` vs CW's `slt $v1`) on dynamic-bound
+- **slt-into-branch regalloc** (compare result in `$at` vs CW's `$v1`) on dynamic-bound
   loop/compare guards — blocks otherwise-clean loops (e.g. bone_init_default_0,
   a per-bone default bind-pose init, reached 97.6%).
 
 CONFIRMED COMPILER WALLS (do NOT keep trying from C):
-- **Dead `b epilogue; <dup-instr>` after a branch.** CW 2.3.1 emits an
+- **Dead unconditional branch to the epilogue plus a duplicate instruction, after a branch.** CW 2.3.1 emits an
   unconditional branch to a shared epilogue plus a dead duplicate of the
   merge instruction; mwcc 2.3 always coalesces it, at every opt level and
   for every structure (if/else, goto, ternary). (-O2,p can recover the dead
   `b` but then leaves delay-slot nops unfilled — trades one wall for #2.)
-- **Branch-delay-slot fill divergence.** CW left `beqz; nop` or set the
+- **Branch-delay-slot fill divergence.** CW left a nop in branch-if-zero delay slots or set the
   return value redundantly in delay slots; mwcc fills/omits differently.
-- **add.s scheduled BETWEEN a lui %hi / addiu %lo reloc pair.** mwcc treats
+- **add.s scheduled BETWEEN the %hi and %lo halves of a reloc pair.** mwcc treats
   the reloc pair atomically and won't interleave; CW does. Scheduler-level.
 
 These three walls are why ~40 game-code near-misses stay as .word matches.
@@ -3201,22 +3206,23 @@ is layered on top via per-vertex selection.
 `0x00230B50..0x00230BC8` (seg 1) the kernel runs the canonical
 UPPER-pipe-FTOI + LOWER-pipe-ISWR round-trip:
 
-```
-0x00230b50  U:itof4.xyzw         L:iaddiu vi02, vi00, 0x0080  ; mask seed
-0x00230b58  U:upp_0e.x           L:low4_10                     ; (selector preprocess)
-0x00230b70  U:ftoi4.x            L:iswr                        ; float -> Q4.4 int, write VI
-0x00230b78  U:itof4.xyzw         L:fmand  vi02, 0x021000       ; flag mask
-0x00230b80  U:maddi.x            L:ior                         ; OR base ptr
-0x00230b88  U:upp_19.x           L:sq vf00, 102(vi25)          ; (output store)
-0x00230b90  U:subbcx.w           L:lq vf12, 0(vi01)            ; <<< MATRIX ROW A
-0x00230b98  U:itof0.xyzw         L:lq vf13, 16(vi01)           ; <<< MATRIX ROW B (+16qw)
-```
+In words (addresses are the VU1 program's vram):
 
-The `ftoi4.x` + `iswr` pair converts the per-vertex W-field (Q-format
-float) to an integer, stores it through a VI register (vi01 receives the
-result via the ISWR→IADD chain at 0x00230B80 `ior`), and the subsequent
-`lq vf12, 0(vi01)` / `lq vf13, 16(vi01)` **uses vi01 as the matrix-palette
-base pointer**. The stride of 16 qw between vf12 and vf13 is exactly **one
+| vram | what the loop does there |
+|---|---|
+| 0x00230B50 | seeds an integer mask with 0x80 |
+| 0x00230B58 | selector preprocessing (lower op not yet decoded) |
+| 0x00230B70 | converts the vertex's selector lane float -> Q4.4 integer and writes it to an integer register |
+| 0x00230B78 | masks the MAC flags with 0x021000 |
+| 0x00230B80 | ORs the selector into the palette base pointer |
+| 0x00230B88 | output store |
+| 0x00230B90 | loads matrix row A from `palette_ptr + 0` |
+| 0x00230B98 | loads matrix row B from `palette_ptr + 16 qw` |
+
+The float->int conversion plus integer write turns the per-vertex W-field
+(Q-format float) into an integer; the OR at 0x00230B80 folds it into a
+pointer register, and the two row loads at 0x00230B90/0x00230B98 **use that
+register as the matrix-palette base pointer**. The stride of 16 qw between vf12 and vf13 is exactly **one
 matrix slot in a 4-matrix-palette layout** (4 matrices × 4 rows × 1 qw =
 16 qw / matrix-spacing); but here each LQ is one ROW, so the layout is:
 
@@ -3227,7 +3233,7 @@ palette base + 16qw = bone[selector+1].row0    (or row1 of next pose-slot)
 
 Two reads with a +16qw stride strongly suggests **2-bone blend per vertex**
 (load row0 of bone-A and row0 of bone-B; weighted sum), then lines 121-122
-re-fetch vf14, vf15 at the same `0(vi01)` and `16(vi01)` — likely a
+re-fetch vf14, vf15 at the same palette offsets (+0 and +16 qw) — likely a
 **second-row pair**, building two affine rows for both selected bones.
 With 12-qw palette (qw 111..122) and 16-qw stride, the modulo wraps every
 loop iteration. (Need careful field-by-field decode of `low4_10` and
@@ -3273,7 +3279,7 @@ offset stores the per-block list.
 opcodes printed as `low4_10`/`low_3b800000`/`low1_19` placeholders
 (IBIT-immediate followers + a handful of LOWER1 sub-encodings). The
 visible structure of the per-vertex selector decode is sufficient for
-this finding, but a clean trace of the exact `ftoi4 → iswr → ior` field
+this finding, but a clean trace of the exact convert / store / OR field
 arithmetic (which bits of the W lane select the matrix slot, and
 whether the residual `+epsilon` documented in FINDINGS is a separate
 per-block base or just float quantisation) needs those decoded too.
@@ -3285,8 +3291,8 @@ per-block base or just float quantisation) needs those decoded too.
 Disassembled the per-bone rigid-skinning main kernel at vram
 `0x00234610` (153 qw, 0x4c8 bytes — the full body; the catalog's
 helper packets at `0x002346b0` / `0x002346f0` are **false positives**
-— scanner mis-identified interior `jalr vi15` instructions
-(`0x4a0f0800`) as MPG tags, and the same false-positive pattern
+— scanner mis-identified interior VU subroutine-call instruction
+words (`0x4a0f0800`) as MPG tags, and the same false-positive pattern
 recurs at `0x00234bd0/0x00234c10/0x002350b0/0x002350f0`). The real
 helper at imem 0x0800 is uploaded by a SEPARATE VIF DMA that the
 catalog scanner doesn't reach — likely a one-time boot upload reused
@@ -3310,58 +3316,34 @@ doesn't depend on operand positions).
 
 **Skinner main #5 structure (vram 0x00234610..0x00234ad8, 153 qw).**
 
-```
-PROLOGUE (~16 qw):
-  mfp     vf13          ; sync EFU pipe
-  iaddiu  vi14, ...     ; counter setup
-  iaddiu  vi12, vi13, 7 ; loop-end cursor
-  iaddiu  vi11, vi13, 0x19
-  fcset   0
-  ; 6 dummy LQs to vf16..vf21 from dmem qw 1016..1023 (top-of-dmem
-  ; shared constants: clip planes, light dirs, GIF tag template, etc.)
-  lq      vf16, 1019(vi00) .. lq vf21, 1016(vi00)
-  ; bone matrix: 4 rows from dmem qw 0..3 into vf28..vf31
-  lq      vf28, 0(vi00)
-  lq      vf29, 1(vi00)
-  lq      vf30, 2(vi00)
-  lq      vf31, 3(vi00)
+In words:
 
-PER-VERTEX LOOP (unrolled 2x, body ~12 qw):
-  lq      vf03, 0(vi13)        ; load vertex record qword
-  iaddiu  vi01, vi00, 0x31     ; setup jalr-target seed
-  jalr    vi15, vi01           ; -> imem 0x800 helper (per-vertex xform)
-  iadd    vi13, ..., 8         ; advance input ptr by 8 dmem qw stride
-  lq      vf03, 0(vi13)        ; second vertex of unrolled pair
-  iaddiu  vi01, vi00, 0x31
-  jalr    vi15, vi01
-  isubiu  vi13, vi13, 8        ; rollback (second vert reuses prior offset)
-  iadd    vi13, ..., <stride>  ; advance by net stride (low_072)
-  ibne    vi13, vi12, -136     ; loop until vi13 hits vi12 (end)
-
-EPILOGUE (~5 qw):
-  mfp     vf11
-  iaddiu  vi11, vi11, 0x18     ; output ptr += 3 qw
-  lq      vf01, 1020(vi00)     ; load GIF tag template from constant pool
-  sq      vf11, 0(vi01)
-  [E] xgkick vi11               ; kick the assembled GIF packet
-  -- end --
-
-UNREACHABLE TAIL (vram 0x00234780..0x00234ad8, ~150 qw):
-  This is NOT main-flow code (the E-bit set at the xgkick ends the
-  program). It is the **helper subroutine** that the JALR vi15 calls
-  reach via imem 0x0800 once uploaded by a separate VIF DMA. The
-  per-vertex xform body lives here; it culminates in:
-    itof12.xyzw      ; positions: Q4.12 -> float
-    addAi/mulAbcz    ; bone matrix multiply (acc=vf28..31 * vfTMP)
-    ftoi12.xyzw      ; back to Q4.12 integer for GS output
-    itof12.w  ...    ; W lane dequantize, then minibcx/maxbcx (clamp)
-    itof4.xyzw       ; SEPARATE int->float at Q4.4 scale — this is the
-                     ;   per-vertex packed-normal/lighting decode!
-    sq vf11, 0(vi02) ; final 3-qw GIF packet writes
-    sq vf11, 1(vi05)
-    sq vf11, 2(vi05)
-    jr vi00          ; return
-```
+- **Prologue (~16 qw).** Syncs the EFU pipe, sets up a counter, a
+  loop-end cursor (input pointer + 7) and an output cursor (input
+  pointer + 0x19), and clears the clip flags. Six constant qwords from
+  the top of dmem (qw 1016..1023: clip planes, light dirs, GIF tag
+  template, etc.) go into the vf16..vf21 lanes, and the bone matrix's
+  4 rows come from dmem qw 0..3 into vf28..vf31.
+- **Per-vertex loop (unrolled 2x, body ~12 qw).** For each vertex of the
+  pair: load the vertex record qword at the input pointer, then call the
+  per-vertex transform helper at imem 0x800 (the call target is built as
+  0x31 in an integer register). The input pointer advances by 8 qw, is
+  rolled back by 8 for the second vertex, then advanced by the net
+  stride; the loop runs until the input pointer reaches the loop-end
+  cursor.
+- **Epilogue (~5 qw).** Syncs the EFU pipe again, advances the output
+  pointer by 3 qw, loads the GIF tag template from constant-pool qw 1020,
+  stores the packet head, and kicks the assembled GIF packet with the
+  E-bit set (end of program).
+- **Unreachable tail (vram 0x00234780..0x00234AD8, ~150 qw).** NOT
+  main-flow code (the E-bit at the kick ends the program). It is the
+  **helper subroutine** that the per-vertex calls reach via imem 0x0800
+  once uploaded by a separate VIF DMA. It converts positions from Q4.12
+  to float, multiplies them by the bone matrix (accumulator over
+  vf28..vf31), converts back to Q4.12 integers for GS output, dequantizes
+  and clamps the W lane, then does a **separate** int->float conversion at
+  Q4.4 scale — the per-vertex packed-normal/lighting decode — before the
+  final three qword stores of the GIF packet and the return.
 
 **KEY DECODES.**
 
@@ -3712,7 +3694,7 @@ u16 `t_next` (frame-counter end of this record's interval).
 **Sample packing — "top-N-bits-of-IEEE-float".** Each channel is a
 bit-field that is the **high N bits of a standard 32-bit IEEE-754
 single-precision float**, with the low (32 - N) mantissa bits truncated
-to zero. The compiler implements it as a `sw + lwc1` bit-cast through
+to zero. The compiler implements it as a word-store then FPU-load bit-cast through
 the EE Scratchpad at `0x70003600`.
 
 | channel set | width per channel | channels | total bits |
@@ -3921,7 +3903,7 @@ Future high-leverage paths remaining:
 Pure-C partial-match functions that the linker had to fall back to .s for
 because mwcc emitted `gp_rel` references against globals whose actual VRAM is
 outside the GP ±32KB window: rewriting them with `// CFLAGS: -O4,p
--sdatathreshold 0` forces mwcc to use `lui/addiu %hi/%lo` instead, exactly
+-sdatathreshold 0` forces mwcc to use %hi/%lo address pairs instead, exactly
 matching the original CodeWarrior 2.3.1 codegen. **13 functions cracked**
 this way (func_001D1C10, func_001FAB50, func_001FAB80, func_001FABB0,
 func_001FF080, func_00207070, func_00187EC0, func_001B0070, func_001DB240,
@@ -3933,11 +3915,11 @@ func_001AEBA0) needed `-O2` instead of `-O4,p` so mwcc emits the explicit
 for early-return + global-store sequences.
 
 One asm-word function (func_001D6DD0) had a single register-encoding bug:
-src had `.word 0x8D630010` (lw $v1) where the original was `.word
-0x8D690010` (lw $t1), with all subsequent stores still using $v1's base
-register. Fixed all 6 affected `.word` lines.
+one `.word` line encoded a load whose destination register was v1 where
+the original's destination is t1, and all subsequent stores still used v1
+as their base register. Fixed all 6 affected `.word` lines.
 
-One asm-word function (func_0017B460) had `.word`-encoded `lui/addiu %hi/%lo`
+One asm-word function (func_0017B460) had `.word`-encoded %hi/%lo address pairs
 with the imm field already containing the resolved-value bytes from the
 original; rewrote to match splat's resolved bytes so `inject_relocs` could
 attach R_MIPS_HI16/LO16 (the imm gets zeroed pre-link; mwldmips re-resolves
@@ -4131,7 +4113,7 @@ runs the period-correct compiler.
     getters/setters, field copies, field+constant, global-pointer writes,
     comparisons, conditional stores, float copies).
   - **137 EE-kernel syscall stub functions** matched as one-line inline-asm C
-    (`asm { addiu $v1, $zero, N; syscall 0; };`) — every syscall stub in the
+    (an `asm` body that loads syscall number N into v1 and traps) — every syscall stub in the
     boot ELF, 0% → 100% in one batch. **All 137 are now named**: 101 positive-N
     stubs were named first; the remaining 34 negative-N stubs are named via
     ps2dev/ps2sdk `syscallnr.h` cross-referenced with DCDecomp and recvx-decomp.
@@ -4142,22 +4124,22 @@ runs the period-correct compiler.
     and `iCopy` (TODO: confirm from a Metrowerks PS2 SDK source).
   - **134 additional EE-kernel syscall stubs** (`func_0010B400..func_0010BC80`)
     — a second range of syscall stubs (syscall numbers 0x00..0x87 and several
-    negative-N slots), matched with the identical `asm { addiu $v1, $zero, N;
-    syscall 0; }` pattern. 33 stubs use negative syscall numbers. All confirmed
+    negative-N slots), matched with the identical inline-asm body (load
+    syscall number N into v1, then trap). 33 stubs use negative syscall numbers. All confirmed
     100% via `objdiff-cli`. NOTE: these stubs are not yet named in
     `symbol_addrs.txt` — adding names is a future step.
   - **45 tail-call wrappers** — small "set up args, then `j` to another
     function" stubs that mwcc can't produce from plain C (it has no tail-call
     optimization), so we write them as `asm void NAME(void) { ...; j func; arg }`.
     mwcc inline asm rejects `$t0..$t7` named registers; numeric `$8..$15`
-    works. Watch out: mwcc dead-store-eliminates `daddu $aN, $zero, $zero`
-    inside `asm void` if it considers $aN unused — wrappers that hit this
+    works. Watch out: mwcc dead-store-eliminates a zeroing register copy into an
+    argument register inside `asm void` if it considers that register unused — wrappers that hit this
     were dropped from this pass.
-  - **38 VU0 / COP2 / EE-specific leaves** — small `lqc2`/`sqc2`/`vadd`/
-    `cfc2` functions matched via `asm void` with the literal Sony VU syntax,
+  - **38 VU0 / COP2 / EE-specific leaves** — small COP2 quadword load/store, vector-add and
+    control-read functions matched via `asm void` with the literal Sony VU syntax,
     which `mwccmips` accepts natively. Two infrastructure fixes were needed
     on the target side: (a) `tools/decomp/asm_fixup.py` rewrites unassemblable
-    spimdisasm VU lines (`vdiv Q, $vf0w, $vf5x`) as `.word 0xHEX` directives
+    spimdisasm VU lines (Sony-syntax Q-register divides and the like) as `.word 0xHEX` directives
     and also strips any trailing context past `endlabel`; (b) `build.py` now
     passes `-march=r5900` to `mipsel-linux-gnu-as` so the target `.o` ELF
     flags say "5900" — without that flag, objdiff disassembles EE COP2
@@ -4176,41 +4158,41 @@ runs the period-correct compiler.
       exactly the given instructions, bypassing mwcc's register allocator.
     - Explicit local variable (e.g. `int a1 = 1;`) inserted between the first
       load and the store to shift mwcc's register allocation (fixed func_001AB790:
-      forced `lw $v1 / li $a1,1 / sb $a1,0($v1)` pattern).
-    - `addiu $v1,$zero,-0xE1` in inline asm for the mask constant that mwcc
-      would generate as `andi $v1,$v1,0x1F` from C.
-    - `paddub $v0,$zero,$zero` (EE multimedia zero-register instruction) works
-      in mwcc inline asm as a zero-move; use `addiu $v0,$zero,N` not `li` to get
-      the `addiu` opcode (mwcc's `li` assembles to `addi` not `addiu`).
+      forced the pointer into v1 and the constant 1 into a1 before the byte store).
+    - Loading the mask constant -0xE1 directly in inline asm, where mwcc
+      would generate an and-immediate with 0x1F from C.
+    - The EE multimedia byte-add of zero with zero works in mwcc inline asm as
+      a zero-move; spell a constant load as an add-immediate to zero, not `li`,
+      to get the `addiu` opcode (mwcc's `li` assembles to `addi` not `addiu`).
   Each function compiles to a **100% `.text` match** vs the original,
   confirmed by `objdiff-cli`. 296 functions are in `src/` total (295 perfect,
   1 partial at 90.9%).
   - **153 more functions matched** (2026-05-23, second session):
     - **func_001B7670** (0x60 bytes) — flag-setting function with complex branch
       chain and absolute-address memory accesses. Uses `.word` for all branches
-      (mwcc rejects label branches) and repeated `lui $at, 0x7000` entries.
+      (mwcc rejects label branches) and repeated scratchpad upper-half (0x7000) loads.
     - **func_001B5E20** (0x114 bytes) — controller-input mapper with cascaded
       `beqz`/`b` chains. All 69 instructions encoded as `.word` to bypass mwcc's
-      dead-store elimination of duplicate `addiu $v1, $zero, X` values in branch
+      dead-store elimination of duplicate constant loads into v1 in branch
       delay slots.
     - **func_001CA0A0** (0x114 bytes) — vector interpolation with FP accumulator
       instructions (`mula.s`, `madd.s`, `msub.s`, `bc1fl`). All `.word`-encoded.
     - **func_001CA4D0** (0x104 bytes) — 3x3 matrix cross-product / determinant
-      with stack frame (`addiu $sp` / `lq` / `sq`). All `.word`-encoded.
+      with stack frame (stack adjust plus quadword loads and stores). All `.word`-encoded.
     - **func_001CA1C0** (0x1EC bytes) — vector outer-product (9 cross-product
-      components + 3 dot products) with 120+ repeated `lui $at, 0x7000` for
+      components + 3 dot products) with 120+ repeated scratchpad upper-half loads for
       scratch-memory accesses. All `.word`-encoded; 123 instructions.
     - **func_00100000**, **func_00100004** (0x4 bytes each) — bare `nop` stubs.
-    - **func_0010E084** (0x4 bytes) — bare `jr $ra` (no delay slot).
+    - **func_0010E084** (0x4 bytes) — a bare return (no delay slot).
     - **134 EE syscall stubs** (`func_0010B400..func_0010BC80`, 0x10 bytes each)
-      — the same `addiu $v1, $zero, N; syscall 0; jr $ra; nop` pattern as the
+      — the same four-instruction shape (syscall number, trap, return, empty slot) as the
       137 previously matched stubs. Includes 33 negative-N stubs (extended
       syscall convention). All confirmed 100%.
     Total in `src/`: 449 files (448 at 100%, 1 partial at 90.9%).
 
   - **14 hi/lo global-access functions matched via pure C with `-sdatathreshold 0`** (2026-05-23):
     The key insight: mwcc inline asm rejects `%hi/%lo` syntax, but pure C compiled
-    with `-sdatathreshold 0` forces mwcc to use `lui`/`addiu %hi/%lo` addressing (not
+    with `-sdatathreshold 0` forces mwcc to use %hi/%lo pair addressing (not
     `$gp_rel`) for all extern globals, producing correct R_MIPS_HI16/LO16 relocations.
     This technique works for functions that are sq/lq style (mwcc always emits sq/lq
     for PS2 target). A generator script (`/tmp/gen_hilo3.py`) batch-processes `.s`
@@ -4231,7 +4213,7 @@ runs the period-correct compiler.
     All 14 are 100% matches confirmed by objdiff-cli. Total: 1008 src files.
 
     **Techniques NOT yet working:**
-    - Tail-call `j func_` with %hi/%lo args: 96.7% (lui uses wrong temp reg — $at vs $v0)
+    - Tail call (plain jump) with %hi/%lo args: 96.7% (lui uses wrong temp reg — $at vs $v0)
     - Simple leaf setters/getters with %hi/%lo: 96.7% (same lui register issue)
     - Complex functions (floating point, struct offsets, multiple s-regs): auto-inference fails
     - The `-sdatathreshold 0` technique requires functions with sq/lq stack frame style;
@@ -4240,15 +4222,16 @@ runs the period-correct compiler.
   - **295 more functions matched** (2026-05-23, third session, batch generator passes):
     Four major batch passes using an all-word hybrid asm approach:
     - **All-word hybrid approach breakthrough**: encode ALL instructions as `.word` except
-      `jal` and `j <extern>` (which need R_MIPS_26 relocations). This prevents mwcc's
+      `jal` and plain jumps to externs (which need R_MIPS_26 relocations). This prevents mwcc's
       optimizer from doing CSE, constant propagation, base-register substitution, and
       MMI instruction corruption. Applied to functions with branches, jal calls, and jalr.
     - **Retry partial passes**: progressive `.word` encoding (MMI→stores→loads) converted
       41+5+25 partial matches to 100%.
-    - **jalr functions enabled**: functions with function-pointer calls (`jalr $v0/t9`)
+    - **jalr functions enabled**: functions with function-pointer calls (register-indirect calls through v0 or t9)
       were erroneously excluded; `jalr` encodes as `.word` (no relocation needed). 29
       jalr+no-hi_lo functions matched.
-    - **hi_lo Pattern A2 (jr-in-delay-slot)**: `lui $at; jr $ra; lw $v0, %lo($at)` —
+    - **hi_lo Pattern A2 (jr-in-delay-slot)**: %hi into the assembler temp, return, and the
+      %lo word load of the global in the return's delay slot —
       matches `func_001B0070` (only function using $at for lui that is a simple getter).
     Total: 1303 src files (41.4% of 3149 splat functions).
 
@@ -4263,7 +4246,7 @@ runs the period-correct compiler.
     - hi_lo + gp_rel: 420 — same but also use gp-relative addressing.
     - gp_rel only: 145 — complex; mwcc can't encode %gp_rel in inline asm.
     - jalr + hi_lo/gp_rel: 79 — complex function-pointer call sites.
-    - syscall: 3 — unknown pattern (not the standard addiu+syscall stubs).
+    - syscall: 3 — unknown pattern (not the standard syscall-number-then-trap stubs).
     - bltzal/bgezal thunks: 8 — need R_MIPS_PC16 which mwcc inline asm doesn't support.
     - Data regions misidentified as code: ~30 large "invalid instruction" functions.
     - Splat-truncated: func_001BFFD0 (99.6%).
@@ -4277,7 +4260,7 @@ runs the period-correct compiler.
       declare intermediate variable `int val = *(int*)((char*)a1 + 8)` to force mwcc
       to use $a1 as scratch instead of $v1. Recompiled with `-sdatathreshold 4`.
     - `func_001DEDB0` (87.8% → 94%) — branch direction fix (`if (a0 != 9)` vs
-      `if (a0 == 9) ... else`). Remaining 6% is dead `li v0, 2` in branch delay slot,
+      `if (a0 == 9) ... else`). Remaining 6% is a dead load of the constant 2 in a branch delay slot,
       unmatchable from C (original compiler dead code in delay slot).
 
     **Key discovery: `-O2` compiled functions.**
@@ -4285,15 +4268,15 @@ runs the period-correct compiler.
     compiled with `-O2` (not `-O4,p`). ALL 68 have hi_lo/gp_rel relocations, so
     the all-word approach can't match them — pure C with `-O2 -sdatathreshold X`
     is the only path. These require hand decompilation.
-    Pattern: `beq/bne ...; nop` (delay slot is always nop for all branches).
+    Pattern: every conditional branch has a nop delay slot.
 
     **Known unsolvable from automated passes — require hand decompilation:**
     - Functions where mwcc uses $at for lui but original used $v0/$v1/$a0.
     - Functions with complex control flow + hi/lo global refs (instruction scheduling differs).
     - gp_rel functions (mwcc inline asm rejects %gp_rel syntax; pure C generates
       R_MIPS_GPREL16 only for variables ≤ sdatathreshold bytes, but mwcc always uses $at).
-    - Tail calls: `lui $a0; j target; addiu $a0, $a0, %lo` — mwcc emits lui into $v0
-      as intermediate, never $a0 directly.
+    - Tail calls whose argument is a %hi/%lo address built in $a0 around the jump — mwcc
+      emits the %hi into $v0 as intermediate, never $a0 directly.
     - sd/ld-style functions: **these are Sony PS2 SDK / `libkernel` / `crt0` code
       statically linked into the boot ELF**, not original game code. They cluster
       in vram 0x00100000–0x0011FFFF, never use our compiler's `sq` callee-save
@@ -4316,23 +4299,23 @@ It is proprietary Metrowerks software — it lives in `tools/mwccps2/` and is
 - Void functions use `$v1` for first scratch; returning functions use `$v0`.
   Using `return expr` forces `$v0` (fixed several functions).
 - When a function has one pointer arg (`$a0`) and stores a constant 1, mwcc
-  loads the pointer into `$a1` and puts `li 1` in `$v1` (not controllable from
+  loads the pointer into `$a1` and loads the constant 1 into `$v1` (not controllable from
   plain C, but `int a1 = 1; ((char*)v1)[0] = a1;` shifts the allocation so
   `$v1` holds the pointer and `$a1` holds the constant — fixed func_001AB790).
 - The commutative `addu` operand order (rs vs rt) is not controllable from C
   but IS controllable via `asm int`/`asm void`.
 - `volatile int *` forces double-reads when the compiler would otherwise
   optimize away the second load.
-- `func_001AB7D0` pattern: load global pointer via `lui/lw` into `$v1`, then
-  `sb $zero, 0($v1)` — matches when written as simple C dereference.
+- `func_001AB7D0` pattern: load a global pointer into `$v1`, then store a zero
+  byte through it — matches when written as simple C dereference.
 - **KEY TECHNIQUE**: `asm int func(args) { ... }` emits instructions verbatim.
   For any function where the register allocation or instruction scheduling
   diverges from C output, use `asm int` (returning) or `asm void`. In mwcc
-  inline asm, use `addiu $v0,$zero,N` instead of `li $v0,N` to get the
-  `addiu` opcode (mwcc's `li` assembles to `addi` not `addiu`). Numeric
+  inline asm, spell a constant load as an add-immediate to zero instead of `li`
+  to get the `addiu` opcode (mwcc's `li` assembles to `addi` not `addiu`). Numeric
   registers `$8`-`$15` work; `$t0`-`$t7` are rejected.
 - **lui intermediate register**: mwcc always uses `$at` (register 1) as the
-  intermediate for `lui $at, %hi(SYM)` in all plain-C global accesses.
+  intermediate for the %hi half of every plain-C global access.
   Original CodeWarrior sometimes used `$v0`, `$v1`, or `$a0` directly. When
   the original uses `$at`, the functions are matchable from pure C. When using
   `$v0`/`$v1`/`$a0`, they are NOT matchable from pure C or asm void.
@@ -4354,14 +4337,14 @@ It is proprietary Metrowerks software — it lives in `tools/mwccps2/` and is
   larger than sdatathreshold: mwcc uses hi_lo addressing.
 
 **Known unsolvable classes (leave src files as partial for documentation):**
-- HW register addresses (`lui $v1 / ori $v1` with 5-digit hex): mwcc always
+- HW register addresses (upper-half + or-immediate built in `$v1`): mwcc always
   uses `$at` for absolute address loads, cannot reproduce `$v1`-based loads.
   (But these are solvable with `asm void`/`asm int` if needed.)
 - `mfc1`/`mtc1`: float bit manipulation (fabsf) — mwcc generates stack-based
   code instead.
-- Tail-call `j func_` stubs: compiler won't generate `j` for C calls.
+- Tail-call stubs (a plain jump to the callee): compiler won't generate a plain jump for C calls.
 - Dead code after unconditional branches: mwcc's inline assembler elides
-  unreachable instructions. func_001B5C90 has a dead `andi $v0,$v1,0xFC` that
+  unreachable instructions. func_001B5C90 has a dead `v0 = v1 & 0xFC` that
   cannot be reproduced — stays at 90.9%.
 - **Leaf setter/getter functions with %hi/%lo global refs (3 instructions)**:
   mwcc uses `$at` as the lui temp register; the original code used `$v0` or
@@ -4372,8 +4355,8 @@ It is proprietary Metrowerks software — it lives in `tools/mwccps2/` and is
   regardless of flags, so functions that use `sd`/`ld` cannot be matched.
 
 **Partial match summary — known partial matches in src/ (not 100%):**
-- func_001B5C90 (90.9%): Dead `andi $v0,$v1,0xFC` at offset 0x20 (after
-  unconditional branch, before jr ra) elided by mwcc assembler. Structure
+- func_001B5C90 (90.9%): Dead `v0 = v1 & 0xFC` at offset 0x20 (after
+  unconditional branch, before the return) elided by mwcc assembler. Structure
   and all reachable instructions match. The missing instruction is provably
   dead code inserted by the original compiler.
 
@@ -4383,9 +4366,9 @@ All other 295 previously-committed functions are at 100%.
     Pure-C decompilation of functions using gp_rel globals (sdatathreshold 4) and pointer/struct patterns.
     Findings and techniques:
 
-    **`sq zero` vs 4×`sw zero`**: mwcc emits `sq zero` (128-bit store) for aligned 16-byte zero regions
-    when the original did so; writing 4 individual `sw zero` stores doesn't consolidate. Functions
-    needing `sq zero` (e.g. func_001D71A0) stay at ~47%.
+    **128-bit zero store vs 4 word zero stores**: mwcc emits one 128-bit store of the zero register for
+    aligned 16-byte zero regions when the original did so; writing 4 individual word stores of zero
+    doesn't consolidate. Functions needing the 128-bit zero store (e.g. func_001D71A0) stay at ~47%.
 
     **Scheduler ordering for gp_rel loads**: mwcc's instruction scheduler reorders gp_rel loads
     vs arithmetic ops differently than the expected. Functions in the 001D* family that load
@@ -4396,18 +4379,18 @@ All other 295 previously-committed functions are at 100%.
     (two statements) is required.
 
     **sdatathreshold mixing**: globals at 0x008107xx are outside the GP±32KB window, so even
-    with `-sdatathreshold N` (N≥1) mwcc uses lui/lbu for them. Globals at 0x00275xxx are within
+    with `-sdatathreshold N` (N≥1) mwcc uses a %hi plus %lo-offset byte load for them. Globals at 0x00275xxx are within
     GP range and use gp_rel. Declare out-of-range globals as `char[N]` with N>threshold to
     prevent sdata placement while keeping near globals at threshold.
 
-    **Branch direction**: `beq v1, v0, target` vs `bne v1, v0, target` is controlled by which
+    **Branch direction**: branch-if-equal vs branch-if-not-equal on the same pair is controlled by which
     path is the "fall-through". Writing the condition as `if (x != y) { return; }` generates `bne`;
     writing the store first and returning early generates `beq`.
 
     **Functions added and match scores:**
     - func_001D1FF0 (70.5%) — D_00275670/D_00275674 indexed node push (offset 0x4a0)
     - func_001D2040 (70.5%) — same but offset 0x5a0
-    - func_001D71A0 (46.8%) — node push with sq zero; blocked by sq vs 3×sw
+    - func_001D71A0 (46.8%) — node push with a 128-bit zero store; blocked by one 128-bit store vs 3 word stores
     - func_001D1F20 (69.0%) — node push with complex index via D_00275670[0x27]
     - func_001D38A0 (65.3%) — node push with D_00816440 array + shift index; has `j` tail call
     - func_00119400 (21.2%) — bit repack + counter increment; blocked by constant scheduling
@@ -4421,8 +4404,9 @@ All other 295 previously-committed functions are at 100%.
     - func_001FA5A0 already added above
 
     **Key learning: dead code between branches** — the compiler sometimes emits a dead
-    instruction in the "gap" between `b target` and its target (a reachable-but-skipped slot).
-    E.g. `beq v1,v0,0x30; addiu v0,a2,1; b 0x40; addiu v0,1; addiu v0,a2,1 (dead); sw ...`
+    instruction in the "gap" between an unconditional branch and its target (a reachable-but-skipped slot).
+    E.g. a compare-branch whose slot computes `a2 + 1`, an unconditional branch whose slot
+    increments, then a dead second copy of the `a2 + 1` before the store.
     This dead instruction can't be forced from C; causes ~5% mismatch.
 
   - **70 more functions added** (2026-05-23, fourth session — branch-before-call decompilation):
@@ -4436,19 +4420,20 @@ All other 295 previously-committed functions are at 100%.
 
     **Key matching patterns for 2.3-compiled functions:**
     - **Branch before jal**: when a conditional branch appears BEFORE the first `jal`, both
-      compilers place `sq ra` eagerly at position 2 AND leave the branch delay slot as nop
+      compilers place the ra save eagerly at position 2 AND leave the branch delay slot as nop
       (or fill with a safe hoistable instruction). This enables 100% matching.
-    - **Delay slot hoisting**: The compiler hoists register-copy ops (`paddub s0, a0, zero`)
+    - **Delay slot hoisting**: The compiler hoists register-copy ops (e.g. a0 into s0)
       into branch delay slots as "free" setup, avoiding an extra instruction.
     - **Dead instruction artifact (2.3.1)**: when bnez has a constant in its delay slot,
       the original compiler (2.3.1) emits a dead copy of that same instruction before the
       L_else label. Our mwcc 2.3 does NOT emit this dead instruction, causing 93-94% match
       instead of 100% for the func_0017FDxx/func_00180xxx family.
-    - **`dsll32/dsra32` for 64-bit sign extension**: original 2.3.1 emits this pair before
+    - **Shift pair for 64-bit sign extension**: original 2.3.1 emits a shift-left-32 /
+      arithmetic-shift-right-32 pair before
       comparing 16-bit values; mwcc 2.3 uses direct `bne` comparison. Makes func_001749A0
       unmatchable (76.4%).
     - **Instruction scheduling difference (2.3 vs 2.3.1)**: for straight-line code (no branch
-      before jal), 2.3 places `sq ra` at position 3; 2.3.1 places it at position 5. Causes
+      before jal), 2.3 places the ra save at position 3; 2.3.1 places it at position 5. Causes
       `func_001AF690`, `func_00225CC0`, `func_001CA770` to be partial matches (~87-93%).
 
     **New 100% matches this session:**
@@ -4475,33 +4460,33 @@ All other 295 previously-committed functions are at 100%.
     by lui-interleaving, dead-instruction, gp_rel, or instruction-scheduling differences:
 
     **Matched at 100%:**
-    - `func_001D2830`, `func_001D2910` — 2.3.1 dead `paddub v0,zero,zero` after `b+nop`.
-    - `func_0021D4E0` — dead `lui v0, 0x8000` after `b+lq`; bnez delay pre-hoisted.
-    - `func_0017FD00`, `func_0017FD40`, `func_00180040`, `func_00180080`, `func_001800C0` — dead `addiu a1, N` after `b+lq`; bnez delay pre-hoisted.
+    - `func_001D2830`, `func_001D2910` — 2.3.1 dead zeroing of v0 after an unconditional branch with a nop slot.
+    - `func_0021D4E0` — dead upper-half load of 0x8000 after an unconditional branch with a quadword load in its slot; bnez delay pre-hoisted.
+    - `func_0017FD00`, `func_0017FD40`, `func_00180040`, `func_00180080`, `func_001800C0` — dead constant load into a1 after an unconditional branch with a quadword load in its slot; bnez delay pre-hoisted.
 
     **Partial but byte-identical at link time (98-99.7%):**
-    - `func_001AFCF0` (99.67%) — `lui v0, %hi(D_008106B0)` interleaved before `sb 0x3B92`.
-    - `func_00158050` (99.2%) — `lui v1, %hi(D_008105E0)` interleaved before `lw v0`.
-    - `func_001D4960` (98.93%) — instruction scheduling (addiu a1 before second jal, addiu a2 order); gp_rel + lui/addiu hardcoded.
-    - `func_001DEDF0` (99.43%) — `paddub v1, a0, zero` saves a0 before jal; `sw v1` in jal delay slot.
-    - `func_001FA5A0` (94.4%) — dead `addiu v0, a2, 0x1` after `b+addiu`; gp_rel hardcoded.
-    - `func_001FEFE0` (98.06%), `func_001FF030` (98.06%) — `addiu a0, N` scheduling differs; `j func_001FF080` tail call.
-    - `func_001FE8D0` (95.63%) — `addiu v1, -1` scheduled between `lui at` and `sw`; all remaining mismatches are relocation-only.
-    - `func_001AF7C0` (98.46%), `func_001AF780` (98.57%) — dead `paddub v0,zero,zero` after blezl/bnel + delay; gp_rel hardcoded.
+    - `func_001AFCF0` (99.67%) — the %hi of D_008106B0 is interleaved before the byte store at +0x3B92.
+    - `func_00158050` (99.2%) — the %hi of D_008105E0 is interleaved before a word load.
+    - `func_001D4960` (98.93%) — instruction scheduling (the a1 add before the second jal, the a2 add order); gp_rel + %hi/%lo hardcoded.
+    - `func_001DEDF0` (99.43%) — a0 is copied to v1 before the jal, and its store sits in the jal delay slot.
+    - `func_001FA5A0` (94.4%) — dead `v0 = a2 + 1` after an unconditional branch with an add in its slot; gp_rel hardcoded.
+    - `func_001FEFE0` (98.06%), `func_001FF030` (98.06%) — scheduling of the a0 constant load differs; tail jump to func_001FF080.
+    - `func_001FE8D0` (95.63%) — the `v1 -= 1` is scheduled between the %hi and the store; all remaining mismatches are relocation-only.
+    - `func_001AF7C0` (98.46%), `func_001AF780` (98.57%) — dead zeroing of v0 after blezl/bnel + delay; gp_rel hardcoded.
     - `func_0022BB70` (99.71%), `func_001F8880` (99.69%) — `sra`/`addu` immediately after `div` (no nop); gp_rel hardcoded.
-    - `func_001B0B50` (98%) — dead `andi v1, a0, 0x2` after `b+sb`; beqz delay pre-hoisted.
-    - `func_0017B420` (98%) — dead `addiu v0, zero, 0x1` after `b+paddub`; beql delay has addiu.
-    - `func_0016F5D0` (98.33%) — `beqz` has `nop` delay slot omitted by pure C; lui/addiu hardcoded.
-    - `func_001818D0` (99.06%), `func_0017F1C0` (99%), `func_001C2540` (98.42%), `func_001C4760` (98%) — `paddub a0, s0, zero` in jal delay slot; all lui/addiu/gp_rel hardcoded.
-    - `func_001DEDB0` (99%) — dead `addiu v0, zero, 0x2` in beq delay slot; gp_rel hardcoded.
+    - `func_001B0B50` (98%) — dead `v1 = a0 & 2` after an unconditional branch with a byte store in its slot; beqz delay pre-hoisted.
+    - `func_0017B420` (98%) — dead `v0 = 1` after an unconditional branch with a paddub in its slot; the beql delay slot holds the constant load.
+    - `func_0016F5D0` (98.33%) — `beqz` has `nop` delay slot omitted by pure C; %hi/%lo hardcoded.
+    - `func_001818D0` (99.06%), `func_0017F1C0` (99%), `func_001C2540` (98.42%), `func_001C4760` (98%) — the s0-to-a0 copy sits in the jal delay slot; all %hi/%lo/gp_rel hardcoded.
+    - `func_001DEDB0` (99%) — dead `v0 = 2` in the beq delay slot; gp_rel hardcoded.
     - `func_00206170` (98.67%) — beqz delay slot filling differs; gp_rel and hi/lo hardcoded.
-    - `func_00203460` (99.09%) — dead `paddub a2, v0, zero` after `b+addiu`; lui/addiu hardcoded.
+    - `func_00203460` (99.09%) — dead v0-to-a2 copy after an unconditional branch with an add in its slot; %hi/%lo hardcoded.
 
     **Key patterns codified:**
     - **Dead instruction = copy of branch delay slot hoistee**: mwcc 2.3.1 always emits a dead copy of the instruction pre-hoisted into a conditional branch delay slot. It appears one instruction after the `b+delay_slot` that exits the non-taken path.
-    - **div/mult immediate use**: 2.3.1 places `sra`/`addu`/`mflo` directly after `div`/`mult` with no intervening nop.
+    - **div/mult immediate use**: 2.3.1 places the consumer (a shift, an add or the LO read) directly after a divide or multiply with no intervening nop.
     - **lui interleaving**: 2.3.1 emits a `lui` for a symbol that is used later, interspersed between unrelated instructions as a load-delay filler (scheduler artifact).
-    - **paddub in jal delay slot**: when the next jal argument needs a register copy, 2.3.1 places `paddub aN, sM, zero` in the jal delay slot rather than before the jal.
+    - **paddub in jal delay slot**: when the next jal argument needs a register copy, 2.3.1 places the saved-register-to-argument copy in the jal delay slot rather than before the jal.
     - **All remaining mismatches are relocation-only**: objdiff shows N% because hardcoded `.word` values lack R_MIPS_HI16/LO16/GPREL16 relocations; the bytes are identical at link time since the linker resolves them to the same value.
 
     **Overall stats after session 8: ~1338 functions at 100%, 24 at 99%+, fuzzy match ~98.47%.**
@@ -4510,16 +4495,16 @@ All other 295 previously-committed functions are at 100%.
     Continued applying the asm void technique to remaining partial-match functions:
 
     **Improved (byte-identical at link time, all relocation-only mismatches):**
-    - `func_001E8B40` (93%→99.44%) — original uses `lui at,0x1 / addu at,v1,at / lw v1,-0x5f48(at)` to reach D_00275C20+0xa0b8 (offset > 32KB from base pointer); pure C generates two-step addiu. gp_rel hardcoded.
-    - `func_001831F0` (84.2%→99.47%) — dead `addiu v1, zero, 2` after `bne + delay slot`; lui/addiu hi/lo hardcoded.
-    - `func_0020E020` (81.5%→98.85%) — loop body uses `paddub a0, zero, zero` as counter init; lui/addiu and gp_rel hardcoded.
-    - `func_00131F20` (81.4%→98.57%) — complex arg-saving across 3 jal calls using paddub s0/s1/s2; paddub in jal delay slots; all lui/addiu hi/lo hardcoded.
-    - `func_00191530` (80%→99.5%) — `lui v0, 0x4188` (float 17.0 integer representation) at position where mwcc interleaves `lui v0, %hi(D_008105E0)` instead; lui/addiu hardcoded.
-    - `func_0017B460` (77.8%→98.89%) — lui/addiu hi/lo for D_00248AB0 pointer array; `lh v0, 0(v0)` in jr-ra delay slot.
+    - `func_001E8B40` (93%→99.44%) — original adds 0x10000 to the base in the assembler temp and loads at -0x5F48 from it to reach D_00275C20+0xa0b8 (offset > 32KB from base pointer); pure C generates two-step addiu. gp_rel hardcoded.
+    - `func_001831F0` (84.2%→99.47%) — dead `v1 = 2` after a not-equal branch and its delay slot; %hi/%lo pairs hardcoded.
+    - `func_0020E020` (81.5%→98.85%) — loop body zeroes a0 as the counter init; %hi/%lo and gp_rel hardcoded.
+    - `func_00131F20` (81.4%→98.57%) — complex arg-saving across 3 jal calls using paddub copies into s0/s1/s2; paddub in jal delay slots; all %hi/%lo pairs hardcoded.
+    - `func_00191530` (80%→99.5%) — the upper-half load of 0x4188 (float 17.0 bit pattern) sits where mwcc interleaves the %hi of D_008105E0 instead; %hi/%lo hardcoded.
+    - `func_0017B460` (77.8%→98.89%) — %hi/%lo pair for D_00248AB0 pointer array; the halfword load through v0 sits in the return's delay slot.
 
     **New patterns documented:**
-    - **Large pointer offset via lui+addu**: `lui at,1 / addu at,v1,at / lw v1,-offset(at)` reaches pointer + 0x10000 - offset. Pure C generates two `addiu` instructions instead. The asm void approach is needed when the compiler chose this encoding.
-    - **Float constant as integer**: `lui v0, 0x4188` / `mtc1 v0, f0` loads 17.0f without a FP load-immediate. Interleaved with surrounding symbol loads in different order than pure C.
+    - **Large pointer offset via an upper-half add to the base**: adding 0x10000 to the base in the assembler temp and loading at a negative offset from it reaches pointer + 0x10000 - offset. Pure C generates two `addiu` instructions instead. The asm void approach is needed when the compiler chose this encoding.
+    - **Float constant as integer**: an upper-half load of 0x4188 moved into f0 gives 17.0f without a FP load-immediate. Interleaved with surrounding symbol loads in different order than pure C.
     - **All partial matches now cluster at 98-99.7%** — all remaining mismatches in asm void functions are relocation display differences, not actual byte differences.
 
     **Stats after session 9: 1203 functions at 100%, 27 at 99%+, avg 97.31% across 1356 compiled src files.**
@@ -4534,8 +4519,8 @@ All other 295 previously-committed functions are at 100%.
     resolves gp_rel/hi/lo offsets identically whether via relocation or hardcoded value.
 
     **Improved existing partial matches:**
-    - `func_001D2DE0` (98%→99%) — fixed `addu v1, v1, a0` operand order via asm void
-    - `func_001AFEB0` (99.52%→99.52%) — fixed `slti $at` → `slti $v1` register; 2 hi/lo remain
+    - `func_001D2DE0` (98%→99%) — fixed the `v1 = v1 + a0` operand order via asm void
+    - `func_001AFEB0` (99.52%→99.52%) — fixed the compare result register (assembler temp → `$v1`); 2 hi/lo remain
     - `func_00179010` (97.4%→99.7%) — beqz delay slot nop was being filled by mwcc; asm void preserves it
     - `func_001790B0` (91.5%→99.2%) — instruction ordering and register allocation fixed via asm void
 
@@ -4546,7 +4531,8 @@ All other 295 previously-committed functions are at 100%.
     - The gp_rel and hi/lo hardcoded `.word` mismatches show in objdiff as argument mismatches
       (missing relocation entries) but are 100% byte-identical in the final linked ELF.
     - New `func_XXXX` stub-file pattern: for struct-fill functions that are purely register
-      manipulation (dsll32/dsra32/or/addu + gp_rel load + jr ra), the `.word` approach gives
+      manipulation (64-bit sign-extending shifts, OR/add of the halves, a gp-relative load
+      and the return), the `.word` approach gives
       99-99.9% with no further tuning needed.
 
   - **New session (2026-05-23, sixth session) — GP-relative queue-push family decompilation:**
@@ -4565,8 +4551,8 @@ All other 295 previously-committed functions are at 100%.
     - **func_001D4A90**, **func_001DD950** — compiled (previously unbuilt src files); match 56% and 72%.
 
     **Key findings:**
-    - **`beq` vs `bne` generation**: writing `if (a0 == N) goto L_N` produces `beq a0, v1, L_N`.
-      Writing `if (a0 == N) { action; }` produces `bne a0, v1, skip` (inverted branch). The goto
+    - **`beq` vs `bne` generation**: writing `if (a0 == N) goto L_N` produces a branch-if-equal to L_N.
+      Writing `if (a0 == N) { action; }` produces a branch-if-not-equal past the action (inverted branch). The goto
       form matches the expected beq-chain pattern in switch-like functions.
     - **Constant scheduling**: mwcc always hoists ALL `li` (load-immediate) operations to the top
       of the basic block, regardless of source order. Cannot force a constant to be initialized late.
@@ -4580,7 +4566,7 @@ All other 295 previously-committed functions are at 100%.
 
 Added `tools/decomp/name_functions.py` — heuristic naming via string-reference
 analysis. The tool reads splat's per-function `.s` disassembly, recovers
-absolute 32-bit addresses from lui/addiu pairs (and the resolved
+absolute 32-bit addresses from %hi/%lo pairs (and the resolved
 `D_XXXXXXXX` symbols splat already emits for cross-function data refs), maps
 them to ASCII strings extracted from the boot ELF, and proposes a
 function name derived from the most distinctive nearby string. Auto-block in
@@ -4618,11 +4604,11 @@ section 6 for the per-overlay table and the patterns used.
 Categories (most are pure C with `-O4,p -sdatathreshold 4`, no inline asm):
 - 19 **area-init functions** (1 per overlay) — write area-type, data-section
   pointer, and zeroes into 4–6 gp-relative boot-ELF BSS slots.
-- 6 **jr+nop stubs** (`void f(void) {}`).
+- 6 **bare-return stubs** (`void f(void) {}`).
 - 3 **thin wrappers** (`callee(args); return 1`).
 - 4 **struct-field setters / boolean inverters** (small leaves).
 - 2 **abs-address byte read-modify-write** (need `-sdatathreshold 0` to
-  force `lui/lbu` for globals outside the GP ±32KB window).
+  force %hi plus %lo-offset byte loads for globals outside the GP ±32KB window).
 - 2 **gp_rel pure-C leaves** that don't fit the above buckets.
 
 Three small infrastructure changes:
@@ -4663,7 +4649,7 @@ the original disc disassembly. The pipeline is fully automated in `tools/overlay
   from 0 → 0xFFFF (-1), so GNU ld computes `(S + (-1) - P) / 4` = correct value.
 
 - **VU0 / COP2 macro-mode instructions**: AREA21 contains vector unit instructions
-  (`vmulax`, `vmadday`, etc.) that GNU as doesn't support. Splat emits them as
+  (the VU0 macro broadcast multiply-accumulate forms, etc.) that GNU as doesn't support. Splat emits them as
   decoded mnemonics with the raw 8-hex-char opcode in the comment. Fix: replace
   with `.word` directives. Opcode byte order: splat shows bytes MSB-first; use
   `int.from_bytes(bytes.fromhex(opcode), 'little')` to get the correct LE integer.
@@ -4743,7 +4729,7 @@ ELF** (1530624/1530624 bytes, 100.00%).
   pipeline — **writer identified 2026-05-27: `func_00179BC0` (inner
   publisher) dispatched by `func_0017A130` / `func_00148B40` /
   `func_0017B660`** (the only three functions that statically reach
-  the four bone-buffer addresses via lui/addiu). The publisher copies
+  the four bone-buffer addresses via %hi/%lo pairs). The publisher copies
   pre-computed 64-byte matrices from a per-bone source struct
   (`*(D_00275B40 + 4*bone) + 0x90`) into one of the four BSS slots.
   Bone count is `lbu($actor + 0xC)`; matrix data is **populated
@@ -5114,7 +5100,7 @@ ELF** (1530624/1530624 bytes, 100.00%).
     .text / .data for inspection). The 135 strings remain interesting only
     as future symbol-recovery hints during per-overlay decompilation (an
     overlay's debug strings are referenced by its own functions; cross-
-    referencing string addresses against `lui+addiu` pairs in splat .s
+    referencing string addresses against %hi/%lo pairs in splat .s
     output can name some overlay functions, parallel to
     `tools/decomp/name_functions.py` for the boot ELF).
 
@@ -5557,7 +5543,7 @@ full detail):
 
 - **Closes the s15/s17 open item** (inventory-write site). The inventory
   is NOT actor-side: it is a static global block addressed via
-  `lui 0x0081` absolutes. `D_00810C64` = byte-per-item-type COUNT ARRAY
+  absolute addresses built on the upper half 0x0081. `D_00810C64` = byte-per-item-type COUNT ARRAY
   (`count[type]`); `D_00810CB4` s16 = SPR4 reserve rounds
   (display-verified live by poking with the status overlay open);
   `D_00810C62` u8 = rounds in current 30-round magazine. Add/pickup
@@ -5620,7 +5606,7 @@ full detail):
   `0x810CB2` (half-units), max = u8 `0x810CB7`; overlay shows
   `value >> 1` ("04/06" = 8/12). Poke of CB2=4 changed the open overlay
   to "02/06" + 2-segment bar live. Draw site `0x00209424/0x00209460`
-  (sra 1 + 2-digit draw via `0x001C5FB0`), gated on `0x810C7F`.
+  (`>> 1` + 2-digit draw via `0x001C5FB0`), gated on `0x810C7F`.
 - **Mechanics**: init zeroes it (`0x001AF380`); pickups add +12 (max->
   0x0C) or +36 (max->0x24 = "18") via `0x001C41CC` cases; devices cost
   `2*cost` half-units, drained -2/cycle (`0x002156A0`, insufficient ->
@@ -6117,7 +6103,7 @@ full detail):
   (cases 0/4/6/8/0xB/0xD/0xE/0xF/0x11/0x13 only) + the D_0024A5F0
   XZ-quad trigger-volume table (func_00194D10: point-in-quad,
   |player.y − rec.y| < 4) + state-scripted eyes (func_001944B0).
-  CORRECTION: the `jal 0x823FE0` "overlay hook" is the area-13/entry≥8
+  CORRECTION: the call to 0x823FE0 (the "overlay hook") is the area-13/entry≥8
   gate only and lands MID-FUNCTION in shipped AREA13.BIN (dead/
   drifted) — per-room cameras are NOT an overlay delegate.
 - **Exported-area verdict (honest)**: AREA02 (office, both subs) and
@@ -6783,7 +6769,7 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   husk-B set (0x28/0x26/0x27 — chosen in s24 when the burst was
   believed to hatch a worm) for every crate.
 - **Decode (closes the s24 open item)**: func_001551B0 state 2's
-  damage-kill arm picks the rebind husk at `0x156380` — `lbu +0x3`
+  damage-kill arm picks the rebind husk at `0x156380` — a byte read of +0x3
   (the crawler MODEL byte): byte 6 → `D_0028A56C` library entry
   **0x22** (husk A, the brown opened wooden-crate base + splinters
   0x1C/0x1D/0x1E), else **0x29** (husk B, grey-cyan + 0x26/0x27/0x28).
@@ -6995,7 +6981,7 @@ trampolines, 6 four-byte fragments, 61 still-workable.
    Masked for weeks because `objdiff`/`verify_all` never re-assemble.
 
 2. **`D_FFFFF` / `D_FFFFFF` pseudo-symbols** (51 `.s` files). splat paired a
-   delay loop's `lui rX,0x10` with the loop-*body* `addiu rX,rX,-1` — a
+   delay loop's counter init `rX = 0x10 << 16` with the loop-*body* `rX -= 1` — a
    decrement executed 0x100000 times, past a branch label — as a `%hi`/`%lo`
    pair, purely because the values combine to 0xFFFFF (which is *below* the
    0x100000 load address, so it cannot be a real symbol). Expected objects
@@ -7004,7 +6990,7 @@ trampolines, 6 four-byte fragments, 61 still-workable.
    100% on its own (93.93→94.05, 93.56→93.74, 98.77→98.93).
 
 3. **`D_2000xxxx` uncached-mirror offsets** (5 symbols). splat rendered
-   `addiu a3,a2,0x10` as `%lo(D_20000010)`. Fixed — and this one **did** yield a
+   a small `a2 + 0x10` add as `%lo(D_20000010)`. Fixed — and this one **did** yield a
    match: `func_0010F490` 99.72 → **100.0**, promoted to a compiled unit.
 
 ### The "eegcc forward-branch-likely wall" was wrong

@@ -18,8 +18,8 @@
 // 0 while it is still 1.
 //
 // DEAD BRANCH, faithfully reproduced: the `kind == 0xFF` test can never fire, because `kind` is
-// the result of `& 0x3F` and so is always 0..63. CW emitted it anyway (`addiu v1,zero,0xff` +
-// `bne`), so it is kept here — this is original-source dead code, not a decode error.
+// the result of `& 0x3F` and so is always 0..63. CW emitted it anyway (v1 = 0xFF plus a
+// compare-and-branch), so it is kept here — this is original-source dead code, not a decode error.
 
 extern volatile int D_002821B0;
 extern volatile int D_002821B4;

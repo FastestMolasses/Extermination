@@ -19,10 +19,10 @@
 //
 // Matched with mwcc 2.3.3 (mwcps2-2.3.3-000906); pinned 991202 reaches 88.4%.
 // Keys: (1) anim_clip_init's real signature is (int self, int clip, float a,
-// float b) -- the trailing 0.0f emits the mtc1 zero,$f13 pair-clear; (2) the
+// float b) -- the trailing 0.0f emits the zero move into $f13 (pair-clear); (2) the
 // 0/1 dispatch is a switch (not if/else) to reproduce the case-0 branch-likely
 // (beql), and the State-1 tail is written as if/else-if (h==0 first) so mwcc
-// emits the target's `bnez h` with the v1=1 slot-filler. objdiff 100.0.
+// emits the target's branch on h != 0 with v1 = 1 as its slot filler. objdiff 100.0.
 extern void anim_clip_init(int self, int clip, float a, float b);
 extern void func_001FBD50(char *p, int a, int b, float f);
 

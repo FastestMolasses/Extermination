@@ -2,7 +2,7 @@
 //
 // objdiff 84.56% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring + branch-likely-lowering scheduling permuter class. Logic fully recovered; the outer switch's case-0 entry wants beql v1,zero with the `st+1` store in the delay slot (target emits branch-likely, mwcc 2.3.3 emits plain beq), plus the input-bits OR operand-evaluation order and two...
+// Register-coloring + branch-likely-lowering scheduling permuter class. Logic fully recovered; the outer switch's case-0 entry wants a branch-likely on v1 == 0 with the `st+1` store in the delay slot (target emits branch-likely, mwcc 2.3.3 emits plain beq), plus the input-bits OR operand-evaluation order and two...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -27,7 +27,7 @@
 // 1/2/default -> C0D0(1). base = &D_008102B0 is hoisted to a callee-saved reg.
 //
 // Residual wall (NOT the clean-store nop): the outer switch's case-0 entry wants a
-// branch-likely (beql v1,0) filling its delay slot with the `st+1` store, and several
+// branch-likely (on v1 == 0) filling its delay slot with the `st+1` store, and several
 // stores/the input-OR operand differ only in mwcc instruction scheduling / operand
 // evaluation order. Register-coloring + branch-likely-lowering permuter class.
 extern void func_0018BC20(char *p, void *q);

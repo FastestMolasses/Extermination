@@ -40,12 +40,12 @@
 //     out of the loop are always appended at the END of the preheader, so
 //     `r1 = base + 0xE` can never land between them -- unless the constant 1
 //     is materialized by SOURCE in the preheader. `one = 1;` written between
-//     `i = 0;` and `r1 = ...` puts `addiu $s5,$zero,1` in exactly the target's
+//     `i = 0;` and `r1 = ...` puts the s5 = 1 materialization in exactly the target's
 //     slot. Permuting the initializer statements alone caps at 99.855; no
 //     -O/-fno-* flag combination helps (all measured).
 //  2. `t` caches the first loaded field so the third comparison reuses it
-//     (`bnel $v0,$a0`), which is what CSE does in the target; comparing that
-//     field against `one` a second time emits `bnel $v0,$s5` and also swaps
+//     (a branch-likely compare of v0 against a0), which is what CSE does in the
+//     target; comparing that field against `one` a second time compares v0 against s5 and also swaps
 //     the $s4/$s5 colouring.
 //  3. Measure against an expected object built through build.normalize_asm
 //     (it appends build/jtblrodata/func_00118828.s). Assembling the raw splat

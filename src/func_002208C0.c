@@ -28,7 +28,7 @@
 // the C call must pass `arg0` explicitly even though the disassembly never
 // shows an explicit a0 move for that jal; (2) the `+0x224 != 0.0f` compare
 // needs the literal folded into a named `float zero = 0.0f;` local to get the
-// target's `c.eq.s f1,f0` operand order (a raw `!= 0.0f` literal emits the
+// target's float-compare operand order (f1 first, f0 second) (a raw `!= 0.0f` literal emits the
 // operands swapped).
 extern void func_001749A0(char *p, int a, int b, float f);
 extern void func_00174AC0(char *p, int a);

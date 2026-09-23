@@ -16,8 +16,8 @@
 // Otherwise it clears the D_008106C7 enable flag.
 //
 // m2-matching lane (93.47% -> 97.95%): the mode flag is an `||` if/else, which
-// reproduces the target's dead `li s0,1` block after `b join`; the range test
-// is `> 2U` (idiom-28, gives `sltiu $at`); and the table base is read into a
+// reproduces the target's dead s0 = 1 block after the branch to the join; the range test
+// is `> 2U` (idiom-28, gives an unsigned compare into $at); and the table base is read into a
 // local between the third and fourth scratchpad stores. Remaining: the target
 // keeps the fourth store before the &D_700038C0 materialization and colors the
 // base in $v1, where mwcc gives $a1 and sinks the store (7 rows).

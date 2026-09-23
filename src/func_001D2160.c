@@ -1,11 +1,11 @@
 extern int *D_00275670;
 
 void func_001D2160(char *a0) {
-    // Expected: loads D_00275670 into a1, then loads a1[8] into a1, stores 0x20 to a0[3]
-    // The lw a1, 8(a1) uses a1 for both the base AND destination
+    // Original: reads the pointer D_00275670, loads its word at +8, stores 0x20 to a0[3]
+    // One register is both the base AND the destination of that +8 load
     int *a1 = D_00275670;
-    int val = *(int *)((char *)a1 + 8);  // forces the lw a1->val pattern
-    a0[3] = 0x20;                          // sb v1 = 0x20
-    *(int *)(a0 + 4) = val;               // sw val
-    *(short *)a0 = 0;                      // sh $zero
+    int val = *(int *)((char *)a1 + 8);  // forces that base/destination reuse
+    a0[3] = 0x20;                          // byte store of 0x20
+    *(int *)(a0 + 4) = val;               // word store of val
+    *(short *)a0 = 0;                      // halfword store of zero
 }

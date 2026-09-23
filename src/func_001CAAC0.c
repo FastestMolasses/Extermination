@@ -18,13 +18,13 @@ extern char *D_00275670;            /* per-frame render context      */
 extern Vec4  D_70003AC0[4];         /* camera K = P*V, EE scratchpad */
 extern char  D_007635C0[];          /* depth-bucket page table       */
 
-extern void func_00102948(void *dst, const void *src);       /* lq/sq copy */
+extern void func_00102948(void *dst, const void *src);       /* 128-bit quadword load/store copy */
 extern void func_001CB760(void *page_table, int key, unsigned long long payload);
 
 /* See src/func_001D72D0.c for the full kernel description. */
 extern void vu0_project(const Vec4 *matK, const Vec4 *p,
                         Vec4 *clip_out, IVec4 *screen_12_4);
-extern void vu0_load_fog_quad(const void *quad);             /* lqc2 vf23 */
+extern void vu0_load_fog_quad(const void *quad);             /* loads the fog quad into a VU0 register */
 
 int func_001CAAC0(const Vec4 *world_pos, void *payload)
 {

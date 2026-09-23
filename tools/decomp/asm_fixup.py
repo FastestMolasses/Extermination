@@ -2,7 +2,8 @@
 """Patch splat's per-function disassembly so GNU `as` can assemble it.
 
 `spimdisasm` emits VU0 macro-mode instructions in Sony's syntax
-(`vdiv Q, $vf0w, $vf5x`, `vmulq.xyzw $vf4, $vf4, Q`). GNU `mipsel-linux-gnu-as`
+(Q-register divides and Q-scaled multiplies with Sony's field-suffixed vf
+operands). GNU `mipsel-linux-gnu-as`
 recognizes the VU mnemonics in r5900 mode but rejects this exact operand form
 (it wants its own field-selector spelling). Rather than translate, we just
 replace any unassembleable VU line with a `.word 0xHEX` directive — the raw

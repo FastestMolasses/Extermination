@@ -2,7 +2,7 @@
 //
 // objdiff 65.19% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc reg-alloc/delay-slot wall. C reaches objdiff 96.3% (permuter best, score 100); body is instruction-for-instruction identical EXCEPT one trailing nop placement at the function tail: expected emits `sw v0,0x1c(a3); jr ra; nop` (27 instrs) while ee-gcc 2.9 -O2 emits `sw; nop; jr ra; nop` (28 instrs, +4 bytes ove...
+// ee-gcc reg-alloc/delay-slot wall. C reaches objdiff 96.3% (permuter best, score 100); body is instruction-for-instruction identical EXCEPT one trailing nop placement at the function tail: expected puts the +0x1C store directly before the return, with an empty return delay slot (27 instrs), while ee-gcc 2.9 -O2 adds an extra nop between the store and the return (28 instrs, +4 bytes ove...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

@@ -2,7 +2,7 @@
 //
 // objdiff 97.55% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Pure delay-slot-fill / scheduling permuter class. Logic fully recovered (97.6%). The three beqz guards each leave their delay slot fillable with the NEXT probe's first `lui <const>` (cone direction) and the target fills it; mwcc 2.3.3 instead schedules `lui at,0x7000` / the return-value `addiu v0...
+// Pure delay-slot-fill / scheduling permuter class. Logic fully recovered (97.6%). The three guards each leave their delay slot fillable with the NEXT probe's first constant upper-half load (cone direction) and the target fills it; mwcc 2.3.3 instead schedules the scratchpad upper-half load or the return-value increment there (details below).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -21,14 +21,15 @@
 // a nonzero result ORs a hit bit into `flags` (probes 1&3 set bit 0, probes 2&4 set
 // bit 1). The four probes are +3.0f/-3.0f direction at length 20.0f, then +3.0f/-3.0f
 // at length 19.0f. Returns 1 when no probe hit (flags==0), else 0 (matches the
-// `v0=1; movn v0,zero,flags` epilogue). Note: the scratch writes use raw absolute
+// `ret = 1; if (flags) ret = 0` conditional-move epilogue). Note: the scratch writes use raw absolute
 // 0x700038xx addresses while the call args use the &D_700038xx symbols, mirroring the
-// target's mixed lui/ori vs %hi/%lo relocations.
+// target's mix of bare literal addresses (upper half plus a literal low offset)
+// and %hi/%lo-relocated symbol addresses.
 //
 // Residual wall (NOT the clean-store nop): the three `beqz` guards each leave their
-// delay slot fillable with the NEXT probe's first `lui <const>` (cone direction), and
-// the target fills it; mwcc 2.3.3 instead schedules `lui at,0x7000` / the return-value
-// `addiu v0,1` there. Pure delay-slot-fill / scheduling permuter class.
+// delay slot fillable with the NEXT probe's first constant upper-half load (cone direction), and
+// the target fills it; mwcc 2.3.3 instead schedules the scratchpad upper-half load /
+// the return-value increment there. Pure delay-slot-fill / scheduling permuter class.
 extern void func_001026A0(float *dst, char *src, float *m);
 extern int func_0019AFE0(int self, float *a, float *b, int n);
 extern float D_700038A0;

@@ -2,7 +2,7 @@
 //
 // objdiff 97.22% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc list-scheduler + delay-slot-fill wall. Body, control flow, register allocation and the switch decision tree all match exactly; the only residual is the two `jal CreateSema` (SignalSema) delay slots, which the original fills with `lw a0, %lo(D_00241D08)(v0)` and ours leaves as `nop` (.text ...
+// ee-gcc list-scheduler + delay-slot-fill wall. Body, control flow, register allocation and the switch decision tree all match exactly; the only residual is the delay slots of the two CreateSema (SignalSema) calls, which the original fills with the load of D_00241D08 and ours leaves as a nop (rest of the note: docs/NEARMISS.md).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

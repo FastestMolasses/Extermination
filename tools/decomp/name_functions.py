@@ -6,7 +6,8 @@ Adds names to config/symbol_addrs.txt based on three independent heuristics:
 
   1. Standard-library signature matching (memset / memcpy / strlen / strcmp /
      strcpy patterns, etc.) — high-confidence, low yield.
-  2. String-reference naming — finds lui+addiu(/lw/sw/lh/lb/...) pairs in each
+  2. String-reference naming — finds %hi/%lo address pairs (upper-half load, then an add or a load/store
+     using the low half) in each
      function's disassembly, recovers the absolute 32-bit target address, looks
      up the address in the ELF's extracted-string table, and proposes a name
      derived from the most distinctive nearby string.
@@ -45,11 +46,10 @@ FILE_BASE = 0x300
 VRAM_BASE = 0x00100000
 LOAD_LEN = 0x175B00
 
-# Lines in splat output look like:
-#   /* 738 00100438 2700043C */   lui       $a0, %hi(D_0026AE80)
-#   /* 73C 0010043C 808DA464 */   ld        $a0, -0x7280($a0)
-#   /* 5B0 001002B0 2400053C */  lui        $a1, %hi(D_00241020)
-#   /* 5B4 001002B4 0010063C */  lui        $a2, (0x10005000 >> 16)
+# Lines in splat output carry a /* ROM-offset VRAM raw-word */ comment followed
+# by the instruction text. LUI_RE finds an upper-half load of a register whose
+# operand is %hi(SYM), a "(CONST >> 16)" expression or a bare constant; LO_RE
+# then finds the %lo / immediate-offset use of that same base register.
 LUI_RE = re.compile(
     r"lui\s+\$(\w+),\s*(?:%hi\(([^)]+)\)|\((0x[0-9A-Fa-f]+)\s*>>\s*16\)|(0x[0-9A-Fa-f]+))"
 )
@@ -58,12 +58,12 @@ LUI_RE = re.compile(
 LO_RE = re.compile(
     r"\b(addiu|ori|lw|lh|lhu|lb|lbu|ld|sw|sh|sb|sd|lq|sq|lwc1|swc1|ldc1|sdc1)\s+\$(\w+),\s*([^,]+?)\(\$(\w+)\)"
 )
-# addiu form: addiu $rt, $rs, imm   OR   addiu $rt, $rs, %lo(SYM)
+# add/or-immediate form: rt = rs + imm   OR   rt = rs + %lo(SYM)
 ADDIU_RE = re.compile(
     r"\b(addiu|ori)\s+\$(\w+),\s*\$(\w+),\s*(%lo\(([^)]+)\)|-?0x[0-9A-Fa-f]+|-?\d+)"
 )
 # Standalone reference to a D_XXXXXXXX symbol anywhere in a line — useful to
-# capture targets even when we don't reconstruct lui+lo pairing perfectly.
+# capture targets even when we don't reconstruct %hi/%lo pairing perfectly.
 DSYM_RE = re.compile(r"\bD_([0-9A-Fa-f]{6,8})\b")
 HISYM_RE = re.compile(r"%(?:hi|lo)\(([A-Za-z_]\w*)\)")
 GLABEL_RE = re.compile(r"^glabel\s+(\S+)")
@@ -148,11 +148,11 @@ def parse_asm_file(path: Path) -> tuple[str, int, list[int]]:
     """Return (func_name, vram, list_of_referenced_absolute_addresses).
 
     Sources of addresses:
-      * Any D_XXXXXXXX literal anywhere on a line (splat resolved a lui/lo
+      * Any D_XXXXXXXX literal anywhere on a line (splat resolved a %hi/%lo
         pair to this auto-symbol — its hex name IS the absolute address).
       * %hi/%lo(SYM) with SYM matching D_XXXXXXXX.
-      * Bare `lui $r, (0xXXXXXXXX >> 16)` lines (FP constants etc.) — also
-        try to combine with a following addiu/load.
+      * Bare upper-half immediate loads of a literal constant (FP constants
+        etc.) — also try to combine with a following low-half add or load.
     """
     func_name = path.stem
     try:
@@ -293,10 +293,12 @@ def detect_stdlib(path: Path) -> str | None:
     # memset: tight sb loop with a byte counter, no jal calls, no fp.
     #   typical 8-14 instructions; instrs include: bne, sb, addiu, jr.
     #   no lw/sw (just sb), no lui (no globals).
-    # memcpy: lb/lbu + sb pair in a loop OR lw + sw pair.
-    # strlen: lb/lbu + bnez + addiu loop, ends with subtraction returning count.
-    # strcmp: lbu + bne + lbu loop returning v0 = difference.
-    # strcpy: lb + sb + bnez loop.
+    # memcpy: a byte load and byte store in a loop, OR a word load and word store.
+    # strlen: a loop of byte load, branch-if-nonzero and pointer increment; ends
+    #   with a subtraction returning the count.
+    # strcmp: a loop of two unsigned byte loads and a not-equal branch, returning
+    #   v0 = difference.
+    # strcpy: a loop of byte load, byte store and branch-if-nonzero.
 
     if mn.get("jal", 0) or mn.get("jalr", 0):
         return None  # Stdlib leaves don't call out.
@@ -342,7 +344,7 @@ def detect_stdlib(path: Path) -> str | None:
     ):
         return "strlen"
 
-    # memcpy (byte form): lb+sb loop.
+    # memcpy (byte form): a byte load and byte store in a loop.
     if (
         (mn.get("lb", 0) + mn.get("lbu", 0)) >= 1
         and mn.get("sb", 0) >= 1
@@ -353,7 +355,8 @@ def detect_stdlib(path: Path) -> str | None:
     ):
         return "memcpy_byte"
 
-    # strcpy: lb+sb+bnez(loaded byte) loop, no count arg.
+    # strcpy: a loop of byte load, byte store and a branch on the loaded
+    #   byte being nonzero, no count arg.
     if (
         (mn.get("lb", 0) + mn.get("lbu", 0)) >= 1
         and mn.get("sb", 0) >= 1

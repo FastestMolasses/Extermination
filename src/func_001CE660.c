@@ -33,11 +33,11 @@ extern void func_001CDDC0(int layer, int tag, Vec4 *quad,
                           unsigned long long tex0, unsigned int rgba);
 
 /*
- * The VU0 macro-mode kernel, written out scalar. The original is
- *   vmulax.xyzw  ACC, mtx.c0, p.x
- *   vmadday.xyzw ACC, mtx.c1, p.y
- *   vmaddaz.xyzw ACC, mtx.c2, p.z
- *   vmaddw.xyzw  out, mtx.c3, vf0.w   ; vf0.w is hardwired to 1.0
+ * The VU0 macro-mode kernel, written out scalar. The original computes
+ *   acc  = mtx.c0 * p.x   (all four lanes)
+ *   acc += mtx.c1 * p.y
+ *   acc += mtx.c2 * p.z
+ *   out  = acc + mtx.c3 * 1.0   (the constant VU register's w is 1.0)
  * i.e. one four-wide matrix-vector multiply with an implicit w of 1.0.
  */
 static void vu0_mat4_mul_point(const Mtx4 *m, Vec4 *p)

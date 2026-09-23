@@ -12,7 +12,7 @@
 // gp-base default table &D_002753B0 at p[0x30], copies two matrices via
 // func_00102948, seeds constants, and computes q[0x20] from a global base plus
 // a randomized 4-bit nibble (func_00122BB8). -sdatathreshold 8 makes the int
-// D_002753B0 gp-relative (CW's addiu v0, gp, %gp_rel form) while the >8-byte
+// D_002753B0 gp-relative (CW's gp-relative address form) while the >8-byte
 // extern arrays stay absolute; the p[0xD] OR-store reads unsigned (lbu) so the
 // flag test reuses the zero-extended value. mwcc 2.3.3 only; pinned 991202
 // reaches 75.3%. objdiff 100.0 vs expected.

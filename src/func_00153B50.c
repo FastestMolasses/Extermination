@@ -4,7 +4,7 @@
 // knock-back ballistic slide with collision probe (2), despawn hand-off (3), then the
 // common per-frame animation advance + post-update callback.
 // The `zi = 0; ... z = (float)zi;` staging is load-bearing: it is what makes mwcc
-// schedule `mtc1 zero,$f13` ahead of `mtc1 $v0,$f12` at the case-1 anim_clip_init call.
+// schedule the zero move into $f13 ahead of the $v0 move into $f12 at the case-1 anim_clip_init call.
 extern void func_001FBD50(void *p, int a, int b, float f);
 extern void anim_clip_init(void *p, int clip, float a, float b);
 extern int anim_advance_time(void *p, float t);

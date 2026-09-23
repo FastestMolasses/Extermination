@@ -78,14 +78,14 @@ int test_spill(int x, int y, int z) {
 
 Compiled with: `qemu-i386 tools/bin/wibo32 tools/mwccps2/mwccmips.exe -c <OPT>`
 
-| Opt level | Spill instruction |
-|-----------|------------------|
-| -O0       | `sq $ra, 16($sp)` |
-| -O1       | `sq $ra, 48($sp)` |
-| -O2       | `sq $ra, 48($sp)` |
-| -O3       | `sq $ra, 48($sp)` |
-| -O4,p     | `sq $ra, 48($sp)` |
-| -O4,s     | `sq $ra, 48($sp)` |
+| Opt level | Return-address spill |
+|-----------|----------------------|
+| -O0       | 128-bit store at sp+16 |
+| -O1       | 128-bit store at sp+48 |
+| -O2       | 128-bit store at sp+48 |
+| -O3       | 128-bit store at sp+48 |
+| -O4,p     | 128-bit store at sp+48 |
+| -O4,s     | 128-bit store at sp+48 |
 
 All six produce `sq`. No `sd` in any output.
 
@@ -111,9 +111,9 @@ compiler has a single spill path.
 
 Independent tabulation: walked all 3149 `.s` files in `build/asm/matchings/main/code/`.
 VRAM extracted from the first instruction comment (`/* FILE_OFF VRAM_ADDR BYTES */`).
-Spill type determined by presence of `sq $ra` vs `sd $ra` in file body.
+Spill type determined by whether the file body saves the return address with `sq` or `sd`.
 
-| Region           | sd $ra | sq $ra | Claimed sd | Claimed sq |
+| Region           | 64-bit ra-save | 128-bit ra-save | Claimed sd | Claimed sq |
 |------------------|-------:|-------:|------------|------------|
 | 0x100000–0x11FFFF | 359   |      4 | 369        | 4          |
 | 0x120000–0x12FFFF | 66    |     42 | 67         | 42         |
@@ -126,7 +126,7 @@ Spill type determined by presence of `sq $ra` vs `sd $ra` in file body.
   a more recent `asm_fixup.py` pass, or they used a looser regex (e.g. `\bsd\b` instead of
   `\bsd\s+\$ra\b`). The bimodal shape is the same; the discrepancy is minor.
 
-- High region: 0 vs 1. I found no `sd $ra` in `0x130000+`. The 13 functions with any `sd`
+- High region: 0 vs 1. I found no 64-bit ra save in `0x130000+`. The 13 functions with any `sd`
   in that region use `sd` for struct field stores or mid-function 128-bit register saves to
   non-`$sp` base addresses — not callee-save prologues. The "1 sd-spill" claim appears to be
   a false positive from a loose search.

@@ -13,7 +13,8 @@
 // into +0x2E0/4/8 and copies +0xC4 to +0x218).
 // The `ni = -5; n5 = (float)ni;` staging on the 12.0f probe is load-bearing
 // (idiom-24 generalized to a non-zero constant): it is what makes mwcc emit
-// `lui 0xC0A0 / mtc1 $v0,$f13` ahead of `lui 0x4140 / mtc1 $v0,$f12` there.
+// the -5.0f (0xC0A00000) move into $f13 ahead of the 12.0f (0x41400000) move
+// into $f12 there.
 
 #define WA0 (*(volatile float *)0x700038A0)
 #define WA1 (*(volatile float *)0x700038A4)

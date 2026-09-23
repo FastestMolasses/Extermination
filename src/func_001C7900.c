@@ -35,7 +35,8 @@ extern void func_001D88B0(void *pos, void *out_a, void *out_b, int token);
 
 /* VU0 macro-mode row-vector * 4x4:
    out = v.x*m.r0 + v.y*m.r1 + v.z*m.r2 + v.w*m.r3
-   (vmulax / vmadday / vmaddaz / vmaddw through $ACC, all four lanes at once). */
+   (one VU0 multiply and two multiply-adds into ACC, then a final multiply-add
+   that writes the result, all four lanes at once). */
 static void vu0_mul_vec4_mtx(Vec4 *out, const Vec4 *v, const Mtx4 *m) {
     out->x = v->x * m->r[0].x + v->y * m->r[1].x + v->z * m->r[2].x + v->w * m->r[3].x;
     out->y = v->x * m->r[0].y + v->y * m->r[1].y + v->z * m->r[2].y + v->w * m->r[3].y;
@@ -50,12 +51,12 @@ static void vu0_mul_mtx4(Mtx4 *out, const Mtx4 *a, const Mtx4 *b) {
     }
 }
 
-/* VU0 macro-mode xyz normalize; w is cleared first (vsub.xyzw vf6,vf0,vf0).
-   Length via vsqrt on $Q, reciprocal via vdiv on $Q (VU0 divide unit). */
+/* VU0 macro-mode xyz normalize; w is cleared first. Length via the VU0 square
+   root and the reciprocal via the VU0 divide unit, both through Q. */
 static void vu0_normalize_xyz(Vec4 *out, const Vec4 *v) {
     float len2 = v->x * v->x + v->y * v->y + v->z * v->z;
-    float len  = __builtin_sqrtf(len2);   /* vsqrt Q, vf5x ; vwaitq */
-    float inv  = 1.0f / len;              /* vdiv  Q, vf0w, vf5x ; vwaitq */
+    float len  = __builtin_sqrtf(len2);   /* VU0 square root */
+    float inv  = 1.0f / len;              /* VU0 divide: 1 / len */
     out->x = v->x * inv;
     out->y = v->y * inv;
     out->z = v->z * inv;

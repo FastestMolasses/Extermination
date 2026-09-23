@@ -9,8 +9,9 @@
 // pp, r, cnt in that order gives the target's s0/s1/s2/s3 coloring (idiom-3);
 // (2) 0x70003B8D (global _SPAD_SYMS) and 0x70003B98 (`// SPAD: 0x70003B98`)
 // are relocated externs, over-declared past the 8-byte sdata threshold, so the
-// `lui at,0x7000` of the score reload is no longer speculated into the
-// result-2 test slot. The score is cleared as `= 0.0f` (a `sw zero`).
+// scratchpad-base lui (upper half 0x7000) of the score reload is no longer
+// speculated into the result-2 test slot. The score is cleared as `= 0.0f` (an
+// integer zero store).
 //
 // Picks the best target object: bails if any of three gate flags is set
 // (0x70003B8D, D_0028A9A0, D_008106EF). Walks the active-object list (D_00275B5C,

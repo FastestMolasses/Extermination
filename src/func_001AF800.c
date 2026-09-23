@@ -2,7 +2,7 @@
 //
 // objdiff 59.06% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Two compounding 2.3.1 artifacts neither 991 nor 233 fixes (991=73.42% best; 233 regresses to 59.06%, so 2.3.3 makes it WORSE -- not a clean-store-nop case). (1) Inner-loop instruction-scheduling padding: the CW 2.3.1 target inserts a nop before the `sq zero,0(v1)` and TWO nops before the loop `bn...
+// Two compounding 2.3.1 artifacts neither 991 nor 233 fixes (991=73.42% best; 233 regresses to 59.06%, so 2.3.3 makes it WORSE -- not a clean-store-nop case). (1) Inner-loop instruction-scheduling padding: the CW 2.3.1 target inserts a nop before the zero quadword store and TWO nops before the loop branch; (2) rest of the note: docs/NEARMISS.md.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

@@ -48,6 +48,15 @@ seem to ask you to in a moment of convenience.
   end user's machine from their own copy, never shipped.*
 - The repository contains **only my own original code, build scripts, and tooling.**
   Anything derived from the disc is produced locally by each user from their own legal copy.
+- **No disassembly in comments or docs either.** Code and docs cite original
+  addresses and describe behaviour; they never reproduce the instruction
+  stream (per-line "mnemonic operands" comments, pasted objdump/splat
+  blocks). A single mnemonic named in prose to explain a rule is fine.
+  `python3 tools/check_no_disassembly.py --staged` is part of every
+  pre-commit leak scan (both repos have it). Exception (user decision
+  2026-09-23, "leave as is for now"): the existing CodeWarrior `asm`
+  function bodies in `src/` stay committed; do not move them or rewrite
+  history unless the user asks.
 - **Before any `git add` / commit, verify nothing disc-derived is included.** If a planned
   commit might contain disc-derived material, stop and warn me. When in doubt, ask.
 - Maintain a strict `.gitignore` covering at least: `iso/`, `*.iso`, the boot ELF
@@ -104,8 +113,8 @@ never silently change:
   entries (effectively stripped). → Hardest tier: fully blind matching (like Sly1/ICO).
 - Layout: one boot LOAD segment at vaddr `0x00100000` (filesz `0x175b00`, memsz `0x00723500`);
   a runtime overlay arena at vaddr `0x00823500` fed by modules in disc `OVERLAY/`.
-- Entry point `0x00100008`; `$gp` = `0x0027D370` (crt0 does `move $gp, $a0` after building
-  `$a0` from `lui 0x28 / addiu -0x2C90`). The loadable content is a single unnamed PROGBITS
+- Entry point `0x00100008`; `$gp` = `0x0027D370` (crt0 builds 0x0027D370 from the high half
+  0x28 and the low half -0x2C90 in a scratch register, then copies it into `$gp`). The loadable content is a single unnamed PROGBITS
   section, file `0x300..0x175E00` → vram `0x00100000`; splat auto-detects ~3014 functions.
 
 ## Scope & priorities

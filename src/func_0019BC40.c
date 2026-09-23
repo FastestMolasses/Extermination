@@ -2,7 +2,7 @@
 //
 // objdiff 95.42% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// mwcc233 web-coloring-order permutation + list-sched ties (sibling family wall of func_0019F730/func_001A1390, which parked at 88.78%/76%). Body and structure are fully register-shape-correct except: (1) the two loop-1 record blocks emit the same 5 instrs with mtc1 zero,$f0 two slots later than ta...
+// mwcc233 web-coloring-order permutation + list-sched ties (sibling family wall of func_0019F730/func_001A1390, which parked at 88.78%/76%). Body and structure are fully register-shape-correct except: (1) the two loop-1 record blocks emit the same 5 instrs with the zero move into $f0 two slots later than ta...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

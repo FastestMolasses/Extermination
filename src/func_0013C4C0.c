@@ -18,10 +18,10 @@
 // return 1.
 //
 // NOTE: the `goto ret1` is load-bearing. Spelling the inner escape as a second
-// `return 1` makes mwcc emit its own `b <epilogue> / addiu v0,1` pair instead of
-// branching to the shared `addiu v0,1` block the original falls into (2 extra
+// `return 1` makes mwcc emit its own branch-to-epilogue + return-value-1 pair
+// instead of branching to the shared return-1 block the original falls into (2 extra
 // instructions, 98.98%). Sharing one labelled `return 1` reproduces the
-// original's `bnez v0, <set1>` exactly.
+// original's nonzero-test branch into that shared block exactly.
 
 extern void func_001029C0(void *a0);
 extern void func_00102B08(void *obj, void *obj2, float v);

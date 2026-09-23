@@ -2,7 +2,7 @@
 //
 // objdiff 92.19% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// Logic/frame(0x60)/externs all correct; return type void confirmed (no trailing move v0,0). Residual diff: the two volatile MMIO stores *(0x10002000)=0 and *(0x1000B400)=0x101 do not get scheduled into the preceding jal func_001063E8 / jal func_001063B8 delay slots (gcc emits nop and places the store before the call)...
+// Logic/frame(0x60)/externs all correct; return type void confirmed (no trailing return-value clear). Residual diff: the two volatile MMIO stores *(0x10002000)=0 and *(0x1000B400)=0x101 are not scheduled into the delay slots of the preceding func_001063E8 / func_001063B8 calls (gcc leaves a nop there and places the store before the call); rest of the note: docs/NEARMISS.md.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

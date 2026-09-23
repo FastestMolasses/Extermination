@@ -2,7 +2,7 @@
 //
 // objdiff 78.53% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Constant-rematerialization + branch-sense permutation: target re-emits li v0,1 inside each D_00275C58-store block and uses bgez (>=0 -> reset) sense; mwcc places li 1 once at merge and canonicalizes the countdown test to bltz. Body/structure fully correct; permuter territory.
+// Constant-rematerialization + branch-sense permutation: target re-materializes v0 = 1 inside each D_00275C58-store block and uses bgez (>=0 -> reset) sense; mwcc places the constant 1 once at merge and canonicalizes the countdown test to bltz. Body/structure fully correct; permuter territory.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -24,8 +24,8 @@
 //
 // NEARMISS 78.5% (both mwcc 2.3.3 and 991202). Body/structure fully recovered;
 // the residuals are a constant-rematerialization + branch-sense permutation:
-// the target re-emits `li v0,1` inside each D_00275C58-store block and uses a
-// `bgez` (>=0 -> reset) sense, while mwcc places the `li 1` once at a merge and
+// the target re-materializes v0 = 1 inside each D_00275C58-store block and uses a
+// `bgez` (>=0 -> reset) sense, while mwcc places the constant 1 once at a merge and
 // canonicalizes the countdown test to `bltz`. Regalloc/scheduling wall --
 // permuter territory.
 

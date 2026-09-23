@@ -4,8 +4,8 @@
 // the 0x70003258 word, memsets the 0x48-byte table D_008106B0 to 0, then
 // calls func_001FC9B0. KEY STEERING (s84): place the 0x70003258 store BEFORE
 // the func_00121A28 call -- mwcc then schedules it into the jal delay slot and
-// emits `sb 0x3B92` adjacent to the call setup, with `lui v0,%hi(D_008106B0)`
-// interleaved before `sb 0x3B92`, matching CW exactly. This removed the need
+// emits the byte store to 0x70003B92 adjacent to the call setup, with the
+// %hi(D_008106B0) load interleaved before that store, matching CW exactly. This removed the need
 // for the old asm-void .word form. 991202 stalls at 90.77%; mwcc 2.3.3
 // byte-matches.
 extern char D_008106B0[0x80];

@@ -2,7 +2,7 @@
 //
 // objdiff 95.83% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Prologue instruction-scheduling artifact: body 100% identical except one instruction's position. The target schedules `lbu a1,0xd(a0)` (reading *(self+0xD) through the param reg a0) BEFORE the `paddub s0,a0,zero` self->s0 save; mwcc 2.3.3/991202 both emit the save first then read `lbu a1,0xd(s0)`...
+// Prologue instruction-scheduling artifact: body 100% identical except one instruction's position. The target reads the byte at self+0xD through the param reg a0 BEFORE saving self into s0; mwcc 2.3.3/991202 both emit the save first and then read the byte through s0 (details below).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -21,9 +21,9 @@
 // count at self+9, calls anim_bone_array_setup(self+0xC) and returns 0.
 //
 // Body byte-identical to the target on mwcc 2.3.3; the SOLE residual is one
-// prologue instruction's schedule: the target emits `lbu a1,0xd(a0)` (reading
+// prologue instruction's schedule: the target loads the +0xD byte into a1 (reading
 // the +0xD arg through the param reg a0) BEFORE copying self into s0, whereas
-// mwcc emits the s0 save first then `lbu a1,0xd(s0)`. Register coloring
+// mwcc emits the s0 save first then reads the byte through s0. Register coloring
 // (self=s0,i=s1,p=s2), control flow, and the gp-rel split (D_00275BCC gp-rel,
 // D_0028A59C forced %hi/%lo via the >threshold array decl) all match exactly.
 // Pure list-scheduler permutation -> permuter territory.

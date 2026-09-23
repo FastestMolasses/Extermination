@@ -13,10 +13,10 @@
 //
 // Built with mwcc 2.3.3: 991202 reschedules the long 64-bit OR / store chain
 // and caps at 71.7%. The function genuinely has NO return value (the target
-// ends with sd a0,0x68(t8) in the jr delay slot and no addiu v0) - declaring
+// ends with the doubleword store to +0x68 in the return delay slot and never sets v0) - declaring
 // it void was the byte-exact key. &D_00275670[arg0] (array-index form) makes
 // mwcc load the gp-rel base before the index multiply (CW operand order);
-// the merged words use (long long)(int) casts to emit the dsll32/dsra32
+// the merged words use (long long)(int) casts to emit the 64-bit shift-pair
 // sign-extend idiom. Verified objdiff 100.0% vs build/expected.
 typedef unsigned __int128 u128;
 extern char **D_00275670;

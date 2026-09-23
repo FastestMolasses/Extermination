@@ -26,7 +26,7 @@ YOUR FUNCS: ${funcs.map(f => (typeof f === 'string' ? f : `${f.func}${f.pct != n
 === STEP 0 — GET THE JTBL-AWARE m2c BASE (critical, do this FIRST per func) ===
   PAIR=$(.venv/bin/python3 tools/match/jtbl_prep.py <F>)          # prints two paths: "<F>.s <F>.jtbl.s"
   .venv/bin/python3 tools/m2c/m2c.py --target mipsee-mwcc-c --valid-syntax \${=PAIR} 2>/dev/null | .venv/bin/python3 tools/match/m2c_clean.py
-  (zsh: \${=PAIR} to word-split; bash: \$PAIR is fine. If jtbl_prep prints NOJTBL/ERROR, recover the switch BY HAND from the .s: dispatch is lbu idx; sltiu $at,idx,N; ...; lw $v0,jtbl; jr $v0 — read the N entries from the .jtbl.s / data .s in case order.)
+  (zsh: \${=PAIR} to word-split; bash: \$PAIR is fine. If jtbl_prep prints NOJTBL/ERROR, recover the switch BY HAND from the .s: dispatch is: load the byte index, bounds-check it against N, load the table entry, jump through it — read the N entries from the .jtbl.s / data .s in case order.)
 The output should contain a real switch(x){case 0: ...}. Case k MUST be the k-th positional table entry — keep exact case count including empty/fallthrough cases.
 
 === REWRITE IN THE COMMITTED-SRC CONVENTION (this is what gets committed) ===

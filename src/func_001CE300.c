@@ -106,8 +106,8 @@ void func_001CE300(int tag, const Vec4 *quad, u64 tex0, u32 rgba)
 
         v = (GsVtx *)(p + 0x20);
 
-        fog = *(Vec4 *)(D_00275670 + 0xA0);               /* lqc2 vf23           */
-        vpm = *SPR_MTX_VP;                                /* lqc2 vf28..vf31     */
+        fog = *(Vec4 *)(D_00275670 + 0xA0);               /* fog params, one VU0 register */
+        vpm = *SPR_MTX_VP;                                /* view-projection, 4 VU0 rows */
 
         /* --- transform every clipped vertex --------------------------------- */
         for (k = 0; k < count; k++) {
@@ -123,14 +123,14 @@ void func_001CE300(int tag, const Vec4 *quad, u64 tex0, u32 rgba)
             clip.w = vpm.r[0].w * src->pos.x + vpm.r[1].w * src->pos.y
                    + vpm.r[2].w * src->pos.z + vpm.r[3].w;
 
-            q     = 1.0f / clip.w;            /* vdiv Q, vf0w, vf2w             */
-            wbias = clip.w - 1.0f;            /* vsubx.w with vf3.x = 1.0f      */
+            q     = 1.0f / clip.w;            /* VU0 divide into Q: 1 / clip.w */
+            wbias = clip.w - 1.0f;            /* w lane minus a 1.0f broadcast */
 
-            f = fog.z + fog.w * wbias;        /* vmulaz.w + vmaddw.w            */
-            if (f > fog.x) { f = fog.x; }     /* vminix.w                       */
-            if (f < 0.0f)  { f = 0.0f; }      /* vmaxx.w (vf0.x == 0)           */
+            f = fog.z + fog.w * wbias;        /* w-lane multiply-accumulate    */
+            if (f > fog.x) { f = fog.x; }     /* w-lane min against fog.x      */
+            if (f < 0.0f)  { f = 0.0f; }      /* w-lane max against zero       */
 
-            v->xyzf[0] = (int)((clip.x * q)     * 16.0f);   /* vftoi4.xyzw      */
+            v->xyzf[0] = (int)((clip.x * q)     * 16.0f);   /* to 12.4 fixed  */
             v->xyzf[1] = (int)((clip.y * q)     * 16.0f);
             v->xyzf[2] = (int)((clip.z / wbias) * 16.0f);
             v->xyzf[3] = (int)(f                * 16.0f);

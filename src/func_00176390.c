@@ -2,7 +2,7 @@
 //
 // objdiff 91.67% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// backend artifacts: (1) target speculates paddub a0,s2 into the 'if(e==NULL)' beqz delay slot (idiom-13/14 fill) where mwcc leaves a nop; (2) e+2 byte read colored to a0 in target, a1 in mwcc; (3) sp+offset address folding on the buf[arg3] load (addu a0,v1,sp + lw 0x40(a0) vs addiu a0,sp,0x40 + ad...
+// backend artifacts: (1) target speculates the s2 -> a0 copy into the 'if(e==NULL)' branch delay slot (idiom-13/14 fill) where mwcc leaves a nop; (2) e+2 byte read colored to a0 in target, a1 in mwcc; (3) sp+offset address folding on the buf[arg3] load (the target adds sp to the index and loads at +0x40; mwcc forms sp+0x40 first).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

@@ -2,7 +2,7 @@
 //
 // objdiff 96.64% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// idiom-13 const-store delay-slot NOP x2: target leaves a NOP in the beqz delay slot before a global-address `lui at,0x7000` (the else-store at 0x700031D0 and the flags&0x80000000 guard); mwcc 2.3.3 and 991202 both speculatively fill the slot with the lui. Body otherwise byte-identical. Genuine bac...
+// idiom-13 const-store delay-slot NOP x2: target leaves a NOP in the beqz delay slot before a global-address scratchpad-base lui (upper half 0x7000; the else-store at 0x700031D0 and the flags&0x80000000 guard); mwcc 2.3.3 and 991202 both speculatively fill the slot with the lui. Body otherwise byte-identical. Genuine bac...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -25,7 +25,7 @@
 //
 // WALL: idiom-13 const-store delay-slot NOP, x2. At `if(mode!=0){...}else{*(int*)0x700031D0=0;}` and the
 // `flags&0x80000000` guard, the target leaves a NOP in the conditional-branch delay slot whose successor
-// first instr is a GLOBAL address `lui at,0x7000`; mwcc 2.3.3 (and 991202) speculatively fill that slot
+// first instr is a GLOBAL address scratchpad-base lui (0x7000); mwcc 2.3.3 (and 991202) speculatively fill that slot
 // with the lui. Per docs/fanout/MATCHING_GUIDE.md this is matchable ONLY when the slot candidate is a
 // memory load — here it is a global lui, so it is a genuine backend wall. Body is otherwise byte-identical.
 extern void func_001028D0(void *a, void *b, void *c);

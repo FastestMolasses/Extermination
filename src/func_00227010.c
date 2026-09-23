@@ -13,11 +13,11 @@
 //
 // Matched 100.0 with mwcc 2.3.3 (mwcps2-2.3.3-000906); pinned 991202 reaches 90.8.
 // Keys: (1) func_001FCBD0's real arity is 5 -- the trailing 0x70808080 emits the
-// `lui v0,0x7080 / ori t0,v0,0x8080` pair the target sets up before each call;
-// (2) the arg0[0xA]+arg0+0x6C index must be byte-first to reproduce `addu v1,v1,s0`
+// two-instruction constant build (into t0, the fifth argument) the target sets up before each call;
+// (2) the arg0[0xA]+arg0+0x6C index must be byte-first to reproduce the byte + arg0 add order
 // -- written as ((int)byte + (int)arg0 + 0x6C); (3) an ASCENDING switch(st) plus a
 // single shared `return 0` tail reproduces CW's merged return-0 epilogue, and the
-// explicit `return 0` right after func_00225CF0 lets mwcc drop `paddub v0,zero,zero`
+// explicit `return 0` right after func_00225CF0 lets mwcc drop the return-0 register clear
 // into that call-path branch's delay slot (the target's clean-store-style slot fill).
 extern void func_001FCBD0(int, int, int, int, int);
 extern void func_00225CF0(unsigned char *, int, int);

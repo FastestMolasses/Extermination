@@ -53,8 +53,8 @@ void func_001F15F0(char *actor, int node, int samp)
 
     blk = func_001CB5F0(D_007635C0, page, 0x3E);
 
-    ((u64 *)blk)[0] = 0;                         /* VIFcode NOP, NOP */
-    ((u64 *)blk)[1] = 0;                         /* VIFcode NOP      */
+    ((u64 *)blk)[0] = 0;                         /* two VIFcode no-ops */
+    ((u64 *)blk)[1] = 0;                         /* VIFcode no-op     */
     *(u32 *)(blk + 0x0C) = 0x50000000 | (0x3E - 1);   /* DIRECT, 61 qwords */
     blk += 0x10;
 
@@ -100,7 +100,7 @@ void func_001F15F0(char *actor, int node, int samp)
             }
         }
         iter++;
-        /* The .s skips this test on the first pass (`beqz s0`), i.e. do/while. */
+        /* The .s skips this test on the first pass (it branches on s0 == 0), i.e. do/while. */
     } while (node != node0 || samp != samp0);
 
     func_001CB900(D_007635C0, page, 2);
@@ -115,16 +115,16 @@ static void vu0_project_xyzf2(const Mtx4 *cam, const Vec4 *fog,
     float y = cam->c0.y * p->x + cam->c1.y * p->y + cam->c2.y * p->z + cam->c3.y;
     float z = cam->c0.z * p->x + cam->c1.z * p->y + cam->c2.z * p->z + cam->c3.z;
     float w = cam->c0.w * p->x + cam->c1.w * p->y + cam->c2.w * p->z + cam->c3.w;
-    float q = 1.0f / w;                 /* vdiv Q, vf0.w, vf2.w  +  vwaitq */
+    float q = 1.0f / w;                 /* VU0 divide unit: Q = 1.0 / w, then wait */
     float f;
 
-    x *= q;                             /* vmulq.xyz */
+    x *= q;                             /* xyz scaled by Q */
     y *= q;
     z *= q;
 
-    f = fog->z + fog->w * w;            /* vmulaz.w + vmaddw.w */
-    if (f > fog->x) f = fog->x;         /* vminix.w (fog.x == 255.0) */
-    if (f < 0.0f)   f = 0.0f;           /* vmaxx.w  (vf0.x  == 0.0)  */
+    f = fog->z + fog->w * w;            /* w-lane multiply-accumulate: 1.0 * fog.z, then + fog.w * w */
+    if (f > fog->x) f = fog->x;         /* VU min against fog.x (== 255.0) */
+    if (f < 0.0f)   f = 0.0f;           /* VU max against vf0.x (== 0.0)   */
 
     out[0] = (u32)(int)(x * 16.0f);     /* vftoi4: 12.4 screen X */
     out[1] = (u32)(int)(y * 16.0f);     /*         12.4 screen Y */

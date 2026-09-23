@@ -11,7 +11,7 @@
 _start = 0x00100008;  // type:func
 
 // Split-function boundary fix (s84): splat false-split one function into a HEAD
-// (prologue, no jr ra) + TAIL (no prologue, real epilogue). 0x00140004 has zero
+// (prologue, no return jump) + TAIL (no prologue, real epilogue). 0x00140004 has zero
 // jal/jalr references — it is fall-through, not a callee. Explicit size merges
 // the pair back into one function (0x13F770..0x14043C = 0x894 + 0x438 = 0xCCC).
 func_0013F770 = 0x0013F770;  // type:func size:0xCCC
@@ -21,8 +21,8 @@ func_001FFCD0 = 0x001FFCD0;  // type:func size:0x688  (merged TAIL func_00200004
 func_00200A40 = 0x00200A40;  // type:func size:0x848  (merged TAIL func_00201000, 0 jal refs)
 
 // EE-kernel syscall stubs (auto-named from the public PS2 SDK
-// syscall-number table; mapped via the addiu $v1,$zero,N in each
-// stub).
+// syscall-number table; mapped via the syscall number N that each
+// stub loads before trapping).
 RFU000_FullReset = 0x0010B400;  // type:func
 ResetEE = 0x0010B410;  // type:func
 SetGsCrt = 0x0010B420;  // type:func

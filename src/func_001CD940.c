@@ -36,8 +36,9 @@ typedef struct Vec4 {
     float x, y, z, w;
 } Vec4;
 
-/* vmulax/vmadday/vmaddaz/vmaddw ACC chain: row-vector point transform,
-   with w taken from vf0.w == 1.0 rather than from the source vector. */
+/* VU0 accumulator chain (one multiply and two multiply-adds into ACC, then a
+   final multiply-add that writes the result): row-vector point
+   transform, with w taken from the constant 1.0 in VU0 register 0's w lane rather than from the source vector. */
 static Vec4 vu0_transform_point(const volatile float *m, const Vec4 *v)
 {
     Vec4 r;
@@ -48,7 +49,7 @@ static Vec4 vu0_transform_point(const volatile float *m, const Vec4 *v)
     return r;
 }
 
-/* vclipw.xyz + cfc2 $vi18: 1 if any of x, y, z falls outside +/-w. */
+/* VU0 clip test (flags read back from the clip-flag register): 1 if any of x, y, z falls outside +/-w. */
 static int vu0_clip_outside(const Vec4 *p)
 {
     return p->x >  p->w || p->x < -p->w
@@ -56,7 +57,7 @@ static int vu0_clip_outside(const Vec4 *p)
         || p->z >  p->w || p->z < -p->w;
 }
 
-/* vftoi4: float -> 28.4 fixed point, truncating toward zero. */
+/* VU0 float-to-fixed conversion: float -> 28.4 fixed point, truncating toward zero. */
 static int vu0_ftoi4(float f)
 {
     return (int)(f * 16.0f);
@@ -72,9 +73,9 @@ static void project_endpoint(const volatile float *fogp, const Vec4 *world,
     cs.y /= cs.w;
     cs.w -= 1.0f;                        /* hard-coded depth bias */
     cs.z /= cs.w;
-    cs.w = fogp[2] + fogp[3] * cs.w;     /* vmulaz.w / vmaddw.w */
-    if (cs.w > fogp[0]) { cs.w = fogp[0]; }   /* vmini.w */
-    if (cs.w < 0.0f)    { cs.w = 0.0f; }      /* vmax.w against vf0.x == 0 */
+    cs.w = fogp[2] + fogp[3] * cs.w;     /* VU0 multiply-add on the w lane */
+    if (cs.w > fogp[0]) { cs.w = fogp[0]; }   /* VU0 min */
+    if (cs.w < 0.0f)    { cs.w = 0.0f; }      /* VU0 max against the constant zero lane */
 
     out[0] = vu0_ftoi4(cs.x);
     out[1] = vu0_ftoi4(cs.y);
@@ -94,7 +95,7 @@ static void modulate_colour(int mode, volatile int *pos, volatile int *col)
         col[3] = (col[3] * pos[3]) >> 8;          /* alpha only */
     } else if (mode == 3 || mode == 2) {
         col[0] = (col[0] * pos[3]) >> 8;          /* r */
-        col[1] = (col[1] * pos[3]) >> 8;          /* g — issued on `mult1` */
+        col[1] = (col[1] * pos[3]) >> 8;          /* g — issued on the EE's second multiply pipeline */
         col[2] = (col[2] * pos[3]) >> 8;          /* b */
     }
     /* every non-zero mode ends with full fog in the emitted vertex */

@@ -156,8 +156,8 @@ six fixes:
      are part of the original binary layout.  The extension path in `resize_text()`
      handles the rare case where slot > 16-byte-padded nm_size.
 
-4. **GPREL16 pre-application** — splat disassembles `lw $x, %gp_rel(sym)($gp)`
-   references.  GNU-as emits `R_MIPS_GPREL16` for these.  mwldmips applies
+4. **GPREL16 pre-application** — splat disassembles gp-relative loads (offset `%gp_rel(sym)` from `$gp`)
+   as symbol references.  GNU-as emits `R_MIPS_GPREL16` for these.  mwldmips applies
    GPREL16 only to actual `.sdata` symbols, not absolute symbols from the LCF.
    We pre-apply the relocations in Python: `offset = (sym_addr + addend) - _gp`,
    preserving the REL addend embedded in the instruction's immediate field
@@ -192,7 +192,7 @@ becomes inline-patched by `strip_sections.py`).
 
 Functions whose compiled `build/obj/*.o` has a different `.text` size or
 different instruction bytes from the original binary.  Causes include:
-- Dead-store elimination of delay-slot `daddu $rN, $zero, $zero` nops
+- Dead-store elimination of delay-slot register-clear fillers (a register set to zero as a no-op)
 - Different code generation (e.g., SIMD vs. scalar load sequences)
 - Incomplete matching (function compiled to wrong but similarly-sized code)
 

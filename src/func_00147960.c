@@ -8,7 +8,7 @@
 //     0 -> self[6] = 1, arm the arg1+0x28 countdown with (u16)(((rand>>18)&0x7F)+0x78)
 //          and, if the flag word at self+0x2C (masked ~0x8000) is set, start clip 0
 //     1 -> self[6] = 2 and start clip 1 (the `zi = 0; z = (float)zi;` staging is
-//          load-bearing: it makes mwcc emit `mtc1 zero,$f13` ahead of `mtc1 $v0,$f12`)
+//          load-bearing: it makes mwcc emit the zero move into $f13 ahead of the $v0 move into $f12)
 //     2 -> hand off: self[5] = 1, self[6] = 0
 // State 1: count the arg1+0x28 timer down; when it reaches 0 reset self[6].
 // State 2: when arg1+0x20 has bit 0x1000 set, reset self[6].

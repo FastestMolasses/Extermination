@@ -46,8 +46,10 @@ extern float D_00253530[12];
 extern float VF23_x, VF23_z, VF23_w;
 
 /* --- VU0 macro-mode helpers, written out as plain scalar float math --------
-   vmulax / vmadday / vmaddaz / vmaddw against ACC is exactly a row-vector by
-   4x4 matrix multiply with v.w forced to 1.0 (the vf0.w operand). */
+   one VU0 multiply and two multiply-adds into ACC, then a final multiply-add
+   that writes the result, is exactly
+   a row-vector by 4x4 matrix multiply with v.w forced to 1.0 (the constant w
+   lane of VU0 register 0). */
 static Vec4 vu0_transform(const Vec4 *m, Vec4 v) {
     Vec4 r;
     r.x = m[0].x * v.x + m[1].x * v.y + m[2].x * v.z + m[3].x;
@@ -57,7 +59,7 @@ static Vec4 vu0_transform(const Vec4 *m, Vec4 v) {
     return r;
 }
 
-/* vclipw.xyz + `cfc2 $vi18; andi 0x3F`: the VU0 clip unit compares +-w against
+/* VU0 clip test (low six clip-flag bits): the VU0 clip unit compares +-w against
    x,y,z and leaves six sticky bits in CLIPflag. Non-zero => outside the frustum.
    There is no C equivalent; this is the exact predicate it computes. */
 static int vu0_clip_outside(Vec4 c) {
@@ -67,7 +69,7 @@ static int vu0_clip_outside(Vec4 c) {
            (c.z > w) || (c.z < nw);
 }
 
-/* vftoi4: convert to signed 12.4 fixed point (truncating, saturating). */
+/* VU0 float-to-fixed conversion: convert to signed 12.4 fixed point (truncating, saturating). */
 static int vu0_ftoi4(float f) { return float_to_int(f * 16.0f); }
 
 void func_001E0750(const Vec4 *pos, const int *style) {
@@ -104,15 +106,15 @@ void func_001E0750(const Vec4 *pos, const int *style) {
     scr = vu0_transform(screen_mtx, *pos);
     w = scr.w;                              /* clip w, kept before the divide */
 
-    /* vdiv Q, vf0w, vf2w  +  vwaitq  +  vmulq.xy : perspective divide on x,y */
+    /* VU0 divide unit (1 / w) then scale x,y: perspective divide on x,y */
     scr.x = scr.x / scr.w;
     scr.y = scr.y / scr.w;
 
-    /* The target subtracts a w-bias staged through qmtc2; here the bias is
+    /* The target subtracts a w-bias staged through a GPR-to-VU0 move; here the bias is
        0.0f, so this is a no-op. (The sibling func_001E2800 uses 1.0f.)       */
     scr.w = scr.w - 0.0f;
 
-    /* second vdiv / vwaitq / vmulq.z: perspective divide on z */
+    /* second VU0 divide (1 / w) and scale of z: perspective divide on z */
     scr.z = scr.z / scr.w;
 
     /* depth-fade: clamp(vf23.z + vf23.w * w, 0.0f, vf23.x) */
@@ -121,7 +123,7 @@ void func_001E0750(const Vec4 *pos, const int *style) {
     if (depth < 0.0f)   depth = 0.0f;
     scr.w = depth;
 
-    /* vftoi4.xyzw + sqc2 into the shared scratchpad projected-point slot */
+    /* all four lanes converted to 12.4 fixed point and stored as one quadword into the shared scratchpad projected-point slot */
     SPR_PROJECTED[0] = vu0_ftoi4(scr.x);
     SPR_PROJECTED[1] = vu0_ftoi4(scr.y);
     SPR_PROJECTED[2] = vu0_ftoi4(scr.z);
@@ -131,7 +133,7 @@ void func_001E0750(const Vec4 *pos, const int *style) {
     scale = 8.0f * (256.0f / w);            /* == 2048/w, in 12.4 screen units */
 
     /* local copy of the corner-offset table (the target does this with three
-       128-bit lq/sq pairs) */
+       128-bit quadword load/store pairs) */
     for (i = 0; i < 12; i++) {
         corner[i] = D_00253530[i];
     }

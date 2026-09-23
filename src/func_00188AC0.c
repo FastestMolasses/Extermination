@@ -11,9 +11,9 @@
 //
 // Matched with mwcc 2.3.3 (mwcps2-2.3.3-000906) at objdiff 100.0; the pinned
 // 991202 build reaches 89.6%. Two keys: (1) the state dispatch must be a switch
-// (ascending case labels 0,1) so mwcc emits the target's descending beq==1 /
-// beqz==0 dispatch with the early-epilogue default; (2) -sdatathreshold 4 puts
-// only the 4-byte pointer D_00275B40 in sdata (gp-relative `lw v1,0(gp)`), so the
+// (ascending case labels 0,1) so mwcc emits the target's descending equal-to-1 then
+// zero-test dispatch with the early-epilogue default; (2) -sdatathreshold 4 puts
+// only the 4-byte pointer D_00275B40 in sdata (a gp-relative load), so the
 // far 0x810xxx globals are declared oversized (arrays) to keep them absolute.
 extern void copy_qw4(void *dst, void *src);
 extern void func_0015C310(char *p, int n);

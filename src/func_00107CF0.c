@@ -2,7 +2,7 @@
 //
 // objdiff 98.02% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler wall. 104/105 instructions byte-identical; the ONLY diff is the 4th call's argument copy `daddu a0,s2,zero`, which our build schedules one slot earlier (between `dsll v0,v0,31` and `dsra32 v0,v0,0`) than the target (which emits it right after the dsra32). Pure sched2 ready-li...
+// eegcc list-scheduler wall. 104/105 instructions byte-identical; the ONLY diff is the 4th call's first-argument copy (a0 = s2), which our build schedules one slot earlier (between the two halves of the 64-bit bit-31 sign-extension shift pair) than the target (which emits it right after the pair). Pure sched2 ready-li...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

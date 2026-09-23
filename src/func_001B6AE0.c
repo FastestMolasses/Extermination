@@ -9,7 +9,7 @@
 //   - state 2: report done (return 1) once the global flag D_008106F4 == 1.
 //
 // Built with mwcc 2.3.3: the float-constant 1.0 must land in $f2 (matching the
-// target add.s $f1,$f2,$f1); hoisting it to a named local `one` forces that FP
+// target's register assignment for the timer + 1.0 float add); hoisting it to a named local `one` forces that FP
 // register assignment. objdiff 100.0 vs expected; pinned 991202 = 98.5%.
 extern int func_00119828(int, int, int);
 extern void func_001FD4C0(int);

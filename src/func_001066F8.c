@@ -2,7 +2,7 @@
 //
 // objdiff 98.25% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// eegcc GPR-coloring wall (confirmed). Body/structure/opcodes all correct; the only residual is that expected colors the IPU_CMD constant 0x40000000 into $a1 (`lui a1,0x4000`, twice — once per predecessor block) while ee-gcc 2.9-991111-01 colors it into $a0. That steals $a0 from the &D_00241170 arg...
+// eegcc GPR-coloring wall (confirmed). Body/structure/opcodes all correct; the only residual is that expected colors the IPU_CMD constant 0x40000000 into $a1 (its upper-half load appears twice — once per predecessor block) while ee-gcc 2.9-991111-01 colors it into $a0. That steals $a0 from the &D_00241170 arg...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

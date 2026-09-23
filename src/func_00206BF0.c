@@ -2,7 +2,7 @@
 //
 // objdiff 97.40% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Single-store addressing-mode/scheduling artifact: the CW target materializes &v34 into a register (addiu v1,sp,0x34) as the first of the five pre-call address setups and stores D_00275850 indirectly (sw v0,0(v1)) in the func_00206B00 delay slot; mwcc 2.3.3 instead emits the equivalent direct sw v...
+// Single-store addressing-mode/scheduling artifact: the CW target materializes &v34 into a register (sp + 0x34) as the first of the five pre-call address setups and stores D_00275850 indirectly through it in the func_00206B00 delay slot; mwcc 2.3.3 instead emits the equivalent direct sp-relative store (rest of the note: docs/NEARMISS.md).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -15,7 +15,7 @@
 // store addressing-mode/scheduling artifact (see wall).
 // Reads gp-rel global D_00275850 into local v34, calls func_00206B00 to fill four
 // out-params (v2C,v38,v30,v3C), early-returns 0 if v38+v3C<4. Builds two GIT/DMA-
-// tag words via the (x<<36)>>36 | 0x20000000 dsll32/dsrl32 mask idiom and calls
+// tag words via the (x<<36)>>36 | 0x20000000 64-bit shift-left / shift-right mask idiom and calls
 // func_00207150(tag(v2C), v38, tag(v30), v3C, &v34, 4, 0, 0); feeds its result
 // into func_00206B10(D_002DF740, r); calls func_00204B80(a0+0x48); then
 // if (*(int*)(a0+0xA8)==0) *(int*)(a0+0xA8)=2; returns 1.

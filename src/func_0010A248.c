@@ -2,7 +2,7 @@
 //
 // objdiff 57.26% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc list-scheduler permutation wall. Reg-alloc and all instructions match the target exactly (verified via objdiff alignment); the two residual differences are pure scheduling: (1) the epilogue `ld ra` is hoisted earlier in target than gcc places it for our source, and (2) the `sw zero,0x280(v1)` store is the 2nd...
+// ee-gcc list-scheduler permutation wall. Reg-alloc and all instructions match the target exactly (verified via objdiff alignment); the two residual differences are pure scheduling: (1) the epilogue's return-address reload is hoisted earlier in target than gcc places it for our source, and (2) the zero store to +0x280 is the 2nd...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

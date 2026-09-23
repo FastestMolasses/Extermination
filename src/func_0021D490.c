@@ -8,7 +8,7 @@
 // (ignored) leading param both flows through with no reload AND advances the
 // integer-arg slots so the id lands in a1 / the 0 in a2 while the float
 // constant 300.0f (0x43960000) occupies fa0. The float is rematerialized via
-// a duplicate `lui v0,0x4396` in the else-path branch-delay slot -- CW codegen
+// a duplicate upper-half load of 0x4396 in the else-path branch-delay slot -- CW codegen
 // the pinned 991202 build drops (walled at 95%); mwcc 2.3.3
 // (mwcps2-2.3.3-000906) keeps it and is byte-identical. Verified objdiff 100%
 // vs build/expected/func_0021D490.o.

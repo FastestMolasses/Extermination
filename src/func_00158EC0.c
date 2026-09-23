@@ -46,7 +46,7 @@
 // NOTE (matching): the explicit `(void *)` cast on the second argument of
 // func_001BA1A0 is load-bearing -- it reproduces CW's "materialise the address in a
 // temp, then move it into $a1" argument setup instead of mwcc's direct
-// `addiu a1, v0, %lo(...)`.  Worth 93.05 -> 99.67 on its own.
+// low-half add straight into $a1.  Worth 93.05 -> 99.67 on its own.
 
 extern int  func_001B0FD0(void);
 extern void func_001C6380(unsigned char *p);

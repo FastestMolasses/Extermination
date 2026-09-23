@@ -2,7 +2,7 @@
 //
 // objdiff 85.20% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// Branch-likely wall: original emits `bgezl $v0` (branch-likely) in the post-jal sign test, but the rebuilt ee-gcc 2.9-991111-01 cc1 never emits branch-likely (bgezl/bnel/beql) - confirmed across -O0/-O1/-O2/-mips2/-mips3, always produces `bltz` plus an extra `move v0,v1`, giving size 0x68 vs expected 0x70. All other ...
+// Branch-likely wall: original emits a branch-likely bgezl on the returned value in the post-jal sign test, but the rebuilt ee-gcc 2.9-991111-01 cc1 never emits branch-likely of any form - confirmed across -O0/-O1/-O2/-mips2/-mips3, always produces a plain bltz plus an extra v0 = v1 copy, giving size 0x68 vs expected 0x70. All other ...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

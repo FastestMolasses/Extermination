@@ -16,7 +16,7 @@
 //            use the target's beql branch-likely with the return value (paddub) in
 //            the delay slot -- reproduced by the ascending-case switch.
 //   state 2: return 1.
-// Shared epilogue: return D_00275C58 ? 2 : 0  (the movz v0,zero,D_00275C58 idiom).
+// Shared epilogue: return D_00275C58 ? 2 : 0  (the conditional-move idiom).
 extern int func_001FE9A0(int, char *, char *);
 extern int func_001FEC20(int, int, int, int, int, int);
 extern void func_00121A28(int, int, int);

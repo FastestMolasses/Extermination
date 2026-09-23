@@ -117,16 +117,16 @@ static void vu0_project_xyzf2(const Mtx4 *cam, const Vec4 *fog,
     float y = cam->c0.y * p->x + cam->c1.y * p->y + cam->c2.y * p->z + cam->c3.y;
     float z = cam->c0.z * p->x + cam->c1.z * p->y + cam->c2.z * p->z + cam->c3.z;
     float w = cam->c0.w * p->x + cam->c1.w * p->y + cam->c2.w * p->z + cam->c3.w;
-    float q = 1.0f / w;                 /* vdiv Q, vf0.w, vf2.w  +  vwaitq */
+    float q = 1.0f / w;                 /* VU0 divide unit: Q = 1.0 / w, then wait */
     float f;
 
-    x *= q;                             /* vmulq.xyz */
+    x *= q;                             /* xyz scaled by Q */
     y *= q;
     z *= q;
 
-    f = fog->z + fog->w * w;            /* vmulaz.w + vmaddw.w */
-    if (f > fog->x) f = fog->x;         /* vminix.w  (fog.x == 255.0) */
-    if (f < 0.0f)   f = 0.0f;           /* vmaxx.w   (vf0.x  == 0.0)  */
+    f = fog->z + fog->w * w;            /* w-lane multiply-accumulate: 1.0 * fog.z, then + fog.w * w */
+    if (f > fog->x) f = fog->x;         /* VU min against fog.x (== 255.0) */
+    if (f < 0.0f)   f = 0.0f;           /* VU max against vf0.x (== 0.0)   */
 
     /* vftoi4: fixed point with 4 fractional bits. Lanes 0/1 become the 12.4
      * screen X/Y, lane 2 the GS Z (XYZF2 stores it at bits 68..91, i.e. lane 2

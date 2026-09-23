@@ -6,9 +6,9 @@
 // with the record's D_0026EB70 template slot, caching the returned handle back
 // into the record.
 // The `int i = p->kind;` temp is load-bearing: it makes the table index
-// materialize ahead of the vector stores (target's `lh v1,4(s0)` first), and the
+// materialize ahead of the vector stores (the target loads the +4 kind short first), and the
 // `int zi = 0; float z = (float)zi;` staging (idiom-24) is what puts
-// `mtc1 zero,$f13` ahead of `mtc1 $a3,$f12` at the call.
+// the zero move into $f13 ahead of the a3 move into $f12 at the call.
 
 struct PlaceRec {
     short live;   /* 0x00 - negative terminates the table */

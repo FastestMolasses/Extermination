@@ -10,9 +10,9 @@
 // Matched on mwcc 2.3.3 (mwcps2-2.3.3-000906): under 991202 the lone residual
 // is the clean-store delay-slot wall (89.19%). 2.3.3 leaves CW's nop and is
 // byte-identical. -sdatathreshold 8 makes the gp-base symbol D_0027D370
-// gp-relative (CW's addiu v0, gp, %gp_rel form); the high D_0081xxxx globals
+// gp-relative (CW's gp + %gp_rel address form); the high D_0081xxxx globals
 // are declared as incomplete arrays so mwcc keeps them out of small data
-// (absolute lui/lo), each as its own relocation. Verified objdiff 100% vs
+// (absolute %hi/%lo addressing), each as its own relocation. Verified objdiff 100% vs
 // build/expected/func_001F9780.o.
 extern int CreateThread(int, int);
 extern int DisableDispatchThread(int, int);

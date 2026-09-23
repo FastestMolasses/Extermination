@@ -19,7 +19,7 @@
 //
 // Matched 100.0 with mwcc 2.3.3 (mwcps2-2.3.3-000906); pinned 991202 reaches
 // 83.1%. Two keys: (1) func_001C2770 takes the literal 6 as its THIRD arg (it is
-// emitted as `addiu a2,zero,6` with a0/a1 left holding the inbound arg0/arg1),
+// materialized straight into the third argument register, with a0/a1 left holding the inbound arg0/arg1),
 // so it is prototyped `int func_001C2770();` and called func_001C2770(arg0,arg1,6);
 // (2) the result must be computed BEFORE the state byte is read (chk= call; then
 // st = *(arg0+6)) to reproduce the prologue's load-after-call ordering.

@@ -8,7 +8,7 @@
 // func_001CB760(D_007635C0, 0xFFF000, func_001DF020_ret, p).
 //
 // Needs -sdatathreshold 4 so the pointer global D_00275670 is gp-relative
-// (matches `lw t1, %gp_rel(D_00275670)(gp)`); D_007635C0 is declared as an open
+// (matches the original's gp-relative load of it); D_007635C0 is declared as an open
 // array so it stays absolute (%hi/%lo) rather than going gp-rel. The base
 // pointer is cached once in a local to reproduce the single gp_rel load reused
 // across all field accesses.

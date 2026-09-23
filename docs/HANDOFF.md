@@ -718,8 +718,8 @@ func_00180850 and the remaining object residual in func_00135D00.
 Two useful earlier wins:
 
 **idiom-29 (strength-reduced multiply: fresh vs in-place shift destination).** The original
-allocates a **fresh** register for the final shift (`sll FRESH,src,k` / `sra FRESH,FRESH,15` /
-`addiu src,FRESH,B`); all three installed mwcc builds reuse the dying source register in place.
+allocates a **fresh** register for the final shift (`FRESH = src << k; FRESH >>= 15;
+src = FRESH + B`); all three installed mwcc builds reuse the dying source register in place.
 The fix is a **source spelling**, not a flag: make the multiply and the shift compound
 assignments on the *same* variable.
 
@@ -816,7 +816,7 @@ harness.
   positives. Suppressing them means editing the segment config; not worth risking byte-identity
   for a counter.
 - **`sub_D2_TADR_08x`** is an alias of the already-decompiled `0x00100A60`.
-- **`func_001000B0`** is a genuine 2-instruction syscall thunk (`addiu $v1,$zero,0x23` + `syscall`).
+- **`func_001000B0`** is a genuine 2-instruction syscall thunk (it loads syscall number 0x23 and traps).
 - **5** (`func_001CE860`, `anim_eval_skeleton`, `func_001F0A60`, `func_001F6FB0`,
   `sub__0000000000000000Inf`) were decoded to readable C last session, but that C **failed to
   compile** and the wave output has since been lost to temp cleanup. **These need re-deriving.**
@@ -836,8 +836,8 @@ divergence documented per file. Do not burn cycles trying to match them.
 Related: PS2 floats are **not IEEE-754** (flush-to-zero, saturation, round-toward-zero). Note
 the divergence; don't emulate it in the decomp.
 
-One classification trap that cost a lot of time: **`paddub $rd,$rs,$zero` is mwcc's REGISTER
-MOVE idiom, not SIMD.** A classifier that reads it as SIMD will invent a "structural ceiling"
+One classification trap that cost a lot of time: **the EE byte-add of a register with zero is
+mwcc's REGISTER MOVE idiom, not SIMD.** A classifier that reads it as SIMD will invent a "structural ceiling"
 that does not exist. Stripping move idioms first collapsed "genuine SIMD" from 30 functions to 1.
 
 ---

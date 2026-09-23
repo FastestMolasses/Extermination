@@ -26,7 +26,7 @@
 // quadwords: *arg4 -> +0x30, *arg3 -> +0x40, *arg2 -> +0x50, arg3[0x10] -> +0x60,
 // arg2[0x10] -> +0x70. Returns the packet body pointer p + 0x10. The active
 // cursor is reloaded from e+0x10 before each early field write (matching the
-// target's repeated `lw t2,0x10(t4)`). Sibling func_001D7080 (parked asm-void)
+// target's repeated reload of e+0x10). Sibling func_001D7080 (parked asm-void)
 // confirms the same packet-builder shape.
 //
 // Wall: mwcc 2.3.3 colors the pointer/temp regs $a5/$a6/$a7 where CW 2.3.1 used

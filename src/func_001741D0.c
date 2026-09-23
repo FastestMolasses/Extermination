@@ -2,7 +2,7 @@
 //
 // objdiff 97.02% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// 97.018 (mwcc233; 93.21 on 991202, 93.50 on mwcc24). The jtbl dispatch itself MATCHES (lui %hi(@45)/sll/addu/lw/jr and sltiu at,a1,6 all diff-clean; no reloc residual). 12 residual rows, all idiom-13 delay-slot-fill + one dead-dup, none logical: (a) 9 conditional-branch delay slots where CW 2.3.1 ...
+// 97.018 (mwcc233; 93.21 on 991202, 93.50 on mwcc24). The jtbl dispatch itself MATCHES (table address, index scaling, table load, indirect jump and the unsigned a1 < 6 range check all diff-clean; no reloc residual). 12 residual rows, all idiom-13 delay-slot-fill + one dead-dup, none logical: (a) 9 conditional-branch delay slots where CW 2.3.1 ...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -13,7 +13,7 @@
 
 // SEMANTICS: per-frame update for one actor (arg0), split into two independent
 // state machines selected by the mode byte arg0[0x1F0]:
-//   mode 0x38 -> a 6-state jr-table switch on arg0[6] (jtbl_0026D6E0, sltiu 6),
+//   mode 0x38 -> a 6-state jr-table switch on arg0[6] (jtbl_0026D6E0, unsigned bound check < 6),
 //     followed by a common tail (arg0+0xB4 -= 0.2; func_00175900(arg0, 1)):
 //       0: advance, clear arg0[7], func_001749A0(arg0, 2, 1, 0), clear arg0[0x302].
 //       1: build the approach vector at D_700038A0 from arg0+0x290 towards

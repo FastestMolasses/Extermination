@@ -2,7 +2,7 @@
 //
 // objdiff 97.62% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Three residual allocator/scheduler artifact clusters, body/structure fully recovered (19 rows): (1) copy_qw4 arg-chain scratch COLORING swap — 2.3.3 puts the gp-pointer in a1 and the movz index in v1 where the target (and 991202 on the same source!) uses v1/a1, plus the dependent `addu v0,v0,s0` ...
+// Three residual allocator/scheduler artifact clusters, body/structure fully recovered (19 rows): (1) copy_qw4 arg-chain scratch COLORING swap — 2.3.3 puts the gp-pointer in a1 and the conditional-move index in v1 where the target (and 991202 on the same source!) uses v1/a1, plus the dependent index add; (2)/(3) are described in the note below.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

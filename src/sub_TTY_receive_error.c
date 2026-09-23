@@ -2,7 +2,7 @@
 //
 // objdiff 97.11% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// eegcc GPR coloring wall (no permuter lever). Body/structure/size are exact: our .text = 0x194 = the declared function size, and every instruction matches except 4, where the func_0010C8E8 result pseudo is allocated a0 instead of the target's a1 (move a1,v0 / bgezl a1,140 / addu v0,v0,a1 / subu v1...
+// eegcc GPR coloring wall (no permuter lever). Body/structure/size are exact: our .text = 0x194 = the declared function size, and every instruction matches except 4, where the func_0010C8E8 result pseudo is allocated a0 instead of the target's a1 (the copy out of v0, the branch-likely sign test, and the add and subtract that use it).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

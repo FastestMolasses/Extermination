@@ -8,7 +8,7 @@
 // 0xFFFFFF, 0}.
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906): pinning 2400.0f into a named
-// local before the multiply makes mwcc emit `mul.s f12,f12,fconst` with the
+// local before the multiply makes mwcc emit the f12 * const multiply with the
 // arg register first, matching CW's operand order (the 991202/default form
 // canonicalizes the operands the other way). Verified objdiff 100% vs
 // build/expected/func_001DBCB0.o.

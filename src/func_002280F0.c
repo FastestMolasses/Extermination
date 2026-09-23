@@ -2,7 +2,7 @@
 //
 // objdiff 85.14% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation + branch-likely-sense + arg-emit-order permutation across the state machine. CW emits li a0,1 first, colors case-1 literal into t0 (mwcc v0), emits the p+0x20 counter cap as a branch-likely bnezl with the increment in the delay slot (mwcc uses plain bnez), and uses movz vs mwc...
+// Register-allocation + branch-likely-sense + arg-emit-order permutation across the state machine. CW materializes a0 = 1 first, colors case-1 literal into t0 (mwcc v0), emits the p+0x20 counter cap as a branch-likely bnezl with the increment in the delay slot (mwcc uses plain bnez), and uses movz vs mwc...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

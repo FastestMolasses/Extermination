@@ -7,7 +7,7 @@
 // "delay-slot-fill wall" was the literal spelling of the two scratchpad
 // countdowns. As relocated volatile externs (idiom-22/32), over-declared as
 // arrays so -sdatathreshold 8 keeps them absolute (idiom #20), mwcc no longer
-// hoists `lui at,0x7000` into the back-edge slots. 0x70003B86 is in the global
+// hoists the scratchpad-base lui (0x7000) into the back-edge slots. 0x70003B86 is in the global
 // _SPAD_SYMS; 0x70003B88 is opted in by `// SPAD: 0x70003B88`.
 //
 // Two-level scan over two gp-relative object lists. Outer list: pointer array

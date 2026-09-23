@@ -29,9 +29,9 @@
 //
 // WALL: two independent, both permuter-class artifacts. (1) In the five state-0
 // "+= const" tails the target pairs the loaded arg0+0xB4 field into the ODD half of a
-// 64-bit FP register pair with the constant in the EVEN half (`add.s f0,f0f,f0`); mwcc
+// 64-bit FP register pair with the constant in the EVEN half; mwcc
 // 2.3.3 always colors the field into f1 and the constant into f0 regardless of operand
-// order in the source (`add.s f0,f0,f1`) -- confirmed non-fixable by source reordering,
+// order in the source -- confirmed non-fixable by source reordering,
 // same class as func_001509A0. (2) Inside the case-1 first scan loop, the whole s0-s4
 // register set is permuted end-to-end relative to the target (miss-counter / loop
 // index / stride / entry-pointer get different physical registers throughout, though

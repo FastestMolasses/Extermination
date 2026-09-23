@@ -25,7 +25,7 @@
 // func_0017C540 signature is (actor, flags) -- the trailing constant 1 lives in
 // $a2 for the actor+4 / actor+0x317 stores. Sole residual: the target leaves a nop
 // in the first beqz delay slot while both mwcc builds hoist the second HW address
-// `lui at,0x7000` into it -- a delay-slot scheduling artifact 2.3.3 does not fix.
+// high half (0x7000) into it -- a delay-slot scheduling artifact 2.3.3 does not fix.
 extern unsigned short D_00810E70;
 extern void func_0017C540(char *p, int flags);
 

@@ -27,9 +27,9 @@
 // +0x40..+0x57), so it is int[22] and the frame is 0xA0 as in the target; the
 // earlier int[16] was undersized. (2) Every case ends in `break`, not `return`
 // (idiom-27): the switch is the last statement, and `return` let mwcc speculate
-// the `li 3` into two branch slots the target leaves as nop. (3) The blend ramp
+// the constant-3 load into two branch slots the target leaves as nop. (3) The blend ramp
 // is `+=` (idiom-26). (4) The slot index is written `idx << 2`, which gives the
-// target's `addu v0,v0,s1` operand order; `idx * 4` gave `addu v0,s1,v0`.
+// target's add operand order (shifted index first); `idx * 4` reversed it.
 // func_001AFC10 takes one argument (its byte-matched definition).
 extern int func_001026A0(char *dst, int src, char *m);
 extern void func_00102918(char *dst, char *src, char *m);

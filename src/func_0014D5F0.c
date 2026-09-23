@@ -7,7 +7,7 @@
 // and an RNG bit.  Afterwards, when the sfx cooldown at ctx+0x5E has run out, it
 // re-seeds the cooldown and plays a random idle sound from D_00245CF0[0..3].
 // The `zi = 0; z = (float)zi;` staging is load-bearing: it is what makes mwcc
-// schedule `mtc1 zero,$f13` ahead of `mtc1 $v0,$f12` at the anim_clip_init call.
+// schedule the zero move into $f13 ahead of the $f12 move at the anim_clip_init call.
 extern void anim_clip_init(char *self, int clip, float rate, float start);
 extern int func_00122BB8(void);
 extern float func_001B12B0(float target, float cur, float step);

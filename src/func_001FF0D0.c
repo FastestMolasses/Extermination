@@ -12,7 +12,7 @@
 // mwcc 2.3.3 matches byte-identical; the pinned 991202 build caps at 94.0%.
 // Two keys: (1) D_00275BD8 must be gp-rel -> declare it as a scalar `char`
 // under -sdatathreshold 8 so the `D_00275BD8 = 0` store lands in the
-// func_001AB7D0 call's delay slot as `sb zero,%gp_rel(...)(gp)`; (2)
+// func_001AB7D0 call's delay slot as a gp-relative zero byte store; (2)
 // D_00282157 is FAR from gp, so declare it as `char[]` to keep it hi/lo
 // (a scalar decl would wrongly try gp-rel under threshold 8).
 extern void func_001FF830(unsigned char a0, char *a1);

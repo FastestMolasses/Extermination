@@ -2,7 +2,7 @@
 //
 // objdiff 86.70% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler wall (sched1/pre-reload). Logic fully recovered: 39 instrs both sides, identical frame 0x50, identical save stride, identical guard-branch structure including gcc's duplicated `lui s0,%hi(D_00241D0C)` + `addiu v0,zero,1` in both arms, and all four global stores / three Create...
+// eegcc list-scheduler wall (sched1/pre-reload). Logic fully recovered: 39 instrs both sides, identical frame 0x50, identical save stride, identical guard-branch structure including gcc's duplicated s0 = high half of D_00241D0C plus v0 = 1 in both arms, and all four global stores / three Create...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

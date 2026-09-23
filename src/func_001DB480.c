@@ -2,7 +2,7 @@
 //
 // objdiff 55.37% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// VU0 macro-mode + loop strength-reduction. (1) HARD WALL: after `func_001CD370(3)` the target uploads a 4x4 matrix into the COP2 register file with four `lqc2 $vf24..$vf27, N($v0)` instructions. mwcc 2.3 has no C construct or intrinsic for lqc2 and the corpus has zero precedent for mixed C + inlin...
+// VU0 macro-mode + loop strength-reduction. (1) HARD WALL: after `func_001CD370(3)` the target uploads a 4x4 matrix into the COP2 register file with four 128-bit COP2 loads (one per matrix row, rows 24..27 of the VU0 file). mwcc 2.3 has no C construct or intrinsic for lqc2 and the corpus has zero precedent for mixed C + inlin...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -43,8 +43,8 @@
 //      by 0x10, build the transfer descriptor with func_00102948, stamp 455.0f
 //      (0x43E38000) into its +8 field and kick the DMA with func_001CAAC0.
 //
-// WALL: after func_001CD370(3) the original issues four `lqc2 $vf24..$vf27, N($v0)`
-// COP2 loads. mwcc 2.3 cannot emit those from C and this project keeps every VU0
+// WALL: after func_001CD370(3) the original issues four 128-bit
+// COP2 loads of the returned matrix rows into VU0 registers 24..27. mwcc 2.3 cannot emit those from C and this project keeps every VU0
 // function as whole-function `asm void`, so this function can never reach objdiff
 // 100.0 as readable C. The secondary residual is loop strength-reduction: the target
 // recomputes the cell address from the two counters each iteration (frame 0xE0,
@@ -99,7 +99,7 @@ void func_001DB480(void) {
     func_001D6C90(3, 0, 1, 0, 0, 1, 0, 0, 1, 2, 0, 1, 0, 1, 0);
     func_001CD370(3);
     /* the view matrix returned above is uploaded to VU0 here:
-       lqc2 vf24..vf27, 0x00/0x10/0x20/0x30(result) -- see WALL */
+       four COP2 row loads from result+0x00..0x30 -- see WALL */
     v = 0.0f;
     i = 0;
     while (i < 0x1F) {

@@ -5,7 +5,7 @@
 // MATCH NOTE (m2-matching lane, 97.33% -> 100.0%): the scratchpad pointer at
 // 0x70003B6C is a relocated extern (idiom-32), over-declared as an array
 // because -sdatathreshold 8 would otherwise make it gp-relative (idiom #20).
-// The literal spelling let mwcc speculate `lui at,0x7000` into two slots the
+// The literal spelling let mwcc speculate the scratchpad-base lui (0x7000) into two slots the
 // target leaves as nop. The slot-byte decrement is `(*pf)--`, which reloads the
 // byte after the test as the target does; `*pf = *pf - 1` reused the tested value.
 //

@@ -2,7 +2,7 @@
 //
 // objdiff 82.25% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// STRUCTURAL, not a codegen wall — the emitted code IS byte-identical. splat gives this one 0x39C-byte symbol two entry points: glabel gs_readback_queue_run (boot/main loop, 0x000..0x2F8) and `alabel D_001AB140` (the VBLANK ISR installed via func_00101548, 0x300..0x39C). A C translation unit necessarily em...
+// STRUCTURAL, not a codegen wall — the emitted code IS byte-identical. splat gives this one 0x39C-byte symbol two entry points: a global label for gs_readback_queue_run (boot/main loop, 0x000..0x2F8) and an alternate-entry label for D_001AB140 (the VBLANK ISR installed via func_00101548, 0x300..0x39C). A C translation unit necessarily em...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -13,7 +13,7 @@
 
 // NEARMISS (structural, code is byte-identical): objdiff scores 82.25%
 // only because splat gives this ONE 0x39C-byte symbol two entry points --
-// gs_readback_queue_run (the boot/main loop, 0x000..0x2F8) and `alabel D_001AB140`
+// gs_readback_queue_run (the boot/main loop, 0x000..0x2F8) and alternate entry D_001AB140
 // (the VBLANK interrupt handler installed via func_00101548, 0x300..0x39C).
 // A C translation unit necessarily emits two symbols, so objdiff can only
 // score the first one and counts the handler's 40 instructions as missing.

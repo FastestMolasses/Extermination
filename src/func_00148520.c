@@ -12,7 +12,7 @@
 // anim clip 8.  Phase 2 waits for bit 0x1000 of ctx+0x20 and then clears the actor's
 // state/sub-state bytes.
 // The `zi = 0; z = (float)zi;` staging before the clip-8 call is load-bearing: it is what
-// makes mwcc emit `mtc1 zero,$f13` ahead of `mtc1 $v0,$f12` for that call's FP arguments.
+// makes mwcc emit the zero move into $f13 ahead of the $v0 move into $f12 for that call's FP arguments.
 extern void anim_clip_init(char *, int, float, float);
 extern void func_00102948(int *, char *);
 extern void func_001E8B90(int *, float);

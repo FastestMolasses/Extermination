@@ -17,11 +17,11 @@
 // channel 0 (0x1000B000), clear the mask bit again, re-enable interrupts and
 // clear the IPU DMA channel — returning 0 (failure) instead of 1.
 // NOTE on the hardware-register forms: the 32-bit accesses are volatile, which
-// keeps ee-gcc from folding the constant address (it emits lui/ori + lw 0(reg));
+// keeps ee-gcc from folding the constant address (it emits a high/low constant pair plus a word load at offset 0);
 // the 64-bit BP read at 0x10002030 is deliberately NON-volatile so the address
-// stays a plain constant and gas expands `ld` to lui + ld 0x2030(reg), exactly
+// stays a plain constant and gas expands the doubleword load to a high-half load plus a load at offset 0x2030, exactly
 // as the original. The 0x10002020 read must also be issued BEFORE the BP read
-// so the shared `lui 0x1000` is consumed by the ori form, not by the ld.
+// so the shared 0x1000 high half is consumed by the ori form, not by the ld.
 extern void func_001063E8(void);
 extern int func_00109B20(int handle, void *pkt);
 extern void func_0010A3A8(char *msg);

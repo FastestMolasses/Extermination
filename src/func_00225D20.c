@@ -2,7 +2,7 @@
 //
 // objdiff 99.30% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// idiom-13 refined wall (proven ungeneralizable): the sole residual is a conditional-branch delay slot where the target leaves a nop (case-2 result==2 check, both occurrences at *(u8*)0x70003B93), but mwcc233 fills it with `lui at,0x7000` (the hi-part of the absolute scratchpad address). Per the id...
+// idiom-13 refined wall (proven ungeneralizable): the sole residual is a conditional-branch delay slot where the target leaves a nop (case-2 result==2 check, both occurrences at *(u8*)0x70003B93), but mwcc233 fills it with the 0x7000 high-half load into $at (the hi-part of the absolute scratchpad address). Per the id...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

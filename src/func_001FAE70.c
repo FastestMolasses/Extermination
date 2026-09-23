@@ -20,7 +20,7 @@
 // Matched with mwcc 2.3.3 (mwcps2-2.3.3-000906); the pinned 991202 build reaches
 // 89.3%. Key: write the (s0 & 0x80) | id update as two in-place statements
 // (s0 &= 0x80; s0 |= id;) so the AND lands back in s0 (matching the target's
-// `andi s0,s0,0x80; or s0,s0,a1` register reuse) rather than a temp.
+// in-place s0 &= 0x80 then s0 |= id (id in a1) register reuse) rather than a temp.
 extern int func_00122BB8(void);
 extern void func_001FAAC0(int a, int b);
 extern void func_001FAB50(void);

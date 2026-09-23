@@ -1,5 +1,5 @@
 // CFLAGS: -O4,p -sdatathreshold 4
-// asm void: beq delay slot has dead addiu v0,zero,2 (hoisted but immediately overwritten).
+// asm void: the equality branch's delay slot holds a dead v0 = 2 (hoisted but immediately overwritten).
 // gp_rel hardcoded .word. Byte-identical at link time.
 extern int *D_00275670;
 

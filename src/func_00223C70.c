@@ -2,7 +2,7 @@
 //
 // objdiff reports slightly under 100% here, and objdiff is WRONG about it.
 // The residual is entirely splat rendering a 0x7000xxxx scratchpad access as
-// a bare literal in load/store context (it only symbolizes lui+addiu pairs),
+// a bare literal in load/store context (it only symbolizes high-half/low-half address-build pairs),
 // so the EXPECTED object carries a constant where our compiled object carries
 // the %hi/%lo relocation pair. Both encode the same bytes once relocated.
 // Proven by the stronger oracle: this function is COMPILED and LINKED into the
@@ -20,10 +20,10 @@
 //
 // Spelling the two scratchpad reads as externs is load-bearing beyond the reloc
 // form: mwcc will not speculate a RELOCATED lui into a branch delay slot, which is
-// exactly what stops it peeling the second test's `lui at,0x7000` into the first
+// exactly what stops it peeling the second test's 0x7000 high half into the first
 // beqz's delay slot (the target leaves a nop there). The declarations must be
 // incomplete arrays — a scalar `unsigned short` lands in small-data under
-// -sdatathreshold 4 and collapses to a single %gp_rel lhu.
+// -sdatathreshold 4 and collapses to a single gp-relative halfword load.
 //
 // SEMANTICS: per-frame state machine for one scripted actor `arg0`, dispatched on
 // the state byte at arg0+6 (an if/else compare chain, not a jump table).

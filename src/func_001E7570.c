@@ -2,7 +2,7 @@
 //
 // objdiff 98.11% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Permuter-class FP register coloring: float temp `v` and the 0.2/0.05/0.015 literal scratch regs color to ft0/fv0f (target) vs ft2/fv1 (mwcc) across the neg/mul/sub/add chain; plus one switch-dispatch delay-slot nop the target leaves that mwcc fills. Body/logic fully correct.
+// Permuter-class FP register coloring: float temp `v` and the 0.2/0.05/0.015 literal scratch regs color to ft0/fv0f (target) vs ft2/fv1 (mwcc) across the negate, multiply, subtract, add chain; plus one switch-dispatch delay-slot nop the target leaves that mwcc fills. Body/logic fully correct.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -25,9 +25,9 @@
 // WALL (permuter-class FP register coloring): body/structure fully recovered.
 // Sole residuals (98.11%): (1) the float temp `v`/literal scratch regs color
 // to ft0/fv0f in the target but ft2/fv1 under mwcc across the
-// neg/mul/sub/add chain — pure FP regalloc, not fixable by C reshape
+// negate, multiply, subtract, add chain — pure FP regalloc, not fixable by C reshape
 // (operand-order and split-temp variants tried). (2) one delay-slot nop the
-// target leaves in the `beq a0,2` switch-dispatch slot that mwcc fills.
+// target leaves in the case-2 switch-dispatch branch slot that mwcc fills.
 extern int float_to_int(float);
 extern void func_001AFC10(void *);
 extern void func_001D2830(int, int);

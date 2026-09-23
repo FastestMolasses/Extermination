@@ -3,10 +3,11 @@
 
 // MATCH NOTE (m2-matching lane, 97.34% -> 100.0%): the state byte at +0x2F3
 // is read into an INT and tested as `(unsigned char)st == 3 || ... == 4`. The
-// casts give the target's `andi v1,v0,0xff` copy. The two separate compares
+// casts give the target's v1 = v0 & 0xFF copy. The two separate compares
 // keep mwcc from merging 3/4 into a range test, and the `||` lowering gives
-// `beq 3 / bne 4` with the dead fall-through copy the target has. A `switch`
-// lowers to `beq/beq/b`. The 0x1E..0x20 range test is `> 2` (idiom-28).
+// a branch-if-equal on 3 then a branch-if-not-equal on 4, with the dead
+// fall-through copy the target has. A `switch` lowers to two equality
+// branches plus an unconditional branch. The 0x1E..0x20 range test is `> 2` (idiom-28).
 //
 // Semantics: per-frame player-actor update (called from the gameplay frame
 // func_001AE5E0 with D_00275B44). func_00102948 is a quadword copy (dst, src).

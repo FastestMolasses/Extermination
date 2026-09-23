@@ -2,7 +2,7 @@
 //
 // objdiff 99.89% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler wall — ONE adjacent independent-store swap. Expected emits `sw v0,32(s1); sw s0,0(s1); sw v1,4(s1)` (end_param, hdr.pkt_addr, hdr.rpc_id); ee-gcc emits `... sw v1,4(s1); sw s0,0(s1)` — the two stores are swapped. Proven source-order-independent: four source permutations (vJ/v...
+// eegcc list-scheduler wall — ONE adjacent independent-store swap. The original stores end_param, then hdr.pkt_addr, then hdr.rpc_id; ee-gcc stores end_param, hdr.rpc_id, hdr.pkt_addr — the last two are swapped. Proven source-order-independent across four source permutations (details: docs/NEARMISS.md).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

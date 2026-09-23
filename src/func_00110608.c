@@ -2,7 +2,7 @@
 //
 // objdiff 60.70% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc reg-alloc + frame-size wall. Correct-frame (0x110) C reaches objdiff 86.3% (permuter score 510). All instructions present and structure identical; remaining diff is register allocation of the two multiply products (which reg holds 0x60 vs 0x180 / a1 vs a3) and placement of the `addiu a1,zero,0x1` constant for...
+// ee-gcc reg-alloc + frame-size wall. Correct-frame (0x110) C reaches objdiff 86.3% (permuter score 510). All instructions present and structure identical; remaining diff is register allocation of the two multiply products (a1*0x60 and a0*0x180) and the placement of the literal 1 passed as iGsPutIMR's second argument (rest of the note: docs/NEARMISS.md).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

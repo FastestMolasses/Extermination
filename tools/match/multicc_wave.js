@@ -36,11 +36,12 @@ so they are unlikely to break a tie 2.4 does not, but that is an inference, not 
 
 LEVERS PROVEN THIS SESSION (try these BEFORE concluding a build tie-break is a wall):
 * COMPOUND ASSIGNMENT is not cosmetic. mwcc's canonical shape for 'x = a + b' is load a,
-  load b, add f0,f1,f0. If the target loads the RHS first and emits add f0,f0,f1 (LHS as the
-  FIRST add operand), the source is 'x += y;'. Neither 'x + y' nor 'y + x' nor an explicit
-  temp reproduces it. Cracked func_00153540.
+  load b, then the add with $f1 as first source and $f0 as second (result in $f0). If the
+  target loads the RHS first and its add has the LHS (in $f0) as the FIRST source and the
+  freshly loaded RHS ($f1) as the second, the source is 'x += y;'. Neither 'x + y' nor 'y + x'
+  nor an explicit temp reproduces it. Cracked func_00153540.
 * SCRATCHPAD: literal address vs symbol changes codegen. '*(int*)0x700038A0 = 0' emits
-  'lui at,0x7000' + sw; '&D_700038A0' emits a %hi/%lo reloc pair. One function can need the
+  an upper-half load of the literal 0x7000 plus the store; '&D_700038A0' emits a %hi/%lo reloc pair. One function can need the
   LITERAL form for its stores and the SYMBOL form for pointer arguments simultaneously —
   match each site to what the target actually does. Cracked func_00153540.
 * COMPARISON RESPELLING (idiom-28 extension) flips mwcc's compare temp between $v0 and $at:

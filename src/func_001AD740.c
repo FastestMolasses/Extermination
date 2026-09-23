@@ -2,8 +2,8 @@
 //
 // objdiff 99.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). Object similarity does not prove semantic equivalence.
 // Remaining differences in this candidate (round 6, 2026-09-23):
-// Two instructions: the saturating increment of D_0081070A lands in v1 in place (addiu v1,v1,1;
-// andi s2,v1) where the target writes a fresh v0 that already holds the 0xFF compare constant. The
+// Two instructions: the saturating increment of D_0081070A lands in v1 in place (v1 += 1, then
+// masked into s2) where the target writes a fresh v0 that already holds the 0xFF compare constant. The
 // outer jump-table relocation rows are the local .rodata symbol name only.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT

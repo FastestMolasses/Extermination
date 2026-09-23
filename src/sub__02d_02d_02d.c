@@ -2,7 +2,7 @@
 //
 // objdiff 98.77% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// TWO instructions, one store-sink: the `sb v0,%gp_rel(D_00275C94)(gp)` for `D_00275C94 = 0x9E` is emitted by CodeWarrior immediately after its `addiu v0,zero,0x9e` (which mwcc DOES place correctly), but mwcc sinks the store past all seven call-argument setups to just before the jal. This is idiom-...
+// TWO instructions, one store-sink: the gp-relative byte store for `D_00275C94 = 0x9E` is emitted by CodeWarrior immediately after its 0x9E constant load (which mwcc DOES place correctly), but mwcc sinks the store past all seven call-argument setups to just before the jal. This is idiom-...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

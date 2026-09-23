@@ -2,7 +2,7 @@
 //
 // objdiff 90.81% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// TWO issues. (1) TOOLCHAIN BUG (not a source wall): ee-gcc emits `li.s $fN,<const>` for SFmode constants; the expected object materializes them as `lui $at / ori $at / mtc1 $at,$fN`, which is what GNU `as` produces ONLY when `-G 0` is in effect. tools/eegcc/ee-compile.sh passes `-G0` to cc1 but NO...
+// TWO issues. (1) TOOLCHAIN BUG (not a source wall): ee-gcc emits the li.s pseudo-op for SFmode constants; the expected object materializes them through $at (high half, low half, then a move into the FPR), which is what GNU `as` produces ONLY when `-G 0` is in effect. tools/eegcc/ee-compile.sh passes `-G0` to cc1 but NO...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

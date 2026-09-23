@@ -41,10 +41,11 @@ static void mtx_mul(Mtx4 *out, const Mtx4 *a, const Mtx4 *b)
     }
 }
 
-/* vmul.xyz / vaddy.x / vaddz.x / vsqrt / vdiv / vmulq.xyz on one row.
-   This is the VU divide unit, NOT a libm call: vsqrt writes $Q and the code
-   stalls on vwaitq. The original leaves w = 0 (it clears the destination
-   register with vsub.xyzw $vf6,$vf0,$vf0 and only writes xyz back), and it does
+/* Per row: square the xyz lanes, sum them into x, take the square root,
+   divide 1.0 by it, then scale xyz by that reciprocal.
+   This is the VU divide unit, NOT a libm call: the square root lands in Q
+   and the code stalls until Q is ready. The original leaves w = 0 (it clears the destination
+   register in all four lanes and only writes xyz back), and it does
    NOT guard against a zero-length row — the VU divide unit yields its saturated
    value and sets the D flag instead of trapping. */
 static void normalize_xyz(Vec4 *dst, const Vec4 *src)

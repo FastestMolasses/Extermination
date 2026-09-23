@@ -10,7 +10,7 @@
 // clear mask 0x0E000070 (keep 0xF1FFFF8F) then OR in 0x44.
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: under
-// 991202 the lone residual is wall #13 (it fills the `bne t0,v1` delay slot
+// 991202 the lone residual is wall #13 (it fills the bne delay slot
 // with the safe li instead of leaving CW's nop). 2.3.3 leaves the nop, so
 // this readable C is byte-identical. objdiff 100.0% vs expected.
 extern int **D_0024D650[];

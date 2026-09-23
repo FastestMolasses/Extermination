@@ -2,7 +2,7 @@
 //
 // objdiff 56.27% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc forward-branch-likely + return-value coloring wall. Two non-source-crackable artifacts: (1) the post-func_0010E270 null check — expected `beqz s0,end` (plain) with `addiu v0,-1` in the delay slot, but with early-return C our compiler emits a forward `bnezl s0` (branch-likely-skip), which the s84 notes confirm ...
+// eegcc forward-branch-likely + return-value coloring wall. Two non-source-crackable artifacts: (1) the post-func_0010E270 null check — expected a plain branch-if-zero on s0 to the end with the v0 = -1 return value in the delay slot, but with early-return C our compiler emits a forward branch-likely skip on s0 != 0, which the s84 notes confirm ...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -40,8 +40,8 @@ int func_0010E6F8(int a0, int a1, int a2) {
             r = func_0010DE38(0x80000009, blk, 0x40, 0, 0, 0);
             rv = r ? 0 : -2;
         } else {
-            sema[2] = 0;  /* 0x8($sp) */
-            sema[1] = 1;  /* 0x4($sp) */
+            sema[2] = 0;  /* stack slot sp+0x8 */
+            sema[1] = 1;  /* stack slot sp+0x4 */
             *(int *)(a0 + 0x8) = EndOfHeap((void *)sema);
             if (*(int *)(a0 + 0x8) < 0) {
                 rv = -3;

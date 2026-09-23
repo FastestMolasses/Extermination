@@ -17,10 +17,10 @@
 //
 // C-shape notes for the match (mwcc 2.3.3, mwcps2-2.3.3-000906; the pinned
 // 991202 caps at 84.9% on the clean-store delay-slot-nop family, wall #13):
-//  * `float z = 0.0f` + `field != z` (NOT `!= 0.0f`) flips c.eq.s to the f0,f1
-//    operand order of the target.
+//  * `float z = 0.0f` + `field != z` (NOT `!= 0.0f`) flips the FP equality
+//    compare to the target's operand order (f0 first, then f1).
 //  * cases that do work then return 1 must `break` to the single trailing
-//    `return 1;` (shared exit), not return per-arm, or mwcc duplicates `li v0,1`.
+//    `return 1;` (shared exit), not return per-arm, or mwcc duplicates the return-1 constant.
 //  * the +0xF==0x63 / +0x234==1 paths share the `e+7 = 0x1E` store via goto, as
 //    the original did; the +0x22C branch must store e+7 inside each if/else arm
 //    (NOT a shared post-if store) to keep the sb in the branch delay slot.

@@ -2,7 +2,7 @@
 //
 // objdiff 93.07% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// saved-register coloring permutation: q/loop-counter/count/buffer-pointer occupy a permuted s0/s1/s4/s5 assignment vs the target (target q=s0,i=s1,n=s4,vs5=s5; mwcc gives vs5=s0,q=s1,i=s4,n=s5), plus one commutative addu operand order (addu s1,v0,v1 vs s1,v1,v0). Frame size (0x2F0), control flow, ...
+// saved-register coloring permutation: q/loop-counter/count/buffer-pointer occupy a permuted s0/s1/s4/s5 assignment vs the target (target q=s0,i=s1,n=s4,vs5=s5; mwcc gives vs5=s0,q=s1,i=s4,n=s5), plus one commutative add's operand order (s1 = v0 + v1 vs v1 + v0). Frame size (0x2F0), control flow, ...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

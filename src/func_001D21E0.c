@@ -2,7 +2,7 @@
 //
 // objdiff 70.78% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Head (dma_wait_and_submit block, insns 18-22) and tail (func_00101F08 with field_9C<<14, insns 60-71) match exactly. Two walls: (1) middle hardware-register bitfield block -- target emits 64-bit `dsll32 v0,26 / dsrl32 v0,30` field extraction and `andi $zero,0x3` / `andi $zero,0x1` / `daddiu v1,0x...
+// Head (dma_wait_and_submit block, insns 18-22) and tail (func_00101F08 with field_9C<<14, insns 60-71) match exactly. Two walls: (1) middle hardware-register bitfield block -- target extracts a 2-bit field (bits 4..5) with a 64-bit left-then-right shift pair, emits dead 0x3 / 0x1 masks whose result is discarded, and a 64-bit immediate add on v1...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -13,8 +13,8 @@
 
 // DMA list setup + DMAC/GIF hardware-register reconfigure, then dispatch.
 // Logic fully recovered; the middle hardware-register bitfield block compiles
-// to sra/andi/ori where the target uses 64-bit dsll32/dsrl32 extraction and
-// `andi $zero` constant-field inserts (PS2 hw-register bitfield-union codegen);
+// to 32-bit shift/mask/or ops where the target uses a 64-bit shift-left/logical-shift-right pair for extraction and
+// dead constant-field masks into the zero register (PS2 hw-register bitfield-union codegen);
 // the leading DMA-list block differs only by regalloc/paddub scheduling.
 typedef struct { int pad[2]; char *buf; char pad_C[0x90]; int field_9C; } State;
 extern State *D_00275670;

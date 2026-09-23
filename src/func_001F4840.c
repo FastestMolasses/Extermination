@@ -25,10 +25,10 @@
 // MATCH NOTES: the jump table is .rodata of this same TU (build/jtblrodata).
 // Two shapes were load-bearing: (a) the lifetime store must be written INSIDE
 // each case (`*(int *)(st + 4) = N; break;`), not through a shared temp --
-// that is what puts `sw v0,0x4(s0)` in each case's branch delay slot and lets
-// the out-of-range path use the beqzl annulled `addiu v0,zero,1`; (b) the
+// that is what puts the +4 lifetime store in each case's branch delay slot and
+// lets the out-of-range path use the branch-likely annulled v0 = 1; (b) the
 // state-1 comparison must be written counter-first (`ticks > lifetime`) to get
-// the target's `lw a0,0x8(s0); lw v1,0x4(s0); slt at,v1,a0` operand order.
+// the target's load order (+8 then +4) and `lifetime < ticks` compare order.
 // 991202 caps at 89.71% on the case-block scheduling.
 
 extern void func_001029C0();

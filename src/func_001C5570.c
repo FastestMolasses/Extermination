@@ -13,9 +13,9 @@
 // NOTE: the chained assignment through the u16 field at 0x2E is load-bearing.
 // mwcc evaluates `a = b = *(unsigned short *)(p + 0x2E) = 0` by storing 0 to
 // the short, then re-materialising the assignment's u16 result with
-// `andi v0, zero, 0xffff` and reusing that GPR for the two byte stores --
+// a 16-bit mask of zero into v0 and reusing that GPR for the two byte stores --
 // exactly what the target does. Writing the three stores separately emits
-// `sb zero` and loses the andi.
+// direct zero byte stores and loses the mask.
 
 extern char *func_001AFA90(int);
 extern void func_00102948(char *, char *);

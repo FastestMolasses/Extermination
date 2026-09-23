@@ -2,7 +2,7 @@
 //
 // objdiff 93.85% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// FP register-coloring at the D_700038A4+=10.0f add (target: add.s f0,f1,f0 field-first; mwcc233: swapped), plus a D_0081070A byte-load scheduling-order artifact in case 2 relative to the two float subtracts. Both are compiler-artifact classes documented in func_0021F330's NEARMISS; no source resha...
+// FP register-coloring at the D_700038A4+=10.0f add (the target puts the field operand first; mwcc233 swaps the operands), plus a D_0081070A byte-load scheduling-order artifact in case 2 relative to the two float subtracts. Both are compiler-artifact classes documented in func_0021F330's NEARMISS; no source reshape was found (docs/NEARMISS.md).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /

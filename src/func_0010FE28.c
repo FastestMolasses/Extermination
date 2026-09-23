@@ -9,7 +9,7 @@
 // symbolizes by address, so it cannot see the reloc was symbol+addend. Declaring both
 // names and deriving the struct base as (D_00279448 - 8) reproduces the original
 // reloc set exactly: %hi/%lo(D_00279448) for the strncpy destination (with the base
-// CSE'd as `addiu v0, s1, -8`), and %hi/%lo(D_00279440) for the three standalone
+// CSE'd as v0 = s1 - 8), and %hi/%lo(D_00279440) for the three standalone
 // materializations. Verified .text byte-identical (512/512 bytes, cmp clean).
 
 typedef struct {

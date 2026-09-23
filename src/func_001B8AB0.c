@@ -24,8 +24,8 @@
 // func_001026A0 (build) + func_001028B8 (apply).
 //
 // WALL: register-allocation permutation in the prologue -- the target keeps
-// the incoming arg2 in $a2 across the field load (paddub s0,a2,zero BEFORE
-// lw a2,8(a2), clobbering a2 in place), while mwcc allocates a fresh $a0 for
+// the incoming arg2 in $a2 across the field load (copying it to s0 BEFORE
+// loading arg2+8 back into a2, clobbering a2 in place), while mwcc allocates a fresh $a0 for
 // the switch discriminant and moves arg2 to s0 afterward. This reg-alloc
 // choice is not controllable from source (confirmed via case/-> pointer-alias
 // experiments). A secondary residual is FP even/odd-half register coloring

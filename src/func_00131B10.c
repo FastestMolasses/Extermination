@@ -23,7 +23,7 @@
 //    labels.  With plain `return;` statements mwcc speculates those ops into the
 //    delay slots and drops the dead copies (95.4%).
 //  * idiom-24 (`zi = 0; z = (float)zi;`) at the three anim_clip_init sites whose
-//    trailing 0.0f argument must be emitted as `mtc1 zero,$f13` BEFORE `mtc1 $v0,$f12`;
+//    trailing 0.0f argument must be moved into $f13 BEFORE the $f12 argument is moved in;
 //    each site needs its OWN int/float pair (sharing one pair loses the ordering).
 extern void anim_clip_init(char *self, int clip, float a, float b);
 extern int func_00122BB8(void);

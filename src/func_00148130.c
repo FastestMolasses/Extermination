@@ -8,7 +8,7 @@
 // value at 0 and, on flag 0x1000, resets both state bytes and restarts clip 0.
 // The empty-bodied `else` in the case-2 clamp is load-bearing: the self-store is dead-code
 // eliminated (zero instructions emitted), but the extra CFG edge stops mwcc speculating the
-// following scratchpad store's `lui $at, 0x7000` into the `bc1t` delay slot.
+// following scratchpad store's upper-half address setup (0x7000) into the bc1t delay slot.
 extern void anim_clip_init(char *self, int clip, float a, float b);
 extern float func_001B1240(char *p, float c, float d);
 extern float func_001B12B0(float a, float b, float c);

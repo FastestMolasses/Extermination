@@ -2,7 +2,7 @@
 //
 // objdiff 72.60% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// loop-invariant-%hi-CSE / addressing-mode: target recomputes 'lui at,%hi(D_004E1340); addu at,a3,at; sh a0,%lo(D_004E1340)(at)' per iteration off the running base register; mwcc hoists the full address materialization of &D_004E1340 out of the loop (and when forced gp-rel via a small decl, emits %...
+// loop-invariant-%hi-CSE / addressing-mode: target recomputes %hi(D_004E1340) plus the running base register (a3) and stores the halfword at %lo(D_004E1340) off that, every iteration; mwcc hoists the full address materialization of &D_004E1340 out of the loop (and when forced gp-rel via a small decl, emits %...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -18,7 +18,7 @@
 // NEARMISS: logic byte-exact (nested clear loop + flag store + the two
 // gp-rel zero stores). Residual is an addressing-mode / loop-invariant
 // CSE artifact: the target recomputes %hi(D_004E1340) inside the loop and
-// adds the running base pointer (addu at,a3,%hi; sh ..,%lo(at)), while
+// adds the running base pointer (%hi plus base, then a halfword store at %lo off it), while
 // mwcc hoists the full &D_004E1340 address out of the loop, plus a
 // one-off register-allocation cascade (a2/a3/a4 vs a3/a1/...). The split
 // '%gp_rel(D_00275C40/44) absolute D_0028F700/D_004E1340' addressing mix

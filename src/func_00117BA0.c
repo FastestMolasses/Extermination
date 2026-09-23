@@ -2,7 +2,7 @@
 //
 // objdiff 89.56% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation permutation. Size-matched (34/34 instrs); semantics fully decoded and correct. Expected computes sll $t0,$a1,4 FIRST and keeps the struct base in a single persistent register ($a1) reused for all D_00281AC0 accesses; our ee-gcc 2.9-991111-01 -O2 emits lui $t0 first, uses $t1 for the shift, and a ...
+// Register-allocation permutation. Size-matched (34/34 instrs); semantics fully decoded and correct. The original computes the a1*16 index first and keeps the struct base in one persistent register reused for every D_00281AC0 access; our ee-gcc 2.9-991111-01 -O2 forms the D_00281AC0 upper half first and uses a different temporary for the shift (rest of the note: docs/NEARMISS.md).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff

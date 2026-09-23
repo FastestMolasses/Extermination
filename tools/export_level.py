@@ -1919,7 +1919,7 @@ def annotate_door_locked(args) -> int:
 # The other two table records bind to non-exported areas: [0] -> AREA13
 # (entry>=8 dam path, eye (839.8, 198.0, 1217.3)), [1] -> AREA11 (an AIM
 # target-height tweak in func_00230000, not a fixed eye). The lone
-# `jal 0x823FE0` "overlay hook" is the area-13 path's gate and lands
+# call to 0x823FE0 (the "overlay hook") is the area-13 path's gate and lands
 # MID-FUNCTION in the shipped AREA13.BIN (dead/drifted code) — it is NOT
 # a general per-room camera delegate.
 #
@@ -2925,7 +2925,8 @@ def load_level_mesh(level_path: Path):
 # triangle comes from state that does not depend on the texture:
 #   * PRIM: the level kernel (VU1 code DMA'd by the CALL 0x00237180 packet)
 #     copies the GIF tag at VU1 dmem 0x3FC verbatim into every output
-#     packet (lq vf01,1020(vi00) @0x2373F0; sq vf01,132(vi13) @0x2373F8;
+#     packet (dmem qword 0x3FC is loaded at 0x2373F0 and stored to output
+#     packet qword 132 at 0x2373F8;
 #     the clip kernel 0x239C90 uses dmem 0x3F9/0x3FA). The level chain
 #     uploads that tag from channel 0, D_00816440, which skin_arena_init
 #     copies from D_002514D0. Its dmem 0x3F9..0x3FC qwords are unchanged at

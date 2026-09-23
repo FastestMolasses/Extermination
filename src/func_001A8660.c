@@ -5,7 +5,7 @@
 // MATCH NOTE (m2-matching lane, 96.05% -> 100.0%): (1) the table store is
 // `if ((unsigned char)d == 3 || (unsigned char)d == 4) ... else ...` on an int
 // d, indexing with `(unsigned char)d`. That gives the target's per-use
-// `andi v0,a0,0xff` + `sll` and its beq/bne `||` lowering with the dead
+// byte mask (d & 0xFF) + shift and its equal / not-equal branch-pair `||` lowering with the dead
 // fall-through copy. (2) The 0x70003B86 clear is a relocated extern
 // (idiom-32), so its `lui` is no longer speculated into the state-test slot.
 // func_0021BD10 takes no arguments (its byte-matched definition). The target

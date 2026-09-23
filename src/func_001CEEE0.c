@@ -2,7 +2,7 @@
 //
 // objdiff 83.44% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// prologue instruction-scheduling + 128-bit-load register coloring: logic fully recovered and the whole call sequence (s0/s1, all jals, 0xA0 frame) matches; only the two lq/sq global-copy stores in the prologue differ in interleave and in which regs the qwords land in (target reuses arg ptr regs a1...
+// prologue instruction-scheduling + 128-bit-load register coloring: logic fully recovered and the whole call sequence (s0/s1, all calls, 0xA0 frame) matches; only the two 128-bit global-copy stores in the prologue differ in interleave and in which regs the qwords land in (target reuses the arg pointer registers; details below).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -16,16 +16,16 @@
 // (matches m2c decode). The entire call sequence from func_001026A0 onward --
 // the s0/s1 callee-save coloring, all four jal sites, frame size 0xA0 -- is
 // byte-identical. Residual is confined to the prologue store block: the
-// target interleaves the two 128-bit global copies (lq/sq) and their address
+// target interleaves the two 128-bit global copies (quadword loads/stores) and their address
 // materialization a different way and reuses the incoming arg pointer
-// registers (lq a1,0(a1) / lq a2,0(a2)) for the loaded qwords, whereas mwcc
-// schedules paddub s0 earlier and colors the loads into fresh regs (a0/a5).
-// Instruction-scheduling + lq-destination register coloring -- permuter class.
+// registers (a1 and a2 are overwritten by the qwords they point to), whereas
+// mwcc schedules the s0 copy earlier and colors the loads into fresh regs (a0/a5).
+// Instruction-scheduling + quadword-load destination register coloring -- permuter class.
 //
 // Keys that landed: (1) sp40 is a >=0x60-byte struct (func_001CFA60 writes
 // through +0x0..+0x54), which alone fixes the 0xA0 frame; (2) writing the two
 // 128-bit global copies through a pointer cast `*(uint128*)&D_002513xx`
-// forces the register-indirect addiu+sq form AND flips arg0->$s0 / result->$s1
+// forces the register-indirect address-add + quadword-store form AND flips arg0->$s0 / result->$s1
 // to match the target.
 //
 // Stashes the two incoming 128-bit vectors to D_00251300/0x310, the three

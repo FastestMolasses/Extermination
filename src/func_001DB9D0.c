@@ -2,7 +2,7 @@
 //
 // objdiff 73.05% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// FPU-MAC wall (genuine, confirmed against sibling func_001D66A0 which documents the identical class): target uses mula.s/madd.s/msub.s accumulator fusion for the pre-loop rotation seed; no plain-C expression makes mwcc select the MAC pipeline for this pattern instead of separate mul.s+add.s/sub.s....
+// FPU-MAC wall (genuine, confirmed against sibling func_001D66A0 which documents the identical class): target uses FPU accumulator fusion (multiply-to-accumulator, multiply-add, multiply-subtract) for the pre-loop rotation seed; no plain-C expression makes mwcc select the MAC pipeline for this pattern instead of separate FP multiplies plus adds/subtracts....
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -52,8 +52,8 @@ void func_001DB9D0(int arg0, float dt) {
     vx0 = denom * c0;
     vy0 = denom * s0;
     k = 2.0f * cStep;
-    f24 = vx0 * cStep + sStep * vy0;   /* mula.s f22,f25 / madd.s f24,f0,f23 */
-    f25 = vy0 * cStep - sStep * vx0;   /* mula.s f23,f25 / msub.s f25,f0,f22 */
+    f24 = vx0 * cStep + sStep * vy0;   /* accumulate vx0*cStep, then add sStep*vy0 */
+    f25 = vy0 * cStep - sStep * vx0;   /* accumulate vy0*cStep, then subtract sStep*vx0 */
     f22 = vx0;
     f23 = vy0;
     func_001D1F80(arg0, 0, 1);

@@ -2,9 +2,9 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 // Dispatch on the byte state field at +6: case 1 calls func_0021D2E0(p,0x78,0)
 // directly; case 0 first bumps +6 and clears the +7 byte, then falls through
-// into the same call. mwcc emits beql/beqzl (descending case test order) with
-// pure-ALU delay-slot fills (li a1,0x78 / addiu v0,a1,1) per idiom-13. The 991202
-// build fills the second beql delay-slot copy differently (residual addiu); mwcc
+// into the same call. mwcc emits two branch-likely case tests (descending case test order) with
+// pure-ALU delay-slot fills (a1 = 0x78 / v0 = a1 + 1) per idiom-13. The 991202
+// build fills the second branch-likely delay-slot copy differently (residual addiu); mwcc
 // 2.3.3 reproduces the target byte-for-byte.
 extern void func_0021D2E0(unsigned char *p, int a, int b);
 

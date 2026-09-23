@@ -1,6 +1,7 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-// 991202 places lui at,0x7000 (for 0x700038DC store) at [24] vs expected [26];
+// 991202 places the scratchpad-base lui (for the 0x700038DC store) at
+// instruction 24 vs expected 26;
 // mwcc 2.3.3 schedules it correctly. Plain C, readable. 100.0 on 233.
 extern void func_001026A0(int, int, int);
 extern void func_001028B8(int, int, int);

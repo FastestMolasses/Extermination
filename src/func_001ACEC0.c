@@ -12,7 +12,7 @@
 //
 // The slot pointer is the relocated scratchpad extern D_70003B6C (see
 // tools/match/spad_symbolize.py): the original re-forms its %hi per access, so
-// a literal address let mwcc speculate a CSE'd `lui at,0x7000` into the case-0
+// a literal address let mwcc speculate a CSE'd scratchpad upper-half load into the case-0
 // `bnez` delay slot (the former 97.50% NEARMISS residual). It is over-declared
 // as an array (idiom #20) so it stays absolute while the byte D_00275BE0 stays
 // gp-relative under the default -O4,p small-data threshold.

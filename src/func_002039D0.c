@@ -4,7 +4,7 @@
 // Computes d = field(+8) - field(+4); when nonzero, writes base + field(+0)
 // into *a1. Returns the difference (the caller ignores it, but returning it is
 // what makes mwcc keep d in $v0 to match the target's register allocation).
-// The far int* indexing forces CW's `lui at; addu at,a0,at; lw disp(at)`
+// The far int* indexing forces CW's %hi + index add + %lo-displacement load
 // addressing macro per access; the clean store leaves the beqz delay slot as a
 // nop under 2.3.3 (991202 fills it -> only 93.75). Verified objdiff 100%.
 int func_002039D0(int *a0, int **a1) {

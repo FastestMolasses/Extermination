@@ -11,10 +11,11 @@
 //
 // Two load-bearing source shapes here:
 //  * idiom-24: `zi = 0; z = (float)zi;` before the clip-0xF call is what makes mwcc emit
-//    `mtc1 zero,$f13` ahead of `mtc1 $v0,$f12`; a plain 0.0f literal reverses them.
+//    the zero move into $f13 ahead of the $v0 move into $f12; a plain 0.0f literal reverses them.
 //  * case 1 must END WITHOUT an explicit `return;` (control falls out of the switch).
 //    The explicit `return` turns the switch tail into a region mwcc's post-RA scheduler
-//    will speculate into: it then fills the bc1f / two beqz delay slots and deletes the
+//    will speculate into: it then fills the FP-condition branch's and both zero-test branches' delay
+//    slots and deletes the
 //    two dead const re-materializations, costing 5 instructions (95.80% vs 100.0%).
 extern void anim_clip_init(char *self, int clip, float a, float b);
 extern void func_001FBD50(char *p, int a, int b, float f);

@@ -18,8 +18,8 @@
 //            flag bit 0x80 at self+0xD, load the exit timer at self+0x34 with
 //            0x190 or 0xFA depending on the global D_0081070A, and fire 0x7EF.
 // idiom-24 (`zi = 0; z = (float)zi;`) at the two anim_clip_init sites whose
-// trailing 0.0f argument must be emitted as `mtc1 zero,$f13` BEFORE the
-// `mtc1 $v0,$f12` that stages 5.0f; each site needs its own int/float pair.
+// trailing 0.0f argument must be moved into $f13 BEFORE the move into
+// $f12 that stages 5.0f; each site needs its own int/float pair.
 extern void anim_clip_init(char *self, int clip, float a, float b);
 extern void func_001028B8(float *a, float *b, float *c);
 extern int func_00122BB8(void);

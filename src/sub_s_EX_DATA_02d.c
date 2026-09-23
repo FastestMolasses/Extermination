@@ -13,7 +13,7 @@
 // function's own status code: -1 (error) -> 2, 1 -> 1, 0 -> 0, anything else 1.
 //
 // NOTE: the -sdatathreshold must be 8 (not 0) so that the 4-byte extern
-// D_00275C58 is addressed gp-relative, matching `lw v1, %gp_rel(D_00275C58)(gp)`.
+// D_00275C58 is addressed gp-relative, matching the target's gp-relative load of D_00275C58.
 // The case labels are written ASCENDING (0, 1, -1); mwcc reverses the compare
 // chain to the target's descending -1 / 1 / 0 dispatch with its beql shapes.
 

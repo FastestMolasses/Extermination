@@ -25,7 +25,7 @@
 // 0x001A4318 loop), stores ny^2/(nx^2+nz^2) to SPR 0x70003680 (0x001A4358)
 // and classifies it vs 0.49029058f / 3.0f into SPR 0x700030CA, and copies
 // the plane normal from the prim into the hit record D_700030B0 at +0x24
-// (0x700030D4.., 0x001A4460 loop: swc1 0x24($v1), source lwc1 0($s2)).
+// (0x700030D4..; the 0x001A4460 loop copies it float by float into record+0x24).
 // The locals are vec4: the .s zeroes w of A, B, n (0x001A40C4..0x001A40D0)
 // and of the edge scratch (0x001A426C).
 extern float D_70003190[];

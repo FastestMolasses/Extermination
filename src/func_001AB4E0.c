@@ -4,7 +4,7 @@
 //
 // MATCH NOTE (m2-matching lane, 88.64% -> 100.0%): the two masked halfword
 // updates are 64-bit BITFIELD stores. The target keeps the unfolded
-// `andi a2,zero,0x1FF` and a 64-bit `daddiu a0,zero,0x38`, which is what mwcc
+// mask of zero with 0x1FF and a 64-bit add forming 0x38, which is what mwcc
 // emits for `field = 0` / `field = 0x38` into an `unsigned long long x : 9`
 // member; an explicit int mask expression folds both. The layout is the GS
 // DISPFB register (FBP:9 FBW:6 PSM:5 -:12 DBX:11 DBY:11). The globals are

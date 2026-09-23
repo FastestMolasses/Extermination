@@ -2,7 +2,7 @@
 //
 // objdiff 98.82% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// FP add.s operand coloring (+3.0f: target f1+f0 vs mwcc f0+f1) and case-0 branch-likely speculative-slot duplication (target duplicates addiu v0,a0,1 into the beqzl slot, mwcc emits once). Both regalloc/scheduling artifacts, not the clean-store nop. 98.8% on 2.3.3.
+// FP add operand coloring (+3.0f: the float add's two source registers are commuted relative to the target) and case-0 branch-likely speculative-slot duplication (target duplicates v0 = a0 + 1 into the beqzl slot, mwcc emits once). Both regalloc/scheduling artifacts, not the clean-store nop. 98.8% on 2.3.3.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -23,10 +23,10 @@
 // matrices toward D_008105E0 by 0.2f (func_0018C4B0/func_0018C6A0).
 //
 // Body and structure are byte-correct. The two residual deltas are pure compiler
-// artifacts: (1) add.s operand coloring on the +3.0f (target `add.s f0,f1,f0` vs
-// mwcc `add.s f0,f0,f1` -- commutative, mwcc canonicalizes the register order
+// artifacts: (1) float-add operand coloring on the +3.0f (the two source registers are
+// commuted relative to the target -- commutative, mwcc canonicalizes the register order
 // regardless of source operand order), and (2) the case-0 branch-likely slot:
-// the target duplicates `addiu v0,a0,1` into the beqzl delay slot AND at the
+// the target duplicates v0 = a0 + 1 into the beqzl delay slot AND at the
 // fallthrough, which mwcc emits only once. Both are regalloc/scheduling class.
 extern void func_001026A0(char *p, float *m, int *v);
 extern void func_001028B8(char *a, char *b, char *c);

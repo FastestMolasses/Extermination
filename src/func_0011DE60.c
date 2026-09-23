@@ -1,6 +1,6 @@
-// copysign(float,float): mfc1 $a1,$f12; mfc1 $a0,$f13; daddu $v1,$a0,$zero;
-// lui $v0,0x7FFF; ori $v0,$v0,0xFFFF; lui $a0,0x8000; and $a1,$a1,$v0;
-// and $v1,$v1,$a0; or $a1,$a1,$v1; mtc1 $a1,$f0; jr $ra; nop
+// copysign(float a0, float a1): bits(a0) & 0x7FFFFFFF | bits(a1) & 0x80000000,
+// computed on the raw bits in integer registers and moved back to the float
+// return register; the return delay slot is empty.
 asm float func_0011DE60(float a0, float a1) {
     mfc1 $5, $f12
     mfc1 $4, $f13

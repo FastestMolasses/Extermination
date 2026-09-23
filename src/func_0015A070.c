@@ -14,8 +14,8 @@
 //
 // NEARMISS 88.9% (mwcc233). Body/structure fully recovered; sole residual is a
 // register-coloring permutation on the outer switch dispatch: the target keeps
-// the state byte (lbu a1,4(a0)) live in $a1 and dispatches on it directly with
-// the literal 1 in $a2, while mwcc copies it to $a0 (paddub a0,a1,zero) and
+// the state byte (arg0+4) live in $a1 and dispatches on it directly with
+// the literal 1 in $a2, while mwcc copies it to $a0 (a register move) and
 // dispatches on $a0 with the literal in $a1. That single coloring choice
 // cascades the a0/a1/a2/v1 assignments across the whole function; every
 // control-flow edge, the s1=arg0+0x1F0 hoist, the func_00158590/func_00159FC0

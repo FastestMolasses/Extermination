@@ -2,7 +2,7 @@
 //
 // objdiff 98.16% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Prologue register-coloring / scheduling artifact. Entire body is byte-identical; the sole residual is 5 prologue instructions: the target reads the state byte into the caller-saved a2 (`lbu a2,6(a0)`) BEFORE saving self into s1, while mwcc 2.3.3 emits `paddub s1,a0` first and reads the byte into ...
+// Prologue register-coloring / scheduling artifact. Entire body is byte-identical; the sole residual is 5 prologue instructions: the target reads the state byte into the caller-saved a2 (a2 = byte at self+6) BEFORE saving self into s1, while mwcc 2.3.3 emits the s1 = a0 copy first and reads the byte into ...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -27,8 +27,8 @@
 //
 // NEARMISS 98.2% (mwcc 2.3.3; 991202 87.8%). Logic fully recovered and the entire
 // body is byte-identical. The only residual is the prologue: the target reads the
-// state byte into the caller-saved a2 (`lbu a2,6(a0)`) BEFORE saving self into s1,
-// while mwcc emits `paddub s1,a0` first and reads the byte into a0 -- a fixed
+// state byte into the caller-saved a2 (a2 = byte at self+6) BEFORE saving self into s1,
+// while mwcc emits the s1 = a0 copy first and reads the byte into a0 -- a fixed
 // register-coloring / prologue-scheduling choice of this compiler version. The 5
 // differing instructions are the identical ops with a2<->a0 swapped.
 extern void anim_clip_init(int self, int clip, float a, float b);

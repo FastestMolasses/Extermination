@@ -38,11 +38,11 @@ void _start(void)
 
     /* 1. clear BSS, one quadword at a time */
     for (p = (u32 *)BSS_START; p < (u32 *)BSS_END; p += 4) {
-        p[0] = 0; p[1] = 0; p[2] = 0; p[3] = 0;   /* sq $zero, 0x0($v0) */
+        p[0] = 0; p[1] = 0; p[2] = 0; p[3] = 0;   /* one 128-bit zero store per quadword */
     }
 
     /* 2-3. install $gp, then let the kernel build the main thread's stack */
-    /*      move $gp, $a0 happens before the syscall; move $sp, $v0 after  */
+    /*      gp takes the gp argument before the syscall; sp takes its return value after */
     SetupThread((void *)GP_BASE, (void *)STACK_TOP, (int)STACK_SIZE,
                 (void *)ARGS_BLOCK, func_001000B0);
 
@@ -51,7 +51,7 @@ void _start(void)
 
     /* 5. */
     DisableDmacHandler(0);
-    /* ei */
+    /* then interrupts are enabled */
 
     /* 6-7. */
     argc = *(int *)ARGS_BLOCK;

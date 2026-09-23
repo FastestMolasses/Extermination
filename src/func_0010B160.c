@@ -15,7 +15,7 @@ typedef unsigned char      u8;
 typedef unsigned short     u16;
 typedef unsigned int       u32;
 
-/* 16-byte aligned qword, moved with lq/sq. */
+/* 16-byte aligned qword, moved with 128-bit loads/stores. */
 typedef struct { u32 w[4]; } qword;
 
 #define IPU_CMD    (*(volatile u32 *)0x10002000)
@@ -31,10 +31,10 @@ typedef struct { u32 w[4]; } qword;
  * COP0 / privileged ops. Not expressible in mwcc C; the original emits them
  * literally. Left as declarations so the body below reads correctly.
  */
-extern void cop0_di(void);        /* di            */
-extern void cop0_ei(void);        /* ei            */
-extern void cop0_sync_p(void);    /* sync.p        */
-extern u32  cop0_status(void);    /* mfc0 $v0, $12 */
+extern void cop0_di(void);        /* disable interrupts            */
+extern void cop0_ei(void);        /* enable interrupts             */
+extern void cop0_sync_p(void);    /* pipeline sync                 */
+extern u32  cop0_status(void);    /* read the COP0 Status register */
 
 /* Quantiser-matrix / VQ-CLUT source tables (.data, disc-independent). */
 extern qword D_00241BE0[];        /* [0..3] intra Q matrix, [4] flat non-intra */

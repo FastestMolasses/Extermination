@@ -8,7 +8,7 @@
 // (D_00248120 / D_00248128 / D_00248124), each indexed at offset 0 by
 // self[0xD]*20 -- NOT a single base with +8/+4 displacements.
 // The final `if(cond) goto inside; return 0; inside: return 1;` is what
-// reproduces CW's branch-on-true + duplicated dead `li v0,1` tail; the
+// reproduces CW's branch-on-true + duplicated dead `return 1` tail; the
 // pinned 991202 build coalesces that tail and tops out at 83.7%.
 extern float D_008102B0[];
 extern unsigned char D_00248120[];

@@ -3,16 +3,16 @@
 //
 // MATCH NOTE (m3-matching fix round, NEARMISS 91.21% -> 100%). Three source
 // changes, each checked against the target:
-//  1. The entry id is the short at +2 of each 8-byte entry (target 0x001FD654
-//     `lh v1,0x2(a0)` in the loop test and the call argument `lh a0,0x2(a0)`
-//     at 0x001FD670). The old C read +0. The old header called the stream 1:1
+//  1. The entry id is the short at +2 of each 8-byte entry (the target loads that
+//     signed halfword in the loop test at 0x001FD654 and again as the call
+//     argument at 0x001FD670). The old C read +0. The old header called the stream 1:1
 //     with the target; it was not (73 instructions against the target's 70).
 //  2. The phase-2 scan is a rotated loop. The target branches straight to the
 //     test at 0x001FD620 and computes the entry address only there
 //     (0x001FD648..0x001FD650), so it is a for-loop whose condition indexes
 //     the table. The old "e = ...; while" form added a copy before the loop.
 //  3. arg0 is unsigned. The target recomputes arg0 + n after the call
-//     (0x001FD674 `addu v0,s2,s0`) instead of reusing the loop's sum. With a
+//     (the add at 0x001FD674) instead of reusing the loop's sum. With a
 //     signed arg0, mwcc 2.3.3 CSEs the sum into a saved register. Declaring
 //     `i` second (a declaration-order sweep of the six locals) gives the
 //     target's register colouring (key t0, base a1, i a0, pa a2, pb a3).

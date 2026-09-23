@@ -2,7 +2,7 @@
 //
 // objdiff reports slightly under 100% here, and objdiff is WRONG about it.
 // The residual is entirely splat rendering a 0x7000xxxx scratchpad access as
-// a bare literal in load/store context (it only symbolizes lui+addiu pairs),
+// a bare literal in load/store context (it only symbolizes upper-half + add-immediate address pairs),
 // so the EXPECTED object carries a constant where our compiled object carries
 // the %hi/%lo relocation pair. Both encode the same bytes once relocated.
 // Proven by the stronger oracle: this function is COMPILED and LINKED into the
@@ -27,13 +27,13 @@
 // would symbolize their targets and break all 87 at once.
 //
 // WHY IT IS NEEDED. With the literal form, mwcc peels the branch target block's
-// first instruction — the bare, speculatable `lui at,0x7000` — into the empty
-// delay slot of the `bnez v0` guarding the func_001B2F70(...)==0 store and
+// first instruction — the bare, speculatable scratchpad upper-half load — into the empty
+// delay slot of the branch guarding the func_001B2F70(...)==0 store and
 // retargets the branch +4; the original leaves a nop. The peel is unconditional
 // for an integer branch over a literal-addressed scratchpad access (verified on
 // a minimal repro across four source shapes and on all three installed mwcc
 // builds), and no source rewrite suppresses it. Spelling the access as an extern
-// makes the lui a relocated %hi, which mwcc never speculates, and the delay slot
+// makes the upper-half load a relocated %hi, which mwcc never speculates, and the delay slot
 // becomes the nop the target has. That is also positive evidence about the
 // original build: CodeWarrior only emits this schedule when D_700038A0 is a real
 // extern, so the reloc form is the faithful one and splat's literal rendering is

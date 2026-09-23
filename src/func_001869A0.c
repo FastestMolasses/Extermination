@@ -10,8 +10,8 @@
 // else NULL (unguided). Returns 0.
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202: the lone
-// residual under 991202 was wall #13 (it fills the `beqz v0` delay slot with
-// the safe `li v1,3` where CW leaves a nop). The 2.3.3 build leaves that nop,
+// residual under 991202 was wall #13 (it fills the branch-on-v0 delay slot with
+// the safe v1 = 3 where CW leaves a nop). The 2.3.3 build leaves that nop,
 // so this readable C is byte-identical. Verified objdiff 100% vs
 // build/expected/func_001869A0.o (991202 = 93.3%).
 extern char *func_001AFA90(int);
