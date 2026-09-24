@@ -70,7 +70,9 @@ int func_0011A2B0(int arg0) {
         return -1;
     }
 
-    func_001157F0(3, 0, 0, 0);
+    /* The target does not set the second argument: it still holds the loop
+     * counter, which equals limit (0x18 or 0x30) at loop exit. */
+    func_001157F0(3, i, 0, 0);
     {
         unsigned char *entry = D_0027CCC0 + best_idx * 0x6A;
         *(long *)(D_0027F740 + 0x28) |= mask;
