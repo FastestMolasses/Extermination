@@ -26,6 +26,12 @@ the breakpoints are re-armed at every label):
            (build/s87/route/<source>/state.p2s, or user slot 04), driven by
            route_capture's own closed-loop beat function and compared with
            the recorded trace and end snapshot.
+  15       the level exit (15_level_exit), OPT-IN: `--segments all` leaves it
+           out; run it by name (`--segments 15`, ~500 s, the departure FMV
+           plays inside one frame).  `report` never reads it, so the
+           first-level outputs stay beats 00..14 (its hits include the AREA01
+           arrival and overlay-2 code at AREA11 candidate addresses);
+           `exit-delta` reports what it adds beyond every earlier label.
 
 Outputs (ignored): build/s87/census/{candidates.json, route_functions.json,
 per_beat.json, runs/<pass>/<label>.json}.  Nothing here embeds original code
@@ -41,10 +47,12 @@ splat output under build/overlays/AREA11 and extract/OVERLAY/AREA11.BIN
 
 Usage (decomp .venv python, repo root):
     .venv/bin/python tools/route_census.py candidates
-    .venv/bin/python tools/route_census.py run --segments all [--pass A]
+    .venv/bin/python tools/route_census.py run --segments all [--pass A]   # startup + 00..14
     .venv/bin/python tools/route_census.py run --segments startup --pass B [--arm-chunk 100]
     .venv/bin/python tools/route_census.py compare-startup --passes A,B
-    .venv/bin/python tools/route_census.py report --passes A,B   # first pass is primary
+    .venv/bin/python tools/route_census.py report --passes A,B   # first pass is primary; S0..S3 + 00..14
+    .venv/bin/python tools/route_census.py run --segments 15 --pass A   # beat 15, level exit
+    .venv/bin/python tools/route_census.py exit-delta --passes A,B      # beat 15's new functions
 """
 from __future__ import annotations
 
@@ -618,8 +626,16 @@ def run_beat(name: str, source: str, fn, addrs: list[int], pass_name: str) -> No
           flush=True)
 
 
+# Beat 15 (level exit) is kept apart from the first-level census: it runs only
+# when named (`run --segments 15`), `run --segments all` leaves it out, and
+# report() never reads it (ORDER excludes it), so route_functions.json,
+# per_beat.json and summary.main_line stay beats 00..14.  Its functions are
+# reported by `exit-delta` only.
+EXIT_BEAT = "15_level_exit"
 SEGMENTS = ["startup"] + [b[0] for b in rc.BEATS]
-ORDER = ["S0_title", "S1_newgame_load", "S2_opening", "S3_first_control_idle"] + [b[0] for b in rc.BEATS]
+DEFAULT_SEGMENTS = [s for s in SEGMENTS if s not in rc.OPT_IN_BEATS]
+ORDER = ["S0_title", "S1_newgame_load", "S2_opening", "S3_first_control_idle"] + \
+    [b[0] for b in rc.BEATS if b[0] != EXIT_BEAT]
 STARTUP_LABELS = {"S0_title", "S1_newgame_load", "S2_opening"}
 SIDE_BEATS = {"00_panel_no_battery", "09_fence_door"}
 
@@ -719,7 +735,7 @@ def report(passes: list[str]) -> None:
                "by_status": {}, "by_status_bytes": {},
                "labels_missing": missing, "unattributed_hits": unknown[:50],
                "unattributed_hit_count": len(unknown), "primary_pass": primary, "passes": passes,
-               "labels_per_pass": {p: sorted(runs[p]) for p in passes},
+               "labels_per_pass": {p: sorted(lab for lab in runs[p] if lab in ORDER) for p in passes},
                "functions_seen_only_in_other_passes": sum(1 for r in rows if r["first_pass"] != primary
                                                           and len(r["beats_only_in_other_pass"]) == len(r["beats"])),
                "function_label_pairs_only_in_other_passes": sum(len(r["beats_only_in_other_pass"]) for r in rows),
@@ -742,9 +758,79 @@ def report(passes: list[str]) -> None:
     print(json.dumps(summary, indent=1))
 
 
+# ---------------------------------------------------------------------------
+# Beat 15 (level exit): the functions it adds beyond every earlier label.
+
+# Phase markers: the area-change request 001B0C60 and the spawn placement
+# 001B07C0 of the arrival's state-0 rebuild (both one-shot hits in beat 15).
+EXIT_REQUEST, EXIT_ARRIVAL = 0x1B0C60, 0x1B07C0
+
+
+def exit_delta(passes: list[str]) -> dict:
+    """Functions beat 15 executes that no earlier label (startup S0..S3 and
+    beats 00..14, any of `passes`) executed; each is tagged with its phase:
+    'area11' (before the area-change request), 'change_load' (request to
+    arrival placement) or 'area01' (from the arrival placement on).
+    Overlay-range hits while another overlay is resident are listed apart
+    (AREA01 code at an AREA11 candidate address, not an AREA11 function)."""
+    cands = {c["addr"]: c for c in candidates()}
+    primary = passes[0]
+    doc = json.loads((OUT / "runs" / primary / f"{EXIT_BEAT}.json").read_text())
+    earlier: dict[int, list[str]] = {}
+    for p in passes:
+        for lab in ORDER:
+            if lab == EXIT_BEAT:
+                continue
+            f = OUT / "runs" / p / f"{lab}.json"
+            if f.exists():
+                for h in json.loads(f.read_text())["hits"]:
+                    earlier.setdefault(int(h["pc"], 16), []).append(f"{lab}:{p}")
+    hits = {int(h["pc"], 16): h for h in doc["hits"]}
+    f_req = hits.get(EXIT_REQUEST, {}).get("frame")
+    f_arr = hits.get(EXIT_ARRIVAL, {}).get("frame")
+
+    def phase(frame: int) -> str:
+        if f_req is None or frame < f_req:
+            return "area11"
+        if f_arr is None or frame < f_arr:
+            return "change_load"
+        return "area01"
+
+    new, other_overlay, unknown = [], [], []
+    for pc, h in sorted(hits.items(), key=lambda kv: (kv[1]["frame"], kv[0])):
+        c = cands.get(pc)
+        if c is None:
+            unknown.append(h)
+            continue
+        if c["region"].startswith("overlay") and h.get("overlay_id") != AREA11_ID:
+            other_overlay.append(dict(h, name=c["name"]))
+            continue
+        if pc in earlier:
+            continue
+        new.append({"addr": hex(pc), "name": c["name"], "size": c["size"], "region": c["region"],
+                    "status": c["status"], "link_route": c["link_route"],
+                    "objdiff_perfect": c["objdiff_perfect"], "subsystem": c["subsystem"],
+                    "frame": h["frame"], "counter_before": h["counter_before"],
+                    "phase": phase(h["frame"])})
+    by_phase: dict[str, dict[str, int]] = {}
+    for r in new:
+        d = by_phase.setdefault(r["phase"], {})
+        d[r["status"]] = d.get(r["status"], 0) + 1
+    out = {"beat": EXIT_BEAT, "passes": passes, "frames": doc.get("frames"),
+           "completed": doc.get("completed"), "trace_vs_recorded": doc.get("trace_vs_recorded"),
+           "request_frame": f_req, "arrival_frame": f_arr,
+           "functions_in_beat": len(hits), "new_function_count": len(new),
+           "new_by_phase_and_status": by_phase,
+           "new_bytes": sum(r["size"] for r in new),
+           "overlay_hits_other_overlay": other_overlay, "unattributed_hits": unknown,
+           "new_functions": new}
+    (OUT / "exit_delta.json").write_text(json.dumps(out, indent=1) + "\n")
+    return out
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("command", choices=["candidates", "run", "report", "compare-startup"])
+    ap.add_argument("command", choices=["candidates", "run", "report", "compare-startup", "exit-delta"])
     ap.add_argument("--arm-chunk", type=int, default=200,
                     help="breakpoint commands per DebugServer round trip")
     ap.add_argument("--segments", default="all")
@@ -762,7 +848,7 @@ if __name__ == "__main__":
         print(len(c), json.dumps(counts, indent=1))
     elif a.command == "run":
         addrs = [c["addr"] for c in candidates()]
-        wanted = SEGMENTS if a.segments == "all" else a.segments.split(",")
+        wanted = DEFAULT_SEGMENTS if a.segments == "all" else a.segments.split(",")
         for seg in SEGMENTS:
             if seg not in wanted and seg[:2] not in wanted:
                 continue
@@ -788,6 +874,9 @@ if __name__ == "__main__":
                     print(f"{name}: attempt {attempt + 1} incomplete ({doc.get('error')}); retrying", flush=True)
     elif a.command == "report":
         report(a.passes.split(","))
+    elif a.command == "exit-delta":
+        d = exit_delta(a.passes.split(","))
+        print(json.dumps({k: v for k, v in d.items() if k != "new_functions"}, indent=1))
     elif a.command == "compare-startup":
         ps = a.passes.split(",")
         print(json.dumps(compare_startup(ps[0], ps[1]), indent=1))

@@ -5,7 +5,8 @@ Drives the ORIGINAL game through tools/pcsx2_session.py (hidden PCSX2, exact
 one-frame steps) from the user's own save state 04 (first control), with pad
 input only, and records a per-frame trace of the fields the port needs for
 each beat of the route (battery pickup, elevator refusal, panel power,
-elevator ride, boxes, hill slide, truck preview, up to the Roger encounter).
+elevator ride, boxes, hill slide, truck preview, the Roger encounter, and
+beat 15: the level exit through Roger's departure to the AREA01 arrival).
 Every beat ends with pcsx2_session.snapshot() into build/s87/route/<nn_beat>/
 so a later session can resume from that beat's state.p2s.
 
@@ -15,9 +16,15 @@ it names addresses only.
 
 Usage (decomp .venv python, from the repo root):
     .venv/bin/python tools/route_capture.py identify            # user slot table
-    .venv/bin/python tools/route_capture.py run --beats all     # every beat, in order
+    .venv/bin/python tools/route_capture.py run --beats all     # beats 00..14, in order
     .venv/bin/python tools/route_capture.py run --beats 07,08   # some beats (each resumes
                                                                 # from its source beat)
+    .venv/bin/python tools/route_capture.py run --beats 15      # the level exit (opt-in)
+Beat 15 (15_level_exit) is opt-in: `--beats all` leaves it out and only an
+explicit `--beats 15` (or its full name) runs it.  Its departure movie plays
+inside ONE emulated frame, which costs roughly 80..260 s of host time (the
+frame timeout is raised to 900 s for that beat), so the beat takes several
+minutes on its own.
     .venv/bin/python tools/route_capture.py events --beats 03   # change log of a trace
 The route and every beat are described in the port's docs/FIRST_LEVEL_ROUTE.md.
 """
@@ -293,8 +300,10 @@ class RouteSession(OriginalSession):
     reach the main-loop top the first time (observed on several beat
     snapshots); the per-frame timeout is only a fault detector."""
 
-    def _resume_to_boundary(self, timeout: float = 30.0) -> None:
-        super()._resume_to_boundary(timeout=timeout)
+    boundary_timeout = 30.0     # beat 15 raises it: Roger's departure plays an FMV inside one frame
+
+    def _resume_to_boundary(self, timeout: float | None = None) -> None:
+        super()._resume_to_boundary(timeout=timeout or self.boundary_timeout)
 
 
 class RetrySession:
@@ -685,6 +694,119 @@ def beat_roger_encounter(r: Route) -> dict:
     return {"what": "running jump from the east tower top to the west tower top: Roger's automatic encounter (script 0x8283D0, bank 96)"}
 
 
+# -- beat 15: the level exit ---------------------------------------------------
+# Beat 15 samples extra fields on top of SPANS (so the traces of beats 00..14
+# keep their exact row format): the fan pair, the flag bytes D_00810758.., the
+# full area/sub/entry bytes, the three task-slot records, the loader flags and
+# the resident overlay header.
+FAN_R1, FAN_R2 = 0x7A73A0, 0x7A7690     # overlay 0x827630, records [1] and [2]
+EXIT_SPANS = [
+    ("fan_r1:a", FAN_R1, 0x10), ("fan_r1:b", FAN_R1 + 0x20, 0x20), ("fan_r1:c", FAN_R1 + 0xC0, 0x10),
+    ("fan_r2:a", FAN_R2, 0x10), ("fan_r2:b", FAN_R2 + 0x20, 0x20), ("fan_r2:c", FAN_R2 + 0xC0, 0x10),
+    ("flags758", 0x810758, 0x8),        # D_00810758[0] (0xFF = Roger's departure done)
+    ("area4", 0x810700, 0x4),           # 700 area, 701 sub, 702 entry
+    ("slots", 0x28A750, 0x60),          # task slots 0..2 (slot 2 = module loader 001FF0D0)
+    ("bd8", 0x275BD8, 0x4),             # D_00275BD8 (module load pending)
+    ("cd157", 0x282154, 0x4),           # byte 3 = D_00282157 (loader read gate)
+    ("ovl", 0x823500, 0x8),             # overlay magic + id (9 = AREA11)
+    ("movie", 0x275C78, 0x4),           # D_00275C78 movie select
+    ("movie_req", 0x821058, 0x4),       # D_00821058 movie request
+]
+
+
+class ExitSampler(Sampler):
+    def __init__(self, session: OriginalSession):
+        self.s = session
+        self.spans = SPANS + EXIT_SPANS
+        self.body = b"".join(struct.pack("<BI", 2, a + i)
+                             for _n, a, n in self.spans for i in range(0, n, 4))
+
+    def raw(self) -> dict[str, bytes]:
+        for _ in range(5):
+            data = self.s.pine.request(self.body)
+            out, off = {}, 0
+            for name, _a, n in self.spans:
+                out[name] = data[off:off + n]
+                off += n
+            if out["counter"] == out["counter2"]:
+                return out
+        raise RuntimeError("inconsistent sample")
+
+
+def decode_exit(r: dict[str, bytes]) -> dict:
+    row = decode(r)
+    for name in ("fan_r1", "fan_r2"):
+        a, b, c = r[name + ":a"], r[name + ":b"], r[name + ":c"]
+        row[name] = {"h": a.hex(), "phase": a[5], "timer": struct.unpack_from("<h", b, 8)[0],
+                     "flags2": struct.unpack_from("<H", b, 0xE)[0], "spin": round(f32(b, 0x18), 7),
+                     "rotz": round(f32(c, 8), 6)}
+    row["flags758"] = r["flags758"].hex()
+    row["area4"] = r["area4"].hex()
+    row["slots"] = r["slots"].hex()
+    row["bd8"] = r["bd8"][0]
+    row["cd157"] = r["cd157"][3]
+    row["ovl"] = r["ovl"].hex()
+    row["movie"] = r["movie"].hex()
+    row["movie_req"] = r["movie_req"].hex()
+    return row
+
+
+def use_exit_sampler(r: Route) -> None:
+    """Switch a Route to the beat-15 sampler; row 0 is re-read (no frame has
+    run yet, so it is the same machine state)."""
+    sampler = ExitSampler(r.s)
+    r.sampler = sampler
+    r.now = lambda: decode_exit(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+    # Wall-clock time per frame is kept out of the rows (they must stay
+    # reproducible); frames longer than 2 s (the FMV frame) go into the meta.
+    r.slow_frames = []
+    plain_step = r.s.step
+
+    def timed_step(n: int = 1, **pad) -> list[int]:
+        t0 = time.monotonic()
+        out = plain_step(n, **pad)
+        dt = time.monotonic() - t0
+        if dt > 2.0:
+            r.slow_frames.append({"f": r.frame_index + 1, "seconds": round(dt, 1)})
+        return out
+    r.s.step = timed_step
+
+
+def fan_slow_window(row: dict) -> bool:
+    """Fan r2 at the start of its 60-tick wait (phase 1, spin 0): the
+    slow arm has no hit, so the player can pass under it."""
+    fan = row["fan_r2"]
+    return fan["phase"] == 1 and fan["timer"] >= 55
+
+
+def beat_level_exit(r: Route) -> dict:
+    # From the beat-14 release point (338, 289.75, 192) on the west tower top:
+    # fan record [2] (0x827630, +0x2E == 1) tests the player box Y (280, 320),
+    # X (318, 340); Z < 156 is the exit-or-bit.  With D_00810758[0] != 0xFF
+    # (Roger's departure not yet done) it sets D_008107D8 |= 0x80, Roger r8's
+    # controller starts departure script 0x828A10 (movie selector 1 plays inside
+    # one frame), and on its completion the controller (runtime 0x823C80)
+    # requests 001B0C60(1, 0, 4): AREA01 sub 0, spawn entry 4.  Z < 166.5 while
+    # the fan spins fast is the hit, so wait outside that band for the slow window.
+    use_exit_sampler(r)
+    r.s.boundary_timeout = 900.0
+    r.goto(331.0, 177.0, tol=1.5, stuck_ok=True)
+    r.goto(329.5, 172.0, tol=0.8, magnitude=0.5, stuck_ok=True)
+    settle(r, 5)
+    r.until(fan_slow_window, 400)
+    walk_path(r, [(329.5, 150.0)], tol=1.0,
+              until=lambda row: row["d2"][:2] not in ("01", "00") or row["req"][16:18] != "00")
+    r.set_pad(0)
+    r.until(lambda row: row["req"][16:18] != "00", 2000)      # B8 set: area change posted
+    r.until(lambda row: row["area4"][:2] == "01", 3000)
+    r.until(lambda row: row["slots"][22:24] == "01" and in_control(row), 6000)
+    settle(r, 60)
+    return {"what": "walk under fan r2 (slow window) past z 156: D_008107D8 |= 0x80, Roger's departure "
+                    "script 0x828A10, 001B0C60(1, 0, 4), AREA01 sub 0 entry 4 arrival",
+            "slow_frames": r.slow_frames}
+
+
 BEATS = [
     ("00_panel_no_battery", "04", beat_panel_no_battery),
     ("01_battery", "04", beat_battery),
@@ -701,7 +823,12 @@ BEATS = [
     ("12_crevice_jump", "11_crevice_prompt", beat_crevice_jump),
     ("13_east_tower", "12_crevice_jump", beat_east_tower),
     ("14_roger_encounter", "13_east_tower", beat_roger_encounter),
+    ("15_level_exit", "14_roger_encounter", beat_level_exit),
 ]
+# Beats that `--beats all` leaves out: they run only when named explicitly.
+# 15_level_exit costs minutes of host time (an FMV inside one frame) and ends
+# in AREA01, outside the first level proper.
+OPT_IN_BEATS = {"15_level_exit"}
 
 
 def beat_source(source: str) -> Path:
@@ -806,6 +933,8 @@ if __name__ == "__main__":
     elif a.command == "run":
         wanted = None if a.beats == "all" else set(a.beats.split(","))
         for name, source, fn in BEATS:
+            if wanted is None and name in OPT_IN_BEATS:
+                continue
             if wanted is None or name in wanted or name[:2] in wanted:
                 run_beat(name, source, fn)
     elif a.command == "events":
