@@ -291,6 +291,185 @@ SCENES = {
 }
 
 
+# ---------------------------------------------------------------------------
+# FIRST-LEVEL SOUND CENSUS (WP-14, 2026-09-25; the port's
+# docs/SFX_REGISTRY_FIRST_LEVEL.md). Every sound id the first level (New
+# Game -> the AREA11 opening -> all of AREA11 -> its exit) can request,
+# with the evidence for each group. The port's tools/export_sfx_registry.py
+# appends these ids to the AREA11 (11.0) scope after the "snow" preset
+# above, so the entries that preset already exported keep their bytes.
+#
+# Evidence kinds:
+#   ROUTE   the original requested the id on the recorded first-level route
+#           (tools/sfx_request_probe.py: persistent breakpoints on 001FB9F0,
+#           001FBD50 and 001FC580 over the startup segment and route beats
+#           00..14 in the hidden PCSX2; build/sfx_probe/report_A.json);
+#   CONST   a constant id argument at a sound call or tail jump (001FB9F0
+#           a0, 001FBD50 / 001FC580 a1, 001FC3C0 a2) of an original function
+#           that runs on the route (the route census, build/s87/census), that
+#           a first-level port translation binds, or that those reach
+#           (calls, installed behaviors, function tables, forwarding thunks:
+#           tools/sfx_request_probe.py scan, which fails on a reachable id
+#           missing here);
+#   DATA    an id computed by original code from data the first level can
+#           present (the families below).
+#
+# 00179B90 is rand5: (rand() & 7), 5..7 folded to 0..2, so a "+ 00179B90"
+# id is base..base+4.
+#
+# Surface families. 00182430 (footsteps) plays block(+23A) + tier sub
+# (tier 2: +5, tier 3: +0xA) + rand5, then the gear 0x138 + rand5; 00182870
+# (landing, second argument 0 / 1) plays one id per surface. The AREA11
+# surfaces that can reach the player's +23A: the grid node attributes below
+# 0x1E (0, 3, 4, 5) and 0x5A..0x77 (0x5A, 0x5D) of the captured AREA11 grid
+# (3,099 nodes), the static cell kinds below 0x1E of D_0024D7C0[11][0]
+# (0, 3, 4, 8, 0xB, 0xD) and the published class-4 owners' +0x54 kinds in
+# route beats 00..14 (0, 3, 4, 0xB, 0xD; 0x46 passes neither gate).
+# Surfaces 0xB and 0x5D take the default block (surface 0's).
+FIRST_LEVEL_AREA = "11.0"
+FIRST_LEVEL_SURFACE_BLOCKS = {       # 00182430 block base, 00182870 ids
+    0x00: (0x10, (0x1F, 0x20)),      # also 0xB, 0x5D and every unlisted kind
+    0x03: (0x43, (0x52, 0x53)),
+    0x04: (0x54, (0x63, 0x64)),      # snow (the route's ground)
+    0x05: (0x65, (0x74, 0x75)),
+    0x08: (0x87, (0x96, 0x97)),
+    0x0D: (0xDC, (0xEB, 0xEC)),      # the crates
+    0x5A: (0x76, (0x85,)),           # 00182870 plays nothing for arg 1
+}
+
+
+def _run(base: int, count: int = 5) -> tuple[int, ...]:
+    return tuple(range(base, base + count))
+
+
+def _surface_ids() -> tuple[int, ...]:
+    out: list[int] = []
+    for block, landing in FIRST_LEVEL_SURFACE_BLOCKS.values():
+        out += list(_run(block, 15)) + list(landing)
+    return tuple(out)
+
+
+FIRST_LEVEL_GROUPS = (
+    ("surface footsteps (00182430) and landings (00182870)", _surface_ids(),
+     "DATA: the blocks above; ROUTE: surface 0 (0x1A..0x1F, beat 11), 3 "
+     "(0x43..0x4F, beats 02..05), 4 (0x54..0x64), 5 (0x65..0x75), 0xD "
+     "(0xDC..0xEC, the crates, beat 05) and 0x5A (0x76..0x84, beat 10)"),
+    ("gear layer 0x138 + rand5 (00182430)", _run(0x138),
+     "DATA; ROUTE: every walking beat"),
+    ("player rand5 families", _run(0x100) + _run(0x109) + _run(0x112) +
+     _run(0x11B) + _run(0x124) + _run(0x13F),
+     "DATA: 00182AF0 0x100+, 00182A70 0x109+, 0016AE40 0x112+, 00182AB0 "
+     "0x11B+, 00169730 0x124+, 0016D130 / 0016DE40 0x13F+ (each id + "
+     "00179B90); bound by the port's player closures"),
+    ("equipment hit 0018A180", (0x17F, 0x180, 0x181),
+     "DATA: 0x180 + (rand() & 1, -1 for a negative odd value)"),
+    ("holster table D_00248680[+0x275] (0016F600)",
+     (0x168, 0x5DE, 0x5DF, 0x5E0),
+     "DATA: the six sub-unit entries (0x168, 0x5DF, 0x5DF, 0x5DE, 0x5DF, "
+     "0x5E0)"),
+    # CONST, route-executed player code (build/s87/census).
+    ("player: climb, drop, ladder, slide, reversal, landing",
+     (0x12B, 0x12C, 0xFE, 0xFF, 0x107, 0x10E, 0x10F, 0x123, 0x187, 0x12E,
+      0x137, 0x13D, 0x151, 0x152, 0x153, 0x146, 0x159, 0x86, 0xA8),
+     "CONST: 00187DC0 (0x86, a tail jump into 001FBD50 from the floor "
+     "service 00175900; ROUTE 08, 10) and 00187EA0 (0xA8, a tail jump into "
+     "001FB9F0), 00161790 (0x12B/0x12C/0xFE), 00162DB0 (0xFF), 00165B60 / "
+     "001662D0 (0x107, 0x10E, 0x10F, 0x123, 0x152/0x153, 0x187, 0xFF), "
+     "0016C6A0 / 0016CD70 (the slide loop 0x12E), 0017C030 (0x137), "
+     "0017C580 (0x13D, 0x151), 0021C440 (0x152, 0x159), 00224290 / "
+     "002243F0 / 00224B80 (0x152, 0x153, 0x146, 0x151)"),
+    # CONST, player code bound by the port's first-level closures.
+    ("player: hang, ledge, fall, weapon states, damage and death",
+     (0x119, 0x120, 0x121, 0x122, 0x134, 0x105, 0x106, 0x14E, 0x14F, 0x186,
+      0xCA, 0xDB, 0x162, 0x163, 0x164, 0x165, 0x169, 0x179, 0x17A, 0x17D,
+      0x17E, 0x5DC, 0x5DD, 0x12F, 0x147, 0x148, 0x149, 0x14D, 0x150, 0x154,
+      0x156, 0x15A),
+     "CONST: 001647D0 (0x119), 00168050 (0x120/0x121), 0016D130 (0x122), "
+     "0016BC40 (0x134), 0017DFB0 (0x105/0x106), 00163E90 / 0021D490 "
+     "(0x14E/0x14F), 001747F0 (0x186), 00187DE0 (0xCA/0xDB), 0016F530 / "
+     "0016F600 / 0016FCF0 / 001703E0 / 00170A60 / 001729A0 / 00173000 / "
+     "001735C0 / 00173E60 / 0017A970 (0x162..0x17F), the stance workers "
+     "00171320..001723D0 (0x17A, 0x5DC, 0x5DD), the damage and death "
+     "states 0021C120..002255C0 (0x12F, 0x146..0x15A)"),
+    # CONST, route-executed owners, pickups and UI.
+    ("AREA11 owners, pickups, panel", (0x19C, 0x19D, 0x19E, 0x19F, 0x1A0,
+                                      0x1A1, 0xDB, 0x3EE, 0x3EF, 0x194),
+     "CONST: 001551B0 (0x19C, queued 0x19D/0x19E through 001FC580), "
+     "00156620 (0xDB, queued 0x19F..0x1A1), 001580C0 / 00157360 (0x3EE), "
+     "001575B0 (0x3EF), 00219550 (0x194)"),
+    ("AREA11 overlay owners", (0x413, 0x454, 0x455, 0x423, 0x424, 0x425,
+                               0x428, 0x426, 0x427, 0x451, 0x19A, 0x452,
+                               0x453),
+     "CONST: 008235F0 (the flame loop 0x413 through 001FC3C0), 00823FF0 "
+     "(the truck 0x454/0x455), 00825940 (0x423..0x425, 0x428), 00827490 "
+     "(0x426/0x427), 00827630 (the fan 0x451), 00827B10 (0x19A), 00828050 "
+     "(the elevator 0x452/0x453)"),
+    ("flame loop service 001E3D90", (0x411, 0x412, 0x413),
+     "CONST: 001E3D90 through 001FC3C0 (em_sfx.h)"),
+    ("effects with a sound (001EF940)", (0x14A, 0x14B),
+     "DATA: the only D_00259C70 records with +0x24 != -1 (0x27: 0x14A, "
+     "0x44: 0x14B); the AREA11 table 0x2595B0 has none"),
+    ("frame machine, status pages, message presenter",
+     (0xC, 0xD, 0xA, 0xB, 0x6, 0x5, 0xE, 0xF, 0x182, 0x0, 0x1, 0x2, 0x4,
+      0x8C9),
+     "CONST: 001AE040 (0xC/0xD), 0020CDC0 (0xA/0xB/0xD), 0020E0C0 (0xD), "
+     "002149F0 (0x6), 0020D930 (0x5), 002160B0 (0xE), 00214020 (0xF), "
+     "00211970 (0x182), the cue thunks 0020CD40 / 0020CD60 / 0020CD80 / "
+     "0020CDA0 (0x0/0x1/0x2/0x4, tail jumps into 001FB9F0), "
+     "001FDDB0 (0x8C9)"),
+    # DATA, the room-ambient selector (route: S1, S2, beats 01, 03, 09).
+    ("room ambient 001FC280", (0x44F,),
+     "DATA: the high half (sra 16; -1 = none) of word +0x20 of record "
+     "D_00810702 of D_0024D650[11][0]. AREA11's own table is 4 records "
+     "(0..3, all none; AREA13's room table starts 0xC0 after it) and the "
+     "route captures hold entries 0 and 2; the probe logged no 001FC280 "
+     "request in 11.0. The scan (sfx_request_probe.py) also takes every "
+     "constant a reachable function stores to D_00810702 (2..5, 7..10; "
+     "their area gating is not proven): those records hold 0x44F, which the "
+     "11.0 remap refuses (ABSENT). The forced 0x44E (area 0xB with event "
+     "flag 0x30 == 0xFF) is excluded: flag 0x30 is 0 in every capture "
+     "through beat 15 (revisit-only)"),
+    # CONST, found by the reachability scan (sfx_request_probe.py scan):
+    # direct successors and siblings of the states and owners above.
+    ("player states 17 and 23 (0015B130 calls every state handler)",
+     (0x110, 0x135, 0x136),
+     "CONST: 0016AC50, state 17 (0x110; entered from 0015D4C0 surface 0x1E "
+     "and from the route's 0021C440, hands off to state 18 0016AE40), and "
+     "0016BF80, state 23 (0x136 in its cases 1 and 3, 0x135 in 2 and 3; "
+     "entered from state 22 0016BC40 case 3, from 0015B130's special-mode "
+     "arm and from 0021C440)"),
+    ("gun impact marker 0018ABA0", (0x188, 0x189, 0x18A, 0x18B),
+     "CONST: 0018ABA0, the behavior every gun shot's 00186A60 / 001861C0 "
+     "installs (the SPR4 tick 00188630): +0x2E bit 0x10 (or the 0x300 flag "
+     "arms) selects the pair 0x18A / 0x18B, otherwise 0x188 / 0x189; the "
+     "member is (00122BB8() >> 12) & 1 (decomp C)"),
+    ("hit application 001B41F0", (0x15B, 0x15D, 0x1B1),
+     "CONST: 001B41F0 (0x15D and 0x1B1 through 001FBD50, 0x15B queued "
+     "through 001FC580), called by the shot paths 00186A60 / 001861C0 / "
+     "00189FE0 and the projectiles 0018AF50 / 0018B3E0"),
+    ("debris clatter 001F3620", (0x16A,),
+     "CONST through the forwarding thunk 001F02C0 (id = its a1): 001F3620, "
+     "the debris piece update 001F40C0 (route) runs per piece: 0x16A for "
+     "type 3 (0x5E0 for 7 / 8, 0x5DE for 9 and 0xDB for the splash are "
+     "above)"),
+    ("SPR4 screen sub-modules", (0x17B,),
+     "CONST: 00217090 / 002177B0 / 00217FA0 / 00218640 / 00218D90, the "
+     "state 4..8 modules of the status page 00211970"),
+    ("passcode keypads 002072C0", (0x8C6, 0x8C7, 0x8C8, 0x8CA, 0x8CB, 0x8CD),
+     "CONST: the keypad callback 00207350 that 002072C0 installs (status "
+     "pages 4 / 5 of 0020CDC0, opened on the request D_008106C5) and its "
+     "helper 002072A0 (0x8CD)"),
+)
+
+
+def first_level_ids() -> tuple[int, ...]:
+    """Every census id once, in group order (the exporter's order)."""
+    out: list[int] = []
+    for _name, ids, _evidence in FIRST_LEVEL_GROUPS:
+        out += [i for i in ids if i not in out]
+    return tuple(out)
+
+
 def load_soundmap() -> dict:
     with open(SOUNDMAP) as f:
         return json.load(f)
