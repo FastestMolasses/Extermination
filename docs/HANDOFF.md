@@ -44,44 +44,36 @@ is superseded.
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
 
-## State (2026-09-23, evening)
-- **Completion measure:** port `docs/FIRST_LEVEL_CENSUS.md`, built by `tools/route_census.py`
-  (one-shot breakpoints on every function entry while PCSX2 replays the route: title,
-  New Game, opening, beats 00..14 to Roger). 1184 original functions run: 478 platform
-  boundaries plus 706 game functions. Of the 706, 187 are live (an upper bound), 325 are
-  verified but unbound, 49 unverified, 40 stand-ins and 105 missing. They are grouped
-  into 41 gap lanes. Re-run the classification after each binding step.
-- **Live in the port:** the coordinator backbone (task chain, frame machine
-  0x1AE040/001AE5E0/6B0, classifier 001AE7E0, actor pool and roster, area load/change,
-  fades, input) and WP-4: panel battery terminal, the no-power refusal with black bars,
-  power and the elevator descent, each matching its route capture frame for frame.
-  WP-5 is also live: the status stack with translated status models, the ordered 2D
-  layer and the original SDK math; the module-load wait is still open.
-- **Translated and oracle-verified but unbound (committed this session):**
-  - player: the stage frame and workers, the whole FLOOR closure (fall, landing, hang,
-    recovery, the +4=2 and reaction states, 0xE..0x1A, weapon states), ladder entry and
-    climb, running jump, pose host workers and misc workers;
-  - collision: probes and the move and segment walkers;
-  - world: script-host workers plus a local exporter for the AREA11 overlay scripts,
-    Roger's actor lifecycle, owner model services, effect puff, head sprite, glyph
-    draw, stream and voice lanes;
-  - support: SDK math and the soft-float leaves, the shadow clip kernels and actor
-    route, load-veil particles, the follow camera and the AREA11 camera specials;
-  - the shared native EE float model `src/game/em_ee_float.h` (measured in PCSX2:
-    port docs/EE_FLOAT_MODEL.md).
-- **Guard:** `tools/check_no_disassembly.py` (same file in both repos). Comments and docs
-  never quote the original's instructions. The decomp's asm function bodies stay by
-  the user's decision.
-- **In flight:** chain C2 (WP-6 pickups and the Use arbiter, WP-8 message service,
-  housekeeping) and Phase B7 (14 census gap lanes: effects, equipment, collision list
-  passes, render heads and context, animation runtime, the BATTERY pop-up draw, startup
-  gaps, locomotion display, camera leftovers, script/door/fan, render verification,
-  and the main loop).
-- **Next (chain C3):** bind the census's verified-unbound lanes in dependency order
-  (L01 stage → collision → floor → crates → **box climb (beat 05)** → **hill slide (06)** →
-  script host, truck, director → Roger → camera → render). Each step must reproduce its
-  route capture in the level smoke. After that: EE-float harmonization of the old
-  oracles, a census beat 15 (level exit), the framebuffer-compare harness, then AREA01.
+## State (2026-09-25)
+- **Live in AREA11 on original code** (port chains C3..C5; the level smoke compares each
+  beat row for row with its PCSX2 route capture):
+  - beats 00..08, 12 and 14: panel without power, the battery pickup and status pop-up,
+    the no-power refusal with black bars, powering the panel, the elevator ride,
+    **climbing the boxes (05)**, **the hill slide (06)**, the truck preview with black
+    bars and camera script (07), the truck crossing (08), the crevice jump (12) and
+    Roger's encounter (14);
+  - the non-director phases of beats 10, 11 and 13 (cage-roof ladders, crevice, tower).
+  - Also live: the player stage, the whole FLOOR closure, the Use chain and dispatcher,
+    the collision world (native walkers, grid pass, hull locks), the crates and drums as
+    original owners, the camera, locomotion and footsteps, and the fog background layer.
+- **Not live yet (chain C6 in progress):**
+  - the director phases of beats 10/11/13 and Roger's first voiced line: WP-8b
+    voice lanes;
+  - the render context, and with it the effects and the player equipment (the
+    rifle on his back);
+  - the fence door (side beat 09);
+  - the GS-exact actor draw (VU1 object kernel);
+  - the drop shadow;
+  - the BATTERY page's original draw and the mode-3/4 presenters;
+  - several SFX ids missing from the export (phase B14).
+- **Census:** port docs/FIRST_LEVEL_CENSUS.md, recounted after C5 (section 1.14):
+  about 246+ live of 716 game functions and only a handful missing. Run the
+  recount again after C6.
+- **Guards:** tools/check_no_disassembly.py in both repos. The asm bodies stay by the
+  user's decision. Never stage while a workflow chain's committer is running (the index
+  is shared).
+- **Next:** the Original profile (exact 512x448 GS framebuffer, 4:3) and the
+  framebuffer-compare harness, EE-float harmonization of the older oracles, then AREA01.
 
 ---
 ARCHIVE (pre-s87, partly stale — do not trust without re-checking)
