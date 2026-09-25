@@ -5588,7 +5588,12 @@ direction; +0x0C s16[6] rank bounds (accel only); +0x18 u8 vert count;
 +0x1A u8 **surface attr** (0x50..0x59 conditional vs query id 0x7000324E:
 0x50 never, 0x51 id==0, 0x52 id==2, 0x53 not for id -1, 0x54+ always);
 +0x1C u32 off into index pool; +0x20 u32 off into edge-normal pool;
-+0x24 vec3f plane normal; +0x30 f32 plane d. The office section:
++0x24 vec3f plane normal; +0x30 f32 plane d; +0x34 vec3f the node's
+axis, which the Use surface actions read as the ladder / ledge facing
+(0015D4C0 case 0x32 and 00177030: yaw = pi/2 + atan2(-axis.z, axis.x);
+2026-09-24: AREA11's disc bytes equal RAM on route beats 05, 06, 10 and
+13, and `tools/export_collision.py --node-class` writes them as the EMCL
+axis section, flags bit 3). The office section:
 325 verts / 484 indices+edge normals / 121 nodes, all normals unit, all
 ring verts on-plane, floor poly under the spawn solves to y = 0 exactly.
 
