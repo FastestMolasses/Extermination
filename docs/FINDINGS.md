@@ -16434,3 +16434,70 @@ Write-ups: port `docs/SECOND_LEVEL_ROUTE.md` and `docs/AREA01_OVERVIEW.md`.
   (the module header), which made splat cut false function boundaries. AREA01 has 41
   real functions in 62 splat pieces (`tools/overlay/overlay_match.py` groups them). At
   bdd40fb: 33 byte-identical C, 3 NEARMISS, 4 asm, 1 nop pad.
+
+## NEARMISS body corrections from the AREA01 lanes (2026-09-26, s87)
+
+The level-2 port lanes (port docs/AREA01_RENDER.md, docs/AREA01_SYS.md) translated these functions
+from the original instructions and found the decomp's `// NEARMISS` C bodies wrong. The C was
+corrected against the original instructions and re-checked with an original-instruction oracle
+(671 quick / 951 full cases, 0 differences; scratch harness build/area01/nmfix/). objdiff rose for all
+seven (below); none byte-matches, so all stay NEARMISS. Boot ELF byte-identical, 19/19 overlays,
+2150/2211 after a fresh build.
+
+| Function | objdiff before → after |
+|---|---|
+| 001E8B90 | 71.53 → 86.49 (now mwcc 2.4) |
+| 001E9E60 | 79.75 → 92.40 |
+| 00159B90 | 85.72 → 89.50 |
+| 0015A2C0 | 96.63 → 96.98 |
+| 0019CF50 | 86.65 → 90.05 |
+| 001A06A0 | 86.42 → 87.11 |
+| 001E7D20 | 84.08 → 84.92 |
+
+- **001E8B90** does nothing while the area byte 0x00810700 is 0x15 or 0x10. It visits the 4 grid
+  records at *0x00275C20 with stride **0xA060** (the old C's 0x2061 misread an immediate pair).
+  Record k counts when word +0x54 != 0, x0 < x <= x0 + w (+0x0, +0x30), z0 < z <= z0 + d (+0x8,
+  +0x34) and y < 11.0 + y0 (+0x4). The point maps to x' = (32(x - x0))/w and z' = (32(z - z0))/d,
+  in that order (under the EE model 32(x - x0) can clamp to the largest float first); row =
+  float_to_int(z'), col = float_to_int(x'), each clamped to 0..31; x' and z' replace x and z for
+  the later records. In the float grid at record +0x9060 (column stride 4, row stride 0x80, every
+  neighbour index clamped) it adds -7*f12 to the cell, -5*f12 to the four edge neighbours and
+  -3*f12 to the four corners.
+- **001E9E60(a0, a1)** works on R = *0x00275C1C + a1*0xA060. It builds six 0x1A-quadword GIF
+  packets, each copying the 8 +0x60 rows of R's 0x200-byte segments s, s+1 and s+2, all addressed
+  from R's base (the old C advanced the base); word +0x190 differs for the last packet. Then a
+  5-quadword packet, then a 9-quadword packet whose +0x20 row is R+0x10..0x18 * (1 - t) +
+  D_0026E9B0..B8 * t with t = a0+0x80 (an accumulator multiply, then a multiply-add) and W =
+  R+0x1C * a0+0x8C, then the render-context rows, and finally 001CB950, 001CB6B0 and 001CB760.
+- **00159B90** (class 0x84 actor): state 0 calls 001B0FD0(p) and, when it returns 0, sets up and
+  calls 001C5570(p, 0x700038A0, 0x76, 1); the store to +0x34 is a halfword. State 1 dispatches on
+  +5: sub 0 calls 00157CE0(p, p+0x1F0) and, when non-zero, makes two quadword copies, calls
+  001FB9F0, and sets +5 to 2 (r == 2), +5 + 1 re-read (r == 3) or 3; sub 1 sets +5 = 2 and calls
+  001BA1A0(p+0x1F0, D_002470E0); subs 2 and 3 wait on 001BA1F0(p). A shared tail follows.
+  State 2 sets +4 = 3; state 3 calls 001AFC10(p).
+- **0015A2C0**: state 1 starts with 001E9E60(p, unsigned halfword p+0x0E) (the old C passed
+  (halfword, state)); its state-1 count-downs stop at f <= 0.0 inclusive.
+- **0019CF50** (world probe): per axis it sets bit flags from comparing the probe points at
+  0x70003190 and 0x700031A0, calls 0019F1A0 twice, copies the six signed halfwords at 0x70003240
+  (stride 2) to a local table *between* the two call pairs, then walks six spans with the column
+  words at 0x70003228 (stride 4): each span indexes a column with the copied bound and ends at the
+  re-read live bound (odd spans: start = live bound, end = column[copied]; even spans: start =
+  column[copied], end = live bound + 1). The strictly shortest span wins (ties keep the first).
+  If no span beats the start value at 0x7000320C, the original uses registers its caller left
+  (undefined; the port refuses that path). The chosen span's cell list is walked with stride 2.
+- **001A06A0** (hitbox scan): an entry is skipped when its first byte is 0 (the pointer itself
+  is not tested); the type test is (byte +2 & 0x1F) == 4; box compares are max(x) >= box.minx and
+  min(x) <= box.maxx in x, z, y order, inclusive at equality. On a hit it keeps only the old high
+  byte of 0x700030CA and narrows the probe: per axis, if start <= the new end, the max bound
+  becomes the new end, otherwise the min bound does.
+- **001E7D20** (and its static 001E7C60, which stores only the grid heights +0x64 and s+4):
+  outside area 0x13 the 001CB950 doubleword's low word is zero-extended (the old C sign-extended
+  it); the state-1 level stops are inclusive.
+- **Same defects not yet fixed:** func_001E9280.c carries 001E9E60's segment-base defect and
+  001E7D20's sign-extended doubleword; func_0019D770.c (0019CF50's twin) carries its three stride
+  defects.
+- **General trap:** several NEARMISS files declare 4-byte absolute globals (e.g. D_00810710,
+  D_0026E9B0) as plain scalars, which mwcc then addresses gp-relative; that C cannot reach the
+  original address. Declare them as arrays. Separate float locals passed as &first are not
+  contiguous, so a quadword copy of them is wrong: use an array.
+

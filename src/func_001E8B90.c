@@ -1,41 +1,34 @@
 // NEARMISS func_001E8B90  (vram 0x001E8B90, 0x2EC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 71.53% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring/scheduling residual in the FP compare chain (198==198 instructions, structurally matched) plus one address-decomposition difference: target splits the +0x9060 write offset into two chained +0x1068/+0x7FF8 immediate adds instead of a single lui+addu, suggesting a slightly differe...
+// objdiff 86.49% via mwcc 2.4 (-O4,p -sdatathreshold 8). The body follows the original instructions;
+// the residual diff is code generation only:
+// Body corrected 2026-09-25 against the original instructions (record stride 0xA060, edge/corner neighbour weights; was 71.53% with the wrong body). Residual: register coloring (s0..s3 and FP temps) and the +0x9060 cell offset, which the target re-forms per access with a lui/addu pair while mwcc folds it into the pointer.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
-// COMPILER: mwcc233
+// COMPILER: mwcc24
 // CFLAGS: -O4,p -sdatathreshold 8
 
 //
-// NEARMISS (72.1% mwcc / 71.5% mwcc233): water-ripple stamp. Skips while
-// D_00810700 (area/substate byte) is 0x15 or 0x10. Otherwise scans the 4
-// D_00275C20 grid records (stride 0x2061) for the one whose XZ box (+0x0/+0x30
-// width, +0x8/+0x34 depth) contains the actor position (arg0+0/4/8), gated by
-// a Y-band (+0x4 + 11.0 > py). Maps the local XZ offset into a 0..31 cell
-// (float_to_int, clamped [0,0x1F]) and stamps a 3x3 neighborhood of ripple
-// decay values into the record's 32x32 float grid at +0x9060 + row*4 + col*0x80
-// (each axis independently clamped to the grid edge): center cell -=7*speed,
-// same-column vertical neighbors -=3*speed, all other (diagonal/horizontal)
-// neighbors -=5*speed.
-//
-// Body/control-flow fully recovered and instruction-count-exact (198==198
-// vs target); residual is register-coloring/scheduling in the FP compare
-// chain plus one address-decomposition difference (target splits the +0x9060
-// cell offset as two chained +0x1068/+0x7FF8 immediates instead of a single
-// lui+addu -- likely a different intermediate pointer expression) that
-// resisted further cracking within the attempt budget.
+// Water-ripple stamp. Does nothing while the area byte D_00810700 is 0x15 or
+// 0x10. Otherwise it visits the 4 grid records at D_00275C20 (record stride
+// 0xA060). A record with word +0x54 != 0 takes the point arg0+0/4/8 when
+// x0 < x <= x0 + w (+0x0, +0x30), z0 < z <= z0 + d (+0x8, +0x34) and
+// y < 11.0 + y0 (+0x4). The point is mapped to a 32x32 cell: x' = 32(x - x0)/w,
+// z' = 32(z - z0)/d, row = float_to_int(z'), col = float_to_int(x'), each
+// clamped to 0..31; x' and z' replace x and z for the later records. In the
+// record's float grid at +0x9060 (column stride 4, row stride 0x80, every
+// neighbour index clamped to 0..31) it adds -7*speed to the cell, -5*speed to
+// its four edge neighbours and -3*speed to its four corner neighbours.
 extern int float_to_int(float);
-extern unsigned char D_00810700;
+extern unsigned char D_00810700[];
 extern unsigned char *D_00275C20;
 
 void func_001E8B90(unsigned char *arg0, float speed) {
     float px, py, pz;
-    float wCenter, wVert, wOther;
+    float wCenter, wEdge, wCorner;
     float dx0, dz0, dx1, dz1;
     int row, col;
     int colIdx;
@@ -48,15 +41,15 @@ void func_001E8B90(unsigned char *arg0, float speed) {
     int i;
     int idx;
 
-    if (D_00810700 == 0x15 || D_00810700 == 0x10) {
+    if (D_00810700[0] == 0x15 || D_00810700[0] == 0x10) {
         return;
     }
     wCenter = -7.0f * speed;
     px = *(float *)(arg0 + 0);
     py = *(float *)(arg0 + 4);
     pz = *(float *)(arg0 + 8);
-    wOther = -5.0f * speed;
-    wVert = -3.0f * speed;
+    wEdge = -5.0f * speed;
+    wCorner = -3.0f * speed;
 
     i = 0;
     idx = 0;
@@ -88,8 +81,8 @@ void func_001E8B90(unsigned char *arg0, float speed) {
                                 col = 0x1F;
                             }
 
-                            colIdx = col - 1;
                             for (colOff = -1; colOff < 2; colOff++) {
+                                colIdx = col + colOff;
                                 if (colIdx < 0) {
                                     colIdx = 0;
                                 } else if (colIdx >= 0x20) {
@@ -97,33 +90,29 @@ void func_001E8B90(unsigned char *arg0, float speed) {
                                 }
                                 colp = p + (colIdx * 4);
 
-                                rowIdx = row - 1;
                                 for (rowOff = -1; rowOff < 2; rowOff++) {
+                                    rowIdx = row + rowOff;
                                     if (rowIdx < 0) {
                                         rowIdx = 0;
                                     } else if (rowIdx >= 0x20) {
                                         rowIdx = 0x1F;
                                     }
 
-                                    cell = colp + (rowIdx << 7);
                                     if (rowOff == 0 && colOff == 0) {
-                                        *(float *)(cell + 0x9060) = *(float *)(cell + 0x9060) + wCenter;
-                                    } else if (rowOff != 0 && colOff == 0) {
-                                        *(float *)(cell + 0x9060) = *(float *)(cell + 0x9060) + wVert;
+                                        *(float *)(colp + (rowIdx << 7) + 0x9060) += wCenter;
+                                    } else if (rowOff == 0 || colOff == 0) {
+                                        *(float *)(colp + (rowIdx << 7) + 0x9060) += wEdge;
                                     } else {
-                                        *(float *)(cell + 0x9060) = *(float *)(cell + 0x9060) + wOther;
+                                        *(float *)(colp + (rowIdx << 7) + 0x9060) += wCorner;
                                     }
-
-                                    rowIdx = row + (rowOff + 1);
                                 }
-                                colIdx = col + (colOff + 1);
                             }
                         }
                     }
                 }
             }
         }
-        idx = idx + 0x2061;
+        idx = idx + 0xA060;
         i += 1;
     } while (i < 4);
 }

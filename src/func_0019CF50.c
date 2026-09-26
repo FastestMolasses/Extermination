@@ -1,8 +1,10 @@
 // NEARMISS func_0019CF50  (vram 0x0019CF50, 0x3E0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 86.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Byte-for-byte the same function as func_0019D770 (near-identical twin, only 2 structural differences: an extra `st < 0x5A` upper-bound clamp on the surface-attr guard, and the hit/miss return polarity is inverted -- 0 = hit found, 1 = miss, with the D_700031D0 store moved BEFORE the normal copy-b...
+// objdiff 90.05% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The body follows the original instructions;
+// the residual diff is code generation only:
+// Body corrected 2026-09-25 against the original instructions (halfword stride of the six bounds at 0x70003240, word stride of the column table at 0x70003228, halfword stride of the cell list; was 86.65% with the wrong body). Residual: register coloring and loop-pointer strength reduction.
+// Twin of func_0019D770 (that file carries the same three stride defects and is not corrected here); this one adds the
+// `st < 0x5A` bound on the face kind and returns 0 on a hit, 1 on a miss.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -60,7 +62,7 @@ int func_0019CF50(void) {
     func_0019F1A0(&D_700031A0, s5);
 
     for (i = 0; i < 6; i++) {
-        sp80[i] = (&D_70003240)[i * 2];
+        sp80[i] = (&D_70003240)[i];
     }
 
     func_0019F1A0(&D_70003190, s5);
@@ -72,9 +74,9 @@ int func_0019CF50(void) {
     for (i = 0; i < 6; i++) {
         if (i & 1) {
             *(short *)0x70003B86 = *p;
-            a2 = *(short *)(q[i] + sp80[i] * 2);
+            a2 = *(short *)(*q + sp80[i] * 2);
         } else {
-            *(short *)0x70003B86 = *(short *)(q[i] + sp80[i] * 2);
+            *(short *)0x70003B86 = *(short *)(*q + sp80[i] * 2);
             *(short *)0x70003B88 = *p;
             a2 = *(short *)0x70003B88 + 1;
         }
@@ -88,15 +90,15 @@ int func_0019CF50(void) {
             s2 = a3;
             best_i = i;
         }
-        p += 2;
-        q += 4;
+        p += 1;
+        q += 1;
     }
 
     if (s1 < s2) {
         short *node = (short *)(*(&D_70003210 + best_i)) + s1;
         do {
             char *e = (char *)(*(int *)0x70003208) + (*node << 6);
-            node += 2;
+            node += 1;
             if (*(short *)0x70003240 >= *(short *)(e + 0xC) &&
                 *(short *)(e + 0xE) >= *(short *)0x70003242 &&
                 *(short *)0x70003248 >= *(short *)(e + 0x14) &&

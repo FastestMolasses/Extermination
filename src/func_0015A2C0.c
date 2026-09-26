@@ -1,8 +1,8 @@
 // NEARMISS func_0015A2C0  (vram 0x0015A2C0, 0x48C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.63% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring / instruction-scheduling residual only (same documented family as src/func_0012B410.c). Top-level state dispatch: target colors the switch selector into $a2 with a beqz-to-body + early partial-epilogue (jumps to a mid-restore label with lq $ra in its own delay slot); mine colors...
+// objdiff 96.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The body follows the original instructions;
+// the residual diff is code generation only:
+// Body corrected 2026-09-25 against the original instructions (001E9E60 gets (self, halfword +0x0E); 001AFC10 takes self only; was 96.63%). Residual: register coloring / scheduling of the top-level state dispatch (target keeps the selector in a2, beql into the 001AFC10 call).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -14,10 +14,10 @@
 extern int func_00122BB8(void);
 extern int func_0015A200(unsigned char *parent, int kind, int pairIdx);
 extern void func_0015A750(unsigned char *self);
-extern void func_001AFC10(unsigned char *self, int state);
+extern void func_001AFC10(unsigned char *self);
 extern void func_001B17A0(unsigned char *self);
 extern void func_001E9580(unsigned char *self, unsigned short a1, void *a2);
-extern void func_001E9E60(unsigned short a0, int a1);
+extern void func_001E9E60(unsigned char *self, int a1);
 extern void func_001FBD50(unsigned char *self, int a1, int a2, float a3);
 extern float D_00248120[];
 extern unsigned char D_002481B0[];
@@ -91,7 +91,7 @@ void func_0015A2C0(unsigned char *self) {
     }
 state1:
     {
-        func_001E9E60(*(unsigned short *)(self + 0xE), state);
+        func_001E9E60(self, *(unsigned short *)(self + 0xE));
         if (*(short *)(self + 0x56) == 1) {
             sub = *(unsigned char *)(self + 5);
             switch (sub) {
@@ -169,5 +169,5 @@ state1:
         return;
     }
 state23:
-    func_001AFC10(self, state);
+    func_001AFC10(self);
 }

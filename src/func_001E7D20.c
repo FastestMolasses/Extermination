@@ -1,8 +1,8 @@
 // NEARMISS func_001E7D20  (vram 0x001E7D20, 0xE18 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 84.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// GPR allocation permutation + delay-slot constant sharing. Body/structure fully recovered (all state-machine arms, the 32x32 ripple relaxation, the random-splash impulse and the whole GS packet builder verify against the asm). Sole residuals: (a) the target keeps the entity pointer in $9 while mwc...
+// objdiff 84.92% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The body follows the original instructions;
+// the residual diff is code generation only:
+// Body corrected 2026-09-25: the static copy of 001E7C60 now stores only the grid heights and s+4, like the byte-matched src/func_001E7C60.c (was 84.08% with an extra s+8 store), and outside area 0x13 the 001CB950 doubleword is 0x20048BA199422040 (the old C sign-extended its low word and passed 0xFFFFFFFF99422040). Residual: GPR allocation permutation + delay-slot constant sharing.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -60,11 +60,9 @@ static void func_001E7C60(char *p, float v) {
     int i;
     char *col;
     char *row;
-    char *b2;
 
     i = 0;
     row = p;
-    b2 = p + 8;
     do {
         j = 0;
         col = row;
@@ -73,7 +71,6 @@ static void func_001E7C60(char *p, float v) {
             *(float *)(col + 0x64) = v;
             col += 0x10;
             *(float *)(p + 4) = v;
-            *(float *)b2 = v;
         } while (j < 0x20);
         i++;
         row += 0x200;
@@ -315,6 +312,10 @@ void func_001E7D20(char *arg0) {
                     jp1 = 0x1F;
                 }
                 j += 1;
+                /* The original sums the four neighbours and subtracts H*k4 with the FPU
+                 * accumulator forms (add-to-accumulator, then multiply-subtract). Under the
+                 * measured EE float model these equal the plain operations written here for
+                 * finite operands; exponent-255 operands are not established. */
                 *(float *)(c1 + 0x9060) = *(float *)(c1 + 0x9060) * damp;
                 *(float *)(c1 + 0x9060) = *(float *)(c1 + 0x9060) +
                     (*(float *)(rp + 0x8060) + (*(float *)(rm + 0x8060) +
@@ -506,7 +507,7 @@ void func_001E7D20(char *arg0) {
                 func_001CB950(D_007635C0, 0x1000, tab[D_00275C10] & 0xFFFFFFFBFFFFFFFFL);
                 break;
             default:
-                func_001CB950(D_007635C0, 0x1000, (long)(0x9942 << 16 | 0x2040) | ((long)0x20048BA1 << 32));
+                func_001CB950(D_007635C0, 0x1000, (long)0x99422040U | ((long)0x20048BA1 << 32));
                 break;
             }
             if (func_001D2E00(2) != 0) {

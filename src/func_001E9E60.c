@@ -1,8 +1,8 @@
 // NEARMISS func_001E9E60  (vram 0x001E9E60, 0x3A4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 79.75% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Genuine FPU-MAC pipeline (mula.s/madd.s) computing a per-axis lerp result=base+(target-base)*blend at +0x20..0x2C -- no scalar C reproduces mwcc's paired multiply-accumulate scheduling for this (VU0/FPU-MAC-class dead wall, same as sibling func_001E9280/func_001CB2C0). Remaining residual after th...
+// objdiff 92.40% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The body follows the original instructions;
+// the residual diff is code generation only:
+// Body corrected 2026-09-25 against the original instructions (segments s, s+1, s+2 from the record base; +0x20 quadword = record vector * (1 - t) + D_0026E9B0 vector * t with the single scalar t = a0+0x80, MULA/MADD in the target; the blend is built in a float[4] array, because the original copies 16 contiguous bytes and separate float locals have no guaranteed layout; D_0026E9B0/B4/B8 are declared as arrays so they are addressed absolutely as in the original; was 79.75% with the wrong body). Residual: register coloring and the scheduling of the MULA/MADD pairs.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -18,8 +18,9 @@
 // segments: acquires a 0x1A-qword GIFtag block via func_001CB5F0(D_007635C0,
 // 0, 0x1A), fills the standard GIFtag header (TOP=0x01000404,
 // TAG=0x6C188000: PACKED, 8 regs, unclip prim), then copies 3 quadwords of
-// vertex data per each of 8 rows (24 copy_qw calls) from the segment's own
-// +0x60, the next segment's +0x60, and the segment-after-next's +0x60.
+// vertex data per each of 8 rows (24 copy_qw calls) from the +0x60 rows of
+// the record's 0x200-byte segments s, s+1 and s+2 (all addressed from the
+// record base).
 // Segment 5 (the last) gets a smaller draw-kick word (0x14000000 vs
 // 0x17000000) at +0x190; +0x194/+0x198/+0x19C are zeroed.
 //
@@ -27,11 +28,9 @@
 // the fixed scratch D_70003AC0; then a 9-qword block (tag 0x6C0803F8)
 // carrying the segment-0 sub-object's origin (+0x48/4C/50 -> xyz) plus a W
 // built from arg0's +0xB4 field (60.0f + arg0[0xB4]). The block's +0x20..0x2C
-// quad is a per-axis lerp: blend = D_0026E9B0/B4/B8 (a 3-vector), base =
-// segment's own +0x10/14/18 (a 3-vector), delta = arg0's +0x80/84/88 minus
-// base (delta = arg0_vec - base_vec), result = base + delta*blend (i.e. the
-// mula.s/madd.s FPU-MAC pipeline computing base + (arg0_vec-base)*blend per
-// axis). +0x1C's W word is (segment's own +0x1C) * arg0's +0x8C. Then the
+// quad is a blend by the single scalar t = arg0 +0x80: xyz = record +0x10/14/18
+// * (1 - t) + D_0026E9B0/B4/B8 * t (the original forms it as an accumulator
+// multiply then multiply-add), and W = record +0x1C * arg0 +0x8C. Then the
 // quat (+0x3C/38/40/44 -> +0x30/34/38/3C), a fixed AD/GIF-reg pair
 // (0x8010 | 0x303E4000<<32, 0x412), and 3 texture/palette copy_qw's sourced
 // off D_00275670. Finally three fixed-format command appends close out the
@@ -53,9 +52,9 @@ extern char D_008105D0[];
 extern char *D_00275670;
 extern char *D_00275674;
 extern char D_002345E0[];
-extern float D_0026E9B0;
-extern float D_0026E9B4;
-extern float D_0026E9B8;
+extern float D_0026E9B0[];
+extern float D_0026E9B4[];
+extern float D_0026E9B8[];
 
 void func_001E9E60(char *arg0, int arg1) {
     char *orig;
@@ -67,10 +66,9 @@ void func_001E9E60(char *arg0, int arg1) {
     char *dst;
     int row;
     int seg_idx;
-    float spB0;
-    float spB4;
-    float spB8;
-    float spBC;
+    float blend[4];
+    float t;
+    float u;
 
     orig = D_00275C1C + arg1 * 0xA060;
     base = orig;
@@ -80,15 +78,15 @@ void func_001E9E60(char *arg0, int arg1) {
         *(int *)(blk + 0x4) = 0;
         *(int *)(blk + 0x8) = 0x01000404;
         *(int *)(blk + 0xC) = 0x6C188000;
-        seg1 = base + ((seg_idx + 1) << 9);
-        seg2 = base + ((seg_idx + 2) << 9);
+        seg1 = orig + ((seg_idx + 1) << 9);
+        seg2 = orig + ((seg_idx + 2) << 9);
         dst = blk + 0x10;
         seg = base;
         row = 0;
         do {
             func_00102948(dst, seg + 0x60);
-            func_00102948(dst + 0x80, seg1 + 0x60);
-            func_00102948(dst + 0x100, seg2 + 0x60);
+            func_00102948(blk + ((row + 8) << 4) + 0x10, seg1 + 0x60);
+            func_00102948(blk + ((row + 0x10) << 4) + 0x10, seg2 + 0x60);
             row += 1;
             seg += 0x10;
             dst += 0x10;
@@ -123,11 +121,13 @@ void func_001E9E60(char *arg0, int arg1) {
     *(float *)(blk + 0x18) = *(float *)(orig + 0x50);
     *(float *)(blk + 0x1C) = 60.0f + *(float *)(arg0 + 0xB4);
 
-    spB0 = *(float *)(orig + 0x10) + (*(float *)(arg0 + 0x80) - *(float *)(orig + 0x10)) * D_0026E9B0;
-    spB4 = *(float *)(orig + 0x14) + (*(float *)(arg0 + 0x84) - *(float *)(orig + 0x14)) * D_0026E9B4;
-    spB8 = *(float *)(orig + 0x18) + (*(float *)(arg0 + 0x88) - *(float *)(orig + 0x18)) * D_0026E9B8;
-    spBC = *(float *)(orig + 0x1C) * *(float *)(arg0 + 0x8C);
-    func_00102948(blk + 0x20, &spB0);
+    t = *(float *)(arg0 + 0x80);
+    u = 1.0f - t;
+    blend[0] = *(float *)(orig + 0x10) * u + D_0026E9B0[0] * t;
+    blend[1] = *(float *)(orig + 0x14) * u + D_0026E9B4[0] * t;
+    blend[2] = *(float *)(orig + 0x18) * u + D_0026E9B8[0] * t;
+    blend[3] = *(float *)(orig + 0x1C) * *(float *)(arg0 + 0x8C);
+    func_00102948(blk + 0x20, blend);
 
     *(float *)(blk + 0x30) = *(float *)(orig + 0x3C);
     *(float *)(blk + 0x34) = *(float *)(orig + 0x38);
