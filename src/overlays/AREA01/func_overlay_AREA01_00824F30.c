@@ -1,23 +1,22 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-// CFLAGS: -O4,p -sdatathreshold 4
-extern void func_11E748(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA01 overlay, runtime 0x00824F70 (splat/link name 00824F30; overlay
+// code is linked 0x40 below where it runs). Byte-identical (objdiff 100%).
+// Role: called from 0x824340; true when the player (D_008106C0 +0x118) is
+//  within 8.0 on the XZ plane.
+// Covers the splat pieces 00824F30, 00824F70 (the later piece
+// is absorbed at link time, tools/overlay/fill_overlay.py).
+extern char *D_008106C0;
+extern float func_0011E748(float x);
 
-asm void func_overlay_AREA01_00824F30(void) {
-    addiu $sp, $sp, -0x10
-    sq $ra, 0x0($sp)
-    lui $at, (0x8106C0 >> 16)
-    lw $v0, (0x8106C0 & 0xFFFF)($at)
-    lwc1 $f2, 0xB0($a0)
-    lwc1 $f1, 0xB8($a0)
-    lw $v0, 0x118($v0)
-    lwc1 $f3, 0xC0($v0)
-    lwc1 $f0, 0xC8($v0)
-    sub.s $f2, $f2, $f3
-    sub.s $f0, $f1, $f0
-    mula.s $f2, $f2
-    jal func_11E748
-    madd.s $f12, $f0, $f0
-    lui $v0, (0x41000000 >> 16)
-    mtc1 $v0, $f1
+int func_overlay_AREA01_00824F30(char *self) {
+    char *pl = *(char **)(D_008106C0 + 0x118);
+    float dx;
+    float dz;
+    float d;
+    dx = *(float *)(pl + 0xC0);
+    dx = *(float *)(self + 0xB0) - dx;
+    dz = *(float *)(self + 0xB8) - *(float *)(pl + 0xC8);
+    d = func_0011E748(dx * dx + dz * dz);
+    return (d > 8.0f) ? 0 : 1;
 }

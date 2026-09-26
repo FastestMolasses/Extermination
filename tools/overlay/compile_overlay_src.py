@@ -6,7 +6,12 @@ build/overlays/AREAXX/obj/<stem>.o via mwccmips (run under qemu-i386 wibo32).
 
 Per-file CFLAGS may be supplied as a "// CFLAGS: ..." comment on the first
 non-blank line of the .c file (same convention as tools/decomp/build.py).
-Default is "-O4,p -sdatathreshold 4".
+Default is "-O4,p -sdatathreshold 4". A "// COMPILER: mwcc233" (or mwcc24,
+mwcc30, mwcc301) line selects a CodeWarrior point release the same way
+tools/decomp/build.py does. A file whose first line is "// NEARMISS" is
+readable reference C that is not byte-identical yet: it is not compiled, and
+any stale object for it is removed so the overlay links that function from
+its splat .s.
 
 Usage (inside exterm-toolchain container):
     python3 tools/overlay/compile_overlay_src.py AREA18
@@ -21,6 +26,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CFLAGS = "-O4,p -sdatathreshold 4"
+DEFAULT_EXE = "tools/mwccps2/mwccmips.exe"
+# Same point-release table as tools/decomp/build.py compile_cmd().
+MWCC = {
+    "mwcc233": "tools/mwccps2-233/mwccps2.exe",
+    "mwcc24":  "tools/mwccps2-24/mwccps2.exe",
+    "mwcc30":  "tools/mwccps2-30/mwccps2.exe",
+    "mwcc301": "tools/mwccps2-301/mwccps2.exe",
+}
 
 
 def file_cflags(src: Path) -> str:
@@ -42,10 +55,36 @@ def file_cflags(src: Path) -> str:
     return DEFAULT_CFLAGS
 
 
+def file_compiler(src: Path) -> str:
+    """'// COMPILER: ...' from the leading comment block ('' if absent)."""
+    try:
+        with src.open() as f:
+            for line in f:
+                s = line.strip()
+                if not s:
+                    continue
+                if not s.startswith("//"):
+                    break
+                if s.startswith("// COMPILER:"):
+                    return s[len("// COMPILER:"):].strip()
+    except OSError:
+        pass
+    return ""
+
+
+def is_nearmiss(src: Path) -> bool:
+    try:
+        with src.open() as f:
+            return f.readline().startswith("// NEARMISS")
+    except OSError:
+        return False
+
+
 def compile_one(c_src: Path, out_obj: Path) -> int:
     out_obj.parent.mkdir(parents=True, exist_ok=True)
     flags = file_cflags(c_src)
-    cmd = ["qemu-i386", "tools/bin/wibo32", "tools/mwccps2/mwccmips.exe",
+    exe = MWCC.get(file_compiler(c_src), DEFAULT_EXE)
+    cmd = ["qemu-i386", "tools/bin/wibo32", exe,
            "-c"] + flags.split() + ["-o", str(out_obj.relative_to(ROOT)),
                                     str(c_src.relative_to(ROOT))]
     r = subprocess.run(cmd, cwd=ROOT)
@@ -63,8 +102,22 @@ def process_area(area: str) -> int:
         print(f"[compile_overlay_src] {area}: no .c files in {src_dir.relative_to(ROOT)}")
         return 0
     errors = 0
+    # obj/ mirrors src/: drop objects whose source was removed (for example
+    # splat pieces now covered by a merged C function), since fill_overlay.py
+    # prefers any object it finds there over the splat .s.
+    if obj_dir.exists():
+        stems = {c.stem for c in sources}
+        for o in obj_dir.glob("*.o"):
+            if o.stem not in stems:
+                o.unlink()
+                print(f"[compile_overlay_src] {area}: removed stale obj/{o.name}")
     for c in sources:
         out_o = obj_dir / f"{c.stem}.o"
+        if is_nearmiss(c):
+            if out_o.exists():
+                out_o.unlink()
+            print(f"[compile_overlay_src] {area}/{c.name}  NEARMISS (not compiled)")
+            continue
         rc = compile_one(c, out_o)
         status = "OK" if rc == 0 else f"FAIL rc={rc}"
         print(f"[compile_overlay_src] {area}/{c.name} -> {out_o.name}  {status}")

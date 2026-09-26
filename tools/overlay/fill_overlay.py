@@ -19,6 +19,7 @@ Or via container CLI from host:
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import shutil
 import struct
@@ -261,6 +262,66 @@ def compute_slot_sizes(entries: list[tuple[int, str, Path]],
                 next_vram = vram + (nm if nm > 0 else 0)
         slot_sizes[name] = next_vram - vram
     return slot_sizes
+
+
+def _obj_text_size(obj_path: Path) -> int:
+    """Size of the .text section of an ELF32 LE object (0 if none)."""
+    data = obj_path.read_bytes()
+    if data[:4] != b'\x7fELF':
+        return 0
+    shoff = struct.unpack_from('<I', data, 32)[0]
+    shentsize, shnum, shstrndx = struct.unpack_from('<HHH', data, 46)
+    stroff = struct.unpack_from('<I', data, shoff + shstrndx * shentsize + 16)[0]
+    for i in range(shnum):
+        sh = shoff + i * shentsize
+        name_off = struct.unpack_from('<I', data, sh)[0]
+        name = data[stroff + name_off:data.index(b'\0', stroff + name_off)]
+        if name == b'.text':
+            return struct.unpack_from('<I', data, sh + 20)[0]
+    return 0
+
+
+ABSORBED_MANIFEST = "_absorbed.json"
+
+
+def plan_absorption(entries: list[tuple[int, str, Path]],
+                    slot_sizes: dict[str, int],
+                    obj_dir: Path) -> dict[str, list[str]]:
+    """Let a compiled object cover the splat pieces its function spans.
+
+    Overlays are linked 0x40 below their runtime address, so every
+    intra-overlay call target sits 0x40 into the called function and splat
+    starts a new piece there. A C file for the whole function is compiled
+    under the first piece's name; its .text is longer than that piece's
+    slot. The following pieces it covers are "absorbed": they are not
+    assembled or linked, the object's slot grows to cover them, and
+    link_overlay.py defines their names as absolute symbols at their link
+    address (other code calls them by those names). Returns
+    {owner: [absorbed pieces]}; objects that fit their slot are unchanged.
+    """
+    plan: dict[str, list[str]] = {}
+    i = 0
+    while i < len(entries):
+        _, name, _ = entries[i]
+        obj = obj_dir / f"{name}.o"
+        slot = slot_sizes.get(name, 0)
+        size = _obj_text_size(obj) if obj.exists() else 0
+        j = i + 1
+        if size > slot > 0:
+            covered = slot
+            absorbed = []
+            while covered < size and j < len(entries):
+                nxt = entries[j][1]
+                absorbed.append(nxt)
+                covered += slot_sizes.get(nxt, 0)
+                j += 1
+            if covered < size or covered - size >= 16:
+                sys.exit(f"error: {obj} .text 0x{size:x} does not end within "
+                         f"the padding of the pieces it covers (0x{covered:x})")
+            plan[name] = absorbed
+            slot_sizes[name] = covered
+        i = j
+    return plan
 
 
 def _assemble(asm_path: Path, out_path: Path, macro_inc: Path,
@@ -520,6 +581,20 @@ def main():
         text_end_vram = mwo3['load_address'] + mwo3['text_size']
         print(f"[fill] text_end_vram=0x{text_end_vram:08x} from MWo3 header")
     slot_sizes = compute_slot_sizes(entries, text_end_vram)
+
+    # Compiled objects that span several splat pieces absorb the later ones.
+    absorption = plan_absorption(entries, slot_sizes, obj_dir)
+    absorbed = {a for lst in absorption.values() for a in lst}
+    (filler_dir / ABSORBED_MANIFEST).write_text(json.dumps(
+        {k: v for k, v in sorted(absorption.items())}, indent=1) + "\n")
+    for a in absorbed:
+        stale = filler_dir / f"{a}.o"
+        if stale.exists():
+            stale.unlink()
+    if absorbed:
+        print(f"[fill] {len(absorbed)} splat piece(s) absorbed by "
+              f"{len(absorption)} compiled function(s)")
+    entries = [e for e in entries if e[1] not in absorbed]
 
     print(f"[fill] {len(entries)} code functions for {name}")
 

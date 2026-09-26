@@ -29,6 +29,7 @@ Or via container CLI from host:
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import struct
 import subprocess
@@ -114,7 +115,8 @@ def parse_mwo3_header(data: bytes) -> dict:
 
 def generate_lds(name: str, funcs: list[str], data_stems: list[str],
                  hdr: dict, filler_dir: Path,
-                 merged_code_obj: Path | None = None) -> str:
+                 merged_code_obj: Path | None = None,
+                 absorbed: dict[str, int] | None = None) -> str:
     """
     Generate a GNU ld linker script for one overlay.
 
@@ -129,7 +131,7 @@ def generate_lds(name: str, funcs: list[str], data_stems: list[str],
     load = hdr['load_address']   # 0x00823500
 
     # Absolute symbols block
-    abs_lines = _build_abs_syms_lds(name)
+    abs_lines = _build_abs_syms_lds(name, absorbed)
 
     # INPUT() directive: absolute paths to all objects in link order.
     if merged_code_obj is not None:
@@ -195,7 +197,20 @@ SECTIONS
     return lds
 
 
-def _build_abs_syms_lds(name: str) -> str:
+def absorbed_pieces(filler_dir: Path, asm_dir: Path) -> dict[str, int]:
+    """Splat pieces absorbed by a compiled function (fill_overlay.py
+    plan_absorption), mapped to their link address."""
+    manifest = filler_dir / "_absorbed.json"
+    if not manifest.exists():
+        return {}
+    out: dict[str, int] = {}
+    for pieces in json.loads(manifest.read_text()).values():
+        for piece in pieces:
+            out[piece] = _vram_from_asm(asm_dir / f"{piece}.s")
+    return out
+
+
+def _build_abs_syms_lds(name: str, extra: dict[str, int] | None = None) -> str:
     """
     Build absolute symbol definitions for the GNU ld script.
     Reads from undefined_syms_auto.txt and undefined_funcs_auto.txt,
@@ -208,7 +223,7 @@ def _build_abs_syms_lds(name: str) -> str:
     _d_re = re.compile(r'\bD_([0-9A-Fa-f]{6,8})\b')
     _f_re = re.compile(r'\bfunc_([0-9A-Fa-f]{6,8})\b')
 
-    syms: dict[str, int] = {}
+    syms: dict[str, int] = dict(extra or {})
 
     # Standard EE syscall/exception vectors.
     syms["func_00000008"] = 0x00000008
@@ -467,12 +482,16 @@ def main(argv: list[str]) -> int:
     # Step 2: generate GNU ld script
     if not asm_dir.exists():
         sys.exit(f"error: {asm_dir} not found. Run splat + fill first.")
-    funcs = sorted_functions(asm_dir)
+    absorbed = absorbed_pieces(filler_dir, asm_dir)
+    funcs = [f for f in sorted_functions(asm_dir) if f not in absorbed]
+    if absorbed:
+        print(f"[link] {len(absorbed)} splat piece(s) absorbed by compiled functions")
     d_stems = data_section_stems(overlay_build)
     print(f"[link] {len(funcs)} code functions, {len(d_stems)} data section(s)")
 
     config_dir.mkdir(parents=True, exist_ok=True)
-    lds_text = generate_lds(name, funcs, d_stems, hdr, filler_dir)
+    lds_text = generate_lds(name, funcs, d_stems, hdr, filler_dir,
+                            absorbed=absorbed)
     lds_path.write_text(lds_text)
     print(f"[link] wrote {lds_path.relative_to(ROOT)}")
 
@@ -517,7 +536,8 @@ def main(argv: list[str]) -> int:
 
     # Step 4b: generate final LDS using the merged code object.
     lds_text = generate_lds(name, funcs, d_stems, hdr, filler_dir,
-                            merged_code_obj=merged_code_obj)
+                            merged_code_obj=merged_code_obj,
+                            absorbed=absorbed)
     lds_path.write_text(lds_text)
 
     # Step 4c: final link with GNU ld

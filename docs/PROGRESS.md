@@ -1,3 +1,45 @@
+## 2026-09-25 — AREA01 overlay: 32 functions byte-matched from C (a01-decomp-match lane)
+
+- **Why AREA01 was split wrong.** Every overlay is linked at 0x00823500, but
+  its code runs 0x40 higher (the 0x40-byte MWo3 header is loaded first). Each
+  intra-overlay call target therefore sits 0x40 into the called function, and
+  splat opened a fake "function" there. Splat/link names are the runtime
+  address minus 0x40; a C call to runtime address T uses the name
+  `func_overlay_AREA01_<T>`, which is exactly the split piece's symbol, so
+  the bytes line up.
+- **Tooling** (all overlays; no-op unless a compiled object spans pieces):
+  - `tools/overlay/overlay_match.py` (new): regroups the pieces into the 41 real
+    functions, builds relocation-free expected objects from the user's own BIN,
+    compiles a candidate with its `// COMPILER:`, resolves its relocations the
+    way the overlay link does, and scores it with objdiff-cli (`list`, `prep`,
+    `check --cc ... --show`).
+  - `fill_overlay.py`: a compiled object longer than its piece absorbs the
+    following pieces it covers (`filler/_absorbed.json`); `link_overlay.py`
+    drops them and defines their names as absolute symbols.
+  - `compile_overlay_src.py`: honours `// COMPILER:` like tools/decomp/build.py,
+    skips `// NEARMISS` files, and removes objects whose source is gone.
+- **Result.** 32 AREA01 functions are byte-identical C under mwcc 2.3.3
+  (every one also 100% in overlay_match.py): runtime 0x8237D0, 0x823900,
+  0x8239C0, 0x8240E0, 0x824D50, 0x824F70, 0x824FE0, 0x825040, 0x825130,
+  0x825240, 0x825350, 0x8254B0, 0x825590, 0x825670, 0x825740, 0x825910,
+  0x825950, 0x825BE0, 0x825D30, 0x825EA0, 0x825F00, 0x825FC0, 0x826010,
+  0x8261A0, 0x826200, 0x826440, 0x8267C0, 0x826950, 0x826BA0, 0x826CF0,
+  0x8287C0, 0x828850. 17 split pieces are absorbed; the replaced asm-void
+  pieces 00824F70/00824FE0/00825FC0 are gone. Three NEARMISS (docs/NEARMISS.md):
+  0x823A90 99.87%, 0x824770 99.08%, 0x8282F0 89.86%.
+- **Still assembly:** 0x823580 (O5 shaft door), 0x823CD0 and 0x824340 (O3) are
+  jr-table dispatchers. A C switch cannot link here yet: its table entries and
+  table address would resolve to link addresses, 0x40 below the runtime values
+  the original stores. Fix = link overlays (and name splat code) at load + 0x40.
+  0x826D40 (O4, 5,552 bytes, live at f801) is not started; m2c output and a
+  full read of its first half are the starting point.
+- **Gate (fresh build.py build + verify_all):** boot ELF byte-identical, 19/19
+  overlays, matched_code 98.60% 2150/2211 (unchanged; overlay C is not an
+  objdiff unit). Note the gate's overlay stage does not compile src/overlays:
+  run `compile_overlay_src.py AREA01` in the container first. Every compiled
+  AREA01 object was checked to be the linked filler (two differ only by the
+  pre-applied GPREL16 fields).
+
 ## 2026-09-23 — EE float model settled; func_001A4030 byte-matched (2150/2211)
 
 - **EE/VU0 float arithmetic measured in PCSX2** (the user's saved settings):
