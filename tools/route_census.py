@@ -53,6 +53,11 @@ Usage (decomp .venv python, repo root):
     .venv/bin/python tools/route_census.py report --passes A,B   # first pass is primary; S0..S3 + 00..14
     .venv/bin/python tools/route_census.py run --segments 15 --pass A   # beat 15, level exit
     .venv/bin/python tools/route_census.py exit-delta --passes A,B      # beat 15's new functions
+    .venv/bin/python tools/route_census.py run --segments a01 --pass A01  # AREA01 beats (opt-in)
+    .venv/bin/python tools/route_census.py a01-delta --passes A01         # AREA01 beyond the first level
+The a01_* segments (route_capture's AREA01 group, docs/SECOND_LEVEL_ROUTE.md in
+the port) arm the boot functions plus the AREA01 overlay; `report` and
+`exit-delta` never read them.
 """
 from __future__ import annotations
 
@@ -137,15 +142,17 @@ def boot_status() -> dict[str, dict]:
     return out
 
 
-def candidates() -> list[dict]:
+def candidates(overlay: str = "AREA11") -> list[dict]:
+    """Boot functions plus one overlay's splat functions (AREA11 for the
+    first level; AREA01 for the opt-in a01_* segments)."""
     status = boot_status()
     cands = []
     for row in csv.DictReader(open(ROOT / "docs/FUNCTIONS.csv")):
         name = row["name"]
         cands.append({"addr": int(row["vram"], 16), "name": name, "size": int(row["size_bytes"]),
                       "region": "boot", **status[name]})
-    code = ROOT / "build/overlays/AREA11/asm/matchings/AREA11/code"
-    blob = (ROOT / "extract/OVERLAY/AREA11.BIN").read_bytes()
+    code = ROOT / f"build/overlays/{overlay}/asm/matchings/{overlay}/code"
+    blob = (ROOT / f"extract/OVERLAY/{overlay}.BIN").read_bytes()
     text_size = struct.unpack_from("<I", blob, 0xC)[0]
     text_end = OVERLAY_TEXT + text_size
     rows = []
@@ -156,7 +163,7 @@ def candidates() -> list[dict]:
     rows.sort()
     for i, (addr, name) in enumerate(rows):
         size = (rows[i + 1][0] if i + 1 < len(rows) else text_end) - addr
-        src = ROOT / "src/overlays/AREA11" / f"{name}.c"
+        src = ROOT / f"src/overlays/{overlay}" / f"{name}.c"
         if not src.exists():
             st = "asm_undecompiled"
         else:
@@ -168,9 +175,9 @@ def candidates() -> list[dict]:
                 st = _asm_kind(src)
             else:
                 st = "c_overlay"     # overlay C objects: see docs/OVERLAYS.md
-        cands.append({"addr": addr, "name": name, "size": size, "region": "overlay:AREA11",
+        cands.append({"addr": addr, "name": name, "size": size, "region": f"overlay:{overlay}",
                       "splat_label": hex(addr - 0x40), "status": st, "link_route": None,
-                      "objdiff_perfect": None, "csv_status": None, "subsystem": "overlay_AREA11"})
+                      "objdiff_perfect": None, "csv_status": None, "subsystem": f"overlay_{overlay}"})
     cands.sort(key=lambda c: c["addr"])
     return cands
 
@@ -562,15 +569,15 @@ def compare_startup(pass_a: str, pass_b: str) -> dict:
 
 
 def run_beat(name: str, source: str, fn, addrs: list[int], pass_name: str) -> None:
-    rec_path = ROUTE / name / "trace.json"
+    rec_path = rc.beat_dir(name) / "trace.json"      # AREA01 beats: build/s87/route_a01/
     recorded = json.loads(rec_path.read_text())
     tail = recorded.get("tail_idle_frames", 0) or 0
     if len(source) == 2 and source.isdigit():
         src = rc.slot_path(source)
         src_ee = None
     else:
-        src = resumable(ROUTE / source / "state.p2s", name)
-        src_ee = ROUTE / source / "eeMemory.bin"
+        src = resumable(rc.beat_dir(source) / "state.p2s", name)
+        src_ee = rc.beat_dir(source) / "eeMemory.bin"
     t_all = time.monotonic()
     doc: dict = {"beat": name, "source": source, "tail_idle_frames": tail}
     s = open_census(src, OUT / "logs" / pass_name / name)
@@ -600,11 +607,11 @@ def run_beat(name: str, source: str, fn, addrs: list[int], pass_name: str) -> No
         except (OSError, EOFError, RuntimeError) as exc:
             doc["end_digest"] = {n: None for n, _a, _z in DIGEST_SPANS}
             doc["end_digest_error"] = repr(exc)
-        doc["recorded_end_digest"] = digests_file((ROUTE / name / "eeMemory.bin").read_bytes())
+        doc["recorded_end_digest"] = digests_file((rc.beat_dir(name) / "eeMemory.bin").read_bytes())
         doc["end_digest_equal"] = {k: doc["end_digest"][k] == doc["recorded_end_digest"][k]
                                    for k in doc["end_digest"]}
         try:   # where the stable spans differ from the recorded snapshot (addresses only)
-            ref = (ROUTE / name / "eeMemory.bin").read_bytes()
+            ref = (rc.beat_dir(name) / "eeMemory.bin").read_bytes()
             diff = {}
             for n, a, size in DIGEST_SPANS:
                 live = s.read(a, size)
@@ -828,9 +835,163 @@ def exit_delta(passes: list[str]) -> dict:
     return out
 
 
+# ---------------------------------------------------------------------------
+# AREA01 (the second level, opt-in): route_capture's a01_* beats.  They are
+# replayed only when named (`run --segments a01` or a01_03,...), with the
+# breakpoints on the boot functions plus the AREA01 overlay (runtime = splat
+# label + 0x40, like AREA11).  `a01-delta` lists what they execute beyond the
+# first-level census (route_functions.json: startup S0..S3 + beats 00..14);
+# nothing here changes that census or `report`.  It counts AREA01 overlay hits
+# per real function (split pieces regrouped, a01_real_functions), with the
+# decomp status of the src/overlays/AREA01 tree it runs on.
+
+AREA01_ID = 2
+A01_EXIT_BEAT = "a01_07_level_exit"
+A01_CHANGE, A01_ARRIVAL = 0x1AD010, 0x1B07C0
+
+
+def a01_real_functions(cands: dict[int, dict]) -> dict[int, int]:
+    """Regroup the AREA01 splat pieces into the overlay's real functions.
+
+    Splat splits many overlay functions in two (an intra-overlay call target
+    sits 0x40 into the callee; see tools/overlay/overlay_match.py), so a
+    breakpoint on a split piece is a point inside a real function, not an
+    entry.  This rewrites cands in place: each real function keeps its entry
+    runtime address with its true size and its src/overlays/AREA01 status,
+    absorbed pieces are dropped, and the returned map sends every piece's
+    runtime address to its function's entry."""
+    sys.path.insert(0, str(ROOT / "tools" / "overlay"))
+    import overlay_match as om  # noqa: E402
+    kind = {"C": "c_overlay", "nearmiss": "nearmiss", "asm": "asm_undecompiled",
+            "asm-void": "asm_word"}
+    piece_to_real: dict[int, int] = {}
+    for f in om.true_functions("AREA01"):
+        rt = f["runtime"]
+        for piece in f["pieces"]:
+            prt = int(piece[-8:], 16) + 0x40
+            piece_to_real[prt] = rt
+            if prt != rt:
+                cands.pop(prt, None)
+        c = cands[rt]
+        c.update(size=f["size"], status=kind[om.c_status("AREA01", f["name"])],
+                 pieces=[hex(int(x[-8:], 16) + 0x40) for x in f["pieces"]])
+    return piece_to_real
+
+
+def a01_delta(passes: list[str]) -> dict:
+    cands = {c["addr"]: c for c in candidates("AREA01")}
+    piece_to_real = a01_real_functions(cands)
+    # beat 15 armed the AREA11 overlay only: an AREA01 function can show as
+    # "in beat 15" only where an AREA11 candidate shares its runtime address.
+    beat15_armed_overlay = {c["addr"] for c in candidates("AREA11") if c["region"] != "boot"}
+    first = json.loads((OUT / "route_functions.json").read_text())
+    first_boot = {int(f["addr"], 16) for f in first["functions"] if not f.get("overlay")}
+    beat15 = {}
+    for p in first["summary"].get("passes", ["A"]):     # the first-level census passes
+        f15 = OUT / "runs" / p / f"{EXIT_BEAT}.json"
+        if f15.exists():
+            for h in json.loads(f15.read_text())["hits"]:
+                beat15.setdefault(int(h["pc"], 16), h)
+    funcs: dict[int, dict] = {}
+    other_overlay, unknown, per_beat, missing = [], [], [], []
+    phase_marks = {}
+    for name, _src, _fn in rc.A01_BEATS:
+        seen_here = set()
+        found = False
+        for p in passes:
+            f = OUT / "runs" / p / f"{name}.json"
+            if not f.exists():
+                continue
+            found = True
+            doc = json.loads(f.read_text())
+            # The exit beat crosses into AREA00: phase its hits by the area-change
+            # consumer 001AD010 and the arrival placement 001B07C0 (one-shot hits).
+            marks = {int(h["pc"], 16): h["frame"] for h in doc["hits"]}
+            f_chg = marks.get(A01_CHANGE) if name == A01_EXIT_BEAT else None
+            f_arr = marks.get(A01_ARRIVAL) if name == A01_EXIT_BEAT else None
+            if name == A01_EXIT_BEAT:
+                phase_marks[p] = {"change_001AD010": f_chg, "arrival_001B07C0": f_arr}
+
+            def phase(frame: int) -> str:
+                if f_chg is None or frame < f_chg:
+                    return "area01"
+                return "change_load" if f_arr is None or frame < f_arr else "area00"
+            for h in doc["hits"]:
+                piece_pc = int(h["pc"], 16)
+                pc = piece_to_real.get(piece_pc, piece_pc)   # a split piece counts for its function
+                c = cands.get(pc)
+                if c is None:
+                    unknown.append(dict(h, beat=name))
+                    continue
+                if c["region"].startswith("overlay") and h.get("overlay_id") != AREA01_ID:
+                    other_overlay.append(dict(h, beat=name, name=c["name"]))
+                    continue
+                seen_here.add(pc)
+                e = funcs.setdefault(pc, {"first_beat": name, "first_frame": h["frame"],
+                                          "first_pass": p, "beats": [], "phases": [],
+                                          "hit_points": []})
+                if name == e["first_beat"] and h["frame"] < e["first_frame"]:
+                    e["first_frame"] = h["frame"]
+                if hex(piece_pc) not in e["hit_points"]:
+                    e["hit_points"].append(hex(piece_pc))
+                if name not in e["beats"]:
+                    e["beats"].append(name)
+                ph = phase(h["frame"])
+                if ph not in e["phases"]:
+                    e["phases"].append(ph)
+        if not found:
+            missing.append(name)
+            continue
+        per_beat.append({"beat": name, "side": name in rc.A01_SIDE_BEATS,
+                         "functions": len(seen_here),
+                         "new_vs_first_level": sum(1 for pc in seen_here
+                                                   if cands[pc]["region"] != "boot" or pc not in first_boot)})
+    rows = []
+    for pc in sorted(funcs):
+        c, e = cands[pc], funcs[pc]
+        overlay = c["region"] != "boot"
+        in_first = (not overlay) and pc in first_boot
+        h15 = beat15.get(pc)
+        in15 = bool(h15) and (not overlay or h15.get("overlay_id") == AREA01_ID)
+        rows.append({"addr": hex(pc), "name": c["name"], "size": c["size"],
+                     "region": c["region"], "splat_label": c.get("splat_label"),
+                     "status": c["status"], "subsystem": c["subsystem"],
+                     "pieces": c.get("pieces"), "hit_points": e["hit_points"],
+                     "in_first_level_census": in_first, "in_beat15_exit": in15,
+                     "beat15_armed": (not overlay) or pc in beat15_armed_overlay,
+                     "first_beat": e["first_beat"], "first_frame": e["first_frame"],
+                     "beats": e["beats"], "phases": e["phases"],
+                     "exit_change_or_area00_only": "area01" not in e["phases"],
+                     "side_beat_only": all(b in rc.A01_SIDE_BEATS for b in e["beats"])})
+    new = [r for r in rows if not r["in_first_level_census"]]
+    def count(rs, key):
+        out: dict[str, int] = {}
+        for r in rs:
+            out[r[key]] = out.get(r[key], 0) + 1
+        return out
+    summary = {"passes": passes, "beats_missing": missing,
+               "executed": len(rows), "executed_boot": sum(1 for r in rows if r["region"] == "boot"),
+               "executed_overlay_AREA01": sum(1 for r in rows if r["region"] != "boot"),
+               "new_vs_first_level": len(new), "new_bytes": sum(r["size"] for r in new),
+               "new_boot": sum(1 for r in new if r["region"] == "boot"),
+               "new_overlay_AREA01": sum(1 for r in new if r["region"] != "boot"),
+               "new_already_in_beat15": sum(1 for r in new if r["in_beat15_exit"]),
+               "new_side_beat_only": sum(1 for r in new if r["side_beat_only"]),
+               "new_exit_change_or_area00_only": sum(1 for r in new if r["exit_change_or_area00_only"]),
+               "new_in_area01_play": sum(1 for r in new if not r["exit_change_or_area00_only"]),
+               "exit_phase_marks": phase_marks,
+               "new_by_status": count(new, "status"), "new_by_subsystem": count(new, "subsystem"),
+               "overlay_hits_other_overlay": len(other_overlay), "unattributed_hits": len(unknown)}
+    out = {"summary": summary, "per_beat": per_beat, "new_functions": new, "functions": rows,
+           "overlay_hits_other_overlay": other_overlay, "unattributed_hits": unknown}
+    (OUT / "a01_delta.json").write_text(json.dumps(out, indent=1) + "\n")
+    return out
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("command", choices=["candidates", "run", "report", "compare-startup", "exit-delta"])
+    ap.add_argument("command", choices=["candidates", "run", "report", "compare-startup", "exit-delta",
+                                        "a01-delta"])
     ap.add_argument("--arm-chunk", type=int, default=200,
                     help="breakpoint commands per DebugServer round trip")
     ap.add_argument("--segments", default="all")
@@ -847,6 +1008,18 @@ if __name__ == "__main__":
             counts[x["region"] + ":" + x["status"]] = counts.get(x["region"] + ":" + x["status"], 0) + 1
         print(len(c), json.dumps(counts, indent=1))
     elif a.command == "run":
+        if a.segments != "all" and any(w.startswith("a01") for w in a.segments.split(",")):
+            a01_addrs = [c["addr"] for c in candidates("AREA01")]
+            for name, source, fn in rc.a01_selected(a.segments):
+                for attempt in range(3):
+                    run_beat(name, source, fn, a01_addrs, a.pass_name)
+                    doc = json.loads((OUT / "runs" / a.pass_name / f"{name}.json").read_text())
+                    if doc.get("completed"):
+                        break
+                    keep = OUT / "runs" / a.pass_name / "_failed"
+                    keep.mkdir(parents=True, exist_ok=True)
+                    (keep / f"{name}.attempt{attempt + 1}.json").write_text(json.dumps(doc, indent=1) + "\n")
+                    print(f"{name}: attempt {attempt + 1} incomplete ({doc.get('error')}); retrying", flush=True)
         addrs = [c["addr"] for c in candidates()]
         wanted = DEFAULT_SEGMENTS if a.segments == "all" else a.segments.split(",")
         for seg in SEGMENTS:
@@ -874,6 +1047,10 @@ if __name__ == "__main__":
                     print(f"{name}: attempt {attempt + 1} incomplete ({doc.get('error')}); retrying", flush=True)
     elif a.command == "report":
         report(a.passes.split(","))
+    elif a.command == "a01-delta":
+        d = a01_delta(a.passes.split(","))
+        print(json.dumps(d["summary"], indent=1))
+        print(json.dumps(d["per_beat"], indent=1))
     elif a.command == "exit-delta":
         d = exit_delta(a.passes.split(","))
         print(json.dumps({k: v for k, v in d.items() if k != "new_functions"}, indent=1))
