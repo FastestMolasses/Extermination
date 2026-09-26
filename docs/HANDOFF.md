@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-09-25 (Claude, s87).** This is the short cross-repo entry point.
+**Current as of 2026-09-26 (Claude, s87).** This is the short cross-repo entry point.
 Everything below the "ARCHIVE" line is older notes, kept for reference only; much of it
 is superseded.
 
@@ -44,31 +44,31 @@ is superseded.
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
 
-## State (2026-09-25)
-- **Live in AREA11 on original code** (port chains C3..C5; the level smoke compares each
-  beat row for row with its PCSX2 route capture):
-  - beats 00..08, 12 and 14: panel without power, the battery pickup and status pop-up,
-    the no-power refusal with black bars, powering the panel, the elevator ride,
-    **climbing the boxes (05)**, **the hill slide (06)**, the truck preview with black
-    bars and camera script (07), the truck crossing (08), the crevice jump (12) and
-    Roger's encounter (14);
-  - the non-director phases of beats 10, 11 and 13 (cage-roof ladders, crevice, tower).
-  - Also live: the player stage, the whole FLOOR closure, the Use chain and dispatcher,
-    the collision world (native walkers, grid pass, hull locks), the crates and drums as
-    original owners, the camera, locomotion and footsteps, and the fog background layer.
-- **Not live yet (chain C6 in progress):**
-  - the director phases of beats 10/11/13 and Roger's first voiced line: WP-8b
-    voice lanes;
-  - the render context, and with it the effects and the player equipment (the
-    rifle on his back);
-  - the fence door (side beat 09);
-  - the GS-exact actor draw (VU1 object kernel);
-  - the drop shadow;
-  - the BATTERY page's original draw and the mode-3/4 presenters;
-  - several SFX ids missing from the export (phase B14).
-- **Census:** port docs/FIRST_LEVEL_CENSUS.md, recounted after C5 (section 1.14):
-  about 246+ live of 716 game functions and only a handful missing. Run the
-  recount again after C6.
+## State (2026-09-26)
+- **Chain C6 finished** (port c7a04a4 VOICE, 955f1c2 RCTX, 8d65dff FXLIVE, b7868e1 DOOR,
+  de64410 OBJKERNEL, c8e658f SHADOW, 097fbd9 UI, d610cec ROUTE). The level smoke plays the
+  whole main route 01..14 (18 phases, incl. the director beats and Roger) plus side beats 00
+  and 09, each checked against its PCSX2 capture; `--require-through` makes a shorter route
+  fail. Census (port FIRST_LEVEL_CENSUS.md 1.22): live 640 / verified-unbound 87 /
+  unverified 5 / stand-in 0 / missing 1 / boundary 451 = 90.8% of non-boundary instructions.
+  newgame-control baseline is now 9.599849.
+- **What still differs from the original** (C6 limitations; port LEVEL_SMOKE.md "What the
+  full route does not yet compare"): the player, Roger and the other non-crate owners still
+  draw legacy meshes (only crates, drums, truck and fence door use the original object
+  units); the effect chains are built exactly but not drawn; the scripted takeover
+  (001CA770, 0015B530/00182B30/001837A0) is a stand-in; step V (001D2300) and the static
+  world (001C1D00, bank *D_0028A5A0) are not bound; voiced lines tear down 6-8 rows early
+  (no drive-latency model); rand() order is unaudited; duplicate translations remain;
+  Metal rasterization stands in for the GS DDA (no framebuffer capture yet).
+- **Running:** chain C7 (build/workflows/snow-level-chain-c7-*.js: PLAYERDRAW, FXDRAW,
+  OWNERS, TAKEOVER, STEPV, DEDUP, FPUAUDIT, then capture-dependent VOICELAT, DOOR1,
+  RNGORDER, and ROUTE) and a capture job (build/workflows/c7-original-captures-*.js:
+  stream latency, fence door side 1, lane-3 writer, rand() caller trace, framebuffer
+  feasibility, panel module load; outputs build/s87/c7cap/, doc docs/CAPTURES_C7.md).
+- **Not yet planned into a chain:** Roger's face units (001CB3C0, 001D3F50, 001D3E40,
+  001C7900, 001CB2C0) and his kind-0x29 shadow proxy; the static world and background
+  channel (001C1D00, 001D5370, 001E1E60/001E1AD0); UI cues and unit sound (WP-14); SPU2
+  reverb; the GS-exact Original-profile renderer and framebuffer harness.
 - **Guards:** tools/check_no_disassembly.py in both repos. The asm bodies stay by the
   user's decision. Never stage while a workflow chain's committer is running (the index
   is shared).
