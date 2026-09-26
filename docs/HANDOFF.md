@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-09-23 (Claude, s87).** This is the short cross-repo entry point.
+**Current as of 2026-09-25 (Claude, s87).** This is the short cross-repo entry point.
 Everything below the "ARCHIVE" line is older notes, kept for reference only; much of it
 is superseded.
 
@@ -39,7 +39,7 @@ is superseded.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest: 2150/2211 units = 98.60%; boot ELF byte-identical; 19/19 overlays.
+  Latest (bdd40fb): 2150/2211 units; boot ELF byte-identical; 19/19 overlays.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
@@ -72,8 +72,19 @@ is superseded.
 - **Guards:** tools/check_no_disassembly.py in both repos. The asm bodies stay by the
   user's decision. Never stage while a workflow chain's committer is running (the index
   is shared).
+- **Level 2 (AREA01) on the side** (user, 2026-09-25; rules in memory
+  `level2-side-track`: new files, decomp overlay sources, ignored build/ only, never the
+  port's live files while a first-level chain runs):
+  - Phase 1 done: original route recorded (`tools/route_capture.py` group `a01`,
+    `build/s87/route_a01/`), census delta (`route_census.py a01-delta`: 154 new
+    functions, 89 main line), overview (`tools/area_overview.py`), overlay matching
+    (bdd40fb: 33 of 41 byte-identical C). Docs: port `docs/SECOND_LEVEL_ROUTE.md`,
+    `docs/AREA01_OVERVIEW.md`; FINDINGS "AREA01 route capture" section.
+  - Phase 2 next: local AREA01 asset exports checked against the a01 captures, and
+    standalone translations (new files + oracles) of the new functions, main line first.
+  - Phase 3 (after the first level is done): an AREA01 binding chain.
 - **Next:** the Original profile (exact 512x448 GS framebuffer, 4:3) and the
-  framebuffer-compare harness, EE-float harmonization of the older oracles, then AREA01.
+  framebuffer-compare harness, EE-float harmonization of the older oracles.
 
 ---
 ARCHIVE (pre-s87, partly stale — do not trust without re-checking)

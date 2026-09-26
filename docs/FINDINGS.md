@@ -10806,6 +10806,10 @@ almost exactly (the walk-through tail plays during the fade-out).
 
 ### 4. AREA01 = the DRAWBRIDGE ROOM area; office main door fixed
 
+> **2026-09-25 (s87): the route capture overturns parts of this section.** Sub 0 = table A
+> (0x82BD50) is now measured, and the "drawbridge"/"crank" labels are withdrawn. See
+> "AREA01 route capture — measured facts and corrections" at the end of this file.
+
 The soundmap's area_scene_map pins **(1, 0) -> chunk05.n0** and
 **(1, 7) -> chunk15 = the intro SNOW level**: the snow level is an
 AREA01 sub-state, so AREA01 sub 0 is "the first room after the first
@@ -15687,7 +15691,8 @@ and `.text` starts at 0x823540. Consequences:
 Examine-able objects are MAIN PLACEMENT-TABLE records with class flag
 0x80 whose behavior fn lives in the area overlay. Four behaviors read:
 AREA02 0x824FA0 (office), AREA07 0x823DA0 (corpses), AREA11 0x827B10
-(switch), AREA06 0x824340 (switch); AREA01 0x825350 (crank) partially.
+(switch), AREA06 0x824340 (switch); AREA01 0x825350 partially (called "crank" here; the 2026-09-25
+route capture shows it is the control-room NPC, see the end of this file).
 Shared shape:
 
 - INIT: model bind (func_001B0FD0) + TRS (func_001C6380); `+0x08` =
@@ -15730,6 +15735,8 @@ op-0x12 script records, not line words.
 | snow (A06 part) | [6] cls 0086, model 2 param 7, (-306, 68, -650) | 0x824340 | flag D_00810845&0x20 picks: CLEAR → throw cutscene 0x826D40 (anim 0x29 + fades + native); SET → message 0x827040: cue (-294, 77.6, -660) → wait 30 → op0C line 0 | AREA06 line 0 (dur 208, voice cue 40) |
 | snow (A11 part) | [19] cls 0084, flags2 7, param 0x0F, (224, 230, 250.7) | 0x827B10 | unlock bit `D_00810841[11] >> 7`: CLEAR (new game) → REFUSAL 0x82A990: walk-to + face + op0D sub5 + op0C **GLOBAL 0x1A** + 300-f cooldown; SET → throw 0x82A750 | "Switch / No power..." (148 f) |
 
+(2026-09-25: WITHDRAWN — 0x825350 is the control-room NPC and 0x829FA0 is its second
+conversation; nothing on the captured route lowers a bridge. See the end of this file.)
 The AREA01 crank's counter-0x80 script 0x829FA0 is the bridge-lowering
 cutscene (owner anim id 2 = the bridge clip, player anims 0x164/0x167,
 message line 0x0A chain); 0x81 → 0x82A660 (op15 line 0x38); the second
@@ -16389,3 +16396,41 @@ struggle sub-state handlers — func_0021C440 cmd path, the state-2 jtbl
 sub 0x0b/0x0c — from the .s.)
 
 _Last updated: 2026-06-12 (session 76, crate + clip pass + trigger decode + LIVE latch/shake verification)._
+
+## AREA01 route capture — measured facts and corrections (2026-09-25, s87)
+
+Source: the original AREA01 route recorded in PCSX2 (decomp `tools/route_capture.py`
+beat group `a01`, outputs in ignored `build/s87/route_a01/`), the census delta
+(`tools/route_census.py a01-delta`) and the static overview (`tools/area_overview.py`).
+Write-ups: port `docs/SECOND_LEVEL_ROUTE.md` and `docs/AREA01_OVERVIEW.md`.
+
+- **Entry and sub 0 table (measured).** The first level's fan exit arrives in AREA01
+  (overlay id 2) at sub 0 spawn entry 4, (41, 0, -565.6). With D_00810701 = 0 the arrival
+  spawns placement table **0x82BD50 (54 records)**. This settles the s45 "table A = sub 0"
+  presumption. The descriptor D_0024D7C0[1] = 0x2758D0 lists only two tables, 0x82BD50
+  and 0x82C5F0.
+- **Placement [36] is a character, not a crank.** The record at (81, 0, -521) with overlay
+  behavior 0x825350 is a class-10 character at the control-room console who holds two
+  conversations: the first (story byte 0, script 0x829E60) is optional; the second
+  (byte 0x80, script 0x829FA0) is on the main path. The s69 "crank" and s74
+  "bridge-lowering cutscene" readings are withdrawn. The two 0x8261A0 owners north of the
+  arrival room (records [41], [42]) never changed state on the route, and the north room
+  was not reached.
+- **Story gate D_008107D9 = D_008107D8[1]** (a slot in a generic script-counter array).
+  Only two changes were observed: 0 → 0x80 at the first Use of the locked shaft door
+  (0x823580 starts script 0x8298E0), and 0x80 → 0x81 at the end of the NPC's second
+  conversation (D_00810759 = 0xFF in the same frame). With 0x81 the shaft door opens.
+  Code that stores to the byte by name: overlay 0x823580 and 0x825590 (0x825350 only
+  reads it). The generic indexed writers 001BA080 (op06) and 001B82D0 (op07 sub 6) are
+  not excluded: no op06 or op07/6 record exists in the scripts the route ran, but no
+  write watchpoint was run.
+- **Exit to AREA00.** The shaft door [12] (0x823580, door id 0|0x80, destination record
+  00 00 00 00) changes area to **AREA00 sub 0 entry 0**, (-40, -35, -1290), yaw pi. The
+  AREA00 arrival script then holds control for about 3950 frames.
+- **Census delta.** AREA01 ran 943 functions (929 boot + 14 overlay); **154 are new**
+  relative to the first level (140 boot + 14 overlay, 97,392 bytes): 89 main line,
+  37 side-only, 28 only in the exit load or AREA00 arrival.
+- **Overlay link offset.** Overlay modules are linked at 0x00823500 but run 0x40 higher
+  (the module header), which made splat cut false function boundaries. AREA01 has 41
+  real functions in 62 splat pieces (`tools/overlay/overlay_match.py` groups them). At
+  bdd40fb: 33 byte-identical C, 3 NEARMISS, 4 asm, 1 nop pad.
