@@ -69,6 +69,11 @@ is superseded.
   001C7900, 001CB2C0) and his kind-0x29 shadow proxy; the static world and background
   channel (001C1D00, 001D5370, 001E1E60/001E1AD0); UI cues and unit sound (WP-14); SPU2
   reverb; the GS-exact Original-profile renderer and framebuffer harness.
+- **Decision (user, 2026-09-26): do not integrate ran-j/PS2Recomp** (GPL-3.0 static
+  recompiler). Evaluated read-only: host-IEEE EE/VU0 floats, no runtime-overlay support,
+  non-GS-exact rasterizer, disc-derived output with per-instruction disassembly comments, and
+  linking or copying it would make the port GPL. Do not link, vendor, copy or run it, and do
+  not read its runtime sources while writing port hardware code (clean-room).
 - **Guards:** tools/check_no_disassembly.py in both repos. The asm bodies stay by the
   user's decision. Never stage while a workflow chain's committer is running (the index
   is shared).
