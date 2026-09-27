@@ -16493,9 +16493,29 @@ seven (below); none byte-matches, so all stay NEARMISS. Boot ELF byte-identical,
 - **001E7D20** (and its static 001E7C60, which stores only the grid heights +0x64 and s+4):
   outside area 0x13 the 001CB950 doubleword's low word is zero-extended (the old C sign-extended
   it); the state-1 level stops are inclusive.
-- **Same defects not yet fixed:** func_001E9280.c carries 001E9E60's segment-base defect and
-  001E7D20's sign-extended doubleword; func_0019D770.c (0019CF50's twin) carries its three stride
-  defects.
+- **The twins, corrected 2026-09-26** (objdiff 001E9280 84.76 → 97.30, 0019D770 86.58 →
+  90.13; both stay NEARMISS; fresh build + verify_all pass):
+  - **001E9280** addresses segments s+1 and s+2 from the record base (only segment s uses the
+    advancing base) and passes the zero-extended 001CB950 doubleword. Read order, which matters
+    only when a packet block overlaps the data: the record base is computed once from
+    D_00275C18 and the node's +0xE halfword; in the 9-quadword block, +0x48 is read after the
+    header stores, +0x4C/+0x50 after the +0x10/+0x14 stores, +0x10 (the +0x20 copy) after the
+    +0x1C store, +0x3C after the +0x20 copy call, +0x38/+0x40/+0x44 after the +0x30/+0x34/+0x38
+    stores; D_00275670 is re-read before each of the +0x60/+0x70/+0x80 copies (only after the
+    +0x50/+0x58 doubleword stores); D_00275674 is read after the 001CB950 call.
+  - **0019D770** (camera grid walker; one call site, 0x0019AA04 in 0019A910, which has 33
+    callers in the boot image) has 0019CF50's strides and bound-copy placement. The span limit
+    word 0x7000320C is written only by 00199C50 (a sign-extended halfword of the collision
+    header +0x24; captured 769, 854, 3099). **No-span path:** if no span is shorter than that
+    word, the original walks with the $s1/$s2/$s4 its caller left (from 0019A910: its mode byte,
+    a stack address, and an inherited value) — undefined in C and not characterized; whether the
+    game reaches it is not established. The C reproduces the register assignment by
+    declaration order (mwcc assigns $s1..$s4 in that order) and its header says so. The result
+    is 1 only if a face was accepted and its address (stored by 0019ED80 at 0x700031D0 on
+    success) is non-zero.
+  - **Port flag:** the port's em_coll_segment_walkers.c grid_walk returns -1 when no span is
+    chosen, which is not the original's behaviour; the port must prove that path unreachable
+    for the shipped collision data or reproduce the walk.
 - **General trap:** several NEARMISS files declare 4-byte absolute globals (e.g. D_00810710,
   D_0026E9B0) as plain scalars, which mwcc then addresses gp-relative; that C cannot reach the
   original address. Declare them as arrays. Separate float locals passed as &first are not
