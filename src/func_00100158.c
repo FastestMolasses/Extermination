@@ -1,9 +1,9 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
 extern void *func_00100268(void);
-extern unsigned int SetCPUTimer(int a);
+extern unsigned int GsPutIMR(int a);
 extern void func_0010C290(int a);
-extern void AddIntcHandler2(int a, int b);
+extern void RemoveIntcHandler(int a, int b);
 extern void SetGsCrt(int a, int b, int c);
 
 void func_00100158(short mode, short a1, short a2, short a3) {
@@ -20,11 +20,11 @@ void func_00100158(short mode, short a1, short a2, short a3) {
         *(unsigned short *)(s0 + 2) = s2;
         *(unsigned short *)(s0 + 6) =
             (unsigned short)((((unsigned long)*(volatile unsigned long *)0x12001000 >> 16) & 0xFF) & 0xFFFF);
-        SetCPUTimer(0xFF00);
+        GsPutIMR(0xFF00);
         *(unsigned short *)(s0 + 4) = (s3 != 0);
         if (*(int *)(s0 + 8) != 0) {
             func_0010C290(2);
-            AddIntcHandler2(2, *(int *)(s0 + 0xC));
+            RemoveIntcHandler(2, *(int *)(s0 + 0xC));
             *(int *)(s0 + 8) = 0;
             *(int *)(s0 + 0xC) = 0;
         }

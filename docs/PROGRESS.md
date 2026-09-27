@@ -4164,6 +4164,10 @@ runs the period-correct compiler.
     SDK exposed at a different slot, the underscore-prefixed `_i` form is used.
     Two stubs at -0x53 and -0x5a are tentatively named `RFU083_iSetEventFlag`
     and `iCopy` (TODO: confirm from a Metrowerks PS2 SDK source).
+    SUPERSEDED 2026-09-27: the positive-N names were up to two numbers late
+    from 0x0010B520 up; every stub is now relabelled from the number it loads
+    with the ps2sdk `syscallnr.h` names and the `_i` collision workaround is
+    gone (FINDINGS "EE syscall stub labels relabelled").
   - **134 additional EE-kernel syscall stubs** (`func_0010B400..func_0010BC80`)
     — a second range of syscall stubs (syscall numbers 0x00..0x87 and several
     negative-N slots), matched with the identical inline-asm body (load
@@ -4189,7 +4193,8 @@ runs the period-correct compiler.
     reports a mismatch even when the bytes are identical.
   - **Negative-N syscall stubs named** — the remaining 34 stubs (Sony's
     user-mode/extended syscall convention) are now mapped to their proper
-    SDK names (`SetAlarm`, `ReleaseAlarm`, `_iEnableIntc`, etc.) via the
+    SDK names (`_iSetAlarm`, `_iReleaseAlarm`, `_iEnableIntc`, etc.; the -30/-31
+    stubs were first labelled SetAlarm/ReleaseAlarm, corrected 2026-09-27) via the
     public PS2 kernel-syscall table.
   - **24 partial-match functions cracked** (2026-05-23) — 22 previously
     partial functions brought to 100%, plus 2 more that another concurrent

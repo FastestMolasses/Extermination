@@ -11,7 +11,7 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern int DisableDmacHandler(int chan);
+extern int FlushCache(int chan);
 extern int func_0010C7E8(int a0, void *a1, void *a2);
 extern int func_0010C9C8(int a0);
 extern void sub_TTY_receive_error(void);
@@ -24,7 +24,7 @@ int func_0010CE28(void) {
     char *p;
     char *q;
 
-    DisableDmacHandler(0);
+    FlushCache(0);
     D_00276E10 = func_0010C7E8(0x210, &D_00276E10, sub_TTY_receive_error);
     if (*(volatile int *)&D_00276E10 < 0) {
         return 0;

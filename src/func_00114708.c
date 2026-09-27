@@ -2,7 +2,7 @@
 //
 // objdiff 63.02% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// Semantics fully decoded and compile correct (D_00241D68 guard, D_0027B0C0->0x24 check returning -100, D_0027B140 config fill with the a2<0x11 vs >=0x11 alignment split, byte copy loop, DisableDmacHandler(0), func_0010E8A8(&D_0027B0C0,6,1,&D_0027B140,0x30,4,0), D_00241D68=6 on success). Two blockers: (1) frame-stride...
+// Semantics fully decoded and compile correct (D_00241D68 guard, D_0027B0C0->0x24 check returning -100, D_0027B140 config fill with the a2<0x11 vs >=0x11 alignment split, byte copy loop, FlushCache(0), func_0010E8A8(&D_0027B0C0,6,1,&D_0027B140,0x30,4,0), D_00241D68=6 on success). Two blockers: (1) frame-stride...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -11,7 +11,7 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern int DisableDmacHandler(int ch);
+extern int FlushCache(int ch);
 extern int func_0010E8A8(void *a, int b, int c, void *d, int e, int f, int g);
 
 extern int D_00241D68;
@@ -56,7 +56,7 @@ int func_00114708(int a0, unsigned char *src, int a2)
         } while (i < (unsigned int)cfg[5]);
     }
 
-    DisableDmacHandler(0);
+    FlushCache(0);
     r = func_0010E8A8(&D_0027B0C0, 6, 1, &D_0027B140, 0x30, 4, 0);
     if (r != 0) {
         return r;

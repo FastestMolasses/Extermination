@@ -20,9 +20,16 @@ func_001C2770 = 0x001C2770;  // type:func size:0x1278 (merged TAIL func_001C2FF0
 func_001FFCD0 = 0x001FFCD0;  // type:func size:0x688  (merged TAIL func_00200004, 0 jal refs)
 func_00200A40 = 0x00200A40;  // type:func size:0x848  (merged TAIL func_00201000, 0 jal refs)
 
-// EE-kernel syscall stubs (auto-named from the public PS2 SDK
-// syscall-number table; mapped via the syscall number N that each
-// stub loads before trapping).
+// EE-kernel syscall stubs 0x0010B400..0x0010BC80 (one 16-byte stub per slot).
+// Every label is set from the syscall number N the stub loads (negative N =
+// interrupt-context form) and named after ps2dev/ps2sdk
+// ee/kernel/include/syscallnr.h (commit af212628). Relabelled 2026-09-27: the
+// earlier splat-era labels from 0x0010B520 upward sat up to two numbers late
+// (e.g. 0x0010B840 was labelled CreateSema but loads 66, SignalSema). Kept
+// older/equivalent names where the number already matched: RFU000_FullReset (0,
+// no ps2sdk entry), RFU003, Exit (4, ps2sdk KExit), RFU005, LoadExecPS2 /
+// ExecPS2 (ps2sdk _LoadExecPS2 / _ExecPS2), RFU008. Reserved numbers without a
+// ps2sdk name use RFUnnn (63, 73).
 RFU000_FullReset = 0x0010B400;  // type:func
 ResetEE = 0x0010B410;  // type:func
 SetGsCrt = 0x0010B420;  // type:func
@@ -40,41 +47,38 @@ SetVTLBRefillHandler = 0x0010B4D0;  // type:func
 SetVCommonHandler = 0x0010B4E0;  // type:func
 SetVInterruptHandler = 0x0010B4F0;  // type:func
 AddIntcHandler = 0x0010B500;  // type:func
-AddIntcHandler2 = 0x0010B520;  // type:func
-RemoveIntcHandler = 0x0010B530;  // type:func
-AddDmacHandler = 0x0010B550;  // type:func
-AddDmacHandler2 = 0x0010B560;  // type:func
-RemoveDmacHandler = 0x0010B570;  // type:func
-_EnableIntc = 0x0010B580;  // type:func
-_DisableIntc = 0x0010B590;  // type:func
-_EnableDmac = 0x0010B5A0;  // type:func
-_DisableDmac = 0x0010B5B0;  // type:func
-_iSetAlarm = 0x0010B620;  // type:func
-_iReleaseAlarm = 0x0010B630;  // type:func
-CreateThread = 0x0010B640;  // type:func
-DeleteThread = 0x0010B650;  // type:func
-StartThread = 0x0010B660;  // type:func
-ExitThread = 0x0010B670;  // type:func
-TerminateThread = 0x0010B690;  // type:func
-iTerminateThread = 0x0010B6A0;  // type:func
-DisableDispatchThread = 0x0010B6B0;  // type:func
-ChangeThreadPriority = 0x0010B6D0;  // type:func
-RotateThreadReadyQueue = 0x0010B6F0;  // type:func
-ReleaseWaitThread = 0x0010B710;  // type:func
-iReleaseWaitThread = 0x0010B720;  // type:func
-ReferThreadStatus = 0x0010B740;  // type:func
-iReferThreadStatus = 0x0010B750;  // type:func
-WakeupThread = 0x0010B770;  // type:func
-CancelWakeupThread = 0x0010B790;  // type:func
-SuspendThread = 0x0010B7B0;  // type:func
-ResumeThread = 0x0010B7D0;  // type:func
-iResumeThread = 0x0010B7E0;  // type:func
-JoinThread = 0x0010B7F0;  // type:func
-// Syscall stubs 0x0010B800..0x0010B8C0 relabelled 2026-09-27 from the syscall number each
-// stub loads (62..74; ps2sdk numbering, e.g. 64 CreateSema, 66 SignalSema, 68 WaitSema).
-// The old labels sat two numbers late. 0x0010B8B0 / 0x0010B8C0 (73 / 74) carry neutral names
-// because RFU073 / SetOsdConfigParam are still on 0x0010B8D0 / 0x0010B8E0 (75 / 76): the labels
-// from 0x0010B8D0 up remain two numbers late (RFUnnn names show it) and need their own pass.
+AddIntcHandler2 = 0x0010B510;  // type:func  (same number 16, ps2sdk alias, second stub)
+RemoveIntcHandler = 0x0010B520;  // type:func
+AddDmacHandler = 0x0010B530;  // type:func
+AddDmacHandler2 = 0x0010B540;  // type:func  (same number 18, ps2sdk alias, second stub)
+RemoveDmacHandler = 0x0010B550;  // type:func
+_EnableIntc = 0x0010B560;  // type:func
+_DisableIntc = 0x0010B570;  // type:func
+_EnableDmac = 0x0010B580;  // type:func
+_DisableDmac = 0x0010B590;  // type:func
+_SetAlarm = 0x0010B5A0;  // type:func
+_ReleaseAlarm = 0x0010B5B0;  // type:func
+CreateThread = 0x0010B620;  // type:func
+DeleteThread = 0x0010B630;  // type:func
+StartThread = 0x0010B640;  // type:func
+ExitThread = 0x0010B650;  // type:func
+ExitDeleteThread = 0x0010B660;  // type:func
+TerminateThread = 0x0010B670;  // type:func
+DisableDispatchThread = 0x0010B690;  // type:func
+EnableDispatchThread = 0x0010B6A0;  // type:func
+ChangeThreadPriority = 0x0010B6B0;  // type:func
+RotateThreadReadyQueue = 0x0010B6D0;  // type:func
+ReleaseWaitThread = 0x0010B6F0;  // type:func
+GetThreadId = 0x0010B710;  // type:func
+ReferThreadStatus = 0x0010B720;  // type:func
+SleepThread = 0x0010B740;  // type:func
+WakeupThread = 0x0010B750;  // type:func
+CancelWakeupThread = 0x0010B770;  // type:func
+SuspendThread = 0x0010B790;  // type:func
+ResumeThread = 0x0010B7B0;  // type:func
+RFU059 = 0x0010B7D0;  // type:func
+RFU060 = 0x0010B7E0;  // type:func
+RFU061 = 0x0010B7F0;  // type:func
 EndOfHeap = 0x0010B800;  // type:func
 RFU063 = 0x0010B810;  // type:func
 CreateSema = 0x0010B820;  // type:func
@@ -83,60 +87,58 @@ SignalSema = 0x0010B840;  // type:func
 WaitSema = 0x0010B860;  // type:func
 PollSema = 0x0010B870;  // type:func
 ReferSemaStatus = 0x0010B890;  // type:func
-Syscall49_RFU073 = 0x0010B8B0;  // type:func
-Syscall4A_SetOsdConfigParam = 0x0010B8C0;  // type:func
-RFU073 = 0x0010B8D0;  // type:func
-SetOsdConfigParam = 0x0010B8E0;  // type:func
-GetOsdConfigParam = 0x0010B8F0;  // type:func
-GetGsHParam = 0x0010B900;  // type:func
-GetGsVParam = 0x0010B910;  // type:func
-SetGsHParam = 0x0010B920;  // type:func
-SetGsVParam = 0x0010B930;  // type:func
-RFU080_CreateEventFlag = 0x0010B940;  // type:func
-RFU082_SetEventFlag = 0x0010B960;  // type:func
-RFU084_ClearEventFlag = 0x0010B980;  // type:func
-RFU085_iClearEventFlag = 0x0010B990;  // type:func
-RFU087_PollEvnetFlag = 0x0010B9B0;  // type:func
-RFU089_ReferEventFlagStatus = 0x0010B9D0;  // type:func
-RFU090_iReferEventFlagStatus = 0x0010B9E0;  // type:func
-RFU091 = 0x0010BA00;  // type:func
-EnableIntcHandler = 0x0010BA20;  // type:func
-iEnableIntcHandler = 0x0010BA40;  // type:func
-DisableIntcHandler = 0x0010BA60;  // type:func
-iDisableIntcHandler = 0x0010BA70;  // type:func
-EnableDmacHandler = 0x0010BA80;  // type:func
-iEnableDmacHandler = 0x0010BA90;  // type:func
-DisableDmacHandler = 0x0010BAA0;  // type:func
-KSeg0 = 0x0010BAB0;  // type:func
-CpuConfig = 0x0010BAF0;  // type:func
-iGetCop0 = 0x0010BB00;  // type:func
-iFlushCache = 0x0010BB10;  // type:func
-iCpuConfig = 0x0010BB20;  // type:func
-sceSifStopDma = 0x0010BB30;  // type:func
-SetCPUTimerHandler = 0x0010BB40;  // type:func
-SetCPUTimer = 0x0010BB60;  // type:func
-SetOsdConfigParam2 = 0x0010BB80;  // type:func
-GetOsdConfigParam2 = 0x0010BB90;  // type:func
-GsGetIMR = 0x0010BBA0;  // type:func
-iGsGetIMR = 0x0010BBB0;  // type:func
-GsPutIMR = 0x0010BBC0;  // type:func
-iGsPutIMR = 0x0010BBE0;  // type:func
-SetPgifHandler = 0x0010BC00;  // type:func
-SetVSyncFlag = 0x0010BC20;  // type:func
-RFU116 = 0x0010BC30;  // type:func
-print = 0x0010BC40;  // type:func
-sceSifDmaStat = 0x0010BC50;  // type:func
-isceSifDmaStat = 0x0010BC60;  // type:func
-sceSifSetDma = 0x0010BC70;  // type:func
-isceSifSetDma = 0x0010BC80;  // type:func
+RFU073 = 0x0010B8B0;  // type:func
+SetOsdConfigParam = 0x0010B8C0;  // type:func
+GetOsdConfigParam = 0x0010B8D0;  // type:func
+GetGsHParam = 0x0010B8E0;  // type:func
+GetGsVParam = 0x0010B8F0;  // type:func
+SetGsHParam = 0x0010B900;  // type:func
+SetGsVParam = 0x0010B910;  // type:func
+CreateEventFlag = 0x0010B920;  // type:func
+DeleteEventFlag = 0x0010B930;  // type:func
+SetEventFlag = 0x0010B940;  // type:func
+xlaunch = 0x0010B960;  // type:func
+_SetTLBEntry = 0x0010B980;  // type:func
+GetTLBEntry = 0x0010B990;  // type:func
+ExpandScratchPad = 0x0010B9B0;  // type:func
+GetEntryAddress = 0x0010B9D0;  // type:func
+EnableIntcHandler = 0x0010B9E0;  // type:func
+DisableIntcHandler = 0x0010BA00;  // type:func
+EnableDmacHandler = 0x0010BA20;  // type:func
+DisableDmacHandler = 0x0010BA40;  // type:func
+KSeg0 = 0x0010BA60;  // type:func
+EnableCache = 0x0010BA70;  // type:func
+DisableCache = 0x0010BA80;  // type:func
+GetCop0 = 0x0010BA90;  // type:func
+FlushCache = 0x0010BAA0;  // type:func
+CpuConfig = 0x0010BAB0;  // type:func
+sceSifStopDma = 0x0010BAF0;  // type:func
+SetCPUTimerHandler = 0x0010BB00;  // type:func
+SetCPUTimer = 0x0010BB10;  // type:func
+SetOsdConfigParam2 = 0x0010BB20;  // type:func
+GetOsdConfigParam2 = 0x0010BB30;  // type:func
+GsGetIMR = 0x0010BB40;  // type:func
+GsPutIMR = 0x0010BB60;  // type:func
+SetPgifHandler = 0x0010BB80;  // type:func
+SetVSyncFlag = 0x0010BB90;  // type:func
+SetSyscall = 0x0010BBA0;  // type:func
+_print = 0x0010BBB0;  // type:func
+sceSifDmaStat = 0x0010BBC0;  // type:func
+sceSifSetDma = 0x0010BBE0;  // type:func
+sceSifSetDChain = 0x0010BC00;  // type:func
+sceSifSetReg = 0x0010BC20;  // type:func
+sceSifGetReg = 0x0010BC30;  // type:func
+_ExecOSD = 0x0010BC40;  // type:func
+Deci2Call = 0x0010BC50;  // type:func
+PSMode = 0x0010BC60;  // type:func
+MachineType = 0x0010BC70;  // type:func
+GetMemorySize = 0x0010BC80;  // type:func
 
-// EE-kernel negative-N syscall stubs (interrupt-handler-context direct dispatch).
-// These are the raw kernel stubs; the positive-N stubs in the block above are
-// the public SCEI API wrappers. Where a name would collide with an existing
-// positive stub, the underscore-prefixed (_i) form is used -- matching the SCEI
-// SDK convention for the raw kernel-mode variants. Names derived from the public
-// PS2 SDK syscall-number table (ps2dev/ps2sdk ee/kernel/include/syscallnr.h)
-// and corroborated by fmil95/recvx-decomp and Adubbz/DCDecomp.
+// EE-kernel negative-N syscall stubs (interrupt-handler-context forms), named
+// exactly as ps2dev/ps2sdk ee/kernel/include/syscallnr.h names the negative
+// number (including its own leading underscores, e.g. _iEnableIntc). The old
+// "_i" collision workaround is gone: the positive labels it collided with were
+// the misplaced ones. -83 and -90 have no ps2sdk entry and keep their names.
 // N=-26 (-0x1a) __NR__iEnableIntc
 _iEnableIntc = 0x0010B5C0;  // type:func
 // N=-27 (-0x1b) __NR__iDisableIntc
@@ -145,64 +147,64 @@ _iDisableIntc = 0x0010B5D0;  // type:func
 _iEnableDmac = 0x0010B5E0;  // type:func
 // N=-29 (-0x1d) __NR__iDisableDmac
 _iDisableDmac = 0x0010B5F0;  // type:func
-// N=-30 (-0x1e) __NR__iSetAlarm (DCDecomp second block: SetAlarm)
-SetAlarm = 0x0010B600;  // type:func
-// N=-31 (-0x1f) __NR__iReleaseAlarm (DCDecomp second block: ReleaseAlarm)
-ReleaseAlarm = 0x0010B610;  // type:func
-// N=-38 (-0x26) __NR_iTerminateThread; _i prefix avoids conflict with iTerminateThread (+40)
-_iTerminateThread = 0x0010B680;  // type:func
+// N=-30 (-0x1e) __NR__iSetAlarm
+_iSetAlarm = 0x0010B600;  // type:func
+// N=-31 (-0x1f) __NR__iReleaseAlarm
+_iReleaseAlarm = 0x0010B610;  // type:func
+// N=-38 (-0x26) __NR_iTerminateThread
+iTerminateThread = 0x0010B680;  // type:func
 // N=-42 (-0x2a) __NR_iChangeThreadPriority
 iChangeThreadPriority = 0x0010B6C0;  // type:func
 // N=-44 (-0x2c) __NR__iRotateThreadReadyQueue
 _iRotateThreadReadyQueue = 0x0010B6E0;  // type:func
-// N=-46 (-0x2e) __NR_iReleaseWaitThread; _i prefix avoids conflict with iReleaseWaitThread (+46)
-_iReleaseWaitThread = 0x0010B700;  // type:func
-// N=-49 (-0x31) __NR_iReferThreadStatus; _i prefix avoids conflict with iReferThreadStatus (+51)
-_iReferThreadStatus = 0x0010B730;  // type:func
+// N=-46 (-0x2e) __NR_iReleaseWaitThread
+iReleaseWaitThread = 0x0010B700;  // type:func
+// N=-49 (-0x31) __NR_iReferThreadStatus
+iReferThreadStatus = 0x0010B730;  // type:func
 // N=-52 (-0x34) __NR__iWakeupThread
 _iWakeupThread = 0x0010B760;  // type:func
 // N=-54 (-0x36) __NR_iCancelWakeupThread
 iCancelWakeupThread = 0x0010B780;  // type:func
 // N=-56 (-0x38) __NR__iSuspendThread
 _iSuspendThread = 0x0010B7A0;  // type:func
-// N=-58 (-0x3a) __NR_iResumeThread; _i prefix avoids conflict with iResumeThread (+60)
-_iResumeThread = 0x0010B7C0;  // type:func
+// N=-58 (-0x3a) __NR_iResumeThread
+iResumeThread = 0x0010B7C0;  // type:func
 // N=-67 (-0x43) __NR_iSignalSema
 iSignalSema = 0x0010B850;  // type:func
 // N=-70 (-0x46) __NR_iPollSema
 iPollSema = 0x0010B880;  // type:func
 // N=-72 (-0x48) __NR_iReferSemaStatus
 iReferSemaStatus = 0x0010B8A0;  // type:func
-// N=-83 (-0x53) SCEI slot 0x53 interrupt-handler variant; TODO: verify exact SCEI name
+// N=-83 (-0x53) no ps2sdk entry for -83; interrupt form of 0x53 iSetEventFlag
 RFU083_iSetEventFlag = 0x0010B950;  // type:func
 // N=-85 (-0x55) __NR_iPutTLBEntry
 iPutTLBEntry = 0x0010B970;  // type:func
 // N=-88 (-0x58) __NR_iProbeTLBEntry
 iProbeTLBEntry = 0x0010B9A0;  // type:func
-// N=-90 (-0x5a) negative of __NR_Copy (0x5a); TODO: verify exact SCEI name
+// N=-90 (-0x5a) no ps2sdk entry for -90; i-prefix of 0x5a Copy
 iCopy = 0x0010B9C0;  // type:func
-// N=-92 (-0x5c) __NR_iEnableIntcHandler; _i prefix avoids conflict with iEnableIntcHandler (+95)
-_iEnableIntcHandler = 0x0010B9F0;  // type:func
-// N=-93 (-0x5d) __NR_iDisableIntcHandler; _i prefix avoids conflict with iDisableIntcHandler (+93)
-_iDisableIntcHandler = 0x0010BA10;  // type:func
-// N=-94 (-0x5e) __NR_iEnableDmacHandler; _i prefix avoids conflict with iEnableDmacHandler
-_iEnableDmacHandler = 0x0010BA30;  // type:func
+// N=-92 (-0x5c) __NR_iEnableIntcHandler
+iEnableIntcHandler = 0x0010B9F0;  // type:func
+// N=-93 (-0x5d) __NR_iDisableIntcHandler
+iDisableIntcHandler = 0x0010BA10;  // type:func
+// N=-94 (-0x5e) __NR_iEnableDmacHandler
+iEnableDmacHandler = 0x0010BA30;  // type:func
 // N=-95 (-0x5f) __NR_iDisableDmacHandler
 iDisableDmacHandler = 0x0010BA50;  // type:func
-// N=-103 (-0x67) __NR_iGetCop0; _i prefix avoids conflict with iGetCop0 (positive slot)
-_iGetCop0 = 0x0010BAC0;  // type:func
-// N=-104 (-0x68) __NR_iFlushCache; _i prefix avoids conflict with iFlushCache (positive slot)
-_iFlushCache = 0x0010BAD0;  // type:func
-// N=-106 (-0x6a) __NR_iCpuConfig; _i prefix avoids conflict with iCpuConfig (positive slot)
-_iCpuConfig = 0x0010BAE0;  // type:func
-// N=-112 (-0x70) __NR_iGsGetIMR; _i prefix avoids conflict with iGsGetIMR (positive slot)
-_iGsGetIMR = 0x0010BB50;  // type:func
-// N=-113 (-0x71) __NR_iGsPutIMR; _i prefix avoids conflict with iGsPutIMR (positive slot)
-_iGsPutIMR = 0x0010BB70;  // type:func
-// N=-118 (-0x76) __NR_isceSifDmaStat; _i prefix avoids conflict with isceSifDmaStat (positive slot)
-_isceSifDmaStat = 0x0010BBD0;  // type:func
-// N=-119 (-0x77) __NR_isceSifSetDma; _i prefix avoids conflict with isceSifSetDma (positive slot)
-_isceSifSetDma = 0x0010BBF0;  // type:func
+// N=-103 (-0x67) __NR_iGetCop0
+iGetCop0 = 0x0010BAC0;  // type:func
+// N=-104 (-0x68) __NR_iFlushCache
+iFlushCache = 0x0010BAD0;  // type:func
+// N=-106 (-0x6a) __NR_iCpuConfig
+iCpuConfig = 0x0010BAE0;  // type:func
+// N=-112 (-0x70) __NR_iGsGetIMR
+iGsGetIMR = 0x0010BB50;  // type:func
+// N=-113 (-0x71) __NR_iGsPutIMR
+iGsPutIMR = 0x0010BB70;  // type:func
+// N=-118 (-0x76) __NR_isceSifDmaStat
+isceSifDmaStat = 0x0010BBD0;  // type:func
+// N=-119 (-0x77) __NR_isceSifSetDma
+isceSifSetDma = 0x0010BBF0;  // type:func
 // N=-120 (-0x78) __NR_isceSifSetDChain
 isceSifSetDChain = 0x0010BC10;  // type:func
 

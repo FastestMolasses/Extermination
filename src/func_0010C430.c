@@ -1,5 +1,5 @@
 // Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void _EnableDmac(int, int, int, int);
+extern void _SetAlarm(int, int, int, int);
 
 asm void func_0010C430(void) {
     addiu      $sp, $sp, -0x20
@@ -19,7 +19,7 @@ asm void func_0010C430(void) {
     nop
     .word 0x1440fffa
     nop
-    jal        _EnableDmac
+    jal        _SetAlarm
     nop
     sync
     .word 0x12000003

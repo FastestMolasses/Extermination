@@ -8,7 +8,7 @@ extern struct blk D_0027B100;
 extern int D_0027B170[];
 extern char D_0027C680[];
 extern void func_00123418(void *dst, void *src, int len);
-extern int DisableDmacHandler(int id);
+extern int FlushCache(int id);
 extern int func_0010E8A8(void *a, int b, int c, void *d, int e, void *f, int g, int h, int i);
 
 int func_00114F10(int a0, int a1, int a2, struct blk *a3, int a4) {
@@ -27,7 +27,7 @@ int func_00114F10(int a0, int a1, int a2, struct blk *a3, int a4) {
     D_0027B170[4] = (int)&D_0027B100;
     func_00123418((char *)D_0027B170 + 0x14, (void *)a2, 0x3FF);
     *((char *)D_0027B170 + 0x413) = 0;
-    DisableDmacHandler(0);
+    FlushCache(0);
     r = func_0010E8A8(D_0027B0C0, 0xE, 1, D_0027B170, 0x414, D_0027C680, 4, 0, 0);
     if (r == 0) {
         D_00241D68 = 0xE;

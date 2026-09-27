@@ -80,7 +80,7 @@ extern void func_001D1C10(int);
 extern void func_001AB4E0(int, int);
 extern void func_001015A8(char *, int, int, int);
 extern void func_00101810(char *, int, int, int);
-extern void DisableDmacHandler(int);
+extern void FlushCache(int);
 extern void func_00100550(char *);
 extern void func_001D2300(void);
 extern void func_001D2580(int);
@@ -160,7 +160,7 @@ void gs_readback_queue_run(void) {
         }
         flip = 1 - D_00810E88;
         func_00101810(q, *(volatile short *)0x70003B70, *(volatile short *)0x70003B72, flip);
-        DisableDmacHandler(0);
+        FlushCache(0);
         func_00100550(&D_00810EA0[D_00810E80 * 40]);
         func_001D2300();
         flip = 1 - D_00810E80;

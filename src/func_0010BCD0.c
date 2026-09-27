@@ -1,12 +1,12 @@
 // Hybrid asm void: real mnemonics where mwcc accepts them,
 // .word for branch instructions (mwcc rejects PC-relative labels).
-extern void GetOsdConfigParam2(int, int, int, int);
+extern void SetVSyncFlag(int, int, int, int);
 
 asm void func_0010BCD0(void) {
     addiu $sp, $sp, -0x20
     sd $ra, 0x10($sp)
     daddu $a0, $sp, $zero
-    jal GetOsdConfigParam2
+    jal SetVSyncFlag
     ori $a1, $sp, 0x8
     lui $v1, (0x1000F000 >> 16)
     sw $zero, 0x0($sp)

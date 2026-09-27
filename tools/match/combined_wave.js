@@ -81,7 +81,7 @@ PER-FUNCTION LOOP:
 
 EEGCC IDIOM-1 — FORWARD BRANCH-LIKELY IS MATCHABLE (s85; do NOT park it, the old "wall" was WRONG):
 If expected has bgezl/blezl/bgtzl/bltzl/beql/bnel/beqzl/bnezl on a FORWARD (non-loop) conditional and yours emits the same op without the trailing 'l', that is NOT a wall. gcc's fill_eager_delay_slots emits the annulled form when the BRANCH-TARGET path's FIRST instruction is a cheap speculatable op — in practice a \`lw\` of a global through a base register that is ALREADY LIVE (no lui setup needed). PROOF: func_00113F68 matches 100.0 with a forward branch-likely on the sign of the call result whose annul slot holds the word load of D_00241CF8 through an already-live base register, from this shape:
-    if (func_0010E8A8(...) < 0) { CreateSema(D_00241D08); return 0; }
+    if (func_0010E8A8(...) < 0) { SignalSema(D_00241D08); return 0; }
     if (D_00241CF8 > 0)            /* this global read fills the annul slot */
         func_00122B58(D_0026BC78);
 So: read the target .s to see WHICH op sits in the annul slot, then reshape the C so that op is the first statement of the fall-through/taken path (usually "hoist the next global-flag test to immediately after the guard"). A taken path that leads with a lui re-materialization will NOT annul — that specific failure is what was over-generalized into a bogus wall. Spend real attempts here.

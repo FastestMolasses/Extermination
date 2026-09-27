@@ -2,6 +2,7 @@
 // syscall number into $v1 and invokes the EE kernel; the return value
 // (if any) flows back in $v0 from the syscall handler. Match: inline
 // asm yields the canonical 4-instruction stub at -O4,p.
+// 0x0010BAC0: EE syscall -103 (-0x67); name per ps2sdk syscallnr.h; label corrected 2026-09-27.
 void iGetCop0(void) {
-    asm { addiu $v1, $zero, 108; syscall 0; };
+    asm { addiu $v1, $zero, -103; syscall 0; };
 }

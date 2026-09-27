@@ -12,7 +12,7 @@
 // CFLAGS: -O2
 
 extern void func_00123418(char *dst, int a1, int a2);
-extern int DisableDmacHandler(int ch);
+extern int FlushCache(int ch);
 extern int func_0010E8A8(int a0,int a1,int a2,int a3,int t0,int t1,int t2,int t3,int s0);
 extern int D_00241D68;
 extern int D_0027B0C0[];
@@ -47,7 +47,7 @@ int func_00115068(int a0, int a1, int a2, int a3) {
     s0 -= 0x20;
     *(char *)(s0 + 0x3F) = 0;
     *(int *)(s1 + 0x10) = (int)s0;
-    DisableDmacHandler(0);
+    FlushCache(0);
 
     {
         int v1 = func_0010E8A8(s3v, 0xE, 1, (int)s1, 0x414, (int)&D_0027C680, 4, 0, 0);

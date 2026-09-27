@@ -163,9 +163,12 @@ Region stats:
   `iDisableIntcHandler` — all EE kernel API, none game code.
 
 Named functions in `symbol_addrs.txt` for this region: `_start` at `0x00100008`, then a dense
-block of public EE kernel syscall stubs starting at `0x0010B400` covering all standard PS2 SDK
+block of 137 public EE kernel syscall stubs at `0x0010B400..0x0010BC80` covering all standard PS2 SDK
 functions (ResetEE, SetGsCrt, LoadExecPS2, AddIntcHandler, CreateThread, EndOfHeap, CreateSema,
-sceSif*, GsGetIMR, CpuConfig, KSeg0, SetVSyncFlag, print, etc.).
+sceSif*, GsGetIMR, CpuConfig, KSeg0, SetVSyncFlag, _print, etc.). Note (2026-09-27): the stub
+labels were relabelled from the syscall number each stub loads (ps2sdk `syscallnr.h` names);
+before that most labels from 0x0010B520 up sat up to two numbers late, so the names listed in
+this historical check were partly on the wrong addresses. The region verdict is unaffected.
 
 The transition region `0x120000–0x12FFFF` has 147 functions, all unnamed, all mixed sd/sq (66/42),
 consistent with SDK library code compiled with an older non-R5900-aware toolchain or early runtime.

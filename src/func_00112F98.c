@@ -38,7 +38,7 @@ extern int D_0027B050;
 
 extern int func_00112DC0(int arg);
 extern void func_0010E088(int arg);
-extern int ReleaseWaitThread(void);
+extern int GetThreadId(void);
 extern int func_0010E6F8(void *bd, unsigned int sid, unsigned int mode);
 extern void func_0010DFD8(void *addr, int size);
 extern int func_0010E8A8(void *bd, int fno, int mode, void *send, int ssize,
@@ -70,7 +70,7 @@ int func_00112F98(int mode)
         return 0;
     }
     func_0010E088(0);
-    D_00279B00 = ReleaseWaitThread();
+    D_00279B00 = GetThreadId();
 
     D_00241D1C = -1;
     D_00241D18 = 1;

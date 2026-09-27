@@ -78,6 +78,14 @@
       }
     },
     {
+      "name": "CreateEventFlag",
+      "target_path": "build/expected/CreateEventFlag.o",
+      "base_path": "build/obj/CreateEventFlag.o",
+      "metadata": {
+        "source_path": "src/CreateEventFlag.c"
+      }
+    },
+    {
       "name": "CreateSema",
       "target_path": "build/expected/CreateSema.o",
       "base_path": "build/obj/CreateSema.o",
@@ -94,6 +102,22 @@
       }
     },
     {
+      "name": "Deci2Call",
+      "target_path": "build/expected/Deci2Call.o",
+      "base_path": "build/obj/Deci2Call.o",
+      "metadata": {
+        "source_path": "src/Deci2Call.c"
+      }
+    },
+    {
+      "name": "DeleteEventFlag",
+      "target_path": "build/expected/DeleteEventFlag.o",
+      "base_path": "build/obj/DeleteEventFlag.o",
+      "metadata": {
+        "source_path": "src/DeleteEventFlag.c"
+      }
+    },
+    {
       "name": "DeleteSema",
       "target_path": "build/expected/DeleteSema.o",
       "base_path": "build/obj/DeleteSema.o",
@@ -107,6 +131,14 @@
       "base_path": "build/obj/DeleteThread.o",
       "metadata": {
         "source_path": "src/DeleteThread.c"
+      }
+    },
+    {
+      "name": "DisableCache",
+      "target_path": "build/expected/DisableCache.o",
+      "base_path": "build/obj/DisableCache.o",
+      "metadata": {
+        "source_path": "src/DisableCache.c"
       }
     },
     {
@@ -131,6 +163,22 @@
       "base_path": "build/obj/DisableIntcHandler.o",
       "metadata": {
         "source_path": "src/DisableIntcHandler.c"
+      }
+    },
+    {
+      "name": "EnableCache",
+      "target_path": "build/expected/EnableCache.o",
+      "base_path": "build/obj/EnableCache.o",
+      "metadata": {
+        "source_path": "src/EnableCache.c"
+      }
+    },
+    {
+      "name": "EnableDispatchThread",
+      "target_path": "build/expected/EnableDispatchThread.o",
+      "base_path": "build/obj/EnableDispatchThread.o",
+      "metadata": {
+        "source_path": "src/EnableDispatchThread.c"
       }
     },
     {
@@ -174,11 +222,51 @@
       }
     },
     {
+      "name": "ExitDeleteThread",
+      "target_path": "build/expected/ExitDeleteThread.o",
+      "base_path": "build/obj/ExitDeleteThread.o",
+      "metadata": {
+        "source_path": "src/ExitDeleteThread.c"
+      }
+    },
+    {
       "name": "ExitThread",
       "target_path": "build/expected/ExitThread.o",
       "base_path": "build/obj/ExitThread.o",
       "metadata": {
         "source_path": "src/ExitThread.c"
+      }
+    },
+    {
+      "name": "ExpandScratchPad",
+      "target_path": "build/expected/ExpandScratchPad.o",
+      "base_path": "build/obj/ExpandScratchPad.o",
+      "metadata": {
+        "source_path": "src/ExpandScratchPad.c"
+      }
+    },
+    {
+      "name": "FlushCache",
+      "target_path": "build/expected/FlushCache.o",
+      "base_path": "build/obj/FlushCache.o",
+      "metadata": {
+        "source_path": "src/FlushCache.c"
+      }
+    },
+    {
+      "name": "GetCop0",
+      "target_path": "build/expected/GetCop0.o",
+      "base_path": "build/obj/GetCop0.o",
+      "metadata": {
+        "source_path": "src/GetCop0.c"
+      }
+    },
+    {
+      "name": "GetEntryAddress",
+      "target_path": "build/expected/GetEntryAddress.o",
+      "base_path": "build/obj/GetEntryAddress.o",
+      "metadata": {
+        "source_path": "src/GetEntryAddress.c"
       }
     },
     {
@@ -198,6 +286,14 @@
       }
     },
     {
+      "name": "GetMemorySize",
+      "target_path": "build/expected/GetMemorySize.o",
+      "base_path": "build/obj/GetMemorySize.o",
+      "metadata": {
+        "source_path": "src/GetMemorySize.c"
+      }
+    },
+    {
       "name": "GetOsdConfigParam",
       "target_path": "build/expected/GetOsdConfigParam.o",
       "base_path": "build/obj/GetOsdConfigParam.o",
@@ -211,6 +307,22 @@
       "base_path": "build/obj/GetOsdConfigParam2.o",
       "metadata": {
         "source_path": "src/GetOsdConfigParam2.c"
+      }
+    },
+    {
+      "name": "GetTLBEntry",
+      "target_path": "build/expected/GetTLBEntry.o",
+      "base_path": "build/obj/GetTLBEntry.o",
+      "metadata": {
+        "source_path": "src/GetTLBEntry.c"
+      }
+    },
+    {
+      "name": "GetThreadId",
+      "target_path": "build/expected/GetThreadId.o",
+      "base_path": "build/obj/GetThreadId.o",
+      "metadata": {
+        "source_path": "src/GetThreadId.c"
       }
     },
     {
@@ -238,14 +350,6 @@
       }
     },
     {
-      "name": "JoinThread",
-      "target_path": "build/expected/JoinThread.o",
-      "base_path": "build/obj/JoinThread.o",
-      "metadata": {
-        "source_path": "src/JoinThread.c"
-      }
-    },
-    {
       "name": "KSeg0",
       "target_path": "build/expected/KSeg0.o",
       "base_path": "build/obj/KSeg0.o",
@@ -259,6 +363,22 @@
       "base_path": "build/obj/LoadExecPS2.o",
       "metadata": {
         "source_path": "src/LoadExecPS2.c"
+      }
+    },
+    {
+      "name": "MachineType",
+      "target_path": "build/expected/MachineType.o",
+      "base_path": "build/obj/MachineType.o",
+      "metadata": {
+        "source_path": "src/MachineType.c"
+      }
+    },
+    {
+      "name": "PSMode",
+      "target_path": "build/expected/PSMode.o",
+      "base_path": "build/obj/PSMode.o",
+      "metadata": {
+        "source_path": "src/PSMode.c"
       }
     },
     {
@@ -310,6 +430,30 @@
       }
     },
     {
+      "name": "RFU059",
+      "target_path": "build/expected/RFU059.o",
+      "base_path": "build/obj/RFU059.o",
+      "metadata": {
+        "source_path": "src/RFU059.c"
+      }
+    },
+    {
+      "name": "RFU060",
+      "target_path": "build/expected/RFU060.o",
+      "base_path": "build/obj/RFU060.o",
+      "metadata": {
+        "source_path": "src/RFU060.c"
+      }
+    },
+    {
+      "name": "RFU061",
+      "target_path": "build/expected/RFU061.o",
+      "base_path": "build/obj/RFU061.o",
+      "metadata": {
+        "source_path": "src/RFU061.c"
+      }
+    },
+    {
       "name": "RFU063",
       "target_path": "build/expected/RFU063.o",
       "base_path": "build/obj/RFU063.o",
@@ -326,83 +470,11 @@
       }
     },
     {
-      "name": "RFU080_CreateEventFlag",
-      "target_path": "build/expected/RFU080_CreateEventFlag.o",
-      "base_path": "build/obj/RFU080_CreateEventFlag.o",
-      "metadata": {
-        "source_path": "src/RFU080_CreateEventFlag.c"
-      }
-    },
-    {
-      "name": "RFU082_SetEventFlag",
-      "target_path": "build/expected/RFU082_SetEventFlag.o",
-      "base_path": "build/obj/RFU082_SetEventFlag.o",
-      "metadata": {
-        "source_path": "src/RFU082_SetEventFlag.c"
-      }
-    },
-    {
       "name": "RFU083_iSetEventFlag",
       "target_path": "build/expected/RFU083_iSetEventFlag.o",
       "base_path": "build/obj/RFU083_iSetEventFlag.o",
       "metadata": {
         "source_path": "src/RFU083_iSetEventFlag.c"
-      }
-    },
-    {
-      "name": "RFU084_ClearEventFlag",
-      "target_path": "build/expected/RFU084_ClearEventFlag.o",
-      "base_path": "build/obj/RFU084_ClearEventFlag.o",
-      "metadata": {
-        "source_path": "src/RFU084_ClearEventFlag.c"
-      }
-    },
-    {
-      "name": "RFU085_iClearEventFlag",
-      "target_path": "build/expected/RFU085_iClearEventFlag.o",
-      "base_path": "build/obj/RFU085_iClearEventFlag.o",
-      "metadata": {
-        "source_path": "src/RFU085_iClearEventFlag.c"
-      }
-    },
-    {
-      "name": "RFU087_PollEvnetFlag",
-      "target_path": "build/expected/RFU087_PollEvnetFlag.o",
-      "base_path": "build/obj/RFU087_PollEvnetFlag.o",
-      "metadata": {
-        "source_path": "src/RFU087_PollEvnetFlag.c"
-      }
-    },
-    {
-      "name": "RFU089_ReferEventFlagStatus",
-      "target_path": "build/expected/RFU089_ReferEventFlagStatus.o",
-      "base_path": "build/obj/RFU089_ReferEventFlagStatus.o",
-      "metadata": {
-        "source_path": "src/RFU089_ReferEventFlagStatus.c"
-      }
-    },
-    {
-      "name": "RFU090_iReferEventFlagStatus",
-      "target_path": "build/expected/RFU090_iReferEventFlagStatus.o",
-      "base_path": "build/obj/RFU090_iReferEventFlagStatus.o",
-      "metadata": {
-        "source_path": "src/RFU090_iReferEventFlagStatus.c"
-      }
-    },
-    {
-      "name": "RFU091",
-      "target_path": "build/expected/RFU091.o",
-      "base_path": "build/obj/RFU091.o",
-      "metadata": {
-        "source_path": "src/RFU091.c"
-      }
-    },
-    {
-      "name": "RFU116",
-      "target_path": "build/expected/RFU116.o",
-      "base_path": "build/obj/RFU116.o",
-      "metadata": {
-        "source_path": "src/RFU116.c"
       }
     },
     {
@@ -419,14 +491,6 @@
       "base_path": "build/obj/ReferThreadStatus.o",
       "metadata": {
         "source_path": "src/ReferThreadStatus.c"
-      }
-    },
-    {
-      "name": "ReleaseAlarm",
-      "target_path": "build/expected/ReleaseAlarm.o",
-      "base_path": "build/obj/ReleaseAlarm.o",
-      "metadata": {
-        "source_path": "src/ReleaseAlarm.c"
       }
     },
     {
@@ -486,14 +550,6 @@
       }
     },
     {
-      "name": "SetAlarm",
-      "target_path": "build/expected/SetAlarm.o",
-      "base_path": "build/obj/SetAlarm.o",
-      "metadata": {
-        "source_path": "src/SetAlarm.c"
-      }
-    },
-    {
       "name": "SetCPUTimer",
       "target_path": "build/expected/SetCPUTimer.o",
       "base_path": "build/obj/SetCPUTimer.o",
@@ -507,6 +563,14 @@
       "base_path": "build/obj/SetCPUTimerHandler.o",
       "metadata": {
         "source_path": "src/SetCPUTimerHandler.c"
+      }
+    },
+    {
+      "name": "SetEventFlag",
+      "target_path": "build/expected/SetEventFlag.o",
+      "base_path": "build/obj/SetEventFlag.o",
+      "metadata": {
+        "source_path": "src/SetEventFlag.c"
       }
     },
     {
@@ -558,6 +622,14 @@
       }
     },
     {
+      "name": "SetSyscall",
+      "target_path": "build/expected/SetSyscall.o",
+      "base_path": "build/obj/SetSyscall.o",
+      "metadata": {
+        "source_path": "src/SetSyscall.c"
+      }
+    },
+    {
       "name": "SetVCommonHandler",
       "target_path": "build/expected/SetVCommonHandler.o",
       "base_path": "build/obj/SetVCommonHandler.o",
@@ -598,6 +670,14 @@
       }
     },
     {
+      "name": "SleepThread",
+      "target_path": "build/expected/SleepThread.o",
+      "base_path": "build/obj/SleepThread.o",
+      "metadata": {
+        "source_path": "src/SleepThread.c"
+      }
+    },
+    {
       "name": "StartThread",
       "target_path": "build/expected/StartThread.o",
       "base_path": "build/obj/StartThread.o",
@@ -611,22 +691,6 @@
       "base_path": "build/obj/SuspendThread.o",
       "metadata": {
         "source_path": "src/SuspendThread.c"
-      }
-    },
-    {
-      "name": "Syscall49_RFU073",
-      "target_path": "build/expected/Syscall49_RFU073.o",
-      "base_path": "build/obj/Syscall49_RFU073.o",
-      "metadata": {
-        "source_path": "src/Syscall49_RFU073.c"
-      }
-    },
-    {
-      "name": "Syscall4A_SetOsdConfigParam",
-      "target_path": "build/expected/Syscall4A_SetOsdConfigParam.o",
-      "base_path": "build/obj/Syscall4A_SetOsdConfigParam.o",
-      "metadata": {
-        "source_path": "src/Syscall4A_SetOsdConfigParam.c"
       }
     },
     {
@@ -686,11 +750,35 @@
       }
     },
     {
-      "name": "_iCpuConfig",
-      "target_path": "build/expected/_iCpuConfig.o",
-      "base_path": "build/obj/_iCpuConfig.o",
+      "name": "_ExecOSD",
+      "target_path": "build/expected/_ExecOSD.o",
+      "base_path": "build/obj/_ExecOSD.o",
       "metadata": {
-        "source_path": "src/_iCpuConfig.c"
+        "source_path": "src/_ExecOSD.c"
+      }
+    },
+    {
+      "name": "_ReleaseAlarm",
+      "target_path": "build/expected/_ReleaseAlarm.o",
+      "base_path": "build/obj/_ReleaseAlarm.o",
+      "metadata": {
+        "source_path": "src/_ReleaseAlarm.c"
+      }
+    },
+    {
+      "name": "_SetAlarm",
+      "target_path": "build/expected/_SetAlarm.o",
+      "base_path": "build/obj/_SetAlarm.o",
+      "metadata": {
+        "source_path": "src/_SetAlarm.c"
+      }
+    },
+    {
+      "name": "_SetTLBEntry",
+      "target_path": "build/expected/_SetTLBEntry.o",
+      "base_path": "build/obj/_SetTLBEntry.o",
+      "metadata": {
+        "source_path": "src/_SetTLBEntry.c"
       }
     },
     {
@@ -710,27 +798,11 @@
       }
     },
     {
-      "name": "_iDisableIntcHandler",
-      "target_path": "build/expected/_iDisableIntcHandler.o",
-      "base_path": "build/obj/_iDisableIntcHandler.o",
-      "metadata": {
-        "source_path": "src/_iDisableIntcHandler.c"
-      }
-    },
-    {
       "name": "_iEnableDmac",
       "target_path": "build/expected/_iEnableDmac.o",
       "base_path": "build/obj/_iEnableDmac.o",
       "metadata": {
         "source_path": "src/_iEnableDmac.c"
-      }
-    },
-    {
-      "name": "_iEnableDmacHandler",
-      "target_path": "build/expected/_iEnableDmacHandler.o",
-      "base_path": "build/obj/_iEnableDmacHandler.o",
-      "metadata": {
-        "source_path": "src/_iEnableDmacHandler.c"
       }
     },
     {
@@ -742,75 +814,11 @@
       }
     },
     {
-      "name": "_iEnableIntcHandler",
-      "target_path": "build/expected/_iEnableIntcHandler.o",
-      "base_path": "build/obj/_iEnableIntcHandler.o",
-      "metadata": {
-        "source_path": "src/_iEnableIntcHandler.c"
-      }
-    },
-    {
-      "name": "_iFlushCache",
-      "target_path": "build/expected/_iFlushCache.o",
-      "base_path": "build/obj/_iFlushCache.o",
-      "metadata": {
-        "source_path": "src/_iFlushCache.c"
-      }
-    },
-    {
-      "name": "_iGetCop0",
-      "target_path": "build/expected/_iGetCop0.o",
-      "base_path": "build/obj/_iGetCop0.o",
-      "metadata": {
-        "source_path": "src/_iGetCop0.c"
-      }
-    },
-    {
-      "name": "_iGsGetIMR",
-      "target_path": "build/expected/_iGsGetIMR.o",
-      "base_path": "build/obj/_iGsGetIMR.o",
-      "metadata": {
-        "source_path": "src/_iGsGetIMR.c"
-      }
-    },
-    {
-      "name": "_iGsPutIMR",
-      "target_path": "build/expected/_iGsPutIMR.o",
-      "base_path": "build/obj/_iGsPutIMR.o",
-      "metadata": {
-        "source_path": "src/_iGsPutIMR.c"
-      }
-    },
-    {
-      "name": "_iReferThreadStatus",
-      "target_path": "build/expected/_iReferThreadStatus.o",
-      "base_path": "build/obj/_iReferThreadStatus.o",
-      "metadata": {
-        "source_path": "src/_iReferThreadStatus.c"
-      }
-    },
-    {
       "name": "_iReleaseAlarm",
       "target_path": "build/expected/_iReleaseAlarm.o",
       "base_path": "build/obj/_iReleaseAlarm.o",
       "metadata": {
         "source_path": "src/_iReleaseAlarm.c"
-      }
-    },
-    {
-      "name": "_iReleaseWaitThread",
-      "target_path": "build/expected/_iReleaseWaitThread.o",
-      "base_path": "build/obj/_iReleaseWaitThread.o",
-      "metadata": {
-        "source_path": "src/_iReleaseWaitThread.c"
-      }
-    },
-    {
-      "name": "_iResumeThread",
-      "target_path": "build/expected/_iResumeThread.o",
-      "base_path": "build/obj/_iResumeThread.o",
-      "metadata": {
-        "source_path": "src/_iResumeThread.c"
       }
     },
     {
@@ -838,14 +846,6 @@
       }
     },
     {
-      "name": "_iTerminateThread",
-      "target_path": "build/expected/_iTerminateThread.o",
-      "base_path": "build/obj/_iTerminateThread.o",
-      "metadata": {
-        "source_path": "src/_iTerminateThread.c"
-      }
-    },
-    {
       "name": "_iWakeupThread",
       "target_path": "build/expected/_iWakeupThread.o",
       "base_path": "build/obj/_iWakeupThread.o",
@@ -854,19 +854,11 @@
       }
     },
     {
-      "name": "_isceSifDmaStat",
-      "target_path": "build/expected/_isceSifDmaStat.o",
-      "base_path": "build/obj/_isceSifDmaStat.o",
+      "name": "_print",
+      "target_path": "build/expected/_print.o",
+      "base_path": "build/obj/_print.o",
       "metadata": {
-        "source_path": "src/_isceSifDmaStat.c"
-      }
-    },
-    {
-      "name": "_isceSifSetDma",
-      "target_path": "build/expected/_isceSifSetDma.o",
-      "base_path": "build/obj/_isceSifSetDma.o",
-      "metadata": {
-        "source_path": "src/_isceSifSetDma.c"
+        "source_path": "src/_print.c"
       }
     },
     {
@@ -2291,22 +2283,6 @@
       "base_path": "build/obj/func_0010B0F8.o",
       "metadata": {
         "source_path": "src/func_0010B0F8.c"
-      }
-    },
-    {
-      "name": "func_0010B510",
-      "target_path": "build/expected/func_0010B510.o",
-      "base_path": "build/obj/func_0010B510.o",
-      "metadata": {
-        "source_path": "src/func_0010B510.c"
-      }
-    },
-    {
-      "name": "func_0010B540",
-      "target_path": "build/expected/func_0010B540.o",
-      "base_path": "build/obj/func_0010B540.o",
-      "metadata": {
-        "source_path": "src/func_0010B540.c"
       }
     },
     {
@@ -17366,14 +17342,6 @@
       }
     },
     {
-      "name": "print",
-      "target_path": "build/expected/print.o",
-      "base_path": "build/obj/print.o",
-      "metadata": {
-        "source_path": "src/print.c"
-      }
-    },
-    {
       "name": "quat_to_mat3",
       "target_path": "build/expected/quat_to_mat3.o",
       "base_path": "build/obj/quat_to_mat3.o",
@@ -17390,11 +17358,35 @@
       }
     },
     {
+      "name": "sceSifGetReg",
+      "target_path": "build/expected/sceSifGetReg.o",
+      "base_path": "build/obj/sceSifGetReg.o",
+      "metadata": {
+        "source_path": "src/sceSifGetReg.c"
+      }
+    },
+    {
+      "name": "sceSifSetDChain",
+      "target_path": "build/expected/sceSifSetDChain.o",
+      "base_path": "build/obj/sceSifSetDChain.o",
+      "metadata": {
+        "source_path": "src/sceSifSetDChain.c"
+      }
+    },
+    {
       "name": "sceSifSetDma",
       "target_path": "build/expected/sceSifSetDma.o",
       "base_path": "build/obj/sceSifSetDma.o",
       "metadata": {
         "source_path": "src/sceSifSetDma.c"
+      }
+    },
+    {
+      "name": "sceSifSetReg",
+      "target_path": "build/expected/sceSifSetReg.o",
+      "base_path": "build/obj/sceSifSetReg.o",
+      "metadata": {
+        "source_path": "src/sceSifSetReg.c"
       }
     },
     {
@@ -17699,6 +17691,14 @@
       "base_path": "build/obj/vu1_cold_start.o",
       "metadata": {
         "source_path": "src/vu1_cold_start.c"
+      }
+    },
+    {
+      "name": "xlaunch",
+      "target_path": "build/expected/xlaunch.o",
+      "base_path": "build/obj/xlaunch.o",
+      "metadata": {
+        "source_path": "src/xlaunch.c"
       }
     }
   ]

@@ -2,7 +2,7 @@
 //
 // objdiff 96.10% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Instruction-scheduling permutation (body/logic 100% correct): (1) the two func_00108DB0 calls materialize their a3 function-pointer arg before a0 in the target, mwcc emits a0 first; (2) the target sinks the D_007A5590=0 store into the _iSetAlarm jal delay slot, mwcc hoists it above the D_007A557x...
+// Instruction-scheduling permutation (body/logic 100% correct): (1) the two func_00108DB0 calls materialize their a3 function-pointer arg before a0 in the target, mwcc emits a0 first; (2) the target sinks the D_007A5590=0 store into the CreateThread jal delay slot, mwcc hoists it above the D_007A557x...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -16,13 +16,14 @@
 // 0x1000E000 (D_CTRL: OR 3) / 0x1000E010, runs func_002039A0 and func_001095F0,
 // then registers two big memory pools via func_00206A00 / func_00206210, hooks
 // two callbacks (func_00203D30, func_00203E60) through func_00108DB0, and stages
-// an _iSetAlarm parameter block at D_007A557x: handler func_00206D10, buffer
-// D_0079E540, size 0x4000, priority 5, gp base &D_0027D370, count 0. Arms the
-// alarm, CreateThreads the returned id (stashed in D_007A55FC), then spins on
+// a CreateThread parameter block at D_007A557x: entry func_00206D10, stack
+// D_0079E540, size 0x4000, priority 5, gp base &D_0027D370, count 0. Creates
+// the thread, StartThreads the returned id (stashed in D_007A55FC), then spins on
 // func_00113C68 over the per-slot table at D_00821010 (8-byte stride, indexed by
-// the gp-rel state byte D_00275C78) until it returns nonzero. Finally swaps the
-// INTC handler at channel 2 (Add then Remove func_00206030/func_00206170, with
-// func_0010C2F8 / func_0010C3C8 around it) and returns the table's +4 field
+// the gp-rel state byte D_00275C78) until it returns nonzero. Finally installs
+// func_00206030 as the INTC cause-2 handler (AddIntcHandler, enabled via
+// func_0010C2F8) and func_00206170 as the DMAC channel-2 handler (AddDmacHandler,
+// enabled via func_0010C3C8) and returns the table's +4 field
 // (D_00821014) for the current slot.
 //
 // NEARMISS 96.1% (mwcc 2.3.3; 991202 = 84.8%). Body/logic fully recovered.
@@ -31,7 +32,7 @@
 // arrays so mwcc keeps them in absolute lui/%lo. The two residuals are pure
 // instruction-scheduling permutations: (1) the func_00108DB0 calls materialize
 // their a3 (function-pointer) arg before a0 in the target, mwcc does a0 first;
-// (2) the target sinks the D_007A5590 = 0 store into the _iSetAlarm jal delay
+// (2) the target sinks the D_007A5590 = 0 store into the CreateThread jal delay
 // slot while mwcc hoists it above the D_007A557x staging block. Neither is the
 // clean-store nop, so 2.3.3 does not close them -- permuter/scheduling territory.
 extern int func_002039A0(void *p, int a);
@@ -40,12 +41,12 @@ extern int func_00206A00(void *a, void *b, int c, void *d, void *e, int f, void 
 extern int func_00206210(void *a, void *b, int c, int d);
 extern int func_00108DB0(void *a, int b, int c, void *d, void *e);
 extern int func_00203B20(void *a, int b, void *c, int d);
-extern int _iSetAlarm(void *p);
-extern int CreateThread(int a, void *b);
+extern int CreateThread(void *p);
+extern int StartThread(int a, void *b);
 extern int func_00113C68(int a, char *p);
 extern int AddIntcHandler(int chan, void *handler, int arg);
 extern void func_0010C2F8(int chan);
-extern int RemoveIntcHandler(int chan, void *handler, int arg);
+extern int AddDmacHandler(int chan, void *handler, int arg);
 extern void func_0010C3C8(int chan);
 
 extern unsigned char D_00275C78;
@@ -100,8 +101,8 @@ int func_002034C0(void) {
     D_007A5584[0] = 5;
     D_007A5580[0] = &D_0027D370;
     D_007A5590[0] = 0;
-    D_007A55FC[0] = _iSetAlarm(D_007A5570);
-    CreateThread(D_007A55FC[0], D_002DF740);
+    D_007A55FC[0] = CreateThread(D_007A5570);
+    StartThread(D_007A55FC[0], D_002DF740);
     buf[0] = 0;
     buf[1] = 0;
     buf[2] = 0;
@@ -109,7 +110,7 @@ int func_002034C0(void) {
     } while (func_00113C68(D_00821010[D_00275C78 * 2], buf) == 0);
     D_002DF7F4[0] = AddIntcHandler(2, func_00206030, 0);
     func_0010C2F8(2);
-    D_002DF7F0[0] = RemoveIntcHandler(2, func_00206170, 0);
+    D_002DF7F0[0] = AddDmacHandler(2, func_00206170, 0);
     func_0010C3C8(2);
     return D_00821014[D_00275C78 * 2];
 }

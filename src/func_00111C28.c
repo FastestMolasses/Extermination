@@ -28,7 +28,7 @@ extern char D_0026BBA8[];
 
 extern void func_001118B8(void);
 extern int PollSema(int sema);
-extern void iReleaseWaitThread(int a, void *b);
+extern void ReferThreadStatus(int a, void *b);
 extern int func_00112D18(int a0);
 extern void func_0010E088(int a0);
 extern int func_0010E6F8(void *a0, unsigned int a1, int a2);
@@ -53,7 +53,7 @@ int func_00111C28(char *out, const char *name)
     }
 
     D_00241D00 = 1;
-    iReleaseWaitThread(D_00279B00, &D_00279B08);
+    ReferThreadStatus(D_00279B00, &D_00279B08);
     if (func_00112D18(1) != 0) {
         SignalSema(D_00241D08);
         return 0;

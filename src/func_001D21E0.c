@@ -23,7 +23,7 @@ extern char D_0028F700[];
 extern int dmac_channel_base(int);
 extern void dma_wait_and_submit(int, int);
 extern void func_0011B9E0(int, int, int);
-extern int DisableDmacHandler(int);
+extern int FlushCache(int);
 extern void func_00101F08(int, int);
 
 void func_001D21E0(void) {
@@ -45,6 +45,6 @@ void func_001D21E0(void) {
     *s0 = (*s0 & ~0x40);
     *(unsigned char *)0x10003C20 = (*(unsigned char *)0x10003C20 & ~0x2) | 0x2;
     func_0011B9E0(1, 1, 0);
-    DisableDmacHandler(0);
+    FlushCache(0);
     func_00101F08((int)s0, (int)(D_0028F700 + (D_00275670->field_9C << 14)));
 }

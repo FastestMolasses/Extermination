@@ -2,7 +2,7 @@
 // syscall number into $v1 and invokes the EE kernel; the return value
 // (if any) flows back in $v0 from the syscall handler. Match: inline
 // asm yields the canonical 4-instruction stub at -O4,p.
-// 0x0010B8B0: EE syscall 73 (0x49); label corrected 2026-09-27 (was ReferSemaStatus).
-void Syscall49_RFU073(void) {
-    asm { addiu $v1, $zero, 73; syscall 0; };
+// 0x0010B7E0: EE syscall 60 (0x3C); ps2sdk RFU060 (alias SetupThread); label corrected 2026-09-27.
+void RFU060(void) {
+    asm { addiu $v1, $zero, 60; syscall 0; };
 }

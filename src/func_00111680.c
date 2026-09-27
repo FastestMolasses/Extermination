@@ -12,10 +12,10 @@
 // CFLAGS: -O2
 
 //
-// SEMANTICS: SDK exception/alarm service thread + its creator.
+// SEMANTICS: SDK service thread + its creator.
 //
-// func_00111680 is the thread body: an infinite loop that signals its semaphore,
-// deletes itself when D_00241D48 == 1, optionally traces, dispatches the
+// func_00111680 is the thread body: an infinite loop that waits on its semaphore,
+// exits (ExitThread) when D_00241D48 == 1, optionally traces, dispatches the
 // registered handler D_00241D44(D_00241D4C), runs func_00111AE0 for event 11,
 // and clears the "busy" flag D_00241D14 before looping.
 //
@@ -23,7 +23,7 @@
 // the splat symbol func_00111680 is 0x194 bytes and covers both functions) fills a
 // ThreadParam-shaped block at D_00279B38 (+4 entry, +8 stack, +0xC stack size,
 // +0x10 $gp, +0x14 priority) with func_00111680 as the entry point, creates the
-// thread and starts it; if the thread already exists it just re-dispatches it.
+// thread and starts it; if the thread already exists it just changes its priority.
 //
 
 extern int D_00241CF8;
@@ -40,12 +40,12 @@ extern int D_00279B38[];
 extern int D_0027D370;
 
 extern void WaitSema();
-extern void DeleteThread();
-extern int ReleaseWaitThread();
-extern void iReleaseWaitThread();
-extern int _iSetAlarm();
-extern void CreateThread();
-extern void DisableDispatchThread();
+extern void ExitThread();
+extern int GetThreadId();
+extern void ReferThreadStatus();
+extern int CreateThread();
+extern void StartThread();
+extern void ChangeThreadPriority();
 extern void func_00122B58();
 extern void func_00111AE0();
 
@@ -55,7 +55,7 @@ void func_00111680(void)
         WaitSema(D_00241D10);
         if (D_00241D48 == 1) {
             D_00241D14 = 0;
-            DeleteThread();
+            ExitThread();
         }
         if (D_00241CF8 > 0) {
             func_00122B58(D_0026BB08, D_00241D44, D_00241D4C);
@@ -73,17 +73,17 @@ void func_00111680(void)
 int func_00111740(int prio, int stack, int stack_size)
 {
     if (D_00241D04 != 0) {
-        DisableDispatchThread(D_00241D04, prio);
+        ChangeThreadPriority(D_00241D04, prio);
         return 0;
     }
-    D_00279B00 = ReleaseWaitThread(D_00241D04);
-    iReleaseWaitThread(D_00279B00, &D_00279B08);
+    D_00279B00 = GetThreadId(D_00241D04);
+    ReferThreadStatus(D_00279B00, &D_00279B08);
     D_00279B38[1] = (int)func_00111680;
     D_00279B38[2] = stack;
     D_00279B38[3] = stack_size;
     D_00279B38[4] = (int)&D_0027D370;
     D_00279B38[5] = prio;
-    D_00241D04 = _iSetAlarm(D_00279B38);
-    CreateThread(D_00241D04, 0);
+    D_00241D04 = CreateThread(D_00279B38);
+    StartThread(D_00241D04, 0);
     return 1;
 }

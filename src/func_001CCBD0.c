@@ -1,5 +1,5 @@
 // Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void DisableDmacHandler(int, int, int, int);
+extern void FlushCache(int, int, int, int);
 extern void dmac_channel_base(int, int, int, int);
 extern void dma_kick(int, int, int, int);
 extern void func_00102468(int, int, int, int);
@@ -41,7 +41,7 @@ asm void func_001CCBD0(void) {
     nop
     .word 0x1440fffa
     nop
-    jal        DisableDmacHandler
+    jal        FlushCache
     .word 0x70002628
     addiu      $a1, $sp, 0x70
     addiu      $a2, $zero, 0x17

@@ -26,13 +26,14 @@
 //   * Clears the 32-entry handler table (2 words each) and the 32-word array.
 //   * Installs the two built-in handlers func_0010D948 / func_0010D928 in
 //     slots 0 and 1, both with D_00277218 as their user argument.
-//   * Re-enables interrupts, releases DMAC channel 0, force-clears the
-//     0x20 bit of D_STAT (0x1000E010) if set, installs the PGIF handler when
-//     the SBUS control word (0x1000C000) bit 8 is clear, swaps the INTC cause-5
-//     (VBLANK-start) handler for func_0010DEB8 and re-arms it via func_0010C3C8.
-//   * Asks the IOP for its SIF handshake word (RFU116(0x80000000)).  If the
+//   * Re-enables interrupts, flushes the data cache (FlushCache(0)), force-clears
+//     the 0x20 bit of D_STAT (0x1000E010) if set, calls sceSifSetDChain when
+//     the SBUS control word (0x1000C000) bit 8 is clear, installs func_0010DEB8
+//     as the DMAC channel-5 (SIF0) handler (AddDmacHandler) and enables that
+//     channel via func_0010C3C8.
+//   * Asks the IOP for its SIF handshake word (sceSifGetReg(0x80000000)).  If the
 //     IOP is already up, hands the "EE ready" packet straight to func_0010DE38.
-//     Otherwise it waits for RFU116(4) bit 17, registers the two VSync flags
+//     Otherwise it waits for sceSifGetReg(4) bit 17, registers the two VSync flags
 //     and sends the 0x80000002 variant of the packet.
 //
 // Both exits are tail calls (`j func_0010DE38`), which ee-gcc 2.9 emits on its
@@ -70,12 +71,12 @@ extern int D_00277340[32];
 extern void func_0010D928(void);
 extern void func_0010D948(void);
 extern void func_0010DEB8(void);
-extern int DisableDmacHandler(int chan);
-extern void SetPgifHandler(void);
-extern int RemoveIntcHandler(int cause, void *handler, int arg);
+extern int FlushCache(int chan);
+extern void sceSifSetDChain(void);
+extern int AddDmacHandler(int cause, void *handler, int arg);
 extern int func_0010C3C8(int cause);
-extern unsigned int RFU116(unsigned int arg);
-extern void SetVSyncFlag(unsigned int cmd, void *p);
+extern unsigned int sceSifGetReg(unsigned int arg);
+extern void sceSifSetReg(unsigned int cmd, void *p);
 extern int func_0010DE38(unsigned int cmd, void *pkt, int size, void *src, void *dest, int len);
 
 void func_0010D9A0(void)
@@ -125,18 +126,18 @@ void func_0010D9A0(void)
 
     __asm__ __volatile__("ei");
 
-    DisableDmacHandler(0);
+    FlushCache(0);
 
     if (*(volatile unsigned int *)0x1000E010 & 0x20) {
         *(volatile unsigned int *)0x1000E010 = i;
     }
     if (!(*(volatile unsigned int *)0x1000C000 & 0x100)) {
-        SetPgifHandler();
+        sceSifSetDChain();
     }
-    D_00277214 = RemoveIntcHandler(5, (void *)func_0010DEB8, 0);
+    D_00277214 = AddDmacHandler(5, (void *)func_0010DEB8, 0);
     func_0010C3C8(5);
 
-    r = RFU116(0x80000000);
+    r = sceSifGetReg(0x80000000);
     D_00277218.f08 = r;
     if (r != 0) {
         D_00277200.f10 = D_00277140;
@@ -144,13 +145,13 @@ void func_0010D9A0(void)
         return;
     }
 
-    while (!(RFU116(4) & 0x20000)) {
+    while (!(sceSifGetReg(4) & 0x20000)) {
         ;
     }
-    r = RFU116(2);
+    r = sceSifGetReg(2);
     D_00277218.f08 = r;
-    SetVSyncFlag(0x80000000, (void *)r);
-    SetVSyncFlag(0x80000001, &D_00277218);
+    sceSifSetReg(0x80000000, (void *)r);
+    sceSifSetReg(0x80000001, &D_00277218);
     D_00277200.f10 = D_00277140;
     D_00277200.f0C = 0;
     func_0010DE38(0x80000002, &D_00277200, 0x14, 0, 0, 0);

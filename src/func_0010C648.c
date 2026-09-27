@@ -7,10 +7,10 @@ extern int D_0027D370;
 extern int D_00276C90;
 extern void func_0010C5C8(int *a0);
 extern int CreateSema(int *a0);
-extern int _iSetAlarm(int *a0);
-extern int CreateThread(int a0, int *a1);
-extern int ReleaseWaitThread(void);
-extern void DisableDispatchThread(int a0, int a1);
+extern int CreateThread(int *a0);
+extern int StartThread(int a0, int *a1);
+extern int GetThreadId(void);
+extern void ChangeThreadPriority(int a0, int a1);
 extern void DeleteSema(int a0);
 
 int func_0010C648(void) {
@@ -32,13 +32,13 @@ int func_0010C648(void) {
     al[3] = 0x400;
     al[4] = (int)&D_0027D370;
     al[5] = 0;
-    r = _iSetAlarm(al);
+    r = CreateThread(al);
     D_00241C68 = r;
     if (r < 0) {
         DeleteSema(D_00276C98);
         return -1;
     }
-    CreateThread(r, &D_00276C90);
-    DisableDispatchThread(ReleaseWaitThread(), 1);
+    StartThread(r, &D_00276C90);
+    ChangeThreadPriority(GetThreadId(), 1);
     return D_00241C68;
 }

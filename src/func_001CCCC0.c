@@ -1,12 +1,12 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 // Builds a 0x180-byte DMA tag/transfer chain on the stack, then issues it.
-// dmac_channel_base(1) -> channel; DisableDmacHandler(0); dma_kick(ch, buf, 0x18);
+// dmac_channel_base(1) -> channel; FlushCache(0); dma_kick(ch, buf, 0x18);
 // func_00102468(ch, 0, 0). Leading qword at 0x20 is zeroed as one sq; the two
 // 32-bit words at 0x28/0x2C are the DMA tag header (0x11000000 / 0x50000017).
 typedef unsigned u128 __attribute__((mode(TI)));
 extern int dmac_channel_base(int);
-extern void DisableDmacHandler(int);
+extern void FlushCache(int);
 extern void dma_kick(int, void *, int);
 extern void func_00102468(int, int, int);
 
@@ -75,7 +75,7 @@ void func_001CCCC0(void) {
     buf.d[47] = 0x4B;
     buf.d[46] = 0;
     ch = dmac_channel_base(1);
-    DisableDmacHandler(0);
+    FlushCache(0);
     dma_kick(ch, &buf, 0x18);
     func_00102468(ch, 0, 0);
 }

@@ -2,7 +2,7 @@
 //
 // objdiff 83.50% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler wall. Body matches 100% from RemoveIntcHandler onward; only the prologue diverges: the deterministic ee-gcc scheduler interleaves the callee-saved sd stores with the four struct stores to D_00241228 in a different order (expected 0xC,0,4,8) and consequently colors the constant/base GPRs differen...
+// eegcc list-scheduler wall. Body matches 100% from AddDmacHandler onward; only the prologue diverges: the deterministic ee-gcc scheduler interleaves the callee-saved sd stores with the four struct stores to D_00241228 in a different order (expected 0xC,0,4,8) and consequently colors the constant/base GPRs differen...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -15,12 +15,12 @@ extern int D_00241228[];
 extern int D_00241220;
 extern void *D_002412F4;
 extern void func_00108248(void);
-extern int RemoveIntcHandler(int chan, void (*handler)(void), void *arg);
+extern int AddDmacHandler(int chan, void (*handler)(void), void *arg);
 extern void func_0010C3C8(int chan);
 extern void func_00109B20(int chan, void *p);
 extern void func_0010A3A8(void *p);
 extern void func_0010C360(int chan);
-extern int AddDmacHandler(int chan, int id);
+extern int RemoveDmacHandler(int chan, int id);
 extern int D_0026B578;
 
 void func_00108300(unsigned int a0, int a1) {
@@ -38,7 +38,7 @@ void func_00108300(unsigned int a0, int a1) {
     while (*(volatile int *)0x10002010 < 0) {
     }
 
-    s3 = RemoveIntcHandler(3, func_00108248, 0);
+    s3 = AddDmacHandler(3, func_00108248, 0);
     *(volatile int *)0x1000E010 = 8;
     func_0010C3C8(3);
 
@@ -60,5 +60,5 @@ void func_00108300(unsigned int a0, int a1) {
     }
 
     func_0010C360(3);
-    AddDmacHandler(3, s3);
+    RemoveDmacHandler(3, s3);
 }

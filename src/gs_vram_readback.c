@@ -14,8 +14,8 @@
 typedef int qword __attribute__((mode(TI)));
 
 extern int func_00122B58(char *);
-extern int SetCPUTimer();
-extern int SetCPUTimerHandler();
+extern int GsPutIMR();
+extern int GsGetIMR();
 
 extern char D_0026B050[];
 extern char D_0026B088[];
@@ -33,7 +33,7 @@ int gs_vram_readback(unsigned char *packet, unsigned char *dst)
     int w, h, psm, ih;
     int bytes, q;
     int nq, rq, rb, pad;
-    int oldtimer;
+    int oldimr;
     int i;
 
     pad = 0;
@@ -144,7 +144,7 @@ int gs_vram_readback(unsigned char *packet, unsigned char *dst)
         }
     }
 
-    oldtimer = SetCPUTimer(SetCPUTimerHandler() | 0x200);
+    oldimr = GsPutIMR(GsGetIMR() | 0x200);
 
     *(volatile unsigned long *)0x12001000 = 2;
     *(volatile unsigned int *)0x10009020 = 7;
@@ -246,7 +246,7 @@ int gs_vram_readback(unsigned char *packet, unsigned char *dst)
 
     *(volatile unsigned int *)0x10003C00 = 0;
     *(volatile unsigned long *)0x12001040 = 0;
-    SetCPUTimer(oldtimer);
+    GsPutIMR(oldimr);
     *(volatile unsigned long *)0x12001000 = 2;
     *(qword *)0x10005000 = D_00241040;
     return 0;

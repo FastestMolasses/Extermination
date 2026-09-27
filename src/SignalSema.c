@@ -2,7 +2,7 @@
 // syscall number into $v1 and invokes the EE kernel; the return value
 // (if any) flows back in $v0 from the syscall handler. Match: inline
 // asm yields the canonical 4-instruction stub at -O4,p.
-// 0x0010B840: EE syscall 66 (0x42); label corrected 2026-09-27 (was CreateSema).
+// 0x0010B840: EE syscall 66 (0x42); name per ps2sdk syscallnr.h.
 void SignalSema(void) {
     asm { addiu $v1, $zero, 66; syscall 0; };
 }

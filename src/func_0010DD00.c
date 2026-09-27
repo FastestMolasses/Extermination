@@ -2,7 +2,7 @@
 //
 // objdiff 95.95% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc coloring/list-scheduler wall. Body fully decoded and correct (DMA-chain/queue builder: validates (unsigned)(arg3-0x10)<0x61, builds a 16-byte-stride descriptor array on stack {ptr,D_00277220,size,0x44}, optional cache-flush via func_0010DFD8 when arg1&4, then _isceSifSetDma(arr,count) if arg1&1 else iGsPutIMR(...
+// eegcc coloring/list-scheduler wall. Body fully decoded and correct (DMA-chain/queue builder: validates (unsigned)(arg3-0x10)<0x61, builds a 16-byte-stride descriptor array on stack {ptr,D_00277220,size,0x44}, optional cache-flush via func_0010DFD8 when arg1&4, then isceSifSetDma(arr,count) if arg1&1 else sceSifSetDma(...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -12,8 +12,8 @@
 // CFLAGS: -O2
 
 extern void func_0010DFD8(void *addr, int size);
-extern int _isceSifSetDma(void *p, int n);
-extern int iGsPutIMR(void *p, int n);
+extern int isceSifSetDma(void *p, int n);
+extern int sceSifSetDma(void *p, int n);
 
 extern int D_00277220;
 
@@ -62,7 +62,7 @@ int func_0010DD00(int arg0, int arg1, void *arg2, int arg3,
     count++;
 
     if (arg1 & 1) {
-        return _isceSifSetDma(local, count);
+        return isceSifSetDma(local, count);
     }
-    return iGsPutIMR(local, count);
+    return sceSifSetDma(local, count);
 }

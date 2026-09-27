@@ -1,7 +1,7 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern int DisableDmacHandler(int chan);
+extern int FlushCache(int chan);
 extern int func_0010E088(int arg);
 extern int func_0010E6F8(void *buf, unsigned int magic, int arg);
 
@@ -12,7 +12,7 @@ int func_00119240(void)
     unsigned char *p = D_00281B00;
     int i;
 
-    DisableDmacHandler(0);
+    FlushCache(0);
     func_0010E088(0);
 
     do {

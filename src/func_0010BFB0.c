@@ -1,6 +1,6 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
-extern void iGsGetIMR(char *buf);
+extern void _print(char *buf);
 
 void func_0010BFB0(unsigned int a0) {
     char buf[8 + 8];
@@ -16,5 +16,5 @@ void func_0010BFB0(unsigned int a0) {
         p++;
     }
     *p = 0;
-    iGsGetIMR(buf);
+    _print(buf);
 }

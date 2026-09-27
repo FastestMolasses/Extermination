@@ -26,7 +26,7 @@ extern void *SetupThread(void *gp, void *stack, int stack_size,
 extern void  SetupHeap(void *heap_base, int heap_size);
 
 extern void  func_001000B0(void);          /* thread root function */
-extern void  DisableDmacHandler(int channel);
+extern void  FlushCache(int channel);
 extern int   gs_readback_queue_run(int argc, char **argv);  /* == main() */
 extern void  Exit(int status);
 
@@ -50,7 +50,7 @@ void _start(void)
     SetupHeap((void *)BSS_END, -1);
 
     /* 5. */
-    DisableDmacHandler(0);
+    FlushCache(0);
     /* then interrupts are enabled */
 
     /* 6-7. */

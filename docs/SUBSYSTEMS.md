@@ -32,7 +32,7 @@ Regenerate the underlying graph any time:
 | **Entity/object process dispatch** | `func_001AFC10` (+ `func_001AF800`, `func_001AFBC0`) | 106 distinct callers across all gameplay code; STRUCTS.md documents it as "process/update an object — the dispatch tail"; sits in the object-manager TU (0x1AFxxx) | **high** |
 | **Per-frame entity orchestrators** | `func_0015B130` (43 callees), `func_001662D0` (41), `func_001647D0` (37), `func_00168050` (31) | the widest fan-out functions in the game region; FINDINGS traces `func_0015B130 → func_001612D0 → func_0017C030 → anim_matrix_player` | **high** |
 | **Pad input read** | `func_001B5790` → `func_001B5860` (libpad) | calls scePad bank (0x110690+); called once per frame from main; state lands in `D_00810D40/D_00810E40/...`, repackaged by 0x1B5xxx/0x1B6xxx | **high** |
-| **Heap / allocator** | `func_002041D0` + sbrk-style helpers (crt_heap cluster) | sole game-region caller of `EndOfHeap`; cluster calls kernel/clib only | **medium-high** |
+| **Heap / allocator** | `func_002041D0` + sbrk-style helpers (crt_heap cluster) | evidence withdrawn 2026-09-27: `func_002041D0` calls `CreateSema` (0x0010B820, syscall 64), which was mislabelled `EndOfHeap` before the syscall-stub relabel; the only `EndOfHeap` (0x0010B800) caller is SDK `func_0010BE68`. Cluster calls kernel/clib only | **low** |
 | **Overlay / area dispatch** | `func_001E7780` (+ outlier call in `func_00195130`) | OVERLAYS.md: reads area id from `D_00810700/701`, 40+-arm beq chain, hardcoded `jal` into 0x00823500 arena | **high** (documented) |
 | **Archive streaming** | `func_001E7310` region | references the `\DATA\DATA.DAT;1` filename entry; same TU as the overlay dispatcher | **medium** |
 | **CD block read service** | 0x1FExxx cluster | calls the libcdvd BLK-read functions (0x111C28 bank); used by music streamer, savegame code, archive loader | **medium-high** |
@@ -89,7 +89,7 @@ undecompiled count (the decomp frontier inside that cluster).
 | save_memcard | 0x200, 0x228–0x22A | 31 | 19 | memcard service (libmc callers) + savegame build/format (BASCUS-97112 / EX_DATA strings, location names) | high |
 | unknown_04 | 0x201–0x202 | 7 | 7 | calls ui_menu_lib sound thunks; sequencer-ish | — |
 | iop_services | 0x203 | 21 | 7 | sif/IOP service management (libmc + kernel-heavy; ticked from main) | med |
-| crt_heap | 0x204 | 18 | 1 | heap/sbrk (`EndOfHeap` caller `func_002041D0`) + runtime services | med-high |
+| crt_heap | 0x204 | 18 | 1 | runtime services; `func_002041D0` creates a semaphore (`CreateSema`), the old heap/sbrk reading rested on the mislabelled `EndOfHeap` stub | low |
 | unknown_05 | 0x205 | 29 | 2 | small leaf accessors/thunks, mostly matched but unidentified | — |
 | draw2d | 0x207–0x208 | 24 | 12 | 2D/UI draw layer: per-slot GIF/DMA descriptor writers (`func_00207D00`, readable), callback-installed entry points (0x207060+) ; used by weapon_equip HUD + all menus | med-high |
 | ui_menu_lib | 0x209–0x20C | 18 | 9 | menu framework helpers + UI sound thunks (`func_0020CD40+`, 33/34/27 callers) | med |

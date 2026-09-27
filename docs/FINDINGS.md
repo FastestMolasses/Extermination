@@ -2560,7 +2560,7 @@ and per item does:
 
 ```
 func_00100D78(sp+0x50, w, h, dst_x, dst_y, src_x, src_y, opcode, ...)
-DisableDmacHandler(0)
+FlushCache(0)
 func_00100EB8(sp+0x50, item->offset+8)   /* read pixels back to RAM */
 sub_D2_TADR_08x(0, 0)                    /* idle-wait VIF1/GIF/VU1 */
 ```
@@ -2633,8 +2633,10 @@ byte sizes for the readback, then issues:
 
 3. **Wait D1_CHCR.STR clear** (`.L001010BC`) — VIF1 channel idle.
 
-4. **Watchdog**: `SetCPUTimerHandler(0)`, `SetCPUTimer(prev | 0x200)`
-   — installs a 1-shot timeout while we wait on GS.
+4. **GS interrupt mask**: `prev = GsPutIMR(GsGetIMR() | 0x200)` — masks the
+   GS FINISH interrupt (IMR bit 9) while the readback polls CSR.FINISH.
+   (Before the 2026-09-27 syscall-stub relabel these two stubs were
+   mislabelled as CPU-timer calls and this step was read as a watchdog.)
 
 5. **GS_CSR = 2** at `0x12001000` — clears GS FINISH flag.
 
@@ -2672,7 +2674,7 @@ byte sizes for the readback, then issues:
 10. **Restore state** (`.L001014D0`):
     - `VIF1_STAT = 0` (exit reverse-FIFO mode)
     - `GS_IMR = 0` (re-enable GS interrupts)
-    - `SetCPUTimer(prev)` — restore watchdog
+    - `GsPutIMR(prev)` — restore the GS interrupt mask
     - `GS_CSR = 2` again (re-clear FINISH so the next submission can
       wait on it cleanly)
     - **Final 1-qword FIFO write**: `lq` from `D_00241040`, `sq` to
@@ -2744,7 +2746,7 @@ small resolutions per frame, or rendered light occlusion masks for
 the visibility system. The 0x48-byte stride and the per-item
 metadata suggest a small fixed queue (~8-32 items per frame max).
 
-The 0x1F000000 FIFO-mask and the watchdog timer both point at a
+The 0x1F000000 FIFO-mask and the GS FINISH IMR mask (formerly misread as a watchdog timer) both point at a
 truly synchronous "wait for GS to finish, drain pixels, return"
 operation — consistent with this being game-logic feedback from
 rendered data, not a streaming render path.
@@ -16537,7 +16539,7 @@ Found by port lanes UI/SIDE/EXITA/EXITB (docs/AREA01_*.md) and corrected against
 
 - Census label corrections from the same lanes: 001FCF60, 001FCF90 and 001FE660 (labelled audio / stream_cd) make no IOP or CD call; they walk the record bank at *D_0028A49C. 002101C0's D_00810142..144 and D_00810154..178 are the status block's t[0x12..0x14] and t+0x24..0x48. 001576E0's comment said 'bit 4' for a test of mask 4 (bit 2); fixed.
 
-## EE syscall stub labels relabelled (2026-09-27, user-approved)
+## EE syscall stub labels relabelled (2026-09-27, user-approved; whole table)
 
-EE syscall stub labels: decoding the number each stub at 0x0010B400..0x0010BB00 loads shows the splat labels from about 0x0010B600 upward are two syscall numbers late. The RFUnnn names prove it (RFU063 sat on syscall 65, RFU073 sits on 75, RFU080_CreateEventFlag on 82). The semaphore block is relabelled (0x0010B820 CreateSema 64, 0x0010B830 DeleteSema 65, 0x0010B840 SignalSema 66, 0x0010B850 iSignalSema -67, 0x0010B860 WaitSema 68, 0x0010B870 PollSema 69, 0x0010B880 iPollSema -70, 0x0010B890 ReferSemaStatus 71, 0x0010B8A0 iReferSemaStatus -72), and so are 0x0010B800 EndOfHeap 62 and 0x0010B810 RFU063 63. 0x0010B8B0 (73) and 0x0010B8C0 (74) carry the neutral names Syscall49_RFU073 and Syscall4A_SetOsdConfigParam until the rest of the table (0x0010B8D0 up, and the thread block below 0x0010B800) gets its own relabel pass. FINDINGS' vsync-ISR note (0x0010B850 iSignalSema, 0x0010B860 WaitSema) now agrees with the symbol names. Callers that read 'CreateSema' before this change were signalling, not creating. Checked against 0x0010B600/0x0010B610 as well: those stubs load -30/-31 (the interrupt forms) but carry the plain names SetAlarm/ReleaseAlarm. The remaining table is being relabelled in a follow-up pass (user decision 2026-09-27: fix the whole table).
+EE syscall stub labels: every EE kernel syscall stub in the boot ELF is now labelled from the syscall number it loads (negative = interrupt-context form), with names from ps2dev/ps2sdk `ee/kernel/include/syscallnr.h` (github.com/ps2dev/ps2sdk, commit af212628, 2025-01-25; names only, no code copied). A full scan of the loadable region finds 137 stubs, one per 16-byte slot at 0x0010B400..0x0010BC80, and 4 other syscall sites that are not stubs: two inside `_start` (60 RFU060/SetupThread at 0x0010005C, 61 RFU061/SetupHeap at 0x00100078), func_001000B0 (35 ExitThread; the 8-byte thread-root thunk `_start` hands to SetupThread, outside the table, left under its func_ name) and one -47 (`_iGetThreadId`) at 0x0010C71C inside func_0010C710 (every other matching word lies in data). The splat-era labels were right for 0x0010B400..0x0010B500 and for most negative stubs, and from 0x0010B520 up the positive labels ran up to two numbers late (the pass in commit 2f8227f fixed 0x0010B800..0x0010B8C0 first). 94 labels changed. Two unnamed duplicates got the ps2sdk aliases (0x0010B510 AddIntcHandler2 16, 0x0010B540 AddDmacHandler2 18; both bodies match their partner stub exactly, so which is "2" follows the ps2sdk order). The alarm group is 0x0010B5A0 _SetAlarm 24, 0x0010B5B0 _ReleaseAlarm 25, 0x0010B600 _iSetAlarm -30 and 0x0010B610 _iReleaseAlarm -31. The thread group runs 0x0010B620 CreateThread 32 .. 0x0010B7B0 ResumeThread 57, including 0x0010B710 GetThreadId 47 and 0x0010B740 SleepThread 50. The reserved slots are 0x0010B7D0 RFU059, 0x0010B7E0 RFU060, 0x0010B7F0 RFU061 and 0x0010B8B0 RFU073 (ps2sdk lists only -73, iDeleteSema). 0x0010B8C0 SetOsdConfigParam 74 .. 0x0010B910 SetGsVParam 79. The event-flag and TLB block is 0x0010B920 CreateEventFlag 80, DeleteEventFlag 81, SetEventFlag 82, 0x0010B960 xlaunch 84, _SetTLBEntry 86, GetTLBEntry 87, ExpandScratchPad 89 and GetEntryAddress 91 (the old RFU080_CreateEventFlag..RFU091 labels are gone). The handler-enable block is 0x0010B9E0 EnableIntcHandler 92 .. 0x0010BA40 DisableDmacHandler 95, followed by 0x0010BA60 KSeg0 96, EnableCache 97, DisableCache 98, GetCop0 99, 0x0010BAA0 FlushCache 100 and 0x0010BAB0 CpuConfig 102. Next come 0x0010BAF0 sceSifStopDma 107 .. 0x0010BB60 GsPutIMR 113, 0x0010BB80 SetPgifHandler 114, SetVSyncFlag 115, SetSyscall 116 and 0x0010BBB0 _print 117. The SIF group is 0x0010BBC0 sceSifDmaStat 118 .. 0x0010BC00 sceSifSetDChain 120, 0x0010BC20 sceSifSetReg 121 and 0x0010BC30 sceSifGetReg 122. The table ends 0x0010BC40 _ExecOSD 123, Deci2Call 124, PSMode 125, MachineType 126 and 0x0010BC80 GetMemorySize 127. The old "_i" names were a workaround for a clash with the misplaced positive labels, so they became the ps2sdk names: iTerminateThread -38, iReleaseWaitThread -46, iReferThreadStatus -49, iResumeThread -58, iEnableIntcHandler -92, iDisableIntcHandler -93, iEnableDmacHandler -94, iGetCop0 -103, iFlushCache -104, iCpuConfig -106, iGsGetIMR -112, iGsPutIMR -113, isceSifDmaStat -118 and isceSifSetDma -119. The ps2sdk forms that carry their own underscore stay (_iEnableIntc.._iDisableDmac, _iRotateThreadReadyQueue, _iWakeupThread, _iSuspendThread). Older names were kept where the number already matched: RFU000_FullReset 0 (no ps2sdk entry), RFU003, Exit 4 (ps2sdk KExit), RFU005, LoadExecPS2/ExecPS2 (ps2sdk _LoadExecPS2/_ExecPS2), RFU008 and RFU063. RFU083_iSetEventFlag -83 and iCopy -90 keep their names: ps2sdk defines only the positive forms (iSetEventFlag 0x53, Copy 0x5A), not these negative ones. The corrected callers now read naturally: the SIF init calls FlushCache(0), sceSifSetDChain, AddDmacHandler(5, ...) and sceSifGetReg/sceSifSetReg (it used to show DisableDmacHandler/SetPgifHandler/RemoveIntcHandler/RFU116/SetVSyncFlag). Thread setup is CreateThread(param) followed by StartThread(id, arg) (it used to show _iSetAlarm then CreateThread). The SIF DMA helpers are sceSifSetDma plus a sceSifDmaStat poll. The GS VRAM readback masks GS FINISH with GsPutIMR(GsGetIMR() | 0x200), where it used to read as a CPU-timer "watchdog". func_002041D0 calls CreateSema, not EndOfHeap, which withdraws SUBSYSTEMS' heap evidence for the crt_heap cluster. Stub bodies are unchanged. Every renamed stub is 100% in objdiff and links from its compiled object, and the boot ELF stays byte-identical. Build note: splat never deletes the .s of a vanished symbol, and link.py's per-address dedup keeps the alphabetically first named .s, so stale build/asm files for old names must be removed after a relabel (they were moved to build/syscall_relabel/stale/).
 

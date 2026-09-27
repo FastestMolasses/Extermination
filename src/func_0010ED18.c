@@ -73,7 +73,7 @@ extern void func_0010DFD8(void *addr, int size);
 extern void *func_0010E338(void *pool);
 extern void *func_0010E368(void *pool, unsigned int idx);
 extern int func_0010DE38(unsigned int cmd, void *pkt, int size, void *src, void *dest, int len);
-extern int iGsPutIMR(volatile DmaXfer *xfer, int count);
+extern int sceSifSetDma(volatile DmaXfer *xfer, int count);
 
 int func_0010ED18(Req *req)
 {
@@ -137,7 +137,7 @@ int func_0010ED18(Req *req)
     i++;
 
     do {
-        id = iGsPutIMR(xfer, i);
+        id = sceSifSetDma(xfer, i);
         if (id != 0) {
             break;
         }
