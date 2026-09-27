@@ -31,6 +31,10 @@ minutes on its own.
 AREA01 beats (a01_*) start from the beat-15 snapshot and write to
 build/s87/route_a01/<beat>/; they are described in the port's
 docs/SECOND_LEVEL_ROUTE.md.
+    .venv/bin/python tools/route_capture.py run --beats c7       # C7 capture group (opt-in)
+C7 beats (c7_*) are original captures the C6 chain requested; each writes to
+build/s87/c7cap/<item>/<beat>/ and is described in docs/CAPTURES_C7.md.
+None of them runs under `--beats all`.
 The route and every beat are described in the port's docs/FIRST_LEVEL_ROUTE.md.
 """
 from __future__ import annotations
@@ -1238,6 +1242,65 @@ def a01_selected(spec: str) -> list[tuple]:
     return [b for b in A01_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
 
 
+# ---------------------------------------------------------------------------
+# C7 capture group (opt-in, `--beats c7` or a beat's name): original captures
+# the C6 chain requested (docs/CAPTURES_C7.md).  Same Route, sampler and row
+# format as the AREA11 beats; outputs go to build/s87/c7cap/<item>/<beat>/.
+OUT_C7 = ROOT / "build/s87/c7cap"
+
+
+def beat_c7_door1(r: Route) -> dict:
+    # Side 1 of the fence door r0 (001BC350): beat 09 ends behind the fence at
+    # spawn entry 2 (424.2, 184.8, 274.5), facing yaw pi.  Turn back to the
+    # door (423, 184.8, 290.3), walk against it from the south and Use it: the
+    # door's side decision now picks destination entry 1, and the arrival's
+    # walk-out runs before control returns.
+    settle(r, 10)
+    face(r, 0.0)
+    r.goto(422.0, 290.3, tol=0.6, magnitude=0.5, stuck_ok=True)
+    settle(r, 10)
+    pressed = []
+    for attempt in range(4):
+        if attempt == 1:
+            face(r, 0.0)
+        elif attempt == 2:
+            r.goto(419.0, 288.0, tol=0.6, magnitude=0.5, stuck_ok=True)
+            settle(r, 10)
+            face(r, 0.3)
+        elif attempt == 3:
+            r.goto(426.0, 288.0, tol=0.6, magnitude=0.5, stuck_ok=True)
+            settle(r, 10)
+            face(r, -0.3)
+        pressed.append({"f": r.frame_index, "pos": r.rows[-1]["pos"], "yaw": r.rows[-1]["yaw"]})
+        r.press("CROSS", 2)
+        try:
+            r.until(lambda row: not in_control(row), 40)
+            break
+        except TimeoutError:
+            settle(r, 10)
+    else:
+        raise TimeoutError("the fence door did not take the Use from side 1")
+    r.until(lambda row: row["req"][16:18] == "02", 400)
+    r.until(in_control, 900)
+    settle(r, 60)
+    return {"what": "Cross at the fence door from behind the fence (side 1): door script, room move to "
+                    "entry 1, arrival walk-out until control returns", "presses": pressed}
+
+
+C7_BEATS = [
+    ("c7_door1_fence_door_side1", "09_fence_door", beat_c7_door1),
+]
+C7_DIRS = {"c7_door1_fence_door_side1": "door1"}
+
+
+def c7_selected(spec: str) -> list[tuple]:
+    """`c7` = every C7 beat; otherwise a comma list of names or name prefixes."""
+    wanted = spec.split(",")
+    if "c7" in wanted:
+        return list(C7_BEATS)
+    return [b for b in C7_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
 def beat_source(source: str) -> Path:
     if len(source) == 2 and source.isdigit():
         return slot_path(source)
@@ -1245,7 +1308,10 @@ def beat_source(source: str) -> Path:
 
 
 def beat_dir(name: str) -> Path:
-    """Output folder of a beat: AREA01 beats (a01_*) live in build/s87/route_a01/."""
+    """Output folder of a beat: AREA01 beats (a01_*) live in build/s87/route_a01/,
+    C7 beats (c7_*) in build/s87/c7cap/<item>/."""
+    if name in C7_DIRS:
+        return OUT_C7 / C7_DIRS[name] / name
     return (OUT_A01 if name.startswith("a01_") else OUT) / name
 
 
@@ -1358,9 +1424,12 @@ if __name__ == "__main__":
         if wanted is not None:          # the AREA01 group runs only when named
             for name, source, fn in a01_selected(a.beats):
                 run_beat(name, source, fn)
+            for name, source, fn in c7_selected(a.beats):     # so does the C7 group
+                run_beat(name, source, fn)
     elif a.command == "events":
         chosen = [b for b in BEATS if a.beats == "all" or b[0][:2] in a.beats.split(",")]
         chosen += a01_selected(a.beats) if a.beats != "all" else []
+        chosen += c7_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             path = beat_dir(name) / "trace.json"
             if not path.exists():
@@ -1396,6 +1465,7 @@ if __name__ == "__main__":
     elif a.command == "verify":
         chosen = [b for b in BEATS if a.beats == "all" or b[0][:2] in a.beats.split(",")]
         chosen += a01_selected(a.beats) if a.beats != "all" else []
+        chosen += c7_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             state = beat_dir(name) / "state.p2s"
             if state.exists():
