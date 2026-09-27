@@ -9,7 +9,9 @@
 // The original assembly remains the linked implementation until this last
 // scheduling difference is resolved. mwcc991202 measured 92.46377%/264 bytes.
 // A later bounded search also reproduced the same residual with mwcc 2.4
-// and alternate readable clamp/control-flow forms. See docs/QUATERNION_MATCH.md.
+// and alternate readable clamp/control-flow forms. Disabling instruction
+// scheduling restores the first branch but reshapes the body (62.86%,
+// 284 bytes); disabling peephole gives 53.39%, 316 bytes.
 //
 // Despite the historical name, this does NOT normalize the result or use
 // spherical interpolation. It clamps only the upper blend bound, computes

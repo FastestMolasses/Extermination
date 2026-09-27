@@ -350,299 +350,58 @@ recovery from one overlay transfers easily to others.
 
 ---
 
-## 6. Overlay matching — first batch (2026-05-24)
+## 6. Overlay matching — workflow and patterns
 
-**36 overlay functions matched at 100%** across 18 of 19 overlays. All 19
-overlays still produce byte-identical `.BIN` output with C-compiled `.o` swapped
-in for the splat-disassembled `.s`. See `src/overlays/AREAXX/` for the source.
+Condensed 2026-09-27 from the 2026-05-24 session logs (git history has the full
+per-batch tallies). Current per-overlay match state is in `docs/PROGRESS.md`
+(e.g. the AREA01 overlay entry); `src/overlays/AREAXX/` holds the sources.
 
-### Matches by overlay
+**Workflow.**
+1. Add C source to `src/overlays/AREAXX/<funcname>.c` (`// CFLAGS:` in the leading
+   comment block; default `-O4,p -sdatathreshold 4`).
+2. In the `exterm-permuter` container: `python3 tools/overlay/compile_overlay_src.py
+   AREAXX` → `build/overlays/AREAXX/obj/<funcname>.o`. The `verify_all.py` overlay
+   stage does NOT compile `src/overlays`; run this first.
+3. Remove `build/overlays/AREAXX/filler/<funcname>.o` (fill caches assembled
+   objects; a stale filler object silently resurrects dropped candidates).
+4. `python3 tools/overlay/link_overlay.py AREAXX` re-fills (prefers compiled
+   `obj/*.o`), partial-links, applies the PC16 fix, final-links, packs MWo3 and
+   verifies byte identity against the user's extracted `AREAXX.BIN`.
+5. `[verify] PASS` = matched. A per-candidate object check is not enough: one
+   generator "100%" was wrong because splat had folded a stray basic block into
+   the slot; always confirm with the whole-overlay link.
 
-| Overlay | C funcs matched | Notes |
-|---|---|---|
-| AREA00 | 3 | init (6 gp-rel stores) + struct field setter + bare-return stub |
-| AREA01 | 1 | init (6 gp-rel stores) |
-| AREA02 | 1 | init (5 gp-rel stores, "extended" variant) |
-| AREA03 | 3 | init + a2[2]→gp setter + !! boolean inverter |
-| AREA04 | 1 | init (5 stores, 2 pointers) |
-| AREA06 | 1 | init (5 stores) |
-| AREA07 | 2 | init + bare-return stub |
-| AREA08 | 1 | init |
-| AREA11 | 3 | init + two thin wrappers (`func(); return 1`) |
-| AREA13 | 4 | init + bare-return stub + short[0x17]=0xFF setter + abs-addr byte increment |
-| AREA14 | 2 | init + thin wrapper (`func(0); return 1`) |
-| AREA15 | 1 | init |
-| AREA16 | 2 | init + struct field a0[0xB8] = -1 |
-| AREA17 | 1 | init |
-| AREA18 | 1 | init (stub overlay — only function) |
-| AREA19 | 4 | init + bare-return stub + short[0x14]=1 + abs-addr byte setter |
-| AREA20 | 1 | init |
-| AREA21 | 3 | init + two bare-return stubs |
-| AREA22 | 1 | init (stub overlay — only function) |
+**Patterns that match.**
+- Area init (every overlay): stores the area-type constant 0x20, a pointer to the
+  overlay's data section and zeros into 4-6 gp-relative boot-ELF BSS slots
+  (`D_00275C18`..`D_00275C2C`); `-sdatathreshold 4`.
+- Empty stubs, `f(args); return 1;` thin wrappers, struct-field setters.
+- Globals outside the gp window (e.g. `D_008107F4`): `-sdatathreshold 0` gives
+  the %hi/%lo pair.
+- Hybrid asm-void (`tools/overlay/gen_asm_void.py`): works when every %hi/%lo pair
+  builds the address in the destination register itself.
+- Jump-table dispatchers: splat splits switch cases into separate "functions";
+  merging them with their dispatcher is a lever, but a C switch in an overlay does
+  not link yet (table entries resolve to link addresses 0x40 below the runtime
+  values; see PROGRESS, AREA01 overlay entry).
 
-### Decomp patterns used
+**Patterns that do not match (as of the 2026-05 batches).**
+- Cross-register %hi/%lo (the %hi built in one register, the %lo added into
+  another, typically an argument set up across a call's delay slot) in hybrid
+  asm-void form: mwcc's load-address pseudo always uses one register.
+- Delay-slot fill differences on call wrappers (mwcc picks a different instruction
+  for the call's delay slot); no source tweak forced it then. Retest against the
+  current MATCHING_GUIDE idioms before calling any of these walls.
+- A shared 20-instruction epilogue fragment that splat splits off as a function in
+  AREA01/03/07/11/13/14/19/20 (no prologue; relies on caller state).
 
-All matches use pure C compiled with `mwccmips.exe -O4,p -sdatathreshold N`.
-
-1. **Area init** (every overlay): writes the area-type constant `0x20`, a
-   pointer to the overlay's data section, and `0`s into 4–6 gp-relative slots
-   in boot ELF BSS (`D_00275C18`/`C1C`/`C20`/`C24`/`C28`/`C2C`). Pure C with
-   `-sdatathreshold 4` (gp_rel for int globals). Three variants: 4-slot (most
-   overlays), 5-slot (AREA02/04/06/19), 6-slot (AREA00/01).
-
-2. **Bare-return stubs**: `void func(void) {}` — empty C function. mwcc emits
-   a bare return with an empty delay slot, exactly.
-
-3. **Thin wrappers**: `funcN(args); return 1;` — pure C. Matches when the
-   callee args fit naturally in the calling convention (mwcc 2.3 schedules
-   the arg setup before the `jal` and fills the delay slot with `nop` or a
-   safe hoistable instruction).
-
-4. **Struct-field setters**: `a0[N] = K; return 1;` — straight sw/sh at
-   offset `N*sizeof(elem)`, return constant.
-
-5. **GP-rel `int` reads/writes**: pure C with `-sdatathreshold 4`. mwcc
-   generates `R_MIPS_GPREL16` for `int` globals (4 ≤ threshold).
-
-6. **Absolute hi/lo addresses** (e.g. `D_008107F4`, outside gp ±32KB range):
-   `-sdatathreshold 0` forces mwcc to use a %hi load into `$at` plus a byte
-   load at %lo (R_MIPS_HI16/LO16) instead of gp_rel. Required for any global outside the ~64KB GP
-   window around 0x27D370.
-
-### Infrastructure additions
-
-- **`tools/overlay/compile_overlay_src.py`** — new script. For each `src/overlays/AREAXX/*.c`,
-  compiles via `mwccmips.exe` (under qemu-i386 wibo32) into
-  `build/overlays/AREAXX/obj/<stem>.o`. Honours `// CFLAGS:` comment on the
-  first non-blank line (same convention as `tools/decomp/build.py`). Default
-  flags: `-O4,p -sdatathreshold 4`. Run inside the `exterm-toolchain` container:
-  `python3 tools/overlay/compile_overlay_src.py [AREAXX | --all]`.
-
-- **`tools/overlay/fill_overlay.py`** — added `_normalize_mwcc_abi()` step
-  that runs immediately after a compiled `.o` is copied from
-  `build/overlays/AREAXX/obj/` into `filler/`. mwccmips emits
-  `e_flags=0x20924001` (EABI64), but GNU ld refuses to link EABI64 alongside
-  GNU-as's O32 (`0x20921101`). The normalizer rewrites the EABI64 bits to
-  O32+32bitmode in-place. Bytes and relocs are unchanged. The boot-ELF build
-  uses mwldmips directly and is unaffected.
-
-- **`tools/overlay/link_overlay.py`** — `_build_abs_syms_lds()` now also
-  scans symbols from `build/overlays/AREAXX/obj/*.o` via `mipsel-linux-gnu-nm -u`,
-  not just the splat `.s` files. C decompilations can reference globals
-  (like `D_008107F4`) that are never named in any `.s` — those symbols are
-  now resolved from their address-encoded names automatically.
-
-### Overlay matching workflow (now validated)
-
-1. Add C source to `src/overlays/AREAXX/<funcname>.c`.
-2. Inside container: `python3 tools/overlay/compile_overlay_src.py AREAXX`
-   → produces `build/overlays/AREAXX/obj/<funcname>.o`.
-3. `rm build/overlays/AREAXX/filler/<funcname>.o`  *(or rm all to force re-fill)*.
-4. `python3 tools/overlay/link_overlay.py AREAXX` — re-fills (auto picks up
-   compiled `.o`), partial-links, applies PC16 fix, final-links, extracts
-   text+data, prepends MWo3 header, verifies byte-identity against
-   `extract/OVERLAY/AREAXX.BIN`.
-5. If `[verify] PASS` — the function is matched. If `FAIL`, delete the `.c`
-   and `obj/.o` to revert.
-
-### Next overlay matching targets
-
-Remaining low-hanging:
-- Area-init variants in AREA13/AREA16/AREA11 (multiple inits per overlay).
-- Larger gp_rel struct accesses and conditional setters.
-- Branch-before-call wrappers (apply the boot-ELF "branch before jal" pattern).
-- AREA21 has 61 functions including VU0 code — the biggest decomp target.
-
-### Bulk asm-void batch (2026-05-24, session +1)
-
-**+50 additional overlay functions matched** via the hybrid asm-void technique
-ported from the boot ELF (`/tmp/gen_hybrid.py`). New generator:
-`tools/overlay/gen_asm_void.py` walks each overlay's per-function `.s`, applies
-the boot-ELF skip filter (no `%hi/%lo/%gp_rel`, no `jalr`/`syscall`/plain jumps to symbols,
-3–300 insns), generates `.word`-encoded branches with named `jal` callees, and
-verifies per-candidate by raw-byte + relocation comparison of the
-mwcc-compiled `.o` against the GNU-as-assembled reference `.o`. Candidates that
-define a label referenced by another file in the same overlay are skipped
-(the label would vanish from the symbol table once the splat `.s` is replaced).
-
-Per-overlay delta: AREA00 +2, AREA01 +9, AREA02 +4, AREA03 +3, AREA04 +0,
-AREA06 +1, AREA07 +1, AREA08 +5, AREA11 +1, AREA13 +6, AREA14 +1, AREA15 +3,
-AREA16 +4, AREA17 +0, AREA18 +0, AREA19 +3, AREA20 +1, AREA21 +6, AREA22 +0.
-
-All 19/19 overlays remain byte-identical (`tools/overlay/build.py --all
---no-extract --no-yaml --no-splat`). New total: 86 overlay functions at 100%.
-
-Infrastructure addition: the generator now removes stale `build/overlays/AREAXX/
-obj/*.o` files whose corresponding `.c` source no longer exists, since
-`fill_overlay.py` prefers `obj/*.o` over the splat fallback and a stale `.o`
-from a dropped candidate would silently keep using mwcc output that no longer
-reflects what's in `src/`.
-
-### Pure-C hi/lo + asm-void hi/lo batch (2026-05-24, session +2)
-
-**+12 additional overlay functions matched** (one AREA13 asm-void hi/lo candidate
-the generator's verifier reported as 100% turned out to be wrong on parent
-re-verification: splat had folded a stranded basic block — a single byte load
-of +0xB from a saved-register base at 0x0082417C — into func_overlay_AREA13_00824160's slot, and the C decomp couldn't
-reproduce that tail byte. Dropped). New total: **98 functions at 100%**.
-
-The matches fall into two groups:
-
-1. **4 hand-written pure-C decompilations** for "jal-with-hi/lo arg + return 1"
-   wrappers — the simplest non-leaf hi/lo pattern. Compiled with
-   `// CFLAGS: -O4,p -sdatathreshold 0` so mwcc emits a %hi/%lo pair for the
-   address (the global is outside the gp ±32KB window). Matched:
-   - AREA00 `func_overlay_AREA00_00826070` — two `func_1EFD20(K, &D_..)` calls.
-   - AREA17 `func_overlay_AREA17_00824240` — three init calls.
-   - AREA19 `func_overlay_AREA19_00827AE0` — three init calls.
-   - AREA04 / AREA21 — attempted, abandoned (mwcc -O4 schedules the arg-setup
-     into a different delay slot than the original — see "Patterns that didn't
-     work" below).
-
-2. **9 asm-void hi/lo matches** via the new hi/lo-aware path in
-   `gen_asm_void.py`. The key discovery: **mwcc's load-address pseudo emits
-   exactly a %hi load plus a %lo add in the same register** with proper
-   `R_MIPS_HI16/LO16` relocations — the same byte pattern as the original
-   when the original used the destination register as the lui scratch. So
-   functions whose only %hi/%lo usage is the same-register form
-   (the %hi load and the %lo add both in the same register) can be matched
-   as hybrid asm-void by collapsing each pair into a single load-address
-   pseudo-instruction for SYM.
-
-   Per-overlay delta this batch: AREA00 +1, AREA01 +1, AREA02 +1, AREA04 +2,
-   AREA13 +1, AREA19 +2, AREA20 +1, AREA21 +1 (asm-void hi/lo only).
-   Combined with the 4 hand-written pure-C: AREA00 +2, AREA01 +1, AREA02 +1,
-   AREA04 +2, AREA13 +1, AREA17 +1, AREA19 +3, AREA20 +1, AREA21 +1 = +13.
-
-   All 13 produce byte-identical overlay BINs.
-
-### Patterns that worked
-
-- The load-address pseudo for a same-register %hi/%lo pair (the common
-  "load symbol address into R" idiom).
-- mwcc inline-asm short load/store forms that take a bare symbol (no base
-  register) emit a %hi load into `$at`, then the access at %lo(SYM) through
-  `$at`. Only useful when the original
-  also used `$at` as scratch — rare.
-- Pure-C `func(K, D_extern); return 1;` wrappers (3 matched).
-
-### Patterns that didn't work
-
-- **Cross-register %hi/%lo pair**: the %hi built in register X and the %lo
-  added into a different register Y is unreachable. mwcc's `la` always uses the destination
-  reg for both halves; the `addiu` form with a symbol operand is rejected
-  ("illegal constant expression"). This blocks the most common "load arg
-  before jal" idiom (the %hi half built in one register before the call and
-  the %lo half added into the argument register in the call's delay slot).
-  An estimated 60-70% of remaining unmatched hi/lo functions hit this.
-- **Split %hi in register X plus a word load at %lo(SYM) through X** with
-  `X != $at`: same constraint. mwcc's short bare-symbol word load always
-  uses `$at`.
-- **Delay-slot scheduling differences**: when mwcc -O4's scheduler picks a
-  different instruction to fill a `jal` delay slot than the original (e.g.
-  arg-setup vs. tail-load), the bytes diverge and no source-level tweak
-  reliably forces a match (tried `int buf` vs `char buf[16]` for the
-  AREA04 stack-buffer case).
-- **Mid-function fragments from splat mis-splitting**: AREA01/03/07/11/13/14/
-  19/20 all have an identical 20-instruction fragment ending in a standard
-  epilogue (restore the return address from a 0x40-byte frame, return, pop the
-  frame in the delay slot) that splat treats as a
-  standalone function. These have no entry prologue and rely on caller
-  state — can't be expressed as a top-level C function.
-
-### Infrastructure changes
-
-- **`tools/overlay/gen_asm_void.py`** — added hi/lo-aware second pass. New
-  `hilo_transform()` recognizes same-register %hi/%lo pairs and
-  emits the load-address pseudo for SYM; recognizes an assembler-temporary %hi
-  followed by a word/half/byte load or store through its %lo, and emits the
-  corresponding mwcc short-form pseudo. Generates
-  `extern int SYM;` decls for each collapsed symbol. Rejects any %hi/%lo
-  that can't be cleanly paired. Uses `-sdatathreshold 0` for the hi/lo pass.
-  Also fixed a regex bug in `rr()` (`$t0..$t9` register renaming) that was
-  silently producing no substitution — masked previously because the
-  earlier batch happened to not have functions using `$t`-named registers.
-
-- **`tools/overlay/compile_overlay_src.py`** — `file_cflags()` now scans
-  the *entire* leading comment block for `// CFLAGS:`, not just the very
-  first non-blank line. (gen_asm_void's hi/lo header puts the explanatory
-  comment first; without this fix the CFLAGS were silently ignored and
-  the wrong sdatathreshold was used, producing GPREL-vs-HI/LO mismatches
-  at link time.)
-
-### Bulk pure-C generator + manual conditional decomp (2026-05-24, session +3)
-
-**+1 additional overlay function matched** — AREA13_00827D90 (small if/else
-that conditionally writes 0 or 0xFFFF through a gp-rel pointer global).
-New total: **99 functions at 100%**.
-
-This session also stood up `tools/overlay/gen_pure_c.py`, a bulk pure-C
-match generator modeled on `gen_asm_void.py`. It walks each overlay's
-per-function `.s` and tries a set of simple-idiom C templates
-(empty stub, `return K`, `return G`, `return &G`, simple loads/stores)
-against the splat-assembled reference object. It compiles each candidate
-inside the toolchain container and verifies text bytes + relocation
-targets; then runs a per-overlay end-to-end fill+link byte-identity
-check and bisects-and-drops on failure (responding to the prior agent's
-hi/lo false-positive discovery).
-
-**Yield: 0 pattern matches across all 19 overlays.** The previous batches
-(gen_asm_void + asm-void hi/lo + hand-written pure-C) already exhausted
-the surface of pure straight-line simple-idiom leaves. The remaining
-unmatched functions fall into three buckets:
-
-  1. **Medium control-flow functions** (with internal branches/labels) —
-     unreachable by single-template pattern matching; would need per-function
-     decompilation.
-  2. **Mid-function fragments from splat mis-splitting** — start without a
-     prologue and rely on caller-side register state. Cannot be expressed
-     as top-level C functions at all.
-  3. **Cross-register hi/lo wrappers** (the %hi built in register X, the %lo later
-     added into a different register Y) — mwcc emits these naturally from extern globals, but the
-     remaining candidates (AREA04_00824A00, AREA21_00826960) suffer from
-     scheduler differences: mwcc and the original disagree on which
-     instruction fills the `jal` delay slot. Verified manually for
-     AREA04_00824A00 — produced 6/37824 byte diff on full overlay verify.
-
-The one match this session (AREA13_00827D90) was hand-written, not
-generator-produced: it has internal labels (it's an if/else), but the
-control flow is simple enough that writing the C directly worked first
-try. The generator's pattern set does not yet attempt if/else templates.
-
-### Infrastructure additions (session +3)
-
-- **`tools/overlay/gen_pure_c.py`** — new bulk pure-C match generator
-  (see above). The pattern dispatcher is open for extension; future
-  patterns to add would include single-jal return-1 wrappers with hi/lo
-  arg setup (where scheduling can be forced via stack-buffer presence)
-  and simple if-else gp-rel store patterns.
-
-- **Stale `filler/*.o` cache bug** — `tools/overlay/fill_overlay.py`
-  caches assembled objects in `build/overlays/AREAXX/filler/`. When a
-  candidate `.c` is deleted, removing `obj/*.o` was not sufficient —
-  the previous-run's compiled bytes lingered in `filler/*.o` and
-  silently re-appeared on the next fill. AREA04_00824A00 hit this
-  exact issue in session +3. Both `gen_pure_c.py` and `gen_asm_void.py`
-  now wipe both `obj/<name>.o` and `filler/<name>.o` when a candidate
-  is dropped.
-
-### Honest assessment of remaining surface
-
-After three bulk batches and two hand-written-pure-C sessions, **the
-small-function surface in `src/overlays/` is effectively exhausted by
-pattern-driven generation.** Further matching gains will come from:
-
-  1. **Per-function manual decompilation** of medium-sized functions —
-     this is the standard matching-decomp workflow.
-  2. **Recognizing and matching jump-table dispatchers** at function
-     boundaries — splat treats each switch-case branch as a separate
-     function, and joining them properly with their dispatcher (e.g.
-     AREA13_00824140/00824160) would unlock at least 10+ matches per
-     such case statement.
-  3. **Identifying repeated boilerplate across overlays** — the
-     overlay interface (section 5) implies many overlays implement the
-     same protocol; one decomp may produce 5+ identical matches across
-     sibling overlays.
+**Tooling notes.** `compile_overlay_src.py` scans the whole leading comment block
+for `// CFLAGS:`. `fill_overlay.py` normalizes mwcc's EABI64 `e_flags` to O32 so
+GNU ld accepts the object (bytes and relocations unchanged). `link_overlay.py`
+also resolves absolute symbols referenced only by compiled C (from their
+address-encoded names). `gen_pure_c.py` (template leaves) found nothing beyond the
+asm-void batches; the small-leaf surface is exhausted and gains come from
+per-function decompilation.
 
 ---
 
@@ -729,35 +488,16 @@ toolchain container so mwccmips + GNU as are available directly.
    reserved via PT_LOAD.
 
 5. **PT_LOAD slot ↔ overlay_id mapping**: verified that PT_LOAD slot N corresponds
-   to overlay_id N, not to the AREA filename number (AREA04 is overlay_id 5, not 4,
-   because AREA05 is absent and the id counter continues). The mapping is
-   by `overlay_id` field in the MWo3 header, not by filename.
+   to overlay_id N, not to the AREA filename number. Overlay ids are dense 1-19 in
+   shipped order (see the §1 table): AREA04 is overlay_id 5 because AREA00 takes
+   id 1, not because of the missing AREA05. The mapping is by `overlay_id` field in
+   the MWo3 header, not by filename. (Corrected 2026-09-27.)
 
 6. **`static_init_address`**: for AREA18 this equals `load_address + text_size`
    (= 0x8235C0), which is the start of the data section — suggesting the C++
    static initializer list is stored there. Confirm by checking if the loader
    iterates function pointers between `static_init_address` and
    `static_init_end_address` and calls each one at load time.
-
----
-
-## 9. Relationship to Track A
-
-Track A (boot ELF decomp) and the overlay decomp are **parallel workstreams**
-that don't conflict at the source level. They share:
-- The same compiler (`mwccps2 2.3.1.01`).
-- The same toolchain container (`exterm-toolchain`).
-- The same `$gp` value.
-- The same call conventions and code-gen patterns.
-
-They diverge in:
-- The linker LCF (overlays have a simpler LCF, separate output file).
-- Symbol namespacing (overlay functions are prefixed `overlay_AREANN_`).
-- splat configs (one per overlay, in addition to the boot ELF config).
-
-The natural sequencing is: complete the overlay pipeline scaffold with AREA18
-(can be done without interrupting Track A), then alternate between advancing
-Track A and advancing overlay matches as motivation dictates.
 
 ---
 

@@ -1,4 +1,4 @@
-# Extermination — Subsystem Map & Decomp Roadmap
+# Extermination — Subsystem Map
 
 The navigation map for all semantic-decomp work. Every game function in
 `docs/FUNCTIONS.csv` (2,063 rows, vram `0x001305B0–0x00271DF8`) now carries a
@@ -39,7 +39,7 @@ Regenerate the underlying graph any time:
 | **Music streaming** | `sub_O_STREAM_MUSIC_DAT_1` (0x001FA6E0) | `STREAM/MUSIC.DAT` filename ref; calls CD read + IOP RPC | **high** |
 | **Sound effect dispatch** | `func_001FBD50` (play_sound, 213 callers — most-called function in the game) → `func_001FB9F0` (sound-record lookup: bins id, global tables `D_0025ECA0`/`D_00261570` + area-paged `D_00264A70..B90` keyed by `D_00810700/701`) → `D_00281D50[group][slot]` bank handle → `func_00119EA0` trigger script. Fully decoded 2026-06-10 (FINDINGS "Engine SOUND IDS"; `audio_export.py soundmap`) | .s decode + data validation of all 1686 resolvable ids | **high** |
 | **Savegame build/format** | `sub_BASCUS_97112_DS00_00_EX_DATA_*` (0x228xxx–0x229xxx) | BASCUS-97112 path + `EX_DATA` filename strings, location-name strings for save metadata | **high** |
-| **Camera** | NOT yet isolated | no string/SDK anchor; most likely inside `frame_update` (0x15Bxxx–0x165xxx) or `entity_logic`. Find it by locating the writer of the viewport matrix the renderer folds into bone palettes (FINDINGS "runtime-built palette") — trace writers of the per-frame view matrix buffer fed to 0x1D1xxx chain heads | open |
+| **Camera** | 0x18B9C0–0x199xxx (inside the cluster labeled `init_io`) | isolated in s10 (FINDINGS "CAMERA SYSTEM — isolated and characterized"): func_0018B9C0 state-machine top over the camera block 0x008101E0; func_0018CBD0 seed; func_0018DD20 wall solver; func_0018D7B0/func_0018C0D0 camera functions; func_00195130 mode-0 area director. Port: `docs/CAMERA_*.md` | decoded |
 | **Collision** | NOT pinned to one TU | per-bone hull files (id 0x73) imply a hull-vs-world/projectile system. Best candidate: the `level_world` cluster (0x19Axxx–0x1A7xxx): self-contained, near-leaf, scratchpad-batch geometry processors called from entity logic and the 0x1B2/0x1B3 vector code | open (candidate) |
 
 **SDK boundary (confirmed):** everything below `0x00130000` (~951 functions,
@@ -107,72 +107,21 @@ functions (4.4%) — kept numbered rather than guessed.
 
 ---
 
-## Highest-leverage undecompiled functions (by distinct callers)
+## Roadmap
 
-| Callers | Function | Cluster | Size |
-|--------:|----------|---------|-----:|
-| 106 | func_001AFC10 | entity_sys | 140 B |
-| 67 | func_001B17A0 | math_vector | 328 B |
-| 62 | func_001CFBE0 | obj_registry | 1024 B |
-| 60 | func_00175900 | actor_anim | 1004 B |
-| 48 | func_001CFB50 | obj_registry | 140 B |
-| 46 | func_001FB9F0 | audio | 596 B |
-| 42 | func_00207E40 | draw2d | 308 B |
-| 42 | func_001B61C0 | input_io | 132 B |
-| 41 | func_0019A570 | level_world | 376 B |
-| 40 | anim_advance_time | anim_runtime | 752 B |
-| 36 | func_0019AD00 | level_world | 736 B |
+The old "highest-leverage undecompiled functions" table and the prioritized
+"decomp roadmap for the native port" were removed on 2026-09-27: they predate the
+first-level work and are superseded by the port's `docs/FIRST_LEVEL_AUDIT.md` and
+`docs/FIRST_LEVEL_CENSUS.md` (built with `tools/route_census.py`). This file stays
+the cluster map.
 
 ---
 
-## Decomp roadmap for the native port (prioritized)
+## Open questions
 
-The port already replicates rendering/skinning/animation from the asset side.
-What it lacks is the GAME — the loop, the objects, the rules. Decompile in
-this order; each step unblocks the next:
-
-1. **frame_main** (61 fns, ~37 und) — `func_001AAE40` main() and its frame
-   sequence. This is the skeleton: it fixes the per-frame ORDER of every
-   other subsystem and is small. Rename `gs_readback_queue_run` → `main`
-   first (symbol_addrs + src rename; follow the 2026-06-01 rename protocol).
-2. **entity_sys + obj_registry** (63 fns) — object lifecycle: spawn, link,
-   per-frame process (`func_001AFC10`), and instantiation from the embedded
-   directories (`func_001CFBE0`). Every entity behaviour hangs off these;
-   they also decode how the BSS function-pointer dispatch is installed.
-3. **frame_update + entity_update** (92 fns) — the orchestrators
-   (`func_0015B130`, `func_001662D0`, `func_001647D0`, `func_00168050`).
-   After (2) these read as "for each object: …" and reveal the game-state →
-   world-update pipeline, and almost certainly the **camera** writer.
-4. **input_io** (31 fns) — small, anchored by libpad; the port needs a pad
-   abstraction anyway. Also contains the config-record unpacker family.
-5. **actor_anim** core (the ~20 hub fns first: 0x1749A0/0x1749F0 commit
-   path, func_00175900) — bridges entity state to the already-understood
-   anim_runtime; required for gameplay-correct animation triggering.
-6. **level_world** (58 fns) — the collision/world-query candidate. Gameplay
-   correctness (walking, shots, triggers) lives or dies here. Verify the
-   collision hypothesis early by decompiling `func_0019A570`/`func_0019AD00`
-   (41/36 callers) and checking for plane/hull math against the id 0x73
-   hull format in FINDINGS.
-7. **area_state + stream_archive + the overlay dispatch** (32 fns) — level
-   progression and loading; OVERLAYS.md already documents the mechanism.
-8. **audio + stream_music + stream_cd** interfaces (top ~15 fns) — the port
-   replaces the IOP backends, so only the call interfaces (ids, volumes,
-   positions — e.g. `func_001FBD50`/`func_001FB9F0`) need semantics, not
-   matching internals.
-9. **weapon_equip + draw2d + ui_menu_lib + ui_screens** — the front end.
-   draw2d first (24 fns; everything UI calls it).
-10. **entity_logic + area_logic last, breadth-wise** (317 fns) — the long
-    tail of per-enemy/per-area behaviour. Parallelizable once 1–6 fix the
-    shared vocabulary (object struct, dispatch, world queries).
-
-Defer indefinitely for the port: `movie` (replace with a video file player),
-`sdk_gs`, `crt_heap` (native heap), `iop_services`, `save_memcard` internals
-(replace with native save files; keep the EX_DATA layout for import),
-`data` (not code).
-
-### Open questions
-
-- **Camera**: not isolated (see Headline table for the search method).
+- **Camera**: decoded (see the Headline table and FINDINGS "CAMERA SYSTEM",
+  "CAMERA WALL SOLVER func_0018DD20"); the cluster label `init_io` above
+  0x18B9C0 is still wrong in FUNCTIONS.csv.
 - **Collision**: CONFIRMED (s7 id-0x44 world + s22 weapon pass):
   `func_0019A570(from, to, mode, mask)` is the segment/ray query — the
   weapon system uses mode 7/mask 0x20 for bullets, mode 1/0x20 for

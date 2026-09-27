@@ -3,7 +3,8 @@
 What you can actually change today, and with which tools. Two surfaces:
 
 1. **Code modding** — edit matched C in `src/`, rebuild the boot ELF, repack
-   your ISO, run in PCSX2. ~96.2% of game-code bytes are committed C.
+   your ISO, run in PCSX2. Current coverage: `tools/verify_all.py` (match stage)
+   and `docs/PROGRESS.md`.
 2. **Asset modding via the native port** — export disc assets into our own
    open interchange formats (EMDL/EMCL/EMFN/EMUI), compose scenes with a
    plain-text manifest, and run them natively in the sibling
@@ -42,9 +43,9 @@ Current state:
   (objdiff 100%) or an `INCLUDE_ASM` stub whose bytes come from locally
   assembled splat `.s` (`build/filler/`). Editing a stubbed function means
   decompiling it first (the contribute textbook covers the matching loop).
-- 1247/1344 game functions matched at the last census (~96.2% of game-code
-  bytes since). Mapping intent → function is much easier now:
-  `docs/SUBSYSTEMS.md` (all 2,063 functions labeled by subsystem),
+- Current matched/near-miss counts: `tools/verify_all.py` (after a fresh
+  `tools/decomp/build.py build`) and `docs/PROGRESS.md`. Mapping intent →
+  function: `docs/SUBSYSTEMS.md` (game functions labeled by subsystem),
   `docs/FUNCTIONS.csv` (the claimable index), `config/symbol_addrs.txt`
   (named symbols), `tools/callgraph.py`.
 
@@ -126,8 +127,7 @@ Each scene directory under the port's `assets/` is: top-level `*.emdl`
 (static geometry, loaded alphabetically), an `.emcl`, optional `doors/` and
 `props/` subdirs, and a `scene.txt` read by `em_game.c` at boot. Plain
 "keyword value" lines; `#` comments; unknown keywords are skipped (modules
-like `em_door` scan the file for their own keywords); a missing file or key
-falls back to the built-in office defaults.
+like `em_door` scan the file for their own keywords).
 
 ```
 spawn <x> <y> <z> <yaw>          # player spawn, true world coords; yaw rad, 0 = +Z
@@ -147,9 +147,9 @@ exporters comment out overflow farthest-from-spawn; generators live in
 their own `EM_GENERATOR_MAX` pool. The exporters write these lines
 (`export_level.py` spawn/bgm/enemy block, `export_collision.py` collision,
 `export_props.py` door lines, `gen_sfx_registry.py` prints `doorsfx`).
-Shipped scenes: `assets/scene/` (captured office room, default),
-`assets/scene_office0/` (AREA02 main floor), `assets/scene_snow/` (AREA11).
-A scene's `props/enemy_crate.emdl` is probed before the global crate model.
+The port's first-level work (AREA11) is driven by its own startup/level path and
+docs (port `docs/FIRST_LEVEL_AUDIT.md`); which scene directories exist is whatever
+your local asset export produced. A scene's `props/enemy_crate.emdl` is probed before the global crate model.
 
 ---
 
@@ -162,37 +162,15 @@ make run
 make test-input # OS-free input-model unit test
 ```
 
-Keyboard map (see `src/em_input.h`, which also documents the engine's real
-default pad config): WASD = left stick, arrows = d-pad, K = CROSS
-(USE/confirm), **L = CIRCLE (FIRE — the engine's real trigger)**,
-I = TRIANGLE (status screen), J = SQUARE, Q/E = L1/R1 (R1 = weapon-draw
-hold), U/O = L2/R2, **R = L3 (reload)**, Return = START, Tab = SELECT.
+Keyboard map: see the port's `src/em_input.h`, which is the only authoritative
+source (it lists every key-to-pad binding, including the right stick, and documents
+the engine's real default pad config). This doc no longer copies the map, because a
+copy goes stale.
 
-Environment variables (the test harness; all checked at boot):
-
-| Variable | Effect |
-|----------|--------|
-| `EM_SCENE=<dir>` | load a scene directory instead of the default `assets/scene` |
-| `EM_BGM=<wav>` | override the scene's music |
-| `EM_CAPTURE=<path.bmp>` | BMP frame capture at gameplay frame 60 |
-| `EM_CAPTURE_FRAME=<n>` | change the capture frame |
-| `EM_CAPTURE_AIM=1\|2` | capture in aim pose (2 = after one shot, mid-recoil) |
-| `EM_MOVE_TEST=1` | scripted walk self-test (asserts final position) |
-| `EM_MOVE_LEGS=fwd,strafe` | resize the move-test legs (default 60,30) |
-| `EM_MOVE_EXPECT=x,y,z` | expected final position for non-office scenes |
-| `EM_DOOR_TEST=1` | door state-machine self-test (blocked → X → transit) |
-| `EM_WEAPON_TEST=1` | draw/fire/reload/holster self-test (honest clip windows) |
-| `EM_ENEMY_TEST=1..4` | 1 kill run, 2 contact run, 3 crate run, 4 generator run |
-| `EM_ENEMY_GIBDEMO=<frame>` | lethal mailbox to enemy 0 at that frame (gib burst) |
-| `EM_MELEE_TEST=1` / `EM_MELEE_DEBUG` | knife-vs-crate self-test / verbose |
-| `EM_SFX_TEST=1` | SFX mixer one-shot test |
-| `EM_HUD_FORCE=1` | force the status screen visible |
-| `EM_AUDIO_TEST=1\|2` + `EM_AUDIO_FILE` | 440 Hz sine / stream a PCM16 WAV |
-| `EM_INPUT_TEST=1` | input-event instrumentation |
-
-Port modding conventions: the default capture must stay **byte-identical**
-after asset/code changes that shouldn't alter the default scene, and the
-self-tests above must PASS — that's the port's regression gate.
+Tests and verification: follow the port's `CLAUDE.md` ("Verification" and "Tests":
+first-level scope, headless, ~10 s default runs, exhaustive sweeps behind
+`EM_TEST_FULL=1`). The old `EM_*_TEST` office-scene fixtures that this section used
+to list as the regression gate were retired in s87 and are not a gate.
 
 ---
 
@@ -218,14 +196,11 @@ Levels without a texture source fall back to gray sheets.
 ## 7. What's NOT moddable yet
 
 - **No repack into the PS2 game** — asset edits run in the port only.
-- **Port scenes don't transition** — doors open and hold; the area-loader
-  contract is decoded (FINDINGS "AREA TRANSITION LIFECYCLE") but not built.
-- **Most creature behaviors** — only crawler/crate, leech, and generators
-  are native; ~20 engine behaviors are censused but unimplemented.
-- **Status sub-screens** — the hub is native; the X-entered pages are not.
-- Footstep surfaces are fixed to floor-A pairs; button config is the
-  engine default only. (All on the current roadmap in `docs/PROGRESS.md`.)
+- **The port covers the first level only** (and is being made exactly
+  original there); what it reproduces and what is still missing is tracked in
+  the port's `docs/FIDELITY_FEATURES.md` and `docs/FIRST_LEVEL_AUDIT.md`, not
+  here.
 
-_Last updated: 2026-06-10 (through session ~s35). Reflects ~96.2%
-matched game-code bytes, byte-identical ELF/overlays/ISO, and the
-EMDL/EMCL/EMFN/EMUI native-port asset pipeline._
+_Reviewed 2026-09-27: stale counts, office-scene defaults and the retired test
+fixtures removed; §2 exporters, §3 formats and §6 glTF are unchanged from the
+s35 text._

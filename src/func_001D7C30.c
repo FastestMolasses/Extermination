@@ -5,7 +5,7 @@
 // Correct scratch matrix extent from4 floats to16; original64-byte SDK matrix writes require the full object. Native controller and SDK calls have independent original-instruction comparisons.
 //
 // Original assembly remains linked. The corrected candidate is compiled and
-// measured separately; see docs/NEARMISS.md and docs/SCRIPT_ANIMATION_MATCH.md.
+// measured separately; see docs/NEARMISS.md.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8

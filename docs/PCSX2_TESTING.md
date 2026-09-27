@@ -65,6 +65,10 @@ All output belongs in gitignored `build/`.
   offending PC). The old "don't fire" note applied to an earlier build. Remove
   them promptly (perf decay) and restart PCSX2 if the IOP audio wedges;
   `watch_change` (raw TCP) remains the low-impact option.
+- Two control channels: the DebugServer JSON socket above (TCP 21512) and PINE.
+  On macOS PINE is a Unix socket, while the MCP companion defaults to TCP 28011;
+  check which one a tool expects before assuming PINE is down. (Moved from the
+  pre-s87 HANDOFF archive, 2026-09-27.)
 - No savestates without Pine: snapshot/restore RAM regions instead (player
   0x8102B0+0x320, camera 0x8101D0+0xE0, globals 0x810600+0x300, inventory
   0x810C00+0x100, fade 0x28A9A0+0x10, task 0x28A750+0x10) — and only restore

@@ -448,6 +448,16 @@ target tests ascending, write `if`/`else if`, not a `switch`.
 callee-saved register (tell: the frame grows), inline the expression at every use site
 *including inside the guarding condition* so it gets recomputed per path.
 
+**128-bit moves are not hand-written SIMD.** Quadword loads/stores (and moves from the VU0
+registers) alone come from ordinary mwcc code: 128-bit stack spills and struct copies in
+plain C. Only *arithmetic* MMI (packed add/extend/max and similar) marks hand-written vector
+work, and a function with one to three such ops in hundreds of instructions is usually
+ordinary C worth attempting. Related triage trap: `sub_*` names that look like messages
+(e.g. an MPEG "macroblock type" string) are splat labels derived from a nearby SDK string;
+they identify Sony library code (sceMpeg, libpad, libkernel) in the low-memory region, so
+they route to the ee-gcc lane, not mwcc. (From the s86 stub inventory, deleted 2026-09-27;
+the current stub list is HANDOFF.md §9(d).)
+
 ---
 
 ## 6a. Translation-unit boundaries are a real lever (and a real trade-off)

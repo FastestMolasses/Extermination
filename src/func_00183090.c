@@ -4,6 +4,11 @@
 // request initializes the transition and returns0, so the player frame
 // does not also advance it. Special bone modes1/3 become2/4 and return1.
 // An unchanged request returns1 to permit the ordinary animation advance.
+// Matching trick: declare mode as int and apply the byte mask inside the
+// nonzero branch. With the mask before the test (or the mask omitted) the
+// compiler drops the redundant masking and loads mode straight into an
+// argument register (97.88%); the in-branch mask reproduces the original
+// byte load, zero test and separate mask with the original registers.
 extern void func_001D0C70(void);
 extern void bone_init_default_2(unsigned char *, short);
 extern void anim_clip_init(unsigned char *, int, float, float);

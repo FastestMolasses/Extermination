@@ -1,7 +1,7 @@
 # Extermination — Runtime Structures (reverse-engineered)
 
-Game runtime structures recovered from the **readable-C decompilation** (the
-~100 byte-identical functions converted from `.word` blocks). Offsets are from
+Game runtime structures recovered from the **readable-C decompilation** in
+`src/` (byte-matched and NEARMISS function bodies). Offsets are from
 the structure base pointer; widths are from the access instruction
 (`lb/sb`=u8, `lh/sh`=s16, `lw/sw`=int/ptr, `lwc1/swc1`=float, `lq/sq`=128-bit).
 Confidence is noted per field. Cross-reference: the **bone / skeleton** struct
@@ -19,13 +19,19 @@ EE register `$a0`) to most game-logic functions. Sub-objects are the **same
 type**, linked through `+0x20`. The struct is large (≥ 0x320 bytes); only the
 fields touched by decompiled functions are known so far.
 
+**Player vs enemy position.** Enemy actors use `+0xB0/+0xB4/+0xB8` as their
+position (e.g. func_001551B0). The player actor (`D_008102B0`) uses `+0xA0` as
+its actor position and `+0xB0` as the animated hip: range checks pass
+player+0xA0 against entity+0xB0 (FINDINGS "Senses & the player light"), and
+the camera seed func_0018CBD0 reads player+0xA0 (see its src header).
+
 | Offset | Width | Field (meaning) | Confidence | Seen in |
 |--------|-------|-----------------|------------|---------|
 | +0x04 | u8 / int | **state** — main state-machine selector (1, 4, …). The switch key in per-frame entity dispatchers. | high | func_001838B0, dispatch family |
 | +0x05 | u8 | sub-state | high | func_001838B0 |
 | +0x06 | u8 | flag | med | func_001838B0 |
 | +0x20 | ptr | **pending sub-object** (same struct type). On detach its `+0x04` is set to 3 and this slot is cleared. | high | func_00131E80 + teardown family |
-| +0x28 | s16 | **motion countdown timer** — counts down each frame; on reaching 0 the motion updater snaps position to the target. | high | func_0017D8D0, func_0017DE20 |
+| +0x28 | s16 | **per-state countdown timer** — generic; e.g. the motion updaters count it down and snap position to the target at 0, and the shoulder-light state machine uses it as its 300-frame delay. | high | func_0017D8D0, func_0017DE20, func_00161020 |
 | +0x9A | u8 | subsystem **dispatch id** (passed to func_001B1190). | high | teardown/dispatch family (11 fns) |
 | +0xB0 | float | **position.x** | high | motion updaters |
 | +0xB4 | float | **position.y** | high | motion updaters |
@@ -74,7 +80,7 @@ Notes:
 
 | Symbol | Meaning |
 |--------|---------|
-| D_008106C7 | a global one-shot flag (set elsewhere, consumed/cleared by func_0016F5D0) |
+| D_008106C7 | **gun-light draw enable**: mirrored from D_00810D3C by func_0017A970 (set on the rising edge, cleared on the falling edge), read by func_00188ED0 to draw the light cone; also cleared by func_0016F5D0 / func_0018A6B0 (FINDINGS s87 gun-light correction) |
 
 ## Bone / skeleton struct — see `docs/FINDINGS.md`
 
@@ -91,9 +97,5 @@ documented in FINDINGS.md "Per-bone animation evaluator": `+0x30` quat A,
 
 Each field comes from a byte-identical decompiled function that accesses it —
 e.g. `*(float *)(obj + 0xB0) += *(float *)(obj + 0x2E0)` in the motion
-updaters establishes position.x and velocity.x. As more `.word` blocks become
-readable C, extend the table. A future step (under strict matching) is to
-define a C `struct` with these fields and rewrite the readable functions to use
-named members — mwcc compiles `obj->position_x` identically to
-`*(float *)(obj + 0xB0)` when the struct layout matches, so this can be done
-without breaking byte-identity.
+updaters establishes position.x and velocity.x. As more functions become
+readable C, extend the table.

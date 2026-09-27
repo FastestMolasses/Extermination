@@ -5,7 +5,10 @@
 // Supported inventory branches are checked against original instruction
 // execution. Invalid secondary selectors use an incoming saved register
 // as TEX0; this C does not define that caller-dependent state.
-// See docs/STATUS_AMMO.md.
+// The caller 209DF0 passes (ui, 16, 190); the leading UI argument is unused
+// but retained (an older two-argument signature consumed the wrong
+// coordinate registers). The ordinary secondary count is a 3-place field;
+// the reserve count and the secondary fuel percentage are 4-place fields.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0

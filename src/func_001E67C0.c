@@ -17,6 +17,9 @@
 // seed*37+11 per tile. 001CFAE0 receives phase, random fraction+0.0001,
 // color multiplier 1, and fade interval 0.000001; it packs these for VU59 as
 // phase/color/fade/seed. Both phase and drift advance once per row.
+// Float argument registers of that call: f12 = current row phase, f13 =
+// local seed fraction + 0.0001, f14 = 1, f15 = 0.000001 (the earlier C
+// passed 1 / row phase / seed fraction + 0.0001 / 1 in those registers).
 //
 // Native recovery and original DMA evidence: extermination-port/docs/SNOW_PARTICLES.md.
 // Earlier source had all four float call arguments wrong and mislabeled

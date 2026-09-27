@@ -618,8 +618,9 @@ weapons, enemies, doors, audio and the real status screen.
   doesn't help); multi-function-TU scheduling FALSIFIED (per-function). The ~1,300
   remaining game funcs bottleneck on these proven-genuine walls — pure C-level idiom
   discovery is largely tapped out. SDK ~710 funcs need vintage ee-gcc (see
-  docs/fanout/EEGCC_FINDING.md; modern gcc-13 can't substitute). New idioms in
-  docs/fanout/MATCHING_GUIDE.md (~35 total); ~420 walls in STATE_parked.txt.
+  docs/fanout/EEGCC_FINDING.md, archived 2026-09-27 to build/doc_archive/; modern gcc-13
+  can't substitute). New idioms in docs/fanout/MATCHING_GUIDE.md (~35 total); ~420 walls
+  in STATE_parked.txt (archived 2026-09-27; many since overturned).
 - **Compiler confirmed EXACT (s82)**: our mwccps2 emits `.comment = "MW MIPS C
   Compiler (2.3.1.01)"`, byte-identical to the boot ELF — so the walls below are
   NOT a version mismatch; they are source-structure/build-flag puzzles, solvable
@@ -627,7 +628,7 @@ weapons, enemies, doors, audio and the real status screen.
 - **The clean-matchable frontier is ~exhausted (s82)**: 4 fan-out rounds drove
   yield 8→15→10→5; the ~119 matchable-shape candidates (≤1 branch, ≤3 float) are
   worked through. Remaining frontier (~781 word + ~1604 undecompiled): ~315
-  confirmed walls (docs/fanout/STATE_parked.txt), ~710 lowmem = Sony SDK/crt0
+  confirmed walls (docs/fanout/STATE_parked.txt, archived 2026-09-27), ~710 lowmem = Sony SDK/crt0
   (sd-frame/daddu-move codegen → ee-gcc-built, unmatchable with mwcc), the rest
   dominated by mwcc-vs-CW BACKEND walls (delay-slot fill, register-allocation
   ORDER, two-exit branch lowering, saved-reg-arg-in-jal-delay-slot) with no
@@ -5230,11 +5231,16 @@ build architecture".
 - `docker/` — toolchain container (committed): `Dockerfile` (arm64 image: Debian
   + qemu-user + MIPS binutils, built with Apple's `container` CLI) and
   `build-wibo.sh` (cross-builds the 32-bit wibo).
-- `docs/` — project state and findings (committed): `PROGRESS.md` (this file),
-  `FINDINGS.md` (technical format reference), `LINKER.md` (partial-link pipeline
-  — mwldmips invocation, LCF decisions, special cases, debugging tips),
-  `OVERLAYS.md` (overlay format reference, architectural plan, and roadmap for
-  the second matching surface), `track-a-kickoff.md` (Track A starter prompt).
+- `docs/` — project state and findings (committed): `HANDOFF.md` (short
+  cross-repo entry point + matching-workflow reference), `PROGRESS.md` (this
+  file), `FINDINGS.md` (technical format reference), `NEARMISS.md` (near-miss
+  registry), `CAPTURES_C7.md` (original PCSX2 capture reference),
+  `CURIOSITIES.md` (cut/unused content; the Enhanced profile's source),
+  `PS2_DECOMP_PLAYBOOK.md` (transferable matching lessons), `LINKER.md`
+  (reference for the partial-link pipeline — mwldmips invocation, LCF
+  decisions, fill/pinning special cases, debugging tips) and `OVERLAYS.md`
+  (reference for the overlay format and the overlay matching pipeline).
+  `docs/fanout/MATCHING_GUIDE.md` is the compiler-idiom catalogue.
 - `CLAUDE.md` — project charter, legal rules, target identity, toolchain
   conventions, end-state build architecture.
 - Disc-derived material is **git-ignored** — the ISO, `extract/`, `wav/`,
@@ -6683,8 +6689,8 @@ Driven by two live-PCSX2 user reports (the oracle), both confirmed:
   `enemy_bug_infected.emdl` (28 bakeable clips, 1825 frames, 8
   textures via --p2s; 8 containers hit the non-sentinel header
   decoder wall — flagged). em_enemy was mid-edit by another agent —
-  NOT touched; the rebinding contract is in PORT_DIFFERENCES
-  J6/J7/J14 (crate burst → bugs; worm stays generator-only).
+  NOT touched; the rebinding contract was in PORT_DIFFERENCES
+  J6/J7/J14 (deleted 2026-09-27; crate burst → bugs; worm stays generator-only).
 - FINDINGS: new section "CREATURE IDENTITY CORRECTION";
   CURIOSITIES #15/#16.
 - **Open**: the two bug brains' full state machines (move/attack

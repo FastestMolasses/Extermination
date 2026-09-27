@@ -241,7 +241,11 @@ Original snow projection uses a1280x560 guard band, GS center2048, independent
 FTOI4 sprite corners and reversed ST corner order.5,375 original instruction
 cases and192 reconstructed matrix bytes match. Native integration keeps these
 corners and quantized GS depth but still uses native geometry depth/rasterization.
-See native docs/SNOW_PARTICLES.md and decomp docs/CLUT_LAYOUT.md.
+See native docs/SNOW_PARTICLES.md. Palette decoding: the CSM1 rule in the
+startup continuation corrections above (PSMCT32 read of the16x16 palette, then
+the CSM1 index swap) is what `gs_vram.csm1_unswizzle_clut` implements;
+`tools/test_clut_layout.py` enforces it (the old CLUT_LAYOUT.md receipt was
+deleted 2026-09-27).
 
 AREA11 elevator owner+2A=300 is a sentinel suppressing its delayed sound19A,
 not a300-frame refusal cooldown. The150-tick movement callback completes before
@@ -2186,7 +2190,8 @@ all with their packet vram, body size, and imem destination. Highlights:
 
 **Disassembler v2 (2026-05-25).** `tools/disasm_vu.py` now decodes:
 
-- LOWER primary ops (LQ/SQ/ILW/ISW/IADDIU/branches/jr/jalr/fcand/fcor/fseq/...).
+- LOWER primary ops (quadword and integer loads/stores, integer add-immediate,
+  branches, register jumps and the flag-test family, ...).
 - LOWER special / LOWER1 group: **XGKICK**, **LQI/SQI/LQD/SQD** (auto-inc/dec
   vector load/store), DIV / SQRT / RSQRT / RINIT / RGET / RNEXT / RXOR,
   MTIR/MFIR/MFP, XTOP/XITOP, ILWR/ISWR, WAITP/WAITQ, MOVE.
