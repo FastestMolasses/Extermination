@@ -63,7 +63,10 @@ st0:
     } else {
         func_001B1020((int)self, self[0xD], -1, 0);
     }
-    if (self[3] != 0) {
+    /* +0x03 == 0 (corrected 2026-09-26: the original instructions, executed
+     * by the port's tools/test_pickup_owner_reference.py, rewrite +0x2E only
+     * when +0x03 is zero; this readable C had the test inverted). */
+    if (self[3] == 0) {
         if (*(unsigned short *)(self + 0x2E) == 3) {
             if (D_00810C64[*(unsigned short *)(self + 0x2E)]) {
                 *(unsigned short *)(self + 0x2E) = 0x14;
