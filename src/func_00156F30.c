@@ -1,8 +1,13 @@
 // NEARMISS func_00156F30  (vram 0x00156F30, 0x430 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 91.50% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 92.50% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // FP-register-half coloring + scheduling near-miss (91.50% on mwcc 2.3.3; logic fully recovered). The 4-state camera/look-at driver (states 0,1,4 + default 3), all float math, the gp-relative D_00275B40[0]/[1] table accesses, the absolute 0x7000xxxx scratch globals, and the func-ptr tailcall (arg0+...
+//
+// CORRECTED 2026-09-27 (AREA01 wave-2 review, checked against the original
+// instructions; original-instruction harness: 0 differing cases).
+// State 0 calls func_001B0FD0(arg0) and state 3 calls func_001AFC10(arg0):
+// both receive the record in a0 (the C passed the constants 1 and 3).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -16,7 +21,7 @@
 // Logic fully recovered: a 4-state look-at/camera-spin driver dispatched on the
 // state byte at arg0+4 (gp-relative D_00275B40 holds the two active camera/root
 // pointers [0] and [1]; the 0x7000xxxx addresses are scratch-vector globals).
-// State 0: once func_001B0FD0 settles, set arg0=1, snapshot the two camera roots
+// State 0: once func_001B0FD0(arg0) settles, set arg0=1, snapshot the two camera roots
 // (+0x90) into the local rig at arg0+0x1F0 and +0x40 via copy_qw4, advance to
 // state 4. State 4: if the arg0+0x36 trigger is set, re-enter state 1, reset the
 // spin params (0x2E8=0.2, 0x2E4=0), rebuild the orientation (func_001028D0/
@@ -29,12 +34,12 @@
 // the angle, decay the 0xF8 timer by 0.001 (->state 4 at zero), and on the
 // arg0+0x36 retrigger reset like state 4 but writing the spin sign as a fixed
 // 0x3DA3D70A/0xBDA3D70A at +0xF0; close with func_001B17A0 + the arg0+0x4C call.
-// Default state 3: func_001AFC10(3).
+// State 3: func_001AFC10(arg0) (the record is passed in a0).
 //
 // Residual is FP-register-half coloring (target odd-half fv0f/fs0f vs mwcc
 // even-half), the state-selector reg color, and branch-likely sense -- all
 // permuter/coloring territory, not a clean-store delay-slot nop.
-extern int func_001B0FD0(int a);
+extern int func_001B0FD0(char *rec);
 extern void func_001C6380(void *p);
 extern void copy_qw4(void *dst, void *src);
 extern void func_001028D0(void *a, void *b, void *c);
@@ -46,7 +51,7 @@ extern void func_00102A60(void *a, void *b, float t);
 extern void func_001026D0(void *a, void *b, void *c);
 extern float func_0011E398(float x);
 extern void func_001B17A0(void *p);
-extern void func_001AFC10(unsigned char h);
+extern void func_001AFC10(char *rec);
 extern char **D_00275B40;
 extern char D_00810350[];
 extern char D_700036A0[];
@@ -61,7 +66,7 @@ void func_00156F30(char *arg0) {
 
     switch (*(unsigned char *)(arg0 + 4)) {
     case 0:
-        if (func_001B0FD0(1) == 0) {
+        if (func_001B0FD0(arg0) == 0) {
             *(char *)(arg0 + 0) = 1;
             func_001C6380(arg0);
             cam = arg0 + 0x1F0;
@@ -135,7 +140,7 @@ void func_00156F30(char *arg0) {
         (*(void (**)(char *))(arg0 + 0x4C))(arg0);
         return;
     case 3:
-        func_001AFC10(3);
+        func_001AFC10(arg0);
         break;
     }
 }

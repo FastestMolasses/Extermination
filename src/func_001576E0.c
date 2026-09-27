@@ -1,14 +1,14 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 //
-// Sets actor byte +0xB bit 4 path: writes a 4-word param block at absolute
+// When actor byte +0xB has mask 4 set (bit 2): writes a 4-word param block at absolute
 // hardware address 0x700038A0 (0x3E99999A, 0, 0x40A00000, 0x3F800000) then
 // calls func_001B6F00(actor, PI(0x40490FDB), &D_700038A0). Sets actor byte 0 = 2,
 // then branches on actor byte +3: for 0x12/0x2F vs other, depending on global
 // flags D_00810C87/D_00810C88, either writes D_00246CB4=0x154 and arms list
 // D_00246C20 (returns 1) or writes D_00246FB4 (0x80000014 / 0x80000016) and arms
 // list D_00246F20 (returns 2), each via func_001BA1A0(arg1,list)/func_001BA1F0(actor).
-// Returns 0 when bit 4 is clear.
+// Returns 0 when mask 4 (bit 2) of byte +0xB is clear.
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202 (86.5%):
 // 991202 residual is the idiom-13 clean-store delay-slot fill; 2.3.3 is

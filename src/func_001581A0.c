@@ -1,8 +1,13 @@
 // NEARMISS func_001581A0  (vram 0x001581A0, 0x13C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 91.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 92.03% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // register-coloring permutation: body byte-correct, residual is the (1<<x) shift-base constant in $a3 (target) vs $a2 (here) threaded through the bit-table indexing, plus the state-2 beql branch-likely / func_001AFC10 tail placement. 91.1% on mwcc233; permuter territory.
+//
+// CORRECTED 2026-09-27 (AREA01 wave-2 review, checked against the original
+// instructions; original-instruction harness: 0 differing cases).
+// State 0 calls func_001B0FD0(self): the original passes the record in a0
+// (the C declared it without arguments).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -16,7 +21,7 @@
 // on the state byte at *(a0+4) (states 0/1/2/3):
 //   state 0: test the per-actor bit in the shared bitmap D_00810841[D_00810700],
 //            indexed by *(u16*)(a0+0x2e). If set, advance state to 3. Else run the
-//            spawn path: func_001B0FD0(); func_001C6380(self); state byte at a0+0 = 1;
+//            spawn path: func_001B0FD0(self); func_001C6380(self); state byte at a0+0 = 1;
 //            func_001F1110(self, 2).
 //   state 1: if the short at a0+0x36 is nonzero, set a0+0 = 2 and a0+4 = 2, OR the
 //            actor bit (1 << *(u8*)(a0+0x2e)) into D_00810841[D_00810700], and fire
@@ -35,7 +40,7 @@ extern unsigned char D_00810700;
 extern unsigned char D_00810841[];
 
 extern void func_001AFC10(int self);
-extern void func_001B0FD0(void);
+extern int func_001B0FD0(int self);
 extern void func_001C6380(int self);
 extern void func_001F1110(int self, int a);
 extern void func_001FB9F0(int a, int b, int c, int d);
@@ -54,7 +59,7 @@ void func_001581A0(int a0) {
         if (D_00810841[D_00810700] & (unsigned char)(1 << *(unsigned short *)(s0 + 0x2e))) {
             *(char *)(s0 + 4) = 3;
         } else {
-            func_001B0FD0();
+            func_001B0FD0(s0);
             func_001C6380(s0);
             *(char *)(s0 + 0) = 1;
             func_001F1110(s0, 2);

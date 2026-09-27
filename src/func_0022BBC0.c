@@ -1,8 +1,23 @@
 // NEARMISS func_0022BBC0  (vram 0x0022BBC0, 0x1794 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 88.76% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 89.07% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // 88.728% on mwcc 2.3.3 (-O4,p -sdatathreshold 0), 1509 instructions. Body/structure fully recovered (all five jump tables decode cleanly and every case body is present); the residual is dominated by ONE class. (1) WHOLE-FUNCTION SAVED-REGISTER PERMUTATION — this is ~80% of the diff rows and it is ...
+//
+// CORRECTED 2026-09-27 (AREA01 wave-2 review, checked against the original
+// instructions; original-instruction harness: 0 differing cases).
+// func_0022B7A0(seq) and func_001AFC10(seq) take the director in a0;
+// func_001029C0 takes only the matrix (the C passed seedB as a second
+// argument). The trail period and the variant-9 burst kind are NOT reset per
+// frame: the original keeps them in $s1 / $s3, set only in the seq[0xD] switch
+// and the burst-kind switch, so an actor whose kind byte is >= 6 reuses the
+// previous actor's burst, and the first such actor (or, with seq[0xD] >= 10
+// and a live actor, the period divisor) uses the value the CALLER left in
+// $s3 / $s1. C cannot name a caller's register: period and burst are left
+// unset here, so mwcc keeps them in saved registers that likewise hold the
+// caller's values (the harness's caller-register probe, every saved register
+// equal at entry, matches the original on that path too). Same caller-
+// register dependence as 0019D770's no-span walk.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,7 +27,9 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 
 //
-// SEMANTICS: the ending / "staff-roll cinematic" director tick.  It runs a
+// SEMANTICS (label from an earlier pass, not proven; on the AREA01 route this
+// function is reached only by the a01_s3 fire contact, as the player's
+// burn-particle driver, port docs/AREA01_UI.md): the ending / "staff-roll cinematic" director tick.  It runs a
 // small timeline script over the credits scene, drives the fade / colour /
 // scroll interpolators, spawns the trailing particle sprites for every actor
 // in the scene, and finally re-renders the whole particle ring.
@@ -82,10 +99,10 @@ extern void func_001026A0(float *dst, float *quat, float *vec);
 extern void func_00102760(float *dst, float *src);
 extern void func_001028B8(float *dst, float *a, float *b);
 extern void func_00102948(char *dst, char *src);
-extern void func_001029C0(float *dst, int seed);
+extern void func_001029C0(float *dst);
 extern void func_00103230(float *dst, float *src, float scale);
 extern int func_00122BB8(void);
-extern void func_001AFC10();   /* K&R: the caller leaves the state byte in a1 */
+extern void func_001AFC10(char *seq);
 extern void func_001CA6E0(char *scn, int id);
 extern int func_001CCF70(float *pos);
 extern int func_001CD070(float *pos, int flags);
@@ -97,7 +114,7 @@ extern void func_001F0190(float a, float b);
 extern void func_001F0290();
 extern void func_0021B9A0(int chan, float a, float b);
 extern int func_0022B700(char *seq, int id);
-extern int func_0022B7A0();    /* K&R: reads the state byte the caller left in a1 */
+extern int func_0022B7A0(char *seq);
 extern char *func_0022BB70(int slot);
 
 void func_0022BBC0(char *seq)
@@ -129,7 +146,7 @@ void func_0022BBC0(char *seq)
 
     switch (state) {
     case 0:
-        if (func_0022B7A0() == 0) {
+        if (func_0022B7A0(seq) == 0) {
             seq[4] = 3;
             return;
         }
@@ -298,8 +315,6 @@ void func_0022BBC0(char *seq)
 
         /* ---- per-actor trail emitters ---- */
         p = scn;
-        period = 0;
-        burst = 0;
         for (i = 0; i < (int)(unsigned char)scn[0xC]; i++) {
             if (w[i] != 0) {
                 switch (*(unsigned char *)(seq + 0xD)) {
@@ -563,7 +578,7 @@ void func_0022BBC0(char *seq)
                 }
                 *(volatile float *)0x70003A28 = scale;
 no_scale:
-                func_001029C0(D_700036A0, seedB);
+                func_001029C0(D_700036A0);
                 func_00103230(D_700036A0, D_700036A0, *(volatile float *)0x70003A28);
                 func_00103230(D_700036B0, D_700036B0, *(volatile float *)0x70003A28);
                 func_00103230(D_700036C0, D_700036C0, *(volatile float *)0x70003A28);

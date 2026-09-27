@@ -1,8 +1,18 @@
 // NEARMISS func_0021D800  (vram 0x0021D800, 0x3B0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.99% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
+// objdiff 99.15% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
 // Remaining differences in this candidate:
-// At both func_001FBD50 sound calls after func_0021D600 the target never sets a0 (original passes an unset first arg; this C passes arg0); plus a b-slot fill and one extra b. func_0017C540 arity fixed.
+// At both func_001FBD50 sound calls after func_0021D600 the target does not reload a0 (func_0021D600 leaves arg0 there); this C reloads it. func_0017C540 arity fixed; state-1 exits corrected (see below).
+//
+// CORRECTED 2026-09-27 (AREA01 wave-2 review, checked against the original
+// instructions; original-instruction harness: 0 differing cases).
+// Every state-1 exit (after func_0021D530, after func_0017C540, after the
+// state-reset stores, and after the 0x3E/0xD store) branches to the tail
+// (0x0021DB84), which calls func_0021D250(arg0, 0) when byte +0x23A is 0x5D;
+// the C returned early at four of them. func_0021D600 never writes $a0, so
+// the original's first func_001FBD50 argument at the 0x146/0x147 sites is
+// still arg0: the C is faithful there, and the two extra "a0 = arg0" moves
+// the C emits are the whole remaining difference.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -15,11 +25,10 @@
 // LANE NOTE (m1-firstlevel-matching): func_0017C540 takes one argument (its
 // byte-matched definition), so the spurious `, 1` was removed (97.56% -> 97.99%).
 // At both func_001FBD50(..., 0x146/0x147, 0, 300.0f) sites after
-// func_0021D600(arg0) returns, the target never sets $a0 before the jal. The
-// original therefore passes an unset first argument (a0 is left by
-// func_0021D600). Here it is written as arg0. Declaring an uninitialized local
-// made mwcc allocate it to s0 (95.69%). The other residuals are a filled `b`
-// delay slot and an extra `b` at the end.
+// func_0021D600(arg0) returns, the target does not set $a0 before the jal.
+// func_0021D600 never writes $a0, so the argument is still arg0 (corrected
+// 2026-09-27; it was read as "unset"). Here it is written as arg0. Declaring
+// an uninitialized local made mwcc allocate it to s0 (95.69%).
 
 extern int func_00122BB8(void);
 extern void func_001749A0(char *a0, int a1, int a2, float f12);
@@ -95,7 +104,7 @@ void func_0021D800(char *arg0) {
             }
             if (*(unsigned char *)(arg0 + 0x319) != 0 && *(unsigned char *)(arg0 + 5) == 0x17) {
                 func_0021D530(arg0);
-                return;
+                break;
             }
             fade = -0.2f;
             *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0xB4) + fade;
@@ -103,14 +112,14 @@ void func_0021D800(char *arg0) {
             if (func_00175900(arg0, 1) != 0) {
                 *(char *)(arg0 + 0x25C) = 0;
                 func_0017C540(arg0);
-                return;
+                break;
             }
             *(float *)(arg0 + 0x2F4) = *(float *)(arg0 + 0xB4);
             *(char *)(arg0 + 4) = 1;
             *(char *)(arg0 + 5) = 7;
             *(char *)(arg0 + 6) = 0;
             *(char *)(arg0 + 0x1F0) = 0xD;
-            return;
+            break;
         }
         *(float *)(arg0 + 0x38) = *(float *)(*D_00275B40 + 8) - *(float *)(arg0 + 0x21C);
         *(float *)(arg0 + 0x21C) = *(float *)(*D_00275B40 + 8);
@@ -123,7 +132,7 @@ void func_0021D800(char *arg0) {
         } else {
             *(char *)(arg0 + 0x1F0) = 0xD;
         }
-        return;
+        break;
     }
     if (*(unsigned char *)(arg0 + 0x23A) == 0x5D) {
         func_0021D250((unsigned char *)arg0, 0);
