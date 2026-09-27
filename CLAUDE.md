@@ -165,10 +165,13 @@ evidence"). Characterization is done (Target identity above).
 The finished port ships two profiles (user, 2026-09-23; rules in the port's
 `docs/PORT_PROFILES.md`). **Original** is the default and the only thing fidelity
 work measures: the exact GS framebuffer shown at 4:3, with no smoothing and no CRT
-simulation. It reproduces the game's experience, not PS2 hardware limits (user,
-2026-09-27): loads run at host speed, no slowdown/hitch reproduction, no CRT;
-the public, evidence-backed list of fidelity features is the port's
-`docs/FIDELITY_FEATURES.md`. **Enhanced** adds the user's improvements as switches over the same
+simulation. The original code is the oracle (user, 2026-09-27): what the code does is
+reproduced; PS2 hardware timing is not (the disc answers at host speed, no
+slowdown, no CRT; the recorded disc-drive timing is an optional switch, off by
+default). The public list of fidelity features is the port's
+`docs/FIDELITY_FEATURES.md`; every launcher option and pending user decision
+is in the port's `docs/LAUNCHER_OPTIONS.md`. A PS2 compile target for the
+port's game code is a future user goal. **Enhanced** adds the user's improvements as switches over the same
 logic. Its cut-content items come from this repo's `docs/CURIOSITIES.md`.
 
 ## Verification toolkit

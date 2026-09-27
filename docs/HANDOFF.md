@@ -69,6 +69,22 @@ is superseded.
   001C7900, 001CB2C0) and his kind-0x29 shadow proxy; the static world and background
   channel (001C1D00, 001D5370, 001E1E60/001E1AD0); UI cues and unit sound (WP-14); SPU2
   reverb; the GS-exact Original-profile renderer and framebuffer harness.
+- **Policy and registries (user, 2026-09-27):** the original code is the oracle;
+  hardware timing is not reproduced by default (disc at host speed, no slowdown,
+  no CRT); the recorded disc-drive timing (C7 VOICELAT) becomes an optional
+  switch, off by default (queued). Port docs/FIDELITY_FEATURES.md lists what the
+  port reproduces (evidence + status); port docs/LAUNCHER_OPTIONS.md lists every
+  launcher option and the decisions the user still has to review (field
+  presentation). Future goals: a launcher; a PS2 compile target for the port's
+  game code (test it in the ELF under PCSX2).
+- **Queued for the next first-level chain** (FIDELITY_FEATURES "blockers" and
+  C7 limitations): the drive-timing switch; H7 aligned on load completion;
+  wire the load veil; the player-reachable fail-stops (DATABASE/SPR4/MAP pages,
+  non-battery item takes); Roger's face units (001CB3C0 ...) and kind-0x29
+  shadow; the static world (001C1D00, bank *D_0028A5A0) and background
+  channel; the fan spin, husks and indicator draw; flame and snow on the chain
+  page; UI/unit sounds and SPU2 reverb; disc-sourced textures (today some come
+  from PCSX2 captures); then the GS-exact renderer and the pixel harness.
 - **Decision (user, 2026-09-26): do not integrate ran-j/PS2Recomp** (GPL-3.0 static
   recompiler). Evaluated read-only: host-IEEE EE/VU0 floats, no runtime-overlay support,
   non-GS-exact rasterizer, disc-derived output with per-instruction disassembly comments, and
