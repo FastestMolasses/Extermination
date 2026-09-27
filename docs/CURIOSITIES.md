@@ -85,12 +85,14 @@ largely a misreading; what is left is smaller but real.
   issues the 00187690 light draw request, and it adds the light-cone shells
   through 001D9530 only when bit 0x20000000 of the area flags word
   (001B0070, which returns D_008106C8) is clear (`src/func_00187780.c`, the
-  001D9530 call). AREA11's D_008106C8 is 0x20081910 in every capture (port
-  `ORIGINAL_FRAME_ORDER.md` P31), so in the first level the cone shells are
-  skipped and only the draw request runs; AREA01 (0x8D00 / 0x8D01) draws
-  them. FINDINGS "FLASHLIGHT RENDER DECODE" (s87 correction) and port
-  `FIRST_LEVEL_AUDIT.md` R03/R04 name the gate but not that AREA11 sets
-  the bit. The gun light costs no battery (FINDINGS "WEAPON-VISUAL
+  001D9530 call). AREA11's D_008106C8 is 0x20081910 in save-state captures
+  02-15 (port `ORIGINAL_FRAME_ORDER.md` P31) and 0x20089910 in the
+  09_fence_door route capture (port `RENDER_CONTEXT.md`); bit 0x20000000 is
+  set in both, so in the first level the cone shells are skipped and only
+  the draw request runs; AREA01 (0x8D00 / 0x8D01) draws them. Port
+  `FIRST_LEVEL_AUDIT.md` R03/R04 records this; FINDINGS "FLASHLIGHT RENDER
+  DECODE" (s87 correction) names the gate but not that AREA11 sets the bit.
+  The gun light costs no battery (FINDINGS "WEAPON-VISUAL
   FIDELITY", user-attested).
 - **One behaviour reacts to the gun light (decoded).** `func_00138900`
   (byte-matched C), state 2: the counter is bumped while the gun light is on
@@ -172,8 +174,8 @@ raise the capacity to at least that pack's value and cap the charge at the
 capacity, so a smaller pack refills charge without lowering the capacity
 (port `AREA11_PANEL.md`, "Inventory and validation", from the original
 instructions). They match the catalog's 6, 18 and 24 gauge battery packs
-(FINDINGS "MESSAGE BANK EXPORTED", group 3). The older FINDINGS "BATTERY
-LOCATED" lists only the first two classes. The display shows half the
+(FINDINGS "MESSAGE BANK EXPORTED", group 3). FINDINGS "BATTERY LOCATED" first
+listed only the first two classes; its 2026-09-27 correction adds the third. The display shows half the
 stored value; the AREA11 battery page's half-unit charge is re-proven by the
 port's oracle (port `AREA11_PANEL.md`).
 
@@ -196,10 +198,10 @@ cardboard box in the office table (FINDINGS "OFFICE CRATE BLOB"; the old
 by placement byte: the wooden husk for byte 6 (every crate in
 AREA01/02/11/13/18/20/22) and a grey-cyan family in AREA03/06/07/08
 (FINDINGS "GIB SET", closing note). FINDINGS "WOODEN CRATE behaviour
-corrections" item 1 calls its 14-unit hit box the "office/AREA02" crate, but
-its live reads were of AREA01 crate actors (0x7AB440…0x7AC2F0), so that is
-most likely a mislabel rather than a conflict with the office's cardboard
-model. Open: no AREA02 crate has been measured.
+corrections" item 1 first called its 14-unit hit box the "office/AREA02"
+crate, but its live reads were of AREA01 crate actors (0x7AB440…0x7AC2F0),
+so that was most likely a mislabel rather than a conflict with the office's
+cardboard model; the item now carries that correction (2026-09-27). Open: no AREA02 crate has been measured.
 
 ## 9. The 15 named RECON dogtags — partial
 
@@ -225,8 +227,8 @@ caps health at 60, starts the infected drain and swaps the music (entry 14).
 
 *Kind: shipped feature (situational moves).* Every melee table has a second
 row (knife clips 0x1BD..0x1C1, their own impact and release timings)
-selected by player +0x236 (FINDINGS "KNIFE/MELEE DECODED" section 5, which
-still describes the gate as open). +0x236 is the low-clearance latch:
+selected by player +0x236 (FINDINGS "KNIFE/MELEE DECODED" section 5, whose
+2026-09-27 correction records the latch below). +0x236 is the low-clearance latch:
 
 - 001764E0's overhead column probe raises it when an overhang is at least
   13.8 above the feet and there is crawl space ahead, so the player ducks
@@ -242,8 +244,9 @@ still describes the gate as open). +0x236 is the low-clearance latch:
 So row 1 is melee while ducked under a low ceiling. (The caller's inherited
 `$s1 & 4`, entry 21, gates a different clause of 001764E0, not this row.)
 The port's `em_player_weapon_states_b.c`
-indexes both rows. The FINDINGS player field table's "armed-stance flag"
-name for +0x236 is a label.
+indexes both rows. The FINDINGS player field table's old "armed-stance
+flag" name for +0x236 was a label; the table now names the low-clearance
+latch.
 
 ## 12. The unlabelled 7th button-config row — partial
 
@@ -270,8 +273,9 @@ cues 0xB, 0xC and 0x17). D_008104E4 is player +0x234, the infected latch: it
 becomes 1 when infection reaches 100, and the same byte caps health at 60
 and arms the infected drain (FINDINGS "PLAYER DAMAGE & DEATH PIPELINE", the
 field table and the infection apply). So cue 24 is the music that plays once
-the player is infected (entry 10). The "alert-mode override" name in
-FINDINGS is a label the code contradicts. Cue 1 as the end credits rests on
+the player is infected (entry 10). FINDINGS "Music cue table" first called
+it an "alert-mode override", a label the code contradicts; its 2026-09-27
+correction and the cue table now name the infected state. Cue 1 as the end credits rests on
 an audio match with the official soundtrack, not on a traced caller
 (unverified).
 
@@ -332,8 +336,8 @@ units above 0x7A7F60 and is the only one with +0x52 = 1; damage on any
 AREA11 box wakes it (port `CRATES_DRUMS_ORIGINAL.md`, three AREA11 captures
 and an oracle run over the captured list). The s76 result "breaking one
 wakes none" (FINDINGS "WOODEN CRATE behaviour corrections", item 2, which
-claims +0x52 is 0 on every placed crate) held only for AREA01's unstacked
-crates.
+claimed +0x52 is 0 on every placed crate) held only for AREA01's unstacked
+crates; that item now carries this correction (2026-09-27).
 
 ## 19. Sound requests that play nothing — decoded
 
@@ -453,9 +457,9 @@ byte-matched area-transition dispatcher `func_001E7780` (linked from the
 compiled C) has arms for areas 0-4, 6-8, 11 and 13-22 and none for 5, 9, 10
 or 12, so the code has no slot for them. The inference (not proven) is that
 the numbers were dropped before the overlay ids and the filename table were
-built. OVERLAYS.md section 8 item 5 gives the wrong cause for AREA04's id:
-it says AREA04 is id 5 because AREA05 is absent and the id counter
-continues, but the id is 5 because AREA00 takes id 1. Open: whether any
+built. OVERLAYS.md section 8 item 5 once gave the wrong cause for AREA04's
+id (AREA05 absent and the id counter continuing); it now says the id is 5
+because AREA00 takes id 1 (corrected 2026-09-27). Open: whether any
 data table (area flags, names, maps) still reserves those numbers, and what
 the levels were.
 
@@ -517,7 +521,7 @@ Kept so the old claims are not reintroduced.
   At runtime 0x823FE0 the shipped AREA13.BIN begins a function with its stack
   setup (checked against the local AREA13.BIN on 2026-09-27), so the call is
   an ordinary area-13 camera hook. FINDINGS "MODE-0 CAMERA DIRECTOR" section
-  3 still carries the old reading.
+  3 keeps the old reading with a correction after it (2026-09-27).
 - **1 (part). The light-based stealth loop:** "light on means instant maximum
   awareness", the 12.5 degree cone, the 300-frame shoulder-light burst and the
   clip-0x15D off-gesture. Corrected in entry 1.

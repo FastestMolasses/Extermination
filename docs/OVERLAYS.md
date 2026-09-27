@@ -16,7 +16,8 @@ output via the GNU ld pipeline described in section 4. The scaffold tools in
 
 **19 overlay files** under `OVERLAY/` on disc. Files are gap-numbered (AREA05,
 AREA09, AREA10, AREA12 are absent — those level slots either were cut or were
-merged into adjacent areas during shipping). All files date to **2001-06-28**
+merged into adjacent areas during shipping; an inference, CURIOSITIES 24).
+Overlay ids are nevertheless dense 1-19 in filename order (table below). All files date to **2001-06-28**
 (pre-master date).
 
 | File | Size (bytes) | Overlay ID | Text size | Data size | BSS size | End vram |
@@ -491,7 +492,10 @@ toolchain container so mwccmips + GNU as are available directly.
    to overlay_id N, not to the AREA filename number. Overlay ids are dense 1-19 in
    shipped order (see the §1 table): AREA04 is overlay_id 5 because AREA00 takes
    id 1, not because of the missing AREA05. The mapping is by `overlay_id` field in
-   the MWo3 header, not by filename. (Corrected 2026-09-27.)
+   the MWo3 header, not by filename. (corrected 2026-09-27; CURIOSITIES 24:
+   the earlier wording said AREA04 is id 5 because AREA05 is absent and "the id
+   counter continues"; the ids are dense 1-19 and the area-transition
+   dispatcher func_001E7780 has no arm for areas 5, 9, 10 or 12.)
 
 6. **`static_init_address`**: for AREA18 this equals `load_address + text_size`
    (= 0x8235C0), which is the start of the data section — suggesting the C++

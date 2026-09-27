@@ -5726,6 +5726,11 @@ through fixed tables in the boot ELF.
   `func_001FAE70` also hosts a hardcoded override: when `D_008104E4 == 1`
   (and not area 0x15 / BGM 0xB/0xC/0x17), it plays **cue 0x18 (24)** at
   volume 0x40 instead — an "alert/event mode" music swap.
+  (corrected 2026-09-27; CURIOSITIES 14) "Alert/event mode" is a label
+  the code contradicts: D_008104E4 is player +0x234 (0x008102B0 +
+  0x234), the INFECTED latch, which becomes 1 when infection reaches 100
+  (func_0021C270; see "PLAYER DAMAGE & DEATH PIPELINE"). So cue 24 is
+  the music that plays once the player is infected.
   `func_001FAFD0` only applies its logic when the playing cue is **< 29** —
   the engine itself treats cues 1..28 as BGM and 29+ as scripted streams.
 - Script/event command path: `func_001B6D70` (7-way opcode dispatch via
@@ -5797,7 +5802,7 @@ Combined cue → old `track_NN` (silence-split index) → known use:
 | 21 | 101.3 | Y | track_13 | AREA06 BGM |
 | 22 | 117.9 | Y | track_14 |  |
 | 23 | 90.3 | Y | track_15 | AREA00 BGM |
-| 24 | 84.0 | Y | track_16 | alert-mode override (func_001FAE70, D_008104E4==1) |
+| 24 | 84.0 | Y | track_16 | infected-state override (func_001FAE70, D_008104E4 = player +0x234 == 1; corrected 2026-09-27; CURIOSITIES 14) |
 | 25 | 59.9 | Y | track_16 | area 11 BGM (live save state 01) |
 | 26 | 60.5 | Y | track_16 |  |
 | 27 | 9.1 |  | track_16 | frame_main func_001AD4E0 (alongside a movie call) |
@@ -6641,6 +6646,16 @@ table around `0x00267290`.)
   adds `count*36` and raises max to 0x24 (=18 displayed!)
   (`0x001C4450..44D0`); current is clamped to max after each add. So
   capacity can grow to 18 displayed units late-game.
+  (corrected 2026-09-27; CURIOSITIES 6) There are THREE battery-pack
+  classes, not two: the inventory-add function is func_001C40B0 (the
+  address above is inside it), and its cases 0x1B, 0x1C and 0x1D add
+  12, 36 and 48 half-units per pack and raise the capacity to at least
+  0x0C, 0x24 and 0x30 (6, 18 and 24 displayed), then cap the charge at
+  the capacity; a smaller pack refills charge without lowering the
+  capacity (`src/func_001C40B0.c`, NEARMISS C; port `AREA11_PANEL.md`
+  "Inventory and validation", from the original instructions). They
+  match the catalog's 6, 18 and 24 gauge battery packs ("MESSAGE BANK
+  EXPORTED", group 3). Capacity can reach 24 displayed units.
 - **Spending — powering devices** (interaction dispatcher case 6,
   `0x00214AE0`): device cost = `2 * (device->+0x34)` half-units,
   snapshot of current to `+0x12` of the UI struct; if current < cost ->
@@ -6679,6 +6694,17 @@ table around `0x00267290`.)
 - The earlier "10-second timers" note: `0x8102DC`/`0x8104BC` getting
   0x15D is this same anim/event id 349 propagating, not a dedicated
   battery timer.
+- (corrected 2026-09-27; CURIOSITIES 1) The "timed burst" and "turn-off
+  animation" readings above are withdrawn. The 300-frame timer at
+  `+0x28`, its decrement and the 0x15D request belong to the idle
+  machine func_00161020: 0x15D (349) is the idle look-around fidget
+  played after 300 frames of standing ("PLAYER IDLE CYCLE"), and that
+  machine touches no light byte. What is live-verified stands: each L3
+  tap flips player +0xA, and it returned to 0 by itself after about 5-6
+  s. The writer that clears it is not identified, no reader of the
+  player's +0xA is known, and what the player sees on L3 is not
+  recorded (CURIOSITIES 1 and 12). Call it the L3 byte, not a shoulder
+  light.
 
 ### Pad-state map (found en route; useful for all future input work)
 
@@ -9921,6 +9947,19 @@ block) under a mode flag; cleared by `func_00179680`. Selects row 1
 of every melee table (and the 0x1C1 recover). Context unverified
 (elevated/hang/ladder family); the port ships row 0 only.
 
+(corrected 2026-09-27; CURIOSITIES 11) +0x236 is the LOW-CLEARANCE
+latch, and row 1 is melee while ducked under a low ceiling. 001764E0's
+overhead column probe raises it when an overhang is at least 13.8 above
+the feet and there is crawl space ahead (no "mode flag": the inherited
+`$s1 & 4` gates a different clause of 001764E0, CURIOSITIES 21).
+001756E0 keeps it after the floor snap only while cover within 13.99
+remains overhead and releases it otherwise; area 0x12 forces it on link
+type 6. The recovery path of 00162A40 and the hang's climb-up end set it
+through 001760C0; 00179680 (fall entry) clears it (port
+`PLAYER_FLOOR.md` P16, `PLAYER_RECOVERY.md`, `PLAYER_HANG.md`). The
+ledge/ladder guesses and "row 0 only" are withdrawn: the port's
+`em_player_weapon_states_b.c` indexes both rows.
+
 ### 6. Knife visual — NO rebind found (flagged)
 
 The knife (model 106) rides the hip HOLSTER node 14 (s9). Neither
@@ -9963,7 +10002,8 @@ knife holstered during attacks (flagged note in em_weapon.h).
 ### Open items
 
 - Live-verify the impact-frame reading of the +0x3C gates (§2).
-- Identify what D_00810D3C arms (§1) and the +0x236 context (§5).
+- Identify what D_00810D3C arms (§1). (The +0x236 context of §5 is
+  answered: the low-clearance latch; corrected 2026-09-27; CURIOSITIES 11.)
 - The player+0x18 record's identity / writer (§4).
 - ~~The melee rows' +0x25E -> func_00182430(p, 1..3) effect content.~~
   **(s37: resolved — func_00182430 is the surface-footstep mapper; the
@@ -11363,6 +11403,19 @@ function boundary at 0x823FE0 — its overlay brain dispatcher — pure
 layout coincidence; nothing calls across.) Per-room fixed cameras are
 main-ELF data, not an overlay delegate.
 
+(corrected 2026-09-27; CURIOSITIES 5) The "mid-function" reading is
+withdrawn. It used link addresses: overlays are linked at 0x00823500
+but their code runs 0x40 higher, because the 0x40-byte MWo3 header is
+loaded first (PROGRESS 2026-09-25). The region helper the paragraph
+places at link address 0x823FA0 therefore runs at 0x823FE0: in the
+shipped AREA13.BIN the word at runtime 0x823FE0 (file offset 0xAE0) is
+that function's stack setup (checked against the local AREA13.BIN on
+2026-09-27). So the director's call is an ordinary area-13 camera hook
+into that helper, not dead or build-drifted code. The AREA02 remark
+above also used link addresses. The rest of this section (the call
+sits only in the area 0x0D case, gated on entry index >= 8; per-room
+fixed cameras are main-ELF data) stands.
+
 ### 4. Exported-area verdict (the honest answer)
 
 - **AREA02 (office, subs 0/1/2): NO fixed cameras** (s56 SUPERSEDED —
@@ -11464,6 +11517,29 @@ pipeline those sweeps led into.
   it is (a) the pose change, (b) the always-on camera light below, and
   (c) gameplay (enemies notice you). The port's visible cone is
   therefore a DOCUMENTED DEVIATION (see §4).
+- (corrected 2026-09-27; CURIOSITIES 1) The "player light -> awareness"
+  reading of the +0xA bullet is withdrawn:
+  - `func_001418F0` (byte-matched C) reads bit 0 of +0xA of the actor it
+    is given, and its byte-matched caller 0013DD40 passes the actor
+    itself, so it is a per-actor flag, not the player's light. Its timer
+    (+0x70, armed to 0xF0 = 240) and counter (+0x78) live in the AI
+    block. The bearing comes from floats +0xB0 / +0xB8 of the record at
+    `*(D_00275B40+0x3C)`, which is unidentified ("camera" is a label),
+    and the call is `func_001B3F10(actor, angle, 18.0)`: the 12.5 degree
+    cone was a misread argument. What 001B3F10 tests is known only from
+    C headers (unverified).
+  - `func_00138900` bumps its counter while the gun light (D_008106C7)
+    is on and the player is within 150 units; its own +0xA bit 0 is the
+    other way to advance.
+  - The other addresses in the reader list load +0xA through an actor
+    base; none is traced to the player, and the two bug brains show no
+    player-light gate (CURIOSITIES 15). Which code writes +0xA for the
+    actors 0013DD40 serves is not identified.
+  - `func_00161020` is the idle machine: its 0x12C timer and 0x15D clip
+    are the idle look-around ("PLAYER IDLE CYCLE"), not a light burst
+    (see the BATTERY LOCATED correction). The `func_001B0070()&4` row
+    substitution is area-flag bit 2 (CURIOSITIES 17); "light-carrying
+    poses" is a label. So item (c) above is not established.
 
 ### 2. NEW — the per-actor VU1 light matrix chain (the s7b "light rows")
 
@@ -11984,7 +12060,8 @@ locIdx 3; untranslated in the port, flagged). Family byte +0x235 is a
 bitfield (bit0 = low-health latch, health <= 35 — set by func_0015D100,
 cleared by func_0015C700 when health > 35, saved to D_00810706 by
 func_0015CF90 and restored &1 by func_001B07C0; *s87 correction: this
-line used to call bit0 "armed" — the armed-stance flag is +0x236*; bit1
+line used to call bit0 "armed" — the row flag is +0x236, the
+low-clearance latch (corrected 2026-09-27; CURIOSITIES 11)*; bit1
 aim/special — func_001756E0), so default unarmed = row 0.
 
 Stick release: target 0 -> tiers <=2 stop INSTANTLY (phase 3, +0x38=0);
@@ -12743,7 +12820,10 @@ The player has NO +0x36 mailbox. Producers write the player actor
                           infected-death). The SAME byte is the s39
                           "display max -> 60" flag (C14 closed)
 +0x235               u8   bit 0 = low-health latch (health <= 35)
-+0x236               u8   armed-stance flag (clip-variant select)
++0x236               u8   low-clearance latch (ducked under a low
+                          ceiling; selects the melee row 1 / clip
+                          variants). "Armed-stance flag" was a label
+                          (corrected 2026-09-27; CURIOSITIES 11)
 ```
 
 Every producer requires event == 1, so the player is immune from
@@ -12794,7 +12874,8 @@ pager line (s39 bank 0 line 3).
   settle while playing; clip end -> +0x20E = 60 (90 if +0x1F1 == 2),
   exit state 1 sub 7 anim 0xD (recover).
 - **sub 1 DEATH (func_0021E240)**: phase 0 = rumble + sounds 0x146
-  (voice) + 0x151 (body) @300, clip 0x2A (armed +0x236 -> 0x5C),
+  (voice) + 0x151 (body) @300, clip 0x2A (+0x236 set, the low-clearance latch -> 0x5C; corrected
+  2026-09-27; CURIOSITIES 11),
   both 130 f fall-to-ground (motion-audited: head y 14.6 -> 1.4);
   during the clip at frames-remaining 80 -> sound 0x156, 50 ->
   func_00182870(1), 16 -> func_0021D490 (thud 0x14E / infected
@@ -15295,7 +15376,7 @@ by player state +0x230:
 
 | states | +0x8C | +0x5C | eye base (11+5C+8C) | target (11+8C) |
 |---|---|---|---|---|
-| 2 / 4 / 0xF (+0x236 elevated family; NOT ordinary locomotion, see correction below) | **−3.0** | **1.0** | player.y + **9** | player.y + **8** |
+| 2 / 4 / 0xF (+0x236 low-clearance family — "elevated" was a label, corrected 2026-09-27; CURIOSITIES 11; NOT ordinary locomotion, see correction below) | **−3.0** | **1.0** | player.y + **9** | player.y + **8** |
 | 1 / 3 / default (idle and ordinary ground walk) | 6.0 | 2.0 | +19 | +17 |
 | idle, cam+0x64 == −31.2 areas | 2.0 | 6.0 | +19 | +17 (same sums) |
 | 6/7/8/9/0x2C/0x2D (climb family) | 0.0 | 2.0 | +13 | +11 |
@@ -15916,8 +15997,9 @@ The pre-step's +0x8C/+0x5C table, re-read from the .s: player state
 **0xF/4/2 -> -3.0/1.0**; **3/1 and DEFAULT -> 6.0/2.0** (swapped
 2.0/6.0 when cam+0x64 == -31.2). Ordinary ground locomotion is state
 3 = the DEFAULT row — the camera keeps eye +19 / target +17 while the
-player moves; the -3.0/1.0 row belongs to the +0x236 ELEVATED/hang
-family only. The s67 port binding applied the low row to every move
+player moves; the -3.0/1.0 row belongs to the +0x236 family only (the
+low-clearance latch, ducked under a low ceiling; "elevated/hang" was a
+label — corrected 2026-09-27; CURIOSITIES 11). The s67 port binding applied the low row to every move
 (the user-visible dive toward the feet); fixed in 8bf0c78 (the
 pre-step writes the idle row unconditionally — the port models no
 +0x236 family). Witness: EM_CAPTURE_WALK prints eye +19 / tgt +17
@@ -16243,7 +16325,7 @@ Three user-reported crate divergences, investigated (a subagent did live
 PCSX2 reads of the AREA01 crate actors `0x7AB440…0x7AC2F0` against
 func_001551B0) and fixed in the port:
 
-1. **Hit volume.** The office/AREA02 crate disguise (model id 0x0D) is a
+1. **Hit volume.** The crate (model table entry 0x0D) is a
    **14×14×14 box, bbox X[-7,7] Z[-7,7] Y[0,14]** — origin at the FLOOR,
    visual centre Y=7. The engine hits it as the **full box collision
    hull** (the movable-object hull, func_0019A570 mask bit0 — any Y
@@ -16252,7 +16334,14 @@ func_001551B0) and fixed in the port:
    to aim BELOW the visual centre. Port: a ray-vs-OBB box test
    (crate_ray_box) over the real 14³ hull; the reticle/aim-point moves to
    the box centre (CRATE_AIM_Y 2→7).
-2. **Group alarm is INERT for placed crates.** func_001551B0's state-4
+   (corrected 2026-09-27; CURIOSITIES 8) This item first called it the
+   "office/AREA02 crate disguise", but the live reads were of AREA01 crate
+   actors (0x7AB440…0x7AC2F0), so that name is most likely a mislabel.
+   The model comes from the per-area model table, so the office table's
+   entry 0x0D is a small cardboard box, not this crate ("disguise" is a
+   label). No AREA02 crate has been measured.
+2. **Group alarm is INERT for placed crates.** (True only for AREA01's
+   unstacked crates — see the correction at the end of this item.) func_001551B0's state-4
    broadcast walks the whole live list and tests the model whitelist, but
    its wake write (byte `+0x0A = 1`) is gated on the recipient's **+0x52
    (on-surface) != 0** — and **+0x52 is 0 on every placed crate**
@@ -16260,6 +16349,14 @@ func_001551B0) and fixed in the port:
    enemy_alarm_broadcast woke every crate unconditionally → "break one,
    the other hops." Fixed by modelling +0x52 (Enemy.on_surface, default
    0). **This overturns the s62 J1 "match".**
+   (corrected 2026-09-27; CURIOSITIES 18) "+0x52 is 0 on every placed
+   crate" held only for AREA01's unstacked crates. INIT's floor probe
+   sets +0x52 to 0 when the probe result is 4 (world ground) and to 1
+   for any other result, and the broadcast has no radius check. So
+   breaking any box wakes exactly the boxes not resting on world ground.
+   In AREA11 that is box 0x7A7980, 14 units above 0x7A7F60 and the only
+   one with +0x52 = 1 (port `CRATES_DRUMS_ORIGINAL.md`: three AREA11
+   captures and an oracle run over the captured list).
 3. **Bug default.** Only nest-linked crates hatch; the 5 office nests
    always carry an explicit `bugs <n>` and the gore-only majority is
    link −1. The port's CRATE_BUGS_DEFAULT was 2, so a manifest crate
@@ -16275,8 +16372,8 @@ plays the original — the oracle**):
 | dir id | frames | what it is (user-confirmed) |
 |--------|--------|-----------------------------|
 | **54** | 60 | **the player shaking the BUGS off him** — the bug-latch shake-off (ties to the s58/J3 untranslated latch/shake-off mechanic: bugs cling to the player, this throws them off) |
-| **94** | 20 | **the player CROUCHING** |
-| **115** | 20 | a **LANDING** animation (after a fall/drop) — "seems like" |
+| **94** | 20 | **the player CROUCHING** (on the route as the slide entry; see the correction below) |
+| **115** | 20 | a **LANDING** animation (after a fall/drop) — "seems like" (on the route on the falls; see below) |
 | **375** | 80 | unknown — "possibly part of a CUTSCENE" (two-handed weapon-inspect pose) |
 
 These are real, deliberate player actions the port does not yet trigger.
@@ -16329,10 +16426,17 @@ as `$a1` to `func_001749A0` / `anim_clip_arbiter`@0x1749F0, which writes
   -0.6 Y profile-lower. Combined "vertical-motion" handler. The crouch
   INPUT pad bit is NOT statically pinnable — **needs one live PCSX2
   capture** (hold crouch, watch `+0x05/+0x06/+0x20C`).
+  (corrected 2026-09-27; CURIOSITIES 3) On the route: 0x5E is the slide
+  entry, requested in first-level route beat 06, and chains to 0x5F
+  (port `PLAYER_CLIPS.md` section 2); "crouch" is the user's visual
+  identification of the pose.
 - **115 (0x73) — LANDING:** `func_0016C6A0`@0x16CBC4 (and the jump/fall
   sub-state `func_00162DB0`@0x1632EC) — the fall→ground-contact phase
   (gravity ticks `+0xB4` until contact, then clip 0x73 + impact settle
   `+0x2F4/+0x2E0`). Needs a port player airborne/fall state.
+  (corrected 2026-09-27; CURIOSITIES 3) On the route: 0x73 is requested
+  on the falls of first-level route beats 10, 11 and 12 and chains to
+  0x72 (port `PLAYER_CLIPS.md` section 2).
 - **375 (0x177) — CUTSCENE/SCRIPT:** does NOT appear as an `$a1`
   immediate anywhere in `code/`; requested by a scripted/director caller
   via a table-loaded/computed id (neighbours 0x152–0x154/0x187 are all
