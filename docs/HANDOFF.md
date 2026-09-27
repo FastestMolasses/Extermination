@@ -85,8 +85,13 @@ is superseded.
     functions, 89 main line), overview (`tools/area_overview.py`), overlay matching
     (bdd40fb: 33 of 41 byte-identical C). Docs: port `docs/SECOND_LEVEL_ROUTE.md`,
     `docs/AREA01_OVERVIEW.md`; FINDINGS "AREA01 route capture" section.
-  - Phase 2 next: local AREA01 asset exports checked against the a01 captures, and
-    standalone translations (new files + oracles) of the new functions, main line first.
+  - Phase 2 wave 1 done (2026-09-26): port e21bd95 has 90 standalone translations of the
+    main-line new functions (overlay 14, math 30, render 21, sys 25) and the AREA01 asset
+    exports (assets/area01/), each oracle-tested, not bound; decomp 07c4e32/837d548 corrected
+    9 NEARMISS bodies the lanes found wrong. Mutation sweeps were closed out on named
+    survivors (they did not converge). Next: the 65 side/exit-only new functions.
+  - Port flags for binding: em_actor_cells rejects AREA01's cell directory (uid 0 word bit
+    29); em_coll_segment_walkers returns -1 on 0019D770's no-span path (FINDINGS).
   - Phase 3 (after the first level is done): an AREA01 binding chain.
 - **Next:** the Original profile (exact 512x448 GS framebuffer, 4:3) and the
   framebuffer-compare harness, EE-float harmonization of the older oracles.
