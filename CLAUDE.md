@@ -158,7 +158,10 @@ evidence"). Characterization is done (Target identity above).
 The finished port ships two profiles (user, 2026-09-23; rules in the port's
 `docs/PORT_PROFILES.md`). **Original** is the default and the only thing fidelity
 work measures: the exact GS framebuffer shown at 4:3, with no smoothing and no CRT
-simulation. **Enhanced** adds the user's improvements as switches over the same
+simulation. It reproduces the game's experience, not PS2 hardware limits (user,
+2026-09-27): loads run at host speed, no slowdown/hitch reproduction, no CRT;
+the public, evidence-backed list of fidelity features is the port's
+`docs/FIDELITY_FEATURES.md`. **Enhanced** adds the user's improvements as switches over the same
 logic. Its cut-content items come from this repo's `docs/CURIOSITIES.md`.
 
 ## Verification toolkit
