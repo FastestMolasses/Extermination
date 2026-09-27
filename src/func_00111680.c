@@ -39,7 +39,7 @@ extern int D_00279B08;
 extern int D_00279B38[];
 extern int D_0027D370;
 
-extern void SignalSema();
+extern void WaitSema();
 extern void DeleteThread();
 extern int ReleaseWaitThread();
 extern void iReleaseWaitThread();
@@ -52,7 +52,7 @@ extern void func_00111AE0();
 void func_00111680(void)
 {
     for (;;) {
-        SignalSema(D_00241D10);
+        WaitSema(D_00241D10);
         if (D_00241D48 == 1) {
             D_00241D14 = 0;
             DeleteThread();

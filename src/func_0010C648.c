@@ -6,12 +6,12 @@ extern int D_00276890;
 extern int D_0027D370;
 extern int D_00276C90;
 extern void func_0010C5C8(int *a0);
-extern int EndOfHeap(int *a0);
+extern int CreateSema(int *a0);
 extern int _iSetAlarm(int *a0);
 extern int CreateThread(int a0, int *a1);
 extern int ReleaseWaitThread(void);
 extern void DisableDispatchThread(int a0, int a1);
-extern void RFU063(int a0);
+extern void DeleteSema(int a0);
 
 int func_0010C648(void) {
     int al[12];
@@ -22,7 +22,7 @@ int func_0010C648(void) {
     }
     heap[0] = 0;
     heap[1] = 0xFF;
-    r = EndOfHeap(heap);
+    r = CreateSema(heap);
     D_00276C98 = r;
     if (r < 0) {
         return -1;
@@ -35,7 +35,7 @@ int func_0010C648(void) {
     r = _iSetAlarm(al);
     D_00241C68 = r;
     if (r < 0) {
-        RFU063(D_00276C98);
+        DeleteSema(D_00276C98);
         return -1;
     }
     CreateThread(r, &D_00276C90);

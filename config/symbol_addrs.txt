@@ -70,16 +70,21 @@ SuspendThread = 0x0010B7B0;  // type:func
 ResumeThread = 0x0010B7D0;  // type:func
 iResumeThread = 0x0010B7E0;  // type:func
 JoinThread = 0x0010B7F0;  // type:func
-RFU060 = 0x0010B800;  // type:func
-RFU061 = 0x0010B810;  // type:func
-EndOfHeap = 0x0010B820;  // type:func
-RFU063 = 0x0010B830;  // type:func
-CreateSema = 0x0010B840;  // type:func
-SignalSema = 0x0010B860;  // type:func
-iSignalSema = 0x0010B870;  // type:func
-PollSema = 0x0010B890;  // type:func
-ReferSemaStatus = 0x0010B8B0;  // type:func
-iReferSemaStatus = 0x0010B8C0;  // type:func
+// Syscall stubs 0x0010B800..0x0010B8C0 relabelled 2026-09-27 from the syscall number each
+// stub loads (62..74; ps2sdk numbering, e.g. 64 CreateSema, 66 SignalSema, 68 WaitSema).
+// The old labels sat two numbers late. 0x0010B8B0 / 0x0010B8C0 (73 / 74) carry neutral names
+// because RFU073 / SetOsdConfigParam are still on 0x0010B8D0 / 0x0010B8E0 (75 / 76): the labels
+// from 0x0010B8D0 up remain two numbers late (RFUnnn names show it) and need their own pass.
+EndOfHeap = 0x0010B800;  // type:func
+RFU063 = 0x0010B810;  // type:func
+CreateSema = 0x0010B820;  // type:func
+DeleteSema = 0x0010B830;  // type:func
+SignalSema = 0x0010B840;  // type:func
+WaitSema = 0x0010B860;  // type:func
+PollSema = 0x0010B870;  // type:func
+ReferSemaStatus = 0x0010B890;  // type:func
+Syscall49_RFU073 = 0x0010B8B0;  // type:func
+Syscall4A_SetOsdConfigParam = 0x0010B8C0;  // type:func
 RFU073 = 0x0010B8D0;  // type:func
 SetOsdConfigParam = 0x0010B8E0;  // type:func
 GetOsdConfigParam = 0x0010B8F0;  // type:func
@@ -162,12 +167,12 @@ iCancelWakeupThread = 0x0010B780;  // type:func
 _iSuspendThread = 0x0010B7A0;  // type:func
 // N=-58 (-0x3a) __NR_iResumeThread; _i prefix avoids conflict with iResumeThread (+60)
 _iResumeThread = 0x0010B7C0;  // type:func
-// N=-67 (-0x43) __NR_iSignalSema; _i prefix avoids conflict with iSignalSema (+69)
-_iSignalSema = 0x0010B850;  // type:func
+// N=-67 (-0x43) __NR_iSignalSema
+iSignalSema = 0x0010B850;  // type:func
 // N=-70 (-0x46) __NR_iPollSema
 iPollSema = 0x0010B880;  // type:func
-// N=-72 (-0x48) __NR_iReferSemaStatus; _i prefix avoids conflict with iReferSemaStatus (+74)
-_iReferSemaStatus = 0x0010B8A0;  // type:func
+// N=-72 (-0x48) __NR_iReferSemaStatus
+iReferSemaStatus = 0x0010B8A0;  // type:func
 // N=-83 (-0x53) SCEI slot 0x53 interrupt-handler variant; TODO: verify exact SCEI name
 RFU083_iSetEventFlag = 0x0010B950;  // type:func
 // N=-85 (-0x55) __NR_iPutTLBEntry

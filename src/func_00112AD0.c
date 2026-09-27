@@ -2,7 +2,7 @@
 //
 // objdiff 96.67% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// eegcc volatile-vs-delay-slot deadlock (NOT the branch-likely wall — that diagnosis is disproven). bgezl IS now emitted correctly. Residual = exactly 1 instruction: the fall-through's load of D_00241D08 into $a0 must occupy the delay slot of the CreateSema call (expected 0x8C/0x90), but ours emits the load...
+// eegcc volatile-vs-delay-slot deadlock (NOT the branch-likely wall — that diagnosis is disproven). bgezl IS now emitted correctly. Residual = exactly 1 instruction: the fall-through's load of D_00241D08 into $a0 must occupy the delay slot of the SignalSema call (expected 0x8C/0x90), but ours emits the load...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -19,7 +19,7 @@ extern int func_00112088(void);
 extern int func_00111F18(int);
 extern int func_001115D0();
 extern int func_0010E8A8(void *, int, int, int, int, int, int, void *, void *);
-extern int CreateSema(int);
+extern int SignalSema(int);
 
 int func_00112AD0(void)
 {
@@ -35,9 +35,9 @@ int func_00112AD0(void)
                       (void *)&D_00241D48) < 0) {
         D_00241D48 = 0;
         D_00241D14 = 0;
-        CreateSema(D_00241D08);
+        SignalSema(D_00241D08);
         return 0;
     }
-    CreateSema(D_00241D08);
+    SignalSema(D_00241D08);
     return 1;
 }

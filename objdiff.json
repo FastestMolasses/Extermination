@@ -94,6 +94,14 @@
       }
     },
     {
+      "name": "DeleteSema",
+      "target_path": "build/expected/DeleteSema.o",
+      "base_path": "build/obj/DeleteSema.o",
+      "metadata": {
+        "source_path": "src/DeleteSema.c"
+      }
+    },
+    {
       "name": "DeleteThread",
       "target_path": "build/expected/DeleteThread.o",
       "base_path": "build/obj/DeleteThread.o",
@@ -299,22 +307,6 @@
       "base_path": "build/obj/RFU009.o",
       "metadata": {
         "source_path": "src/RFU009.c"
-      }
-    },
-    {
-      "name": "RFU060",
-      "target_path": "build/expected/RFU060.o",
-      "base_path": "build/obj/RFU060.o",
-      "metadata": {
-        "source_path": "src/RFU060.c"
-      }
-    },
-    {
-      "name": "RFU061",
-      "target_path": "build/expected/RFU061.o",
-      "base_path": "build/obj/RFU061.o",
-      "metadata": {
-        "source_path": "src/RFU061.c"
       }
     },
     {
@@ -622,11 +614,35 @@
       }
     },
     {
+      "name": "Syscall49_RFU073",
+      "target_path": "build/expected/Syscall49_RFU073.o",
+      "base_path": "build/obj/Syscall49_RFU073.o",
+      "metadata": {
+        "source_path": "src/Syscall49_RFU073.c"
+      }
+    },
+    {
+      "name": "Syscall4A_SetOsdConfigParam",
+      "target_path": "build/expected/Syscall4A_SetOsdConfigParam.o",
+      "base_path": "build/obj/Syscall4A_SetOsdConfigParam.o",
+      "metadata": {
+        "source_path": "src/Syscall4A_SetOsdConfigParam.c"
+      }
+    },
+    {
       "name": "TerminateThread",
       "target_path": "build/expected/TerminateThread.o",
       "base_path": "build/obj/TerminateThread.o",
       "metadata": {
         "source_path": "src/TerminateThread.c"
+      }
+    },
+    {
+      "name": "WaitSema",
+      "target_path": "build/expected/WaitSema.o",
+      "base_path": "build/obj/WaitSema.o",
+      "metadata": {
+        "source_path": "src/WaitSema.c"
       }
     },
     {
@@ -766,14 +782,6 @@
       }
     },
     {
-      "name": "_iReferSemaStatus",
-      "target_path": "build/expected/_iReferSemaStatus.o",
-      "base_path": "build/obj/_iReferSemaStatus.o",
-      "metadata": {
-        "source_path": "src/_iReferSemaStatus.c"
-      }
-    },
-    {
       "name": "_iReferThreadStatus",
       "target_path": "build/expected/_iReferThreadStatus.o",
       "base_path": "build/obj/_iReferThreadStatus.o",
@@ -819,14 +827,6 @@
       "base_path": "build/obj/_iSetAlarm.o",
       "metadata": {
         "source_path": "src/_iSetAlarm.c"
-      }
-    },
-    {
-      "name": "_iSignalSema",
-      "target_path": "build/expected/_iSignalSema.o",
-      "base_path": "build/obj/_iSignalSema.o",
-      "metadata": {
-        "source_path": "src/_iSignalSema.c"
       }
     },
     {

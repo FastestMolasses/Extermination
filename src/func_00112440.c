@@ -2,7 +2,7 @@
 //
 // objdiff 97.22% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc list-scheduler + delay-slot-fill wall. Body, control flow, register allocation and the switch decision tree all match exactly; the only residual is the delay slots of the two CreateSema (SignalSema) calls, which the original fills with the load of D_00241D08 and ours leaves as a nop (rest of the note: docs/NEARMISS.md).
+// ee-gcc list-scheduler + delay-slot-fill wall. Body, control flow, register allocation and the switch decision tree all match exactly; the only residual is the delay slots of the two SignalSema calls, which the original fills with the load of D_00241D08 and ours leaves as a nop (rest of the note: docs/NEARMISS.md).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -53,7 +53,7 @@ extern int func_0010E8A8(void *bd, int fno, int mode, void *send, int ssize,
                          void *recv, int rsize, void (*end_func)(void *),
                          void *end_para);
 extern void func_00122B58(char *fmt);
-extern void CreateSema(int semid);
+extern void SignalSema(int semid);
 
 int func_00112440(unsigned int lsn, unsigned int sectors, void *buf, CdRMode *mode)
 {
@@ -104,13 +104,13 @@ int func_00112440(unsigned int lsn, unsigned int sectors, void *buf, CdRMode *mo
                       func_00111818, D_00279E80) < 0) {
         D_00241D48 = 0;
         D_00241D14 = 0;
-        CreateSema(D_00241D08);
+        SignalSema(D_00241D08);
         return 0;
     }
 
     if (D_00241CF8 > 0) {
         func_00122B58(D_0026BC78);
     }
-    CreateSema(D_00241D08);
+    SignalSema(D_00241D08);
     return 1;
 }

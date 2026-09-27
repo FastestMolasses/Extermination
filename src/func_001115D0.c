@@ -2,7 +2,7 @@
 //
 // objdiff 74.52% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc address-base register-allocation + reload-scheduling permutation. Logic/structure correct (store *a0->D_00241D48, D_00241D4C=D_00241D48 reload, on D_00241D18 flag set && D_00241D48==0xB clear D_00241D48+D_00241D14 & return; else _iSignalSema(D_00241D08), then if D_00241D04 && D_00241D44 _iSignalSema(D_00241D1...
+// ee-gcc address-base register-allocation + reload-scheduling permutation. Logic/structure correct (store *a0->D_00241D48, D_00241D4C=D_00241D48 reload, on D_00241D18 flag set && D_00241D48==0xB clear D_00241D48+D_00241D14 & return; else iSignalSema(D_00241D08), then if D_00241D04 && D_00241D44 iSignalSema(D_00241D1...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -20,7 +20,7 @@ extern int D_00241D44;
 extern int D_00241D48;
 extern int D_00241D4C;
 
-extern int _iSignalSema(int);
+extern int iSignalSema(int);
 
 void func_001115D0(int *p) {
     D_00241D48 = *p;
@@ -32,9 +32,9 @@ void func_001115D0(int *p) {
             return;
         }
     }
-    _iSignalSema(D_00241D08);
+    iSignalSema(D_00241D08);
     if (D_00241D04 != 0 && D_00241D44 != 0) {
-        _iSignalSema(D_00241D10);
+        iSignalSema(D_00241D10);
     } else {
         D_00241D14 = 0;
     }

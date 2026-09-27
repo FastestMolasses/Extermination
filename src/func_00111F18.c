@@ -2,7 +2,7 @@
 //
 // objdiff 51.49% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// Two confirmed-s84 ee-gcc walls. (1) eegcc forward-branch-likely wall: expected emits bgezl $v0 (annulling) on the func_0010E6F8(...) >= 0 syscall-success check; our ee-gcc 2.9-991111-01 emits non-annulling bgez/bltz (only emits branch-likely on loop back-edges). (2) 4-nop inline-asm delay-loop idiom: the SDK busy-wa...
+// Two confirmed-s84 ee-gcc walls. (1) eegcc forward-branch-likely wall: expected emits an annulling branch-likely on the sign of the result for the func_0010E6F8(...) >= 0 syscall-success check; our ee-gcc 2.9-991111-01 emits non-annulling bgez/bltz (only emits branch-likely on loop back-edges). (2) 4-nop inline-asm delay-loop idiom: the SDK busy-wa...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -23,11 +23,11 @@ extern char D_0026BBC0;
 extern char D_0026BBE8;
 
 extern void func_001118B8(void);
-extern int iSignalSema(int sema);
+extern int PollSema(int sema);
 extern void func_00122B58(const char *fmt, int a1, int a2);
 extern void iReleaseWaitThread(int a, int b);
 extern int func_00112D18(int a0);
-extern int CreateSema(int param);
+extern int SignalSema(int param);
 extern void func_0010E088(void);
 extern int func_0010E6F8(void *a0, unsigned int a1, int a2);
 
@@ -36,7 +36,7 @@ int func_00111F18(int a0) {
     int *p;
 
     func_001118B8();
-    v0 = iSignalSema(D_00241D08);
+    v0 = PollSema(D_00241D08);
     if (D_00241D08 != v0) {
         if (D_00241CF8 > 0) {
             func_00122B58((const char *)&D_0026BBC0, D_00241D00, a0);
@@ -46,7 +46,7 @@ int func_00111F18(int a0) {
     D_00241D00 = a0;
     iReleaseWaitThread(D_00279B00, D_00279B08);
     if (func_00112D18(1) != 0) {
-        CreateSema(D_00241D08);
+        SignalSema(D_00241D08);
         return 0;
     }
     func_0010E088();

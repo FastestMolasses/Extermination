@@ -27,7 +27,7 @@ extern char D_0026BB98[];
 extern char D_0026BBA8[];
 
 extern void func_001118B8(void);
-extern int iSignalSema(int sema);
+extern int PollSema(int sema);
 extern void iReleaseWaitThread(int a, void *b);
 extern int func_00112D18(int a0);
 extern void func_0010E088(int a0);
@@ -36,7 +36,7 @@ extern int func_0010E8A8(void *a0, int a1, int a2, void *a3, int a4, void *a5,
                          int a6, void *a7, void *a8);
 extern void func_0010DFD8(void *a0, int a1);
 extern void func_00122B58(const char *fmt, ...);
-extern int CreateSema(int sema);
+extern int SignalSema(int sema);
 extern void *memcpy(void *dst, const void *src, unsigned int n);
 
 int func_00111C28(char *out, const char *name)
@@ -48,14 +48,14 @@ int func_00111C28(char *out, const char *name)
     int ret;
 
     func_001118B8();
-    if (D_00241D08 != iSignalSema(D_00241D08)) {
+    if (D_00241D08 != PollSema(D_00241D08)) {
         return 0;
     }
 
     D_00241D00 = 1;
     iReleaseWaitThread(D_00279B00, &D_00279B08);
     if (func_00112D18(1) != 0) {
-        CreateSema(D_00241D08);
+        SignalSema(D_00241D08);
         return 0;
     }
 
@@ -109,7 +109,7 @@ int func_00111C28(char *out, const char *name)
     func_0010DFD8(req, 0x124);
 
     if (func_0010E8A8(D_00279E28, 0, 0, req, 0x124, D_00279DC0, 4, 0, 0) < 0) {
-        CreateSema(D_00241D08);
+        SignalSema(D_00241D08);
         return 0;
     }
 
@@ -125,6 +125,6 @@ int func_00111C28(char *out, const char *name)
     }
 
     ret = *(int *)((unsigned int)D_00279DC0 | 0x20000000);
-    CreateSema(D_00241D08);
+    SignalSema(D_00241D08);
     return ret;
 }

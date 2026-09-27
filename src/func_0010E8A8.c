@@ -13,8 +13,8 @@
 
 //
 // SifCallRpc — Sony SIF RPC library (libsifrpc), ee-gcc 2.9-991111-01 -O2.
-// NOTE: the splat syscall-stub names are mis-assigned in this region; the real
-// routines are EndOfHeap=CreateSema, SignalSema=WaitSema, RFU063=DeleteSema.
+// The semaphore syscall stubs carry their real names since 2026-09-27
+// (CreateSema 0x0010B820, WaitSema 0x0010B860, DeleteSema 0x0010B830).
 // func_0010E270=_rpc_get_packet, func_0010DFD8=SifWriteBackDCache,
 // func_0010DE38=SifSendCmd, D_00278BC0=_sif_rpc_data.
 //
@@ -70,9 +70,9 @@ extern void *func_0010E270(void *qd);                   /* _rpc_get_packet    */
 extern void func_0010DFD8(void *ptr, int size);         /* SifWriteBackDCache */
 extern int func_0010DE38(unsigned int cmd, void *packet, int packet_size,
                          void *src_extra, void *dest_extra, int size_extra);
-extern int EndOfHeap(ee_sema_t *sema);                  /* CreateSema */
-extern int SignalSema(int sema_id);                     /* WaitSema   */
-extern int RFU063(int sema_id);                         /* DeleteSema */
+extern int CreateSema(ee_sema_t *sema);
+extern int WaitSema(int sema_id);
+extern int DeleteSema(int sema_id);
 
 extern void *D_00278BC0;                                /* _sif_rpc_data */
 
@@ -122,14 +122,14 @@ int func_0010E8A8(SifRpcClientData_t *client, int rpc_number, int mode,
     } else {
         sema.max_count = 1;
         sema.init_count = 0;
-        client->hdr.sema_id = EndOfHeap(&sema);
+        client->hdr.sema_id = CreateSema(&sema);
         if (client->hdr.sema_id < 0)
             return -3;
         packet->rmode = 1;
         if (func_0010DE38(0x8000000a, packet, 64, send, (void *)client->buff, ssize) == 0)
             return -2;
-        SignalSema(client->hdr.sema_id);
-        RFU063(client->hdr.sema_id);
+        WaitSema(client->hdr.sema_id);
+        DeleteSema(client->hdr.sema_id);
     }
     return 0;
 }

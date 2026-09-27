@@ -12,10 +12,10 @@
 // CFLAGS: -O2
 
 extern void *func_0010E270(void *p);
-extern int EndOfHeap(void *p);
+extern int CreateSema(void *p);
 extern int func_0010DE38(unsigned int a, void *b, int c, int d, int e, int f);
-extern void SignalSema(int s);
-extern void RFU063(int s);
+extern void WaitSema(int s);
+extern void DeleteSema(int s);
 
 extern unsigned char D_00278BC0;
 
@@ -48,7 +48,7 @@ int func_0010E4C0(int *out, int a1, int a2, int a3, int flags)
 
     local[1] = 1;
     local[2] = 0;
-    r = EndOfHeap(&local[0]);
+    r = CreateSema(&local[0]);
     out[2] = r;               /* this store fills the r < 0 branch's delay slot */
     if (r < 0) {
         return -3;
@@ -56,7 +56,7 @@ int func_0010E4C0(int *out, int a1, int a2, int a3, int flags)
     if (func_0010DE38(0x8000000C, obj, 0x40, 0, 0, 0) == 0) {
         return -2;
     }
-    SignalSema(out[2]);
-    RFU063(out[2]);
+    WaitSema(out[2]);
+    DeleteSema(out[2]);
     return 0;
 }

@@ -2,7 +2,7 @@
 //
 // objdiff 79.49% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc forward-branch-likely wall (confirmed s84): body matches; sole blocker is the func_0010E8A8(...) < 0 syscall-success check where expected emits bgezl $v0 (branch-likely) and our ee-gcc 2.9-991111-01 emits bgez $v0 (non-annul) for the forward conditional. Not source/flag/ISA-crackable; fast-parked.
+// eegcc forward-branch-likely wall (confirmed s84): body matches; sole blocker is the func_0010E8A8(...) < 0 syscall-success check where expected emits a branch-likely on the sign of the result and our ee-gcc 2.9-991111-01 emits the plain (non-annulling) branch for the forward conditional. Not source/flag/ISA-crackable; fast-parked.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -21,7 +21,7 @@ extern int func_00112088(void);
 extern int func_00111F18(int);
 extern void func_0010DFD8(int *, int);
 extern int func_0010E8A8(int, int, int, int *, int *, int, int, int);
-extern int CreateSema(int);
+extern int SignalSema(int);
 extern void func_001115D0(void);
 
 int func_001129E8(int a0) {
@@ -41,9 +41,9 @@ int func_001129E8(int a0) {
                       &D_00241D48, 4, 0, 0) < 0) {
         D_00241D48 = 0;
         D_00241D14 = 0;
-        CreateSema(D_00241D08);
+        SignalSema(D_00241D08);
         return 0;
     }
-    CreateSema(D_00241D08);
+    SignalSema(D_00241D08);
     return 1;
 }

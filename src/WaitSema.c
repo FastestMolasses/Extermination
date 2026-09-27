@@ -2,6 +2,7 @@
 // syscall number into $v1 and invokes the EE kernel; the return value
 // (if any) flows back in $v0 from the syscall handler. Match: inline
 // asm yields the canonical 4-instruction stub at -O4,p.
-void _iSignalSema(void) {
-    asm { addiu $v1, $zero, -67; syscall 0; };
+// 0x0010B860: EE syscall 68 (0x44); label corrected 2026-09-27 (was SignalSema).
+void WaitSema(void) {
+    asm { addiu $v1, $zero, 68; syscall 0; };
 }

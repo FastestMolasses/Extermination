@@ -2,7 +2,7 @@
 //
 // objdiff 96.67% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Exact twin of func_00112AD0 (only constants differ: func_00111F18(0xC), D_00241D48=7, func_0010E8A8 a1=8). Same eegcc volatile-vs-delay-slot deadlock, same single-instruction residual: the fall-through load of D_00241D08 into a0 does not enter the CreateSema call's delay slot, giving load, call, empty slot...
+// Exact twin of func_00112AD0 (only constants differ: func_00111F18(0xC), D_00241D48=7, func_0010E8A8 a1=8). Same eegcc volatile-vs-delay-slot deadlock, same single-instruction residual: the fall-through load of D_00241D08 into a0 does not enter the SignalSema call's delay slot, giving load, call, empty slot...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -19,7 +19,7 @@ extern int func_00112088(void);
 extern int func_00111F18(int);
 extern int func_001115D0();
 extern int func_0010E8A8(void *, int, int, int, int, int, int, void *, void *);
-extern int CreateSema(int);
+extern int SignalSema(int);
 
 int func_00112C58(void)
 {
@@ -35,9 +35,9 @@ int func_00112C58(void)
                       (void *)&D_00241D48) < 0) {
         D_00241D48 = 0;
         D_00241D14 = 0;
-        CreateSema(D_00241D08);
+        SignalSema(D_00241D08);
         return 0;
     }
-    CreateSema(D_00241D08);
+    SignalSema(D_00241D08);
     return 1;
 }

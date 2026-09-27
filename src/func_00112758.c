@@ -17,14 +17,14 @@
 // busy flag D_00241D48 to 3, do the blocking RPC (function #4), then copy the reply out of the
 // UNCACHED (| 0x20000000) mirror of the receive buffer into the caller's buffer.  The reply
 // header word at D_00279B84 selects the long (0x810) or short (0x400) payload; the word at
-// D_00279B80 is the value returned to the caller.  CreateSema() here is the splat name for the
-// semaphore/signal call that releases the RPC lock.
+// D_00279B80 is the value returned to the caller.  SignalSema() (0x0010B840, EE syscall 66)
+// releases the RPC lock.
 //
 
 extern int func_00111F18(int);
 extern void func_0010DFD8(void *, int);
 extern int func_0010E8A8(void *, int, int, void *, int, void *, int, void *, void *);
-extern int CreateSema(int);
+extern int SignalSema(int);
 extern void *memcpy(void *, const void *, unsigned int);
 
 extern int D_00241D08;
@@ -48,7 +48,7 @@ int func_00112758(void *dst)
     D_00241D48 = 3;
     if (func_0010E8A8(D_00279E00, 4, 0, &D_0027A2D0, 0xC, D_00279B80, 8, 0, 0) < 0) {
         D_00241D48 = 0;
-        CreateSema(D_00241D08);
+        SignalSema(D_00241D08);
         return 0;
     }
     D_00241D48 = 0;
@@ -59,6 +59,6 @@ int func_00112758(void *dst)
     else
         memcpy(dst, (void *)((unsigned int)D_0027A300 | 0x20000000), 0x810);
 
-    CreateSema(D_00241D08);
+    SignalSema(D_00241D08);
     return ret;
 }

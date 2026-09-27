@@ -1,5 +1,5 @@
 // CFLAGS: -O4,p -sdatathreshold 0
-extern void RFU063(int);
+extern void DeleteSema(int);
 extern void func_00204140(int);
 
 int func_00204AE0(int *s) {
@@ -7,6 +7,6 @@ int func_00204AE0(int *s) {
     *(volatile int *)0x1000B420 = 0;
     *(volatile int *)0x1000B410 = 0;
     *(volatile int *)0x1000B430 = 0;
-    RFU063(s[0x10]);            // 0x40
+    DeleteSema(s[0x10]);            // 0x40
     return 1;
 }

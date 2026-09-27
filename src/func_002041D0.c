@@ -1,5 +1,5 @@
 // Simple nonleaf asm void
-extern void EndOfHeap(int, int, int, int);
+extern void CreateSema(int, int, int, int);
 extern void func_00204250(int, int, int, int);
 
 asm void func_002041D0(void) {
@@ -21,7 +21,7 @@ asm void func_002041D0(void) {
     paddub     $s0, $a0, $zero
     sw         $v0, 0x28($sp)
     addiu      $a0, $sp, 0x20
-    jal        EndOfHeap
+    jal        CreateSema
     sw        $v0, 0x24($sp)
     sw         $v0, 0x40($s0)
     jal        func_00204250

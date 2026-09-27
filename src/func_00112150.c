@@ -30,7 +30,7 @@ extern void func_00122B58(const char *fmt, ...);
 extern void func_0010DFD8(void *a0, int a1);
 extern int func_0010E8A8(void *a0, int a1, int a2, void *a3, int a4, void *a5,
                          int a6, void *a7, void *a8);
-extern int CreateSema(int sema);
+extern int SignalSema(int sema);
 extern void func_001115D0(void *arg);
 
 int func_00112150(unsigned int *list, unsigned char *mode)
@@ -112,12 +112,12 @@ int func_00112150(unsigned int *list, unsigned char *mode)
                       &D_00241D48) < 0) {
         D_00241D48 = 0;
         D_00241D14 = 0;
-        CreateSema(D_00241D08);
+        SignalSema(D_00241D08);
         return 0;
     }
 
     if (D_00241CF8 > 0)
         func_00122B58(D_0026BC78);
-    CreateSema(D_00241D08);
+    SignalSema(D_00241D08);
     return 1;
 }

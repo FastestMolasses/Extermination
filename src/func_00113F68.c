@@ -5,7 +5,7 @@ extern int func_00111F18(int);
 extern int func_00122B58(const char *, ...);
 extern void func_0010DFD8(void *, int);
 extern int func_0010E8A8(void *, int, int, void *, int, void *, int, void *, void *);
-extern int CreateSema(int);
+extern int SignalSema(int);
 
 extern int D_00241CF8;
 extern int D_00241D08;
@@ -44,7 +44,7 @@ int func_00113F68(int a0, int a1, int a2, int a3, unsigned char *a4)
     func_0010DFD8(p, 0x14);
 
     if (func_0010E8A8(D_00279E00, 9, 0, p, 0x14, D_00279B80, 4, 0, 0) < 0) {
-        CreateSema(D_00241D08);
+        SignalSema(D_00241D08);
         return 0;
     }
 
@@ -52,6 +52,6 @@ int func_00113F68(int a0, int a1, int a2, int a3, unsigned char *a4)
         func_00122B58(D_0026BC78);
 
     ret = *(int *)((unsigned int)D_00279B80 | 0x20000000);
-    CreateSema(D_00241D08);
+    SignalSema(D_00241D08);
     return ret;
 }

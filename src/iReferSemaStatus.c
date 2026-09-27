@@ -2,6 +2,7 @@
 // syscall number into $v1 and invokes the EE kernel; the return value
 // (if any) flows back in $v0 from the syscall handler. Match: inline
 // asm yields the canonical 4-instruction stub at -O4,p.
+// 0x0010B8A0: EE syscall -72 (-0x48); label corrected 2026-09-27 (was _iReferSemaStatus).
 void iReferSemaStatus(void) {
-    asm { addiu $v1, $zero, 74; syscall 0; };
+    asm { addiu $v1, $zero, -72; syscall 0; };
 }

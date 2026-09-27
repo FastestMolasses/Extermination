@@ -18,7 +18,7 @@ extern int D_0027AF60;
 
 extern int func_00112E28(int);
 extern int func_0010E8A8(void *a, int b, int c, int d, int e, void *f, int g, int h, int i);
-extern int CreateSema(int);
+extern int SignalSema(int);
 
 int func_00113478(void) {
     int *p;
@@ -30,11 +30,11 @@ int func_00113478(void) {
     D_00241D48 = 8;
     r = func_0010E8A8(&D_0027AF60, 0x16, 0, 0, 0, p, 4, 0, 0);
     if (r < 0) {
-        CreateSema(*(volatile int *)&D_00241D0C);
+        SignalSema(*(volatile int *)&D_00241D0C);
         D_00241D48 = 0;
         return 0;
     }
     D_00241D48 = 0;
-    CreateSema(D_00241D0C);
+    SignalSema(D_00241D0C);
     return *(int *)((unsigned int)p | 0x20000000);
 }

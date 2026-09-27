@@ -1,6 +1,6 @@
 // Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void CreateSema(int, int, int, int);
 extern void SignalSema(int, int, int, int);
+extern void WaitSema(int, int, int, int);
 extern void func_002040E0(int, int, int, int);
 extern void func_00204140(int, int, int, int);
 
@@ -9,7 +9,7 @@ asm void func_00204700(void) {
     .word 0x7fbf0010
     .word 0x7fb00000
     .word 0x70808628
-    jal        SignalSema
+    jal        WaitSema
     .word 0x8c840040
     addiu      $a0, $zero, 0x5
     jal        func_00204140
@@ -50,7 +50,7 @@ asm void func_00204700(void) {
     .word 0x3c011000
     .word 0x8c222010
     .word 0xae02003c
-    jal        CreateSema
+    jal        SignalSema
     .word 0x8e040040
     .word 0x7bbf0010
     .word 0x7bb00000

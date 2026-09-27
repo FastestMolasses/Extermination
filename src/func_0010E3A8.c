@@ -1,5 +1,5 @@
 // All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void _iSignalSema(int, int, int, int);
+extern void iSignalSema(int, int, int, int);
 extern void func_0010E318(int, int, int, int);
 
 asm void func_0010E3A8(void) {
@@ -38,7 +38,7 @@ asm void func_0010E3A8(void) {
     .word 0x8e040008
     .word 0x04800003
     .word 0x00000000
-    jal       _iSignalSema
+    jal       iSignalSema
     .word 0x00000000
     jal       func_0010E318
     .word 0x8e040000

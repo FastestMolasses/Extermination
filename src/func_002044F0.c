@@ -11,17 +11,17 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// Ring-buffer / DMA-chain submit guarded by a semaphore. SignalSema, then if the
+// Ring-buffer / DMA-chain submit guarded by a semaphore. WaitSema, then if the
 // arg0[0x44] flag is clear just queue func_00204080 and bail; otherwise advance the
 // modular read/write indices (arg0[2]=size, [3]/[4]=head/tail, [5] packs count<<11 |
 // frac) and issue func_002041A0 transfers (mode 3, prio 0x80), the last one mode 0.
-// Finally re-arm via CreateSema. The s0 compose keeps low 28 bits | 0x30000000 |0x100
+// Finally re-arm via SignalSema. The s0 compose keeps low 28 bits | 0x30000000 |0x100
 // (a tag/qword-count word) when a wrap occurred.
 // NEARMISS 92.4% (mwcc 2.3.3): logic fully recovered & body byte-identical; the sole
 // residual is whole-function register allocation - target uses caller-saved t-regs
 // for loop temps + frame 0x40, mwcc spills to callee-saved s-regs + frame 0x60.
+extern int WaitSema(int);
 extern int SignalSema(int);
-extern int CreateSema(int);
 extern void func_00204080(void *);
 extern int func_002040A0(int *, int);
 extern void func_00204140(int);
@@ -38,7 +38,7 @@ int func_002044F0(int *arg0) {
     int a2;
 
     s1 = 0;
-    SignalSema(arg0[0x40 / 4]);
+    WaitSema(arg0[0x40 / 4]);
     if (arg0[0x44 / 4] == 0) {
         func_00204080(&D_00273470);
         return 0;
@@ -74,5 +74,5 @@ int func_002044F0(int *arg0) {
         }
         func_00204140(a0);
     }
-    return CreateSema(arg0[0x40 / 4]);
+    return SignalSema(arg0[0x40 / 4]);
 }

@@ -26,8 +26,8 @@ extern int D_0027B060;
 
 extern void func_00122B58(char *fmt);
 extern void func_001118B8(void);
-extern int iSignalSema(int semid);
-extern void CreateSema(int semid);
+extern int PollSema(int semid);
+extern void SignalSema(int semid);
 extern int func_00112DC0(int arg);
 extern void func_0010E088(int arg);
 extern int func_0010E6F8(void *bd, unsigned int sid, unsigned int mode);
@@ -44,7 +44,7 @@ int func_00113280(int mode)
         func_00122B58(D_0026BD30);
     }
     func_001118B8();
-    r = iSignalSema(D_00241D0C);
+    r = PollSema(D_00241D0C);
     if (D_00241D0C != r) {
         return 6;
     }
@@ -83,13 +83,13 @@ int func_00113280(int mode)
     func_0010DFD8(&D_0027B060, 4);
     if (func_0010E8A8(D_0027AFB0, 0, 0, &D_0027B060, 4, D_0027AB40, 4, 0, 0) < 0) {
 error:
-        CreateSema(D_00241D0C);
+        SignalSema(D_00241D0C);
         return (mode != 8) ? 6 : -1;
     }
 
     if (D_00241CF8 > 0) {
         func_00122B58(D_0026BD60);
     }
-    CreateSema(D_00241D0C);
+    SignalSema(D_00241D0C);
     return *(volatile int *)((unsigned int)D_0027AB40 | 0x20000000);
 }

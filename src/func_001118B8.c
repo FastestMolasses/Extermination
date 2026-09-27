@@ -12,8 +12,8 @@
 // CFLAGS: -O2
 
 // Lazily create the three global semaphores used by this subsystem.
-// "EndOfHeap" is the project name for the EE syscall-64 stub, which is
-// really CreateSema(ee_sema_t *) -> semaphore id.
+// CreateSema (0x0010B820, EE syscall 64) takes an ee_sema_t * and returns
+// the semaphore id.
 typedef struct {
     int count;
     int max_count;
@@ -28,7 +28,7 @@ extern int D_00241D0C;
 extern int D_00241D10;
 extern int D_00241D14;
 
-extern int EndOfHeap(ee_sema_t *param);
+extern int CreateSema(ee_sema_t *param);
 
 void func_001118B8(void) {
     ee_sema_t sema;
@@ -39,9 +39,9 @@ void func_001118B8(void) {
     sema.option = 0;
     sema.max_count = 1;
     sema.init_count = 1;
-    D_00241D08 = EndOfHeap(&sema);
-    D_00241D0C = EndOfHeap(&sema);
+    D_00241D08 = CreateSema(&sema);
+    D_00241D0C = CreateSema(&sema);
     sema.init_count = 0;
-    D_00241D10 = EndOfHeap(&sema);
+    D_00241D10 = CreateSema(&sema);
     D_00241D14 = 0;
 }

@@ -5,7 +5,7 @@ extern int D_00276C98;
 struct C788 { int flag; int value; };
 extern struct C788 D_00276C90;
 extern int _iWakeupThread(void);
-extern void _iSignalSema(int sema);
+extern void iSignalSema(int sema);
 
 int func_0010C710(int a0) {
     int s0;
@@ -22,6 +22,6 @@ int func_0010C710(int a0) {
     }
     D_00276C90.flag = 0;
     D_00276C90.value = s0;
-    _iSignalSema(D_00276C98);
+    iSignalSema(D_00276C98);
     return s0;
 }

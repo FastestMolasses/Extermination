@@ -1,6 +1,6 @@
 // All-word: everything as .word except jal/j-external
-extern void CreateSema(int, int, int, int);
 extern void SignalSema(int, int, int, int);
+extern void WaitSema(int, int, int, int);
 
 asm void func_00204390(void) {
     .word 0x27bdffa0
@@ -15,7 +15,7 @@ asm void func_00204390(void) {
     .word 0x70a09e28
     .word 0x70c09628
     .word 0x70e08e28
-    jal       SignalSema
+    jal       WaitSema
     .word 0x71008628
     .word 0x8e850010
     .word 0x8e83000c
@@ -54,7 +54,7 @@ asm void func_00204390(void) {
     .word 0x00431023
     .word 0x00821023
     .word 0xae020000
-    jal       CreateSema
+    jal       SignalSema
     .word 0x8e840040
     .word 0x7bbf0050
     .word 0x7bb40040

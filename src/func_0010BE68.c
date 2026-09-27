@@ -1,7 +1,7 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern void *RFU060(void);
+extern void *EndOfHeap(void);
 extern int *func_0011FD78(void);
 
 extern char *D_00241C64;
@@ -29,7 +29,7 @@ void *func_0010BE68(int incr)
     }
 
     newbrk = D_00241C64 + incr;
-    if ((unsigned int)RFU060() < (unsigned int)newbrk) {
+    if ((unsigned int)EndOfHeap() < (unsigned int)newbrk) {
         *func_0011FD78() = 12;
         __asm__ __volatile__("ei");
         return (void *)0xFFFFFFFF;

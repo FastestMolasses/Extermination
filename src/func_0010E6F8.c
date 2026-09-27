@@ -12,10 +12,10 @@
 // CFLAGS: -O2
 
 extern void *func_0010E270(void *);
-extern int EndOfHeap(void *);
+extern int CreateSema(void *);
 extern int func_0010DE38(unsigned int, void *, int, int, int, int);
-extern int SignalSema(int);
-extern int RFU063(int);
+extern int WaitSema(int);
+extern int DeleteSema(int);
 
 extern unsigned char D_00278BC0[];
 
@@ -42,14 +42,14 @@ int func_0010E6F8(int a0, int a1, int a2) {
         } else {
             sema[2] = 0;  /* stack slot sp+0x8 */
             sema[1] = 1;  /* stack slot sp+0x4 */
-            *(int *)(a0 + 0x8) = EndOfHeap((void *)sema);
+            *(int *)(a0 + 0x8) = CreateSema((void *)sema);
             if (*(int *)(a0 + 0x8) < 0) {
                 rv = -3;
             } else if (func_0010DE38(0x80000009, blk, 0x40, 0, 0, 0) == 0) {
                 rv = -2;
             } else {
-                SignalSema(*(int *)(a0 + 0x8));
-                RFU063(*(int *)(a0 + 0x8));
+                WaitSema(*(int *)(a0 + 0x8));
+                DeleteSema(*(int *)(a0 + 0x8));
                 rv = 0;
             }
         }
