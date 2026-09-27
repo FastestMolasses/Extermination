@@ -29,6 +29,13 @@ findings. **Read it at the start of every session, and keep it up to date.**
   and engine behavior (large; grep it).
 - `docs/HANDOFF.md` — the short, current cross-repo entry point (goal, toolkit,
   state, next steps). Update it at the end of every session.
+- `docs/CURIOSITIES.md` — cut, hidden and unused content and engine quirks (the
+  source for the port's Enhanced cut-content switches; only `decoded` entries may
+  become switches). When work finds or decodes one, or proves an entry wrong,
+  update it in the same session, with its evidence and decode status; keep it
+  clean (no stale labels, duplicates or unsupported claims).
+- Delete docs that are obsolete or superseded (fix every reference to them);
+  git history keeps them. Don't let outdated docs linger.
 - The native port (`../extermination-port`) keeps its roadmap in its own docs:
   `docs/FIRST_LEVEL_AUDIT.md`, `docs/SCENE_COORDINATOR_DESIGN.md`,
   `docs/ORIGINAL_FRAME_ORDER.md` (see the port's CLAUDE.md).
