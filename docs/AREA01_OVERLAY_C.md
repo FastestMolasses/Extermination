@@ -6,40 +6,45 @@ Every C file is mwcc 2.3.3 (`// COMPILER: mwcc233`).
 
 | Runtime | File | Status | objdiff (overlay_match.py) |
 |---|---|---|---|
-| 0x823580 | overlay_AREA01_func_00823540.c | NEARMISS (jump table) | 99.99 |
+| 0x823580 | overlay_AREA01_func_00823540.c | byte-identical, links from C (jump table pinned) | 100 with the table placed (was NEARMISS 99.99) |
 | 0x823A90 | func_overlay_AREA01_00823A50.c | byte-identical, links from C | 100 (was NEARMISS 99.87) |
-| 0x823CD0 | func_overlay_AREA01_00823C90.c | NEARMISS (two jump tables) | 99.98 |
-| 0x824340 | func_overlay_AREA01_00824300.c | NEARMISS (jump table) | 99.99 |
+| 0x823CD0 | func_overlay_AREA01_00823C90.c | byte-identical, links from C (two jump tables pinned) | 100 with the tables placed (was NEARMISS 99.98) |
+| 0x824340 | func_overlay_AREA01_00824300.c | byte-identical, links from C (jump table pinned) | 100 with the table placed (was NEARMISS 99.99) |
 | 0x824770 | func_overlay_AREA01_00824730.c | byte-identical, links from C | 100 (was NEARMISS 99.08) |
 | 0x826D40 | func_overlay_AREA01_00826D00.c | byte-identical, links from C | 100 (was assembly) |
 | 0x8282F0 | func_overlay_AREA01_008282B0.c | byte-identical, links from C | 100 (was NEARMISS 89.86) |
 
-AREA01 now has 37 of its 41 functions as linked C, 3 NEARMISS, and the
-asm-void entry pad. `link_overlay.py AREA01` passes: the whole file is
-byte-identical, and 38 objects are copied from `obj/`. The four new objects
+AREA01 now has 40 of its 41 functions as linked C plus the asm-void entry
+pad, and no NEARMISS: every code object is copied from `obj/` (41 of 41).
+`link_overlay.py AREA01` passes: the whole file is byte-identical. (Lane
+JTLINK, 2026-09-28, promoted the three dispatchers; see the next section.)
+When lane A01C finished, 38 objects were copied from `obj/`. The four new objects
 were compared with their linked filler objects. They differ only in the
 GPREL16 fields that were applied beforehand and in the zero padding at the
 end.
 
-## Why the three dispatchers stay NEARMISS
+## The three jump-table dispatchers link from C (lane JTLINK)
 
-For 0x823580, 0x823CD0 and 0x824340, the instructions compiled from the C
-are byte-identical. The jump tables are byte-identical too, but only when two
-conditions hold:
+For 0x823580, 0x823CD0 and 0x824340 the instructions compiled from the C are
+byte-identical, and so are the four jump tables (runtime 0x82CB80, 0x82CBA0,
+0x82CBD0, 0x82CBF0), under two conditions: each table sits at the address the
+original's lui/addiu pair builds, and each entry is resolved at its runtime
+address (link + 0x40). Lane A01C found this with a scratch resolver and left
+the three as NEARMISS because the overlay link did neither: it put a compiled
+`.rodata` after the data section and resolved everything at link addresses,
+0x40 low.
 
-- the table is placed at the address that the original's lui/addiu pair
-  builds;
-- each entry is resolved at its runtime address (link + 0x40).
-
-The overlay link does neither. `link_overlay.py` puts a compiled `.rodata`
-after the data section, and it resolves the table address and the entries at
-link addresses, which are 0x40 below the values the original stores. A tool
-change would turn all three into linked C. The change would place a compiled
-local jump table at the runtime address the original code uses, and resolve
-its `.text` entries with a +0x40 bias. The other option is to link overlays
-at load + 0x40. This lane did not make either change, because
-`tools/overlay/` is outside its scope. The check used a scratch resolver,
-`build/a01c/jtcheck.py`, which is not committed.
+`tools/overlay/link_overlay.py` now does both (`tools/overlay/jt_pin.py`; the
+rule is in docs/OVERLAYS.md section 6). It proves each table's runtime address
+from the original instruction pair, requires the resolved table to equal the
+original bytes, adds the +0x40 run bias to the table-address and entry
+addends of a link copy of the object, and splits the data-section object so
+the compiled table fills its original span. The ld map confirms the four
+tables at link 0x82CB40, 0x82CB60, 0x82CB90 and 0x82CBB0. With the markers
+removed, `link_overlay.py AREA01` passes (full file byte-identical). The
+pre-change link tool on the same compiled objects fails (8 bytes: the
+table-address %lo fields, 0x40 low), so the pass comes from the compiled
+objects and the new placement.
 
 ## Idioms that closed the residuals (see docs/fanout/MATCHING_GUIDE.md)
 

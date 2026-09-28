@@ -1,26 +1,18 @@
-// NEARMISS func_overlay_AREA01_00823C90  (runtime 0x00823CD0, 0x40C bytes) — readable decompilation, NOT linked from C.
-//
-// objdiff 99.98% via mwccps2 2.3.3 (tools/overlay/overlay_match.py check AREA01 <this file>;
-// the only unresolved operands are the jump-table %hi/%lo). Not compiled by
-// tools/overlay/compile_overlay_src.py; the overlay links this function from its
-// splat pieces. Splat names overlay code 0x40 below its runtime address (the MWo3
-// header is loaded first).
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 4
+// AREA01 overlay, runtime 0x00823CD0 (splat/link name 00823C90; overlay code is
+// linked 0x40 below where it runs), 0x40C bytes. Byte-identical C, linked from
+// its compiled object: the text and both jump tables (runtime 0x0082CBA0 and
+// 0x0082CBD0) match the original. The compiled .rodata is placed by
+// tools/overlay/jt_pin.py at the table's original address, with the table
+// address and its case-label entries resolved at runtime addresses (link +
+// 0x40), which is what the original stores.
 // Role: O3 owner. +4 (jump table, 6 entries): 0 = set-up (func_001BA1C0 id 7,
 //  then func_00128AB0 / func_00129780), 1 = run: +5 (jump table, 10 entries)
 //  dispatches to 0x8240E0, 0x824340, 0x824770 and 0x824D50, then the common
 //  func_001C64F0 / func_00102958 / func_001C69A0 tail and the +0x4C callback;
 //  2 and 3 call func_001AFC10; 4 falls into 5, which waits for +0x3C to reach
 //  509.0 (+4 = 3) and, at 510.0, calls func_001EFD90(0x80000009, ...).
-// The compiled instructions are byte-identical to the original, and so is the
-// jump table once it is placed where the original's lui/addiu pair points and
-// its entries are resolved at runtime addresses (link + 0x40); checked with a
-// scratch resolver on top of tools/overlay/overlay_match.py. It stays NEARMISS
-// only because the overlay link cannot do that yet: link_overlay.py places a
-// compiled .rodata after the data section and resolves the table entries and
-// the table address at link addresses, 0x40 below the runtime values the
-// original stores (docs/PROGRESS.md, AREA01 overlay entry).
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 4
 extern char *D_00275B40;
 extern unsigned char D_002758C8[4];
 extern int D_0028A6E8[2];

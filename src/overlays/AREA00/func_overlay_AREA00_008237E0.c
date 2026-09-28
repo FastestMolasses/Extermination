@@ -1,19 +1,17 @@
-// NEARMISS func_overlay_AREA00_008237E0  (runtime 0x00823820, 0x430 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.22% via mwccps2 2.3.3 (tools/overlay/overlay_match.py check AREA00 <this file>).
-// Not compiled by tools/overlay/compile_overlay_src.py; the overlay links this
-// function from its splat piece. Splat names overlay code 0x40 below its runtime
-// address (the MWo3 header is loaded first).
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA00 overlay, runtime 0x00823820 (splat/link name 008237E0; overlay
+// code is linked 0x40 below where it runs). Byte-identical (objdiff 100%,
+// tools/overlay/overlay_match.py check AREA00).
 // Role: eight puffs in block +0x1F0 (timers at +8, four floats each at +0x28):
 //  state 0 randomises them; state 1 counts each timer down, draws two packets
 //  per live puff (tables 0x8287E0 / 0x828870), a func_001CD520 sprite while its
 //  first value is under 0.3, re-arms it (timer rand % 60 + 40) past 1.5, then
 //  calls func_001FC3C0(self, block, 0x41C, 200, 4096).
-// Residual: list scheduling of the func_001CD520 argument block (the colour OR
-//  chain and the 2.0 z-bias load are placed differently); everything else
-//  including register allocation matches.
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// Matching: func_001CD520 is declared with the colour word before the three
+//  floats (the order func_001F1F60 uses); the integer argument still goes in
+//  t0 and the floats in f12-f14, so the call is the same, but the declared
+//  order sets mwcc's argument scheduling.
 typedef struct {
     float a;
     float b;
@@ -39,7 +37,7 @@ extern void func_00102948(void *dst, void *src);
 extern int func_001CCF70(void *p);
 extern int func_001281C0(float f);
 extern int func_001CD520(int bucket, int mode, void *world, unsigned long long giftag,
-                         float w, float h, float zbias, unsigned int rgba);
+                         unsigned int rgba, float w, float h, float zbias);
 extern void func_001CFA60(void *sp, void *pos, float f12, float f13);
 extern void func_001CFBE0(int a0, int a1, void *a2, void *a3, int t0);
 extern void func_001FC3C0(void *a0, void *a1, int a2, float f12, float f13);
@@ -83,8 +81,8 @@ void func_overlay_AREA00_008237E0(unsigned char *self) {
                 D_70003604 = func_001281C0(t) << 8;
                 D_70003608 = func_001281C0(t) << 16;
                 w = 1.0f + 3.0f * fx->p[i].a / 0.3f;
-                func_001CD520(0, 2, D_700036D0, 0x20045B2599421E98ULL, w, w, 2.0f,
-                              0x80000000 | D_70003608 | D_70003604 | D_70003600);
+                func_001CD520(0, 2, D_700036D0, 0x20045B2599421E98ULL,
+                              0x80000000 | D_70003608 | D_70003604 | D_70003600, w, w, 2.0f);
             }
             func_001CFA60(pkt, D_700036A0, fx->p[i].a, fx->p[i].c);
             func_001CFBE0(h, 2, D_overlay_AREA00_008287E0, pkt, 0);

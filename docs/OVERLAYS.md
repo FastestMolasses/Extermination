@@ -382,9 +382,37 @@ per-batch tallies). Current per-overlay match state is in `docs/PROGRESS.md`
 - Hybrid asm-void (`tools/overlay/gen_asm_void.py`): works when every %hi/%lo pair
   builds the address in the destination register itself.
 - Jump-table dispatchers: splat splits switch cases into separate "functions";
-  merging them with their dispatcher is a lever, but a C switch in an overlay does
-  not link yet (table entries resolve to link addresses 0x40 below the runtime
-  values; see PROGRESS, AREA01 overlay entry).
+  merging them with their dispatcher is a lever. A C switch links from C
+  (2026-09-28, lane JTLINK; five dispatchers in AREA00/AREA01): see "Link rule
+  for compiled jump tables" below.
+
+**Link rule for compiled jump tables.** Overlays link 0x40 below where they
+run (runtime = link + 0x40), and the original code stores runtime addresses:
+the lui/addiu pair builds the table's runtime address T, and each entry is the
+runtime address of a case label. The splat assembly carries both as plain
+numbers, so it links unchanged; a compiled switch carries its table in its own
+`.rodata` with both as relocations. `link_overlay.py` (step 3,
+`tools/overlay/jt_pin.py`) therefore, for every code object with a non-empty
+`.rodata`:
+1. proves T for each `.rodata` section from the original instruction pair at
+   the same place as each HI16/LO16 pair against it (all pairs must agree),
+   checks T against the section alignment, resolves the section's R_MIPS_32
+   entries at runtime addresses and requires them to equal the original bytes
+   at T;
+2. writes a link copy (`filler/_pin/<func>.o`) with +0x40 added to exactly
+   those in-place addends (the table-address pairs and the entries) and the
+   section renamed `.ovlpin.<func>.<k>`;
+3. splits the data-section object around the link span [T - 0x40, T - 0x40 +
+   size) and emits the pieces and the pinned sections in address order inside
+   `.data`, so the compiled table bytes fill the original span; data symbols
+   in a carved span become absolute definitions at their unchanged link
+   address;
+4. after the link, checks the ld map (`AREAXX_raw.map`) for every pinned
+   section at T - 0x40.
+A table that fails a check stops the link with the reason (there is no
+correct placement for it); the whole-file byte comparison stays the final
+check. The boot ELF has the same idea in `tools/decomp/rodata_pin.py`, without
+the bias.
 
 **Patterns that do not match (as of the 2026-05 batches).**
 - Cross-register %hi/%lo (the %hi built in one register, the %lo added into
@@ -424,7 +452,10 @@ Copies compiled `.o` from `build/overlays/AREAXX/obj/` when available.
 ### `tools/overlay/link_overlay.py`
 GNU ld-based linker (replaces mwldmips for overlays):
 - Generates `config/overlays/AREAXX.lds`
-- Partial relocatable link → R_MIPS_PC16 addend fix → final link
+- Places compiled local jump tables at their original addresses with the
+  +0x40 run bias (`tools/overlay/jt_pin.py`; rule in section 6)
+- Partial relocatable link → R_MIPS_PC16 addend fix → final link (with an ld
+  map, checked for the pinned tables)
 - Extracts `.text`+`.data` from ELF section headers
 - Prepends MWo3 header → byte-identity verification
 

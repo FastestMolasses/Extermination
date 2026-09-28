@@ -1,9 +1,8 @@
-// NEARMISS func_overlay_AREA00_00824790  (runtime 0x008247D0, 0x3E0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.74% via mwccps2 2.3.3 (tools/overlay/overlay_match.py check AREA00 <this file>).
-// Not compiled by tools/overlay/compile_overlay_src.py; the overlay links this
-// function from its splat piece. Splat names overlay code 0x40 below its runtime
-// address (the MWo3 header is loaded first).
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA00 overlay, runtime 0x008247D0 (splat/link name 00824790; overlay
+// code is linked 0x40 below where it runs). Byte-identical (objdiff 100%,
+// tools/overlay/overlay_match.py check AREA00).
 // Role: state 0 builds the +0xD0 matrix, points +0x30 at the block of the
 //  record at +0x14 and +0x34 at 0x8247C0 (the runtime address of the empty
 //  function func_overlay_AREA00_00824780, written D_008247C0 here), seeds a
@@ -11,10 +10,12 @@
 //  scale 8 * min(t, 1), submit two packets (tables 0x828A60 / 0x828AF0), move
 //  by the velocity and stop (state 2, then 3) at t > 1.2 or on
 //  func_0019A570(block + 0x30, +0xB0, 6, 0).
-// Residual: one branch delay slot: after the min(t, 1) test the original
-//  leaves a nop where mwcc 2.3.3 hoists the next constant load.
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// Matching: the min(t, 1) clamp is the ternary `d = (d > 1.0f) ? 1.0f : d`;
+//  the if-statement form lets mwcc 2.3.3 speculate the next constant into the
+//  bc1t delay slot, which the original leaves as a nop (as in func_001CD2B0).
+// D_008247C0 is the runtime address of the empty function at link 0x824780,
+//  stored as data; keep it an absolute symbol (a C function reference would
+//  link 0x40 low).
 typedef struct {
     float scale[3];     /* 0x00 */
     int pad0C;          /* 0x0C */
@@ -81,9 +82,7 @@ void func_overlay_AREA00_00824790(unsigned char *self) {
         *(float *)(self + 0x108) = *(float *)(self + 0xB8);
         D_70003A20 = fx->t;
         d = fx->t;
-        if (!(d <= 1.0f)) {
-            d = 1.0f;
-        }
+        d = (d > 1.0f) ? 1.0f : d;
         D_70003A20 = d;
         fx->scale[0] = 8.0f * D_70003A20;
         fx->scale[1] = 8.0f * D_70003A20;

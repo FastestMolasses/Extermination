@@ -1,24 +1,18 @@
-// NEARMISS overlay_AREA00_func_00823540  (runtime 0x00823580, 0x294 bytes) — readable decompilation, NOT linked from C.
-//
-// objdiff 99.99% via mwccps2 2.3.3 (tools/overlay/overlay_match.py check AREA00 <this file>;
-// the only unresolved operands are the jump-table %hi/%lo). Not compiled by
-// tools/overlay/compile_overlay_src.py; the overlay links this function from its
-// splat piece. Splat names overlay code 0x40 below its runtime address (the MWo3
-// header is loaded first).
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA00 overlay, runtime 0x00823580 (splat/link name 00823540; overlay code is
+// linked 0x40 below where it runs), 0x294 bytes. Byte-identical C, linked from
+// its compiled object: the text and the jump table (8 entries at runtime
+// 0x0082D400) match the original. The compiled .rodata is placed by
+// tools/overlay/jt_pin.py at the table's original address, with the table
+// address and its case-label entries resolved at runtime addresses (link +
+// 0x40), which is what the original stores.
 // Role: owner with state +4. 0: func_001BBDA0; +0 = 1, or (D_0081075A not 0xFF)
 //  +0 = 2, +5 = 5 and script 0x8284E0. 1: the talk program selected by +5 through
 //  a jump table (func_001BBE40 / func_001BC0E0 / func_001BC240 / func_001BC290 steps;
 //  +5 0 branches on D_0081075E / D_0081075D with func_0019C6F0; +5 5 ends the talk
 //  and restarts clip 0; +5 6 starts script 0x8286E0 on +0xB bit 2; +5 7 calls
 //  func_001B0C60(1, 0xFF, 0) at script end), then func_001BC300. 2, 3: func_001AFC10.
-// The compiled instructions are byte-identical to the original, and so is the
-// jump table (8 entries at 0x0082D400) once it is placed where the original's
-// lui/addiu pair points and its entries are resolved at runtime addresses
-// (link + 0x40); checked with a scratch resolver on top of
-// tools/overlay/overlay_match.py. It stays NEARMISS only because the overlay link
-// cannot place a compiled jump table yet (docs/PROGRESS.md, AREA01 overlay entry).
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
 extern unsigned char D_0081075A;
 extern unsigned char D_0081075D;
 extern unsigned char D_0081075E;

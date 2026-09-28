@@ -1,25 +1,17 @@
-// NEARMISS func_overlay_AREA01_00824300  (runtime 0x00824340, 0x42C bytes) — readable decompilation, NOT linked from C.
-//
-// objdiff 99.99% via mwccps2 2.3.3 (tools/overlay/overlay_match.py check AREA01 <this file>;
-// the only unresolved operands are the jump-table %hi/%lo). Not compiled by
-// tools/overlay/compile_overlay_src.py; the overlay links this function from its
-// splat pieces. Splat names overlay code 0x40 below its runtime address (the MWo3
-// header is loaded first).
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA01 overlay, runtime 0x00824340 (splat/link name 00824300; overlay code is
+// linked 0x40 below where it runs), 0x42C bytes. Byte-identical C, linked from
+// its compiled object: the text and the jump table (9 entries at runtime
+// 0x0082CBF0) match the original. The compiled .rodata is placed by
+// tools/overlay/jt_pin.py at the table's original address, with the table
+// address and its case-label entries resolved at runtime addresses (link +
+// 0x40), which is what the original stores.
 // Role: called from 0x823CD0 for +5 in 2..5 with (self, self + 0x1F0).
 //  func_001C2770(self, block, 2) first; +6 (jump table, 9 entries) steps a
 //  sequence of func_00128830 / func_001287F0 calls and the 0x825040,
 //  0x824FE0 and 0x824F70 helpers; func_001C3D60 runs when the func_001C2770
 //  result was 0.
-// The compiled instructions are byte-identical to the original, and so is the
-// jump table once it is placed where the original's lui/addiu pair points and
-// its entries are resolved at runtime addresses (link + 0x40); checked with a
-// scratch resolver on top of tools/overlay/overlay_match.py. It stays NEARMISS
-// only because the overlay link cannot do that yet: link_overlay.py places a
-// compiled .rodata after the data section and resolves the table entries and
-// the table address at link addresses, 0x40 below the runtime values the
-// original stores (docs/PROGRESS.md, AREA01 overlay entry).
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
 extern int func_001C2770(unsigned char *self, unsigned char *talk, int mode);
 extern void func_001C3D60(unsigned char *self, unsigned char *talk);
 extern void func_0012D580(unsigned char *self, unsigned char *talk, int held);

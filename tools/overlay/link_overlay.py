@@ -13,10 +13,15 @@ for the boot ELF (thousands of objects; the larger link doesn't crash).
 Pipeline:
   1. (Optionally) runs fill_overlay.py to assemble all .s → .o.
   2. Generates a GNU ld script at config/overlays/AREAXX.lds.
-  3. Invokes mipsel-linux-gnu-ld.
-  4. Extracts the loadable region (text+data at vram 0x823500) from the ELF.
-  5. Prepends the 64-byte MWo3 header (copied verbatim from the original BIN).
-  6. Verifies byte-identity against the original disc file.
+  3. Places every compiled local .rodata (a C switch's jump table) at the
+     original table's address and resolves the table address and its entries
+     at runtime addresses, link + 0x40 (tools/overlay/jt_pin.py): biased,
+     renamed object copies and the split data-section pieces go under
+     filler/_pin/, and the ld map is checked for the placement afterwards.
+  4. Invokes mipsel-linux-gnu-ld.
+  5. Extracts the loadable region (text+data at vram 0x823500) from the ELF.
+  6. Prepends the 64-byte MWo3 header (copied verbatim from the original BIN).
+  7. Verifies byte-identity against the original disc file.
 
 Usage (inside exterm-toolchain container, repo at /work):
     python3 tools/overlay/link_overlay.py AREA18 [--no-fill] [--dry-run] [--no-verify]
@@ -37,6 +42,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import jt_pin  # noqa: E402
 
 # Overlay arena base — all overlays load here.
 ARENA_BASE = 0x00823500
@@ -116,7 +123,9 @@ def parse_mwo3_header(data: bytes) -> dict:
 def generate_lds(name: str, funcs: list[str], data_stems: list[str],
                  hdr: dict, filler_dir: Path,
                  merged_code_obj: Path | None = None,
-                 absorbed: dict[str, int] | None = None) -> str:
+                 absorbed: dict[str, int] | None = None,
+                 data_layout: dict[str, list[tuple[str, str]]] | None = None,
+                 pin_owner: dict[str, str] | None = None) -> str:
     """
     Generate a GNU ld linker script for one overlay.
 
@@ -127,6 +136,11 @@ def generate_lds(name: str, funcs: list[str], data_stems: list[str],
 
     All external symbol references (GP, EE vectors, BSS data labels) are
     defined as absolute so GNU ld can resolve them without an ELF symbol table.
+
+    data_layout maps a data-section stem that jt_pin split around pinned
+    compiled jump tables to its ordered ("piece", path) / ("pin", section)
+    sequence; pin_owner maps each pinned section name to the object that holds
+    it (the merged code object after the partial link).
     """
     load = hdr['load_address']   # 0x00823500
 
@@ -142,10 +156,21 @@ def generate_lds(name: str, funcs: list[str], data_stems: list[str],
         code_text   = "".join(
             f'        "{filler_dir}/{fn}.o" (.text)\n' for fn in funcs)
 
-    data_inputs = "".join(
-        f'    "{filler_dir}/{stem}.o"\n' for stem in data_stems)
-    data_data = "".join(
-        f'        "{filler_dir}/{stem}.o" (.data)\n' for stem in data_stems)
+    data_layout = data_layout or {}
+    pin_owner = pin_owner or {}
+    data_inputs = ""
+    data_data = ""
+    for stem in data_stems:
+        if stem not in data_layout:
+            data_inputs += f'    "{filler_dir}/{stem}.o"\n'
+            data_data += f'        "{filler_dir}/{stem}.o" (.data)\n'
+            continue
+        for kind, what in data_layout[stem]:
+            if kind == "piece":
+                data_inputs += f'    "{what}"\n'
+                data_data += f'        "{what}" (.data)\n'
+            else:
+                data_data += f'        "{pin_owner[what]}" ({what})\n'
 
     lds = f"""\
 /* {name}.lds -- GNU ld linker script for Extermination overlay {name}
@@ -433,6 +458,80 @@ def extract_raw_from_elf(elf_path: Path, text_size: int, data_size: int) -> byte
 
 
 # ---------------------------------------------------------------------------
+# Compiled jump tables (tools/overlay/jt_pin.py)
+# ---------------------------------------------------------------------------
+
+def pin_jump_tables(funcs: list[str], d_stems: list[str], filler_dir: Path,
+                    asm_dir: Path, overlay_build: Path, load: int,
+                    orig_data: bytes):
+    """Plan and prepare every compiled local .rodata in the code objects.
+
+    Returns (link_objs, data_layout, pin_abs, plans): link_objs maps a code
+    function to the object the partial link must use (the biased, renamed
+    copy for a function with pinned tables), data_layout the split order of
+    each affected data-section object, pin_abs the data symbols that sat in a
+    carved span. Raises jt_pin.PinError when a table cannot be placed.
+    """
+    data_dir = overlay_build / "asm" / "data"
+    s_files = sorted(f for f in data_dir.glob("*.s")
+                     if not f.name.endswith("_header.s")) if data_dir.exists() else []
+    data_objs = [(stem, filler_dir / f"{stem}.o", _vram_from_asm(s))
+                 for stem, s in zip(d_stems, s_files)]
+    regions = jt_pin.data_regions([d for d in data_objs if d[1].exists()])
+    region_vram = {stem: vram for stem, _, vram in data_objs}
+
+    pin_dir = filler_dir / "_pin"
+    link_objs: dict[str, Path] = {}
+    plans = []
+    carves: dict[str, list[dict]] = {}
+    for fn in funcs:
+        obj = filler_dir / f"{fn}.o"
+        if not obj.exists():
+            continue
+        plan = jt_pin.plan_object(fn, obj, _vram_from_asm(asm_dir / f"{fn}.s"),
+                                  load, orig_data, regions)
+        if plan is None:
+            continue
+        copy = pin_dir / f"{fn}.o"
+        jt_pin.write_pinned_copy(plan, obj, copy)
+        link_objs[fn] = copy
+        plans.append(plan)
+        for sec in plan["sections"]:
+            carves.setdefault(sec["region"], []).append(sec)
+    data_layout: dict[str, list[tuple[str, str]]] = {}
+    pin_abs: dict[str, int] = {}
+    for stem, cs in carves.items():
+        layout, absolute = jt_pin.split_data(filler_dir / f"{stem}.o", stem,
+                                             region_vram[stem], cs, pin_dir)
+        data_layout[stem] = layout
+        pin_abs.update(absolute)
+    return link_objs, data_layout, pin_abs, plans
+
+
+def check_pin_map(map_path: Path, plans: list[dict]) -> list[str]:
+    """Confirm from the GNU ld map that every pinned section landed at its
+    planned link address. Returns a list of problems (empty = all placed)."""
+    placed: dict[str, int] = {}
+    lines = map_path.read_text(errors="replace").splitlines()
+    for i, line in enumerate(lines):
+        tok = line.split()
+        if not tok or not tok[0].startswith(jt_pin.PIN_PREFIX):
+            continue
+        # GNU ld wraps long section names: the address is on the next line.
+        rest = tok[1:] if len(tok) > 1 else (lines[i + 1].split() if i + 1 < len(lines) else [])
+        if rest and rest[0].startswith("0x"):
+            placed[tok[0]] = int(rest[0], 16)
+    problems = []
+    for plan in plans:
+        for sec in plan["sections"]:
+            got = placed.get(sec["name"])
+            if got != sec["link"]:
+                problems.append(f"{sec['name']}: planned link 0x{sec['link']:08x}, "
+                                f"map says {'missing' if got is None else f'0x{got:08x}'}")
+    return problems
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -513,12 +612,25 @@ def main(argv: list[str]) -> int:
         for m in missing[:5]:
             print(f"  {m}", file=sys.stderr)
 
+    # Step 3b: compiled local jump tables go where the original keeps them.
+    try:
+        link_objs, data_layout, pin_abs, pin_plans = pin_jump_tables(
+            funcs, d_stems, filler_dir, asm_dir, overlay_build,
+            hdr['load_address'], orig_data)
+    except jt_pin.PinError as e:
+        print(f"[link] ERROR: compiled .rodata cannot be placed: {e}", file=sys.stderr)
+        return 1
+    for plan in pin_plans:
+        for sec in plan["sections"]:
+            print(f"[pin] {plan['stem']}: .rodata 0x{sec['size']:x} bytes at runtime "
+                  f"0x{sec['runtime']:08x} (link 0x{sec['link']:08x}, in {sec['region']})")
+
     # Step 4a: partial relocatable link of all code objects.
     # Splat can emit cross-object branch targets as .L (GNU local) labels, which
     # are undefined between object files.  A partial link (-r) merges all code
     # objects into one, resolving .L refs before the final link.
     overlay_build.mkdir(parents=True, exist_ok=True)
-    code_objs = [str(filler_dir / f"{fn}.o") for fn in funcs]
+    code_objs = [str(link_objs.get(fn, filler_dir / f"{fn}.o")) for fn in funcs]
     merged_code_obj = filler_dir / "_code_merged.o"
 
     partial_cmd = GNU_LD + ["-r", "-o", str(merged_code_obj)] + code_objs
@@ -535,15 +647,20 @@ def main(argv: list[str]) -> int:
         print(f"[link] fixed {n_fixed} R_MIPS_PC16 addend(s) in merged object")
 
     # Step 4b: generate final LDS using the merged code object.
+    pin_owner = {sec["name"]: str(merged_code_obj)
+                 for plan in pin_plans for sec in plan["sections"]}
     lds_text = generate_lds(name, funcs, d_stems, hdr, filler_dir,
                             merged_code_obj=merged_code_obj,
-                            absorbed=absorbed)
+                            absorbed={**absorbed, **pin_abs},
+                            data_layout=data_layout, pin_owner=pin_owner)
     lds_path.write_text(lds_text)
 
     # Step 4c: final link with GNU ld
+    map_path = overlay_build / f"{name}_raw.map"
     cmd = GNU_LD + [
         "-nostdlib",
         "-T", str(lds_path),
+        "-Map", str(map_path),
         "-o", str(out_elf_path),
     ]
 
@@ -562,6 +679,14 @@ def main(argv: list[str]) -> int:
 
     ls = out_elf_path.stat().st_size
     print(f"[link] GNU ld succeeded → {out_elf_path.relative_to(ROOT)} ({ls} bytes)")
+    if pin_plans:
+        problems = check_pin_map(map_path, pin_plans)
+        for p in problems:
+            print(f"[pin] NOT PLACED {p}", file=sys.stderr)
+        if problems:
+            return 2
+        print(f"[pin] {sum(len(p['sections']) for p in pin_plans)} compiled "
+              f"table(s) placed at their original addresses (ld map)")
 
     # Step 5: extract text+data from ELF
     raw_content = extract_raw_from_elf(out_elf_path, hdr['text_size'], hdr['data_size'])

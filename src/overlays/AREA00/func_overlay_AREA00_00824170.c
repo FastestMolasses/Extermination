@@ -1,20 +1,16 @@
-// NEARMISS func_overlay_AREA00_00824170  (runtime 0x008241B0, 0x608 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.84% via mwccps2 2.3.3 (tools/overlay/overlay_match.py check AREA00 <this file>).
-// Not compiled by tools/overlay/compile_overlay_src.py; the overlay links this
-// function from its splat piece. Splat names overlay code 0x40 below its runtime
-// address (the MWo3 header is loaded first).
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA00 overlay, runtime 0x008241B0 (splat/link name 00824170; overlay
+// code is linked 0x40 below where it runs). Byte-identical (objdiff 100%,
+// tools/overlay/overlay_match.py check AREA00).
 // Role: follows seven nodes of the record at +0x24 (indices at 0x828A40,
 //  node pointers at +0x110): +5 1 and +5 2 (every 10th count) spawn effect
 //  0x80000015 at each node's x/z with y = -65; +5 3 spawns it where a node
 //  crosses below y = -54; 0x63 ends (state 3). Two timers at +0x40 drive
 //  pairs from 0x828A30 (func_00102918 / func_001CCF70), stepping 0.004 and
 //  wrapping past 2.0.
-// Residual: argument-register choice in the state 0 node-height loop (the
-//  index pointer, counter and destination use a0/a2/a1 in the original, a1/a0/a2
-//  here); the identical loop after the switch matches.
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// Matching: every loop shares the one counter `i`; a second counter variable
+//  changes the argument-register choice in the state 0 node-height loop.
 typedef struct {
     float h[7];         /* 0x00 */
     int pad1C[9];       /* 0x1C */
@@ -40,7 +36,6 @@ extern void func_001AFC10(unsigned char *self);
 
 void func_overlay_AREA00_00824170(unsigned char *self) {
     int seed;
-    int k;
     int mode;
     Fx *fx = (Fx *)(self + 0x1F0);
     unsigned char *parent = *(unsigned char **)(self + 0x24);
@@ -53,8 +48,8 @@ void func_overlay_AREA00_00824170(unsigned char *self) {
         for (i = 0; i < 2; i++) {
             fx->t[i] = -1.5f * ((float)i / 2.0f);
         }
-        for (k = 0; k < 7; k++) {
-            fx->h[k] = *(float *)(NODE(parent, k) + 0xC4);
+        for (i = 0; i < 7; i++) {
+            fx->h[i] = *(float *)(NODE(parent, i) + 0xC4);
         }
         fx->seed = func_00122BB8();
         fx->counter = 0;
@@ -74,9 +69,9 @@ void func_overlay_AREA00_00824170(unsigned char *self) {
         case 0:
             break;
         case 1:
-            for (k = 0; k < 7; k++) {
-                D_700038A0[0] = *(float *)(NODE(parent, k) + 0xC0);
-                D_700038A0[2] = *(float *)(NODE(parent, k) + 0xC8);
+            for (i = 0; i < 7; i++) {
+                D_700038A0[0] = *(float *)(NODE(parent, i) + 0xC0);
+                D_700038A0[2] = *(float *)(NODE(parent, i) + 0xC8);
                 D_700038A0[1] = -65.0f;
                 D_700038A0[3] = 1.0f;
                 e = func_001F00A0(0x80000015, D_700038A0, D_700038A0, 0);
@@ -89,9 +84,9 @@ void func_overlay_AREA00_00824170(unsigned char *self) {
             break;
         case 2:
             if (fx->counter % 10 == 0) {
-                for (k = 0; k < 7; k++) {
-                    D_700038A0[0] = *(float *)(NODE(parent, k) + 0xC0);
-                    D_700038A0[2] = *(float *)(NODE(parent, k) + 0xC8);
+                for (i = 0; i < 7; i++) {
+                    D_700038A0[0] = *(float *)(NODE(parent, i) + 0xC0);
+                    D_700038A0[2] = *(float *)(NODE(parent, i) + 0xC8);
                     D_700038A0[1] = -65.0f;
                     e = func_001F00A0(0x80000015, D_700038A0, D_700038A0, 0);
                     if (e != 0) {
@@ -102,11 +97,11 @@ void func_overlay_AREA00_00824170(unsigned char *self) {
             }
             break;
         case 3:
-            for (k = 0; k < 7; k++) {
-                if (*(float *)(NODE(parent, k) + 0xC4) < -54.0f) {
-                    if (!(fx->h[k] <= -54.0f)) {
-                        D_700038A0[0] = *(float *)(NODE(parent, k) + 0xC0);
-                        D_700038A0[2] = *(float *)(NODE(parent, k) + 0xC8);
+            for (i = 0; i < 7; i++) {
+                if (*(float *)(NODE(parent, i) + 0xC4) < -54.0f) {
+                    if (!(fx->h[i] <= -54.0f)) {
+                        D_700038A0[0] = *(float *)(NODE(parent, i) + 0xC0);
+                        D_700038A0[2] = *(float *)(NODE(parent, i) + 0xC8);
                         D_700038A0[1] = -65.0f;
                         D_700038A0[3] = 1.0f;
                         e = func_001F00A0(0x80000015, D_700038A0, D_700038A0, 0);
@@ -123,8 +118,8 @@ void func_overlay_AREA00_00824170(unsigned char *self) {
             break;
         }
         fx->counter++;
-        for (k = 0; k < 7; k++) {
-            fx->h[k] = *(float *)(NODE(parent, k) + 0xC4);
+        for (i = 0; i < 7; i++) {
+            fx->h[i] = *(float *)(NODE(parent, i) + 0xC4);
         }
         seed = fx->seed;
         for (i = 0; i < 2; i++) {

@@ -1,24 +1,16 @@
-// NEARMISS overlay_AREA01_func_00823540  (runtime 0x00823580, 0x24C bytes) — readable decompilation, NOT linked from C.
-//
-// objdiff 99.99% via mwccps2 2.3.3 (tools/overlay/overlay_match.py check AREA01 <this file>;
-// the only unresolved operands are the jump-table %hi/%lo). Not compiled by
-// tools/overlay/compile_overlay_src.py; the overlay links this function from its
-// splat pieces. Splat names overlay code 0x40 below its runtime address (the MWo3
-// header is loaded first).
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA01 overlay, runtime 0x00823580 (splat/link name 00823540; overlay code is
+// linked 0x40 below where it runs), 0x24C bytes. Byte-identical C, linked from
+// its compiled object: the text and the jump table (7 entries at runtime
+// 0x0082CB80) match the original. The compiled .rodata is placed by
+// tools/overlay/jt_pin.py at the table's original address, with the table
+// address and its case-label entries resolved at runtime addresses (link +
+// 0x40), which is what the original stores.
 // Role: shaft door owner (placement [12]). +4: 0 calls func_001BBDA0 and sets
 //  +0 = 1; 1 runs the seven-step program selected by +5 through a jump table,
 //  then sets byte +0xB of the record at +0x1C to 1 when D_008107D9 is 0x81
 //  (else 0) and calls func_001BC300; 2 and 3 call func_001AFC10.
-// The compiled instructions are byte-identical to the original, and so is the
-// jump table once it is placed where the original's lui/addiu pair points and
-// its entries are resolved at runtime addresses (link + 0x40); checked with a
-// scratch resolver on top of tools/overlay/overlay_match.py. It stays NEARMISS
-// only because the overlay link cannot do that yet: link_overlay.py places a
-// compiled .rodata after the data section and resolves the table entries and
-// the table address at link addresses, 0x40 below the runtime values the
-// original stores (docs/PROGRESS.md, AREA01 overlay entry).
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
 extern unsigned char D_008107D9;
 extern char D_overlay_AREA01_00829860[];
 extern char D_overlay_AREA01_008298E0[];

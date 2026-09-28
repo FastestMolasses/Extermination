@@ -21,21 +21,21 @@ functions have C. The overlay link is byte-identical (`tools/overlay/build.py
 | link name | runtime | size | status |
 |---|---|---|---|
 | func_overlay_AREA00_00823500 | 0x823540 | 0x4 | asm pad (entry nop) |
-| overlay_AREA00_func_00823540 | 0x823580 | 0x294 | NEARMISS: jump table; text and table byte-identical under runtime placement |
-| func_overlay_AREA00_008237E0 | 0x823820 | 0x430 | NEARMISS 94.22% (func_001CD520 argument scheduling) |
+| overlay_AREA00_func_00823540 | 0x823580 | 0x294 | C, byte-identical; jump table pinned by the link (was NEARMISS, lane JTLINK) |
+| func_overlay_AREA00_008237E0 | 0x823820 | 0x430 | C, byte-identical (was NEARMISS 94.22%, lane A00NM) |
 | func_overlay_AREA00_00823C10 | 0x823C50 | 0x98 | C, byte-identical |
 | func_overlay_AREA00_00823CB0 | 0x823CF0 | 0x11C | C, byte-identical |
 | func_overlay_AREA00_00823DD0 | 0x823E10 | 0x98 | C, byte-identical |
-| func_overlay_AREA00_00823E70 | 0x823EB0 | 0x274 | NEARMISS 94.38% (argument scheduling) |
+| func_overlay_AREA00_00823E70 | 0x823EB0 | 0x274 | C, byte-identical (was NEARMISS 94.38%, lane A00NM) |
 | func_overlay_AREA00_008240F0 | 0x824130 | 0x78 | C, byte-identical |
-| func_overlay_AREA00_00824170 | 0x8241B0 | 0x608 | NEARMISS 99.84% (argument-register choice in one loop) |
+| func_overlay_AREA00_00824170 | 0x8241B0 | 0x608 | C, byte-identical (was NEARMISS 99.84%, lane A00NM) |
 | func_overlay_AREA00_00824780 | 0x8247C0 | 0x8 | C, byte-identical (earlier) |
-| func_overlay_AREA00_00824790 | 0x8247D0 | 0x3E0 | NEARMISS 99.74% (one delay slot) |
+| func_overlay_AREA00_00824790 | 0x8247D0 | 0x3E0 | C, byte-identical (was NEARMISS 99.74%, lane A00NM) |
 | func_overlay_AREA00_00824B70 | 0x824BB0 | 0x248 | C, byte-identical |
 | func_overlay_AREA00_00824DC0 | 0x824E00 | 0x3C | C, byte-identical (earlier) |
 | func_overlay_AREA00_00824E00 | 0x824E40 | 0x58 | C, byte-identical (was asm) |
 | func_overlay_AREA00_00824E60 | 0x824EA0 | 0x2D0 | C, byte-identical |
-| func_overlay_AREA00_00825130 | 0x825170 | 0x270 | NEARMISS: jump table; text and table byte-identical under runtime placement |
+| func_overlay_AREA00_00825130 | 0x825170 | 0x270 | C, byte-identical; jump table pinned by the link (was NEARMISS, lane JTLINK) |
 | func_overlay_AREA00_008253A0 | 0x8253E0 | 0x94 | C, byte-identical (was asm) |
 | func_overlay_AREA00_00825440 | 0x825480 | 0x174 | C, byte-identical |
 | func_overlay_AREA00_008255C0 | 0x825600 | 0x318 | C, byte-identical |
@@ -55,9 +55,14 @@ functions have C. The overlay link is byte-identical (`tools/overlay/build.py
 | func_overlay_AREA00_00826C70 | 0x826CB0 | 0x10 | C, byte-identical (earlier) |
 | func_overlay_AREA00_00826C80 | 0x826CC0 | 0x294 | C, byte-identical |
 
-Totals: 27 byte-identical C (28 compiled objects with the pad), 6 NEARMISS
-(2 of them only blocked by the jump-table link), 1 asm pad. Every compiled
-object is what the link uses (`fill_overlay.py`: 28 copied from obj/).
+Totals: 33 byte-identical C (34 compiled objects with the pad), 0 NEARMISS,
+1 asm pad: the whole overlay except the entry pad links from C. Every
+compiled object is what the link uses (`fill_overlay.py` copies obj/; the
+four A00NM objects' linked .text equals the compiled .text plus zero
+padding). Lane A00C ended at 27 and 6; lane JTLINK (2026-09-28) linked the
+two jump-table dispatchers from C; lane A00NM (2026-09-28) matched the last
+four (compile_overlay_src AREA00 + build.py --area AREA00: PASS, full file
+byte-identical).
 
 The role lines in each source header describe what the instructions do; they
 are not placement labels. Which placement record uses which function has not
@@ -87,11 +92,28 @@ been captured yet.
   NEARMISS source uses the absolute name `D_008247C0`.
 - Local 16-byte-aligned struct copies (`lq`/`sq`) come from a struct with
   `__attribute__((aligned(16)))` assigned from an extern of that type.
+- A float min clamp whose bc1t delay slot the original leaves empty is the
+  ternary `d = (d > 1.0f) ? 1.0f : d;` (0x8247D0, as in func_001CD2B0); the
+  if-statement form lets mwcc 2.3.3 copy the join's first constant into the
+  slot.
+- Loop counters: 0x8241B0 uses one counter variable for all seven loops; a
+  second counter changes the argument registers of the state 0 loop.
+- func_001CD520 argument scheduling (0x823820): declare the colour word before
+  the three floats, `(int, int, void *, u64, unsigned int rgba, float, float,
+  float)`, the order the matched func_001F1F60 uses. Registers are the same
+  (t0 and f12-f14); only the evaluation order changes.
+- 0x823EB0: accumulate the colour word in one local
+  (`c = (b >> 7) << 16; c |= (g >> 7) << 8; c |= r >> 7;`), and stage the 0.1
+  argument of func_001CFA60 from a block-local integer
+  (`int one = 1; float arg = (float)one * 0.1f;`, idiom-31) so the 0.1 is
+  materialized before the 1.0.
 
 ## Jump tables
 
 0x823580 and 0x825170 dispatch `+5` through tables at 0x82D400 (8 entries)
-and 0x82D420 (7 entries). Their C was checked with a scratch resolver that
-places the compiled `.rodata` at the table address and resolves the entries at
-link + 0x40: text and table are both byte-identical. They stay NEARMISS until
-the overlay link can place a compiled jump table (same blocker as AREA01).
+and 0x82D420 (7 entries). Both link from C. `tools/overlay/link_overlay.py`
+(with `tools/overlay/jt_pin.py`, rule in docs/OVERLAYS.md section 6) places
+each compiled `.rodata` at the table's original address, link 0x82D3C0 and
+0x82D3E0 (confirmed by the ld map), and resolves the table address and the
+entries at link + 0x40. `link_overlay.py AREA00` passes with the whole file
+byte-identical.

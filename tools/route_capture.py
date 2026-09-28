@@ -32,7 +32,7 @@ AREA01 beats (a01_*) start from the beat-15 snapshot and write to
 build/s87/route_a01/<beat>/; they are described in the port's
 docs/SECOND_LEVEL_ROUTE.md.
     .venv/bin/python tools/route_capture.py run --beats a00     # AREA00 group (opt-in), in order
-AREA00 beats (a00_*) start from the a01_07 snapshot and write to
+AREA00 beats (a00_*) start from the a01_07 snapshot or an earlier a00 beat and write to
 build/s87/route_a00/<beat>/; they are described in the port's
 docs/THIRD_LEVEL_ROUTE.md.
     .venv/bin/python tools/route_capture.py run --beats c7       # C7 capture group (opt-in)
@@ -1457,7 +1457,9 @@ def c7_selected(spec: str) -> list[tuple]:
 # arrival script) over the route as far as it was found: down to the floor,
 # the locked door [51], the south route to the cage door [55], its padlock
 # (001581A0, broken by a melee hit), the cage room's terminal [40] (which sends
-# the ferry 0x825600 east).  Outputs go to build/s87/route_a00/<beat>/
+# the ferry 0x825600 east); round 2 adds a00_05..a00_10, the progression
+# route to AREA00's exit (see the block above their beat functions).
+# Outputs go to build/s87/route_a00/<beat>/
 # (ignored); described in the port's docs/THIRD_LEVEL_ROUTE.md.  None of these
 # beats runs under `--beats all`.
 OUT_A00 = ROOT / "build/s87/route_a00"
@@ -1645,12 +1647,310 @@ def a00_beat_shaft_door_back(r: Route) -> dict:
     return {"what": "AREA00 shaft door [52] before D_0081075D: plain door to AREA01 entry 0"}
 
 
+# -- AREA00 progression (s88 round 2, lane capture) --------------------------
+# The way into the north-east room, found from the original code and then
+# played: the ferry (0x825600) at its raised east position carries the cab
+# [47] (0x8263C0); a ledge climb onto the cab's roof (y -19.5), a running
+# jump (0015EC50) east onto the container stack (y -10), the crate tops (the
+# "mezzanine", y -20) and the attribute-0x37 duct square of spawn entry 10.
+# Its duct entry (0016DE40 state 0: AREA00, z > -1470) puts the player at
+# (185.8, -1450) in the north-east room with D_00810702 = 5; door [51] then
+# stores D_0081075B = 0xFF.  [43] (0x825920) takes Use at entry 5: script
+# 0x82A540 (D_0081075D = 0xFF, D_00810701 = 1).  The room's barricade of
+# 001551B0 crates (deferred records 0x826F80[39..46]) blocks door [51]; the
+# second melee (Square, action 0x37) breaks the floor crates.  Back at the
+# shaft door [52] in sub-state 6, script 0x8286E0 (D_0081075E = 0xFF) and
+# 001B0C60(1, 0xFF, 0): the area change to AREA01.
+
+def a00_go(r: Route, points, tol: float = 1.2, limit: int = 500, magnitude: float = 1.0) -> None:
+    """walk_path that fails the beat when a waypoint is not reached."""
+    for x, z in points:
+        hist: list[tuple[float, float]] = []
+        for _ in range(limit):
+            if r.stick_toward(x, z, magnitude) <= tol:
+                break
+            row = r.step(1)
+            hist.append((row["pos"][0], row["pos"][2]))
+            if len(hist) > 45 and math.hypot(hist[-1][0] - hist[-45][0], hist[-1][1] - hist[-45][1]) < 0.3:
+                r.set_pad(0)
+                raise RuntimeError(f"blocked before {(x, z)}; last {summary(r.rows[-1])}")
+        else:
+            r.set_pad(0)
+            raise RuntimeError(f"{(x, z)} not reached; last {summary(r.rows[-1])}")
+    r.set_pad(0)
+
+
+def a00_push(r: Route, x: float, z: float, frames: int, magnitude: float = 0.5) -> None:
+    """Hold the stick toward (x, z) for a fixed number of frames (walks until blocked)."""
+    for _ in range(frames):
+        r.stick_toward(x, z, magnitude)
+        r.step(1)
+    r.set_pad(0)
+    settle(r, 5)
+
+
+def a00_long_frames(r: Route) -> None:
+    """The shaft door's script 0x8286E0 plays a movie inside one emulated frame
+    (about 110 s of host time), during which the emulator answers neither the
+    5 s Pine reads nor the 5 s DebugServer status polls: raise both."""
+    import socket as _socket
+    r.s.boundary_timeout = 900.0
+    pine = getattr(r.s, "pine", None)
+    if pine is not None:
+        pine.s.settimeout(300)
+    if type(r.s.debug).__name__ != "DebugServer":
+        return                  # route_census's persistent connection has its own timeout
+    port = r.s.debug.port
+
+    def call(cmd: dict) -> dict:
+        for _ in range(30):
+            try:
+                with _socket.create_connection(("127.0.0.1", port), timeout=30) as sock:
+                    sock.sendall((json.dumps(cmd) + "\n").encode())
+                    data = b""
+                    while b"\n" not in data:
+                        chunk = sock.recv(65536)
+                        if not chunk:
+                            raise EOFError("DebugServer closed the connection")
+                        data += chunk
+                response = json.loads(data.split(b"\n")[0])
+                if not response.get("ok"):
+                    raise RuntimeError(response)
+                return response
+            except (TimeoutError, _socket.timeout):
+                time.sleep(2)
+        raise TimeoutError("DebugServer did not answer")
+    r.s.debug.call = call
+
+
+def a00_crate_alive(r: Route, node: int) -> bool:
+    head = r.s.read(node, 0x14)
+    return head[4] == 4 and struct.unpack_from("<I", head, 0x10)[0] == 0x1551B0
+
+
+def a00_kick(r: Route, node: int, x: float, z: float, tries: int = 4) -> None:
+    """Second melee (Square, player action 0x37) at a floor crate 001551B0."""
+    for _ in range(tries):
+        if not a00_crate_alive(r, node):
+            return
+        px, _py, pz = r.rows[-1]["pos"]
+        if math.hypot(x - px, z - pz) > 9.0:     # the kick reaches only the crate in front
+            d = math.hypot(x - px, z - pz)
+            approach(r, x + 7.0 * (px - x) / d, z + 7.0 * (pz - z) / d, tol=0.8)
+            px, _py, pz = r.rows[-1]["pos"]
+        face(r, math.atan2(x - px, z - pz), tol=0.06)
+        r.press("SQUARE", 2, after=40)
+    if a00_crate_alive(r, node):
+        raise RuntimeError(f"crate {node:#x} not broken; last {summary(r.rows[-1])}")
+    for _ in range(300):                         # the broken crate keeps its collision until freed
+        head = r.s.read(node, 0x14)
+        if head[0] == 0 or struct.unpack_from("<I", head, 0x10)[0] != 0x1551B0:
+            break
+        r.step(1)
+
+
+def a00_beat_ferry_deck(r: Route) -> dict:
+    # From the terminal platform down the cage room's stairs, out through door
+    # [55] (room move to entry 4), west round the fence end at x 127 and east
+    # along the pit's south ledge (y -70) to the raised ferry's west side;
+    # a ledge climb (Use facing +x) onto its deck at y -48.
+    use_a00_sampler(r)
+    a00_go(r, [(227.5, -1630), (245, -1628), (259, -1628), (259, -1660), (259, -1690), (240, -1689),
+               (225, -1687)])
+    settle(r, 10)
+    approach(r, 222.0, -1686.0)
+    face(r, -math.pi / 2)
+    use_press(r, lambda row: not in_control(row))
+    r.until(lambda row: row["area4"][4:6] == "04" and in_control(row), 900)
+    settle(r, 20)
+    a00_go(r, [(185, -1685), (170, -1670), (150, -1667), (128, -1668), (100, -1675), (95, -1662), (95, -1655)])
+    settle(r, 10)
+    a00_push(r, 140.0, -1655.0, 110, 1.0)       # east until the ferry's side stops the walk
+    face(r, math.pi / 2)
+    use_press(r, lambda row: row["m1F0"] == 8)
+    r.until(in_control, 300)
+    settle(r, 10)
+    row = r.rows[-1]
+    if abs(row["pos"][1] + 48.0) > 0.1 or row["ground"] != hex(A00_OWNERS["ferry_r48"]):
+        raise RuntimeError("not on the ferry deck: " + summary(row))
+    return {"what": "cage room -> door [55] (entry 4) -> pit south ledge -> ledge climb onto the raised "
+                    "ferry's deck (y -48)", "hp_end": a01_hp(r)}
+
+
+def a00_beat_cab_roof(r: Route) -> dict:
+    # Onto the step [49] (0x825600 kind 0x15, y -40) with a ledge climb facing
+    # +z, off its north end, north along the deck's west walkway until the cab
+    # [47] stops the walk (z -1558.8), then Use facing +x: a ledge grab (action
+    # 0x10, +5 = 9) and stick up pulls the player onto the cab's roof (y -19.5).
+    use_a00_sampler(r)
+    a00_go(r, [(139.7, -1648)], tol=0.8, magnitude=0.6)
+    settle(r, 5)
+    approach(r, 139.75, -1641.0, tol=0.4, magnitude=0.4)   # pressed against the step, Use is not taken
+    face(r, 0.0, tol=0.05)
+    use_press(r, lambda row: row["m1F0"] == 8, tries=8)
+    r.until(in_control, 300)
+    settle(r, 10)
+    if abs(r.rows[-1]["pos"][1] + 40.04) > 0.1:
+        raise RuntimeError("not on the step: " + summary(r.rows[-1]))
+    for _ in range(300):                         # north off the step's end (z -1619)
+        r.stick_toward(139.7, -1400.0, 0.5)
+        r.step(1)
+        if abs(r.rows[-1]["pos"][1] + 48.0) < 0.1:
+            break
+    r.set_pad(0)
+    settle(r, 10)
+    a00_go(r, [(138.2, -1575.0)], tol=1.0, magnitude=0.6)
+    approach(r, 138.2, -1558.8, tol=0.3, magnitude=0.4)     # beside the cab's ladder (e9 of the s88 exploration)
+    face(r, math.pi / 2)
+    use_press(r, lambda row: row["m1F0"] in (8, 0x10), tries=8)
+    r.until(lambda row: row["m1F0"] == 0x10 and row["p5"] == 9, 300)
+    r.set_pad(0, 0x7F, 0x00)
+    r.until(lambda row: row["m1F0"] not in (0x10, 0x11), 300, 0, 0x7F, 0x00)
+    r.set_pad(0)
+    r.until(in_control, 300)
+    settle(r, 20)
+    row = r.rows[-1]
+    if abs(row["pos"][1] + 19.5) > 0.1 or row["ground"] != hex(A00_OWNERS["ferry_cab_r47"]):
+        raise RuntimeError("not on the cab roof: " + summary(row))
+    return {"what": "ferry deck -> step [49] -> walkway -> ledge grab at the cab [47] -> its roof (y -19.5)",
+            "hp_end": a01_hp(r)}
+
+
+def a00_beat_duct_to_ne_room(r: Route) -> dict:
+    # A running jump (Cross while running, 0015EC50) east off the cab roof onto
+    # the container stack (y -10), north onto the crate tops (y -20), to the
+    # attribute-0x37 square at (182.5..189.5, -1467..-1460) facing +z; the duct
+    # entry teleports into the north-east room (entry 5), control after a drop.
+    use_a00_sampler(r)
+    face(r, -math.pi / 2)
+    a00_go(r, [(146.0, -1558.8)], tol=0.5, magnitude=0.5)
+    face(r, math.pi / 2)
+    for _ in range(200):
+        r.stick_toward(260.0, -1558.8, 1.0)
+        r.step(1)
+        if r.rows[-1]["pos"][0] >= 160.0:
+            break
+    r.set_pad(PAD["CROSS"], r.pad_state[1], r.pad_state[2])
+    r.step(2)
+    r.stick_toward(260.0, -1558.8, 1.0)
+    r.until(lambda row: row["p5"] == 6, 30, 0, r.pad_state[1], r.pad_state[2])
+    r.until(lambda row: row["p5"] not in (6, 8) and abs(row["pos"][1] + 10.0) < 0.1, 200,
+            0, r.pad_state[1], r.pad_state[2])
+    r.set_pad(0)
+    settle(r, 10)
+    a00_go(r, [(200, -1540), (203, -1525)], tol=1.0, magnitude=0.8)
+    for _ in range(200):
+        r.stick_toward(203.0, -1505.0, 0.8)
+        r.step(1)
+        if r.rows[-1]["pos"][2] > -1508:
+            break
+    r.set_pad(0)
+    settle(r, 10)
+    a00_go(r, [(203, -1485), (203, -1472), (192, -1471)], tol=1.0, magnitude=0.7)
+    settle(r, 10)
+    approach(r, 186.0, -1465.0)
+    face(r, 0.0)
+    use_press(r, lambda row: row["p5"] in (0x18, 0x19, 0x1A))
+    r.until(lambda row: row["area4"][4:6] == "05" and in_control(row), 900)
+    settle(r, 30)
+    if r.rows[-1]["story758"][6:8] != "ff":
+        raise RuntimeError("D_0081075B not 0xFF: " + summary(r.rows[-1]))
+    return {"what": "running jump cab roof -> container (y -10) -> crate tops (y -20) -> duct square of "
+                    "entry 10 -> north-east room at entry 5 (D_0081075B = 0xFF)", "hp_end": a01_hp(r)}
+
+
+def a00_beat_switch(r: Route) -> dict:
+    # [43] (0x825920, class 0x88) publishes itself only at entry 5/6; Use from
+    # 5 units south of it runs script 0x82A540: D_0081075D = 0xFF and
+    # D_00810701 = 1 (the screen fades out and back in around the script).
+    use_a00_sampler(r)
+    a00_long_frames(r)          # one frame of the script ran past the 30 s default in a capture
+    a00_go(r, [(180, -1425), (160, -1419)], tol=1.0, magnitude=0.8)
+    settle(r, 10)
+    approach(r, 150.0, -1417.0)
+    face(r, 0.0)
+    use_press(r, lambda row: not in_control(row))
+    r.until(in_control, 3000)
+    settle(r, 30)
+    row = r.rows[-1]
+    if row["story758"][10:12] != "ff" or row["area4"][2:4] != "01":
+        raise RuntimeError("[43] effects not seen: " + summary(row))
+    return {"what": "Use at [43] (entry 5): script 0x82A540, D_0081075D = 0xFF, D_00810701 = 1",
+            "hp_end": a01_hp(r)}
+
+
+def a00_beat_ne_room_out(r: Route) -> dict:
+    # The crate barricade in front of door [51] (001551B0, model 0x50): the
+    # floor crates at (124.3, -1446.5), (118.6, -1453.9) and (113.1, -1446.4)
+    # are broken with the second melee (Square), then door [51] from the north
+    # (D_0081075B == 0xFF: the ordinary door) moves the player to entry 7.
+    use_a00_sampler(r)
+    walk_path(r, [(140, -1422), (134, -1446)], tol=1.2, limit=300)
+    r.set_pad(0)
+    settle(r, 10)
+    # the three upper crates (y -53, on the floor crates) first: the light
+    # melee (Circle) reaches them; breaking one wakes the others (+0x52 set)
+    uppers = (0x7AAB70, 0x7AAE60, 0x7AB150)
+    for _ in range(6):
+        if not any(a00_crate_alive(r, n) for n in uppers):
+            break
+        face(r, -math.pi / 2, tol=0.06)
+        r.press("CIRCLE", 2, after=60)
+    for _ in range(600):
+        if not any(a00_crate_alive(r, n) for n in uppers):
+            break
+        r.step(1)
+    if any(a00_crate_alive(r, n) for n in uppers):
+        raise RuntimeError("upper crates not cleared: " + summary(r.rows[-1]))
+    settle(r, 10)
+    a00_kick(r, 0x7ABA20, 124.3, -1446.5)
+    a00_push(r, 126.5, -1449.0, 60, 0.6)
+    a00_kick(r, 0x7AB730, 118.6, -1453.9)
+    a00_kick(r, 0x7AB440, 113.1, -1446.4)
+    a00_push(r, 118.5, -1454.0, 120, 0.5)
+    face(r, math.pi, tol=0.06)
+    use_press(r, lambda row: not in_control(row))
+    r.until(lambda row: row["area4"][4:6] == "07" and in_control(row), 1500)
+    settle(r, 20)
+    return {"what": "break three barricade crates (Square) and leave the north-east room by door [51] "
+                    "(entry 7)", "hp_end": a01_hp(r)}
+
+
+def a00_beat_progression_exit(r: Route) -> dict:
+    # Back west and up to the shaft door [52] (overlay 0x823580), now in
+    # sub-state 6 (D_0081075D == 0xFF): Use starts script 0x8286E0
+    # (D_0081075E = 0xFF, a movie inside one frame) and 001B0C60(1, 0xFF, 0):
+    # AREA01, sub D_00810730[1] & 0x7F, entry 0.
+    use_a00_sampler(r)
+    a00_long_frames(r)
+    a00_go(r, [(110, -1466), (80, -1462), (40, -1459), (0, -1459), (-30, -1462), (-56, -1468), (-80, -1468),
+               (-105, -1468), (-110, -1455), (-100, -1440), (-45, -1430), (-45, -1380), (-40.5, -1300),
+               (-40.5, -1292)])
+    settle(r, 10)
+    approach(r, -40.5, -1288.0)
+    face(r, 0.0)
+    use_press(r, lambda row: not in_control(row))
+    r.until(lambda row: row["area4"][:2] == "01", 1500)
+    r.until(lambda row: row["slots"][22:24] == "01" and in_control(row), 8000)
+    settle(r, 30)
+    if r.rows[-1]["story758"][12:14] != "ff":
+        raise RuntimeError("D_0081075E not 0xFF: " + summary(r.rows[-1]))
+    return {"what": "shaft door [52] in sub-state 6: script 0x8286E0 (D_0081075E = 0xFF), "
+                    "001B0C60(1, 0xFF, 0), AREA01 arrival at entry 0", "hp_end": a01_hp(r)}
+
+
 A00_BEATS = [
     ("a00_00_descend", "a01_07_level_exit", a00_beat_descend),
     ("a00_01_door51_locked", "a00_00_descend", a00_beat_door51_locked),
     ("a00_02_south_route", "a00_01_door51_locked", a00_beat_south_route),
     ("a00_03_padlock", "a00_02_south_route", a00_beat_padlock),
     ("a00_04_cage_terminal", "a00_03_padlock", a00_beat_cage_terminal),
+    ("a00_05_ferry_deck", "a00_04_cage_terminal", a00_beat_ferry_deck),
+    ("a00_06_cab_roof", "a00_05_ferry_deck", a00_beat_cab_roof),
+    ("a00_07_duct_to_ne_room", "a00_06_cab_roof", a00_beat_duct_to_ne_room),
+    ("a00_08_switch", "a00_07_duct_to_ne_room", a00_beat_switch),
+    ("a00_09_ne_room_out", "a00_08_switch", a00_beat_ne_room_out),
+    ("a00_10_progression_exit", "a00_09_ne_room_out", a00_beat_progression_exit),
     # side beats
     ("a00_s0_shaft_door_back", "a01_07_level_exit", a00_beat_shaft_door_back),
 ]

@@ -335,6 +335,13 @@ class CensusSession(rc.RouteSession):
             ev = {"pc": pc, "label": self.label, "frame": frame, "counter_before": counter}
             if OVERLAY_BASE <= pc < 0x900000:
                 ev["overlay_id"] = self.u32(OVERLAY_BASE + 4)
+            if pc not in self.armed and pc + 4 in self.armed:
+                # An armed address that is a branch delay slot in the code now
+                # resident (another overlay after an area change) pauses with
+                # the branch's pc; the one-shot is the armed slot, pc + 4.
+                ev["reported_pc"] = hex(pc)
+                pc += 4
+                ev["pc"] = pc
             if pc in self.armed:
                 self.debug.call({"cmd": "remove_breakpoint", "address": pc})
                 self.armed.discard(pc)
@@ -1027,10 +1034,12 @@ def a01_delta(passes: list[str]) -> dict:
 #            armed the AREA01 overlay, so its AREA00 code shows only where an
 #            AREA01 candidate address falls inside an AREA00 function (a point
 #            inside the function, overlay id 1 resident), mapped by range;
-#   main     a00_00..a00_04 (route_capture's A00_BEATS main line);
+#   main     a00_00..a00_10 (route_capture's A00_BEATS main line; a00_10
+#            before its area change);
 #   side     a00_s0 before its own area change (AREA00 play);
-#   exit     a00_s0 from its area change on (the door back to AREA01, the
-#            AREA01 load and arrival).
+#   exit     from the area change on in the two beats that leave AREA00:
+#            a00_10 (the progression exit, shaft door in sub-state 6) and
+#            a00_s0 (the plain shaft door back); each row names its beats.
 # "Already ran" = the first-level census (route_functions.json), beat 15
 # (every hit: the AREA11 exit and the AREA01 arrival) and the AREA01 beats in
 # their AREA01 phase (a01_07 before its change).  Nothing here changes the
@@ -1039,6 +1048,7 @@ def a01_delta(passes: list[str]) -> dict:
 AREA00_ID = 1
 A00_SIDE_BEATS = {"a00_s0_shaft_door_back"}
 A00_EXIT_BEAT = "a00_s0_shaft_door_back"
+A00_CHANGE_BEATS = {"a00_s0_shaft_door_back", "a00_10_progression_exit"}   # beats that leave AREA00
 
 
 def _hits(p: str, name: str) -> list[dict] | None:
@@ -1143,9 +1153,9 @@ def a00_delta(passes: list[str], a01_passes: list[str]) -> dict:
             if hs is None:
                 continue
             found = True
-            f_chg = {int(h["pc"], 16): h["frame"] for h in hs}.get(A01_CHANGE) if name == A00_EXIT_BEAT else None
-            if name == A00_EXIT_BEAT:
-                exit_marks[p] = f_chg
+            f_chg = {int(h["pc"], 16): h["frame"] for h in hs}.get(A01_CHANGE) if name in A00_CHANGE_BEATS else None
+            if name in A00_CHANGE_BEATS:
+                exit_marks.setdefault(name, {})[p] = f_chg
             for h in hs:
                 piece_pc = int(h["pc"], 16)
                 pc = piece_to_real.get(piece_pc, piece_pc)
@@ -1170,7 +1180,7 @@ def a00_delta(passes: list[str], a01_passes: list[str]) -> dict:
                         "functions": len(seen_main | seen_exit),
                         "new": sum(1 for pc in seen_main | seen_exit if pc not in prior),
                         **({"exit_phase_functions": len(seen_exit),
-                            "change_frame_001AD010": exit_marks} if name == A00_EXIT_BEAT else {})})
+                            "change_frame_001AD010": exit_marks.get(name)} if name in A00_CHANGE_BEATS else {})})
     rows = []
     for pc in sorted(funcs):
         c, e = cands[pc], funcs[pc]
@@ -1208,6 +1218,8 @@ def a00_delta(passes: list[str], a01_passes: list[str]) -> dict:
                "new_boot": sum(1 for r in new if r["region"] == "boot"),
                "new_overlay_AREA00": sum(1 for r in new if r["region"] != "boot"),
                "new_by_group": by_group, "new_by_status": count(new, "status"),
+               "new_exit_by_beat": {b: sum(1 for r in new if r["group"] == "exit" and b in r["beats"])
+                                    for b in sorted(A00_CHANGE_BEATS)},
                "new_by_subsystem": count(new, "subsystem"),
                "already_ran_by_source": count([r for r in rows if r["already_ran"]], "already_ran"),
                "overlay_hits_other_overlay": len(other_overlay), "unattributed_hits": len(unknown),

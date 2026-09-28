@@ -116,13 +116,18 @@ that is a different, stale tree.
     docs/AREA01_OVERLAY_C.md). New AREA01 side beats a01_s4 (east room, save
     terminal), a01_s5 (control-room duct, healing pickup); the north room is
     unreachable on the first visit (its bridge lowers only on a return).
-- **Level 3 = AREA00** (AREA01's shaft door exits to AREA00 sub 0 entry 0):
-  overlay fully in C (34 functions: 27 byte-identical, 6 NEARMISS, 1 pad;
-  docs/AREA00_OVERLAY.md); route capture started (port docs/THIRD_LEVEL_ROUTE.md,
-  AREA00_OVERVIEW.md) but AREA00's progression exit is not found yet; the census
-  tooling exists (route_census.py a00-delta) but the new beats still need a
-  PCSX2 census replay. 25 functions are new vs the first two levels in what ran
-  so far (16,080 bytes).
+- **Level 3 = AREA00** (AREA01's shaft door exits to AREA00 sub 0 entry 0), 2026-09-28:
+  overlay fully linked from C (33 byte-identical + the entry pad; 0 NEARMISS),
+  AREA01's too (41/41; the overlay link now pins compiled jump tables,
+  tools/overlay/jt_pin.py). The AREA00 route is recorded to its progression exit
+  (a00_00..a00_10, port docs/THIRD_LEVEL_ROUTE.md): raised ferry deck, cab roof,
+  container stack, crate tops, a one-way duct into the north-east room, its switch
+  (D_0081075D), crates blocking door [51], then back through the shaft door, which
+  returns to AREA01 with D_0081075E = 0xFF (the AREA01 bridge lowers: the north
+  room and AREA02 lie beyond). Game order so far: AREA11 -> AREA01 -> AREA00 ->
+  AREA01 (revisit) -> AREA02. Census: AREA00 runs 141 functions the first two
+  levels never ran (76,048 bytes: 128 main line, 13 in the arrival back in
+  AREA01); the AREA01 room beats add 20 (AREA01 total new: 174).
   - Port flags for binding: em_actor_cells rejects AREA01's cell directory (uid 0 word bit
     29); em_coll_segment_walkers returns -1 on 0019D770's no-span path (FINDINGS).
   - Phase 3 (after the first level is done): an AREA01 binding chain.

@@ -5,7 +5,8 @@
 
 INPUT(
     "/work/build/overlays/AREA00/filler/_code_merged.o"
-    "/work/build/overlays/AREA00/filler/data_section_0.o"
+    "/work/build/overlays/AREA00/filler/_pin/data_section_0__pin00.o"
+    "/work/build/overlays/AREA00/filler/_pin/data_section_0__pin01.o"
 )
 
 MEMORY
@@ -31,21 +32,29 @@ D_008102B0 = 0x008102B0;
 D_00810350 = 0x00810350;
 D_00810354 = 0x00810354;
 D_008104E6 = 0x008104E6;
+D_00810600 = 0x00810600;
 D_008106C0 = 0x008106C0;
 D_00810701 = 0x00810701;
 D_00810702 = 0x00810702;
+D_0081075A = 0x0081075A;
+D_0081075B = 0x0081075B;
 D_0081075D = 0x0081075D;
 D_0081075E = 0x0081075E;
 D_00810784 = 0x00810784;
+D_008107DB = 0x008107DB;
 D_008107DC = 0x008107DC;
 D_00810803 = 0x00810803;
 D_00810804 = 0x00810804;
+D_008247C0 = 0x008247C0;
 D_246F20 = 0x00246F20;
 D_2758A8 = 0x002758A8;
 D_2758B0 = 0x002758B0;
 D_2758B8 = 0x002758B8;
 D_70003000 = 0x70003000;
 D_70003400 = 0x70003400;
+D_70003600 = 0x70003600;
+D_70003604 = 0x70003604;
+D_70003608 = 0x70003608;
 D_700036A0 = 0x700036A0;
 D_700036D0 = 0x700036D0;
 D_700038A0 = 0x700038A0;
@@ -66,6 +75,8 @@ D_overlay_AREA00_00982140 = 0x00982140;
 func_00000008 = 0x00000008;
 func_0000000C = 0x0000000C;
 func_001026A0 = 0x001026A0;
+func_00102738 = 0x00102738;
+func_00102760 = 0x00102760;
 func_001028B8 = 0x001028B8;
 func_001028D0 = 0x001028D0;
 func_00102918 = 0x00102918;
@@ -75,8 +86,11 @@ func_001029C0 = 0x001029C0;
 func_00102BB0 = 0x00102BB0;
 func_00102C58 = 0x00102C58;
 func_00122BB8 = 0x00122BB8;
+func_001281C0 = 0x001281C0;
 func_00129780 = 0x00129780;
 func_00182F90 = 0x00182F90;
+func_0019A570 = 0x0019A570;
+func_0019C6F0 = 0x0019C6F0;
 func_001A2370 = 0x001A2370;
 func_001AEDE0 = 0x001AEDE0;
 func_001AF800 = 0x001AF800;
@@ -93,11 +107,18 @@ func_001B6660 = 0x001B6660;
 func_001BA1A0 = 0x001BA1A0;
 func_001BA1C0 = 0x001BA1C0;
 func_001BA1F0 = 0x001BA1F0;
+func_001BBDA0 = 0x001BBDA0;
+func_001BBE40 = 0x001BBE40;
+func_001BC0E0 = 0x001BC0E0;
+func_001BC240 = 0x001BC240;
+func_001BC290 = 0x001BC290;
+func_001BC300 = 0x001BC300;
 func_001C2770 = 0x001C2770;
 func_001C3D60 = 0x001C3D60;
 func_001C4760 = 0x001C4760;
 func_001C47E0 = 0x001C47E0;
 func_001C5570 = 0x001C5570;
+func_001C6190 = 0x001C6190;
 func_001C6380 = 0x001C6380;
 func_001C63E0 = 0x001C63E0;
 func_001C64F0 = 0x001C64F0;
@@ -106,6 +127,9 @@ func_001C68C0 = 0x001C68C0;
 func_001C69A0 = 0x001C69A0;
 func_001CB5B0 = 0x001CB5B0;
 func_001CCF70 = 0x001CCF70;
+func_001CD520 = 0x001CD520;
+func_001CFA60 = 0x001CFA60;
+func_001CFAE0 = 0x001CFAE0;
 func_001CFB50 = 0x001CFB50;
 func_001CFBE0 = 0x001CFBE0;
 func_001D04B0 = 0x001D04B0;
@@ -119,6 +143,7 @@ func_001F6AD0 = 0x001F6AD0;
 func_001FB0B0 = 0x001FB0B0;
 func_001FB9F0 = 0x001FB9F0;
 func_001FBD50 = 0x001FBD50;
+func_001FC3C0 = 0x001FC3C0;
 func_1026A0 = 0x001026A0;
 func_102738 = 0x00102738;
 func_102760 = 0x00102760;
@@ -205,7 +230,10 @@ SECTIONS
     /* ---- DATA ---- */
     .data :
     {
-        "/work/build/overlays/AREA00/filler/data_section_0.o" (.data)
+        "/work/build/overlays/AREA00/filler/_pin/data_section_0__pin00.o" (.data)
+        "/work/build/overlays/AREA00/filler/_code_merged.o" (.ovlpin.overlay_AREA00_func_00823540.0)
+        "/work/build/overlays/AREA00/filler/_code_merged.o" (.ovlpin.func_overlay_AREA00_00825130.0)
+        "/work/build/overlays/AREA00/filler/_pin/data_section_0__pin01.o" (.data)
         * (.data)
         * (.rodata)
         * (.sdata)
