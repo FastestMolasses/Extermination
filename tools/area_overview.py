@@ -63,6 +63,17 @@ container):
   .venv/bin/python tools/area_overview.py --area 1 \
       --ram build/s87/route/15_level_exit/eeMemory.bin [--compile-check] \
       [--doc ../extermination-port/docs/AREA01_OVERVIEW.md]
+  .venv/bin/python tools/area_overview.py --area 0 \
+      --ram build/s87/route_a01/a01_07_level_exit/eeMemory.bin \
+      --exit-delta build/s87/census/a00_arrival.json --arrival-name "a01_07 from 001AD010" \
+      [--compile-check] [--doc ../extermination-port/docs/AREA00_OVERVIEW.md]
+
+Later areas (additive; areas 1 and 11 print exactly as before): subs that
+share one placement table (AREA00 subs 0 and 1) are labelled together
+("sub0+1"); a route delta that carries "prior_boot" (route_census.py
+a00-delta) adds those boot functions to the census the static delta is
+measured against; --exit-delta / --arrival-name name the area's arrival
+census (default: beat 15, the AREA11 exit into AREA01).
 """
 from __future__ import annotations
 
@@ -104,12 +115,14 @@ STATUS_CODE = {"byte_matched_c": "BM", "nearmiss": "NM", "asm_inline": "AI", "as
 # Script-host admission: a DATED SNAPSHOT of the port's em_area_script.c.
 # The opcode set is re-derived on every run from the execute() switch of the
 # file at --port-rev. The per-sub rules below were read by hand from the file
-# as committed in port b7868e1 (2026-09-25 19:52, blob ADMISSION_BLOB). When
-# the blob at --port-rev differs, the report marks the sub rules stale and
-# they must be re-read.
+# as committed in port b7868e1 (2026-09-25 19:52) and re-checked against port
+# 6e659ac (2026-09-27 03:11, blob ADMISSION_BLOB; its only change since
+# b7868e1 is the four-lane copy helper, no admission change). When the blob at
+# --port-rev differs, the report marks the sub rules stale and they must be
+# re-read.
 ADMISSION_SNAPSHOT = dict(
-    port_commit="b7868e1",
-    port_commit_date="2026-09-25 19:52:34 -0700",
+    port_commit="6e659ac",
+    port_commit_date="2026-09-27 03:11:58 -0700",
     file="src/game/em_area_script.c",
     rules={
         # op: (admitted subs, text)
@@ -119,7 +132,7 @@ ADMISSION_SNAPSHOT = dict(
         0x0B: ((0, 4, 6), "op0B: subs 0, 4 and 6 (other subs fault at 001B8020)"),
     },
 )
-ADMISSION_BLOB = "1df0dd3ad814a2c1444cfb00c5e685ed9bdd6a77"
+ADMISSION_BLOB = "8974b87c3ed514800de423d9809a00feae8c18fb"
 
 # ---------------------------------------------------------------------------
 # Per-area planning map (section 11 of AREA01_OVERVIEW.md). Owners are the
@@ -129,7 +142,7 @@ ADMISSION_BLOB = "1df0dd3ad814a2c1444cfb00c5e685ed9bdd6a77"
 LANES = {
     1: [
         dict(code="O1", title="NPC 0x825350 (placement [36]), 0x825740 ([38]), 0x826CF0, and the 0x8261A0 / 0x8267C0 owners (sub 0)",
-             claim="FINDINGS s69/s74 and the retired drawbridge export call [36] a crank, 0x8261A0 the bridge halves and 0x8267C0 a suspension fixture; the AREA01 route capture shows [36] is the control-room NPC (SECOND_LEVEL_ROUTE.md section 2) and no bridge moved on the route",
+             claim="FINDINGS s69/s74 and the retired drawbridge export called [36] a crank, 0x8261A0 the bridge halves and 0x8267C0 a suspension fixture; FINDINGS \"AREA01 route capture\" (2026-09-25) and CURIOSITIES 22 withdraw the crank and bridge-lowering readings: [36] is the control-room NPC (SECOND_LEVEL_ROUTE.md section 2), and no bridge moved on the route (the bridge label of 0x8261A0 stands unverified)",
              owners=[0x825350, 0x8254B0, 0x825590, 0x825670, 0x825130, 0x825240, 0x825740, 0x826CF0,
                      0x8261A0, 0x826200, 0x826440, 0x8267C0, 0x826950, 0x1C50B0]),
         dict(code="O2", title="Owner 0x825950 and its spawns (sub 0)", claim="",
@@ -138,7 +151,7 @@ LANES = {
         dict(code="O3", title="Owner 0x823CD0 family (sub 0)", claim="",
              owners=[0x823CD0, 0x823A90, 0x8240E0, 0x824340, 0x824F70, 0x824FE0, 0x825040, 0x824770, 0x824D50]),
         dict(code="O4", title="Owner pair 0x826D40 / 0x828850 (both subs)",
-             claim="SECOND_LEVEL_ROUTE.md guesses the 0x826D40 nodes are sentry guns (from a data page and their wall positions; not observed)",
+             claim="SECOND_LEVEL_ROUTE.md guessed the 0x826D40 nodes are sentry guns (a data page and their wall positions); FINDINGS (s78 section 7 correction, 2026-09-27) and CURIOSITIES 26 decode AREA11's pair 0x825940 / 0x827490 as a security gun and its power cable and report the same pair (sounds 0x423..0x428) in AREA01; the overlay scan they cite (decomp build/workflows/verify-area11-husks.output.json) adds type bytes 0x1A / 0x29 at one position and, in AREA01, a gate on story flag 6, which fits the 0x826D40 (model 0x1A) / 0x828850 (model 0x29) record pairs; the port translation keeps the three 0x826D40 nodes in state 0x64 on the route (AREA01_OVERLAY.md); never seen switched on",
              owners=[0x826D40, 0x8282F0, 0x8287C0, 0x828850]),
         dict(code="O5", title="Scripted shaft door 0x823580 (placement [12], sub 0)", claim="",
              owners=[0x823580]),
@@ -157,6 +170,46 @@ LANES = {
              owners=[0x1383C0, 0x147390, 0x1BF6B0, 0x1C06E0, 0x1C1A80, 0x826BA0]),
         dict(code="E", title="Shared engine delta (reached from more than one lane) and the code pointer 0x1F5040",
              claim="", owners=[0x1F5040]),
+    ],
+    # AREA00 (the level after AREA01; port docs/AREA00_OVERVIEW.md section 11,
+    # THIRD_LEVEL_ROUTE.md). Subs 0 and 1 share placement table 0x82BB50;
+    # sub 2 has 0x82C640. Owners by placement record ([n] of 0x82BB50 unless
+    # noted); titles are addresses and records only.
+    0: [
+        dict(code="O1", title="Shaft door 0x823580 (placement [52], door id 0; subs 0/1)",
+             claim="THIRD_LEVEL_ROUTE.md a00_s0 (measured): before D_0081075D is set it acts as a plain door to AREA01 entry 0; its progression branch (sub-state 6, script 0x8286E0, D_0081075E) is read from the undecompiled instructions (section 2.3 there), not executed",
+             owners=[0x823580]),
+        dict(code="O2", title="Deferred record 0x826F80[25] 0x824EA0, the script-0x828D60 callback 0x824E40 and the overlay init 0x824E00",
+             claim="THIRD_LEVEL_ROUTE.md section 2.2 reads 0x828D60 as the arrival script (it wrote D_0081075A / D_008107DA in a01_07)",
+             owners=[0x824EA0, 0x824E40, 0x824E00]),
+        dict(code="O3", title="0x825170 ([51]), the 0x825920 records [41]..[43] and 0x8266A0 ([60])",
+             claim="THIRD_LEVEL_ROUTE.md: [51] played its locked script and set D_0081075B = 1 (a00_01, measured); [43] starting script 0x82A540 (D_0081075D) and [60] reading D_0081075E are read from instructions (section 2.5), not executed",
+             owners=[0x825170, 0x825920, 0x8266A0]),
+        dict(code="O4", title="0x825480 ([40]; op09 callback 0x8253E0), 0x825600 ([48]..[50]) and 0x8263C0 ([47])",
+             claim="THIRD_LEVEL_ROUTE.md a00_04 (measured): a Use at [40] ran script 0x8299E0 (D_0081075C, D_008107DC) and [48] moved east and rose",
+             owners=[0x825480, 0x8253E0, 0x825600, 0x8263C0]),
+        dict(code="O5", title="0x825C80 ([44]), 0x8261E0 ([45]) and 0x8262D0 ([46])", claim="",
+             owners=[0x825C80, 0x8261E0, 0x8262D0]),
+        dict(code="O6", title="Overlay functions no table, script or overlay call found by the tool reaches (0x823EB0 and 0x824130 are behaviours of the unreferenced group 0x82CDD0)",
+             claim="", owners=[0x823820, 0x823CF0, 0x823EB0, 0x824130, 0x8241B0, 0x8247C0, 0x8247D0, 0x824BB0]),
+        dict(code="C1", title="Boot owners 0x128C10, 0x12A5D0 (deferred and nest records) and 0x15A2C0 ([61]..[68])",
+             claim="FINDINGS calls 0x128C10/0x12A5D0 bug brains (AREA01 claims)", owners=[0x128C10, 0x12A5D0, 0x15A2C0]),
+        dict(code="C2", title="Boot owners 0x1581A0 ([54]), 0x158810 ([57]), 0x158BD0 ([59]), 0x158D30 ([53]), 0x156F30 ([34]..[36]), 0x22DCD0 ([39]), 0x15AB00 (deferred records), 0x15B030 (group 0x827A30, from 0x8263C0)",
+             claim="THIRD_LEVEL_ROUTE.md a00_03 (measured): a light melee hit on [54] set D_00810841[0] bit 2 and freed the node",
+             owners=[0x1581A0, 0x158810, 0x158BD0, 0x158D30, 0x156F30, 0x22DCD0, 0x15AB00, 0x15B030]),
+        dict(code="C3", title="Slider 0x1BB860 ([58]) and the class-0x0B records 0x1C2420", claim="FINDINGS s45/s63: slider door",
+             owners=[0x1BB860, 0x1C2420]),
+        dict(code="C4", title="0x1E3D90 (deferred records) and 0x1E7D20 ([37], [38])",
+             claim="decomp comments: muzzle-flash driver (0x1E3D90), water surface (0x1E7D20); THIRD_LEVEL_ROUTE.md calls the seven sub-0 0x1E3D90 nodes (z -1473..-1488) the fire row, near which the player lost health in exploratory runs (not attributed to a function)",
+             owners=[0x1E3D90, 0x1E7D20]),
+        dict(code="C0", title="First-level census owners' unexercised paths", claim="",
+             owners=[0x1551B0, 0x156620, 0x15AFA0, 0x1BC350, 0x219550]),
+        dict(code="S2", title="Sub-2 owners (placement table 0x82C640, deferred groups 0x827FB0 / 0x828060, group 0x82A920)",
+             claim="THIRD_LEVEL_ROUTE.md section 2.1: 0x826790 ([28] of 0x82C640) ends script 0x82D070 with a move to AREA14; what selects sub 2 is not known",
+             owners=[0x825D70, 0x825E80, 0x825FC0, 0x8260B0, 0x8260F0, 0x826790, 0x826CB0, 0x826BE0, 0x826CC0,
+                     0x823C50, 0x823E10, 0x14D260, 0x159B90, 0x1BECC0, 0x1BF6B0, 0x1C06E0, 0x1C1A80, 0x1C4820,
+                     0x1C48C0]),
+        dict(code="E", title="Shared engine delta (reached from more than one lane)", claim="", owners=[]),
     ],
 }
 SHARED_LANE = dict(code="E", title="Shared engine delta (reached from more than one lane)", claim="", owners=[])
@@ -177,6 +230,18 @@ CLAIMS = {
         0x1E3D90: "muzzle-flash driver (decomp comment; doubtful for 17 scattered placements)",
         0x1E7D20: "water surface over D_00275C20 records (decomp comment)",
         0x1F5040: "fx_render (port em_weapon.c names it)", 0x219550: "item pickup (port em_pickup_owner)"},
+    0: {0x128C10: "NPC update (decomp SEMANTICS); FINDINGS: bug brain", 0x12A5D0: "FINDINGS: bug brain (nest child)",
+        0x1551B0: "crate (port em_crate_original)", 0x156620: "drum (port em_drum_original)",
+        0x158D30: "FINDINGS s74: creature-family fixture", 0x159B90: "FINDINGS s74: creature-family fixture",
+        0x15A2C0: "port em_enemy.c names it", 0x15AFA0: "item pickup (port em_pickup_owner)",
+        0x1581A0: "route (measured, a00_03): a melee hit sets the door-lock bit and frees it",
+        0x1BB860: "slider door (FINDINGS s45/s63)", 0x1BC350: "hinged door (port em_door_original)",
+        0x1BF6B0: "actor update (decomp SEMANTICS)", 0x1C06E0: "decomp name bone_root_pulse",
+        0x1C1A80: "actor state machine with bone array (decomp)", 0x1C2420: "class-0x0B trigger record (8-byte leaf)",
+        0x1C4820: "generic placed prop (port em_status_ui_leftovers)",
+        0x1E3D90: "muzzle-flash driver (decomp comment; doubtful: THIRD_LEVEL_ROUTE.md calls its sub-0 nodes the fire row)",
+        0x1E7D20: "water surface over D_00275C20 records (decomp comment)",
+        0x219550: "item pickup (port em_pickup_owner)"},
 }
 
 
@@ -299,44 +364,61 @@ def overlay_marker_class(text: str | None) -> str:
 
 def boot_functions(src: RevTree, prov_path: Path):
     """addr -> function row with its status at src's commit, plus metadata on
-    the provenance audit the link routes come from."""
+    the provenance audit the link routes come from.
+
+    The audit's rows are named as FUNCTIONS.csv named the functions at the
+    audit's commit, so they are joined by ADDRESS (FUNCTIONS.csv at that
+    commit), and the marker comparison is per address: a renamed source file
+    (e.g. the syscall stub relabel, decomp 2b6639c) is not a marker change."""
     prov, prov_meta = {}, dict(path=str(prov_path), present=prov_path.exists())
     if prov_path.exists():
         prov = {r["name"]: r for r in json.loads(prov_path.read_text())["rows"]}
         mtime = datetime.fromtimestamp(prov_path.stat().st_mtime).astimezone()
         prov_meta["mtime"] = mtime.isoformat(timespec="seconds")
     rows = list(csv.DictReader(io.StringIO(src.text("docs/FUNCTIONS.csv"))))
-    listing = src.listing("src/")
+    src.listing("src/")
     src.prefetch([f"src/{r['name']}.c" for r in rows])
+    old, old_name, prov_by_addr = None, {}, {}
+    if prov_path.exists():
+        base = git(src.repo, "rev-list", "-1", f"--before={prov_meta['mtime']}", src.sha).decode().strip()
+        prov_meta["audit_base_commit"] = base
+        if base:
+            old = RevTree(src.repo, base)
+            for r in csv.DictReader(io.StringIO(old.text("docs/FUNCTIONS.csv") or "")):
+                old_name[int(r["vram"], 16)] = r["name"]
+        prov_by_addr = {a: prov[n] for a, n in old_name.items() if n in prov}
     funcs = {}
     for row in rows:
         a = int(row["vram"], 16)
-        cls = boot_marker_class(src.text(f"src/{row['name']}.c"), prov.get(row["name"], {}))
+        pr = prov_by_addr.get(a, prov.get(row["name"], {}))
+        cls = boot_marker_class(src.text(f"src/{row['name']}.c"), pr)
         funcs[a] = dict(addr=a, name=row["name"], size=int(row["size_bytes"]), subsystem=row["subsystem"],
                         status=STATUS_CODE.get(cls, cls))
     # marker classes that changed between the audit's commit and src's commit
     changed = []
-    if prov_path.exists():
-        base = git(src.repo, "rev-list", "-1", f"--before={prov_meta['mtime']}", src.sha).decode().strip()
-        prov_meta["audit_base_commit"] = base
-        if base and base != src.sha:
-            old = RevTree(src.repo, base)
-            names = [ln for ln in git(src.repo, "diff", "--name-only", base, src.sha, "--", "src/").decode()
-                     .splitlines() if ln.count("/") == 1 and ln.endswith(".c")]
-            old.listing("src/")
-            for p in names:
-                n = p[4:-2]
-                old_cls = boot_marker_class(old.text(p), prov.get(n, {}))
-                new_cls = boot_marker_class(src.text(p), prov.get(n, {}))
-                if old_cls != new_cls:
-                    changed.append(dict(name=n, audit=old_cls, now=new_cls))
-            prov_meta["src_files_changed_since_audit"] = len(names)
+    if old is not None and old.sha != src.sha:
+        names = [ln for ln in git(src.repo, "diff", "--name-only", old.sha, src.sha, "--", "src/").decode()
+                 .splitlines() if ln.count("/") == 1 and ln.endswith(".c")]
+        touched = {p[4:-2] for p in names}
+        old.listing("src/")
+        renamed = 0
+        for a, f in funcs.items():
+            on = old_name.get(a, f["name"])
+            if f["name"] not in touched and on not in touched:
+                continue
+            renamed += on != f["name"]
+            pr = prov_by_addr.get(a, {})
+            old_cls = boot_marker_class(old.text(f"src/{on}.c"), pr)
+            new_cls = boot_marker_class(src.text(f"src/{f['name']}.c"), pr)
+            if old_cls != new_cls:
+                changed.append(dict(name=f["name"], audit_name=on, audit=old_cls, now=new_cls))
+        prov_meta["src_files_changed_since_audit"] = len(names)
+        prov_meta["functions_renamed_since_audit"] = renamed
     prov_meta["marker_class_changed_since_audit"] = changed
     for c in changed:   # the audit's route cannot vouch for these; say so
         for f in funcs.values():
             if f["name"] == c["name"]:
                 f["status"] += "?"
-    del listing
     return funcs, prov_meta
 
 
@@ -896,6 +978,12 @@ def counts(it):
     return ", ".join(f"{k} {v}" for k, v in Counter(it).most_common())
 
 
+def other_sub(label: str, cur: str) -> bool:
+    """A group label of a sub list ("sub1 ...", "sub0+1 ...") that does not include sub cur."""
+    m = re.match(r"sub([\d+]+) ", label)
+    return bool(m) and cur not in m.group(1).split("+")
+
+
 def markdown_blocks(rep) -> dict[str, str]:
     B = {}
     area = rep["area"]
@@ -946,7 +1034,8 @@ def markdown_blocks(rep) -> dict[str, str]:
     m = rep["messages"]
     L.append(f"| Messages | D_00264DD0[{area + 1}] = {m['base']:#x}..{m['end']:#x}, {m['records']} records |")
     L.append(f"| Static census delta | {cd['delta']} boot functions ({cd['delta_bytes']:,} bytes) not in the "
-             f"first-level census; {cd['delta_sub0']} ({cd['delta_sub0_bytes']:,} bytes) from sub 0 / nest owners |")
+             f"{cd.get('census_name', 'first-level census')}; {cd['delta_sub0']} ({cd['delta_sub0_bytes']:,} bytes) "
+             f"from sub 0 / nest owners |")
     B["summary"] = "\n".join(L)
 
     # ---- level data
@@ -1016,11 +1105,15 @@ def markdown_blocks(rep) -> dict[str, str]:
 
     # ---- doors
     door_use = defaultdict(list)
+    share = rep["registries"].get("place_share", {})
     for s in subs:
+        sh = share.get(s, [int(s)])
+        if int(s) != sh[0]:
+            continue            # same table as an earlier sub
         for x in rep["placements"][s]["records"]:
             if x["behavior"] in (0x1BC350, 0x1BB860) or (x["cls"] & 0xFF) == 0x85:
                 door_use[x["flags2"] & 0x7F].append(
-                    (x["flags2"] & 0x80, f"s{s}[{x['index']}] {x['behavior']:#x} fl {x['flags2']:#04x} "
+                    (x["flags2"] & 0x80, f"s{'+'.join(map(str, sh))}[{x['index']}] {x['behavior']:#x} fl {x['flags2']:#04x} "
                                          f"m {x['model']:#04x} ({f3(x['pos'])})"))
     L = ["| Door id | Record | Placements using it | Meaning |", "|---:|---|---|---|"]
     for dr in d["records"]:
@@ -1059,7 +1152,13 @@ def markdown_blocks(rep) -> dict[str, str]:
         return "\n".join(L)
     cur = str(rep["ram"]["area_bytes"][1]) if "ram" in rep else None
     for s in subs:
-        B[f"placements_sub{s}"] = place_table(s, s == cur)
+        sh = share.get(s, [int(s)])
+        if int(s) != sh[0]:
+            B[f"placements_sub{s}"] = (f"Sub {s} uses the sub {sh[0]} placement table "
+                                       f"{rep['placements'][s]['table']:#x} (the same "
+                                       f"{len(rep['placements'][s]['records'])} records).")
+            continue
+        B[f"placements_sub{s}"] = place_table(s, str(cur) in map(str, sh) if cur is not None else False)
 
     # ---- groups
     L = ["| Group | Records | How it is reached | Behaviours |", "|---|---:|---|---|"]
@@ -1074,7 +1173,7 @@ def markdown_blocks(rep) -> dict[str, str]:
          "|---|---|---|---|---|---|---|---|---|---|---|"]
     lab = {g["item"]: g["label"] for g in rep["groups"]}
     for g in rep["groups"]:
-        if cur is not None and g["label"].startswith("sub") and not g["label"].startswith(f"sub{cur} "):
+        if cur is not None and other_sub(g["label"], cur):
             continue
         for x in rep["group_records"][f"{g['item']:#x}"]:
             sl = src_slot.get(f"{lab[g['item']]}[{x['index']}]")
@@ -1084,7 +1183,7 @@ def markdown_blocks(rep) -> dict[str, str]:
     B["group_records"] = "\n".join(L)
     other = []
     for g in rep["groups"]:
-        if cur is not None and g["label"].startswith("sub") and not g["label"].startswith(f"sub{cur} "):
+        if cur is not None and other_sub(g["label"], cur):
             c = Counter(r["behavior"] for r in rep["group_records"][f"{g['item']:#x}"])
             other.append(f"{g['label']} ({g['count']}): " + ", ".join(f"{b:#x} ×{n}" for b, n in c.items()))
     B["group_records_other_sub"] = "\n".join(f"- {x}" for x in other) or "- none"
@@ -1181,10 +1280,12 @@ def markdown_blocks(rep) -> dict[str, str]:
 
     # ---- census delta and lanes
     L = [f"Reach {cd['reachable']} boot functions ({cd['reachable_direct']} by direct calls only), "
-         f"{cd['in_census']} already in the first-level census, **delta {cd['delta']} functions / "
+         f"{cd['in_census']} already in the {cd.get('census_name', 'first-level census')}, "
+         f"**delta {cd['delta']} functions / "
          f"{cd['delta_bytes']:,} bytes** ({cd['delta_direct']} by direct calls only). Sub 0 and the nest reach "
          f"{cd['delta_sub0']} of them ({cd['delta_sub0_bytes']:,} bytes). Decomp status of the delta at "
-         f"{srcm['short']}: {counts(f['status'] for f in cd['functions'])}. Beat-15 exit census: "
+         f"{srcm['short']}: {counts(f['status'] for f in cd['functions'])}. "
+         f"{cd.get('arrival_census', 'Beat-15 exit census')}: "
          f"{cd['exit_beat_new_reached']} of its {cd['exit_beat_new_total']} new functions are in the static reach."]
     rc = rep.get("route_census")
     if rc:
@@ -1192,7 +1293,8 @@ def markdown_blocks(rep) -> dict[str, str]:
                  f"route; {len(rc['ran_not_in_static_reach'])} boot functions it records as new are outside the "
                  f"static reach.")
     L += ["", "| Lane | Scope (neutral) | Overlay functions (n / slot bytes; statuses) | Boot delta (n / bytes) | "
-              "Delta that ran at the arrival (beat 15) | Delta that ran on the route | Delta statuses |",
+              f"Delta that ran at the arrival ({cd.get('arrival_name', 'beat 15')}) | Delta that ran on the route | "
+              "Delta statuses |",
           "|---|---|---|---|---:|---:|---|"]
     for ln in rep["lanes"]["lanes"]:
         o = ln["overlay"]
@@ -1261,7 +1363,10 @@ def main():
     ap.add_argument("--src-rev", default="HEAD", help="decomp commit the statuses are read from")
     ap.add_argument("--port-rev", default="HEAD", help="port commit the census rows, script host and grep use")
     ap.add_argument("--census", type=Path, default=ROOT / "build/s87/census/route_functions.json")
-    ap.add_argument("--exit-delta", type=Path, default=ROOT / "build/s87/census/exit_delta.json")
+    ap.add_argument("--exit-delta", type=Path, default=ROOT / "build/s87/census/exit_delta.json",
+                    help="the arrival census (new_functions list); AREA00: build/s87/census/a00_arrival.json")
+    ap.add_argument("--arrival-name", help="name of the --exit-delta arrival in the tables "
+                    "(default: beat 15, the AREA11 exit into AREA01)")
     ap.add_argument("--provenance", type=Path, default=ROOT / "build/s87/census/provenance.json")
     ap.add_argument("--route-delta", type=Path, help="route census delta of this area "
                     "(default build/s87/census/aNN_delta.json when present)")
@@ -1350,8 +1455,14 @@ def main():
             nests.append(dict(link=k - nest_base, slot=defer_desc + 4 * k, item=g,
                               records=defer_records(img, g)))
             k += 1
+    # subs that share one placement table (AREA00: subs 0 and 1) are labelled
+    # together ("sub0+1"); for areas whose subs have their own tables the
+    # labels are unchanged ("sub0", "sub1").
+    place_share = {s: [x for x in subs if placements[x]["table"] == placements[s]["table"]] for s in subs}
+    ptag = {s: "sub" + "+".join(map(str, place_share[s])) for s in subs}
     rep["registries"] = dict(place_desc=place_desc, defer_desc=defer_desc, nest_base=nest_base,
-                             spawn_desc=img.u32(D_SPAWN + 4 * area))
+                             spawn_desc=img.u32(D_SPAWN + 4 * area),
+                             place_share={str(s): v for s, v in place_share.items()})
     rep["placements"] = placements
     rep["deferred"] = deferred
     rep["nest_groups"] = nests
@@ -1382,15 +1493,21 @@ def main():
     for s in subs:
         t = placements[s]["table"]
         n = len(placements[s]["records"])
+        if s != place_share[s][0]:
+            continue        # a later sub sharing an earlier sub's table (AREA00 subs 0 and 1)
         if data_lo <= t < data_end:
-            claim(t, t + 0x28 * n + 4, f"sub{s} placement table {t:#x}")
+            claim(t, t + 0x28 * n + 4, f"{ptag[s]} placement table {t:#x}")
             for r in placements[s]["records"]:
-                ptr_slots[r["addr"] + 0x24] = f"sub{s} place[{r['index']}]"
+                ptr_slots[r["addr"] + 0x24] = f"{ptag[s]} place[{r['index']}]"
     groups = {}             # item -> dict(label, records)
+    gsubs = defaultdict(list)
     for s in subs:
         for g in deferred[s]:
-            groups[g["item"]] = dict(label=f"sub{s} deferred group {g['item']:#x}", records=g["records"],
-                                     how=f"D_0024D820[{area}][{s}] list")
+            gsubs[g["item"]].append(s)
+            groups.setdefault(g["item"], dict(records=g["records"]))
+    for it, ss in gsubs.items():    # one sub: "subN deferred group", as before; shared: "subA+B ..."
+        groups[it].update(label=f"sub{'+'.join(map(str, ss))} deferred group {it:#x}",
+                          how=" and ".join(f"D_0024D820[{area}][{x}] list" for x in ss))
     for n in nests:
         groups.setdefault(n["item"], dict(label=f"nest group link {n['link']} {n['item']:#x}",
                                           records=n["records"],
@@ -1550,6 +1667,14 @@ def main():
 
     # ---- boot closure and the census delta -----------------------------------
     census = {int(x["addr"], 16) for x in json.loads(args.census.read_text())["functions"]}
+    # A later area's route delta (a00_delta.json) carries the boot functions
+    # that already ran before that area (first level, beat 15, the earlier
+    # area's beats) as "prior_boot"; they count as census functions here.
+    census_name = "first-level census"
+    if route and rd.exists() and "prior_boot" in json.loads(rd.read_text()):
+        rj = json.loads(rd.read_text())
+        census |= {int(x, 16) for x in rj["prior_boot"]}
+        census_name = rj.get("prior_name", "earlier censuses")
     exit_new = set()
     if args.exit_delta.exists():
         for x in json.loads(args.exit_delta.read_text()).get("new_functions", []):
@@ -1601,6 +1726,11 @@ def main():
                                exit_beat_new_reached=len(exit_new & allreach),
                                exit_beat_new_not_reached=sorted(exit_new - allreach),
                                functions=drep)
+    if census_name != "first-level census":         # area 1 keeps its report keys as before
+        rep["census_delta"]["census_name"] = census_name
+    if args.arrival_name:
+        rep["census_delta"]["arrival_name"] = args.arrival_name
+        rep["census_delta"]["arrival_census"] = f"Arrival census ({args.arrival_name})"
     if route:
         new_route = set()
         rj = json.loads(rd.read_text())
@@ -1624,9 +1754,9 @@ def main():
     # ---- sub attribution: which sub's tables lead to each owner ------------
     owner_subs = defaultdict(set)
     for ps in pointer_sites:
-        m = re.match(r"sub(\d+) ", ps["slot"])
+        m = re.match(r"sub([\d+]+) ", ps["slot"])
         if m:
-            owner_subs[ps["target"]].add(int(m.group(1)))
+            owner_subs[ps["target"]].update(int(x) for x in m.group(1).split("+"))
         elif ps["slot"].startswith("nest group"):
             owner_subs[ps["target"]].add("nest")
     for e in boot_entries:

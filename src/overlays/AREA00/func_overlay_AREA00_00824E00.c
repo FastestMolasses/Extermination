@@ -1,29 +1,17 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-// CFLAGS: -O4,p -sdatathreshold 4
-extern void func_1C67E0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA00 overlay, runtime 0x00824E40 (splat/link name 00824E00; overlay
+// code is linked 0x40 below where it runs). Byte-identical (objdiff 100%,
+// tools/overlay/overlay_match.py check AREA00).
+// Role: sets block floats +0xD8 = 0.6 and +0xEC = 2.6, starts clip 6 with
+//  func_001C67E0(self, 6, 6.0, 0.0), sets short +0xD0 = 240; returns 1.
+extern void func_001C67E0(unsigned char *self, int clip, float blend, float frame);
 
-asm void func_overlay_AREA00_00824E00(void) {
-    addiu $sp, $sp, -0x20
-    mtc1 $zero, $f13
-    sq $ra, 0x10($sp)
-    lui $v0, (0x3F19999A >> 16)
-    sq $s0, 0x0($sp)
-    ori $v0, $v0, (0x3F19999A & 0xFFFF)
-    sw $v0, 0x2C8($a0)
-    lui $v0, (0x40266666 >> 16)
-    ori $v0, $v0, (0x40266666 & 0xFFFF)
-    sw $v0, 0x2DC($a0)
-    lui $v0, (0x40C00000 >> 16)
-    addiu $s0, $a0, 0x1F0
-    mtc1 $v0, $f12
-    jal func_1C67E0
-    addiu $a1, $zero, 0x6
-    addiu $v0, $zero, 0xF0
-    sh $v0, 0xD0($s0)
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    addiu $v0, $zero, 0x1
-    jr $ra
-    addiu $sp, $sp, 0x20
+int func_overlay_AREA00_00824E00(unsigned char *self) {
+    unsigned char *anim = self + 0x1F0;
+    *(float *)(anim + 0xD8) = 0.6f;
+    *(float *)(anim + 0xEC) = 2.6f;
+    func_001C67E0(self, 6, 6.0f, 0.0f);
+    *(short *)(anim + 0xD0) = 0xF0;
+    return 1;
 }

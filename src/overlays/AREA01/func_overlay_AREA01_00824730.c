@@ -1,18 +1,16 @@
-// NEARMISS func_overlay_AREA01_00824730  (runtime 0x00824770, 0x5DC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.08% via mwccps2 2.3.3 (tools/overlay/overlay_match.py check AREA01 <this file>).
-// Not compiled by tools/overlay/compile_overlay_src.py; the overlay links this
-// function from its splat pieces. Splat names overlay code 0x40 below its runtime
-// address (the MWo3 header is loaded first).
-// O3 owner family (called from 0x823CD0): three-state move along the spot table
-// 0x829DE0 (0x18-byte records: position, rotation) indexed by the event byte +0xE2,
-// turning toward the player (D_008106C0) and rebuilding the actor matrix each frame.
-// DIVERGENCE: state 1 opens with the turn rate constant (0.0698 rad) materialized
-// into the third float argument before the goal/current loads; mwcc 2.3.3 builds it
-// last, which also turns the dispatch branch-likely into a plain branch. Rate as a
-// local, block temp, operand swap and double cast (6 variants) all stay at 99.08%.
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// AREA01 overlay, runtime 0x00824770 (splat/link name 00824730; overlay
+// code is linked 0x40 below where it runs). Byte-identical (objdiff 100%).
+// Role: O3 owner family (called from 0x823CD0): three-state move along the
+//  spot table 0x829DE0 (0x18-byte records: position, rotation) indexed by the
+//  event byte +0xE2, turning toward the player (D_008106C0) and rebuilding the
+//  actor matrix each frame.
+// The first turn-rate argument (0.0698 rad, bits 0x3D8EFA35) is staged as
+// (float)4 * (pi/180) (MATCHING_GUIDE idiom-31): that is what makes mwcc
+// materialize it first, as the original does.
+// Covers the splat pieces 00824730, 00824770 (the later piece
+// is absorbed at link time, tools/overlay/fill_overlay.py).
 typedef struct { float px, py, pz, rx, ry, rz; } Spot;
 #define SPF(a) (*(float *)(a))
 extern unsigned char *D_008106C0;
@@ -64,7 +62,11 @@ void func_overlay_AREA01_00824730(unsigned char *self, unsigned char *ev) {
         *(float *)(ev + 0xE8) = *(float *)(pl + 0xC4);
         *(float *)(ev + 0xD4) = 1.0f;
     case 1:
-        *(float *)(self + 0xC4) = func_001B12B0(3.14159274f + *(float *)(pl + 0xC4), *(float *)(self + 0xC4), 0.0698131695f);
+        {
+            int degrees = 4;
+            float rate = (float)degrees * 0.0174532925f;
+            *(float *)(self + 0xC4) = func_001B12B0(3.14159274f + *(float *)(pl + 0xC4), *(float *)(self + 0xC4), rate);
+        }
         *(float *)(self + 0xC0) = func_001B12B0(-1.57079637f, *(float *)(self + 0xC0), 0.0698131695f);
         *(float *)(ev + 0xD4) -= 0.02f;
         func_00103230(ev + 0x10, ev + 0x10, *(float *)(ev + 0xD4));

@@ -110,6 +110,19 @@ that is a different, stale tree.
     exports (assets/area01/), each oracle-tested, not bound; decomp 07c4e32/837d548 corrected
     9 NEARMISS bodies the lanes found wrong. Mutation sweeps were closed out on named
     survivors (they did not converge). Next: the 65 side/exit-only new functions.
+  - 2026-09-28: AREA01 overlay at 37 of 41 functions linked from C (3 NEARMISS
+    jump-table dispatchers: text and tables byte-identical, blocked only on
+    tools/overlay/link_overlay.py placing compiled .rodata at link + 0x40; details
+    docs/AREA01_OVERLAY_C.md). New AREA01 side beats a01_s4 (east room, save
+    terminal), a01_s5 (control-room duct, healing pickup); the north room is
+    unreachable on the first visit (its bridge lowers only on a return).
+- **Level 3 = AREA00** (AREA01's shaft door exits to AREA00 sub 0 entry 0):
+  overlay fully in C (34 functions: 27 byte-identical, 6 NEARMISS, 1 pad;
+  docs/AREA00_OVERLAY.md); route capture started (port docs/THIRD_LEVEL_ROUTE.md,
+  AREA00_OVERVIEW.md) but AREA00's progression exit is not found yet; the census
+  tooling exists (route_census.py a00-delta) but the new beats still need a
+  PCSX2 census replay. 25 functions are new vs the first two levels in what ran
+  so far (16,080 bytes).
   - Port flags for binding: em_actor_cells rejects AREA01's cell directory (uid 0 word bit
     29); em_coll_segment_walkers returns -1 on 0019D770's no-span path (FINDINGS).
   - Phase 3 (after the first level is done): an AREA01 binding chain.

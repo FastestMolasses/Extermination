@@ -1,19 +1,17 @@
-// NEARMISS func_overlay_AREA01_00823A50  (runtime 0x00823A90, 0x238 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.87% via mwccps2 2.3.3 (tools/overlay/overlay_match.py check AREA01 <this file>).
-// Not compiled by tools/overlay/compile_overlay_src.py; the overlay links this
-// function from its splat pieces. Splat names overlay code 0x40 below its runtime
-// address (the MWo3 header is loaded first).
-// Range gate and look-at setup for the O3 owner family (called from 0x8240E0 state 2):
-// returns 0 while +0xB8 is in (-585,-545) and +0xB4 in (35,50); otherwise builds a
-// scratchpad look-at matrix from the talk block (+0x1F0 +0x70/+0x80), transforms a1/a2
-// and stores the resulting yaw at +0x1F0+0xE8, returning 1.
-// DIVERGENCE: only the three-float scratchpad copy 0x700038A0..A8 -> 0x700036A0..A8.
-// The original loads A0, A4, A8 in order into three FP registers before the stores;
-// mwcc 2.3.3 schedules the loads A4, A8, A0. Declaration-order (6), volatile and
-// relocated/literal scratchpad sweeps (24 variants) did not reproduce it.
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// AREA01 overlay, runtime 0x00823A90 (splat/link name 00823A50; overlay
+// code is linked 0x40 below where it runs). Byte-identical (objdiff 100%).
+// Role: range gate and look-at setup for the O3 owner family (called from
+//  0x8240E0 state 2): returns 0 while +0xB8 is in (-585,-545) and +0xB4 in
+//  (35,50); otherwise builds a scratchpad look-at matrix from the talk block
+//  (+0x1F0 +0x70/+0x80), transforms a1/a2 and stores the resulting yaw at
+//  +0x1F0+0xE8, returning 1.
+// The three-float copy 0x700038A0..A8 -> 0x700036A0..A8 is written through the
+// relocated scratchpad externs (MATCHING_GUIDE idiom-32); the literal-address
+// spelling makes mwcc reorder the loads.
+// Covers the splat pieces 00823A50, 00823A90 (the later piece
+// is absorbed at link time, tools/overlay/fill_overlay.py).
 #define SPAD(a) (*(float *)(a))
 extern float D_700036A0[16];
 extern float D_700036E0[16];
@@ -56,12 +54,9 @@ int func_overlay_AREA01_00823A50(unsigned char *self, void *a1, void *a2) {
     SPAD(0x700038C8) = *(float *)(talk + 0x78);
     SPAD(0x700038CC) = 1.0f;
     func_00102718(D_700038A0, D_700038B0, D_700038C0);
-    px = SPAD(0x700038A0);
-    py = SPAD(0x700038A4);
-    pz = SPAD(0x700038A8);
-    SPAD(0x700036A0) = px;
-    SPAD(0x700036A4) = py;
-    SPAD(0x700036A8) = pz;
+    D_700036A0[0] = D_700038A0[0];
+    D_700036A0[1] = D_700038A0[1];
+    D_700036A0[2] = D_700038A0[2];
     func_001027E0(D_700036E0, D_700036A0);
     func_001028D0(D_700038B0, a1, a2);
     func_001026A0(D_700038A0, D_700036E0, D_700038B0);
