@@ -128,6 +128,16 @@ that is a different, stale tree.
   AREA01 (revisit) -> AREA02. Census: AREA00 runs 141 functions the first two
   levels never ran (76,048 bytes: 128 main line, 13 in the arrival back in
   AREA01); the AREA01 room beats add 20 (AREA01 total new: 174).
+- **Level 4 = AREA01 revisit + AREA02** (2026-09-28): recorded to AREA02's exit into
+  AREA04 (port docs/FOURTH_LEVEL_ROUTE.md: a01r_00..03, a02_00..05, side beats). The
+  revisit plays a new ~6,900-frame cinematic (script 0x82AD90), gives item 0x20 and
+  spawns six creatures; the lowered bridge leads to door [16] and AREA02 sub 1.
+  AREA02: switch [31] starts a rail car (lethal if you stay on the rails), a ladder
+  escape, a ledge climb with bug grabs, battery panel [24], door [25] to AREA04.
+  Census: 111 functions new (a02_delta.json). AREA02 overlay: 15 of 17 functions
+  link from C (008254E0 NEARMISS only because fill_overlay cannot absorb its
+  trailing pad piece), docs/AREA02_OVERLAY.md. AREA00 phase 2 committed (port
+  037e8b6). Next: AREA02/revisit phase 2 translations, AREA04 (level 5).
   - Port flags for binding: em_actor_cells rejects AREA01's cell directory (uid 0 word bit
     29); em_coll_segment_walkers returns -1 on 0019D770's no-span path (FINDINGS).
   - Phase 3 (after the first level is done): an AREA01 binding chain.

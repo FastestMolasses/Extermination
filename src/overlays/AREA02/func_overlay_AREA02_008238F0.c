@@ -1,28 +1,20 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-// CFLAGS: -O4,p -sdatathreshold 4
-extern void func_overlay_AREA02_00823980(int, int, int, int);
-extern void func_overlay_AREA02_00824020(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA02 overlay, runtime 0x00823930 (splat/link name 008238F0; overlay
+// code is linked 0x40 below where it runs), 0x50 bytes. Byte-identical
+// (tools/overlay/overlay_match.py check AREA02; lane A02C).
+// Role: dispatch on +2 & 0x1F: 9 calls 0x823980, 4 calls 0x824020. At the
+//  calls a1 holds the masked byte and a2 the raw byte (written as extra
+//  arguments; the callees read only a0).
+extern void func_overlay_AREA02_00823980(unsigned char *self, int kind, int raw);
+extern void func_overlay_AREA02_00824020(unsigned char *self, int kind, int raw);
 
-asm void func_overlay_AREA02_008238F0(void) {
-    addiu $sp, $sp, -0x10
-    sq $ra, 0x0($sp)
-    lbu $a2, 0x2($a0)
-    addiu $a1, $zero, -0xE1
-    addiu $v1, $zero, 0x9
-    and $a1, $a2, $a1
-    .word 0x14a30006
-    addiu $v1, $zero, 0x4
-    jal func_overlay_AREA02_00823980
-    nop
-    .word 0x10000007
-    lq $ra, 0x0($sp)
-    addiu $v1, $zero, 0x4
-    .word 0x14a30003
-    nop
-    jal func_overlay_AREA02_00824020
-    nop
-    lq $ra, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x10
+void func_overlay_AREA02_008238F0(unsigned char *self) {
+    int raw = self[2];
+    int kind = raw & ~0xE0;
+    if (kind == 9) {
+        func_overlay_AREA02_00823980(self, kind, raw);
+    } else if (kind == 4) {
+        func_overlay_AREA02_00824020(self, kind, raw);
+    }
 }

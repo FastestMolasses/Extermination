@@ -35,6 +35,11 @@ docs/SECOND_LEVEL_ROUTE.md.
 AREA00 beats (a00_*) start from the a01_07 snapshot or an earlier a00 beat and write to
 build/s87/route_a00/<beat>/; they are described in the port's
 docs/THIRD_LEVEL_ROUTE.md.
+    .venv/bin/python tools/route_capture.py run --beats a01r    # AREA01 revisit group (opt-in)
+    .venv/bin/python tools/route_capture.py run --beats a02     # AREA02 group (opt-in)
+The AREA01 revisit (a01r_*, from the a00_10 snapshot) and AREA02 (a02_*) beats
+write to build/s87/route_a01r/<beat>/ and build/s87/route_a02/<beat>/; they
+are described in the port's docs/FOURTH_LEVEL_ROUTE.md.
     .venv/bin/python tools/route_capture.py run --beats c7       # C7 capture group (opt-in)
 C7 beats (c7_*) are original captures the C6 chain requested; each writes to
 build/s87/c7cap/<item>/<beat>/ and is described in docs/CAPTURES_C7.md.
@@ -1964,6 +1969,573 @@ def a00_selected(spec: str) -> list[tuple]:
     return [b for b in A00_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
 
 
+# ---------------------------------------------------------------------------
+# AREA01 revisit (opt-in group `a01r`) and AREA02 (opt-in group `a02`), s88
+# lane NEXT.  The revisit starts from the a00_10 end snapshot: AREA01 sub 0
+# loaded again at spawn entry 0 with D_0081075E = 0xFF, which lowers the
+# bridge halves [41]/[42] (0x8261A0 state 0) and spawns the condition-3
+# records of the deferred group 0x828A00 (0x823CD0 x5, 0x825950 x2, 0x826CF0).
+# Outputs go to build/s87/route_a01r/<beat>/ and build/s87/route_a02/<beat>/
+# (ignored); described in the port's docs/FOURTH_LEVEL_ROUTE.md.  None of
+# these beats runs under `--beats all`.
+OUT_A01R = ROOT / "build/s87/route_a01r"
+OUT_A02 = ROOT / "build/s87/route_a02"
+
+# Owner nodes of the revisit's AREA01 sub-0 load, measured in the a00_10 end
+# snapshot (the pool differs from the first visit's: the group records come
+# first).  Record numbers are placement table 0x82BD50 [n] or group 0x828A00 g[n].
+A01R_OWNERS = {
+    "shaft_door_r12": 0x7ADD60,   # overlay 0x823580
+    "r13_158D30": 0x7AE050,       # 00158D30
+    "door_r14": 0x7AE340,         # 001BC350 model 0x15, door id 1|0x80: AREA02 entry 0 sub 0
+    "door_r15": 0x7AE630,         # 001BC350 room move id 2 (control room)
+    "door_r16": 0x7AE920,         # 001BC350 model 0x03, door id 3|0x80: AREA02 entry 1 sub 1
+    "bridge_r41": 0x7B3290,       # overlay 0x8261A0 (+0x0D 2): the south bridge half, z -525
+    "bridge_r42": 0x7B3580,       # overlay 0x8261A0 (+0x0D 3): the north bridge half, z -315
+    "r45_8267C0": 0x7B3E50,       # overlay 0x8267C0 at (0, 156.9, -337.9)
+    "g5_825950": 0x7A64F0,        # overlay 0x825950 (class 0x2A), group g[5] at (-9, 0, -576)
+    "g7_825950": 0x7A6AD0,        # overlay 0x825950 (class 0x2A), group g[7] at (-5, 0, -543)
+    "g6_826CF0": 0x7A67E0,        # overlay 0x826CF0 (class 8)
+    "g0_823CD0": 0x7A5640, "g1_823CD0": 0x7A5930, "g2_823CD0": 0x7A5C20,
+    "g3_823CD0": 0x7A5F10, "g4_823CD0": 0x7A6200,   # overlay 0x823CD0, group g[0..4]
+}
+A01R_SPANS = A00_SPANS[:len(A01_BASE_SPANS) + 10] + [
+    ("story760", 0x810760, 0x4),        # D_00810760..63 (760 = the [42] script's flag)
+    ("s784", 0x810784, 0x4),            # D_00810784..87
+]
+for _name, _base in A01R_OWNERS.items():
+    A01R_SPANS += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                   (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                   (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10)]
+
+
+class A01RSampler(ExitSampler):
+    def __init__(self, session: OriginalSession):
+        self.s = session
+        self.spans = A01R_SPANS
+        self.body = b"".join(struct.pack("<BI", 2, a + i)
+                             for _n, a, n in self.spans for i in range(0, n, 4))
+
+
+def decode_a01r(r: dict[str, bytes], owners=None) -> dict:
+    owners = A01R_OWNERS if owners is None else owners
+    row = decode(r, owners=owners)
+    row["hp"] = round(f32(r["player"], 0x220), 3)
+    row["d9"] = r["d2"][1:2].hex()
+    row["f759"] = r["story758"][1:2].hex()
+    row["story758"] = r["story758"].hex()
+    row["story760"] = r["story760"].hex()
+    row["s784"] = r["s784"].hex()
+    row["d7dc"] = r["d2"][4:5].hex()
+    row["e0"] = r["d2"][8:9].hex()                      # D_008107E0 (the [42] script's counter)
+    row["df"] = r["d2"][7:8].hex()                      # D_008107DF (the revisit event stage, 0x825950)
+    row["e1"] = r["d2"][9:10].hex()                     # D_008107E1 (AREA02: the switch / car / gate bits)
+    if "inv2" in r:
+        row["item20"] = r["inv2"][0]                    # D_00810C84 (item 0x20 count)
+    row["inf"] = round(f32(r["player"], 0x228), 3)      # player +0x228 infection (FINDINGS: 0x8104D8)
+    row["infected"] = r["player"][0x234]                # player +0x234 infected latch
+    row["area4"] = r["area4"].hex()
+    row["slots"] = r["slots"].hex()
+    row["bd8"] = r["bd8"][0]
+    row["ovl"] = r["ovl"].hex()
+    row["taken"] = r["taken"].hex()
+    row["docs"] = r["docs"].hex()
+    row["msgrec"] = r["msgrec"].hex()
+    row["locks"] = r["locks"].hex()
+    row["wpn"] = r["wpn"].hex()
+    for name in owners:
+        row[name]["cb"] = hex(struct.unpack("<I", r[name + ":c"])[0])
+        row[name]["rot"] = vec(r[name + ":r"], 0, 4)
+    return row
+
+
+def next_long_frames(r: Route, budget: float = 1800.0) -> None:
+    """a00_long_frames for the revisit and AREA02: some frames play a movie
+    inside one emulated frame (minutes of host time on a loaded host), and
+    meanwhile the DebugServer may also reset or refuse connections.  Every
+    DebugServer call retries for up to `budget` seconds."""
+    import socket as _socket
+    r.s.boundary_timeout = budget
+    pine = getattr(r.s, "pine", None)
+    if pine is not None:
+        pine.s.settimeout(600)
+    if type(r.s.debug).__name__ != "DebugServer":
+        return                  # route_census's persistent connection has its own timeout
+    port = r.s.debug.port
+
+    def call(cmd: dict) -> dict:
+        deadline = time.monotonic() + budget
+        while True:
+            try:
+                with _socket.create_connection(("127.0.0.1", port), timeout=60) as sock:
+                    sock.sendall((json.dumps(cmd) + "\n").encode())
+                    data = b""
+                    while b"\n" not in data:
+                        chunk = sock.recv(65536)
+                        if not chunk:
+                            raise EOFError("DebugServer closed the connection")
+                        data += chunk
+                response = json.loads(data.split(b"\n")[0])
+                if not response.get("ok"):
+                    raise RuntimeError(response)
+                return response
+            except (OSError, EOFError):
+                if time.monotonic() > deadline:
+                    raise TimeoutError("DebugServer did not answer")
+                if not r.s._alive():
+                    raise RuntimeError("the emulator process exited")
+                time.sleep(2)
+    r.s.debug.call = call
+
+
+def use_a01r_sampler(r: Route) -> None:
+    sampler = A01RSampler(r.s)
+    r.sampler = sampler
+    r.now = lambda: decode_a01r(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+
+
+NEXT_EVENT_KEYS = ("df", "e0", "e1", "story760", "s784", "inf")
+
+# AREA02 owners.  Sub 1 (the room behind AREA01 door [16]; placement table
+# 0x828170) measured at the a01r_03 arrival, sub 0 (placement table 0x827830)
+# after the duct's sub change (a02_00).  The two loads reuse the same pool
+# addresses, so each row carries both tables: only the one of the resident sub
+# names real nodes.
+A02S1_OWNERS = {
+    "s1_pick_g0": 0x7A5640,       # 0015AFA0 deferred 0x825B50[0] at (62.2, 14, -216.2)
+    "s1_pick_g1": 0x7A5930,       # 0015AFA0 deferred 0x825B50[1] at (88.4, 9.7, -269.9)
+    "s1_pick_g2": 0x7A5C20,       # 0015AFA0 deferred 0x825B50[2] at (88.3, 9.5, -272.6)
+    "s1_bed_r0": 0x7A5F10,        # 00159620 model 0x36 at (75, 0, -188.2): its Use opens the vaccine prompt
+    "s1_r1_1C4AF0": 0x7A6200,     # 001C4AF0 at the same position
+    "s1_r2_159970": 0x7A64F0,     # 00159970 model 0x37 at (57.5, 15, -292.6)
+    "s1_save_r3": 0x7A67E0,       # 00159B90 at (116.2, 8, -184)
+    "s1_panel_r4": 0x7A6AD0,      # 00159210 model 0x2C at (80.1, 8.2, -244)
+    "s1_door_r5": 0x7A6DC0,       # 001BC350 door id 1|0x80: AREA01 entry 5
+    "s1_door_r6": 0x7A70B0,       # 001BC350 room move id 2 (entries 3/2)
+}
+A02_OWNERS = dict(A02S1_OWNERS, **{
+    "s0_lock_r21": 0x7AD780,      # 001582E0 at (-38.6, 7.9, -187.2), beside door [22]
+    "s0_door_r22": 0x7ADA70,      # 001BC350 model 0x15, door id 0|0x80: AREA01 entry 3
+    "s0_panel_r24": 0x7AE050,     # 00158EC0 model 0x14 at (424.5, 30, 100): the battery panel
+    "s0_door_r25": 0x7AE340,      # 001BB860 model 0x17, door id 3|0x80: AREA04 entry 0
+    "s0_lamp_r26": 0x7AE630,      # 00158BD0 at (440, 38.4, 100)
+    "s0_r27_825100": 0x7AE920,    # overlay 0x825100 kind 0x15 at (-78.3, 0, -55.8)
+    "s0_turntable_r28": 0x7AEC10, # overlay 0x825100 kind 9 at (-0.2, -4, 10)
+    "s0_r31_823980": 0x7AF4E0,    # overlay 0x823930 -> 0x823980 (class 0x89) at (140, 0, -25): the switch
+    "s0_k7_r32": 0x7AF7D0,        # overlay 0x823930 -> 0x824020 kind 7 (model 0x54): the runaway car
+    "s0_k8_r33": 0x7AFAC0,        # kind 8 at (-425, 0, 10)
+    "s0_k11_r34": 0x7AFDB0,       # kind 11 at (-80.2, 0, 5.2)
+    "s0_k10_r35": 0x7B00A0,       # kind 10 at (210.9, 0, 9.1): the wreck climbed in a02_03
+    "s0_gate_r36": 0x7B0390,      # overlay 0x823D70 kind 16 at x -280.9
+    "s0_gate_r37": 0x7B0680,      # overlay 0x823D70 kind 15 at x 185
+    "s0_gate_r38": 0x7B0970,      # overlay 0x823D70 kind 14 at x 185 (freed when D_008107E1 bit 3 is set)
+})
+
+
+class A02Sampler(ExitSampler):
+    def __init__(self, session: OriginalSession):
+        self.s = session
+        self.spans = A02_SPANS
+        self.body = b"".join(struct.pack("<BI", 2, a + i)
+                             for _n, a, n in self.spans for i in range(0, n, 4))
+
+
+A02_SPANS = A01R_SPANS[:len(A00_SPANS[:len(A01_BASE_SPANS) + 10]) + 2] + [
+    ("inv2", 0x810C84, 0x4),            # D_00810C84 (item 0x20 count) ..
+]
+for _name, _base in A02_OWNERS.items():
+    A02_SPANS += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                  (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                  (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10)]
+
+
+def use_a02_sampler(r: Route) -> None:
+    sampler = A02Sampler(r.s)
+    r.sampler = sampler
+    r.now = lambda: dict(decode_a01r(sampler.raw(), owners=A02_OWNERS))
+    r.rows[0] = dict(r.now(), f=0)
+
+
+def next_control_kept(r: Route, limit: int, need: int = 60) -> dict:
+    """Step until control has held for `need` consecutive frames."""
+    for _ in range(limit):
+        row = r.step(1)
+        if in_control(row) and len(r.rows) > need and all(in_control(x) for x in r.rows[-need:]):
+            return row
+    raise TimeoutError("control not kept; last " + summary(r.rows[-1]))
+
+
+def next_climb(r: Route, x: float, z: float, yaw: float, tries: int = 4, rounds: int = 5) -> None:
+    """Push toward (x, z) until blocked, face `yaw`, Use: a ledge climb.  The
+    AREA02 bugs grab the player (action 0x3E) and knock the walk off its line,
+    so the push is repeated for up to `rounds` rounds."""
+    for attempt in range(rounds):
+        a00_push(r, x, z, 40, 0.5)
+        face(r, yaw)
+        try:
+            use_press(r, lambda row: row["m1F0"] in (8, 0x10), tries=tries if attempt == rounds - 1 else 2, wait=30)
+            break
+        except TimeoutError:
+            if attempt == rounds - 1:
+                raise
+    r.until(lambda row: row["m1F0"] not in (8, 0x10, 0x11), 300)
+    settle(r, 10)
+
+
+def next_prompt_yes(r: Route) -> None:
+    """A status-page yes/no prompt (ui byte 5 = 4) with the cursor on No:
+    d-pad left moves it to Yes (ui byte 6 = 0), Cross confirms."""
+    r.until(lambda row: row["ui"][2:4] == "03" and row["ui"][10:12] == "04", 1500)
+    r.idle(30)
+    r.press("LEFT", 2, after=20)
+    if r.rows[-1]["ui"][12:14] != "00":
+        raise RuntimeError("prompt cursor not on Yes: " + summary(r.rows[-1]))
+    r.press("CROSS", 2)
+
+
+# -- the AREA01 revisit (a01r) -------------------------------------------------
+
+def a01r_beat_to_train_room(r: Route) -> dict:
+    # Arrival (entry 0) -> the tunnel -> the train room's crate stack (ledge
+    # grab from the south, drop off its north side) -> x 30, z -655, just south
+    # of the 0x825950 trigger quad 0x82B090 (x -75..100, z -640..-600).
+    use_a01r_sampler(r)
+    next_long_frames(r)
+    walk_path(r, A01_LANDING_TO_MOUTH, tol=1.2)
+    walk_path(r, [(16, -770), (16.5, -738)], tol=1.0)
+    approach(r, 16.5, -733.5)
+    face(r, 0.0)
+    use_press(r, lambda row: row["m1F0"] in (8, 0x10))
+    r.until(lambda row: row["m1F0"] not in (8,), 120)
+    for _ in range(200):
+        r.stick_toward(16.0, -690.0)
+        row = r.step(1)
+        if row["m1F0"] not in (8, 0x10, 0x11) and row["pos"][1] > 20:
+            break
+    for _ in range(300):
+        r.stick_toward(16.0, -697.0)
+        row = r.step(1)
+        if row["pos"][1] < 1.5 and row["m1F0"] not in (0x0B, 0x0F) and row["pos"][2] > -706:
+            break
+    r.set_pad(0)
+    settle(r, 10)
+    walk_path(r, [(33, -692), (32, -668), (30, -655)], tol=1.2)
+    r.set_pad(0)
+    settle(r, 10)
+    a01_near(r, 30, -655, 14, "train room north of the crates")
+    if r.rows[-1]["df"] != "00" or r.rows[-1]["pos"][2] > -641.0:
+        raise RuntimeError("the event started early: " + summary(r.rows[-1]))
+    return {"what": "revisit arrival (entry 0) -> tunnel -> crate stack -> train room south of the trigger quad",
+            "hp_end": a01_hp(r)}
+
+
+def a01r_beat_event(r: Route) -> dict:
+    # Into the quad 0x82B090: 0x825950 (g[5], model 0x47) starts script
+    # 0x82AA90 (D_008107DF = 1); the event runs D_008107DF 1 -> 2 -> 0x10 ->
+    # 0x40 -> 0x80 -> 0xFF (script 0x82AD90, a long camera cinematic); at its
+    # end 001C47A0(0x20) gives item 0x20 and opens its status page.
+    use_a01r_sampler(r)
+    next_long_frames(r)
+    walk_path(r, [(24, -645), (20, -625)], tol=1.2, until=lambda row: row["df"] != "00")
+    r.set_pad(0)
+    r.until(lambda row: row["ui"][2:4] == "03" and row["df"] == "ff", 12000)
+    r.idle(30)
+    r.press("TRIANGLE", 2)
+    r.until(in_control, 600)
+    settle(r, 20)
+    row = r.rows[-1]
+    item20 = r.s.read(0x810C84, 4)[0]
+    if row["df"] != "ff" or row["story758"][14:16] != "ff" or item20 != 1:
+        raise RuntimeError("revisit event effects not seen: " + summary(row))
+    return {"what": "the train-room event: script 0x82AA90 .. 0x82AD90, D_008107DF -> 0xFF, D_0081075F = 0xFF, "
+                    "item 0x20 given (status page closed with Triangle)", "item20": item20, "hp_end": a01_hp(r)}
+
+
+def a01r_beat_bridge(r: Route) -> dict:
+    # North up the lowered south half [41] (tilt pi/18), off its end onto the
+    # north half [42] (tilt 0): inside quad 0x82CC60 at y <= 2 [42] starts
+    # script 0x82B0D0 (D_008107E0 = 1, 0xE0, 2, then 0xFF; D_00810760 = 0xFF;
+    # [41] rises to 50 degrees behind the player).
+    use_a01r_sampler(r)
+    next_long_frames(r)
+    walk_path(r, [(0, -580), (0, -550), (0, -530), (0, -500), (0, -450), (0, -420), (0, -400)], tol=1.5,
+              until=lambda row: row["e0"] != "00")
+    r.set_pad(0)
+    r.until(lambda row: row["e0"] == "ff", 1500)
+    next_control_kept(r, 900, 30)
+    settle(r, 10)
+    row = r.rows[-1]
+    if row["story760"][:2] != "ff":
+        raise RuntimeError("D_00810760 not 0xFF: " + summary(row))
+    return {"what": "over the lowered bridge [41] onto [42]: script 0x82B0D0, D_008107E0 -> 0xFF, D_00810760 = 0xFF",
+            "hp_end": a01_hp(r)}
+
+
+def a01r_beat_door16(r: Route) -> dict:
+    # The north room: north along x 0, east into door [16]'s recess (x 40..50,
+    # z -235..-215); Use facing +x: area change to AREA02 entry 1 sub 1.
+    use_a01r_sampler(r)
+    next_long_frames(r)
+    walk_path(r, [(0, -330), (0, -300), (0, -260), (0, -232), (20, -225), (35, -224), (43, -221)], tol=1.5,
+              limit=300)
+    r.set_pad(0)
+    settle(r, 5)
+    approach(r, 45.5, -220.5)
+    face(r, math.pi / 2)
+    use_press(r, lambda row: row["spad"][2:4] != "00" or row["m1F0"] == 0x41)
+    r.until(lambda row: row["area4"][:2] == "02", 2500)
+    next_control_kept(r, 12000, 60)
+    settle(r, 30)
+    if r.rows[-1]["area4"][:6] != "020101":
+        raise RuntimeError("not at AREA02 sub 1 entry 1: " + summary(r.rows[-1]))
+    return {"what": "north room -> door [16] (id 3|0x80, record 02 01 01 01): AREA02 sub 1 entry 1 arrival",
+            "hp_end": a01_hp(r)}
+
+
+def a01r_beat_pickup(r: Route) -> dict:
+    # The pickup group 0x8291C0 (0015AFA0, param 0x6C) spawned at the event's
+    # end at (-11.4, 0.2, -607.4): take it, close its page.
+    use_a01r_sampler(r)
+    next_long_frames(r)
+    walk_path(r, [(-5, -610)], tol=1.0)
+    approach(r, -8.0, -607.4)
+    face(r, -math.pi / 2)
+    taken0 = r.rows[-1]["taken"]
+    use_press(r, lambda row: not in_control(row))
+    r.until(lambda row: row["ui"][2:4] == "03", 900)
+    r.idle(90)
+    r.press("TRIANGLE", 2)
+    r.until(in_control, 900)
+    settle(r, 20)
+    return {"what": "take the pickup 0x8291C0[0] spawned by the event (item page, Triangle)",
+            "taken_changed": r.rows[-1]["taken"] != taken0, "hp_end": a01_hp(r)}
+
+
+def a01r_beat_door14_locked(r: Route) -> dict:
+    # Door [14] (001BC350 model 0x15, id 1|0x80, lock bit D_00810841[1] bit 1)
+    # from the north room: the locked-door program.
+    use_a01r_sampler(r)
+    next_long_frames(r)
+    settle(r, 10)
+    walk_path(r, [(0, -330), (0, -260), (-20.5, -210)], tol=1.2)
+    approach(r, -20.5, -197.5)
+    face(r, 0.0)
+    use_press(r, lambda row: not in_control(row))
+    next_control_kept(r, 3000, 60)
+    settle(r, 10)
+    if r.rows[-1]["area4"][:2] != "01":
+        raise RuntimeError("door [14] opened: " + summary(r.rows[-1]))
+    return {"what": "Use at the lock-gated door [14] (D_00810841[1] bit 1 clear): locked-door program",
+            "hp_end": a01_hp(r)}
+
+
+A01R_BEATS = [
+    ("a01r_00_to_train_room", "a00_10_progression_exit", a01r_beat_to_train_room),
+    ("a01r_01_event", "a01r_00_to_train_room", a01r_beat_event),
+    ("a01r_02_bridge", "a01r_01_event", a01r_beat_bridge),
+    ("a01r_03_door16", "a01r_02_bridge", a01r_beat_door16),
+    # side beats
+    ("a01r_s0_pickup", "a01r_01_event", a01r_beat_pickup),
+    ("a01r_s1_door14_locked", "a01r_02_bridge", a01r_beat_door14_locked),
+]
+A01R_SIDE_BEATS = {"a01r_s0_pickup", "a01r_s1_door14_locked"}
+A01R_CHANGE_BEATS = {"a01r_03_door16"}      # the beat that leaves AREA01 for AREA02
+
+
+# -- AREA02 (a02) ----------------------------------------------------------------
+
+def a02_beat_duct(r: Route) -> dict:
+    # Sub 1: the attribute-0x37 square (x 85.4..95.4, z -180..-170, axis +z)
+    # east of the bed; the duct runs north to z -146.5 and west.  Mid-crawl the
+    # load switches to sub 0 (D_00810701 = 0, D_00810702 = 5) and the crawl
+    # exits at (35, 0, -146) in the south tunnel.
+    use_a02_sampler(r)
+    next_long_frames(r)
+    walk_path(r, [(100, -215), (103, -190), (100, -178)], tol=1.0)
+    approach(r, 93.0, -175.5)
+    face(r, 0.0, tol=0.05)
+    use_press(r, lambda row: row["m1F0"] in (0x2C, 0x2D) or row["p5"] in (0x18, 0x19, 0x1A))
+    r.until(lambda row: row["m1F0"] == 0x2D, 400)
+    r.idle(90)
+    a01_crawl(r)
+    a01_turn_crawl(r, -math.pi / 2)
+    for _ in range(6):
+        a01_crawl(r)
+        if r.rows[-1]["m1F0"] != 0x2D:
+            break
+    next_control_kept(r, 3000, 60)
+    settle(r, 10)
+    if r.rows[-1]["area4"][:6] != "020005":
+        raise RuntimeError("not at AREA02 sub 0 entry 5: " + summary(r.rows[-1]))
+    return {"what": "sub-1 duct square -> crawl north and west -> sub change to AREA02 sub 0 entry 5",
+            "hp_end": a01_hp(r)}
+
+
+def a02_beat_switch(r: Route) -> dict:
+    # North through the south tunnel and the junction (the turntable [28]) to
+    # [31] (0x823980, class 0x89) at (140, 0, -25): its Use starts script
+    # 0x826780 (D_00810761 = 1, D_008107E1 = 1, then |= 2 at the end) and
+    # leaves the player on the rails at (121, 0, 12) facing -x.
+    use_a02_sampler(r)
+    next_long_frames(r)
+    walk_path(r, [(33, -120), (30, -75), (38, -40), (60, -10), (100, 5), (145, -5), (140, -15)], tol=1.5,
+              limit=400)
+    approach(r, 140.0, -19.0)
+    face(r, math.pi)
+    use_press(r, lambda row: not in_control(row))
+    r.until(lambda row: int(row["e1"], 16) & 2 and in_control(row), 1500)
+    r.idle(20)
+    row = r.rows[-1]
+    if row["story760"][2:4] != "01":
+        raise RuntimeError("D_00810761 not 1: " + summary(row))
+    return {"what": "south tunnel -> junction -> Use at [31]: script 0x826780, D_00810761 = 1, "
+                    "D_008107E1 = 1 then 3", "hp_end": a01_hp(r)}
+
+
+def a02_beat_ladder_escape(r: Route) -> dict:
+    # The car (kind 7, [32]) runs east along the rails; standing on them it
+    # kills the player (health 0 in an exploration run).  The ladder at
+    # (122..136, z 38.6..49, attribute 0x32) north of the rails leads to a
+    # ledge at y 50; the car passes, stops at x 210.9 and D_008107E1 = 0xFF
+    # (D_00810761 = 0xFF).  Back down the ladder.
+    use_a02_sampler(r)
+    next_long_frames(r)
+    walk_path(r, [(128, 35)], tol=1.2)
+    approach(r, 129.0, 44.0)
+    face(r, 0.0)
+    ladder(r)
+    settle(r, 10)
+    r.until(lambda row: row["e1"] == "ff", 1500)
+    settle(r, 20)
+    approach(r, 129.5, 56.0)
+    face(r, math.pi)
+    r.press("CROSS", 2)
+    r.until(lambda row: row["m1F0"] != 0, 120)
+    r.set_pad(0, 0x7F, 0xFF)
+    r.until(lambda row: row["pos"][1] < 1 and row["m1F0"] in (0, 1), 600, 0, 0x7F, 0xFF)
+    r.set_pad(0)
+    settle(r, 10)
+    row = r.rows[-1]
+    if row["story760"][2:4] != "ff" or row["hp"] <= 0:
+        raise RuntimeError("the car's run not survived: " + summary(row))
+    return {"what": "up the ladder (y 50) while the car runs east; D_008107E1 = D_00810761 = 0xFF; back down",
+            "hp_end": a01_hp(r)}
+
+
+def a02_beat_over_wreck(r: Route) -> dict:
+    # East along the rails: the stopped car and [35] (kind 10, 0x823930) block
+    # the tunnel at x ~194; a climb (Use facing +z) onto it (y ~21), along its
+    # top, a drop at x ~268, then a ledge climb onto the east platform (y 15)
+    # at its south edge (z 35).
+    use_a02_sampler(r)
+    next_long_frames(r)
+    walk_path(r, [(160, 10), (200, 8)], tol=2.0, limit=300)
+    next_climb(r, 193.5, 40.0, 0.0)
+    if r.rows[-1]["pos"][1] < 15:
+        raise RuntimeError("not on the wreck: " + summary(r.rows[-1]))
+    walk_path(r, [(210, 8), (225, 8), (245, 8), (270, 20), (295, 30), (310, 30)], tol=2.0, limit=300)
+    next_climb(r, 310.0, 60.0, 0.0)
+    if abs(r.rows[-1]["pos"][1] - 15.0) > 0.2:
+        raise RuntimeError("not on the east platform: " + summary(r.rows[-1]))
+    return {"what": "over the stopped car / [35] and onto the east platform (y 15)", "hp_end": a01_hp(r)}
+
+
+def a02_beat_panel(r: Route) -> dict:
+    # The panel [24] (00158EC0 model 0x14) south of door [25]: Use opens the
+    # battery page's prompt (4 units); Yes spends them and sets
+    # D_00810841[2] |= 8 (door [25]'s lock bit, its door id 3).
+    use_a02_sampler(r)
+    next_long_frames(r)
+    walk_path(r, [(330, 45), (380, 55), (425, 58), (425, 88)], tol=1.5, limit=300)
+    r.set_pad(0)
+    settle(r, 5)
+    approach(r, 424.5, 94.0)
+    face(r, 0.0)
+    charge0 = r.rows[-1]["charge"]
+    use_press(r, lambda row: not in_control(row))
+    next_prompt_yes(r)
+    next_control_kept(r, 3000, 60)
+    settle(r, 10)
+    row = r.rows[-1]
+    if row["locks"][6:8] != "08":
+        raise RuntimeError("D_00810841[2] bit 3 not set: " + summary(row))
+    return {"what": "panel [24]: battery prompt, Yes: charge spent, D_00810841[2] |= 8",
+            "charge_before": charge0, "charge_after": row["charge"], "hp_end": a01_hp(r)}
+
+
+def a02_beat_progression_exit(r: Route) -> dict:
+    # Door [25] (001BB860 model 0x17, door id 3|0x80, record 04 00 00 00):
+    # area change to AREA04 entry 0, its arrival script, control.
+    use_a02_sampler(r)
+    next_long_frames(r)
+    walk_path(r, [(440.2, 96.0)], tol=0.8)
+    door = lambda row: row["spad"][2:4] != "00" or row["m1F0"] == 0x41
+    for attempt in range(8):                    # a bug's grab (action 0x3E) can take the press
+        approach(r, 440.2, 103.5, tol=0.5, magnitude=0.4)
+        face(r, 0.0, tol=0.05)
+        r.press("CROSS", 2)
+        try:
+            r.until(door, 40)
+            break
+        except TimeoutError:
+            r.until(in_control, 1200)
+    else:
+        raise TimeoutError("door [25] not opened: " + summary(r.rows[-1]))
+    r.until(lambda row: row["area4"][:2] == "04", 2500)
+    next_control_kept(r, 12000, 60)
+    settle(r, 30)
+    return {"what": "door [25] (unlocked by the panel): area change to AREA04 entry 0, arrival, control",
+            "hp_end": a01_hp(r)}
+
+
+def a02_beat_mts_bed(r: Route) -> dict:
+    # Sub 1: Use at the bed 00159620 (model 0x36) opens the healing page's
+    # use-item prompt for item 0x20; Yes.
+    use_a02_sampler(r)
+    next_long_frames(r)
+    walk_path(r, [(78, -205), (75, -197)], tol=1.0)
+    approach(r, 75.0, -195.0)
+    face(r, 0.0)
+    inf0 = r.rows[-1]["inf"]
+    use_press(r, lambda row: not in_control(row))
+    next_prompt_yes(r)
+    next_control_kept(r, 6000, 60)
+    settle(r, 10)
+    return {"what": "Use at the bed [0] with item 0x20: use-item prompt, Yes",
+            "inf_before": inf0, "inf_after": r.rows[-1]["inf"], "hp_end": a01_hp(r)}
+
+
+A02_BEATS = [
+    ("a02_00_duct", "a01r_03_door16", a02_beat_duct),
+    ("a02_01_switch", "a02_00_duct", a02_beat_switch),
+    ("a02_02_ladder_escape", "a02_01_switch", a02_beat_ladder_escape),
+    ("a02_03_over_wreck", "a02_02_ladder_escape", a02_beat_over_wreck),
+    ("a02_04_panel", "a02_03_over_wreck", a02_beat_panel),
+    ("a02_05_progression_exit", "a02_04_panel", a02_beat_progression_exit),
+    # side beats
+    ("a02_s0_mts_bed", "a01r_03_door16", a02_beat_mts_bed),
+]
+A02_SIDE_BEATS = {"a02_s0_mts_bed"}
+A02_CHANGE_BEATS = {"a02_05_progression_exit"}         # beats that leave AREA02
+
+
+def a01r_selected(spec: str) -> list[tuple]:
+    """`a01r` = every revisit beat in order; otherwise names or name prefixes."""
+    wanted = spec.split(",")
+    if "a01r" in wanted:
+        return list(A01R_BEATS)
+    return [b for b in A01R_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+def a02_selected(spec: str) -> list[tuple]:
+    """`a02` = every AREA02 beat in order; otherwise names or name prefixes."""
+    wanted = spec.split(",")
+    if "a02" in wanted:
+        return list(A02_BEATS)
+    return [b for b in A02_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
 def beat_source(source: str) -> Path:
     if len(source) == 2 and source.isdigit():
         return slot_path(source)
@@ -1977,6 +2549,10 @@ def beat_dir(name: str) -> Path:
         return OUT_C7 / C7_DIRS[name] / name
     if name.startswith("a00_"):                 # AREA00 beats: build/s87/route_a00/
         return OUT_A00 / name
+    if name.startswith("a01r_"):                # AREA01 revisit beats: build/s87/route_a01r/
+        return OUT_A01R / name
+    if name.startswith("a02_"):                 # AREA02 beats: build/s87/route_a02/
+        return OUT_A02 / name
     return (OUT_A01 if name.startswith("a01_") else OUT) / name
 
 
@@ -2060,6 +2636,9 @@ def events(doc: dict, owners=None) -> list[str]:
             for key in A00_EVENT_KEYS:          # AREA00 rows only
                 if key in row:
                     cur[key] = row[key]
+            for key in NEXT_EVENT_KEYS:         # AREA01 revisit / AREA02 rows only
+                if key in row:
+                    cur[key] = row[key]
         if prev is not None:
             diff = [f"{k}={cur[k]}" for k in cur if cur[k] != prev.get(k)]
             if diff:
@@ -2096,11 +2675,17 @@ if __name__ == "__main__":
                 run_beat(name, source, fn)
             for name, source, fn in a00_selected(a.beats):    # and the AREA00 group
                 run_beat(name, source, fn)
+            for name, source, fn in a01r_selected(a.beats):   # the AREA01 revisit group
+                run_beat(name, source, fn)
+            for name, source, fn in a02_selected(a.beats):    # and the AREA02 group
+                run_beat(name, source, fn)
     elif a.command == "events":
         chosen = [b for b in BEATS if a.beats == "all" or b[0][:2] in a.beats.split(",")]
         chosen += a01_selected(a.beats) if a.beats != "all" else []
         chosen += c7_selected(a.beats) if a.beats != "all" else []
         chosen += a00_selected(a.beats) if a.beats != "all" else []
+        chosen += a01r_selected(a.beats) if a.beats != "all" else []
+        chosen += a02_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             path = beat_dir(name) / "trace.json"
             if not path.exists():
@@ -2110,7 +2695,9 @@ if __name__ == "__main__":
             print("   inputs:", [i for i in doc["inputs"] if i["buttons"]])
             print("   teleports:", doc["teleports"])
             owners = (A01_OWNERS if name.startswith("a01_") else
-                      A00_OWNERS if name.startswith("a00_") else None)
+                      A00_OWNERS if name.startswith("a00_") else
+                      A01R_OWNERS if name.startswith("a01r_") else
+                      A02_OWNERS if name.startswith("a02_") else None)
             for line in events(doc, owners):
                 print("  ", line)
     elif a.command == "identify":
@@ -2140,6 +2727,8 @@ if __name__ == "__main__":
         chosen += a01_selected(a.beats) if a.beats != "all" else []
         chosen += c7_selected(a.beats) if a.beats != "all" else []
         chosen += a00_selected(a.beats) if a.beats != "all" else []
+        chosen += a01r_selected(a.beats) if a.beats != "all" else []
+        chosen += a02_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             state = beat_dir(name) / "state.p2s"
             if state.exists():
