@@ -1,6 +1,6 @@
 // NEARMISS func_001ECB00  (vram 0x001ECB00, 0x368 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 77.19% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 76.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // FP-register-coloring / GPR-scheduling noise, not a missing/wrong operation: (1) the GS-alpha packed-constant OR-tree colors to a different scratch-register chain in every associativity/grouping tried; (2) each of the 3 clip-index-frac blocks (idx*37+11 GPR math interleaved with cvt.s.w/div.s/add....
 //
@@ -8,6 +8,9 @@
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
+// CORRECTED (lane NMFIX4, 2026-09-28): the fifth float argument (f16) of all three func_001CFB50 calls
+// is 6.0, not 0.0. Checked by an original-instruction harness over the captured AREA00 RAM; objdiff
+// 77.19% -> 76.91% (register coloring only).
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
@@ -21,7 +24,7 @@
 // Then, three times, advances a per-entity PRNG-ish index at D_00275C34+4 by
 // (idx*37+11), derives a 0..1 fractional value from its high 16 bits, and
 // submits a billboard/particle packet via func_001CFB50(&D_0081F8F0, 0, arg0,
-// scale, frac+0.0001, 1.0, 1e-6, 0.0) followed by func_001CFBE0(arg1, mode,
+// scale, frac+0.0001, 1.0, 1e-6, 6.0) followed by func_001CFBE0(arg1, mode,
 // table, &D_0081F8F0, 0) with mode/table = (0,D_00256EE0), (2,D_00256EE0),
 // (1,D_00256F70). Finally smooths a damping factor at D_00275C34+8 toward
 // 0.05 (exponential decay /10) and clamps it to a 0.05 floor.
@@ -57,7 +60,7 @@ void func_001ECB00(int arg0, int arg1) {
     {
         float frac = (float)((idx >> 16) & 0xFFFF) / 65535.0f;
         func_001CFB50(&D_0081F8F0, 0, arg0, *(float *)(D_00275C34 + 0x54),
-                      frac + 0.0001f, 1.0f, 1.0000000116860974e-06f, 0.0f);
+                      frac + 0.0001f, 1.0f, 1.0000000116860974e-06f, 6.0f);
     }
     func_001CFBE0(arg1, 0, &D_00256EE0, &D_0081F8F0, 0);
 
@@ -66,7 +69,7 @@ void func_001ECB00(int arg0, int arg1) {
     {
         float frac = (float)((idx >> 16) & 0xFFFF) / 65535.0f;
         func_001CFB50(&D_0081F8F0, 0, arg0, *(float *)(D_00275C34 + 0x54),
-                      frac + 0.0001f, 1.0f, 1.0000000116860974e-06f, 0.0f);
+                      frac + 0.0001f, 1.0f, 1.0000000116860974e-06f, 6.0f);
     }
     func_001CFBE0(arg1, 2, &D_00256EE0, &D_0081F8F0, 0);
 
@@ -75,7 +78,7 @@ void func_001ECB00(int arg0, int arg1) {
     {
         float frac = (float)((idx >> 16) & 0xFFFF) / 65535.0f;
         func_001CFB50(&D_0081F8F0, 0, arg0, *(float *)(D_00275C34 + 0x54),
-                      frac + 0.0001f, 1.0f, 1.0000000116860974e-06f, 0.0f);
+                      frac + 0.0001f, 1.0f, 1.0000000116860974e-06f, 6.0f);
     }
     func_001CFBE0(arg1, 1, &D_00256F70, &D_0081F8F0, 0);
 

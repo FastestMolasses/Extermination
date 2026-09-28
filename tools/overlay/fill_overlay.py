@@ -283,6 +283,29 @@ def _obj_text_size(obj_path: Path) -> int:
 
 ABSORBED_MANIFEST = "_absorbed.json"
 
+_ASM_WORD_RE = re.compile(r"/\*\s*[0-9A-Fa-f]+\s+([0-9A-Fa-f]{8})\s+([0-9A-Fa-f]{8})\s*\*/")
+
+
+def _asm_words(paths: list[Path]) -> dict[int, int]:
+    """{vram: instruction word} from splat's "/* offset vram word */" comments
+    (the word as the comment spells it, byte-swapped to its value)."""
+    words: dict[int, int] = {}
+    for p in paths:
+        for line in p.read_text(errors="replace").splitlines():
+            m = _ASM_WORD_RE.search(line)
+            if m:
+                words[int(m.group(1), 16)] = int.from_bytes(bytes.fromhex(m.group(2)), "little")
+    return words
+
+
+def _is_zero_pad(paths: list[Path], start: int, end: int) -> bool:
+    """True when every word of [start, end) is present in the pieces' .s
+    files and is zero."""
+    if start % 4 or end % 4 or end <= start:
+        return False
+    words = _asm_words(paths)
+    return all(words.get(a) == 0 for a in range(start, end, 4))
+
 
 def plan_absorption(entries: list[tuple[int, str, Path]],
                     slot_sizes: dict[str, int],
@@ -298,6 +321,13 @@ def plan_absorption(entries: list[tuple[int, str, Path]],
     link_overlay.py defines their names as absolute symbols at their link
     address (other code calls them by those names). Returns
     {owner: [absorbed pieces]}; objects that fit their slot are unchanged.
+
+    The object must end within 16 bytes of the covered slots, with one
+    exception: when the covered pieces run to the overlay's last piece,
+    whose slot extends to the text end, a longer remainder is accepted if
+    every word of it is zero in the original (the text-end pad).
+    strip_sections.py then extends the object's .text with zeros to the
+    slot, reproducing that pad.
     """
     plan: dict[str, list[str]] = {}
     i = 0
@@ -315,7 +345,10 @@ def plan_absorption(entries: list[tuple[int, str, Path]],
                 absorbed.append(nxt)
                 covered += slot_sizes.get(nxt, 0)
                 j += 1
-            if covered < size or covered - size >= 16:
+            text_end_pad = (covered - size >= 16 and j == len(entries)
+                            and _is_zero_pad([e[2] for e in entries[i:j]],
+                                             entries[i][0] + size, entries[i][0] + covered))
+            if covered < size or (covered - size >= 16 and not text_end_pad):
                 sys.exit(f"error: {obj} .text 0x{size:x} does not end within "
                          f"the padding of the pieces it covers (0x{covered:x})")
             plan[name] = absorbed

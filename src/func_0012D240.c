@@ -1,6 +1,6 @@
 // NEARMISS func_0012D240  (vram 0x0012D240, 0x33C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.31% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 98.41% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // State-dispatch register coloring + branch-likely lowering + addu operand commutation; see wall field above.
 //
@@ -8,6 +8,9 @@
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
+// CORRECTED (lane NMFIX4, 2026-09-28): func_001287F0 takes (arg0, arg1, 0x19, 0.0f) -- the original
+// passes its own a0/a1 unchanged (the old C passed only (0x19, 0.0f)). Checked by an original-instruction
+// harness over the captured AREA00 RAM; objdiff 98.31% -> 98.41%.
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
@@ -23,7 +26,7 @@
 // Per-state setup driver for entity arg0 (state byte at arg0+6), targeting the global
 // actor struct D_008102B0. If the global-pause flag D_008106BC or *0x70003B8D is set, it
 // resets arg0 (+5=0xA, +6=0, +7=0) and bails. State 0: advance the state, fire
-// func_001287F0(0x19, 0.0f), set arg1+0xD0=0xF0 / arg1+0xD4=1.0f, then fall into the
+// func_001287F0(arg0, arg1, 0x19, 0.0f), set arg1+0xD0=0xF0 / arg1+0xD4=1.0f, then fall into the
 // state-1 work. Common (states 0 and 1): build a transform in the scratch matrix
 // D_70003000 from arg0's C0/C4/C8 euler angles, compose with arg1+0x30, look up a bone via
 // the D_00242DD0[arg1.0xF6 & 7] table into D_008102B0+0x110, copy the result to D_70003400,
@@ -43,7 +46,7 @@ extern void func_00102BB0(void *a, void *b, float f);
 extern void func_001031E0(void *a, void *b);
 extern float func_0011DE90(float);
 extern float func_0011E2A8(float);
-extern int func_001287F0(int a, float f);
+extern void func_001287F0(char *a, char *b, int c, float f);
 extern void func_0012DE90(char *p);
 extern float func_001B1470(float);
 extern void func_001C69A0(char *p);
@@ -80,7 +83,7 @@ void func_0012D240(char *arg0, char *arg1) {
         return;
     }
     *(unsigned char *)(arg0 + 6) = st + 1;
-    func_001287F0(0x19, 0.0f);
+    func_001287F0(arg0, arg1, 0x19, 0.0f);
     *(short *)(arg1 + 0xD0) = 0xF0;
     *(float *)(arg1 + 0xD4) = 1.0f;
 common:

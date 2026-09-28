@@ -1,6 +1,6 @@
 // NEARMISS func_0019B2C0  (vram 0x0019B2C0, 0x200 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.64% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 96.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // idiom-13 const-store delay-slot NOP x2: target leaves a NOP in the beqz delay slot before a global-address scratchpad-base lui (upper half 0x7000; the else-store at 0x700031D0 and the flags&0x80000000 guard); mwcc 2.3.3 and 991202 both speculatively fill the slot with the lui. Body otherwise byte-identical. Genuine bac...
 //
@@ -8,13 +8,17 @@
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
+// CORRECTED (lane NMFIX4, 2026-09-28): the first loop stores a1.xyz to 0x700031A0..0x700031A8
+// (D_70003190[4 + i]); the old C wrote D_700031A0[4 + i] = 0x700031B0.., clobbering the hit point and
+// leaving 0x700031A0 stale for func_001028D0. Checked by an original-instruction harness over the
+// captured AREA00 RAM; objdiff 96.64% -> 96.72%.
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
 //
 // SEMANTICS: builds the global scratch transform at 0x70003190 / D_700031A0 from the two input vectors
-// (a0, a1). Seeds 0x70003190.x = a0.x, .y = a1.y, .z = a0.z; copies a1.xyz into D_700031A0[4..6] and a
-// stack temp; zeroes scratch fields 0x700031AC/0x7000319C/0x700031D4; chains the matrix helpers
+// (a0, a1). Seeds 0x70003190.x = a0.x, .y = a1.y, .z = a0.z; copies a1.xyz into 0x700031A0..0x700031A8
+// (D_70003190[4..6]) and a stack temp; zeroes scratch fields 0x700031AC/0x7000319C/0x700031D4; chains the matrix helpers
 // func_001028D0/func_00102760/func_00103230(.,.,0.01f)/func_001028B8 to produce a clamped/blended
 // transform; sets the short flag at 0x7000324E = -1. Then a mode select: if (flags & 2) clears 0x70003254
 // and probes func_0019FE50() (mode 2 on success); if (flags & 4) probes func_0019CB60() (mode 4). Recomputes
@@ -51,7 +55,7 @@ int func_0019B2C0(float *a0, float *a1, int flags) {
     mode = 0;
     for (i = 0; i < 3; i++) {
         float t = a1[i];
-        D_700031A0[4 + i] = t;
+        D_70003190[4 + i] = t;
         tmp[i] = t;
     }
     *(int *)0x700031AC = 0;

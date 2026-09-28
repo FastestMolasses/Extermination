@@ -1,6 +1,6 @@
 // NEARMISS func_0012B410  (vram 0x0012B410, 0x434 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.31% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.09% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Register-coloring near-miss (98.31% on mwcc 2.3.3; logic fully recovered). Body, the 5-way state switch (cases 0-4 with the case-1 beql branch-likely), the nested sub-state switch on arg0+7, and all field/global I/O match. Residuals are pure compiler artifacts: (1) the switch selector byte arg0+6...
 //
@@ -8,11 +8,16 @@
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
+// CORRECTED (lane NMFIX4, 2026-09-28): func_001C2770 takes (arg0, arg1, 0) -- the original calls it with
+// its own a0/a1 unchanged and a2 = 0 (the old C passed one argument). Checked by an original-instruction
+// harness over the captured AREA00 RAM; objdiff 98.33% -> 99.09%. Remaining residual: switch selector
+// coloring and state 4 sub 2's byte +0 store, which the original takes from a1 (still 1, the
+// func_00128390 argument, across that call) instead of a fresh constant.
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
 //
-// NEARMISS (objdiff 98.31% vs expected on mwcc 2.3.3; 81.53% on pinned 991202).
+// NEARMISS (objdiff 99.09% vs expected on mwcc 2.3.3 after the NMFIX4 correction).
 // Logic fully recovered: a 5-way per-frame state machine dispatched on the
 // state byte at arg0+6. State 0: zero arg1+0xD8, then (only when func_001C2770
 // reports not-busy) pick the 0xD0 timer (0x3C/0x78 by func_00122BB8&1), stage a
@@ -34,7 +39,7 @@
 // Residual is register-coloring only (switch selector colored a0 vs target a1,
 // one paddub-vs-addiu copy of the constant 1, and the D_70003B68 absolute-vs-
 // symbol reloc form). Permuter territory; not a clean-store delay-slot nop.
-extern int func_001C2770(int);
+extern int func_001C2770(char *a, char *b, int flags);
 extern int func_00122BB8(void);
 extern int func_001C25E0(char *p, int *v);
 extern int func_0012ADC0(char *a, char *b, char *c, float f);
@@ -56,7 +61,7 @@ void func_0012B410(char *arg0, char *arg1) {
     short cnt;
 
     base = &D_008102B0;
-    busy = func_001C2770(0);
+    busy = func_001C2770(arg0, arg1, 0);
     switch (*(unsigned char *)(arg0 + 6)) {
     case 0:
         *(int *)(arg1 + 0xD8) = 0;

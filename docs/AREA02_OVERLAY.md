@@ -1,5 +1,8 @@
 # AREA02 overlay — decompilation status (lane A02C, 2026-09-28)
 
+> **Update 2026-09-28:** 008254E0 now links from C, so all 16 non-pad AREA02 functions link from compiled C. Statements below that call it NEARMISS describe the state before that fix.
+
+
 AREA02 is the level after the AREA01 revisit (game order AREA11 -> AREA01 ->
 AREA00 -> AREA01 with the bridge lowered -> AREA02). Its code module is
 `OVERLAY/AREA02.BIN` (overlay id 3, text 0x2140, data 0x3C00, bss
@@ -43,7 +46,7 @@ compiler); 00823500 is an asm pad, not C.
 | func_overlay_AREA02_00824D10 | 0x824D50 | 0x244 | C, byte-identical (new; absorbs 00824D50) |
 | func_overlay_AREA02_00824F60 | 0x824FA0 | 0x154 | C, byte-identical (new) |
 | func_overlay_AREA02_008250C0 | 0x825100 | 0x420 | C, byte-identical (new) |
-| func_overlay_AREA02_008254E0 | 0x825520 | 0x130 | C, object byte-identical, marked NEARMISS for a link-tool reason (below) |
+| func_overlay_AREA02_008254E0 | 0x825520 | 0x130 | C, links from C since 2026-09-28 (fill_overlay.py now absorbs the text-end zero pad; see FINDINGS 2026-09-28) |
 
 Totals (17 functions): 15 link from compiled C (14 new or promoted in this
 lane plus the earlier area init 008238C0), 1 byte-identical C file kept out

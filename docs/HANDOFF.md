@@ -138,6 +138,11 @@ that is a different, stale tree.
   link from C (008254E0 NEARMISS only because fill_overlay cannot absorb its
   trailing pad piece), docs/AREA02_OVERLAY.md. AREA00 phase 2 committed (port
   037e8b6). Next: AREA02/revisit phase 2 translations, AREA04 (level 5).
+- **Level 5 = AREA04** (2026-09-28): recorded to its exit (port docs/FIFTH_LEVEL_ROUTE.md);
+  overlay in C (31 of 32 match; 29 link from C; the 00825240/008252D0 pair needs
+  fill_overlay.py to sum multiple .text sections). Level-4 phase 2 committed (port
+  em_area02_*, em_area01_revisit*); AREA02 overlay 16/16 non-pad functions link from C.
+  Possible next: AREA22 (door [37] path; FIFTH_LEVEL_ROUTE.md open items).
   - Port flags for binding: em_actor_cells rejects AREA01's cell directory (uid 0 word bit
     29); em_coll_segment_walkers returns -1 on 0019D770's no-span path (FINDINGS).
   - Phase 3 (after the first level is done): an AREA01 binding chain.

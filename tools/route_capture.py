@@ -40,6 +40,10 @@ docs/THIRD_LEVEL_ROUTE.md.
 The AREA01 revisit (a01r_*, from the a00_10 snapshot) and AREA02 (a02_*) beats
 write to build/s87/route_a01r/<beat>/ and build/s87/route_a02/<beat>/; they
 are described in the port's docs/FOURTH_LEVEL_ROUTE.md.
+    .venv/bin/python tools/route_capture.py run --beats a04     # AREA04 group (opt-in)
+The AREA04 beats (a04_*, from the a02_05 snapshot) write to
+build/s87/route_a04/<beat>/; they are described in the port's
+docs/FIFTH_LEVEL_ROUTE.md.
     .venv/bin/python tools/route_capture.py run --beats c7       # C7 capture group (opt-in)
 C7 beats (c7_*) are original captures the C6 chain requested; each writes to
 build/s87/c7cap/<item>/<beat>/ and is described in docs/CAPTURES_C7.md.
@@ -2536,6 +2540,336 @@ def a02_selected(spec: str) -> list[tuple]:
     return [b for b in A02_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
 
 
+# ---------------------------------------------------------------------------
+# AREA04 (opt-in group `a04`), s88 lane NEXT.  The beats start from the a02_05
+# end snapshot: AREA04 (overlay id 5) sub 0 at spawn entry 0, control after
+# the arrival script, D_008107E4 = 1.  Outputs go to build/s87/route_a04/<beat>/
+# (ignored); described in the port's docs/FIFTH_LEVEL_ROUTE.md.  None of these
+# beats runs under `--beats all`.
+OUT_A04 = ROOT / "build/s87/route_a04"
+
+# Owner nodes of the AREA04 sub-0 load, measured in the a02_05 end snapshot.
+# Record numbers are placement table 0x82A130 [n] or group 0x826930 g[n].
+A04_OWNERS = {
+    "director_r1": 0x7A9FB0,      # overlay 0x823B90 (class 8): D_008107E4, the door-[45] event
+    "npc_r2": 0x7AA2A0,           # overlay 0x824320 (class 0xAA) at (400, 15, 100), behind door [45]
+    "r3_8246B0": 0x7AA590,        # overlay 0x8246B0 at (322, 15, 224)
+    "r4_824DC0": 0x7AA880,        # overlay 0x824DC0 at (560, 69.9, 284)
+    "door35_r35": 0x7B0390,       # 001BB860 model 0x09, door id 8|0x80: back to AREA02 entry 4
+    "door37_r37": 0x7B0970,       # 001BC350 model 0x03, door id 1|0x80: AREA22 entry 0
+    "door38_r38": 0x7B0C60,       # 001BC350 model 0x15, door id 2|0x80: AREA03 (lock bit 2)
+    "door40_r40": 0x7B1240,       # 001BC350 model 0x15, room move id 3 (lock bit 3)
+    "door42_r42": 0x7B1820,       # 001BC350 model 0x15, door id 4|0x80: AREA20 (lock bit 4)
+    "door45_r45": 0x7B20F0,       # overlay 0x823700 model 0x16, room move id 5 (lock bit 5)
+    "r47_823EE0": 0x7B26D0,       # overlay 0x823EE0 at door [45]
+    "lock_r48": 0x7B29C0,         # 001581A0 (class 0x44) beside door [49]
+    "door49_r49": 0x7B2CB0,       # 001BC350 model 0x15, room move id 6 (lock bit 6)
+    "lift_r51": 0x7B3290,         # 001BD560 variant 0x0B at (561.2, 54.9, 260)
+    "lift_r62": 0x7B52E0,         # overlay 0x825510 subtype 0x11 at (317, 14.9, 260)
+    "console_r69": 0x7B6770,      # overlay 0x825DF0 (class 0x84) at (556.7, 29.9, 193)
+    "reel_r70": 0x7B6A60,         # overlay 0x8260C0 at (509, 54.9, 260): the top of the conveyor
+    "pick_g8": 0x7A6DC0,          # 0015AFA0 deferred 0x826930[8] at (542.3, 20.6, 156.2)
+    "pick_g12": 0x7A7690,         # 0015AFA0 deferred 0x826930[12] at (514.3, 30, 192.9)
+}
+A04_SPANS = A01R_SPANS[:len(A00_SPANS[:len(A01_BASE_SPANS) + 10]) + 2] + [
+    ("inv2", 0x810C84, 0x4),            # D_00810C84 (item 0x20 count) ..
+    ("story764", 0x810764, 0x4),        # D_00810764..67 (764 = 0xFF after the door-[45] event)
+    ("s830", 0x810830, 0x10),           # D_00810830..3F (83B = console [69], 834 / 83D / 83E switches)
+]
+for _name, _base in A04_OWNERS.items():
+    A04_SPANS += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                  (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                  (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10)]
+A04_EVENT_KEYS = ("e4", "e5", "e9", "ea", "story764", "s830", "infected")
+
+
+class A04Sampler(ExitSampler):
+    def __init__(self, session: OriginalSession):
+        self.s = session
+        self.spans = A04_SPANS
+        self.body = b"".join(struct.pack("<BI", 2, a + i)
+                             for _n, a, n in self.spans for i in range(0, n, 4))
+
+
+def decode_a04(r: dict[str, bytes]) -> dict:
+    row = decode_a01r(r, owners=A04_OWNERS)
+    row["story764"] = r["story764"].hex()
+    row["s830"] = r["s830"].hex()
+    row["e4"] = r["d2"][0x0C:0x0D].hex()                # D_008107E4 (the director's counter)
+    row["e5"] = r["d2"][0x0D:0x0E].hex()                # D_008107E5 (0x8241F0's bug group)
+    row["e9"] = r["d2"][0x11:0x12].hex()                # D_008107E9 (the NPC [2] behind door [45])
+    row["ea"] = r["d2"][0x12:0x13].hex()                # D_008107EA ([3] 0x8246B0)
+    return row
+
+
+def use_a04_sampler(r: Route) -> None:
+    sampler = A04Sampler(r.s)
+    r.sampler = sampler
+    r.now = lambda: decode_a04(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+
+
+A04_GRABS = (0x3B, 0x3E)        # a bug on the player's back / a bite
+
+
+def a04_shake(r: Route, limit: int = 300) -> None:
+    """A bug on the player's back (action 0x3B) lets go when the left stick is
+    rocked left and right; a bite (0x3E) plays out on its own."""
+    for i in range(limit):
+        action = r.rows[-1]["m1F0"]
+        if action not in A04_GRABS:
+            break
+        if action == 0x3B:
+            r.set_pad(0, 0x00 if (i // 2) % 2 else 0xFF, 0x7F)
+        else:
+            r.set_pad(0)
+        r.step(1)
+    r.set_pad(0)
+
+
+def a04_go(r: Route, points, tol: float = 1.5, limit: int = 500, until=None) -> str:
+    """walk_path for AREA04: a bug's grab interrupts the walk (a04_shake) and
+    the walk resumes toward the same waypoint.  Returns 'until', 'ok' or
+    'blocked@<index>' (the walk is then left where it stopped)."""
+    for i, (x, z) in enumerate(points):
+        history: list[tuple[float, float]] = []
+        for _ in range(limit):
+            row = r.rows[-1]
+            if until is not None and until(row):
+                r.set_pad(0)
+                return "until"
+            if row["m1F0"] in A04_GRABS:
+                a04_shake(r)
+                history = []
+                continue
+            if r.stick_toward(x, z) <= tol:
+                break
+            row = r.step(1)
+            history.append((row["pos"][0], row["pos"][2]))
+            if len(history) > 45 and math.hypot(history[-1][0] - history[-45][0],
+                                                history[-1][1] - history[-45][1]) < 0.3:
+                r.set_pad(0)
+                return f"blocked@{i}"
+    r.set_pad(0)
+    return "ok"
+
+
+def a04_use(r: Route, x: float, z: float, yaw: float, pred, tries: int = 5) -> None:
+    """Approach (x, z), face `yaw`, Cross until `pred`; a bug's grab can take
+    the press, so the approach is repeated."""
+    for attempt in range(tries):
+        a04_shake(r)
+        approach(r, x, z)
+        face(r, yaw)
+        r.press("CROSS", 2)
+        try:
+            r.until(lambda row: pred(row) and row["m1F0"] not in A04_GRABS, 60)
+            return
+        except TimeoutError:
+            a04_shake(r)
+            r.until(lambda row: row["m1F0"] not in A04_GRABS, 600)
+            settle(r, 10)
+    raise TimeoutError("Use not taken: " + summary(r.rows[-1]))
+
+
+def a04_program(row: dict) -> bool:
+    """A door or talk program took the press (3B8D != 0 or action 0x41)."""
+    return row["spad"][2:4] != "00" or row["m1F0"] == 0x41
+
+
+A04_HALL_WEST = [(420, 350), (385, 330), (380, 290), (390, 250), (390, 220), (420, 180), (440, 150)]
+A04_HALL_TO_CONVEYOR = [(450, 160), (420, 180), (390, 220), (392, 250), (394, 260)]
+A04_CONVEYOR_UP = [(420, 260), (450, 260), (480, 260), (495, 260), (515, 262)]
+A04_BALCONY_NORTH = [(543, 290), (545, 350), (542, 395)]
+# The store room: from spawn entry 4 (516.5, 157) north of the pillar block
+# (x 523..533, z 145..173) toward the east wall.
+A04_STORE_NORTH = [(518, 165), (518, 178), (536, 178)]
+
+
+def a04_beat_door45_event(r: Route) -> dict:
+    # From the arrival (440.1, 14.9, 356.4) west round the tower (x 400..460,
+    # z 238..300) and south to the director's quad 0x827CD0 (x 430..450,
+    # z 115..137) in front of door [45]: D_008107E4 = 2, script 0x8278D0, at
+    # its end D_00810845 |= 8 (door [40]) and the player placed at
+    # (440.4, 14.9, 114.4) facing 0.
+    use_a04_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, A04_HALL_WEST + [(440, 132)], until=lambda row: row["e4"] != "01")
+    if how != "until":
+        raise RuntimeError("the director's quad not reached (" + how + "): " + summary(r.rows[-1]))
+    r.set_pad(0)
+    next_control_kept(r, 9000, 60)
+    settle(r, 10)
+    row = r.rows[-1]
+    if row["e4"] != "02" or not int(row["locks"][10:12], 16) & 0x08:
+        raise RuntimeError("door-[45] event effects not seen: " + summary(row))
+    return {"what": "arrival -> west round the tower -> the director's quad at door [45]: script 0x8278D0, "
+                    "D_008107E4 = 2, D_00810845 |= 8 (door [40])", "hp_end": a01_hp(r)}
+
+
+def a04_beat_door40(r: Route) -> dict:
+    # Door [40] (001BC350 model 0x15, room move id 3, unlocked by the event):
+    # the hall side (501.5, 162) facing +x -> spawn entry 4 (516.5, 14.9, 157).
+    use_a04_sampler(r)
+    next_long_frames(r)
+    a04_go(r, [(445, 135), (470, 158), (492, 162)])
+    a04_use(r, 496.0, 162.0, math.pi / 2, a04_program)
+    r.until(lambda row: row["area4"][:6] == "040004", 1500)
+    next_control_kept(r, 3000, 40)
+    settle(r, 10)
+    return {"what": "door [40] (room move id 3): the store room behind it, spawn entry 4", "hp_end": a01_hp(r)}
+
+
+def a04_beat_console(r: Route) -> dict:
+    # The console [69] (overlay 0x825DF0, class 0x84) at (556.7, 29.9, 193):
+    # its Use starts script 0x82C3B0; D_0081083B = 0xFF and the reel [70]
+    # leaves the top of the conveyor for (380, 14.9, 260).
+    use_a04_sampler(r)
+    next_long_frames(r)
+    a04_go(r, A04_STORE_NORTH + [(553, 176), (555, 186)])
+    a04_use(r, 556.0, 189.0, 0.0, a04_program)
+    next_control_kept(r, 4000, 40)
+    settle(r, 10)
+    row = r.rows[-1]
+    if row["s830"][22:24] != "ff":
+        raise RuntimeError("D_0081083B not 0xFF: " + summary(row))
+    return {"what": "console [69]: script 0x82C3B0, D_0081083B = 0xFF, the reel [70] rolls down the conveyor",
+            "reel_pos": row["reel_r70"]["pos"], "hp_end": a01_hp(r)}
+
+
+def a04_beat_back_to_hall(r: Route) -> dict:
+    # Back through door [40] from the store room (the pillar block x 523..533,
+    # z 145..173 is passed on its north side): spawn entry 3 in the hall.
+    use_a04_sampler(r)
+    next_long_frames(r)
+    a04_go(r, [(553, 176), (536, 177), (518, 177), (516, 162), (511, 161.5)])
+    a04_use(r, 506.0, 161.5, -math.pi / 2, a04_program)
+    r.until(lambda row: row["area4"][:6] == "040003", 1500)
+    next_control_kept(r, 3000, 40)
+    settle(r, 10)
+    return {"what": "door [40] from the store room: back in the hall at spawn entry 3", "hp_end": a01_hp(r)}
+
+
+def a04_beat_conveyor(r: Route) -> dict:
+    # West round the pit to the foot of the conveyor (x 400, z 260), up it
+    # (y 19 -> 54.9) now that the reel is gone, onto the east balcony and
+    # north along it to door [37]'s corridor.
+    use_a04_sampler(r)
+    next_long_frames(r)
+    a04_go(r, A04_HALL_TO_CONVEYOR)
+    for _ in range(4):
+        how = a04_go(r, A04_CONVEYOR_UP + A04_BALCONY_NORTH, limit=400)
+        if how == "ok":
+            break
+    row = r.rows[-1]
+    if abs(row["pos"][1] - 54.9) > 0.3 or math.hypot(row["pos"][0] - 542, row["pos"][2] - 395) > 4:
+        raise RuntimeError("the balcony corridor not reached: " + summary(row))
+    return {"what": "up the conveyor (the reel gone) onto the east balcony, north to door [37]",
+            "hp_end": a01_hp(r)}
+
+
+def a04_beat_progression_exit(r: Route) -> dict:
+    # Door [37] (001BC350 model 0x03, door id 1|0x80, record 16 00 00 00):
+    # area change to AREA22 entry 0, its arrival, control.
+    use_a04_sampler(r)
+    next_long_frames(r)
+    a04_use(r, 540.5, 404.5, 0.0, a04_program)
+    r.until(lambda row: row["area4"][:2] == "16", 2500)
+    next_control_kept(r, 12000, 60)
+    settle(r, 30)
+    if r.rows[-1]["area4"][:6] != "160000":
+        raise RuntimeError("not at AREA22 sub 0 entry 0: " + summary(r.rows[-1]))
+    return {"what": "door [37]: area change to AREA22 entry 0, arrival, control", "hp_end": a01_hp(r)}
+
+
+def a04_beat_door45_locked(r: Route) -> dict:
+    # Door [45] (overlay 0x823700) behind the player after the event: with
+    # D_00810845 bit 5 clear its Use runs the talk turn 0x823580 (script
+    # 0x8272A0, one message).
+    use_a04_sampler(r)
+    next_long_frames(r)
+    face(r, math.pi)
+    a04_use(r, r.rows[-1]["pos"][0], r.rows[-1]["pos"][2], math.pi, a04_program)
+    next_control_kept(r, 3000, 60)
+    settle(r, 10)
+    if r.rows[-1]["area4"][:4] != "0400":
+        raise RuntimeError("door [45] opened: " + summary(r.rows[-1]))
+    return {"what": "Use at door [45] with D_00810845 bit 5 clear: the talk turn and one message",
+            "hp_end": a01_hp(r)}
+
+
+def a04_beat_reel_blocks(r: Route) -> dict:
+    # Before the console: up the conveyor with the reel [70] still at its top
+    # (509, 54.9, 260): the walk stops against it.
+    use_a04_sampler(r)
+    next_long_frames(r)
+    a04_go(r, A04_HALL_TO_CONVEYOR)
+    how = a04_go(r, A04_CONVEYOR_UP, limit=200)
+    settle(r, 10)
+    row = r.rows[-1]
+    if how == "ok" or row["pos"][0] > 500:
+        raise RuntimeError("the reel did not stop the walk: " + summary(row))
+    return {"what": "up the conveyor before the console: stopped by the reel [70] at its top",
+            "walk": how, "hp_end": a01_hp(r)}
+
+
+def a04_beat_pickup(r: Route) -> dict:
+    # The pickup 0x826930[12] (0015AFA0, class 0x87) on the store room's north
+    # shelf at (514.3, 30, 192.9): Use from (514.3, 188.5) facing +z.
+    use_a04_sampler(r)
+    next_long_frames(r)
+    a04_go(r, [(518, 165), (516, 187)])
+    taken0, inv0 = r.rows[-1]["taken"], r.s.read(0x810C60, 0x60).hex()
+    a04_use(r, 514.3, 188.0, 0.0, lambda row: not in_control(row))
+    r.until(lambda row: row["ui"][2:4] == "03", 900)
+    r.idle(90)
+    r.press("TRIANGLE", 2)
+    next_control_kept(r, 3000, 40)
+    settle(r, 10)
+    return {"what": "the pickup 0x826930[12] on the store room's shelf (item page, Triangle)",
+            "taken_changed": r.rows[-1]["taken"] != taken0,
+            "inventory_before": inv0, "inventory_after": r.s.read(0x810C60, 0x60).hex(), "hp_end": a01_hp(r)}
+
+
+def a04_beat_door42_locked(r: Route) -> dict:
+    # Door [42] (001BC350 model 0x15, door id 4|0x80: AREA20) in the store
+    # room, D_00810845 bit 4 clear: the locked-door program.
+    use_a04_sampler(r)
+    next_long_frames(r)
+    a04_go(r, A04_STORE_NORTH + [(553, 174), (555, 160), (555, 154)])
+    a04_use(r, 555.5, 153.0, math.pi / 2, a04_program)
+    next_control_kept(r, 3000, 60)
+    settle(r, 10)
+    if r.rows[-1]["area4"][:2] != "04":
+        raise RuntimeError("door [42] opened: " + summary(r.rows[-1]))
+    return {"what": "Use at the lock-gated door [42] (to AREA20): locked-door program", "hp_end": a01_hp(r)}
+
+
+A04_BEATS = [
+    ("a04_00_door45_event", "a02_05_progression_exit", a04_beat_door45_event),
+    ("a04_01_door40", "a04_00_door45_event", a04_beat_door40),
+    ("a04_02_console", "a04_01_door40", a04_beat_console),
+    ("a04_03_back_to_hall", "a04_02_console", a04_beat_back_to_hall),
+    ("a04_04_conveyor", "a04_03_back_to_hall", a04_beat_conveyor),
+    ("a04_05_progression_exit", "a04_04_conveyor", a04_beat_progression_exit),
+    # side beats
+    ("a04_s0_door45_locked", "a04_00_door45_event", a04_beat_door45_locked),
+    ("a04_s1_reel_blocks", "a04_00_door45_event", a04_beat_reel_blocks),
+    ("a04_s2_pickup", "a04_01_door40", a04_beat_pickup),
+    ("a04_s3_door42_locked", "a04_01_door40", a04_beat_door42_locked),
+]
+A04_SIDE_BEATS = {"a04_s0_door45_locked", "a04_s1_reel_blocks", "a04_s2_pickup", "a04_s3_door42_locked"}
+A04_CHANGE_BEATS = {"a04_05_progression_exit"}         # the beat that leaves AREA04
+
+
+def a04_selected(spec: str) -> list[tuple]:
+    """`a04` = every AREA04 beat in order; otherwise names or name prefixes."""
+    wanted = spec.split(",")
+    if "a04" in wanted:
+        return list(A04_BEATS)
+    return [b for b in A04_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
 def beat_source(source: str) -> Path:
     if len(source) == 2 and source.isdigit():
         return slot_path(source)
@@ -2553,6 +2887,8 @@ def beat_dir(name: str) -> Path:
         return OUT_A01R / name
     if name.startswith("a02_"):                 # AREA02 beats: build/s87/route_a02/
         return OUT_A02 / name
+    if name.startswith("a04_"):                 # AREA04 beats: build/s87/route_a04/
+        return OUT_A04 / name
     return (OUT_A01 if name.startswith("a01_") else OUT) / name
 
 
@@ -2639,6 +2975,9 @@ def events(doc: dict, owners=None) -> list[str]:
             for key in NEXT_EVENT_KEYS:         # AREA01 revisit / AREA02 rows only
                 if key in row:
                     cur[key] = row[key]
+            for key in A04_EVENT_KEYS:          # AREA04 rows only
+                if key in row:
+                    cur[key] = row[key]
         if prev is not None:
             diff = [f"{k}={cur[k]}" for k in cur if cur[k] != prev.get(k)]
             if diff:
@@ -2679,6 +3018,8 @@ if __name__ == "__main__":
                 run_beat(name, source, fn)
             for name, source, fn in a02_selected(a.beats):    # and the AREA02 group
                 run_beat(name, source, fn)
+            for name, source, fn in a04_selected(a.beats):    # and the AREA04 group
+                run_beat(name, source, fn)
     elif a.command == "events":
         chosen = [b for b in BEATS if a.beats == "all" or b[0][:2] in a.beats.split(",")]
         chosen += a01_selected(a.beats) if a.beats != "all" else []
@@ -2686,6 +3027,7 @@ if __name__ == "__main__":
         chosen += a00_selected(a.beats) if a.beats != "all" else []
         chosen += a01r_selected(a.beats) if a.beats != "all" else []
         chosen += a02_selected(a.beats) if a.beats != "all" else []
+        chosen += a04_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             path = beat_dir(name) / "trace.json"
             if not path.exists():
@@ -2697,7 +3039,8 @@ if __name__ == "__main__":
             owners = (A01_OWNERS if name.startswith("a01_") else
                       A00_OWNERS if name.startswith("a00_") else
                       A01R_OWNERS if name.startswith("a01r_") else
-                      A02_OWNERS if name.startswith("a02_") else None)
+                      A02_OWNERS if name.startswith("a02_") else
+                      A04_OWNERS if name.startswith("a04_") else None)
             for line in events(doc, owners):
                 print("  ", line)
     elif a.command == "identify":
@@ -2729,6 +3072,7 @@ if __name__ == "__main__":
         chosen += a00_selected(a.beats) if a.beats != "all" else []
         chosen += a01r_selected(a.beats) if a.beats != "all" else []
         chosen += a02_selected(a.beats) if a.beats != "all" else []
+        chosen += a04_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             state = beat_dir(name) / "state.p2s"
             if state.exists():

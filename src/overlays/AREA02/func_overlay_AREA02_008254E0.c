@@ -1,17 +1,13 @@
-// NEARMISS: not a code difference. The compiled object is byte-identical
-// (overlay_match.py 100%), but it is the overlay's last function and covers
-// two splat pieces; fill_overlay.py only lets a compiled object absorb
-// pieces when it ends within 16 bytes of their slots, and the last slot runs
-// on through the 0x30-byte zero pad before the text end (0x825640 link).
-// Until that rule allows the text-end pad, the link takes this function from
-// its splat pieces (still byte-identical).
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 // AREA02 overlay, runtime 0x00825520 (splat/link name 008254E0; overlay
 // code is linked 0x40 below where it runs), 0x130 bytes. Object byte-identical
 // (tools/overlay/overlay_match.py check AREA02; lane A02C).
-// Covers the splat pieces 008254E0, 00825520. Neither piece is absorbed at
-// link time (see the NEARMISS note): the link assembles both.
+// Covers the splat pieces 008254E0, 00825520 (the later piece is absorbed at
+// link time, tools/overlay/fill_overlay.py). It is the overlay's last
+// function: its slot runs on through the 0x30-byte zero pad to the text end
+// (link 0x825640), which the fill reproduces by extending the object's .text
+// with zeros (plan_absorption accepts a remainder that is all text-end pad).
 // Role: when D_008104C4 is set, D_008102BA is nonzero and that object's
 //  +0xD is 9: 0x700031F0 = 1; (D_00810350, D_00810358) is rotated about the
 //  object's (+0xB0, +0xB8) by 0.00374 rad with func_0011DE90 and
