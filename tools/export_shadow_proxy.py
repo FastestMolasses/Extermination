@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""export_shadow_proxy.py - the player's drop-shadow proxy mesh as an EMDL.
+"""export_shadow_proxy.py - an actor's drop-shadow proxy mesh as an EMDL.
 
 Original evidence (port docs/SHADOW_ORIGINAL.md): 001D9EE0 draws the
 silhouette of the shadow into a 128x128 target with 001D4740(D_0028A490[kind])
@@ -14,15 +14,24 @@ with the player's live palette, as the original does.
 Output is disc-derived: write it only into git-ignored locations (the port's
 assets/). Runs natively on arm64 macOS (pure Python).
 
+Roger (kind 0x29, 001BA580's 001DA6A0 on his record) uses
+extract/chunk03/f33_id29.bin the same way; its baked frames only mirror the
+layout too (the port skins it with Roger's live node matrices).
+
 Usage (repo root):
   .venv/bin/python tools/export_shadow_proxy.py \
       --player-emdl ../extermination-port/assets/player.emdl \
       --out ../extermination-port/assets/player_shadow.emdl \
       --verify-ram build/startup-reference/playable_ee.bin
+  .venv/bin/python tools/export_shadow_proxy.py --kind 0x29 \
+      --player-emdl ../extermination-port/assets/player.emdl \
+      --out ../extermination-port/assets/roger_shadow.emdl \
+      --verify-ram build/s87/route/14_roger_encounter/eeMemory.bin
 """
 from __future__ import annotations
 
 import argparse
+import re
 import struct
 import subprocess
 import sys
@@ -54,8 +63,12 @@ def verify_ram(mesh: bytes, ram_path: Path, kind: int) -> None:
     pointer = struct.unpack_from("<I", ram, SHADOW_TABLE + 4 * kind)[0]
     if ram[pointer:pointer + len(mesh)] != mesh:
         raise SystemExit(f"D_0028A490[{kind:#x}] = {pointer:#x} does not hold the mesh file")
-    tag = struct.pack("<HBBI", struct.unpack_from("<I", mesh, 4)[0], 0, 0x30, pointer + 0x40)
-    if ram.find(tag) < 0:
+    # The tag writers store only the qwc halfword, the id byte and the
+    # address word: byte +2 keeps the buffer's stale byte (port
+    # docs/SHADOW_ORIGINAL.md "Every capture of a world frame draws it").
+    qwc = struct.pack("<H", struct.unpack_from("<I", mesh, 4)[0])
+    tag = re.compile(re.escape(qwc) + b"." + b"\x30" + re.escape(struct.pack("<I", pointer + 0x40)), re.S)
+    if not tag.search(ram):
         raise SystemExit("no captured REF of the proxy mesh (qwc, +0x40) in the capture")
     print(f"verified: D_0028A490[{kind:#x}] = {pointer:#x} holds the file; the captured "
           f"silhouette pass REFs it (qwc {struct.unpack_from('<I', mesh, 4)[0]})")
