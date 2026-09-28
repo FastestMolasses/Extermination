@@ -492,6 +492,31 @@ call order differs between runs.
 
 ---
 
+## 26. The security gun that waits for your return — decoded (first visit); partial (return visit)
+
+*Kind: design detail (content for a return visit).* Above the fence door in
+AREA11 hangs a fixed security gun (0x825940, at (387, 231.8, 290.3)) with its
+power cable (0x827490) reaching the ground. On the first visit the gun stays
+switched off for the whole level: its dormant state 0x64 only checks story
+flag 0x30 (D_00810788) each frame, and every AREA11 capture holds that flag at
+0 (the gun's one setup rand() draw gives its sweep timer 584, which never
+runs). Switched on, it would sweep with a sight beam, turn and fire (5 points
+of damage), with a lamp that goes green while scanning and red while aiming.
+Only an AREA17 script sets the flag (to 1), AREA17 holds the only area change
+into AREA11, and an AREA11 manager cutscene that starts only when the flag is
+non-zero sets it to 0xFF — so the gun is built for a return visit (inferred
+from the code; no capture of the return exists). Shooting the cable disables
+the gun (it droops, its lamp fades) and saves taken bit 0x50, so the gun
+would come back disabled. The same gun and cable appear in AREA01, 03, 07,
+11, 13, 14, 19 and 20. The old "husk creature / husk partner / first-level
+enemy" labels came from misreading the cable's type byte 0x29 as a crate
+debris model. Evidence: decomp build/workflows/verify-area11-husks.output.json
+(code, captures, overlay scan), FINDINGS s78 §7 correction, the C7 rng traces.
+Open: whether the player's weapon can hit the cable on the first visit; the
+AREA17 path and a save loaded after it were not traced.
+
+---
+
 ## Notes for the port's candidate lists
 
 The candidate list in port `LAUNCHER_OPTIONS.md` and the examples in port

@@ -14822,6 +14822,20 @@ GAMEPLAY-relevant (model eventually):
   creature that SPAWNS one child (`func_001AFA90`); model 0x29 (fn 0x827490) =
   a shootable HP-1 husk (polls +0x36, burst FX 0x80000045), partner-linked.
   The first-monster moment near the room-move door.
+  **CORRECTED 2026-09-27 (verified from the original code and every AREA11
+  capture):** these are NOT a creature and a husk. 0x825940 is a fixed
+  SECURITY GUN (a housing with a barrel; sight beam, scan/aim/fire lifecycles
+  4 and 1, a lamp child 001C5680 tinted green/red via 001F54E0) and 0x827490 is
+  its POWER CABLE (hangs ~48 units to the ground; shooting it disables the gun
+  and saves taken bit 0x50). The "husk" name came from reading the cable's
+  type byte 0x29 as library model 0x29 (crate debris). On the first visit the
+  gun stays in its dormant state 0x64 for the whole level: it switches on only
+  when D_00810788 (story flag 0x30) is 0xFF, which only an AREA17 script
+  (sets it to 1) followed by an AREA11 manager cutscene on a return visit can
+  set; AREA17 holds the only area change into AREA11. In every AREA11 capture
+  the flag is 0, the gun is in 0x64 and the cable unhit. The same gun+cable
+  pair (cue set 0x423..0x428) exists in AREA01/03/07/11/13/14/19/20. See
+  CURIOSITIES 26.
 - Doors: the intra-area room-move door (record 0, §6) + a door assembly
   (record 9, fn 0x1C5C90).
 
@@ -14831,8 +14845,11 @@ COSMETIC/ambient (skip first-pass): a looping-sound + steam/fx emitter (record
 
 **KEY NEGATIVES**: AREA 11 has NO enemy GENERATOR/wave spawner (no class-0x0D
 model-3 `func_0015A2C0`) and NO weather-particle actor (weather is global
-render). First-level enemy content = 4 crawlers + 2 egg fixtures + the door
-husk pair. Class taxonomy (record +0x00 & 0xFF1F): 0x04 generic, 0x05/0x85
+render). ~~First-level enemy content = 4 crawlers + 2 egg fixtures + the door
+husk pair.~~ CORRECTED 2026-09-27: the first level has no active enemy on the
+recorded route. The "crawlers" (001551B0) and "egg fixtures" (00156620) are
+breakable crates/drums with no nest link (+0x56 = -1), idle in every capture;
+the "husk pair" is a dormant security gun and its cable (above). Class taxonomy (record +0x00 & 0xFF1F): 0x04 generic, 0x05/0x85
 double-door, 0x08 door-assembly, **0x09 = pos-0 scripted-system manager**, 0x0D
 scripted spawner (here a sound/fx emitter, NOT the enemy generator), 0x84/0x85/
 0x86 = class-4 interactive/variant, 0xAA = scripted interactive actor.
