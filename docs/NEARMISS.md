@@ -754,4 +754,5 @@ To convert a near-miss to a true match later, reproduce the byte-exact bytes fro
 | func_001D5370 | 0x001D5370 | 0x700 | 39.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001D5C80 | 0x001D5C80 | 0x728 | 47.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001AC7F0 | 0x001AC7F0 | 0x22C | 97.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | All live instructions match; C omits three unreachable duplicate lui instructions (544 vs 556 bytes). Original assembly remains linked. |
+| func_overlay_AREA06_00823B10 (overlay AREA06) | runtime 0x00823B50 | same size | 97.12% | mwcc 2.3.3 | Overlay C, not compiled (links from splat). Only residual: the three 12-byte period-table copies to the stack; the original moves the last word through a GPR, mwcc 2.3.3/2.4/991202 always use an FPR (docs/AREA06_OVERLAY.md) (2026-09-28). |
 | quat_nlerp | 0x001CA0A0 | 0x114 | 99.06% | mwcc 2.3.3 | Readable unnormalized hemisphere blend; 67/69 instructions match, with two clamp branch/delay-slot scheduling differences. Assembly links. |

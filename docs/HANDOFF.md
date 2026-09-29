@@ -148,6 +148,17 @@ that is a different, stale tree.
   floor (port docs/SIXTH_LEVEL_ROUTE.md); 11 new functions. Next: AREA01 upper floor ->
   door [19] -> AREA06 (to be established). Item 0x23 (AREA22's card reader key) comes
   from AREA04's NPC behind locked door [45] (not played).
+- **Level 7 = AREA01 upper floor + AREA06** (2026-09-28, port docs/SEVENTH_LEVEL_ROUTE.md):
+  a running jump crosses the upper-floor gap; door [19] -> AREA06. AREA06: beam, crate,
+  room, keypad (sets AREA04 door [45]'s lock bit D_00810845 bit 5), beam collapse into
+  the pit; exit door [3] (to AREA16) needs D_00810847 bit 2, whose only writer found is
+  AREA15's overlay. Story order after AREA06 is open (AREA04 door [45] -> NPC [2] -> item
+  0x23 -> AREA22 reader/door [10], or AREA15 first); no way out of the pit was found.
+  AREA06 overlay: 9 of 10 functions link from C (00823B10 NEARMISS, a 12-byte copy).
+  Census: a01u 7 new, a06 32 new. AREA22 phase 2 committed.
+- **Systemic extraction label shift (A22ASSETS finding):** tools/extract_data.py and the
+  area exporters label nested-block files without the resident offset (+0x14), so some
+  level-zone labels/splits are wrong (bytes are right); to fix across exporters.
   - Port flags for binding: em_actor_cells rejects AREA01's cell directory (uid 0 word bit
     29); em_coll_segment_walkers returns -1 on 0019D770's no-span path (FINDINGS).
   - Phase 3 (after the first level is done): an AREA01 binding chain.
