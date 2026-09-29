@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-09-26 (Claude, s87).** This is the short cross-repo entry point.
+**Current as of 2026-09-29 (Claude, s87).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -39,56 +39,49 @@ that is a different, stale tree.
   steps, pad input, memory reads and snapshots. Save states are in
   `build/startup-reference/portable-data/sstates/` (01-15 are the user's; never
   overwrite them).
-- Port live checks: `EM_STARTUP_TEST=newgame-control` (displacement 9.599989) and the
+- Port live checks: `EM_STARTUP_TEST=newgame-control` (displacement 9.599849) and the
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (bdd40fb): 2150/2211 units; boot ELF byte-identical; 19/19 overlays.
+  Latest (e627b00, 2026-09-29): 2152/2211 units; boot ELF byte-identical; 19/19 overlays.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
 
-## State (2026-09-26)
-- **Chain C6 finished** (port c7a04a4 VOICE, 955f1c2 RCTX, 8d65dff FXLIVE, b7868e1 DOOR,
-  de64410 OBJKERNEL, c8e658f SHADOW, 097fbd9 UI, d610cec ROUTE). The level smoke plays the
-  whole main route 01..14 (18 phases, incl. the director beats and Roger) plus side beats 00
-  and 09, each checked against its PCSX2 capture; `--require-through` makes a shorter route
-  fail. Census (port FIRST_LEVEL_CENSUS.md 1.22): live 640 / verified-unbound 87 /
-  unverified 5 / stand-in 0 / missing 1 / boundary 451 = 90.8% of non-boundary instructions.
-  newgame-control baseline is now 9.599849.
-- **What still differs from the original** (C6 limitations; port LEVEL_SMOKE.md "What the
-  full route does not yet compare"): the player, Roger and the other non-crate owners still
-  draw legacy meshes (only crates, drums, truck and fence door use the original object
-  units); the effect chains are built exactly but not drawn; the scripted takeover
-  (001CA770, 0015B530/00182B30/001837A0) is a stand-in; step V (001D2300) and the static
-  world (001C1D00, bank *D_0028A5A0) are not bound; voiced lines tear down 6-8 rows early
-  (no drive-latency model); rand() order is unaudited; duplicate translations remain;
-  Metal rasterization stands in for the GS DDA (no framebuffer capture yet).
-- **Running:** chain C7 (build/workflows/snow-level-chain-c7-*.js: PLAYERDRAW, FXDRAW,
-  OWNERS, TAKEOVER, STEPV, DEDUP, FPUAUDIT, then capture-dependent VOICELAT, DOOR1,
-  RNGORDER, and ROUTE) and a capture job (build/workflows/c7-original-captures-*.js:
-  stream latency, fence door side 1, lane-3 writer, rand() caller trace, framebuffer
-  feasibility, panel module load; outputs build/s87/c7cap/, doc docs/CAPTURES_C7.md).
-- **Not yet planned into a chain:** Roger's face units (001CB3C0, 001D3F50, 001D3E40,
-  001C7900, 001CB2C0) and his kind-0x29 shadow proxy; the static world and background
-  channel (001C1D00, 001D5370, 001E1E60/001E1AD0); UI cues and unit sound (WP-14); SPU2
-  reverb; the GS-exact Original-profile renderer and framebuffer harness.
+## State (2026-09-29, work paused for the user's review)
+- **First-level chains done:** C6, C7, C8a, C8b (port e654b42) and the first two steps
+  of C9: PIXELS (bfe31d0, the fb2 pixel harness `make test-fb2-pixels`; exact pixels vs
+  PCSX2's software GS at the camera-exact points 10 / 14: 30.89% / 28.79%, median error 1;
+  four named pixel differences removed) and AREALOAD (a7c342e, audit 1b item 3: the area
+  and New Game module-3 loads run the loader's own steps with the sound-bank upload, the
+  EE sound library and IOP command 0x20; the load veil shows 55 frames at host speed,
+  257 with the drive switch vs the PS2's 258). Cutscene skip crash fixed (898a7c2,
+  73c7727). Full route smoke passes through Roger on disc-only assets.
+- **Census (port FIRST_LEVEL_CENSUS.md 1.46):** live 708 / verified-unbound 45 /
+  unverified 3 / stand-in 0 / missing 0 / boundary 428 = 96.9% of non-boundary
+  instructions.
+- **Chain C9 stopped by the user after AREALOAD** (2026-09-29, to save compute; nothing
+  of PAGELOADS was written). Its script is build/workflows/snow-level-chain-c9.js;
+  resume in a new session by deleting the PIXELS and AREALOAD entries from STEPS,
+  updating STATE (census 1.46, the two commits, C9's step notes in the old run's journal
+  or build/workflows/snow-level-chain-c9.partial.json) and launching it fresh. Remaining
+  steps: PAGELOADS, LIGHTING, UNITS, CAMERAS (incl. the aim camera), TAKEOVERS, GLUE,
+  ASSETS, GSFRAME, ROUTE. The remaining-work list is port FIRST_LEVEL_AUDIT.md
+  section 1b (items 1 audio output, 2 GS frame, 4-23).
+- **Still differs from the original first level (headline):** sound output (dry SPU2
+  model, no reverb; needs an audio capture, which needs the user's OK to turn on
+  PCSX2 audio recording during a capture job); the frame is Metal's, not the GS model's;
+  lighting stand-ins on skinned-path draws; indicator lamp / title card / sky grid not
+  on original units; opening and examine/aim camera stand-ins; weapons and aiming
+  (Codex branch, below); damage and death paths; two capture-bound assets.
 - **Policy and registries (user, 2026-09-27):** the original code is the oracle;
   hardware timing is not reproduced by default (disc at host speed, no slowdown,
   no CRT); the recorded disc-drive timing (C7 VOICELAT) becomes an optional
-  switch, off by default (queued). Port docs/FIDELITY_FEATURES.md lists what the
+  switch, off by default (built: EmSettings.ps2_disc_drive_timing). Port docs/FIDELITY_FEATURES.md lists what the
   port reproduces (evidence + status); port docs/LAUNCHER_OPTIONS.md lists every
   launcher option and the decisions the user still has to review (field
   presentation). Future goals: a launcher; a PS2 compile target for the port's
   game code (test it in the ELF under PCSX2).
-- **Queued for the next first-level chain** (FIDELITY_FEATURES "blockers" and
-  C7 limitations): the drive-timing switch; H7 aligned on load completion;
-  wire the load veil; the player-reachable fail-stops (DATABASE/SPR4/MAP pages,
-  non-battery item takes); Roger's face units (001CB3C0 ...) and kind-0x29
-  shadow; the static world (001C1D00, bank *D_0028A5A0) and background
-  channel; the fan spin, husks and indicator draw; flame and snow on the chain
-  page; UI/unit sounds and SPU2 reverb; disc-sourced textures (today some come
-  from PCSX2 captures); then the GS-exact renderer and the pixel harness.
 - **Decision (user, 2026-09-26): do not integrate ran-j/PS2Recomp** (GPL-3.0 static
   recompiler). Evaluated read-only: host-IEEE EE/VU0 floats, no runtime-overlay support,
   non-GS-exact rasterizer, disc-derived output with per-instruction disassembly comments, and
