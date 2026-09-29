@@ -910,8 +910,11 @@ def main(argv):
                     "pre-extracted state dir, or a bare gs.bin freeze "
                     "blob) as the VRAM texel/CLUT source instead of "
                     "--gsdump — for levels with a save state but no GS "
-                    "dump (the model's TEX0 keys must be resident in "
-                    "that state's VRAM; see build_texture_blob)")
+                    "dump, or the port's disc-rebuilt first-level GS "
+                    "memory (extermination-port build/disc_textures/"
+                    "first_level_gs.bin, tools/export_disc_textures.py); "
+                    "the model's TEX0 keys must be resident in that "
+                    "VRAM; see build_texture_blob. Also with --attach")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 
@@ -921,10 +924,10 @@ def main(argv):
         # local offsets — see export_props.py for the live-frame proof).
         # export_props also resolves textures via export_level's blob
         # builder (PSMCT32-capable), exactly as `export_props.py --attach`.
-        if args.p2s:
-            raise SystemExit("--p2s is not supported with --attach (that "
-                             "path uses export_level's PSMCT32-capable "
-                             "blob builder); use --gsdump")
+        # --p2s (a save state or a bare GS freeze blob, e.g. the port's
+        # disc-rebuilt first-level memory) goes to export_level's
+        # PSMCT32-capable builder through export_props.finish_textures,
+        # like --gsdump.
         props = _load("_export_props", "export_props.py")
         sections, max_slot, tex_table = props.build_attached_player(args)
         # finish_textures = build_texture_blob + the glow-layer tints

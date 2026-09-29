@@ -631,8 +631,14 @@ def finish_textures(args, tex_table):
     carries `tint` (R,G,B, /128 fixed point — the live RGBAQ convention)
     get their texels multiplied in place. Used by both --attach drivers
     (here and export_native --attach)."""
+    # Texel source: a GS dump (--gsdump) or a GS freeze blob / save state
+    # (--p2s, e.g. the port's disc-rebuilt first-level memory
+    # build/disc_textures/first_level_gs.bin; export_level's builder reads
+    # either the same way, --gsdump winning if both are given).
+    p2s = getattr(args, "p2s", None)   # export_native --attach passes its own args
     tex_entries, tex_blob = lvl.build_texture_blob(
-        Path(args.gsdump) if args.gsdump else None, tex_table)
+        Path(args.gsdump) if args.gsdump else None, tex_table,
+        Path(p2s) if p2s else None)
     blob = bytearray(tex_blob)
     for i, tf in enumerate(tex_table):
         tint = tf.get("tint")
@@ -1385,7 +1391,8 @@ def export_gibs(args):
             print(f"  ! gib 0x{mi:02x}: no geometry, skipped")
             continue
         tex_entries, tex_blob = lvl.build_texture_blob(
-            Path(args.gsdump) if args.gsdump else None, tex_table)
+            Path(args.gsdump) if args.gsdump else None, tex_table,
+            Path(args.p2s) if args.p2s else None)
         out = outdir / f"gib_{mi:02x}.emdl"
         en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
                       tex_entries, tex_blob, flags=NORMAL_FLAGS)
@@ -1423,7 +1430,8 @@ def export_pickup_items(args):
             rc = 1
             continue
         tex_entries, tex_blob = lvl.build_texture_blob(
-            Path(args.gsdump) if args.gsdump else None, tex_table)
+            Path(args.gsdump) if args.gsdump else None, tex_table,
+            Path(args.p2s) if args.p2s else None)
         out = outdir / f"item_{mi:02x}.emdl"
         en.write_emdl(out, sections, [], [-1], [[en.mat_identity()]], 30.0,
                       tex_entries, tex_blob, flags=NORMAL_FLAGS)
@@ -1491,8 +1499,14 @@ def export_fx(args):
         tf = en.tex0_fields(key)
         tf["key"] = key
         tex_table.append(tf)
+    # Texel source: a GS dump (--gsdump) or a GS freeze blob / save state
+    # (--p2s, e.g. the port's disc-rebuilt first-level memory
+    # build/disc_textures/first_level_gs.bin; export_level's builder reads
+    # either the same way, --gsdump winning if both are given).
+    p2s = getattr(args, "p2s", None)   # export_native --attach passes its own args
     tex_entries, tex_blob = lvl.build_texture_blob(
-        Path(args.gsdump) if args.gsdump else None, tex_table)
+        Path(args.gsdump) if args.gsdump else None, tex_table,
+        Path(p2s) if p2s else None)
 
     outdir = Path(args.fx_outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -1539,8 +1553,14 @@ def export_cone(args):
     pos = sections[0][0]
     if not pos:
         raise SystemExit(f"cone 0x{CONE_MODEL_ID:02x}: no geometry")
+    # Texel source: a GS dump (--gsdump) or a GS freeze blob / save state
+    # (--p2s, e.g. the port's disc-rebuilt first-level memory
+    # build/disc_textures/first_level_gs.bin; export_level's builder reads
+    # either the same way, --gsdump winning if both are given).
+    p2s = getattr(args, "p2s", None)   # export_native --attach passes its own args
     tex_entries, tex_blob = lvl.build_texture_blob(
-        Path(args.gsdump) if args.gsdump else None, tex_table)
+        Path(args.gsdump) if args.gsdump else None, tex_table,
+        Path(p2s) if p2s else None)
     out = Path(args.out or
                "../extermination-port/assets/fx/light_cone.emdl")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -2145,8 +2165,11 @@ def main(argv):
                     help="(--doors) level render-mesh file")
     ap.add_argument("--overlay", default="extract/OVERLAY/AREA02.BIN",
                     help="(--doors) area overlay holding the placement table")
-    ap.add_argument("--p2s", help="(--doors) PCSX2 save state as the VRAM "
-                    "texel source (--gsdump wins if both)")
+    ap.add_argument("--p2s", help="VRAM texel source for every mode that "
+                    "takes --gsdump: a PCSX2 save state or a bare GS freeze "
+                    "blob, e.g. the port's disc-rebuilt first-level memory "
+                    "build/disc_textures/first_level_gs.bin (--gsdump wins "
+                    "if both)")
     ap.add_argument("--outdir", default="../extermination-port/assets/scene",
                     help="(--doors) scene directory (manifest + EMDLs)")
     ap.add_argument("--mesh", default="extract/chunk28/f00_id3b.bin",
