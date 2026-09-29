@@ -167,6 +167,19 @@ that is a different, stale tree.
   done (port em_area06_port*: 39 rows, 27 translated + 12 reused; AREA06 exports). Three
   decomp C bodies corrected (00219870, 00169250 NEARMISS; 0021A440's prototype), FINDINGS
   "NEARMISS body corrections from the round-7 AREA06 lanes".
+- **Cutscene skip crash fixed (port 898a7c2, 2026-09-29):** op18's landing stores -1 in
+  player +0x20C and 0015BA50 then reads D_00248C98 row -1 (0.0 in the ELF); the port
+  refused row -1. EMCR v2 exports rows -1..458; tools/test_cutscene_skip.py compares the
+  opening / beats 0..2 / Roger skips with PCSX2 captures (traces kept in
+  build/startup-reference/cutscene_skip/). Users must re-run
+  tools/export_player_tables.py. After chain C9 finishes, apply
+  build/workflows/skipfix_c9_files_for_lead.patch (Makefile target test-cutscene-skip
+  and a FIDELITY_FEATURES entry; reword its beat-0 note: position identical, facing
+  one turn step off). Open: the fade substate's 3->2 step is one frame late in the port;
+  beat 0's promotion lands 11 frames after arming vs the original's 13.
+- **Parallel Codex work (user, 2026-09-29):** player aiming/firing on branch
+  codex/aim-fire in the worktree ../extermination-port-aimfire (camera and input
+  excluded; C9 owns them). Do not touch it; merge only when the user asks, after C9.
 - **Not started (planned round 8, held for the user's review):** the first level's own
   AREA11 overlay is still mostly assembly in the decomp (23 of 26 functions; the flame,
   the security gun, its cable, the fans) — decompile it and cross-check each function
