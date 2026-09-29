@@ -156,6 +156,23 @@ that is a different, stale tree.
   0x23 -> AREA22 reader/door [10], or AREA15 first); no way out of the pit was found.
   AREA06 overlay: 9 of 10 functions link from C (00823B10 NEARMISS, a 12-byte copy).
   Census: a01u 7 new, a06 32 new. AREA22 phase 2 committed.
+- **Level 8 = back through AREA06 -> AREA01 -> AREA22 -> AREA04 -> the lift -> AREA13**
+  (2026-09-29, port docs/EIGHTH_LEVEL_ROUTE.md; the code-derived door/lock/flag map is
+  decomp docs/WORLD_GRAPH.md, each edge marked played or inferred). AREA04's lift button
+  [54] (001BC960, BM) also accepts counter 0x12 = 0x10 with D_008106C0 null, so the
+  creature fight is not needed; beat a04b_04_lift rides to AREA13 entry 0 (recorded to
+  arrival only). Census: a06b 5, a01v 3, a22b 0, a04b 45 new functions. AREA15 and
+  AREA16 overlays in C (26/30 and 27/32 byte-identical; 7 NEARMISS in docs/NEARMISS.md);
+  the D_00810847 bit-2 writer is AREA15's function at runtime 0x824B40. AREA06 phase 2
+  done (port em_area06_port*: 39 rows, 27 translated + 12 reused; AREA06 exports). Three
+  decomp C bodies corrected (00219870, 00169250 NEARMISS; 0021A440's prototype), FINDINGS
+  "NEARMISS body corrections from the round-7 AREA06 lanes".
+- **Not started (planned round 8, held for the user's review):** the first level's own
+  AREA11 overlay is still mostly assembly in the decomp (23 of 26 functions; the flame,
+  the security gun, its cable, the fans) — decompile it and cross-check each function
+  against its port translation; AREA13/AREA19 overlays in C; AREA13 capture from the
+  lift to its exits; the eighth level's 53 translations. Script:
+  build/workflows/levels-8-9-round8.js (not run).
 - **Systemic extraction label shift (A22ASSETS finding):** tools/extract_data.py and the
   area exporters label nested-block files without the resident offset (+0x14), so some
   level-zone labels/splits are wrong (bytes are right); to fix across exporters.

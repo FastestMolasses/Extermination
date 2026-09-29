@@ -1,12 +1,17 @@
 // NEARMISS func_00219870  (vram 0x00219870, 0x6D4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 92.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 93.43% (92.08% before the 2026-09-28 correction) via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Body/structure fully recovered and byte-identical up to a register-allocation-order permutation: mwcc233 colors the state-byte load into a0 (my object emits it into a1 like the target expects the OPPOSITE arg live at that point) and a handful of downstream a0/a1/v0/v1 uses follow suit; this casca...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// Corrected 2026-09-28 against the original instructions (round-7 A06T/A06ASSETS
+// lanes): state 0 passes the node itself to func_001B0FD0 and state 3 passes it to
+// func_001AFC10 (the state byte is loaded into another register; the node's
+// register is never rewritten before either call). The old C passed the state byte.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
@@ -19,8 +24,8 @@ extern void func_001028D0(float *a, void *b, void *c);
 extern void func_00102900(float *a, float *b, float c);
 extern float func_0011E748(float x);
 extern int func_0019AA80(void *a, char *b, int c);
-extern void func_001AFC10(unsigned char a);
-extern int func_001B0FD0(unsigned char a);
+extern void func_001AFC10(char *arg0);
+extern int func_001B0FD0(char *arg0);
 extern void func_001B1190(unsigned char a);
 extern int func_001B11E0(int a);
 extern unsigned char func_001B1630(float a, float b, float c);
@@ -45,7 +50,7 @@ void func_00219870(char *arg0) {
 
     switch (state) {
     case 0:
-        if (func_001B0FD0(state) == 0) {
+        if (func_001B0FD0(arg0) == 0) {
             *(short *)(arg0 + 0x34) = 1;
             *(unsigned char *)(arg0 + 0) = 1;
             *(int *)(arg0 + 0x2D8) = 0;
@@ -198,7 +203,7 @@ void func_00219870(char *arg0) {
     }
 
     case 3:
-        func_001AFC10(state);
+        func_001AFC10(arg0);
         break;
     }
 }

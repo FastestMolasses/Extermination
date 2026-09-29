@@ -2001,6 +2001,600 @@ def _earlier_groups(a) -> list[tuple]:
             (rc.A22_BEATS, a.a22_passes.split(","), "area22", "AREA22")]
 
 
+# ---------------------------------------------------------------------------
+# World graph (`graph`): static, from the code and data only (no emulator).
+#
+# Reads the pinned boot ELF (config/SCUS_971.12), every extract/OVERLAY/AREAnn.BIN
+# (flat at 0x823500) and the local splat trees (function starts only), and
+# writes build/s87/census/world_graph.json plus world_graph_tables.md (Markdown
+# tables of addresses and numbers; no instructions, no disc text). The port's
+# docs and the decomp's docs/WORLD_GRAPH.md explain the rules; in short:
+#   * area registries through tools/area_overview.py (placements D_0024D7C0,
+#     deferred groups D_0024D820, spawn D_0024D650, doors D_0024E140);
+#   * a linear scan of every function (boot and overlay): %hi/%lo pairs give
+#     absolute loads/stores in the story RAM 0x810600..0x810E00 (an `addu` of a
+#     register holding such an address marks the access "indexed"), and every
+#     `jal` with the constant arguments a0..a3 known at the call (delay slot
+#     included; values from lui/addiu/ori and register moves in straight-line
+#     code, so a value set on another path can be missed: "?" = not known);
+#   * script chains (0x40-byte records) from the second argument of every
+#     001BA1A0 call and from data words pointing into the same data section;
+#     op06 subs 0/1 write D_00810758[slot] = 1 / 0xFF, subs 3/5/6 the counter
+#     D_008107D8[slot]; op07 sub 5 writes D_00810758[slot] = 0xFF, sub 6
+#     D_008107D8[slot] = operand; op09's word +4 is its callback;
+#   * door gates: 001BC350 tests D_00810841[area] & (1 << id) for model 0x15
+#     only, 001BB860 for models 0x16, 0x17 and 0x3E (both read from their
+#     instructions); the destination record is D_0024E140[area][id & 0x7F]
+#     (id bit 7: area change to rec[0] entry rec[1], sub rec[3] when rec[2] != 0
+#     else D_00810730[rec[0]] & 0x7F; bit 7 clear: a room move).
+# The scan is a lead generator: every progression claim in the docs is checked
+# against the function's C or instructions by hand.
+
+WG_AREAS = (0, 1, 2, 3, 4, 6, 7, 8, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)
+WG_LO, WG_HI = 0x810600, 0x810E00
+WG_LOADS = {0x20: 1, 0x21: 2, 0x22: 4, 0x23: 4, 0x24: 1, 0x25: 2, 0x26: 4, 0x27: 4, 0x37: 8,
+            0x1E: 16, 0x31: 4, 0x1A: 8, 0x1B: 8}
+WG_STORES = {0x28: 1, 0x29: 2, 0x2A: 4, 0x2B: 4, 0x2E: 4, 0x3F: 8, 0x1F: 16, 0x39: 4, 0x2C: 8, 0x2D: 8}
+WG_CALLER_SAVED = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 31)
+WG_SPLAT_LINE = re.compile(r"/\*\s*([0-9A-F]+)\s+([0-9A-F]{8})\s+[0-9A-F]{8}\s*\*/")
+WG_DOORS = {0x1BC350: ("001BC350 (hinged)", (0x15,)), 0x1BB860: ("001BB860 (slider)", (0x16, 0x17, 0x3E)),
+            0x1BD560: ("001BD560 (lift)", None), 0x1BD9F0: ("001BD9F0 (door)", None)}
+WG_LOCK_WRITERS = {
+    0x1581A0: "seal 001581A0: a hit (+0x36 != 0) sets the bit",
+    0x1582E0: "seal 001582E0: a hit sets the bit and D_00810842 bit 1",
+    0x158430: "seal 00158430: a hit sets the bit and D_00810845 bit 2",
+    0x158810: "reader 00158810 (001576E0): item 0x23 (models 0x12, 0x2F) / 0x24 (other models) "
+              "-> script 0x246C20 -> 001580C0",
+    0x158EC0: "panel 00158EC0 (00157860 arg 1): item 0x1B -> script 0x2478A0 -> 001580C0",
+    0x159210: "panel 00159210 (00157860 arg 0): item 0x1B -> script 0x247BA0 -> 001580C0 "
+              "(001580C0 skips model 0x2C)",
+    0x159E70: "socket 00159E70: item 0x29 (area 4) / 0x2A (other areas) non-zero -> the bit",
+    0x15A070: "switch 0015A070: Use -> 00159FC0 -> script 0x246A20 -> 00157360 sets the bit",
+}
+WG_PICKUPS = (0x15AFA0, 0x219550)
+WG_ITEM_CALLS = {0x1C47A0: "C64", 0x1C4720: "CB8", 0x1C4760: "CC3"}
+
+
+def _wg_elf() -> bytes:
+    return (ROOT / "config/SCUS_971.12").read_bytes()
+
+
+def _wg_first_addr(path: Path, overlay: bool) -> int | None:
+    for ln in path.open():
+        m = WG_SPLAT_LINE.search(ln)
+        if m:
+            return OVERLAY_BASE + int(m.group(1), 16) if overlay else int(m.group(2), 16)
+    return None
+
+
+def _wg_scan(words: list[int], base: int, starts: set[int]) -> tuple[list[dict], list[dict]]:
+    """Linear scan (see the section comment). Returns (accesses, calls) keyed by pc."""
+    acc, calls, regs, pending = [], [], {}, None
+    for i, w in enumerate(words):
+        pc = base + 4 * i
+        if pc in starts:
+            regs = {}
+        op, rs, rt, rd, imm = w >> 26, (w >> 21) & 31, (w >> 16) & 31, (w >> 11) & 31, w & 0xFFFF
+        simm = imm - 0x10000 if imm & 0x8000 else imm
+        dest, newval = None, None
+        if op == 0x0F:
+            dest, newval = rt, ("v", imm << 16)
+        elif op in (0x09, 0x19, 0x0D):
+            src = regs.get(rs)
+            if rs == 0:
+                dest, newval = rt, ("v", (imm if op == 0x0D else simm) & 0xFFFFFFFF)
+            elif src and src[0] == "v":
+                dest, newval = rt, ("v", (src[1] | imm) if op == 0x0D else (src[1] + simm) & 0xFFFFFFFF)
+            else:
+                dest = rt
+        elif op in WG_LOADS or op in WG_STORES:
+            b = regs.get(rs)
+            ea, idx = None, False
+            if rs == 0:
+                ea = simm & 0xFFFFFFFF
+            elif b:
+                ea, idx = (b[1] + simm) & 0xFFFFFFFF, b[0] == "i"
+            if ea is not None and WG_LO <= ea < WG_HI:
+                val = None
+                if op in WG_STORES:
+                    r = regs.get(rt)
+                    val = 0 if rt == 0 else (r[1] if r and r[0] == "v" else None)
+                acc.append(dict(pc=pc, ea=ea, store=op in WG_STORES, indexed=idx, val=val))
+            if op in WG_LOADS and op != 0x31:
+                dest = rt
+        elif op == 0x00:
+            funct = w & 0x3F
+            if funct in (0x21, 0x2D, 0x25):
+                a_, c_ = regs.get(rs), regs.get(rt)
+                if rs == 0 and rt == 0:
+                    dest, newval = rd, ("v", 0)
+                elif rt == 0 and a_:
+                    dest, newval = rd, a_
+                elif rs == 0 and c_:
+                    dest, newval = rd, c_
+                elif a_ and a_[0] == "v" and WG_LO <= a_[1] < WG_HI:
+                    dest, newval = rd, ("i", a_[1])
+                elif c_ and c_[0] == "v" and WG_LO <= c_[1] < WG_HI:
+                    dest, newval = rd, ("i", c_[1])
+                else:
+                    dest = rd
+            elif funct not in (0x08, 0x0C, 0x0D, 0x0F):
+                dest = rd
+        elif op == 0x1C:
+            if (w & 0x3F) == 0x28 and ((w >> 6) & 31) == 0x18 and rt == 0:
+                dest, newval = rd, ("v", 0) if rs == 0 else regs.get(rs)
+            else:
+                dest = rd
+        elif op in (0x08, 0x0A, 0x0B, 0x0C, 0x0E, 0x18):
+            dest = rt
+        elif op == 0x11 and rs in (0, 1):
+            dest = rt
+        elif op == 0x03:
+            pending = (pc, ((w & 0x3FFFFFF) << 2) | (pc & 0xF0000000))
+        if dest:
+            if newval is None:
+                regs.pop(dest, None)
+            else:
+                regs[dest] = newval
+        if pending and pending[0] == pc - 4:
+            args = [regs.get(r) for r in (4, 5, 6, 7)]
+            calls.append(dict(pc=pending[0], target=pending[1],
+                              args=[a_[1] if a_ and a_[0] == "v" else None for a_ in args]))
+            for r in WG_CALLER_SAVED:
+                regs.pop(r, None)
+            pending = None
+    return acc, calls
+
+
+def _wg_modules(elf: bytes) -> dict[str, dict]:
+    mods = {}
+    bstarts = {a for a in (_wg_first_addr(p, False) for p in (ROOT / "build/asm/matchings/main/code").glob("*.s"))
+               if a is not None}
+    lo, hi = 0x100000, max(bstarts) + 0x4000
+    words = list(struct.unpack_from(f"<{(hi - lo) // 4}I", elf, 0x300))
+    mods["boot"] = dict(base=lo, words=words, starts=bstarts, text=[lo, hi], data=[0x246000, 0x275B00])
+    for area in WG_AREAS:
+        ov = (ROOT / f"extract/OVERLAY/AREA{area:02d}.BIN").read_bytes()
+        ov_id, tsz, dsz, bsz = struct.unpack_from("<I4xIII", ov, 4)
+        d = ROOT / f"build/overlays/AREA{area:02d}/asm/matchings/AREA{area:02d}/code"
+        st = {a for a in (_wg_first_addr(p, True) for p in d.glob("*.s")) if a is not None}
+        tlo = OVERLAY_TEXT
+        words = list(struct.unpack_from(f"<{tsz // 4}I", ov, 0x40))
+        mods[f"AREA{area:02d}"] = dict(base=tlo, words=words, starts=st, text=[tlo, tlo + tsz],
+                                       data=[tlo + tsz, tlo + tsz + dsz], ov=ov, ov_id=ov_id, area=area)
+    for name, m in mods.items():
+        # function starts: splat pieces plus every jal target inside the module's text
+        _, calls = _wg_scan(m["words"], m["base"], m["starts"])
+        # a splat piece starts a function only after a function-return pair (overlay pieces
+        # can split one function in two); jal targets always start one
+        if name != "boot":
+            m["starts"] = {s for s in m["starts"] if s == m["base"]
+                           or (s - m["base"] >= 8 and m["words"][(s - m["base"]) // 4 - 2] == 0x03E00008)}
+            # placement / deferred behaviours and script op09 callbacks start functions
+            # (other code pointers in the data can be switch-table targets)
+            tab = _wg_tables(elf, m["area"], m["ov"])
+            beh = {r["behavior"] for s in tab["subs"] for r in tab["placements"][s]["records"]}
+            beh |= {r["behavior"] for s in tab["subs"] for g_ in tab["deferred"][s] for r in g_["records"]}
+            m["calls"] = calls
+            beh |= {r["w1"] for recs in _wg_scripts(elf, m).values() for r in recs if r["op"] == 9}
+            m["starts"] |= {v for v in beh if m["text"][0] <= v < m["text"][1]}
+        m["starts"] |= {c["target"] for c in calls if m["text"][0] <= c["target"] < m["text"][1]}
+        acc, calls = _wg_scan(m["words"], m["base"], m["starts"])
+        ss = sorted(m["starts"])
+        import bisect
+        for e in acc + calls:
+            k = bisect.bisect_right(ss, e["pc"]) - 1
+            e["fn"] = ss[k] if k >= 0 else m["base"]
+        m["acc"], m["calls"] = acc, calls
+    return mods
+
+
+def _wg_read(elf: bytes, ov: bytes | None, a: int, n: int) -> bytes:
+    if 0x100000 <= a and a + n <= 0x100000 + 0x175B00:
+        return elf[a - 0x100000 + 0x300:a - 0x100000 + 0x300 + n]
+    if ov is not None and OVERLAY_BASE <= a and a + n <= OVERLAY_BASE + len(ov):
+        return ov[a - OVERLAY_BASE:a - OVERLAY_BASE + n]
+    raise KeyError(hex(a))
+
+
+def _wg_scripts(elf: bytes, m: dict) -> dict[int, list[dict]]:
+    """Script chains of one module: {entry: [records]}."""
+    ov = m.get("ov")
+    lo, hi = m["data"]
+    ents = {c["args"][1] for c in m["calls"] if c["target"] == 0x1BA1A0 and c["args"][1]
+            and lo <= c["args"][1] < hi}
+    for a in range(lo, hi, 4):
+        try:
+            v = struct.unpack("<I", _wg_read(elf, ov, a, 4))[0]
+        except KeyError:
+            continue
+        if lo <= v < hi and v % 4 == 0:
+            ents.add(v)
+    out = {}
+    for e in sorted(ents):
+        pc, recs = e, []
+        for _ in range(128):
+            if not (lo <= pc and pc + 0x40 <= hi):
+                recs = None
+                break
+            w = struct.unpack("<16I", _wg_read(elf, ov, pc, 0x40))
+            if w[0] & 0x1FFFF000 or (w[0] & 0xFFF) > 0x1A:
+                recs = None
+                break
+            recs.append(dict(addr=pc, op=w[0] & 0xFFF, sub=w[2], w1=w[1], slot=w[5], operand=w[6]))
+            if w[0] & 0x80000000:
+                break
+            pc = w[1] if w[0] & 0x40000000 else pc + 0x40
+        else:
+            recs = None
+        if recs and (len(recs) >= 2 or recs[0]["op"] in (6, 7, 9)):
+            out[e] = recs
+    return out
+
+
+def _wg_tables(elf: bytes, area: int, ov: bytes) -> dict:
+    import area_overview as AO  # lazy: only `graph` needs it
+    img = AO.Image(elf, ov, None)
+    spawn = {}
+    try:
+        spawn = AO.spawn_tables(img, area)
+    except Exception:
+        pass
+    place_desc = img.u32(AO.D_PLACE + 4 * area)
+    defer_desc = img.u32(AO.D_DEFER + 4 * area)
+    nest_base = struct.unpack("<h", img.read(0x24A850 + 2 * area, 2))[0] or 1
+    subs, placements, deferred = [], {}, {}
+    for s in sorted(spawn):
+        try:
+            t = img.u32(place_desc + 4 * s)
+            placements[s] = dict(table=t, records=AO.place_records(img, t))
+        except Exception:
+            continue          # a descriptor word past the area's own subs
+        subs.append(s)
+        items = []
+        if defer_desc and s < nest_base:
+            q = img.u32(defer_desc + 4 * s)
+            while q:
+                it = img.u32(q)
+                if not it:
+                    break
+                items.append(dict(item=it, records=AO.defer_records(img, it)))
+                q += 4
+        deferred[s] = items
+    return dict(subs=subs, spawn={s: spawn[s] for s in subs}, placements=placements, deferred=deferred,
+                doors=AO.door_table(img, area), place_desc=place_desc, defer_desc=defer_desc)
+
+
+def world_graph() -> dict:
+    elf = _wg_elf()
+    mods = _wg_modules(elf)
+    boot = mods["boot"]
+
+    def key(mod: str, a: int) -> tuple[str, int]:
+        return ("boot", a) if a < OVERLAY_BASE else (mod, a)
+
+    # reverse edges for "who reaches this function": direct calls, op09 callbacks, script starters
+    callers: dict[tuple, set] = {}
+    for name, m in mods.items():
+        for c in m["calls"]:
+            callers.setdefault(key(name, c["target"]), set()).add(key(name, c["fn"]))
+    scripts = {name: _wg_scripts(elf, m) for name, m in mods.items()}
+    starters: dict[tuple, set] = {}   # (module, chain entry) -> functions starting it
+    for name, m in mods.items():
+        for c in m["calls"]:
+            if c["target"] == 0x1BA1A0 and c["args"][1]:
+                starters.setdefault(key(name, c["args"][1]), set()).add(key(name, c["fn"]))
+    cb_of: dict[tuple, set] = {}      # callback function -> chains holding it
+    for name, ch in scripts.items():
+        for e, recs in ch.items():
+            for r in recs:
+                if r["op"] == 9:
+                    cb_of.setdefault(key(name, r["w1"]), set()).add(key(name, e))
+
+    out = dict(areas={}, rules=dict(doors={f"{k:#x}": v[0] for k, v in WG_DOORS.items()},
+                                     lock_writers={f"{k:#x}": v for k, v in WG_LOCK_WRITERS.items()}))
+    for area in WG_AREAS:
+        name = f"AREA{area:02d}"
+        m = mods[name]
+        tab = _wg_tables(elf, area, m["ov"])
+        owners_of: dict[tuple, set] = {}
+        for s in tab["subs"]:
+            for r in tab["placements"][s]["records"]:
+                owners_of.setdefault(key(name, r["behavior"]), set()).add(f"s{s}[{r['index']}]")
+            for g in tab["deferred"][s]:
+                for r in g["records"]:
+                    owners_of.setdefault(key(name, r["behavior"]), set()).add(f"s{s} g[{r['index']}]")
+
+        def owners(f: tuple, depth: int = 0, seen: set | None = None) -> set:
+            seen = seen if seen is not None else set()
+            if f in seen or depth > 8:
+                return set()
+            seen.add(f)
+            res = set(owners_of.get(f, ()))
+            if f[0] != name and f[0] != "boot":
+                return res
+            for c in callers.get(f, ()):
+                if c[0] in (name, "boot") and (c[0] == name or depth == 0):
+                    res |= owners(c, depth + 1, seen)
+            for ch in cb_of.get(f, ()):
+                for st in starters.get(ch, ()):
+                    res |= owners(st, depth + 1, seen)
+            return res
+
+        def own(fn: int) -> str:
+            o = owners(key(name, fn)) if fn >= OVERLAY_BASE else set()
+            return ", ".join(sorted(o)) or "—"
+
+        doors_rec = tab["doors"]["records"]
+        doors = []
+        seen_tables = {}
+        for s in tab["subs"]:
+            t = tab["placements"][s]["table"]
+            if t in seen_tables.values():
+                continue
+            seen_tables[s] = t
+            same = [x for x in tab["subs"] if tab["placements"][x]["table"] == t]
+            for r in tab["placements"][s]["records"]:
+                b = r["behavior"]
+                ov_door = b >= OVERLAY_BASE and _wg_reaches(m, b, (0x1BC150, 0x1BC240))
+                if b not in WG_DOORS and not ov_door:
+                    continue
+                did = r["flags2"] & 0x7F
+                rec = doors_rec[did]["bytes"] if did < len(doors_rec) else None
+                if rec is None:
+                    dest = "?"
+                elif r["flags2"] & 0x80:
+                    dest = (f"AREA{rec[0]:02d} e{rec[1]} s={rec[3]}" if rec[2]
+                            else f"AREA{rec[0]:02d} e{rec[1]} s=D_00810730[{rec[0]}]")
+                else:
+                    dest = f"room move e{rec[0]} / e{rec[1]}"
+                if b in WG_DOORS:
+                    label, gated = WG_DOORS[b]
+                    if gated is None:
+                        gate = ("flag 0x14 key (first Use sets it to 1, runs on at 0xFF)" if b == 0x1BD560
+                                and r["model"] == 0x0B else "see text")
+                    else:
+                        gate = (f"D_{0x810841 + area:08X} bit {r['flags2'] & 31}" if r["model"] in gated
+                                else "none")
+                else:
+                    label, gate = f"{b:#x} (overlay)", "see text"
+                doors.append(dict(subs=same, index=r["index"], behavior=b, label=label, model=r["model"],
+                                  id=r["flags2"], dest=dest, gate=gate, record=rec, pos=r["pos"]))
+        # other area-change sites
+        changes = []
+        for c in m["calls"]:
+            if c["target"] == 0x1B0C60:
+                changes.append(dict(fn=c["fn"], pc=c["pc"], owners=own(c["fn"]),
+                                    area=c["args"][0], sub=c["args"][1], entry=c["args"][2]))
+        bstores = {}
+        for a_ in m["acc"]:
+            if a_["store"] and 0x8106B5 <= a_["ea"] <= 0x8106B8 and a_["fn"] >= OVERLAY_BASE:
+                bstores.setdefault(a_["fn"], {})[f"{a_['ea'] - 0x810600:X}"] = a_["val"]
+        for fn, v in bstores.items():
+            changes.append(dict(fn=fn, owners=own(fn), direct=v))
+        # lock bits
+        lock_writers = []
+        for s in tab["subs"]:
+            for r in tab["placements"][s]["records"]:
+                if r["behavior"] in WG_LOCK_WRITERS:
+                    lock_writers.append(dict(where=f"s{s}[{r['index']}]", behavior=r["behavior"],
+                                             model=r["model"], bit=r["flags2"] & 31,
+                                             rule=WG_LOCK_WRITERS[r["behavior"]], pos=r["pos"]))
+        code_locks = [dict(fn=a_["fn"], owners=own(a_["fn"]), ea=a_["ea"], indexed=a_["indexed"], val=a_["val"])
+                      for a_ in m["acc"] if a_["store"] and 0x810840 <= a_["ea"] < 0x810858]
+        # flags / counters
+        fc = []
+        for a_ in m["acc"]:
+            if a_["store"] and 0x810758 <= a_["ea"] < 0x810840 and not a_["indexed"]:
+                arr = "flag" if a_["ea"] < 0x8107D8 else "counter"
+                idx = a_["ea"] - (0x810758 if arr == "flag" else 0x8107D8)
+                fc.append(dict(src="code", fn=a_["fn"], owners=own(a_["fn"]), array=arr, index=idx, val=a_["val"]))
+        for e, recs in scripts[name].items():
+            st = sorted({f"{x[1]:#x}" for x in starters.get(key(name, e), ())})
+            for r in recs:
+                w = None
+                if r["op"] == 6 and r["sub"] in (0, 1):
+                    w = ("flag", 1 if r["sub"] == 0 else 0xFF)
+                elif r["op"] == 6 and r["sub"] == 3:
+                    w = ("counter", r["operand"] & 0xFF)
+                elif r["op"] == 6 and r["sub"] in (5, 6):
+                    w = ("counter", "+1" if r["sub"] == 5 else "-1")
+                elif r["op"] == 7 and r["sub"] == 5:
+                    w = ("flag", 0xFF)
+                elif r["op"] == 7 and r["sub"] == 6:
+                    w = ("counter", r["operand"] & 0xFF)
+                if w:
+                    fc.append(dict(src="script", chain=e, record=r["addr"], op=f"{r['op']:02X}/{r['sub']}",
+                                   array=w[0], index=r["slot"], val=w[1], started_by=st))
+        tests = sorted({c["args"][1] for c in m["calls"] if c["target"] == 0x1BA1C0 and c["args"][1] is not None})
+        # items
+        pickups = []
+        for s in tab["subs"]:
+            recs = [("", r) for r in tab["placements"][s]["records"]]
+            recs += [("g", r) for g in tab["deferred"][s] for r in g["records"]]
+            for tag, r in recs:
+                if r["behavior"] in WG_PICKUPS:
+                    arr = {0: "C64", 1: "CB8"}.get(r["model"], "CC3")
+                    pickups.append(dict(where=f"s{s} {tag}[{r['index']}]" if tag else f"s{s}[{r['index']}]",
+                                        behavior=r["behavior"], array=arr, index=r["flags2"], pos=r["pos"]))
+        item_calls = [dict(fn=c["fn"], owners=own(c["fn"]), array=WG_ITEM_CALLS[c["target"]],
+                           index=c["args"][0], n=c["args"][1])
+                      for c in m["calls"] if c["target"] in WG_ITEM_CALLS]
+        item_takes = [dict(fn=c["fn"], owners=own(c["fn"]), index=c["args"][0], n=c["args"][1])
+                      for c in m["calls"] if c["target"] == 0x1C47E0]
+        sub_writes = [dict(fn=a_["fn"], owners=own(a_["fn"]), area=a_["ea"] - 0x810730, val=a_["val"])
+                      for a_ in m["acc"] if a_["store"] and 0x810730 <= a_["ea"] < 0x810748 and not a_["indexed"]]
+        # op11 (001B7700): D_008106CE / CF request an in-place sub change of the
+        # current area (sub 1: sub = slot; subs 0 / 2: slot | 0x80, kept in
+        # D_00810730[area] by 001FEFE0 / 001FF030)
+        for e, recs in scripts[name].items():
+            for r in recs:
+                if r["op"] == 0x11:
+                    sub_writes.append(dict(script=e, record=r["addr"], area=area,
+                                           val=r["slot"] if r["sub"] == 1 else r["slot"] | 0x80,
+                                           started_by=sorted({f"{x[1]:#x}" for x in starters.get(key(name, e), ())})))
+        out["areas"][name] = dict(
+            area=area, overlay_id=m["ov_id"], subs=tab["subs"],
+            spawn={s: [dict(index=e["index"], pos=e["pos"], yaw=e["yaw"]) for e in v["entries"]]
+                   for s, v in tab["spawn"].items()},
+            placements={s: len(v["records"]) for s, v in tab["placements"].items()},
+            door_table=tab["doors"]["base"], doors=doors, changes=changes, lock_byte=0x810841 + area,
+            lock_writers=lock_writers, code_lock_writes=code_locks, flags_counters=fc, flag_tests=tests,
+            pickups=pickups, item_calls=item_calls, item_takes=item_takes, sub_writes=sub_writes,
+            scripts=len(scripts[name]))
+    # boot-level facts: area-change requests and sub writers
+    out["boot"] = dict(
+        area_changes=[dict(fn=c["fn"], pc=c["pc"], area=c["args"][0], sub=c["args"][1], entry=c["args"][2])
+                      for c in boot["calls"] if c["target"] == 0x1B0C60],
+        b_stores=sorted({a_["fn"] for a_ in boot["acc"] if a_["store"] and 0x8106B5 <= a_["ea"] <= 0x8106B8}),
+        sub_writers=sorted({a_["fn"] for a_ in boot["acc"] if a_["store"] and 0x810730 <= a_["ea"] < 0x810748}),
+        lock_writers=sorted({a_["fn"] for a_ in boot["acc"] if a_["store"] and 0x810840 <= a_["ea"] < 0x810858}),
+        flag_writes=[dict(fn=a_["fn"], index=a_["ea"] - 0x810758, val=a_["val"]) for a_ in boot["acc"]
+                     if a_["store"] and 0x810758 <= a_["ea"] < 0x8107D8 and not a_["indexed"]],
+        script_op09=[dict(chain=e, record=r["addr"], callback=r["w1"])
+                     for e, recs in scripts["boot"].items() for r in recs if r["op"] == 9])
+    return out
+
+
+def _wg_reaches(m: dict, fn: int, targets, depth: int = 3) -> bool:
+    """fn (an overlay function) calls one of targets directly or through its own
+    module's functions, at most `depth` levels down."""
+    todo, seen = [fn], set()
+    for _ in range(depth + 1):
+        nxt = []
+        for f in todo:
+            if f in seen:
+                continue
+            seen.add(f)
+            for c in m["calls"]:
+                if c["fn"] != f:
+                    continue
+                if c["target"] in targets:
+                    return True
+                if m["text"][0] <= c["target"] < m["text"][1]:
+                    nxt.append(c["target"])
+        todo = nxt
+    return False
+
+
+def _wg_hex(v) -> str:
+    return "?" if v is None else (f"{v:#x}" if isinstance(v, int) else str(v))
+
+
+def world_graph_markdown(g: dict) -> str:
+    b = g["boot"]
+    L = ["### Boot ELF\n",
+         "Area-change requests 001B0C60: " + "; ".join(
+             f"{c['fn']:#x} (area {_wg_hex(c['area'])}, s={_wg_hex(c['sub'])}, e={_wg_hex(c['entry'])})"
+             for c in b["area_changes"]) + "\n",
+         "Direct stores to D_008106B5..B8: " + ", ".join(f"{x:#x}" for x in b["b_stores"]) + "\n",
+         "Stores to D_00810730[] (sub-states): " + ", ".join(f"{x:#x}" for x in b["sub_writers"]) + "\n",
+         "Stores to the lock bytes D_00810840..57: " + ", ".join(f"{x:#x}" for x in b["lock_writers"]) + "\n",
+         "Direct flag stores: " + "; ".join(f"flag {x['index']:#x} = {_wg_hex(x['val'])} ({x['fn']:#x})"
+                                            for x in b["flag_writes"]) + "\n",
+         "Boot script op09 callbacks: " + "; ".join(f"{x['record']:#x} -> {x['callback']:#x} (chain {x['chain']:#x})"
+                                                  for x in b["script_op09"]) + "\n"]
+    for name, a in g["areas"].items():
+        L.append(f"### {name} (overlay id {a['overlay_id']}, subs {', '.join(map(str, a['subs']))}, "
+                 f"lock byte D_{a['lock_byte']:08X}, door table {a['door_table']:#x})\n")
+        if a["doors"]:
+            L.append("| Subs | Record | Behaviour | Model | Id | Destination | Gate |")
+            L.append("|---|---:|---|---:|---:|---|---|")
+            for d in a["doors"]:
+                L.append(f"| {'+'.join(map(str, d['subs']))} | [{d['index']}] | {d['label']} | {d['model']:#04x} | "
+                         f"{d['id']:#04x} | {d['dest']} | {d['gate']} |")
+            L.append("")
+        if a["changes"]:
+            L.append("Other area-change sites: " + "; ".join(
+                (f"{c['fn']:#x} (owner {c['owners']}) -> 001B0C60(area {_wg_hex(c['area'])}, s={_wg_hex(c['sub'])}, "
+                 f"e={_wg_hex(c['entry'])})") if "direct" not in c else
+                (f"{c['fn']:#x} (owner {c['owners']}) stores "
+                 + ", ".join(f"{k} = {_wg_hex(v)}" for k, v in sorted(c['direct'].items())))
+                for c in a["changes"]) + "\n")
+        if a["lock_writers"] or a["code_lock_writes"]:
+            parts = [f"{w['where']} {w['rule'].split(':')[0]} model {w['model']:#04x} bit {w['bit']}"
+                     for w in a["lock_writers"]]
+            parts += [f"{w['fn']:#x} (owner {w['owners']}) stores D_{w['ea']:08X}{' [indexed]' if w['indexed'] else ''}"
+                      f"{'' if w['val'] is None else ' = ' + _wg_hex(w['val'])}" for w in a["code_lock_writes"]]
+            L.append("Lock-bit writers: " + "; ".join(parts) + "\n")
+        fc = a["flags_counters"]
+        if fc:
+            code = [f"{x['array']} {x['index']:#x} = {_wg_hex(x['val'])} ({x['fn']:#x}, owner {x['owners']})"
+                    for x in fc if x["src"] == "code"]
+            scr = [f"{x['array']} {x['index']:#x} = {_wg_hex(x['val'])} (script {x['chain']:#x} op{x['op']}"
+                   f"{', started by ' + ' '.join(x['started_by']) if x['started_by'] else ''})"
+                   for x in fc if x["src"] == "script"]
+            if code:
+                L.append("Flags / counters written by code: " + "; ".join(code) + "\n")
+            if scr:
+                L.append("Flags / counters written by scripts: " + "; ".join(scr) + "\n")
+        if a["flag_tests"]:
+            L.append("Flags tested (001BA1C0): " + ", ".join(f"{x:#x}" for x in a["flag_tests"]) + "\n")
+        if a["pickups"]:
+            by = {}
+            for p in a["pickups"]:
+                by.setdefault(f"{p['array']} {p['index']:#x}", []).append(p["where"])
+            L.append("Pickups: " + "; ".join(f"{k}: {', '.join(v)}" for k, v in sorted(by.items())) + "\n")
+        if a["item_calls"] or a["item_takes"]:
+            parts = [f"{x['array']} {_wg_hex(x['index'])} += {_wg_hex(x['n'])} ({x['fn']:#x}, owner {x['owners']})"
+                     for x in a["item_calls"]]
+            parts += [f"C64 {_wg_hex(x['index'])} -= {_wg_hex(x['n'])} (001C47E0, {x['fn']:#x}, owner {x['owners']})"
+                      for x in a["item_takes"]]
+            L.append("Items by code: " + "; ".join(parts) + "\n")
+        if a["sub_writes"]:
+            L.append("Sub-state writes: " + "; ".join(
+                (f"D_00810730[{x['area']}] = {_wg_hex(x['val'])} ({x['fn']:#x}, owner {x['owners']})" if "fn" in x else
+                 f"op11 in script {x['script']:#x} (started by {' '.join(x['started_by']) or '?'}): "
+                 f"sub request {_wg_hex(x['val'])}")
+                for x in a["sub_writes"]) + "\n")
+    return "\n".join(L)
+
+
+# Eighth level (route_capture's opt-in groups a06b, a01v, a22b, a04b;
+# port docs/EIGHTH_LEVEL_ROUTE.md).  Each group arms the boot functions and
+# its own area's overlay; `eighth-delta` measures each group against the
+# first level, beat 15, every earlier level's groups and the eighth-level
+# groups before it.
+EIGHTH_GROUPS = [   # (tag, overlay, overlay id, pass, beats-attr prefix)
+    ("a06b", "AREA06", 6, "A06B", "A06B"),
+    ("a01v", "AREA01", 2, "A01V", "A01V"),
+    ("a22b", "AREA22", 0x13, "A22B", "A22B"),
+    ("a04b", "AREA04", 5, "A04B", "A04B"),
+]
+
+
+def _eighth_beats(prefix: str):
+    return (getattr(rc, prefix + "_BEATS", []), getattr(rc, prefix + "_SIDE_BEATS", set()),
+            getattr(rc, prefix + "_CHANGE_BEATS", set()))
+
+
+def eighth_delta(a) -> dict:
+    earlier = _earlier_groups(a) + [(rc.A01U_BEATS, a.a01u_passes.split(","), "area01_upper", "AREA01"),
+                                    (rc.A06_BEATS, ["A06"], "area06", "AREA06")]
+    out = {}
+    for tag, ov, ov_id, pass_name, prefix in EIGHTH_GROUPS:
+        beats, side, change = _eighth_beats(prefix)
+        if not beats or not any(_hits(pass_name, b[0]) is not None for b in beats):
+            continue
+        d = chain_delta(tag, ov, ov_id, beats, side, change, [pass_name], earlier, f"{tag}_delta.json")
+        # chain_delta counts a beat as present when its run file exists; mark the
+        # runs that did not complete their beat's own checks (their hits cover
+        # only the frames before the failure) and the frames each replay ran.
+        runs = {}
+        for name, _src, _fn in beats:
+            f = OUT / "runs" / pass_name / f"{name}.json"
+            if f.exists():
+                doc = json.loads(f.read_text())
+                runs[name] = {"completed": bool(doc.get("completed")), "frames": doc.get("frames"),
+                              "error": doc.get("error")}
+        d["summary"]["beats_incomplete"] = sorted(n for n, v in runs.items() if not v["completed"])
+        d["summary"]["replay_runs"] = runs
+        (OUT / f"{tag}_delta.json").write_text(json.dumps(d, indent=1) + "\n")
+        out[tag] = d["summary"]
+        earlier = earlier + [(beats, [pass_name], "eighth_" + tag, ov)]
+    return out
+
+
 def _run_group(selected, addrs: list[int], pass_name: str) -> None:
     for name, source, fn in selected:
         for attempt in range(3):
@@ -2018,7 +2612,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("command", choices=["candidates", "run", "report", "compare-startup", "exit-delta",
                                         "a01-delta", "a00-delta", "a02-delta", "a04-delta", "a22-delta",
-                                        "a01u-delta", "a06-delta"])
+                                        "a01u-delta", "a06-delta", "graph", "eighth-delta"])
     ap.add_argument("--arm-chunk", type=int, default=200,
                     help="breakpoint commands per DebugServer round trip")
     ap.add_argument("--segments", default="all")
@@ -2078,6 +2672,11 @@ if __name__ == "__main__":
             _run_group(rc.a01u_selected(a.segments), [c["addr"] for c in candidates("AREA01")], a.pass_name)
         if a.segments != "all" and any(w.startswith("a06") for w in a.segments.split(",")):
             _run_group(rc.a06_selected(a.segments), [c["addr"] for c in candidates("AREA06")], a.pass_name)
+        if a.segments != "all":
+            for tag, ov, _ov_id, _pass, _prefix in EIGHTH_GROUPS:
+                sel = [b for b in rc.eighth_selected(a.segments) if b[0].startswith(tag + "_")]
+                if sel:
+                    _run_group(sel, [c["addr"] for c in candidates(ov)], a.pass_name)
         addrs = [c["addr"] for c in candidates()]
         wanted = DEFAULT_SEGMENTS if a.segments == "all" else a.segments.split(",")
         for seg in SEGMENTS:
@@ -2140,6 +2739,15 @@ if __name__ == "__main__":
                         "a06_delta.json")
         print(json.dumps(d["summary"], indent=1))
         print(json.dumps(d["per_beat"], indent=1))
+    elif a.command == "eighth-delta":
+        print(json.dumps(eighth_delta(a), indent=1))
+    elif a.command == "graph":
+        g = world_graph()
+        OUT.mkdir(parents=True, exist_ok=True)
+        (OUT / "world_graph.json").write_text(json.dumps(g, indent=1, default=list) + "\n")
+        (OUT / "world_graph_tables.md").write_text(world_graph_markdown(g) + "\n")
+        print(f"wrote {OUT / 'world_graph.json'} and {OUT / 'world_graph_tables.md'}: "
+              f"{len(g['areas'])} areas, {sum(len(x['doors']) for x in g['areas'].values())} door records")
     elif a.command == "exit-delta":
         d = exit_delta(a.passes.split(","))
         print(json.dumps({k: v for k, v in d.items() if k != "new_functions"}, indent=1))

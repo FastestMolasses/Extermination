@@ -3720,6 +3720,497 @@ def a06_selected(spec: str) -> list[tuple]:
     return [b for b in A06_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
 
 
+# ---------------------------------------------------------------------------
+# Eighth level (lane NEXT, s88; port docs/EIGHTH_LEVEL_ROUTE.md): the story
+# continued from a06_03 (the keypad's bit set, outside the room) with the
+# order the world graph gives (decomp docs/WORLD_GRAPH.md): back east over
+# the beam without its collapse, AREA01's upper floor to door [18], AREA22
+# to door [6], AREA04's door [45] (the NPC [2], item 0x23), the reader [50]
+# and the lift [51] to AREA13 (its arrival; AREA13 itself is not yet a
+# group).  Opt-in groups `a06b`, `a01v`, `a22b`, `a04b`.
+#
+# The beam [11] (overlay 0x824560, state 1 once D_00810845 bit 5 is set)
+# starts its collapse script 0x827180 only while the player's +5
+# (D_008102B5) is below 2 or in 29..34 inside its quad 0x827680 (x -273..
+# -269, z -600..-570) at y >= 55; a running jump (0015EC50, +5 = 6) from the
+# west pad's south part carries the player over the quad onto the beam's
+# east part, and the beam stays in state 1.
+
+OUT_A06B = ROOT / "build/s87/route_a06b"
+A06B_TO_JUMP = A06_CORRIDOR_EAST[:-2] + [(-300, -592), (-297, -597)]
+A06B_TO_EAST_FLOOR = [(-205, -584), (-195, -585), (-185, -590), (-176, -600), (-176, -625), (-160, -630),
+                      (-140, -632), (-140, -665)]
+
+
+def a06b_running_jump(r: Route, x_edge: float, tx: float, tz: float) -> None:
+    """Run toward (tx, tz) and press Cross once x >= x_edge (the pad's lip):
+    0015EC50's running jump (action 0x0C, +5 = 6), then the landing."""
+    for _ in range(200):
+        if r.rows[-1]["pos"][0] >= x_edge:
+            break
+        r.stick_toward(tx, tz)
+        r.step(1)
+    r.set_pad(PAD["CROSS"], r.pad_state[1], r.pad_state[2])
+    r.step(2)
+    r.set_pad(0, r.pad_state[1], r.pad_state[2])
+    r.until(lambda row: row["m1F0"] == 0x0C, 10, 0, r.pad_state[1], r.pad_state[2])
+    r.until(lambda row: row["m1F0"] != 0x0C, 200, 0, r.pad_state[1], r.pad_state[2])
+    r.set_pad(0)                # the stick is released at the landing (the beam is narrow)
+    r.until(lambda row: row["m1F0"] != 0x0F, 200)
+
+
+def a06b_beat_trigger_jump(r: Route) -> dict:
+    # From outside the room (entry 2) east through the corridor to the west
+    # pad's south part (z -592..-597; the beam lies at z about -584), face
+    # east-north-east and jump from the lip (x -281) onto the beam's east
+    # part: the quad 0x827680 is crossed in the jump (+5 = 6), so the beam
+    # keeps state 1 and D_00810768 stays 0.  Then east onto the north-east
+    # pad and round the block to the east floor.
+    use_a06_sampler(r)
+    next_long_frames(r)
+    a04_go(r, A06B_TO_JUMP, limit=300)            # ends against the pad's south railing
+    a06_settle(r, 10)
+    a06_face(r, math.atan2(57.0, 13.0))
+    a06b_running_jump(r, -281.0, -240.0, -584.0)
+    a06_settle(r, 10)
+    row = r.rows[-1]
+    if row["s768"][:2] != "00" or row["pos"][0] < -240 or row["pos"][1] < 50:
+        raise RuntimeError("the jump did not land past the beam's quad: " + summary(row))
+    landed = [round(v, 1) for v in row["pos"]]
+    how = a04_go(r, A06B_TO_EAST_FLOOR, tol=1.0, limit=400)
+    if how != "ok":
+        raise RuntimeError("the east floor not reached (" + how + "): " + summary(r.rows[-1]))
+    a06_settle(r, 10)
+    if r.rows[-1]["s768"][:2] != "00":
+        raise RuntimeError("the beam collapsed: " + summary(r.rows[-1]))
+    return {"what": "running jump from the west pad over the beam's trigger quad onto its east part; "
+                    "east pad and east floor, D_00810768 still 0", "landed": landed, "hp_end": a01_hp(r)}
+
+
+def a06b_beat_door1(r: Route) -> dict:
+    # Door [1] (001BC350 model 0x03, door id 0|0x80, record 01 07 00 00):
+    # area change to AREA01 entry 7 (the catwalk west of door [19]).
+    use_a06_sampler(r)
+    next_long_frames(r)
+    a06_use(r, -115.0, -674.5, math.pi / 2, a04_program)
+    r.until(lambda row: row["area4"][:2] == "01", 2500)
+    next_control_kept(r, 12000, 60)
+    settle(r, 30)
+    if r.rows[-1]["area4"][:6] != "010007":
+        raise RuntimeError("not at AREA01 sub 0 entry 7: " + summary(r.rows[-1]))
+    return {"what": "door [1]: area change to AREA01 entry 7 with D_00810845 bit 5 set, arrival, control",
+            "hp_end": a01_hp(r)}
+
+
+A06B_BEATS = [
+    ("a06b_00_trigger_jump", "a06_03_room_out", a06b_beat_trigger_jump),
+    ("a06b_01_door1", "a06b_00_trigger_jump", a06b_beat_door1),
+]
+A06B_SIDE_BEATS: set[str] = set()
+A06B_CHANGE_BEATS = {"a06b_01_door1"}
+
+
+def a06b_selected(spec: str) -> list[tuple]:
+    wanted = spec.split(",")
+    if "a06b" in wanted:
+        return list(A06B_BEATS)
+    return [b for b in A06B_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+# AREA01's upper floor again, from entry 7 (the catwalk west of door [19])
+# with D_00810845 bit 5 set.  Pool nodes of this AREA01 sub-0 load, measured
+# in the a06b_01 end snapshot (area_overview --ram): the gap node g[36]
+# (001C02E0) has already taken its bit-5 branch (behaviour 001BF6B0) and
+# spawned group 0x829110 (001B6660).
+OUT_A01V = ROOT / "build/s87/route_a01v"
+A01V_OWNERS = {
+    "door18_r18": 0x7AEC10,       # 001BB860 model 0x09, door id 5|0x80: AREA22 entry 5
+    "door19_r19": 0x7AEF00,       # 001BC350 model 0x03, door id 6|0x80: AREA06 entry 0
+    "r45_8267C0": 0x7B3B60,       # overlay 0x8267C0 [45] (the catwalk event, flag 0xF already set)
+    "pick_g11": 0x7A7690,         # 0015AFA0 g[11] at (136.5, 60.1, -473.1)
+    "gap_g36_1BF6B0": 0x7AAB70,   # g[36] after 001C02E0's bit-5 branch: 001BF6B0 at (140.2, 66.5, -450.1)
+    "n_1BFFD0": 0x7A6200,         # 001BFFD0 at (140.2, 66.5, -450.1)
+    "n_1BE6C0": 0x7A6AD0,         # 001BE6C0 at (138.2, 66.5, -445.1)
+    "bug_a": 0x7B7EF0,            # 0012A5D0 at (138.5, 60.4, -449.1) (group 0x829110)
+    "bug_b": 0x7B81E0,            # 0012A5D0 at (129.9, 60.4, -391.3)
+    "bug_c": 0x7B84D0,            # 0012A5D0 at (134.5, 60.4, -370.3)
+    "bug_g30": 0x7AA880,          # 00128C10 g[30] at (128.9, 82.6, -671.5)
+}
+A01V_SPANS = list(A01U_SPANS[:len(A22_SPANS[:len(A04_SPANS[:len(A01R_SPANS[:len(A00_SPANS[:len(A01_BASE_SPANS) + 10]) + 2]) + 3]) + 3])])
+for _name, _base in A01V_OWNERS.items():
+    A01V_SPANS += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                   (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                   (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10)]
+
+
+def use_a01v_sampler(r: Route) -> None:
+    sampler = A01USampler(r.s, spans=A01V_SPANS)
+    r.sampler = sampler
+    r.now = lambda: decode_a01u(sampler.raw(), owners=A01V_OWNERS)
+    r.rows[0] = dict(r.now(), f=0)
+
+
+A01V_CATWALK_EAST = [(-40, -670), (40, -670), (110, -670), (129, -650), (130, -600), (130, -520), (130, -470)]
+
+
+def a01v_beat_catwalk_east(r: Route) -> dict:
+    # From entry 7's walk-in end east along the catwalk and north along x 130
+    # to z -470, short of the gap (z -400..-440).
+    use_a01v_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, A01V_CATWALK_EAST, limit=600)
+    if how != "ok":
+        raise RuntimeError("the catwalk not walked (" + how + "): " + summary(r.rows[-1]))
+    a06_settle(r, 10)
+    return {"what": "east along the catwalk and north to z -470", "hp_end": a01_hp(r)}
+
+
+def a01v_beat_gap_jump(r: Route) -> dict:
+    # North to the catwalk's lip (z -440) and a running jump over the gap
+    # onto the platform (z -400; the reverse of a01u_00).
+    use_a01v_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(130, -455)], limit=300)
+    if how != "ok":
+        raise RuntimeError("the lip not reached (" + how + "): " + summary(r.rows[-1]))
+    a06_settle(r, 10)
+    a06_face(r, 0.0)
+    for _ in range(200):
+        if r.rows[-1]["m1F0"] in A04_GRABS:
+            a04_shake(r)
+            continue
+        if r.rows[-1]["pos"][2] >= -441.5:
+            break
+        r.stick_toward(130.0, -350.0)
+        r.step(1)
+    r.set_pad(PAD["CROSS"], r.pad_state[1], r.pad_state[2])
+    r.step(2)
+    r.set_pad(0, r.pad_state[1], r.pad_state[2])
+    r.until(lambda row: row["m1F0"] == 0x0C, 10, 0, r.pad_state[1], r.pad_state[2])
+    r.until(lambda row: row["m1F0"] != 0x0C, 200, 0, r.pad_state[1], r.pad_state[2])
+    r.set_pad(0)
+    r.until(lambda row: row["m1F0"] != 0x0F, 200)
+    a06_settle(r, 10)
+    row = r.rows[-1]
+    if row["pos"][2] < -400 or abs(row["pos"][1] - 60.0) > 0.6:
+        raise RuntimeError("the jump did not reach the platform: " + summary(row))
+    return {"what": "running jump north over the gap onto the platform", "hp_end": a01_hp(r)}
+
+
+def a01v_beat_door18(r: Route) -> dict:
+    # North along the platform to door [18] (001BB860 model 0x09, door id
+    # 5|0x80, record 16 05 00 00): area change to AREA22 entry 5.
+    use_a01v_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(130, -380), (125, -345), (120, -330)], limit=400)
+    if how != "ok":
+        raise RuntimeError("door [18] not reached (" + how + "): " + summary(r.rows[-1]))
+    a06_use(r, 120.0, -324.0, 0.0, a04_program)
+    r.until(lambda row: row["area4"][:2] == "16", 2500)
+    next_control_kept(r, 12000, 60)
+    settle(r, 30)
+    if r.rows[-1]["area4"][:6] != "160005":
+        raise RuntimeError("not at AREA22 sub 0 entry 5: " + summary(r.rows[-1]))
+    return {"what": "door [18]: area change to AREA22 entry 5, arrival, control", "hp_end": a01_hp(r)}
+
+
+A01V_BEATS = [
+    ("a01v_00_catwalk_east", "a06b_01_door1", a01v_beat_catwalk_east),
+    ("a01v_01_gap_jump", "a01v_00_catwalk_east", a01v_beat_gap_jump),
+    ("a01v_02_door18", "a01v_01_gap_jump", a01v_beat_door18),
+]
+A01V_SIDE_BEATS: set[str] = set()
+A01V_CHANGE_BEATS = {"a01v_02_door18"}
+
+
+def a01v_selected(spec: str) -> list[tuple]:
+    wanted = spec.split(",")
+    if "a01v" in wanted:
+        return list(A01V_BEATS)
+    return [b for b in A01V_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+# AREA22 again, from entry 5 (door [8]'s landing) to door [6]: the reverse of
+# a22_00..a22_02.  Pool nodes of this AREA22 load (the a01v_02 end snapshot).
+OUT_A22B = ROOT / "build/s87/route_a22b"
+A22B_OWNERS = {
+    "pick_g0": 0x7A5640,          # 00219550 g[0] at (132.7, 239.1, 286.6), behind door [10]
+    "pick_g4": 0x7A6200,          # 0015AFA0 g[4] at (99.8, 247.9, 301.4), behind door [10]
+    "door6_r6": 0x7A9CC0,         # 001BC350 model 0x03, door id 0|0x80: AREA04 entry 1
+    "door7_r7": 0x7A9FB0,         # 001BB860 model 0x09, room move id 1 (entries 1 / 2)
+    "door8_r8": 0x7AA2A0,         # 001BB860 model 0x09, door id 2|0x80: AREA01 entry 6
+    "reader_r9": 0x7AA590,        # 00158810 model 0x12 (item 0x23 -> D_00810857 bit 3)
+    "door10_r10": 0x7AA880,       # 001BB860 model 0x16, room move id 3, lock bit 3
+    "lamp_r11": 0x7AAB70,         # 00158BD0 above door [10]
+}
+A22B_SPANS = list(A22_SPANS)
+for _name, _base in A22B_OWNERS.items():
+    A22B_SPANS += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                   (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                   (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10)]
+
+
+def use_a22b_sampler(r: Route) -> None:
+    sampler = A01USampler(r.s, spans=A22B_SPANS)
+    r.sampler = sampler
+    r.now = lambda: decode_a01u(sampler.raw(), owners=A22B_OWNERS)
+    r.rows[0] = dict(r.now(), f=0)
+
+
+A22B_SOUTH_ARM_NORTH = [(128, 125), (118, 150), (118, 176), (125, 190), (125, 208)]
+A22B_CORRIDOR_EAST = [(150, 213), (180, 212), (220, 212), (238, 224), (255, 224), (270, 213), (318, 213),
+                      (336, 232), (336, 300), (335, 345)]
+
+
+def a22b_beat_to_door7(r: Route) -> dict:
+    # From entry 5 north up the south arm, east along the corridor and north
+    # to door [7] (001BB860 model 0x09, room move id 1) from its south side:
+    # spawn entry 2 (335.1, 155, 373.2).
+    use_a22b_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, A22B_SOUTH_ARM_NORTH + A22B_CORRIDOR_EAST, limit=600)
+    if how != "ok":
+        raise RuntimeError("the corridor not crossed (" + how + "): " + summary(r.rows[-1]))
+    a06_use(r, 335.1, 355.5, 0.0, a04_program)
+    r.until(lambda row: row["area4"][:6] == "160002", 1500)
+    a06_control(r, 3000, 40)
+    a06_settle(r, 10)
+    return {"what": "south arm, corridor, door [7] from the south: entry 2", "hp_end": a01_hp(r)}
+
+
+def a22b_beat_door6(r: Route) -> dict:
+    # North along the north arm to door [6] (001BC350 model 0x03, door id
+    # 0|0x80, record 04 01 00 00): area change to AREA04 entry 1.
+    use_a22b_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(334, 415), (341, 435), (341, 470), (338, 498)], limit=400)
+    if how != "ok":
+        raise RuntimeError("door [6] not reached (" + how + "): " + summary(r.rows[-1]))
+    a06_use(r, 339.7, 505.0, 0.0, a04_program)
+    r.until(lambda row: row["area4"][:2] == "04", 2500)
+    next_control_kept(r, 12000, 60)
+    settle(r, 30)
+    if r.rows[-1]["area4"][:6] != "040001":
+        raise RuntimeError("not at AREA04 sub 0 entry 1: " + summary(r.rows[-1]))
+    return {"what": "door [6]: area change to AREA04 entry 1, arrival, control", "hp_end": a01_hp(r)}
+
+
+A22B_BEATS = [
+    ("a22b_00_to_door7", "a01v_02_door18", a22b_beat_to_door7),
+    ("a22b_01_door6", "a22b_00_to_door7", a22b_beat_door6),
+]
+A22B_SIDE_BEATS: set[str] = set()
+A22B_CHANGE_BEATS = {"a22b_01_door6"}
+
+
+def a22b_selected(spec: str) -> list[tuple]:
+    wanted = spec.split(",")
+    if "a22b" in wanted:
+        return list(A22B_BEATS)
+    return [b for b in A22B_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+# AREA04 again, from entry 1 (the east balcony's north end) with D_00810845
+# bit 5 set.  Pool nodes of this AREA04 sub-0 load (the a22b_01 end
+# snapshot); the director [1] freed itself at the load (bit 5 set).
+OUT_A04B = ROOT / "build/s87/route_a04b"
+A04B_OWNERS = {
+    "npc_r2": 0x7AA2A0,           # overlay 0x824320 (class 0xAA) at (400, 15, 100): gives item 0x23
+    "r3_8246B0": 0x7AA590,        # overlay 0x8246B0 at (322, 15, 224): runs while flag 0x12 (D_0081076A)
+    "r4_824DC0": 0x7AA880,        # overlay 0x824DC0 at (560, 69.9, 284): runs while flag 0x14 == 1
+    "door37_r37": 0x7B0970,       # 001BC350 model 0x03, door id 1|0x80: AREA22 entry 0
+    "door45_r45": 0x7B20F0,       # overlay 0x823700 model 0x16, room move id 5 (lock bit 5)
+    "r47_823EE0": 0x7B26D0,       # overlay 0x823EE0 at door [45]
+    "reader_r50": 0x7B2FA0,       # 00158810 model 0x2F at (560, 69.9, 284): item 0x23 -> lock bit 7, flag 0x12 = 1
+    "lift_r51": 0x7B3290,         # 001BD560 model 0x0B (keyed on flag 0x14), door id 7|0x80: AREA13 entry 0
+    "button_r53": 0x7B3870,       # 001BC960 model 0 at (560, 69.9, 281.2), bit 7
+    "button_r54": 0x7B3B60,       # 001BC960 model 1 at (561.2, 69.9, 242), bit 7
+    "lift_r56": 0x7B4140,         # 001BD560 model 0x0D, door id 0|0x80: AREA07 entry 0
+    "socket_r55": 0x7B3E50,       # 00159E70 model 0x3C at (414, 14.9, 24.8): item 0x29 -> lock bit 0
+    "button_r58": 0x7B4720,       # 001BDFC0 model 0 at (444, 29.9, 26), bit 0
+    "reel_r70": 0x7B6A60,         # overlay 0x8260C0 at (380, 14.9, 260) (already rolled down)
+}
+A04B_SPANS = list(A01U_SPANS[:len(A22_SPANS[:len(A04_SPANS[:len(A01R_SPANS[:len(A00_SPANS[:len(A01_BASE_SPANS) + 10]) + 2]) + 3]) + 3])]) + [
+    ("s76c", 0x81076C, 0x4),            # D_0081076C (flag 0x14, the lift key) ..
+    ("s7ef", 0x8107EC, 0x4),            # D_008107EC..EF (counters 0x14..0x17)
+]
+for _name, _base in A04B_OWNERS.items():
+    A04B_SPANS += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                   (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                   (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10)]
+
+
+def decode_a04b(r: dict[str, bytes], owners=None) -> dict:
+    row = decode_a01u(r, owners=A04B_OWNERS if owners is None else owners)
+    row["s76c"] = r["s76c"].hex()                       # D_0081076C..6F
+    row["l84c"] = r["locks"][0xC:0xD].hex()             # D_0081084C
+    return row
+
+
+def use_a04b_sampler(r: Route) -> None:
+    sampler = A01USampler(r.s, spans=A04B_SPANS)
+    r.sampler = sampler
+    r.now = lambda: decode_a04b(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+
+
+A04B_BALCONY_TO_CONVEYOR = [(545, 350), (543, 290), (525, 262), (515, 262)]
+A04B_CONVEYOR_DOWN = [(495, 260), (480, 260), (450, 260), (420, 260), (400, 260)]
+A04B_HALL_TO_DOOR45 = [(395, 250), (391, 220), (420, 180), (440, 150), (440, 125)]
+
+
+def a04b_beat_to_door45(r: Route) -> dict:
+    # From entry 1 south along the east balcony, down the conveyor (the reel
+    # rolled down in a04_02), west round the tower to door [45] (overlay
+    # 0x823700; with D_00810845 bit 5 set it takes the open branch): the room
+    # move to entry 9 behind it.
+    use_a04b_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, A04B_BALCONY_TO_CONVEYOR + A04B_CONVEYOR_DOWN + A04B_HALL_TO_DOOR45, limit=600)
+    if how != "ok":
+        raise RuntimeError("door [45] not reached (" + how + "): " + summary(r.rows[-1]))
+    a06_use(r, 440.0, 116.0, math.pi, a04_program)
+    r.until(lambda row: row["area4"][:6] == "040009", 1500)
+    a06_control(r, 3000, 40)
+    a06_settle(r, 10)
+    return {"what": "the balcony, the conveyor down, the hall, door [45] (bit 5 set): entry 9", "hp_end": a01_hp(r)}
+
+
+def a04b_control(r: Route, limit: int, need: int = 60) -> None:
+    """a06_control that also closes a status page an item take opens (ui byte
+    1 = 3): 90 frames, then Triangle (as a01u_s0)."""
+    for _ in range(limit):
+        row = r.rows[-1]
+        if row["m1F0"] in A04_GRABS:
+            a04_shake(r)
+            continue
+        if row["ui"][2:4] == "03":
+            r.idle(90)
+            r.press("TRIANGLE", 2)
+            r.until(lambda x: x["ui"][2:4] != "03", 900)
+            continue
+        row = r.step(1)
+        if in_control(row) and len(r.rows) > need and all(in_control(x) for x in r.rows[-need:]):
+            return
+    raise TimeoutError("control not kept; last " + summary(r.rows[-1]))
+
+
+def a04b_beat_npc(r: Route) -> dict:
+    # West into the NPC [2]'s quad 0x828220 (x 390..420, z 78..105): its
+    # 0x824490 starts script 0x827D90 and, at the script's end, gives item
+    # 0x23 (001C47A0(0x23, 1)), 001C4760(8, 1) and D_008107E9 = 1.
+    use_a04b_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(460, 95), (462, 75), (430, 70), (410, 70), (408, 86)], limit=300,
+                 until=lambda row: row["spad"][2:4] != "00")
+    if how != "until":
+        raise RuntimeError("the NPC's script did not start (" + how + "): " + summary(r.rows[-1]))
+    r.set_pad(0)
+    a04b_control(r, 12000, 60)          # the cinematic's camera track runs 4141 units at 0.5 a frame
+    a06_settle(r, 10)
+    row = r.rows[-1]
+    if row["c87"] != 1:
+        raise RuntimeError("item 0x23 not given: " + summary(row))
+    return {"what": "the NPC [2]'s quad: script 0x827D90, item 0x23", "hp_end": a01_hp(r)}
+
+
+def a04b_beat_door45_out(r: Route) -> dict:
+    # Back round the room's blocks to door [45] from its south side: the
+    # room move to entry 8 in the hall.
+    use_a04b_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(430, 70), (462, 75), (460, 95), (441, 100)], limit=300)
+    if how != "ok":
+        raise RuntimeError("door [45] not reached (" + how + "): " + summary(r.rows[-1]))
+    a06_use(r, 440.0, 102.5, 0.0, a04_program)
+    r.until(lambda row: row["area4"][:6] == "040008", 1500)
+    a04b_control(r, 3000, 40)
+    a06_settle(r, 10)
+    return {"what": "door [45] from the room: entry 8", "hp_end": a01_hp(r)}
+
+
+A04B_HALL_TO_BALCONY = [(440, 150), (420, 180), (391, 220), (395, 250), (400, 260), (420, 260), (450, 260),
+                        (480, 260), (495, 260), (515, 262), (535, 270), (548, 284)]
+
+
+def a04b_beat_reader(r: Route) -> dict:
+    # Up the conveyor to the east balcony and the reader [50] (00158810 model
+    # 0x2F at (560, 69.9, 284)): with item 0x23 its 001576E0 starts script
+    # 0x246C20, whose op09 001580C0 sets D_00810845 bit 7; 00158810 stores
+    # D_0081076A (flag 0x12) = 1.
+    use_a04b_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, A04B_HALL_TO_BALCONY, limit=600)
+    if how != "ok":
+        raise RuntimeError("the reader not reached (" + how + "): " + summary(r.rows[-1]))
+    a06_use(r, 553.0, 284.0, math.pi / 2, lambda row: not in_control(row))
+    a04b_control(r, 12000, 60)
+    a06_settle(r, 10)
+    row = r.rows[-1]
+    if not int(row["l845"], 16) & 0x80:
+        raise RuntimeError("D_00810845 bit 7 not set: " + summary(row))
+    return {"what": "the conveyor, the balcony, the reader [50] with item 0x23: D_00810845 bit 7",
+            "hp_end": a01_hp(r)}
+
+
+def a04b_beat_lift(r: Route) -> dict:
+    # Into the lift [51]'s car to its inner call button [54] (001BC960 model
+    # 1 at (561.2, 69.9, 242), yaw +pi/2).  After the reader, [54] waits in
+    # its state 2 sub-state 1; with D_00810845 bit 7 set, flag 0x12 not 0xFF,
+    # counter 0x12 (D_008107EA) = 0x10 and D_008106C0 = 0 it offers Use every
+    # frame (001BC740).  Use facing -x (the button's yaw + pi): state 1
+    # sub-state 1 (script), then sub-state 6 moves the lift's +0x0B from 3 to
+    # 4; the keyed lift's first ride sets flag 0x14 (D_0081076C) to 1 and
+    # waits in its sub-state 7 for [4] 0x824DC0's script 0x828BE0 to store
+    # 0xFF; then the request 0D FF 00 01: AREA13 entry 0.
+    use_a04b_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(552, 272), (561, 262), (566, 250), (566, 244)], limit=300)
+    if how != "ok":
+        raise RuntimeError("the lift's button [54] not reached (" + how + "): " + summary(r.rows[-1]))
+    a06_use(r, 566.0, 243.0, -math.pi / 2, lambda row: row["button_r54"]["h"][8:10] == "01")
+    r.until(lambda row: row["area4"][:2] == "0d", 3000)
+    a04b_control(r, 3000, 60)
+    a06_settle(r, 10)
+    return {"what": "the lift [51]'s inner button [54] facing -x: flag 0x14, [4]'s script, AREA13 entry 0",
+            "hp_end": a01_hp(r)}
+
+
+A04B_BEATS = [
+    ("a04b_00_door45", "a22b_01_door6", a04b_beat_to_door45),
+    ("a04b_01_npc", "a04b_00_door45", a04b_beat_npc),
+    ("a04b_02_door45_out", "a04b_01_npc", a04b_beat_door45_out),
+    ("a04b_03_reader", "a04b_02_door45_out", a04b_beat_reader),
+    ("a04b_04_lift", "a04b_03_reader", a04b_beat_lift),
+]
+A04B_SIDE_BEATS: set[str] = set()
+A04B_CHANGE_BEATS: set[str] = {"a04b_04_lift"}
+
+
+def a04b_selected(spec: str) -> list[tuple]:
+    wanted = spec.split(",")
+    if "a04b" in wanted:
+        return list(A04B_BEATS)
+    return [b for b in A04B_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+def eighth_selected(spec: str) -> list[tuple]:
+    """Every eighth-level group, in story order (each group opt-in by name)."""
+    return a06b_selected(spec) + a01v_selected(spec) + a22b_selected(spec) + a04b_selected(spec)
+
+
+def eighth_owners(name: str):
+    if name.startswith("a06b_"):
+        return A06_OWNERS
+    if name.startswith("a01v_"):
+        return A01V_OWNERS
+    if name.startswith("a22b_"):
+        return A22B_OWNERS
+    if name.startswith("a04b_"):
+        return A04B_OWNERS
+    return None
+
+
 def beat_source(source: str) -> Path:
     if len(source) == 2 and source.isdigit():
         return slot_path(source)
@@ -3745,6 +4236,14 @@ def beat_dir(name: str) -> Path:
         return OUT_A01U / name
     if name.startswith("a06_"):                 # AREA06 beats: build/s87/route_a06/
         return OUT_A06 / name
+    if name.startswith("a06b_"):                # eighth level, AREA06 after the keypad
+        return OUT_A06B / name
+    if name.startswith("a01v_"):                # eighth level, AREA01's upper floor again
+        return OUT_A01V / name
+    if name.startswith("a22b_"):                # eighth level, AREA22 again
+        return OUT_A22B / name
+    if name.startswith("a04b_"):                # eighth level, AREA04 again
+        return OUT_A04B / name
     return (OUT_A01 if name.startswith("a01_") else OUT) / name
 
 
@@ -3891,6 +4390,8 @@ if __name__ == "__main__":
                 run_beat(name, source, fn)
             for name, source, fn in a06_selected(a.beats):    # and the AREA06 group
                 run_beat(name, source, fn)
+            for name, source, fn in eighth_selected(a.beats):  # the eighth-level groups
+                run_beat(name, source, fn)
     elif a.command == "events":
         chosen = [b for b in BEATS if a.beats == "all" or b[0][:2] in a.beats.split(",")]
         chosen += a01_selected(a.beats) if a.beats != "all" else []
@@ -3902,6 +4403,7 @@ if __name__ == "__main__":
         chosen += a22_selected(a.beats) if a.beats != "all" else []
         chosen += a01u_selected(a.beats) if a.beats != "all" else []
         chosen += a06_selected(a.beats) if a.beats != "all" else []
+        chosen += eighth_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             path = beat_dir(name) / "trace.json"
             if not path.exists():
@@ -3917,7 +4419,8 @@ if __name__ == "__main__":
                       A04_OWNERS if name.startswith("a04_") else
                       A22_OWNERS if name.startswith("a22_") else
                       A01U_OWNERS if name.startswith("a01u_") else
-                      A06_OWNERS if name.startswith("a06_") else None)
+                      A06_OWNERS if name.startswith("a06_") else
+                      eighth_owners(name))
             for line in events(doc, owners):
                 print("  ", line)
     elif a.command == "identify":
@@ -3953,6 +4456,7 @@ if __name__ == "__main__":
         chosen += a22_selected(a.beats) if a.beats != "all" else []
         chosen += a01u_selected(a.beats) if a.beats != "all" else []
         chosen += a06_selected(a.beats) if a.beats != "all" else []
+        chosen += eighth_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             state = beat_dir(name) / "state.p2s"
             if state.exists():

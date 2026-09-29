@@ -1,15 +1,15 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-// CFLAGS: -O4,p -sdatathreshold 4
-
-asm void func_overlay_AREA16_008255F0(void) {
-    lw $v0, 0x8($a2)
-    .word 0x10400004
-    nop
-    ori $v0, $zero, 0xFFFF
-    .word 0x10000002
-    sh $v0, 0x2E($a0)
-    sh $zero, 0x2E($a0)
-    jr $ra
-    addiu $v0, $zero, 0x1
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA16 overlay, runtime 0x00825630 (splat/link name 008255F0; overlay code is
+// linked 0x40 below where it runs), 0x24 bytes.
+// Byte-identical (tools/overlay/overlay_match.py check AREA16; lane A15C).
+// Role: (self, a1, a2) callback: +0x2E = 0xFFFF when a2[2] != 0, else 0;
+//  returns 1.
+int func_overlay_AREA16_008255F0(unsigned char *self, unsigned char *a1, int *a2) {
+    if (a2[2] != 0) {
+        *(unsigned short *)(self + 0x2E) = 0xFFFF;
+    } else {
+        *(unsigned short *)(self + 0x2E) = 0;
+    }
+    return 1;
 }

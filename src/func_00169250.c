@@ -1,12 +1,16 @@
 // NEARMISS func_00169250  (vram 0x00169250, 0x450 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 85.12% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 84.01% (85.12% before the 2026-09-28 correction) via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // FPU register-coloring/scheduling wall in the two func_0011E748 (dx*dx+dz*dz distance) MAC blocks and the even/odd interpolation-step math; also a residual GP dispatch-register choice (a0 vs a1 for the state byte) in the switch prologue. Body/structure fully recovered including the case-0->case-1 ...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// Corrected 2026-09-28 against the original instructions (round-7 A06T lane): the
+// odd-n branch subtracts half of the SCALED step, 0.5 * (4.5 * +0x2E0) (and
+// 0.5 * (4.5 * +0x2E8)); the old C subtracted 0.5 * +0x2E0.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -94,9 +98,13 @@ void func_00169250(char *arg0) {
                 *(float *)(arg0 + 0x2F4) = *(float *)(arg0 + 0x290) - (4.5f * *(float *)(arg0 + 0x2E0)) * t;
                 *(float *)(arg0 + 0x2F8) = *(float *)(arg0 + 0x298) - (4.5f * *(float *)(arg0 + 0x2E8)) * t;
             } else {
+                /* The step is scaled once (4.5 * speed) and used twice: the
+                   position moves back t steps and then half a scaled step. */
                 float t = (float)float_to_int((dist2 - 2.25f) / 4.5f);
-                *(float *)(arg0 + 0x2F4) = *(float *)(arg0 + 0x290) - (4.5f * *(float *)(arg0 + 0x2E0)) * t - 0.5f * *(float *)(arg0 + 0x2E0);
-                *(float *)(arg0 + 0x2F8) = *(float *)(arg0 + 0x298) - (4.5f * *(float *)(arg0 + 0x2E8)) * t - 0.5f * *(float *)(arg0 + 0x2E8);
+                float step = 4.5f * *(float *)(arg0 + 0x2E0);
+                *(float *)(arg0 + 0x2F4) = *(float *)(arg0 + 0x290) - step * t - 0.5f * step;
+                step = 4.5f * *(float *)(arg0 + 0x2E8);
+                *(float *)(arg0 + 0x2F8) = *(float *)(arg0 + 0x298) - step * t - 0.5f * step;
             }
             *(float *)(arg0 + 0x2E0) = (*(float *)(arg0 + 0x2F4) - *(float *)(arg0 + 0xB0)) / 8.0f;
             *(float *)(arg0 + 0x2E8) = (*(float *)(arg0 + 0x2F8) - *(float *)(arg0 + 0xB8)) / 8.0f;
