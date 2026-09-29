@@ -1,23 +1,17 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-// CFLAGS: -O4,p -sdatathreshold 4
-extern void func_1EFE00(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA06 overlay, runtime 0x00823B10 (splat/link name 00823AD0; overlay code is
+// linked 0x40 below where it runs), 0x40 bytes.
+// Byte-identical (tools/overlay/overlay_match.py check AREA06; lane A06C).
+// Role: (self, arg): when bit 1 of arg[0] is clear, func_001EFE00(0x80000044,
+// arg) and self +0x1F0 = 60. func_overlay_AREA06_00823B10 stores the value
+// 0x823B10 at +0x34 of its record, which is this function's runtime address.
+// Replaces the earlier hybrid asm body (same bytes).
+extern int func_001EFE00(int a, unsigned char *b);
 
-asm void func_overlay_AREA06_00823AD0(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    sq $s0, 0x0($sp)
-    lbu $v1, 0x0($a1)
-    andi $v1, $v1, 0x2
-    .word 0x14600006
-    paddub $s0, $a0, $zero
-    lui $v0, (0x80000044 >> 16)
-    jal func_1EFE00
-    ori $a0, $v0, (0x80000044 & 0xFFFF)
-    addiu $v1, $zero, 0x3C
-    sw $v1, 0x1F0($s0)
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+void func_overlay_AREA06_00823AD0(unsigned char *self, unsigned char *a1) {
+    if (!(a1[0] & 2)) {
+        func_001EFE00(0x80000044, a1);
+        *(int *)(self + 0x1F0) = 0x3C;
+    }
 }

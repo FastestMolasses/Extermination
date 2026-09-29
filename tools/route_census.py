@@ -69,11 +69,19 @@ Usage (decomp .venv python, repo root):
     .venv/bin/python tools/route_census.py a22-delta --passes A22 --a04-passes A04 --a02-passes A02 \
                                                      --a01r-passes A01R --a00-passes A00 --a01-passes A01
                                                      # AREA22 beyond all of the above
+    .venv/bin/python tools/route_census.py run --segments a01u --pass A01U  # AREA01 upper floor (opt-in)
+    .venv/bin/python tools/route_census.py a01u-delta --passes A01U          # beyond every earlier group
+    .venv/bin/python tools/route_census.py run --segments a06 --pass A06    # AREA06 beats (opt-in)
+    .venv/bin/python tools/route_census.py a06-delta --passes A06           # beyond every earlier group
+                                                     # (earlier passes: --a01-passes .. --a22-passes,
+                                                     # --a01u-passes; defaults A01 .. A22, A01U)
 The a01r_* segments arm the boot functions plus the AREA01 overlay, the a02_*
 segments the boot functions plus the AREA02 overlay (docs/FOURTH_LEVEL_ROUTE.md),
 the a04_* segments the boot functions plus the AREA04 overlay
 (docs/FIFTH_LEVEL_ROUTE.md), the a22_* segments the boot functions plus the
-AREA22 overlay pieces (docs/SIXTH_LEVEL_ROUTE.md).
+AREA22 overlay pieces (docs/SIXTH_LEVEL_ROUTE.md), the a01u_* segments the boot
+functions plus the AREA01 overlay and the a06_* segments the boot functions
+plus the AREA06 overlay (docs/SEVENTH_LEVEL_ROUTE.md).
 The a01_* segments (route_capture's AREA01 group, docs/SECOND_LEVEL_ROUTE.md in
 the port) arm the boot functions plus the AREA01 overlay, the a00_* segments
 (docs/THIRD_LEVEL_ROUTE.md) the boot functions plus the AREA00 overlay;
@@ -1814,6 +1822,185 @@ def a22_delta(passes: list[str], a04_passes: list[str], a02_passes: list[str], a
     return out
 
 
+# ---------------------------------------------------------------------------
+# AREA01 upper floor (a01u) and AREA06 (a06), s88 lane NEXT, opt-in:
+# route_capture's a01u_* / a06_* beats, replayed only when named (`run
+# --segments a01u` / `--segments a06` or beat names), arming the boot
+# functions plus the AREA01 (a01u) or AREA06 (a06) overlay (runtime = splat
+# label + 0x40).  `a01u-delta` and `a06-delta` list what the group runs that
+# no earlier level ran (chain_delta below).  Segments, for a group <g>:
+#   <g>            the main-line beats (the beat that leaves the area up to
+#                  its area-change consumer 001AD010);
+#   <g>_side       the side beats (a side beat that leaves the area, up to its
+#                  001AD010);
+#   <g>_exit       the main-line beat from 001AD010 on (the next area's load
+#                  and arrival);
+#   <g>_side_exit  a side beat from 001AD010 on.
+# Overlay-range hits whose resident overlay is not the group's own are
+# another area's code at the group's candidate addresses and are listed apart.
+# "Already ran" = the first-level census (route_functions.json), beat 15, and
+# every beat of every earlier group's passes in all phases (boot functions);
+# an overlay function of the group's area counts as already run when an
+# earlier pass paused inside it with that area's overlay resident (a hit at
+# the earlier group's candidate address, mapped by range into this overlay's
+# functions, or a hit of an earlier pass that armed the same overlay).
+# Nothing here changes the earlier outputs.
+
+AREA06_ID = 6
+
+
+def chain_delta(tag: str, overlay: str, overlay_id: int, beats, side_beats, change_beats,
+                passes: list[str], earlier: list[tuple], out_name: str) -> dict:
+    """Generic delta of one opt-in route group against everything before it.
+    `earlier` is a list of (beats, passes, source, armed overlay)."""
+    cx, p2rx, spanx = _overlay_map(overlay)
+    boot = {a: c for a, c in cx.items() if c["region"] == "boot"}
+
+    first = json.loads((OUT / "route_functions.json").read_text())
+    prior: dict[int, str] = {}
+    for f in first["functions"]:
+        if not f.get("overlay"):
+            prior.setdefault(int(f["addr"], 16), "first_level")
+    for p in first["summary"].get("passes", ["A"]):
+        for h in _hits(p, EXIT_BEAT) or []:
+            if not (OVERLAY_BASE <= int(h["pc"], 16) < 0x900000):
+                prior.setdefault(int(h["pc"], 16), "beat15")
+    prior_ov: dict[int, str] = {}
+    read = []
+    for e_beats, ps, source, _armed in earlier:
+        for name, _src, _fn in e_beats:
+            for p in ps:
+                hs = _hits(p, name)
+                if hs is None:
+                    continue
+                read.append(f"{name}:{p}")
+                for h in hs:
+                    pc = int(h["pc"], 16)
+                    if OVERLAY_BASE <= pc < 0x900000:
+                        if h.get("overlay_id") == overlay_id:
+                            real = _containing(spanx, pc)
+                            if real is not None:
+                                prior_ov.setdefault(real, source)
+                    else:
+                        prior.setdefault(pc, source)
+
+    funcs: dict[tuple[str, int], dict] = {}
+    other_overlay, unknown, per_seg, missing = [], [], [], []
+    change_marks: dict[str, dict] = {}
+    region_ov = f"overlay:{overlay}"
+    for name, _src, _fn in beats:
+        seen: dict[str, set] = {}
+        found = False
+        side = name in side_beats
+        for p in passes:
+            hs = _hits(p, name)
+            if hs is None:
+                continue
+            found = True
+            f_chg = ({int(h["pc"], 16): h["frame"] for h in hs}.get(A01_CHANGE)
+                     if name in change_beats else None)
+            if name in change_beats:
+                change_marks.setdefault(name, {})[p] = f_chg
+            for h in hs:
+                piece_pc = int(h["pc"], 16)
+                after = f_chg is not None and h["frame"] >= f_chg
+                seg = (tag + "_side" if side else tag) + ("_exit" if after else "")
+                if OVERLAY_BASE <= piece_pc < 0x900000:
+                    if h.get("overlay_id") == overlay_id:
+                        key = (region_ov, p2rx.get(piece_pc, piece_pc))
+                        via = "entry" if key[1] == piece_pc else "piece"
+                    else:
+                        other_overlay.append(dict(h, beat=name, segment=seg))
+                        continue
+                elif piece_pc in boot:
+                    key, via = ("boot", piece_pc), "entry"
+                else:
+                    unknown.append(dict(h, beat=name))
+                    continue
+                e = funcs.setdefault(key, {"first_segment": seg, "first_beat": name, "first_frame": h["frame"],
+                                           "segments": [], "beats": [], "hit_points": [], "via": []})
+                for k, v in (("segments", seg), ("beats", name), ("hit_points", hex(piece_pc)), ("via", via)):
+                    if v not in e[k]:
+                        e[k].append(v)
+                seen.setdefault(seg, set()).add(key)
+        if not found:
+            missing.append(name)
+            continue
+        allk = set().union(*seen.values()) if seen else set()
+        per_seg.append({"beat": name, "segments": {k: len(v) for k, v in seen.items()},
+                        "functions": len(allk),
+                        **({"change_frame_001AD010": change_marks.get(name)}
+                           if name in change_beats else {})})
+
+    order = (tag, tag + "_side", tag + "_exit", tag + "_side_exit")
+    rows = []
+    for key in sorted(funcs, key=lambda k: (k[0] != "boot", k[1])):
+        region, pc = key
+        c, e = cx[pc], funcs[key]
+        already = prior.get(pc) if region == "boot" else prior_ov.get(pc)
+        group = next(g for g in order if g in e["segments"])
+        rows.append({"addr": hex(pc), "name": c["name"], "size": c["size"], "region": region,
+                     "splat_label": c.get("splat_label"), "status": c["status"],
+                     "subsystem": c["subsystem"], "pieces": c.get("pieces"),
+                     "hit_points": e["hit_points"], "hit_via": e["via"], "already_ran": already,
+                     "first_segment": e["first_segment"], "first_beat": e["first_beat"],
+                     "first_frame": e["first_frame"], "segments": e["segments"], "beats": e["beats"],
+                     "group": group})
+    new = [r for r in rows if not r["already_ran"]]
+
+    def count(rs, k):
+        out: dict[str, int] = {}
+        for r in rs:
+            out[r[k]] = out.get(r[k], 0) + 1
+        return out
+    by_group = {}
+    for g in order:
+        rs = [r for r in new if r["group"] == g]
+        by_group[g] = {"functions": len(rs), "bytes": sum(r["size"] for r in rs),
+                       "boot": sum(1 for r in rs if r["region"] == "boot"),
+                       "overlay_" + overlay: sum(1 for r in rs if r["region"] == region_ov),
+                       "by_status": count(rs, "status")}
+    ovx = [c for c in cx.values() if c["region"] != "boot"]
+    ranx = {pc for (reg, pc) in funcs if reg == region_ov}
+    summary = {"passes": passes, "earlier_passes": {src: ps for _b, ps, src, _a in earlier},
+               "beats_missing": missing, "prior_beats_read": read, "executed": len(rows),
+               "executed_boot": sum(1 for r in rows if r["region"] == "boot"),
+               "executed_overlay_" + overlay: sum(1 for r in rows if r["region"] == region_ov),
+               "overlay_" + overlay + "_functions": len(ovx),
+               "new": len(new), "new_bytes": sum(r["size"] for r in new),
+               "new_boot": sum(1 for r in new if r["region"] == "boot"),
+               "new_overlay_" + overlay: sum(1 for r in new if r["region"] == region_ov),
+               "new_by_group": by_group, "new_by_status": count(new, "status"),
+               "new_by_subsystem": count(new, "subsystem"),
+               "already_ran_by_source": count([r for r in rows if r["already_ran"]], "already_ran"),
+               "overlay_already_ran": {hex(k): v for k, v in sorted(prior_ov.items())},
+               "change_frames_001AD010": change_marks,
+               "overlay_hits_other_overlay": len(other_overlay),
+               "overlay_hits_other_overlay_ids": sorted({h.get("overlay_id") for h in other_overlay},
+                                                        key=lambda v: (v is None, v)),
+               "unattributed_hits": len(unknown),
+               "overlay_status_source": f"working tree src/overlays/{overlay} at the time of the run"}
+    out = {"summary": summary, "per_beat": per_seg, "new_functions": new, "functions": rows,
+           "overlay_" + overlay + "_not_run": [{"addr": hex(c["addr"]), "name": c["name"], "size": c["size"],
+                                                "status": c["status"], "pieces": c.get("pieces"),
+                                                "already_ran": prior_ov.get(c["addr"])}
+                                               for c in sorted(ovx, key=lambda c: c["addr"])
+                                               if c["addr"] not in ranx],
+           "overlay_hits_other_overlay": other_overlay, "unattributed_hits": unknown}
+    (OUT / out_name).write_text(json.dumps(out, indent=1) + "\n")
+    return out
+
+
+def _earlier_groups(a) -> list[tuple]:
+    """The earlier groups for a01u-delta / a06-delta, oldest first."""
+    return [(rc.A01_BEATS, a.a01_passes.split(","), "area01", "AREA01"),
+            (rc.A00_BEATS, a.a00_passes.split(","), "area00", "AREA00"),
+            (rc.A01R_BEATS, a.a01r_passes.split(","), "area01_revisit", "AREA01"),
+            (rc.A02_BEATS, a.a02_passes.split(","), "area02", "AREA02"),
+            (rc.A04_BEATS, a.a04_passes.split(","), "area04", "AREA04"),
+            (rc.A22_BEATS, a.a22_passes.split(","), "area22", "AREA22")]
+
+
 def _run_group(selected, addrs: list[int], pass_name: str) -> None:
     for name, source, fn in selected:
         for attempt in range(3):
@@ -1830,7 +2017,8 @@ def _run_group(selected, addrs: list[int], pass_name: str) -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("command", choices=["candidates", "run", "report", "compare-startup", "exit-delta",
-                                        "a01-delta", "a00-delta", "a02-delta", "a04-delta", "a22-delta"])
+                                        "a01-delta", "a00-delta", "a02-delta", "a04-delta", "a22-delta",
+                                        "a01u-delta", "a06-delta"])
     ap.add_argument("--arm-chunk", type=int, default=200,
                     help="breakpoint commands per DebugServer round trip")
     ap.add_argument("--segments", default="all")
@@ -1841,6 +2029,8 @@ if __name__ == "__main__":
     ap.add_argument("--a00-passes", default="A00", help="a02-delta: the AREA00 census passes")
     ap.add_argument("--a02-passes", default="A02", help="a04-delta: the AREA02 census passes")
     ap.add_argument("--a04-passes", default="A04", help="a22-delta: the AREA04 census passes")
+    ap.add_argument("--a22-passes", default="A22", help="a01u-delta: the AREA22 census passes")
+    ap.add_argument("--a01u-passes", default="A01U", help="a06-delta: the AREA01 upper-floor census passes")
     a = ap.parse_args()
     ARM_CHUNK = max(1, a.arm_chunk)
     if a.command == "candidates":
@@ -1884,6 +2074,10 @@ if __name__ == "__main__":
             _run_group(rc.a04_selected(a.segments), [c["addr"] for c in candidates("AREA04")], a.pass_name)
         if a.segments != "all" and any(w.startswith("a22") for w in a.segments.split(",")):
             _run_group(rc.a22_selected(a.segments), [c["addr"] for c in candidates("AREA22")], a.pass_name)
+        if a.segments != "all" and any(w.startswith("a01u") for w in a.segments.split(",")):
+            _run_group(rc.a01u_selected(a.segments), [c["addr"] for c in candidates("AREA01")], a.pass_name)
+        if a.segments != "all" and any(w.startswith("a06") for w in a.segments.split(",")):
+            _run_group(rc.a06_selected(a.segments), [c["addr"] for c in candidates("AREA06")], a.pass_name)
         addrs = [c["addr"] for c in candidates()]
         wanted = DEFAULT_SEGMENTS if a.segments == "all" else a.segments.split(",")
         for seg in SEGMENTS:
@@ -1932,6 +2126,18 @@ if __name__ == "__main__":
     elif a.command == "a22-delta":
         d = a22_delta(a.passes.split(","), a.a04_passes.split(","), a.a02_passes.split(","),
                       a.a01r_passes.split(","), a.a00_passes.split(","), a.a01_passes.split(","))
+        print(json.dumps(d["summary"], indent=1))
+        print(json.dumps(d["per_beat"], indent=1))
+    elif a.command == "a01u-delta":
+        d = chain_delta("a01u", "AREA01", AREA01_ID, rc.A01U_BEATS, rc.A01U_SIDE_BEATS, rc.A01U_CHANGE_BEATS,
+                        a.passes.split(","), _earlier_groups(a), "a01u_delta.json")
+        print(json.dumps(d["summary"], indent=1))
+        print(json.dumps(d["per_beat"], indent=1))
+    elif a.command == "a06-delta":
+        d = chain_delta("a06", "AREA06", AREA06_ID, rc.A06_BEATS, rc.A06_SIDE_BEATS, rc.A06_CHANGE_BEATS,
+                        a.passes.split(","),
+                        _earlier_groups(a) + [(rc.A01U_BEATS, a.a01u_passes.split(","), "area01_upper", "AREA01")],
+                        "a06_delta.json")
         print(json.dumps(d["summary"], indent=1))
         print(json.dumps(d["per_beat"], indent=1))
     elif a.command == "exit-delta":
