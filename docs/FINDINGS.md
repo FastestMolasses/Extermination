@@ -16690,3 +16690,19 @@ EE syscall stub labels: every EE kernel syscall stub in the boot ELF is now labe
 
 (4) Sub 1 of AREA00 was played. The a00_08 and a00_09 end images match the chunk04.n1 load map in all but 519 16-byte rows (in the cell directory), against 225,791 for n0; a00_07 is the reverse (518 / 225,790). Reproduced with export_area00_common.loaded_sub_proof. THIRD_LEVEL_ROUTE.md section 7 item 2 and section 9 are corrected. The frame of the reload inside a00_08 was not located.
 
+## Linked-from-C promotions and multi-function overlay objects (2026-09-28)
+
+- func_0012E070 now links from its compiled mwcc 2.3.3 object (removed from
+  fill_unmatched.py SIZE_DRIFT_FORCE_ASM; audit_link_provenance route
+  compiled_object_ordinary_c, objdiff 100%). Earlier statements that it links from .s
+  are superseded.
+- func_001DF5A0 takes no argument of its own but passes its caller's f12 through as
+  func_001DF180's float amplitude, and stores the advanced render-context cursor
+  (D_00275670+0x1C += 0x10) in the delay slot of its func_001CB760 call, so 001CB760
+  receives the cursor as read before the advance. The corrected C matches 100% and
+  links from C.
+- mwcc 2.3.3 writes one .text section per function (16-byte aligned). The overlay filler
+  (tools/overlay/fill_overlay.py) now merges them with a partial link, so C files holding
+  several overlay functions (AREA04 00825240 + 008252D0) link from C.
+- Decomp gate after these: boot ELF byte-identical, 19/19 overlays, 2152/2211.
+

@@ -139,10 +139,15 @@ that is a different, stale tree.
   trailing pad piece), docs/AREA02_OVERLAY.md. AREA00 phase 2 committed (port
   037e8b6). Next: AREA02/revisit phase 2 translations, AREA04 (level 5).
 - **Level 5 = AREA04** (2026-09-28): recorded to its exit (port docs/FIFTH_LEVEL_ROUTE.md);
-  overlay in C (31 of 32 match; 29 link from C; the 00825240/008252D0 pair needs
-  fill_overlay.py to sum multiple .text sections). Level-4 phase 2 committed (port
+  overlay in C (31 of 32 match; all 31 non-pad functions link from C since the
+  fill_overlay multi-.text fix). Level-4 phase 2 committed (port
   em_area02_*, em_area01_revisit*); AREA02 overlay 16/16 non-pad functions link from C.
   Possible next: AREA22 (door [37] path; FIFTH_LEVEL_ROUTE.md open items).
+- **Level 6 = AREA22** (2026-09-28): a short connector (overlay = entry pad + one
+  init; everything else is boot code); recorded to door [8] -> AREA01 entry 6, the upper
+  floor (port docs/SIXTH_LEVEL_ROUTE.md); 11 new functions. Next: AREA01 upper floor ->
+  door [19] -> AREA06 (to be established). Item 0x23 (AREA22's card reader key) comes
+  from AREA04's NPC behind locked door [45] (not played).
   - Port flags for binding: em_actor_cells rejects AREA01's cell directory (uid 0 word bit
     29); em_coll_segment_walkers returns -1 on 0019D770's no-span path (FINDINGS).
   - Phase 3 (after the first level is done): an AREA01 binding chain.

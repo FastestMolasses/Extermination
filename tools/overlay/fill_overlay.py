@@ -264,21 +264,69 @@ def compute_slot_sizes(entries: list[tuple[int, str, Path]],
     return slot_sizes
 
 
-def _obj_text_size(obj_path: Path) -> int:
-    """Size of the .text section of an ELF32 LE object (0 if none)."""
+def _obj_text_sections(obj_path: Path) -> list[tuple[int, int]]:
+    """(size, alignment) of every .text section of an ELF32 LE object, in
+    section-header order ([] if none or not an ELF).
+
+    mwcc 2.3.3 writes one .text section per function, so a C file holding
+    several functions compiles to an object with several .text sections."""
     data = obj_path.read_bytes()
     if data[:4] != b'\x7fELF':
-        return 0
+        return []
     shoff = struct.unpack_from('<I', data, 32)[0]
     shentsize, shnum, shstrndx = struct.unpack_from('<HHH', data, 46)
     stroff = struct.unpack_from('<I', data, shoff + shstrndx * shentsize + 16)[0]
+    out = []
     for i in range(shnum):
         sh = shoff + i * shentsize
         name_off = struct.unpack_from('<I', data, sh)[0]
         name = data[stroff + name_off:data.index(b'\0', stroff + name_off)]
         if name == b'.text':
-            return struct.unpack_from('<I', data, sh + 20)[0]
-    return 0
+            size = struct.unpack_from('<I', data, sh + 20)[0]
+            align = struct.unpack_from('<I', data, sh + 32)[0]
+            out.append((size, align))
+    return out
+
+
+def _obj_text_size(obj_path: Path) -> int:
+    """Bytes the object's code occupies once linked (0 if no .text).
+
+    With several .text sections (mwcc 2.3.3, one per function) this is their
+    laid-out size: each section starts at the next multiple of its own
+    alignment (16 for mwcc), as ld places them in one output .text; the
+    first starts at 0, because the object itself is placed at its slot."""
+    end = 0
+    for i, (size, align) in enumerate(_obj_text_sections(obj_path)):
+        if i and align > 1:
+            end = (end + align - 1) & ~(align - 1)
+        end += size
+    return end
+
+
+def _merge_text_sections(obj_path: Path) -> int:
+    """Merge an object's several .text sections into one, in place.
+
+    strip_sections.py (resize, GPREL16 pre-application, PC16 fix) and the
+    overlay link's slot sizing act on one .text per object. A partial link
+    of the object alone (`ld -r`) lays its .text sections out in order at
+    their alignment, zero-filled between, with one merged .rel.text: the
+    same placement the final link gives them. Returns the number of .text
+    sections merged (0 when there was at most one); exits if the merged
+    size is not the laid-out size _obj_text_size computed."""
+    secs = _obj_text_sections(obj_path)
+    if len(secs) < 2:
+        return 0
+    want = _obj_text_size(obj_path)
+    tmp = obj_path.with_name(obj_path.stem + "._merge.o")
+    subprocess.run(["mipsel-linux-gnu-ld", "-r", "-o", str(tmp), str(obj_path)],
+                   check=True, capture_output=True, text=True)
+    got = _obj_text_sections(tmp)
+    if len(got) != 1 or got[0][0] != want:
+        tmp.unlink(missing_ok=True)
+        sys.exit(f"error: merging the {len(secs)} .text sections of {obj_path} "
+                 f"gave {got}, expected one .text of 0x{want:x} bytes")
+    tmp.replace(obj_path)
+    return len(secs)
 
 
 ABSORBED_MANIFEST = "_absorbed.json"
@@ -429,6 +477,9 @@ def assemble_one(name: str, asm_path: Path, out_path: Path,
             # Normalize the mwcc-emitted EABI64 flags to o32 so GNU ld will
             # link this object alongside GNU-as-produced overlay objects.
             _normalize_mwcc_abi(out_path)
+            # A multi-function mwcc 2.3.3 object has one .text per function;
+            # the fix-ups below act on a single .text, so merge them first.
+            _merge_text_sections(out_path)
             strip_cmd = [sys.executable, str(STRIP_SCRIPT), str(out_path)]
             if slot_size > 0:
                 strip_cmd += ["--expected-size", str(slot_size)]

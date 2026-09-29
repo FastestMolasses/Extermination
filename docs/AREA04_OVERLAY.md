@@ -17,12 +17,12 @@ No AREA04 route capture was used; every function was done, in file order.
 ## Status
 
 Of the 32 real functions, 31 have C that compiles byte-identical and 1 is
-the asm entry pad. 29 C files link from their compiled objects (27 new in
-this lane, plus 00823AD0 and 00824A00 from earlier). The 30th C file,
-`func_overlay_AREA04_00825240.c`, holds two byte-identical functions and is
-marked NEARMISS for a link-tool reason, so the link assembles them from
-their two splat pieces. The hybrid asm files for 00824450 and 00825000 were
-replaced by C.
+the asm entry pad. All 30 C files link from their compiled objects (27 new
+in lane A04C, plus 00823AD0 and 00824A00 from earlier, plus the
+two-function file `func_overlay_AREA04_00825240.c`, linked from C since
+lane DFIX taught `fill_overlay.py` to lay out several `.text` sections).
+AREA04's code is therefore entirely compiled C except the 4-byte asm entry
+pad. The hybrid asm files for 00824450 and 00825000 were replaced by C.
 
 | link name | runtime | size | pieces | status |
 |---|---|---|---|---|
@@ -50,8 +50,8 @@ replaced by C.
 | func_overlay_AREA04_00824EB0 | 0x824EF0 | 0x14C | 00824EB0 | C, byte-identical (new) |
 | func_overlay_AREA04_00825000 | 0x825040 | 0x178 | 00825000+00825040 | C, byte-identical (was hybrid asm; absorbs 00825040) |
 | func_overlay_AREA04_00825180 | 0x8251C0 | 0xB4 | 00825180+008251C0 | C, byte-identical (new; absorbs 008251C0) |
-| func_overlay_AREA04_00825240 | 0x825280 | 0x8C | 00825240 | C, byte-identical, in the NEARMISS file (leaf) |
-| func_overlay_AREA04_008252D0 | 0x825310 | 0x200 | inside 00825280 | C, byte-identical, in the NEARMISS file |
+| func_overlay_AREA04_00825240 | 0x825280 | 0x8C | 00825240 | C, byte-identical, linked from C (leaf; two-function file) |
+| func_overlay_AREA04_008252D0 | 0x825310 | 0x200 | inside 00825280 | C, byte-identical, linked from C (two-function file) |
 | func_overlay_AREA04_008254D0 | 0x825510 | 0x370 | 008254D0 | C, byte-identical (new) |
 | func_overlay_AREA04_00825840 | 0x825880 | 0x27C | 00825840 | C, byte-identical (new, sdatathreshold 4) |
 | func_overlay_AREA04_00825AC0 | 0x825B00 | 0x254 | 00825AC0 | C, byte-identical (new) |
@@ -78,15 +78,30 @@ one `.text` section per function (scratch checker, build/a04c/chk3.py:
 "func_overlay_AREA04_00825240 0x8c BYTE-IDENTICAL,
 func_overlay_AREA04_008252D0 0x200 BYTE-IDENTICAL").
 
-The link cannot take this object yet. `fill_overlay.py` reads only the
-first `.text` of an object (`_obj_text_size` = 0x8C), so `plan_absorption`
-would absorb 00825280 (slot 0x250), find a 0x204-byte remainder and stop
-the build. The file therefore starts with `// NEARMISS`; the link
-assembles the two splat pieces and the overlay stays byte-identical. To
-link it from C, `_obj_text_size` must sum all `.text` sections of an object
-(with their 16-byte alignment, which here gives exactly 0x8C + 4 + 0x200 =
-0x290). That tool is outside this lane; with that change, removing the
-marker should pass unchanged.
+Linking it (lane DFIX, 2026-09-28). `fill_overlay.py` used to read only
+the first `.text` of an object (`_obj_text_size` = 0x8C), so
+`plan_absorption` would have absorbed 00825280 (slot 0x250), found a
+0x204-byte remainder and stopped the build; the file was therefore marked
+`// NEARMISS`. Now:
+
+- `_obj_text_size` sums every `.text` section, each starting at the next
+  multiple of its own alignment (16 for mwcc): 0x8C, pad to 0x90, + 0x200 =
+  0x290, exactly the slot 00825240 + 00825280.
+- `assemble_one`, when it copies a compiled object with more than one
+  `.text`, merges them into one first (`_merge_text_sections`: a partial
+  link of that object alone, `mipsel-linux-gnu-ld -r`, which lays the
+  sections out at their alignment, zero-filled between, with one merged
+  `.rel.text`; it exits if the result is not a single `.text` of the size
+  above). This matters because `strip_sections.py` (resize to slot, GPREL16
+  pre-application, PC16 fix) and `jt_pin.py` act on one `.text` per object.
+  Single-`.text` objects are untouched, so every other overlay links as
+  before.
+
+The marker was removed. The object absorbs piece 00825280; the link map
+places `func_overlay_AREA04_00825240` at 0x825240 and
+`func_overlay_AREA04_008252D0` at 0x8252D0, and defines the absorbed name
+`func_overlay_AREA04_00825280` (called from 0x825310) at 0x825280. The
+filler object is one 0x290-byte `.text`.
 
 ## Matching notes (mwcc 2.3.3)
 
@@ -135,8 +150,10 @@ marker should pass unchanged.
 
 - `overlay_match.py check AREA04 src/overlays/AREA04/*.c`: 30 of 31 files at
   100.00 BYTE-IDENTICAL (includes the asm pad and the two earlier files);
-  the 31st is the NEARMISS two-function file, both of whose functions are
-  byte-identical per function (above).
+  the 31st is the two-function file, which `check` scores 21.34 by
+  construction (it resolves only the first `.text` against the grouped
+  0x290 bytes); both of its functions are byte-identical per function
+  (above) and the linked overlay is byte-identical (below).
 - `python3 tools/check_no_disassembly.py src/overlays/AREA04/*.c`: clean.
 - Mutation sweep (bounded, 4 single-constant edits in scratch copies:
   0x823A90 `% 50` -> 51, 0x8260C0 band 426 -> 425, 0x825B00 sound 0x451 ->
@@ -152,6 +169,14 @@ marker should pass unchanged.
   zero padding to the slot, 3 differing only in the pre-applied GPREL16
   fields of their gp-relative accesses: 00823AD0, 00823EA0, 00825840).
   This regenerated `config/overlays/AREA04.lds`.
+- Lane DFIX (two-function file linked from C), under the lock:
+  `compile_overlay_src.py AREA04` + `build.py --area AREA04 --no-extract
+  --no-yaml --no-splat`: PASS, text+data (37824 bytes) and full file
+  (37888 bytes) byte-identical; `[fill] 0 code assembled, 31 copied from
+  obj/`, 8 splat pieces absorbed by 8 compiled functions, 31 code objects
+  linked (30 C + the asm pad). Then a full `tools/decomp/build.py build`
+  (rc 0) + `tools/verify_all.py`: all six stages PASS, boot ELF
+  byte-identical, 19/19 overlays, matched_code 98.62% (2152/2211).
 - Full `tools/decomp/build.py build` (rc 0, 2211 units) + `tools/verify_all.py`
   under the lock: all six stages PASS. The boot ELF is byte-identical,
   19/19 overlays pass, matched_code is 98.61% (2151/2211), and glTF,
@@ -161,9 +186,10 @@ marker should pass unchanged.
 
 ## Known gaps
 
-- The two functions of slot 00825240 are byte-identical C but are linked
-  from their splat pieces until `fill_overlay.py` handles an object with
-  several `.text` sections (see above).
+- `overlay_match.py check` still reads only the first `.text` of a
+  candidate, so it cannot score a multi-function file (21.34 for
+  00825240); the per-function checker used above (build/a04c/chk3.py,
+  scratch) is not a committed tool.
 - Roles are read from the instructions only; no AREA04 route capture was
   used, so no function is tied to a placement record or a game event yet,
   and nothing here was checked against the running game. The native port

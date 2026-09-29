@@ -44,6 +44,10 @@ are described in the port's docs/FOURTH_LEVEL_ROUTE.md.
 The AREA04 beats (a04_*, from the a02_05 snapshot) write to
 build/s87/route_a04/<beat>/; they are described in the port's
 docs/FIFTH_LEVEL_ROUTE.md.
+    .venv/bin/python tools/route_capture.py run --beats a22     # AREA22 group (opt-in)
+The AREA22 beats (a22_*, from the a04_05 snapshot) write to
+build/s87/route_a22/<beat>/; they are described in the port's
+docs/SIXTH_LEVEL_ROUTE.md.
     .venv/bin/python tools/route_capture.py run --beats c7       # C7 capture group (opt-in)
 C7 beats (c7_*) are original captures the C6 chain requested; each writes to
 build/s87/c7cap/<item>/<beat>/ and is described in docs/CAPTURES_C7.md.
@@ -2870,6 +2874,247 @@ def a04_selected(spec: str) -> list[tuple]:
     return [b for b in A04_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
 
 
+# ---------------------------------------------------------------------------
+# AREA22 (opt-in group `a22`), s88 lane NEXT.  The beats start from the a04_05
+# end snapshot: AREA22 (overlay id 0x13, whose text is the 0x40 entry pad plus
+# the area init at runtime 0x823580, which boot 001E7780 calls for key 0x1600
+# at the area load, i.e. before these beats start; docs/AREA22_OVERLAY.md)
+# sub 0 at spawn entry 0 (335.7, 155, 483.1), control.  Outputs go to
+# build/s87/route_a22/<beat>/ (ignored); described in the port's
+# docs/SIXTH_LEVEL_ROUTE.md.  None of these beats runs under `--beats all`.
+OUT_A22 = ROOT / "build/s87/route_a22"
+
+# Owner nodes of the AREA22 sub-0 load, measured in the a04_05 end snapshot.
+# Record numbers are placement table 0x823A20 [n] or deferred group 0x8236B0 g[n].
+A22_OWNERS = {
+    "pick_g0": 0x7A5640,          # 00219550 g[0] at (132.7, 239.1, 286.6), behind door [10]
+    "pick_g1": 0x7A5930,          # 00219550 g[1] at (348.2, 155, 206.3)
+    "pick_g2": 0x7A5C20,          # 00219550 g[2] at (317.9, 155, 339.4)
+    "pick_g3": 0x7A5F10,          # 00219550 g[3] at (348, 155, 400.1)
+    "pick_g4": 0x7A6200,          # 0015AFA0 g[4] at (99.8, 247.9, 301.4), behind door [10]
+    "bug_g6": 0x7A67E0,           # 00128C10 g[6] at (276.2, 153.4, 227.1)
+    "bug_g10": 0x7A73A0,          # 00128C10 g[10] at (138.2, 161.1, 231.5)
+    "door6_r6": 0x7A9FB0,         # 001BC350 model 0x03, door id 0|0x80: AREA04 entry 1
+    "door7_r7": 0x7AA2A0,         # 001BB860 model 0x09, room move id 1 (entries 1 / 2)
+    "door8_r8": 0x7AA590,         # 001BB860 model 0x09, door id 2|0x80: AREA01 entry 6
+    "reader_r9": 0x7AA880,        # 00158810 model 0x12 at (105.5, 254, 280): with item 0x23, D_00810857 bit 3
+    "door10_r10": 0x7AAB70,       # 001BB860 model 0x16, room move id 3 (entries 3 / 4), lock bit 3
+    "lamp_r11": 0x7AAE60,         # 00158BD0 at (115, 262, 280)
+    "r13_158D30": 0x7AB440,       # 00158D30 at (115, 262, 283)
+    "r17_156F30": 0x7AC000,       # 00156F30 model 0x2B at (347.7, 155, 293)
+    "r18_156F30": 0x7AC2F0,       # 00156F30 model 0x2B at (324, 155, 279.1)
+    "r19_1C1A80": 0x7AC5E0,       # 001C1A80 model 0x52 at (111.2, 155, 165.7)
+    "r20_1C1A80": 0x7AC8D0,       # 001C1A80 model 0x52 at (247.9, 155, 230.2)
+}
+A22_SPANS = A04_SPANS[:len(A01R_SPANS[:len(A00_SPANS[:len(A01_BASE_SPANS) + 10]) + 2]) + 3] + [
+    ("s768", 0x810768, 0x4),            # D_00810768..6B (76A = 00158810's model-0x2F latch)
+    ("locks22", 0x810850, 0x8),         # D_00810850..57 (857 = D_00810841[22], AREA22's lock bits)
+    ("inv3", 0x810C88, 0x4),            # D_00810C88.. (item 0x24 count ..)
+]
+for _name, _base in A22_OWNERS.items():
+    A22_SPANS += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                  (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                  (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10)]
+A22_EVENT_KEYS = ("l857", "c87", "c88", "s768")
+
+
+class A22Sampler(ExitSampler):
+    def __init__(self, session: OriginalSession):
+        self.s = session
+        self.spans = A22_SPANS
+        self.body = b"".join(struct.pack("<BI", 2, a + i)
+                             for _n, a, n in self.spans for i in range(0, n, 4))
+
+
+def decode_a22(r: dict[str, bytes]) -> dict:
+    row = decode_a01r(r, owners=A22_OWNERS)
+    row["story764"] = r["story764"].hex()
+    row["s830"] = r["s830"].hex()
+    row["e4"] = r["d2"][0x0C:0x0D].hex()
+    row["e5"] = r["d2"][0x0D:0x0E].hex()
+    row["e9"] = r["d2"][0x11:0x12].hex()
+    row["ea"] = r["d2"][0x12:0x13].hex()
+    row["s768"] = r["s768"].hex()
+    row["l857"] = r["locks22"][7:8].hex()               # D_00810857 (AREA22 door-lock bits)
+    row["c87"] = r["inv2"][3]                           # D_00810C87 (item 0x23: 00158810 model 0x12's key)
+    row["c88"] = r["inv3"][0]                           # D_00810C88 (item 0x24)
+    return row
+
+
+def use_a22_sampler(r: Route) -> None:
+    sampler = A22Sampler(r.s)
+    r.sampler = sampler
+    r.now = lambda: decode_a22(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+
+
+# Paths (world x, z).  The north arm (x 313..353) is crossed between the drums
+# 00156620 at (335.1, 427.5) / (351, 442) / (320, 396) and the crate 001551B0
+# at (347.5, 398.4); the east-west corridor (z 200..240) holds boxes at
+# x 280..290 / 190..209 (north half) and 240..250 (south half); the south arm
+# (x 100..137.8) runs from z 240 to door [8] at z 78.5.
+A22_NORTH_ARM = [(341, 470), (341, 435), (334, 415), (334, 372)]
+A22_CORRIDOR = [(336, 300), (336, 232), (318, 213), (270, 213), (255, 224), (238, 224),
+                (220, 212), (180, 212), (150, 213), (125, 208)]
+A22_SOUTH_ARM = [(125, 190), (118, 176), (118, 150), (128, 125), (122, 100), (120, 88)]
+
+
+def a22_beat_door7(r: Route) -> dict:
+    # From the arrival (335.7, 155, 483.1) south along the north arm to door
+    # [7] (001BB860 model 0x09, room move id 1, not lock-gated) at
+    # (335.1, 155, 361): spawn entry 1 (335.1, 155, 349.2) facing pi.
+    use_a22_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, A22_NORTH_ARM)
+    if how != "ok":
+        raise RuntimeError("the north arm not crossed (" + how + "): " + summary(r.rows[-1]))
+    a04_use(r, 335.1, 366.5, math.pi, a04_program)
+    r.until(lambda row: row["area4"][:6] == "160001", 1500)
+    next_control_kept(r, 3000, 40)
+    settle(r, 10)
+    return {"what": "the north arm, door [7] (room move id 1): spawn entry 1", "hp_end": a01_hp(r)}
+
+
+def a22_beat_corridor(r: Route) -> dict:
+    # From entry 1 south, west along the corridor round its boxes, and south
+    # along the south arm to the front of door [8].
+    use_a22_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, A22_CORRIDOR + A22_SOUTH_ARM)
+    if how != "ok":
+        raise RuntimeError("the corridor not crossed (" + how + "): " + summary(r.rows[-1]))
+    settle(r, 10)
+    a01_near(r, 120, 88, 4, "door [8]'s front")
+    return {"what": "south and west along the corridor, south along the south arm to door [8]",
+            "hp_end": a01_hp(r)}
+
+
+def a22_beat_progression_exit(r: Route) -> dict:
+    # Door [8] (001BB860 model 0x09, door id 2|0x80, record 01 06 00 00; the
+    # model is not lock-gated): area change to AREA01 entry 6 sub 0, arrival,
+    # control.
+    use_a22_sampler(r)
+    next_long_frames(r)
+    a04_use(r, 120.0, 84.0, math.pi, a04_program)
+    r.until(lambda row: row["area4"][:2] == "01", 2500)
+    next_control_kept(r, 12000, 60)
+    settle(r, 30)
+    if r.rows[-1]["area4"][:6] != "010006":
+        raise RuntimeError("not at AREA01 sub 0 entry 6: " + summary(r.rows[-1]))
+    return {"what": "door [8]: area change to AREA01 entry 6, arrival, control", "hp_end": a01_hp(r)}
+
+
+def a22_beat_pickup(r: Route) -> dict:
+    # The pickup g[2] (00219550, param 0x72) at (317.9, 155, 339.4), west of
+    # spawn entry 1: Use from (322, 339.4) facing -x, its page, Triangle.
+    use_a22_sampler(r)
+    next_long_frames(r)
+    a04_go(r, [(324, 339.4)])
+    approach(r, 322.0, 339.4)
+    face(r, -math.pi / 2)
+    taken0, docs0 = r.rows[-1]["taken"], r.rows[-1]["docs"]
+    inv0 = r.s.read(0x810C60, 0x60).hex()
+    use_press(r, lambda row: not in_control(row))
+    r.until(lambda row: in_control(row) or row["ui"][2:4] == "03", 900)
+    if not in_control(r.rows[-1]):
+        r.idle(90)
+        r.press("TRIANGLE", 2)
+        r.until(in_control, 600)
+    settle(r, 20)
+    row = r.rows[-1]
+    if row["pick_g2"]["cb"] == "0x219550":
+        raise RuntimeError("the pickup g[2] is still there: " + summary(row))
+    return {"what": "the pickup g[2] west of entry 1 (its page, Triangle)",
+            "taken_changed": row["taken"] != taken0, "docs_before": docs0, "docs_after": row["docs"],
+            "inventory_before": inv0, "inventory_after": r.s.read(0x810C60, 0x60).hex(), "hp_end": a01_hp(r)}
+
+
+# From the front of door [8] back north to the ladder (attribute 0x32, the
+# wall z 239 at x 111.5..118.5, y 155 -> 239) at the corner of the south arm.
+A22_TO_LADDER = [(120, 100), (128, 125), (118, 150), (118, 176), (125, 190), (125, 215), (115, 230)]
+
+
+def a22_beat_ladder_reader(r: Route) -> dict:
+    # Up the ladder to the landing (y 239, x 100..130, z 240..280) and Use at
+    # the reader [9] (00158810 model 0x12, facing -z at (105.5, 254, 280))
+    # without item 0x23 (D_00810C87 = 0): 001576E0's refusal, D_00810857
+    # unchanged.
+    use_a22_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, A22_TO_LADDER)
+    if how != "ok":
+        raise RuntimeError("the ladder foot not reached (" + how + "): " + summary(r.rows[-1]))
+    approach(r, 115.0, 234.5)
+    face(r, 0.0)
+    ladder(r)
+    settle(r, 10)
+    if abs(r.rows[-1]["pos"][1] - 239.0) > 0.5:
+        raise RuntimeError("not on the landing: " + summary(r.rows[-1]))
+    a04_go(r, [(106, 262), (105.5, 272)])
+    approach(r, 105.5, 274.5)
+    face(r, 0.0)
+    use_press(r, lambda row: not in_control(row))
+    next_control_kept(r, 3000, 60)
+    settle(r, 10)
+    row = r.rows[-1]
+    if row["l857"] != "00":
+        raise RuntimeError("D_00810857 changed: " + summary(row))
+    return {"what": "up the ladder to the landing; Use at the reader [9] without item 0x23: refused",
+            "hp_end": a01_hp(r)}
+
+
+def a22_beat_door10_locked(r: Route) -> dict:
+    # Door [10] (001BB860 model 0x16, room move id 3) on the landing, with
+    # D_00810857 bit 3 clear: the locked branch (001BB560 with 1).
+    use_a22_sampler(r)
+    next_long_frames(r)
+    approach(r, 115.0, 276.0)
+    a04_use(r, 115.0, 276.0, 0.0, a04_program)
+    next_control_kept(r, 3000, 60)
+    settle(r, 10)
+    if abs(r.rows[-1]["pos"][2] - 276.0) > 3 or r.rows[-1]["area4"][:6] != "160003":
+        raise RuntimeError("door [10] opened: " + summary(r.rows[-1]))
+    return {"what": "Use at door [10] with D_00810857 bit 3 clear: one message, the door stays shut",
+            "hp_end": a01_hp(r)}
+
+
+def a22_beat_door6_back(r: Route) -> dict:
+    # Door [6] (001BC350 model 0x03, door id 0|0x80, record 04 01 00 00),
+    # behind the arrival: area change back to AREA04 entry 1, arrival, control.
+    use_a22_sampler(r)
+    next_long_frames(r)
+    a04_go(r, [(338, 498)])
+    a04_use(r, 339.7, 505.0, 0.0, a04_program)
+    r.until(lambda row: row["area4"][:2] == "04", 2500)
+    next_control_kept(r, 12000, 60)
+    settle(r, 30)
+    if r.rows[-1]["area4"][:6] != "040001":
+        raise RuntimeError("not at AREA04 sub 0 entry 1: " + summary(r.rows[-1]))
+    return {"what": "door [6]: area change back to AREA04 entry 1, arrival, control", "hp_end": a01_hp(r)}
+
+
+A22_BEATS = [
+    ("a22_00_door7", "a04_05_progression_exit", a22_beat_door7),
+    ("a22_01_corridor", "a22_00_door7", a22_beat_corridor),
+    ("a22_02_progression_exit", "a22_01_corridor", a22_beat_progression_exit),
+    # side beats
+    ("a22_s0_pickup", "a22_00_door7", a22_beat_pickup),
+    ("a22_s1_ladder_reader", "a22_01_corridor", a22_beat_ladder_reader),
+    ("a22_s2_door10_locked", "a22_s1_ladder_reader", a22_beat_door10_locked),
+    ("a22_s3_door6_back", "a04_05_progression_exit", a22_beat_door6_back),
+]
+A22_SIDE_BEATS = {"a22_s0_pickup", "a22_s1_ladder_reader", "a22_s2_door10_locked", "a22_s3_door6_back"}
+A22_CHANGE_BEATS = {"a22_02_progression_exit", "a22_s3_door6_back"}   # the beats that leave AREA22
+
+
+def a22_selected(spec: str) -> list[tuple]:
+    """`a22` = every AREA22 beat in order; otherwise names or name prefixes."""
+    wanted = spec.split(",")
+    if "a22" in wanted:
+        return list(A22_BEATS)
+    return [b for b in A22_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
 def beat_source(source: str) -> Path:
     if len(source) == 2 and source.isdigit():
         return slot_path(source)
@@ -2889,6 +3134,8 @@ def beat_dir(name: str) -> Path:
         return OUT_A02 / name
     if name.startswith("a04_"):                 # AREA04 beats: build/s87/route_a04/
         return OUT_A04 / name
+    if name.startswith("a22_"):                 # AREA22 beats: build/s87/route_a22/
+        return OUT_A22 / name
     return (OUT_A01 if name.startswith("a01_") else OUT) / name
 
 
@@ -2978,6 +3225,9 @@ def events(doc: dict, owners=None) -> list[str]:
             for key in A04_EVENT_KEYS:          # AREA04 rows only
                 if key in row:
                     cur[key] = row[key]
+            for key in A22_EVENT_KEYS:          # AREA22 rows only
+                if key in row:
+                    cur[key] = row[key]
         if prev is not None:
             diff = [f"{k}={cur[k]}" for k in cur if cur[k] != prev.get(k)]
             if diff:
@@ -3020,6 +3270,8 @@ if __name__ == "__main__":
                 run_beat(name, source, fn)
             for name, source, fn in a04_selected(a.beats):    # and the AREA04 group
                 run_beat(name, source, fn)
+            for name, source, fn in a22_selected(a.beats):    # and the AREA22 group
+                run_beat(name, source, fn)
     elif a.command == "events":
         chosen = [b for b in BEATS if a.beats == "all" or b[0][:2] in a.beats.split(",")]
         chosen += a01_selected(a.beats) if a.beats != "all" else []
@@ -3028,6 +3280,7 @@ if __name__ == "__main__":
         chosen += a01r_selected(a.beats) if a.beats != "all" else []
         chosen += a02_selected(a.beats) if a.beats != "all" else []
         chosen += a04_selected(a.beats) if a.beats != "all" else []
+        chosen += a22_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             path = beat_dir(name) / "trace.json"
             if not path.exists():
@@ -3040,7 +3293,8 @@ if __name__ == "__main__":
                       A00_OWNERS if name.startswith("a00_") else
                       A01R_OWNERS if name.startswith("a01r_") else
                       A02_OWNERS if name.startswith("a02_") else
-                      A04_OWNERS if name.startswith("a04_") else None)
+                      A04_OWNERS if name.startswith("a04_") else
+                      A22_OWNERS if name.startswith("a22_") else None)
             for line in events(doc, owners):
                 print("  ", line)
     elif a.command == "identify":
@@ -3073,6 +3327,7 @@ if __name__ == "__main__":
         chosen += a01r_selected(a.beats) if a.beats != "all" else []
         chosen += a02_selected(a.beats) if a.beats != "all" else []
         chosen += a04_selected(a.beats) if a.beats != "all" else []
+        chosen += a22_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             state = beat_dir(name) / "state.p2s"
             if state.exists():

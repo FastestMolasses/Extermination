@@ -329,7 +329,8 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_00120B10",
     "func_001287F0",
     "func_00128390",
-    "func_0012E070",
+    # func_0012E070 removed 2026-09-28 (lane DFIX): the mwcc 2.3.3 rewrite is
+    # objdiff 100% and the compiled object is linked (audit_link_provenance).
     "func_0014D1E0",
     "func_0016ADE0",
     # func_001749A0 removed: explicit caller blend and source-frame0 restore
@@ -352,7 +353,9 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_001D6DD0",
     "func_001D71A0",
     "func_001DA290",
-    "func_001DF5A0",
+    # func_001DF5A0 removed 2026-09-28 (lane DFIX): corrected C (f12 passed
+    # through to func_001DF180, cursor stored before the call) is mwcc 2.3.3
+    # objdiff 100%; the compiled object is linked (audit_link_provenance).
     "func_001F4F40",
     "func_001FC9B0",
     "func_001FCB90",

@@ -1,4 +1,3 @@
-// NEARMISS
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 // AREA04 overlay: TWO real functions in the splat slot 00825240 (pieces
@@ -8,12 +7,12 @@
 //   func_overlay_AREA04_00825240: runtime 0x00825280, 0x8C bytes, leaf.
 //   func_overlay_AREA04_008252D0: runtime 0x00825310, 0x200 bytes.
 // Both compile byte-identical (per-function .text sections checked one by
-// one against the original bytes, lane A04C). The NEARMISS marker is for a
-// link-tool reason only: mwcc 2.3.3 emits one .text section per function,
-// and fill_overlay.py (_obj_text_size / plan_absorption) reads only the
-// first .text of an object, so this object would fail the absorption
-// check. The link assembles the two splat pieces instead; the overlay stays
-// byte-identical. See docs/AREA04_OVERLAY.md.
+// one against the original bytes, lane A04C). mwcc 2.3.3 emits one .text
+// section per function; fill_overlay.py lays them out at their 16-byte
+// alignment (0x8C + 4 + 0x200 = 0x290, the whole slot) and merges them into
+// one .text before linking, so this object absorbs splat piece 00825280 and
+// the overlay links both functions from C (lane DFIX). See
+// docs/AREA04_OVERLAY.md.
 // Role 00825240 (called as 0x825280 from 0x825310): returns 1 when
 //  D_00810350 < 552 or D_00810358 > 279 or D_00810358 < 235, else 0.
 // Role 008252D0: state 0 sets state 1 and +0 = 1. State 1, sub-state +5:
