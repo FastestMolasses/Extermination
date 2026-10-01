@@ -43,6 +43,11 @@ evidence was measured and is kept under `build/s87/audio/probe/`:
 **What would make a recording possible.** Each option is the user's decision:
 1. A visible PCSX2 window for one capture job, driven by computer-use. This
    conflicts with the "PCSX2 runs hidden" rule.
+   - The user approved this in chat on 2026-10-01. The follow-up job stopped
+     at its first step: the computer-use grant for PCSX2 (net.pcsx2.pcsx2)
+     was declined in the approval dialog. Nothing was run: no PCSX2 session,
+     no lock, no setting changed. The FFmpeg 8 question, the sync
+     measurement and the WAVs are still open.
 2. The user grants Accessibility to the agent's host app.
 3. The user starts the capture by hand.
 
