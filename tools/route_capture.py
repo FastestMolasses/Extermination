@@ -59,9 +59,41 @@ C7 beats (c7_*) are original captures the C6 chain requested; each writes to
 build/s87/c7cap/<item>/<beat>/ and is described in docs/CAPTURES_C7.md.
 None of them runs under `--beats all`.
     .venv/bin/python tools/route_capture.py run --beats a13     # AREA13 group (opt-in)
+    .venv/bin/python tools/route_capture.py run --beats a19,a13b  # tenth level (opt-in)
 The AREA13 beats (a13_*, from the a04b_04_lift snapshot) write to
 build/s87/route_a13/<beat>/; they are described in the port's
 docs/NINTH_LEVEL_ROUTE.md.
+    .venv/bin/python tools/route_capture.py run --beats aim      # AIM capture group (opt-in)
+The AIM beats (aim_*: aiming, firing, reloads, the gun light, melee and the
+security gun's cable in AREA11, from the 08_truck_crossing snapshot) write to
+build/aimfire/capture/<beat>/; they are described in docs/CAPTURES_C10.md
+(section AIM).
+    .venv/bin/python tools/route_capture.py run --beats exit     # EXIT capture group (opt-in)
+The EXIT beats (exit_*: beat 15's level exit re-recorded closed loop with a
+wider trace, from the 14_roger_encounter snapshot: the fan crossing and Roger's
+departure, then the movie, the area change, the AREA01 load and the arrival up
+to control) write to build/c10/exit/<beat>/; they are described in
+docs/CAPTURES_C10.md (section EXIT).  Like beat 15, exit_01 costs minutes of
+host time (the movie plays inside one frame).
+    .venv/bin/python tools/route_capture.py run --beats dmg      # DAMAGE capture group (opt-in)
+The DAMAGE beats (dmg_*: the flame's contacts, low health, death, the game-over
+screen, the title menu after a death, NEW GAME, the LOAD GAME screen, the
+crevice fall, the truck pit's 0x5D floor and the fan's hit, from route
+snapshots 07, 11 and 14 or an earlier dmg beat) write to build/c10/damage/<beat>/;
+they are described in docs/CAPTURES_C10.md (section DAMAGE).
+    .venv/bin/python tools/route_capture.py run --beats br       # BRANCH capture group (opt-in)
+The BRANCH beats (br_*: the AREA11 branches the route skips: the optional
+pickups g0.1..g0.6, the west-yard and plateau ladders up and down, the boxes
+broken by melee, the terminal's ride back up, the panel's BATTERY
+prompt declined, Roger's talk after the encounter; from route snapshots 02..14 or an
+earlier br beat) write to build/c10/branch/<beat>/; they are described in
+docs/CAPTURES_C10.md (section BRANCH).
+    .venv/bin/python tools/route_capture.py run --beats opt      # OPTIONS capture group (opt-in)
+The OPTIONS beats (opt_*: the in-game options screen SELECT opens in AREA11,
+every row changed and changed back, its load screen up to the memory-card slot
+choice and its quit prompt declined, from the 08_truck_crossing snapshot)
+write to build/c10/options/<beat>/; they are described in docs/CAPTURES_C10.md
+(section OPTIONS).  No beat writes a memory card.
 The route and every beat are described in the port's docs/FIRST_LEVEL_ROUTE.md.
 """
 from __future__ import annotations
@@ -326,7 +358,10 @@ def wait_for_free_emulator(timeout: float = 600.0) -> None:
     import subprocess
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if subprocess.run(["pgrep", "-f", "PCSX2.app/Contents/MacOS/PCSX2"],
+        # Anchored to the start of the command line: a shell whose command
+        # text merely mentions the emulator path (another lane waiting for the
+        # lock, a pgrep in a script) is not an emulator.
+        if subprocess.run(["pgrep", "-f", "^[^ ]*PCSX2.app/Contents/MacOS/PCSX2"],
                           capture_output=True).returncode != 0:
             return
         time.sleep(2)
@@ -4528,6 +4563,2738 @@ def ninth_owners(name: str):
     return None
 
 
+# ---------------------------------------------------------------------------
+# Tenth level (lane A19CAP, s90; port docs/TENTH_LEVEL_ROUTE.md): AREA19 from
+# the foot of its entry-9 ladder (a13_05_shaft's end) on, with the order the
+# world graph gives (decomp docs/WORLD_GRAPH.md section 7 step 5), then back
+# up into AREA13 and down its lift [10] to AREA04.  Opt-in groups `a19`
+# (AREA19, overlay id 16) and `a13b` (AREA13 again, overlay id 10).  Pool
+# nodes measured with tools/area_overview.py --area 19 --ram
+# build/s87/route_a13/a13_05_shaft/eeMemory.bin (placement table 0x82E3D0
+# [n], deferred group 0x829E00 g[n]).
+OUT_A19 = ROOT / "build/s87/route_a19"
+A19_OWNERS = {
+    "r6_8250F0": 0x7AD490,        # overlay 0x8250F0 at (956, 210, 1006.5): D_008107F5 (flag / counter 0x1D)
+    "r7_8257C0": 0x7AD780,        # overlay 0x8257C0 at (913.7, 198.2, 919.6): spawn entry 0xA, D_008107F6
+    "r10_827790": 0x7AE050,       # overlay 0x827790 (class 9): spawn entry 0xD
+    "reader_r21": 0x7B00A0,       # 00158810 model 0x13 at (770, 235, 1044): item 0x24 -> lock bit 0
+    "door22_r22": 0x7B0390,       # 001BB860 model 0x16, room move id 0 (entries 6 / 5; lock bit 0)
+    "panel_r24": 0x7B0970,        # 00158EC0 model 0x22 at (1013, 280, 1126.9): item 0x1B -> lock bit 1
+    "door25_r25": 0x7B0C60,       # 001BB860 model 0x16, door id 1|0x80: AREA03 entry 1 (lock bit 1)
+    "door27_r27": 0x7B1240,       # overlay 0x823580 model 0x15, room move id 2 (entries 1 / 2; lock bit 2)
+    "door32_r32": 0x7B20F0,       # 001BC350 model 0x03, room move id 5 (entries 8 / 7)
+    "r33_159970": 0x7B23E0,       # 00159970 model 0x37 at (717.5, 212.8, 1055.5)
+    "pick_g2": 0x7A5C20,          # 00219550 g[2] at (750.3, 200, 1051.8)
+    "pick_g12": 0x7A7980,         # 0015AFA0 g[12] at (649.4, 231.2, 1143.4)
+    "g41_1C1030": 0x7ACEB0,       # 001C1030 g[41] (model 0x51) at (735, 260, 1209.3)
+}
+A19_SPANS = [sp for sp in A13_SPANS if ":" not in sp[0]] + [
+    ("s778", 0x810778, 0x4),            # D_00810778..7B (flags 0x20..0x23)
+    ("s7f8", 0x8107F8, 0x4),            # D_008107F8..FB (counters 0x20..0x23)
+    ("s79c", 0x81079C, 0x4),            # D_0081079C..9F (flags 0x44..0x47)
+    ("s81c", 0x81081C, 0x4),            # D_0081081C..1F (counters 0x44..0x47)
+    ("ca8", 0x810CA8, 0x4),             # D_00810CA8 (halfword)
+]
+for _name, _base in A19_OWNERS.items():
+    A19_SPANS += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                  (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                  (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10)]
+A19_EVENT_KEYS = ("s778", "s7f8", "s79c", "s81c", "l854", "ca8", "c88")
+
+
+def decode_a19(r: dict[str, bytes], owners=None) -> dict:
+    row = decode_a13(r, owners=A19_OWNERS if owners is None else owners)
+    row["s778"] = r["s778"].hex()
+    row["s7f8"] = r["s7f8"].hex()
+    row["s79c"] = r["s79c"].hex()
+    row["s81c"] = r["s81c"].hex()
+    row["l854"] = r["locks22"][4:5].hex()               # D_00810854 (AREA19 lock bits)
+    row["ca8"] = struct.unpack_from("<H", r["ca8"], 0)[0]
+    return row
+
+
+def use_a19_sampler(r: Route) -> None:
+    sampler = A01USampler(r.s, spans=A19_SPANS)
+    r.sampler = sampler
+    r.now = lambda: decode_a19(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+
+
+def a19_press_until(r: Route, pred, tries: int = 4, wait: int = 60) -> None:
+    """Cross after 3 idle frames until `pred` (a press right after the player
+    settles is not always taken, NINTH_LEVEL_ROUTE.md section 1)."""
+    for _ in range(tries):
+        r.idle(3)
+        r.press("CROSS", 2)
+        for _ in range(wait):
+            if pred(r.rows[-1]):
+                return
+            r.step(1)
+        if pred(r.rows[-1]):
+            return
+        a13_settle(r, 5)
+    raise TimeoutError("Cross not taken: " + summary(r.rows[-1]))
+
+
+def a19_page(r: Route, limit: int = 300) -> None:
+    """A status page (ui byte 1 = 3): 90 frames, then Triangle."""
+    r.until(lambda row: row["ui"][2:4] == "03", limit)
+    r.idle(90)
+    r.press("TRIANGLE", 2)
+    r.until(lambda x: x["ui"][2:4] != "03", 900)
+
+
+A19_E9_TO_DUCT = [(715, 1245), (715, 1232), (701, 1232), (700.5, 1226)]
+
+
+def a19_beat_duct(r: Route) -> dict:
+    # From the foot of the entry-9 ladder (710, 240, 1256.8) west to the duct
+    # square (attribute 0x37, x 697..705, z 1220..1230, the a01_s5 duct's
+    # entry kind): Cross facing -z enters the crawl (actions 0x2C, 0x2D); the
+    # stick up crawls south to (703, 220, 1068) and, turned east, out through
+    # the exit (action 0x2E) into the room south of door [32] (y 200), where
+    # the spawn entry byte D_00810702 becomes 8.  An exploration walk south on
+    # the ramp east of the duct stopped at (731.7, 242, 1217.4); a collision
+    # scan (a lead) still reaches door [32]'s north side that way, so the
+    # stop does not prove the corridor closed.
+    use_a19_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, A19_E9_TO_DUCT, tol=1.0, limit=200)
+    if how != "ok":
+        raise RuntimeError("duct square not reached (" + how + "): " + summary(r.rows[-1]))
+    a13_settle(r, 5)
+    a13_face(r, math.pi)
+    a19_press_until(r, lambda row: row["m1F0"] in (0x2C, 0x2D))
+    r.until(lambda row: row["m1F0"] == 0x2D, 300)
+    r.idle(90)                                    # the entry clip ignores the stick
+    a01_crawl(r, 80)                              # south to (703, 1068)
+    a01_turn_crawl(r, math.pi / 2)
+    a01_crawl(r, 40)                              # east, out through the exit
+    r.until(in_control, 600)
+    a13_settle(r, 20)
+    row = r.rows[-1]
+    if row["area4"][:6] != "130008" or row["pos"][1] > 201:
+        raise RuntimeError("not out of the duct in the entry-8 room: " + summary(row))
+    return {"what": "the duct from the ladder room south to the room behind door [32] (D_00810702 = 8)",
+            "hp_end": a01_hp(r)}
+
+
+def a19_beat_pickup_g2(r: Route) -> dict:
+    # The pickup g[2] (00219550 at (750.3, 200, 1051.8)): Cross from
+    # (744.7, 1057.7) facing it (yaw 2.37): its page (status request 01 12)
+    # and D_00810CA8 0 -> 12.
+    use_a19_sampler(r)
+    next_long_frames(r)
+    a04_go(r, [(740, 1062), (746, 1056)], tol=1.0, limit=200)
+    a13_settle(r, 5)
+    a13_face(r, 2.37)
+    a19_press_until(r, lambda row: not in_control(row))
+    a19_page(r)
+    a13_control(r, 1500, 40)
+    a13_settle(r, 10)
+    if r.rows[-1]["ca8"] != 12:
+        raise RuntimeError("g[2] not taken: " + summary(r.rows[-1]))
+    return {"what": "the pickup g[2]: D_00810CA8 0 -> 12", "hp_end": a01_hp(r)}
+
+
+def a19_beat_duct_back(r: Route) -> dict:
+    # Back into the duct from its south exit square (x 715..725, z 1064..1072,
+    # entered facing -x) and north to the ladder room, then to the ladder's
+    # foot (710, 240, 1256.8) facing +z.
+    use_a19_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(735, 1066), (726, 1068)], tol=1.0, limit=200)
+    if how != "ok":
+        raise RuntimeError("duct exit not reached (" + how + "): " + summary(r.rows[-1]))
+    a13_settle(r, 5)
+    a13_face(r, -math.pi / 2)
+    a19_press_until(r, lambda row: row["m1F0"] in (0x2C, 0x2D))
+    r.until(lambda row: row["m1F0"] == 0x2D, 300)
+    r.idle(90)
+    a01_crawl(r, 40)                              # west to (703, 1068)
+    a01_turn_crawl(r, 0.0)
+    a01_crawl(r, 80)                              # north, out into the ladder room
+    r.until(in_control, 600)
+    a13_settle(r, 20)
+    how = a04_go(r, [(705, 1240), (710, 1252), (710, 1256.5)], tol=0.8, limit=200)
+    a13_settle(r, 10)
+    a13_face(r, 0.0)
+    row = r.rows[-1]
+    if row["pos"][1] < 239 or abs(row["pos"][0] - 710) > 2 or row["pos"][2] < 1252:
+        raise RuntimeError("not at the ladder's foot: " + summary(row))
+    return {"what": "the duct back north to the ladder room; the ladder's foot", "hp_end": a01_hp(r)}
+
+
+A19_BEATS: list[tuple] = [
+    ("a19_00_duct", "a13_05_shaft", a19_beat_duct),
+    ("a19_01_pickup_g2", "a19_00_duct", a19_beat_pickup_g2),
+    ("a19_02_duct_back", "a19_01_pickup_g2", a19_beat_duct_back),
+]
+A19_SIDE_BEATS: set[str] = set()
+A19_CHANGE_BEATS: set[str] = set()
+
+
+# AREA13 again, from the AREA19 ladder (a19_02's end).  Pool nodes of this
+# AREA13 sub-0 load (entry 6; [3] and [4] freed themselves at the load, so
+# every later record sits one or two nodes lower than in the a13 load),
+# measured with tools/area_overview.py --area 13 --ram on its first snapshot.
+OUT_A13B = ROOT / "build/s87/route_a13b"
+A13B_OWNERS = {
+    "door8_r8": 0x7AB730,         # 001BC350 model 0x03, room move id 1 (entries 2 / 1)
+    "lift_r10": 0x7ABD10,         # 001BD560 model 0x0B, door id 0|0x80: AREA04 entry 7
+    "button_r12": 0x7AC2F0,       # 001BC960 model 0 (outer), id 0xFF, at (647.7, 175, 1238.9)
+    "button_r13": 0x7AC5E0,       # 001BC960 model 1 (inner), id 0xFF, at (644.7, 175, 1276.1)
+    "door14_r14": 0x7AC8D0,       # 001BDE60 model 5 at (688.7, 160, 1161.1)
+    "button_r15": 0x7ACBC0,       # 001BD9F0 model 3 (south side), room move id 2
+    "button_r16": 0x7ACEB0,       # 001BD9F0 model 4 (north side), room move id 2
+    "door17_r17": 0x7AD1A0,       # overlay 0x823580 model 0x03, room move id 3 (entries 9 / 4)
+    "door20_r20": 0x7ADA70,       # 001BC350 model 0x03, room move id 4 (entries 5 / 10)
+    "r44_823E90": 0x7B20F0,       # overlay 0x823E90 at (798.4, 215, 1149.5)
+    "hatch_r62": 0x7B4FF0,        # overlay 0x826850 at (720.1, 160, 1262) (open: state 2)
+    "hatch_r63": 0x7B52E0,        # overlay 0x826850 at (1081, 160, 845)
+}
+A13B_SPANS = [sp for sp in A13_SPANS if ":" not in sp[0]]
+for _name, _base in A13B_OWNERS.items():
+    A13B_SPANS += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                   (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                   (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10)]
+
+
+def use_a13b_sampler(r: Route) -> None:
+    sampler = A01USampler(r.s, spans=A13B_SPANS)
+    r.sampler = sampler
+    r.now = lambda: decode_a13(sampler.raw(), owners=A13B_OWNERS)
+    r.rows[0] = dict(r.now(), f=0)
+
+
+def a13b_beat_ladder_up(r: Route) -> dict:
+    # Cross facing +z at the AREA19 ladder's foot: the ladder (actions 0x15,
+    # 0x17); the stick up climbs; inside 00196970's circle (710, 1266.1) at y
+    # >= 284.5 the request 0D 00 06 01: AREA13 entry 6 (720, 143.1, 1259.6),
+    # the shaft under the open hatch [62]; the player climbs out on his own
+    # (actions 0x43, 0x18) to (720, 160, 1252.3) facing -z.
+    use_a19_sampler(r)
+    next_long_frames(r)
+    a19_press_until(r, lambda row: row["m1F0"] in (0x15, 0x17))
+    r.set_pad(0, 0x7F, 0x00)
+    r.until(lambda row: row["area4"][:2] == "0d", 1500, 0, 0x7F, 0x00)
+    r.until(lambda row: row["area4"][:8] == "0d00060d", 1500, 0, 0x7F, 0x00)
+    r.until(lambda row: row["m1F0"] == 0 and row["spad"][2:4] == "00" and row["pos"][1] > 155, 1500, 0, 0x7F, 0x00)
+    r.set_pad(0)
+    a13_control(r, 1500, 60)
+    a13_settle(r, 10)
+    if r.rows[-1]["area4"][:6] != "0d0006":
+        raise RuntimeError("not in AREA13 entry 6: " + summary(r.rows[-1]))
+    return {"what": "the AREA19 ladder up: 00196970's request to AREA13 entry 6, out of the hatch [62]",
+            "hp_end": a01_hp(r)}
+
+
+def a13b_beat_door17(r: Route) -> dict:
+    # East round the hatch's frame, the grating step (ledge climb facing +x,
+    # action 8), off its east side, door [17] from inside facing +x: entry 9
+    # outside (785, 160, 1262).
+    use_a13b_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(735, 1250), (738, 1258)], limit=200)
+    if how != "ok":
+        raise RuntimeError("the step not reached (" + how + "): " + summary(r.rows[-1]))
+    a13_face(r, math.pi / 2)
+    use_press(r, lambda row: row["m1F0"] == 8, tries=4, wait=30)
+    r.until(lambda row: row["m1F0"] != 8, 300)
+    a13_settle(r, 10)
+    a04_go(r, [(760, 1262)], limit=150)
+    a13_settle(r, 10)
+    a13_use(r, 772.5, 1263.0, math.pi / 2, a04_program)
+    r.until(lambda row: row["area4"][:6] == "0d0009", 1500)
+    a13_control(r, 3000, 40)
+    a13_settle(r, 10)
+    return {"what": "the grating step east, door [17] from inside: entry 9 (outside)", "hp_end": a01_hp(r)}
+
+
+A13B_OUT_TO_DOOR14 = [(792, 1240), (795, 1222), (790, 1180), (770, 1160), (740, 1152), (700, 1152), (670, 1150)]
+
+
+def a13b_beat_button15(r: Route) -> dict:
+    # Outside, south and west round the building to door [14]; its button
+    # [15] (001BD9F0 model 3, south side, latch 1) facing +z at (665.7,
+    # 1151.5): room move id 2 to entry 3 (688, 160, 1174.1).  With item 0x1A
+    # held the health stays (0015D100 returns while D_00810C7E != 0).
+    use_a13b_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, A13B_OUT_TO_DOOR14, limit=300)
+    if how != "ok":
+        raise RuntimeError("door [14] not reached (" + how + "): " + summary(r.rows[-1]))
+    a13_use(r, 665.7, 1151.5, 0.0, lambda row: row["button_r15"]["h"][10:12] != "00")
+    r.until(lambda row: row["area4"][:6] == "0d0003", 1500)
+    a13_control(r, 3000, 40)
+    a13_settle(r, 10)
+    return {"what": "outside to door [14], its button [15] facing +z: entry 3", "hp_end": a01_hp(r)}
+
+
+def a13b_beat_door8(r: Route) -> dict:
+    # Door [8] (001BC350, room move id 1) from its south side facing +z:
+    # entry 1 (664.7, 160, 1221.1), the lift lobby.
+    use_a13b_sampler(r)
+    next_long_frames(r)
+    a04_go(r, [(675, 1185), (670, 1198)], limit=200)
+    a13_use(r, 669.7, 1203.0, 0.0, a04_program)
+    r.until(lambda row: row["area4"][:6] == "0d0001", 1500)
+    a13_control(r, 3000, 40)
+    a13_settle(r, 10)
+    return {"what": "door [8] facing +z: entry 1 (the lift lobby)", "hp_end": a01_hp(r)}
+
+
+def a13b_beat_lift_call(r: Route) -> dict:
+    # The outer button [12] (001BC960 model 0, id 0xFF: no lock bit) facing
+    # -x at (652.7, 1238.6): its script, then the lift [10]'s +0x0B 0 -> 2
+    # and, when the car has come, 3 (doors open, waiting for the inner one).
+    use_a13b_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(672, 1224), (680, 1228), (680, 1250), (660, 1250), (653, 1243)], limit=200)
+    if how != "ok":
+        raise RuntimeError("button [12] not reached (" + how + "): " + summary(r.rows[-1]))
+    a13_settle(r, 5)
+    a13_face(r, -math.pi / 2)
+    a19_press_until(r, lambda row: row["button_r12"]["h"][10:12] != "00" or not in_control(row))
+    r.until(lambda row: row["lift_r10"]["h"][22:24] == "03" and in_control(row), 1500)
+    a13_settle(r, 10)
+    return {"what": "the outer button [12]: the lift [10] comes, +0x0B 0 -> 2 -> 3", "hp_end": a01_hp(r)}
+
+
+def a13b_beat_lift_ride(r: Route) -> dict:
+    # Into the car through its opening (z about 1258), the inner button [13]
+    # (001BC960 model 1, id 0xFF) facing +x: a13_use aims at (639.7, 1276.1),
+    # the walk stops at (639.5, 1271.6) and the frame the Use is taken puts
+    # the player at (639.7, 160, 1276.4); its script,
+    # the lift's +0x0B 3 -> 4, the request 04 FF 07 01: AREA04 entry 7
+    # (D_00810730[4] = sub 0), control at (570.7, 54.9, 244.6).
+    use_a13b_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(656, 1252), (650, 1258), (638, 1260), (638, 1272)], limit=200)
+    if how != "ok":
+        raise RuntimeError("the car not reached (" + how + "): " + summary(r.rows[-1]))
+    a13_use(r, 639.7, 1276.1, math.pi / 2,
+            lambda row: row["button_r13"]["h"][10:12] != "00" or not in_control(row))
+    r.until(lambda row: row["area4"][:2] == "04", 6000)
+    r.until(lambda row: row["area4"][:8] == "04000704", 3000)
+    a13_control(r, 6000, 60)
+    a13_settle(r, 10)
+    if r.rows[-1]["area4"][:6] != "040007":
+        raise RuntimeError("not at AREA04 entry 7: " + summary(r.rows[-1]))
+    return {"what": "the inner button [13]: the lift [10] to AREA04 entry 7", "hp_end": a01_hp(r)}
+
+
+def a13b_beat_roof_ladder(r: Route) -> dict:
+    # Side beat from a13b_01's end (outside, entry 9): the ladder at the
+    # building's south-east corner (grid wall attribute 0x32 at x 720..727.4,
+    # z 1208.6, y 160..215, facing -z): Cross facing +z at (723.7, 1199),
+    # actions 0x15 / 0x17, the stick up climbs to the roof (y 215); east
+    # along it until a railing stops the walk (the kept beat ends at (773.2,
+    # 215, 1226.4); an earlier exploration run stopped at (773.7, 215, 1224.6)).
+    use_a13b_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(795, 1222), (770, 1190), (740, 1180), (728, 1195), (723.7, 1199)], limit=300)
+    if how != "ok":
+        raise RuntimeError("the ladder not reached (" + how + "): " + summary(r.rows[-1]))
+    a13_settle(r, 5)
+    a13_face(r, 0.0)
+    a19_press_until(r, lambda row: row["m1F0"] in (0x15, 0x17))
+    r.set_pad(0, 0x7F, 0x00)
+    r.until(lambda row: row["pos"][1] > 214 and row["m1F0"] in (0, 1), 1500, 0, 0x7F, 0x00)
+    r.set_pad(0)
+    a13_settle(r, 10)
+    how = a04_go(r, [(724, 1218), (748.5, 1217), (764.5, 1217), (771.5, 1222), (777.5, 1228)], limit=200)
+    a13_settle(r, 10)
+    row = r.rows[-1]
+    if row["pos"][1] < 214:
+        raise RuntimeError("not on the roof: " + summary(row))
+    return {"what": "the roof ladder at the building's south-east corner; the roof east to the railing (" + how + ")",
+            "hp_end": a01_hp(r)}
+
+
+A13B_BEATS: list[tuple] = [
+    ("a13b_00_ladder_up", "a19_02_duct_back", a13b_beat_ladder_up),
+    ("a13b_01_door17", "a13b_00_ladder_up", a13b_beat_door17),
+    ("a13b_02_button15", "a13b_01_door17", a13b_beat_button15),
+    ("a13b_03_door8", "a13b_02_button15", a13b_beat_door8),
+    ("a13b_04_lift_call", "a13b_03_door8", a13b_beat_lift_call),
+    ("a13b_05_lift_ride", "a13b_04_lift_call", a13b_beat_lift_ride),
+    ("a13b_s0_roof_ladder", "a13b_01_door17", a13b_beat_roof_ladder),
+]
+A13B_SIDE_BEATS: set[str] = {"a13b_s0_roof_ladder"}
+A13B_CHANGE_BEATS: set[str] = {"a13b_05_lift_ride"}
+
+
+def tenth_selected(spec: str) -> list[tuple]:
+    """The tenth-level groups `a19` and `a13b` (opt-in, story order)."""
+    wanted = spec.split(",")
+    named = [w for w in wanted if w not in ("a19", "a13b")]
+    out = []
+    for tag, beats, side in (("a19", A19_BEATS, A19_SIDE_BEATS), ("a13b", A13B_BEATS, A13B_SIDE_BEATS)):
+        out += [b for b in beats if (tag in wanted and b[0] not in side)
+                or any(b[0] == w or b[0].startswith(w + "_") for w in named)]
+    return out
+
+
+def tenth_owners(name: str):
+    if name.startswith("a19_"):
+        return A19_OWNERS
+    if name.startswith("a13b_"):
+        return A13B_OWNERS
+    return None
+
+
+# ---------------------------------------------------------------------------
+# AIM capture group (opt-in, `--beats aim` or a beat's name): aiming, firing,
+# reloading, the gun light, melee and the security gun's cable in AREA11
+# (decomp docs/CAPTURES_C10.md, section AIM; the port's aim/fire lane's
+# capture beat plan).  Every beat starts from the 08_truck_crossing snapshot
+# (armed and in control: magazine D_00810C62 = 30, reserve D_00810CB4 = 60,
+# fire mode D_00810C61 = 0, equipment bytes D_00810CA4..CA7 = FF 05 00 07,
+# the seven 0018A6B0 equipment nodes with the gun at player +0x20 and the
+# knife at player +0x18) and writes build/aimfire/capture/<beat>/.  Pad input
+# only; no memory is written.  Pad words: D_00810E70 held / D_00810E74
+# pressed, low byte Square 0x80, Cross 0x40, Circle 0x20, Triangle 0x10,
+# R1 0x08, L1 0x04, R2 0x02, L2 0x01; high byte Left 0x8000, Down 0x4000,
+# Right 0x2000, Up 0x1000, Start 0x800, R3 0x400, L3 0x200, Select 0x100.
+OUT_AIM = ROOT / "build/aimfire/capture"
+AIM_GUN = 0x7AB730       # player +0x20: 0018A6B0 node, flavour 0 (the gun)
+AIM_KNIFE = 0x7AB440     # player +0x18: 0018A6B0 node, flavour 4
+AIM_SECGUN = 0x7A6AD0    # AREA11 overlay owner 0x825940, the security gun
+AIM_CABLE = 0x7A6DC0     # AREA11 overlay owner 0x827490, its power cable
+AIM_POOL = 0x7A5640      # D_007A5640: 0x100 pool records of 0x2F0 bytes
+AIM_CABLE_TOP = (387.0, 231.8, 290.3)     # the cable record's +0xB0 (its bone 0)
+AIM_SPANS = [(n, a, 0x320 if n == "player" else z) for n, a, z in SPANS] + [
+    ("w_c60", 0x810C60, 0x8),       # C61 fire mode, C62 magazine, C63
+    ("w_ca4", 0x810CA4, 0x14),      # CA4..CA7 equipment bytes, CA8..CB2 counters, CB4 reserve
+    ("w_c70", 0x810C70, 0x4),       # C73 (the selector's third entry)
+    ("w_d3c", 0x810D3C, 0x4),       # D_00810D3C gun-light preference
+    ("w_6c0", 0x8106C0, 0x30),      # 6C6, 6C7 lamp, 6CC, 6E0/E4/E8 targets
+    ("pad", 0x810E70, 0x8),         # processed held / pressed words
+    ("uirec", 0x810130, 0x60),      # status page record (t[1] page, t[4] SPR4 state, t[5..6], t[0x50..])
+    ("lists", 0x275B54, 0x68),      # per-class list block (B8C/B94 = the bullet victim list)
+    ("masks", 0x70003B70, 0x10),    # 3B74..3B7E action masks
+    ("sp3a20", 0x70003A20, 0x4),
+    ("sp3190", 0x70003190, 0x50),   # ray query block 3190..31DF (31B0 point, 31D0 face, 31D4 owner)
+    ("sp3600", 0x70003600, 0x10),
+    ("sp36a0", 0x700036A0, 0x50),
+    ("sp38a0", 0x700038A0, 0x30),
+    ("gun:a", AIM_GUN, 0x40), ("gun:b", AIM_GUN + 0xA0, 0x30), ("gun:c", AIM_GUN + 0x1F0, 0x30),
+    ("knife:a", AIM_KNIFE, 0x40), ("knife:b", AIM_KNIFE + 0xA0, 0x10),
+    ("secgun:a", AIM_SECGUN, 0x40), ("secgun:c", AIM_SECGUN + 0x1F0, 0x40),
+    ("cable:a", AIM_CABLE, 0x40), ("cable:c", AIM_CABLE + 0x98, 0x8),
+    ("taken", 0x810860 + (0xB << 5), 0x20),     # area 11's taken-bit row (cable bit 0x50)
+] + [(f"pool{i:02x}", AIM_POOL + i * 0x2F0, 0x18) for i in range(0x100)]
+
+
+class AimSampler(Sampler):
+    """One Pine request for AIM_SPANS; then one more for the records whose
+    header differs from the beat's first frame (spawned effects, shot nodes,
+    impact markers): their +0x18..+0x3F and +0xA0..+0xDF."""
+
+    def __init__(self, session: OriginalSession):
+        self.s = session
+        self.spans = AIM_SPANS
+        self.body = b"".join(struct.pack("<BI", 2, a + i)
+                             for _n, a, n in self.spans for i in range(0, n, 4))
+        self.pool0: dict[str, str] | None = None
+
+    def raw(self) -> dict[str, bytes]:
+        for _ in range(5):
+            data = self.s.pine.request(self.body)
+            out, off = {}, 0
+            for name, _a, n in self.spans:
+                out[name] = data[off:off + n]
+                off += n
+            if out["counter"] == out["counter2"]:
+                break
+        else:
+            raise RuntimeError("inconsistent sample")
+        pool = {f"{i:02x}": out[f"pool{i:02x}"].hex() for i in range(0x100)}
+        if self.pool0 is None:
+            self.pool0 = pool
+        changed = sorted(k for k, v in pool.items() if v != self.pool0[k])
+        deep = [k for k in changed if int(pool[k], 16)]
+        if deep:
+            body = b"".join(struct.pack("<BI", 2, AIM_POOL + int(k, 16) * 0x2F0 + o + i)
+                            for k in deep for o, n in ((0x18, 0x28), (0xA0, 0x40)) for i in range(0, n, 4))
+            data = self.s.pine.request(body)
+            out["deep"] = {k: data[j * 0x68:(j + 1) * 0x68].hex() for j, k in enumerate(deep)}
+        else:
+            out["deep"] = {}
+        out["pool_delta"] = {k: pool[k] for k in changed}
+        return out
+
+
+def _s16(b: bytes, o: int) -> int:
+    return struct.unpack_from("<h", b, o)[0]
+
+
+def decode_aim(r: dict[str, bytes]) -> dict:
+    row = decode(r)
+    p = r["player"]
+    row["pl"] = p.hex()                         # the whole player record +0..+0x31F
+    row["w"] = {
+        "p1": p[1], "p4": p[4], "p5": p[5], "p6": p[6], "p7": p[7],
+        "a274": p[0x274], "a275": p[0x275], "t276": _s16(p, 0x276), "b28": _s16(p, 0x28),
+        "q2A": _s16(p, 0x2A), "e2E": _s16(p, 0x2E), "c2F0": p[0x2F0], "l2F2": p[0x2F2],
+        "i2F4": round(f32(p, 0x2F4), 4), "b302": p[0x302], "r317": p[0x317], "m318": p[0x318],
+        "b236": p[0x236], "act200": hex(struct.unpack_from("<I", p, 0x200)[0]),
+        "pitch278": round(f32(p, 0x278), 5), "yaw27C": round(f32(p, 0x27C), 5),
+        "d26C": round(f32(p, 0x26C), 6), "d270": round(f32(p, 0x270), 6), "goal218": round(f32(p, 0x218), 5),
+        "aim2D0": vec(p, 0x2D0), "m2A0": p[0x2A0:0x2E0].hex(),
+    }
+    c60, ca4, lists = r["w_c60"], r["w_ca4"], r["lists"]
+    row["g"] = {
+        "fire_mode": c60[1], "mag": c60[2], "c63": c60[3], "equip": ca4[:4].hex(),
+        "counters": ca4[4:0x10].hex(), "reserve": _s16(ca4, 0x10), "c73": r["w_c70"][3],
+        "light_d3c": r["w_d3c"][0], "b6C6": r["w_6c0"][6], "lamp6C7": r["w_6c0"][7],
+        "chg6CC": r["w_6c0"][0xC],
+        "targets": [hex(x) for x in struct.unpack_from("<3I", r["w_6c0"], 0x20)],
+        "held": hex(struct.unpack_from("<H", r["pad"], 0)[0]),
+        "pressed": hex(struct.unpack_from("<H", r["pad"], 4)[0]),
+        "masks": r["masks"].hex(),
+        "list_counts": {hex(0x275B54 + o): struct.unpack_from("<I", lists, o + 8)[0]
+                        for o in (0x08, 0x18, 0x28, 0x38, 0x48, 0x58)},
+    }
+    row["ui_rec"] = r["uirec"].hex()
+    row["sp"] = {k: r[k].hex() for k in ("sp3a20", "sp3190", "sp3600", "sp36a0", "sp38a0")}
+    row["gun"] = {"h": r["gun:a"][:0x10].hex(), "ev2E": _s16(r["gun:a"], 0x2E), "a": r["gun:a"].hex(),
+                  "A0": vec(r["gun:b"], 0), "B0": vec(r["gun:b"], 0x10), "C0": vec(r["gun:b"], 0x20),
+                  "s1F0": r["gun:c"].hex()}
+    row["knife"] = {"h": r["knife:a"][:0x10].hex(), "a": r["knife:a"].hex(), "A0": vec(r["knife:b"], 0)}
+    row["secgun"] = {"h": r["secgun:a"][:0x10].hex(), "a": r["secgun:a"].hex(), "s": r["secgun:c"].hex()}
+    row["cable"] = {"h": r["cable:a"][:0x10].hex(), "a": r["cable:a"].hex(),
+                    "hit36": _s16(r["cable:a"], 0x36), "c98": r["cable:c"].hex()}
+    row["taken"] = r["taken"].hex()
+    row["pool_delta"] = r["pool_delta"]         # pool headers +0..+0x17 that differ from row 0
+    row["pool_deep"] = r["deep"]                # those records' +0x18..+0x3F, +0xA0..+0xDF
+    return row
+
+
+def use_aim_sampler(r: Route) -> None:
+    sampler = AimSampler(r.s)
+    r.sampler = sampler
+    r.now = lambda: decode_aim(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+    r.rows[0]["pool0"] = {k: v for k, v in sampler.pool0.items() if int(v, 16)}
+
+
+def _ui(row: dict, i: int) -> int:
+    return int(row["ui_rec"][2 * i:2 * i + 2], 16)
+
+
+def aim_idle_ready(row: dict) -> bool:
+    return in_control(row) and row["w"]["p5"] == 0
+
+
+def aim_ready(row: dict) -> bool:
+    """Stance loop (+6 == 2) with the fire sub-machine idle (+7 == 0)."""
+    return row["w"]["p6"] == 2 and row["w"]["p7"] == 0 and row["w"]["p5"] in (0x1D, 0x1E, 0x1F, 0x20)
+
+
+def aim_draw(r: Route, hold: int) -> None:
+    """Hold the aim button(s) until the stance top reaches its loop (+6 == 2)."""
+    r.until(lambda row: row["w"]["p5"] in (0x1D, 0x1E, 0x1F, 0x20) and row["w"]["p6"] == 2, 180, hold)
+
+
+def aim_holster(r: Route, frames: int = 30) -> None:
+    """Release everything: the stance ramps out (+6 0x63, 0x64), holsters (0x65,
+    clip 0x111), waits (0x66) and hands back (0x6E) to idle."""
+    r.set_pad(0)
+    r.until(aim_idle_ready, 400)
+    r.idle(frames)
+
+
+def aim_tap(r: Route, hold: int, button: str, frames: int = 2) -> None:
+    r.set_pad(hold | PAD[button])
+    r.step(frames)
+    r.set_pad(hold)
+
+
+def aim_shot(r: Route, hold: int, limit: int = 12) -> dict:
+    """Wait for the stance loop, tap Circle (the trigger mask 3B78) once and wait
+    up to `limit` frames for the round to leave (the magazine drops); a dry
+    trigger (no rounds) leaves the magazine as it is."""
+    r.until(aim_ready, 400, hold)
+    mag = r.rows[-1]["g"]["mag"]
+    aim_tap(r, hold, "CIRCLE")
+    for _ in range(limit):
+        if r.rows[-1]["g"]["mag"] != mag:
+            break
+        r.step(1)
+    return r.rows[-1]
+
+
+def aim_at(r: Route, x: float, y: float, z: float, hold: int, tol: float = 0.01, limit: int = 120) -> bool:
+    """Steer the stance aim with the left stick (0017ABA0, manual steering)
+    until the gun's barrel direction (gun node +0xC0) points from its muzzle
+    (+0xA0) at (x, y, z); one stick frame, then three settle frames."""
+    for _ in range(limit):
+        row = r.rows[-1]
+        ax, ay, az = row["gun"]["A0"]
+        dx, dy, dz = x - ax, y - ay, z - az
+        n = math.sqrt(dx * dx + dy * dy + dz * dz) or 1.0
+        dx, dy, dz = dx / n, dy / n, dz / n
+        cx, cy, cz = row["gun"]["C0"]
+        side = (cz * dx - cx * dz) / (math.hypot(cx, cz) or 1.0)
+        ly = 0xFF if cy < dy - tol else 0x00 if cy > dy + tol else 0x7F
+        lx = 0x00 if side > tol else 0xFF if side < -tol else 0x7F
+        if lx == 0x7F and ly == 0x7F:
+            r.set_pad(hold)
+            r.step(3)
+            return True
+        r.set_pad(hold, lx, ly)
+        r.step(1)
+        r.set_pad(hold)
+        r.step(3)
+    r.set_pad(hold)
+    return False
+
+
+def aim_meta(r: Route, what: str, **extra) -> dict:
+    shots = [row["f"] for a, row in zip(r.rows, r.rows[1:]) if row["g"]["mag"] < a["g"]["mag"]]
+    impacts = sorted({k for row in r.rows for k, v in row.get("pool_delta", {}).items()
+                      if v[32:40] == "a0ab1800"})
+    return dict(extra, what=what, shot_frames=shots, impact_records=impacts,
+                end={"mag": r.rows[-1]["g"]["mag"], "reserve": r.rows[-1]["g"]["reserve"],
+                     "fire_mode": r.rows[-1]["g"]["fire_mode"], "light": r.rows[-1]["g"]["light_d3c"],
+                     "cable": r.rows[-1]["cable"]["h"], "secgun": r.rows[-1]["secgun"]["h"],
+                     "taken": r.rows[-1]["taken"]})
+
+
+def aim_beat_r1_hold(r: Route) -> dict:
+    use_aim_sampler(r)
+    r.idle(10)
+    aim_draw(r, PAD["R1"])
+    r.step(60)
+    aim_holster(r)
+    return aim_meta(r, "hold R1 (mask 3B7C): 001607D0 enters +5 0x1D / +1F0 0x31, 0016FCF0 draws "
+                       "(clip 0x110) and loops (+6 2, clip 0x112); release ramps out and holsters "
+                       "(+6 0x63, 0x64, 0x65 clip 0x111, 0x66, 0x6E) back to idle")
+
+
+def aim_beat_r2_hold(r: Route) -> dict:
+    use_aim_sampler(r)
+    r.idle(10)
+    aim_draw(r, PAD["R2"])
+    r.step(60)
+    aim_holster(r)
+    return aim_meta(r, "hold R2 (mask 3B7E): +5 0x1E / +1F0 0x32 (001703E0), loop, release and holster")
+
+
+def aim_beat_both(r: Route) -> dict:
+    use_aim_sampler(r)
+    r.idle(10)
+    aim_draw(r, PAD["R1"])
+    r.step(20)
+    r.set_pad(PAD["R1"] | PAD["R2"])        # R2 added while R1 is held
+    r.step(40)
+    r.set_pad(PAD["R1"])                    # R2 released first
+    r.step(40)
+    r.set_pad(PAD["R1"] | PAD["R2"])        # R2 again
+    r.step(30)
+    r.set_pad(PAD["R2"])                    # then R1 released first
+    r.step(40)
+    aim_holster(r)
+    r.set_pad(PAD["R1"] | PAD["R2"])        # both pressed on the same frame from idle
+    r.until(lambda row: row["w"]["p5"] in (0x1D, 0x1E) and row["w"]["p6"] == 2, 180, PAD["R1"] | PAD["R2"])
+    r.step(20)
+    aim_holster(r)
+    return aim_meta(r, "R1 and R2 together: R2 added to R1, R2 released first, R2 again, R1 released "
+                       "first, then both pressed on one frame from idle (precedence and release order)")
+
+
+def aim_beat_single_fire(r: Route) -> dict:
+    use_aim_sampler(r)
+    r.idle(10)
+    hold = PAD["R1"]
+    aim_draw(r, hold)
+    r.step(10)
+    for _ in range(3):                      # three single presses
+        aim_shot(r, hold)
+    r.until(aim_ready, 400, hold)
+    r.set_pad(hold | PAD["CIRCLE"])         # trigger held 90 frames (fire mode single)
+    r.step(90)
+    r.set_pad(hold)
+    r.step(30)
+    aim_holster(r, 10)
+    hold = PAD["R2"]                        # the same from the R2 stance
+    aim_draw(r, hold)
+    r.step(10)
+    for _ in range(2):
+        aim_shot(r, hold)
+    r.until(aim_ready, 400, hold)
+    r.set_pad(hold | PAD["CIRCLE"])
+    r.step(60)
+    r.set_pad(hold)
+    r.step(30)
+    aim_holster(r)
+    return aim_meta(r, "fire mode single (D_00810C61 = 0): three presses and a 90-frame hold of Circle "
+                       "(trigger mask 3B78) in the R1 stance, then two presses and a 60-frame hold in "
+                       "the R2 stance; 00170A60 states 0x0A/0x0B, magazine and reserve drop together")
+
+
+def aim_beat_world_hit(r: Route) -> dict:
+    use_aim_sampler(r)
+    r.idle(5)
+    r.goto(381.0, 330.0, tol=1.0)
+    r.goto(381.0, 312.0, tol=0.8, magnitude=0.5, stuck_ok=True)
+    settle(r, 10)
+    hold = PAD["R1"]
+    aim_draw(r, hold)
+    r.step(10)
+    targets = [("ground", (381.0, 184.9, 300.0)), ("pillar", (387.0, 205.0, 290.3)),
+               ("fence", (372.0, 200.0, 290.3)), ("high", (381.0, 260.0, 280.0))]
+    aimed = {}
+    for name, (x, y, z) in targets:
+        aimed[name] = aim_at(r, x, y, z, hold)
+        aim_shot(r, hold)
+        r.step(12)
+    r.step(30)
+    aim_holster(r)
+    return aim_meta(r, "R1 stance at (381, 312) facing the fence; manual aim (left stick) at the ground, "
+                       "the concrete pillar, the fence and above the fence: each shot's impact marker "
+                       "(class 1, 0018ABA0, +0x2E impact code, +0xB0 hit point, +0xC0 normal)",
+                    aimed=aimed, targets=dict(targets))
+
+
+def aim_press_until(r: Route, button: str, pred, wait: int = 30, tries: int = 6) -> None:
+    """Press `button` (2 frames) until `pred` holds, waiting `wait` frames after
+    each press: a menu can ignore a press that lands while it is busy."""
+    for _ in range(tries):
+        r.press(button, 2)
+        try:
+            r.until(pred, wait)
+            return
+        except TimeoutError:
+            pass
+    raise TimeoutError(f"{button}: condition not reached after {tries} presses; last {summary(r.rows[-1])}")
+
+
+def aim_status_selector(r: Route, entry: int) -> None:
+    """START opens the status hub; stick right + Cross enters SPR4; stick right +
+    Cross enters SELECTOR (00217FA0); Down moves the cursor (t[0x17]) to
+    `entry`, Cross asks, Left picks Yes, Cross commits D_00810C61; Triangle
+    closes the status screen.  Every press is repeated until its effect shows."""
+    settle(r, 10)
+    aim_press_until(r, "START", lambda row: _ui(row, 1) == 1 and _ui(row, 2) == 1)
+    r.idle(10)
+    for page_ok in (lambda row: _ui(row, 1) == 3 and _ui(row, 2) == 1 and _ui(row, 3) == 1,
+                    lambda row: _ui(row, 4) == 8 and _ui(row, 5) == 1):
+        for _ in range(6):
+            r.set_pad(0, 0xFF, 0x7F)
+            r.step(15)
+            r.set_pad(PAD["CROSS"], 0xFF, 0x7F)
+            r.step(2)
+            r.set_pad(0, 0xFF, 0x7F)
+            r.step(4)
+            r.set_pad(0)
+            try:
+                r.until(page_ok, 240)
+                break
+            except TimeoutError:
+                pass
+        else:
+            raise TimeoutError("status page did not open: " + summary(r.rows[-1]))
+        r.idle(10)
+    for i in range(entry):
+        aim_press_until(r, "DOWN", lambda row, i=i: _ui(row, 0x17) == i + 1 and _ui(row, 5) == 1)
+        r.idle(10)
+    aim_press_until(r, "CROSS", lambda row: _ui(row, 5) == 4)
+    r.idle(10)
+    aim_press_until(r, "LEFT", lambda row: _ui(row, 6) == 0)
+    r.idle(10)
+    aim_press_until(r, "CROSS", lambda row: row["g"]["fire_mode"] == entry, wait=60)
+    r.until(lambda row: _ui(row, 1) == 3 and _ui(row, 2) == 1 and _ui(row, 3) == 1, 120)   # back on SPR4
+    r.idle(20)
+    aim_press_until(r, "TRIANGLE", in_control, wait=120)
+    r.idle(20)
+
+
+def aim_beat_burst_fire(r: Route) -> dict:
+    use_aim_sampler(r)
+    r.idle(5)
+    aim_status_selector(r, 1)
+    hold = PAD["R1"]
+    aim_draw(r, hold)
+    r.step(10)
+    aim_shot(r, hold)                       # a 2-frame press
+    r.step(20)
+    for _ in range(2):                      # the trigger held 60 frames, twice
+        r.until(aim_ready, 400, hold)
+        r.set_pad(hold | PAD["CIRCLE"])
+        r.step(60)
+        r.set_pad(hold)
+        r.step(20)
+    aim_holster(r)
+    return aim_meta(r, "status screen: SPR4, SELECTOR (two entries: single, 3-round burst; the third, "
+                       "full auto, needs D_00810C73, 0 here), burst picked and confirmed (D_00810C61 = 1); "
+                       "then R1, one short press and two 60-frame holds of Circle (00170A60 states "
+                       "0x14..0x17)")
+
+
+def aim_beat_reload_partial(r: Route) -> dict:
+    use_aim_sampler(r)
+    r.idle(10)
+    hold = PAD["R1"]
+    aim_draw(r, hold)
+    r.step(10)
+    for _ in range(5):
+        aim_shot(r, hold)
+    r.until(aim_ready, 400, hold)
+    aim_tap(r, hold, "L3")                  # L3 (pressed 0x200): 0017B300(p, 2) top-up
+    r.until(lambda row: row["w"]["p6"] == 3, 30, hold)
+    r.until(aim_ready, 400, hold)
+    r.step(20)
+    aim_tap(r, hold, "L3")                  # full magazine: no reload
+    r.step(40)
+    for _ in range(2):
+        aim_shot(r, hold)
+    r.until(aim_ready, 400, hold)
+    aim_tap(r, hold, "L3")                  # reload again, R1 released during it
+    r.until(lambda row: row["w"]["p6"] == 3, 30, hold)
+    r.step(12)
+    aim_holster(r)
+    return aim_meta(r, "R1, five shots, L3 tops the magazine up from the reserve (+6 3, +1F0 0x33, "
+                       "clip 0x11B; the reserve keeps the rounds); L3 with a full magazine does nothing; "
+                       "two shots, L3 and R1 released 12 frames into the reload")
+
+
+def aim_beat_reload_empty(r: Route) -> dict:
+    use_aim_sampler(r)
+    r.idle(10)
+    hold = PAD["R1"]
+    aim_draw(r, hold)
+    r.step(10)
+    for _ in range(80):
+        g = r.rows[-1]["g"]
+        if g["mag"] == 0 and g["reserve"] == 0:
+            break
+        aim_shot(r, hold)
+    else:
+        raise TimeoutError("magazine and reserve did not empty")
+    r.until(aim_ready, 400, hold)
+    for _ in range(2):                      # dry trigger: click 0x169, no shot
+        aim_tap(r, hold, "CIRCLE")
+        r.step(30)
+    aim_tap(r, hold, "L3")                  # L3 with no rounds
+    r.step(30)
+    aim_holster(r)
+    return aim_meta(r, "R1 and single shots until the magazine empties (automatic reload 0017B300(p, 1) "
+                       "from the reserve), then until the reserve empties; two dry presses (no shot) and "
+                       "L3 with no rounds",
+                    reload_frames=[b["f"] for a, b in zip(r.rows, r.rows[1:])
+                                   if b["w"]["p6"] == 3 and a["w"]["p6"] != 3])
+
+
+def aim_beat_light_holster(r: Route) -> dict:
+    use_aim_sampler(r)
+    r.idle(10)
+    hold = PAD["R1"]
+    aim_draw(r, hold)
+    r.step(10)
+    aim_tap(r, hold, "SQUARE")              # 0017A970(p, 0), CA6 = 0: the gun light on
+    r.step(40)
+    aim_tap(r, hold, "CROSS")               # 0017AAD0: no attachment mode (CA6 = 0)
+    r.step(40)
+    aim_holster(r, 20)                      # holster with the light on
+    aim_draw(r, PAD["R2"])                  # redraw (R2): 0016F530 relights the lamp
+    r.step(30)
+    aim_tap(r, PAD["R2"], "SQUARE")         # the light off
+    r.step(30)
+    aim_holster(r)
+    return aim_meta(r, "R1, Square turns the gun light on (D_00810D3C, lamp D_008106C7), Cross does "
+                       "nothing (no attachment), holster with the light on, R2 draws with the lamp "
+                       "relit, Square turns it off, holster")
+
+
+def aim_beat_melee(r: Route) -> dict:
+    use_aim_sampler(r)
+    r.idle(10)
+    r.press("CIRCLE", 2)                    # 3B78 pressed from idle: +5 0x21 (001735C0)
+    r.until(lambda row: row["w"]["p5"] == 0x21, 10)
+    r.until(aim_idle_ready, 400)
+    r.idle(20)
+    r.press("CIRCLE", 2)                    # a combo: Circle again during each hit
+    r.until(lambda row: row["w"]["p5"] == 0x21, 10)
+    for _ in range(2):
+        r.step(12)
+        r.press("CIRCLE", 2)
+    r.until(aim_idle_ready, 600)
+    r.idle(20)
+    r.press("SQUARE", 2)                    # 3B74 pressed from idle: +5 0x22 (00173E60)
+    r.until(lambda row: row["w"]["p5"] == 0x22, 10)
+    r.until(aim_idle_ready, 400)
+    r.idle(30)
+    return aim_meta(r, "melee from idle: Circle (+5 0x21, the knife node's +0x00 bit 0 raised), a "
+                       "Circle chain, then Square (+5 0x22)")
+
+
+def aim_beat_cable_shots(r: Route) -> dict:
+    use_aim_sampler(r)
+    r.idle(5)
+    r.goto(387.0, 335.0, tol=1.0)
+    r.goto(387.0, 318.0, tol=0.8, magnitude=0.5, stuck_ok=True)
+    settle(r, 10)
+    aimed = {}
+    for hold in (PAD["R1"], PAD["R2"]):
+        aim_draw(r, hold)
+        r.step(30)                          # target acquisition / lock window
+        cx, cy, cz = AIM_CABLE_TOP
+        for name, y in (("top", cy - 1.0), ("joint", cy - 2.6), ("strand", 215.0)):
+            aimed[f"{hold:#x}:{name}"] = aim_at(r, cx, y, cz + 0.02, hold,
+                                                limit=120 if hold == PAD["R1"] else 40)
+            aim_shot(r, hold)
+            r.step(15)
+        aim_holster(r, 20)
+    r.idle(30)
+    return aim_meta(r, "the security gun's power cable (0x827490, record 0x7A6DC0, top at "
+                       "(387, 231.8, 290.3), hanging down the pillar's north face): R1 and R2 stances "
+                       "from (387, 318) aimed (left stick) at the cable top, its bone-1 joint and the "
+                       "strand, three shots each; every round ends on the pillar face (impact code "
+                       "0x201) and the cable stays unhit", aimed=aimed)
+
+
+def aim_beat_cable_melee(r: Route) -> dict:
+    use_aim_sampler(r)
+    r.idle(5)
+    r.goto(387.0, 298.0, tol=0.8, magnitude=0.5, stuck_ok=True)   # at the strand's foot
+    settle(r, 10)
+    r.press("CIRCLE", 2)                    # light melee (+5 0x21) into the strand
+    r.until(lambda row: row["w"]["p5"] == 0x21, 10)
+    r.until(aim_idle_ready, 400)
+    r.idle(300)                             # the cable's and the gun's reaction run out
+    return aim_meta(r, "from aim_10's end: walk to the strand's foot (387, 298) and Circle (light "
+                       "melee, +5 0x21): the cable takes the hit (+0x36), the gun goes to lifecycle 2, "
+                       "the cable effect 0x80000045 spawns, the taken bit 0x50 is set and the cable "
+                       "frees itself; 300 idle frames follow the reaction")
+
+AIM_BEATS = [
+    ("aim_00_r1_hold", "08_truck_crossing", aim_beat_r1_hold),
+    ("aim_01_r2_hold", "08_truck_crossing", aim_beat_r2_hold),
+    ("aim_02_r1_r2_both", "08_truck_crossing", aim_beat_both),
+    ("aim_03_single_fire", "08_truck_crossing", aim_beat_single_fire),
+    ("aim_04_world_hit", "08_truck_crossing", aim_beat_world_hit),
+    ("aim_05_burst_fire", "08_truck_crossing", aim_beat_burst_fire),
+    ("aim_06_reload_partial", "08_truck_crossing", aim_beat_reload_partial),
+    ("aim_07_reload_empty", "08_truck_crossing", aim_beat_reload_empty),
+    ("aim_08_light_holster", "08_truck_crossing", aim_beat_light_holster),
+    ("aim_09_melee", "08_truck_crossing", aim_beat_melee),
+    ("aim_10_cable_shots", "08_truck_crossing", aim_beat_cable_shots),
+    ("aim_11_cable_melee", "aim_10_cable_shots", aim_beat_cable_melee),
+]
+
+
+def aim_selected(spec: str) -> list[tuple]:
+    """`aim` = every AIM beat; otherwise a comma list of names or name prefixes."""
+    wanted = spec.split(",")
+    if "aim" in wanted:
+        return list(AIM_BEATS)
+    return [b for b in AIM_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+def aim_event_keys(row: dict) -> dict:
+    """The weapon fields events() adds for AIM rows."""
+    w, g = row["w"], row["g"]
+    return {"p5/6/7": f"{w['p5']:#x}/{w['p6']:#x}/{w['p7']:#x}", "274/275": f"{w['a274']}/{w['a275']}",
+            "2E": w["e2E"], "2F2": w["l2F2"], "317/318": f"{w['r317']}/{w['m318']}", "q2A": w["q2A"],
+            "mag": g["mag"], "reserve": g["reserve"], "fire_mode": g["fire_mode"],
+            "light": f"{g['light_d3c']}/{g['lamp6C7']}", "targets": g["targets"][0],
+            "gun2E": row["gun"]["ev2E"], "knife": row["knife"]["h"][:2],
+            "secgun": row["secgun"]["h"][8:10], "cable": row["cable"]["h"][8:10],
+            "cable36": row["cable"]["hit36"], "taken": row["taken"],
+            "spawned": ",".join(f"{k}:{v[32:40]}" for k, v in sorted(row.get("pool_delta", {}).items())
+                                if v[:2] != "00")}
+
+
+# ---------------------------------------------------------------------------
+# EXIT capture group (C10 lane EXIT, docs/CAPTURES_C10.md section EXIT), opt-in
+# (`--beats exit` or a beat's name).  The level exit of beat 15 re-recorded
+# closed loop with a wider per-frame trace and split in two at a resumable
+# point before the departure movie:
+#   exit_00_departure      from the beat-14 end (west tower top): walk to the
+#                          fan pair, wait for fan r2's slow window, cross
+#                          Z < 156 (D_008107D8 |= 0x80), Roger r8's departure
+#                          script 0x828A10 walks the player to its end point;
+#                          ends when the script reaches record 0x828AD0.
+#   exit_01_movie_arrival  from there, no input: op 0F's movie (selector 1,
+#                          inside one frame), the script end and 001B0C60
+#                          (1, 0, 4), 001AD010 / 001ADF50, the AREA01 load,
+#                          the AREA01 arrival up to the first frame of control,
+#                          then 60 idle frames.
+# Rows: the route row (decode + decode_exit fields) plus the whole player
+# record +0..+0x31F (`pl`), Roger r8 and attachment r9 (+0..+3F, +A0..+DF,
+# +1F0..+22F, +2C0..+2EF), the globals 0x810600..0x81085F, the scratchpad
+# 0x70003B40..9F, the processed pad words, the vsync counter 0x810E90, the
+# overlay header, and the D_007A5640 pool headers that differ from row 0
+# (with +18..+3F, +A0..+DF of the live ones), as the AIM rows do.  Pad input
+# only; no memory is written.  Outputs: build/c10/exit/<beat>/.
+OUT_EXIT = ROOT / "build/c10/exit"
+EXIT_PIN = 15800                     # exit_00 gives its first input at this main-loop counter
+EXIT_ROGER, EXIT_ATTACH = 0x7A8830, 0x7A8B20
+EXIT10_SPANS = [(n, a, 0x320 if n == "player" else z) for n, a, z in SPANS] + EXIT_SPANS + [
+    ("roger:a", EXIT_ROGER, 0x40), ("roger:b", EXIT_ROGER + 0xA0, 0x40),
+    ("roger:c", EXIT_ROGER + 0x1F0, 0x40), ("roger:d", EXIT_ROGER + 0x2C0, 0x30),
+    ("attach:a", EXIT_ATTACH, 0x40), ("attach:b", EXIT_ATTACH + 0xA0, 0x40),
+    ("attach:c", EXIT_ATTACH + 0x1F0, 0x40), ("attach:d", EXIT_ATTACH + 0x2C0, 0x30),
+    ("glob", 0x810600, 0x260),          # 0x810600..0x81085F (area bytes, 758, 7D8.., 840..)
+    ("spad_hi", 0x70003B40, 0x60),      # 0x70003B40..9F (counter, 3B8C..93, masks)
+    ("pad", 0x810E70, 0x8),             # processed held / pressed words
+    ("vsync", 0x810E90, 0x4),           # vsync counter (the movie frame advances it)
+    ("ovl16", 0x823500, 0x10),          # overlay header (magic, id, text size)
+] + [(f"pool{i:02x}", AIM_POOL + i * 0x2F0, 0x18) for i in range(0x100)]
+
+
+class Exit10Sampler(AimSampler):
+    """AimSampler's pool logic over EXIT10_SPANS."""
+
+    def __init__(self, session: OriginalSession):
+        self.s = session
+        self.spans = EXIT10_SPANS
+        self.body = b"".join(struct.pack("<BI", 2, a + i)
+                             for _n, a, n in self.spans for i in range(0, n, 4))
+        self.pool0 = None
+
+
+def decode_exit10(r: dict[str, bytes]) -> dict:
+    row = decode_exit(r)
+    row["pl"] = r["player"].hex()
+    for who in ("roger", "attach"):
+        row[who] = {k: r[f"{who}:{k}"].hex() for k in "abcd"}
+    row["roger_script"] = hex(struct.unpack_from("<I", r["roger:c"], 8)[0])
+    row["glob"] = r["glob"].hex()
+    row["spad_hi"] = r["spad_hi"].hex()
+    row["held"] = hex(struct.unpack_from("<H", r["pad"], 0)[0])
+    row["pressed"] = hex(struct.unpack_from("<H", r["pad"], 4)[0])
+    row["vsync"] = struct.unpack("<I", r["vsync"])[0]
+    row["ovl16"] = r["ovl16"].hex()
+    row["pool_delta"] = r["pool_delta"]
+    row["pool_deep"] = r["deep"]
+    return row
+
+
+def use_exit10_sampler(r: Route) -> None:
+    use_exit_sampler(r)                 # the timed step (slow_frames) of beat 15
+    sampler = Exit10Sampler(r.s)
+    r.sampler = sampler
+    r.now = lambda: decode_exit10(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+    r.rows[0]["pool0"] = {k: v for k, v in sampler.pool0.items() if int(v, 16)}
+    r.s.boundary_timeout = 900.0        # the movie plays inside one frame
+
+
+def exit_ovl_id(row: dict) -> int:
+    return struct.unpack("<I", bytes.fromhex(row["ovl"][8:16]))[0]
+
+
+def exit_marks(rows: list[dict]) -> dict:
+    """First frame of each exit event in a trace (None when not in it)."""
+    def first(pred, start: int = 0):
+        return next((row["f"] for row in rows[start:] if pred(row)), None)
+    m = {
+        "fan_cross_7D8_81": first(lambda row: row["d2"][:2] == "81"),
+        "departure_script_828A10": first(lambda row: row["roger_script"] == "0x828a10"),
+        "selector_3B8D_2": first(lambda row: row["spad"][2:4] == "02"),
+        "player_action_41": first(lambda row: row["m1F0"] == 0x41),
+        "walk_end_330_289_127": first(lambda row: row["m1F0"] == 0x41 and
+                                      abs(row["pos"][2] - 127.0) < 1e-3 and abs(row["pos"][0] - 330.0) < 1e-3),
+        "script_828AD0": first(lambda row: row["roger_script"] == "0x828ad0"),
+        "script_op0F_828B50": first(lambda row: row["roger_script"] == "0x828b50"),
+        "movie_selector_set": first(lambda row: row["movie"] != "00000000"),
+        "request_B8_set": first(lambda row: row["req"][16:18] != "00"),
+        "selector_3B8D_3": first(lambda row: row["spad"][2:4] == "03"),
+        "area_bytes_01": first(lambda row: row["area4"][:2] == "01"),
+        "overlay_id_2": first(lambda row: exit_ovl_id(row) == 2),
+        "loader_pending_BD8": first(lambda row: row["bd8"] == 1),
+    }
+    if m["loader_pending_BD8"] is not None:
+        m["loader_done_BD8_0"] = first(lambda row: row["bd8"] == 0, m["loader_pending_BD8"])
+    m["first_control_area01"] = first(lambda row: row["area4"][:2] == "01" and
+                                      row["slots"][22:24] == "01" and in_control(row))
+    return m
+
+
+def exit_beat_departure(r: Route) -> dict:
+    # Beat 15's walk (beat_level_exit): from the beat-14 release point toward
+    # the fan pair, stop outside fan r2's hit band, wait for its slow window
+    # (phase 1, timer >= 55), walk under it past Z < 156.  Everything after the
+    # crossing is automatic; the beat ends when Roger's departure script has
+    # walked the player to its end point and moved on to record 0x828AD0
+    # (eight frames before the movie frame, so the end snapshot resumes).
+    use_exit10_sampler(r)
+    # Pin the start to a main-loop counter: pcsx2_session lets a loaded state
+    # run freely until Pine answers (the beat-14 snapshot starts anywhere from
+    # counter 15761 to 15770), so idle (neutral pad) up to EXIT_PIN first; every
+    # recording and replay then gives the same input at the same counter.
+    if r.rows[-1]["counter"] > EXIT_PIN:
+        raise RuntimeError(f"start counter {r.rows[-1]['counter']} is past the pin {EXIT_PIN}")
+    r.until(lambda row: row["counter"] >= EXIT_PIN, 200)
+    r.goto(331.0, 177.0, tol=1.5, stuck_ok=True)
+    r.goto(329.5, 172.0, tol=0.8, magnitude=0.5, stuck_ok=True)
+    settle(r, 5)
+    r.until(fan_slow_window, 400)
+    f_window = r.frame_index
+    walk_path(r, [(329.5, 150.0)], tol=1.0,
+              until=lambda row: row["d2"][:2] not in ("01", "00") or row["req"][16:18] != "00")
+    r.set_pad(0)
+    r.until(lambda row: row["spad"][2:4] == "02", 30)
+    r.until(lambda row: row["roger_script"] == "0x828ad0", 400)
+    marks = dict(exit_marks(r.rows), fan_slow_window=f_window)
+    return {"what": "fan r2 slow window, crossing Z < 156 (D_008107D8 = 0x81), Roger r8's departure "
+                    "script 0x828A10 walks the player to (330, 289, 127); ends at script record 0x828AD0",
+            "marks": marks, "end": summary(r.rows[-1])}
+
+
+def exit_beat_movie_arrival(r: Route) -> dict:
+    # No input.  Op 0F plays movie selector 1 inside one frame, the script
+    # ends (D_00810758[0] = 0xFF) and 001B0C60(1, 0, 4) posts the area change;
+    # 001AD010 / 001ADF50 / 001FF080 load AREA01 (overlay id 2); the state-0
+    # rebuild places the player at AREA01 sub 0 spawn entry 4 with control.
+    use_exit10_sampler(r)
+    r.set_pad(0)
+    r.until(lambda row: row["movie"] != "00000000", 60)
+    r.until(lambda row: row["req"][16:18] != "00", 60)
+    r.until(lambda row: row["area4"][:2] == "01", 60)
+    r.until(lambda row: exit_ovl_id(row) == 2, 60)
+    r.until(lambda row: row["slots"][22:24] == "01" and in_control(row), 1200)
+    f_control = r.frame_index
+    settle(r, 60)
+    marks = dict(exit_marks(r.rows), first_control_beat=f_control)
+    return {"what": "departure movie (selector 1), 001B0C60(1, 0, 4), AREA01 load, arrival at AREA01 "
+                    "sub 0 spawn entry 4 up to the first frame of control, 60 idle frames",
+            "marks": marks, "slow_frames": r.slow_frames, "end": summary(r.rows[-1])}
+
+
+EXIT_BEATS = [
+    ("exit_00_departure", "14_roger_encounter", exit_beat_departure),
+    ("exit_01_movie_arrival", "exit_00_departure", exit_beat_movie_arrival),
+]
+
+
+def exit_selected(spec: str) -> list[tuple]:
+    """`exit` = both EXIT beats in order; otherwise names or name prefixes."""
+    wanted = spec.split(",")
+    if "exit" in wanted:
+        return list(EXIT_BEATS)
+    return [b for b in EXIT_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+def exit_event_keys(row: dict) -> dict:
+    """The exit fields events() adds for EXIT rows."""
+    return {"roger_script": row["roger_script"], "fan_r2": f"{row['fan_r2']['phase']}/{row['fan_r2']['timer']}",
+            "758": row["flags758"][:2], "area4": row["area4"], "slots": row["slots"][16:24] + "|" +
+            row["slots"][144:152], "bd8": row["bd8"], "cd157": row["cd157"], "ovl": exit_ovl_id(row),
+            "movie": row["movie"][:2], "movie_req": row["movie_req"], "pool_changed": len(row["pool_delta"])}
+
+
+# ---------------------------------------------------------------------------
+# DAMAGE capture group (C10 lane DAMAGE, docs/CAPTURES_C10.md section DAMAGE),
+# opt-in (`--beats dmg` or a beat's name).  Everything that can hurt the
+# player in AREA11, low health, death, the game-over screen and Continue:
+#   the flame 0x8235F0 (record r7, node 0x7A8540, contact callback 0x823580
+#   through the class-1 sphere pass 001A8660), the fan r2 hit band (0x827630,
+#   fast arm), the landing hit (0017C580: a drop of 50 or more, reached by a
+#   walking jump that falls short into the crevice), the attribute-0x5D
+#   floor under the truck pit (0021D250), then the death fade, the
+#   game-over wait (001AD4E0), the continue machine (001AC070 / 001AC480):
+#   the title menu, NEW GAME and the LOAD GAME screen (left without choosing
+#   a memory card slot).  The heavy landing (a drop of more than 104) was not
+#   reached (CAPTURES_C10.md).
+# Rows: the route row (decode + decode_exit: fans, area bytes, task slots,
+# loader byte, overlay header) plus the whole player record +0..+0x31F
+# (`pl`) with its damage fields decoded (`vit`), the globals 0x810600..
+# 0x810D3F (`glob`: the area and request bytes, D_008106B9, D_008106C8,
+# D_008106CE/CF, D_008106F1, D_00810707, D_0081070A, D_0081083C, the display
+# vitals 0x810858/5C, the taken rows, inventory and weapon bytes), the pad
+# block 0x810E40..0x810E9F (rumble +0x16/+0x18/+0x19/+0x28, the processed
+# pad words, the vsync counter), D_00275BD0..EF (D_00275BD4/BD8/BDC/BE0),
+# the per-class lists 0x275B54..BB (the hazard list D_00275BA0), the
+# scratchpad 0x70003B40..9F, 0x70003A20 and 0x700038A0..BF, the flame node
+# (+0..+3F, +A0..+BF, +1F0..+21F) and, as the AIM rows do, the D_007A5640
+# pool headers that differ from row 0 with +18..+3F / +A0..+DF of the live
+# ones (the effects 0x80000027 / 0x80000043 ...).  Pad input only; no memory
+# is written; no memory-card path is entered.  Outputs: build/c10/damage/<beat>/.
+OUT_DMG = ROOT / "build/c10/damage"
+DMG_FLAME = 0x7A8540                 # r7, overlay owner 0x8235F0
+DMG_FLAME_XZ = (452.3, 277.6)        # the flame node's +0xB0 x / z
+DMG_SPANS = [(n, a, 0x320 if n == "player" else z) for n, a, z in SPANS] + EXIT_SPANS + [
+    ("glob", 0x810600, 0x740),          # 0x810600..0x810D3F
+    ("padblk", 0x810E40, 0x60),         # pad block (rumble), E70/E74 pad words, E90 vsync
+    ("tasks", 0x275BD0, 0x20),          # D_00275BD4 / BD8 / BDC / BE0
+    ("lists", 0x275B54, 0x68),          # per-class lists (B80 targets, BA0 hazards)
+    ("spad_hi", 0x70003B40, 0x60),
+    ("sp3a20", 0x70003A20, 0x4),
+    ("sp38a0", 0x700038A0, 0x20),
+    ("flame:a", DMG_FLAME, 0x40), ("flame:b", DMG_FLAME + 0xA0, 0x20), ("flame:c", DMG_FLAME + 0x1F0, 0x30),
+] + [(f"pool{i:02x}", AIM_POOL + i * 0x2F0, 0x18) for i in range(0x100)]
+
+
+class DmgSampler(AimSampler):
+    """AimSampler's pool logic over DMG_SPANS."""
+
+    def __init__(self, session: OriginalSession):
+        self.s = session
+        self.spans = DMG_SPANS
+        self.body = b"".join(struct.pack("<BI", 2, a + i)
+                             for _n, a, n in self.spans for i in range(0, n, 4))
+        self.pool0 = None
+
+
+def decode_dmg(r: dict[str, bytes]) -> dict:
+    row = decode_exit(r)
+    p, g, pb = r["player"], r["glob"], r["padblk"]
+    row["pl"] = p.hex()
+    row["vit"] = {
+        "health": round(f32(p, 0x220), 4), "pend": round(f32(p, 0x224), 4),
+        "infection": round(f32(p, 0x228), 4), "pend_inf": round(f32(p, 0x22C), 4),
+        "ev": p[0], "type": p[0xF], "kind": p[0xD], "p4": p[4], "p5": p[5], "p6": p[6], "p7": p[7],
+        "a1F0": p[0x1F0], "a1F1": p[0x1F1], "inv20E": _s16(p, 0x20E), "b234": p[0x234],
+        "b235": p[0x235], "b236": p[0x236], "s23A": p[0x23A], "s23B": p[0x23B], "g25C": p[0x25C],
+        "b25F": p[0x25F], "h28": _s16(p, 0x28), "b302": p[0x302], "hipB4": round(f32(p, 0xB4), 4),
+        "top2F4": round(f32(p, 0x2F4), 4), "kb70": vec(p, 0x70, 4),
+    }
+    row["gv"] = {
+        "b6B9": g[0xB9], "w6C8": hex(struct.unpack_from("<I", g, 0xC8)[0]), "b6CE": g[0xCE], "b6CF": g[0xCF],
+        "b6F1": g[0xF1], "b707": g[0x107], "b70A": g[0x10A], "b83C": g[0x23C],
+        "disp_health": round(f32(g, 0x258), 4), "disp_inf": round(f32(g, 0x25C), 4),
+    }
+    row["glob"] = g.hex()
+    row["rumble"] = {"active": pb[0x16], "big": pb[0x18], "small": pb[0x19],
+                     "dur": struct.unpack_from("<H", pb, 0x28)[0]}
+    row["padblk"] = pb.hex()
+    row["held"] = hex(struct.unpack_from("<H", pb, 0x30)[0])
+    row["pressed"] = hex(struct.unpack_from("<H", pb, 0x34)[0])
+    row["vsync"] = struct.unpack_from("<I", pb, 0x50)[0]
+    row["tasks"] = r["tasks"].hex()
+    row["lists"] = r["lists"].hex()
+    row["spad_hi"] = r["spad_hi"].hex()
+    row["sp3a20"] = r["sp3a20"].hex()
+    row["sp38a0"] = r["sp38a0"].hex()
+    row["flame"] = {"a": r["flame:a"].hex(), "B0": vec(r["flame:b"], 0x10), "c": r["flame:c"].hex(),
+                    "cool210": struct.unpack_from("<i", r["flame:c"], 0x20)[0]}
+    row["pool_delta"] = r["pool_delta"]
+    row["pool_deep"] = r["deep"]
+    return row
+
+
+def use_dmg_sampler(r: Route) -> None:
+    sampler = DmgSampler(r.s)
+    r.sampler = sampler
+    r.now = lambda: decode_dmg(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+    r.rows[0]["pool0"] = {k: v for k, v in sampler.pool0.items() if int(v, 16)}
+    r.s.boundary_timeout = 120.0        # the area load after Continue
+
+
+DMG_PIN_AFTER = 30     # frames after the source snapshot's main-loop counter
+DMG_PIN_AFTER_TITLE = 45   # from the title-menu snapshot (dmg_03's end) a replay started 31 frames late
+
+
+def dmg_pin(r: Route, beat: str) -> None:
+    """Pin the beat's first input to a main-loop counter (as exit_00 does):
+    pcsx2_session lets a loaded state run freely until Pine answers, so a
+    replay starts up to ~25 frames after the snapshot (31 from the title
+    menu); every recording and replay idles (neutral pad) up to the source
+    snapshot's counter + 30 (+ 45 from dmg_03's title-menu snapshot)."""
+    source = next(b[1] for b in DMG_BEATS if b[0] == beat)
+    snap = json.loads((beat_dir(source) / "snapshot.json").read_text())
+    pin = snap["main_loop_counter"] + (DMG_PIN_AFTER_TITLE if source == "dmg_03_gameover_timeout"
+                                       else DMG_PIN_AFTER)
+    if r.rows[-1]["counter"] > pin:
+        raise RuntimeError(f"start counter {r.rows[-1]['counter']} is past the pin {pin}")
+    r.set_pad(0)
+    r.until(lambda row: row["counter"] >= pin, 200)
+
+
+def dmg_slot0(row: dict) -> dict:
+    """Task slot 0 (0x28A750): +4 the task function, +8 state, +9 sub, +0xA,
+    +0xF the prompt cursor, +0x16 the prompt idle timer, +0x18 the hold."""
+    b = bytes.fromhex(row["slots"][:0x40])
+    return {"fn": struct.unpack_from("<I", b, 4)[0], "s8": b[8], "s9": b[9], "sA": b[0xA], "sB": b[0xB],
+            "cur": b[0xF], "t16": struct.unpack_from("<h", b, 0x16)[0], "t18": struct.unpack_from("<h", b, 0x18)[0]}
+
+
+def dmg_fade(row: dict) -> int:
+    return int(row["fade"][:2], 16)
+
+
+def dmg_controllable(row: dict) -> bool:
+    v = row["vit"]
+    return v["p4"] == 1 and v["p5"] in (0, 1) and row["spad"][2:4] == "00" and v["ev"] == 1
+
+
+def dmg_flame_dist(row: dict) -> float:
+    return math.hypot(row["pos"][0] - DMG_FLAME_XZ[0], row["pos"][2] - DMG_FLAME_XZ[1])
+
+
+def dmg_meta(r: Route, what: str, **extra) -> dict:
+    hits = [row["f"] for a, row in zip(r.rows, r.rows[1:]) if row["vit"]["health"] < a["vit"]["health"]]
+    v = r.rows[-1]["vit"]
+    return dict(extra, what=what, hit_frames=hits,
+                health_path=[r.rows[0]["vit"]["health"]] + [r.rows[f]["vit"]["health"] for f in hits],
+                end={"health": v["health"], "infection": v["infection"], "ev": v["ev"], "p4/p5": [v["p4"], v["p5"]],
+                     "b235": v["b235"], "b6B9": r.rows[-1]["gv"]["b6B9"], "slot0": dmg_slot0(r.rows[-1]),
+                     "fade": dmg_fade(r.rows[-1]), "area": r.rows[-1]["area4"], "pos": r.rows[-1]["pos"]})
+
+
+DMG_FLAME_REST = (471.3, 283.2)      # the 11_crevice_prompt release point (out of the flame's reach)
+
+
+def dmg_flame_hit(r: Route, limit: int = 400) -> dict:
+    """One flame contact: walk at the flame (full stick) whenever the player
+    is controllable, neutral otherwise, until the health drops (the hit is
+    applied by 0021C440 the frame after 001A8660 posts it); then neutral
+    until the reaction hands control back (+4 == 1)."""
+    hp0 = r.rows[-1]["vit"]["health"]
+    for _ in range(limit):
+        row = r.rows[-1]
+        if row["vit"]["health"] < hp0:
+            break
+        if dmg_controllable(row) or (row["vit"]["p4"] == 1 and row["vit"]["p5"] in (0, 1)):
+            r.stick_toward(*DMG_FLAME_XZ, 1.0)
+        else:
+            r.set_pad(0)
+        r.step(1)
+    else:
+        raise TimeoutError(f"no flame hit in {limit} frames; last {summary(r.rows[-1])}")
+    r.set_pad(0)
+    return r.until(lambda row: row["vit"]["p4"] == 1 or row["vit"]["health"] <= 0, 300)
+
+
+def dmg_flame_hits_to(r: Route, health: float) -> None:
+    """Flame hits until the health is at or below `health` (5 per hit)."""
+    for _ in range(25):
+        if r.rows[-1]["vit"]["health"] <= health:
+            return
+        dmg_flame_hit(r)
+    raise RuntimeError("health target not reached")
+
+
+def dmg_retreat(r: Route) -> None:
+    """Walk back to the release point, wait for the post-hit protection to end."""
+    r.until(lambda row: row["vit"]["p4"] == 1 and row["vit"]["p5"] in (0, 1), 300)
+    r.goto(*DMG_FLAME_REST, tol=1.0, magnitude=1.0, stuck_ok=True)
+    r.set_pad(0)
+    r.until(lambda row: row["vit"]["ev"] == 1 and row["vit"]["inv20E"] <= 0 and in_control(row), 300)
+
+
+def dmg_gameover_screen(row: dict) -> bool:
+    """The game-over wait (gameplay task 001ACEC0 state 3 sub 2) in its hold
+    sub-state 3 with the fade machine idle: the GAME OVER art is shown."""
+    s0 = dmg_slot0(row)
+    return s0["fn"] == 0x1ACEC0 and (s0["s8"], s0["s9"], s0["sA"]) == (3, 2, 3) and dmg_fade(row) == 0
+
+
+def dmg_title_prompt(row: dict) -> bool:
+    """The continue machine 001AC070 in its prompt (state 2, 001AC480 sub 2)
+    with the fade idle: the title menu takes input."""
+    s0 = dmg_slot0(row)
+    return s0["fn"] == 0x1AC070 and (s0["s8"], s0["s9"]) == (2, 2) and dmg_fade(row) == 0
+
+
+def dmg_press_until(r: Route, button: str, pred, wait: int = 20, tries: int = 6) -> None:
+    """Tap a button (2 frames) and wait for its effect; repeat when the press
+    landed while the machine was not taking input."""
+    for _ in range(tries):
+        r.press(button, 2)
+        for _ in range(wait):
+            if pred(r.rows[-1]):
+                return
+            r.step(1)
+        if pred(r.rows[-1]):
+            return
+    raise TimeoutError(f"{button}: no effect after {tries} presses; last {summary(r.rows[-1])}")
+
+
+def dmg_death_to_gameover(r: Route, limit: int = 1200) -> dict:
+    """No input from the death on: the death reaction, its fade-out, the
+    game-over wait and the GAME OVER screen (held 10 frames)."""
+    r.set_pad(0)
+    r.until(lambda row: row["gv"]["b6B9"] == 1, 300)
+    r.until(dmg_gameover_screen, limit)
+    r.step(10)
+    return r.rows[-1]
+
+
+def dmg_marks(rows: list[dict]) -> dict:
+    """First frame of each damage / death / game-over event in a trace."""
+    def first(pred, start: int = 0):
+        return next((row["f"] for row in rows[start:] if pred(row)), None)
+    m = {
+        "pending_damage": first(lambda row: row["vit"]["pend"] != 0),
+        "first_hit": first(lambda row: row["vit"]["health"] < rows[0]["vit"]["health"]),
+        "low_health_latch_235": first(lambda row: row["vit"]["b235"] & 1 and not rows[0]["vit"]["b235"] & 1),
+        "death_health_0": first(lambda row: row["vit"]["health"] <= 0 < rows[0]["vit"]["health"]),
+        "death_latch_6B9": first(lambda row: row["gv"]["b6B9"] == 1 and rows[0]["gv"]["b6B9"] == 0),
+        "fade_out": first(lambda row: dmg_fade(row) == 3 and dmg_fade(rows[0]) == 0),
+        "gameover_wait": first(lambda row: dmg_slot0(row)["fn"] == 0x1ACEC0 and dmg_slot0(row)["s9"] == 2),
+        "gameover_screen": first(dmg_gameover_screen),
+        "continue_machine": first(lambda row: dmg_slot0(row)["fn"] == 0x1AC070),
+        "title_prompt": first(dmg_title_prompt),
+        "gameplay_task_back": first(lambda row: dmg_slot0(row)["fn"] == 0x1ACEC0 and
+                                    dmg_slot0(rows[0])["fn"] == 0x1AC070),
+    }
+    return {k: v for k, v in m.items() if v is not None}
+
+
+def dmg_running_jump(r: Route, start: tuple | None, toward: tuple, at_edge, limit: int = 200,
+                     magnitude: float = 1.0, stall: bool = True) -> None:
+    """Route beats 12 / 14's running jump: stand at `start`, run toward
+    `toward` and press Cross (2 frames, stick held) once `at_edge(row)`
+    holds; then keep the stick until the jump (+1F0 0x0C) has left the
+    ground and release it."""
+    if start is not None:
+        r.goto(*start, tol=1.0, magnitude=1.0, stuck_ok=True)
+        r.set_pad(0)
+        settle(r, 5)
+    for i in range(limit):
+        if at_edge(r.rows[-1]):
+            break
+        if stall and i > 20 and math.dist(r.rows[-1]["pos"], r.rows[-4]["pos"]) < 0.02:
+            break                       # the walk stopped short of the edge (observed)
+        r.stick_toward(*toward, magnitude)
+        r.step(1)
+    else:
+        raise TimeoutError(f"edge not reached; last {summary(r.rows[-1])}")
+    r.set_pad(PAD["CROSS"], r.pad_state[1], r.pad_state[2])
+    r.step(2)
+    r.set_pad(0, r.pad_state[1], r.pad_state[2])
+    r.until(lambda row: row["m1F0"] == 0x0C, 10, 0, r.pad_state[1], r.pad_state[2])
+    r.until(lambda row: row["m1F0"] != 0x0C, 300, 0, r.pad_state[1], r.pad_state[2])
+    r.set_pad(0)
+
+
+def dmg_beat_flame_hit(r: Route) -> dict:
+    # From the 11_crevice_prompt release point on the grating next to the
+    # flame: walk at it until one contact lands (+0x224 = 5.0, +0x0F = 0xC,
+    # +0 = 3, then 0021C440's generic tail: health 95, +1F1 = 4, flinch +4 2
+    # +5 0), walk back to the release point while the 60-frame protection
+    # (+0x20E) runs (the knock-back does not always clear the flame's reach),
+    # wait it out and idle.
+    use_dmg_sampler(r)
+    dmg_pin(r, "dmg_00_flame_hit")
+    r.idle(5)
+    dmg_flame_hit(r)
+    dmg_retreat(r)
+    r.idle(30)
+    return dmg_meta(r, "one flame contact: 100 -> 95, flinch, knock-back, 60-frame protection",
+                    marks=dmg_marks(r.rows))
+
+
+def dmg_beat_flame_low_health(r: Route) -> dict:
+    # Flame contacts until the health is 35 (0021C440's tail sets +0x235 bit 0
+    # at <= 35), back to the release point, then 300 idle frames: the
+    # low-health heartbeat (0015D000: rumble every 121 frames at <= 35).
+    use_dmg_sampler(r)
+    dmg_pin(r, "dmg_01_flame_low_health")
+    r.idle(5)
+    dmg_flame_hits_to(r, 35.0)
+    dmg_retreat(r)
+    r.idle(300)
+    return dmg_meta(r, "flame contacts down to 35 (low-health latch), retreat, 300 idle frames (heartbeat)",
+                    marks=dmg_marks(r.rows))
+
+
+def dmg_beat_flame_death(r: Route) -> dict:
+    # Down to 10 (the faster heartbeat: every 61 frames at <= 10), 150 idle
+    # frames out of reach, then contacts until the health is 0: the death
+    # reaction (+4 2 +5 1, clip 0x2A), D_008106B9 = 1, 0021D2E0, the fade-out,
+    # the game-over wait 001AD4E0; ends on the GAME OVER screen.
+    use_dmg_sampler(r)
+    dmg_pin(r, "dmg_02_flame_death")
+    r.idle(5)
+    dmg_flame_hits_to(r, 10.0)
+    dmg_retreat(r)
+    r.idle(150)
+    dmg_flame_hits_to(r, 0.0)
+    dmg_death_to_gameover(r)
+    return dmg_meta(r, "flame contacts to 10, 150 idle frames, contacts to 0: death, fade-out, game-over "
+                       "wait; ends on the GAME OVER screen", marks=dmg_marks(r.rows))
+
+
+def dmg_beat_gameover_timeout(r: Route) -> dict:
+    # No input: the 240-frame hold runs out (sub 4: fade-out), 001AD4E0 hands
+    # over (+9 = 4), 001ADF00 replaces the gameplay task with 001AC070 (from
+    # death: D_00275BDC = 1), 001AC480 shows screen module 1 (the title menu)
+    # with the cursor on its second entry; ends 30 frames into the prompt.
+    use_dmg_sampler(r)
+    dmg_pin(r, "dmg_03_gameover_timeout")
+    r.set_pad(0)
+    r.until(dmg_title_prompt, 1200)
+    r.step(30)
+    return dmg_meta(r, "GAME OVER hold runs out, fade-out, the continue machine 001AC070 shows the title "
+                       "menu (cursor on the second entry); 30 frames into the prompt", marks=dmg_marks(r.rows))
+
+
+def dmg_beat_new_game(r: Route) -> dict:
+    # From the title menu after a death: Up moves the cursor to the first
+    # entry (NEW GAME), Cross confirms (001AC480 sub 3, fade-out, state 4:
+    # 001AB790(001ACEC0) reinstalls the gameplay task), the new game loads
+    # AREA11 and plays the opening up to the first frame of control; 60 idle.
+    use_dmg_sampler(r)
+    dmg_pin(r, "dmg_04_new_game")
+    r.s.boundary_timeout = 900.0        # the new-game movie plays inside one frame
+    r.idle(5)
+    dmg_press_until(r, "UP", lambda row: dmg_slot0(row)["cur"] == 0)
+    r.idle(10)
+    dmg_press_until(r, "CROSS", lambda row: dmg_slot0(row)["s9"] == 3 or dmg_slot0(row)["fn"] != 0x1AC070)
+    r.set_pad(0)
+    r.until(lambda row: dmg_slot0(row)["fn"] == 0x1ACEC0, 600)
+    r.until(lambda row: row["area4"][:2] == "0b" and dmg_slot0(row)["sB"] == 1, 4000)
+    r.until(cutscene, 2000)
+    r.until(in_control, 6000)
+    f_control = r.frame_index
+    r.idle(60)
+    return dmg_meta(r, "title menu after a death: Up to the first entry, Cross: the gameplay task is "
+                       "reinstalled, the new game loads AREA11 and plays the opening to first control; "
+                       "60 idle frames", marks=dict(dmg_marks(r.rows), first_control=f_control))
+
+
+def dmg_beat_load_screen(r: Route) -> dict:
+    # From the title menu after a death, cursor on its second entry (LOAD
+    # GAME): Cross (001AC480 sub 3, fade-out; confirm with cursor 1 calls
+    # 00225A00 and enters state 5, which polls 00225AC0).  The load screen
+    # asks for a memory card slot; the beat stops there (no slot is chosen,
+    # nothing is read from or written to a memory card) and leaves with
+    # Triangle (the screen's exit): 00225AC0 returns 1 and state 5 goes back
+    # to the prompt (state 2); ends 30 frames into the title menu again.
+    use_dmg_sampler(r)
+    dmg_pin(r, "dmg_05_load_screen")
+    r.idle(5)
+    dmg_press_until(r, "CROSS", lambda row: dmg_slot0(row)["s9"] == 3 or dmg_slot0(row)["s8"] != 2)
+    r.set_pad(0)
+    r.until(lambda row: dmg_slot0(row)["s8"] == 5 and dmg_fade(row) == 0, 600)
+    r.idle(60)
+    dmg_press_until(r, "TRIANGLE", lambda row: dmg_slot0(row)["s8"] != 5, wait=30)
+    r.set_pad(0)
+    r.until(dmg_title_prompt, 900)
+    r.step(30)
+    return dmg_meta(r, "title menu after a death: Cross on LOAD GAME opens the load screen (memory card "
+                       "slot choice); Triangle leaves it without choosing a slot; back on the title menu",
+                    marks=dict(dmg_marks(r.rows),
+                               load_state5=next((x["f"] for x in r.rows if dmg_slot0(x)["s8"] == 5), None)))
+
+
+def dmg_beat_crevice_fall(r: Route) -> dict:
+    # From the 11_crevice_prompt release point: beat 12's way to the plateau
+    # edge (485, 275), (477, 262), facing north, then a WALKING jump (stick
+    # at 0.45, Cross at z <= 252, where the walk stops the
+    # player short of the edge): the
+    # running-jump state 6 is entered (+1F0 0x0C, take-off height +2F4 =
+    # 269.6) but falls short of the north block into the crevice floor
+    # (184.8).  0017C580 measures d = +B4 - +2F4 (-74.8, <= -50): rumble,
+    # +0x224 = 5.0, 0021C350 (health 95), sound 0x151, landing +6 = 3
+    # (00163E90: clip 0x75, then the hand-back with +0x20E = 60).
+    use_dmg_sampler(r)
+    dmg_pin(r, "dmg_06_crevice_fall")
+    r.idle(5)
+    walk_path(r, [(485, 275), (477, 262)], tol=1.0)
+    r.set_pad(0)
+    settle(r, 5)
+    face(r, math.pi)
+    dmg_running_jump(r, None, (477.0, 150.0), lambda row: row["pos"][2] <= 252.0, magnitude=0.45,
+                     stall=False)
+    r.until(lambda row: row["vit"]["p5"] == 8, 200)
+    r.until(lambda row: in_control(row) and row["vit"]["p4"] == 1 and row["vit"]["p5"] == 0, 400)
+    r.until(lambda row: row["vit"]["inv20E"] <= 0, 200)
+    r.idle(30)
+    return dmg_meta(r, "walking jump off the plateau edge falls short into the crevice (269.6 -> 184.8): "
+                       "landing hit, 5 damage", marks=dmg_marks(r.rows))
+
+
+def dmg_beat_pit_fall(r: Route) -> dict:
+    # From the 07_truck_preview end (the truck still up): walk east onto the
+    # truck as beat 08 does and stay on it: its fall carries the player
+    # into the pit (truck roof y 154.6, D_00810792 = 0xFF).  Then walk south
+    # off the truck: the fall state (+5 5) reaches the pit floor, attribute
+    # 0x5D (y 100.8, not solid for the movement walkers), and runs 0021D250
+    # (+0 = 2, health 0, +5 = 0x16, sound 0x159) and 0021D2E0; the body keeps
+    # falling; the fade-out and the game-over wait follow; ends on the GAME
+    # OVER screen.
+    use_dmg_sampler(r)
+    dmg_pin(r, "dmg_07_pit_fall")
+    r.idle(5)
+    r.goto(352.0, 392.0, tol=1.5, magnitude=1.0, stuck_ok=True)
+    r.set_pad(0)
+    r.until(lambda row: row["story792"] == 0xFF, 400)
+    r.idle(30)
+    for _ in range(300):
+        row = r.rows[-1]
+        if row["vit"]["p5"] == 5 or row["vit"]["health"] <= 0:
+            break
+        if row["vit"]["p4"] == 1 and row["vit"]["p5"] in (0, 1):
+            r.stick_toward(352.0, 440.0, 1.0)
+        else:
+            r.set_pad(0)
+        r.step(1)
+    else:
+        raise TimeoutError(f"did not leave the truck; last {summary(r.rows[-1])}")
+    r.set_pad(0)
+    dmg_death_to_gameover(r)
+    return dmg_meta(r, "ride the truck into the pit, walk off it onto the attribute-0x5D pit floor: "
+                       "death, fade-out, GAME OVER screen", marks=dmg_marks(r.rows))
+
+
+def dmg_fan_fast(row: dict) -> bool:
+    return row["fan_r2"]["spin"] >= 0.034906585
+
+
+def dmg_beat_fan_hit(r: Route) -> dict:
+    # From the west tower top (14_roger_encounter end): walk to the fan pair
+    # as the level exit does, stop outside fan r2's band, wait for its fast
+    # arm (spin +0x38 >= 0.0349), then step into the hit band (Z 156..166.5,
+    # never below 156, the exit): 0x827630 writes +0x224 = 5.0, +0x0F = 6,
+    # +0 = 3, +0x70 = (0, 0, 1, 1); 0021C440 type 6: health 95, +5 = 0x11.
+    # Back out of the band after the hit and idle.
+    use_dmg_sampler(r)
+    dmg_pin(r, "dmg_08_fan_hit")
+    r.until(lambda row: row["counter"] >= EXIT_PIN, 200)      # the player is held until about 15800
+    r.goto(331.0, 177.0, tol=1.5, stuck_ok=True)
+    r.goto(329.5, 172.0, tol=0.8, magnitude=0.5, stuck_ok=True)
+    settle(r, 5)
+    r.until(dmg_fan_fast, 600)
+    hp0 = r.rows[-1]["vit"]["health"]
+    for _ in range(200):
+        row = r.rows[-1]
+        if row["vit"]["pend"] != 0 or row["vit"]["health"] < hp0 or row["vit"]["ev"] != 1:
+            break
+        if row["pos"][2] <= 162.0:
+            r.set_pad(0)
+        else:
+            r.stick_toward(329.5, 158.0, 0.5)
+        r.step(1)
+    else:
+        raise TimeoutError(f"no fan hit; last {summary(r.rows[-1])}")
+    r.set_pad(0)
+    r.until(lambda row: row["vit"]["p4"] == 1 and row["vit"]["p5"] in (0, 1), 300)
+    r.goto(331.0, 180.0, tol=1.5, magnitude=0.6, stuck_ok=True)
+    r.set_pad(0)
+    r.until(lambda row: row["vit"]["ev"] == 1 and row["vit"]["inv20E"] <= 0 and in_control(row), 300)
+    r.idle(30)
+    return dmg_meta(r, "fan r2's fast arm hits the player in its band (Z 156..166.5): 5 damage, "
+                       "reaction 0x11; back out of the band", marks=dmg_marks(r.rows))
+
+
+DMG_BEATS = [
+    ("dmg_00_flame_hit", "11_crevice_prompt", dmg_beat_flame_hit),
+    ("dmg_01_flame_low_health", "dmg_00_flame_hit", dmg_beat_flame_low_health),
+    ("dmg_02_flame_death", "dmg_01_flame_low_health", dmg_beat_flame_death),
+    ("dmg_03_gameover_timeout", "dmg_02_flame_death", dmg_beat_gameover_timeout),
+    ("dmg_04_new_game", "dmg_03_gameover_timeout", dmg_beat_new_game),
+    ("dmg_05_load_screen", "dmg_03_gameover_timeout", dmg_beat_load_screen),
+    ("dmg_06_crevice_fall", "11_crevice_prompt", dmg_beat_crevice_fall),
+    ("dmg_07_pit_fall", "07_truck_preview", dmg_beat_pit_fall),
+    ("dmg_08_fan_hit", "14_roger_encounter", dmg_beat_fan_hit),
+]
+
+
+def dmg_selected(spec: str) -> list[tuple]:
+    """`dmg` = every DAMAGE beat in order; otherwise names or name prefixes."""
+    wanted = spec.split(",")
+    if "dmg" in wanted:
+        return list(DMG_BEATS)
+    return [b for b in DMG_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+def dmg_event_keys(row: dict) -> dict:
+    """The damage fields events() adds for DMG rows."""
+    v, g, s0 = row["vit"], row["gv"], dmg_slot0(row)
+    return {"health": v["health"], "pend": v["pend"], "inf": v["infection"], "ev": v["ev"], "typeF": v["type"],
+            "p4/5/6": f"{v['p4']:#x}/{v['p5']:#x}/{v['p6']:#x}", "1F0/1F1": f"{v['a1F0']:#x}/{v['a1F1']}",
+            "inv20E": v["inv20E"] > 0, "235": v["b235"], "23A": v["s23A"], "6B9": g["b6B9"],
+            "rumble": row["rumble"]["active"], "slot0": f"{s0['fn']:#x}:{s0['s8']}/{s0['s9']}/{s0['sA']} cur{s0['cur']}",
+            "bdc/be0": row["tasks"][24:26] + "/" + row["tasks"][32:34], "ovl": exit_ovl_id(row),
+            "flame_cool": row["flame"]["cool210"] > 0,
+            "spawned": ",".join(f"{k}:{v_[32:40]}" for k, v_ in sorted(row.get("pool_delta", {}).items())
+                                if v_[:2] != "00")}
+
+
+# ---------------------------------------------------------------------------
+# BRANCH capture group (C10 lane BRANCH, opt-in, `--beats br` or a beat's
+# name): the AREA11 branches the main route skips, found from the placement
+# table 0x82A3C0 and the deferred group D_0024D820[11] (0x828180): the five
+# optional pickups (g0.1..g0.5, 00219550) and the map item (g0.6, 0015AFA0),
+# the west-yard and plateau ladders (attribute-0x32 columns, up and down),
+# the breakable boxes 001551B0, the terminal's ride
+# back up, the panel's BATTERY prompt declined, and Roger's talk after the
+# encounter.  Every beat starts from a route (or earlier br) snapshot, pins
+# its first input to a main-loop counter, drives closed loop with pad input
+# only and writes build/c10/branch/<beat>/.  Described in
+# docs/CAPTURES_C10.md (section BRANCH).
+OUT_BR = ROOT / "build/c10/branch"
+BR_ITEM_NODE = 0x7A5640                # deferred g0.i is pool node 0x7A5640 + i * 0x2F0
+# name -> (deferred index, persistence uid, item type, record position)
+BR_ITEMS = {
+    "g0.1": (1, 4, 0x1E, (467.3, 184.8, 227.4)),     # the yard floor south of the north block
+    "g0.2": (2, 5, 0x1F, (431.9, 354.8, 411.8)),     # the 355 top above the plateau ladder
+    "g0.3": (3, 6, 0x1E, (213.6, 219.8, 311.9)),     # the 220 ledge behind the crates
+    "g0.4": (4, 7, 0x32, (381.3, 225.3, 266.8)),     # the cage floor (model 2, wall mount)
+    "g0.5": (5, 8, 0x10, (311.6, 249.8, 328.7)),     # the 250 ledge, inside box r6
+    "g0.6": (6, 9, 0x08, (231.1, 200.9, 428.0)),     # 0015AFA0, south of the slide's foot
+}
+BR_BOXES = {"r3": 0x7A7980, "r4": 0x7A7C70, "r5": 0x7A7F60, "r6": 0x7A8250,     # 001551B0
+            "r14": 0x7A99D0, "r15": 0x7A9CC0}                                 # 00156620
+BR_ELEV, BR_PANEL, BR_ROGER = 0x7AA880, 0x7AA590, 0x7A8830
+BR_SPANS = DMG_SPANS + [
+    ("uirec", 0x810130, 0x60),          # status page record
+    ("msgrec", 0x282210, 0x14),         # message service record
+    ("sp3190", 0x70003190, 0x50),       # ray query block (the use scan's ray)
+    ("masks", 0x70003B70, 0x10),
+    ("elev:a", BR_ELEV, 0x40), ("elev:c", BR_ELEV + 0x1F0, 0x30),
+    ("elev_y", 0x82A7C0, 0x8), ("elev_y2", 0x82A840, 0x8), ("elev_y3", 0x82A940, 0x8),
+    ("elev_y4", 0x82AB10, 0x8),
+    ("panel:a", BR_PANEL, 0x40), ("panel:c", BR_PANEL + 0x1F0, 0x30),
+    ("roger:a", BR_ROGER, 0x40), ("roger:c", BR_ROGER + 0x1F0, 0x40),
+]
+for _n, (_i, _u, _t, _p) in BR_ITEMS.items():
+    _a = BR_ITEM_NODE + _i * 0x2F0
+    BR_SPANS += [(f"it{_i}:a", _a, 0x40), (f"it{_i}:b", _a + 0xB0, 0x10), (f"it{_i}:c", _a + 0x1F0, 0x30),
+                 (f"it{_i}:e", _a + 0x2E0, 0x10)]
+for _n, _a in BR_BOXES.items():
+    BR_SPANS += [(f"bx_{_n}:a", _a, 0xE0), (f"bx_{_n}:c", _a + 0x1F0, 0x30)]
+
+
+class BrSampler(AimSampler):
+    """AimSampler's pool logic over BR_SPANS."""
+
+    def __init__(self, session: OriginalSession):
+        self.s = session
+        self.spans = BR_SPANS
+        self.body = b"".join(struct.pack("<BI", 2, a + i)
+                             for _n, a, n in self.spans for i in range(0, n, 4))
+        self.pool0 = None
+
+
+def decode_br(r: dict[str, bytes]) -> dict:
+    row = decode_dmg(r)
+    g = r["glob"]
+    row["br"] = 1
+    row["ui_rec"] = r["uirec"].hex()
+    row["msgrec"] = r["msgrec"].hex()
+    row["sp3190"] = r["sp3190"].hex()
+    row["masks"] = r["masks"].hex()
+    row["taken11"] = g[0x3C0:0x3E0].hex()          # D_00810860 + 32 * 11
+    row["inv_br"] = {f"{t:#x}": g[0x664 + t] for t in (0x08, 0x10, 0x1B, 0x1E, 0x1F, 0x32)}
+    row["weap"] = {"c61": g[0x661], "mag": g[0x662], "reserve": _s16(g, 0x6B4)}
+    row["elev"] = {"a": r["elev:a"].hex(), "c": r["elev:c"].hex(), "down83A": g[0x23A],
+                   "y": [round(f32(r[k], 4), 3) for k in ("elev_y", "elev_y2", "elev_y3")] +
+                        [round(f32(r["elev_y4"], 4), 3)]}
+    row["panel"] = {"a": r["panel:a"].hex(), "c": r["panel:c"].hex()}
+    row["roger"] = {"a": r["roger:a"].hex(), "c": r["roger:c"].hex(),
+                    "script": hex(struct.unpack_from("<I", r["roger:c"], 8)[0])}
+    row["items"] = {}
+    for n, (i, _u, _t, _p) in BR_ITEMS.items():
+        a, b, c, e = (r[f"it{i}:{k}"] for k in "abce")
+        row["items"][n] = {"h": a[:0x10].hex(), "a": a.hex(), "B0": vec(b, 0), "c": c.hex(), "e": e.hex()}
+    row["boxes"] = {n: {"h": r[f"bx_{n}:a"][:0x10].hex(), "a": r[f"bx_{n}:a"].hex(),
+                        "dmg36": _s16(r[f"bx_{n}:a"], 0x36), "B0": vec(r[f"bx_{n}:a"], 0xB0),
+                        "c": r[f"bx_{n}:c"].hex()} for n in BR_BOXES}
+    return row
+
+
+def use_br_sampler(r: Route) -> None:
+    sampler = BrSampler(r.s)
+    r.sampler = sampler
+    r.now = lambda: decode_br(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+    r.rows[0]["pool0"] = {k: v for k, v in sampler.pool0.items() if int(v, 16)}
+    r.s.boundary_timeout = 120.0
+
+
+BR_PIN_AFTER = 30      # frames after the source snapshot's main-loop counter (as DAMAGE)
+
+
+def br_pin(r: Route, beat: str) -> None:
+    """Pin the beat's first input to a main-loop counter: the source
+    snapshot's counter + 30 (from 14_roger_encounter at least EXIT_PIN, the
+    player is held until about 15800).  pcsx2_session lets a loaded state
+    run freely until Pine answers, so recordings and replays start a few
+    frames apart; the pin makes them give the same inputs at the same
+    counters."""
+    source = next(b[1] for b in BR_BEATS if b[0] == beat)
+    snap = json.loads((beat_dir(source) / "snapshot.json").read_text())
+    pin = snap["main_loop_counter"] + BR_PIN_AFTER
+    if source == "14_roger_encounter":
+        pin = max(pin, EXIT_PIN)
+    if r.rows[-1]["counter"] > pin:
+        raise RuntimeError(f"start counter {r.rows[-1]['counter']} is past the pin {pin}")
+    r.set_pad(0)
+    r.until(lambda row: row["counter"] >= pin, 400)
+
+
+def br_taken(row: dict, puid: int) -> bool:
+    return bool(int(row["taken11"][2 * (puid // 8):2 * (puid // 8) + 2], 16) & (1 << (puid % 8)))
+
+
+def br_status_open(row: dict) -> bool:
+    return row["ui"][2:4] == "03"
+
+
+def br_bearing(row: dict, x: float, z: float) -> float:
+    return math.atan2(x - row["pos"][0], z - row["pos"][2])
+
+
+def br_status_exit(r: Route, limit: int = 1500) -> None:
+    """A take's status page: wait until it browses (ui page state 05 01, as
+    beat 01's ITEM page) or until the page record (0x810130..8F, whose
+    message countdown runs while the item's text shows) has been still for
+    60 frames; then Triangle until the status closes, and wait for control."""
+    still, last = 0, None
+    for _ in range(limit):
+        row = r.rows[-1]
+        if row["ui"][8:12] == "0501":
+            break
+        key = (row["ui"], row["ui_rec"][:0x40])    # +0x20 counts frames
+        still = still + 1 if key == last else 0
+        last = key
+        if still >= 60:
+            break
+        r.step(1)
+    r.idle(20)
+    for _ in range(8):
+        r.press("TRIANGLE", 2)
+        for _ in range(40):
+            if not br_status_open(r.rows[-1]):
+                break
+            r.step(1)
+        if not br_status_open(r.rows[-1]):
+            break
+    else:
+        raise TimeoutError("status did not close; last " + summary(r.rows[-1]))
+    r.until(in_control, 900)
+    settle(r, 30)
+
+
+def br_take(r: Route, item: str, stand: tuple, tol: float = 0.8, tries: int = 4) -> dict:
+    """Walk to `stand`, face the item, press Cross until its take starts
+    (the use scan leaves control); then wait for the taken bit, handle the
+    status page the take opens and wait for control.  Returns the marks."""
+    idx, puid, _t, (ix, _iy, iz) = BR_ITEMS[item]
+    r.goto(*stand, tol=tol, magnitude=0.5, stuck_ok=True)
+    settle(r, 10)
+    face(r, br_bearing(r.rows[-1], ix, iz), tol=0.08)
+    f_press = None
+    for _ in range(tries):
+        f_press = r.frame_index
+        r.press("CROSS", 2)
+        for _ in range(40):
+            if not in_control(r.rows[-1]):
+                break
+            r.step(1)
+        if not in_control(r.rows[-1]):
+            break
+        settle(r, 10)
+        face(r, br_bearing(r.rows[-1], ix, iz), tol=0.08)
+    else:
+        raise TimeoutError(f"{item}: Cross started nothing; last {summary(r.rows[-1])}")
+    f_scan = r.frame_index
+    r.until(lambda row: br_taken(row, puid) or br_status_open(row), 900)
+    r.until(lambda row: br_status_open(row) or in_control(row), 900)
+    f_status = r.frame_index if br_status_open(r.rows[-1]) else None
+    if f_status is not None:
+        br_status_exit(r)
+    else:
+        settle(r, 30)
+    if not br_taken(r.rows[-1], puid):
+        raise RuntimeError(f"{item}: not taken; last {summary(r.rows[-1])}")
+    f_taken = next(row["f"] for row in r.rows if br_taken(row, puid))
+    return {"item": item, "press": f_press, "scan": f_scan, "taken_bit": f_taken, "status_open": f_status,
+            "control": r.frame_index}
+
+
+def br_ladder_up(r: Route, foot: tuple, yaw: float, tries: int = 3) -> dict:
+    """Use (Cross) at an attribute-0x32 ladder face from its foot, climb with
+    the stick held up until the climb hands back control at the top."""
+    r.goto(*foot, tol=0.6, magnitude=0.5, stuck_ok=True)
+    settle(r, 5)
+    face(r, yaw, tol=0.08)
+    f0 = r.frame_index
+    for _ in range(tries):
+        r.press("CROSS", 2)
+        for _ in range(60):
+            if r.rows[-1]["m1F0"] in (0x15, 0x16, 0x17):
+                break
+            r.step(1)
+        if r.rows[-1]["m1F0"] in (0x15, 0x16, 0x17):
+            break
+        settle(r, 10)
+        face(r, yaw, tol=0.08)
+    else:
+        raise TimeoutError("ladder not grabbed; last " + summary(r.rows[-1]))
+    grab = r.rows[-1]["m1F0"]
+    r.until(lambda row: row["m1F0"] == 0x17, 120)
+    r.set_pad(0, 0x7F, 0x00)
+    r.until(lambda row: row["m1F0"] not in (0x15, 0x16, 0x17, 0x18), 1200, 0, 0x7F, 0x00)
+    r.set_pad(0)
+    settle(r, 30)
+    return {"press": f0, "grab_action": grab, "top_y": r.rows[-1]["pos"][1]}
+
+
+def br_ladder_down(r: Route, top: tuple, yaw: float, tries: int = 3) -> dict:
+    """Use (Cross) at the ladder's top floor node facing the drop: the grab
+    from above (00180300 decides +1F0 0x15 / 0x16 by the face 10 units above
+    the feet); then the stick held down until the climb hands back control
+    at the foot."""
+    r.goto(*top, tol=0.6, magnitude=0.5, stuck_ok=True)
+    settle(r, 5)
+    face(r, yaw, tol=0.08)
+    f0 = r.frame_index
+    for _ in range(tries):
+        r.press("CROSS", 2)
+        for _ in range(60):
+            if r.rows[-1]["m1F0"] in (0x15, 0x16, 0x17, 0x18):
+                break
+            r.step(1)
+        if r.rows[-1]["m1F0"] in (0x15, 0x16, 0x17, 0x18):
+            break
+        settle(r, 10)
+        face(r, yaw, tol=0.08)
+    else:
+        raise TimeoutError("ladder not grabbed from the top; last " + summary(r.rows[-1]))
+    grab = r.rows[-1]["m1F0"]
+    y0 = r.rows[-1]["pos"][1]
+    r.set_pad(0, 0x7F, 0xFF)
+    r.until(lambda row: row["m1F0"] not in (0x15, 0x16, 0x17, 0x18) and row["pos"][1] < y0 - 20, 1500,
+            0, 0x7F, 0xFF)
+    r.set_pad(0)
+    settle(r, 30)
+    return {"press": f0, "grab_action": grab, "foot_y": r.rows[-1]["pos"][1]}
+
+
+def br_climb(r: Route, yaw: float, tries: int = 5) -> None:
+    """Use (Cross) facing a ledge until the ledge climb (+1F0 8) starts; wait
+    for control on top."""
+    for _ in range(tries):
+        face(r, yaw, tol=0.08)
+        r.press("CROSS", 2)
+        for _ in range(40):
+            if r.rows[-1]["m1F0"] == 8:
+                break
+            r.step(1)
+        if r.rows[-1]["m1F0"] == 8:
+            break
+        settle(r, 10)
+    else:
+        raise TimeoutError("no ledge climb; last " + summary(r.rows[-1]))
+    r.until(in_control, 400)
+    settle(r, 10)
+
+
+def br_box_broken(row: dict, box: str) -> bool:
+    return row["boxes"][box]["h"][8:10] not in ("00", "01", "04") or row["boxes"][box]["dmg36"] != 0
+
+
+def br_melee(r: Route, box: str, stand: tuple, tries: int = 6) -> dict:
+    """Walk to `stand`, face the box's centre and press Circle (the light
+    melee, 001735C0) until the box takes damage (+0x36) or leaves its rest
+    state; then wait out the attack and the break."""
+    bx, _by, bz = r.rows[-1]["boxes"][box]["B0"]
+    r.goto(*stand, tol=0.6, magnitude=0.5, stuck_ok=True)
+    settle(r, 10)
+    face(r, br_bearing(r.rows[-1], bx, bz), tol=0.06)
+    f_hit = None
+    presses = []
+    for _ in range(tries):
+        presses.append(r.frame_index)
+        r.press("CIRCLE", 2)
+        for _ in range(60):
+            if br_box_broken(r.rows[-1], box):
+                f_hit = r.frame_index
+                break
+            r.step(1)
+        if f_hit is not None:
+            break
+        r.until(lambda row: in_control(row) and row["vit"]["p5"] == 0, 300)
+        face(r, br_bearing(r.rows[-1], bx, bz), tol=0.06)
+    else:
+        raise TimeoutError(f"box {box} not hit; last {summary(r.rows[-1])}")
+    r.set_pad(0)
+    r.until(lambda row: in_control(row) and row["vit"]["p5"] == 0, 400)
+    r.idle(120)
+    return {"box": box, "presses": presses, "hit": f_hit, "end_header": r.rows[-1]["boxes"][box]["h"]}
+
+
+def br_meta(r: Route, what: str, **extra) -> dict:
+    last = r.rows[-1]
+    return dict(extra, what=what,
+                end={"pos": last["pos"], "yaw": last["yaw"], "taken11": last["taken11"], "inv": last["inv_br"],
+                     "weap": last["weap"], "health": last["vit"]["health"], "elev_down": last["elev"]["down83A"],
+                     "power": last["power"], "boxes": {n: v["h"] for n, v in last["boxes"].items()},
+                     "items": {n: v["h"] for n, v in last["items"].items()}, "area": last["area4"]})
+
+
+# -- the beats ---------------------------------------------------------------
+WEST_LADDER_FOOT = (326.5, 216.5)       # foot node (320..331, 185, 209.6..221.1), face normal (0.956, -0.292)
+WEST_LADDER_YAW = math.atan2(-0.956, 0.292)
+WEST_LADDER_TOP = (316.0, 218.5)        # top node (311..322.6, 249.9, 212.4..224.2)
+PLATEAU_LADDER_FOOT = (477.5, 403.0)    # foot node (471.8..481.6, 270.2, 398.4..407), normal (0.985, -0.174)
+PLATEAU_LADDER_YAW = math.atan2(-0.985, 0.174)
+PLATEAU_LADDER_TOP = (467.0, 404.5)     # top node (462.2..473, 355, 400.1..409)
+CAGE_LADDER_A = (360.0, 293.5)          # route beat 10's ladder A foot, facing yaw pi
+
+
+def br_beat_ledge_ammo(r: Route) -> dict:
+    # From the 05_boxes end on the 220 ledge: pickup g0.3 (00219550, item
+    # 0x1E, puid 6) at (213.6, 219.8, 311.9).
+    use_br_sampler(r)
+    br_pin(r, "br_00_ledge_ammo")
+    r.idle(5)
+    take = br_take(r, "g0.3", (216.5, 308.0))
+    return br_meta(r, "take pickup g0.3 (item 0x1E) on the 220 ledge", marks=take)
+
+
+def br_beat_map_item(r: Route) -> dict:
+    # From the 06_hill_slide end on the low ground: the map item g0.6
+    # (0015AFA0, class 0x87, item 0x08, puid 9) at (231.1, 200.9, 428.0),
+    # 16 above the ground (the use scan's below-the-feet allowance is 20.5).
+    use_br_sampler(r)
+    br_pin(r, "br_01_map_item")
+    r.idle(5)
+    walk_path(r, [(255.0, 400.0), (238.0, 422.0)], tol=2.0)
+    r.set_pad(0)
+    take = br_take(r, "g0.6", (235.5, 424.5))
+    return br_meta(r, "take the map item g0.6 (0015AFA0, item 0x08) south of the slide's foot", marks=take)
+
+
+def br_beat_elevator_up(r: Route) -> dict:
+    # From the 04_elevator_ride end on the lower floor (D_0081083A = 1, the
+    # terminal's heights at 190): Cross at the terminal again runs the
+    # powered script 0x82A750 and the carry back up; D_0081083A toggles to 0.
+    use_br_sampler(r)
+    br_pin(r, "br_02_elevator_up")
+    r.idle(5)
+    down0 = r.rows[-1]["elev"]["down83A"]
+    face(r, -1.3037)
+    f0 = r.frame_index
+    for _ in range(4):
+        r.press("CROSS", 2)
+        for _ in range(40):
+            if not in_control(r.rows[-1]):
+                break
+            r.step(1)
+        if not in_control(r.rows[-1]):
+            break
+        settle(r, 10)
+    else:
+        raise TimeoutError("terminal did not start; last " + summary(r.rows[-1]))
+    r.until(lambda row: row["elev"]["down83A"] != down0, 1500)
+    r.until(in_control, 1500)
+    settle(r, 30)
+    return br_meta(r, "Cross at the terminal on the lower floor: the ride back up (D_0081083A 1 -> 0)",
+                   marks={"press": f0, "toggle": next(x["f"] for x in r.rows if x["elev"]["down83A"] != down0)})
+
+
+def br_beat_panel_decline(r: Route) -> dict:
+    # From the 02_elevator_refusal end (battery in hand, power off): Cross at
+    # the panel (script 0x2477A0, then the BATTERY page on its two-unit
+    # prompt, default No), Cross on No, then Triangle until the status
+    # closes: with the owner's +0x0A still 0, 00159210 runs the cancel
+    # script 0x247DA0 and returns to its use-ready sub-state (+0 = 1,
+    # +5 = 0); the power bit stays clear and the charge stays 12.
+    use_br_sampler(r)
+    br_pin(r, "br_03_panel_decline")
+    r.idle(5)
+    use_panel(r)
+    f0 = r.frame_index
+    r.until(lambda row: row["ui"][2:4] == "03" and row["ui"][8:10] == "05" and row["ui"][10:12] == "04", 900)
+    f_prompt = r.frame_index
+    r.idle(30)
+    r.press("CROSS", 2)
+    r.idle(60)
+    f_no = r.frame_index
+    for _ in range(8):
+        if not br_status_open(r.rows[-1]):
+            break
+        r.press("TRIANGLE", 2)
+        for _ in range(40):
+            if not br_status_open(r.rows[-1]):
+                break
+            r.step(1)
+    if br_status_open(r.rows[-1]):
+        raise TimeoutError("status did not close; last " + summary(r.rows[-1]))
+    r.until(in_control, 1500)
+    settle(r, 30)
+    if r.rows[-1]["power"] & 0x80:
+        raise RuntimeError("power came on")
+    return br_meta(r, "Cross at the power panel with the battery, No on the two-unit prompt, Triangle out: "
+                      "the cancel script, power stays off",
+                   marks={"left_control": f0, "prompt": f_prompt, "no_pressed": f_no})
+
+
+def br_beat_crate_stack_break(r: Route) -> dict:
+    # From the 04_elevator_ride end on the lower floor: light melee on box r5
+    # (214.7, 189.8, 292.8), the support under r3: r5 breaks (damage break,
+    # model 6 -> husk 0x22); every damage break wakes the raised r3 (+0x0A),
+    # whose corner probes decide whether it holds, tips or falls.
+    use_br_sampler(r)
+    br_pin(r, "br_04_crate_stack_break")
+    r.idle(5)
+    walk_path(r, [(222.0, 270.0), (214.7, 282.5)], tol=1.0)
+    r.set_pad(0)
+    hit = br_melee(r, "r5", (214.7, 284.0))
+    r.idle(180)
+    return br_meta(r, "light melee on box r5 under r3 on the lower floor: r5 breaks, r3 wakes", marks=hit)
+
+
+def br_beat_west_ladder_up(r: Route) -> dict:
+    # From the 09_fence_door end (behind the fence, entry 2): west through
+    # the yard north of the cage to the west-yard ladder (attribute-0x32
+    # column x 316.9..325.6, z 213.5..220.2) and up to the 250 ledge.  The
+    # yard north of the fence (z < 289.5) is reached only through the door.
+    use_br_sampler(r)
+    br_pin(r, "br_05_west_ladder_up")
+    r.idle(5)
+    # The corridor north of the cage (z 205..224) is closed at x 344.4..354.4
+    # by a box 10 high: climb it from the east (Use, the ledge climb) and
+    # run off its west side (a walk at half stick stops at the edge).
+    walk_path(r, [(412.0, 240.0), (398.0, 215.0), (362.0, 214.0)], tol=2.0)
+    r.set_pad(0)
+    settle(r, 5)
+    br_climb(r, -math.pi / 2)
+    for _ in range(200):
+        if r.rows[-1]["pos"][0] <= 332.0 and in_control(r.rows[-1]):
+            break
+        if r.rows[-1]["m1F0"] in (0, 1):
+            r.stick_toward(326.0, 215.0, 1.0)
+        else:
+            r.set_pad(0)
+        r.step(1)
+    else:
+        raise TimeoutError("did not get off the box; last " + summary(r.rows[-1]))
+    r.set_pad(0)
+    settle(r, 10)
+    lad = br_ladder_up(r, WEST_LADDER_FOOT, WEST_LADDER_YAW)
+    return br_meta(r, "west-yard ladder from the yard (185) to the 250 ledge", marks=lad)
+
+
+def br_beat_ledge_crate_break(r: Route) -> dict:
+    # From br_05's end on the 250 ledge: walk south to box r6 (311.4, 249.7,
+    # 328.1) and break it with the light melee.
+    use_br_sampler(r)
+    br_pin(r, "br_06_ledge_crate_break")
+    r.idle(5)
+    walk_path(r, [(316.0, 240.0), (316.0, 300.0), (314.0, 316.0)], tol=2.0)
+    r.set_pad(0)
+    hit = br_melee(r, "r6", (312.0, 319.0))
+    return br_meta(r, "light melee on box r6 on the 250 ledge: r6 breaks", marks=hit)
+
+
+def br_beat_ledge_magazine(r: Route) -> dict:
+    # From br_06's end: pickup g0.5 (00219550, item 0x10, puid 8) at
+    # (311.6, 249.8, 328.7), where box r6 stood.
+    use_br_sampler(r)
+    br_pin(r, "br_07_ledge_magazine")
+    r.idle(5)
+    take = br_take(r, "g0.5", (312.0, 321.0))
+    return br_meta(r, "take pickup g0.5 (item 0x10) where box r6 stood", marks=take)
+
+
+def br_beat_west_ladder_down(r: Route) -> dict:
+    # From br_07's end: back north to the ladder's top node and down to the
+    # yard (the grab from above).
+    use_br_sampler(r)
+    br_pin(r, "br_08_west_ladder_down")
+    r.idle(5)
+    walk_path(r, [(314.0, 300.0), (316.0, 240.0), (316.0, 226.0)], tol=2.0)
+    r.set_pad(0)
+    lad = br_ladder_down(r, WEST_LADDER_TOP, WEST_LADDER_YAW + math.pi)
+    return br_meta(r, "west-yard ladder from the 250 ledge down to the yard", marks=lad)
+
+
+def br_beat_cage_key(r: Route) -> dict:
+    # From the 08_truck_crossing end: route beat 10's ladder A to the cage
+    # floor (225), then pickup g0.4 (00219550, model 2 wall mount, item
+    # 0x32, puid 7) at (381.3, 225.3, 266.8) on the cage's east side.
+    use_br_sampler(r)
+    br_pin(r, "br_09_cage_key")
+    r.idle(5)
+    walk_path(r, [(360.0, 320.0), (360.0, 296.0)], tol=1.0)
+    r.set_pad(0)
+    settle(r, 5)
+    lad = br_ladder_up(r, CAGE_LADDER_A, math.pi)
+    walk_path(r, [(366.0, 272.0)], tol=1.0)
+    r.set_pad(0)
+    take = br_take(r, "g0.4", (375.0, 266.8))
+    return br_meta(r, "cage ladder A to the cage floor, take pickup g0.4 (item 0x32)", marks=dict(take, ladder=lad))
+
+
+def br_beat_yard_ammo(r: Route) -> dict:
+    # From the 09_fence_door end (behind the fence, entry 2): across the yard
+    # (185) to pickup g0.1 (00219550, item 0x1E, puid 4) at (467.3, 184.8,
+    # 227.4), south of the north block.
+    use_br_sampler(r)
+    br_pin(r, "br_10_yard_ammo")
+    r.idle(5)
+    walk_path(r, [(440.0, 255.0), (458.0, 235.0)], tol=2.0)
+    r.set_pad(0)
+    take = br_take(r, "g0.1", (462.0, 231.0))
+    return br_meta(r, "take pickup g0.1 (item 0x1E) on the yard floor", marks=take)
+
+
+def br_beat_plateau_ladder_up(r: Route) -> dict:
+    # From the 11_crevice_prompt end on the pipe end (279.9): down onto the
+    # 270 plateau, south over the pipe to the plateau ladder (column
+    # x 467.6..476.7, z 400..407) and up to the 355 top.
+    use_br_sampler(r)
+    br_pin(r, "br_11_plateau_ladder_up")
+    r.idle(5)
+    # The plateau is crossed by a raised pipe (279.1, x 445..495, its north
+    # face's normal (0.647, -0.762)): climb it facing south-east (the ledge
+    # climb), run off its south side, then on to the ladder's foot east of
+    # the column the ladder is fixed to (x 462..473, z 394..418).
+    walk_path(r, [(480.0, 300.0), (481.0, 330.0), (484.0, 352.0)], tol=2.0)
+    r.set_pad(0)
+    settle(r, 5)
+    br_climb(r, math.atan2(-0.647, 0.762))
+    for _ in range(200):
+        row = r.rows[-1]
+        if row["pos"][1] < 275.0 and in_control(row):
+            break
+        if row["m1F0"] in (0, 1):
+            r.stick_toward(484.0, 384.0, 1.0)
+        else:
+            r.set_pad(0)
+        r.step(1)
+    else:
+        raise TimeoutError("did not get off the pipe; last " + summary(r.rows[-1]))
+    r.set_pad(0)
+    settle(r, 10)
+    walk_path(r, [(486.0, 388.0), (481.0, 399.0)], tol=2.0)
+    r.set_pad(0)
+    lad = br_ladder_up(r, PLATEAU_LADDER_FOOT, PLATEAU_LADDER_YAW)
+    return br_meta(r, "plateau ladder from the 270 plateau to the 355 top", marks=lad)
+
+
+def br_beat_tower_ammo(r: Route) -> dict:
+    # From br_11's end on the 355 top: pickup g0.2 (00219550, item 0x1F,
+    # puid 5) at (431.9, 354.8, 411.8).
+    use_br_sampler(r)
+    br_pin(r, "br_12_tower_ammo")
+    r.idle(5)
+    # A block (x 434..457, z 397..420) stands in the middle of the top:
+    # round it by the south side.
+    walk_path(r, [(459.5, 393.0), (445.0, 392.0), (432.0, 394.5)], tol=1.5)
+    r.set_pad(0)
+    take = br_take(r, "g0.2", (430.5, 404.5))
+    return br_meta(r, "take pickup g0.2 (item 0x1F) on the 355 top", marks=take)
+
+
+def br_beat_plateau_ladder_down(r: Route) -> dict:
+    # From br_12's end: back to the ladder's top node and down to the
+    # plateau (the grab from above).
+    use_br_sampler(r)
+    br_pin(r, "br_13_plateau_ladder_down")
+    r.idle(5)
+    walk_path(r, [(432.0, 394.5), (445.0, 392.0), (459.5, 393.0), (461.0, 404.5)], tol=1.5)
+    r.set_pad(0)
+    lad = br_ladder_down(r, PLATEAU_LADDER_TOP, PLATEAU_LADDER_YAW + math.pi)
+    return br_meta(r, "plateau ladder from the 355 top down to the plateau", marks=lad)
+
+
+def br_beat_roger_talk(r: Route) -> dict:
+    # From the 14_roger_encounter end on the west tower top (D_008107D8 = 1):
+    # Roger r8's third branch (0x823B70) starts its talk script 0x828810
+    # when the use scan marks it (+0x0B & 4); the script's end clears +0x0B.
+    use_br_sampler(r)
+    br_pin(r, "br_14_roger_talk")
+    r.idle(5)
+    rx, _ry, rz = r.rows[-1]["roger_r8"]["pos"]
+    face(r, br_bearing(r.rows[-1], rx, rz), tol=0.06)
+    f0 = None
+    for _ in range(4):
+        f0 = r.frame_index
+        r.press("CROSS", 2)
+        for _ in range(40):
+            if not in_control(r.rows[-1]):
+                break
+            r.step(1)
+        if not in_control(r.rows[-1]):
+            break
+        px, _py, pz = r.rows[-1]["pos"]
+        r.goto(px + (rx - px) * 0.3, pz + (rz - pz) * 0.3, tol=0.5, magnitude=0.4, stuck_ok=True)
+        settle(r, 5)
+        face(r, br_bearing(r.rows[-1], rx, rz), tol=0.06)
+    else:
+        raise TimeoutError("Roger's talk did not start; last " + summary(r.rows[-1]))
+    r.until(in_control, 6000)
+    settle(r, 60)
+    return br_meta(r, "Cross at Roger after the encounter: his talk script 0x828810", marks={"press": f0})
+
+
+BR_BEATS = [
+    ("br_00_ledge_ammo", "05_boxes", br_beat_ledge_ammo),
+    ("br_01_map_item", "06_hill_slide", br_beat_map_item),
+    ("br_02_elevator_up", "04_elevator_ride", br_beat_elevator_up),
+    ("br_03_panel_decline", "02_elevator_refusal", br_beat_panel_decline),
+    ("br_04_crate_stack_break", "04_elevator_ride", br_beat_crate_stack_break),
+    ("br_05_west_ladder_up", "09_fence_door", br_beat_west_ladder_up),
+    ("br_06_ledge_crate_break", "br_05_west_ladder_up", br_beat_ledge_crate_break),
+    ("br_07_ledge_magazine", "br_06_ledge_crate_break", br_beat_ledge_magazine),
+    ("br_08_west_ladder_down", "br_07_ledge_magazine", br_beat_west_ladder_down),
+    ("br_09_cage_key", "08_truck_crossing", br_beat_cage_key),
+    ("br_10_yard_ammo", "09_fence_door", br_beat_yard_ammo),
+    ("br_11_plateau_ladder_up", "11_crevice_prompt", br_beat_plateau_ladder_up),
+    ("br_12_tower_ammo", "br_11_plateau_ladder_up", br_beat_tower_ammo),
+    ("br_13_plateau_ladder_down", "br_12_tower_ammo", br_beat_plateau_ladder_down),
+    ("br_14_roger_talk", "14_roger_encounter", br_beat_roger_talk),
+]
+
+
+def br_selected(spec: str) -> list[tuple]:
+    """`br` = every BRANCH beat in order; otherwise names or name prefixes."""
+    wanted = spec.split(",")
+    if "br" in wanted:
+        return list(BR_BEATS)
+    return [b for b in BR_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+def br_event_keys(row: dict) -> dict:
+    """The branch fields events() adds for BRANCH rows."""
+    return {"taken11": row["taken11"][:4], "inv": ",".join(f"{k}:{v}" for k, v in row["inv_br"].items() if v),
+            "weap": f"{row['weap']['mag']}/{row['weap']['reserve']}",
+            "items": ",".join(f"{n}:{v['h'][8:10]}" for n, v in row["items"].items()),
+            "boxes": ",".join(f"{n}:{v['h'][:2]}/{v['h'][8:10]}/{v['dmg36']}" for n, v in row["boxes"].items()),
+            "elev83A": row["elev"]["down83A"], "roger": row["roger"]["a"][8:12] + "/" + row["roger"]["a"][22:24],
+            "roger_script": row["roger"]["script"], "uirec": row["ui_rec"][:10]}
+
+
+# ---------------------------------------------------------------------------
+# OPTIONS capture group (C10 lane OPTIONS, opt-in, `--beats opt` or a beat's
+# name): the in-game options screen of AREA11 and its memory-card paths.
+# SELECT in gameplay makes the classifier 001AE7E0 return 1, the frame machine
+# (gameplay task 0x28A750, +0xB frame state) goes to state 2 and runs the
+# options screen 0022A650 every frame (world frozen) until it returns: +0xC is
+# its state, +0x1C its cursor over the nine rows of D_002672E0 (exit,
+# vibration, sound, screen position, brightness, button config, load,
+# default, quit game).  The settings live in D_00810118 (+0 button type, +1
+# vibration, +3 the default prompt, +4 sound, +8/+0xA the saved screen
+# offset); the screen offset itself is 0x70003B94 / 0x70003B96 and the button
+# type's action masks are 0x70003B74..0x70003B82.  The status screen (START)
+# has no options page: its hub reaches DATABASE, SPR4, MAP and ITEM only.
+# Every beat starts from the 08_truck_crossing snapshot, pins its first input
+# to a main-loop counter, drives closed loop with pad input only (each press
+# repeated until its effect shows) and writes build/c10/options/<beat>/.
+# No beat writes a memory card: the LOAD row's screen (00225AC0 in load mode)
+# is left at its slot choice.  Described in docs/CAPTURES_C10.md (section
+# OPTIONS).
+OUT_OPT = ROOT / "build/c10/options"
+OPT_TASK = 0x28A750                     # the gameplay task slot (001ACEC0)
+OPT_ROWS = ("exit", "vibration", "sound", "screen_position", "brightness", "button_config",
+            "load", "default", "quit_game")       # cursor 0..8 (D_002672E0 = 7, 0, 1, 2, 3, 4, 9, 5, 8)
+OPT_SPANS = DMG_SPANS + [
+    ("opt118", 0x810118, 0x10),         # D_00810118 options record
+    ("mc040", 0x810040, 0xD4),          # D_00810040 memory-card screen record (+0 state, +1 sub, +0x14 mode)
+    ("msgblk", 0x2821B0, 0xB0),         # D_002821B0..0x28225F (message machine, D_00282240 layout base)
+    ("snd150", 0x282150, 0x10),         # 0x282150..5F (D_00282157 loader gate, D_0028215B)
+    ("task0x", OPT_TASK, 0x30),         # the gameplay task slot, whole
+]
+
+
+class OptSampler(AimSampler):
+    """AimSampler's pool logic over OPT_SPANS."""
+
+    def __init__(self, session: OriginalSession):
+        self.s = session
+        self.spans = OPT_SPANS
+        self.body = b"".join(struct.pack("<BI", 2, a + i)
+                             for _n, a, n in self.spans for i in range(0, n, 4))
+        self.pool0 = None
+
+
+def decode_opt(r: dict[str, bytes]) -> dict:
+    row = decode_dmg(r)
+    o, t, sp, pb, mc = r["opt118"], r["task0x"], r["spad_hi"], r["padblk"], r["mc040"]
+    row["opt"] = 1
+    row["opt118"] = o.hex()
+    row["task0x"] = t.hex()
+    row["mc040"] = mc.hex()
+    row["msgblk"] = r["msgblk"].hex()
+    row["snd150"] = r["snd150"].hex()
+    row["ov"] = {
+        "type": o[0], "vib": o[1], "dflt": o[3], "sound": o[4], "pos8": _s16(o, 8), "posA": _s16(o, 0xA),
+        "fn": struct.unpack_from("<I", t, 4)[0], "s8": t[8], "s9": t[9], "fstate": t[0xB], "mstate": t[0xC],
+        "msub": t[0xD], "m12": t[0x12], "m13": t[0x13], "cursor": struct.unpack_from("<H", t, 0x1C)[0],
+        "timer": struct.unpack_from("<H", t, 0x1E)[0], "c4": r["glob"][0xC4],
+        "x3B94": _s16(sp, 0x54), "y3B96": _s16(sp, 0x56), "b3B90": sp[0x50], "b3B93": sp[0x53],
+        "masks": sp[0x34:0x44].hex(), "e6a": pb[0x2A], "e50": pb[0x10],
+        "rep": hex(struct.unpack_from("<H", pb, 0x38)[0]),
+        "mc_state": mc[0], "mc_sub": mc[1], "mc_mode": mc[0x14], "mc_result": mc[0x16],
+        "b15B": r["snd150"][0xB], "bd8": r["bd8"][0],
+    }
+    return row
+
+
+def use_opt_sampler(r: Route) -> None:
+    sampler = OptSampler(r.s)
+    r.sampler = sampler
+    r.now = lambda: decode_opt(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+    r.rows[0]["pool0"] = {k: v for k, v in sampler.pool0.items() if int(v, 16)}
+    r.s.boundary_timeout = 120.0
+
+
+OPT_PIN_AFTER = 30     # frames after the source snapshot's main-loop counter (as DAMAGE, BRANCH)
+
+
+def opt_pin(r: Route, beat: str) -> None:
+    """Pin the beat's first input to the source snapshot's counter + 30 (the
+    loaded state runs freely until Pine answers; see br_pin)."""
+    source = next(b[1] for b in OPT_BEATS if b[0] == beat)
+    snap = json.loads((beat_dir(source) / "snapshot.json").read_text())
+    pin = snap["main_loop_counter"] + OPT_PIN_AFTER
+    if r.rows[-1]["counter"] > pin:
+        raise RuntimeError(f"start counter {r.rows[-1]['counter']} is past the pin {pin}")
+    r.set_pad(0)
+    r.until(lambda row: row["counter"] >= pin, 400)
+
+
+def opt_menu(row: dict, state: int | None = None) -> bool:
+    """The options screen runs (frame state 2); `state` = its +0xC state."""
+    v = row["ov"]
+    return v["fn"] == 0x1ACEC0 and v["fstate"] == 2 and (state is None or v["mstate"] == state)
+
+
+def opt_press(r: Route, button: str, pred, wait: int = 30, tries: int = 6) -> int:
+    """Tap `button` (2 frames) until `pred` holds, waiting up to `wait` frames
+    after each tap (a press that lands while a screen is busy is ignored).
+    Returns the frame index of the press that took effect."""
+    for _ in range(tries):
+        f = r.frame_index
+        r.press(button, 2)
+        for _ in range(wait):
+            if pred(r.rows[-1]):
+                return f
+            r.step(1)
+        if pred(r.rows[-1]):
+            return f
+    raise TimeoutError(f"{button}: no effect after {tries} presses; last {summary(r.rows[-1])} "
+                       f"ov={r.rows[-1]['ov']}")
+
+
+def opt_open(r: Route, marks: dict, key: str = "open") -> None:
+    """SELECT in gameplay: the options screen in its browse state (1)."""
+    settle(r, 10)
+    marks.setdefault(key, []).append(opt_press(r, "SELECT", lambda row: opt_menu(row, 1), wait=40))
+    r.idle(10)
+
+
+def opt_cursor_to(r: Route, index: int, marks: dict) -> None:
+    """Move the cursor with Down (or Up when it is shorter) to row `index`."""
+    while r.rows[-1]["ov"]["cursor"] != index:
+        cur = r.rows[-1]["ov"]["cursor"]
+        button = "DOWN" if (index - cur) % 9 <= (cur - index) % 9 else "UP"
+        nxt = (cur + (1 if button == "DOWN" else -1)) % 9
+        marks.setdefault("cursor", []).append(
+            [opt_press(r, button, lambda row, n=nxt: row["ov"]["cursor"] == n and opt_menu(row, 1)), nxt])
+        r.idle(8)
+
+
+def opt_close(r: Route, button: str, marks: dict) -> None:
+    """Close the options screen with `button` (Cross on the exit row, Circle,
+    Triangle or SELECT) and wait for control."""
+    marks.setdefault("close", []).append([opt_press(r, button, lambda row: not opt_menu(row), wait=60), button])
+    r.until(in_control, 600)
+    settle(r, 20)
+
+
+def opt_meta(r: Route, what: str, marks: dict, **extra) -> dict:
+    last = r.rows[-1]["ov"]
+    return dict(extra, what=what, marks=marks,
+                end={"opt118": r.rows[-1]["opt118"], "x3B94": last["x3B94"], "y3B96": last["y3B96"],
+                     "masks": last["masks"], "b15B": last["b15B"], "fstate": last["fstate"],
+                     "mstate": last["mstate"], "c4": last["c4"], "pos": r.rows[-1]["pos"],
+                     "health": r.rows[-1]["vit"]["health"], "area": r.rows[-1]["area4"]})
+
+
+def opt_toggle(r: Route, row_index: int, field: str, marks: dict) -> None:
+    """Rows 1 (vibration, +1) and 2 (sound, +4): Cross enters 00201720 (state
+    5), Right flips the field, Cross keeps it (back to state 1)."""
+    opt_cursor_to(r, row_index, marks)
+    marks.setdefault("enter", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 5)))
+    r.idle(10)
+    before = r.rows[-1]["ov"][field]
+    marks.setdefault("right", []).append(opt_press(r, "RIGHT", lambda row: row["ov"][field] != before))
+    r.idle(20)
+    marks.setdefault("keep", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 1)))
+    r.idle(20)
+
+
+def opt_beat_browse_close(r: Route) -> dict:
+    # Open, browse every row down (the cursor wraps from quit game to exit)
+    # and back up, close with Cross on the exit row; then open and close once
+    # each with Circle, Triangle and SELECT (0022A650 state 1: hit, 0x20,
+    # 0x10, 0x100 all go to state 12).
+    use_opt_sampler(r)
+    opt_pin(r, "opt_00_browse_close")
+    marks: dict = {}
+    opt_open(r, marks)
+    for i in range(1, 10):
+        opt_cursor_to(r, i % 9, marks)
+    for nxt in range(8, -1, -1):           # Up from the exit row wraps to quit game
+        marks.setdefault("cursor", []).append(
+            [opt_press(r, "UP", lambda row, n=nxt: row["ov"]["cursor"] == n and opt_menu(row, 1)), nxt])
+        r.idle(8)
+    opt_close(r, "CROSS", marks)
+    for button in ("CIRCLE", "TRIANGLE", "SELECT"):
+        opt_open(r, marks)
+        opt_close(r, button, marks)
+    return opt_meta(r, "SELECT opens the options screen; every row browsed down (wrap) and up; "
+                       "closed by Cross on the exit row, Circle, Triangle and SELECT", marks)
+
+
+def opt_beat_vibration(r: Route) -> dict:
+    use_opt_sampler(r)
+    opt_pin(r, "opt_01_vibration")
+    marks: dict = {}
+    opt_open(r, marks)
+    opt_toggle(r, 1, "vib", marks)          # on -> off
+    opt_toggle(r, 1, "vib", marks)          # off -> on
+    opt_cursor_to(r, 0, marks)
+    opt_close(r, "CROSS", marks)
+    return opt_meta(r, "vibration row: Cross, Right (off), Cross; again Right (on), Cross; closed", marks)
+
+
+def opt_beat_sound(r: Route) -> dict:
+    use_opt_sampler(r)
+    opt_pin(r, "opt_02_sound")
+    marks: dict = {}
+    opt_open(r, marks)
+    opt_toggle(r, 2, "sound", marks)        # stereo -> mono
+    opt_toggle(r, 2, "sound", marks)        # mono -> stereo
+    opt_cursor_to(r, 0, marks)
+    opt_close(r, "CROSS", marks)
+    return opt_meta(r, "sound row: Cross, Right (the other mode), Cross; again Right (back), Cross; closed",
+                    marks)
+
+
+def opt_enter_module(r: Route, row_index: int, state: int, marks: dict) -> None:
+    """Rows 3..5: Cross goes through state 10 (0022A590 loads screen module
+    0x2B) to the row's screen (states 7, 8, 9)."""
+    opt_cursor_to(r, row_index, marks)
+    marks.setdefault("enter", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row) and row["ov"]["mstate"]
+                                                   in (10, state), wait=20))
+    r.until(lambda row: opt_menu(row, state), 600)
+    marks.setdefault("screen", []).append([r.frame_index, state])
+    r.idle(20)
+
+
+def opt_screen_moves(r: Route, moves: list[tuple[str, int]], marks: dict) -> None:
+    """Screen position (00201F70): each tap moves 0x70003B94 / 0x70003B96 by one."""
+    for button, n in moves:
+        for _ in range(n):
+            before = (r.rows[-1]["ov"]["x3B94"], r.rows[-1]["ov"]["y3B96"])
+            marks.setdefault("move", []).append(
+                [opt_press(r, button, lambda row, b=before: (row["ov"]["x3B94"], row["ov"]["y3B96"]) != b), button])
+            r.idle(6)
+
+
+def opt_beat_screen_position(r: Route) -> dict:
+    # Cross on the screen-position row (module 0x2B, 00201F70): Up 3, Left 2,
+    # Cross keeps the new offset; again: Down 3, Right 2, Cross (back to the
+    # start); again: Up 2, then Circle restores the offset it was entered
+    # with.  Closed by Cross on the exit row.
+    use_opt_sampler(r)
+    opt_pin(r, "opt_03_screen_position")
+    marks: dict = {}
+    opt_open(r, marks)
+    start = (r.rows[-1]["ov"]["x3B94"], r.rows[-1]["ov"]["y3B96"])
+    opt_enter_module(r, 3, 7, marks)
+    opt_screen_moves(r, [("UP", 3), ("LEFT", 2)], marks)
+    marks.setdefault("keep", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 1), wait=60))
+    r.idle(20)
+    changed = (r.rows[-1]["ov"]["x3B94"], r.rows[-1]["ov"]["y3B96"])
+    opt_enter_module(r, 3, 7, marks)
+    opt_screen_moves(r, [("DOWN", 3), ("RIGHT", 2)], marks)
+    marks.setdefault("keep", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 1), wait=60))
+    r.idle(20)
+    opt_enter_module(r, 3, 7, marks)
+    opt_screen_moves(r, [("UP", 2)], marks)
+    marks.setdefault("back", []).append(opt_press(r, "CIRCLE", lambda row: opt_menu(row, 1), wait=60))
+    r.idle(20)
+    opt_cursor_to(r, 0, marks)
+    opt_close(r, "CROSS", marks)
+    return opt_meta(r, "screen position: Up 3 / Left 2 kept, then Down 3 / Right 2 kept (back), then Up 2 "
+                       "cancelled with Circle; closed", marks, start_offset=start, changed_offset=changed)
+
+
+def opt_beat_brightness(r: Route) -> dict:
+    # Cross on the brightness row (module 0x2B, 00202BA0): a still screen
+    # with no setting.  Opened three times: Cross and Circle return to the
+    # list (00202BA0 returns 1, state 2); Triangle returns 2, state 11 and
+    # then 12: the options screen closes.
+    use_opt_sampler(r)
+    opt_pin(r, "opt_04_brightness")
+    marks: dict = {}
+    opt_open(r, marks)
+    for button in ("CROSS", "CIRCLE"):
+        opt_enter_module(r, 4, 8, marks)
+        r.idle(30)
+        marks.setdefault("back", []).append([opt_press(r, button, lambda row: opt_menu(row, 1), wait=60), button])
+        r.idle(20)
+    opt_enter_module(r, 4, 8, marks)
+    r.idle(30)
+    marks.setdefault("close", []).append([opt_press(r, "TRIANGLE", lambda row: not opt_menu(row), wait=60),
+                                          "TRIANGLE"])
+    r.until(in_control, 600)
+    settle(r, 20)
+    return opt_meta(r, "brightness: the still screen, left with Cross and with Circle (the list) and "
+                       "with Triangle (the options screen closes)", marks)
+
+
+def opt_button_type(r: Route, to: int, marks: dict) -> None:
+    """Button config (00202D10): Right / Left move the type cursor (+0 of
+    D_00810118 holds it), Cross commits through 001AF470 (the action masks)."""
+    opt_enter_module(r, 5, 9, marks)
+    while r.rows[-1]["ov"]["type"] != to:
+        cur = r.rows[-1]["ov"]["type"]
+        button = "RIGHT" if to > cur else "LEFT"
+        marks.setdefault("move", []).append(
+            [opt_press(r, button, lambda row, c=cur: row["ov"]["type"] != c), button])
+        r.idle(10)
+    masks = r.rows[-1]["ov"]["masks"]
+    marks.setdefault("keep", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 1), wait=60))
+    r.idle(20)
+    marks.setdefault("masks", []).append([to, masks, r.rows[-1]["ov"]["masks"]])
+
+
+def opt_beat_button_config(r: Route) -> dict:
+    # Types A -> B (kept), B -> C (kept), C -> A (kept); each Cross commits
+    # the type's action masks.  Closed by Cross on the exit row.
+    use_opt_sampler(r)
+    opt_pin(r, "opt_05_button_config")
+    marks: dict = {}
+    opt_open(r, marks)
+    for to in (1, 2, 0):
+        opt_button_type(r, to, marks)
+    opt_cursor_to(r, 0, marks)
+    opt_close(r, "CROSS", marks)
+    return opt_meta(r, "button config: type A -> B, B -> C, C -> A, each kept with Cross; closed", marks)
+
+
+def opt_beat_default(r: Route) -> dict:
+    # Vibration off first (row 1).  Default row (00201C50, state 6): Cross,
+    # Cross with the prompt on No (nothing changes); Cross, Right (Yes),
+    # Cross: the defaults (vibration on for this pad, sound +4 = 0, type A,
+    # screen offset 0) are written.  Closed by Cross on the exit row.
+    use_opt_sampler(r)
+    opt_pin(r, "opt_06_default")
+    marks: dict = {}
+    opt_open(r, marks)
+    opt_toggle(r, 1, "vib", marks)
+    opt_cursor_to(r, 7, marks)
+    marks.setdefault("enter", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 6)))
+    r.idle(20)
+    marks.setdefault("no", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 1)))
+    r.idle(20)
+    marks.setdefault("enter", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 6)))
+    r.idle(10)
+    marks.setdefault("right", []).append(opt_press(r, "RIGHT", lambda row: row["ov"]["dflt"] == 1))
+    r.idle(20)
+    marks.setdefault("yes", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 1)))
+    r.idle(20)
+    opt_cursor_to(r, 0, marks)
+    opt_close(r, "CROSS", marks)
+    return opt_meta(r, "vibration off; default row: No (nothing), then Yes (the defaults restore "
+                       "vibration on); closed", marks)
+
+
+def opt_beat_load_cancel(r: Route) -> dict:
+    # Load row: 001AF6F0 clears D_00810040, state 3 runs 00225AC0(0) (load
+    # mode, +0x14 = 2): the sound stops, screen module 0x2A loads, the load
+    # screen fades in at its memory-card slot choice.  Triangle leaves it
+    # (00225AC0 returns 1): state 2, 00200970(1), back to the list.  No slot
+    # is chosen; nothing is read beyond the card check and nothing written.
+    use_opt_sampler(r)
+    opt_pin(r, "opt_07_load_cancel")
+    marks: dict = {}
+    opt_open(r, marks)
+    opt_cursor_to(r, 6, marks)
+    marks.setdefault("enter", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 3)))
+    r.until(lambda row: row["ov"]["mc_state"] == 1 and dmg_fade(row) == 0, 900)
+    marks["slot_choice"] = r.frame_index
+    r.idle(60)
+    marks.setdefault("back", []).append(opt_press(r, "TRIANGLE", lambda row: row["ov"]["mc_state"] >= 2,
+                                                  wait=40))
+    r.until(lambda row: opt_menu(row, 1) and dmg_fade(row) == 0, 900)
+    marks["list_again"] = r.frame_index
+    r.idle(30)
+    opt_cursor_to(r, 0, marks)
+    opt_close(r, "CROSS", marks)
+    return opt_meta(r, "load row: the load screen up to its memory-card slot choice, left with Triangle "
+                       "(no slot chosen); closed", marks)
+
+
+def opt_beat_quit_cancel(r: Route) -> dict:
+    # Quit-game row: state 4 runs the yes/no prompt 0022B420 (its choice is
+    # task +0x13, 0 = No, the default; Right flips it).  Right (Yes), Right
+    # (No), Cross on No: 0022B420 returns 1, back to the list.  Again,
+    # Circle: returns 1, the list.  Again, Triangle: returns 2, state 12, the
+    # options screen closes (the original sets 2 when 0x10 is pressed; the
+    # NEARMISS C of 0022B420 has the two swapped).  Cross on Yes (0022B420 returns 3, the frame
+    # machine calls 001AD140, the game-over wait toward the title menu) is
+    # not taken.
+    use_opt_sampler(r)
+    opt_pin(r, "opt_08_quit_cancel")
+    marks: dict = {}
+    opt_open(r, marks)
+    opt_cursor_to(r, 8, marks)
+    marks.setdefault("enter", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 4)))
+    r.idle(30)
+    for want in (1, 0):
+        marks.setdefault("right", []).append(
+            [opt_press(r, "RIGHT", lambda row, w=want: row["ov"]["m13"] == w and row["ov"]["msub"] == 1,
+                       wait=40), want])
+        r.idle(20)
+    if r.rows[-1]["ov"]["m13"] != 0:
+        raise RuntimeError("the quit prompt is not on No")
+    marks.setdefault("no", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 1), wait=60))
+    r.idle(20)
+    marks.setdefault("enter", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 4)))
+    r.idle(30)
+    marks.setdefault("back", []).append([opt_press(r, "CIRCLE", lambda row: opt_menu(row, 1), wait=60),
+                                         "CIRCLE"])
+    r.idle(20)
+    marks.setdefault("enter", []).append(opt_press(r, "CROSS", lambda row: opt_menu(row, 4)))
+    r.idle(30)
+    marks.setdefault("close", []).append([opt_press(r, "TRIANGLE", lambda row: not opt_menu(row), wait=60),
+                                          "TRIANGLE"])
+    r.until(in_control, 600)
+    settle(r, 20)
+    return opt_meta(r, "quit-game row: its yes/no prompt, Right to Yes and back to No, Cross on No (the "
+                       "list); Circle (the list); Triangle (the options screen closes)", marks)
+
+
+OPT_BEATS = [
+    ("opt_00_browse_close", "08_truck_crossing", opt_beat_browse_close),
+    ("opt_01_vibration", "08_truck_crossing", opt_beat_vibration),
+    ("opt_02_sound", "08_truck_crossing", opt_beat_sound),
+    ("opt_03_screen_position", "08_truck_crossing", opt_beat_screen_position),
+    ("opt_04_brightness", "08_truck_crossing", opt_beat_brightness),
+    ("opt_05_button_config", "08_truck_crossing", opt_beat_button_config),
+    ("opt_06_default", "08_truck_crossing", opt_beat_default),
+    ("opt_07_load_cancel", "08_truck_crossing", opt_beat_load_cancel),
+    ("opt_08_quit_cancel", "08_truck_crossing", opt_beat_quit_cancel),
+]
+
+
+def opt_selected(spec: str) -> list[tuple]:
+    """`opt` = every OPTIONS beat in order; otherwise names or name prefixes."""
+    wanted = spec.split(",")
+    if "opt" in wanted:
+        return list(OPT_BEATS)
+    return [b for b in OPT_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+def opt_event_keys(row: dict) -> dict:
+    """The options fields events() adds for OPTIONS rows."""
+    v = row["ov"]
+    return {"opt118": row["opt118"][:10], "pos": f"{v['pos8']}/{v['posA']}", "off": f"{v['x3B94']}/{v['y3B96']}",
+            "frame": f"{v['fstate']}/{v['mstate']}/{v['msub']}", "cursor": v["cursor"], "m13": v["m13"],
+            "c4": v["c4"], "masks": v["masks"], "mc": f"{v['mc_state']}/{v['mc_sub']}/{v['mc_mode']}/{v['mc_result']}",
+            "15B": v["b15B"], "bd8": v["bd8"], "e6a": v["e6a"]}
+
+
 def beat_source(source: str) -> Path:
     if len(source) == 2 and source.isdigit():
         return slot_path(source)
@@ -4563,6 +7330,20 @@ def beat_dir(name: str) -> Path:
         return OUT_A04B / name
     if name.startswith("a13_"):                 # ninth level, AREA13
         return OUT_A13 / name
+    if name.startswith("a19_"):                 # tenth level, AREA19
+        return OUT_A19 / name
+    if name.startswith("a13b_"):                # tenth level, AREA13 again
+        return OUT_A13B / name
+    if name.startswith("aim_"):                 # AIM capture group (docs/CAPTURES_C10.md)
+        return OUT_AIM / name
+    if name.startswith("exit_"):                # EXIT capture group (docs/CAPTURES_C10.md)
+        return OUT_EXIT / name
+    if name.startswith("dmg_"):                 # DAMAGE capture group (docs/CAPTURES_C10.md)
+        return OUT_DMG / name
+    if name.startswith("br_"):                  # BRANCH capture group (docs/CAPTURES_C10.md)
+        return OUT_BR / name
+    if name.startswith("opt_"):                 # OPTIONS capture group (docs/CAPTURES_C10.md)
+        return OUT_OPT / name
     return (OUT_A01 if name.startswith("a01_") else OUT) / name
 
 
@@ -4664,6 +7445,19 @@ def events(doc: dict, owners=None) -> list[str]:
             for key in A13_EVENT_KEYS:          # AREA13 rows only
                 if key in row:
                     cur[key] = row[key]
+            for key in A19_EVENT_KEYS:          # AREA19 rows only
+                if key in row:
+                    cur[key] = row[key]
+        if "w" in row:                      # AIM rows only
+            cur.update(aim_event_keys(row))
+        if "roger_script" in row:           # EXIT rows only
+            cur.update(exit_event_keys(row))
+        if "vit" in row:                    # DAMAGE rows only
+            cur.update(dmg_event_keys(row))
+        if "br" in row:                     # BRANCH rows only
+            cur.update(br_event_keys(row))
+        if "opt" in row:                    # OPTIONS rows only
+            cur.update(opt_event_keys(row))
         if prev is not None:
             diff = [f"{k}={cur[k]}" for k in cur if cur[k] != prev.get(k)]
             if diff:
@@ -4716,6 +7510,18 @@ if __name__ == "__main__":
                 run_beat(name, source, fn)
             for name, source, fn in a13_selected(a.beats):     # the ninth-level group
                 run_beat(name, source, fn)
+            for name, source, fn in tenth_selected(a.beats):   # the tenth-level groups
+                run_beat(name, source, fn)
+            for name, source, fn in aim_selected(a.beats):     # the AIM capture group
+                run_beat(name, source, fn)
+            for name, source, fn in exit_selected(a.beats):    # the EXIT capture group
+                run_beat(name, source, fn)
+            for name, source, fn in dmg_selected(a.beats):     # the DAMAGE capture group
+                run_beat(name, source, fn)
+            for name, source, fn in br_selected(a.beats):      # the BRANCH capture group
+                run_beat(name, source, fn)
+            for name, source, fn in opt_selected(a.beats):     # the OPTIONS capture group
+                run_beat(name, source, fn)
     elif a.command == "events":
         chosen = [b for b in BEATS if a.beats == "all" or b[0][:2] in a.beats.split(",")]
         chosen += a01_selected(a.beats) if a.beats != "all" else []
@@ -4729,6 +7535,12 @@ if __name__ == "__main__":
         chosen += a06_selected(a.beats) if a.beats != "all" else []
         chosen += eighth_selected(a.beats) if a.beats != "all" else []
         chosen += a13_selected(a.beats) if a.beats != "all" else []
+        chosen += tenth_selected(a.beats) if a.beats != "all" else []
+        chosen += aim_selected(a.beats) if a.beats != "all" else []
+        chosen += exit_selected(a.beats) if a.beats != "all" else []
+        chosen += dmg_selected(a.beats) if a.beats != "all" else []
+        chosen += br_selected(a.beats) if a.beats != "all" else []
+        chosen += opt_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             path = beat_dir(name) / "trace.json"
             if not path.exists():
@@ -4745,7 +7557,7 @@ if __name__ == "__main__":
                       A22_OWNERS if name.startswith("a22_") else
                       A01U_OWNERS if name.startswith("a01u_") else
                       A06_OWNERS if name.startswith("a06_") else
-                      eighth_owners(name) or ninth_owners(name))
+                      eighth_owners(name) or ninth_owners(name) or tenth_owners(name))
             for line in events(doc, owners):
                 print("  ", line)
     elif a.command == "identify":
@@ -4783,6 +7595,12 @@ if __name__ == "__main__":
         chosen += a06_selected(a.beats) if a.beats != "all" else []
         chosen += eighth_selected(a.beats) if a.beats != "all" else []
         chosen += a13_selected(a.beats) if a.beats != "all" else []
+        chosen += tenth_selected(a.beats) if a.beats != "all" else []
+        chosen += aim_selected(a.beats) if a.beats != "all" else []
+        chosen += exit_selected(a.beats) if a.beats != "all" else []
+        chosen += dmg_selected(a.beats) if a.beats != "all" else []
+        chosen += br_selected(a.beats) if a.beats != "all" else []
+        chosen += opt_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             state = beat_dir(name) / "state.p2s"
             if state.exists():

@@ -75,6 +75,25 @@ Usage (decomp .venv python, repo root):
     .venv/bin/python tools/route_census.py a06-delta --passes A06           # beyond every earlier group
                                                      # (earlier passes: --a01-passes .. --a22-passes,
                                                      # --a01u-passes; defaults A01 .. A22, A01U)
+    .venv/bin/python tools/route_census.py run --segments aim --pass AIM    # AIM group (opt-in, AREA11)
+    .venv/bin/python tools/route_census.py aim-delta --passes AIM          # new vs classified.json
+                                                     # -> build/aimfire/capture/census_delta.json
+    .venv/bin/python tools/route_census.py run --segments br --pass BR      # BRANCH group (opt-in, AREA11)
+    .venv/bin/python tools/route_census.py br-delta --passes BR            # new vs classified.json
+                                                     # -> build/c10/branch/census_delta.json
+    .venv/bin/python tools/route_census.py run --segments exit --pass EXIT  # EXIT group (opt-in)
+    .venv/bin/python tools/route_census.py c10-exit-delta --passes EXIT    # new vs classified.json
+                                                     # -> build/c10/exit/census_delta.json
+    .venv/bin/python tools/route_census.py run --segments dmg --pass DMG    # DAMAGE group (opt-in, AREA11)
+    .venv/bin/python tools/route_census.py dmg-delta --passes DMG          # new vs classified.json
+                                                     # -> build/c10/damage/census_delta.json
+    .venv/bin/python tools/route_census.py run --segments opt --pass OPT    # OPTIONS group (opt-in, AREA11)
+    .venv/bin/python tools/route_census.py opt-delta --passes OPT          # new vs classified.json
+                                                     # -> build/c10/options/census_delta.json
+    .venv/bin/python tools/route_census.py opt-save-scan                   # static save-path proof
+                                                     # -> build/c10/options/save_scan.json
+The exit_* segments arm the boot functions plus the resident overlay and swap
+AREA11's candidates for AREA01's when the overlay id changes (OverlayCensusSession).
 The a01r_* segments arm the boot functions plus the AREA01 overlay, the a02_*
 segments the boot functions plus the AREA02 overlay (docs/FOURTH_LEVEL_ROUTE.md),
 the a04_* segments the boot functions plus the AREA04 overlay
@@ -377,10 +396,10 @@ class CensusSession(rc.RouteSession):
                     raise RuntimeError(f"unexpected pauses: {self.unexpected[-3:]}")
 
 
-def open_census(state: Path, log_dir: Path, attempts: int = 6) -> CensusSession:
+def open_census(state: Path, log_dir: Path, attempts: int = 6, cls=None) -> CensusSession:
     for attempt in range(attempts):
         rc.wait_for_free_emulator()
-        session = CensusSession(state, log_dir=log_dir)
+        session = (cls or CensusSession)(state, log_dir=log_dir)
         try:
             return session.__enter__()
         except (RuntimeError, TimeoutError, OSError, EOFError) as exc:
@@ -426,6 +445,64 @@ def compare_rows(mine: list[dict], ref: list[dict]) -> dict:
             "first_differing_row": first,
             "rows_identical_ignoring_counter_clock_r9": same_phase,
             "counter_offset_row0": (mine[0]["counter"] - ref[0]["counter"]) if mine and ref else None}
+
+
+def inputs_by_counter(inputs: list[dict], rows: list[dict]) -> list[tuple]:
+    """A beat's pad changes keyed by the main-loop counter of the row they
+    follow (the frame index depends on the replay's start phase)."""
+    return [(rows[i["f"]]["counter"] if i["f"] < len(rows) else None, i["buttons"], i["lx"], i["ly"])
+            for i in inputs]
+
+
+def _pool_absolute(rows: list[dict]) -> list[dict]:
+    """Rows with a pool sample (AIM / EXIT samplers) keep only the headers that
+    differ from their own row 0, which depends on the start phase; rebuild the
+    absolute headers (`pool_abs`) so two runs compare.  Other rows pass through."""
+    if not rows or "pool0" not in rows[0]:
+        return rows
+    base = dict(rows[0]["pool0"])
+    out = []
+    for r_ in rows:
+        cur = dict(base)
+        cur.update(r_.get("pool_delta", {}))
+        out.append(dict(r_, pool_abs={k: v for k, v in cur.items() if int(v, 16)}))
+    return out
+
+
+def compare_rows_by_counter(mine: list[dict], ref: list[dict]) -> dict:
+    """Rows paired by the main-loop counter instead of the row index (a replay
+    can start a few frames off the recording's phase: pcsx2_session lets the
+    loaded state run until Pine answers).  The frame index `f` and row 0's
+    `pool0` are left out of the comparison."""
+    mine, ref = _pool_absolute(mine), _pool_absolute(ref)
+    by_counter = {r_["counter"]: r_ for r_ in ref}
+    skip = ("f", "pool0", "pool_delta", "pool_deep")
+    pairs = same = 0
+    first = None
+    first_keys: list[str] = []
+    key_rows: dict[str, int] = {}
+    for r_ in mine:
+        o = by_counter.get(r_["counter"])
+        if o is None:
+            continue
+        pairs += 1
+        a = {k: v for k, v in r_.items() if k not in skip}
+        b = {k: v for k, v in o.items() if k not in skip}
+        if a == b:
+            same += 1
+            continue
+        keys = sorted(k for k in set(a) | set(b) if a.get(k) != b.get(k))
+        for k in keys:
+            key_rows[k] = key_rows.get(k, 0) + 1
+        if first is None:
+            first = r_["counter"]
+            first_keys = keys
+    last_diff = next((r_["counter"] for r_ in reversed(mine) if r_["counter"] in by_counter and
+                      {k: v for k, v in r_.items() if k not in skip} !=
+                      {k: v for k, v in by_counter[r_["counter"]].items() if k not in skip}), None)
+    return {"pairs": pairs, "identical": same, "first_differing_counter": first,
+            "first_differing_keys": first_keys[:20], "last_differing_counter": last_diff,
+            "rows_differing_per_key": dict(sorted(key_rows.items(), key=lambda kv: -kv[1]))}
 
 
 # ---------------------------------------------------------------------------
@@ -603,7 +680,7 @@ def compare_startup(pass_a: str, pass_b: str) -> dict:
     return out
 
 
-def run_beat(name: str, source: str, fn, addrs: list[int], pass_name: str) -> None:
+def run_beat(name: str, source: str, fn, addrs: list[int], pass_name: str, session_cls=None) -> None:
     rec_path = rc.beat_dir(name) / "trace.json"      # AREA01 beats: build/s87/route_a01/
     recorded = json.loads(rec_path.read_text())
     tail = recorded.get("tail_idle_frames", 0) or 0
@@ -615,7 +692,7 @@ def run_beat(name: str, source: str, fn, addrs: list[int], pass_name: str) -> No
         src_ee = rc.beat_dir(source) / "eeMemory.bin"
     t_all = time.monotonic()
     doc: dict = {"beat": name, "source": source, "tail_idle_frames": tail}
-    s = open_census(src, OUT / "logs" / pass_name / name)
+    s = open_census(src, OUT / "logs" / pass_name / name, cls=session_cls)
     try:
         r = rc.Route(s)
         r.begin()
@@ -630,6 +707,10 @@ def run_beat(name: str, source: str, fn, addrs: list[int], pass_name: str) -> No
             if tail:
                 r.idle(tail)
             doc["what"] = meta.get("what")
+            # closed-loop outcome keys a beat may report (the AIM group's aim_meta)
+            doc["outcome"] = {k: meta[k] for k in ("end", "shot_frames", "impact_records", "aimed",
+                                                    "reload_frames", "marks", "hit_frames",
+                                                    "health_path") if k in meta}
             doc["completed"] = True
         except Exception as exc:          # record how far the beat got
             doc["completed"] = False
@@ -656,8 +737,18 @@ def run_beat(name: str, source: str, fn, addrs: list[int], pass_name: str) -> No
         except (OSError, EOFError, RuntimeError) as exc:
             doc["end_diff_error"] = repr(exc)
         doc["trace_vs_recorded"] = compare_rows(r.rows, recorded["rows"])
+        doc["trace_vs_recorded_by_counter"] = compare_rows_by_counter(r.rows, recorded["rows"])
+        if hasattr(s, "swaps") or name.startswith(("dmg_", "br_", "opt_")):   # EXIT, DAMAGE, BRANCH, OPTIONS
+            if hasattr(s, "swaps"):       # OverlayCensusSession (the EXIT group)
+                doc["overlay_swaps"] = s.swaps
+            tdir = OUT / "runs" / pass_name / "traces"     # the replay's own rows
+            tdir.mkdir(parents=True, exist_ok=True)
+            (tdir / f"{name}.json").write_text(json.dumps({"inputs": r.inputs, "rows": r.rows},
+                                                          separators=(",", ":")) + "\n")
         doc["inputs"] = r.inputs
         doc["recorded_inputs_equal"] = r.inputs == recorded["inputs"]
+        doc["recorded_inputs_equal_by_counter"] = (inputs_by_counter(r.inputs, r.rows) ==
+                                                   inputs_by_counter(recorded["inputs"], recorded["rows"]))
         save_run(pass_name, name, label_doc(s, name, doc))
     finally:
         s.close()
@@ -2630,6 +2721,779 @@ def ninth_delta(a) -> dict:
     return out
 
 
+# Tenth level (route_capture's opt-in groups a19 and a13b; port
+# docs/TENTH_LEVEL_ROUTE.md).  `tenth-delta` measures each group against the
+# first level, beat 15, every earlier level's groups, the eighth- and
+# ninth-level groups and the tenth-level groups before it (story order).
+TENTH_GROUPS = [   # (tag, overlay, overlay id, pass, beats-attr prefix)
+    ("a19", "AREA19", 16, "A19", "A19"),
+    ("a13b", "AREA13", 10, "A13B", "A13B"),
+]
+
+
+def tenth_delta(a) -> dict:
+    earlier = _earlier_groups(a) + [(rc.A01U_BEATS, a.a01u_passes.split(","), "area01_upper", "AREA01"),
+                                    (rc.A06_BEATS, ["A06"], "area06", "AREA06")]
+    for tag, ov, _ov_id, pass_name, prefix in EIGHTH_GROUPS:
+        earlier = earlier + [(_eighth_beats(prefix)[0], [pass_name], "eighth_" + tag, ov)]
+    for tag, ov, _ov_id, pass_name, prefix in NINTH_GROUPS:
+        earlier = earlier + [(_eighth_beats(prefix)[0], [pass_name], "ninth_" + tag, ov)]
+    out = {}
+    for tag, ov, ov_id, pass_name, prefix in TENTH_GROUPS:
+        beats, side, change = _eighth_beats(prefix)
+        if not beats or not any(_hits(pass_name, b[0]) is not None for b in beats):
+            continue
+        d = chain_delta(tag, ov, ov_id, beats, side, change, [pass_name], earlier, f"{tag}_delta.json")
+        runs = {}
+        for name, _src, _fn in beats:
+            f = OUT / "runs" / pass_name / f"{name}.json"
+            if f.exists():
+                doc = json.loads(f.read_text())
+                runs[name] = {"completed": bool(doc.get("completed")), "frames": doc.get("frames"),
+                              "error": doc.get("error")}
+        d["summary"]["beats_incomplete"] = sorted(n for n, v in runs.items() if not v["completed"])
+        d["summary"]["replay_runs"] = runs
+        (OUT / f"{tag}_delta.json").write_text(json.dumps(d, indent=1) + "\n")
+        out[tag] = d["summary"]
+        earlier = earlier + [(beats, [pass_name], "tenth_" + tag, ov)]
+    return out
+
+
+# The AIM capture group (route_capture's aim_* beats, docs/CAPTURES_C10.md
+# section AIM): every beat starts from the 08_truck_crossing snapshot inside
+# AREA11, so its segments arm the boot functions plus the AREA11 overlay.
+# `aim-delta` compares what they ran with the first-level census
+# (classified.json) and writes build/aimfire/capture/census_delta.json.
+AIM_DELTA = rc.OUT_AIM / "census_delta.json"
+
+
+def aim_delta(passes: list[str]) -> dict:
+    cands = {c["addr"]: c for c in candidates("AREA11")}
+    classified = json.loads((OUT / "classified.json").read_text())
+    base = {int(f["addr"], 16): f for f in classified["functions"]}
+    per_beat, first, beats_of, runs = {}, {}, {}, {}
+    for name, _src, _fn in rc.AIM_BEATS:
+        fns: set[int] = set()
+        for p in passes:
+            f = OUT / "runs" / p / f"{name}.json"
+            if not f.exists():
+                continue
+            doc = json.loads(f.read_text())
+            fns |= {int(x, 16) for x in doc["functions"]}
+            runs.setdefault(name, {})[p] = {
+                "completed": bool(doc.get("completed")), "frames": doc.get("frames"),
+                "error": doc.get("error"), "trace_vs_recorded": doc.get("trace_vs_recorded"),
+                "recorded_inputs_equal": doc.get("recorded_inputs_equal"),
+                "end_digest_equal": doc.get("end_digest_equal"),
+                "unexpected_pauses": len(doc.get("unexpected", []))}
+        per_beat[name] = fns
+        for a in sorted(fns):
+            first.setdefault(a, name)
+            beats_of.setdefault(a, []).append(name)
+    ran = set(first)
+    new = sorted(a for a in ran if a not in base)
+
+    def row(a: int) -> dict:
+        c = cands.get(a, {})
+        return {"addr": f"0x{a:08X}", "name": c.get("name"), "size": c.get("size"),
+                "instructions": (c.get("size") or 0) // 4, "region": c.get("region"),
+                "decomp_status": c.get("status"), "first_beat": first[a], "beats": beats_of[a]}
+
+    new_rows = [row(a) for a in new]
+    by_region: dict[str, int] = {}
+    by_status: dict[str, int] = {}
+    for r_ in new_rows:
+        by_region[r_["region"] or "?"] = by_region.get(r_["region"] or "?", 0) + 1
+        by_status[r_["decomp_status"] or "?"] = by_status.get(r_["decomp_status"] or "?", 0) + 1
+    known = sorted(a for a in ran if a in base)
+    port_status: dict[str, int] = {}
+    for a in known:
+        s = base[a].get("port_status", "?")
+        port_status[s] = port_status.get(s, 0) + 1
+    doc = {
+        "generated": time.strftime("%Y-%m-%d %H:%M"),
+        "passes": passes,
+        "baseline": str(OUT / "classified.json"),
+        "summary": {
+            "beats": len(rc.AIM_BEATS),
+            "beats_censused": sorted(n for n in runs),
+            "beats_incomplete": sorted(n for n, v in runs.items() if not all(x["completed"] for x in v.values())),
+            "functions_ran": len(ran),
+            "already_in_first_level_census": len(known),
+            "new": len(new), "new_instructions": sum(r_["instructions"] for r_ in new_rows),
+            "new_by_region": by_region, "new_by_decomp_status": by_status,
+            "known_by_port_status": port_status,
+            "per_beat": {n: {"ran": len(per_beat[n]),
+                             "new": sum(1 for a in per_beat[n] if a not in base),
+                             "first_seen_new": sum(1 for a in new if first[a] == n)} for n in per_beat},
+        },
+        "replay_runs": runs,
+        "new_functions": new_rows,
+        "known_functions": [{"addr": f"0x{a:08X}", "name": base[a].get("name"),
+                             "port_status": base[a].get("port_status"), "beats": beats_of[a]} for a in known],
+    }
+    AIM_DELTA.parent.mkdir(parents=True, exist_ok=True)
+    AIM_DELTA.write_text(json.dumps(doc, indent=1) + "\n")
+    return doc
+
+
+# The EXIT capture group (route_capture's exit_* beats, docs/CAPTURES_C10.md
+# section EXIT): beat 15's level exit, which starts in AREA11 and ends in
+# AREA01.  Both overlays load at the same arena, so their candidate addresses
+# overlap: the session arms the boot functions plus the overlay that is
+# resident (header id at 0x823504), and at the first frame boundary where the
+# id changes it removes the remaining overlay breakpoints and arms the new
+# overlay's candidates (every AREA01 splat piece; c10-exit-delta regroups the
+# pieces into real functions).  Each hit in the overlay range carries the
+# resident id, so a hit is attributed to the overlay that was resident.
+
+class OverlayCensusSession(CensusSession):
+    boot_addrs: list[int] = []
+    overlay_addrs: dict[int, list[int]] = {}
+
+    def arm(self, addrs: list[int], label: str) -> float:
+        self.swaps: list[dict] = []
+        self.armed_overlay = self.u32(OVERLAY_BASE + 4)
+        return super().arm(self.boot_addrs + self.overlay_addrs.get(self.armed_overlay, []), label)
+
+    def step(self, frames: int = 1, **pad) -> list[int]:
+        out: list[int] = []
+        for _ in range(frames):
+            out += super().step(1, **pad)
+            pad = {}
+            if getattr(self, "armed_overlay", None) is None:
+                continue
+            oid = self.u32(OVERLAY_BASE + 4)
+            if oid != self.armed_overlay and oid in self.overlay_addrs:
+                t0 = time.monotonic()
+                old = sorted(a for a in self.armed if a >= OVERLAY_BASE)
+                self.debug.call_many([{"cmd": "remove_breakpoint", "address": a} for a in old],
+                                     chunk=ARM_CHUNK)
+                self.armed -= set(old)
+                new = [a for a in self.overlay_addrs[oid] if a != LOOP_TOP]
+                self.debug.call_many([{"cmd": "set_breakpoint", "address": a} for a in new],
+                                     chunk=ARM_CHUNK)
+                self.armed |= set(new)
+                self.swaps.append({"after_frame": self.frames_stepped, "counter": self.u32(FRAME_COUNTER),
+                                   "from_overlay": self.armed_overlay, "to_overlay": oid,
+                                   "removed": len(old), "armed": len(new),
+                                   "seconds": round(time.monotonic() - t0, 2)})
+                self.armed_overlay = oid
+        return out
+
+
+EXIT10_DELTA = rc.OUT_EXIT / "census_delta.json"
+EXIT10_REQUEST, EXIT10_ARRIVAL = 0x1B0C60, 0x1B07C0
+
+
+def _run_exit_group(selected, pass_name: str) -> None:
+    c11 = candidates("AREA11")
+    OverlayCensusSession.boot_addrs = [c["addr"] for c in c11 if c["region"] == "boot"]
+    OverlayCensusSession.overlay_addrs = {
+        AREA11_ID: [c["addr"] for c in c11 if c["region"] == "overlay:AREA11"],
+        AREA01_ID: [c["addr"] for c in candidates("AREA01") if c["region"] == "overlay:AREA01"]}
+    for name, source, fn in selected:
+        for attempt in range(3):
+            run_beat(name, source, fn, [], pass_name, session_cls=OverlayCensusSession)
+            doc = json.loads((OUT / "runs" / pass_name / f"{name}.json").read_text())
+            if doc.get("completed"):
+                break
+            keep = OUT / "runs" / pass_name / "_failed"
+            keep.mkdir(parents=True, exist_ok=True)
+            (keep / f"{name}.attempt{attempt + 1}.json").write_text(json.dumps(doc, indent=1) + "\n")
+            print(f"{name}: attempt {attempt + 1} incomplete ({doc.get('error')}); retrying", flush=True)
+
+
+def exit10_delta(passes: list[str]) -> dict:
+    """What the EXIT beats ran beyond the first-level census (classified.json,
+    keyed by overlay and address, so an AREA01 function at an address an
+    AREA11 function also uses is never taken for it).  Phases follow the
+    one-shot hits of exit_01: before the area-change request 001B0C60 =
+    'departure' (all of exit_00 too), request to the arrival placement
+    001B07C0 = 'change_load', from the placement on = 'area01_arrival'.
+    Also compared with beat 15's exit_delta.json (its 63 functions)."""
+    c11 = {c["addr"]: c for c in candidates("AREA11")}
+    c01 = {c["addr"]: c for c in candidates("AREA01")}
+    piece_to_real = real_functions(c01, "AREA01")
+    classified = json.loads((OUT / "classified.json").read_text())
+    base = {(f.get("overlay"), int(f["addr"], 16)): f for f in classified["functions"]}
+    old_path = OUT / "exit_delta.json"
+    old = json.loads(old_path.read_text()) if old_path.exists() else None
+    old_new = {int(f["addr"], 16) for f in old["new_functions"]} if old else set()
+    first: dict[tuple, dict] = {}
+    beats_of: dict[tuple, list[str]] = {}
+    per_beat: dict[str, set] = {}
+    runs: dict[str, dict] = {}
+    unattributed: list[dict] = []
+    marks: dict[str, int | None] = {}
+    for name, _src, _fn in rc.EXIT_BEATS:
+        for p in passes:
+            f = OUT / "runs" / p / f"{name}.json"
+            if not f.exists():
+                continue
+            doc = json.loads(f.read_text())
+            runs.setdefault(name, {})[p] = {
+                "completed": bool(doc.get("completed")), "frames": doc.get("frames"),
+                "error": doc.get("error"), "seconds": doc.get("seconds"),
+                "trace_vs_recorded": doc.get("trace_vs_recorded"),
+                "trace_vs_recorded_by_counter": doc.get("trace_vs_recorded_by_counter"),
+                "recorded_inputs_equal": doc.get("recorded_inputs_equal"),
+                "recorded_inputs_equal_by_counter": doc.get("recorded_inputs_equal_by_counter"),
+                "end_digest_equal": doc.get("end_digest_equal"),
+                "end_diff_vs_recorded": doc.get("end_diff_vs_recorded"),
+                "overlay_swaps": doc.get("overlay_swaps"), "marks": (doc.get("outcome") or {}).get("marks"),
+                "unexpected_pauses": len(doc.get("unexpected", []))}
+            hits = [dict(h, pc=int(h["pc"], 16)) for h in doc["hits"]]
+            if name == "exit_01_movie_arrival":
+                for key, pc in (("request", EXIT10_REQUEST), ("arrival", EXIT10_ARRIVAL)):
+                    fr = next((h["frame"] for h in hits if h["pc"] == pc), None)
+                    if fr is not None:
+                        marks.setdefault(p, {})[key] = fr
+            for h in sorted(hits, key=lambda h: (h["frame"], h["pc"])):
+                pc = h["pc"]
+                if OVERLAY_BASE <= pc < 0x900000:
+                    oid = h.get("overlay_id")
+                    if oid == AREA11_ID and pc in c11:
+                        key = ("AREA11", pc)
+                    elif oid == AREA01_ID and piece_to_real.get(pc, pc) in c01:
+                        key = ("AREA01", piece_to_real.get(pc, pc))
+                    else:
+                        unattributed.append(dict(h, pc=hex(pc), beat=name, pass_=p))
+                        continue
+                elif pc in c11:
+                    key = (None, pc)
+                else:
+                    unattributed.append(dict(h, pc=hex(pc), beat=name, pass_=p))
+                    continue
+                per_beat.setdefault(name, set()).add(key)
+                beats_of.setdefault(key, [])
+                if name not in beats_of[key]:
+                    beats_of[key].append(name)
+                if key not in first:
+                    first[key] = {"beat": name, "pass": p, "frame": h["frame"],
+                                  "counter_before": h["counter_before"]}
+
+    def phase(key: tuple) -> str:
+        fb = first[key]
+        if fb["beat"] != "exit_01_movie_arrival":
+            return "departure"
+        m = marks.get(fb["pass"], {})     # frames of the same replay
+        if m.get("request") is None or fb["frame"] < m["request"]:
+            return "departure"
+        if m.get("arrival") is None or fb["frame"] < m["arrival"]:
+            return "change_load"
+        return "area01_arrival"
+
+    def cand(key: tuple) -> dict:
+        return (c01 if key[0] == "AREA01" else c11)[key[1]]
+
+    def row(key: tuple) -> dict:
+        c = cand(key)
+        return {"addr": f"0x{key[1]:08X}", "name": c.get("name"), "size": c.get("size"),
+                "instructions": (c.get("size") or 0) // 4, "region": c.get("region"),
+                "decomp_status": c.get("status"), "first_beat": first[key]["beat"],
+                "first_pass": first[key]["pass"], "first_frame": first[key]["frame"],
+                "first_counter_before": first[key]["counter_before"], "phase": phase(key), "beats": beats_of[key],
+                "in_beat15_exit_delta": key[0] != "AREA01" and key[1] in old_new}
+
+    ran = sorted(first, key=lambda k: (first[k]["beat"], first[k]["frame"], k[1]))
+    new = [k for k in ran if k not in base]
+    known = [k for k in ran if k in base]
+    new_rows = [row(k) for k in new]
+
+    def count(rows_, field) -> dict:
+        out: dict[str, int] = {}
+        for r_ in rows_:
+            out[str(r_[field])] = out.get(str(r_[field]), 0) + 1
+        return out
+    port_status: dict[str, int] = {}
+    for k in known:
+        s_ = base[k].get("port_status", "?")
+        port_status[s_] = port_status.get(s_, 0) + 1
+    new_boot_or_11 = {k[1] for k in new if k[0] != "AREA01"}
+    doc = {
+        "generated": time.strftime("%Y-%m-%d %H:%M"),
+        "passes": passes,
+        "baseline": str(OUT / "classified.json"),
+        "phase_marks_exit_01": marks,      # per pass: frames of the 001B0C60 / 001B07C0 hits
+        "summary": {
+            "beats": len(rc.EXIT_BEATS),
+            "beats_censused": sorted(runs),
+            "beats_incomplete": sorted(n for n, v in runs.items() if not all(x["completed"] for x in v.values())),
+            "functions_ran": len(ran),
+            "already_in_first_level_census": len(known),
+            "new": len(new), "new_instructions": sum(r_["instructions"] for r_ in new_rows),
+            "new_by_region": count(new_rows, "region"),
+            "new_by_phase": count(new_rows, "phase"),
+            "new_by_decomp_status": count(new_rows, "decomp_status"),
+            "known_by_port_status": port_status,
+            "per_beat": {n: {"ran": len(per_beat.get(n, ())),
+                             "new": sum(1 for k in per_beat.get(n, ()) if k not in base),
+                             "first_seen_new": sum(1 for k in new if first[k]["beat"] == n)}
+                         for n, _s, _f in rc.EXIT_BEATS},
+            "vs_beat15_exit_delta": None if old is None else {
+                "beat15_new": len(old_new),
+                "also_new_here": len(old_new & new_boot_or_11),
+                "beat15_new_not_new_here": sorted(f"0x{a:08X}" for a in old_new - new_boot_or_11),
+                "new_here_boot_or_area11_not_in_beat15": sorted(f"0x{a:08X}" for a in new_boot_or_11 - old_new),
+                "new_here_area01_overlay": sum(1 for k in new if k[0] == "AREA01")},
+            "unattributed_hits": len(unattributed),
+        },
+        "replay_runs": runs,
+        "new_functions": new_rows,
+        "known_functions": [{"addr": f"0x{k[1]:08X}", "overlay": k[0], "name": base[k].get("name"),
+                             "port_status": base[k].get("port_status"), "beats": beats_of[k]} for k in known],
+        "unattributed": unattributed,
+    }
+    EXIT10_DELTA.parent.mkdir(parents=True, exist_ok=True)
+    EXIT10_DELTA.write_text(json.dumps(doc, indent=1) + "\n")
+    return doc
+
+
+# The DAMAGE capture group (route_capture's dmg_* beats, docs/CAPTURES_C10.md
+# section DAMAGE): flame contacts, the fan's hit, the crevice fall, the truck
+# pit's 0x5D floor, death, the game-over screen, the title menu after a death
+# and a new game back to first control, all in AREA11 (the new game reloads
+# the same overlay).  The segments arm the boot functions plus the AREA11
+# overlay (one-shot, re-armed per beat); `dmg-delta` keys every hit by
+# (overlay, address), attributing an arena hit to AREA11 only when the
+# resident overlay id was 9, and compares with the first-level census
+# (classified.json); it writes build/c10/damage/census_delta.json.
+DMG_DELTA = rc.OUT_DMG / "census_delta.json"
+
+
+def dmg_delta(passes: list[str]) -> dict:
+    cands = {c["addr"]: c for c in candidates("AREA11")}
+    classified = json.loads((OUT / "classified.json").read_text())
+    base = {(f.get("overlay"), int(f["addr"], 16)): f for f in classified["functions"]}
+    first: dict[tuple, dict] = {}
+    beats_of: dict[tuple, list[str]] = {}
+    per_beat: dict[str, set] = {}
+    runs: dict[str, dict] = {}
+    unattributed: list[dict] = []
+    for name, _src, _fn in rc.DMG_BEATS:
+        for p in passes:
+            f = OUT / "runs" / p / f"{name}.json"
+            if not f.exists():
+                continue
+            doc = json.loads(f.read_text())
+            runs.setdefault(name, {})[p] = {
+                "completed": bool(doc.get("completed")), "frames": doc.get("frames"),
+                "error": doc.get("error"), "seconds": doc.get("seconds"),
+                "trace_vs_recorded": doc.get("trace_vs_recorded"),
+                "trace_vs_recorded_by_counter": doc.get("trace_vs_recorded_by_counter"),
+                "recorded_inputs_equal": doc.get("recorded_inputs_equal"),
+                "recorded_inputs_equal_by_counter": doc.get("recorded_inputs_equal_by_counter"),
+                "end_digest_equal": doc.get("end_digest_equal"),
+                "end_diff_vs_recorded": doc.get("end_diff_vs_recorded"),
+                "outcome": doc.get("outcome"), "unexpected_pauses": len(doc.get("unexpected", []))}
+            for h in sorted(doc["hits"], key=lambda h: (h["frame"], h["pc"])):
+                pc = int(h["pc"], 16)
+                if OVERLAY_BASE <= pc < 0x900000:
+                    if h.get("overlay_id") != AREA11_ID or pc not in cands:
+                        unattributed.append(dict(h, beat=name, pass_=p))
+                        continue
+                    key = ("AREA11", pc)
+                elif pc in cands:
+                    key = (None, pc)
+                else:
+                    unattributed.append(dict(h, beat=name, pass_=p))
+                    continue
+                per_beat.setdefault(name, set()).add(key)
+                beats_of.setdefault(key, [])
+                if name not in beats_of[key]:
+                    beats_of[key].append(name)
+                if key not in first:
+                    first[key] = {"beat": name, "pass": p, "frame": h["frame"],
+                                  "counter_before": h["counter_before"]}
+
+    def row(key: tuple) -> dict:
+        c = cands[key[1]]
+        return {"addr": f"0x{key[1]:08X}", "overlay": key[0], "name": c.get("name"), "size": c.get("size"),
+                "instructions": (c.get("size") or 0) // 4, "region": c.get("region"),
+                "decomp_status": c.get("status"), "first_beat": first[key]["beat"],
+                "first_pass": first[key]["pass"], "first_frame": first[key]["frame"],
+                "first_counter_before": first[key]["counter_before"], "beats": beats_of[key]}
+
+    ran = sorted(first, key=lambda k: (first[k]["beat"], first[k]["frame"], k[1]))
+    new = [k for k in ran if k not in base]
+    known = [k for k in ran if k in base]
+    new_rows = [row(k) for k in new]
+
+    def count(rows_, field) -> dict:
+        out: dict[str, int] = {}
+        for r_ in rows_:
+            out[str(r_[field])] = out.get(str(r_[field]), 0) + 1
+        return out
+    port_status: dict[str, int] = {}
+    for k in known:
+        s_ = base[k].get("port_status", "?")
+        port_status[s_] = port_status.get(s_, 0) + 1
+    doc = {
+        "generated": time.strftime("%Y-%m-%d %H:%M"),
+        "passes": passes,
+        "baseline": str(OUT / "classified.json"),
+        "summary": {
+            "beats": len(rc.DMG_BEATS),
+            "beats_censused": sorted(runs),
+            "beats_incomplete": sorted(n for n, v in runs.items() if not all(x["completed"] for x in v.values())),
+            "functions_ran": len(ran),
+            "already_in_first_level_census": len(known),
+            "new": len(new), "new_instructions": sum(r_["instructions"] for r_ in new_rows),
+            "new_by_region": count(new_rows, "region"),
+            "new_by_decomp_status": count(new_rows, "decomp_status"),
+            "known_by_port_status": port_status,
+            "per_beat": {n: {"ran": len(per_beat.get(n, ())),
+                             "new": sum(1 for k in per_beat.get(n, ()) if k not in base),
+                             "first_seen_new": sum(1 for k in new if first[k]["beat"] == n)}
+                         for n, _s, _f in rc.DMG_BEATS},
+            "unattributed_hits": len(unattributed),
+        },
+        "replay_runs": runs,
+        "new_functions": new_rows,
+        "known_functions": [{"addr": f"0x{k[1]:08X}", "overlay": k[0], "name": base[k].get("name"),
+                             "port_status": base[k].get("port_status"), "beats": beats_of[k]} for k in known],
+        "unattributed": unattributed,
+    }
+    DMG_DELTA.parent.mkdir(parents=True, exist_ok=True)
+    DMG_DELTA.write_text(json.dumps(doc, indent=1) + "\n")
+    return doc
+
+
+# The BRANCH group (C10 lane BRANCH): the AREA11 branches the route skips
+# (optional pickups, the west-yard and plateau ladders both ways, the boxes,
+# the terminal's ride back up, the panel's BATTERY prompt declined,
+# Roger's talk).  All in AREA11: the segments arm the boot functions plus the
+# AREA11 overlay (one-shot, re-armed per beat); `br-delta` keys every hit by
+# (overlay, address) as dmg-delta does, compares with the first-level census
+# (classified.json) and also says which of the new ones the other C10 lanes
+# (AIM, EXIT, DAMAGE) already found; it writes build/c10/branch/census_delta.json.
+BR_DELTA = rc.OUT_BR / "census_delta.json"
+C10_OTHER_DELTAS = {"AIM": rc.OUT_AIM / "census_delta.json", "EXIT": rc.OUT_EXIT / "census_delta.json",
+                    "DAMAGE": rc.OUT_DMG / "census_delta.json"}
+
+
+def br_delta(passes: list[str]) -> dict:
+    cands = {c["addr"]: c for c in candidates("AREA11")}
+    classified = json.loads((OUT / "classified.json").read_text())
+    base = {(f.get("overlay"), int(f["addr"], 16)): f for f in classified["functions"]}
+    first: dict[tuple, dict] = {}
+    beats_of: dict[tuple, list[str]] = {}
+    per_beat: dict[str, set] = {}
+    runs: dict[str, dict] = {}
+    unattributed: list[dict] = []
+    for name, _src, _fn in rc.BR_BEATS:
+        for p in passes:
+            f = OUT / "runs" / p / f"{name}.json"
+            if not f.exists():
+                continue
+            doc = json.loads(f.read_text())
+            runs.setdefault(name, {})[p] = {
+                "completed": bool(doc.get("completed")), "frames": doc.get("frames"),
+                "error": doc.get("error"), "seconds": doc.get("seconds"),
+                "trace_vs_recorded": doc.get("trace_vs_recorded"),
+                "trace_vs_recorded_by_counter": doc.get("trace_vs_recorded_by_counter"),
+                "recorded_inputs_equal": doc.get("recorded_inputs_equal"),
+                "recorded_inputs_equal_by_counter": doc.get("recorded_inputs_equal_by_counter"),
+                "end_digest_equal": doc.get("end_digest_equal"),
+                "end_diff_vs_recorded": doc.get("end_diff_vs_recorded"),
+                "outcome": doc.get("outcome"), "unexpected_pauses": len(doc.get("unexpected", []))}
+            for h in sorted(doc["hits"], key=lambda h: (h["frame"], h["pc"])):
+                pc = int(h["pc"], 16)
+                if OVERLAY_BASE <= pc < 0x900000:
+                    if h.get("overlay_id") != AREA11_ID or pc not in cands:
+                        unattributed.append(dict(h, beat=name, pass_=p))
+                        continue
+                    key = ("AREA11", pc)
+                elif pc in cands:
+                    key = (None, pc)
+                else:
+                    unattributed.append(dict(h, beat=name, pass_=p))
+                    continue
+                per_beat.setdefault(name, set()).add(key)
+                beats_of.setdefault(key, [])
+                if name not in beats_of[key]:
+                    beats_of[key].append(name)
+                if key not in first:
+                    first[key] = {"beat": name, "pass": p, "frame": h["frame"],
+                                  "counter_before": h["counter_before"]}
+    other: dict[tuple, list[str]] = {}
+    for lane, path in C10_OTHER_DELTAS.items():
+        if path.exists():
+            for f_ in json.loads(path.read_text()).get("new_functions", []):
+                other.setdefault((f_.get("overlay"), int(f_["addr"], 16)), []).append(lane)
+
+    def row(key: tuple) -> dict:
+        c = cands[key[1]]
+        return {"addr": f"0x{key[1]:08X}", "overlay": key[0], "name": c.get("name"), "size": c.get("size"),
+                "instructions": (c.get("size") or 0) // 4, "region": c.get("region"),
+                "decomp_status": c.get("status"), "first_beat": first[key]["beat"],
+                "first_pass": first[key]["pass"], "first_frame": first[key]["frame"],
+                "first_counter_before": first[key]["counter_before"], "beats": beats_of[key],
+                "also_new_in_c10": other.get(key, [])}
+
+    ran = sorted(first, key=lambda k: ([b[0] for b in rc.BR_BEATS].index(first[k]["beat"]),
+                                       first[k]["frame"], k[1]))
+    new = [k for k in ran if k not in base]
+    known = [k for k in ran if k in base]
+    new_rows = [row(k) for k in new]
+
+    def count(rows_, field) -> dict:
+        out: dict[str, int] = {}
+        for r_ in rows_:
+            out[str(r_[field])] = out.get(str(r_[field]), 0) + 1
+        return out
+    port_status: dict[str, int] = {}
+    for k in known:
+        s_ = base[k].get("port_status", "?")
+        port_status[s_] = port_status.get(s_, 0) + 1
+    doc = {
+        "generated": time.strftime("%Y-%m-%d %H:%M"),
+        "passes": passes,
+        "baseline": str(OUT / "classified.json"),
+        "other_c10_deltas": {k: str(v) for k, v in C10_OTHER_DELTAS.items() if v.exists()},
+        "summary": {
+            "beats": len(rc.BR_BEATS),
+            "beats_censused": [b[0] for b in rc.BR_BEATS if b[0] in runs],
+            "beats_incomplete": sorted(n for n, v in runs.items() if not all(x["completed"] for x in v.values())),
+            "functions_ran": len(ran),
+            "already_in_first_level_census": len(known),
+            "new": len(new), "new_instructions": sum(r_["instructions"] for r_ in new_rows),
+            "new_by_region": count(new_rows, "region"),
+            "new_by_decomp_status": count(new_rows, "decomp_status"),
+            "new_not_in_other_c10_lanes": sum(1 for r_ in new_rows if not r_["also_new_in_c10"]),
+            "known_by_port_status": port_status,
+            "per_beat": {n: {"ran": len(per_beat.get(n, ())),
+                             "new": sum(1 for k in per_beat.get(n, ()) if k not in base),
+                             "first_seen_new": sum(1 for k in new if first[k]["beat"] == n)}
+                         for n, _s, _f in rc.BR_BEATS},
+            "unattributed_hits": len(unattributed),
+        },
+        "replay_runs": runs,
+        "new_functions": new_rows,
+        "known_functions": [{"addr": f"0x{k[1]:08X}", "overlay": k[0], "name": base[k].get("name"),
+                             "port_status": base[k].get("port_status"), "beats": beats_of[k]} for k in known],
+        "unattributed": unattributed,
+    }
+    BR_DELTA.parent.mkdir(parents=True, exist_ok=True)
+    BR_DELTA.write_text(json.dumps(doc, indent=1) + "\n")
+    return doc
+
+
+# The OPTIONS group (C10 lane OPTIONS): the in-game options screen SELECT
+# opens in AREA11 and its memory-card paths.  All in AREA11: the segments arm
+# the boot functions plus the AREA11 overlay (one-shot, re-armed per beat);
+# `opt-delta` keys every hit by (overlay, address) as br-delta does, compares
+# with the first-level census (classified.json) and says which of the new ones
+# the other C10 lanes (AIM, EXIT, DAMAGE, BRANCH) already found; it writes
+# build/c10/options/census_delta.json.  `opt-save-scan` is the static proof
+# of which save paths exist (build/c10/options/save_scan.json).
+OPT_DELTA = rc.OUT_OPT / "census_delta.json"
+OPT_SCAN = rc.OUT_OPT / "save_scan.json"
+OPT_OTHER_DELTAS = dict(C10_OTHER_DELTAS, BRANCH=rc.OUT_BR / "census_delta.json")
+
+
+def c10_group_delta(beats, out_path: Path, passes: list[str], other_deltas: dict) -> dict:
+    """br_delta's report for any AREA11 C10 group (`beats` as rc.*_BEATS)."""
+    cands = {c["addr"]: c for c in candidates("AREA11")}
+    classified = json.loads((OUT / "classified.json").read_text())
+    base = {(f.get("overlay"), int(f["addr"], 16)): f for f in classified["functions"]}
+    names = [b[0] for b in beats]
+    first: dict[tuple, dict] = {}
+    beats_of: dict[tuple, list[str]] = {}
+    per_beat: dict[str, set] = {}
+    runs: dict[str, dict] = {}
+    unattributed: list[dict] = []
+    for name in names:
+        for p in passes:
+            f = OUT / "runs" / p / f"{name}.json"
+            if not f.exists():
+                continue
+            doc = json.loads(f.read_text())
+            runs.setdefault(name, {})[p] = {
+                "completed": bool(doc.get("completed")), "frames": doc.get("frames"),
+                "error": doc.get("error"), "seconds": doc.get("seconds"),
+                "trace_vs_recorded": doc.get("trace_vs_recorded"),
+                "trace_vs_recorded_by_counter": doc.get("trace_vs_recorded_by_counter"),
+                "recorded_inputs_equal": doc.get("recorded_inputs_equal"),
+                "recorded_inputs_equal_by_counter": doc.get("recorded_inputs_equal_by_counter"),
+                "end_digest_equal": doc.get("end_digest_equal"),
+                "end_diff_vs_recorded": doc.get("end_diff_vs_recorded"),
+                "outcome": doc.get("outcome"), "unexpected_pauses": len(doc.get("unexpected", []))}
+            for h in sorted(doc["hits"], key=lambda h: (h["frame"], h["pc"])):
+                pc = int(h["pc"], 16)
+                if OVERLAY_BASE <= pc < 0x900000:
+                    if h.get("overlay_id") != AREA11_ID or pc not in cands:
+                        unattributed.append(dict(h, beat=name, pass_=p))
+                        continue
+                    key = ("AREA11", pc)
+                elif pc in cands:
+                    key = (None, pc)
+                else:
+                    unattributed.append(dict(h, beat=name, pass_=p))
+                    continue
+                per_beat.setdefault(name, set()).add(key)
+                beats_of.setdefault(key, [])
+                if name not in beats_of[key]:
+                    beats_of[key].append(name)
+                if key not in first:
+                    first[key] = {"beat": name, "pass": p, "frame": h["frame"],
+                                  "counter_before": h["counter_before"]}
+    other: dict[tuple, list[str]] = {}
+    for lane, path in other_deltas.items():
+        if path.exists():
+            for f_ in json.loads(path.read_text()).get("new_functions", []):
+                other.setdefault((f_.get("overlay"), int(f_["addr"], 16)), []).append(lane)
+
+    def row(key: tuple) -> dict:
+        c = cands[key[1]]
+        return {"addr": f"0x{key[1]:08X}", "overlay": key[0], "name": c.get("name"), "size": c.get("size"),
+                "instructions": (c.get("size") or 0) // 4, "region": c.get("region"),
+                "decomp_status": c.get("status"), "first_beat": first[key]["beat"],
+                "first_pass": first[key]["pass"], "first_frame": first[key]["frame"],
+                "first_counter_before": first[key]["counter_before"], "beats": beats_of[key],
+                "also_new_in_c10": other.get(key, [])}
+
+    ran = sorted(first, key=lambda k: (names.index(first[k]["beat"]), first[k]["frame"], k[1]))
+    new = [k for k in ran if k not in base]
+    known = [k for k in ran if k in base]
+    new_rows = [row(k) for k in new]
+
+    def count(rows_, field) -> dict:
+        out: dict[str, int] = {}
+        for r_ in rows_:
+            out[str(r_[field])] = out.get(str(r_[field]), 0) + 1
+        return out
+    port_status: dict[str, int] = {}
+    for k in known:
+        s_ = base[k].get("port_status", "?")
+        port_status[s_] = port_status.get(s_, 0) + 1
+    doc = {
+        "generated": time.strftime("%Y-%m-%d %H:%M"),
+        "passes": passes,
+        "baseline": str(OUT / "classified.json"),
+        "other_c10_deltas": {k: str(v) for k, v in other_deltas.items() if v.exists()},
+        "summary": {
+            "beats": len(names),
+            "beats_censused": [n for n in names if n in runs],
+            "beats_incomplete": sorted(n for n, v in runs.items() if not all(x["completed"] for x in v.values())),
+            "functions_ran": len(ran),
+            "already_in_first_level_census": len(known),
+            "new": len(new), "new_instructions": sum(r_["instructions"] for r_ in new_rows),
+            "new_by_region": count(new_rows, "region"),
+            "new_by_decomp_status": count(new_rows, "decomp_status"),
+            "new_not_in_other_c10_lanes": sum(1 for r_ in new_rows if not r_["also_new_in_c10"]),
+            "known_by_port_status": port_status,
+            "per_beat": {n: {"ran": len(per_beat.get(n, ())),
+                             "new": sum(1 for k in per_beat.get(n, ()) if k not in base),
+                             "first_seen_new": sum(1 for k in new if first[k]["beat"] == n)}
+                         for n in names},
+            "unattributed_hits": len(unattributed),
+        },
+        "replay_runs": runs,
+        "new_functions": new_rows,
+        "known_functions": [{"addr": f"0x{k[1]:08X}", "overlay": k[0], "name": base[k].get("name"),
+                             "port_status": base[k].get("port_status"), "beats": beats_of[k]} for k in known],
+        "unattributed": unattributed,
+    }
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(doc, indent=1) + "\n")
+    return doc
+
+
+def opt_save_scan() -> dict:
+    """Static proof of the save paths (boot ELF and every overlay's text, the
+    world-graph scanner _wg_modules with its address window widened to
+    0x810000..0x810E00): the callers of the memory-card screen 00225AC0 with
+    their mode argument (0 load, 1 save), every store to the request byte
+    D_008106B0 with its value, every instruction with the scratchpad offset
+    0x3B93 (the end-of-game save request 001AD010 tests), the data words
+    that point at the use callback 00157F60, and the placement / deferred
+    records of every area whose behaviour is a terminal (00159B90, 00159210,
+    00159970) or whose model byte is 0x37 / 0x38 (the owner +3 byte
+    00157F60 dispatches on)."""
+    global WG_LO, WG_HI
+    saved = (WG_LO, WG_HI)
+    WG_LO, WG_HI = 0x810000, 0x810E00
+    try:
+        elf = _wg_elf()
+        mods = _wg_modules(elf)
+    finally:
+        WG_LO, WG_HI = saved
+    named = {0x225AC0: "memory-card screen 00225AC0", 0x225A00: "memory-card record reset 00225A00",
+             0x1AF6F0: "memory-card record reset 001AF6F0", 0x22A650: "options screen 0022A650",
+             0x157F60: "use callback 00157F60", 0x1AD740: "end-of-game task 001AD740"}
+    calls, stores, spad, words = [], [], [], []
+    for name, m in mods.items():
+        for c in m["calls"]:
+            if c["target"] in named:
+                calls.append({"module": name, "pc": hex(c["pc"]), "function": hex(c["fn"]),
+                              "callee": named[c["target"]], "a0": c["args"][0]})
+        for a_ in m["acc"]:
+            if a_["store"] and a_["ea"] in (0x8106B0, 0x8106CE, 0x8106CF):
+                stores.append({"module": name, "pc": hex(a_["pc"]), "function": hex(a_["fn"]),
+                               "address": hex(a_["ea"]), "value": a_["val"]})
+        import bisect
+        ss = sorted(m["starts"])
+        for i, w in enumerate(m["words"]):
+            if (w & 0xFFFF) == 0x3B93 and (w >> 26) in (0x24, 0x28):
+                pc = m["base"] + 4 * i
+                k = bisect.bisect_right(ss, pc) - 1
+                rt = (w >> 16) & 31
+                spad.append({"module": name, "pc": hex(pc), "function": hex(ss[k] if k >= 0 else m["base"]),
+                             "kind": "store" if (w >> 26) == 0x28 else "load",
+                             "stores_zero": (w >> 26) == 0x28 and rt == 0})
+        blob = elf[0x300:0x300 + 0x175B00] if name == "boot" else m["ov"]
+        lo = 0x100000 if name == "boot" else OVERLAY_BASE
+        for i in range(0, len(blob) - 3, 4):
+            if struct.unpack_from("<I", blob, i)[0] == 0x157F60:
+                words.append({"module": name, "at": hex(lo + i)})
+    terminals = []
+    area11 = []
+    for area in WG_AREAS:
+        ov = (ROOT / f"extract/OVERLAY/AREA{area:02d}.BIN").read_bytes()
+        t = _wg_tables(elf, area, ov)
+        for s in t["subs"]:
+            recs = [("place", f"r{r_['index']}", r_) for r_ in t["placements"][s]["records"]]
+            recs += [("deferred", f"g{gi}.{r_['index']}", r_) for gi, g_ in enumerate(t["deferred"][s])
+                     for r_ in g_["records"]]
+            for kind, ident, r_ in recs:
+                if area == 11:
+                    area11.append({"sub": s, "kind": kind, "record": ident, "behavior": hex(r_["behavior"]),
+                                   "cls": hex(r_["cls"]), "model": hex(r_["model"])})
+                if r_["behavior"] in (0x159B90, 0x159210, 0x159970) or r_["model"] in (0x37, 0x38):
+                    terminals.append({"area": area, "sub": s, "kind": kind, "record": ident,
+                                      "behavior": hex(r_["behavior"]), "cls": hex(r_["cls"]),
+                                      "model": hex(r_["model"]), "pos": r_.get("pos")})
+    save_terminals = [x for x in terminals if x["behavior"] == "0x159b90" and x["model"] == "0x38"]
+    doc = {
+        "generated": time.strftime("%Y-%m-%d %H:%M"),
+        "memory_card_screen_callers": calls,
+        "request_stores": stores,
+        "scratchpad_3B93": spad,
+        "use_callback_pointer_words": words,
+        "terminal_records": terminals,
+        "area11_records": area11,
+        "summary": {
+            "save_mode_callers": sorted({c["function"] for c in calls
+                                         if c["callee"].startswith("memory-card screen") and c["a0"] == 1}),
+            "load_mode_callers": sorted({c["function"] for c in calls
+                                         if c["callee"].startswith("memory-card screen") and c["a0"] == 0}),
+            "request6_writers": sorted({s_["function"] for s_ in stores
+                                        if s_["address"] == "0x8106b0" and s_["value"] == 6}),
+            "3B93_nonzero_writers": sorted({f"{x['module']}:{x['function']}" for x in spad
+                                            if x["kind"] == "store" and not x["stores_zero"]}),
+            "save_terminals_by_area": {f"AREA{a:02d}": sum(1 for x in save_terminals if x["area"] == a)
+                                       for a in sorted({x["area"] for x in save_terminals})},
+            "area11_save_terminals": sum(1 for x in save_terminals if x["area"] == 11),
+            "area11_records": len(area11),
+        },
+    }
+    OPT_SCAN.parent.mkdir(parents=True, exist_ok=True)
+    OPT_SCAN.write_text(json.dumps(doc, indent=1) + "\n")
+    return doc
+
+
 def _run_group(selected, addrs: list[int], pass_name: str) -> None:
     for name, source, fn in selected:
         for attempt in range(3):
@@ -2648,7 +3512,8 @@ if __name__ == "__main__":
     ap.add_argument("command", choices=["candidates", "run", "report", "compare-startup", "exit-delta",
                                         "a01-delta", "a00-delta", "a02-delta", "a04-delta", "a22-delta",
                                         "a01u-delta", "a06-delta", "graph", "eighth-delta",
-                                        "ninth-delta"])
+                                        "ninth-delta", "tenth-delta", "aim-delta", "c10-exit-delta", "dmg-delta",
+                                        "br-delta", "opt-delta", "opt-save-scan"])
     ap.add_argument("--arm-chunk", type=int, default=200,
                     help="breakpoint commands per DebugServer round trip")
     ap.add_argument("--segments", default="all")
@@ -2717,6 +3582,24 @@ if __name__ == "__main__":
                 sel = [b for b in rc.a13_selected(a.segments) if b[0].startswith(tag + "_")]
                 if sel:
                     _run_group(sel, [c["addr"] for c in candidates(ov)], a.pass_name)
+            for tag, ov, _ov_id, _pass, _prefix in TENTH_GROUPS:
+                sel = [b for b in rc.tenth_selected(a.segments) if b[0].startswith(tag + "_")]
+                if sel:
+                    _run_group(sel, [c["addr"] for c in candidates(ov)], a.pass_name)
+            if rc.aim_selected(a.segments):           # the AIM capture group (AREA11)
+                _run_group(rc.aim_selected(a.segments), [c["addr"] for c in candidates("AREA11")],
+                           a.pass_name)
+            if rc.exit_selected(a.segments):          # the EXIT capture group (AREA11 -> AREA01)
+                _run_exit_group(rc.exit_selected(a.segments), a.pass_name)
+            if rc.dmg_selected(a.segments):           # the DAMAGE capture group (AREA11)
+                _run_group(rc.dmg_selected(a.segments), [c["addr"] for c in candidates("AREA11")],
+                           a.pass_name)
+            if rc.br_selected(a.segments):            # the BRANCH capture group (AREA11)
+                _run_group(rc.br_selected(a.segments), [c["addr"] for c in candidates("AREA11")],
+                           a.pass_name)
+            if rc.opt_selected(a.segments):           # the OPTIONS capture group (AREA11)
+                _run_group(rc.opt_selected(a.segments), [c["addr"] for c in candidates("AREA11")],
+                           a.pass_name)
         addrs = [c["addr"] for c in candidates()]
         wanted = DEFAULT_SEGMENTS if a.segments == "all" else a.segments.split(",")
         for seg in SEGMENTS:
@@ -2783,6 +3666,32 @@ if __name__ == "__main__":
         print(json.dumps(eighth_delta(a), indent=1))
     elif a.command == "ninth-delta":
         print(json.dumps(ninth_delta(a), indent=1))
+    elif a.command == "tenth-delta":
+        print(json.dumps(tenth_delta(a), indent=1))
+    elif a.command == "aim-delta":
+        d = aim_delta(a.passes.split(","))
+        print(json.dumps(d["summary"], indent=1))
+        print("wrote", AIM_DELTA)
+    elif a.command == "dmg-delta":
+        d = dmg_delta(a.passes.split(","))
+        print(json.dumps(d["summary"], indent=1))
+        print("wrote", DMG_DELTA)
+    elif a.command == "br-delta":
+        d = br_delta(a.passes.split(","))
+        print(json.dumps(d["summary"], indent=1))
+        print("wrote", BR_DELTA)
+    elif a.command == "opt-delta":
+        d = c10_group_delta(rc.OPT_BEATS, OPT_DELTA, a.passes.split(","), OPT_OTHER_DELTAS)
+        print(json.dumps(d["summary"], indent=1))
+        print("wrote", OPT_DELTA)
+    elif a.command == "opt-save-scan":
+        d = opt_save_scan()
+        print(json.dumps(d["summary"], indent=1))
+        print("wrote", OPT_SCAN)
+    elif a.command == "c10-exit-delta":
+        d = exit10_delta(a.passes.split(","))
+        print(json.dumps(d["summary"], indent=1))
+        print("wrote", EXIT10_DELTA)
     elif a.command == "graph":
         g = world_graph()
         OUT.mkdir(parents=True, exist_ok=True)

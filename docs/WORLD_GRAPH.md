@@ -9,8 +9,9 @@ every writer of those locks and story bytes, and where the items come from;
 then it derives the story's progression order. It is built from the boot ELF,
 the overlays and the level registries only (no emulator); section 8 lists
 what the eighth-level captures (port `docs/EIGHTH_LEVEL_ROUTE.md`) later
-measured and section 8b the ninth-level captures (port
-`docs/NINTH_LEVEL_ROUTE.md`); section 7's table marks each edge played or
+measured, section 8b the ninth-level captures (port
+`docs/NINTH_LEVEL_ROUTE.md`) and section 8c the tenth-level captures (port
+`docs/TENTH_LEVEL_ROUTE.md`); section 7's table marks each edge played or
 not. Nothing here quotes disc text; the tables are addresses and
 numbers.
 
@@ -665,15 +666,15 @@ means no lock or story test was found on the site itself.
 | AREA07 | AREA04 e10 | lift [0] | its buttons (id 0xFF, inferred never by bit) | not played (inferred) |
 | AREA04 | AREA03 e0 sub 1 | [38] model 0x15 (sub 0) / [44] model 0x03 (sub 1) | sub 0: D_00810845 bit 2, set only by AREA03's seal [23] 00158430 (from the AREA03 side); sub 1: open | not played (inferred) |
 | AREA04 | AREA20 e0 | [42] / [48] model 0x15 | D_00810845 bit 4: AREA06 sub 1's 0x825E20 (flag 0x31) | not played (inferred) |
-| AREA13 | AREA04 e7 | lift [10] model 0x0B | its buttons [12] / [13] (id 0xFF: 001BC960 tests no lock bit; the inner one plays script 0x24E1A0 at the AREA13 entry 0 arrival; BM, also ins). Not played | not played (inferred) |
+| AREA13 | AREA04 e7 | lift [10] model 0x0B | its buttons [12] / [13] (id 0xFF: 001BC960 tests no lock bit; the inner one plays script 0x24E1A0 at the AREA13 entry 0 arrival; BM, also ins). Measured (a13b_04 / a13b_05): the outer [12] facing -x at (652.7, 1238.6) took Use with the lift's +0x0B = 0, then +0x0B 0 -> 2 -> 3; the inner [13] facing +x (the player at (639.7, 160, 1276.4) in the frame the Use was taken), the request 04 FF 07 01, AREA04 entry 7 | played (a13b_05) |
 | AREA13 | AREA19 e9 / e10 sub 0 | 00193EB0 (the player's event code 6..9 / 0x2C / 0x2D at y <= 159 with spawn entry 4 / 6, resp. 5 / 7) | door [17] (0x823580, ins) from the east (entry 4) and the hatch [62] (0x826850, ins): item 0x27 (pickup g[5] in the same room) makes the hatch usable (class 0x84), its Use opens it (counter 0x61 bit 0), Use facing +z starts its ladder, and the descent reaches y 143.1 (measured, a13_05). [15] (001BD9F0 model 3) and [17] are locked only while flag 0x1C == 1 (NM / ins); flag 0x1C stayed 0 on this route. The holes [5] / [6] (0x823BC0, ins) are examine points that end once item 0x27 is held or flag 0x1B is 0xFF | e9 played (a13_05, hole [5]); e10 not played |
-| AREA19 | AREA13 e6 / e7, AREA19 sub 1 e6 / 7 / 8 | 00196970 (climbing above a height in five circles) | the circles lie at AREA13 / AREA19 positions (inferred) | not played (inferred) |
-| AREA19 | AREA03 e1 | [25] model 0x16 | D_00810854 bit 1: the panel [24] 00158EC0 model 0x22 (item 0x1B) | not played (inferred) |
+| AREA19 | AREA13 e6 / e7, AREA19 sub 1 e6 / 7 / 8 | 00196970 (climbing above a height in five circles) | the circles are the ladders at AREA19 entries 9 (-> AREA13 e6), 10 (-> e7), 11, 12 and 13 (-> sub 1 e8 / e7 / e6) (BM). Measured (a13b_00): Use facing +z at entry 9's foot, the stick up, the request 0D 00 06 01 at y >= 284.5 | e6 played (a13b_00); the rest not played |
+| AREA19 | AREA03 e1 | [25] model 0x16 | D_00810854 bit 1: the panel [24] 00158EC0 model 0x22 (item 0x1B). The panel stands at the north end of the y-265 walkway behind entry 0, which the entry-9 rooms do not reach (section 8c) | not played (inferred) |
 | AREA03 | AREA19 e0 | sub 0 [15] | open | not played (inferred) |
 | AREA03 | AREA04 e2 | sub 1 [24] model 0x15 | D_00810844 bit 0: the seal [23] 00158430 (a hit; it also opens AREA04's [38]) | not played (inferred) |
 | AREA03 | AREA08 e0 | sub 2 lift [7] model 0x0D | its buttons [9] / [10] (001BDFC0, id 7): D_00810844 bit 7 = the socket s2[6] with item 0x2A, given by AREA03 sub 1 [22] 0x8235A0 | not played (inferred) |
 | AREA08 | AREA03 e1 sub 2 | lift [8] | as AREA07 [0] | not played (inferred) |
-| AREA19 sub 1 | AREA15 e0 sub 0 / sub 1 | [50] / [51] | open | not played (inferred) |
+| AREA19 sub 1 | AREA15 e0 sub 0 / sub 1 | [50] / [51] | open; sub 1 is reached by the ladders at entries 11..13 (00196970), not from the entry-9 rooms (section 8c) | not played (inferred) |
 | AREA15 | AREA19 e4 / e5 sub 1 | sub 0 [14] / sub 1 [9] | open | not played (inferred) |
 | AREA15 sub 1 | AREA15 sub 0 e0, and the world's subs | 0x823C80 | flag 0x22 set (AREA15 sub 0 [0]'s script 0x826E70) and 0x23 clear; counter 0x23's steps (ins) | not played (inferred) |
 | AREA00 sub 2 | AREA14 e0 | [28] 0x826790 | Use with item 0x26 (AREA00 sub 2 g[3]) | not played (inferred) |
@@ -730,7 +731,25 @@ From there:
    seal [23] opens the way back to AREA04 ([24], [38]); AREA03 sub 1's
    [22] gives item 0x2A for the lift to AREA08. AREA07 and AREA08 share one
    layout and both set flag 0x25, which AREA19 sub 1's [53] 0x827550 (item
-   0x24) and AREA15 test. (inferred)
+   0x24) and AREA15 test. (inferred) **Revised by the tenth level
+   (section 8c):** AREA19 is not one open space. Entry 9 (the hatch [62]
+   route, played) reaches only its own rooms (played as far as the room
+   behind door [32]; a collision scan, a lead, links them to neither entry
+   0 nor entry 10), whose one other door [22] needs item 0x24 at the
+   reader [21] (code); the panel [24], door [27] and the sub-1 ladders lie
+   in the parts behind entries 0, 1 / 2 and 10. Door [27] opens only with
+   D_00810854 bit 2, which [7]'s 0x825930 sets after the sequence that
+   [7]'s 0x825AB0 starts only when the spawn entry byte D_00810702 is 0xA
+   (code). 00193EB0 (NM) sends the player to AREA19 entry 0xA from AREA13
+   entry 5 / 7 (AREA13's hatch [63], the other fall) (code). **Inferred,
+   not read:** that this arrival is the only way D_00810702 becomes 0xA.
+   D_00810702 also changes inside an area (001AD010's room-move path
+   stores D_008106B7 into it when D_008106B8 == 2; measured 9 -> 8 in the
+   duct, a19_00 f1453); AREA19's door table has no room move to entry 10
+   (its room moves give entries 0..8), but the other in-area triggers that
+   can set D_008106B7 in AREA19 were not enumerated. On that inference,
+   step 5 hangs on reaching AREA13's hatch [63] (door [20]'s side of
+   AREA13), which the tenth level did not find a way to on foot.
 6. **AREA15 twice.** Sub 0's [0] sets flag 0x22; sub 1's [4] / [6]
    (flag 0x22 set, 0x23 clear) run counter 0x23 up to 0x823C80, which
    gives C64 0x06 and CC3 0x0E, rewrites the subs of AREA00 (2), AREA01
@@ -806,16 +825,82 @@ AREA13 arrival (group `a13` of `tools/route_capture.py`, six beats). Measured:
   (0x824160, C) increments it at the load. [44] (stage 1, Use) was not
   played; flag 0x1C stayed 0, so doors [15] / [17] were never refused.
 
+## 8c. Measured (tenth level)
+
+The port's `docs/TENTH_LEVEL_ROUTE.md` played from the ninth level's end
+(a13_05: AREA19 entry 9, the ladder's foot) with groups `a19` and `a13b` of
+`tools/route_capture.py`. Measured:
+
+- **The entry-9 rooms.** The ladder room (y 240) is joined to the room
+  behind door [32] (y 200, entries 7 / 8) by a duct: its entry square
+  (grid attribute 0x37, x 697..705, z 1220..1230) takes Cross facing -z
+  (actions 0x2C, 0x2D, a01_s5's duct kind); the crawl runs south to (703,
+  220, 1068) and east out of an exit square into the room, and the spawn
+  entry byte D_00810702 becomes 8 inside the duct (a19_00). Back the same
+  way it becomes 9 again (a19_02). An exploration walk south down the ramp
+  corridor east of the duct stopped at (731.7, 242, 1217.4); a collision
+  reachability scan of a19_00's capture (a lead) reaches door [32]'s north
+  side (entry 7, y 200) from the ladder room that way, so the stop does
+  not prove the corridor closed. Door [32] (001BC350 model 0x03, no lock
+  test) was never opened. In the room the pickup g[2] (00219550) gave
+  D_00810CA8 0 -> 12 with its page (a19_01, which ends at the Use spot
+  (744.7, 200, 1057.7)). The reader [21] and door [22] (the platform at y
+  220 east of the room) were not played: no walk toward them is kept, and
+  the same scan (a lead) reaches that platform with the reader and entry 5
+  from the room, so the refusal is probably playable. Their gate is code:
+  001576E0 (BM) takes model 0x13's Use only with D_00810C88 (item 0x24)
+  non-zero, and D_00810C88 was 0 throughout. The scan links neither the
+  ladder room nor the room behind door [32] to entry 0 or entry 10.
+- **Back to AREA13.** Use facing +z at the ladder's foot, the stick up:
+  00196970's request 0D 00 06 01 (circle 0, y >= 284.5), AREA13 entry 6
+  under the open hatch [62]; the player climbs out on his own (actions
+  0x43, 0x18) to (720, 160, 1252.3) (a13b_00). In this AREA13 load the
+  freed [3] / [4] shift every later pool node down (the a13 owner table
+  does not apply).
+- **AREA13 -> AREA04 e7.** Door [17] from inside facing +x (entry 9,
+  a13b_01), outside to door [14]'s button [15] facing +z (entry 3,
+  a13b_02), door [8] facing +z (entry 1, a13b_03), the lift [10]'s outer
+  button [12] and inner button [13] (a13b_04, a13b_05): the request 04 FF
+  07 01 and AREA04 entry 7 at (570.7, 54.9, 244.6), where the AREA04
+  inner button's arrival script runs. Inside the car a bite (action 0x3E)
+  raised the infection 80 -> 90 (a13b_05 f365).
+- **The cold.** With item 0x1A held, the health stayed 44 through 2,089
+  frames outdoors (exploration) and through a13b_01..02; 0015D100 (C)
+  returns before its 360-frame drain while D_00810C7E != 0.
+- **AREA13's east side not reached.** The hatch [63] room (entry 5) is
+  entered only through door [20] from its north side (entry 10, (1064,
+  160, 889)). Walks from the outdoor field toward it stopped at a fence
+  of 40-unit cell-world walls along the pipes south of the field, at x
+  about 797..826 east of door [17] and [44], and at z about 1269 north of
+  door [17] (exploration). The roof ladder at the building's south-east
+  corner (grid wall attribute 0x32 at x 720..727.4, z 1208.6, y 160..215)
+  takes Cross facing +z and climbs to the roof (y 215) (a13b_s0); a walk
+  east on the roof stopped at a railing at (773.2, 215, 1226.4). A
+  reachability scan of the captured collision (scratch, a lead only) joins
+  the east side to the field only downhill (a drop off the slope wall near
+  (830, 1160)).
+- **Census** (`route_census.py tenth-delta`): the a19 / a13b replays run at
+  least 18 functions (8,640 bytes) that no earlier level ran: 12 AREA19
+  overlay functions, 1 AREA13 one and 5 boot ones (port
+  TENTH_LEVEL_ROUTE.md section 5). It is a lower bound (measured gaps,
+  port section 5.1): group a13b arms only AREA13, so a13b_00's AREA19
+  frames (f1..f425, the climb and 00196970's request) were not measured
+  for AREA19 code, nor was a13_05's AREA19 arrival (the ninth level's pass
+  armed AREA13; the init 0x8250C0 runs there); and seven AREA13 functions
+  (1,240 bytes) whose addresses AREA19 code spent at a13b_00 f1..f2 could
+  not be seen in a13b_00's AREA13 frames.
+
 ## 9. Open
 
 1. AREA13's hole [6] / hatch [63] (entry 5 / 7 -> AREA19 entry 10), door
-   [20], [44]'s event (flag 0x1C), [7] (counter 0x42) and the lift [10]'s
-   return are not played; section 7 steps 5..7 are derived, not played
-   (AREA19 is recorded to its entry-9 arrival only). The conditions of AREA14's
+   [20], [44]'s event (flag 0x1C) and [7] (counter 0x42) are not played
+   (the lift [10]'s return is, a13b_05); how the story reaches door [20]'s
+   side of AREA13 is not found (section 8c); section 7 steps 5..7 are derived, not played
+   (AREA19 is recorded in its entry-9 rooms only). The conditions of AREA14's
    [6] (the owner of script 0x828120), AREA17's counter 0x5D (written by
    boot 0016BC40, not read) and AREA21's ending were read only as far as
    the tables show.
-2. The lifts' return trips (AREA07 [0], AREA08 [8], AREA13 [10]) are not
+2. The lifts' return trips (AREA07 [0], AREA08 [8]) are not
    played; 001BC960's id-0xFF path is read (section 3), 001BDFC0's is not.
    Which actor writes counter 0x12 = 1 at AREA04's lift (the only direct
    store is 00131B10's state 0 with the actor's +0x0D bit 1 set, BM; it
