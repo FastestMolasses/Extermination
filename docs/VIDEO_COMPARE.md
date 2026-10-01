@@ -27,9 +27,10 @@ Nothing needs Rosetta or the Linux container.
 
 ## Setup (once)
 
-1. The port must include the `video-compare` changes (`src/game/em_replay.c`,
-   the input filter in `src/em_input.c`, the offline audio output in
-   `src/game/em_bgm.c`). Build it: `make -C ../extermination-port all`.
+1. The port's input recording and playback (`src/game/em_replay.c`, the
+   input filter in `src/em_input.c`, the offline audio output in
+   `src/game/em_bgm.c`) are on the port's main since 5e68edf / b676245.
+   Build it: `make -C ../extermination-port all`.
 2. The decomp `.venv` (already used by `pcsx2_session.py`) and a `python3`
    with Pillow and numpy (the python.org 3.13 install has both). Check with
    `python3 -c "import PIL, numpy"`.
