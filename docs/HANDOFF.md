@@ -60,14 +60,25 @@ that is a different, stale tree.
 - **Census (port FIRST_LEVEL_CENSUS.md 1.46):** live 708 / verified-unbound 45 /
   unverified 3 / stand-in 0 / missing 0 / boundary 428 = 96.9% of non-boundary
   instructions.
-- **Chain C9 stopped by the user after AREALOAD** (2026-09-29, to save compute; nothing
-  of PAGELOADS was written). Its script is build/workflows/snow-level-chain-c9.js;
-  resume in a new session by deleting the PIXELS and AREALOAD entries from STEPS,
-  updating STATE (census 1.46, the two commits, C9's step notes in the old run's journal
-  or build/workflows/snow-level-chain-c9.partial.json) and launching it fresh. Remaining
-  steps: PAGELOADS, LIGHTING, UNITS, CAMERAS (incl. the aim camera), TAKEOVERS, GLUE,
-  ASSETS, GSFRAME, ROUTE. The remaining-work list is port FIRST_LEVEL_AUDIT.md
-  section 1b (items 1 audio output, 2 GS frame, 4-23).
+- **Chain C9 resumed 2026-09-30 as build/workflows/snow-level-chain-c9r.js;** PAGELOADS
+  committed (port f71ef42, audit 1b item 9: every page module loads through the loader's
+  steps). The next step, AIMMERGE, failed at once on the account's weekly usage limit;
+  its partial copy of the Codex branch was archived to build/aimfire/aimmerge-partial/
+  (tracked.patch + untracked.tar) and main restored. To continue in a new session:
+  remove PAGELOADS from STEPS in snow-level-chain-c9r.js, add f71ef42 to STATE and
+  launch it fresh (steps AIMMERGE, AIMCAM, AIMLIVE, LIGHTING, UNITS, CAMERAS, TAKEOVERS,
+  GLUE, ASSETS, GSFRAME, AIMCAP (optional, needs an aim/fire PCSX2 capture in
+  build/aimfire/capture/, not recorded yet), ROUTE).
+- **Aim/fire handed back (user, 2026-09-30):** the Codex branch codex/aim-fire
+  (../extermination-port-aimfire, 3 commits) is unfinished: R1/R2 stop at the aim camera
+  handoffs 00197D20 / 00198650 and the legacy firing loop still runs; its docs/AIM_FIRE.md
+  lists the other gaps. Chain C9r's AIM* steps own it now.
+- **AREA11 overlay cross-check (round 8, decomp 83580f9) found port disagreements:**
+  0x823E80 state 0 calls em_pickup_prop_retire, which the original never does, and the
+  port faults for +4 >= 4 where the original returns; 0x8257A0 state 1 is untranslated;
+  the flame's loop sound 001FC3C0, 001B17A0 publication, +0x30/+0x34 stores and the
+  0x823580 contact callback are unbound; 0x827B10 reads the power bit once per tick
+  where the original reads it three times. Give these to a chain step.
 - **Still differs from the original first level (headline):** sound output (dry SPU2
   model, no reverb; needs an audio capture, which needs the user's OK to turn on
   PCSX2 audio recording during a capture job); the frame is Metal's, not the GS model's;
