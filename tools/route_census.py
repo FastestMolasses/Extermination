@@ -2595,6 +2595,41 @@ def eighth_delta(a) -> dict:
     return out
 
 
+# Ninth level (route_capture's opt-in group a13; port docs/NINTH_LEVEL_ROUTE.md).
+# `ninth-delta` measures each group against the first level, beat 15, every
+# earlier level's groups, all eighth-level groups and the ninth-level groups
+# before it (story order).
+NINTH_GROUPS = [   # (tag, overlay, overlay id, pass, beats-attr prefix)
+    ("a13", "AREA13", 10, "A13", "A13"),
+]
+
+
+def ninth_delta(a) -> dict:
+    earlier = _earlier_groups(a) + [(rc.A01U_BEATS, a.a01u_passes.split(","), "area01_upper", "AREA01"),
+                                    (rc.A06_BEATS, ["A06"], "area06", "AREA06")]
+    for tag, ov, _ov_id, pass_name, prefix in EIGHTH_GROUPS:
+        earlier = earlier + [(_eighth_beats(prefix)[0], [pass_name], "eighth_" + tag, ov)]
+    out = {}
+    for tag, ov, ov_id, pass_name, prefix in NINTH_GROUPS:
+        beats, side, change = _eighth_beats(prefix)
+        if not beats or not any(_hits(pass_name, b[0]) is not None for b in beats):
+            continue
+        d = chain_delta(tag, ov, ov_id, beats, side, change, [pass_name], earlier, f"{tag}_delta.json")
+        runs = {}
+        for name, _src, _fn in beats:
+            f = OUT / "runs" / pass_name / f"{name}.json"
+            if f.exists():
+                doc = json.loads(f.read_text())
+                runs[name] = {"completed": bool(doc.get("completed")), "frames": doc.get("frames"),
+                              "error": doc.get("error")}
+        d["summary"]["beats_incomplete"] = sorted(n for n, v in runs.items() if not v["completed"])
+        d["summary"]["replay_runs"] = runs
+        (OUT / f"{tag}_delta.json").write_text(json.dumps(d, indent=1) + "\n")
+        out[tag] = d["summary"]
+        earlier = earlier + [(beats, [pass_name], "ninth_" + tag, ov)]
+    return out
+
+
 def _run_group(selected, addrs: list[int], pass_name: str) -> None:
     for name, source, fn in selected:
         for attempt in range(3):
@@ -2612,7 +2647,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("command", choices=["candidates", "run", "report", "compare-startup", "exit-delta",
                                         "a01-delta", "a00-delta", "a02-delta", "a04-delta", "a22-delta",
-                                        "a01u-delta", "a06-delta", "graph", "eighth-delta"])
+                                        "a01u-delta", "a06-delta", "graph", "eighth-delta",
+                                        "ninth-delta"])
     ap.add_argument("--arm-chunk", type=int, default=200,
                     help="breakpoint commands per DebugServer round trip")
     ap.add_argument("--segments", default="all")
@@ -2675,6 +2711,10 @@ if __name__ == "__main__":
         if a.segments != "all":
             for tag, ov, _ov_id, _pass, _prefix in EIGHTH_GROUPS:
                 sel = [b for b in rc.eighth_selected(a.segments) if b[0].startswith(tag + "_")]
+                if sel:
+                    _run_group(sel, [c["addr"] for c in candidates(ov)], a.pass_name)
+            for tag, ov, _ov_id, _pass, _prefix in NINTH_GROUPS:
+                sel = [b for b in rc.a13_selected(a.segments) if b[0].startswith(tag + "_")]
                 if sel:
                     _run_group(sel, [c["addr"] for c in candidates(ov)], a.pass_name)
         addrs = [c["addr"] for c in candidates()]
@@ -2741,6 +2781,8 @@ if __name__ == "__main__":
         print(json.dumps(d["per_beat"], indent=1))
     elif a.command == "eighth-delta":
         print(json.dumps(eighth_delta(a), indent=1))
+    elif a.command == "ninth-delta":
+        print(json.dumps(ninth_delta(a), indent=1))
     elif a.command == "graph":
         g = world_graph()
         OUT.mkdir(parents=True, exist_ok=True)

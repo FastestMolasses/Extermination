@@ -9,7 +9,9 @@ every writer of those locks and story bytes, and where the items come from;
 then it derives the story's progression order. It is built from the boot ELF,
 the overlays and the level registries only (no emulator); section 8 lists
 what the eighth-level captures (port `docs/EIGHTH_LEVEL_ROUTE.md`) later
-measured. Nothing here quotes disc text; the tables are addresses and
+measured and section 8b the ninth-level captures (port
+`docs/NINTH_LEVEL_ROUTE.md`); section 7's table marks each edge played or
+not. Nothing here quotes disc text; the tables are addresses and
 numbers.
 
 **Evidence marks.** Each rule names its source: **BM** (byte-matched C),
@@ -141,8 +143,15 @@ D_00810730[0, 1, 2, 4, 6] = 0x82, 0x81, 0x82, 0x81, 0x81. The boot writers
   Measured (a04b_04): with bit 7 set, flag 0x12 = 1, counter 0x12 = 0x10
   and D_008106C0 = 0, AREA04's inner button [54] (yaw +pi/2) took Use
   with the player facing -x and the lift left for AREA13.
-- **001BD9F0** (NM): a room-move door (AREA13 [15] / [16]); scan: it reads
-  flag 0x1C (D_00810774).
+- **001BD9F0** (NM): the call buttons of AREA13's door [14] (001BDE60):
+  [15] (model 3, south side) and [16] (model 4, north side). Its state 0
+  sets the side latch +0x2E to 1 for model 3 and 0 otherwise; sub-state 0
+  offers Use through 001BC860, except that model 3 is refused (+0 = 2)
+  while flag 0x1C (D_00810774) == 1; after the Use script, sub-state 2
+  commits the room move through 001BC150 with the latch (door id 2, record
+  08 03: model 4 -> entry 8, model 3 -> entry 3). AREA13's door [17]
+  (0x823580, ins) has the same flag 0x1C == 1 refusal. Measured (a13_01):
+  [16] took Use facing -z and moved the player to entry 8.
 
 ## 4. Lock-bit writers
 
@@ -636,45 +645,45 @@ Pickups: C64 0x11: s0 g[3], s0 g[4], s0 g[5]; C64 0x20: s0 g[1]; C64 0x22: s0 g[
 The world graph as edges (area A -> B: the site, then its gate). "Open"
 means no lock or story test was found on the site itself.
 
-| From | To | Site | Gate (evidence) |
-|---|---|---|---|
-| AREA11 | AREA01 e4 | 0x823C40 [8], 0x827630 [1] / [2] | the first level (measured) |
-| AREA01 | AREA00 e0 | [12] 0x823580 (sub 0), [9] (sub 1) | open (measured) |
-| AREA00 | AREA01 e0 | [52] 0x823580 / [15] (sub 2) | open (measured) |
-| AREA01 | AREA02 e0 | [14] / [11] model 0x15 | D_00810842 bit 1, set by AREA02's seal [21] 001582E0 (from the AREA02 side) |
-| AREA01 | AREA02 e1 sub 1 | [16] / [12] | open (measured, fourth level) |
-| AREA02 | AREA01 e3 / e5 | [22] model 0x15 (bit 0, the same seal) / sub 1 [5] | seal / open |
-| AREA02 | AREA04 e0 | [25] model 0x17 | D_00810843 bit 3: the panel [24] 00158EC0 (item 0x1B) (measured, fourth level) |
-| AREA04 | AREA02 e4 | [35] | open |
-| AREA04 | AREA22 e0 | [37] | open (measured) |
-| AREA22 | AREA04 e1 / AREA01 e6 | [6] / [8] | open (measured) |
-| AREA01 | AREA22 e5 / AREA06 e0 | [18] / [19] | open (measured) |
-| AREA06 | AREA01 e7 | [1] | open (measured) |
-| AREA04 | room behind [45] (NPC [2], lift [56]) | [45] 0x823700 (sub 0), [51] (sub 1) | D_00810845 bit 5: only the AREA06 keypad page (00207350 slot 0) sets it |
-| AREA04 | AREA13 e0 | lift [51] model 0x0B | its buttons [53] / [54] (001BC960, id 7; BM, also read from the original instructions, section 3): D_00810845 bit 7 (the reader [50] model 0x2F: item 0x23); the inner [54] then needs flag 0x12 = 0xFF, or counter 0x12 = 0x10 (set by [3]'s first stage 0x824830 at the end of script 0x828450, which the reader's flag 0x12 = 1 starts) with D_008106C0 null or its record's conditions; first ride: flag 0x14 1 -> [4]'s script -> 0xFF (measured, a04b_04: counter 0x12 = 0x10, flag 0x12 = 1, D_008106C0 = 0) |
-| AREA04 | AREA07 e0 | lift [56] model 0x0D (behind [45]) | its buttons [58] / [59] (001BDFC0, id 0): D_00810845 bit 0 = the socket [55] 00159E70 with item 0x29 |
-| AREA07 | AREA04 e10 | lift [0] | its buttons (id 0xFF, inferred never by bit) |
-| AREA04 | AREA03 e0 sub 1 | [38] model 0x15 (sub 0) / [44] model 0x03 (sub 1) | sub 0: D_00810845 bit 2, set only by AREA03's seal [23] 00158430 (from the AREA03 side); sub 1: open |
-| AREA04 | AREA20 e0 | [42] / [48] model 0x15 | D_00810845 bit 4: AREA06 sub 1's 0x825E20 (flag 0x31) |
-| AREA13 | AREA04 e7 | lift [10] model 0x0B | its buttons [12] / [13] (id 0xFF: 001BC960 tests no lock bit; the inner one plays script 0x24E1A0 at the AREA13 entry 0 arrival; BM, also ins). Not played |
-| AREA13 | AREA19 e9 / e10 sub 0 | 00193EB0 (a fall below y 159 after entries 4..7) | the room moves [15] / [16] / [17] (flag 0x1C: 001BD9F0, 0x823580, scan) lead there; the holes [5] / [6] 0x823BC0 test item 0x27 (scan) |
-| AREA19 | AREA13 e6 / e7, AREA19 sub 1 e6 / 7 / 8 | 00196970 (climbing above a height in five circles) | the circles lie at AREA13 / AREA19 positions (inferred) |
-| AREA19 | AREA03 e1 | [25] model 0x16 | D_00810854 bit 1: the panel [24] 00158EC0 model 0x22 (item 0x1B) |
-| AREA03 | AREA19 e0 | sub 0 [15] | open |
-| AREA03 | AREA04 e2 | sub 1 [24] model 0x15 | D_00810844 bit 0: the seal [23] 00158430 (a hit; it also opens AREA04's [38]) |
-| AREA03 | AREA08 e0 | sub 2 lift [7] model 0x0D | its buttons [9] / [10] (001BDFC0, id 7): D_00810844 bit 7 = the socket s2[6] with item 0x2A, given by AREA03 sub 1 [22] 0x8235A0 |
-| AREA08 | AREA03 e1 sub 2 | lift [8] | as AREA07 [0] |
-| AREA19 sub 1 | AREA15 e0 sub 0 / sub 1 | [50] / [51] | open |
-| AREA15 | AREA19 e4 / e5 sub 1 | sub 0 [14] / sub 1 [9] | open |
-| AREA15 sub 1 | AREA15 sub 0 e0, and the world's subs | 0x823C80 | flag 0x22 set (AREA15 sub 0 [0]'s script 0x826E70) and 0x23 clear; counter 0x23's steps (ins) |
-| AREA00 sub 2 | AREA14 e0 | [28] 0x826790 | Use with item 0x26 (AREA00 sub 2 g[3]) |
-| AREA14 / AREA18 | AREA18 e0 / AREA14 e1 | 00190F20 | in AREA14 the player inside quad D_0024A4B0 / in AREA18 the player's x (+0xA0) <= 285 (BM, section 5) |
-| AREA14 | AREA17 e0 | [6]'s script 0x828120, op09 0x825C40 | the owner's condition not read |
-| AREA17 | AREA11 e3 | [38] 0x825470 | counter 0x5D (scan) |
-| AREA06 | AREA16 e0 | [3] model 0x3E | D_00810847 bit 2: AREA15's 0x824B40 only |
-| AREA16 | AREA06 e3 | [7] model 0x3D | open |
-| AREA20 | AREA04 e5 / AREA21 e3 | [2] / [32] 0x823BE0 | open / counter 0x34 and a quad |
-| AREA21 | the ending | [53] 0x827040 | counter 0x37 (flag 0x36's event) |
+| From | To | Site | Gate (evidence) | Played |
+|---|---|---|---|---|
+| AREA11 | AREA01 e4 | 0x823C40 [8], 0x827630 [1] / [2] | the first level (measured) | played (first level, beat 15) |
+| AREA01 | AREA00 e0 | [12] 0x823580 (sub 0), [9] (sub 1) | open (measured) | played (third level, a01_07) |
+| AREA00 | AREA01 e0 | [52] 0x823580 / [15] (sub 2) | open (measured) | played (third level, a00_10) |
+| AREA01 | AREA02 e0 | [14] / [11] model 0x15 | D_00810842 bit 1, set by AREA02's seal [21] 001582E0 (from the AREA02 side) | not played (the locked door measured, a01r_s1) |
+| AREA01 | AREA02 e1 sub 1 | [16] / [12] | open (measured, fourth level) | played (fourth level, a01r_03) |
+| AREA02 | AREA01 e3 / e5 | [22] model 0x15 (bit 0, the same seal) / sub 1 [5] | seal / open | not played |
+| AREA02 | AREA04 e0 | [25] model 0x17 | D_00810843 bit 3: the panel [24] 00158EC0 (item 0x1B) (measured, fourth level) | played (fourth level, a02_05) |
+| AREA04 | AREA02 e4 | [35] | open | not played |
+| AREA04 | AREA22 e0 | [37] | open (measured) | played (fifth level, a04_05) |
+| AREA22 | AREA04 e1 / AREA01 e6 | [6] / [8] | open (measured) | both played (a22b_01, a22_s3; a22_02) |
+| AREA01 | AREA22 e5 / AREA06 e0 | [18] / [19] | open (measured) | both played (a01v_02, a01u_s1; a01u_02) |
+| AREA06 | AREA01 e7 | [1] | open (measured) | played (a06_s0, a06b_01) |
+| AREA04 | room behind [45] (NPC [2], lift [56]) | [45] 0x823700 (sub 0), [51] (sub 1) | D_00810845 bit 5: only the AREA06 keypad page (00207350 slot 0) sets it | played ([45], a04b_00) |
+| AREA04 | AREA13 e0 | lift [51] model 0x0B | its buttons [53] / [54] (001BC960, id 7; BM, also read from the original instructions, section 3): D_00810845 bit 7 (the reader [50] model 0x2F: item 0x23); the inner [54] then needs flag 0x12 = 0xFF, or counter 0x12 = 0x10 (set by [3]'s first stage 0x824830 at the end of script 0x828450, which the reader's flag 0x12 = 1 starts) with D_008106C0 null or its record's conditions; first ride: flag 0x14 1 -> [4]'s script -> 0xFF (measured, a04b_04: counter 0x12 = 0x10, flag 0x12 = 1, D_008106C0 = 0) | played (a04b_04) |
+| AREA04 | AREA07 e0 | lift [56] model 0x0D (behind [45]) | its buttons [58] / [59] (001BDFC0, id 0): D_00810845 bit 0 = the socket [55] 00159E70 with item 0x29 | not played (inferred) |
+| AREA07 | AREA04 e10 | lift [0] | its buttons (id 0xFF, inferred never by bit) | not played (inferred) |
+| AREA04 | AREA03 e0 sub 1 | [38] model 0x15 (sub 0) / [44] model 0x03 (sub 1) | sub 0: D_00810845 bit 2, set only by AREA03's seal [23] 00158430 (from the AREA03 side); sub 1: open | not played (inferred) |
+| AREA04 | AREA20 e0 | [42] / [48] model 0x15 | D_00810845 bit 4: AREA06 sub 1's 0x825E20 (flag 0x31) | not played (inferred) |
+| AREA13 | AREA04 e7 | lift [10] model 0x0B | its buttons [12] / [13] (id 0xFF: 001BC960 tests no lock bit; the inner one plays script 0x24E1A0 at the AREA13 entry 0 arrival; BM, also ins). Not played | not played (inferred) |
+| AREA13 | AREA19 e9 / e10 sub 0 | 00193EB0 (the player's event code 6..9 / 0x2C / 0x2D at y <= 159 with spawn entry 4 / 6, resp. 5 / 7) | door [17] (0x823580, ins) from the east (entry 4) and the hatch [62] (0x826850, ins): item 0x27 (pickup g[5] in the same room) makes the hatch usable (class 0x84), its Use opens it (counter 0x61 bit 0), Use facing +z starts its ladder, and the descent reaches y 143.1 (measured, a13_05). [15] (001BD9F0 model 3) and [17] are locked only while flag 0x1C == 1 (NM / ins); flag 0x1C stayed 0 on this route. The holes [5] / [6] (0x823BC0, ins) are examine points that end once item 0x27 is held or flag 0x1B is 0xFF | e9 played (a13_05, hole [5]); e10 not played |
+| AREA19 | AREA13 e6 / e7, AREA19 sub 1 e6 / 7 / 8 | 00196970 (climbing above a height in five circles) | the circles lie at AREA13 / AREA19 positions (inferred) | not played (inferred) |
+| AREA19 | AREA03 e1 | [25] model 0x16 | D_00810854 bit 1: the panel [24] 00158EC0 model 0x22 (item 0x1B) | not played (inferred) |
+| AREA03 | AREA19 e0 | sub 0 [15] | open | not played (inferred) |
+| AREA03 | AREA04 e2 | sub 1 [24] model 0x15 | D_00810844 bit 0: the seal [23] 00158430 (a hit; it also opens AREA04's [38]) | not played (inferred) |
+| AREA03 | AREA08 e0 | sub 2 lift [7] model 0x0D | its buttons [9] / [10] (001BDFC0, id 7): D_00810844 bit 7 = the socket s2[6] with item 0x2A, given by AREA03 sub 1 [22] 0x8235A0 | not played (inferred) |
+| AREA08 | AREA03 e1 sub 2 | lift [8] | as AREA07 [0] | not played (inferred) |
+| AREA19 sub 1 | AREA15 e0 sub 0 / sub 1 | [50] / [51] | open | not played (inferred) |
+| AREA15 | AREA19 e4 / e5 sub 1 | sub 0 [14] / sub 1 [9] | open | not played (inferred) |
+| AREA15 sub 1 | AREA15 sub 0 e0, and the world's subs | 0x823C80 | flag 0x22 set (AREA15 sub 0 [0]'s script 0x826E70) and 0x23 clear; counter 0x23's steps (ins) | not played (inferred) |
+| AREA00 sub 2 | AREA14 e0 | [28] 0x826790 | Use with item 0x26 (AREA00 sub 2 g[3]) | not played (inferred) |
+| AREA14 / AREA18 | AREA18 e0 / AREA14 e1 | 00190F20 | in AREA14 the player inside quad D_0024A4B0 / in AREA18 the player's x (+0xA0) <= 285 (BM, section 5) | not played (inferred) |
+| AREA14 | AREA17 e0 | [6]'s script 0x828120, op09 0x825C40 | the owner's condition not read | not played (inferred) |
+| AREA17 | AREA11 e3 | [38] 0x825470 | counter 0x5D (scan) | not played (inferred) |
+| AREA06 | AREA16 e0 | [3] model 0x3E | D_00810847 bit 2: AREA15's 0x824B40 only | not played (inferred) |
+| AREA16 | AREA06 e3 | [7] model 0x3D | open | not played (inferred) |
+| AREA20 | AREA04 e5 / AREA21 e3 | [2] / [32] 0x823BE0 | open / counter 0x34 and a quad | not played (inferred) |
+| AREA21 | the ending | [53] 0x827040 | counter 0x37 (flag 0x36's event) | not played (inferred) |
 
 **The order the code implies** (each step: what gates it, and where that
 gate is set). The recorded levels one to seven play AREA11 -> AREA01 ->
@@ -712,7 +721,10 @@ From there:
 4. **AREA13, then AREA19.** AREA13's only exits are the lift back and the
    falls into AREA19 (00193EB0). AREA13's flag 0x1A event ([4] 0x823A40,
    item 0x1A) is also the flag that removes the AREA04 NPC (0x824320
-   frees itself when flag 0x1A is set, C). (scan + C)
+   frees itself when flag 0x1A is set, C). (scan + C; played in the ninth
+   level, section 8: the lobby, door [8] ([3]'s scene), door [14] outside,
+   door [17] from the east ([4]'s scene, item 0x1A), item 0x27, the hatch
+   [62] and its ladder into AREA19 entry 9)
 5. **AREA19 -> AREA03 -> AREA08, or AREA19 sub 1 -> AREA15.** Both are
    open from AREA19 (the panel [24] needs one battery, item 0x1B). AREA03's
    seal [23] opens the way back to AREA04 ([24], [38]); AREA03 sub 1's
@@ -767,10 +779,39 @@ from the seventh level's a06_03 (groups `a06b`, `a01v`, `a22b`, `a04b` of
   0D FF 00 01 and AREA13 entry 0. [3]'s second stage (0x824930) did not
   run and the creature was left alive. Step 3 holds up to AREA13.
 
+## 8b. Measured (ninth level)
+
+The port's `docs/NINTH_LEVEL_ROUTE.md` played section 7's step 4 from the
+AREA13 arrival (group `a13` of `tools/route_capture.py`, six beats). Measured:
+
+- The lift car is left through its opening at z about 1258 (a13_00); door
+  [8] from the north: entry 2; [3] (0x823700) starts its scene at once
+  (flag 0x19 1 -> 0xFF, counter 0x19 = 1, a document page).
+- The button [16] (001BD9F0 model 4) takes Use facing -z: entry 8, outside
+  (a13_01). Outside, the idle player plays cold clips and the health falls
+  by 1 (45 -> 44 in a13_02, the only loss on the route).
+- Door [17] from the east (entry 4) with flag 0x1C = 0; [4] (0x823A40)
+  starts its scene at the arrival: item 0x1A (D_00810C7E = 1, an equipment
+  item), flag and counter 0x1A = 0xFF (a13_02).
+- The pickup g[5] gives item 0x27 (a13_03); both holes [5] / [6] end and
+  both hatches [62] / [63] become class 0x84.
+- The hatch [62]: its descriptor 0x82CDD0 (720, 160.5, 1253.7, radius 10,
+  yaw -3.072) takes Use with the player facing +z; script 0x82CA50, state 2,
+  counter 0x61 = 1 (a13_04). Use facing +z in the opening: the ladder
+  (action 0x16), y 143.1 at (720, 1259.6), 00193EB0's request 13 00 09 01
+  (event code 8, spawn entry 4), **AREA19 sub 0 entry 9** on a ladder at
+  (710, 281.4, 1266.1); the stick held down climbs to (710, 240, 1256.8)
+  (a13_05). Step 4 holds for hole [5] and entry 9.
+- Counter 0x1C was already 1 at the arrival: [44] 0x823E90's stage 0
+  (0x824160, C) increments it at the load. [44] (stage 1, Use) was not
+  played; flag 0x1C stayed 0, so doors [15] / [17] were never refused.
+
 ## 9. Open
 
-1. AREA13 past its arrival (section 7 steps 4..7) is derived, not played. The
-   conditions of AREA13's holes [5] / [6] (item 0x27) and of AREA14's
+1. AREA13's hole [6] / hatch [63] (entry 5 / 7 -> AREA19 entry 10), door
+   [20], [44]'s event (flag 0x1C), [7] (counter 0x42) and the lift [10]'s
+   return are not played; section 7 steps 5..7 are derived, not played
+   (AREA19 is recorded to its entry-9 arrival only). The conditions of AREA14's
    [6] (the owner of script 0x828120), AREA17's counter 0x5D (written by
    boot 0016BC40, not read) and AREA21's ending were read only as far as
    the tables show.

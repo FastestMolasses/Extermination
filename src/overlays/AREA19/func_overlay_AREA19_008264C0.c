@@ -1,22 +1,13 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-// CFLAGS: -O4,p -sdatathreshold 4
-extern void func_1FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA19 overlay, runtime 0x00826500 (splat/link name 008264C0; overlay code
+//  is linked 0x40 below where it runs), 0x3C bytes.
+// Byte-identical (tools/overlay/overlay_match.py check AREA19; lane A13C).
+// Role: script callback (script 0x82C6E0, record 0x82C7A0): +0x2EC =
+//  func_001FBD50(self, 0x135, 0, 300.0); returns 1.
+extern int func_001FBD50(unsigned char *self, int id, int a2, float vol);
 
-asm void func_overlay_AREA19_008264C0(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    lui $v0, (0x43960000 >> 16)
-    sq $s0, 0x0($sp)
-    mtc1 $v0, $f12
-    addiu $a1, $zero, 0x135
-    paddub $s0, $a0, $zero
-    jal func_1FBD50
-    paddub $a2, $zero, $zero
-    sw $v0, 0x2EC($s0)
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    addiu $v0, $zero, 0x1
-    jr $ra
-    addiu $sp, $sp, 0x20
+int func_overlay_AREA19_008264C0(unsigned char *self) {
+    *(int *)(self + 0x2EC) = func_001FBD50(self, 0x135, 0, 300.0f);
+    return 1;
 }

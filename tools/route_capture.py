@@ -58,6 +58,10 @@ docs/SEVENTH_LEVEL_ROUTE.md.
 C7 beats (c7_*) are original captures the C6 chain requested; each writes to
 build/s87/c7cap/<item>/<beat>/ and is described in docs/CAPTURES_C7.md.
 None of them runs under `--beats all`.
+    .venv/bin/python tools/route_capture.py run --beats a13     # AREA13 group (opt-in)
+The AREA13 beats (a13_*, from the a04b_04_lift snapshot) write to
+build/s87/route_a13/<beat>/; they are described in the port's
+docs/NINTH_LEVEL_ROUTE.md.
 The route and every beat are described in the port's docs/FIRST_LEVEL_ROUTE.md.
 """
 from __future__ import annotations
@@ -4211,6 +4215,319 @@ def eighth_owners(name: str):
     return None
 
 
+# ---------------------------------------------------------------------------
+# Ninth level (lane A13CAP, s89; port docs/NINTH_LEVEL_ROUTE.md): AREA13 from
+# the lift's arrival (a04b_04_lift's end, entry 0) on, with the order the
+# world graph gives (decomp docs/WORLD_GRAPH.md section 7 step 4).  Opt-in
+# group `a13`.  Pool nodes of this AREA13 sub-0 load (placement table
+# 0x82D570 [n], deferred group 0x829D00 g[n]), measured in the a04b_04 end
+# snapshot with tools/area_overview.py --area 13 --ram.
+OUT_A13 = ROOT / "build/s87/route_a13"
+A13_OWNERS = {
+    "r3_823700": 0x7AAB70,        # overlay 0x823700 (class 0xAA) at (677.3, 160, 1202): flag 0x19
+    "r4_823A40": 0x7AAE60,        # overlay 0x823A40 at (760.5, 174, 1277): flag 0x1A, item 0x1A
+    "hole_r5": 0x7AB150,          # overlay 0x823BC0 +0x0D 0 at (720.1, 160, 1262): off with item 0x27 or flag 0x1B
+    "hole_r6": 0x7AB440,          # overlay 0x823BC0 +0x0D 1 at (1081, 160, 845)
+    "r7_824A80": 0x7AB730,        # overlay 0x824A80 at (688, 163, 1041): counter 0x42
+    "door8_r8": 0x7ABA20,         # 001BC350 model 0x03, room move id 1 (entries 2 / 1)
+    "lift_r10": 0x7AC000,         # 001BD560 model 0x0B, door id 0|0x80: AREA04 entry 7
+    "button_r13": 0x7AC8D0,       # 001BC960 model 1 (inner), id 0xFF
+    "door14_r14": 0x7ACBC0,       # 001BDE60 model 5 at (688.7, 160, 1161.1)
+    "button_r15": 0x7ACEB0,       # 001BD9F0 model 3 (south side; locked while flag 0x1C == 1), room move id 2
+    "button_r16": 0x7AD1A0,       # 001BD9F0 model 4 (north side), room move id 2 (entries 8 / 3)
+    "door17_r17": 0x7AD490,       # overlay 0x823580 model 0x03, room move id 3 (entries 9 / 4; locked while flag 0x1C == 1)
+    "door20_r20": 0x7ADD60,       # 001BC350 model 0x03, room move id 4 (entries 5 / 10)
+    "r44_823E90": 0x7B23E0,       # overlay 0x823E90 at (798.4, 215, 1149.5): counter / flag 0x1C
+    "hatch_r62": 0x7B52E0,        # overlay 0x826850 model 0x35 at (720.1, 160, 1262): item 0x27, counter 0x61
+    "hatch_r63": 0x7B55D0,        # overlay 0x826850 model 0x35 at (1081, 160, 845)
+    "pick_g5": 0x7A64F0,          # 00219550 g[5] at (773.6, 160.2, 1274.3): item 0x27
+    "pick_g8": 0x7A6DC0,          # 00219550 g[8] at (655.5, 160.2, 1283.1): item 0x1E
+    "bug_g25": 0x7A9FB0,          # 0012A5D0 g[25]
+    "bug_g26": 0x7AA2A0,          # 0012A5D0 g[26]
+    "bug_g27": 0x7AA590,          # 00128C10 g[27]
+    "bug_g28": 0x7AA880,          # 00128C10 g[28]
+    "c_g21": 0x7A93F0,            # overlay 0x824BB0 g[21] at (724.9, 205, 1280)
+}
+A13_SPANS = [sp for sp in A04B_SPANS if ":" not in sp[0]] + [
+    ("s770", 0x810770, 0x8),            # D_00810770..77 (flags 0x18..0x1F; 774 = flag 0x1C)
+    ("s7f0", 0x8107F0, 0x8),            # D_008107F0..F7 (counters 0x18..0x1F; 7F4 = counter 0x1C)
+    ("s798", 0x810798, 0x4),            # D_00810798..9B (flag 0x42 = 79A)
+    ("s818", 0x810818, 0x4),            # D_00810818..1B (counter 0x42 = 81A)
+    ("l848", 0x810848, 0x8),            # D_00810848..4F (84E = AREA13's lock byte)
+    ("cc0", 0x810CC0, 0x10),            # D_00810CC0..CF (the CC3 table from +3)
+]
+for _name, _base in A13_OWNERS.items():
+    A13_SPANS += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                  (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                  (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10)]
+A13_EVENT_KEYS = ("s770", "s7f0", "s798", "s818", "l84e", "c8b", "c82", "c7e", "c86")
+
+
+def decode_a13(r: dict[str, bytes], owners=None) -> dict:
+    row = decode_a04b(r, owners=A13_OWNERS if owners is None else owners)
+    row["s770"] = r["s770"].hex()                       # flags 0x18..0x1F
+    row["s7f0"] = r["s7f0"].hex()                       # counters 0x18..0x1F
+    row["s798"] = r["s798"].hex()
+    row["s818"] = r["s818"].hex()
+    row["l84e"] = r["l848"][6:7].hex()                  # D_0081084E (AREA13 lock bits)
+    row["c8b"] = r["inv3"][3]                           # D_00810C8B (item 0x27)
+    row["c82"] = r["inv"][0x1E]                         # D_00810C82 (item 0x1E)
+    row["c7e"] = r["inv"][0x1A]                         # D_00810C7E (item 0x1A)
+    row["c86"] = r["inv2"][2]                           # D_00810C86 (item 0x22)
+    row["cc0"] = r["cc0"].hex()
+    row["c61"] = r["s830"][9:10].hex()                  # D_00810839 (counter 0x61)
+    row["event230"] = struct.unpack_from("<i", r["player"], 0x230)[0]
+    return row
+
+
+def use_a13_sampler(r: Route) -> None:
+    sampler = A01USampler(r.s, spans=A13_SPANS)
+    r.sampler = sampler
+    r.now = lambda: decode_a13(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+
+
+def a13_settle(r: Route, frames: int = 10, limit: int = 1500) -> None:
+    """a06_settle for AREA13: outdoors the idle player plays the cold clips
+    (20 / 349) instead of clip 0, so control is action 0 with 3B8D == 0."""
+    r.idle(frames)
+    for _ in range(limit):
+        row = r.rows[-1]
+        if row["m1F0"] in A04_GRABS:
+            a04_shake(r)
+            continue
+        if in_control(row) and row["m1F0"] == 0:
+            return
+        r.step(1)
+    raise TimeoutError("not settled: " + summary(r.rows[-1]))
+
+
+def a13_face(r: Route, yaw: float, tol: float = 0.12, limit: int = 40) -> None:
+    for _ in range(limit):
+        row = r.rows[-1]
+        if row["m1F0"] in A04_GRABS:
+            a04_shake(r)
+            continue
+        diff = (yaw - row["yaw"] + math.pi) % (2 * math.pi) - math.pi
+        if abs(diff) <= tol:
+            break
+        px, _py, pz = row["pos"]
+        r.stick_toward(px + 100 * math.sin(yaw), pz + 100 * math.cos(yaw), 0.6)
+        r.step(1)
+    r.set_pad(0)
+    a13_settle(r, 10)
+
+
+def a13_use(r: Route, x: float, z: float, yaw: float, pred, tries: int = 5) -> None:
+    """a06_use with a13_settle: walk to (x, z), face `yaw`, Cross until `pred`
+    (a press right after the player settles can be missed, so it retries)."""
+    for _ in range(tries):
+        a04_go(r, [(x, z)], tol=1.5)
+        for _ in range(200):
+            if r.rows[-1]["m1F0"] in A04_GRABS:
+                a04_shake(r)
+                continue
+            if r.stick_toward(x, z, 0.5) <= 0.6:
+                break
+            r.step(1)
+        r.set_pad(0)
+        a13_settle(r, 10)
+        a13_face(r, yaw)
+        r.idle(3)
+        r.press("CROSS", 2)
+        try:
+            r.until(lambda row: pred(row) and row["m1F0"] not in A04_GRABS, 60)
+            return
+        except TimeoutError:
+            a13_settle(r, 5)
+    raise TimeoutError("Use not taken: " + summary(r.rows[-1]))
+
+
+def a13_control(r: Route, limit: int, need: int = 60) -> None:
+    """a04b_control (grabs shaken off, an item page closed with Triangle after
+    90 frames) that accepts the outdoor cold clips."""
+    for _ in range(limit):
+        row = r.rows[-1]
+        if row["m1F0"] in A04_GRABS:
+            a04_shake(r)
+            continue
+        if row["ui"][2:4] == "03":
+            r.idle(90)
+            r.press("TRIANGLE", 2)
+            r.until(lambda x: x["ui"][2:4] != "03", 900)
+            continue
+        row = r.step(1)
+        if in_control(row) and len(r.rows) > need and all(in_control(x) for x in r.rows[-need:]):
+            return
+    raise TimeoutError("control not kept; last " + summary(r.rows[-1]))
+
+
+A13_CAR_TO_DOOR8 = [(634, 1258), (650, 1258), (662, 1260), (680, 1250), (680, 1228), (670, 1220)]
+
+
+def a13_beat_door8(r: Route) -> dict:
+    # Out of the lift [10]'s car through its opening (z about 1258; the car's
+    # east wall stops a walk at x 640.2 further north), across the lobby to
+    # door [8] (001BC350 model 0x03, room move id 1) from its north side:
+    # entry 2.  [3] (overlay 0x823700) then starts its scene at once: flag
+    # 0x19 = 1, script 0x82A360, flag 0x19 = 0xFF and counter 0x19 = 1 at its
+    # end, and an item page (Triangle).
+    use_a13_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, A13_CAR_TO_DOOR8, limit=300)
+    if how != "ok":
+        raise RuntimeError("door [8] not reached (" + how + "): " + summary(r.rows[-1]))
+    a13_use(r, 669.7, 1215.0, math.pi, a04_program)
+    r.until(lambda row: row["area4"][:6] == "0d0002", 1500)
+    a13_control(r, 12000, 60)
+    a13_settle(r, 10)
+    row = r.rows[-1]
+    if row["s770"][2:4] != "ff":
+        raise RuntimeError("[3]'s scene did not end (flag 0x19): " + summary(row))
+    return {"what": "out of the lift car, the lobby, door [8] (entry 2); [3]'s scene: flag 0x19 1 -> 0xFF",
+            "hp_end": a01_hp(r)}
+
+
+def a13_beat_door14(r: Route) -> dict:
+    # The button [16] (001BD9F0 model 4 at (665.7, 175, 1164.6), yaw 0) of the
+    # door [14] (001BDE60): Use facing -z; the room move id 2 (record 08 03)
+    # with the side latch 0: entry 8 outside, south of the building.
+    use_a13_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(675, 1180), (666, 1172)], limit=300)
+    if how != "ok":
+        raise RuntimeError("button [16] not reached (" + how + "): " + summary(r.rows[-1]))
+    a13_use(r, 665.7, 1170.0, math.pi, lambda row: row["button_r16"]["h"][10:12] != "00")
+    r.until(lambda row: row["area4"][:6] == "0d0008", 1500)
+    a13_control(r, 3000, 40)
+    a13_settle(r, 10)
+    return {"what": "button [16] facing -z: door [14], room move to entry 8 (outside)", "hp_end": a01_hp(r)}
+
+
+A13_OUT_TO_DOOR17 = [(740, 1150), (770, 1180), (795, 1222), (790, 1250), (787, 1262)]
+
+
+def a13_beat_door17(r: Route) -> dict:
+    # Outdoors (the cold lowers the health about 1 per 360 frames while
+    # outside, measured) east along z 1150 and north past the building's
+    # south-east corner to door [17] (overlay 0x823580, room move id 3,
+    # record 09 04; locked only while flag 0x1C == 1) from the east: entry 4.
+    # [4] (overlay 0x823A40) starts its scene at the arrival: item 0x1A
+    # (D_00810C7E = 1) with its equipment page (Triangle), flag and counter
+    # 0x1A = 0xFF.
+    use_a13_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, A13_OUT_TO_DOOR17, limit=400)
+    if how != "ok":
+        raise RuntimeError("door [17] not reached (" + how + "): " + summary(r.rows[-1]))
+    a13_use(r, 785.5, 1263.0, -math.pi / 2, a04_program)
+    r.until(lambda row: row["area4"][:6] == "0d0004", 1500)
+    a13_control(r, 12000, 60)
+    a13_settle(r, 10)
+    row = r.rows[-1]
+    if row["c7e"] != 1 or row["s770"][4:6] != "ff":
+        raise RuntimeError("[4]'s scene did not end (item 0x1A / flag 0x1A): " + summary(row))
+    return {"what": "outdoors to door [17] from the east (entry 4); [4]'s scene: item 0x1A, flag 0x1A = 0xFF",
+            "hp_end": a01_hp(r)}
+
+
+def a13_beat_item27(r: Route) -> dict:
+    # The pickup g[5] (00219550, item 0x27) at (773.6, 160.2, 1274.3): Use
+    # from (769.5, 1274.3) facing +x.  With item 0x27 held both holes [5] / [6]
+    # (0x823BC0) end (state 3) and the hatches [62] / [63] (0x826850) take
+    # class 0x84 (offered for Use).
+    use_a13_sampler(r)
+    next_long_frames(r)
+    a04_go(r, [(768, 1274)], limit=200)
+    a13_use(r, 769.5, 1274.3, math.pi / 2, lambda row: not in_control(row))
+    a13_control(r, 3000, 40)
+    a13_settle(r, 10)
+    row = r.rows[-1]
+    if row["c8b"] != 1:
+        raise RuntimeError("item 0x27 not taken: " + summary(row))
+    return {"what": "the pickup g[5]: item 0x27", "hp_end": a01_hp(r)}
+
+
+def a13_beat_hatch(r: Route) -> dict:
+    # West over the grating step (x 742.4..751, z 1237.6..1277, top y 168.4;
+    # a box x 713..751.3, z 1213..1238 closes the room's south part): a ledge
+    # climb facing -x (action 8), walk off its west side, then the hatch
+    # [62]'s Use point (its descriptor 0x82CDD0: (720, 160.5, 1253.7), radius
+    # 10, yaw -3.072; the player faces +z): script 0x82CA50, the hatch opens
+    # (state 2) and counter 0x61 (D_00810839) |= 1.
+    use_a13_sampler(r)
+    next_long_frames(r)
+    how = a04_go(r, [(756, 1260), (745, 1260)], limit=120)
+    if not how.startswith("blocked") and how != "ok":
+        raise RuntimeError("the step not reached (" + how + "): " + summary(r.rows[-1]))
+    a13_face(r, -math.pi / 2)
+    use_press(r, lambda row: row["m1F0"] == 8, tries=4, wait=30)
+    r.until(lambda row: row["m1F0"] != 8, 300)
+    a13_settle(r, 10)
+    if r.rows[-1]["pos"][1] < 168.0:
+        raise RuntimeError("not on the step: " + summary(r.rows[-1]))
+    how = a04_go(r, [(738, 1260)], limit=120)
+    a13_settle(r, 20)
+    a04_go(r, [(720, 1254)], limit=150, tol=0.8)
+    a13_use(r, 720.0, 1253.7, 0.07, lambda row: row["hatch_r62"]["h"][10:12] != "00")
+    r.until(lambda row: row["hatch_r62"]["h"][8:10] == "02", 1500)
+    a13_control(r, 3000, 40)
+    a13_settle(r, 10)
+    row = r.rows[-1]
+    if not int(row["c61"], 16) & 1:
+        raise RuntimeError("counter 0x61 bit 0 not set: " + summary(row))
+    return {"what": "over the grating step (ledge climb), the hatch [62] with item 0x27: open, counter 0x61 |= 1",
+            "hp_end": a01_hp(r)}
+
+
+def a13_beat_shaft(r: Route) -> dict:
+    # Use facing +z in the open hatch: the ladder (action 0x16, then 0x17);
+    # at y 143.1 (entry 6's point) 00193EB0 sees the player at y <= 159 with
+    # spawn entry 4 and requests AREA19 sub 0 entry 9 (13 00 09 01).  AREA19
+    # entry 9 starts on a ladder (action 0x44, then 0x17); the stick held
+    # down climbs to its foot (action 0x18) and control.
+    use_a13_sampler(r)
+    next_long_frames(r)
+    a13_face(r, 0.0)
+    use_press(r, lambda row: row["m1F0"] == 0x16, tries=4, wait=30)
+    r.until(lambda row: row["area4"][:2] == "13", 1500)
+    r.until(lambda row: row["m1F0"] == 0x17 and row["spad"][2:4] == "00", 3000)
+    r.set_pad(0, 0x7F, 0xFF)
+    r.until(lambda row: row["m1F0"] == 0 and row["p5"] == 0, 1500, 0, 0x7F, 0xFF)
+    r.set_pad(0)
+    a13_control(r, 1500, 60)
+    a13_settle(r, 10)
+    if r.rows[-1]["area4"][:6] != "130009":
+        raise RuntimeError("not at AREA19 sub 0 entry 9: " + summary(r.rows[-1]))
+    return {"what": "the hatch's ladder: 00193EB0's request to AREA19 entry 9, the AREA19 ladder down, control",
+            "hp_end": a01_hp(r)}
+
+
+A13_BEATS: list[tuple] = [
+    ("a13_00_door8", "a04b_04_lift", a13_beat_door8),
+    ("a13_01_door14", "a13_00_door8", a13_beat_door14),
+    ("a13_02_door17", "a13_01_door14", a13_beat_door17),
+    ("a13_03_item27", "a13_02_door17", a13_beat_item27),
+    ("a13_04_hatch", "a13_03_item27", a13_beat_hatch),
+    ("a13_05_shaft", "a13_04_hatch", a13_beat_shaft),
+]
+A13_SIDE_BEATS: set[str] = set()
+A13_CHANGE_BEATS: set[str] = {"a13_05_shaft"}
+
+
+def a13_selected(spec: str) -> list[tuple]:
+    wanted = spec.split(",")
+    if "a13" in wanted:
+        return [b for b in A13_BEATS if b[0] not in A13_SIDE_BEATS]
+    return [b for b in A13_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+def ninth_owners(name: str):
+    if name.startswith("a13_"):
+        return A13_OWNERS
+    return None
+
+
 def beat_source(source: str) -> Path:
     if len(source) == 2 and source.isdigit():
         return slot_path(source)
@@ -4244,6 +4561,8 @@ def beat_dir(name: str) -> Path:
         return OUT_A22B / name
     if name.startswith("a04b_"):                # eighth level, AREA04 again
         return OUT_A04B / name
+    if name.startswith("a13_"):                 # ninth level, AREA13
+        return OUT_A13 / name
     return (OUT_A01 if name.startswith("a01_") else OUT) / name
 
 
@@ -4342,6 +4661,9 @@ def events(doc: dict, owners=None) -> list[str]:
             for key in A06_EVENT_KEYS:          # AREA06 rows only
                 if key in row:
                     cur[key] = row[key]
+            for key in A13_EVENT_KEYS:          # AREA13 rows only
+                if key in row:
+                    cur[key] = row[key]
         if prev is not None:
             diff = [f"{k}={cur[k]}" for k in cur if cur[k] != prev.get(k)]
             if diff:
@@ -4392,6 +4714,8 @@ if __name__ == "__main__":
                 run_beat(name, source, fn)
             for name, source, fn in eighth_selected(a.beats):  # the eighth-level groups
                 run_beat(name, source, fn)
+            for name, source, fn in a13_selected(a.beats):     # the ninth-level group
+                run_beat(name, source, fn)
     elif a.command == "events":
         chosen = [b for b in BEATS if a.beats == "all" or b[0][:2] in a.beats.split(",")]
         chosen += a01_selected(a.beats) if a.beats != "all" else []
@@ -4404,6 +4728,7 @@ if __name__ == "__main__":
         chosen += a01u_selected(a.beats) if a.beats != "all" else []
         chosen += a06_selected(a.beats) if a.beats != "all" else []
         chosen += eighth_selected(a.beats) if a.beats != "all" else []
+        chosen += a13_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             path = beat_dir(name) / "trace.json"
             if not path.exists():
@@ -4420,7 +4745,7 @@ if __name__ == "__main__":
                       A22_OWNERS if name.startswith("a22_") else
                       A01U_OWNERS if name.startswith("a01u_") else
                       A06_OWNERS if name.startswith("a06_") else
-                      eighth_owners(name))
+                      eighth_owners(name) or ninth_owners(name))
             for line in events(doc, owners):
                 print("  ", line)
     elif a.command == "identify":
@@ -4457,6 +4782,7 @@ if __name__ == "__main__":
         chosen += a01u_selected(a.beats) if a.beats != "all" else []
         chosen += a06_selected(a.beats) if a.beats != "all" else []
         chosen += eighth_selected(a.beats) if a.beats != "all" else []
+        chosen += a13_selected(a.beats) if a.beats != "all" else []
         for name, _source, _fn in chosen:
             state = beat_dir(name) / "state.p2s"
             if state.exists():
