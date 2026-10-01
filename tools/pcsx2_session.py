@@ -219,7 +219,8 @@ class OriginalSession:
 
     # -- process helpers -------------------------------------------------------
     def _emulator_pids(self) -> list[int]:
-        out = subprocess.run(["pgrep", "-f", str(self.emulator)], capture_output=True,
+        # anchored: only processes whose command starts with the emulator binary
+        out = subprocess.run(["pgrep", "-f", "^" + str(self.emulator)], capture_output=True,
                              text=True).stdout.split()
         return [int(x) for x in out]
 

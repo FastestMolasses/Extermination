@@ -505,15 +505,37 @@ of damage), with a lamp that goes green while scanning and red while aiming.
 Only an AREA17 script sets the flag (to 1), AREA17 holds the only area change
 into AREA11, and an AREA11 manager cutscene that starts only when the flag is
 non-zero sets it to 0xFF — so the gun is built for a return visit (inferred
-from the code; no capture of the return exists). Shooting the cable disables
+from the code; no capture of the return exists). Hitting the cable disables
 the gun (it droops, its lamp fades) and saves taken bit 0x50, so the gun
 would come back disabled. The same gun and cable appear in AREA01, 03, 07,
 11, 13, 14, 19 and 20. The old "husk creature / husk partner / first-level
 enemy" labels came from misreading the cable's type byte 0x29 as a crate
 debris model. Evidence: decomp build/workflows/verify-area11-husks.output.json
 (code, captures, overlay scan), FINDINGS s78 §7 correction, the C7 rng traces.
-Open: whether the player's weapon can hit the cable on the first visit; the
-AREA17 path and a save loaded after it were not traced.
+First visit, captured (decomp docs/CAPTURES_C10.md, section AIM): rifle
+rounds aimed at the cable from both stances end on the pillar face behind it
+and leave it unhit, but a light melee (Circle) at its foot hits it: the cable
+takes the hit, the gun goes to its disabled lifecycle 2 and taken bit 0x50 is
+set on the first visit (build/aimfire/capture/aim_11_cable_melee).
+Open: the AREA17 path and a save loaded after it were not traced.
+
+## 27. The truck pit's floor is a death plane the body falls through — decoded
+
+*Kind: engine quirk (Original behaviour).* Under the truck pit and the
+whole south of AREA11 lies a flat plane of 70 grid nodes of attribute 0x5D
+at y 100.8 (x 80..571, z 360..658). Attribute 0x5D is above the movement
+walkers' 0x5A cut-off, so the plane does not hold the player up; the fall
+state's ground test sees the attribute and runs 0021D250 (health 0, death
+reaction +5 = 0x16, rumble and the latched-kill voice 0x159), and the dead
+body keeps falling: in the capture it is at y -636 when the game-over screen
+comes up. The kill plane at y -200 (0015D460) belongs to the living
+player's state and is not involved. Riding the truck down leaves the player
+on its roof (y 154.6) in the pit; the capture tried only stepping off the
+roof, which is the death, and no way back up was looked for (whether one
+exists is open). Evidence: decomp `docs/CAPTURES_C10.md` section DAMAGE (beat
+dmg_07_pit_fall, `build/c10/damage/dmg_07_pit_fall`), the attribute census of
+the AREA11 grid (port `FIRST_CONTROL.md`) and 0021D250 (port
+`PLAYER_FALL.md`).
 
 ---
 
