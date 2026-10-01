@@ -1,12 +1,8 @@
-// Tail-call wrapper: sets up arguments and tail-jumps to another
-// function. mwcc lacks C-level tail-call optimization, so we write
-// these wrappers as `asm void` to control the final `j`.
-extern void func_001157F0(void);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK (IOP RPC): forwards to func_001157F0 with command 0x4E, (a0, 0, 0).
+extern void func_001157F0(int a0, int a1, int a2, int a3);
 
-asm void func_0011A830(void) {
-    daddu $a1, $a0, $zero
-    daddu $a2, $zero, $zero
-    addiu $a0, $zero, 0x4E
-    j func_001157F0
-    daddu $a3, $zero, $zero
+void func_0011A830(int a0) {
+    func_001157F0(0x4E, a0, 0, 0);
 }

@@ -11,3 +11,5 @@ asm int func_00109AF8(int *a0, int a1, int a2, int a3) {
     jr $ra
     sw $a2, 0($v1)
 }
+
+// Readable C (NEARMISS companion, objdiff 75.33%): src/readable/func_00109AF8.c

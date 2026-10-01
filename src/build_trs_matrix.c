@@ -53,3 +53,5 @@ asm void build_trs_matrix(void) {
     jr         $ra
     addiu     $sp, $sp, 0x50
 }
+
+// Readable C (NEARMISS companion, objdiff 3.15%): src/readable/build_trs_matrix.c

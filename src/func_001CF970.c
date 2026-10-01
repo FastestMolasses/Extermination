@@ -60,3 +60,5 @@ asm void func_001CF970(void) {
     jr         $ra
     sqc2      $vf19, 0x40($a0)
 }
+
+// Readable C (NEARMISS companion, objdiff 0.00%): src/readable/func_001CF970.c

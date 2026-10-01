@@ -11,3 +11,5 @@ asm void func_00102738(void) {
     jr $ra
     nop
 }
+
+// Readable C (NEARMISS companion, objdiff 24.44%): src/readable/func_00102738.c

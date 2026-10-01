@@ -1,156 +1,63 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011E748(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Rotation matrix to quaternion (x, y, z, w). m is a 4x4 float matrix
+// (rows of four). With a positive trace the standard w-major form is used;
+// otherwise the largest diagonal element picks the major axis (x, then y, then
+// z; ties keep the earlier axis). func_0011E748 is sqrtf.
+extern float func_0011E748(float x);
 
-asm void func_001C9E40(void) {
-    .word 0x27bdffd0
-    .word 0x44800000
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0xc4a20000
-    .word 0xc4a30014
-    .word 0x70808e28
-    .word 0xc4a40028
-    .word 0x70a08628
-    .word 0x46031040
-    .word 0x46012040
-    .word 0x46000836
-    .word 0x00000000
-    .word 0x4501001b
-    .word 0x70002628
-    .word 0x3c023f80
-    .word 0x44820000
-    jal       func_0011E748
-    .word 0x46010300
-    .word 0x3c033f00
-    .word 0x44831000
-    .word 0x00000000
-    .word 0x46001042
-    .word 0x46001083
-    .word 0xe621000c
-    .word 0xc6010024
-    .word 0xc6000018
-    .word 0x46000801
-    .word 0x46001002
-    .word 0xe6200000
-    .word 0xc6010008
-    .word 0xc6000020
-    .word 0x46000801
-    .word 0x46001002
-    .word 0xe6200004
-    .word 0xc6010010
-    .word 0xc6000004
-    .word 0x46000801
-    .word 0x46001002
-    .word 0x10000069
-    .word 0xe6200008
-    .word 0x46021836
-    .word 0x00000000
-    .word 0x45010003
-    .word 0x46001006
-    .word 0x24040001
-    .word 0x46001806
-    .word 0x46002036
-    .word 0x00000000
-    .word 0x45010003
-    .word 0x24030002
-    .word 0x24040002
-    .word 0x24030002
-    .word 0x10830041
-    .word 0x46022001
-    .word 0x24030001
-    .word 0x10830022
-    .word 0x46021801
-    .word 0x10800004
-    .word 0x46031001
-    .word 0x10000055
-    .word 0x7bbf0020
-    .word 0x46031001
-    .word 0x3c023f80
-    .word 0x46040041
-    .word 0x44820000
-    jal       func_0011E748
-    .word 0x46010300
-    .word 0x3c033f00
-    .word 0x44831000
-    .word 0x00000000
-    .word 0x46001042
-    .word 0x46001083
-    .word 0xe6210000
-    .word 0xc6010004
-    .word 0xc6000010
-    .word 0x46000800
-    .word 0x46001002
-    .word 0xe6200004
-    .word 0xc6010020
-    .word 0xc6000008
-    .word 0x46000800
-    .word 0x46001002
-    .word 0xe6200008
-    .word 0xc6010024
-    .word 0xc6000018
-    .word 0x46000801
-    .word 0x46001002
-    .word 0x10000038
-    .word 0xe620000c
-    .word 0x46021801
-    .word 0x3c023f80
-    .word 0x46040041
-    .word 0x44820000
-    jal       func_0011E748
-    .word 0x46010300
-    .word 0x3c033f00
-    .word 0x44831000
-    .word 0x00000000
-    .word 0x46001042
-    .word 0x46001083
-    .word 0xe6210004
-    .word 0xc6010018
-    .word 0xc6000024
-    .word 0x46000800
-    .word 0x46001002
-    .word 0xe6200008
-    .word 0xc6010004
-    .word 0xc6000010
-    .word 0x46000800
-    .word 0x46001002
-    .word 0xe6200000
-    .word 0xc6010008
-    .word 0xc6000020
-    .word 0x46000801
-    .word 0x46001002
-    .word 0x1000001c
-    .word 0xe620000c
-    .word 0x46022001
-    .word 0x3c023f80
-    .word 0x46030041
-    .word 0x44820000
-    jal       func_0011E748
-    .word 0x46010300
-    .word 0x3c033f00
-    .word 0x44831000
-    .word 0x00000000
-    .word 0x46001042
-    .word 0x46001083
-    .word 0xe6210008
-    .word 0xc6010020
-    .word 0xc6000008
-    .word 0x46000800
-    .word 0x46001002
-    .word 0xe6200000
-    .word 0xc6010018
-    .word 0xc6000024
-    .word 0x46000800
-    .word 0x46001002
-    .word 0xe6200004
-    .word 0xc6010010
-    .word 0xc6000004
-    .word 0x46000801
-    .word 0x46001002
-    .word 0xe620000c
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_001C9E40(float *q, float *m) {
+    float m00 = m[0];
+    float m11 = m[5];
+    float m22 = m[10];
+    float tr = m00 + m11 + m22;
+    float s;
+    float k;
+    float big;
+    int i;
+
+    i = 0;
+    if (tr > 0.0f) {
+        s = func_0011E748(tr + 1.0f);
+        q[3] = 0.5f * s;
+        k = 0.5f / s;
+        q[0] = (m[9] - m[6]) * k;
+        q[1] = (m[2] - m[8]) * k;
+        q[2] = (m[4] - m[1]) * k;
+        return;
+    }
+    big = m00;
+    if (m11 > big) {
+        i = 1;
+        big = m11;
+    }
+    if (m22 > big) {
+        i = 2;
+    }
+    switch (i) {
+    case 0:
+        s = func_0011E748(m00 - m11 - m22 + 1.0f);
+        q[0] = 0.5f * s;
+        k = 0.5f / s;
+        q[1] = (m[1] + m[4]) * k;
+        q[2] = (m[8] + m[2]) * k;
+        q[3] = (m[9] - m[6]) * k;
+        break;
+    case 1:
+        s = func_0011E748(m11 - m00 - m22 + 1.0f);
+        q[1] = 0.5f * s;
+        k = 0.5f / s;
+        q[2] = (m[6] + m[9]) * k;
+        q[0] = (m[1] + m[4]) * k;
+        q[3] = (m[2] - m[8]) * k;
+        break;
+    case 2:
+        s = func_0011E748(m22 - m00 - m11 + 1.0f);
+        q[2] = 0.5f * s;
+        k = 0.5f / s;
+        q[0] = (m[8] + m[2]) * k;
+        q[1] = (m[6] + m[9]) * k;
+        q[3] = (m[4] - m[1]) * k;
+        break;
+    }
 }

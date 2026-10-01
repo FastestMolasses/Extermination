@@ -6,3 +6,5 @@ asm void func_0011B328(void) {
     jr $ra
     sw $3, 0x0($2)
 }
+
+// Readable C (NEARMISS companion, objdiff 68.00%): src/readable/func_0011B328.c

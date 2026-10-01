@@ -42,3 +42,5 @@ asm void func_001D6F60(int a0, int a1, int a2, int a3) {
     .word 0x03E00008  // jr ra
     .word 0xFD830058  // sd v1, 0x58(t4)
 }
+
+// Readable C (NEARMISS companion, objdiff 98.65%): src/readable/func_001D6F60.c

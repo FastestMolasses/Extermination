@@ -37,3 +37,5 @@ asm void vtable_a0_at_0011FE90_off24(void) {
     jr $ra
     addiu $sp, $sp, 0x40
 }
+
+// Readable C (NEARMISS companion, objdiff 72.19%): src/readable/vtable_a0_at_0011FE90_off24.c

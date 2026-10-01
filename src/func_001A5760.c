@@ -1,88 +1,65 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001A5760(void) {
-    .word 0x24c30004
-    .word 0x90c60002
-    .word 0x24c2fffd
-    .word 0x2c410002
-    .word 0x14200003
-    .word 0x00000000
-    .word 0x1000004a
-    .word 0x70001628
-    .word 0xc461000c
-    .word 0x44800000
-    .word 0x00000000
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x45000004
-    .word 0x00000000
-    .word 0xc4620000
-    .word 0x10000003
-    .word 0x460110c0
-    .word 0xc4630000
-    .word 0x46011880
-    .word 0xc4610014
-    .word 0x44800000
-    .word 0x00000000
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x45000004
-    .word 0x00000000
-    .word 0xc4600008
-    .word 0x10000003
-    .word 0x46010100
-    .word 0xc4640008
-    .word 0x46012000
-    .word 0xc4810000
-    .word 0x46030836
-    .word 0x00000000
-    .word 0x4501002d
-    .word 0x70001628
-    .word 0x46020834
-    .word 0x00000000
-    .word 0x45000028
-    .word 0x00000000
-    .word 0xc4810004
-    .word 0x46040836
-    .word 0x00000000
-    .word 0x45010023
-    .word 0x00000000
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x4500001f
-    .word 0x00000000
-    .word 0x24020003
-    .word 0x14c2000f
-    .word 0x3c02ff7f
-    .word 0xc4600004
-    .word 0x3c027f7f
-    .word 0x3444c99e
-    .word 0x3c02322b
-    .word 0x3442cc77
-    .word 0x3c017000
-    .word 0xe4a00000
-    .word 0x3c033f80
-    .word 0xaca40004
-    .word 0xaca30008
-    .word 0xaca0000c
-    .word 0x1000000d
-    .word 0xac22319c
-    .word 0x3c02ff7f
-    .word 0x3442c99e
-    .word 0xaca20000
-    .word 0xc4600004
-    .word 0x3c02b22b
-    .word 0x3442cc77
-    .word 0x3c017000
-    .word 0xe4a00004
-    .word 0x3c03bf80
-    .word 0xaca00008
-    .word 0xaca3000c
-    .word 0xac2231ac
-    .word 0x10000002
-    .word 0x24020001
-    .word 0x70001628
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x7000319C 0x700031AC
+extern float D_7000319C;
+extern float D_700031AC;
+// Column query against one axis-face collision record (ACTOR_COLLISION.md:
+// record kind 0x2000, faces 3 / 4; port em_collision_column_box_face). Only
+// faces 3 and 4 are handled. The face spans x0..x0+dx and z0..z0+dz (signed
+// extents). When the query point p (x at +0, z at +4) lies strictly inside
+// both spans the face's plane is written to out and 1 is returned:
+// face 3: (y, 3.4e38, 1, 0) with the scratchpad epsilon 0x7000319C = 1e-8;
+// face 4: (-3.4e38, y, 0, -1) with 0x700031AC = -1e-8. Otherwise 0.
+typedef struct AxisFace {
+    float x;    /* rec + 0x04 */
+    float y;    /* rec + 0x08 */
+    float z;    /* rec + 0x0C */
+    float dx;   /* rec + 0x10 */
+    float pad;
+    float dz;   /* rec + 0x18 */
+} AxisFace;
+
+int func_001A5760(float *p, float *out, unsigned char *rec) {
+    AxisFace *f = (AxisFace *)(rec + 4);
+    unsigned char face = rec[2];
+    float x0;
+    float x1;
+    float z0;
+    float z1;
+
+    if ((unsigned int)(face - 3) > 1) {
+        return 0;
+    }
+    if (f->dx < 0.0f) {
+        x1 = f->x;
+        x0 = f->x + f->dx;
+    } else {
+        x0 = f->x;
+        x1 = f->x + f->dx;
+    }
+    if (f->dz < 0.0f) {
+        z1 = f->z;
+        z0 = f->z + f->dz;
+    } else {
+        z0 = f->z;
+        z1 = f->z + f->dz;
+    }
+    if (!(p[0] <= x0) && p[0] < x1 && !(p[1] <= z0) && p[1] < z1) {
+        if (face == 3) {
+            out[0] = f->y;
+            out[1] = 3.4e38f;
+            out[2] = 1.0f;
+            out[3] = 0.0f;
+            D_7000319C = 1e-8f;
+        } else {
+            out[0] = -3.4e38f;
+            out[1] = f->y;
+            out[2] = 0.0f;
+            out[3] = -1.0f;
+            D_700031AC = -1e-8f;
+        }
+        return 1;
+    } else {
+        return 0;
+    }
 }

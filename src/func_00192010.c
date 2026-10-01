@@ -1,115 +1,38 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011DF78(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Camera height easing (CAMERA_AREA11_SPECIALS.md "fixed eye"). With
+// d = (target + cam+0x98) - cam+0x14 and a = |d| (func_0011DF78 fabsf): when
+// d > 0 and a exceeds up (and bit 7 of cam+7 is clear) the height rises; when
+// d <= 0 and a exceeds down (and bit 6 of cam+7 is clear) it falls. Beyond 1.0
+// it moves by min(a / 10, 3.0); within 1.0 it takes a fifth of d.
+extern float func_0011DF78(float x);
 
-asm void func_00192010(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb00010
-    .word 0xe7b60008
-    .word 0xe7b50004
-    .word 0xe7b40000
-    .word 0xc4810098
-    .word 0xc4800014
-    .word 0x46006d86
-    .word 0x46007546
-    .word 0x70808628
-    .word 0x46016300
-    .word 0x46006501
-    jal       func_0011DF78
-    .word 0x4600a306
-    .word 0x44800800
-    .word 0x00000000
-    .word 0x4601a036
-    .word 0x00000000
-    .word 0x4501002b
-    .word 0x00000000
-    .word 0x46150036
-    .word 0x00000000
-    .word 0x4501004f
-    .word 0x00000000
-    .word 0x92030007
-    .word 0x30630080
-    .word 0x1460004b
-    .word 0x00000000
-    .word 0x3c033f80
-    .word 0x44830800
-    .word 0x00000000
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x45010015
-    .word 0x3c0340a0
-    .word 0x3c034120
-    .word 0x44830800
-    .word 0x00000000
-    .word 0x46010043
-    .word 0x3c034040
-    .word 0x00000000
-    .word 0x44830000
-    .word 0x00000000
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x45030004
-    .word 0x46000046
-    .word 0x10000003
-    .word 0xc6000014
-    .word 0x46000046
-    .word 0xc6000014
-    .word 0x46010000
-    .word 0x10000031
-    .word 0xe6000014
-    .word 0x3c0340a0
-    .word 0x44830000
-    .word 0xc6010014
-    .word 0x4600a003
-    .word 0x00000000
-    .word 0x46000800
-    .word 0x10000029
-    .word 0xe6000014
-    .word 0x46160036
-    .word 0x00000000
-    .word 0x45010025
-    .word 0x00000000
-    .word 0x92030007
-    .word 0x30630040
-    .word 0x14600021
-    .word 0x00000000
-    .word 0x3c033f80
-    .word 0x44830800
-    .word 0x00000000
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x45010015
-    .word 0x3c0340a0
-    .word 0x3c034120
-    .word 0x44830800
-    .word 0x00000000
-    .word 0x46010043
-    .word 0x3c034040
-    .word 0x00000000
-    .word 0x44830000
-    .word 0x00000000
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x45030004
-    .word 0x46000046
-    .word 0x10000003
-    .word 0xc6000014
-    .word 0x46000046
-    .word 0xc6000014
-    .word 0x46010001
-    .word 0x10000007
-    .word 0xe6000014
-    .word 0x3c0340a0
-    .word 0x44830000
-    .word 0xc6010014
-    .word 0x4600a003
-    .word 0x46000800
-    .word 0xe6000014
-    .word 0x7bbf0020
-    .word 0x7bb00010
-    .word 0xc7b60008
-    .word 0xc7b50004
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_00192010(unsigned char *cam, float target, float down, float up) {
+    float d;
+    float a;
+    float step;
+
+    target += *(float *)(cam + 0x98);
+    d = target - *(float *)(cam + 0x14);
+    a = func_0011DF78(d);
+
+    if (!(d <= 0.0f)) {
+        if (!(a <= up) && !(cam[7] & 0x80)) {
+            if (!(a <= 1.0f)) {
+                step = a / 10.0f;
+                step = (3.0f > step) ? step : 3.0f;
+                *(float *)(cam + 0x14) += step;
+            } else {
+                *(float *)(cam + 0x14) = *(float *)(cam + 0x14) + d / 5.0f;
+            }
+        }
+    } else if (!(a <= down) && !(cam[7] & 0x40)) {
+        if (!(a <= 1.0f)) {
+            step = a / 10.0f;
+            step = (3.0f > step) ? step : 3.0f;
+            *(float *)(cam + 0x14) -= step;
+        } else {
+            *(float *)(cam + 0x14) = *(float *)(cam + 0x14) + d / 5.0f;
+        }
+    }
 }

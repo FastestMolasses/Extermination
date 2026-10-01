@@ -1,150 +1,93 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_001AFC10(int, int, int, int);
-extern void func_001BA540(int, int, int, int);
-extern void func_001BA580(int, int, int, int);
-extern void func_001BAD40(int, int, int, int);
-extern void func_001C5C90(int, int, int, int);
-extern void anim_advance_time(int, int, int, int);
-extern void func_001C68C0(int, int, int, int);
-extern void func_001F9660(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Script-driven actor worker (the opening's script actors; the area script
+// spawns two such records). a+0x20 is the actor's current script command,
+// a+0x24 its owner. State +4:
+//  0: bind the command (func_001BAD40(a, cmd) == 0) and go to state 1;
+//  1: once the owner's stop mask (+0x2E) has the actor's bit (+0x2E) the
+//     actor goes to state 2. Commands 0x270C / 0x270D do nothing; otherwise
+//     the command's mode (+0x0A) picks: 0 starts the clip (func_001BA580(a, id): the
+//     callee classifies the command id into a sound category)
+//     and plays, 3 waits, 4 only poses (func_001C68C0) and calls the draw
+//     callback +0x4C, 5 runs func_001C5C90, 6 plays and also triggers the
+//     command's sound (func_001F9660(a, id)); any other mode plays. Playing
+//     is anim_advance_time(a, speed +0x0C), func_001C68C0, +1 = 1 and the
+//     draw callback.
+//  2: state 3; unless the command is 0x270D, mode 0 resets the clip
+//     (func_001BA540).
+//  3: release (func_001AFC10).
+extern int func_001BAD40(unsigned char *a, short *cmd);
+// func_001BA580 compares its second argument as the full sign-extended command id
+// (its NEARMISS C narrows it to unsigned char; the ids it tests are all below 0x80).
+extern void func_001BA580(unsigned char *a, short id);
+extern void func_001BA540(unsigned char *a);
+extern void anim_advance_time(unsigned char *a, float speed);
+extern void func_001C68C0(unsigned char *a);
+extern void func_001F9660(unsigned char *a, short id);
+extern void func_001C5C90(unsigned char *a);
+extern void func_001AFC10(unsigned char *a);
 
-asm void func_001BB0E0(void) {
-    .word 0x27bdffc0
-    .word 0x7fbf0030
-    .word 0x7fb20020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x90850004
-    .word 0x8c900020
-    .word 0x8c920024
-    .word 0x24030003
-    .word 0x10a30078
-    .word 0x70808e28
-    .word 0x24030002
-    .word 0x10a30069
-    .word 0x24a30001
-    .word 0x24030001
-    .word 0x10a3000c
-    .word 0x00000000
-    .word 0x10a00004
-    .word 0x72002e28
-    .word 0x10000071
-    .word 0x7bbf0030
-    .word 0x72002e28
-    jal       func_001BAD40
-    .word 0x00000000
-    .word 0x1440006b
-    .word 0x00000000
-    .word 0x24030001
-    .word 0xa2230004
-    .word 0x9624002e
-    .word 0x9645002e
-    .word 0x24030001
-    .word 0x00831804
-    .word 0x00a31824
-    .word 0x10600004
-    .word 0x00000000
-    .word 0x24030002
-    .word 0x1000005f
-    .word 0xa2230004
-    .word 0x86050004
-    .word 0x2403270d
-    .word 0x10a3005b
-    .word 0x00000000
-    .word 0x2403270c
-    .word 0x10a30058
-    .word 0x00000000
-    .word 0x8604000a
-    .word 0x24030006
-    .word 0x1083002a
-    .word 0x00000000
-    .word 0x5080001a
-    .word 0x72202628
-    .word 0x24030003
-    .word 0x1083004f
-    .word 0x00000000
-    .word 0x24020004
-    .word 0x5082000c
-    .word 0x72202628
-    .word 0x24020005
-    .word 0x10820004
-    .word 0x72202628
-    .word 0x1000002d
-    .word 0xc60c000c
-    .word 0x72202628
-    jal       func_001C5C90
-    .word 0x00000000
-    .word 0x10000042
-    .word 0x00000000
-    .word 0x72202628
-    jal       func_001C68C0
-    .word 0x00000000
-    .word 0x8e22004c
-    .word 0x0040f809
-    .word 0x72202628
-    .word 0x1000003a
-    .word 0x00000000
-    .word 0x72202628
-    jal       func_001BA580
-    .word 0x00000000
-    .word 0xc60c000c
-    jal       anim_advance_time
-    .word 0x72202628
-    jal       func_001C68C0
-    .word 0x72202628
-    .word 0x24020001
-    .word 0xa2220001
-    .word 0x8e22004c
-    .word 0x0040f809
-    .word 0x72202628
-    .word 0x1000002b
-    .word 0x00000000
-    .word 0xc60c000c
-    jal       anim_advance_time
-    .word 0x72202628
-    jal       func_001C68C0
-    .word 0x72202628
-    .word 0x86050004
-    jal       func_001F9660
-    .word 0x72202628
-    .word 0x24020001
-    .word 0xa2220001
-    .word 0x8e22004c
-    .word 0x0040f809
-    .word 0x72202628
-    .word 0x1000001c
-    .word 0x00000000
-    .word 0xc60c000c
-    jal       anim_advance_time
-    .word 0x72202628
-    jal       func_001C68C0
-    .word 0x72202628
-    .word 0x24020001
-    .word 0xa2220001
-    .word 0x8e22004c
-    .word 0x0040f809
-    .word 0x72202628
-    .word 0x10000010
-    .word 0x00000000
-    .word 0x24a30001
-    .word 0xa2230004
-    .word 0x86050004
-    .word 0x2403270d
-    .word 0x10a3000a
-    .word 0x00000000
-    .word 0x8603000a
-    .word 0x14600007
-    .word 0x00000000
-    jal       func_001BA540
-    .word 0x00000000
-    .word 0x10000003
-    .word 0x00000000
-    jal       func_001AFC10
-    .word 0x00000000
-    .word 0x7bbf0030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0040
+void func_001BB0E0(unsigned char *a) {
+    short *cmd = *(short **)(a + 0x20);
+    unsigned char *owner = *(unsigned char **)(a + 0x24);
+
+    switch (a[4]) {
+    case 0:
+        if (func_001BAD40(a, cmd) != 0) {
+            break;
+        }
+        a[4] = 1;
+    case 1:
+        if (*(unsigned short *)(owner + 0x2E) & (1 << *(unsigned short *)(a + 0x2E))) {
+            a[4] = 2;
+            break;
+        }
+        if (cmd[2] == 0x270D || cmd[2] == 0x270C) {
+            break;
+        }
+        switch (cmd[5]) {
+        case 5:
+            func_001C5C90(a);
+            break;
+        case 4:
+            func_001C68C0(a);
+            (*(void (**)(unsigned char *))(a + 0x4C))(a);
+            break;
+        case 3:
+            break;
+        case 0:
+            func_001BA580(a, cmd[2]);
+            anim_advance_time(a, *(float *)(cmd + 6));
+            func_001C68C0(a);
+            a[1] = 1;
+            (*(void (**)(unsigned char *))(a + 0x4C))(a);
+            break;
+        case 6:
+            anim_advance_time(a, *(float *)(cmd + 6));
+            func_001C68C0(a);
+            func_001F9660(a, cmd[2]);
+            a[1] = 1;
+            (*(void (**)(unsigned char *))(a + 0x4C))(a);
+            break;
+        default:
+            anim_advance_time(a, *(float *)(cmd + 6));
+            func_001C68C0(a);
+            a[1] = 1;
+            (*(void (**)(unsigned char *))(a + 0x4C))(a);
+            break;
+        }
+        break;
+    case 2:
+        a[4] = a[4] + 1;
+        if (cmd[2] == 0x270D) {
+            break;
+        }
+        if (cmd[5] == 0) {
+            func_001BA540(a);
+        }
+        break;
+    case 3:
+        func_001AFC10(a);
+        break;
+    }
 }

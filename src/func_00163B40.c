@@ -1,61 +1,37 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00163C10(int, int, int, int);
-extern void func_00163D50(int, int, int, int);
-extern void func_00163E90(int, int, int, int);
-extern void func_00164220(int, int, int, int);
-extern void func_001643B0(int, int, int, int);
-extern void func_0021D2E0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Player state 8 (see func_0015B530): dispatches on the sub-state byte +6.
+// 0 does nothing; 1 calls func_0021D2E0(actor, 0x78, 0); 2..5 and 0x0A run
+// func_00164220, func_00163E90, func_00163D50, func_00163C10 and
+// func_001643B0 on the actor.
+extern void func_0021D2E0(char *actor, int a, int b);
+extern void func_00164220(char *actor);
+extern void func_00163E90(char *actor);
+extern void func_00163D50(char *actor);
+extern void func_00163C10(char *actor);
+extern void func_001643B0(char *actor);
 
-asm void func_00163B40(void) {
-    .word 0x27bdfff0
-    .word 0x7fbf0000
-    .word 0x90850006
-    .word 0x2403000a
-    .word 0x10a30029
-    .word 0x00000000
-    .word 0x24030005
-    .word 0x10a30022
-    .word 0x00000000
-    .word 0x24030004
-    .word 0x10a3001b
-    .word 0x00000000
-    .word 0x24030003
-    .word 0x10a30014
-    .word 0x00000000
-    .word 0x24030002
-    .word 0x10a3000d
-    .word 0x00000000
-    .word 0x24030001
-    .word 0x50a30006
-    .word 0x24050078
-    .word 0x10a0001a
-    .word 0x00000000
-    .word 0x10000019
-    .word 0x7bbf0000
-    .word 0x24050078
-    jal       func_0021D2E0
-    .word 0x70003628
-    .word 0x10000013
-    .word 0x00000000
-    jal       func_00164220
-    .word 0x00000000
-    .word 0x1000000f
-    .word 0x00000000
-    jal       func_00163E90
-    .word 0x00000000
-    .word 0x1000000b
-    .word 0x00000000
-    jal       func_00163D50
-    .word 0x00000000
-    .word 0x10000007
-    .word 0x00000000
-    jal       func_00163C10
-    .word 0x00000000
-    .word 0x10000003
-    .word 0x00000000
-    jal       func_001643B0
-    .word 0x00000000
-    .word 0x7bbf0000
-    .word 0x03e00008
-    .word 0x27bd0010
+void func_00163B40(char *actor) {
+    switch ((unsigned char)actor[6]) {
+    case 0:
+        break;
+    case 1:
+        func_0021D2E0(actor, 0x78, 0);
+        break;
+    case 2:
+        func_00164220(actor);
+        break;
+    case 3:
+        func_00163E90(actor);
+        break;
+    case 4:
+        func_00163D50(actor);
+        break;
+    case 5:
+        func_00163C10(actor);
+        break;
+    case 0x0A:
+        func_001643B0(actor);
+        break;
+    }
 }

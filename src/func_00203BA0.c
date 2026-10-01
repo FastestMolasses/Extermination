@@ -38,3 +38,5 @@ asm void func_00203BA0(void) {
     .word 0x03e00008
     .word 0x42000038
 }
+
+// Readable C (NEARMISS companion, objdiff 72.57%): src/readable/func_00203BA0.c

@@ -1,51 +1,21 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00183AC0(void) {
-    .word 0x90850002
-    .word 0x2403ff1f
-    .word 0x24020002
-    .word 0x00a31824
-    .word 0x14620027
-    .word 0x70001628
-    .word 0x90830003
-    .word 0x2402000e
-    .word 0x1062001d
-    .word 0x70001628
-    .word 0x2402000d
-    .word 0x10620019
-    .word 0x00000000
-    .word 0x2402000f
-    .word 0x10620016
-    .word 0x00000000
-    .word 0x24020013
-    .word 0x10620013
-    .word 0x00000000
-    .word 0x24020012
-    .word 0x10620010
-    .word 0x00000000
-    .word 0x24020011
-    .word 0x1062000d
-    .word 0x00000000
-    .word 0x24020010
-    .word 0x1062000a
-    .word 0x00000000
-    .word 0x24020006
-    .word 0x10620003
-    .word 0x00000000
-    .word 0x10000009
-    .word 0x24020001
-    .word 0x9083009f
-    .word 0x24020001
-    .word 0x10000008
-    .word 0x0003100b
-    .word 0x70001628
-    .word 0x10000005
-    .word 0x00000000
-    .word 0x24020001
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+int func_00183AC0(unsigned char *e) {
+    if ((e[2] & ~0xE0) == 2) {
+        switch (e[3]) {
+        case 0x06:
+            return e[0x9F] == 0 ? 1 : 0;
+        case 0x10:
+        case 0x11:
+        case 0x12:
+        case 0x13:
+        case 0x0F:
+        case 0x0D:
+        case 0x0E:
+            return 0;
+        default:
+            return 1;
+        }
+    }
+    return 0;
 }

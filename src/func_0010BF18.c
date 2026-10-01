@@ -1,8 +1,10 @@
-// Clears the 64-bit field at a1+0x48, stores 0x2000 to a1+0x4, returns 0.
-asm int func_0010BF18(int a0, int *a1) {
-    addiu $2, $zero, 0x2000
-    sd $zero, 0x48($5)
-    sw $2, 0x4($5)
-    jr $ra
-    daddu $2, $zero, $zero
+// COMPILER: eegcc
+// CFLAGS: -O2
+// Movie library (SDK libmpeg, title path): resets a stream's state: the
+// 64-bit word +0x48 is cleared and +4 set to 0x2000. The first argument is
+// not used. Returns 0.
+int func_0010BF18(void *unused, char *s) {
+    *(long long *)(s + 0x48) = 0;
+    *(int *)(s + 4) = 0x2000;
+    return 0;
 }

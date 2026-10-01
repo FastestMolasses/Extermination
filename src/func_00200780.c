@@ -1,49 +1,38 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_00112440(int, int, int, int);
-extern void func_00113280(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Reads part of a disc file into buf. f+0 is the file's first sector, f+4 its
+// size in bytes; offset is a byte offset (whole sectors are used) and size
+// the byte count (negative: the whole file). The sector count is rounded up;
+// the read (func_00112440, sceCdRead, mode: trycount 0, spindle control 1,
+// data pattern 0) is retried after each func_00113280(0) (sceCdSync) until it
+// is accepted. Returns the byte count read (sectors * 2048).
+typedef struct CdMode {
+    unsigned char trycount;
+    unsigned char spindlctrl;
+    unsigned char datapattern;
+    unsigned char pad;
+} CdMode;
 
-asm void func_00200780(void) {
-    addiu $sp, $sp, -0x60
-    sq $ra, 0x40($sp)
-    sq $s3, 0x30($sp)
-    sq $s2, 0x20($sp)
-    sq $s1, 0x10($sp)
-    sq $s0, 0x0($sp)
-    addiu $v0, $zero, 0x1
-    sb $zero, 0x5C($sp)
-    sb $v0, 0x5D($sp)
-    paddub $s1, $a0, $zero
-    paddub $s0, $a1, $zero
-    .word 0x04e10005
-    sb $zero, 0x5E($sp)
-    lw $v0, 0x4($s1)
-    addiu $v0, $v0, 0x7FF
-    .word 0x10000003
-    srl $s2, $v0, 11
-    addiu $v0, $a3, 0x7FF
-    sra $s2, $v0, 11
-    sra $s3, $a2, 11
-    jal func_00113280
-    paddub $a0, $zero, $zero
-    .word 0x10000004
-    lw $v0, 0x0($s1)
-    jal func_00113280
-    paddub $a0, $zero, $zero
-    lw $v0, 0x0($s1)
-    addiu $a3, $sp, 0x5C
-    paddub $a1, $s2, $zero
-    paddub $a2, $s0, $zero
-    jal func_00112440
-    addu $a0, $v0, $s3
-    .word 0x1040fff7
-    nop
-    sll $v0, $s2, 11
-    lq $ra, 0x40($sp)
-    lq $s3, 0x30($sp)
-    lq $s2, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x60
+extern int func_00112440(int lsn, unsigned int sectors, void *buf, CdMode *mode);
+extern int func_00113280(int mode);
+
+int func_00200780(int *f, void *buf, int offset, int size) {
+    CdMode mode;
+    unsigned int sectors;
+    int first;
+
+    mode.trycount = 0;
+    mode.spindlctrl = 1;
+    mode.datapattern = 0;
+    if (size < 0) {
+        sectors = (unsigned int)(f[1] + 0x7FF) >> 11;
+    } else {
+        sectors = (size + 0x7FF) >> 11;
+    }
+    first = offset >> 11;
+    func_00113280(0);
+    while (func_00112440(f[0] + first, sectors, buf, &mode) == 0) {
+        func_00113280(0);
+    }
+    return sectors << 11;
 }

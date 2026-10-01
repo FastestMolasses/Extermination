@@ -1,8 +1,9 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-extern void anim_clip_init(int, int);
+extern void anim_clip_init(int, int, float, float);
 
-void func_001287F0(int a0, short *a1, short a2) {
-    if (a1[0xF8 / 2] == a2) return;
-    a1[0xF8 / 2] = a2;
-    anim_clip_init(a0, a2);
+void func_001287F0(int obj, char *rec, int clip, float speed) {
+    if (*(short *)(rec + 0xF8) == (short)clip) return;
+    *(short *)(rec + 0xF8) = clip;
+    anim_clip_init(obj, clip, speed, 0.0f);
 }

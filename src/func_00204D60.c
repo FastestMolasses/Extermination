@@ -1,83 +1,48 @@
-// All-word: everything as .word except jal/j-external
-extern void SignalSema(int, int, int, int);
-extern void WaitSema(int, int, int, int);
-extern void sub_pts_is_not_used(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Movie decoder: queues a time stamp entry. Under the ring's semaphore, when
+// the queue (r+0x50, 0x18-byte entries, capacity +0x54, count +0x58, tail
+// +0x5C) has room, the entry is checked by sub_pts_is_not_used and, unless
+// both its stamps are negative, copied in at the tail (tail advances modulo
+// the capacity, count + 1). Returns 1 when there was room, else 0.
+typedef struct PtsEntry {
+    long long pts;  /* 0x00 */
+    long long dts;  /* 0x08 */
+    int pos;        /* 0x10 */
+    int len;        /* 0x14 */
+} PtsEntry;
 
-asm void func_00204D60(void) {
-    .word 0x27bdffc0
-    .word 0x7fbf0030
-    .word 0x7fb20020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x70808e28
-    .word 0x8c840040
-    .word 0x70a08628
-    jal       WaitSema
-    .word 0x70009628
-    .word 0x8e230058
-    .word 0x8e220054
-    .word 0x0062082a
-    .word 0x10200035
-    .word 0x00000000
-    .word 0x72202628
-    jal       sub_pts_is_not_used
-    .word 0x72002e28
-    .word 0xde050000
-    .word 0x04a10004
-    .word 0x00000000
-    .word 0xde020008
-    .word 0x0440002c
-    .word 0x24120001
-    .word 0x8e24005c
-    .word 0x8e220050
-    .word 0x00041840
-    .word 0x00641821
-    .word 0x000318c0
-    .word 0x00431021
-    .word 0xfc450000
-    .word 0x8e23005c
-    .word 0x8e240050
-    .word 0xde050008
-    .word 0x00031040
-    .word 0x00431021
-    .word 0x000210c0
-    .word 0x00441021
-    .word 0xfc450008
-    .word 0x8e23005c
-    .word 0x8e240050
-    .word 0x8e050010
-    .word 0x00031040
-    .word 0x00431021
-    .word 0x000210c0
-    .word 0x00441021
-    .word 0xac450010
-    .word 0x8e23005c
-    .word 0x8e240050
-    .word 0x8e050014
-    .word 0x00031040
-    .word 0x00431021
-    .word 0x000210c0
-    .word 0x00441021
-    .word 0xac450014
-    .word 0x8e220058
-    .word 0x24420001
-    .word 0xae220058
-    .word 0x8e23005c
-    .word 0x8e220054
-    .word 0x24630001
-    .word 0x0062001a
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x00001010
-    .word 0xae22005c
-    .word 0x24120001
-    jal       SignalSema
-    .word 0x8e240040
-    .word 0x72401628
-    .word 0x7bbf0030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0040
+typedef struct PtsRing {
+    char pad[0x40];
+    int sema;           /* 0x40 */
+    char pad44[0xC];
+    PtsEntry *ents;     /* 0x50 */
+    int cap;            /* 0x54 */
+    int count;          /* 0x58 */
+    int tail;           /* 0x5C */
+} PtsRing;
+
+extern int WaitSema(int sema);
+extern int SignalSema(int sema);
+extern void sub_pts_is_not_used(PtsRing *r, PtsEntry *e);
+
+int func_00204D60(PtsRing *r, PtsEntry *e) {
+    int ok;
+
+    ok = 0;
+    WaitSema(r->sema);
+    if (r->count < r->cap) {
+        sub_pts_is_not_used(r, e);
+        if (e->pts >= 0 || e->dts >= 0) {
+            r->ents[r->tail].pts = e->pts;
+            r->ents[r->tail].dts = e->dts;
+            r->ents[r->tail].pos = e->pos;
+            r->ents[r->tail].len = e->len;
+            r->count++;
+            r->tail = (r->tail + 1) % r->cap;
+        }
+        ok = 1;
+    }
+    SignalSema(r->sema);
+    return ok;
 }

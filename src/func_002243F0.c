@@ -1,140 +1,56 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001749A0(int, int, int, int);
-extern void anim_clip_arbiter(int, int, int, int);
-extern void func_001B61C0(int, int, int, int);
-extern void func_001C61D0(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
-extern void func_0021C270(int, int, int, int);
-extern void func_0021C350(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Player sub-state +7 of a push / pull move (beat 12, the crevice jump).
+// 0: when either speed +0x224 / +0x22C is non-zero, play sound 0x152 (with
+//    func_0021C350) for +0x224 and 0x153 (with func_0021C270) for +0x22C, at
+//    distance 300.0; advance +7, rumble (func_001B61C0(0, 0xC0, 5, 1)) and
+//    start clip 0x6F (func_001749A0(e, 0x6F, 0, 1.0)); returns 1, or 0 when
+//    both speeds are zero.
+// 1: when bit 0x1000 of +0x200 is set, back to sub-state 0 with timer +0x20E
+//    = 60 and blend into clip 0x6C (+0x25C < 2) or 0x6B over half its length
+//    (func_001C61D0 frames, staged through the scratchpad float 0x70003A20)
+//    with anim_clip_arbiter(e, clip, 4.0, frames / 2). Returns 1.
+// Any other sub-state returns 1.
+extern float D_70003A20;
+extern void func_001FBD50(char *e, int sound, int b, float dist);
+extern void func_0021C350(char *e);
+extern void func_0021C270(char *e);
+extern void func_001B61C0(int port, int strength, int mode, int arg3);
+extern int func_001749A0(char *e, short clip, int flags, float blend);
+extern int func_001C61D0(int model, int clip);
+extern void anim_clip_arbiter(char *e, int clip, float speed, float frames);
 
-asm void func_002243F0(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x90830007
-    .word 0x24020001
-    .word 0x10620041
-    .word 0x70808628
-    .word 0x10600003
-    .word 0x00000000
-    .word 0x10000073
-    .word 0x24020001
-    .word 0xc6020224
-    .word 0x44800800
-    .word 0x00000000
-    .word 0x46011032
-    .word 0x00000000
-    .word 0x45000006
-    .word 0x00000000
-    .word 0xc600022c
-    .word 0x46010032
-    .word 0x00000000
-    .word 0x4501002f
-    .word 0x70001628
-    .word 0x44800000
-    .word 0x00000000
-    .word 0x46001032
-    .word 0x00000000
-    .word 0x45010009
-    .word 0x00000000
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x24050152
-    .word 0x72002628
-    jal       func_001FBD50
-    .word 0x70003628
-    jal       func_0021C350
-    .word 0x72002628
-    .word 0xc601022c
-    .word 0x44800000
-    .word 0x00000000
-    .word 0x46000832
-    .word 0x00000000
-    .word 0x45010009
-    .word 0x00000000
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x24050153
-    .word 0x72002628
-    jal       func_001FBD50
-    .word 0x70003628
-    jal       func_0021C270
-    .word 0x72002628
-    .word 0x92020007
-    .word 0x240500c0
-    .word 0x24060005
-    .word 0x24070001
-    .word 0x24420001
-    .word 0x70002628
-    jal       func_001B61C0
-    .word 0xa2020007
-    .word 0x3c023f80
-    .word 0x44826000
-    .word 0x2405006f
-    .word 0x72002628
-    jal       func_001749A0
-    .word 0x70003628
-    .word 0x10000039
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x10000038
-    .word 0x7bbf0010
-    .word 0x8e020200
-    .word 0x30421000
-    .word 0x10400032
-    .word 0x00000000
-    .word 0x2402003c
-    .word 0xa2000007
-    .word 0xa602020e
-    .word 0x9202025c
-    .word 0x28410002
-    .word 0x10200017
-    .word 0x00000000
-    .word 0x8e040040
-    jal       func_001C61D0
-    .word 0x2405006c
-    .word 0x44820000
-    .word 0x3c034080
-    .word 0x46800020
-    .word 0x3c017000
-    .word 0x3c024000
-    .word 0x2405006c
-    .word 0x72002628
-    .word 0xe4203a20
-    .word 0x3c017000
-    .word 0xc4203a20
-    .word 0x44820800
-    .word 0x44836000
-    .word 0x46010343
-    .word 0x00000000
-    .word 0x00000000
-    jal       anim_clip_arbiter
-    .word 0x00000000
-    .word 0x10000015
-    .word 0x00000000
-    .word 0x8e040040
-    jal       func_001C61D0
-    .word 0x2405006b
-    .word 0x44820000
-    .word 0x3c034080
-    .word 0x46800020
-    .word 0x3c017000
-    .word 0x3c024000
-    .word 0x2405006b
-    .word 0x72002628
-    .word 0xe4203a20
-    .word 0x3c017000
-    .word 0xc4203a20
-    .word 0x44820800
-    .word 0x44836000
-    .word 0x46010343
-    .word 0x00000000
-    .word 0x00000000
-    jal       anim_clip_arbiter
-    .word 0x00000000
-    .word 0x24020001
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+int func_002243F0(char *e) {
+    switch ((unsigned char)e[7]) {
+    case 0:
+        if (*(float *)(e + 0x224) || *(float *)(e + 0x22C)) {
+            if (*(float *)(e + 0x224)) {
+                func_001FBD50(e, 0x152, 0, 300.0f);
+                func_0021C350(e);
+            }
+            if (*(float *)(e + 0x22C)) {
+                func_001FBD50(e, 0x153, 0, 300.0f);
+                func_0021C270(e);
+            }
+            ((unsigned char *)e)[7]++;
+            func_001B61C0(0, 0xC0, 5, 1);
+            func_001749A0(e, 0x6F, 0, 1.0f);
+            break;
+        }
+        return 0;
+    case 1:
+        if (*(int *)(e + 0x200) & 0x1000) {
+            e[7] = 0;
+            *(short *)(e + 0x20E) = 0x3C;
+            if (((unsigned char *)e)[0x25C] < 2) {
+                D_70003A20 = func_001C61D0(*(int *)(e + 0x40), 0x6C);
+                anim_clip_arbiter(e, 0x6C, 4.0f, D_70003A20 / 2.0f);
+            } else {
+                D_70003A20 = func_001C61D0(*(int *)(e + 0x40), 0x6B);
+                anim_clip_arbiter(e, 0x6B, 4.0f, D_70003A20 / 2.0f);
+            }
+        }
+        break;
+    }
+    return 1;
 }

@@ -1,28 +1,12 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_0011E398(int, int, int, int);
-extern void func_001D25F0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Sets the render context's zoom from an angle (FRAME_RENDER_HEADS.md, "the
+// zoom functions"): zoom = scale / tanf(angle / 2), handed to func_001D25F0,
+// which stores it to the scratchpad word 0x70003B60 and to D_00275670 + 0x2468.
+// func_0011E398 is the SDK tanf.
+extern float func_0011E398(float x);
+extern void func_001D25F0(float zoom);
 
-asm void func_001D2590(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    lui $v0, (0x40000000 >> 16)
-    swc1 $f20, 0x0($sp)
-    mtc1 $v0, $f0
-    mov.s $f20, $f12
-    div.s $f12, $f13, $f0
-    nop
-    nop
-    jal func_0011E398
-    nop
-    nop
-    nop
-    div.s $f12, $f20, $f0
-    nop
-    nop
-    jal func_001D25F0
-    nop
-    lq $ra, 0x10($sp)
-    lwc1 $f20, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+void func_001D2590(float scale, float angle) {
+    func_001D25F0(scale / func_0011E398(angle / 2.0f));
 }

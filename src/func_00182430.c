@@ -1,289 +1,172 @@
-// All-word: everything as .word except jal/j-external
-//
-// SEMANTICS (s37, FINDINGS "FOOTSTEP SURFACE TABLE"): the FOOTSTEP
-// SURFACE->SOUND MAPPER, func_00182430(actor, gait). No data table —
-// the mapping is these compiled-in immediates:
-//   surface_id = BLOCK(actor+0x23A) + (gait==3 ? 0xA : gait==2 ? 5 : 0)
-//                + func_00179B90()            // rand 0..4
-//   gear_id    = 0x138 + func_00179B90()      // second independent rand
-// both played positionally via func_001FBD50(actor, id, 0) vol 300.
-// BLOCK bases (stride 0x11): attr 0/unmapped->0x10, 1->0x21, 2->0x32,
-// 3->0x43, 4->0x54, 5->0x65, 6|7->0xA9, 8->0x87, 0xD->0xDC, 0xE->0xED,
-// 0x5A->0x76, 0x5B->0xBA shallow (+0x23C==1) / 0xCB deep, 0x5C->0x98.
-extern void func_00179B90(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Player footstep sounds (FINDINGS "FOOTSTEP SURFACE TABLE"; port
+// em_player_floor.c). The surface type +0x23A picks a block of sound ids
+// (0x10, 0x21, 0x32, 0x43, ... 0xED in steps of 0x11; surface 0x5B picks
+// 0xBA or 0xCB by the +0x23C flag; unknown surfaces use surface 0's block),
+// the gait (2 = +5, 3 = +10) a sub-base, and func_00179B90 a random variant
+// 0..4. The step plays at distance 300 (func_001FBD50), followed by the gear
+// layer 0x138 + a variant.
+extern int func_00179B90(void);
+extern void func_001FBD50(unsigned char *e, int sound, int b, float dist);
 
-asm void func_00182430(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x9086023a
-    .word 0x2402000e
-    .word 0x10c200dc
-    .word 0x70808628
-    .word 0x2402000d
-    .word 0x10c200cc
-    .word 0x24020003
-    .word 0x2402005b
-    .word 0x10c200a8
-    .word 0x00000000
-    .word 0x24020007
-    .word 0x10c20098
-    .word 0x24020003
-    .word 0x24020006
-    .word 0x10c20094
-    .word 0x00000000
-    .word 0x2402005c
-    .word 0x10c20084
-    .word 0x24020003
-    .word 0x24020008
-    .word 0x10c20073
-    .word 0x24020003
-    .word 0x2402005a
-    .word 0x10c20062
-    .word 0x24020003
-    .word 0x24020005
-    .word 0x10c20051
-    .word 0x24020003
-    .word 0x24020004
-    .word 0x10c20040
-    .word 0x24020003
-    .word 0x24040003
-    .word 0x10c40030
-    .word 0x30a300ff
-    .word 0x24030002
-    .word 0x10c30021
-    .word 0x30a200ff
-    .word 0x24020001
-    .word 0x10c20012
-    .word 0x30a200ff
-    .word 0x10c00004
-    .word 0x30a200ff
-    .word 0x100000c3
-    .word 0x30a200ff
-    .word 0x30a200ff
-    .word 0x14440003
-    .word 0x00000000
-    .word 0x100000c7
-    .word 0x2411001a
-    .word 0x14430004
-    .word 0x24110010
-    .word 0x100000c3
-    .word 0x24110015
-    .word 0x24110010
-    .word 0x100000c0
-    .word 0x00000000
-    .word 0x30a200ff
-    .word 0x14440003
-    .word 0x00000000
-    .word 0x100000bb
-    .word 0x2411002b
-    .word 0x14430004
-    .word 0x24110021
-    .word 0x100000b7
-    .word 0x24110026
-    .word 0x24110021
-    .word 0x100000b4
-    .word 0x00000000
-    .word 0x30a200ff
-    .word 0x14440003
-    .word 0x00000000
-    .word 0x100000af
-    .word 0x2411003c
-    .word 0x14430004
-    .word 0x24110032
-    .word 0x100000ab
-    .word 0x24110037
-    .word 0x24110032
-    .word 0x100000a8
-    .word 0x00000000
-    .word 0x30a300ff
-    .word 0x14640004
-    .word 0x24020002
-    .word 0x100000a3
-    .word 0x2411004d
-    .word 0x24020002
-    .word 0x14620004
-    .word 0x24110043
-    .word 0x1000009e
-    .word 0x24110048
-    .word 0x24110043
-    .word 0x1000009b
-    .word 0x00000000
-    .word 0x24020003
-    .word 0x30a300ff
-    .word 0x14620004
-    .word 0x24020002
-    .word 0x10000095
-    .word 0x2411005e
-    .word 0x24020002
-    .word 0x14620004
-    .word 0x24110054
-    .word 0x10000090
-    .word 0x24110059
-    .word 0x24110054
-    .word 0x1000008d
-    .word 0x00000000
-    .word 0x24020003
-    .word 0x30a300ff
-    .word 0x14620004
-    .word 0x24020002
-    .word 0x10000087
-    .word 0x2411006f
-    .word 0x24020002
-    .word 0x14620004
-    .word 0x24110065
-    .word 0x10000082
-    .word 0x2411006a
-    .word 0x24110065
-    .word 0x1000007f
-    .word 0x00000000
-    .word 0x24020003
-    .word 0x30a300ff
-    .word 0x14620004
-    .word 0x24020002
-    .word 0x10000079
-    .word 0x24110080
-    .word 0x24020002
-    .word 0x14620004
-    .word 0x24110076
-    .word 0x10000074
-    .word 0x2411007b
-    .word 0x24110076
-    .word 0x10000071
-    .word 0x00000000
-    .word 0x24020003
-    .word 0x30a300ff
-    .word 0x14620004
-    .word 0x24020002
-    .word 0x1000006b
-    .word 0x24110091
-    .word 0x24020002
-    .word 0x14620004
-    .word 0x24110087
-    .word 0x10000066
-    .word 0x2411008c
-    .word 0x24110087
-    .word 0x10000063
-    .word 0x00000000
-    .word 0x24020003
-    .word 0x30a300ff
-    .word 0x14620004
-    .word 0x24020002
-    .word 0x1000005d
-    .word 0x241100a2
-    .word 0x24020002
-    .word 0x14620004
-    .word 0x24110098
-    .word 0x10000058
-    .word 0x2411009d
-    .word 0x24110098
-    .word 0x10000055
-    .word 0x00000000
-    .word 0x24020003
-    .word 0x30a300ff
-    .word 0x14620004
-    .word 0x24020002
-    .word 0x1000004f
-    .word 0x241100b3
-    .word 0x24020002
-    .word 0x14620004
-    .word 0x241100a9
-    .word 0x1000004a
-    .word 0x241100ae
-    .word 0x241100a9
-    .word 0x10000047
-    .word 0x00000000
-    .word 0x9203023c
-    .word 0x24020001
-    .word 0x14620010
-    .word 0x24020003
-    .word 0x24020003
-    .word 0x30a300ff
-    .word 0x14620004
-    .word 0x24020002
-    .word 0x1000003d
-    .word 0x241100c4
-    .word 0x24020002
-    .word 0x14620004
-    .word 0x241100ba
-    .word 0x10000038
-    .word 0x241100bf
-    .word 0x241100ba
-    .word 0x10000035
-    .word 0x00000000
-    .word 0x24020003
-    .word 0x30a300ff
-    .word 0x14620004
-    .word 0x24020002
-    .word 0x1000002f
-    .word 0x241100d5
-    .word 0x24020002
-    .word 0x14620004
-    .word 0x241100cb
-    .word 0x1000002a
-    .word 0x241100d0
-    .word 0x241100cb
-    .word 0x10000027
-    .word 0x00000000
-    .word 0x24020003
-    .word 0x30a300ff
-    .word 0x14620004
-    .word 0x24020002
-    .word 0x10000021
-    .word 0x241100e6
-    .word 0x24020002
-    .word 0x14620004
-    .word 0x241100dc
-    .word 0x1000001c
-    .word 0x241100e1
-    .word 0x241100dc
-    .word 0x10000019
-    .word 0x00000000
-    .word 0x24020003
-    .word 0x30a300ff
-    .word 0x14620004
-    .word 0x24020002
-    .word 0x10000013
-    .word 0x241100f7
-    .word 0x24020002
-    .word 0x14620004
-    .word 0x241100ed
-    .word 0x1000000e
-    .word 0x241100f2
-    .word 0x241100ed
-    .word 0x1000000b
-    .word 0x00000000
-    .word 0x30a200ff
-    .word 0x14440003
-    .word 0x00000000
-    .word 0x10000006
-    .word 0x2411001a
-    .word 0x14430004
-    .word 0x24110010
-    .word 0x10000002
-    .word 0x24110015
-    .word 0x24110010
-    jal       func_00179B90
-    .word 0x00000000
-    .word 0x02222821
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x72002628
-    jal       func_001FBD50
-    .word 0x70003628
-    jal       func_00179B90
-    .word 0x00000000
-    .word 0x24450138
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x72002628
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_00182430(unsigned char *e, unsigned char gait) {
+    unsigned char k;
+    int id;
+
+    switch (e[0x23A]) {
+    case 0:
+        k = gait;
+        if (k == 3) {
+            id = 0x1A;
+        } else if (k == 2) {
+            id = 0x15;
+        } else {
+            id = 0x10;
+        }
+        break;
+    case 1:
+        k = gait;
+        if (k == 3) {
+            id = 0x2B;
+        } else if (k == 2) {
+            id = 0x26;
+        } else {
+            id = 0x21;
+        }
+        break;
+    case 2:
+        k = gait;
+        if (k == 3) {
+            id = 0x3C;
+        } else if (k == 2) {
+            id = 0x37;
+        } else {
+            id = 0x32;
+        }
+        break;
+    case 3:
+        k = gait;
+        if (k == 3) {
+            id = 0x4D;
+        } else if (k == 2) {
+            id = 0x48;
+        } else {
+            id = 0x43;
+        }
+        break;
+    case 4:
+        k = gait;
+        if (k == 3) {
+            id = 0x5E;
+        } else if (k == 2) {
+            id = 0x59;
+        } else {
+            id = 0x54;
+        }
+        break;
+    case 5:
+        k = gait;
+        if (k == 3) {
+            id = 0x6F;
+        } else if (k == 2) {
+            id = 0x6A;
+        } else {
+            id = 0x65;
+        }
+        break;
+    case 0x5A:
+        k = gait;
+        if (k == 3) {
+            id = 0x80;
+        } else if (k == 2) {
+            id = 0x7B;
+        } else {
+            id = 0x76;
+        }
+        break;
+    case 8:
+        k = gait;
+        if (k == 3) {
+            id = 0x91;
+        } else if (k == 2) {
+            id = 0x8C;
+        } else {
+            id = 0x87;
+        }
+        break;
+    case 0x5C:
+        k = gait;
+        if (k == 3) {
+            id = 0xA2;
+        } else if (k == 2) {
+            id = 0x9D;
+        } else {
+            id = 0x98;
+        }
+        break;
+    case 6:
+    case 7:
+        k = gait;
+        if (k == 3) {
+            id = 0xB3;
+        } else if (k == 2) {
+            id = 0xAE;
+        } else {
+            id = 0xA9;
+        }
+        break;
+    case 0x5B:
+        k = gait;
+        if (e[0x23C] == 1) {
+            if (k == 3) {
+                id = 0xC4;
+            } else if (k == 2) {
+                id = 0xBF;
+            } else {
+                id = 0xBA;
+            }
+        } else {
+            if (k == 3) {
+                id = 0xD5;
+            } else if (k == 2) {
+                id = 0xD0;
+            } else {
+                id = 0xCB;
+            }
+        }
+        break;
+    case 0xD:
+        k = gait;
+        if (k == 3) {
+            id = 0xE6;
+        } else if (k == 2) {
+            id = 0xE1;
+        } else {
+            id = 0xDC;
+        }
+        break;
+    case 0xE:
+        k = gait;
+        if (k == 3) {
+            id = 0xF7;
+        } else if (k == 2) {
+            id = 0xF2;
+        } else {
+            id = 0xED;
+        }
+        break;
+    default:
+        k = gait;
+        if (k == 3) {
+            id = 0x1A;
+        } else if (k == 2) {
+            id = 0x15;
+        } else {
+            id = 0x10;
+        }
+        break;
+    }
+    func_001FBD50(e, id + func_00179B90(), 0, 300.0f);
+    func_001FBD50(e, func_00179B90() + 0x138, 0, 300.0f);
 }

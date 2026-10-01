@@ -54,3 +54,5 @@ asm void func_001F4BF0(void) {
     jr         $ra
     addiu     $sp, $sp, 0x40
 }
+
+// Readable C (NEARMISS companion, objdiff 99.70%): src/readable/func_001F4BF0.c

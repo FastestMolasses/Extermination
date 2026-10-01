@@ -30,3 +30,5 @@ asm void func_001CC170(void) {
     jr $ra
     addiu $sp, $sp, 0x20
 }
+
+// Readable C (NEARMISS companion, objdiff 100.00%): src/readable/func_001CC170.c

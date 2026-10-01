@@ -1,11 +1,10 @@
-// Tail-call / arg-shuffle wrapper — `asm void` with extern decls.
-extern void func_001D66A0(void);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Draws the Gouraud glow fan (func_001D66A0) in mode 1: the three pointer
+// arguments shift one register up and the float in f12 passes through
+// unchanged to func_001D66A0's float parameter.
+extern char *func_001D66A0(int mode, float *pos, int *a2, int *a3, float f);
 
-asm void func_00208AB0(void) {
-    paddub $v0, $a1, $zero
-    paddub $a1, $a0, $zero
-    paddub $a3, $a2, $zero
-    addiu $a0, $zero, 0x1
-    j func_001D66A0
-    paddub $a2, $v0, $zero
+void func_00208AB0(float *pos, int *a2, int *a3, float f) {
+    func_001D66A0(1, pos, a2, a3, f);
 }

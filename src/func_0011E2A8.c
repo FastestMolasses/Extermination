@@ -65,3 +65,5 @@ asm void func_0011E2A8(void) {
     jr         $ra
     addiu     $sp, $sp, 0x20
 }
+
+// Readable C (NEARMISS companion, objdiff 92.58%): src/readable/func_0011E2A8.c

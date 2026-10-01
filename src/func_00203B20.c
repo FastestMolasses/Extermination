@@ -1,25 +1,17 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00203B20(void) {
-    .word 0xac850000
-    .word 0xac860004
-    .word 0xac870010
-    .word 0xac80000c
-    .word 0x0007082a
-    .word 0xac800008
-    .word 0x1020000b
-    .word 0x70004628
-    .word 0x70004e28
-    .word 0x3c030003
-    .word 0x34659640
-    .word 0x8c860004
-    .word 0x25080001
-    .word 0x0107182a
-    .word 0x00c93021
-    .word 0x01254821
-    .word 0x1460fffa
-    .word 0xacc00000
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Movie frame ring: r+0 = a0, r+4 = the slot buffer, r+0x10 = the slot
+// count; both cursors (+8 / +0xC) start at 0 and the first word of every
+// 0x39640-byte slot is cleared.
+void func_00203B20(int *r, int a, char *slots, int n) {
+    int i;
+
+    r[0] = a;
+    *(char **)(r + 1) = slots;
+    r[4] = n;
+    r[3] = 0;
+    r[2] = 0;
+    for (i = 0; i < n; i++) {
+        *(int *)(*(char **)(r + 1) + i * 0x39640) = 0;
+    }
 }

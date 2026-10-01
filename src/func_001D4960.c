@@ -1,5 +1,5 @@
 // CFLAGS: -O4,p -sdatathreshold 4
-// asm void: instruction scheduling differs (addiu a1 before second jal, addiu a2 order).
+// asm void: instruction scheduling differs (argument set-up order around the second call).
 // gp_rel and lui/addiu %hi/%lo hardcoded .word. Byte-identical at link time.
 extern char *D_00275670;
 extern char D_00816440[0x10000];
@@ -37,3 +37,5 @@ asm void func_001D4960(void) {
     .word 0x03E00008  // jr ra
     .word 0x27BD0010  // addiu sp, sp, 0x10 (delay slot)
 }
+
+// Readable C (NEARMISS companion, objdiff 90.18%): src/readable/func_001D4960.c

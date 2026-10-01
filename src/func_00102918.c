@@ -12,3 +12,5 @@ asm void func_00102918(void *a0, void *a1, void *a2) {
     jr $ra
     sqc2 $vf5, 0x30($4)
 }
+
+// Readable C (NEARMISS companion, objdiff 0.00%): src/readable/func_00102918.c

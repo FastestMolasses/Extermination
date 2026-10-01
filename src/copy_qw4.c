@@ -10,3 +10,5 @@ asm void copy_qw4(void *a0, void *a1) {
     jr $ra
     sq $9, 0x30($4)
 }
+
+// Readable C (NEARMISS companion, objdiff 96.22%): src/readable/copy_qw4.c

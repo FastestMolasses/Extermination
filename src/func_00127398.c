@@ -1,74 +1,65 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00127398(void) {
-    .word 0x8c860000
-    .word 0x2cc20002
-    .word 0x14400005
-    .word 0x00000000
-    .word 0x8ca30000
-    .word 0x2c620002
-    .word 0x10400003
-    .word 0x38c20004
-    .word 0x03e00008
-    .word 0x24020001
-    .word 0x1440000b
-    .word 0x38620004
-    .word 0x54400005
-    .word 0x8c840004
-    .word 0x8ca30004
-    .word 0x8c820004
-    .word 0x03e00008
-    .word 0x00621023
-    .word 0x24030001
-    .word 0x2402ffff
-    .word 0x03e00008
-    .word 0x0064100a
-    .word 0x54400006
-    .word 0x38c20002
-    .word 0x8ca40004
-    .word 0x2403ffff
-    .word 0x24020001
-    .word 0x03e00008
-    .word 0x0064100a
-    .word 0x14400009
-    .word 0x38620002
-    .word 0x54400003
-    .word 0x8ca40004
-    .word 0x03e00008
-    .word 0x0000102d
-    .word 0x24030001
-    .word 0x2402ffff
-    .word 0x03e00008
-    .word 0x0064100b
-    .word 0x5040ffea
-    .word 0x8c840004
-    .word 0x8c870004
-    .word 0x8ca20004
-    .word 0x50e20005
-    .word 0x8c860008
-    .word 0x24030001
-    .word 0x2402ffff
-    .word 0x03e00008
-    .word 0x0067100a
-    .word 0x8ca30008
-    .word 0x0066102a
-    .word 0x5440fffa
-    .word 0x24030001
-    .word 0x00c3102a
-    .word 0x50400005
-    .word 0xdc830010
-    .word 0x2403ffff
-    .word 0x24020001
-    .word 0x03e00008
-    .word 0x0067100a
-    .word 0xdca40010
-    .word 0x0083102b
-    .word 0x5440ffef
-    .word 0x24030001
-    .word 0x0064102b
-    .word 0x1440fff7
-    .word 0x2403ffff
-    .word 0x03e00008
-    .word 0x0000102d
+// COMPILER: eegcc
+// CFLAGS: -O2
+// libgcc soft float (fp-bit): compares two unpacked doubles (layout as in
+// func_00126BE8). Returns 1 when either is a NaN (unordered); otherwise
+// -1, 0 or 1 for a < b, a == b, a > b, ordering infinities and zeros by
+// sign, then by sign, exponent and fraction (reversed for negatives).
+typedef struct FpNumberD {
+    unsigned int fpclass;
+    unsigned int sign;
+    int normal_exp;
+    int pad;
+    unsigned long long fraction;
+} FpNumberD;
+
+static __inline__ int isnan(FpNumberD *x) {
+    return x->fpclass < 2;
+}
+
+static __inline__ int iszero(FpNumberD *x) {
+    return x->fpclass == 2;
+}
+
+static __inline__ int isinf(FpNumberD *x) {
+    return x->fpclass == 4;
+}
+
+int func_00127398(FpNumberD *a, FpNumberD *b) {
+    if (isnan(a) || isnan(b)) {
+        return 1;
+    }
+    if (isinf(a) && isinf(b)) {
+        return b->sign - a->sign;
+    }
+    if (isinf(a)) {
+        return a->sign ? -1 : 1;
+    }
+    if (isinf(b)) {
+        return b->sign ? 1 : -1;
+    }
+    if (iszero(a) && iszero(b)) {
+        return 0;
+    }
+    if (iszero(a)) {
+        return b->sign ? 1 : -1;
+    }
+    if (iszero(b)) {
+        return a->sign ? -1 : 1;
+    }
+    if (a->sign != b->sign) {
+        return a->sign ? -1 : 1;
+    }
+    if (a->normal_exp > b->normal_exp) {
+        return a->sign ? -1 : 1;
+    }
+    if (a->normal_exp < b->normal_exp) {
+        return a->sign ? 1 : -1;
+    }
+    if (a->fraction > b->fraction) {
+        return a->sign ? -1 : 1;
+    }
+    if (a->fraction < b->fraction) {
+        return a->sign ? 1 : -1;
+    }
+    return 0;
 }

@@ -1,32 +1,22 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00203A10(void) {
-    .word 0x3c010005
-    .word 0x00810821
-    .word 0x8c260008
-    .word 0x3c010005
-    .word 0x00810821
-    .word 0x8c220004
-    .word 0x00c21023
-    .word 0x00a2082a
-    .word 0x0041280a
-    .word 0x3c010005
-    .word 0x00810821
-    .word 0x8c230000
-    .word 0x70a01628
-    .word 0x00651821
-    .word 0x0066001a
-    .word 0x3c010005
-    .word 0x00810821
-    .word 0x00001810
-    .word 0xac230000
-    .word 0x3c010005
-    .word 0x00810821
-    .word 0x8c230004
-    .word 0x3c010005
-    .word 0x00651821
-    .word 0x00810821
-    .word 0x03e00008
-    .word 0xac230004
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Audio stream ring: consumes up to n bytes. The 0x50000-byte buffer is
+// followed by the read position, the filled count and the size; n is
+// clamped to the free space (size - count), the position advances modulo
+// the size and the count grows by n. Returns the clamped n.
+typedef struct StreamRing {
+    char data[0x50000];
+    int pos;    /* 0x50000 */
+    int count;  /* 0x50004 */
+    int size;   /* 0x50008 */
+} StreamRing;
+
+int func_00203A10(StreamRing *r, int n) {
+    int size = r->size;
+    int avail = size - r->count;
+
+    n = (n < avail) ? n : avail;
+    r->pos = (r->pos + n) % size;
+    r->count += n;
+    return n;
 }

@@ -1,31 +1,18 @@
-// Hybrid: branches/j as .word, jal with extern decls
-extern void func_001157F0(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK (IOP sound RPC): sends a transfer request p = {channel, address, EE
+// address, size}. Addresses and sizes above 2 MB (0x1FFFFF) and channels
+// 16 and up are rejected with -1; otherwise command 0x48 goes to
+// func_001157F0 with (channel << 24 | address, EE address, size) and 0 is
+// returned.
+extern void func_001157F0(int cmd, int a, int b, int c);
 
-asm void func_0011A788(void) {
-    addiu      $sp, $sp, -0x10
-    lui        $v1, (0x1FFFFF >> 16)
-    sd         $ra, 0x0($sp)
-    .word 0x3463ffff
-    lw         $a2, 0x8($a0)
-    sltu       $v0, $v1, $a2
-    .word 0x1440000f
-    addiu     $8, $zero, -0x1
-    lw         $a3, 0xC($a0)
-    sltu       $v0, $v1, $a3
-    .word 0x1440000c
-    ld        $ra, 0x0($sp)
-    lw         $a1, 0x0($a0)
-    slti       $v0, $a1, 0x10
-    .word 0x10400009
-    daddu     $v0, $8, $zero
-    lw         $v0, 0x4($a0)
-    sll        $a1, $a1, 24
-    addiu      $a0, $zero, 0x48
-    jal        func_001157F0
-    or        $a1, $a1, $v0
-    daddu      $8, $zero, $zero
-    ld         $ra, 0x0($sp)
-    daddu      $v0, $8, $zero
-    jr         $ra
-    addiu     $sp, $sp, 0x10
+int func_0011A788(int *p) {
+    int r = -1;
+
+    if ((unsigned int)p[2] <= 0x1FFFFF && (unsigned int)p[3] <= 0x1FFFFF && p[0] < 0x10) {
+        func_001157F0(0x48, (p[0] << 24) | p[1], p[2], p[3]);
+        r = 0;
+    }
+    return r;
 }

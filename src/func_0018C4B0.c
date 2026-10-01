@@ -1,63 +1,26 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011DF78(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Eases cur's y (+4) toward target_y. With d = target_y - y: when |d| <= 1
+// the axis takes a quarter of d and returns 4 (the y done bit); otherwise it
+// moves by min(|d| / 8, maxstep) in d's direction and returns 0. Companion of
+// func_0018C6A0 (x / z). func_0011DF78 is fabsf.
+extern float func_0011DF78(float x);
 
-asm void func_0018C4B0(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb00010
-    .word 0xe7b50004
-    .word 0xe7b40000
-    .word 0xc4800004
-    .word 0x46006d46
-    .word 0x70808628
-    .word 0x46006501
-    jal       func_0011DF78
-    .word 0x4600a306
-    .word 0x3c023f80
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x4501001a
-    .word 0x3c024080
-    .word 0x3c024100
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x46010043
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x4601a836
-    .word 0x00000000
-    .word 0x45030004
-    .word 0x4600a846
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x4600a846
-    .word 0x44800000
-    .word 0x00000000
-    .word 0x4600a034
-    .word 0x00000000
-    .word 0x45000002
-    .word 0x00000000
-    .word 0x46000847
-    .word 0xc6000004
-    .word 0x46010000
-    .word 0x1000000a
-    .word 0xe6000004
-    .word 0x3c024080
-    .word 0x44820000
-    .word 0xc6010004
-    .word 0x4600a003
-    .word 0x24020004
-    .word 0x00000000
-    .word 0x46000800
-    .word 0x10000002
-    .word 0xe6000004
-    .word 0x70001628
-    .word 0x7bbf0020
-    .word 0x7bb00010
-    .word 0xc7b50004
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0030
+int func_0018C4B0(float *cur, float target_y, float maxstep) {
+    float d = target_y - cur[1];
+    float a = func_0011DF78(d);
+    float step;
+
+    if (!(a <= 1.0f)) {
+        step = a / 8.0f;
+        step = (maxstep > step) ? step : maxstep;
+        if (d < 0.0f) {
+            step = -step;
+        }
+        cur[1] = cur[1] + step;
+    } else {
+        cur[1] = cur[1] + d / 4.0f;
+        return 4;
+    }
+    return 0;
 }

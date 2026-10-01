@@ -1,51 +1,41 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void bone_init_default_1(void) {
-    .word 0x8c860044
-    .word 0x24051000
-    .word 0x70003e28
-    .word 0x70804e28
-    .word 0x8cc3000c
-    .word 0x10000022
-    .word 0x00c34021
-    .word 0x85060004
-    .word 0x8d230110
-    .word 0x24e70001
-    .word 0xa4660064
-    .word 0x8d230110
-    .word 0xa4650088
-    .word 0x8d230110
-    .word 0xa465008a
-    .word 0x8d230110
-    .word 0xa465008c
-    .word 0x8d230110
-    .word 0xac60007c
-    .word 0x8d230110
-    .word 0xac600080
-    .word 0x8d230110
-    .word 0xac600084
-    .word 0x8d230110
-    .word 0xac600070
-    .word 0x8d230110
-    .word 0xac600074
-    .word 0x8d230110
-    .word 0xac600078
-    .word 0x8d260110
-    .word 0x79030010
-    .word 0x25290004
-    .word 0x7cc30000
-    .word 0x79030020
-    .word 0x7cc30010
-    .word 0x79030030
-    .word 0x7cc30020
-    .word 0x79030040
-    .word 0x25080050
-    .word 0x7cc30030
-    .word 0x9083000c
-    .word 0x00e3182a
-    .word 0x1460ffdc
-    .word 0x00000000
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Puts every bone of an actor in its model's rest pose. The model (+0x44)
+// holds 0x50-byte rest records at model + model[+0xC]; for each of the
+// actor's +0xC bones, the bone node (actor + 0x110)[i] gets the rest
+// record's +4 halfword at +0x64, unit scale 0x1000 at +0x88/+0x8A/+0x8C,
+// zero rotation / translation words at +0x70..+0x84, and the record's four
+// quadwords +0x10..+0x4F (its rest matrix) at +0x00..+0x3F.
+typedef unsigned int u128 __attribute__((mode(TI)));
+
+void bone_init_default_1(char *actor) {
+    int i;
+    char *rest;
+    char *p;
+    char *node;
+    char *model = *(char **)(actor + 0x44);
+
+    i = 0;
+    p = actor;
+    rest = model + *(int *)(model + 0xC);
+    while (i < *(unsigned char *)(actor + 0xC)) {
+        i++;
+        *(short *)(*(char **)(p + 0x110) + 0x64) = *(short *)(rest + 4);
+        *(short *)(*(char **)(p + 0x110) + 0x88) = 0x1000;
+        *(short *)(*(char **)(p + 0x110) + 0x8A) = 0x1000;
+        *(short *)(*(char **)(p + 0x110) + 0x8C) = 0x1000;
+        *(int *)(*(char **)(p + 0x110) + 0x7C) = 0;
+        *(int *)(*(char **)(p + 0x110) + 0x80) = 0;
+        *(int *)(*(char **)(p + 0x110) + 0x84) = 0;
+        *(int *)(*(char **)(p + 0x110) + 0x70) = 0;
+        *(int *)(*(char **)(p + 0x110) + 0x74) = 0;
+        *(int *)(*(char **)(p + 0x110) + 0x78) = 0;
+        node = *(char **)(p + 0x110);
+        p += 4;
+        ((u128 *)node)[0] = ((u128 *)rest)[1];
+        ((u128 *)node)[1] = ((u128 *)rest)[2];
+        ((u128 *)node)[2] = ((u128 *)rest)[3];
+        ((u128 *)node)[3] = ((u128 *)rest)[4];
+        rest += 0x50;
+    }
 }

@@ -1,14 +1,14 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-extern int func_001AFA90(int);
-extern void func_001F5040(void);
+extern char *func_001AFA90(int);
+extern void func_001F5040(char *node);  /* the node's per-frame worker (node + 0x10) */
 
-int func_001F4F40(int a0) {
-    char *v0;
-    v0 = (char *)func_001AFA90(0xC);
-    if (v0) {
-        v0[0xD] = a0;
-        *(int *)(v0 + 0x10) = (int)func_001F5040;
-        return (int)v0;
-    }
-    return 0;
+char *func_001F4F40(int kind) {
+    char *n;
+
+    n = func_001AFA90(0xC);
+    if (n == 0) return 0;
+    n[0xD] = kind;
+    *(void (**)(char *))(n + 0x10) = func_001F5040;
+    return n;
 }

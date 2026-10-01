@@ -47,3 +47,5 @@ asm void block_copy(void) {
     .word 0x03e00008
     .word 0x0100102d
 }
+
+// Readable C (NEARMISS companion, objdiff 54.86%): src/readable/block_copy.c

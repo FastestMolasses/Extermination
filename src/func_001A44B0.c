@@ -1,108 +1,66 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001A44B0(void) {
-    .word 0x84820000
-    .word 0x30428000
-    .word 0x10400003
-    .word 0x24830004
-    .word 0x10000003
-    .word 0xc463000c
-    .word 0xc4630010
-    .word 0x00000000
-    .word 0x3c017000
-    .word 0xc4223194
-    .word 0x3c017000
-    .word 0xc42031a4
-    .word 0x46001036
-    .word 0x00000000
-    .word 0x45010005
-    .word 0x46001046
-    .word 0x46000046
-    .word 0x10000004
-    .word 0x70001628
-    .word 0x46001046
-    .word 0x24020001
-    .word 0x46000086
-    .word 0x1040000e
-    .word 0x00000000
-    .word 0xc4600004
-    .word 0x46030001
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x45030006
-    .word 0x70001628
-    .word 0x46020034
-    .word 0x00000000
-    .word 0x45010011
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x10000041
-    .word 0x00000000
-    .word 0xc4600004
-    .word 0x46030000
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x45030006
-    .word 0x70001628
-    .word 0x46020034
-    .word 0x00000000
-    .word 0x45010004
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x10000034
-    .word 0x00000000
-    .word 0x3c017000
-    .word 0xc4253190
-    .word 0xc4620000
-    .word 0xc4610008
-    .word 0xc464000c
-    .word 0x3c017000
-    .word 0xc4203198
-    .word 0x46022881
-    .word 0x4602101a
-    .word 0x46010001
-    .word 0x46042042
-    .word 0x4600001c
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x45030024
-    .word 0x70001628
-    .word 0x3c017000
-    .word 0xe42531b0
-    .word 0x3c017000
-    .word 0xac2030dc
-    .word 0x3c017000
-    .word 0xac2030d4
-    .word 0x3c017000
-    .word 0xc4203198
-    .word 0x3c017000
-    .word 0x1040000c
-    .word 0xe42031b8
-    .word 0xc4600004
-    .word 0x3c017000
-    .word 0x3c02bf80
-    .word 0x24038000
-    .word 0x46030001
-    .word 0xa42330ca
-    .word 0x3c017000
-    .word 0xac2230d8
-    .word 0x3c017000
-    .word 0x1000000b
-    .word 0xe42031b4
-    .word 0xc4600004
-    .word 0x3c017000
-    .word 0x3c023f80
-    .word 0x24034000
-    .word 0x46030000
-    .word 0xa42330ca
-    .word 0x3c017000
-    .word 0xac2230d8
-    .word 0x3c017000
-    .word 0xe42031b4
-    .word 0x10000002
-    .word 0x24020001
-    .word 0x70001628
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003190 0x70003194 0x70003198 0x700031A4
+extern float D_70003190;
+extern float D_70003194;
+extern float D_70003198;
+extern float D_700031A4;
+
+int func_001A44B0(short *rec) {
+    float *c = (float *)(rec + 2);
+    float r;
+    float lo;
+    float hi;
+    float y;
+    float dx;
+    float dz;
+    int down;
+    float a;
+    float b;
+
+    if (rec[0] & 0x8000) {
+        r = c[3];
+    } else {
+        r = c[4];
+    }
+    a = D_70003194;
+    b = D_700031A4;
+    if (a > b) {
+        lo = b;
+        down = 0;
+        hi = a;
+    } else {
+        lo = a;
+        down = 1;
+        hi = b;
+    }
+    if (down) {
+        y = c[1] - r;
+        if (y <= lo || !(y < hi)) return 0;
+    } else {
+        y = c[1] + r;
+        if (y <= lo || !(y < hi)) return 0;
+    }
+    dx = D_70003190 - c[0];
+    dz = D_70003198 - c[2];
+    if (!(c[3] * c[3] < dx * dx + dz * dz)) {
+    *(float *)0x700031B0 = D_70003190;
+    *(int *)0x700030DC = 0;
+    *(int *)0x700030D4 = 0;
+    *(float *)0x700031B8 = D_70003198;
+    if (down) {
+        y = c[1] - r;
+        *(short *)0x700030CA = -0x8000;
+        *(float *)0x700030D8 = -1.0f;
+        *(float *)0x700031B4 = y;
+    } else {
+        y = c[1] + r;
+        *(short *)0x700030CA = 0x4000;
+        *(float *)0x700030D8 = 1.0f;
+        *(float *)0x700031B4 = y;
+    }
+        return 1;
+    } else {
+        return 0;
+    }
 }

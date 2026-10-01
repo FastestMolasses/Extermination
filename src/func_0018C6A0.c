@@ -1,111 +1,42 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011DF78(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Eases cur's x (+0) and z (+8) toward target's. For each axis with delta
+// d = target - cur: when |d| <= 1 the axis takes a quarter of d and sets its
+// done bit (x 1, z 2); otherwise it moves by min(|d| / 6, maxstep) in d's
+// direction. func_0011DF78 is fabsf. Returns the done bits.
+extern float func_0011DF78(float x);
 
-asm void func_0018C6A0(void) {
-    .word 0x27bdffb0
-    .word 0x7fbf0040
-    .word 0x7fb20030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0xe7b50004
-    .word 0xe7b40000
-    .word 0xc4810000
-    .word 0xc4a00000
-    .word 0x46006506
-    .word 0x70809628
-    .word 0x70a08e28
-    .word 0x70008628
-    .word 0x46000d41
-    jal       func_0011DF78
-    .word 0x4600ab06
-    .word 0x3c023f80
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x4501001a
-    .word 0x3c024080
-    .word 0x3c0240c0
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x46010043
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x4601a036
-    .word 0x00000000
-    .word 0x45030004
-    .word 0x4600a046
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x4600a046
-    .word 0x44800000
-    .word 0x00000000
-    .word 0x4600a834
-    .word 0x00000000
-    .word 0x45000002
-    .word 0x00000000
-    .word 0x46000847
-    .word 0xc6200000
-    .word 0x46010000
-    .word 0x10000008
-    .word 0xe6200000
-    .word 0x3c024080
-    .word 0x44820000
-    .word 0xc6210000
-    .word 0x4600a803
-    .word 0x24100001
-    .word 0x46000800
-    .word 0xe6200000
-    .word 0xc6410008
-    .word 0xc6200008
-    .word 0x46000d41
-    jal       func_0011DF78
-    .word 0x4600ab06
-    .word 0x3c023f80
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x4501001a
-    .word 0x3c024080
-    .word 0x3c0240c0
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x46010043
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x4601a036
-    .word 0x00000000
-    .word 0x45030004
-    .word 0x4600a046
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x4600a046
-    .word 0x44800000
-    .word 0x00000000
-    .word 0x4600a834
-    .word 0x00000000
-    .word 0x45000002
-    .word 0x00000000
-    .word 0x46000847
-    .word 0xc6200008
-    .word 0x46010000
-    .word 0x10000008
-    .word 0xe6200008
-    .word 0x3c024080
-    .word 0x44820000
-    .word 0xc6210008
-    .word 0x4600a803
-    .word 0x36100002
-    .word 0x46000800
-    .word 0xe6200008
-    .word 0x72001628
-    .word 0x7bbf0040
-    .word 0x7bb20030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    .word 0xc7b50004
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0050
+int func_0018C6A0(float *target, float *cur, float maxstep) {
+    int done = 0;
+    float d;
+    float a;
+    float step;
+
+    d = target[0] - cur[0];
+    a = func_0011DF78(d);
+    if (!(a <= 1.0f)) {
+        step = a / 6.0f;
+        step = (maxstep > step) ? step : maxstep;
+        if (d < 0.0f) {
+            step = -step;
+        }
+        cur[0] = cur[0] + step;
+    } else {
+        done = 1;
+        cur[0] = cur[0] + d / 4.0f;
+    }
+    d = target[2] - cur[2];
+    a = func_0011DF78(d);
+    if (!(a <= 1.0f)) {
+        step = a / 6.0f;
+        step = (maxstep > step) ? step : maxstep;
+        if (d < 0.0f) {
+            step = -step;
+        }
+        cur[2] = cur[2] + step;
+    } else {
+        done |= 2;
+        cur[2] = cur[2] + d / 4.0f;
+    }
+    return done;
 }

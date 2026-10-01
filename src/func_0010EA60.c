@@ -1,18 +1,13 @@
-// All instructions as .word to prevent mwcc dead-code elimination of second jr $ra
-asm int func_0010EA60(int *a0) {
-    lw $5, 0x0($4)
-    .word 0x10a00009
-    nop
-    lw $3, 0x4($4)
-    lw $2, 0x18($5)
-    .word 0x14620005
-    nop
-    lw $2, 0x10($5)
-    andi $2, $2, 0x1
-    .word 0x14400003
-    nop
-    .word 0x03e00008
-    .word 0x0000102d
-    .word 0x03e00008
-    .word 0x24020001
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK (title path): is the handle h still valid? h[0] is the object, h[1]
+// the generation it was taken at; valid while the object exists, its
+// generation word +0x18 still equals h[1] and its flag bit 0 (+0x10) is set.
+int func_0010EA60(int *h) {
+    char *o = (char *)h[0];
+
+    if (o == 0 || h[1] != *(int *)(o + 0x18) || !(*(int *)(o + 0x10) & 1)) {
+        return 0;
+    }
+    return 1;
 }

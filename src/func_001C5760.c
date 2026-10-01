@@ -1,71 +1,50 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_00102948(int, int, int, int);
-extern void func_001AFC10(int, int, int, int);
-extern void func_001C22A0(int, int, int, int);
-extern void func_001C6380(int, int, int, int);
-extern void func_001F54E0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Status-indicator child node (port CENSUS_UNVERIFIED.md: em_indicator_child).
+// State +4: 0 binds the child (func_001C22A0(node) == 0 means bound: place it with
+// func_001C6380 and go to state 1); 1 copies the colour +0xA0..+0xAC to
+// +0x80..+0x8C and draws it with func_001F54E0(node, node + 0x80) (unless
+// bit 0 of the scratchpad flags 0x70003B68 is set, a copy of the colour with
+// alpha 1.0 is first made on the stack and not used); any other state
+// releases the node (func_001AFC10).
+extern int D_70003B68;
+extern int func_001C22A0(char *node);
+extern void func_001C6380(char *node);
+extern void func_00102948(void *dst, void *src);
+extern void func_001F54E0(char *node, void *col);
+extern void func_001AFC10(char *node);
 
-asm void func_001C5760(void) {
-    addiu $sp, $sp, -0x30
-    sq $ra, 0x10($sp)
-    sq $s0, 0x0($sp)
-    lbu $v1, 0x4($a0)
-    addiu $v0, $zero, 0x3
-    .word 0x10620030
-    paddub $s0, $a0, $zero
-    addiu $v0, $zero, 0x2
-    .word 0x5062002e
-    paddub $a0, $s0, $zero
-    addiu $v0, $zero, 0x1
-    .word 0x1062000e
-    nop
-    .word 0x10600003
-    nop
-    .word 0x10000026
-    nop
-    jal func_001C22A0
-    nop
-    .word 0x14400025
-    nop
-    jal func_001C6380
-    paddub $a0, $s0, $zero
-    addiu $v1, $zero, 0x1
-    .word 0x10000020
-    sb $v1, 0x4($s0)
-    lwc1 $f0, 0xA0($s0)
-    lui $at, (0x70003B68 >> 16)
-    swc1 $f0, 0x80($s0)
-    lwc1 $f0, 0xA4($s0)
-    swc1 $f0, 0x84($s0)
-    lwc1 $f0, 0xA8($s0)
-    swc1 $f0, 0x88($s0)
-    lwc1 $f0, 0xAC($s0)
-    swc1 $f0, 0x8C($s0)
-    lw $v0, (0x70003B68 & 0xFFFF)($at)
-    andi $v0, $v0, 0x1
-    .word 0x14400006
-    nop
-    addiu $a0, $sp, 0x20
-    jal func_00102948
-    addiu $a1, $s0, 0x80
-    lui $v0, (0x3F800000 >> 16)
-    sw $v0, 0x2C($sp)
-    lbu $v0, 0xA($s0)
-    .word 0x10400004
-    addiu $a1, $s0, 0x80
-    jal func_001C6380
-    paddub $a0, $s0, $zero
-    addiu $a1, $s0, 0x80
-    jal func_001F54E0
-    paddub $a0, $s0, $zero
-    .word 0x10000005
-    lq $ra, 0x10($sp)
-    paddub $a0, $s0, $zero
-    jal func_001AFC10
-    nop
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+void func_001C5760(char *node) {
+    struct {
+        float r, g, b;
+        int a;
+    } col;
+
+    switch ((unsigned char)node[4]) {
+    case 0:
+        if (func_001C22A0(node) == 0) {
+            func_001C6380(node);
+            node[4] = 1;
+        }
+        break;
+    case 1:
+        *(float *)(node + 0x80) = *(float *)(node + 0xA0);
+        *(float *)(node + 0x84) = *(float *)(node + 0xA4);
+        *(float *)(node + 0x88) = *(float *)(node + 0xA8);
+        *(float *)(node + 0x8C) = *(float *)(node + 0xAC);
+        if (!(D_70003B68 & 1)) {
+            func_00102948(&col, node + 0x80);
+            col.a = 0x3F800000;
+        }
+        if (((unsigned char *)node)[0xA] != 0) {
+            func_001C6380(node);
+        }
+        func_001F54E0(node, node + 0x80);
+        break;
+    case 2:
+    case 3:
+    default:
+        func_001AFC10(node);
+        break;
+    }
 }

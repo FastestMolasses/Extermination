@@ -1,11 +1,10 @@
-// Tail-call wrapper: sets up arguments and tail-jumps to another
-// function. mwcc lacks C-level tail-call optimization, so we write
-// these wrappers as `asm void` to control the final `j`.
-extern void func_00205A50(void);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// GS packet helper: appends a TRXDIR register write (A+D register 0x53) with
+// func_00205A50, value xdir (zero-extended). Returns the advanced packet
+// pointer.
+extern char *func_00205A50(char *pkt, int reg, unsigned long long value);
 
-asm void func_00205F40(void) {
-    dsll32 $a2, $a1, 0
-    addiu $a1, $zero, 0x53
-    j func_00205A50
-    dsrl32 $a2, $a2, 0
+char *func_00205F40(char *pkt, unsigned int xdir) {
+    return func_00205A50(pkt, 0x53, (unsigned long long)xdir);
 }

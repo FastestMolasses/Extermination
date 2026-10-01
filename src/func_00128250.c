@@ -1,43 +1,60 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001278C0(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// libgcc soft float (fp-bit): __fixunssfsi, float to unsigned int. Zero,
+// NaN, negative numbers and negative exponents give 0; infinity and
+// exponents of 32 or more give 0xFFFFFFFF; otherwise the fraction is
+// shifted down by 30 - exponent, or up by exponent - 30 for exponent 31.
+/* The software-float unpacked form (libgcc fp-bit): class 0 / 1 = signalling
+ * / quiet NaN, 2 = zero, 3 = normal number, 4 = infinity; normal_exp is the
+ * unbiased exponent; the fraction is left-aligned with the implicit one at
+ * bit 30 (float) or bit 62 (double), leaving 7 / 8 guard bits. */
+typedef struct FpNumber {
+    unsigned int fpclass;
+    unsigned int sign;
+    int normal_exp;
+    unsigned int fraction;
+} FpNumber;
 
-asm void func_00128250(void) {
-    .word 0x27bdffd0
-    .word 0xffbf0020
-    .word 0x27a40010
-    .word 0xe7ac0010
-    jal       func_001278C0
-    .word 0x03a0282d
-    .word 0x8fa30000
-    .word 0x38620002
-    .word 0x10400003
-    .word 0x2c620002
-    .word 0x10400003
-    .word 0x8fa20004
-    .word 0x10000016
-    .word 0x0000102d
-    .word 0x14400014
-    .word 0x0000102d
-    .word 0x38620004
-    .word 0x10400005
-    .word 0x8fa40008
-    .word 0x0480fff8
-    .word 0x28820020
-    .word 0x54400004
-    .word 0x2882001f
-    .word 0x3c02ffff
-    .word 0x1000000a
-    .word 0x3442ffff
-    .word 0x54400005
-    .word 0x2402001e
-    .word 0x8fa3000c
-    .word 0x2482ffe2
-    .word 0x10000004
-    .word 0x00431004
-    .word 0x8fa3000c
-    .word 0x00441023
-    .word 0x00431006
-    .word 0xdfbf0020
-    .word 0x03e00008
-    .word 0x27bd0030
+extern void func_001278C0(float *in, FpNumber *out);
+
+static __inline__ int isnan(FpNumber *x) {
+    return x->fpclass < 2;
+}
+
+static __inline__ int iszero(FpNumber *x) {
+    return x->fpclass == 2;
+}
+
+static __inline__ int isinf(FpNumber *x) {
+    return x->fpclass == 4;
+}
+
+unsigned int func_00128250(float arg) {
+    FpNumber a;
+    float in;
+
+    in = arg;
+    func_001278C0(&in, &a);
+    if (iszero(&a)) {
+        return 0;
+    }
+    if (isnan(&a)) {
+        return 0;
+    }
+    if (a.sign) {
+        return 0;
+    }
+    if (isinf(&a)) {
+        return 0xFFFFFFFF;
+    }
+    if (a.normal_exp < 0) {
+        return 0;
+    }
+    if (a.normal_exp > 31) {
+        return 0xFFFFFFFF;
+    }
+    if (a.normal_exp > 30) {
+        return a.fraction << (a.normal_exp - 30);
+    }
+    return a.fraction >> (30 - a.normal_exp);
 }

@@ -55,3 +55,5 @@ asm void func_001FBDB0(void) {
     .word 0x03e00008
     .word 0x27bd0050
 }
+
+// Readable C (NEARMISS companion, objdiff 98.78%): src/readable/func_001FBDB0.c

@@ -1,49 +1,19 @@
-// All-word: everything as .word except jal/j-external
-extern void float_to_int(int, int, int, int);
-extern void anim_sample_rotation(int, int, int, int);
-extern void func_001C90D0(int, int, int, int);
-extern void func_001C92C0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Samples every animated bone at frame t: for each of the n track pointers,
+// rotation (anim_sample_rotation), then func_001C90D0 and func_001C92C0, each
+// given the bone index and t converted by float_to_int.
+extern int float_to_int(float x);
+extern void anim_sample_rotation(char *track, int bone, int frame);
+extern void func_001C90D0(char *track, int bone, int frame);
+extern void func_001C92C0(char *track, int bone, int frame);
 
-asm void func_001C8710(void) {
-    .word 0x27bdffb0
-    .word 0x7fbf0040
-    .word 0x7fb20030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0x70a09628
-    .word 0xe7b40000
-    .word 0x0012082a
-    .word 0x46006506
-    .word 0x10200018
-    .word 0x70008628
-    .word 0x70808e28
-    jal       float_to_int
-    .word 0x4600a306
-    .word 0x8e240000
-    .word 0x70403628
-    jal       anim_sample_rotation
-    .word 0x72002e28
-    jal       float_to_int
-    .word 0x4600a306
-    .word 0x8e240000
-    .word 0x70403628
-    jal       func_001C90D0
-    .word 0x72002e28
-    jal       float_to_int
-    .word 0x4600a306
-    .word 0x8e240000
-    .word 0x72002e28
-    jal       func_001C92C0
-    .word 0x70403628
-    .word 0x26100001
-    .word 0x0212182a
-    .word 0x1460ffeb
-    .word 0x26310004
-    .word 0x7bbf0040
-    .word 0x7bb20030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0050
+void func_001C8710(char **tracks, int n, float t) {
+    int i;
+
+    for (i = 0; i < n; i++) {
+        anim_sample_rotation(tracks[i], i, float_to_int(t));
+        func_001C90D0(tracks[i], i, float_to_int(t));
+        func_001C92C0(tracks[i], i, float_to_int(t));
+    }
 }

@@ -1,80 +1,87 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00126AB8(void) {
-    .word 0x8c830000
-    .word 0x0000382d
-    .word 0x8c880004
-    .word 0x2c620002
-    .word 0x10400006
-    .word 0xdc850010
-    .word 0x34028000
-    .word 0x0002113c
-    .word 0x240707ff
-    .word 0x1000002a
-    .word 0x00a22825
-    .word 0x38620004
-    .word 0x50400016
-    .word 0x240707ff
-    .word 0x38620002
-    .word 0x14400003
-    .word 0x00000000
-    .word 0x10000022
-    .word 0x0000282d
-    .word 0x10a00020
-    .word 0x00000000
-    .word 0x8c830008
-    .word 0x2862fc02
-    .word 0x10400007
-    .word 0x2402fc02
-    .word 0x00431023
-    .word 0x28430039
-    .word 0x14600017
-    .word 0x00452816
-    .word 0x10000015
-    .word 0x0000282d
-    .word 0x28620400
-    .word 0x14400004
-    .word 0x246703ff
-    .word 0x240707ff
-    .word 0x10000010
-    .word 0x0000282d
-    .word 0x24020080
-    .word 0x30a300ff
-    .word 0x54620004
-    .word 0x64a5007f
-    .word 0x30a30100
-    .word 0x64a20080
-    .word 0x0043280b
-    .word 0x2402ffff
-    .word 0x000210fa
-    .word 0x0045102b
-    .word 0x50400004
-    .word 0x00052a3a
-    .word 0x0005287a
-    .word 0x24e70001
-    .word 0x00052a3a
-    .word 0x3403fff0
-    .word 0x00031c3c
-    .word 0x2402ffff
-    .word 0x0002133a
-    .word 0x00a21024
-    .word 0x00c33024
-    .word 0x00c23025
-    .word 0x30e307ff
-    .word 0x3c02800f
-    .word 0x3442ffff
-    .word 0x00021438
-    .word 0x3442ffff
-    .word 0x00021438
-    .word 0x3442ffff
-    .word 0x00031d3c
-    .word 0x00c23024
-    .word 0x2404ffff
-    .word 0x0004207a
-    .word 0x00c33025
-    .word 0x000817fc
-    .word 0x00c43024
-    .word 0x03e00008
-    .word 0x00c21025
+// COMPILER: eegcc
+// CFLAGS: -O2
+// libgcc soft float (fp-bit): packs an unpacked number back into a double
+// (the double form of func_001277B0: fraction at +0x10 with the implicit one
+// at bit 62 and 8 guard bits). NaNs keep their fraction with quiet bit 51
+// set and exponent 0x7FF; infinities and exponents above 1023 become
+// infinity; zero and a zero fraction keep exponent 0. Exponents below -1022
+// shift the fraction down into a denormal (nothing left beyond 56 places).
+// Normal numbers round to nearest even on the guard bits and renormalise on
+// carry. The fields are stored through a double bitfield union.
+typedef struct FpNumberD {
+    unsigned int fpclass;
+    unsigned int sign;
+    int normal_exp;
+    int pad;
+    unsigned long long fraction;
+} FpNumberD;
+
+typedef union DoubleUnion {
+    double value;
+    struct {
+        unsigned long long fraction : 52;
+        unsigned int exp : 11;
+        unsigned int sign : 1;
+    } bits;
+} DoubleUnion;
+
+static __inline__ int isnan(FpNumberD *x) {
+    return x->fpclass < 2;
+}
+
+static __inline__ int iszero(FpNumberD *x) {
+    return x->fpclass == 2;
+}
+
+static __inline__ int isinf(FpNumberD *x) {
+    return x->fpclass == 4;
+}
+
+double func_00126AB8(FpNumberD *src) {
+    DoubleUnion dst;
+    unsigned long long fraction = src->fraction;
+    int sign = src->sign;
+    int exp = 0;
+    int shift;
+
+    if (isnan(src)) {
+        exp = 0x7FF;
+        fraction |= 0x8000000000000ULL;
+    } else if (isinf(src)) {
+        exp = 0x7FF;
+        fraction = 0;
+    } else if (iszero(src)) {
+        fraction = 0;
+    } else if (fraction != 0) {
+        if (src->normal_exp < -1022) {
+            shift = -1022 - src->normal_exp;
+            if (shift > 56) {
+                fraction = 0;
+            } else {
+                fraction >>= shift;
+            }
+            fraction >>= 8;
+        } else if (src->normal_exp > 1023) {
+            exp = 0x7FF;
+            fraction = 0;
+        } else {
+            exp = src->normal_exp + 1023;
+            if ((fraction & 0xFF) == 0x80) {
+                if (fraction & 0x100) {
+                    fraction += 0x80;
+                }
+            } else {
+                fraction += 0x7F;
+            }
+            if (fraction >= 0x2000000000000000ULL) {
+                fraction >>= 1;
+                exp += 1;
+            }
+            fraction >>= 8;
+        }
+    }
+    dst.bits.fraction = fraction;
+    dst.bits.exp = exp;
+    dst.bits.sign = sign;
+    return dst.value;
 }

@@ -11,3 +11,5 @@ asm int func_0011E080(float a0) {
     jr $ra
     srl $2, $2, 31
 }
+
+// Readable C (NEARMISS companion, objdiff 28.89%): src/readable/func_0011E080.c

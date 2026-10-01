@@ -1,41 +1,23 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001B0DC0(int, int, int, int);
-extern void bone_init_default_1(int, int, int, int);
-extern void bone_init_default_2(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Binds a model to an actor and initialises its bones. func_001B0DC0(actor,
+// model, clip) does the bind; on failure (non-zero) this returns 1. Otherwise
+// the actor's bind counter byte +4 is incremented and the bones get their rest
+// pose: bone_init_default_1(actor) when clip == -1, else
+// bone_init_default_2(actor, frame) with the clip's start frame. Returns 0.
+extern int func_001B0DC0(char *actor, int model, int clip);
+extern void bone_init_default_1(char *actor);
+extern void bone_init_default_2(char *actor, short frame);
 
-asm void func_001B1020(void) {
-    addiu $sp, $sp, -0x40
-    sq $ra, 0x30($sp)
-    sq $s2, 0x20($sp)
-    sq $s1, 0x10($sp)
-    sq $s0, 0x0($sp)
-    paddub $s0, $a3, $zero
-    paddub $s2, $a0, $zero
-    jal func_001B0DC0
-    paddub $s1, $a2, $zero
-    .word 0x10400003
-    nop
-    .word 0x1000000f
-    addiu $v0, $zero, 0x1
-    lbu $v1, 0x4($s2)
-    addiu $v0, $zero, -0x1
-    addiu $v1, $v1, 0x1
-    .word 0x16220005
-    sb $v1, 0x4($s2)
-    jal bone_init_default_1
-    paddub $a0, $s2, $zero
-    .word 0x10000006
-    paddub $v0, $zero, $zero
-    dsll32 $a1, $s0, 16
-    dsra32 $a1, $a1, 16
-    jal bone_init_default_2
-    paddub $a0, $s2, $zero
-    paddub $v0, $zero, $zero
-    lq $ra, 0x30($sp)
-    lq $s2, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x40
+int func_001B1020(char *actor, int model, int clip, int frame) {
+    if (func_001B0DC0(actor, model, clip) != 0) {
+        return 1;
+    }
+    ((unsigned char *)actor)[4]++;
+    if (clip == -1) {
+        bone_init_default_1(actor);
+    } else {
+        bone_init_default_2(actor, frame);
+    }
+    return 0;
 }

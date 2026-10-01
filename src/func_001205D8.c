@@ -252,3 +252,5 @@ asm void func_001205D8(void) {
     .word 0x03e00008
     .word 0x27bd0090
 }
+
+// Readable C (NEARMISS companion, objdiff 96.21%): src/readable/func_001205D8.c

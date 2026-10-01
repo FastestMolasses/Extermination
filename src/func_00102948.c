@@ -4,3 +4,5 @@ asm void func_00102948(void *a0, void *a1) {
     jr $ra
     sq $6, 0x0($4)
 }
+
+// Readable C (NEARMISS companion, objdiff 96.67%): src/readable/func_00102948.c

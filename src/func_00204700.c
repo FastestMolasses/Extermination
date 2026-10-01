@@ -1,60 +1,47 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void SignalSema(int, int, int, int);
-extern void WaitSema(int, int, int, int);
-extern void func_002040E0(int, int, int, int);
-extern void func_00204140(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Movie decoder: suspends the IPU transfer and saves its state. Under the
+// context semaphore (+0x40) it clears +0x44, stops DMA channel 4 (toIPU) with
+// func_00204140(5) and saves its MADR / TADR / QWC / CHCR to +0x1C..+0x28,
+// waits until the IPU_CTRL FIFO count (bits 4..7) drains, stops channel 3
+// (fromIPU) with func_002040E0(0) and saves its MADR / QWC / CHCR plus IPU_BP
+// and IPU_CTRL to +0x2C..+0x3C. Returns 1.
+typedef struct IpuSave {
+    char pad[0x1C];
+    int to_madr;    /* 0x1C */
+    int to_tadr;    /* 0x20 */
+    int to_qwc;     /* 0x24 */
+    int to_chcr;    /* 0x28 */
+    int from_madr;  /* 0x2C */
+    int from_qwc;   /* 0x30 */
+    int from_chcr;  /* 0x34 */
+    int ipu_bp;     /* 0x38 */
+    int ipu_ctrl;   /* 0x3C */
+    int sema;       /* 0x40 */
+    int busy;       /* 0x44 */
+} IpuSave;
 
-asm void func_00204700(void) {
-    addiu      $sp, $sp, -0x20
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x70808628
-    jal        WaitSema
-    .word 0x8c840040
-    addiu      $a0, $zero, 0x5
-    jal        func_00204140
-    .word 0xae000044
-    .word 0x3c011001
-    .word 0x8c22b410
-    .word 0xae02001c
-    .word 0x3c011001
-    .word 0x8c22b430
-    .word 0xae020020
-    .word 0x3c011001
-    .word 0x8c22b420
-    .word 0xae020024
-    .word 0x3c011001
-    .word 0x8c22b400
-    .word 0xae020028
-    .word 0x3c011000
-    .word 0x8c222010
-    andi       $v0, $v0, 0xF0
-    nop
-    nop
-    .word 0x1440fffa
-    nop
-    jal        func_002040E0
-    .word 0x70002628
-    .word 0x3c011001
-    .word 0x8c22b010
-    .word 0xae02002c
-    .word 0x3c011001
-    .word 0x8c22b020
-    .word 0xae020030
-    .word 0x3c011001
-    .word 0x8c22b000
-    .word 0xae020034
-    .word 0x3c011000
-    .word 0x8c222020
-    .word 0xae020038
-    .word 0x3c011000
-    .word 0x8c222010
-    .word 0xae02003c
-    jal        SignalSema
-    .word 0x8e040040
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    addiu      $v0, $zero, 0x1
-    jr         $ra
-    addiu     $sp, $sp, 0x20
+extern int WaitSema(int sema);
+extern int SignalSema(int sema);
+extern void func_00204140(int mode);
+extern void func_002040E0(int mode);
+
+int func_00204700(IpuSave *s) {
+    WaitSema(s->sema);
+    s->busy = 0;
+    func_00204140(5);
+    s->to_madr = *(volatile int *)0x1000B410;
+    s->to_tadr = *(volatile int *)0x1000B430;
+    s->to_qwc = *(volatile int *)0x1000B420;
+    s->to_chcr = *(volatile int *)0x1000B400;
+    while (*(volatile int *)0x10002010 & 0xF0) {
+    }
+    func_002040E0(0);
+    s->from_madr = *(volatile int *)0x1000B010;
+    s->from_qwc = *(volatile int *)0x1000B020;
+    s->from_chcr = *(volatile int *)0x1000B000;
+    s->ipu_bp = *(volatile int *)0x10002020;
+    s->ipu_ctrl = *(volatile int *)0x10002010;
+    SignalSema(s->sema);
+    return 1;
 }

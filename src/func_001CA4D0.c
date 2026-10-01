@@ -1,67 +1,13 @@
-asm void func_001CA4D0(void) {
-    .word 0xC4A60000
-    .word 0xC4C0000C
-    .word 0xC4A30008
-    .word 0xC4C20004
-    .word 0x27BDFFF0
-    .word 0xC4A50004
-    .word 0xC4C40008
-    .word 0x4600301A
-    .word 0xC4A1000C
-    .word 0xC4C00000
-    .word 0x46021882
-    .word 0x27A30000
-    .word 0x4604291C
-    .word 0x46022019
-    .word 0x4600081C
-    .word 0xE7A00000
-    .word 0xC4A50000
-    .word 0xC4C10008
-    .word 0xC4A40004
-    .word 0xC4C0000C
-    .word 0xC4A30008
-    .word 0xC4C20000
-    .word 0x46002947
-    .word 0x4601281A
-    .word 0xC4A1000C
-    .word 0x4600211C
-    .word 0xC4C00004
-    .word 0x46021882
-    .word 0x46041018
-    .word 0x4600081C
-    .word 0xE7A00004
-    .word 0xC4A60000
-    .word 0xC4C00004
-    .word 0xC4A30008
-    .word 0xC4C2000C
-    .word 0xC4A50004
-    .word 0xC4C40000
-    .word 0xC4A1000C
-    .word 0x4600301A
-    .word 0xC4C00008
-    .word 0x46021882
-    .word 0x4604291D
-    .word 0x46041018
-    .word 0x4600081C
-    .word 0xE7A00008
-    .word 0xC4A30008
-    .word 0xC4C20008
-    .word 0xC4A60004
-    .word 0xC4C00004
-    .word 0xC4A50000
-    .word 0xC4C40000
-    .word 0xC4A1000C
-    .word 0x46021882
-    .word 0x46003182
-    .word 0x460028C7
-    .word 0x460418C2
-    .word 0xC4C0000C
-    .word 0x460618C1
-    .word 0x46021819
-    .word 0x4600081C
-    .word 0xE7A0000C
-    .word 0x78630000
-    .word 0x27BD0010
-    .word 0x03E00008
-    .word 0x7C830000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+typedef unsigned int u128 __attribute__((mode(TI)));
+
+void func_001CA4D0(float *dst, float *a, float *b) {
+    float t[4];
+
+    t[0] = a[0] * b[3] + a[1] * b[2] - a[2] * b[1] + a[3] * b[0];
+    t[1] = -a[0] * b[2] + a[1] * b[3] + a[2] * b[0] + a[3] * b[1];
+    t[2] = a[0] * b[1] - a[1] * b[0] + a[2] * b[3] + a[3] * b[2];
+    t[3] = -a[0] * b[0] - a[1] * b[1] - a[2] * b[2] + a[3] * b[3];
+    *(u128 *)dst = *(u128 *)t;
 }

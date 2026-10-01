@@ -9,3 +9,5 @@ asm void func_0011B9E0(int a0, int a1, int a2) {
     jr $ra
     sw $2, 0x0($3)
 }
+
+// Readable C (NEARMISS companion, objdiff 76.25%): src/readable/func_0011B9E0.c

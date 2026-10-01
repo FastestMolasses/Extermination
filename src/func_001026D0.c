@@ -20,3 +20,5 @@ L_001026E4:
     jr $ra
     nop
 }
+
+// Readable C (NEARMISS companion, objdiff 0.00%): src/readable/func_001026D0.c

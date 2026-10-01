@@ -1,16 +1,13 @@
-// Auto-recovered trivial leaf function. The boot ELF is stripped, so the
-// name is the VRAM address until the real purpose is identified.
-// Uses asm void to preserve dead instruction after unconditional branch.
-asm void func_001B5C90(void) {
-    andi $v0, $a0, 0xFF
-    addiu $v0, $v0, 2
-    andi $v1, $v0, 0xFFFF
-    slti $v0, $v1, 0x100
-    .word 0x14400004
-    andi $v0, $v1, 0xFC
-    .word 0x10000002
-    addiu $v0, $zero, 0xFC
-    andi $v0, $v1, 0xFC
-    jr $ra
-    nop
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Raises a stick/colour byte by 2 and snaps it to a multiple of 4, saturating
+// at 0xFC: (x + 2) & 0xFC while the sum stays below 0x100, else 0xFC.
+int func_001B5C90(unsigned char x) {
+    unsigned short v = x + 2;
+
+    if (v >= 0x100) {
+        return 0xFC;
+    } else {
+        return v & 0xFC;
+    }
 }

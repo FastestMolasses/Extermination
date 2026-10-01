@@ -24,3 +24,5 @@ asm void func_00108790(void) {
     j         func_00108660
     daddu     $a1, $zero, $zero
 }
+
+// Readable C (NEARMISS companion, objdiff 94.00%): src/readable/func_00108790.c

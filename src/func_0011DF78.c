@@ -8,3 +8,5 @@ asm float func_0011DF78(float a0) {
     jr $ra
     nop
 }
+
+// Readable C (NEARMISS companion, objdiff 85.00%): src/readable/func_0011DF78.c

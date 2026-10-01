@@ -7,3 +7,5 @@ asm void func_00102900(void *a0, void *a1, float a2) {
     jr $ra
     sqc2 $vf6, 0x0($4)
 }
+
+// Readable C (NEARMISS companion, objdiff 0.00%): src/readable/func_00102900.c

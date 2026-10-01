@@ -1,64 +1,31 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001CCE80(void) {
-    .word 0x0005183c
-    .word 0x0003183f
-    .word 0x0003283c
-    .word 0x0006183c
-    .word 0x0003183f
-    .word 0x00031c3c
-    .word 0x00a32825
-    .word 0x0007183c
-    .word 0x0003183f
-    .word 0x00031e3c
-    .word 0x00653825
-    .word 0x0008183c
-    .word 0x0003183f
-    .word 0x0003283c
-    .word 0x0009183c
-    .word 0x0003183f
-    .word 0x00031c3c
-    .word 0x00a33025
-    .word 0x000b183c
-    .word 0x000a283c
-    .word 0x0003183f
-    .word 0x0005283f
-    .word 0x0003183c
-    .word 0x00a31825
-    .word 0x8faa0000
-    .word 0x7c800000
-    .word 0x3c051100
-    .word 0xac850008
-    .word 0x3c051000
-    .word 0x0005403c
-    .word 0x25450006
-    .word 0x3c095000
-    .word 0x00a92825
-    .word 0xac85000c
-    .word 0x24050004
-    .word 0x00a82825
-    .word 0xfc850010
-    .word 0x2405000e
-    .word 0xfc850018
-    .word 0x24050050
-    .word 0xfc870020
-    .word 0xfc850028
-    .word 0x24050051
-    .word 0xfc860030
-    .word 0xfc850038
-    .word 0xfc830040
-    .word 0x24030052
-    .word 0xfc830048
-    .word 0x24030053
-    .word 0xfc800050
-    .word 0xfc830058
-    .word 0x3c030800
-    .word 0x0003283c
-    .word 0x34038000
-    .word 0x00651825
-    .word 0x01431825
-    .word 0xfc830060
-    .word 0x03e00008
-    .word 0xfc800068
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Builds a host-to-GS image transfer packet (7 quadwords) at pkt: a zero
+// DMA quadword whose upper words are VIF FLUSH (0x11000000) and VIF
+// DIRECT for qwc + 6 quadwords; a GIF A+D tag (NLOOP 4) with BITBLTBUF
+// (DBP, DBW, DPSM), TRXPOS (DSAX, DSAY), TRXREG (RRW, RRH) and TRXDIR = 0
+// (host to local); then the IMAGE GIF tag for qwc quadwords (EOP).
+typedef unsigned int u128 __attribute__((mode(TI)));
+
+void func_001CCE80(char *pkt, int dbp, int dbw, int dpsm, int dsax, int dsay,
+                   int rrw, int rrh, int qwc) {
+    long long bitbltbuf = (long long)dbp << 32 | (long long)dbw << 48 | (long long)dpsm << 56;
+    long long trxpos = (long long)dsax << 32 | (long long)dsay << 48;
+    long long trxreg = (long long)rrw | (long long)rrh << 32;
+
+    *(u128 *)pkt = 0;
+    *(int *)(pkt + 0x08) = 0x11000000;
+    *(int *)(pkt + 0x0C) = (qwc + 6) | 0x50000000;
+    *(long long *)(pkt + 0x10) = 4 | (long long)0x10000000 << 32;
+    *(long long *)(pkt + 0x18) = 0xE;
+    *(long long *)(pkt + 0x20) = bitbltbuf;
+    *(long long *)(pkt + 0x28) = 0x50;
+    *(long long *)(pkt + 0x30) = trxpos;
+    *(long long *)(pkt + 0x38) = 0x51;
+    *(long long *)(pkt + 0x40) = trxreg;
+    *(long long *)(pkt + 0x48) = 0x52;
+    *(long long *)(pkt + 0x50) = 0;
+    *(long long *)(pkt + 0x58) = 0x53;
+    *(long long *)(pkt + 0x60) = qwc | (0x8000 | (long long)0x08000000 << 32);
+    *(long long *)(pkt + 0x68) = 0;
 }

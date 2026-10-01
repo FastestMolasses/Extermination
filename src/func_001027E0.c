@@ -30,3 +30,5 @@ asm void func_001027E0(void) {
     .word 0x03e00008
     .word 0xf8840030
 }
+
+// Readable C (NEARMISS companion, objdiff 0.00%): src/readable/func_001027E0.c

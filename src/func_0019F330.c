@@ -219,3 +219,5 @@ asm void func_0019F330(void) {
     jr         $ra
     addiu     $sp, $sp, 0x110
 }
+
+// Readable C (NEARMISS companion, objdiff 96.20%): src/readable/func_0019F330.c

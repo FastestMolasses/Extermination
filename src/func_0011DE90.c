@@ -63,3 +63,5 @@ asm void func_0011DE90(void) {
     .word 0x03e00008
     .word 0x27bd0020
 }
+
+// Readable C (NEARMISS companion, objdiff 92.33%): src/readable/func_0011DE90.c

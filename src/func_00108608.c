@@ -16,3 +16,5 @@ asm void func_00108608(void) {
     j func_00108660
     sw $6, 0x20($2)
 }
+
+// Readable C (NEARMISS companion, objdiff 78.62%): src/readable/func_00108608.c

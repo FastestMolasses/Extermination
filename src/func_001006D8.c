@@ -124,3 +124,5 @@ asm void func_001006D8(void) {
     jr         $ra
     addiu     $sp, $sp, 0x70
 }
+
+// Readable C (NEARMISS companion, objdiff 84.05%): src/readable/func_001006D8.c
