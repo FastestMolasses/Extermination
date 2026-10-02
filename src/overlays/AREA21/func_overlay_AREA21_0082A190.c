@@ -1,4 +1,3 @@
-// NEARMISS func_overlay_AREA21_0082A190 (97.50%, mwcc 2.3.3; linked from its splat .s)
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 // AREA21 overlay, runtime 0x0082A1D0 (splat/link name 0082A190; overlay code
@@ -8,9 +7,12 @@
 //  target and direction (+-0.005) within 0.01 of the old one; otherwise
 //  +0xC4 copies the +0x18 object's. Then func_001C6380, func_001A2370(self,
 //  +0xD0) and the +0x4C method when func_001B17A0.
-// Divergence: after +0xC4 += +0x1F0 and after the target store the
-// original reloads +0xC4 from memory; mwcc 2.3.3 forwards the stored
-// value (the AREA15 0x825430 wall), which also changes FPR choices.
+// Byte-identical (tools/overlay/overlay_match.py check AREA21; lane DMATCH,
+//  was NEARMISS 97.50%): the target +0x1F4 is read through a volatile load
+//  into a local before the func_0011DF78 call, which makes mwcc 2.3.3 reload
+//  +0xC4 after its store as the original does, and the new target is stored
+//  inside the compare (`(*target = ...) > +0xC4`), which keeps the stored
+//  value in its register as the original does.
 typedef void (*ActorFn)(unsigned char *);
 #define F(o) (*(float *)(self + (o)))
 extern int func_001B0FD0(unsigned char *self);
@@ -23,6 +25,7 @@ extern void func_001AFC10(unsigned char *self);
 
 void func_overlay_AREA21_0082A190(unsigned char *self) {
     float *target;
+    float d;
     switch (self[4]) {
     case 0:
         func_001B0FD0(self);
@@ -34,9 +37,9 @@ void func_overlay_AREA21_0082A190(unsigned char *self) {
         if (self[3] == 0x4C) {
             target = (float *)(self + 0x1F0) + 1;
             F(0xC4) += F(0x1F0);
-            if (func_0011DF78(F(0xC4) - F(0x1F4)) < 0.01f) {
-                *target = -0.5235988f + 1.0471976f * (4.656613e-10f * (float)func_00122BB8());
-                if (*target > F(0xC4)) {
+            d = *(volatile float *)(self + 0x1F4);
+            if (func_0011DF78(F(0xC4) - d) < 0.01f) {
+                if ((*target = -0.5235988f + 1.0471976f * (4.656613e-10f * (float)func_00122BB8())) > F(0xC4)) {
                     F(0x1F0) = 0.005f;
                 } else {
                     F(0x1F0) = -0.005f;

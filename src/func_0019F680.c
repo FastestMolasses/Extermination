@@ -1,49 +1,22 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_0019F680(void) {
-    .word 0x3c017000
-    .word 0x90a20018
-    .word 0x8ca7001c
-    .word 0x8c233204
-    .word 0x00c2102a
-    .word 0x14400003
-    .word 0x00671821
-    .word 0x10000020
-    .word 0x70001628
-    .word 0x00061040
-    .word 0x00623821
-    .word 0x84e60000
-    .word 0x3c017000
-    .word 0x8c2231fc
-    .word 0x00061840
-    .word 0x00661821
-    .word 0x00031880
-    .word 0x00431021
-    .word 0xc4400000
-    .word 0x3c017000
-    .word 0xe4800000
-    .word 0x84e30000
-    .word 0x8c2631fc
-    .word 0x00031040
-    .word 0x00431021
-    .word 0x00021080
-    .word 0x00461021
-    .word 0xc4400004
-    .word 0x3c017000
-    .word 0xe4800004
-    .word 0x84e30000
-    .word 0x8c2631fc
-    .word 0x00031040
-    .word 0x00431021
-    .word 0x00021080
-    .word 0x00461021
-    .word 0xc4400008
-    .word 0xe4800008
-    .word 0x90a20018
-    .word 0x00000000
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Byte-matched (lane DMATCH 2026-10-02, was companion C at 97.10%): obj+0x1C is read
+// through a volatile int (it is loaded before the table base, as in the original), and the
+// three floats are read as fields of a 12-byte struct indexed by the halfword index.
+// Reads vertex i of obj into out: returns 0 when i >= obj+0x18 (byte count);
+// otherwise the halfword index at (0x70003204 base + obj+0x1C) + 2i selects a 12-byte
+// entry of the table at 0x700031FC whose three floats are copied to out; returns the
+// count.
+typedef struct { float x; float y; float z; } V3;
+int func_0019F680(float *out, unsigned char *obj, int i) {
+    char *base = *(char **)0x70003204 + *(volatile int *)(obj + 0x1C);
+    short *idx;
+    if (i >= obj[0x18]) {
+        return 0;
+    }
+    idx = (short *)base + i;
+    out[0] = (*(V3 **)0x700031FC)[*idx].x;
+    out[1] = (*(V3 **)0x700031FC)[*idx].y;
+    out[2] = (*(V3 **)0x700031FC)[*idx].z;
+    return obj[0x18];
 }
-
-// Readable C (NEARMISS companion, objdiff 97.10%): src/readable/func_0019F680.c

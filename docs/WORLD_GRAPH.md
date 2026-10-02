@@ -12,8 +12,10 @@ what the eighth-level captures (port `docs/EIGHTH_LEVEL_ROUTE.md`) later
 measured, section 8b the ninth-level captures (port
 `docs/NINTH_LEVEL_ROUTE.md`), section 8c the tenth-level captures (port
 `docs/TENTH_LEVEL_ROUTE.md`), section 8d the eleventh-level captures
-(port `docs/ELEVENTH_LEVEL_ROUTE.md`) and section 8e the twelfth-level
-captures (port `docs/TWELFTH_LEVEL_ROUTE.md`); section 7's table marks each edge
+(port `docs/ELEVENTH_LEVEL_ROUTE.md`), section 8e the twelfth-level
+captures (port `docs/TWELFTH_LEVEL_ROUTE.md`), section 8f the thirteenth
+(port `docs/THIRTEENTH_LEVEL_ROUTE.md`) and section 8g the fourteenth (port
+`docs/FOURTEENTH_LEVEL_ROUTE.md`); section 7's table marks each edge
 played or not. Nothing here quotes disc text; the tables are addresses and
 numbers.
 
@@ -185,7 +187,7 @@ slot in any script is 0x67 (D_0081083F), below D_00810841.
 | Site | Request | Condition | Evidence |
 |---|---|---|---|
 | 00190F20 (player frame, always first) | AREA14 entry 1 sub 0 / AREA18 entry 0 sub 0 | in area 0x12 with the player's +0xA0 <= 285; in area 0xE inside quad D_0024A4B0 | BM |
-| 00193EB0 (action 0 handler) | AREA19 sub 0 entries 0xD / 0xB / 0xC | in area 0x13 sub 0, falling below y 356 / 365 in three x / z bands | NM |
+| 00193EB0 (action 0 handler) | AREA19 sub 0 entries 0xD / 0xC / 0xB | in area 0x13 sub 1 only (D_00810701 != 0), the player's event code 6..9 / 0x2C / 0x2D at y <= 356 / 365 in three x / z bands (section 8g); in sub 0 it stores +6 = 0xD and requests nothing | ins (the NEARMISS C inverts the sub test and the z bands) |
 | 00193EB0 | AREA19 sub 0 entry 9 / 0xA | in area 0xD (AREA13) with entry 4 / 6 resp. 5 / 7 and the player's y <= 159 | NM |
 | 00196970 (called by 00196CE0) | AREA13 entry 6 / 7, AREA19 sub 1 entries 8 / 7 / 6 | five circles (radius 8); the player's height above a threshold | BM |
 | 00179910 (player frame) | AREA02 sub 1 entry 6; sub 2 or 0 entry 5 | in AREA02 subs 0 / 2 within 8 of spawn entry 6; in sub 1 within 8 of entry 5 (sub 2 when D_00810732 bit 7) | NM |
@@ -670,14 +672,15 @@ means no lock or story test was found on the site itself.
 | AREA04 | AREA20 e0 | [42] / [48] model 0x15 | D_00810845 bit 4: AREA06 sub 1's 0x825E20 (flag 0x31) | not played (inferred) |
 | AREA13 | AREA04 e7 | lift [10] model 0x0B | its buttons [12] / [13] (id 0xFF: 001BC960 tests no lock bit; the inner one plays script 0x24E1A0 at the AREA13 entry 0 arrival; BM, also ins). Measured (a13b_04 / a13b_05): the outer [12] facing -x at (652.7, 1238.6) took Use with the lift's +0x0B = 0, then +0x0B 0 -> 2 -> 3; the inner [13] facing +x (the player at (639.7, 160, 1276.4) in the frame the Use was taken), the request 04 FF 07 01, AREA04 entry 7 | played (a13b_05) |
 | AREA13 | AREA19 e9 / e10 sub 0 | 00193EB0 (the player's event code 6..9 / 0x2C / 0x2D at y <= 159 with spawn entry 4 / 6, resp. 5 / 7) | door [17] (0x823580, ins) from the east (entry 4) and the hatch [62] (0x826850, ins): item 0x27 (pickup g[5] in the same room) makes the hatch usable (class 0x84), its Use opens it (counter 0x61 bit 0), Use facing +z starts its ladder, and the descent reaches y 143.1 (measured, a13_05). [15] (001BD9F0 model 3) and [17] are locked only while flag 0x1C == 1 (NM / ins); flag 0x1C stayed 0 on this route. The holes [5] / [6] (0x823BC0, ins) are examine points that end once item 0x27 is held or flag 0x1B is 0xFF. Door [20]'s north side (entry 10), the only way to hole [6] / hatch [63], was reached neither on foot from the field (section 8c) nor after [44]'s event, the boom and [7] (section 8d); it is reached from the region south of the pipe fence over the big building's south roof (a stair, ladders of attribute 0x32 and one running jump; section 8e), then door [20] (001BC350, BM, no lock) to entry 5 and the hatch [63] (counter 0x61 bit 1, item 0x27); its ladder gives the request 13 00 0A 01 (measured, a19b_00) | e9 played (a13_05, hole [5]); e10 played (a19b_00, hatch [63]) |
-| AREA19 | AREA13 e6 / e7, AREA19 sub 1 e6 / 7 / 8 | 00196970 (climbing above a height in five circles) | the circles are the ladders at AREA19 entries 9 (-> AREA13 e6), 10 (-> e7), 11, 12 and 13 (-> sub 1 e8 / e7 / e6) (BM). Measured (a13b_00): Use facing +z at entry 9's foot, the stick up, the request 0D 00 06 01 at y >= 284.5; (a19c_06) Use facing -z at the foot of the ladder at z 859.5 (the y-210 floor behind door [27]), the stick up, the request 13 01 07 01 at y 314 | e6 played (a13b_00); sub 1 e7 played (a19c_06); the rest not played |
+| AREA19 | AREA13 e6 / e7, AREA19 sub 1 e6 / 7 / 8 | 00196970 (climbing above a height in five circles) | the circles are the ladders at AREA19 entries 9 (-> AREA13 e6), 10 (-> e7), 11, 12 and 13 (-> sub 1 e8 / e7 / e6) (BM). Measured (a13b_00): Use facing +z at entry 9's foot, the stick up, the request 0D 00 06 01 at y >= 284.5; (a19c_06) Use facing -z at the foot of the ladder at z 859.5 (the y-210 floor behind door [27]), the stick up, the request 13 01 07 01 at y 314; (a19d_16) the ladder 694 on the y-265 deck facing -z: the request 13 01 08 01, sub 1 entry 8 in the stair tower | e6 played (a13b_00); sub 1 e7 played (a19c_06); sub 1 e8 played (a19d_16); the rest not played |
+| AREA19 sub 1 | AREA19 sub 0 e13 / e12 / e11 | 00193EB0 (a ladder descent: the player's event code 6..9 / 0x2C / 0x2D) | ins (the NEARMISS C inverts two branches, section 8g): only with D_00810701 != 0; x < 872 and y <= 356: entry 0xD; x >= 872, z <= 900, y <= 365: entry 0xC; x >= 872, z > 900, y <= 356: entry 0xB; in sub 0 the case stores +6 = 0xD and requests nothing. The ladder at x 848..862 (the cage south of the lift [36]) has a player-only cell (sub 1 [0], key 0x15) over its top until the lift's scene (flag 0x21); measured (a19d_07): the descent gave 13 00 0D | e13 played (a19d_07); e12 closed after [34]'s scene (section 8g); e11 not played |
 | AREA19 | AREA03 e1 | [25] model 0x16 | D_00810854 bit 1: the panel [24] 00158EC0 model 0x22 (item 0x1B). The panel stands at the north end of the y-265 walkway behind entry 0, which the entry-9 rooms do not reach (section 8c) | not played (inferred) |
 | AREA03 | AREA19 e0 | sub 0 [15] | open | not played (inferred) |
 | AREA03 | AREA04 e2 | sub 1 [24] model 0x15 | D_00810844 bit 0: the seal [23] 00158430 (a hit; it also opens AREA04's [38]) | not played (inferred) |
 | AREA03 | AREA08 e0 | sub 2 lift [7] model 0x0D | its buttons [9] / [10] (001BDFC0, id 7): D_00810844 bit 7 = the socket s2[6] with item 0x2A, given by AREA03 sub 1 [22] 0x8235A0 | not played (inferred) |
 | AREA08 | AREA03 e1 sub 2 | lift [8] | as AREA07 [0] | not played (inferred) |
-| AREA19 sub 1 | AREA15 e0 sub 0 / sub 1 | [50] / [51] | open; sub 1 is reached by the ladders at entries 11..13 (00196970), not from the entry-9 rooms (section 8c). The two doors open from the landings (y 450 / 500) of a stair tower (x 897..990, z 942..985) whose door from sub 1's hall, [49] (model 0x15, lock bit 3), carries the seal [48] (001581A0, facing the tower's inside); hits from the hall side did not take (section 8f). The tower's ground floor holds the top of the ladder from sub 0's y-265 deck (sub 1 entry 8; sub 1 grid nodes 145 / 146) (read) | not played (inferred) |
-| AREA15 | AREA19 e4 / e5 sub 1 | sub 0 [14] / sub 1 [9] | open | not played (inferred) |
+| AREA19 sub 1 | AREA15 e0 sub 0 / sub 1 | [50] / [51] | open; the stair tower (x 897..990, z 942..985) is entered by sub 0's ladder 694 (sub 1 entry 8); its door [49] to the hall (model 0x15, lock bit 3) opens once the seal [48] (001581A0) is hit from the tower side (measured a19d_18: the light melee from (980.9, 946.2), D_00810854 0x04 -> 0x0C). Measured: [50] from the y-450 landing facing -z gave AREA15 sub 0 (a19d_20); [51] from the y-500 landing gave AREA15 sub 1 entry 0 (a15_01) | both played (a19d_20, a15_01) |
+| AREA15 | AREA19 e4 / e5 sub 1 | sub 0 [14] / sub 1 [9] | open. Measured (a15_00): the slider [13] (room move id 1) from entry 1 to entry 2, then [14] facing +z: AREA19 sub 1 entry 4 (the tower's y-450 landing) | e4 played (a15_00); e5 not played |
 | AREA15 sub 1 | AREA15 sub 0 e0, and the world's subs | 0x823C80 | flag 0x22 set (AREA15 sub 0 [0]'s script 0x826E70) and 0x23 clear; counter 0x23's steps (ins) | not played (inferred) |
 | AREA00 sub 2 | AREA14 e0 | [28] 0x826790 | Use with item 0x26 (AREA00 sub 2 g[3]) | not played (inferred) |
 | AREA14 / AREA18 | AREA18 e0 / AREA14 e1 | 00190F20 | in AREA14 the player inside quad D_0024A4B0 / in AREA18 the player's x (+0xA0) <= 285 (BM, section 5) | not played (inferred) |
@@ -781,11 +784,27 @@ From there:
    for sub 1 entry 7. So step 5's second branch (sub 1 -> AREA15) is open
    from here as far as sub 1's hall; its doors to AREA15 lie in a stair
    tower entered from sub 0's deck (section 8f, read).
+   **Played to AREA15 in the fourteenth level (section 8g):** sub 1's hall
+   (two 0012E3A0 creatures shot; the valve [38]; the attribute-0x1E ceiling;
+   the valve [37] raises the lift [36], under which the player reaches the
+   cage of the ladder at x 848..862; the lift's scene, flag 0x21) -> that
+   ladder down (00193EB0: sub 0 entry 0xD) -> sub 0's west part ([10]'s
+   scenes, counter / flag 0x45) -> the bar 858, the post's ladder 859, the
+   bar 1195 (the hang's sideways Use) -> [7]'s room's roof -> the ladders
+   1016 and 694 (sub 1 entry 8, the stair tower) -> the seal [48] broken
+   from inside (D_00810854 bit 3) -> door [50] (AREA15 sub 0). The ladder at
+   z 859.5 is closed from sub 1 after [34]'s scene (its key-8 player-only
+   cell, measured).
 6. **AREA15 twice.** Sub 0's [0] sets flag 0x22; sub 1's [4] / [6]
    (flag 0x22 set, 0x23 clear) run counter 0x23 up to 0x823C80, which
    gives C64 0x06 and CC3 0x0E, rewrites the subs of AREA00 (2), AREA01
    (1), AREA02 (2), AREA04 (1) and AREA06 (1) and sends the player to
-   AREA15 sub 0. (ins)
+   AREA15 sub 0. (ins) **Measured in the fourteenth level (section 8g):**
+   sub 0's [0] script 0x826E70 at the arrival through door [50] (D_00810702
+   = 1, counter 0x22 = 1, flag 0x22 = 0xFF); sub 0's slider [13] and door
+   [14] back to the tower's y-450 landing (AREA19 sub 1 entry 4); door [51]
+   from the y-500 landing to AREA15 sub 1 entry 0. Sub 1's [4] / [6] event
+   was not played.
 7. **The second half.** AREA00 sub 2 -> AREA14 (item 0x26 from AREA00 sub
    2's g[3]) -> AREA18 (item 0x28, g[1]) -> AREA17 (0x824700 takes 0x28 and
    gives 0x2B) -> AREA11 entry 3 (flag 0x30 1, then AREA11's [11] 0x823CE0
@@ -1116,15 +1135,72 @@ top of the ladder at z 974). Measured:
   them 0016A4B0 / 0016A8B0, the swing, and ten of sub 1's placement
   behaviours, 0x826840 included).
 
+## 8g. Measured (fourteenth level)
+
+The port's `docs/FOURTEENTH_LEVEL_ROUTE.md` played groups `a19d` (21 beats,
+AREA19 sub 1 -> sub 0 -> the stair tower -> AREA15 sub 0) and `a15` (2 beats,
+AREA15 sub 0 -> AREA19's tower -> AREA15 sub 1) of `tools/route_capture.py`
+from the thirteenth level's a19c_07. Measured:
+
+- **00193EB0's sub-1 bands (ins).** The original requests sub 0 only with
+  D_00810701 != 0 (sub 1): x < 872, y <= 356: entry 0xD; x >= 872, z <= 900,
+  y <= 365: entry 0xC; x >= 872, z > 900, y <= 356: entry 0xB; in sub 0 it
+  stores +6 = 0xD. The NEARMISS C (src/func_00193EB0.c) has the sub test and
+  the two z bands inverted; the thirteenth level's reading (port
+  THIRTEENTH_LEVEL_ROUTE.md section 7: the bands act only with D_00810701 ==
+  0) came from the C. Not a new finding: the port's committed translation
+  (src/game/em_camera_area11_specials.c, c9af471, 2026-09-23, oracle-tested;
+  its docs/CAMERA_AREA11_SPECIALS.md) already follows the instructions
+  (room 0 [00194038], the z split [001940D8]). New here is the measurement:
+  the descent of sub 1's ladder at x 848..862 gave 13 00 0D (a19d_07).
+- **The cage and the lift.** Sub 1's placement [0] (class 0x0B, key 0x15,
+  kind 0x51, player-only) covers that ladder's top until the lift [36]'s
+  scene (0x826C10, NM: script 0x82D290 when the player is in its box 850 <
+  x < 859.6, 850.5 < z < 855; flag 0x21 = 0xFF and key 0x15 off at its end).
+  The cage is reached under the lift raised by the valve [37] (0x826840, C:
+  D_008107F9 low nibble 0 -> 1, +15).
+- **[34]'s scene enables sub 1's key-8 cell** (kind 0x51 at (942, 380,
+  848.8)): measured between a19c_06 and a19c_07's end; it closes the y-380
+  platform's west part (the ladder at z 859.5) for the player.
+- **Sub 0's west part to the tower.** [10] (0x827790, C) plays its entry-0xD
+  scripts (counter 0x45 = 0x80, CC3 0x0C) and the area 0x82E050's script
+  (flag 0x45 = 0xFF). The hang's sideways Use (00169730 cases 60 / 70 ->
+  001787B0, BM) moves the player from the bar 858 onto the post's ladder
+  859; from that ladder the same input reaches the bar 1195, whose east end
+  is over [7]'s room's roof; the ladder 1016 leads to the y-265 deck and its
+  ladder 694 to sub 1 entry 8 (00196970).
+- **The seal [48]** (001581A0, NM; at (980.7, 377.7, 940.6)) broke to the
+  light melee from inside the tower: in a19d_18 from (980.9, 946.2) (xz
+  distance 5.6) the second Circle started the only melee, which broke it
+  (D_00810854 0x04 -> 0x0C). In a19d_17 from (984.4, 946.5) (xz 7.0) six
+  presses started three melees and it held; that beat's census replay broke
+  it on its first press (position not recorded). The hit rule was not
+  read.
+- **AREA15.** Door [50] -> AREA15 sub 0 entry 0; [0]'s script 0x826E70 (9,367
+  frames with 3B8D 2): D_00810702 = 1, counter 0x22 = 1, flag 0x22 = 0xFF.
+  The slider [13] (room move id 1) and door [14] -> AREA19 sub 1 entry 4;
+  door [51] -> AREA15 sub 1 entry 0.
+- **Census** (`route_census.py fourteenth-delta`): 90 functions (55,288
+  bytes) outside its baseline: 67 boot, 2 AREA19 overlay (0x826B30,
+  0x827540: the lift's scene) and all 21 AREA15 overlay functions that ran
+  (`a19d_delta.json`, `a15_delta.json`). The baseline leaves out the first
+  level's C10 capture passes (AIM, BR / BRB, DMG / DMGB, OPT / OPTB, EXIT /
+  EXITB); read from their run files, 31 of the 67 boot functions (27,720
+  bytes) already ran there (30 in AIM: the AREA11 R1 hold / fire / reload beats;
+  00163E90 in DMG / DMGB). New in any census pass: 59 functions (27,568
+  bytes): 36 boot (16,560 bytes; first run, among others, during the
+  ceiling hang (0016AC50..0016AE40), at the hang's sideways transfer
+  (00181730, 001782A0, 001787B0) and on the post's ladder
+  (0017FD80..001809B0)), the 2 AREA19 and the 21 AREA15 overlay functions.
+
 ## 9. Open
 
-1. AREA19 is played through [7]'s room, [7]'s Use, door [27] and into sub
-   1 as far as its hall (section 8f); AREA15 is not reached: sub 1's stair
-   tower with doors [50] / [51] is entered, by the reading of section 8f,
-   from sub 0's y-265 deck (sub 1 entry 8); a way from sub 1 down to the
-   deck (the ladder at x 848..862 under the lift [36]) and how the deck's
-   parts join were not read (port THIRTEENTH_LEVEL_ROUTE.md section 7). Section 7 steps 5..7
-   are derived, not played beyond that. The conditions of AREA14's
+1. AREA19 is played through the stair tower into AREA15 sub 0 and back, and
+   into AREA15 sub 1 as far as its arrival (section 8g). AREA15 sub 1's
+   event ([4] / [6] 0x823850: flag / counter 0x23, the forced return to
+   AREA15 sub 0 that rewrites five areas' subs) is not played (port
+   FOURTEENTH_LEVEL_ROUTE.md section 7). Section 7 steps 6 (its sub-1 half)
+   and 7 are derived, not played. The conditions of AREA14's
    [6] (the owner of script 0x828120), AREA17's counter 0x5D (written by
    boot 0016BC40, not read) and AREA21's ending were read only as far as
    the tables show.

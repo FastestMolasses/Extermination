@@ -1,4 +1,3 @@
-// NEARMISS func_overlay_AREA19_00826BD0 (99.94%, mwcc 2.3.3; linked from its splat .s)
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 // AREA19 overlay, runtime 0x00826C10 (splat/link name 00826BD0; overlay code
@@ -18,10 +17,11 @@
 //  120)) and then drops the platform to the rest height (speed += 0.2 a
 //  frame), func_001B1E20(8, 20) once at the bottom; the lights while above
 //  rest. States 1, 2 and 4: func_001B1B70 and the +0x4C method.
-// Divergence: two FPR choices: state 0's 15.0 + *p puts the loaded value in
-//  f0 and the constant in f1 in the original (mwcc 2.3.3 the reverse), and
-//  the last +0xB4 <= +0x2E8 compare loads +0x2E8 first. Operand orders, a
-//  limit local and int-pointer forms were tried.
+// Byte-identical (tools/overlay/overlay_match.py check AREA19; lane DMATCH,
+//  was NEARMISS 99.94%): state 0's raise is written `(x = 15.0f) + *p`,
+//  which puts the constant in f1 and the loaded value in f0 as in the
+//  original, and the last rest-height read (+0x2E8, after the +0x4C method)
+//  is a volatile read, which keeps it ahead of the +0xB4 load (idiom-22).
 typedef void (*ActorFn)(unsigned char *);
 extern unsigned char D_008107F9;
 extern float D_700038A0[];
@@ -56,7 +56,7 @@ void func_overlay_AREA19_00826BD0(unsigned char *self) {
                 self[4] = 2;
             } else {
                 if (D_008107F9 & 0xF) {
-                    *(float *)(self + 0xB4) = 15.0f + *(float *)p;
+                    *(float *)(self + 0xB4) = (x = 15.0f) + *(float *)p;
                 }
                 func_001C6380(self);
                 self[4] = 4;
@@ -174,7 +174,7 @@ void func_overlay_AREA19_00826BD0(unsigned char *self) {
         }
         func_001B1B70(self);
         (*(ActorFn *)(self + 0x4C))(self);
-        lim = *(float *)(self + 0x2E8);
+        lim = *(volatile float *)(self + 0x2E8);
         if (!(*(float *)(self + 0xB4) <= lim)) {
             *(float *)0x700038AC = 1.0f;
             *(float *)0x700038A0 = 28.5f + *(float *)(self + 0xB0);

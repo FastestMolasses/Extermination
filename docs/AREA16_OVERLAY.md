@@ -190,6 +190,11 @@ spawn-entry or nest tables).
   store and constant reordering with different register choices in the
   packet loop; 0x824690 the case-1 compare that goes to the default body,
   the loop's nop and the branch-offset shifts they cause.
+- **Lane DMATCH (2026-10-02).** 0x8237A0: a volatile state read does not
+  move the state byte's register; 0x824690: case 1 with its own copy of the
+  default body is not merged (91.81-98.06); 0x823D20 and 0x8237A0 got
+  500 s of the decomp-permuter each. All four stay NEARMISS
+  (docs/LEVELS_DECOMP.md section 7).
 
 ## Verification
 

@@ -116,6 +116,9 @@ the same 95.96. Equivalence: the instruction-by-instruction diff
 (`overlay_match.py check AREA14 .. --show`) shows only the dead copies and
 the branch offsets they shift; calls, stores and control flow are equal.
 
+Lane DMATCH (2026-10-02) swept it again (mwcc 991202 / 2.3.3 / 2.4): no
+change; still NEARMISS (docs/LEVELS_DECOMP.md section 7).
+
 ## Verification
 
 - `overlay_match.py check AREA14 src/overlays/AREA14/*.c`: 12 files 100.00

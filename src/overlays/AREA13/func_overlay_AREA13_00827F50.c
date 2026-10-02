@@ -1,4 +1,3 @@
-// NEARMISS func_overlay_AREA13_00827F50 (98.46%, mwcc 2.3.3; linked from its splat .s)
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 // AREA13 overlay, runtime 0x00827F90 (splat/link name 00827F50; overlay code
@@ -14,11 +13,12 @@
 //  five func_001EFD20(4, ..) at points stepped from (795, 180, 1130) toward
 //  (680, 170, 1015); after 30 frames +5 += 1. Always func_001C64F0(self, 1.0)
 //  and limit 0xFFFF.
-// Divergence: the original counts the five-spark loop down (the counter
-//  starts at 4 and is tested for the last pass before the decrement), and it
-//  keeps self in s1 where mwcc 2.3.3 uses s0; the rest of the body and every
-//  call match. for / while / do-while spellings, count-up and count-down, a
-//  pointer walk and declaration orders were tried.
+// Byte-identical (tools/overlay/overlay_match.py check AREA13; lane DMATCH,
+//  was NEARMISS 98.46%): the spark counter is set to 4 at the top of the
+//  block (before the two vector setups) and the loop is written as
+//  `i++; while (i != 0) { ...; i--; }` (five passes); mwcc 2.3.3 then keeps
+//  the run-time increment and the count-down test of the original and puts
+//  the counter in s0 and self in s1.
 extern int *D_00275CA8;
 extern float D_70003A20[];
 extern char *D_00275B40;
@@ -101,6 +101,7 @@ void func_overlay_AREA13_00827F50(unsigned char *self) {
         break;
     case 1:
         if (D_00275CA8[5] == 0) {
+            i = 4;
             D_700038A0[0] = 795.0f;
             D_700038A0[1] = 180.0f;
             D_700038A0[2] = 1130.0f;
@@ -111,9 +112,11 @@ void func_overlay_AREA13_00827F50(unsigned char *self) {
             D_700038B0[3] = 1.0f;
             func_001028D0(D_700038B0, D_700038B0, D_700038A0);
             func_00102850(D_700038B0, D_700038B0, 4.0f);
-            for (i = 4; i >= 0; i--) {
+            i++;
+            while (i != 0) {
                 func_001EFD20(4, D_700038A0);
                 func_001028B8(D_700038A0, D_700038A0, D_700038B0);
+                i--;
             }
         }
         D_00275CA8[5]++;

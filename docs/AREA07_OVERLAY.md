@@ -122,6 +122,10 @@ prototype spellings, an inline helper and 33 placements of the owner
 pointer were tried. Equivalence: the instruction-by-instruction diff
 (`overlay_match.py check AREA07 .. --show`) shows only that register.
 
+Lane DMATCH (2026-10-02) re-tried it (inline helper, rand locals,
+operand orders, 500 s of the decomp-permuter): no better candidate; still
+NEARMISS (docs/LEVELS_DECOMP.md section 7).
+
 ## Verification
 
 - `overlay_match.py check AREA07 src/overlays/AREA07/*.c`: the 8 lane

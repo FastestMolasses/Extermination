@@ -63,6 +63,7 @@ None of them runs under `--beats all`.
     .venv/bin/python tools/route_capture.py run --beats a13c       # eleventh level (opt-in)
     .venv/bin/python tools/route_capture.py run --beats a13d,a19b  # twelfth level (opt-in)
     .venv/bin/python tools/route_capture.py run --beats a19c       # thirteenth level (opt-in)
+    .venv/bin/python tools/route_capture.py run --beats a19d,a15   # fourteenth level (opt-in)
 The AREA13 beats (a13_*, from the a04b_04_lift snapshot) write to
 build/s87/route_a13/<beat>/; they are described in the port's
 docs/NINTH_LEVEL_ROUTE.md.
@@ -5942,6 +5943,750 @@ def thirteenth_selected(spec: str) -> list[tuple]:
 def thirteenth_owners(name: str):
     return A19C_OWNERS if name.startswith("a19c_") else None
 
+# Fourteenth level (lane STORY, s94; port docs/FOURTEENTH_LEVEL_ROUTE.md):
+# from a19c_07's end (AREA19 sub 1 entry 1) to AREA15.  Opt-in group `a19d`
+# (AREA19, overlay id 16; its last beat changes to AREA15, overlay id 12).
+# What the route uses (code, then the captured grids; port doc section 2):
+# the two 0012E3A0 creatures of sub 1's hall (+0x34 = 100; the R1 lock D_008106E0
+# and Circle); the valve [38] (0x826570: flag / counter 0x20, the fire's cell
+# key 7 off); the ladder at (892, 929.5) to the y-410 ledge, the box with the
+# attribute-0x3A pad under the attribute-0x1E ceiling (0015D4C0 case 0x3A:
+# the hand-over-hand hang, +5 0x11 / 0x12); the valve [37] (0x826840: the
+# lift [36] 0x826C10 up 15, D_008107F9 low nibble 1); the pickup g[3] (item
+# 0x1E) under the raised lift; the lift's box (850 < x < 859.6, 850.5 < z <
+# 855): script 0x82D290, flag 0x21 = 0xFF, the ladder top's cell key 0x15
+# off; the ladder down (00193EB0: sub 0 entry 0xD); sub 0's [10] (0x827790);
+# the bar 858 (attribute 0x34) from the pad 919, the hang's sideways Use onto
+# the post ladder 859 (001787B0), the post's sideways Use onto the bar 1195,
+# the drop onto [7]'s room's roof (y 230), the ladder 1016 up to the y-265
+# deck, the ladder 694 (00196970: sub 1 entry 8, the stair tower); the seal
+# [48] (001581A0, light melee: D_00810854 bit 3); the tower's flights to the
+# y-450 landing and door [50] (001BC350, id 0x86: AREA15 entry 0 sub 0).
+OUT_A19D = ROOT / "build/s87/route_a19d"
+A19D_OWNERS = {                       # the sub-1 load of a19c_07 (sub-0 / tower rows read other nodes)
+    "r34_8279E0": 0x7AD780, "r35_827430": 0x7ADA70, "r36_826C10": 0x7ADD60, "r37_826840": 0x7AE050,
+    "r38_826570": 0x7AE340, "r39_823D10": 0x7AE630, "r40_823780": 0x7AE920, "r46_829A70": 0x7AFAC0,
+    "seal48_1581A0": 0x7B00A0, "door49_1BC350": 0x7B0390,
+    "beastA_12E3A0": 0x7A7980, "beastB_12E3A0": 0x7A7C70,
+    "bugA_12A5D0": 0x7A70B0, "bugB_12A5D0": 0x7A73A0, "bugC_12A5D0": 0x7A7690,
+}
+A19D_SPANS = [sp for sp in A19_SPANS if ":" not in sp[0]] + [
+    ("s77c", 0x81077C, 0x4),            # D_0081077C..7F (flags 0x24..0x27)
+    ("s7fc", 0x8107FC, 0x4),            # D_008107FC..FF (counters 0x24..0x27)
+    ("lock6e0", 0x8106E0, 0xC),         # the three R1 locks D_008106E0..E8
+    ("ammo", 0x810C60, 0x4),            # D_00810C62 rounds in the gun
+    ("resv", 0x810CB4, 0x4),            # D_00810CB4 rounds held (gun included)
+    ("inv64", 0x810C64, 0x40),          # D_00810C64.. item counts
+]
+for _name, _base in A19D_OWNERS.items():
+    A19D_SPANS += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                   (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                   (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10),
+                   (_name + ":k", _base + 0x30, 0x10)]       # +0x34 hit points, +0x36 damage
+A19D_GRABS = (0x3B, 0x3C, 0x3D, 0x3E)  # bug on the back, flyer's hold, bite
+
+
+def decode_a19d(r: dict[str, bytes], owners=None) -> dict:
+    owners = A19D_OWNERS if owners is None else owners
+    row = decode_a19(r, owners=owners)
+    row["s77c"] = r["s77c"].hex()
+    row["s7fc"] = r["s7fc"].hex()
+    row["lock"] = [hex(v) for v in struct.unpack("<3I", r["lock6e0"])]
+    row["mag"] = r["ammo"][2]
+    row["rounds"] = struct.unpack("<H", r["resv"][:2])[0]
+    row["inv64"] = r["inv64"].hex()
+    for name in owners:
+        if name + ":k" in r:
+            row[name]["k"] = r[name + ":k"].hex()
+    return row
+
+
+def use_a19d_sampler(r: Route) -> None:
+    sampler = A01USampler(r.s, spans=A19D_SPANS)
+    r.sampler = sampler
+    r.now = lambda: decode_a19d(sampler.raw())
+    r.rows[0] = dict(r.now(), f=0)
+
+
+def a19d_hp(row: dict, owner: str) -> int:
+    return struct.unpack_from("<h", bytes.fromhex(row[owner]["k"]), 4)[0]
+
+
+def a19d_rock(r: Route, limit: int = 300) -> None:
+    """Out of a grab: the stick rocked left and right (a04_shake for every
+    grab action of this group)."""
+    for i in range(limit):
+        if r.rows[-1]["m1F0"] not in A19D_GRABS:
+            break
+        r.set_pad(0, 0x00 if (i // 2) % 2 else 0xFF, 0x7F)
+        r.step(1)
+    r.set_pad(0)
+
+
+def a19d_unshake(r: Route) -> None:
+    for _ in range(400):
+        if r.rows[-1]["m1F0"] in A04_GRABS:
+            a04_shake(r)
+        else:
+            return
+
+
+def a19d_walk13(r: Route, points, tol: float = 1.0) -> None:
+    """a13d_go to each point in turn (no position check: the beats below are
+    the exploration's inputs, replayed exactly)."""
+    for p in points:
+        a13d_go(r, p[0], p[1], tol=tol, limit=400)
+
+
+def a19d_go_rock(r: Route, x: float, z: float, tol: float = 1.0, limit: int = 400) -> None:
+    """a19d_go's twin with a19d_rock(limit 200) (the exploration's `go`)."""
+    for _ in range(limit):
+        if r.rows[-1]["m1F0"] in A19D_GRABS:
+            a19d_rock(r, 200)
+            continue
+        px, _py, pz = r.rows[-1]["pos"]
+        d = math.hypot(x - px, z - pz)
+        if d <= tol:
+            break
+        r.stick_toward(x, z, min(1.0, max(0.4, d / 12.0)))
+        r.step(1)
+    r.set_pad(0)
+
+
+def a19d_trav(r: Route, x: float, z: float, n: int = 400) -> None:
+    for _ in range(n):
+        r.stick_toward(x, z, 1.0)
+        r.step(1)
+        px, _py, pz = r.rows[-1]["pos"]
+        if math.hypot(px - x, pz - z) < 1.5:
+            break
+    r.set_pad(0)
+    r.step(5)
+
+
+def a19d_ceiling_drop(r: Route) -> None:
+    for _ in range(8):
+        r.idle(5)
+        r.press("CROSS", 3)
+        for _ in range(60):
+            r.step(1)
+            if r.rows[-1]["p5"] not in (0x11, 0x12):
+                return
+    raise TimeoutError("no drop: " + summary(r.rows[-1]))
+
+
+def a19d_try_climb(r: Route, yaw: float, tries: int = 3) -> bool:
+    a13_settle(r, 5)
+    a13_face(r, yaw)
+    y0 = r.rows[-1]["pos"][1]
+    for _ in range(tries):
+        r.idle(3)
+        r.press("CROSS", 2)
+        r.step(90)
+        if r.rows[-1]["pos"][1] > y0 + 3:
+            return True
+    return False
+
+
+def a19d_beat_beastA(r: Route) -> dict:
+    # From the hall's middle (920, 900) facing -x, the fire between: R1 held
+    # (the lock D_008106E0 takes the creature A, 0012E3A0, west of the fire),
+    # Circle every 14 frames until its +0x34 is 0.
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 5)
+    a19d_walk13(r, [(945, 895), (920, 900)])
+    a13_face(r, -math.pi / 2)
+    hold = PAD["R1"]
+    r.set_pad(hold)
+    r.step(20)
+    shots = 0
+    while a19d_hp(r.rows[-1], "beastA_12E3A0") > 0 and shots < 40:
+        r.set_pad(hold | PAD["CIRCLE"])
+        r.step(2)
+        r.set_pad(hold)
+        r.step(12)
+        shots += 1
+        if r.rows[-1]["hp"] <= 0:
+            break
+    r.set_pad(hold)
+    r.step(20)
+    r.set_pad(0)
+    r.step(20)
+    if a19d_hp(r.rows[-1], "beastA_12E3A0") > 0:
+        raise RuntimeError("creature A not down: " + summary(r.rows[-1]))
+    return {"what": "creature A shot from (920, 900) across the fire", "presses": shots, "hp_end": a01_hp(r)}
+
+
+def a19d_beat_ceiling(r: Route) -> dict:
+    # The valve [38] (0x826570) at (890, 385, 836.2) facing -z: script
+    # 0x82CA20, flag / counter 0x20 = 0xFF, the fire's player-only cell (key
+    # 7) off.  The ladder at (892, 929.5) up to the y-410 ledge; the box (y
+    # 424) by a ledge climb; Cross on its attribute-0x3A pad under the
+    # attribute-0x1E ceiling (y 446.5): the hand-over-hand hang (+5 0x11 /
+    # 0x12); west along z 927, south to z 908, west to (853, 906).
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 5)
+    a19d_walk13(r, [(897, 908), (893, 880), (893, 855), (890, 841.2)])
+    a13_settle(r, 5)
+    a13_face(r, math.pi)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00")
+    a19c_until_control(r, 3000, pred=lambda row: row["s778"][0:2] == "ff")
+    a19d_walk13(r, [(900, 860), (898, 900), (887, 929.5)])
+    a13d_ladder_up(r, math.pi / 2)
+    a19d_walk13(r, [(921.0, 928.0)])
+    a13_face(r, math.pi / 2)
+    a19_press_until(r, lambda row: row["pos"][1] > 420 or row["m1F0"] not in (0, 1))
+    r.until(in_control, 600)
+    a13_settle(r, 5)
+    a19d_walk13(r, [(935.0, 928.0)])
+    a13_settle(r, 5)
+    a19_press_until(r, lambda row: row["m1F0"] == 0x20 or row["p5"] == 0x11)
+    r.until(lambda row: row["p5"] == 0x12, 200)
+    a19d_trav(r, 886.0, 927.0)
+    a19d_trav(r, 885.0, 908.0)
+    a19d_trav(r, 853.0, 906.0)
+    if r.rows[-1]["p5"] != 0x12:
+        raise RuntimeError("not hanging at (853, 906): " + summary(r.rows[-1]))
+    return {"what": "the valve [38] (flag / counter 0x20), the ladder to the y-410 ledge, the box, "
+                    "the ceiling hang west to (853, 906)", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_lockB(r: Route) -> dict:
+    # Cross drops from the ceiling; north round the barrel [18] to (790, 908);
+    # facing -z with R1 held the lock takes the creature B (0012E3A0) in the
+    # alcove west of the lift.
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_ceiling_drop(r)
+    r.until(lambda row: in_control(row) and row["pos"][1] < 372, 600)
+    a13_settle(r, 5)
+    a19d_walk13(r, [(842, 916), (826, 919), (808, 916), (790, 908)])
+    a13_face(r, math.pi)
+    r.set_pad(PAD["R1"])
+    r.step(80)
+    r.set_pad(0)
+    r.step(10)
+    return {"what": "the drop at (853, 906), the walk to (790, 908), R1: the lock on creature B",
+            "lock": r.rows[-1]["lock"], "hp_end": a01_hp(r)}
+
+
+def a19d_beat_beastB(r: Route) -> dict:
+    # R1 held, Circle every 14 frames while a lock is held, until the
+    # creature B's +0x34 is 0.
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    hold = PAD["R1"]
+    r.set_pad(hold)
+    r.step(30)
+    shots = idle = 0
+    while a19d_hp(r.rows[-1], "beastB_12E3A0") > 0 and shots < 60 and idle < 300:
+        if r.rows[-1]["lock"][0] == "0x0":
+            r.set_pad(hold)
+            r.step(1)
+            idle += 1
+            continue
+        r.set_pad(hold | PAD["CIRCLE"])
+        r.step(2)
+        r.set_pad(hold)
+        r.step(12)
+        shots += 1
+        if r.rows[-1]["hp"] <= 0:
+            break
+    r.set_pad(0)
+    r.step(30)
+    if a19d_hp(r.rows[-1], "beastB_12E3A0") > 0:
+        raise RuntimeError("creature B not down: " + summary(r.rows[-1]))
+    return {"what": "creature B shot from (788, 901.6)", "presses": shots, "hp_end": a01_hp(r)}
+
+
+def a19d_beat_alcove(r: Route) -> dict:
+    # South along the lift's west side; three Cross presses facing +x at x
+    # 795.4 (z 878.6, then 868) start no climb onto the lift (its truck [35]
+    # and the lift [36] are kind 0x46 owners; exploration lead, section 6);
+    # on into the alcove at (819, 842).
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 5)
+    a19d_walk13(r, [(792, 890), (795.5, 878)])
+    climbed = a19d_try_climb(r, math.pi / 2)
+    if not climbed:
+        a19d_walk13(r, [(795.5, 868)])
+        climbed = a19d_try_climb(r, math.pi / 2)
+    if climbed:
+        raise RuntimeError("an unexpected climb: " + summary(r.rows[-1]))
+    a19d_walk13(r, [(797, 855), (812, 850), (819, 842)])
+    return {"what": "the lift's west side (no climb), the alcove", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_valve37(r: Route) -> dict:
+    # The valve [37] (0x826840) at (819, 385, 836.2) facing -z: script
+    # 0x82CC70 (D_008107F9 bit 7), the lift [36]'s +0x2EC = 0x8A; after the
+    # countdown the lift rises 15 over 180 frames (D_008107F9 low nibble 1).
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 5)
+    a19d_walk13(r, [(819, 841.2)], tol=0.6)
+    a13_settle(r, 5)
+    a13_face(r, math.pi)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00" or row["r37_826840"]["h"][10:12] != "00")
+    for i in range(900):
+        row = r.step(1)
+        if in_control(row) and i > 400 and row["r36_826C10"]["pos"][1] > 384.9:
+            break
+    else:
+        raise TimeoutError("the lift did not rise: " + summary(r.rows[-1]))
+    return {"what": "the valve [37]: the lift up 15 (D_008107F9 = 1)", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_g3(r: Route) -> dict:
+    # North round to the lift's north side, under the raised lift to the
+    # pickup g[3] (0015AFA0, item 0x1E) at (822.2, 370.4, 878.8): Cross takes
+    # it (the HEALING page).
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_unshake(r)
+    a13_settle(r, 5)
+    a19d_walk13(r, [(812, 912), (840, 912), (842, 906), (842, 890), (830, 882)])
+    px, _py, pz = r.rows[-1]["pos"]
+    a13c_take(r, px, pz, math.atan2(822.2 - px, 878.8 - pz))
+    for _ in range(400):
+        r.step(1)
+        if r.rows[-1]["ui"][2:4] == "03":
+            break
+    r.idle(60)
+    return {"what": "under the lift: the pickup g[3] (item 0x1E) taken, the HEALING page", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_cage(r: Route) -> dict:
+    # On the HEALING page: Cross (the item), Cross, Left (Yes), Cross: health
+    # +30; Triangle closes it.  On under the lift into the cage round the
+    # ladder top: the lift's box (850 < x < 859.6, 850.5 < z < 855) starts
+    # script 0x82D290 (the lift drops back); at its end flag 0x21 (D_00810779)
+    # = 0xFF and the ladder top's cell (key 0x15) is off.  The ladder (z
+    # 844.7) facing -z: below y 356 (x < 872) 00193EB0 requests sub 0 entry
+    # 0xD (13 00 0D); [10] (0x827790) plays its scripts for entry 0xD
+    # (counter 0x45 = 0x80, item CC3 0x0C); control on the y-265 deck.
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    hp0 = r.rows[-1]["hp"]
+    for _ in range(6):
+        r.idle(30)
+        r.press("CROSS", 2)
+        try:
+            r.until(lambda row: row["ui"][10:12] == "04", 90)
+            break
+        except TimeoutError:
+            pass
+    r.idle(10)
+    r.press("LEFT", 2, after=20)
+    r.press("CROSS", 2)
+    r.until(lambda row: row["hp"] > hp0, 600)
+    r.idle(200)
+    for _ in range(8):
+        r.press("TRIANGLE", 2)
+        r.step(90)
+        if in_control(r.rows[-1]) and r.rows[-1]["spad"][2:4] == "00":
+            break
+    a19d_unshake(r)
+    a13_settle(r, 5)
+    a19d_walk13(r, [(842, 878), (850, 870), (855, 862), (855, 853)])
+    a19c_until_control(r, 4000, pred=lambda row: row["s778"][2:4] == "ff")
+    a19d_walk13(r, [(855, 849)], tol=0.8)
+    a13_settle(r, 5)
+    a13_face(r, math.pi)
+    a19_press_until(r, lambda row: row["m1F0"] in (0x15, 0x16, 0x17, 0x18))
+    r.set_pad(0, 0x7F, 0xFF)
+    r.until(lambda row: row["area4"][:4] == "1300", 3000, 0, 0x7F, 0xFF)
+    r.set_pad(0)
+    a19c_until_control(r, 3000)
+    return {"what": "g[3] used, the cage: script 0x82D290 (flag 0x21), the ladder down: sub 0 entry 0xD, "
+                    "[10]'s scripts", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_west(r: Route) -> dict:
+    # West along the deck, the slope's slide down to the y-211 floor, the
+    # stair north to the y-229 landing; running north off its end (Cross at
+    # z 896 starts no jump) the player lands on the far landing (z 909.5).
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_unshake(r)
+    a13_settle(r, 5)
+    a19d_walk13(r, [(830, 852), (816, 852), (808, 852), (800, 852)])
+    a13_settle(r, 10)
+    a19d_walk13(r, [(790, 860), (780, 864)])
+    a19d_unshake(r)
+    a13_settle(r, 3)
+    a13_face(r, 0.0)
+    for _ in range(200):
+        if r.rows[-1]["pos"][2] >= 896.0:
+            break
+        r.stick_toward(780.0, 960.0)
+        r.step(1)
+    r.set_pad(PAD["CROSS"], r.pad_state[1], r.pad_state[2])
+    r.step(2)
+    r.set_pad(0, r.pad_state[1], r.pad_state[2])
+    try:
+        r.until(lambda row: row["m1F0"] == 0x0C, 10, 0, r.pad_state[1], r.pad_state[2])
+    except TimeoutError:
+        pass
+    r.until(lambda row: row["m1F0"] not in (0x0C, 0x0F), 300, 0, r.pad_state[1], r.pad_state[2])
+    r.set_pad(0)
+    r.step(30)
+    if not (r.rows[-1]["pos"][2] > 905.0 and r.rows[-1]["pos"][1] > 228.0):
+        raise RuntimeError("not on the far landing: " + summary(r.rows[-1]))
+    return {"what": "the deck west, the slide, the stair, off the landing's end onto the far landing",
+            "hp_end": a01_hp(r)}
+
+
+def a19d_beat_westdeck(r: Route) -> dict:
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_unshake(r)
+    a13_settle(r, 5)
+    a19d_walk13(r, [(780, 918), (780, 935), (780, 950), (780, 962), (768, 962), (760, 960)])
+    a13_settle(r, 5)
+    return {"what": "the stair north up to the y-265 west deck", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_area82E050(r: Route) -> dict:
+    # [10]'s area 0x82E050 (x 745..766, z 892..900): script 0x82DD10, flag
+    # 0x45 (D_0081079D) = 0xFF.
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_unshake(r)
+    a13_settle(r, 5)
+    a19d_walk13(r, [(762, 900)])
+    r.step(60)
+    a19c_until_control(r, 3000)
+    return {"what": "[10]'s area on the west deck: script 0x82DD10 (flag 0x45)", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_bar858(r: Route) -> dict:
+    # Onto the pad 919 (y 268) facing +x: Cross enters the hang on the bar
+    # 858 (y 291.5); east to x 810.
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a19d_go_rock(r, 761.5, 890)
+    a19d_go_rock(r, 761.5, 884, tol=0.8)
+    a19d_rock(r, 200)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, math.pi / 2)
+    for _ in range(8):
+        a19d_rock(r, 200)
+        r.press("CROSS", 2)
+        for _ in range(40):
+            r.step(1)
+            if r.rows[-1]["p5"] in (0xF, 0x10):
+                break
+        if r.rows[-1]["p5"] in (0xF, 0x10):
+            break
+    r.until(lambda row: row["p5"] == 0x10 and row["m1F0"] == 0x21, 200)
+    for _ in range(400):
+        r.stick_toward(811.0, 883.0, 1.0)
+        r.step(1)
+        if r.rows[-1]["pos"][0] >= 799.3 or r.rows[-1]["m1F0"] == 0x28:
+            break
+    r.set_pad(0)
+    r.step(10)
+    if not (797.0 <= r.rows[-1]["pos"][0] <= 801.5 and r.rows[-1]["m1F0"] == 0x21):
+        raise RuntimeError("not hanging at x 797..801.5: " + summary(r.rows[-1]))
+    return {"what": "the pad 919, the hang on the bar 858, east to x 799.3", "hp_end": a01_hp(r)}
+
+
+def a19d_side_try(r: Route, zdir: float, hold_frames: int, offset: float, done, inner: bool = True) -> None:
+    px, _py, pz = r.rows[-1]["pos"]
+    for _ in range(hold_frames):
+        r.stick_toward(px + offset, pz + 100 * zdir, 1.0)
+        r.step(1)
+    lx, ly = r.pad_state[1], r.pad_state[2]
+    for _ in range(3):
+        r.set_pad(PAD["CROSS"], lx, ly)
+        r.step(2)
+        r.set_pad(0, lx, ly)
+        for _ in range(40):
+            r.step(1)
+            if inner and done(r.rows[-1]):
+                break
+        if done(r.rows[-1]):
+            break
+    r.step(60)
+    r.set_pad(0)
+    r.step(5)
+
+
+def a19d_beat_post(r: Route) -> dict:
+    # Hanging at x ~799.5 facing +x: the stick toward +z and Cross: 00169730's
+    # sideways case, 001787B0 finds the post's ladder 859 (x 809.5): action
+    # 0x12, then the ladder (0x17).  (Exploration: taken from x 799.7 facing
+    # +x, not from x 804.2.)
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_side_try(r, 1.0, 50, 0.0, lambda row: row["m1F0"] not in (0x20, 0x21, 0x22))
+    if r.rows[-1]["m1F0"] != 0x12:
+        raise RuntimeError("no transfer to the post's ladder: " + summary(r.rows[-1]))
+    return {"what": "the bar 858 to the post's ladder 859 (sideways Use)", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_bar1195(r: Route) -> dict:
+    # Down the post's ladder to y 244; the stick toward +z and Cross: onto
+    # the bar 1195 (y 261.5) under the pipe.
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    r.step(80)
+    for _ in range(400):
+        r.set_pad(0, 0x7F, 0xFF)
+        r.step(1)
+        if r.rows[-1]["pos"][1] <= 244.0:
+            break
+    r.set_pad(0)
+    r.step(20)
+    a19d_side_try(r, 1.0, 50, 0.01, lambda row: row["m1F0"] in (0x20, 0x21, 0x22, 0x23), inner=False)
+    if r.rows[-1]["m1F0"] != 0x21:
+        raise RuntimeError("no transfer to the bar 1195: " + summary(r.rows[-1]))
+    return {"what": "down the post's ladder, the bar 1195 (sideways Use)", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_roof(r: Route) -> dict:
+    # East along the bar 1195 to x 889; Cross drops onto [7]'s room's roof
+    # (y 230).
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    for _ in range(900):
+        r.stick_toward(892.0, 922.0, 1.0)
+        r.step(1)
+        if r.rows[-1]["pos"][0] >= 889.0 or r.rows[-1]["m1F0"] == 0x28:
+            break
+    r.set_pad(0)
+    r.step(10)
+    if r.rows[-1]["pos"][0] < 885.0:
+        raise RuntimeError("not over the roof: " + summary(r.rows[-1]))
+    a19c_drop(r)
+    r.until(in_control, 400)
+    a13_settle(r, 5)
+    return {"what": "the bar 1195 east, the drop onto the roof (y 230)", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_deckB(r: Route) -> dict:
+    # The ladder 1016 (z 939, attribute 0x32) facing +z up to the y-265 deck.
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a19d_go_rock(r, 915, 930)
+    a19d_go_rock(r, 915, 934.5, tol=0.6)
+    a13d_ladder_up(r, 0.0)
+    return {"what": "the ladder 1016 up to the y-265 deck", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_ladder694(r: Route) -> dict:
+    # Round the slab to the ladder 694 (z 960) facing -z; above 00196970's
+    # circle height: sub 1 entry 8 (13 01 08) in the stair tower.
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a19d_go_rock(r, 919, 955)
+    a19d_go_rock(r, 919, 966)
+    a19d_go_rock(r, 907, 966, tol=0.6)
+    a13d_go(r, 906.7, 964.5, tol=0.4, limit=100)
+    a13_settle(r, 3)
+    a13_face(r, math.pi)
+    a19_press_until(r, lambda row: row["m1F0"] in (0x15, 0x16, 0x17))
+    r.set_pad(0, 0x7F, 0x00)
+    r.until(lambda row: row["area4"][:4] == "1301", 3000, 0, 0x7F, 0x00)
+    r.set_pad(0)
+    a19c_until_control(r, 3000)
+    return {"what": "the ladder 694: sub 1 entry 8 (the stair tower)", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_seal_far(r: Route) -> dict:
+    # Out of the ladder's pocket east under the flights; in the kept capture
+    # the player stopped at (984.4, 946.5) facing -z and six Circle presses
+    # started three light melees (action 0x36) that left the seal [48]
+    # intact.  The census replay of this beat broke it on its first press:
+    # the loop stops when D_00810854 changes.
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    for p in ((907, 947), (930, 948), (965, 949)):
+        a19d_go_rock(r, *p)
+    a19d_go_rock(r, 980.7, 947, tol=0.6)
+    a13_settle(r, 3)
+    a13_face(r, math.pi)
+    for _ in range(6):
+        r.press("CIRCLE", 2)
+        r.step(45)
+        if r.rows[-1]["l854"] != "04":
+            break
+    a13_settle(r, 10)
+    return {"what": "the seal [48]: Circle presses from the far spot (kept: six presses, three melees, no break)", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_seal(r: Route) -> dict:
+    # Closer, (980.9, 946.2) facing -z: the second Circle breaks the seal [48]
+    # (001581A0: its +0x36, then D_00810854 |= 8, door [49]'s bit 3).
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a13d_go(r, 980.7, 945.0, tol=0.3, limit=150)
+    a13_settle(r, 3)
+    a13_face(r, math.pi, tol=0.05)
+    for btn in ("CIRCLE", "CIRCLE", "SQUARE", "SQUARE"):
+        r.press(btn, 2)
+        r.step(60)
+        if r.rows[-1]["l854"] != "04":
+            break
+    a13_settle(r, 10)
+    if not int(r.rows[-1]["l854"], 16) & 8:
+        raise RuntimeError("the seal held: " + summary(r.rows[-1]))
+    return {"what": "the seal [48] broken: D_00810854 bit 3", "hp_end": a01_hp(r)}
+
+
+A19D_TOWER_TO_450 = [(982, 958), (980, 975), (965, 975), (940, 975), (920, 975), (906, 975), (906, 955),
+                     (918, 952), (940, 952), (964, 952), (977, 952), (977, 975), (960, 975), (930, 975),
+                     (912, 975), (905, 975), (905, 955), (903, 947)]
+
+
+def a19d_beat_flights(r: Route) -> dict:
+    # The tower's flights: y 370 -> 395.5 (z 965..985 west), -> 421 (z
+    # 942..962 east), -> 450 (z 965..985 west); the y-450 landing.
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    for p in A19D_TOWER_TO_450:
+        a19d_go_rock(r, *p)
+    a13_settle(r, 3)
+    return {"what": "the tower's flights to the y-450 landing", "hp_end": a01_hp(r)}
+
+
+def a19d_beat_door50(r: Route) -> dict:
+    # Door [50] (001BC350, id 0x86) facing -z: AREA15 entry 0 sub 0; AREA15
+    # sub 0's [0] (0x8235A0) plays script 0x826E70 (D_00810702 = 1, item CC3
+    # 0x0D, counter 0x22 = 1, flag 0x22 = 0xFF); control in AREA15.
+    use_a19d_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a13_face(r, math.pi)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00")
+    r.until(lambda row: row["area4"][:2] == "0f", 4000)
+    a19c_until_control(r, 30000)
+    return {"what": "door [50]: AREA15 sub 0, [0]'s script 0x826E70 (flag 0x22)", "hp_end": a01_hp(r)}
+
+
+A19D_BEATS: list[tuple] = [
+    ("a19d_00_beastA", "a19c_07_door52", a19d_beat_beastA),
+    ("a19d_01_ceiling", "a19d_00_beastA", a19d_beat_ceiling),
+    ("a19d_02_lockB", "a19d_01_ceiling", a19d_beat_lockB),
+    ("a19d_03_beastB", "a19d_02_lockB", a19d_beat_beastB),
+    ("a19d_04_alcove", "a19d_03_beastB", a19d_beat_alcove),
+    ("a19d_05_valve37", "a19d_04_alcove", a19d_beat_valve37),
+    ("a19d_06_g3", "a19d_05_valve37", a19d_beat_g3),
+    ("a19d_07_cage", "a19d_06_g3", a19d_beat_cage),
+    ("a19d_08_west", "a19d_07_cage", a19d_beat_west),
+    ("a19d_09_westdeck", "a19d_08_west", a19d_beat_westdeck),
+    ("a19d_10_area82E050", "a19d_09_westdeck", a19d_beat_area82E050),
+    ("a19d_11_bar858", "a19d_10_area82E050", a19d_beat_bar858),
+    ("a19d_12_post", "a19d_11_bar858", a19d_beat_post),
+    ("a19d_13_bar1195", "a19d_12_post", a19d_beat_bar1195),
+    ("a19d_14_roof", "a19d_13_bar1195", a19d_beat_roof),
+    ("a19d_15_deckB", "a19d_14_roof", a19d_beat_deckB),
+    ("a19d_16_ladder694", "a19d_15_deckB", a19d_beat_ladder694),
+    ("a19d_17_seal_far", "a19d_16_ladder694", a19d_beat_seal_far),
+    ("a19d_18_seal", "a19d_17_seal_far", a19d_beat_seal),
+    ("a19d_19_flights", "a19d_18_seal", a19d_beat_flights),
+    ("a19d_20_door50", "a19d_19_flights", a19d_beat_door50),
+]
+A19D_SIDE_BEATS: set[str] = set()
+A19D_CHANGE_BEATS: set[str] = {"a19d_07_cage", "a19d_16_ladder694", "a19d_20_door50"}
+
+
+def fourteenth_selected(spec: str) -> list[tuple]:
+    """The fourteenth-level group `a19d` (opt-in)."""
+    wanted = spec.split(",")
+    if "a19d" in wanted:
+        return [b for b in A19D_BEATS if b[0] not in A19D_SIDE_BEATS]
+    return [b for b in A19D_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+def fourteenth_owners(name: str):
+    return A19D_OWNERS if name.startswith("a19d_") else None
+
+
+# AREA15 (overlay id 12) from a19d_20's end (sub 0 entry 1, after [0]'s
+# script): the slider [13] (001BB860, room move id 1: entry 2), door [14]
+# (001BC350, id 0x80: AREA19 entry 4 sub 1, the tower's y-450 landing); the
+# tower's flights to the y-500 landing and door [51] (id 0x87: AREA15 entry 0
+# sub 1).  Opt-in group `a15`; no owner rows.
+OUT_A15 = ROOT / "build/s87/route_a15"
+
+
+def use_a15_sampler(r: Route) -> None:
+    sampler = A01USampler(r.s, spans=[sp for sp in A19D_SPANS if ":" not in sp[0]])
+    r.sampler = sampler
+    r.now = lambda: decode_a19d(sampler.raw(), owners={})
+    r.rows[0] = dict(r.now(), f=0)
+
+
+def a15_beat_door14(r: Route) -> dict:
+    use_a15_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a19d_go_rock(r, 935, 911)
+    a19d_go_rock(r, 927.3, 913.7, tol=0.5)
+    a13_settle(r, 3)
+    a13_face(r, -0.66)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00" or row["area4"][4:6] == "02")
+    a19c_until_control(r, 2000, pred=lambda row: row["area4"][4:6] == "02")
+    a19d_go_rock(r, 905, 932)
+    a19d_go_rock(r, 902, 935, tol=0.6)
+    a13_settle(r, 3)
+    a13_face(r, 0.0)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00")
+    r.until(lambda row: row["area4"][:2] == "13", 4000)
+    a19c_until_control(r, 4000)
+    return {"what": "AREA15 sub 0: the slider [13] (entry 2), door [14]: AREA19 sub 1 entry 4 (the y-450 landing)",
+            "hp_end": a01_hp(r)}
+
+
+def a15_beat_door51(r: Route) -> dict:
+    use_a15_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    for p in [(907, 952), (918, 952), (940, 952), (964, 952), (977, 952), (977, 975), (960, 975), (930, 975),
+              (912, 975), (905, 975), (905, 955), (903, 947)]:
+        a19d_go_rock(r, *p)
+    a13_settle(r, 3)
+    a13_face(r, math.pi)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00")
+    r.until(lambda row: row["area4"][:2] == "0f", 4000)
+    a19c_until_control(r, 20000)
+    return {"what": "the tower's flights to the y-500 landing, door [51]: AREA15 sub 1 entry 0", "hp_end": a01_hp(r)}
+
+
+A15_BEATS: list[tuple] = [
+    ("a15_00_door14", "a19d_20_door50", a15_beat_door14),
+    ("a15_01_door51", "a15_00_door14", a15_beat_door51),
+]
+A15_SIDE_BEATS: set[str] = set()
+A15_CHANGE_BEATS: set[str] = {"a15_00_door14", "a15_01_door51"}
+
+
+def fourteenth_a15_selected(spec: str) -> list[tuple]:
+    wanted = spec.split(",")
+    if "a15" in wanted:
+        return list(A15_BEATS)
+    return [b for b in A15_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
 # ---------------------------------------------------------------------------
 # AIM capture group (opt-in, `--beats aim` or a beat's name): aiming, firing,
 # reloading, the gun light, melee and the security gun's cable in AREA11
@@ -8340,6 +9085,10 @@ def beat_dir(name: str) -> Path:
         return OUT_A19B / name
     if name.startswith("a19c_"):                # thirteenth level, [7]'s room to AREA19 sub 1
         return OUT_A19C / name
+    if name.startswith("a19d_"):                # fourteenth level, AREA19 sub 1 to AREA15
+        return OUT_A19D / name
+    if name.startswith("a15_"):                 # fourteenth level, AREA15 to its exits
+        return OUT_A15 / name
     if name.startswith("aim_"):                 # AIM capture group (docs/CAPTURES_C10.md)
         return OUT_AIM / name
     if name.startswith("exit_"):                # EXIT capture group (docs/CAPTURES_C10.md)
@@ -8524,6 +9273,10 @@ if __name__ == "__main__":
                 run_beat(name, source, fn)
             for name, source, fn in thirteenth_selected(a.beats):  # the thirteenth-level group
                 run_beat(name, source, fn)
+            for name, source, fn in fourteenth_selected(a.beats):  # the fourteenth-level groups
+                run_beat(name, source, fn)
+            for name, source, fn in fourteenth_a15_selected(a.beats):
+                run_beat(name, source, fn)
             for name, source, fn in aim_selected(a.beats):     # the AIM capture group
                 run_beat(name, source, fn)
             for name, source, fn in exit_selected(a.beats):    # the EXIT capture group
@@ -8551,6 +9304,8 @@ if __name__ == "__main__":
         chosen += eleventh_selected(a.beats) if a.beats != "all" else []
         chosen += twelfth_selected(a.beats) if a.beats != "all" else []
         chosen += thirteenth_selected(a.beats) if a.beats != "all" else []
+        chosen += fourteenth_selected(a.beats) if a.beats != "all" else []
+        chosen += fourteenth_a15_selected(a.beats) if a.beats != "all" else []
         chosen += aim_selected(a.beats) if a.beats != "all" else []
         chosen += exit_selected(a.beats) if a.beats != "all" else []
         chosen += dmg_selected(a.beats) if a.beats != "all" else []
@@ -8573,7 +9328,8 @@ if __name__ == "__main__":
                       A01U_OWNERS if name.startswith("a01u_") else
                       A06_OWNERS if name.startswith("a06_") else
                       eighth_owners(name) or ninth_owners(name) or tenth_owners(name)
-                      or eleventh_owners(name) or twelfth_owners(name) or thirteenth_owners(name))
+                      or eleventh_owners(name) or twelfth_owners(name) or thirteenth_owners(name)
+                      or fourteenth_owners(name))
             for line in events(doc, owners):
                 print("  ", line)
     elif a.command == "identify":
@@ -8615,6 +9371,8 @@ if __name__ == "__main__":
         chosen += eleventh_selected(a.beats) if a.beats != "all" else []
         chosen += twelfth_selected(a.beats) if a.beats != "all" else []
         chosen += thirteenth_selected(a.beats) if a.beats != "all" else []
+        chosen += fourteenth_selected(a.beats) if a.beats != "all" else []
+        chosen += fourteenth_a15_selected(a.beats) if a.beats != "all" else []
         chosen += aim_selected(a.beats) if a.beats != "all" else []
         chosen += exit_selected(a.beats) if a.beats != "all" else []
         chosen += dmg_selected(a.beats) if a.beats != "all" else []

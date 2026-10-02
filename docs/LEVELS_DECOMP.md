@@ -30,6 +30,10 @@ The 45 assembly / stub / missing rows now stand as follows (section 3 has one ro
 | NEARMISS C | 1 | `func_001F6FB0`, the former `INCLUDE_ASM` stub, is now a `// NEARMISS` file (readable C; the linker uses the `.s`). |
 | covered already | 1 | `func_001C2FF0` (see above). |
 
+(Update 2026-10-02, lane DMATCH, section 7: four of the 12 companions, func_001BE5F0,
+func_0021BE40, func_001D0D60 and func_0019F680, are now byte-matched C; 35 C, 8 asm body +
+companion. Section 3 keeps the 2026-10-01 rows.)
+
 Every one of the 45 now has readable C. All 31 byte-matched functions link from their compiled
 C: 19 did at once, and the other 12, which `tools/decomp/fill_unmatched.py` still forced to the
 original assembly through stale `SIZE_DRIFT_FORCE_ASM` entries, were released by lane DFIX the
@@ -250,3 +254,98 @@ review's named survivors and two equivalence arguments (FINDINGS, same section).
 build lock, 22:55-23:07: build rc 0, verify_all all six stages PASS (boot ELF byte-identical,
 19/19 overlays, matched_code 98.66%, 2156/2211), audit_link_provenance with no copied-text,
 relocation, pinned-rodata or missing-filler mismatch.
+
+## 7. Near-miss matching pass outside the first level (lane DMATCH, 2026-10-02)
+
+Scope: the 22 overlay NEARMISS functions of AREA06, 07, 13, 14, 15, 16, 17, 19 and 21, and the
+13 later-level rows of section 3 that were still not byte-matched C (the 12 asm bodies with
+companions and the NEARMISS file func_001F6FB0). First-level census functions were not touched.
+Each function got a bounded attempt: a compiler sweep (mwcc 991202 / 2.3.3 / 2.4; the 3.0 and
+3.0.1 builds are not installed), the levers of `docs/fanout/MATCHING_GUIDE.md`,
+`docs/FIRST_LEVEL_DECOMP.md` sections 4 and 9 and the AREA overlay lever lists (about 5-20
+source variants per function), and for register / scheduling residuals the decomp-permuter
+(mwcc 2.3.3, the tuned weights of `tools/permuter/run_func233.sh`, 500 s at 3 jobs; overlay
+candidates are scored on relocation-resolved text against the extracted overlay bytes).
+Scratch (git-ignored): `build/dmatch/` (variant harness `var.py`, boot harness `boot/`,
+permuter dirs `perm/`, gate `gate.sh` and its logs).
+
+### Result
+
+**Byte-matched and promoted: 9** (5 overlay, 4 boot).
+
+| function | before | lever |
+|---|---:|---|
+| func_overlay_AREA13_00827F50 (runtime 0x827F90) | 98.46 | The spark counter is set (`i = 4;`) at the top of the block, before the two vector setups, and the loop is `i++; while (i != 0) { ...; i--; }`. mwcc 2.3.3 then keeps the original's run-time increment, zero test and count-down, with the counter in s0 and self in s1. |
+| func_overlay_AREA19_00824BA0 (0x824BE0) | 98.66 | In the second func_001CFA60 call of each case the phase +0x1F0 is read into a local before the random fraction is built: f12 is loaded first and a0 / a1 last, as in the original. |
+| func_overlay_AREA19_00826BD0 (0x826C10) | 99.94 | `(x = 15.0f) + *p` puts the constant in f1 and the loaded value in f0; the last rest-height read (+0x2E8, after the +0x4C method) is a `volatile` read, which keeps it ahead of the +0xB4 load (idiom-22). |
+| func_overlay_AREA19_00829A30 (0x829A70) | 99.53 | Declaration order: the child pointer before the +0x2E8 slot pointer (child in s0, slot pointer in s1). |
+| func_overlay_AREA21_0082A190 (0x82A1D0) | 97.50 | The target +0x1F4 is read through a `volatile` load into a local before the func_0011DF78 call, so +0xC4 is reloaded after its store as in the original (the "reload versus forward" residual); the new target is stored inside the compare, `(*target = ...) > +0xC4`, which keeps the stored value in its register. |
+| func_001BE5F0 | 92.35 | The second test as an empty then-branch, `if (h <= r) { } else { return 0; }`, then `return 1;`: the original's branch to a return-1 block and its dead join-head copy. |
+| func_0021BE40 | 90.83 | One combined `||` condition with `return 1;` and a final `return 0;` (the func_0021BD60 lever of section 4). |
+| func_001D0D60 | 94.32 | Declaration order `float w; float frac;` (fraction in f21, weight in f20). |
+| func_0019F680 | 97.10 | obj+0x1C read through a `volatile int` (loaded before the table base, as in the original) and the three floats read as fields of a 12-byte struct indexed by the halfword index. |
+
+The overlay files dropped their `// NEARMISS` line and compile (`compile_overlay_src.py`); the
+boot functions went through `tools/match/integrate_nearmiss.py` at threshold 100 (KEEP, 100.0
+after relocation injection) and replaced their asm bodies; their `src/readable/` companions
+were deleted. func_001BE5F0 and func_0019F680 link from their compiled C. func_0021BE40 and
+func_001D0D60 are objdiff 100% but still link from the `.s` through their
+`SIZE_DRIFT_FORCE_ASM` entries in `tools/decomp/fill_unmatched.py`, which this lane was not
+allowed to edit: two candidates for the next force-list cleanup (with func_001BBD20 of section
+6). matched_code is unchanged (2156/2211): the asm bodies were matched units already, and
+overlay C is not an objdiff unit.
+
+**The volatile-read lever.** Three of the nine (and the earlier 0x825C70 extern lever of
+AREA21) are load-order or reload residuals that a `volatile` read of one field fixes without
+changing what is read: mwcc 2.3.3 keeps a volatile load in place, so it neither forwards a
+stored value into it nor schedules it after a neighbouring load. It did not fix the AREA15
+twins (whole-struct volatile 94.94, selective reads 93.38-96.11) or AREA17 0x825560.
+
+### Walls (bounded attempt, not matched)
+
+| function | best | attempt and residual |
+|---|---:|---|
+| func_overlay_AREA06_00823B10 | 97.12 | 12-byte table copies: the original moves the last word through a GPR, mwcc through an FPR. Struct / union element types (char, short, unsigned, padded) added to the earlier list; all 97.12. |
+| func_overlay_AREA07_00823550 | 99.88 | The 2^31 divisor is built in a2 by the original, a0 by mwcc. Inline helper (98.51), rand result as int / float local, operand orders: unchanged. Permuter: no better candidate. |
+| func_overlay_AREA13_00829A60 | 94.23 | The state byte is loaded into a2 before the self copy. Unused block pointer, 2 and 3 parameters, a switch local, a `volatile` state read: unchanged (the AREA16 0x8237A0 wall). Permuter: 96.50 by objdiff through unrelated rewrites (a do-while wrapper, a shared 0x8001 local) that leave the dispatch residual; not kept. |
+| func_overlay_AREA14_00823DF0 | 95.96 | mwcc 2.3.3 / 2.4 re-emit the dead slot-filler copies (idiom-13b) that the original lacks; 991202 drops them but fills the call slots differently (87.88). A compiler-build difference; not re-tried beyond the sweep. |
+| func_overlay_AREA15_00824030 | 95.13 | Same class as AREA14 0x823E30 (sweep only). |
+| func_overlay_AREA15_008253F0 / 00825CD0 | 96.42 / 96.45 | Reloads of 0x70003A2C after its store: `volatile` struct and selective volatile reads of +0x0 / +0xC (93.38-96.11). |
+| func_overlay_AREA16_00823760 | 98.27 | Same state-byte residual as AREA13 0x829AA0 (volatile state read unchanged). Permuter: no better candidate. |
+| func_overlay_AREA16_00823CE0 | 99.34 | Saved-register order in the case-1 loop (5040 declaration orders earlier). Permuter: 99.47 by swapping the two pointer increments at the loop end; the saved-register residual remains; not applied. |
+| func_overlay_AREA16_00824650 | 99.04 | The D_00810809 == 1 compare to the default body: case 1 with its own copy of the body (91.81-98.06, mwcc does not merge it), plus a loop-padding nop. |
+| func_overlay_AREA16_008252D0 | 92.05 | List scheduling of the packet loop (sweep only). |
+| func_overlay_AREA17_00825520 | 99.41 | The 0x70003A20 load before the 0x70003A24 store: volatile reads, locals, compound forms (98.66-99.50, all change size). Permuter best scored 99.17 by objdiff (worse). |
+| func_overlay_AREA19_00823740 | 99.39 | Branch-target padding nop in a different place (sweep only). |
+| func_overlay_AREA19_00823CD0 | 93.11 | List scheduling of the flame / smoke loops (sweep only). |
+| func_overlay_AREA19_008273F0 | 94.91 | The (self + 0x1F0) + 0xF4 store pointer: block-pointer locals of four types and placements (83.83-90.68). Permuter: candidates at 94.91 (no gain). |
+| func_overlay_AREA21_00825AC0 | 97.59 | 0.1 is materialised before 1.0 in the original: argument locals, assignment expressions, volatile reads (97.45-98.43, same 8 differing words). Permuter: no better candidate. |
+| func_overlay_AREA21_00827380 | 96.50 | The block pointer built last: removing the `blk` local cuts the differing words from 22 to 9 (objdiff 95.86, not kept); staged floats (96.24). Its jump table would also need pinning. |
+| func_0011C128, func_0011E0A8 | 87.62, 78.21 | ee-gcc libm leaves: the SDK-leaf wall of `docs/FIRST_LEVEL_DECOMP.md` section 9 (sweep only). |
+| func_00123020 | 0 | Hand-written MMI strcmp: no C form. |
+| func_00133DB0 | 88.00 | The +0x54 test branches over a `b` to the exit: empty then, else-return, one-case switch, goto, early-return chain, volatile reads (88.00-91.33). |
+| func_001D6DD0 | 40.61 | Packed-word spellings (34.97-40.61); mwcc 991202 57.47, 2.4 51.81 on the same C. |
+| func_001D7000 | 98.39 | Register allocation of the packet writer: local / global spellings (38.32-98.39). Permuter: no better candidate. |
+| func_001DEE80, func_001DEEC0 | 78.54, 66.38 | Intra-unit register analysis wall (section 5): needs a static-helper link step. |
+| func_001F6FB0 | 62.77 | VU0 macro code: no C form. |
+
+### Gate
+
+Under the decomp build lock (`build/dmatch/gate.sh`, lock 07:36:59-07:55:44 UTC): the five
+overlay files installed and the boot integrator run (4 KEEP); `compile_overlay_src.py` and
+`tools/overlay/build.py --area ... --no-extract --no-yaml --no-splat` for AREA13, AREA19 and
+AREA21 (each "1/1 overlays passed", full files byte-identical: AREA19 50048 bytes, AREA21
+42880 bytes); `config/overlays/AREA13.lds` and `AREA19.lds` regenerated; full
+`tools/decomp/build.py build` and `objdiff` rc 0; `.venv/bin/python tools/verify_all.py`: all
+six stages PASS (boot ELF byte-identical, 0x175b00 loadable bytes; 19/19 overlays;
+matched_code 98.66%, 2156/2211; glTF; selftest; gs-offset). The objdiff report rates the four
+boot functions 100.0. `audit_link_provenance.py`: no copied-text, relocation, pinned-rodata or
+missing-filler mismatch; func_001BE5F0 and func_0019F680 route `compiled_object_ordinary_c`
+with text and relocations equal to the prepared object. Overlay provenance
+(`build/dmatch/prov.py`): every linked AREA13 / AREA19 / AREA21 filler object (132) equals its
+compiled `.text` outside relocation fields, the five new ones included.
+`tools/check_no_disassembly.py` is clean on every touched file.
+
+Bounded mutation sweep (one constant or offset per promoted function: 15.0 -> 15.5, i = 4 -> 3,
+the volatile +0x1F4 -> +0x1F0, phase +0 -> +4, 0.25 -> 0.5, +0x20E -> +0x20C, .y -> .z, +4 -> +8,
+1.0 -> 2.0): no mutant stays byte-identical (99.88-100.00 with 1 differing word).

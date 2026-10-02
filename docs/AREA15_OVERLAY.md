@@ -170,6 +170,10 @@ Header roles are read from the code, not from placement labels.
   shifts it causes. In the twins, the two reloads of the value just stored
   are replaced by forwarding, a store moves into a delay slot, and a few
   FPR choices differ.
+- **Lane DMATCH (2026-10-02).** The `volatile`-read lever that matched
+  AREA21 0x82A1D0 does not fix the twins: a volatile Spad struct gives
+  94.94 (0xC longer) and selective volatile reads of +0x0 / +0xC give
+  93.38-96.11. All three stay NEARMISS (docs/LEVELS_DECOMP.md section 7).
 
 ## Verification
 

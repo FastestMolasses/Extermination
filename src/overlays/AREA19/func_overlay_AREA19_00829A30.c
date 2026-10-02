@@ -1,4 +1,3 @@
-// NEARMISS func_overlay_AREA19_00829A30 (99.53%, mwcc 2.3.3; linked from its splat .s)
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 // AREA19 overlay, runtime 0x00829A70 (splat/link name 00829A30; overlay code
@@ -14,9 +13,10 @@
 //  B91 / B92 = 0 and, when D_70003B8F == 2, func_001CA770(D_008102B0) and
 //  D_70003B8F = 1; without bit 0 script 0x82F690 (+5 1 clears +0xB when it
 //  ends). States 1/2: func_001B1B70 and the +0x4C method.
-// Divergence: the spawned child (func_001AFA90(0xC)) lives in s0 and the
-//  +0x2E8 slot pointer in s1 in the original; mwcc 2.3.3 swaps the two.
-//  Declaration orders and a separate child local were tried.
+// Byte-identical (tools/overlay/overlay_match.py check AREA19; lane DMATCH,
+//  was NEARMISS 99.53%): declaring the child pointer c before the +0x2E8
+//  slot pointer w puts the child in s0 and the slot pointer in s1 as in the
+//  original.
 typedef void (*ActorFn)(unsigned char *);
 extern char *D_00275B40;
 extern unsigned char D_00810838[];
@@ -38,9 +38,9 @@ extern void func_001AFC10(unsigned char *self);
 
 void func_overlay_AREA19_00829A30(unsigned char *self) {
     unsigned char *talk = self + 0x1F0;
+    unsigned char *c;
     int *w;
     unsigned char *o;
-    unsigned char *c;
     int b;
     switch (self[4]) {
     case 0:

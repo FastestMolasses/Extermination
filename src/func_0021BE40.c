@@ -1,43 +1,17 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_0021BB00(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Byte-matched (lane DMATCH 2026-10-02, was companion C at 90.83%): one combined condition
+// with a shared `return 1;` and a final `return 0;` (the func_0021BD60 lever).
+// Returns 0 when every test passes, else 1: the scratchpad byte 0x70003B8D is 0,
+// self+0x220 is not <= 0.0, self+0 == 1, self+4 == 1, func_0021BB00(self) returns 0 and
+// the halfword self+0x20E is 0.
+extern unsigned char D_70003B8D;
+extern int func_0021BB00(char *p);
 
-asm void func_0021BE40(void) {
-    addiu      $sp, $sp, -0x20
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x3c017000
-    lbu        $v0, (0x70003B8D & 0xFFFF)($at)
-    .word 0x14400016
-    .word 0x70808628
-    lwc1       $f1, 0x220($s0)
-    mtc1       $zero, $f0
-    nop
-    c.le.s     $f1, $f0
-    nop
-    .word 0x45010010
-    addiu     $v0, $zero, 0x1
-    lbu        $v0, 0x0($s0)
-    addiu      $v1, $zero, 0x1
-    .word 0x1443000b
-    nop
-    lbu        $v0, 0x4($s0)
-    .word 0x14430008
-    nop
-    jal        func_0021BB00
-    nop
-    .word 0x14400004
-    nop
-    lh         $v0, 0x20E($s0)
-    .word 0x10400005
-    .word 0x70001628
-    addiu      $v0, $zero, 0x1
-    .word 0x10000003
-    .word 0x7bbf0010
-    .word 0x70001628
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    jr         $ra
-    addiu     $sp, $sp, 0x20
+int func_0021BE40(char *p) {
+    if (D_70003B8D != 0 || *(float *)(p + 0x220) <= 0.0f || *(unsigned char *)(p + 0) != 1 ||
+        *(unsigned char *)(p + 4) != 1 || func_0021BB00(p) != 0 || *(short *)(p + 0x20E) != 0) {
+        return 1;
+    }
+    return 0;
 }
-
-// Readable C (NEARMISS companion, objdiff 90.83%): src/readable/func_0021BE40.c

@@ -130,6 +130,11 @@ placement of a no-op and of an upper-half constant load, the 0x70003A20 load, th
 not overlap, and on both branch paths a call follows before any FPR in the
 block is read again, so the behaviour is the same.
 
+Lane DMATCH (2026-10-02) re-tried it with volatile reads, locals and
+compound forms (98.66-99.50, all change the size) and 500 s of the
+decomp-permuter (best candidate 99.17 by objdiff): still NEARMISS
+(docs/LEVELS_DECOMP.md section 7).
+
 ## Verification
 
 - `overlay_match.py check AREA17 src/overlays/AREA17/*.c`: 20 new files

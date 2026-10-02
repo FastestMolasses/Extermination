@@ -168,6 +168,10 @@ sibling can pin the spelling. The file is committed as readable C with a
 `// NEARMISS` first line. `compile_overlay_src.py` skips it, and the
 overlay links that function from its splat .s.
 
+Lane DMATCH (2026-10-02) re-tried it with struct / union element types
+(char, short, unsigned, padded): all 97.12; still NEARMISS
+(docs/LEVELS_DECOMP.md section 7).
+
 ## Verification
 
 - `overlay_match.py check AREA06 src/overlays/AREA06/*.c`: 9 files

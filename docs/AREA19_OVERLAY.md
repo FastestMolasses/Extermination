@@ -209,19 +209,27 @@ The lane's AREA13 notes apply (docs/AREA13_OVERLAY.md). Specific to AREA19:
   a different base form, and the original pads the end of the flame loop
   with one nop. Writing the +0x204 test as `== 0` first raised it from
   92.35.
-- **0x824BE0 (98.66%, same size).** In two func_001CFA60 calls the original
-  loads the phase into f12 before the random-fraction conversion and sets
-  a0 / a1 last; mwcc 2.3.3 does the reverse.
-- **0x826C10 (99.94%, same size).** Two FPR choices: state 0's `15.0 + *p`
-  and the last `+0xB4 <= +0x2E8` compare load their operands in the
-  opposite order.
+- **0x824BE0, resolved by lane DMATCH (2026-10-02; was 98.66%).** In the
+  second func_001CFA60 call of each case the phase +0x1F0 is read into a
+  local before the random fraction is built; it is then loaded into f12
+  first and a0 / a1 are set last, as in the original. Byte-identical and
+  compiled.
+- **0x826C10, resolved by lane DMATCH (2026-10-02; was 99.94%).** State 0's
+  raise is written `(x = 15.0f) + *p` (constant in f1, loaded value in f0,
+  as in the original), and the last rest-height read (+0x2E8, after the
+  +0x4C method) is a `volatile` read, which keeps it ahead of the +0xB4
+  load (idiom-22). Byte-identical and compiled.
 - **0x827430 (94.91%, C 0x8 shorter).** The original computes the store
   address (self + 0x1F0) + 0xF4 as a pointer before the compare (its first
   add fills the case-1 dispatch slot) and stores through it; mwcc 2.3.3
   folds the store to self + 0x2E4. Pointer locals keep both adds but move
   them after the compare and lose the branch-likely (90.00 .. 90.69).
-- **0x829A70 (99.53%, same size).** The spawned child and the +0x2E8 slot
-  pointer are in s0 / s1 in the original and swapped in mwcc 2.3.3.
+- **0x829A70, resolved by lane DMATCH (2026-10-02; was 99.53%).** Declaring
+  the child pointer before the +0x2E8 slot pointer puts the child in s0 and
+  the slot pointer in s1, as in the original. Byte-identical and compiled.
+- The status table above still lists these three as NEARMISS; the entries
+  here supersede it (docs/LEVELS_DECOMP.md section 7). Three NEARMISS
+  remain: 0x823780, 0x823D10, 0x827430.
 - **Equivalence.** Each was diffed against the original instruction by
   instruction (`overlay_match.py check AREA19 .. --show`): the differences
   are the register, scheduling and nop placements listed; calls, stores

@@ -192,12 +192,14 @@ placement labels.
 
 ### NEARMISS functions
 
-- **0x827F90 (98.46%, C 0x10 shorter).** The five-spark loop of phase 1:
-  the original counts it down from a trip count (4 + 1, tested for zero
-  before the first pass), and keeps self in s1 where mwcc 2.3.3 uses s0.
-  `for (i = 4; i >= 0; i--)` runs the same five passes. Count-up,
-  count-down, `!= -1`, `> -1`, unsigned and trip-count spellings were
-  tried (best 98.62, not kept because it only moves the size).
+- **0x827F90, resolved by lane DMATCH (2026-10-02; was 98.46%).** The
+  five-spark loop of phase 1 is now written `i = 4;` at the top of the
+  block (before the two vector setups) and `i++; while (i != 0) { ...;
+  i--; }` after them. mwcc 2.3.3 then keeps the run-time increment and
+  the count-down test of the original, with the counter in s0 and self in
+  s1; the function is byte-identical and compiled (it links from its C).
+  The status table above still lists it as NEARMISS; this entry
+  supersedes it. Details: docs/LEVELS_DECOMP.md section 7.
 - **0x829AA0 (94.23%, C 0x4 longer).** The state byte is loaded into a2
   before the self copy in the original, which then fills the case-3 slot
   with the copy and uses branch-likely on case 2; mwcc 2.3.3 copies self

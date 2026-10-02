@@ -196,10 +196,14 @@ The AREA13 / AREA19 notes apply. New or confirmed here:
   materialises 150.0 first (also in the jump-table default slot); mwcc 2.3.3
   computes the pointer first. Pointer locals, casts and int-staged floats
   were tried. Its sibling 0x827640 (same shape, no call) is byte-identical.
-- **0x82A1D0 (97.50%, same size).** After `+0xC4 += +0x1F0` and after the
-  target store the original reloads +0xC4; mwcc 2.3.3 forwards the stored
-  value (the AREA15 0x825430 wall), which also changes FPR choices.
-  Alternate address spellings and volatile were tried.
+- **0x82A1D0, resolved by lane DMATCH (2026-10-02; was 97.50%).** The target
+  +0x1F4 is read through a `volatile` load into a local before the
+  func_0011DF78 call, which makes mwcc 2.3.3 reload +0xC4 after its store as
+  the original does, and the new target is stored inside the compare
+  (`(*target = ...) > +0xC4`), which keeps the stored value in its register
+  as the original does. Byte-identical and compiled. The status table above
+  still lists it as NEARMISS; this entry supersedes it (docs/LEVELS_DECOMP.md
+  section 7). Two NEARMISS remain: 0x825B00 and 0x8273C0.
 - **Equivalence.** Each was diffed against the original instruction by
   instruction (`overlay_match.py check AREA21 .. --show`): the differences
   are the constant / pointer scheduling and the reload-versus-forward
