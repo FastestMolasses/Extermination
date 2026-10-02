@@ -1,4 +1,3 @@
-// NEARMISS func_overlay_AREA21_00825C30 (99.23%, mwcc 2.3.3; linked from its splat .s)
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 // AREA21 overlay, runtime 0x00825C70 (splat/link name 00825C30; overlay code
@@ -10,13 +9,15 @@
 //  effect 0x80000003 (kind 1: func_001B41F0(..., 0, 10); kind 2: +0x36 = 5
 //  and a push); below y 10, effect 0x80000026; else it moves by the
 //  velocity. It ends (+0 = 2, state 3) on a hit or the floor.
-// Divergence: in the second r == 1 test the original leaves the branch
-// slot empty; mwcc 2.3.3 speculates the 0x700038B0 address half into it,
-// which shifts the later branch offsets by one word. Literal-address and
-// volatile spellings of the store were tried.
+// Byte-identical (tools/overlay/overlay_match.py check AREA21; lane OVLC, was
+//  NEARMISS 99.23%): the else branch reads the hit record pointer through the
+//  extern D_700031D0, which leaves the slot of the second r == 1 test empty as
+//  in the original (a literal 0x700031D0 address let mwcc 2.3.3 speculate its
+//  address half into the slot).
 #define F(o) (*(float *)(self + (o)))
 extern float D_700038A0[4];
 extern float D_700038B0[4];
+extern unsigned char *D_700031D0;
 extern float D_700031B0[4];
 extern float D_00810374[];
 extern char D_overlay_AREA21_0082B170[];
@@ -85,7 +86,7 @@ void func_overlay_AREA21_00825C30(unsigned char *self) {
                 D_700038B0[2] = 0.0f;
                 D_700038B0[3] = 1.0f;
             } else {
-                o = *(unsigned char **)0x700031D0;
+                o = D_700031D0;
                 D_700038B0[0] = *(float *)(o + 0x24);
                 D_700038B0[1] = *(float *)(o + 0x28);
                 D_700038B0[2] = *(float *)(o + 0x2C);

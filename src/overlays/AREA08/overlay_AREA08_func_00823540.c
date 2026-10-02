@@ -1,27 +1,15 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-// CFLAGS: -O4,p -sdatathreshold 4
-
-asm void overlay_AREA08_func_00823540(void) {
-    lw $v1, 0x110($a0)
-    lui $v0, (0x3E4CCCCD >> 16)
-    ori $v0, $v0, (0x3E4CCCCD & 0xFFFF)
-    mtc1 $v0, $f1
-    lui $v0, (0xC1100000 >> 16)
-    lwc1 $f2, 0x7C($v1)
-    mtc1 $v0, $f0
-    nop
-    sub.s $f1, $f2, $f1
-    swc1 $f1, 0x7C($v1)
-    lw $v0, 0x110($a0)
-    lwc1 $f1, 0x7C($v0)
-    c.lt.s $f1, $f0
-    nop
-    .word 0x45000004
-    paddub $v0, $zero, $zero
-    .word 0x10000002
-    addiu $v0, $zero, 0x1
-    paddub $v0, $zero, $zero
-    jr $ra
-    nop
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA08 overlay, runtime 0x00823580 (splat/link name 00823540; overlay code
+//  is linked 0x40 below where it runs), 0x54 bytes.
+// Byte-identical: the compiled .text equals the original 0x54 bytes at link
+//  0x00823540 (a splat piece inside the entry-pad group; build/ovlc/piece.py).
+// Role: helper with no static reference (the twin of 0x8235E0): the +0x110
+//  object's +0x7C falls by 0.2; returns 1 below -9.0.
+int overlay_AREA08_func_00823540(unsigned char *self) {
+    *(float *)(*(unsigned char **)(self + 0x110) + 0x7C) -= 0.2f;
+    if (*(float *)(*(unsigned char **)(self + 0x110) + 0x7C) < -9.0f) {
+        return 1;
+    }
+    return 0;
 }

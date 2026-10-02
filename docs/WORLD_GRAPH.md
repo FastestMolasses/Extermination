@@ -10,9 +10,10 @@ then it derives the story's progression order. It is built from the boot ELF,
 the overlays and the level registries only (no emulator); section 8 lists
 what the eighth-level captures (port `docs/EIGHTH_LEVEL_ROUTE.md`) later
 measured, section 8b the ninth-level captures (port
-`docs/NINTH_LEVEL_ROUTE.md`) and section 8c the tenth-level captures (port
-`docs/TENTH_LEVEL_ROUTE.md`); section 7's table marks each edge played or
-not. Nothing here quotes disc text; the tables are addresses and
+`docs/NINTH_LEVEL_ROUTE.md`), section 8c the tenth-level captures (port
+`docs/TENTH_LEVEL_ROUTE.md`) and section 8d the eleventh-level captures
+(port `docs/ELEVENTH_LEVEL_ROUTE.md`); section 7's table marks each edge
+played or not. Nothing here quotes disc text; the tables are addresses and
 numbers.
 
 **Evidence marks.** Each rule names its source: **BM** (byte-matched C),
@@ -667,7 +668,7 @@ means no lock or story test was found on the site itself.
 | AREA04 | AREA03 e0 sub 1 | [38] model 0x15 (sub 0) / [44] model 0x03 (sub 1) | sub 0: D_00810845 bit 2, set only by AREA03's seal [23] 00158430 (from the AREA03 side); sub 1: open | not played (inferred) |
 | AREA04 | AREA20 e0 | [42] / [48] model 0x15 | D_00810845 bit 4: AREA06 sub 1's 0x825E20 (flag 0x31) | not played (inferred) |
 | AREA13 | AREA04 e7 | lift [10] model 0x0B | its buttons [12] / [13] (id 0xFF: 001BC960 tests no lock bit; the inner one plays script 0x24E1A0 at the AREA13 entry 0 arrival; BM, also ins). Measured (a13b_04 / a13b_05): the outer [12] facing -x at (652.7, 1238.6) took Use with the lift's +0x0B = 0, then +0x0B 0 -> 2 -> 3; the inner [13] facing +x (the player at (639.7, 160, 1276.4) in the frame the Use was taken), the request 04 FF 07 01, AREA04 entry 7 | played (a13b_05) |
-| AREA13 | AREA19 e9 / e10 sub 0 | 00193EB0 (the player's event code 6..9 / 0x2C / 0x2D at y <= 159 with spawn entry 4 / 6, resp. 5 / 7) | door [17] (0x823580, ins) from the east (entry 4) and the hatch [62] (0x826850, ins): item 0x27 (pickup g[5] in the same room) makes the hatch usable (class 0x84), its Use opens it (counter 0x61 bit 0), Use facing +z starts its ladder, and the descent reaches y 143.1 (measured, a13_05). [15] (001BD9F0 model 3) and [17] are locked only while flag 0x1C == 1 (NM / ins); flag 0x1C stayed 0 on this route. The holes [5] / [6] (0x823BC0, ins) are examine points that end once item 0x27 is held or flag 0x1B is 0xFF | e9 played (a13_05, hole [5]); e10 not played |
+| AREA13 | AREA19 e9 / e10 sub 0 | 00193EB0 (the player's event code 6..9 / 0x2C / 0x2D at y <= 159 with spawn entry 4 / 6, resp. 5 / 7) | door [17] (0x823580, ins) from the east (entry 4) and the hatch [62] (0x826850, ins): item 0x27 (pickup g[5] in the same room) makes the hatch usable (class 0x84), its Use opens it (counter 0x61 bit 0), Use facing +z starts its ladder, and the descent reaches y 143.1 (measured, a13_05). [15] (001BD9F0 model 3) and [17] are locked only while flag 0x1C == 1 (NM / ins); flag 0x1C stayed 0 on this route. The holes [5] / [6] (0x823BC0, ins) are examine points that end once item 0x27 is held or flag 0x1B is 0xFF. Door [20]'s north side (entry 10), the only way to hole [6] / hatch [63], was reached neither on foot from the field (section 8c) nor after [44]'s event, the boom and [7] (section 8d) | e9 played (a13_05, hole [5]); e10 not played |
 | AREA19 | AREA13 e6 / e7, AREA19 sub 1 e6 / 7 / 8 | 00196970 (climbing above a height in five circles) | the circles are the ladders at AREA19 entries 9 (-> AREA13 e6), 10 (-> e7), 11, 12 and 13 (-> sub 1 e8 / e7 / e6) (BM). Measured (a13b_00): Use facing +z at entry 9's foot, the stick up, the request 0D 00 06 01 at y >= 284.5 | e6 played (a13b_00); the rest not played |
 | AREA19 | AREA03 e1 | [25] model 0x16 | D_00810854 bit 1: the panel [24] 00158EC0 model 0x22 (item 0x1B). The panel stands at the north end of the y-265 walkway behind entry 0, which the entry-9 rooms do not reach (section 8c) | not played (inferred) |
 | AREA03 | AREA19 e0 | sub 0 [15] | open | not played (inferred) |
@@ -750,6 +751,17 @@ From there:
    can set D_008106B7 in AREA19 were not enumerated. On that inference,
    step 5 hangs on reaching AREA13's hatch [63] (door [20]'s side of
    AREA13), which the tenth level did not find a way to on foot.
+   **Played further in the eleventh level (section 8d):** AREA13's [44]
+   (0x823E90, C) is a machine that takes a battery (00184D20, BM: class 4
+   model 0x25 accepts items 0x1B..0x1D); its event (flag 0x1C 1 -> 0xFF,
+   the step controller [45] 0x827150, C) opens the roof's north part (the
+   [49]..[54] owners end) and, through [47]'s cell-directory toggles
+   (0019C6F0, NM), the fallen boom from [44]'s platform south-west over the
+   pipe fence; the boom passes [7]'s area (0x824A80, C: counter / flag 0x42,
+   the group 0x82A230) and ends in the region south of the fence. Door
+   [20]'s side was still not reached (inferred lead: a strip at y 186..211
+   east of the grid wall at x 831, above door [20]'s region; port
+   ELEVENTH_LEVEL_ROUTE.md section 6).
 6. **AREA15 twice.** Sub 0's [0] sets flag 0x22; sub 1's [4] / [6]
    (flag 0x22 set, 0x23 clear) run counter 0x23 up to 0x823C80, which
    gives C64 0x06 and CC3 0x0E, rewrites the subs of AREA00 (2), AREA01
@@ -890,12 +902,89 @@ The port's `docs/TENTH_LEVEL_ROUTE.md` played from the ninth level's end
   (1,240 bytes) whose addresses AREA19 code spent at a13b_00 f1..f2 could
   not be seen in a13b_00's AREA13 frames.
 
+## 8d. Measured (eleventh level)
+
+The port's `docs/ELEVENTH_LEVEL_ROUTE.md` played group `a13c` of
+`tools/route_capture.py` (7 beats) from the tenth level's a13b_01 (outside
+door [17], entry 9, infection 80). The a13b trip down to AREA04 entry 7
+(a13b_02..05) is a detour on this route: played on from a13b_05
+(exploration) a bite at the AREA04 lift raised the infection to 100, and
+with it at 100 the health fell 44 -> 9 in about 6,200 frames. Measured:
+
+- **The recharger [60]** (00159210 model 0x2C; 00157860, BM) took Use
+  facing +x with the charge D_00810CB2 at 0 (capacity 12): script 0x247420,
+  the battery page's request with D_008106B1 bit 6, Yes: 0 -> 12 at 2 per
+  20 frames (a13c_00).
+- **[44]** (model 0x25, at (798.4, 215, 1149.5), reached from the roof's
+  south-east corner over the walkway, area 0x82E140) took Use facing -z at
+  (805.3, 214.4, 1153.2): script 0x82B090, then the request 01 84
+  (D_008106B0 = 1, D_008106B1 = +0x34 + 0x80 with +0x34 = 4); the battery
+  page's confirmation, Yes: the charge 12 -> 4 at 2 per 30 frames, the
+  owner's +0xB = 5; script 0x82B2D0 and flag 0x1C (D_00810774) = 1;
+  D_008107F4 0x01 -> 0x12 -> 0x52 ([44] step 2, [45] ORs 0x10 and 0x40)
+  (a13c_02).
+- **The blast** (a13c_03): with the player back on the walkway (inside
+  0x82E140, above y 210) at [44]'s 490-frame check, script 0x82B3D0
+  (callback 0x8246D0) runs and its scene leaves the player in the field at
+  (750, 161.5, 1147.8); D_008107F4 bit 5 (0x20) at [45]'s count 0x1F3
+  (a13c_03 f471, 499 counters after 0x52) and [49] ends over f471..f473
+  (its state byte 0x64 -> 0x01 -> 0x03, then the header cleared);
+  D_008107F4 0x73 / 0x74 ([44] steps 3 / 4);
+  D_00810833 = 0xFF, script 0x82C110, flag 0x1C = 0xFF with the player put
+  at (696, 159.7, 1102); [44] ends. Health 44 -> 29 by two hits in the
+  field (source not read). Exploration: a player left at [44]'s Use point
+  died there (health 44 -> 0 in one frame); when, relative to bit 5, is
+  unverified (the scratch evidence was deleted; port doc section 6).
+- **The collision change** (kept snapshots a13c_02 before, a13c_03 ..
+  a13c_06 after; the exploration RAM agrees): [47]'s 0019C6F0 calls flip
+  bit 0x40000000 of the cell-list directory's entry words. The scratchpad
+  word 0x70003250 holds the directory's address (0x018321C0 here); entry
+  n's word is at that address + 4 + 4n, so EE RAM 0x018321C4 (entry 0, key
+  0x20: one wall on [44]'s platform) 0xC000015C -> 0x8000015C, enabled, and
+  0x018321C8 (entry 1, key 0x1F: two walls x 800..825, z 1085..1168, y
+  148..208, at the boom's north-east end) 0x8000025C -> 0xC000025C,
+  disabled. Walks north on the
+  roof that stopped before the event pass after it.
+- **The cure** (a13c_04): the roof's north part, a ramp down to its y-210
+  part and a switchback stair north of the lobby lead to the ground north
+  of the building; the pickup g[3] (00219550) gives item 0x22 (D_00810C86)
+  with its HEALING page (002160B0, BM, kind 4): used, health 29 -> 100 and
+  infection 80 -> 0.
+- **The boom and [7]** (a13c_05, a13c_06): back up to [44]'s platform; its
+  south end drops onto the boom's north-east end (809.5, 208.6, 1130.0);
+  down the boom's top (cell 44, y 205.7 -> 179.3) [7]'s area 0x82E220 is
+  entered at (703.5, 189.7, 1031.7): counter 0x42 (D_0081081A) = 0xFF,
+  script 0x82C510, flag 0x42 (D_0081079A) = 0xFF and 001B6660(0x82A230)
+  (the census sees 0x141D20 from that frame); off the boom's south-west
+  end the slope leads south (y 181 -> 153) into the region south of the
+  pipe fence, at (637.5, 154.5, 890.5).
+- **Not reached:** door [20]'s north side (entry 10). Walks east in the
+  south region stopped at (739.7, 162.4, 822.8) and (795.5, 158.1, 790.8);
+  a reachability scan (a lead) enters door [20]'s region (x 990..1087, z
+  836..983) only by drops from a strip at y 186..211 (x 831..1106, z
+  836..1038) that it joins to neither the platform nor the south region
+  (x 552..820); the grid wall at x 831 (z 980..1095) has the surface
+  attribute 0x51 (collides only for query id 0, decomp FINDINGS.md). Past
+  its north end a walk from [44]'s platform reached (837.0, 202.8, 1108.4)
+  on the plateau east of it, then stopped against a diagonal pair of grid
+  walls (about (832, 1100) to (880, 1035)) and a post (exploration).
+- **Census** (`route_census.py eleventh-delta`): 43 functions (27,492
+  bytes) that no earlier level ran: 25 boot, 18 AREA13 (port
+  ELEVENTH_LEVEL_ROUTE.md section 5), among them 0x828500, 0x828C60,
+  0x828E10 and 0x828F40, which have no static reference in the overlay.
+  None of the 18 has a port translation; the port's AREA13 module
+  (`em_level9_port_area13.c` / `em_level9_port_turret.c`, LEVEL9_PORT.md)
+  already calls 0x824390, 0x824520, 0x824960 and 0x826610 as untranslated
+  hooks and reaches [45]'s step functions (table 0x82D190) through its
+  callback.
+
 ## 9. Open
 
-1. AREA13's hole [6] / hatch [63] (entry 5 / 7 -> AREA19 entry 10), door
-   [20], [44]'s event (flag 0x1C) and [7] (counter 0x42) are not played
-   (the lift [10]'s return is, a13b_05); how the story reaches door [20]'s
-   side of AREA13 is not found (section 8c); section 7 steps 5..7 are derived, not played
+1. AREA13's hole [6] / hatch [63] (entry 5 / 7 -> AREA19 entry 10) and door
+   [20] are not played ([44]'s event, flag 0x1C, and [7], counter 0x42,
+   are, section 8d; the lift [10]'s return is, a13b_05); how the story
+   reaches door [20]'s side of AREA13 is not found (sections 8c, 8d);
+   section 7 steps 5..7 are derived, not played
    (AREA19 is recorded in its entry-9 rooms only). The conditions of AREA14's
    [6] (the owner of script 0x828120), AREA17's counter 0x5D (written by
    boot 0016BC40, not read) and AREA21's ending were read only as far as

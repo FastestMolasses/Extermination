@@ -34,8 +34,9 @@ the data assembly.
 
 ## Status
 
-49 functions: 41 are compiled C that links byte-identical (38 new in this
-lane, plus the earlier 00823A60, 00825C20 and the init 00826140); 4 are
+49 functions: 42 are compiled C that links byte-identical (38 new in this
+lane, plus the earlier 00823A60, 00825C20 and the init 00826140, and
+0x825C70, a NEARMISS until lane OVLC found its lever, below); 3 are
 NEARMISS readable C, linked from their splat .s; 3 are not decompiled
 (splat assembly, below); the entry pad stays an asm body. The asm-body files
 00826060, 00826290, 00828310, 008283D0, 00829550, 00829ED0 and 00829F00 were
@@ -57,7 +58,7 @@ replaced by C.
 | func_overlay_AREA21_00824FA0 | 0x824FE0 | 0xB18 | not decompiled (asm) | - (no static reference) |
 | func_overlay_AREA21_00825AC0 | 0x825B00 | 0x160 | NEARMISS 97.59% | - (no static reference) |
 | func_overlay_AREA21_00825C20 | 0x825C60 | 0x8 | C, byte-identical (earlier) | code pointer in 0x825C70 |
-| func_overlay_AREA21_00825C30 | 0x825C70 | 0x42C | NEARMISS 99.23% | - (no static reference) |
+| func_overlay_AREA21_00825C30 | 0x825C70 | 0x42C | C, byte-identical (lane OVLC; was NEARMISS 99.23%) | - (no static reference) |
 | func_overlay_AREA21_00826060 | 0x8260A0 | 0xD4 | C, byte-identical (was asm body) (absorbs 008260A0) | call from 0x8297C0 |
 | func_overlay_AREA21_00826140 | 0x826180 | 0x20 | C, byte-identical (earlier; init) | boot 0x1E7780 |
 | func_overlay_AREA21_00826160 | 0x8261A0 | 0x124 | C, byte-identical | sub0 place [42] |
@@ -183,9 +184,13 @@ The AREA13 / AREA19 notes apply. New or confirmed here:
   materialises 0.1 (f15) first and 1.0 (f14) after the +0x1F0 load; mwcc
   2.3.3 loads 1.0 first. Locals, int staging and argument spellings were
   tried.
-- **0x825C70 (99.23%, same size).** In the second r == 1 test the original
-  leaves the branch slot empty; mwcc 2.3.3 speculates the 0x700038B0
-  address half into it, which shifts later branch offsets by one word.
+- **0x825C70, resolved by lane OVLC (2026-10-01).** It was 99.23%: in the
+  second r == 1 test the original leaves the branch slot empty and mwcc
+  2.3.3 speculated an address half into it. The else branch read the hit
+  record pointer as `*(unsigned char **)0x700031D0`; reading it through
+  `extern unsigned char *D_700031D0;` keeps the slot empty (the extern /
+  literal lever of the AREA14 notes), and the function is now
+  byte-identical and compiled.
 - **0x8273C0 (96.50%, same size).** The original builds the func_001FC3C0
   block pointer (self + 0x1F0) + 8 last, in the call's slot, and
   materialises 150.0 first (also in the jump-table default slot); mwcc 2.3.3
@@ -197,15 +202,21 @@ The AREA13 / AREA19 notes apply. New or confirmed here:
   Alternate address spellings and volatile were tried.
 - **Equivalence.** Each was diffed against the original instruction by
   instruction (`overlay_match.py check AREA21 .. --show`): the differences
-  are the constant / pointer scheduling, the one speculated address half and
-  the reload-versus-forward listed; calls, stores and control flow are
+  are the constant / pointer scheduling and the reload-versus-forward
+  listed; calls, stores and control flow are
   equal.
 
 ## Verification
 
 - `overlay_match.py check AREA21 src/overlays/AREA21/*.c`: 38 files 100.00
   BYTE-IDENTICAL, 0x826BB0 / 0x826E60 / 0x827640 at 99.98-99.99
-  (`rodata-needs-pin` only), the 4 NEARMISS as above.
+  (`rodata-needs-pin` only), the 4 NEARMISS as above. Lane OVLC
+  (2026-10-01): 0x825C70 is now byte-identical (40 files 100.00 including
+  it), 3 NEARMISS remain; its locked rebuild (`compile_overlay_src.py
+  AREA21`, 43 objects, 3 NEARMISS skipped; `tools/overlay/build.py --area
+  AREA21`: PASS, full file byte-identical) and the gate are recorded in
+  docs/AREA17_OVERLAY.md, and build/ovlc/prov.log shows every linked
+  AREA21 object equal to its compiled `.text` outside relocation fields.
 - `python3 tools/check_no_disassembly.py src/overlays/AREA21/*.c`: clean.
 - Bounded mutation sweep (build/a03c/mut): 0x827CD0 `0x33E` -> `0x33F`
   (99.99). With AREA03's 0x826270 104.5 -> 105.5 (99.96) and AREA14's
@@ -249,7 +260,8 @@ left in assembly (0x823B40, 0x8243B0 [52], 0x824FE0) have no C yet.
   per-step groups chosen by the step number, and flags from D_008101E4 /
   D_0081024E)
   and 0x824FE0 (0xB18) are not decompiled; they stay splat assembly.
-- Four NEARMISS functions (above). The entry pad is an asm body.
+- Three NEARMISS functions (above; 0x825C70 was resolved by lane OVLC).
+  The entry pad is an asm body.
 - The data section (0x3900 bytes) is linked from splat's data assembly.
 - No AREA21 capture exists; the D_0081080E sequence, the D_008102B0 keys of
   [61] / [62] and the ending branch are read from the code only.

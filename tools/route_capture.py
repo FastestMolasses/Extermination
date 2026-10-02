@@ -60,6 +60,7 @@ build/s87/c7cap/<item>/<beat>/ and is described in docs/CAPTURES_C7.md.
 None of them runs under `--beats all`.
     .venv/bin/python tools/route_capture.py run --beats a13     # AREA13 group (opt-in)
     .venv/bin/python tools/route_capture.py run --beats a19,a13b  # tenth level (opt-in)
+    .venv/bin/python tools/route_capture.py run --beats a13c       # eleventh level (opt-in)
 The AREA13 beats (a13_*, from the a04b_04_lift snapshot) write to
 build/s87/route_a13/<beat>/; they are described in the port's
 docs/NINTH_LEVEL_ROUTE.md.
@@ -4944,6 +4945,341 @@ def tenth_owners(name: str):
     return None
 
 
+
+# ---------------------------------------------------------------------------
+# Eleventh level (lane NEXTCAP, s91; port docs/ELEVENTH_LEVEL_ROUTE.md):
+# AREA13's battery machine [44] and what its event opens.  Opt-in group
+# `a13c`, from a13b_01_door17's end (outside door [17], entry 9, infection 80:
+# the a13b trip down to AREA04 entry 7 is a detour, see the doc), with the
+# order the code gives (decomp docs/WORLD_GRAPH.md section 8d).  Every beat
+# stays in this AREA13 load, so the pool nodes measured on a13b_01's snapshot
+# (tools/area_overview.py --area 13 --ram) hold throughout; a node that frees
+# itself ([44], [7]) is reused by later spawns, so its row is garbage after.
+OUT_A13C = ROOT / "build/s87/route_a13c"
+A13C_OWNERS = {
+    "pick_g3": 0x7A5F10,          # 00219550 g[3] at (703.6, 158.9, 1334.8): item 0x22
+    # The two 0x824BB0 keys are those of the kept a13c traces and census
+    # replays (a key only: whether these nodes hit the player is not known).
+    "sentry_g19": 0x7A8B20,       # overlay 0x824BB0 g[19] at (759.7, 205, 974.9)
+    "sentry_g21": 0x7A9100,       # overlay 0x824BB0 g[21] at (724.9, 205, 1280)
+    "r7_824A80": 0x7AB440,        # overlay 0x824A80 at (688, 163, 1041): area 0x82E220, counter / flag 0x42
+    "door17_r17": 0x7AD1A0,       # overlay 0x823580 model 0x03, room move id 3 (entries 9 / 4)
+    "door20_r20": 0x7ADA70,       # 001BC350 model 0x03, room move id 4 (entries 5 / 10)
+    "r44_823E90": 0x7B20F0,       # overlay 0x823E90 model 0x25 at (798.4, 215, 1149.5): the battery machine
+    "r45_827150": 0x7B23E0,       # overlay 0x827150 at (827, 156.9, 1130.4): the step controller
+    "r47_8293A0": 0x7B26D0,       # overlay 0x8293A0 at (706.2, 160, 1047.7): cell entries 0x1F / 0x20
+    "r49_8292A0": 0x7B29C0,       # overlay 0x8292A0 at (766.5, 235, 1267.9): ends with D_008107F4 bit 5
+    "r51_8292A0": 0x7B2FA0,       # overlay 0x8292A0 at (718, 215, 1246.9)
+    "recharger_r60": 0x7B4A10,    # 00159210 model 0x2C at (774.8, 160, 1237.9): the recharger
+    "hatch_r63": 0x7B52E0,        # overlay 0x826850 at (1081, 160, 845)
+}
+A13C_SPANS = [sp for sp in A13_SPANS if ":" not in sp[0]]
+for _name, _base in A13C_OWNERS.items():
+    A13C_SPANS += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                   (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                   (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10)]
+A13C_EVENT_KEYS = ("s770", "s7f0", "s798", "s818", "c61", "c86", "charge", "infected")
+
+
+def use_a13c_sampler(r: Route) -> None:
+    sampler = A01USampler(r.s, spans=A13C_SPANS)
+    r.sampler = sampler
+    r.now = lambda: decode_a13(sampler.raw(), owners=A13C_OWNERS)
+    r.rows[0] = dict(r.now(), f=0)
+
+
+def a13c_control(r: Route, limit: int = 3000) -> None:
+    """Control kept for 30 frames with no program running (3B8D == 0)."""
+    for i in range(limit):
+        row = r.step(1)
+        if (in_control(row) and row["spad"][2:4] == "00" and i > 30
+                and all(in_control(x) and x["spad"][2:4] == "00" for x in r.rows[-30:])):
+            return
+    raise TimeoutError("control not kept; last " + summary(r.rows[-1]))
+
+
+def a13c_walk(r: Route, points, what: str, limit: int = 150, tol: float = 1.5, slack: float = 4.0) -> None:
+    """a04_go point by point.  a04_go can return 'ok' short of a waypoint, and a
+    railing or a step can hold the walk a little short of it: every stop is
+    checked against `slack`.  Waypoints on the stair landing (z 1300..1310)
+    use the tighter tolerance 1.0 (a wider one lets the walk climb the upper
+    flight beside it)."""
+    for i, p in enumerate(points):
+        how = a04_go(r, [p], limit=limit, tol=1.0 if 1300 < p[1] < 1310 else tol)
+        px, _py, pz = r.rows[-1]["pos"]
+        if math.hypot(px - p[0], pz - p[1]) > slack:
+            raise RuntimeError(f"{what}: waypoint {i} {p} not reached ({how}): " + summary(r.rows[-1]))
+
+
+def a13c_take(r: Route, x: float, z: float, yaw: float, tries: int = 8) -> None:
+    """Walk to (x, z), face `yaw` and press Cross until a pickup's program
+    takes the player out of control (on the ground north of the building the
+    player is hit about every 110 frames by an attacker that was not
+    identified, so the press is retried at once, without a13_use's settling)."""
+    for _ in range(tries):
+        if r.rows[-1]["m1F0"] in A04_GRABS:
+            a04_shake(r)
+            continue
+        a04_go(r, [(x, z)], limit=120, tol=1.0)
+        a13_face(r, yaw, tol=0.15)
+        r.press("CROSS", 2)
+        for _ in range(30):
+            if not in_control(r.rows[-1]) and r.rows[-1]["m1F0"] not in A04_GRABS:
+                return
+            r.step(1)
+    raise TimeoutError("pickup not taken: " + summary(r.rows[-1]))
+
+
+def a13c_roof_ladder(r: Route, approach) -> None:
+    """The ladder at the building's south-east corner (a13b_s0): Cross facing
+    +z at (723.7, 1199), the stick up to the roof (y 215)."""
+    how = a04_go(r, approach, limit=300)
+    if how != "ok":
+        raise RuntimeError("the roof ladder not reached (" + how + "): " + summary(r.rows[-1]))
+    a13_settle(r, 5)
+    a13_face(r, 0.0)
+    a19_press_until(r, lambda row: row["m1F0"] in (0x15, 0x17))
+    r.set_pad(0, 0x7F, 0x00)
+    r.until(lambda row: row["pos"][1] > 214 and row["m1F0"] in (0, 1), 1500, 0, 0x7F, 0x00)
+    r.set_pad(0)
+    a13_settle(r, 10)
+
+
+A13C_ROOF_TO_MACHINE = [(745, 1222), (764, 1217), (772, 1218), (778, 1212), (784, 1203), (790, 1190),
+                        (797, 1175), (800, 1162)]
+
+
+def a13c_beat_recharger(r: Route) -> dict:
+    # Door [17] from outside facing -x (entry 4, the east room); the
+    # recharger [60] (00159210 model 0x2C at (774.8, 160, 1237.9), yaw -pi/2):
+    # Use facing +x from (769, 1238): 00157860's model-0x2C path (charge 0 is
+    # below the capacity 12) plays its script and posts the battery page's
+    # recharge request (D_008106B1 bit 6); the page's prompt, Yes: the charge
+    # D_00810CB2 rises 2 per 20 frames to 12 (a13c_00 f711..f811).
+    use_a13c_sampler(r)
+    next_long_frames(r)
+    a13_use(r, 785.5, 1263.0, -math.pi / 2, a04_program)
+    r.until(lambda row: row["area4"][:6] == "0d0004", 1500)
+    a13_control(r, 3000, 40)
+    a13_settle(r, 10)
+    a13c_walk(r, [(772, 1250), (769, 1240)], "the recharger")
+    a13_use(r, 769.0, 1238.0, math.pi / 2, lambda row: not in_control(row) or row["spad"][2:4] != "00")
+    next_prompt_yes(r)
+    r.until(lambda row: row["charge"] >= 12, 1200)
+    a13_control(r, 3000, 40)
+    a13_settle(r, 10)
+    return {"what": "door [17] in (entry 4); the recharger [60]: the battery charge 0 -> 12", "hp_end": a01_hp(r)}
+
+
+def a13c_beat_to_machine(r: Route) -> dict:
+    # Door [17] from inside facing +x (entry 9); the roof ladder; east on the
+    # roof to its south-east corner and down the walkway (the area 0x82E140,
+    # x 765..815, z 1156..1221, y 213..215) to [44]'s platform; the Use point
+    # (805.3, 1153.2) facing -z.
+    use_a13c_sampler(r)
+    next_long_frames(r)
+    a04_go(r, [(766, 1255), (762, 1262)], limit=200)
+    a13_use(r, 772.5, 1263.0, math.pi / 2, a04_program)
+    r.until(lambda row: row["area4"][:6] == "0d0009", 1500)
+    a13_control(r, 3000, 40)
+    a13_settle(r, 10)
+    a13c_roof_ladder(r, [(795, 1222), (770, 1190), (740, 1180), (728, 1195), (723.7, 1199)])
+    a13c_walk(r, A13C_ROOF_TO_MACHINE, "the walkway")
+    a04_go(r, [(802.4, 1157)], limit=100, tol=0.8)
+    a13_settle(r, 5)
+    a13_face(r, math.pi)
+    return {"what": "door [17] out, the roof ladder, the walkway to [44]", "hp_end": a01_hp(r)}
+
+
+def a13c_beat_battery(r: Route) -> dict:
+    # [44] (overlay 0x823E90 model 0x25, step 1 = 0x824180): Use facing -z
+    # (+0xB bit 2) without bit 0: script 0x82B090, then D_008106B1 = 0x84
+    # (+0x34 4 + 0x80) and D_008106B0 = 1 open the battery page's confirmation
+    # for this owner; Yes: the charge falls 2 per 30 frames by 2 * 4 (12 -> 4)
+    # and the page marks the owner +0xA = 1, +0xB = 5; step 1 then plays
+    # script 0x82B2D0, sets flag 0x1C (D_00810774) = 1 and counter 0x1C
+    # (D_008107F4) 1 -> 2; [45] (0x827150) sees bit 1 and ORs 0x10, then
+    # 0x40 (its steps start).
+    use_a13c_sampler(r)
+    next_long_frames(r)
+    a19_press_until(r, lambda row: row["r44_823E90"]["h"][10:12] != "00" or not in_control(row))
+    r.until(lambda row: row["ui"][2:4] == "03" and row["ui"][10:12] == "04", 1500)
+    r.idle(30)
+    r.press("LEFT", 2, after=20)
+    if r.rows[-1]["ui"][12:14] != "00":
+        raise RuntimeError("prompt cursor not on Yes: " + summary(r.rows[-1]))
+    r.press("CROSS", 2)
+    r.until(lambda row: row["charge"] <= 4, 900)
+    a13c_control(r, 1500)
+    row = r.rows[-1]
+    if row["s770"][8:10] != "01":
+        raise RuntimeError("flag 0x1C not 1: " + summary(row))
+    return {"what": "[44]: the battery prompt, Yes: charge 12 -> 4, flag 0x1C = 1", "hp_end": a01_hp(r)}
+
+
+def a13c_beat_blast(r: Route) -> dict:
+    # Back north onto the walkway (the area 0x82E140) and wait.  At [45]'s
+    # step-0 count 0x1DF an effect goes off at 0x82D1B0[0] (815.6, 242.8,
+    # 1145.4), next to [44]'s platform (exploration: a player left standing
+    # at the Use point died there); at [44]'s 490-frame count (0x824390) the
+    # player is above y 210 inside 0x82E140, so script 0x82B3D0 runs (its
+    # callback 0x8246D0 moves D_00810350 by -1 and the height on a sine arc)
+    # and the scene puts the player in the field; at 0x1F3 [45] ORs 0x20 into
+    # D_008107F4 (the roof's [49]..[54] end) and its later steps run; [44]
+    # steps 3 and 4 follow ([45]'s step 4 sets D_00810833 = 0xFF, script
+    # 0x82C110, flag 0x1C = 0xFF); control at (696, 160, 1102).  The player
+    # walks to (720, 1175) after the blast scene (the exploration that
+    # survived did so).
+    use_a13c_sampler(r)
+    next_long_frames(r)
+    a13c_walk(r, [(800, 1162), (797, 1175), (790, 1190), (785, 1200)], "back onto the walkway")
+    r.set_pad(0)
+    r.until(lambda row: row["spad"][2:4] != "00", 900)
+    r.until(lambda row: in_control(row) and row["spad"][2:4] == "00", 3000)
+    a04_go(r, [(735, 1165), (720, 1175)], limit=200)
+    r.set_pad(0)
+    for _ in range(6000):
+        row = r.step(1)
+        if row["m1F0"] in A04_GRABS:
+            a04_shake(r)
+        if row["s770"][8:10] == "ff":
+            break
+    a13c_control(r, 3000)
+    row = r.rows[-1]
+    if row["s770"][8:10] != "ff":
+        raise RuntimeError("flag 0x1C not 0xFF: " + summary(row))
+    return {"what": "the walkway blast (script 0x82B3D0), [45]'s steps, flag 0x1C = 0xFF", "hp_end": a01_hp(r)}
+
+
+A13C_ROOF_TO_STAIR = [(735, 1232), (738, 1250), (730, 1258), (715, 1254), (706, 1252), (700, 1258), (700, 1268),
+                      (693, 1270), (693, 1272), (699.5, 1284), (698, 1293)]
+A13C_STAIR_DOWN = [(693, 1297), (685, 1297), (675, 1297), (665, 1297), (655, 1297), (648, 1298), (648, 1306.5),
+                   (653, 1306.8), (660, 1306.8), (675, 1306.8), (690, 1306.5), (699, 1302), (698, 1297),
+                   (690, 1296.5), (680, 1297), (670, 1297), (660, 1297), (652, 1297), (647, 1298), (644.7, 1300),
+                   (660, 1322), (682, 1332), (692, 1335)]
+
+
+def a13c_beat_cure(r: Route) -> dict:
+    # The roof ladder again; the roof's north part is open now (the [49]..[54]
+    # objects ended with D_008107F4 bit 5); down a ramp west onto the y-210
+    # part, then the switchback stair north of the lobby along z 1297 (upper
+    # flight y 210 -> 184 westward, the landing x 646..698, z 1297..1307 at
+    # y 184, lower flight y 184 -> 158 westward) to the ground north of the
+    # building (y 157); the pickup g[3] (00219550, item 0x22) facing +x: its page is
+    # the HEALING page with the item selected; Cross, Left (Yes), Cross: the
+    # health D_008104D0 -> 100 and the infection +0x228 -> 0 (002160B0 kind
+    # 4); Triangle closes the status screen.
+    use_a13c_sampler(r)
+    next_long_frames(r)
+    a13c_roof_ladder(r, [(725, 1150), (745, 1165), (740, 1180), (728, 1195), (723.7, 1199)])
+    a13c_walk(r, A13C_ROOF_TO_STAIR, "the roof's north-west")
+    a13c_walk(r, A13C_STAIR_DOWN, "the stair")
+    a13c_take(r, 692.0, 1334.8, math.pi / 2)
+    r.until(lambda row: row["ui"][2:4] == "03" and row["ui"][8:12] == "0701", 900)
+    r.idle(60)
+    r.press("CROSS", 2)
+    r.until(lambda row: row["ui"][10:12] == "04", 120)
+    r.idle(10)
+    r.press("LEFT", 2, after=20)
+    if r.rows[-1]["ui"][12:14] != "00":
+        raise RuntimeError("prompt cursor not on Yes: " + summary(r.rows[-1]))
+    r.press("CROSS", 2)
+    r.until(lambda row: row["hp"] >= 99.0, 600)
+    for _ in range(6):
+        r.press("TRIANGLE", 2)
+        r.step(90)
+        if in_control(r.rows[-1]) and r.rows[-1]["spad"][2:4] == "00":
+            break
+    a13c_control(r, 1500)
+    row = r.rows[-1]
+    if row["inf"] > 0.5:
+        raise RuntimeError("infection not cured: " + summary(row))
+    return {"what": "the roof's north part, the stair, the ground north: item 0x22 used: health 100, infection 0",
+            "hp_end": a01_hp(r)}
+
+
+A13C_STAIR_UP = [(660, 1322), (644.7, 1300), (648, 1297), (652, 1297), (660, 1297), (670, 1297), (680, 1297),
+                 (690, 1296.5), (698, 1297), (699, 1302), (690, 1306.5), (675, 1306.8), (660, 1306.8),
+                 (653, 1306.8), (648, 1306.5), (648, 1298), (655, 1297), (665, 1297), (675, 1297), (685, 1297),
+                 (693, 1296.5), (698, 1293),
+                 (699.5, 1284), (693, 1272), (693, 1268), (700, 1268), (700, 1258), (706, 1252), (715, 1254),
+                 (730, 1258), (738, 1250), (745, 1222)]
+A13C_BOOM = [(814, 1115), (800, 1105), (785, 1093.5), (770, 1082), (755, 1070.6), (740, 1059.2),
+             (725, 1047.8), (710, 1036.4), (695, 1025)]
+
+
+def a13c_beat_boom(r: Route) -> dict:
+    # Back up the switchback stair to the roof; the walkway to [44]'s platform, its south end
+    # (809.5, 208.5, 1129.6), and down the fallen boom (the cell-44 top from
+    # (816.7, 1117.2) to (633, 977.3), y 205.7 -> 179.3; its north-east end
+    # was closed by cell entry 1's walls until [47] cleared them) to [7]'s
+    # area 0x82E220: script 0x82C510, D_0081081A (counter 0x42) = 0xFF, then
+    # flag 0x42 = 0xFF and the group 0x82A230 (two 0x141D20 actors).
+    use_a13c_sampler(r)
+    next_long_frames(r)
+    a13c_walk(r, A13C_STAIR_UP, "the stair up")
+    a13c_walk(r, A13C_ROOF_TO_MACHINE[1:] + [(806, 1150)], "the walkway")
+    a04_go(r, [(812, 1135)], limit=150)
+    a13c_walk(r, A13C_BOOM[:-1], "the boom", tol=1.2)
+    # the last waypoint lies past [7]'s area: its script takes the player
+    a04_go(r, A13C_BOOM[-1:], limit=150, tol=1.2, until=lambda row: row["s818"][4:6] == "ff")
+    r.until(lambda row: row["s818"][4:6] == "ff", 600)
+    a13c_control(r, 3000)
+    row = r.rows[-1]
+    if row["s798"][4:6] != "ff":
+        raise RuntimeError("flag 0x42 not 0xFF: " + summary(row))
+    return {"what": "back up the stair, the walkway, down the boom: [7]'s area, counter / flag 0x42 = 0xFF",
+            "hp_end": a01_hp(r)}
+
+
+A13C_TO_SOUTH = [(695, 1025), (680, 1013.5), (665, 1002), (650, 990.5), (645, 985), (660, 972), (658, 955),
+                 (655, 940), (650, 920), (640, 900)]
+
+
+def a13c_beat_south(r: Route) -> dict:
+    # On down the boom past [7]'s area to its south-west end (633, 977.3, y
+    # 179.3) and off its south side, down the slope south (y 181 -> 153) into
+    # the region south of the pipe fence (exploration: it holds g[0], g[1],
+    # g[7], [58] (an examine point: its script moved nothing) and [7]'s two
+    # 0x141D20 actors, which attacked; the way east to door [20] was not
+    # found).
+    use_a13c_sampler(r)
+    next_long_frames(r)
+    a13c_walk(r, A13C_TO_SOUTH, "the boom's south-west end and the slope")
+    a13_settle(r, 10)
+    row = r.rows[-1]
+    if row["pos"][2] > 910 or row["pos"][1] > 160:
+        raise RuntimeError("not in the south region: " + summary(row))
+    return {"what": "the boom's south-west end and the slope south into the region south of the pipe fence",
+            "hp_end": a01_hp(r)}
+
+
+A13C_BEATS: list[tuple] = [
+    ("a13c_00_recharger", "a13b_01_door17", a13c_beat_recharger),
+    ("a13c_01_to_machine", "a13c_00_recharger", a13c_beat_to_machine),
+    ("a13c_02_battery", "a13c_01_to_machine", a13c_beat_battery),
+    ("a13c_03_blast", "a13c_02_battery", a13c_beat_blast),
+    ("a13c_04_cure", "a13c_03_blast", a13c_beat_cure),
+    ("a13c_05_boom", "a13c_04_cure", a13c_beat_boom),
+    ("a13c_06_south", "a13c_05_boom", a13c_beat_south),
+]
+A13C_SIDE_BEATS: set[str] = set()
+A13C_CHANGE_BEATS: set[str] = set()
+
+
+def eleventh_selected(spec: str) -> list[tuple]:
+    """The eleventh-level group `a13c` (opt-in, story order)."""
+    wanted = spec.split(",")
+    if "a13c" in wanted:
+        return [b for b in A13C_BEATS if b[0] not in A13C_SIDE_BEATS]
+    return [b for b in A13C_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+
+
+def eleventh_owners(name: str):
+    if name.startswith("a13c_"):
+        return A13C_OWNERS
+    return None
+
 # ---------------------------------------------------------------------------
 # AIM capture group (opt-in, `--beats aim` or a beat's name): aiming, firing,
 # reloading, the gun light, melee and the security gun's cable in AREA11
@@ -7334,6 +7670,8 @@ def beat_dir(name: str) -> Path:
         return OUT_A19 / name
     if name.startswith("a13b_"):                # tenth level, AREA13 again
         return OUT_A13B / name
+    if name.startswith("a13c_"):                # eleventh level, AREA13's battery machine
+        return OUT_A13C / name
     if name.startswith("aim_"):                 # AIM capture group (docs/CAPTURES_C10.md)
         return OUT_AIM / name
     if name.startswith("exit_"):                # EXIT capture group (docs/CAPTURES_C10.md)
@@ -7512,6 +7850,8 @@ if __name__ == "__main__":
                 run_beat(name, source, fn)
             for name, source, fn in tenth_selected(a.beats):   # the tenth-level groups
                 run_beat(name, source, fn)
+            for name, source, fn in eleventh_selected(a.beats):  # the eleventh-level group
+                run_beat(name, source, fn)
             for name, source, fn in aim_selected(a.beats):     # the AIM capture group
                 run_beat(name, source, fn)
             for name, source, fn in exit_selected(a.beats):    # the EXIT capture group
@@ -7536,6 +7876,7 @@ if __name__ == "__main__":
         chosen += eighth_selected(a.beats) if a.beats != "all" else []
         chosen += a13_selected(a.beats) if a.beats != "all" else []
         chosen += tenth_selected(a.beats) if a.beats != "all" else []
+        chosen += eleventh_selected(a.beats) if a.beats != "all" else []
         chosen += aim_selected(a.beats) if a.beats != "all" else []
         chosen += exit_selected(a.beats) if a.beats != "all" else []
         chosen += dmg_selected(a.beats) if a.beats != "all" else []
@@ -7557,7 +7898,8 @@ if __name__ == "__main__":
                       A22_OWNERS if name.startswith("a22_") else
                       A01U_OWNERS if name.startswith("a01u_") else
                       A06_OWNERS if name.startswith("a06_") else
-                      eighth_owners(name) or ninth_owners(name) or tenth_owners(name))
+                      eighth_owners(name) or ninth_owners(name) or tenth_owners(name)
+                      or eleventh_owners(name))
             for line in events(doc, owners):
                 print("  ", line)
     elif a.command == "identify":
@@ -7596,6 +7938,7 @@ if __name__ == "__main__":
         chosen += eighth_selected(a.beats) if a.beats != "all" else []
         chosen += a13_selected(a.beats) if a.beats != "all" else []
         chosen += tenth_selected(a.beats) if a.beats != "all" else []
+        chosen += eleventh_selected(a.beats) if a.beats != "all" else []
         chosen += aim_selected(a.beats) if a.beats != "all" else []
         chosen += exit_selected(a.beats) if a.beats != "all" else []
         chosen += dmg_selected(a.beats) if a.beats != "all" else []

@@ -1,19 +1,15 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-// CFLAGS: -O4,p -sdatathreshold 4
-extern void func_1FA790(int, int, int, int);
-extern void func_1FABB0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// AREA08 overlay, runtime 0x00824460 (splat/link name 00824420; overlay code
+//  is linked 0x40 below where it runs), 0x2C bytes.
+// Byte-identical (tools/overlay/overlay_match.py check AREA08; lane OVLC).
+// Role: script callback (script 0x825AA0, op09 record 0x825B60):
+//  func_001FABB0(), func_001FA790(0, 0x11); returns 1.
+extern void func_001FABB0(void);
+extern void func_001FA790(int a, int b);
 
-asm void func_overlay_AREA08_00824420(void) {
-    addiu $sp, $sp, -0x10
-    sq $ra, 0x0($sp)
-    jal func_1FABB0
-    nop
-    addiu $a1, $zero, 0x11
-    jal func_1FA790
-    paddub $a0, $zero, $zero
-    lq $ra, 0x0($sp)
-    addiu $v0, $zero, 0x1
-    jr $ra
-    addiu $sp, $sp, 0x10
+int func_overlay_AREA08_00824420(void) {
+    func_001FABB0();
+    func_001FA790(0, 0x11);
+    return 1;
 }
