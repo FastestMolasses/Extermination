@@ -1,12 +1,17 @@
 // NEARMISS func_001C1A80  (vram 0x001C1A80, 0x27C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.74% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.59% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // compiler artifact (register coloring / scheduling)
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
+// corrections from the level side-track lanes"): func_001D0D60 takes the handle (a0) and f12
+// only; the 0x30000000 / self the earlier text passed as a second argument is not an argument
+// (0x30000000 is the bit pattern of the 2^-31 scale, moved through a1 into the FPU).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
@@ -21,7 +26,7 @@
 // advances the state to 1, clears the "impact" flag self[0xA], rolls a
 // random motion-timer value into self+0x28 (240*rand>>15 + 240, i.e. a
 // 240..479 frame range via func_00122BB8), and kicks off a blend-weight ramp
-// via func_001D0D60(handle, 0x30000000, 1.0 + 19.0*(2^-31 * rand)) -- a
+// via func_001D0D60(handle, 1.0 + 19.0*(2^-31 * rand)) -- a
 // randomized initial weight in roughly [1.0, 20.0).
 // State 1 (active tick): if the per-object gate func_001B17A0(self) passes,
 // decrements the self+0x28 motion-timer; on reaching 0, plays a proximity
@@ -52,7 +57,7 @@ extern int func_001BE5F0(void *a, unsigned char *b, unsigned char *c);
 extern void func_001C6380(unsigned char *self);
 extern void func_001D0C80(int a0, int a1);
 extern void func_001D0D40(int *a0, int a1, int a2, int a3);
-extern void func_001D0D60(int a0, int a1, float f12);
+extern int func_001D0D60(void *handle, float dt);
 extern int func_001FBD50(unsigned char *a0, int a1, int a2, float f12);
 extern int D_0028A508[];
 extern unsigned char D_0024F8F0[];
@@ -76,7 +81,7 @@ void func_001C1A80(unsigned char *self) {
         { int x = func_00122BB8() >> 16; x *= 0xF0; x >>= 15;
           *(short *)(self + 0x28) = (short)(x + 0xF0); }
         { float fr = (float)func_00122BB8();
-          func_001D0D60(*(int *)(self + 0x90), 0x30000000,
+          func_001D0D60(*(void **)(self + 0x90),
                         1.0f + 19.0f * (4.656613e-10f * fr)); }
         break;
     case 1:
@@ -110,7 +115,7 @@ void func_001C1A80(unsigned char *self) {
             self[0xA] = 0;
         }
         func_001C6380(self);
-        func_001D0D60(*(int *)(self + 0x90), (int)self, 1.0f);
+        func_001D0D60(*(void **)(self + 0x90), 1.0f);
         (*(void (**)(unsigned char *))(self + 0x4C))(self);
         break;
     case 2:

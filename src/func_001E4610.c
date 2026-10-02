@@ -1,12 +1,17 @@
 // NEARMISS func_001E4610  (vram 0x001E4610, 0x3D4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 88.31% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 89.56% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// NEARMISS 88.31% (233) / 82.19% (991202). Body/logic fully recovered: 4-state dispatch (0=init emitter fields+ident transform+link to other-actor scratch; 1=tick; 2/3=free via func_001AFC10). Residual is a genuine scheduling artifact: a speculative dead prefetch pair (a doubleword load from s0+0x20 and a word load from +0x1c ...
+// NEARMISS 88.31% (233) / 82.19% (991202) before the 2026-10-01 correction. Body/logic: 4-state dispatch (0=init emitter fields+ident transform+link to other-actor scratch; 1=tick; 2/3=free via func_001AFC10). The doubleword load from s0+0x20 and the word load from +0x1C that earlier text called a dead prefetch pair are func_001CE660's fifth and sixth arguments (see the correction note below); the remaining residual was not re-classified after that correction.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
+// corrections from the level side-track lanes"): the size switch reads the actor's +0xD with
+// three outcomes, and the ring call passes the block's doubleword +0x20 and word +0x1C as
+// func_001CE660's fifth and sixth arguments.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -19,7 +24,8 @@ extern void func_00102C58(void *a0, void *a1, void *a2);
 extern int func_00128250(float a);
 extern void func_001AFC10(unsigned char *handle);
 extern void func_001B17A0(unsigned char *self);
-extern void func_001CE660(int a0, int a1, void *a2, void *a3);
+extern void func_001CE660(int layer, int tag, void *mtx, void *band,
+                         unsigned long long tex0, unsigned int rgba);
 extern float D_700038B0;
 extern void func_001E4600(void);
 
@@ -48,16 +54,19 @@ void func_001E4610(unsigned char *arg0) {
         return;
     }
     {
-        if (*(unsigned char *)(scratch + 0xD) == 1) {
+        /* Size by the actor's own kind byte +0xD: 1 -> 30, 0 -> 50, any other
+         * kind keeps s+0x14 / +0x28 / +0x44 / +0x50 as they are. */
+        if (*(unsigned char *)(arg0 + 0xD) == 1) {
             *(float *)(scratch + 0x14) = 30.0f;
             *(float *)(scratch + 0x28) = 5.0f;
             *(int *)(scratch + 0x44) = 0;
-        } else {
+            *(int *)(scratch + 0x50) = 0;
+        } else if (*(unsigned char *)(arg0 + 0xD) == 0) {
             *(float *)(scratch + 0x14) = 50.0f;
             *(float *)(scratch + 0x28) = 5.0f;
             *(int *)(scratch + 0x44) = 0;
+            *(int *)(scratch + 0x50) = 0;
         }
-        *(int *)(scratch + 0x50) = 0;
 
         *(float *)(scratch + 0x14) = *(float *)(scratch + 0x14) / 2.0f;
         *(float *)(scratch + 0x18) = 0.0f;
@@ -124,7 +133,8 @@ tick:
     *(int *)(scratch + 0x1C) = *(int *)(scratch + 0x1C) | (func_00128250(*(float *)0x700038A8) << 0x10);
     *(int *)(scratch + 0x1C) = *(int *)(scratch + 0x1C) | (func_00128250(*(float *)0x700038AC) << 0x18);
 
-    func_001CE660(0, 2, arg0 + 0xD0, scratch + 0x30);
+    func_001CE660(0, 2, arg0 + 0xD0, scratch + 0x30,
+                  *(unsigned long long *)(scratch + 0x20), *(unsigned int *)(scratch + 0x1C));
 
     {
         float v = *(float *)(scratch + 0x18);
@@ -132,7 +142,7 @@ tick:
         *(float *)(scratch + 0x18) = v;
         v = v + 0.001f;
         *(float *)(scratch + 0x18) = v;
-        if (v > 2.0f) {
+        if (!(v <= 2.0f)) {
             *(unsigned char *)(arg0 + 4) = 3;
             *(unsigned char *)(arg0 + 0) = 2;
         }

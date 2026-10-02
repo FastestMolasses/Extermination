@@ -1,12 +1,17 @@
 // NEARMISS func_0019A6F0  (vram 0x0019A6F0, 0x214 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 95.56% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Register coloring (s0=mode,s1=flags,s2=base,s3=arg0) and the 3-way sub-update dispatch now match byte-for-byte after inverting the (arg0+2&0x1F) if so func_001A6440 becomes the fall-through arm; the residual ~6% is pure instruction-scheduling in the entry copy loop (target walks D_70003190 in a0 ...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
+// corrections from the level side-track lanes"): when (a0+2 & 0x1F) is nonzero and
+// (t0 & 0xFFFF) != 0x40, func_001A7280 is skipped and the result is the value the entry copy
+// loop left in the result register, its count 3 (the earlier text left it uninitialized).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -77,6 +82,9 @@ int func_0019A6F0(char *arg0, float *arg1, float *arg2, int arg3, int arg4) {
                 ok = 0;
             }
         } else {
+            /* With t0 != 0x40 the call is skipped and the result register still
+             * holds the entry copy loop's count, 3 (nonzero). */
+            ok = i;
             if ((arg4 & 0xFFFF) == 0x40) {
                 ok = func_001A7280(0x40, arg1, arg2);
             }

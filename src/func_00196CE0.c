@@ -1,12 +1,18 @@
 // NEARMISS func_00196CE0  (vram 0x00196CE0, 0x6B0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 95.32% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 95.33% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation / rematerialization + call-arg-register scheduling (permuter class), NOT the clean-store nop. CW holds self[2] in $a0 across uses and materializes &D_0024A6BC once; mwcc reloads lbu + re-lui's. func_001916C0(0) arg goes to $a2 (CW) vs $a0 (mwcc). FPU-MAC 2-term distance checks...
+// Register-allocation / rematerialization + call-arg-register scheduling (permuter class), NOT the clean-store nop. CW holds self[2] in $a0 across uses and materializes &D_0024A6BC once; mwcc reloads lbu + re-lui's. FPU-MAC 2-term distance checks...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
+// corrections from the level side-track lanes"): func_001916C0 gets (self, other, 0) -- a0 /
+// a1 are the entry arguments, the 0 is in a2; the window, outside-region and step-back tests
+// are written as the original's compares (!(a <= b) / !(a < b); the same results on the EE
+// FPU, which has no unordered compare).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -27,11 +33,11 @@
 //  (a) idx/self[2] reload + &D_0024A6BC base rematerialization: CW holds self[2]
 //      in a non-saved reg ($a0) across the threshold compare and the <3 test and
 //      materializes the table base once; mwcc reloads lbu + re-lui's the base.
-//  (b) call-arg register: CW zeros $a2 in the func_001916C0(0) delay slot; mwcc
-//      puts the 0 in $a0. Scheduling/ABI artifact.
+//  (b) (resolved 2026-10-01: the call is func_001916C0(self, other, 0); the
+//      earlier text passed 0 as the first argument.)
 // All non-offset deltas are register coloring / rematerialization; the remaining
 // large diff count is branch-target offset shift cascading from (a)/(b).
-extern void func_001916C0(int);
+extern void func_001916C0(unsigned char *camera, unsigned char *player, int mode);
 extern void func_00196970(unsigned char *, unsigned char *);
 extern void func_0018C0C0(unsigned char *);
 extern void func_0018C4B0(void *, float, float);
@@ -56,7 +62,7 @@ void func_00196CE0(unsigned char *self, unsigned char *other) {
     float dx, dy;
     int idx;
 
-    func_001916C0(0);
+    func_001916C0(self, other, 0);
     switch (self[1]) {
     case 0:
         *(short *)(self + 8) = 0;
@@ -77,18 +83,18 @@ void func_00196CE0(unsigned char *self, unsigned char *other) {
         dx = *(float *)(other + 0xA0) - 848.6f;
         dy = *(float *)(other + 0xA8) - 882.1f;
         if (dx * dx + dy * dy < 225.0f &&
-            *(float *)(other + 0xA4) < 294.0f && *(float *)(other + 0xA4) > 241.0f) {
+            *(float *)(other + 0xA4) < 294.0f && !(*(float *)(other + 0xA4) <= 241.0f)) {
             self[1] = 4;
             break;
         }
         dx = *(float *)(other + 0xA0) - 915.0f;
         dy = *(float *)(other + 0xA8) - 939.1f;
         if (dx * dx + dy * dy < 225.0f &&
-            *(float *)(other + 0xA4) < 266.0f && *(float *)(other + 0xA4) > 229.0f) {
+            *(float *)(other + 0xA4) < 266.0f && !(*(float *)(other + 0xA4) <= 229.0f)) {
             self[1] = 3;
             break;
         }
-        if (dx * dx + dy * dy >= 225.0f && self[2] == 5) {
+        if (!(dx * dx + dy * dy < 225.0f) && self[2] == 5) {
             self[1] = 2;
             break;
         }
@@ -124,7 +130,7 @@ void func_00196CE0(unsigned char *self, unsigned char *other) {
             func_00192010(self, *(float *)(self + 0x8C) + (*(float *)(self + 0x5C) + *(float *)(other + 0xB4)), 20.0f, 15.0f);
             func_00196970(self, other);
             idx = self[2];
-            if (idx != 5 && *(float *)(other + 0xB4) >= (&D_0024A6BC)[idx * 4]) {
+            if (idx != 5 && !(*(float *)(other + 0xB4) < (&D_0024A6BC)[idx * 4])) {
                 self[1] = self[1] - 1;
             }
             func_0018D7B0(self, 3);

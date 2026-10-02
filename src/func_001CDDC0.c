@@ -8,6 +8,12 @@
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
+// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
+// corrections from the level side-track lanes"): the projection multiplies by Q = 1 / w (x, y,
+// z for corner 0; x, y, then z by a second Q = 1 / (w - 1) for each clipped vertex), as the
+// VU0 code does, instead of dividing by w; the fog / camera row pointer D_00275670 + 0xA0 is
+// re-read for each triangle.
+//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
@@ -60,6 +66,7 @@ void func_001CDDC0(int layer, int mode, Vec4 *corners, u64 tex0, u32 rgba)
     Vec4    *fogvec;       /* vf23: (fogmax, -, fogbias, fogscale) */
     Vec4     clip;         /* pre-divide clip-space vertex */
     Vec4     xf;
+    float    q;
     int      sortkey;
     int      fog;
     int      tri, i, n, ci;
@@ -88,9 +95,11 @@ void func_001CDDC0(int layer, int mode, Vec4 *corners, u64 tex0, u32 rgba)
         clip.w = SPR_MTX_VP->r[0].w * v->x + SPR_MTX_VP->r[1].w * v->y
                + SPR_MTX_VP->r[2].w * v->z + SPR_MTX_VP->r[3].w;
 
-        xf.x = clip.x / clip.w;
-        xf.y = clip.y / clip.w;
-        xf.z = clip.z / clip.w;
+        /* Q = 1 / w (VU0 DIV of the constant register's w by w); x, y, z * Q. */
+        q = 1.0f / clip.w;
+        xf.x = clip.x * q;
+        xf.y = clip.y * q;
+        xf.z = clip.z * q;
         xf.w = fogvec->z + fogvec->w * clip.w;
         if (xf.w > fogvec->x) { xf.w = fogvec->x; }
         if (xf.w < 0.0f)      { xf.w = 0.0f;      }
@@ -159,6 +168,7 @@ void func_001CDDC0(int layer, int mode, Vec4 *corners, u64 tex0, u32 rgba)
         *(u64 *)(blk + 0x18) = 0x412ULL;            /* REGS: ST, RGBAQ, XYZF2 */
 
         out = (GsFanVtx *)(blk + 0x20);
+        fogvec = (Vec4 *)(D_00275670 + 0xA0);   /* re-read for each triangle */
 
         for (i = 0; i < n; i++) {
             Vec4 *v = &D_008117C0[i].pos;
@@ -173,10 +183,12 @@ void func_001CDDC0(int layer, int mode, Vec4 *corners, u64 tex0, u32 rgba)
             clip.w = SPR_MTX_VP->r[0].w * v->x + SPR_MTX_VP->r[1].w * v->y
                    + SPR_MTX_VP->r[2].w * v->z + SPR_MTX_VP->r[3].w;
 
-            xf.x = clip.x / clip.w;
-            xf.y = clip.y / clip.w;
+            q = 1.0f / clip.w;                 /* Q = 1 / w: x, y * Q           */
+            xf.x = clip.x * q;
+            xf.y = clip.y * q;
             xf.w = clip.w - 1.0f;              /* depth bias toward the camera  */
-            xf.z = clip.z / xf.w;
+            q = 1.0f / xf.w;                   /* second Q = 1 / (w - 1): z * Q */
+            xf.z = clip.z * q;
             xf.w = fogvec->z + fogvec->w * xf.w;
             if (xf.w > fogvec->x) { xf.w = fogvec->x; }
             if (xf.w < 0.0f)      { xf.w = 0.0f;      }

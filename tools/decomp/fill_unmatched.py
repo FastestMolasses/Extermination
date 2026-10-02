@@ -208,6 +208,13 @@ SIZE_DRIFT_FORCE_ASM = {
     # audit_link_provenance shows compiled_object_ordinary_c for each.
     # Same lane, second pass: func_001FBDB0 removed after its asm body was
     # replaced by C that is objdiff 100% with the slot-sized .text (same proof).
+    # Level side-track lane DFIX (2026-10-01): 12 entries removed --
+    # func_0012B850, func_0012D850, func_00142330, func_0015B030,
+    # func_0015B610, func_00163D50, func_00181430, func_00183250,
+    # func_00191120, func_00193D90, func_001B2BF0, func_001DEDB0. Their asm
+    # bodies were replaced by C at objdiff 100% (docs/LEVELS_DECOMP.md); with
+    # the entry removed the full build + verify_all stayed byte-identical and
+    # audit_link_provenance shows compiled_object_ordinary_c for each.
     "func_001046C0",
     "func_0010C0C8",
     "func_0010C200",
@@ -225,15 +232,12 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_0011E148",
     "func_0011E2A8",
     "func_00127650",
-    "func_0012B850",
-    "func_0012D850",
     "func_0012F980",
     "func_00131510",
     "func_00137830",
     "func_0013BBB0",
     "func_0013D850",
     "func_0013DC60",
-    "func_00142330",
     "func_0014C220",
     "func_0014E420",
     "func_0014E670",
@@ -243,9 +247,6 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_00150DA0",
     "func_00151590",
     "func_00153950",
-    "func_0015B030",
-    "func_0015B610",
-    "func_00163D50",
     "func_00177460",
     "func_00178390",
     "func_001796C0",
@@ -253,11 +254,8 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_0017DAF0",
     "func_0017DC80",
     "func_0017DFB0",
-    "func_00181430",
     "func_00182100",
-    "func_00183250",
     "func_001837B0",
-    "func_00191120",
     "func_0019A310",
     "func_0019ED80",
     "func_0019F330",
@@ -265,7 +263,6 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_001AA2A0",
     "func_001B1190",
     "func_001B1EA0",
-    "func_001B2BF0",
     # anim_clip_init removed: readable C now supplies both float arguments
     # and matches the original212-byte slot; verify actual compiled-C linkage.
     "func_001CF470",
@@ -284,11 +281,9 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_0011B1E0",
     "func_0011E878",
     "func_001226E8",
-    "func_00193D90",
     "func_001B3250",
     "func_001B3670",
     "func_001DCFF0",
-    "func_001DEDB0",
     "func_001E0C80",
     # 91 additional drift/content-mismatch entries found after the
     # 2026-05-24 naming/splat-regen pass.  These all have src/*.c that

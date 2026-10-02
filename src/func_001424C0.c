@@ -1,12 +1,18 @@
 // NEARMISS func_001424C0  (vram 0x001424C0, 0x510 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.18% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 96.45% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Prologue register-allocation permutation (switch-discriminant register: target reuses $a2, mwcc allocates $a0) -- same confirmed-uncontrollable class as func_001B8AB0; residual after that is <4% of instructions.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
+// corrections from the level side-track lanes"): the alerted branch turns toward the player
+// when d+0x5C is beyond 20 (the earlier text: within 20); the turn test compares with the
+// double of the float pi/8; anim_clip_init gets the float 5.0; func_00146110 receives
+// (self, d) in a0 / a1, which this function never rewrites before the call.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -57,7 +63,7 @@ extern void func_00102948(void *dst, void *src);
 extern float func_0011DF78(float a);
 extern int func_00122BB8(void);
 extern int func_00128350(float a);
-extern int func_00146110(void);
+extern int func_00146110(void *self, void *d);
 extern void func_001469B0(void *arg0, void *arg1);
 extern float func_001B1240(void *a, float b, float c);
 extern float func_001B12B0(float a, float b, float c);
@@ -89,11 +95,11 @@ void func_001424C0(char *arg0, char *arg1) {
         *(float *)(arg1 + 0x44) =
             func_001B1470((6.2831855f * (float) ((r >> 0xF) & 0xFF)) / 255.0f);
 
-        anim_clip_init(arg0, 0, 0x40A00000, 0.0f);
+        anim_clip_init(arg0, 0, 5.0f, 0.0f);
         break;
 
     case 1:
-        r = func_00146110();
+        r = func_00146110(arg0, arg1);
         if (r == 2) {
             break;
         }
@@ -104,7 +110,7 @@ void func_001424C0(char *arg0, char *arg1) {
                     func_00128350(func_0011DF78(
                         func_001B1470(*(float *)(arg1 + 0x44) -
                                       func_001B1470(3.1415927f + *(float *)(arg0 + 0xC4))))),
-                    0.39269908169872414) != 0) {
+                    0.392699092626571655273437500) != 0) {   /* (double)(float)(pi / 8) */
                 signed char cnt = *(signed char *)(arg1 + 0x77) + 1;
                 *(signed char *)(arg1 + 0x77) = cnt;
                 if (cnt >= 3) {
@@ -131,17 +137,19 @@ notice:
                 *(signed char *)(arg0 + 5) = 5;
                 *(unsigned char *)(arg0 + 6) = 0;
             } else {
+                float dist;
 mid:
                 if (*(unsigned char *)(arg1 + 0x71) == 0 && *(float *)(arg1 + 0x5C) <= 19.0f) {
                     *(signed char *)(arg0 + 5) = 6;
                     *(unsigned char *)(arg0 + 6) = 0;
-                } else if (!(*(float *)(arg1 + 0x5C) < 50.0f)) {
+                } else if (dist = *(float *)(arg1 + 0x5C), !(dist < 50.0f)) {
                     *(signed char *)(arg0 + 5) = 2;
                     *(unsigned char *)(arg0 + 6) = 0;
                     *(short *)(arg1 + 0x62) =
                         (short) (((func_00122BB8() >> 0xF) & 0xFF) + 0x12C);
                 } else {
-                    if (*(float *)(arg1 + 0x5C) <= 20.0f) {
+                    /* beyond 20 (and below 50): turn toward the player */
+                    if (!(dist <= 20.0f)) {
                         *(float *)(arg1 + 0x44) =
                             func_001B1240(arg0 + 0xB0, D_00810360, D_00810368);
                     }

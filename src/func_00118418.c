@@ -1,6 +1,6 @@
 // NEARMISS func_00118418  (vram 0x00118418, 0x294 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 77.58% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 76.92% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // eegcc loop-IV strength-reduction wall — the target recomputes `mult i,0x6A` per iteration and carries 7 callee-saved values (frame 0x80); ee-gcc strength-reduces to a pointer IV and needs only 5 (frame 0x60), costing ~17 words. Compounded by an LICM hoist of *(int *)(D_00281AC0+0x14) out of the f...
 //
@@ -24,6 +24,11 @@
 //              func_00117BA0, then hand the packed (w<<16)|h from func_001179E0 to func_001157F0.
 //              Advances the stream by 3 bytes.
 // q walks the command stream: *(int *)(a0 + 8) is the byte cursor, D_00281AC0+0x14 the base.
+// Returns the new cursor (the value stored back to a0+8). The broadcast path reads the cursor
+// once at entry; the note-on path reads it after the mixer-byte store and again after each
+// matched channel's calls (corrected 2026-10-01 against the original instructions; the
+// earlier text returned 0 -- docs/FINDINGS.md "NEARMISS body corrections from the level
+// side-track lanes").
 //
 
 extern unsigned char D_0027CCC0[];
@@ -41,10 +46,12 @@ int func_00118418(unsigned char *a0)
     unsigned char *q;
     unsigned char *base;
     unsigned char *rate;
+    int cur;
     int i;
     int v;
 
     if (*(unsigned short *)(a0 + 0x34) == 1) {
+        cur = *(int *)(a0 + 8);
         base = D_00281AC0;
         rate = D_0027F740;
         p = D_0027CCC0;
@@ -52,7 +59,7 @@ int func_00118418(unsigned char *a0)
             if (*(unsigned short *)(p + 0x0) == 1 &&
                 *(unsigned short *)(p + 0x1A) == 2 &&
                 *(unsigned short *)(p + 0x22) == *(unsigned short *)(a0 + 0x24)) {
-                q = (unsigned char *)(*(int *)(a0 + 8) + *(int *)(base + 0x14));
+                q = (unsigned char *)(cur + *(int *)(base + 0x14));
                 if (*(unsigned short *)(p + 0x3E) == q[4] &&
                     *(unsigned short *)(p + 0x2) == q[5] &&
                     *(unsigned short *)(p + 0x6) == *(int *)(a0 + 0x18)) {
@@ -67,11 +74,12 @@ int func_00118418(unsigned char *a0)
             }
             p += 0x6A;
         } while ((int)p < (int)(D_0027CCC0 + 0x13E0));
-        *(int *)(a0 + 8) = *(int *)(a0 + 8) + 6;
+        cur += 6;
     } else {
         base = D_00281AC0;
         *(unsigned char *)(*(int *)(base + 0xC) + 4) =
             *(unsigned char *)(*(int *)(a0 + 8) + *(int *)(base + 0x14) + 2);
+        cur = *(int *)(a0 + 8);
 
         for (i = 0; i < 0x30; i++) {
             p = D_0027CCC0 + i * 0x6A;
@@ -81,15 +89,17 @@ int func_00118418(unsigned char *a0)
                 *(unsigned short *)(p + 0x8) != 1 &&
                 *(unsigned short *)(p + 0x1A) == 1 &&
                 *(unsigned short *)(p + 0x0) == 1) {
-                q = (unsigned char *)(*(int *)(a0 + 8) + *(int *)(base + 0x14));
+                q = (unsigned char *)(cur + *(int *)(base + 0x14));
                 *(unsigned short *)(p + 0x4C) = q[2];
                 *(unsigned short *)(p + 0x32) = *(unsigned short *)(
                     D_00242630 + ((func_00117BA0(0, *(unsigned short *)(p + 0xE)) >> 2) << 1));
                 v = func_001179E0(i, a0);
                 func_001157F0(1, i, v >> 16, v & 0xFFFF);
+                cur = *(int *)(a0 + 8);
             }
         }
-        *(int *)(a0 + 8) = *(int *)(a0 + 8) + 3;
+        cur += 3;
     }
-    return 0;
+    *(int *)(a0 + 8) = cur;
+    return cur;
 }

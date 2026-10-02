@@ -1,12 +1,18 @@
 // NEARMISS func_001305B0  (vram 0x001305B0, 0x4F8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.69% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.19% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation/scheduling permutation on 4 stack-temp float reloads (target always reloads 0x38a0 first regardless of C order; both mwcc builds reload in a fixed internal order) PLUS an idiom-13-class delay-slot-fill gap: target speculates 'lui at,0x7000' / 'move a0,arg0' into two branch del...
+// Register-allocation/scheduling permutation on 4 stack-temp float reloads (target always reloads 0x38a0 first regardless of C order; both mwcc builds reload in a fixed internal order) PLUS an idiom-13-class delay-slot-fill gap: target speculates the scratchpad high half and the arg0 copy into two branch delay slots.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
+// corrections from the level side-track lanes"): func_0021BE40 is passed the player block
+// only (its code reads a0 alone; the earlier text passed two more values). State 1 stores the
+// func_001B1240 result to owner+0x30, then reads self+0xC4 and re-reads owner+0x30 for
+// func_001B12B0's arguments, as the original does.
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -37,7 +43,7 @@ extern int func_001B3250(char *p, void *a, float b);
 extern void func_001B55E0(char *p, int a);
 extern void func_001EFD90(int a, void *b, char *c);
 extern void func_001FBD50(char *p, int a, int b, float f);
-extern int func_0021BE40(unsigned char *a, char *b, int c);
+extern int func_0021BE40(unsigned char *player);
 extern unsigned char D_008102B0;
 extern char D_008102BF;
 extern float D_00810320;
@@ -90,7 +96,7 @@ void func_001305B0(char *arg0, char *arg1) {
         }
         break;
     case 3:
-        if (func_0021BE40(&D_008102B0, arg0, st) == 0 && func_001A7B80(arg0) != 0) {
+        if (func_0021BE40(&D_008102B0) == 0 && func_001A7B80(arg0) != 0) {
             *(unsigned char *)(arg0 + 6) = *(unsigned char *)(arg0 + 6) + 1;
             D_008102BF = 2;
             *(int *)0x700038A0 = 0;

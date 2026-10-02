@@ -30,12 +30,13 @@ The 45 assembly / stub / missing rows now stand as follows (section 3 has one ro
 | NEARMISS C | 1 | `func_001F6FB0`, the former `INCLUDE_ASM` stub, is now a `// NEARMISS` file (readable C; the linker uses the `.s`). |
 | covered already | 1 | `func_001C2FF0` (see above). |
 
-Every one of the 45 now has readable C. Of the 31 byte-matched functions, 19 link from their
-compiled C; 12 still link from the original assembly because `tools/decomp/fill_unmatched.py`
-lists them in `SIZE_DRIFT_FORCE_ASM` (section 5; this lane does not edit that file).
+Every one of the 45 now has readable C. All 31 byte-matched functions link from their compiled
+C: 19 did at once, and the other 12, which `tools/decomp/fill_unmatched.py` still forced to the
+original assembly through stale `SIZE_DRIFT_FORCE_ASM` entries, were released by lane DFIX the
+same day (section 6).
 
-matched_code is unchanged (2155/2211, 98.65%): the replaced asm bodies were matched units
-already.
+matched_code is unchanged by this lane (2155/2211, 98.65%): the replaced asm bodies were matched
+units already. (Lane DFIX's correction of func_001BBD20 later made it 2156/2211, 98.66%; section 6.)
 
 ## 2. Method
 
@@ -67,25 +68,25 @@ and the NEARMISS file are measured on the scratch build). "links as" is
 | func_0011C128 | 0x0011C128 | 0x39C | a01r_00_to_train_room | asm body + companion C | 87.62 | ee-gcc | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | ee-gcc register allocation and the schedule of the reduction (semantics follow the instructions, incl. the path for tiny x) |
 | func_0011E0A8 | 0x0011E0A8 | 0x9C | a04b_03_reader | asm body + companion C | 78.21 | ee-gcc | compiled asm body | ee-gcc keeps x in a GPR and fills the likely-branch slot with the integral store; register choice |
 | func_00123020 | 0x00123020 | 0x144 | a06_02_keypad | asm body + companion C | 0.00 | ee-gcc | compiled asm body | hand-written MMI strcmp (parallel subtract / pack of quadwords); companion states the algorithm |
-| func_0012B850 | 0x0012B850 | 0x118 | a01v_01_gap_jump | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | Links from the .s until its stale SIZE_DRIFT_FORCE_ASM entry is removed (section 5). |
-| func_0012D850 | 0x0012D850 | 0xE8 | a00_09_ne_room_out | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | Links from the .s until its stale SIZE_DRIFT_FORCE_ASM entry is removed (section 5). |
+| func_0012B850 | 0x0012B850 | 0x118 | a01v_01_gap_jump | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Linked from C since lane DFIX removed its stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
+| func_0012D850 | 0x0012D850 | 0xE8 | a00_09_ne_room_out | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Linked from C since lane DFIX removed its stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
 | func_0012E3A0 | 0x0012E3A0 | 0x1B8 | a04b_03_reader | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_00133DB0 | 0x00133DB0 | 0x78 | a04b_03_reader | asm body + companion C | 88.00 | mwcc 2.3.3 | compiled asm body | the empty-then branch shape around +0x54 and the speculated constant in the last compare |
-| func_00142330 | 0x00142330 | 0x184 | a13c_05_boom | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | Links from the .s until its stale SIZE_DRIFT_FORCE_ASM entry is removed (section 5). |
-| func_0015B030 | 0x0015B030 | 0xF8 | a01_07_level_exit | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | Links from the .s until its stale SIZE_DRIFT_FORCE_ASM entry is removed (section 5). |
-| func_0015B610 | 0x0015B610 | 0x160 | a01_04_return_north | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | Links from the .s until its stale SIZE_DRIFT_FORCE_ASM entry is removed (section 5). |
-| func_00163D50 | 0x00163D50 | 0x13C | a01_04_return_north | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | Links from the .s until its stale SIZE_DRIFT_FORCE_ASM entry is removed (section 5). |
+| func_00142330 | 0x00142330 | 0x184 | a13c_05_boom | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Linked from C since lane DFIX removed its stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
+| func_0015B030 | 0x0015B030 | 0xF8 | a01_07_level_exit | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Linked from C since lane DFIX removed its stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
+| func_0015B610 | 0x0015B610 | 0x160 | a01_04_return_north | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Linked from C since lane DFIX removed its stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
+| func_00163D50 | 0x00163D50 | 0x13C | a01_04_return_north | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Linked from C since lane DFIX removed its stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
 | func_001790B0 | 0x001790B0 | 0x9C | a01_s5_duct | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_0017F240 | 0x0017F240 | 0xE0 | a01_00_train_room | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
-| func_00181430 | 0x00181430 | 0xAC | a06_s1_bar | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | Links from the .s until its stale SIZE_DRIFT_FORCE_ASM entry is removed (section 5). |
-| func_00183250 | 0x00183250 | 0x1A0 | a01_04_return_north | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | Links from the .s until its stale SIZE_DRIFT_FORCE_ASM entry is removed (section 5). |
+| func_00181430 | 0x00181430 | 0xAC | a06_s1_bar | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Linked from C since lane DFIX removed its stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
+| func_00183250 | 0x00183250 | 0x1A0 | a01_04_return_north | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Linked from C since lane DFIX removed its stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
 | func_00183440 | 0x00183440 | 0x94 | a13_05_shaft | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
-| func_00191120 | 0x00191120 | 0xEC | a01_00_train_room | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | Links from the .s until its stale SIZE_DRIFT_FORCE_ASM entry is removed (section 5). |
-| func_00193D90 | 0x00193D90 | 0x118 | a00_09_ne_room_out | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | Links from the .s until its stale SIZE_DRIFT_FORCE_ASM entry is removed (section 5). |
+| func_00191120 | 0x00191120 | 0xEC | a01_00_train_room | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Linked from C since lane DFIX removed its stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
+| func_00193D90 | 0x00193D90 | 0x118 | a00_09_ne_room_out | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Linked from C since lane DFIX removed its stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
 | func_0019F680 | 0x0019F680 | 0xA8 | a06_s1_bar | asm body + companion C | 97.10 | mwcc 2.3.3 | compiled asm body | load order of the two table bases, register choice in the element loads; CW alignment nop before the shared return |
 | func_001A8E80 | 0x001A8E80 | 0xBC | a02_02_ladder_escape | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001AA640 | 0x001AA640 | 0xB8 | a02_01_switch | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
-| func_001B2BF0 | 0x001B2BF0 | 0x104 | a04b_03_reader | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | Links from the .s until its stale SIZE_DRIFT_FORCE_ASM entry is removed (section 5). Per-file `// SPAD: 0x700031D0`. |
+| func_001B2BF0 | 0x001B2BF0 | 0x104 | a04b_03_reader | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Linked from C since lane DFIX removed its stale SIZE_DRIFT_FORCE_ASM entry (section 6). Per-file `// SPAD: 0x700031D0`. |
 | func_001B7670 | 0x001B7670 | 0x60 | a00_04_cage_terminal | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001BDE60 | 0x001BDE60 | 0x158 | a04b_04_lift | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001BE5F0 | 0x001BE5F0 | 0xC4 | a04_05_progression_exit | asm body + companion C | 92.35 | mwcc 2.3.3 | compiled asm body | no dead join-head copy after the final b; zone pointer register |
@@ -99,7 +100,7 @@ and the NEARMISS file are measured on the scratch build). "links as" is
 | func_001D0D60 | 0x001D0D60 | 0x1BC | a01_s5_duct | asm body + companion C | 94.32 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | FPR coloring of the blend weights (f20/f21 swapped) and the cvt schedule |
 | func_001D6DD0 | 0x001D6DD0 | 0x90 | a00_09_ne_room_out | asm body + companion C | 40.6 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | packed-word schedule + registers (991202 69.0) |
 | func_001D7000 | 0x001D7000 | 0x7C | a00_09_ne_room_out | asm body + companion C | 98.39 | mwcc 2.3.3 | compiled asm body | register allocation |
-| func_001DEDB0 | 0x001DEDB0 | 0x28 | a00_09_ne_room_out | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s; SIZE_DRIFT_FORCE_ASM) | Links from the .s until its stale SIZE_DRIFT_FORCE_ASM entry is removed (section 5). |
+| func_001DEDB0 | 0x001DEDB0 | 0x28 | a00_09_ne_room_out | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Linked from C since lane DFIX removed its stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
 | func_001DEE80 | 0x001DEE80 | 0x34 | a00_09_ne_room_out | asm body + companion C | 78.54 | mwcc 2.3.3 | compiled asm body | IPA wall (a1 kept in a1 across the same-TU leaf func_001DEDB0) |
 | func_001DEEC0 | 0x001DEEC0 | 0x20 | a00_09_ne_room_out | asm body + companion C | 66.38 | mwcc 2.3.3 | compiled asm body | IPA wall (same) |
 | func_001EFFD0 | 0x001EFFD0 | 0x88 | a00_02_south_route | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
@@ -199,10 +200,10 @@ GS offset. The build's objdiff report rates all 31 byte-matched functions 100.0.
 byte-matched functions not on a force list link from their compiled C with copied text and
 relocations equal to the prepared object.
 
-**Stale `SIZE_DRIFT_FORCE_ASM` entries (for the lead; `tools/decomp/fill_unmatched.py` is owned
-by the first-level lane).** These 12 functions are now ordinary C at objdiff 100% but are still
-forced to the `.s`: func_0012B850, func_0012D850, func_00142330, func_0015B030, func_0015B610, func_00163D50, func_00181430, func_00183250, func_00191120, func_00193D90, func_001B2BF0, func_001DEDB0. Removing them (with a full build + verify_all + provenance
-audit, as `docs/FIRST_LEVEL_DECOMP.md` section 9 did) should let them link from C.
+**Stale `SIZE_DRIFT_FORCE_ASM` entries: resolved** (lane DFIX, section 6). The 12 functions this
+section listed (func_0012B850, func_0012D850, func_00142330, func_0015B030, func_0015B610,
+func_00163D50, func_00181430, func_00183250, func_00191120, func_00193D90, func_001B2BF0,
+func_001DEDB0) now link from their compiled C.
 
 **Open.**
 
@@ -215,3 +216,37 @@ audit, as `docs/FIRST_LEVEL_DECOMP.md` section 9 did) should let them link from 
 - func_001F6FB0 uses VU0 macro instructions; its NEARMISS C writes them as FPU arithmetic.
 - The port's census for the later levels should pick up the "Decomp" status of these rows at
   its next recount.
+
+## 6. Force-asm cleanup and NEARMISS body corrections (lane DFIX, 2026-10-01)
+
+**Force-asm cleanup.** The 12 stale entries of section 5 were removed from
+`SIZE_DRIFT_FORCE_ASM` in `tools/decomp/fill_unmatched.py` (nothing else in that file changed).
+Proof (build lock held, 21:43-21:53): `tools/decomp/build.py build` rc 0; `.venv/bin/python
+tools/verify_all.py` all six stages PASS (boot ELF byte-identical, 19/19 overlays, matched_code
+98.65%, 2155/2211); `tools/decomp/audit_link_provenance.py`: each of the 12 has route
+`compiled_object_ordinary_c` with the filler's text and relocations equal to the prepared
+object, and no copied-text, relocation or pinned-rodata mismatch anywhere. objdiff rates each
+of the 12 at 100.0 in that build.
+
+**NEARMISS body corrections.** The decomp C that the level port lanes (port docs/LEVEL8..11_PORT.md,
+AREA04_PORT.md) found wrong against the original instructions was corrected after the
+instructions were re-read: func_00118418, func_001E4610, func_001424C0, func_001459A0,
+func_0019A6F0, func_001CDDC0, func_001BD9F0, func_00196CE0, func_001C1030, func_00118790,
+func_001305B0, func_001C1A80 (all stay NEARMISS) and func_001BBD20 (ordinary C, now objdiff
+100%; it still links from the `.s` through its own `SIZE_DRIFT_FORCE_ASM` entry, which this
+lane was not asked to remove: a candidate for the next cleanup). Each change, the scratch
+original-instruction harness that checked it, and the points checked without a change are in
+`docs/FINDINGS.md` "NEARMISS body corrections from the level side-track lanes". Final gate
+(build lock held, 22:04-22:17): build rc 0, verify_all all six stages PASS (boot ELF
+byte-identical, 19/19 overlays, matched_code 98.66%, 2156/2211: func_001BBD20 is the new
+matched unit), audit_link_provenance with no mismatches.
+
+**Review fix round (2026-10-01).** func_001305B0's state 1 keeps the original's re-read of
+owner+0x30 for func_001B12B0 (objdiff 99.19; the intermediate direct-result form scored 99.00
+with the same behaviour); func_001E4610's header no longer calls the func_001CE660 argument
+loads a dead prefetch. FINDINGS wording made exact (the four outcomes the harness cannot reach,
+the source of func_001CDDC0's S/T/Q rounding difference), plus pinned harness cases for the
+review's named survivors and two equivalence arguments (FINDINGS, same section). Gate under the
+build lock, 22:55-23:07: build rc 0, verify_all all six stages PASS (boot ELF byte-identical,
+19/19 overlays, matched_code 98.66%, 2156/2211), audit_link_provenance with no copied-text,
+relocation, pinned-rodata or missing-filler mismatch.

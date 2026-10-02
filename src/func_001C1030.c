@@ -1,12 +1,17 @@
 // NEARMISS func_001C1030  (vram 0x001C1030, 0x4D0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 95.24% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 96.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Register-allocation-order permutation (arg0 copy colored to $s0 vs target's $s1) plus one operand-order/sign-extend scheduling artifact in the state-1/sub-state-0 timer decrement (target computes `field34 - (v36&0xFFF)` via a reversed subu operand order with an extra dsll32/dsra32 64-bit sign-ext...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
+// corrections from the level side-track lanes"): state 2 sub-state 0 starts clip 0 on the actor,
+// anim_clip_init(self, 0, 0.0, 0.0): a0 is never rewritten on that path and a1 is 0 (the
+// earlier text passed (0, 2, ...)).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -164,7 +169,7 @@ void func_001C1030(char *arg0) {
         state5 = *(unsigned char *)(arg0 + 5);
         switch (state5) {
         case 0:
-            anim_clip_init(0, 2, 0.0f, 0.0f);
+            anim_clip_init(arg0, 0, 0.0f, 0.0f);
             *(unsigned char *)(arg0 + 5) = *(unsigned char *)(arg0 + 5) + 1;
             *scratch1f0 = 0;
             func_001FB9F0(0x442, 0x1000, 0x1000, 0x1000);

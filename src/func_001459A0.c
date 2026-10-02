@@ -1,12 +1,18 @@
 // NEARMISS func_001459A0  (vram 0x001459A0, 0x770 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 90.01% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 91.29% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Delay-slot/instruction-scheduling artifact repeated across the six capsule-test call sites (func_001B32F0/func_001B3390). Body/structure/every call-site and branch fully recovered and verified 1:1 against the target (all real callee signatures pulled from already-matched siblings func_001B2B10/fu...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
+// corrections from the level side-track lanes"): bit 0 of +0x74 is set at each hit site; the
+// second segment pair is a separate `if` on +0x74 (not an `else if`); both "positive lean"
+// tests are written as the original's compare, !(lean <= 0). Behaviour is unchanged by these
+// (the EE FPU has no unordered compare, and the old else-if reached the same outcomes).
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
@@ -77,7 +83,7 @@ void func_001459A0(char *arg0, char *arg1) {
     }
 
     lean = *(float *)(arg1 + 0x48);
-    if (lean > 0.0f) {
+    if (!(lean <= 0.0f)) {
         func_001029C0(&D_700036A0);
         func_00102BB0(&D_700036A0, &D_700036A0, *(float *)(arg0 + 0xC4));
 
@@ -123,16 +129,17 @@ void func_001459A0(char *arg0, char *arg1) {
         func_001028B8(&D_700038C0, arg0 + 0xB0, &D_700038C0);
         func_001028B8(&D_700038D0, arg0 + 0xB0, &D_700038D0);
 
-        if (func_001B3390((int) arg0, (char *) &D_700038A0, (char *) &D_700038B0, ang) != 0) {
+        /* First pair: a hit sets bit 0 at its own site. */
+        if (func_001B3390((int) arg0, (char *) &D_700038A0, (char *) &D_700038B0, 0.7853982f) != 0) {
             *(signed char *)(arg1 + 0x74) = (signed char) (*(signed char *)(arg1 + 0x74) | 1);
-        } else if (func_001B3390((int) arg0, (char *) &D_700038B0, (char *) &D_700038A0, ang) != 0) {
+        } else if (func_001B3390((int) arg0, (char *) &D_700038B0, (char *) &D_700038A0, 0.7853982f) != 0) {
             *(signed char *)(arg1 + 0x74) = (signed char) (*(signed char *)(arg1 + 0x74) | 1);
-        } else if (*(signed char *)(arg1 + 0x74) == 0) {
-            if (func_001B3390((int) arg0, (char *) &D_700038C0, (char *) &D_700038D0, ang) != 0) {
+        }
+        /* Second pair: a separate test, tried whenever +0x74 is still zero. */
+        if (*(signed char *)(arg1 + 0x74) == 0) {
+            if (func_001B3390((int) arg0, (char *) &D_700038C0, (char *) &D_700038D0, 0.7853982f) != 0) {
                 *(signed char *)(arg1 + 0x74) = (signed char) (*(signed char *)(arg1 + 0x74) | 1);
-                goto tail;
-            }
-            if (func_001B3390((int) arg0, (char *) &D_700038D0, (char *) &D_700038C0, ang) != 0) {
+            } else if (func_001B3390((int) arg0, (char *) &D_700038D0, (char *) &D_700038C0, 0.7853982f) != 0) {
                 *(signed char *)(arg1 + 0x74) = (signed char) (*(signed char *)(arg1 + 0x74) | 1);
             }
         }
@@ -182,7 +189,7 @@ tail:
                 *(signed char *)(arg0 + 6) = 0;
             }
         }
-    } else if (lean > 0.0f) {
+    } else if (!(lean <= 0.0f)) {
         *(float *)0x700038A0 = *(float *)(arg0 + 0xB0);
         *(float *)0x700038A4 = *(float *)(arg0 + 0xB4);
         *(float *)0x700038A8 = *(float *)(arg0 + 0xB8);
