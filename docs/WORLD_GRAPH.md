@@ -14,8 +14,9 @@ measured, section 8b the ninth-level captures (port
 `docs/TENTH_LEVEL_ROUTE.md`), section 8d the eleventh-level captures
 (port `docs/ELEVENTH_LEVEL_ROUTE.md`), section 8e the twelfth-level
 captures (port `docs/TWELFTH_LEVEL_ROUTE.md`), section 8f the thirteenth
-(port `docs/THIRTEENTH_LEVEL_ROUTE.md`) and section 8g the fourteenth (port
-`docs/FOURTEENTH_LEVEL_ROUTE.md`); section 7's table marks each edge
+(port `docs/THIRTEENTH_LEVEL_ROUTE.md`), section 8g the fourteenth (port
+`docs/FOURTEENTH_LEVEL_ROUTE.md`) and section 8h the fifteenth (port
+`docs/FIFTEENTH_LEVEL_ROUTE.md`); section 7's table marks each edge
 played or not. Nothing here quotes disc text; the tables are addresses and
 numbers.
 
@@ -674,14 +675,16 @@ means no lock or story test was found on the site itself.
 | AREA13 | AREA19 e9 / e10 sub 0 | 00193EB0 (the player's event code 6..9 / 0x2C / 0x2D at y <= 159 with spawn entry 4 / 6, resp. 5 / 7) | door [17] (0x823580, ins) from the east (entry 4) and the hatch [62] (0x826850, ins): item 0x27 (pickup g[5] in the same room) makes the hatch usable (class 0x84), its Use opens it (counter 0x61 bit 0), Use facing +z starts its ladder, and the descent reaches y 143.1 (measured, a13_05). [15] (001BD9F0 model 3) and [17] are locked only while flag 0x1C == 1 (NM / ins); flag 0x1C stayed 0 on this route. The holes [5] / [6] (0x823BC0, ins) are examine points that end once item 0x27 is held or flag 0x1B is 0xFF. Door [20]'s north side (entry 10), the only way to hole [6] / hatch [63], was reached neither on foot from the field (section 8c) nor after [44]'s event, the boom and [7] (section 8d); it is reached from the region south of the pipe fence over the big building's south roof (a stair, ladders of attribute 0x32 and one running jump; section 8e), then door [20] (001BC350, BM, no lock) to entry 5 and the hatch [63] (counter 0x61 bit 1, item 0x27); its ladder gives the request 13 00 0A 01 (measured, a19b_00) | e9 played (a13_05, hole [5]); e10 played (a19b_00, hatch [63]) |
 | AREA19 | AREA13 e6 / e7, AREA19 sub 1 e6 / 7 / 8 | 00196970 (climbing above a height in five circles) | the circles are the ladders at AREA19 entries 9 (-> AREA13 e6), 10 (-> e7), 11, 12 and 13 (-> sub 1 e8 / e7 / e6) (BM). Measured (a13b_00): Use facing +z at entry 9's foot, the stick up, the request 0D 00 06 01 at y >= 284.5; (a19c_06) Use facing -z at the foot of the ladder at z 859.5 (the y-210 floor behind door [27]), the stick up, the request 13 01 07 01 at y 314; (a19d_16) the ladder 694 on the y-265 deck facing -z: the request 13 01 08 01, sub 1 entry 8 in the stair tower | e6 played (a13b_00); sub 1 e7 played (a19c_06); sub 1 e8 played (a19d_16); the rest not played |
 | AREA19 sub 1 | AREA19 sub 0 e13 / e12 / e11 | 00193EB0 (a ladder descent: the player's event code 6..9 / 0x2C / 0x2D) | ins (the NEARMISS C inverts two branches, section 8g): only with D_00810701 != 0; x < 872 and y <= 356: entry 0xD; x >= 872, z <= 900, y <= 365: entry 0xC; x >= 872, z > 900, y <= 356: entry 0xB; in sub 0 the case stores +6 = 0xD and requests nothing. The ladder at x 848..862 (the cage south of the lift [36]) has a player-only cell (sub 1 [0], key 0x15) over its top until the lift's scene (flag 0x21); measured (a19d_07): the descent gave 13 00 0D | e13 played (a19d_07); e12 closed after [34]'s scene (section 8g); e11 not played |
-| AREA19 | AREA03 e1 | [25] model 0x16 | D_00810854 bit 1: the panel [24] 00158EC0 model 0x22 (item 0x1B). The panel stands at the north end of the y-265 walkway behind entry 0, which the entry-9 rooms do not reach (section 8c) | not played (inferred) |
+| AREA19 | AREA03 e1 | [25] model 0x16 | D_00810854 bit 1: the panel [24] 00158EC0 model 0x22 (a battery item; BM: +0x34 = 0x10, so 002149F0 (NM) costs 2 * 0x10 = 32 half-units, more than the 6-gauge pack's capacity 0x0C: refused with 4, measured a19e_s1). The panel stands at the north end of the y-265 deck (sub 0 floors 247 / 1308), reached from the tower's ladder 694 (sub 0 entry 0xB). The 18-gauge pack (item 0x1C, capacity 0x24) is sub 1's g[0] inside the truck [46] (section 8h); sub 0's g[4] is a 24-gauge pack (item 0x1D) at (877.2, 210, 976), not reached. Measured (a19e_06 / a19e_07): charge 0x24 -> 4, D_00810854 0x0C -> 0x0E, door [25] facing +z: AREA03 sub 0 entry 1 | played (a19e_07) |
 | AREA03 | AREA19 e0 | sub 0 [15] | open | not played (inferred) |
+| AREA03 sub 0 | AREA03 sub 0 e2 (the lift) | [11] / [9] (C) | none read: [11]'s Use opens the car's doors ([7] / [8] gate on D_00275CA0, C; its value 1 after the Use is exploration-only, not kept), [9]'s Use rides down (0x826270, C: entry 2 with D_00275CA0 clear) (a room move to entry 2, measured a03_00) | played (a03_00) |
 | AREA03 | AREA04 e2 | sub 1 [24] model 0x15 | D_00810844 bit 0: the seal [23] 00158430 (a hit; it also opens AREA04's [38]) | not played (inferred) |
 | AREA03 | AREA08 e0 | sub 2 lift [7] model 0x0D | its buttons [9] / [10] (001BDFC0, id 7): D_00810844 bit 7 = the socket s2[6] with item 0x2A, given by AREA03 sub 1 [22] 0x8235A0 | not played (inferred) |
 | AREA08 | AREA03 e1 sub 2 | lift [8] | as AREA07 [0] | not played (inferred) |
 | AREA19 sub 1 | AREA15 e0 sub 0 / sub 1 | [50] / [51] | open; the stair tower (x 897..990, z 942..985) is entered by sub 0's ladder 694 (sub 1 entry 8); its door [49] to the hall (model 0x15, lock bit 3) opens once the seal [48] (001581A0) is hit from the tower side (measured a19d_18: the light melee from (980.9, 946.2), D_00810854 0x04 -> 0x0C). Measured: [50] from the y-450 landing facing -z gave AREA15 sub 0 (a19d_20); [51] from the y-500 landing gave AREA15 sub 1 entry 0 (a15_01) | both played (a19d_20, a15_01) |
 | AREA15 | AREA19 e4 / e5 sub 1 | sub 0 [14] / sub 1 [9] | open. Measured (a15_00): the slider [13] (room move id 1) from entry 1 to entry 2, then [14] facing +z: AREA19 sub 1 entry 4 (the tower's y-450 landing) | e4 played (a15_00); e5 not played |
-| AREA15 sub 1 | AREA15 sub 0 e0, and the world's subs | 0x823C80 | flag 0x22 set (AREA15 sub 0 [0]'s script 0x826E70) and 0x23 clear; counter 0x23's steps (ins) | not played (inferred) |
+| AREA15 sub 1 | AREA15 sub 0 e0, and the world's subs | 0x823C80 | flag 0x22 == 0xFF (AREA15 sub 0 [0]'s script 0x826E70) and flag 0x23 != 0xFF (001BA1C0, BM: D_00810758[id] == 0xFF); counter 0x23's steps (C: 0x8239F0 starts at the player's y >= 310 inside the polygon 0x827C80, 0x823B40 ends the 900-frame count). Measured (a15b_00 / a15b_01): the mezzanine (sub 1 floor 1437, y 315.1) by the stairs 794 and 792; flag 0x23 = 1 (0x8239F0), the count, script 0x8277C0, flag 0x23 = 0xFF (measured, writer not read), the request 0F 00 00 01 (0x823C80) | played (a15b_01) |
+| AREA19 sub 1 | the truck [46] (no area change) | [46] 0x829A70 (C), model 0x21 | item 0x25 (AREA15 sub 0 [1]'s 0x824240, after the event) used from the status screen's EVENT page at the truck's Use point (its descriptor 0x82F790: (817.5, 379, 931.4)): D_00810838 = 1, the cell key 5 off. Measured (a19e_02) | played (a19e_02) |
 | AREA00 sub 2 | AREA14 e0 | [28] 0x826790 | Use with item 0x26 (AREA00 sub 2 g[3]) | not played (inferred) |
 | AREA14 / AREA18 | AREA18 e0 / AREA14 e1 | 00190F20 | in AREA14 the player inside quad D_0024A4B0 / in AREA18 the player's x (+0xA0) <= 285 (BM, section 5) | not played (inferred) |
 | AREA14 | AREA17 e0 | [6]'s script 0x828120, op09 0x825C40 | the owner's condition not read | not played (inferred) |
@@ -805,6 +808,17 @@ From there:
    [14] back to the tower's y-450 landing (AREA19 sub 1 entry 4); door [51]
    from the y-500 landing to AREA15 sub 1 entry 0. Sub 1's [4] / [6] event
    was not played.
+   **Played in the fifteenth level (section 8h):** sub 1's event on the
+   mezzanine and the forced return; sub 0's [1] / [2] (item 0x25, counter
+   0x24 = 2); the bed [16] with item 0x20 (health 100, infection 0); door
+   [14] back to AREA19 sub 1's tower; the truck [46] opened with item 0x25;
+   its g[0] (item 0x1C, the 18-gauge battery pack); the panel [24] with
+   the charge 0x24; door [25] to AREA03 entry 1. The panel's cost (32
+   half-units) exceeds the 6-gauge pack's capacity, so step 5's first branch
+   (AREA19 -> AREA03) needs a bigger pack: this route took the 18-gauge one
+   behind the truck's door, whose key comes from AREA15's event. Sub 0's
+   g[4] (item 0x1D, the 24-gauge pack, at (877.2, 210, 976)) is another
+   source, not on this route (not reached).
 7. **The second half.** AREA00 sub 2 -> AREA14 (item 0x26 from AREA00 sub
    2's g[3]) -> AREA18 (item 0x28, g[1]) -> AREA17 (0x824700 takes 0x28 and
    gives 0x2B) -> AREA11 entry 3 (flag 0x30 1, then AREA11's [11] 0x823CE0
@@ -1193,14 +1207,66 @@ from the thirteenth level's a19c_07. Measured:
   (00181730, 001782A0, 001787B0) and on the post's ladder
   (0017FD80..001809B0)), the 2 AREA19 and the 21 AREA15 overlay functions.
 
+## 8h. Measured (fifteenth level)
+
+The port's `docs/FIFTEENTH_LEVEL_ROUTE.md` played groups `a15b` (5 beats,
+AREA15 sub 1's event -> AREA15 sub 0 -> door [14]), `a19e` (8 beats and 2
+side beats, AREA19 sub 1's hall and the truck [46] -> sub 0's deck -> the
+panel [24] -> door [25]) and `a03` (1 beat, AREA03 sub 0's lift) of
+`tools/route_capture.py` from the fourteenth level's a15_01. Measured:
+
+- **AREA15 sub 1's event (C: 0x823850 / 0x8239F0 / 0x823B40 / 0x823C80).**
+  Reached on the mezzanine (sub 1 floor 1437, y 315.1) by the stairs 794
+  and 792; inside the polygon 0x827C80 (x < 793) flag 0x23 = 1 and script
+  0x827400 (0x8239F0); the 900-frame count ran out (D_008107FB 1 -> 2,
+  0x823B40); script 0x8277C0 (0x823C80; at its end item C64 0x06 and the
+  SPR4 page's U.R.S. part); while it ran counter 0x23 = 3 and flag 0x23 =
+  0xFF (measured; writers not read, 0x823C80's C writes neither); the
+  request 0F 00 00 01 and counter 0x23 = 0xFF (0x823C80): AREA15 sub 0
+  entry 0. The gates test flag 0x23 == 0xFF (001BA1C0, BM); during the
+  event flag 0x23 is 1.
+- **AREA15 sub 0 (C: 0x824240 / 0x824350; NM 0x824070).** [1]'s script
+  0x827D70 (0x824240 at its end: counter 0x24 = 1, item 0x25; flag 0x24 =
+  0xFF measured at the same frame, writer not read) and [2]'s
+  script 0x8281F0 (counter 0x24 = 2) play at the arrival; the bed [16]
+  (00159620, BM) with item 0x20 (002160B0 kind 2, BM): health 100,
+  infection 0. In the kept beats every health loss is a hit (action
+  0x3E); at infection 70 health stayed 44 through a15b_00..a15b_03.
+- **AREA19 sub 1 after the event.** Sub 1's deferred records 15 / 16
+  (001B6660 condition 6 on flag 0x23 = 0xFF and flag 0x20 = 0xFF, BM) are
+  two 0012E3A0 creatures with +0x34 = 180 (measured). The truck [46]
+  (0x829A70, C) opens with item 0x25 used from the status screen's EVENT
+  page (00215870 / 00185420 / 00184D20, BM: class 4, model 0x21) at its
+  Use point (descriptor 0x82F790: (817.5, 379, 931.4), radius 5, height 6,
+  yaw -2.0944): D_00810838 = 1. Its g[0] is item 0x1C (001C40B0 case 0x1C,
+  NM: +0x24 half-units, capacity 0x24).
+- **The panel [24] and door [25].** 00158EC0 (BM) stores +0x34 = 0x10 for
+  model 0x22: 32 half-units, refused with 4 (side beat a19e_s1), paid from
+  0x24 (a19e_06: the charge 0x24 -> 4, D_00810854 0x0C -> 0x0E). Door [25]
+  -> AREA03 sub 0 entry 1 (a19e_07).
+- **AREA03 sub 0's lift ([7]..[12], C).** [11] (descriptor 0x828FF0) opens
+  the car's doors ([7] / [8] gate on D_00275CA0; 0x826860 inverts it, first
+  seen a03_00 f1416; D_00275CA0 = 1 after the Use is exploration-only, not
+  kept); [9] (descriptor 0x828BB0) rides down: a room move to entry 2
+  (a03_00 f2304; 0x826270 picks entry 2 with D_00275CA0 clear). Six 0013D2D0 creatures
+  (+0x34 = 60) stand in sub 0 on the way to door [13]; the exploration walk
+  there died with 2 rounds held. AREA03 was not recorded to an exit.
+- **Census** (`route_census.py fifteenth-delta`, against every earlier
+  pass including the first level's C10 capture passes): 51 functions
+  (32,080 bytes) new in any census pass: 30 boot, 6 AREA15 overlay
+  (0x823B40, 0x823C80, 0x823F60, 0x824240, 0x824350, 0x8243E0) and 15
+  AREA03 overlay; no AREA19 overlay function is new (`a15b_delta.json`,
+  `a19e_delta.json`, `a03_delta.json`).
+
 ## 9. Open
 
-1. AREA19 is played through the stair tower into AREA15 sub 0 and back, and
-   into AREA15 sub 1 as far as its arrival (section 8g). AREA15 sub 1's
-   event ([4] / [6] 0x823850: flag / counter 0x23, the forced return to
-   AREA15 sub 0 that rewrites five areas' subs) is not played (port
-   FOURTEENTH_LEVEL_ROUTE.md section 7). Section 7 steps 6 (its sub-1 half)
-   and 7 are derived, not played. The conditions of AREA14's
+1. AREA15 sub 1's event, the return to AREA15 sub 0, the truck [46] and
+   the panel [24] are played, and AREA03 is entered and its lift ridden
+   (section 8h). AREA03 is not recorded to an exit: sub 0's door [13], sub
+   1's g[3] / [22] (flag 0x29, item 0x2A), sub 2's socket and lift to
+   AREA08, or sub 1's seal [23] and door [24] to AREA04 (port
+   FIFTEENTH_LEVEL_ROUTE.md section 7). Section 7 step 7 is derived, not
+   played. The conditions of AREA14's
    [6] (the owner of script 0x828120), AREA17's counter 0x5D (written by
    boot 0016BC40, not read) and AREA21's ending were read only as far as
    the tables show.

@@ -215,75 +215,46 @@ SIZE_DRIFT_FORCE_ASM = {
     # bodies were replaced by C at objdiff 100% (docs/LEVELS_DECOMP.md); with
     # the entry removed the full build + verify_all stayed byte-identical and
     # audit_link_provenance shows compiled_object_ordinary_c for each.
+    # Level side-track lane DFIX2 (2026-10-02): 48 entries removed. Three are
+    # ordinary C at objdiff 100% (func_001BBD20, func_001D0D60, func_0021BE40;
+    # docs/LEVELS_DECOMP.md sections 6-8). 45 are CodeWarrior asm bodies at
+    # objdiff 100% outside the first-level census (the class the 2026-09-23 note
+    # above left open): func_0010C200, func_0010C430, func_0010C4A0,
+    # func_0010D098, func_00110C80, func_0011B1E0, func_0011BCF8, func_0011C128,
+    # func_0011E148, func_0011E878, func_001226E8, func_00127650, func_0012F980,
+    # func_00131510, func_00137830, func_0013BBB0, func_0013D850, func_0013DC60,
+    # func_0014C220, func_0014E420, func_0014E670, func_0014EC00, func_0014EEF0,
+    # func_001504D0, func_00150DA0, func_00151590, func_00153950, func_00178390,
+    # func_0017D940, func_0017DAF0, func_0017DC80, func_0017DFB0, func_00182100,
+    # func_001837B0, func_001AA2A0, func_001B3250, func_001B3670, func_001D6DD0,
+    # func_001DCFF0, func_001FBE80, func_0021BED0, func_0021D6C0, func_0021E490,
+    # func_00229960, func_00229C00. With the entries removed the full build +
+    # verify_all stayed byte-identical and audit_link_provenance shows each
+    # linked from its compiled object (ordinary C / inline assembly) with the
+    # filler's text and relocations equal to the prepared object.
     "func_001046C0",
     "func_0010C0C8",
-    "func_0010C200",
     "func_0010C290",
     "func_0010C2F8",
     "func_0010C360",
     "func_0010C3C8",
-    "func_0010C430",
-    "func_0010C4A0",
-    "func_0010D098",
-    "func_00110C80",
-    "func_0011BCF8",
-    "func_0011C128",
     "func_0011DE90",
-    "func_0011E148",
     "func_0011E2A8",
-    "func_00127650",
-    "func_0012F980",
-    "func_00131510",
-    "func_00137830",
-    "func_0013BBB0",
-    "func_0013D850",
-    "func_0013DC60",
-    "func_0014C220",
-    "func_0014E420",
-    "func_0014E670",
-    "func_0014EC00",
-    "func_0014EEF0",
-    "func_001504D0",
-    "func_00150DA0",
-    "func_00151590",
-    "func_00153950",
     "func_00177460",
-    "func_00178390",
     "func_001796C0",
-    "func_0017D940",
-    "func_0017DAF0",
-    "func_0017DC80",
-    "func_0017DFB0",
-    "func_00182100",
-    "func_001837B0",
     "func_0019A310",
     "func_0019ED80",
     "func_0019F330",
     "func_001A4D10",
-    "func_001AA2A0",
     "func_001B1190",
     "func_001B1EA0",
     # anim_clip_init removed: readable C now supplies both float arguments
     # and matches the original212-byte slot; verify actual compiled-C linkage.
     "func_001CF470",
-    "func_001D0D60",
-    "func_001FBE80",
     "func_00205F90",
-    "func_0021BE40",
-    "func_0021BED0",
-    "func_0021D6C0",
-    "func_0021E490",
-    "func_00229960",
-    "func_00229C00",
     # Content-mismatch functions: compiled obj has wrong instructions (different
     # code generation from mwcc vs original), even though size may be correct.
     # These were identified by comparing filler object bytes to the original ELF.
-    "func_0011B1E0",
-    "func_0011E878",
-    "func_001226E8",
-    "func_001B3250",
-    "func_001B3670",
-    "func_001DCFF0",
     "func_001E0C80",
     # 91 additional drift/content-mismatch entries found after the
     # 2026-05-24 naming/splat-regen pass.  These all have src/*.c that
@@ -326,14 +297,12 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_001B0BA0",
     "func_001BA1C0",
     "func_001BA510",
-    "func_001BBD20",
     "func_001CB8A0",
     "func_001D38A0",
     "func_001D4A90",
     "func_001D4E20",
     "func_001D4EB0",
     "func_001D6B10",
-    "func_001D6DD0",
     "func_001D71A0",
     "func_001DA290",
     # func_001DF5A0 removed 2026-09-28 (lane DFIX): corrected C (f12 passed

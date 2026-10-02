@@ -34,6 +34,10 @@ The 45 assembly / stub / missing rows now stand as follows (section 3 has one ro
 func_0021BE40, func_001D0D60 and func_0019F680, are now byte-matched C; 35 C, 8 asm body +
 companion. Section 3 keeps the 2026-10-01 rows.)
 
+(Update 2026-10-02, lane DFIX2, section 8: func_0021BE40 and func_001D0D60 now link from their
+compiled C, as does func_001BBD20 of section 6; func_0011C128 and func_001D6DD0 link from their
+compiled asm bodies. matched_code is now 2159/2214.)
+
 Every one of the 45 now has readable C. All 31 byte-matched functions link from their compiled
 C: 19 did at once, and the other 12, which `tools/decomp/fill_unmatched.py` still forced to the
 original assembly through stale `SIZE_DRIFT_FORCE_ASM` entries, were released by lane DFIX the
@@ -349,3 +353,50 @@ compiled `.text` outside relocation fields, the five new ones included.
 Bounded mutation sweep (one constant or offset per promoted function: 15.0 -> 15.5, i = 4 -> 3,
 the volatile +0x1F4 -> +0x1F0, phase +0 -> +4, 0.25 -> 0.5, +0x20E -> +0x20C, .y -> .z, +4 -> +8,
 1.0 -> 2.0): no mutant stays byte-identical (99.88-100.00 with 1 differing word).
+
+## 8. Force-asm cleanup and NEARMISS body corrections, second round (lane DFIX2, 2026-10-02)
+
+**Force-asm cleanup.** `audit_link_provenance.py` before this lane listed 66
+`SIZE_DRIFT_FORCE_ASM` entries whose unit objdiff rates 100: 3 ordinary C (func_001BBD20,
+func_001D0D60, func_0021BE40) and 63 CodeWarrior asm bodies (the class the 2026-09-23 note in
+`tools/decomp/fill_unmatched.py` left open). Removed: the 3 ordinary-C entries and the 45 asm-body
+entries that are neither on the first-level census nor in `docs/FIRST_LEVEL_DECOMP.md` (the list
+is in the fill_unmatched note; it includes func_0011C128 and func_001D6DD0 of section 3). Every
+removed unit's compiled `.text` fits its slot (0 to 12 bytes under) and carries no data section.
+The 15 first-level asm bodies of the same class stay listed (first-level chain's files):
+func_0010C0C8, func_0010C290, func_0010C2F8, func_0010C360, func_0010C3C8, func_0011DE90,
+func_0011E2A8, func_00177460, func_0019A310, func_0019ED80, func_0019F330, func_001A4D10,
+func_001B1EA0, func_001CF470, func_00205F90. Nothing else in that file changed.
+
+**NEARMISS body corrections.** The six logic notes of the port lanes L12T / L13T (port
+docs/LEVEL12_PORT.md and LEVEL13_PORT.md section 0) were applied after the instructions were
+re-read, plus the twin func_0011E520 of func_0011E420: func_0016EF50 (five points), func_0011E420,
+func_0011E520, func_0013C8C0, func_001B2F70, func_00139E00, func_00139240. Three became
+byte-identical in the process and were promoted through `tools/match/integrate_nearmiss.py`
+(threshold 100, KEEP; the integrator's NEARMISS.md row removals were undone, the registry is
+append-only, new rows appended instead): func_0016EF50 (90.09 -> 100), func_0011E420 and
+func_0011E520 (91.97 -> 100, ee-gcc). The other four stay NEARMISS: func_0013C8C0 93.31 -> 94.02,
+func_00139E00 96.86 -> 97.03, func_00139240 99.15 -> 99.57, func_001B2F70 98.37 -> 98.59. Each
+change, the levers, the scratch original-instruction harness (`build/dfix2/harness/dfix2_diff.py`,
+ignored; full mode 10508 cases, 0 differences, all original branch outcomes reached except two that
+cannot occur) and the pre-fix failures are in `docs/FINDINGS.md` "NEARMISS body corrections from
+the level side-track lanes, second round". The LEVEL8..11 lists were applied by section 6; the
+LEVEL9 note on AREA13 0x829AA0 is a packet store order with no behaviour difference.
+
+**Gate** (build lock held, 11:23-11:52 UTC, `build/dfix2/gate.sh`): integrator 3 KEEP;
+`tools/decomp/build.py build` rc 0 (2214 units); `.venv/bin/python tools/verify_all.py` all six
+stages PASS: boot ELF byte-identical (0x175b00 loadable bytes), 19/19 overlays, matched_code
+98.67% (2159/2214, up from 2156/2211 by the three promotions), glTF, selftest, gs-offset.
+`audit_link_provenance.py`: no copied-text, relocation, pinned-rodata or missing-filler mismatch;
+the 6 ordinary-C units (func_001BBD20, func_001D0D60, func_0021BE40, func_0011E420, func_0011E520,
+func_0016EF50) route `compiled_object_ordinary_c` and the 45 asm bodies
+`compiled_object_inline_assembly`, each objdiff-perfect with the filler's text and relocations
+equal to the prepared object. Route totals now: 1662 ordinary C and 482 asm bodies objdiff-perfect
+from their objects; on the force lists 47 + 6 partial units and the 15 first-level asm bodies.
+`tools/check_no_disassembly.py` is clean on every touched file.
+
+**Open.** The 15 first-level asm-body entries above (same proof would apply; first-level chain).
+The audit lists func_00140F80 and func_0014AFA0 as copied ordinary C that objdiff rates below 100
+(99.99 / 99.98) although the boot ELF is byte-identical; this was already so before this lane and
+was not examined. A LEVEL14 logic note (func_001EDE40, port docs/LEVEL14_PORT.md) arrived in
+docs/NEARMISS.md during this lane; it is outside this lane's LEVEL8..13 scope.

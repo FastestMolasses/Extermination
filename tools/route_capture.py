@@ -64,6 +64,7 @@ None of them runs under `--beats all`.
     .venv/bin/python tools/route_capture.py run --beats a13d,a19b  # twelfth level (opt-in)
     .venv/bin/python tools/route_capture.py run --beats a19c       # thirteenth level (opt-in)
     .venv/bin/python tools/route_capture.py run --beats a19d,a15   # fourteenth level (opt-in)
+    .venv/bin/python tools/route_capture.py run --beats a15b,a19e,a03  # fifteenth level (opt-in)
 The AREA13 beats (a13_*, from the a04b_04_lift snapshot) write to
 build/s87/route_a13/<beat>/; they are described in the port's
 docs/NINTH_LEVEL_ROUTE.md.
@@ -6687,6 +6688,573 @@ def fourteenth_a15_selected(spec: str) -> list[tuple]:
         return list(A15_BEATS)
     return [b for b in A15_BEATS if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
 
+# Fifteenth level (lane STORY, s95; port docs/FIFTEENTH_LEVEL_ROUTE.md): from
+# a15_01's end (AREA15 sub 1 entry 0) through sub 1's event and the forced
+# return to AREA15 sub 0, then back into AREA19 sub 1 for the truck's key.
+# Opt-in groups `a15b` (AREA15, overlay id 12; its last beat changes to
+# AREA19), `a19e` (AREA19, overlay id 16; its last main-line beat changes to
+# AREA03) and `a03` (AREA03, overlay id 4: sub 0's lift).  What the route uses (code,
+# then the captured grids; port doc section 2): AREA15 sub 1's [4]
+# (0x823850 / 0x8239F0, C: the player's y >= 310 inside the polygon 0x827C80,
+# script 0x827400, flag 0x23 = 1, D_008107FB = 1 and a 900-frame count;
+# 0x823B40: D_008107FB = 2 at the count's end; 0x823C80: script 0x8277C0,
+# items C64 0x06 / CC3 0x0E, the sub-states of five areas, the request AREA15
+# entry 0 sub 0); the mezzanine (grid floor 1437, y 315.1) by the stair 794
+# and the stair 792; AREA15 sub 0's [1] / [2] (0x824070 NM, 0x824240 /
+# 0x824350 C: scripts 0x827D70 (item 0x25) and 0x8281F0); door [14]; in
+# AREA19 sub 1 the tower's flights and door [49] into the hall, the ladder
+# at (892, 929.5), the ceiling hang, the truck [46] (0x829A70, C): its Use
+# point (the descriptor 0x82F790: (817.5, 379, 931.4), radius 5, height 6,
+# yaw -2.0944) at the top of the stair 404, the item 0x25 used from the
+# status screen's EVENT page (00215870: the device's +0xB = 5), D_00810838 =
+# 1; the pickups g[0] (item 0x1C, the 18-gauge battery pack) and g[7] (item
+# 0x1F) inside the truck.  Side beats: the ladder 694 down to sub 0 (13 00 0B)
+# and the panel [24] refusing the charge (00158EC0 model 0x22 costs 2 * 0x10
+# half-units).
+OUT_A15B = ROOT / "build/s87/route_a15b"
+OUT_A19E = ROOT / "build/s87/route_a19e"
+A15B_EXTRA_SPANS = [
+    ("s838", 0x810838, 0x4),            # D_00810838 (AREA19 sub 1 [46]: the truck's door)
+    ("t130", 0x810130, 0x30),           # the status block D_00810130 (page id, hovers, list cursor)
+    ("batt", 0x810CB0, 0x8),            # D_00810CB2 charge, D_00810CB7 capacity (half-units)
+]
+A19E_OWNERS = {                       # a15b_04's sub-1 load (measured in the exploration)
+    "beastC_12E3A0": 0x7A70B0, "beastD_12E3A0": 0x7A73A0, "truck46_829A70": 0x7AF1F0,
+}
+
+
+def decode_a15b(r: dict[str, bytes], owners=None) -> dict:
+    owners = {} if owners is None else owners
+    row = decode_a19d(r, owners=owners)
+    row["s838"] = r["s838"].hex()
+    row["t130"] = r["t130"].hex()
+    row["batt"] = r["batt"].hex()
+    row["inf"] = round(f32(r["player"], 0x228), 3)
+    for name in owners:
+        if name + ":k" in r:
+            row[name]["k"] = r[name + ":k"].hex()
+    return row
+
+
+def use_a15b_sampler(r: Route, owners=None) -> None:
+    spans = [sp for sp in A19D_SPANS if ":" not in sp[0]] + A15B_EXTRA_SPANS
+    for _name, _base in (owners or {}).items():
+        spans += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                  (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                  (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10),
+                  (_name + ":k", _base + 0x30, 0x10)]
+    sampler = A01USampler(r.s, spans=spans)
+    r.sampler = sampler
+    r.now = lambda: decode_a15b(sampler.raw(), owners=owners or {})
+    r.rows[0] = dict(r.now(), f=0)
+
+
+def a15b_walk(r: Route, points, stop=None, tol: float = 1.0, limit: int = 400) -> None:
+    """a19d_go_rock per point; ends at once when `stop(row)` holds (a script
+    took the player)."""
+    for x, z in points:
+        for _ in range(limit):
+            row = r.rows[-1]
+            if stop is not None and stop(row):
+                r.set_pad(0)
+                return
+            if row["m1F0"] in A19D_GRABS:
+                a19d_rock(r, 200)
+                continue
+            px, _py, pz = row["pos"]
+            d = math.hypot(x - px, z - pz)
+            if d <= tol:
+                break
+            r.stick_toward(x, z, min(1.0, max(0.4, d / 12.0)))
+            r.step(1)
+        r.set_pad(0)
+
+
+def a15b_close_page(r: Route, limit: int = 6000) -> None:
+    """A status page the game opened (ui byte 1 = 3): 60 frames, then
+    Triangle until it closes."""
+    r.until(lambda row: row["ui"][2:4] == "03", limit)
+    r.idle(60)
+    for _ in range(6):
+        r.press("TRIANGLE", 2)
+        r.step(25)
+        if r.rows[-1]["ui"][2:4] != "03":
+            return
+    raise TimeoutError("page not closed: " + summary(r.rows[-1]))
+
+
+def a15b_status_open(r: Route) -> None:
+    """START until the status hub is open (D_00810131 = D_00810132 = 1)."""
+    for _ in range(6):
+        r.press("START", 2)
+        for _ in range(40):
+            r.step(1)
+            if r.rows[-1]["t130"][2:6] == "0101":
+                r.step(20)
+                return
+        r.idle(10)
+    raise TimeoutError("status hub not opened: " + summary(r.rows[-1]))
+
+
+def a15b_status_pick(r: Route, lx: int, ly: int) -> None:
+    """The hub and the ITEM root select by the stick (the hover byte
+    D_00810141 follows it while held): stick, Cross with it held."""
+    r.set_pad(0, lx, ly)
+    r.step(10)
+    r.set_pad(PAD["CROSS"], lx, ly)
+    r.step(2)
+    r.set_pad(0)
+    r.step(50)
+
+
+def a15b_beat_event(r: Route) -> dict:
+    # AREA15 sub 1: from entry 0 up the stair 794 (z 898 -> 845) to the y-339.6
+    # platform, west down the stair 792 to the mezzanine (y 315.1) and west
+    # into the polygon 0x827C80 (x < 793): [4]'s script 0x827400 (flag 0x23 =
+    # 1), then D_008107FB = 1 and the 900-frame count; no input until the
+    # count ends (D_008107FB = 2) and script 0x8277C0 starts.
+    use_a15b_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a15b_walk(r, [(898, 912), (897.5, 900), (897.5, 880), (897.5, 860), (897.5, 846), (885, 836), (874, 836),
+                  (860, 836), (842, 836), (820, 836), (800, 838), (785, 845)],
+              stop=lambda row: row["s778"][6:8] != "00")
+    if r.rows[-1]["s778"][6:8] == "00":
+        raise RuntimeError("[4]'s event not started: " + summary(r.rows[-1]))
+    r.until(lambda row: row["s7f8"][6:8] == "02" and row["spad"][2:4] == "02", 6000)
+    r.idle(5)
+    return {"what": "AREA15 sub 1: the mezzanine, [4]'s script 0x827400 (flag 0x23 = 1), the 900-frame count "
+                    "(D_008107FB 1 -> 2), script 0x8277C0 starts", "hp_end": a01_hp(r)}
+
+
+def a15b_beat_return(r: Route) -> dict:
+    # Script 0x8277C0 to its end (counter 0x23 = 3, flag 0x23 = 0xFF), items
+    # C64 0x06 and CC3 0x0E (the U.R.S. page opens: Triangle), 60 frames, the
+    # sub-states of AREA00 / 01 / 02 / 04 / 06 and the request AREA15 entry 0
+    # sub 0; ends when [1]'s script 0x827D70 has started there.
+    use_a15b_sampler(r)
+    next_long_frames(r)
+    a15b_close_page(r, 8000)
+    r.until(lambda row: row["area4"] == "0f00000f", 3000)
+    r.until(lambda row: row["spad"][2:4] == "02" and row["area4"] == "0f00000f", 3000)
+    r.idle(30)
+    return {"what": "script 0x8277C0, items C64 0x06 / CC3 0x0E (the U.R.S. page), the forced return to AREA15 "
+                    "sub 0 entry 0, [1]'s script starts", "hp_end": a01_hp(r)}
+
+
+def a15b_beat_scripts(r: Route) -> dict:
+    # AREA15 sub 0: [1]'s script 0x827D70 (flag 0x24 = 0xFF, counter 0x24 =
+    # 1, item 0x25; the EVENT page opens: Triangle), [2]'s script 0x8281F0
+    # (counter 0x24 = 2, CC3 0x0F), control.
+    use_a15b_sampler(r)
+    next_long_frames(r)
+    a15b_close_page(r, 14000)
+    r.until(lambda row: row["s7fc"][0:2] == "02", 8000)
+    a19c_until_control(r, 3000)
+    return {"what": "AREA15 sub 0: [1]'s script (item 0x25, counter 0x24 = 1), [2]'s script (counter 0x24 = 2)",
+            "hp_end": a01_hp(r)}
+
+
+def a15b_beat_bed(r: Route) -> dict:
+    # From where [2]'s script left the player (879.5, 240, 959) to entry 2
+    # (916.3, 928.4), the slider [13] (001BB860, room move id 1) facing 2.48:
+    # entry 1 (931.1, 909.4); east round the desk group to the bed [16]
+    # (00159620 model 0x36, (972, 240, 844.5)); its Use opens the HEALING
+    # page's prompt for item 0x20 (kind 2, the device hand-off 0015C750):
+    # Yes: health 100, infection 0.
+    use_a15b_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a15b_walk(r, [(882, 945), (895, 934), (910, 930)])
+    a19d_go_rock(r, 916.3, 928.4, tol=0.5)
+    a13_settle(r, 3)
+    a13_face(r, 2.48, tol=0.1)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00" or row["area4"][4:6] == "01")
+    a19c_until_control(r, 2000, pred=lambda row: row["area4"][4:6] == "01")
+    a15b_walk(r, [(965, 905), (976, 880), (976, 860), (966, 846)], tol=0.8)
+    a13_settle(r, 3)
+    a13_face(r, math.pi / 2, tol=0.08)
+    inf0 = r.rows[-1]["inf"]
+    use_press(r, lambda row: not in_control(row))
+    r.until(lambda row: row["ui"][2:4] == "03" and row["ui"][10:12] == "04", 1500)
+    r.idle(30)
+    r.press("LEFT", 2, after=20)
+    r.press("CROSS", 2)
+    r.until(lambda row: row["hp"] >= 99.9 and row["inf"] == 0.0, 1500)
+    r.until(in_control, 1500)
+    a13_settle(r, 10)
+    return {"what": "the slider [13] to entry 1, the bed [16] with item 0x20: health 100, infection 0",
+            "inf_before": inf0, "inf_after": r.rows[-1]["inf"], "hp_end": a01_hp(r)}
+
+
+def a15b_beat_door14(r: Route) -> dict:
+    # Back west to the slider [13] facing -0.66 (as a15_00): entry 2; door
+    # [14] (001BC350, id 0x80) facing +z: AREA19 sub 1 entry 4 (the tower's
+    # y-450 landing).
+    use_a15b_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a15b_walk(r, [(976, 880), (965, 905), (940, 911), (935, 911)])
+    a19d_go_rock(r, 927.3, 913.7, tol=0.5)
+    a13_settle(r, 3)
+    a13_face(r, -0.66)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00" or row["area4"][4:6] == "02")
+    a19c_until_control(r, 2000, pred=lambda row: row["area4"][4:6] == "02")
+    a19d_go_rock(r, 905, 932)
+    a19d_go_rock(r, 902, 935, tol=0.6)
+    a13_settle(r, 3)
+    a13_face(r, 0.0)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00")
+    r.until(lambda row: row["area4"][:2] == "13", 4000)
+    a19c_until_control(r, 4000)
+    return {"what": "the slider [13] to entry 2, door [14]: AREA19 sub 1 entry 4 (the tower's y-450 landing)",
+            "hp_end": a01_hp(r)}
+
+
+A15B_TOWER_DOWN = [(905, 955), (905, 975), (912, 975), (930, 975), (960, 975), (977, 975), (977, 952), (964, 952),
+                   (940, 952), (918, 952), (906, 955), (906, 975), (920, 975), (940, 975), (965, 975), (980, 975),
+                   (982, 958)]
+
+
+def a15b_beat_hall(r: Route) -> dict:
+    # The tower's flights down to y 370; door [49] (open since a19d_18) from
+    # the tower side facing -z: room move to entry 3, the hall.
+    use_a15b_sampler(r, A19E_OWNERS)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a15b_walk(r, A15B_TOWER_DOWN + [(965, 949)])
+    a19d_go_rock(r, 975, 946, tol=0.6)
+    a13_settle(r, 3)
+    a13_face(r, math.pi)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00")
+    a19c_until_control(r, 3000)
+    return {"what": "the tower's flights down, door [49]: the hall (entry 3)", "hp_end": a01_hp(r)}
+
+
+def a19e_beat_ceiling(r: Route) -> dict:
+    # West along the tower wall, round the ladder's column, the ladder at
+    # (892, 929.5) to the y-410 ledge, the ledge climb onto the box, the
+    # ceiling hang (as a19d_01) west, south and north over the truck to (851,
+    # 944).  The two 0012E3A0 creatures (+0x34 = 180) spawned at this load
+    # (sub 1 deferred records 15 / 16, 001B6660 condition 6: flag 0x23 = 0xFF) do not follow onto the
+    # ladder.
+    use_a15b_sampler(r, A19E_OWNERS)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a15b_walk(r, [(960, 933), (930, 933), (903, 933), (902, 921), (887, 921), (887, 929.5)])
+    a13d_ladder_up(r, math.pi / 2)
+    a19d_walk13(r, [(921.0, 928.0)])
+    a13_face(r, math.pi / 2)
+    a19_press_until(r, lambda row: row["pos"][1] > 420 or row["m1F0"] not in (0, 1))
+    r.until(in_control, 600)
+    a13_settle(r, 5)
+    a19d_walk13(r, [(935.0, 928.0)])
+    a13_settle(r, 5)
+    a19_press_until(r, lambda row: row["m1F0"] == 0x20 or row["p5"] == 0x11)
+    r.until(lambda row: row["p5"] == 0x12, 200)
+    for p in [(886.0, 927.0), (885.0, 908.0), (858.0, 908.0), (858.0, 935.0), (858.0, 950.0), (851.5, 948.0),
+              (851.0, 944.0)]:
+        a19d_trav(r, *p)
+    if r.rows[-1]["p5"] != 0x12:
+        raise RuntimeError("not hanging over the truck: " + summary(r.rows[-1]))
+    return {"what": "the ladder at (892, 929.5), the ceiling hang to (851, 944) over the truck", "hp_end": a01_hp(r)}
+
+
+def a19e_beat_truck(r: Route) -> dict:
+    # Over the truck's roof (grid floor 372, y 403.2), the drop, south-west
+    # across the roof and off its south-west edge onto the step 401 (y 379.9)
+    # at the stair 404's top, the Use point (817.5, 379.9, 931.4) facing yaw 1.047 (the descriptor's yaw + pi); the status
+    # screen: the hub's ITEM (stick left), the ITEM root's EVENT (stick up
+    # and left), the cursor down to item 0x25, Cross, Yes: [46] takes it,
+    # D_00810838 = 1.
+    use_a15b_sampler(r, A19E_OWNERS)
+    next_long_frames(r)
+    for p in [(855.0, 952.0), (851.0, 957.0)]:  # over the roof (grid floor 372, y 403.2)
+        a19d_trav(r, *p)
+    a19d_ceiling_drop(r)
+    r.until(in_control, 600)
+    a13_settle(r, 5)
+    if r.rows[-1]["pos"][1] < 400:
+        raise RuntimeError("the drop missed the truck's roof: " + summary(r.rows[-1]))
+    for p in [(840, 950), (828, 940), (822, 936)]:
+        a13d_go(r, *p, tol=1.0, limit=300)
+    for i in range(120):                        # off the roof's south-west edge onto the step 401
+        r.stick_toward(816, 930, 0.6)
+        r.step(1)
+        if r.rows[-1]["pos"][1] < 395 and in_control(r.rows[-1]) and i > 20:
+            break
+    r.set_pad(0)
+    a13_settle(r, 5)
+    a19d_go_rock(r, 817.5, 931.4, tol=0.5)
+    a13_settle(r, 3)
+    a13_face(r, 1.0472, tol=0.08)
+    a15b_status_open(r)
+    a15b_status_pick(r, 0x00, 0x7F)            # hub hover 4: ITEM
+    a15b_status_pick(r, 0x00, 0x00)            # ITEM hover 4: EVENT
+    for _ in range(4):                         # the list cursor (D_00810147) to the second entry
+        if r.rows[-1]["t130"][0x17 * 2:0x17 * 2 + 2] == "01":
+            break
+        r.press("DOWN", 2)
+        r.step(20)
+    r.press("CROSS", 2)
+    r.until(lambda row: row["ui"][10:12] == "04", 200)
+    r.step(30)
+    r.press("LEFT", 2)
+    r.step(20)
+    r.press("CROSS", 2)
+    r.until(lambda row: row["s838"][:2] == "01", 600)
+    a19c_until_control(r, 1500)
+    return {"what": "the truck [46]: item 0x25 from the EVENT page at its Use point, D_00810838 = 1",
+            "hp_end": a01_hp(r)}
+
+
+def a19e_take(r: Route, x: float, z: float, stand: tuple) -> None:
+    a19d_go_rock(r, *stand, tol=1.0)
+    a13_face(r, math.atan2(x - r.rows[-1]["pos"][0], z - r.rows[-1]["pos"][2]), tol=0.1)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00" or row["ui"][2:4] == "03", tries=4, wait=30)
+    a15b_close_page(r, 600)
+    r.until(in_control, 600)
+
+
+def a19e_beat_battery(r: Route) -> dict:
+    # Inside the truck: g[0] (0015AFA0 via 00219550, item 0x1C: the capacity
+    # D_00810CB7 and the charge 0x24 half-units) and g[7] (item 0x1F); below
+    # health 70 item 0x1F is used from the HEALING page (kind 1: health 100).
+    use_a15b_sampler(r, A19E_OWNERS)
+    next_long_frames(r)
+    a19e_take(r, 831.6, 946.3, (826.0, 940.0))
+    a19e_take(r, 827.7, 950.9, (826.0, 946.0))
+    if r.rows[-1]["hp"] >= 70.0:               # the HEALING page refuses at full health; keep item 0x1F
+        a13_settle(r, 5)
+        return {"what": "the truck's pickups g[0] (item 0x1C) and g[7] (item 0x1F)", "hp_end": a01_hp(r)}
+    a15b_status_open(r)
+    a15b_status_pick(r, 0x00, 0x7F)            # ITEM
+    a15b_status_pick(r, 0x00, 0x7F)            # ITEM hover 5: HEALING
+    r.press("CROSS", 2)
+    r.until(lambda row: row["ui"][10:12] == "04", 200)
+    r.step(30)
+    r.press("LEFT", 2)
+    r.step(20)
+    r.press("CROSS", 2)
+    r.until(lambda row: row["hp"] >= 99.9, 900)
+    for _ in range(8):                         # the HEALING page, the ITEM root and the hub stay open
+        if r.rows[-1]["ui"][2:4] == "00" and r.rows[-1]["t130"][2:4] == "00":
+            break
+        r.press("TRIANGLE", 2)
+        r.step(30)
+    r.until(in_control, 900)
+    a13_settle(r, 5)
+    return {"what": "the truck's pickups g[0] (item 0x1C) and g[7] (item 0x1F), item 0x1F used (health 100)",
+            "hp_end": a01_hp(r)}
+
+
+def a19e_beat_tower(r: Route) -> dict:
+    # Out of the truck by the step 401 and the stair 404, east between the
+    # truck's south-east face and the drums, south of the ladder's column, to
+    # door [49] facing +z: room move to entry 2 (the tower).  The creatures
+    # close in on this run (bites).
+    use_a15b_sampler(r, A19E_OWNERS)
+    next_long_frames(r)
+    a15b_walk(r, [(822, 937), (817.5, 931.4), (812, 926), (809, 922), (828, 922), (845, 932), (858, 930), (875, 930),
+                  (885, 920), (900, 918), (935, 920), (965, 928)], tol=1.5)
+    a19d_go_rock(r, 976, 933, tol=0.6)
+    a13_settle(r, 3)
+    a13_face(r, 0.0, tol=0.1)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    a19c_until_control(r, 3000)
+    if r.rows[-1]["pos"][2] < 945:
+        raise RuntimeError("not in the tower: " + summary(r.rows[-1]))
+    return {"what": "out of the truck, across the hall to door [49]: the tower (entry 2)", "hp_end": a01_hp(r)}
+
+
+def a19e_beat_down(r: Route) -> dict:
+    # Entry 2 to the pocket, the ladder 694 facing +z and down: 13 00 0B, sub
+    # 0's y-265 deck.
+    use_a15b_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a15b_walk(r, [(965, 949), (930, 948), (907, 947)])
+    a13d_go(r, 907.0, 953.0, tol=0.4, limit=150)
+    a13_settle(r, 3)
+    a13_face(r, 0.0)
+    a19_press_until(r, lambda row: row["m1F0"] in (0x15, 0x16, 0x17, 0x18))
+    r.set_pad(0, 0x7F, 0xFF)
+    r.until(lambda row: row["area4"][:4] == "1300" and in_control(row) and row["pos"][1] < 270, 4000, 0, 0x7F, 0xFF)
+    r.set_pad(0)
+    a13_settle(r, 10)
+    return {"what": "the ladder 694 down: 13 00 0B, sub 0's y-265 deck", "hp_end": a01_hp(r)}
+
+
+def a19e_beat_panel24(r: Route) -> dict:
+    # The deck to the panel [24] facing +z; Use, the battery prompt, Yes: the
+    # charge drains 2 half-units every 30 frames from 0x24 to 4 (cost 2 *
+    # 0x10), D_00810854 |= 2 (door [25]'s lock bit).
+    use_a15b_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a15b_walk(r, [(920, 967), (950, 967), (990, 967), (1017, 967), (1017, 1000), (1017, 1050), (1017, 1090),
+                  (1013, 1110), (1013, 1119)])
+    a13_settle(r, 3)
+    a13_face(r, 0.0)
+    use_press(r, lambda row: not in_control(row))
+    r.until(lambda row: row["ui"][2:4] == "03" and row["ui"][10:12] == "04", 1500)
+    r.idle(30)
+    r.press("LEFT", 2, after=20)
+    r.press("CROSS", 2)
+    r.until(lambda row: int(row["l854"], 16) & 2, 3000)
+    r.until(in_control, 1500)
+    a13_settle(r, 10)
+    return {"what": "the panel [24] powered: charge 0x24 -> 4, D_00810854 bit 1", "hp_end": a01_hp(r)}
+
+
+def a19e_beat_door25(r: Route) -> dict:
+    # Door [25] (001BB860 model 0x16, id 0x81) facing +z: AREA03 entry 1 sub
+    # D_00810730[3]; the arrival, control.
+    use_a15b_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a19d_go_rock(r, 1022.5, 1121.0, tol=0.5)
+    a13_settle(r, 3)
+    a13_face(r, 0.0, tol=0.06)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    r.until(lambda row: row["area4"][:2] == "03", 4000)
+    a19c_until_control(r, 20000)
+    return {"what": "door [25]: AREA03 entry 1", "hp_end": a01_hp(r)}
+
+
+def a19e_beat_down694(r: Route) -> dict:
+    # Side (from a15b_04): the flights down, the pocket, the ladder 694
+    # facing +z and down: 00193EB0's band x >= 872, z > 900, y <= 356: 13 00
+    # 0B, sub 0 entry 0xB, the ladder's foot on the y-265 deck.
+    use_a15b_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a15b_walk(r, A15B_TOWER_DOWN + [(965, 949), (930, 948), (907, 947)])
+    a13d_go(r, 907.0, 953.0, tol=0.4, limit=150)
+    a13_settle(r, 3)
+    a13_face(r, 0.0)
+    a19_press_until(r, lambda row: row["m1F0"] in (0x15, 0x16, 0x17, 0x18))
+    r.set_pad(0, 0x7F, 0xFF)
+    r.until(lambda row: row["area4"][:4] == "1300" and in_control(row) and row["pos"][1] < 270, 4000, 0, 0x7F, 0xFF)
+    r.set_pad(0)
+    a13_settle(r, 10)
+    return {"what": "the ladder 694 down: 13 00 0B, sub 0's y-265 deck", "hp_end": a01_hp(r)}
+
+
+def a19e_beat_panel(r: Route) -> dict:
+    # Side: the deck east and north to the panel [24] (00158EC0 model 0x22,
+    # cost 2 * 0x10 half-units) facing +z; Use, the battery prompt, Yes: the
+    # charge (4 half-units) is short, the page refuses; Triangle.
+    use_a15b_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a15b_walk(r, [(920, 967), (950, 967), (990, 967), (1017, 967), (1017, 1000), (1017, 1050), (1017, 1090),
+                  (1013, 1110), (1013, 1119)])
+    a13_settle(r, 3)
+    a13_face(r, 0.0)
+    use_press(r, lambda row: not in_control(row))
+    r.until(lambda row: row["ui"][2:4] == "03" and row["ui"][10:12] == "04", 1500)
+    r.idle(30)
+    r.press("LEFT", 2, after=20)
+    r.press("CROSS", 2)
+    r.until(lambda row: row["ui"][10:12] == "01", 900)
+    r.idle(30)
+    a15b_close_page(r, 300)
+    r.until(in_control, 900)
+    a13_settle(r, 10)
+    return {"what": "the panel [24]: the battery prompt, Yes, refused (charge 4 < cost 32 half-units)",
+            "hp_end": a01_hp(r)}
+
+
+OUT_A03 = ROOT / "build/s87/route_a03"
+
+
+def a03_beat_elevator(r: Route) -> dict:
+    # AREA03 sub 0 from entry 1 (the y-80 tunnel) north-west to the lift:
+    # [11] (0x826340, C; the descriptor 0x828FF0: (545.3, 80, 407.9), radius
+    # 5, yaw -2.356) facing 0.785: script 0x828CD0, D_00275CA0 = 1 (the car's
+    # doors [7] / [8] open); through the doorway into the car, [9] (0x825980,
+    # C; descriptor 0x828BB0: (552.5, 79.5, 416.8), yaw 0.785) facing -2.356:
+    # script 0x8282D0, the ride down: room move to entry 2 (554, -25, 417.5).
+    use_a15b_sampler(r)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    a15b_walk(r, [(590, 352), (575, 375), (562, 395), (553, 404)])
+    a19d_go_rock(r, 545.3, 407.9, tol=0.6)
+    a13_settle(r, 3)
+    a13_face(r, 0.785, tol=0.1)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    a19c_until_control(r, 1500)
+    a15b_walk(r, [(541.5, 413), (545, 420), (551, 423)], tol=0.8)
+    a19d_go_rock(r, 552.5, 417.5, tol=0.6)
+    a13_settle(r, 3)
+    a13_face(r, -2.356, tol=0.1)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    r.until(lambda row: row["area4"] == "03000203", 1500)
+    a19c_until_control(r, 1500)
+    return {"what": "AREA03 sub 0: the lift's doors ([11]) and the ride down ([9]): entry 2", "hp_end": a01_hp(r)}
+
+
+A03_BEATS: list[tuple] = [
+    ("a03_00_elevator", "a19e_07_door25", a03_beat_elevator),
+]
+A03_SIDE_BEATS: set[str] = set()
+A03_CHANGE_BEATS: set[str] = set()
+
+
+A15B_BEATS: list[tuple] = [
+    ("a15b_00_event", "a15_01_door51", a15b_beat_event),
+    ("a15b_01_return", "a15b_00_event", a15b_beat_return),
+    ("a15b_02_scripts", "a15b_01_return", a15b_beat_scripts),
+    ("a15b_03_bed", "a15b_02_scripts", a15b_beat_bed),
+    ("a15b_04_door14", "a15b_03_bed", a15b_beat_door14),
+]
+A15B_SIDE_BEATS: set[str] = set()
+A15B_CHANGE_BEATS: set[str] = {"a15b_01_return", "a15b_04_door14"}
+A19E_BEATS: list[tuple] = [
+    ("a19e_00_hall", "a15b_04_door14", a15b_beat_hall),
+    ("a19e_01_ceiling", "a19e_00_hall", a19e_beat_ceiling),
+    ("a19e_02_truck", "a19e_01_ceiling", a19e_beat_truck),
+    ("a19e_03_battery", "a19e_02_truck", a19e_beat_battery),
+    ("a19e_04_tower", "a19e_03_battery", a19e_beat_tower),
+    ("a19e_05_down", "a19e_04_tower", a19e_beat_down),
+    ("a19e_06_panel24", "a19e_05_down", a19e_beat_panel24),
+    ("a19e_07_door25", "a19e_06_panel24", a19e_beat_door25),
+    ("a19e_s0_down694", "a15b_04_door14", a19e_beat_down694),
+    ("a19e_s1_panel", "a19e_s0_down694", a19e_beat_panel),
+]
+A19E_SIDE_BEATS: set[str] = {"a19e_s0_down694", "a19e_s1_panel"}
+A19E_CHANGE_BEATS: set[str] = {"a19e_05_down", "a19e_07_door25", "a19e_s0_down694"}
+
+
+def fifteenth_selected(spec: str) -> list[tuple]:
+    """The fifteenth-level groups `a15b`, `a19e` and `a03` (opt-in; the a19e
+    side beats run only by name)."""
+    wanted = spec.split(",")
+    out = []
+    for tag, beats, side in (("a15b", A15B_BEATS, A15B_SIDE_BEATS), ("a19e", A19E_BEATS, A19E_SIDE_BEATS),
+                             ("a03", A03_BEATS, A03_SIDE_BEATS)):
+        if tag in wanted:
+            out += [b for b in beats if b[0] not in side]
+        else:
+            out += [b for b in beats if any(b[0] == w or b[0].startswith(w + "_") for w in wanted)]
+    return out
+
+
+def fifteenth_owners(name: str):
+    return A19E_OWNERS if name[:7] in ("a19e_00", "a19e_01", "a19e_02", "a19e_03", "a19e_04") else None
+
 # ---------------------------------------------------------------------------
 # AIM capture group (opt-in, `--beats aim` or a beat's name): aiming, firing,
 # reloading, the gun light, melee and the security gun's cable in AREA11
@@ -9089,6 +9657,12 @@ def beat_dir(name: str) -> Path:
         return OUT_A19D / name
     if name.startswith("a15_"):                 # fourteenth level, AREA15 to its exits
         return OUT_A15 / name
+    if name.startswith("a15b_"):                # fifteenth level, AREA15 sub 1's event and the return
+        return OUT_A15B / name
+    if name.startswith("a19e_"):                # fifteenth level, AREA19 sub 1's hall and the truck
+        return OUT_A19E / name
+    if name.startswith("a03_"):                 # fifteenth level, AREA03
+        return OUT_A03 / name
     if name.startswith("aim_"):                 # AIM capture group (docs/CAPTURES_C10.md)
         return OUT_AIM / name
     if name.startswith("exit_"):                # EXIT capture group (docs/CAPTURES_C10.md)
@@ -9277,6 +9851,8 @@ if __name__ == "__main__":
                 run_beat(name, source, fn)
             for name, source, fn in fourteenth_a15_selected(a.beats):
                 run_beat(name, source, fn)
+            for name, source, fn in fifteenth_selected(a.beats):  # the fifteenth-level groups
+                run_beat(name, source, fn)
             for name, source, fn in aim_selected(a.beats):     # the AIM capture group
                 run_beat(name, source, fn)
             for name, source, fn in exit_selected(a.beats):    # the EXIT capture group
@@ -9306,6 +9882,7 @@ if __name__ == "__main__":
         chosen += thirteenth_selected(a.beats) if a.beats != "all" else []
         chosen += fourteenth_selected(a.beats) if a.beats != "all" else []
         chosen += fourteenth_a15_selected(a.beats) if a.beats != "all" else []
+        chosen += fifteenth_selected(a.beats) if a.beats != "all" else []
         chosen += aim_selected(a.beats) if a.beats != "all" else []
         chosen += exit_selected(a.beats) if a.beats != "all" else []
         chosen += dmg_selected(a.beats) if a.beats != "all" else []
@@ -9329,7 +9906,7 @@ if __name__ == "__main__":
                       A06_OWNERS if name.startswith("a06_") else
                       eighth_owners(name) or ninth_owners(name) or tenth_owners(name)
                       or eleventh_owners(name) or twelfth_owners(name) or thirteenth_owners(name)
-                      or fourteenth_owners(name))
+                      or fourteenth_owners(name) or fifteenth_owners(name))
             for line in events(doc, owners):
                 print("  ", line)
     elif a.command == "identify":
@@ -9373,6 +9950,7 @@ if __name__ == "__main__":
         chosen += thirteenth_selected(a.beats) if a.beats != "all" else []
         chosen += fourteenth_selected(a.beats) if a.beats != "all" else []
         chosen += fourteenth_a15_selected(a.beats) if a.beats != "all" else []
+        chosen += fifteenth_selected(a.beats) if a.beats != "all" else []
         chosen += aim_selected(a.beats) if a.beats != "all" else []
         chosen += exit_selected(a.beats) if a.beats != "all" else []
         chosen += dmg_selected(a.beats) if a.beats != "all" else []

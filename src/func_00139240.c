@@ -1,6 +1,6 @@
 // NEARMISS func_00139240  (vram 0x00139240, 0x7A8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.15% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.57% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // FP-companion register coloring on direct lwc1 loads (documented un-leverable class): in the two vec4 scratchpad staging blocks the target pairs the four D_00810360/364/368/36C loads into f0-f3 (odd f1/f3 companion halves) with the pair-copy temp on f4; mwcc233 spreads them to f2/f4/f5/f6 with the...
 //
@@ -10,6 +10,12 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// Corrected 2026-10-02 (lane DFIX2) against the original instructions (port
+// docs/LEVEL13_PORT.md section 0; docs/FINDINGS.md "NEARMISS body corrections from the
+// level side-track lanes, second round"): when the wander heading +0x5C is negative and
+// the floor probe func_001B2F70 misses, the original falls into the positive-heading test
+// (+0x5C read again; above 0 with y above 15 + the player's y it is negated); the old C
+// did nothing on the miss. objdiff 99.15 -> 99.57.
 
 //
 // Enemy AI think (states 0/1 of the state byte arg0+6; ctx arg1).
@@ -45,9 +51,10 @@
 // vec4 scratchpad staging blocks - the target pairs the four D_008103xx loads
 // into f0-f3 (odd f1/f3 companions, direct-lwc1 FP-companion coloring, the
 // documented un-leverable class); mwcc233 spreads them to f2/f4/f5/f6 with the
-// pair-copy temp on f0 instead of f4; (2) the two timeout compares emit
-// "slti v0" where the target holds "slti at" (233 tie-break; 991202 gives $at
-// but sltiu). Permuter territory; not a clean-store delay-slot nop.
+// pair-copy temp on f0 instead of f4; (2) the two timeout compares put the
+// set-on-less-than result in v0 where the target uses at (233 tie-break; 991202
+// uses at but the unsigned compare). Permuter territory; not a clean-store
+// delay-slot nop.
 
 extern float func_001B15D0(void *pos, void *target);
 extern void func_0013C8C0(char *a, char *b);
@@ -219,15 +226,14 @@ void func_00139240(char *arg0, char *arg1) {
             *(float *)(arg1 + 0x5C) =
                 3.10668612f * ((float) ((func_00122BB8() >> 6) & 0xFF) / 255.0f) - 1.55334306f;
         }
-        if (*(float *)(arg1 + 0x5C) < 0.0f) {
-            if (func_001B2F70(arg0 + 0xB0, D_700038A0) != 0) {
-                if ((10.0f + *(float *)0x700038A0 <= *(float *)(arg0 + 0xB4))
-                    && (D_00810364 <= *(float *)(arg0 + 0xB4))) {
-                } else {
-                    *(float *)(arg1 + 0x5C) = func_0011DF78(*(float *)(arg1 + 0x5C));
-                }
+        if (*(float *)(arg1 + 0x5C) < 0.0f && func_001B2F70(arg0 + 0xB0, D_700038A0) != 0) {
+            if ((10.0f + *(float *)0x700038A0 <= *(float *)(arg0 + 0xB4))
+                && (D_00810364 <= *(float *)(arg0 + 0xB4))) {
+            } else {
+                *(float *)(arg1 + 0x5C) = func_0011DF78(*(float *)(arg1 + 0x5C));
             }
         } else {
+            /* heading not negative, or the floor probe missed: +0x5C read again */
             w = *(volatile float *)(arg1 + 0x5C);
             if (!(w <= 0.0f) && (15.0f + D_00810364) < *(float *)(arg0 + 0xB4)) {
                 *(float *)(arg1 + 0x5C) = w * -1.0f;

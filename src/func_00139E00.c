@@ -1,6 +1,6 @@
 // NEARMISS func_00139E00  (vram 0x00139E00, 0x5A4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.86% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 97.03% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Register-coloring/scheduling permutation: func_001B1270's two float args are evaluated in the opposite order from the target (a genuine FP-arg-order swap that the assign-in-arg idiom did not crack), a small set of lui/addiu hoist-order swaps in the D_00810320/D_00810324/D_00810328 float block and...
 //
@@ -10,6 +10,12 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// Corrected 2026-10-02 (lane DFIX2) against the original instructions (port
+// docs/LEVEL13_PORT.md section 0; docs/FINDINGS.md "NEARMISS body corrections from the
+// level side-track lanes, second round"): state 3 sets +0x44 = 0.4 and +0x48 = 0 when
+// +0x44 is NOT below 0.4 (a cap; the old C did it when +0x44 was below 0.4). The block
+// comment below is corrected to match: state 3's finish (done == 2) seeds +0x2E in
+// [0xB4..0x133], states 0 / 1 in [0..0x3F]. objdiff 96.86 -> 97.03.
 
 // Wade/swim-recovery state-machine step (dispatched on state byte at
 // arg0+6, states 0..3; state byte 0 falls through into state 1's body).
@@ -30,13 +36,14 @@
 // water) it eases +0xC4/+0x50 toward the current target angles and runs
 // the two idle-water helpers func_0013BBB0/func_0013BA20. State 2: once
 // the 0x1000 input bit fires, arms a short 0x50-frame lunge (clip 4,
-// spring resets) via anim_clip_init(arg0, 4, PI/2, 0). State 3: identical
-// timer wait to state 1 but simpler -- just clamps +0x44 up to 0.4 and
-// eases +0x50 toward +0x5C. Shared tail (var_s0 != 0, i.e. states 0/1
-// finished the probe or state 2/3's timer elapsed): resets the recovery
-// state and the actor back to state 0, then seeds arg1+0x2E with a
-// random splash-frame offset -- states {0,1}-finished use a wider
-// [0xB4..0x133) range, state 3 uses [0..0x3F).
+// spring resets, +0x5C = pi/2) via anim_clip_init(arg0, 4, 0, 0). State 3:
+// identical timer wait to state 1 but simpler -- caps +0x44 at 0.4 (sets
+// 0.4 and +0x48 = 0 unless +0x44 is below 0.4) and eases +0x50 toward
+// +0x5C. Shared tail (done != 0: states 0/1 finished the timer or the
+// probe, or state 3's timer elapsed): resets the recovery state and the
+// actor back to state 0, then seeds arg1+0x2E with a random offset --
+// state 3's finish (done == 2) uses [0xB4..0x133], states 0/1 use
+// [0..0x3F].
 //
 // NEARMISS: 96.86% (mwcc 2.3.3), 89.02% (pinned 991202). Keys that
 // cracked this from an initial ~85%: (1) the VU0 scratchpad writes at
@@ -55,9 +62,9 @@
 // (func_001B1270) evaluates its two float args in the opposite order
 // from ours (target computes the second arg first), a handful of
 // lui/addiu scheduling-order swaps in the D_00810320 float block and the
-// func_001026A0 D_700036A0/D_700038B0 argument setup, and the very last
-// bc1t/bc1f sense on the state-3 easing call -- all register/scheduling
-// only, no logic difference.
+// func_001026A0 D_700036A0/D_700038B0 argument setup -- register /
+// scheduling only. (The "last bc1t/bc1f sense" residual listed here before
+// 2026-10-02 was the inverted state-3 clamp, a logic error, now corrected.)
 extern void anim_clip_init(char *self, int clip, float a, float b);
 extern void func_001026A0(void *dst, int n, void *src);
 extern void func_00102760(void *a0, void *a1);
@@ -190,7 +197,7 @@ void func_00139E00(char *arg0, char *arg1) {
              (timer & 0xFFFF) == 0)) {
             done = 2;
         }
-        if (*(float *)(arg1 + 0x44) < 0.4f) {
+        if (!(*(float *)(arg1 + 0x44) < 0.4f)) {
             *(float *)(arg1 + 0x44) = 0.4f;
             *(int *)(arg1 + 0x48) = 0;
         }

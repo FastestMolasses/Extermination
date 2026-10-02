@@ -1,6 +1,6 @@
 // NEARMISS func_001B2F70  (vram 0x001B2F70, 0x170 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.37% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 98.59% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // register-allocation permutation (callee-saved coloring + a0/a1 param-save order); body byte-identical, not the clean-store nop -> permuter, not 2.3.3
 //
@@ -10,6 +10,11 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// Corrected 2026-10-02 (lane DFIX2) against the original instructions (port
+// docs/LEVEL12_PORT.md section 0; docs/FINDINGS.md "NEARMISS body corrections from the
+// level side-track lanes, second round"): func_0019BC40 receives arg0 (the position; the
+// argument register is untouched before the call, and func_0019BC40's own C takes one
+// float *); the old C called it with no argument. objdiff 98.37 -> 98.59.
 
 //
 // NEARMISS 98.4% (mwcc 2.3.3; pinned 991202 = 89.8%). Body is byte-identical to
@@ -24,7 +29,7 @@
 // (1.0471976), tracks the smallest D_700030F0[i] into *arg1 and returns 1 early
 // when *(arg0+4) crosses it; returns the "found" flag otherwise.
 extern float func_0011DF78(float);
-extern void func_0019BC40();
+extern void func_0019BC40(char *pos);
 extern float D_00282250;
 extern float D_700030F0;
 extern unsigned short D_70003170;
@@ -36,7 +41,7 @@ int func_001B2F70(char *arg0, float *arg1) {
     int found;
     int i;
 
-    func_0019BC40();
+    func_0019BC40(arg0);
     if (*(int *)0x700031E0 == 0) {
         return 0;
     }

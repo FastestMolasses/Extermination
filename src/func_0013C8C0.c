@@ -1,6 +1,6 @@
 // NEARMISS func_0013C8C0  (vram 0x0013C8C0, 0x488 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.30% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 94.02% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Fully recovered logic/structure using sibling func_0013C4C0 (98.98% NEARMISS) as the steering-family template. Residual at 93.3% (233) is a branch-likely-sense wall on the coin-flip dispatch: target emits chained beql/beqzl testing coin==1 then coin==0 (delay slots filled with the +/-pi/8 constan...
 //
@@ -10,6 +10,12 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// Corrected 2026-10-02 (lane DFIX2) against the original instructions (port
+// docs/LEVEL12_PORT.md section 0; docs/FINDINGS.md "NEARMISS body corrections from the
+// level side-track lanes, second round"): the first func_001B2B10 call receives the actor
+// (arg0, still in its register) as its first argument, so the 25-unit probe is rotated by
+// the actor's heading +0xC4; the old C passed the scratch vector three times.
+// objdiff 93.30 -> 94.02.
 
 //
 // AI steering/obstacle decision step for actor arg0, writing packed decision
@@ -73,7 +79,7 @@ void func_0013C8C0(char *arg0, signed char *arg1) {
         *(int *)0x700038A4 = 0;
         *(float *)0x700038A8 = 25.0f;
         *(int *)0x700038AC = 0x3F800000;
-        func_001B2B10(D_700038A0, D_700038A0, D_700038A0);
+        func_001B2B10(arg0, D_700038A0, D_700038A0);
         func_001028B8(D_700038A0, D_700038A0, arg0 + 0xB0);
         result = (signed char)func_0013CD50(arg0, D_700038A0);
         arg1[0x80] = result;

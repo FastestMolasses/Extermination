@@ -75,6 +75,9 @@ Usage (decomp .venv python, repo root):
     .venv/bin/python tools/route_census.py a06-delta --passes A06           # beyond every earlier group
                                                      # (earlier passes: --a01-passes .. --a22-passes,
                                                      # --a01u-passes; defaults A01 .. A22, A01U)
+    .venv/bin/python tools/route_census.py run --segments a15b --pass A15B  # fifteenth level (opt-in;
+    .venv/bin/python tools/route_census.py run --segments a19e --pass A19E  #  also a03 --pass A03)
+    .venv/bin/python tools/route_census.py fifteenth-delta                  # vs every earlier pass + C10
     .venv/bin/python tools/route_census.py run --segments aim --pass AIM    # AIM group (opt-in, AREA11)
     .venv/bin/python tools/route_census.py aim-delta --passes AIM          # new vs classified.json
                                                      # -> build/aimfire/capture/census_delta.json
@@ -2986,6 +2989,84 @@ def fourteenth_delta(a) -> dict:
     return out
 
 
+# Fifteenth level, groups a15b, a19e and a03 (route_capture's opt-in groups;
+# port docs/FIFTEENTH_LEVEL_ROUTE.md): AREA15 sub 1's event and the forced
+# return to sub 0 (AREA15, one overlay for both subs), door [14] (AREA15 ->
+# AREA19 inside a15b_04_door14, run under OverlayCensusSession), then AREA19 sub 1's hall, the
+# ceiling and the truck [46] (boot + AREA19), and the side beats a19e_s0 / s1
+# (sub 1 -> sub 0 inside a19e_s0, one overlay); a19e_07 (door [25], AREA19 ->
+# AREA03) runs under OverlayCensusSession too, then AREA03 sub 0's lift (a03,
+# boot + AREA03).  `fifteenth-delta` measures
+# the three overlays against every earlier census pass: the fourteenth level's
+# baseline, its groups A19D / A15, and the first level's C10 capture passes
+# (AIM, BR / BRB, DMG / DMGB, OPT / OPTB, EXIT / EXITB, read from their run
+# files).
+FIFTEENTH_GROUPS = [   # (tag, overlay, overlay id, pass, beats-attr prefix)
+    ("a15b", "AREA15", 12, "A15B", "A15B"),
+    ("a19e", "AREA19", 16, "A19E", "A19E"),
+    ("a03", "AREA03", 4, "A03", "A03"),
+]
+FIFTEENTH_SWAP = {"a15b_04_door14", "a19e_07_door25"}
+AREA03_ID = 4
+C10_PASSES = ["AIM", "BR", "BRB", "DMG", "DMGB", "OPT", "OPTB", "EXIT", "EXITB"]
+
+
+def _run_fifteenth(a) -> None:
+    sel = rc.fifteenth_selected(a.segments)
+    for tag, ov, _ov_id, _pass, _prefix in FIFTEENTH_GROUPS:
+        plain = [b for b in sel if b[0].startswith(tag + "_") and b[0] not in FIFTEENTH_SWAP]
+        if plain:
+            _run_group(plain, [c["addr"] for c in candidates(ov)], a.pass_name)
+    for b in sel:
+        if b[0] == "a15b_04_door14":
+            _run_swap_group([b], a.pass_name, {AREA15_ID: "AREA15", AREA19_ID: "AREA19"})
+        elif b[0] == "a19e_07_door25":
+            _run_swap_group([b], a.pass_name, {AREA19_ID: "AREA19", AREA03_ID: "AREA03"})
+
+
+def _c10_earlier() -> list[tuple]:
+    """The first level's C10 capture passes as `earlier` groups (one pseudo
+    beat per run file)."""
+    out = []
+    for p in C10_PASSES:
+        d = OUT / "runs" / p
+        if d.is_dir():
+            beats = [(f.stem, None, None) for f in sorted(d.glob("*.json"))]
+            out.append((beats, [p], "c10_" + p.lower(), "AREA11"))
+    return out
+
+
+def fifteenth_delta(a) -> dict:
+    earlier = (_twelfth_earlier(a) + [(rc.A19B_BEATS, ["A19B", "A19BX"], "twelfth_a19b", "AREA19")]
+               + [(rc.A19C_BEATS, ["A19C"], "thirteenth_a19c", "AREA19")]
+               + [(rc.A19D_BEATS, ["A19D"], "fourteenth_a19d", "AREA19"),
+                  (rc.A15_BEATS, ["A15"], "fourteenth_a15", "AREA15")]
+               + _c10_earlier())
+    beats = rc.A15B_BEATS + rc.A19E_BEATS + rc.A03_BEATS
+    side = rc.A15B_SIDE_BEATS | rc.A19E_SIDE_BEATS | rc.A03_SIDE_BEATS
+    change = rc.A15B_CHANGE_BEATS | rc.A19E_CHANGE_BEATS | rc.A03_CHANGE_BEATS
+    out = {}
+    runs = {}
+    for name, _src, _fn in beats:
+        for p in ("A15B", "A19E", "A03"):
+            f = OUT / "runs" / p / f"{name}.json"
+            if f.exists():
+                doc = json.loads(f.read_text())
+                runs[name] = {"pass": p, "completed": bool(doc.get("completed")), "frames": doc.get("frames"),
+                              "error": doc.get("error"), "overlay_swaps": doc.get("overlay_swaps"),
+                              "start_counter": doc.get("start_counter"),
+                              "trace_vs_recorded_by_counter": doc.get("trace_vs_recorded_by_counter")}
+    for tag, ov, ov_id, out_name in (("a15b", "AREA15", AREA15_ID, "a15b_delta.json"),
+                                     ("a19e", "AREA19", AREA19_ID, "a19e_delta.json"),
+                                     ("a03", "AREA03", AREA03_ID, "a03_delta.json")):
+        d = chain_delta(tag, ov, ov_id, beats, side, change, ["A15B", "A19E", "A03"], earlier, out_name)
+        d["summary"]["beats_incomplete"] = sorted(n for n, v in runs.items() if not v["completed"])
+        d["summary"]["replay_runs"] = runs
+        (OUT / out_name).write_text(json.dumps(d, indent=1) + "\n")
+        out[tag] = d["summary"]
+    return out
+
+
 # The AIM capture group (route_capture's aim_* beats, docs/CAPTURES_C10.md
 # section AIM): every beat starts from the 08_truck_crossing snapshot inside
 # AREA11, so its segments arm the boot functions plus the AREA11 overlay.
@@ -3739,7 +3820,7 @@ if __name__ == "__main__":
     ap.add_argument("command", choices=["candidates", "run", "report", "compare-startup", "exit-delta",
                                         "a01-delta", "a00-delta", "a02-delta", "a04-delta", "a22-delta",
                                         "a01u-delta", "a06-delta", "graph", "eighth-delta",
-                                        "ninth-delta", "tenth-delta", "eleventh-delta", "twelfth-delta", "a19bx-delta", "thirteenth-delta", "fourteenth-delta", "aim-delta", "c10-exit-delta", "dmg-delta",
+                                        "ninth-delta", "tenth-delta", "eleventh-delta", "twelfth-delta", "a19bx-delta", "thirteenth-delta", "fourteenth-delta", "fifteenth-delta", "aim-delta", "c10-exit-delta", "dmg-delta",
                                         "br-delta", "opt-delta", "opt-save-scan"])
     ap.add_argument("--arm-chunk", type=int, default=200,
                     help="breakpoint commands per DebugServer round trip")
@@ -3827,6 +3908,8 @@ if __name__ == "__main__":
                     _run_group(sel, [c["addr"] for c in candidates(ov)], a.pass_name)
             if rc.fourteenth_selected(a.segments) or rc.fourteenth_a15_selected(a.segments):
                 _run_fourteenth(a)                    # fourteenth level (a19d, a15)
+            if rc.fifteenth_selected(a.segments):
+                _run_fifteenth(a)                     # fifteenth level (a15b, a19e)
             if "a19bx" in a.segments.split(","):     # thirteenth level: a19b_00 with the overlay swap
                 _run_swap_group([b for b in rc.A19B_BEATS if b[0] == A19BX_BEAT], a.pass_name,
                                 {AREA13_ID: "AREA13", AREA19_ID: "AREA19"})
@@ -3920,6 +4003,8 @@ if __name__ == "__main__":
         print(json.dumps(thirteenth_delta(a), indent=1))
     elif a.command == "fourteenth-delta":
         print(json.dumps(fourteenth_delta(a), indent=1))
+    elif a.command == "fifteenth-delta":
+        print(json.dumps(fifteenth_delta(a), indent=1))
     elif a.command == "a19bx-delta":
         print(json.dumps(a19bx_delta(a), indent=1))
     elif a.command == "aim-delta":
