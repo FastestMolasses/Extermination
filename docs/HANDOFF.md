@@ -59,8 +59,11 @@ that is a different, stale tree.
   T1 A11FIX, DAMAGE, BRANCHES, TAKEOVERS, GLUE; T2 LIGHTING, UNITS, GSFRAME; T3 AIMCAP,
   CAMERAS, OPTIONS, AUDIO; T4 ASSETS, EXIT (the transition into AREA01). Remove the
   worktrees and branches when it ends.
-- **Census (port FIRST_LEVEL_CENSUS.md):** 708 live / 45 verified-unbound / 3 unverified /
-  0 stand-in / 0 missing / 428 boundary = 96.9% (1.51).
+  Integrated so far: T2 LIGHTING (d47991a); port c11-t4 77139f4 (merge d788997): no
+  first-level asset reads a capture (interaction.emis / background.embg from the disc's
+  executed first frame; player.emdl reproduced whole; light cone re-baked).
+- **Census (port FIRST_LEVEL_CENSUS.md):** 720 live / 33 verified-unbound / 3 unverified /
+  0 stand-in / 0 missing / 428 boundary = 97.7% (1.53, the lighting step; 1.54 ASSETS no change).
 - **Later levels: paused by the user (2026-10-02, "stop checking ahead").** Levels 2-15 are
   recorded through AREA03's arrival (port SECOND..FIFTEENTH_LEVEL_ROUTE.md, decomp
   WORLD_GRAPH.md), their new functions translated standalone (em_area0x_*, em_level8..14_*)

@@ -95,11 +95,15 @@ Usage (macOS arm64, repo root):
   # EM_CLIP_DEMO). Baked-but-UNWIRED: the port plays none of them yet
   # (their trigger states are undecoded — a follow-up); they ride the
   # asset byte-safely (the player render resolves clips by id, so the
-  # default capture stays byte-identical):
+  # default capture stays byte-identical).
+  # ,20,71,64,65,66 (2026-10-02, port c11-t4) = the five clips the port's
+  # STARTUP.md step-8 tools then rewrite in place: 0x47 the elevator lever,
+  # 0x40..0x42 the pickups; 0x14 is baked as is (port STARTUP.md row 6
+  # gives the full list):
   .venv/bin/python tools/export_native.py --attach --no-glow \
       --mesh extract/chunk28/f00_id3b.bin \
       --anim extract/chunk28/f01_id3c.bin \
-      --clips 349,2,3,69,67,75,272,273,283,51,274,275,276,277,278,279,280,281,282,1,267,268,269,270,271,0,450,10,70,68,30,31,32,33,86,87,42,92,452,455,53,54,94,115,375,36,44,45,46 \
+      --clips 349,2,3,69,67,75,272,273,283,51,274,275,276,277,278,279,280,281,282,1,267,268,269,270,271,0,450,10,70,68,30,31,32,33,86,87,42,92,452,455,53,54,94,115,375,36,44,45,46,20,71,64,65,66 \
       --gsdump extract/gsdump/frame1.gs \
       --out ../extermination-port/assets/player.emdl
   # ANIMATED export: bake clip N from an id 0x74 animation library file
