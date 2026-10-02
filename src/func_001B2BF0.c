@@ -1,74 +1,46 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0019A310(int, int, int, int);
-extern void func_0019AD00(int, int, int, int);
-extern void func_0019BC40(int, int, int, int);
-extern void func_001B2E50(int, int, int, int);
-extern void func_001B30E0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700031D0
+// Probe: probe+0xC = 1.0, func_0019BC40(probe), then
+// r = func_0019AD00(world, probe, 7). r == 0 gives func_001B30E0(probe, arg). Else
+// the result is 4 when r has bit 1 and the scratchpad word 0x700031D4 is 0, or
+// when the halfword +0x1A of the record pointed to by 0x700031D0 has any of bits
+// 0x1800. Otherwise func_0019A310(&d), then func_001B2E50(probe, arg) | 4 when
+// that halfword has bit 0x2000 or d is not at most limit; d at most limit gives
+// func_001B30E0(probe, arg).
+extern int D_700031D4;
+extern char *D_700031D0;
+extern void func_0019BC40(void *probe);
+extern int func_0019AD00(char *world, char *probe, int mask);
+extern void func_0019A310(float *depth);
+extern int func_001B2E50(char *probe, int arg);
+extern int func_001B30E0(char *probe, int arg);
 
-asm void func_001B2BF0(void) {
-    .word 0x27bdffa0
-    .word 0x7fbf0040
-    .word 0x7fb20030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0xe7b40000
-    .word 0x3c023f80
-    .word 0x70809628
-    .word 0x70a08e28
-    .word 0x70c08628
-    .word 0x46006506
-    .word 0xaca2000c
-    jal       func_0019BC40
-    .word 0x72202628
-    .word 0x24060007
-    .word 0x72402628
-    jal       func_0019AD00
-    .word 0x72202e28
-    .word 0x10400025
-    .word 0x72202628
-    .word 0x30420002
-    .word 0x10400007
-    .word 0x00000000
-    .word 0x3c017000
-    .word 0x8c2231d4
-    .word 0x14400003
-    .word 0x00000000
-    .word 0x1000001e
-    .word 0x24020004
-    .word 0x3c017000
-    .word 0x8c2231d0
-    .word 0x8452001a
-    .word 0x32421800
-    .word 0x10400004
-    .word 0x27a4005c
-    .word 0x10000016
-    .word 0x24020004
-    .word 0x27a4005c
-    jal       func_0019A310
-    .word 0x00000000
-    .word 0x72202628
-    jal       func_001B2E50
-    .word 0x72002e28
-    .word 0x32432000
-    .word 0x10600003
-    .word 0x00000000
-    .word 0x1000000b
-    .word 0x34420004
-    .word 0xc7a0005c
-    .word 0x46140036
-    .word 0x00000000
-    .word 0x45010003
-    .word 0x00000000
-    .word 0x10000004
-    .word 0x34420004
-    .word 0x72202628
-    jal       func_001B30E0
-    .word 0x72002e28
-    .word 0x7bbf0040
-    .word 0x7bb20030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0060
+int func_001B2BF0(char *world, char *probe, int arg, float limit) {
+    float depth;
+    int hit;
+    short flags;
+    int r;
+
+    *(float *)(probe + 0xC) = 1.0f;
+    func_0019BC40(probe);
+    hit = func_0019AD00(world, probe, 7);
+    if (hit) {
+        if ((hit & 2) && D_700031D4 == 0) {
+            return 4;
+        }
+        flags = *(short *)(D_700031D0 + 0x1A);
+        if (flags & 0x1800) {
+            return 4;
+        }
+        func_0019A310(&depth);
+        r = func_001B2E50(probe, arg);
+        if (flags & 0x2000) {
+            return r | 4;
+        }
+        if (!(depth <= limit)) {
+            return r | 4;
+        }
+    }
+    return func_001B30E0(probe, arg);
 }

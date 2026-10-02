@@ -21,19 +21,19 @@ without a file of their own (four AREA11 overlay labels that are part of the pre
 and `_iSignalSema`, whose source is `src/iSignalSema.c`).
 
 The 198 assembly / missing functions now stand as follows (section 3 has the row for each; two
-collision companions were promoted to byte-matched C during the C10 pass of section 7, and four
-more after the review fixes of section 8):
+collision companions were promoted to byte-matched C during the C10 pass of section 7, four
+more after the review fixes of section 8, and 14 in the second matching pass of section 9):
 
 | Now | Functions | Meaning |
 |---|---:|---|
-| C, byte-matched | 70 | The asm body was replaced by C that objdiff rates 100% (built by `tools/decomp/build.py`, boot ELF byte-identical). |
-| asm body + companion C | 102 | The asm body stays (it links byte-identically and is a matched unit); readable C with a NEARMISS header is in `src/readable/<f>.c`, and the asm file ends with a pointer to it. |
+| C, byte-matched | 84 | The asm body was replaced by C that objdiff rates 100% (built by `tools/decomp/build.py`, boot ELF byte-identical). |
+| asm body + companion C | 88 | The asm body stays (it links byte-identically and is a matched unit); readable C with a NEARMISS header is in `src/readable/<f>.c`, and the asm file ends with a pointer to it. |
 | NEARMISS C | 2 | Former `INCLUDE_ASM` stubs, now `// NEARMISS` files (readable C; the linker uses the `.s`). |
 | C already | 5 | `func_00109F90` (byte-matched C whose empty asm statement is only a scheduling barrier; it was mis-sorted as asm) and the four absorbed AREA11 overlay labels. |
 | asm, no C form | 23 | Hand-written code with no C equivalent: syscall stubs, interrupt and cache maintenance, VU0 / VU1 control registers, and the 16 libmpeg MMI image routines (title movie only). Section 3 describes each. |
 | not done | 1 | `sub__0000000000000000Inf`, newlib's formatted output (5400 bytes, title-path debug text only). Still `INCLUDE_ASM`. |
 
-Census-wide afterwards: 778 compiled C, 275 NEARMISS C, 102 asm bodies with companion C,
+Census-wide afterwards: 792 compiled C, 275 NEARMISS C, 88 asm bodies with companion C,
 22 asm bodies with no C form, 2 `INCLUDE_ASM` stubs and the 5 rows above. Every census function
 except the 24 hand-written / one undone now has readable C.
 
@@ -59,10 +59,10 @@ drop) and remove an asm body the user decided to keep (CLAUDE.md, "leave as is f
 
 `tools/decomp/audit_link_provenance.py` after the final build (section 3, column "links as"):
 a byte-matched C file links from the compiled object unless `tools/decomp/fill_unmatched.py`
-forces the `.s`. 16 of the 70 matched functions are still on the stale
-`SIZE_DRIFT_FORCE_ASM` list there (entries written for earlier, non-matching C), so they link
-from the original assembly although their C is byte-identical. This lane may not edit
-`fill_unmatched.py`; removing those entries is listed in section 6.
+forces the `.s`. The stale `SIZE_DRIFT_FORCE_ASM` entries that kept 16 of these functions (and
+7 of section 7) on the original assembly were removed in section 9; every byte-matched function
+of this lane now links from its compiled C (copy_qw4 and func_00102948 count as inline
+assembly in the audit because their C uses GNU register variables).
 
 ## 2. Method
 
@@ -112,8 +112,8 @@ compiled C, compiled asm body (the CodeWarrior `asm` unit), or original assembly
 | func_001028D0 | 0x001028D0 | 0x14 | S1_newgame_load | asm body + companion C | 0.00 | mwcc 2.3.3 | compiled asm body |  |
 | func_00102900 | 0x00102900 | 0x18 | S1_newgame_load | asm body + companion C | 0.00 | mwcc 2.3.3 | compiled asm body |  |
 | func_00102918 | 0x00102918 | 0x2C | S1_newgame_load | asm body + companion C | 0.00 | mwcc 2.3.3 | compiled asm body |  |
-| func_00102948 | 0x00102948 | 0xC | S0_title | asm body + companion C | 96.67 | ee-gcc | compiled asm body |  |
-| copy_qw4 | 0x00102958 | 0x24 | S0_title | asm body + companion C | 94.67 | ee-gcc | compiled asm body | mwcc gives 96.22; ee-gcc is the SDK compiler of record. |
+| func_00102948 | 0x00102948 | 0xC | S0_title | C, byte-matched | 100.00 | ee-gcc | compiled C (GNU register variable) | Second pass: register variable a2 (section 9). |
+| copy_qw4 | 0x00102958 | 0x24 | S0_title | C, byte-matched | 100.00 | ee-gcc | compiled C (GNU register variables) | mwcc gives 96.22; ee-gcc is the SDK compiler of record. Second pass: register variables a2..t1 and empty barriers reproduce the register choice and in-order stores (section 9). |
 | func_001029C0 | 0x001029C0 | 0x28 | S0_title | asm body + companion C | 0.00 | mwcc 2.3.3 | compiled asm body |  |
 | func_00102A60 | 0x00102A60 | 0xA4 | S1_newgame_load | asm body + companion C | 0.00 | mwcc 2.3.3 | compiled asm body | Companion states the original's pi/2 fold, series and signed sqrt sine (valid for angle in [-pi, pi]). |
 | func_00102B08 | 0x00102B08 | 0xA8 | S1_newgame_load | asm body + companion C | 0.00 | mwcc 2.3.3 | compiled asm body | As func_00102A60. |
@@ -144,7 +144,7 @@ compiled C, compiled asm body (the CodeWarrior `asm` unit), or original assembly
 | func_001095F0 | 0x001095F0 | 0xA8 | S0_title | asm body + companion C | 50.10 | ee-gcc | compiled asm body |  |
 | func_00109A30 | 0x00109A30 | 0xC | S0_title | C, byte-matched | 100.00 | ee-gcc | compiled C |  |
 | func_00109AF8 | 0x00109AF8 | 0x24 | S0_title | asm body + companion C | 73.89 | ee-gcc | compiled asm body | mwcc gives 75.33; ee-gcc is the SDK compiler of record. |
-| func_00109B20 | 0x00109B20 | 0x50 | S0_title | asm body + companion C | 72.00 | ee-gcc | compiled asm body |  |
+| func_00109B20 | 0x00109B20 | 0x50 | S0_title | asm body + companion C | 92.00 | ee-gcc | compiled asm body | Second pass 72.00 -> 92.00 (section 9). |
 | func_00109F90 | 0x00109F90 | 0x3C | S0_title | C (already) | 100.00 |  | compiled asm body | Already byte-matched C before this lane (an empty asm statement is only a scheduling barrier). |
 | func_0010A4D8 | 0x0010A4D8 | 0x20 | S0_title | C, byte-matched | 100.00 | ee-gcc | compiled C |  |
 | _iSignalSema | 0x0010B850 | 0x10 | S0_title | asm, no C form | — |  | compiled asm body | SDK syscall stub iSignalSema (src/iSignalSema.c, kernel call -0x43); no C form. The census names it _iSignalSema. |
@@ -197,53 +197,53 @@ compiled C, compiled asm body (the CodeWarrior `asm` unit), or original assembly
 | func_001277B0 | 0x001277B0 | 0x10C | 03_panel_power | C, byte-matched | 100.00 | ee-gcc | compiled C |  |
 | func_001278C0 | 0x001278C0 | 0x90 | S1_newgame_load | asm body + companion C | 86.22 | ee-gcc | compiled asm body |  |
 | float_to_int | 0x001281C0 | 0x8C | S1_newgame_load | C, byte-matched | 100.00 | ee-gcc | compiled C |  |
-| func_00128250 | 0x00128250 | 0x98 | S1_newgame_load | C, byte-matched | 100.00 | ee-gcc | original assembly (.s) |  |
+| func_00128250 | 0x00128250 | 0x98 | S1_newgame_load | C, byte-matched | 100.00 | ee-gcc | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_00128350 | 0x00128350 | 0x40 | 03_panel_power | C, byte-matched | 100.00 | ee-gcc | compiled C |  |
 | func_0015B530 | 0x0015B530 | 0xDC | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_0015D000 | 0x0015D000 | 0xF8 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
-| func_0015DEC0 | 0x0015DEC0 | 0x4C | 05_boxes | asm body + companion C | 82.89 | mwcc 2.3.3 | compiled asm body |  |
-| func_00163B40 | 0x00163B40 | 0xCC | 10_cage_roof_roger | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
+| func_0015DEC0 | 0x0015DEC0 | 0x4C | 05_boxes | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Second pass: one && condition with a single return 0 (section 9). |
+| func_00163B40 | 0x00163B40 | 0xCC | 10_cage_roof_roger | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_00176BE0 | 0x00176BE0 | 0x98 | 01_battery | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
-| func_00177460 | 0x00177460 | 0xA8 | 05_boxes | asm body + companion C | 86.67 | mwcc 2.3.3 | original assembly (.s) |  |
-| func_00178B90 | 0x00178B90 | 0x330 | 00_panel_no_battery | asm body + companion C | 99.10 | mwcc 2.3.3 | compiled asm body |  |
-| func_0017DEB0 | 0x0017DEB0 | 0xBC | 05_boxes | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
+| func_00177460 | 0x00177460 | 0xA8 | 05_boxes | asm body + companion C | 96.19 | mwcc 2.3.3 | original assembly (.s) | Second pass 86.67 -> 96.19 (section 9). |
+| func_00178B90 | 0x00178B90 | 0x330 | 00_panel_no_battery | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Second pass: `rest >= 0.0f`, declaration order, and a dead store found by the permuter (section 9). |
+| func_0017DEB0 | 0x0017DEB0 | 0xBC | 05_boxes | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_00181110 | 0x00181110 | 0x6C | 10_cage_roof_roger | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
-| func_00182430 | 0x00182430 | 0x440 | 00_panel_no_battery | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
-| func_0018C4B0 | 0x0018C4B0 | 0xE8 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
-| func_0018C6A0 | 0x0018C6A0 | 0x1A8 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
+| func_00182430 | 0x00182430 | 0x440 | 00_panel_no_battery | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
+| func_0018C4B0 | 0x0018C4B0 | 0xE8 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
+| func_0018C6A0 | 0x0018C6A0 | 0x1A8 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_00191390 | 0x00191390 | 0x108 | S2_opening | asm body + companion C | 96.97 | mwcc 2.3.3 | compiled asm body |  |
-| func_00192010 | 0x00192010 | 0x1B8 | 06_hill_slide | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
+| func_00192010 | 0x00192010 | 0x1B8 | 06_hill_slide | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_0019A310 | 0x0019A310 | 0x130 | S2_opening | asm body + companion C | 88.71 | mwcc 2.3.3 | original assembly (.s) |  |
-| func_0019ED80 | 0x0019ED80 | 0x418 | S2_opening | asm body + companion C | 96.20 | mwcc 2.3.3 | original assembly (.s) |  |
-| func_0019F330 | 0x0019F330 | 0x348 | 05_boxes | asm body + companion C | 96.20 | mwcc 2.3.3 | original assembly (.s) |  |
+| func_0019ED80 | 0x0019ED80 | 0x418 | S2_opening | asm body + companion C | 99.92 | mwcc 2.3.3 | original assembly (.s) | Second pass 96.20 -> 99.92 (section 9). |
+| func_0019F330 | 0x0019F330 | 0x348 | 05_boxes | asm body + companion C | 99.81 | mwcc 2.3.3 | original assembly (.s) | Second pass 96.20 -> 99.81 (section 9). |
 | func_001A4650 | 0x001A4650 | 0x1E0 | 00_panel_no_battery | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Promoted in the C10 pass (section 7): inputs as // SPAD symbols, outputs literal. |
 | func_001A4D10 | 0x001A4D10 | 0x38C | 04_elevator_ride | asm body + companion C | 88.68 | mwcc 2.3.3 | original assembly (.s) | Companion improved from 75.57 in the C10 pass (section 7). |
 | func_001A5760 | 0x001A5760 | 0x14C | 05_boxes | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Promoted in the C10 pass (section 7). |
 | func_001AF470 | 0x001AF470 | 0x148 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001AF780 | 0x001AF780 | 0x38 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001B1020 | 0x001B1020 | 0x84 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
-| func_001B12B0 | 0x001B12B0 | 0xCC | 00_panel_no_battery | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
-| func_001B1380 | 0x001B1380 | 0x68 | S2_opening | asm body + companion C | 88.46 | mwcc 2.3.3 | compiled asm body |  |
+| func_001B12B0 | 0x001B12B0 | 0xCC | 00_panel_no_battery | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
+| func_001B1380 | 0x001B1380 | 0x68 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Second pass: `>= 0.0f` early return (section 9). |
 | func_001B1EA0 | 0x001B1EA0 | 0x294 | S2_opening | asm body + companion C | 92.91 | mwcc 2.3.3 | original assembly (.s) |  |
-| func_001B5940 | 0x001B5940 | 0x228 | S0_title | asm body + companion C | 97.43 | mwcc 2.3.3 | compiled asm body |  |
+| func_001B5940 | 0x001B5940 | 0x228 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Second pass: early return 0 on a failed read; the d-pad masks held in unsigned short locals (section 9). |
 | func_001B5C90 | 0x001B5C90 | 0x2C | 00_panel_no_battery | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001B5CC0 | 0x001B5CC0 | 0xAC | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001B5D70 | 0x001B5D70 | 0x50 | 00_panel_no_battery | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001B5E20 | 0x001B5E20 | 0x114 | 03_panel_power | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
-| func_001B5F40 | 0x001B5F40 | 0x280 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
+| func_001B5F40 | 0x001B5F40 | 0x280 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_001BB0E0 | 0x001BB0E0 | 0x228 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Review fix: func_001BA580(a, cmd[2]) gets the command id (99.89 -> 100). |
 | func_001C5680 | 0x001C5680 | 0xE0 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Review fix: func_001C2360(node) gets the node (98.93 -> 100). |
 | func_001C5760 | 0x001C5760 | 0xF4 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Review fix: func_001C22A0(node) gets the node (99.02 -> 100). |
 | bone_init_default_1 | 0x001C62C0 | 0xB8 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | anim_eval_skeleton | 0x001C6DA0 | 0x680 | S2_opening | NEARMISS C | 11.24 | mwcc 2.3.3 | original_assembly_nearmiss |  |
-| func_001C8710 | 0x001C8710 | 0xA4 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
+| func_001C8710 | 0x001C8710 | 0xA4 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | build_trs_matrix | 0x001C94B0 | 0xB8 | S2_opening | asm body + companion C | 3.15 | mwcc 2.3.3 | compiled asm body |  |
-| func_001C9E40 | 0x001C9E40 | 0x25C | 00_panel_no_battery | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
+| func_001C9E40 | 0x001C9E40 | 0x25C | 00_panel_no_battery | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_001CBA50 | 0x001CBA50 | 0x1C4 | 01_battery | asm body + companion C | 94.80 | mwcc 2.3.3 | compiled asm body |  |
 | func_001CC170 | 0x001CC170 | 0x64 | S2_opening | asm body + companion C | 100.00 | mwcc 2.3.3 | compiled asm body |  |
 | func_001CC1E0 | 0x001CC1E0 | 0x1CC | S2_opening | asm body + companion C | 94.37 | mwcc 2.3.3 | compiled asm body |  |
-| func_001CCB10 | 0x001CCB10 | 0xC0 | S0_title | asm body + companion C | 95.73 | mwcc 2.3.3 | compiled asm body | Packet and palette as one 0x170-byte DMA source. |
-| func_001CCBD0 | 0x001CCBD0 | 0xE8 | S0_title | asm body + companion C | 90.69 | mwcc 2.3.3 | compiled asm body | Packet and palette as one 0x170-byte DMA source (84.67 -> 90.69). |
+| func_001CCB10 | 0x001CCB10 | 0xC0 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Packet and palette as one 0x170-byte DMA source. Second pass: palette base in its own pointer local, declared last (section 9). |
+| func_001CCBD0 | 0x001CCBD0 | 0xE8 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Packet and palette as one 0x170-byte DMA source (84.67 -> 90.69). Second pass: palette base pointer set inside the block loop (section 9). |
 | func_001CCE80 | 0x001CCE80 | 0xEC | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001CF470 | 0x001CF470 | 0x3F4 | 02_elevator_refusal | asm body + companion C | 72.32 | mwcc 2.3.3 | original assembly (.s) |  |
 | func_001CF870 | 0x001CF870 | 0xF4 | 02_elevator_refusal | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
@@ -252,16 +252,16 @@ compiled C, compiled asm body (the CodeWarrior `asm` unit), or original assembly
 | func_001D2590 | 0x001D2590 | 0x58 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001D2830 | 0x001D2830 | 0x4C | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Review fix: the second argument (set / clear) passes through to both callees. |
 | func_001D2910 | 0x001D2910 | 0x4C | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
-| func_001D4960 | 0x001D4960 | 0x70 | S2_opening | asm body + companion C | 90.18 | mwcc 2.3.3 | compiled asm body |  |
-| func_001D6F60 | 0x001D6F60 | 0x94 | S2_opening | asm body + companion C | 98.65 | mwcc 2.3.3 | compiled asm body |  |
-| func_001D7080 | 0x001D7080 | 0x78 | S1_newgame_load | asm body + companion C | 96.83 | mwcc 2.3.3 | compiled asm body |  |
-| func_001D8270 | 0x001D8270 | 0xC4 | S2_opening | asm body + companion C | 95.92 | mwcc 2.3.3 | compiled asm body |  |
+| func_001D4960 | 0x001D4960 | 0x70 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Second pass: cursor written through ctx+0x10 directly, no packet-pointer local (section 9). |
+| func_001D6F60 | 0x001D6F60 | 0x94 | S2_opening | asm body + companion C | 98.78 | mwcc 2.3.3 | compiled asm body | Second pass 98.65 -> 98.78 (section 9). |
+| func_001D7080 | 0x001D7080 | 0x78 | S1_newgame_load | asm body + companion C | 98.33 | mwcc 2.3.3 | compiled asm body | Second pass 96.83 -> 98.33 (section 9). |
+| func_001D8270 | 0x001D8270 | 0xC4 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Second pass: float test inside the switch default, `>=` spelling (section 9). |
 | func_001F0A60 | 0x001F0A60 | 0x6AC | S3_first_control_idle | NEARMISS C | 17.97 | mwcc 2.3.3 | original_assembly_nearmiss | Review fix: the packet's first quadword is cleared before the VIF word. |
-| func_001F4D40 | 0x001F4D40 | 0xE0 | S2_opening | asm body + companion C | 98.93 | mwcc 2.3.3 | compiled asm body |  |
+| func_001F4D40 | 0x001F4D40 | 0xE0 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Second pass: brightness shifted in place, colour built in three statements (section 9). |
 | func_001F54E0 | 0x001F54E0 | 0x15C | S2_opening | asm body + companion C | 98.51 | mwcc 2.3.3 | compiled asm body |  |
-| func_001FBDB0 | 0x001FBDB0 | 0xC4 | 09_fence_door | asm body + companion C | 98.78 | mwcc 2.3.3 | original assembly (.s) | Review fix: func_00119890(1, voice). |
+| func_001FBDB0 | 0x001FBDB0 | 0xC4 | 09_fence_door | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Review fix: func_00119890(1, voice). Second pass: early returns with a trailing return voice; force-list entry removed (section 9). |
 | func_001FE480 | 0x001FE480 | 0x30 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
-| func_001FE530 | 0x001FE530 | 0x124 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
+| func_001FE530 | 0x001FE530 | 0x124 | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_00200780 | 0x00200780 | 0xA8 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_00203A10 | 0x00203A10 | 0x6C | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_00203B20 | 0x00203B20 | 0x50 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
@@ -271,9 +271,9 @@ compiled C, compiled asm body (the CodeWarrior `asm` unit), or original assembly
 | func_002041D0 | 0x002041D0 | 0x74 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_00204250 | 0x00204250 | 0x138 | S0_title | asm body + companion C | 100.00 | mwcc 2.3.3 | compiled asm body |  |
 | func_00204390 | 0x00204390 | 0xF4 | S0_title | asm body + companion C | 99.84 | mwcc 2.3.3 | compiled asm body |  |
-| func_00204700 | 0x00204700 | 0xD0 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
+| func_00204700 | 0x00204700 | 0xD0 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_002047D0 | 0x002047D0 | 0x30C | S0_title | asm body + companion C | 75.30 | mwcc 2.3.3 | compiled asm body |  |
-| func_00204D60 | 0x00204D60 | 0x130 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
+| func_00204D60 | 0x00204D60 | 0x130 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_00204E90 | 0x00204E90 | 0x1C0 | S0_title | asm body + companion C | 75.23 | mwcc 2.3.3 | compiled asm body |  |
 | func_00205240 | 0x00205240 | 0x4BC | S0_title | asm body + companion C | 82.26 | mwcc 2.3.3 | compiled asm body | Review fix: rewritten from the instructions (full helper arguments, column-major upload; 43.95 -> 82.26). |
 | func_00205700 | 0x00205700 | 0x34 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
@@ -286,13 +286,13 @@ compiled C, compiled asm body (the CodeWarrior `asm` unit), or original assembly
 | func_00205F20 | 0x00205F20 | 0x20 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_00205F40 | 0x00205F40 | 0x10 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_00205F90 | 0x00205F90 | 0x7C | S0_title | asm body + companion C | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
-| func_002065D0 | 0x002065D0 | 0x19C | S0_title | asm body + companion C | 92.11 | mwcc 2.3.3 | compiled asm body |  |
+| func_002065D0 | 0x002065D0 | 0x19C | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Second pass: split ring arithmetic and a dead store found by the permuter (section 9). |
 | func_00206770 | 0x00206770 | 0x98 | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_00207150 | 0x00207150 | 0x13C | S0_title | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_0021B1B0 | 0x0021B1B0 | 0x344 | S1_newgame_load | asm body + companion C | 95.22 | mwcc 2.3.3 | compiled asm body |  |
-| func_0021BB00 | 0x0021BB00 | 0x13C | S2_opening | asm body + companion C | 95.32 | mwcc 2.3.3 | compiled asm body |  |
-| func_00224290 | 0x00224290 | 0x160 | 10_cage_roof_roger | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
-| func_002243F0 | 0x002243F0 | 0x204 | 12_crevice_jump | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) |  |
+| func_0021BB00 | 0x0021BB00 | 0x13C | S2_opening | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Second pass: the 0x0F case as one && / || condition (section 9). |
+| func_00224290 | 0x00224290 | 0x160 | 10_cage_roof_roger | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
+| func_002243F0 | 0x002243F0 | 0x204 | 12_crevice_jump | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_overlay_AREA11_00823910 | 0x00823950 | 0x220 | 10_cage_roof_roger | C (already) | 100.00 |  | overlay (link_overlay) | Absorbed into the preceding overlay C unit (a split splat label; docs/AREA11_OVERLAY.md), already byte-identical C. |
 | func_overlay_AREA11_00825500 | 0x00825540 | 0xC0 | S2_opening | C (already) | 100.00 |  | overlay (link_overlay) | Absorbed into the preceding overlay C unit (a split splat label; docs/AREA11_OVERLAY.md), already byte-identical C. |
 | func_overlay_AREA11_00825600 | 0x00825640 | 0x90 | 10_cage_roof_roger | C (already) | 100.00 |  | overlay (link_overlay) | Absorbed into the preceding overlay C unit (a split splat label; docs/AREA11_OVERLAY.md), already byte-identical C. |
@@ -372,8 +372,8 @@ new findings of this lane. Measurements are objdiff on a private scratch build (
   `.text` (or a `// STATIC_HELPER:` directive in `fill_unmatched.py`) would promote all four.
 - (Withdrawn after review: the "branch-likely selection" wall of func_001C5680 / func_001C5760
   was a dropped argument. With func_001C2360(node) / func_001C22A0(node) both byte-match.)
-- **Boolean lowering at a function's end** (func_001D8270, func_001B1380): the original's
-  branch-to-exit with a dead constant load after it is not produced by any spelling tried.
+- (Withdrawn in section 9: the "boolean lowering at a function's end" wall of func_001D8270 and
+  func_001B1380. Both match with an early `return` on the `>=` spelling of the test.)
 - **Hand-written VU0 / MMI code**: the companions state the arithmetic; objdiff is near 0 by
   construction.
 
@@ -393,15 +393,21 @@ already matched units as asm bodies), glTF, anim self-test, GS offset. The prove
 func_001BB0E0, func_001C5680, func_001C5760, func_001060F8, func_001D2830 and func_00208AB0
 linking from compiled ordinary C, and no copied-text, relocation or pinned-rodata mismatches.
 
+Final run after the force-list cleanup and second matching pass of section 9 (build lock held,
+2026-10-01 17:37-17:48): `build.py build` and `objdiff` rc 0, `verify_all.py` all six stages
+PASS — boot ELF byte-identical, 19/19 overlays, matched_code 98.65% (2155/2211; unchanged, since
+the promoted functions were already matched units as asm bodies), glTF, anim self-test, GS
+offset. The provenance audit shows all 38 functions of section 9 (the 23 former force-list
+entries and the 15 promotions) linking from their compiled objects with the copied text and
+relocations equal to the prepared object; no copied-text, relocation or pinned-rodata
+mismatches, no missing fillers.
+
 ## 6. Open items
 
-- **Stale force-list entries.** `tools/decomp/fill_unmatched.py` `SIZE_DRIFT_FORCE_ASM` still
-  lists 16 of the functions byte-matched in section 3, and 7 of the C10 functions of section 7
-  (func_00128390, func_001287F0, func_001639E0, func_0018C850, func_001A58B0, func_001F4F40,
-  func_0021D1A0). The 16 of section 3 (column "links as" says "original assembly
-  (.s)"): func_00128250, func_00163B40, func_0017DEB0, func_00182430, func_0018C4B0, func_0018C6A0, func_00192010, func_001B12B0, func_001B5F40, func_001C8710, func_001C9E40, func_001FE530, func_00204700, func_00204D60, func_00224290, func_002243F0. Their compiled C is 100% objdiff and
-  the right size; removing the entries (a tools change, outside this lane) makes them link from
-  C. Re-run the full gate after removing them.
+- (Resolved in section 9: the stale `SIZE_DRIFT_FORCE_ASM` entries for the 23 byte-matched
+  functions of sections 3 and 7 were removed; all link from their compiled C.)
+- **Second-pass walls** (section 9): func_00225720, func_00204390, func_001F4BF0 and the two
+  pool walkers func_0019ED80 / func_0019F330 are one register or one operand order from 100%.
 - **Static helpers for intra-TU register analysis.** func_00205F90, func_001CC170,
   func_00204250 and func_001CC1E0 would link from C if the link step could drop the `.text` of a
   `static` callee copy (section 4).
@@ -435,12 +441,12 @@ labels the deltas reported as overlay C or undecompiled.
 
 | Now | Functions | Meaning |
 |---|---:|---|
-| C, byte-matched | 23 | objdiff 100%, right `.text` size, no data sections. 20 replaced an asm body; the 3 non-matching C files were corrected. 16 link from the compiled C; 7 still link from the `.s` because of stale `SIZE_DRIFT_FORCE_ASM` entries (section 6). |
-| asm body + companion C | 9 | Readable C in `src/readable/<f>.c` (NEARMISS header, registry row in docs/NEARMISS.md), pointer comment at the end of the asm file. 3 of them are pure SDK VU0 leaves (0%). |
+| C, byte-matched | 24 | objdiff 100%, right `.text` size, no data sections. 21 replaced an asm body (func_0021C350 in the second pass of section 9); the 3 non-matching C files were corrected. All link from the compiled C (the 7 stale `SIZE_DRIFT_FORCE_ASM` entries were removed in section 9). |
+| asm body + companion C | 8 | Readable C in `src/readable/<f>.c` (NEARMISS header, registry row in docs/NEARMISS.md), pointer comment at the end of the asm file. 3 of them are pure SDK VU0 leaves (0%). |
 | NEARMISS C | 1 | func_001CE860 (former `INCLUDE_ASM`, the cable / trail ribbon packet with VU0 sections, 27.43%). |
 | C already | 16 | 13 AREA01 overlay functions and 2 AREA11 labels are byte-identical overlay C; 0x001C0004 is an entry inside func_001BFFD0, covered by that function's NEARMISS C. |
 
-So every function the C10 lanes added now has readable C; 23 of the 34 boot functions are
+So every function the C10 lanes added now has readable C; 24 of the 34 boot functions are
 byte-identical. The census functions of section 3 were also revisited with the new scratchpad
 lever below: func_001A4650 and func_001A5760 are now byte-matched C (their companions were
 removed and their registry rows dropped) and func_001A4D10's companion went from 75.57% to
@@ -458,15 +464,15 @@ first ran it. objdiff on the private scratch build (`build/fld/`); "links as" fr
 | func_001028E8 | 0x001028E8 | 0x14 | br_08_west_ladder_down | BRANCH | asm body + companion C | 0.00 | mwcc 2.3.3 | compiled asm body |  |
 | func_00102990 | 0x00102990 | 0x10 | aim_09_melee | AIM,BRANCH | asm body + companion C | 0.00 | mwcc 2.3.3 | compiled asm body |  |
 | func_00123280 | 0x00123280 | 0x5C | opt_00_browse_close | OPTIONS | C, byte-matched | 100.00 | ee-gcc | compiled C |  |
-| func_00128390 | 0x00128390 | 0x34 | exit_01_movie_arrival | EXIT | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) | Was C linked from asm; C corrected. Stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
-| func_001287F0 | 0x001287F0 | 0x38 | exit_01_movie_arrival | EXIT | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) | Was C linked from asm; C corrected. Stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
-| func_001639E0 | 0x001639E0 | 0x160 | dmg_06_crevice_fall | DAMAGE | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) | Stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
+| func_00128390 | 0x00128390 | 0x34 | exit_01_movie_arrival | EXIT | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Was C linked from asm; C corrected. Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
+| func_001287F0 | 0x001287F0 | 0x38 | exit_01_movie_arrival | EXIT | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Was C linked from asm; C corrected. Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
+| func_001639E0 | 0x001639E0 | 0x160 | dmg_06_crevice_fall | DAMAGE | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_0017C370 | 0x0017C370 | 0xD0 | dmg_00_flame_hit | DAMAGE | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_00183AC0 | 0x00183AC0 | 0xB8 | aim_04_world_hit | AIM | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
-| func_0018C850 | 0x0018C850 | 0xCC | aim_01_r2_hold | AIM | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) | Stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
+| func_0018C850 | 0x0018C850 | 0xCC | aim_01_r2_hold | AIM | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_001A44B0 | 0x001A44B0 | 0x19C | br_08_west_ladder_down | BRANCH | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001A4830 | 0x001A4830 | 0x4E0 | br_08_west_ladder_down | BRANCH | asm body + companion C | 96.63 | mwcc 2.3.3 | compiled asm body |  |
-| func_001A58B0 | 0x001A58B0 | 0x374 | dmg_07_pit_fall | DAMAGE,BRANCH | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) | Stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
+| func_001A58B0 | 0x001A58B0 | 0x374 | dmg_07_pit_fall | DAMAGE,BRANCH | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_001AA000 | 0x001AA000 | 0x138 | exit_01_movie_arrival | EXIT | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001BF630 | 0x001BF630 | 0x7C | exit_01_movie_arrival | EXIT | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001C0004 | 0x001C0004 | 0x2D4 | exit_01_movie_arrival | EXIT | C already (NEARMISS) | 97.24 | mwcc 2.3.3 | original assembly (.s) | Not a function of its own: an entry inside func_001BFFD0 (0x1BFFD0..0x1C02D8), whose NEARMISS C covers it. |
@@ -482,11 +488,11 @@ first ran it. objdiff on the private scratch build (`build/fld/`); "links as" fr
 | func_001EFF10 | 0x001EFF10 | 0xC0 | aim_09_melee | AIM,BRANCH | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001F00A0 | 0x001F00A0 | 0x7C | aim_04_world_hit | AIM | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
 | func_001F4BF0 | 0x001F4BF0 | 0xC8 | exit_01_movie_arrival | EXIT | asm body + companion C | 99.70 | mwcc 2.3.3 | compiled asm body |  |
-| func_001F4F40 | 0x001F4F40 | 0x48 | aim_03_single_fire | AIM | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) | Was C linked from asm; C corrected (func_001F5040 typed as the node worker it is). Stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
+| func_001F4F40 | 0x001F4F40 | 0x48 | aim_03_single_fire | AIM | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Was C linked from asm; C corrected (func_001F5040 typed as the node worker it is). Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_00208AB0 | 0x00208AB0 | 0x18 | aim_05_burst_fire | AIM,BRANCH | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Review fix: the float argument passes through in f12 to func_001D66A0. |
 | func_0021BC40 | 0x0021BC40 | 0xC8 | dmg_00_flame_hit | DAMAGE | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C |  |
-| func_0021C350 | 0x0021C350 | 0x94 | dmg_00_flame_hit | DAMAGE | asm body + companion C | 99.73 | mwcc 2.3.3 | compiled asm body |  |
-| func_0021D1A0 | 0x0021D1A0 | 0xAC | dmg_00_flame_hit | DAMAGE | C, byte-matched | 100.00 | mwcc 2.3.3 | original assembly (.s) | Stale SIZE_DRIFT_FORCE_ASM entry (section 6). |
+| func_0021C350 | 0x0021C350 | 0x94 | dmg_00_flame_hit | DAMAGE | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Second pass: idiom-25 float truthiness `if (d)` (section 9). |
+| func_0021D1A0 | 0x0021D1A0 | 0xAC | dmg_00_flame_hit | DAMAGE | C, byte-matched | 100.00 | mwcc 2.3.3 | compiled C | Stale SIZE_DRIFT_FORCE_ASM entry removed (section 9). |
 | func_00225720 | 0x00225720 | 0x2DC | dmg_05_load_screen | DAMAGE,OPTIONS | asm body + companion C | 99.92 | mwcc 2.3.3 | compiled asm body |  |
 | overlay_AREA01_func_00823540 | 0x00823580 | 0x24C | exit_01_movie_arrival | EXIT,DAMAGE | C already | 100.00 | mwcc 2.3.3 | overlay (link_overlay) | AREA01 overlay C, byte-identical (docs/AREA01_OVERLAY_C.md). |
 | func_overlay_AREA01_00823A10 | 0x00823A50 | 0x34 | exit_01_movie_arrival | EXIT | C already | 100.00 | mwcc 2.3.3 | overlay (link_overlay) | AREA01 overlay C, byte-identical (docs/AREA01_OVERLAY_C.md). |
@@ -531,7 +537,8 @@ first ran it. objdiff on the private scratch build (`build/fld/`); "links as" fr
 ### Walls and residuals
 
 - Prologue / argument-register colouring: func_00225720 (99.92, a2 vs a0 for one byte),
-  func_0021C350 (99.73, one FPU pair), func_001F4BF0 (99.70, f12 / f13 of a shared 3.0).
+  func_001F4BF0 (99.70, f12 / f13 of a shared 3.0). (func_0021C350, 99.73 here, matched in
+  section 9 with idiom-25.)
 - func_001CA3B0 (94.34): FPU colouring of the three half angles.
 - func_001A4830 (96.63): the mixed scratchpad spelling lines the control flow up; one register
   pair and the reload order of the published hit remain.
@@ -574,3 +581,89 @@ which also catches pass-through values. The callee side is a straight-line scan 
 to its first call (branches not followed), so it is a screen, not a proof. The detector was validated on the old func_00208AB0
 text (it flags the missing f12). After the fixes above it reports nothing; the remaining
 type-(1) hits are temporaries in t0..t3 that the callee never reads.
+
+## 9. Force-list cleanup and second matching pass (2026-10-01, later)
+
+### Stale force-list entries removed
+
+`tools/decomp/fill_unmatched.py` `SIZE_DRIFT_FORCE_ASM` named 23 functions of this lane whose
+ordinary C is objdiff 100% (the 16 of section 3 and the 7 of section 7 listed in the old
+section 6 item), plus func_001FBDB0 once its C matched in the pass below. Before removing them
+the provenance audit on the last build was cross-tabulated with the objdiff report: exactly
+these 23 were the force-listed ordinary-C units at 100% with `.text` no larger than the slot,
+and none of their objects carries a data section. All 24 entries were removed (the list's own
+comment records them). Proof, under the build lock: `tools/decomp/build.py build`, then
+`tools/verify_all.py` (all six stages PASS, boot ELF byte-identical, 19/19 overlays) and
+`tools/decomp/audit_link_provenance.py --match-report scratch/verify_report.json`: every one
+of them now routes `compiled_object_ordinary_c`, with the copied text and relocations equal
+to the prepared object and no copied-text, relocation or pinned-rodata mismatches. The rest of
+the list was left alone: its other ordinary-C entries are below 100%, and its 75 inline-asm
+entries at 100% are asm bodies (linking them from the compiled asm body instead of the `.s`
+changes nothing for the port).
+
+### Second matching pass over the companions
+
+Every companion from about 88% up (and a few lower ones) was re-tried on the private scratch
+harness (`build/fld2/`, ignored) with the guide's levers, then the decomp-permuter (mwcc 2.3.3
+compile script, regalloc-weighted settings) on the register-colouring residuals. Matches went
+through `tools/match/integrate_nearmiss.py` (canonical compile, objdiff 100%, size guard,
+relocation injection) under the build lock; their companions and registry rows were removed.
+
+**Byte-matched and promoted (15):**
+
+| function | before | lever |
+|---|---:|---|
+| func_0021C350 | 99.73 | idiom-25 float truthiness: `if (d)` instead of `d != 0.0f`. |
+| func_001FBDB0 | 98.78 | Early returns: `if (func_00119890(1, voice) != 2) return -1;` then the range test, `return voice` last. The original's last block is the return of voice. |
+| func_001F4D40 | 98.93 | The brightness is summed, then shifted in place (`s = ...; s >>= 2;`), and the colour is built in three statements (`c = r << 16; c \|= g << 8; c \|= b;`). |
+| func_001B5940 | 97.43 | `if (read == 0) return 0;` up front; the two d-pad masks held in `unsigned short` locals before the compare. |
+| func_001CCB10 | 95.73 | The palette base in its own pointer local (`p + i` each iteration, no strength reduction), declared after the loop variables. |
+| func_001CCBD0 | 90.69 | Same lever, with the pointer set inside the block loop. |
+| func_001D4960 | 90.18 | No packet-pointer local: each store goes through `*(char **)(ctx + 0x10)` and the cursor advances with `+= 0x10`. |
+| func_001D8270 | 95.92 | The float test inside the switch's default: `if (d >= 30.0f) return 0; return 1;`. mwcc compiles `>=` as the negated `<` (a NaN distance returns 0, as in the original); `!(d < 30.0f)` does not match. |
+| func_001B1380 | 88.46 | `if (diff >= 0.0f) return 1; return 0;` (same `>=` lowering; NaN returns 1). |
+| func_0015DEC0 | 82.89 | One condition, one return 0: `if (lo != 0x46 && lo != 0x32 && (m & 0xFF00) == 0x2000) return 1; return 0;`. |
+| func_0021BB00 | 95.32 | The 0x0F case as one condition: `if (e[4] == 1 && e[5] == 8 && (e[6] == 2 \|\| e[6] == 4 \|\| e[6] == 5)) return 0; return 1;`. |
+| func_00178B90 | 99.10 | `rest >= 0.0f` for the step sign, `step` declared before `rest`, and a dead store `rest = *(float *)(e + 0x9C)` inside the slope blend (found by the permuter in under a minute; commented in the source). |
+| func_002065D0 | 92.11 | The output-ring position split into `wpos = out_wpos - out_free; wpos = (out_size + wpos) % out_size;` and a dead store `p1 = base + (avail = pos % size)` (permuter; commented). |
+| copy_qw4 | 94.67 | ee-gcc. The original keeps the four quadwords in a2, a3, t0, t1 and stores them in order: GNU register variables plus empty `asm volatile("" ::: "memory")` barriers between the stores (the audit lists it as inline assembly for that reason). |
+| func_00102948 | 96.67 | ee-gcc: a register variable in a2. |
+
+(15 rows: 14 census functions of section 3 and func_0021C350 of section 7.)
+
+**Companions improved but not matched:** func_0019ED80 96.20 -> 99.92 and func_0019F330
+96.20 -> 99.81 (the pool words 0x700031FC / 0x70003200 / 0x70003204 and the 0x70003684 result
+as `// SPAD:` symbols, one loop counter for both loops, int-cast pool addressing; one
+register pair left), func_001D7080 96.83 -> 98.33 and func_001D6F60 98.65 -> 98.78 (the
+channel cursor as a struct array, `D_00275670->pkt[ch]`), func_00177460 86.67 -> 96.19 (x
+read back from the scratchpad before z is stored, z kept in a register), func_00109B20
+72.00 -> 92.00 (nested ifs with an entry pointer).
+
+**Walls recorded (bounded effort, about 5-15 variants each plus the permuter where noted):**
+
+- func_00225720 (99.92): one register (the second page flag in a2, mwcc a0); the permuter ran
+  40 minutes without a better candidate; coalescing and switch spellings measured.
+- func_00204390 (99.84): `addu` operand order of `prod + byte_ofs`; operand, statement and
+  shift spellings all give the other order.
+- func_001F4BF0 (99.70): 3.0 is materialized in f13 and copied to f12; constant, local,
+  int-staged (idiom-24), inline-helper and corrected-prototype spellings measured; the
+  permuter plateaued (score 15 of the base).
+- func_001F54E0 (98.51): idiom-13 delay-slot fill: the original leaves the clamp branches'
+  slots empty where mwcc speculates the next constant; else-if, ternary and inline-temp forms
+  measured.
+- func_001A4830, func_001CA3B0, func_001B1EA0, func_001CBA50, func_0021B1B0: saved-register /
+  FPU colouring (declaration orders, param copies, in-place versus new half angles measured).
+- func_001D04B0 (81.67): the saved copies of the parameters are emitted in another order around
+  the first call (idiom-17 timing); param-copy and declaration orders measured.
+- func_00191390 (96.97): the original keeps a compare of case 1 whose target is the fall-through
+  block; mwcc drops it (case grouping, duplicated bodies and mwcc 991202 / 2.4 measured).
+- func_00126BE8 (97.44): an 8-byte alignment nop before a branch target inside the function;
+  ee-gcc 2.9-991111 does not align labels.
+- SDK leaves func_0011B910 / func_0011B5E0 / func_0011B9E0, func_0011D770, func_0011DE90,
+  func_0011E2A8, func_0011DF78: the original fills the return's delay slot with a volatile
+  store and schedules the float-word extraction differently; ee-gcc 2.9-991111 does neither
+  with any spelling tried (union, pointer and non-volatile forms). These are probably a
+  different compiler build of the SDK libraries.
+- func_00203BA0: the body is wrapped in the kernel's interrupt-disable sequence with the enable
+  in the return's delay slot; no C form.
+- VU0 macro code (func_001CF470 and the 0% leaves): no C form, as before.

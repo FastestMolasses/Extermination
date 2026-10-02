@@ -14,3 +14,5 @@ asm void func_001DEEC0(void) {
     jr $ra
     addiu $sp, $sp, 0x10
 }
+
+// Readable C (NEARMISS companion, objdiff 66.38%): src/readable/func_001DEEC0.c

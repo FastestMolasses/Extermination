@@ -2794,6 +2794,44 @@ def eleventh_delta(a) -> dict:
         earlier = earlier + [(beats, [pass_name], "eleventh_" + tag, ov)]
     return out
 
+
+# Twelfth level (route_capture's opt-in groups a13d and a19b; port
+# docs/TWELFTH_LEVEL_ROUTE.md).  `twelfth-delta` measures each group against
+# the first level, beat 15, every earlier level's groups, the eighth- to
+# eleventh-level groups and the twelfth-level groups before it (story order).
+TWELFTH_GROUPS = [   # (tag, overlay, overlay id, pass, beats-attr prefix)
+    ("a13d", "AREA13", 10, "A13D", "A13D"),
+    ("a19b", "AREA19", 16, "A19B", "A19B"),
+]
+
+
+def twelfth_delta(a) -> dict:
+    earlier = _earlier_groups(a) + [(rc.A01U_BEATS, a.a01u_passes.split(","), "area01_upper", "AREA01"),
+                                    (rc.A06_BEATS, ["A06"], "area06", "AREA06")]
+    for groups, label in ((EIGHTH_GROUPS, "eighth_"), (NINTH_GROUPS, "ninth_"), (TENTH_GROUPS, "tenth_"),
+                          (ELEVENTH_GROUPS, "eleventh_")):
+        for tag, ov, _ov_id, pass_name, prefix in groups:
+            earlier = earlier + [(_eighth_beats(prefix)[0], [pass_name], label + tag, ov)]
+    out = {}
+    for tag, ov, ov_id, pass_name, prefix in TWELFTH_GROUPS:
+        beats, side, change = _eighth_beats(prefix)
+        if not beats or not any(_hits(pass_name, b[0]) is not None for b in beats):
+            continue
+        d = chain_delta(tag, ov, ov_id, beats, side, change, [pass_name], earlier, f"{tag}_delta.json")
+        runs = {}
+        for name, _src, _fn in beats:
+            f = OUT / "runs" / pass_name / f"{name}.json"
+            if f.exists():
+                doc = json.loads(f.read_text())
+                runs[name] = {"completed": bool(doc.get("completed")), "frames": doc.get("frames"),
+                              "error": doc.get("error")}
+        d["summary"]["beats_incomplete"] = sorted(n for n, v in runs.items() if not v["completed"])
+        d["summary"]["replay_runs"] = runs
+        (OUT / f"{tag}_delta.json").write_text(json.dumps(d, indent=1) + "\n")
+        out[tag] = d["summary"]
+        earlier = earlier + [(beats, [pass_name], "twelfth_" + tag, ov)]
+    return out
+
 # The AIM capture group (route_capture's aim_* beats, docs/CAPTURES_C10.md
 # section AIM): every beat starts from the 08_truck_crossing snapshot inside
 # AREA11, so its segments arm the boot functions plus the AREA11 overlay.
@@ -3547,7 +3585,7 @@ if __name__ == "__main__":
     ap.add_argument("command", choices=["candidates", "run", "report", "compare-startup", "exit-delta",
                                         "a01-delta", "a00-delta", "a02-delta", "a04-delta", "a22-delta",
                                         "a01u-delta", "a06-delta", "graph", "eighth-delta",
-                                        "ninth-delta", "tenth-delta", "eleventh-delta", "aim-delta", "c10-exit-delta", "dmg-delta",
+                                        "ninth-delta", "tenth-delta", "eleventh-delta", "twelfth-delta", "aim-delta", "c10-exit-delta", "dmg-delta",
                                         "br-delta", "opt-delta", "opt-save-scan"])
     ap.add_argument("--arm-chunk", type=int, default=200,
                     help="breakpoint commands per DebugServer round trip")
@@ -3623,6 +3661,10 @@ if __name__ == "__main__":
                     _run_group(sel, [c["addr"] for c in candidates(ov)], a.pass_name)
             for tag, ov, _ov_id, _pass, _prefix in ELEVENTH_GROUPS:
                 sel = [b for b in rc.eleventh_selected(a.segments) if b[0].startswith(tag + "_")]
+                if sel:
+                    _run_group(sel, [c["addr"] for c in candidates(ov)], a.pass_name)
+            for tag, ov, _ov_id, _pass, _prefix in TWELFTH_GROUPS:
+                sel = [b for b in rc.twelfth_selected(a.segments) if b[0].startswith(tag + "_")]
                 if sel:
                     _run_group(sel, [c["addr"] for c in candidates(ov)], a.pass_name)
             if rc.aim_selected(a.segments):           # the AIM capture group (AREA11)
@@ -3709,6 +3751,8 @@ if __name__ == "__main__":
         print(json.dumps(tenth_delta(a), indent=1))
     elif a.command == "eleventh-delta":
         print(json.dumps(eleventh_delta(a), indent=1))
+    elif a.command == "twelfth-delta":
+        print(json.dumps(twelfth_delta(a), indent=1))
     elif a.command == "aim-delta":
         d = aim_delta(a.passes.split(","))
         print(json.dumps(d["summary"], indent=1))

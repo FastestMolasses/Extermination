@@ -1,26 +1,17 @@
-asm void func_001B7670(void) {
-    lw $2, 0x8($6)
-    addiu $3, $0, 0x1
-    .word 0x1043000C
-    nop
-    .word 0x10400003
-    nop
-    .word 0x1000000F
-    .word 0x24020001
-    lui $at, (0x70003B91 >> 16)
-    lbu $2, (0x70003B91 & 0xFFFF)($at)
-    .word 0x1443000A
-    nop
-    .word 0x3C017000
-    .word 0x10000007
-    sb $0, (0x70003B91 & 0xFFFF)($at)
-    .word 0x3C017000
-    lbu $2, (0x70003B91 & 0xFFFF)($at)
-    .word 0x14400003
-    nop
-    .word 0x3C017000
-    sb $3, (0x70003B91 & 0xFFFF)($at)
-    .word 0x24020001
-    jr $ra
-    nop
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Script command: argument +8 of the command record is 0 or 1. 0 sets the
+// byte 0x70003B91 from 1 to 0, 1 sets it from 0 to 1 (other values of the byte
+// are left alone). Returns 1.
+extern unsigned char D_70003B91;
+int func_001B7670(int a0, int a1, char *cmd) {
+    switch (*(int *)(cmd + 8)) {
+    case 0:
+        if (D_70003B91 == 1) D_70003B91 = 0;
+        break;
+    case 1:
+        if (D_70003B91 == 0) D_70003B91 = 1;
+        break;
+    }
+    return 1;
 }

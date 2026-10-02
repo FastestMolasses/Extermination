@@ -1,113 +1,70 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001749A0(int, int, int, int);
-extern void func_00174A50(int, int, int, int);
-extern void func_00175900(int, int, int, int);
-extern void func_00178B90(int, int, int, int);
-extern void func_0017B490(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Sub-mode 1 handler (step byte self+6). Step 0 advances, clears +7, sets
+// self+0x38 = 0.3 and self+0x25C = 2, starts the clip func_0017B490(self, 1,
+// self+0x235, self+0x25C) and sets the timer self+0x28 = 50. Step 1: when the
+// timer (post-decremented) was 0, the step advances and the timer is 30. Step 2:
+// the same, else func_00178B90(self, 0). Step 3: when the timer was 0 the
+// object returns to state 1 / sub-mode 0 / step 0, self+0x1F0 = 0 and 0x70003B8D = 0;
+// else func_00178B90(self, 0) and self+0x38 -= 0.011363637; below 0 it is
+// clamped to 0 and func_00174A50(self, 12.0) runs. Every frame then self+0xB4
+// += -0.2 and func_00175900(self, 1).
+extern unsigned char D_70003B8D;
+extern int func_0017B490(unsigned char *e, int a1, int variant, int a3);
+extern int func_001749A0(unsigned char *e, short clip, int flags, float blend);
+extern void func_00178B90(unsigned char *e, int f);
+extern void func_00174A50(unsigned char *e, float f);
+extern int func_00175900(unsigned char *e, int f);
 
-asm void func_00183250(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x90860006
-    .word 0x24020003
-    .word 0x10c20037
-    .word 0x70808628
-    .word 0x24030002
-    .word 0x10c30026
-    .word 0x00000000
-    .word 0x24050001
-    .word 0x10c50019
-    .word 0x00000000
-    .word 0x10c00004
-    .word 0x24c20001
-    .word 0x1000004c
-    .word 0xc60100b4
-    .word 0x24c20001
-    .word 0xa2020006
-    .word 0x3c023e99
-    .word 0xa2000007
-    .word 0x3442999a
-    .word 0xae020038
-    .word 0xa203025c
-    .word 0x9207025c
-    jal       func_0017B490
-    .word 0x92060235
-    .word 0x00022c3c
-    .word 0x3c023f80
-    .word 0x44826000
-    .word 0x00052c3f
-    .word 0x72002628
-    jal       func_001749A0
-    .word 0x70003628
-    .word 0x24020032
-    .word 0x10000037
-    .word 0xa6020028
-    .word 0x86030028
-    .word 0x2462ffff
-    .word 0x14600033
-    .word 0xa6020028
-    .word 0x92030006
-    .word 0x2402001e
-    .word 0x24630001
-    .word 0xa2030006
-    .word 0x1000002d
-    .word 0xa6020028
-    .word 0x86030028
-    .word 0x2462ffff
-    .word 0x14600007
-    .word 0xa6020028
-    .word 0x92030006
-    .word 0x2402001e
-    .word 0x24630001
-    .word 0xa2030006
-    .word 0x10000023
-    .word 0xa6020028
-    jal       func_00178B90
-    .word 0x70002e28
-    .word 0x1000001f
-    .word 0x00000000
-    .word 0x86030028
-    .word 0x2462ffff
-    .word 0x14600009
-    .word 0xa6020028
-    .word 0x24020001
-    .word 0xa2020004
-    .word 0xa2000005
-    .word 0xa2000006
-    .word 0xa20001f0
-    .word 0x3c017000
-    .word 0x10000013
-    .word 0xa0203b8d
-    jal       func_00178B90
-    .word 0x70002e28
-    .word 0xc6020038
-    .word 0x3c023c3a
-    .word 0x34422e8c
-    .word 0x44820800
-    .word 0x44800000
-    .word 0x00000000
-    .word 0x46011041
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x45000006
-    .word 0xe6010038
-    .word 0x3c024140
-    .word 0x44826000
-    .word 0x72002628
-    jal       func_00174A50
-    .word 0xae000038
-    .word 0xc60100b4
-    .word 0x3c02be4c
-    .word 0x3442cccd
-    .word 0x44820000
-    .word 0x24050001
-    .word 0x46000800
-    .word 0x72002628
-    jal       func_00175900
-    .word 0xe60000b4
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+void func_00183250(unsigned char *self) {
+    unsigned char st = self[6];
+    short t;
+    switch (st) {
+    case 0:
+        self[6] = st + 1;
+        self[7] = 0;
+        *(float *)(self + 0x38) = 0.3f;
+        self[0x25C] = 2;
+        func_001749A0(self, (short)func_0017B490(self, 1, self[0x235], self[0x25C]), 0, 1.0f);
+        *(short *)(self + 0x28) = 0x32;
+        break;
+    case 1:
+        t = *(short *)(self + 0x28);
+        *(short *)(self + 0x28) = t - 1;
+        if (t == 0) {
+            self[6]++;
+            *(short *)(self + 0x28) = 0x1E;
+        }
+        break;
+    case 2:
+        t = *(short *)(self + 0x28);
+        *(short *)(self + 0x28) = t - 1;
+        if (t == 0) {
+            self[6]++;
+            *(short *)(self + 0x28) = 0x1E;
+        } else {
+            func_00178B90(self, 0);
+        }
+        break;
+    case 3:
+        t = *(short *)(self + 0x28);
+        *(short *)(self + 0x28) = t - 1;
+        if (t == 0) {
+            self[4] = 1;
+            self[5] = 0;
+            self[6] = 0;
+            self[0x1F0] = 0;
+            D_70003B8D = 0;
+        } else {
+            func_00178B90(self, 0);
+            *(float *)(self + 0x38) -= 0.011363637f;
+            if (*(float *)(self + 0x38) < 0.0f) {
+                *(float *)(self + 0x38) = 0.0f;
+                func_00174A50(self, 12.0f);
+            }
+        }
+        break;
+    }
+    *(float *)(self + 0xB4) += -0.2f;
+    func_00175900(self, 1);
 }

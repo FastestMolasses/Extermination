@@ -1,10 +1,10 @@
 // NEARMISS func_001D6F60  (vram 0x001D6F60, 0x94 bytes) — readable companion C, NOT byte-identical.
 //
-// objdiff 98.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) when compiled on its own. Object
+// objdiff 98.78% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) when compiled on its own. Object
 // similarity does not prove semantic equivalence. Remaining differences:
-// Register allocation: the original adds the scaled channel index to the context pointer in the
-// other operand order and colours the temporaries differently (index spellings and array forms
-// measured).
+// Register colouring only, as func_001D7080: the scaled channel index, the GIF constant and the
+// first packet pointer get other temporaries (struct-array cursor spelling 98.65 -> 98.78; the
+// permuter found no closer form in 45 minutes).
 //
 // The function links from the asm body in src/func_001D6F60.c (kept by the user's asm-bodies decision
 // and so that matched_code does not drop); this companion is the readable ground truth and is
@@ -21,17 +21,19 @@
 // advances 6 quadwords.
 typedef unsigned int u128 __attribute__((mode(TI)));
 
-extern char *D_00275670;
+/* D_00275670: packet context; +0x10 holds one packet cursor per DMA channel. */
+typedef struct GifCtx { char pad[0x10]; char *pkt[4]; } GifCtx;
+extern GifCtx *D_00275670;
 
 void func_001D6F60(int ch, long long tex0, int texa) {
-    char *c = D_00275670 + ch * 4;
+    GifCtx *c = D_00275670;
     char *q;
 
-    (*(char **)(c + 0x10))[3] = 0x10;
-    *(int *)(*(char **)(c + 0x10) + 4) = 0;
-    *(short *)*(char **)(c + 0x10) = 5;
-    q = *(char **)(c + 0x10);
-    *(char **)(c + 0x10) = q + 0x60;
+    c->pkt[ch][3] = 0x10;
+    *(int *)(c->pkt[ch] + 4) = 0;
+    *(short *)c->pkt[ch] = 5;
+    q = c->pkt[ch];
+    c->pkt[ch] = q + 0x60;
     *(u128 *)(q + 0x10) = 0;
     *(int *)(q + 0x1C) = 0x50000004;
     *(long long *)(q + 0x20) = 0x8003 | (long long)0x10000000 << 32;

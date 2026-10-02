@@ -1,61 +1,26 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_0021BD60(void) {
-    .word 0x90820236
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x10000032
-    .word 0x24020001
-    .word 0x90820000
-    .word 0x30420002
-    .word 0x10400007
-    .word 0x00000000
-    .word 0x908301f0
-    .word 0x2402003b
-    .word 0x10620003
-    .word 0x00000000
-    .word 0x10000028
-    .word 0x24020001
-    .word 0x90850004
-    .word 0x24030001
-    .word 0x14a3001b
-    .word 0x24020002
-    .word 0x90850005
-    .word 0x10a00015
-    .word 0x70001628
-    .word 0x10a30012
-    .word 0x00000000
-    .word 0x24a2ffdf
-    .word 0x2c410002
-    .word 0x1420000e
-    .word 0x00000000
-    .word 0x2402001d
-    .word 0x14a20005
-    .word 0x2402001e
-    .word 0x908201f1
-    .word 0x10430008
-    .word 0x00000000
-    .word 0x2402001e
-    .word 0x14a20012
-    .word 0x24020001
-    .word 0x908301f1
-    .word 0x24020001
-    .word 0x1462000d
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x1000000b
-    .word 0x00000000
-    .word 0x24020002
-    .word 0x14a20007
-    .word 0x00000000
-    .word 0x90830005
-    .word 0x2402000b
-    .word 0x14620003
-    .word 0x00000000
-    .word 0x10000002
-    .word 0x70001628
-    .word 0x24020001
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Returns 0 or 1 for an object: 1 when self+0x236 is set or (bit 1 of self+0
+// set and self+0x1F0 != 0x3B). With self+4 == 1: 0 for self+5 in {0, 1, 0x21,
+// 0x22}, and for 0x1D or 0x1E when self+0x1F1 is 1; 1 otherwise. With self+4 ==
+// 2: 0 when self+5 is 0x0B. 1 in every other case.
+int func_0021BD60(unsigned char *p) {
+    unsigned char s;
+    if (p[0x236]) {
+        return 1;
+    }
+    if ((p[0] & 2) && p[0x1F0] != 0x3B) {
+        return 1;
+    }
+    s = p[4];
+    if (s == 1) {
+        s = p[5];
+        if (s == 0 || s == 1 || s == 0x21 || s == 0x22 ||
+            (s == 0x1D && p[0x1F1] == 1) || (s == 0x1E && p[0x1F1] == 1)) {
+            return 0;
+        }
+    } else if (s == 2 && p[5] == 0xB) {
+        return 0;
+    }
+    return 1;
 }

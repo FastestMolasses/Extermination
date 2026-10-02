@@ -1,56 +1,27 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001D8270(void) {
-    .word 0x90830003
-    .word 0x2402003e
-    .word 0x1062001f
-    .word 0x70001628
-    .word 0x2402003d
-    .word 0x1062001b
-    .word 0x00000000
-    .word 0x24020017
-    .word 0x10620018
-    .word 0x00000000
-    .word 0x24020016
-    .word 0x10620015
-    .word 0x00000000
-    .word 0x24020015
-    .word 0x10620012
-    .word 0x00000000
-    .word 0x2402000d
-    .word 0x1062000f
-    .word 0x00000000
-    .word 0x2402000b
-    .word 0x1062000c
-    .word 0x00000000
-    .word 0x24020009
-    .word 0x10620009
-    .word 0x00000000
-    .word 0x24020008
-    .word 0x10620006
-    .word 0x00000000
-    .word 0x24020003
-    .word 0x10620003
-    .word 0x00000000
-    .word 0x10000005
-    .word 0x8c830044
-    .word 0x70001628
-    .word 0x1000000c
-    .word 0x00000000
-    .word 0x8c830044
-    .word 0x3c0241f0
-    .word 0x44820000
-    .word 0xc4610020
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x45010004
-    .word 0x24020001
-    .word 0x10000002
-    .word 0x70001628
-    .word 0x24020001
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Actor-lighting fold gate (port ACTOR_LIGHTING.md: em_lighting_fold_gate).
+// Returns 0 for the object types (byte +3) 3, 8, 9, 0x0B, 0x0D, 0x15, 0x16,
+// 0x17, 0x3D and 0x3E; otherwise 1 when the float at (obj+0x44)->+0x20 is
+// below 30.0, else 0.
+int func_001D8270(unsigned char *obj) {
+    switch (obj[3]) {
+    case 0x03:
+    case 0x08:
+    case 0x09:
+    case 0x0B:
+    case 0x0D:
+    case 0x15:
+    case 0x16:
+    case 0x17:
+    case 0x3D:
+    case 0x3E:
+        return 0;
+    default:
+        /* compiled as !(d < 30.0f): a NaN distance also returns 0 */
+        if (*(float *)(*(char **)(obj + 0x44) + 0x20) >= 30.0f) {
+            return 0;
+        }
+        return 1;
+    }
 }
-
-// Readable C (NEARMISS companion, objdiff 95.92%): src/readable/func_001D8270.c

@@ -1,112 +1,77 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011A938(int, int, int, int);
-extern void func_00206770(int, int, int, int);
-extern void func_00206810(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Movie audio: moves decoded audio from the source ring into the output ring
+// in 1 KB units. r[0] is the source mode: 0 and 3 do nothing (return 0);
+// 1 is a linear source (one span at base +0x44 + pos +0x54 modulo size +0x48,
+// size - pos bytes); 2 asks func_00206770 for the readable spans with the
+// producer position func_0011A938(0). The output ring (+0x30 base, +0x34
+// write position, +0x38 free bytes, +0x3C size) offers its free space,
+// rounded down to 1 KB, as up to two spans. When both sides hold at least
+// 1 KB, func_00206810 copies (returns the byte count); the output free count
+// drops by it, the source position +0x54 and the wrapped read position +0x4C
+// advance. Returns the bytes copied.
+typedef struct AudioRing {
+    int mode;           /* 0x00 */
+    char pad04[0x2C];
+    char *out_base;     /* 0x30 */
+    int out_wpos;       /* 0x34 */
+    int out_free;       /* 0x38 */
+    int out_size;       /* 0x3C */
+    char pad40[4];
+    char *base;         /* 0x44 */
+    int size;           /* 0x48 */
+    int rpos;           /* 0x4C */
+    char pad50[4];
+    int pos;            /* 0x54 */
+} AudioRing;
 
-asm void func_002065D0(void) {
-    .word 0x27bdffc0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x8c830000
-    .word 0x24020003
-    .word 0x70808e28
-    .word 0x1062002a
-    .word 0x70008628
-    .word 0x24020002
-    .word 0x1062001c
-    .word 0x70002628
-    .word 0x24020001
-    .word 0x10620008
-    .word 0x00000000
-    .word 0x10600004
-    .word 0x70001628
-    .word 0x10000023
-    .word 0x8e220034
-    .word 0x70001628
-    .word 0x1000004e
-    .word 0x7bbf0020
-    .word 0x8e240054
-    .word 0x8e230048
-    .word 0x8e220044
-    .word 0x0083001a
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x00001810
-    .word 0x00431021
-    .word 0xafa20030
-    .word 0x8e230048
-    .word 0x8e220054
-    .word 0x00621023
-    .word 0xafa20038
-    .word 0xafa00034
-    .word 0x1000000f
-    .word 0xafa0003c
-    .word 0x70002628
-    jal       func_0011A938
-    .word 0x00000000
-    .word 0x27a40030
-    .word 0x27a50038
-    .word 0x27a60034
-    .word 0x27a7003c
-    .word 0x70404e28
-    jal       func_00206770
-    .word 0x72204628
-    .word 0x10000003
-    .word 0x00000000
-    .word 0x1000002f
-    .word 0x70001628
-    .word 0x8e220034
-    .word 0x8e240038
-    .word 0x8e23003c
-    .word 0x8e2a0030
-    .word 0x00441023
-    .word 0x00621021
-    .word 0x0043001a
-    .word 0x00041283
-    .word 0x00022280
-    .word 0x01431021
-    .word 0x00001810
-    .word 0x01434021
-    .word 0x00484823
-    .word 0x0089082a
-    .word 0x10200002
-    .word 0x00000000
-    .word 0x70804e28
-    .word 0x8fa50038
-    .word 0x8fa7003c
-    .word 0x00a71021
-    .word 0x28420400
-    .word 0x14400009
-    .word 0x00895823
-    .word 0x012b1021
-    .word 0x28420400
-    .word 0x14400005
-    .word 0x00000000
-    .word 0x8fa60034
-    jal       func_00206810
-    .word 0x8fa40030
-    .word 0x70408628
-    .word 0x8e230038
-    .word 0x72001628
-    .word 0x00701823
-    .word 0xae230038
-    .word 0x8e230054
-    .word 0x00701821
-    .word 0xae230054
-    .word 0x8e24004c
-    .word 0x8e230048
-    .word 0x00902021
-    .word 0x0083001a
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x00001810
-    .word 0xae23004c
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0040
+extern int func_0011A938(int a);
+extern void func_00206770(char **ptr1, int *len1, char **ptr2, int *len2, AudioRing *r, int write);
+extern int func_00206810(char *s1, int sn1, char *s2, int sn2, char *d1, int n1, char *d2, int n2);
+
+int func_002065D0(AudioRing *r) {
+    char *p1;
+    char *p2;
+    int n1;
+    int n2;
+    int done = 0;
+    int wpos;
+    int avail;
+    char *d1;
+    int dn1;
+    int dn2;
+
+    switch (r->mode) {
+    case 0:
+        return 0;
+    case 1:
+        /* the store to avail is dead (avail is recomputed below); it only
+         * reproduces the original's register allocation */
+        p1 = r->base + (avail = r->pos % r->size);
+        n1 = r->size - r->pos;
+        p2 = 0;
+        n2 = 0;
+        break;
+    case 2:
+        func_00206770(&p1, &n1, &p2, &n2, r, func_0011A938(0));
+        break;
+    case 3:
+        return 0;
+    }
+    wpos = r->out_wpos - r->out_free;
+    wpos = (r->out_size + wpos) % r->out_size;
+    avail = r->out_free >> 10 << 10;
+    d1 = r->out_base + wpos;
+    dn1 = r->out_base + r->out_size - d1;
+    if (avail < dn1) {
+        dn1 = avail;
+    }
+    dn2 = avail - dn1;
+    if (n1 + n2 >= 0x400 && dn1 + dn2 >= 0x400) {
+        done = func_00206810(p1, n1, p2, n2, d1, dn1, r->out_base, dn2);
+    }
+    r->out_free -= done;
+    r->pos += done;
+    r->rpos = (r->rpos + done) % r->size;
+    return done;
 }
-
-// Readable C (NEARMISS companion, objdiff 92.11%): src/readable/func_002065D0.c

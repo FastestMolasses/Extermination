@@ -1,13 +1,9 @@
-extern void func_00207E40(void);
-
-asm void func_00207CD0(void) {
-    ld $10, 0x80($4)
-    lui $2, (0x80808080 >> 16)
-    addiu $6, $0, 0x7AF0
-    addiu $7, $0, 0x20
-    addiu $4, $0, 0x1
-    addiu $8, $0, 0x18
-    ori $5, $0, 0x8B10
-    j func_00207E40
-    ori $9, $2, (0x80808080 & 0xFFFF)
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// One sprite call: func_00207E40(1, 0x8B10, 0x7AF0, 0x20, 0x18,
+// 0x80808080, the texture word at page+0x80).
+typedef struct { char pad[0x80]; long long q80; } T;
+extern void func_00207E40(int a0, int a1, int a2, int a3, int t0, unsigned int t1, long long t2);
+void func_00207CD0(T *p) {
+    func_00207E40(1, 0x8B10, 0x7AF0, 0x20, 0x18, 0x80808080, p->q80);
 }

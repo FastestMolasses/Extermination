@@ -1,86 +1,25 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_0021BB00(void) {
-    .word 0x908501f0
-    .word 0x24020008
-    .word 0x10a2002e
-    .word 0x24020001
-    .word 0x24a2fff7
-    .word 0x2c410002
-    .word 0x14200029
-    .word 0x00000000
-    .word 0x24020014
-    .word 0x10a20026
-    .word 0x00000000
-    .word 0x2402002c
-    .word 0x14a20006
-    .word 0x2402002e
-    .word 0x9083000d
-    .word 0x24020002
-    .word 0x1462001f
-    .word 0x00000000
-    .word 0x2402002e
-    .word 0x10a2001c
-    .word 0x00000000
-    .word 0x24a2ffef
-    .word 0x2c410003
-    .word 0x14200018
-    .word 0x00000000
-    .word 0x24a2ffeb
-    .word 0x2c410002
-    .word 0x14200014
-    .word 0x00000000
-    .word 0x24a2ffe8
-    .word 0x2c410002
-    .word 0x14200010
-    .word 0x00000000
-    .word 0x24a2ffe5
-    .word 0x2c410002
-    .word 0x1420000c
-    .word 0x00000000
-    .word 0x24a2ffe2
-    .word 0x2c410003
-    .word 0x14200008
-    .word 0x00000000
-    .word 0x24020028
-    .word 0x10a20005
-    .word 0x00000000
-    .word 0x24a2ffdd
-    .word 0x2c410004
-    .word 0x10200005
-    .word 0x2402000f
-    .word 0x24020001
-    .word 0x1000001b
-    .word 0x00000000
-    .word 0x2402000f
-    .word 0x14a20018
-    .word 0x70001628
-    .word 0x90830004
-    .word 0x24020001
-    .word 0x14620011
-    .word 0x24020001
-    .word 0x90830005
-    .word 0x24020008
-    .word 0x1462000c
-    .word 0x00000000
-    .word 0x90830006
-    .word 0x24020002
-    .word 0x10620006
-    .word 0x70001628
-    .word 0x2462fffc
-    .word 0x2c410002
-    .word 0x10200004
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x10000005
-    .word 0x00000000
-    .word 0x24020001
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x03e00008
-    .word 0x00000000
-}
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Does this entity's kind (+0x1F0) block the player's action? Returns 1 for
+// kinds 8, 9, 0x0A, 0x14, 0x2C (unless its +0x0D byte is 2), 0x2E,
+// 0x11..0x13, 0x15..0x16, 0x18..0x19, 0x1B..0x1C, 0x1E..0x20, 0x28 and
+// 0x23..0x26. Kind 0x0F returns 1 unless it is in state (1, 8) with
+// sub-state 2, 4 or 5, which return 0. Every other kind returns 0.
+int func_0021BB00(unsigned char *e) {
+    unsigned char k = e[0x1F0];
 
-// Readable C (NEARMISS companion, objdiff 95.32%): src/readable/func_0021BB00.c
+    if (k == 8 || k == 9 || k == 10 || k == 0x14 || (k == 0x2C && e[0xD] != 2)
+        || k == 0x2E || k == 0x11 || k == 0x12 || k == 0x13 || k == 0x15 || k == 0x16
+        || k == 0x18 || k == 0x19 || k == 0x1B || k == 0x1C
+        || k == 0x1E || k == 0x1F || k == 0x20 || k == 0x28
+        || k == 0x23 || k == 0x24 || k == 0x25 || k == 0x26) {
+        return 1;
+    }
+    if (k == 0x0F) {
+        if (e[4] == 1 && e[5] == 8 && (e[6] == 2 || e[6] == 4 || e[6] == 5)) {
+            return 0;
+        }
+        return 1;
+    }
+    return 0;
+}

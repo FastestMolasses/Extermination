@@ -39,3 +39,5 @@ asm void func_0021BE40(void) {
     jr         $ra
     addiu     $sp, $sp, 0x20
 }
+
+// Readable C (NEARMISS companion, objdiff 90.83%): src/readable/func_0021BE40.c

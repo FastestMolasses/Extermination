@@ -1,121 +1,78 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_0012E560(int, int, int, int);
-extern void func_0012E840(int, int, int, int);
-extern void func_00131650(int, int, int, int);
-extern void func_00131E80(int, int, int, int);
-extern void func_001B0D80(int, int, int, int);
-extern void func_001B2140(int, int, int, int);
-extern void func_001B5360(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Per-frame driver of an object with a work block at self+0x1F0, gated by
+// the scratchpad byte 0x70003B8D. Mode 1: unless self+0xD is 3, when
+// func_001B2140(self) is nonzero the actor only runs its callback self+0x4C
+// (when self+4 is nonzero) and returns. Modes 2 and 3: the actor runs only when
+// self+0xD is 3 and self+4 is not 1. Otherwise self+0x52 = 0 and the state
+// self+4 picks the handler (0: 0012E560, 1: 0012E840, 2: 00131650, 3: 00131E80,
+// which ends the frame). After states 0..2 the four work timers (+0x66, +0x5C,
+// +0x6C, +0x6A) count down to 0, self+0x54 = 0, func_001B5360(self) runs when
+// work+0x6D is set, then func_001B0D80(self).
+extern unsigned char D_70003B8D;
+extern int func_001B2140(unsigned char *e);
+extern void func_0012E560(unsigned char *self, unsigned char *sub);
+extern void func_0012E840(unsigned char *self, unsigned char *sub);
+extern void func_00131650(unsigned char *self, unsigned char *sub);
+extern void func_00131E80(unsigned char *self, unsigned char *sub);
+extern void func_001B5360(unsigned char *p);
+extern void func_001B0D80(unsigned char *p);
 
-asm void func_0012E3A0(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x3c017000
-    .word 0x90263b8d
-    .word 0x70808e28
-    .word 0x24030004
-    .word 0x10c30024
-    .word 0x263001f0
-    .word 0x24050003
-    .word 0x10c50019
-    .word 0x24030002
-    .word 0x10c30017
-    .word 0x00000000
-    .word 0x24020001
-    .word 0x10c20005
-    .word 0x00000000
-    .word 0x10c0001a
-    .word 0x00000000
-    .word 0x10000019
-    .word 0xa6200052
-    .word 0x9222000d
-    .word 0x10450015
-    .word 0x00000000
-    jal       func_001B2140
-    .word 0x00000000
-    .word 0x10400011
-    .word 0x00000000
-    .word 0x92230004
-    .word 0x1060004a
-    .word 0x00000000
-    .word 0x8e22004c
-    .word 0x0040f809
-    .word 0x72202628
-    .word 0x10000046
-    .word 0x7bbf0020
-    .word 0x9224000d
-    .word 0x24030003
-    .word 0x14830041
-    .word 0x00000000
-    .word 0x92240004
-    .word 0x24030001
-    .word 0x1083003d
-    .word 0x00000000
-    .word 0xa6200052
-    .word 0x92230004
-    .word 0x24020003
-    .word 0x10620017
-    .word 0x72202628
-    .word 0x24020002
-    .word 0x10620010
-    .word 0x72202628
-    .word 0x24020001
-    .word 0x10620009
-    .word 0x72202628
-    .word 0x10600003
-    .word 0x72202628
-    .word 0x10000012
-    .word 0x92020066
-    jal       func_0012E560
-    .word 0x72002e28
-    .word 0x1000000d
-    .word 0x00000000
-    jal       func_0012E840
-    .word 0x72002e28
-    .word 0x10000009
-    .word 0x00000000
-    jal       func_00131650
-    .word 0x72002e28
-    .word 0x10000005
-    .word 0x00000000
-    jal       func_00131E80
-    .word 0x72002e28
-    .word 0x1000001e
-    .word 0x00000000
-    .word 0x92020066
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x2442ffff
-    .word 0xa2020066
-    .word 0x9602005c
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x2442ffff
-    .word 0xa602005c
-    .word 0x9202006c
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x2442ffff
-    .word 0xa202006c
-    .word 0x9202006a
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x2442ffff
-    .word 0xa202006a
-    .word 0xa6200054
-    .word 0x9202006d
-    .word 0x10400004
-    .word 0x72202628
-    jal       func_001B5360
-    .word 0x72202628
-    .word 0x72202628
-    jal       func_001B0D80
-    .word 0x00000000
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_0012E3A0(unsigned char *self) {
+    unsigned char *sub = self + 0x1F0;
+    switch (D_70003B8D) {
+    case 0:
+        break;
+    case 1:
+        if (self[0xD] != 3 && func_001B2140(self) != 0) {
+            if (self[4] != 0) {
+                (*(void (**)(unsigned char *))(self + 0x4C))(self);
+            }
+            return;
+        }
+        break;
+    case 2:
+    case 3:
+        if (self[0xD] != 3) {
+            return;
+        }
+        if (self[4] == 1) {
+            return;
+        }
+        break;
+    case 4:
+        break;
+    }
+    *(short *)(self + 0x52) = 0;
+    switch (self[4]) {
+    case 0:
+        func_0012E560(self, sub);
+        break;
+    case 1:
+        func_0012E840(self, sub);
+        break;
+    case 2:
+        func_00131650(self, sub);
+        break;
+    case 3:
+        func_00131E80(self, sub);
+        return;
+    }
+    if (sub[0x66]) {
+        sub[0x66]--;
+    }
+    if (*(unsigned short *)(sub + 0x5C)) {
+        (*(unsigned short *)(sub + 0x5C))--;
+    }
+    if (sub[0x6C]) {
+        sub[0x6C]--;
+    }
+    if (sub[0x6A]) {
+        sub[0x6A]--;
+    }
+    *(short *)(self + 0x54) = 0;
+    if (sub[0x6D]) {
+        func_001B5360(self);
+    }
+    func_001B0D80(self);
 }

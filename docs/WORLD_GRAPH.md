@@ -11,8 +11,9 @@ the overlays and the level registries only (no emulator); section 8 lists
 what the eighth-level captures (port `docs/EIGHTH_LEVEL_ROUTE.md`) later
 measured, section 8b the ninth-level captures (port
 `docs/NINTH_LEVEL_ROUTE.md`), section 8c the tenth-level captures (port
-`docs/TENTH_LEVEL_ROUTE.md`) and section 8d the eleventh-level captures
-(port `docs/ELEVENTH_LEVEL_ROUTE.md`); section 7's table marks each edge
+`docs/TENTH_LEVEL_ROUTE.md`), section 8d the eleventh-level captures
+(port `docs/ELEVENTH_LEVEL_ROUTE.md`) and section 8e the twelfth-level
+captures (port `docs/TWELFTH_LEVEL_ROUTE.md`); section 7's table marks each edge
 played or not. Nothing here quotes disc text; the tables are addresses and
 numbers.
 
@@ -668,7 +669,7 @@ means no lock or story test was found on the site itself.
 | AREA04 | AREA03 e0 sub 1 | [38] model 0x15 (sub 0) / [44] model 0x03 (sub 1) | sub 0: D_00810845 bit 2, set only by AREA03's seal [23] 00158430 (from the AREA03 side); sub 1: open | not played (inferred) |
 | AREA04 | AREA20 e0 | [42] / [48] model 0x15 | D_00810845 bit 4: AREA06 sub 1's 0x825E20 (flag 0x31) | not played (inferred) |
 | AREA13 | AREA04 e7 | lift [10] model 0x0B | its buttons [12] / [13] (id 0xFF: 001BC960 tests no lock bit; the inner one plays script 0x24E1A0 at the AREA13 entry 0 arrival; BM, also ins). Measured (a13b_04 / a13b_05): the outer [12] facing -x at (652.7, 1238.6) took Use with the lift's +0x0B = 0, then +0x0B 0 -> 2 -> 3; the inner [13] facing +x (the player at (639.7, 160, 1276.4) in the frame the Use was taken), the request 04 FF 07 01, AREA04 entry 7 | played (a13b_05) |
-| AREA13 | AREA19 e9 / e10 sub 0 | 00193EB0 (the player's event code 6..9 / 0x2C / 0x2D at y <= 159 with spawn entry 4 / 6, resp. 5 / 7) | door [17] (0x823580, ins) from the east (entry 4) and the hatch [62] (0x826850, ins): item 0x27 (pickup g[5] in the same room) makes the hatch usable (class 0x84), its Use opens it (counter 0x61 bit 0), Use facing +z starts its ladder, and the descent reaches y 143.1 (measured, a13_05). [15] (001BD9F0 model 3) and [17] are locked only while flag 0x1C == 1 (NM / ins); flag 0x1C stayed 0 on this route. The holes [5] / [6] (0x823BC0, ins) are examine points that end once item 0x27 is held or flag 0x1B is 0xFF. Door [20]'s north side (entry 10), the only way to hole [6] / hatch [63], was reached neither on foot from the field (section 8c) nor after [44]'s event, the boom and [7] (section 8d) | e9 played (a13_05, hole [5]); e10 not played |
+| AREA13 | AREA19 e9 / e10 sub 0 | 00193EB0 (the player's event code 6..9 / 0x2C / 0x2D at y <= 159 with spawn entry 4 / 6, resp. 5 / 7) | door [17] (0x823580, ins) from the east (entry 4) and the hatch [62] (0x826850, ins): item 0x27 (pickup g[5] in the same room) makes the hatch usable (class 0x84), its Use opens it (counter 0x61 bit 0), Use facing +z starts its ladder, and the descent reaches y 143.1 (measured, a13_05). [15] (001BD9F0 model 3) and [17] are locked only while flag 0x1C == 1 (NM / ins); flag 0x1C stayed 0 on this route. The holes [5] / [6] (0x823BC0, ins) are examine points that end once item 0x27 is held or flag 0x1B is 0xFF. Door [20]'s north side (entry 10), the only way to hole [6] / hatch [63], was reached neither on foot from the field (section 8c) nor after [44]'s event, the boom and [7] (section 8d); it is reached from the region south of the pipe fence over the big building's south roof (a stair, ladders of attribute 0x32 and one running jump; section 8e), then door [20] (001BC350, BM, no lock) to entry 5 and the hatch [63] (counter 0x61 bit 1, item 0x27); its ladder gives the request 13 00 0A 01 (measured, a19b_00) | e9 played (a13_05, hole [5]); e10 played (a19b_00, hatch [63]) |
 | AREA19 | AREA13 e6 / e7, AREA19 sub 1 e6 / 7 / 8 | 00196970 (climbing above a height in five circles) | the circles are the ladders at AREA19 entries 9 (-> AREA13 e6), 10 (-> e7), 11, 12 and 13 (-> sub 1 e8 / e7 / e6) (BM). Measured (a13b_00): Use facing +z at entry 9's foot, the stick up, the request 0D 00 06 01 at y >= 284.5 | e6 played (a13b_00); the rest not played |
 | AREA19 | AREA03 e1 | [25] model 0x16 | D_00810854 bit 1: the panel [24] 00158EC0 model 0x22 (item 0x1B). The panel stands at the north end of the y-265 walkway behind entry 0, which the entry-9 rooms do not reach (section 8c) | not played (inferred) |
 | AREA03 | AREA19 e0 | sub 0 [15] | open | not played (inferred) |
@@ -762,6 +763,14 @@ From there:
    [20]'s side was still not reached (inferred lead: a strip at y 186..211
    east of the grid wall at x 831, above door [20]'s region; port
    ELEVENTH_LEVEL_ROUTE.md section 6).
+   **Played further in the twelfth level (section 8e):** door [20]'s north
+   side is reached from the region south of the fence over the big
+   building's south roof, then the hatch [63] and its fall to AREA19 entry
+   0xA; [7]'s first sequence (0x825AB0) ran (counter 0x1E = 1), and [6]'s
+   first stage (flag 0x1D, counter 0x1D, the 0x82A590 creature). The
+   inference above (that this arrival is how D_00810702 becomes 0xA) is
+   consistent with the capture but still not proven exclusive. Door [27]
+   still waits for [7]'s Use (0x825930), not reached.
 6. **AREA15 twice.** Sub 0's [0] sets flag 0x22; sub 1's [4] / [6]
    (flag 0x22 set, 0x23 clear) run counter 0x23 up to 0x823C80, which
    gives C64 0x06 and CC3 0x0E, rewrites the subs of AREA00 (2), AREA01
@@ -978,14 +987,82 @@ with it at 100 the health fell 44 -> 9 in about 6,200 frames. Measured:
   hooks and reaches [45]'s step functions (table 0x82D190) through its
   callback.
 
+## 8e. Measured (twelfth level)
+
+The port's `docs/TWELFTH_LEVEL_ROUTE.md` played groups `a13d` (8 beats,
+AREA13) and `a19b` (3 beats, AREA19) of `tools/route_capture.py` from the
+eleventh level's a13c_06 (the region south of the pipe fence). Measured:
+
+- **The south roof.** The way to door [20]'s north side lies in AREA13's
+  grid collision (attribute 0x32 = a ladder for 0015D4C0's Use, NM;
+  attribute 0x35 = a stair): a switchback stair south of the big building
+  (y 160 -> 179.5 -> 203.5, x 744..787, z 814..835), the ladder at x 798.5
+  to the roof corridor (y 240, z 805..835), the first block's west ladder
+  (x 888.5) to its top (y 280), a running jump (0015EC50, NM: action 0x0C,
+  a13d_03 f215..f262) onto the second block (x 960..990), whose west face
+  has the ladder's rails and top railing but no attribute-0x32 node (Cross
+  there started no climb, exploration), its east ladder (x 991.4) down,
+  and the ladder at z 836.4 down to y 176.5 on door [20]'s side (a13d_00 ..
+  a13d_05). One hit on the corridor (health 100 -> 90).
+- **Door [20] and the hatch [63].** Door [20] (001BC350, BM, model 0x03, no
+  lock test) from its north side facing -z: entry 5 (a13d_06). The hatch
+  [63] (0x826850, C; descriptor 0x82CDF0 (1071.5, 160.5, 844.9), radius 10,
+  yaw -1.606): Use facing +x with item 0x27 held: script 0x82CA50, counter
+  0x61 (D_00810839) 1 -> 3 (a13d_07).
+- **AREA19 entry 10.** Use facing +x in the open hatch: its ladder; at y
+  143.1 00193EB0 (NM) requests 13 00 0A 01 (spawn entry 5); AREA19 sub 0
+  entry 10 on a ladder at (1077.2, 250.1, 845). [7] (0x8257C0, C) with
+  D_008107F6 == 0 runs 0x825AB0 (C): its three scripts (3B8D = 2 for 1,249
+  frames, f486..f1734) take the player down the ladder to (1086.5, 185,
+  845) and end with counter 0x1E (D_008107F6) = 1 at f1735, the frame
+  3B8D returns to 0 (a19b_00). D_00810854 stayed 0.
+- **[6]'s first stage.** Along the east wall's ledge (attribute 0x39: the
+  walk turns into a wall-side shuffle, action 0x2F), a ledge climb onto the
+  platform at y 190 and the ladder at z 974 to y 220 (a19b_01, a19b_02):
+  the ladder's top is inside [6]'s area 0x82BD00 above y 210, so 0x825240
+  (C) runs script 0x82B6E0 (flag 0x1D (D_00810775) = 1) and at its end
+  sets D_008107F5 |= 1 | 2 (counter 0x1D = 3) and spawns group 0x82A590
+  (one 0012E3A0 creature at (917, 210, 993); D_008106C0 = its node).
+- **Not reached:** [7]'s Use. The y-195 platform with the bar to [7]'s
+  room (attribute 0x3A under an attribute-0x34 bar, the pole entry) is
+  not reached from the y-172 floor: the slope between them (grid nodes
+  153 / 158, 45 degrees, downhill toward the floor) carries the authored
+  class 0x1000, the class whose floor contact enters the player's slide
+  (00175CF0 / 001796C0, port PLAYER_CLIMB_SLIDE.md; in AREA11 exactly the
+  slide hill): by that rule a floor contact on it (attribute 0, not 0x39)
+  starts a slide along its downhill heading, toward the floor (read, not
+  played). The exploration walks toward
+  it stopped on the floor at z 972.1..972.4, about 4 units short of its
+  foot (z 968), one with a knock-back (health 90 -> 85); what stopped them
+  is not read. Leads from AREA19's grid (not
+  played): attribute-0x32 ladders at nodes 884..886, 1016..1018, 959 / 960
+  and 694 / 695; one of them (1016..1018) joins a y-265 deck to a y-230
+  floor (node 192) over the x / z of [7]'s room (port
+  TWELFTH_LEVEL_ROUTE.md section 7).
+- **Census** (`route_census.py twelfth-delta`): at least 39 functions
+  (18,004 bytes) that no earlier level ran: a13d 9 boot (no AREA13 overlay
+  function is new), a19b 23 boot and 7 AREA19 overlay (among them [7]'s
+  0x825930 and [6]'s 0x825420). a19b arms only AREA19, so a19b_00's AREA13
+  frames (the hatch's ladder) were not measured for AREA13 code, and AREA13
+  code hit four one-shot AREA19 breakpoints at a19b_00 f1 (0x823580,
+  0x824BE0, 0x826840, 0x8293B0), which a19b_00's AREA19 frames therefore
+  did not measure: the function at 0x826840 (748 bytes, link name
+  func_overlay_AREA19_00826800) may have run there unseen, and 0x824BE0's
+  first run may be earlier than the measured a19b_02 f1204 (port
+  TWELFTH_LEVEL_ROUTE.md section 5).
+
 ## 9. Open
 
-1. AREA13's hole [6] / hatch [63] (entry 5 / 7 -> AREA19 entry 10) and door
-   [20] are not played ([44]'s event, flag 0x1C, and [7], counter 0x42,
-   are, section 8d; the lift [10]'s return is, a13b_05); how the story
-   reaches door [20]'s side of AREA13 is not found (sections 8c, 8d);
-   section 7 steps 5..7 are derived, not played
-   (AREA19 is recorded in its entry-9 rooms only). The conditions of AREA14's
+1. AREA13's door [20], hatch [63] and the fall to AREA19 entry 10 are
+   played (section 8e); AREA19 past entry 10's first rooms is not: [7]'s
+   Use (0x825930, door [27]'s lock bit 2) waits on a way into [7]'s room,
+   not found: onto the y-195 platform under the bar (its slope from the
+   y-172 floor is slide class 0x1000), or from above by the y-265 deck and
+   the ladder at nodes 1016..1018 to the y-230 floor over the room's x / z
+   (not tried; whether that floor leads down to [7] is not read;
+   port TWELFTH_LEVEL_ROUTE.md sections 6 and 7); section 7 steps 5..7 are
+   derived, not played beyond that (AREA19 is recorded in its entry-9 rooms
+   and from entry 10 to the walkway at y 220). The conditions of AREA14's
    [6] (the owner of script 0x828120), AREA17's counter 0x5D (written by
    boot 0016BC40, not read) and AREA21's ending were read only as far as
    the tables show.

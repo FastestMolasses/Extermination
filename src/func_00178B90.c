@@ -1,216 +1,81 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_0011DE90(int, int, int, int);
-extern void func_0011DF78(int, int, int, int);
-extern void func_0011E2A8(int, int, int, int);
-extern void float_to_int(int, int, int, int);
-extern void func_001764E0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Player horizontal move: advances the position (+0xB0 x, +0xB8 z) by the
+// speed +0x38 along the heading +0xC4 (x by sinf, z by cosf: func_0011E2A8 /
+// func_0011DE90). On the uphill surface 0x35 (+0x23B) while not airborne
+// (+0x25F clear) the step is scaled by cos(slope +0x9C) blended toward 1 by
+// how far the heading deviates from the slope direction +0x310 (within
+// pi/2). While airborne the scale is not applied. Speeds of 4.5 or more are
+// split into 4-unit sub-steps, each followed by the collision push
+// func_001764E0 when collide is set, then the remainder; slower moves take
+// one step (and one push).
+extern float func_0011DF78(float x);
+extern float func_0011DE90(float x);
+extern float func_0011E2A8(float x);
+extern int float_to_int(float x);
+extern void func_001764E0(unsigned char *e);
 
-asm void func_00178B90(void) {
-    addiu $sp, $sp, -0x60
-    sq $ra, 0x50($sp)
-    sq $s3, 0x40($sp)
-    sq $s2, 0x30($sp)
-    sq $s1, 0x20($sp)
-    sq $s0, 0x10($sp)
-    swc1 $f23, 0xC($sp)
-    swc1 $f22, 0x8($sp)
-    swc1 $f21, 0x4($sp)
-    swc1 $f20, 0x0($sp)
-    lbu $v0, 0x25F($a0)
-    lui $v1, (0x3F800000 >> 16)
-    mtc1 $v1, $f20
-    paddub $s0, $a1, $zero
-    .word 0x14400022
-    paddub $s1, $a0, $zero
-    lbu $v1, 0x23B($s1)
-    addiu $v0, $zero, 0x35
-    .word 0x1462001e
-    nop
-    lwc1 $f1, 0x310($s1)
-    lwc1 $f0, 0xC4($s1)
-    jal func_0011DF78
-    sub.s $f12, $f1, $f0
-    lui $v0, (0x3FC90FDB >> 16)
-    mov.s $f21, $f0
-    ori $v0, $v0, (0x3FC90FDB & 0xFFFF)
-    mtc1 $v0, $f0
-    nop
-    c.lt.s $f21, $f0
-    nop
-    .word 0x45000011
-    nop
-    jal func_0011DE90
-    lwc1 $f12, 0x9C($s1)
-    lui $v0, (0x3F800000 >> 16)
-    mtc1 $v0, $f1
-    lwc1 $f12, 0x9C($s1)
-    sub.s $f1, $f1, $f0
-    lui $v0, (0x3FC90FDB >> 16)
-    ori $v0, $v0, (0x3FC90FDB & 0xFFFF)
-    mtc1 $v0, $f0
-    nop
-    div.s $f0, $f1, $f0
-    nop
-    nop
-    jal func_0011DE90
-    mul.s $f20, $f21, $f0
-    add.s $f20, $f0, $f20
-    jal func_0011DF78
-    lwc1 $f12, 0x38($s1)
-    lui $v0, (0x40900000 >> 16)
-    mtc1 $v0, $f1
-    nop
-    c.lt.s $f0, $f1
-    nop
-    .word 0x45000029
-    nop
-    lbu $v0, 0x25F($s1)
-    .word 0x14400012
-    nop
-    jal func_0011E2A8
-    lwc1 $f12, 0xC4($s1)
-    lwc1 $f2, 0x38($s1)
-    lwc1 $f1, 0xB0($s1)
-    mul.s $f2, $f2, $f20
-    mul.s $f0, $f2, $f0
-    add.s $f0, $f1, $f0
-    swc1 $f0, 0xB0($s1)
-    jal func_0011DE90
-    lwc1 $f12, 0xC4($s1)
-    lwc1 $f2, 0x38($s1)
-    lwc1 $f1, 0xB8($s1)
-    mul.s $f2, $f2, $f20
-    mul.s $f0, $f2, $f0
-    add.s $f0, $f1, $f0
-    .word 0x1000000f
-    swc1 $f0, 0xB8($s1)
-    jal func_0011E2A8
-    lwc1 $f12, 0xC4($s1)
-    lwc1 $f2, 0x38($s1)
-    lwc1 $f1, 0xB0($s1)
-    mul.s $f0, $f2, $f0
-    add.s $f0, $f1, $f0
-    swc1 $f0, 0xB0($s1)
-    jal func_0011DE90
-    lwc1 $f12, 0xC4($s1)
-    lwc1 $f2, 0x38($s1)
-    lwc1 $f1, 0xB8($s1)
-    mul.s $f0, $f2, $f0
-    add.s $f0, $f1, $f0
-    swc1 $f0, 0xB8($s1)
-    .word 0x12000064
-    nop
-    jal func_001764E0
-    paddub $a0, $s1, $zero
-    .word 0x10000061
-    lq $ra, 0x50($sp)
-    lwc1 $f23, 0x38($s1)
-    mtc1 $zero, $f0
-    nop
-    c.lt.s $f23, $f0
-    nop
-    .word 0x45010006
-    lui $v0, (0xC0800000 >> 16)
-    lui $v0, (0x40800000 >> 16)
-    mtc1 $v0, $f21
-    .word 0x10000004
-    nop
-    lui $v0, (0xC0800000 >> 16)
-    mtc1 $v0, $f21
-    nop
-    nop
-    div.s $f12, $f23, $f21
-    nop
-    nop
-    jal float_to_int
-    nop
-    paddub $s3, $v0, $zero
-    slt $at, $zero, $s3
-    .word 0x10200027
-    paddub $s2, $zero, $zero
-    mul.s $f22, $f21, $f20
-    lbu $v0, 0x25F($s1)
-    .word 0x1440000e
-    nop
-    jal func_0011E2A8
-    lwc1 $f12, 0xC4($s1)
-    mul.s $f1, $f22, $f0
-    lwc1 $f0, 0xB0($s1)
-    add.s $f0, $f0, $f1
-    swc1 $f0, 0xB0($s1)
-    jal func_0011DE90
-    lwc1 $f12, 0xC4($s1)
-    mul.s $f1, $f22, $f0
-    lwc1 $f0, 0xB8($s1)
-    add.s $f0, $f0, $f1
-    .word 0x1000000e
-    swc1 $f0, 0xB8($s1)
-    jal func_0011E2A8
-    lwc1 $f12, 0xC4($s1)
-    mul.s $f1, $f21, $f0
-    lwc1 $f0, 0xB0($s1)
-    add.s $f0, $f0, $f1
-    swc1 $f0, 0xB0($s1)
-    jal func_0011DE90
-    lwc1 $f12, 0xC4($s1)
-    mul.s $f1, $f21, $f0
-    lwc1 $f0, 0xB8($s1)
-    add.s $f0, $f0, $f1
-    swc1 $f0, 0xB8($s1)
-    nop
-    .word 0x12000003
-    sub.s $f23, $f23, $f21
-    jal func_001764E0
-    paddub $a0, $s1, $zero
-    addiu $s2, $s2, 0x1
-    slt $v0, $s2, $s3
-    .word 0x1440ffdc
-    nop
-    lbu $v0, 0x25F($s1)
-    .word 0x1440000f
-    nop
-    jal func_0011E2A8
-    lwc1 $f12, 0xC4($s1)
-    mul.s $f20, $f23, $f20
-    lwc1 $f1, 0xB0($s1)
-    mul.s $f0, $f20, $f0
-    add.s $f0, $f1, $f0
-    swc1 $f0, 0xB0($s1)
-    jal func_0011DE90
-    lwc1 $f12, 0xC4($s1)
-    mul.s $f1, $f20, $f0
-    lwc1 $f0, 0xB8($s1)
-    add.s $f0, $f0, $f1
-    .word 0x1000000d
-    swc1 $f0, 0xB8($s1)
-    jal func_0011E2A8
-    lwc1 $f12, 0xC4($s1)
-    mul.s $f1, $f23, $f0
-    lwc1 $f0, 0xB0($s1)
-    add.s $f0, $f0, $f1
-    swc1 $f0, 0xB0($s1)
-    jal func_0011DE90
-    lwc1 $f12, 0xC4($s1)
-    mul.s $f1, $f23, $f0
-    lwc1 $f0, 0xB8($s1)
-    add.s $f0, $f0, $f1
-    swc1 $f0, 0xB8($s1)
-    .word 0x12000003
-    nop
-    jal func_001764E0
-    paddub $a0, $s1, $zero
-    lq $ra, 0x50($sp)
-    lq $s3, 0x40($sp)
-    lq $s2, 0x30($sp)
-    lq $s1, 0x20($sp)
-    lq $s0, 0x10($sp)
-    lwc1 $f23, 0xC($sp)
-    lwc1 $f22, 0x8($sp)
-    lwc1 $f21, 0x4($sp)
-    lwc1 $f20, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x60
+void func_00178B90(unsigned char *e, int collide) {
+    float scale = 1.0f;
+    float d;
+    float step;
+    float rest;
+    float sstep;
+    int i;
+    int n;
+
+    if (e[0x25F] == 0 && e[0x23B] == 0x35) {
+        d = func_0011DF78(*(float *)(e + 0x310) - *(float *)(e + 0xC4));
+        if (d < 1.5707964f) {
+            /* rest = ... below is a dead store (rest is reassigned before any
+             * use); it only reproduces the original's FPU register allocation. */
+            scale = func_0011DE90(*(float *)(e + 0x9C))
+                  + d * ((1.0f - func_0011DE90(rest = *(float *)(e + 0x9C))) / 1.5707964f);
+        }
+    }
+    if (func_0011DF78(*(float *)(e + 0x38)) < 4.5f) {
+        if (e[0x25F] == 0) {
+            *(float *)(e + 0xB0) += *(float *)(e + 0x38) * scale * func_0011E2A8(*(float *)(e + 0xC4));
+            *(float *)(e + 0xB8) += *(float *)(e + 0x38) * scale * func_0011DE90(*(float *)(e + 0xC4));
+        } else {
+            *(float *)(e + 0xB0) += *(float *)(e + 0x38) * func_0011E2A8(*(float *)(e + 0xC4));
+            *(float *)(e + 0xB8) += *(float *)(e + 0x38) * func_0011DE90(*(float *)(e + 0xC4));
+        }
+        if (collide != 0) {
+            func_001764E0(e);
+        }
+    } else {
+        rest = *(float *)(e + 0x38);
+        /* compiled as !(rest < 0.0f): a NaN speed takes the +4 step */
+        if (rest >= 0.0f) {
+            step = 4.0f;
+        } else {
+            step = -4.0f;
+        }
+        n = float_to_int(rest / step);
+        for (i = 0; i < n; i++) {
+            sstep = step * scale;
+            if (e[0x25F] == 0) {
+                *(float *)(e + 0xB0) += sstep * func_0011E2A8(*(float *)(e + 0xC4));
+                *(float *)(e + 0xB8) += sstep * func_0011DE90(*(float *)(e + 0xC4));
+            } else {
+                *(float *)(e + 0xB0) += step * func_0011E2A8(*(float *)(e + 0xC4));
+                *(float *)(e + 0xB8) += step * func_0011DE90(*(float *)(e + 0xC4));
+            }
+            rest -= step;
+            if (collide != 0) {
+                func_001764E0(e);
+            }
+        }
+        if (e[0x25F] == 0) {
+            *(float *)(e + 0xB0) += rest * scale * func_0011E2A8(*(float *)(e + 0xC4));
+            *(float *)(e + 0xB8) += rest * scale * func_0011DE90(*(float *)(e + 0xC4));
+        } else {
+            *(float *)(e + 0xB0) += rest * func_0011E2A8(*(float *)(e + 0xC4));
+            *(float *)(e + 0xB8) += rest * func_0011DE90(*(float *)(e + 0xC4));
+        }
+        if (collide != 0) {
+            func_001764E0(e);
+        }
+    }
 }
-
-// Readable C (NEARMISS companion, objdiff 99.10%): src/readable/func_00178B90.c

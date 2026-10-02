@@ -1,61 +1,32 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_0017F240(void) {
-    .word 0xc4800224
-    .word 0x44800800
-    .word 0x00000000
-    .word 0x46010032
-    .word 0x00000000
-    .word 0x4500000a
-    .word 0x00000000
-    .word 0xc480022c
-    .word 0x46010032
-    .word 0x00000000
-    .word 0x45000005
-    .word 0x00000000
-    .word 0x9082000f
-    .word 0x30420002
-    .word 0x10400027
-    .word 0x70001628
-    .word 0x14a0000a
-    .word 0x00000000
-    .word 0x90860005
-    .word 0x24050002
-    .word 0x24030006
-    .word 0x24020001
-    .word 0xa0860302
-    .word 0xa0850004
-    .word 0xa0830005
-    .word 0x1000001c
-    .word 0xa0800006
-    .word 0x8c820200
-    .word 0x30421000
-    .word 0x1040000a
-    .word 0x00000000
-    .word 0x90860005
-    .word 0x24050002
-    .word 0x24030006
-    .word 0x24020001
-    .word 0xa0860302
-    .word 0xa0850004
-    .word 0xa0830005
-    .word 0x1000000f
-    .word 0xa0800006
-    .word 0xc481003c
-    .word 0x3c024040
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x45010006
-    .word 0x00000000
-    .word 0x3c024000
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x46000801
-    .word 0xe4800204
-    .word 0x70001628
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Grab test. Unless self+0x224 and self+0x22C are both 0.0 and bit 1 of
+// self+0xF is clear: with held == 0, or bit 12 of self+0x200 set, the object
+// enters state 2 sub-mode 6 (old sub-mode saved in self+0x302, step 0) and the
+// result is 1; otherwise, when self+0x3C is 3.0 or more, self+0x204 = self+0x3C
+// - 2.0. Returns 0 in every other case.
+int func_0017F240(unsigned char *self, int held) {
+    float z;
+    float h;
+    if (*(float *)(self + 0x224) != (z = 0.0f) || *(float *)(self + 0x22C) != z || (self[0xF] & 2)) {
+        if (held == 0) {
+            self[0x302] = self[5];
+            self[4] = 2;
+            self[5] = 6;
+            self[6] = 0;
+            return 1;
+        }
+        if (*(int *)(self + 0x200) & 0x1000) {
+            self[0x302] = self[5];
+            self[4] = 2;
+            self[5] = 6;
+            self[6] = 0;
+            return 1;
+        }
+        h = *(float *)(self + 0x3C);
+        if (!(h < 3.0f)) {
+            *(float *)(self + 0x204) = h - 2.0f;
+        }
+    }
+    return 0;
 }

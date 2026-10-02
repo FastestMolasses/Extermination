@@ -1,8 +1,10 @@
-// Copies one 128-bit quadword: *(u128 *)a0 = *(u128 *)a1; the store sits in the return delay slot.
-asm void func_00102948(void *a0, void *a1) {
-    lq $6, 0x0($5)
-    jr $ra
-    sq $6, 0x0($4)
-}
+// COMPILER: eegcc
+// CFLAGS: -O2
+// SDK: copies one 128-bit quadword, *dst = *src. The register variable only
+// reproduces the original's choice of a2.
+typedef unsigned int u128 __attribute__((mode(TI)));
 
-// Readable C (NEARMISS companion, objdiff 96.67%): src/readable/func_00102948.c
+void func_00102948(u128 *dst, u128 *src) {
+    register u128 r0 asm("$6") = *src;
+    *dst = r0;
+}

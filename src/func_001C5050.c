@@ -1,28 +1,14 @@
-// Multi-call non-leaf — asm void with extern decls for every callee.
-extern void func_00102948(int, int, int, int);
-extern void func_001D7FA0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Copies the vector obj+0x80 to a stack vector, sets its w to the given
+// value and passes it to func_001D7FA0(obj+0xB0, &v, 2, 1.0, 0.0).
+typedef struct { float v[3]; float w; } Vec4;
+extern void func_00102948(void *dst, void *src);
+extern void func_001D7FA0(void *a0, void *a1, int a2, float f12, float f13);
 
-asm void func_001C5050(void) {
-    addiu $sp, $sp, -0x40
-    sq $ra, 0x20($sp)
-    sq $s0, 0x10($sp)
-    paddub $s0, $a0, $zero
-    swc1 $f20, 0x0($sp)
-    addiu $a0, $sp, 0x30
-    mov.s $f20, $f12
-    jal func_00102948
-    addiu $a1, $s0, 0x80
-    lui $v0, (0x3F800000 >> 16)
-    addiu $a0, $s0, 0xB0
-    mtc1 $zero, $f13
-    mtc1 $v0, $f12
-    addiu $a1, $sp, 0x30
-    addiu $a2, $zero, 0x2
-    jal func_001D7FA0
-    swc1 $f20, 0x3C($sp)
-    lq $ra, 0x20($sp)
-    lq $s0, 0x10($sp)
-    lwc1 $f20, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x40
+void func_001C5050(char *obj, float w) {
+    Vec4 t;
+    func_00102948(&t, obj + 0x80);
+    t.w = w;
+    func_001D7FA0(obj + 0xB0, &t, 2, 1.0f, 0.0f);
 }

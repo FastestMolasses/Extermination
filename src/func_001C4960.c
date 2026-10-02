@@ -1,46 +1,28 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_001AFC10(int, int, int, int);
-extern void func_001B1020(int, int, int, int);
-extern void func_001B17A0(int, int, int, int);
-extern void func_001C6380(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// State handler: state 0 runs func_001C6380(self) unless
+// func_001B1020(self, self+0xD, -1, 0) returns nonzero; state 1 runs
+// func_001B17A0(self) and the callback self+0x4C; state 3 and any other state
+// run func_001AFC10(self).
+extern int func_001B1020(unsigned char *e, int t, int a, int b);
+extern void func_001B17A0(unsigned char *p);
+extern void func_001AFC10(void *self);
+extern void func_001C6380(unsigned char *self);
 
-asm void func_001C4960(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x90830004
-    .word 0x24020003
-    .word 0x10620019
-    .word 0x70808628
-    .word 0x24020001
-    .word 0x1062000f
-    .word 0x00000000
-    .word 0x10600003
-    .word 0x00000000
-    .word 0x10000013
-    .word 0x72002628
-    .word 0x9205000d
-    .word 0x2406ffff
-    jal       func_001B1020
-    .word 0x70003e28
-    .word 0x1440000f
-    .word 0x00000000
-    jal       func_001C6380
-    .word 0x72002628
-    .word 0x1000000c
-    .word 0x7bbf0010
-    jal       func_001B17A0
-    .word 0x00000000
-    .word 0x8e02004c
-    .word 0x0040f809
-    .word 0x72002628
-    .word 0x10000004
-    .word 0x00000000
-    .word 0x72002628
-    jal       func_001AFC10
-    .word 0x00000000
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+void func_001C4960(unsigned char *self) {
+    switch (self[4]) {
+    case 0:
+        if (func_001B1020(self, self[0xD], -1, 0) == 0) {
+            func_001C6380(self);
+        }
+        break;
+    case 1:
+        func_001B17A0(self);
+        (*(void (**)(unsigned char *))(self + 0x4C))(self);
+        break;
+    case 3:
+    default:
+        func_001AFC10(self);
+        break;
+    }
 }

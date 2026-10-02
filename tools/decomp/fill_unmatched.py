@@ -197,6 +197,17 @@ RODATA_PIN_REFUSED: dict[str, str] = {}
 SIZE_DRIFT_FORCE_ASM = {
     # 57 + 34 stale entries removed 2026-09-23 (m3-matching); see the prune
     # note at the top of GPREL_FORCE_ASM for the evidence each removal carried.
+    # First-level lane (2026-10-01): 23 entries removed -- func_00128250,
+    # func_00128390, func_001287F0, func_001639E0, func_00163B40, func_0017DEB0,
+    # func_00182430, func_0018C4B0, func_0018C6A0, func_0018C850, func_00192010,
+    # func_001A58B0, func_001B12B0, func_001B5F40, func_001C8710, func_001C9E40,
+    # func_001F4F40, func_001FE530, func_00204700, func_00204D60, func_0021D1A0,
+    # func_00224290, func_002243F0. Each is ordinary C at objdiff 100% with the
+    # slot-sized .text and no data sections (docs/FIRST_LEVEL_DECOMP.md); with
+    # the entry removed the full build + verify_all stayed byte-identical and
+    # audit_link_provenance shows compiled_object_ordinary_c for each.
+    # Same lane, second pass: func_001FBDB0 removed after its asm body was
+    # replaced by C that is objdiff 100% with the slot-sized .text (same proof).
     "func_001046C0",
     "func_0010C0C8",
     "func_0010C200",
@@ -214,7 +225,6 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_0011E148",
     "func_0011E2A8",
     "func_00127650",
-    "func_00128250",
     "func_0012B850",
     "func_0012D850",
     "func_0012F980",
@@ -235,8 +245,6 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_00153950",
     "func_0015B030",
     "func_0015B610",
-    "func_001639E0",
-    "func_00163B40",
     "func_00163D50",
     "func_00177460",
     "func_00178390",
@@ -244,47 +252,30 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_0017D940",
     "func_0017DAF0",
     "func_0017DC80",
-    "func_0017DEB0",
     "func_0017DFB0",
     "func_00181430",
     "func_00182100",
-    "func_00182430",
     "func_00183250",
     "func_001837B0",
-    "func_0018C4B0",
-    "func_0018C6A0",
-    "func_0018C850",
     "func_00191120",
-    "func_00192010",
     "func_0019A310",
     "func_0019ED80",
     "func_0019F330",
     "func_001A4D10",
-    "func_001A58B0",
     "func_001AA2A0",
     "func_001B1190",
-    "func_001B12B0",
     "func_001B1EA0",
     "func_001B2BF0",
     # anim_clip_init removed: readable C now supplies both float arguments
     # and matches the original212-byte slot; verify actual compiled-C linkage.
-    "func_001C8710",
-    "func_001C9E40",
     "func_001CF470",
     "func_001D0D60",
-    "func_001FBDB0",
     "func_001FBE80",
-    "func_001FE530",
-    "func_00204700",
-    "func_00204D60",
     "func_00205F90",
     "func_0021BE40",
     "func_0021BED0",
-    "func_0021D1A0",
     "func_0021D6C0",
     "func_0021E490",
-    "func_00224290",
-    "func_002243F0",
     "func_00229960",
     "func_00229C00",
     # Content-mismatch functions: compiled obj has wrong instructions (different
@@ -296,7 +287,6 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_00193D90",
     "func_001B3250",
     "func_001B3670",
-    "func_001B5F40",
     "func_001DCFF0",
     "func_001DEDB0",
     "func_001E0C80",
@@ -327,8 +317,6 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_0011A730",
     "func_0011A938",
     "func_00120B10",
-    "func_001287F0",
-    "func_00128390",
     # func_0012E070 removed 2026-09-28 (lane DFIX): the mwcc 2.3.3 rewrite is
     # objdiff 100% and the compiled object is linked (audit_link_provenance).
     "func_0014D1E0",
@@ -356,7 +344,6 @@ SIZE_DRIFT_FORCE_ASM = {
     # func_001DF5A0 removed 2026-09-28 (lane DFIX): corrected C (f12 passed
     # through to func_001DF180, cursor stored before the call) is mwcc 2.3.3
     # objdiff 100%; the compiled object is linked (audit_link_provenance).
-    "func_001F4F40",
     "func_001FC9B0",
     "func_001FCB90",
     "func_002061B0",

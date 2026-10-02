@@ -1,150 +1,85 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_00110B38(int, int, int, int);
-extern void func_001B5C90(int, int, int, int);
-extern void func_001B5CC0(int, int, int, int);
-extern void func_001B5D70(int, int, int, int);
-extern void func_001B5E20(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Reads one pad and updates its button block (port em_input: the 001B5940
+// pad block translation). port+4 / port+8 are the pad port and slot; the
+// read (func_00110B38, scePadRead) fills a 32-byte buffer and the call
+// returns 0 when it fails or the buffer's status byte is non-zero.
+// pad->now = buttons (active high), pad->prev = previous buttons, pad->trig = newly
+// pressed, pad->trig_prev = previous newly pressed, pad->rep = pressed with d-pad
+// auto-repeat, pad[5] = the repeat timer (32 frames first, then every 10).
+// In analog mode the stick bytes go to port+0x24..+0x27 (left x / y at
+// +0x24 / +0x25), the left stick's deflection level (func_001B5CC0) to
+// +0x17: a deflected stick on port 0 replaces the d-pad bits with the
+// stick's direction (func_001B5D70) and the stick bytes are snapped
+// (func_001B5C90); a centred stick on port 0 with a d-pad bit held, or
+// digital mode, synthesises the stick from the d-pad (func_001B5E20).
+// Returns 1 after an update.
+typedef struct PadBlock {
+    unsigned short now;     /* 0x0 */
+    unsigned short prev;    /* 0x2 */
+    unsigned short trig;    /* 0x4 */
+    unsigned short trig_prev; /* 0x6 */
+    unsigned short rep;     /* 0x8 */
+    short timer;            /* 0xA */
+} PadBlock;
 
-asm void func_001B5940(void) {
-    addiu $sp, $sp, -0x60
-    sq $ra, 0x30($sp)
-    sq $s2, 0x20($sp)
-    sq $s1, 0x10($sp)
-    sq $s0, 0x0($sp)
-    paddub $s2, $a0, $zero
-    lw $a0, 0x4($a1)
-    paddub $s1, $a1, $zero
-    paddub $s0, $a2, $zero
-    lw $a1, 0x8($a1)
-    jal func_00110B38
-    addiu $a2, $sp, 0x40
-    .word 0x14400003
-    nop
-    .word 0x10000075
-    paddub $v0, $zero, $zero
-    lbu $v0, 0x40($sp)
-    .word 0x14400072
-    paddub $v0, $zero, $zero
-    lhu $v0, 0x0($s2)
-    sh $v0, 0x2($s2)
-    lbu $v1, 0x42($sp)
-    lbu $v0, 0x43($sp)
-    sll $v1, $v1, 8
-    or $v0, $v1, $v0
-    xori $v0, $v0, 0xFFFF
-    .word 0x12000035
-    sh $v0, 0x0($s2)
-    lbu $v0, 0x44($sp)
-    sb $v0, 0x26($s1)
-    lbu $v0, 0x45($sp)
-    sb $v0, 0x27($s1)
-    lbu $v0, 0x46($sp)
-    sb $v0, 0x24($s1)
-    lbu $v0, 0x47($sp)
-    sb $v0, 0x25($s1)
-    lbu $a1, 0x25($s1)
-    jal func_001B5CC0
-    lbu $a0, 0x24($s1)
-    sb $v0, 0x17($s1)
-    lbu $v0, 0x17($s1)
-    .word 0x1440000d
-    nop
-    lw $v0, 0x4($s1)
-    .word 0x14400026
-    nop
-    lhu $v0, 0x0($s2)
-    andi $v0, $v0, 0xF000
-    .word 0x10400022
-    nop
-    paddub $a1, $s1, $zero
-    jal func_001B5E20
-    paddub $a0, $s2, $zero
-    .word 0x1000001e
-    lhu $v0, 0x4($s2)
-    lw $v0, 0x4($s1)
-    .word 0x14400010
-    nop
-    lhu $v0, 0x0($s2)
-    andi $v0, $v0, 0xFFF
-    sh $v0, 0x0($s2)
-    lbu $a0, 0x24($s1)
-    jal func_001B5D70
-    paddub $a1, $zero, $zero
-    lhu $v1, 0x0($s2)
-    or $v0, $v1, $v0
-    sh $v0, 0x0($s2)
-    lbu $a0, 0x25($s1)
-    jal func_001B5D70
-    addiu $a1, $zero, 0x1
-    lhu $v1, 0x0($s2)
-    or $v0, $v1, $v0
-    sh $v0, 0x0($s2)
-    jal func_001B5C90
-    lbu $a0, 0x24($s1)
-    sb $v0, 0x24($s1)
-    jal func_001B5C90
-    lbu $a0, 0x25($s1)
-    .word 0x10000004
-    sb $v0, 0x25($s1)
-    paddub $a1, $s1, $zero
-    jal func_001B5E20
-    paddub $a0, $s2, $zero
-    lhu $v0, 0x4($s2)
-    sh $v0, 0x6($s2)
-    lhu $v1, 0x2($s2)
-    lhu $v0, 0x0($s2)
-    not $v1, $v1
-    and $v0, $v1, $v0
-    sh $v0, 0x4($s2)
-    lhu $v1, 0x0($s2)
-    lhu $v0, 0x2($s2)
-    andi $v1, $v1, 0xF000
-    andi $v0, $v0, 0xF000
-    andi $v1, $v1, 0xFFFF
-    andi $v0, $v0, 0xFFFF
-    .word 0x1462001d
-    addiu $v0, $zero, 0x20
-    .word 0x1060001a
-    nop
-    lh $v0, 0xA($s2)
-    addiu $v0, $v0, -0x1
-    sh $v0, 0xA($s2)
-    lh $v0, 0xA($s2)
-    .word 0x1440000e
-    nop
-    lhu $a0, 0x0($s2)
-    lui $v0, (0xFFFF0FFF >> 16)
-    ori $v1, $v0, (0xFFFF0FFF & 0xFFFF)
-    addiu $v0, $zero, 0xA
-    andi $a0, $a0, 0xF000
-    sh $a0, 0x8($s2)
-    lhu $a0, 0x4($s2)
-    lhu $a1, 0x8($s2)
-    and $v1, $a0, $v1
-    or $v1, $a1, $v1
-    sh $v1, 0x8($s2)
-    .word 0x1000000b
-    sh $v0, 0xA($s2)
-    lhu $v1, 0x4($s2)
-    lui $v0, (0xFFFF0FFF >> 16)
-    ori $v0, $v0, (0xFFFF0FFF & 0xFFFF)
-    and $v0, $v1, $v0
-    .word 0x10000005
-    sh $v0, 0x8($s2)
-    addiu $v0, $zero, 0x20
-    sh $v0, 0xA($s2)
-    lhu $v0, 0x4($s2)
-    sh $v0, 0x8($s2)
-    .word 0x10000002
-    addiu $v0, $zero, 0x1
-    paddub $v0, $zero, $zero
-    lq $ra, 0x30($sp)
-    lq $s2, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x60
+extern int func_00110B38(int port, int slot, unsigned char *buf);
+extern int func_001B5CC0(unsigned char x, unsigned char y);
+extern unsigned short func_001B5D70(unsigned char v, int axis);
+extern int func_001B5C90(unsigned char x);
+extern void func_001B5E20(PadBlock *pad, unsigned char *out);
+
+int func_001B5940(PadBlock *pad, unsigned char *port, int analog) {
+    unsigned char buf[0x20];
+    unsigned short a;
+    unsigned short b;
+
+    if (func_00110B38(*(int *)(port + 4), *(int *)(port + 8), buf) == 0) {
+        return 0;
+    }
+    if (buf[0] == 0) {
+        pad->prev = pad->now;
+        pad->now = ((buf[2] << 8) | buf[3]) ^ 0xFFFF;
+        if (analog) {
+            port[0x26] = buf[4];
+            port[0x27] = buf[5];
+            port[0x24] = buf[6];
+            port[0x25] = buf[7];
+            port[0x17] = func_001B5CC0(port[0x24], port[0x25]);
+            if (port[0x17] == 0) {
+                if (*(int *)(port + 4) == 0 && (pad->now & 0xF000)) {
+                    func_001B5E20(pad, port);
+                }
+            } else {
+                if (*(int *)(port + 4) == 0) {
+                    pad->now &= 0xFFF;
+                    pad->now |= func_001B5D70(port[0x24], 0);
+                    pad->now |= func_001B5D70(port[0x25], 1);
+                }
+                port[0x24] = func_001B5C90(port[0x24]);
+                port[0x25] = func_001B5C90(port[0x25]);
+            }
+        } else {
+            func_001B5E20(pad, port);
+        }
+        pad->trig_prev = pad->trig;
+        pad->trig = ~pad->prev & pad->now;
+        a = pad->now & 0xF000;
+        b = pad->prev & 0xF000;
+        if (a == b && a != 0) {
+            pad->timer--;
+            if (pad->timer == 0) {
+                pad->rep = pad->now & 0xF000;
+                pad->rep = pad->rep | (pad->trig & 0xFFFF0FFF);
+                pad->timer = 10;
+            } else {
+                pad->rep = pad->trig & 0xFFFF0FFF;
+            }
+        } else {
+            pad->timer = 0x20;
+            pad->rep = pad->trig;
+        }
+        return 1;
+    }
+    return 0;
 }
-
-// Readable C (NEARMISS companion, objdiff 97.43%): src/readable/func_001B5940.c

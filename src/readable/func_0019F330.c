@@ -1,9 +1,11 @@
 // NEARMISS func_0019F330  (vram 0x0019F330, 0x348 bytes) — readable companion C, NOT byte-identical.
 //
-// objdiff 96.20% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) when compiled on its own. Object
+// objdiff 99.81% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) when compiled on its own. Object
 // similarity does not prove semantic equivalence. Remaining differences:
-// Register allocation of the ring walk (the original keeps the counter in s5 and the component
-// addresses in s2..s4) and the scratchpad reload scheduling at the end.
+// One register pair: the original loads the index-pool base (0x70003204) into a0 and the node
+// offset into a1, mwcc the reverse (pool words and the 0x70003684 ratio as // SPAD symbols and one
+// loop counter for both loops brought it from 96.20; statement and operand orders measured, the
+// permuter found no match in 25 minutes).
 //
 // The function links from the asm body in src/func_0019F330.c (kept by the user's asm-bodies decision
 // and so that matched_code does not drop); this companion is the readable ground truth and is
@@ -12,6 +14,11 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700031FC 0x70003200 0x70003204 0x70003684
+extern float D_70003684;
+extern float *D_700031FC;
+extern char *D_70003200;
+extern char *D_70003204;
 
 // Collision column pass 2's plane crossing (port COLL_LIST_PASSES.md:
 // em_coll_list_passes_0019F330). The line a -> b is intersected with the
@@ -52,7 +59,6 @@ int func_0019F330(float *a, float *b, float *q, char *node) {
     short *idx;
     float *e;
     int i;
-    int k;
 
     for (i = 0; i < 3; i++) {
         va.v[i] = a[i];
@@ -69,12 +75,12 @@ int func_0019F330(float *a, float *b, float *q, char *node) {
     along = func_00102738(&dir, &n);
     func_00103230(&hit, &dir, (d - func_00102738(&n, &va)) / along);
     func_001028B8(&hit, &va, &hit);
-    idx = (short *)(*(char **)0x70003204 + *(int *)(node + 0x1C));
-    e = (float *)(*(char **)0x70003200 + *(int *)(node + 0x20));
-    for (k = 0; k < *(unsigned char *)(node + 0x18); k++) {
-        v.v[0] = (*(float **)0x700031FC)[*idx * 3 + 0];
-        v.v[1] = (*(float **)0x700031FC)[*idx * 3 + 1];
-        v.v[2] = (*(float **)0x700031FC)[*idx * 3 + 2];
+    idx = (short *)(D_70003204 + *(int *)(node + 0x1C));
+    e = (float *)(D_70003200 + *(int *)(node + 0x20));
+    for (i = 0; i < *(unsigned char *)(node + 0x18); i++) {
+        v.v[0] = D_700031FC[*idx * 3 + 0];
+        v.v[1] = D_700031FC[*idx * 3 + 1];
+        v.v[2] = D_700031FC[*idx * 3 + 2];
         v.w = 0;
         func_001028D0(&rel, &hit, &v);
         v.v[0] = e[0];
@@ -92,14 +98,14 @@ int func_0019F330(float *a, float *b, float *q, char *node) {
     }
     *(volatile float *)0x70003680 = func_0011E748(n.v[0] * n.v[0] + n.v[2] * n.v[2]);
     if (*(volatile float *)0x70003680 < 0.0001f) {
-        *(volatile float *)0x70003684 = 3.4e38f;
+        D_70003684 = 3.4e38f;
     } else {
-        *(volatile float *)0x70003684 = func_0011DF78(n.v[1]) / *(volatile float *)0x70003680;
+        D_70003684 = func_0011DF78(n.v[1]) / *(volatile float *)0x70003680;
     }
     if (n.v[1] < 0.0f) {
-        q[3] = -(1.5707964f - func_0011DBB8(*(volatile float *)0x70003684));
+        q[3] = -(1.5707964f - func_0011DBB8(D_70003684));
     } else {
-        q[3] = 1.5707964f - func_0011DBB8(*(volatile float *)0x70003684);
+        q[3] = 1.5707964f - func_0011DBB8(D_70003684);
     }
     return 1;
 }

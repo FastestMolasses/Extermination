@@ -1,105 +1,54 @@
-// All-word: everything as .word except jal/j-external
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Actor sub-state handler (sub-step byte self+6, control block ctl).
+// Step 0 advances the step, clears ctl+0x50 / +0x4C and starts clip 2 (or clip 1
+// when bits 19..21 of rand() are all 0) through anim_clip_init(self, clip, 5.0,
+// 0.0). Step 1 plays sound 0x833 (func_001FBD50(self, 0x833, 0, 300.0)) when
+// the clip id at self+0x2C (bit 15 ignored) is 1 at frame 80.0 (self+0x3C), runs
+// func_001469B0(self, ctl), then reads ctl's flags: with bit 7 of ctl+0x7F set
+// the step returns to 0 when bit 12 of ctl+0x30 is set; otherwise bit 12 of
+// ctl+0x30, a nonzero ctl+0x64 or a nonzero ctl+0x7F gives self+5 = 1 and step
+// 0. Failing those, ctl+0x78 nonzero with ctl+0x60 zero gives self+5 = 5 and
+// step 0.
 extern int func_00122BB8(void);
-extern void func_001469B0(int, int, int, int);
-extern void anim_clip_init(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+extern void anim_clip_init(char *self, int clip, float a, float b);
+extern void func_001FBD50(char *p, int a, int b, float f);
+extern void func_001469B0(void *arg0, void *arg1);
 
-asm void func_00142330(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x90830006
-    .word 0x70a08628
-    .word 0x24050001
-    .word 0x1065001e
-    .word 0x70808e28
-    .word 0x50600004
-    .word 0x24620001
-    .word 0x10000051
-    .word 0x7bbf0020
-    .word 0x24620001
-    .word 0xa2220006
-    .word 0xae000050
-    jal       func_00122BB8
-    .word 0xae00004c
-    .word 0x000214c3
-    .word 0x30420007
-    .word 0x1040000a
-    .word 0x3c0240a0
-    .word 0x3c0240a0
-    .word 0x44826000
-    .word 0x44806800
-    .word 0x24050002
-    jal       anim_clip_init
-    .word 0x72202628
-    .word 0x1000003f
-    .word 0x00000000
-    .word 0x3c0240a0
-    .word 0x44826000
-    .word 0x44806800
-    .word 0x24050001
-    jal       anim_clip_init
-    .word 0x72202628
-    .word 0x10000037
-    .word 0x00000000
-    .word 0x8623002c
-    .word 0x3c02ffff
-    .word 0x34427fff
-    .word 0x00621024
-    .word 0x5445000f
-    .word 0x72202628
-    .word 0xc621003c
-    .word 0x3c0242a0
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x46010032
-    .word 0x00000000
-    .word 0x45000006
-    .word 0x00000000
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x24050833
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x72202628
-    jal       func_001469B0
-    .word 0x72002e28
-    .word 0x8204007f
-    .word 0x30830080
-    .word 0x10600007
-    .word 0x00000000
-    .word 0x8e030030
-    .word 0x30631000
-    .word 0x10600010
-    .word 0x00000000
-    .word 0x10000017
-    .word 0xa2200006
-    .word 0x8e030030
-    .word 0x30631000
-    .word 0x14600007
-    .word 0x24030001
-    .word 0x86030064
-    .word 0x14600003
-    .word 0x00000000
-    .word 0x10800005
-    .word 0x00000000
-    .word 0x24030001
-    .word 0xa2230005
-    .word 0x1000000a
-    .word 0xa2200006
-    .word 0x82030078
-    .word 0x10600007
-    .word 0x00000000
-    .word 0x86030060
-    .word 0x14600004
-    .word 0x00000000
-    .word 0x24030005
-    .word 0xa2230005
-    .word 0xa2200006
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_00142330(char *self, char *ctl) {
+    unsigned char st = *(unsigned char *)(self + 6);
+    signed char flags;
+    switch (st) {
+    case 0:
+        *(unsigned char *)(self + 6) = st + 1;
+        *(int *)(ctl + 0x50) = 0;
+        *(int *)(ctl + 0x4C) = 0;
+        if ((func_00122BB8() >> 19) & 7) {
+            anim_clip_init(self, 2, 5.0f, 0.0f);
+        } else {
+            anim_clip_init(self, 1, 5.0f, 0.0f);
+        }
+        break;
+    case 1:
+        if ((*(short *)(self + 0x2C) & 0xFFFF7FFF) == 1 && *(float *)(self + 0x3C) == 80.0f) {
+            func_001FBD50(self, 0x833, 0, 300.0f);
+        }
+        func_001469B0(self, ctl);
+        flags = *(signed char *)(ctl + 0x7F);
+        if (flags & 0x80) {
+            if (*(int *)(ctl + 0x30) & 0x1000) {
+                *(unsigned char *)(self + 6) = 0;
+                break;
+            }
+        } else if ((*(int *)(ctl + 0x30) & 0x1000) || *(short *)(ctl + 0x64) != 0 || flags != 0) {
+            *(unsigned char *)(self + 5) = 1;
+            *(unsigned char *)(self + 6) = 0;
+            break;
+        }
+        if (*(signed char *)(ctl + 0x78) != 0 && *(short *)(ctl + 0x60) == 0) {
+            *(unsigned char *)(self + 5) = 5;
+            *(unsigned char *)(self + 6) = 0;
+        }
+        break;
+    }
 }

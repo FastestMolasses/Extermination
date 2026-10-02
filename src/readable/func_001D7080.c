@@ -1,8 +1,11 @@
 // NEARMISS func_001D7080  (vram 0x001D7080, 0x78 bytes) — readable companion C, NOT byte-identical.
 //
-// objdiff 96.83% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) when compiled on its own. Object
+// objdiff 98.33% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) when compiled on its own. Object
 // similarity does not prove semantic equivalence. Remaining differences:
-// Register allocation: same channel-cursor addressing artifact as func_001D6F60.
+// Register colouring only: the original keeps the scaled channel index in v1, the packet's first
+// quadword pointer in v0 and the byte constant in t0, mwcc picks a2 / t0 / t3 (the channel cursor
+// written as a struct array, D_00275670->pkt[ch], fixed the add operand order: 96.83 -> 98.33; the
+// permuter found no closer form in 45 minutes).
 //
 // The function links from the asm body in src/func_001D7080.c (kept by the user's asm-bodies decision
 // and so that matched_code does not drop); this companion is the readable ground truth and is
@@ -18,17 +21,19 @@
 // RGBAQ = rgba with Q = q. The cursor advances 4 quadwords.
 typedef unsigned int u128 __attribute__((mode(TI)));
 
-extern char *D_00275670;
+/* D_00275670: packet context; +0x10 holds one packet cursor per DMA channel. */
+typedef struct GifCtx { char pad[0x10]; char *pkt[4]; } GifCtx;
+extern GifCtx *D_00275670;
 
 void func_001D7080(int ch, int rgba, float q_) {
-    char *c = D_00275670 + ch * 4;
+    GifCtx *c = D_00275670;
     char *q;
 
-    (*(char **)(c + 0x10))[3] = 0x10;
-    *(int *)(*(char **)(c + 0x10) + 4) = 0;
-    *(short *)*(char **)(c + 0x10) = 3;
-    q = *(char **)(c + 0x10);
-    *(char **)(c + 0x10) = q + 0x40;
+    c->pkt[ch][3] = 0x10;
+    *(int *)(c->pkt[ch] + 4) = 0;
+    *(short *)c->pkt[ch] = 3;
+    q = c->pkt[ch];
+    c->pkt[ch] = q + 0x40;
     *(u128 *)(q + 0x10) = 0;
     *(int *)(q + 0x1C) = 0x50000002;
     *(long long *)(q + 0x20) = 0x8001 | (long long)0x10000000 << 32;

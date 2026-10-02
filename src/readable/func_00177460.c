@@ -1,10 +1,10 @@
 // NEARMISS func_00177460  (vram 0x00177460, 0xA8 bytes) — readable companion C, NOT byte-identical.
 //
-// objdiff 86.67% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) when compiled on its own. Object
+// objdiff 96.19% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) when compiled on its own. Object
 // similarity does not prove semantic equivalence. Remaining differences:
-// Scheduling of the scratchpad vector: the original reads x back from 0x70003680 before storing z
-// to 0x70003684 and reuses z from its register (a no-op float move), mwcc stores z first and
-// reloads it (volatile, pointer and local spellings measured).
+// The original stores z to 0x70003684 before the multiply-add and keeps a no-op float move of z;
+// mwcc schedules the store after the multiply (x read back before the store of z and z kept in a
+// register brought it from 86.67; volatile, inline-helper and copy spellings measured).
 //
 // The function links from the asm body in src/func_00177460.c (kept by the user's asm-bodies decision
 // and so that matched_code does not drop); this companion is the readable ground truth and is
@@ -33,8 +33,10 @@ unsigned char func_00177460(unsigned char *actor, int wide) {
         leash = 8.0f;
     }
     *(float *)0x70003680 = *(float *)(actor + 0x2E0) - *(float *)(actor + 0xB0);
-    *(float *)0x70003684 = *(float *)(actor + 0x2E8) - *(float *)(actor + 0xB8);
-    d = func_0011E748(*(float *)0x70003680 * *(float *)0x70003680 + *(float *)0x70003684 * *(float *)0x70003684);
+    dz = *(float *)(actor + 0x2E8) - *(float *)(actor + 0xB8);
+    x = *(float *)0x70003680;
+    *(float *)0x70003684 = dz;
+    d = func_0011E748(x * x + dz * dz);
     *(volatile float *)0x70003688 = d;
     if (d > leash) {
         actor[0x2F2] = 1;

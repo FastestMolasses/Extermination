@@ -1,51 +1,22 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00102900(int, int, int, int);
-extern void func_00103230(int, int, int, int);
-extern void block_copy(int, int, int, int);
-extern void float_to_int(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Scaled copy of a 0x90-byte record: block_copy(dst, src, 0x90), then
+// func_00103230(v, v, s) on dst+0 and dst+0x10, func_00102900(v, v, s) on
+// dst+0x40 and dst+0x50, +0x78, +0x7C and +0x84 multiplied by s and the integer
+// +0x80 replaced by float_to_int(+0x80 * s).
+extern void block_copy(void *dst, void *src, int len);
+extern void func_00103230(void *a, void *b, float s);
+extern void func_00102900(void *dst, void *src, float s);
+extern int float_to_int(float f);
 
-asm void func_001D0400(void) {
-    addiu      $sp, $sp, -0x30
-    .word 0x7fbf0020
-    .word 0x7fb00010
-    .word 0xe7b40000
-    addiu      $a2, $zero, 0x90
-    mov.s      $f20, $f12
-    jal        block_copy
-    .word 0x70808628
-    .word 0x72002628
-    .word 0x72002e28
-    jal        func_00103230
-    mov.s     $f12, $f20
-    addiu      $a0, $s0, 0x10
-    mov.s      $f12, $f20
-    jal        func_00103230
-    .word 0x70802e28
-    addiu      $a0, $s0, 0x40
-    mov.s      $f12, $f20
-    jal        func_00102900
-    .word 0x70802e28
-    addiu      $a0, $s0, 0x50
-    mov.s      $f12, $f20
-    jal        func_00102900
-    .word 0x70802e28
-    .word 0xc6000078
-    mul.s      $f0, $f0, $f20
-    .word 0xe6000078
-    .word 0xc600007c
-    mul.s      $f0, $f0, $f20
-    .word 0xe600007c
-    .word 0xc6000084
-    mul.s      $f0, $f0, $f20
-    .word 0xe6000084
-    .word 0xc6000080
-    cvt.s.w    $f0, $f0
-    jal        float_to_int
-    mul.s     $f12, $f0, $f20
-    .word 0xae020080
-    .word 0x7bbf0020
-    .word 0x7bb00010
-    .word 0xc7b40000
-    jr         $ra
-    addiu     $sp, $sp, 0x30
+void func_001D0400(char *dst, char *src, float s) {
+    block_copy(dst, src, 0x90);
+    func_00103230(dst, dst, s);
+    func_00103230(dst + 0x10, dst + 0x10, s);
+    func_00102900(dst + 0x40, dst + 0x40, s);
+    func_00102900(dst + 0x50, dst + 0x50, s);
+    *(float *)(dst + 0x78) *= s;
+    *(float *)(dst + 0x7C) *= s;
+    *(float *)(dst + 0x84) *= s;
+    *(int *)(dst + 0x80) = float_to_int((float)*(int *)(dst + 0x80) * s);
 }

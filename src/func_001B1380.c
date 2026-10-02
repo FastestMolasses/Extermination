@@ -1,35 +1,16 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_0011E620(int, int, int, int);
-extern void func_001B1470(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Side test: is the heading from b to a (atan2f(a.x - b.x, a.z - b.z),
+// func_0011E620) at or to the left of heading, after wrapping the difference
+// into (-pi, pi] (func_001B1470)? Returns 1 when the wrapped difference is
+// >= 0, else 0.
+extern float func_0011E620(float y, float x);
+extern float func_001B1470(float angle);
 
-asm void func_001B1380(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    swc1 $f20, 0x0($sp)
-    lwc1 $f3, 0x0($a0)
-    lwc1 $f1, 0x8($a0)
-    lwc1 $f0, 0x8($a1)
-    lwc1 $f2, 0x0($a1)
-    mov.s $f20, $f12
-    sub.s $f13, $f1, $f0
-    jal func_0011E620
-    sub.s $f12, $f3, $f2
-    jal func_001B1470
-    sub.s $f12, $f0, $f20
-    mtc1 $zero, $f1
-    nop
-    c.lt.s $f0, $f1
-    nop
-    .word 0x45010004
-    paddub $v0, $zero, $zero
-    .word 0x10000002
-    addiu $v0, $zero, 0x1
-    paddub $v0, $zero, $zero
-    lq $ra, 0x10($sp)
-    lwc1 $f20, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+int func_001B1380(float *a, float *b, float heading) {
+    /* compiled as !(diff < 0.0f): a NaN difference returns 1 */
+    if (func_001B1470(func_0011E620(a[0] - b[0], a[2] - b[2]) - heading) >= 0.0f) {
+        return 1;
+    }
+    return 0;
 }
-
-// Readable C (NEARMISS companion, objdiff 88.46%): src/readable/func_001B1380.c

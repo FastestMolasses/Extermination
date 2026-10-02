@@ -1,59 +1,33 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00119890(int, int, int, int);
-extern void func_0011A070(int, int, int, int);
-extern void func_0011A218(int, int, int, int);
-extern void func_001FBF50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Positions a playing sound voice by its distance to the listener. voice is
+// the sound handle (-1 = none: returns -1). Only when func_00119890(1, voice)
+// reports 2 (entry voice of the 0x78-byte voice table at D_0027E0C0: +0x2E == 0
+// and +0x32 == 1) does it ask func_001FBF50(actor, &vol, &pan, 0,
+// range, falloff) for the distance attenuation; a non-zero result sets the
+// voice with func_0011A218(voice, vol, pan) and returns voice. When the source
+// is out of range the voice is stopped with func_0011A070(voice). Every other
+// path returns -1.
+extern int func_00119890(int port, int voice);
+extern void func_0011A070(int voice);
+extern void func_0011A218(int voice, int vol, int pan);
+extern int func_001FBF50(char *actor, int *vol, int *pan, int mode, float range, float falloff);
 
-asm void func_001FBDB0(void) {
-    .word 0x27bdffb0
-    .word 0x7fbf0030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0xe7b50004
-    .word 0xe7b40000
-    .word 0x2402ffff
-    .word 0x46006546
-    .word 0x70a08628
-    .word 0x70808e28
-    .word 0x16020003
-    .word 0x46006d06
-    .word 0x1000001e
-    .word 0x7bbf0030
-    jal       func_00119890
-    .word 0x24040001
-    .word 0x24030002
-    .word 0x10430004
-    .word 0x27a50048
-    .word 0x10000016
-    .word 0x2402ffff
-    .word 0x27a50048
-    .word 0x4600ab06
-    .word 0x27a6004c
-    .word 0x4600a346
-    .word 0x72202628
-    jal       func_001FBF50
-    .word 0x70003e28
-    .word 0x10400008
-    .word 0x72002628
-    .word 0x8fa50048
-    .word 0x8fa6004c
-    jal       func_0011A218
-    .word 0x72002628
-    .word 0x10000007
-    .word 0x72001628
-    .word 0x72002628
-    jal       func_0011A070
-    .word 0x00000000
-    .word 0x10000002
-    .word 0x2402ffff
-    .word 0x72001628
-    .word 0x7bbf0030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    .word 0xc7b50004
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0050
+int func_001FBDB0(char *actor, int voice, float range, float falloff) {
+    int vol;
+    int pan;
+
+    if (voice == -1) {
+        return -1;
+    }
+    if (func_00119890(1, voice) != 2) {
+        return -1;
+    }
+    if (func_001FBF50(actor, &vol, &pan, 0, range, falloff)) {
+        func_0011A218(voice, vol, pan);
+    } else {
+        func_0011A070(voice);
+        return -1;
+    }
+    return voice;
 }
-
-// Readable C (NEARMISS companion, objdiff 98.78%): src/readable/func_001FBDB0.c

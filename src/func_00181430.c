@@ -1,48 +1,20 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_001749A0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Starts a clip by two flags: with self+0x2F1 == 1,
+// clip 0xC8 (0xC9 when self+0x25C is 3); otherwise 0xC1 (0xC2 when self+0x25C is
+// 3); each through func_001749A0(self, clip, 0, 1.0).
+extern void func_001749A0(unsigned char *e, int clip, int flags, float blend);
 
-asm void func_00181430(void) {
-    addiu      $sp, $sp, -0x10
-    .word 0x7fbf0000
-    .word 0x908302f1
-    addiu      $v0, $zero, 0x1
-    .word 0x14620013
-    nop
-    .word 0x9083025c
-    addiu      $v0, $zero, 0x3
-    .word 0x10620009
-    .word 0x3c023f80
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xC8
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x10000019
-    .word 0x7bbf0000
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xC9
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x10000011
-    nop
-    .word 0x9083025c
-    addiu      $v0, $zero, 0x3
-    .word 0x10620009
-    .word 0x3c023f80
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xC1
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x10000006
-    nop
-    .word 0x3c023f80
-    mtc1       $v0, $f12
-    addiu      $a1, $zero, 0xC2
-    jal        func_001749A0
-    .word 0x70003628
-    .word 0x7bbf0000
-    jr         $ra
-    addiu     $sp, $sp, 0x10
+void func_00181430(unsigned char *self) {
+    if (self[0x2F1] == 1) {
+        if (self[0x25C] != 3) {
+            func_001749A0(self, 0xC8, 0, 1.0f);
+        } else {
+            func_001749A0(self, 0xC9, 0, 1.0f);
+        }
+    } else if (self[0x25C] != 3) {
+        func_001749A0(self, 0xC1, 0, 1.0f);
+    } else {
+        func_001749A0(self, 0xC2, 0, 1.0f);
+    }
 }
