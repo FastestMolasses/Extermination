@@ -36,7 +36,7 @@ port's Enhanced cut-content switches (port `docs/PORT_PROFILES.md` rule 5 and
 
 Last reviewed: 2026-09-27 (every entry re-checked; entries 17-25 added;
 review corrections applied to 1, 3, 4, 6, 8-12, 14, 15, 17, 18, 21 and
-23-25).
+23-25). Entry 28 added 2026-10-02 (the port's chain step AIMLIVE).
 
 ---
 
@@ -536,6 +536,28 @@ exists is open). Evidence: decomp `docs/CAPTURES_C10.md` section DAMAGE (beat
 dmg_07_pit_fall, `build/c10/damage/dmg_07_pit_fall`), the attribute census of
 the AREA11 grid (port `FIRST_CONTROL.md`) and 0021D250 (port
 `PLAYER_FALL.md`).
+
+## 28. The knife's swing trail is spawned but never drawn — partial
+
+*Kind: engine quirk (Original behaviour).* Each knife swing (melee 0x21 /
+0x22) makes 00189D30 spawn the trail effect 0x8000000D through 001EFF10,
+handing it the knife's bone record. The trail node (001F18C0) records the
+blade's two edge points every tick into three borrowed bone slots and its
+packet builder 001F15F0 would draw them as a fading Gouraud strip, but it
+asks the depth sort 001CCF70 for a key at the bone record's +0x30, which is
+row 3 of the bone's +0x00 matrix (the bind matrix copied from the model),
+not of its world matrix at +0x90; the trail's points are transformed by
+that +0x00 matrix as well. In the aim_09_melee capture's end snapshot the
+knife's bone holds the identity at +0x00 (its +0x90 is the hand in the
+world), so the key is the world origin's, outside the view: the depth sort
+answers 0xFFFFFF and no packet is written. Decoded: the spawn, the node's
+life (the capture's pool rows hold the trail node on the same 40 rows as
+the port's replay) and, in the port's translations of 001F18C0 / 001F15F0 /
+001CCF70 run behind the aim/fire gate, the key 0xFFFFFF on all 40 calls.
+Open: no frame was captured mid-swing to show the missing trail on screen,
+and other areas' knife bones were not checked. Evidence: port
+`docs/AIM_FIRE.md` section 9.3; decomp `build/aimfire/capture/aim_09_melee`
+(`CAPTURES_C10.md` "AIM").
 
 ---
 
