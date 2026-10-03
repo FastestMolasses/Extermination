@@ -72,11 +72,19 @@ that is a different, stale tree.
   phase); the first level ends on AREA01's arrival frame (exit_01 f306) and every later
   AREA01 frame fail-stops at 0x1AE040 (level 2). Re-export module_loader/modules.emml,
   sfx_registry.emsr, script_walk_clips.emwc, movies/e001.mov and the AREA01 exports.
-- **Census (port FIRST_LEVEL_CENSUS.md, section 1.58 after the EXIT merge):** 852 live /
-  26 verified-unbound / 2 unverified / 0 stand-in / 0 missing / 429 boundary of 1,309
-  functions (the route's 1,195 through beat 15 and the AIM beats' 114); 98.8% of
-  non-boundary instructions live (the route's own 766 non-boundary rows: 738 live,
-  98.5%); AREA01's 63 functions after the arrival are level 2 (census 3.26).
+  T1 DAMAGE (port c11-t1 64383b0, audit 1b item 13): damage, death, the game over and
+  the title after a death are original and replayed against the DAMAGE lane (side runs
+  dmg_flame / dmg_crevice_fall / dmg_pit_fall, make test-level-smoke-damage). Re-export
+  collision_knockback.emrg (export_collision_contact.py), effect_tables.emet,
+  page_textures.emot, module_loader/modules.emml (screen module 0x27) and
+  startup/game_over.emui (export_game_over.py). The title's load screen (dmg_05) stays
+  missing for the OPTIONS step; the fan's hit (dmg_08) is not replayed yet.
+- **Census (port FIRST_LEVEL_CENSUS.md, section 1.59 after the DAMAGE merge):** 884 live /
+  27 verified-unbound / 2 unverified / 0 stand-in / 9 missing (the title's load screen) /
+  432 boundary of 1,354 functions (the route's 1,195 through beat 15, the AIM beats' 114
+  and the DAMAGE recordings' 45); 97.8% of non-boundary instructions live (the route's
+  own 766 non-boundary rows: 739 live, 98.6%); AREA01's 62 functions after the arrival
+  are level 2 (census 3.26).
 - **Later levels: paused by the user (2026-10-02, "stop checking ahead").** Levels 2-15 are
   recorded through AREA03's arrival (port SECOND..FIFTEENTH_LEVEL_ROUTE.md, decomp
   WORLD_GRAPH.md), their new functions translated standalone (em_area0x_*, em_level8..14_*)

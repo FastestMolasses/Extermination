@@ -525,6 +525,18 @@ memory card slot; no save path was entered. The memory cards' SHA-1s are
 unchanged across the lane (`build/c10/damage/memcard_hashes_before.txt` and `memcard_hashes_after.txt`,
 checked after every run).
 
+### Port
+
+Port chain step DAMAGE (2026-10-02): the port's level smoke replays dmg_00..04,
+06 and 07 as the side runs dmg_flame / dmg_crevice_fall / dmg_pit_fall (port
+docs/DAMAGE.md section 8, tools/level_smoke_damage.py), all PASS. Every window
+is aligned on its event; the game over is aligned on the end of the screen
+module's load (host speed: 10 ticks against the recording's 23). The dmg_02 end
+snapshot's live 001F77B0 node (record 0x007B0970, subtype 2, sizes 186/210) is
+the port's lockstep oracle case. dmg_05 and dmg_08 are not replayed yet (the
+OPTIONS step binds the load screen; dmg_08's fan hit needs Roger's departure,
+which the port's EXIT step made live, so a dmg_fan side run can follow).
+
 ## BRANCH: the AREA11 branches the main route skips
 
 Lane BRANCH, 2026-10-01. What AREA11 offers that no route, C7, AIM, EXIT or

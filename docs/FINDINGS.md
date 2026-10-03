@@ -16805,3 +16805,12 @@ Found by the port's EXIT step (port track T4, audit 1b item 17; port docs FIRST_
 - **VIF1_CYCLE between frames is 0x0101.** It reads 0x0101 in all 18 first-level save states (route 00..15, exit_00, exit_01; the EE hardware register block at +0x3C40 of the state). A frame that skips the channel-3 CALL therefore enters channel 0 with CL == WL.
 - **The AREA01 arrival rebuild's measured state.** At exit_01 f306 the 78 pool records equal the port's spawn through 001B6990 / 001C5C50. The camera re-seat puts the eye at (-4.3, 21.7, -572.5), looking toward (39.7, 16.1, -557.5). D_00282160 = 0x44E, the arrival's ambient loop.
 - **AREA01's deferred-group conditions.** Group ids 2 and 3 read D_0081075E and D_0081075F (events 6 and 7).
+
+## Damage, death and the game over in AREA11 (2026-10-02, port chain step DAMAGE)
+
+Found by the port's DAMAGE step (port track T1, audit 1b item 13; port docs DAMAGE.md), against the DAMAGE capture lane (CAPTURES_C10.md "DAMAGE": dmg_00..dmg_08).
+
+- **The flame's burn node.** The flame's contact 0x823580 spawns 0x80000027, the 0022BBC0 bone-burst node, subtype 9. Its timeline in AREA11 is 0x267940, which sets burst kind 0 only, with source blocks 0x268480 / 0x268510. Its 001EF940 sound is 0x14A (radius 300, volume 4096), and it registers a kind-2 light 001D8100. It pops five slots from the shared 001AF710 stack (0022B700) and uses them as a 65-entry ring (0022BB70, 13 sixteen-byte slots each).
+- **The death decal.** 0x80000043 is 001F77B0 subtype 2: 4 particles; w+0xB8 210.0, w+0xBC 7.0, w+0xC0 2.0; TEX0 0x2004108555322080, colour 0x80020220. Each quad grows 1/210 per tick to 1.0. D_00810360 is the player's +0xB0, the bone-1 hip after 0015BCF0's tail.
+- **The game-over screen is screen module 0x27**, one chunk (the GS upload). 001AD4E0 pushes the four TEX0 words 0x2005C00621322A00 / 0x2005C08621322A40 / 0x2005C20621322C00 / 0x2005C28621322C40, and 001ABF90 draws them as a 2 x 2 grid of 256 x 256 sprites. The dmg_02 GS memory decodes identically to the disc upload.
+- **The title after a death.** After a death, 001ADF00 installs 001AC070 with D_00275BDC = 1. State 0 then goes to state 2 (+0x08 = 2, +0x0E = 3) instead of the movie (+0x08 = 1, +0x0E = 1), and 001AC480 sub 0 starts the cursor on entry 1. Both were executed in the port's test_title_menu_reference.
