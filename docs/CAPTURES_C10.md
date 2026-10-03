@@ -86,6 +86,12 @@ also lists every allocated record (`pool0`). Each beat ends with a snapshot.
 - **R1 / R2:** R1 enters stance 0x1D (camera byte 1), R2 stance 0x1E (camera
   byte 2); R2 wins when both are pressed; the switch between the two keeps
   the stance loop running.
+- **Page-module waits (port chain step AIMCAP, 2026-10-02):** aim_05's rows
+  where the page record waits on a module are SPR4's 0x2C f50..f77 (28
+  rows), the SELECTOR's 0x31 f82..f99 (18) and the SPR4 reload f154..f176
+  (23). aim_09's camera is identical on all 267 rows, so its end
+  snapshot's clip matrix holds for every row (the knife trail's check, port
+  `docs/AIM_FIRE.md` section 11.3).
 
 ### Replay
 

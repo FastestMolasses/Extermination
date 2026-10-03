@@ -16773,3 +16773,12 @@ Found by the port's A11FIX step (port track T1; port docs AREA_SCRIPT.md, SCRIPT
 - **Script 0x829E80 (21 records) is started by 0x8257A0, not by the director 0x8253F0.** The record-13 manager 0x8257A0 starts it in its state 1, over the area quad 0x82ACA0. Its op09 callbacks are 0x825900 and 0x825920, which wrap 001DFE10 and 001DFE40. The port's earlier label "director beat 3" for this script was wrong.
 - **Both 001BA1A0 arguments were confirmed by execution.** The port's tools/test_manager_8257a0_reference.py runs the original 0x8257A0 over captured RAM and checks them.
 - In the first level this path never runs: D_00810788 is 0 on New Game, so record 13 starts in state 3 and frees itself (section "AREA11 first world frame from the disc" above).
+
+## Player bone slots, the knife's world matrix and its trail (2026-10-02, port chain step AIMCAP)
+
+Found by the port's AIMCAP step and its fix round (port track T3; port docs AIM_FIRE.md section 11.3, PLAYER_EQUIPMENT.md, CHAIN_PAGE.md), checked against the AIM captures (`CAPTURES_C10.md` "AIM", `build/aimfire/capture/`). Corrects CURIOSITIES entry 28 (withdrawn).
+
+- **0015C420 pops the player's slots from the one stack.** 0015C420 pops +0x0C slots (the player's 21) from 001AF710's stack into +0x110.. before its first child 0018A880(4, 0). In every AREA11 image they are the first 21 slots 0x7D5840 + 0xD0*i, and the knife's single bone is 0x7D9E20.
+- **A bone slot holds the identity at +0x00..+0x3F and the bone's world matrix at +0x90..+0xCF** in every AIM snapshot. 00189D30 hands 001EFF10 the slot + 0x90, so the trail effect 0x8000000D (001F18C0) seeds and draws its points through the knife's world matrix. 001F15F0's packet is DIRECT 0x3D with GIF tag 0x402640000000800F / REGS 0x4141: PRIM 0x4C, an untextured Gouraud alpha-blended triangle strip.
+- **The two library heads.** D_0028A578[0] = 0xD1B9C0 (0015C420's +0x58) and D_0028A580[0] = 0xD689C0 (+0x40) in every captured AREA11 image (route snapshots 00..15, the AIM captures).
+- **The melee states keep the knife sound's track at +0x302.** They store 001FBD50's return (00119EA0's track) there: in aim_09_melee the handle rows from f13 read tracks 3, FF, 1, FF, 1, 5, 1, FF, 1 (track 5 at f102), and track 3 at aim_11 f249.
