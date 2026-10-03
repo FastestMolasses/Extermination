@@ -16765,3 +16765,11 @@ Found by the port's ASSETS step (port track T4, audit 1b item 22; port tools/exp
 - **Who writes the selector +0x08 on the first tick.** Only 00219550 and 0015AC00 (3) and 00827B10 (1). The door 001BC350, Roger 008237E0 and the panel 00159210 keep the spawn's value.
 - **00219550's +0x30 is an address.** Its state 0 stores the address 0x00275878 (or 0x00275880 when D_00810700 == 0x10), not the float the word holds; all six AREA11 pickup nodes hold 0x00275878, as in every capture. The NEARMISS C still loads the values (docs/NEARMISS.md row, correction pending in src).
 - The executed frame's interaction and background records are byte-identical to the capture-derived ones (port test_disc_assets_reference part E). Boundaries: the flame 008235F0's first tick (VU0 VMINI is outside the port's measured VU model), and the frame is the first world frame, not the first-control frame.
+
+## AREA11 overlay: script 0x829E80 belongs to the record-13 manager (2026-10-02, port chain step A11FIX)
+
+Found by the port's A11FIX step (port track T1; port docs AREA_SCRIPT.md, SCRIPT_HOST_WORKERS.md, docs/AREA11_OVERLAY.md "Cross-check against the port"), which read every port translation of an AREA11 overlay function against the overlay's C.
+
+- **Script 0x829E80 (21 records) is started by 0x8257A0, not by the director 0x8253F0.** The record-13 manager 0x8257A0 starts it in its state 1, over the area quad 0x82ACA0. Its op09 callbacks are 0x825900 and 0x825920, which wrap 001DFE10 and 001DFE40. The port's earlier label "director beat 3" for this script was wrong.
+- **Both 001BA1A0 arguments were confirmed by execution.** The port's tools/test_manager_8257a0_reference.py runs the original 0x8257A0 over captured RAM and checks them.
+- In the first level this path never runs: D_00810788 is 0 on New Game, so record 13 starts in state 3 and frees itself (section "AREA11 first world frame from the disc" above).

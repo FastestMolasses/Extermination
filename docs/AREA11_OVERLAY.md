@@ -214,26 +214,51 @@ listed:
 
 | runtime | port translation | result |
 |---|---|---|
-| 0x8235F0 | em_area11_effect.c (+ em_area11_effect_runtime.c) | agrees on the state machine; the port's runtime does not bind the loop sound (001FC3C0), the publication (001B17A0), the +0x30 / +0x34 stores or the 0x823580 callback (documented port gaps) |
-| 0x823580 | em_area11_effect_contact (em_area11_effect.c) | agrees (returns 1 where the original spawns 0x80000027 itself); not called anywhere in the port (em_collision_world.c leaves the class-0xD +0x34 behaviour unported) |
+| 0x8235F0 | em_area11_effect.c (+ em_area11_effect_runtime.c) | fixed in port A11FIX (was: agrees on the state machine; the port's runtime does not bind the loop sound (001FC3C0), the publication (001B17A0), the +0x30 / +0x34 stores or the 0x823580 callback (documented port gaps)) |
+| 0x823580 | em_area11_effect_contact (em_area11_effect.c) | fixed in port A11FIX (was: agrees (returns 1 where the original spawns 0x80000027 itself); not called anywhere in the port (em_collision_world.c leaves the class-0xD +0x34 behaviour unported)) |
 | 0x8237C0 | em_slg_008237C0 (em_startup_load_gaps.c) | agrees |
 | 0x8237E0 | em_roger_actor_008237E0_init + em_roger_tick (em_roger.c) | agrees |
 | 0x823910 / 0x823B70 / 0x823C40 | em_roger_tick (em_roger.c) | agrees |
 | 0x823CE0 | em_flag30_manager_tick (em_security_gun.c) | agrees |
-| 0x823E80 | tick_opening + em_area11_opening_state1 | **disagrees**: state 0 also calls em_pickup_prop_retire(actor->pos), which the original does not (its state 0 is 001B0FD0, 001C6380, +4 = 1, +0 = 1); +4 values other than 0..3 return silently in the original, the port faults (and 2 / 3 fault as "not bound") |
+| 0x823E80 | tick_opening + em_area11_opening_state1 | fixed in port A11FIX (was **disagrees**: state 0 also calls em_pickup_prop_retire(actor->pos), which the original does not (its state 0 is 001B0FD0, 001C6380, +4 = 1, +0 = 1); +4 values other than 0..3 return silently in the original, the port faults (and 2 / 3 fault as "not bound")) |
 | 0x823FF0 / 0x8251E0 | em_truck_original.c | agrees |
 | 0x8253F0 / 0x825500 / 0x825600 / 0x8256D0 | em_director_original.c | agrees |
-| 0x8257A0 | em_manager_008257A0.c | state 1 (area 0x82ACA0, script 0x829E80, func_001DFE40, D_00810814 = 1) is not translated: the port faults |
+| 0x8257A0 | em_manager_008257A0.c | fixed in port A11FIX (was: state 1 (area 0x82ACA0, script 0x829E80, func_001DFE40, D_00810814 = 1) is not translated: the port faults) |
 | 0x825940 | em_security_gun.c (0, 0x64, 2, 3) + em_security_gun_rest.c (4, 1) | agrees on lifecycles 0, 0x64, 2, 3, 4 and the fire path of 1 (flag 0x30, the kind-5 branch); the aim part of lifecycle 1 was not re-read line by line (it has the instruction oracle tools/test_security_gun_rest_reference.py) |
 | 0x826F30 / 0x827400 | em_security_gun_rest.c (sight, shot) | agrees |
 | 0x827490 | em_gun_cable_tick (em_security_gun.c) | agrees |
 | 0x827630 | em_fan_original.c | agrees |
-| 0x827B10 | em_elevator.c, em_indicator_child.c, em_area11_interaction_host.c | agrees, with one possible difference: the original reads the flag bit D_00810841[D_00810700] & (1 << +0x2E) three times per tick (phase-0 script choice, phase-1 completion, the colour ramp after the +0x4C call); the port reads `powered()` once before the tick, so a callee that changes the bit within a tick would diverge |
+| 0x827B10 | em_elevator.c, em_indicator_child.c, em_area11_interaction_host.c | fixed in port A11FIX (was: agrees, with one possible difference: the original reads the flag bit D_00810841[D_00810700] & (1 << +0x2E) three times per tick (phase-0 script choice, phase-1 completion, the colour ramp after the +0x4C call); the port reads `powered()` once before the tick, so a callee that changes the bit within a tick would diverge) |
 | 0x828050 | em_elevator_motion_tick (em_elevator.c) | agrees |
-| 0x825900 / 0x825920 | (no AREA11 port claim found) | - |
+| 0x825900 / 0x825920 | em_area11_script_host (A11FIX) | bound as the script host's op09 callbacks |
 
 Port headers that say "no decomp C exists" for 0x825940 / 0x827490 /
 0x823CE0 (em_security_gun.h) are now out of date.
+
+Port chain step A11FIX (2026-10-02, branch c11-t1, merged onto port main)
+fixed every disagreement listed above and read every other translation line
+by line against this C:
+
+- 0x823E80 is now one translation, em_area11_opening_tick. Its
+  em_pickup_prop_retire call is removed; states 2 / 3 free the record and
+  other states return. An original-instruction oracle covers it (port
+  `make test-area11-opening-reference`).
+- 0x8257A0's state 1 is translated and bound: the quad 0x82ACA0, the script
+  0x829E80 with its op09 callbacks 0x825900 / 0x825920, 001DFE40 and
+  D_00810814.
+- 0x8235F0 runs on its record. 001FC3C0 / 001FC520, 001B17A0 and the
+  +0x30 / +0x34 stores are bound, and 0x823580 is the class-0xD +0x34
+  behaviour. Its 001EFE00(0x80000027) at the player faults (the port's
+  DAMAGE step).
+- 0x827B10 reads its power bit at its three points.
+- 0x823CE0 is bound.
+- em_security_gun.h's note is corrected.
+- Two more disagreements were found and fixed: 0x823FF0's arm-tick store of
+  0x70003A20 was not modelled, and the port's label "director beat 3" for
+  0x829E80 was wrong (0x8257A0 starts it).
+- Left as fail-stops, both unreachable in the first level: 0x827B10's free
+  states, and its 001B0FD0 refusal ordering (the original stores the
+  heights before the call, the port after).
 
 ## Binding
 
