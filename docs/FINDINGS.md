@@ -16796,3 +16796,12 @@ Found by the port's units step (port track T2, audit 1b item 5; port docs BACKGR
 - **The packet.** One MPG of 79 instructions (ELF 0x0023C9B8, loaded to micro address 0); the packet's VIF codes are FLUSHA, STCYCL 4,4, STMASK and STMOD 0.
 - **What the program does.** It reads dmem 0x200..0x207 and the template at 0 / 0x81 / 0x102, and writes each grid vertex twice: as the second row of the current buffer and the first row of the next. Its three buffers rotate 0 / 0x81 / 0x102, and every row after the first kicks one. The vertex word w is 2.0 (VF0 + VF0), so ADC stays 0.
 - **Port.** Translated as em_vu1_grid_program_mscal, checked qword for qword against the original microcode over 6 captures (2026-10-02). The EFU ERLENG result is still a model (1/sqrt in double, truncated to binary32); a capture of the GS packets the program kicks would settle it.
+
+## The level exit's movie table, VIF1_CYCLE between frames, and the AREA01 arrival's state (2026-10-02, port chain step EXIT)
+
+Found by the port's EXIT step (port track T4, audit 1b item 17; port docs FIRST_LEVEL_EXIT.md section 7, MODULE_LOADER.md, AREA01_ASSETS.md), against the EXIT capture lane (CAPTURES_C10.md "EXIT": exit_00_departure, exit_01_movie_arrival).
+
+- **Movie table.** 002032C0 fills D_00821010[0..8] with {lsn, size} pairs by looking each name up from the ELF's name table D_00264FB0. That table holds 9 entries, the disc files \MOVIE\E900, E001, E006S1, E007, E008S4, E010, E39S2, E46S4 and E64S5 (.PSS;1). Selector 1 is E001.PSS: the exit capture's D_00821010[1] equals the disc extent of E001.PSS. Roger's departure script 0x828A10 plays it through op0F.
+- **VIF1_CYCLE between frames is 0x0101.** It reads 0x0101 in all 18 first-level save states (route 00..15, exit_00, exit_01; the EE hardware register block at +0x3C40 of the state). A frame that skips the channel-3 CALL therefore enters channel 0 with CL == WL.
+- **The AREA01 arrival rebuild's measured state.** At exit_01 f306 the 78 pool records equal the port's spawn through 001B6990 / 001C5C50. The camera re-seat puts the eye at (-4.3, 21.7, -572.5), looking toward (39.7, 16.1, -557.5). D_00282160 = 0x44E, the arrival's ambient loop.
+- **AREA01's deferred-group conditions.** Group ids 2 and 3 read D_0081075E and D_0081075F (events 6 and 7).

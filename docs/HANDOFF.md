@@ -65,11 +65,18 @@ that is a different, stale tree.
   (merge c1fe03f); T3 AIMCAP (merge 332b27d); T2 UNITS (merge e8031d7): FIRST_LEVEL_AUDIT
   1b item 5 done (the indicator children's 001CACB0 -> 001CABA0 units, the area-title
   node 001C5930 on its own record, the sky grid walked with the grid program's
-  translation; re-export effect_tables.emet and area_title.emat).
-- **Census (port FIRST_LEVEL_CENSUS.md, section 1.57 after the UNITS merge):** 842 live /
-  26 verified-unbound / 3 unverified / 0 stand-in / 0 missing / 427 boundary of 1,298
-  functions (the route's 1,184 and the AIM beats' 114); 98.7% of non-boundary
-  instructions live (the route's own 757 non-boundary rows: 728 live, 98.4%).
+  translation; re-export effect_tables.emet and area_title.emat); T4 EXIT (port merge
+  5682b32, audit 1b item 17): the level exit is live through the AREA01 arrival (the fan
+  crossing, Roger's departure 0x828A10 with the movie E001.PSS, 001B0C60(1, 0, 4), the
+  AREA01 sub 0 load, 0x1AE040 state 0's rebuild, checked by the level smoke's `exit`
+  phase); the first level ends on AREA01's arrival frame (exit_01 f306) and every later
+  AREA01 frame fail-stops at 0x1AE040 (level 2). Re-export module_loader/modules.emml,
+  sfx_registry.emsr, script_walk_clips.emwc, movies/e001.mov and the AREA01 exports.
+- **Census (port FIRST_LEVEL_CENSUS.md, section 1.58 after the EXIT merge):** 852 live /
+  26 verified-unbound / 2 unverified / 0 stand-in / 0 missing / 429 boundary of 1,309
+  functions (the route's 1,195 through beat 15 and the AIM beats' 114); 98.8% of
+  non-boundary instructions live (the route's own 766 non-boundary rows: 738 live,
+  98.5%); AREA01's 63 functions after the arrival are level 2 (census 3.26).
 - **Later levels: paused by the user (2026-10-02, "stop checking ahead").** Levels 2-15 are
   recorded through AREA03's arrival (port SECOND..FIFTEENTH_LEVEL_ROUTE.md, decomp
   WORLD_GRAPH.md), their new functions translated standalone (em_area0x_*, em_level8..14_*)
@@ -188,8 +195,12 @@ that is a different, stale tree.
 - **Systemic extraction label shift (A22ASSETS finding):** tools/extract_data.py and the
   area exporters label nested-block files without the resident offset (+0x14), so some
   level-zone labels/splits are wrong (bytes are right); to fix across exporters.
-  - Port flags for binding: em_actor_cells rejects AREA01's cell directory (uid 0 word bit
-    29); em_coll_segment_walkers returns -1 on 0019D770's no-span path (FINDINGS).
+    It does not affect the exports the AREA01 arrival reads (port chain C11 EXIT: those
+    are byte-checked against the captures).
+  - Port flags for binding: the em_actor_cells bit-29 blocker is resolved (port C11
+    EXIT: the uid 0 word's bit 29 is the EE uncached RAM mirror, and em_actor_cells now
+    accepts area01_cells.bin); em_coll_segment_walkers still returns -1 on 0019D770's
+    no-span path (FINDINGS), which the arrival does not reach.
   - Phase 3 (after the first level is done): an AREA01 binding chain.
 - **Next:** the Original profile (exact 512x448 GS framebuffer, 4:3) and the
   framebuffer-compare harness, EE-float harmonization of the older oracles.
