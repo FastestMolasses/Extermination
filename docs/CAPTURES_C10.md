@@ -719,7 +719,7 @@ had not.
 - **813 functions ran; 744 are already in the first-level census; 69 are
   new** (12,521 instructions): 68 boot, 1 AREA11 overlay piece. Decomp
   status of the new ones: 34 byte-matched C, 23 NEARMISS, 7 inline asm,
-  4 word asm, 1 undecompiled overlay piece. The 744 known ones by port
+  4 word asm, 1 overlay piece (inside a byte-identical C function; see br_14 below). The 744 known ones by port
   status: 206 live, 333 verified-unbound, 6 unverified, 4 legacy stand-ins,
   7 missing, 188 boundary.
 - **36 of the 69 are new to every C10 lane**; of the other 33, 31 are in
@@ -748,11 +748,35 @@ had not.
   - br_09 (7), the key and its page: 002131B0, 002134C0, 00213F30,
     00214020, 001FCF60, 001FCF90, 001FE660.
   - br_14 (1): the AREA11 overlay piece at runtime 0x823BB0 (splat
-    `func_overlay_AREA11_00823B70`, 36 instructions, undecompiled), first on
-    the frame the use scan marked Roger (counter 15968).
+    `func_overlay_AREA11_00823B70`, 36 instructions), first on the frame the
+    use scan marked Roger (counter 15968). It is not a separate function: it
+    lies 0x40 into the function at runtime 0x823B70 (decomp
+    `func_overlay_AREA11_00823B30`, byte-identical C, which absorbs that
+    piece; docs/AREA11_OVERLAY.md "Split handling").
   - br_03, br_06, br_10..br_13 ran no function the earlier beats had not
     (the cancel script, the second box break, the other pickups, the
     plateau ladder both ways).
+
+### Port
+
+Port chain step BRANCHES (2026-10-03, port branch c11-t1) replays all fifteen
+recordings as ten level-smoke side runs: br_ledge_ammo, br_map_item,
+br_elevator_up, br_panel_decline, br_crate_stack, br_west_ledge (br_05..br_08),
+br_yard_ammo, br_cage_key, br_plateau (br_11..br_13) and br_roger_talk. Each
+runs this lane's br_beat_* policies on the port and is compared window by
+window with `build/c10/branch/<beat>/trace.json`; all ten PASS (port
+`make test-level-smoke-branch`; port docs/LEVEL_SMOKE.md "The BRANCH side
+runs"). Two rules came out of the replay:
+
+- The recordings' pad takes effect three rows after the row it was set on,
+  where the port overlay's takes one; the port's program delays its pads by
+  two ticks.
+- br_11's pad lost the held stick for one row at f1031; the comparison
+  realigns on the dismount.
+
+Of the 36 functions new to every C10 lane, the port census
+(FIRST_LEVEL_CENSUS.md 1.60) has 33 live, 001CB480 unverified, and
+00207D90 / 00208040 at the 2D GS boundary.
 
 ### Tool changes
 

@@ -23,7 +23,13 @@ functions. Eight groups have a second piece: the intra-overlay call targets
 0x823910, 0x823B70, 0x823C40, 0x825500, 0x825600, 0x8256D0, 0x826F30 and
 0x827400 are function starts at runtime, so splat opened a piece 0x40 into
 the function at the same link address. The compiled objects absorb them
-(`[fill] 8 splat piece(s) absorbed by 8 compiled function(s)`). A scan of
+(`[fill] 8 splat piece(s) absorbed by 8 compiled function(s)`). Route
+censuses key overlay hits by splat piece, so a piece can be reported as a
+"new function" when execution passes through it: the BRANCH lane's census
+(docs/CAPTURES_C10.md, br_14) lists runtime 0x823BB0, which is splat's
+piece `func_overlay_AREA11_00823B70`, 0x40 into the talk branch at runtime
+0x823B70 (`func_overlay_AREA11_00823B30`), not a separate function. The port
+keys it to its 0x823B70 translation. A scan of
 every slot for code after a return (lane A15C's build/a15c/hidden.py) finds
 no two-function slot.
 
