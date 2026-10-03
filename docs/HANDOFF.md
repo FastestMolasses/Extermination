@@ -61,9 +61,15 @@ that is a different, stale tree.
   worktrees and branches when it ends.
   Integrated so far: T2 LIGHTING (d47991a); port c11-t4 77139f4 (merge d788997): no
   first-level asset reads a capture (interaction.emis / background.embg from the disc's
-  executed first frame; player.emdl reproduced whole; light cone re-baked).
-- **Census (port FIRST_LEVEL_CENSUS.md):** 720 live / 33 verified-unbound / 3 unverified /
-  0 stand-in / 0 missing / 428 boundary = 97.7% (1.53, the lighting step; 1.54 ASSETS no change).
+  executed first frame; player.emdl reproduced whole; light cone re-baked); T1 A11FIX
+  (merge c1fe03f); T3 AIMCAP (merge 332b27d); T2 UNITS (merge e8031d7): FIRST_LEVEL_AUDIT
+  1b item 5 done (the indicator children's 001CACB0 -> 001CABA0 units, the area-title
+  node 001C5930 on its own record, the sky grid walked with the grid program's
+  translation; re-export effect_tables.emet and area_title.emat).
+- **Census (port FIRST_LEVEL_CENSUS.md, section 1.57 after the UNITS merge):** 842 live /
+  26 verified-unbound / 3 unverified / 0 stand-in / 0 missing / 427 boundary of 1,298
+  functions (the route's 1,184 and the AIM beats' 114); 98.7% of non-boundary
+  instructions live (the route's own 757 non-boundary rows: 728 live, 98.4%).
 - **Later levels: paused by the user (2026-10-02, "stop checking ahead").** Levels 2-15 are
   recorded through AREA03's arrival (port SECOND..FIFTEENTH_LEVEL_ROUTE.md, decomp
   WORLD_GRAPH.md), their new functions translated standalone (em_area0x_*, em_level8..14_*)

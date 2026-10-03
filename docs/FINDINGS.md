@@ -15304,6 +15304,12 @@ s81 forced-re-entry guess below (which was a *different*, load-phase overlay).
 - **NOT the message machine, NOT E4, NOT the selector:** at the card, `D_002821B0`=0,
   `D_008101E4`=0, spad `0x70003B8D`=0. The card rides the **normal gameplay frame**
   (selector 0), gated only by its own HUD-overlay state — not the cinematic system.
+- **Port note (2026-10-02, port chain step UNITS; port docs/STATUS_UI_LEFTOVERS.md).** In
+  the port, the node's first state-1 call at the area entry ends its tick with the mode
+  byte 0x70003B8D still 0, so it draws one title line. The opening stores 2 one tick later,
+  and the other 299 opening ticks are quiet (port level smoke; no capture shows these
+  frames). At route 09's room move the port's fresh node lands at a different pool record
+  than the original's 0x7B0390; its fields equal the capture's.
 
 #### Separate thing — the LOAD-phase overlay `func_001FF080`/`func_001FF0D0` (NOT the title)
 
@@ -16782,3 +16788,11 @@ Found by the port's AIMCAP step and its fix round (port track T3; port docs AIM_
 - **A bone slot holds the identity at +0x00..+0x3F and the bone's world matrix at +0x90..+0xCF** in every AIM snapshot. 00189D30 hands 001EFF10 the slot + 0x90, so the trail effect 0x8000000D (001F18C0) seeds and draws its points through the knife's world matrix. 001F15F0's packet is DIRECT 0x3D with GIF tag 0x402640000000800F / REGS 0x4141: PRIM 0x4C, an untextured Gouraud alpha-blended triangle strip.
 - **The two library heads.** D_0028A578[0] = 0xD1B9C0 (0015C420's +0x58) and D_0028A580[0] = 0xD689C0 (+0x40) in every captured AREA11 image (route snapshots 00..15, the AIM captures).
 - **The melee states keep the knife sound's track at +0x302.** They store 001FBD50's return (00119EA0's track) there: in aim_09_melee the handle rows from f13 read tracks 3, FF, 1, FF, 1, 5, 1, FF, 1 (track 5 at f102), and track 3 at aim_11 f249.
+
+## The background grid program 0x0023C990 (2026-10-02, port chain step UNITS)
+
+Found by the port's units step (port track T2, audit 1b item 5; port docs BACKGROUND.md and CHAIN_PAGE.md section 12), under the background on render channel 3: the channel-3 list at context +0x1D8 CALLs packet 0x0023C990.
+
+- **The packet.** One MPG of 79 instructions (ELF 0x0023C9B8, loaded to micro address 0); the packet's VIF codes are FLUSHA, STCYCL 4,4, STMASK and STMOD 0.
+- **What the program does.** It reads dmem 0x200..0x207 and the template at 0 / 0x81 / 0x102, and writes each grid vertex twice: as the second row of the current buffer and the first row of the next. Its three buffers rotate 0 / 0x81 / 0x102, and every row after the first kicks one. The vertex word w is 2.0 (VF0 + VF0), so ADC stays 0.
+- **Port.** Translated as em_vu1_grid_program_mscal, checked qword for qword against the original microcode over 6 captures (2026-10-02). The EFU ERLENG result is still a model (1/sqrt in double, truncated to binary32); a capture of the GS packets the program kicks would settle it.
