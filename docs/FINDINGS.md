@@ -16814,3 +16814,22 @@ Found by the port's DAMAGE step (port track T1, audit 1b item 13; port docs DAMA
 - **The death decal.** 0x80000043 is 001F77B0 subtype 2: 4 particles; w+0xB8 210.0, w+0xBC 7.0, w+0xC0 2.0; TEX0 0x2004108555322080, colour 0x80020220. Each quad grows 1/210 per tick to 1.0. D_00810360 is the player's +0xB0, the bone-1 hip after 0015BCF0's tail.
 - **The game-over screen is screen module 0x27**, one chunk (the GS upload). 001AD4E0 pushes the four TEX0 words 0x2005C00621322A00 / 0x2005C08621322A40 / 0x2005C20621322C00 / 0x2005C28621322C40, and 001ABF90 draws them as a 2 x 2 grid of 256 x 256 sprites. The dmg_02 GS memory decodes identically to the disc upload.
 - **The title after a death.** After a death, 001ADF00 installs 001AC070 with D_00275BDC = 1. State 0 then goes to state 2 (+0x08 = 2, +0x0E = 3) instead of the movie (+0x08 = 1, +0x0E = 1), and 001AC480 sub 0 starts the cursor on entry 1. Both were executed in the port's test_title_menu_reference.
+
+
+### 2026-10-04 — AREA01 binding: 00219550 child-spawn argument order
+
+The original call at `0x002196A8` passes
+`001C5570(owner, 0x700038A0, 0x73, 1)`: the second argument is the
+scratch vector `(0, 1, 0, 0.25)`, the third is the model id, and the fourth
+is the child mode. The result is stored at owner `+0x2EC`. The readable
+NEARMISS C's prototype and call reorder these arguments as owner, model,
+mode, vector. Correct that source signature/call when this function is
+next edited; the matching boot ELF is unaffected.
+
+Evidence: the port level2 `tools/test_area01_pickup_live_reference.py`
+executes the pinned original instructions and compares all four argument
+lanes and the full scratch vector at the child-spawn boundary. Its full
+sweep passed 311 cases across 16 AREA01 captures, with 683 worker
+boundaries and four failure cases. This is distinct from the already
+recorded descriptor-address correction for the same function. Only this
+document and the NEARMISS correction note were changed in the decomp.
