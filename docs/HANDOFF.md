@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-09-29 (Claude, s87).** This is the short cross-repo entry point.
+**Current as of 2026-10-04 (Claude, s87).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -47,6 +47,21 @@ that is a different, stale tree.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
+
+## Paused 2026-10-04 (the user's usage limit) — resume here
+- **Level 2 (AREA01) on port main:** Codex's work taken over and merged (6a4ecfe, then
+  e2e0d23..ad0ea07 by topic; worktree removed), then chain build/workflows/level2-playable.js
+  committed FRAME (8b900b6), FRAME2, NEUTRAL (c377c5f: the AREA01 guard is open, the first
+  60 frames match the recording), MOVE (578abc0: movement and collision) and CAMERA
+  (8ce3067). Step DRAW (AREA01 drawn) was implemented and in review when stopped: it is
+  saved UNREVIEWED on branch level2-draw-wip (d764eef), not on main. Next: review DRAW
+  (diff level2-draw-wip against main), merge it, then the chain's CHECK step; journal copy
+  build/workflows/level2-playable.partial.json. Afterwards: doors, NPC scripts, messages,
+  pickups, beats a01_01..a01_07 and the side routes (LEVEL2_BINDING.md).
+- **iOS:** merged into main (841fc99); build and run from the port root with
+  tools/ios/build.sh run (docs/IOS.md); free-team signing expires every 7 days.
+- **First level:** CAMERAS (c11-t3) and GSFRAME (c11-t2) approved but not merged; then
+  TAKEOVERS, GLUE, OPTIONS, AUDIO, ROUTE (see below).
 
 ## State (2026-10-02)
 - **First level:** after C9 (PIXELS, AREALOAD, PAGELOADS) and C10/C10b/C10c: EM_NEW_GAME=1
