@@ -51,6 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--toolchain-root", type=Path, help="checkout containing the local compiler tools")
     p.add_argument("--require-original", action="store_true", help="fail unless the whole image matches the unpacked reference")
     p.add_argument("--resume", action="store_true", help="resume a failed overlay link after validating its existing fresh build")
+    p.add_argument("--stream-bundle", type=Path, action="append", default=[], help="verified stream-pack bundle; repeat for music and voice")
     p = commands.add_parser("add-entry", help="append a resident archive entry into unused INDEX table space")
     p.add_argument("--tree", type=Path, required=True)
     p.add_argument("--region", required=True)
@@ -65,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--tree", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--quantize", choices=("exact", "nearest"), default="exact")
+    p.add_argument("--resize-uploads", action="store_true", help="allow bounded physical upload-canvas resizing; logical TEX0 dimensions remain fixed")
     p = commands.add_parser("audio-unpack", help="decode native sample banks or mono clips to PCM16 WAV")
     p.add_argument("--input", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
@@ -77,12 +79,34 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--input", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--kind", choices=("auto", "bank", "outer"), default="auto")
-    p = commands.add_parser("table-pack", help="apply fixed-length message edits to native table bytes")
+    p = commands.add_parser("table-pack", help="relocate translated strings and style anchors in native tables")
+    p.add_argument("--tree", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p = commands.add_parser("stream-unpack", help="decode selected native music/voice cues to PCM16 WAV")
+    p.add_argument("--input", type=Path, required=True)
+    p.add_argument("--elf", type=Path, required=True, help="original matching boot ELF supplying cue tables")
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--kind", choices=("auto", "music", "voice"), default="auto")
+    p.add_argument("--cue", type=int, action="append", help="cue ID to export; repeat or omit for all")
+    p = commands.add_parser("stream-pack", help="encode edited cues and emit a verified build-disc bundle")
+    p.add_argument("--tree", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p = commands.add_parser("model-unpack", help="export understood native packets to same-topology glTF")
+    p.add_argument("--input", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--kind", choices=("auto", "skinned", "static"), default="auto")
+    p = commands.add_parser("model-pack", help="import same-topology glTF edits into native packets")
     p.add_argument("--tree", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
     p = commands.add_parser("proof-title", help="cold-boot a disc hidden in private cardless PCSX2 and capture its title")
     p.add_argument("--iso", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
+    p = commands.add_parser("proof-gameplay", help="cold New Game capture and native player/stream observations")
+    p.add_argument("--iso", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--model", type=Path, help="expected edited player resource chunk28/f00_id3b.bin")
+    p.add_argument("--frames", type=int, default=400)
+    p.add_argument("--voice-route", action="store_true", help="continue the controller route to the first voiced dialogue")
     args = parser.parse_args(argv)
     try:
         if args.command == "inventory":
@@ -140,6 +164,10 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "proof-title":
             from . import proof
             print(json.dumps(proof.capture_title(args.iso, args.out), indent=2))
+        elif args.command == "proof-gameplay":
+            from . import proof
+            print(json.dumps(proof.capture_gameplay(args.iso, args.out, model=args.model, frames=args.frames,
+                                                   voice_route=args.voice_route), indent=2))
         elif args.command == "add-entry":
             print(json.dumps(archive.add_entry(args.tree, args.region, args.id, args.input), indent=2))
         elif args.command.startswith("texture-"):
@@ -147,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.command == "texture-unpack":
                 result = textures.unpack(args.input, args.out, tex0=args.tex0, preset=args.preset)
             else:
-                result = textures.pack(args.tree, args.out, quantize=args.quantize)
+                result = textures.pack(args.tree, args.out, quantize=args.quantize, resize_uploads=args.resize_uploads)
             print(json.dumps(result, indent=2))
         elif args.command.startswith("audio-"):
             from . import audio
@@ -163,8 +191,23 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 result = tables.pack_table(args.tree, args.out)
             print(json.dumps(result, indent=2))
+        elif args.command.startswith("stream-"):
+            from . import streams
+            if args.command == "stream-unpack":
+                result = streams.unpack_stream(args.input, args.elf, args.out, kind=args.kind, cues=args.cue)
+            else:
+                result = streams.pack_stream(args.tree, args.out)
+            # Detailed cue rows belong in the local sidecar, not terminal output.
+            print(json.dumps({k: v for k, v in result.items() if k not in ("rows", "exports")}, indent=2))
+        elif args.command.startswith("model-"):
+            from . import models
+            if args.command == "model-unpack":
+                result = models.unpack_model(args.input, args.out, kind=args.kind)
+            else:
+                result = models.pack_model(args.tree, args.out)
+            print(json.dumps({k: v for k, v in result.items() if k not in ("layout", "gltf")}, indent=2))
         elif args.command == "build-disc":
-            from . import source_build
+            from .build_disc import build_disc
             out, tree = output_path(args.out), args.tree.resolve()
             if out == tree or out.is_relative_to(tree) or tree.is_relative_to(out):
                 raise ValueError("build-disc output must be separate from its input tree")
@@ -173,16 +216,9 @@ def main(argv: list[str] | None = None) -> int:
                 options["toolchain_root"] = args.toolchain_root
             if args.resume:
                 options["resume"] = True
-            built = source_build.build_sources(tree, out / "source", **options)
-            out.mkdir(parents=True, exist_ok=True)
-            packed = archive.pack_archive(tree / "archive", out / "DATA.DAT", out / "INDEX.IDX")
-            overrides = {key: Path(path) for key, path in built["overrides"].items()}
-            overrides.update({"DATA/DATA.DAT": out / "DATA.DAT", "DATA/INDEX.IDX": out / "INDEX.IDX"})
-            result = iso.pack(tree / "iso", out / "Extermination.iso", overrides=overrides)
-            receipt = {"source": built, "archive": packed, "iso": iso_summary(result, out / "Extermination.iso")}
-            (out / "build-disc.json").write_text(json.dumps(receipt, indent=2) + "\n")
+            receipt = build_disc(tree, out, stream_bundles=args.stream_bundle, **options)
             print(json.dumps(receipt, indent=2))
-            if args.require_original and not result["unchanged"]:
+            if args.require_original and not receipt["iso"]["unchanged"]:
                 raise ValueError(f"source-built disc differs from the reference; see {out / 'build-disc.json'}")
     except (OSError, ValueError, KeyError) as exc:
         parser.exit(1, f"repack: {exc}\n")

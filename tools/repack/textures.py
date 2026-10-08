@@ -308,7 +308,7 @@ def _resize_from_pngs(tree: Path, output: Path, manifest: dict, raw: bytes, inpu
         return None
     if manifest["views"] or manifest["palettes"] or manifest.get("preset"):
         raise ValueError("physical upload-canvas resize requires an index-only unpack; logical TEX0 views/palettes have external references. "
-                         "Startup TEX0 constants live in src/func_001ABF90.c and src/func_001AC7F0.c; actor GS residency crosses leaves")
+                         "Startup TEX0 constants live in func_001AB9D0/001ABC60/001ABE10/001AC7F0; actor GS residency crosses leaves")
     rebuilt = _relayout_uploads(raw, manifest["uploads"], sheets)
     _atomic_native(output, rebuilt, inputs)
     return dict(path=str(output), sha256=_hash(rebuilt), unchanged=False, size=len(rebuilt),
@@ -365,7 +365,7 @@ def pack(tree: Path, out_native: Path, *, quantize: str = "exact", resize_upload
                 raise ValueError(f"{relative}: palette size change needs all TEX0 PSM/CBP references and GS allocations; "
                                  "actor cross-leaf residency and executable references are not closed")
             raise ValueError(f"{relative}: logical texture dimensions require relocating all TEX0 references; "
-                             "startup constants are in func_001ABF90/001AC7F0 and actor material/GS references cross archive leaves. "
+                             "startup constants are in func_001AB9D0/001ABC60/001ABE10/001AC7F0 and actor material/GS references cross archive leaves. "
                              "The asset-only input does not contain their complete reference set")
         return rgba
 

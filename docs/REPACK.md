@@ -195,8 +195,9 @@ Directories and path tables do not move, so their counts and pointers do
 not change. This disc also has a UDF bridge: resizing must update its file
 entries, allocation descriptors, partition sizes, integrity size table,
 checksums and trailing anchor, as described in the inventory document.
-Only DATA/INDEX may change size in the ISO writer; other files
-may be replaced with equal-length content. Old vacated payload space is
+DATA/INDEX may change size. MUSIC/VOICE may also resize through a verified
+`build-disc --stream-bundle` pairing with freshly built ELF cue tables; ordinary
+loose stream resizing is refused. Other files may be replaced with equal-length content. Old vacated payload space is
 zeroed on relocation, while unrelated files and preserved metadata stay
 in place. The output is checked structurally and each file is hashed
 against its loose input before atomic publication.
@@ -240,7 +241,7 @@ available original table slack. Re-unpacking produces an ordinary complete tree
 that needs no edit metadata and packs identically again.
 
 An edit must also fit the 24-bit resident offset and 32-bit container fields.
-Within the disc's UDF bridge, a resized DATA or INDEX must remain below
+Within the disc's UDF bridge, each supported resized file must remain below
 1 GiB to fit its single recorded short allocation descriptor. Other UDF
 allocation schemes, alternate ISO namespaces, file aliases, multi-extent
 ISO records, and changes to directory topology are rejected. The original
@@ -250,12 +251,10 @@ and is never resized.
 Payload formats inside leaves remain the editor's responsibility. Native
 model, collision, sound-bank, DMA, and script data can contain their own
 lengths, offsets, or runtime memory constraints. Container relocation does
-not fix those internal structures or prove game compatibility. Stream movies and cue-based music/voice files remain intact. The supported
-editable formats and real-game proof are described below. Model inverse
-conversion remains future work: it needs native packet topology, material/TEX0
-references, VIF/VU uploads, vertex quantization, skinning/bone bindings and all
-internal relocation/size fields, plus original-game validation. A glTF or EMDL
-export alone does not retain everything needed to regenerate those bytes.
+not fix those internal structures or prove game compatibility. The bounded
+format editors below handle their characterized internal tables. Movies remain
+whole streams. Same-topology model edits are supported; arbitrary re-topology
+needs the design in [REPACK_MODELS.md](REPACK_MODELS.md).
 
 ## One-command build from source
 
@@ -312,8 +311,10 @@ nonzero-tail or differently addressed output, and removes only the verified
 2,000-byte nonloaded ELF envelope (headers, metadata and padding). The original
 boot file is then byte-identical without replacing compiled code with a copy.
 Overlay payloads similarly come from the fresh links, with their native headers.
-Current source builds require matching executable bytes; intentionally changing
-game code is outside this matching-only command.
+Current source builds require matching executable bytes. An optional verified
+stream bundle patches only the three address/length words in existing cue-table
+rows after the fresh matching link. Intentional game-code changes remain outside
+this command; the original loose ELF stays untouched for canonical compilation.
 
 `build-disc` then packs the loose archive and whole ISO, including both ISO9660
 and UDF metadata. `build-disc.json` records the final SHA-256. `--require-original`
@@ -500,6 +501,111 @@ The bank payload-size field excludes the directory base. OUTER markup offsets
 are relative to `OUTER + OUTER[0]`, rather than to the OUTER header itself.
 Both details are checked against the real tables; padding remains exact.
 
+## Music, dialogue and movies
+
+The inventory's 12 stream files are two ADPCM cue banks, nine `MOVIE/*.PSS`
+files and the MPEG-PS movie `EXTER1.DAT`. The ten movies are preserved exactly;
+only MUSIC/VOICE have inverse audio conversion.
+
+```sh
+python3 -m tools.repack stream-unpack \
+  --input build/repack/loose/iso/files/STREAM/MUSIC.DAT \
+  --elf build/repack/loose/iso/files/SCUS_971.12 \
+  --cue 63 --out build/repack/music
+python3 -m tools.repack stream-unpack \
+  --input build/repack/loose/iso/files/STREAM/VOICE.DAT \
+  --elf build/repack/loose/iso/files/SCUS_971.12 \
+  --cue 143 --out build/repack/voice
+# Edit cue_063.wav / cue_143.wav: PCM16, 48000Hz, existing channel count.
+python3 -m tools.repack stream-pack --tree build/repack/music \
+  --out build/repack/music-bundle
+python3 -m tools.repack stream-pack --tree build/repack/voice \
+  --out build/repack/voice-bundle
+.venv/bin/python -m tools.repack build-disc --tree build/repack/loose \
+  --stream-bundle build/repack/music-bundle \
+  --stream-bundle build/repack/voice-bundle --out build/repack/stream-mod
+```
+
+Repeat `--cue` to export selected IDs, or omit it to decode every cue. Music has
+67 usable stereo cues plus a null row; voice has 178 mono cues plus a null row.
+Their ELF tables are at `0x25DD30` / `0x25E170`, with 16-byte rows holding start
+sector, start byte, byte length and loop flag. These IDs, counts and flags stay
+fixed. Stereo storage alternates 1,024-byte left and right ADPCM blocks; mono
+uses contiguous frames. Each 16-byte frame decodes to 28 PCM samples.
+
+Unchanged PCM reuses native bytes exactly, including predictor choices and flags.
+Edited cues are deterministically re-encoded, reset the first predictor and pad
+to whole 2,048-byte sectors. For non-looping cues, the original `func_001FA790`
+duration estimator subtracts half a second. Encoding therefore appends a silent
+guard of 31 video ticks after rounding the requested duration up to ticks; the
+extra tick covers native float32 truncation. Reported padding includes this guard
+and sector rounding, so requested audio can finish before the native timeout.
+Looped music bypasses that timer in `func_001F9CF0` and receives only sector
+padding. Loop flags remain those of the existing cue; author a suitable boundary
+for a looping replacement. This does not add cue IDs or retime scripts/subtitles.
+
+`stream-pack` emits the complete DAT plus `cue-edits.json`, schema
+`extermination-stream-bundle-v1`. It relocates every subsequent cue. `build-disc`
+checks the original stream identity and boot/table hashes before compiling,
+checks the packed stream hash and contiguous rows again against the fresh boot,
+and patches only each row's first 12 bytes. The freshly linked baseline boot,
+patched boot and changed-row receipt are separate. Sector extents and lengths
+are updated in both ISO9660 and UDF when streams grow/shrink; callers cannot
+request an unpaired stream resize through `pack-disc` or `pack-iso`.
+
+The real no-op full-file hashes match the original MUSIC and VOICE. Edited
+opening music cue 63 shrank from 25.088 to 12.544 stored seconds (12 requested);
+voice cue 143 grew from 4.555 to 6.571 stored seconds (6 requested). The stored
+lengths include the silent timeout guard. Subsequent rows moved with them. Independent
+`audio_export` decoding verifies both interleave and new durations. Receipts:
+`build/repack/streams/bundle-proof-v2.json` and
+`build/repack/streams/test-receipt.json`.
+Playback evidence is described below; a WAV round trip alone is not playback.
+
+### Movie re-encoding requirements (design only)
+
+A movie encoder would need a PS2-compatible MPEG-2 elementary video stream
+(profile/level, dimensions, frame rate, GOP and decoder-buffer bounds compatible
+with libmpeg), the PSS private audio framing and sample layout, and a muxer that
+rebuilds pack/system/PES headers, SCR/PTS/DTS timing, sector packing and terminal
+padding while maintaining A/V synchronization. It must also honor the movie
+reader's buffering and skip/finish behavior. `func_002032C0` obtains the nine
+PSS file extents by filename at runtime; resizing still requires the ISO/UDF
+writer to allow and relocate those files. EXTER1's consumer must be audited
+separately. The native port's `export_movie.py` is a packet-preserving remuxer,
+not evidence that arbitrary re-encoded MPEG-2/PSS will work on PS2. No MPEG-2
+encoder or movie inverse muxer is implemented here.
+
+## Same-topology models
+
+```sh
+python3 -m tools.repack model-unpack \
+  --input build/repack/loose/archive/chunk28/f00_id3b.bin \
+  --out build/repack/player
+# Edit model.gltf / its buffers while preserving _NATIVE_ID and vertex topology.
+python3 -m tools.repack model-pack --tree build/repack/player \
+  --out build/repack/player-edited.bin
+cp build/repack/player-edited.bin build/repack/loose/archive/chunk28/f00_id3b.bin
+```
+
+Supported framed actor packets expose POSITION, TEXCOORD_0, NORMAL and existing
+rigid JOINTS/WEIGHTS; explicit static packets expose colours instead of normals.
+Vertex count/order, triangle indices, restart/parity bits, packet structure,
+materials and native identity attributes remain fixed. Buffer/accessor repacking,
+local or embedded buffers and harmless names/extras are accepted. Dropped custom
+IDs, welded/reordered vertices, changed node transforms, compressed/sparse
+accessors, arbitrary blended weights and new materials are refused.
+
+The glTF geometry remains in native bone-local coordinates; identity skin nodes
+are an editing view, not an assembled animated bind pose. Positions must stay
+inside original per-joint bounds because posed culling bounds are not rebuilt.
+This permits conservative shape tweaks, UV/normal edits, colours and reassignment
+to populated existing rigid joints. The player and a static-colour model pass
+unchanged byte-identical round trips and edited forward extraction. The local
+player proof scales joint 7 positions within their original bounds. Full native
+packet/material/VIF/VU/skinning/relocation design and limitations are in
+[REPACK_MODELS.md](REPACK_MODELS.md); full re-topology is design only.
+
 ## Original-game proof
 
 The `proof-title` command cold-boots the ISO itself, without a boot-ELF override
@@ -585,14 +691,14 @@ The 2026-10-08 original-disc integration proof passed in 53.128 seconds,
 including a one-byte control, +37/-13-byte resident resizing, addition of a new
 resident role, exact second-generation archive repacking, and independent UDF
 reads. All 674 existing asset leaves remain unchanged except each selected edit.
-The quick suite currently has 69 passes and 7 intentionally gated integration
-checks (about one second on this machine).
+The quick suite keeps local-disc and runtime integration checks behind explicit
+environment gates; use the current test summary for counts.
 
 | Format | Local proof |
 |---|---|
 | GS texture uploads | 63 native leaves / 113 transfers unchanged after PNG round trip; edited PSMT8/PSMT4 textures and CLUTs decode through the existing startup exporter |
 | Audio | 41 SShd leaves / 116 banks / 2,318 clips unchanged after WAV round trip, including corrected title bank `chunk01/f00_id06.bin`; a real silence edit decodes correctly through the old decoder |
-| Message tables | 271 bank lines and 54 bare OUTER lines unchanged after JSON round trip; isolated equal-length edits re-extract correctly |
+| Message tables | 271 bank lines and 54 bare OUTER lines unchanged; longer/shorter text and relocated styles re-extract correctly |
 | Archive growth | +37 bytes, -13 bytes and a new resident entry; every other asset unchanged, second pack identical, ISO/UDF namespaces agree |
 
 The per-format receipts are `build/repack/texture-full.json`,

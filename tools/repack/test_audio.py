@@ -223,6 +223,27 @@ class AudioTests(unittest.TestCase):
             audio._check_bank_capacity([dict(type=3, size=16)], [0x10010])
         with self.assertRaisesRegex(ValueError, "capacity"):
             audio._check_bank_capacity([dict(type=1, size=16)], [0x80010])
+        for kind in (2, 4):
+            worst_size = audio.SPU_LIMITS[kind] - audio.SPU_BASES[kind]
+            audio._check_bank_capacity([dict(type=kind, size=16)], [worst_size])
+            with self.assertRaisesRegex(ValueError, "capacity"):
+                audio._check_bank_capacity([dict(type=kind, size=16)], [worst_size + 16])
+            old_size = worst_size + 32
+            audio._check_bank_capacity([dict(type=kind, size=old_size)], [old_size])
+            with self.assertRaisesRegex(ValueError, "capacity"):
+                audio._check_bank_capacity([dict(type=kind, size=old_size)], [old_size + 16])
+
+    def test_one_frame_bank_loop_and_keyed_interior_alias_are_rejected(self):
+        raw = bytearray(tone_bank_fixture())
+        struct.pack_into('<H', raw, 0x90, 16 >> 3)
+        tree, manifest = self.unpack(bytes(raw))
+        sample = manifest['layout']['samples'][0]
+        audio_export.write_wav(tree / sample['path'], bytes(4 * 28 * 2), 32000, 1)
+        with self.assertRaisesRegex(ValueError, 'interior tone aliases'):
+            audio.pack_audio(tree, self.base / 'alias.bin')
+        audio_export.write_wav(tree / sample['path'], bytes(28 * 2), 32000, 1)
+        with self.assertRaisesRegex(ValueError, 'one-frame looping'):
+            audio.pack_audio(tree, self.base / 'single-frame.bin')
 
     def test_input_alias_and_malformed_frame_are_rejected(self):
         tree, _ = self.unpack(raw_clip(), "raw")

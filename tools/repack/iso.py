@@ -19,6 +19,7 @@ from . import udf
 SECTOR = 2048
 SCHEMA = "extermination-iso-v1"
 RESIZABLE = {"DATA/DATA.DAT", "DATA/INDEX.IDX"}
+STREAM_FILES = {"STREAM/MUSIC.DAT", "STREAM/VOICE.DAT"}
 BUFFER = 8 << 20
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = ROOT / "build" / "repack"
@@ -317,9 +318,13 @@ def _write_both(dst, offset: int, value: int) -> None:
     dst.write(struct.pack("<I", value) + struct.pack(">I", value))
 
 
-def pack(tree: Path, out_image: Path, overrides: dict[str, Path] | None = None) -> dict:
+def pack(tree: Path, out_image: Path, overrides: dict[str, Path] | None = None, *,
+         resized_streams: set[str] | None = None) -> dict:
     """Reassemble a loose tree; permitted resized archive files update ISO tables.
 
+    ``resized_streams`` is supplied by the validated stream-bundle builder,
+    after its corresponding fresh-ELF cue table has been patched. Merely
+    replacing a loose stream does not grant permission to resize it.
     Override keys use unversioned paths, e.g. ``DATA/DATA.DAT``. Output is
     atomically replaced only after reconstruction and structural verification.
     """
@@ -337,6 +342,9 @@ def pack(tree: Path, out_image: Path, overrides: dict[str, Path] | None = None) 
             (out_image.exists() and original.exists() and out_image.samefile(original))):
         raise ValueError("refusing to overwrite the original image or an output symlink")
     overrides = {_path(key.lstrip("/")): Path(value) for key, value in (overrides or {}).items()}
+    resized_streams = set(resized_streams or ())
+    if resized_streams - STREAM_FILES or resized_streams - overrides.keys():
+        raise ValueError("resized streams must be explicit MUSIC/VOICE overrides with verified cue metadata")
     names = {entry["path"] for entry in manifest["files"]}
     if overrides.keys() - names:
         raise ValueError(f"unknown ISO overrides: {sorted(overrides.keys() - names)}")
@@ -357,7 +365,7 @@ def pack(tree: Path, out_image: Path, overrides: dict[str, Path] | None = None) 
         size = path.stat().st_size
         if size > 0xffffffff:
             raise ValueError("single ISO9660 file exceeds u32 length")
-        if size != entry["size"] and entry["path"] not in RESIZABLE:
+        if size != entry["size"] and entry["path"] not in RESIZABLE | resized_streams:
             raise ValueError(f"size changes unsupported for {entry['path']}; executable/stream internal tables are not rewritten")
         offset = entry["offset"]
         if size > entry["capacity"]:
