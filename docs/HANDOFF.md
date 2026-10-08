@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-08 (Claude: the level-2 check and its review's fix round).** This is the short cross-repo entry point.
+**Current as of 2026-10-08 (Claude: the GSFRAME merge).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -106,8 +106,8 @@ that is a different, stale tree.
   verification once after it: all 336 other make test-* targets, test-level-smoke-full
   and -ps2-drive PASS (test-area01-scratch-alias after 62255fa); level-2 phases (a01_00..
   a01_02, a01_s3 / s6, a01_s0 / s4 with the drive switch) PASS; tools/ios/build.sh device
-  builds. Worktree ../extermination-port-t3 and branch c11-t3 removed. Next: GSFRAME
-  (c11-t2, approved), then TAKEOVERS, GLUE, OPTIONS, AUDIO, ROUTE (see below).
+  builds. Worktree ../extermination-port-t3 and branch c11-t3 removed. GSFRAME merged
+  next (below); then TAKEOVERS, GLUE, OPTIONS, AUDIO, ROUTE.
 
 ## State (2026-10-02)
 - **First level:** after C9 (PIXELS, AREALOAD, PAGELOADS) and C10/C10b/C10c: EM_NEW_GAME=1
@@ -137,16 +137,34 @@ that is a different, stale tree.
   startup/game_over.emui (export_game_over.py). The title's load screen (dmg_05) stays
   missing for the OPTIONS step; the fan's hit (dmg_08) is not replayed yet.
   T1 BRANCHES (merge 3d482f6, audit 1b item 16) is merged too.
-- **Approved but NOT merged yet — do this first:** GSFRAME (branch c11-t2 in
-  ../extermination-port-t2: 3b0d900, a3c2bb4; review 2 approved); its commit agent found
-  nothing to stage (the implementer had already committed in the worktree), so the script
-  never integrated it. Then the full verification (every make test-*,
-  test-level-smoke-full, -ps2-drive, newgame-control, test-cutscene-skip) per merge.
-  CAMERAS (c11-t3) is merged (2026-10-08, port a1f7873; above).
+- **GSFRAME (c11-t2) merged on 2026-10-08** (port merge be2f04d; follow-ups 5e8884b, eb7c548):
+  the Original profile's world frames and the load veil draw through the CPU GS model into
+  the 512x224 field (Metal = the Enhanced profile's GPU renderer, EM_GPU_RENDERER=1).
+  Resolution: the area consumer also sends AREA01 sub 0's room upload (001FF590(0xAC, 1),
+  state 8) to GS memory; fb2 harness keeps both the GS field and main's AREA01 point;
+  census section 1.62 (the branch's second 1.58), no status change, totals recounted
+  (live 918). Semantic conflict fixed in 5e8884b: the level exit's departure movie faulted
+  ("a world frame was recorded but never kicked"); the original's 001D1C10 restarts the
+  list after 00203350, so em_frame drops the recorded world draws (em_gfx_gs_world_drop).
+  Proof: fb2 full at the merge, AREA11 points unchanged (14 87.18 %, 13 55.92 %, 10
+  15.96 %), 15_level_exit 98.57 % (GPU 47.41 %; new GS floor); level-2 phases PASS with
+  the GS frame (a01_00..a01_02, a01_s3 / s6, a01_s0 / s4 with the drive switch; an AREA01
+  field captured at a01_arrival+420 shows the world). Frame cost (EM_FRAME_TIMING
+  newgame-control, load 5..7): in-level wall mean 8.1 ms, p99 12.1, 4-6 of 2,997 steps
+  over (start-up, area load, first ticks; GPU 5). AREA01 ticks: 13.6 ms main-thread CPU on
+  both renderers, 65 of 840 over the period with the GS frame (GPU 0): level-2 work.
+  Re-export: tools/export_gs_memory.py (gs_library.emgm, STARTUP row 69; the game does not
+  start without it), export_effect_tables.py then export_area01_water_effects.py
+  (D_002531D0). Full verification once after it (receipts port build/gsmerge): all 339 other make test-*
+  targets PASS, test-level-smoke-full (with the side, AIM, DAMAGE and BRANCH runs) and
+  -ps2-drive PASS, test-fb2-pixels(-area01) PASS, newgame-control 9.599849. tools/ios/build.sh device
+  builds. Worktrees ../extermination-port-t1 / -t2 / -t4 and branches c11-t1 / t2 / t4
+  removed (all merged). Open (review 2 minor): d3d12 / Vulkan need field presentation
+  before the Original profile starts there (today only with EM_GPU_RENDERER=1).
 - **Not started:** TAKEOVERS, GLUE (track T1), OPTIONS (incl. the title's load screen,
   dmg_05), AUDIO (track T3), then ROUTE on main. Regenerate the parallel script with
-  make_c11.py (third argument: the merged keys) or run them as a short chain; remove the
-  four worktrees and the c11-t* branches when everything is merged.
+  make_c11.py (third argument: the merged keys) or run them as a short chain (all c11
+  worktrees and branches are removed; new steps start from main).
 - **Census (port FIRST_LEVEL_CENSUS.md, section 1.59 after the DAMAGE merge):** 884 live /
   27 verified-unbound / 2 unverified / 0 stand-in / 9 missing (the title's load screen) /
   432 boundary of 1,354 functions (the route's 1,195 through beat 15, the AIM beats' 114
