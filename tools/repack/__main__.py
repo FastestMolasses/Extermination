@@ -51,6 +51,30 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--toolchain-root", type=Path, help="checkout containing the local compiler tools")
     p.add_argument("--require-original", action="store_true", help="fail unless the whole image matches the unpacked reference")
     p.add_argument("--resume", action="store_true", help="resume a failed overlay link after validating its existing fresh build")
+    p = commands.add_parser("texture-unpack", help="decode texture uploads to reversible PNGs")
+    p.add_argument("--input", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--preset", choices=("title", "warning", "logos"))
+    p.add_argument("--tex0", type=lambda value: int(value, 0), action="append")
+    p = commands.add_parser("texture-pack", help="encode edited PNGs into their native upload template")
+    p.add_argument("--tree", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--quantize", choices=("exact", "nearest"), default="exact")
+    p = commands.add_parser("audio-unpack", help="decode native sample banks or mono clips to PCM16 WAV")
+    p.add_argument("--input", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--kind", choices=("auto", "sshd", "raw", "vag"), default="auto")
+    p.add_argument("--rate", type=int, default=48000)
+    p = commands.add_parser("audio-pack", help="preserve unchanged ADPCM and encode edited WAV samples")
+    p.add_argument("--tree", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p = commands.add_parser("table-unpack", help="decode a native message table to editable JSON")
+    p.add_argument("--input", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--kind", choices=("auto", "bank", "outer"), default="auto")
+    p = commands.add_parser("table-pack", help="apply fixed-length message edits to native table bytes")
+    p.add_argument("--tree", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "inventory":
@@ -105,6 +129,27 @@ def main(argv: list[str] | None = None) -> int:
                 "DATA/DATA.DAT": out / "DATA.DAT", "DATA/INDEX.IDX": out / "INDEX.IDX",
             })
             print(json.dumps({"archive": packed, "iso": iso_summary(disc, out / "Extermination.iso")}, indent=2))
+        elif args.command.startswith("texture-"):
+            from . import textures
+            if args.command == "texture-unpack":
+                result = textures.unpack(args.input, args.out, tex0=args.tex0, preset=args.preset)
+            else:
+                result = textures.pack(args.tree, args.out, quantize=args.quantize)
+            print(json.dumps(result, indent=2))
+        elif args.command.startswith("audio-"):
+            from . import audio
+            if args.command == "audio-unpack":
+                result = audio.unpack_audio(args.input, args.out, kind=args.kind, rate=args.rate)
+            else:
+                result = audio.pack_audio(args.tree, args.out)
+            print(json.dumps(result, indent=2))
+        elif args.command.startswith("table-"):
+            from . import tables
+            if args.command == "table-unpack":
+                result = tables.unpack_table(args.input, args.out, kind=args.kind)
+            else:
+                result = tables.pack_table(args.tree, args.out)
+            print(json.dumps(result, indent=2))
         elif args.command == "build-disc":
             from . import source_build
             out, tree = output_path(args.out), args.tree.resolve()
