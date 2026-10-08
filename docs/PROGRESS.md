@@ -746,9 +746,17 @@ Next, in rough priority order:
 9. **IOP inventory** — census the disc's `IRX/` modules (stock Sony SDK vs
    custom), and pin the IOP sound-RPC driver contract (the SIF RPC 0x64
    path; its wedge behavior bit us in s29).
-10. **Repacker track** (deferred end-state, per CLAUDE.md) — byte-identical
-    `DATA.DAT`/`INDEX.IDX` + stream repackers so loose edited assets rebuild
-    the original game.
+10. **Repacker track** — implemented in `tools/repack/`; see
+    [REPACK.md](REPACK.md) and [the complete disc inventory](REPACK_INVENTORY.md).
+    Original DATA/INDEX and the full original ISO round-trip byte-identically
+    from loose files. Corrected resident labels yield 674 spans; all 43 disc
+    files also match through an independent UDF reader. Same-size edits and
+    sector-sized growth/shrink are tested, including ISO9660 and UDF metadata
+    updates. Streams/opaque files are copied intact. Remaining: native asset
+    format encoders, adding/removing archive entries, stream cue-table edits,
+    and the optional real-mod PCSX2 boot. The supplied rebuilt ISO differs
+    from the original only in boot ELF packaging; original-length primary
+    load bytes match after aligning the ELF file offsets.
 
 (The older mid-file "Project at a glance" / "Status" / "Roadmap" sections
 below are kept as historical record; this block supersedes them.)
