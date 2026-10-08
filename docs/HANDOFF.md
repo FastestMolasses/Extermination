@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-07 (Claude, s87).** This is the short cross-repo entry point.
+**Current as of 2026-10-08 (Claude, s87).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -60,11 +60,26 @@ that is a different, stale tree.
   targets for nine suites, target-hit quick mode, stale counted-gap notes, STARTUP
   re-exports; 6b16556: SECOND_LEVEL_CENSUS §12, 56 live, a01_s3 / a01_s4 pass; 9d221f8);
   worktree and branch removed, receipts in port build/level2-crashes and build/crashmerge.
-  On main no recorded replay or exploration probe faults in game code (port
-  docs/LEVEL2_CRASHES.md "Status on main after the merge"). Next: the a01_01 harness's
-  first-command lag (the checker stops at a01_01 row 3, so a01_01..a01_07 are not compared
-  yet), the water/ladder probes' waypoints (ROUTE-BLOCKED), a01_07's drift before the exit,
-  then the chain's CHECK step (journal copy build/workflows/level2-playable.partial.json).
+  **Level-2 check (2026-10-08, port 4207f43..f6922a3):** the full verification set ran
+  once (every make test-*, test-level-smoke-full, -ps2-drive): all passed except
+  test-area-load-reference (the model bank refused AREA11's relocated table; now seated at
+  the loader's word) and four tests whose source lists the level-2 merges broke (repaired).
+  Play-testing AREA01 (port docs/LEVEL2_CRASHES.md "Level-2 check") found and fixed five
+  reachable faults: shots near a floor field (001A8CE0 translated), the shaft-landing
+  stairs (surface 0x35: the EMCL grid axis now carried), Use at the locked shaft door
+  (D_002821B0 served from the live message block), shimmying while hanging (001784E0 /
+  0017E6E0 / 0017F1C0 / 0017F130 translated, the hang sound bound) and the level exit
+  (AREA00 sub 0 in the module pack); also the camera seed's fourth lane (a01_s0's whole
+  camera) and the harness's first-command latency (read per recording). Now compared row
+  for row: a01_00, a01_01, a01_02 (stairs), a01_s0 (switch), a01_s3, a01_s4 (switch),
+  a01_s6; a01_03 to f956 (a voice line then ends a frame early); census §13: 64 live. The
+  exploration fixture (31 cases incl. ledge, shaft, shimmy, crates) completes with no fault
+  except a01_07, which stops at the AREA00 load's completion (level 3's assets). Still
+  faulting: the save terminal's Yes (00225AC0, module 0x2A memory-card screens: needs a
+  user decision on card storage). Next: the AREA00 arrival (level 3's EXIT-style step:
+  world texture catalog, shadow receivers, binding), the voice-line end timing under the
+  drive switch (a01_03 f957, a01_05 f3836), AREA01 page-load timings (a01_s1/s2/s5), a bug
+  hit, then the chain's CHECK step (journal build/workflows/level2-playable.partial.json).
 - **iOS:** merged into main (841fc99); build and run from the port root with
   tools/ios/build.sh run (docs/IOS.md); free-team signing expires every 7 days.
 - **First level:** CAMERAS (c11-t3) and GSFRAME (c11-t2) approved but not merged; then
