@@ -95,8 +95,19 @@ that is a different, stale tree.
   its cited receipts are in build/repack (loose/ and streams/ regenerate via unpack-disc).
 - **iOS:** merged into main (841fc99); build and run from the port root with
   tools/ios/build.sh run (docs/IOS.md); free-team signing expires every 7 days.
-- **First level:** CAMERAS (c11-t3) and GSFRAME (c11-t2) approved but not merged; then
-  TAKEOVERS, GLUE, OPTIONS, AUDIO, ROUTE (see below).
+- **First level:** CAMERAS (c11-t3) merged on 2026-10-08 (port merge a1f7873, follow-up
+  62255fa: the scratch-alias test calls the AREA01 forwarders by their merged names).
+  Resolution: 0022EEF0's cue and event tracks are em_cinematic_playback_events, then the
+  sampler and main's shared post-sample core (AREA11's script host keeps the timeline
+  globals, now also D_00275C98); camera actions 9 / 10 / 11 / 14 are bound while the
+  camera has no AREA01 worker, AREA01 keeps its forwarding of 001B0300 / 00198D90 /
+  001D2830; census section 1.61 (the branch's 1.57) recounted from the rows: live 918 of
+  956 (118,433 of 120,964 instructions), route through beat 15 740 of 766. Full
+  verification once after it: all 336 other make test-* targets, test-level-smoke-full
+  and -ps2-drive PASS (test-area01-scratch-alias after 62255fa); level-2 phases (a01_00..
+  a01_02, a01_s3 / s6, a01_s0 / s4 with the drive switch) PASS; tools/ios/build.sh device
+  builds. Worktree ../extermination-port-t3 and branch c11-t3 removed. Next: GSFRAME
+  (c11-t2, approved), then TAKEOVERS, GLUE, OPTIONS, AUDIO, ROUTE (see below).
 
 ## State (2026-10-02)
 - **First level:** after C9 (PIXELS, AREALOAD, PAGELOADS) and C10/C10b/C10c: EM_NEW_GAME=1
@@ -126,15 +137,12 @@ that is a different, stale tree.
   startup/game_over.emui (export_game_over.py). The title's load screen (dmg_05) stays
   missing for the OPTIONS step; the fan's hit (dmg_08) is not replayed yet.
   T1 BRANCHES (merge 3d482f6, audit 1b item 16) is merged too.
-- **Approved but NOT merged yet — do this first:** CAMERAS (branch c11-t3 in
-  ../extermination-port-t3: ef21467, 98ff876, a3d6494; review 3 approved) and GSFRAME (branch
-  c11-t2 in ../extermination-port-t2: 3b0d900, a3c2bb4; review 2 approved). Their commit
-  agents found nothing to stage (the implementers had already committed in the worktree),
-  so the script never integrated them. Merging c11-t3 into main conflicts in
-  em_area11_script_host.c (keep both includes), FIDELITY_FEATURES.md, FIRST_LEVEL_AUDIT.md
-  and FIRST_LEVEL_CENSUS.md (both sides wrote a section 1.57 and recounted totals:
-  renumber and recount from the rows); then the full verification (every make test-*,
+- **Approved but NOT merged yet — do this first:** GSFRAME (branch c11-t2 in
+  ../extermination-port-t2: 3b0d900, a3c2bb4; review 2 approved); its commit agent found
+  nothing to stage (the implementer had already committed in the worktree), so the script
+  never integrated it. Then the full verification (every make test-*,
   test-level-smoke-full, -ps2-drive, newgame-control, test-cutscene-skip) per merge.
+  CAMERAS (c11-t3) is merged (2026-10-08, port a1f7873; above).
 - **Not started:** TAKEOVERS, GLUE (track T1), OPTIONS (incl. the title's load screen,
   dmg_05), AUDIO (track T3), then ROUTE on main. Regenerate the parallel script with
   make_c11.py (third argument: the merged keys) or run them as a short chain; remove the
