@@ -4,6 +4,7 @@
 iso/
 disc/
 extract/
+/extract
 wav/
 voice/
 music/
@@ -74,6 +75,7 @@ build/overlays/
 */trivial.c
 */trivial_objects.txt
 .venv/
+/.venv
 .splache/
 
 # === Local scratch ===

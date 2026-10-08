@@ -1,6 +1,6 @@
 # Modding Extermination — The Current Surface
 
-What you can actually change today, and with which tools. Two surfaces:
+What you can actually change today, and with which tools. Three surfaces:
 
 1. **Code modding** — edit matched C in `src/`, rebuild the boot ELF, repack
    your ISO, run in PCSX2. Current coverage: `tools/verify_all.py` (match stage)
@@ -9,11 +9,15 @@ What you can actually change today, and with which tools. Two surfaces:
    open interchange formats (EMDL/EMCL/EMFN/EMUI), compose scenes with a
    plain-text manifest, and run them natively in the sibling
    `extermination-port/` (macOS Cocoa+Metal, zero dependencies).
+3. **PS2 archive modding** — `python3 -m tools.repack` unpacks the user's
+   disc into a lossless ISO tree and correctly labelled DATA/INDEX loose
+   files, then rebuilds both containers and the ISO. See [REPACK.md](REPACK.md)
+   for exact commands, sector-aligned size changes, and format limits.
 
-There is **no asset repacker yet**: edited assets do not flow back into the
-PS2 game. Asset modding today means the native port. Repacking
-(`DATA.DAT`/`INDEX.IDX` rebuild) is a deferred roadmap item
-(`docs/PROGRESS.md`, "Current roadmap" item 10).
+The repacker preserves native asset bytes; it does not convert edited
+EMDL/EMCL/glTF files back to PS2 formats. Same-size binary edits are supported;
+size changes require the archive's sector alignment and a valid native payload.
+Streams and opaque disc files are copied as-is by the documented workflow.
 
 **Legal frame (CLAUDE.md hard rules):** every exporter ingests only the
 user's own disc dump / PCSX2 save states; all outputs land in git-ignored
@@ -37,8 +41,12 @@ Setup (container, compiler, splat) is unchanged — follow
 
 Current state:
 
-- The rebuilt boot ELF and all **19 overlays are byte-identical** to the
-  original; the repacked ISO equals the original disc image.
+- The build's verification gate checks the boot ELF and all **19 overlays**
+  against the original. Do not infer whole-ISO equality from that gate:
+  the 2026-10-07 repacker audit found the supplied `Extermination-rebuilt.iso`
+  differed from the user's original image only within `SCUS_971.12`
+  (1,246,308 differing bytes). [REPACK.md](REPACK.md) records both hashes.
+  Use the original disc image as the lossless rebuild reference.
 - **Every function is a committed unit** in `src/` — either matched C
   (objdiff 100%) or an `INCLUDE_ASM` stub whose bytes come from locally
   assembled splat `.s` (`build/filler/`). Editing a stubbed function means
@@ -195,12 +203,14 @@ Levels without a texture source fall back to gray sheets.
 
 ## 7. What's NOT moddable yet
 
-- **No repack into the PS2 game** — asset edits run in the port only.
+- **No inverse native-port format conversion** — the archive repacker
+  rebuilds native PS2 payloads, but Blender/glTF/EMDL edits still need an
+  encoder into the original asset format. Container round trips do not
+  establish that an arbitrary edited payload will load in the game.
 - **The port covers the first level only** (and is being made exactly
   original there); what it reproduces and what is still missing is tracked in
   the port's `docs/FIDELITY_FEATURES.md` and `docs/FIRST_LEVEL_AUDIT.md`, not
   here.
 
-_Reviewed 2026-09-27: stale counts, office-scene defaults and the retired test
-fixtures removed; §2 exporters, §3 formats and §6 glTF are unchanged from the
-s35 text._
+_Reviewed 2026-10-07: added the lossless PS2 archive/ISO workflow and corrected
+the current ISO-equality claim; native-port exporter formats are unchanged._
