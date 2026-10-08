@@ -265,12 +265,111 @@ def _without_hashes(value):
     return value
 
 
-def pack_archive(tree_dir: Path, out_data: Path, out_index: Path) -> dict:
-    """Rebuild the archive, updating all descriptor spans after sector-size edits.
 
-    Asset formats inside loose files remain the editor's responsibility. Counts,
-    identities and ordering are fixed. A file's length delta must be a multiple
-    of 0x800; silent padding would make the next unpack differ from the edit.
+def _additions(tree: Path, regions: list[dict], raw: bytes) -> tuple[dict[str, list[dict]], Path | None]:
+    path = tree / "edits.json"
+    if path.is_symlink():
+        raise ArchiveError("archive edit metadata must not be a symlink")
+    if not path.exists():
+        return {}, None
+    path = _input(tree, "edits.json")
+    edits = json.loads(path.read_text())
+    if not isinstance(edits, dict) or set(edits) != {"schema", "additions"} or edits["schema"] != "extermination-archive-edits-v1":
+        raise ArchiveError("invalid archive edits schema")
+    if not isinstance(edits["additions"], list):
+        raise ArchiveError("archive additions must be a list")
+    by_label = {r["label"]: r for r in regions}
+    result = {}
+    for edit in edits["additions"]:
+        if not isinstance(edit, dict) or set(edit) != {"region", "id", "path"}:
+            raise ArchiveError("invalid archive addition")
+        if not isinstance(edit["region"], str):
+            raise ArchiveError("archive addition region must be a label")
+        region = by_label.get(edit["region"])
+        if region is None or not region["entries"]:
+            raise ArchiveError("new entries require an existing resident file table")
+        group = result.setdefault(region["label"], [])
+        ident = edit["id"]
+        if type(ident) is not int or not 0 <= ident <= 255:
+            raise ArchiveError("new resident ID must fit one byte")
+        if ident in {e["id"] for e in region["entries"] + group}:
+            raise ArchiveError("new resident ID duplicates a role already in the region")
+        ordinal = len(region["entries"]) + len(group)
+        expected = f"{region['label']}/f{ordinal:02d}_id{ident:02x}.bin"
+        if edit["path"] != expected:
+            raise ArchiveError("new resident path does not match its table ordinal and ID")
+        capacity = NESTED_STRIDE if region["nested"] is not None else NESTED_BASE if region["nested_count"] else SECTOR
+        position = region["file_table_offset"] + ordinal * 4
+        if position + 4 > region["descriptor_offset"] + capacity:
+            raise ArchiveError("new resident entry exceeds the fixed INDEX descriptor slot")
+        if any(raw[position:position + 4]):
+            raise ArchiveError("new resident entry would overwrite nonzero unknown INDEX bytes")
+        _input(tree, expected)
+        group.append(dict(path=expected, kind="resident", id=ident, table_offset=position))
+    return result, path
+
+
+def add_entry(tree_dir: Path, region_label: str, ident: int, source: Path) -> dict:
+    """Append a resident role entry using verified zero slack in its INDEX slot."""
+    tree = safe_output(tree_dir)
+    manifest = json.loads(_input(tree, "manifest.json").read_text())
+    raw = _input(tree, manifest["index_template"]).read_bytes()
+    if hashlib.sha256(raw).hexdigest() != manifest["index_sha256"]:
+        raise ArchiveError("index template changed")
+    regions, _ = parse_index(raw, manifest["data_size"])
+    additions, edit_path = _additions(tree, regions, raw)
+    region = next((r for r in regions if r["label"] == region_label), None)
+    if region is None or not region["entries"]:
+        raise ArchiveError("choose a region with an existing resident file table")
+    if type(ident) is not int or not 0 <= ident <= 255:
+        raise ArchiveError("new resident ID must fit one byte")
+    ordinal = len(region["entries"]) + len(additions.get(region_label, []))
+    relative = f"{region_label}/f{ordinal:02d}_id{ident:02x}.bin"
+    if (tree / relative).is_symlink():
+        raise ArchiveError("new resident destination must not be a symlink")
+    target = safe_output(tree / relative)
+    if not target.is_relative_to(tree):
+        raise ArchiveError("new resident destination escapes the tree")
+    if target.exists():
+        raise ArchiveError("new resident destination already exists")
+    source = Path(source).resolve()
+    if not source.is_file() or source.stat().st_size == 0:
+        raise ArchiveError("new resident source must be a nonempty file")
+    edits = json.loads(edit_path.read_text()) if edit_path else dict(schema="extermination-archive-edits-v1", additions=[])
+    edit = dict(region=region_label, id=ident, path=relative)
+    edits["additions"].append(edit)
+    old_edits = edit_path.read_bytes() if edit_path else None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("xb") as stream:
+        stream.write(source.read_bytes())
+    destination = tree / "edits.json"
+
+    def replace_edits(data):
+        fd, name = tempfile.mkstemp(prefix=".edits-", dir=tree)
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(data)
+            os.replace(name, destination)
+        finally:
+            Path(name).unlink(missing_ok=True)
+
+    try:
+        replace_edits((json.dumps(edits, indent=2) + "\n").encode())
+        _additions(tree, regions, raw)
+    except BaseException:
+        target.unlink()
+        if old_edits is None:
+            destination.unlink(missing_ok=True)
+        else:
+            replace_edits(old_edits)
+        raise
+    return edit
+
+def pack_archive(tree_dir: Path, out_data: Path, out_index: Path) -> dict:
+    """Rebuild byte-sized edits and appended resident entries with aligned transfers.
+
+    Alignment is explicit padding outside payload spans. Asset-internal offsets
+    remain the editor's responsibility; ambiguous interior DMA boundaries reject.
     """
     tree = Path(tree_dir).resolve()
     manifest_path = _input(tree, "manifest.json")
@@ -287,10 +386,11 @@ def pack_archive(tree_dir: Path, out_data: Path, out_index: Path) -> dict:
     if (_without_hashes(manifest.get("regions")) != regions
             or _without_hashes(manifest.get("data_layout")) != layout):
         raise ArchiveError("manifest structure changed; edit loose files, not descriptor metadata")
+    additions, edit_path = _additions(tree, regions, raw)
     index = bytearray(raw)
     by_label = {region["label"]: region for region in regions}
     sizes = {}
-    inputs = [manifest_path, template_path]
+    inputs = [manifest_path, template_path] + ([edit_path] if edit_path else [])
     source_paths = manifest.get("source_paths", {})
     if not isinstance(source_paths, dict):
         raise ArchiveError("invalid original source paths in manifest")
@@ -304,64 +404,88 @@ def pack_archive(tree_dir: Path, out_data: Path, out_index: Path) -> dict:
     ordered = []
     for region in regions:
         ordered.extend(region["files"])
+        ordered.extend(additions.get(region["label"], []))
     ordered.extend(item for item in layout if item["kind"] == "gap")
     for span in ordered:
         source = _input(tree, span["path"])
         inputs.append(source)
         size = source.stat().st_size
-        if (size - span["size"]) % SECTOR:
-            raise ArchiveError(f"{span['path']}: size change must be a multiple of 0x800 bytes")
         if size == 0:
             raise ArchiveError(f"{span['path']}: removing a loose span is unsupported")
         sizes[span["path"]] = size
-        if size != span["size"]:
-            changed_files.append(dict(path=span["path"], old_size=span["size"], new_size=size))
+        if size != span.get("size", 0):
+            changed_files.append(dict(path=span["path"], old_size=span.get("size", 0), new_size=size))
     out_data, out_index = safe_output(out_data), safe_output(out_index)
     _distinct_outputs([out_data, out_index], inputs)
 
     def region_map(region: dict):
-        boundaries = {0: 0}
-        cursor = 0
+        starts, ends = {0: 0}, {0: 0}
+        cursor, spans = 0, []
         for span in region["files"]:
-            boundaries[span["offset"]] = cursor
+            if span["kind"] in ("sound", "transient") or span["offset"] == region["resident_offset"]:
+                padding = (-cursor) % SECTOR
+                if padding:
+                    spans.append(dict(zero=padding))
+                    cursor += padding
+            starts[span["offset"]] = cursor
+            spans.append(span)
             cursor += sizes[span["path"]]
-            boundaries[span["offset"] + span["size"]] = cursor
+            ends[span["offset"] + span["size"]] = cursor
+        starts.setdefault(region["size"], cursor)
+        ends.setdefault(region["size"], cursor)
 
-        def remap(offset: int) -> int:
+        def remap(offset: int, *, end=False) -> int:
+            boundaries = ends if end else starts
             if offset in boundaries:
                 return boundaries[offset]
             for span in region["files"]:
                 if span["offset"] < offset < span["offset"] + span["size"]:
                     if sizes[span["path"]] != span["size"]:
                         raise ArchiveError(f"{span['path']}: resized span contains an interior section boundary")
-                    return boundaries[span["offset"]] + offset - span["offset"]
+                    return starts[span["offset"]] + offset - span["offset"]
             raise ArchiveError("descriptor boundary is outside its loose spans")
 
-        return remap, cursor
+        for span in additions.get(region["label"], []):
+            span["rebuilt_offset"] = cursor
+            spans.append(span)
+            cursor += sizes[span["path"]]
+        return remap, cursor, spans
 
     cursor = 0
     write_order = []
     moved_regions = []
     data_boundaries = {0: 0}
     for item in layout:
-        data_boundaries[item["offset"]] = cursor
         if item["kind"] == "gap":
+            data_boundaries[item["offset"]] = cursor
             write_order.append(item)
             cursor += sizes[item["path"]]
             data_boundaries[item["offset"] + item["size"]] = cursor
             continue
+        padding = (-cursor) % SECTOR
+        if padding:
+            write_order.append(dict(zero=padding))
+            cursor += padding
+        data_boundaries[item["offset"]] = cursor
         region = by_label[item["label"]]
-        remap, size = region_map(region)
+        remap, size, spans = region_map(region)
         resident = remap(region["resident_offset"])
         at = region["descriptor_offset"]
-        if cursor % SECTOR or (cursor + resident) % SECTOR:
-            raise ArchiveError(f"{region['label']}: rebuilt transfer is not sector aligned")
+        if resident % SECTOR:
+            # An upload-only region's empty resident base is still a sector
+            # anchor. Its trailing padding belongs to the descriptor itself.
+            if region["resident_offset"] != region["size"]:
+                raise ArchiveError(f"{region['label']}: rebuilt resident start is not sector aligned")
+            padding = (-resident) % SECTOR
+            spans.append(dict(zero=padding))
+            resident += padding
+            size += padding
         _put32(index, at + 4, cursor)
         _put32(index, at + 8, size)
         _put32(index, at + 20, resident)
         for section in region["sections"]:
             start = remap(section["span_offset"])
-            end = remap(section["span_offset"] + section["size"])
+            end = start if section["size"] == 0 else remap(section["span_offset"] + section["size"], end=True)
             if section["offset_mode"] == "block_relative":
                 if start % SECTOR:
                     raise ArchiveError("rebuilt upload is not sector aligned")
@@ -374,11 +498,25 @@ def pack_archive(tree_dir: Path, out_data: Path, out_index: Path) -> dict:
             if relative > 0xFFFFFF:
                 raise ArchiveError(f"{region['label']}: resident relocation exceeds the 24-bit limit")
             _put32(index, entry["table_offset"], entry["id"] << 24 | relative)
+        extra = additions.get(region["label"], [])
+        for entry in extra:
+            relative = entry["rebuilt_offset"] - resident
+            if relative > 0xFFFFFF:
+                raise ArchiveError(f"{region['label']}: new resident offset exceeds the 24-bit limit")
+            _put32(index, entry["table_offset"], entry["id"] << 24 | relative)
+        _put32(index, at + 0x1C, len(region["entries"]) + len(extra))
         if region["offset"] != cursor or region["size"] != size:
             moved_regions.append(dict(label=region["label"], offset=cursor, size=size))
         cursor += size
         data_boundaries[item["offset"] + item["size"]] = cursor
-        write_order.extend(region["files"])
+        write_order.extend(spans)
+    # Keep the physical DATA file sector sized; the last leaf's exact length
+    # remains in its region size, with any new tail a separate padding span.
+    padding = (-cursor) % SECTOR
+    if padding:
+        write_order.append(dict(zero=padding))
+        cursor += padding
+    data_boundaries[manifest["data_size"]] = cursor
     if cursor > 0xFFFFFFFF:
         raise ArchiveError("DATA.DAT exceeds the 32-bit archive size limit")
     # Empty top descriptors can still point at the first nested region. Keep
@@ -407,6 +545,11 @@ def pack_archive(tree_dir: Path, out_data: Path, out_index: Path) -> dict:
             pending.append(Path(name))
         with pending[0].open("wb") as output:
             for span in write_order:
+                if "zero" in span:
+                    block = bytes(span["zero"])
+                    output.write(block)
+                    data_digest.update(block)
+                    continue
                 with _input(tree, span["path"]).open("rb") as source:
                     _copy_span(source, output, sizes[span["path"]], data_digest)
                     if source.read(1):
@@ -420,4 +563,4 @@ def pack_archive(tree_dir: Path, out_data: Path, out_index: Path) -> dict:
     return dict(data_path=str(out_data), index_path=str(out_index), data_size=cursor,
                 index_size=len(index), data_sha256=data_digest.hexdigest(),
                 index_sha256=hashlib.sha256(index).hexdigest(), resized_files=changed_files,
-                moved_regions=moved_regions)
+                moved_regions=moved_regions, added_entries=sum(map(len, additions.values())))

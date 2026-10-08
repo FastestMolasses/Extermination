@@ -12,12 +12,13 @@ What you can actually change today, and with which tools. Three surfaces:
 3. **PS2 archive modding** — `python3 -m tools.repack` unpacks the user's
    disc into a lossless ISO tree and correctly labelled DATA/INDEX loose
    files, then rebuilds both containers and the ISO. See [REPACK.md](REPACK.md)
-   for exact commands, sector-aligned size changes, and format limits.
+   for source builds, PNG/WAV/JSON editing, byte-sized growth, new resident
+   entries, and format limits.
 
-The repacker preserves native asset bytes; it does not convert edited
-EMDL/EMCL/glTF files back to PS2 formats. Same-size binary edits are supported;
-size changes require the archive's sector alignment and a valid native payload.
-Streams and opaque disc files are copied as-is by the documented workflow.
+The repacker supports reversible textures, audio samples and message tables.
+Archive alignment padding is rebuilt around exact edited payload lengths.
+EMDL/EMCL/glTF conversion back to native model packets and cue-stream editing
+remain future work; opaque files and stream movies are preserved.
 
 **Legal frame (CLAUDE.md hard rules):** every exporter ingests only the
 user's own disc dump / PCSX2 save states; all outputs land in git-ignored
@@ -26,17 +27,61 @@ disc-derived is ever committed or redistributed.
 
 ---
 
+## Quick PS2 asset-mod walkthrough
+
+Run from the repack checkout on **native arm64 macOS**. The editors use Python;
+the final source build needs the project's installed Apple container toolchain.
+All disc-derived material remains local under ignored `build/repack/`.
+
+```sh
+export PYTHONDONTWRITEBYTECODE=1
+python3 -m tools.repack unpack-disc \
+  --iso '/Users/abe/Documents/PS2 Games/Extermination (USA).iso' \
+  --out build/repack/loose
+python3 -m tools.repack texture-unpack \
+  --input build/repack/loose/archive/chunk01/transient00.bin \
+  --out build/repack/title --preset title
+# In a PNG editor, recolor palette004.png; preserve its alpha and dimensions.
+python3 -m tools.repack texture-pack --tree build/repack/title \
+  --out build/repack/title-edited.bin
+cp build/repack/title-edited.bin build/repack/loose/archive/chunk01/transient00.bin
+.venv/bin/python -m tools.repack build-disc \
+  --tree build/repack/loose --out build/repack/my-mod
+.venv/bin/python -m tools.repack proof-title \
+  --iso build/repack/my-mod/Extermination.iso --out build/repack/my-mod-proof
+```
+
+`my-mod-proof/title.png` shows the cold-booted game. The proof command runs hidden
+with private, disabled memory cards, saves only to private slot 16 and shuts down.
+For a clean baseline, run `build-disc --require-original` before editing. Use a
+fresh output directory per build. [REPACK.md](REPACK.md) gives WAV and table JSON
+commands, exact limits, native format details, provenance and test results.
+The matching source build still uses local unmatched assembly/data; it does not
+claim the game is fully decompiled to C.
+
+The 2026-10-08 proof used this workflow: the source-built baseline equaled the
+original ISO, and the magenta NEW GAME mod changed only 43 disc bytes. Its hidden
+cold boot reached the title screen; the before/after screenshots and receipts
+are under `build/repack/`. The isolated mod tree and temporary edited ISO were
+removed afterward, with canonical assets, memory cards and protected saves intact.
+
 ## 1. Code modding (the decomp dev loop)
 
 Setup (container, compiler, splat) is unchanged — follow
-`textbook/12-how-to-contribute.md` and `textbook/05`–`08` once. The loop:
+`textbook/12-how-to-contribute.md` and `textbook/05`–`08` once. Intentional code
+changes use a dedicated decomp checkout and its shared build-lock protocol.
+The legacy patcher writes its ISO in place: pass an explicit private copy.
+Do not run this loop in the repack worktree, whose default rebuilt-ISO path is
+a link to the main checkout. Use the isolated asset-build command above there.
 
 ```bash
-# macOS-arm64 — edit, then:
+# macOS-arm64, dedicated decomp checkout — after editing and acquiring its lock:
+mkdir -p build/repack
+cp '/Users/abe/Documents/PS2 Games/Extermination (USA).iso' build/repack/code-mod.iso
 .venv/bin/python tools/decomp/build.py build && \
 .venv/bin/python tools/decomp/link.py && \
-.venv/bin/python tools/decomp/repack_iso.py
-# boot Extermination-rebuilt.iso in PCSX2
+.venv/bin/python tools/decomp/repack_iso.py --iso build/repack/code-mod.iso
+# Release the lock; use the private code-mod.iso for testing.
 ```
 
 Current state:
@@ -47,10 +92,11 @@ Current state:
   differed from the user's original image only within `SCUS_971.12`
   (1,246,308 differing bytes). [REPACK.md](REPACK.md) records both hashes.
   Use the original disc image as the lossless rebuild reference.
-- **Every function is a committed unit** in `src/` — either matched C
-  (objdiff 100%) or an `INCLUDE_ASM` stub whose bytes come from locally
-  assembled splat `.s` (`build/filler/`). Editing a stubbed function means
-  decompiling it first (the contribute textbook covers the matching loop).
+- Boot functions can link from ordinary C, inline assembly, or explicitly
+  retained original assembly for stubs, near misses and source-missing slots.
+  Use `tools/decomp/audit_link_provenance.py` to inspect actual link routes.
+  Editing a stubbed function means decompiling it first (the contribute
+  textbook covers the matching loop).
 - Current matched/near-miss counts: `tools/verify_all.py` (after a fresh
   `tools/decomp/build.py build`) and `docs/PROGRESS.md`. Mapping intent →
   function: `docs/SUBSYSTEMS.md` (game functions labeled by subsystem),
@@ -212,5 +258,5 @@ Levels without a texture source fall back to gray sheets.
   the port's `docs/FIDELITY_FEATURES.md` and `docs/FIRST_LEVEL_AUDIT.md`, not
   here.
 
-_Reviewed 2026-10-07: added the lossless PS2 archive/ISO workflow and corrected
-the current ISO-equality claim; native-port exporter formats are unchanged._
+_Reviewed 2026-10-08: source-disc builds, reversible PNG/WAV/JSON edits, archive
+growth and the hidden original-game texture proof; port formats remain unchanged._

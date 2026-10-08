@@ -35,9 +35,11 @@ boot ELF.
 
 ## Commands
 
-These tools use standard-library Python on **native arm64 macOS**. The same
-commands work on Linux with Python 3.10 or newer; no Rosetta, compiler,
-container, emulator, mounted disc, or external Python package is needed.
+The archive, ISO and asset editors use standard-library Python on **native
+arm64 macOS** or Linux (Python 3.10+). `build-disc` additionally uses the
+existing project virtual environment, compiler installations and Apple
+`container` image `exterm-permuter` (x86_64 Linux); `proof-title` uses the
+local Apple Silicon PCSX2 build. Neither editor requires Pillow or Rosetta.
 Run from the repack checkout:
 
 ```sh
@@ -85,8 +87,8 @@ python3 -m tools.repack pack-iso \
 `unpack-iso --iso IMAGE --out TREE` also exposes every disc file without
 unpacking DATA/INDEX. `pack-iso --tree TREE --out IMAGE` rebuilds that tree.
 `pack-disc` always takes DATA/INDEX from the archive tree; edit other disc
-files in `loose/iso/files/`. Rebuilt ELF/overlay files can be placed there
-explicitly, after their own decomp verification.
+files in `loose/iso/files/`. It preserves the loose boot and overlay files.
+Use `build-disc` below to compile and link all executables afresh.
 
 ## Archive format and corrected labels
 
@@ -205,13 +207,38 @@ Same-size byte edits preserve placement. A changed payload byte changes
 that DATA byte; INDEX and unrelated bytes remain unchanged. No-op packing
 retains descriptor slack and padding verbatim, including nonzero bytes.
 
-Size-changing edits must preserve **2,048-byte alignment**. The CD reader
-addresses sectors; arbitrary byte growth would silently load the wrong
-data. Append or remove complete sectors while keeping the asset itself
-valid. The packer moves subsequent regions, fixes their absolute offsets,
-updates region lengths, resident starts, upload section bounds, and
-resident relocation offsets. Table counts stay fixed because adding or
-removing descriptors or table entries is outside this version's scope.
+Resident leaves and upload sections may grow or shrink by **individual bytes**.
+The packer aligns each physical region, upload start and resident base to 2,048
+bytes, inserting explicit zero padding outside asset spans. Region lengths and
+resident relocations retain exact byte lengths; a second unpack recovers the
+edited payload exactly. All subsequent absolute offsets, resident starts,
+section offsets/sizes and empty-descriptor anchors are updated. Existing padding
+bytes remain in order; padding files can expand when they absorb new alignment.
+An interior DMA boundary within a resized leaf is ambiguous and is rejected.
+Container byte alignment alone does not prove a valid game asset: preserve any
+4/16-byte alignment, internal pointers and memory-budget requirements of the
+asset being edited and the leaves that follow it.
+
+`add-entry` appends a resident role to an existing region, updates its file count
+at `+0x1c`, and writes a new offset/ID relocation. The new word must fit the
+fixed INDEX descriptor slot and overwrite only zero slack. Duplicate role IDs,
+removal, new descriptors, new upload groups, and recursive nesting are not
+supported. An entry being structurally valid does not bind it to game logic;
+the corresponding runtime consumer still needs to recognize its role ID.
+
+```sh
+python3 -m tools.repack add-entry --tree build/repack/loose/archive \
+  --region chunk04.n0 --id 0xfe --input build/repack/my-native-asset.bin
+python3 -m tools.repack pack --tree build/repack/loose/archive \
+  --out build/repack/with-new-entry
+```
+
+The original manifest stays immutable. Additions live in `edits.json` with schema
+`extermination-archive-edits-v1` and ordered `{region, id, path}` records. Use the
+command to populate them; the packer independently validates every field and the
+available original table slack. Re-unpacking produces an ordinary complete tree
+that needs no edit metadata and packs identically again.
+
 An edit must also fit the 24-bit resident offset and 32-bit container fields.
 Within the disc's UDF bridge, a resized DATA or INDEX must remain below
 1 GiB to fit its single recorded short allocation descriptor. Other UDF
@@ -223,9 +250,218 @@ and is never resized.
 Payload formats inside leaves remain the editor's responsibility. Native
 model, collision, sound-bank, DMA, and script data can contain their own
 lengths, offsets, or runtime memory constraints. Container relocation does
-not fix those internal structures or prove game compatibility. Streams
-and opaque files are copied as-is in the supported workflow. There is no
-inverse glTF/EMDL/EMCL encoder here, and no real-mod boot is claimed.
+not fix those internal structures or prove game compatibility. Stream movies and cue-based music/voice files remain intact. The supported
+editable formats and real-game proof are described below. Model inverse
+conversion remains future work: it needs native packet topology, material/TEX0
+references, VIF/VU uploads, vertex quantization, skinning/bone bindings and all
+internal relocation/size fields, plus original-game validation. A glTF or EMDL
+export alone does not retain everything needed to regenerate those bytes.
+
+## One-command build from source
+
+After `unpack-disc`, run on **native arm64 macOS**, with the Apple container
+service running (`container system start` if stopped) and the existing toolchain
+installed in the sibling main checkout:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m tools.repack build-disc \
+  --tree build/repack/loose --out build/repack/source-built --require-original
+```
+
+A fresh run uses a new output directory. It acquires the shared main-checkout
+`build/.decomp_build.lock` with a 10-second retry and releases it in `finally`.
+All compiler inputs are staged beneath the output's `source/workspace/`; all
+build writes stay there. The main checkout, its index, and its existing build
+products are not modified. `--toolchain-root PATH` can select the local compiler
+installation. The lock remains the shared project lock.
+
+The source driver uses `tools/decomp/build.py`'s unit selection, exact per-file
+compiler/flags and relocation injection, with four bounded compiler workers.
+It runs the canonical linker and provenance audit. The overlay driver compiles
+eligible source and freshly links all 19 overlays. Missing compiler objects or
+failed compiler commands fail the build before filler can conceal them.
+`source/source-build.json`, `source/boot-provenance.json`, and local stage logs
+record the inputs, objects, linking routes and output hashes. The overlay receipt
+separates selected compiled objects from compiled objects bypassed by the canonical
+split/link selection. This checkout compiles 443 overlay units; 16 renamed units
+are bypassed in favor of the canonical original-assembly pieces. Near misses are
+also explicitly retained as original assembly.
+
+Fresh splitting renames one AREA04 function while a compiled caller retains its
+old symbol. The driver restores that alias only when the tracked linker assignment
+and a fresh split function boundary independently corroborate its address. The
+repair affects generated staging files only; all overlay bytes are still checked.
+
+If a link fails after successful compilation, `--resume` validates the retained
+source/tool snapshot, original executable inputs, compiler receipts and object
+hash checkpoint before relinking all overlays. Other failures require a fresh
+output directory. The initial local recovery predates object checkpoints; its
+receipt explicitly distinguishes the validated present objects from a historical
+hash proof. Subsequent fresh builds always write that checkpoint.
+
+This is the current matching-decomp build, **not an all-C build**: unmatched
+functions, near misses, data, and overlay headers still use the user's original
+locally split assembly/data. Boot and overlay outputs are freshly linked; the
+ISO writer never substitutes the original executables for a failed build.
+
+The old rebuilt ISO's discrepancy was ELF packaging. The canonical linker emits
+128 extra zero alignment bytes after the original 1,530,624-byte LOAD range.
+The new packager verifies the entire original-length fresh LOAD, rejects short,
+nonzero-tail or differently addressed output, and removes only the verified
+128-byte zero tail. It places those fresh linked bytes inside the original
+2,000-byte nonloaded ELF envelope (headers, metadata and padding). The original
+boot file is then byte-identical without replacing compiled code with a copy.
+Overlay payloads similarly come from the fresh links, with their native headers.
+Current source builds require matching executable bytes; intentionally changing
+game code is outside this matching-only command.
+
+`build-disc` then packs the loose archive and whole ISO, including both ISO9660
+and UDF metadata. `build-disc.json` records the final SHA-256. `--require-original`
+fails if that hash differs from the unpacked original reference. Omit that flag
+when building edited assets.
+
+The 2026-10-08 completed source build produced the original 2,060,386,304-byte
+image exactly. An independent test rehashed both the user-owned original ISO
+and the actual rebuilt ISO: SHA-256
+`b6fdb617d2438d3bf1163553e46760365f056e5428030550943142f9c5cc6efe`.
+Its local receipt is `build/repack/source-built/build-disc.json`; the hash test
+log is `build/repack/source-full-test.log`. It freshly compiled 2,214 boot units
+and 443 overlay units, then verified the complete boot and all 19 overlays.
+The boot provenance has 1,664 ordinary-C functions, 482 inline-assembly functions
+and 864 retained original-assembly functions, including 58 missing-source slots.
+Of the compiled overlay objects, 427 are selected and 16 are bypassed as described
+above. These counts describe the local snapshot, not a promise about later source
+revisions.
+
+## Editable native formats
+
+Each decoder retains a hash-checked native template and layout manifest next to
+its standard files. Pack to a separate native output, verify it, then copy it
+into the loose archive. Do not edit templates or manifests.
+
+| Native content | Standard view | Supported edits and limits |
+|---|---|---|
+| Bounded GS texture uploads | PNG index sheets, plus RGBA textures and palette swatches for known TEX0s | PSMCT32 upload layout, PSMT8/PSMT4 sampling, CSM1 CLUTs; fixed dimensions and existing upload storage |
+| SShd sample banks; mono raw ADPCM or VAGp | Mono PCM16 WAV | Fixed sample count and preview rate; original loop/end flags, headers and padding preserved |
+| Message-bank and bare OUTER/TEXT tables | JSON `table.json` | Existing strings with identical native byte lengths; counts, markup and unknown bytes preserved |
+
+### Textures
+
+```sh
+python3 -m tools.repack texture-unpack \
+  --input build/repack/loose/archive/chunk01/transient00.bin \
+  --out build/repack/title --preset title
+# Edit a textureNNN.png or paletteNNN.png in a PNG editor.
+python3 -m tools.repack texture-pack --tree build/repack/title \
+  --out build/repack/title-edited.bin
+cp build/repack/title-edited.bin build/repack/loose/archive/chunk01/transient00.bin
+```
+
+Without a preset, every upload becomes `uploadNNN.indices.png`: grayscale values
+are native indices, not guessed colors. This reversible index view covers all
+113 observed transfers in 63 loose leaves. `--tex0 0x...` (repeatable) adds a
+specific audited PSMT8/PSMT4 view. `--preset title|warning|logos` uses the startup
+TEX0s and display orientation decoded in `tools/export_startup.py`. The title
+preset's `palette004.png` controls the selected NEW GAME label.
+
+Explicit TEX0 views currently require PSMCT32 CSM1/CSA0 palettes and an even
+texture-buffer width. CSM1 needs both the index-bit permutation and the PSMCT32 address mapping.
+Packing applies the inverse byte/nibble mapping, preserves unedited duplicate
+indices and native alpha bytes, and rejects contradictory overlapping PNG edits.
+Alpha represents PS2 alpha doubled and clamped to 255. `--quantize exact` (the
+default) rejects unrepresentable edited colors/alpha; `--quantize nearest` opts
+into palette matching and reports the number of quantized pixels and largest
+channel error. Edit a palette swatch to introduce new colors. Unchanged files
+remain byte-identical even where several native values decode to the same color.
+Supported PNG input is noninterlaced 8-bit grayscale, grayscale-alpha, RGB/RGBA or indexed PNG;
+unsupported bit depths and interlacing are rejected.
+
+### Audio
+
+```sh
+python3 -m tools.repack audio-unpack \
+  --input build/repack/loose/archive/chunk04.n0/sound00.bin \
+  --out build/repack/sound --rate 48000
+# Edit an existing bankNN/sampleNNNN.wav, retaining its length and format.
+python3 -m tools.repack audio-pack --tree build/repack/sound \
+  --out build/repack/sound-edited.bin
+cp build/repack/sound-edited.bin build/repack/loose/archive/chunk04.n0/sound00.bin
+```
+
+`--kind auto|sshd|raw|vag` selects the input form. SShd and raw clips use the
+chosen preview rate (runtime pitch/tone metadata stays intact); VAGp supplies its
+rate. Each 16-byte native frame represents 28 samples. Unchanged decoded PCM
+reuses the exact original encoded bytes; WAV header-only changes do not trigger
+re-encoding. Edited PCM uses deterministic predictor/shift selection and keeps
+all original frame flags. ADPCM re-encoding is lossy. MUSIC/VOICE stream editing
+is deferred until ELF cue boundaries and predictor resets are integrated;
+feeding a whole cue stream to the raw mono-clip mode is not a supported workflow.
+
+### Message tables
+
+```sh
+python3 -m tools.repack table-unpack \
+  --input build/repack/loose/archive/chunk00/f02_id02.bin \
+  --out build/repack/messages
+# Edit text fields in table.json; retain each encoded byte length.
+python3 -m tools.repack table-pack --tree build/repack/messages \
+  --out build/repack/messages-edited.bin
+cp build/repack/messages-edited.bin build/repack/loose/archive/chunk00/f02_id02.bin
+```
+
+The bank's 9 groups contain 271 lines; `chunk03/f14_id16.bin` is a bare OUTER
+with 54 lines. `--kind auto|bank|outer` selects the layout. Latin-1 in JSON is a
+one-to-one native byte mapping, not a Unicode font promise. High-bit glyph bytes
+remain escaped and unchanged unless explicitly edited. NULs, count changes,
+non-Latin-1 characters and length changes are rejected. Duplicated string
+offsets, lengths, terminators, group extents and markup bounds are validated.
+The bank payload-size field excludes the directory base. OUTER markup offsets
+are relative to `OUTER + OUTER[0]`, rather than to the OUTER header itself.
+Both details are checked against the real tables; padding remains exact.
+
+## Original-game proof
+
+The `proof-title` command cold-boots the ISO itself, without a boot-ELF override
+or preloaded VRAM state, through `tools/pcsx2_session.py`:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m tools.repack proof-title \
+  --iso build/repack/source-built/Extermination.iso --out build/repack/title-proof
+```
+
+It acquires the shared `.pcsx2.lock` with 30-second retries, launches hidden,
+and confirms emulator shutdown or reports failure; the lock is always released. A private copied emulator
+and configuration under the output directory disable every memory-card slot.
+The screenshot comes from private slot 16; main-checkout slots 01–15 are hashed
+before/after and never loaded or overwritten. No reference emulator installation
+is moved or modified. The private card directory must remain empty.
+
+The local mod proof changes the selected NEW GAME palette to magenta. It edits
+`palette004.png`, encodes it back into `chunk01/transient00.bin`, and runs the
+whole `build-disc` command afresh from an empty output directory. All 44 source
+stages pass, with no resume; the boot and 19 overlays remain byte-identical.
+Only 43 bytes differ anywhere in the 2,060,386,304-byte disc, precisely the
+expected palette bytes. The modified ISO has SHA-256
+`bbec53f7567380abc5c1c797d5d6bc9cecc85f9737296a792a437f85ca190b7b`.
+`build/repack/source-mod-compare.json` records the exact offsets, actual-original
+hash, fresh build provenance, and unchanged canonical loose leaf.
+
+Hidden cold boots of the original and the source-built mod both reached the
+interactive title menu at frame 1,410. The 640×480 screenshot comparison changes
+2,895 pixels, confined to the NEW GAME label at x=214..421, y=340..354. It changes from cyan to magenta; the rest of the screenshot
+is identical. Local screenshots are `build/repack/proof-before/title.png` and
+`build/repack/proof-after/title.png`. `build/repack/mod-proof.json` records both
+image identities, the screenshot comparison, all 674 canonical archive leaves
+and 43 canonical ISO files unchanged, disabled/empty memory cards, and all 12
+existing protected save states unchanged. Native process inspection confirmed no
+PCSX2 process remained and both shared locks were released.
+
+After capture, the isolated mod tree, temporary modified ISO, compiler workspaces,
+duplicate containers and private emulator copies were removed. The original loose
+tree, byte-identical baseline ISO, screenshot pair, format edits and audit receipts
+remain under `build/repack/` (about 4.1 GiB). `cleanup.json` lists the removed
+scratch paths. No canonical asset needed restoration because the mod used a
+separate tree; regenerate an edited disc with the walkthrough when needed.
 
 ## Verification
 
@@ -234,10 +470,28 @@ inverse glTF/EMDL/EMCL encoder here, and no real-mod boot is claimed.
 PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m unittest discover \
   -s tools/repack -p 'test_*.py'
 
-# Full local-disc archive + ISO round trip and negative controls.
+# Full local-disc archive/ISO, texture, audio and table proofs.
 PYTHONDONTWRITEBYTECODE=1 EM_TEST_FULL=1 \
 EM_TEST_ISO='/Users/abe/Documents/PS2 Games/Extermination (USA).iso' \
   .venv/bin/python -m unittest discover -s tools/repack -p 'test_*.py'
+```
+
+The source-build test is deliberately a separate opt-in because it freshly
+compiles and links the full game:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 EM_TEST_FULL=1 EM_TEST_SOURCE_BUILD=1 \
+EM_REPACK_TREE=build/repack/loose \
+  .venv/bin/python -m unittest tools.repack.test_source_build
+```
+
+To validate a completed fresh build against the actual original ISO without
+compiling it again:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 EM_TEST_FULL=1 \
+EM_SOURCE_BUILD_OUTPUT=build/repack/source-built \
+  .venv/bin/python -m unittest tools.repack.test_source_build
 ```
 
 The independent UDF test oracle uses `pycdlib` in the existing project
@@ -245,10 +499,24 @@ virtual environment. The repacker itself has no external dependencies.
 The full suite defaults to `Extermination-rebuilt.iso` when `EM_TEST_ISO`
 is omitted; set it explicitly as above to check the original image.
 
-The completed original-disc proof took 152.325 seconds. The final quick
-suite passed 25 checks in 1.398 seconds, with the full-disc test skipped by
-default. The full run passed every check, including the documented CLI
-workflow. Hashes of the original and rebuilt outputs are equal:
+The 2026-10-08 original-disc integration proof passed in 53.128 seconds,
+including a one-byte control, +37/-13-byte resident resizing, addition of a new
+resident role, exact second-generation archive repacking, and independent UDF
+reads. All 674 existing asset leaves remain unchanged except each selected edit.
+The quick suite currently has 69 passes and 7 intentionally gated integration
+checks (about one second on this machine).
+
+| Format | Local proof |
+|---|---|
+| GS texture uploads | 63 native leaves / 113 transfers unchanged after PNG round trip; edited PSMT8/PSMT4 textures and CLUTs decode through the existing startup exporter |
+| Audio | 41 SShd leaves / 116 banks / 2,318 clips unchanged after WAV round trip, including corrected title bank `chunk01/f00_id06.bin`; a real silence edit decodes correctly through the old decoder |
+| Message tables | 271 bank lines and 54 bare OUTER lines unchanged after JSON round trip; isolated equal-length edits re-extract correctly |
+| Archive growth | +37 bytes, -13 bytes and a new resident entry; every other asset unchanged, second pack identical, ISO/UDF namespaces agree |
+
+The per-format receipts are `build/repack/texture-full.json`,
+`audio-test-receipt.json`, `audio-edit-test-receipt.json`, and
+`tables-test-receipt.json`. They contain local hashes, not shipped asset bytes.
+Original and no-op rebuilt hashes are equal:
 
 | Output | SHA-256 (original and rebuilt) |
 |---|---|
@@ -260,18 +528,18 @@ workflow. Hashes of the original and rebuilt outputs are equal:
 for all 43 ISO files, their independent UDF reads, and all 674 loose archive
 spans. The single-byte control changed only DATA byte 7,393,280 and ISO
 byte 1,082,101,760; INDEX stayed identical. Growing and shrinking
-`chunk04.n0/f00_id43.bin` by one sector each unpacked to the exact edited
+`chunk04.n0/f00_id43.bin` by +37 and -13 bytes unpacked to the exact edited
 tree, with all 673 other loose files unchanged and all unrelated ISO/UDF
-files unchanged. `build/repack/archive-controls.json` additionally records
-real sound-upload growth, resident-DMA shrinkage and empty-descriptor
+files unchanged. The earlier `build/repack/archive-controls.json` additionally
+records whole-sector sound-upload growth, resident-DMA shrinkage and empty-descriptor
 anchor relocation. Quick synthetic checks cover those table types,
 malformed inputs, source aliases, and false UDF anchor detection.
 
 The tests remove their large intermediate images and loose trees; receipts
 remain. Regenerate an editable tree and deliverable ISO with the commands
-above. PCSX2 was not run; loading a real asset mod is the optional remaining
-step. No game files under `src/`, legacy extractors, native-port files, or emulator
-state were changed.
+above. PCSX2 proof outputs stay under `build/repack/` too. No game files under
+`src/`, legacy extractors, native-port files, main emulator configuration or
+protected save states are changed by this workflow.
 
 Only original tooling, synthetic test builders, and documentation belong
 in commits. Before each commit, inspect the staged paths and run:
