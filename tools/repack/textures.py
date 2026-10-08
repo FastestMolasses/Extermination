@@ -203,12 +203,129 @@ def unpack(source: Path, out_dir: Path, *, tex0: list[int] | None = None, preset
     return manifest
 
 
-def pack(tree: Path, out_native: Path, *, quantize: str = "exact") -> dict:
+def _relayout_uploads(raw: bytes, uploads: list[dict], sheets: list[tuple[int, int, bytes]]) -> bytes:
+    """Rebuild the audited contiguous CNT/END, VIF DIRECT, GIF IMAGE chain.
+
+    This resizes physical transfer canvases. It does not invent or rewrite
+    logical TEX0 consumers in executable constants or other archive leaves.
+    """
+    packets, cursor, ranges = [], 0, []
+    for number, (upload, (width, height, indices)) in enumerate(zip(uploads, sheets)):
+        start = upload["bitblt_offset"] - 48
+        count = upload["payload_size"] // 16
+        dma_kind = 6 if number == len(uploads) - 1 else 1
+        expected = (dma_kind << 28 | (count + 7), 0, 0, 0, 0, 0, 0x10000000, 0x50000000 | (count + 6))
+        if (start != cursor or struct.unpack_from("<8I", raw, start) != expected
+                or struct.unpack_from("<QQ", raw, start + 32) != (0x1000000000000004, 14)):
+            raise ValueError("upload resize requires the audited contiguous CNT/END + VIF DIRECT + four-register GIF envelope; unknown pointers cannot relocate")
+        cursor = upload["payload_offset"] + upload["payload_size"]
+        if width % 128 or height % 64 or not 128 <= width <= 2048 or not 64 <= height <= 2048:
+            raise ValueError("indexed upload canvas must have width a multiple of 128 and height a multiple of 64, within 2048: page-aligned PSMCT32 transfer geometry")
+        tw, th = width // 2, height // 2
+        size = tw * th * 4
+        count = size // 16
+        if count > 0x7FFF:
+            raise ValueError("upload exceeds the GIF IMAGE 15-bit NLOOP limit (32767 quadwords); packet splitting is not supported")
+        if count + 7 > 0xFFFF or count + 6 > 0xFFFF:
+            raise ValueError("upload exceeds the DMA QWC/VIF DIRECT 16-bit count limit")
+        base, end = upload["dbp"] * 256, upload["dbp"] * 256 + size
+        if end > 4 * 1024 * 1024:
+            raise ValueError("resized upload exceeds the GS 4 MiB local-memory limit")
+        ranges.append((base, end))
+        header = bytearray(raw[start:upload["payload_offset"]])
+        struct.pack_into("<H", header, 0, count + 7)
+        struct.pack_into("<H", header, 28, count + 6)
+        bb = struct.unpack_from("<Q", header, 48)[0]
+        struct.pack_into("<Q", header, 48, (bb & ~(63 << 48)) | (tw // 64) << 48)
+        shape = struct.unpack_from("<Q", header, 80)[0]
+        struct.pack_into("<Q", header, 80, (shape & ~(0xFFF | 0xFFF << 32)) | tw | th << 32)
+        image = struct.unpack_from("<H", header, 112)[0]
+        struct.pack_into("<H", header, 112, (image & 0x8000) | count)
+        payload = bytearray(size)
+        for value, native in zip(indices, _permutation(tw, th, tw // 64)):
+            payload[native] = value
+        packets.append(bytes(header) + payload)
+    if any(raw[cursor:]):
+        raise ValueError("upload resize cannot relocate unknown nonzero data after the DMA chain")
+    for i, (base, end) in enumerate(ranges):
+        for j, (other_base, other_end) in enumerate(ranges[:i]):
+            if max(base, other_base) < min(end, other_end):
+                old_a, old_b = uploads[i], uploads[j]
+                old_start = max(old_a["dbp"], old_b["dbp"]) * 256
+                old_end = min(old_a["dbp"] * 256 + old_a["payload_size"],
+                              old_b["dbp"] * 256 + old_b["payload_size"])
+                if max(base, other_base) < old_start or min(end, other_end) > old_end:
+                    raise ValueError("resized upload introduces a GS memory overlap with another transfer in this leaf")
+    # Payloads are page multiples, so preserving the exact old padding also
+    # preserves the native leaf's sector/DMA alignment after growing/shrinking.
+    rebuilt = b"".join(packets) + raw[cursor:]
+    parsed = _uploads(rebuilt)
+    if len(parsed) != len(uploads):
+        raise ValueError("resized DMA chain failed transfer-count verification")
+    for entry, (width, height, indices) in zip(parsed, sheets):
+        mapping = _permutation(entry["width"], entry["height"], entry["dbw"])
+        if bytes(rebuilt[entry["payload_offset"] + at] for at in mapping) != indices:
+            raise ValueError("resized upload failed native index verification")
+    return rebuilt
+
+
+def _atomic_native(output: Path, rebuilt: bytes, inputs: list[Path]) -> None:
+    for source in inputs:
+        if source.exists() and (output == source.resolve() or output.exists() and output.samefile(source)):
+            raise ValueError("texture output aliases an input")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".texture-", dir=output.parent)
+    try:
+        with os.fdopen(fd, "wb") as dst:
+            dst.write(rebuilt)
+        os.replace(temporary, output)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _resize_from_pngs(tree: Path, output: Path, manifest: dict, raw: bytes, inputs: list[Path]):
+    sheets, changes, resized = [], [], []
+    for upload in manifest["uploads"]:
+        name = f"upload{upload['number']:03d}.indices.png"
+        path = _input(tree, name)
+        inputs.append(path)
+        width, height, rgba = png.read(path)
+        if any(r != g or r != b or a != 255 for r, g, b, a in zip(rgba[::4], rgba[1::4], rgba[2::4], rgba[3::4])):
+            raise ValueError(f"{name}: unknown-CLUT sheets store opaque gray index values, not colors")
+        indices = rgba[::4]
+        sheets.append((width, height, indices))
+        original_shape = (upload["width"] * 2, upload["height"] * 2)
+        if (width, height) != original_shape:
+            resized.append(dict(upload=upload["number"], before=list(original_shape), after=[width, height]))
+            changes.append(name)
+        else:
+            mapping = _permutation(upload["width"], upload["height"], upload["dbw"])
+            before = bytes(raw[upload["payload_offset"] + at] for at in mapping)
+            if indices != before:
+                changes.append(name)
+    if not resized:
+        return None
+    if manifest["views"] or manifest["palettes"] or manifest.get("preset"):
+        raise ValueError("physical upload-canvas resize requires an index-only unpack; logical TEX0 views/palettes have external references. "
+                         "Startup TEX0 constants live in src/func_001ABF90.c and src/func_001AC7F0.c; actor GS residency crosses leaves")
+    rebuilt = _relayout_uploads(raw, manifest["uploads"], sheets)
+    _atomic_native(output, rebuilt, inputs)
+    return dict(path=str(output), sha256=_hash(rebuilt), unchanged=False, size=len(rebuilt),
+                original_size=len(raw), resized_uploads=resized, changed_pngs=changes,
+                quantization="indices", quantized_pixels=0, maximum_channel_error=0,
+                scope="physical transfer canvases only; external TEX0/model/ELF references are unchanged and game residency is not validated")
+
+
+def pack(tree: Path, out_native: Path, *, quantize: str = "exact", resize_uploads: bool = False) -> dict:
     """Apply PNG edits to native bytes; reject conflicting overlapping views.
 
     ``exact`` requires colors already present in the edited palette and PS2-
     representable alpha. ``nearest`` uses nearest RGBA palette color and reports
     quantized pixels/error. Unchanged PNG pixels retain their original indices.
+    ``resize_uploads`` permits index-only physical transfer canvas changes in
+    audited DMA chains; it does not change logical texture/palette sizes or
+    certify the game's cross-leaf GS residency.
     """
     tree, output = Path(tree), safe_output(out_native)
     if quantize not in ("exact", "nearest"):
@@ -224,6 +341,10 @@ def pack(tree: Path, out_native: Path, *, quantize: str = "exact") -> dict:
     original = Path(manifest["source_path"])
     if original.exists():
         inputs.append(original)
+    if resize_uploads:
+        resized = _resize_from_pngs(tree, output, manifest, raw, inputs)
+        if resized is not None:
+            return resized
     patches, changed_pngs = {}, []
     quantized_pixels, maximum_error = 0, 0
 
@@ -238,7 +359,14 @@ def pack(tree: Path, out_native: Path, *, quantize: str = "exact") -> dict:
         inputs.append(path)
         w, h, rgba = png.read(path)
         if (w, h) != (width, height):
-            raise ValueError(f"{relative}: dimensions changed; native TEX0/transfer geometry is fixed")
+            if relative.endswith(".indices.png"):
+                raise ValueError(f"{relative}: dimensions changed; enable resize_uploads for audited physical transfer-canvas relayout")
+            if relative.startswith("palette"):
+                raise ValueError(f"{relative}: palette size change needs all TEX0 PSM/CBP references and GS allocations; "
+                                 "actor cross-leaf residency and executable references are not closed")
+            raise ValueError(f"{relative}: logical texture dimensions require relocating all TEX0 references; "
+                             "startup constants are in func_001ABF90/001AC7F0 and actor material/GS references cross archive leaves. "
+                             "The asset-only input does not contain their complete reference set")
         return rgba
 
     for upload in manifest["uploads"]:
@@ -313,21 +441,10 @@ def pack(tree: Path, out_native: Path, *, quantize: str = "exact") -> dict:
                 quantized_pixels += 1
                 maximum_error = max(maximum_error, max(abs(a - b) for a, b in zip(color, palette[index])))
             apply(at, index << shift, mask)
-    for source in inputs:
-        if output == source.resolve() or (output.exists() and output.samefile(source)):
-            raise ValueError("texture output aliases an input")
     rebuilt = bytearray(raw)
     for at, (mask, value) in patches.items():
         rebuilt[at] = (rebuilt[at] & ~mask) | value
-    output.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=".texture-", dir=output.parent)
-    try:
-        with os.fdopen(fd, "wb") as dst:
-            dst.write(rebuilt)
-        os.replace(temporary, output)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+    _atomic_native(output, rebuilt, inputs)
     return dict(path=str(output), sha256=_hash(rebuilt), unchanged=rebuilt == raw,
                 size=len(rebuilt), changed_native_bytes=sum(a != b for a, b in zip(raw, rebuilt)),
                 changed_pngs=changed_pngs, quantization=quantize, quantized_pixels=quantized_pixels,

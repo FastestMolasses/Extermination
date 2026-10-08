@@ -341,9 +341,9 @@ into the loose archive. Do not edit templates or manifests.
 
 | Native content | Standard view | Supported edits and limits |
 |---|---|---|
-| Bounded GS texture uploads | PNG index sheets, plus RGBA textures and palette swatches for known TEX0s | PSMCT32 upload layout, PSMT8/PSMT4 sampling, CSM1 CLUTs; fixed dimensions and existing upload storage |
-| SShd sample banks; mono raw ADPCM or VAGp | Mono PCM16 WAV | Fixed sample count and preview rate; original loop/end flags, headers and padding preserved |
-| Message-bank and bare OUTER/TEXT tables | JSON `table.json` | Existing strings with identical native byte lengths; counts, markup and unknown bytes preserved |
+| Bounded GS texture uploads | PNG index sheets, RGBA textures and palette swatches | PSMT8/PSMT4 and CSM1 CLUTs; physical upload canvases can resize; logical TEX0 dimensions and palette counts stay fixed |
+| SShd sample banks; mono raw ADPCM or VAGp | Mono PCM16 WAV and `loops.json` | Longer/shorter samples, relocated tone starts and bank sizes, explicit loop starts; fixed preview rate and SPU budget |
+| Message-bank and bare OUTER/TEXT tables | JSON `table.json` | Longer/shorter strings, relocated style anchors and extents; native renderer scratch limits enforced |
 
 ### Textures
 
@@ -376,13 +376,49 @@ remain byte-identical even where several native values decode to the same color.
 Supported PNG input is noninterlaced 8-bit grayscale, grayscale-alpha, RGB/RGBA or indexed PNG;
 unsupported bit depths and interlacing are rejected.
 
+### Texture size changes
+
+For an **index-only** tree exported without `--preset` or `--tex0`, change an
+`uploadNNN.indices.png` canvas and opt in:
+
+```sh
+python3 -m tools.repack texture-pack --tree build/repack/index-uploads \
+  --out build/repack/resized-upload.bin --resize-uploads
+```
+
+This resizes the physical PSMCT32 upload canvas. It reconstructs the contiguous
+DMA/VIF/GIF envelope, DMA QWC, VIF DIRECT count, IMAGE NLOOP, BITBLTBUF DBW,
+TRXREG dimensions and subsequent packet positions. Only the characterized page
+geometry and zero trailing padding are accepted. GIF's 15-bit IMAGE count,
+DMA/VIF's 16-bit counts, 4 MiB GS addressing and new intra-leaf overlaps are checked.
+The old logical texture references are unchanged: adding unused atlas space
+alone does not make a model use a higher-resolution image.
+
+Logical TEX0 dimensions and 16↔256 palette counts are explicitly refused.
+Actor variants, other uploads, embedded models and executable constants can
+share the same GS storage; their complete reference set is not yet established.
+For startup UI, `func_00207E40` derives UV extent from TEX0, while `func_001ABF90`
+and `func_001AC7F0` use fixed screen sizes. A logical resize could scale correctly
+if the inline executable TEX0s were patched, but this asset-only editor cannot
+safely close those references. Palette colours remain editable at their existing
+count. This limitation is about missing reference relocation, not an inherent
+GS ban on other dimensions.
+
+All 63 real leaves / 113 transfers retain exact bytes on no-op. A startup canvas
+512×768 was grown to 512×832 and shrunk to 512×704; a two-transfer leaf also
+relocated its second packet. Every edited pixel decoded through the existing
+`extract_subtextures` implementation. Receipt:
+`build/repack/size-formats/texture/receipt.json`. These canvas edits have extractor
+proof; they are not advertised as runtime texture-resolution upgrades.
+
 ### Audio
 
 ```sh
 python3 -m tools.repack audio-unpack \
   --input build/repack/loose/archive/chunk04.n0/sound00.bin \
   --out build/repack/sound --rate 48000
-# Edit an existing bankNN/sampleNNNN.wav, retaining its length and format.
+# Replace an existing bankNN/sampleNNNN.wav with longer/shorter mono PCM16.
+# Keep the exported rate; edit loops.json when its loop start needs to move.
 python3 -m tools.repack audio-pack --tree build/repack/sound \
   --out build/repack/sound-edited.bin
 cp build/repack/sound-edited.bin build/repack/loose/archive/chunk04.n0/sound00.bin
@@ -392,10 +428,36 @@ cp build/repack/sound-edited.bin build/repack/loose/archive/chunk04.n0/sound00.b
 chosen preview rate (runtime pitch/tone metadata stays intact); VAGp supplies its
 rate. Each 16-byte native frame represents 28 samples. Unchanged decoded PCM
 reuses the exact original encoded bytes; WAV header-only changes do not trigger
-re-encoding. Edited PCM uses deterministic predictor/shift selection and keeps
-all original frame flags. ADPCM re-encoding is lossy. MUSIC/VOICE stream editing
-is deferred until ELF cue boundaries and predictor resets are integrated;
-feeding a whole cue stream to the raw mono-clip mode is not a supported workflow.
+re-encoding. Edited PCM uses deterministic predictor/shift selection; duration
+rounds up to 28 samples with zero padding. `loops.json` maps sample paths to a
+loop-start ADPCM frame index, `null` for one-shot, or `"end"` for a terminal-frame
+loop. The loop end follows the new final frame. An unchanged clip retains its
+exact original flags; edited loop-start frames reset the predictor. Re-encoding
+is lossy. Whole MUSIC/VOICE cue files belong in the stream editor, not raw mode.
+
+SShd packing relocates every tone start in both program tables (u16 addresses
+in eight-byte units), both bank-size copies, following bank bodies, and the
+container/image lengths. VAGp's big-endian payload length is also updated.
+Unknown header bytes and terminal padding remain exact. Independently keyed
+interior sample aliases cannot be re-encoded safely and are refused. A one-frame
+looping bank sample is ambiguous with a terminator and is refused.
+
+The original loaders allocate equal-type banks consecutively with 64-byte
+alignment, at SPU byte bases `0x15040`, `0x1A0000`, `0x122000`, `0x132000` for
+groups 1–4. Tone addressing limits an individual bank to 512 KiB. Growth cannot
+cross the next group or reverb storage. `func_001FB210` initializes mode 4, but
+`func_00118828` sequence event 15 can change it through `func_00119810`.
+Executing the original driver and resident LIBSD for all modes 0–9 measured a
+maximum reservation of `0x18040` bytes (modes 7/8); new allocations in groups
+2/4 therefore stop at `0x1E7FC0` / `0x187FC0`. Existing larger occupied spans
+are preserved, with no growth beyond their old endpoint. This is a conservative
+allocation guard, not a promise that every sound replacement suits every scene.
+The 24-bit IOP upload-size field is subsumed by these smaller limits.
+
+Local evidence: `build/repack/audio-growth/reverb-modes.json` records the original
+oracle, and `duration-proof.json` records real growth and shrinkage decoded by
+the existing audio extractor. All 41 containers / 116 banks / 2,318 samples keep
+identical native bytes on an unchanged round trip.
 
 ### Message tables
 
@@ -403,7 +465,7 @@ feeding a whole cue stream to the raw mono-clip mode is not a supported workflow
 python3 -m tools.repack table-unpack \
   --input build/repack/loose/archive/chunk00/f02_id02.bin \
   --out build/repack/messages
-# Edit text fields in table.json; retain each encoded byte length.
+# Edit text fields; for styled lines, edit segments to move the style anchors.
 python3 -m tools.repack table-pack --tree build/repack/messages \
   --out build/repack/messages-edited.bin
 cp build/repack/messages-edited.bin build/repack/loose/archive/chunk00/f02_id02.bin
@@ -412,9 +474,28 @@ cp build/repack/messages-edited.bin build/repack/loose/archive/chunk00/f02_id02.
 The bank's 9 groups contain 271 lines; `chunk03/f14_id16.bin` is a bare OUTER
 with 54 lines. `--kind auto|bank|outer` selects the layout. Latin-1 in JSON is a
 one-to-one native byte mapping, not a Unicode font promise. High-bit glyph bytes
-remain escaped and unchanged unless explicitly edited. NULs, count changes,
-non-Latin-1 characters and length changes are rejected. Duplicated string
-offsets, lengths, terminators, group extents and markup bounds are validated.
+remain escaped and unchanged unless explicitly edited. Longer and shorter text
+is supported. NULs, count changes and non-Latin-1 characters are rejected.
+Styled lines expose `segments`: change those strings, leaving their count intact,
+to relocate every control record's glyph anchor at record +8. Conflicting edits
+to `text` and `segments`, unsupported anchors, and split/dangling two-byte glyph
+escapes are refused. No-op JSON output remains byte-identical.
+
+Packing rewrites both copies of every TEXT string offset, native and terminated
+lengths, the total string size, bank group offsets and offset/16 fields, logical
+and padded lengths, and total payload size. Counts stay fixed and validated.
+Opaque control words stay intact. `func_001FC7B0` and `func_001FE070` use 0x80-byte
+scratch buffers: edited runs must leave room for NUL (127 rendered bytes).
+Direct text callers are checked across style anchors too. Group 8's options
+substitution through `func_001FCBD0` has its own 128-byte destination check.
+The renderer `func_001CC1E0` flushes a 512-pixel staging strip; that is not a
+universal line-width cap. Screen fit still depends on glyph advances and each
+caller's layout. The `D_00820ED0[64]` decomp declaration is not evidence of a
+64-byte engine limit.
+
+Real longer/shorter and styled edits re-extract through `tools/export_ui.py`:
+271 bank lines plus 54 bare OUTER lines. Receipt:
+`build/repack/size-formats/text/receipt.json`.
 The bank payload-size field excludes the directory base. OUTER markup offsets
 are relative to `OUTER + OUTER[0]`, rather than to the OUTER header itself.
 Both details are checked against the real tables; padding remains exact.
@@ -458,8 +539,9 @@ PCSX2 process remained and both shared locks were released.
 
 After capture, the isolated mod tree, temporary modified ISO, compiler workspaces,
 duplicate containers and private emulator copies were removed. The original loose
-tree, byte-identical baseline ISO, screenshot pair, format edits and audit receipts
-remain under `build/repack/` (about 4.1 GiB). `cleanup.json` lists the removed
+tree, screenshot pair, format edits and audit receipts remain under `build/repack/`.
+The duplicate baseline ISO was removed after the follow-up cold New Game proof;
+its byte-identity receipt remains and the build command regenerates it. `cleanup.json` lists the removed
 scratch paths. No canonical asset needed restoration because the mod used a
 separate tree; regenerate an edited disc with the walkthrough when needed.
 

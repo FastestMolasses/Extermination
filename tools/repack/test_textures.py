@@ -53,6 +53,21 @@ def edit_pixel(path: Path, index: int, color: bytes):
     png.write(path, width, height, data)
 
 
+def packet_chain(path: Path, *, count=1):
+    synthetic(path)
+    template = path.read_bytes()[:128 + 8192]
+    packets = []
+    for i in range(count):
+        packet = bytearray(template)
+        struct.pack_into("<8I", packet, 0, ((6 if i == count - 1 else 1) << 28) | 519,
+                         0, 0, 0, 0, 0, 0x10000000, 0x50000206)
+        struct.pack_into("<QQ", packet, 32, 0x1000000000000004, 14)
+        bb = struct.unpack_from("<Q", packet, 48)[0]
+        struct.pack_into("<Q", packet, 48, bb | (i * 128) << 32)
+        packets.append(packet)
+    path.write_bytes(b"".join(packets) + bytes(128))
+
+
 class TextureTests(unittest.TestCase):
     def setUp(self):
         (ROOT / "build/repack").mkdir(parents=True, exist_ok=True)
@@ -161,6 +176,77 @@ class TextureTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "truncated"):
             textures.unpack(self.source, self.tree)
 
+    def test_transfer_canvas_growth_shrink_and_chain_relocation(self):
+        from extract_subtextures import scan_transfers, decode_transfer
+        packet_chain(self.source, count=2)
+        textures.unpack(self.source, self.tree)
+        result = textures.pack(self.tree, self.output, resize_uploads=True)
+        self.assertTrue(result["unchanged"])
+        for width, height in ((256, 128), (128, 64)):
+            with self.subTest(shape=(width, height)):
+                # First transfer grows, second shrinks after growing on the
+                # previous pass. Re-unpack makes both changes true size edits.
+                if height == 64:
+                    prior = self.base / "grown"
+                    textures.unpack(self.output, prior)
+                    tree = prior
+                    output = self.base / "shrunk.bin"
+                else:
+                    tree = self.tree
+                    output = self.output
+                want = bytes((i * 7) & 255 for i in range(width * height))
+                png.write(tree / "upload000.indices.png", width, height, want, mode="L")
+                result = textures.pack(tree, output, resize_uploads=True)
+                self.assertEqual(result["resized_uploads"][0]["after"], [width, height])
+                raw = output.read_bytes()
+                transfers = scan_transfers(raw, "synthetic")
+                self.assertEqual(len(transfers), 2)
+                self.assertTrue(decode_transfer(raw, transfers[0]))
+                self.assertEqual(transfers[0].pixels, want)
+                second = 128 + width * height
+                self.assertEqual(transfers[1].trxreg_off, second + 80)
+                self.assertEqual(struct.unpack_from("<H", raw, 0)[0], width * height // 16 + 7)
+                self.assertEqual(struct.unpack_from("<H", raw, 28)[0], width * height // 16 + 6)
+                self.assertEqual(struct.unpack_from("<H", raw, 112)[0] & 32767, width * height // 16)
+                self.assertEqual(raw[-128:], bytes(128))
+
+    def test_transfer_resize_rejects_unknown_envelopes_overlap_and_limits(self):
+        packet_chain(self.source, count=2)
+        textures.unpack(self.source, self.tree)
+        path = self.tree / "upload000.indices.png"
+        for width, height, message in ((129, 64, "page-aligned"), (1024, 1024, "NLOOP"),
+                                       (512, 128, "overlap")):
+            png.write(path, width, height, bytes(width * height), mode="L")
+            with self.assertRaisesRegex(ValueError, message):
+                textures.pack(self.tree, self.output, resize_uploads=True)
+        raw = bytearray(self.source.read_bytes())
+        raw[4] = 1  # An unknown DMA address is not safe to relocate.
+        self.source.write_bytes(raw)
+        tree = self.base / "unknown"
+        textures.unpack(self.source, tree)
+        png.write(tree / "upload000.indices.png", 256, 128, bytes(256 * 128), mode="L")
+        with self.assertRaisesRegex(ValueError, "unknown pointers"):
+            textures.pack(tree, self.output, resize_uploads=True)
+
+    def test_transfer_resize_rejects_gs_end_and_logical_palette_changes(self):
+        packet_chain(self.source)
+        raw = bytearray(self.source.read_bytes())
+        struct.pack_into("<Q", raw, 48, (16352 << 32) | (1 << 48))
+        self.source.write_bytes(raw)
+        textures.unpack(self.source, self.tree)
+        png.write(self.tree / "upload000.indices.png", 128, 128, bytes(128 * 128), mode="L")
+        with self.assertRaisesRegex(ValueError, "4 MiB"):
+            textures.pack(self.tree, self.output, resize_uploads=True)
+        token = synthetic(self.source)
+        tree = self.base / "rgba"
+        textures.unpack(self.source, tree, tex0=[token])
+        png.write(tree / "texture000.png", 32, 32, bytes(32 * 32 * 4))
+        with self.assertRaisesRegex(ValueError, "complete reference set"):
+            textures.pack(tree, self.output)
+        textures.png.write(tree / "palette000.png", 8, 2, bytes(8 * 2 * 4))
+        with self.assertRaisesRegex(ValueError, "palette size change"):
+            textures.pack(tree, self.output)
+
     def test_png_all_filters_and_crc(self):
         width, height = 4, 5
         original = bytes((i * 73 + 19) & 255 for i in range(width * height * 4))
@@ -205,6 +291,39 @@ class TextureTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("EM_TEST_FULL") == "1", "disc-wide texture proof requires EM_TEST_FULL=1")
 class FullTextureTests(unittest.TestCase):
+    def test_real_upload_canvas_grow_shrink_and_chained_relocation(self):
+        from extract_subtextures import scan_transfers, decode_transfer
+        from tools.repack.test_audio import native_archive_leaves
+        image = Path(os.environ.get("EM_TEST_ISO", ROOT / "Extermination-rebuilt.iso"))
+        names = {"chunk01/transient00.bin", "chunk04.n0/transient01.bin"}
+        sources = dict(native_archive_leaves(image, names))
+        for case, path, heights in (("grow", "chunk01/transient00.bin", [832]),
+                                     ("shrink", "chunk01/transient00.bin", [704]),
+                                     ("chain", "chunk04.n0/transient01.bin", [896, 960])):
+            with tempfile.TemporaryDirectory(prefix="resize-texture-", dir=ROOT / "build/repack") as temp:
+                base = Path(temp)
+                source, tree, output = base / "native.bin", base / "tree", base / "edited.bin"
+                source.write_bytes(sources[path])
+                textures.unpack(source, tree)
+                expected = []
+                for index, height in enumerate(heights):
+                    file = tree / f"upload{index:03d}.indices.png"
+                    width, before_height, rgba = png.read(file)
+                    pixels = rgba[::4][:width * height] + bytes(max(0, width * (height - before_height)))
+                    png.write(file, width, height, pixels, mode="L")
+                    expected.append((width, height, pixels))
+                report = textures.pack(tree, output, resize_uploads=True)
+                data = output.read_bytes()
+                transfers = scan_transfers(data, case)
+                self.assertEqual(len(transfers), len(expected))
+                for transfer, want in zip(transfers, expected):
+                    self.assertTrue(decode_transfer(data, transfer))
+                    self.assertEqual((transfer.width, transfer.height, transfer.pixels), want)
+                if case == "grow":
+                    self.assertGreater(report["size"], len(sources[path]))
+                elif case == "shrink":
+                    self.assertLess(report["size"], len(sources[path]))
+
     def test_all_native_transfer_leaves_roundtrip(self):
         from tools.repack.iso import inventory
         source = Path(os.environ.get("EM_TEST_ISO", ROOT / "Extermination-rebuilt.iso"))

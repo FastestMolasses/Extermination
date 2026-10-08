@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def outer_fixture():
     strings = [b"synthetic", b"native\xE9\ntext"]
     directory = 16 + 16 * len(strings)
-    markup = b"opaque markup!!!"
+    markup = struct.pack("<4I", 2, 3, 3, 0xFEEDABCD)
     text = bytearray(directory)
     struct.pack_into("<4I", text, 0, directory, len(strings), sum(len(s) + 1 for s in strings), 1)
     position = 0
@@ -60,9 +60,10 @@ class TableTests(unittest.TestCase):
         self.assertEqual(output.read_bytes(), expected)
         recovered = self.base / "recovered"
         tables.unpack_table(output, recovered)
+        text["groups"][0]["lines"][0]["segments"][0] = "Syn"
         self.assertEqual(json.loads((recovered / "table.json").read_text()), text)
 
-    def test_resized_unicode_nul_and_added_lines_are_rejected(self):
+    def test_ambiguous_style_resize_unicode_nul_and_added_lines_are_rejected(self):
         path = self.tree / "table.json"
         original = json.loads(path.read_text())
         for replacement in ["short", "synthetic!", "\u2603ynthetic", "\0ynthetic"]:
@@ -75,6 +76,101 @@ class TableTests(unittest.TestCase):
         path.write_text(json.dumps(original))
         with self.assertRaises(ValueError):
             tables.pack_table(self.tree, self.base / "output.bin")
+
+    def test_longer_and_shorter_plain_text_relocates_all_text_fields(self):
+        path = self.tree / "table.json"
+        original = json.loads(path.read_text())
+        for replacement in ("x", "translated longer\ntext with extra words", ""):
+            edited = json.loads(json.dumps(original))
+            edited["groups"][0]["lines"][1]["text"] = replacement
+            path.write_text(json.dumps(edited))
+            output = self.base / "resized.bin"
+            tables.pack_table(self.tree, output)
+            data = output.read_bytes()
+            text_at = struct.unpack_from("<I", data)[0] + struct.unpack_from("<I", data, 8)[0]
+            first = struct.unpack_from("<4I", data, text_at + 16)
+            second = struct.unpack_from("<4I", data, text_at + 32)
+            self.assertEqual(first, (0, 0, 9, 10))
+            self.assertEqual(second, (10, 10, len(replacement), len(replacement) + 1))
+            self.assertEqual(struct.unpack_from("<I", data, text_at + 8)[0], 11 + len(replacement))
+            self.assertTrue(data.endswith(b"tail padding"))
+            self.assertEqual(data[:64], self.raw[:64])
+
+    def test_style_segments_relocate_anchors_and_keep_other_record_words(self):
+        path = self.tree / "table.json"
+        edited = json.loads(path.read_text())
+        edited["groups"][0]["lines"][0]["segments"] = ["translated prefix", " suffix"]
+        path.write_text(json.dumps(edited))
+        output = self.base / "styled.bin"
+        tables.pack_table(self.tree, output)
+        data = output.read_bytes()
+        self.assertEqual(struct.unpack_from("<4I", data, 48), (2, 3, 17, 0xFEEDABCD))
+        layout = tables._layout(data, "outer")
+        a, b = layout["groups"][0]["lines"]
+        self.assertEqual(data[a["offset"]:a["offset"] + a["size"]], b"translated prefix suffix")
+        self.assertEqual(b["offset"], a["offset"] + a["size"] + 1)
+
+    def test_engine_scratch_limits_and_conflicting_style_edits(self):
+        path = self.tree / "table.json"
+        original = json.loads(path.read_text())
+        edited = json.loads(json.dumps(original))
+        edited["groups"][0]["lines"][1]["text"] = "x" * 128
+        path.write_text(json.dumps(edited))
+        with self.assertRaisesRegex(ValueError, "func_001FC7B0"):
+            tables.pack_table(self.tree, self.base / "bad.bin")
+        edited["groups"][0]["lines"][1]["text"] = "x" * 127 + "\n" + "y" * 127
+        path.write_text(json.dumps(edited))
+        tables.pack_table(self.tree, self.base / "good.bin")
+        edited = json.loads(json.dumps(original))
+        edited["groups"][0]["lines"][0]["segments"] = ["x" * 128, "suffix"]
+        path.write_text(json.dumps(edited))
+        with self.assertRaisesRegex(ValueError, "func_001FE070"):
+            tables.pack_table(self.tree, self.base / "bad.bin")
+        edited["groups"][0]["lines"][0]["segments"] = ["prefix", "suffix"]
+        edited["groups"][0]["lines"][0]["text"] = "different"
+        path.write_text(json.dumps(edited))
+        with self.assertRaisesRegex(ValueError, "conflicting"):
+            tables.pack_table(self.tree, self.base / "bad.bin")
+        edited = json.loads(json.dumps(original))
+        edited["groups"][0]["lines"][0]["segments"] = ["x" * 64, "y" * 64]
+        path.write_text(json.dumps(edited))
+        with self.assertRaisesRegex(ValueError, "func_001FC7B0"):
+            tables.pack_table(self.tree, self.base / "bad.bin")
+        for segments in (["prefix", "trailing\x81"], ["lead\x81", "pair"]):
+            edited["groups"][0]["lines"][0]["segments"] = segments
+            path.write_text(json.dumps(edited))
+            with self.assertRaisesRegex(ValueError, "0x81 escape"):
+                tables.pack_table(self.tree, self.base / "bad.bin")
+
+    def test_bank_relocates_every_group_and_preserves_padding(self):
+        body = outer_fixture()
+        pad = b"P" * (-len(body) % 16)
+        size = len(body) + len(pad)
+        header = bytearray(48)
+        struct.pack_into("<4I", header, 0, 48, 2, size * 2, 16)
+        for i in range(2):
+            struct.pack_into("<4I", header, 16 + i * 16, i * size, i * size // 16, len(body), size)
+        raw = bytes(header) + (body + pad) * 2 + b"opaque tail"
+        source, tree = self.base / "bank.bin", self.base / "bank"
+        source.write_bytes(raw)
+        tables.unpack_table(source, tree, kind="bank")
+        output = self.base / "bank-out.bin"
+        tables.pack_table(tree, output)
+        self.assertEqual(output.read_bytes(), raw)
+        edited = json.loads((tree / "table.json").read_text())
+        edited["groups"][0]["lines"][1]["text"] = "translation with more bytes"
+        edited["groups"][1]["lines"][1]["text"] = "x"
+        (tree / "table.json").write_text(json.dumps(edited))
+        tables.pack_table(tree, output)
+        result = output.read_bytes()
+        groups = tables._layout(result, "bank")["groups"]
+        first, second = struct.unpack_from("<4I", result, 16), struct.unpack_from("<4I", result, 32)
+        self.assertEqual(second[0], first[3])
+        self.assertEqual(second[1], second[0] // 16)
+        self.assertEqual(struct.unpack_from("<I", result, 8)[0], first[3] + second[3])
+        self.assertEqual(groups[1]["offset"], 48 + second[0])
+        self.assertEqual(result[48 + first[2]:48 + first[2] + len(pad)], pad)
+        self.assertTrue(result.endswith(b"opaque tail"))
 
     def test_input_alias_and_malformed_count_are_rejected(self):
         alias = self.base / "alias.bin"
@@ -90,6 +186,39 @@ class TableTests(unittest.TestCase):
 
 @unittest.skipUnless(os.environ.get("EM_TEST_FULL") == "1", "set EM_TEST_FULL=1 for real text tables")
 class FullTableTests(unittest.TestCase):
+    def test_real_translations_decode_through_existing_forward_extractor(self):
+        from tools.export_ui import parse_outer
+        root = ROOT / "build/repack"
+        image = Path(os.environ.get("EM_TEST_ISO", ROOT / "Extermination-rebuilt.iso"))
+        cases = [("chunk00/f02_id02.bin", "bank"), ("chunk03/f14_id16.bin", "outer")]
+        leaves = dict(native_archive_leaves(image, {path for path, _ in cases}))
+        for path, kind in cases:
+            with tempfile.TemporaryDirectory(prefix="translation-proof-", dir=root) as directory:
+                base = Path(directory)
+                source, tree, output = base / "native.bin", base / "tree", base / "edited.bin"
+                source.write_bytes(leaves[path])
+                tables.unpack_table(source, tree, kind=kind)
+                doc = json.loads((tree / "table.json").read_text())
+                doc["groups"][0]["lines"][0]["text"] = "A longer translated message.\nWith another line."
+                doc["groups"][0]["lines"][1]["text"] = "Short."
+                if kind == "bank":
+                    doc["groups"][3]["lines"][0]["segments"] = ["Translated prefix", " styled phrase ", "ending."]
+                (tree / "table.json").write_text(json.dumps(doc))
+                tables.pack_table(tree, output)
+                rebuilt = output.read_bytes()
+                layout = tables._layout(rebuilt, kind)
+                for group in layout["groups"]:
+                    decoded, _ = parse_outer(rebuilt, group["offset"], path)
+                    expected = []
+                    for row in doc["groups"][group["group"]]["lines"]:
+                        text = ("".join(row["segments"]) if kind == "bank" and group["group"] == 3
+                                and row["line"] == 0 else row["text"])
+                        expected.append(text.encode("latin-1"))
+                    self.assertEqual(decoded, expected)
+                if kind == "bank":
+                    group = layout["groups"][3]
+                    self.assertEqual([pos for _, pos in tables._records(rebuilt, group, group["lines"][0])], [17, 32])
+
     def test_real_bank_and_bare_outer_roundtrip_and_edit(self):
         root = ROOT / "build/repack"
         root.mkdir(parents=True, exist_ok=True)

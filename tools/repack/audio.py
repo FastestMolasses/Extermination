@@ -1,7 +1,7 @@
 """Lossless-source WAV editing for SShd banks and mono PS2 ADPCM clips.
 
 WAV is a lossy-codec editing view: unchanged PCM reuses the original ADPCM.
-Edits keep the original frame count, frame flags, container headers and padding.
+Edits can change duration, with frame rounding, loop and bank-table relocation.
 Raw MUSIC.DAT/VOICE.DAT cue-stream editing is deliberately outside this module.
 """
 from __future__ import annotations
@@ -19,6 +19,102 @@ from .archive import safe_output
 
 SCHEMA = "extermination-audio-v1"
 COEFFICIENTS = ((0, 0), (60, 0), (115, -52), (98, -55), (122, -60))
+SPU_BASES = {1: 0x15040, 2: 0x1A0000, 3: 0x122000, 4: 0x132000}
+# Original LIBSD modes0..9 reserve at most0x18040 bytes (modes7/8).
+# Sequences can switch modes; growth cannot assume the default mode4.
+SPU_LIMITS = {1: 0x122000, 2: 0x1E7FC0, 3: 0x132000, 4: 0x187FC0}
+
+
+def _default_loop(raw: bytes):
+    if raw[-15] & 3 != 3:
+        return None
+    starts = [i for i in range(len(raw) // 16) if raw[i * 16 + 1] & 4]
+    start = starts[-1] if starts else 0
+    return "end" if start == len(raw) // 16 - 1 else start
+
+
+def _flag_template(original: bytes, frames: int, loop) -> bytes:
+    """Keep an explicit loop start; its end follows the new final ADPCM frame."""
+    if frames < 1:
+        raise ValueError("audio must contain at least one PCM sample")
+    if loop is not None and loop != "end" and (type(loop) is not int or not 0 <= loop < frames):
+        raise ValueError("loop start no longer fits; edit loops.json using ADPCM frame indices")
+    if frames == len(original) // 16 and loop == _default_loop(original):
+        return original
+    flags = [original[min(i, max(0, len(original) // 16 - 2)) * 16 + 1] & ~5 for i in range(frames)]
+    if loop is None:
+        flags[-1] = (flags[-1] & ~7) | 1
+    else:
+        flags[-1] |= 3
+        flags[-1 if loop == "end" else loop] |= 4
+    return b"".join(bytes((12, flag)) + bytes(14) for flag in flags)
+
+
+def _tone_fields(raw: bytes, bank: dict, banks: list[dict], image_offset: int) -> list[tuple[int, int]]:
+    """Enumerate actual tone starts in both program tables, including aliases."""
+    header = bank["header"]
+    end = min([b["header"] for b in banks if b["header"] > header] + [image_offset])
+
+    def bounded(at, size):
+        if at < header + 0x28 or at + size > end:
+            raise ValueError("SShd program/tone table is outside its bank header")
+
+    fields = {}
+    for slot in (0x10, 0x24):
+        offset = _u32(raw, header + slot)
+        if offset == 0xFFFFFFFF:
+            continue
+        region = header + offset
+        bounded(region, 2)
+        maximum = struct.unpack_from("<H", raw, region)[0]
+        bounded(region + 2, 2 * (maximum + 1))
+        for number in range(maximum + 1):
+            relative = struct.unpack_from("<H", raw, region + 2 + number * 2)[0]
+            if relative == 0xFFFF:
+                continue
+            program = region + relative
+            bounded(program, 8)
+            count = raw[program + 7] - raw[program + 6] + 1 if raw[program] == 0xFF else raw[program] & 0x7F
+            if count < 0:
+                raise ValueError("invalid direct-map note range")
+            bounded(program + 8, count * 16)
+            for tone in range(count):
+                at = program + 8 + tone * 16 + 4
+                start = struct.unpack_from("<H", raw, at)[0] << 3
+                if start % 16 or start >= bank["size"]:
+                    raise ValueError("tone sample start is not a valid ADPCM frame in its bank")
+                fields[at] = start
+    return sorted(fields.items())
+
+
+def _check_bank_capacity(banks: list[dict], sizes: list[int]) -> list[dict]:
+    if len(banks) != len(sizes):
+        raise ValueError("bank allocation count changed")
+    spans = []
+    first = 0
+    while first < len(banks):
+        kind = banks[first]["type"]
+        if kind not in SPU_BASES:
+            raise ValueError("resized bank uses an uncharacterized SPU allocation group")
+        last = first + 1
+        while last < len(banks) and banks[last]["type"] == kind:
+            last += 1
+        old_end = SPU_BASES[kind]
+        for bank in banks[first:last]:
+            old_end = ((old_end + 63) & ~63) + bank["size"]
+        # Preserve shipped occupied addresses even where larger reverb modes
+        # would overlap them. New addresses must stay below every mode's area.
+        limit = max(SPU_LIMITS[kind], old_end) if kind in (2, 4) else SPU_LIMITS[kind]
+        cursor = SPU_BASES[kind]
+        for size in sizes[first:last]:
+            cursor = (cursor + 63) & ~63
+            if size > 0x80000 or cursor + size > limit:
+                raise ValueError("resized sound bank exceeds its supported SPU/IOP allocation capacity")
+            spans.append(dict(group=kind, start=cursor, end=cursor + size, limit=limit,
+                              original_group_end=old_end))
+            cursor += size
+        first = last
+    return spans
 
 
 def _hash(data: bytes) -> str:
@@ -142,14 +238,19 @@ def unpack_audio(source: Path, out_dir: Path, *, kind="auto", rate=48000) -> dic
             wav.setsampwidth(2)
             wav.setframerate(layout["rate"])
             wav.writeframes(pcm)
+    loops = {sample["path"]: _default_loop(raw[sample["offset"]:sample["offset"] + sample["size"]])
+             for sample in layout["samples"]}
+    (output / "loops.json").write_text(json.dumps(loops, indent=2) + "\n")
     manifest = {"schema": SCHEMA, "source": str(source), "original_sha256": _hash(raw),
                 "layout": layout, "sample_count": len(layout["samples"]),
-                "limits": "Mono, fixed sample count and preview rate; native frame flags and metadata preserved. No cue-stream editing."}
+                "limits": "Mono PCM16 at the exported preview rate; changed duration rounds to28 samples. "
+                "loops.json uses ADPCM frame indices, null for one-shot, or end for a terminal-frame loop. "
+                "Bank growth is limited by tone addressing and fixed SPU allocations."}
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return manifest
 
 
-def encode_adpcm(pcm: bytes, original: bytes) -> bytes:
+def encode_adpcm(pcm: bytes, original: bytes, *, fast=False, reset_first=False) -> bytes:
     """Deterministically choose predictor/shift by decoded squared error per frame."""
     _frames(original)
     if len(pcm) != len(original) // 16 * 28 * 2:
@@ -162,10 +263,21 @@ def encode_adpcm(pcm: bytes, original: bytes) -> bytes:
         flags = original[frame * 16 + 1]
         best = None
         # A predictor-free loop-start frame remains valid after the loop wraps.
-        predictors = (0,) if flags & 4 else range(5)
+        predictors = (0,) if flags & 4 or reset_first and frame == 0 else range(5)
         for predictor in predictors:
             c1, c2 = COEFFICIENTS[predictor]
-            for shift in range(13):
+            shifts = range(13)
+            if fast:
+                # Estimate residual range with the target history, then test
+                # neighbouring quantizers with the actual decoded feedback.
+                h1, h2, peak = hist1, hist2, 0
+                for value in target:
+                    peak = max(peak, abs(value - ((h1 * c1 + h2 * c2) >> 6)))
+                    h2, h1 = h1, value
+                step_bits = max(0, ((peak + 6) // 7 - 1).bit_length())
+                center = max(0, min(12, 12 - step_bits))
+                shifts = range(max(0, center - 1), min(12, center + 1) + 1)
+            for shift in shifts:
                 h1, h2, error = hist1, hist2, 0
                 nibbles = []
                 step = 1 << (12 - shift)
@@ -202,24 +314,106 @@ def pack_audio(tree: Path, out_file: Path) -> dict:
         raise ValueError("audio layout changed; edit WAV files only")
     inputs = [manifest_path, original_path, Path(manifest["source"])]
     paths = [_input(tree, sample["path"]) for sample in layout["samples"]]
+    loops = {sample["path"]: _default_loop(raw[sample["offset"]:sample["offset"] + sample["size"]])
+             for sample in layout["samples"]}
+    if (tree / "loops.json").exists():
+        loops_path = _input(tree, "loops.json")
+        inputs.append(loops_path)
+        edits = json.loads(loops_path.read_text())
+        if not isinstance(edits, dict) or set(edits) != set(loops):
+            raise ValueError("loops.json must contain exactly the exported sample paths")
+        loops = edits
     output = _output(out_file, inputs + paths)
-    rebuilt = bytearray(raw)
-    changed = []
+    replacements, changed, sample_changes = {}, [], []
     for sample, path in zip(layout["samples"], paths):
         try:
             with wave.open(str(path), "rb") as wav:
                 if (wav.getnchannels() != 1 or wav.getsampwidth() != 2 or wav.getcomptype() != "NONE"
-                        or wav.getframerate() != layout["rate"] or wav.getnframes() != sample["pcm_samples"]):
-                    raise ValueError("WAV must retain mono PCM16, preview rate, and original sample count")
+                        or wav.getframerate() != layout["rate"] or not wav.getnframes()):
+                    raise ValueError("WAV must retain mono PCM16 and preview rate, with at least one sample")
                 pcm = wav.readframes(wav.getnframes())
+                if len(pcm) != wav.getnframes() * 2:
+                    raise ValueError("WAV sample data is truncated")
         except (wave.Error, EOFError) as exc:
             raise ValueError("edited audio must be a complete PCM16 WAV") from exc
         original = raw[sample["offset"]:sample["offset"] + sample["size"]]
-        if pcm == decode_adpcm(original):
+        loop = loops[sample["path"]]
+        frames = (len(pcm) // 2 + 27) // 28
+        template = _flag_template(original, frames, loop)
+        if pcm == decode_adpcm(original) and loop == _default_loop(original):
             continue
-        encoded = encode_adpcm(pcm, original)
-        rebuilt[sample["offset"]:sample["offset"] + sample["size"]] = encoded
+        if layout["kind"] == "sshd":
+            if frames == 1 and loop is not None:
+                raise ValueError("a one-frame looping bank sample is indistinguishable from a terminator")
+            bank = layout["banks"][sample["bank"]]
+            sample_start = sample["offset"] - bank["offset"]
+            if any(sample_start < start < sample_start + sample["size"]
+                   for _at, start in _tone_fields(raw, bank, layout["banks"], _u32(raw, 16))):
+                raise ValueError("editing a sample with independently keyed interior tone aliases is unsupported")
+        padding = frames * 28 * 2 - len(pcm)
+        encoded = encode_adpcm(pcm + bytes(padding), template)
+        replacements[sample["path"]] = encoded
         changed.append(sample["path"])
+        sample_changes.append(dict(path=sample["path"], original_bytes=len(original), new_bytes=len(encoded),
+                                   padded_pcm_samples=padding // 2, loop_start=loop))
+
+    resized = any(row["original_bytes"] != row["new_bytes"] for row in sample_changes)
+    tone_updates, capacity = [], []
+    if not resized:
+        rebuilt = bytearray(raw)
+        for sample in layout["samples"]:
+            if sample["path"] in replacements:
+                rebuilt[sample["offset"]:sample["offset"] + sample["size"]] = replacements[sample["path"]]
+    elif layout["kind"] == "sshd":
+        image_start = _u32(raw, 16)
+        header = bytearray(raw[:image_start])
+        bodies, sizes = [], []
+        for bank in layout["banks"]:
+            start, end = bank["offset"], bank["offset"] + bank["size"]
+            chunks, relocations, cursor, new_cursor = [], [], start, 0
+            for sample in (row for row in layout["samples"] if row["bank"] == bank["number"]):
+                chunks.append(raw[cursor:sample["offset"]])
+                new_cursor += sample["offset"] - cursor
+                payload = replacements.get(sample["path"], raw[sample["offset"]:sample["offset"] + sample["size"]])
+                relocations.append((sample["offset"] - start, sample["size"], new_cursor, len(payload)))
+                chunks.append(payload)
+                new_cursor += len(payload)
+                cursor = sample["offset"] + sample["size"]
+            chunks.append(raw[cursor:end])
+            body = b"".join(chunks)
+            sizes.append(len(body))
+            bodies.append(body)
+            if any(old_size != new_size for _begin, old_size, _new_begin, new_size in relocations):
+                for at, old in _tone_fields(raw, bank, layout["banks"], image_start):
+                    delta = 0
+                    for begin, old_size, new_begin, new_size in relocations:
+                        if old < begin:
+                            break
+                        if old < begin + old_size:
+                            if old - begin >= new_size:
+                                raise ValueError("tone points into a removed part of a resized sample")
+                            delta = new_begin - begin
+                            break
+                        delta = new_begin + new_size - begin - old_size
+                    new = old + delta
+                    if new % 16 or new >= len(body) or new >> 3 > 0xFFFF:
+                        raise ValueError("relocated tone exceeds native 16-bit sample addressing")
+                    struct.pack_into("<H", header, at, new >> 3)
+                    if new != old:
+                        tone_updates.append(dict(bank=bank["number"], field=at, original=old, relocated=new))
+            struct.pack_into("<I", header, 32 + bank["number"] * 16, len(body))
+            struct.pack_into("<I", header, bank["header"] + 4, len(body))
+        capacity = _check_bank_capacity(layout["banks"], sizes)
+        total = image_start + sum(sizes)
+        struct.pack_into("<I", header, 0, total)
+        struct.pack_into("<I", header, 20, sum(sizes))
+        rebuilt = header + b"".join(bodies) + raw[_u32(raw, 0):]
+    else:
+        sample = layout["samples"][0]
+        payload = replacements.get(sample["path"], raw[sample["offset"]:sample["offset"] + sample["size"]])
+        rebuilt = bytearray(raw[:sample["offset"]] + payload + raw[sample["offset"] + sample["size"]:])
+        if layout["kind"] == "vag":
+            struct.pack_into(">I", rebuilt, 12, len(payload))
     output.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".audio-", dir=output.parent)
     try:
@@ -230,4 +424,5 @@ def pack_audio(tree: Path, out_file: Path) -> dict:
         if os.path.exists(temporary):
             os.unlink(temporary)
     return {"output": str(output), "sha256": _hash(rebuilt), "changed_samples": changed,
-            "byte_identical": rebuilt == raw, "size": len(rebuilt)}
+            "byte_identical": rebuilt == raw, "size": len(rebuilt), "sample_changes": sample_changes,
+            "tone_updates": tone_updates, "spu_allocations": capacity}
