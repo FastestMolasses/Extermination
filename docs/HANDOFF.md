@@ -53,10 +53,13 @@ that is a different, stale tree.
   e2e0d23..ad0ea07 by topic; worktree removed), then chain build/workflows/level2-playable.js
   committed FRAME (8b900b6), FRAME2, NEUTRAL (c377c5f: the AREA01 guard is open, the first
   60 frames match the recording), MOVE (578abc0: movement and collision) and CAMERA
-  (8ce3067). Step DRAW (AREA01 drawn) was implemented and in review when stopped: it is
-  saved UNREVIEWED on branch level2-draw-wip (d764eef), not on main. Next: review DRAW
-  (diff level2-draw-wip against main), merge it, then the chain's CHECK step; journal copy
-  build/workflows/level2-playable.partial.json. Afterwards: doors, NPC scripts, messages,
+  (8ce3067). Step DRAW (AREA01 drawn, branch level2-draw-wip d764eef) was reviewed
+  (approved) and merged on 2026-10-07 (merge 6c9a688; follow-up 1563220: the smoke asserts
+  the kind-6 near-fire program draws, first at a01_00 f405). Next: the chain's CHECK step;
+  journal copy build/workflows/level2-playable.partial.json. Codex's AREA01 crash sweep
+  (branch level2-crash, docs/LEVEL2_CRASHES.md) is unmerged; when merged, rewrite its
+  0023D930 "protected blocker" lines (DRAW fixed them; the water / water-west / ladder
+  probes now end ROUTE-BLOCKED with no fault) and take its census promotions. Afterwards: doors, NPC scripts, messages,
   pickups, beats a01_01..a01_07 and the side routes (LEVEL2_BINDING.md).
 - **iOS:** merged into main (841fc99); build and run from the port root with
   tools/ios/build.sh run (docs/IOS.md); free-team signing expires every 7 days.
