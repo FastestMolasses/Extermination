@@ -86,6 +86,13 @@ that is a different, stale tree.
   world texture catalog, shadow receivers, binding), the voice-line end timing under the
   drive switch (a01_03 f957, a01_05 f3836), AREA01 page-load timings (a01_s1/s2/s5), a bug
   hit, then the chain's CHECK step (journal build/workflows/level2-playable.partial.json).
+- **Disc repacker (Codex, finished 2026-10-08):** all rounds reviewed and merged
+  (a7acd17, 25b390f, c930eeb, 5b6b392): lossless DATA.DAT/INDEX.IDX and ISO rebuild,
+  size-changing edits, streams, models, shareable .emmod mod packs (deltas only; the
+  builder refuses any 65+ byte run also found on the user's disc), logical title-texture
+  upgrades; port integration design in docs/REPACK_PORT.md (not yet implemented). Run
+  from this checkout (docs/REPACK.md, MODDING.md); the repack worktree is removed and
+  its cited receipts are in build/repack (loose/ and streams/ regenerate via unpack-disc).
 - **iOS:** merged into main (841fc99); build and run from the port root with
   tools/ios/build.sh run (docs/IOS.md); free-team signing expires every 7 days.
 - **First level:** CAMERAS (c11-t3) and GSFRAME (c11-t2) approved but not merged; then
