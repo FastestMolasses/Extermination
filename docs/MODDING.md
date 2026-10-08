@@ -34,7 +34,7 @@ disc-derived is ever committed or redistributed.
 
 ## Quick PS2 asset-mod walkthrough
 
-Run from the repack checkout on **native arm64 macOS**. The editors use Python;
+Run from the decomp checkout on **native arm64 macOS**. The editors use Python;
 the final source build needs the project's installed Apple container toolchain.
 All disc-derived material remains local under ignored `build/repack/`.
 
