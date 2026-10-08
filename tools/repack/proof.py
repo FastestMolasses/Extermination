@@ -214,6 +214,33 @@ def reach_title(game, out: Path) -> tuple[bytes, bool]:
     return task, title_ready
 
 
+@contextmanager
+def private_slot16(game, states: Path):
+    """Discover the private state by slot; asset cue patches change ELF CRC."""
+    if list(states.glob("*.16.p2s")):
+        raise ValueError("private screenshot slot is already occupied")
+    try:
+        game.pine.save(16)
+        deadline, previous = time.monotonic() + 15, None
+        while time.monotonic() < deadline:
+            candidates = list(states.glob("*.16.p2s"))
+            if len(candidates) > 1:
+                raise RuntimeError("multiple private slot16 files appeared")
+            target = candidates[0] if candidates else None
+            current = (target, target.stat().st_size) if target else None
+            if current is not None and current[1] > 0 and current == previous:
+                yield target
+                return
+            previous = current
+            time.sleep(0.25)
+        raise RuntimeError("private snapshot was not written")
+    finally:
+        # The directory is private and slot16 was empty before this save.
+        # Never discover, overwrite or remove any protected numbered slot.
+        for target in states.glob("*.16.p2s"):
+            target.unlink()
+
+
 def capture_title(iso: Path, out_dir: Path, *, reference: Path = REFERENCE) -> dict:
     image, out = Path(iso).resolve(), safe_output(out_dir)
     if not image.is_file() or (out.exists() and any(out.iterdir())):
@@ -234,27 +261,14 @@ def capture_title(iso: Path, out_dir: Path, *, reference: Path = REFERENCE) -> d
             # stream the ISO hash separately instead of loading 2 GiB into RAM.
             with ColdDiscSession(identity, emulator=emulator, iso=image, log_dir=out / "logs", ready_timeout=60) as game:
                 task, title_ready = reach_title(game, out)
-                target = states / "SCUS-97112 (0AE679AF).16.p2s"
-                if target.exists():
-                    raise ValueError("private screenshot slot is already occupied")
-                game.pine.save(16)
-                deadline, previous = time.monotonic() + 15, -1
-                while time.monotonic() < deadline:
-                    size = target.stat().st_size if target.exists() else 0
-                    if size > 0 and size == previous:
-                        break
-                    previous = size
-                    time.sleep(0.25)
-                else:
-                    raise RuntimeError("private screenshot state was not written")
-                with zipfile.ZipFile(target) as state:
-                    (out / "title.png").write_bytes(state.read("Screenshot.png"))
+                with private_slot16(game, states) as target:
+                    with zipfile.ZipFile(target) as state:
+                        (out / "title.png").write_bytes(state.read("Screenshot.png"))
                 result = dict(iso_path=str(image), iso_sha256=sha256_file(image),
                               screenshot=str(out / "title.png"), screenshot_sha256=sha256_file(out / "title.png"),
                               frames=game.frames_stepped, counter=game.u32(session.FRAME_COUNTER),
                               task_state=list(task[8:16]), hidden=True, cold_disc_boot=True,
                               memory_cards_enabled=False, private_slot=16, title_ready=title_ready)
-                target.unlink()
                 if result["iso_sha256"] != expected_image_hash:
                     raise RuntimeError("proof input image changed during capture")
         finally:
@@ -272,20 +286,7 @@ def capture_title(iso: Path, out_dir: Path, *, reference: Path = REFERENCE) -> d
 def private_snapshot(game, states: Path, out: Path) -> dict:
     """Keep a screenshot and sound state from private slot 16, then remove it."""
     out.mkdir(parents=True, exist_ok=False)
-    target = states / "SCUS-97112 (0AE679AF).16.p2s"
-    if target.exists():
-        raise ValueError("private screenshot slot is already occupied")
-    try:
-        game.pine.save(16)
-        deadline, previous = time.monotonic() + 15, -1
-        while time.monotonic() < deadline:
-            size = target.stat().st_size if target.exists() else 0
-            if size > 0 and size == previous:
-                break
-            previous = size
-            time.sleep(0.25)
-        else:
-            raise RuntimeError("private snapshot was not written")
+    with private_slot16(game, states) as target:
         with zipfile.ZipFile(target) as state:
             (out / "original.png").write_bytes(state.read("Screenshot.png"))
             names = state.namelist()
@@ -305,13 +306,11 @@ def private_snapshot(game, states: Path, out: Path) -> dict:
                 "stream_lanes": lanes,
                 "screenshot": str(out / "original.png"),
                 "files": {p.name: sha256_file(p) for p in out.iterdir()}}
-    finally:
-        if target.exists():
-            target.unlink()
 
 
 def capture_gameplay(iso: Path, out_dir: Path, *, model: Path | None = None,
-                     frames: int = 400, voice_route: bool = False, reference: Path = REFERENCE) -> dict:
+                     frames: int = 400, voice_route: bool = False, status_model: bool = False,
+                     reference: Path = REFERENCE) -> dict:
     """Cold New Game proof using only controller input and read-only observations.
 
     An optional player model is checked at three native vertex ranges through
@@ -376,6 +375,9 @@ def capture_gameplay(iso: Path, out_dir: Path, *, model: Path | None = None,
                         (out / "proof.json").write_text(json.dumps(result, indent=2) + "\n")
                     if n < frames:
                         game.step()
+                if status_model:
+                    result["status_model"] = capture_status_model(game, states, out / "model-status")
+                    (out / "proof.json").write_text(json.dumps(result, indent=2) + "\n")
                 if voice_route:
                     result["voice_route"] = capture_voice_route(game, states, out / "voice-route")
                 result["frames"] = game.frames_stepped
@@ -390,6 +392,50 @@ def capture_gameplay(iso: Path, out_dir: Path, *, model: Path | None = None,
         result["emulator_exit_confirmed"] = True
         (out / "proof.json").write_text(json.dumps(result, indent=2) + "\n")
     return result
+
+
+def ordinary_control(game, row: dict) -> bool:
+    """Opening scripts release the selector before the player and fade finish."""
+    from tools import route_capture as route
+    return (route.in_control(row) and game.u32(0x8102B4) & 255 == 1
+            and game.u32(0x28A9A0) == 0)
+
+
+def capture_status_model(game, states: Path, out: Path) -> dict:
+    """Capture the status model, then return to ordinary field control."""
+    from tools import route_capture as route
+    plain_write = game.write
+
+    def refuse_write(*_args, **_kwargs):
+        raise RuntimeError("the cold controller proof forbids RAM writes")
+
+    game.write = refuse_write
+    try:
+        r = route.Route(game)
+        r.begin()
+        r.until(lambda row: ordinary_control(game, row), 2200)
+        r.press("START", 2)
+        r.until(lambda _row: game.read(0x810130, 4)[1:3] == b"\x01\x01", 600)
+        r.idle(60)
+        if game.read(0x810130, 4)[1:3] != b"\x01\x01":
+            raise RuntimeError("status model left the hub before capture")
+        result = {"controller_only": True, "hub_neutral_frames": 60,
+                  "snapshot": private_snapshot(game, states, out)}
+        # Hub input mask 0x830 (func_0020CDC0) includes the same START edge
+        # used to open it; phase 5 completes the normal field restoration.
+        r.press("START", 2)
+        r.until(lambda row: ordinary_control(game, row), 600)
+        route.settle(r)
+        r.until(lambda row: ordinary_control(game, row), 600)
+        if r.teleports:
+            raise RuntimeError("status proof route unexpectedly teleported")
+        result.update(field_control_restored=True, frames=game.frames_stepped, teleports=0)
+        (out / "inputs.json").write_text(json.dumps(r.inputs) + "\n")
+        (out / "proof.json").write_text(json.dumps(result, indent=2) + "\n")
+        return result
+    finally:
+        game.write = plain_write
+        game.pad(0)
 
 
 def capture_voice_route(game, states: Path, out: Path) -> dict:
@@ -434,7 +480,7 @@ def capture_voice_route(game, states: Path, out: Path) -> dict:
     try:
         r = route.Route(game)
         r.begin()
-        r.until(route.in_control, 2200)
+        r.until(lambda row: ordinary_control(game, row), 2200)
         route.settle(r)
         for name in ("battery", "elevator_refusal", "panel_power", "elevator_ride", "boxes",
                      "hill_slide", "truck_preview", "truck_crossing", "cage_roof_roger"):

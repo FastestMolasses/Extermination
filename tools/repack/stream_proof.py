@@ -5,10 +5,15 @@ oracle in the native port. This checks captured state; it never runs an emulator
 """
 from __future__ import annotations
 
+import argparse
+import json
+import os
 from pathlib import Path
 import struct
+import tempfile
 
 from .archive import sha256_file
+from .audio import _output
 from .streams import _rows, _validate_rows, PROFILES
 
 
@@ -151,3 +156,70 @@ def verify_playback(stream_file: Path, elf: Path, driver_irx: Path, captures: li
     return dict(kind=kind, cue_identity_verified=require_cue_identity,
                 stream_sha256=sha256_file(stream_file), elf_sha256=sha256_file(elf),
                 observations=observations, advancing=advancing)
+
+
+def capture_inputs(proof: Path, kind: str) -> tuple[Path, list[dict]]:
+    """Read retained snapshot metadata without invoking the emulator."""
+    proof = Path(proof).resolve()
+    if proof.is_dir():
+        candidate = proof / 'voice-route/proof.json'
+        proof = candidate if kind == 'voice' and candidate.is_file() else proof / 'proof.json'
+    receipt = json.loads(proof.read_text())
+    if not isinstance(receipt, dict):
+        raise ValueError('proof receipt must be a JSON object')
+    if kind == 'voice' and 'voice_route' in receipt:
+        receipt = receipt['voice_route']
+    elif kind == 'voice' and (proof.parent / 'voice-route/proof.json').is_file():
+        proof = proof.parent / 'voice-route/proof.json'
+        receipt = json.loads(proof.read_text())
+    if not isinstance(receipt, dict) or not isinstance(receipt.get('snapshots'), list):
+        raise ValueError('proof receipt has no retained snapshot list')
+    captures = []
+    for snapshot in receipt['snapshots']:
+        if not isinstance(snapshot, dict) or not isinstance(snapshot.get('screenshot'), str):
+            raise ValueError('snapshot receipt is missing its screenshot path')
+        screenshot = Path(snapshot['screenshot'])
+        if not screenshot.is_absolute():
+            screenshot = proof.parent / screenshot
+        directory = screenshot.resolve().parent
+        captures.append(dict(label=directory.name, iop_memory=directory / 'iopMemory.bin',
+                             spu_state=directory / 'SPU2.bin', screenshot=screenshot.resolve(),
+                             stream_lanes=snapshot.get('stream_lanes')))
+    return proof, captures
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--stream', required=True, type=Path)
+    parser.add_argument('--elf', required=True, type=Path)
+    parser.add_argument('--driver', required=True, type=Path)
+    parser.add_argument('--proof', required=True, type=Path)
+    parser.add_argument('--kind', required=True, choices=('music', 'voice'))
+    parser.add_argument('--cue', required=True, action='append', type=int)
+    parser.add_argument('--out', required=True, type=Path)
+    args = parser.parse_args(argv)
+    proof, captures = capture_inputs(args.proof, args.kind)
+    inputs = [args.stream, args.elf, args.driver, args.proof, proof]
+    if args.proof.is_dir():
+        inputs.append(args.proof / 'proof.json')
+    for capture in captures:
+        inputs.extend(capture[key] for key in ('iop_memory', 'spu_state', 'screenshot'))
+    out = _output(args.out, inputs)
+    result = verify_playback(args.stream, args.elf, args.driver, captures, kind=args.kind, cues=args.cue)
+    result['proof_receipt'] = str(proof)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix='.stream-proof-', dir=out.parent)
+    try:
+        with os.fdopen(descriptor, 'w') as stream:
+            json.dump(result, stream, indent=2)
+            stream.write('\n')
+        os.replace(temporary, out)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    print(json.dumps(dict(verified=True, captures=len(captures), advancing=len(result['advancing']),
+                          output=str(out))))
+
+
+if __name__ == '__main__':
+    main()

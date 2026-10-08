@@ -106,6 +106,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--model", type=Path, help="expected edited player resource chunk28/f00_id3b.bin")
     p.add_argument("--frames", type=int, default=400)
+    p.add_argument("--status-model", action="store_true", help="capture the full player model in STATUS, then return to field control")
     p.add_argument("--voice-route", action="store_true", help="continue the controller route to the first voiced dialogue")
     args = parser.parse_args(argv)
     try:
@@ -167,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "proof-gameplay":
             from . import proof
             print(json.dumps(proof.capture_gameplay(args.iso, args.out, model=args.model, frames=args.frames,
-                                                   voice_route=args.voice_route), indent=2))
+                                                   voice_route=args.voice_route, status_model=args.status_model), indent=2))
         elif args.command == "add-entry":
             print(json.dumps(archive.add_entry(args.tree, args.region, args.id, args.input), indent=2))
         elif args.command.startswith("texture-"):

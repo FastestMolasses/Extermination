@@ -1,11 +1,14 @@
 """Playback evidence must show live progress and the exact transferred bytes."""
 from pathlib import Path
+import contextlib
+import io
+import json
 import random
 import struct
 import tempfile
 import unittest
 
-from tools.repack.stream_proof import verify_playback, _matching_half
+from tools.repack.stream_proof import verify_playback, _matching_half, capture_inputs, main
 from tools.repack.test_streams import ARTIFACTS, fixture
 
 
@@ -79,8 +82,16 @@ class PlaybackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'EE stream_lanes'):
             self.prove()
 
-    def test_stopped_and_static_cursors_do_not_prove_playback(self):
+    def test_static_cursors_do_not_prove_playback(self):
         self.captures[1]['iop_memory'].write_bytes(self.captures[0]['iop_memory'].read_bytes())
+        with self.assertRaisesRegex(ValueError, 'advancing'):
+            self.prove()
+
+    def test_stopped_or_one_working_stereo_channel_is_insufficient(self):
+        for capture in self.captures:
+            raw = bytearray(capture['iop_memory'].read_bytes())
+            struct.pack_into('<I', raw, 0x100 + 0x76C0 + 0x34, 0)
+            capture['iop_memory'].write_bytes(raw)
         with self.assertRaisesRegex(ValueError, 'advancing'):
             self.prove()
         for capture in self.captures:
@@ -108,6 +119,35 @@ class PlaybackTests(unittest.TestCase):
         self.assertEqual(_matching_half(channel, actual, 0), 0)
         actual[4000] ^= 1
         self.assertIsNone(_matching_half(channel, actual, 0))
+
+    def test_receipt_selection_cli_and_alias_guard(self):
+        proof_dir = self.base / 'proof'
+        proof_dir.mkdir()
+        snapshots = []
+        for capture in self.captures:
+            directory = proof_dir / capture['label']
+            directory.mkdir()
+            for old, new in (('iop_memory', 'iopMemory.bin'), ('spu_state', 'SPU2.bin')):
+                (directory / new).write_bytes(capture[old].read_bytes())
+            snapshots.append(dict(screenshot=str(directory / 'original.png'),
+                                  stream_lanes=capture['stream_lanes']))
+        receipt = proof_dir / 'proof.json'
+        receipt.write_text(json.dumps(dict(snapshots=snapshots)))
+        voice_dir = proof_dir / 'voice-route'
+        voice_dir.mkdir()
+        voice_receipt = voice_dir / 'proof.json'
+        voice_receipt.write_text(json.dumps(dict(snapshots=[])))
+        self.assertEqual(capture_inputs(proof_dir, 'voice')[0], voice_receipt)
+        self.assertEqual(len(capture_inputs(proof_dir, 'music')[1]), 2)
+        args = ['--stream', str(self.base / 'MUSIC.DAT'), '--elf', str(self.base / 'boot.elf'),
+                '--driver', str(self.irx), '--proof', str(proof_dir), '--kind', 'music', '--cue', '1']
+        output = self.base / 'result.json'
+        with contextlib.redirect_stdout(io.StringIO()) as stdout:
+            main(args + ['--out', str(output)])
+        self.assertTrue(json.loads(stdout.getvalue())['verified'])
+        self.assertTrue(json.loads(output.read_text())['cue_identity_verified'])
+        with self.assertRaisesRegex(ValueError, 'aliases'):
+            main(args + ['--out', str(receipt)])
 
 
 if __name__ == '__main__':
