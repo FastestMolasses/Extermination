@@ -37,7 +37,7 @@ def record(name: bytes, extent: int, size: int, directory=False) -> bytes:
     return bytes(buf)
 
 
-def synthetic_iso(path: Path) -> Path:
+def synthetic_iso(path: Path, *, streams=False) -> Path:
     """Construct raw ISO records without calling the implementation under test."""
     blob = bytearray(b"\xA7" * (34 * SECTOR))
     pvd = bytearray(SECTOR)
@@ -48,7 +48,9 @@ def synthetic_iso(path: Path) -> Path:
     pvd[120:124] = both16(1)
     pvd[124:128] = both16(1)
     pvd[128:132] = both16(SECTOR)
-    pvd[132:140] = both32(38)
+    directory_name = b"STREAM" if streams else b"DATA"
+    payload_names = (b"MUSIC.DAT;1", b"VOICE.DAT;1") if streams else (b"DATA.DAT;1", b"INDEX.IDX;1")
+    pvd[132:140] = both32(40 if streams else 38)
     struct.pack_into("<I", pvd, 140, 18)
     struct.pack_into(">I", pvd, 148, 19)
     pvd[156:190] = record(b"\0", 20, SECTOR, True)
@@ -60,7 +62,7 @@ def synthetic_iso(path: Path) -> Path:
     for sector, endian in [(18, "<"), (19, ">")]:
         table = bytearray(SECTOR)
         cursor = 0
-        for name, extent, parent in [(b"\0", 20, 1), (b"DATA", 21, 1), (b"OVERLAY", 22, 1)]:
+        for name, extent, parent in [(b"\0", 20, 1), (directory_name, 21, 1), (b"OVERLAY", 22, 1)]:
             entry = bytes([len(name), 0]) + struct.pack(endian + "IH", extent, parent) + name
             if len(name) % 2:
                 entry += b"\0"
@@ -69,10 +71,10 @@ def synthetic_iso(path: Path) -> Path:
         blob[sector * SECTOR:(sector + 1) * SECTOR] = table
     directories = {
         20: [record(b"\0", 20, SECTOR, True), record(b"\1", 20, SECTOR, True),
-             record(b"DATA", 21, SECTOR, True), record(b"OVERLAY", 22, SECTOR, True),
+             record(directory_name, 21, SECTOR, True), record(b"OVERLAY", 22, SECTOR, True),
              record(b"SCUS_971.12;1", 23, 600), record(b"SYSTEM.CNF;1", 24, 50)],
         21: [record(b"\0", 21, SECTOR, True), record(b"\1", 20, SECTOR, True),
-             record(b"DATA.DAT;1", 25, 2 * SECTOR), record(b"INDEX.IDX;1", 28, SECTOR)],
+             record(payload_names[0], 25, 2 * SECTOR), record(payload_names[1], 28, SECTOR)],
         22: [record(b"\0", 22, SECTOR, True), record(b"\1", 20, SECTOR, True),
              record(b"AREA00.BIN;1", 30, 512)],
     }

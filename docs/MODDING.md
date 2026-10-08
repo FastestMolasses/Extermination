@@ -12,13 +12,15 @@ What you can actually change today, and with which tools. Three surfaces:
 3. **PS2 archive modding** — `python3 -m tools.repack` unpacks the user's
    disc into a lossless ISO tree and correctly labelled DATA/INDEX loose
    files, then rebuilds both containers and the ISO. See [REPACK.md](REPACK.md)
-   for source builds, PNG/WAV/JSON editing, byte-sized growth, new resident
-   entries, and format limits.
+   for source builds, PNG/WAV/JSON/glTF editing, byte-sized growth, cue streams,
+   new resident entries, and format limits.
 
-The repacker supports reversible textures, audio samples and message tables.
-Archive alignment padding is rebuilt around exact edited payload lengths.
-EMDL/EMCL/glTF conversion back to native model packets and cue-stream editing
-remain future work; opaque files and stream movies are preserved.
+The repacker supports reversible textures, variable-duration audio samples,
+translations, music/voice cue streams and bounded same-topology native models.
+Archive alignment padding is rebuilt around edited payload lengths. Logical
+texture-resolution/palette-count changes, model re-topology, arbitrary native-port
+EMDL/EMCL imports and movie re-encoding remain unsupported. Opaque files and
+movies are preserved.
 
 **Legal frame (CLAUDE.md hard rules):** every exporter ingests only the
 user's own disc dump / PCSX2 save states; all outputs land in git-ignored
@@ -41,7 +43,7 @@ python3 -m tools.repack unpack-disc \
 python3 -m tools.repack texture-unpack \
   --input build/repack/loose/archive/chunk01/transient00.bin \
   --out build/repack/title --preset title
-# In a PNG editor, recolor palette004.png; preserve its alpha and dimensions.
+# In a PNG editor, recolor palette004.png to magenta; preserve alpha/dimensions.
 python3 -m tools.repack texture-pack --tree build/repack/title \
   --out build/repack/title-edited.bin
 cp build/repack/title-edited.bin build/repack/loose/archive/chunk01/transient00.bin
@@ -64,6 +66,133 @@ original ISO, and the magenta NEW GAME mod changed only 43 disc bytes. Its hidde
 cold boot reached the title screen; the before/after screenshots and receipts
 are under `build/repack/`. The isolated mod tree and temporary edited ISO were
 removed afterward, with canonical assets, memory cards and protected saves intact.
+
+## Translations, sound replacements and model tweaks
+
+Use a new editor directory for each native leaf, and pack to a separate output.
+The examples below all run on native arm64 macOS (the format commands also run
+on Linux). Do not modify the native templates or layout manifests.
+
+```sh
+# Translations: edit table.json text, or segments for styled lines.
+python3 -m tools.repack table-unpack \
+  --input build/repack/loose/archive/chunk00/f02_id02.bin \
+  --out build/repack/messages
+python3 -m tools.repack table-pack --tree build/repack/messages \
+  --out build/repack/messages-edited.bin
+cp build/repack/messages-edited.bin build/repack/loose/archive/chunk00/f02_id02.bin
+
+# Sound replacement: edit exported mono PCM16 WAVs and loops.json.
+python3 -m tools.repack audio-unpack \
+  --input build/repack/loose/archive/chunk04.n0/sound00.bin \
+  --out build/repack/sound --rate 48000
+python3 -m tools.repack audio-pack --tree build/repack/sound \
+  --out build/repack/sound-edited.bin
+cp build/repack/sound-edited.bin build/repack/loose/archive/chunk04.n0/sound00.bin
+
+# Conservative shape, UV and normal edits: preserve glTF topology and _NATIVE_ID.
+python3 -m tools.repack model-unpack \
+  --input build/repack/loose/archive/chunk28/f00_id3b.bin \
+  --out build/repack/player
+python3 -m tools.repack model-pack --tree build/repack/player \
+  --out build/repack/player-edited.bin
+cp build/repack/player-edited.bin build/repack/loose/archive/chunk28/f00_id3b.bin
+```
+
+Translations may grow/shrink; the tool relocates string and style references.
+The JSON uses native Latin-1 bytes, so a new language still needs supported font
+glyphs. Edited runs must fit the original 128-byte scratch buffers including NUL;
+visual line fit remains the author's responsibility. Sample duration may change,
+with ADPCM-frame padding and tone/bank relocation. Keep the WAV rate/channel
+format and adjust a loop start if shortening removes it. SPU memory and tone
+addressing constrain growth; interior keyed sample aliases are refused.
+
+For texture upgrades, recolour or redraw the known PNG/CLUT views at the existing
+logical resolution. An index-only upload canvas can grow/shrink with
+`texture-pack --resize-uploads`; this rebuilds DMA/VIF/GIF transfer lengths and
+positions. It does **not** relocate every model/executable TEX0 reference, so
+logical resolution and palette-count upgrades are refused. Model positions stay
+inside existing joint bounds; identity skin nodes are a native bone-local editing
+view. The accepted glTF interchange rules and full re-topology design are in
+[REPACK_MODELS.md](REPACK_MODELS.md).
+
+Music and voice use a separate bundle because their cue tables live in the boot:
+
+```sh
+python3 -m tools.repack stream-unpack \
+  --input build/repack/loose/iso/files/STREAM/MUSIC.DAT \
+  --elf build/repack/loose/iso/files/SCUS_971.12 \
+  --cue 63 --out build/repack/music
+# Replace cue_063.wav with stereo PCM16, 48000Hz; its duration may change.
+python3 -m tools.repack stream-pack --tree build/repack/music \
+  --out build/repack/music-bundle
+.venv/bin/python -m tools.repack build-disc --tree build/repack/loose \
+  --stream-bundle build/repack/music-bundle --out build/repack/my-stream-mod
+```
+
+For dialogue substitute VOICE.DAT and a voice cue ID (for example 143), keeping
+mono PCM16 at 48000 Hz; repeat `--stream-bundle` to combine music and voice.
+Unchanged WAVs preserve their original ADPCM bytes. Non-looping edits receive a
+silent guard for the original playback timer; loops keep only sector padding.
+Cue IDs and loop flags remain fixed, and script/subtitle timing is not rewritten.
+
+Build all ordinary asset edits with `build-disc` as in the first walkthrough.
+For an original-game player proof, rebuild after applying the model edit, then
+cold boot and capture New Game:
+
+```sh
+.venv/bin/python -m tools.repack build-disc --tree build/repack/loose \
+  --out build/repack/my-model-mod
+.venv/bin/python -m tools.repack proof-gameplay \
+  --iso build/repack/my-model-mod/Extermination.iso \
+  --model build/repack/player-edited.bin --status-model \
+  --out build/repack/game-proof
+```
+
+This verifies edited native vertex ranges through the live resource pointer and
+captures the opening and status-screen model. The opening scene attaches a
+separate face, so a head edit should be compared in the status screen. Add
+`--voice-route` for the longer controller-only route to the first voiced
+conversation. It waits for the player and fade to release movement, and exits
+after two sound-state captures of cue 143. Both proof commands use the shared lock,
+private disabled memory cards, private slot 16, and confirmed emulator shutdown.
+
+The follow-up proof used a 20% smaller base head, a shorter music cue and a
+longer dialogue cue. The STATUS comparison changed only 618 pixels around the
+head. Both replacement streams passed active/advancing SPU playback checks on
+the source-built disc; [REPACK.md](REPACK.md) gives the independent verifier
+commands and retained receipts. Movies remain unchanged.
+
+## Taking a disc texture mod into the native port
+
+The port loads its exported assets. It does not automatically consume a new ISO.
+The helper below is specifically the magenta-title showcase fixture from the
+first walkthrough: it requires an increase in magenta pixels. It runs existing
+exporters against that source-built disc, uses a private copy of support assets,
+and runs the existing headless title test. Other colours need their own visual
+comparison rather than this fixture's magenta assertion:
+
+```sh
+.venv/bin/python -m tools.repack.port_proof \
+  --iso build/repack/my-mod/Extermination.iso --out build/repack/native-proof
+```
+
+It reads the existing sibling port executable and shared assets without changing
+them. Disc staging, legacy extraction, exported assets, native save directory,
+logs and frame capture all stay under `build/repack/native-proof/`. The capture
+is `capture/title.png`; the receipt records which support assets were copied and
+which were freshly exported. The proven mod is the magenta title texture. This
+is a startup/title proof, not a full re-export or gameplay proof for every mod.
+Other types need the corresponding port exporters from its `docs/STARTUP.md`,
+pointed explicitly at scratch inputs and outputs.
+
+Current port limitation: `export_streams.py` and `export_module_loader.py` pin the
+whole boot ELF hash. A cue-table patch from a resized stream is rejected before
+export. Using an original ELF with relocated stream data would produce stale
+cue metadata, so the helper does not substitute one. The texture showcase keeps
+the original matching boot and exports successfully. Supporting cue-patched boots
+requires a port-side change; the port was left read-only. [REPACK.md](REPACK.md)
+records commands, actual failure messages and proof receipts.
 
 ## 1. Code modding (the decomp dev loop)
 
@@ -249,14 +378,16 @@ Levels without a texture source fall back to gray sheets.
 
 ## 7. What's NOT moddable yet
 
-- **No inverse native-port format conversion** — the archive repacker
-  rebuilds native PS2 payloads, but Blender/glTF/EMDL edits still need an
-  encoder into the original asset format. Container round trips do not
-  establish that an arbitrary edited payload will load in the game.
-- **The port covers the first level only** (and is being made exactly
-  original there); what it reproduces and what is still missing is tracked in
-  the port's `docs/FIDELITY_FEATURES.md` and `docs/FIRST_LEVEL_AUDIT.md`, not
-  here.
+- **Bounded inverse model conversion only** — use the repacker's same-topology
+  glTF view; arbitrary Blender/glTF/EMDL scenes, new topology/materials, blended
+  weights and expanded culling bounds still need a full native packet encoder.
+- **Logical texture upgrades and movies** — unresolved cross-file TEX0/CLUT
+  references block resolution/palette-count changes; no MPEG-2/PSS encoder is
+  implemented. Cue-patched boot files also meet the port exporter restriction above.
+- **Runtime proof here covers the title and first-level PS2 route.**
+  Port coverage and remaining work are tracked in its `docs/STARTUP.md`,
+  `docs/FIDELITY_FEATURES.md` and area-specific audits; this walkthrough does
+  not establish mod compatibility for every supported area.
 
-_Reviewed 2026-10-08: source-disc builds, reversible PNG/WAV/JSON edits, archive
-growth and the hidden original-game texture proof; port formats remain unchanged._
+_Reviewed 2026-10-08: variable-size formats, music/voice bundles, same-topology
+models and isolated PS2/native-port proofs; port code and formats remain unchanged._

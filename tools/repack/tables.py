@@ -1,4 +1,4 @@
-"""Fixed-length editing views for decoded message-bank OUTER/TEXT tables.
+"""Relocating translation views for decoded message-bank OUTER/TEXT tables.
 
 Native glyph bytes map one-to-one through Latin-1 in JSON; this is a byte
 encoding, not a claim that the game's font uses Unicode. Unknown markup,
@@ -93,6 +93,136 @@ def _input(tree: Path, name: str) -> Path:
     return result
 
 
+def _records(raw: bytes, group: dict, entry: dict) -> list[tuple[int, int]]:
+    """Return (record address, byte anchor), never treat opaque words as pointers."""
+    at = group["offset"]
+    relative, _, _, size = _words(raw, at + 16 + 16 * entry["line"])
+    base = at + _words(raw, at)[0] + relative
+    return [(base + i, _words(raw, base + i)[2]) for i in range(0, size, 16)]
+
+
+def _segments(text: bytes, records: list[tuple[int, int]]) -> list[str] | None:
+    anchors = [position for _, position in records]
+    if not anchors or anchors != sorted(anchors) or anchors[-1] > len(text):
+        return None
+    bounds = [0] + anchors + [len(text)]
+    return [text[a:b].decode("latin-1") for a, b in zip(bounds, bounds[1:])]
+
+
+def _encode(value: str) -> bytes:
+    try:
+        encoded = value.encode("latin-1")
+    except UnicodeEncodeError as exc:
+        raise ValueError("text must contain only native Latin-1 byte values") from exc
+    if b"\0" in encoded:
+        raise ValueError("edited text must contain no NUL")
+    return encoded
+
+
+def _renderer_limits(text: bytes, anchors: list[int], *, options: bool) -> None:
+    """Mirror the bounded scratch writes in the readable decompilation.
+
+    FC7B0 copies runs into char[0x80]; FE070 additionally accumulates markup
+    spans into a zeroed 0x80-byte global. One byte must remain for NUL. The
+    renderer itself flushes a 512px staging strip (CC1E0), not a line limit.
+    """
+    if anchors:
+        boundaries = [0] + anchors + [len(text)]
+        if any(len(part) > 127 for a, b in zip(boundaries, boundaries[1:])
+               for part in text[a:b].split(b"\n")):
+            raise ValueError("translation exceeds 127 bytes between a style anchor/newline: "
+                             "func_001FE070 writes a 0x80-byte scratch buffer including NUL")
+    boundaries = [0] + anchors + [len(text)]
+    # FCBD0 can retrieve the same raw TEXT and bypass OUTER styles entirely;
+    # validate its full runs as well as the individually flushed style spans.
+    spans = [(0, len(text))] + list(zip(boundaries, boundaries[1:]))
+    for start, end in spans:
+        i = start
+        while i < end:
+            c = text[i]
+            if c < 32 or c == 0x80 or 0xA0 <= c < 0xE0 or c >= 0xF0:
+                i += 1
+                continue
+            length = 0
+            while i < end and text[i] >= 32:
+                # Native 0x81 consumes the following byte and emits one space.
+                if text[i] == 0x81 and i + 1 >= end:
+                    raise ValueError("native 0x81 escape is truncated by the string end or a style anchor (func_001FC7B0 consumes two bytes)")
+                i += 2 if text[i] == 0x81 else 1
+                length += 1
+            if length > 127:
+                raise ValueError("translation exceeds 127 rendered bytes before a control/newline: "
+                                 "func_001FC7B0 copies into char buf[0x80] including NUL")
+    if options:
+        start = text.find(b"[")
+        if (start >= 0 and start + 2 < len(text) and text[start + 1] in b"789"
+                and text[start + 2] in b"0123456789ABCDEFabcdef"):
+            if start + 4 > len(text):
+                raise ValueError("options glyph escape must occupy four native bytes (func_001FCBD0)")
+            if len(text) - 3 > 127:
+                raise ValueError("options translation exceeds 127 bytes after glyph-escape substitution: "
+                                 "func_001FCBD0 concatenates into Buf128")
+
+
+def _line_edit(raw: bytes, group: dict, entry: dict, line: dict, *, options: bool):
+    if (not isinstance(line, dict) or set(line) not in ({"line", "text"}, {"line", "text", "segments"})
+            or line["line"] != entry["line"] or not isinstance(line["text"], str)):
+        raise ValueError("table line identity changed")
+    original = raw[entry["offset"]:entry["offset"] + entry["size"]]
+    text = _encode(line["text"])
+    records = _records(raw, group, entry)
+    segments = _segments(original, records)
+    anchors = [position for _, position in records]
+    if "segments" in line:
+        values = line["segments"]
+        if segments is None or not isinstance(values, list) or len(values) != len(segments) or any(
+                not isinstance(value, str) for value in values):
+            raise ValueError("style segment count changed or original style anchors are unsupported")
+        if values != segments:
+            encoded = [_encode(value) for value in values]
+            joined = b"".join(encoded)
+            if text not in (original, joined):
+                raise ValueError("conflicting text and segments edits; edit segments or keep text equal to their concatenation")
+            text = joined
+            anchors = []
+            cursor = 0
+            for segment in encoded[:-1]:
+                cursor += len(segment)
+                anchors.append(cursor)
+    if len(text) != len(original) and records and anchors == [position for _, position in records]:
+        # Without edited segments, an interior style anchor has no unique new
+        # position. Never guess from a diff or silently style the wrong words.
+        if segments is None or "segments" not in line or line["segments"] == segments:
+            raise ValueError("length-changing styled translation must edit segments so every style anchor can relocate")
+    if text != original or anchors != [position for _, position in records]:
+        if records and (anchors != sorted(anchors) or anchors[-1] > len(text)):
+            raise ValueError("cannot edit text with unsupported native style anchors")
+        _renderer_limits(text, anchors, options=options)
+    return text, list(zip((at for at, _ in records), anchors))
+
+
+def _rebuild_outer(raw: bytes, group: dict, limit: int, texts: list[bytes], anchors: dict[int, int]) -> bytes:
+    at = group["offset"]
+    text_offset, count, records_size, _ = _words(raw, at)
+    text_at = at + text_offset + records_size
+    string_base, _, old_bytes, _ = _words(raw, text_at)
+    start = text_at + string_base
+    rebuilt = bytearray(raw[at:start])
+    cursor = 0
+    for index, value in enumerate(texts):
+        if cursor + len(value) + 1 >= 1 << 32:
+            raise ValueError("TEXT string storage exceeds native u32 offsets")
+        struct.pack_into("<4I", rebuilt, text_at - at + 16 + index * 16,
+                         cursor, cursor, len(value), len(value) + 1)
+        cursor += len(value) + 1
+    struct.pack_into("<I", rebuilt, text_at - at + 8, cursor)
+    for record, position in anchors.items():
+        struct.pack_into("<I", rebuilt, record - at + 8, position)
+    rebuilt.extend(b"".join(value + b"\0" for value in texts))
+    rebuilt.extend(raw[start + old_bytes:limit])
+    return bytes(rebuilt)
+
+
 def unpack_table(source: Path, out_dir: Path, *, kind="auto") -> dict:
     """Export a bank or bare OUTER table to an editable, ordered JSON document."""
     source, output = Path(source).resolve(), safe_output(out_dir)
@@ -102,22 +232,32 @@ def unpack_table(source: Path, out_dir: Path, *, kind="auto") -> dict:
         raise ValueError("table unpack destination contains its input")
     raw = source.read_bytes()
     layout = _layout(raw, kind)
-    table = {"encoding": "latin-1", "groups": [
-        {"group": group["group"], "lines": [
-            {"line": entry["line"], "text": raw[entry["offset"]:entry["offset"] + entry["size"]].decode("latin-1")}
-            for entry in group["lines"]]} for group in layout["groups"]]}
+    table = {"encoding": "latin-1", "groups": []}
+    for group in layout["groups"]:
+        lines = []
+        for entry in group["lines"]:
+            text = raw[entry["offset"]:entry["offset"] + entry["size"]]
+            line = {"line": entry["line"], "text": text.decode("latin-1")}
+            segments = _segments(text, _records(raw, group, entry))
+            if segments is not None:
+                line["segments"] = segments
+            lines.append(line)
+        table["groups"].append({"group": group["group"], "lines": lines})
     output.mkdir(parents=True, exist_ok=True)
     (output / "original.bin").write_bytes(raw)
     (output / "table.json").write_text(json.dumps(table, indent=2, ensure_ascii=True) + "\n")
     manifest = {"schema": SCHEMA, "source": str(source), "layout": layout,
                 "original_sha256": hashlib.sha256(raw).hexdigest(),
-                "limits": "Existing lines only, identical encoded byte lengths. Native glyph bytes use Latin-1 mapping; markup is preserved."}
+                "limits": "Existing line/group identities; longer or shorter Latin-1 byte strings relocate TEXT/bank directories. "
+                          "For styled lines edit segments to relocate style anchors. Engine scratch runs allow 127 bytes plus NUL "
+                          "(src/func_001FC7B0.c, src/func_001FE070.c); options substitution uses Buf128 "
+                          "(src/func_001FCBD0.c). Native font coverage and on-screen fit are not Unicode/layout guarantees."}
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     return manifest
 
 
 def pack_table(tree: Path, out_file: Path) -> dict:
-    """Apply validated text edits without shifting native markup or table entries."""
+    """Relocate native string directories, style anchors and bank group extents."""
     tree = Path(tree).resolve()
     original_path, manifest_path, table_path = [_input(tree, name) for name in
                                                ("original.bin", "manifest.json", "table.json")]
@@ -139,26 +279,52 @@ def pack_table(tree: Path, out_file: Path) -> dict:
     for path in (original_path, manifest_path, table_path, Path(manifest["source"])):
         if path.exists() and (output == path.resolve() or output.exists() and output.samefile(path)):
             raise ValueError("table output aliases an input")
-    rebuilt = bytearray(raw)
-    changed = []
+    changed, bodies = [], []
     for group, changes in zip(layout["groups"], edited["groups"]):
         if (not isinstance(changes, dict) or set(changes) != {"group", "lines"} or changes["group"] != group["group"]
                 or not isinstance(changes["lines"], list) or len(changes["lines"]) != group["line_count"]):
             raise ValueError("table group identity or line count changed")
+        texts, anchors = [], {}
         for entry, line in zip(group["lines"], changes["lines"]):
-            if (not isinstance(line, dict) or set(line) != {"line", "text"}
-                    or line["line"] != entry["line"] or not isinstance(line["text"], str)):
-                raise ValueError("table line identity changed")
-            try:
-                text = line["text"].encode("latin-1")
-            except UnicodeEncodeError as exc:
-                raise ValueError("text must contain only native Latin-1 byte values") from exc
-            if len(text) != entry["size"] or b"\0" in text:
-                raise ValueError("edited text must keep its original byte length and contain no NUL")
+            text, locations = _line_edit(raw, group, entry, line,
+                                         options=layout["kind"] == "bank" and group["group"] == 8)
+            texts.append(text)
+            for record, position in locations:
+                if record in anchors and anchors[record] != position:
+                    raise ValueError("shared native style record has conflicting translated anchor positions")
+                anchors[record] = position
             start, end = entry["offset"], entry["offset"] + entry["size"]
-            if text != raw[start:end]:
-                rebuilt[start:end] = text
+            if text != raw[start:end] or any(_words(raw, at)[2] != value for at, value in locations):
                 changed.append({"group": group["group"], "line": entry["line"]})
+        if layout["kind"] == "bank":
+            offset, _, length, padded = _words(raw, 16 + 16 * group["group"])
+            limit = group["offset"] + length
+            padding = raw[limit:group["offset"] + padded]
+        else:
+            limit, padding = len(raw), b""
+        bodies.append((_rebuild_outer(raw, group, limit, texts, anchors), padding))
+    if not changed:
+        rebuilt = raw
+    elif layout["kind"] == "outer":
+        rebuilt = bodies[0][0]
+    else:
+        base, count, old_size, _ = _words(raw, 0)
+        header, payload = bytearray(raw[:base]), bytearray()
+        for index, (body, padding) in enumerate(bodies):
+            offset, length = len(payload), len(body)
+            body += padding
+            body += bytes(-len(body) % 16)
+            if offset + len(body) >= 1 << 32:
+                raise ValueError("message bank exceeds native u32 offsets")
+            struct.pack_into("<4I", header, 16 + index * 16, offset, offset // 16, length, len(body))
+            payload.extend(body)
+        struct.pack_into("<I", header, 8, len(payload))
+        rebuilt = bytes(header) + bytes(payload) + raw[base + old_size:]
+    # Resident archive leaves are addressed by 16-byte DMA units. Preserve the
+    # source alignment when a bare OUTER or opaque trailing bytes change size.
+    if changed and len(raw) % 16 == 0:
+        rebuilt += bytes(-len(rebuilt) % 16)
+    _layout(rebuilt, layout["kind"])
     output.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".table-", dir=output.parent)
     try:

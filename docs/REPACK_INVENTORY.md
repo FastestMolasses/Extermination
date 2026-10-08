@@ -81,10 +81,10 @@ build route; the lossless unpacker preserves the supplied file bytes.
 | `EXTER1.DAT` | 983847 | 45432836 | 2044 | Stream |
 
 `EXTER.BIN` is the original 1 GiB dummy file; it remains a whole opaque file.
-`IRX/IOPRP20.IMG` and the IRX modules remain opaque. Movies, music and voice
-remain whole streams. Music/voice cue boundaries are described in
-`FINDINGS.md`; their cue tables live in the executable. The repacker does not
-rewrite those executable tables or transcode the streams.
+`IRX/IOPRP20.IMG` and the IRX modules remain opaque. The ten movie streams
+(nine PSS files and EXTER1.DAT) remain exact passthroughs. MUSIC/VOICE now support
+WAV editing with verified cue-table relocation after a fresh source build;
+see [REPACK.md](REPACK.md). Their cue tables live in the boot executable.
 
 ## ISO9660 layout
 
