@@ -40,10 +40,10 @@ arm64 macOS** or Linux (Python 3.10+). `build-disc` additionally uses the
 existing project virtual environment, compiler installations and Apple
 `container` image `exterm-permuter` (x86_64 Linux); `proof-title` uses the
 local Apple Silicon PCSX2 build. Neither editor requires Pillow or Rosetta.
-Run from the repack checkout:
+Run from the decomp checkout:
 
 ```sh
-cd /Users/abe/Documents/Extermination.nosync/Extermination-repack
+cd /Users/abe/Documents/Extermination.nosync/Extermination
 export PYTHONDONTWRITEBYTECODE=1
 
 python3 -m tools.repack inventory \
