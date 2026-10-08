@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-08 (Claude, s87).** This is the short cross-repo entry point.
+**Current as of 2026-10-08 (Claude: the level-2 check and its review's fix round).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -70,9 +70,15 @@ that is a different, stale tree.
   (D_002821B0 served from the live message block), shimmying while hanging (001784E0 /
   0017E6E0 / 0017F1C0 / 0017F130 translated, the hang sound bound) and the level exit
   (AREA00 sub 0 in the module pack); also the camera seed's fourth lane (a01_s0's whole
-  camera) and the harness's first-command latency (read per recording). Now compared row
-  for row: a01_00, a01_01, a01_02 (stairs), a01_s0 (switch), a01_s3, a01_s4 (switch),
-  a01_s6; a01_03 to f956 (a voice line then ends a frame early); census §13: 64 live. The
+  camera) and the harness's first-command latency (read per recording; so that one
+  response's latency is no longer checked independently). Rows equal: a01_00, a01_01,
+  a01_02 (stairs), a01_s0 (switch), a01_s3, a01_s4 (switch), a01_s6; a01_03 to f956 (a
+  voice line then ends a frame early); census §13: 64 live. Fix round (port, after the
+  review, c0f54d5): tools/rand_order.py names em_player_footstep_tick (00187350's wading ripple,
+  first drawn at a01_02 f39); before it every run past that frame failed its RNG post-check.
+  Exit 0 now: test_level_smoke_area01.py --until a01_00 / a01_01 / a01_02, --side a01_s3 /
+  a01_s6, and --side a01_s0 / a01_s4 with EM_PS2_DISC_DRIVE_TIMING=1; --until a01_03 and
+  later exit 1 at a01_03 row 957 (port docs/LEVEL_SMOKE.md "Which commands finish green"). The
   exploration fixture (31 cases incl. ledge, shaft, shimmy, crates) completes with no fault
   except a01_07, which stops at the AREA00 load's completion (level 3's assets). Still
   faulting: the save terminal's Yes (00225AC0, module 0x2A memory-card screens: needs a
