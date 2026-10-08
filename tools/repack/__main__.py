@@ -45,6 +45,12 @@ def main(argv: list[str] | None = None) -> int:
     p = commands.add_parser("pack-disc", help="build archive, then ISO, from an unpacked disc")
     p.add_argument("--tree", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True, help="output directory")
+    p = commands.add_parser("build-disc", help="compile boot and overlays, rebuild assets, and pack a disc")
+    p.add_argument("--tree", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True, help="output directory including isolated build workspace")
+    p.add_argument("--toolchain-root", type=Path, help="checkout containing the local compiler tools")
+    p.add_argument("--require-original", action="store_true", help="fail unless the whole image matches the unpacked reference")
+    p.add_argument("--resume", action="store_true", help="resume a failed overlay link after validating its existing fresh build")
     args = parser.parse_args(argv)
     try:
         if args.command == "inventory":
@@ -99,6 +105,27 @@ def main(argv: list[str] | None = None) -> int:
                 "DATA/DATA.DAT": out / "DATA.DAT", "DATA/INDEX.IDX": out / "INDEX.IDX",
             })
             print(json.dumps({"archive": packed, "iso": iso_summary(disc, out / "Extermination.iso")}, indent=2))
+        elif args.command == "build-disc":
+            from . import source_build
+            out, tree = output_path(args.out), args.tree.resolve()
+            if out == tree or out.is_relative_to(tree) or tree.is_relative_to(out):
+                raise ValueError("build-disc output must be separate from its input tree")
+            options = {"progress": lambda message: print(message, file=sys.stderr, flush=True)}
+            if args.toolchain_root:
+                options["toolchain_root"] = args.toolchain_root
+            if args.resume:
+                options["resume"] = True
+            built = source_build.build_sources(tree, out / "source", **options)
+            out.mkdir(parents=True, exist_ok=True)
+            packed = archive.pack_archive(tree / "archive", out / "DATA.DAT", out / "INDEX.IDX")
+            overrides = {key: Path(path) for key, path in built["overrides"].items()}
+            overrides.update({"DATA/DATA.DAT": out / "DATA.DAT", "DATA/INDEX.IDX": out / "INDEX.IDX"})
+            result = iso.pack(tree / "iso", out / "Extermination.iso", overrides=overrides)
+            receipt = {"source": built, "archive": packed, "iso": iso_summary(result, out / "Extermination.iso")}
+            (out / "build-disc.json").write_text(json.dumps(receipt, indent=2) + "\n")
+            print(json.dumps(receipt, indent=2))
+            if args.require_original and not result["unchanged"]:
+                raise ValueError(f"source-built disc differs from the reference; see {out / 'build-disc.json'}")
     except (OSError, ValueError, KeyError) as exc:
         parser.exit(1, f"repack: {exc}\n")
     return 0
