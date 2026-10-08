@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-04 (Claude, s87).** This is the short cross-repo entry point.
+**Current as of 2026-10-07 (Claude, s87).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -55,12 +55,16 @@ that is a different, stale tree.
   60 frames match the recording), MOVE (578abc0: movement and collision) and CAMERA
   (8ce3067). Step DRAW (AREA01 drawn, branch level2-draw-wip d764eef) was reviewed
   (approved) and merged on 2026-10-07 (merge 6c9a688; follow-up 1563220: the smoke asserts
-  the kind-6 near-fire program draws, first at a01_00 f405). Next: the chain's CHECK step;
-  journal copy build/workflows/level2-playable.partial.json. Codex's AREA01 crash sweep
-  (branch level2-crash, docs/LEVEL2_CRASHES.md) is unmerged; when merged, rewrite its
-  0023D930 "protected blocker" lines (DRAW fixed them; the water / water-west / ladder
-  probes now end ROUTE-BLOCKED with no fault) and take its census promotions. Afterwards: doors, NPC scripts, messages,
-  pickups, beats a01_01..a01_07 and the side routes (LEVEL2_BINDING.md).
+  the kind-6 near-fire program draws, first at a01_00 f405). Codex's AREA01 crash sweep
+  (branch level2-crash) was merged on 2026-10-07 (merge bbc4a08; follow-ups 9deab55: make
+  targets for nine suites, target-hit quick mode, stale counted-gap notes, STARTUP
+  re-exports; 6b16556: SECOND_LEVEL_CENSUS §12, 56 live, a01_s3 / a01_s4 pass; 9d221f8);
+  worktree and branch removed, receipts in port build/level2-crashes and build/crashmerge.
+  On main no recorded replay or exploration probe faults in game code (port
+  docs/LEVEL2_CRASHES.md "Status on main after the merge"). Next: the a01_01 harness's
+  first-command lag (the checker stops at a01_01 row 3, so a01_01..a01_07 are not compared
+  yet), the water/ladder probes' waypoints (ROUTE-BLOCKED), a01_07's drift before the exit,
+  then the chain's CHECK step (journal copy build/workflows/level2-playable.partial.json).
 - **iOS:** merged into main (841fc99); build and run from the port root with
   tools/ios/build.sh run (docs/IOS.md); free-team signing expires every 7 days.
 - **First level:** CAMERAS (c11-t3) and GSFRAME (c11-t2) approved but not merged; then
