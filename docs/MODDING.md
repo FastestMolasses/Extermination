@@ -17,10 +17,13 @@ What you can actually change today, and with which tools. Three surfaces:
 
 The repacker supports reversible textures, variable-duration audio samples,
 translations, music/voice cue streams and bounded same-topology native models.
-Archive alignment padding is rebuilt around edited payload lengths. Logical
-texture-resolution/palette-count changes, model re-topology, arbitrary native-port
-EMDL/EMCL imports and movie re-encoding remain unsupported. Opaque files and
-movies are preserved.
+Archive alignment padding is rebuilt around edited payload lengths. The audited
+title-menu profile also supports logical texture-resolution and palette-count
+changes within its original VRAM allocation. Other texture profiles, model
+re-topology, arbitrary native-port EMDL/EMCL imports and movie re-encoding remain
+unsupported. Opaque files and movies are preserved. Shareable mod packs contain
+base-dependent deltas or explicitly declared entirely new work; players apply
+them to their own original disc.
 
 **Legal frame (CLAUDE.md hard rules):** every exporter ingests only the
 user's own disc dump / PCSX2 save states; all outputs land in git-ignored
@@ -107,14 +110,43 @@ with ADPCM-frame padding and tone/bank relocation. Keep the WAV rate/channel
 format and adjust a loop start if shortening removes it. SPU memory and tone
 addressing constrain growth; interior keyed sample aliases are refused.
 
-For texture upgrades, recolour or redraw the known PNG/CLUT views at the existing
-logical resolution. An index-only upload canvas can grow/shrink with
-`texture-pack --resize-uploads`; this rebuilds DMA/VIF/GIF transfer lengths and
-positions. It does **not** relocate every model/executable TEX0 reference, so
-logical resolution and palette-count upgrades are refused. Model positions stay
-inside existing joint bounds; identity skin nodes are a native bone-local editing
-view. The accepted glTF interchange rules and full re-topology design are in
+Model positions stay inside existing joint bounds; identity skin nodes are a
+native bone-local editing view. The accepted glTF interchange rules and full
+re-topology design are in
 [REPACK_MODELS.md](REPACK_MODELS.md).
+
+For logical title texture upgrades, export its ten named views and a spec:
+
+```sh
+python3 -m tools.repack texture-upgrade-views --tree build/repack/loose \
+  --out build/repack/title-upgrade
+# Edit the PNGs and spec.json; PNG dimensions supply the new logical resolution.
+python3 -m tools.repack texture-upgrade --tree build/repack/loose \
+  --spec build/repack/title-upgrade/spec.json --quantize median-cut
+.venv/bin/python -m tools.repack build-disc --tree build/repack/loose \
+  --out build/repack/upgraded-title
+```
+
+For the demonstrated 2× selected NEW GAME, make `new-game-selected.png`
+512×256 and set that view's `palette_size` to 256. Set all four
+`background-*` views to 16 colors to free enough space. Keep the other five
+menu views unchanged. `median-cut` explicitly permits color reduction and
+reports changed pixels; use the default `exact` when no reduction is intended.
+The original title allocation is a hard capacity limit, so simply doubling
+every image is refused. Dimensions must be powers of two, at most 512, and
+palettes contain 16 or 256 colors. The original sprite code's UV endpoint
+overflows at 1024, which is refused explicitly. The output remains the same on-screen size.
+The build regenerates the audited title compositor and all ten TEX0 references;
+it does not change `src/`. Other atlases still require resolved consumer and
+VRAM lifetimes before logical resizing. Physical index-sheet resizing remains
+available separately with `texture-pack --resize-uploads`. See
+[REPACK.md](REPACK.md) for the reference closure and capacity rules.
+
+The 2×/256-color example was distributed as a delta pack, applied through a fresh
+source build and cold-booted in hidden PCSX2. The title screenshot and read-only
+loaded sampler/compositor checks are under `build/repack/texture-upgrade/pcsx2/`.
+The four backgrounds show the intentional 16-color reduction; the other five
+menu views remain unchanged. Original assets and protected saves stayed intact.
 
 Music and voice use a separate bundle because their cue tables live in the boot:
 
@@ -163,6 +195,54 @@ head. Both replacement streams passed active/advancing SPU playback checks on
 the source-built disc; [REPACK.md](REPACK.md) gives the independent verifier
 commands and retained receipts. Movies remain unchanged.
 
+## Sharing a mod and installing someone else's
+
+Finish native edits in a loose tree, keeping PNG/WAV/JSON/glTF editor projects
+outside that tree. Make a pack against the exact original disc:
+
+```sh
+ISO='/Users/abe/Documents/PS2 Games/Extermination (USA).iso'
+export PYTHONDONTWRITEBYTECODE=1
+python3 -m tools.repack make-modpack --iso "$ISO" --tree build/repack/loose \
+  --out build/repack/my-mod.emmod
+python3 -m tools.repack verify-modpack --iso "$ISO" \
+  --pack build/repack/my-mod.emmod
+```
+
+Share **only `my-mod.emmod`**, not the edited ISO, loose tree, exported images,
+templates or stream bundles. The pack pins the original ISO and touched-file
+hashes. Existing assets become COPY/XOR/INSERT deltas requiring original bytes;
+the title's layout descriptor travels with its delta. For music or voice, add
+`--stream-bundle build/repack/music-bundle` to `make-modpack` (repeat for both).
+Only the changed cue lengths are distributed; original cue rows stay local.
+
+For an entirely new asset or archive entry, repeat `--authored archive/PATH`
+using each actual loose path. This explicitly declares the **entire** FULL
+payload was created from scratch. Ordinary edits of existing art or sound must
+use deltas. The scanner rejects any 65-byte original run outside validated delta
+instruction fields, including literal and residual content and ZIP framing.
+This check cannot establish authorship or identify transformed copies; it does
+not turn an inaccurate authorship declaration into permission to share content.
+
+Players place downloaded packs under `build/repack/`, then use their own disc:
+
+```sh
+ISO='/path/to/my/original/Extermination (USA).iso'
+python3 -m tools.repack verify-modpack --iso "$ISO" \
+  --pack build/repack/my-mod.emmod --pack build/repack/another-mod.emmod
+.venv/bin/python -m tools.repack apply-modpack --iso "$ISO" \
+  --pack build/repack/my-mod.emmod --pack build/repack/another-mod.emmod \
+  --out build/repack/installed
+```
+
+Omit the second `--pack` for one mod. The playable output is
+`build/repack/installed/disc/Extermination.iso`. Applying packs runs the fresh
+boot/19-overlay source build and requires the project's local compiler setup;
+the byte scanner needs native host `cc`. Both commands validate before
+compilation, and conflicts name the shared target and both packs. Nothing wins
+silently. To add a mod later, run again with the original ISO, all desired packs
+and a new output directory. Modified ISOs are not accepted as a new base.
+
 ## Taking a disc texture mod into the native port
 
 The port loads its exported assets. It does not automatically consume a new ISO.
@@ -191,8 +271,12 @@ whole boot ELF hash. A cue-table patch from a resized stream is rejected before
 export. Using an original ELF with relocated stream data would produce stale
 cue metadata, so the helper does not substitute one. The texture showcase keeps
 the original matching boot and exports successfully. Supporting cue-patched boots
-requires a port-side change; the port was left read-only. [REPACK.md](REPACK.md)
-records commands, actual failure messages and proof receipts.
+requires a port-side change; the port was left read-only. Logical title upgrades
+also change the boot and require the port to consume the new texture layout.
+[REPACK_PORT.md](REPACK_PORT.md) gives maintainers the proposed acceptance,
+export dependency, stream coverage and loader/cache design. It is design only;
+the current port does not install `.emmod` packs. [REPACK.md](REPACK.md) records
+commands, actual failure messages and proof receipts.
 
 ## 1. Code modding (the decomp dev loop)
 
@@ -381,13 +465,14 @@ Levels without a texture source fall back to gray sheets.
 - **Bounded inverse model conversion only** — use the repacker's same-topology
   glTF view; arbitrary Blender/glTF/EMDL scenes, new topology/materials, blended
   weights and expanded culling bounds still need a full native packet encoder.
-- **Logical texture upgrades and movies** — unresolved cross-file TEX0/CLUT
-  references block resolution/palette-count changes; no MPEG-2/PSS encoder is
-  implemented. Cue-patched boot files also meet the port exporter restriction above.
+- **Textures outside the audited title profile and movies** — logical upgrades
+  need a complete consumer/VRAM audit per profile; no MPEG-2/PSS encoder is
+  implemented. Boot patches also meet the port exporter restriction above.
 - **Runtime proof here covers the title and first-level PS2 route.**
   Port coverage and remaining work are tracked in its `docs/STARTUP.md`,
   `docs/FIDELITY_FEATURES.md` and area-specific audits; this walkthrough does
   not establish mod compatibility for every supported area.
 
-_Reviewed 2026-10-08: variable-size formats, music/voice bundles, same-topology
-models and isolated PS2/native-port proofs; port code and formats remain unchanged._
+_Reviewed 2026-10-08: shareable mod packs, audited title texture upgrades,
+variable-size formats, music/voice bundles, same-topology models and isolated
+PS2/native-port proofs; port mod acceptance remains a design._
