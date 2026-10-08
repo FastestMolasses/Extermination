@@ -178,15 +178,20 @@ class FullDiscTests(unittest.TestCase):
             output_iso.unlink()
             receipt["one_byte_control"] = {"path": entry["path"], "data_offset": data_offset,
                                            "iso_offset": image_offset, "changed_byte_count": 1}
-            for name, content in [("grown", payload + b"\xA5" * 0x800),
-                                  ("shrunk", payload[:-0x800])]:
+            for name, content in [("grown-37-bytes", payload + b"\xA5" * 37),
+                                  ("shrunk-13-bytes", payload[:-13])]:
                 print(f"Full proof: {name} resident file, archive and ISO re-layout", flush=True)
                 path.write_bytes(content)
                 archive.pack_archive(asset_tree, packed_data, packed_index)
                 changed = archive.unpack_archive(packed_data, packed_index, checked_tree)
                 expected = dict(original_loose)
                 expected[entry["path"]] = hashlib.sha256(content).hexdigest()
-                self.assertEqual(loose_hashes(checked_tree, changed), expected)
+                actual = loose_hashes(checked_tree, changed)
+                self.assertEqual({key: actual[key] for key in expected}, expected)
+                # New alignment gaps are explicit spans, never part of a leaf.
+                for key in set(actual) - set(expected):
+                    self.assertTrue(key.startswith("padding/"))
+                    self.assertFalse(any((checked_tree / key).read_bytes()))
                 shutil.rmtree(checked_tree)
                 result = iso.pack(disc_tree, output_iso, overrides=overrides)
                 actual_files = {f["path"]: f["sha256"] for f in result["files"]}
@@ -204,6 +209,26 @@ class FullDiscTests(unittest.TestCase):
                                            "packed_iso_sha256": result["image_sha256"]})
                 output_iso.unlink()
             path.write_bytes(payload)
+            authored = base / "authored-new-entry.bin"
+            authored.write_bytes(b"Repacker authored addition fixture." * 7)
+            role = next(value for value in range(255, -1, -1) if value not in {e["id"] for e in region["entries"]})
+            added = archive.add_entry(asset_tree, region["label"], role, authored)
+            archive.pack_archive(asset_tree, packed_data, packed_index)
+            changed = archive.unpack_archive(packed_data, packed_index, checked_tree)
+            actual = loose_hashes(checked_tree, changed)
+            self.assertEqual({key: actual[key] for key in original_loose}, original_loose)
+            self.assertEqual(actual[added["path"]], digest(authored))
+            self.assertEqual(next(r for r in changed["regions"] if r["label"] == region["label"])["entries"][-1]["id"], role)
+            again_data, again_index = base / "again.dat", base / "again.idx"
+            archive.pack_archive(checked_tree, again_data, again_index)
+            self.assertEqual(digest(again_data), digest(packed_data))
+            self.assertEqual(digest(again_index), digest(packed_index))
+            result = iso.pack(disc_tree, output_iso, overrides=overrides)
+            expected_files = {f["path"]: f["original_sha256"] for f in file_hashes}
+            expected_files.update({"DATA/DATA.DAT": digest(packed_data), "DATA/INDEX.IDX": digest(packed_index)})
+            self.assertEqual(udf_hashes(output_iso, list(expected_files)), expected_files)
+            receipt["addition"] = {**added, "new_sha256": digest(authored), "all_existing_leaves_unchanged": True,
+                                   "reunpacked_repack_identical": True, "udf_namespace_matches_iso": True}
             receipt["quick_suite"] = "Run python -m unittest discover -s tools/repack -p 'test_*.py'"
             receipt_path = output_root / "test-receipt.json"
             receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")

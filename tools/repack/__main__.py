@@ -51,6 +51,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--toolchain-root", type=Path, help="checkout containing the local compiler tools")
     p.add_argument("--require-original", action="store_true", help="fail unless the whole image matches the unpacked reference")
     p.add_argument("--resume", action="store_true", help="resume a failed overlay link after validating its existing fresh build")
+    p = commands.add_parser("add-entry", help="append a resident archive entry into unused INDEX table space")
+    p.add_argument("--tree", type=Path, required=True)
+    p.add_argument("--region", required=True)
+    p.add_argument("--id", type=lambda value: int(value, 0), required=True)
+    p.add_argument("--input", type=Path, required=True)
     p = commands.add_parser("texture-unpack", help="decode texture uploads to reversible PNGs")
     p.add_argument("--input", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
@@ -129,6 +134,8 @@ def main(argv: list[str] | None = None) -> int:
                 "DATA/DATA.DAT": out / "DATA.DAT", "DATA/INDEX.IDX": out / "INDEX.IDX",
             })
             print(json.dumps({"archive": packed, "iso": iso_summary(disc, out / "Extermination.iso")}, indent=2))
+        elif args.command == "add-entry":
+            print(json.dumps(archive.add_entry(args.tree, args.region, args.id, args.input), indent=2))
         elif args.command.startswith("texture-"):
             from . import textures
             if args.command == "texture-unpack":
