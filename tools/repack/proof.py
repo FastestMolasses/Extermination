@@ -241,10 +241,17 @@ def private_slot16(game, states: Path):
             target.unlink()
 
 
-def capture_title(iso: Path, out_dir: Path, *, reference: Path = REFERENCE) -> dict:
+def capture_title(iso: Path, out_dir: Path, *, reference: Path = REFERENCE,
+                  texture_tree: Path | None = None) -> dict:
     image, out = Path(iso).resolve(), safe_output(out_dir)
     if not image.is_file() or (out.exists() and any(out.iterdir())):
         raise ValueError("provide an existing image and a new empty proof directory")
+    texture_plan = None
+    if texture_tree is not None:
+        from . import texture_upgrade
+        texture_plan = texture_upgrade.validate_tree(texture_tree)
+        if not texture_plan['active']:
+            raise ValueError("texture proof requires an active title upgrade descriptor")
     out.mkdir(parents=True, exist_ok=True)
     with emulator_lock():
         # Do not contend with an emulator started outside the lock convention.
@@ -261,6 +268,7 @@ def capture_title(iso: Path, out_dir: Path, *, reference: Path = REFERENCE) -> d
             # stream the ISO hash separately instead of loading 2 GiB into RAM.
             with ColdDiscSession(identity, emulator=emulator, iso=image, log_dir=out / "logs", ready_timeout=60) as game:
                 task, title_ready = reach_title(game, out)
+                texture_observation = texture_upgrade.probe_runtime(game, texture_plan) if texture_plan else None
                 with private_slot16(game, states) as target:
                     with zipfile.ZipFile(target) as state:
                         (out / "title.png").write_bytes(state.read("Screenshot.png"))
@@ -269,6 +277,8 @@ def capture_title(iso: Path, out_dir: Path, *, reference: Path = REFERENCE) -> d
                               frames=game.frames_stepped, counter=game.u32(session.FRAME_COUNTER),
                               task_state=list(task[8:16]), hidden=True, cold_disc_boot=True,
                               memory_cards_enabled=False, private_slot=16, title_ready=title_ready)
+                if texture_observation is not None:
+                    result['texture_upgrade'] = texture_observation
                 if result["iso_sha256"] != expected_image_hash:
                     raise RuntimeError("proof input image changed during capture")
         finally:

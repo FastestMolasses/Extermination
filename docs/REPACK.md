@@ -196,8 +196,9 @@ not change. This disc also has a UDF bridge: resizing must update its file
 entries, allocation descriptors, partition sizes, integrity size table,
 checksums and trailing anchor, as described in the inventory document.
 DATA/INDEX may change size. MUSIC/VOICE may also resize through a verified
-`build-disc --stream-bundle` pairing with freshly built ELF cue tables; ordinary
-loose stream resizing is refused. Other files may be replaced with equal-length content. Old vacated payload space is
+`build-disc --stream-bundle` pairing or the strict `stream-edits.json` emitted
+by mod-pack installation, with freshly built ELF cue tables. Unpaired loose
+stream resizing is refused. Other files may be replaced with equal-length content. Old vacated payload space is
 zeroed on relocation, while unrelated files and preserved metadata stay
 in place. The output is checked structurally and each file is hashed
 against its loose input before atomic publication.
@@ -342,7 +343,7 @@ into the loose archive. Do not edit templates or manifests.
 
 | Native content | Standard view | Supported edits and limits |
 |---|---|---|
-| Bounded GS texture uploads | PNG index sheets, RGBA textures and palette swatches | PSMT8/PSMT4 and CSM1 CLUTs; physical upload canvases can resize; logical TEX0 dimensions and palette counts stay fixed |
+| Bounded GS texture uploads | PNG index sheets, RGBA textures and palette swatches | PSMT8/PSMT4 and CSM1 CLUTs; physical upload canvases can resize; the closed title-menu profile also changes logical dimensions and 16↔256 palette counts with a fresh-ELF compositor patch |
 | SShd sample banks; mono raw ADPCM or VAGp | Mono PCM16 WAV and `loops.json` | Longer/shorter samples, relocated tone starts and bank sizes, explicit loop starts; fixed preview rate and SPU budget |
 | Message-bank and bare OUTER/TEXT tables | JSON `table.json` | Longer/shorter strings, relocated style anchors and extents; native renderer scratch limits enforced |
 
@@ -395,22 +396,158 @@ DMA/VIF's 16-bit counts, 4 MiB GS addressing and new intra-leaf overlaps are che
 The old logical texture references are unchanged: adding unused atlas space
 alone does not make a model use a higher-resolution image.
 
-Logical TEX0 dimensions and 16↔256 palette counts are explicitly refused.
-Actor variants, other uploads, embedded models and executable constants can
-share the same GS storage; their complete reference set is not yet established.
-For startup UI, `func_00207E40` derives UV extent from TEX0, while `func_001ABF90`
-and `func_001AC7F0` use fixed screen sizes. A logical resize could scale correctly
-if the inline executable TEX0s were patched, but this asset-only editor cannot
-safely close those references. Palette colours remain editable at their existing
-count. This limitation is about missing reference relocation, not an inherent
-GS ban on other dimensions.
-
 All 63 real leaves / 113 transfers retain exact bytes on no-op. A startup canvas
 512×768 was grown to 512×832 and shrunk to 512×704; a two-transfer leaf also
 relocated its second packet. Every edited pixel decoded through the existing
 `extract_subtextures` implementation. Receipt:
 `build/repack/size-formats/texture/receipt.json`. These canvas edits have extractor
 proof; they are not advertised as runtime texture-resolution upgrades.
+
+### Logical title texture upgrades
+
+`texture-upgrade` supports the closed `title-menu-v1` profile: four background
+tiles and the selected/unselected NEW GAME, LOAD GAME and OPTIONS textures in
+`archive/chunk01/transient00.bin`. It changes logical TEX0 width/height and
+16↔256 palette cardinality, repacks their indices and CSM1 palettes, and records
+the executable changes required by the new layout. The ordinary `texture-pack`
+command still preserves logical dimensions and palette counts.
+
+The reference set comes from the title control flow. `func_001AC480` requests
+module 1 through `func_001FF080`, waits for loading, initializes the selector to
+0 or 1 and clamps menu movement to 0..2. The loader path
+`001FF0D0 → 001FF830 → 001FF3F0 → 00200830` submits its transient DMA section.
+`func_001AC7F0` supplies all four background TEX0s to `func_001ABF90` and all
+three current menu TEX0s to `func_00207E40`. That sprite primitive derives the
+full UV range from TEX0 TW/TH; the screen rectangles remain 256×256 for background
+tiles and 256×128 for menu words. Thus a 512×256 menu image retains its screen
+position and aspect. The warning/logo functions `001AB9D0`, `001ABC60` and
+`001ABE10` load other modules and use different TEX0s before the title; their
+references remain unchanged. Actor variants, embedded models, runtime palettes
+and cross-leaf residency do not have this closed reference set and remain
+unsupported for logical upgrades.
+
+The original compiler shared TEX0 immediate fragments between menu words, so
+independent dimension/format changes cannot be expressed by changing those
+immediates alone. After the fresh matching source build, the profile emits an
+authored equivalent compositor and ten-entry TEX0 table within the original
+**556-byte function span at 0x001AC7F0**. It checks the original function hash
+before patching. The table uses that same span, with no new executable or global
+allocation. The interpreter compares the original and authored implementations
+across all valid selectors and each initialization/return branch: call targets,
+arguments, ordered task writes, stack, return address and 128-bit saved registers
+must agree except for the intended TEX0s. Calls deliberately clobber volatile
+registers in this check. An unchanged export/repack retains the original native
+upload and boot bytes exactly.
+
+Run the Python commands natively on arm64 macOS. `build-disc` then uses the
+established x86_64 container toolchain for the fresh source build. Start with an
+isolated full disc tree and export its editable views:
+
+```sh
+python3 -m tools.repack unpack-disc --iso /path/to/owned-original.iso \
+  --out build/repack/title-upgrade-tree
+python3 -m tools.repack texture-upgrade-views \
+  --tree build/repack/title-upgrade-tree --out build/repack/title-upgrade-png
+```
+
+The export includes ten named RGBA PNGs and `spec.json`. To upgrade selected
+NEW GAME from 256×128/16 colors to 512×256/256 colors, author a 512×256 PNG and
+save it as `build/repack/title-upgrade-png/new-game-selected-2x.png`. Dimensions
+are read from the PNG, not a separate scale flag. Save this specification as
+`build/repack/title-upgrade-png/upgrade.json`; its PNG paths are relative to the
+specification:
+
+```json
+{
+  "profile": "title-menu-v1",
+  "views": {
+    "background-top-left": {"png": "background-top-left.png", "palette_size": 16},
+    "background-top-right": {"png": "background-top-right.png", "palette_size": 16},
+    "background-bottom-left": {"png": "background-bottom-left.png", "palette_size": 16},
+    "background-bottom-right": {"png": "background-bottom-right.png", "palette_size": 16},
+    "new-game-selected": {"png": "new-game-selected-2x.png", "palette_size": 256}
+  }
+}
+```
+
+This example explicitly reduces the four background palettes from 256 to 16
+colors to make room inside the original 384 KiB GS footprint, 0x2A0000..0x300000.
+It never allocates presumed spare VRAM. Omitted views retain their exact decoded
+pixels. Apply the specification, accepting the requested background quantization,
+then build the complete disc:
+
+```sh
+python3 -m tools.repack texture-upgrade --tree build/repack/title-upgrade-tree \
+  --spec build/repack/title-upgrade-png/upgrade.json --quantize median-cut
+python3 -m tools.repack build-disc --tree build/repack/title-upgrade-tree \
+  --out build/repack/title-upgrade-built
+```
+
+Use `build-disc` for this profile: its fresh boot patch is required alongside the
+native archive edit. The tool writes `texture-upgrades.json` beside `archive/`
+and `iso/`. This strict semantic descriptor contains only the named profile,
+dimensions, palette counts and native/decoded hashes. Unknown fields, duplicate
+JSON keys, arbitrary patch addresses/opcodes, mismatched data and output symlinks
+are rejected. Keep the descriptor with the edited tree; do not edit it by hand.
+
+Dimensions must be powers of two from 1 to 512. The original sprite primitive
+`00207E40` writes far UV endpoints as dimension × 16; 1024 becomes 0x4000 and
+overflows the GS 14-bit UV component. The profile refuses that hardcoded limit
+even when a 1024-wide image would fit VRAM; supporting it needs a separate
+reviewed sprite primitive. The allocator reserves whole
+GS pages, including for smaller logical images, with an even TBW of at least 2.
+The combined layout must fit the original GS footprint. A capacity error reports
+the required and available bytes. `--quantize exact` is the default and rejects
+images with too many colors or alpha outside even values plus 255; native GS
+alpha is 0..128. `median-cut` is an explicit lossy choice and reports changed
+pixels. The existing upload geometry, DMA/VIF/GIF counts and file size stay
+unchanged because the new logical layout occupies the same physical transfer.
+
+The local proof fixture upgrades NEW GAME to 512×256 with all 256 RGBA colors
+used, reduces the four backgrounds to 16 colors and preserves the other five
+menu views pixel-for-pixel. The existing `export_startup` decoder reproduces all
+ten views, including the authored high-resolution PNG exactly. Ten tests cover
+these edits, no-op identity, compositor equivalence and rejection paths; run
+`PYTHONDONTWRITEBYTECODE=1 EM_TEST_FULL=1 python3 -m unittest tools.repack.test_texture_upgrade`.
+Receipts: `build/repack/texture-upgrade/receipt-256.json` and
+`build/repack/texture-upgrade/test-receipt.json`; the final ten-test run is in
+`build/repack/texture-upgrade/current-tests.log`. Check the loaded compositor and
+all ten sampler dimensions in read-only PINE observations while capturing the
+cold title:
+
+```sh
+.venv/bin/python -m tools.repack proof-title \
+  --iso build/repack/title-upgrade-built/Extermination.iso \
+  --texture-tree build/repack/title-upgrade-tree \
+  --out build/repack/title-upgrade-proof
+```
+
+This uses the existing hidden private emulator, disabled cards, private slot 16,
+shared lock and confirmed shutdown. The receipt contains function/table hashes
+and decoded sampler fields, not a copied executable dump.
+
+The 2026-10-08 runtime proof applied `title-upgrade.emmod` to the original disc
+through another complete 44-stage source build. Its 171,119-byte delta pack
+passed the 65-byte scan and reconstructed the intended native leaf exactly.
+The installed ISO SHA-256 was
+`1fad98b5b78f2d9adc69fad8717d6f773dcb95ca9996548f7a482956465532f2`;
+only DATA.DAT and the approved boot function changed. All other archive leaves
+and all 43 ISO9660/UDF file comparisons passed. At frame 1,410 the hidden cold
+boot reached the interactive title and showed purple selected NEW GAME. PINE
+confirmed the complete 556-byte authored compositor and embedded sampler table;
+selected NEW GAME was width 512, height 256, PSMT8, TBW 8. The backgrounds visibly
+reflect the explicitly requested 16-color reduction needed to fit the arena.
+All 12 protected save states stayed unchanged, memory cards stayed disabled,
+and the emulator exited. Evidence:
+
+- `build/repack/texture-upgrade/pcsx2/title.png` and `pcsx2/proof.json`.
+- `build/repack/texture-upgrade/disc-validation.json` for source and container checks.
+- `build/repack/texture-upgrade/modpack-receipt.json` and `title-upgrade.emmod`.
+- `build/repack/model-status-baseline/title/original.png` for the original title.
+
+The temporary installed tree, ISO, source workspace and private emulator copy
+were removed after validation; the pack, small fixture, screenshot and receipts
+remain. The canonical loose tree was never edited.
 
 ### Audio
 
@@ -875,7 +1012,8 @@ and verifies unrelated files against the original. The final local pass took
 6.537 seconds; receipt `build/repack/completed-stream-test-receipt.json`.
 
 The independent UDF test oracle uses `pycdlib` in the existing project
-virtual environment. The repacker itself has no external dependencies.
+virtual environment. The repacker has no third-party Python dependencies;
+mod-pack deltas and byte scanning require the native host C99 compiler.
 The full suite defaults to `Extermination-rebuilt.iso` when `EM_TEST_ISO`
 is omitted; set it explicitly as above to check the original image.
 
@@ -883,19 +1021,23 @@ The 2026-10-08 original-disc integration proof passed in 53.128 seconds,
 including a one-byte control, +37/-13-byte resident resizing, addition of a new
 resident role, exact second-generation archive repacking, and independent UDF
 reads. All 674 existing asset leaves remain unchanged except each selected edit.
-The final follow-up quick run collected 136 tests: 122 passed and 14 local-disc
-checks were skipped by their explicit environment gates (3.867 seconds). The
-format-specific local-disc runs and completed-build check above were run
-separately; logs and receipts remain under `build/repack/`.
+The mod-pack/title-upgrade quick run collected 183 tests: 166 passed and 17
+local-disc checks were skipped by their explicit environment gates (4.834
+seconds). The final targeted pack/build suite passed 38 tests; all ten title
+upgrade tests passed with the local-disc gate enabled, including the later
+1024-pixel UV overflow rejection. The real two-build mod-pack test and hidden
+title proof also ran separately. Logs and receipts remain under `build/repack/`.
 
 | Format | Local proof |
 |---|---|
 | GS texture uploads | 63 native leaves / 113 transfers unchanged after PNG round trip; edited PSMT8/PSMT4 and CLUTs re-extract; physical canvases grow/shrink and chained packets relocate |
+| Logical title upgrade | Native/boot no-op exact; 2× selected word and 16↔256 palettes decode correctly; cold PS2 title and loaded compositor/sampler proof passed |
 | Audio | 41 SShd leaves / 116 banks / 2,318 clips unchanged after WAV round trip; longer/shorter samples and loops decode through the existing extractor |
 | Message tables | 271 bank lines and 54 bare OUTER lines unchanged; longer/shorter text and relocated styles re-extract correctly |
 | Music/voice | Both complete DAT files unchanged on a no-op; edited stereo music and mono voice re-extract with relocated cue rows, interleave and playback padding |
 | Models | Real skinned player and static packets unchanged on a no-op; position/colour edits re-export through existing decoders; other attributes and topology guards have synthetic checks |
 | Archive growth | +37 bytes, -13 bytes and a new resident entry; every other asset unchanged, second pack identical, ISO/UDF namespaces agree |
+| Mod packs | Two independent real packs reconstruct the direct-edited ISO through fresh source builds; all 43 ISO/UDF hashes match; 65-byte original-content rejection and conflicts tested |
 
 The per-format receipts are `build/repack/texture-full.json`,
 `audio-test-receipt.json`, `audio-edit-test-receipt.json`, and
@@ -924,6 +1066,140 @@ remain. Regenerate an editable tree and deliverable ISO with the commands
 above. PCSX2 proof outputs stay under `build/repack/` too. No game files under
 `src/`, legacy extractors, native-port files, main emulator configuration or
 protected save states are changed by this workflow.
+
+## Shareable mod packs
+
+`make-modpack` and `verify-modpack` run in native Python on arm64 macOS or
+Linux. `apply-modpack` currently uses the project's arm64 macOS/Apple container
+source-build driver. The byte scanner compiles its small original C99 helper
+with host `cc` (Xcode Command Line Tools on macOS), cached under
+`build/repack/native-delta/`. Applying a pack invokes the same fresh Apple
+container source build as `build-disc`; compiler setup and the build lock are
+unchanged. Verification alone does not compile the game.
+
+```sh
+# The loose tree contains edited native leaves; keep PNG/WAV/glTF projects outside it.
+ISO='/Users/abe/Documents/PS2 Games/Extermination (USA).iso'
+python3 -m tools.repack make-modpack --iso "$ISO" \
+  --tree build/repack/loose --out build/repack/my-mod.emmod
+python3 -m tools.repack verify-modpack --iso "$ISO" \
+  --pack build/repack/my-mod.emmod
+.venv/bin/python -m tools.repack apply-modpack --iso "$ISO" \
+  --pack build/repack/my-mod.emmod --pack build/repack/another-mod.emmod \
+  --out build/repack/installed
+# Output: build/repack/installed/disc/Extermination.iso
+```
+
+Distribute only the verified `.emmod`. The recipient supplies their own exact
+original disc and builds locally. Adding another pack means rebuilding from the
+original with the complete `--pack` list; a previously modified ISO is not a
+valid base. A fresh output directory is required. Same-file conflicts list the
+target and both packs, even when their edits happen to agree. They fail before
+installation or compilation; there is no automatic winner or subfile merge.
+
+The deterministic container is an uncompressed canonical ZIP with a UTF-8 JSON
+`manifest.json`, schema `extermination-modpack-v1`, and numbered
+`changes/0000.delta` or `.full` members. The manifest binds serial `SCUS-97112`
+and the complete original ISO SHA-256. Each change includes its stable target,
+original-file hash (null only for a new entry), result size/hash, payload hash,
+encoding and boolean `created_from_scratch`. Original leaves use corrected
+`archive/...` paths; direct disc targets use `iso/STREAM/...` (without `files/`).
+New resident roles use `add/chunkNN[.nN]/hh`, so independent additions are
+assigned fresh ordinals at installation instead of colliding on old filenames.
+
+Ordinary edits use the binary `delta-v1` codec after the relevant PNG, WAV,
+JSON or glTF encoder produces native bytes. Its `EMDLT1` header binds base and
+result size/SHA-256 and instruction count. COPY names an original offset and
+length; XOR names an original range plus residual bytes; INSERT contains new
+literal bytes. Base bytes are required to apply deltas. Strict validation
+rejects unknown/trailing/redundant instructions, invalid ranges and output
+hashes. No original template, loose manifest, full cue table or executable is
+included. Limits are 4 MiB manifest, 4,096 changes, 1 GiB container/payload sum
+and each result strictly below 1 GiB.
+
+FULL is available only with an explicit authorship declaration:
+
+```sh
+# After add-entry prints its new archive path, or after a wholly new replacement:
+python3 -m tools.repack make-modpack --iso "$ISO" --tree build/repack/loose \
+  --authored archive/chunk04.n0/f03_idfe.bin --out build/repack/new-work.emmod
+```
+
+Use the actual path printed by `add-entry`, not the example ordinal. Repeat
+`--authored` for each wholly created asset. New entries require FULL; an unused
+or unchanged declaration is an error. A declaration asserts the modder owns the
+entire supplied content, including its native envelope. Recoloring original
+art or modifying original audio is a delta edit, not newly authored FULL work.
+
+Every make, verify and apply scans distribution content against **every byte of
+the original ISO**, rejecting any identical contiguous run of 65 bytes. The
+exempt ranges are only validated delta instruction fields; XOR residuals and
+INSERT literals are scanned too. ZIP framing, manifest and FULL content are
+scanned, including cross-instruction/member/chunk boundaries. Logical content
+concatenation is checked as well. Canonical ZIP reconstruction rejects hidden
+members, comments, alternate encodings and leading/trailing content. The rolling
+window scanner verifies hash matches with an exact byte comparison. This is a
+conservative byte-content policy, not an authorship detector: it can reject
+coincidental matches and cannot recognize a transformed copy of someone else's
+work. FULL declarations remain the author's responsibility.
+
+Stream bundles and logical texture upgrades use restricted semantic build
+instructions. For streams, pass the existing bundle when making the pack:
+
+```sh
+python3 -m tools.repack make-modpack --iso "$ISO" --tree build/repack/loose \
+  --stream-bundle build/repack/music-bundle --out build/repack/music.emmod
+```
+
+The stream DAT becomes a delta. Only changed cue lengths enter
+`instructions["stream-edits.json"]`, schema `extermination-stream-edits-v1`;
+offsets, flags and unchanged rows are reconstructed from the recipient's boot.
+Music and voice instructions can stack; duplicate stream kinds conflict.
+The title profile uses `instructions["texture-upgrades.json"]` with validated
+dimensions, palette counts and content hashes. Its native upload is a delta.
+No arbitrary patch bytes or addresses are accepted. `build-disc` independently
+recreates both patches from the canonical fresh boot and refuses overlapping
+changed-byte ranges. A loose tree with either descriptor must use `build-disc`;
+`pack-disc` refuses it rather than silently retaining a stale boot.
+
+Synthetic `test_delta` and `test_modpack` tests cover the 64/65 boundary, copied
+bytes from untouched files, FULL/residual joins, residual/ZIP-header joins,
+wrong bases, tampering, conflicts, declared additions and independent stacking.
+The opt-in real-disc test makes separate title/model packs, builds their edited
+tree from fresh sources, applies both packs through another fresh source build,
+and compares complete ISO SHA-256 plus all 43 files through ISO9660 and UDF:
+
+```sh
+EM_TEST_MODPACK_BUILD=1 EM_TEST_ISO="$ISO" PYTHONDONTWRITEBYTECODE=1 \
+  .venv/bin/python -m unittest tools.repack.test_modpack_full -v
+```
+
+This local fixture requires the previous title/model example outputs described
+above. Results and source-stage provenance are retained in
+`build/repack/modpack-proof/receipt.json`; large intermediates are removed.
+The source compiler still needs the user's original unmatched assembly/data.
+
+The 2026-10-08 run passed in 875.650 seconds: both builds completed all 44 stages,
+with 2,214 fresh boot objects and 19 freshly linked overlays. Direct and installed
+ISO SHA-256 were both
+`568211142de0e8950736903b16af9c5905448aaa0f791f4550f3669c642676a0`.
+All 43 ISO9660/UDF file hashes agreed; only DATA.DAT differed from the original.
+The canonical loose tree stayed unchanged. The separate title and model packs
+were 1,045 and 106,486 bytes. The resized music example also made and verified a
+689,156-byte pack reconstructing the 314,552,320-byte DAT; its only cue instruction
+is the changed length for music cue 63. Receipt:
+`build/repack/modpack-stream-proof/receipt.json`.
+
+## Native-port mod support design
+
+[REPACK_PORT.md](REPACK_PORT.md) specifies the changes maintainers would need
+for modified discs and packs. It identifies full-ELF pins, implicit original
+inputs, original-address assumptions, cue coverage, corrected archive spans,
+transitive asset identities and native cache invalidation. Proposed acceptance
+normalizes only reviewed cue fields or regenerates the audited title compositor,
+then verifies every other boot byte against the original. Actual edited tables
+must feed exporters. The port remains read-only; logical title upgrades and
+cue-patched boots are not claimed to work in its current exporters.
 
 Only original tooling, synthetic test builders, and documentation belong
 in commits. Before each commit, inspect the staged paths and run:
