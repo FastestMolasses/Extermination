@@ -52,6 +52,26 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--require-original", action="store_true", help="fail unless the whole image matches the unpacked reference")
     p.add_argument("--resume", action="store_true", help="resume a failed overlay link after validating its existing fresh build")
     p.add_argument("--stream-bundle", type=Path, action="append", default=[], help="verified stream-pack bundle; repeat for music and voice")
+    p = commands.add_parser("make-modpack", help="make a base-dependent pack from an edited loose tree")
+    p.add_argument("--iso", type=Path, required=True, help="user-owned original disc")
+    p.add_argument("--tree", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True, help="distribution .emmod under build/repack")
+    p.add_argument("--authored", action="append", default=[], help="FULL-content target created wholly from scratch; archive/... or iso/...; repeat")
+    p.add_argument("--stream-bundle", type=Path, action="append", default=[])
+    for name in ("verify-modpack", "apply-modpack"):
+        p = commands.add_parser(name, help="verify original identity, content policy and pack conflicts" if name.startswith("verify") else "apply packs to the user's original ISO through a fresh source build")
+        p.add_argument("--iso", type=Path, required=True)
+        p.add_argument("--pack", type=Path, action="append", required=True, help="repeat to combine independent packs")
+        if name == "apply-modpack":
+            p.add_argument("--out", type=Path, required=True)
+            p.add_argument("--toolchain-root", type=Path)
+    p = commands.add_parser("texture-upgrade-views", help="export the audited title-menu views and an upgrade spec")
+    p.add_argument("--tree", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p = commands.add_parser("texture-upgrade", help="rewrite the closed title-menu texture profile and build instructions")
+    p.add_argument("--tree", type=Path, required=True)
+    p.add_argument("--spec", type=Path, required=True)
+    p.add_argument("--quantize", choices=("exact", "median-cut"), default="exact")
     p = commands.add_parser("add-entry", help="append a resident archive entry into unused INDEX table space")
     p.add_argument("--tree", type=Path, required=True)
     p.add_argument("--region", required=True)
@@ -99,6 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--tree", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
     p = commands.add_parser("proof-title", help="cold-boot a disc hidden in private cardless PCSX2 and capture its title")
+    p.add_argument("--texture-tree", type=Path, help="also verify the upgraded title compositor and sampler table in live RAM")
     p.add_argument("--iso", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
     p = commands.add_parser("proof-gameplay", help="cold New Game capture and native player/stream observations")
@@ -154,6 +175,9 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "pack-disc":
             out = output_path(args.out)
             tree = args.tree.resolve()
+            if any((tree / name).exists() or (tree / name).is_symlink()
+                   for name in ("stream-edits.json", "texture-upgrades.json")):
+                raise ValueError("tree contains boot-edit instructions; use build-disc to compile and apply them")
             if out == tree or out.is_relative_to(tree) or tree.is_relative_to(out):
                 raise ValueError("pack-disc output directory must be separate from its input tree")
             out.mkdir(parents=True, exist_ok=True)
@@ -164,13 +188,31 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"archive": packed, "iso": iso_summary(disc, out / "Extermination.iso")}, indent=2))
         elif args.command == "proof-title":
             from . import proof
-            print(json.dumps(proof.capture_title(args.iso, args.out), indent=2))
+            print(json.dumps(proof.capture_title(args.iso, args.out, texture_tree=args.texture_tree), indent=2))
         elif args.command == "proof-gameplay":
             from . import proof
             print(json.dumps(proof.capture_gameplay(args.iso, args.out, model=args.model, frames=args.frames,
                                                    voice_route=args.voice_route, status_model=args.status_model), indent=2))
         elif args.command == "add-entry":
             print(json.dumps(archive.add_entry(args.tree, args.region, args.id, args.input), indent=2))
+        elif args.command in ("make-modpack", "verify-modpack", "apply-modpack"):
+            from . import modpack
+            if args.command == "make-modpack":
+                result = modpack.make_modpack(args.iso, args.tree, args.out, authored=args.authored,
+                                              stream_bundles=args.stream_bundle)
+            elif args.command == "verify-modpack":
+                result = modpack.verify_modpack(args.iso, args.pack)
+            else:
+                options = {"progress": lambda message: print(message, file=sys.stderr, flush=True)}
+                if args.toolchain_root:
+                    options["toolchain_root"] = args.toolchain_root
+                result = modpack.apply_modpack(args.iso, args.pack, args.out, **options)
+            print(json.dumps(result, indent=2))
+        elif args.command in ("texture-upgrade-views", "texture-upgrade"):
+            from . import texture_upgrade
+            result = (texture_upgrade.export_views(args.tree, args.out) if args.command.endswith("-views")
+                      else texture_upgrade.upgrade_tree(args.tree, args.spec, quantize=args.quantize))
+            print(json.dumps(result, indent=2))
         elif args.command.startswith("texture-"):
             from . import textures
             if args.command == "texture-unpack":
@@ -221,7 +263,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(receipt, indent=2))
             if args.require_original and not receipt["iso"]["unchanged"]:
                 raise ValueError(f"source-built disc differs from the reference; see {out / 'build-disc.json'}")
-    except (OSError, ValueError, KeyError) as exc:
+    except (OSError, ValueError, KeyError, RuntimeError) as exc:
         parser.exit(1, f"repack: {exc}\n")
     return 0
 
