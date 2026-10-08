@@ -80,6 +80,9 @@ def main(argv: list[str] | None = None) -> int:
     p = commands.add_parser("table-pack", help="apply fixed-length message edits to native table bytes")
     p.add_argument("--tree", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
+    p = commands.add_parser("proof-title", help="cold-boot a disc hidden in private cardless PCSX2 and capture its title")
+    p.add_argument("--iso", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "inventory":
@@ -134,6 +137,9 @@ def main(argv: list[str] | None = None) -> int:
                 "DATA/DATA.DAT": out / "DATA.DAT", "DATA/INDEX.IDX": out / "INDEX.IDX",
             })
             print(json.dumps({"archive": packed, "iso": iso_summary(disc, out / "Extermination.iso")}, indent=2))
+        elif args.command == "proof-title":
+            from . import proof
+            print(json.dumps(proof.capture_title(args.iso, args.out), indent=2))
         elif args.command == "add-entry":
             print(json.dumps(archive.add_entry(args.tree, args.region, args.id, args.input), indent=2))
         elif args.command.startswith("texture-"):

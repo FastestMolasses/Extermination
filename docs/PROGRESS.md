@@ -751,12 +751,14 @@ Next, in rough priority order:
     Original DATA/INDEX and the full original ISO round-trip byte-identically
     from loose files. Corrected resident labels yield 674 spans; all 43 disc
     files also match through an independent UDF reader. Same-size edits and
-    sector-sized growth/shrink are tested, including ISO9660 and UDF metadata
-    updates. Streams/opaque files are copied intact. Remaining: native asset
-    format encoders, adding/removing archive entries, stream cue-table edits,
-    and the optional real-mod PCSX2 boot. The supplied rebuilt ISO differs
-    from the original only in boot ELF packaging; original-length primary
-    load bytes match after aligning the ELF file offsets.
+    byte-sized growth/shrink and resident-entry additions are tested, including
+    ISO9660/UDF metadata updates and a second exact archive round trip.
+    PNG texture/CLUT, WAV sample and message-table JSON inverses preserve no-op
+    native bytes; models and cue-stream editing remain future work. A matching
+    source-disc command produces the original ISO exactly after ELF envelope
+    restoration. A fresh magenta NEW GAME mod changes exactly 43 disc bytes and
+    cold-boots in hidden, cardless PCSX2; screenshots and receipts stay local.
+    REPACK.md records executable provenance, commands, proofs and cleanup.
 
 (The older mid-file "Project at a glance" / "Status" / "Roadmap" sections
 below are kept as historical record; this block supersedes them.)
