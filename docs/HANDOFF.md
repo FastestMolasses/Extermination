@@ -186,6 +186,32 @@ that is a different, stale tree.
   is allowed (1), and so is using a memory card in PCSX2 for the slot / load / save
   paths (9; use a separate card file, never the user's own cards). Still open: the
   field-presentation and screen-position choices (3; the user asked to see them).
+- **2026-10-09 (workflow wf_7fa526cc-b06):** (1) demo video build/video_compare/demo_hill/
+  (New Game to the hill slide, 4,734 ticks recorded from the level smoke with
+  EM_NEW_GAME=1 + EM_PS2_DISC_DRIVE_TIMING=1; PCSX2 vs port 4,345 of 4,346 ticks
+  bit-exact in position and heading; port sound only). The original's audio did not
+  record: PCSX2's Media Capture fails "Failed to load FFmpeg" (it needs libavcodec 62 /
+  libavformat 62 / libavutil 60 / libswscale 9 / libswresample 6 = Homebrew's ffmpeg 8,
+  which it does not find), and its menu items report disabled from background control
+  (the End hotkey reaches it); ps2.py --media-audio is ready (074d87b, 4b5ab49). The
+  user stopped a full-screen takeover: background control only. (2) presentation
+  preview port build/presentation_preview/ (README.txt): field choice (a) is NOT fully
+  stable as LAUNCHER_OPTIONS.md says (edges flicker one line per field; only the whole-
+  picture bob of (b) is gone), (c) weave is calm when still and combs on motion; SCREEN
+  ADJUST is -20..+20 per axis (DX = 636 + 5x, DY = 50 + 2y; direction inferred, not seen).
+  (3) 001755B0 / 0021E9C0 explained: 001755B0 is the gait-3 stick-vs-facing test at the
+  fall start and the 14.5..104 landing (a 0 gives the running landing, no 5-point hit);
+  the dmg_pit_fall side run releases the stick a tick before the recording's 3-row pad
+  lag, so its fall start sees gait 0 and never asks it (holding the stick 1-2 more steps
+  would enter it; the fall-start rows are in no compared window). 0021E9C0 is fan r2's
+  hit reaction (sound 0x154, rumble, clip 0x20 knock-back, 60-frame protection); no run
+  is hit by the fan (the exit beat avoids its fast arm): a dmg_fan side run over the
+  existing dmg_08 capture would enter it (52 entries). Stale: port PLAYER_FALL.md:447
+  and FIRST_LEVEL_AUDIT.md:77 still call test_001755B0 untranslated; the
+  em_options_original.c:545 comment swaps the Left / Right pad bits. (4) Cleanup: port
+  build/ 13.1 -> 4.6 GiB, decomp build/ 17.5 -> 17.0 GiB (the rest is cited PCSX2
+  captures); branch level2-draw-wip deleted; backup-local-work-ac0487b kept (062683f,
+  a port-vs-decomp cross-reference tool, is not on main).
 - **Census (port FIRST_LEVEL_CENSUS.md, section 1.67, chain step ROUTE):** 948 live /
   19 verified-unbound / 1 unverified (001CB480) / 0 stand-in / 0 missing / 436 boundary
   of 1,404 functions (the route's 1,195 through beat 15, the AIM beats' 114, the DAMAGE
