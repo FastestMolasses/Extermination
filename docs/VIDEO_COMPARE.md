@@ -109,7 +109,7 @@ compose options without running PCSX2 again).
 | `--loads trim\|hold` | trim | loads: drop the longer side's middle load frames, or hold the shorter side's last load frame (tagged "held: the other side is still loading") |
 | `--audio none\|native\|original\|both` | none | `native` = the port's sound only (the header says so); `original` / `both` need a PS2 `audio.wav`, which this PCSX2 build does not produce (see "Audio"); `both` = original LEFT, port RIGHT |
 | `--disc-timing recorded\|0\|1` | recorded | `EM_PS2_DISC_DRIVE_TIMING` for the native playback |
-| `--sampling gs\|area` | gs | native frame: sampled at the 512x224 GS field's points (like with like), or the 4:3 Metal frame box-averaged to 640x480 |
+| `--sampling gs\|area` | gs | native frame: the port's exact 512x224 GS field, with the presented frame where the port's overlay pass drew (see "Limits"), like with like with the PS2 field; or the presented 4:3 frame box-averaged to 640x480 |
 | `--ps2-frames gs\|screenshot` | gs | PS2 frame: the 512x224 GS field (needs the software renderer, switched for the session) or the save state's 640x480 host screenshot (hardware renderer, scaled and filtered by PCSX2) |
 | `--title`, `--subtitle` | none | header text |
 | `--height H` | 480 | height of each side (4:3, so 640x480 per side) |
@@ -299,11 +299,34 @@ loads, cutscenes or behaviour differ.
 - **Areas the port has not reached fault.** A missing original worker stops
   the port (fail-stop); its stream then ends and the video holds its last
   frame ("held") while the PS2 side goes on.
-- **The port's frame is Metal's, not the GS model's.** `--sampling gs`
-  samples it at the GS field's points (as `tools/test_fb2_pixels.py` in the
-  port does), so the two sides have the same pixel grid; lighting stand-ins
-  and the other known differences (port `docs/FIDELITY_FEATURES.md`) remain
-  visible.
+- **The port side is the port's GS field, plus its GPU overlay pass.**
+  Since the port's chain step GSFRAME every world frame of the Original
+  profile is a 512x224 GS field (port `docs/GS_EXACT.md` section 9). A
+  capture of such a frame also writes the field itself
+  (`<capture>.gsfield`, 512x224 RGBA; port `em_gfx_metal.m` writes and
+  closes the BMP first, then the field, on the same thread). `native.py`
+  makes `frames.fifo.gsfield` a symlink to the capture FIFO, so every field
+  follows its own BMP in one ordered stream (no side file to overwrite, no
+  race), and checks the parsed sequence against the port's
+  `capture: wrote ...` log lines. With `--sampling gs` (default) a frame
+  is that exact field (RGB; alpha is not displayed, PMODE EN1 0), except
+  where the presented frame differs from it at the field pixel's centre:
+  that is the port's overlay pass, which the GPU still draws after the
+  field (port FIRST_LEVEL_AUDIT 1b item 2, GS_EXACT.md 10.1), and there
+  the presented pixel is kept: the letterbox bands and subtitles of the
+  cutscenes (64 rows, 28.6 % of the field) and fades (the whole field).
+  Frames without a field (the status / ITEM / BATTERY pages, the load veil's
+  first and last frames, the loads between areas, single frames at some
+  phase changes) are the presented frame at the field pixels' centres.
+  `native/frames.json` lists per capture whether it had a field and the
+  overlay's share. Where no overlay is drawn the centre samples equal the
+  field byte for byte: in the demo_hill run every field frame's share is
+  exactly 0 (451 frames), 28.6 % (the 64 band rows) or 100 % (fades), never
+  a stray pixel. Overlay glyphs are drawn at host resolution and only sampled to
+  the field, so thin strokes can drop out (the "T" of "There's", the "F"
+  of "First"); the PS2 draws them into the field itself. Lighting
+  stand-ins and the other known differences (port
+  `docs/FIDELITY_FEATURES.md`) remain visible.
 - **Port audio** is the dry SPU2 model (no reverb).
 - **PCSX2 is not hardware.** The software renderer is PCSX2's GS model.
 - **Loads.** At host speed the port loads in a fraction of the PS2's time;
@@ -343,7 +366,9 @@ recording with anchors; that playback log was then used as the recording.
   (no drift). Video: 1284x604, 29.97 fps, 342 frames (11.4 s at 2x, 3 s end
   card), H.264 + AAC (`--audio native`), 2.9 MB; the PS2 load shows the tag
   "load trimmed: 205 ticks longer". Mean absolute pixel difference per
-  channel between the two fields: 3.2 in the walk, 9.3 in the opening.
+  channel between the two fields: 3.2 in the walk, 9.3 in the opening
+  (test1 and test2 used the port's Metal world and the old edge sampling,
+  see "Demo run 2026-10-09").
 - **What test1 shows about the port.** At host speed the port's opening
   fades in about 20 ticks (0.33 s) before the original's (image from C
   offset 16 vs 36) and its first subtitle ("Dennis here.") appears 20 ticks
@@ -369,3 +394,41 @@ recording with anchors; that playback log was then used as the recording.
 - One session lost its emulator about 5 s in (DebugServer connection
   refused, no crash report, the log just stops); the tool restored the ini,
   released the lock and exited with an error. A rerun is the remedy.
+
+## Demo run 2026-10-09 (demo_hill)
+
+New Game to the hill below the elevator: 4,734 ticks recorded from the
+level smoke (`EM_NEW_GAME=1`, `EM_PS2_DISC_DRIVE_TIMING=1`), stride 4,
+`--audio native`, `--speed 2 --fps 30 --height 480 --summary-seconds 3`,
+the title and subtitle in the header, `--target-mb 10` for the Discord
+copy. PCSX2 vs port: 4,345 of 4,346 play/cutscene ticks bit-exact in
+position and heading. Output in `build/video_compare/demo_hill/`.
+
+- **Blocky port frames: a sampling bug in this tool, fixed the same day.**
+  The port's image was sharp; `native.py` sampled the presented 1920x1440
+  frame at each field pixel's left / top edge (`floor(vx + x * vw / 512)`,
+  the rule `test_fb2_pixels.py` uses for a Metal-drawn world, not for a
+  field spread over the window). With a field pixel 3.75 x 6.43 host pixels
+  large that point falls in the previous field pixel for most columns and
+  rows, so about half of them were duplicated and others dropped. Since the
+  fix the port side is the exact GS field (above). The field
+  presentation choice (LAUNCHER_OPTIONS.md) was not involved: all its
+  options show the same 512x224 field.
+- **Measured over the 1,171 paired frames** (identical neighbours, a
+  measure of blockiness; held frames excluded): vertical 0.587 -> 0.361
+  (PS2 0.366), horizontal 0.529 -> 0.409 (PS2 0.411). In the walk
+  segments vertical 0.52 -> 0.19..0.24 with the PS2 at 0.19..0.24. Mean
+  absolute difference per channel to the PS2 frame, all frames 4.62 ->
+  3.70; per segment (old -> new): opening cutscene (4) 6.23 -> 5.70, first
+  play (5) 4.95 -> 3.92, cutscene 6 10.10 -> 8.59, status pages (8) 6.04 ->
+  3.77, play 9 4.85 -> 2.96, 10 3.35 -> 2.27, 11 3.65 -> 2.23, 12 4.71 ->
+  4.30, 14 4.31 -> 2.68, 15 3.80 -> 2.95, 16 4.26 -> 2.72, the hill (17)
+  3.81 -> 3.26; loads 0.05 -> 0.00. 1,048 of 1,171 captures carry the
+  field; the overlay pass drew over 597 of them. The playback reproduced
+  the recording's 4,734 ticks bit for bit (and the earlier playback's
+  segment / offset / capture columns).
+- Check images (ignored): `check_closeup_before.png` /
+  `check_closeup_after.png` (segment 4 offset 288, field box x 180..340,
+  y 40..150, PS2 left, port right, 4x nearest), `check_overlay_frames.png`
+  (a subtitle frame, a fade, a status page), `sharpness_check.json`.
+

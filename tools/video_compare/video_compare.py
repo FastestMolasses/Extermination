@@ -183,7 +183,9 @@ def main() -> int:
     p.add_argument("--stride", type=int, default=None, help="capture stride (default from --speed/--fps)")
     p.add_argument("--loads", choices=["trim", "hold"], default="trim")
     p.add_argument("--audio", choices=["original", "native", "both", "none"], default="none")
-    p.add_argument("--sampling", choices=["gs", "area"], default="gs")
+    p.add_argument("--sampling", choices=["gs", "area"], default="gs",
+                   help="native frames: gs = the port's exact GS field (+ the overlay pass where it drew), "
+                        "area = the presented frame box-averaged to 640x480 (native.py -h)")
     p.add_argument("--ps2-frames", choices=["gs", "screenshot"], default="gs")
     p.add_argument("--disc-timing", choices=["recorded", "0", "1"], default="recorded")
     p.add_argument("--title")
