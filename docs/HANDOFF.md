@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-09 (Claude: the first-level ROUTE step).** This is the short cross-repo entry point.
+**Current as of 2026-10-09 (Claude: the first-level coverage step, census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -212,11 +212,24 @@ that is a different, stale tree.
   build/ 13.1 -> 4.6 GiB, decomp build/ 17.5 -> 17.0 GiB (the rest is cited PCSX2
   captures); branch level2-draw-wip deleted; backup-local-work-ac0487b kept (062683f,
   a port-vs-decomp cross-reference tool, is not on main).
-- **Census (port FIRST_LEVEL_CENSUS.md, section 1.67, chain step ROUTE):** 948 live /
-  19 verified-unbound / 1 unverified (001CB480) / 0 stand-in / 0 missing / 436 boundary
+- **2026-10-09, the coverage step (001755B0 / 0021E9C0 entered by a run):** decomp
+  bc49270 gives both readable C (byte-matched) and fixes their callers' C (func_00175900
+  now byte-matched; 0017C580 / 00162DB0 / 001756E0 at 99.94 / 99.95 / 99.74). Port merge
+  de2b1d4 (branch cov-2fn): a new side run dmg_fan replays dmg_08 row for row (0021E9C0
+  52 times, as recorded) and found a port bug: the fan binding stored the hit's pending
+  damage +0x224 in the player record's image instead of g.pd_pend_hp, so the hit dealt
+  no damage (fixed); dmg_pit_fall holds the stick through dmg_07's pad lag and compares
+  the fall start on rows 309..315 (001755B0 asked at row 313, result 0). Port f8f8019:
+  the review's minors (the six history words; the old policy's fall start measured
+  with a scratch hook, no longer inferred). Census 1.69: all 951 live rows entered by
+  a run, no status change. Still open: 001755B0's two landing sites in 0017C580 need a
+  new PCSX2 recording of a full-stick running landing (drop -104..-14.5); the 18
+  verified-unbound rows; the unverified 001CB480.
+- **Census (port FIRST_LEVEL_CENSUS.md, section 1.69; counts from 1.68):** 951 live /
+  18 verified-unbound / 1 unverified (001CB480) / 0 stand-in / 0 missing / 434 boundary
   of 1,404 functions (the route's 1,195 through beat 15, the AIM beats' 114, the DAMAGE
   recordings' 45, the BRANCH recordings' 36 and the OPTIONS recordings' 14); 99.2% of
-  non-boundary instructions live (the route's own 766 non-boundary rows: 747 live,
+  non-boundary instructions live (the route's own 768 non-boundary rows: 750 live,
   98.9%); AREA01's 62 functions after the arrival are level 2 (census 3.26).
 - **Later levels: paused by the user (2026-10-02, "stop checking ahead").** Levels 2-15 are
   recorded through AREA03's arrival (port SECOND..FIFTEENTH_LEVEL_ROUTE.md, decomp

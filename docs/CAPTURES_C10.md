@@ -533,9 +533,19 @@ docs/DAMAGE.md section 8, tools/level_smoke_damage.py), all PASS. Every window
 is aligned on its event; the game over is aligned on the end of the screen
 module's load (host speed: 10 ticks against the recording's 23). The dmg_02 end
 snapshot's live 001F77B0 node (record 0x007B0970, subtype 2, sizes 186/210) is
-the port's lockstep oracle case. dmg_05 and dmg_08 are not replayed yet (the
-OPTIONS step binds the load screen; dmg_08's fan hit needs Roger's departure,
-which the port's EXIT step made live, so a dmg_fan side run can follow).
+the port's lockstep oracle case. Port chain step OPTIONS added the side run
+dmg_load (dmg_05: the load screen to its slot choice and back; port
+docs/OPTIONS.md section 6).
+
+Port coverage step (2026-10-09, port census 1.69): dmg_08 is replayed row for
+row by the port's side run dmg_fan (from roger; dmg_08's pad aligned on fan
+r2's cycle, as the exit phase replays exit_00): every row f32..f285 equals
+the recording, and 0021E9C0 runs 52 times, as recorded. Its first run found
+a port bug (the fan binding stored the hit's pending damage +0x224 in the
+player record's image instead of its one storage, so the hit dealt no
+damage). dmg_pit_fall now holds the walk's last two sticks through dmg_07's
+pad lag and compares the fall start on rows 309..315 (001755B0 asked at row
+313, result 0, as recorded). Port docs/DAMAGE.md section 8.
 
 ## BRANCH: the AREA11 branches the main route skips
 
