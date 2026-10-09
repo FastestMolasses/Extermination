@@ -131,16 +131,44 @@ class OriginalSession:
     def __init__(self, state: str | Path, emulator: Path = DEFAULT_EMULATOR,
                  iso: Path = DEFAULT_ISO, log_dir: Path | None = None,
                  ready_timeout: float = 45.0, visible: bool = False,
-                 env: dict[str, str] | None = None):
+                 env: dict[str, str] | None = None,
+                 data_dir: str | Path | None = None, renderer: int = 13):
         """env: extra environment variables for the emulator process ONLY
         (opt-in; empty = the unchanged launch). video_compare/ps2.py passes
         DYLD_FALLBACK_LIBRARY_PATH to a folder of FFmpeg libraries for
         PCSX2's Media Capture; they must be built for the emulator's
         architecture (this PCSX2 is x86_64). Nothing in the emulator install
-        changes."""
+        changes.
+
+        emulator + data_dir (opt-in; data_dir None = the unchanged -portable
+        launch of the legacy app, which reads and writes its own portable
+        data): run another PCSX2 build, e.g. the local agent-debug fork
+        (../pcsx2-fork/build-x64/pcsx2-qt/PCSX2.app/Contents/MacOS/PCSX2), on
+        a SCRATCH data folder.  data_dir must lie outside ~/Documents (each
+        rebuilt, ad-hoc-signed app needs macOS permission for Documents files
+        and, hidden, blocks on that prompt).  The session fills it from
+        read-only copies of portable-data/bios and inis/PCSX2.ini (every
+        [Folders] entry pointed inside it, PINE on slot 28011, no hotkeys,
+        [EmuCore/GS] Renderer = `renderer`, 13 = software: the fork build has
+        no Metal renderer), copies the state and the ELF into it, APFS-clones
+        the ISO into it (removed again on close) and launches with -datapath.
+        Snapshots then go through <data_dir>/PCSX2/sstates; the emulator's
+        log is <data_dir>/emulator.log (launch.log stays in log_dir).  The folder keeps
+        BIOS copies: delete it after the session.  v2.6.3 states (version
+        0x9A55) do not load in the fork (0x9A59); give it states it saved."""
         self.state = Path(state).resolve()
         if not self.state.exists():
             raise FileNotFoundError(self.state)
+        self.data_dir = Path(data_dir).resolve() if data_dir else None
+        if self.data_dir is not None:
+            documents = (Path.home() / "Documents").resolve()
+            if self.data_dir == documents or documents in self.data_dir.parents:
+                raise ValueError(f"data_dir must be outside ~/Documents: {self.data_dir}")
+            if self.data_dir == REFERENCE.resolve() or REFERENCE.resolve() in self.data_dir.parents:
+                raise ValueError(f"data_dir must not be inside {REFERENCE} (user data)")
+        self.renderer = renderer
+        self.sstates = self.data_dir / "PCSX2/sstates" if self.data_dir else SSTATES
+        self._iso_clone: Path | None = None
         self.emulator, self.iso = Path(emulator), Path(iso)
         self.log_dir = Path(log_dir) if log_dir else ROOT / "build/pcsx2_session"
         self.ready_timeout = ready_timeout
@@ -164,8 +192,14 @@ class OriginalSession:
     def _start(self) -> "OriginalSession":
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self._log = open(self.log_dir / "launch.log", "w")
-        args = ["-portable", "-fastboot", "-statefile", str(self.state), "-elf", str(ELF),
-                "-logfile", str(self.log_dir / "emulator.log"), str(self.iso)]
+        if self.data_dir is None:
+            args = ["-portable", "-fastboot", "-statefile", str(self.state), "-elf", str(ELF),
+                    "-logfile", str(self.log_dir / "emulator.log"), str(self.iso)]
+        else:
+            state, elf, iso = self._prepare_data_dir()
+            # the emulator's own log goes into data_dir too (a Documents path would block it)
+            args = ["-datapath", str(self.data_dir), "-fastboot", "-statefile", str(state),
+                    "-elf", str(elf), "-logfile", str(self.data_dir / "emulator.log"), str(iso)]
         if self.env:
             self._log.write(f"emulator environment additions: {self.env}\n")
             self._log.flush()
@@ -215,7 +249,61 @@ class OriginalSession:
     def __exit__(self, *exc) -> None:
         self.close()
 
+    def _prepare_data_dir(self) -> tuple[Path, Path, Path]:
+        """Scratch -datapath folder (opt-in, see __init__): read-only copies in,
+        nothing written back.  Returns the local (state, elf, iso)."""
+        root = self.data_dir / "PCSX2"
+        folders = {"Bios": "bios", "Snapshots": "snaps", "Savestates": "sstates",
+                   "MemoryCards": "memcards", "Logs": "logs", "Cheats": "cheats",
+                   "Patches": "patches", "UserResources": "resources", "Cache": "cache",
+                   "Textures": "textures", "InputProfiles": "inputprofiles", "Videos": "videos",
+                   "DebuggerLayouts": "debuggerlayouts", "DebuggerSettings": "debuggersettings"}
+        for sub in ("inis", *folders.values()):
+            (root / sub).mkdir(parents=True, exist_ok=True)
+        for f in sorted((SSTATES.parent / "bios").iterdir()):
+            if f.is_file():          # copies: the BIOS writes its .nvm/.mec next to the image
+                shutil.copyfile(f, root / "bios" / f.name)
+        sets = {"Folders": {k: str(root / v) for k, v in folders.items()},
+                "EmuCore": {"EnablePINE": "true", "PINESlot": "28011", "SaveStateOnShutdown": "false",
+                            "EnableDiscordPresence": "false"},
+                "EmuCore/GS": {"Renderer": str(self.renderer)},
+                "UI": {"StartPaused": "false", "ConfirmShutdown": "false",
+                       "SetupWizardIncomplete": "false", "PauseOnFocusLoss": "false"},
+                "AutoUpdater": {"CheckAtStartup": "false"}}
+        out, section, seen = [], "", set()
+        for line in (REFERENCE / "inis/PCSX2.ini").read_text().splitlines():
+            if line.startswith("[") and line.rstrip().endswith("]"):
+                for k, v in sets.get(section, {}).items():
+                    if (section, k) not in seen:
+                        out.append(f"{k} = {v}")
+                section = line.strip()[1:-1]
+                out.append(line)
+                continue
+            key = line.split("=", 1)[0].strip()
+            if section == "Hotkeys" and "=" in line:
+                continue                 # no host hotkeys in an automated session
+            if "=" in line and key in sets.get(section, {}):
+                out.append(f"{key} = {sets[section][key]}")
+                seen.add((section, key))
+                continue
+            out.append(line)
+        for k, v in sets.get(section, {}).items():
+            if (section, k) not in seen:
+                out.append(f"{k} = {v}")
+        (root / "inis/PCSX2.ini").write_text("\n".join(out) + "\n")
+        state = self.data_dir / self.state.name
+        shutil.copyfile(self.state, state)
+        elf = self.data_dir / ELF.name
+        shutil.copyfile(ELF, elf)
+        iso = self.data_dir / self.iso.name
+        if not iso.exists():
+            subprocess.run(["cp", "-c", str(self.iso), str(iso)], check=True)   # APFS clone
+            self._iso_clone = iso
+        return state, elf, iso
+
     def close(self) -> None:
+        if self._iso_clone is not None and self.pid is None:
+            self._remove_iso_clone()
         if self.pid is None:
             return
         try:
@@ -227,8 +315,14 @@ class OriginalSession:
         self._terminate()
         self.proc = None
         self.pid = None
+        self._remove_iso_clone()
         if hashlib.sha256(self.state.read_bytes()).hexdigest() != self._digest:
             raise RuntimeError(f"source save state changed: {self.state}")
+
+    def _remove_iso_clone(self) -> None:
+        clone, self._iso_clone = self._iso_clone, None
+        if clone is not None and clone.is_file() and not clone.is_symlink():
+            clone.unlink()
 
     # -- process helpers -------------------------------------------------------
     def _emulator_pids(self) -> list[int]:
@@ -334,9 +428,9 @@ class OriginalSession:
         out.mkdir(parents=True, exist_ok=True)
         serial = self.state.name.split(".")[0]
         if slot is None:
-            used = {int(p.name.split(".")[-2]) for p in SSTATES.glob(f"{serial}.*.p2s")}
+            used = {int(p.name.split(".")[-2]) for p in self.sstates.glob(f"{serial}.*.p2s")}
             slot = next(s for s in range(16, 64) if s not in used)
-        target = SSTATES / f"{serial}.{slot:02d}.p2s"
+        target = self.sstates / f"{serial}.{slot:02d}.p2s"
         if target.exists():
             raise FileExistsError(target)
         assert self.pine
@@ -376,9 +470,16 @@ if __name__ == "__main__":
     ap.add_argument("--ly", type=lambda v: int(v, 0), default=0x7F)
     ap.add_argument("--snapshot", help="output directory for a final snapshot")
     ap.add_argument("--visible", action="store_true", help="show the emulator window")
+    ap.add_argument("--emulator", type=Path, default=DEFAULT_EMULATOR,
+                    help="emulator binary (default: the legacy app in build/startup-reference)")
+    ap.add_argument("--data-dir", type=Path,
+                    help="opt-in scratch -datapath folder outside ~/Documents (another build, "
+                         "e.g. the agent-debug fork); default: the legacy -portable launch")
+    ap.add_argument("--renderer", type=int, default=13, help="with --data-dir: [EmuCore/GS] Renderer")
     a = ap.parse_args()
     names = [b for b in a.buttons.split(",") if b]
-    with OriginalSession(a.state, visible=a.visible) as s:
+    with OriginalSession(a.state, emulator=a.emulator, visible=a.visible, data_dir=a.data_dir,
+                         renderer=a.renderer) as s:
         counters = s.step(a.frames, buttons=names, lx=a.lx, ly=a.ly)
         print(json.dumps({"counters": [counters[0], counters[-1]] if counters else []}))
         if a.snapshot:

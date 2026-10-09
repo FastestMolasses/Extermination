@@ -200,6 +200,12 @@ run of ticks with one phase.
 
 ## The PCSX2 session
 
+This section describes the legacy v2.6.3 app, which the tool still uses. The
+agent-debug fork (`docs/PCSX2_FORK.md`) records the displayed field for every
+frame and the SPU2 output in emulated time without save states or Media
+Capture. Moving this tool to the fork needs fork-saved start states and a
+check of the field capture point (see `PCSX2_FORK.md`, "Status").
+
 - Takes `build/.pcsx2.lock` (mkdir; polled every 30 s) for the whole
   session and always removes it, also on failure.
 - Switches, only while it holds the lock and only while PCSX2 is stopped:

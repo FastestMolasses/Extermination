@@ -57,6 +57,13 @@ System Events while it boots; frame stepping and save-state screenshots work
 while hidden). Pass `visible=True` / `--visible` to watch it.
 All output belongs in gitignored `build/`.
 
+The agent-debug PCSX2 fork (v2.9.114 + our engine; `docs/PCSX2_FORK.md`)
+runs to a condition in one request (about 200 ticks/s instead of about 8.7),
+records every frame and rewinds. `pcsx2_session.py` can drive it opt-in with
+`--emulator <fork binary> --data-dir <scratch outside ~/Documents>`. It needs a
+state saved by the fork: v2.6.3 states, including slots 01 to 15, load only in
+the legacy app.
+
 ## Gotchas
 - Pause the VM before multi-byte pokes (`pcsx2_pause` / resume).
 - The status screen reads live values — open it (Triangle) to watch edits land.

@@ -39,6 +39,12 @@ that is a different, stale tree.
   steps, pad input, memory reads and snapshots. Save states are in
   `build/startup-reference/portable-data/sstates/` (01-15 are the user's; never
   overwrite them).
+- Agent-debug PCSX2 fork (2026-10-09): `../pcsx2-fork`, entry point
+  `../pcsx2-fork/EXTERMINATION.md`; status, rules and the decomp-side hookup are
+  in `docs/PCSX2_FORK.md`. It offers run-to-condition, a per-frame store with
+  verified rewind, memwatch logs, inline coverage probes and an emulated-time
+  audio tap. Its MCP bridge is not registered yet, and v2.6.3 states do not
+  load in it.
 - Port live checks: `EM_STARTUP_TEST=newgame-control` (displacement 9.599849) and the
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
