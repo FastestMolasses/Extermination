@@ -140,7 +140,7 @@ one, reach 100% and replace the asm body in `src/<f>.c` with the C (then delete 
 | func_0018B9C0 | 0x0018B9C0 | 0x25C | 84.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + branch-likely-lowering scheduling permuter class. Logic fully recovere |
 | func_001FA0D0 | 0x001FA0D0 | 0x260 | 92.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring / store-scheduling permuter class. Logic fully recovered. Two artifacts  |
 | func_0017F320 | 0x0017F320 | 0x2C4 | 97.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Pure delay-slot-fill / scheduling permuter class. Logic fully recovered (97.6%). The three |
-| func_0017C580 | 0x0017C580 | 0x2D4 | 98.78% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.78% near-miss, logic fully recovered. 2 residual instrs: (1) register-allocation permut |
+| func_0017C580 | 0x0017C580 | 0x2D4 | 99.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | One register: the +0x0F value of the 0x63 test is $a0 where the target has $a2 (2 instrs). |
 | func_00191D40 | 0x00191D40 | 0x2C4 | 91.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 91.27% near-miss, logic fully recovered and FP register coloring (fparg1=f21, delta=f20, f |
 | func_001F9820 | 0x001F9820 | 0x300 | 95.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling permutation in channels 3 and 4: mwcc places the D_00275B24/B20 sou |
 | func_001EEBA0 | 0x001EEBA0 | 0x30C | 97.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two permuter-class residuals (NOT the clean-store nop): (1) the middle of three identical  |
@@ -357,7 +357,7 @@ one, reach 100% and replace the asm body in `src/<f>.c` with the C (then delete 
 | func_00159970 | 0x00159970 | 0x214 | 77.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Stacked artifacts (NOT clean-store nop): (1) argument hoisting -- target computes anim=arg |
 | func_001416D0 | 0x001416D0 | 0x214 | 80.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc list-scheduling artifact (NOT clean-store nop): the float-copy block interleaves lwc1 |
 | func_0019A6F0 | 0x0019A6F0 | 0x214 | 93.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register coloring (s0=mode,s1=flags,s2=base,s3=arg0) and the 3-way sub-update dispatch now |
-| func_001756E0 | 0x001756E0 | 0x218 | 94.34% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body and control flow fully correct (branch-likely beql on func_001760C0 reproduced). Sole |
+| func_001756E0 | 0x001756E0 | 0x218 | 99.74% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Saved-register swap: the target keeps the old +0x236 value in $s1 and the D_00248950 point |
 | func_001B37D0 | 0x001B37D0 | 0x218 | 81.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical call set, arguments, and nested (7 rings x 2 signs) loop structure as the target |
 | func_002034C0 | 0x002034C0 | 0x220 | 96.10% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling permutation (body/logic 100% correct): (1) the two func_00108DB0 ca |
 | func_00178080 | 0x00178080 | 0x220 | 89.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation (body/logic/structure 100% correct): the target keeps the th |
@@ -487,7 +487,6 @@ one, reach 100% and replace the asm body in `src/<f>.c` with the C (then delete 
 | func_001F9CF0 | 0x001F9CF0 | 0x3DC | 86.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-ORDER wall (residual). Same instruction COUNT as target (256=256), fra |
 | func_0017F5F0 | 0x0017F5F0 | 0x3E8 | 99.75% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP odd/even register-coloring on two timer-expiry float add/sub ops (target picks a differ |
 | func_0022E7F0 | 0x0022E7F0 | 0x3E8 | 80.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc233 packs the three stack-scratch locals by SIZE (largest array always lowest offset)  |
-| func_00175900 | 0x00175900 | 0x3EC | 88.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-permutation wall already characterized on sibling func_001756E0 (ident |
 | func_002267A0 | 0x002267A0 | 0x3EC | 62.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/logic fully recovered (verified instruction-by-instruction against the raw .s: the ou |
 | func_0019CB60 | 0x0019CB60 | 0x3F0 | 81.49% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Logic fully recovered from raw disasm: the two float-compare flag setups (D_70003190<=D_70 |
 | func_001FE070 | 0x001FE070 | 0x3F0 | 85.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Logic fully recovered and cross-checked against a sibling caller (func_001FD0E0.c, which c |
@@ -569,7 +568,7 @@ one, reach 100% and replace the asm body in `src/<f>.c` with the C (then delete 
 | func_00219870 | 0x00219870 | 0x6D4 | 93.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | BODY CORRECTED 2026-09-28 against the original instructions (see FINDINGS "NEARMISS body corrections from the round-7 AREA06 lanes"; 92.08% before). Earlier diagnosis, partly superseded: Body/structure fully recovered and byte-identical up to a register-allocation-order permut |
 | func_001328D0 | 0x001328D0 | 0x6D8 | 96.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (96.6% on 233). Two residual classes, both genuine compiler |
 | func_0020F950 | 0x0020F950 | 0x6D8 | 85.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 3-state actor-tick dispatcher (mode 0 init / mode 1 setup / mode 2 render-config), gated b |
-| func_00162DB0 | 0x00162DB0 | 0x6E4 | 91.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 91.18% mwcc233 (82.29% 991202). Body/structure fully recovered, all state-machine |
+| func_00162DB0 | 0x00162DB0 | 0x6E4 | 99.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | One pair in func_001B12B0(0.0f, +0xC0, 0.06981317f): the target sets $f14 before $f12 = 0; |
 | func_001E3630 | 0x001E3630 | 0x6E4 | 93.92% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 93.92% mwcc233 (85.70% 991202). Body/structure/control-flow fully recovered acros |
 | func_0016F600 | 0x0016F600 | 0x6EC | 79.81% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 79.81% mwcc233 (76.40% 991202). Logic and control flow fully recovered (validated |
 | func_001764E0 | 0x001764E0 | 0x6F4 | 83.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation-ORDER across the whole body: mwcc233 puts arg0 in s4 (target: s0), wit |

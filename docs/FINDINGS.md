@@ -10038,9 +10038,12 @@ record's surface-attr byte +0x1A** (via the spad result pointer
 `*0x700031D0` — for grid hits this points at the 64-byte poly node, s14)
 into **actor +0x23A**, and the floor height `0x700031B4` into +0x250.
 Not-grounded branch: a second probe `func_0019B8C0` (mask 7) supplies
-the attr, else +0x23A = 0; **standing on a movable object** (+0x214,
-type byte 2 masked ~0xE1 == 4) overrides by object subtype: subtype 2 →
-attr 2; subtypes 0xA/0xC/0x18/0x2A/0x28 → attr 4.
+the attr, else +0x23A = 0; **standing on a movable object** (bit 0x80
+of +0x0A, record +0x214 with type byte +2 masked ~0xE0 == 4) overrides
+by object subtype (byte +3): subtypes 2/0xA/0xC/0x18/0x2A/0x28 all give
+attr 4 (corrected 2026-10-09 from the byte-matched C: the old text had
+~0xE1 and "subtype 2 → attr 2"; the subtype-2 compare branches into the
+same store of 4).
 
 First-contact latches (cleared whenever the probe misses):
 
@@ -16833,3 +16836,61 @@ sweep passed 311 cases across 16 AREA01 captures, with 683 worker
 boundaries and four failure cases. This is distinct from the already
 recorded descriptor-address correction for the same function. Only this
 document and the NEARMISS correction note were changed in the decomp.
+
+### 2026-10-09 — First-level fall / landing / footing: readable C and corrected NEARMISS bodies
+
+From the first-level coverage lane (the two port census rows 001755B0 and
+0021E9C0, port FIRST_LEVEL_CENSUS.md 1.67, and their callers). Every
+percentage below is objdiff against the normalized target object.
+
+- **func_001755B0 / func_0021E9C0** (byte-matched, 100.00 before and
+  after): readable names and headers only. The 0021E9C0 header's
+  "vertical delta" label was wrong: sub-state 1 stores into the speed
+  +0x38 this frame's change of the root bone record's +0x08 float
+  (`D_00275B40[0] + 8`, last frame's value kept at +0x21C), and
+  func_00178B90 moves the player by that speed along the heading +0xC4.
+- **func_00175900, the footing update** (was NEARMISS 88.90 -> byte-matched
+  C, 100.00, links from C). The old C built the side-probe point
+  (0, 0, 2, 1) as four separate int locals and passed only the first one's
+  address, so mwcc kept one store and func_001026A0 read three
+  uninitialised words. The original stores all four words of one stack
+  vector before the loop. The "loop counter / walk pointer register wall"
+  recorded for it was this defect. Other levers: `+=` for the +18 height
+  step (idiom-21), the attr test 0x5A / 0x5B / 0x5C as a switch (the
+  target compares 0x5C, 0x5B, 0x5A), and the 0x5B depth result stored in
+  each arm (branch-arm store duplication). The port's em_player_floor.c
+  already uses (0, 0, 2, 1).
+- **func_001756E0, the low-clearance latch** (NEARMISS 94.34 -> 99.74): the
+  same defect, with (0, 4.01, 4, 1). The port uses that vector. Residual:
+  one saved-register swap (the old +0x236 value is $s1 and the D_00248950
+  pointer $s2 in the target). Six declaration orders, an int temp and
+  indexed table access do not move it.
+- **func_00162DB0, player state 5 (fall start, fall)** (NEARMISS 91.18 ->
+  99.95). Body corrections: when func_0017D080 is nonzero in sub-state 0
+  (sub-state 1, clip 0x83) the shared tail still runs (+0x2F4 = +0xB4,
+  +0x25F = 2); the old C returned before it. func_00188550 returns a full
+  int (the old C declared `short` and sign-extended it). Sub-state 0xB
+  reads +0x38 and +0x2E0 after func_00224290 (the old C read them before
+  the call). The probe flag starts at 0 before the switch. Residual: one
+  instruction pair in the argument setup of
+  `func_001B12B0(0.0f, +0xC0, 0.06981317f)`: the target moves the step
+  into $f14 before zero into $f12, and mwcc 2.3.3 / 2.4 emit the reverse.
+  The target order recurs in func_0016C6A0 and func_0014E050 (both
+  NEARMISS); func_0013A3B0 and func_0014DC30 have the zero first. Literal,
+  local, const and int-staged spellings do not move it. The permuter
+  reached 100 only with the step assigned at the end of case 0xA, which
+  leaves it uninitialised on the direct 0xB path, so that form is not used.
+- **func_0017C580, the landing** (NEARMISS 98.78 -> 99.94): the speculative
+  0x70003A20 reload in a bc1t delay slot was the literal-address artifact
+  of idiom-32; naming D_70003A20 (an over-declared array under
+  `-sdatathreshold 8`) gives the target's nop. Residual: the +0x0F value of
+  the 0x63 test is colored $a0 where the target has $a2 (2 instructions);
+  every compiler build gives $a0, and a 25.9k-iteration permuter run stayed
+  at its base score.
+- **Soft-float double compare.** Compiling `(double)health <= 0.0` with
+  mwcc 2.3.3 emits the original's call pair at the same sites, to `fptodp`
+  and `_dpfle`. So func_00128350 is fptodp and func_001000E0 is _dpfle, and
+  0017C580's test is `health <= 0.0` in double precision.
+- **The footing update's object override** (section "Where the surface
+  attr comes from", corrected above): mask `& ~0xE0`, and subtype 2 gives
+  attr 4 like the other five.
