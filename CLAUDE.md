@@ -193,7 +193,15 @@ logic. Its cut-content items come from this repo's `docs/CURIOSITIES.md`.
   slots 01–15). The PCSX2 MCP server is also registered (local scope) and loads
   its tools in new sessions.
 - Never move, mount, restore or "recover" the emulator install or its backups
-  (user instruction).
+  (user instruction; 2026-10-09 the user asked to retire the old copies once
+  the fork can replace them — still with their confirmation, to the Trash).
+- **The debugging fork** (user, 2026-10-09): `../pcsx2-fork` (upstream PCSX2
+  v2.9.114, x86_64, branch `extermination-mcp`): DebugServer protocol v2 with a
+  frame store, watch tables, logging probes, divergence finder, an emulated-time
+  SPU2 audio tap and exact GS reads, plus an MCP bridge. Read
+  `docs/PCSX2_FORK.md` first, then the fork's `EXTERMINATION.md`. It is a
+  separate GPL tool: agents that read its source never write port code or
+  decomp `src/`. The v2.6.3 save states (0x9A55) do not load in it.
 
 ## Tests
 
