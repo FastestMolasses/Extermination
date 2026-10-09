@@ -770,9 +770,10 @@ MEDIA_DIRS = [REFERENCE / "portable-data/videos", REFERENCE / "portable-data", P
 
 
 def collect_media_audio(out: Path, marker: Path, player: "Player") -> None:
-    """--media-audio: move the WAV PCSX2's Media Capture wrote (the save path
-    typed into its dialog: --out itself, else found by mtime in the capture
-    folders) to audio_media.wav and measure it against the session's span:
+    """--media-audio: take the WAV PCSX2's Media Capture wrote (the save path
+    typed into its dialog: --out itself, moved; else found by mtime in the
+    capture folders, COPIED so nothing outside build/ is ever moved or
+    deleted) as audio_media.wav and measure it against the session's span:
     the vsync counter between the two gates (one NTSC field = 48000 / 59.94
     samples).  audio.wav (what compose.py reads) is written only if the sample
     count matches the vsync span within one field: the WAV then starts at the
@@ -792,7 +793,11 @@ def collect_media_audio(out: Path, marker: Path, player: "Player") -> None:
         player.notes.append(f"audio: expected one capture WAV, found {[str(p) for p in found]}; the PS2 side stays silent")
         return
     dst = out / "audio_media.wav"
-    shutil.move(str(found[0]), dst)
+    if found[0].parent.resolve() == out.resolve():
+        shutil.move(str(found[0]), dst)
+    else:
+        shutil.copyfile(found[0], dst)
+        player.notes.append(f"audio: copied {found[0]}; the original stays where PCSX2 wrote it")
     with wave.open(str(dst)) as w:
         rate, ch, width, n = w.getframerate(), w.getnchannels(), w.getsampwidth(), w.getnframes()
     fields = stop["vsync"] - start["vsync"]
@@ -821,7 +826,8 @@ def main(argv=None) -> int:
     ap.add_argument("--audio", action="store_true", help="record PCSX2's SPU2 WAV log")
     ap.add_argument("--media-audio", action="store_true",
                     help="visible session; wait on audio_start/audio_stop marker files while PCSX2's Media "
-                         "Capture (audio only, WAV) is started and stopped from its menu")
+                         "Capture (audio only, WAV) is toggled with the session's temporary End hotkey "
+                         "(the menu reports its items disabled when driven from the background)")
     ap.add_argument("--media-wait", type=float, default=1800.0, help="seconds to wait at each audio gate")
     ap.add_argument("--state", default=str(TITLE_STATE), help="title save state (never modified)")
     ap.add_argument("--tail", type=int, default=4)
