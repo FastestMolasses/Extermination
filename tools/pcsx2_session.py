@@ -130,7 +130,14 @@ class Pine:
 class OriginalSession:
     def __init__(self, state: str | Path, emulator: Path = DEFAULT_EMULATOR,
                  iso: Path = DEFAULT_ISO, log_dir: Path | None = None,
-                 ready_timeout: float = 45.0, visible: bool = False):
+                 ready_timeout: float = 45.0, visible: bool = False,
+                 env: dict[str, str] | None = None):
+        """env: extra environment variables for the emulator process ONLY
+        (opt-in; empty = the unchanged launch). video_compare/ps2.py passes
+        DYLD_FALLBACK_LIBRARY_PATH to a folder of FFmpeg libraries for
+        PCSX2's Media Capture; they must be built for the emulator's
+        architecture (this PCSX2 is x86_64). Nothing in the emulator install
+        changes."""
         self.state = Path(state).resolve()
         if not self.state.exists():
             raise FileNotFoundError(self.state)
@@ -140,6 +147,7 @@ class OriginalSession:
         self.proc: subprocess.Popen | None = None
         self.pid: int | None = None
         self.visible = visible
+        self.env = dict(env or {})
         self.pine: Pine | None = None
         self.debug = DebugServer()
         self.frames_stepped = 0
@@ -158,14 +166,19 @@ class OriginalSession:
         self._log = open(self.log_dir / "launch.log", "w")
         args = ["-portable", "-fastboot", "-statefile", str(self.state), "-elf", str(ELF),
                 "-logfile", str(self.log_dir / "emulator.log"), str(self.iso)]
+        if self.env:
+            self._log.write(f"emulator environment additions: {self.env}\n")
+            self._log.flush()
         if self.visible:
             self.proc = subprocess.Popen([str(self.emulator), *args],
-                                         stdout=self._log, stderr=subprocess.STDOUT)
+                                         stdout=self._log, stderr=subprocess.STDOUT,
+                                         env={**os.environ, **self.env} if self.env else None)
             self.pid = self.proc.pid
         else:
             bundle = self.emulator.parents[2]          # .../PCSX2.app
             before = set(self._emulator_pids())
-            subprocess.run(["open", "-g", "-j", "-n", "-a", str(bundle), "--args", *args],
+            envargs = [a for k, v in self.env.items() for a in ("--env", f"{k}={v}")]
+            subprocess.run(["open", "-g", "-j", "-n", *envargs, "-a", str(bundle), "--args", *args],
                            check=True, stdout=self._log, stderr=subprocess.STDOUT)
             deadline = time.monotonic() + 20
             while time.monotonic() < deadline and self.pid is None:

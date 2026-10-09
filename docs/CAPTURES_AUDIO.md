@@ -32,8 +32,8 @@ evidence was measured and is kept under `build/s87/audio/probe/`:
   - A hidden emulator cannot receive either. Pressing the menu through System
     Events is refused, because the agent has no Accessibility permission, which
     is a macOS security setting.
-  - PCSX2 loads FFmpeg at run time, and its compatibility with the installed
-    Homebrew FFmpeg 8 was not tested.
+  - PCSX2 loads FFmpeg at run time. Homebrew's FFmpeg 8 cannot serve it
+    (2026-10-09, below: wrong architecture).
 - **No other route.**
   - The command line (`-help`), the DebugServer command list and Pine have no
     capture command.
@@ -55,8 +55,16 @@ evidence was measured and is kept under `build/s87/audio/probe/`:
      capture fails with "Failed to load FFmpeg": PCSX2 v2.6.3 asks for
      libavcodec 62 / libavformat 62 / libavutil 60 / libswscale 9 /
      libswresample 6, the versions Homebrew FFmpeg 8.1.2 installs in
-     `/opt/homebrew/lib`, but does not find them there. Still no WAV, no
-     sync measurement.
+     `/opt/homebrew/lib`, but does not load them, also with
+     `DYLD_FALLBACK_LIBRARY_PATH` pointing there for the emulator process.
+     The reason (`lipo -archs`, the same day): this PCSX2 build is x86_64
+     only and runs under Rosetta, and Homebrew's FFmpeg 8 in `/opt/homebrew`
+     is arm64 only, so dyld cannot load it into PCSX2. Media Capture needs
+     an x86_64 FFmpeg 8 (libavcodec 62 / libavformat 62 / libavutil 60 /
+     libswscale 9 / libswresample 6), passed with `ps2.py
+     --emulator-lib-path` (docs/VIDEO_COMPARE.md "Audio"; it refuses
+     libraries of another architecture). Which x86_64 build to use is the
+     user's decision. Still no WAV, no sync measurement.
 2. The user grants Accessibility to the agent's host app.
 3. The user starts the capture by hand.
 

@@ -53,7 +53,12 @@ emulator, its DebugServer and Pine):
     count with the gates' vsync span (48000 / 59.94 samples per field) and
     audio.wav is written only when they agree.  2026-10-09: the hotkey
     reaches PCSX2, but its capture failed to load FFmpeg (docs/VIDEO_COMPARE.md
-    "Audio"), so no WAV has been made this way yet.
+    "Audio"), so no WAV has been made this way yet.  --emulator-lib-path
+    passes a folder of FFmpeg libraries to the emulator process only
+    (DYLD_FALLBACK_LIBRARY_PATH); it must match the emulator's architecture:
+    this PCSX2 build is x86_64 and Homebrew's FFmpeg 8 is arm64 only, so
+    that pair is refused (checked 2026-10-09: the variable reached the
+    process and the load still failed).
   * Lock: build/.pcsx2.lock (mkdir) is held for the whole session and always
     removed; the ini is restored before it is released.
 
@@ -367,10 +372,12 @@ def decode_state(p2s: Path, out_png: Path, mode: str) -> dict:
 
 class Player:
     def __init__(self, rec: emrec.Recording, out: Path, stride: int, frames: str, audio: bool,
-                 state: Path, tail: int, title_limit: int, media: bool = False, media_wait: float = 1800.0):
+                 state: Path, tail: int, title_limit: int, media: bool = False, media_wait: float = 1800.0,
+                 emulator_env: dict[str, str] | None = None):
         self.rec, self.out, self.stride, self.frames, self.audio = rec, out, stride, frames, audio
         self.state, self.tail, self.title_limit = state, tail, title_limit
         self.media, self.media_wait, self.gates = media, media_wait, {}
+        self.emulator_env = dict(emulator_env or {})
         self.last_status: dict = {}
         self.rows: list[dict] = []
         self.extra: list[dict] = []
@@ -511,7 +518,8 @@ class Player:
         attempts = 0
         while True:
             attempts += 1
-            sess = OriginalSession(self.state, log_dir=self.out / "pcsx2_logs", visible=self.media)
+            sess = OriginalSession(self.state, log_dir=self.out / "pcsx2_logs", visible=self.media,
+                                   env=self.emulator_env)
             try:
                 self.s = sess.__enter__()
                 break
@@ -693,10 +701,18 @@ def run(args) -> int:
         # a hotkey for the capture: PCSX2's menu items report disabled while
         # it is in the background (2026-10-09), a key sent to its window may work
         changes[("Hotkeys", "ToggleVideoCapture")] = MEDIA_HOTKEY
+    emulator_env = {}
+    if args.emulator_lib_path:
+        lib = check_ffmpeg_dir(Path(args.emulator_lib_path))
+        # the emulator process only; dyld falls back here only where PCSX2's
+        # own libraries are not found (the app is ad-hoc signed without the
+        # hardened runtime, so dyld honours it); nothing in the install changes
+        emulator_env["DYLD_FALLBACK_LIBRARY_PATH"] = str(lib)
+        log(f"emulator library fallback (this session's emulator process only): {lib}")
     state = Path(args.state)
     digest = hashlib.sha256(state.read_bytes()).hexdigest()
     player = Player(rec, out, args.stride, args.frames, args.audio, state, args.tail, args.title_limit,
-                    media=args.media_audio, media_wait=args.media_wait)
+                    media=args.media_audio, media_wait=args.media_wait, emulator_env=emulator_env)
     t0 = time.monotonic()
     marker = audio_marker(out) if (args.audio or args.media_audio) else None
 
@@ -764,6 +780,34 @@ def collect_audio(out: Path, marker: Path, player: "Player") -> None:
         player.notes.append(f"audio: {p} -> {dst.name} ({dst.stat().st_size} bytes)")
 
 
+# the FFmpeg majors this PCSX2 build asks for (its "Failed to load FFmpeg"
+# message, 2026-10-09); --emulator-lib-path must hold exactly these
+FFMPEG_MAJORS = {"avcodec": 62, "avformat": 62, "avutil": 60, "swscale": 9, "swresample": 6}
+
+
+def check_ffmpeg_dir(lib: Path) -> Path:
+    """Fault unless lib holds lib<name>.<major>.dylib for every library
+    PCSX2's Media Capture loads (the leaf names it dlopens)."""
+    lib = lib.absolute()            # keep a stable opt/ path (not the versioned Cellar one)
+    missing = [f"lib{n}.{m}.dylib" for n, m in FFMPEG_MAJORS.items() if not (lib / f"lib{n}.{m}.dylib").is_file()]
+    if missing:
+        raise FileNotFoundError(f"--emulator-lib-path {lib}: missing {missing}")
+    # dyld only loads a library built for the emulator's own architecture:
+    # this PCSX2 build is x86_64 (Rosetta), Homebrew's /opt/homebrew FFmpeg is
+    # arm64 only (2026-10-09), so that pair can never load; fault up front
+    emu = REFERENCE / "PCSX2.app/Contents/MacOS/PCSX2"
+    def archs(f: Path) -> set[str]:
+        return set(subprocess.run(["lipo", "-archs", str(f)], capture_output=True, text=True,
+                                  check=True).stdout.split())
+    want = archs(emu)
+    wrong = {f"lib{n}.{m}.dylib": sorted(archs(lib / f"lib{n}.{m}.dylib"))
+             for n, m in FFMPEG_MAJORS.items() if not want & archs(lib / f"lib{n}.{m}.dylib")}
+    if wrong:
+        raise RuntimeError(f"--emulator-lib-path {lib}: the emulator is {sorted(want)}, "
+                           f"these libraries are not: {wrong}")
+    return lib
+
+
 MEDIA_HOTKEY = "Keyboard/End"     # unbound; a key a background app can be sent
 MEDIA_DIRS = [REFERENCE / "portable-data/videos", REFERENCE / "portable-data", Path.home() / "Movies",
               Path.home() / "Desktop", Path.home() / "Documents"]
@@ -828,6 +872,12 @@ def main(argv=None) -> int:
                     help="visible session; wait on audio_start/audio_stop marker files while PCSX2's Media "
                          "Capture (audio only, WAV) is toggled with the session's temporary End hotkey "
                          "(the menu reports its items disabled when driven from the background)")
+    ap.add_argument("--emulator-lib-path",
+                    help="a folder holding FFmpeg's libraries with the majors PCSX2 asks for, built for the "
+                         "emulator's architecture (x86_64 for this PCSX2; Homebrew's arm64 "
+                         "/opt/homebrew/opt/ffmpeg/lib is refused), passed to the emulator process only as "
+                         "DYLD_FALLBACK_LIBRARY_PATH (user decision 2026-10-09: Homebrew FFmpeg for "
+                         "--media-audio); nothing in the emulator install changes")
     ap.add_argument("--media-wait", type=float, default=1800.0, help="seconds to wait at each audio gate")
     ap.add_argument("--state", default=str(TITLE_STATE), help="title save state (never modified)")
     ap.add_argument("--tail", type=int, default=4)

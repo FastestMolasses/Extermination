@@ -19,11 +19,11 @@ tool and this document.
 | Piece | Where it runs |
 |---|---|
 | Native port (records and replays) | native arm64 macOS, `../extermination-port` |
-| PCSX2 playback | the MCP-enabled PCSX2 in `build/startup-reference/PCSX2.app`, hidden, through `tools/pcsx2_session.py` |
+| PCSX2 playback | the MCP-enabled PCSX2 in `build/startup-reference/PCSX2.app` (an x86_64 build: it runs under Rosetta), hidden, through `tools/pcsx2_session.py` |
 | `tools/video_compare/*.py` | native arm64 Python 3; the PCSX2 stage uses the decomp `.venv` (it needs `zstandard`), the compose stage a `python3` with Pillow and numpy. `video_compare.py` picks the interpreter for each stage itself |
 | ffmpeg / ffprobe | Homebrew arm64 (`/opt/homebrew/bin`) |
 
-Nothing needs Rosetta or the Linux container.
+Nothing else needs Rosetta, and nothing needs the Linux container.
 
 ## Setup (once)
 
@@ -109,7 +109,7 @@ compose options without running PCSX2 again).
 | `--loads trim\|hold` | trim | loads: drop the longer side's middle load frames, or hold the shorter side's last load frame (tagged "held: the other side is still loading") |
 | `--audio none\|native\|original\|both` | none | `native` = the port's sound only (the header says so); `original` / `both` need a PS2 `audio.wav`, which this PCSX2 build does not produce (see "Audio"); `both` = original LEFT, port RIGHT |
 | `--disc-timing recorded\|0\|1` | recorded | `EM_PS2_DISC_DRIVE_TIMING` for the native playback |
-| `--sampling gs\|area` | gs | native frame: the port's exact 512x224 GS field, with the presented frame where the port's overlay pass drew (see "Limits"), like with like with the PS2 field; or the presented 4:3 frame box-averaged to 640x480 |
+| `--sampling gs\|area` | gs | native frame: the port's exact 512x224 GS field, with the presented frame averaged over each field pixel's footprint where the port's overlay pass drew (see "Limits"), like with like with the PS2 field; or the presented 4:3 frame box-averaged to 640x480 |
 | `--ps2-frames gs\|screenshot` | gs | PS2 frame: the 512x224 GS field (needs the software renderer, switched for the session) or the save state's 640x480 host screenshot (hardware renderer, scaled and filtered by PCSX2) |
 | `--title`, `--subtitle` | none | header text |
 | `--height H` | 480 | height of each side (4:3, so 640x480 per side) |
@@ -260,15 +260,32 @@ run of ticks with one phase.
     the user. The End hotkey does reach PCSX2 in the background, also while
     the VM is held at a breakpoint, but the capture then fails with "Failed
     to load FFmpeg" (this build asks for libavcodec 62, libavformat 62,
-    libavutil 60, libswscale 9, libswresample 6). Homebrew's FFmpeg 8.1.2 in
-    `/opt/homebrew/lib` has exactly those versions, but PCSX2 does not find
-    them there; `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib` for the
-    emulator process did not change that. Pointing `DYLD_LIBRARY_PATH` at
-    the five libraries was refused by the agent's permission system and not
-    run. Making FFmpeg loadable for PCSX2 is the user's decision (nothing
-    was installed, upgraded or copied into the app). Whether the capture
-    follows emulated time while frame-stepped is therefore still
-    unmeasured.
+    libavutil 60, libswscale 9, libswresample 6). Homebrew's FFmpeg 8.1.2
+    (`/opt/homebrew/opt/ffmpeg/lib`) has exactly those versions, and
+    `DYLD_FALLBACK_LIBRARY_PATH` pointing there reached the emulator
+    process, but the load still failed. The reason (found the same day,
+    `lipo -archs`): this PCSX2 build is **x86_64 only** and runs under
+    Rosetta, while Homebrew's FFmpeg 8 in `/opt/homebrew` is **arm64 only**
+    (all five libraries); dyld never loads a library of another
+    architecture into a process. Media Capture therefore needs an **x86_64
+    FFmpeg 8** (libavcodec 62 / libavformat 62 / libavutil 60 / libswscale 9
+    / libswresample 6), e.g. an x86_64 Homebrew under `/usr/local` or a
+    universal build; an arm64 PCSX2 would take the existing one. The user
+    chose Homebrew FFmpeg (2026-10-09); which x86_64 build to use is still
+    the user's decision (nothing was installed, upgraded or copied into the
+    app). Whether the capture follows emulated time while frame-stepped is
+    therefore still unmeasured.
+  - **`ps2.py --emulator-lib-path DIR` (opt-in).** Passes DIR to the
+    emulator process only, as `DYLD_FALLBACK_LIBRARY_PATH`
+    (`pcsx2_session.OriginalSession(env=...)`: `Popen(env=...)` for a
+    visible session, `open --env` for a hidden one); dyld looks there only
+    for libraries PCSX2 does not find itself. Before the session it checks
+    that DIR holds `lib<name>.<major>.dylib` for the five libraries above
+    and that they share the emulator's architecture (`lipo -archs`), and
+    refuses otherwise: `/opt/homebrew/opt/ffmpeg/lib` is refused with
+    "the emulator is ['x86_64'], these libraries are not". Without the
+    option the launch is unchanged. Nothing in the emulator install is
+    written (it only reads the emulator binary's architecture).
   - The DebugServer's `cycles` advanced about 325,600 per field in that
     session, not the EE's 294.912 MHz / 59.94 = 4.92 million, so it is not
     a plain EE cycle count; the sync check uses the vsync counter.
@@ -303,30 +320,61 @@ loads, cutscenes or behaviour differ.
   Since the port's chain step GSFRAME every world frame of the Original
   profile is a 512x224 GS field (port `docs/GS_EXACT.md` section 9). A
   capture of such a frame also writes the field itself
-  (`<capture>.gsfield`, 512x224 RGBA; port `em_gfx_metal.m` writes and
-  closes the BMP first, then the field, on the same thread). `native.py`
-  makes `frames.fifo.gsfield` a symlink to the capture FIFO, so every field
-  follows its own BMP in one ordered stream (no side file to overwrite, no
-  race), and checks the parsed sequence against the port's
-  `capture: wrote ...` log lines. With `--sampling gs` (default) a frame
-  is that exact field (RGB; alpha is not displayed, PMODE EN1 0), except
-  where the presented frame differs from it at the field pixel's centre:
-  that is the port's overlay pass, which the GPU still draws after the
-  field (port FIRST_LEVEL_AUDIT 1b item 2, GS_EXACT.md 10.1), and there
-  the presented pixel is kept: the letterbox bands and subtitles of the
-  cutscenes (64 rows, 28.6 % of the field) and fades (the whole field).
-  Frames without a field (the status / ITEM / BATTERY pages, the load veil's
-  first and last frames, the loads between areas, single frames at some
-  phase changes) are the presented frame at the field pixels' centres.
-  `native/frames.json` lists per capture whether it had a field and the
-  overlay's share. Where no overlay is drawn the centre samples equal the
-  field byte for byte: in the demo_hill run every field frame's share is
-  exactly 0 (451 frames), 28.6 % (the 64 band rows) or 100 % (fades), never
-  a stray pixel. Overlay glyphs are drawn at host resolution and only sampled to
-  the field, so thin strokes can drop out (the "T" of "There's", the "F"
-  of "First"); the PS2 draws them into the field itself. Lighting
-  stand-ins and the other known differences (port
-  `docs/FIDELITY_FEATURES.md`) remain visible.
+  (`<capture>.gsfield`, 512x224 RGBA) and, since the port's presentation
+  merge (3d403ac: field choice (a), SCREEN ADJUST (a); GS_EXACT.md section
+  11), `<capture>.present`, a short text file with the field's XYOFFSET_1
+  and the constants its f_gsfield shader placed it with (game rectangle
+  origin, 512 / width and 448 / height, the shift in pixels and lines with
+  the field's line added, BGCOLOR). Port `em_gfx_metal.m` writes and closes
+  the BMP first, then the field, then the `.present`, on the same thread.
+  `native.py` makes `frames.fifo.gsfield` and `frames.fifo.present`
+  symlinks to the capture FIFO, so each capture arrives as BMP, field,
+  `.present` in one ordered stream (no side file to overwrite, no race).
+  After the run it checks the parsed sequence against the port's
+  `capture: wrote ...` log lines and every `.present`'s XYOFFSET_1
+  against the one logged with its field.
+  - **The mapping** (port `src/gs/em_gs_display.h`, the shader's float32
+    expression, as the port's `tools/check_present_capture.py` uses it):
+    each field row covers two of the 448 display lines, a field drawn with
+    the half-line draw offset sits one line lower, and SCREEN ADJUST moves
+    the whole picture. The frame pixels that show a field pixel are its
+    footprint.
+  - **`--sampling gs` (default).** A frame is the exact field (RGB; alpha is
+    not displayed, PMODE EN1 0), except the field pixels whose footprint
+    the port's overlay pass drew over (it still draws after the field: port
+    FIRST_LEVEL_AUDIT 1b item 2, GS_EXACT.md 10.1): those are the presented
+    frame averaged over the footprint (a box filter). Frames without a
+    field (the status / ITEM / BATTERY pages, the load veil's first and last
+    frames, the loads between areas, single frames at some phase changes)
+    are the presented frame box-averaged over the footprints of the default
+    placement (no `.present` exists for them; a run whose `.present` files
+    show another placement is reported). A footprint pixel within 1e-3 of a
+    texel edge may show either neighbour (GPU rounding), which alone is not
+    counted as overlay. The SCREEN ADJUST shift moves the picture in the
+    window, not the field, so the comparison frame stays the field, like
+    the PS2 side's GS field. `native/frames.json` lists per capture whether
+    it had a field, its line, its placement and the overlay's share.
+  - **Text.** Overlay glyphs are drawn at host resolution. Until the box
+    filter (2026-10-09) they were sampled once per field pixel (its
+    centre), and thin strokes dropped out ("Found: BATTERY PACK" read as
+    "l ound: BAI IEKY PACK", the "F" of "First"); averaged over the
+    footprint every stroke keeps its weight (`check_text.png`, below). The
+    PS2 draws them into the field itself, so they stay slightly softer on
+    the port side.
+  - **Port finding: the overlay pass ignores the field's half line.** The
+    port draws the overlay pass in the placed picture without the field's
+    line (`gsw_viewport` uses the SCREEN ADJUST shift only), while a field
+    drawn with the half-line offset is shown one display line lower. The
+    PS2 draws its letterbox bands and subtitles into the field, at whole
+    field rows. So on half-line fields (355 of the demo's 1,048) the bands
+    and text sit one display line (half a field row) above the picture:
+    the overlay covers 65 field rows there instead of 64 (overlay share
+    29.0 % instead of 28.6 %), and the field rows at the band edges (31
+    and 191) are half band, half picture. This is the port's real output
+    (the box filter only shows it); it belongs to port FIRST_LEVEL_AUDIT
+    1b item 2 (the overlay pass into the field).
+  - Lighting stand-ins and the other known differences (port
+    `docs/FIDELITY_FEATURES.md`) remain visible.
 - **Port audio** is the dry SPU2 model (no reverb).
 - **PCSX2 is not hardware.** The software renderer is PCSX2's GS model.
 - **Loads.** At host speed the port loads in a fraction of the PS2's time;
@@ -429,6 +477,43 @@ position and heading. Output in `build/video_compare/demo_hill/`.
   segment / offset / capture columns).
 - Check images (ignored): `check_closeup_before.png` /
   `check_closeup_after.png` (segment 4 offset 288, field box x 180..340,
-  y 40..150, PS2 left, port right, 4x nearest), `check_overlay_frames.png`
-  (a subtitle frame, a fade, a status page), `sharpness_check.json`.
+  y 40..150, PS2 left, port right, 4x nearest).
+
+### Re-run 2026-10-09 after the port's presentation merge
+
+The native stage was run again on port main f1e589c (field choice (a) and
+SCREEN ADJUST (a)) with the box-filtered overlay (`--stride 4 --audio`,
+drive timing as recorded), and both videos recomposed from it and the
+same `ps2/` (`--skip-ps2`; `demo_hill.mp4` 13.9 MB, `demo_hill_discord.mp4`
+9.28 MB with `--target-mb 10`; 1,264 frames, 42.2 s each).
+
+- **Playback.** All 4,734 ticks equal the recording in every game column
+  (counter, movie flag, phase, pads, area, loader byte, selector, task
+  bytes, position, heading), and the earlier playback in segment, offset
+  and capture; only the uncapped movie-step count (`step`) and the
+  offline audio position (`af`) differ, as they may. Drift unchanged:
+  4,345 of 4,346 play/cutscene ticks bit-exact, no drift beyond the
+  tolerance.
+- **Fields.** 1,048 of 1,171 captures carry the field (693 drawn on whole
+  lines, 355 with the half-line offset), all at the default position. The
+  overlay pass drew over 597: share 28.6 % (450 frames, line 0), 29.0 %
+  (110, the half-line frames, see the port finding above), 100 % (37
+  fades); 451 frames none.
+- **Identical neighbours** (vertical / horizontal, 1,171 paired frames):
+  0.359 / 0.407 (0fba64a: 0.361 / 0.409; PS2 0.366 / 0.411). **Mean
+  absolute difference per channel** to the PS2 frame, all frames 3.75
+  (0fba64a 3.70); per segment (0fba64a -> now): opening cutscene (4) 5.70
+  -> 5.68, first play (5) 3.92 -> 3.89, status pages (8) 3.77 -> 3.75,
+  cutscene 10 2.27 -> 2.70, cutscene 12 4.30 -> 5.11, play 15 2.95 ->
+  3.04, the hill (17) 3.26 -> 3.28, others unchanged (6 8.59, 9 2.96, 11
+  2.23, 14 2.68 -> 2.70, 16 2.72, loads 0.00). The rises are all on
+  half-line fields under the letterbox (the overlay half a field row off,
+  above): leaving out rows 31 and 191 alone takes segment 15 back to its
+  old value and segment 10 from 2.69 to 2.42.
+- Check images (ignored): `check_text.png` (the BATTERY page text and
+  three subtitles, one on a half-line field: PS2, port now, port at
+  0fba64a, 3x), `demo_hill_contact.png` (16 frames of the video),
+  `contact/` (segment 17 pairs, the Discord copy at 34 s, the end card),
+  `sharpness_check.json` (the measures above per segment; `old` = the
+  0fba64a frames).
 
