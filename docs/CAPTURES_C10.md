@@ -11,7 +11,7 @@ outputs are local and ignored (`build/`).
 ## AIM: aiming and firing in AREA11
 
 Lane AIM, 2026-10-01. Follows the capture beat plan of the port's aim/fire
-lane (`../extermination-port-aimfire/docs/AIM_FIRE.md`, "Capture beat plan",
+lane (port `docs/AIM_FIRE.md`, "Capture beat plan",
 read only). Twelve beats, an opt-in group `aim` in `tools/route_capture.py`,
 outputs in `build/aimfire/capture/<beat>/` (listed in
 `build/aimfire/capture/README.md`).

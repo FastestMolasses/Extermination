@@ -38,6 +38,7 @@ Last reviewed: 2026-09-27 (every entry re-checked; entries 17-25 added;
 review corrections applied to 1, 3, 4, 6, 8-12, 14, 15, 17, 18, 21 and
 23-25). Entry 28 added 2026-10-02 (the port's chain step AIMLIVE) and withdrawn
 the same day (the port's chain step AIMCAP fix round; see the last section).
+Entry 12's blank label decoded 2026-10-08 (the port's chain step OPTIONS).
 
 ---
 
@@ -255,6 +256,17 @@ latch.
 has a 7th row with no label. In TYPE A it binds L3, which flips player
 byte +0xA (live, FINDINGS "BATTERY LOCATED"); L3 also doubles as reload
 while the weapon is drawn. What +0xA does is open (entry 1).
+
+**Why the row is blank (decoded, 2026-10-08).** The label exists: the help
+text's button-config group (group 8) has a line 0x24 for the row, a reload
+label with a laser-sight qualifier in brackets. The line drawer 001FCBD0
+splices a two-digit hex token after its token character '[' into the line
+only when the byte after it is '7'..'9'; otherwise it draws nothing for the
+line, so the label never appears. Evidence: the port's translation
+em_options_001FCBD0 and its original-instruction oracle
+(`tools/test_options_reference.py`, the text cases over the OPTIONS
+recordings; port `docs/OPTIONS.md` section 8). A restored label would be a *hidden or
+unreached UI* switch; the row's function (+0xA) stays open.
 
 ## 13. Multi-actor animation track sets — partial
 

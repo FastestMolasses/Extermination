@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-08 (Claude: the GSFRAME merge).** This is the short cross-repo entry point.
+**Current as of 2026-10-09 (Claude: the first-level ROUTE step).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -161,16 +161,37 @@ that is a different, stale tree.
   builds. Worktrees ../extermination-port-t1 / -t2 / -t4 and branches c11-t1 / t2 / t4
   removed (all merged). Open (review 2 minor): d3d12 / Vulkan need field presentation
   before the Original profile starts there (today only with EM_GPU_RENDERER=1).
-- **Not started:** TAKEOVERS, GLUE (track T1), OPTIONS (incl. the title's load screen,
-  dmg_05), AUDIO (track T3), then ROUTE on main. Regenerate the parallel script with
-  make_c11.py (third argument: the merged keys) or run them as a short chain (all c11
-  worktrees and branches are removed; new steps start from main).
-- **Census (port FIRST_LEVEL_CENSUS.md, section 1.59 after the DAMAGE merge):** 884 live /
-  27 verified-unbound / 2 unverified / 0 stand-in / 9 missing (the title's load screen) /
-  432 boundary of 1,354 functions (the route's 1,195 through beat 15, the AIM beats' 114
-  and the DAMAGE recordings' 45); 97.8% of non-boundary instructions live (the route's
-  own 766 non-boundary rows: 739 live, 98.6%); AREA01's 62 functions after the arrival
-  are level 2 (census 3.26).
+- **The remaining first-level steps, on port main (2026-10-08):** TAKEOVERS (163b5e2:
+  every takeover is the player stage's own), GLUE (62e3666: the pad read, 001AFCA0,
+  001AB790, 0015CF90 / 001B1190 / 001FC280 on their originals), OPTIONS (903eba7: the
+  options screen, the memory-card screen, the title's LOAD GAME; data/memcard/slotN),
+  AUDIO (2e5fa30: the sound driver on the game's field clock, the level smoke's sound
+  check against the decomp's audio beats). Then **ROUTE** (dd7d000): the full verification set at 2e5fa30 PASS (all 349 make
+  test-* targets, test-level-smoke-full through a01_arrival with every side run,
+  -ps2-drive, the default target, cutscene skip, fb2 full unchanged, newgame-control
+  9.599849, the level-2 phases, tools/ios/build.sh device; receipts port
+  build/route_step/full/); one test repaired (test-area11-interaction-host's module
+  list lacked OPTIONS' modules since 903eba7); census 1.67 re-measured with the edge
+  recorder over the whole route and every side run (44 instrumented runs: 946 of 948
+  live rows confirmed by a run, 001755B0 / 0021E9C0 bound but entered by no run; no
+  status change); port FIRST_LEVEL_AUDIT section 1b re-made (18 items; status update
+  "chain step ROUTE"), LEVEL_SMOKE's relaxed table re-read (every row holds),
+  FIDELITY_FEATURES and LAUNCHER_OPTIONS updated. **New finding:** 001FBF50 (with
+  001B15D0), 001CB5B0 and 00199C50 run their translations live only in AREA01 after
+  the arrival while AREA11 runs something else for the same original (audit 1b item 7:
+  one owner each). **Next (no recording needed):** the GS frame's overlay pass, status
+  frames, 001DDE10 and the field phase (1b item 2), 001CB480's one owner and the
+  duplicate owners (6, 7), the pool's free list (5), the fan's hit dmg_08 as a side run
+  (10). **User decisions (2026-10-09):** an audio recording from a visible PCSX2 session
+  is allowed (1), and so is using a memory card in PCSX2 for the slot / load / save
+  paths (9; use a separate card file, never the user's own cards). Still open: the
+  field-presentation and screen-position choices (3; the user asked to see them).
+- **Census (port FIRST_LEVEL_CENSUS.md, section 1.67, chain step ROUTE):** 948 live /
+  19 verified-unbound / 1 unverified (001CB480) / 0 stand-in / 0 missing / 436 boundary
+  of 1,404 functions (the route's 1,195 through beat 15, the AIM beats' 114, the DAMAGE
+  recordings' 45, the BRANCH recordings' 36 and the OPTIONS recordings' 14); 99.2% of
+  non-boundary instructions live (the route's own 766 non-boundary rows: 747 live,
+  98.9%); AREA01's 62 functions after the arrival are level 2 (census 3.26).
 - **Later levels: paused by the user (2026-10-02, "stop checking ahead").** Levels 2-15 are
   recorded through AREA03's arrival (port SECOND..FIFTEENTH_LEVEL_ROUTE.md, decomp
   WORLD_GRAPH.md), their new functions translated standalone (em_area0x_*, em_level8..14_*)
@@ -277,9 +298,9 @@ that is a different, stale tree.
   and a FIDELITY_FEATURES entry; reword its beat-0 note: position identical, facing
   one turn step off). Open: the fade substate's 3->2 step is one frame late in the port;
   beat 0's promotion lands 11 frames after arming vs the original's 13.
-- **Parallel Codex work (user, 2026-09-29):** player aiming/firing on branch
-  codex/aim-fire in the worktree ../extermination-port-aimfire (camera and input
-  excluded; C9 owns them). Do not touch it; merge only when the user asks, after C9.
+- **Codex aim/fire work (2026-09-29):** its three commits were audited and brought onto
+  port main file by file (c899c5c), then superseded by AIMLIVE (1e6c771); the branch
+  codex/aim-fire and its worktree were deleted on 2026-10-09 (user decision).
 - **Not started (planned round 8, held for the user's review):** the first level's own
   AREA11 overlay is still mostly assembly in the decomp (23 of 26 functions; the flame,
   the security gun, its cable, the fans) — decompile it and cross-check each function

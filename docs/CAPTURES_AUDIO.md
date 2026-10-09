@@ -110,17 +110,27 @@ The beats total 10,036 frames, about 167 s of game time.
   an NTSC field clock at 48 kHz. It is **not measured**, because no audio was
   recorded.
 
-**Facts in the recorded state that bear on item 1** (recorded, not
-interpreted):
+**Facts in the recorded state that bear on item 1:**
 - In the flame beat, D_00281B78 and D_00281C38 hold 0x413 in every frame.
-- Over 31 frames between f245 and f515, 34 D_0027CCC0 records hold 0x413 at
-  +0x1C. Each such record holds it for exactly one frame. Some frames (f342,
-  f381, f400) have two such records, and some consecutive frames have it in
-  different records.
 - In cage_roof, 0x413 first enters D_00281B78 / D_00281C38 at f885.
+- **Correction (port chain step AUDIO, 2026-10-08).** The capture's first
+  reading also listed D_0027CCC0 records holding 0x413 at +0x1C for one
+  frame each (34 between flame f245 and f515, one in battery_ui f298).
+  +0x1C is the voice's age, which 00118EC0 advances by one every tick:
+  those records are voices whose age passed 1043 (0x413) on that frame,
+  not the flame's sound. The flame's voice is a different record: note
+  65, owner track 2, sustain 1, release 1, keyed at cage_roof f885 and
+  still sounding at the end of every later beat (ENVX 0x7FFF..0x7DD9 in
+  D_002817C0, never reset).
+- That voice answers the same-flush question at the state level: the
+  script keys the looping tone on and off in one tick, and the key-off is
+  lost (the voice sustains, its track stays held, the service never
+  restarts it). This is PCSX2's SPU2 state, not an output recording.
 
-These records do not settle whether the hardware lets a sample of the
-same-flush key-on through (SFX_SEQUENCER.md); only an output recording can.
+The port compares its per-frame sound state with these beats since its
+chain step AUDIO (port docs/LEVEL_SMOKE.md "The sound state",
+tools/level_smoke_audio.py); its findings are in port
+docs/SFX_SEQUENCER.md "Where the driver runs".
 
 ## Emulator hygiene
 
