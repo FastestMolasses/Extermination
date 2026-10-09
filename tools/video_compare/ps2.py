@@ -37,6 +37,23 @@ emulator, its DebugServer and Pine):
     captures).  In the v2.6.3 build here it writes no file (2026-10-01:
     two sessions, frame-stepped and free-running), so the PS2 side has no
     audio and the videos are silent unless the port's sound is chosen.
+  * Media-capture audio (--media-audio, off by default; user decision
+    2026-10-09: a visible PCSX2 session may record audio): the session runs
+    VISIBLE with PCSX2's Media Capture switched to audio only
+    ([EmuCore/GS] EnableVideoCapture = false, EnableAudioCapture = true,
+    CaptureContainer = wav, and the hotkey [Hotkeys] ToggleVideoCapture =
+    Keyboard/End added; all restored after).  The capture is started from
+    PCSX2's UI only (System > Video Capture, or the hotkey: End sent to the
+    window), so the tool stops twice with the VM held at a main-loop top and
+    waits on marker files in --out: at the
+    first recorded tick it writes audio_start.ready and waits for
+    audio_start.go (start the capture now), after the last tick it writes
+    audio_stop.ready and waits for audio_stop.go (stop it).  The WAV PCSX2
+    wrote is moved to audio_media.wav; audio_sync.json compares its sample
+    count with the gates' vsync span (48000 / 59.94 samples per field) and
+    audio.wav is written only when they agree.  2026-10-09: the hotkey
+    reaches PCSX2, but its capture failed to load FFmpeg (docs/VIDEO_COMPARE.md
+    "Audio"), so no WAV has been made this way yet.
   * Lock: build/.pcsx2.lock (mkdir) is held for the whole session and always
     removed; the ini is restored before it is released.
 
@@ -154,6 +171,35 @@ def ini_set(text: str, section: str, key: str, value: str) -> str:
     return "".join(out)
 
 
+def ini_add(text: str, section: str, key: str, value: str) -> str:
+    """Insert `key = value` after the last entry of [section] (the key must be absent)."""
+    lines = text.splitlines(keepends=True)
+    cur, last = None, None
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith("["):
+            cur = s[1:-1]
+            if cur == section:
+                last = i
+        elif cur == section and s:
+            last = i
+    if last is None:
+        raise KeyError(f"[{section}] not in {LIVE_INI}")
+    return "".join(lines[:last + 1] + [f"{key} = {value}\n"] + lines[last + 1:])
+
+
+def ini_del(text: str, section: str, key: str) -> str:
+    out, cur = [], None
+    for line in text.splitlines(keepends=True):
+        s = line.strip()
+        if s.startswith("["):
+            cur = s[1:-1]
+        elif cur == section and s.split("=")[0].strip() == key:
+            continue
+        out.append(line)
+    return "".join(out)
+
+
 class IniSwitch:
     """Switch the named ini keys for one PCSX2 session and restore them after
     the emulator has exited (PCSX2 rewrites its ini on exit).  Only these keys
@@ -171,7 +217,8 @@ class IniSwitch:
         (self.keep / "PCSX2.ini.pre.sha256").write_text(hashlib.sha256(text.encode()).hexdigest() + "\n")
         for (sec, key), val in self.changes.items():
             self.pre[(sec, key)] = ini_get(text, sec, key)
-            text = ini_set(text, sec, key, val)
+            text = (ini_set(text, sec, key, val) if self.pre[(sec, key)] is not None
+                    else ini_add(text, sec, key, val))         # an absent key is added, and removed after
         if self.changes:
             LIVE_INI.write_text(text)
             log("ini switched for the session:", {f"[{s}] {k}": f"{self.pre[(s, k)]} -> {v}"
@@ -189,7 +236,7 @@ class IniSwitch:
             log("WARNING: PCSX2 still running; restoring the ini anyway")
         text = LIVE_INI.read_text()
         for (sec, key), val in self.pre.items():
-            text = ini_set(text, sec, key, val)
+            text = ini_set(text, sec, key, val) if val is not None else ini_del(text, sec, key)
         LIVE_INI.write_text(text)
         pre = (self.keep / "PCSX2.ini.pre").read_text().splitlines()
         now = text.splitlines()
@@ -320,9 +367,11 @@ def decode_state(p2s: Path, out_png: Path, mode: str) -> dict:
 
 class Player:
     def __init__(self, rec: emrec.Recording, out: Path, stride: int, frames: str, audio: bool,
-                 state: Path, tail: int, title_limit: int):
+                 state: Path, tail: int, title_limit: int, media: bool = False, media_wait: float = 1800.0):
         self.rec, self.out, self.stride, self.frames, self.audio = rec, out, stride, frames, audio
         self.state, self.tail, self.title_limit = state, tail, title_limit
+        self.media, self.media_wait, self.gates = media, media_wait, {}
+        self.last_status: dict = {}
         self.rows: list[dict] = []
         self.extra: list[dict] = []
         self.notes: list[str] = []
@@ -395,6 +444,7 @@ class Player:
         while True:
             d = self.status()
             if d.get("paused"):
+                self.last_status = d
                 return int(d["pc"], 16)
             now = time.monotonic()
             if on_slow and now > next_slow:
@@ -461,7 +511,7 @@ class Player:
         attempts = 0
         while True:
             attempts += 1
-            sess = OriginalSession(self.state, log_dir=self.out / "pcsx2_logs")
+            sess = OriginalSession(self.state, log_dir=self.out / "pcsx2_logs", visible=self.media)
             try:
                 self.s = sess.__enter__()
                 break
@@ -511,6 +561,31 @@ class Player:
                 self.movie_seen = True
         return hook
 
+    def _gate(self, name: str, row: dict) -> None:
+        """--media-audio: hold the VM at this loop top, write audio_<name>.ready
+        and wait for audio_<name>.go (the capture is started / stopped
+        meanwhile: the End hotkey sent to the PCSX2 window, or its menu)."""
+        if not self.media or (name == "stop" and not self.gates.get("start", {}).get("go")):
+            return
+        st = self.status()
+        info = {"counter": row["counter"], "vsync": row["vsync"], "cycles": st.get("cycles"),
+                "pc": st.get("pc"), "paused": st.get("paused"), "written": time.time()}
+        go = self.out / f"audio_{name}.go"
+        go.unlink(missing_ok=True)
+        (self.out / f"audio_{name}.ready").write_text(json.dumps(info) + "\n")
+        log(f"audio gate '{name}': VM held at counter {row['counter']}; waiting for {go}")
+        t0 = time.monotonic()
+        while not go.exists():
+            if time.monotonic() - t0 > self.media_wait:
+                self.notes.append(f"audio: no {go.name} within {self.media_wait:.0f} s; the PS2 side stays silent")
+                info["go"] = False
+                self.gates[name] = info
+                return
+            time.sleep(0.5)
+        info["go"], info["waited_s"] = True, round(time.monotonic() - t0, 1)
+        self.gates[name] = info
+        log(f"audio gate '{name}' released after {info['waited_s']} s")
+
     def _drive(self) -> None:
         # Title: Cross on NEW GAME (route_census's title driver), the movie skipped.
         n, presses = 0, 0
@@ -533,6 +608,7 @@ class Player:
             if n > self.title_limit:
                 raise TimeoutError("the title did not start a New Game")
         log(f"New Game committed after {n} title ticks ({presses} Cross press(es)); counter {row['counter']}")
+        self._gate("start", row)
         sched = emrec.Scheduler(self.rec, first=self.first)
         model = emrec.PadBlock.from_memory(row["pad"])
         self.movie_count = 0
@@ -561,7 +637,7 @@ class Player:
                  "tb": row["tb"], "x": row["x"], "y": row["y"], "z": row["z"], "yaw": row["yaw"],
                  "seg": seg, "off": off, "cap": -1, "af": -1}
             self.rows.append(r)
-            ex = {"vsync": row["vsync"]}
+            ex = {"vsync": row["vsync"], "cycles": self.last_status.get("cycles")}
             self.extra.append(ex)
             if seg >= 0 and off % self.stride == 0:
                 # the field on screen at loop top t + 3 shows tick t (decode_state)
@@ -594,6 +670,7 @@ class Player:
             if sched.done and tail == 0 and "used_up" not in self.__dict__:
                 self.used_up = t
                 log(f"recording used up after {t} ticks (counter {row['counter']})")
+        self._gate("stop", row)
         self.notes += sched.notes
 
 
@@ -609,11 +686,19 @@ def run(args) -> int:
     if args.audio:
         changes[("SPU2/Debug", "Global_Enable")] = "true"
         changes[("SPU2/Debug", "Log_WAVE_Output")] = "true"
+    if args.media_audio:
+        changes[("EmuCore/GS", "EnableVideoCapture")] = "false"
+        changes[("EmuCore/GS", "EnableAudioCapture")] = "true"
+        changes[("EmuCore/GS", "CaptureContainer")] = "wav"
+        # a hotkey for the capture: PCSX2's menu items report disabled while
+        # it is in the background (2026-10-09), a key sent to its window may work
+        changes[("Hotkeys", "ToggleVideoCapture")] = MEDIA_HOTKEY
     state = Path(args.state)
     digest = hashlib.sha256(state.read_bytes()).hexdigest()
-    player = Player(rec, out, args.stride, args.frames, args.audio, state, args.tail, args.title_limit)
+    player = Player(rec, out, args.stride, args.frames, args.audio, state, args.tail, args.title_limit,
+                    media=args.media_audio, media_wait=args.media_wait)
     t0 = time.monotonic()
-    marker = audio_marker(out) if args.audio else None
+    marker = audio_marker(out) if (args.audio or args.media_audio) else None
 
     def on_term(signum, frame):
         raise KeyboardInterrupt(f"signal {signum}")
@@ -631,6 +716,8 @@ def run(args) -> int:
                         time.sleep(0.1)
             if args.audio:
                 collect_audio(out, marker, player)
+            if args.media_audio:
+                collect_media_audio(out, marker, player)
     finally:
         signal.signal(signal.SIGTERM, old)
         left = emulator_running()
@@ -643,6 +730,7 @@ def run(args) -> int:
         "notes": player.notes, "seconds_total": round(time.monotonic() - t0, 1),
         "seconds_session": round(time.monotonic() - t_lock, 1), "captures": player.captures,
         "first_vsync": getattr(player, "first_vsync", None), "end_vsync": getattr(player, "end_vsync", None),
+        "audio_gates": player.gates,
         "rows": player.extra}, indent=0) + "\n")
     log(f"{len(player.rows)} ticks, {player.captures} frames, notes: {player.notes}")
     return 0
@@ -676,6 +764,54 @@ def collect_audio(out: Path, marker: Path, player: "Player") -> None:
         player.notes.append(f"audio: {p} -> {dst.name} ({dst.stat().st_size} bytes)")
 
 
+MEDIA_HOTKEY = "Keyboard/End"     # unbound; a key a background app can be sent
+MEDIA_DIRS = [REFERENCE / "portable-data/videos", REFERENCE / "portable-data", Path.home() / "Movies",
+              Path.home() / "Desktop", Path.home() / "Documents"]
+
+
+def collect_media_audio(out: Path, marker: Path, player: "Player") -> None:
+    """--media-audio: move the WAV PCSX2's Media Capture wrote (the save path
+    typed into its dialog: --out itself, else found by mtime in the capture
+    folders) to audio_media.wav and measure it against the session's span:
+    the vsync counter between the two gates (one NTSC field = 48000 / 59.94
+    samples).  audio.wav (what compose.py reads) is written only if the sample
+    count matches the vsync span within one field: the WAV then starts at the
+    start gate and ends at the stop gate (the last logged loop top).  The
+    DebugServer's `cycles` span is kept for reference only: it advanced about
+    325,600 per field on 2026-10-09, so it is not a plain EE cycle count."""
+    import wave
+    start, stop = player.gates.get("start", {}), player.gates.get("stop", {})
+    if not (start.get("go") and stop.get("go")):
+        return
+    found = [p for p in out.glob("*.wav") if p.name not in ("audio.wav", "audio_media.wav")]
+    if not found:
+        res = subprocess.run(["find", *[str(d) for d in MEDIA_DIRS if d.exists()], "-maxdepth", "1", "-type", "f",
+                              "-iname", "*.wav", "-newer", str(marker)], capture_output=True, text=True)
+        found = [Path(p) for p in res.stdout.split("\n") if p]
+    if len(found) != 1:
+        player.notes.append(f"audio: expected one capture WAV, found {[str(p) for p in found]}; the PS2 side stays silent")
+        return
+    dst = out / "audio_media.wav"
+    shutil.move(str(found[0]), dst)
+    with wave.open(str(dst)) as w:
+        rate, ch, width, n = w.getframerate(), w.getnchannels(), w.getsampwidth(), w.getnframes()
+    fields = stop["vsync"] - start["vsync"]
+    by_vsync = fields * rate / emrec.TICK_HZ
+    sync = {"source": str(found[0]), "rate": rate, "channels": ch, "bits": width * 8, "samples": n,
+            "start_gate": start, "stop_gate": stop, "fields": fields, "expected_by_vsync": round(by_vsync, 1),
+            "samples_minus_vsync": round(n - by_vsync, 1)}
+    try:
+        sync["debugserver_cycles_span"] = int(str(stop["cycles"]), 0) - int(str(start["cycles"]), 0)
+    except (TypeError, ValueError, KeyError):
+        pass
+    sync["in_sync"] = bool(rate == 48000 and width == 2 and abs(n - by_vsync) <= rate / emrec.TICK_HZ)
+    (out / "audio_sync.json").write_text(json.dumps(sync, indent=1) + "\n")
+    if sync["in_sync"]:
+        shutil.copyfile(dst, out / "audio.wav")
+    player.notes.append(f"audio: media capture {n} samples at {rate} Hz vs {by_vsync:.0f} by vsync "
+                        f"({'in sync: audio.wav written' if sync['in_sync'] else 'NOT in sync: no audio.wav'})")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("recording")
@@ -683,6 +819,10 @@ def main(argv=None) -> int:
     ap.add_argument("--stride", type=int, default=4, help="capture ticks whose segment offset %% stride == 0")
     ap.add_argument("--frames", choices=["gs", "screenshot"], default="gs")
     ap.add_argument("--audio", action="store_true", help="record PCSX2's SPU2 WAV log")
+    ap.add_argument("--media-audio", action="store_true",
+                    help="visible session; wait on audio_start/audio_stop marker files while PCSX2's Media "
+                         "Capture (audio only, WAV) is started and stopped from its menu")
+    ap.add_argument("--media-wait", type=float, default=1800.0, help="seconds to wait at each audio gate")
     ap.add_argument("--state", default=str(TITLE_STATE), help="title save state (never modified)")
     ap.add_argument("--tail", type=int, default=4)
     ap.add_argument("--title-limit", type=int, default=1500)

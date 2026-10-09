@@ -48,6 +48,15 @@ evidence was measured and is kept under `build/s87/audio/probe/`:
      was declined in the approval dialog. Nothing was run: no PCSX2 session,
      no lock, no setting changed. The FFmpeg 8 question, the sync
      measurement and the WAVs are still open.
+   - 2026-10-09 (the demo video's PCSX2 stage, docs/VIDEO_COMPARE.md
+     "Audio"): the grant was given and a visible session ran. PCSX2's menu
+     items report disabled when pressed in the background; a hotkey bound
+     for the session (`ToggleVideoCapture`, End) reaches PCSX2, but the
+     capture fails with "Failed to load FFmpeg": PCSX2 v2.6.3 asks for
+     libavcodec 62 / libavformat 62 / libavutil 60 / libswscale 9 /
+     libswresample 6, the versions Homebrew FFmpeg 8.1.2 installs in
+     `/opt/homebrew/lib`, but does not find them there. Still no WAV, no
+     sync measurement.
 2. The user grants Accessibility to the agent's host app.
 3. The user starts the capture by hand.
 

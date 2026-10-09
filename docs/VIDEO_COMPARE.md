@@ -206,12 +206,17 @@ run of ticks with one phase.
   `[EmuCore/GS] Renderer = 17 -> 13` (software renderer, for GS pixels;
   user decision 2026-09-26) and, with `--audio`,
   `[SPU2/Debug] Global_Enable` and `Log_WAVE_Output` (user decision
-  2026-10-01). It keeps a copy of the ini and restores exactly these keys
+  2026-10-01), and with `--media-audio` (below) `[EmuCore/GS]
+  EnableVideoCapture = false`, `EnableAudioCapture = true`,
+  `CaptureContainer = wav` and the added hotkey `[Hotkeys]
+  ToggleVideoCapture = Keyboard/End` (removed again afterwards; user
+  decision 2026-10-09). It keeps a copy of the ini and restores exactly these keys
   after PCSX2 has exited (PCSX2 rewrites its ini on exit), then writes the
   remaining difference from the pre-session copy to `ps2/ini/`.
 - Save states go to a free slot >= 40 and are moved out at once; slots
   01..15 are never written; the source state is hashed before and after.
-- PCSX2 runs hidden and is closed at the end (`no emulator process left`).
+- PCSX2 runs hidden (visible only with `--media-audio`) and is closed at
+  the end (`no emulator process left`).
 
 ## Audio
 
@@ -232,6 +237,41 @@ run of ticks with one phase.
   the emulator is frame-stepped, so recording it would not stay in sync.
   The PS2 side is therefore silent and the default video has no sound
   track.
+- **PCSX2 Media Capture (`ps2.py --media-audio`, opt-in).** The user
+  allowed a visible PCSX2 session for recording audio (2026-10-09). With
+  `--media-audio` the session runs visible with the Media Capture keys
+  above (audio only, WAV) and stops twice with the VM held at a main-loop
+  top: at the first recorded tick it writes `ps2/audio_start.ready` and
+  waits for `ps2/audio_start.go`; after the last tick it writes
+  `audio_stop.ready` and waits for `audio_stop.go` (`--media-wait`,
+  default 1800 s; without a go the side stays silent). Between `.ready`
+  and `.go` the capture is started / stopped: the End key sent to the
+  PCSX2 window (computer-use `app_key`, background) toggles it. Afterwards
+  the WAV is moved to `ps2/audio_media.wav`, `ps2/audio_sync.json` compares
+  its sample count with the gates' vsync span (48000 / 59.94 samples per
+  field), and `ps2/audio.wav` is written only if they agree within one
+  field (the WAV then ends at the last logged loop top, which is where
+  compose.py anchors it). `ps2_extra.json` keeps the gates (`audio_gates`)
+  and the DebugServer `cycles` value at every loop top.
+  - **Result 2026-10-09 (demo_hill): no WAV.** PCSX2's menu items (System >
+    Video Capture, Screenshot, every Settings item) report disabled when
+    pressed through the menu bar while PCSX2 is in the background, VM paused
+    or running alike; taking over the screen to use the menu was stopped by
+    the user. The End hotkey does reach PCSX2 in the background, also while
+    the VM is held at a breakpoint, but the capture then fails with "Failed
+    to load FFmpeg" (this build asks for libavcodec 62, libavformat 62,
+    libavutil 60, libswscale 9, libswresample 6). Homebrew's FFmpeg 8.1.2 in
+    `/opt/homebrew/lib` has exactly those versions, but PCSX2 does not find
+    them there; `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib` for the
+    emulator process did not change that. Pointing `DYLD_LIBRARY_PATH` at
+    the five libraries was refused by the agent's permission system and not
+    run. Making FFmpeg loadable for PCSX2 is the user's decision (nothing
+    was installed, upgraded or copied into the app). Whether the capture
+    follows emulated time while frame-stepped is therefore still
+    unmeasured.
+  - The DebugServer's `cycles` advanced about 325,600 per field in that
+    session, not the EE's 294.912 MHz / 59.94 = 4.92 million, so it is not
+    a plain EE cycle count; the sync check uses the vsync counter.
 - `--audio native` puts the port's sound in the video and writes
   "sound: native port only" in the header, so nobody mistakes it for the
   original. `both` (original LEFT, port RIGHT, one track that Discord's
