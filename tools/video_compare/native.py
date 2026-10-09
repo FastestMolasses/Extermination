@@ -15,7 +15,9 @@ the port's presentation step (field choice (a) and SCREEN ADJUST (a), port
 5836a37), <capture path>.present: a short text file with the field's
 XYOFFSET_1 and the constants the port's f_gsfield shader placed it with
 (the game rectangle's origin, 512 / width and 448 / height, the shift in
-pixels and lines with the field's line added, BGCOLOR; port em_gfx_metal.m
+pixels and lines with the field's line added, since port 0eea8b5
+the overlay pass's viewport, which moves with the field's line, then
+BGCOLOR; port em_gfx_metal.m
 gsw_complete / gsw_write_field: the BMP is written and closed first, then
 the field, then the .present, on the same thread).  Here both paths are
 symlinks to the same FIFO, so each capture arrives as BMP [field .present]
@@ -128,7 +130,8 @@ def parse_present(data: bytes) -> dict:
     for line in data.decode("ascii").splitlines():
         k, *rest = line.split()
         v[k] = rest
-    if sorted(v) != ["bg", "origin", "scale", "shift", "xyoffset"]:
+    keys = ["bg", "origin", "scale", "shift", "xyoffset"]
+    if sorted(v) not in (keys, sorted(keys + ["overlay"])):
         raise ValueError(f"unexpected .present keys {sorted(v)}")
     xy = int(v["xyoffset"][0], 16)
     line = {0: 0, 8: 1}.get((xy >> 32) & 0xF)

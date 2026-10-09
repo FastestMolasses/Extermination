@@ -325,7 +325,9 @@ loads, cutscenes or behaviour differ.
   11), `<capture>.present`, a short text file with the field's XYOFFSET_1
   and the constants its f_gsfield shader placed it with (game rectangle
   origin, 512 / width and 448 / height, the shift in pixels and lines with
-  the field's line added, BGCOLOR). Port `em_gfx_metal.m` writes and closes
+  the field's line added; since port 0eea8b5 also the
+  overlay pass's viewport, `overlay x y w h`, before the last line,
+  BGCOLOR). Port `em_gfx_metal.m` writes and closes
   the BMP first, then the field, then the `.present`, on the same thread.
   `native.py` makes `frames.fifo.gsfield` and `frames.fifo.present`
   symlinks to the capture FIFO, so each capture arrives as BMP, field,
@@ -361,18 +363,21 @@ loads, cutscenes or behaviour differ.
     footprint every stroke keeps its weight (`check_text.png`, below). The
     PS2 draws them into the field itself, so they stay slightly softer on
     the port side.
-  - **Port finding: the overlay pass ignores the field's half line.** The
-    port draws the overlay pass in the placed picture without the field's
-    line (`gsw_viewport` uses the SCREEN ADJUST shift only), while a field
-    drawn with the half-line offset is shown one display line lower. The
-    PS2 draws its letterbox bands and subtitles into the field, at whole
-    field rows. So on half-line fields (355 of the demo's 1,048) the bands
-    and text sit one display line (half a field row) above the picture:
-    the overlay covers 65 field rows there instead of 64 (overlay share
-    29.0 % instead of 28.6 %), and the field rows at the band edges (31
-    and 191) are half band, half picture. This is the port's real output
-    (the box filter only shows it); it belongs to port FIRST_LEVEL_AUDIT
-    1b item 2 (the overlay pass into the field).
+  - **Port finding (fixed): the overlay pass ignored the field's half
+    line.** At port 3d403ac / f1e589c the port drew the overlay pass in the
+    placed picture without the field's line (`gsw_viewport` used the
+    SCREEN ADJUST shift only), while a field drawn with the half-line
+    offset is shown one display line lower. The PS2 draws its letterbox
+    bands and subtitles into the field, at whole field rows. So on
+    half-line fields (355 of the demo's 1,048) the bands and text sat one
+    display line (half a field row) above the picture: the overlay covered
+    65 field rows there instead of 64 (overlay share 29.0 % instead of
+    28.6 %), and the field rows at the band edges (31 and 191) were half
+    band, half picture. Fixed by port 0eea8b5 (the overlay
+    pass is placed with the line of the field it is drawn over, from that
+    field's XYOFFSET_1, port GS_EXACT.md section 11): the re-run below
+    shows 28.6 % on both field lines. Drawing the overlay pass through the
+    GS model itself stays port FIRST_LEVEL_AUDIT 1b item 2.
   - Lighting stand-ins and the other known differences (port
     `docs/FIDELITY_FEATURES.md`) remain visible.
 - **Port audio** is the dry SPU2 model (no reverb).
@@ -485,7 +490,9 @@ The native stage was run again on port main f1e589c (field choice (a) and
 SCREEN ADJUST (a)) with the box-filtered overlay (`--stride 4 --audio`,
 drive timing as recorded), and both videos recomposed from it and the
 same `ps2/` (`--skip-ps2`; `demo_hill.mp4` 13.9 MB, `demo_hill_discord.mp4`
-9.28 MB with `--target-mb 10`; 1,264 frames, 42.2 s each).
+9.28 MB with `--target-mb 10`; 42.2 s each). That run found the overlay
+finding above; the numbers below are this run's, then the second re-run
+after the fix follows.
 
 - **Playback.** All 4,734 ticks equal the recording in every game column
   (counter, movie flag, phase, pads, area, loader byte, selector, task
@@ -511,9 +518,58 @@ same `ps2/` (`--skip-ps2`; `demo_hill.mp4` 13.9 MB, `demo_hill_discord.mp4`
   above): leaving out rows 31 and 191 alone takes segment 15 back to its
   old value and segment 10 from 2.69 to 2.42.
 - Check images (ignored): `check_text.png` (the BATTERY page text and
-  three subtitles, one on a half-line field: PS2, port now, port at
-  0fba64a, 3x), `demo_hill_contact.png` (16 frames of the video),
-  `contact/` (segment 17 pairs, the Discord copy at 34 s, the end card),
-  `sharpness_check.json` (the measures above per segment; `old` = the
-  0fba64a frames).
+  three subtitles, one on a half-line field: PS2, port at f1e589c, port at
+  0fba64a, 3x; not redrawn after the fix).
+
+### Re-run 2026-10-09 after port 0eea8b5
+
+The native stage was run a third time on port main with the overlay
+fix (uncommitted at the time of the run; committed as port 0eea8b5), same command (`native ... --stride 4 --audio`, drive timing as
+recorded, 111.5 s), and both videos recomposed from it and the same
+`ps2/` (`all --skip-native --skip-ps2`, the title, subtitle, `--speed 2
+--fps 30 --height 480 --audio native --summary-seconds 3`, plus
+`--target-mb 10` for the Discord copy): `demo_hill.mp4` 13.86 MB,
+`demo_hill_discord.mp4` 9.28 MB, 1284x582, 42.175 s each.
+
+- **Frame count.** Each video decodes to 1,263 frames
+  (`ffprobe -count_frames`). The summary's `frames` (1,264) counts the
+  frames compose writes to its lossless intermediate: the 1,174 aligned
+  frames plus the 3-second end card (90 frames at 29.97 fps); the
+  intermediate has all 1,264. The final encode muxes with `-shortest`, and
+  the port audio, sped up by atempo, ends a fraction of a frame before the
+  video, so the last end-card frame is cut (without `-shortest` the same
+  encode keeps 1,264). The earlier runs' videos were the same (their
+  ffprobe `nb_frames` was 1,263 too).
+- **Playback.** All 4,734 ticks equal the recording in every game column
+  (counter, movie flag, phase, pads, area, loader byte, selector, task
+  bytes, position, heading, segment, offset); only the uncapped
+  movie-step count (`step`), the offline audio position (`af`) and the
+  capture index (`cap`, -1 in the recording; 0..1170 in order here)
+  differ, as they may. Drift unchanged: 4,345 of 4,346 play/cutscene
+  ticks bit-exact, no drift beyond the tolerance.
+- **Fields.** 1,048 of 1,171 captures carry the field (693 on whole
+  lines, 355 with the half-line offset), all at the default position. The
+  overlay pass drew over 597: share 28.6 % on both lines now (450 frames
+  line 0, 110 frames line 1: 64 of 224 field rows, the bands), 100 % (37
+  fades); 451 frames none.
+- **Identical neighbours** (vertical / horizontal, 1,171 paired frames):
+  0.360 / 0.407 (0fba64a 0.361 / 0.409; PS2 0.366 / 0.411). **Mean
+  absolute difference per channel** to the PS2 frame, all frames 3.69
+  (f1e589c 3.75, 0fba64a 3.70); per segment (0fba64a / f1e589c -> now):
+  cutscene 10 2.27 / 2.70 -> 2.26, cutscene 12 4.30 / 5.11 -> 4.24, play
+  15 2.95 / 3.04 -> 2.95, the hill (17) 3.26 / 3.28 -> 3.26, 14 2.68 /
+  2.70 -> 2.70, others as at f1e589c (4 5.68, 5 3.89, 6 8.59, 8 3.75, 9
+  2.96, 11 2.23, 16 2.72, loads 0.00). Segments 10, 12 and 15 are back at
+  (or just under) their 0fba64a values.
+- Port captures of the fix (ignored, port `build/overlay_line/`): a
+  letterbox frame and a subtitle frame of the opening on each field line
+  (level smoke ticks 406 / 429, 544 / 567); `check_present_capture.py
+  --overlay-ok --bands=32` passes on all four (overlay viewport with the
+  field's line, 32 + 32 band rows, no split row); the subtitle text sits on
+  field rows 194..216 on both lines.
+- Check images (ignored): `demo_hill_contact.png` (16 frames of the
+  video), `contact/` (segment 17 pairs, the Discord copy at 34 s, the end
+  card), `sharpness_check.json` (the measures above per segment; `new` =
+  this run, `old` = the 0fba64a frames, `mad_f1e589c` = the run before
+  the fix).
 
