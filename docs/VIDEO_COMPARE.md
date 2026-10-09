@@ -573,3 +573,36 @@ recorded, 111.5 s), and both videos recomposed from it and the same
   this run, `old` = the 0fba64a frames, `mad_f1e589c` = the run before
   the fix).
 
+
+## Demo run 2026-10-09 (demo_level: the whole first level)
+
+The user asked for the demo over the entire first level. Same method as
+demo_hill: the port level smoke's main line recorded with the recorder
+(`EM_UNCAPPED=1 EM_STARTUP_TEST=newgame-level EM_NEW_GAME=1
+EM_PS2_DISC_DRIVE_TIMING=1 EM_LEVEL_SMOKE_UNTIL=a01_arrival`), START added on
+the New Game movie's steps; the level-exit movie (E001, 76.9 s) was watched in
+the checked smoke run, so it is left unskipped and plays in real time on both
+sides (movies are cut from the video). Receipts: `build/video_compare/demo_level/`
+(logs/recording_notes.txt, the stage logs, the drift report).
+
+- Recording: 14,102 ticks in 32 segments, New Game to the AREA01 arrival's 60
+  neutral ticks; the smoke and its checker passed all 20 main-line phases with
+  the recorder on (266 s and 348 s).
+- Port side: 750 s wall (incl. the exit movie in real time); 3,521 captures,
+  3,394 with the exact GS field; all 14,102 ticks equal the recording.
+- PCSX2 2.6.3 side: one session, 44.7 min, no desync; 14,244 ticks, 3,574 GS
+  fields; position and heading bit-exact on 13,619 of 13,620 paired play and
+  cutscene ticks, no drift past the tolerance.
+- Video: `demo_level.mp4`, 2:00.6 (117.6 s at 2x plus the 3 s end card),
+  2568x1164 (each side 1280x960, nearest), H.264 `--crf` high quality, 339 MB,
+  sound the port's only. Nearest scaling to 1280x960 is not an integer factor
+  (2.5 across, 4.29 rows per field line); 1024x896 per side would be even.
+- Seen in the review: the opening cutscene runs about 0.3 s ahead on the port
+  (the known opening lead); in the fan room the blades' angle differs between
+  the sides on some frames (not traced); the AREA01 load takes 294 ticks on the
+  PS2 against the port's 94 (six of the module loader's 19 reads have no
+  recorded drive time and answer at host speed).
+- `native/audio.wav` is 2.38 GB (the offline mixer also writes the uncapped
+  exit-movie steps); compose cuts audio by tick, so only the file is large.
+  The original's sound needs the new emulator: re-run only the PCSX2 pass and
+  recompose with `--audio both` / `original`.
