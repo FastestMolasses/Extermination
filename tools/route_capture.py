@@ -18,7 +18,9 @@ Emulator (2026-10-09, the user's decision to retire PCSX2 v2.6.3): the default
 is the agent-debug fork (docs/PCSX2_FORK.md) with the phase-locked fork states
 of build/startup-reference/fork-states/manifest.json.  Each beat then replays
 its v2.6.3 capture's lead-in and tail, so its rows land on the same game tick,
-frame index D_00810E80 and field D_00810E88 as the v2.6.3 rows; every row
+frame index D_00810E80 and field D_00810E88 as the v2.6.3 rows, and replays
+the pad read dropouts and late first inputs the v2.6.3 recordings prove
+(V263_PAD_CORRECTIONS; --no-pad-corrections turns them off); every row
 records fi / fld / vs (game vsync); beat folders go to build/fork_refs/<path>
 (the v2.6.3 path under build/ mirrored) with a manifest.json per set, and the
 beat states are hard-linked into fork-states/phase/beats/.  `--generation base`
@@ -245,6 +247,10 @@ class Route:
         self.teleports: list[dict] = []
         self.pad_state = (0, 0x7F, 0x7F)
         self.frame_index = 0
+        # v2.6.3 input corrections of this beat (V263_PAD_CORRECTIONS; run_beat sets
+        # them in fork phase mode).  None: every input goes to the emulator as set.
+        self.pad_fix: list[dict] | None = None
+        self._pad_sent: tuple[int, int, int] | None = None
 
     # -- state ------------------------------------------------------------
     def now(self) -> dict:
@@ -258,13 +264,47 @@ class Route:
     def set_pad(self, buttons: int = 0, lx: int = 0x7F, ly: int = 0x7F) -> None:
         state = (buttons, lx, ly)
         if state != self.pad_state:
-            self.s.pad(buttons, lx=lx, ly=ly)
             self.pad_state = state
             self.inputs.append({"f": self.frame_index, "buttons": buttons, "lx": lx, "ly": ly})
+            if self.pad_fix is None:
+                self.s.pad(buttons, lx=lx, ly=ly)
+            else:
+                self._send_corrected_pad()
+
+    def _send_corrected_pad(self) -> None:
+        """Send the pad the v2.6.3 game read on this frame (V263_PAD_CORRECTIONS):
+        the policy's inputs are recorded as set; only what reaches the emulator
+        changes.  'drop': neutral for the window; 'late': the input set at frame
+        f is held back for the window (the state before it stays, or the
+        session's own pad when it is the beat's first input)."""
+        f = self.frame_index
+        eff: tuple[int, int, int] | None = self.pad_state if self.inputs else None
+        for c in self.pad_fix or []:
+            if not c["f"] <= f < c["f"] + c["frames"]:
+                continue
+            if c["kind"] == "drop":
+                eff = NEUTRAL_PAD
+                c["applied"] = True
+            elif c["kind"] == "late":
+                at = [i for i, x in enumerate(self.inputs) if x["f"] == c["f"]]
+                if not at:
+                    continue                    # the policy set nothing at f: nothing to delay
+                if any(x["f"] > c["f"] for x in self.inputs):
+                    c["newer_input_in_window"] = True       # the newer input goes through
+                    continue
+                j = at[0]
+                prev = self.inputs[j - 1] if j else None
+                eff = (prev["buttons"], prev["lx"], prev["ly"]) if prev else None
+                c["applied"] = True
+        if eff is not None and eff != self._pad_sent:
+            self.s.pad(eff[0], lx=eff[1], ly=eff[2])
+            self._pad_sent = eff
 
     def step(self, n: int = 1) -> dict:
         row = None
         for _ in range(n):
+            if self.pad_fix is not None:
+                self._send_corrected_pad()
             self.s.step(1)
             self.frame_index += 1
             row = dict(self.now(), f=self.frame_index)
@@ -411,6 +451,13 @@ def add_emulator_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--no-phase-lock", action="store_true",
                     help="fork, phase generation: start on the saved frame instead of replaying the "
                          "v2.6.3 capture's lead-in and tail")
+    ap.add_argument("--phase-correction", action="store_true",
+                    help="fork, phase generation: step one more frame when row 0's frame index and field "
+                         "both differ from the v2.6.3 row (off by default: after a load of odd extra "
+                         "length the phase flips with the game tick unchanged)")
+    ap.add_argument("--no-pad-corrections", action="store_true",
+                    help="fork, phase generation: do not apply V263_PAD_CORRECTIONS (the v2.6.3 "
+                         "recordings' dropped or late pad reads)")
     ap.add_argument("--fork-mtvu", choices=["off", "on", "ini"], default="off",
                     help="fork: VU1 on its own thread.  off (default) = VU1 on the EE thread: GS memory "
                          "at a loop top is then the same in every run (with it on, two runs with "
@@ -419,8 +466,11 @@ def add_emulator_args(ap: argparse.ArgumentParser) -> None:
 
 def apply_emulator_args(a) -> None:
     import pcsx2_session
+    global PAD_CORRECTIONS, PHASE_CORRECTION
     if a.emulator == "fork":
         use_fork(a.generation, not a.no_phase_lock)
+        PAD_CORRECTIONS = not getattr(a, "no_pad_corrections", False)
+        PHASE_CORRECTION = bool(getattr(a, "phase_correction", False))
         mt = getattr(a, "fork_mtvu", "off")
         pcsx2_session.FORK_MTVU = None if mt == "ini" else (mt == "on")
     else:
@@ -10042,6 +10092,125 @@ def slot_start(slot: str) -> tuple[Path, int]:
 slot_source_after_increment = slot_start        # the name used before 2026-10-10
 
 
+# ---------------------------------------------------------------------------
+# v2.6.3 input corrections (fork, phase generation, phase lock; 2026-10-10).
+#
+# Sometimes the game's pad read returns nothing for one frame: the processed
+# pad block 0x810E40 shows held 0, raw sticks 7F 7F 7F 7F and its byte +0x17
+# cleared, between rows that read the input normally.  It happens in both
+# emulators, on different frames (no rumble, no input change near it).  A
+# v2.6.3 recording that has one is reproduced in the fork by sending, on the
+# frame the v2.6.3 game read nothing, a neutral pad: the game then reads what
+# v2.6.3's read.  The policy's inputs stay as the policy set them (`inputs` in
+# trace.json); only what reaches the emulator changes.  Every input of a
+# route beat reaches the game's pad block 3 frames after it is set (row f + 3),
+# in both emulators.
+#
+# Only corrections a v2.6.3 recording proves are listed:
+#   - a pad reading in the trace (the aim, exit, dmg, br and opt samplers trace
+#     held/pressed, the dmg/br/opt ones the whole pad block): a row whose read is
+#     neutral while the inputs set 3 frames earlier, and the rows around it, are
+#     not.  Of the 47 v2.6.3 traces with a pad reading, one has such a row
+#     (br_11 row 1031); every other row of all 47 follows the inputs at
+#     latency 3.  (The fork recordings of 2026-10-10 00:24 had 7 such rows in
+#     aim_05, 06, 07, 09, dmg_01 and br_09: the fork's own dropouts, which did
+#     not recur on a re-run; route_lanes.py retries a beat with one.)
+#     docs/PCSX2_FORK.md, "Pad read dropouts".
+#   - no pad reading (the main route and level samplers): an open-loop replay
+#     of the v2.6.3 inputs, or the closed-loop beat itself, with the correction
+#     reproduces the v2.6.3 recording's traced rows and its end rand() state,
+#     and without it does not (receipts in build/fork_diverge_a04/ and
+#     build/fork_padfix/).  Level beats often have a late first input: the
+#     input set at f0 reached the v2.6.3 game 1 to 5 frames late (a v2.6.3
+#     latency at session start; the fork reads it on row 3).  Two entries
+#     (a01r_01, a02_02) are proven up to a later difference of another cause,
+#     named in their evidence.
+# kind "drop": neutral pad for `frames` frames from beat frame f (read at row
+#   f + 3); kind "late": the input the policy set at beat frame f reaches the
+#   game `frames` frames late.
+NEUTRAL_PAD = (0, 0x7F, 0x7F)
+V263_PAD_CORRECTIONS: dict[str, list[dict]] = {
+    "13_east_tower": [
+        {"kind": "drop", "f": 130, "frames": 1,
+         "evidence": "replaying the v2.6.3 inputs from canonical route 12 with one neutral frame at "
+                     "f130: all 810 rows equal (44 traced keys) and the end rand() state 0xea88681e "
+                     "equal; with no insert, or the insert at f131/f132, rows differ from row 133 "
+                     "(build/fork_diverge_a04/b13_neutral_13x.json, b13_plain.json)"}],
+    "a01_01_tunnel": [
+        {"kind": "late", "f": 0, "frames": 2,
+         "evidence": "the beat's first stick input (f0) delayed 2 frames: all 306 rows equal; "
+                     "undelayed the clip differs from row 3, delayed 1, 3, 4 or 5 too "
+                     "(build/fork_diverge_a04/chain/chain.log)"}],
+    "a01_s5_duct": [
+        {"kind": "late", "f": 0, "frames": 4,
+         "evidence": "the beat's first stick input (f0) delayed 4 frames: all 3118 rows and the end "
+                     "rand() state 0x7b3898e6 equal; delayed 0..3 frames the clip differs from row 3..6 "
+                     "(build/fork_padfix/replay/s5_first{0..4}.json)"}],
+    "a00_01_door51_locked": [
+        {"kind": "late", "f": 0, "frames": 1,
+         "evidence": "closed-loop re-record with the first input (f0) 1 frame late: all 1273 rows and "
+                     "the end rand() state equal; without it the clip differs from row 3, the v2.6.3 "
+                     "player answering at row 4 (build/fork_padfix/chain_driver.jsonl)"}],
+    "a00_03_padlock": [
+        {"kind": "late", "f": 0, "frames": 2,
+         "evidence": "closed-loop re-record with the first input (f0) 2 frames late: all 144 rows and "
+                     "the end rand() state equal; without it the clip differs from row 3, the v2.6.3 "
+                     "player answering at row 5 (build/fork_padfix/chain_driver.jsonl)"}],
+    "a00_04_cage_terminal": [
+        {"kind": "drop", "f": 70, "frames": 1,
+         "evidence": "closed-loop re-record with one neutral frame at f70: all 2017 rows and the end "
+                     "rand() state equal; without it the v2.6.3 player's action is 5 with the position "
+                     "held at row 73 (the dropout signature) and the fork's is 1 "
+                     "(build/fork_padfix/chain_driver_round3.jsonl, chain_driver.jsonl)"}],
+    "a00_08_switch": [
+        {"kind": "late", "f": 0, "frames": 3,
+         "evidence": "closed-loop re-record with the first input (f0) 3 frames late: all 487 rows and "
+                     "the end rand() state equal; without it the clip differs from row 3, the v2.6.3 "
+                     "player answering at row 6 (build/fork_padfix/chain_driver.jsonl)"}],
+    "a00_10_progression_exit": [
+        {"kind": "late", "f": 0, "frames": 3,
+         "evidence": "closed-loop re-record with the first input (f0) 3 frames late: rows 0..767 equal, "
+                     "then only the AREA01 load's timing (task slots, busy byte, fade; 1095 rows against "
+                     "1088), the end rand() state equal; without it the clip differs from row 3 "
+                     "(build/fork_padfix/chain_driver.jsonl)"}],
+    "a01r_01_event": [
+        {"kind": "late", "f": 0, "frames": 5,
+         "evidence": "closed-loop re-record with the first input (f0) 5 frames late: rows 0..728 equal, "
+                     "then only the message record (msg, msgrec) on rows 729..1091, rows 1092..8121 and the "
+                     "end rand() state equal; without it the clip differs from row 3, the v2.6.3 player "
+                     "answering at row 8 (build/fork_padfix/chain_driver.jsonl)"}],
+    "a02_02_ladder_escape": [
+        {"kind": "late", "f": 0, "frames": 2,
+         "evidence": "closed-loop re-record with the first input (f0) 2 frames late: rows 0..551 equal and "
+                     "the player's state and the end rand() state equal to the end; from row 552 sub-area "
+                     "objects change state 7 frames later on the fork (disc timing, PCSX2_FORK.md); without "
+                     "it the clip differs from row 3 (build/fork_padfix/chain_driver.jsonl)"}],
+    "c7_door1_fence_door_side1": [
+        {"kind": "drop", "f": 197, "frames": 1,
+         "evidence": "replaying the v2.6.3 inputs from the canonical 09_fence_door with one neutral "
+                     "frame at f197 (the held stick 106/187 back at f198): all 545 rows equal and the end "
+                     "rand() state 0xdd0717d7 equal; without it the player's action is 1 where v2.6.3 has "
+                     "5 from row 200 (build/fork_padfix/replay/c7_drop197.json, c7_plain.json)"}],
+    "br_11_plateau_ladder_up": [
+        {"kind": "drop", "f": 1028, "frames": 1,
+         "evidence": "v2.6.3 pad block row 1031: held 0, sticks 7f7f7f7f, +0x17 = 0 between rows "
+                     "1030 and 1032 that read the held stick (0x1000, sticks 80 00); the inputs did not "
+                     "change near it; the fork run without the correction reads the stick there and "
+                     "leaves the v2.6.3 path at row 1031"}],
+}
+PAD_CORRECTIONS = True              # --no-pad-corrections turns the table off
+PHASE_CORRECTION = False            # --phase-correction: one frame more when row 0's phase is off (run_beat)
+
+
+def v263_pad_corrections(name: str) -> list[dict] | None:
+    """Fresh copies of the beat's corrections (fork phase mode with the phase
+    lock only), or None."""
+    if not (FORK and GENERATION == "phase" and PHASE_LOCK and PAD_CORRECTIONS):
+        return None
+    cs = V263_PAD_CORRECTIONS.get(name)
+    return [dict(c) for c in cs] if cs else None
+
+
 def recorded_lead_in(name: str) -> int:
     """Frames the recorded capture of `name` ran between its source state and
     row 0 (fork phase generation: the replayed v2.6.3 lead-in; 0 otherwise).
@@ -10239,16 +10408,28 @@ def run_beat(name: str, source: str, fn, tries: int = 4) -> None:
                     s.step(lead_in)
                 correction = 0
                 if phase_mode and ref and PHASE_LOCK:
-                    # When the fork chain already left the v2.6.3 timeline in an earlier
-                    # beat (route 13: the v2.6.3 run's host-timed stop at frame 133), the
-                    # source lands on the other parity: one more neutral frame restores
-                    # the v2.6.3 frame index and field (the game tick is then one later).
+                    # Phase correction (opt-in since 2026-10-10, --phase-correction): when
+                    # the fork chain left the v2.6.3 timeline a whole tick in an earlier beat
+                    # (before the pad corrections: route 13), frame index and field both
+                    # differ at row 0 and one more neutral frame restores both (the game tick
+                    # is then one later).  But a load that takes an odd number of extra frames
+                    # on the fork (a01_07's AREA00 load, dmg_03's game-over screen) flips the
+                    # frame index and the field for every later beat with the game tick
+                    # unchanged, and the extra frame then put a00_03 and a00_04 a tick off
+                    # the v2.6.3 game state.  The phase cannot tell the two apart, so the
+                    # default keeps the game tick (the rows' fi / fld then differ from the
+                    # v2.6.3 rows, and phase_report says so).  Row 0's field follows the
+                    # pairing at the source state (legacy_row_phase gives None when the
+                    # v2.6.3 beat changes the pairing later).
                     want_fi, want_fld = legacy_row_phase(ref, 0)
+                    if want_fld is None and ref.get("pairing_source") is not None:
+                        want_fld = want_fi ^ ref["pairing_source"]
                     b = s.read(FRAME_INDEX, 12)
-                    if b[0] != want_fi and (want_fld is None or b[8] != want_fld):
+                    if PHASE_CORRECTION and b[0] != want_fi and (want_fld is None or b[8] != want_fld):
                         s.step(1)
                         correction = 1
                 r = Route(s)
+                r.pad_fix = v263_pad_corrections(name)
                 r.begin()
                 try:
                     meta = fn(r)
@@ -10272,6 +10453,8 @@ def run_beat(name: str, source: str, fn, tries: int = 4) -> None:
                     if slot_fix:
                         meta["slot_lead_in_correction"] = slot_delta
                     meta["phase_lock"] = bool(ref and PHASE_LOCK)
+                    if r.pad_fix is not None:
+                        meta["v263_pad_corrections"] = r.pad_fix
                     meta["phase"] = phase_report(r.rows, ref)
                     meta["frames"] = r.frame_index
                 out = r.save(name, meta)

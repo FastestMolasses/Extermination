@@ -78,7 +78,7 @@ def all_beats() -> dict[str, tuple[str, object, str]]:
                 rc.twelfth_selected, rc.thirteenth_selected, rc.fourteenth_selected,
                 rc.fourteenth_a15_selected, rc.fifteenth_selected, rc.aim_selected, rc.exit_selected,
                 rc.dmg_selected, rc.br_selected, rc.opt_selected):
-        for prefix in LEVEL_ORDER[9:] + ["aim", "exit", "dmg", "br", "opt"]:
+        for prefix in LEVEL_ORDER[8:] + ["aim", "exit", "dmg", "br", "opt"]:   # a06b on (A06_BEATS holds only a06)
             for name, source, fn in sel(prefix):
                 out.setdefault(name, (source, fn, group_of(name)))
     return out
@@ -413,14 +413,62 @@ CORE_KEYS = ("pos", "yaw", "m1F0", "clip", "spad", "ui", "req", "power", "charge
              "fade", "story790", "m1F1", "p5", "hp")
 
 
+def _pad_read(row: dict) -> tuple | None:
+    """What the game read from the pad on this row: the processed held word
+    (aim: row g.held; dmg/br/opt/exit: row held) and, where the pad block
+    0x810E40 is traced, its raw stick bytes +0x24..+0x27.  None: not traced."""
+    h = row["g"].get("held") if isinstance(row.get("g"), dict) else row.get("held")
+    if h is None:
+        return None
+    pb = row.get("padblk")
+    return (h, bytes.fromhex(pb)[0x24:0x28].hex() if isinstance(pb, str) else None)
+
+
+def _neutral_read(p: tuple) -> bool:
+    return p[0] == "0x0" and p[1] in (None, "7f7f7f7f")
+
+
+PAD_LATENCY = 3     # an input set at beat frame f is read on row f + 3 (both emulators)
+
+
+def pad_dropouts(doc: dict) -> list[int] | None:
+    """Rows on which the game read a neutral pad although the input set
+    PAD_LATENCY frames earlier reads as something else on every other row of
+    the trace (the mapping input -> read is learned from the trace itself:
+    the game turns d-pad presses into stick values and so on).  None when the
+    trace has no pad reading.  route_capture.V263_PAD_CORRECTIONS."""
+    rows, ins = doc["rows"], doc.get("inputs") or []
+    if not rows or _pad_read(rows[0]) is None:
+        return None
+    from collections import Counter, defaultdict
+    state, cur, k = [], None, 0
+    for f in range(len(rows)):
+        while k < len(ins) and ins[k]["f"] <= f:
+            cur = (ins[k]["buttons"], ins[k]["lx"], ins[k]["ly"])
+            k += 1
+        state.append(cur)
+    seen: dict = defaultdict(Counter)
+    for f in range(PAD_LATENCY, len(rows)):
+        seen[state[f - PAD_LATENCY]][_pad_read(rows[f])] += 1
+    usual = {s: c.most_common(1)[0][0] for s, c in seen.items()}
+    return [f for f in range(PAD_LATENCY, len(rows))
+            if _neutral_read(_pad_read(rows[f])) and not _neutral_read(usual[state[f - PAD_LATENCY]])]
+
+
 def core_score(name: str, folder: Path) -> dict:
     """The traced fields against the v2.6.3 trace: same-index equality and the
-    rows matched when aligned by game state (holds = repeated rows, loads)."""
+    rows matched when aligned by game state (holds = repeated rows, loads).
+    A fork pad dropout the v2.6.3 run did not have (pad_dropouts) also counts
+    as leaving the path, so the beat is run again."""
     o = rc._legacy_beat_dir(name) / "trace.json"
-    b = json.loads((folder / "trace.json").read_text())["rows"]
+    bdoc = json.loads((folder / "trace.json").read_text())
+    b = bdoc["rows"]
     if not o.exists():
         return {"v263": False, "ok": True}
-    a = json.loads(o.read_text())["rows"]
+    adoc = json.loads(o.read_text())
+    a = adoc["rows"]
+    da, db = pad_dropouts(adoc), pad_dropouts(bdoc)
+    fork_drops = sorted(set(db or []) - set(da or []))
     ca, cb = [_core(r) for r in a], [_core(r) for r in b]
     same = sum(1 for x, y in zip(ca, cb) if x == y)
     sm = difflib.SequenceMatcher(None, ca, cb, autojunk=False)
@@ -435,7 +483,8 @@ def core_score(name: str, folder: Path) -> dict:
             continue
         nonhold += 1
     return {"v263": True, "same_index_equal": same, "rows": [len(a), len(b)], "aligned_matched": matched,
-            "non_hold_blocks": nonhold, "ok": nonhold == 0}
+            "non_hold_blocks": nonhold, "fork_pad_dropouts": fork_drops,
+            "ok": nonhold == 0 and not fork_drops}
 
 
 def _trace_digest(folder: Path) -> str:
@@ -598,6 +647,13 @@ def compare_beat(name: str) -> dict:
            "phase": (B.get("phase") or {}).get("legacy"),
            "lead_in": B.get("lead_in_frames"), "phase_correction": B.get("phase_correction_frames"),
            "tail": [A.get("tail_idle_frames"), B.get("tail_idle_frames")]}
+    if B.get("v263_pad_corrections"):
+        res["v263_pad_corrections"] = [{k: c.get(k) for k in ("kind", "f", "frames", "applied")}
+                                       for c in B["v263_pad_corrections"]]
+    pa, pb = pad_dropouts(A), pad_dropouts(B)
+    if pa is not None or pb is not None:
+        # rows whose pad read was neutral against the inputs (route_capture.V263_PAD_CORRECTIONS)
+        res["pad_dropouts"] = {"v263": pa, "fork": pb}
     if not res["inputs_equal"]:
         ia, ib = A["inputs"], B["inputs"]
         k = next((i for i in range(min(len(ia), len(ib))) if ia[i] != ib[i]), min(len(ia), len(ib)))
