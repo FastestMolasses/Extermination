@@ -196,8 +196,9 @@ run of ticks with one phase.
   when `--speed` asks for more); at `--fps` that is the speed-up.
 - **Audio.** Each output frame takes its own side's audio for the ticks it
   stands for; held frames are silent. The port renders its mixer offline
-  (no audio device; 800.8 frames per step at 48 kHz, one field behind the
-  stream backend's own production; column `af`). With `--speed` > 1 the
+  (no audio device; 800.8 frames per step at 48 kHz, pulled through the
+  current field since port a345d9a, which removed a one-field lag of every
+  music and voice sample; column `af`). With `--speed` > 1 the
   audio is sped up with ffmpeg's `atempo` (pitch kept), so sound and picture
   stay in sync.
 
