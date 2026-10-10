@@ -67,7 +67,8 @@ makes ownership explicit, and the decomp tools use it:
   took. A lane accepts `EXTERMINATION_FORK_LOCK_HELD` only when the lock's
   holder is its parent or another ancestor. The legacy-only paths
   (`video_compare/ps2.py`, `repack/proof.py` with
-  `EXTERMINATION_PCSX2=legacy`) still use a bare `mkdir`/`rmdir`. A bare
+  `EXTERMINATION_PCSX2=legacy`; dead since the app's retirement) used a bare
+  `mkdir`/`rmdir`. A bare
   `rmdir` cannot remove an owned lock: the folder is not empty.
 - Every stop path checks ownership by session id. Close runs only in the
   creating process. Another process may stop a session only from the
@@ -103,8 +104,8 @@ the other's, and that the reaper leaves a live session alone.
 | Metal | The Xcode Metal Toolchain was installed on 2026-10-09 (the user's decision) and the fork rebuilt with its Metal renderer (fork `36f3e3a50`; `EXTERMINATION_BUILD.md` section 6). Captures still use the software renderer (13): only it keeps rendered pixels in GS memory. |
 | Code signing | Signed with the stable local identity "Extermination PCSX2 Fork Local" (the user's login keychain) since 2026-10-10: CMake option `EXTERMINATION_SIGN_APP` (ON) runs `extermination/scripts/sign_app.sh` after macdeployqt (fork faeded218). The designated requirement (identifier `net.pcsx2.pcsx2` + certificate leaf `cd3b7275...`) is the same across rebuilds, so one `~/Documents` grant survives them. Never re-sign while an emulator from the bundle runs (take the run lock). Recipe to recreate it: `EXTERMINATION_BUILD.md` section 5. |
 | MCP bridge | `pcsx2-fork/extermination/mcp-server/pcsx2_agent_mcp.py` (55 tools), registered in Claude Code as `pcsx2-agent` (local scope, the user's decision of 2026-10-09). The legacy Node bridge in `../PCSX2-MCP` is no longer the registered server. |
-| Legacy emulator | `build/startup-reference/PCSX2.app`: v2.6.3, x86_64, with the old DebugServer (TCP 21512) and PINE. **No longer the default** (the user's decision of 2026-10-09 to retire it): every decomp tool runs on the fork unless given `--emulator legacy` (or `EXTERMINATION_PCSX2=legacy`). The app stays until the lead retires it (checklist in "Retiring the 2.6.3 app" below). The duplicate `/Applications/PCSX2.app` went to the Trash on 2026-10-09. |
-| Save states | The fork writes version `0x9A59` and refuses v2.6.x states (`0x9A55`) with an explicit error. The user's slots 01 to 15 and the `build/s87/...` snapshots load only in the legacy app. The fork-saved replacements are in `build/startup-reference/fork-states/`, in two generations: `base` (the first regeneration) and `phase` (the default since 2026-10-10: the same game points, `rand()` state and player clock included, with the frame index and field of the v2.6.3 session's first loop top after loading the slot; "Correction" below). Every v2.6.3 fact the tools need (slot phases, save PCs, compared spans, beat lead-ins) is cached in `build/fork_refs/legacy_refs.json`, so no tool needs the slot files any more. |
+| Legacy emulator | **Retired on 2026-10-10** (the user's decision of 2026-10-09): `build/startup-reference/PCSX2.app` (v2.6.3) and the 12 user slot files are in the macOS Trash (`~/.Trash/PCSX2-2.6.3-startup-reference-20261010.app`, `SCUS-97112-slotNN-v2.6.3-20261010.p2s`). The legacy paths (`--emulator legacy`, `EXTERMINATION_PCSX2=legacy`, `c7cap_capture.py lane3 --from boot`, the legacy `ps2.py` options) no longer work. The v2.6.3 captured data stays on disk ("Retiring the 2.6.3 app" below). The duplicate `/Applications/PCSX2.app` went to the Trash on 2026-10-09. |
+| Save states | The fork writes version `0x9A59` and refuses v2.6.x states (`0x9A55`) with an explicit error. The user's slots (in the Trash since 2026-10-10) and the `build/s87/...` snapshots loaded only in the retired legacy app. The fork-saved replacements are in `build/startup-reference/fork-states/`, in two generations: `base` (the first regeneration) and `phase` (the default since 2026-10-10: the same game points, `rand()` state and player clock included, with the frame index and field of the v2.6.3 session's first loop top after loading the slot; "Correction" below). Every v2.6.3 fact the tools need (slot phases, save PCs, compared spans, beat lead-ins) is cached in `build/fork_refs/legacy_refs.json`, so no tool needs the slot files any more. |
 | Compat with the game | Receipts are in the ignored `build/pcsx2-fork/acceptance/reports/`. The fork cold-boots the game, passes the intro and title, and replays the demo_hill route (4,678 ticks). Against the legacy run, per-tick game state matched once one load segment was aligned (273 against 268 ticks), except 5 rows of the loader busy byte. |
 | GS fields against v2.6.3 | **Explained** in [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md). Most compat-stage frames differed because the game's frame index and field phase differed after the longer load, not because of the renderer. With the phase matched, a fork run reproduces 1,152 of 1,173 v2.6.3 reference captures bit for bit. The fork's software renderer equals v2.6.3's on 906 conformance tests and 112 dumped game fields. The one exception is the half-pixel culling change of upstream `4fa2b8e45`: lines or points starting within half a pixel outside the scissor, 8 captures here. Pair captures by tick and field, and decode each run's own drawing buffer (section 8 there). |
 | Fixes of 2026-10-09 | **Presentation off** (fork 0.2.2): builds before it never submitted GPU work while presentation was off, leaked about 1 MB per vsync and aborted the GS thread after long free runs or movies; 0.2.2 submits every 4 vsyncs and the footprint stays flat (765 MB over 36,000 vsyncs). **Shutdown** (0.2.2): about 0.5 s, also after thousands of stops and on lease expiry (before: over 20 s after a long closed loop, then killed). **`-elf` boots** (fork `1e22fdc0c`): the launcher passes real paths, so an `-elf` override from the `$TMPDIR` scratch (under the `/var` symlink) loads and runs. **`ForkSession` steps** (decomp `184f6f1`): `step(n)` advances exactly n frames with `align` False or True (below). |
@@ -113,9 +114,9 @@ the other's, and that the reaper leaves a live session alone.
 ## The tools run on the fork by default (2026-10-09)
 
 The user decided on 2026-10-09 to retire PCSX2 v2.6.3 and migrate everything.
-Every decomp tool that drives the original now uses the fork unless told
-otherwise. The legacy path stays available, behind an explicit switch, until
-the lead trashes the app:
+Every decomp tool that drives the original uses the fork. Until the app went
+to the Trash (2026-10-10) the legacy path was available behind an explicit
+switch; these switches **no longer work**:
 
 - the command-line option `--emulator legacy` (route_capture, route_census,
   sfx_request_probe, c7cap_capture, c7cap_partb, load_wait_probe,
@@ -128,7 +129,6 @@ the lead trashes the app:
 cd /Users/abe/Documents/Extermination.nosync/Extermination
 .venv/bin/python tools/pcsx2_session.py 04 --frames 30 --snapshot build/<task>/walk   # fork, phase/04
 .venv/bin/python tools/route_capture.py run --beats 00                                # fork, phase-locked
-.venv/bin/python tools/route_capture.py run --beats 00 --emulator legacy             # v2.6.3 (until retired)
 ```
 
 How the fork path works:
@@ -204,9 +204,12 @@ excluded): `build/s87/route/` 38 files, `s87/census` 39, `s87/c7cap` 11,
 `c10/options` 3, `s87/loadwait` 2, `s87/audio` 4, `frame_trace` 12,
 `startup-reference/panel` 14, `status-hub` 11, `playable_ee.bin` 72,
 `opening_ee.bin` 43, the level groups `route_a00` .. `route_a22` 1 to 16
-each, and 5 tests that read user slots 01, 02, 04 and 14 offline. They all
-keep reading the v2.6.3 files until a port-side switch; nothing here moves or
-deletes them.
+each, and 5 tests that read user slots 01, 02, 04 and 14 offline. Since the
+port switch (port 0faaee4, d11045a, 750b40f, 8b68485) they read the fork's
+recordings by default (`EM_REFERENCE=fork`, `tools/reference_root.py`);
+`EM_REFERENCE=v263` still reads these v2.6.3 files, and sets with no fork
+recording stay on them by name (`refs.v263(path, reason)`). Nothing here moves
+or deletes them.
 
 ## Fork states: the tools' save states regenerated in the fork
 
@@ -1041,22 +1044,23 @@ reviewer; receipts are in `build/fork_diverge_a04/`: `chain2.out` for beat
 
 ### What still needs v2.6.3 (2026-10-10)
 
-- **To run the 2.6.3 app: one optional case.** `c7cap_capture.py lane3
-  --from boot` arms memchecks before the game code runs, which its
-  `ColdSession` does on the v2.6.3 app only. Use `--from title` on the fork,
-  or port the cold start (a fork cold boot with `[UI] StartPaused`) when the
-  lane-3 writers are needed again. No other tool needs the app.
+- **The 2.6.3 app: nothing (retired 2026-10-10).** The one optional case,
+  `c7cap_capture.py lane3 --from boot`, armed memchecks before the game code
+  ran through a `ColdSession` on the v2.6.3 app only; it no longer works. Use
+  `--from title` on the fork, or port the cold start (a fork cold boot with
+  `[UI] StartPaused`) when the lane-3 writers are needed again.
 - **The slot files: nothing.** Every v2.6.3 fact a tool reads from them is
   cached in `build/fork_refs/legacy_refs.json`: the 12 slots' stored phase,
   counter and save PC (`route_capture.py legacy-refs`, refreshed on
   2026-10-10), and the 12 slots' compared spans (`fork_states.py manifest`,
   `slot_spans`). `fork_states.py boot`, `status` and `roger` and the phase
   lock run from the cache.
-- **The v2.6.3 captures: data the port reads** until its switch (checklist
+- **The v2.6.3 captures: data that stays.** The port reads them with
+  `EM_REFERENCE=v263` and for sets with no fork recording (checklist
   below). They stay: `build/s87/...`, `build/c10/...`, `build/aimfire/...`,
   `build/b16/...`, `build/startup-reference/{panel,status-hub,elevator,roger-encounter,cutscene_skip}`,
-  `playable_ee.bin`, `opening_ee.bin`, the `*_poll.json` files and the slot
-  files the 5 port tests read.
+  `playable_ee.bin`, `opening_ee.bin` and the `*_poll.json` files (the slot
+  files themselves are in the Trash).
 - **Fork runs not made yet** (fork re-recordings, not v2.6.3 needs; plan
   below): `sfx_request_probe`, `c7cap_capture` (stream, rng, lane3 from the
   title), `c7cap_partb` fb and h7, the full census (`route_census.py run
@@ -1112,16 +1116,30 @@ python3 tools/video_compare/video_compare.py ps2 build/video_compare/my_run.rec 
 ### Retiring the 2.6.3 app: checklist (2026-10-10)
 
 The user decided on 2026-10-09 to migrate everything ("Yes, migrate
-everything"; "Yes, re-record in fork"). The lead then trashes
-`build/startup-reference/PCSX2.app` and the 12 user slot files (01, 02, 03,
-04, 06, 07, 08, 11, 12, 13, 14, 15).
+everything"; "Yes, re-record in fork"; "You have permission to use all
+slots"). **Done on 2026-10-10:** after a review confirmed that no port or
+decomp test breaks in the default mode, the lead moved
+`build/startup-reference/PCSX2.app` (v2.6.3) and the 12 user slot files (01,
+02, 03, 04, 06, 07, 08, 11, 12, 13, 14, 15) to the macOS Trash
+(`~/.Trash/PCSX2-2.6.3-startup-reference-20261010.app`,
+`SCUS-97112-slotNN-v2.6.3-20261010.p2s`).
+
+- **What stopped working:** every legacy path: `--emulator legacy`,
+  `EXTERMINATION_PCSX2=legacy`, `c7cap_capture.py lane3 --from boot`, the
+  legacy options of `video_compare/ps2.py`, and anything that loads a v2.6.3
+  state.
+- **What stays:** all v2.6.3 captured data (`build/s87`, `build/c10`,
+  `build/aimfire`, `build/b16`, `build/startup-reference/**` data), the cached
+  slot facts in `build/fork_refs/legacy_refs.json`, and the port's
+  `EM_REFERENCE=v263` mode, which reads that data. Never delete it while any
+  port test reads it.
 
 **Done (decomp side):**
 
 1. **Tools on the fork.** Every tool in the inventory runs on the fork by
    default (decomp `4c563cd`); the `route_capture` library default is the
    fork too (2026-10-10). `--emulator legacy` / `EXTERMINATION_PCSX2=legacy`
-   stay until the app goes.
+   stopped working when the app went to the Trash (2026-10-10).
 2. **One canonical chain, slot start corrected.** `build/fork_refs/s87/route`
    (origin `slot04_first_control`, the v2.6.3 lead-in minus 1): beats 00..14
    equal v2.6.3 in every field and the end `rand()` state (13 and 14 since the
@@ -1155,14 +1173,19 @@ everything"; "Yes, re-record in fork"). The lead then trashes
    state (13 and 14 now bit-exact; 15 differs by the v2.6.3 field phase only).
 6. **The v2.6.3 facts cached.** `route_capture.py legacy-refs` (225 beats,
    12 slots with their save PCs) and `fork_states.py manifest` (the 12 slots'
-   compared spans) ran on 2026-10-10. Re-run both if v2.6.3 captures change
-   before the slots go.
+   compared spans) ran on 2026-10-10, before the slots went to the Trash;
+   the cache is now the only source of those facts.
 
-**What still needs the 2.6.3 app:** nothing to run, except the optional
-`c7cap_capture.py lane3 --from boot` ("What still needs v2.6.3").
+**What still needs the 2.6.3 app:** nothing (the optional
+`c7cap_capture.py lane3 --from boot` no longer works; "What still needs
+v2.6.3").
 
-**What the port-side switch must do** (a port job; until it is done the
-port keeps reading the v2.6.3 files, so they must not be deleted):
+**The port-side switch: done** (port 0faaee4 items 1-5, d11045a items 6 and
+7, the review fixes in 750b40f, the fb2 phase references in 8b68485). Every
+port test reads the fork's recordings by default through
+`tools/reference_root.py` (`EM_REFERENCE=fork`); `EM_REFERENCE=v263` still
+reads the v2.6.3 data, and sets with no fork recording stay on it by name
+(`refs.v263(path, reason)`). The items as they were specified:
 
 1. **The 5 tests that read user slots offline** move to the fork states in
    `build/startup-reference/fork-states/` (each folder has `state.p2s`,
@@ -1213,7 +1236,10 @@ port keeps reading the v2.6.3 files, so they must not be deleted):
    message block the test checks (2, 1, 0x8000001A, +0x68 = 5), and
    `manifest.json` gives the tick, phase and alignment. The test still has to
    change to the 512x224 field (its text band and the line boxes in field
-   rows), a port job.
+   rows), a port job. **Done** (port d11045a; 750b40f makes
+   `EM_REFERENCE=v263` refuse this test with a REFUSED line and exit status
+   2, since that reference has only the host screenshot and the retired app
+   cannot record a field).
 8. **The startup-reference probes' outputs** (`panel/` 14 files,
    `status-hub/` 11, `elevator/` 3, `roger-encounter/` 3, `playable_ee.bin`
    72, `opening_ee.bin` 43, the `*_poll.json` files, `cutscene_skip/`): the
@@ -1221,10 +1247,19 @@ port keeps reading the v2.6.3 files, so they must not be deleted):
    first control), `phase/slot14_status_hub`, `phase/slot15_roger_encounter`,
    and route beats 02, 03 and 04 (elevator refusal, panel, elevator). The
    port decides per file; a file with no equivalent needs a fork capture.
+   **Decided** (port 0faaee4): the probe outputs stay v2.6.3 data, read
+   through `refs.v263` with the reason.
 
-**Then** the user can trash `build/startup-reference/PCSX2.app` and the 12
-slot files (confirm first). Never delete the v2.6.3 captures above while any
-port test reads them.
+**Then** the app and the 12 slot files went to the Trash (2026-10-10, the
+user's decision). Never delete the v2.6.3 captures above while any port test
+reads them.
+
+**Open after the switch** (port side): `EM_TEST_FULL=1 test_fb2_pixels`
+compares first_control, 10, 11, 12 and 15 with the field-phase references
+in `build/fork_refs/pixels/fb2_phase/` (port 8b68485); 15_level_exit has no
+original run on the port's phase (the departure FMV leaves the frame index
+equal to the field, and the port's field there breaks that), so its cause
+stays open (port FIRST_LEVEL_AUDIT 1b F1).
 
 ### Re-recording plan, set by set
 

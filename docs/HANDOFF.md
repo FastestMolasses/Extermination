@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-10 (Claude: the PCSX2 fork migration, below; census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-10 (Claude: the PCSX2 fork migration, v2.6.3 retired, below; census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -41,9 +41,8 @@ that is a different, stale tree.
   steps, pad input, memory reads and snapshots, under the shared run lock
   `build/.pcsx2.lock`. States: `build/startup-reference/fork-states/`
   (`manifest.json`; `fork_state("04")`; phase generation by default). The v2.6.3
-  app and its slots (`build/startup-reference/portable-data/sstates/`; user,
-  2026-10-09: every slot may be used) stay behind `--emulator legacy` until the
-  lead trashes them; no tool needs them any more.
+  app and its 12 slots are retired (macOS Trash, 2026-10-10); `--emulator legacy` no
+  longer works, and the v2.6.3 captured data stays on disk.
 - The fork itself: `../pcsx2-fork`, entry point `../pcsx2-fork/EXTERMINATION.md`;
   status, rules, the canonical capture chain and the retirement checklist are in
   `docs/PCSX2_FORK.md`. It offers run-to-condition, a per-frame store with
@@ -58,7 +57,7 @@ that is a different, stale tree.
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
 
-## 2026-10-10: the fork migration (retiring PCSX2 v2.6.3)
+## 2026-10-10: the fork migration (PCSX2 v2.6.3 retired)
 User decisions of 2026-10-09: migrate everything to the fork, re-record the pixel
 references in it with a deterministic field phase, use every slot. Details, receipts and
 the retirement checklist: `docs/PCSX2_FORK.md`.
@@ -104,16 +103,23 @@ the retirement checklist: `docs/PCSX2_FORK.md`.
   rows and `rand()` equal to the primary points; 15_level_exit on the port's half line
   in the other buffer (the port's exact phase never occurs on the fork: the departure FMV
   leaves frame index == field).
-- **What remains:** the port-side switch (`docs/PCSX2_FORK.md` "Retiring the 2.6.3 app":
-  the 5 tests reading slots 01/02/04/14, test_fb2_pixels' paths and counter, GSCAP_ROOT,
-  level_smoke_area01's row 741 -> 749, test_shadow_original_reference --capture,
-  test_message_capture's screenshot, the startup-reference probes' outputs); then the
-  user trashes the 2.6.3 app and the 12 slots. Fork runs still to make: the full census,
-  sfx_request_probe, c7cap stream/rng/lane3, fb/h7, fb2 13..15, load_wait beat 03, EE
-  float vectors, the level chain from `a04b_00` (needs policy work on the fork's own
-  playthrough, or a way past `a02_02`'s disc timing). The fork's closed loop is not
-  always repeatable (its pad read dropouts, finding 1): compare a re-recorded set with its
-  v2.6.3 trace before relying on it.
+- **2.6.3 retired (2026-10-10).** The port switch is done (port 0faaee4, d11045a, the
+  review fixes 750b40f, the fb2 phase references 8b68485): every port test reads the
+  fork's recordings by default (`tools/reference_root.py`, `EM_REFERENCE=fork`;
+  `EM_REFERENCE=v263` still reads the old data). After a review found no default-mode
+  test broken, the lead moved `build/startup-reference/PCSX2.app` and the 12 user slots
+  to the macOS Trash. The legacy paths (`--emulator legacy`, `EXTERMINATION_PCSX2=legacy`,
+  `c7cap_capture.py lane3 --from boot`, the legacy `ps2.py` options) no longer work; all
+  v2.6.3 captured data stays on disk. Checklist: `docs/PCSX2_FORK.md` "Retiring the 2.6.3
+  app".
+- **What remains:** port side, the cause of 15_level_exit's field phase (the port's field
+  after Roger's departure FMV breaks the original's frame index == field rule; port
+  FIRST_LEVEL_AUDIT 1b F1). Fork runs still to make: the full census, sfx_request_probe,
+  c7cap stream/rng/lane3 (from the title), fb/h7, load_wait beat 03, EE float vectors,
+  the level chain from `a04b_00` (needs policy work on the fork's own playthrough, or a
+  way past `a02_02`'s disc timing). The fork's closed loop is not always repeatable (its
+  pad read dropouts, finding 1): compare a re-recorded set with its v2.6.3 trace before
+  relying on it.
 
 ## 2026-10-09: the PCSX2 agent-debug fork, the demos, presentation, coverage
 - **The fork** (`../pcsx2-fork`, branch `extermination-mcp`, local only, never pushed):
@@ -162,11 +168,9 @@ the retirement checklist: `docs/PCSX2_FORK.md`.
   by side runs (port merge de2b1d4: dmg_fan, dmg_pit_fall; a fan-damage bug fixed);
   census 1.69, all 951 live rows entered by a run (details under "State" below).
 - **Open user decisions:** (1) DONE 2026-10-10: the fork is signed with the stable local
-  identity "Extermination PCSX2 Fork Local" after every build (fork faeded218); (2) retiring `build/startup-reference/PCSX2.app`
-  and slots 01-15 to the Trash: decomp side done on 2026-10-10 (nothing to run on it
-  except the optional `c7cap_capture.py lane3 --from boot`); the port-side switch
-  (`docs/PCSX2_FORK.md` "Retiring the 2.6.3 app") must come first, because port tests
-  still read the slots and the v2.6.3 captures (confirm first); (3) DECIDED 2026-10-09 and built (port fc986dc): the port's disc-drive timing
+  identity "Extermination PCSX2 Fork Local" after every build (fork faeded218); (2) DONE 2026-10-10: `build/startup-reference/PCSX2.app` and the 12 slots
+  are in the macOS Trash, after the port switch (`docs/PCSX2_FORK.md` "Retiring the
+  2.6.3 app"); (3) DECIDED 2026-10-09 and built (port fc986dc): the port's disc-drive timing
   switch models the first stream read after a module-loader read as a 17-field seek (one
   value fits every captured case; with the switch, first control lands on the original's
   frame, newgame-control locked_ticks 1322).

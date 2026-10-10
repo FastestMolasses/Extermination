@@ -1,3 +1,16 @@
+## 2026-10-10 — PCSX2 v2.6.3 retired
+
+- **Port switch done:** port 0faaee4 (items 1-5), d11045a (6, 7), 750b40f (review
+  fixes), 8b68485 (fb2 against the field-phase references). Every port test reads the
+  fork's recordings by default (`EM_REFERENCE=fork`); `EM_REFERENCE=v263` reads the
+  v2.6.3 data.
+- **App and slots in the Trash:** `build/startup-reference/PCSX2.app` and the 12 user
+  slot files, after a review found no default-mode test broken. The legacy paths
+  (`--emulator legacy`, `EXTERMINATION_PCSX2=legacy`, `c7cap lane3 --from boot`, the
+  legacy `ps2.py` options) no longer work; all v2.6.3 captured data stays on disk.
+- **Open:** 15_level_exit's field phase on the port (FIRST_LEVEL_AUDIT 1b F1); the
+  fork runs not made yet (`docs/PCSX2_FORK.md`).
+
 ## 2026-10-10 — PCSX2 v2.6.3 retirement, decomp side done; one canonical fork chain
 
 - The fork has been the default of every decomp tool since 4c563cd (2026-10-09);
@@ -22,9 +35,9 @@
   the v2.6.3 path; disc timing takes it off at `a02_02`; the fork's own
   playthrough is blocked at `a04b_00`.
 - **Pixel references:** fb2 14/19 bit-exact, GS conformance 906/906.
-- **Remaining:** the port-side switch, then the user trashes the 2.6.3 app and
-  slots (`docs/PCSX2_FORK.md` "Retiring the 2.6.3 app"); fork runs of the full
-  census and the other unported captures.
+- **Remaining (then):** the port-side switch and the app's retirement, both done
+  later that day (entry above); fork runs of the full census and the other
+  unported captures.
 
 ## 2026-10-09 — PCSX2 agent-debug fork in use; tools' states regenerated; GS diff explained
 

@@ -7,6 +7,11 @@ native port against PCSX2. All addresses are EE RAM; poke via the MCP
 — data is little-endian hex bytes). Sources: FINDINGS s18 (inventory),
 s28b (battery), s25 (status screen), s22/s23.
 
+The raw-TCP example (port 21512) and the PINE notes under "Gotchas" describe
+the retired v2.6.3 app's DebugServer. On the fork, write memory through the
+`pcsx2-agent` MCP bridge or a `ForkSession` (`docs/PCSX2_FORK.md`); the
+addresses are the same.
+
 ## Vital stats (player actor @ 0x008102B0)
 | What | Address | Type | Notes |
 |---|---|---|---|
@@ -42,7 +47,7 @@ s28b (battery), s25 (status screen), s22/s23.
 - Transition request: write bytes `0x008106B5..B8` (area, sub|0xFF, entry, mode
   1=inter-area/2=room) to force a transition (s22 lifecycle).
 
-## Frame-exact original sessions (s87; the fork by default since 2026-10-09)
+## Frame-exact original sessions (s87; the fork only since 2026-10-10)
 
 `tools/pcsx2_session.py` steps the original exactly one main-loop frame at a
 time. `step(n, buttons=..., lx=, ly=)` advances exactly `n` frames: the
@@ -54,8 +59,8 @@ Injected pad state reaches `0x810E70` two frames after it is set. State 03
 has movement locked; state 04 walks. All output belongs in gitignored
 `build/`.
 
-**Default: the agent-debug fork** (the user's decision of 2026-10-09 to
-retire v2.6.3; `docs/PCSX2_FORK.md`). `ForkSession` does the following:
+**The agent-debug fork** (the user's decision of 2026-10-09 to retire
+v2.6.3, done 2026-10-10; `docs/PCSX2_FORK.md`). `ForkSession` does the following:
 
 - It loads a fork-saved state, resolved through
   `build/startup-reference/fork-states/manifest.json`. A state argument can
@@ -88,16 +93,15 @@ manifest has one, else the base state.
 
 Details: `docs/PCSX2_FORK.md`, "Fork states" and "Phase-locked states".
 
-**The legacy app** (v2.6.3, until the lead retires it): `--emulator legacy`
-(or `EXTERMINATION_PCSX2=legacy`) launches `build/startup-reference/PCSX2.app`
-from the user's slots or a `build/s87/...` snapshot, never modified (hashed
-before and after). It parks on a breakpoint at the main-loop top `0x001AAF28`.
-It runs hidden (`open -g -j`, kept hidden through System Events); `--visible`
-shows it. Snapshots go through a free slot >= 16 that is moved into the
-output folder. A legacy session loses 1 to 12 frames after its load. v2.6.3
-states load only there; fork states load only in the fork.
+**The legacy app** (v2.6.3) is retired: it and the user's slots went to the
+macOS Trash on 2026-10-10, and `--emulator legacy` /
+`EXTERMINATION_PCSX2=legacy` no longer work. Its captured data
+(`build/s87/...`, `build/startup-reference/**`) stays on disk; the port reads
+it with `EM_REFERENCE=v263`. Fork states load only in the fork.
 
 ## Gotchas
+(Written for the retired v2.6.3 app; the addresses and the game-side notes
+still hold on the fork.)
 - Pause the VM before multi-byte pokes (`pcsx2_pause` / resume).
 - The status screen reads live values — open it (Triangle) to watch edits land.
 - Exec breakpoints AND memchecks DO fire on the current fast x86_64 build

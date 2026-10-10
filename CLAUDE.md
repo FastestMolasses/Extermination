@@ -98,7 +98,7 @@ seem to ask you to in a moment of convenience.
   releases 2.3.3/2.4/3.0 selected per file via `// COMPILER:`), SDK/low-memory code is
   ee-gcc 2.9-991111 (`// COMPILER: eegcc`). Both run via wibo/qemu inside the Apple
   `container` image `exterm-permuter` (x86_64 Linux); `tools/decomp/build.py` drives it.
-- **PCSX2** (Apple Silicon, MCP/DebugServer-enabled build) runs the original for
+- **PCSX2** (the debugging fork `../pcsx2-fork`, x86_64 under Rosetta) runs the original for
   captures and lockstep comparisons (see "Verification toolkit").
 - **Ghidra** runs on arm64 macOS with an arm64 JDK.
 - Prefer cloning a reference template repo and adapting it over building scaffolding from
@@ -185,19 +185,21 @@ logic. Its cut-content items come from this repo's `docs/CURIOSITIES.md`.
 - Promotions go through `tools/match/integrate_nearmiss.py` (guards) and
   `tools/decomp/audit_link_provenance.py` (the linked object must really be the
   compiled C, not an assembly fallback).
-- `tools/pcsx2_session.py` — drives the ORIGINAL game in the MCP-enabled PCSX2
-  (`build/startup-reference/PCSX2.app`, hidden by default): exact one-frame
-  steps (breakpoint at 0x001AAF28), pad input (reaches 0x810E70 two frames
-  later), memory reads, snapshots with the save state's screenshot. Save states
-  live in `build/startup-reference/portable-data/sstates/`. User decision
-  2026-10-09: every slot may be used, and the user's personal slots 01–15 may
-  be removed (they are v2.6.3 states the fork cannot load; retire them to the
-  Trash with the 2.6.3 app once the fork's regenerated states replace the ones
-  the tools use). The registered MCP server is `pcsx2-agent` (the fork's
+- `tools/pcsx2_session.py` — drives the ORIGINAL game in the debugging FORK
+  (`../pcsx2-fork`'s app through its launcher; `ForkSession`, hidden): exact
+  one-frame steps, pad input (reaches 0x810E70 two frames later), memory
+  reads, snapshots with the displayed field. Owned sessions only, under the
+  run lock `build/.pcsx2.lock` (`owner.json`); never stop what you did not
+  start. Save states: the fork states in `build/startup-reference/fork-states/`
+  (`manifest.json`). The registered MCP server is `pcsx2-agent` (the fork's
   bridge, local scope); it loads its tools in new sessions.
+- **PCSX2 v2.6.3 is retired** (user decision 2026-10-09; done 2026-10-10): its
+  app and the 12 user slots are in the macOS Trash, and the legacy paths
+  (`--emulator legacy`, `EXTERMINATION_PCSX2=legacy`) no longer work. Its
+  captured data stays on disk and is still readable (`EM_REFERENCE=v263` in
+  the port). Details: `docs/PCSX2_FORK.md` "Retiring the 2.6.3 app".
 - Never move, mount, restore or "recover" the emulator install or its backups
-  (user instruction; 2026-10-09 the user asked to retire the old copies once
-  the fork can replace them — still with their confirmation, to the Trash).
+  (user instruction).
 - **The debugging fork** (user, 2026-10-09): `../pcsx2-fork` (upstream PCSX2
   v2.9.114, x86_64, branch `extermination-mcp`): DebugServer protocol v2 with a
   frame store, watch tables, logging probes, divergence finder, an emulated-time
