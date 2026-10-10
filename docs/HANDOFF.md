@@ -98,7 +98,12 @@ the retirement checklist: `docs/PCSX2_FORK.md`.
   post-load hitches), GS conformance 906 of 906 bit-exact plus the new half-pixel
   scissor set `b16/gscap9` (45 tests; v2.6.3 differs exactly where the fork's rule
   says), the elevator refusal message frame (`messages/elevator_refusal`, for
-  test_message_capture), the route end frames decoded.
+  test_message_capture), the route end frames decoded. Same-phase fb2 points for the
+  port (`pixels/fb2_phase`, `tools/fb2_phase_refs.py`; PCSX2_FORK.md "fb2 points on the
+  port's field phase"): first_control, 10, 11, 12 on the port's buffer and half line,
+  rows and `rand()` equal to the primary points; 15_level_exit on the port's half line
+  in the other buffer (the port's exact phase never occurs on the fork: the departure FMV
+  leaves frame index == field).
 - **What remains:** the port-side switch (`docs/PCSX2_FORK.md` "Retiring the 2.6.3 app":
   the 5 tests reading slots 01/02/04/14, test_fb2_pixels' paths and counter, GSCAP_ROOT,
   level_smoke_area01's row 741 -> 749, test_shadow_original_reference --capture,

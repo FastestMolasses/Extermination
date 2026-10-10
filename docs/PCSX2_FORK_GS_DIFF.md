@@ -308,6 +308,16 @@ frames are left out, because they match either way.
 
 The half-line choice is the whole difference between frames of equal ticks.
 
+### 5.3a Two later facts (2026-10-10, PCSX2_FORK.md "fb2 points on the port's field phase")
+
+- **The buffer address alone changes no pixel.** The same tick on the same
+  half line drawn into buffer 0x0 and into 0x38 (two boot variants, AREA11
+  points 10 and 12) is bit-exact in the displayed field, the drawing buffer
+  and Z.
+- **Roger's departure FMV leaves frame index == field.** It plays inside one
+  iteration whose vsync count (4,751 or 4,752 on the fork) makes the two
+  equal after it, from every entry phase tried (four runs).
+
 ### 5.4 Random-seeded effects
 
 The random-number state word was compared at every aligned loop top:

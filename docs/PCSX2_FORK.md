@@ -632,6 +632,73 @@ is confined to row 223. None is AREA11 load timing either, because the fb2
 points are not inside a load. The field-phase cases are v2.6.3 host-timing
 artefacts, so the fork frame is the reproducible one.
 
+### fb2 points on the port's field phase (2026-10-10)
+
+The port draws some fb2 points on the other field phase than the fork's
+primary capture (the port's GS_EXACT.md 10.3: first_control, 10, 11 and 12
+in the other buffer and on the other half line; 15_level_exit on the other
+half line only). The phase is not game state (PCSX2_FORK_GS_DIFF.md 5.1), so
+these are recorded again on the fork with the same game state and the port's
+phase, as a sibling set: `build/fork_refs/pixels/fb2_phase/<point>/` (the fb2
+layout) with `manifest.json` (per point: origin, chain comparison, rows and
+`rand()` against the primary point, the phase at s0..s2, pixels against the
+primary, plus `findings` and `checks`). Tool: `tools/fb2_phase_refs.py`
+(`scan`, `origin`, `chain`, `capture`, `manifest`). No memory is written.
+
+- **The lever: a boot variant.** fork_states.py's opening pass from
+  `slot01_title` with the title driver's Cross presses held back d ticks
+  (the movie played, as in the canonical boot). Every d from 4 to 11 reaches
+  first control with all compared spans of v2.6.3 slot 04 equal (score 0,
+  `rand()` state and player clock included), but after a different number of
+  iterations and vsyncs before the AREA11 load ends, so all four phase
+  combinations occur: (frame index, field) (1, 0) for d 4, 6, 9, 11; (1, 1)
+  for d 5, 10; (0, 0) for d 7; (0, 1), the canonical one, for d 8
+  (`_origin/scan.json`).
+- **The chain.** From the d4 origin (counter 3303, (1, 0); the canonical
+  3300, (0, 1)) the canonical chain's beats 01..08 and 10..15 were replayed
+  open loop, each in its own session from the previous beat's end state, with
+  the canonical lead-in, the recorded inputs on their frames, the pad
+  corrections and the tail. Every row of every beat equals the canonical row
+  in every field but counter, f, fi, fld and vs; the inputs and the end
+  `rand()` state are equal; fi and fld are both flipped on every row (until
+  beat 15's FMV, below).
+- **Result.** first_control, 10, 11 and 12 (d4): s0, s1 and s2 rows equal
+  the primary point's, the `rand()` state at s2 is equal, and the s1 drawing
+  buffer and OFY are the port's ((0x38, 1936.5) at first_control, 10, 12;
+  (0x0, 1936.0) at 11). 92,570 to 99,585 displayed pixels differ from the
+  primary (the half line).
+- **15_level_exit: the port's phase does not occur on the fork.** Roger's
+  departure FMV plays inside one main-loop iteration (beat 15 row 442) and
+  its vsync count adapts (4,751 or 4,752) so that the frame index and the
+  field are equal after it, whatever they were before: four chains entered
+  it with all four phase combinations (canonical, d4, d7, d8) and all left
+  with fi == fld. Every later iteration takes one vsync on the fork, so at
+  the point the original draws buffer 0x0 with OFY 1936.5 or 0x38 with
+  1936.0; the port's (0x0, 1936.0) has fi != fld. v2.6.3 follows the same
+  rule at its s0 (0x38, 1936.0); its s1 (0x0, 1936.0) came from a 2-vsync
+  iteration of the capture session (host timing). The half line at 15 thus
+  follows from the FMV's end; the port's field after that FMV is a port-side
+  question (FIRST_LEVEL_AUDIT F1). `fb2_phase/15_level_exit` is the d4
+  chain's point: the same game state on the port's half line (1936.0) in
+  the other buffer (0x38).
+- **The buffer does not change a pixel.** The d7 chain (fi as canonical,
+  fld flipped) and the d4 chain reach points 10 and 12 on the same tick and
+  half line (OFY 1936.5) in buffers 0x0 and 0x38: displayed, draw and z are
+  bit-exact between them (`checks`). So for pixels only the half line
+  matters (checked in AREA11; an inference for AREA01).
+- **Validation.** The d7 chain reaches point 15 on the primary's phase from
+  another boot; its capture equals the primary bit for bit in displayed,
+  draw and z, with the same `rand()` state (`_check/d7/15_level_exit`).
+
+```sh
+# macOS arm64 host (the fork runs x86_64 under Rosetta); decomp .venv; hidden, under the run lock
+.venv/bin/python tools/fb2_phase_refs.py scan --variants d4,d5,d6,d7,d8
+.venv/bin/python tools/fb2_phase_refs.py origin --variant d4
+.venv/bin/python tools/fb2_phase_refs.py chain --variant d4 --beats 01_battery,02_elevator_refusal,03_panel_power,04_elevator_ride,05_boxes,06_hill_slide,07_truck_preview,08_truck_crossing,10_cage_roof_roger,11_crevice_prompt,12_crevice_jump,13_east_tower,14_roger_encounter,15_level_exit
+.venv/bin/python tools/fb2_phase_refs.py capture --variant d4 --points first_control,10_cage_roof_roger,11_crevice_prompt,12_crevice_jump,15_level_exit
+.venv/bin/python tools/fb2_phase_refs.py manifest
+```
+
 ### Route groups re-recorded in parallel lanes (2026-10-10)
 
 **Tool.** `tools/route_lanes.py` re-records route_capture groups on the fork.
