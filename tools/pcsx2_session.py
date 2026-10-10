@@ -76,6 +76,19 @@ FORK_PY = FORK_REPO / "extermination/python"
 FORK_STATES = REFERENCE / "fork-states"
 FORK_MANIFEST = FORK_STATES / "manifest.json"
 RUN_LOCK = ROOT / "build/.pcsx2.lock"
+# Parallel lanes (tools/route_lanes.py).  The fork guide allows several
+# instances under one run lock: a parent process holds the lock and starts
+# workers with EXTERMINATION_FORK_LANE=k (1..40) and
+# EXTERMINATION_FORK_LOCK_HELD=<the lock path>.  A lane's ForkSessions then
+# neither take the lock nor wait for other emulators to exit (the other lanes
+# are the parent's own), and launch on their own DebugServer port and PINE
+# slot, so lanes never share a socket.
+_lane_env = os.environ.get("EXTERMINATION_FORK_LANE")
+FORK_LANE = int(_lane_env) if _lane_env else None
+LANE_PORT_BASE, LANE_PINE_BASE = 21612, 28200
+# Diagnostics only: EXTERMINATION_FORK_RENDERER=<n> changes ForkSession's
+# default renderer (13 Software; 11 Null).  Captures keep 13: only it keeps
+# rendered pixels in GS memory, and states saved under Null lack them.
 # ForkSession's default for VU1-on-its-own-thread: None = the capture ini's value
 # (on); env EXTERMINATION_FORK_MTVU=0/1 or route_capture --fork-mtvu overrides it.
 _mtvu_env = os.environ.get("EXTERMINATION_FORK_MTVU")
@@ -699,7 +712,7 @@ class ForkSession(OriginalSession):
     STOP_REASONS = ("tick", "breakpoint", "probe", "memwatch", "pc")
 
     def __init__(self, state: str | Path | None, log_dir: Path | None = None, *,
-                 app: Path = FORK_APP, iso: Path = DEFAULT_ISO, renderer: int = 13,
+                 app: Path = FORK_APP, iso: Path = DEFAULT_ISO, renderer: int = int(os.environ.get("EXTERMINATION_FORK_RENDERER", "13")),
                  scratch_base: Path | None = None, lock: Path | None = RUN_LOCK,
                  lock_wait: float = 3600.0, ready_timeout: float = 120.0,
                  lease_s: int = 1800, rtc: str = "2026-01-01 00:00:00", align: bool = True,
@@ -782,8 +795,15 @@ class ForkSession(OriginalSession):
             sys.path.insert(0, str(FORK_PY))
         from pcsx2dbg.launcher import Session, LaunchConfig   # the fork's MIT launcher
         self.log_dir.mkdir(parents=True, exist_ok=True)
-        self._take_lock()
-        self._wait_no_emulator()
+        lane = FORK_LANE
+        if lane is not None:
+            # a lane of tools/route_lanes.py: the parent holds the run lock
+            held = os.environ.get("EXTERMINATION_FORK_LOCK_HELD")
+            if not (1 <= lane <= 40) or not held or not Path(held).is_dir():
+                raise RuntimeError(f"lane {lane}: the parent's run lock {held} is not held")
+        else:
+            self._take_lock()
+            self._wait_no_emulator()
         self.scratch_base.mkdir(parents=True, exist_ok=True)
         self._fs = Session(scratch_base=self.scratch_base, lock=None)
         self._fs.open()
@@ -796,6 +816,8 @@ class ForkSession(OriginalSession):
                            lease_s=self.lease_s, rtc=None if self.state else self.rtc,
                            ini_overrides={**({"UI": {"StartPaused": "true"}} if self.state else {}),
                                           **getattr(self, "ini_overrides", {})})
+        if lane is not None:
+            cfg.port, cfg.pine_slot = LANE_PORT_BASE + lane, LANE_PINE_BASE + lane
         self._inst = self._fs.launch("orig", cfg)
         self.pid = self._inst.pid
         self._client = c = self._inst.client()

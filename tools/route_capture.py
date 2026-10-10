@@ -439,6 +439,12 @@ def resumable(state: Path) -> Path:
     return copy
 
 
+def pcsx2_session_lane() -> int | None:
+    """The parallel lane this process runs in (tools/route_lanes.py), or None."""
+    import pcsx2_session
+    return pcsx2_session.FORK_LANE
+
+
 def wait_for_free_emulator(timeout: float = 600.0) -> None:
     """The Pine socket and DebugServer port are global: never start a second
     emulator while another session (any lane) is running one."""
@@ -516,7 +522,8 @@ class RetrySession:
 
     def __enter__(self) -> OriginalSession:
         for attempt in range(self.attempts):
-            wait_for_free_emulator(3600.0 if FORK else 600.0)
+            if not (FORK and pcsx2_session_lane() is not None):   # a route_lanes.py lane: the parent's
+                wait_for_free_emulator(3600.0 if FORK else 600.0)  # other lanes are running emulators
             session = RouteSession(self.state, log_dir=self.log_dir)
             try:
                 self.session = session.__enter__()
@@ -7966,6 +7973,20 @@ def aim_event_keys(row: dict) -> dict:
 # only; no memory is written.  Outputs: build/c10/exit/<beat>/.
 OUT_EXIT = ROOT / "build/c10/exit"
 EXIT_PIN = 15800                     # exit_00 gives its first input at this main-loop counter
+
+
+def exit_pin() -> int:
+    """EXIT_PIN on the running chain.  The constant is a v2.6.3 main-loop
+    counter (route 14's end snapshot + 30..39 frames); the fork chain's
+    counters are offset from the v2.6.3 ones, so in fork mode the pin keeps
+    the same distance from route 14's end snapshot."""
+    if not FORK:
+        return EXIT_PIN
+    snap = json.loads((beat_dir("14_roger_encounter") / "snapshot.json").read_text())
+    ref = legacy_reference("14_roger_encounter", "13_east_tower")
+    if not ref or not ref.get("end_phase"):
+        raise RuntimeError("exit_pin: no v2.6.3 counter for route 14's end snapshot (legacy_refs.json)")
+    return EXIT_PIN + snap["main_loop_counter"] - ref["end_phase"]["counter"]
 EXIT_ROGER, EXIT_ATTACH = 0x7A8830, 0x7A8B20
 EXIT10_SPANS = [(n, a, 0x320 if n == "player" else z) for n, a, z in SPANS] + EXIT_SPANS + [
     ("roger:a", EXIT_ROGER, 0x40), ("roger:b", EXIT_ROGER + 0xA0, 0x40),
@@ -8061,9 +8082,10 @@ def exit_beat_departure(r: Route) -> dict:
     # run freely until Pine answers (the beat-14 snapshot starts anywhere from
     # counter 15761 to 15770), so idle (neutral pad) up to EXIT_PIN first; every
     # recording and replay then gives the same input at the same counter.
-    if r.rows[-1]["counter"] > EXIT_PIN:
-        raise RuntimeError(f"start counter {r.rows[-1]['counter']} is past the pin {EXIT_PIN}")
-    r.until(lambda row: row["counter"] >= EXIT_PIN, 200)
+    pin = exit_pin()
+    if r.rows[-1]["counter"] > pin:
+        raise RuntimeError(f"start counter {r.rows[-1]['counter']} is past the pin {pin}")
+    r.until(lambda row: row["counter"] >= pin, 200)
     r.goto(331.0, 177.0, tol=1.5, stuck_ok=True)
     r.goto(329.5, 172.0, tol=0.8, magnitude=0.5, stuck_ok=True)
     settle(r, 5)
@@ -8583,7 +8605,8 @@ def dmg_beat_fan_hit(r: Route) -> dict:
     # Back out of the band after the hit and idle.
     use_dmg_sampler(r)
     dmg_pin(r, "dmg_08_fan_hit")
-    r.until(lambda row: row["counter"] >= EXIT_PIN, 200)      # the player is held until about 15800
+    pin = exit_pin()
+    r.until(lambda row: row["counter"] >= pin, 200)           # the player is held until about 15800 (v2.6.3)
     r.goto(331.0, 177.0, tol=1.5, stuck_ok=True)
     r.goto(329.5, 172.0, tol=0.8, magnitude=0.5, stuck_ok=True)
     settle(r, 5)
@@ -8750,7 +8773,7 @@ def br_pin(r: Route, beat: str) -> None:
     snap = json.loads((beat_dir(source) / "snapshot.json").read_text())
     pin = snap["main_loop_counter"] + BR_PIN_AFTER
     if source == "14_roger_encounter":
-        pin = max(pin, EXIT_PIN)
+        pin = max(pin, exit_pin())
     if r.rows[-1]["counter"] > pin:
         raise RuntimeError(f"start counter {r.rows[-1]['counter']} is past the pin {pin}")
     r.set_pad(0)
@@ -9901,6 +9924,45 @@ def phase_report(rows: list[dict], ref: dict | None) -> dict:
     return out
 
 
+# The v2.6.3 user slots (01..15) were saved with the emulator's save hotkey,
+# at a vsync inside a main-loop iteration: that iteration's world update (its
+# rand() calls, fan timers, the player's clock, the actor sway) had run, but
+# the main-loop counter had not yet been incremented.  A legacy session's first
+# lead-in "frame" from such a slot therefore ran only the rest of that
+# iteration (the increment, no world update).  Measured 2026-10-10 on route 01:
+# v2.6.3 makes 22 rand() calls between slot 04 and row 0 (2 counter steps), a
+# fork loop-top state 44.  The fork state that matches a user slot is the
+# loop-top state right after that increment, whose frame index and field are
+# the slot's flipped; from it the lead-in is one frame shorter.  With the base
+# generation's slot04_first_control (counter 3300, frame index 0, field 1)
+# and a lead-in of 1, route 01 equals the v2.6.3 trace in every row field
+# (517 of 517 rows, the owner nodes and the player's clock included), in frame
+# index and field on every row, and in the rand() state at its end.  The
+# phase generation's slot04 (counter 3299, skip-at-40 boot) with the full
+# lead-in matched the frame index and field but ran one world update ahead.
+
+def slot_source_after_increment(slot: str) -> tuple[Path, int]:
+    """(fork state, lead-in correction) for a beat that starts from v2.6.3 user
+    slot `slot`: the fork-states manifest's state (either generation) whose
+    frame index and field are the slot's flipped (see above), and -1."""
+    want = legacy_slot_phase(slot)
+    if want is None:
+        raise RuntimeError(f"no cached v2.6.3 phase for slot {slot} (route_capture.py legacy-refs)")
+    flipped = (want["frame_index"] ^ 1, want["field"] ^ 1)
+    tried = []
+    for gen in ("phase", "base"):
+        try:
+            st = fork_state(slot, gen)
+        except KeyError:
+            continue
+        ph = _legacy_phase_at(st)
+        tried.append((gen, ph))
+        if ph and (ph["frame_index"], ph["field"]) == flipped:
+            return st, -1
+    raise RuntimeError(f"slot {slot}: no fork state with the frame index / field {flipped} "
+                       f"(the v2.6.3 slot's flipped); tried {tried}")
+
+
 def recorded_lead_in(name: str) -> int:
     """Frames the recorded capture of `name` ran between its source state and
     row 0 (fork phase generation: the replayed v2.6.3 lead-in; 0 otherwise).
@@ -10049,9 +10111,13 @@ def run_beat(name: str, source: str, fn, tries: int = 4) -> None:
     ref = legacy_reference(name, source) if phase_mode else None
     lead_in = ref["lead_in"] if (ref and PHASE_LOCK) else 0
     tail0 = ref["tail"] if (ref and PHASE_LOCK) else 0
+    slot_fix = phase_mode and bool(ref) and PHASE_LOCK and len(source) == 2 and source.isdigit()
+    if slot_fix:
+        slot_state, slot_delta = slot_source_after_increment(source)
+        lead_in += slot_delta
     for attempt in range(tries):
         tail = tail0 + 23 * attempt
-        src = beat_source(source)
+        src = slot_state if slot_fix else beat_source(source)
         try:
             with open_session(src, log_dir=base / "logs" / name) as s:
                 if lead_in:
@@ -10091,6 +10157,8 @@ def run_beat(name: str, source: str, fn, tries: int = 4) -> None:
                 if phase_mode:
                     meta["lead_in_frames"] = lead_in + correction
                     meta["phase_correction_frames"] = correction
+                    if slot_fix:
+                        meta["slot_lead_in_correction"] = slot_delta
                     meta["phase_lock"] = bool(ref and PHASE_LOCK)
                     meta["phase"] = phase_report(r.rows, ref)
                     meta["frames"] = r.frame_index
