@@ -463,11 +463,19 @@ effect do.
   - Beat 13 still leaves v2.6.3 at frame 133, at the v2.6.3 run's host-timed
     stop, and beat 14 inherits that.
   - Beat 15 takes 815 frames, against 801 in v2.6.3.
-- **Consequence.** `build/fork_refs/s87/route` and the groups chained from
-  it carry the one-update lead. Re-chaining them from the corrected route
-  (or redoing the phase route the same way) is the lead's decision. Slots
-  02, 03 and 15 have the same vsync-wait origin. Slots 06..14 store PC 0 at
-  that offset, which is a different layout, not checked.
+- **Consequence, now applied in route_capture itself (2026-10-10).** A beat
+  whose source is a v2.6.3 user slot starts from the fork state whose frame
+  index and field are the slot's flipped (`route_capture.slot_source_after_increment`:
+  for slot 04 that is the base `slot04_first_control`) with the v2.6.3
+  lead-in minus one (`slot_lead_in_correction` -1 in the trace). The official
+  chain `build/fork_refs/s87/route` and every group chained from it were
+  re-recorded that way ("Route groups re-recorded in parallel lanes" below).
+  The one-update-early chain of 2026-10-09 (the main route and the first
+  group runs from it) was deleted once replaced.
+  The `phase/slot0x` states and the status / Roger states that
+  `fork_states.py` derived from them still carry the lead (not regenerated).
+  Slots 02, 03 and 15 have the same vsync-wait origin. Slots 06..14 store PC
+  0 at that offset, which is a different layout, not checked.
 
 ### Pixel references re-recorded on the fork (2026-10-10)
 
@@ -513,6 +521,159 @@ None of the differences is the upstream scissor change: no differing frame
 is confined to row 223. None is AREA11 load timing either, because the fb2
 points are not inside a load. The field-phase cases are v2.6.3 host-timing
 artefacts, so the fork frame is the reproducible one.
+
+### Route groups re-recorded in parallel lanes (2026-10-10)
+
+**Tool.** `tools/route_lanes.py` re-records route_capture groups on the fork.
+
+- **One session, several instances.** It takes the run lock once and starts
+  up to `--lanes` worker processes. Each worker runs one beat on its own
+  DebugServer port (21612 + lane) and PINE slot (28200 + lane): the
+  `pcsx2_session.FORK_LANE` environment. The fork guide allows several
+  instances per lock.
+- **Scheduling.** A beat starts as soon as its source beat exists, critical
+  path first. Every `--yield-every` seconds (900 by default) the scheduler
+  lets the running beats finish and releases the lock for a few seconds, so
+  other runs waiting on it get their turn; the depth-of-field job did.
+- **The beat itself** is route_capture's `run_beat`, unchanged: the same
+  driving, closed loop where it is, phase-locked, with a fork-saved snapshot
+  that is checked to resume. Output, set manifests and fork-states
+  registration are route_capture's.
+- **Attempts.** A beat whose traced fields leave the v2.6.3 path is run
+  again, up to `--attempts` times. An identical rerun stops it (the
+  difference is the fork's own). Otherwise the attempt closest to v2.6.3 is
+  kept. The set manifest lists every attempt (`attempts`, `kept_attempt`),
+  and `_attempts/<beat>/<n>/trace.json` keeps the traces.
+- **Comparison.** `compare` sets each beat against its v2.6.3 trace in
+  `build/fork_refs/compare/<group>.json`:
+  - every row field except the time keys (counter, row index, frame index,
+    field, vsync, and the counters inside the pad block and scratchpad
+    slices), at the same row index;
+  - then aligned by game state: difflib over row fingerprints, where a "hold"
+    is extra rows that repeat the previous row (a wait or a load);
+  - the end `rand()` state and how many calls apart it is.
+  `report` writes `compare/summary.json`.
+
+```sh
+# macOS arm64 host (the fork runs x86_64 under Rosetta); decomp .venv
+.venv/bin/python tools/route_lanes.py run --groups main,c7,aim,exit,dmg,br,opt --lanes 4 --attempts 3
+.venv/bin/python tools/route_lanes.py run --groups levels --lanes 4 --attempts 2
+.venv/bin/python tools/route_lanes.py compare --groups main,c7,aim,exit,dmg,br,opt
+.venv/bin/python tools/route_lanes.py report
+```
+
+**Fixes found on the way** (decomp `1bba254`):
+
+- **The slot start.** The user-slot correction above is applied in
+  route_capture itself.
+- **EXIT_PIN.** exit_00, dmg_08 and br_14 waited for the v2.6.3 main-loop
+  counter 15800. The fork chain's counters are 784 lower, so they timed out.
+  `route_capture.exit_pin()` keeps the pin's distance from route 14's end
+  snapshot.
+- **a02_04.** A bug grabs the player during the turn at the panel on the
+  fork chain. The beat now shakes it off (`a04_shake`) and turns again. On a
+  run without a grab the policy is unchanged.
+
+**Results, first level** (4 lanes; 64 beats in 25 min of wall time):
+
+| Group | Beats | Rows fork / v2.6.3 | Equal to v2.6.3 in every field and phase | The rest |
+|---|---|---|---|---|
+| main 00..15 | 16 | 13,248 / 13,241 | 00..12 (also the end `rand()` state) | 13: the v2.6.3 run's host-timed stop at f133 (as before). 14, 15 inherit it; 15 also has the fan's slow window one cycle later, 816 rows against 802 |
+| c7 | 1 | 548 / 545 | – | row 200: action 1 where v2.6.3 has 5, same inputs; 11 of 12 fork runs agree on 1 |
+| aim | 12 | 7,273 / 7,272 | 00..04, 08, 10, 11 | 06, 07, 09: the processed pad's held/pressed edge one frame apart on 1 or 2 rows, nothing else. 05: the same at row 217, then a different shot sequence from row 375 |
+| exit | 2 | 815 / 802 | – | inherit route 14 (fan timers from row 0) |
+| dmg | 9 | 7,296 / 7,292 | 00, 06 | 02, 07: the loader read gate D_00282157 on 3 rows. 03: the game-over screen module's fade and task slots from row 261 (load timing); 04, 05 follow. 01: a pad edge at row 569, then a different flame path. 08 inherits route 14 |
+| br | 15 | 11,270 / 11,273 | 00, 06, 07, 10 | 01..05, 08: the loader read gate on 3 to 53 rows, plus the pad block's state on rows 0..1. 09: a pad edge at row 125. 11: a pad edge at row 1031, then a different climb; 12, 13 follow. 14 inherits route 14 |
+| opt | 9 | 3,094 / 3,094 | – | every beat: the memory-card record D_00810040 (+0x38, +0x40). The fork's states come from a boot without the user's memory card, and that record is zero, as in the port. Some beats also differ in the loader read gate and the sound handle (snd150) on a few rows |
+
+**Results, level groups** (outside the first level; 4 lanes, 2 attempts).
+59 of 159 beats were recorded: `a01` 16, `a00` 12, `a01r` 6, `a02` 7,
+`a04` 7 of 10. `a01_00`, `a01_s0`, `a01_s2`, `a01_s4` and `a01_s6` equal
+v2.6.3 in every field. The AREA01 arrival resets the world, so beat 15's
+difference does not carry over.
+
+- **Where the chain leaves v2.6.3.** At `a01_01` row 3, the player answers
+  the same stick input 2 frames earlier than in the v2.6.3 run. Everything
+  after it is the fork's own playthrough. Most of those beats are
+  repeatable: the second attempt was identical.
+- **The fork playthrough is not the v2.6.3 one.** In it, a bug bites and
+  infects the player at the `a02_04` panel. The player then enters `a04_03`
+  with health 41 against 90 and loses 2 every 240 frames.
+- **Blocked.** `a04_03_back_to_hall` fails, the same way in both attempts:
+  the injured idle clip 10 never satisfies `settle`'s clip-0 test. The 100
+  beats after it are not recorded (`a04_03` .. `a04_05`, then `a22` ..
+  `a03`).
+- **What it would take.** Continuing means adapting the policies to the fork
+  playthrough. The alternative is first putting the chain back on the v2.6.3
+  path (below). That is the lead's decision.
+- **Do not use these as references.** `a02_04` onward (with `a04_00`..`a04_02`
+  and the `a04_s*` side beats) is the infected playthrough.
+
+**Findings.**
+
+1. **The fork's closed loop is not always repeatable.**
+   - Route 10 from one state, run 10 times: 8 were identical in every row,
+     every machine region (hash store, 3,568 frames) and the end EE memory.
+     The other 2 left the path at rows 168 and 724, with the same inputs up
+     to there.
+   - The C7 beat, run 15 times with the software renderer: 4 left the path
+     (rows 94 and 124, and two of the three attempts in the lanes run).
+   - The C7 beat, run 8 times with the Null renderer: none did. That does not
+     settle it.
+   - Route 14 in the lanes run: 3 attempts, 3 different traces, from row 15.
+   - Every departure is the same kind of event: the player's action becomes
+     5 instead of 1 (or the reverse) on a frame where all traced state and
+     the inputs are equal.
+   - Also, two runs with identical EE state differed in GS memory at the end
+     snapshot (54,296 words of route 00), with VU1 on the EE thread.
+   - Open-loop runs with an input timeline did not diverge (4 instances,
+     2,884 frames). Neither did runs with a hash-only frame store, which are
+     slower.
+   - Not explained. It needs a fork-side look: diverge a failing pair with
+     full GS VRAM and IOP capture. Until then, the attempts above, and a
+     second run of any beat that matters, are the guard.
+2. **The v2.6.3 recordings carry host-timed pad latency.** On some rows the
+   v2.6.3 run's processed pad (held/pressed) changes one frame earlier or
+   later than the fork's, for the same input frame. Examples: aim_06 row 93,
+   br_09 row 125, a01_01 row 3 (2 frames). The fork applies v1 `pad_set` at
+   the next vsync, every time. The beats whose path changes at such an edge
+   are aim_05, dmg_01, br_11..13 and the whole level chain after a01_01.
+   Replaying the v2.6.3 latency per input (search the delay that keeps the
+   rows equal) would put those beats back on the v2.6.3 path.
+3. **The fork chain makes the same `rand()` calls as v2.6.3** once the slot
+   start is corrected (the end state is equal for 00..12). The earlier
+   "identical in every traced field" verdict missed the one-update lead
+   because the comparison covered only 13 player fields.
+4. **Loader timing.** The loader read gate D_00282157 and some screen-module
+   fades differ by a row or two around disc reads. The game-over screen's
+   load (dmg_03) is the visible case. This is the fork's disc timing.
+5. **Request timeouts under 4 lanes.** A client request timed out 4 times in
+   the first four-lane run (about 150 sessions), once inside a 300 s
+   `state_save`; none in the later runs. The attempts absorbed them. Watch
+   for them if lanes go above 4.
+
+**Could the port's level smoke and side-run checkers switch as-is?** They
+read the v2.6.3 paths today. The fork sets are under `build/fork_refs/` with
+the same layout. Fork counters are 784 lower than v2.6.3's from first control
+on (relative counters are equal).
+
+- **Main route 00..12, aim 00..04, 08, 10, 11, dmg 00, 06, br 00, 06, 07,
+  10.** Yes. Only the path changes: every field and phase is equal.
+- **aim 06, 07, 09; br 01..05, 08; dmg 02, 07.** Very likely, unless a check
+  compares the pad edge or the loader read gate row for row (the BRANCH and
+  OPTIONS checkers name the busy byte D_00275BD8, not the read gate).
+- **opt.** Likely. The card record is zero here, which is the port's
+  "known difference". The OPTIONS checker compares the card record only from
+  the load row's clear on, and it is equal there in opt_07.
+- **No:**
+  - `level_smoke_area01` hard-codes beat 15's arrival row 741 and its last
+    counter;
+  - the C7 side checks (row 200 on);
+  - aim_05, dmg_01, dmg_03..05, dmg_08, br_09 (one edge), br_11..14, the EXIT
+    pair and route 13..15: their windows hold different values;
+  - every level group.
+- The port test runs themselves are the final word. A port-side job makes
+  the switch.
 
 ### What still needs v2.6.3
 
@@ -636,18 +797,18 @@ the frame index and field equal the v2.6.3 rows (`trace.json` "phase").
 
 | # | Set (v2.6.3 path) | Command (decomp .venv) | Source | Port readers to switch later | Notes |
 |---|---|---|---|---|---|
-| 1 | main route 00..14 (`s87/route`) | `route_capture.py run --beats all` | `phase/04` | 38 files | done on 2026-10-09 (above): 00..12 equal to v2.6.3 in every traced field and phase; 13 and 14 phase-equal |
-| 2 | beat 15, level exit | `route_capture.py run --beats 15` | route 14 | (in the 38) | minutes of host time (the departure movie plays in one tick); the AREA01 load length is fork-specific, so rows after it may lose the phase |
+| 1 | main route 00..14 (`s87/route`) | `route_lanes.py run --groups main` | base `04`, lead-in minus one | 38 files | redone on 2026-10-10 with the slot correction, `route_lanes.py` ("Route groups re-recorded in parallel lanes"): 00..12 equal to v2.6.3 in every row field, phase and end `rand()` state; 13..15 differ (v2.6.3's f133 stop) |
+| 2 | beat 15, level exit | `route_capture.py run --beats 15` | route 14 | (in the 38) | done on 2026-10-10: 816 rows against 802 (inherits route 14; the fan's slow window one cycle later) |
 | 3 | status chain 08/12/14, Roger 15 | `fork_states.py status --generation phase`; `fork_states.py roger --generation phase` | route 02; `phase/slot03` | slot 14 test, `status-hub/`, `roger-encounter/` | done on 2026-10-09; all four phase-equal |
-| 4 | C7 group (`s87/c7cap/<item>/c7_*`) | `route_capture.py run --beats c7` | route snapshots | 11 files (`s87/c7cap`) | |
+| 4 | C7 group (`s87/c7cap/<item>/c7_*`) | `route_capture.py run --beats c7` | route snapshots | 11 files (`s87/c7cap`) | done on 2026-10-10: differs from row 200 |
 | 5 | C7 stream / rng / lane3 (title) | `c7cap_capture.py stream`, `rng`, `lane3 --from title` | route 01/10/11/13, slot 01 | `test_iop_stream_reference` and others | lane3 `--from boot` stays v2.6.3-only |
 | 6 | C7 fb, h7, **fb2 pixel points** | `c7cap_partb.py fb`, `h7`, `fb2` | the 16 route snapshots + first control | `test_fb2_pixels.py` and others | fb2 done on 2026-10-10 from the corrected chain (`--corrected-chain`, "Pixel references re-recorded on the fork"): 14 of 19 bit-exact; fb and h7 not run |
-| 7 | AIM (`aimfire/capture`) | `route_capture.py run --beats aim` | route 08 | 5 files | |
-| 8 | C10 EXIT (`c10/exit`) | `--beats exit` | route 14 | 5 files | exit_01 costs minutes (movie) |
-| 9 | C10 DAMAGE (`c10/damage`) | `--beats dmg` | routes 07, 11, 14 | 5 files | |
-| 10 | C10 BRANCH (`c10/branch`) | `--beats br` | routes 02..14 | 2 files | |
-| 11 | C10 OPTIONS (`c10/options`) | `--beats opt` | route 08 | 3 files | no memory card is written |
-| 12 | level groups `a01`, `a00`, `a01r`, `a02`, `a04`, `a22`, `a01u`, `a06`, `a06b`, `a01v`, `a22b`, `a04b`, `a13`, `a19`, `a13b`, `a13c`, `a13d`, `a19b`, `a19c`, `a19d`, `a15`, `a15b`, `a19e`, `a03` (`s87/route_a*`) | `--beats <group>`, in this order | beat 15, then each previous group | 1 to 16 files per group | outside the first level. Area loads are longer in the fork, so later rows may lose the v2.6.3 phase (reported per row) |
+| 7 | AIM (`aimfire/capture`) | `route_capture.py run --beats aim` | route 08 | 5 files | done on 2026-10-10: 8 of 12 equal in every field; 06, 07, 09 differ in one pad edge; 05 diverges |
+| 8 | C10 EXIT (`c10/exit`) | `--beats exit` | route 14 | 5 files | done on 2026-10-10: both inherit route 14 |
+| 9 | C10 DAMAGE (`c10/damage`) | `--beats dmg` | routes 07, 11, 14 | 5 files | done on 2026-10-10: 00, 06 equal; the rest loader timing, a pad edge (01) or route 14 (08) |
+| 10 | C10 BRANCH (`c10/branch`) | `--beats br` | routes 02..14 | 2 files | done on 2026-10-10: 00, 06, 07, 10 equal; 01..05, 08 the loader read gate only; 09, 11..14 differ |
+| 11 | C10 OPTIONS (`c10/options`) | `--beats opt` | route 08 | 3 files | done on 2026-10-10: the memory-card record (zero on the fork) and a few loader rows |
+| 12 | level groups `a01`, `a00`, `a01r`, `a02`, `a04`, `a22`, `a01u`, `a06`, `a06b`, `a01v`, `a22b`, `a04b`, `a13`, `a19`, `a13b`, `a13c`, `a13d`, `a19b`, `a19c`, `a19d`, `a15`, `a15b`, `a19e`, `a03` (`s87/route_a*`) | `--beats <group>`, in this order | beat 15, then each previous group | 1 to 16 files per group | partly done on 2026-10-10: 59 of 159 beats (`a01`, `a00`, `a01r`, `a02`, 7 of `a04`); blocked at `a04_03` on the fork's own playthrough ("Route groups re-recorded in parallel lanes") |
 | 13 | census (`s87/census`) | `route_census.py run --segments all --pass F`, then `report --passes F` | slot 01, the route | 39 files, `FIRST_LEVEL_CENSUS.md` | thousands of v1 breakpoints through `ForkV1Debug`: smoke-test one beat first (`--segments 00`); the function sets should equal the v2.6.3 census |
 | 14 | load wait (`s87/loadwait`) | `load_wait_probe.py run --beats 01,03 --mode boundary` (and `breakpoints`) | routes 01, 03 | 2 files | the fork's loader runs longer |
 | 15 | sound requests (`sfx_probe`) | `sfx_request_probe.py run` | the census route | 1 file | |

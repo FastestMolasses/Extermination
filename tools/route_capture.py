@@ -2639,7 +2639,20 @@ def a02_beat_panel(r: Route) -> dict:
     r.set_pad(0)
     settle(r, 5)
     approach(r, 424.5, 94.0)
-    face(r, 0.0)
+    # The fork chain (2026-10-10): a bug grabs the player during the turn
+    # (action 0x3B, then a bite 0x3E) where the v2.6.3 run had none, so the
+    # turn's settle never ends.  Shake the bug off (a04_shake) and turn again;
+    # on a run without a grab this is the v2.6.3 policy unchanged.
+    for _attempt in range(6):
+        try:
+            face(r, 0.0)
+            break
+        except TimeoutError:
+            if r.rows[-1]["m1F0"] not in A04_GRABS:
+                raise
+            a04_shake(r)
+            r.until(in_control, 1200)
+            approach(r, 424.5, 94.0)
     charge0 = r.rows[-1]["charge"]
     use_press(r, lambda row: not in_control(row))
     next_prompt_yes(r)
