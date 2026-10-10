@@ -236,12 +236,13 @@ class ForkPlayer:
         kw = {}
         if self.app:
             kw["app"] = Path(self.app)
-        # the disc boots its own SCUS_971.12 (no -elf override: on 2026-10-09 the fork build
-        # failed to read the scratch copy of the ELF given with -elf, and the game then ran wild)
-        # present=True: frames are copied to the (hidden) window.  With presentation off the
-        # Metal build's GS thread aborted twice on 2026-10-09 (an IOGPU shared-memory assertion
-        # under GSDeviceMTL::DoStretchRect: after ~9 min of free running, and ~10 s into the
-        # level-exit movie E001); presentation only paces the run (120 Hz cap), not emulation.
+        # the disc boots its own SCUS_971.12, the original boot path (an -elf override also
+        # boots since fork commit 1e22fdc0c, which passes the scratch copy's real path)
+        # present=True: frames are copied to the (hidden) window; presentation only paces the
+        # run (120 Hz cap), not emulation.  It was needed before fork 0.2.2: with presentation
+        # off those builds never submitted GPU work and aborted after ~27,000 vsyncs (twice on
+        # 2026-10-09: a long free run, and ~10 s into the level-exit movie E001).  0.2.2 fixed
+        # it (fork CHANGELOG), so --fork-no-present is safe there.
         cfg = LaunchConfig(iso=ISO, rtc=RTC, unlimited=True, renderer=self.renderer, lease_s=1800,
                            mtvu=self.mtvu, present=self.present, **kw)
         fp = sources_fingerprint(cfg)

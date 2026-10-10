@@ -537,8 +537,10 @@ class ForkSession(OriginalSession):
         """state None = a cold boot of the disc (fixed RTC `rtc`, so boots repeat).
         A state load starts paused ([UI] StartPaused), so nothing runs between
         the load and the first request.  align False = stay exactly on the loaded
-        state (no first step); True = OriginalSession's alignment to the next
-        main-loop top."""
+        state (no first step); True = one `run {ticks: 1}` to the main-loop top
+        (a state saved at the loop top stays where it is: the fork counts the
+        tick at the loaded PC without executing).  Either way step(n) advances
+        exactly n frames (see _resume_to_boundary)."""
         self.align = align
         if boundary_timeout:
             self.boundary_timeout = boundary_timeout
@@ -572,6 +574,7 @@ class ForkSession(OriginalSession):
         self._snaps = 0
         self._iso_clone = None
         self._digest = hashlib.sha256(self.state.read_bytes()).hexdigest() if self.state else None
+        self._ee_cycle = None   # EE cycle of the last stop (a tick stop without execution is not a frame)
 
     def _take_lock(self) -> None:
         if self.lock is None:
@@ -635,16 +638,31 @@ class ForkSession(OriginalSession):
                 time.sleep(0.1)
         (self.log_dir / "launch.log").write_text(json.dumps(
             {"instance": self._inst.info(), "hello": self.hello, "state": str(self.state)}, indent=1) + "\n")
+        self._ee_cycle = c.call("state").get("ee_cycle")
         if self.align:
-            self._resume_to_boundary()
+            self._run_tick()
         return self
 
-    def _resume_to_boundary(self, timeout: float | None = None) -> None:
+    def _run_tick(self, timeout: float | None = None) -> dict:
         timeout = timeout or self.boundary_timeout
         r = self._client.call("run", until={"ticks": 1}, timeout_s=timeout, timeout=timeout + 60)
         stop = r.get("stop", {})
         if stop.get("reason") != "tick":
             raise TimeoutError(f"frame boundary not reached: {stop}")
+        executed = stop.get("ee_cycle") != self._ee_cycle
+        self._ee_cycle = stop.get("ee_cycle")
+        stop["executed"] = executed
+        return stop
+
+    def _resume_to_boundary(self, timeout: float | None = None) -> None:
+        """One whole frame: run to the next main-loop top.  A state saved at the
+        loop top loads with the PC on the tick PC, and the fork counts that tick
+        at once: the first run {ticks: 1} after such a load stops where it
+        started, with no EE cycle executed.  That stop is not a frame, so the
+        run is repeated (once: the next one always executes)."""
+        if not self._run_tick(timeout)["executed"]:
+            if not self._run_tick(timeout)["executed"]:
+                raise RuntimeError("frame step: two tick stops without executing")
 
     def _paused(self) -> bool:
         return bool(self._client.call("state").get("paused"))

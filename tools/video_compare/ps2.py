@@ -912,8 +912,8 @@ def main(argv=None) -> int:
     fk.add_argument("--fork-app", default=None, help="fork: another PCSX2.app build of the fork")
     fk.add_argument("--max-ticks", type=int, default=None, help="fork: stop after this many recorded ticks")
     fk.add_argument("--fork-no-present", action="store_true",
-                    help="fork: do not copy frames to the hidden window (faster, but the Metal build's GS "
-                         "thread aborted that way during long movies on 2026-10-09)")
+                    help="fork: do not copy frames to the hidden window (faster; safe from fork 0.2.2 on, "
+                         "earlier builds aborted that way after ~27,000 vsyncs)")
     return run(ap.parse_args(argv))
 
 
