@@ -1,3 +1,15 @@
+## 2026-10-09 — PCSX2 agent-debug fork in use; tools' states regenerated; GS diff explained
+
+- The agent-debug PCSX2 fork (`../pcsx2-fork`, DebugServer 0.2.2, MCP server
+  `pcsx2-agent`) drives the original for the decomp tools: `ForkSession` /
+  `--emulator fork` in `tools/pcsx2_session.py` and `tools/route_capture.py`,
+  and `ps2.py --emulator fork` (`tools/video_compare/ps2_fork.py`) with the
+  original's sound. 24 tool states regenerated in the fork
+  (`build/startup-reference/fork-states/`, 640fac0). Fork vs v2.6.3 field
+  differences explained by the game's frame and field phase
+  (`docs/PCSX2_FORK_GS_DIFF.md`). Status, rules and the 2.6.3 retirement
+  checklist: `docs/PCSX2_FORK.md`; the day's summary: `docs/HANDOFF.md`.
+
 ## 2026-09-25 — AREA01 overlay: 32 functions byte-matched from C (a01-decomp-match lane)
 
 - **Why AREA01 was split wrong.** Every overlay is linked at 0x00823500, but

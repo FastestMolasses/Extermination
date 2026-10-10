@@ -245,9 +245,11 @@ python3 tools/video_compare/video_compare.py compose --native build/video_compar
   the user's disc image (APFS-cloned into scratch) with a fixed RTC
   (2026-01-01 00:00:00), plays the intro movie, waits for the idle title and
   confirms NEW GAME with ps2.py's title driver (one Cross; the New Game
-  movie skipped with START when the recording skipped it). No `-elf`
-  override: with it, this fork build failed to read the ELF's scratch copy
-  and the game crashed at once (2026-10-09). Boot to title takes about 78 s.
+  movie skipped with START when the recording skipped it). It passes no
+  `-elf` override. (An `-elf` boot failed on 2026-10-09 because the scratch
+  path ran through the `/var` symlink; the fork's launcher passes real
+  paths since fork commit `1e22fdc0c`, and a cold boot with `-elf` now
+  reaches the game.) Boot to title takes about 78 s.
 - **Ticks.** `run {until: {ticks: 1}}` with the tick PC at the loop top
   0x001AAF28 and a persistent stop probe at the return from the input step
   (`ps2.post_input_pc()`), where the processed pad block is written with
@@ -284,19 +286,21 @@ python3 tools/video_compare/video_compare.py compose --native build/video_compar
   +0.8 samples of the SPU2 clock (one sample per 768 IOP cycles from the
   tap's first mark). compose.py places the PS2 audio by `af` whenever a
   run has it; legacy runs keep the vsync-counter placement.
-- **Presentation stays on** (frames are copied to the hidden window; it
-  only paces the run). With it off, this Metal build's GS thread aborted
-  twice on 2026-10-09 with an IOGPU shared-memory assertion under the Metal
-  device's stretch-rect pass: after about 9 min of free running, and about
-  10 s into the level-exit movie E001. `--fork-no-present` turns it off.
+- **Presentation stays on by default** (frames are copied to the hidden
+  window; it only paces the run). `--fork-no-present` turns it off. Fork
+  builds before server 0.2.2 leaked GPU memory with presentation off and
+  aborted after long free runs or movies (twice on 2026-10-09: after about
+  9 min, and about 10 s into the level-exit movie E001). Fork 0.2.2
+  (`5a3048e8e`) fixed it: the footprint stays flat over 36,000 vsyncs, so
+  the switch is safe from 0.2.2 on (`hello.server_version`).
 - **Lock and safety.** pcsx2dbg's `Session` takes `build/.pcsx2.lock` (polled
   every 3 s: other lanes run short sessions back to back). It launches
   hidden on scratch under `$TMPDIR/pcsx2-fork-vc` (BIOS and ini copies),
   shuts the instance down and deletes the scratch. It never touches
   `portable-data`, the memory cards or slots. SIGTERM closes the session
-  too. The emulator log is kept in `ps2/pcsx2_logs/`. The fork's shutdown
-  command did not end the process within 20 s in any run; the launcher then
-  terminates it, and no crash report results.
+  too. The emulator log is kept in `ps2/pcsx2_logs/`. Since fork 0.2.2 the
+  shutdown ends in about 0.5 s; before it, the process did not end within
+  20 s after a long closed loop and the launcher terminated it.
 - **Output.** The same as ps2.py (`ps2.rec`, `ps2_extra.json`, `frames/`),
   plus `audio.wav` and `audio_sync.json`. `ps2_extra.json` adds `info`
   (boot, title, movies with their vsync, play, end, shutdown) and, per row,
@@ -725,8 +729,13 @@ build/video_compare/demo_level/ps2_fork --stride 4 --audio --emulator fork`.
     New Game by host polling.
   - AREA01 load: 302 / 294 / 94.
   - segment 24: 219 / 219 / 218.
-  - Every other segment is equal on all three sides, including the opening
-    cutscene (1,321).
+  - opening cutscene (segment 4): 1,321 / 1,321 / 1,310: the port's known
+    opening lead.
+  - title (segment 0): different by construction. The port logs the
+    recording's 74 title ticks; both PS2 passes drive the title with
+    ps2.py's title driver and log no rows there (the fork pass took 147
+    title ticks with one Cross after its cold boot).
+  - Every other segment is equal on all three sides.
 - **Pictures** (mean absolute difference per channel, 3,521 paired frames):
   - fork vs port: 2.08 overall. That is closer than v2.6.3 vs port, 3.53.
   - In play segments the fork is within 0.16 to 0.6 of the port, against
@@ -737,8 +746,14 @@ build/video_compare/demo_level/ps2_fork --stride 4 --audio --emulator fork`.
     host-timed vsync. Two fork runs that differ only in that vsync (3
     vsyncs apart) differ in every field while their game state is
     identical. Exact pixel comparisons therefore need the same emulated
-    timeline. The vsync-dependent state was not traced (candidates: the
-    field parity, timer-seeded effects).
+    timeline. The vsync-dependent state is the game's frame and field
+    phase: the frame index D_00810E80 (it picks the drawing buffer and
+    flips every main-loop iteration) and the field D_00810E88 (sampled at
+    every vsync; it picks the half-line draw offset). See
+    [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md) sections 3 to 5: the
+    renderers are equal, the capture moment is the same, and with the phase
+    matched a fork run reproduces 1,152 of 1,173 v2.6.3 captures bit for
+    bit.
 - **Sound against the picture.** These checks were made on the per-tick
   audio of both sides (`audio_rms_by_tick.json`) and again in the final
   video's left and right channels (`sound_check/`):
@@ -755,14 +770,23 @@ build/video_compare/demo_level/ps2_fork --stride 4 --audio --emulator fork`.
     and 247 and falls off at 360, on the same ticks on both sides.
   - The two loudest effects (RMS about 13,000, segments 5 and 6 at offset 67)
     start on the same tick on both sides.
-- **Port finding (not traced): a recurring loud sound starts 14 ticks
-  early.** In the play segments a loud sound returns every 130 to 170 ticks
+- **Port finding (explained by port `a345d9a`, below): a recurring loud
+  sound starts 14 ticks early.** In the play segments a loud sound returns every 130 to 170 ticks
   (RMS about 8,000; e.g. segment 17 offsets 51, 350, 519, 650, 818, 949).
   It starts 14 ticks (0.23 s) later on the original than on the port, at
   about 30 places, while every effect above is on the same tick. At segment
   17 the original's sound starts with the camera cut at offset 64; the
   port's starts at 51. It looks like a stream lane starting early. That is
   a lead for a port-side agent, not a diagnosis.
+  **Explained (port `a345d9a`, 2026-10-09):** the sound is the area music's
+  own percussive hit (lane 0, cue 25, every 131 / 169 ticks). After every
+  status page the original's lane-0 read seeks for about 17 fields after
+  the page's module load; the port answers at host speed and resumes the
+  music 17 fields early (15 with the disc-drive timing switch). That is
+  disc timing, which the port does not reproduce by policy (an open launcher
+  decision, port `LAUNCHER_OPTIONS.md`). The same commit fixed a port bug:
+  the replay's offline audio pull left music and voices one field late in
+  the comparison WAVs.
 - **Videos** (ignored, `demo_level/`; `--speed 2 --fps 30 --height 960 --crf
   12 --summary-seconds 3`, the same title, and the subtitle ending in the
   sound note): `demo_level_sound.mp4` (`--audio both`: original LEFT, port

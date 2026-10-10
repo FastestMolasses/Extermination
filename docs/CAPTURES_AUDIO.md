@@ -12,7 +12,15 @@ there too (`build/s87/audio/tools/`); no tracked tool was changed.
 
 ## Result
 
-**The original's audio output was not recorded. No WAV exists.**
+**The original's audio output was not recorded in PCSX2 v2.6.3. No WAV exists
+from this job.**
+
+Update 2026-10-09: the project's agent-debug PCSX2 fork records the original's
+SPU2 output in emulated time (`audio_tap`, 48 kHz, sample-exact per loop top).
+The video comparer's fork pass uses it (`ps2.py --emulator fork --audio`,
+[VIDEO_COMPARE.md](VIDEO_COMPARE.md) "The fork path"); the whole first level
+was recorded that way (demo_level). See [PCSX2_FORK.md](PCSX2_FORK.md). The
+rest of this page is about v2.6.3.
 
 The user allowed PCSX2's audio recording during this capture job only
 (2026-10-01). PCSX2 v2.6.3, the MCP-enabled build the project uses, offers no

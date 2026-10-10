@@ -51,12 +51,15 @@ behaviour only, so port-side agents may read them.
 
 | Item | State |
 |---|---|
-| Fork build | `pcsx2-fork/build-x64/pcsx2-qt/PCSX2.app`: x86_64, runs under Rosetta 2, not installed. Acceptance results: 70/70 v1 smoke, 78/78 BIOS, 21/21 MCP, 37/37 game. |
+| Fork build | `pcsx2-fork/build-x64/pcsx2-qt/PCSX2.app`: x86_64, runs under Rosetta 2, not installed. DebugServer **0.2.2** (fork commit `5a3048e8e`). Acceptance results on it: 70/70 v1 smoke, 82/82 BIOS, 21/21 MCP, 38/38 game (`--probes 1200`). The app's version string still reads `v2.9.114-11-gc105df140` (it is fixed when the build is configured), so identify a build by `hello.server_version`. |
+| Metal | The Xcode Metal Toolchain was installed on 2026-10-09 (the user's decision) and the fork rebuilt with its Metal renderer (fork `36f3e3a50`; `EXTERMINATION_BUILD.md` section 6). Captures still use the software renderer (13): only it keeps rendered pixels in GS memory. |
+| Code signing | The build is **unsigned** (ad-hoc signing is optional, `EXTERMINATION_BUILD.md` section 5). A stable local signing identity, which would keep one `~/Documents` grant across rebuilds, is **not set up**: Claude Code's permission system refused the agent's keychain import and signing steps. The user decides (create it from the recipe in `EXTERMINATION_BUILD.md` section 5, or allow an agent to). Until then the launcher keeps scratch outside `~/Documents` and APFS-clones the disc image. |
 | MCP bridge | `pcsx2-fork/extermination/mcp-server/pcsx2_agent_mcp.py` (55 tools), registered in Claude Code as `pcsx2-agent` (local scope, the user's decision of 2026-10-09). The legacy Node bridge in `../PCSX2-MCP` is no longer the registered server. |
 | Legacy emulator | `build/startup-reference/PCSX2.app`: v2.6.3, x86_64, with the old DebugServer (TCP 21512) and PINE. It stays the default for every decomp tool until the user retires it (checklist in "Retiring the 2.6.3 app" below). The duplicate `/Applications/PCSX2.app` went to the Trash on 2026-10-09. |
 | Save states | The fork writes version `0x9A59` and refuses v2.6.x states (`0x9A55`) with an explicit error. The user's slots 01 to 15 and the `build/s87/...` snapshots load only in the legacy app. The fork-saved replacements the tools need are in `build/startup-reference/fork-states/` (next section). |
 | Compat with the game | Receipts are in the ignored `build/pcsx2-fork/acceptance/reports/`. The fork cold-boots the game, passes the intro and title, and replays the demo_hill route (4,678 ticks). Against the legacy run, per-tick game state matched once one load segment was aligned (273 against 268 ticks), except 5 rows of the loader busy byte. |
 | GS fields against v2.6.3 | **Explained** in [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md). Most compat-stage frames differed because the game's frame index and field phase differed after the longer load, not because of the renderer. With the phase matched, a fork run reproduces 1,152 of 1,173 v2.6.3 reference captures bit for bit. The fork's software renderer equals v2.6.3's on 906 conformance tests and 112 dumped game fields. The one exception is the half-pixel culling change of upstream `4fa2b8e45`: lines or points starting within half a pixel outside the scissor, 8 captures here. Pair captures by tick and field, and decode each run's own drawing buffer (section 8 there). |
+| Fixes of 2026-10-09 | **Presentation off** (fork 0.2.2): builds before it never submitted GPU work while presentation was off, leaked about 1 MB per vsync and aborted the GS thread after long free runs or movies; 0.2.2 submits every 4 vsyncs and the footprint stays flat (765 MB over 36,000 vsyncs). **Shutdown** (0.2.2): about 0.5 s, also after thousands of stops and on lease expiry (before: over 20 s after a long closed loop, then killed). **`-elf` boots** (fork `1e22fdc0c`): the launcher passes real paths, so an `-elf` override from the `$TMPDIR` scratch (under the `/var` symlink) loads and runs. **`ForkSession` steps** (decomp `184f6f1`): `step(n)` advances exactly n frames with `align` False or True (below). |
 | arm64 | No native build. Upstream has no arm64 recompilers, and the fork's probes and memwatches live in the x86 recompilers. Rosetta 2 is available through macOS 27. See `EXTERMINATION.md` section 14. |
 
 ## Using it from this repository's tools
@@ -95,7 +98,8 @@ command line does not take the run lock itself.
 ## Fork states: the tools' save states regenerated in the fork
 
 `tools/fork_states.py` rebuilt, from a **cold boot in the fork**, the v2.6.3
-states the tools use (2026-10-09, fork build `v2.9.114-11-gc105df140`). Each
+states the tools use (2026-10-09, decomp `640fac0`, fork build
+`v2.9.114-11-gc105df140`). Each
 state sits at the same **game point** as the old one. Points are matched by
 game state, never by the main-loop counter, which differs between the builds:
 the task slots, fade and letterbox blocks, scratchpad selectors, the player
@@ -215,14 +219,25 @@ or the old path) with the `OriginalSession` API (`step`, `pad`, `read`,
 - A state load starts paused (`[UI] StartPaused`), and one frame step is one
   `run {until: {ticks: 1}}` at the loop top. That is about 80 frames a second
   with route_capture's per-frame sample, against about 8 on the legacy app.
+- **Stepping.** `align=True` (the default) makes one `run {ticks: 1}` to the
+  loop top after the load; a state saved at the loop top stays where it is.
+  `align=False` stays exactly on the loaded state. Either way `step(n)`
+  advances exactly n frames: a state saved at the loop top loads with the PC
+  on the tick PC, and the fork counts that tick without executing, so a tick
+  stop that executed no EE cycle is run again once (two in a row raise an
+  error). Before decomp `184f6f1`, `align=False` lost the first step
+  (counter 3300 -> 3300 from state 04). Test:
+  `tools/test_pcsx2_session_fork.py` (4 unit checks; `--live` adds 4 checks
+  on state 04).
 - `snapshot()` saves with `state_save` (exact) and takes `original.png` from
   `gs_field`.
-- `ForkSession(None)` cold-boots the disc with a fixed RTC. It passes no
-  `-elf`: an `-elf` override on a cold boot leaves the EE in the kernel.
-  The cause is the scratch path. `$TMPDIR` lies under the symlink `/var`, and
-  the emulator accepts the override only when `-elf` names the real path. The
-  fork's launcher passes real paths since fork commit `1e22fdc0c`, so `-elf`
-  now boots. See [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md) section 9.
+- `ForkSession(None)` cold-boots the disc with a fixed RTC and passes no
+  `-elf` (none is needed). An `-elf` override used to leave the EE in the
+  kernel: `$TMPDIR` lies under the symlink `/var`, and the emulator accepts
+  the override only when `-elf` names the real path. The fork's launcher
+  passes real paths since fork commit `1e22fdc0c`; checked on 2026-10-09: a
+  cold boot with `-elf` from the default scratch loaded the ELF and reached
+  tick 120. See [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md) section 9.
 - The scratch folder, ISO clone and lock are removed on close.
 
 ### Still 2.6.3-only
@@ -230,7 +245,8 @@ or the old path) with the `OriginalSession` API (`step`, `pad`, `read`,
 - **Tools with no fork option yet:**
   - `tools/route_census.py`: its census sessions are `OriginalSession`
     subclasses with legacy breakpoints;
-  - `tools/video_compare/ps2.py`: title slot 01, Media Capture;
+  - `tools/video_compare/ps2.py` by default (title slot 01, Media Capture);
+    its `--emulator fork` pass runs on the fork (next section);
   - `tools/gs_conformance.py`, `tools/ee_float/harness.py`,
     `tools/c7cap_capture.py`, `tools/c7cap_partb.py`, `tools/load_wait_probe.py`;
   - the disposable probes in `build/startup-reference/*.py`.
@@ -258,6 +274,41 @@ or the old path) with the `OriginalSession` API (`step`, `pad`, `read`,
   Slot 08 (hand-played) and slot 12 (written by `panel_root_probe.py`) are
   needed only as sources of 12 and 14, and have fork equivalents above.
 
+### Video comparison on the fork (`ps2.py --emulator fork`)
+
+`tools/video_compare/ps2_fork.py` is the PCSX2 pass of the video comparison
+on the fork (decomp `8f9362f`), selected with `ps2.py --emulator fork` (or
+`video_compare.py ps2 ... --emulator fork`). Full description:
+[VIDEO_COMPARE.md](VIDEO_COMPARE.md) "The fork path".
+
+```sh
+# macOS arm64 host (the fork runs x86_64 under Rosetta); decomp .venv via the dispatcher
+python3 tools/video_compare/video_compare.py ps2 build/video_compare/my_run.rec \
+    --out build/video_compare/my_run/ps2_fork --stride 4 --audio --emulator fork
+```
+
+- **Start:** a cold boot of the disc image with a fixed RTC, the intro movie,
+  then ps2.py's title driver to NEW GAME (no v2.6.x title state).
+- **Ticks:** `run {until: {ticks: 1}}` at the loop top, a stop probe at the
+  return from the input step (the processed pad block written there), and a
+  stop probe at the movie driver func_00203350 (START skips land on the same
+  vsync every run, so the pass is repeatable).
+- **Pictures:** DISPFB2 read at loop top t + 2, then that buffer read from GS
+  memory at t + 3 (the drawing FRAME buffer, ps2.py's capture point without
+  save states); software renderer only. `--fork-field-k K` reads `gs_field`
+  at t + K instead (diagnostics).
+- **Sound:** `--audio` records the original's SPU2 output with the fork's
+  emulated-time tap; each row's `af` holds its sample position, and
+  `ps2/audio.wav` covers exactly the logged span.
+- **Options:** `--fork-renderer`, `--fork-mtvu`, `--fork-app`, `--max-ticks`,
+  `--fork-no-present` (safe from fork 0.2.2 on; presentation stays on by
+  default).
+- **Result (demo_level, 2026-10-09):** the whole first level in about 6 min
+  (44.7 min on v2.6.3); position and heading equal to the v2.6.3 run on all
+  13,632 paired ticks; the original's sound in the demo videos
+  `demo_level_sound.mp4` and `demo_level_original_sound.mp4` (ignored,
+  `build/video_compare/demo_level/`).
+
 ### Retiring the 2.6.3 app: what is still needed
 
 1. Port the remaining legacy-only tools above to `ForkSession`, or decide to
@@ -276,5 +327,6 @@ or the old path) with the `OriginalSession` API (`step`, `pad`, `read`,
    (4 or 5 more loader iterations in the fork), and lines or points starting
    within half a pixel outside the scissor. See
    [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md) sections 5 to 8.
-5. Then the user can trash `build/startup-reference/PCSX2.app` and the slots,
-   with their confirmation (`CLAUDE.md`).
+5. Then the user can trash `build/startup-reference/PCSX2.app`. The user
+   allowed (2026-10-09) removing their slots 01 to 15 together with that
+   retirement (`CLAUDE.md`); until then both stay.

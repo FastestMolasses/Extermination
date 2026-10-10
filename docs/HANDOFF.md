@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-09 (Claude: the first-level coverage step, census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-09 (Claude: the PCSX2 agent-debug fork day, below; census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -37,14 +37,15 @@ that is a different, stale tree.
   `tools/ee_float/`.
 - Original runtime: `tools/pcsx2_session.py` runs PCSX2 hidden, with exact one-frame
   steps, pad input, memory reads and snapshots. Save states are in
-  `build/startup-reference/portable-data/sstates/` (01-15 are the user's; never
-  overwrite them).
+  `build/startup-reference/portable-data/sstates/` (user, 2026-10-09: every slot
+  may be used; slots 01-15 may go to the Trash with the 2.6.3 app's retirement).
 - Agent-debug PCSX2 fork (2026-10-09): `../pcsx2-fork`, entry point
   `../pcsx2-fork/EXTERMINATION.md`; status, rules and the decomp-side hookup are
   in `docs/PCSX2_FORK.md`. It offers run-to-condition, a per-frame store with
   verified rewind, memwatch logs, inline coverage probes and an emulated-time
-  audio tap. Its MCP bridge is not registered yet, and v2.6.3 states do not
-  load in it.
+  audio tap. Its MCP bridge is the registered server `pcsx2-agent`; v2.6.3
+  states do not load in it, but the tools' states are regenerated
+  (`build/startup-reference/fork-states/`, `--emulator fork`).
 - Port live checks: `EM_STARTUP_TEST=newgame-control` (displacement 9.599849) and the
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
@@ -53,6 +54,59 @@ that is a different, stale tree.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
+
+## 2026-10-09: the PCSX2 agent-debug fork, the demos, presentation, coverage
+- **The fork** (`../pcsx2-fork`, branch `extermination-mcp`, local only, never pushed):
+  upstream PCSX2 `v2.9.114` (`aa7ab4306e26`) plus our DebugServer 0.2.2 and AgentDebug
+  engine: run to N vsyncs / ticks / the Nth hit of a PC in one request (about 200
+  closed-loop ticks/s, 280 free vsyncs/s), a per-frame store with verified rewind and a
+  divergence finder, memwatch logs, inline count/log probes (coverage with no observer
+  effect), watch tables, an emulated-time SPU2 tap, GS field / VRAM reads, exact save
+  states. x86_64 under Rosetta; Metal Toolchain installed and the fork rebuilt with Metal
+  (`36f3e3a50`); unsigned. MCP bridge `pcsx2-agent` registered (local scope, both repos;
+  the old Node bridge is no longer registered). Entry point `../pcsx2-fork/EXTERMINATION.md`; decomp
+  side `docs/PCSX2_FORK.md`. Clean room: readers of emulator source never write in the
+  port or `src/`.
+- **Fork fixes today:** `1e22fdc0c` (the launcher passes real paths, so `-elf` boots from
+  `$TMPDIR` scratch); `5a3048e8e` = 0.2.2 (presentation off no longer leaks GPU memory and
+  aborts; shutdown about 0.5 s instead of 20 s + kill); decomp `184f6f1` (`ForkSession`
+  `step(n)` is exactly n frames with `align` False or True). Suites on 0.2.2: 70/70,
+  82/82, 21/21, 38/38.
+- **Fork states** (decomp `640fac0`): `tools/fork_states.py` regenerated the tools' 24
+  states from a cold boot in the fork, matched by game state, in ignored
+  `build/startup-reference/fork-states/` (`manifest.json`, `verify.json` 24/24). Use
+  `ForkSession(fork_state("04"))`, `pcsx2_session.py 04 --emulator fork`,
+  `route_capture.py --emulator fork`. The checklist for retiring the 2.6.3 app (route_census
+  and other legacy-only tools, the other route groups, port tests reading slot files) is
+  in `docs/PCSX2_FORK.md`.
+- **GS diff explained** (`docs/PCSX2_FORK_GS_DIFF.md`, 0d0ad2d / bacc01e): fork fields
+  differed from v2.6.3 because of the game's frame index D_00810E80 and field phase
+  D_00810E88 after a longer load, not the renderer; with the phase matched 1,152 of
+  1,173 v2.6.3 captures reproduce bit for bit (the rest: the load-length fade, and
+  upstream `4fa2b8e45`'s half-pixel scissor culling, 8 captures). The port roadmap now
+  treats the fork as the frame pixel reference (port 94c02a9).
+- **Demos** (`docs/VIDEO_COMPARE.md`; ignored `build/video_compare/`): demo_hill (New
+  Game to the hill, 4,345 of 4,346 ticks bit-exact; re-rendered after the presentation
+  merge and the overlay fix) and demo_level (the whole first level, 14,102 ticks, 13,619
+  of 13,620 bit-exact). With the original's sound (decomp `8f9362f`: `ps2.py --emulator
+  fork` / `ps2_fork.py`, about 6 min per pass against 44.7 min on v2.6.3):
+  `demo_level_sound.mp4` (original left, port right) and `demo_level_original_sound.mp4`.
+  The loud sound 14 ticks early in the port is the area music resuming after status
+  pages (disc seek timing, port a345d9a, which also fixed the replay WAV's one-field
+  stream lag).
+- **Port presentation** (user, "(a) for both"): fields line-doubled to 448 lines with the
+  half-line field one line lower, the picture moved by SCREEN ADJUST (port merge 3d403ac);
+  the overlay pass now follows the field's line on half-line fields (0eea8b5); the movie
+  driver's display position is known (f1e589c).
+- **Coverage:** 001755B0 / 0021E9C0 have byte-matched C (decomp bc49270) and are entered
+  by side runs (port merge de2b1d4: dmg_fan, dmg_pit_fall; a fan-damage bug fixed);
+  census 1.69, all 951 live rows entered by a run (details under "State" below).
+- **Open user decisions:** (1) the stable local signing identity for the fork (not set up;
+  Claude Code's permission system refused it; recipe in the fork's
+  `EXTERMINATION_BUILD.md` section 5); (2) retiring `build/startup-reference/PCSX2.app`
+  and slots 01-15 to the Trash once the `docs/PCSX2_FORK.md` checklist is done (confirm
+  first); (3) whether the port's disc-drive timing switch models the 16-17-field seek of
+  the first stream read after a module load (port `LAUNCHER_OPTIONS.md`, OPEN).
 
 ## Paused 2026-10-04 (the user's usage limit) — resume here
 - **Level 2 (AREA01) on port main:** Codex's work taken over and merged (6a4ecfe, then
@@ -190,8 +244,9 @@ that is a different, stale tree.
   duplicate owners (6, 7), the pool's free list (5), the fan's hit dmg_08 as a side run
   (10). **User decisions (2026-10-09):** an audio recording from a visible PCSX2 session
   is allowed (1), and so is using a memory card in PCSX2 for the slot / load / save
-  paths (9; use a separate card file, never the user's own cards). Still open: the
-  field-presentation and screen-position choices (3; the user asked to see them).
+  paths (9; use a separate card file, never the user's own cards). The
+  field-presentation and screen-position choices (3) were decided later that day: (a)
+  and (a), port merge 3d403ac.
 - **2026-10-09 (workflow wf_7fa526cc-b06):** (1) demo video build/video_compare/demo_hill/
   (New Game to the hill slide, 4,734 ticks recorded from the level smoke with
   EM_NEW_GAME=1 + EM_PS2_DISC_DRIVE_TIMING=1; PCSX2 vs port 4,345 of 4,346 ticks
@@ -244,9 +299,10 @@ that is a different, stale tree.
   them is bound. Each level needs its own binding chain later.
 - **Decomp:** 2159/2214, boot ELF and 19/19 overlays byte-identical (58ff8de);
   docs/FIRST_LEVEL_DECOMP.md, docs/LEVELS_DECOMP.md.
-- **Tools:** side-by-side video comparison (decomp tools/video_compare/, docs/VIDEO_COMPARE.md;
-  the PS2 side has no sound: PCSX2 records audio only from its UI, and the visible-session
-  attempt was declined at the macOS access dialog, docs/CAPTURES_AUDIO.md).
+- **Tools:** side-by-side video comparison (decomp tools/video_compare/, docs/VIDEO_COMPARE.md).
+  The PS2 side has the original's sound only on the fork pass (`--emulator fork`); the
+  v2.6.3 pass stays silent (PCSX2 2.6.3 records audio only from its UI,
+  docs/CAPTURES_AUDIO.md).
 - **Policy and registries (user, 2026-09-27):** the original code is the oracle;
   hardware timing is not reproduced by default (disc at host speed, no slowdown,
   no CRT); the recorded disc-drive timing (C7 VOICELAT) becomes an optional
