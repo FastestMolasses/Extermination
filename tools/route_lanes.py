@@ -114,16 +114,17 @@ def done(name: str) -> bool:
 # ---------------------------------------------------------------------------
 # run lock
 
+_RUNLOCK = {"lock": None}
+
+
 def take_lock(log) -> None:
+    """The run lock with this process as its recorded owner (pcsx2dbg.sessions
+    RunLock: mkdir + owner.json).  The lanes are this process's children:
+    ForkSession accepts EXTERMINATION_FORK_LOCK_HELD only when the lock's owner
+    is one of its ancestors."""
+    import pcsx2_session as ps
     t0 = time.monotonic()
-    while True:
-        try:
-            LOCK.mkdir()
-            break
-        except FileExistsError:
-            if time.monotonic() - t0 > 6 * 3600:
-                raise RuntimeError(f"run lock {LOCK} still held after 6 h")
-            time.sleep(2)
+    _RUNLOCK["lock"] = ps.take_run_lock(LOCK, wait_s=6 * 3600, label="route_lanes")
     # another run that just released the lock may still be shutting its emulator down
     while subprocess.run(["pgrep", "-f", "^[^ ]*PCSX2.app/Contents/MacOS/PCSX2"],
                          capture_output=True).returncode == 0:
@@ -132,10 +133,14 @@ def take_lock(log) -> None:
 
 
 def release_lock(log) -> None:
+    rl, _RUNLOCK["lock"] = _RUNLOCK["lock"], None
+    if rl is None:
+        log("run lock release skipped: not held by this process")
+        return
     try:
-        LOCK.rmdir()
+        rl.release()                      # refuses a lock this process does not hold
         log("run lock released")
-    except OSError as exc:
+    except Exception as exc:  # noqa: BLE001
         log(f"run lock release failed: {exc}")
 
 

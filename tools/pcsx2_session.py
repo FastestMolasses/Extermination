@@ -95,6 +95,30 @@ _mtvu_env = os.environ.get("EXTERMINATION_FORK_MTVU")
 FORK_MTVU = None if _mtvu_env in (None, "", "ini") else _mtvu_env.lower() in ("1", "true", "on")
 
 
+def fork_sessions():
+    """The fork's ownership module (pcsx2dbg.sessions, MIT): owner records, the
+    owned run lock, list / stop / reap.  Never stop what you did not start."""
+    if str(FORK_PY) not in sys.path:
+        sys.path.insert(0, str(FORK_PY))
+    from pcsx2dbg import sessions
+    return sessions
+
+
+def owner_label(default: str = "pcsx2_session") -> str:
+    """The caller label recorded with every session and lock this process takes:
+    $PCSX2_FORK_OWNER_LABEL, else the running script's name."""
+    v = os.environ.get("PCSX2_FORK_OWNER_LABEL")
+    if v:
+        return v
+    return Path(sys.argv[0]).name if sys.argv and sys.argv[0] else default
+
+
+def take_run_lock(lock: Path = RUN_LOCK, wait_s: float = 3600.0, label: str | None = None, poll: float = 2.0):
+    """The run lock with an owner (mkdir + owner.json); returns the RunLock,
+    whose release() refuses to remove a lock this process does not hold."""
+    return fork_sessions().RunLock(Path(lock), label or owner_label()).acquire(wait_s, poll)
+
+
 def fork_manifest() -> dict:
     if not FORK_MANIFEST.exists():
         raise FileNotFoundError(f"no fork-state manifest at {FORK_MANIFEST} "
@@ -326,6 +350,8 @@ class OriginalSession:
         self.debug = DebugServer()
         self.frames_stepped = 0
         self._digest = hashlib.sha256(self.state.read_bytes()).hexdigest()
+        self._record = None          # owner record (pcsx2dbg.sessions), see _register_owner
+        self._pid_start = None
 
     # -- lifecycle -------------------------------------------------------
     def __enter__(self) -> "OriginalSession":
@@ -367,6 +393,7 @@ class OriginalSession:
                 time.sleep(0.05)
             if self.pid is None:
                 raise RuntimeError("hidden emulator launch: process not found")
+        self._register_owner()
         deadline = time.monotonic() + self.ready_timeout
         while time.monotonic() < deadline:
             if not self._alive():
@@ -394,6 +421,23 @@ class OriginalSession:
 
     def __exit__(self, *exc) -> None:
         self.close()
+
+    def _register_owner(self) -> None:
+        """Owner record for the legacy app's emulator (pcsx2dbg.sessions; shown by
+        `pcsx2_session.py --sessions`), so nobody mistakes it for an orphan.
+        The PID's start time guards every later signal against PID reuse."""
+        try:
+            ss = fork_sessions()
+            self._pid_start = ss.proc_start(self.pid)
+            token = ss.new_token()
+            sid = time.strftime("%Y%m%d-%H%M%S-") + f"{os.getpid()}-legacy-{os.urandom(2).hex()}"
+            base = Path(os.environ.get("TMPDIR", "/tmp")) / "pcsx2-fork-session"
+            self._record = ss.SessionRecord.create(base, sid, None, ss.owner_identity(owner_label()),
+                                                   ss.token_sha(token), None, kind="legacy")
+            self._record.add_emulator("legacy", self.pid, self._pid_start, 21512, 28011)
+        except Exception as e:  # noqa: BLE001  (the record is bookkeeping; the run goes on)
+            self._record = None
+            print(f"pcsx2_session: no owner record: {e}", file=sys.stderr)
 
     def _prepare_data_dir(self) -> tuple[Path, Path, Path]:
         """Scratch -datapath folder (opt-in, see __init__): read-only copies in,
@@ -461,6 +505,9 @@ class OriginalSession:
         self._terminate()
         self.proc = None
         self.pid = None
+        if getattr(self, "_record", None) is not None:
+            self._record.delete()
+            self._record = None
         self._remove_iso_clone()
         if hashlib.sha256(self.state.read_bytes()).hexdigest() != self._digest:
             raise RuntimeError(f"source save state changed: {self.state}")
@@ -500,6 +547,9 @@ class OriginalSession:
                 self.proc.kill()
                 self.proc.wait()
             return
+        start = getattr(self, "_pid_start", None)
+        if start is not None and not fork_sessions().proc_alive(self.pid, start):
+            return                        # our emulator is gone; the PID may be someone else's now
         try:
             os.kill(self.pid, signal.SIGTERM)
         except OSError:
@@ -508,6 +558,8 @@ class OriginalSession:
             if not self._alive():
                 return
             time.sleep(0.1)
+        if start is not None and not fork_sessions().proc_alive(self.pid, start):
+            return
         try:
             os.kill(self.pid, signal.SIGKILL)
         except OSError:
@@ -717,7 +769,7 @@ class ForkSession(OriginalSession):
                  lock_wait: float = 3600.0, ready_timeout: float = 120.0,
                  lease_s: int = 1800, rtc: str = "2026-01-01 00:00:00", align: bool = True,
                  boundary_timeout: float | None = None, ini_overrides: dict | None = None,
-                 mtvu: bool | None = None, **_ignored):
+                 mtvu: bool | None = None, label: str | None = None, **_ignored):
         """state None = a cold boot of the disc (fixed RTC `rtc`, so boots repeat).
         A state load starts paused ([UI] StartPaused), so nothing runs between
         the load and the first request.  align False = stay exactly on the loaded
@@ -765,20 +817,22 @@ class ForkSession(OriginalSession):
         self._iso_clone = None
         self._digest = hashlib.sha256(self.state.read_bytes()).hexdigest() if self.state else None
         self._ee_cycle = None   # EE cycle of the last stop (a tick stop without execution is not a frame)
+        # ownership (pcsx2dbg.sessions): one token for the run lock and the launcher session
+        self.label = label or owner_label()
+        self.token = fork_sessions().new_token()
+        self._runlock = None
 
     def _take_lock(self) -> None:
+        """The run lock with this session's owner record (pcsx2dbg.sessions.RunLock:
+        mkdir + owner.json; released only by this object)."""
         if self.lock is None:
             return
-        deadline = time.monotonic() + self.lock_wait
-        while True:
-            try:
-                self.lock.mkdir()
-                self._locked = True
-                return
-            except FileExistsError:
-                if time.monotonic() > deadline:
-                    raise RuntimeError(f"run lock {self.lock} still held after {self.lock_wait:.0f} s")
-                time.sleep(2)
+        rl = fork_sessions().RunLock(self.lock, self.label, self.token)
+        try:
+            rl.acquire(self.lock_wait, 2.0)
+        except TimeoutError as e:
+            raise RuntimeError(f"run lock {self.lock} still held after {self.lock_wait:.0f} s: {e}") from None
+        self._runlock, self._locked = rl, True
 
     def _wait_no_emulator(self) -> None:
         """Runs that predate the lock (legacy route_capture) share PINE's socket
@@ -799,13 +853,15 @@ class ForkSession(OriginalSession):
         if lane is not None:
             # a lane of tools/route_lanes.py: the parent holds the run lock
             held = os.environ.get("EXTERMINATION_FORK_LOCK_HELD")
-            if not (1 <= lane <= 40) or not held or not Path(held).is_dir():
-                raise RuntimeError(f"lane {lane}: the parent's run lock {held} is not held")
+            if not (1 <= lane <= 40) or not held or not fork_sessions().lock_held_by_ancestor(Path(held)):
+                raise RuntimeError(f"lane {lane}: the run lock {held} is not held by this process's parent")
         else:
             self._take_lock()
             self._wait_no_emulator()
         self.scratch_base.mkdir(parents=True, exist_ok=True)
-        self._fs = Session(scratch_base=self.scratch_base, lock=None)
+        self._fs = Session(scratch_base=self.scratch_base, lock=None, label=self.label, token=self.token,
+                           held_lock=Path(os.environ["EXTERMINATION_FORK_LOCK_HELD"]) if lane is not None
+                           else (self.lock if self._locked else None))
         self._fs.open()
         # A cold boot runs the disc's own boot ELF (an -elf override on a cold boot
         # leaves the EE in the kernel: "Failed to read ELF"); a state load gets
@@ -925,12 +981,12 @@ class ForkSession(OriginalSession):
         finally:
             self._fs = self._inst = self._client = None
             self.pid = None
-            if self._locked and self.lock is not None:
-                try:
-                    self.lock.rmdir()
-                except OSError:
-                    pass
+            if self._locked and self._runlock is not None:
                 self._locked = False
+                try:
+                    self._runlock.release()      # refuses a lock this object does not hold
+                except Exception as e:  # noqa: BLE001
+                    print(f"pcsx2_session: run lock not released: {e}", file=sys.stderr)
         if self.state and hashlib.sha256(self.state.read_bytes()).hexdigest() != self._digest:
             raise RuntimeError(f"source save state changed: {self.state}")
 
@@ -941,7 +997,7 @@ if __name__ == "__main__":
         description="Step the original game and snapshot it.  Default emulator: the agent-debug "
                     "fork (docs/PCSX2_FORK.md); the v2.6.3 app stays available as --emulator legacy "
                     "until it is retired.")
-    ap.add_argument("state", help="fork: a fork-states manifest key or alias (04, slot01, "
+    ap.add_argument("state", nargs="?", help="fork: a fork-states manifest key or alias (04, slot01, "
                                   "14_roger_encounter, phase/04) or an old v2.6.3 path the manifest "
                                   "replaces; legacy: a .p2s path or a 2-digit user slot (never modified)")
     ap.add_argument("--frames", type=int, default=1)
@@ -962,7 +1018,34 @@ if __name__ == "__main__":
     ap.add_argument("--data-dir", type=Path,
                     help="with a binary path: scratch -datapath folder outside ~/Documents")
     ap.add_argument("--renderer", type=int, default=13, help="[EmuCore/GS] Renderer (13 = software)")
+    own = ap.add_argument_group("session ownership (never stop what you did not start; docs/PCSX2_FORK.md)")
+    own.add_argument("--sessions", action="store_true",
+                     help="list every recorded emulator session: owner PID/label/alive, age, emulator PIDs, "
+                          "alive, and the run lock's holder; starts nothing")
+    own.add_argument("--reap", action="store_true",
+                     help="remove only sessions whose owner process is dead AND whose emulators are gone")
+    own.add_argument("--reap-lock", action="store_true",
+                     help="with --reap: also remove the run lock if its holder is dead and no recorded "
+                          "emulator is alive")
+    own.add_argument("--dry-run", action="store_true", help="with --reap: report only")
+    own.add_argument("--stop", metavar="SESSION_ID",
+                     help="stop a session you own (this process tree, or --token from its launch)")
+    own.add_argument("--token", help="with --stop: the session's token")
     a = ap.parse_args()
+    if a.sessions or a.reap or a.stop:
+        ss = fork_sessions()
+        if a.sessions:
+            ss._print_table(ss.list_sessions())
+        if a.reap:
+            print(json.dumps(ss.reap(dry_run=a.dry_run, locks=a.reap_lock), indent=1))
+        if a.stop:
+            try:
+                print(json.dumps(ss.stop_session(a.stop, a.token), indent=1))
+            except (ss.OwnershipError, KeyError) as e:
+                sys.exit(f"refused: {e}")
+        sys.exit(0)
+    if not a.state:
+        ap.error("a state is required (or --sessions / --reap / --stop)")
     names = [b for b in a.buttons.split(",") if b]
     if a.emulator == "fork":
         gen = a.generation

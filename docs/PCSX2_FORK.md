@@ -37,11 +37,59 @@ behaviour only, so port-side agents may read them.
   `src/`.
 - **Port-side agents use behaviour only.** They use the fork through its tools
   and its behaviour docs, never its source or `docs/agent-debug/IMPLEMENTATION.md`.
-- **Running it.** The run lock `build/.pcsx2.lock` (mkdir, always rmdir),
-  hidden runs, scratch data outside `~/Documents` and never
+- **Running it.** The run lock `build/.pcsx2.lock` (mkdir, plus an
+  `owner.json` naming the holder; only the holder removes it), hidden runs,
+  scratch data outside `~/Documents` and never
   `build/startup-reference/portable-data`. Use the software renderer for
   captures, and leave no emulator running. The fork's launcher and MCP bridge
   do all of this for you.
+- **Never stop what you did not start.** Stop only your own sessions, by
+  session id, through the tools below. Never `kill`, `pkill` or `killall` a
+  PCSX2 process, and never remove a lock you did not take.
+
+### Never stop what you did not start (2026-10-10)
+
+On 2026-10-09 a parallel diagnostic agent killed the emulator of another
+agent's census smoke run. It picked a PID from a process listing. The fork's
+launcher (`pcsx2dbg/sessions.py`, fork `EXTERMINATION.md` section 4) now
+makes ownership explicit, and the decomp tools use it:
+
+- Every session writes an owner record,
+  `<scratch base>/<session id>.session.json`. It holds the creating
+  process's PID, start time and parent PID, a caller label (the script name,
+  or `PCSX2_FORK_OWNER_LABEL`), the hash of a session token, and every
+  emulator's PID, start time and port. It is written at launch and removed at
+  close. `ForkSession`, `fork_states.py`, `route_capture.py`, the lanes and
+  `video_compare --emulator fork` get it through the launcher.
+  `OriginalSession` (the v2.6.3 app) records its emulator the same way.
+- The run lock carries `owner.json`. `ForkSession`, `route_lanes.py` and
+  `take_run_lock()` take it through `RunLock`, which removes only a lock it
+  took. A lane accepts `EXTERMINATION_FORK_LOCK_HELD` only when the lock's
+  holder is its parent or another ancestor. The legacy-only paths
+  (`video_compare/ps2.py`, `repack/proof.py` with
+  `EXTERMINATION_PCSX2=legacy`) still use a bare `mkdir`/`rmdir`. A bare
+  `rmdir` cannot remove an owned lock: the folder is not empty.
+- Every stop path checks ownership by session id. Close runs only in the
+  creating process. Another process may stop a session only from the
+  owner's process tree or with the session's token. Signals go only to the
+  recorded PID, and only while its start time matches. The `shutdown`
+  command goes only to a DebugServer that reports the recorded PID.
+- The reaper removes only sessions whose owner process is dead and whose
+  emulators are gone. It leaves orphans (owner dead, emulator alive) to their
+  lease.
+
+```sh
+# macOS (arm64 host), decomp .venv; starts no emulator
+.venv/bin/python tools/pcsx2_session.py --sessions              # owner, age, emulator PIDs, alive; lock holder
+.venv/bin/python tools/pcsx2_session.py --reap --dry-run        # what would be removed
+.venv/bin/python tools/pcsx2_session.py --reap [--reap-lock]    # dead owner AND emulators gone only
+.venv/bin/python tools/pcsx2_session.py --stop <session id> [--token T]   # your own session only
+# the same without the decomp: cd ../pcsx2-fork/extermination/python && python3 -m pcsx2dbg.sessions list
+```
+
+Test: the fork's `extermination/tests/test_sessions.py` (no emulator, 35/35
+in 5 s). It runs two sessions in parallel and checks that one cannot stop
+the other's, and that the reaper leaves a live session alone.
 - **Output.** Everything it writes from the disc (captures, states, fields,
   audio) stays in scratch or ignored `build/` folders. No disassembly from
   `pcsx2_disassemble` goes into docs, comments or commits.
@@ -766,6 +814,33 @@ on (relative counters are equal).
 - The port test runs themselves are the final word. A port-side job makes
   the switch.
 
+### Disc timing at loads: fork against v2.6.3 (2026-10-10)
+
+A real timing difference exists between the two emulators, and it appears
+only around disc reads. It was found in the a04 diagnostics, re-checked by a
+reviewer; receipts are in `build/fork_diverge_a04/`: `chain2.out` for beat
+15, `chain/` for `a01_07`.
+
+- **Beat 15 (`15_level_exit`):** the streaming disc reads run 26 frames
+  later on the fork, from row 4 on. The first row that differs is the
+  loader read gate D_00282157 (`cd157`).
+- **`a01_07_level_exit`:** the AREA00 module load finishes 9 frames later on
+  the fork.
+- **What it affects:** timing only. These are the frames on which a read
+  completes. The game state is not different: the same code runs on the same
+  data. Every row whose only difference is a read gate or a loader fade is
+  this effect. That covers the "fork's disc timing" entries above and
+  finding 4 in the list of findings.
+- **Lead for whoever re-measures the port's disc-drive timing switch:** the
+  port's optional PS2 disc-drive timing switch (off in the Original profile)
+  takes its drive model from v2.6.3 captures. See the port's
+  `docs/IOP_STREAM.md`, sections "Host speed and the PS2 disc-drive timing
+  switch" and "Drive model": the C7 stream capture, and the 17-field first
+  read after a module-loader read. The fork's drive gives other completion
+  frames at loads. A re-measurement on the fork should therefore re-derive
+  the seek classes and the 17-field rule before comparing. The port's
+  behaviour is unchanged; this note only records the lead.
+
 ### What still needs v2.6.3 (2026-10-10)
 
 - **To run the 2.6.3 app: one optional case.** `c7cap_capture.py lane3
@@ -953,7 +1028,7 @@ the frame index and field equal the v2.6.3 rows (`trace.json` "phase").
 | 10 | C10 BRANCH (`c10/branch`) | `--beats br` | routes 02..14 | 2 files | done on 2026-10-10: 00, 06, 07, 10 equal; 01..05, 08 the loader read gate only; 09, 11..14 differ |
 | 11 | C10 OPTIONS (`c10/options`) | `--beats opt` | route 08 | 3 files | done on 2026-10-10: the memory-card record (zero on the fork) and a few loader rows |
 | 12 | level groups `a01`, `a00`, `a01r`, `a02`, `a04`, `a22`, `a01u`, `a06`, `a06b`, `a01v`, `a22b`, `a04b`, `a13`, `a19`, `a13b`, `a13c`, `a13d`, `a19b`, `a19c`, `a19d`, `a15`, `a15b`, `a19e`, `a03` (`s87/route_a*`) | `--beats <group>`, in this order | beat 15, then each previous group | 1 to 16 files per group | partly done on 2026-10-10: 59 of 159 beats (`a01`, `a00`, `a01r`, `a02`, 7 of `a04`); blocked at `a04_03` on the fork's own playthrough ("Route groups re-recorded in parallel lanes") |
-| 13 | census (`s87/census`) | `route_census.py run --segments all --pass F`, then `report --passes F` | slot 01, the route | 39 files, `FIRST_LEVEL_CENSUS.md` | thousands of v1 breakpoints through `ForkV1Debug`: smoke-test one beat first (`--segments 00`); the function sets should equal the v2.6.3 census. Smoke (`--segments 00 --pass FORKSMOKE`) re-run on 2026-10-10 from the canonical chain: 518 functions (the v2.6.3 pass A set), 261 of 261 rows equal the recorded beat, end digests equal; the first attempt lost its DebugServer connection at frame 76 and the tool retried (`runs/FORKSMOKE/_failed/`) |
+| 13 | census (`s87/census`) | `route_census.py run --segments all --pass F`, then `report --passes F` | slot 01, the route | 39 files, `FIRST_LEVEL_CENSUS.md` | thousands of v1 breakpoints through `ForkV1Debug`: smoke-test one beat first (`--segments 00`); the function sets should equal the v2.6.3 census. Smoke (`--segments 00 --pass FORKSMOKE`) re-run on 2026-10-10 from the canonical chain: 518 functions (the v2.6.3 pass A set), 261 of 261 rows equal the recorded beat, end digests equal; the first attempt lost its DebugServer connection at frame 76 and the tool retried (`runs/FORKSMOKE/_failed/`). That was not a fork fault: a parallel diagnostic agent killed that run's emulator by mistake (an incident; see "Never stop what you did not start"). The retried run is valid |
 | 14 | load wait (`s87/loadwait`) | `load_wait_probe.py run --beats 01,03 --mode boundary` (and `breakpoints`) | routes 01, 03 | 2 files | the fork's loader runs longer. Beat 01 breakpoints mode re-run on 2026-10-10 from the canonical chain: 517 of 517 rows equal the recorded beat; 24 dispatches, 17 polls, 3 reads, 1 request, as on v2.6.3 |
 | 15 | sound requests (`sfx_probe`) | `sfx_request_probe.py run` | the census route | 1 file | |
 | 16 | GS conformance (`b16/gscap`) | `gs_conformance.py capture` | `phase/04` (the 2026-10-09 state; the tests' packets do not depend on the game frame) | 2 files | done on 2026-10-10 for all eight sets into `build/fork_refs/pixels/b16` (`fork_pixel_refs.py gscap`): 906 of 906 tests bit-exact |
