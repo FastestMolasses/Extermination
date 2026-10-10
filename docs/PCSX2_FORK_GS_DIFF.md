@@ -401,6 +401,15 @@ agree with each other, and phase-matched fork runs reproduce 1,152 of 1,173 of
 them exactly. A fork re-capture of the same route gives the same frames as
 long as it lands in the same phase.
 
+**Re-recorded (2026-10-10).** The fork's pixel references are in
+`build/fork_refs/pixels/`, and the results are in
+[PCSX2_FORK.md](PCSX2_FORK.md), "Pixel references re-recorded on the fork".
+The fb2 points match bit for bit at 14 of 19, and the conformance tests at
+906 of 906. Matching the phase was not enough on its own: the chain also has
+to start on the same game update. User slots saved at the vsync wait are one
+update earlier than a loop-top state with the same bytes (PCSX2_FORK.md,
+"Correction (2026-10-10)").
+
 ## 9. Also found: ELF-override boots fail on a symlinked scratch path
 
 A fork launch with `elf=` and the default scratch base `$TMPDIR/...` failed to

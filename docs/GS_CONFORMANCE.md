@@ -138,6 +138,19 @@ GSCAP_OUT=build/b16/gscap_repeat .venv/bin/python tools/gs_conformance.py captur
 session, different game frames) produced identical packets. All 293 decoded
 arrays (colour and Z of every test) were identical.
 
+**On the PCSX2 fork (2026-10-10).** All eight capture sets were captured
+again on the fork from fork state `phase/04`, into
+`build/fork_refs/pixels/b16/<set>/` (software renderer, no ini switch).
+The command is `tools/fork_pixel_refs.py gscap`, which runs this section's
+tools with `--emulator fork` and `GSCAP_OUT`. The fork capture is
+**bit-exact on all 906 tests**, colour and Z, and on the 252 tests of the
+repeat set. The packets and every compared CT32 upload are equal as well.
+Per-batch receipts are in `build/fork_refs/pixels/b16/manifest.json`. The
+port switches with `GSCAP_ROOT=build/fork_refs/pixels/b16`. Probes 3 to 8
+now take `--emulator` like gs_conformance.py (put it before the
+subcommand). On the fork they never write into `build/b16`, and they decode
+with their own run's layout maps.
+
 ## 4. The suite
 
 The suite has 252 tests in 7 batches, one DMA kick and one snapshot each.

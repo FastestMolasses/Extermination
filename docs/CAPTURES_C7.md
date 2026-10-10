@@ -1090,6 +1090,19 @@ Notes on the table:
 - **Not recorded.** No field was captured from real hardware. The CRT/PCRTC
   merge was not emulated beyond the registers.
 
+**Fork re-recording (2026-10-10).** The 19 points were re-recorded on the
+PCSX2 fork into `build/fork_refs/pixels/fb2/`, in the same layout plus a
+manifest. The command is `c7cap_partb.py fb2 --corrected-chain --fb2-out
+build/fork_refs/pixels/fb2`. 14 of 19 displayed fields are bit-exact with
+the fields above. The other five are explained by v2.6.3 post-load hitches
+(06, 08, 15) and by beat 13's host-timed stop (13, 14). One finding there
+also matters for this section: user slot 04 was saved at the vsync-wait
+start (PC 0x1AAFF0), not at a loop top. So first_control's first free frame
+after the load runs no game logic, and the free frames before s0 run one
+game update fewer than their count suggests. Details are in
+[PCSX2_FORK.md](PCSX2_FORK.md), "Correction (2026-10-10)" and "Pixel
+references re-recorded on the fork".
+
 ## 6. H7: the panel prompt's module-0x21 load, per field, with the drive
 
 The port's `docs/STATUS_LOAD_WAIT_PROBE.md` (tools/load_wait_probe.py,

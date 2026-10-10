@@ -57,7 +57,7 @@ from gs_conformance import (ALPHA, CLAMP, FOGCOL, FRAME, SCISSOR, TEST, TEX0, TE
 from gs_conformance_suite import prim, rand_ct32  # noqa: E402
 
 OUT = Path(os.environ["GSCAP_OUT"])
-MAPS = ROOT / "build/b16/gscap/layout/maps.npz"      # the layout batch's measured maps
+MAPS = OUT.parent / "gscap/layout/maps.npz"         # the layout batch's measured maps (main() re-derives it)
 OFS = (1024.0, 1024.0)
 
 
@@ -330,8 +330,10 @@ def capture(names: list[str]) -> None:
                 print(b.name, "tests", len(b.tests), "qw", ev["packet_qw"], "dma_done", done,
                       "counter", at["counter"], rec["seconds"], "s", flush=True)
     finally:
+        import route_capture as rc
         print("no emulator process left:", G.no_emulator_left())
-        print(G.RESTORE_HINT)
+        if not rc.FORK:
+            print(G.RESTORE_HINT)
 
 
 def decode(names: list[str]) -> None:
@@ -372,7 +374,13 @@ def main() -> None:
         p = sub.add_parser(c)
         p.add_argument("batches", nargs="*")
     sub.add_parser("list")
+    import route_capture as rc
+    rc.add_emulator_args(ap)            # options go before the subcommand
     a = ap.parse_args()
+    rc.apply_emulator_args(a)
+    global OUT, MAPS
+    OUT = G.fork_out(OUT)               # the fork never writes into the v2.6.3 captures
+    MAPS = OUT.parent / "gscap/layout/maps.npz"     # the same run's layout maps (gscap beside this set)
     {"capture": lambda: capture(a.batches), "decode": lambda: decode(a.batches), "list": list_batches}[a.cmd]()
 
 

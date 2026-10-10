@@ -433,6 +433,17 @@ def free_slot() -> int:
     return slot
 
 
+def fork_out(path: Path) -> Path:
+    """On the fork, an output inside the v2.6.3 captures (build/b16/...) is
+    mirrored under build/fork_refs/b16/...; any other path is used as given."""
+    import route_capture as rc
+    legacy = (ROOT / "build/b16").resolve()
+    p = Path(path).resolve()
+    if rc.FORK and (p == legacy or legacy in p.parents):
+        return ROOT / "build/fork_refs/b16" / p.relative_to(legacy)
+    return Path(path)
+
+
 def vram_of(gs: bytes) -> bytes:
     assert len(gs) - LOCALMEM - FREEZE_VRAM == 84, "unexpected GS freeze layout"
     return gs[FREEZE_VRAM:FREEZE_VRAM + LOCALMEM]
@@ -612,12 +623,10 @@ def capture(names: list[str]) -> None:
 
 # ---------------------------------------------------------------------------
 # Decode: measured swizzle maps (batch 'layout')
-MAPS = OUT / "layout" / "maps.npz"
-
-
 def load_maps():
+    """The layout batch's measured maps of this run (OUT is final only after main())."""
     import numpy as np
-    return dict(np.load(MAPS))
+    return dict(np.load(OUT / "layout" / "maps.npz"))
 
 
 def decode_buffer(vram: bytes, page: int, w: int, h: int, psm: str, maps):
@@ -717,6 +726,7 @@ def main() -> None:
     rc.apply_emulator_args(a)
     if rc.FORK and "GSCAP_OUT" not in os.environ:
         OUT = ROOT / "build/fork_refs/b16/gscap"     # never into the v2.6.3 captures
+    OUT = fork_out(OUT)
     if a.cmd == "capture":
         capture(a.batches)
     elif a.cmd == "decode":

@@ -874,7 +874,8 @@ class ForkSession(OriginalSession):
                 "main_loop_counter": self.u32(FRAME_COUNTER), "vsync_counter": self.u32(VSYNC_COUNTER),
                 "frame_index": self.read(FRAME_INDEX, 4)[0], "field": self.read(FIELD, 4)[0],
                 "fork_vsync": sv.get("vsync"), "fork_tick": sv.get("tick"),
-                "field": {k: field.get(k) for k in ("width", "height", "psm", "rgba_xxh3", "renderer")},
+                # the displayed field's facts (gs_field); "field" above is D_00810E88
+                "gs_field": {k: field.get(k) for k in ("width", "height", "psm", "rgba_xxh3", "renderer")},
                 "ee_sha256": hashlib.sha256((out / "eeMemory.bin").read_bytes()).hexdigest()}
         (out / "snapshot.json").write_text(json.dumps(info, indent=2) + "\n")
         return info

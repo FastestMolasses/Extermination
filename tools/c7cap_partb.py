@@ -724,7 +724,56 @@ HW_SPANS = [("D1_CHCR", 0x10009000), ("D1_MADR", 0x10009010), ("D1_TADR", 0x1000
 
 
 def fb2_source(src: str) -> Path:
+    if CORRECTED and len(src) == 2 and src in MID_ITERATION_SLOTS:
+        from pcsx2_session import fork_state
+        return fork_state(src, "base")
     return rc.slot_path(src) if len(src) == 2 else rc.resumable(ROUTE / src / "state.p2s")
+
+
+# --corrected-chain (fork): the route points come from tools/fork_pixel_refs.py's
+# corrected chain (build/fork_refs/pixels/chain/s87/route), and a point on a
+# v2.6.3 user slot saved at the vsync wait (PC 0x1AAFF0: 01..04, 15) starts on
+# the fork's loop-top equivalent (base generation) with one frame less lead:
+# the v2.6.3 session spent that frame finishing the saved iteration.
+CORRECTED = False
+MID_ITERATION_SLOTS = {"01", "02", "03", "04", "15"}
+
+
+# fb2 lead-in (fork only).  A legacy session ran free for 1..10 frames after
+# loading the recorded state before it paused on its first loop top s0
+# (CAPTURES_C7.md 5b "Frame alignment per point"); a fork session starts
+# paused on the saved loop top.  "legacy" (the fork default) replays that many
+# neutral-pad frames, so s0, s1 and s2 land on the same game ticks as the
+# v2.6.3 point; an integer forces a count; 0 starts on the saved frame.
+FB2_LEAD = "legacy"
+LEGACY_FB2 = ROOT / "build/s87/c7cap/fb2"
+LEGACY_REFS = ROOT / "build/fork_refs/legacy_refs.json"
+
+
+def fb2_legacy_point(label: str, src: str) -> dict:
+    """The v2.6.3 point's loop tops and phases (its meta.json), the recorded
+    state's counter (route snapshot, or the user slot from the legacy-refs
+    cache) and the lead-in that follows from them."""
+    m = json.loads((LEGACY_FB2 / label / "meta.json").read_text())
+    st = {s["at"]: s for s in m["snapshots"]}
+    rec = (m.get("recorded_snapshot") or {}).get("counter")
+    if rec is None and len(src) == 2:
+        rec = json.loads(LEGACY_REFS.read_text())["slots"][src]["counter"]
+    tops = {k: {"counter": st[k]["counter"], "vsync": st[k]["vsync"], "csr_field": st[k]["csr_field"],
+                "dispfb2_fbp": st[k]["dispfb2_fbp"], "frame_fbp": st[k]["frame_fbp"][0], "ofy": st[k]["ofy"][0],
+                "frame_idx_810E80": int(st[k]["hw"]["frame_idx_810E80"], 16)}
+            for k in ("s0", "s1", "s2")}
+    return {"recorded_counter": rec, "lead": tops["s0"]["counter"] - rec, "tops": tops,
+            "displayed_fbp": m["displayed_buffer"]["fbp"]}
+
+
+def fb2_lead(label: str, src: str) -> int:
+    if not rc.FORK or FB2_LEAD == "0":
+        return 0
+    if FB2_LEAD == "legacy":
+        lead = fb2_legacy_point(label, src)["lead"]
+        return lead - 1 if (CORRECTED and len(src) == 2 and src in MID_ITERATION_SLOTS) else lead
+    return int(FB2_LEAD)
 
 
 def _pc(s) -> int:
@@ -794,9 +843,17 @@ def fb2_capture(labels: list[str] | None, steps: int = 2) -> None:
         out.mkdir(parents=True)
         t0 = time.monotonic()
         rows = []
+        lead = fb2_lead(label, src)
+        fork_info = {}
         try:
             with rc.open_session(fb2_source(src), log_dir=out / "logs") as s:
                 smp = rc.Sampler(s)
+                loaded_counter = s.u32(FRAME_COUNTER)
+                if lead:
+                    s.step(lead)            # neutral pad: the legacy session's free frames after its load
+                if rc.FORK:
+                    fork_info = {"hello": s.hello, "loaded_counter": loaded_counter, "lead_frames": lead,
+                                 "mtvu": getattr(s, "mtvu", None), "renderer": s.renderer}
                 for k in range(steps + 1):
                     marks = fb2_step(s, out, k) if k else []
                     row = rc.decode(smp.raw())
@@ -815,7 +872,9 @@ def fb2_capture(labels: list[str] | None, steps: int = 2) -> None:
         finally:
             shutil.rmtree(rc.OUT / "_resume", ignore_errors=True)
         (out / "capture.json").write_text(json.dumps(
-            {"label": label, "source": src, "source_state": source_state, "renderer": ini_renderer(),
+            {"label": label, "source": src, "source_state": source_state,
+             "renderer": fork_info.get("renderer") if rc.FORK else ini_renderer(),
+             **({"fork": fork_info} if rc.FORK else {}),
              "seconds": round(time.monotonic() - t0, 1), "rows": rows}, indent=1) + "\n")
         print(label, "counters", [r["counter"] for r in rows], "vsync", [r["vsync"] for r in rows],
               round(time.monotonic() - t0, 1), "s", flush=True)
@@ -830,7 +889,7 @@ def recorded_context(label: str, src: str) -> dict:
         name = src
     else:
         snap = json.loads((ROUTE / src / "snapshot.json").read_text())
-        ctx["recorded_snapshot"] = {"state": f"build/s87/route/{src}/state.p2s",
+        ctx["recorded_snapshot"] = {"state": str((ROUTE / src / "state.p2s").relative_to(ROOT)),
                                     "counter": snap["main_loop_counter"], "vsync": snap["vsync_counter"]}
         name = src
     nxt = []
@@ -1044,9 +1103,32 @@ if __name__ == "__main__":
     ap.add_argument("--frames", type=int, default=8)
     ap.add_argument("--points", default="", help="fb2: comma list of point labels (default: all)")
     ap.add_argument("--steps", type=int, default=2, help="fb2: frames stepped after the aligned load")
+    ap.add_argument("--fb2-out", type=Path, default=None,
+                    help="fb2 / fb2-decode: output folder instead of <OUT>/fb2 (fork pixel references: "
+                         "build/fork_refs/pixels/fb2, tools/fork_pixel_refs.py)")
+    ap.add_argument("--lead", default="legacy",
+                    help="fb2 on the fork: neutral frames before s0.  legacy (default) = the v2.6.3 "
+                         "point's own lead (s0 minus the recorded counter, from build/s87/c7cap/fb2), so "
+                         "the outputs land on the same game ticks; or an integer")
+    ap.add_argument("--corrected-chain", action="store_true",
+                    help="fb2 on the fork: points from build/fork_refs/pixels/chain (tools/fork_pixel_refs.py "
+                         "chain) and vsync-wait user slots from their loop-top (base) equivalent")
     rc.add_emulator_args(ap)
     a = ap.parse_args()
     apply_emulator(a)
+    FB2_LEAD = a.lead
+    if a.corrected_chain:
+        if not rc.FORK:
+            raise SystemExit("--corrected-chain is a fork option")
+        CORRECTED = True
+        ROUTE = ROOT / "build/fork_refs/pixels/chain/s87/route"
+        FB2_POINTS = ([(p.name, p.name) for p in sorted(ROUTE.glob("[01][0-9]_*")) if (p / "state.p2s").exists()]
+                      + [("first_control", "04"), ("route03_end", "03_panel_power"),
+                         ("route07_end", "07_truck_preview")])
+    if a.fb2_out is not None:
+        FB2 = a.fb2_out.resolve()
+        if LEGACY_FB2.resolve() in [FB2, *FB2.parents] and rc.FORK:
+            raise SystemExit("fork outputs never go into the v2.6.3 captures")
     labels = [x for x in a.points.split(",") if x] or None
     if a.item == "fb2":
         require_software_renderer()     # refuses (before any emulator start) unless the ini says 13

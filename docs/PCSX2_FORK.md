@@ -420,6 +420,100 @@ before relying on it.
 Both ran through `ForkV1Debug`, with persistent, one-shot and return-site
 breakpoints.
 
+### Correction (2026-10-10): the phase chain is one game update early
+
+The phase-locked chain above starts one game update ahead of v2.6.3. The
+traced fields the comparison covered do not show it, but the player's clock,
+the r9 attachment node (`attach_r9`), the snow and every other `rand()`-driven
+effect do.
+
+- **Why.** User slots 01, 02, 03, 04 and 15 were saved by hand at the first
+  instruction of the vsync wait. The EE PC in each of those states is
+  0x1AAFF0, while route snapshots are at the loop top 0x1AAF28. At that
+  point the iteration's game logic has run, but the end-of-iteration
+  frame-index toggle and the vsync ISR have not.
+  - A v2.6.3 session that loads such a slot first finishes that iteration,
+    with no new logic. Its next loop top (counter + 1) is the first full
+    update, and its phase there is the other one: slot 04 stores (1, 0), and
+    the loop top after the load has (0, 1).
+  - The fork's states are saved at the loop top.
+    - `phase/slot04` (counter 3299) was matched to the stored, mid-iteration
+      (1, 0), so it is one update ahead of the v2.6.3 timeline.
+    - `slot04_first_control`, the base state (counter 3300, (0, 1)), is the
+      v2.6.3 loop top 4084: same game state, same phase, same update count.
+- **Measured.**
+  - From `phase/04` the fork makes the same 22 `rand()` calls per tick as
+    v2.6.3. The v2.6.3 rand trace (`build/s87/c7cap/rng/r01`) reaches the
+    fork's tick-3300 state only at counter 4085. The player clock and
+    `attach_r9` are one update ahead too.
+  - At the end of every route beat the fork's random-number state is 20 to
+    56 calls ahead.
+  - All 18 fb2 points re-recorded from that chain differed from v2.6.3. The
+    differences were the snow and the r9 attachment.
+- **The fix.** For a beat or point that starts from a vsync-wait user slot,
+  start from the base-generation state and replay the v2.6.3 lead-in minus
+  the finishing iteration. Route snapshots need no change.
+  `tools/fork_pixel_refs.py chain` does this, in
+  `use_corrected_chain()`: it patches route_capture at run time, and its
+  outputs go to `build/fork_refs/pixels/chain/s87/route/`, never to
+  `build/fork_refs/s87/route/` or `fork-states/phase/`.
+  - Beats 00..12 then equal the v2.6.3 traces in **every** traced field
+    (clock and `attach_r9` included) on every row. Their end
+    random-number states are equal (`pixels/chain/s87/route/compare_v263.json`).
+  - Beat 13 still leaves v2.6.3 at frame 133, at the v2.6.3 run's host-timed
+    stop, and beat 14 inherits that.
+  - Beat 15 takes 815 frames, against 801 in v2.6.3.
+- **Consequence.** `build/fork_refs/s87/route` and the groups chained from
+  it carry the one-update lead. Re-chaining them from the corrected route
+  (or redoing the phase route the same way) is the lead's decision. Slots
+  02, 03 and 15 have the same vsync-wait origin. Slots 06..14 store PC 0 at
+  that offset, which is a different layout, not checked.
+
+### Pixel references re-recorded on the fork (2026-10-10)
+
+User decision of 2026-10-09: re-record the v2.6.3 pixel references in the
+fork, with a deterministic field phase. Everything is in the ignored
+`build/fork_refs/pixels/<set>/`, in the layout the port's tests read today,
+with a `manifest.json` per set. The manifests record the tick, the field
+phase (D_00810E88, CSR FIELD and OFY), the drawing buffer (D_00810E80 and
+FRAME), the fork build, and the comparison with the v2.6.3 frame.
+
+- Fork build: `v2.9.114-11-gc105df140`, server 0.2.2, repository HEAD
+  `2138d41fa`.
+- Settings: software renderer, VU1 on the EE thread.
+- Tool: `tools/fork_pixel_refs.py` (`chain`, `gscap`, `route`, `compare`).
+
+| Set | Port reader (switch) | Result against v2.6.3 |
+|---|---|---|
+| `fb2` (19 points, CAPTURES_C7.md 5b) | `test_fb2_pixels.py`: `FB2` -> `build/fork_refs/pixels/fb2`, `ROUTE` -> `build/fork_refs/pixels/chain/s87/route`, `FIRST_CONTROL_COUNTER` 4085 -> 3301 | **14 of 19 displayed fields bit-exact**: 00..05, 07, 09..12, first_control, route03_end, route07_end. draw.bin is exact at 13 points, z.bin at 16. The 5 others are below. |
+| `b16` (GS conformance: gscap, gscap3..8, gscap_repeat) | `test_gs_raster_reference.py`, `test_gs_fog_conformance.py`: `GSCAP_ROOT=build/fork_refs/pixels/b16` | **906 of 906 tests bit-exact** (and 252 of 252 in the repeat), colour and Z. All 37 batch packets are equal. 187 of 187 page-aligned CT32 uploads are equal, and 111 of 111 in the repeat. 15 T8, T4 or unaligned uploads were not compared directly (11 in the repeat). The local memory outside the tests' buffers holds the game's own frame at the kick, a different moment in each run. |
+| `route` (main route end frames) | `test_shadow_original_reference.py --capture` reads `original.png` | Displayed and drawing buffers decoded from the corrected chain's snapshots. **No v2.6.3 pixel reference exists**: those snapshots were saved with Metal, so their GS buffers hold the 0x80000000 fill. Their `original.png` is the 640x480 host presentation, which is not even tick-exact (route 03's shows an earlier letterboxed frame). The fork's `original.png` is the 512x224 field, so this switch needs a port-side change, not only a path. |
+
+How fb2 is captured: `c7cap_partb.py fb2 --corrected-chain --fb2-out
+build/fork_refs/pixels/fb2`.
+- Each point loads the corrected chain's state for its point (first_control:
+  base slot 04).
+- It replays the v2.6.3 session's own free frames after its load
+  (`--lead legacy`, s0 minus the recorded counter, minus 1 on a vsync-wait
+  slot), so s0, s1 and s2 are the v2.6.3 ticks.
+- It then runs the same two steps with sync snapshots as in v2.6.3.
+
+The five fb2 points that differ (`fb2/manifest.json` "cause"; difference
+images in `pixels/_compare/fb2/`):
+
+| Point | Displayed RGB pixels | Cause |
+|---|---|---|
+| 06_hill_slide | 86,371 | **Field phase.** The v2.6.3 session had a post-load hitch: one iteration spanned 17 vsyncs (none in the fork). The v2.6.3 field was drawn at OFY 1936.0, the fork's at 1936.5. Game state, rows and random state are equal. |
+| 08_truck_crossing | 105,364 | **Field phase**, the same kind: a 21-vsync iteration in v2.6.3. OFY 1936.5 against the fork's 1936.0. Rows and random state are equal. |
+| 13_east_tower | 80,495 | **Route divergence.** The v2.6.3 recording of beat 13 has a host-timed one-frame stop at f133 that no replay reproduces. The position and camera differ from there, the beat ends 7 frames earlier, and phase and random state follow. |
+| 14_roger_encounter | 3,030 | **Random state** inherited from beat 13: only snow flakes differ. Rows, phase and z.bin are equal. draw.bin differs (99,275) because the v2.6.3 post-load hitch (23 vsyncs) put s0 on the other half line. |
+| 15_level_exit | 93,145 | **Field phase** (OFY 1936.5 against 1936.0 at s1; v2.6.3 had 2 extra vsyncs after its load) and the random state inherited from beat 13. Rows are equal. draw.bin differs in 4 pixels by 1, and z.bin is equal. |
+
+None of the differences is the upstream scissor change: no differing frame
+is confined to row 223. None is AREA11 load timing either, because the fb2
+points are not inside a load. The field-phase cases are v2.6.3 host-timing
+artefacts, so the fork frame is the reproducible one.
+
 ### What still needs v2.6.3
 
 - **`c7cap_capture.py lane3 --from boot`.** It arms memchecks before the
@@ -507,9 +601,16 @@ The user decided on 2026-10-09 to migrate everything. The lead then trashes
    them exist. If the old slot
    files go to the Trash before then, those 5 tests lose their inputs.
 4. **Re-record the v2.6.3 pixel references in the fork: the user's decision
-   (yes).** The plan is below. The tools record the frame index and field
-   per row, and the phase lock lands every row on the v2.6.3 row's phase.
-   Two differences cannot be removed:
+   (yes). fb2, the GS conformance sets and the main route's frames were
+   done on 2026-10-10 ("Pixel references re-recorded on the fork"); the
+   phase lock needed the one-update correction above.** The plan is below.
+   The tools record the frame index and field per row, and the phase lock
+   lands every row on the v2.6.3 row's phase. Four differences cannot be
+   removed:
+   - v2.6.3 host-timing artefacts in the references themselves:
+     - post-load hitches of 3 to 23 vsyncs in one iteration, which put fb2
+       06, 08 and 15 on the other half line;
+     - the one-frame stop at beat 13 f133;
    - frames inside the AREA11 load, which runs 4 or 5 iterations longer in
      the fork;
    - lines or points starting within half a pixel outside the scissor. The
@@ -540,7 +641,7 @@ the frame index and field equal the v2.6.3 rows (`trace.json` "phase").
 | 3 | status chain 08/12/14, Roger 15 | `fork_states.py status --generation phase`; `fork_states.py roger --generation phase` | route 02; `phase/slot03` | slot 14 test, `status-hub/`, `roger-encounter/` | done on 2026-10-09; all four phase-equal |
 | 4 | C7 group (`s87/c7cap/<item>/c7_*`) | `route_capture.py run --beats c7` | route snapshots | 11 files (`s87/c7cap`) | |
 | 5 | C7 stream / rng / lane3 (title) | `c7cap_capture.py stream`, `rng`, `lane3 --from title` | route 01/10/11/13, slot 01 | `test_iop_stream_reference` and others | lane3 `--from boot` stays v2.6.3-only |
-| 6 | C7 fb, h7, **fb2 pixel points** | `c7cap_partb.py fb`, `h7`, `fb2` | the 16 route snapshots + first control | `test_fb2_pixels.py` and others | the pixel references. No ini switch on the fork; compare by tick and phase (GS_DIFF section 8) |
+| 6 | C7 fb, h7, **fb2 pixel points** | `c7cap_partb.py fb`, `h7`, `fb2` | the 16 route snapshots + first control | `test_fb2_pixels.py` and others | fb2 done on 2026-10-10 from the corrected chain (`--corrected-chain`, "Pixel references re-recorded on the fork"): 14 of 19 bit-exact; fb and h7 not run |
 | 7 | AIM (`aimfire/capture`) | `route_capture.py run --beats aim` | route 08 | 5 files | |
 | 8 | C10 EXIT (`c10/exit`) | `--beats exit` | route 14 | 5 files | exit_01 costs minutes (movie) |
 | 9 | C10 DAMAGE (`c10/damage`) | `--beats dmg` | routes 07, 11, 14 | 5 files | |
@@ -550,7 +651,7 @@ the frame index and field equal the v2.6.3 rows (`trace.json` "phase").
 | 13 | census (`s87/census`) | `route_census.py run --segments all --pass F`, then `report --passes F` | slot 01, the route | 39 files, `FIRST_LEVEL_CENSUS.md` | thousands of v1 breakpoints through `ForkV1Debug`: smoke-test one beat first (`--segments 00`); the function sets should equal the v2.6.3 census |
 | 14 | load wait (`s87/loadwait`) | `load_wait_probe.py run --beats 01,03 --mode boundary` (and `breakpoints`) | routes 01, 03 | 2 files | the fork's loader runs longer |
 | 15 | sound requests (`sfx_probe`) | `sfx_request_probe.py run` | the census route | 1 file | |
-| 16 | GS conformance (`b16/gscap`) | `gs_conformance.py capture` | `phase/04` | 2 files | the fork's renderer already equals v2.6.3's on 906 tests (GS_DIFF 3.1) |
+| 16 | GS conformance (`b16/gscap`) | `gs_conformance.py capture` | `phase/04` | 2 files | done on 2026-10-10 for all eight sets into `build/fork_refs/pixels/b16` (`fork_pixel_refs.py gscap`): 906 of 906 tests bit-exact |
 | 17 | EE float vectors (`startup-reference/ee_float`) | `ee_float/battery.py`, `blockcheck.py`, `vusig.py` | `phase/04` | 2 files | |
 | 18 | video compare (`video_compare/<rec>/ps2`) | `video_compare.py ps2 <rec> --out build/fork_refs/video_compare/<rec> --stride 4 --audio [--fork-title-delay N]` | cold boot | 2 files | pick the title delay whose phase after the first load equals the v2.6.3 run's (rows record both) |
 | 19 | startup probes' outputs (`startup-reference/panel`, `status-hub`, `elevator`, `roger-encounter`, `playable_ee.bin`, `opening_ee.bin`, `*_poll.json`, `cutscene_skip`) | not ported; equivalents: `phase/slot02..04` and the status / Roger states' `eeMemory.bin`, route beats 03 and 04 | the phase chain | 14 + 11 + 3 + 3 + 72 + 43 files | the port switch decides per file; the probes stay v2.6.3-only |
