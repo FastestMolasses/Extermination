@@ -204,8 +204,9 @@ run of ticks with one phase.
 
 ## The PCSX2 session
 
-This section describes the legacy v2.6.3 app, still the default. The
-agent-debug fork is the opt-in alternative (next section).
+This section describes the legacy v2.6.3 app (`--emulator legacy`, until the
+app is retired). The agent-debug fork is the default since 2026-10-09 (next
+section).
 
 - Takes `build/.pcsx2.lock` (mkdir; polled every 30 s) for the whole
   session and always removes it, also on failure.

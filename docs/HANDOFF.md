@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-09 (Claude: the PCSX2 agent-debug fork day, below; census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-10 (Claude: the PCSX2 fork migration, below; census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -35,17 +35,20 @@ that is a different, stale tree.
   `build/startup-reference/`. Floats follow port `tools/ee_float_model.py`; the
   recordings are in `build/startup-reference/ee_float/` and the recorders in
   `tools/ee_float/`.
-- Original runtime: `tools/pcsx2_session.py` runs PCSX2 hidden, with exact one-frame
-  steps, pad input, memory reads and snapshots. Save states are in
-  `build/startup-reference/portable-data/sstates/` (user, 2026-10-09: every slot
-  may be used; slots 01-15 may go to the Trash with the 2.6.3 app's retirement).
-- Agent-debug PCSX2 fork (2026-10-09): `../pcsx2-fork`, entry point
-  `../pcsx2-fork/EXTERMINATION.md`; status, rules and the decomp-side hookup are
-  in `docs/PCSX2_FORK.md`. It offers run-to-condition, a per-frame store with
+- Original runtime: the agent-debug PCSX2 fork, **the default of every decomp tool
+  since 4c563cd** (2026-10-09, the user's decision to retire v2.6.3):
+  `tools/pcsx2_session.py` (`ForkSession`) runs it hidden, with exact one-frame
+  steps, pad input, memory reads and snapshots, under the shared run lock
+  `build/.pcsx2.lock`. States: `build/startup-reference/fork-states/`
+  (`manifest.json`; `fork_state("04")`; phase generation by default). The v2.6.3
+  app and its slots (`build/startup-reference/portable-data/sstates/`; user,
+  2026-10-09: every slot may be used) stay behind `--emulator legacy` until the
+  lead trashes them; no tool needs them any more.
+- The fork itself: `../pcsx2-fork`, entry point `../pcsx2-fork/EXTERMINATION.md`;
+  status, rules, the canonical capture chain and the retirement checklist are in
+  `docs/PCSX2_FORK.md`. It offers run-to-condition, a per-frame store with
   verified rewind, memwatch logs, inline coverage probes and an emulated-time
-  audio tap. Its MCP bridge is the registered server `pcsx2-agent`; v2.6.3
-  states do not load in it, but the tools' states are regenerated
-  (`build/startup-reference/fork-states/`, `--emulator fork`).
+  audio tap. Its MCP bridge is the registered server `pcsx2-agent`.
 - Port live checks: `EM_STARTUP_TEST=newgame-control` (displacement 9.599849) and the
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
@@ -54,6 +57,48 @@ that is a different, stale tree.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
+
+## 2026-10-10: the fork migration (retiring PCSX2 v2.6.3)
+User decisions of 2026-10-09: migrate everything to the fork, re-record the pixel
+references in it with a deterministic field phase, use every slot. Details, receipts and
+the retirement checklist: `docs/PCSX2_FORK.md`.
+- **The fork is the default** of every decomp tool since 4c563cd (`--emulator legacy` /
+  `EXTERMINATION_PCSX2=legacy` only when chosen; since 2026-10-10 also the
+  `route_capture` library default).
+- **The one-update correction.** All 12 v2.6.3 user slots were saved at the vsync wait
+  (PC 0x1AAFF0), after the iteration's game logic; fork states sit at the loop top. The
+  2026-10-09 phase states matched the slots' stored (mid-iteration) phase, so chains from
+  them ran one game update ahead (`rand()` 20..56 calls ahead at route ends).
+  `route_capture.slot_start` now starts every slot-sourced beat or point from the
+  loop-top-equivalent state with the v2.6.3 lead-in minus 1, and `fork_states.py` locks
+  the phase states to the loop-top phase and scores `rand()` and the player clock. The
+  phase states 02/03/04/08/12/14/15 were regenerated (02/03/04/15 equal their slots in
+  every compared byte).
+- **One canonical chain:** `build/fork_refs/s87/route` (origin `slot04_first_control`,
+  lead-in minus 1). Beats 00..12 equal v2.6.3 in every traced field and the end `rand()`
+  state; 13 leaves it at the v2.6.3 run's host-timed stop (f133), 14 and 15 inherit that.
+  The duplicate `pixels/chain` copy was deleted.
+- **Route groups** (`tools/route_lanes.py`, parallel lanes under one run lock): every
+  first-level group (64 beats) re-recorded from the canonical chain; 27 equal v2.6.3 in
+  every field, the rest are v2.6.3 host-timed pad edges, route 13's stop, the fork's
+  disc timing (loader read gate), the memory-card record (zero on the fork) and one
+  unexplained c7 action flip. Level chain: 59 of 159 beats, **blocked at `a04_03`** (in
+  the fork's own playthrough a bug infects the player at `a02_04`; the policy does not
+  expect an injured idle). Continuing needs a lead decision: adapt the policies, or first
+  replay the v2.6.3 pad latency to stay on the v2.6.3 path.
+- **Pixel references** (`build/fork_refs/pixels/`): fb2 14 of 19 displayed fields
+  bit-exact (re-run from the canonical chain, same result; the five others are v2.6.3
+  post-load hitches and beat 13's stop), GS conformance 906 of 906 bit-exact, the route end
+  frames decoded.
+- **What remains:** the port-side switch (`docs/PCSX2_FORK.md` "Retiring the 2.6.3 app":
+  the 5 tests reading slots 01/02/04/14, test_fb2_pixels' paths and counter, GSCAP_ROOT,
+  level_smoke_area01's row 741 -> 755, test_shadow_original_reference --capture,
+  test_message_capture's screenshot, the startup-reference probes' outputs); then the
+  user trashes the 2.6.3 app and the 12 slots. Fork runs still to make: the full census,
+  sfx_request_probe, c7cap stream/rng/lane3, fb/h7, load_wait beat 03, EE float vectors,
+  the level chain after `a04_02`. The fork's closed loop is not always repeatable
+  (finding 1 in `docs/PCSX2_FORK.md`): compare a re-recorded set with its v2.6.3 trace
+  before relying on it.
 
 ## 2026-10-09: the PCSX2 agent-debug fork, the demos, presentation, coverage
 - **The fork** (`../pcsx2-fork`, branch `extermination-mcp`, local only, never pushed):
@@ -74,11 +119,11 @@ that is a different, stale tree.
   82/82, 21/21, 38/38.
 - **Fork states** (decomp `640fac0`): `tools/fork_states.py` regenerated the tools' 24
   states from a cold boot in the fork, matched by game state, in ignored
-  `build/startup-reference/fork-states/` (`manifest.json`, `verify.json` 24/24). Use
-  `ForkSession(fork_state("04"))`, `pcsx2_session.py 04 --emulator fork`,
-  `route_capture.py --emulator fork`. The checklist for retiring the 2.6.3 app (route_census
-  and other legacy-only tools, the other route groups, port tests reading slot files) is
-  in `docs/PCSX2_FORK.md`.
+  `build/startup-reference/fork-states/` (`manifest.json`). Use
+  `ForkSession(fork_state("04"))`, `pcsx2_session.py 04`, `route_capture.py run`
+  (the fork is the default since 4c563cd; 2026-10-10 section above for the
+  corrected phase states). The checklist for retiring the 2.6.3 app is in
+  `docs/PCSX2_FORK.md`.
 - **GS diff explained** (`docs/PCSX2_FORK_GS_DIFF.md`, 0d0ad2d / bacc01e): fork fields
   differed from v2.6.3 because of the game's frame index D_00810E80 and field phase
   D_00810E88 after a longer load, not the renderer; with the phase matched 1,152 of
@@ -104,8 +149,10 @@ that is a different, stale tree.
 - **Open user decisions:** (1) the stable local signing identity for the fork (not set up;
   Claude Code's permission system refused it; recipe in the fork's
   `EXTERMINATION_BUILD.md` section 5); (2) retiring `build/startup-reference/PCSX2.app`
-  and slots 01-15 to the Trash once the `docs/PCSX2_FORK.md` checklist is done (confirm
-  first); (3) DECIDED 2026-10-09 and built (port fc986dc): the port's disc-drive timing
+  and slots 01-15 to the Trash: decomp side done on 2026-10-10 (nothing to run on it
+  except the optional `c7cap_capture.py lane3 --from boot`); the port-side switch
+  (`docs/PCSX2_FORK.md` "Retiring the 2.6.3 app") must come first, because port tests
+  still read the slots and the v2.6.3 captures (confirm first); (3) DECIDED 2026-10-09 and built (port fc986dc): the port's disc-drive timing
   switch models the first stream read after a module-loader read as a 17-field seek (one
   value fits every captured case; with the switch, first control lands on the original's
   frame, newgame-control locked_ticks 1322).

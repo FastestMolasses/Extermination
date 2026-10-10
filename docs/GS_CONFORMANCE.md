@@ -139,7 +139,9 @@ session, different game frames) produced identical packets. All 293 decoded
 arrays (colour and Z of every test) were identical.
 
 **On the PCSX2 fork (2026-10-10).** All eight capture sets were captured
-again on the fork from fork state `phase/04`, into
+again on the fork from fork state `phase/04` (the 2026-10-09 state, since
+regenerated on the loop-top phase; the tests' packets do not depend on the
+game frame), into
 `build/fork_refs/pixels/b16/<set>/` (software renderer, no ini switch).
 The command is `tools/fork_pixel_refs.py gscap`, which runs this section's
 tools with `--emulator fork` and `GSCAP_OUT`. The fork capture is

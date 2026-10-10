@@ -1,8 +1,33 @@
+## 2026-10-10 — PCSX2 v2.6.3 retirement, decomp side done; one canonical fork chain
+
+- The fork has been the default of every decomp tool since 4c563cd (2026-10-09);
+  `--emulator legacy` only when chosen, and the `route_capture` library default
+  follows it now.
+- **One-update correction.** All 12 v2.6.3 user slots were saved at the vsync
+  wait (PC 0x1AAFF0), after the iteration's logic. `route_capture.slot_start`
+  starts slot-sourced beats from the loop-top-equivalent fork state with the
+  v2.6.3 lead-in minus 1; `fork_states.py` locks the phase states to the
+  loop-top phase and scores `rand()` and the player clock; the phase states
+  02/03/04/08/12/14/15 were regenerated. Every v2.6.3 slot fact the tools need
+  is cached in `build/fork_refs/legacy_refs.json`.
+- **Canonical chain** `build/fork_refs/s87/route`: beats 00..12 equal v2.6.3 in
+  every traced field and the end `rand()` state; 13..15 follow the v2.6.3 run's
+  host-timed stop at f133.
+- **Route groups** (`tools/route_lanes.py`): all 64 first-level beats
+  re-recorded, 27 equal in every field, every other difference has a cause
+  (`docs/PCSX2_FORK.md`); level chain 59 of 159 beats, blocked at `a04_03`
+  (the fork's own playthrough infects the player).
+- **Pixel references:** fb2 14/19 bit-exact, GS conformance 906/906.
+- **Remaining:** the port-side switch, then the user trashes the 2.6.3 app and
+  slots (`docs/PCSX2_FORK.md` "Retiring the 2.6.3 app"); fork runs of the full
+  census and the other unported captures.
+
 ## 2026-10-09 — PCSX2 agent-debug fork in use; tools' states regenerated; GS diff explained
 
 - The agent-debug PCSX2 fork (`../pcsx2-fork`, DebugServer 0.2.2, MCP server
-  `pcsx2-agent`) drives the original for the decomp tools: `ForkSession` /
-  `--emulator fork` in `tools/pcsx2_session.py` and `tools/route_capture.py`,
+  `pcsx2-agent`) drives the original for the decomp tools, by default since
+  4c563cd the same day (`--emulator legacy` keeps v2.6.3 until it is retired):
+  `ForkSession` in `tools/pcsx2_session.py` and `tools/route_capture.py`,
   and `ps2.py --emulator fork` (`tools/video_compare/ps2_fork.py`) with the
   original's sound. 24 tool states regenerated in the fork
   (`build/startup-reference/fork-states/`, 640fac0). Fork vs v2.6.3 field
