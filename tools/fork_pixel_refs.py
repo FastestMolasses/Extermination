@@ -19,8 +19,12 @@ Sets:
          legacy`), so s0, s1 and s2 are the v2.6.3 ticks.
   b16    the GS conformance batches of docs/GS_CONFORMANCE.md (the port's
          test_gs_raster_reference.py / test_gs_fog_conformance.py, which read
-         GSCAP_ROOT/<set>/<batch>/snap/gs.bin): gscap, gscap3..gscap8 and
+         GSCAP_ROOT/<set>/<batch>/snap/gs.bin): gscap, gscap3..gscap8, gscap9
+         (the half-pixel scissor edge: gs_conformance_probe9.py) and
          gscap_repeat, captured by `gscap` below.
+  messages  message frames (the port's test_message_capture): the
+         canonical beat replayed to the v2.6.3 reference's message state,
+         displayed field and drawing buffer at the next loop top.
   route  the main route's end frames (the canonical chain
          build/fork_refs/s87/route/<beat>): the displayed and drawing buffers
          decoded from each snapshot's GS freeze (`route` below).  The v2.6.3 route
@@ -38,6 +42,9 @@ nothing running):
                             state of the canonical chain against v2.6.3
   route                     no emulator: decode the route frames
   compare [fb2|b16|route]   no emulator: compare with v2.6.3, write the manifests
+  message [NAME ...]        emulator: a message frame from its canonical route beat
+                            (elevator_refusal: beat 02) into
+                            build/fork_refs/pixels/messages/<name>/ with a manifest
 
 Nothing here embeds original code or data; it names addresses only.  All
 outputs are derived from the user's own disc and stay in ignored build/.
@@ -78,6 +85,8 @@ B16_SETS = {                    # set -> (tool, batches)
     "gscap7": ("gs_conformance_probe7.py", ["p7_lvl", "p7_wrap", "p7_z", "p7_zc", "p7_scope", "p7_flush"]),
     "gscap8": ("gs_conformance_probe8.py", ["p8_span", "p8_class", "p8_misc", "p8_gif", "p8_more", "p8_gif2"]),
     "gscap_repeat": ("gs_conformance.py", ["layout", "raster", "shade", "texture", "pixel", "frame", "probe2"]),
+    # the half-pixel scissor edge (PCSX2_FORK_GS_DIFF.md 3.3; new on 2026-10-10, no v2.6.3 set before it)
+    "gscap9": ("gs_conformance_probe9.py", ["p9_edges", "p9_game"]),
 }
 # The fields compared between a fork row and the v2.6.3 row of the same tick
 # (route_capture's sampler; counters, vsync and the phase are compared apart).
@@ -327,6 +336,11 @@ def compare_b16() -> dict:
             if not (F / "snap/gs.bin").exists():
                 res[b] = {"captured": False}
                 continue
+            if not (L / "snap/gs.bin").exists():      # a fork-only set: no v2.6.3 capture to compare
+                fd = json.loads((F / "decode.json").read_text()) if (F / "decode.json").exists() else {}
+                res[b] = {"legacy": None, "fence_ok": fd.get("fence_ok"),
+                          "tests_fork_only": len(json.loads((F / "batch.json").read_text())["tests"])}
+                continue
             e = {"packet_equal": (F / "packet.bin").read_bytes() == (L / "packet.bin").read_bytes()}
             fk, lk = json.loads((F / "kick.json").read_text()), json.loads((L / "kick.json").read_text())
             e["fork_at"], e["legacy_at"] = fk["at"], lk["at"]
@@ -429,8 +443,19 @@ def manifest_b16(sets: dict) -> None:
                               "ct32_uploads_equal": [sum(x.get("ct32_uploads_equal", 0) for x in v.values()),
                                                      sum(x.get("ct32_uploads_checked", 0) for x in v.values())]}
                        for name, v in sets.items()},
+           "notes": {"gscap9": GSCAP9_NOTE},
            "sets": sets}
     write_json(PIX / "b16/manifest.json", doc)
+
+
+GSCAP9_NOTE = (
+    "the half-pixel scissor edge (tools/gs_conformance_probe9.py, PCSX2_FORK_GS_DIFF.md 3.3), the one place "
+    "where the fork and v2.6.3 differ for the same GS input; the user's decision (2026-10-09): follow the fork. "
+    "Its v2.6.3 capture (build/b16/gscap9, 2026-10-10) is the evidence, not the reference: every test that "
+    "differs differs only where the fork drew a line or point whose first vertex lies 1/16..7/16 px past the "
+    "inner scissor (8/16 past the top and left edges), and v2.6.3 left the clear colour; equal at 0, 9/16, "
+    "12/16 and 1 px, for the triangle/sprite controls, and for the game's strips with the vertex at 223.5 and "
+    "223.5625. Per-test lit pixels and the v2.6.3 differences: gscap9/report.json")
 
 
 # ---------------------------------------------------------------------------
@@ -544,6 +569,244 @@ def compare_chain() -> dict:
     return out
 
 
+# ---------------------------------------------------------------------------
+# message frames
+#
+# The elevator refusal (route beat 02, "Switch / No power..."): the v2.6.3
+# reference was build/startup-reference/elevator/refusal (the disposable
+# elevator_refusal_probe.py: a hand-played slot with poked power, saved at the
+# vsync wait while the refusal line 0x8000001A was presented for the fifth
+# time, message block +0x68 = 5; its original.png is the 640x480 host
+# presentation).  On the fork the canonical beat 02 holds the same refusal
+# without pokes; the capture replays it exactly and stops at the vsync wait
+# whose message block equals the v2.6.3 one.
+
+MSG_BLOCK = 0x2821B0            # message block: mode, phase, line id; +0x68 present ticks
+MESSAGES = {
+    "elevator_refusal": {"beat": "02_elevator_refusal", "line": 0x8000001A, "present": 5,
+                         "legacy": ROOT / "build/startup-reference/elevator/refusal"},
+}
+TEXT_BAND_640 = (200, 400, 440, 476)   # the text band used on the v2.6.3 640x480 screenshot
+
+
+def diff_box(a: np.ndarray, b: np.ndarray) -> dict:
+    """Words, RGB pixels and the bounding box [x0, y0, x1, y1] where two buffers differ."""
+    m = a != b
+    ys, xs = np.nonzero(m)
+    return {"words_differ": int(m.sum()), "rgb_pixels_differ": int(((a ^ b) & 0xFFFFFF != 0).sum()),
+            "box": [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())] if m.any() else None}
+
+
+def text_lines(px: np.ndarray, band: tuple[int, int, int, int]) -> list[list[int]]:
+    """Bounding boxes [x0, y0, x1, y1] of bright near-grey text lines inside
+    band (an RGB array); lines are split by rows with at most two such pixels."""
+    x0, y0, x1, y1 = band
+    sub = px[y0:y1, x0:x1, :3].astype(np.int16)
+    m = (sub[..., 0] > 150) & (sub[..., 1] > 150) & (sub[..., 2] > 150) & (np.abs(sub[..., 0] - sub[..., 2]) < 40)
+    lines, cur = [], None
+    for i, row in enumerate(m):
+        xs = np.nonzero(row)[0]
+        if len(xs) > 2:
+            box = [int(xs.min()) + x0, i + y0, int(xs.max()) + x0, i + y0]
+            cur = box if cur is None else [min(cur[0], box[0]), cur[1], max(cur[2], box[2]), box[3]]
+        elif cur is not None:
+            lines.append(cur)
+            cur = None
+    if cur is not None:
+        lines.append(cur)
+    return lines
+
+
+def message(name: str) -> dict:
+    """Emulator: replay the message's route beat from the canonical chain and
+    capture the message frame (see MESSAGES above)."""
+    import c7cap_partb as cp
+    import pcsx2_session as ps
+    import route_capture as rc
+    from clut import write_png_rgba
+    spec = MESSAGES[name]
+    rc.use_fork("phase", True)
+    ps.FORK_MTVU = False
+    beat = spec["beat"]
+    trace = json.loads((FORK_ROUTE / beat / "trace.json").read_text())
+    src = rc.beat_source(trace["source"])
+    lead = int(trace.get("lead_in_frames") or 0)
+    by_f: dict[int, list[dict]] = {}
+    for i in trace["inputs"]:
+        by_f.setdefault(i["f"], []).append(i)
+    out = PIX / "messages" / name
+    if out.exists():
+        import shutil
+        shutil.rmtree(out)                      # absolute path under build/fork_refs/pixels/messages
+    out.mkdir(parents=True)
+    keys = None
+    mismatches: list[dict] = []
+    found = None
+    with rc.open_session(src, log_dir=out / "logs") as s:
+        if lead:
+            s.step(lead)                        # as run_beat: the pad left as the session cleared it
+        r = rc.Route(s)
+        r.pad_fix = rc.v263_pad_corrections(beat)
+        r.begin()
+
+        def check(row: dict) -> None:
+            nonlocal keys
+            ref = trace["rows"][row["f"]]
+            keys = keys or sorted(set(ref) & set(row))
+            d = [k for k in keys if ref.get(k) != row.get(k)]
+            if d:
+                mismatches.append({"f": row["f"], "keys": d})
+
+        check(r.rows[0])
+        while found is None:
+            f = r.frame_index
+            if f >= len(trace["rows"]) - 1:
+                raise RuntimeError(f"{name}: message state not reached in the beat's {f} frames")
+            for i in by_f.get(f, []):
+                r.set_pad(i["buttons"], i["lx"], i["ly"])
+            if r.pad_fix is not None:
+                r._send_corrected_pad()
+            mode, phase, line = struct.unpack("<3I", s.read(MSG_BLOCK, 12))
+            if not (phase == 1 and line == spec["line"]):
+                r.step(1)
+                check(r.rows[-1])
+                continue
+            # the message is up: stop at this iteration's vsync wait and look at the block
+            before = s.u32(ps.FRAME_COUNTER)
+            s.debug.call({"cmd": "set_breakpoint", "address": cp.VSYNC_WAIT, "description": "message wait"})
+            try:
+                s._resume_to_boundary()
+                if cp._pc(s) != cp.VSYNC_WAIT or s.u32(ps.FRAME_COUNTER) != before:
+                    raise RuntimeError(f"{name}: expected the vsync wait of {before}, at {cp._pc(s):#x}")
+                blk = s.read(MSG_BLOCK, 0x70)
+                present = struct.unpack_from("<i", blk, 0x68)[0]
+                if present == spec["present"]:
+                    found = {"counter": before, "f_loop_top": f, "message_block": blk.hex(),
+                             "wait": s.snapshot(out / "wait")}
+                s.debug.call({"cmd": "remove_breakpoint", "address": cp.VSYNC_WAIT})
+                s._resume_to_boundary()
+            finally:
+                try:
+                    s.debug.call({"cmd": "remove_breakpoint", "address": cp.VSYNC_WAIT})
+                except Exception:   # noqa: BLE001
+                    pass
+            if cp._pc(s) != cp.LOOP_TOP or s.u32(ps.FRAME_COUNTER) != before + 1:
+                raise RuntimeError(f"{name}: step from {before} ended at {cp._pc(s):#x}")
+            s.frames_stepped += 1
+            r.frame_index += 1
+            r.rows.append(dict(r.now(), f=r.frame_index))
+            check(r.rows[-1])
+            if found:
+                found["top"] = s.snapshot(out / "top")
+        fork_hello = s.hello
+
+    def buffers(d: Path) -> dict:
+        regs = cp.priv_from_state(d / "state.p2s")
+        dp = cp.decode_priv(regs)
+        gs = (d / "gs.bin").read_bytes()
+        fa = cp.freeze_analysis(gs, [0x0, 0x38])
+        vram = gs[cp.FREEZE_VRAM:cp.FREEZE_VRAM + cp.LOCALMEM]
+        ee = (d / "eeMemory.bin").read_bytes()
+        shown, drawn = dp["DISPFB2"]["FBP"], fa["contexts"][0]["FRAME"]["FBP"]
+        return {"disp": cp.gs_buffer(vram, shown), "draw": cp.gs_buffer(vram, drawn),
+                "facts": {"counter": u32(d.joinpath("scratchpad.bin").read_bytes(), 0x3B64)
+                          if (d / "scratchpad.bin").exists() else None,
+                          "frame_index_810E80": ee[FRAME_INDEX], "field_810E88": ee[FIELD],
+                          "vsync_810E90": u32(ee, VSYNC), "csr_field": dp["CSR_FIELD"],
+                          "dispfb2_fbp": hex(shown), "frame_fbp": hex(drawn),
+                          "ofy": [(int(c["XYOFFSET_raw"], 16) >> 32 & 0xFFFF) / 16 for c in fa["contexts"]],
+                          "rand_state": hex(u32(ee, RAND_STATE))}}
+
+    rgb = lambda a: a.view(np.uint8).reshape(H, W, 4)[..., :3]      # noqa: E731
+    wb, tb = buffers(out / "wait"), buffers(out / "top")
+    for stage, b in (("wait", wb), ("top", tb)):
+        for k in ("disp", "draw"):
+            b[k].astype("<u4").tofile(out / stage / f"{'displayed' if k == 'disp' else 'draw'}.bin")
+            write_png_rgba(out / stage / f"{'displayed' if k == 'disp' else 'draw'}.png", W, H, cp.rgba_bytes(b[k]))
+    # the outputs, as fb2 (CAPTURES_C7.md 5b): at the loop top after the capture iteration, the
+    # displayed field (DISPFB2: drawn in the capture iteration, the line's fifth presentation) and the
+    # drawing buffer (FRAME: the previous field, about to be redrawn).  At the vsync wait itself the
+    # drawing buffer is not complete: the frame's last GS writes (the second text line) land between
+    # the wait and the vsync ISR, while the game waits (self_check)
+    (out / "displayed.bin").write_bytes(tb["disp"].astype("<u4").tobytes())
+    (out / "draw.bin").write_bytes(tb["draw"].astype("<u4").tobytes())
+    write_png_rgba(out / "displayed.png", W, H, cp.rgba_bytes(tb["disp"]))
+    write_png_rgba(out / "draw.png", W, H, cp.rgba_bytes(tb["draw"]))
+    # v2.6.3 reference (host presentation) for the record
+    leg = spec["legacy"]
+    legacy = None
+    if (leg / "eeMemory.bin").exists():
+        le = (leg / "eeMemory.bin").read_bytes()
+        lblk = le[MSG_BLOCK:MSG_BLOCK + 0x70]
+        lp = cp.read_png_rgba(leg / "original.png")
+        band224 = (TEXT_BAND_640[0] * W // 640, TEXT_BAND_640[1] * H // 480,
+                   TEXT_BAND_640[2] * W // 640, TEXT_BAND_640[3] * H // 480)
+        fb = bytes.fromhex(found["message_block"])
+        legacy = {"path": str(leg.relative_to(ROOT)),
+                  "message_block_equal": lblk == fb,
+                  "message_block_bytes_differ": [hex(i) for i in range(0x70) if lblk[i] != fb[i]],
+                  "frame_index_810E80": le[FRAME_INDEX], "field_810E88": le[FIELD],
+                  "player_pos_810350": list(struct.unpack_from("<3f", le, 0x810350)),
+                  "original_png": list(lp.shape),
+                  "text_lines_640x480": text_lines(lp, TEXT_BAND_640),
+                  "fork_text_lines_field_512x224": text_lines(rgb(tb["disp"]), band224),
+                  "fork_text_lines_scaled_to_640x480": [
+                      [x0 * 640 // W, y0 * 480 // H, (x1 + 1) * 640 // W - 1, (y1 + 1) * 480 // H - 1]
+                      for x0, y0, x1, y1 in text_lines(rgb(tb["disp"]), band224)],
+                  "note": "the v2.6.3 run was a different session (hand-played slot 06, power bit and "
+                          "elevator owner poked): only the message state and the player position are "
+                          "comparable; its original.png is the host presentation, not a GS field"}
+    wee = (out / "wait" / "eeMemory.bin").read_bytes()
+    doc = {
+        "what": f"the {name} message frame on the PCSX2 fork (fork_pixel_refs.py message {name})",
+        "fork": fork_build(), "fork_build": {k: fork_hello.get(k) for k in ("rev", "hash", "server_version")},
+        "recorded": time.strftime("%Y-%m-%d %H:%M:%S"), "renderer": 13, "mtvu": False,
+        "source": {"beat": beat, "trace": str((FORK_ROUTE / beat / "trace.json").relative_to(ROOT)),
+                   "state": str(src), "lead_in_frames": lead},
+        "alignment": {
+            "how": "replays the canonical beat's recorded inputs from its source state (with its lead-in); "
+                   "every replayed loop-top row is compared with the recorded row (all traced fields); at "
+                   "the first loop top with the line in phase 1 a breakpoint on the vsync wait (0x1AAFF0) "
+                   "is armed each iteration, and the capture is the wait whose message block +0x68 (present "
+                   "ticks) equals the v2.6.3 reference's value, the moment the v2.6.3 slot was saved",
+            "rows_replayed": len(r.rows), "rows_differ_from_recorded": mismatches,
+            "tick": {"iteration_counter": found["counter"], "beat_frame_of_iteration_loop_top": found["f_loop_top"],
+                     "beat_frame_of_next_loop_top": found["f_loop_top"] + 1},
+            "message_block": {"mode_phase_line": [hex(v) for v in struct.unpack_from("<3I", wee, MSG_BLOCK)],
+                              "present_ticks_0x68": struct.unpack_from("<i", wee, MSG_BLOCK + 0x68)[0]},
+        },
+        "phase": {"wait": wb["facts"], "top": tb["facts"]},
+        "self_check": {
+            "displayed_at_wait_equals_draw_at_top": bool((wb["disp"] == tb["draw"]).all()),
+            "draw_at_wait_vs_displayed_at_top": diff_box(wb["draw"], tb["disp"]),
+            "draw_at_wait_note": "the field being drawn in the capture iteration, as it stands at the vsync wait; "
+                                 "the rest of the frame's GS writes land before the vsync ISR",
+            "fork_gs_field_png_is_top_displayed": None},
+        "outputs": {
+            "displayed.bin / displayed.png": "the 512x224 displayed field (DISPFB2) at the loop top after the "
+                                             "capture iteration: the field drawn in it, the line's fifth presentation",
+            "draw.bin / draw.png": "the drawing buffer (FRAME) at that loop top, as fb2's draw.bin: the previous "
+                                   "field (the fourth presentation; equal to the displayed field at the wait)",
+            "wait/, top/": "the two save states (state.p2s, eeMemory.bin, scratchpad.bin, gs.bin, original.png = "
+                           "the fork's gs_field at that moment, snapshot.json) and their decoded buffers",
+            "format": "512x224 PSMCT32 words, raster order, little-endian (R,G,B,A bytes); png alpha opaque",
+        },
+        "legacy_v263": legacy,
+    }
+    shot = cp.read_png_rgba(out / "top" / "original.png")
+    if shot.shape == (H, W, 3):
+        doc["self_check"]["fork_gs_field_png_is_top_displayed"] = bool((shot == rgb(tb["disp"])).all())
+    write_json(out / "manifest.json", doc)
+    write_json(PIX / "messages/manifest.json", {
+        "what": "message frames re-recorded on the fork (fork_pixel_refs.py message <name>)",
+        "messages": {p.name: str((p / "manifest.json").relative_to(ROOT))
+                     for p in sorted((PIX / "messages").iterdir()) if (p / "manifest.json").exists()}})
+    print(json.dumps({k: doc[k] for k in ("alignment", "phase", "self_check")}, indent=1)[:4000])
+    if legacy:
+        print(json.dumps({k: legacy[k] for k in legacy if k != "note"}, indent=1))
+    return doc
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -555,7 +818,15 @@ def main() -> None:
     sub.add_parser("compare-chain")
     c = sub.add_parser("compare")
     c.add_argument("sets", nargs="*")
+    m = sub.add_parser("message")
+    m.add_argument("names", nargs="*", help="message frames (default: all): " + ", ".join(MESSAGES))
     a = ap.parse_args()
+    if a.cmd == "message":
+        for name in a.names or list(MESSAGES):
+            if name not in MESSAGES:
+                raise SystemExit(f"unknown message {name!r}; known: {', '.join(MESSAGES)}")
+            message(name)
+        return
     if a.cmd == "gscap":
         gscap(a.sets or list(B16_SETS))
     elif a.cmd == "route":

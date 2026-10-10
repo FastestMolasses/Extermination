@@ -93,10 +93,12 @@ the retirement checklist: `docs/PCSX2_FORK.md`.
   the v2.6.3 path (`a01`, `a00`, `a01r`, part of `a02`); disc timing (a sub-area's
   objects 7 frames late) takes it off at `a02_02` row 552; the fork's own playthrough
   then runs to `a22b_01` and is blocked at `a04b_00` (Use at door 45 not taken).
-- **Pixel references** (`build/fork_refs/pixels/`): fb2 14 of 19 displayed fields
-  bit-exact (the five others are v2.6.3 post-load hitches and the old beat 13; points
-  13..15 still to re-capture from the corrected chain), GS conformance 906 of 906
-  bit-exact, the route end frames decoded.
+- **Pixel references** (`build/fork_refs/pixels/`): fb2 16 of 19 displayed fields
+  bit-exact (13..15 re-captured from the corrected chain; the three others are v2.6.3
+  post-load hitches), GS conformance 906 of 906 bit-exact plus the new half-pixel
+  scissor set `b16/gscap9` (45 tests; v2.6.3 differs exactly where the fork's rule
+  says), the elevator refusal message frame (`messages/elevator_refusal`, for
+  test_message_capture), the route end frames decoded.
 - **What remains:** the port-side switch (`docs/PCSX2_FORK.md` "Retiring the 2.6.3 app":
   the 5 tests reading slots 01/02/04/14, test_fb2_pixels' paths and counter, GSCAP_ROOT,
   level_smoke_area01's row 741 -> 749, test_shadow_original_reference --capture,

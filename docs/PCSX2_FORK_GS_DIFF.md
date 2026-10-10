@@ -168,8 +168,15 @@ primitive-level rejection, only the per-pixel scissor, so the fork is
 probably the closer of the two. That is an inference, not a hardware
 measurement.
 
-The conformance suite did not catch this, because no designed test places a
-line half a pixel outside the scissor.
+The conformance suite did not catch this, because no designed test placed a
+line half a pixel outside the scissor. Since 2026-10-10 one does:
+`tools/gs_conformance_probe9.py` (set `gscap9`, GS_CONFORMANCE.md section
+10) draws lines and points whose first vertex lies 0 to 1 px past each
+inner-scissor edge, and the game's strips. Captured on both builds, 21 of 45
+tests are equal; the other 24 differ only where the fork drew a primitive
+whose first vertex lies 1/16 to 7/16 px past the scissor (8/16 past the top
+and left edges), which v2.6.3 dropped. The game's case reproduces the five
+row-223 pixels above.
 
 ### 3.4 What the game uses, and the other upstream changes
 
@@ -404,8 +411,9 @@ long as it lands in the same phase.
 **Re-recorded (2026-10-10).** The fork's pixel references are in
 `build/fork_refs/pixels/`, and the results are in
 [PCSX2_FORK.md](PCSX2_FORK.md), "Pixel references re-recorded on the fork".
-The fb2 points match bit for bit at 14 of 19, and the conformance tests at
-906 of 906. Matching the phase was not enough on its own: the chain also has
+The fb2 points match bit for bit at 16 of 19 (13 and 14 since their
+re-capture from the corrected chain; the other three are v2.6.3 field
+phase), and the conformance tests at 906 of 906. Matching the phase was not enough on its own: the chain also has
 to start on the same game update. User slots saved at the vsync wait are one
 update earlier than a loop-top state with the same bytes (PCSX2_FORK.md,
 "Correction (2026-10-10)").

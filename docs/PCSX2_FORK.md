@@ -167,7 +167,11 @@ How the fork path works:
   rows and displayed field differed in GS memory at the end snapshot (221,348
   bytes, in the letterbox rows of one buffer and two other areas). With it off,
   the two runs' GS freezes were identical, and EE state and rows were the
-  same as with it on. `video_compare/ps2_fork.py` keeps its own
+  same as with it on. That holds at loop tops. A GS freeze taken at the
+  vsync wait (0x1AAFF0) can still depend on host timing with VU1 off: in
+  the first of three identical message-frame runs (2026-10-10) the drawing
+  buffer at the wait lacked the frame's last text line (442 pixels), in the
+  other two it was complete. Take pixel references at loop tops. `video_compare/ps2_fork.py` keeps its own
   `--fork-mtvu` (default: the ini's value).
 
 ### Inventory: what used v2.6.3, and where it stands
@@ -588,12 +592,17 @@ FRAME), the fork build, and the comparison with the v2.6.3 frame.
 
 | Set | Port reader (switch) | Result against v2.6.3 |
 |---|---|---|
-| `fb2` (19 points, CAPTURES_C7.md 5b) | `test_fb2_pixels.py`: `FB2` -> `build/fork_refs/pixels/fb2`, `ROUTE` -> `build/fork_refs/s87/route`, `FIRST_CONTROL_COUNTER` 4085 -> 3301 | **14 of 19 displayed fields bit-exact**: 00..05, 07, 09..12, first_control, route03_end, route07_end. draw.bin is exact at 13 points, z.bin at 16. The 5 others are below. |
-| `b16` (GS conformance: gscap, gscap3..8, gscap_repeat) | `test_gs_raster_reference.py`, `test_gs_fog_conformance.py`: `GSCAP_ROOT=build/fork_refs/pixels/b16` | **906 of 906 tests bit-exact** (and 252 of 252 in the repeat), colour and Z. All 37 batch packets are equal. 187 of 187 page-aligned CT32 uploads are equal, and 111 of 111 in the repeat. 15 T8, T4 or unaligned uploads were not compared directly (11 in the repeat). The local memory outside the tests' buffers holds the game's own frame at the kick, a different moment in each run. |
+| `fb2` (19 points, CAPTURES_C7.md 5b) | `test_fb2_pixels.py`: `FB2` -> `build/fork_refs/pixels/fb2`, `ROUTE` -> `build/fork_refs/s87/route`, `FIRST_CONTROL_COUNTER` 4085 -> 3301 | **16 of 19 displayed fields bit-exact**: 00..05, 07, 09..14, first_control, route03_end, route07_end (13 and 14 since their re-capture from the corrected chain, 2026-10-10 07:00). draw.bin is exact at 15 points, z.bin at 17. The 3 others are below. |
+| `b16` (GS conformance: gscap, gscap3..8, gscap_repeat; gscap9 below) | `test_gs_raster_reference.py`, `test_gs_fog_conformance.py`: `GSCAP_ROOT=build/fork_refs/pixels/b16` | **906 of 906 tests bit-exact** (and 252 of 252 in the repeat), colour and Z. All 37 batch packets are equal. 187 of 187 page-aligned CT32 uploads are equal, and 111 of 111 in the repeat. 15 T8, T4 or unaligned uploads were not compared directly (11 in the repeat). The local memory outside the tests' buffers holds the game's own frame at the kick, a different moment in each run. |
 | `route` (main route end frames) | `test_shadow_original_reference.py --capture` reads `original.png` | Displayed and drawing buffers decoded from the canonical chain's snapshots (`build/fork_refs/s87/route`). **No v2.6.3 pixel reference exists**: those snapshots were saved with Metal, so their GS buffers hold the 0x80000000 fill. Their `original.png` is the 640x480 host presentation, which is not even tick-exact (route 03's shows an earlier letterboxed frame). The fork's `original.png` is the 512x224 field, so this switch needs a port-side change, not only a path. |
+| `b16/gscap9` (the half-pixel scissor edge; new, 45 tests) | a port test of the rule (none yet): `GSCAP_ROOT/gscap9/<batch>/<test>.npz`, the inputs in `batch.json` | The fork is the reference (the user's decision). `tools/gs_conformance_probe9.py` (`fork_pixel_refs.py gscap gscap9`), described in GS_CONFORMANCE.md section 10. A v2.6.3 capture of the same packets (`build/b16/gscap9`, 2026-10-10) is the evidence: **21 of 45 equal**; the 24 others differ only where the fork drew a line or point whose first vertex lies 1/16 to 7/16 px past the scissor (8/16 past the top and left edges), and v2.6.3 drew nothing for that primitive. The game's case (5 blended line strips with a vertex at y 223.25) gives exactly the 5 row-223 pixels of PCSX2_FORK_GS_DIFF.md 3.2. |
+| `messages/elevator_refusal` (new) | `test_message_capture.py` (now `build/startup-reference/elevator/refusal/original.png`, the v2.6.3 host presentation) | `fork_pixel_refs.py message elevator_refusal`: the canonical beat 02 replayed from its source (211 rows, all equal to the recorded rows), stopped at the vsync wait where the message block at 0x2821B0 equals the v2.6.3 capture's (mode 2, phase 1, line 0x8000001A, +0x68 = 5: all 0x70 bytes equal). `displayed.bin`/`.png`: the 512x224 field shown at the next loop top (counter 4028, beat 02 frame 210), the line's fifth presentation; `draw.bin`: the drawing buffer there (the fourth). No v2.6.3 field exists (the probe's `original.png` is the 640x480 presentation of a hand-played session with poked power: its panel light is green, the route's red). Text line boxes, scaled to 640x480: (267..330, 417..431) and (267..371, 443..457) against the screenshot's (268..330, 419..432) and (268..370, 445..457). |
 
 How fb2 is captured: `c7cap_partb.py fb2 --fb2-out build/fork_refs/pixels/fb2`
-(re-run on 2026-10-10 from the canonical chain: the same 14 of 19, below).
+(re-run on 2026-10-10 from the canonical chain; points 13, 14 and 15
+re-captured at 07:00 after the beat 13 pad correction:
+`--points 13_east_tower,14_roger_encounter,15_level_exit`, then
+`fork_pixel_refs.py compare fb2`).
 - Each point loads the canonical chain's state for its point (first_control:
   `route_capture.slot_start("04")`, the loop-top state of slot 04).
 - It replays the v2.6.3 session's own free frames after its load
@@ -601,16 +610,22 @@ How fb2 is captured: `c7cap_partb.py fb2 --fb2-out build/fork_refs/pixels/fb2`
   slot), so s0, s1 and s2 are the v2.6.3 ticks.
 - It then runs the same two steps with sync snapshots as in v2.6.3.
 
-The five fb2 points that differ (`fb2/manifest.json` "cause"; difference
-images in `pixels/_compare/fb2/`):
+The three fb2 points whose displayed field differs (`fb2/manifest.json`
+"cause"; difference images in `pixels/_compare/fb2/`):
 
 | Point | Displayed RGB pixels | Cause |
 |---|---|---|
 | 06_hill_slide | 86,371 | **Field phase.** The v2.6.3 session had a post-load hitch: one iteration spanned 17 vsyncs (none in the fork). The v2.6.3 field was drawn at OFY 1936.0, the fork's at 1936.5. Game state, rows and random state are equal. |
 | 08_truck_crossing | 105,364 | **Field phase**, the same kind: a 21-vsync iteration in v2.6.3. OFY 1936.5 against the fork's 1936.0. Rows and random state are equal. |
-| 13_east_tower | 80,495 | **Route divergence** (recorded before the pad correction). The v2.6.3 game read no pad on the frame of beat input f130 (a pad read dropout, finding 2), the fork did. The position and camera differ from there, the beat ends 7 frames earlier, and phase and random state follow. The canonical beat 13 now replays the dropout and equals v2.6.3; this point has not been re-captured since. |
-| 14_roger_encounter | 3,030 | **Random state** inherited from the old beat 13: only snow flakes differ. Rows, phase and z.bin are equal. draw.bin differs (99,275) because the v2.6.3 post-load hitch (23 vsyncs) put s0 on the other half line. Not re-captured since the beat 13 correction. |
-| 15_level_exit | 93,145 | **Field phase** (OFY 1936.5 against 1936.0 at s1; v2.6.3 had 2 extra vsyncs after its load) and the random state inherited from the old beat 13. Rows are equal. draw.bin differs in 4 pixels by 1, and z.bin is equal. Not re-captured since the beat 13 correction. |
+| 15_level_exit | 93,145 | **Field phase** (OFY 1936.5 against 1936.0 at s1; v2.6.3 had 2 extra vsyncs after its load). Since the re-capture rows, tick and random state (0xab03220f) are equal; draw.bin and z.bin are bit-exact. |
+
+Re-captured on 2026-10-10 07:00 from the corrected chain: **13_east_tower**
+is now bit-exact in displayed, draw and z (before: 80,495 pixels, the old
+beat 13's pad read dropout); **14_roger_encounter** is bit-exact in displayed
+and z (before: 3,030 snow pixels from the inherited random state), and its
+draw.bin still differs (98,992 words) because the v2.6.3 session's post-load
+hitch (22 extra vsyncs before s1) put s0 on the other half line, a v2.6.3
+host-timing artefact.
 
 None of the differences is the upstream scissor change: no differing frame
 is confined to row 223. None is AREA11 load timing either, because the fb2
@@ -979,13 +994,12 @@ reviewer; receipts are in `build/fork_diverge_a04/`: `chain2.out` for beat
   below): `sfx_request_probe`, `c7cap_capture` (stream, rng, lane3 from the
   title), `c7cap_partb` fb and h7, the full census (`route_census.py run
   --segments all`), `load_wait_probe` beat 03 and the boundary mode, the EE
-  float vectors, the repack proof live, the fb2 points 13..15 from the
-  corrected chain, and the level chain from `a04b_00` on (blocked; "Results,
+  float vectors, the repack proof live, and the level chain from `a04b_00` on (blocked; "Results,
   level groups").
   Run on the fork so far: `pcsx2_session`, `route_capture` / `route_lanes`
   (every first-level group, 78 level beats), `fork_states`, `ps2_fork`,
-  `gs_conformance` and probes 3..8 (`fork_pixel_refs.py gscap`),
-  `c7cap_partb fb2`, and the smokes of `load_wait_probe` (beat 01) and
+  `gs_conformance` and probes 3..9 (`fork_pixel_refs.py gscap`),
+  `c7cap_partb fb2`, `fork_pixel_refs.py message`, and the smokes of `load_wait_probe` (beat 01) and
   `route_census` (segment 00).
 - **User slots no tool regenerates:** 06 (the panel powered), 07 (panel clip
   0x15C), 11 and 13 (the elevator terminal). They were the probes' inputs,
@@ -1059,17 +1073,19 @@ everything"; "Yes, re-record in fork"). The lead then trashes
    blocked at `a04b_00`.
 4. **The phase states regenerated** on the loop-top phase (02, 03, 04, 08,
    12, 14, 15; "Correction" above).
-5. **Pixel references re-recorded** (the user's decision): fb2 14 of 19
-   displayed fields bit-exact (re-run on 2026-10-10 from the canonical
-   chain: the same 14, draw.bin 13, z.bin 16); GS conformance 906 of 906 bit-exact; the route end frames decoded from the
-   canonical chain. The differences that cannot be removed: v2.6.3 host
+5. **Pixel references re-recorded** (the user's decision): fb2 16 of 19
+   displayed fields bit-exact (draw.bin 15, z.bin 17; points 13..15
+   re-captured from the corrected chain on 2026-10-10 07:00); GS conformance 906 of 906 bit-exact,
+   plus the new half-pixel scissor set `b16/gscap9` (45 tests, the fork's
+   rule; v2.6.3 differs exactly where the rule says); the route end frames decoded from the
+   canonical chain; the elevator refusal message frame
+   (`pixels/messages/elevator_refusal`, item 7 below). The differences that cannot be removed: v2.6.3 host
    timing in the references (post-load hitches of 3 to 23 vsyncs), frames
    inside the AREA11 load (4 or 5 iterations longer on the fork), and
    upstream's half-pixel scissor culling (the user's decision: follow the
-   fork; a port-side job). The fb2 points 13, 14 and 15 were captured before
-   the beat 13 pad correction; re-capturing them from the corrected chain
-   (`c7cap_partb.py fb2`) is still to do and should remove beat 13's route
-   divergence and the inherited random state.
+   fork; a port-side job, testable on `b16/gscap9`). The re-capture of fb2
+   points 13..15 removed beat 13's route divergence and the inherited random
+   state (13 and 14 now bit-exact; 15 differs by the v2.6.3 field phase only).
 6. **The v2.6.3 facts cached.** `route_capture.py legacy-refs` (225 beats,
    12 slots with their save PCs) and `fork_states.py manifest` (the 12 slots'
    compared spans) ran on 2026-10-10. Re-run both if v2.6.3 captures change
@@ -1123,9 +1139,14 @@ port keeps reading the v2.6.3 files, so they must not be deleted):
    needs a code change, not only a path.
 7. **`test_message_capture.py`:** it reads the v2.6.3 screenshot
    `build/startup-reference/elevator/refusal/original.png`, written by the
-   disposable `elevator_refusal_probe.py` (host presentation). No fork
-   capture of that message frame exists yet: record one on the fork (route
-   beat 02 holds the refusal) and change the test to the 512x224 field.
+   disposable `elevator_refusal_probe.py` (host presentation). The fork
+   capture is `build/fork_refs/pixels/messages/elevator_refusal/`
+   (2026-10-10; table in "Pixel references re-recorded on the fork"):
+   `displayed.bin`/`.png` is the 512x224 field, `wait/eeMemory.bin` holds the
+   message block the test checks (2, 1, 0x8000001A, +0x68 = 5), and
+   `manifest.json` gives the tick, phase and alignment. The test still has to
+   change to the 512x224 field (its text band and the line boxes in field
+   rows), a port job.
 8. **The startup-reference probes' outputs** (`panel/` 14 files,
    `status-hub/` 11, `elevator/` 3, `roger-encounter/` 3, `playable_ee.bin`
    72, `opening_ee.bin` 43, the `*_poll.json` files, `cutscene_skip/`): the
@@ -1153,7 +1174,7 @@ the frame index and field equal the v2.6.3 rows (`trace.json` "phase").
 | 3 | status chain 08/12/14, Roger 15 | `fork_states.py status`; `fork_states.py roger` (phase generation by default) | canonical route 02; `phase/slot03` | slot 14 test, `status-hub/`, `roger-encounter/` | redone on 2026-10-10 on the loop-top phase ("Correction"): 15 equal in every compared byte; 08/12/14 differ in 55 bytes (hand-played v2.6.3 chain) |
 | 4 | C7 group (`s87/c7cap/<item>/c7_*`) | `route_capture.py run --beats c7` | route snapshots | 11 files (`s87/c7cap`) | redone on 2026-10-10 with the f197 pad correction: equal in every field |
 | 5 | C7 stream / rng / lane3 (title) | `c7cap_capture.py stream`, `rng`, `lane3 --from title` | route 01/10/11/13, slot 01 | `test_iop_stream_reference` and others | lane3 `--from boot` stays v2.6.3-only |
-| 6 | C7 fb, h7, **fb2 pixel points** | `c7cap_partb.py fb`, `h7`, `fb2` | the 16 route snapshots + first control (`slot_start("04")`) | `test_fb2_pixels.py` and others | fb2 re-run on 2026-10-10 from the canonical chain: the same result, 14 of 19 displayed fields bit-exact (draw.bin 13, z.bin 16), the five others with the causes above; fb and h7 not run |
+| 6 | C7 fb, h7, **fb2 pixel points** | `c7cap_partb.py fb`, `h7`, `fb2` | the 16 route snapshots + first control (`slot_start("04")`) | `test_fb2_pixels.py` and others | fb2 re-run on 2026-10-10 from the canonical chain, 13..15 again at 07:00 after the beat 13 correction: 16 of 19 displayed fields bit-exact (draw.bin 15, z.bin 17), the three others v2.6.3 field phase; fb and h7 not run |
 | 7 | AIM (`aimfire/capture`) | `route_capture.py run --beats aim` | route 08 | 5 files | done on 2026-10-10; 05, 06, 07, 09 redone at 03:16 (their differences were fork pad dropouts that did not recur): all 12 equal in every field |
 | 8 | C10 EXIT (`c10/exit`) | `--beats exit` | route 14 | 5 files | redone on 2026-10-10 03:19 from the corrected route 14: disc timing only (00: read gate on 50 rows; 01: the AREA01 load, 374 rows against 367) |
 | 9 | C10 DAMAGE (`c10/damage`) | `--beats dmg` | routes 07, 11, 14 | 5 files | done on 2026-10-10 (01 and 08 redone at 03:17/03:19): 00, 01, 06 equal; the rest disc timing (02, 03, 07, 08; 04 and 05 follow 03) |
@@ -1163,7 +1184,7 @@ the frame index and field equal the v2.6.3 rows (`trace.json` "phase").
 | 13 | census (`s87/census`) | `route_census.py run --segments all --pass F`, then `report --passes F` | slot 01, the route | 39 files, `FIRST_LEVEL_CENSUS.md` | thousands of v1 breakpoints through `ForkV1Debug`: smoke-test one beat first (`--segments 00`); the function sets should equal the v2.6.3 census. Smoke (`--segments 00 --pass FORKSMOKE`) re-run on 2026-10-10 from the canonical chain: 518 functions (the v2.6.3 pass A set), 261 of 261 rows equal the recorded beat, end digests equal; the first attempt lost its DebugServer connection at frame 76 and the tool retried (`runs/FORKSMOKE/_failed/`). That was not a fork fault: a parallel diagnostic agent killed that run's emulator by mistake (an incident; see "Never stop what you did not start"). The retried run is valid |
 | 14 | load wait (`s87/loadwait`) | `load_wait_probe.py run --beats 01,03 --mode boundary` (and `breakpoints`) | routes 01, 03 | 2 files | the fork's loader runs longer. Beat 01 breakpoints mode re-run on 2026-10-10 from the canonical chain: 517 of 517 rows equal the recorded beat; 24 dispatches, 17 polls, 3 reads, 1 request, as on v2.6.3 |
 | 15 | sound requests (`sfx_probe`) | `sfx_request_probe.py run` | the census route | 1 file | |
-| 16 | GS conformance (`b16/gscap`) | `gs_conformance.py capture` | `phase/04` (the 2026-10-09 state; the tests' packets do not depend on the game frame) | 2 files | done on 2026-10-10 for all eight sets into `build/fork_refs/pixels/b16` (`fork_pixel_refs.py gscap`): 906 of 906 tests bit-exact |
+| 16 | GS conformance (`b16/gscap`) | `gs_conformance.py capture` | `phase/04` (the 2026-10-09 state; the tests' packets do not depend on the game frame) | 2 files | done on 2026-10-10 for all eight sets into `build/fork_refs/pixels/b16` (`fork_pixel_refs.py gscap`): 906 of 906 tests bit-exact; the new set `gscap9` (half-pixel scissor edge, 45 tests) on 2026-10-10, with a v2.6.3 capture as evidence (21 of 45 equal, the rest the rule) |
 | 17 | EE float vectors (`startup-reference/ee_float`) | `ee_float/battery.py`, `blockcheck.py`, `vusig.py` | `phase/04` | 2 files | |
 | 18 | video compare (`video_compare/<rec>/ps2`) | `video_compare.py ps2 <rec> --out build/fork_refs/video_compare/<rec> --stride 4 --audio [--fork-title-delay N]` | cold boot | 2 files | pick the title delay whose phase after the first load equals the v2.6.3 run's (rows record both) |
 | 19 | startup probes' outputs (`startup-reference/panel`, `status-hub`, `elevator`, `roger-encounter`, `playable_ee.bin`, `opening_ee.bin`, `*_poll.json`, `cutscene_skip`) | not ported; equivalents: `phase/slot02..04` and the status / Roger states' `eeMemory.bin`, route beats 03 and 04 | the phase chain | 14 + 11 + 3 + 3 + 72 + 43 files | the port switch decides per file; the probes stay v2.6.3-only |

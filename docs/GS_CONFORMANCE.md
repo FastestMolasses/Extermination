@@ -449,6 +449,9 @@ and 2; what remains is in the port's docs/GS_EXACT.md section 8.**
 - `build/b16/gscap_repeat/`: the repeat run.
 - `tools/gs_conformance_probe3.py` .. `probe8.py` and `build/b16/gscap3` ..
   `gscap8`: the follow-up batches of lane RASTER (sections 8 and 9).
+- `tools/gs_conformance_probe9.py`: the half-pixel scissor edge (section
+  10); the fork set `build/fork_refs/pixels/b16/gscap9`, its v2.6.3 evidence
+  `build/b16/gscap9`.
 
 ## 8. Follow-up probes for the CPU GS model (lane RASTER, 2026-09-27)
 
@@ -660,3 +663,77 @@ after the restore).
 - The save-state folder kept the same 12 user slots.
 
 At the end, `Renderer = 17` is in place and no PCSX2 process is running.
+
+## 10. Probe 9: the half-pixel scissor edge (2026-10-10)
+
+The one renderer difference between v2.6.3 and the agent-debug fork
+(PCSX2_FORK_GS_DIFF.md 3.3): v2.6.3 drops a whole line or point whose
+bounding box lies past the scissor, even by less than half a pixel; the fork
+draws the in-scissor pixels its rasterization lights. The user's decision
+(2026-10-09): the port follows the fork. No earlier batch placed a primitive
+there. `tools/gs_conformance_probe9.py` does (the same harness and clean room;
+inputs in each batch's `batch.json`, test meta `prims_scissor` / `strips` /
+`controls`).
+
+### 10.1 The batches
+
+- `p9_edges` (40 tests): a 128x128 CT32 buffer with the inner scissor x 32..95,
+  y 32..95, so the pixels just outside it are in the buffer and must stay
+  clear. Coverage ids (one colour bit per primitive, additive). For each edge
+  (bottom, top, right, left) and each distance d of the first vertex past the
+  edge's last in-scissor row or column (0, 1, 2, 4, 6, 7, 8, 9, 12, 16
+  sixteenths), seven primitives 8 px apart along the edge: 0 a perpendicular
+  line going outward, 1 the same line reversed (its last vertex at d), 2 a
+  steep and 3 a shallow diagonal going outward, 4 a line parallel to the edge
+  at d, 5 a point at d, 6 a point at d on a half-integer position along the
+  edge. Test names are `<edge>_<d in sixteenths>`.
+- `p9_game` (5 tests): the game's case at the field's real edge, a 512x224
+  buffer with the full scissor: five alpha-blended Gouraud line strips at x
+  427.9375 + 2k through y 214, 223.25 and 231.5625 (`strips_22325`), the same
+  as separate lines (`lines_22325`), the middle vertex at 223.5 and 223.5625
+  (`strips_22350`, `strips_22356`); and `controls_fill`, triangles and sprites
+  starting 1/4 px past the inner scissor (and on it).
+
+### 10.2 Results
+
+Captured on the fork (`fork_pixel_refs.py gscap gscap9`, from fork state
+`phase/04`, software renderer) and, as evidence only, on v2.6.3 with the same
+packets (`GSCAP_OUT=build/b16/gscap9 gs_conformance_probe9.py --emulator
+legacy capture`). Per-test lit pixels and every v2.6.3 difference:
+`build/fork_refs/pixels/b16/gscap9/report.json` (`gs_conformance_probe9.py
+report --legacy build/b16/gscap9`).
+
+- **No pixel outside the scissor changed** in any test on either build: the
+  per-pixel scissor is unchanged.
+- **d = 0** (the vertex on the last row or column): equal on both builds.
+- **d = 1/16 .. 7/16**: the fork draws, in the edge row or column, one pixel
+  of the outward perpendicular line, one of the steep diagonal, one or two of
+  the shallow diagonal (two while d <= 2/16), six of the parallel line and
+  both points: 11 or 12 pixels per test. v2.6.3 draws none of them. The
+  reversed perpendicular line (its last vertex at d) lights nothing in the
+  scissor on either build, at every d including 0 (its end pixel is not
+  drawn).
+- **d = 8/16**: past the bottom and right edges nothing is lit on either build
+  (the rasterization reaches no in-scissor pixel). Past the top and left
+  edges the fork draws the shallow diagonal's pixel, the parallel line and
+  both points (9 pixels); v2.6.3 none. So the fork keeps a primitive whose
+  bounding box lies exactly half a pixel past the scissor.
+- **d >= 9/16**: nothing on either build.
+- **The game's case**: `strips_22325` and `lines_22325` differ in exactly the
+  five pixels of PCSX2_FORK_GS_DIFF.md 3.2 (row 223, x 428, 430, 432, 434,
+  436): the fork writes the outside segment's first pixel (0x81ffffff over the
+  clear 0x80302010), v2.6.3 keeps the clear colour. With the vertex at 223.5 or
+  223.5625 the builds are equal (the first segment lights row 223 itself).
+- **Controls**: triangles and sprites starting 1/4 px past the scissor light
+  nothing on either build; on the edge they are equal.
+- Every difference is v2.6.3 leaving the clear colour where the fork drew:
+  21 of 45 tests equal, the 24 others exactly the rule above.
+
+### 10.3 The emulator ini for the v2.6.3 evidence capture
+
+Line 220 of `build/startup-reference/inis/PCSX2.ini` was set from
+`Renderer = 17` to 13 for the one legacy run and back to 17 after it; the
+restored ini is identical to the copy taken before. Both memory cards kept
+their sha256 (757d6f77..., 47ebe237...), slot 04 kept its date, the
+save-state folder kept its 12 user slots, and no PCSX2 process was left
+running.
