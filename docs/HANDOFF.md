@@ -647,9 +647,10 @@ docs/NEARMISS.md                   near-miss registry (committed)
 docs/PROGRESS.md                   standing + roadmap
 ```
 
-Most `docs/*.md` are committed; a few working references (e.g. `docs/STARTUP.md`,
-`docs/OPENING_ACTORS.md`, `docs/fanout/*_GUIDE.md` except MATCHING_GUIDE) are kept
-untracked on purpose. Check `git status` and run the no-disassembly guard before staging.
+The `docs/*.md` are committed (`docs/STARTUP.md` and `docs/OPENING_ACTORS.md`
+since 2026-10-09, reviewed first, by user decision). The `docs/fanout/*_GUIDE.md`
+working references except MATCHING_GUIDE stay untracked on purpose. Check
+`git status` and run the no-disassembly guard before staging.
 
 ---
 

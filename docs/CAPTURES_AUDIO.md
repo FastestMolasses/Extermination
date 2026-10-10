@@ -2,8 +2,9 @@
 
 This capture was requested by the port's chain step AUDIO (port
 `docs/FIRST_LEVEL_AUDIT.md` section 1b item 1; `docs/IOP_STREAM.md`;
-STARTUP.md's audio notes): record the original's sound output for first-level
-route beats, so the port's sound output can be compared with it.
+`docs/STARTUP.md`'s audio notes, all port docs): record the original's sound
+output for first-level route beats, so the port's sound output can be compared
+with it.
 
 This file cites addresses, frame numbers and settings. It holds no original
 code, no disassembly and no disc bytes. All outputs are local and ignored, in
