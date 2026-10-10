@@ -61,6 +61,10 @@ emulator, its DebugServer and Pine):
     process and the load still failed).
   * Lock: build/.pcsx2.lock (mkdir) is held for the whole session and always
     removed; the ini is restored before it is released.
+  * --emulator fork (opt-in; the default stays this legacy app): the
+    project's agent-debug PCSX2 fork instead, see ps2_fork.py: a cold boot,
+    fields read with gs_field (no save states), and with --audio the
+    original's sound from the fork's emulated-time SPU2 tap as audio.wav.
 
 Everything written is derived from the user's own disc and stays under
 build/video_compare/.  The source save state is hashed before and after.
@@ -688,6 +692,12 @@ def run(args) -> int:
     if out.exists() and not args.resume_dir:
         shutil.rmtree(out)
     out.mkdir(parents=True, exist_ok=True)
+    if args.emulator == "fork":                 # opt-in: the agent-debug fork (ps2_fork.py)
+        if args.frames != "gs" or args.media_audio or args.emulator_lib_path:
+            raise SystemExit("--emulator fork: GS fields only; --frames screenshot, --media-audio and "
+                             "--emulator-lib-path are legacy-app options")
+        import ps2_fork
+        return ps2_fork.run(args, rec, out)
     changes = {}
     if args.frames == "gs":
         changes[("EmuCore/GS", "Renderer")] = "13"
@@ -867,7 +877,9 @@ def main(argv=None) -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--stride", type=int, default=4, help="capture ticks whose segment offset %% stride == 0")
     ap.add_argument("--frames", choices=["gs", "screenshot"], default="gs")
-    ap.add_argument("--audio", action="store_true", help="record PCSX2's SPU2 WAV log")
+    ap.add_argument("--audio", action="store_true",
+                    help="legacy: switch on PCSX2's SPU2 WAV log (writes nothing in v2.6.3); fork: record the "
+                         "original's sound with the fork's emulated-time SPU2 tap into audio.wav")
     ap.add_argument("--media-audio", action="store_true",
                     help="visible session; wait on audio_start/audio_stop marker files while PCSX2's Media "
                          "Capture (audio only, WAV) is toggled with the session's temporary End hotkey "
@@ -884,6 +896,24 @@ def main(argv=None) -> int:
     ap.add_argument("--title-limit", type=int, default=1500)
     ap.add_argument("--lock-poll", type=float, default=30.0)
     ap.add_argument("--resume-dir", action="store_true", help=argparse.SUPPRESS)
+    fk = ap.add_argument_group("the agent-debug PCSX2 fork (opt-in; docs/VIDEO_COMPARE.md 'The fork path')")
+    fk.add_argument("--emulator", choices=["legacy", "fork"], default="legacy",
+                    help="legacy (default) = the v2.6.3 app from the title save state; fork = a cold boot in "
+                         "the fork, fields by gs_field, --audio = the fork's emulated-time SPU2 tap")
+    fk.add_argument("--fork-field-k", type=int, default=0,
+                    help="fork: 0 (default) = ps2.py's capture point: the buffer DISPFB2 names at the loop top "
+                         "of tick t + 2, read from GS memory at the loop top of t + 3; K > 0 = the displayed "
+                         "field (gs_field) at the loop top of t + K instead")
+    fk.add_argument("--fork-extra-k", default="",
+                    help="fork, diagnostics: also read the field at these other K (comma list) into frames_k<K>/")
+    fk.add_argument("--fork-mtvu", type=lambda v: v.lower() in ("1", "true", "on"), default=None,
+                    help="fork: override [EmuCore/Speedhacks] vuThread (default: the capture ini's value)")
+    fk.add_argument("--fork-renderer", type=int, default=13, help="fork: 13 software (exact GS fields)")
+    fk.add_argument("--fork-app", default=None, help="fork: another PCSX2.app build of the fork")
+    fk.add_argument("--max-ticks", type=int, default=None, help="fork: stop after this many recorded ticks")
+    fk.add_argument("--fork-no-present", action="store_true",
+                    help="fork: do not copy frames to the hidden window (faster, but the Metal build's GS "
+                         "thread aborted that way during long movies on 2026-10-09)")
     return run(ap.parse_args(argv))
 
 

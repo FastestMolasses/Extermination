@@ -183,7 +183,7 @@ def read_wav(path: Path):
 
 
 def ps2_audio_index(ps2_dir: Path, wav_frames: int, rate: int):
-    """PS2 sample index of a tick's loop top: the WAV ends where the session
+    """Legacy runs (no `af` column).  PS2 sample index of a tick's loop top: the WAV ends where the session
     stopped (the last logged loop top, the VM stays paused there until the
     emulator exits); earlier loop tops are placed by the vsync counter
     0x00810E90 (one NTSC field = rate / 59.94 samples)."""
@@ -399,7 +399,12 @@ def compose(args) -> dict:
                 import numpy as np
                 idx = (np.arange(int(len(p_src) * rate / rate_p)) * rate_p / rate).astype(int)
                 p_src = p_src[idx]
-        p_index = ps2_audio_index(ps2_dir, len(p_src), rate) if p_src is not None else None
+        p_index = None
+        if p_src is not None:
+            # a fork run logs each tick's sample index in audio.wav (column af, sample-exact);
+            # a legacy run is placed by the vsync counter from the WAV's end
+            p_index = ((lambda row: row["af"] if row["af"] >= 0 else None) if any(r["af"] >= 0 for r in p_rows)
+                       else ps2_audio_index(ps2_dir, len(p_src), rate))
         tpf = m * stride
         a_n = build_audio(picked, "n", n_src, lambda row: row["af"] if row["af"] >= 0 else None, tpf, rate)
         a_p = build_audio(picked, "p", p_src, p_index, tpf, rate)
@@ -485,8 +490,8 @@ def add_compose_args(ap) -> None:
     ap.add_argument("--stride", type=int, default=4, help=argparse_suppress())
     ap.add_argument("--loads", choices=["trim", "hold"], default="trim")
     ap.add_argument("--audio", choices=["original", "native", "both", "none"], default="none",
-                    help="none (default: no PS2 audio capture is available in this PCSX2 build), native = the "
-                         "port's sound only (labelled), original/both need a PS2 audio.wav")
+                    help="none (default), native = the port's sound only (labelled), original/both need a PS2 "
+                         "audio.wav (the fork pass writes one: ps2.py --emulator fork --audio)")
     ap.add_argument("--audio-kbps", type=int, default=128)
     ap.add_argument("--title", default=None)
     ap.add_argument("--subtitle", default=None)

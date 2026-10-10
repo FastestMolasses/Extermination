@@ -5,9 +5,12 @@ PCSX2 and the native port, both driven by the same recorded inputs and synced
 by game tick, with labels, a speed-up and an H.264 MP4 that plays inline in
 Discord. It also writes a drift report: the first tick where the player's
 position or heading differs between the two runs, which is where the port
-diverges. The videos are silent by default: this PCSX2 build cannot record
-its audio while it is frame-stepped (see "Audio"); `--audio native` adds
-the port's sound, labelled as such.
+diverges. The videos are silent by default. The legacy v2.6.3 PCSX2 cannot
+record its audio while it is frame-stepped (see "Audio"); the project's
+agent-debug fork can (`ps2.py --emulator fork --audio`, see "The fork
+path"), and then `--audio both` puts the original's sound on the left and
+the port's on the right. `--audio native` adds only the port's sound,
+labelled as such.
 
 Everything it writes (recordings, frames, audio, videos) is derived from your
 own disc and stays in ignored `build/video_compare/`. Never commit any of it.
@@ -19,7 +22,7 @@ tool and this document.
 | Piece | Where it runs |
 |---|---|
 | Native port (records and replays) | native arm64 macOS, `../extermination-port` |
-| PCSX2 playback | the MCP-enabled PCSX2 in `build/startup-reference/PCSX2.app` (an x86_64 build: it runs under Rosetta), hidden, through `tools/pcsx2_session.py` |
+| PCSX2 playback | default: the MCP-enabled PCSX2 v2.6.3 in `build/startup-reference/PCSX2.app` (an x86_64 build: it runs under Rosetta), hidden, through `tools/pcsx2_session.py`; opt-in `--emulator fork`: the agent-debug fork (`../pcsx2-fork`, x86_64, Rosetta), hidden, through the fork's own `pcsx2dbg` launcher |
 | `tools/video_compare/*.py` | native arm64 Python 3; the PCSX2 stage uses the decomp `.venv` (it needs `zstandard`), the compose stage a `python3` with Pillow and numpy. `video_compare.py` picks the interpreter for each stage itself |
 | ffmpeg / ffprobe | Homebrew arm64 (`/opt/homebrew/bin`) |
 
@@ -82,7 +85,7 @@ The command runs three stages, each also available on its own:
 
 ```sh
 python3 tools/video_compare/video_compare.py native  build/video_compare/my_run.rec --out build/video_compare/my_run/native [--stride 4] [--audio] [--disc-timing recorded|0|1] [--sampling gs|area]
-python3 tools/video_compare/video_compare.py ps2     build/video_compare/my_run.rec --out build/video_compare/my_run/ps2 [--stride 4] [--audio] [--frames gs|screenshot]
+python3 tools/video_compare/video_compare.py ps2     build/video_compare/my_run.rec --out build/video_compare/my_run/ps2 [--stride 4] [--audio] [--frames gs|screenshot] [--emulator fork]
 python3 tools/video_compare/video_compare.py compose --native build/video_compare/my_run/native --ps2 build/video_compare/my_run/ps2 --out my_run.mp4 [options]
 python3 tools/video_compare/video_compare.py drift   --native build/video_compare/my_run/native --ps2 build/video_compare/my_run/ps2
 python3 tools/video_compare/video_compare.py clean   my_run      # deletes build/video_compare/my_run/
@@ -107,7 +110,7 @@ compose options without running PCSX2 again).
 | `--fps F` | 30 | output frame rate (29.97 at the default stride) |
 | `--stride K` | from speed and fps | capture every K-th tick (both sides); `--speed 2 --fps 30` gives 4. Speed 1 at 30 fps needs 2, at 60 fps 1 (slow on PCSX2) |
 | `--loads trim\|hold` | trim | loads: drop the longer side's middle load frames, or hold the shorter side's last load frame (tagged "held: the other side is still loading") |
-| `--audio none\|native\|original\|both` | none | `native` = the port's sound only (the header says so); `original` / `both` need a PS2 `audio.wav`, which this PCSX2 build does not produce (see "Audio"); `both` = original LEFT, port RIGHT |
+| `--audio none\|native\|original\|both` | none | `native` = the port's sound only (the header says so); `original` / `both` need a PS2 `audio.wav`, which only the fork pass produces (`ps2.py --emulator fork --audio`; the legacy app writes none, see "Audio"); `both` = original LEFT, port RIGHT (each downmixed to mono) |
 | `--disc-timing recorded\|0\|1` | recorded | `EM_PS2_DISC_DRIVE_TIMING` for the native playback |
 | `--sampling gs\|area` | gs | native frame: the port's exact 512x224 GS field, with the presented frame averaged over each field pixel's footprint where the port's overlay pass drew (see "Limits"), like with like with the PS2 field; or the presented 4:3 frame box-averaged to 640x480 |
 | `--ps2-frames gs\|screenshot` | gs | PS2 frame: the 512x224 GS field (needs the software renderer, switched for the session) or the save state's 640x480 host screenshot (hardware renderer, scaled and filtered by PCSX2) |
@@ -200,11 +203,8 @@ run of ticks with one phase.
 
 ## The PCSX2 session
 
-This section describes the legacy v2.6.3 app, which the tool still uses. The
-agent-debug fork (`docs/PCSX2_FORK.md`) records the displayed field for every
-frame and the SPU2 output in emulated time without save states or Media
-Capture. Moving this tool to the fork needs fork-saved start states and a
-check of the field capture point (see `PCSX2_FORK.md`, "Status").
+This section describes the legacy v2.6.3 app, still the default. The
+agent-debug fork is the opt-in alternative (next section).
 
 - Takes `build/.pcsx2.lock` (mkdir; polled every 30 s) for the whole
   session and always removes it, also on failure.
@@ -224,6 +224,88 @@ check of the field capture point (see `PCSX2_FORK.md`, "Status").
 - PCSX2 runs hidden (visible only with `--media-audio`) and is closed at
   the end (`no emulator process left`).
 
+## The fork path (`ps2.py --emulator fork`, opt-in)
+
+The project's agent-debug PCSX2 fork (`docs/PCSX2_FORK.md`; its guide
+`../pcsx2-fork/EXTERMINATION.md`) replaces the save-state-per-frame and
+breakpoint-per-tick machinery. `tools/video_compare/ps2_fork.py` drives it
+through the fork's DebugServer and its MIT Python package `pcsx2dbg` (no
+emulator source is used). The game-side rules are ps2.py's: the same
+scheduler, pad block model, phases, title driver and movie handling.
+
+```sh
+# macOS arm64 host (the fork is x86_64 and runs under Rosetta); decomp .venv via the dispatcher
+python3 tools/video_compare/video_compare.py ps2 build/video_compare/my_run.rec \
+    --out build/video_compare/my_run/ps2_fork --stride 4 --audio --emulator fork
+python3 tools/video_compare/video_compare.py compose --native build/video_compare/my_run/native \
+    --ps2 build/video_compare/my_run/ps2_fork --out my_run.mp4 --audio both [options]
+```
+
+- **Start: a cold boot.** The fork does not load v2.6.x states, so it boots
+  the user's disc image (APFS-cloned into scratch) with a fixed RTC
+  (2026-01-01 00:00:00), plays the intro movie, waits for the idle title and
+  confirms NEW GAME with ps2.py's title driver (one Cross; the New Game
+  movie skipped with START when the recording skipped it). No `-elf`
+  override: with it, this fork build failed to read the ELF's scratch copy
+  and the game crashed at once (2026-10-09). Boot to title takes about 78 s.
+- **Ticks.** `run {until: {ticks: 1}}` with the tick PC at the loop top
+  0x001AAF28 and a persistent stop probe at the return from the input step
+  (`ps2.post_input_pc()`), where the processed pad block is written with
+  `mem_write`. The raw pad goes through v1 `pad_set`.
+- **Movies are caught at an emulated point.** A second stop probe sits at
+  the entry of the blocking movie driver func_00203350 (`docs/STARTUP.md`);
+  START is set there. ps2.py's host-polled hook sets START whenever the
+  0.5 s poll notices the movie: two fork runs with that hook committed New
+  Game 3 vsyncs apart, and every later field differed between them (the
+  game state did not). With the probe the pass is repeatable. A second
+  run of the first 2,000 demo_level ticks equalled the full run in every
+  row, every EE and IOP cycle and vsync, all 503 frames (byte for byte)
+  and every audio sample (2026-10-09).
+- **Fields.** This is ps2.py's capture point without save states. At the
+  loop top of tick t + 2 the tool reads DISPFB2 as the EE wrote it
+  (0x12000090, fork region `gs_priv`); that buffer holds the field built from
+  tick t. At the loop top of t + 3 that buffer is the drawing context's
+  FRAME buffer, untouched until that iteration draws, and the tool reads its
+  56 pages from GS local memory (`mem_read` space `gs`) and de-swizzles them
+  (`ps2.word_map`). The software renderer (13) is required. In the
+  demo_level run the result equalled the fork's displayed field (`gs_field`)
+  at loop top t + 2 on all 3,578 captures, so no write lands late.
+  `--fork-field-k K` reads `gs_field` at loop top t + K instead, and
+  `--fork-extra-k` adds such reads to `frames_k<K>/` (diagnostics only).
+  **Do not use `gs_field` at t + 3:** it shows the field of tick t + 1.
+- **Audio (`--audio`).** The fork's emulated-time SPU2 tap (`audio_tap`):
+  48 kHz s16 stereo, as the SPU2 mixed it, before the host's filters. It is
+  started at the title. At every logged loop top the tool reads the tap's
+  sample count (`audio_tap status`) and stores it in the row's `af` column,
+  relative to the first recorded tick, as the port does. `ps2/audio.wav` is
+  cut from the tap to exactly the logged span: sample 0 is the first
+  recorded tick's loop top, and the WAV ends at the last logged loop top.
+  `ps2/audio_sync.json` checks it. Each loop top's count is within -1.2 to
+  +0.8 samples of the SPU2 clock (one sample per 768 IOP cycles from the
+  tap's first mark). compose.py places the PS2 audio by `af` whenever a
+  run has it; legacy runs keep the vsync-counter placement.
+- **Presentation stays on** (frames are copied to the hidden window; it
+  only paces the run). With it off, this Metal build's GS thread aborted
+  twice on 2026-10-09 with an IOGPU shared-memory assertion under the Metal
+  device's stretch-rect pass: after about 9 min of free running, and about
+  10 s into the level-exit movie E001. `--fork-no-present` turns it off.
+- **Lock and safety.** pcsx2dbg's `Session` takes `build/.pcsx2.lock` (polled
+  every 3 s: other lanes run short sessions back to back). It launches
+  hidden on scratch under `$TMPDIR/pcsx2-fork-vc` (BIOS and ini copies),
+  shuts the instance down and deletes the scratch. It never touches
+  `portable-data`, the memory cards or slots. SIGTERM closes the session
+  too. The emulator log is kept in `ps2/pcsx2_logs/`. The fork's shutdown
+  command did not end the process within 20 s in any run; the launcher then
+  terminates it, and no crash report results.
+- **Output.** The same as ps2.py (`ps2.rec`, `ps2_extra.json`, `frames/`),
+  plus `audio.wav` and `audio_sync.json`. `ps2_extra.json` adds `info`
+  (boot, title, movies with their vsync, play, end, shutdown) and, per row,
+  the agent vsync, EE and IOP cycles, the tap count and the game's frame
+  index 0x00810E80.
+- **Speed.** About 60 to 75 ticks/s closed loop, about 6 min per session for
+  the whole first level (78 s of it the cold boot), against 44.7 min on
+  v2.6.3.
+
 ## Audio
 
 - **Native.** During playback the port has no audio device
@@ -231,7 +313,10 @@ check of the field capture point (see `PCSX2_FORK.md`, "Status").
   lanes' SPU output) is pulled on the game thread, 800.8 frames per
   main-loop step at 48 kHz, into `native/audio.wav`. It is tied to the game
   tick, not to a host clock.
-- **PCSX2.** Not available in this build. The SPU2 debug WAV log
+- **PCSX2 fork.** The original's sound in emulated time, sample-exact per
+  loop top: see "The fork path". The rest of this section is about the
+  legacy v2.6.3 app.
+- **PCSX2 v2.6.3.** Not available in this build. The SPU2 debug WAV log
   (`[SPU2/Debug] Global_Enable` + `Log_WAVE_Output`, switched on for the
   session with `--audio original|both`, then restored) wrote no file in two
   sessions on 2026-10-01 (frame-stepped and free-running). PCSX2's own
@@ -298,9 +383,9 @@ check of the field capture point (see `PCSX2_FORK.md`, "Status").
 - `--audio native` puts the port's sound in the video and writes
   "sound: native port only" in the header, so nobody mistakes it for the
   original. `both` (original LEFT, port RIGHT, one track that Discord's
-  inline player can play) and `original` work as soon as `ps2/audio.wav`
-  exists (a future PCSX2 build); without it they fall back to `native` /
-  silent and say so in the summary.
+  inline player can play) and `original` need `ps2/audio.wav`, which only
+  the fork pass writes; without it they fall back to `native` / silent and
+  say so in the summary.
 - **Speed-up.** The audio covers the same game ticks as the frames and is
   sped up with ffmpeg's `atempo` (pitch kept) by the same factor, so it
   stays in sync at any `--speed`; held frames are silent.
@@ -610,5 +695,76 @@ sides (movies are cut from the video). Receipts: `build/video_compare/demo_level
   recorded drive time and answer at host speed).
 - `native/audio.wav` is 2.38 GB (the offline mixer also writes the uncapped
   exit-movie steps); compose cuts audio by tick, so only the file is large.
-  The original's sound needs the new emulator: re-run only the PCSX2 pass and
-  recompose with `--audio both` / `original`.
+  The original's sound came from the fork pass (next section).
+
+### The original's sound: the fork pass (2026-10-09)
+
+The PCSX2 pass was re-run on the agent-debug fork (v2.9.114-11-gc105df140,
+x86_64, Metal build, software renderer, MTVU on as in the capture ini) into
+`demo_level/ps2_fork/`:
+`video_compare.py ps2 build/video_compare/demo_level.rec --out
+build/video_compare/demo_level/ps2_fork --stride 4 --audio --emulator fork`.
+
+- **Session.** 349 s under the lock (78 s boot to the title, 147 title ticks
+  with one Cross, 237 s for the 14,258 played ticks including the exit movie)
+  plus 634 s waiting for the lock. 3,578 fields, all read from the buffer
+  (no fallback). Three movies were caught at the driver probe: the intro
+  (played), New Game (skipped, at vsync 11,427) and E001 (played).
+- **Audio.** `ps2/audio.wav` holds 15,223,222 samples (317.2 s) over 19,010
+  vsyncs (14 samples more than 800.8 per vsync; the tap follows the SPU2
+  clock, not the vsync).
+- **Drift against the port (compose).** Position and heading are bit-exact on
+  13,619 of 13,620 paired play and cutscene ticks. The one difference is
+  segment 4 offset 1,309, the same tick as against v2.6.3. No drift passes
+  the tolerance.
+- **Against the v2.6.3 run (`ps2/`).** Position and heading are bit-exact on
+  all 13,632 paired ticks, and every other column is equal except 14 rows of
+  the loader byte in the first load. Segment lengths, fork / v2.6.3 / port:
+  - first load: 274 / 268 / 266. That is 6 ticks longer than v2.6.3,
+    against 5 in the compat stage, which booted with `-elf` and skipped
+    New Game by host polling.
+  - AREA01 load: 302 / 294 / 94.
+  - segment 24: 219 / 219 / 218.
+  - Every other segment is equal on all three sides, including the opening
+    cutscene (1,321).
+- **Pictures** (mean absolute difference per channel, 3,521 paired frames):
+  - fork vs port: 2.08 overall. That is closer than v2.6.3 vs port, 3.53.
+  - In play segments the fork is within 0.16 to 0.6 of the port, against
+    2.2 to 6.6 for v2.6.3.
+  - fork vs v2.6.3: 2.78. Only loads, black frames and a few cutscene
+    frames are identical (78).
+  - The v2.6.3 frames came from a run whose New Game skip landed on a
+    host-timed vsync. Two fork runs that differ only in that vsync (3
+    vsyncs apart) differ in every field while their game state is
+    identical. Exact pixel comparisons therefore need the same emulated
+    timeline. The vsync-dependent state was not traced (candidates: the
+    field parity, timer-seeded effects).
+- **Sound against the picture.** These checks were made on the per-tick
+  audio of both sides (`audio_rms_by_tick.json`) and again in the final
+  video's left and right channels (`sound_check/`):
+  - *Voice line* ("Dennis here.", opening). The voice starts 2 to 5 ticks
+    after its subtitle appears, on both sides. The subtitle appears at
+    offset 53..56 and the voice at 58 on the original; on the port they are
+    45..48 and 48. The port's whole opening, picture and sound, runs 10
+    ticks ahead (the known opening lead).
+  - *Footsteps* (segment 9, the first walk). The onsets are at offsets 52,
+    74, 95 and 112 on both sides (the port's first one tick earlier), while
+    the player moves, bit-exact on both sides.
+  - *Elevator* (segment 16; the player's Y falls from 230 to 190 between
+    offsets 211 and 360). The ride's sound rises at 211, swells at 227, 237
+    and 247 and falls off at 360, on the same ticks on both sides.
+  - The two loudest effects (RMS about 13,000, segments 5 and 6 at offset 67)
+    start on the same tick on both sides.
+- **Port finding (not traced): a recurring loud sound starts 14 ticks
+  early.** In the play segments a loud sound returns every 130 to 170 ticks
+  (RMS about 8,000; e.g. segment 17 offsets 51, 350, 519, 650, 818, 949).
+  It starts 14 ticks (0.23 s) later on the original than on the port, at
+  about 30 places, while every effect above is on the same tick. At segment
+  17 the original's sound starts with the camera cut at offset 64; the
+  port's starts at 51. It looks like a stream lane starting early. That is
+  a lead for a port-side agent, not a diagnosis.
+- **Videos** (ignored, `demo_level/`; `--speed 2 --fps 30 --height 960 --crf
+  12 --summary-seconds 3`, the same title, and the subtitle ending in the
+  sound note): `demo_level_sound.mp4` (`--audio both`: original LEFT, port
+  RIGHT; 336 MB) and `demo_level_original_sound.mp4` (`--audio original`;
+  335 MB). Each is 2568x1164, 2:00.6, H.264 + AAC, 3,613 decoded frames.
