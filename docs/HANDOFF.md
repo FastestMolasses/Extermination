@@ -89,7 +89,7 @@ the retirement checklist: `docs/PCSX2_FORK.md`.
 - **Route groups** (`tools/route_lanes.py`): first level (64 beats) 36 equal v2.6.3 in
   every field, the end `rand()` state equal in all 64; the rest is disc timing (loader
   read gate, load lengths), the pad driver's bytes after a load, the memory-card record
-  (zero on the fork), one unexplained flag in dmg 04. Level chain: 78 of 161 beats; 37 on
+  (zero on the fork); nothing unexplained (dmg 04's flag is the NEW GAME load's 5-row shift). Level chain: 78 of 161 beats; 37 on
   the v2.6.3 path (`a01`, `a00`, `a01r`, part of `a02`); disc timing (a sub-area's
   objects 7 frames late) takes it off at `a02_02` row 552; the fork's own playthrough
   then runs to `a22b_01` and is blocked at `a04b_00` (Use at door 45 not taken).
@@ -154,9 +154,8 @@ the retirement checklist: `docs/PCSX2_FORK.md`.
 - **Coverage:** 001755B0 / 0021E9C0 have byte-matched C (decomp bc49270) and are entered
   by side runs (port merge de2b1d4: dmg_fan, dmg_pit_fall; a fan-damage bug fixed);
   census 1.69, all 951 live rows entered by a run (details under "State" below).
-- **Open user decisions:** (1) the stable local signing identity for the fork (not set up;
-  Claude Code's permission system refused it; recipe in the fork's
-  `EXTERMINATION_BUILD.md` section 5); (2) retiring `build/startup-reference/PCSX2.app`
+- **Open user decisions:** (1) DONE 2026-10-10: the fork is signed with the stable local
+  identity "Extermination PCSX2 Fork Local" after every build (fork faeded218); (2) retiring `build/startup-reference/PCSX2.app`
   and slots 01-15 to the Trash: decomp side done on 2026-10-10 (nothing to run on it
   except the optional `c7cap_capture.py lane3 --from boot`); the port-side switch
   (`docs/PCSX2_FORK.md` "Retiring the 2.6.3 app") must come first, because port tests

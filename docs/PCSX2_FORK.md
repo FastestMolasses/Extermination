@@ -101,7 +101,7 @@ the other's, and that the reaper leaves a live session alone.
 |---|---|
 | Fork build | `pcsx2-fork/build-x64/pcsx2-qt/PCSX2.app`: x86_64, runs under Rosetta 2, not installed. DebugServer **0.2.2** (fork commit `5a3048e8e`). Acceptance results on it: 70/70 v1 smoke, 82/82 BIOS, 21/21 MCP, 38/38 game (`--probes 1200`). The app's version string still reads `v2.9.114-11-gc105df140` (it is fixed when the build is configured), so identify a build by `hello.server_version`. |
 | Metal | The Xcode Metal Toolchain was installed on 2026-10-09 (the user's decision) and the fork rebuilt with its Metal renderer (fork `36f3e3a50`; `EXTERMINATION_BUILD.md` section 6). Captures still use the software renderer (13): only it keeps rendered pixels in GS memory. |
-| Code signing | The build is **unsigned** (ad-hoc signing is optional, `EXTERMINATION_BUILD.md` section 5). A stable local signing identity, which would keep one `~/Documents` grant across rebuilds, is **not set up**: Claude Code's permission system refused the agent's keychain import and signing steps. The user decides (create it from the recipe in `EXTERMINATION_BUILD.md` section 5, or allow an agent to). Until then the launcher keeps scratch outside `~/Documents` and APFS-clones the disc image. |
+| Code signing | Signed with the stable local identity "Extermination PCSX2 Fork Local" (the user's login keychain) since 2026-10-10: CMake option `EXTERMINATION_SIGN_APP` (ON) runs `extermination/scripts/sign_app.sh` after macdeployqt (fork faeded218). The designated requirement (identifier `net.pcsx2.pcsx2` + certificate leaf `cd3b7275...`) is the same across rebuilds, so one `~/Documents` grant survives them. Never re-sign while an emulator from the bundle runs (take the run lock). Recipe to recreate it: `EXTERMINATION_BUILD.md` section 5. |
 | MCP bridge | `pcsx2-fork/extermination/mcp-server/pcsx2_agent_mcp.py` (55 tools), registered in Claude Code as `pcsx2-agent` (local scope, the user's decision of 2026-10-09). The legacy Node bridge in `../PCSX2-MCP` is no longer the registered server. |
 | Legacy emulator | `build/startup-reference/PCSX2.app`: v2.6.3, x86_64, with the old DebugServer (TCP 21512) and PINE. **No longer the default** (the user's decision of 2026-10-09 to retire it): every decomp tool runs on the fork unless given `--emulator legacy` (or `EXTERMINATION_PCSX2=legacy`). The app stays until the lead retires it (checklist in "Retiring the 2.6.3 app" below). The duplicate `/Applications/PCSX2.app` went to the Trash on 2026-10-09. |
 | Save states | The fork writes version `0x9A59` and refuses v2.6.x states (`0x9A55`) with an explicit error. The user's slots 01 to 15 and the `build/s87/...` snapshots load only in the legacy app. The fork-saved replacements are in `build/startup-reference/fork-states/`, in two generations: `base` (the first regeneration) and `phase` (the default since 2026-10-10: the same game points, `rand()` state and player clock included, with the frame index and field of the v2.6.3 session's first loop top after loading the slot; "Correction" below). Every v2.6.3 fact the tools need (slot phases, save PCs, compared spans, beat lead-ins) is cached in `build/fork_refs/legacy_refs.json`, so no tool needs the slot files any more. |
@@ -705,7 +705,7 @@ is opened for append with a header per run (2026-10-10).
   | `13_east_tower` | drop at f130 (read at row 133) | open-loop replay of the v2.6.3 inputs from canonical route 12 with one neutral frame at f130: all 810 rows and the end `rand()` state equal; without it, or at f131/f132, rows differ from 133 (`build/fork_diverge_a04/b13_*.json`) |
   | `c7_door1_fence_door_side1` | drop at f197 (read at row 200) | the same replay from canonical route 09: all 545 rows and the end `rand()` state equal; without it the player's action is 1 where v2.6.3 has 5 from row 200 (`build/fork_padfix/replay/c7_*.json`) |
   | `br_11_plateau_ladder_up` | drop at f1028 (read at row 1031) | the v2.6.3 pad block itself (above) |
-  | `a01_01_tunnel` | the input set at f0 reaches the game 2 frames late | the replay with that input delayed 2 frames: all 306 rows equal; delayed 0, 1, 3, 4 or 5 frames, the clip differs from row 3 (`build/fork_diverge_a04/chain/chain.log`) |
+  | `a01_01_tunnel` | the input set at f0 reaches the game 2 frames late | the replay with that input delayed 2 frames: all 306 rows equal; undelayed, the clip differs from row 3 (`build/fork_diverge_a04/chain/chain.log`; that log's 1..5-frame sweep is a01_07's, not this beat's) |
 
   The level chain added eight (each proven by a closed-loop re-record that
   equals v2.6.3; "Results, level groups"): one more dropout (`a00_04` f70)
@@ -765,7 +765,10 @@ inputs, and the end `rand()` state. The end `rand()` state is equal in **all
     toggles +0x40 and +0x48, which follow the frame index; dmg 04 in those
     toggles, the NEW GAME load's timing (task slots from row 228, fade, 1853
     rows against 1848), the rumble bytes on 10 to 24 rows, and D_00810704
-    (`glob` +0x104: 0 against 255 from row 380 to the end, not explained).
+    (`glob` +0x104: set to 255 at row 190 in both, cleared at row 380 on
+    v2.6.3 and 385 on the fork: 5 rows, the NEW GAME load's 5-row shift;
+    aligned by that shift every row from 470 on is equal but 12 loader-gate
+    rows).
     Inputs and the end `rand()` state are equal in both.
 - **The pad driver after a state load:** bytes +0x48 (a toggle that flips on
   every read) and +0x58 (a count) of the pad block differ on rows 0..3 in
@@ -777,8 +780,10 @@ inputs, and the end `rand()` state. The end `rand()` state is equal in **all
   from row 89 on. opt 00, 02, 03, 04, 06, 07, 08 also differ in the loader
   read gate and the sound handle (`snd150`) on a few rows (disc timing).
 - **Explained since:** the c7 action flip at row 200 was a v2.6.3 dropout
-  (corrected above). **Not explained:** dmg 04's D_00810704 from row 380
-  (after the odd-length game-over load; the end `rand()` state is equal).
+  (corrected above); dmg 04's D_00810704, once listed as unexplained, clears
+  5 rows later on the fork, part of the NEW GAME load's shift (above). Every
+  first-level difference now has a cause: disc timing, the pad driver after
+  a load, or the memory-card record.
 
 **Results, level groups** (outside the first level; re-recorded 2026-10-10
 03:26..05:49 after beat 15, with the pad corrections; `a01` .. `a02_02` one
@@ -906,9 +911,14 @@ on (relative counters are equal).
   "known difference". The OPTIONS checker compares the card record only from
   the load row's clear on, and it is equal there in opt_07.
 - **Need a row change:**
-  - `level_smoke_area01` hard-codes beat 15's arrival row 741 and its last
-    counter: on the fork they are 749 and 15786 (the AREA01 load ends 8
-    frames later);
+  - `level_smoke_area01.py` hard-codes `ARRIVAL_ROW` 741 (beat 15's AREA01
+    rebuild; 749 on the fork, the AREA01 load ends 8 frames later; the last
+    counter, read from the capture, becomes 15786) and `AREA00_ARRIVAL_ROW`
+    529 (a01_07's AREA00 boundary; 538 on the fork, the AREA00 load ends 9
+    frames later). The port's `src/game/em_level_smoke_test.c` names both
+    rows in its phase descriptions and log lines ("route 15 row 741",
+    "capture row 529"), which the checker's regex parses: change them
+    together;
   - exit_01 and dmg_03..05: their load windows end a few rows later.
 - **Level groups:** see "Results, level groups".
 - The port test runs themselves are the final word. A port-side job makes
@@ -1102,7 +1112,10 @@ port keeps reading the v2.6.3 files, so they must not be deleted):
 5. **`level_smoke_area01.py`:** `ARRIVAL_ROW` 741 -> 749 and its last counter
    16562 -> 15786 on the fork's beat 15 (re-recorded 2026-10-10 with the
    beat 13 pad correction: equal to v2.6.3 but for disc timing; the AREA01
-   load ends 8 frames later).
+   load ends 8 frames later), and `AREA00_ARRIVAL_ROW` 529 -> 538 on the
+   fork's a01_07 (the AREA00 load ends 9 frames later); with them the row
+   numbers in `em_level_smoke_test.c`'s phase descriptions and log lines,
+   which the checker parses.
 6. **`test_shadow_original_reference.py --capture`:** it compares with each
    beat's `original.png`, which on v2.6.3 is the 640x480 host presentation
    (not tick-exact). The fork's is the 512x224 field; the decoded displayed

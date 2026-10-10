@@ -10139,7 +10139,7 @@ V263_PAD_CORRECTIONS: dict[str, list[dict]] = {
     "a01_01_tunnel": [
         {"kind": "late", "f": 0, "frames": 2,
          "evidence": "the beat's first stick input (f0) delayed 2 frames: all 306 rows equal; "
-                     "undelayed the clip differs from row 3, delayed 1, 3, 4 or 5 too "
+                     "undelayed the clip differs from row 3 "
                      "(build/fork_diverge_a04/chain/chain.log)"}],
     "a01_s5_duct": [
         {"kind": "late", "f": 0, "frames": 4,
