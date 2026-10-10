@@ -55,7 +55,8 @@ behaviour only, so port-side agents may read them.
 | MCP bridge | `pcsx2-fork/extermination/mcp-server/pcsx2_agent_mcp.py` (55 tools), registered in Claude Code as `pcsx2-agent` (local scope, the user's decision of 2026-10-09). The legacy Node bridge in `../PCSX2-MCP` is no longer the registered server. |
 | Legacy emulator | `build/startup-reference/PCSX2.app`: v2.6.3, x86_64, with the old DebugServer (TCP 21512) and PINE. It stays the default for every decomp tool until the user retires it (checklist in "Retiring the 2.6.3 app" below). The duplicate `/Applications/PCSX2.app` went to the Trash on 2026-10-09. |
 | Save states | The fork writes version `0x9A59` and refuses v2.6.x states (`0x9A55`) with an explicit error. The user's slots 01 to 15 and the `build/s87/...` snapshots load only in the legacy app. The fork-saved replacements the tools need are in `build/startup-reference/fork-states/` (next section). |
-| Compat with the game | Receipts are in the ignored `build/pcsx2-fork/acceptance/reports/`. The fork cold-boots the game, passes the intro and title, and replays the demo_hill route (4,678 ticks). Against the legacy run, per-tick game state matched once one load segment was aligned (273 against 268 ticks), except 5 rows of the loader busy byte. The displayed GS fields differ in most compared frames, and these receipts do not establish the cause. Until that is resolved, do not treat v2.6.3 field captures as frame-exact references for the fork. |
+| Compat with the game | Receipts are in the ignored `build/pcsx2-fork/acceptance/reports/`. The fork cold-boots the game, passes the intro and title, and replays the demo_hill route (4,678 ticks). Against the legacy run, per-tick game state matched once one load segment was aligned (273 against 268 ticks), except 5 rows of the loader busy byte. |
+| GS fields against v2.6.3 | **Explained** in [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md). Most compat-stage frames differed because the game's frame index and field phase differed after the longer load, not because of the renderer. With the phase matched, a fork run reproduces 1,152 of 1,173 v2.6.3 reference captures bit for bit. The fork's software renderer equals v2.6.3's on 906 conformance tests and 112 dumped game fields. The one exception is the half-pixel culling change of upstream `4fa2b8e45`: lines or points starting within half a pixel outside the scissor, 8 captures here. Pair captures by tick and field, and decode each run's own drawing buffer (section 8 there). |
 | arm64 | No native build. Upstream has no arm64 recompilers, and the fork's probes and memwatches live in the x86 recompilers. Rosetta 2 is available through macOS 27. See `EXTERMINATION.md` section 14. |
 
 ## Using it from this repository's tools
@@ -218,6 +219,10 @@ or the old path) with the `OriginalSession` API (`step`, `pad`, `read`,
   `gs_field`.
 - `ForkSession(None)` cold-boots the disc with a fixed RTC. It passes no
   `-elf`: an `-elf` override on a cold boot leaves the EE in the kernel.
+  The cause is the scratch path. `$TMPDIR` lies under the symlink `/var`, and
+  the emulator accepts the override only when `-elf` names the real path. A
+  real-path scratch base (for example `os.path.realpath(TMPDIR)`) boots with
+  `-elf`. See [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md) section 9.
 - The scratch folder, ISO clone and lock are removed on close.
 
 ### Still 2.6.3-only
@@ -264,8 +269,12 @@ or the old path) with the `OriginalSession` API (`step`, `pad`, `read`,
 3. Move the port tests that read slot files offline to the fork files
    (`fork_state()` or the manifest). That is a port-side change. If the old
    slot files go to the Trash before then, those tests lose their inputs.
-4. Re-record any v2.6.3 field or video captures that are used as frame-exact
-   references. The fork's GS fields differ from 2.6.3's, and the cause is not
-   explained yet.
+4. Decide, per v2.6.3 field or video capture used as a frame-exact reference,
+   whether to re-record it in the fork. The fork reproduces such captures
+   bit for bit when the tick, the field phase and the drawing buffer are
+   matched. Two exceptions remain: frames where the AREA11 load length differs
+   (4 or 5 more loader iterations in the fork), and lines or points starting
+   within half a pixel outside the scissor. See
+   [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md) sections 5 to 8.
 5. Then the user can trash `build/startup-reference/PCSX2.app` and the slots,
    with their confirmation (`CLAUDE.md`).
