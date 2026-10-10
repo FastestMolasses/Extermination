@@ -411,12 +411,11 @@ real path and allows the ELF only when that path equals the `-elf` argument as
 given. With HostFs off, the load was refused. The compat stage worked because
 its scratch was under `/private/tmp`, which is already a real path.
 
-- **Workaround:** use a real-path scratch base, such as
-  `os.path.realpath(TMPDIR)`.
-- **Fix belongs in the fork's launcher:** resolve the ELF and scratch paths
-  before building `-elf`.
-
-Reported to the lead on 2026-10-09.
+Reported to the lead on 2026-10-09, and **fixed in the fork's launcher**:
+fork commit `1e22fdc0c`, "launcher: pass real paths for the scratch and
+-elf", resolves both paths before building the command line. A launcher older
+than that commit needs a real-path scratch base, such as
+`os.path.realpath(TMPDIR)`.
 
 ## 10. Reproduce and receipts
 

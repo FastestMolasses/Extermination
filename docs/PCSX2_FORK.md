@@ -220,9 +220,9 @@ or the old path) with the `OriginalSession` API (`step`, `pad`, `read`,
 - `ForkSession(None)` cold-boots the disc with a fixed RTC. It passes no
   `-elf`: an `-elf` override on a cold boot leaves the EE in the kernel.
   The cause is the scratch path. `$TMPDIR` lies under the symlink `/var`, and
-  the emulator accepts the override only when `-elf` names the real path. A
-  real-path scratch base (for example `os.path.realpath(TMPDIR)`) boots with
-  `-elf`. See [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md) section 9.
+  the emulator accepts the override only when `-elf` names the real path. The
+  fork's launcher passes real paths since fork commit `1e22fdc0c`, so `-elf`
+  now boots. See [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md) section 9.
 - The scratch folder, ISO clone and lock are removed on close.
 
 ### Still 2.6.3-only
