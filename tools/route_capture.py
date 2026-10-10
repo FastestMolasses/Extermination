@@ -10059,6 +10059,17 @@ def run_beat(name: str, source: str, fn, tries: int = 4) -> None:
                     # session's free-running frames: an explicit neutral pad here
                     # (sticks 0x7F) made beat 02 leave the v2.6.3 path at frame 90
                     s.step(lead_in)
+                correction = 0
+                if phase_mode and ref and PHASE_LOCK:
+                    # When the fork chain already left the v2.6.3 timeline in an earlier
+                    # beat (route 13: the v2.6.3 run's host-timed stop at frame 133), the
+                    # source lands on the other parity: one more neutral frame restores
+                    # the v2.6.3 frame index and field (the game tick is then one later).
+                    want_fi, want_fld = legacy_row_phase(ref, 0)
+                    b = s.read(FRAME_INDEX, 12)
+                    if b[0] != want_fi and (want_fld is None or b[8] != want_fld):
+                        s.step(1)
+                        correction = 1
                 r = Route(s)
                 r.begin()
                 try:
@@ -10078,7 +10089,8 @@ def run_beat(name: str, source: str, fn, tries: int = 4) -> None:
                     meta["generation"] = GENERATION
                     meta["source_state"] = str(src)
                 if phase_mode:
-                    meta["lead_in_frames"] = lead_in
+                    meta["lead_in_frames"] = lead_in + correction
+                    meta["phase_correction_frames"] = correction
                     meta["phase_lock"] = bool(ref and PHASE_LOCK)
                     meta["phase"] = phase_report(r.rows, ref)
                     meta["frames"] = r.frame_index

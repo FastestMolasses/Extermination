@@ -224,9 +224,9 @@ class DebugServer:
 
 
 class Pine:
-    def __init__(self, path: str | Path | None = None):
+    def __init__(self, path: str | Path | None = None, timeout: float = 5.0):
         self.s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.s.settimeout(5)
+        self.s.settimeout(timeout)
         self.s.connect(str(path or Path(os.environ["TMPDIR"]) / "pcsx2.sock"))
 
     def _recv(self, n: int) -> bytes:
@@ -809,7 +809,8 @@ class ForkSession(OriginalSession):
         deadline = time.monotonic() + self.ready_timeout
         while True:
             try:
-                self.pine = Pine(self._inst.pine_socket)
+                # 60 s: a fork read under heavy host load (a parallel build) took over 5 s once
+                self.pine = Pine(self._inst.pine_socket, timeout=60.0)
                 break
             except OSError:
                 if time.monotonic() > deadline:

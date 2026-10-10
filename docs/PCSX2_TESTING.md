@@ -42,51 +42,60 @@ s28b (battery), s25 (status screen), s22/s23.
 - Transition request: write bytes `0x008106B5..B8` (area, sub|0xFF, entry, mode
   1=inter-area/2=room) to force a transition (s22 lifecycle).
 
-## Frame-exact original sessions (s87)
+## Frame-exact original sessions (s87; the fork by default since 2026-10-09)
 
-`tools/pcsx2_session.py` launches the MCP-enabled PCSX2 from one of the local
-save states (never modified; hashed before/after), parks it on a breakpoint at
-the main-loop top `0x001AAF28`, and then `step(n, buttons=..., lx=, ly=)`
-advances exactly `n` main-loop frames (the counter `0x70003B64` is checked to
-advance by one per step). `snapshot(dir)` saves to a free slot >= 16, extracts
-`eeMemory.bin`, `gs.bin`, `scratchpad.bin` and the embedded `original.png`,
-and moves the slot file into `dir`. Injected pad state reaches `0x810E70`
-two frames after it is set. State 03 has movement locked; state 04 walks.
-The emulator runs hidden by default (`open -g -j`, then kept hidden through
-System Events while it boots; frame stepping and save-state screenshots work
-while hidden). Pass `visible=True` / `--visible` to watch it.
-All output belongs in gitignored `build/`.
+`tools/pcsx2_session.py` steps the original exactly one main-loop frame at a
+time. `step(n, buttons=..., lx=, ly=)` advances exactly `n` frames: the
+counter `0x70003B64` is checked to advance by one per step. `snapshot(dir)`
+writes `state.p2s`, `eeMemory.bin`, `gs.bin`, `scratchpad.bin`, the picture
+`original.png` and `snapshot.json`, which records the main-loop counter, the
+game's vsync counter, the frame index D_00810E80 and the field D_00810E88.
+Injected pad state reaches `0x810E70` two frames after it is set. State 03
+has movement locked; state 04 walks. All output belongs in gitignored
+`build/`.
 
-The agent-debug PCSX2 fork (v2.9.114 + our engine; `docs/PCSX2_FORK.md`)
-runs to a condition in one request (about 200 ticks/s instead of about 8.7),
-records every frame and rewinds. It needs states saved by the fork: v2.6.3
-states, including slots 01 to 15 and the `build/s87/...` snapshots, load only
-in the legacy app.
+**Default: the agent-debug fork** (the user's decision of 2026-10-09 to
+retire v2.6.3; `docs/PCSX2_FORK.md`). `ForkSession` does the following:
 
-**Fork states.** `tools/fork_states.py` regenerated the states the tools use
-from a cold boot in the fork into the ignored
-`build/startup-reference/fork-states/`, with a `manifest.json` that maps the
-old names to the new files. The regenerated states are:
+- It loads a fork-saved state, resolved through
+  `build/startup-reference/fork-states/manifest.json`. A state argument can
+  be `04`, `slot04`, `14_roger_encounter`, `phase/04`, or the old v2.6.3
+  path.
+- It runs hidden on scratch data, takes the run lock itself and starts
+  exactly on the saved frame.
+- One frame step is one `run {until: {ticks: 1}}`, about 80 frames a second
+  with route_capture's per-frame sample.
+- `original.png` is the displayed field (`gs_field`).
 
-- slots 01 (title), 02 (opening), 03 (fade-in) and 04 (first control);
-- the 08 -> 12 -> 14 status chain;
-- slot 15 (the Roger encounter);
-- route beats 00..15 under `beats/s87/route/`.
+```sh
+# macOS (arm64 host; the fork runs x86_64 under Rosetta), decomp .venv
+.venv/bin/python tools/pcsx2_session.py 04 --frames 30 --snapshot build/<task>/walk
+```
 
-Each sits at the same game point as the old state, matched by game state, not
-by counter (details and differences: `docs/PCSX2_FORK.md`, "Fork states").
-Opt-in use, with the defaults unchanged:
+The command line prints the state it used and the phase after the steps.
+`--generation auto` (the default) takes the phase-locked state when the
+manifest has one, else the base state.
 
-- `tools/pcsx2_session.py 04 --emulator fork ...` (`ForkSession`, which takes
-  the run lock itself);
-- `tools/route_capture.py run --beats <b> --emulator fork`, which writes to
-  `fork-states/beats/...`.
+**Two generations of fork states.**
 
-In the fork, state 03 is still the fade-in with movement locked and state 04
-walks, as in the legacy states. A fork session starts exactly on the saved
-frame, while a legacy session loses 1 to 12 frames after its load.
-`--emulator <binary> --data-dir <scratch>` still launches any build the legacy
-way.
+- `base`: slots 01 to 04, the 08 -> 12 -> 14 status chain, slot 15 and
+  route beats 00..15. They sit at the same game points as the v2.6.3
+  states, matched by game state, not by counter.
+- `phase` (`phase/...` keys): the same game points with the v2.6.3 frame
+  index and field, so captures land on the same drawing buffer and half
+  line. A phase-locked capture also replays each v2.6.3 beat's lead-in, so
+  its rows sit on the v2.6.3 rows' ticks.
+
+Details: `docs/PCSX2_FORK.md`, "Fork states" and "Phase-locked states".
+
+**The legacy app** (v2.6.3, until the lead retires it): `--emulator legacy`
+(or `EXTERMINATION_PCSX2=legacy`) launches `build/startup-reference/PCSX2.app`
+from the user's slots or a `build/s87/...` snapshot, never modified (hashed
+before and after). It parks on a breakpoint at the main-loop top `0x001AAF28`.
+It runs hidden (`open -g -j`, kept hidden through System Events); `--visible`
+shows it. Snapshots go through a free slot >= 16 that is moved into the
+output folder. A legacy session loses 1 to 12 frames after its load. v2.6.3
+states load only there; fork states load only in the fork.
 
 ## Gotchas
 - Pause the VM before multi-byte pokes (`pcsx2_pause` / resume).

@@ -55,45 +55,106 @@ behaviour only, so port-side agents may read them.
 | Metal | The Xcode Metal Toolchain was installed on 2026-10-09 (the user's decision) and the fork rebuilt with its Metal renderer (fork `36f3e3a50`; `EXTERMINATION_BUILD.md` section 6). Captures still use the software renderer (13): only it keeps rendered pixels in GS memory. |
 | Code signing | The build is **unsigned** (ad-hoc signing is optional, `EXTERMINATION_BUILD.md` section 5). A stable local signing identity, which would keep one `~/Documents` grant across rebuilds, is **not set up**: Claude Code's permission system refused the agent's keychain import and signing steps. The user decides (create it from the recipe in `EXTERMINATION_BUILD.md` section 5, or allow an agent to). Until then the launcher keeps scratch outside `~/Documents` and APFS-clones the disc image. |
 | MCP bridge | `pcsx2-fork/extermination/mcp-server/pcsx2_agent_mcp.py` (55 tools), registered in Claude Code as `pcsx2-agent` (local scope, the user's decision of 2026-10-09). The legacy Node bridge in `../PCSX2-MCP` is no longer the registered server. |
-| Legacy emulator | `build/startup-reference/PCSX2.app`: v2.6.3, x86_64, with the old DebugServer (TCP 21512) and PINE. It stays the default for every decomp tool until the user retires it (checklist in "Retiring the 2.6.3 app" below). The duplicate `/Applications/PCSX2.app` went to the Trash on 2026-10-09. |
-| Save states | The fork writes version `0x9A59` and refuses v2.6.x states (`0x9A55`) with an explicit error. The user's slots 01 to 15 and the `build/s87/...` snapshots load only in the legacy app. The fork-saved replacements the tools need are in `build/startup-reference/fork-states/` (next section). |
+| Legacy emulator | `build/startup-reference/PCSX2.app`: v2.6.3, x86_64, with the old DebugServer (TCP 21512) and PINE. **No longer the default** (the user's decision of 2026-10-09 to retire it): every decomp tool runs on the fork unless given `--emulator legacy` (or `EXTERMINATION_PCSX2=legacy`). The app stays until the lead retires it (checklist in "Retiring the 2.6.3 app" below). The duplicate `/Applications/PCSX2.app` went to the Trash on 2026-10-09. |
+| Save states | The fork writes version `0x9A59` and refuses v2.6.x states (`0x9A55`) with an explicit error. The user's slots 01 to 15 and the `build/s87/...` snapshots load only in the legacy app. The fork-saved replacements are in `build/startup-reference/fork-states/`, in two generations: `base` (the first regeneration) and `phase` (the same game points with the v2.6.3 frame index and field; "Phase-locked states" below). |
 | Compat with the game | Receipts are in the ignored `build/pcsx2-fork/acceptance/reports/`. The fork cold-boots the game, passes the intro and title, and replays the demo_hill route (4,678 ticks). Against the legacy run, per-tick game state matched once one load segment was aligned (273 against 268 ticks), except 5 rows of the loader busy byte. |
 | GS fields against v2.6.3 | **Explained** in [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md). Most compat-stage frames differed because the game's frame index and field phase differed after the longer load, not because of the renderer. With the phase matched, a fork run reproduces 1,152 of 1,173 v2.6.3 reference captures bit for bit. The fork's software renderer equals v2.6.3's on 906 conformance tests and 112 dumped game fields. The one exception is the half-pixel culling change of upstream `4fa2b8e45`: lines or points starting within half a pixel outside the scissor, 8 captures here. Pair captures by tick and field, and decode each run's own drawing buffer (section 8 there). |
 | Fixes of 2026-10-09 | **Presentation off** (fork 0.2.2): builds before it never submitted GPU work while presentation was off, leaked about 1 MB per vsync and aborted the GS thread after long free runs or movies; 0.2.2 submits every 4 vsyncs and the footprint stays flat (765 MB over 36,000 vsyncs). **Shutdown** (0.2.2): about 0.5 s, also after thousands of stops and on lease expiry (before: over 20 s after a long closed loop, then killed). **`-elf` boots** (fork `1e22fdc0c`): the launcher passes real paths, so an `-elf` override from the `$TMPDIR` scratch (under the `/var` symlink) loads and runs. **`ForkSession` steps** (decomp `184f6f1`): `step(n)` advances exactly n frames with `align` False or True (below). |
 | arm64 | No native build. Upstream has no arm64 recompilers, and the fork's probes and memwatches live in the x86 recompilers. Rosetta 2 is available through macOS 27. See `EXTERMINATION.md` section 14. |
 
-## Using it from this repository's tools
+## The tools run on the fork by default (2026-10-09)
 
-The DebugServer's v1 protocol is byte-compatible with the legacy build, so
-`tools/pcsx2_session.py` can drive the fork. This is opt-in; the default stays
-the legacy `-portable` launch:
+The user decided on 2026-10-09 to retire PCSX2 v2.6.3 and migrate everything.
+Every decomp tool that drives the original now uses the fork unless told
+otherwise. The legacy path stays available, behind an explicit switch, until
+the lead trashes the app:
+
+- the command-line option `--emulator legacy` (route_capture, route_census,
+  sfx_request_probe, c7cap_capture, c7cap_partb, load_wait_probe,
+  gs_conformance, pcsx2_session, video_compare/ps2.py);
+- or the environment variable `EXTERMINATION_PCSX2=legacy` (it also covers
+  `ee_float/harness.py` and `repack/proof.py`).
 
 ```sh
-# macOS (arm64 host; the emulator runs under Rosetta), decomp .venv
+# macOS (arm64 host; the fork runs x86_64 under Rosetta), decomp .venv
 cd /Users/abe/Documents/Extermination.nosync/Extermination
-FORK_BIN=/Users/abe/Documents/Extermination.nosync/pcsx2-fork/build-x64/pcsx2-qt/PCSX2.app/Contents/MacOS/PCSX2
-mkdir build/.pcsx2.lock && {
-  .venv/bin/python tools/pcsx2_session.py "<path>/SCUS-97112 (0AE679AF).fork.p2s" \
-      --emulator "$FORK_BIN" --data-dir "$TMPDIR/pcsx2-session-fork" --frames 30
-  rmdir build/.pcsx2.lock; }
-rm -rf "$TMPDIR/pcsx2-session-fork"      # BIOS copies; absolute path
+.venv/bin/python tools/pcsx2_session.py 04 --frames 30 --snapshot build/<task>/walk   # fork, phase/04
+.venv/bin/python tools/route_capture.py run --beats 00                                # fork, phase-locked
+.venv/bin/python tools/route_capture.py run --beats 00 --emulator legacy             # v2.6.3 (until retired)
 ```
 
-From Python: `OriginalSession(state, emulator=FORK_BIN, data_dir=...)`. The
-command line does not take the run lock itself.
+How the fork path works:
 
-- `--data-dir` must lie outside `~/Documents`. The session fills it with
-  read-only copies: the BIOS, `build/startup-reference/inis/PCSX2.ini` with
-  every folder pointed inside it, PINE on slot 28011 and the software
-  renderer. It also copies the state and the ELF and APFS-clones the ISO,
-  which is removed when the session closes.
-- Delete the folder afterwards: it holds BIOS copies.
-- For `snapshot`, the state's file name must start with the serial
-  (`SCUS-97112 (...).*.p2s`): the snapshot's slot file is named after it.
-- Checked on 2026-10-09 from the fork's demo_hill tick-1600 state: ready in
-  2.6 s, 30 consecutive main-loop steps in 2.4 s, a snapshot with
-  `eeMemory.bin`, `gs.bin`, `scratchpad.bin` and the screenshot, the ISO clone
-  removed, the source state unchanged and no emulator left.
+- **Sessions.** `pcsx2_session.ForkSession` launches through the fork's
+  `pcsx2dbg` launcher: hidden, scratch outside `~/Documents`, software
+  renderer, no frame limiter. It takes the run lock itself (it waits) and
+  leaves nothing running. `pcsx2_session.open_original(state, backend)` makes
+  either session.
+- **One session class for every tool.** `route_capture.RouteSession` derives
+  from `ForkSession` and picks the emulator when an instance is made
+  (`route_capture.FORK`). The tools' own subclasses (census, c7cap, load-wait,
+  sfx, gs_conformance) therefore run on the fork unchanged.
+- **Their v1 stepping loops.** Those tools step with `resume` and then poll
+  `status` until the VM pauses at the loop top or at one of their v1
+  breakpoints. On the fork, `self.debug` is `pcsx2_session.ForkV1Debug`:
+  - `resume` becomes an async `run {until: {ticks: 1}}`, which also stops at
+    their v1 breakpoints, stop probes and memchecks;
+  - `status` is answered from the fork's `state`;
+  - `pause` becomes `halt`;
+  - a tick stop that executed nothing (after a load at the loop top) is run
+    again.
+- **States.** States resolve through
+  `build/startup-reference/fork-states/manifest.json`
+  (`fork_state(name, generation)`).
+- **Outputs.** Fork outputs never mix with the v2.6.3 captures.
+  - The phase generation (the default) mirrors each v2.6.3 path under
+    `build/fork_refs/`: `build/s87/route_a01/...` becomes
+    `build/fork_refs/s87/route_a01/...`, and so on. Each set gets a
+    `manifest.json`.
+  - `--generation base` keeps the first regeneration's layout,
+    `fork-states/beats/...`.
+- **VU1 thread.** Capture tools run the fork with VU1 on the EE thread
+  (`--fork-mtvu off`, the default). With VU1 on its own thread (the capture
+  ini's `vuThread = true`), two runs of route beat 00 with identical EE state,
+  rows and displayed field differed in GS memory at the end snapshot (221,348
+  bytes, in the letterbox rows of one buffer and two other areas). With it off,
+  the two runs' GS freezes were identical, and EE state and rows were the
+  same as with it on. `video_compare/ps2_fork.py` keeps its own
+  `--fork-mtvu` (default: the ini's value).
+
+### Inventory: what used v2.6.3, and where it stands
+
+The tools and probes that launch the v2.6.3 app or read its slots and states
+(found by searching for the app path, `portable-data/sstates`, slot numbers,
+`-statefile`, `OriginalSession` and port 21512):
+
+| Tool | What it used on v2.6.3 | Sets it writes (legacy path) | Fork status (2026-10-09) |
+|---|---|---|---|
+| `tools/pcsx2_session.py` | `OriginalSession`: the app with `-statefile` on a user slot or a beat snapshot | the caller's | command line defaults to the fork (`--generation auto`: phase, else base); library: `ForkSession`, `ForkV1Debug`, `open_original`, `fork_state(..., generation)`, `read_phase` |
+| `tools/route_capture.py` | `RouteSession` from slot 04 and each beat's snapshot | `build/s87/route` (00..15); `route_a00` .. `route_a22b`, `route_a13*`, `route_a15*`, `route_a19*`, `route_a03` (23 groups); `s87/c7cap/<item>/` (c7); `aimfire/capture`; `c10/{exit,damage,branch,options}` | fork by default, phase-locked (lead-in and tail replayed); `fi`/`fld`/`vs` in every row; `build/fork_refs/<path>`; a manifest per set; states hard-linked into `fork-states/phase/beats/`; `legacy-refs` caches the v2.6.3 facts |
+| `tools/route_census.py` | `CensusSession`: thousands of one-shot v1 breakpoints, from slot 01 and beat snapshots | `build/s87/census` | fork by default through `ForkV1Debug`; beats with the recorded lead-in; outputs to `build/fork_refs/s87/census`; smoke-tested on beat 00 (same 518 functions as v2.6.3) |
+| `tools/sfx_request_probe.py` | census sessions with persistent breakpoints | `build/sfx_probe` | fork by default; `build/fork_refs/sfx_probe`; not run yet |
+| `tools/c7cap_capture.py` | `C7Session`; `ColdSession` (cold boot); slot loads through PINE slots >= 40 | `s87/c7cap/{stream,lane3,rng}` | fork by default; stretches re-drive the fork chain; `build/fork_refs/s87/c7cap`; **`lane3 --from boot` stays v2.6.3-only**; not run yet |
+| `tools/c7cap_partb.py` | fb, h7 and fb2 sessions (fb2 needed the ini switched to Renderer 13 by hand) | `s87/c7cap/{fb,h7,fb2}` | fork by default (always software renderer, no ini switch); points from the fork chain; GS register page found at the fork state's offset (1,290 bytes after the tag against 1,246); `build/fork_refs/s87/c7cap`; not run yet |
+| `tools/load_wait_probe.py` | `ProbeSession` (breakpoints) from beats 01 and 03 | `build/s87/loadwait` | fork by default, with the recorded lead-in; `build/fork_refs/s87/loadwait`; beat 01 breakpoints mode run (same loader events as v2.6.3) |
+| `tools/gs_conformance.py` | slot 04 session, GS kick through `set_pc` (Renderer 13 by hand) | `build/b16/gscap` | fork by default from fork slot 04 (always software); `build/fork_refs/b16/gscap`; not run yet |
+| `tools/ee_float/harness.py` (`battery.py`, `blockcheck.py`, `vusig.py`) | `OriginalSession` on slot 04, v1 `step` | `build/startup-reference/ee_float` | `open_original("04")`: fork by default; not run yet |
+| `tools/video_compare/ps2.py` (+ `ps2_fork.py`) | slot 01 and Media Capture | `build/video_compare/<rec>/ps2` | fork by default (`ps2_fork.py`, a cold boot); every row records the frame index and field; `--fork-title-delay`; run on 2026-10-09 (demo_level) |
+| `tools/repack/proof.py` | a private copy of the app, cold boot of a rebuilt image | `build/repack/...` | fork by default (`ForkColdDisc`: no `-elf`, memory cards off); unit tests pass (15); not run live yet |
+| `tools/fork_states.py` | reads slots 01..15 and `build/s87/route` offline (match targets) | `fork-states/` | fork only; the slots' phases are cached in `build/fork_refs/legacy_refs.json` |
+| `tools/parse_pcsx2_state.py`, `export_gltf.py`, `export_native.py`, `clut_pair.py`, `verify_all.py` (glTF stage) | offline parsing; their examples and the glTF stage read `~/Library/Application Support/PCSX2/sstates` (another install, not the 2.6.3 app) | none | unaffected |
+| `build/startup-reference/*.py` (18 disposable probes; 11 launch the app: `collision_run_poll`, `first_control_poll`, `first_control_trace`, `interrupted_run_poll`, `elevator_probe`, `elevator_refusal_probe`, `panel_probe`, `panel_root_probe`, `roger_encounter_probe`, `status_hub_probe`, `debug_probe`) | user slots 03, 04, 06, 07, 08, 11, 12, 13, 14, 15 | `panel/`, `status-hub/`, `elevator/`, `roger-encounter/`, the `*_poll.json` files, `playable_ee.bin`, `opening_ee.bin`, `*_samples.jsonl` | not ported (ignored, disposable). `fork_states.py status` and `roger` replace 08/12/14/15; the rest is re-recorded from route groups (plan below) |
+| ignored ad-hoc scripts: `build/s87/frame_trace*/` (13), `build/s87/audio/tools/` (3), `build/startup-reference/cutscene_skip/skip_capture.py`, `build/s87/ee_float/harness.py` (old copy) | `OriginalSession` / `RouteSession` | `s87/frame_trace*`, `s87/audio`, `startup-reference/cutscene_skip` | not ported. Those built on `RouteSession` follow `route_capture.FORK` once they call `use_fork()` |
+
+Port tests that read these sets (counted with `git grep` in the port, docs
+excluded): `build/s87/route/` 38 files, `s87/census` 39, `s87/c7cap` 11,
+`aimfire/capture` 5, `c10/exit` 5, `c10/damage` 5, `c10/branch` 2,
+`c10/options` 3, `s87/loadwait` 2, `s87/audio` 4, `frame_trace` 12,
+`startup-reference/panel` 14, `status-hub` 11, `playable_ee.bin` 72,
+`opening_ee.bin` 43, the level groups `route_a00` .. `route_a22` 1 to 16
+each, and 5 tests that read user slots 01, 02, 04 and 14 offline. They all
+keep reading the v2.6.3 files until a port-side switch; nothing here moves or
+deletes them.
 
 ## Fork states: the tools' save states regenerated in the fork
 
@@ -195,16 +256,18 @@ the same trace as the fork chain: see "Verification" below.
   rows, and the position from frame 28 on 432 rows. The end state is equal to
   5e-5.
 
-### Using the fork states (opt-in; the defaults are unchanged)
+### Using the fork states
 
 ```sh
 # macOS (arm64 host; the fork runs x86_64 under Rosetta), decomp .venv
 cd /Users/abe/Documents/Extermination.nosync/Extermination
 # step the original from fork slot 04 (first control) and snapshot it
-.venv/bin/python tools/pcsx2_session.py 04 --emulator fork --frames 30 --snapshot build/<task>/walk
-# run route beats in the fork (sources resolve through the manifest;
-# output goes to fork-states/beats/..., never to build/s87/...)
-.venv/bin/python tools/route_capture.py run --beats 07 --emulator fork
+.venv/bin/python tools/pcsx2_session.py 04 --frames 30 --snapshot build/<task>/walk
+# run route beats in the fork, phase-locked (sources resolve through the
+# manifest; output goes to build/fork_refs/s87/route/..., never to build/s87/...)
+.venv/bin/python tools/route_capture.py run --beats 07
+# the first regeneration's layout instead (fork-states/beats/...)
+.venv/bin/python tools/route_capture.py run --beats 07 --generation base
 ```
 
 From Python: `ForkSession(fork_state("04"))` (or `fork_state("14_roger_encounter")`,
@@ -240,39 +303,150 @@ or the old path) with the `OriginalSession` API (`step`, `pad`, `read`,
   tick 120. See [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md) section 9.
 - The scratch folder, ISO clone and lock are removed on close.
 
-### Still 2.6.3-only
+### Phase-locked states and captures (2026-10-09)
 
-- **Tools with no fork option yet:**
-  - `tools/route_census.py`: its census sessions are `OriginalSession`
-    subclasses with legacy breakpoints;
-  - `tools/video_compare/ps2.py` by default (title slot 01, Media Capture);
-    its `--emulator fork` pass runs on the fork (next section);
-  - `tools/gs_conformance.py`, `tools/ee_float/harness.py`,
-    `tools/c7cap_capture.py`, `tools/c7cap_partb.py`, `tools/load_wait_probe.py`;
-  - the disposable probes in `build/startup-reference/*.py`.
-- **The other route groups:** `route_a01` .. `route_a03`, `c7cap`, `aimfire`,
-  and `c10/exit|damage|branch|options`. They chain from the route snapshots
-  above. `route_capture.py --emulator fork --beats <group>` regenerates them
-  into `fork-states/beats/...`, and none has been run yet.
-- **Port tests that read v2.6.3 state files offline** (no emulator), through
-  `parse_pcsx2_state`:
-  - slot 01: `test_sound_bank_reference.py`, which also reads route 00;
-  - slot 02: `test_area11_sfx_reference.py`, which reads `SPU2.bin`;
-  - slot 04: `test_truck_original_reference.py` and
-    `test_player_slide_reference.py`;
-  - slot 14: `test_vu1_object_kernel_reference.py`.
+**Why.** A capture shows the same picture as its v2.6.3 reference only when
+both draw the same game tick with the same phase
+([PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md) section 8):
 
-  These tests keep working while the files exist; retiring the app does not
-  delete them.
-- **User slots no tool uses**, which `fork_states.py` does not regenerate:
-  - 06, panel powered (counter 8268): hand-played, the source of
-    `elevator_probe.py` and `elevator_refusal_probe.py`;
-  - 07, panel clip 0x15C (8118): written by `panel_probe.py`;
-  - 11 and 13, elevator terminal (8317, 8280): written by the two elevator
-    probes from 06.
+- the frame index D_00810E80 picks the drawing buffer. In every capture so
+  far, of both builds, it equals the parity of the main-loop counter;
+- the field D_00810E88 picks the half-line draw offset. In every capture
+  so far it equals the parity of the game's vsync counter 0x00810E90.
 
-  Slot 08 (hand-played) and slot 12 (written by `panel_root_probe.py`) are
-  needed only as sources of 12 and 14, and have fork equivalents above.
+The base generation sits on the right game points, but its boot gave slots
+02, 03 and 04 the other phase: frame index 0 and field 1, against 1 and 0
+in v2.6.3. Every state and capture chained from them inherited that.
+
+**The lever** (`fork_states.py boot --phase-lock`). From `slot01_title`
+every input lands on a fixed tick, so a boot is repeatable. The scan, with
+receipts in `build/fork_refs/logs/phase_lock_scan_delays.json` and
+`phase_lock_boot_skip*.log`, found the following:
+
+- **Holding the title driver back d ticks** moves the New Game commit by d,
+  but the AREA11 load absorbs most of it:
+
+  | d | Points at | Frame index, field |
+  |---|---|---|
+  | 0 | counter 2156 | 0, 1 |
+  | 1 | counter 2158 | 0, 1 |
+  | 2 | counter 2158 | 0, 1 |
+  | 3 | counter 2159 | 1, 1 |
+
+  The field at the opening points stayed 1 in every case.
+- **Skipping the New Game movie with START** at a fixed emulated vsync after
+  a stop probe on the movie driver func_00203350 decides the field.
+  - A skip 0, 1 or 2 vsyncs after the driver starts changes nothing: the
+    commit stays at game vsync 11,443.
+  - A skip **40 vsyncs** after it gives slots 02, 03 and 04 frame index 1
+    and field 0, as in v2.6.3. The points are at counters 2155, 3179 and
+    3299, and each matches its v2.6.3 slot in every compared byte (score 0).
+
+  These are `phase/slot02_opening`, `phase/slot03_fade_in` and
+  `phase/slot04_first_control`. Their `fork_state.json` records
+  `press_delay` 0 and `skip_at` 40. The scan pass and the save pass
+  (two runs) landed on the same counters.
+
+**Captures** (`route_capture.py --generation phase`, the default):
+
+- **Lead-in and tail.** Each beat first runs its v2.6.3 capture's lead-in:
+  the frames the legacy session ran between the load and row 0, which is
+  the trace's first counter minus the source state's counter. The pad stays
+  as the session left it. The v2.6.3 retry tail is replayed too. When an
+  earlier beat already left the v2.6.3 timeline and the source lands on the
+  other parity, one more frame restores the phase
+  (`phase_correction_frames`).
+- **Phase per row.** Every row records `fi` (D_00810E80), `fld`
+  (D_00810E88) and `vs` (the game's vsync counter).
+- **Report.** `trace.json` "phase" compares each row with the v2.6.3 row
+  of the same index:
+  - the v2.6.3 frame index is its counter's parity;
+  - its field follows from the pairing measured at its source and end
+    snapshots, and is left unknown when the two disagree.
+- **Where things go.** Beat folders go to `build/fork_refs/<v2.6.3 path>/`,
+  each set's `manifest.json` lists every beat (source, lead-in, tail,
+  counters, phase report, state hash, fork build), and each beat's
+  `state.p2s` is hard-linked into `fork-states/phase/beats/<path>/` and
+  registered in the fork-states manifest as `phase/route/<beat>`.
+- **Cache.** `route_capture.py legacy-refs` caches every v2.6.3 fact the
+  lock needs in `build/fork_refs/legacy_refs.json`: lead-ins, tails, row
+  counters, phases at the sources and ends, and the 12 user slots' phases.
+  The lock therefore keeps working after the slots and the app are retired
+  (filled on 2026-10-09: 225 beats, 12 slots).
+
+**Proof on beat 00** (receipts in `build/fork_refs/phase_proof/00_panel_no_battery/`,
+`proof.json`). Beat 00 was run from `phase/04` with its lead-in of 11 frames,
+four times:
+
+| Check | Result |
+|---|---|
+| Repeatability | Runs 1 and 2 (VU1 thread on) and runs 3 and 4 (off): all 261 rows identical in every field. The end EE memory and the displayed field are identical in all four runs. |
+| Frame index and field against the v2.6.3 rows | Equal on 261 of 261 rows in every run (counters 3310..3570 against 4094..4354). |
+| Phase at the end snapshot | The fork's (0, 1) equals the v2.6.3 snapshot's (0, 1). |
+| Traced fields and inputs against v2.6.3 | Identical in every traced field on all 261 rows; the inputs are equal. |
+| GS memory | The two VU1-thread-on runs differed in 221,348 bytes of GS memory: the letterbox rows of one buffer and two other areas. The two VU1-off runs were identical. Hence capture tools default to VU1 off. |
+
+**The main route and the other phase-locked states.**
+Run on 2026-10-09 with the default command (`route_capture.py run --beats
+00,...,14`) from `phase/04`, then `fork_states.py status --generation phase`
+and `roger --generation phase`. Receipts:
+`build/fork_refs/s87/route/compare_v263.json` and
+`build/fork_refs/phase_proof/main_route_compare_v263.json`.
+
+| Beats | Against the v2.6.3 traces |
+|---|---|
+| 00..12 | Identical in every traced field on every row, the same frame count and the same inputs, with the frame index and field equal on every row: 261 + 517 + 388 + 686 + 577 + 677 + 206 + 558 + 240 + 533 + 3,569 + 1,261 + 337 rows. The end snapshots have the v2.6.3 phase. This includes beats 05 and 06, which drifted in the base chain, and 06 now has 205 frames as in v2.6.3 (its retry tail of 23 is replayed). |
+| 13 | Phase equal on all 803 rows. The position first differs at frame 133, by 0.1, as in the base chain. The v2.6.3 run has a host-timed one-frame stop there (CAPTURES_C7.md: three replays all left the recording at f133). The fork beat takes 802 frames against 809, so its end lands on the other parity. |
+| 14 | One phase-correction frame after the lead-in (`phase_correction_frames` 1) restores the v2.6.3 phase: equal on all 1,819 rows and at the end. The traced positions start from 13's slightly different end. |
+| status 08 / 12 / 14, Roger 15 | Phase equal to the v2.6.3 slots. 08, 12 and 14 differ in the same 49 bytes as the base chain; 12 needed one extra tick (`phase_extra_ticks`). 15 matches in every compared byte. |
+
+Beat 15 (the level exit, minutes of host time) was not run.
+
+**Run to run.** The first of five chain runs of beat 01 left the v2.6.3 path
+at frame 16, by 1e-4 in position. A re-run of that beat and three repeats
+from `phase/04` were identical to v2.6.3. The cause was not found; the run
+shared the host with a parallel `-j10` build. Compare a re-recorded set
+with its v2.6.3 trace (`compare_v263.json` does it for the main route)
+before relying on it.
+
+**Tools with breakpoints on the fork.** Smoke tests on 2026-10-09:
+- `load_wait_probe.py run --beats 01 --mode breakpoints`: 517 of 517 rows
+  equal the fork chain's trace. The loader events are 24 dispatches, 17
+  polls, 3 reads and 1 request, the same counts as the v2.6.3 probe.
+- `route_census.py run --segments 00 --pass FORKSMOKE`, which arms every
+  candidate: 518 functions, the same set as v2.6.3 pass A. The end digests
+  equal the recorded snapshot, with no unexpected pauses. It took 56 s.
+
+Both ran through `ForkV1Debug`, with persistent, one-shot and return-site
+breakpoints.
+
+### What still needs v2.6.3
+
+- **`c7cap_capture.py lane3 --from boot`.** It arms memchecks before the
+  game code runs, which its `ColdSession` does on the v2.6.3 app only. Use
+  `--from title` on the fork, or port the cold start (a fork cold boot with
+  `[UI] StartPaused`) when the lane-3 writers are needed again.
+- **Fork runs not made yet.** Every tool in the inventory above defaults to
+  the fork. The following have run on it: `pcsx2_session`, `route_capture`
+  (the main route), `fork_states`, `ps2_fork`, `load_wait_probe` (beat 01)
+  and `route_census` (beat 00). The others are ported and their
+  unit-level paths checked (`--help`, imports, and the repack unit tests).
+  The first fork run of each is part of its set's re-recording (plan
+  below).
+- **Port tests and data that read the v2.6.3 files.** They keep reading
+  them until a port-side switch:
+  - the 5 tests that read user slots 01, 02, 04 and 14 offline;
+  - the sets of the inventory: `build/s87/...`, `c10/...`,
+    `aimfire/...`, `startup-reference/{panel,status-hub,elevator,roger-encounter}`,
+    `playable_ee.bin`, `opening_ee.bin`.
+- **User slots no tool regenerates.** These are hand-played or probe-written:
+  - 06, the panel powered: the source of `elevator_probe.py` and
+    `elevator_refusal_probe.py`;
+  - 07, panel clip 0x15C: written by `panel_probe.py`;
+  - 11 and 13, the elevator terminal: written by the two elevator probes.
+
+  Their phases are in the cache. Their game points are reachable from the
+  phase route: beat 03 powers the panel, and beat 04 uses the elevator.
 
 ### Video comparison on the fork (`ps2.py --emulator fork`)
 
@@ -309,24 +483,75 @@ python3 tools/video_compare/video_compare.py ps2 build/video_compare/my_run.rec 
   `demo_level_sound.mp4` and `demo_level_original_sound.mp4` (ignored,
   `build/video_compare/demo_level/`).
 
-### Retiring the 2.6.3 app: what is still needed
+### Retiring the 2.6.3 app: checklist status (2026-10-09)
 
-1. Port the remaining legacy-only tools above to `ForkSession`, or decide to
-   drop them. route_census is the important one: the census measure in
-   `FIRST_LEVEL_CENSUS.md` depends on it.
-2. Regenerate the other route groups in fork mode where they are still used,
-   and point their readers (c7cap_partb, load_wait_probe, the port's capture
-   tests) at `fork-states/beats/...`.
-3. Move the port tests that read slot files offline to the fork files
-   (`fork_state()` or the manifest). That is a port-side change. If the old
-   slot files go to the Trash before then, those tests lose their inputs.
-4. Decide, per v2.6.3 field or video capture used as a frame-exact reference,
-   whether to re-record it in the fork. The fork reproduces such captures
-   bit for bit when the tick, the field phase and the drawing buffer are
-   matched. Two exceptions remain: frames where the AREA11 load length differs
-   (4 or 5 more loader iterations in the fork), and lines or points starting
-   within half a pixel outside the scissor. See
-   [PCSX2_FORK_GS_DIFF.md](PCSX2_FORK_GS_DIFF.md) sections 5 to 8.
-5. Then the user can trash `build/startup-reference/PCSX2.app`. The user
-   allowed (2026-10-09) removing their slots 01 to 15 together with that
-   retirement (`CLAUDE.md`); until then both stay.
+The user decided on 2026-10-09 to migrate everything. The lead then trashes
+`build/startup-reference/PCSX2.app` and the 12 user slot files (01, 02, 03,
+04, 06, 07, 08, 11, 12, 13, 14, 15).
+
+1. **Port the legacy-only tools: done.** Every tool in the inventory
+   defaults to the fork, with `--emulator legacy` or
+   `EXTERMINATION_PCSX2=legacy` kept until the retirement. The one exception
+   is `c7cap_capture.py lane3 --from boot` ("What still needs v2.6.3"). The
+   disposable probes in `build/startup-reference/*.py` and the ad-hoc scripts
+   in `build/s87/frame_trace*` and `build/s87/audio/tools` are not ported;
+   their states and outputs are re-recorded from the phase chain instead.
+2. **Regenerate the other route groups: partly done.** The phase-locked
+   main route 00..14, the status chain and Roger are regenerated (above). The other groups follow the plan
+   below. Their readers (c7cap_partb, load_wait_probe, census) already
+   resolve through `route_capture.beat_dir`, so they read the fork chain on
+   the fork.
+3. **Move the port tests that read slot files offline to the fork files.**
+   Port-side, not done. The phase-locked equivalents are `phase/slot01` (the
+   base title), `phase/slot02`, `phase/slot04` and `phase/slot14`. All of
+   them exist. If the old slot
+   files go to the Trash before then, those 5 tests lose their inputs.
+4. **Re-record the v2.6.3 pixel references in the fork: the user's decision
+   (yes).** The plan is below. The tools record the frame index and field
+   per row, and the phase lock lands every row on the v2.6.3 row's phase.
+   Two differences cannot be removed:
+   - frames inside the AREA11 load, which runs 4 or 5 iterations longer in
+     the fork;
+   - lines or points starting within half a pixel outside the scissor. The
+     user's decision is to follow the fork; a port-side job does that.
+5. **Before trashing the app and the slots, run `route_capture.py
+   legacy-refs`.** It was run on 2026-10-09: 225 beats and 12 slots cached.
+   Run it again if v2.6.3 captures change. Then the user can trash
+   `build/startup-reference/PCSX2.app` and the 12 slot files.
+   - `fork_states.py` reads the old slots only to build new phase-locked
+     boot states. It falls back to the cache for their phases, but the
+     game-state targets of `boot` need the files, and their fingerprints are
+     kept in the manifest.
+   - Never delete the v2.6.3 captures under `build/s87`, `build/c10` and
+     `build/aimfire`. The port reads them until its switch.
+
+### Re-recording plan, set by set
+
+Order matters: each group starts from snapshots of an earlier one. Every
+command runs on the fork, phase-locked, hidden, under the run lock. It writes
+to `build/fork_refs/<v2.6.3 path>` and a manifest per set, and registers its
+states in `fork-states/manifest.json`. Each set's report says on how many rows
+the frame index and field equal the v2.6.3 rows (`trace.json` "phase").
+
+| # | Set (v2.6.3 path) | Command (decomp .venv) | Source | Port readers to switch later | Notes |
+|---|---|---|---|---|---|
+| 1 | main route 00..14 (`s87/route`) | `route_capture.py run --beats all` | `phase/04` | 38 files | done on 2026-10-09 (above): 00..12 equal to v2.6.3 in every traced field and phase; 13 and 14 phase-equal |
+| 2 | beat 15, level exit | `route_capture.py run --beats 15` | route 14 | (in the 38) | minutes of host time (the departure movie plays in one tick); the AREA01 load length is fork-specific, so rows after it may lose the phase |
+| 3 | status chain 08/12/14, Roger 15 | `fork_states.py status --generation phase`; `fork_states.py roger --generation phase` | route 02; `phase/slot03` | slot 14 test, `status-hub/`, `roger-encounter/` | done on 2026-10-09; all four phase-equal |
+| 4 | C7 group (`s87/c7cap/<item>/c7_*`) | `route_capture.py run --beats c7` | route snapshots | 11 files (`s87/c7cap`) | |
+| 5 | C7 stream / rng / lane3 (title) | `c7cap_capture.py stream`, `rng`, `lane3 --from title` | route 01/10/11/13, slot 01 | `test_iop_stream_reference` and others | lane3 `--from boot` stays v2.6.3-only |
+| 6 | C7 fb, h7, **fb2 pixel points** | `c7cap_partb.py fb`, `h7`, `fb2` | the 16 route snapshots + first control | `test_fb2_pixels.py` and others | the pixel references. No ini switch on the fork; compare by tick and phase (GS_DIFF section 8) |
+| 7 | AIM (`aimfire/capture`) | `route_capture.py run --beats aim` | route 08 | 5 files | |
+| 8 | C10 EXIT (`c10/exit`) | `--beats exit` | route 14 | 5 files | exit_01 costs minutes (movie) |
+| 9 | C10 DAMAGE (`c10/damage`) | `--beats dmg` | routes 07, 11, 14 | 5 files | |
+| 10 | C10 BRANCH (`c10/branch`) | `--beats br` | routes 02..14 | 2 files | |
+| 11 | C10 OPTIONS (`c10/options`) | `--beats opt` | route 08 | 3 files | no memory card is written |
+| 12 | level groups `a01`, `a00`, `a01r`, `a02`, `a04`, `a22`, `a01u`, `a06`, `a06b`, `a01v`, `a22b`, `a04b`, `a13`, `a19`, `a13b`, `a13c`, `a13d`, `a19b`, `a19c`, `a19d`, `a15`, `a15b`, `a19e`, `a03` (`s87/route_a*`) | `--beats <group>`, in this order | beat 15, then each previous group | 1 to 16 files per group | outside the first level. Area loads are longer in the fork, so later rows may lose the v2.6.3 phase (reported per row) |
+| 13 | census (`s87/census`) | `route_census.py run --segments all --pass F`, then `report --passes F` | slot 01, the route | 39 files, `FIRST_LEVEL_CENSUS.md` | thousands of v1 breakpoints through `ForkV1Debug`: smoke-test one beat first (`--segments 00`); the function sets should equal the v2.6.3 census |
+| 14 | load wait (`s87/loadwait`) | `load_wait_probe.py run --beats 01,03 --mode boundary` (and `breakpoints`) | routes 01, 03 | 2 files | the fork's loader runs longer |
+| 15 | sound requests (`sfx_probe`) | `sfx_request_probe.py run` | the census route | 1 file | |
+| 16 | GS conformance (`b16/gscap`) | `gs_conformance.py capture` | `phase/04` | 2 files | the fork's renderer already equals v2.6.3's on 906 tests (GS_DIFF 3.1) |
+| 17 | EE float vectors (`startup-reference/ee_float`) | `ee_float/battery.py`, `blockcheck.py`, `vusig.py` | `phase/04` | 2 files | |
+| 18 | video compare (`video_compare/<rec>/ps2`) | `video_compare.py ps2 <rec> --out build/fork_refs/video_compare/<rec> --stride 4 --audio [--fork-title-delay N]` | cold boot | 2 files | pick the title delay whose phase after the first load equals the v2.6.3 run's (rows record both) |
+| 19 | startup probes' outputs (`startup-reference/panel`, `status-hub`, `elevator`, `roger-encounter`, `playable_ee.bin`, `opening_ee.bin`, `*_poll.json`, `cutscene_skip`) | not ported; equivalents: `phase/slot02..04` and the status / Roger states' `eeMemory.bin`, route beats 03 and 04 | the phase chain | 14 + 11 + 3 + 3 + 72 + 43 files | the port switch decides per file; the probes stay v2.6.3-only |
+| 20 | repack proofs | `python -m tools.repack proof-title` / `proof-gameplay` | cold boot of a rebuilt image | none | fork by default (`ForkColdDisc`) |

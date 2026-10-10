@@ -22,7 +22,7 @@ tool and this document.
 | Piece | Where it runs |
 |---|---|
 | Native port (records and replays) | native arm64 macOS, `../extermination-port` |
-| PCSX2 playback | default: the MCP-enabled PCSX2 v2.6.3 in `build/startup-reference/PCSX2.app` (an x86_64 build: it runs under Rosetta), hidden, through `tools/pcsx2_session.py`; opt-in `--emulator fork`: the agent-debug fork (`../pcsx2-fork`, x86_64, Rosetta), hidden, through the fork's own `pcsx2dbg` launcher |
+| PCSX2 playback | default since 2026-10-09 (the user's decision to retire v2.6.3): the agent-debug fork (`../pcsx2-fork`, x86_64, Rosetta), hidden, through the fork's own `pcsx2dbg` launcher (`--emulator fork`); until the app is retired, `--emulator legacy`: the MCP-enabled PCSX2 v2.6.3 in `build/startup-reference/PCSX2.app` (x86_64, Rosetta), hidden, through `tools/pcsx2_session.py` |
 | `tools/video_compare/*.py` | native arm64 Python 3; the PCSX2 stage uses the decomp `.venv` (it needs `zstandard`), the compose stage a `python3` with Pillow and numpy. `video_compare.py` picks the interpreter for each stage itself |
 | ffmpeg / ffprobe | Homebrew arm64 (`/opt/homebrew/bin`) |
 
@@ -85,7 +85,7 @@ The command runs three stages, each also available on its own:
 
 ```sh
 python3 tools/video_compare/video_compare.py native  build/video_compare/my_run.rec --out build/video_compare/my_run/native [--stride 4] [--audio] [--disc-timing recorded|0|1] [--sampling gs|area]
-python3 tools/video_compare/video_compare.py ps2     build/video_compare/my_run.rec --out build/video_compare/my_run/ps2 [--stride 4] [--audio] [--frames gs|screenshot] [--emulator fork]
+python3 tools/video_compare/video_compare.py ps2     build/video_compare/my_run.rec --out build/video_compare/my_run/ps2 [--stride 4] [--audio] [--emulator legacy [--frames gs|screenshot]] [--fork-title-delay N]
 python3 tools/video_compare/video_compare.py compose --native build/video_compare/my_run/native --ps2 build/video_compare/my_run/ps2 --out my_run.mp4 [options]
 python3 tools/video_compare/video_compare.py drift   --native build/video_compare/my_run/native --ps2 build/video_compare/my_run/ps2
 python3 tools/video_compare/video_compare.py clean   my_run      # deletes build/video_compare/my_run/
@@ -225,11 +225,15 @@ agent-debug fork is the opt-in alternative (next section).
 - PCSX2 runs hidden (visible only with `--media-audio`) and is closed at
   the end (`no emulator process left`).
 
-## The fork path (`ps2.py --emulator fork`, opt-in)
+## The fork path (`ps2.py --emulator fork`, the default since 2026-10-09)
 
 The project's agent-debug PCSX2 fork (`docs/PCSX2_FORK.md`; its guide
 `../pcsx2-fork/EXTERMINATION.md`) replaces the save-state-per-frame and
-breakpoint-per-tick machinery. `tools/video_compare/ps2_fork.py` drives it
+breakpoint-per-tick machinery. Every row of `ps2_extra.json` records the
+game's frame index D_00810E80 (`frame_idx`) and field D_00810E88 (`field`),
+and `info.title` the commit's. `--fork-title-delay N` holds the title driver
+back N ticks, which moves the New Game commit, to land a run on a reference's
+phase. `tools/video_compare/ps2_fork.py` drives it
 through the fork's DebugServer and its MIT Python package `pcsx2dbg` (no
 emulator source is used). The game-side rules are ps2.py's: the same
 scheduler, pad block model, phases, title driver and movie handling.
