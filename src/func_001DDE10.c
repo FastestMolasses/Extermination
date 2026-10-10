@@ -1,23 +1,27 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
 
-// SEMANTICS: radar/altimeter HUD bar builder. Transforms the tracked point at
-// player+0x2450 through the camera matrix D_70003AC0 (in cutscene/alt mode
-// func_0022EBE0()!=0 the depth/height pair q[2]/q[3] is |abs|'d and biased +100,
-// else the point is seeded from D_00810360 with 1/D_00275690 scale and q[3] biased
-// by the zoom D_00275694), then scales q[2] into a 0..4 bar value. Mode comes from
-// func_0015D2F0 (forced to 2 on level ids 0x29/0xC/0xD) and picks the zoom-target
-// spring constants (8500/50, 30500/1500, 40500/1500 at 0.05 rate). Four bar slots:
-// when signal func_001D2910(7) is up, each slot eases toward q[2] with per-slot gain
-// (8, 4+3.5w, 1.5+5.5w, 1+5w)/8 where w = 2*player.f1F4, width 62+30w; otherwise
-// per-mode gain tables (alt: 4/2/1/0.5, level key 0xB00: 8/7/6/5 with widths
-// 0x18/28/38/48, default: 8/4/1.5/1, width 0x3E). Values smooth into the persistent
-// block player+0x24F0 (0.15 ease when NOT returning from alt mode and flag +0x20 is
-// clear, else snap; flag +0x20 records the alt-mode state). Then for each of the 4
-// bars a GS sprite pair (GIF tag 0x50000006/0x50AB4000:8001, TEST 0x43431, RGB 0x80,
-// XYZ rows rr, cols 0x7000/0x7900 and 0x9000/0x8700 at width cc) is emitted into the
-// display list at player+0x1C, followed by a 0x60 end packet and
-// func_001CB760(D_007635C0, 0xFFF000, base, 0x60) to kick the DMA.
+// SEMANTICS: depth-of-field pass (not a HUD bar builder, as an earlier note
+// here said). Runs every world frame while render-context flag bit 1 is set
+// (func_001D1EA0 -> func_001DDA00 -> func_001DDAA0 -> here; func_001DE920 is the
+// alternative for area keys 0xB00-0xE00 with D_008106C8 & 0x60). It picks a focus
+// point and transforms it through the camera matrix D_70003AC0: in a cinematic
+// (func_0022EBE0()!=0) the camera look-at target, otherwise the player
+// (D_00810360). Mode comes from func_0015D2F0 (forced to 2 on level ids
+// 0x29/0xC/0xD) and selects the spring constants. The view depth then eases four
+// per-pass Z thresholds (persistent block player+0x24F0) with per-pass gains:
+// cinematic 4/2/1/0.5 with alpha 0x3E on all four; area key 0xB00 8/7/6/5 with
+// alphas 24/40/56/72; default 8/4/1.5/1, alpha 0x3E; when func_001D2910(7) is up
+// the gains and alpha follow 2*player.f1F4. For each of the four passes it emits:
+// a copy of the field being drawn into a 256x256 PSMCT32 buffer at GS byte
+// 0x258000 (func_001D6B10 -> func_001D6930, bilinear 2:1 shrink), the frame's
+// draw environment again (func_001D1F20(3)), the copy bound as the texture
+// (func_001D6BA0) with TEST/ALPHA set by func_001D6C90 (alpha test NEVER, colour
+// only, Z test GEQUAL; blend (Cs-Cd)*As+Cd), and one full-field textured sprite
+// whose Z is the pass's threshold and whose alpha is the pass's alpha, so only
+// pixels at or behind that plane are blended with the blurred copy. The list is
+// built at player+0x1C, closed with a 0x60 end packet and kicked once with
+// func_001CB760(D_007635C0, 0xFFF000, base, 0x60) at slot 0xFFF.
 
 typedef int u128 __attribute__((mode(TI)));
 

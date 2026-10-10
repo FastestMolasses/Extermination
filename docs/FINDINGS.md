@@ -15217,7 +15217,7 @@ the bar GEOMETRY + fade frame-counts + the zone-name source need a LIVE capture.
   Plus `op04 sub 8 func_001B9C10` (`E4=1`), `func_001BAD40` (scripted-actor native),
   `func_001B6BF0` (op 0x18 script END restore). Reader side-effects to mirror:
   `func_001E67C0` (E4==3 → low-detail render), `func_001EF940` (E4==3 → skip
-  positional audio), `func_001DDE10` (cutscene camera proj), `func_0022DCD0` (AI gate).
+  positional audio), `func_001DDE10` (depth-of-field pass: focus on the camera look-at target in a cinematic, else the player), `func_0022DCD0` (AI gate).
 
 ### The area-title text (CONFIRMED) + the per-area name table
 
