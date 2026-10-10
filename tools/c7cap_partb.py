@@ -118,9 +118,10 @@ def note_set(item: str, meta: dict | None = None) -> None:
     m = json.loads(path.read_text()) if path.exists() else {
         "what": "c7cap_partb.py on the agent-debug fork (docs/CAPTURES_C7.md 5, 5b, 6); route_capture "
                 "rows carry the frame index fi (D_00810E80), field fld (D_00810E88) and game vsync vs; "
-                "fb2 capture.json rows also carry hw.frame_idx_810E80",
-        "generation": rc.GENERATION, "route": str(ROUTE.relative_to(ROOT))}
-    m.setdefault("items", {})[item] = {"out": str((OUT / item.split("/")[0]).relative_to(ROOT)),
+                "fb2 capture.json rows also carry hw.frame_idx_810E80"}
+    m["generation"], m["route"] = rc.GENERATION, str(ROUTE.relative_to(ROOT))
+    out = FB2 if item.startswith("fb2") else OUT / item.split("/")[0]
+    m.setdefault("items", {})[item] = {"out": str(out.relative_to(ROOT)), "route": str(ROUTE.relative_to(ROOT)),
                                        "recorded": time.strftime("%Y-%m-%d %H:%M:%S"), **(meta or {})}
     rc._write_json_atomic(path, m)
 
@@ -724,19 +725,14 @@ HW_SPANS = [("D1_CHCR", 0x10009000), ("D1_MADR", 0x10009010), ("D1_TADR", 0x1000
 
 
 def fb2_source(src: str) -> Path:
-    if CORRECTED and len(src) == 2 and src in MID_ITERATION_SLOTS:
-        from pcsx2_session import fork_state
-        return fork_state(src, "base")
-    return rc.slot_path(src) if len(src) == 2 else rc.resumable(ROUTE / src / "state.p2s")
-
-
-# --corrected-chain (fork): the route points come from tools/fork_pixel_refs.py's
-# corrected chain (build/fork_refs/pixels/chain/s87/route), and a point on a
-# v2.6.3 user slot saved at the vsync wait (PC 0x1AAFF0: 01..04, 15) starts on
-# the fork's loop-top equivalent (base generation) with one frame less lead:
-# the v2.6.3 session spent that frame finishing the saved iteration.
-CORRECTED = False
-MID_ITERATION_SLOTS = {"01", "02", "03", "04", "15"}
+    """A point's recorded state.  On the fork a user slot (first_control: 04)
+    starts from route_capture.slot_start: the fork state of the v2.6.3
+    session's first loop top after loading the slot (every user slot was saved
+    at the vsync wait, PC 0x1AAFF0); fb2_lead then drops the finishing
+    iteration.  Route points come from the canonical chain (ROUTE)."""
+    if len(src) == 2:
+        return rc.slot_start(src)[0] if rc.FORK else rc.slot_path(src)
+    return rc.resumable(ROUTE / src / "state.p2s")
 
 
 # fb2 lead-in (fork only).  A legacy session ran free for 1..10 frames after
@@ -772,7 +768,9 @@ def fb2_lead(label: str, src: str) -> int:
         return 0
     if FB2_LEAD == "legacy":
         lead = fb2_legacy_point(label, src)["lead"]
-        return lead - 1 if (CORRECTED and len(src) == 2 and src in MID_ITERATION_SLOTS) else lead
+        if len(src) == 2:                   # the v2.6.3 session's finishing iteration (slot_start)
+            lead += rc.legacy_slot_loop_top_phase(src)["lead_in_correction"]
+        return lead
     return int(FB2_LEAD)
 
 
@@ -1111,20 +1109,15 @@ if __name__ == "__main__":
                          "point's own lead (s0 minus the recorded counter, from build/s87/c7cap/fb2), so "
                          "the outputs land on the same game ticks; or an integer")
     ap.add_argument("--corrected-chain", action="store_true",
-                    help="fb2 on the fork: points from build/fork_refs/pixels/chain (tools/fork_pixel_refs.py "
-                         "chain) and vsync-wait user slots from their loop-top (base) equivalent")
+                    help="no effect since 2026-10-10 (kept for old commands): the canonical chain "
+                         "build/fork_refs/s87/route is the corrected one, and user-slot points start "
+                         "from route_capture.slot_start on the fork by default")
     rc.add_emulator_args(ap)
     a = ap.parse_args()
     apply_emulator(a)
     FB2_LEAD = a.lead
-    if a.corrected_chain:
-        if not rc.FORK:
-            raise SystemExit("--corrected-chain is a fork option")
-        CORRECTED = True
-        ROUTE = ROOT / "build/fork_refs/pixels/chain/s87/route"
-        FB2_POINTS = ([(p.name, p.name) for p in sorted(ROUTE.glob("[01][0-9]_*")) if (p / "state.p2s").exists()]
-                      + [("first_control", "04"), ("route03_end", "03_panel_power"),
-                         ("route07_end", "07_truck_preview")])
+    if a.corrected_chain and not rc.FORK:
+        raise SystemExit("--corrected-chain is a fork option (and the fork's default)")
     if a.fb2_out is not None:
         FB2 = a.fb2_out.resolve()
         if LEGACY_FB2.resolve() in [FB2, *FB2.parents] and rc.FORK:

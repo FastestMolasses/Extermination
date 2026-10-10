@@ -523,6 +523,17 @@ def save_run(pass_name: str, label: str, doc: dict) -> None:
     d = OUT / "runs" / pass_name
     d.mkdir(parents=True, exist_ok=True)
     (d / f"{label}.json").write_text(json.dumps(doc, indent=1) + "\n")
+    if rc.FORK:
+        tv = doc.get("trace_vs_recorded") or {}
+        rc.note_fork_set(OUT, "route_census.py on the agent-debug fork: per pass and label, the functions hit "
+                              "(runs/<pass>/<label>.json); beats replay the canonical chain's recorded beats "
+                              "(source, recorded lead-in) and compare their rows with them",
+                         f"runs/{pass_name}/{label}",
+                         {"source": doc.get("source"), "lead_in_frames": doc.get("lead_in_frames"),
+                          "start_counter": doc.get("start_counter"), "frames": doc.get("frames"),
+                          "functions": len(doc.get("functions") or []), "completed": doc.get("completed"),
+                          "trace_rows_identical": tv.get("rows_identical"),
+                          "trace_rows_compared": tv.get("rows_compared")})
 
 
 def label_doc(s: CensusSession, label: str, extra: dict) -> dict:

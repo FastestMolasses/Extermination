@@ -27,8 +27,10 @@ under the run lock build/.pcsx2.lock, and leaves no emulator running):
             (slot02_opening) -> its fade-in (slot03_fade_in) -> first control
             (slot04_first_control).  Pass 1 records the per-tick scores, pass 2
             replays from slot01_title and saves the best-matching ticks.
-  route     route_capture beats 00..15 (`--beats` to choose) in fork mode, from
-            slot04_first_control, each beat from the previous fork snapshot.
+  route --generation base
+            route_capture beats 00..15 (`--beats` to choose) in fork mode, from
+            slot04_first_control, each beat from the previous fork snapshot,
+            no lead-in (the first regeneration's layout fork-states/beats/).
   status    from route 02_elevator_refusal: the panel's BATTERY prompt
             (slot08_battery_prompt), Circle to the status root
             (slot12_status_root), Circle to the status hub (slot14_status_hub),
@@ -39,28 +41,42 @@ under the run lock build/.pcsx2.lock, and leaves no emulator running):
             (slot15_roger_encounter).
   boot --phase-lock
             the phase-locked generation (phase/slot02..04): from slot01_title,
-            scan title-driver delays d = 0, 1, ... until the opening gives 02,
-            03 and 04 the frame index D_00810E80 and field D_00810E88 of the
-            v2.6.3 states at the same game points; save them under
-            fork-states/phase/.  Deterministic: inputs land on fixed ticks.
-  status --generation phase, roger --generation phase
+            scan (title-driver delay, movie skip) combinations until the
+            opening gives 02, 03 and 04 the frame index D_00810E80 and field
+            D_00810E88 of the v2.6.3 session's FIRST LOOP TOP after loading
+            the slot (route_capture.legacy_slot_loop_top_phase: every user
+            slot was saved at the vsync wait, so that is the stored phase
+            flipped) at the same game point, rand() state and player clock
+            included; save them under fork-states/phase/.  Deterministic:
+            inputs land on fixed ticks.  `--no-skip --delays 0` is the boot
+            that gives it (the movie played, no delay).
+  status, roger (phase generation by default; --generation base for the
+            first regeneration's layout)
             the same chains from the phase-locked sources (route 02 of the
-            phase generation; phase/slot03), each save point one tick later
-            when needed to land on the v2.6.3 phase.
-  route --generation phase
-            the main route in the phase generation (route_capture's default
-            layout: build/fork_refs/s87/route/, states linked into
-            fork-states/phase/beats/).
+            canonical chain build/fork_refs/s87/route; phase/slot03), each
+            save point one tick later when needed to land on the loop-top
+            phase of the v2.6.3 slot.
+  route     (phase generation by default) the main route in route_capture's
+            default layout: build/fork_refs/s87/route/, states linked into
+            fork-states/phase/beats/ (route_lanes.py records it in lanes).
   manifest  rebuild manifest.json from the folders (fingerprints old vs new;
             both generations; written atomically).
   verify    load every manifest state in the fork: the live machine equals the
             file, two ticks advance, the fingerprint matches the old capture's
             (fork-states/verify.json).
-  compare   offline: every fork route trace against its v2.6.3 trace, row by
-            row (fork-states/compare.json).
-  rerun B   re-run route beat B from its fork source snapshot into
+  compare   offline: every fork route trace (phase generation by default)
+            against its v2.6.3 trace, row by row (fork-states/compare.json).
+  rerun B   re-run route beat B from its fork source (phase generation by
+            default: the canonical chain's source with its recorded lead-in;
+            a user-slot source starts from route_capture.slot_start) into
             build/pcsx2-fork/rerun/<B>/ and compare its trace with the fork
             chain's trace and with the v2.6.3 trace (build/s87/route/<B>).
+
+The v2.6.3 slots themselves are needed only while legacy_refs.json lacks their
+spans: every target (phase, counter, save PC and the compared spans) is cached
+in build/fork_refs/legacy_refs.json (route_capture.py legacy-refs fills the
+phases, `fork_states.py manifest` the spans), so the tool keeps working after
+the slots are retired.
 
 No original code or data is embedded here; it names addresses only.
 """
@@ -109,9 +125,15 @@ SPANS = [
     ("panel_r18", 0x7AA590, 0x10),
     ("elevator_r19", 0x7AA880, 0x10),
     ("roger_r8", 0x7A8830, 0x220),
+    # The update count (2026-10-10): the game's rand() state and the player's
+    # clock move on every world update.  Without them a loop-top state one
+    # update away from the target scored 0 (the phase generation of
+    # 2026-10-09 did; docs/PCSX2_FORK.md "Correction").
+    ("rand", 0x2426C8, 0x4),
+    ("player_clock", PLAYER + 0x3C, 0x4),
 ]
-# Inside the player actor, bytes that are clocks rather than state (excluded
-# from the score; still visible in the full diff).
+# Inside the player actor, bytes that are clocks rather than state: masked in
+# the "player" span and scored once, as the "player_clock" span above.
 PLAYER_CLOCKS = [(0x3C, 4)]
 
 
@@ -238,7 +260,7 @@ def save_point(s: ForkSession, key: str, old: Path | None, how: str, source: str
     meta = {"key": key, "how": how, "source": source, "frames_stepped": s.frames_stepped,
             "old": str(old.relative_to(ROOT)) if old else None, **(extra or {})}
     if old is not None:
-        o = spans_from_images(*images_of(old))
+        o = old_spans(old)
         n = spans_from_images(*images_of(out))
         total, per = score(o, n)
         meta.update(score=total, score_spans=per)
@@ -250,6 +272,49 @@ def save_point(s: ForkSession, key: str, old: Path | None, how: str, source: str
 
 def slot_file(slot: str) -> Path:
     return SSTATES / f"{SERIAL}.{slot}.p2s"
+
+
+def slot_spans(slot: str) -> dict[str, bytes]:
+    """The compared spans of v2.6.3 user slot `slot`: from the slot file while
+    it exists (and cached in build/fork_refs/legacy_refs.json "slot_spans"),
+    else from the cache, so the targets survive the slots' retirement."""
+    f = slot_file(slot)
+    if f.exists():
+        ee, sp = images_of(f)
+        out = spans_from_images(ee, sp)
+        rc._legacy_cache_put("slot_spans", slot, {"counter": counter_of(sp),
+                                                  **{k: v.hex() for k, v in out.items()}})
+        return out
+    c = rc._legacy_cache().get("slot_spans", {}).get(slot)
+    if c is None or any(name not in c for name, _a, _n in SPANS):
+        raise FileNotFoundError(f"{f} is gone and legacy_refs.json has no spans for slot {slot}")
+    return {name: bytes.fromhex(c[name]) for name, _a, _n in SPANS}
+
+
+def slot_counter(slot: str) -> int | None:
+    f = slot_file(slot)
+    if f.exists():
+        return counter_of(images_of(f)[1])
+    return (rc._legacy_cache().get("slot_spans", {}).get(slot) or {}).get("counter")
+
+
+def _slot_of(old: Path | None) -> str | None:
+    """The user slot id of a v2.6.3 slot path (present or retired), else None."""
+    if old is not None and Path(old).parent == SSTATES and Path(old).name.startswith(SERIAL):
+        return Path(old).name.split(".")[-2]
+    return None
+
+
+def old_spans(old: Path) -> dict[str, bytes]:
+    slot = _slot_of(old)
+    return slot_spans(slot) if slot else spans_from_images(*images_of(old))
+
+
+def loop_top_phase(slot: str) -> dict:
+    """The phase a v2.6.3 session from user slot `slot` had at its first loop
+    top (route_capture.legacy_slot_loop_top_phase): the target of every
+    phase-generation slot state."""
+    return rc.legacy_slot_loop_top_phase(slot)
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +335,7 @@ def title_inputs(s: ForkSession, n: int, presses: list[int]) -> None:
 
 
 def boot_title(log: Path) -> None:
-    old = spans_from_images(*images_of(slot_file("01")))
+    old = slot_spans("01")
     # BIOS + game start-up before the first main-loop top, and the intro movie
     # inside one tick, both need far more than the default 30 s
     with ForkSession(None, log_dir=log / "title", boundary_timeout=900.0) as s:
@@ -312,7 +377,7 @@ def opening_pass(log: Path, save_at: dict[str, int] | None, press_delay: int = 0
     the movie's end, the AREA11 load and the phase after it are the same in
     every run.  This is the lever for the phase: the played movie ends on a
     fixed vsync grid, while k moves the end vsync by vsync."""
-    olds = {key: spans_from_images(*images_of(slot_file(slot))) for key, slot in BOOT_TARGETS}
+    olds = {key: slot_spans(slot) for key, slot in BOOT_TARGETS}
     best = {key: (1 << 30, -1, None) for key, _ in BOOT_TARGETS}
     best_phase: dict = {}
     marks: dict = {"press_delay": press_delay}
@@ -385,10 +450,12 @@ def opening_pass(log: Path, save_at: dict[str, int] | None, press_delay: int = 0
                 for key, tick in save_at.items():
                     if tick == s.frames_stepped:
                         slot = dict(BOOT_TARGETS)[key]
-                        how = HOW[key] + (f"; title driver held back {press_delay} tick(s), the New Game "
-                                          f"movie skipped with START {skip_at} vsync(s) after its driver "
-                                          "starts, so the frame index and field equal the v2.6.3 state's "
-                                          "(phase lock)" if prefix else "")
+                        movie = ("the New Game movie played" if skip_at is None else
+                                 f"the New Game movie skipped with START {skip_at} vsync(s) after its "
+                                 "driver starts")
+                        how = HOW[key] + (f"; title driver held back {press_delay} tick(s), {movie}, so the "
+                                          "frame index and field equal the v2.6.3 session's first loop top "
+                                          "after loading the slot (phase lock)" if prefix else "")
                         save_point(s, prefix + key, slot_file(slot), how, "slot01_title",
                                    {"ticks_from_slot01": tick, "marks": dict(marks),
                                     "press_delay": press_delay, "skip_at": skip_at,
@@ -446,7 +513,7 @@ def cmd_phase_lock(a) -> None:
     scan is deterministic: from slot01_title every input lands on a fixed
     tick, so the same d gives the same commit vsync and phase in every run."""
     log = FORK_STATES / "logs/boot_phase"
-    targets = {key: legacy_phase(slot_file(slot)) for key, slot in BOOT_TARGETS}
+    targets = {key: loop_top_phase(slot) for key, slot in BOOT_TARGETS}
     tried = []
     delays = [a.press_delay] if a.press_delay is not None else list(range(0, a.max_delay + 1))
     skips = ([None] if a.no_skip else
@@ -472,7 +539,7 @@ def cmd_phase_lock(a) -> None:
     log.mkdir(parents=True, exist_ok=True)
     (log / "scan.json").write_text(json.dumps({"targets": targets, "tried": tried}, indent=1) + "\n")
     if chosen is None:
-        raise SystemExit("no (title delay, movie skip) gave the v2.6.3 phase at 02, 03 and 04: see "
+        raise SystemExit("no (title delay, movie skip) gave the v2.6.3 loop-top phase at 02, 03 and 04: see "
                          + str(log / "scan.json"))
     d, k = chosen["press_delay"], chosen["skip_at"]
     opening_pass(log, {key: v["tick"] for key, v in chosen["points"].items()}, press_delay=d,
@@ -516,7 +583,7 @@ def cmd_route(a) -> None:
 
 def _gen(a) -> tuple[str, str]:
     """(generation, key prefix) of a command: base, or phase ("phase/")."""
-    g = getattr(a, "generation", None) or "base"
+    g = getattr(a, "generation", None) or "phase"
     return g, ("phase/" if g == "phase" else "")
 
 
@@ -533,7 +600,7 @@ def cmd_status(a) -> None:
             r.idle(n)
             extra = 0
             if gen == "phase":
-                want = legacy_phase(slot_file(slot))
+                want = loop_top_phase(slot)
                 while not same_phase(read_phase(s), want):
                     if extra >= 2:
                         raise RuntimeError(f"slot {slot}: phase {read_phase(s)} never equals {want}")
@@ -545,7 +612,7 @@ def cmd_status(a) -> None:
         rc.use_panel(r)
         r.until(lambda row: row["ui"][2:4] == "03" and row["ui"][8:10] == "05"
                 and row["ui"][10:12] == "04", 900)
-        old8 = fingerprint(spans_from_images(*images_of(slot_file("08"))))
+        old8 = fingerprint(slot_spans("08"))
         r.until(lambda row: row["ui"] == old8["ui"], 300)
         x = idle_to(r, 10, "08")
         save_point(s, prefix + "slot08_battery_prompt", slot_file("08"),
@@ -610,7 +677,7 @@ def cmd_roger(a) -> None:
             raise TimeoutError("the encounter's bank-96 player clip did not start")
         extra = 0
         if gen == "phase":                  # one more tick when +50 lands on the other phase
-            want = legacy_phase(slot_file("15"))
+            want = loop_top_phase("15")
             while not same_phase(read_phase(s), want):
                 if extra >= 2:
                     raise RuntimeError(f"slot 15: phase {read_phase(s)} never equals {want}")
@@ -644,10 +711,10 @@ def _entry(key: str, state: Path, old: Path | None, meta: dict) -> dict:
          "save_version": snap.get("save_version"), "counter": snap.get("main_loop_counter"),
          "sha256": hashlib.sha256(state.read_bytes()).hexdigest(),
          "fingerprint": fingerprint(new_sp)}
-    if old is not None and old.exists():
-        old_ee, old_sp_img = images_of(old)
-        old_sp = spans_from_images(old_ee, old_sp_img)
-        e["old_counter"] = counter_of(old_sp_img)
+    slot = _slot_of(old)
+    if old is not None and (slot or old.exists()):
+        old_sp = old_spans(old)
+        e["old_counter"] = slot_counter(slot) if slot else counter_of(images_of(old)[1])
         e["old_fingerprint"] = fingerprint(old_sp)
         e["fingerprint_diff"] = fp_diff(e["old_fingerprint"], e["fingerprint"])
         total, per = score(old_sp, new_sp)
@@ -655,16 +722,23 @@ def _entry(key: str, state: Path, old: Path | None, meta: dict) -> dict:
     return e
 
 
+ALL_SLOTS = ("01", "02", "03", "04", "06", "07", "08", "11", "12", "13", "14", "15")
+
+
 def cmd_manifest(_a) -> None:
+    for slot in ALL_SLOTS:                  # cache every slot's targets while the files exist
+        if slot_file(slot).exists():
+            slot_spans(slot)
     states, aliases = {}, {}
     for slot, key in ALIASES.items():
         d = FORK_STATES / key
         if (d / "state.p2s").exists():
             meta = json.loads((d / "fork_state.json").read_text())
             states[key] = _entry(key, d / "state.p2s", slot_file(slot), meta)
+            states[key]["phase"] = _slot_phase_pair(d / "state.p2s", slot)
             aliases[slot] = key
             aliases["slot" + slot] = key
-    rc.use_fork()
+    rc.use_fork("base")                       # the base generation's beats (fork-states/beats/)
     for name, source, _fn in rc.BEATS:
         d = rc.beat_dir(name)
         if (d / "state.p2s").exists():
@@ -688,7 +762,7 @@ def cmd_manifest(_a) -> None:
         if (d / "state.p2s").exists():
             meta = json.loads((d / "fork_state.json").read_text())
             e = _entry("phase/" + key, d / "state.p2s", slot_file(slot), meta)
-            e["phase"] = _phase_pair(d / "state.p2s", slot_file(slot))
+            e["phase"] = _slot_phase_pair(d / "state.p2s", slot)
             states["phase/" + key] = e
     for st in sorted((FORK_STATES / "phase/beats").glob("**/state.p2s")):
         info = json.loads((st.parent / "beat.json").read_text())
@@ -712,11 +786,15 @@ def cmd_manifest(_a) -> None:
          "generated": time.strftime("%Y-%m-%d %H:%M:%S"), "fork_repo": str(FORK_REPO),
          "fork_head": fork_head(),
          "generations": {"base": "keys without a prefix: same game points as the v2.6.3 states, phase "
-                                 "as the fork's boot gave it (decomp 640fac0)",
-                         "phase": "keys 'phase/...': same game points AND the v2.6.3 frame index "
-                                  "D_00810E80 and field D_00810E88 (fork_states.py boot --phase-lock, "
-                                  "status/roger --generation phase, route_capture --generation phase)"},
-         "default_generation": "base", "phase_free": ["slot01_title"],
+                                 "as the fork's boot gave it (decomp 640fac0); route/<beat> = the first "
+                                 "regeneration's route, no lead-in",
+                         "phase": "keys 'phase/...': same game points (rand() state and player clock "
+                                  "included) AND the frame index D_00810E80 and field D_00810E88 of the "
+                                  "v2.6.3 session's first loop top after loading the slot (every user slot "
+                                  "was saved at the vsync wait: the stored phase flipped); phase/route/<beat> "
+                                  "= the canonical chain build/fork_refs/... (fork_states.py boot "
+                                  "--phase-lock, status, roger; route_capture / route_lanes.py)"},
+         "default_generation": "phase", "phase_free": ["slot01_title"],
          "states": states, "aliases": aliases}
     FORK_STATES.mkdir(parents=True, exist_ok=True)
     tmp = FORK_MANIFEST.with_suffix(".json.tmp")
@@ -726,9 +804,21 @@ def cmd_manifest(_a) -> None:
 
 
 def _phase_pair(new: Path, old: Path) -> dict:
-    """Frame index / field of a fork state and of the v2.6.3 state it replaces."""
+    """Frame index / field of a fork state and of the v2.6.3 route snapshot it
+    replaces (both saved at the loop top)."""
     n, o = legacy_phase(new), legacy_phase(old) if old.exists() else None
     return {"fork": n, "v263": o, "equal": bool(o) and same_phase(n, o)}
+
+
+def _slot_phase_pair(new: Path, slot: str) -> dict:
+    """Frame index / field of a fork slot state against the v2.6.3 slot: the
+    stored values (mid-iteration, at the vsync wait) and the loop-top phase a
+    session from the slot started on, which is what the fork state matches."""
+    n = legacy_phase(new)
+    lt = loop_top_phase(slot)
+    return {"fork": n, "v263_stored": lt["stored"], "v263_saved_at": lt["saved_at"],
+            "v263_loop_top": {"frame_index": lt["frame_index"], "field": lt["field"]},
+            "equal": same_phase(n, lt)}
 
 
 # ---------------------------------------------------------------------------
@@ -791,21 +881,34 @@ def compare_traces(a: list[dict], b: list[dict], tol: float = 0.0) -> dict:
 
 
 def cmd_rerun(a) -> None:
-    rc.use_fork()
+    """Phase generation (default): from the canonical chain's source with the
+    recorded lead-in (a user slot through route_capture.slot_start, which
+    already shortens it by the v2.6.3 finishing iteration), as run_beat did.
+    Base: from the base source, no lead-in."""
+    gen = _gen(a)[0]
+    rc.use_fork(gen)
     name = a.beat
     entry = next(b for b in rc.BEATS if b[0] == name)
     _n, source, fn = entry
-    src = rc.slot_path(source) if source.isdigit() else rc.beat_dir(source) / "state.p2s"
+    lead = 0
+    if gen == "phase":
+        src = rc.slot_start(source)[0] if source.isdigit() else rc.beat_dir(source) / "state.p2s"
+        lead = rc.recorded_lead_in(name)
+    else:
+        src = rc.slot_path(source) if source.isdigit() else rc.beat_dir(source) / "state.p2s"
     out = RERUN / name
     if out.exists():
         shutil.rmtree(out)                          # absolute path under build/pcsx2-fork/rerun
     out.mkdir(parents=True)
     with ForkSession(src, log_dir=out / "logs") as s:
+        if lead:
+            s.step(lead)
         r = rc.Route(s)
         r.begin()
         meta = fn(r)
         rows = r.rows
-    (out / "trace.json").write_text(json.dumps({"beat": name, "source": source, "meta": meta,
+    (out / "trace.json").write_text(json.dumps({"beat": name, "source": source, "source_state": str(src),
+                                                "generation": gen, "lead_in_frames": lead, "meta": meta,
                                                 "frames": r.frame_index, "inputs": r.inputs,
                                                 "rows": rows}, separators=(",", ":")) + "\n")
     fork_trace = json.loads((rc.beat_dir(name) / "trace.json").read_text())
@@ -824,7 +927,7 @@ def cmd_rerun(a) -> None:
 def cmd_compare(_a) -> None:
     """Offline: every fork route beat's trace against its v2.6.3 trace, row by
     row from the beat start (fork-states/compare.json)."""
-    rc.use_fork()
+    rc.use_fork(_gen(_a)[0])
     out = {}
     for name, source, _fn in rc.BEATS:
         f, o = rc.beat_dir(name) / "trace.json", rc._legacy_beat_dir(name) / "trace.json"
@@ -860,17 +963,19 @@ if __name__ == "__main__":
     p.add_argument("--delays", default="", help="--phase-lock: comma list of title delays to scan")
     p = sub.add_parser("route")
     p.add_argument("--beats", default="all")
-    p.add_argument("--generation", choices=["base", "phase"], default="base")
+    p.add_argument("--generation", choices=["base", "phase"], default="phase")
     p = sub.add_parser("status")
-    p.add_argument("--generation", choices=["base", "phase"], default="base")
+    p.add_argument("--generation", choices=["base", "phase"], default="phase")
     p = sub.add_parser("roger")
-    p.add_argument("--generation", choices=["base", "phase"], default="base")
+    p.add_argument("--generation", choices=["base", "phase"], default="phase")
     sub.add_parser("manifest")
     p = sub.add_parser("verify")
     p.add_argument("--keys", default="all")
-    sub.add_parser("compare")
+    p = sub.add_parser("compare")
+    p.add_argument("--generation", choices=["base", "phase"], default="phase")
     p = sub.add_parser("rerun")
     p.add_argument("beat")
+    p.add_argument("--generation", choices=["base", "phase"], default="phase")
     a = ap.parse_args()
     {"boot": cmd_boot, "route": cmd_route, "status": cmd_status, "roger": cmd_roger,
      "manifest": cmd_manifest, "verify": cmd_verify, "rerun": cmd_rerun, "compare": cmd_compare}[a.cmd](a)

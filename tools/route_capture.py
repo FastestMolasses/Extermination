@@ -377,18 +377,20 @@ def summary(row: dict) -> str:
 #       each beat's state is hard-linked into fork-states/phase/beats/<path>
 #       and registered in the fork-states manifest (fork_states.py manifest).
 #   generation "base": the first regeneration (decomp 640fac0), beat folders
-#       in fork-states/beats/<path>, no lead-in (what use_fork() gives by
-#       default, for fork_states.py).
-# The module default (FORK False) stays the legacy app for importers that
-# have not chosen; every command line chooses.
-FORK = False
-GENERATION = "base"
+#       in fork-states/beats/<path>, no lead-in (use_fork("base"); only
+#       fork_states.py's manifest and diagnostics use it).
+# The module default follows pcsx2_session.DEFAULT_BACKEND: the fork with the
+# phase generation (the canonical chain build/fork_refs/s87/route), as on the
+# command line.  The v2.6.3 app is used only when chosen explicitly
+# (use_legacy(), `--emulator legacy` or EXTERMINATION_PCSX2=legacy).
+FORK = DEFAULT_BACKEND == "fork"
+GENERATION = "phase"
 PHASE_LOCK = True                 # phase generation: replay the v2.6.3 lead-in and tail
 FORK_REFS = ROOT / "build/fork_refs"
 FORK_PHASE_BEATS = FORK_STATES / "phase/beats"
 
 
-def use_fork(generation: str = "base", phase_lock: bool = True) -> None:
+def use_fork(generation: str = "phase", phase_lock: bool = True) -> None:
     global FORK, GENERATION, PHASE_LOCK
     FORK, GENERATION, PHASE_LOCK = True, generation, phase_lock
 
@@ -543,7 +545,13 @@ def open_session(state: Path, log_dir: Path | None = None, attempts: int = 6) ->
 
 
 def slot_path(slot: str) -> Path:
+    """The state a session from user slot `slot` loads.  Fork, phase
+    generation: slot_start's state, the v2.6.3 session's first loop top after
+    loading the slot (a re-driver of a recorded beat then steps the beat's
+    recorded lead-in, which already drops the finishing iteration)."""
     if FORK:
+        if GENERATION == "phase":
+            return slot_start(slot)[0]
         return fork_state(slot, GENERATION)
     return SSTATES / f"{SERIAL}.{slot}.p2s"
 
@@ -9852,11 +9860,16 @@ def _legacy_cache_put(section: str, key: str, value: dict) -> None:
 
 
 def legacy_slot_phase(slot: str) -> dict | None:
-    """Frame index / field / counter of a v2.6.3 user slot (cached)."""
+    """Frame index / field / counter and save PC of a v2.6.3 user slot, as
+    stored in the slot (cached; see legacy_slot_loop_top_phase for the phase
+    a session from it starts on)."""
     path = SSTATES / f"{SERIAL}.{slot}.p2s"
     if path.exists():
         ph = _legacy_phase_at(path)
+        pc = _legacy_save_pc(path)
         if ph is not None:
+            if pc is not None:
+                ph["pc"] = hex(pc)
             _legacy_cache_put("slots", slot, ph)
             return ph
     return _legacy_cache().get("slots", {}).get(slot)
@@ -9937,31 +9950,81 @@ def phase_report(rows: list[dict], ref: dict | None) -> dict:
     return out
 
 
-# The v2.6.3 user slots (01..15) were saved with the emulator's save hotkey,
-# at a vsync inside a main-loop iteration: that iteration's world update (its
-# rand() calls, fan timers, the player's clock, the actor sway) had run, but
-# the main-loop counter had not yet been incremented.  A legacy session's first
-# lead-in "frame" from such a slot therefore ran only the rest of that
-# iteration (the increment, no world update).  Measured 2026-10-10 on route 01:
+# The v2.6.3 user slots were saved with the emulator's save hotkey, inside a
+# main-loop iteration: all 12 (01..04, 06, 07, 08, 11..15) hold the EE PC
+# 0x1AAFF0, the first instruction of the main loop's vsync wait (cpuRegs.pc,
+# read offline by _legacy_save_pc; checked 2026-10-10).  That iteration's
+# world update (its rand() calls, fan timers, the player's clock, the actor
+# sway) had run, but the frame-index toggle, the vsync ISR and the main-loop
+# counter increment had not.  A legacy session's first lead-in "frame" from
+# such a slot therefore ran only the rest of that iteration (no world update),
+# and its first loop top has the slot's game state with the frame index and
+# field flipped.  Route snapshots (v2.6.3 and fork) are saved at the loop top
+# 0x1AAF28 and need no correction.
+#
+# The fork state that matches a user slot is that first loop top: the same
+# game state (rand() state and player clock included) with the slot's frame
+# index and field flipped (legacy_slot_loop_top_phase), and the lead-in from
+# it is one frame shorter (slot_start).  Measured 2026-10-10 on route 01:
 # v2.6.3 makes 22 rand() calls between slot 04 and row 0 (2 counter steps), a
-# fork loop-top state 44.  The fork state that matches a user slot is the
-# loop-top state right after that increment, whose frame index and field are
-# the slot's flipped; from it the lead-in is one frame shorter.  With the base
-# generation's slot04_first_control (counter 3300, frame index 0, field 1)
-# and a lead-in of 1, route 01 equals the v2.6.3 trace in every row field
-# (517 of 517 rows, the owner nodes and the player's clock included), in frame
-# index and field on every row, and in the rand() state at its end.  The
-# phase generation's slot04 (counter 3299, skip-at-40 boot) with the full
-# lead-in matched the frame index and field but ran one world update ahead.
+# fork loop-top state 44 with the full lead-in.  With slot04_first_control
+# (counter 3300, frame index 0, field 1) and a lead-in of 1, route 01 equals
+# the v2.6.3 trace in every row field (517 of 517 rows, the owner nodes and
+# the player's clock included), in frame index and field on every row, and in
+# the rand() state at its end.  The phase generation of 2026-10-09 (counter
+# 3299, the slot's stored (1, 0) at a loop top, skip-at-40 boot) with the full
+# lead-in matched the frame index and field but ran one world update ahead;
+# fork_states.py now locks the phase generation to the loop-top phase.
 
-def slot_source_after_increment(slot: str) -> tuple[Path, int]:
-    """(fork state, lead-in correction) for a beat that starts from v2.6.3 user
-    slot `slot`: the fork-states manifest's state (either generation) whose
-    frame index and field are the slot's flipped (see above), and -1."""
-    want = legacy_slot_phase(slot)
-    if want is None:
+VSYNC_WAIT_PC = 0x001AAFF0
+LOOP_TOP_PC = 0x001AAF28
+
+
+def _legacy_save_pc(path: Path) -> int | None:
+    """EE PC stored in a v2.6.3 save state (offline).  PCSX2's internal
+    structures hold the 'cpuRegs' freeze tag (32 bytes), then 32 128-bit
+    GPRs, HI, LO, the 32 CP0 words, sa, IsDelaySlot and pc: pc lies 712 bytes
+    after the tag (CP0 EPC, 632 after it, holds the vsync interrupt's return
+    address, which is the vsync wait in every state).  The tag's position
+    depends on the header: states of a session booted with -elf carry the
+    ELF path (slots 01..04 and 15), the others do not."""
+    from parse_pcsx2_state import extract_zstd_entry
+    try:
+        blob = extract_zstd_entry(path, "PCSX2 Internal Structures.dat")
+    except (OSError, KeyError, ValueError):
+        return None
+    i = blob.find(b"cpuRegs\0")
+    if i < 0 or i + 716 > len(blob):
+        return None
+    return struct.unpack_from("<I", blob, i + 712)[0]
+
+
+def legacy_slot_loop_top_phase(slot: str) -> dict:
+    """Frame index and field at the first loop top a v2.6.3 session reached
+    after loading user slot `slot` (the stored ones flipped when the slot was
+    saved at the vsync wait, as all 12 were), with the slot's save point."""
+    ph = legacy_slot_phase(slot)
+    if ph is None:
         raise RuntimeError(f"no cached v2.6.3 phase for slot {slot} (route_capture.py legacy-refs)")
-    flipped = (want["frame_index"] ^ 1, want["field"] ^ 1)
+    pc = ph.get("pc")
+    if pc is None:
+        raise RuntimeError(f"slot {slot}: no save PC in the cache (route_capture.py legacy-refs while "
+                           "the slot file exists)")
+    mid = int(pc, 16) == VSYNC_WAIT_PC
+    flip = 1 if mid else 0
+    return {"frame_index": ph["frame_index"] ^ flip, "field": ph["field"] ^ flip,
+            "saved_at": "vsync_wait" if mid else hex(int(pc, 16)), "stored": ph,
+            "lead_in_correction": -1 if mid else 0}
+
+
+def slot_start(slot: str) -> tuple[Path, int]:
+    """(fork state, lead-in correction) for a beat or point that starts from
+    v2.6.3 user slot `slot`: the fork-states manifest's state (phase
+    generation first, then base) whose frame index and field are the slot's
+    loop-top phase (legacy_slot_loop_top_phase), and the correction to the
+    v2.6.3 lead-in (-1 for a slot saved at the vsync wait)."""
+    want = legacy_slot_loop_top_phase(slot)
+    target = (want["frame_index"], want["field"])
     tried = []
     for gen in ("phase", "base"):
         try:
@@ -9970,10 +10033,13 @@ def slot_source_after_increment(slot: str) -> tuple[Path, int]:
             continue
         ph = _legacy_phase_at(st)
         tried.append((gen, ph))
-        if ph and (ph["frame_index"], ph["field"]) == flipped:
-            return st, -1
-    raise RuntimeError(f"slot {slot}: no fork state with the frame index / field {flipped} "
-                       f"(the v2.6.3 slot's flipped); tried {tried}")
+        if ph and (ph["frame_index"], ph["field"]) == target:
+            return st, want["lead_in_correction"]
+    raise RuntimeError(f"slot {slot}: no fork state with the loop-top frame index / field {target}; "
+                       f"tried {tried}")
+
+
+slot_source_after_increment = slot_start        # the name used before 2026-10-10
 
 
 def recorded_lead_in(name: str) -> int:
@@ -9991,6 +10057,15 @@ def _write_json_atomic(path: Path, doc: dict) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(doc, indent=1) + "\n")
     tmp.replace(path)
+
+
+def _rel(path: Path) -> str:
+    """A path for manifests: repo-relative, or absolute outside the repo (a
+    route_lanes.py --out-root repeat in scratch)."""
+    try:
+        return str(Path(path).resolve().relative_to(ROOT))
+    except ValueError:
+        return str(Path(path).resolve())
 
 
 def record_phase_beat(name: str, source: str, out: Path, meta: dict, rows: list[dict],
@@ -10011,7 +10086,7 @@ def record_phase_beat(name: str, source: str, out: Path, meta: dict, rows: list[
         else:
             shutil.copyfile(out / f, dst)
     (link_dir / "beat.json").write_text(json.dumps(
-        {"beat": name, "source": source, "folder": str(out.relative_to(ROOT)), "what": meta.get("what"),
+        {"beat": name, "source": source, "folder": _rel(out), "what": meta.get("what"),
          "frames": meta.get("frames"), "phase": meta.get("phase")}, indent=1) + "\n")
     set_dir = out.parent
     mpath = set_dir / "manifest.json"
@@ -10019,18 +10094,42 @@ def record_phase_beat(name: str, source: str, out: Path, meta: dict, rows: list[
     m.setdefault("what", "fork re-recording of a v2.6.3 capture set (route_capture.py --emulator fork "
                          "--generation phase); rows carry fi (D_00810E80), fld (D_00810E88), vs "
                          "(game vsync) and counter; docs/PCSX2_FORK.md")
-    m["set"] = str(set_dir.relative_to(ROOT))
+    m["set"] = _rel(set_dir)
     m["legacy_set"] = str(_legacy_beat_dir(name).parent.relative_to(ROOT))
     hello = getattr(session, "hello", {}) or {}
     m.setdefault("beats", {})[name] = {
-        "folder": str(out.relative_to(ROOT)), "source": source,
-        "source_state": meta.get("source_state"), "state_link": str((link_dir / "state.p2s").relative_to(ROOT)),
+        "folder": _rel(out), "source": source,
+        "source_state": meta.get("source_state"), "state_link": _rel(link_dir / "state.p2s"),
         "state_sha256": hashlib.sha256((out / "state.p2s").read_bytes()).hexdigest(),
         "frames": meta.get("frames"), "first_counter": rows[0]["counter"], "last_counter": rows[-1]["counter"],
         "lead_in": meta.get("lead_in_frames"), "tail": meta.get("tail_idle_frames"),
         "phase": meta.get("phase"), "fork_rev": hello.get("rev"), "fork_hash": hello.get("hash"),
         "recorded": time.strftime("%Y-%m-%d %H:%M:%S")}
     _write_json_atomic(mpath, m)
+
+
+def fork_build() -> dict:
+    """The fork repository's HEAD (the build the manifests name)."""
+    import subprocess
+    from pcsx2_session import FORK_REPO
+    try:
+        head = subprocess.run(["git", "-C", str(FORK_REPO), "rev-parse", "HEAD"], capture_output=True,
+                              text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        head = None
+    return {"repo": str(FORK_REPO), "head": head}
+
+
+def note_fork_set(set_dir: Path, what: str, item: str, meta: dict) -> None:
+    """manifest.json of a fork capture set that is not a beat set (census
+    passes, load-wait probes): what ran, from which chain, with which build,
+    when.  One entry per item, rewritten when the item is run again."""
+    path = Path(set_dir) / "manifest.json"
+    m = json.loads(path.read_text()) if path.exists() else {}
+    m.update(what=what, set=_rel(set_dir), emulator="fork", generation=GENERATION,
+             chain=_rel(beat_dir("00_panel_no_battery").parent), fork=fork_build())
+    m.setdefault("items", {})[item] = dict(meta, recorded=time.strftime("%Y-%m-%d %H:%M:%S"))
+    _write_json_atomic(path, m)
 
 
 def _legacy_beat_dir(name: str) -> Path:
@@ -10126,7 +10225,7 @@ def run_beat(name: str, source: str, fn, tries: int = 4) -> None:
     tail0 = ref["tail"] if (ref and PHASE_LOCK) else 0
     slot_fix = phase_mode and bool(ref) and PHASE_LOCK and len(source) == 2 and source.isdigit()
     if slot_fix:
-        slot_state, slot_delta = slot_source_after_increment(source)
+        slot_state, slot_delta = slot_start(source)
         lead_in += slot_delta
     for attempt in range(tries):
         tail = tail0 + 23 * attempt

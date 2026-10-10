@@ -21,9 +21,9 @@ Sets:
          test_gs_raster_reference.py / test_gs_fog_conformance.py, which read
          GSCAP_ROOT/<set>/<batch>/snap/gs.bin): gscap, gscap3..gscap8 and
          gscap_repeat, captured by `gscap` below.
-  route  the main route's end frames (build/fork_refs/s87/route/<beat>,
-         already re-recorded): the displayed and drawing buffers decoded from
-         each snapshot's GS freeze (`route` below).  The v2.6.3 route
+  route  the main route's end frames (the canonical chain
+         build/fork_refs/s87/route/<beat>): the displayed and drawing buffers
+         decoded from each snapshot's GS freeze (`route` below).  The v2.6.3 route
          snapshots were saved with the Metal renderer, so they hold no GS
          pixels; their original.png is the 640x480 host presentation.
 
@@ -31,6 +31,11 @@ Subcommands (decomp .venv python, repo root; macOS arm64 host, the fork runs
 x86_64 under Rosetta; emulator runs take the shared run lock and leave
 nothing running):
   gscap [SET ...]           emulator: capture + decode the b16 sets
+  chain [BEATS ...]         emulator: (re)record main-route beats into the canonical
+                            chain build/fork_refs/s87/route (route_capture's
+                            default; route_lanes.py does it in lanes)
+  compare-chain             no emulator: every traced field and the end rand()
+                            state of the canonical chain against v2.6.3
   route                     no emulator: decode the route frames
   compare [fb2|b16|route]   no emulator: compare with v2.6.3, write the manifests
 
@@ -58,7 +63,7 @@ PIX = ROOT / "build/fork_refs/pixels"
 LEGACY_FB2 = ROOT / "build/s87/c7cap/fb2"
 LEGACY_B16 = ROOT / "build/b16"
 LEGACY_ROUTE = ROOT / "build/s87/route"
-FORK_ROUTE = ROOT / "build/fork_refs/pixels/chain/s87/route"   # the corrected chain (see "The corrected chain")
+FORK_ROUTE = ROOT / "build/fork_refs/s87/route"   # the canonical chain (slot start corrected, see below)
 FORK_REPO = ROOT.parent / "pcsx2-fork"
 PY = ROOT / ".venv/bin/python"
 W, H = 512, 224
@@ -267,12 +272,14 @@ def fb2_cause(e: dict) -> dict:
 def manifest_fb2(points: dict) -> None:
     doc = {
         "what": "the 19 fb2 framebuffer points (docs/CAPTURES_C7.md 5b) re-recorded on the PCSX2 fork "
-                "(c7cap_partb.py fb2 --corrected-chain --fb2-out build/fork_refs/pixels/fb2, lead from the v2.6.3 point); "
+                "(c7cap_partb.py fb2 --fb2-out build/fork_refs/pixels/fb2, points from the canonical chain "
+                "build/fork_refs/s87/route, first_control from route_capture.slot_start, lead from the v2.6.3 "
+                "point minus the finishing iteration on a user slot); "
                 "same per-point layout as build/s87/c7cap/fb2 (meta.json, capture.json, displayed.bin, "
                 "draw.bin, z.bin, s0..s2 stage folders)",
         "port_switch": {
             "FB2": "build/fork_refs/pixels/fb2 (was build/s87/c7cap/fb2)",
-            "ROUTE": "build/fork_refs/pixels/chain/s87/route (was build/s87/route): the corrected chain, fork counters",
+            "ROUTE": "build/fork_refs/s87/route (was build/s87/route): the canonical chain, fork counters",
             "FIRST_CONTROL_COUNTER": fork_first_control_counter(),
         },
         "fork": fork_build(), "recorded": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -479,7 +486,7 @@ def route() -> dict:
         print(d.name, meta["counter"], meta["frame_index_810E80"], meta["field_810E88"], meta["dispfb2_fbp"],
               meta.get("legacy", {}).get("coarse_luma_corr_with_fork_displayed"), flush=True)
     write_json(PIX / "route/manifest.json", {
-        "what": "the main route's end frames (build/fork_refs/pixels/chain/s87/route/<beat>/state.p2s, the corrected chain) "
+        "what": "the main route's end frames (build/fork_refs/s87/route/<beat>/state.p2s, the canonical chain) "
                 "decoded from each snapshot's GS freeze: displayed (DISPFB2) and drawing (FRAME) buffers",
         "fork": fork_build(), "recorded": time.strftime("%Y-%m-%d %H:%M:%S"),
         "note": "the v2.6.3 route snapshots were saved with the Metal renderer: their GS buffers hold the "
@@ -490,61 +497,33 @@ def route() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# The corrected chain (2026-10-09 finding)
+# The chain (2026-10-09 finding, applied in route_capture since 2026-10-10)
 #
-# The v2.6.3 user slots 01..04 and 15 were saved by hand at the first
-# instruction of the vsync wait (EE PC 0x1AAFF0): the iteration's game logic
-# had already run, its frame-index toggle and the vsync ISR had not.  A v2.6.3
-# session that loads such a slot finishes that iteration without new logic,
-# so its next loop top (counter + 1) is the first full update.  The fork's
-# states are saved at the loop top.  phase/slot04 (counter 3299) was matched to
-# slot 04's stored frame index and field (1, 0), which are the mid-iteration
-# values; the v2.6.3 loop top after the load has (0, 1).  So the phase chain
-# runs one game update ahead of the v2.6.3 chain in everything that moves on
-# its own (rand(), the player's clock, the r9 attachment, the snow), while
-# input-driven rows still agree.  base/slot04 (counter 3300, (0, 1)) is the
-# v2.6.3 loop top 4084: started there with the v2.6.3 lead-in minus the one
-# finishing iteration, a beat lands on the v2.6.3 tick, phase AND update count.
-
-MID_ITERATION_SLOTS = {"01", "02", "03", "04", "15"}       # saved at PC 0x1AAFF0 (checked 2026-10-09)
-CHAIN = PIX / "chain"
-
-
-def use_corrected_chain() -> None:
-    import route_capture as rc
-    import pcsx2_session as ps
-    rc.use_fork("phase", True)
-    ps.FORK_MTVU = False
-    rc.FORK_REFS = CHAIN                                  # beat folders: pixels/chain/s87/route/...
-    rc.FORK_PHASE_BEATS = CHAIN / "_state_links"          # never into fork-states/phase/beats
-    orig_ref, orig_source = rc.legacy_reference, rc.beat_source
-
-    def legacy_reference(name: str, source: str):
-        ref = orig_ref(name, source)
-        if ref is not None and source in MID_ITERATION_SLOTS:
-            ref = dict(ref, lead_in=ref["lead_in"] - 1, lead_in_note="minus the v2.6.3 finishing iteration")
-        return ref
-
-    def beat_source(source: str) -> Path:
-        if source in MID_ITERATION_SLOTS:
-            return ps.fork_state(source, "base")
-        return orig_source(source)
-
-    rc.legacy_reference, rc.beat_source = legacy_reference, beat_source
+# The v2.6.3 user slots were saved by hand at the first instruction of the
+# vsync wait (EE PC 0x1AAFF0): the iteration's game logic had already run, its
+# frame-index toggle and the vsync ISR had not.  A v2.6.3 session that loads
+# such a slot finishes that iteration without new logic, so its next loop top
+# (counter + 1) is the first full update.  route_capture.slot_start therefore
+# starts a slot beat from the fork state of that loop top with the v2.6.3
+# lead-in minus one; the canonical chain build/fork_refs/s87/route was
+# recorded that way (until 2026-10-10 this file patched route_capture at run
+# time and wrote a separate copy, build/fork_refs/pixels/chain, now deleted).
 
 
 def chain(beats: list[str]) -> None:
     import route_capture as rc
-    use_corrected_chain()
+    import pcsx2_session as ps
+    rc.use_fork("phase", True)
+    ps.FORK_MTVU = False
     for name, source, fn in rc.BEATS:
         if name[:2] in beats or name in beats:
             rc.run_beat(name, source, fn)
 
 
 def compare_chain() -> dict:
-    """Every traced field of the corrected chain against the v2.6.3 trace, row by row."""
+    """Every traced field of the canonical chain against the v2.6.3 trace, row by row."""
     out = {}
-    base = CHAIN / "s87/route"
+    base = FORK_ROUTE
     for d in sorted(p for p in base.iterdir() if (p / "trace.json").exists()):
         L = json.loads((LEGACY_ROUTE / d.name / "trace.json").read_text())["rows"]
         F = json.loads((d / "trace.json").read_text())
@@ -561,7 +540,7 @@ def compare_chain() -> dict:
                        "rand_end_equal": le[RAND_STATE:RAND_STATE + 4] == fe[RAND_STATE:RAND_STATE + 4]}
         print(d.name, out[d.name]["rows"], sorted(out[d.name]["fields_differ"]), "rand equal", out[d.name]["rand_end_equal"],
               flush=True)
-    write_json(CHAIN / "s87/route/compare_v263.json", out)
+    write_json(FORK_ROUTE / "compare_v263.json", out)
     return out
 
 

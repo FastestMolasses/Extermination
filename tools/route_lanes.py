@@ -142,18 +142,31 @@ def release_lock(log) -> None:
 # ---------------------------------------------------------------------------
 # run
 
+def out_done(name: str, out_root: Path | None) -> bool:
+    """The beat's output exists: in the official chain, or under --out-root."""
+    if out_root is None:
+        return done(name)
+    d = out_root / rc._legacy_beat_dir(name).relative_to(ROOT / "build")
+    return (d / "trace.json").exists() and (d / "state.p2s").exists()
+
+
 def cmd_run(a) -> None:
     rc.use_fork("phase", True)
     beats = all_beats()
     names = select(a.groups, beats)
-    if a.out_root:
+    out_root = Path(a.out_root).resolve() if a.out_root else None
+    if out_root is not None:
         a.redo = True
     if a.redo:
         todo = list(names)
     else:
         todo = [n for n in names if not done(n)]
-    LOGS.mkdir(parents=True, exist_ok=True)
-    runlog = open(LOGS / "scheduler.log", "a")
+    # A repeat into --out-root keeps its logs there: the official chain's lane
+    # logs (build/fork_refs/logs/lanes/<beat>.log) are never overwritten by it.
+    # Every beat log is opened for append, with a header per run.
+    logs = (out_root / "logs/lanes") if out_root is not None else LOGS
+    logs.mkdir(parents=True, exist_ok=True)
+    runlog = open(logs / "scheduler.log", "a")
 
     def log(msg: str) -> None:
         line = time.strftime("%H:%M:%S ") + msg
@@ -210,12 +223,12 @@ def cmd_run(a) -> None:
                     continue
                 del running[lane]
                 times[n] = time.monotonic() - t0
-                if p.returncode == 0 and done(n):
+                if p.returncode == 0 and out_done(n, out_root):
                     finished.add(n)
                     log(f"lane {lane}: {n} done in {times[n]:.0f} s")
                 else:
                     failed[n] = f"exit {p.returncode}"
-                    log(f"lane {lane}: {n} FAILED (exit {p.returncode}); log {LOGS / (n + '.log')}")
+                    log(f"lane {lane}: {n} FAILED (exit {p.returncode}); log {logs / (n + '.log')}")
             # dependents of failed beats cannot run
             for n in list(pending):
                 if beats[n][0] in failed:
@@ -243,11 +256,13 @@ def cmd_run(a) -> None:
                 pending.remove(nxt)
                 env = dict(os.environ, EXTERMINATION_FORK_LANE=str(lane),
                            EXTERMINATION_FORK_LOCK_HELD=str(LOCK), EXTERMINATION_PCSX2="fork")
-                out = open(LOGS / (nxt + ".log"), "w")
+                out = open(logs / (nxt + ".log"), "a")
                 cmd = [PY, str(Path(__file__).resolve()), "worker", nxt, "--fork-mtvu", a.fork_mtvu,
                        "--attempts", str(a.attempts)]
-                if a.out_root:
-                    cmd += ["--out-root", a.out_root]
+                if out_root is not None:
+                    cmd += ["--out-root", str(out_root)]
+                out.write(f"=== {time.strftime('%Y-%m-%d %H:%M:%S')} lane {lane}: {' '.join(cmd[1:])}\n")
+                out.flush()
                 p = subprocess.Popen(cmd, env=env, stdout=out, stderr=subprocess.STDOUT, cwd=str(ROOT))
                 running[lane] = (nxt, p, time.monotonic())
                 log(f"lane {lane}: {nxt} <- {beats[nxt][0]}")
@@ -269,12 +284,13 @@ def cmd_run(a) -> None:
                 p.wait()
             failed.setdefault(n, "interrupted")
         release_lock(log)
-    if finished and not a.out_root:
+    if finished and out_root is None:
         import fork_states
         fork_states.cmd_manifest(None)
     summary = {"finished": sorted(finished), "failed": failed, "seconds": times,
+               "out_root": str(out_root) if out_root is not None else None,
                "recorded": time.strftime("%Y-%m-%d %H:%M:%S")}
-    path = LOGS / f"run_{time.strftime('%Y%m%d_%H%M%S')}.json"
+    path = logs / f"run_{time.strftime('%Y%m%d_%H%M%S')}.json"
     path.write_text(json.dumps(summary, indent=1) + "\n")
     log(f"finished {len(finished)}, failed {len(failed)} -> {path}")
 

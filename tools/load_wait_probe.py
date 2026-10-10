@@ -220,6 +220,17 @@ def run(name: str, source: str, fn, mode: str = "breakpoints") -> Path:
                "rows_compared": min(len(r.rows), len(recorded["rows"])),
                "events": s.events, "frame_rows": frames}
         (out / f"probe_{mode}.json").write_text(json.dumps(doc, indent=1) + "\n")
+        if rc.FORK:
+            kinds: dict[str, int] = {}
+            for e in s.events:
+                kinds[e.get("kind", "?")] = kinds.get(e.get("kind", "?"), 0) + 1
+            rc.note_fork_set(OUT, "load_wait_probe.py on the agent-debug fork: the module loader's per-dispatch "
+                                  "trace while replaying the canonical chain's recorded beats (source, recorded "
+                                  "lead-in), <beat>/probe_<mode>.json",
+                             f"{name}/{mode}",
+                             {"source": source, "source_state": str(src), "lead_in_frames": lead,
+                              "frames": r.frame_index, "rows_identical_to_recorded": same,
+                              "rows_compared": doc["rows_compared"], "events": kinds})
     finally:
         s.close()
         shutil.rmtree(rc.OUT / "_resume", ignore_errors=True)
