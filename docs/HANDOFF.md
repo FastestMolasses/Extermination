@@ -105,8 +105,10 @@ that is a different, stale tree.
   Claude Code's permission system refused it; recipe in the fork's
   `EXTERMINATION_BUILD.md` section 5); (2) retiring `build/startup-reference/PCSX2.app`
   and slots 01-15 to the Trash once the `docs/PCSX2_FORK.md` checklist is done (confirm
-  first); (3) whether the port's disc-drive timing switch models the 16-17-field seek of
-  the first stream read after a module load (port `LAUNCHER_OPTIONS.md`, OPEN).
+  first); (3) DECIDED 2026-10-09 and built (port fc986dc): the port's disc-drive timing
+  switch models the first stream read after a module-loader read as a 17-field seek (one
+  value fits every captured case; with the switch, first control lands on the original's
+  frame, newgame-control locked_ticks 1322).
 
 ## Paused 2026-10-04 (the user's usage limit) — resume here
 - **Level 2 (AREA01) on port main:** Codex's work taken over and merged (6a4ecfe, then

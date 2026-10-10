@@ -83,7 +83,9 @@ Common rules of every run:
 - **Stream timing is a drive-busy mechanism, not a fixed latency** (section 1).
   The sequencer serves one read at a time and issues a lane's read only when
   the drive reports ready, so a refill still in progress delays the voice read
-  (r10: +4 frames instead of +2; the opening: 16 fields). Each of the four
+  (r10: +4 frames instead of +2; the opening: 16 fields of seek status, i.e. 17 in
+  the port's drive model, which counts the read's completion poll; port
+  IOP_STREAM.md "Drive model", fc986dc). Each of the four
   16-sector stream reads completed 7 fields after issue, and key-on followed 2
   frames after completion (4 in the opening, where the lane waits on
   D_008106F4). Other read sizes took other times: the module-0x21 load's
