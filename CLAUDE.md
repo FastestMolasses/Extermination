@@ -189,9 +189,12 @@ logic. Its cut-content items come from this repo's `docs/CURIOSITIES.md`.
   (`build/startup-reference/PCSX2.app`, hidden by default): exact one-frame
   steps (breakpoint at 0x001AAF28), pad input (reaches 0x810E70 two frames
   later), memory reads, snapshots with the save state's screenshot. Save states
-  live in `build/startup-reference/portable-data/sstates/` (never overwrite
-  slots 01–15). The PCSX2 MCP server is also registered (local scope) and loads
-  its tools in new sessions.
+  live in `build/startup-reference/portable-data/sstates/`. User decision
+  2026-10-09: every slot may be used, and the user's personal slots 01–15 may
+  be removed (they are v2.6.3 states the fork cannot load; retire them to the
+  Trash with the 2.6.3 app once the fork's regenerated states replace the ones
+  the tools use). The registered MCP server is `pcsx2-agent` (the fork's
+  bridge, local scope); it loads its tools in new sessions.
 - Never move, mount, restore or "recover" the emulator install or its backups
   (user instruction; 2026-10-09 the user asked to retire the old copies once
   the fork can replace them — still with their confirmation, to the Trash).
