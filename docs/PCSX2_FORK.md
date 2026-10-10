@@ -457,7 +457,7 @@ showed.
 | Beats | Against the v2.6.3 traces |
 |---|---|
 | 00..12 | Identical in every traced field on every row, the same frame count and the same inputs, with the frame index and field equal on every row: 261 + 517 + 388 + 686 + 577 + 677 + 206 + 558 + 240 + 533 + 3,569 + 1,261 + 337 rows. The end snapshots have the v2.6.3 phase. This includes beats 05 and 06, which drifted in the base chain, and 06 now has 205 frames as in v2.6.3 (its retry tail of 23 is replayed). |
-| 13 | Phase equal on all 803 rows. The position first differs at frame 133, by 0.1, as in the base chain. The v2.6.3 run has a host-timed one-frame stop there (CAPTURES_C7.md: three replays all left the recording at f133). The fork beat takes 802 frames against 809, so its end lands on the other parity. |
+| 13 | Phase equal on all 803 rows. The position first differs at frame 133, by 0.1, as in the base chain. The v2.6.3 run has a one-frame stop there (CAPTURES_C7.md: three replays all left the recording at f133); 2026-10-10: a v2.6.3 pad read dropout at f130, now replayed (finding 2). The fork beat takes 802 frames against 809, so its end lands on the other parity. |
 | 14 | One phase-correction frame after the lead-in (`phase_correction_frames` 1) restores the v2.6.3 phase: equal on all 1,819 rows and at the end. The traced positions start from 13's slightly different end. |
 | status 08 / 12 / 14, Roger 15 | Phase equal to the v2.6.3 slots. 08, 12 and 14 differ in the same 49 bytes as the base chain; 12 needed one extra tick (`phase_extra_ticks`). 15 matches in every compared byte. |
 
@@ -545,8 +545,12 @@ clock, the r9 attachment node (`attach_r9`), the snow and every other
     `attach_r9` included) on every row, and their end random-number states
     are equal (`build/fork_refs/s87/route/compare_v263.json`,
     `build/fork_refs/compare/main.json`).
-  - Beat 13 still leaves v2.6.3 at frame 133, at the v2.6.3 run's host-timed
-    stop, and beats 14 and 15 inherit that (below).
+  - Beat 13 left v2.6.3 at row 133 until 2026-10-10 03:16. The cause was
+    not a host-timed stop: the v2.6.3 game's pad read returned nothing on
+    the frame of beat input f130 (a pad read dropout, finding 2). With that
+    dropout replayed (`route_capture.V263_PAD_CORRECTIONS`), beats 13 and 14
+    equal v2.6.3 in every traced field and the end `rand()` state, and 15
+    differs only in disc timing ("Pad read dropouts" below).
 - **The phase states, regenerated** (2026-10-10, `fork_states.py boot
   --phase-lock --no-skip --delays 0`, then `roger` and `status`, all phase
   generation by default now):
@@ -604,9 +608,9 @@ images in `pixels/_compare/fb2/`):
 |---|---|---|
 | 06_hill_slide | 86,371 | **Field phase.** The v2.6.3 session had a post-load hitch: one iteration spanned 17 vsyncs (none in the fork). The v2.6.3 field was drawn at OFY 1936.0, the fork's at 1936.5. Game state, rows and random state are equal. |
 | 08_truck_crossing | 105,364 | **Field phase**, the same kind: a 21-vsync iteration in v2.6.3. OFY 1936.5 against the fork's 1936.0. Rows and random state are equal. |
-| 13_east_tower | 80,495 | **Route divergence.** The v2.6.3 recording of beat 13 has a host-timed one-frame stop at f133 that no replay reproduces. The position and camera differ from there, the beat ends 7 frames earlier, and phase and random state follow. |
-| 14_roger_encounter | 3,030 | **Random state** inherited from beat 13: only snow flakes differ. Rows, phase and z.bin are equal. draw.bin differs (99,275) because the v2.6.3 post-load hitch (23 vsyncs) put s0 on the other half line. |
-| 15_level_exit | 93,145 | **Field phase** (OFY 1936.5 against 1936.0 at s1; v2.6.3 had 2 extra vsyncs after its load) and the random state inherited from beat 13. Rows are equal. draw.bin differs in 4 pixels by 1, and z.bin is equal. |
+| 13_east_tower | 80,495 | **Route divergence** (recorded before the pad correction). The v2.6.3 game read no pad on the frame of beat input f130 (a pad read dropout, finding 2), the fork did. The position and camera differ from there, the beat ends 7 frames earlier, and phase and random state follow. The canonical beat 13 now replays the dropout and equals v2.6.3; this point has not been re-captured since. |
+| 14_roger_encounter | 3,030 | **Random state** inherited from the old beat 13: only snow flakes differ. Rows, phase and z.bin are equal. draw.bin differs (99,275) because the v2.6.3 post-load hitch (23 vsyncs) put s0 on the other half line. Not re-captured since the beat 13 correction. |
+| 15_level_exit | 93,145 | **Field phase** (OFY 1936.5 against 1936.0 at s1; v2.6.3 had 2 extra vsyncs after its load) and the random state inherited from the old beat 13. Rows are equal. draw.bin differs in 4 pixels by 1, and z.bin is equal. Not re-captured since the beat 13 correction. |
 
 None of the differences is the upstream scissor change: no differing frame
 is confined to row 223. None is AREA11 load timing either, because the fb2
@@ -671,82 +675,162 @@ is opened for append with a header per run (2026-10-10).
   fork chain. The beat now shakes it off (`a04_shake`) and turns again. On a
   run without a grab the policy is unchanged.
 
-**Results, first level** (4 lanes; 64 beats in 25 min of wall time):
+**Pad read dropouts and the v2.6.3 input corrections** (2026-10-10, decomp
+`route_capture.V263_PAD_CORRECTIONS`; finding 2).
 
-| Group | Beats | Rows fork / v2.6.3 | Equal to v2.6.3 in every field and phase | The rest |
+- **What a dropout is.** On some frames the game's pad read returns nothing:
+  the processed pad block 0x810E40 shows held 0, raw sticks `7f7f7f7f` and its
+  byte +0x17 cleared, between rows that read the held input. The next row
+  reads the input again, with a fresh press edge. No rumble is active and no
+  input changes near it. Every input of a route beat otherwise reaches the
+  pad block 3 frames after the session sets it (row f + 3), in both
+  emulators.
+- **Both emulators have them, on different frames.** Of the 47 v2.6.3 traces
+  that record the pad (aim, exit, dmg, br, opt), one has a dropout (br_11 row
+  1031); every other row of all 47 follows the inputs at latency 3. The fork
+  recordings of 2026-10-10 00:24 had 7 (aim_05 rows 217 and 375, aim_06 93,
+  aim_07 331, aim_09 14, dmg_01 569, br_09 125). On the re-run at 03:16 none
+  of those recurred, and br_09's first attempt had one at row 210 instead: the
+  fork's dropouts are not repeatable. So the earlier "v2.6.3 host-timed pad
+  latency" of aim 05/06/07/09, dmg 01 and br 09 was the fork's own dropout.
+- **The corrections replay the v2.6.3 dropouts.** In fork phase mode
+  (`run_beat`, phase lock on; `--no-pad-corrections` turns it off) the Route
+  sends what the v2.6.3 game read: a neutral pad on the dropout frame
+  (`drop`), or the input held back (`late`). The policy's inputs are recorded
+  as the policy set them, and the trace's `v263_pad_corrections` lists what
+  was applied. Only corrections a v2.6.3 recording proves are in the table:
+
+  | Beat | Correction | Proof |
+  |---|---|---|
+  | `13_east_tower` | drop at f130 (read at row 133) | open-loop replay of the v2.6.3 inputs from canonical route 12 with one neutral frame at f130: all 810 rows and the end `rand()` state equal; without it, or at f131/f132, rows differ from 133 (`build/fork_diverge_a04/b13_*.json`) |
+  | `c7_door1_fence_door_side1` | drop at f197 (read at row 200) | the same replay from canonical route 09: all 545 rows and the end `rand()` state equal; without it the player's action is 1 where v2.6.3 has 5 from row 200 (`build/fork_padfix/replay/c7_*.json`) |
+  | `br_11_plateau_ladder_up` | drop at f1028 (read at row 1031) | the v2.6.3 pad block itself (above) |
+  | `a01_01_tunnel` | the input set at f0 reaches the game 2 frames late | the replay with that input delayed 2 frames: all 306 rows equal; delayed 0, 1, 3, 4 or 5 frames, the clip differs from row 3 (`build/fork_diverge_a04/chain/chain.log`) |
+
+  The level chain added eight (each proven by a closed-loop re-record that
+  equals v2.6.3; "Results, level groups"): one more dropout (`a00_04` f70)
+  and late first inputs in `a01_s5` (+4), `a00_01` (+1), `a00_03` (+2),
+  `a00_08` (+3), `a00_10` (+3), `a01r_01` (+5) and `a02_02` (+2). A late
+  first input appears only at f0 of a level beat, by 1 to 5 frames: a
+  v2.6.3 latency when a session starts (the main route's beats have none).
+  The main-route and level samplers do not trace the pad, so their
+  corrections can only be proven by such a replay or re-record.
+- **Attempts.** `route_lanes.py` now counts a fork dropout that the v2.6.3 row
+  does not have as leaving the path (`fork_pad_dropouts` in the lane log), so
+  the beat is run again; `compare` lists both sides' dropouts per beat
+  (`pad_dropouts`) and the corrections applied.
+
+**Results, first level** (re-recorded 2026-10-10 03:15..03:27 with the
+corrections: main 13, 14, 15; c7; exit 00/01, dmg 08 and br 14 (from route
+14); br 11, 12, 13; the 6 beats with fork dropouts (aim 05, 06, 07, 09, dmg
+01, br 09); and at 04:32 dmg 04 and 05 without the phase-correction frame.
+The other 45 beats are the 00:24 recordings, already equal or unaffected;
+`build/fork_refs/compare/<group>.json`):
+
+| Group | Beats | Rows fork / v2.6.3 | Equal to v2.6.3 in every field and phase | The rest (all with the end `rand()` state equal) |
 |---|---|---|---|---|
-| main 00..15 | 16 | 13,248 / 13,241 | 00..12 (also the end `rand()` state) | 13: the v2.6.3 run's host-timed stop at f133 (as before). 14, 15 inherit it; 15 also has the fan's slow window one cycle later, 816 rows against 802 |
-| c7 | 1 | 548 / 545 | – | row 200: action 1 where v2.6.3 has 5, same inputs; 11 of 12 fork runs agree on 1 |
-| aim | 12 | 7,273 / 7,272 | 00..04, 08, 10, 11 | 06, 07, 09: the processed pad's held/pressed edge one frame apart on 1 or 2 rows, nothing else. 05: the same at row 217, then a different shot sequence from row 375 |
-| exit | 2 | 815 / 802 | – | inherit route 14 (fan timers from row 0) |
-| dmg | 9 | 7,296 / 7,292 | 00, 06 | 02, 07: the loader read gate D_00282157 on 3 rows. 03: the game-over screen module's fade and task slots from row 261 (load timing); 04, 05 follow. 01: a pad edge at row 569, then a different flame path. 08 inherits route 14 |
-| br | 15 | 11,270 / 11,273 | 00, 06, 07, 10 | 01..05, 08: the loader read gate on 3 to 53 rows, plus the pad block's state on rows 0..1. 09: a pad edge at row 125. 11: a pad edge at row 1031, then a different climb; 12, 13 follow. 14 inherits route 14 |
-| opt | 9 | 3,094 / 3,094 | – | every beat: the memory-card record D_00810040 (+0x38, +0x40). The fork's states come from a boot without the user's memory card, and that record is zero, as in the port. Some beats also differ in the loader read gate and the sound handle (snd150) on a few rows |
+| main 00..15 | 16 | 13,249 / 13,241 | 00..14 | 15: disc timing only (below) |
+| c7 | 1 | 545 / 545 | the one beat | – |
+| aim | 12 | 7,272 / 7,272 | all 12 | – |
+| exit | 2 | 809 / 802 | – | disc timing only |
+| dmg | 9 | 7,298 / 7,292 | 00, 01, 06 | disc timing (02, 03, 07, 08); 04 and 05 start after 03's load (below) |
+| br | 15 | 11,273 / 11,273 | 00, 06, 07, 10, 11 | disc timing only (01..05, 08, 09, 12..14) |
+| opt | 9 | 3,094 / 3,094 | – | the memory-card record (zero on the fork), plus disc timing |
 
-**Every remaining first-level difference, with its cause** (2026-10-10
-review of `build/fork_refs/compare/<group>.json`; every group was recorded
-from the canonical, slot-corrected chain, so none of these is the one-update
-lead). "Equal" means every row field at the same row index, the frame index
-and field on every row, the inputs, and the end `rand()` state.
+**Every remaining first-level difference, with its cause** (2026-10-10 03:30
+review of `build/fork_refs/compare/<group>.json`). "Equal" means every row
+field at the same row index, the frame index and field on every row, the
+inputs, and the end `rand()` state. The end `rand()` state is equal in **all
+64 beats**, so no remaining difference changes the game's random sequence.
 
-- **Equal (27 of 64):** main 00..12; aim 00..04, 08, 10, 11; dmg 00, 06;
-  br 00, 06, 07, 10.
-- **v2.6.3 host timing in the reference itself:**
-  - main 13: the v2.6.3 recording's one-frame stop at f133 (no replay
-    reproduces it). Rows 0..132 equal; then position and camera; 803 rows
-    against 810; end `rand()` 157 calls apart.
-  - aim 06 (row 93), 07 (row 331), 09 (row 14): the processed pad's
-    held/pressed edge one frame apart on 1 or 2 rows (v2.6.3 pad latency,
-    finding 2). Nothing else differs; the end `rand()` state is equal.
-  - aim 05: the same kind of edge at row 217, then a different shot
-    sequence from row 375 (end `rand()` 147 calls apart).
-  - dmg 01: a pad edge at row 569, then a different flame path (end `rand()`
-    equal).
-  - br 09: the pad block's state on rows 0..1, the loader read gate, and a
-    pad edge at rows 125..126.
-  - br 11: a pad edge at row 1031, then a different climb; br 12 and 13
-    start from 11's end and differ from row 0.
-- **Inherited from main 13 (through route 14):** main 14 (`attach_r9`,
-  camera and position within 2e-5 from row 0; one phase-correction frame),
-  main 15 (fan timers from row 0, the departure one fan cycle later: 816 rows
-  against 802, the AREA01 rebuild at row 755 against 741), exit 00 and 01,
-  dmg 08, br 14.
-- **The fork's disc timing (finding 4):** the loader read gate D_00282157
-  (`cd157`) for 3 rows in dmg 02, dmg 07, br 01, 03, 04, 05 and 08, and for
-  53 rows in br 02 (plus the pad block on rows 0..1); dmg 03: the game-over
-  screen module's fade and task slots from row 261, which dmg 04 and 05
-  follow (their inputs then differ).
+- **Equal (36 of 64):** main 00..14; c7; aim 00..11; dmg 00, 01, 06; br 00,
+  06, 07, 10, 11.
+- **The fork's disc timing** ("Disc timing at loads" below; finding 4). Only
+  loader rows differ; the game state on every other row is equal:
+  - the loader read gate D_00282157 (`cd157`) on a few rows around each disc
+    read: dmg 02 (3 rows), dmg 07 (3), br 01, 03, 04, 05, 08 (3 each), br 13
+    (6), br 14 (7), br 12 (36), br 02 (53), br 09 (103), dmg 08 (32), exit 00
+    (50);
+  - main 15: the read gate on 50 rows (25 two-row windows, rows 4..431), then
+    the AREA01 module load runs 8 frames longer (fork rows 512..520, task
+    slots): the arrival is row 749 against 741, the beat 810 rows against 802,
+    and the end state equal (no traced key differs at the end);
+  - exit 01: the same AREA01 load from row 102 (task slots, then the fade and
+    arrival 7 rows later), 374 rows against 367;
+  - dmg 03: the game-over screen module's fade and task slots from row 261
+    (356 rows against 355). That load was one frame (odd) longer, so dmg 04
+    and 05, which start from 03's end, have the other frame index on every
+    row (re-recorded 04:32 without the phase-correction frame, which had
+    moved their inputs): dmg 05 differs only in the pad block's per-read
+    toggles +0x40 and +0x48, which follow the frame index; dmg 04 in those
+    toggles, the NEW GAME load's timing (task slots from row 228, fade, 1853
+    rows against 1848), the rumble bytes on 10 to 24 rows, and D_00810704
+    (`glob` +0x104: 0 against 255 from row 380 to the end, not explained).
+    Inputs and the end `rand()` state are equal in both.
+- **The pad driver after a state load:** bytes +0x48 (a toggle that flips on
+  every read) and +0x58 (a count) of the pad block differ on rows 0..3 in
+  dmg 08, br 02, br 09, br 12 and opt 00, 02, 03, 04, 07, 08. They are the pad driver's
+  bookkeeping right after the load, not input.
 - **The memory card:** every opt beat differs in the memory-card record
   D_00810040 (`mc040`). The fork's states come from a boot without the
   user's card, so that record is zero, as in the port; opt 07 is equal in it
   from row 89 on. opt 00, 02, 03, 04, 06, 07, 08 also differ in the loader
-  read gate and the sound handle (`snd150`) on a few rows.
-- **Not explained:** c7 (the fence-door side beat): at row 200 the player's
-  action is 1 where v2.6.3 has 5, with equal inputs and traced state; 11 of
-  12 fork runs give 1. It is the same kind of event as finding 1.
+  read gate and the sound handle (`snd150`) on a few rows (disc timing).
+- **Explained since:** the c7 action flip at row 200 was a v2.6.3 dropout
+  (corrected above). **Not explained:** dmg 04's D_00810704 from row 380
+  (after the odd-length game-over load; the end `rand()` state is equal).
 
-**Results, level groups** (outside the first level; 4 lanes, 2 attempts).
-59 of 159 beats were recorded: `a01` 16, `a00` 12, `a01r` 6, `a02` 7,
-`a04` 7 of 10. `a01_00`, `a01_s0`, `a01_s2`, `a01_s4` and `a01_s6` equal
-v2.6.3 in every field. The AREA01 arrival resets the world, so beat 15's
-difference does not carry over.
+**Results, level groups** (outside the first level; re-recorded 2026-10-10
+03:26..05:49 after beat 15, with the pad corrections; `a01` .. `a02_02` one
+beat at a time by a diagnostic driver that searched each departure's
+correction, the rest with `route_lanes.py`, 4 lanes, 2 attempts). 78 of 161
+beats were recorded (`route_lanes.py` had left out the 2 `a06b` beats, so
+"159" before; fixed). `build/fork_refs/compare/<group>.json`.
 
-- **Where the chain leaves v2.6.3.** At `a01_01` row 3, the player answers
-  the same stick input 2 frames earlier than in the v2.6.3 run. Everything
-  after it is the fork's own playthrough. Most of those beats are
-  repeatable: the second attempt was identical.
-- **The fork playthrough is not the v2.6.3 one.** In it, a bug bites and
-  infects the player at the `a02_04` panel. The player then enters `a04_03`
-  with health 41 against 90 and loses 2 every 240 frames.
-- **Blocked.** `a04_03_back_to_hall` fails, the same way in both attempts:
-  the injured idle clip 10 never satisfies `settle`'s clip-0 test. The 100
-  beats after it are not recorded (`a04_03` .. `a04_05`, then `a22` ..
-  `a03`).
-- **What it would take.** Continuing means adapting the policies to the fork
-  playthrough. The alternative is first putting the chain back on the v2.6.3
-  path (below). That is the lead's decision.
-- **Do not use these as references.** `a02_04` onward (with `a04_00`..`a04_02`
-  and the `a04_s*` side beats) is the infected playthrough.
+- **On the v2.6.3 path (end `rand()` state equal in all 37):**
+  - `a01` (16): 15 equal in every field; `a01_07` differs only in its AREA00
+    module load (9 frames longer, rows 280..289, task slots).
+  - `a00` (12): 9 equal; `a00_10` and `a00_s0` differ only in the AREA01
+    load (7 frames longer). `a00_00` differs on one row (row 9: heading by
+    1.3e-4, hip by 4e-5; equal again from row 10), not explained. Every
+    `a00` row has the other frame index than v2.6.3: `a01_07`'s load was 9
+    frames (odd) longer, which flips the frame index and the field with the
+    game tick unchanged (the AREA01 load of `a00_10`, 7 frames longer,
+    flips them back for `a01r`).
+  - `a01r` (6): 4 equal; `a01r_03` differs only in a load (task slots,
+    holds); `a01r_01` differs only in the message record (`msg`,
+    `msgrec`) on rows 729..1091: the fork's message advances 363 frames
+    earlier, every other field and row equal. Not proven, but it looks like
+    a wait on a disc read.
+  - `a02_00` (holds only, +10 rows: a load), `a02_01`, `a02_s0` equal.
+- **Where it leaves the path: disc timing, at `a02_02` row 552** (rows
+  0..551 equal, the player's state and the end `rand()` state equal to the
+  end). Objects
+  of the next sub-area change state 7 frames later on the fork (an object
+  flag at row 559 against 552; then a door, the save point's rotation and a
+  lock), the player and `rand()` still equal. `a02_03` starts with those
+  objects 7 frames behind and leaves the path at row 659: the player is
+  infected differently (`inf`), `rand()` 24,459 calls apart at its end.
+  This is finding 3's disc timing; no input correction can move it.
+- **After that: the fork's own playthrough.** `a02_03` .. `a22b_01` (41
+  beats) were recorded closed loop, as before, with the player infected
+  (health 80, infection 80..100, against 90 and 60 on v2.6.3). It passes
+  `a04_03` this time. **Blocked at `a04b_00_door45`:** the Use at door 45
+  is not taken in either attempt (health 48, infection 100 at the end of
+  the try). The 83 beats from `a04b_00` on (`a04b`, `a13` .. `a03`) are
+  not recorded.
+- **Corrections found in the chain** (in `V263_PAD_CORRECTIONS`): late first
+  inputs `a01_01` +2, `a01_s5` +4, `a00_01` +1, `a00_03` +2, `a00_08` +3,
+  `a00_10` +3, `a01r_01` +5, `a02_02` +2, and one dropout, `a00_04` f70.
+  Every level beat whose first input is set at f0 risks a late first input in
+  its v2.6.3 recording (a v2.6.3 session-start latency); the fork reads every
+  first input at row 3.
+- **Use as references:** the 37 on-path beats. Not `a02_03` onward.
+- **Phase correction now off by default.** `run_beat` used to add one frame
+  when row 0's frame index differed from the v2.6.3 row; after `a01_07`'s
+  odd load that put `a00_03` and `a00_04` a game tick off. It is now opt-in
+  (`--phase-correction`). With it off, dmg 04 and 05 (after dmg 03's
+  odd-length load) have equal inputs again.
 
 **Findings.**
 
@@ -768,24 +852,40 @@ difference does not carry over.
    - Open-loop runs with an input timeline did not diverge (4 instances,
      2,884 frames). Neither did runs with a hash-only frame store, which are
      slower.
-   - Not explained. It needs a fork-side look: diverge a failing pair with
-     full GS VRAM and IOP capture. Until then, the attempts above, and a
-     second run of any beat that matters, are the guard.
-2. **The v2.6.3 recordings carry host-timed pad latency.** On some rows the
-   v2.6.3 run's processed pad (held/pressed) changes one frame earlier or
-   later than the fork's, for the same input frame. Examples: aim_06 row 93,
-   br_09 row 125, a01_01 row 3 (2 frames). The fork applies v1 `pad_set` at
-   the next vsync, every time. The beats whose path changes at such an edge
-   are aim_05, dmg_01, br_11..13 and the whole level chain after a01_01.
-   Replaying the v2.6.3 latency per input (search the delay that keeps the
-   rows equal) would put those beats back on the v2.6.3 path.
+   - Most likely cause (2026-10-10): the fork's own pad read dropouts
+     (finding 2). A dropout during a held stick makes exactly this event: the
+     v2.6.3 dropout in the C7 beat turned action 1 into 5 at row 200, and one
+     neutral frame reproduces it. The fork's dropouts are not repeatable (br_09
+     had one at row 125 in one run, none in the next, one at row 210 in a
+     third), and route 14's two failed attempts on 2026-10-10 left the path at
+     rows 5 and 9 (hip and heading, same inputs). Proven only where the pad
+     is traced; the main-route sampler does not trace it.
+   - Still open on the fork side: why a pad read drops out at all, and the GS
+     memory difference. Until then the attempts (which now also catch a
+     traced fork dropout), and a second run of any beat that matters, are
+     the guard.
+2. **Pad read dropouts, in both emulators** (2026-10-10; replaces "the
+   v2.6.3 recordings carry host-timed pad latency"). On some frames the
+   game's pad read returns nothing (held 0, sticks `7f7f7f7f`, pad block
+   +0x17 cleared) for one frame; otherwise every input reaches the pad block
+   at row f + 3 in both emulators, with no host-timed latency. v2.6.3
+   recordings have them in route 13 (f130), the C7 beat (f197), br_11
+   (f1028) and a00_04 (f70), and eight level beats' first input came 1 to 5
+   frames late (a v2.6.3 session-start latency); the
+   `V263_PAD_CORRECTIONS` table replays exactly these ("Pad read dropouts and
+   the v2.6.3 input corrections" above). The fork has its own, on random
+   frames (aim_05/06/07/09, dmg_01 and br_09 in the 00:24 run; none of them
+   recurred). The fork applies v1 `pad_set` at the next vsync, every time.
 3. **The fork chain makes the same `rand()` calls as v2.6.3** once the slot
    start is corrected (the end state is equal for 00..12). The earlier
    "identical in every traced field" verdict missed the one-update lead
    because the comparison covered only 13 player fields.
 4. **Loader timing.** The loader read gate D_00282157 and some screen-module
-   fades differ by a row or two around disc reads. The game-over screen's
-   load (dmg_03) is the visible case. This is the fork's disc timing.
+   fades differ by a row or two around disc reads, and module loads end a few
+   frames later (AREA01 +8 in beat 15 and exit_01, the game-over screen in
+   dmg_03). This is the fork's disc timing ("Disc timing at loads"); after the
+   pad corrections it is the only difference left in the first level besides
+   the memory card.
 5. **Request timeouts under 4 lanes.** A client request timed out 4 times in
    the first four-lane run (about 150 sessions), once inside a 300 s
    `state_save`; none in the later runs. The attempts absorbed them. Watch
@@ -796,21 +896,21 @@ read the v2.6.3 paths today. The fork sets are under `build/fork_refs/` with
 the same layout. Fork counters are 784 lower than v2.6.3's from first control
 on (relative counters are equal).
 
-- **Main route 00..12, aim 00..04, 08, 10, 11, dmg 00, 06, br 00, 06, 07,
-  10.** Yes. Only the path changes: every field and phase is equal.
-- **aim 06, 07, 09; br 01..05, 08; dmg 02, 07.** Very likely, unless a check
-  compares the pad edge or the loader read gate row for row (the BRANCH and
-  OPTIONS checkers name the busy byte D_00275BD8, not the read gate).
+- **Main route 00..14, c7, aim 00..11, dmg 00, 01, 06, br 00, 06, 07, 10,
+  11.** Yes. Only the path changes: every field and phase is equal.
+- **br 01..05, 08, 09, 12..14; dmg 02, 07, 08; exit 00.** Very likely, unless
+  a check compares the loader read gate or the pad driver's bytes on rows
+  0..3 row for row (the BRANCH and OPTIONS checkers name the busy byte
+  D_00275BD8, not the read gate).
 - **opt.** Likely. The card record is zero here, which is the port's
   "known difference". The OPTIONS checker compares the card record only from
   the load row's clear on, and it is equal there in opt_07.
-- **No:**
+- **Need a row change:**
   - `level_smoke_area01` hard-codes beat 15's arrival row 741 and its last
-    counter;
-  - the C7 side checks (row 200 on);
-  - aim_05, dmg_01, dmg_03..05, dmg_08, br_09 (one edge), br_11..14, the EXIT
-    pair and route 13..15: their windows hold different values;
-  - every level group.
+    counter: on the fork they are 749 and 15786 (the AREA01 load ends 8
+    frames later);
+  - exit_01 and dmg_03..05: their load windows end a few rows later.
+- **Level groups:** see "Results, level groups".
 - The port test runs themselves are the final word. A port-side job makes
   the switch.
 
@@ -824,6 +924,12 @@ reviewer; receipts are in `build/fork_diverge_a04/`: `chain2.out` for beat
 - **Beat 15 (`15_level_exit`):** the streaming disc reads run 26 frames
   later on the fork, from row 4 on. The first row that differs is the
   loader read gate D_00282157 (`cd157`).
+  In the closed-loop beat 15 recorded after the pad corrections (2026-10-10
+  03:24, same inputs as v2.6.3 throughout) the read gate differs on 25
+  two-row windows (rows 4..431, every 8 to 28 rows), the rows between them
+  are equal, and the AREA01 module load then takes 8 frames longer (task
+  slots, fork rows 512..520): arrival row 749 against 741, 810 rows against
+  802, the end state and `rand()` state equal.
 - **`a01_07_level_exit`:** the AREA00 module load finishes 9 frames later on
   the fork.
 - **What it affects:** timing only. These are the frames on which a read
@@ -863,9 +969,11 @@ reviewer; receipts are in `build/fork_diverge_a04/`: `chain2.out` for beat
   below): `sfx_request_probe`, `c7cap_capture` (stream, rng, lane3 from the
   title), `c7cap_partb` fb and h7, the full census (`route_census.py run
   --segments all`), `load_wait_probe` beat 03 and the boundary mode, the EE
-  float vectors, the repack proof live, and the level chain after `a04_02`.
+  float vectors, the repack proof live, the fb2 points 13..15 from the
+  corrected chain, and the level chain from `a04b_00` on (blocked; "Results,
+  level groups").
   Run on the fork so far: `pcsx2_session`, `route_capture` / `route_lanes`
-  (every first-level group, 59 level beats), `fork_states`, `ps2_fork`,
+  (every first-level group, 78 level beats), `fork_states`, `ps2_fork`,
   `gs_conformance` and probes 3..8 (`fork_pixel_refs.py gscap`),
   `c7cap_partb fb2`, and the smokes of `load_wait_probe` (beat 01) and
   `route_census` (segment 00).
@@ -924,26 +1032,34 @@ everything"; "Yes, re-record in fork"). The lead then trashes
    fork too (2026-10-10). `--emulator legacy` / `EXTERMINATION_PCSX2=legacy`
    stay until the app goes.
 2. **One canonical chain, slot start corrected.** `build/fork_refs/s87/route`
-   (origin `slot04_first_control`, the v2.6.3 lead-in minus 1): beats 00..12
-   equal v2.6.3 in every field and the end `rand()` state. Every tool that
+   (origin `slot04_first_control`, the v2.6.3 lead-in minus 1): beats 00..14
+   equal v2.6.3 in every field and the end `rand()` state (13 and 14 since the
+   v2.6.3 pad corrections), 15 in everything but disc timing. Every tool that
    chains from it (`route_capture`, `route_lanes`, `fork_states`,
    `fork_pixel_refs`, `c7cap_partb`, `load_wait_probe`, `route_census`)
    starts a user-slot source from `route_capture.slot_start` by default.
 3. **Every first-level group re-recorded** from it (`route_lanes.py`,
-   2026-10-10): main 00..15, c7, aim, exit, dmg, br, opt (64 beats); 27 equal
-   v2.6.3 in every field, and every other difference has a cause ("Every
-   remaining first-level difference" above). Level groups: 59 of 159 beats,
-   blocked at `a04_03`.
+   2026-10-10, with the v2.6.3 pad corrections): main 00..15, c7, aim, exit,
+   dmg, br, opt (64 beats); 36 equal v2.6.3 in every field, the end `rand()`
+   state is equal in all 64, and every other difference is disc timing, the
+   pad driver's bookkeeping after a load or the memory card ("Every remaining
+   first-level difference" above). Level groups: 78 of 161 beats; 37 on the
+   v2.6.3 path (`a01`, `a00`, `a01r`, `a02_00`/`01`/`s0`); disc timing takes
+   the chain off it at `a02_02` row 552; the fork's own playthrough is
+   blocked at `a04b_00`.
 4. **The phase states regenerated** on the loop-top phase (02, 03, 04, 08,
    12, 14, 15; "Correction" above).
 5. **Pixel references re-recorded** (the user's decision): fb2 14 of 19
    displayed fields bit-exact (re-run on 2026-10-10 from the canonical
    chain: the same 14, draw.bin 13, z.bin 16); GS conformance 906 of 906 bit-exact; the route end frames decoded from the
    canonical chain. The differences that cannot be removed: v2.6.3 host
-   timing in the references (post-load hitches of 3 to 23 vsyncs, the f133
-   stop of beat 13), frames inside the AREA11 load (4 or 5 iterations longer
-   on the fork), and upstream's half-pixel scissor culling (the user's
-   decision: follow the fork; a port-side job).
+   timing in the references (post-load hitches of 3 to 23 vsyncs), frames
+   inside the AREA11 load (4 or 5 iterations longer on the fork), and
+   upstream's half-pixel scissor culling (the user's decision: follow the
+   fork; a port-side job). The fb2 points 13, 14 and 15 were captured before
+   the beat 13 pad correction; re-capturing them from the corrected chain
+   (`c7cap_partb.py fb2`) is still to do and should remove beat 13's route
+   divergence and the inherited random state.
 6. **The v2.6.3 facts cached.** `route_capture.py legacy-refs` (225 beats,
    12 slots with their save PCs) and `fork_states.py manifest` (the 12 slots'
    compared spans) ran on 2026-10-10. Re-run both if v2.6.3 captures change
@@ -978,12 +1094,15 @@ port keeps reading the v2.6.3 files, so they must not be deleted):
    `GSCAP_ROOT=build/fork_refs/pixels/b16`.
 4. **Route readers** (`build/s87/route` 38 files, `s87/c7cap`, `aimfire/capture`,
    `c10/...`, `route_a*`): the same layout under `build/fork_refs/`. Fork
-   counters are 784 lower than v2.6.3's from first control (790 from route
-   14 on); relative counters are equal. Which checkers switch as-is: "Could
+   counters are 784 lower than v2.6.3's from first control through route 14
+   and its side groups (since the beat 13 correction); after a load that runs
+   longer on the fork the offset shrinks by its extra frames (776 at the end
+   of beat 15). Relative counters are equal up to such a load. Which checkers switch as-is: "Could
    the port's level smoke and side-run checkers switch as-is?" above.
-5. **`level_smoke_area01.py`:** `ARRIVAL_ROW` 741 -> 755 and its last counter
-   16562 -> 15786 on the fork's beat 15 (which differs from v2.6.3 from row
-   0, inherited from beat 13).
+5. **`level_smoke_area01.py`:** `ARRIVAL_ROW` 741 -> 749 and its last counter
+   16562 -> 15786 on the fork's beat 15 (re-recorded 2026-10-10 with the
+   beat 13 pad correction: equal to v2.6.3 but for disc timing; the AREA01
+   load ends 8 frames later).
 6. **`test_shadow_original_reference.py --capture`:** it compares with each
    beat's `original.png`, which on v2.6.3 is the 640x480 host presentation
    (not tick-exact). The fork's is the 512x224 field; the decoded displayed
@@ -1016,18 +1135,18 @@ the frame index and field equal the v2.6.3 rows (`trace.json` "phase").
 
 | # | Set (v2.6.3 path) | Command (decomp .venv) | Source | Port readers to switch later | Notes |
 |---|---|---|---|---|---|
-| 1 | main route 00..14 (`s87/route`) | `route_lanes.py run --groups main` | base `04`, lead-in minus one | 38 files | redone on 2026-10-10 with the slot correction, `route_lanes.py` ("Route groups re-recorded in parallel lanes"): 00..12 equal to v2.6.3 in every row field, phase and end `rand()` state; 13..15 differ (v2.6.3's f133 stop) |
-| 2 | beat 15, level exit | `route_capture.py run --beats 15` | route 14 | (in the 38) | done on 2026-10-10: 816 rows against 802 (inherits route 14; the fan's slow window one cycle later) |
+| 1 | main route 00..14 (`s87/route`) | `route_lanes.py run --groups main` | base `04`, lead-in minus one | 38 files | redone on 2026-10-10 with the slot correction, `route_lanes.py` ("Route groups re-recorded in parallel lanes"): 00..12 equal to v2.6.3 in every row field, phase and end `rand()` state; 13 and 14 too since the pad correction (2026-10-10 03:16, `V263_PAD_CORRECTIONS`) |
+| 2 | beat 15, level exit | `route_capture.py run --beats 15` | route 14 | (in the 38) | redone on 2026-10-10 03:24 after the beat 13 correction: equal but for disc timing (read gate on 50 rows, AREA01 load 8 frames longer: 810 rows against 802, arrival 749 against 741), end `rand()` equal |
 | 3 | status chain 08/12/14, Roger 15 | `fork_states.py status`; `fork_states.py roger` (phase generation by default) | canonical route 02; `phase/slot03` | slot 14 test, `status-hub/`, `roger-encounter/` | redone on 2026-10-10 on the loop-top phase ("Correction"): 15 equal in every compared byte; 08/12/14 differ in 55 bytes (hand-played v2.6.3 chain) |
-| 4 | C7 group (`s87/c7cap/<item>/c7_*`) | `route_capture.py run --beats c7` | route snapshots | 11 files (`s87/c7cap`) | done on 2026-10-10: differs from row 200 |
+| 4 | C7 group (`s87/c7cap/<item>/c7_*`) | `route_capture.py run --beats c7` | route snapshots | 11 files (`s87/c7cap`) | redone on 2026-10-10 with the f197 pad correction: equal in every field |
 | 5 | C7 stream / rng / lane3 (title) | `c7cap_capture.py stream`, `rng`, `lane3 --from title` | route 01/10/11/13, slot 01 | `test_iop_stream_reference` and others | lane3 `--from boot` stays v2.6.3-only |
 | 6 | C7 fb, h7, **fb2 pixel points** | `c7cap_partb.py fb`, `h7`, `fb2` | the 16 route snapshots + first control (`slot_start("04")`) | `test_fb2_pixels.py` and others | fb2 re-run on 2026-10-10 from the canonical chain: the same result, 14 of 19 displayed fields bit-exact (draw.bin 13, z.bin 16), the five others with the causes above; fb and h7 not run |
-| 7 | AIM (`aimfire/capture`) | `route_capture.py run --beats aim` | route 08 | 5 files | done on 2026-10-10: 8 of 12 equal in every field; 06, 07, 09 differ in one pad edge; 05 diverges |
-| 8 | C10 EXIT (`c10/exit`) | `--beats exit` | route 14 | 5 files | done on 2026-10-10: both inherit route 14 |
-| 9 | C10 DAMAGE (`c10/damage`) | `--beats dmg` | routes 07, 11, 14 | 5 files | done on 2026-10-10: 00, 06 equal; the rest loader timing, a pad edge (01) or route 14 (08) |
-| 10 | C10 BRANCH (`c10/branch`) | `--beats br` | routes 02..14 | 2 files | done on 2026-10-10: 00, 06, 07, 10 equal; 01..05, 08 the loader read gate only; 09, 11..14 differ |
+| 7 | AIM (`aimfire/capture`) | `route_capture.py run --beats aim` | route 08 | 5 files | done on 2026-10-10; 05, 06, 07, 09 redone at 03:16 (their differences were fork pad dropouts that did not recur): all 12 equal in every field |
+| 8 | C10 EXIT (`c10/exit`) | `--beats exit` | route 14 | 5 files | redone on 2026-10-10 03:19 from the corrected route 14: disc timing only (00: read gate on 50 rows; 01: the AREA01 load, 374 rows against 367) |
+| 9 | C10 DAMAGE (`c10/damage`) | `--beats dmg` | routes 07, 11, 14 | 5 files | done on 2026-10-10 (01 and 08 redone at 03:17/03:19): 00, 01, 06 equal; the rest disc timing (02, 03, 07, 08; 04 and 05 follow 03) |
+| 10 | C10 BRANCH (`c10/branch`) | `--beats br` | routes 02..14 | 2 files | done on 2026-10-10 (09, 11..14 redone at 03:16..03:19, 11 with the f1028 pad correction): 00, 06, 07, 10, 11 equal; the rest the loader read gate and the pad driver's bytes on rows 0..3 only |
 | 11 | C10 OPTIONS (`c10/options`) | `--beats opt` | route 08 | 3 files | done on 2026-10-10: the memory-card record (zero on the fork) and a few loader rows |
-| 12 | level groups `a01`, `a00`, `a01r`, `a02`, `a04`, `a22`, `a01u`, `a06`, `a06b`, `a01v`, `a22b`, `a04b`, `a13`, `a19`, `a13b`, `a13c`, `a13d`, `a19b`, `a19c`, `a19d`, `a15`, `a15b`, `a19e`, `a03` (`s87/route_a*`) | `--beats <group>`, in this order | beat 15, then each previous group | 1 to 16 files per group | partly done on 2026-10-10: 59 of 159 beats (`a01`, `a00`, `a01r`, `a02`, 7 of `a04`); blocked at `a04_03` on the fork's own playthrough ("Route groups re-recorded in parallel lanes") |
+| 12 | level groups `a01`, `a00`, `a01r`, `a02`, `a04`, `a22`, `a01u`, `a06`, `a06b`, `a01v`, `a22b`, `a04b`, `a13`, `a19`, `a13b`, `a13c`, `a13d`, `a19b`, `a19c`, `a19d`, `a15`, `a15b`, `a19e`, `a03` (`s87/route_a*`) | `--beats <group>`, in this order | beat 15, then each previous group | 1 to 16 files per group | redone on 2026-10-10 03:26..05:49 with the pad corrections: 78 of 161 beats (`a01` .. `a22b`); 37 on the v2.6.3 path up to `a02_02` row 552 (disc timing); blocked at `a04b_00` on the fork's own playthrough ("Results, level groups") |
 | 13 | census (`s87/census`) | `route_census.py run --segments all --pass F`, then `report --passes F` | slot 01, the route | 39 files, `FIRST_LEVEL_CENSUS.md` | thousands of v1 breakpoints through `ForkV1Debug`: smoke-test one beat first (`--segments 00`); the function sets should equal the v2.6.3 census. Smoke (`--segments 00 --pass FORKSMOKE`) re-run on 2026-10-10 from the canonical chain: 518 functions (the v2.6.3 pass A set), 261 of 261 rows equal the recorded beat, end digests equal; the first attempt lost its DebugServer connection at frame 76 and the tool retried (`runs/FORKSMOKE/_failed/`). That was not a fork fault: a parallel diagnostic agent killed that run's emulator by mistake (an incident; see "Never stop what you did not start"). The retried run is valid |
 | 14 | load wait (`s87/loadwait`) | `load_wait_probe.py run --beats 01,03 --mode boundary` (and `breakpoints`) | routes 01, 03 | 2 files | the fork's loader runs longer. Beat 01 breakpoints mode re-run on 2026-10-10 from the canonical chain: 517 of 517 rows equal the recorded beat; 24 dispatches, 17 polls, 3 reads, 1 request, as on v2.6.3 |
 | 15 | sound requests (`sfx_probe`) | `sfx_request_probe.py run` | the census route | 1 file | |

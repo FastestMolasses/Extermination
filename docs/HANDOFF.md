@@ -75,30 +75,38 @@ the retirement checklist: `docs/PCSX2_FORK.md`.
   phase states 02/03/04/08/12/14/15 were regenerated (02/03/04/15 equal their slots in
   every compared byte).
 - **One canonical chain:** `build/fork_refs/s87/route` (origin `slot04_first_control`,
-  lead-in minus 1). Beats 00..12 equal v2.6.3 in every traced field and the end `rand()`
-  state; 13 leaves it at the v2.6.3 run's host-timed stop (f133), 14 and 15 inherit that.
-  The duplicate `pixels/chain` copy was deleted.
-- **Route groups** (`tools/route_lanes.py`, parallel lanes under one run lock): every
-  first-level group (64 beats) re-recorded from the canonical chain; 27 equal v2.6.3 in
-  every field, the rest are v2.6.3 host-timed pad edges, route 13's stop, the fork's
-  disc timing (loader read gate), the memory-card record (zero on the fork) and one
-  unexplained c7 action flip. Level chain: 59 of 159 beats, **blocked at `a04_03`** (in
-  the fork's own playthrough a bug infects the player at `a02_04`; the policy does not
-  expect an injured idle). Continuing needs a lead decision: adapt the policies, or first
-  replay the v2.6.3 pad latency to stay on the v2.6.3 path.
+  lead-in minus 1). Beats 00..14 equal v2.6.3 in every traced field and the end `rand()`
+  state, 15 in everything but disc timing (AREA01 load 8 frames longer, arrival row 749).
+- **Pad read dropouts, not host-timed stops** (2026-10-10 03:00..05:50). The game's pad
+  read sometimes returns nothing for one frame, in both emulators on different frames;
+  the fork's are not repeatable. Beat 13's "host-timed stop at f133" was a v2.6.3
+  dropout at f130; the "v2.6.3 pad latency" of aim 05/06/07/09, dmg 01 and br 09 was
+  the fork's own dropouts (gone on a re-run); level beats' v2.6.3 first inputs often
+  came 1..5 frames late. `route_capture.V263_PAD_CORRECTIONS` replays the 12 cases a
+  v2.6.3 recording proves (13, c7, br_11, a00_04 dropouts; 8 late first inputs);
+  `route_lanes.py` retries a beat with a fork dropout. The phase-correction frame is
+  now opt-in (it put beats a tick off after an odd-length load).
+- **Route groups** (`tools/route_lanes.py`): first level (64 beats) 36 equal v2.6.3 in
+  every field, the end `rand()` state equal in all 64; the rest is disc timing (loader
+  read gate, load lengths), the pad driver's bytes after a load, the memory-card record
+  (zero on the fork), one unexplained flag in dmg 04. Level chain: 78 of 161 beats; 37 on
+  the v2.6.3 path (`a01`, `a00`, `a01r`, part of `a02`); disc timing (a sub-area's
+  objects 7 frames late) takes it off at `a02_02` row 552; the fork's own playthrough
+  then runs to `a22b_01` and is blocked at `a04b_00` (Use at door 45 not taken).
 - **Pixel references** (`build/fork_refs/pixels/`): fb2 14 of 19 displayed fields
-  bit-exact (re-run from the canonical chain, same result; the five others are v2.6.3
-  post-load hitches and beat 13's stop), GS conformance 906 of 906 bit-exact, the route end
-  frames decoded.
+  bit-exact (the five others are v2.6.3 post-load hitches and the old beat 13; points
+  13..15 still to re-capture from the corrected chain), GS conformance 906 of 906
+  bit-exact, the route end frames decoded.
 - **What remains:** the port-side switch (`docs/PCSX2_FORK.md` "Retiring the 2.6.3 app":
   the 5 tests reading slots 01/02/04/14, test_fb2_pixels' paths and counter, GSCAP_ROOT,
-  level_smoke_area01's row 741 -> 755, test_shadow_original_reference --capture,
+  level_smoke_area01's row 741 -> 749, test_shadow_original_reference --capture,
   test_message_capture's screenshot, the startup-reference probes' outputs); then the
   user trashes the 2.6.3 app and the 12 slots. Fork runs still to make: the full census,
-  sfx_request_probe, c7cap stream/rng/lane3, fb/h7, load_wait beat 03, EE float vectors,
-  the level chain after `a04_02`. The fork's closed loop is not always repeatable
-  (finding 1 in `docs/PCSX2_FORK.md`): compare a re-recorded set with its v2.6.3 trace
-  before relying on it.
+  sfx_request_probe, c7cap stream/rng/lane3, fb/h7, fb2 13..15, load_wait beat 03, EE
+  float vectors, the level chain from `a04b_00` (needs policy work on the fork's own
+  playthrough, or a way past `a02_02`'s disc timing). The fork's closed loop is not
+  always repeatable (its pad read dropouts, finding 1): compare a re-recorded set with its
+  v2.6.3 trace before relying on it.
 
 ## 2026-10-09: the PCSX2 agent-debug fork, the demos, presentation, coverage
 - **The fork** (`../pcsx2-fork`, branch `extermination-mcp`, local only, never pushed):

@@ -10,13 +10,17 @@
   loop-top phase and scores `rand()` and the player clock; the phase states
   02/03/04/08/12/14/15 were regenerated. Every v2.6.3 slot fact the tools need
   is cached in `build/fork_refs/legacy_refs.json`.
-- **Canonical chain** `build/fork_refs/s87/route`: beats 00..12 equal v2.6.3 in
-  every traced field and the end `rand()` state; 13..15 follow the v2.6.3 run's
-  host-timed stop at f133.
+- **Canonical chain** `build/fork_refs/s87/route`: beats 00..14 equal v2.6.3 in
+  every traced field and the end `rand()` state, 15 in everything but disc
+  timing. Beat 13's old "host-timed stop at f133" was a pad read dropout in
+  the v2.6.3 recording; `route_capture.V263_PAD_CORRECTIONS` replays the
+  dropouts and late first inputs the v2.6.3 recordings prove (12 beats).
 - **Route groups** (`tools/route_lanes.py`): all 64 first-level beats
-  re-recorded, 27 equal in every field, every other difference has a cause
-  (`docs/PCSX2_FORK.md`); level chain 59 of 159 beats, blocked at `a04_03`
-  (the fork's own playthrough infects the player).
+  re-recorded, 36 equal in every field and the end `rand()` state equal in
+  all 64; the rest is disc timing, the pad driver after a load and the
+  memory card (`docs/PCSX2_FORK.md`). Level chain: 78 of 161 beats, 37 on
+  the v2.6.3 path; disc timing takes it off at `a02_02`; the fork's own
+  playthrough is blocked at `a04b_00`.
 - **Pixel references:** fb2 14/19 bit-exact, GS conformance 906/906.
 - **Remaining:** the port-side switch, then the user trashes the 2.6.3 app and
   slots (`docs/PCSX2_FORK.md` "Retiring the 2.6.3 app"); fork runs of the full
