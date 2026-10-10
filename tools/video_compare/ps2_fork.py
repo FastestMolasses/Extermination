@@ -68,6 +68,7 @@ LOCK = ROOT / "build/.pcsx2.lock"
 LOOP_TOP = 0x001AAF28
 DISPFB2 = 0x12000090            # GS privileged register as the EE wrote it (fork region gs_priv)
 FRAME_IDX = 0x00810E80          # the game's frame index (docs/CAPTURES_C7.md 5b)
+FIELD_ADDR = 0x00810E88         # the field the vsync handler sampled (docs/PCSX2_FORK_GS_DIFF.md 5)
 FIELD_K = 0                     # 0 = "frame" mode (below); K > 0 = gs_field at loop top t + K
 RTC = "2026-01-01 00:00:00"     # the fork launcher's default fixed RTC (repeatable cold boots)
 FADE = 0x0028A9A0
@@ -93,7 +94,8 @@ def scratch_base() -> Path:
 class ForkPlayer:
     def __init__(self, rec: emrec.Recording, out: Path, stride: int, audio: bool, field_k: int = FIELD_K,
                  extra_k: tuple = (), max_ticks: int | None = None, tail: int = 4, title_limit: int = 1500,
-                 mtvu: bool | None = None, renderer: int = 13, app: str | None = None, present: bool = True):
+                 mtvu: bool | None = None, renderer: int = 13, app: str | None = None, present: bool = True,
+                 title_delay: int = 0):
         import ps2
         self.ps2 = ps2
         self.rec, self.out, self.stride, self.audio = rec, out, stride, audio
@@ -101,6 +103,7 @@ class ForkPlayer:
         self.armed: dict[int, dict] = {}              # frame mode: cap -> DISPFB2 read at loop top t + 2
         self.max_ticks, self.tail, self.title_limit = max_ticks, tail, title_limit
         self.mtvu, self.renderer, self.app, self.present = mtvu, renderer, app, present
+        self.title_delay = title_delay      # hold the title driver back: moves the New Game commit
         self.rows: list[dict] = []
         self.extra: list[dict] = []
         self.notes: list[str] = []
@@ -326,10 +329,11 @@ class ForkPlayer:
             row = self.sample()
             if emrec.phase_of(row["area"], row["bd8"], row["t9"], row["s8d"]) != "T":
                 break
-            if n in (5, 125, 245, 365) and presses < 4 and row["fade"] == b"\0\0\0\0":
+            m = n - self.title_delay
+            if m in (5, 125, 245, 365) and presses < 4 and row["fade"] == b"\0\0\0\0":
                 self.set_raw((0x4000, 0x80, 0x80, 0x80, 0x80))
                 presses += 1
-            elif n % 120 == 9:
+            elif m >= 0 and m % 120 == 9:
                 self.set_raw(emrec.NEUTRAL)
             _stop, seen = self.tick(skip=self.title_movie_skip)
             if seen:
@@ -338,7 +342,9 @@ class ForkPlayer:
             if n > self.title_limit:
                 raise TimeoutError("the title did not start a New Game")
         self.info["title"] = {"ticks": n, "presses": presses, "commit_counter": row["counter"],
-                              "commit_vsync": row["vsync"]}
+                              "commit_vsync": row["vsync"], "title_delay": self.title_delay,
+                              "commit_frame_index": self.rd(FRAME_IDX, 4)[0],
+                              "commit_field": self.rd(FIELD_ADDR, 4)[0]}
         log(f"New Game committed after {n} title ticks ({presses} Cross press(es)); counter {row['counter']}")
         sched = emrec.Scheduler(self.rec, first=self.first)
         model = emrec.PadBlock.from_memory(row["pad"])
@@ -381,7 +387,7 @@ class ForkPlayer:
             self.rows.append(r)
             ex = {"vsync": row["vsync"], "agent_vsync": st["vsync"], "ee_cycle": st["ee_cycle"],
                   "iop_cycle": st["iop_cycle"], "tap_samples": samples,
-                  "frame_idx": self.rd(FRAME_IDX, 4)[0]}
+                  "frame_idx": self.rd(FRAME_IDX, 4)[0], "field": self.rd(FIELD_ADDR, 4)[0]}
             self.extra.append(ex)
             if seg >= 0 and off % self.stride == 0:
                 here = len(self.rows) - 1
@@ -467,7 +473,7 @@ def run(args, rec: emrec.Recording, out: Path) -> int:
     player = ForkPlayer(rec, out, args.stride, audio=args.audio, field_k=args.fork_field_k, extra_k=extra_k,
                         max_ticks=args.max_ticks, tail=args.tail, title_limit=args.title_limit,
                         mtvu=args.fork_mtvu, renderer=args.fork_renderer, app=args.fork_app,
-                        present=not args.fork_no_present)
+                        present=not args.fork_no_present, title_delay=args.fork_title_delay)
     import signal
 
     def on_term(signum, frame):          # a killed driver must still close its session (lock, emulator)

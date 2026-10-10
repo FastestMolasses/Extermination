@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """pcsx2_session.py — drive the ORIGINAL game in the MCP-enabled PCSX2 frame by frame.
 
+Emulator (2026-10-09, the user's decision to retire PCSX2 v2.6.3): the
+command line and open_original() default to the agent-debug fork
+(ForkSession, docs/PCSX2_FORK.md) with the states of
+build/startup-reference/fork-states/manifest.json; `--emulator legacy` (or
+EXTERMINATION_PCSX2=legacy) keeps the v2.6.3 app described below until it is
+retired.  OriginalSession itself stays the v2.6.3 session.
+
 Lockstep evidence for the native port: load one of the user's own save states,
 advance exactly one main-loop frame at a time with a chosen pad state, read EE
 memory between frames, and snapshot the full machine (eeMemory, GS, scratchpad
@@ -69,6 +76,10 @@ FORK_PY = FORK_REPO / "extermination/python"
 FORK_STATES = REFERENCE / "fork-states"
 FORK_MANIFEST = FORK_STATES / "manifest.json"
 RUN_LOCK = ROOT / "build/.pcsx2.lock"
+# ForkSession's default for VU1-on-its-own-thread: None = the capture ini's value
+# (on); env EXTERMINATION_FORK_MTVU=0/1 or route_capture --fork-mtvu overrides it.
+_mtvu_env = os.environ.get("EXTERMINATION_FORK_MTVU")
+FORK_MTVU = None if _mtvu_env in (None, "", "ini") else _mtvu_env.lower() in ("1", "true", "on")
 
 
 def fork_manifest() -> dict:
@@ -78,34 +89,109 @@ def fork_manifest() -> dict:
     return json.loads(FORK_MANIFEST.read_text())
 
 
-def fork_state(name: str | Path) -> Path:
+# Which emulator the tools use when none is named: "fork" (the agent-debug fork,
+# the default since 2026-10-09, the user's decision to retire v2.6.3) or
+# "legacy" (the v2.6.3 app in build/startup-reference, until the lead retires it).
+DEFAULT_BACKEND = os.environ.get("EXTERMINATION_PCSX2", "fork")
+
+# Fork-state generations (docs/PCSX2_FORK.md "Phase-locked states"):
+#   "base"  - the first regeneration (decomp 640fac0): same game points as the
+#             v2.6.3 states, but the frame index / field phase is whatever the
+#             fork's boot happened to give;
+#   "phase" - the phase-locked chain: the same game points AND the same frame
+#             index D_00810E80 and field D_00810E88 as the v2.6.3 states, so
+#             a capture lands on the same drawing buffer and half line.
+# Keys of the phase generation are "phase/<base key>" in the same manifest.
+GENERATIONS = ("base", "phase")
+
+
+def fork_state(name: str | Path, generation: str | None = None) -> Path:
     """The fork-saved state that replaces a v2.6.3 one.  `name` is a manifest
     key ("slot04_first_control", "route/14_roger_encounter"), an alias
     ("04", "slot04", "14_roger_encounter") or the old state's path (a user slot
     file or a build/s87/... beat snapshot).  An existing path that is not a
-    v2.6.3 state the manifest knows is returned unchanged."""
+    v2.6.3 state the manifest knows is returned unchanged.
+
+    generation: "base", "phase" or None = the manifest's "default_generation"
+    (absent = "base").  "phase" resolves "phase/<key>" and raises if the
+    phase-locked chain has no such state (a silent fallback would give a
+    capture the wrong buffer); keys the manifest lists in "phase_free" (the
+    title, which no capture pairs by phase) fall back to the base state."""
     m = fork_manifest()
     states, aliases = m["states"], m.get("aliases", {})
+    generation = generation or m.get("default_generation", "base")
+    if generation not in GENERATIONS:
+        raise ValueError(f"generation {generation!r} not in {GENERATIONS}")
     key = str(name)
     p = Path(key)
     if p.suffix == ".p2s":
         rp = p.resolve()
         for k, v in states.items():
             old = v.get("old")
-            if old and (ROOT / old).resolve() == rp:
+            if old and (ROOT / old).resolve() == rp and not k.startswith("phase/"):
                 key = k
                 break
         else:
             if rp.exists():
                 return rp
             raise KeyError(f"{name}: not a state the fork manifest replaces")
+    if key.startswith("phase/"):
+        generation, key = "phase", key[len("phase/"):]
     key = aliases.get(key, key)
+    if generation == "phase":
+        if "phase/" + key in states:
+            key = "phase/" + key
+        elif key not in m.get("phase_free", []):
+            raise KeyError(f"{name}: no phase-locked state 'phase/{key}' in {FORK_MANIFEST} "
+                           "(tools/fork_states.py boot --phase-lock, or generation='base')")
     if key not in states:
         raise KeyError(f"{name}: not in {FORK_MANIFEST} (keys: {', '.join(sorted(states))})")
-    path = FORK_STATES / states[key]["file"]
+    path = (FORK_STATES / states[key]["file"]).resolve()
     if not path.exists():
         raise FileNotFoundError(path)
     return path
+
+
+def resolve_state(state: str | Path, backend: str | None = None, generation: str | None = None) -> Path:
+    """A state argument for either backend: on the fork, a manifest key, alias
+    or old path through fork_state(); on the legacy app, a 2-digit user slot
+    ("04") or a path."""
+    backend = backend or DEFAULT_BACKEND
+    if backend == "fork":
+        return fork_state(state, generation)
+    s = str(state)
+    if len(s) == 2 and s.isdigit():
+        return SSTATES / f"{SERIAL}.{s}.p2s"
+    return Path(s)
+
+
+def open_original(state: str | Path | None, backend: str | None = None, generation: str | None = None,
+                  **kw) -> "OriginalSession":
+    """An un-entered session on the default backend (`with open_original("04") as s:`).
+    backend "fork" -> ForkSession (state resolved through the fork manifest;
+    None = a cold boot), "legacy" -> OriginalSession on the v2.6.3 app."""
+    backend = backend or DEFAULT_BACKEND
+    if backend == "fork":
+        return ForkSession(resolve_state(state, "fork", generation) if state is not None else None, **kw)
+    if backend != "legacy":
+        raise ValueError(f"backend {backend!r}: 'fork' or 'legacy'")
+    return OriginalSession(resolve_state(state, "legacy"), **kw)
+
+
+# The game's frame and field phase (docs/PCSX2_FORK_GS_DIFF.md section 5):
+# D_00810E80 flips once per main-loop iteration and picks the drawing buffer
+# (it equals the main-loop counter's parity in every capture so far);
+# D_00810E88 is CSR FIELD sampled by the vsync handler and picks the half-line
+# draw offset; 0x00810E90 is the game's vsync counter.
+FRAME_INDEX = 0x00810E80
+FIELD = 0x00810E88
+
+
+def read_phase(s: "OriginalSession") -> dict:
+    """The frame index, field, game vsync counter and main-loop counter now."""
+    b = s.read(FRAME_INDEX, 0x14)
+    return {"frame_index": b[0], "field": b[8], "vsync": struct.unpack_from("<I", b, 0x10)[0],
+            "counter": s.u32(FRAME_COUNTER)}
 FRAME_COUNTER = 0x70003B64
 VSYNC_COUNTER = 0x00810E90
 
@@ -502,13 +588,95 @@ class OriginalSession:
                 "frames_stepped": self.frames_stepped,
                 "main_loop_counter": self.u32(FRAME_COUNTER),
                 "vsync_counter": self.u32(VSYNC_COUNTER),
+                "frame_index": self.read(FRAME_INDEX, 4)[0], "field": self.read(FIELD, 4)[0],
                 "ee_sha256": hashlib.sha256((out / "eeMemory.bin").read_bytes()).hexdigest()}
         (out / "snapshot.json").write_text(json.dumps(info, indent=2) + "\n")
         return info
 
 
+class ForkV1Debug(DebugServer):
+    """The fork's DebugServer with the legacy tools' stepping protocol.
+
+    Tools written for the v2.6.3 app (route_census, c7cap_*, load_wait_probe,
+    sfx_request_probe, gs_conformance) step by `resume` and then poll `status`
+    until the VM is paused at the main-loop top or at one of their v1
+    breakpoints.  On the fork the frame boundary is the tick PC, not a
+    breakpoint, so here:
+      resume -> an async `run {until: {ticks: 1}}` (it stops at the next loop
+                top, or earlier at a v1 breakpoint / stop probe / memcheck);
+      status -> `state` in the v1 shape {alive, paused, pc, cycles};
+      pause  -> `halt`.
+    Every other command (set_breakpoint, evaluate, read_registers, pad_set,
+    write_memory, ...) goes to the fork's v1 parser unchanged."""
+
+    def __init__(self, port: int, client, run_timeout: float = 3600.0):
+        super().__init__(port)
+        self.client = client
+        self.run_timeout = run_timeout
+        self.last_run_seq = None
+        self._resume_cycle = None        # EE cycle when the last resume was issued
+        self._retried = False
+
+    def _run(self) -> None:
+        r = self.client.call("run", until={"ticks": 1}, timeout_s=self.run_timeout, **{"async": True})
+        self.last_run_seq = r.get("run_seq")
+
+    def call(self, cmd: dict) -> dict:
+        name = cmd.get("cmd")
+        if name in ("resume", "continue"):
+            st = self.client.call("state")
+            if not st.get("paused"):
+                return {"ok": True}              # already running (a tool's stall kick)
+            self._resume_cycle, self._retried = st.get("ee_cycle"), False
+            self._run()
+            return {"ok": True}
+        if name == "status":
+            st = self.client.call("state")
+            paused = bool(st.get("paused"))
+            if paused and self._resume_cycle is not None and st.get("ee_cycle") == self._resume_cycle \
+                    and not self._retried:
+                # A state saved at the loop top loads with the PC on the tick PC and the
+                # fork counts that tick at once: the run stopped where it started without
+                # executing.  That is not a frame (ForkSession._resume_to_boundary): run again.
+                self._retried = True
+                self._run()
+                paused = False
+            pc = st.get("pc")
+            pc = pc if isinstance(pc, str) else f"0x{int(pc or 0):08x}"
+            data = {"alive": True, "paused": paused, "pc": pc,
+                    "cycles": int(st.get("ee_cycle") or 0) & 0xFFFFFFFF}
+            return {"ok": True, "data": data, **data}
+        if name == "pause":
+            self.client.call("halt")
+            return {"ok": True}
+        return super().call(cmd)
+
+    def call_many(self, cmds: list[dict], chunk: int = 200) -> None:
+        """route_census's PersistentDebug.call_many: many v1 commands (breakpoint
+        batches), arm them while paused."""
+        with socket.create_connection(("127.0.0.1", self.port), timeout=60) as s:
+            buf = b""
+            for i in range(0, len(cmds), chunk):
+                part = cmds[i:i + chunk]
+                s.sendall("".join(json.dumps(c) + "\n" for c in part).encode())
+                for _ in part:
+                    while b"\n" not in buf:
+                        data = s.recv(1 << 16)
+                        if not data:
+                            raise EOFError("DebugServer closed the connection")
+                        buf += data
+                    line, buf = buf.split(b"\n", 1)
+                    resp = json.loads(line)
+                    if not resp.get("ok"):
+                        raise RuntimeError(resp)
+
+    def close(self) -> None:
+        pass
+
+
 class ForkSession(OriginalSession):
-    """OriginalSession on the agent-debug fork (opt-in; docs/PCSX2_FORK.md).
+    """OriginalSession on the agent-debug fork (the default backend since
+    2026-10-09; docs/PCSX2_FORK.md).
 
     Same API (step, pad, read, write, snapshot, frames_stepped), launched
     through the fork's own pcsx2dbg launcher: hidden, on a fresh scratch
@@ -527,13 +695,16 @@ class ForkSession(OriginalSession):
     folder and the ISO clone on close; no emulator is left running."""
 
     boundary_timeout = 30.0
+    # run stops that end a step: the loop top, or a pause the caller armed
+    STOP_REASONS = ("tick", "breakpoint", "probe", "memwatch", "pc")
 
     def __init__(self, state: str | Path | None, log_dir: Path | None = None, *,
                  app: Path = FORK_APP, iso: Path = DEFAULT_ISO, renderer: int = 13,
                  scratch_base: Path | None = None, lock: Path | None = RUN_LOCK,
                  lock_wait: float = 3600.0, ready_timeout: float = 120.0,
                  lease_s: int = 1800, rtc: str = "2026-01-01 00:00:00", align: bool = True,
-                 boundary_timeout: float | None = None, **_ignored):
+                 boundary_timeout: float | None = None, ini_overrides: dict | None = None,
+                 mtvu: bool | None = None, **_ignored):
         """state None = a cold boot of the disc (fixed RTC `rtc`, so boots repeat).
         A state load starts paused ([UI] StartPaused), so nothing runs between
         the load and the first request.  align False = stay exactly on the loaded
@@ -542,6 +713,12 @@ class ForkSession(OriginalSession):
         tick at the loaded PC without executing).  Either way step(n) advances
         exactly n frames (see _resume_to_boundary)."""
         self.align = align
+        self.ini_overrides = dict(ini_overrides or {})   # {section: {key: value}} for the scratch ini
+        # VU1 on its own thread (None = the capture ini's vuThread, which is on).  With it on,
+        # VU1 runs on host timing: GS memory at a loop top can differ between two runs whose
+        # EE state is identical (measured 2026-10-09, route beat 00), so pixel captures
+        # turn it off (route_capture's --fork-mtvu).
+        self.mtvu = FORK_MTVU if mtvu is None else mtvu
         if boundary_timeout:
             self.boundary_timeout = boundary_timeout
         self.state = Path(state).resolve() if state is not None else None
@@ -614,15 +791,17 @@ class ForkSession(OriginalSession):
         # leaves the EE in the kernel: "Failed to read ELF"); a state load gets
         # -elf and starts paused, so nothing runs before the first request.
         cfg = LaunchConfig(app=self.app, iso=self.iso, elf=ELF if self.state else None,
+                           mtvu=getattr(self, "mtvu", None),
                            statefile=self.state, renderer=self.renderer, unlimited=True,
                            lease_s=self.lease_s, rtc=None if self.state else self.rtc,
-                           ini_overrides={"UI": {"StartPaused": "true"}} if self.state else {})
+                           ini_overrides={**({"UI": {"StartPaused": "true"}} if self.state else {}),
+                                          **getattr(self, "ini_overrides", {})})
         self._inst = self._fs.launch("orig", cfg)
         self.pid = self._inst.pid
         self._client = c = self._inst.client()
         c.wait_vm(self.ready_timeout)
         self.hello = c.call("hello").get("emulator", {})
-        self.debug = DebugServer(self._inst.port)
+        self.debug = ForkV1Debug(self._inst.port, c)
         self.load_state_info = c.call("state")
         c.call("halt")
         self.debug.call({"cmd": "pad_set", "clear": True})
@@ -647,7 +826,7 @@ class ForkSession(OriginalSession):
         timeout = timeout or self.boundary_timeout
         r = self._client.call("run", until={"ticks": 1}, timeout_s=timeout, timeout=timeout + 60)
         stop = r.get("stop", {})
-        if stop.get("reason") != "tick":
+        if stop.get("reason") not in self.STOP_REASONS:
             raise TimeoutError(f"frame boundary not reached: {stop}")
         executed = stop.get("ee_cycle") != self._ee_cycle
         self._ee_cycle = stop.get("ee_cycle")
@@ -659,7 +838,9 @@ class ForkSession(OriginalSession):
         loop top loads with the PC on the tick PC, and the fork counts that tick
         at once: the first run {ticks: 1} after such a load stops where it
         started, with no EE cycle executed.  That stop is not a frame, so the
-        run is repeated (once: the next one always executes)."""
+        run is repeated (once: the next one always executes).  As on the legacy
+        app, the run also ends at a v1 breakpoint, stop probe or memcheck the
+        caller armed (step() then reports the skipped frame)."""
         if not self._run_tick(timeout)["executed"]:
             if not self._run_tick(timeout)["executed"]:
                 raise RuntimeError("frame step: two tick stops without executing")
@@ -690,6 +871,7 @@ class ForkSession(OriginalSession):
                 "save_version": sv.get("save_version"), "source_state": str(self.state),
                 "source_sha256": self._digest, "frames_stepped": self.frames_stepped,
                 "main_loop_counter": self.u32(FRAME_COUNTER), "vsync_counter": self.u32(VSYNC_COUNTER),
+                "frame_index": self.read(FRAME_INDEX, 4)[0], "field": self.read(FIELD, 4)[0],
                 "fork_vsync": sv.get("vsync"), "fork_tick": sv.get("tick"),
                 "field": {k: field.get(k) for k in ("width", "height", "psm", "rgba_xxh3", "renderer")},
                 "ee_sha256": hashlib.sha256((out / "eeMemory.bin").read_bytes()).hexdigest()}
@@ -731,33 +913,51 @@ class ForkSession(OriginalSession):
 
 if __name__ == "__main__":
     import argparse
-    ap = argparse.ArgumentParser(description="Step the original game and snapshot it.")
-    ap.add_argument("state", help="source .p2s (never modified); with --emulator fork also a "
-                                  "fork-states manifest name or alias (04, slot01, 14_roger_encounter)")
+    ap = argparse.ArgumentParser(
+        description="Step the original game and snapshot it.  Default emulator: the agent-debug "
+                    "fork (docs/PCSX2_FORK.md); the v2.6.3 app stays available as --emulator legacy "
+                    "until it is retired.")
+    ap.add_argument("state", help="fork: a fork-states manifest key or alias (04, slot01, "
+                                  "14_roger_encounter, phase/04) or an old v2.6.3 path the manifest "
+                                  "replaces; legacy: a .p2s path or a 2-digit user slot (never modified)")
     ap.add_argument("--frames", type=int, default=1)
     ap.add_argument("--buttons", default="", help="comma list, e.g. CROSS,R1")
     ap.add_argument("--lx", type=lambda v: int(v, 0), default=0x7F)
     ap.add_argument("--ly", type=lambda v: int(v, 0), default=0x7F)
     ap.add_argument("--snapshot", help="output directory for a final snapshot")
-    ap.add_argument("--visible", action="store_true", help="show the emulator window")
-    ap.add_argument("--emulator", default=str(DEFAULT_EMULATOR),
-                    help="emulator binary (default: the legacy app in build/startup-reference); "
-                         "'fork' = the agent-debug fork through ForkSession (the state is resolved "
-                         "through build/startup-reference/fork-states/manifest.json, the run lock "
-                         "is taken, scratch is automatic)")
+    ap.add_argument("--visible", action="store_true", help="legacy only: show the emulator window")
+    ap.add_argument("--emulator", default=DEFAULT_BACKEND,
+                    help="'fork' (default; env EXTERMINATION_PCSX2): ForkSession on the agent-debug "
+                         "fork, the state resolved through build/startup-reference/fork-states/"
+                         "manifest.json, run lock and scratch automatic; 'legacy': the v2.6.3 app in "
+                         "build/startup-reference (until the lead retires it); or a PCSX2 binary "
+                         "path launched the legacy way (with --data-dir)")
+    ap.add_argument("--generation", choices=["auto", *GENERATIONS], default="auto",
+                    help="fork: which fork-state generation (auto = the phase-locked state when the "
+                         "manifest has one, else the base state; see docs/PCSX2_FORK.md)")
     ap.add_argument("--data-dir", type=Path,
-                    help="opt-in scratch -datapath folder outside ~/Documents (another build, "
-                         "e.g. the agent-debug fork); default: the legacy -portable launch")
-    ap.add_argument("--renderer", type=int, default=13, help="with --data-dir: [EmuCore/GS] Renderer")
+                    help="with a binary path: scratch -datapath folder outside ~/Documents")
+    ap.add_argument("--renderer", type=int, default=13, help="[EmuCore/GS] Renderer (13 = software)")
     a = ap.parse_args()
     names = [b for b in a.buttons.split(",") if b]
     if a.emulator == "fork":
-        session = ForkSession(fork_state(a.state), renderer=a.renderer)
+        gen = a.generation
+        if gen == "auto":
+            try:
+                path = fork_state(a.state, "phase")
+            except KeyError:
+                path = fork_state(a.state, "base")
+        else:
+            path = fork_state(a.state, gen)
+        print(json.dumps({"emulator": "fork", "state": str(path)}))
+        session = ForkSession(path, renderer=a.renderer)
     else:
-        session = OriginalSession(a.state, emulator=Path(a.emulator), visible=a.visible,
-                                  data_dir=a.data_dir, renderer=a.renderer)
+        emulator = DEFAULT_EMULATOR if a.emulator == "legacy" else Path(a.emulator)
+        session = OriginalSession(resolve_state(a.state, "legacy"), emulator=emulator,
+                                  visible=a.visible, data_dir=a.data_dir, renderer=a.renderer)
     with session as s:
         counters = s.step(a.frames, buttons=names, lx=a.lx, ly=a.ly)
-        print(json.dumps({"counters": [counters[0], counters[-1]] if counters else []}))
+        print(json.dumps({"counters": [counters[0], counters[-1]] if counters else [],
+                          "phase": read_phase(s)}))
         if a.snapshot:
             print(json.dumps(s.snapshot(a.snapshot), indent=2))

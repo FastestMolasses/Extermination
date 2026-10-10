@@ -1,7 +1,10 @@
 """Hidden, cold-disc title captures through the existing PCSX2 session driver.
 
-A private emulator copy and private configuration keep cards and reference save
-slots inaccessible. The screenshot is taken from a new private save slot 16.
+Default (2026-10-09): the agent-debug fork, cold-booting the image on the
+fork launcher's own scratch data with memory cards off; pictures are the
+displayed field.  EXTERMINATION_PCSX2=legacy: a private copy of the v2.6.3
+app and private configuration keep cards and reference save slots
+inaccessible, and the screenshot is taken from a new private save slot 16.
 """
 from __future__ import annotations
 
@@ -23,10 +26,50 @@ from tools import pcsx2_session as session
 
 REFERENCE = ROOT.parent / "Extermination" / "build" / "startup-reference"
 LOCK = ROOT.parent / "Extermination" / "build" / ".pcsx2.lock"
+# "fork" (default since 2026-10-09, env EXTERMINATION_PCSX2): a cold boot of the
+# image in the agent-debug fork (pcsx2_session.ForkSession: hidden, scratch data,
+# run lock, memory cards off through its scratch ini, no -elf: the disc's own
+# boot executable).  "legacy": a private copy of the v2.6.3 app (until retired).
+EMULATOR = os.environ.get("EXTERMINATION_PCSX2", "fork")
+NO_CARDS = {"MemoryCards": {"Slot1_Enable": "false", "Slot2_Enable": "false"}}
+
+
+class ForkColdDisc(session.ForkSession):
+    """The cold-disc proof on the fork: no state, no ELF override, cards off."""
+
+    def __init__(self, identity: Path, iso: Path, log_dir: Path):
+        super().__init__(None, log_dir=log_dir, iso=iso, boundary_timeout=900.0, ini_overrides=NO_CARDS)
+        self.identity = identity
+
+
+def _cold_session(identity: Path, emulator, image: Path, log_dir: Path):
+    if EMULATOR == "fork":
+        return ForkColdDisc(identity, image, log_dir)
+    return ColdDiscSession(identity, emulator=emulator, iso=image, log_dir=log_dir, ready_timeout=60)
+
+
+def _other_emulator_running() -> bool:
+    if EMULATOR == "fork":
+        return False            # ForkSession waits for the run lock and for any other emulator
+    return subprocess.run(["pgrep", "-f", r"^.*/PCSX2.app/Contents/MacOS/PCSX2"],
+                          capture_output=True).returncode == 0
+
+
+def _screenshot(target: Path) -> bytes:
+    """The picture of a private save: the fork's gs_field sidecar, or the
+    v2.6.3 state's embedded Screenshot.png."""
+    side = target.with_suffix(".png")
+    if side.exists():
+        return side.read_bytes()
+    with zipfile.ZipFile(target) as state:
+        return state.read("Screenshot.png")
 
 
 @contextmanager
 def emulator_lock():
+    if EMULATOR == "fork":
+        yield                   # ForkSession takes build/.pcsx2.lock itself
+        return
     while True:
         try:
             LOCK.mkdir()
@@ -40,6 +83,10 @@ def emulator_lock():
 
 
 def prepare(out: Path, reference: Path) -> tuple[Path, Path]:
+    if EMULATOR == "fork":      # no app copy: the fork's launcher keeps its own scratch data
+        for sub in ("MemoryCards", "sstates"):
+            (out / "data" / sub).mkdir(parents=True, exist_ok=True)
+        return None, out / "data" / "sstates"
     app = out / "PCSX2.app"
     shutil.copytree(reference / "PCSX2.app", app, symlinks=True)
     config = configparser.ConfigParser(interpolation=None, strict=False)
@@ -216,7 +263,21 @@ def reach_title(game, out: Path) -> tuple[bytes, bool]:
 
 @contextmanager
 def private_slot16(game, states: Path):
-    """Discover the private state by slot; asset cue patches change ELF CRC."""
+    """Discover the private state by slot; asset cue patches change ELF CRC.
+    Fork: an exact state_save by path in the instance's write root, with the
+    displayed field (gs_field) as the picture; both removed afterwards."""
+    if isinstance(game, session.ForkSession):
+        rel = "snap/proof16.p2s"
+        game._client.call("state_save", path=rel, timeout=300)
+        target = game._inst.root / rel
+        game._client.call("gs_field", path="snap/proof16.png")
+        try:
+            yield target
+        finally:
+            for f in (target, target.with_suffix(".png")):
+                if f.exists():
+                    f.unlink()
+        return
     if list(states.glob("*.16.p2s")):
         raise ValueError("private screenshot slot is already occupied")
     try:
@@ -255,7 +316,7 @@ def capture_title(iso: Path, out_dir: Path, *, reference: Path = REFERENCE,
     out.mkdir(parents=True, exist_ok=True)
     with emulator_lock():
         # Do not contend with an emulator started outside the lock convention.
-        if subprocess.run(["pgrep", "-f", r"^.*/PCSX2.app/Contents/MacOS/PCSX2"], capture_output=True).returncode == 0:
+        if _other_emulator_running():
             raise ValueError("another PCSX2 instance is running; retry once it exits")
         emulator, states = prepare(out, reference)
         protected = {str(path): sha256_file(path) for path in (reference / "portable-data" / "sstates").glob("*.p2s")
@@ -266,12 +327,11 @@ def capture_title(iso: Path, out_dir: Path, *, reference: Path = REFERENCE,
             identity.write_text(json.dumps(dict(iso=str(image), sha256=expected_image_hash)) + "\n")
             # OriginalSession protects this small immutable identity receipt;
             # stream the ISO hash separately instead of loading 2 GiB into RAM.
-            with ColdDiscSession(identity, emulator=emulator, iso=image, log_dir=out / "logs", ready_timeout=60) as game:
+            with _cold_session(identity, emulator, image, out / "logs") as game:
                 task, title_ready = reach_title(game, out)
                 texture_observation = texture_upgrade.probe_runtime(game, texture_plan) if texture_plan else None
                 with private_slot16(game, states) as target:
-                    with zipfile.ZipFile(target) as state:
-                        (out / "title.png").write_bytes(state.read("Screenshot.png"))
+                    (out / "title.png").write_bytes(_screenshot(target))
                 result = dict(iso_path=str(image), iso_sha256=sha256_file(image),
                               screenshot=str(out / "title.png"), screenshot_sha256=sha256_file(out / "title.png"),
                               frames=game.frames_stepped, counter=game.u32(session.FRAME_COUNTER),
@@ -297,8 +357,8 @@ def private_snapshot(game, states: Path, out: Path) -> dict:
     """Keep a screenshot and sound state from private slot 16, then remove it."""
     out.mkdir(parents=True, exist_ok=False)
     with private_slot16(game, states) as target:
+        (out / "original.png").write_bytes(_screenshot(target))
         with zipfile.ZipFile(target) as state:
-            (out / "original.png").write_bytes(state.read("Screenshot.png"))
             names = state.namelist()
         for name in ("iopMemory.bin", "SPU2.bin"):
             if name in names:
@@ -336,9 +396,10 @@ def capture_gameplay(iso: Path, out_dir: Path, *, model: Path | None = None,
         raise ValueError("model proof expects the player resource chunk28/f00_id3b.bin")
     out.mkdir(parents=True, exist_ok=True)
     with emulator_lock():
-        scan = subprocess.run(["pgrep", "-f", r"^.*/PCSX2.app/Contents/MacOS/PCSX2"], capture_output=True)
-        if scan.returncode != 1:
-            raise ValueError("another emulator is running or process ownership cannot be checked")
+        if EMULATOR != "fork":
+            scan = subprocess.run(["pgrep", "-f", r"^.*/PCSX2.app/Contents/MacOS/PCSX2"], capture_output=True)
+            if scan.returncode != 1:
+                raise ValueError("another emulator is running or process ownership cannot be checked")
         emulator, states = prepare(out, reference)
         protected = {str(p): sha256_file(p) for p in (reference / "portable-data" / "sstates").glob("*.p2s")
                      if 1 <= int(p.name.split(".")[-2]) <= 15}
@@ -349,7 +410,7 @@ def capture_gameplay(iso: Path, out_dir: Path, *, model: Path | None = None,
                   "cold_disc_boot": True, "memory_cards_enabled": False, "private_slot": 16,
                   "snapshots": [], "model_probes": []}
         try:
-            with ColdDiscSession(identity, emulator=emulator, iso=image, log_dir=out / "logs", ready_timeout=60) as game:
+            with _cold_session(identity, emulator, image, out / "logs") as game:
                 _, ready = reach_title(game, out)
                 if not ready:
                     raise RuntimeError("cold boot did not reach the interactive title")

@@ -61,10 +61,13 @@ emulator, its DebugServer and Pine):
     process and the load still failed).
   * Lock: build/.pcsx2.lock (mkdir) is held for the whole session and always
     removed; the ini is restored before it is released.
-  * --emulator fork (opt-in; the default stays this legacy app): the
-    project's agent-debug PCSX2 fork instead, see ps2_fork.py: a cold boot,
-    fields read with gs_field (no save states), and with --audio the
-    original's sound from the fork's emulated-time SPU2 tap as audio.wav.
+  * --emulator fork (the DEFAULT since 2026-10-09, the user's decision to
+    retire v2.6.3; everything above describes `--emulator legacy`): the
+    project's agent-debug PCSX2 fork, see ps2_fork.py: a cold boot, fields
+    read from GS memory (no save states), every row's frame index and field
+    in ps2_extra.json, `--fork-title-delay` to move the New Game commit, and
+    with --audio the original's sound from the fork's emulated-time SPU2 tap
+    as audio.wav.
 
 Everything written is derived from the user's own disc and stays under
 build/video_compare/.  The source save state is hashed before and after.
@@ -896,10 +899,16 @@ def main(argv=None) -> int:
     ap.add_argument("--title-limit", type=int, default=1500)
     ap.add_argument("--lock-poll", type=float, default=30.0)
     ap.add_argument("--resume-dir", action="store_true", help=argparse.SUPPRESS)
-    fk = ap.add_argument_group("the agent-debug PCSX2 fork (opt-in; docs/VIDEO_COMPARE.md 'The fork path')")
-    fk.add_argument("--emulator", choices=["legacy", "fork"], default="legacy",
-                    help="legacy (default) = the v2.6.3 app from the title save state; fork = a cold boot in "
-                         "the fork, fields by gs_field, --audio = the fork's emulated-time SPU2 tap")
+    fk = ap.add_argument_group("the agent-debug PCSX2 fork (the default; docs/VIDEO_COMPARE.md 'The fork path')")
+    fk.add_argument("--emulator", choices=["legacy", "fork"],
+                    default=os.environ.get("EXTERMINATION_PCSX2", "fork"),
+                    help="fork (default since 2026-10-09; env EXTERMINATION_PCSX2) = a cold boot in the fork, "
+                         "fields read from GS memory, --audio = the fork's emulated-time SPU2 tap; legacy = the "
+                         "v2.6.3 app from the title save state (until the app is retired)")
+    fk.add_argument("--fork-title-delay", type=int, default=0,
+                    help="fork: hold the title driver back this many ticks.  It moves the New Game commit by "
+                         "as many vsyncs and so the frame index D_00810E80 / field D_00810E88 of every later "
+                         "tick (every row records both in ps2_extra.json); deterministic per value")
     fk.add_argument("--fork-field-k", type=int, default=0,
                     help="fork: 0 (default) = ps2.py's capture point: the buffer DISPFB2 names at the loop top "
                          "of tick t + 2, read from GS memory at the loop top of t + 3; K > 0 = the displayed "

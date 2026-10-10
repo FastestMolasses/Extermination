@@ -31,6 +31,12 @@ Every test writes its complete GS state and clears its own buffers first
 (Z is pre-filled through a CT32 view so even the byte Z24 never writes is
 known), so nothing the game left in the GS reaches a result.
 
+Emulator: the agent-debug fork by default (2026-10-09; it always runs the
+software renderer, from fork slot 04 of fork-states/manifest.json, outputs in
+build/fork_refs/b16/gscap/ unless GSCAP_OUT is set); `--emulator legacy` =
+the v2.6.3 app (Renderer must then be switched to 13 by hand) until it is
+retired.  Options go before the subcommand.
+
 Subcommands:
   capture [BATCH ...]    emulator: build, kick, snapshot (Renderer must be 13)
   decode  [BATCH ...]    no emulator: decode snapshots into per-test buffers
@@ -406,6 +412,9 @@ RESTORE_HINT = (f"RESTORE: with PCSX2 stopped, set '{LIVE_INI.relative_to(ROOT)}
 
 
 def require_software_renderer() -> None:
+    import route_capture as rc
+    if rc.FORK:
+        return              # ForkSession always launches with Renderer = 13 on its own scratch ini
     if ini_renderer() != 13:
         raise SystemExit(f"Renderer is {ini_renderer()}, not 13 (software).  The switch is manual "
                          f"(docs/GS_CONFORMANCE.md).  " + RESTORE_HINT)
@@ -548,7 +557,7 @@ def snapshot(s, folder: Path) -> dict:
 
 def open_session(log_dir: Path):
     import route_capture as rc
-    return rc.open_session(SSTATES / f"{SERIAL}.{SOURCE_SLOT}.p2s", log_dir=log_dir)
+    return rc.open_session(rc.slot_path(SOURCE_SLOT), log_dir=log_dir)
 
 
 def save_inputs(b: Batch, out: Path, pkt: bytes, doc: dict) -> None:
@@ -581,7 +590,8 @@ def capture(names: list[str]) -> None:
                 save_inputs(b, out, pkt, doc)
                 _run_to(s, VSYNC_WAIT)
                 _run_to(s, VSYNC_ISR)
-                at = {"counter": s.u32(FRAME_COUNTER), "pc": hex(_pc(s))}
+                at = {"counter": s.u32(FRAME_COUNTER), "pc": hex(_pc(s)),
+                      "fi": s.read(0x810E80, 4)[0], "fld": s.read(0x810E88, 4)[0]}
                 ev = kick_and_wait(s, pkt)
                 done = int(ev["after"]["D2_CHCR"], 16) & 0x100 == 0
                 snap = snapshot(s, out / "snap")
@@ -594,8 +604,10 @@ def capture(names: list[str]) -> None:
                 print(b.name, "tests", len(b.tests), "qw", ev["packet_qw"], "dma_done", done,
                       "counter", at["counter"], rec["seconds"], "s", flush=True)
     finally:
+        import route_capture as rc
         print("no emulator process left:", no_emulator_left())
-        print(RESTORE_HINT)
+        if not rc.FORK:
+            print(RESTORE_HINT)
 
 
 # ---------------------------------------------------------------------------
@@ -698,7 +710,13 @@ def main() -> None:
         p = sub.add_parser(c)
         p.add_argument("batches", nargs="*")
     sub.add_parser("list")
+    import route_capture as rc
+    rc.add_emulator_args(ap)
     a = ap.parse_args()
+    global OUT
+    rc.apply_emulator_args(a)
+    if rc.FORK and "GSCAP_OUT" not in os.environ:
+        OUT = ROOT / "build/fork_refs/b16/gscap"     # never into the v2.6.3 captures
     if a.cmd == "capture":
         capture(a.batches)
     elif a.cmd == "decode":

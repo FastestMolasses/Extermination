@@ -47,6 +47,14 @@ data; it names addresses only.  Save states are only read; the user's slots
 01..15 are never written; the emulator runs hidden and is closed at the end
 of every run.
 
+Emulator: the agent-debug fork by default (2026-10-09); `--emulator legacy`
+runs the v2.6.3 app until it is retired.  On the fork the points come from the
+fork chain (route_capture.beat_dir; phase generation by default, so each
+point loads on the v2.6.3 frame index and field), outputs go to
+build/fork_refs/s87/c7cap/<item>/ with a manifest.json, fb2 needs no ini
+switch (the fork session always runs the software renderer), and the GS
+register page is read at the fork state's own offset.
+
 Usage (decomp .venv python, repo root):
     .venv/bin/python tools/c7cap_partb.py fb          # live points + snapshot, then the survey
     .venv/bin/python tools/c7cap_partb.py fb-survey   # no emulator: the fb points' freeze analysis
@@ -82,6 +90,39 @@ FREEZE_VRAM = 425                   # GS freeze v9: header bytes before local me
 LOCALMEM = 0x400000
 CTX_REGS = ["XYOFFSET", "TEX0", "TEX1", "CLAMP", "MIPTBP1", "MIPTBP2", "SCISSOR", "ALPHA",
             "TEST", "FBA", "FRAME", "ZBUF"]
+
+
+def apply_emulator(a) -> None:
+    """--emulator fork (the default): sessions on the agent-debug fork, sources
+    from the fork-states manifest, route points from the fork chain
+    (rc.beat_dir) and outputs mirrored under build/fork_refs/s87/c7cap/ (phase
+    generation) or fork-states/beats/s87/c7cap/ (base), never into the v2.6.3
+    captures.  The fork always runs the software renderer, so fb2's manual ini
+    switch does not apply there."""
+    global OUT, ROUTE, FB2, FB2_POINTS
+    rc.apply_emulator_args(a)
+    if rc.FORK:
+        OUT = (rc.FORK_REFS if rc.GENERATION == "phase" else rc.FORK_STATES / "beats") / "s87/c7cap"
+        ROUTE = rc.beat_dir("00_panel_no_battery").parent
+        FB2 = OUT / "fb2"
+        FB2_POINTS = ([(p.name, p.name) for p in sorted(ROUTE.glob("[01][0-9]_*")) if (p / "state.p2s").exists()]
+                      + [("first_control", "04"), ("route03_end", "03_panel_power"),
+                         ("route07_end", "07_truck_preview")])
+
+
+def note_set(item: str, meta: dict | None = None) -> None:
+    """Fork runs: what was captured, in OUT/manifest.json (rows carry fi / fld / vs)."""
+    if not rc.FORK:
+        return
+    path = OUT / "manifest.json"
+    m = json.loads(path.read_text()) if path.exists() else {
+        "what": "c7cap_partb.py on the agent-debug fork (docs/CAPTURES_C7.md 5, 5b, 6); route_capture "
+                "rows carry the frame index fi (D_00810E80), field fld (D_00810E88) and game vsync vs; "
+                "fb2 capture.json rows also carry hw.frame_idx_810E80",
+        "generation": rc.GENERATION, "route": str(ROUTE.relative_to(ROOT))}
+    m.setdefault("items", {})[item] = {"out": str((OUT / item.split("/")[0]).relative_to(ROOT)),
+                                       "recorded": time.strftime("%Y-%m-%d %H:%M:%S"), **(meta or {})}
+    rc._write_json_atomic(path, m)
 
 
 def no_emulator_left() -> bool:
@@ -183,6 +224,7 @@ def fb_run(frames: int = 8) -> dict:
                     p = gs_priv_pine(s)
                     d = gs_priv_debug(s)
                     rows.append({"i": i, "counter": s.u32(FRAME_COUNTER), "vsync": s.u32(VSYNC_COUNTER),
+                                 "fi": s.read(0x810E80, 4)[0], "fld": s.read(0x810E88, 4)[0],
                                  "pine": {k: hex(v) for k, v in p.items()},
                                  "debug_equal": p == d, "decoded": decode_priv(p)})
                 snap = s.snapshot(out / "snapshot")
@@ -262,6 +304,7 @@ def fb_refresh_points() -> dict:
 ROUTE = ROOT / "build/s87/route"
 INTERNALS = "PCSX2 Internal Structures.dat"
 GS_PRIV_AFTER_TAG = 1246    # PS2MEM_GS copy: bytes after the "EE-Subsystems" freeze tag (rcnt + mem freeze)
+GS_PRIV_AFTER_TAG_FORK = 1290   # the same in the agent-debug fork's states (v2.9.114, 0x9A59)
 
 
 def priv_from_state(state: Path) -> dict[str, int]:
@@ -272,11 +315,16 @@ def priv_from_state(state: Path) -> dict[str, int]:
     (PCSX2 gsRead8/16/32/64 mirror CSR, as the hardware does)."""
     from parse_pcsx2_state import extract_zstd_entry
     d = extract_zstd_entry(state, INTERNALS)
-    base = d.index(b"EE-Subsystems") + GS_PRIV_AFTER_TAG
-    regs = {n: struct.unpack_from("<Q", d, base + off)[0] for n, off in GS_REGS}
-    if regs["CSR"] >> 16 & 0xFFFF != 0x551B:
-        raise RuntimeError(f"GS register page not found in {state}")
-    return regs
+    tag = d.index(b"EE-Subsystems")
+    # v2.6.3 states (0x9A55) keep the page 1246 bytes after the tag; the
+    # agent-debug fork's (0x9A59) 1290 bytes after it (measured 2026-10-09 on
+    # fork states 04 and route 03: the only offset whose CSR carries 0x551B)
+    for after in (GS_PRIV_AFTER_TAG, GS_PRIV_AFTER_TAG_FORK):
+        base = tag + after
+        regs = {n: struct.unpack_from("<Q", d, base + off)[0] for n, off in GS_REGS}
+        if regs["CSR"] >> 16 & 0xFFFF == 0x551B:
+            return regs
+    raise RuntimeError(f"GS register page not found in {state}")
 
 
 def fb_survey() -> dict:
@@ -493,6 +541,8 @@ RESTORE_HINT = (f"RESTORE: in {LIVE_INI}, section [EmuCore/GS], set the line 'Re
 
 
 def require_software_renderer() -> None:
+    if rc.FORK:
+        return                  # ForkSession launches with Renderer = 13 on its own scratch ini
     r = ini_renderer()
     if r != RENDERER_SW:
         raise SystemExit(
@@ -669,7 +719,8 @@ def free_slot() -> int:
 
 HW_SPANS = [("D1_CHCR", 0x10009000), ("D1_MADR", 0x10009010), ("D1_TADR", 0x10009030),
             ("D2_CHCR", 0x1000A000), ("D2_MADR", 0x1000A010), ("GIF_STAT", 0x10003020),
-            ("frame_idx_810E80", 0x810E80)]       # halfword toggled at the loop's end (W)
+            ("frame_idx_810E80", 0x810E80),       # halfword toggled at the loop's end (W)
+            ("field_810E88", 0x810E88)]           # CSR FIELD as the vsync handler sampled it
 
 
 def fb2_source(src: str) -> Path:
@@ -993,7 +1044,9 @@ if __name__ == "__main__":
     ap.add_argument("--frames", type=int, default=8)
     ap.add_argument("--points", default="", help="fb2: comma list of point labels (default: all)")
     ap.add_argument("--steps", type=int, default=2, help="fb2: frames stepped after the aligned load")
+    rc.add_emulator_args(ap)
     a = ap.parse_args()
+    apply_emulator(a)
     labels = [x for x in a.points.split(",") if x] or None
     if a.item == "fb2":
         require_software_renderer()     # refuses (before any emulator start) unless the ini says 13
@@ -1012,7 +1065,8 @@ if __name__ == "__main__":
         else:
             for m in (["fields", "writer"] if a.mode == "both" else [a.mode]):
                 h7_run(m)
+        note_set(a.item if a.item != "h7" else f"h7/{a.mode}", {"points": labels})
     finally:
         print("no emulator process left:", no_emulator_left(), flush=True)
-        if a.item == "fb2":
+        if a.item == "fb2" and not rc.FORK:
             print(f"renderer in {LIVE_INI}: {ini_renderer()}.  " + RESTORE_HINT, flush=True)

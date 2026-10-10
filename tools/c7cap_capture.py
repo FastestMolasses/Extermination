@@ -37,6 +37,13 @@ written (a route source is loaded from a temporary copy in a free slot >= 40
 that is deleted right after the load); the emulator runs hidden and is closed
 at the end of every run.
 
+Emulator: the agent-debug fork by default (2026-10-09); `--emulator legacy`
+runs the v2.6.3 app until it is retired.  On the fork the stretches re-drive
+the fork chain's route beats (route_capture.beat_dir), outputs go to
+build/fork_refs/s87/c7cap/<item>/ with a manifest.json (`--generation base`:
+fork-states/beats/s87/c7cap/), and every sampled row carries the frame index
+fi and field fld.  `lane3 --from boot` stays v2.6.3-only for now.
+
 Usage (decomp .venv python, repo root):
     .venv/bin/python tools/c7cap_capture.py stream --stretch opening|r10|r11|r13|all
     .venv/bin/python tools/c7cap_capture.py lane3 --from title|boot [--mode bracket|pinpoint|both]
@@ -63,6 +70,35 @@ from route_census import PersistentDebug  # noqa: E402
 
 OUT = ROOT / "build/s87/c7cap"
 ROUTE = ROOT / "build/s87/route"
+
+
+def apply_emulator(a) -> None:
+    """--emulator fork (the default): sessions on the agent-debug fork
+    (route_capture's dual RouteSession), sources from the fork-states manifest,
+    route beats from the fork chain (rc.beat_dir) and outputs mirrored under
+    build/fork_refs/ (phase generation) or fork-states/beats/ (base), never
+    into the v2.6.3 captures."""
+    global OUT, ROUTE
+    rc.apply_emulator_args(a)
+    if rc.FORK:
+        OUT = (rc.FORK_REFS if rc.GENERATION == "phase" else rc.FORK_STATES / "beats") / "s87/c7cap"
+        ROUTE = rc.beat_dir("00_panel_no_battery").parent
+
+
+def note_set(item: str, key: str, out: Path, meta: dict | None = None) -> None:
+    """Fork runs: record what was captured in the set manifest (OUT/manifest.json).
+    Every sampled row carries fi / fld / vs (route_capture.decode)."""
+    if not rc.FORK:
+        return
+    path = OUT / "manifest.json"
+    m = json.loads(path.read_text()) if path.exists() else {
+        "what": "c7cap_capture.py on the agent-debug fork (docs/CAPTURES_C7.md); rows carry the frame "
+                "index fi (D_00810E80), field fld (D_00810E88) and game vsync vs",
+        "generation": rc.GENERATION, "route": str(ROUTE.relative_to(ROOT))}
+    m.setdefault("items", {})[f"{item}/{key}"] = {"out": str(out.relative_to(ROOT)),
+                                                  "recorded": time.strftime("%Y-%m-%d %H:%M:%S"),
+                                                  **(meta or {})}
+    rc._write_json_atomic(path, m)
 ISR = 0x1AB140                  # vsync ISR entry (increments 0x810E90)
 RAND, SRAND = 0x122BB8, 0x122BA8
 REENT_PTR = 0x24295C            # D_0024295C -> block; rand state at +0x58
@@ -305,7 +341,11 @@ def startup_title_to_area(s: C7Session, on_frame=None, log: list | None = None) 
 def pine_reload(s: C7Session, src: Path) -> int:
     """Load `src` into the paused VM through Pine from a temporary copy in a
     free slot >= 40 (the user's slots 01..15 are never touched; the copy is
-    deleted right after the load).  Returns the loaded main-loop counter."""
+    deleted right after the load).  Returns the loaded main-loop counter.
+    Fork: the session already started paused exactly on `src` (ForkSession),
+    so nothing is reloaded."""
+    if rc.FORK:
+        return s.u32(FRAME_COUNTER)
     used = set()
     for p in rc.SSTATES.glob(f"{rc.SERIAL}.*.p2s"):
         try:
@@ -817,6 +857,10 @@ def lane3_run(start_from: str, mode: str) -> dict:
             sx.arm(ISR, on_isr)
             if mode == "pinpoint":
                 arm_memchecks(True)          # boot: armed until the first sample
+        if rc.FORK:
+            raise SystemExit("lane3 --from boot arms its breakpoints before the game code runs, which "
+                             "ColdSession does on the v2.6.3 app only; use --emulator legacy, or "
+                             "--from title on the fork (docs/PCSX2_FORK.md, retirement checklist)")
         s = ColdSession(prepare, out / "logs" / mode)
         sess["s"] = s
         try:
@@ -1080,7 +1124,9 @@ if __name__ == "__main__":
     ap.add_argument("--stretch", default="all")
     ap.add_argument("--from", dest="start_from", default="title", choices=["title", "boot"])
     ap.add_argument("--mode", default="both", choices=["bracket", "pinpoint", "both"])
+    rc.add_emulator_args(ap)
     a = ap.parse_args()
+    apply_emulator(a)
     try:
         if a.item == "stream":
             keys = ["opening", "r10", "r11", "r13"] if a.stretch == "all" else a.stretch.split(",")
@@ -1093,5 +1139,6 @@ if __name__ == "__main__":
             keys = ["newgame", "r01", "r10"] if a.stretch == "all" else a.stretch.split(",")
             for k in keys:
                 rng_newgame() if k == "newgame" else rng_route(k)
+        note_set(a.item, a.stretch if a.item != "lane3" else f"{a.start_from}/{a.mode}", OUT / a.item)
     finally:
         print("no emulator process left:", no_emulator_left(), flush=True)

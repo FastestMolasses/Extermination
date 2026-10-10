@@ -14,6 +14,18 @@ Everything written here is derived from the user's own disc and stays in the
 gitignored build/ tree. No original code or data is embedded in this file;
 it names addresses only.
 
+Emulator (2026-10-09, the user's decision to retire PCSX2 v2.6.3): the default
+is the agent-debug fork (docs/PCSX2_FORK.md) with the phase-locked fork states
+of build/startup-reference/fork-states/manifest.json.  Each beat then replays
+its v2.6.3 capture's lead-in and tail, so its rows land on the same game tick,
+frame index D_00810E80 and field D_00810E88 as the v2.6.3 rows; every row
+records fi / fld / vs (game vsync); beat folders go to build/fork_refs/<path>
+(the v2.6.3 path under build/ mirrored) with a manifest.json per set, and the
+beat states are hard-linked into fork-states/phase/beats/.  `--generation base`
+writes the first regeneration's layout (fork-states/beats/), `--emulator
+legacy` the v2.6.3 app and the build/<path> folders below (until the app is
+retired).  The paths below are the legacy ones.
+
 Usage (decomp .venv python, from the repo root):
     .venv/bin/python tools/route_capture.py identify            # user slot table
     .venv/bin/python tools/route_capture.py run --beats all     # beats 00..14, in order
@@ -114,7 +126,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from pcsx2_session import OriginalSession, ForkSession, PAD, SSTATES, FORK_STATES, fork_state  # noqa: E402
+from pcsx2_session import (OriginalSession, ForkSession, PAD, SSTATES, FORK_STATES, fork_state,  # noqa: E402
+                           DEFAULT_BACKEND, FRAME_INDEX)
 
 SERIAL = "SCUS-97112 (0AE679AF)"
 OUT = ROOT / "build/s87/route"
@@ -156,6 +169,7 @@ SPANS = [
     ("inv", 0x810C64, 0x20),            # item counts (0x810C7F = battery 0x1B)
     ("charge", 0x810CB0, 0x8),          # 0x810CB2 charge (half units), CB7 max
     ("area", 0x810700, 0x4),
+    ("phase", FRAME_INDEX, 0x14),       # D_00810E80 frame index, +8 field D_00810E88, +0x10 game vsync
     ("counter2", 0x70003B64, 4),
 ]
 for _name, _base in OWNERS.items():
@@ -210,6 +224,9 @@ def decode(r: dict[str, bytes], owners=None) -> dict:
         "d2": r["d2"].hex(),
         "battery_item": r["inv"][0x1B], "charge": struct.unpack_from("<H", r["charge"], 2)[0],
         "area": r["area"][:2].hex(),
+        # the frame and field phase (docs/PCSX2_FORK_GS_DIFF.md 5): the drawing buffer and
+        # the half-line offset this tick's field gets; "vs" is the game's vsync counter
+        "fi": r["phase"][0], "fld": r["phase"][8], "vs": struct.unpack_from("<I", r["phase"], 0x10)[0],
     }
     for name in owners:
         h, pos, s, t = (r[name + k] for k in (":h", ":p", ":s", ":t"))
@@ -344,18 +361,68 @@ def summary(row: dict) -> str:
             f"clip={row['clip']} spad={row['spad']} ui={row['ui']} req={row['req']}")
 
 
-# Opt-in fork mode (`--emulator fork`, or use_fork() from Python): every
-# session is a pcsx2_session.ForkSession on the agent-debug fork, a 2-digit
-# source slot resolves through build/startup-reference/fork-states/manifest.json
-# (fork_state), and every beat folder moves from build/<path> to
-# build/startup-reference/fork-states/beats/<path> (beat_dir), so fork runs
-# never mix with the v2.6.3 captures.  Default: the legacy app, unchanged.
+# Fork mode (the command line's default since 2026-10-09; `--emulator legacy`
+# keeps the v2.6.3 app until it is retired; from Python: use_fork() /
+# use_legacy()).  Every session is then a pcsx2_session.ForkSession on the
+# agent-debug fork, a 2-digit source slot resolves through
+# build/startup-reference/fork-states/manifest.json (fork_state), and beat
+# folders never mix with the v2.6.3 captures in build/<path>:
+#   generation "phase" (the command line's default): the phase-locked chain.
+#       Sources are the phase/... states, each beat first runs the v2.6.3
+#       capture's lead-in (the frames its legacy session ran between the load
+#       and row 0, the pad as the session left it) and its tail, so every row
+#       lands on the same game tick, frame index and field as the v2.6.3 row.
+#       Beat folders go
+#       to build/fork_refs/<path>, each set gets a manifest.json there, and
+#       each beat's state is hard-linked into fork-states/phase/beats/<path>
+#       and registered in the fork-states manifest (fork_states.py manifest).
+#   generation "base": the first regeneration (decomp 640fac0), beat folders
+#       in fork-states/beats/<path>, no lead-in (what use_fork() gives by
+#       default, for fork_states.py).
+# The module default (FORK False) stays the legacy app for importers that
+# have not chosen; every command line chooses.
 FORK = False
+GENERATION = "base"
+PHASE_LOCK = True                 # phase generation: replay the v2.6.3 lead-in and tail
+FORK_REFS = ROOT / "build/fork_refs"
+FORK_PHASE_BEATS = FORK_STATES / "phase/beats"
 
 
-def use_fork() -> None:
+def use_fork(generation: str = "base", phase_lock: bool = True) -> None:
+    global FORK, GENERATION, PHASE_LOCK
+    FORK, GENERATION, PHASE_LOCK = True, generation, phase_lock
+
+
+def use_legacy() -> None:
     global FORK
-    FORK = True
+    FORK = False
+
+
+def add_emulator_args(ap: argparse.ArgumentParser) -> None:
+    """--emulator / --generation / --no-phase-lock, shared by the capture tools."""
+    ap.add_argument("--emulator", choices=["fork", "legacy"], default=DEFAULT_BACKEND,
+                    help="fork (default; env EXTERMINATION_PCSX2) = the agent-debug fork with the "
+                         "fork-states manifest's states; legacy = the v2.6.3 app (until it is retired)")
+    ap.add_argument("--generation", choices=["phase", "base"], default="phase",
+                    help="fork: phase (default) = the phase-locked states, outputs in build/fork_refs/ "
+                         "with a manifest per set; base = the first regeneration (fork-states/beats/)")
+    ap.add_argument("--no-phase-lock", action="store_true",
+                    help="fork, phase generation: start on the saved frame instead of replaying the "
+                         "v2.6.3 capture's lead-in and tail")
+    ap.add_argument("--fork-mtvu", choices=["off", "on", "ini"], default="off",
+                    help="fork: VU1 on its own thread.  off (default) = VU1 on the EE thread: GS memory "
+                         "at a loop top is then the same in every run (with it on, two runs with "
+                         "identical EE state differed in GS memory; EE state is the same either way)")
+
+
+def apply_emulator_args(a) -> None:
+    import pcsx2_session
+    if a.emulator == "fork":
+        use_fork(a.generation, not a.no_phase_lock)
+        mt = getattr(a, "fork_mtvu", "off")
+        pcsx2_session.FORK_MTVU = None if mt == "ini" else (mt == "on")
+    else:
+        use_legacy()
 
 
 def resumable(state: Path) -> Path:
@@ -388,16 +455,55 @@ def wait_for_free_emulator(timeout: float = 600.0) -> None:
     raise RuntimeError("another PCSX2 session is still running")
 
 
-class RouteSession(OriginalSession):
-    """pcsx2_session.OriginalSession with a longer frame-boundary timeout.
-    Right after -statefile some states take longer than the default 5 s to
-    reach the main-loop top the first time (observed on several beat
-    snapshots); the per-frame timeout is only a fault detector."""
+class RouteSession(ForkSession):
+    """The session the capture tools subclass, on either emulator (FORK).
+
+    Legacy (v2.6.3): pcsx2_session.OriginalSession with a longer
+    frame-boundary timeout.  Right after -statefile some states take longer
+    than the default 5 s to reach the main-loop top the first time (observed
+    on several beat snapshots); the per-frame timeout is only a fault
+    detector.
+
+    Fork: pcsx2_session.ForkSession.  The tools' own subclasses (route_census,
+    c7cap_*, load_wait_probe, sfx_request_probe, gs_conformance) keep their
+    v1 stepping loops (resume, poll status, service their breakpoints): on
+    the fork, self.debug is pcsx2_session.ForkV1Debug, which turns resume into
+    a run to the next loop top (stopping earlier at their v1 breakpoints) and
+    answers status from the fork's state.
+
+    The class derives from ForkSession so one subclass serves both; the
+    emulator is chosen when the instance is made (route_capture.FORK)."""
 
     boundary_timeout = 30.0     # beat 15 raises it: Roger's departure plays an FMV inside one frame
 
+    def __init__(self, state, log_dir=None, **kw):
+        self._fork = FORK
+        if self._fork:
+            ForkSession.__init__(self, state, log_dir=log_dir, **kw)
+        else:
+            OriginalSession.__init__(self, state, log_dir=log_dir, **kw)
+
+    def _start(self):
+        return ForkSession._start(self) if self._fork else OriginalSession._start(self)
+
+    def _paused(self) -> bool:
+        return ForkSession._paused(self) if self._fork else OriginalSession._paused(self)
+
+    def write(self, address: int, data: bytes) -> None:
+        return ForkSession.write(self, address, data) if self._fork else OriginalSession.write(self, address, data)
+
+    def snapshot(self, out_dir, slot=None) -> dict:
+        return (ForkSession.snapshot(self, out_dir, slot) if self._fork
+                else OriginalSession.snapshot(self, out_dir, slot))
+
+    def close(self) -> None:
+        return ForkSession.close(self) if self._fork else OriginalSession.close(self)
+
     def _resume_to_boundary(self, timeout: float | None = None) -> None:
-        super()._resume_to_boundary(timeout=timeout or self.boundary_timeout)
+        if self._fork:
+            ForkSession._resume_to_boundary(self, timeout)
+        else:
+            OriginalSession._resume_to_boundary(self, timeout=timeout or self.boundary_timeout)
 
 
 class RetrySession:
@@ -411,8 +517,7 @@ class RetrySession:
     def __enter__(self) -> OriginalSession:
         for attempt in range(self.attempts):
             wait_for_free_emulator(3600.0 if FORK else 600.0)
-            cls = ForkSession if FORK else RouteSession
-            session = cls(self.state, log_dir=self.log_dir)
+            session = RouteSession(self.state, log_dir=self.log_dir)
             try:
                 self.session = session.__enter__()
                 return self.session
@@ -432,7 +537,7 @@ def open_session(state: Path, log_dir: Path | None = None, attempts: int = 6) ->
 
 def slot_path(slot: str) -> Path:
     if FORK:
-        return fork_state(slot)
+        return fork_state(slot, GENERATION)
     return SSTATES / f"{SERIAL}.{slot}.p2s"
 
 
@@ -9632,11 +9737,225 @@ def beat_source(source: str) -> Path:
 
 def beat_dir(name: str) -> Path:
     """Output folder of a beat (see _legacy_beat_dir); in fork mode the same
-    path under build/startup-reference/fork-states/beats/."""
+    path under build/fork_refs/ (phase generation) or
+    build/startup-reference/fork-states/beats/ (base generation)."""
     d = _legacy_beat_dir(name)
     if FORK:
-        return FORK_STATES / "beats" / d.relative_to(ROOT / "build")
+        rel = d.relative_to(ROOT / "build")
+        return (FORK_REFS if GENERATION == "phase" else FORK_STATES / "beats") / rel
     return d
+
+
+# ---------------------------------------------------------------------------
+# Phase lock (fork, phase generation): reproduce the v2.6.3 capture's timeline.
+#
+# A legacy session loaded its state, ran free until PINE answered, then
+# paused: row 0 of every v2.6.3 beat lies 1..12 frames after its source state
+# (the trace's first_counter against the source's counter).  The phase-locked
+# fork states sit on the same game point with the same frame index and field
+# as the v2.6.3 states, so replaying that lead-in with a neutral pad puts
+# every fork row on the v2.6.3 row's tick, frame index (= the main-loop
+# counter's parity) and field.  The v2.6.3 retry tail (tail_idle_frames) is
+# replayed too, so the end snapshot, and the next beat's source, stay in step.
+
+def _legacy_counter(path: Path) -> int | None:
+    """Main-loop counter of a v2.6.3 state or beat folder (offline)."""
+    from parse_pcsx2_state import extract_zstd_entry
+    folder = path.parent
+    try:
+        if path.name == "state.p2s" and (folder / "snapshot.json").exists():
+            return json.loads((folder / "snapshot.json").read_text())["main_loop_counter"]
+        return struct.unpack_from("<I", extract_zstd_entry(path, "Scratchpad.bin"), 0x3B64)[0]
+    except (OSError, KeyError, ValueError):
+        return None
+
+
+def _legacy_phase_at(path: Path) -> dict | None:
+    """Frame index / field / counter of a v2.6.3 state or beat snapshot (offline)."""
+    from parse_pcsx2_state import extract_zstd_entry
+    try:
+        if path.name == "state.p2s" and (path.parent / "eeMemory.bin").exists():
+            ee = (path.parent / "eeMemory.bin").read_bytes()
+            sp = (path.parent / "scratchpad.bin").read_bytes()
+        else:
+            ee = extract_zstd_entry(path, "eeMemory.bin")
+            sp = extract_zstd_entry(path, "Scratchpad.bin")
+    except (OSError, KeyError, ValueError):
+        return None
+    return {"frame_index": ee[FRAME_INDEX], "field": ee[FRAME_INDEX + 8],
+            "counter": struct.unpack_from("<I", sp, 0x3B64)[0]}
+
+
+def legacy_source_state(source: str) -> Path:
+    if len(source) == 2 and source.isdigit():
+        return SSTATES / f"{SERIAL}.{source}.p2s"
+    return _legacy_beat_dir(source) / "state.p2s"
+
+
+# The v2.6.3 references are cached in build/fork_refs/legacy_refs.json, so the
+# phase lock keeps working once the user's v2.6.3 slots go to the Trash with
+# the app (`route_capture.py legacy-refs` fills the cache for every group).
+LEGACY_REFS = FORK_REFS / "legacy_refs.json"
+
+
+def _legacy_cache() -> dict:
+    try:
+        return json.loads(LEGACY_REFS.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _legacy_cache_put(section: str, key: str, value: dict) -> None:
+    c = _legacy_cache()
+    if c.get(section, {}).get(key) == value:
+        return
+    c.setdefault(section, {})[key] = value
+    c["what"] = ("v2.6.3 capture facts the fork's phase lock needs (lead-in, tail, row counters, "
+                 "phase at the source and end states), cached before the v2.6.3 slots are retired")
+    _write_json_atomic(LEGACY_REFS, c)
+
+
+def legacy_slot_phase(slot: str) -> dict | None:
+    """Frame index / field / counter of a v2.6.3 user slot (cached)."""
+    path = SSTATES / f"{SERIAL}.{slot}.p2s"
+    if path.exists():
+        ph = _legacy_phase_at(path)
+        if ph is not None:
+            _legacy_cache_put("slots", slot, ph)
+            return ph
+    return _legacy_cache().get("slots", {}).get(slot)
+
+
+def legacy_reference(name: str, source: str) -> dict | None:
+    """The v2.6.3 capture of a beat: lead-in, tail and the phase rule of its
+    rows (frame index = counter parity; field = frame index ^ the pairing at
+    its source state, valid while no iteration takes two vsyncs).  Served
+    from build/fork_refs/legacy_refs.json when the v2.6.3 files are gone."""
+    ref = _legacy_reference(name, source)
+    if ref is not None:
+        _legacy_cache_put("beats", name, ref)
+        return ref
+    return _legacy_cache().get("beats", {}).get(name)
+
+
+def _legacy_reference(name: str, source: str) -> dict | None:
+    trace = _legacy_beat_dir(name) / "trace.json"
+    src = legacy_source_state(source)
+    if not trace.exists() or not src.exists():
+        return None
+    doc = json.loads(trace.read_text())
+    src_counter = _legacy_counter(src)
+    if src_counter is None:
+        return None
+    ph_src = _legacy_phase_at(src)
+    ph_end = _legacy_phase_at(_legacy_beat_dir(name) / "state.p2s")
+    ref = {"trace": str(trace.relative_to(ROOT)), "source_state": str(src.relative_to(ROOT)),
+           "source_counter": src_counter, "first_counter": doc["first_counter"],
+           "last_counter": doc["last_counter"], "frames": doc["frames"],
+           "lead_in": doc["first_counter"] - src_counter, "tail": doc.get("tail_idle_frames") or 0,
+           "source_phase": ph_src, "end_phase": ph_end,
+           "counters": [r["counter"] for r in doc["rows"]]}
+    if ph_src is not None:
+        ref["pairing_source"] = ph_src["frame_index"] ^ ph_src["field"]
+    if ph_end is not None:
+        ref["pairing_end"] = ph_end["frame_index"] ^ ph_end["field"]
+    return ref
+
+
+def legacy_row_phase(ref: dict, i: int) -> tuple[int, int | None]:
+    """(frame index, field or None) of v2.6.3 row i, derived from its counter."""
+    fi = ref["counters"][i] & 1
+    pairing = ref.get("pairing_source")
+    if pairing is None or pairing != ref.get("pairing_end"):
+        return fi, None                 # the pairing changed inside the beat: field unknown per row
+    return fi, fi ^ pairing
+
+
+def phase_report(rows: list[dict], ref: dict | None) -> dict:
+    """Per beat: the fork rows' phase against the v2.6.3 rows' (by row index)."""
+    out = {"row0": {"fi": rows[0].get("fi"), "fld": rows[0].get("fld"), "vs": rows[0].get("vs"),
+                    "counter": rows[0]["counter"]},
+           "last": {"fi": rows[-1].get("fi"), "fld": rows[-1].get("fld"), "vs": rows[-1].get("vs"),
+                    "counter": rows[-1]["counter"]}}
+    if ref is None:
+        out["legacy"] = None
+        return out
+    n = min(len(rows), len(ref["counters"]))
+    fi_eq = fld_eq = fld_known = 0
+    first_diff = None
+    for i in range(n):
+        lfi, lfld = legacy_row_phase(ref, i)
+        ok = rows[i].get("fi") == lfi
+        fi_eq += ok
+        if lfld is not None:
+            fld_known += 1
+            okf = rows[i].get("fld") == lfld
+            fld_eq += okf
+            ok = ok and okf
+        if not ok and first_diff is None:
+            first_diff = {"row": i, "fork": [rows[i].get("fi"), rows[i].get("fld")], "legacy": [lfi, lfld]}
+    out["legacy"] = {"rows_compared": n, "frame_index_equal": fi_eq, "field_known": fld_known,
+                     "field_equal": fld_eq, "first_difference": first_diff,
+                     "lead_in": ref["lead_in"], "tail": ref["tail"],
+                     "counter_offset": rows[0]["counter"] - ref["counters"][0]}
+    return out
+
+
+def recorded_lead_in(name: str) -> int:
+    """Frames the recorded capture of `name` ran between its source state and
+    row 0 (fork phase generation: the replayed v2.6.3 lead-in; 0 otherwise).
+    Tools that re-drive a recorded beat and compare rows step these first."""
+    path = beat_dir(name) / "trace.json"
+    if not path.exists():
+        return 0
+    return int(json.loads(path.read_text()).get("lead_in_frames") or 0)
+
+
+def _write_json_atomic(path: Path, doc: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(doc, indent=1) + "\n")
+    tmp.replace(path)
+
+
+def record_phase_beat(name: str, source: str, out: Path, meta: dict, rows: list[dict],
+                      session) -> None:
+    """Phase generation: the set manifest in build/fork_refs/<set>/manifest.json
+    and the state's hard link in fork-states/phase/beats/<path> (registered by
+    fork_states.py manifest)."""
+    import hashlib
+    rel = out.relative_to(FORK_REFS)
+    link_dir = FORK_PHASE_BEATS / rel
+    link_dir.mkdir(parents=True, exist_ok=True)
+    for f in ("state.p2s", "snapshot.json"):
+        dst = link_dir / f
+        if dst.exists() or dst.is_symlink():
+            dst.unlink()
+        if f == "state.p2s":
+            dst.hardlink_to(out / f)        # same file, no copy (both under build/)
+        else:
+            shutil.copyfile(out / f, dst)
+    (link_dir / "beat.json").write_text(json.dumps(
+        {"beat": name, "source": source, "folder": str(out.relative_to(ROOT)), "what": meta.get("what"),
+         "frames": meta.get("frames"), "phase": meta.get("phase")}, indent=1) + "\n")
+    set_dir = out.parent
+    mpath = set_dir / "manifest.json"
+    m = json.loads(mpath.read_text()) if mpath.exists() else {}
+    m.setdefault("what", "fork re-recording of a v2.6.3 capture set (route_capture.py --emulator fork "
+                         "--generation phase); rows carry fi (D_00810E80), fld (D_00810E88), vs "
+                         "(game vsync) and counter; docs/PCSX2_FORK.md")
+    m["set"] = str(set_dir.relative_to(ROOT))
+    m["legacy_set"] = str(_legacy_beat_dir(name).parent.relative_to(ROOT))
+    hello = getattr(session, "hello", {}) or {}
+    m.setdefault("beats", {})[name] = {
+        "folder": str(out.relative_to(ROOT)), "source": source,
+        "source_state": meta.get("source_state"), "state_link": str((link_dir / "state.p2s").relative_to(ROOT)),
+        "state_sha256": hashlib.sha256((out / "state.p2s").read_bytes()).hexdigest(),
+        "frames": meta.get("frames"), "first_counter": rows[0]["counter"], "last_counter": rows[-1]["counter"],
+        "lead_in": meta.get("lead_in_frames"), "tail": meta.get("tail_idle_frames"),
+        "phase": meta.get("phase"), "fork_rev": hello.get("rev"), "fork_hash": hello.get("hash"),
+        "recorded": time.strftime("%Y-%m-%d %H:%M:%S")}
+    _write_json_atomic(mpath, m)
 
 
 def _legacy_beat_dir(name: str) -> Path:
@@ -9721,13 +10040,25 @@ def resumes(state: Path, log_dir: Path) -> bool:
 
 def run_beat(name: str, source: str, fn, tries: int = 4) -> None:
     """Capture one beat.  The snapshot is verified to resume; if it does not,
-    the beat is captured again with extra idle frames before the snapshot."""
+    the beat is captured again with extra idle frames before the snapshot.
+    Fork, phase generation: the v2.6.3 capture's lead-in and tail are replayed
+    first (see "Phase lock" above) and the phase of every row is reported
+    against the v2.6.3 rows."""
     base = beat_dir(name).parent
+    phase_mode = FORK and GENERATION == "phase"
+    ref = legacy_reference(name, source) if phase_mode else None
+    lead_in = ref["lead_in"] if (ref and PHASE_LOCK) else 0
+    tail0 = ref["tail"] if (ref and PHASE_LOCK) else 0
     for attempt in range(tries):
-        tail = 23 * attempt
+        tail = tail0 + 23 * attempt
         src = beat_source(source)
         try:
             with open_session(src, log_dir=base / "logs" / name) as s:
+                if lead_in:
+                    # the pad stays as the session left it (cleared), as in the v2.6.3
+                    # session's free-running frames: an explicit neutral pad here
+                    # (sticks 0x7F) made beat 02 leave the v2.6.3 path at frame 90
+                    s.step(lead_in)
                 r = Route(s)
                 r.begin()
                 try:
@@ -9742,7 +10073,18 @@ def run_beat(name: str, source: str, fn, tries: int = 4) -> None:
                     raise
                 meta["source"] = source
                 meta["tail_idle_frames"] = tail
+                if FORK:
+                    meta["emulator"] = "fork"
+                    meta["generation"] = GENERATION
+                    meta["source_state"] = str(src)
+                if phase_mode:
+                    meta["lead_in_frames"] = lead_in
+                    meta["phase_lock"] = bool(ref and PHASE_LOCK)
+                    meta["phase"] = phase_report(r.rows, ref)
+                    meta["frames"] = r.frame_index
                 out = r.save(name, meta)
+                if phase_mode:
+                    record_phase_beat(name, source, out, meta, r.rows, s)
         finally:
             if not FORK:
                 shutil.rmtree(OUT / "_resume", ignore_errors=True)
@@ -9824,18 +10166,23 @@ def events(doc: dict, owners=None) -> list[str]:
     return out
 
 
+def _term_to_interrupt(signum, frame):
+    """SIGTERM ends a run like Ctrl-C: the sessions close (emulator shut down,
+    scratch removed, run lock released) instead of leaving them behind."""
+    raise KeyboardInterrupt(f"signal {signum}")
+
+
 if __name__ == "__main__":
+    import signal
+    signal.signal(signal.SIGTERM, _term_to_interrupt)
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("command", choices=["identify", "probe", "run", "events", "verify"])
+    ap.add_argument("command", choices=["identify", "probe", "run", "events", "verify", "legacy-refs"])
     ap.add_argument("--beats", default="all")
     ap.add_argument("--state", default="04")
     ap.add_argument("--frames", type=int, default=10)
-    ap.add_argument("--emulator", choices=["legacy", "fork"], default="legacy",
-                    help="fork = the agent-debug fork and its regenerated states "
-                         "(fork-states/manifest.json); beats go to fork-states/beats/")
+    add_emulator_args(ap)
     a = ap.parse_args()
-    if a.emulator == "fork":
-        use_fork()
+    apply_emulator_args(a)
     if a.command == "probe":
         with open_session(slot_path(a.state)) as s:
             r = Route(s)
@@ -9897,6 +10244,9 @@ if __name__ == "__main__":
                 run_beat(name, source, fn)
             for name, source, fn in opt_selected(a.beats):     # the OPTIONS capture group
                 run_beat(name, source, fn)
+        if FORK and GENERATION == "phase":
+            import fork_states                          # register the new states (both generations)
+            fork_states.cmd_manifest(None)
     elif a.command == "events":
         chosen = [b for b in BEATS if a.beats == "all" or b[0][:2] in a.beats.split(",")]
         chosen += a01_selected(a.beats) if a.beats != "all" else []
@@ -9943,6 +10293,25 @@ if __name__ == "__main__":
                       or fourteenth_owners(name) or fifteenth_owners(name))
             for line in events(doc, owners):
                 print("  ", line)
+    elif a.command == "legacy-refs":
+        # every group, offline: cache the v2.6.3 facts the phase lock needs
+        groups = [BEATS, A01_BEATS, C7_BEATS, A00_BEATS, A01R_BEATS, A02_BEATS, A04_BEATS, A22_BEATS,
+                  A01U_BEATS, A06_BEATS]
+        allb = {}
+        for g in groups:
+            for b in g:
+                allb[b[0]] = b
+        for fn_sel in (eighth_selected, a13_selected, tenth_selected, eleventh_selected, twelfth_selected,
+                       thirteenth_selected, fourteenth_selected, fourteenth_a15_selected, fifteenth_selected,
+                       aim_selected, exit_selected, dmg_selected, br_selected, opt_selected):
+            for prefix in ("a06b", "a01v", "a22b", "a04b", "a13", "a19", "a13b", "a13c", "a13d", "a19b",
+                           "a19c", "a19d", "a15", "a15b", "a19e", "a03", "aim", "exit", "dmg", "br", "opt"):
+                for b in fn_sel(prefix):
+                    allb[b[0]] = b
+        slots = {sl: legacy_slot_phase(sl) for sl in ("01", "02", "03", "04", "06", "07", "08", "11", "12",
+                                                       "13", "14", "15")}
+        n = sum(1 for name, source, _fn in allb.values() if legacy_reference(name, source) is not None)
+        print(f"{n} of {len(allb)} beats and {sum(1 for v in slots.values() if v)} slots cached in {LEGACY_REFS}")
     elif a.command == "identify":
         from parse_pcsx2_state import extract_zstd_entry
         for path in sorted(SSTATES.glob(f"{SERIAL}.*.p2s")):

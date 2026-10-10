@@ -24,6 +24,13 @@ The probe only pauses the EE and reads registers and memory; it never
 writes memory.  Outputs go to the ignored build/s87/loadwait/<beat>/.
 Nothing here embeds original code or data; it names addresses only.
 
+Emulator: the agent-debug fork by default (2026-10-09), replaying the fork
+chain's beats (route_capture.beat_dir, with their recorded lead-in) into
+build/fork_refs/s87/loadwait/; `--emulator legacy` = the v2.6.3 app and
+build/s87/loadwait/ until the app is retired.  The fork's loader runs a few
+iterations longer than v2.6.3's (docs/PCSX2_FORK_GS_DIFF.md 5.2), so the
+two runs' frame counts are compared, not assumed equal.
+
 Usage (decomp .venv python, repo root):
     .venv/bin/python tools/load_wait_probe.py run --beats 01,03 --mode boundary
     .venv/bin/python tools/load_wait_probe.py run --beats 01,03 --mode breakpoints
@@ -183,6 +190,9 @@ def run(name: str, source: str, fn, mode: str = "breakpoints") -> Path:
     s = open_probe(src, OUT / "logs" / (name + "_" + mode))
     frames: list[dict] = []
     try:
+        lead = rc.recorded_lead_in(name)
+        if lead:                       # fork phase chain: the recorded beat's lead-in (pad as left)
+            s.step(lead)
         if mode == "breakpoints":
             s.arm_request()
         r = rc.Route(s)
@@ -201,7 +211,7 @@ def run(name: str, source: str, fn, mode: str = "breakpoints") -> Path:
             return row
         r.step = step
         meta = fn(r)
-        recorded = json.loads((rc.OUT / name / "trace.json").read_text())
+        recorded = json.loads((rc.beat_dir(name) / "trace.json").read_text())
         same = sum(1 for a, b in zip(r.rows, recorded["rows"]) if a == b)
         doc = {"beat": name, "source": source, "mode": mode, "what": meta.get("what"),
                "frames": r.frame_index, "first_differing_row": next(
@@ -291,7 +301,11 @@ if __name__ == "__main__":
     ap.add_argument("command", choices=["run", "table"])
     ap.add_argument("--beats", default="01,03")
     ap.add_argument("--mode", choices=["breakpoints", "boundary"], default="boundary")
+    rc.add_emulator_args(ap)
     a = ap.parse_args()
+    rc.apply_emulator_args(a)
+    if rc.FORK:                        # never into the v2.6.3 captures
+        OUT = (rc.FORK_REFS if rc.GENERATION == "phase" else rc.FORK_STATES / "beats") / "s87/loadwait"
     for key in a.beats.split(","):
         name, source, fn = BEATS[key]
         if a.command == "run":

@@ -26,6 +26,11 @@ The probe only pauses the EE and reads registers and memory; it never
 writes memory.  Outputs go to the ignored build/sfx_probe/.  Nothing here
 embeds original code or data; it names addresses only.
 
+Emulator: the agent-debug fork by default (2026-10-09), through route_census's
+sessions (v1 breakpoints kept; pcsx2_session.ForkV1Debug), outputs in
+build/fork_refs/sfx_probe/; `--emulator legacy` = the v2.6.3 app and
+build/sfx_probe/ until the app is retired.
+
 Usage (decomp .venv python, repo root):
     .venv/bin/python tools/sfx_request_probe.py run [--segments all|startup|05,06]
     .venv/bin/python tools/sfx_request_probe.py report
@@ -526,7 +531,13 @@ if __name__ == "__main__":
     ap.add_argument("--segments", default="all")
     ap.add_argument("--extra", default="", help="scan: extra function addresses, hex, comma-separated")
     ap.add_argument("--pass", dest="pass_name", default="A")
+    if rc is not None:
+        rc.add_emulator_args(ap)
     a = ap.parse_args()
+    if rc is not None and a.command in ("run", "report"):
+        rc.apply_emulator_args(a)
+        if rc.FORK:                    # fork runs never mix with the v2.6.3 probe's runs
+            OUT = (rc.FORK_REFS if rc.GENERATION == "phase" else rc.FORK_STATES / "beats") / "sfx_probe"
     if a.command == "run":
         wanted = census.DEFAULT_SEGMENTS if a.segments == "all" else a.segments.split(",")
         run(wanted, a.pass_name)

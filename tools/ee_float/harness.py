@@ -10,11 +10,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]  # decomp repo root
 DATA = REPO / 'build/startup-reference/ee_float'  # recorded vectors (oracle input, ignored)
 sys.path.insert(0, str(REPO / 'tools'))
-from pcsx2_session import OriginalSession, SSTATES
+from pcsx2_session import DEFAULT_BACKEND, open_original
 
 ELF = (REPO / 'config/SCUS_971.12').read_bytes()
 HERE = Path(__file__).resolve().parent
-STATE = SSTATES / 'SCUS-97112 (0AE679AF).04.p2s'
+STATE = '04'    # first control: fork slot 04 (fork-states manifest) or the user's v2.6.3 slot 04
 CAT = {'GPR': 0, 'FPR': 2, 'FCR': 3, 'VU0F': 4, 'VU0I': 5}
 
 
@@ -80,7 +80,7 @@ def READ(cat):
 class Rig:
     def __init__(self, s):
         self.s = s
-        self.link = Link()
+        self.link = Link(getattr(getattr(s, 'debug', None), 'port', 21512))
         self.steps = 0
 
     def do(self, cmds):
@@ -97,5 +97,9 @@ class Rig:
         return reads
 
 
-def session():
-    return OriginalSession(STATE, log_dir=REPO / 'build/ee_float/session')
+def session(backend=None):
+    """The original at first control.  backend: 'fork' (default; env
+    EXTERMINATION_PCSX2) = the agent-debug fork from fork slot 04 (its v1
+    write_register / set_pc / step are byte-compatible), 'legacy' = the
+    v2.6.3 app from the user's slot 04 (until it is retired)."""
+    return open_original(STATE, backend or DEFAULT_BACKEND, log_dir=REPO / 'build/ee_float/session')

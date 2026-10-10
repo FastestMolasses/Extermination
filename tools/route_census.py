@@ -45,6 +45,14 @@ Inputs: docs/FUNCTIONS.csv, src/ markers, build/s87/census/provenance.json
 splat output under build/overlays/AREA11 and extract/OVERLAY/AREA11.BIN
 (header text size only), and the route captures of tools/route_capture.py.
 
+Emulator: the agent-debug fork by default (2026-10-09; `--emulator legacy` =
+the v2.6.3 app until it is retired).  On the fork the census sessions keep
+their v1 breakpoints (pcsx2_session.ForkV1Debug turns resume/status into fork
+runs), beats replay from the fork chain (route_capture.beat_dir, phase
+generation by default, with the recorded lead-in), and every output of this
+tool moves to build/fork_refs/s87/census/ (candidates.json and
+provenance.json are copied there once; they do not involve the emulator).
+
 Usage (decomp .venv python, repo root):
     .venv/bin/python tools/route_census.py candidates
     .venv/bin/python tools/route_census.py run --segments all [--pass A]   # startup + 00..14
@@ -697,6 +705,10 @@ def run_beat(name: str, source: str, fn, addrs: list[int], pass_name: str, sessi
     doc: dict = {"beat": name, "source": source, "tail_idle_frames": tail}
     s = open_census(src, OUT / "logs" / pass_name / name, cls=session_cls)
     try:
+        lead = rc.recorded_lead_in(name)
+        if lead:                       # fork phase chain: the recorded beat's lead-in (pad as left)
+            s.step(lead)
+            doc["lead_in_frames"] = lead
         r = rc.Route(s)
         r.begin()
         doc["start_counter"] = r.rows[0]["counter"]
@@ -3834,8 +3846,20 @@ if __name__ == "__main__":
     ap.add_argument("--a04-passes", default="A04", help="a22-delta: the AREA04 census passes")
     ap.add_argument("--a22-passes", default="A22", help="a01u-delta: the AREA22 census passes")
     ap.add_argument("--a01u-passes", default="A01U", help="a06-delta: the AREA01 upper-floor census passes")
+    rc.add_emulator_args(ap)
     a = ap.parse_args()
     ARM_CHUNK = max(1, a.arm_chunk)
+    rc.apply_emulator_args(a)
+    if rc.FORK:
+        # Fork runs go to build/fork_refs/s87/census (phase) or fork-states/beats/s87/census
+        # (base), never into the v2.6.3 census; the decomp-side inputs (candidates.json,
+        # provenance.json: no emulator involved) are copied over once.
+        legacy_out = OUT
+        OUT = (rc.FORK_REFS if rc.GENERATION == "phase" else rc.FORK_STATES / "beats") / "s87/census"
+        OUT.mkdir(parents=True, exist_ok=True)
+        for f in ("candidates.json", "provenance.json"):
+            if (legacy_out / f).exists() and not (OUT / f).exists():
+                shutil.copyfile(legacy_out / f, OUT / f)
     if a.command == "candidates":
         c = candidates()
         (OUT).mkdir(parents=True, exist_ok=True)
