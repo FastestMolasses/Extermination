@@ -58,7 +58,54 @@ DEFAULT_EMULATOR = REFERENCE / "PCSX2.app/Contents/MacOS/PCSX2"
 DEFAULT_ISO = ROOT / "Extermination-rebuilt.iso"
 ELF = ROOT / "config/SCUS_971.12"
 SSTATES = REFERENCE / "portable-data/sstates"
+SERIAL = "SCUS-97112 (0AE679AF)"
 LOOP_TOP = 0x001AAF28
+
+# The agent-debug fork (docs/PCSX2_FORK.md) and the states it saved
+# (build/startup-reference/fork-states/, described by its manifest.json).
+FORK_REPO = Path(os.environ.get("PCSX2_FORK_REPO", ROOT.parent / "pcsx2-fork"))
+FORK_APP = Path(os.environ.get("PCSX2_FORK_APP", FORK_REPO / "build-x64/pcsx2-qt/PCSX2.app"))
+FORK_PY = FORK_REPO / "extermination/python"
+FORK_STATES = REFERENCE / "fork-states"
+FORK_MANIFEST = FORK_STATES / "manifest.json"
+RUN_LOCK = ROOT / "build/.pcsx2.lock"
+
+
+def fork_manifest() -> dict:
+    if not FORK_MANIFEST.exists():
+        raise FileNotFoundError(f"no fork-state manifest at {FORK_MANIFEST} "
+                                "(regenerate with tools/fork_states.py)")
+    return json.loads(FORK_MANIFEST.read_text())
+
+
+def fork_state(name: str | Path) -> Path:
+    """The fork-saved state that replaces a v2.6.3 one.  `name` is a manifest
+    key ("slot04_first_control", "route/14_roger_encounter"), an alias
+    ("04", "slot04", "14_roger_encounter") or the old state's path (a user slot
+    file or a build/s87/... beat snapshot).  An existing path that is not a
+    v2.6.3 state the manifest knows is returned unchanged."""
+    m = fork_manifest()
+    states, aliases = m["states"], m.get("aliases", {})
+    key = str(name)
+    p = Path(key)
+    if p.suffix == ".p2s":
+        rp = p.resolve()
+        for k, v in states.items():
+            old = v.get("old")
+            if old and (ROOT / old).resolve() == rp:
+                key = k
+                break
+        else:
+            if rp.exists():
+                return rp
+            raise KeyError(f"{name}: not a state the fork manifest replaces")
+    key = aliases.get(key, key)
+    if key not in states:
+        raise KeyError(f"{name}: not in {FORK_MANIFEST} (keys: {', '.join(sorted(states))})")
+    path = FORK_STATES / states[key]["file"]
+    if not path.exists():
+        raise FileNotFoundError(path)
+    return path
 FRAME_COUNTER = 0x70003B64
 VSYNC_COUNTER = 0x00810E90
 
@@ -91,10 +138,10 @@ class DebugServer:
 
 
 class Pine:
-    def __init__(self):
+    def __init__(self, path: str | Path | None = None):
         self.s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.s.settimeout(5)
-        self.s.connect(str(Path(os.environ["TMPDIR"]) / "pcsx2.sock"))
+        self.s.connect(str(path or Path(os.environ["TMPDIR"]) / "pcsx2.sock"))
 
     def _recv(self, n: int) -> bytes:
         b = b""
@@ -460,26 +507,238 @@ class OriginalSession:
         return info
 
 
+class ForkSession(OriginalSession):
+    """OriginalSession on the agent-debug fork (opt-in; docs/PCSX2_FORK.md).
+
+    Same API (step, pad, read, write, snapshot, frames_stepped), launched
+    through the fork's own pcsx2dbg launcher: hidden, on a fresh scratch
+    folder outside ~/Documents (BIOS and ini copies, the ISO APFS-cloned, the
+    write root inside it), software renderer, no frame limiter.  A frame step
+    is one fork `run {until: {ticks: 1}}` with the tick PC at the main-loop top
+    (the same boundary as the legacy breakpoint, one request instead of a
+    resume-and-poll); memory reads stay on PINE (this instance's socket).
+    snapshot() saves with the fork's exact `state_save` into the write root
+    and takes original.png from `gs_field` (the displayed field).
+
+    The state must be one the fork saved (0x9A59); fork_state() resolves the
+    v2.6.3 names through build/startup-reference/fork-states/manifest.json.
+    The session takes the run lock build/.pcsx2.lock itself (waiting up to
+    `lock_wait` seconds for another run to finish) and removes it, the scratch
+    folder and the ISO clone on close; no emulator is left running."""
+
+    boundary_timeout = 30.0
+
+    def __init__(self, state: str | Path | None, log_dir: Path | None = None, *,
+                 app: Path = FORK_APP, iso: Path = DEFAULT_ISO, renderer: int = 13,
+                 scratch_base: Path | None = None, lock: Path | None = RUN_LOCK,
+                 lock_wait: float = 3600.0, ready_timeout: float = 120.0,
+                 lease_s: int = 1800, rtc: str = "2026-01-01 00:00:00", align: bool = True,
+                 boundary_timeout: float | None = None, **_ignored):
+        """state None = a cold boot of the disc (fixed RTC `rtc`, so boots repeat).
+        A state load starts paused ([UI] StartPaused), so nothing runs between
+        the load and the first request.  align False = stay exactly on the loaded
+        state (no first step); True = OriginalSession's alignment to the next
+        main-loop top."""
+        self.align = align
+        if boundary_timeout:
+            self.boundary_timeout = boundary_timeout
+        self.state = Path(state).resolve() if state is not None else None
+        if self.state is not None and not self.state.exists():
+            raise FileNotFoundError(self.state)
+        self.rtc = rtc
+        self.app, self.iso, self.renderer = Path(app), Path(iso), renderer
+        self.emulator = self.app / "Contents/MacOS/PCSX2"
+        self.scratch_base = Path(scratch_base or Path(os.environ.get("TMPDIR", "/tmp")) / "pcsx2-fork-session")
+        documents = (Path.home() / "Documents").resolve()
+        if documents in self.scratch_base.resolve().parents:
+            raise ValueError(f"scratch must be outside ~/Documents: {self.scratch_base}")
+        self.lock, self.lock_wait = (Path(lock) if lock else None), lock_wait
+        self.log_dir = Path(log_dir) if log_dir else ROOT / "build/pcsx2_session"
+        self.ready_timeout, self.lease_s = ready_timeout, lease_s
+        self.data_dir = None
+        self.sstates = None
+        self.visible = False
+        self.env = {}
+        self.proc = None
+        self.pid: int | None = None
+        self.pine: Pine | None = None
+        self.debug = DebugServer()
+        self.frames_stepped = 0
+        self.hello: dict = {}
+        self._fs = None
+        self._inst = None
+        self._client = None
+        self._locked = False
+        self._snaps = 0
+        self._iso_clone = None
+        self._digest = hashlib.sha256(self.state.read_bytes()).hexdigest() if self.state else None
+
+    def _take_lock(self) -> None:
+        if self.lock is None:
+            return
+        deadline = time.monotonic() + self.lock_wait
+        while True:
+            try:
+                self.lock.mkdir()
+                self._locked = True
+                return
+            except FileExistsError:
+                if time.monotonic() > deadline:
+                    raise RuntimeError(f"run lock {self.lock} still held after {self.lock_wait:.0f} s")
+                time.sleep(2)
+
+    def _wait_no_emulator(self) -> None:
+        """Runs that predate the lock (legacy route_capture) share PINE's socket
+        and port 21512: never start while any PCSX2 emulator process exists."""
+        deadline = time.monotonic() + self.lock_wait
+        while subprocess.run(["pgrep", "-f", "^[^ ]*PCSX2.app/Contents/MacOS/PCSX2"],
+                             capture_output=True).returncode == 0:
+            if time.monotonic() > deadline:
+                raise RuntimeError("another PCSX2 emulator is still running")
+            time.sleep(2)
+
+    def _start(self) -> "ForkSession":
+        if str(FORK_PY) not in sys.path:
+            sys.path.insert(0, str(FORK_PY))
+        from pcsx2dbg.launcher import Session, LaunchConfig   # the fork's MIT launcher
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        self._take_lock()
+        self._wait_no_emulator()
+        self.scratch_base.mkdir(parents=True, exist_ok=True)
+        self._fs = Session(scratch_base=self.scratch_base, lock=None)
+        self._fs.open()
+        # A cold boot runs the disc's own boot ELF (an -elf override on a cold boot
+        # leaves the EE in the kernel: "Failed to read ELF"); a state load gets
+        # -elf and starts paused, so nothing runs before the first request.
+        cfg = LaunchConfig(app=self.app, iso=self.iso, elf=ELF if self.state else None,
+                           statefile=self.state, renderer=self.renderer, unlimited=True,
+                           lease_s=self.lease_s, rtc=None if self.state else self.rtc,
+                           ini_overrides={"UI": {"StartPaused": "true"}} if self.state else {})
+        self._inst = self._fs.launch("orig", cfg)
+        self.pid = self._inst.pid
+        self._client = c = self._inst.client()
+        c.wait_vm(self.ready_timeout)
+        self.hello = c.call("hello").get("emulator", {})
+        self.debug = DebugServer(self._inst.port)
+        self.load_state_info = c.call("state")
+        c.call("halt")
+        self.debug.call({"cmd": "pad_set", "clear": True})
+        c.call("set_tick_pc", pc=LOOP_TOP)
+        deadline = time.monotonic() + self.ready_timeout
+        while True:
+            try:
+                self.pine = Pine(self._inst.pine_socket)
+                break
+            except OSError:
+                if time.monotonic() > deadline:
+                    raise
+                time.sleep(0.1)
+        (self.log_dir / "launch.log").write_text(json.dumps(
+            {"instance": self._inst.info(), "hello": self.hello, "state": str(self.state)}, indent=1) + "\n")
+        if self.align:
+            self._resume_to_boundary()
+        return self
+
+    def _resume_to_boundary(self, timeout: float | None = None) -> None:
+        timeout = timeout or self.boundary_timeout
+        r = self._client.call("run", until={"ticks": 1}, timeout_s=timeout, timeout=timeout + 60)
+        stop = r.get("stop", {})
+        if stop.get("reason") != "tick":
+            raise TimeoutError(f"frame boundary not reached: {stop}")
+
+    def _paused(self) -> bool:
+        return bool(self._client.call("state").get("paused"))
+
+    def write(self, address: int, data: bytes) -> None:
+        self.debug.call({"cmd": "write_memory", "cpu": "ee", "address": hex(address),
+                         "data": data.hex()})
+
+    def snapshot(self, out_dir: str | Path, slot: int | None = None) -> dict:
+        """Exact fork save (state_save) of the paused machine into out_dir/state.p2s,
+        plus eeMemory.bin, gs.bin, scratchpad.bin and original.png (gs_field)."""
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        self._snaps += 1
+        rel = f"snap/{SERIAL}.snap{self._snaps:03d}.p2s"
+        sv = self._client.call("state_save", path=rel, timeout=300)
+        src = self._inst.root / rel
+        for name, dst in (("eeMemory.bin", "eeMemory.bin"), ("GS.bin", "gs.bin"),
+                          ("Scratchpad.bin", "scratchpad.bin")):
+            (out / dst).write_bytes(extract_zstd_entry(src, name))
+        field = self._client.call("gs_field", path=f"snap/field{self._snaps:03d}.png")
+        shutil.copyfile(self._inst.root / f"snap/field{self._snaps:03d}.png", out / "original.png")
+        shutil.move(str(src), out / "state.p2s")
+        info = {"emulator": "fork", "fork_rev": self.hello.get("rev"), "fork_hash": self.hello.get("hash"),
+                "save_version": sv.get("save_version"), "source_state": str(self.state),
+                "source_sha256": self._digest, "frames_stepped": self.frames_stepped,
+                "main_loop_counter": self.u32(FRAME_COUNTER), "vsync_counter": self.u32(VSYNC_COUNTER),
+                "fork_vsync": sv.get("vsync"), "fork_tick": sv.get("tick"),
+                "field": {k: field.get(k) for k in ("width", "height", "psm", "rgba_xxh3", "renderer")},
+                "ee_sha256": hashlib.sha256((out / "eeMemory.bin").read_bytes()).hexdigest()}
+        (out / "snapshot.json").write_text(json.dumps(info, indent=2) + "\n")
+        return info
+
+    def close(self) -> None:
+        if self._fs is None and not self._locked:
+            return
+        try:
+            if self._client is not None:
+                try:
+                    self.debug.call({"cmd": "pad_set", "clear": True})
+                except Exception:
+                    pass
+            if self.pine is not None:
+                try:
+                    self.pine.s.close()
+                except OSError:
+                    pass
+                self.pine = None
+            if self._fs is not None:
+                self._fs.close()             # shuts the instance down, removes the ISO clone
+                d = self._fs.dir.resolve()
+                if d.is_dir() and not d.is_symlink() and self.scratch_base.resolve() in d.parents:
+                    shutil.rmtree(d)         # BIOS copies; absolute path inside our scratch base
+        finally:
+            self._fs = self._inst = self._client = None
+            self.pid = None
+            if self._locked and self.lock is not None:
+                try:
+                    self.lock.rmdir()
+                except OSError:
+                    pass
+                self._locked = False
+        if self.state and hashlib.sha256(self.state.read_bytes()).hexdigest() != self._digest:
+            raise RuntimeError(f"source save state changed: {self.state}")
+
+
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description="Step the original game and snapshot it.")
-    ap.add_argument("state", help="source .p2s (never modified)")
+    ap.add_argument("state", help="source .p2s (never modified); with --emulator fork also a "
+                                  "fork-states manifest name or alias (04, slot01, 14_roger_encounter)")
     ap.add_argument("--frames", type=int, default=1)
     ap.add_argument("--buttons", default="", help="comma list, e.g. CROSS,R1")
     ap.add_argument("--lx", type=lambda v: int(v, 0), default=0x7F)
     ap.add_argument("--ly", type=lambda v: int(v, 0), default=0x7F)
     ap.add_argument("--snapshot", help="output directory for a final snapshot")
     ap.add_argument("--visible", action="store_true", help="show the emulator window")
-    ap.add_argument("--emulator", type=Path, default=DEFAULT_EMULATOR,
-                    help="emulator binary (default: the legacy app in build/startup-reference)")
+    ap.add_argument("--emulator", default=str(DEFAULT_EMULATOR),
+                    help="emulator binary (default: the legacy app in build/startup-reference); "
+                         "'fork' = the agent-debug fork through ForkSession (the state is resolved "
+                         "through build/startup-reference/fork-states/manifest.json, the run lock "
+                         "is taken, scratch is automatic)")
     ap.add_argument("--data-dir", type=Path,
                     help="opt-in scratch -datapath folder outside ~/Documents (another build, "
                          "e.g. the agent-debug fork); default: the legacy -portable launch")
     ap.add_argument("--renderer", type=int, default=13, help="with --data-dir: [EmuCore/GS] Renderer")
     a = ap.parse_args()
     names = [b for b in a.buttons.split(",") if b]
-    with OriginalSession(a.state, emulator=a.emulator, visible=a.visible, data_dir=a.data_dir,
-                         renderer=a.renderer) as s:
+    if a.emulator == "fork":
+        session = ForkSession(fork_state(a.state), renderer=a.renderer)
+    else:
+        session = OriginalSession(a.state, emulator=Path(a.emulator), visible=a.visible,
+                                  data_dir=a.data_dir, renderer=a.renderer)
+    with session as s:
         counters = s.step(a.frames, buttons=names, lx=a.lx, ly=a.ly)
         print(json.dumps({"counters": [counters[0], counters[-1]] if counters else []}))
         if a.snapshot:

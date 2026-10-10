@@ -52,9 +52,9 @@ behaviour only, so port-side agents may read them.
 | Item | State |
 |---|---|
 | Fork build | `pcsx2-fork/build-x64/pcsx2-qt/PCSX2.app`: x86_64, runs under Rosetta 2, not installed. Acceptance results: 70/70 v1 smoke, 78/78 BIOS, 21/21 MCP, 37/37 game. |
-| MCP bridge | `pcsx2-fork/extermination/mcp-server/pcsx2_agent_mcp.py` (55 tools). **Not registered yet.** The registered `pcsx2` server is still the legacy Node bridge in `../PCSX2-MCP`. Switching is the user's decision (command in `EXTERMINATION.md` section 7). |
-| Legacy emulator | `/Applications/PCSX2.app` and `build/startup-reference/PCSX2.app`: v2.6.3, x86_64, with the old DebugServer (TCP 21512) and PINE. They are still in place and are still the default for every decomp tool. The lead retires them only after the user confirms. |
-| Save states | The fork writes version `0x9A59` and refuses v2.6.x states (`0x9A55`) with an explicit error. Those are the user's slots 01 to 15 and the `build/startup-reference` states, and they load only in the legacy app. The compat stage saved fork states (title menu, New Game, demo_hill tick 1600) to the ignored `build/pcsx2-fork/acceptance/states/`. |
+| MCP bridge | `pcsx2-fork/extermination/mcp-server/pcsx2_agent_mcp.py` (55 tools), registered in Claude Code as `pcsx2-agent` (local scope, the user's decision of 2026-10-09). The legacy Node bridge in `../PCSX2-MCP` is no longer the registered server. |
+| Legacy emulator | `build/startup-reference/PCSX2.app`: v2.6.3, x86_64, with the old DebugServer (TCP 21512) and PINE. It stays the default for every decomp tool until the user retires it (checklist in "Retiring the 2.6.3 app" below). The duplicate `/Applications/PCSX2.app` went to the Trash on 2026-10-09. |
+| Save states | The fork writes version `0x9A59` and refuses v2.6.x states (`0x9A55`) with an explicit error. The user's slots 01 to 15 and the `build/s87/...` snapshots load only in the legacy app. The fork-saved replacements the tools need are in `build/startup-reference/fork-states/` (next section). |
 | Compat with the game | Receipts are in the ignored `build/pcsx2-fork/acceptance/reports/`. The fork cold-boots the game, passes the intro and title, and replays the demo_hill route (4,678 ticks). Against the legacy run, per-tick game state matched once one load segment was aligned (273 against 268 ticks), except 5 rows of the loader busy byte. The displayed GS fields differ in most compared frames, and these receipts do not establish the cause. Until that is resolved, do not treat v2.6.3 field captures as frame-exact references for the fork. |
 | arm64 | No native build. Upstream has no arm64 recompilers, and the fork's probes and memwatches live in the x86 recompilers. Rosetta 2 is available through macOS 27. See `EXTERMINATION.md` section 14. |
 
@@ -91,9 +91,181 @@ command line does not take the run lock itself.
   `eeMemory.bin`, `gs.bin`, `scratchpad.bin` and the screenshot, the ISO clone
   removed, the source state unchanged and no emulator left.
 
-`tools/video_compare/ps2.py`, `tools/route_capture.py` and
-`tools/route_census.py` still use the legacy app and its states. Moving them
-needs fork-saved states for their starting points. Before that, it is worth
-using the fork's own commands (frame store, watch tables, `run {until}`, audio
-tap), which replace their save-state-per-frame and breakpoint-per-tick
-methods (`EXTERMINATION.md` section 15).
+## Fork states: the tools' save states regenerated in the fork
+
+`tools/fork_states.py` rebuilt, from a **cold boot in the fork**, the v2.6.3
+states the tools use (2026-10-09, fork build `v2.9.114-11-gc105df140`). Each
+state sits at the same **game point** as the old one. Points are matched by
+game state, never by the main-loop counter, which differs between the builds:
+the task slots, fade and letterbox blocks, scratchpad selectors, the player
+actor, camera, UI, area/sub/entry, story, power, inventory and charge bytes,
+and the AREA11 owner nodes (battery, panel, elevator, Roger). That is about
+1,750 bytes, with the player's clock left out.
+
+Everything is in the git-ignored `build/startup-reference/fork-states/`:
+
+| Path | What |
+|---|---|
+| `manifest.json` | old name -> new file; how it was reached; the fork rev, hash and repo HEAD; counter; SHA-256; the game-state fingerprint (new, old, differences); the byte score against the old state |
+| `<key>/` | `state.p2s` (0x9A59, saved with the fork's exact `state_save`), `eeMemory.bin`, `scratchpad.bin`, `gs.bin`, `original.png` (the displayed field, software renderer), `snapshot.json`, `fork_state.json` |
+| `beats/s87/route/<beat>/` | route_capture beats 00..15 run in fork mode, laid out like `build/s87/route/` (`trace.json` and the snapshot files) |
+| `compare.json`, `verify.json` | each fork route trace compared row by row with its v2.6.3 trace; the load check of every state |
+| `logs/` | per-session logs |
+
+| Key (aliases) | Old state | How it was reached | Match |
+|---|---|---|---|
+| `slot01_title` (`01`) | user slot 01 (counter 1306) | cold boot, fixed RTC, no input, to the first loop top equal to slot 01 (the title fading in) | exact, counter 1313 |
+| `slot02_opening` (`02`) | slot 02 (2939) | from `slot01_title`: route_census's title inputs, NEW GAME, the movie, the opening without input; the best tick | exact, tick 843 after the title, counter 2156 |
+| `slot03_fade_in` (`03`) | slot 03 (3963) | same run; the fade-in after the opening | exact, counter 3180 |
+| `slot04_first_control` (`04`) | slot 04 (4083) | same run; first control, 120 ticks after slot 03 as in the old pair | exact, counter 3300 |
+| `route/00_panel_no_battery` .. `route/15_level_exit` (`00_panel_no_battery`, ...) | `build/s87/route/<beat>/state.p2s` | `route_capture.py --emulator fork`, closed loop as the legacy chain, from `04` and then each previous fork snapshot | see below |
+| `slot08_battery_prompt` (`08`) | slot 08 (8003) | from `route/02_elevator_refusal`: route_capture's `use_panel` with the battery; the BATTERY use prompt once its UI bytes equal slot 08's, +10 ticks | UI equal; 49 bytes differ (below) |
+| `slot12_status_root` (`12`) | slot 12 (8043) | Circle, Circle, as `panel_root_probe.py` did | UI equal; same 49 bytes |
+| `slot14_status_hub` (`14`) | slot 14 (8059) | Circle, as `status_hub_probe.py` did | UI equal; same 49 bytes |
+| `slot15_roger_encounter` (`15`) | slot 15 (4029) | from `slot03_fade_in`: `roger_encounter_probe.py`'s teleport to (340, 290, 190), 50 ticks after the bank-96 clip starts | exact, counter 3246 |
+
+"Exact" means every compared byte is equal. Outside the compared spans, slots
+02 to 04 still differ in about 460,000 bytes of EE RAM. Those bytes are
+counters, render and DMA packet buffers (`0x28F708`, `0x2A3802`), scratchpad
+work areas, stacks near `0x241000`, and about 2,900 bytes at
+`0x7A1D10..0x7A2600` at the start of the actor arena. Those last bytes are not
+identified. Slot 01 differs in 1,021 bytes.
+
+The slot 08/12/14 chain differs from the old one in the same 49 bytes:
+
+- the battery pickup's owner node: the route picks the battery up in beat 01,
+  while the old slots come from a hand-played run;
+- fade byte +6 (`0x20` against `0x04`);
+- the low bits of the player's height and of the camera;
+- the player actor's blend area (`+0x244..+0x26B`).
+
+The status UI bytes, area, position, power, charge and item counts are equal.
+
+### Route beats in the fork against v2.6.3
+
+`tools/fork_states.py compare` checks traced fields row by row: position,
+yaw, action, clip, selectors, UI, request, power, charge, battery item, area,
+fade and story.
+
+| Beats | Result |
+|---|---|
+| 00, 01, 02, 03, 04, 08, 09, 11, 12 | identical in every traced field on every frame, and the same frame count |
+| 05 | same 676 frames. Yaw first differs at frame 7, by 2e-5. The stick inputs then differ slightly (closed loop), and the end position differs in the last bits |
+| 06 | 182 frames against 205. The legacy capture needed a retry with 23 extra idle frames before its snapshot resumed, and the fork's first capture resumed. Row 0 differs by 5e-4 in x (05's end) |
+| 07 | same 557 frames; positions differ in the 4th decimal (06's end) |
+| 10 | same 3,568 frames; one clip number differs from frame 3,381 (357 against 358) |
+| 13 | 802 frames against 809. Position first differs at frame 133, by 0.1; the closed loop then takes a slightly different path |
+| 14 | same 1,818 frames; positions differ by 2e-5 |
+| 15 | 884 frames against 801. The beat waits for the fan's slow window, and the fork's run reached it one fan cycle later: the departure triggers at frame 420 against 345 |
+
+**Why the starts differ.** A legacy session loads its state, runs free until
+PINE answers, then pauses. Each v2.6.3 beat therefore started 1 to 12 frames
+after its source snapshot: for example, counter 11,524 to 11,525, but 7,944 to
+7,956 for beat 10. `ForkSession` starts paused on the saved loop top, so every
+fork beat starts exactly at its source (0 frames lost). Beats 05 and 15 begin
+on a different phase of the game's clocks, and that is consistent with the
+small divergences above.
+
+The receipts do not show whether the 2e-5 yaw step in beat 05 comes from that
+offset alone or also from emulation differences between 2.6.3 and 2.9.114.
+Re-running beat 05 from the legacy snapshot with a frame-exact legacy start
+would settle it.
+
+Re-running a beat from a fork snapshot (`fork_states.py rerun <beat>`) gives
+the same trace as the fork chain: see "Verification" below.
+
+### Verification (2026-10-09)
+
+- **`fork_states.py verify`, 24 of 24.** Every manifest state loads in the
+  fork, and the live machine at the load equals the file (the compared spans
+  and the counter). Two steps then advance the counter by one each. The
+  fingerprint matches the old capture's row for every state except 08, 12 and
+  14, which differ in fade byte +6 only (`0x20` against `0x04`; see above).
+  The receipt is `fork-states/verify.json`.
+- **`fork_states.py rerun 05_boxes`.** Beat 05 was re-run from the regenerated
+  `route/04_elevator_ride` snapshot, written to the ignored
+  `build/pcsx2-fork/rerun/05_boxes/`. Its 677 rows are identical to the fork
+  chain's trace, so fork replays are exact. Against the v2.6.3 capture, yaw
+  first differs at frame 7 (0.11527 against 0.11529). The yaw differs on 99
+  rows, and the position from frame 28 on 432 rows. The end state is equal to
+  5e-5.
+
+### Using the fork states (opt-in; the defaults are unchanged)
+
+```sh
+# macOS (arm64 host; the fork runs x86_64 under Rosetta), decomp .venv
+cd /Users/abe/Documents/Extermination.nosync/Extermination
+# step the original from fork slot 04 (first control) and snapshot it
+.venv/bin/python tools/pcsx2_session.py 04 --emulator fork --frames 30 --snapshot build/<task>/walk
+# run route beats in the fork (sources resolve through the manifest;
+# output goes to fork-states/beats/..., never to build/s87/...)
+.venv/bin/python tools/route_capture.py run --beats 07 --emulator fork
+```
+
+From Python: `ForkSession(fork_state("04"))` (or `fork_state("14_roger_encounter")`,
+or the old path) with the `OriginalSession` API (`step`, `pad`, `read`,
+`write`, `snapshot`). Notes:
+
+- It launches through the fork's `pcsx2dbg` launcher: hidden, on a fresh
+  scratch folder under `$TMPDIR/pcsx2-fork-session`, software renderer, no
+  frame limiter.
+- It takes the run lock itself, waiting for other runs, and never starts while
+  another PCSX2 process exists.
+- A state load starts paused (`[UI] StartPaused`), and one frame step is one
+  `run {until: {ticks: 1}}` at the loop top. That is about 80 frames a second
+  with route_capture's per-frame sample, against about 8 on the legacy app.
+- `snapshot()` saves with `state_save` (exact) and takes `original.png` from
+  `gs_field`.
+- `ForkSession(None)` cold-boots the disc with a fixed RTC. It passes no
+  `-elf`: an `-elf` override on a cold boot leaves the EE in the kernel.
+- The scratch folder, ISO clone and lock are removed on close.
+
+### Still 2.6.3-only
+
+- **Tools with no fork option yet:**
+  - `tools/route_census.py`: its census sessions are `OriginalSession`
+    subclasses with legacy breakpoints;
+  - `tools/video_compare/ps2.py`: title slot 01, Media Capture;
+  - `tools/gs_conformance.py`, `tools/ee_float/harness.py`,
+    `tools/c7cap_capture.py`, `tools/c7cap_partb.py`, `tools/load_wait_probe.py`;
+  - the disposable probes in `build/startup-reference/*.py`.
+- **The other route groups:** `route_a01` .. `route_a03`, `c7cap`, `aimfire`,
+  and `c10/exit|damage|branch|options`. They chain from the route snapshots
+  above. `route_capture.py --emulator fork --beats <group>` regenerates them
+  into `fork-states/beats/...`, and none has been run yet.
+- **Port tests that read v2.6.3 state files offline** (no emulator), through
+  `parse_pcsx2_state`:
+  - slot 01: `test_sound_bank_reference.py`, which also reads route 00;
+  - slot 02: `test_area11_sfx_reference.py`, which reads `SPU2.bin`;
+  - slot 04: `test_truck_original_reference.py` and
+    `test_player_slide_reference.py`;
+  - slot 14: `test_vu1_object_kernel_reference.py`.
+
+  These tests keep working while the files exist; retiring the app does not
+  delete them.
+- **User slots no tool uses**, which `fork_states.py` does not regenerate:
+  - 06, panel powered (counter 8268): hand-played, the source of
+    `elevator_probe.py` and `elevator_refusal_probe.py`;
+  - 07, panel clip 0x15C (8118): written by `panel_probe.py`;
+  - 11 and 13, elevator terminal (8317, 8280): written by the two elevator
+    probes from 06.
+
+  Slot 08 (hand-played) and slot 12 (written by `panel_root_probe.py`) are
+  needed only as sources of 12 and 14, and have fork equivalents above.
+
+### Retiring the 2.6.3 app: what is still needed
+
+1. Port the remaining legacy-only tools above to `ForkSession`, or decide to
+   drop them. route_census is the important one: the census measure in
+   `FIRST_LEVEL_CENSUS.md` depends on it.
+2. Regenerate the other route groups in fork mode where they are still used,
+   and point their readers (c7cap_partb, load_wait_probe, the port's capture
+   tests) at `fork-states/beats/...`.
+3. Move the port tests that read slot files offline to the fork files
+   (`fork_state()` or the manifest). That is a port-side change. If the old
+   slot files go to the Trash before then, those tests lose their inputs.
+4. Re-record any v2.6.3 field or video captures that are used as frame-exact
+   references. The fork's GS fields differ from 2.6.3's, and the cause is not
+   explained yet.
+5. Then the user can trash `build/startup-reference/PCSX2.app` and the slots,
+   with their confirmation (`CLAUDE.md`).

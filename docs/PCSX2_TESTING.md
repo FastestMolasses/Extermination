@@ -59,10 +59,34 @@ All output belongs in gitignored `build/`.
 
 The agent-debug PCSX2 fork (v2.9.114 + our engine; `docs/PCSX2_FORK.md`)
 runs to a condition in one request (about 200 ticks/s instead of about 8.7),
-records every frame and rewinds. `pcsx2_session.py` can drive it opt-in with
-`--emulator <fork binary> --data-dir <scratch outside ~/Documents>`. It needs a
-state saved by the fork: v2.6.3 states, including slots 01 to 15, load only in
-the legacy app.
+records every frame and rewinds. It needs states saved by the fork: v2.6.3
+states, including slots 01 to 15 and the `build/s87/...` snapshots, load only
+in the legacy app.
+
+**Fork states.** `tools/fork_states.py` regenerated the states the tools use
+from a cold boot in the fork into the ignored
+`build/startup-reference/fork-states/`, with a `manifest.json` that maps the
+old names to the new files. The regenerated states are:
+
+- slots 01 (title), 02 (opening), 03 (fade-in) and 04 (first control);
+- the 08 -> 12 -> 14 status chain;
+- slot 15 (the Roger encounter);
+- route beats 00..15 under `beats/s87/route/`.
+
+Each sits at the same game point as the old state, matched by game state, not
+by counter (details and differences: `docs/PCSX2_FORK.md`, "Fork states").
+Opt-in use, with the defaults unchanged:
+
+- `tools/pcsx2_session.py 04 --emulator fork ...` (`ForkSession`, which takes
+  the run lock itself);
+- `tools/route_capture.py run --beats <b> --emulator fork`, which writes to
+  `fork-states/beats/...`.
+
+In the fork, state 03 is still the fade-in with movement locked and state 04
+walks, as in the legacy states. A fork session starts exactly on the saved
+frame, while a legacy session loses 1 to 12 frames after its load.
+`--emulator <binary> --data-dir <scratch>` still launches any build the legacy
+way.
 
 ## Gotchas
 - Pause the VM before multi-byte pokes (`pcsx2_pause` / resume).

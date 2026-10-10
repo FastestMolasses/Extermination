@@ -114,7 +114,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from pcsx2_session import OriginalSession, PAD, SSTATES  # noqa: E402
+from pcsx2_session import OriginalSession, ForkSession, PAD, SSTATES, FORK_STATES, fork_state  # noqa: E402
 
 SERIAL = "SCUS-97112 (0AE679AF)"
 OUT = ROOT / "build/s87/route"
@@ -344,11 +344,26 @@ def summary(row: dict) -> str:
             f"clip={row['clip']} spad={row['spad']} ui={row['ui']} req={row['req']}")
 
 
+# Opt-in fork mode (`--emulator fork`, or use_fork() from Python): every
+# session is a pcsx2_session.ForkSession on the agent-debug fork, a 2-digit
+# source slot resolves through build/startup-reference/fork-states/manifest.json
+# (fork_state), and every beat folder moves from build/<path> to
+# build/startup-reference/fork-states/beats/<path> (beat_dir), so fork runs
+# never mix with the v2.6.3 captures.  Default: the legacy app, unchanged.
+FORK = False
+
+
+def use_fork() -> None:
+    global FORK
+    FORK = True
+
+
 def resumable(state: Path) -> Path:
     """pcsx2_session.snapshot() derives the slot file name from the source
     state's name, so a beat's state.p2s is resumed through a correctly named
-    copy next to it (never inside the sstates directory)."""
-    if state.name.startswith(SERIAL):
+    copy next to it (never inside the sstates directory).  Fork snapshots are
+    saved by path, so fork mode resumes the state itself."""
+    if FORK or state.name.startswith(SERIAL):
         return state
     folder = OUT / "_resume" / state.parent.name
     folder.mkdir(parents=True, exist_ok=True)
@@ -395,8 +410,9 @@ class RetrySession:
 
     def __enter__(self) -> OriginalSession:
         for attempt in range(self.attempts):
-            wait_for_free_emulator()
-            session = RouteSession(self.state, log_dir=self.log_dir)
+            wait_for_free_emulator(3600.0 if FORK else 600.0)
+            cls = ForkSession if FORK else RouteSession
+            session = cls(self.state, log_dir=self.log_dir)
             try:
                 self.session = session.__enter__()
                 return self.session
@@ -415,6 +431,8 @@ def open_session(state: Path, log_dir: Path | None = None, attempts: int = 6) ->
 
 
 def slot_path(slot: str) -> Path:
+    if FORK:
+        return fork_state(slot)
     return SSTATES / f"{SERIAL}.{slot}.p2s"
 
 
@@ -9613,6 +9631,15 @@ def beat_source(source: str) -> Path:
 
 
 def beat_dir(name: str) -> Path:
+    """Output folder of a beat (see _legacy_beat_dir); in fork mode the same
+    path under build/startup-reference/fork-states/beats/."""
+    d = _legacy_beat_dir(name)
+    if FORK:
+        return FORK_STATES / "beats" / d.relative_to(ROOT / "build")
+    return d
+
+
+def _legacy_beat_dir(name: str) -> Path:
     """Output folder of a beat: AREA01 beats (a01_*) live in build/s87/route_a01/,
     C7 beats (c7_*) in build/s87/c7cap/<item>/."""
     if name in C7_DIRS:
@@ -9688,7 +9715,8 @@ def resumes(state: Path, log_dir: Path) -> bool:
         print(f"snapshot {state} does not resume: {exc}", flush=True)
         return False
     finally:
-        shutil.rmtree(OUT / "_resume", ignore_errors=True)
+        if not FORK:
+            shutil.rmtree(OUT / "_resume", ignore_errors=True)
 
 
 def run_beat(name: str, source: str, fn, tries: int = 4) -> None:
@@ -9716,7 +9744,8 @@ def run_beat(name: str, source: str, fn, tries: int = 4) -> None:
                 meta["tail_idle_frames"] = tail
                 out = r.save(name, meta)
         finally:
-            shutil.rmtree(OUT / "_resume", ignore_errors=True)
+            if not FORK:
+                shutil.rmtree(OUT / "_resume", ignore_errors=True)
         if resumes(out / "state.p2s", base / "logs" / (name + "_check")):
             print(name, "->", out, r.frame_index, "frames;", summary(r.rows[-1]), flush=True)
             return
@@ -9801,7 +9830,12 @@ if __name__ == "__main__":
     ap.add_argument("--beats", default="all")
     ap.add_argument("--state", default="04")
     ap.add_argument("--frames", type=int, default=10)
+    ap.add_argument("--emulator", choices=["legacy", "fork"], default="legacy",
+                    help="fork = the agent-debug fork and its regenerated states "
+                         "(fork-states/manifest.json); beats go to fork-states/beats/")
     a = ap.parse_args()
+    if a.emulator == "fork":
+        use_fork()
     if a.command == "probe":
         with open_session(slot_path(a.state)) as s:
             r = Route(s)
