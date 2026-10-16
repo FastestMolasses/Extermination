@@ -1,3 +1,21 @@
+## 2026-10-16 — frame-timing findings (fork probes) for the comparison video
+
+- **Movies end on field 1.** At host speed the code ends every movie on field 1, so the
+  relation between the field and the frame index afterwards follows the frame index at
+  the movie's entry. Outside movies the relation never changes. The 2026-10-10 rule
+  "the departure FMV leaves frame index == field from every entry phase" is withdrawn:
+  in the d4 chain it came from the emulator's late teardown RPC.
+- **Iterations that draw nothing** (the status-screen entry pair, the options close)
+  show the buffer's older picture again, or the background.
+- **The sound bank's first sceSifDmaStat** answers pending on the PS2, which adds one
+  001FB370 call in the New Game load.
+- Write-up: FINDINGS.md "The field D_00810E88 across the main loop, movies and empty
+  lists" and "The sound-bank SIF DMA's first status query"; receipts in PCSX2_FORK.md
+  "Field timing probes"; corrections in PCSX2_FORK_GS_DIFF.md 5.1 and 5.3a.
+- Port status (HANDOFF.md): NODRAW 72fee14 and SIFDMA 92786d2 are committed; FIELD
+  (movies on the vblank clock) waits for a lead decision.
+- No source change; the matched counts are unchanged.
+
 ## 2026-10-16 — func_002061B0 (movie display gate) byte-matched from C
 
 - The old C dropped the original's field-wait loop (compiled .text 0x40 against

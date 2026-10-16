@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-16 (Claude: the comparison video's field phase, below; earlier: the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-16 (Claude: the frame-timing findings for the comparison video and the port's fixes, below; earlier: the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -58,6 +58,49 @@ that is a different, stale tree.
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
 
+## 2026-10-16: frame timing in the comparison video (fork probes, port fixes)
+The user's goal (2026-10-15) is to stop L1 optimisation and make the
+side-by-side video for the PS2Recomp Discord, once the frame timing is
+fixed; then L2. "Frame timing" covers every place where the port and the
+original fall out of step in time in the video. Probes of the original on
+the fork are in the ignored `build/fork_refs/probes_1016/` (PCSX2_FORK.md
+"Field timing probes"). The code behaviour is in FINDINGS.md "The field
+D_00810E88 across the main loop, movies and empty lists" and "The
+sound-bank SIF DMA's first status query".
+
+- **The field.** Outside movies the relation between the field and the
+  frame index never changes. Every movie ends on field 1 at host speed, so
+  the relation after it follows the frame index at its entry. The old rule
+  "the departure FMV leaves frame index == field from every entry phase"
+  was the emulator's late teardown RPC in the d4 chain, and is withdrawn
+  (PCSX2_FORK.md, GS_DIFF 5.3a corrected).
+- **Port FIELD (movies on the vblank clock): not committed.** It is
+  blocked on a lead decision: no title press gives the fork's entry parity
+  for both movies (the port's iteration count from the New Game movie to
+  E001 is even, the fork's odd). The patch to re-apply is port
+  `build/movie_fields_r2/final_054754/movie_fields_r2.patch`, with copies
+  of the new files in `new_files/`. Keep that folder; the previous saved
+  patch was lost to a cleanup.
+- **Port NODRAW (72fee14), committed.** Iterations that draw nothing (the
+  status-screen entry pair, the options close) now show what the original
+  shows: the buffer's older picture again, or the background, where the
+  port used to present black. Open: the old demo's other black frames
+  (segment 6 offset 64, segment 12 offset 156) are not verified to be
+  empty-list iterations; port GS_EXACT 11 lists the render-context
+  follow-ups.
+- **Port SIFDMA (92786d2), committed.** With the disc-drive switch on
+  only (user decision Q2), the sound bank's first sceSifDmaStat answers
+  pending: 9 001FB370 calls in the New Game load, as on the PS2. Open (a
+  lead decision): whether to probe the 4 unmeasured 001FB370 calls of the
+  level exit's AREA01 bank load on the fork.
+- **The video tool** (ccb65ff, next section) reports the half line per
+  segment. The 2026-10-09 demo predates port fc986dc and all three fixes
+  (VIDEO_COMPARE.md). Segment 24's 218 port ticks against 219 is not
+  traced.
+- **Next:** decide FIELD's entry-parity question and `auto`'s criterion
+  (next section), commit FIELD, then record the Discord video with
+  `--fork-title-delay 0`.
+
 ## 2026-10-16: the comparison video reports the field phase
 `tools/video_compare/` now logs the half line each side drew every captured frame on
 (port: `native/frames.json` `line`/`ofy`, checked against the rule line = 1 - (counter & 1);
@@ -76,7 +119,8 @@ is decided. Details and receipts: `docs/VIDEO_COMPARE.md` "The field phase";
 The C now has the original's field-wait loop (repeat func_001009C8(0) while it equals
 the argument; then the three flag stores) and byte-matches under mwcc 2.3.3 with the
 two gp-relative flags volatile; it links from C (PROGRESS.md 2026-10-16). The port's
-movie-gate translation should be checked against it (field-0 wait before the gate).
+FIELD step translates it (the gate opens after a field-0 vblank); that change is not
+committed yet (frame-timing section above).
 
 ## 2026-10-10: the fork migration (PCSX2 v2.6.3 retired)
 User decisions of 2026-10-09: migrate everything to the fork, re-record the pixel
@@ -122,8 +166,9 @@ the retirement checklist: `docs/PCSX2_FORK.md`.
   port (`pixels/fb2_phase`, `tools/fb2_phase_refs.py`; PCSX2_FORK.md "fb2 points on the
   port's field phase"): first_control, 10, 11, 12 on the port's buffer and half line,
   rows and `rand()` equal to the primary points; 15_level_exit on the port's half line
-  in the other buffer (the port's exact phase never occurs on the fork: the departure FMV
-  leaves frame index == field).
+  in the other buffer. The port's exact phase never occurred on the fork. The 2026-10-16
+  probes show why: the departure movie ends on field 1 at host speed, and the d4 chain
+  left it one field late through the emulator's teardown RPC (section above).
 - **2.6.3 retired (2026-10-10).** The port switch is done (port 0faaee4, d11045a, the
   review fixes 750b40f, the fb2 phase references 8b68485): every port test reads the
   fork's recordings by default (`tools/reference_root.py`, `EM_REFERENCE=fork`;
@@ -133,9 +178,10 @@ the retirement checklist: `docs/PCSX2_FORK.md`.
   `c7cap_capture.py lane3 --from boot`, the legacy `ps2.py` options) no longer work; all
   v2.6.3 captured data stays on disk. Checklist: `docs/PCSX2_FORK.md` "Retiring the 2.6.3
   app".
-- **What remains:** port side, the cause of 15_level_exit's field phase (the port's field
-  after Roger's departure FMV breaks the original's frame index == field rule; port
-  FIRST_LEVEL_AUDIT 1b F1). Fork runs still to make: the full census, sfx_request_probe,
+- **What remains:** port side, 15_level_exit's field phase. The port's field after Roger's
+  departure movie is its hard-coded relation, while the original's code ends the movie on
+  field 1. That is port FIRST_LEVEL_AUDIT 1b F1 and the uncommitted FIELD step (section
+  above). Fork runs still to make: the full census, sfx_request_probe,
   c7cap stream/rng/lane3 (from the title), fb/h7, load_wait beat 03, EE float vectors,
   the level chain from `a04b_00` (needs policy work on the fork's own playthrough, or a
   way past `a02_02`'s disc timing). The fork's closed loop is not always repeatable (its

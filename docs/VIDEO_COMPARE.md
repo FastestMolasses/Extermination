@@ -430,8 +430,11 @@ agree.
   `xyoffset`, plus `counter`, `seg`, `off` and `uniform`): the XYOFFSET_1
   the port's GS field was drawn with, from its `.present` (checked against
   the port log, as before). A capture without a GS field has none (`line`
-  null): the status / ITEM / BATTERY pages, the load veil's ends, and the
-  black frame the port presents on an iteration that draws nothing.
+  null): the status / ITEM / BATTERY pages and the load veil's ends. Before
+  port 72fee14 this also covered the black frame the port presented on an
+  iteration that draws nothing. Since then such a frame shows the kept
+  picture again and its capture writes the kept field's `.gsfield` /
+  `.present` (port GS_EXACT.md 11).
   `uniform` names the colour of a frame of one colour.
 - **The port's mapping, checked on every run.** On the port the frame
   index D_00810E80 of an iteration is its counter's low bit (em_frame.c
@@ -498,11 +501,17 @@ agree.
   decides which criterion `auto` should use (see the test below).
 - **What a match does not fix.** Equal frame index at the entry gives the
   same relation after the New Game movie only if both sides then run the
-  same number of iterations: a load of another length by an odd count, the
-  level-exit movie (E001 runs on the fork's vsync count, docs/PCSX2_FORK_GS_DIFF.md
-  5.3a) and an iteration that draws nothing (the PS2 repeats an older
-  field, the port presents black) move one side's phase; the report shows
-  where.
+  same number of iterations. The report shows where that fails:
+  - a load whose length differs by an odd count;
+  - the level-exit movie E001. The original ends it on field 1 at host
+    speed; the fork can end it a field late when its teardown RPC spans a
+    vsync (docs/PCSX2_FORK_GS_DIFF.md 5.3a). The port, until its FIELD step
+    lands, plays it on the media player's clock with its hard-coded
+    relation (docs/HANDOFF.md);
+  - an iteration that draws nothing. This changes no phase, but the PS2
+    shows the buffer's picture from two iterations before, while the port
+    presented black there (no field to compare) until port 72fee14, which
+    shows the kept picture again.
 
 ## Limits and known differences
 
@@ -647,6 +656,9 @@ recording with anchors; that playback log was then used as the recording.
 
 ## Demo run 2026-10-09 (demo_hill)
 
+> Predates the same fixes as demo_level below (port fc986dc, NODRAW,
+> SIFDMA, the field-phase report); history only.
+
 New Game to the hill below the elevator: 4,734 ticks recorded from the
 level smoke (`EM_NEW_GAME=1`, `EM_PS2_DISC_DRIVE_TIMING=1`), stride 4,
 `--audio native`, `--speed 2 --fps 30 --height 480 --summary-seconds 3`,
@@ -772,6 +784,26 @@ recorded, 111.5 s), and both videos recomposed from it and the same
 
 
 ## Demo run 2026-10-09 (demo_level: the whole first level)
+
+> **Predates the frame-timing fixes.** This run (recorded 2026-10-09 07:51
+> on port 0eea8b5) predates:
+> - port fc986dc, the 17-field seek after a module-loader read under
+>   `EM_PS2_DISC_DRIVE_TIMING=1`, which fixed the opening's 11-tick lead,
+>   the music and voice leads, the fans' phase and the snow;
+> - the field-phase report (ccb65ff). About 29 % of its paired frames were
+>   half a line apart, unseen;
+> - port NODRAW 72fee14. Its black frames at segment 5 offset 64 (port tick
+>   1719, the status entry), segment 6 offset 64 (1929) and segment 12
+>   offset 156 are the old black presentation; only the first is verified
+>   to be an empty-list iteration;
+> - port SIFDMA 92786d2: the sound bank's pending first query under the
+>   switch;
+> - the port's FIELD step (movies on the vblank clock), which is not yet
+>   committed (docs/HANDOFF.md).
+>
+> Its lags and leads below are history, not the current port. Segment 24
+> (east tower, line 0x99), 218 port ticks against 219, is still untraced.
+> Make the Discord video from a new recording.
 
 The user asked for the demo over the entire first level. Same method as
 demo_hill: the port level smoke's main line recorded with the recorder

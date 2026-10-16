@@ -4525,7 +4525,9 @@ K  func_001D7410                     gated *(gp-0x7768): GS-VRAM READBACK path â
                                      disabled in all live samples
 L  func_001AB590                     DMA CHCR watchdog (D0/D1/D2 MOD bits)
 M  if byte 0x00821058==1: {           GATED BLOCK (M, N and O together)
-     func_00203350                     audio
+     func_00203350                     blocking movie driver: a whole
+                                       movie inside this one iteration
+                                       ("The field D_00810E88" below)
 N    func_001D1C10(frame_idx)          frame-end render bookkeeping
 O    func_001AEE70                     (second fade update)
    }
@@ -4558,6 +4560,184 @@ Syscall stubs verified: 0x0010B740 SleepThread, 0x0010B760 iWakeupThread,
 Threads: TID1 main (prio 5, busy-polls); TID3 audio pump (prio 2);
 TID2 sema-wait worker (entry 0x00111680, created at 0x001117C4 â€” CD/
 streaming service); one SDK-internal thread (entry 0x0010C5C8, prio 0).
+
+### The field D_00810E88 across the main loop, movies and empty lists (fork probes, 2026-10-16)
+
+From the decomp's C, read function by function (status given for each), and
+from probes of the original on the PCSX2 fork (hidden sessions under the run
+lock). The receipts are in the ignored `build/fork_refs/probes_1016/`:
+- `movie_end/canon` and `movie_end/d4`: Roger's departure movie E001, two
+  boot variants (PCSX2_FORK.md "fb2 points on the port's field phase");
+- `newgame/d0` and `newgame/d1`: the New Game movie and the AREA11 load;
+- `screens/01_battery`, `screens/03_panel_power` and their `_listsize`
+  folders: the status-screen entries;
+- `tools/`: the probe and analysis scripts.
+
+**Outside movies the field is fixed to the frame index.** The vblank handler
+0x1AB140 is the alternate entry in `src/gs_readback_queue_run.c`. It is
+NEARMISS for a structural reason: the code is byte-identical, but splat
+gives the symbol two entry points. At every vblank it latches GS CSR FIELD
+into D_00810E88.
+- On the whole first-level path the field alternates every vblank: fld ==
+  vsync & 1 on all ~13,249 rows of the fork's route.
+- The start-up waits for an odd field, so the first loop top is
+  (D_00810E80 0, D_00810E88 1).
+- D_00810E80 flips once per main-loop iteration (step W).
+- Every iteration outside a movie takes exactly one vblank, loads and
+  iterations that draw nothing included.
+
+So outside movies the relation between D_00810E88 and D_00810E80 never
+changes. It starts as D_00810E88 = 1 - D_00810E80 at the first loop top,
+which is what the port hard-codes (em_frame.c step P sets the field from
+the buffer index). A load of another length shifts which tick gets which
+buffer and half line, both together (PCSX2_FORK_GS_DIFF.md 5.2: an odd
+number of extra iterations flips both), but never the relation. Only a
+movie can change it (next part). On the canonical chain the New Game movie
+leaves 1 - D_00810E80 (first control's loop top is (0, 1)), and the
+departure movie leaves D_00810E80 == D_00810E88.
+
+**Movies end on field 1.** 00203350 (byte-matched C, mwcc 2.3.3) plays a
+whole movie inside one iteration (step M) and paces it by vblanks alone. It
+plays the intro, the New Game movie and Roger's departure E001; the movie
+table is described in "The level exit's movie table" below. The steps:
+- **Two opening waits.** Each is a 001009C8 call (eegcc, byte-matched),
+  which waits for the next vblank and returns its field.
+- **The display gate.** 002061B0(1) (byte-matched from C since decomp
+  5b10c25) repeats 001009C8 while it returns 1. So the gate D_00275C80 opens
+  only after a field-0 vblank, whatever the entry field.
+- **Each picture is two sends.** 00206030 (byte-matched) is the movie's
+  vblank handler. It shows the ring's head picture as a field-0 send, then a
+  field-1 send, strictly alternating. The fork counted 2,305 pairs in E001
+  and 4,761 in the New Game movie, and no field was sent twice in a row.
+- **The ring and state 3.** The ring D_007A55AC has two slots
+  (002034C0, NEARMISS). It drops a slot only after a field-1 send: the
+  DMA-end handler 00206170 calls 00206010 (both byte-matched). At the
+  stream's end, 00206D10 (byte-matched) sets state 3 when the ring is empty.
+- **The play loop's exit.** 002036E0 (NEARMISS) exits through its
+  00206B80 == 3 break in the same field as the last field-1 send. The other
+  exit, 00206CC0 "flushed" (byte-matched), never fired in four runs.
+- **The START skip.** 002036E0 honours it only once the decoder's picture
+  count (D_002DF740 +8) reaches 11.
+- **The teardown.** 00203C90 calls 00113CD0, which issues 00113F68's SIF
+  RPC (all byte-matched; the last two are eegcc). In the canonical E001 run
+  it returned within that field (00113CD0 returned 0.07 of a field after
+  the vblank). In two fork runs it returned 1.3 to 1.8 fields after
+  00203C90's entry. One of them is E001 d4: entry 0.04 into the field of
+  vblank 5192, return 0.37 into 5193's. That delay is the emulator's
+  IOP/disc timing, which the port does not reproduce.
+- **Two closing waits.** 00203350 then calls 001009C8 twice more. At host
+  speed they return field 0, then field 1.
+
+At host speed, then, step P of the movie's iteration reads field 1 after
+every movie. D_00810E80 has flipped once, as in any iteration. The relation
+afterwards follows D_00810E80 at the movie's entry:
+- An entry on frame index 0 leaves frame index == field.
+- An entry on frame index 1 leaves them different.
+
+The fork's four departure chains of 2026-10-10 fit this:
+- Canonical, d7 and d8 entered on frame index 0 and left with (frame
+  index, field) (1, 1).
+- d4 entered on 1 and left with (0, 0), only because its teardown spanned a
+  vblank and moved both closing waits by one field. At host speed d4 leaves
+  with (0, 1).
+
+So the earlier rule "the FMV's vsync count adapts so that the frame index
+equals the field after it, from every entry phase" (PCSX2_FORK.md,
+PCSX2_FORK_GS_DIFF.md 5.3a) is not structural, and is withdrawn.
+
+**The end-of-movie stall.** Near the end of each movie no picture is ready
+for a while:
+- E001 has 125 vblanks between the field-1 send at probe vsync 5065 and the
+  next field-0 send at 5190. The New Game movie has 101.
+- D_007A55F8 counts up during the stall, and DISPFB2 stays on the last
+  picture shown.
+- The last 2 pictures (4 sends) arrive only after the first feed loop has
+  exited on its byte budget.
+
+The port's FIELD step reads the cause from the code as follows (its
+`em_movie_field.h`, not committed; saved in the ignored port
+`build/movie_fields_r2/final_054754/`). The two held pictures are the stream's last
+coded picture and the reference picture before it. The decoder outputs them
+only once 00206BF0 (NEARMISS) has pushed its 4 bytes after the stream. The
+feed loop's last bytes are the trailing sound, which the IOP rings take only
+as the SPU2 plays it. That last link is inferred: the IOP side that reports
+the play position is not translated. The stall's length is therefore the
+fork's measurement: from the gate to the feed's end, 4,731 vblanks in E001
+and 9,618 in the New Game movie. Until the IOP side is read this is not a
+decoded quirk, so CURIOSITIES.md has no entry.
+
+**What the port does.** The port plays movies on the host media player's
+clock (AVPlayer / AVFoundation, `em_movie.*`, `em_frontend.c`) and steps the
+field hook on every step. An uncapped run took 728,724 steps for E001,
+against about 4,752 vblanks. So the port's field after a movie is its
+hard-coded relation, never the original's. A port change that plays the
+movie on the vblank clock is pending a lead decision (HANDOFF.md).
+
+**Iterations that draw nothing show the buffer's older picture.** Every
+iteration kicks its VIF1 chain (00101F08, eegcc NEARMISS). Two iterations at
+each status-screen entry append nothing to any packet buffer; the +0x14
+buffer keeps only its constant 80 bytes. The pair:
+- the iteration in which 0x1AE040 (`anim_frame_top_b.c`, NEARMISS) goes
+  from state 1 to 3 and calls 0020E060 (byte-matched: it clears 160 bytes
+  at D_00810130);
+- the next one (state 3, sub-step 0).
+
+These iterations draw nothing, but the flip and the display-environment
+writes of steps R..W still run:
+- 001015A8 twice and 00101810 twice (asm bodies with readable NEARMISS
+  companions);
+- 00100550 (eegcc, byte-matched) once;
+- 001D2580 (byte-matched);
+- the D_00810E80 toggle.
+
+During iteration t the shown buffer normally holds tick t - 1's picture. On
+the empty pair the buffer still holds what was drawn into it two iterations
+before, so the PS2 shows again the field it showed two vblanks earlier, bit
+for bit:
+- route 01's battery page: vblank 193 = 191, 194 = 192;
+- route 03's panel page: 390 = 388, 391 = 389.
+
+Black starts at the next vblank (195 on route 01), and the next 28
+iterations carry 16-byte lists that draw black. At the panel's entry the
++0x14 buffer also holds 001AEBE0's 16-byte letterbox REF (001AEBE0 is
+byte-matched C), so the bars are drawn over the old picture.
+
+The options screen's close (side beat opt_00) also appends nothing to the
+four packet buffers. Its kick list REFs the black clear and then CALLs
+render channel 3's grid, so its field is the AREA11 background alone: flat
+48, 48, 48 at fork vblanks 305, 353 and 401. The receipts are in the
+ignored `build/nodraw_r3/fork_optclose_1016a`, with the tools in
+`build/nodraw_r3/fork_tools/`.
+
+The port used to present black on such iterations. Port 72fee14 presents
+the scanned buffer's kept picture again and draws the background on the
+options close (port GS_EXACT.md 11, "Frames that draw nothing").
+
+### The sound-bank SIF DMA's first status query (fork probes, 2026-10-16)
+
+The New Game load on the fork (`build/fork_refs/probes_1016/newgame/d0`,
+`d1`) makes 15 calls of 001FB370 (byte-matched C, mwcc 2.3.3).
+- **Call 3** runs 001FB910(0x1335F20, 0xDE800, 299728) (byte-matched C,
+  mwcc 2.3.3). 299,728 is 0x492D0 bytes, the AREA11 bank's samples. Its own
+  sceSifDmaStat returns 0 (pending), so it returns 1 and the state stays 2.
+- **Call 4** sees -1 (done).
+
+The PS2 thus makes one call more than an answer of "done" at the first
+query would give. That one call is the difference between v2.6.3's nine
+frames of 001FF590's sub-state 5 (001FF590 is byte-matched C) and the
+port's old 8-call model (port IOP_STREAM.md "The sound-bank transfer").
+
+**The port.** User decision 2026-10-15: the pending answer is given only
+with the disc-drive switch on. Port 92786d2 does that for the one measured
+size and keeps "done at once" for every other size, which it counts as
+unmeasured. Under the switch, the level exit's AREA01 bank load makes 22
+001FB370 calls against the EXIT capture's 26; those 4 calls are unmeasured
+on the fork.
+
+**The veil.** The fork's New Game veil is 265 / 266 frames against
+v2.6.3's 258. 6 of the extra frames come from its late IOP acknowledgement
+D_00275B18 (already in port IOP_STREAM.md); 1 is unexplained. The port's
+drive model stays on v2.6.3's busy fields.
 
 ### Task dispatch + the live game-update chain
 
@@ -4671,7 +4851,8 @@ pause bytes 0x008106B8/B9. Pad init: func_001CCCC0 / func_001CCBD0
 
 Thin spots (stated plainly): the conditional VU block (0x0011A9D8..
 0x0011B910) classified by gating/address-cluster only; func_001FCA10/
-func_001FB100/func_00203350 are "audio service" by subsystem range;
+func_001FB100 are "audio service" by subsystem range (func_00203350,
+once listed with them, is the blocking movie driver);
 TID2's exact role inferred from creation site; func_0018D7B0/func_0018C0D0
 not disassembled.
 

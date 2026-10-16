@@ -663,27 +663,44 @@ primary, plus `findings` and `checks`). Tool: `tools/fb2_phase_refs.py`
   the canonical lead-in, the recorded inputs on their frames, the pad
   corrections and the tail. Every row of every beat equals the canonical row
   in every field but counter, f, fi, fld and vs; the inputs and the end
-  `rand()` state are equal; fi and fld are both flipped on every row (until
-  beat 15's FMV, below).
+  `rand()` state are equal; fi and fld are both flipped on every row (beat
+  15's movie included: the canonical chain leaves it with (1, 1), d4 with
+  (0, 0), below).
 - **Result.** first_control, 10, 11 and 12 (d4): s0, s1 and s2 rows equal
   the primary point's, the `rand()` state at s2 is equal, and the s1 drawing
   buffer and OFY are the port's ((0x38, 1936.5) at first_control, 10, 12;
   (0x0, 1936.0) at 11). 92,570 to 99,585 displayed pixels differ from the
   primary (the half line).
-- **15_level_exit: the port's phase does not occur on the fork.** Roger's
-  departure FMV plays inside one main-loop iteration (beat 15 row 442) and
-  its vsync count adapts (4,751 or 4,752) so that the frame index and the
-  field are equal after it, whatever they were before: four chains entered
-  it with all four phase combinations (canonical, d4, d7, d8) and all left
-  with fi == fld. Every later iteration takes one vsync on the fork, so at
-  the point the original draws buffer 0x0 with OFY 1936.5 or 0x38 with
-  1936.0; the port's (0x0, 1936.0) has fi != fld. v2.6.3 follows the same
-  rule at its s0 (0x38, 1936.0); its s1 (0x0, 1936.0) came from a 2-vsync
-  iteration of the capture session (host timing). The half line at 15 thus
-  follows from the FMV's end; the port's field after that FMV is a port-side
-  question (FIRST_LEVEL_AUDIT F1). `fb2_phase/15_level_exit` is the d4
-  chain's point: the same game state on the port's half line (1936.0) in
-  the other buffer (0x38).
+- **15_level_exit: the departure movie sets the relation (corrected
+  2026-10-16).** Roger's departure movie E001 plays inside one main-loop
+  iteration (beat 15 row 442). All four chains (canonical, d4, d7, d8) left
+  it with fi == fld, which was first read as a rule. It is not a rule of
+  the code.
+  - **What the code does.** The code ends every movie on field 1 at host
+    speed (FINDINGS.md "The field D_00810E88 across the main loop, movies
+    and empty lists"): the display gate opens on a field-0 vblank, the
+    pictures go out in field pairs, and two closing waits return field 0,
+    then field 1. So afterwards fi == fld exactly when fi was 0 at the
+    movie's entry.
+  - **The four chains.** Canonical, d7 and d8 entered on fi 0 and left with
+    (1, 1). d4 entered on fi 1 and left with (0, 0) only because the
+    teardown's SIF RPC (00203C90 -> 00113CD0 -> 00113F68) spanned a vblank
+    in the emulator and moved both closing waits by one field. That is the
+    fork's IOP/disc timing. At host speed d4 would leave with (0, 1), fi !=
+    fld.
+  - **Probe receipts.** `build/fork_refs/probes_1016/movie_end/` ("Field
+    timing probes" below).
+  - **The movie's vsync count** (4,751 or 4,752 in these chains) follows
+    the entry field, the gate and that delay; it does not adapt to the
+    frame index.
+  - **After the movie** every iteration takes one vsync on the fork.
+    v2.6.3's s1 (0x0, 1936.0) came from a 2-vsync iteration of its capture
+    session (host timing).
+  - **The port** plays movies on the host media player's clock, so its
+    field after E001 is its hard-coded relation, not the code's (HANDOFF.md;
+    port FIRST_LEVEL_AUDIT F1).
+  - **`fb2_phase/15_level_exit`** is the d4 chain's point: the same game
+    state on the port's half line (1936.0) in the other buffer (0x38).
 - **The buffer does not change a pixel.** The d7 chain (fi as canonical,
   fld flipped) and the d4 chain reach points 10 and 12 on the same tick and
   half line (OFY 1936.5) in buffers 0x0 and 0x38: displayed, draw and z are
@@ -701,6 +718,26 @@ primary, plus `findings` and `checks`). Tool: `tools/fb2_phase_refs.py`
 .venv/bin/python tools/fb2_phase_refs.py capture --variant d4 --points first_control,10_cage_roof_roger,11_crevice_prompt,12_crevice_jump,15_level_exit
 .venv/bin/python tools/fb2_phase_refs.py manifest
 ```
+
+### Field timing probes (2026-10-16)
+
+These probes ran because of the comparison video's frame timing
+(VIDEO_COMPARE.md). They are hidden fork sessions under the run lock, with
+pc-triggered tables, traces and the frame store. Receipts and scripts are
+in the ignored `build/fork_refs/probes_1016/`, with the scripts in
+`tools/`. What the code does is written up in FINDINGS.md: "The field
+D_00810E88 across the main loop, movies and empty lists" and "The
+sound-bank SIF DMA's first status query".
+
+| Folder | Run | What it measured |
+|---|---|---|
+| `movie_end/canon`, `movie_end/d4` | E001 from the canonical and the d4 chain's beat 15 | the gate's field, every send (2,305 field-0 / field-1 pairs, none repeated), the 125-vblank stall before the last 2 pictures, the play loop's state-3 exit in the last field-1 send's field, the teardown's return (canonical: within the field; d4: 0.37 into the next one), the closing waits' fields (0, 1 canonical; 1, 0 d4); `cycles.json` gives each event's cycle within its vblank |
+| `newgame/d0`, `newgame/d1` | the New Game movie (d0 played to its end: gate 289, feed end 9,907, held sends 9,909..9,912) and the AREA11 load | the movie's 4,761 pairs and 101-vblank stall; the 15 001FB370 calls with the pending sceSifDmaStat at call 3 |
+| `screens/01_battery`, `screens/03_panel_power` (+ `_listsize`) | route beats 01 and 03 into the status pages | the displayed field per vblank (`cap/` frame store) and the packet buffers' write pointers at the 00101F08 kick: the entry pair's empty lists, the field shown again (193 = 191, 194 = 192; 390 = 388, 391 = 389) |
+
+The fork's late teardown in d4 is emulated IOP timing. CLAUDE.md's rule
+(the code at host speed is the oracle) makes the port follow the code's
+field 1, not that delay.
 
 ### Route groups re-recorded in parallel lanes (2026-10-10)
 
@@ -1256,10 +1293,13 @@ reads them.
 
 **Open after the switch** (port side): `EM_TEST_FULL=1 test_fb2_pixels`
 compares first_control, 10, 11, 12 and 15 with the field-phase references
-in `build/fork_refs/pixels/fb2_phase/` (port 8b68485); 15_level_exit has no
-original run on the port's phase (the departure FMV leaves the frame index
-equal to the field, and the port's field there breaks that), so its cause
-stays open (port FIRST_LEVEL_AUDIT 1b F1).
+in `build/fork_refs/pixels/fb2_phase/` (port 8b68485). 15_level_exit has no
+fork run on the port's phase. The 2026-10-16 probes explain why: the
+departure movie ends on field 1 at host speed, and the fork's d4 chain left
+it one field late through emulated IOP timing ("fb2 points on the port's
+field phase"). The port's field after that movie is still its hard-coded
+relation (port FIRST_LEVEL_AUDIT 1b F1; the FIELD change is pending,
+HANDOFF.md).
 
 ### Re-recording plan, set by set
 

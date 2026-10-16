@@ -253,6 +253,20 @@ count. An iteration that does not take exactly one vsync, or any extra
 iteration before the compared point, shifts one phase or both. The game state
 stays the same.
 
+On the first-level path every iteration outside a movie takes exactly one
+vsync, loads included (fork probes 2026-10-16, FINDINGS.md "The field
+D_00810E88 across the main loop, movies and empty lists"). So outside
+movies the relation between the field and the frame index never changes.
+It starts as field = 1 - frame index at the first loop top (0, 1). A load
+of another length moves both phases together, never the relation. Only a
+movie can change it. A movie plays inside one iteration and ends on field 1
+at host speed, so after it field = 1 - frame index again if it was entered
+on frame index 1, and field = frame index if it was entered on 0. On the
+canonical chain the New Game movie leaves 1 - frame index (first control at
+(0, 1)) and the departure movie leaves frame index == field. The
+multi-vsync iterations seen after loads in v2.6.3 capture sessions
+(PCSX2_FORK.md, the fb2 table) were host-timing hitches of that emulator.
+
 ### 5.2 Measured
 
 During the AREA11 load every iteration took exactly one vsync in both
@@ -314,9 +328,20 @@ The half-line choice is the whole difference between frames of equal ticks.
   half line drawn into buffer 0x0 and into 0x38 (two boot variants, AREA11
   points 10 and 12) is bit-exact in the displayed field, the drawing buffer
   and Z.
-- **Roger's departure FMV leaves frame index == field.** It plays inside one
-  iteration whose vsync count (4,751 or 4,752 on the fork) makes the two
-  equal after it, from every entry phase tried (four runs).
+- **Roger's departure movie ends on field 1 (corrected 2026-10-16).** It
+  plays inside one iteration. The 2026-10-10 reading was "its vsync count
+  adapts so that frame index == field after it, from every entry phase".
+  That is not structural. The code opens the display on a field-0 vsync,
+  sends each picture on a field-0 then a field-1 vsync, and ends with two
+  waits that return field 0, then field 1. So at host speed the field
+  after it is 1 and frame index == field holds only for an entry on frame
+  index 0.
+  - Three of the four runs entered on frame index 0.
+  - The fourth (d4) entered on 1. It still left with the two equal only
+    because the emulator's teardown SIF RPC spanned a vsync and moved both
+    closing waits one field later.
+  - Receipts: `build/fork_refs/probes_1016/movie_end/`; PCSX2_FORK.md
+    "Field timing probes".
 
 ### 5.4 Random-seeded effects
 
