@@ -52,10 +52,17 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (e627b00, 2026-09-29): 2152/2211 units; boot ELF byte-identical; 19/19 overlays.
+  Latest (2026-10-16, after the func_002061B0 fix): 2161/2215 units, matched_code
+  98.68%; boot ELF byte-identical; 19/19 overlays.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
+
+## 2026-10-16: func_002061B0 corrected (movie display gate)
+The C now has the original's field-wait loop (repeat func_001009C8(0) while it equals
+the argument; then the three flag stores) and byte-matches under mwcc 2.3.3 with the
+two gp-relative flags volatile; it links from C (PROGRESS.md 2026-10-16). The port's
+movie-gate translation should be checked against it (field-0 wait before the gate).
 
 ## 2026-10-10: the fork migration (PCSX2 v2.6.3 retired)
 User decisions of 2026-10-09: migrate everything to the fork, re-record the pixel

@@ -1,3 +1,19 @@
+## 2026-10-16 — func_002061B0 (movie display gate) byte-matched from C
+
+- The old C dropped the original's field-wait loop (compiled .text 0x40 against
+  the 0x50 slot) and stored only when the first field read differed; it was
+  listed in fill_unmatched's SIZE_DRIFT_FORCE_ASM, so the boot ELF linked the
+  assembly fallback while FUNCTIONS.csv called it readable.
+- Corrected C: repeat func_001009C8(0) (the GS CSR FIELD bit) while it equals
+  the argument, then unconditionally set D_00275C80 = 1, D_007A55F8[0] = 0,
+  D_00275C7C = 0. So func_002061B0(1) returns on the first field-0 vblank.
+  mwcc 2.3.3, `-O4,p -sdatathreshold 4`; the two gp-relative flags are
+  `volatile` (as in func_00206030) to pin the original store order (non-volatile
+  98.25%, 991202 68-80%).
+- objdiff 100%, .text 0x50; the force-list entry is removed;
+  audit_link_provenance: compiled_object_ordinary_c. Fresh build + verify_all:
+  all six stages pass, match stage 2161/2215 units, matched_code 98.68%.
+
 ## 2026-10-10 — PCSX2 v2.6.3 retired
 
 - **Port switch done:** port 0faaee4 (items 1-5), d11045a (6, 7), 750b40f (review

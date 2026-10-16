@@ -689,8 +689,9 @@ func_001A9000, func_001AA140 and func_001A9B10 (0x70003B88), func_00184BA0
 - **Volatile pins global store order.** mwcc moves a constant or zero-register
   store past neighbouring stores to other globals. Declaring the stored
   globals `volatile` keeps source order, which was the target's order in
-  func_001B0C60 (77.6 -> 100) and func_001AF5C0 (NEARMISS 81.55 -> 100; its
-  "store-scheduling artifact" note was this). Try it before calling a store
+  func_001B0C60 (77.6 -> 100), func_001AF5C0 (NEARMISS 81.55 -> 100; its
+  "store-scheduling artifact" note was this) and func_002061B0 (98.25 -> 100,
+  only the two gp-relative flags volatile; mwcc 2.3.3). Try it before calling a store
   permutation a wall. It did not fix func_001FC9B0 (90.48; the residual is
   one upper-half load into `$at` placed a store early).
 - **Check the compiler before the source.** 85 ordinary-C units were

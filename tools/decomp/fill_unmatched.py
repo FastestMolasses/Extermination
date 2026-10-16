@@ -310,7 +310,9 @@ SIZE_DRIFT_FORCE_ASM = {
     # objdiff 100%; the compiled object is linked (audit_link_provenance).
     "func_001FC9B0",
     "func_001FCB90",
-    "func_002061B0",
+    # func_002061B0 removed 2026-10-16: the old C dropped the field-wait loop
+    # (.text 0x40 vs 0x50); the restored do/while under mwcc 2.3.3 with the
+    # two gp-relative flags volatile is objdiff 100% at 0x50 and links.
     "func_0021BD10",
     "func_0021C3F0",
     "func_0022EBE0",
