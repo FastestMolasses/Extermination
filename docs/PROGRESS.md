@@ -1,3 +1,29 @@
+## 2026-10-16 — Cut-content census: the fan-blog subplot checked against the disc
+
+- Claim checked (a 2016 fan-blog post, not an interview): a cut subplot with
+  a teenage boy and the journalist killed, infected and fought as a boss.
+  Neither is on the disc; Sonia's death in Building B's stair tower is the
+  shipped scene (CURIOSITIES "Withdrawn entries and claims").
+- New tool `tools/cut_content_census.py`: every area's dialogue bank (18/18,
+  each the load set's slot-0x41 entry by the loader's resident-start rule),
+  voice-cue and cutscene-stream reachability, script line coverage, op14
+  spawn entries, area map/floor; output ignored `build/cut_content/census/`.
+- Found: 16 VOICE.DAT cues no record names (never played), 14 of them
+  Japanese, including a complete unused conversation with the journalist
+  (CURIOSITIES 29); AREA19's untranslated Japanese fire passage and other
+  leftovers (CURIOSITIES 30); a spawn-table room for the missing area 10
+  (CURIOSITIES 24). All audio transcribed locally with whisper.cpp
+  large-v3-turbo (user-approved download, model in ignored
+  `build/cut_content/asr/`).
+- Decoded: Building B = AREA19 sub 1 (map 9 floor 1) + AREA15 (floors 2-3);
+  the Sonia scene (AREA19 sub 1 placement [53], script 0x82D590, flags
+  0x25/0x26); the skinned-mesh census (86 geometries, 29 faces, no young
+  body). FINDINGS "Cut-content census"; the s69 AREA02 "no bank" reading is
+  corrected there.
+- Open: tabulating each op14 entry's model through its load set; the
+  1- to 4-node meshes; where the journalist conversation was meant to play;
+  the model-census helpers are local, not yet a committed tool.
+
 ## 2026-10-16 — func_002061B0 (movie display gate) byte-matched from C
 
 - The old C dropped the original's field-wait loop (compiled .text 0x40 against

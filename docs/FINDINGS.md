@@ -15870,6 +15870,10 @@ whatever bank loaded LAST (engine stale-bank quirk). Entered from
 AREA01 (the shipped route), that is the drawbridge bank: lines 0/1/2 =
 "You find anything?" / (empty) / "Not yet." under AREA02's own
 158/54/128 durations.
+*(Corrected 2026-10-16, section "Cut-content census" 1: chunk06.n0's slot
+0x41 is AREA02's own 4-line bank once the resident start is applied; the
+"no bank" reading is withdrawn and the stale-bank quirk is unverified
+until the office visit's resident set is traced.)*
 
 Also CLOSED (s65 open item "durations past the decoded prefix"): the
 FULL global record table 0x272DF0 is now dumped — **lines 6/0xA/0xC/
@@ -16894,3 +16898,177 @@ percentage below is objdiff against the normalized target object.
 - **The footing update's object override** (section "Where the surface
   attr comes from", corrected above): mask `& ~0xE0`, and subtype 2 gives
   attr 4 like the other five.
+
+## Cut-content census: dialogue, voice and cutscene audio; Building B and the Sonia scene (2026-10-16)
+
+Static census of everything the dialogue system can play, made to check a
+2016 fan-blog claim about a cut subplot (CURIOSITIES 29 and "Withdrawn
+entries and claims"). Tool: `tools/cut_content_census.py` (macOS arm64,
+reads the user's ELF, `extract/` and, with `--iso`, the disc image; writes
+only to ignored `build/cut_content/census/`). Evidence used below (renders,
+transcripts, clips) is in ignored `build/cut_content/`.
+
+### 1. Every area's dialogue bank (corrects the s69 census, which listed five)
+
+The record tables `D_00264DD0[area + 1]` (8-byte records: u16 duration,
+s16 VOICE.DAT cue, u8 speaker slot, u8 end flag) pair with one text bank per
+area. A bank is found by its group layout (section "MESSAGE BANK EXPORTED")
+in the DATA.DAT image rebuilt from `extract/manifest.txt`, and paired by line
+count == record count (or record count - 1, a trailing zero record):
+
+| area | records | bank (extracted file + offset) |
+|---|---|---|
+| global | 54 | chunk03/f14_id16.bin + 0 |
+| 00 / 01 / 03 / 04 | 54 / 184 / 42 / 262 | chunk04 / 05 / 07 / 08 id 0x41 files + 0 |
+| 02 | 4 | chunk06.n0/f05_id41.bin + 0x14B000 (see below) |
+| 06 / 07 / 08 | 22 / 46 / 94 | chunk10 / 11 / 12 id 0x41 files + 0 |
+| 11 | 162 | chunk15/f12_id44.bin + 0x3E800 |
+| 13 | 96 | chunk17/f11_id7e.bin + 0x26000 (straddles the extracted file end) |
+| 14 | 148 | chunk18/f10_id54.bin + 0x7000 |
+| 15 / 16 | 436 / 92 | chunk19 / chunk20 id 0x41 files + 0 |
+| 17 | 132 | chunk21/f09_id99.bin + 0x9E000 |
+| 19 | 96 | chunk23/f04_id6e.bin + 0x23800 |
+| 20 | 28 | chunk24/f16_id84.bin + 0x4E800 |
+| 21 | 126 | chunk25/f11_id51.bin + 0x4000 |
+
+Areas 18 and 22 have no table. Every pairing is exact under the loader's
+address rule (descriptor base + resident start +0x14 + entry offset,
+REPACK.md "Descriptor"): each bank is its load set's slot-0x41 entry (the
+global one slot 0x16 of chunk03), 18 of 18. The "extracted file + offset"
+column differs from the slot because the legacy extractor cuts resident
+entries without the resident start. So chunk04..08 = areas 0..4,
+chunk10..12 = 6..8 and chunkN = area N-4 from chunk15.
+**AREA02 correction (s69, section "Per-area text banks"):** chunk06.n0's
+slot 0x41 (resident start 0x14B000 + entry 0x388000) is a 4-line bank whose
+records are exactly AREA02's four (durations 158/54/128/0: two corpse
+remarks). The s69 "no id-0x41 bank anywhere in its load set" read the
+extracted file from its start. Whether chunk06.n0 is resident during the
+office visit (sub 1, whose chunk06.n1 has no slot 0x41) is not traced, so
+the stale-bank quirk is now unverified, not disproved.
+
+**Speaker slots** (record +4, the flag-mailbox and face slot) are one
+character each across every area, read from whose lines they carry: 0 Dennis,
+1 Roger, 2 Cindy, 3 Major Madigan, 4 Gary, 5 Filel, 6 Travis Miller (the
+freelance journalist), 7 Sonia Leone (systems engineer), 8 Carl Morris, 9
+Dr. Falken, 0xFF none (radio, system, examine). Slots 10 and 11 are never
+used.
+
+### 2. Which lines a script reaches
+
+Event scripts are runs of 64-byte records (word 0 = flags | opcode, the
+001BA1F0 sequencer; handler table ftab_0024D880). Lines are named by op0C
+(001B7D60) subs 0/1 at +0x14 (bit 31 = global bank) and op15 (001B6FA0) at
++0x08; op07 (001B82D0) subs 9..12 and op1A (001B6AE0) pass a stream trigger
+at +0x18 that 001FD4C0 looks up as (area, trigger) in D_0026EC60 and that is
+also the first line shown. A started line plays records until one with a
+non-zero end flag (001FDB80). Over every overlay, the only text lines no
+script reaches are AREA04 0xF3 (a voiced gameplay hint, cue 171; probably
+started by object code, not traced) and AREA19 0x4A, 0x4C and 0x5E, the
+three Shift-JIS lines of CURIOSITIES 29. The census is static: object code
+that writes the message block directly is not covered.
+
+### 3. Voice cues: only records start them
+
+The only voice-channel starts (001FA790 with channel 1/2) are in 001FA5F0,
+which drains the ring that 001FA5A0 fills, and 001FA5A0's only callers are
+001FD580 and 001FD6A0, which push a record's +2 cue (a jal scan of the ELF
+and all 19 overlays; a call through a pointer is not excluded). Records name
+162 of the 178 cues; the other 16 are never requested: 12, 37, 38, 56, 67,
+68, 73, 123, 161-167 and 170. Their content (Whisper large-v3-turbo run
+locally, and the user listening, 2026-10-16) is in CURIOSITIES 29.
+
+### 4. Cutscene streams
+
+All 36 rows of D_0026EC60 (MUSIC.DAT cues 29-66) are started by some area
+script. Cutscene-range cues 31 (18 s), 58 (23 s) and 67 (1 s) have no row
+and no direct caller; 31 and 58 hold no speech (music and effects), 67 is a
+spoken left/right channel check. All nine MOVIE/*.PSS files are named in
+the boot ELF's movie strings.
+
+### 5. Map and floor of every area; Building B
+
+001B0460 copies byte 2 of the spawn record word +0x1C (D_0024D650[area][sub],
+0x30-byte records) to D_008106CD: low nibble = map, bits 4..5 = floor, named
+by the map group of the help bank (group 6). Entry 0 of each sub gives:
+AREA00/01/02 map 0; AREA03 map 4 floors 0-2, AREA04 map 4 floor 3; AREA06
+map 1; AREA07 map 5; AREA08 map 6; AREA11 map 8; AREA13 map 9 floor 0;
+AREA14 and 18 map 10 floor 0, AREA17 floor 1; **AREA15 sub 0 map 9 floor 2,
+sub 1 floor 3; AREA19 sub 0 map 2, sub 1 map 9 floor 1**; AREA16 map 3;
+AREA20/21 map 7; AREA22 map 0 floor 1. Map 9's floor names are the main
+compound (0), Ground Facility Building B (1), its 1F parking lot (2) and its
+2F infirmary / bar / roof (3). So "Building B" is AREA19 sub 1 (the hall and
+the stair tower, whose doors [50] / [51] lead into AREA15) plus AREA15.
+The table also keeps a room for area 10, which has no overlay: one spawn
+record at (500, 80, 219), map 7 (CURIOSITIES 24).
+
+### 6. The shipped Sonia scene
+
+- Precondition: story flag 0x25, written by the AREA07 and AREA08 overlays
+  (their docs). Those are the two labs whose detonator scenes carry Cindy's
+  radio call that Sonia went down to Dennis and never came back (AREA07
+  lines 0x1A-0x1E, AREA08 0x4A-0x4E); which writer belongs to the call is
+  not traced. AREA15 0x82430C also calls 001C47A0(0x25, 1).
+- The body: AREA19 sub 1 placement [53] (table 0x82ED60), class 2, param
+  0x9A, at (924.8, 473.8, 942.0), behaviour 0x827550 (byte-matched
+  `func_overlay_AREA19_00827510`). It removes itself unless flag 0x25 is set
+  and 0x26 is clear, binds model D_0028A490[0x9A] with clip bank 0x97
+  (001B10B0). By the loader's slot rule slot 0x9A of AREA19 sub 1 is
+  chunk23.n1/f09_id9d.bin + 0x63000, a rigid one-node mesh: a flesh mass with
+  the upper body of a woman in the purple blouse and beaded collar of the
+  AREA15 body chunk19/f04_id64.bin (the only such costume on the disc); the
+  clip bank is a one-node clip at + 0x4F800. When the player stands on the
+  stair tower's y 445..460
+  landing inside the area 0x82F820 it stops the BGM (001FB0B0(0)) and runs
+  script 0x82D590; when the script ends it sets counter 0x24 = 1.
+- Script 0x82D590: frame request (op07 sub 8, skippable), a sound, the
+  camera at (924, 465, 962.4), line 0x52 (Dennis calls her name, cue 107;
+  the run continues through 0x56: he decides not to tell Cindy), the
+  player's walk to (920.2, 453.0, 952.8), camera moves, fades, and a final
+  op07 sub 5 that stores 0xFF to flag 0x26, so the body never reappears.
+  No other actor is spawned: Dennis is alone.
+
+### 7. Scripted actor spawn entries
+
+op14 (001BAC00) spawns from 0x2C-byte entries (OPENING_ACTORS.md): +0 u8
+class (9 actor, 8 attachment), +2 u8 a mode byte (1 or 2; not the speaker
+slot), +4 u16 model resource, +6 u16 clip bank, +8 u16 clip, +0xA u16
+command, +0xC f32 step. A scan of every overlay finds 53 entries in 11
+overlays (census.json `spawn_entries`). A model resource resolves through
+the scene's load set by the slot rule above; that per-entry resolution is
+not tabulated yet (open).
+
+### 8. Every skinned character mesh on the disc
+
+A local census (helper scripts in ignored `build/cut_content/models/
+scripts/`, not committed; renders, textured views from each area's own
+disc texture uploads, face fits and `inventory.json` beside them). The
+DATA.DAT image holds 1,986 mesh blobs: 1,407 one-node, 354 with 2-4 nodes and
+225 with 5+ nodes, which are 86 unique geometries (each paired with a rig
+among 2,667 animation containers by the node-count rule and cross-bone edge
+coherence), plus 29 face morph meshes, each fitting exactly one body's head
+(10 face identities). Textured views were possible for 75 meshes; for AREA11
+the disc upload replay equals the captured opening GS state on every Roger
+and soldier texture. Classes: 21 humanoid bodies, 3 human victims, 1
+infected-looking humanoid, 26 creatures (4 boss-sized), 13 shadow hulls, 2
+attachments, 21 props. Authored heights (header bounds, pose-free; the
+player body is 18.00):
+
+- The only bodies below 92% of the player are one slim dark-haired woman in
+  four outfits (16.03-16.24, one shared head; AREA01/04/11/15/21). Every other
+  humanoid is 16.6 or taller with adult proportions. No small, young or
+  child-proportioned body or face exists.
+- One civilian man in a brown fur-collared parka holding a camera (19
+  nodes, 16.91; chunk12.n0/f13_id8b.bin + 0x9F000 with face slot 0x8B),
+  present only in the AREA08 and AREA13 load sets, the two areas whose
+  dialogue has Travis Miller. No other mesh reuses any of its parts.
+- Mutated forms: a 47-node tentacled mutant in AREA01 whose thigh, shin and
+  boot nodes are byte-identical to the Roger body's and which uses 17 of
+  Roger's texture pages; a 44-node flesh giant with grafted rifles (AREA17,
+  where Dennis fights the infected Roger, AREA17 lines 0x01-0x13); a soldier
+  in a flesh cocoon (AREA00); a skinless figure with the player's proportions
+  (AREA21); the AREA19 flesh mass of section 6. The other boss-sized
+  creatures are AREA21's two.
+- Limits: the one- to four-node blobs are counted, not inspected (a static
+  body could hide there; the AREA19 one was found through its slot); meshes
+  inside overlays or the ELF were not scanned; two morph meshes (chunk03
+  f22 / f26) are not decoded.

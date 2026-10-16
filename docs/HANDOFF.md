@@ -58,6 +58,14 @@ that is a different, stale tree.
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
 
+## 2026-10-16: cut-content census (side task)
+A fan-blog claim of a cut teenage-boy subplot and a reporter boss was
+checked against the disc: neither exists; the disc does keep Japanese-only
+cut audio, including an unused conversation with the journalist
+(CURIOSITIES 29, 30, withdrawn-claims note; FINDINGS "Cut-content census";
+`tools/cut_content_census.py`). Evidence lives in ignored
+`build/cut_content/` of the main checkout.
+
 ## 2026-10-16: func_002061B0 corrected (movie display gate)
 The C now has the original's field-wait loop (repeat func_001009C8(0) while it equals
 the argument; then the three flag stores) and byte-matches under mwcc 2.3.3 with the
