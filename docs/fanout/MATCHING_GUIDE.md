@@ -614,6 +614,13 @@ func_001A9000, func_001AA140 and func_001A9B10 (0x70003B88), func_00184BA0
   compares 2, 1, 4 means labels are written `case 4: case 1: ... case 2:`
   (func_001AB6A0). A one-case `switch (x) { case 7: ... }` gives
   a branch-if-equal to the case followed by an unconditional branch past it, where `if (x == 7)` gives a single branch-if-not-equal (func_001A9B10).
+- **A long compare-per-constant chain over a type byte is a sparse switch, not an if/else
+  cascade** (2026-10-16). One branch-if-equal per constant in descending order, each case's first
+  value in its delay slot, bodies laid out in ascending order: write `case` labels ascending, a
+  shared body under stacked labels, `default` last. func_001BA580 went 52% -> 100% and
+  func_001BA8E0 70.6% -> 100% on the first try. An if/else chain merges adjacent constants
+  into range tests, and switching on an `unsigned char` parameter adds a byte mask before
+  the chain; switch on an `int` when the target compares the register unmasked.
 - **`a == K1 || a == K2` with an if/else** lowers to a branch-if-equal on K1 to THEN and
   a branch-if-not-equal on K2 to ELSE, with both slots filled from the successors. It also leaves
   the ELSE block's first instruction as DEAD code after THEN's unconditional branch to the join. If the

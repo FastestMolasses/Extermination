@@ -17091,8 +17091,12 @@ D_008106D4 mailbox, which 001FD950 sets for each message record's +4
 speaker slot. Both tables were read off the original compare chains (each
 case's value sits in the branch delay slot). The NEARMISS C of both
 functions had every entry one case late (0x68 without a face, 0x49 as
-Cindy); `src/func_001BA8E0.c` and `src/func_001BA580.c` are corrected, and
-the port's `em_roger_actor_original.c` already had the right tables. So a
+Cindy); `src/func_001BA8E0.c` and `src/func_001BA580.c` are corrected and
+now byte-match (both are sparse switches), and the port's
+`em_roger_actor_original.c` already had the right tables. Before the table,
+001BA8E0 runs func_001F0120(actor, type) unless event flag 0x30
+(D_00810788) is 1 and the type is not 0x3B, then func_001D8BF0(actor, 1)
+(camera-light flag on) for every type. So a
 body slot's name is the speaker whose lines move its face:
 
 | body slots | face slot (head node) | shadow kind | speaker slot |

@@ -1,3 +1,31 @@
+## 2026-10-16 — func_001BA8E0 and func_001BA580 byte-matched from C
+
+- Re-measured after the table correction below (mwcc 2.3.3, -O4,p
+  -sdatathreshold 0): the corrected NEARMISS C scored 70.65% (001BA8E0)
+  and 52.16% (001BA580); the recorded 72.08% / 91.56% predated the fix.
+- Both are sparse `switch` statements in the original, not if/else
+  cascades (MATCHING_GUIDE idiom-33): written with ascending case labels
+  and `default` last, both reach objdiff 100% with identical relocations,
+  .text 0x320 / 0x268. 001BA580's body type is an `int` (an `unsigned char`
+  parameter adds a byte mask before the compares). Tables unchanged; they
+  agree with the port's `em_roger_actor_original.c` and
+  `tools/character_census.py`.
+- 001BA8E0's head was mistranslated as well: func_001F0120(self, type) runs
+  unless D_00810788 == 1 and the type is not 0x3B (then it is not called),
+  and func_001D8BF0 always gets 1. The old C called func_001F0120 on every
+  path (with 1 for 0x3B under the flag) and passed the type to
+  func_001D8BF0. The port already had this right.
+- Promoted with tools/match/integrate_nearmiss.py (both KEEP); NEARMISS.md
+  rows removed, FUNCTIONS.csv readable. Fresh build + verify_all: all six
+  stages pass, 2163/2217 units, matched_code 98.69%; audit_link_provenance
+  routes both as compiled_object_ordinary_c (text and relocations match).
+- Worktree note: the build ran in a git worktree with the ignored inputs
+  (config/SCUS_971.12*, elf/, tools/bin, tools/mwccps2*, tools/eegcc
+  toolchains, build/asm, build/jtblrodata, build/overlays, extract/OVERLAY)
+  cloned from the main checkout; `splat split` stalled there, so build/asm
+  was cloned rather than regenerated. integrate_nearmiss.py hard-codes the
+  main checkout as ROOT, so it ran from a copy rooted at the worktree.
+
 ## 2026-10-16 — Character census: every scripted actor named and tied to its mesh
 
 - New tool `tools/character_census.py` (macOS arm64; replaces the local
