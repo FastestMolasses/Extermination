@@ -148,7 +148,8 @@ def run_all(a) -> int:
         if run_stage("native", argv) != 0:
             print("all: the native playback failed (see native/port.log); composing what exists")
     if not a.skip_ps2:
-        argv = [rec, "--out", str(run / "ps2"), "--stride", str(stride), "--frames", a.ps2_frames]
+        argv = [rec, "--out", str(run / "ps2"), "--stride", str(stride), "--frames", a.ps2_frames,
+                "--fork-title-delay", a.fork_title_delay]
         if want_ps2_audio:
             argv.append("--audio")
         if run_stage("ps2", argv) != 0:
@@ -188,6 +189,10 @@ def main() -> int:
                         "area = the presented frame box-averaged to 640x480 (native.py -h)")
     p.add_argument("--ps2-frames", choices=["gs", "screenshot"], default="gs")
     p.add_argument("--disc-timing", choices=["recorded", "0", "1"], default="recorded")
+    p.add_argument("--fork-title-delay", default="0",
+                   help="PS2 stage (fork): N ticks (default 0, as ps2.py), or auto = the delay that enters the "
+                        "New Game movie on the port's frame index (ps2.py -h; which criterion auto should use "
+                        "is open, docs/VIDEO_COMPARE.md \"The field phase\")")
     p.add_argument("--title")
     p.add_argument("--subtitle")
     p.add_argument("--height", type=int, default=480)
@@ -203,6 +208,7 @@ def main() -> int:
     q.add_argument("--ps2", required=True)
     q.add_argument("--tol-pos", type=float, default=0.01)
     q.add_argument("--tol-yaw", type=float, default=0.001)
+    q.add_argument("--out", help="also write the report to OUT.txt and OUT.json")
     q = sub.add_parser("synth", help="write a recording from an input script")
     q.add_argument("out")
     q.add_argument("--spec", help="JSON script (default: the built-in demo)")
@@ -216,8 +222,17 @@ def main() -> int:
     if a.cmd == "drift":
         import compose
         n = [r for r in emrec.read(Path(a.native) / "native.rec").ticks() if r["seg"] >= 0]
-        p_ = [r for r in emrec.read(Path(a.ps2) / "ps2.rec").ticks() if r["seg"] >= 0]
-        print(compose.drift_text(compose.drift(n, p_, a.tol_pos, a.tol_yaw)))
+        p_rec = emrec.read(Path(a.ps2) / "ps2.rec")
+        p_ = [r for r in p_rec.ticks() if r["seg"] >= 0]
+        d = compose.drift(n, p_, a.tol_pos, a.tol_yaw)
+        nat, ps2h = compose.field_halves(Path(a.native), Path(a.ps2))
+        d["field_phase"] = compose.phase_report(n, p_, nat, ps2h, int(p_rec.header.get("stride", 4)))
+        text = compose.drift_text(d)
+        print(text)
+        if a.out:
+            Path(a.out).parent.mkdir(parents=True, exist_ok=True)
+            Path(a.out).with_suffix(".txt").write_text(text + "\n")
+            Path(a.out).with_suffix(".json").write_text(json.dumps(d, indent=1) + "\n")
         return 0
     if a.cmd == "synth":
         spec = json.loads(Path(a.spec).read_text()) if a.spec else DEMO

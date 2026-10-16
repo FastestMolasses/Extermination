@@ -357,6 +357,7 @@ class FifoReader(threading.Thread):
     def _convert(self, idx: int, data: bytes, field: bytes | None, present: bytes | None) -> None:
         try:
             frame, info = bmp_to_frame(data, self.sampling, field, present)
+            info["uniform"] = emrec.uniform_rgb(frame)
             emrec.write_png(self.frames / f"{idx:06d}.png", frame)
             self.info[idx] = info
         except Exception as exc:          # noqa: BLE001
@@ -399,11 +400,36 @@ def logged_captures(log: Path, fifo: Path) -> tuple[list[bool], list[int | None]
     return seq, xys, errs
 
 
+def port_phase_check(by_cap: dict, reader) -> dict:
+    """The port's drawn half line against its frame index.  On the port the
+    frame index D_00810E80 during an iteration is its counter's low bit
+    (emrec.new_game_movie), step P sets the field D_00810E88 from it
+    (em_frame.c) and step V draws with the half pixel when 1 - field is set
+    (em_frame_kick.c, as 001D2300): so a tick's field should sit on line
+    1 - (counter & 1).  This is the mapping --fork-title-delay auto relies on;
+    each field capture's XYOFFSET_1 checks it."""
+    checked, agree, bad = 0, 0, []
+    for i, has in enumerate(reader.has_field):
+        r = by_cap.get(i)
+        line = reader.info.get(i, {}).get("line")
+        xy = reader.xyoffset[i]
+        if not has or r is None or xy is None:
+            continue
+        line = {0: 0, 8: 1}.get((xy >> 32) & 0xF, line)
+        checked += 1
+        if line == 1 - (r["counter"] & 1):
+            agree += 1
+        else:
+            bad.append({"cap": i, "counter": r["counter"], "seg": r["seg"], "off": r["off"], "line": line})
+    return {"rule": "line == 1 - (counter & 1)", "checked": checked, "agree": agree, "mismatches": bad[:50],
+            "mismatch_count": len(bad)}
+
+
 def run(args) -> int:
     rec_path = Path(args.recording).resolve()
     out = Path(args.out).resolve()
     port = Path(args.port).resolve()
-    binary = port / "build/extermination"
+    binary = Path(args.binary).resolve() if args.binary else port / "build/extermination"
     if not binary.exists():
         sys.exit(f"native: {binary} not found; build the port first (make -C {port} all)")
     if out.exists():
@@ -490,12 +516,25 @@ def run(args) -> int:
                   "without a field are mapped at the default position", flush=True)
     else:
         print(f"native: {n_field} of {reader.count} frames carry the exact GS field (unused: area)", flush=True)
+    by_cap = {r["cap"]: r for r in caps}
+    phase = port_phase_check(by_cap, reader)
+    print(f"native: field phase: {phase['agree']} of {phase['checked']} field captures drawn on the half line "
+          f"the counter parity gives (line = 1 - (counter & 1))"
+          + (f"; {len(phase['mismatches'])} others, first {phase['mismatches'][:3]}" if phase["mismatches"] else ""),
+          flush=True)
+    frames_out = []
+    for i in range(reader.count):
+        v, r, xy = info.get(i, {}), by_cap.get(i), reader.xyoffset[i]
+        frames_out.append({
+            "cap": i, "field": reader.has_field[i],
+            "overlay": (round(v["overlay"], 6) if "overlay" in v else None),
+            "line": v.get("line") if reader.has_field[i] else None, "shift": v.get("shift"),
+            "xyoffset": hex(xy) if xy is not None else None,
+            "ofy": ((xy >> 32) & 0xFFFF) / 16 if xy is not None else None,
+            "uniform": v.get("uniform"),
+            "counter": r["counter"] if r else None, "seg": r["seg"] if r else None, "off": r["off"] if r else None})
     (out / "frames.json").write_text(json.dumps(
-        {"sampling": args.sampling, "frames": [
-            {"cap": i, "field": reader.has_field[i],
-             "overlay": (round(info[i]["overlay"], 6) if "overlay" in info.get(i, {}) else None),
-             "line": info.get(i, {}).get("line"), "shift": info.get(i, {}).get("shift")}
-            for i in range(reader.count)]}, indent=0) + "\n")
+        {"sampling": args.sampling, "port_phase": phase, "frames": frames_out}, indent=0) + "\n")
     return 0 if rc == 0 and ok else 1
 
 
@@ -514,6 +553,9 @@ def main(argv=None) -> int:
     ap.add_argument("--audio", action="store_true", help="render the port's mixer offline into audio.wav")
     ap.add_argument("--disc-timing", choices=["recorded", "0", "1"], default="recorded",
                     help="EM_PS2_DISC_DRIVE_TIMING for the playback (default: as recorded)")
+    ap.add_argument("--binary", default=None,
+                    help="the port executable to run (default <port>/build/extermination; e.g. a private lane "
+                         "build); it runs with the port checkout as its working directory")
     ap.add_argument("--max-overrun", type=int, default=1800)
     ap.add_argument("--timeout", type=float, default=1800.0)
     return run(ap.parse_args(argv))

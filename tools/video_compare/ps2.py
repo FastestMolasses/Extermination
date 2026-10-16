@@ -65,7 +65,9 @@ emulator, its DebugServer and Pine):
     retire v2.6.3; everything above describes `--emulator legacy`): the
     project's agent-debug PCSX2 fork, see ps2_fork.py: a cold boot, fields
     read from GS memory (no save states), every row's frame index and field
-    in ps2_extra.json, `--fork-title-delay` to move the New Game commit, and
+    in ps2_extra.json, the half line each captured field was drawn on (its
+    draw environment's XYOFFSET_1), `--fork-title-delay N|auto` to move the
+    New Game commit (auto: onto the port's frame index), and
     with --audio the original's sound from the fork's emulated-time SPU2 tap
     as audio.wav.
 
@@ -874,6 +876,12 @@ def collect_media_audio(out: Path, marker: Path, player: "Player") -> None:
                         f"({'in sync: audio.wav written' if sync['in_sync'] else 'NOT in sync: no audio.wav'})")
 
 
+def title_delay_arg(v: str) -> str:
+    if v != "auto" and not v.lstrip("-").isdigit():
+        raise argparse.ArgumentTypeError("a tick count or auto")
+    return v
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("recording")
@@ -905,10 +913,16 @@ def main(argv=None) -> int:
                     help="fork (default since 2026-10-09; env EXTERMINATION_PCSX2) = a cold boot in the fork, "
                          "fields read from GS memory, --audio = the fork's emulated-time SPU2 tap; legacy = the "
                          "v2.6.3 app from the title save state (until the app is retired)")
-    fk.add_argument("--fork-title-delay", type=int, default=0,
+    fk.add_argument("--fork-title-delay", type=title_delay_arg, default="0",
                     help="fork: hold the title driver back this many ticks.  It moves the New Game commit by "
                          "as many vsyncs and so the frame index D_00810E80 / field D_00810E88 of every later "
-                         "tick (every row records both in ps2_extra.json); deterministic per value")
+                         "tick (every row records both in ps2_extra.json); deterministic per value.  auto = "
+                         "try 0, 1, .. (at most --fork-title-delay-runs sessions; a session on the wrong "
+                         "phase ends at the New Game movie's entry) until the movie is entered on the port's "
+                         "frame index (the recording's counter parity there); the choice is recorded in "
+                         "title_delay_scan.json and ps2_extra.json info.title_delay_auto")
+    fk.add_argument("--fork-title-delay-runs", type=int, default=3,
+                    help="fork, --fork-title-delay auto: the most sessions to try (delays 0 .. N-1)")
     fk.add_argument("--fork-field-k", type=int, default=0,
                     help="fork: 0 (default) = ps2.py's capture point: the buffer DISPFB2 names at the loop top "
                          "of tick t + 2, read from GS memory at the loop top of t + 3; K > 0 = the displayed "

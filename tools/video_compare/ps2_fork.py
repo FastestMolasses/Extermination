@@ -69,6 +69,15 @@ LOOP_TOP = 0x001AAF28
 DISPFB2 = 0x12000090            # GS privileged register as the EE wrote it (fork region gs_priv)
 FRAME_IDX = 0x00810E80          # the game's frame index (docs/CAPTURES_C7.md 5b)
 FIELD_ADDR = 0x00810E88         # the field the vsync handler sampled (docs/PCSX2_FORK_GS_DIFF.md 5)
+# The frame list's draw environments (step V, func_001D2300, NEARMISS C; it links from the asm):
+# D_00275674 + slot * 0x190 + 0x40 / + 0xC0 are the two contexts' sceGsDrawEnv blocks of slot
+# D_00275670->+0x9C, whose XYOFFSET (+0x20) func_001015A8 / func_00101810 set with the half pixel
+# when 1 - D_00810E88 is set.  Each block is (value, A+D register address) pairs: +0x00 FRAME_n
+# (0x4C / 0x4D), +0x20 XYOFFSET_n (0x18 / 0x19); the addresses are checked on every read.
+DRAW_CTX = 0x00275674           # D_00275674: the slot array of the frame lists' packets
+DRAW_STATE = 0x00275670         # D_00275670: the render state, +0x9C the slot built last
+SLOT_BYTES = 0x190
+ENV_OFFS = ((0x40, 0x4C, 0x18), (0xC0, 0x4D, 0x19))      # (offset in the slot, FRAME_n, XYOFFSET_n)
 FIELD_K = 0                     # 0 = "frame" mode (below); K > 0 = gs_field at loop top t + K
 RTC = "2026-01-01 00:00:00"     # the fork launcher's default fixed RTC (repeatable cold boots)
 FADE = 0x0028A9A0
@@ -84,6 +93,51 @@ def log(*a) -> None:
     print("ps2-fork:", *a, flush=True)
 
 
+class PhaseMismatch(RuntimeError):
+    """--fork-title-delay auto: the New Game movie was entered on the other
+    frame index than the port's; the session is closed and the next delay tried."""
+
+
+def ofy_line(xyoffset: int) -> int | None:
+    """XYOFFSET_n -> the drawn half line: OFY (bits 32..47, 1/16 pixel) on a
+    whole pixel 0, on a half pixel 1, else None (native.py parse_present's rule)."""
+    return {0: 0, 8: 1}.get((xyoffset >> 32) & 0xF)
+
+
+def parse_draw_envs(ctx_base: int, slot_9c: int, blob: bytes) -> dict:
+    """The two slots' draw environments (DRAW_CTX's 2 * SLOT_BYTES bytes) ->
+    per slot its FRAME FBP and XYOFFSET_1 (with context 2's for comparison) and
+    whether the register addresses are the ones the layout names."""
+    slots = []
+    for s in (0, 1):
+        ctx = []
+        for off, frame_reg, xy_reg in ENV_OFFS:
+            q = struct.unpack_from("<6Q", blob, s * SLOT_BYTES + off)
+            ctx.append({"fbp": q[0] & 0x1FF, "xyoffset": q[4],
+                        "layout_ok": q[1] == frame_reg and q[5] == xy_reg})
+        slots.append({"fbp": ctx[0]["fbp"], "xyoffset1": ctx[0]["xyoffset"], "xyoffset2": ctx[1]["xyoffset"],
+                      "fbp2": ctx[1]["fbp"], "layout_ok": ctx[0]["layout_ok"] and ctx[1]["layout_ok"]})
+    return {"base": ctx_base, "slot_9c": slot_9c, "slots": slots}
+
+
+def drawn_for(envs: dict | None, fbp: int) -> dict:
+    """The draw environment that drew into buffer `fbp` (its FRAME_1 FBP): the
+    drawn XYOFFSET_1, its OFY and half line.  At the loop top of t + 2 the two
+    slots hold the lists of ticks t and t + 1, which draw into the two buffers,
+    so the FBP names tick t's slot (the other slot is +0x9C's, checked)."""
+    if envs is None:
+        return {"line": None, "why": "no draw environments read"}
+    hits = [i for i, s in enumerate(envs["slots"]) if s["fbp"] == fbp and s["layout_ok"]]
+    if len(hits) != 1:
+        return {"line": None, "why": f"{len(hits)} slots draw into FBP {fbp:#x}",
+                "slots": [{k: (hex(v) if k.startswith("xy") else v) for k, v in s.items()} for s in envs["slots"]]}
+    s = envs["slots"][hits[0]]
+    xy = s["xyoffset1"]
+    return {"slot": hits[0], "slot_is_not_9c": hits[0] != envs["slot_9c"], "xyoffset1": hex(xy),
+            "ofy": ((xy >> 32) & 0xFFFF) / 16, "line": ofy_line(xy),
+            "ctx2_equal": s["xyoffset2"] == xy and s["fbp2"] == s["fbp"]}
+
+
 def scratch_base() -> Path:
     base = Path(os.environ.get("PCSX2_FORK_SCRATCH") or Path(os.environ.get("TMPDIR", "/tmp")) / "pcsx2-fork-vc")
     if str(base.resolve()).startswith(str((Path.home() / "Documents").resolve())):
@@ -95,7 +149,7 @@ class ForkPlayer:
     def __init__(self, rec: emrec.Recording, out: Path, stride: int, audio: bool, field_k: int = FIELD_K,
                  extra_k: tuple = (), max_ticks: int | None = None, tail: int = 4, title_limit: int = 1500,
                  mtvu: bool | None = None, renderer: int = 13, app: str | None = None, present: bool = True,
-                 title_delay: int = 0):
+                 title_delay: int = 0, phase_target: int | None = None, log_name: str = "emulator.log"):
         import ps2
         self.ps2 = ps2
         self.rec, self.out, self.stride, self.audio = rec, out, stride, audio
@@ -104,6 +158,10 @@ class ForkPlayer:
         self.max_ticks, self.tail, self.title_limit = max_ticks, tail, title_limit
         self.mtvu, self.renderer, self.app, self.present = mtvu, renderer, app, present
         self.title_delay = title_delay      # hold the title driver back: moves the New Game commit
+        # --fork-title-delay auto: the frame index D_00810E80 wanted at the New Game movie's
+        # entry (the port's); checked at the first movie after the title is reached
+        self.phase_target, self.ng_pending = phase_target, False
+        self.log_name = log_name
         self.rows: list[dict] = []
         self.extra: list[dict] = []
         self.notes: list[str] = []
@@ -157,8 +215,21 @@ class ForkPlayer:
             if stop.get("reason") == "probe" and int(stop["pc"], 16) == MOVIE_DRIVER:
                 seen = True
                 self.movie_count += 1
-                self.movies.append({"vsync": stop["vsync"], "tick": stop["tick"], "skip": bool(skip)})
-                log(f"movie at vsync {stop['vsync']}: {'skipping with START' if skip else 'playing it'}")
+                # the frame index and field at the driver's entry: the movie runs inside this
+                # iteration, so they are the iteration's (D_00810E80 flips at its step W)
+                fi = struct.unpack("<H", self.rd(FRAME_IDX, 2))[0]
+                fld = struct.unpack("<H", self.rd(FIELD_ADDR, 2))[0]
+                self.movies.append({"vsync": stop["vsync"], "tick": stop["tick"], "skip": bool(skip),
+                                    "frame_idx": fi, "field": fld})
+                log(f"movie at vsync {stop['vsync']} (frame index {fi}, field {fld}): "
+                    f"{'skipping with START' if skip else 'playing it'}")
+                if self.ng_pending:          # the New Game movie: the first movie after the title
+                    self.ng_pending = False
+                    self.info["ng_movie_entry"] = {"frame_idx": fi, "field": fld, "vsync": stop["vsync"],
+                                                   "target": self.phase_target}
+                    if self.phase_target is not None and (fi & 1) != self.phase_target:
+                        raise PhaseMismatch(f"title delay {self.title_delay}: New Game movie entered on frame "
+                                            f"index {fi}, the port's is {self.phase_target}")
                 if skip:
                     self.set_raw((emrec.START, 0x80, 0x80, 0x80, 0x80))
                 continue
@@ -195,7 +266,17 @@ class ForkPlayer:
     def arm(self, cap: int) -> None:
         """Frame mode, loop top t + 2: the buffer DISPFB2 names now holds tick t's field."""
         v = int.from_bytes(self.rd(DISPFB2, 8), "little")
-        self.armed[cap] = {"dispfb2": v, "fbp": v & 0x1FF, "fbw": ((v >> 9) & 0x3F) * 64}
+        self.armed[cap] = {"dispfb2": v, "fbp": v & 0x1FF, "fbw": ((v >> 9) & 0x3F) * 64,
+                           "envs": self.read_draw_envs()}
+
+    def read_draw_envs(self) -> dict | None:
+        """Both slots' draw environments of the frame lists (DRAW_CTX), now."""
+        base = struct.unpack("<I", self.rd(DRAW_CTX, 4))[0]
+        state = struct.unpack("<I", self.rd(DRAW_STATE, 4))[0]
+        if not (0x00100000 <= base < 0x02000000 and 0x00100000 <= state < 0x02000000):
+            return None
+        slot_9c = struct.unpack("<i", self.rd(state + 0x9C, 4))[0]
+        return parse_draw_envs(base, slot_9c, self.rd(base, 2 * SLOT_BYTES))
 
     def capture_buffer(self, cap: int, tick_row: int) -> None:
         """Frame mode, loop top t + 3: read that buffer from GS local memory.  It is the
@@ -205,10 +286,13 @@ class ForkPlayer:
         now = int.from_bytes(self.rd(DISPFB2, 8), "little")
         w, h = 512, 224
         info = {"source": "gs_buffer", "fbp": a["fbp"], "fbw": a["fbw"], "dispfb2_t2": hex(a["dispfb2"]),
-                "dispfb2_t3": hex(now), "width": w, "height": h}
+                "dispfb2_t3": hex(now), "width": w, "height": h,
+                # the half line tick t's field was drawn on (read at loop top t + 2)
+                "drawn": drawn_for(a["envs"], a["fbp"])}
         if a["fbw"] != 512 or a["fbp"] + 56 > 512 or (now & 0x1FF) == a["fbp"]:
             # an unexpected display set-up: fall back to the displayed field (gs_field) and say so
             info["fallback"] = "gs_field"
+            info["drawn"]["note"] = "the fallback reads the displayed field; this is buffer FBP's environment"
             return self.capture(0, cap, tick_row, info)
         _r, blob = self.c.call_blob("mem_read", space="gs", addr=a["fbp"] * 8192, len=56 * 8192, **{"as": "blob"})
         png = self.out / "frames" / f"{cap:06d}.png"
@@ -221,6 +305,7 @@ class ForkPlayer:
         words = np.frombuffer(blob, dtype="<u4")
         px = words[ps2.word_map(info["width"], info["height"], info["fbw"])]
         rgb = px.astype("<u4").view(np.uint8).reshape(info["height"], info["width"], 4)[..., :3]
+        info["uniform"] = emrec.uniform_rgb(rgb)
         emrec.write_png(png, np.ascontiguousarray(rgb))
 
     @staticmethod
@@ -228,6 +313,7 @@ class ForkPlayer:
         import numpy as np
         w, h = info["width"], info["height"]
         rgba = np.frombuffer(blob, dtype=np.uint8).reshape(h, w, 4)
+        info["uniform"] = emrec.uniform_rgb(rgba[..., :3])
         emrec.write_png(png, np.ascontiguousarray(rgba[..., :3]))
 
     # -- the session -------------------------------------------------------
@@ -296,7 +382,7 @@ class ForkPlayer:
             logs = self.out / "pcsx2_logs"
             logs.mkdir(exist_ok=True)
             for f in sess.dir.glob("*/emulator.log"):
-                shutil.copyfile(f, logs / "emulator.log")
+                shutil.copyfile(f, logs / self.log_name)
             if sess.dir.exists() and base in sess.dir.parents:
                 shutil.rmtree(sess.dir, ignore_errors=True)       # BIOS copies, ini, tap files
         self.info["sources_unchanged"] = fp == sources_fingerprint(cfg)
@@ -322,6 +408,7 @@ class ForkPlayer:
         log(f"title reached: counter {row['counter']} after {self.info['boot']['seconds']} s")
         if self.audio:
             self.info["audio_start"] = c.call("audio_tap", action="start", path="audio_tap.wav")
+        self.ng_pending = True
         # Title: ps2.py's title driver.
         n, presses = 0, 0
         self.movie_count = 0
@@ -467,25 +554,91 @@ class ForkPlayer:
                           f"span; row af = sample index at the row's loop top")
 
 
+def title_delay_plan(args, rec: emrec.Recording) -> tuple[list[int], int | None, dict]:
+    """--fork-title-delay N -> ([N], None); auto -> (0, 1, .., runs - 1) and the
+    port's frame index at the New Game movie's entry (emrec.new_game_movie)."""
+    v = str(args.fork_title_delay)
+    if v != "auto":
+        return [int(v)], None, {}
+    ng = emrec.new_game_movie(rec)
+    if ng is None:
+        raise SystemExit("--fork-title-delay auto: the recording has no movie in its title (no New Game movie)")
+    if rec.header.get("source") != "native-port":
+        log(f"warning: the recording's source is {rec.header.get('source')!r}, not native-port: its counter "
+            f"column may not be the port's main-loop counter")
+    runs = max(1, int(args.fork_title_delay_runs))
+    return list(range(runs)), ng["frame_idx"], {"port_new_game_movie": ng, "runs_allowed": runs}
+
+
 def run(args, rec: emrec.Recording, out: Path) -> int:
     t0 = time.monotonic()
     extra_k = tuple(int(k) for k in args.fork_extra_k.split(",") if k) if args.fork_extra_k else ()
-    player = ForkPlayer(rec, out, args.stride, audio=args.audio, field_k=args.fork_field_k, extra_k=extra_k,
-                        max_ticks=args.max_ticks, tail=args.tail, title_limit=args.title_limit,
-                        mtvu=args.fork_mtvu, renderer=args.fork_renderer, app=args.fork_app,
-                        present=not args.fork_no_present, title_delay=args.fork_title_delay)
+    delays, target, auto = title_delay_plan(args, rec)
     import signal
 
     def on_term(signum, frame):          # a killed driver must still close its session (lock, emulator)
         raise KeyboardInterrupt(f"signal {signum}")
     old = signal.signal(signal.SIGTERM, on_term)
+    tried = []
     try:
-        player.run()
+        for n, delay in enumerate(delays):
+            last = n + 1 == len(delays)
+            player = ForkPlayer(rec, out, args.stride, audio=args.audio, field_k=args.fork_field_k,
+                                extra_k=extra_k, max_ticks=args.max_ticks, tail=args.tail,
+                                title_limit=args.title_limit, mtvu=args.fork_mtvu, renderer=args.fork_renderer,
+                                app=args.fork_app, present=not args.fork_no_present, title_delay=delay,
+                                phase_target=target, log_name="emulator.log")
+            if target is not None:
+                log(f"title delay {delay}: the port entered the New Game movie on frame index {target}")
+            t_run = time.monotonic()
+            try:
+                player.run()
+            except PhaseMismatch as exc:
+                player.log_name = f"emulator_delay{delay}.log"
+                logs = out / "pcsx2_logs"
+                if (logs / "emulator.log").exists():
+                    (logs / "emulator.log").replace(logs / player.log_name)
+                tried.append({"delay": delay, "entry": player.info.get("ng_movie_entry"),
+                              "title": player.info.get("title"), "seconds": round(time.monotonic() - t_run, 1),
+                              "lock_wait_s": player.info.get("lock_wait_s"), "result": "other frame index"})
+                log(f"{exc}; " + ("no delay left" if last else "trying the next delay"))
+                if last:
+                    (out / "title_delay_scan.json").write_text(json.dumps(
+                        {**auto, "target_frame_idx": target, "tried": tried, "chosen": None}, indent=1,
+                        default=str) + "\n")
+                    raise SystemExit(f"--fork-title-delay auto: no delay in {delays} enters the New Game movie "
+                                     f"on the port's frame index {target} (out/title_delay_scan.json)")
+                continue
+            if target is not None:
+                tried.append({"delay": delay, "entry": player.info.get("ng_movie_entry"),
+                              "title": player.info.get("title"), "result": "chosen"})
+                player.info["title_delay_auto"] = {**auto, "target_frame_idx": target, "tried": tried,
+                                                   "chosen": delay}
+                (out / "title_delay_scan.json").write_text(json.dumps(player.info["title_delay_auto"], indent=1,
+                                                                      default=str) + "\n")
+                log(f"title delay {delay} chosen: the New Game movie entered on frame index "
+                    f"{player.info['ng_movie_entry']['frame_idx']}, as on the port")
+            break
     finally:
         signal.signal(signal.SIGTERM, old)
         log(f"no emulator process left: {not __import__('ps2').emulator_running()}")
+    # the run-time cross-check of the draw-environment layout: every captured row must resolve to
+    # exactly one slot drawing into the shown buffer (register addresses checked), that slot must not be
+    # +0x9C's (the list built last, tick t + 1's), and context 2 must agree with context 1
+    drawn = [ex["frame"].get("drawn", {}) for ex in player.extra if "frame" in ex]
+    lines = {}
+    for d in drawn:
+        lines[d.get("line")] = lines.get(d.get("line"), 0) + 1
+    resolved = [d for d in drawn if d.get("line") is not None and "slot" in d]
+    player.info["drawn_check"] = {
+        "captured": len(drawn), "resolved": len(resolved),
+        "not_slot_9c": sum(1 for d in resolved if d.get("slot_is_not_9c")),
+        "ctx2_equal": sum(1 for d in resolved if d.get("ctx2_equal")),
+        "fallback": sum(1 for d in drawn if "note" in d)}
+    log("draw-environment cross-check: " + ", ".join(f"{k} {v}" for k, v in player.info["drawn_check"].items()))
     emrec.write(out / "ps2.rec", {"source": "pcsx2-fork", "mode": "playback-log", "state": "cold boot",
                                   "stride": args.stride, "frames": "gs_field", "field_k": args.fork_field_k,
+                                  "title_delay": player.title_delay,
                                   "audio": "fork-tap" if args.audio else "none"}, player.rows)
     (out / "ps2_extra.json").write_text(json.dumps({
         "emulator": "fork", "notes": player.notes, "seconds_total": round(time.monotonic() - t0, 1),
@@ -493,5 +646,6 @@ def run(args, rec: emrec.Recording, out: Path) -> int:
         "first_vsync": player.extra[0]["vsync"] if player.extra else None,
         "end_vsync": player.end["vsync"] if hasattr(player, "end") else None,
         "rows": player.extra}, indent=0, default=str) + "\n")
-    log(f"{len(player.rows)} ticks, {player.captures} frames, notes: {player.notes}")
+    log(f"{len(player.rows)} ticks, {player.captures} frames (drawn half lines {lines}), title delay "
+        f"{player.title_delay}, notes: {player.notes}")
     return 0

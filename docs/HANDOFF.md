@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-10 (Claude: the PCSX2 fork migration, v2.6.3 retired, below; census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-16 (Claude: the comparison video's field phase, below; earlier: the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -57,6 +57,20 @@ that is a different, stale tree.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
+
+## 2026-10-16: the comparison video reports the field phase
+`tools/video_compare/` now logs the half line each side drew every captured frame on
+(port: `native/frames.json` `line`/`ofy`, checked against the rule line = 1 - (counter & 1);
+fork: `ps2_extra.json` `frame.drawn` from the frame list's draw environments, cross-checked
+at run time, `info.drawn_check`), and the drift report gives per-segment half-line agreement
+and the frames where either side has no field or one colour. `--fork-title-delay auto` scans
+title delays until the New Game movie is entered on the port's frame index; `ps2.py` and
+`video_compare.py all` keep delay 0 by default. **Lead decision open:** on the 2026-10-16
+test recording `auto` picks delay 1, which puts the whole opening on the other half line
+(the fork's first load is 274 iterations, the port's 267); delay 0 agrees 331/331 in the
+opening. Pass `--fork-title-delay 0` (the default) for the Discord video until the criterion
+is decided. Details and receipts: `docs/VIDEO_COMPARE.md` "The field phase";
+`build/video_compare/phase_test/` (keep: the drift reports and one clip).
 
 ## 2026-10-16: func_002061B0 corrected (movie display gate)
 The C now has the original's field-wait loop (repeat func_001009C8(0) while it equals

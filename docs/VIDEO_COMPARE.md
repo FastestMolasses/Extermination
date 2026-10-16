@@ -84,10 +84,10 @@ Output: `build/video_compare/my_run/my_run.mp4`, plus `my_run_drift.txt`,
 The command runs three stages, each also available on its own:
 
 ```sh
-python3 tools/video_compare/video_compare.py native  build/video_compare/my_run.rec --out build/video_compare/my_run/native [--stride 4] [--audio] [--disc-timing recorded|0|1] [--sampling gs|area]
-python3 tools/video_compare/video_compare.py ps2     build/video_compare/my_run.rec --out build/video_compare/my_run/ps2 [--stride 4] [--audio] [--emulator legacy [--frames gs|screenshot]] [--fork-title-delay N]
+python3 tools/video_compare/video_compare.py native  build/video_compare/my_run.rec --out build/video_compare/my_run/native [--stride 4] [--audio] [--disc-timing recorded|0|1] [--sampling gs|area] [--binary PATH]
+python3 tools/video_compare/video_compare.py ps2     build/video_compare/my_run.rec --out build/video_compare/my_run/ps2 [--stride 4] [--audio] [--emulator legacy [--frames gs|screenshot]] [--fork-title-delay N|auto [--fork-title-delay-runs 3]]
 python3 tools/video_compare/video_compare.py compose --native build/video_compare/my_run/native --ps2 build/video_compare/my_run/ps2 --out my_run.mp4 [options]
-python3 tools/video_compare/video_compare.py drift   --native build/video_compare/my_run/native --ps2 build/video_compare/my_run/ps2
+python3 tools/video_compare/video_compare.py drift   --native build/video_compare/my_run/native --ps2 build/video_compare/my_run/ps2 [--out build/video_compare/my_run/drift]
 python3 tools/video_compare/video_compare.py clean   my_run      # deletes build/video_compare/my_run/
 python3 tools/video_compare/video_compare.py synth   build/video_compare/demo.rec [--spec script.json]
 ```
@@ -117,7 +117,8 @@ compose options without running PCSX2 again).
 | `--title`, `--subtitle` | none | header text |
 | `--height H` | 480 | height of each side (4:3, so 640x480 per side) |
 | `--target-mb M` | none | two-pass encode to M x 10^6 bytes (Discord's free limit is 10 MB) |
-| `--info` | off | footer with the segment and both counters |
+| `--fork-title-delay N\|auto` | 0 | the PS2 stage's title delay (fork), as in `ps2.py`: `auto` picks the delay that enters the New Game movie on the port's frame index (see "The field phase"; which criterion `auto` should use is an open lead decision) |
+| `--info` | off | footer with the segment, both counters and each side's drawn half line (OFY .0 / .5) |
 | `--summary-seconds T` | 0 | end card with the drift summary |
 
 ## The recording format (`EMREC 1`)
@@ -232,9 +233,12 @@ The project's agent-debug PCSX2 fork (`docs/PCSX2_FORK.md`; its guide
 `../pcsx2-fork/EXTERMINATION.md`) replaces the save-state-per-frame and
 breakpoint-per-tick machinery. Every row of `ps2_extra.json` records the
 game's frame index D_00810E80 (`frame_idx`) and field D_00810E88 (`field`),
-and `info.title` the commit's. `--fork-title-delay N` holds the title driver
-back N ticks, which moves the New Game commit, to land a run on a reference's
-phase. `tools/video_compare/ps2_fork.py` drives it
+and `info.title` the commit's; every captured row's `frame.drawn` the half
+line its field was drawn on (see "The field phase"). `--fork-title-delay N`
+holds the title driver back N ticks, which moves the New Game commit, to land
+a run on a reference's phase; `--fork-title-delay auto` chooses N itself so
+that the New Game movie is entered on the port's frame index (see "The field
+phase"). `tools/video_compare/ps2_fork.py` drives it
 through the fork's DebugServer and its MIT Python package `pcsx2dbg` (no
 emulator source is used). The game-side rules are ps2.py's: the same
 scheduler, pad block model, phases, title driver and movie handling.
@@ -406,7 +410,99 @@ For every tick both runs played at the same (segment, offset) it compares the
 player position and heading: how many are bit-identical, the first tick past
 the tolerance (default 0.01 units, 0.001 rad) and the largest difference. It
 also lists every segment's length on both sides; different lengths show where
-loads, cutscenes or behaviour differ.
+loads, cutscenes or behaviour differ. Since 2026-10-16 it also reports the
+field phase per segment (next section).
+
+## The field phase
+
+The same tick drawn on the other half line differs in every edge and
+vertical gradient (docs/PCSX2_FORK_GS_DIFF.md 5.2 and 5.3): about 29 % of
+the old demo_level's paired frames were half a line apart, which the pairing
+by tick could not see. The tool now logs, for every captured row, the half
+line each side drew its field on, and reports per segment whether they
+agree.
+
+- **What is compared.** The drawn XYOFFSET_1 of the field: OFY on a whole
+  pixel (line 0, e.g. 1936.0) or on a half pixel (line 1, 1936.5). Every
+  draw environment of the frame list carries it; it is not inferred from a
+  rule.
+- **Port side** (`native/frames.json`, per capture: `line`, `ofy`,
+  `xyoffset`, plus `counter`, `seg`, `off` and `uniform`): the XYOFFSET_1
+  the port's GS field was drawn with, from its `.present` (checked against
+  the port log, as before). A capture without a GS field has none (`line`
+  null): the status / ITEM / BATTERY pages, the load veil's ends, and the
+  black frame the port presents on an iteration that draws nothing.
+  `uniform` names the colour of a frame of one colour.
+- **The port's mapping, checked on every run.** On the port the frame
+  index D_00810E80 of an iteration is its counter's low bit (em_frame.c
+  starts both at 0, step W flips the one and increments the other, nothing
+  else writes either; the recorder logs `em_frame_counter()`), step P sets
+  the field from it, and step V (em_frame_kick.c, as 001D2300) draws with
+  the half pixel when 1 - field is set: a tick's field sits on line
+  1 - (counter & 1). `native.py` checks this on every field capture and
+  prints and stores the result (`frames.json` `port_phase`).
+- **PS2 side** (`ps2/ps2_extra.json`, per captured row: `frame.drawn` with
+  `line`, `ofy`, `xyoffset1`, `slot`; per row as before `field` =
+  D_00810E88 and `frame_idx` = D_00810E80 at the loop top). Step V
+  (func_001D2300, NEARMISS C at 80.44 %; the linker fills it from the asm)
+  sets the two contexts' draw environments of the frame list's packet slot
+  with the SDK setters func_001015A8 / func_00101810 (both link from their
+  asm bodies; readable NEARMISS companions in `src/readable/`, 49.26 %):
+  D_00275674 + slot * 0x190 + 0x40 and + 0xC0,
+  slot = D_00275670 +0x9C, XYOFFSET at +0x20 with the half pixel when
+  1 - D_00810E88 is set. Each block is (value, A+D register address) pairs,
+  and the tool checks the addresses on every read (FRAME_1 0x4C /
+  XYOFFSET_1 0x18, FRAME_2 0x4D / XYOFFSET_2 0x19). At the loop top of
+  t + 2, where it reads DISPFB2 (the buffer that holds tick t's field), the
+  two slots hold the lists of ticks t and t + 1, which draw into the two
+  buffers, so the slot whose FRAME_1 FBP is that buffer is tick t's; its
+  XYOFFSET_1 is the drawn one. The layout is cross-checked at run time on
+  every captured row: the register-address words must be the ones above,
+  exactly one slot may draw into the shown buffer, that slot must not be
+  +0x9C's (the list built last, tick t + 1's), and context 2's FRAME and
+  XYOFFSET must equal context 1's; a row that fails gets no `line` (with
+  the reason). The pass prints the totals and stores them as
+  `ps2_extra.json` `info.drawn_check` (captured, resolved, not_slot_9c,
+  ctx2_equal, fallback). On the 2026-10-16 test recording (the review
+  re-run on port 92786d2, `build/video_compare/review_phase_1016/ps2/ps2_extra.json`)
+  all 419 captured rows resolved to one slot, none was +0x9C's, context 2
+  agreed on all 419, no fallback. `uniform` marks a buffer of one colour.
+- **The report** (`<name>_drift.txt` / `.json`, key `field_phase`; also
+  `drift --out`): per segment the frame pairs at the same offset, how many
+  carry a field on both sides, how many of those are on the same and on the
+  other half line (with the offsets), and the offsets where either side
+  has no field or a frame of one colour. Runs made before these records
+  count as unknown. `compose --info` prints both halves in the footer.
+- **`--fork-title-delay auto`.** Both phases come from timing, not game
+  state: the frame index follows the iteration count, the half line the
+  vsync count. At the New Game movie (00203350 plays it inside one
+  main-loop iteration) the original reads field 1 at step P after every
+  movie at host speed (002061B0 opens the display only after a field-0
+  vblank, and 00203350 ends with two vblank waits that return field 0, then
+  field 1; fork probes of 2026-10-16, receipts in the ignored
+  `build/fork_refs/probes_1016/movie_end/`), so its relation afterwards follows D_00810E80 at the movie's
+  entry; the port hard-codes field = frame index. With `auto` the PS2 pass
+  takes the port's frame index at the New Game movie's entry from the
+  recording (`emrec.new_game_movie`: the counter's low bit of the movie's
+  iteration), runs delay 0, and stops at the movie driver's entry probe
+  (an emulated point) if the fork's D_00810E80 there differs: the session
+  is closed and the next delay tried, up to `--fork-title-delay-runs`
+  (default 3) sessions (the cost of a wrong delay is one cold boot and the
+  title, about 1.5 to 2 min). The attempts and the chosen delay are written
+  to `ps2/title_delay_scan.json` and `ps2_extra.json`
+  `info.title_delay_auto`, the delay also to the `ps2.rec` header
+  (`title_delay`); each failed attempt's emulator log is kept as
+  `pcsx2_logs/emulator_delay<N>.log`. When no delay matches the pass fails
+  and says so. `video_compare.py all` keeps delay 0 by default, as
+  `ps2.py` does (pass `--fork-title-delay auto` to scan) until the lead
+  decides which criterion `auto` should use (see the test below).
+- **What a match does not fix.** Equal frame index at the entry gives the
+  same relation after the New Game movie only if both sides then run the
+  same number of iterations: a load of another length by an odd count, the
+  level-exit movie (E001 runs on the fork's vsync count, docs/PCSX2_FORK_GS_DIFF.md
+  5.3a) and an iteration that draws nothing (the PS2 repeats an older
+  field, the port presents black) move one side's phase; the report shows
+  where.
 
 ## Limits and known differences
 
@@ -798,3 +894,51 @@ build/video_compare/demo_level/ps2_fork --stride 4 --audio --emulator fork`.
   sound note): `demo_level_sound.mp4` (`--audio both`: original LEFT, port
   RIGHT; 336 MB) and `demo_level_original_sound.mp4` (`--audio original`;
   335 MB). Each is 2568x1164, 2:00.6, H.264 + AAC, 3,613 decoded frames.
+
+## Test 2026-10-16 (the field phase)
+
+A fresh recording on port main 92786d2 (a private build of HEAD): the level
+smoke's main line to first control (`EM_UNCAPPED=1
+EM_STARTUP_TEST=newgame-level EM_NEW_GAME=1 EM_PS2_DISC_DRIVE_TIMING=1
+EM_LEVEL_SMOKE_UNTIL=first_control EM_INPUT_RECORD=...`), with START added on
+the New Game movie's steps as for demo_level: 1,732 ticks in 6 segments (the
+title 74, P 1, the load 267, P 4, the opening 1,321, P 65). Native pass
+`--stride 4 --audio`, fork pass `--stride 4 --audio --fork-title-delay auto`,
+`drift`, and a 13.9 s clip (`compose --speed 2 --audio both --info`). Kept in
+`build/video_compare/phase_test/` (ignored): the recording, the drift reports,
+the stage logs, `title_delay_scan.json` and the clip; the frames were deleted.
+
+- **Port mapping.** 413 of 417 captures carry the GS field; all 413 sit on
+  line 1 - (counter & 1).
+- **Auto delay.** The port's New Game movie iteration is counter 71 (frame
+  index 1). Delay 0 entered it on frame index 0 (vsync 11,427) and ended at
+  the probe (101.5 s, boot included); delay 1 entered it on frame index 1
+  (vsync 11,428) and was used. Every captured PS2 field's draw environment
+  was found by its buffer (419 of 419, all on the slot other than +0x9C, both
+  contexts equal, no fallback).
+- **Segments, port / PS2:** P 1 / 1, load 267 / 274, P 4 / 4, **opening
+  1,321 / 1,321**, P 65 / 65. Position and heading bit-exact on all 1,391
+  paired play and cutscene ticks.
+- **Field phase with the chosen delay 1:** the load 65 of 65 pairs on the
+  same half line; the opening 0 of 331 and the first play 0 of 17 (all on the
+  other half line). Mean absolute difference per channel to the port: load
+  0.01, opening 1.81 (49.9 % of the pixels differ), first play 0.79 (26.0 %).
+- **Why.** The PS2's load is 7 iterations longer (274 against 267). Six of
+  them are the fork against v2.6.3 (268 in demo_level; the fork's late IOP
+  acknowledgement D_00275B18, port `docs/IOP_STREAM.md`), one is the port
+  against v2.6.3, whose drive timing the port's model follows (not traced
+  here). An odd difference flips the phase relative to the
+  port for everything after the load. Equal frame index at the New Game
+  movie is therefore the wrong criterion for this recording's opening.
+- **Control run, delay 0** (`phase_test_delay0_drift.txt`): the load 0 of
+  65 on the same half line, the opening **331 of 331**, the first play
+  **17 of 17**; mean absolute difference: opening 0.25 (0.8 % of the pixels),
+  first play 0.00 (bit-exact frames), load 0.14. The buffer index differs
+  there (the other frame index at the movie, flipped again by the load);
+  the buffer alone changes no pixel (docs/PCSX2_FORK_GS_DIFF.md 5.3a).
+- **Open (a lead decision).** Which criterion the auto delay should use for
+  the video: the frame index at the New Game movie (as built, the step's
+  contract) or the drawn half line after the first load (what the pixels
+  follow; it would need each try to run past the load, about 350 more
+  ticks). Until then `--fork-title-delay 0` gives the matching half line
+  for recordings with this load.

@@ -221,6 +221,33 @@ def first_play_segment(rec: Recording) -> int:
     return next(i for i, (ph, _) in enumerate(segs) if ph != "T")
 
 
+def new_game_movie(rec: Recording) -> dict | None:
+    """The New Game movie of a recording: the last movie before the first
+    tick past the title (the one the PCSX2 side's title driver starts) ->
+    {"ticks_before", "counter" (its iteration's main-loop counter), "skipped",
+    "frame_idx"}.  On the port the frame index D_00810E80 of an iteration is
+    its counter's low bit: em_frame.c starts both at 0 and step W flips the
+    one and increments the other together (nothing else writes either), and
+    the recorder logs em_frame_counter() in the counter column.  None when
+    the recording has no movie in its title."""
+    segs = rec.segments()
+    title_ticks = sum(len(rows) for _ph, rows in segs[:first_play_segment(rec)])
+    found, ticks, open_ = None, 0, False
+    for r in rec.rows:
+        if r["mv"]:
+            if not open_ and ticks <= title_ticks:
+                found = {"ticks_before": ticks, "counter": r["counter"], "skipped": False}
+            open_ = True
+            if found is not None and found["counter"] == r["counter"] and r["btn"] & START:
+                found["skipped"] = True
+        else:
+            open_ = False
+            ticks += 1
+    if found is not None:
+        found["frame_idx"] = found["counter"] & 1
+    return found
+
+
 # ----------------------------------------------- the pad block (001B5940)
 
 class PadBlock:
@@ -316,6 +343,14 @@ class PadBlock:
 
 
 # ------------------------------------------------------------- frames
+
+def uniform_rgb(rgb) -> str | None:
+    """'rrggbb' when every pixel of an (h, w, 3) uint8 frame has that colour
+    (a black or cleared frame), else None."""
+    flat = rgb.reshape(-1, 3)
+    first = flat[0]
+    return None if (flat != first).any() else bytes(first.tolist()).hex()
+
 
 def write_png(path: Path | str, rgb, level: int = 1) -> None:
     """Minimal 8-bit RGB PNG writer (numpy (h, w, 3) uint8), no PIL needed."""

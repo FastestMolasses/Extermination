@@ -149,6 +149,97 @@ def drift(native_rows: list, ps2_rows: list, tol_pos: float, tol_yaw: float) -> 
             "segments": segs}
 
 
+# ------------------------------------------------------------ field phase
+
+def field_halves(native_dir: Path, ps2_dir: Path) -> tuple[dict, dict]:
+    """Per captured row, each side's drawn half line (0 = OFY on a whole
+    pixel, 1 = on a half pixel) and why a frame has none:
+      port  native/frames.json: the GS field's XYOFFSET_1 (from its .present);
+            a capture without a GS field (status pages, load-veil ends, the
+            black frame of an iteration that draws nothing) has none.
+      PS2   ps2/ps2_extra.json rows[step].frame.drawn: the XYOFFSET_1 of the
+            draw environment that drew the captured buffer (ps2_fork.py).
+    A frame of one colour (black, cleared) is marked too: its half line
+    changes no pixel.  A run made before these records has none (the pair
+    counts as unknown).  -> ({cap: {...}} for the port, {step: {...}} for the PS2)."""
+    nat, ps2 = {}, {}
+    fj = native_dir / "frames.json"
+    if fj.exists():
+        for f in json.loads(fj.read_text()).get("frames", []):
+            if "ofy" not in f:                          # a run made before the half-line record
+                continue
+            nat[f["cap"]] = {"line": f.get("line") if f.get("field") else None, "field": bool(f.get("field")),
+                             "uniform": f.get("uniform"), "ofy": f.get("ofy"), "e88": None}
+    ej = ps2_dir / "ps2_extra.json"
+    if ej.exists():
+        for i, ex in enumerate(json.loads(ej.read_text()).get("rows", [])):
+            fr = ex.get("frame")
+            if fr is None or "drawn" not in fr:          # not captured, or a run made before the drawn record
+                continue
+            dr = fr.get("drawn") or {}
+            ps2[i] = {"line": dr.get("line"), "field": dr.get("line") is not None, "uniform": fr.get("uniform"),
+                      "ofy": dr.get("ofy"), "why": dr.get("why"), "e88": ex.get("field"), "e80": ex.get("frame_idx")}
+    return nat, ps2
+
+
+def _runs(offs: list, stride: int) -> str:
+    """[0, 4, 8, 20] -> '0..8, 20' (offsets in steps of the capture stride)."""
+    out, start, prev = [], None, None
+    for o in offs:
+        if start is None:
+            start = prev = o
+        elif o - prev == stride:
+            prev = o
+        else:
+            out.append(f"{start}..{prev}" if prev != start else f"{start}")
+            start = prev = o
+    if start is not None:
+        out.append(f"{start}..{prev}" if prev != start else f"{start}")
+    return ", ".join(out)
+
+
+def phase_report(native_rows: list, ps2_rows: list, nat: dict, ps2: dict, stride: int = 4) -> dict:
+    """Per segment: the captured frames both sides have at the same offset, how
+    many carry a field on both sides, on the same / the other half line, and
+    the frames where either side has no field or one colour."""
+    pc = {(r["seg"], r["off"]): r for r in ps2_rows if r["seg"] >= 0 and r["cap"] >= 0}
+    segs: dict = {}
+    for r in native_rows:
+        if r["seg"] < 0 or r["cap"] < 0:
+            continue
+        q = pc.get((r["seg"], r["off"]))
+        if q is None:
+            continue
+        s = segs.setdefault(r["seg"], {"seg": r["seg"], "phase": r["ph"], "pairs": 0, "both_field": 0, "same": 0,
+                                        "other": 0, "other_offsets": [], "port_no_field": [],
+                                        "ps2_no_field": [], "port_one_colour": [], "ps2_one_colour": [],
+                                        "unknown": 0})
+        s["pairs"] += 1
+        n, p = nat.get(r["cap"]), ps2.get(q["step"])
+        if n is None or p is None:
+            s["unknown"] += 1
+            continue
+        for side, v in (("port", n), ("ps2", p)):
+            if not v["field"]:
+                s[f"{side}_no_field"].append(r["off"])
+            if v["uniform"] is not None:
+                s[f"{side}_one_colour"].append(r["off"])
+        if n["field"] and p["field"]:
+            s["both_field"] += 1
+            if n["line"] == p["line"]:
+                s["same"] += 1
+            else:
+                s["other"] += 1
+                s["other_offsets"].append(r["off"])
+    rows = [segs[k] for k in sorted(segs)]
+    tot = {k: sum(x[k] for x in rows) for k in ("pairs", "both_field", "same", "other", "unknown")}
+    for x in rows:
+        for k in ("other_offsets", "port_no_field", "ps2_no_field", "port_one_colour", "ps2_one_colour"):
+            x[k + "_runs"] = _runs(x[k], stride)
+    return {"what": "drawn half line (XYOFFSET_1 OFY on a whole / a half pixel) of each frame pair at the same "
+                    "segment and offset", "total": tot, "segments": rows}
+
+
 def drift_text(d: dict) -> str:
     lines = [f"play/cutscene ticks compared (same segment and offset): {d['ticks_compared']}; position and heading "
              f"bit-exact on {d['position_heading_bit_exact']}"]
@@ -164,6 +255,33 @@ def drift_text(d: dict) -> str:
     for s in d["segments"]:
         mark = "" if s["native_ticks"] == s["ps2_ticks"] else "   <- lengths differ"
         lines.append(f"  {s['seg']:3d} {s['phase']}  {s['native_ticks']:6d} / {s['ps2_ticks']:6d}{mark}")
+    ph = d.get("field_phase")
+    if ph:
+        t = ph["total"]
+        lines.append(f"field phase (the drawn half line of each frame pair, port XYOFFSET_1 from the GS field, PS2 "
+                     f"from the draw environment that drew the buffer): {t['same']} of {t['both_field']} pairs "
+                     f"with a field on both sides on the same half line, {t['other']} on the other; "
+                     f"{t['pairs']} pairs")
+        if t["unknown"]:
+            lines.append(f"  {t['unknown']} pairs unknown: a side's run has no half-line record (made before it)")
+        lines.append("  seg ph  pairs  both  same  other  agree")
+        for x in ph["segments"]:
+            pct = f"{100.0 * x['same'] / x['both_field']:5.1f} %" if x["both_field"] else "    -"
+            lines.append(f"  {x['seg']:3d} {x['phase']}  {x['pairs']:5d} {x['both_field']:5d} {x['same']:5d} "
+                         f"{x['other']:6d}  {pct}")
+        lines.append("frames without a field (no GS field / no draw environment) or of one colour, by segment "
+                     "and offset:")
+        empty = True
+        for x in ph["segments"]:
+            for key, what in (("port_no_field", "port: no field"), ("ps2_no_field", "PS2: no field"),
+                              ("port_one_colour", "port: one colour"), ("ps2_one_colour", "PS2: one colour")):
+                if x[key]:
+                    empty = False
+                    lines.append(f"  {x['seg']:3d} {x['phase']}  {what} at {x[key + '_runs']} ({len(x[key])})")
+            if x["other"]:
+                lines.append(f"  {x['seg']:3d} {x['phase']}  other half line at {x['other_offsets_runs']}")
+        if empty:
+            lines.append("  none")
     return "\n".join(lines)
 
 
@@ -347,6 +465,8 @@ def compose(args) -> dict:
     fps = args.speed * emrec.TICK_HZ / (m * stride)
     picked = entries[::m]
     d = drift(n_rows, p_rows, args.tol_pos, args.tol_yaw)
+    nat_half, ps2_half = field_halves(native_dir, ps2_dir)
+    d["field_phase"] = phase_report(n_rows, p_rows, nat_half, ps2_half, stride)
     (out.parent / (out.stem + "_drift.json")).write_text(json.dumps(d, indent=1) + "\n")
     (out.parent / (out.stem + "_drift.txt")).write_text(drift_text(d) + "\n")
     speed_text = (f"{args.speed:g}\u00d7" if args.speed != 1 else "1\u00d7")
@@ -375,8 +495,13 @@ def compose(args) -> dict:
     for e in picked:
         info = None
         if args.info:
+            def half(v):
+                return "-" if v is None or v["line"] is None else (".5" if v["line"] else ".0")
+            hn = half(nat_half.get(e["n"]["cap"])) if e["n"] else "-"
+            hp = half(ps2_half.get(e["p"]["step"])) if e["p"] else "-"
             info = (f"segment {e['seg']} ({e['ph']})  native counter "
-                    f"{e['n']['counter'] if e['n'] else '-'}  |  PS2 counter {e['p']['counter'] if e['p'] else '-'}")
+                    f"{e['n']['counter'] if e['n'] else '-'} OFY {hn}  |  PS2 counter "
+                    f"{e['p']['counter'] if e['p'] else '-'} OFY {hp}")
         enc.stdin.write(r.frame(frame_path(ps2_dir, e["p"]), frame_path(native_dir, e["n"]), e["tag_p"],
                                 e["tag_n"], info))
     if summary_frames:
@@ -448,7 +573,8 @@ def compose(args) -> dict:
               "capture_stride": stride, "ticks_per_output_frame": m * stride,
               "effective_speed": round(m * stride * fps / emrec.TICK_HZ, 4), "aligned_entries": len(entries),
               "duration_s": round(duration, 3), "audio": audio, "notes": notes, "ffprobe": probe,
-              "drift": {k: d[k] for k in ("ticks_compared", "position_heading_bit_exact", "first_drift")}}
+              "drift": {k: d[k] for k in ("ticks_compared", "position_heading_bit_exact", "first_drift")},
+              "field_phase": d["field_phase"]["total"]}
     (out.parent / (out.stem + "_summary.json")).write_text(json.dumps(result, indent=1) + "\n")
     return result
 
