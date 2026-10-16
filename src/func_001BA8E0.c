@@ -1,6 +1,6 @@
 // NEARMISS func_001BA8E0  (vram 0x001BA8E0, 0x320 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 72.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 72.08% (measured before the 2026-10-16 table correction) via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // NPC-spawner type dispatch (sparse compare-chain, no jump table). Body/mapping table fully recovered from the assembly; residual is register-allocation-order across the linear compare chain -- same class as the documented func_001BA080/func_001B99F0 'dense/sparse-switch lowering is compiler-intern...
 //
@@ -35,6 +35,10 @@ void func_001BA8E0(unsigned char *self, int type) {
     v1 = 0;
     s1 = 1;
 
+    // The original's compare chain keeps each case's face index in the
+    // branch delay slot; the table below follows the instructions
+    // (corrected 2026-10-16: the earlier C read every index one case late,
+    // gave 0x68 no face and left the head node of 0x3B..0x40 at 1).
     switch (type) {
     case 0x6C:
         *(unsigned short *)(self + 0x96) = 0x34;
@@ -44,26 +48,26 @@ void func_001BA8E0(unsigned char *self, int type) {
         *(unsigned short *)(self + 0x96) = 0x33;
         *(unsigned short *)(self + 0x56) = 0;
         return;
-    case 0x68: s0 = 6; v1 = 0x31; s1 = 0; idx = -1;   break;
-    case 0x66: s0 = 6; v1 = 0x30; idx = 0x8D;         break;
-    case 0x64: s0 = 6; v1 = 0x2F; idx = 0x92;         break;
-    case 0x61: s0 = 6; v1 = 0x2E; idx = 0x8C;         break;
-    case 0x5E: s0 = 7; v1 = 0x2D; idx = 0x8B;         break;
-    case 0x5D: s0 = 7; v1 = 0x2D; idx = 0x91;         break;
-    case 0x5A: s0 = 7; v1 = 0x2C; s1 = 0; idx = 0x8A; break;
-    case 0x59: s0 = 7; v1 = 0x2C; s1 = 0; idx = 0x94; break;
-    case 0x55: s0 = 7; v1 = 0x2B; idx = 0x90;         break;
-    case 0x54: s0 = 7; v1 = 0x2B; idx = 0x8F;         break;
-    case 0x51: s0 = 7; v1 = 0x2A; idx = 0x89;         break;
-    case 0x50: s0 = 7; v1 = 0x2A; idx = 0x95;         break;
-    case 0x4F: s0 = 7; v1 = 0x2A; idx = 0x93;         break;
-    case 0x49: s0 = 7; v1 = 0x29; idx = 0x8E;         break;
-    case 0x48: s0 = 7; idx = 0x88;                    break;
-    case 0x47: s0 = 7; idx = 0x88;                    break;
-    case 0x40: idx = 0x1B;                            break;
-    case 0x3F: idx = 0x1A;                            break;
-    case 0x3E: idx = 0x19;                            break;
-    case 0x3B: idx = 0x18;                            break;
+    case 0x68: s0 = 6; v1 = 0x31; s1 = 0; idx = 0x8D; break;
+    case 0x66: s0 = 6; v1 = 0x30; idx = 0x92;         break;
+    case 0x64: s0 = 6; v1 = 0x2F; idx = 0x8C;         break;
+    case 0x61: s0 = 6; v1 = 0x2E; idx = 0x8B;         break;
+    case 0x5E: s0 = 7; v1 = 0x2D; idx = 0x91;         break;
+    case 0x5D: s0 = 7; v1 = 0x2D; idx = 0x8A;         break;
+    case 0x5A: s0 = 7; v1 = 0x2C; s1 = 0; idx = 0x94; break;
+    case 0x59: s0 = 7; v1 = 0x2C; s1 = 0; idx = 0x90; break;
+    case 0x55: s0 = 7; v1 = 0x2B; idx = 0x8F;         break;
+    case 0x54: s0 = 7; v1 = 0x2B; idx = 0x89;         break;
+    case 0x51: s0 = 7; v1 = 0x2A; idx = 0x95;         break;
+    case 0x50: s0 = 7; v1 = 0x2A; idx = 0x93;         break;
+    case 0x4F: s0 = 7; v1 = 0x2A; idx = 0x8E;         break;
+    case 0x49: s0 = 7; v1 = 0x29; idx = 0x88;         break;
+    case 0x48: s0 = 7; v1 = 0x29; idx = 0x88;         break;
+    case 0x47: s0 = 7; v1 = 0x29; idx = 0x88;         break;
+    case 0x40: s0 = 7; idx = 0x1B;                    break;
+    case 0x3F: s0 = 7; idx = 0x1A;                    break;
+    case 0x3E: s0 = 7; idx = 0x19;                    break;
+    case 0x3B: s0 = 7; idx = 0x18;                    break;
     default:   idx = -1;                              break;
     }
 

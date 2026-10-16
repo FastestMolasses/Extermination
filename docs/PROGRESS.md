@@ -1,3 +1,31 @@
+## 2026-10-16 — Character census: every scripted actor named and tied to its mesh
+
+- New tool `tools/character_census.py` (macOS arm64; replaces the local
+  `build/cut_content/models/scripts/` helpers): mesh-blob and rig scans,
+  INDEX.IDX load sets, op14 lists and placement binds resolved to meshes,
+  faces and speaker slots, unique-geometry inventory with shared parts,
+  textured previews and contact sheets. Output ignored
+  `build/cut_content/characters/`.
+- Names now come from code: 001BA8E0 (body type -> face slot, head node,
+  shadow kind) and 001BA580 (body type -> the speaker slot whose message
+  mailbox drives the face), both read off the original compare chains. Body
+  slots 0x47-0x49 Roger, 0x4F-0x51 Cindy, 0x54/55 Madigan, 0x59/5A Gary,
+  0x5D/5E Filel, 0x61 Travis Miller, 0x64 Sonia, 0x66 Morris, 0x68 Falken.
+  Every face fits its body's head (41/42; the 42nd is unloaded).
+- Corrected: the NEARMISS C of func_001BA8E0 and func_001BA580 had both
+  tables one case late (src fixed; not linked, the boot ELF is unchanged;
+  the port already had them right); section 7's first pass found 53 op14
+  entries, the list walk finds 179 in 36 lists over 13 overlays.
+- Found: AREA17's Roger line plays from the 44-node flesh giant while a
+  bloodied Madigan stands silent; Cindy's hooded AREA01/AREA04 body has no
+  face or speaker slot; the static one- to four-node meshes hold only adult
+  corpses (AREA02, 03, 07, 08, 13) besides AREA19's Sonia mass; AREA00 loads
+  two corpse models no placement uses (CURIOSITIES 31). FINDINGS
+  "Cut-content census" sections 7-9; CURIOSITIES 22, 23 and the
+  withdrawn-claims note updated.
+- Open: the op14 mode byte; the attachment parent link; AREA08 sub 1's
+  Travis placement with his slots unloaded; meshes inside overlays.
+
 ## 2026-10-16 — Cut-content census: the fan-blog subplot checked against the disc
 
 - Claim checked (a 2016 fan-blog post, not an interview): a cut subplot with
@@ -20,9 +48,9 @@
   0x25/0x26); the skinned-mesh census (86 geometries, 29 faces, no young
   body). FINDINGS "Cut-content census"; the s69 AREA02 "no bank" reading is
   corrected there.
-- Open: tabulating each op14 entry's model through its load set; the
-  1- to 4-node meshes; where the journalist conversation was meant to play;
-  the model-census helpers are local, not yet a committed tool.
+- Open: where the journalist conversation was meant to play. (The op14
+  tabulation, the 1- to 4-node meshes and the committed model census were
+  done the same day; entry above.)
 
 ## 2026-10-16 — func_002061B0 (movie display gate) byte-matched from C
 

@@ -41,7 +41,8 @@ the same day (the port's chain step AIMCAP fix round; see the last section).
 Entry 12's blank label decoded 2026-10-08 (the port's chain step OPTIONS).
 Entries 29 and 30 added and entry 24 extended 2026-10-16 (the cut-content
 census, FINDINGS "Cut-content census"), with a withdrawn-claims note on the
-fan-blog subplot.
+fan-blog subplot. Entry 31 added and entries 22 and 23 extended 2026-10-16
+(the character census, sections 7-9).
 
 ---
 
@@ -421,9 +422,11 @@ refuse them.
 
 *Kind: optional content.* Placement [36] in AREA01 is a character at the
 control-room console, not a crank (the old FINDINGS s69/s74 "crank" and
-"bridge-lowering cutscene" labels are withdrawn). The AREA01 route capture
-shows the following (FINDINGS "AREA01 route capture", port
-`SECOND_LEVEL_ROUTE.md` section 2):
+"bridge-lowering cutscene" labels are withdrawn). The character is Roger:
+the placement's behaviour (0x825350) binds D_0028A490[0x47], his body, with
+face slot 0x88 and speaker slot 1 (FINDINGS "Cut-content census" section 7,
+2026-10-16). The AREA01 route capture shows the following (FINDINGS "AREA01
+route capture", port `SECOND_LEVEL_ROUTE.md` section 2):
 
 - With the story byte D_008107D9 = 0 the character's conversation is
   optional and changes no sampled progress byte.
@@ -452,7 +455,8 @@ not a proof of unreachability.
 - **AREA01, unvisited:** the north room beyond the two 0x8261A0 owners
   (called bridges in FINDINGS; not seen moving), the upper floor (doors to
   area 0x16 and AREA06), a second character record [38] (overlay 0x825740,
-  not spawned in the recorded load), and several deferred pickups (port
+  not spawned in the recorded load; it binds Roger's body like [36], FINDINGS
+  "Cut-content census" section 7), and several deferred pickups (port
   `SECOND_LEVEL_ROUTE.md` section 7).
 - **Functions that never ran** on either route: the gun-light-reactive
   00138900 and the alert-timer family 001418F0 / 0013D850 / 0013D980 /
@@ -616,6 +620,24 @@ the local transcription and the user's listening; translations ours):
 - AREA04 line 0xF3 (a voiced hint, cue 171) is not reached by any script; an
   object probably starts it (not traced), so it is not counted as cut.
 
+## 31. Two corpse models AREA00 loads and never places — partial
+
+*Kind: assets (unused copies; trivia).* AREA00 sub 0 and sub 1 load an
+area model table whose entries 0x16-0x18 are rigid corpse meshes: 0x16 is
+the gutted civilian placed in the AREA02 office, 0x17 a sitting body and
+0x18 a lying one that exist nowhere else on the disc (FINDINGS
+"Cut-content census" section 9; `tools/character_census.py`).
+
+- **Never placed (static census).** No placement record, deferred-spawn
+  record or constant model-table bind (001C6120 on D_0028A59C) in any
+  overlay or the ELF names entries 0x16-0x18 in AREA00. A bind through a
+  computed index is not excluded.
+- **Wrong textures there.** Each carries a single texture reference that
+  AREA00's own level upload fills with other texels, so drawn in AREA00
+  they would be wrongly textured; this fits copies left in the table, not
+  props meant for the area.
+- Not restorable: nothing on the disc says where they would lie.
+
 ---
 
 ## Notes for the port's candidate lists
@@ -688,8 +710,10 @@ Kept so the old claims are not reintroduced.
     no speaker slot is unaccounted for (0-9 are ten known characters), no
     voice cue or cutscene stream speaks of one (all 178 cues and the 38
     cutscene streams transcribed), and no body or face on the disc is small
-    or young (section 8). The 1- to 4-node meshes and overlay data were not
-    inspected for a static body.
+    or young (section 8). The static one- to four-node meshes were inspected
+    on 2026-10-16 (section 9): their bodies are adult corpses, and every
+    scripted actor is a named adult (section 7). Meshes inside overlays were
+    not scanned.
   - **The reporter as a boss: not found.** Travis Miller has one body (a
     civilian with a camera, AREA08 and AREA13 only), no mesh reuses its
     parts, no line or cue has him die or turn, and his unused Japanese

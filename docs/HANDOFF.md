@@ -65,6 +65,11 @@ cut audio, including an unused conversation with the journalist
 (CURIOSITIES 29, 30, withdrawn-claims note; FINDINGS "Cut-content census";
 `tools/cut_content_census.py`). Evidence lives in ignored
 `build/cut_content/` of the main checkout.
+Follow-up the same day: `tools/character_census.py` names every scripted
+actor from the code (001BA8E0 face table, 001BA580 speaker-slot table) and
+ties it to its mesh through the load sets; the static one- to four-node
+meshes are adult corpses only (FINDINGS "Cut-content census" sections 7-9,
+CURIOSITIES 31). The NEARMISS C of 001BA8E0 / 001BA580 was corrected.
 
 ## 2026-10-16: func_002061B0 corrected (movie display gate)
 The C now has the original's field-wait loop (repeat func_001009C8(0) while it equals
