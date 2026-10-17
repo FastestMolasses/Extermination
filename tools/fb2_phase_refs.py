@@ -41,6 +41,8 @@ no emulator running.  No original code or data is embedded; addresses only.
     .venv/bin/python tools/fb2_phase_refs.py chain --variant d5 --beats 01,...,12
     .venv/bin/python tools/fb2_phase_refs.py capture --variant d5 --points first_control,10_cage_roof_roger
     .venv/bin/python tools/fb2_phase_refs.py manifest
+    .venv/bin/python tools/fb2_phase_refs.py capture --variant d4 --points 08_truck_crossing,13_east_tower,14_roger_encounter --out build/fork_refs/pixels/fb2_phase_d4b_1016
+    .venv/bin/python tools/fb2_phase_refs.py manifest --root build/fork_refs/pixels/fb2_phase_d4b_1016 --port-phase press15
 """
 from __future__ import annotations
 
@@ -257,6 +259,22 @@ PORT_PHASE = {
     "12_crevice_jump": ("0x38", 1936.5),
     "15_level_exit": ("0x0", 1936.0),
 }
+# Since the port's fixtures press New Game at title menu tick 15 (port
+# STARTUP.md; 2026-10-16), the New Game movie enters on D_00810E80 = 1 as in
+# the canonical run and the port's field at every point is the other one:
+# the d4 chain's.  The second set (manifest --root <folder> --port-phase
+# press15) records 08, 13 and 14 there.
+PORT_PHASE_PRESS15 = {
+    "first_control": ("0x0", 1936.0),
+    "08_truck_crossing": ("0x38", 1936.5),
+    "10_cage_roof_roger": ("0x0", 1936.0),
+    "11_crevice_prompt": ("0x38", 1936.5),
+    "12_crevice_jump": ("0x0", 1936.0),
+    "13_east_tower": ("0x38", 1936.5),
+    "14_roger_encounter": ("0x0", 1936.0),
+    "15_level_exit": ("0x38", 1936.5),
+}
+PORT_PHASES = {"press14": PORT_PHASE, "press15": PORT_PHASE_PRESS15}
 POINT_SOURCE = {"first_control": "04"}
 
 
@@ -326,8 +344,8 @@ def pixel_diff(a: Path, b: Path, z: bool = False) -> dict:
             "alpha_pixels_differ": int(((x >> 24) != (y >> 24)).sum())}
 
 
-def point_entry(label: str) -> dict:
-    d = OUTROOT / label
+def point_entry(label: str, root: Path = OUTROOT, port_phase: dict = PORT_PHASE) -> dict:
+    d = root / label
     cap = json.loads((d / "capture.json").read_text())
     meta = json.loads((d / "meta.json").read_text())
     pcap = json.loads((PRIMARY / label / "capture.json").read_text())
@@ -339,7 +357,7 @@ def point_entry(label: str) -> dict:
         rows.append({"k": x["k"], "counter": [x["counter"], y["counter"]], "vsync": [x["vsync"], y["vsync"]],
                      "fields_equal": not diff, "differing": diff})
     t_alt, t_pri = tops(meta), tops(pmeta)
-    want = PORT_PHASE.get(label)
+    want = port_phase.get(label)
     s1 = t_alt["s1"]
     phase = {
         "port_s1": {"frame_fbp": want[0], "ofy": want[1]} if want else None,
@@ -383,20 +401,27 @@ def point_entry(label: str) -> dict:
 
 
 def cmd_manifest(a) -> None:
-    path = OUTROOT / "manifest.json"
+    root = Path(a.root).resolve() if a.root else OUTROOT
+    port_phase = PORT_PHASES[a.port_phase]
+    path = root / "manifest.json"
     m = json.loads(path.read_text()) if path.exists() else {}
     m["what"] = ("fb2 points re-recorded on the PCSX2 fork at the port's field phase: the same game state as the "
                  "primary fb2 point (build/fork_refs/pixels/fb2), drawn with the port's drawing buffer and half "
                  "line (the port's GS_EXACT.md 10.3).  Same layout as the primary set.  tools/fb2_phase_refs.py")
+    if root != OUTROOT:
+        m["what"] += ("  A second set: the points whose port phase is the d4 chain's once the port's fixtures "
+                      "press New Game at title menu tick 15 (port_phase " + a.port_phase + "); the cross-checks "
+                      "(checks) stay in " + str(OUTROOT.relative_to(ROOT)) + "/manifest.json.")
+    m["port_phase"] = a.port_phase
     m["how"] = A_HOW
     m["recorded"] = time.strftime("%Y-%m-%d %H:%M:%S")
     m["fork"] = {"repo": str(pcsx2_session.FORK_REPO), "repo_head": fs.fork_head()}
     m.setdefault("points", {})
     m["findings"] = FINDINGS
-    m["checks"] = checks()
-    for label in (a.points.split(",") if a.points else sorted(p.name for p in OUTROOT.iterdir()
+    m["checks"] = checks() if root == OUTROOT else {}
+    for label in (a.points.split(",") if a.points else sorted(p.name for p in root.iterdir()
                                                                 if (p / "capture.json").exists())):
-        m["points"][label] = point_entry(label)
+        m["points"][label] = point_entry(label, root, port_phase)
         e = m["points"][label]
         print(label, "variant", e["variant"], "rows_equal", e["rows_equal"], "rand", e["rand_state_s2"]["equal"],
               "s1", e["phase"]["phase_s1"], "port", e["phase"]["port_s1"], "equals_port", e["phase"]["equals_port"],
@@ -503,6 +528,9 @@ def main() -> None:
     p.add_argument("--out", default="", help="output folder (default build/fork_refs/pixels/fb2_phase)")
     p = sub.add_parser("manifest")
     p.add_argument("--points", default="")
+    p.add_argument("--root", default="", help="the set's folder (default build/fork_refs/pixels/fb2_phase)")
+    p.add_argument("--port-phase", default="press14", choices=sorted(PORT_PHASES),
+                   help="the port's field per point the set is recorded for (press14: the first set's)")
     a = ap.parse_args()
     {"scan": cmd_scan, "origin": cmd_origin, "chain": cmd_chain, "capture": cmd_capture,
      "manifest": cmd_manifest}[a.cmd](a)
