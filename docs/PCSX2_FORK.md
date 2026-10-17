@@ -696,9 +696,11 @@ primary, plus `findings` and `checks`). Tool: `tools/fb2_phase_refs.py`
   - **After the movie** every iteration takes one vsync on the fork.
     v2.6.3's s1 (0x0, 1936.0) came from a 2-vsync iteration of its capture
     session (host timing).
-  - **The port** plays movies on the host media player's clock, so its
-    field after E001 is its hard-coded relation, not the code's (HANDOFF.md;
-    port FIRST_LEVEL_AUDIT F1).
+  - **The port** played movies on the host media player's clock with a
+    hard-coded field relation until 2026-10-16; it now runs the code's
+    field model (port em_movie_field.h, GS_EXACT.md 10.4 "The field
+    clock"), and its fixtures press New Game on the canonical run's movie
+    entry (D_00810E80 = 1).
   - **`fb2_phase/15_level_exit`** is the d4 chain's point: the same game
     state on the port's half line (1936.0) in the other buffer (0x38).
 - **The buffer does not change a pixel.** The d7 chain (fi as canonical,
@@ -719,6 +721,22 @@ primary, plus `findings` and `checks`). Tool: `tools/fb2_phase_refs.py`
 .venv/bin/python tools/fb2_phase_refs.py manifest
 ```
 
+**The second set (2026-10-16).** Since the port's fixtures press New Game
+at title menu tick 15 (its New Game movie entered on D_00810E80 = 1, as
+the canonical run), the port's field at every point is the d4 chain's.
+08_truck_crossing, 13_east_tower and 14_roger_encounter were captured from
+the d4 chain into a new folder, `build/fork_refs/pixels/fb2_phase_d4b_1016/`,
+with its own manifest (`port_phase` press15: the port's phase per point in
+`PORT_PHASE_PRESS15`; `checks` stay in the first set's manifest). All three:
+capture rows equal to the primary's on every field but the phase, the same
+rand() state at s2, s1 on the port's buffer and half line (08 and 13 at
+0x38 / 1936.5, 14 at 0x0 / 1936.0). The port's harness searches both sets.
+
+```sh
+.venv/bin/python tools/fb2_phase_refs.py capture --variant d4 --points 08_truck_crossing,13_east_tower,14_roger_encounter --out build/fork_refs/pixels/fb2_phase_d4b_1016
+.venv/bin/python tools/fb2_phase_refs.py manifest --root build/fork_refs/pixels/fb2_phase_d4b_1016 --port-phase press15
+```
+
 ### Field timing probes (2026-10-16)
 
 These probes ran because of the comparison video's frame timing
@@ -732,10 +750,11 @@ sound-bank SIF DMA's first status query".
 | Folder | Run | What it measured |
 |---|---|---|
 | `movie_end/canon`, `movie_end/d4` | E001 from the canonical and the d4 chain's beat 15 | the gate's field, every send (2,305 field-0 / field-1 pairs, none repeated), the 125-vblank stall before the last 2 pictures, the play loop's state-3 exit in the last field-1 send's field, the teardown's return (canonical: within the field; d4: 0.37 into the next one), the closing waits' fields (0, 1 canonical; 1, 0 d4); `cycles.json` gives each event's cycle within its vblank |
-| `newgame/d0`, `newgame/d1` | the New Game movie (d0 played to its end: gate 289, feed end 9,907, held sends 9,909..9,912) and the AREA11 load | the movie's 4,761 pairs and 101-vblank stall; the 15 001FB370 calls with the pending sceSifDmaStat at call 3 |
+| `newgame/d0`, `newgame/d1` | the New Game movie (d0 played to its end: gate 289, feed end 9,907, held sends 9,909..9,912) and the AREA11 load | the movie's 4,761 pairs and 101-vblank stall; the teardown's return (d0: 0.33 into vblank 9912, the entry's field; d1: 0.83 into 9913, 1.79 fields after the entry 0.035 into 9912, so d1's closing waits return 1, 0 and its movie ends on field 0, `movie_events.json`); the 15 001FB370 calls with the pending sceSifDmaStat at call 3 |
 | `screens/01_battery`, `screens/03_panel_power` (+ `_listsize`) | route beats 01 and 03 into the status pages | the displayed field per vblank (`cap/` frame store) and the packet buffers' write pointers at the 00101F08 kick: the entry pair's empty lists, the field shown again (193 = 191, 194 = 192; 390 = 388, 391 = 389) |
+| `skip/d0_start_1016c` (`tools/probe_skip.py d0_start_1016c 0 320`) | the New Game movie of the canonical boot (entered on D_00810E80 = 1) with START held from 00203350's entry, as the comparison video does (a stop probe on the driver's entry sets the raw pad; released at the next loop top) | 12 field-0 and 12 field-1 sends (pictures 0..11); the gate 25 vblanks after the driver's entry; 00206B70 at gate + 22 with the field D_002DF740 +8 at 11 (the C's queue depth); the play loop's end at gate + 25 and the return at gate + 27 (sync #4 field 1); the loop tops after it (fi 0, fld 1). `skip/d0_start_1016` and `d0_start_1016b` are failed attempts (an unaligned read; START never set) kept as they are |
 
-The fork's late teardown in d4 is emulated IOP timing. CLAUDE.md's rule
+The fork's late teardowns in d4 and newgame/d1 are emulated IOP timing. CLAUDE.md's rule
 (the code at host speed is the oracle) makes the port follow the code's
 field 1, not that delay.
 

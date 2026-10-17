@@ -4588,8 +4588,8 @@ into D_00810E88.
 
 So outside movies the relation between D_00810E88 and D_00810E80 never
 changes. It starts as D_00810E88 = 1 - D_00810E80 at the first loop top,
-which is what the port hard-codes (em_frame.c step P sets the field from
-the buffer index). A load of another length shifts which tick gets which
+which the port hard-coded until 2026-10-16 (em_frame.c step P set the
+field from the buffer index; its field model now follows this section). A load of another length shifts which tick gets which
 buffer and half line, both together (PCSX2_FORK_GS_DIFF.md 5.2: an odd
 number of extra iterations flips both), but never the relation. Only a
 movie can change it (next part). On the canonical chain the New Game movie
@@ -4616,15 +4616,27 @@ table is described in "The level exit's movie table" below. The steps:
 - **The play loop's exit.** 002036E0 (NEARMISS) exits through its
   00206B80 == 3 break in the same field as the last field-1 send. The other
   exit, 00206CC0 "flushed" (byte-matched), never fired in four runs.
-- **The START skip.** 002036E0 honours it only once the decoder's picture
-  count (D_002DF740 +8) reaches 11.
+- **The START skip.** 002036E0 honours it only once the field at
+  D_002DF740 +8 is at least 11 (0xB; the C comment of src/func_002036E0.c
+  calls it the handle's queue-depth field). The probe saw that field reach
+  11 after 11 pictures, so it reads as a picture count, but the label is
+  not decoded.
 - **The teardown.** 00203C90 calls 00113CD0, which issues 00113F68's SIF
   RPC (all byte-matched; the last two are eegcc). In the canonical E001 run
   it returned within that field (00113CD0 returned 0.07 of a field after
   the vblank). In two fork runs it returned 1.3 to 1.8 fields after
-  00203C90's entry. One of them is E001 d4: entry 0.04 into the field of
-  vblank 5192, return 0.37 into 5193's. That delay is the emulator's
-  IOP/disc timing, which the port does not reproduce.
+  00203C90's entry:
+  - E001 d4: entry 0.04 into the field of vblank 5192, return 0.37 into
+    5193's (1.33 fields);
+  - the New Game movie of newgame/d1 (`build/fork_refs/probes_1016/newgame/
+    d1/movie_events.json`): entry 0.035 into 9912, 00113F68's RPC return
+    0.83 into 9913 (1.79 fields), so the closing waits return field 1 and
+    then field 0, and that movie ends on field 0 (00203350 returns at
+    9915). In newgame/d0 the same return came 0.33 into 9912, inside the
+    entry's field, and the waits returned 0, then 1.
+
+  That delay is the emulator's IOP/disc timing, which the port does not
+  reproduce.
 - **Two closing waits.** 00203350 then calls 001009C8 twice more. At host
   speed they return field 0, then field 1.
 
@@ -4654,24 +4666,43 @@ for a while:
 - The last 2 pictures (4 sends) arrive only after the first feed loop has
   exited on its byte budget.
 
-The port's FIELD step reads the cause from the code as follows (its
-`em_movie_field.h`, not committed; saved in the ignored port
-`build/movie_fields_r2/final_054754/`). The two held pictures are the stream's last
-coded picture and the reference picture before it. The decoder outputs them
-only once 00206BF0 (NEARMISS) has pushed its 4 bytes after the stream. The
-feed loop's last bytes are the trailing sound, which the IOP rings take only
-as the SPU2 plays it. That last link is inferred: the IOP side that reports
-the play position is not translated. The stall's length is therefore the
-fork's measurement: from the gate to the feed's end, 4,731 vblanks in E001
-and 9,618 in the New Game movie. Until the IOP side is read this is not a
+The port's field model (port `em_movie_field.h`, its GS_EXACT.md 10.4
+"The field clock") reads the cause from the code as follows. The two held
+pictures are the stream's last coded picture and the reference picture
+before it. The decoder outputs them only once 00206BF0 (NEARMISS) has
+pushed its 4 bytes after the stream. The feed loop's last bytes are the
+trailing sound, which the IOP rings take only as the SPU2 plays it. That
+last link is inferred: the IOP side that reports the play position is not
+translated. Where the stall (125 vblanks in E001, 101 in the New Game
+movie) ends therefore comes from the fork's measurement: the feed loop ends
+4,731 vblanks after the gate in E001 (canon and d4 alike) and 9,618 in the
+New Game movie. Until the IOP side is read this is not a
 decoded quirk, so CURIOSITIES.md has no entry.
 
-**What the port does.** The port plays movies on the host media player's
-clock (AVPlayer / AVFoundation, `em_movie.*`, `em_frontend.c`) and steps the
-field hook on every step. An uncapped run took 728,724 steps for E001,
-against about 4,752 vblanks. So the port's field after a movie is its
-hard-coded relation, never the original's. A port change that plays the
-movie on the vblank clock is pending a lead decision (HANDOFF.md).
+**What the port does (2026-10-16).** The port used to play movies on the
+host media player's clock (AVPlayer) and set the field from the frame index
+at step P; an uncapped run took 728,724 steps for E001. It now plays every
+movie on the vblank clock, one vblank per step, with the model above (port
+`em_movie_field.h`): the pictures from the decoder when their field-0 half
+is sent and the PCM through the game's mixer; E001 takes 4,740 / 4,741
+steps, the New Game movie 9,628 / 9,629. Its fixtures press New Game at
+title menu tick 15, so the New Game movie is entered on D_00810E80 = 1 as
+in run d0. Roger's departure movie is then entered on 1 in the port (13,640
+iterations later, even at host speed) and on 0 in the canonical chain, so
+after it the port keeps the frame index and the field different; that is
+this rule applied to each run.
+
+**The START skip, measured (2026-10-16).** With START held from 00203350's
+entry (the comparison video's press; `build/fork_refs/probes_1016/skip/
+d0_start_1016c`, `probes_1016/tools/probe_skip.py`), the canonical boot's
+New Game movie showed 12 pictures (12 field-0 and 12 field-1 sends):
+00206B70 was called at gate + 22 with the field D_002DF740 +8 (the C's queue depth) at
+11, the play loop ended in the last field-1 send's vblank (gate + 25) and
+00203350 returned at gate + 27 on field 1. The gate came 25 vblanks after
+the driver's entry (the opening's disc and IOP set-up, emulated time). The
+port, at host speed, honours the skip when the count reaches 11 (gate + 19)
+and gives the same pictures, end, return and next loop tops (port
+`tools/test_movie_skip_reference.py`).
 
 **Iterations that draw nothing show the buffer's older picture.** Every
 iteration kicks its VIF1 chain (00101F08, eegcc NEARMISS). Two iterations at

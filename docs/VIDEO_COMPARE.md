@@ -463,13 +463,23 @@ agree.
   every captured row: the register-address words must be the ones above,
   exactly one slot may draw into the shown buffer, that slot must not be
   +0x9C's (the list built last, tick t + 1's), and context 2's FRAME and
-  XYOFFSET must equal context 1's; a row that fails gets no `line` (with
-  the reason). The pass prints the totals and stores them as
-  `ps2_extra.json` `info.drawn_check` (captured, resolved, not_slot_9c,
-  ctx2_equal, fallback). On the 2026-10-16 test recording (the review
-  re-run on port 92786d2, `build/video_compare/review_phase_1016/ps2/ps2_extra.json`)
-  all 419 captured rows resolved to one slot, none was +0x9C's, context 2
-  agreed on all 419, no fallback. `uniform` marks a buffer of one colour.
+  XYOFFSET must equal context 1's. Only the first two clear a row's
+  `line` (with the reason: no draw environments read, a register address
+  that is not the layout's, or not exactly one slot drawing into the shown
+  buffer); a row whose slot is +0x9C's, or whose context 2 differs, keeps
+  its `line` and is only counted (`slot_is_not_9c` / `ctx2_equal` false),
+  so check those two totals before trusting a phase report. The pass
+  prints the totals and stores them as `ps2_extra.json`
+  `info.drawn_check` (captured, resolved, not_slot_9c, ctx2_equal,
+  fallback). On the 2026-10-16 test recording (the review's re-run on port
+  92786d2, a fork pass made before `info.drawn_check` existed) the totals
+  computed from its rows with the same formula
+  (`build/video_compare/phase_test/drawn_check_1016.json`, ignored, which
+  names its source file and that file's SHA-256) are: all 419 captured rows
+  resolved to one slot, none was +0x9C's, context 2 agreed on all 419, no
+  fallback (401 rows on line 0, 18 on line 1). The stored
+  `info.drawn_check` has not yet run in a live fork pass; the next one's
+  replaces this receipt. `uniform` marks a buffer of one colour.
 - **The report** (`<name>_drift.txt` / `.json`, key `field_phase`; also
   `drift --out`): per segment the frame pairs at the same offset, how many
   carry a field on both sides, how many of those are on the same and on the
@@ -505,9 +515,10 @@ agree.
   - a load whose length differs by an odd count;
   - the level-exit movie E001. The original ends it on field 1 at host
     speed; the fork can end it a field late when its teardown RPC spans a
-    vsync (docs/PCSX2_FORK_GS_DIFF.md 5.3a). The port, until its FIELD step
-    lands, plays it on the media player's clock with its hard-coded
-    relation (docs/HANDOFF.md);
+    vsync (docs/PCSX2_FORK_GS_DIFF.md 5.3a). The port's FIELD step
+    (implemented 2026-10-16, not yet committed; docs/HANDOFF.md) plays it
+    on the vblank clock, ending on field 1; before it the port used the
+    media player's clock with a hard-coded relation;
   - an iteration that draws nothing. This changes no phase, but the PS2
     shows the buffer's picture from two iterations before, while the port
     presented black there (no field to compare) until port 72fee14, which
@@ -798,8 +809,8 @@ recorded, 111.5 s), and both videos recomposed from it and the same
 >   to be an empty-list iteration;
 > - port SIFDMA 92786d2: the sound bank's pending first query under the
 >   switch;
-> - the port's FIELD step (movies on the vblank clock), which is not yet
->   committed (docs/HANDOFF.md).
+> - the port's FIELD step (movies on the vblank clock), implemented
+>   2026-10-16 and not yet committed (docs/HANDOFF.md).
 >
 > Its lags and leads below are history, not the current port. Segment 24
 > (east tower, line 0x99), 218 port ticks against 219, is still untraced.
