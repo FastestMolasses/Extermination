@@ -1206,8 +1206,16 @@ cut).
   other one; no delay fixes both, so delay 0. MAD 0.692 over 3,520 pairs.
   Fan room (`check/fan_room_d0.png`): the blades' angle still differs
   (segment 26 offsets 1100 / 1200 / 1400: 2.7 / 3.2 / 4.3; segment 27
-  offset 120 / 360: 3.9 / 4.2). Sound: within one tick either way, as
-  before (mostly the port one tick later).
+  offset 120 / 360: 3.9 / 4.2). One-sided black or uniform frames: 16,
+  14 of them at the loads' ends (segments 2 and 29) plus 2 mid-level
+  frames that are dark on both sides with one side just under the
+  near-black threshold (segment 26 offset 44, segment 27 offset 24, MAD
+  0.00). Sound: best lag within about one tick either way, as before
+  (mostly the port one tick later; one onset in segment 23 is two ticks).
+- **The port side ran with the optional disc-drive switch**
+  (`EM_PS2_DISC_DRIVE_TIMING=1`, `logs/native_stage.log` "drive timing 1"),
+  because the recording is the drive-switch smoke run; that switch is off
+  in the default Original profile. A post's caption should say so.
 - **So the frame timing item (A) is not fixed by anything committed**: it
   is the open sound-driver tick-phase decision (section "Timing follow-ups"
   above; port LAUNCHER_OPTIONS.md). Item (B) is fixed (the checker passes).
@@ -1221,7 +1229,10 @@ cut).
   SSIM 0.983 against its source cuts): the opening 5-19 s, the hill slide
   70-80 s and, since segments 25-31 still disagree, a third cut from
   segments 21-23 at 160-182 s (the flame on the pipe, the crevice cutscene
-  and the jump) instead of the fan room. `verify_outputs.json`: all four
+  and the jump) instead of the fan room. The full-length copies still show
+  the fan-room blades at different angles (segments 25-31, the half-line
+  difference above) and nothing on screen says so: a caption posting them
+  must mention it. `verify_outputs.json`: all four
   decode without an error, the audio is present, and at all twelve spot
   checks both sides match the exact tick best.
 - demo_level_1017's frames and `audio.wav` files were deleted (identical to

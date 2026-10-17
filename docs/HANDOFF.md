@@ -69,8 +69,12 @@ still 220 / 219 and segments 25-31 (the fan room) still on the other half
 line**: item A waits on the user's sound-driver tick-phase decision (port
 LAUNCHER_OPTIONS.md); nothing committed changes it. So the Discord excerpt's
 third cut is segments 21-23 (160-182 s: the pipe flame, the crevice
-cutscene, the jump), not the fan room. demo_level_1017's frames and audio
-were deleted; its videos and reports stay.
+cutscene, the jump), not the fan room. If the full-length copy is posted,
+its caption must mention the fan-room half-line difference and that the
+port side ran with the optional disc-drive switch (`EM_PS2_DISC_DRIVE_TIMING=1`,
+off by default). The user's "fix the frame timing first" is therefore only
+half met: tell them plainly before posting. demo_level_1017's frames and
+audio were deleted; its videos and reports stay.
 
 ## 2026-10-16: the timing follow-ups of demo_level_1017 (committed df0720c, 85b1c46)
 Details: VIDEO_COMPARE.md "Timing follow-ups 2026-10-16 (after
