@@ -797,7 +797,7 @@ recorded, 111.5 s), and both videos recomposed from it and the same
 
 ## Demo run 2026-10-09 (demo_level: the whole first level)
 
-> **Predates the frame-timing fixes.** This run (recorded 2026-10-09 07:51
+> **Superseded by demo_level_1017; predates the frame-timing fixes.** This run (recorded 2026-10-09 07:51
 > on port 0eea8b5) predates:
 > - port fc986dc, the 17-field seek after a module-loader read under
 >   `EM_PS2_DISC_DRIVE_TIMING=1`, which fixed the opening's 11-tick lead,
@@ -1032,7 +1032,12 @@ edit and check scripts and their outputs).
   the title (by construction), the first load 267 / 274, segment 24
   (east tower) **220 / 219** (the cutscene releases one tick later on the
   port; every recorded column is equal; the smoke's east_tower check
-  passes against route 13; not traced) and the AREA01 load 94 / 302. The
+  passes against route 13; not traced) and the AREA01 load 94 / 302.
+  History for the trace: in demo_level (2026-10-09, port 0eea8b5) segment
+  24 was fork 219 / v2.6.3 219 / port 218, so the port moved from one tick
+  short to one tick long (+2 ticks) across 0eea8b5..f8616f9 while both PS2
+  runs stayed at 219; the commits in that range (most likely fc986dc's
+  drive-timing seek, SIFDMA 92786d2 or FIELD f8616f9) are where to look. The
   opening is 1,321 / 1,321.
 - **Field phase with delay 0:** segments 4 to 24 on the same half line in
   every pair with a field on both sides (8 of the 11 play segments); the
@@ -1055,7 +1060,12 @@ edit and check scripts and their outputs).
   captures cannot pair offset k with k - 1).
 - **Sound** (`logs/audio_sync_check.py`, `audio_sync_d0_by_segment.txt`):
   per-tick RMS envelopes correlate 0.80 to 0.998 at the best lag, which is
-  0 or one tick (16.7 ms) with the port later. Footsteps (segment 9) on the
+  within one tick (16.7 ms) either way: mostly the port one tick later or
+  equal; segments 8 and 27 the port one tick earlier (a reviewer's check of
+  the composed `sound_both` video's L / R envelopes also finds 27 and 31
+  one tick earlier on the port). The two 21-tick entries in segment 26's
+  onset deltas are detector pairing artifacts (unmatched onsets: the port
+  has the same rises one tick after the PS2's), not lags. Footsteps (segment 9) on the
   same tick except the first (port one tick earlier); the area music's hits
   in segment 17 (offsets 65, 234, 357, 533, 664, 832, 963 on the PS2) on
   the same tick or one later on the port (the 14-tick lead of 2026-10-09 is
@@ -1074,5 +1084,17 @@ edit and check scripts and their outputs).
   present, and at three spot checks per video both sides match the same
   tick: the full-length videos' frames match their captures of that tick
   best (against 4 ticks before or after); in the excerpt's third cut both
-  sides match the next capture best together (the cut starts one frame
-  off), so the sides stay in sync there too.
+  sides match the next capture best together. Cause (measured): the cuts
+  trim video on frame boundaries (cut 1 is 14.014 s, cut 2 10.010 s,
+  against 14 s and 10 s of audio) and concat pads the audio with 14 ms and
+  10 ms of silence, so cuts 2 and 3 start 14 / 24 ms later than nominal
+  (cut 3 at 24.024 s, about 0.36 frame); the spot check assumed the
+  nominal start. Audio and video stay in sync, and both sides with them.
+- **What the excerpt's third cut shows.** Roger in the fan room (200-222 s)
+  lies entirely in segments 25 to 31, past segment 24's open one-tick
+  difference: the other half line, and the fan blades' angle visibly
+  differs (a reviewer measured segment 27 offset 360: difference 4.3, the
+  blades rotated). It is the one region where the sides differ for a
+  timing reason not yet traced. Alternatives for the user: a third cut
+  from segments 9 to 24 (the cage-roof cutscene or the crevice, same half
+  line on every pair), or trace segment 24 first. The user's choice.

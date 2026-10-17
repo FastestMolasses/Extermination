@@ -78,9 +78,14 @@ fork, delay 0, into the ignored `build/video_compare/demo_level_1017/`
   switch off): the check or the port's field at that iteration; (2)
   segment 24 (east tower) is 220 port ticks against the fork's 219, which
   puts segments 25 to 31 (the fan room, Roger, AREA01) on the other half
-  line and likely the fan blades' angle; (3) native.py's phase check
+  line and likely the fan blades' angle; on port 0eea8b5 (demo_level,
+  2026-10-09) it was 218 against 219, so look at 0eea8b5..f8616f9
+  (fc986dc's seek, SIFDMA, FIELD); the Discord excerpt's third cut (fan
+  room) shows this difference, and a cut from segments 9-24 is offered to
+  the user as an alternative; (3) native.py's phase check
   assumes one field relation per run (40 false reports after E001 entered
-  on 0); (4) the port's sound is 0 to 1 tick later than the original's.
+  on 0); (4) the port's sound is within one tick of the original's either
+  way (mostly one tick later).
 
 ## 2026-10-16: frame timing in the comparison video (fork probes, port fixes)
 The user's goal (2026-10-15) is to stop L1 optimisation and make the
