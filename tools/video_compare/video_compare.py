@@ -3,7 +3,7 @@
 native port, driven by the same recorded inputs.  docs/VIDEO_COMPARE.md.
 
   all      recording -> native playback -> PCSX2 playback -> drift report ->
-           composed MP4 (one command)
+           composed MP4, or a lossless MKV with --lossless (one command)
   native   play a recording on the native port (headless), keep frames/audio
   ps2      play a recording on the original in PCSX2, keep frames/audio
            (waits for build/.pcsx2.lock)
@@ -143,6 +143,8 @@ def run_all(a) -> int:
     if not a.skip_native:
         argv = [rec, "--out", str(run / "native"), "--port", a.port, "--stride", str(stride), "--sampling",
                 a.sampling, "--disc-timing", a.disc_timing]
+        if a.iop_tick_phase is not None:
+            argv += ["--iop-tick-phase", str(a.iop_tick_phase)]
         if want_native_audio:
             argv.append("--audio")
         if run_stage("native", argv) != 0:
@@ -154,7 +156,7 @@ def run_all(a) -> int:
             argv.append("--audio")
         if run_stage("ps2", argv) != 0:
             return 1
-    out = Path(a.out) if a.out else run / f"{a.name}.mp4"
+    out = Path(a.out) if a.out else run / f"{a.name}.{'mkv' if a.lossless else 'mp4'}"
     argv = ["--native", str(run / "native"), "--ps2", str(run / "ps2"), "--out", str(out),
             "--speed", str(a.speed), "--fps", str(a.fps), "--loads", a.loads, "--audio", a.audio,
             "--height", str(a.height)]
@@ -163,6 +165,8 @@ def run_all(a) -> int:
             argv += [flag, str(val)]
     if a.info:
         argv.append("--info")
+    if a.lossless:
+        argv += ["--lossless", "--lossless-codec", a.lossless_codec]
     if a.summary_seconds:
         argv += ["--summary-seconds", str(a.summary_seconds)]
     return run_stage("compose", argv)
@@ -177,7 +181,8 @@ def main() -> int:
     p = sub.add_parser("all", help="the whole pipeline")
     p.add_argument("recording")
     p.add_argument("--name", default="run", help="run folder under build/video_compare/")
-    p.add_argument("--out", help="output MP4 (default build/video_compare/<name>/<name>.mp4)")
+    p.add_argument("--out", help="output video (default build/video_compare/<name>/<name>.mp4, or .mkv with "
+                                 "--lossless)")
     p.add_argument("--port", default=str(ROOT.parent / "extermination-port"))
     p.add_argument("--speed", type=float, default=2.0)
     p.add_argument("--fps", type=float, default=30.0)
@@ -189,6 +194,9 @@ def main() -> int:
                         "area = the presented frame box-averaged to 640x480 (native.py -h)")
     p.add_argument("--ps2-frames", choices=["gs", "screenshot"], default="gs")
     p.add_argument("--disc-timing", choices=["recorded", "0", "1"], default="recorded")
+    p.add_argument("--iop-tick-phase", type=int, default=None, choices=range(128), metavar="N",
+                   help="native stage: the port's comparison-only EM_IOP_TICK_PHASE (0..127 half-lines; "
+                        "default unset; native.py -h)")
     p.add_argument("--fork-title-delay", default="0",
                    help="PS2 stage (fork): N ticks (default 0, as ps2.py), or auto = the delay that enters the "
                         "New Game movie on the port's frame index (ps2.py -h; which criterion auto should use "
@@ -197,6 +205,10 @@ def main() -> int:
     p.add_argument("--subtitle")
     p.add_argument("--height", type=int, default=480)
     p.add_argument("--target-mb", type=float)
+    p.add_argument("--lossless", action="store_true",
+                   help="compose a mathematically lossless .mkv (H.264 lossless RGB, or FFV1) with PCM audio "
+                        "instead of the MP4 (compose.py -h)")
+    p.add_argument("--lossless-codec", choices=["auto", "x264rgb", "ffv1"], default="auto")
     p.add_argument("--info", action="store_true")
     p.add_argument("--summary-seconds", type=float, default=0.0)
     p.add_argument("--skip-native", action="store_true", help="reuse <run>/native")

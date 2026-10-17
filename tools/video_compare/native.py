@@ -470,6 +470,10 @@ def run(args) -> int:
     if timing == "recorded":
         timing = rec.header.get("ps2_disc_drive_timing", "0")
     env["EM_PS2_DISC_DRIVE_TIMING"] = "1" if str(timing) == "1" else "0"
+    # The port's comparison-only IOP sound-driver tick phase (port docs/STARTUP.md "Developer switches",
+    # EM_IOP_TICK_PHASE; not a launcher option): unset unless asked for, so the port runs its default.
+    if args.iop_tick_phase is not None:
+        env["EM_IOP_TICK_PHASE"] = str(args.iop_tick_phase)
     for item in rec.header.get("env", []):                   # launch switches the recording used
         var, _, val = item.partition("=")
         if var in ("EM_NEW_GAME", "EM_SKIP_STARTUP"):
@@ -496,13 +500,19 @@ def run(args) -> int:
     log_rec = emrec.read(out / "native.rec")
     caps = [r for r in log_rec.rows if r["cap"] >= 0]
     print(f"native: exit {rc} in {seconds:.1f} s; {len(log_rec.ticks())} ticks, {len(caps)} captures requested, "
-          f"{reader.count} frames received, drive timing {env['EM_PS2_DISC_DRIVE_TIMING']}"
+          f"{reader.count} frames received, drive timing {env['EM_PS2_DISC_DRIVE_TIMING']}, IOP tick phase "
+          f"{env.get('EM_IOP_TICK_PHASE', 'unset')}"
           + (f"; errors: {reader.errors[:3]}" if reader.errors else ""), flush=True)
     tail = (out / "port.log").read_text(errors="replace").splitlines()
     for line in tail:
-        if line.startswith("replay:"):
+        if line.startswith("replay:") or "EM_IOP_TICK_PHASE" in line:
             print("  " + line)
-    ok = not reader.errors
+    phase_confirmed = args.iop_tick_phase is None or any(
+        f"IOP tick phase {args.iop_tick_phase} half-lines" in line for line in tail)
+    if not phase_confirmed:
+        print(f"native: ERROR: the port did not confirm EM_IOP_TICK_PHASE={args.iop_tick_phase} (a port build "
+              "without the switch?)", flush=True)
+    ok = not reader.errors and phase_confirmed
     if reader.count != len(caps):
         print(f"native: WARNING: {len(caps)} captures requested but {reader.count} frames arrived", flush=True)
         ok = False
@@ -556,7 +566,8 @@ def run(args) -> int:
             "uniform": v.get("uniform"),
             "counter": r["counter"] if r else None, "seg": r["seg"] if r else None, "off": r["off"] if r else None})
     (out / "frames.json").write_text(json.dumps(
-        {"sampling": args.sampling, "port_phase": phase, "frames": frames_out}, indent=0) + "\n")
+        {"sampling": args.sampling, "drive_timing": int(env["EM_PS2_DISC_DRIVE_TIMING"]),
+         "iop_tick_phase": args.iop_tick_phase, "port_phase": phase, "frames": frames_out}, indent=0) + "\n")
     return 0 if rc == 0 and ok else 1
 
 
@@ -575,6 +586,11 @@ def main(argv=None) -> int:
     ap.add_argument("--audio", action="store_true", help="render the port's mixer offline into audio.wav")
     ap.add_argument("--disc-timing", choices=["recorded", "0", "1"], default="recorded",
                     help="EM_PS2_DISC_DRIVE_TIMING for the playback (default: as recorded)")
+    ap.add_argument("--iop-tick-phase", type=int, default=None, choices=range(128), metavar="N",
+                    help="EM_IOP_TICK_PHASE for the playback: the port's IOP sound-driver tick grid starts N "
+                         "half-lines (0..127) into its period, a comparison-only alignment with one PS2 run "
+                         "(port docs/STARTUP.md \"Developer switches\"; default: unset, the port's default "
+                         "phase); recorded in frames.json and the summary line")
     ap.add_argument("--binary", default=None,
                     help="the port executable to run (default <port>/build/extermination; e.g. a private lane "
                          "build); it runs with the port checkout as its working directory")

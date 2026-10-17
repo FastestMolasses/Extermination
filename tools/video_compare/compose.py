@@ -1,6 +1,6 @@
 """compose.py - align the PS2 and native frame streams, label them, speed them
-up and encode a side-by-side H.264 MP4 (plus the drift report).
-docs/VIDEO_COMPARE.md.
+up and encode a side-by-side H.264 MP4, or with --lossless a mathematically
+lossless Matroska file (plus the drift report).  docs/VIDEO_COMPARE.md.
 
 Needs numpy and Pillow (labels are drawn with Pillow; this ffmpeg build has
 no drawtext) and ffmpeg/ffprobe on PATH.
@@ -22,9 +22,18 @@ silent.  both = the original in the LEFT channel and the port in the RIGHT
 (each downmixed to mono), so one track works in every player (Discord's
 inline player shows no track menu).  With --speed > 1 the audio is sped up
 with ffmpeg's atempo (pitch kept), so it stays in sync with the video.
+Output (MP4, the default): H.264 yuv420p (--crf, or two-pass to --target-mb)
+with AAC audio (--audio-kbps).  --lossless: an .mkv whose video is the
+composed RGB frames exactly (H.264 lossless RGB, libx264rgb -qp 0; or FFV1
+with --lossless-codec ffv1, also chosen by auto when libx264rgb is missing)
+and whose audio is uncompressed PCM s16le (the composed track; at --speed 1
+sample for sample, otherwise after atempo).  The lossless file is decoded
+again and its RGB frames (and, at --speed 1, its PCM) compared with what was
+composed, by SHA-256 (--no-verify skips it); the summary records the result.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import shutil
@@ -449,8 +458,40 @@ def atempo_chain(speed: float) -> str:
     return ",".join(parts)
 
 
+def lossless_video_codec(choice: str) -> tuple[str, list[str]]:
+    """The lossless encoder: H.264 lossless RGB (libx264rgb -qp 0) or FFV1 (RGB, level 3)."""
+    if choice == "auto":
+        r = subprocess.run(["ffmpeg", "-v", "error", "-hide_banner", "-encoders"], capture_output=True, text=True)
+        choice = "x264rgb" if " libx264rgb " in r.stdout else "ffv1"
+    if choice == "x264rgb":
+        return choice, ["-c:v", "libx264rgb", "-qp", "0", "-preset", "medium"]
+    return choice, ["-c:v", "ffv1", "-level", "3", "-pix_fmt", "bgr0", "-g", "1", "-slicecrc", "1"]
+
+
+def decoded_sha256(path: Path, stream: str, fmt: list[str]) -> tuple[str, int]:
+    """SHA-256 and byte count of one stream of a file as ffmpeg decodes it (raw, in the given format)."""
+    h, n = hashlib.sha256(), 0
+    p = subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(path), "-map", stream] + fmt + ["-"],
+                         stdout=subprocess.PIPE)
+    while True:
+        chunk = p.stdout.read(1 << 22)
+        if not chunk:
+            break
+        h.update(chunk)
+        n += len(chunk)
+    if p.wait() != 0:
+        raise SystemExit(f"compose: ffmpeg could not decode {path} ({stream})")
+    return h.hexdigest(), n
+
+
 def compose(args) -> dict:
     native_dir, ps2_dir, out = Path(args.native), Path(args.ps2), Path(args.out)
+    lossless = getattr(args, "lossless", False)
+    if lossless and out.suffix.lower() != ".mkv":
+        raise SystemExit("compose: --lossless writes Matroska: give --out a .mkv path")
+    if lossless and args.target_mb:
+        raise SystemExit("compose: --lossless and --target-mb exclude each other")
+    codec_name, lossless_vcodec = lossless_video_codec(args.lossless_codec) if lossless else (None, [])
     work = out.parent / (out.stem + "_work")
     if work.exists():
         shutil.rmtree(work)
@@ -488,9 +529,17 @@ def compose(args) -> dict:
         return None if row is None else folder / "frames" / f"{row['cap']:06d}.png"
 
     video = work / "video.mkv"
+    # the intermediate is lossless either way; with --lossless it is already the final video stream
+    vcodec_mid = lossless_vcodec or ["-c:v", "libx264rgb", "-qp", "0", "-preset", "ultrafast"]
     enc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s",
-                            f"{r.W}x{r.H}", "-r", f"{fps:.6f}", "-i", "-", "-c:v", "libx264rgb", "-qp", "0",
-                            "-preset", "ultrafast", str(video)], stdin=subprocess.PIPE)
+                            f"{r.W}x{r.H}", "-r", f"{fps:.6f}", "-i", "-"] + vcodec_mid + [str(video)],
+                           stdin=subprocess.PIPE)
+    frames_sha = hashlib.sha256() if lossless else None
+
+    def put(raw: bytes) -> None:
+        if frames_sha is not None:
+            frames_sha.update(raw)
+        enc.stdin.write(raw)
     summary_frames = int(round(args.summary_seconds * fps)) if args.summary_seconds > 0 else 0
     for e in picked:
         info = None
@@ -502,10 +551,11 @@ def compose(args) -> dict:
             info = (f"segment {e['seg']} ({e['ph']})  native counter "
                     f"{e['n']['counter'] if e['n'] else '-'} OFY {hn}  |  PS2 counter "
                     f"{e['p']['counter'] if e['p'] else '-'} OFY {hp}")
-        enc.stdin.write(r.frame(frame_path(ps2_dir, e["p"]), frame_path(native_dir, e["n"]), e["tag_p"],
-                                e["tag_n"], info))
+        put(r.frame(frame_path(ps2_dir, e["p"]), frame_path(native_dir, e["n"]), e["tag_p"], e["tag_n"], info))
     if summary_frames:
-        enc.stdin.write(summary_card(r, d, args) * summary_frames)
+        card = summary_card(r, d, args)
+        for _ in range(summary_frames):
+            put(card)
     enc.stdin.close()
     if enc.wait() != 0:
         raise SystemExit("compose: ffmpeg (intermediate) failed")
@@ -552,10 +602,35 @@ def compose(args) -> dict:
               "-movflags", "+faststart", "-tag:v", "avc1"]
     acodec = []
     if audio_wav:
-        acodec = ["-c:a", "aac", "-b:a", f"{args.audio_kbps}k"]
+        acodec = ["-c:a", "pcm_s16le"] if lossless else ["-c:a", "aac", "-b:a", f"{args.audio_kbps}k"]
         if args.speed != 1:
             acodec = ["-filter:a", atempo_chain(args.speed)] + acodec
-    if args.target_mb:
+    lossless_check = None
+    if lossless:
+        # the video stream as composed (copied, not re-encoded); the PCM track is as long as the video
+        # by construction, so nothing is cut
+        maps = ["-map", "0:v:0"] + (["-map", "1:a:0"] if audio_wav else [])
+        subprocess.run(cmd + maps + ["-c:v", "copy"] + acodec + [str(out)], check=True)
+        if getattr(args, "no_verify", False):
+            lossless_check = {"verified": False, "skipped": True}
+        else:
+            got, n = decoded_sha256(out, "0:v:0", ["-f", "rawvideo", "-pix_fmt", "rgb24"])
+            want = frames_sha.hexdigest()
+            lossless_check = {"video_sha256": want, "video_decoded_sha256": got, "video_bytes": n,
+                              "video_equal": got == want}
+            if audio_wav and args.speed == 1:
+                with wave.open(str(audio_wav)) as w:
+                    pcm = w.readframes(w.getnframes())
+                a_got, a_n = decoded_sha256(out, "0:a:0", ["-f", "s16le", "-ac", "2"])
+                lossless_check.update(audio_sha256=hashlib.sha256(pcm).hexdigest(), audio_decoded_sha256=a_got,
+                                      audio_bytes=a_n, audio_equal=a_got == hashlib.sha256(pcm).hexdigest())
+            elif audio_wav:
+                lossless_check["audio_equal"] = None   # atempo at --speed != 1 changes the samples by design
+            lossless_check["verified"] = lossless_check["video_equal"] and lossless_check.get("audio_equal") is not False
+            if not lossless_check["verified"]:
+                raise SystemExit(f"compose: the lossless file does not decode to the composed stream: "
+                                 f"{lossless_check}")
+    elif args.target_mb:
         total_kbps = args.target_mb * 8 * 1000 * 0.92 / duration       # MB = 10^6 bytes; 8 % margin (rate control, container)
         v_kbps = max(100, int(total_kbps - (args.audio_kbps if audio_wav else 0)))
         passlog = str(work / "x264pass")
@@ -572,7 +647,11 @@ def compose(args) -> dict:
     result = {"output": str(out), "frames": len(picked) + summary_frames, "fps": round(fps, 4),
               "capture_stride": stride, "ticks_per_output_frame": m * stride,
               "effective_speed": round(m * stride * fps / emrec.TICK_HZ, 4), "aligned_entries": len(entries),
-              "duration_s": round(duration, 3), "audio": audio, "notes": notes, "ffprobe": probe,
+              "duration_s": round(duration, 3), "audio": audio, "notes": notes,
+              "container": ("mkv-lossless" if lossless else "mp4"),
+              "video_codec": (codec_name if lossless else "libx264 yuv420p"),
+              "audio_codec": (None if not audio_wav else "pcm_s16le" if lossless else f"aac {args.audio_kbps}k"),
+              "subtitle": args.subtitle, "lossless_check": lossless_check, "ffprobe": probe,
               "drift": {k: d[k] for k in ("ticks_compared", "position_heading_bit_exact", "first_drift")},
               "field_phase": d["field_phase"]["total"]}
     (out.parent / (out.stem + "_summary.json")).write_text(json.dumps(result, indent=1) + "\n")
@@ -620,13 +699,21 @@ def add_compose_args(ap) -> None:
                          "audio.wav (the fork pass writes one: ps2.py --emulator fork --audio)")
     ap.add_argument("--audio-kbps", type=int, default=128)
     ap.add_argument("--title", default=None)
-    ap.add_argument("--subtitle", default=None)
+    ap.add_argument("--subtitle", default=None, help="optional line under the title (none by default)")
     ap.add_argument("--height", type=int, default=480, help="height of each side (4:3)")
     ap.add_argument("--scale-filter", choices=["nearest", "bilinear"], default="nearest")
     ap.add_argument("--info", action="store_true", help="footer with segment and counters")
     ap.add_argument("--summary-seconds", type=float, default=0.0, help="end card with the drift summary")
     ap.add_argument("--target-mb", type=float, default=None, help="two-pass encode to this size (10^6 bytes)")
     ap.add_argument("--crf", type=int, default=20)
+    ap.add_argument("--lossless", action="store_true",
+                    help="write a mathematically lossless .mkv instead of the MP4: the composed RGB frames "
+                         "exactly (H.264 lossless RGB, libx264rgb -qp 0, or FFV1) and the audio as PCM s16le; "
+                         "excludes --target-mb; --crf and --audio-kbps do not apply")
+    ap.add_argument("--lossless-codec", choices=["auto", "x264rgb", "ffv1"], default="auto",
+                    help="auto (default): libx264rgb when this ffmpeg has it, else FFV1")
+    ap.add_argument("--no-verify", action="store_true",
+                    help="--lossless: skip decoding the file again to compare it with the composed stream")
     ap.add_argument("--tol-pos", type=float, default=0.01)
     ap.add_argument("--tol-yaw", type=float, default=0.001)
     ap.add_argument("--keep-work", action="store_true")

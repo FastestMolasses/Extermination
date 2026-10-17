@@ -84,7 +84,7 @@ Output: `build/video_compare/my_run/my_run.mp4`, plus `my_run_drift.txt`,
 The command runs three stages, each also available on its own:
 
 ```sh
-python3 tools/video_compare/video_compare.py native  build/video_compare/my_run.rec --out build/video_compare/my_run/native [--stride 4] [--audio] [--disc-timing recorded|0|1] [--sampling gs|area] [--binary PATH]
+python3 tools/video_compare/video_compare.py native  build/video_compare/my_run.rec --out build/video_compare/my_run/native [--stride 4] [--audio] [--disc-timing recorded|0|1] [--iop-tick-phase N] [--sampling gs|area] [--binary PATH]
 python3 tools/video_compare/video_compare.py ps2     build/video_compare/my_run.rec --out build/video_compare/my_run/ps2 [--stride 4] [--audio] [--emulator legacy [--frames gs|screenshot]] [--fork-title-delay N|auto [--fork-title-delay-runs 3]]
 python3 tools/video_compare/video_compare.py compose --native build/video_compare/my_run/native --ps2 build/video_compare/my_run/ps2 --out my_run.mp4 [options]
 python3 tools/video_compare/video_compare.py drift   --native build/video_compare/my_run/native --ps2 build/video_compare/my_run/ps2 [--out build/video_compare/my_run/drift]
@@ -112,11 +112,15 @@ compose options without running PCSX2 again).
 | `--loads trim\|hold` | trim | loads: drop the longer side's middle load frames, or hold the shorter side's last load frame (tagged "held: the other side is still loading") |
 | `--audio none\|native\|original\|both` | none | `native` = the port's sound only (the header says so); `original` / `both` need a PS2 `audio.wav`, which only the fork pass produces (`ps2.py --emulator fork --audio`; the legacy app writes none, see "Audio"); `both` = original LEFT, port RIGHT (each downmixed to mono) |
 | `--disc-timing recorded\|0\|1` | recorded | `EM_PS2_DISC_DRIVE_TIMING` for the native playback |
+| `--iop-tick-phase N` | unset | `EM_IOP_TICK_PHASE=N` (0..127 half-lines) for the native playback: the port's comparison-only alignment of its IOP sound-driver tick grid with one PS2 run (port STARTUP.md "Developer switches"; not a player or launcher option; section "Lossless master and the IOP tick phase" below). Unset runs the port's default. The native stage fails if the port does not confirm the value on its log, and records it in `native/frames.json` (`iop_tick_phase`, with `drive_timing`) and its summary line |
 | `--sampling gs\|area` | gs | native frame: the port's exact 512x224 GS field, with the presented frame averaged over each field pixel's footprint where the port's overlay pass drew (see "Limits"), like with like with the PS2 field; or the presented 4:3 frame box-averaged to 640x480 |
 | `--ps2-frames gs\|screenshot` | gs | PS2 frame: the 512x224 GS field (needs the software renderer, switched for the session) or the save state's 640x480 host screenshot (hardware renderer, scaled and filtered by PCSX2) |
-| `--title`, `--subtitle` | none | header text |
+| `--title`, `--subtitle` | none | header text: the title line, and an optional smaller line under it (leave `--subtitle` out for no line; the game's own subtitles are part of the frames either way) |
 | `--height H` | 480 | height of each side (4:3, so 640x480 per side) |
 | `--target-mb M` | none | two-pass encode to M x 10^6 bytes (Discord's free limit is 10 MB) |
+| `--lossless` | off | write a mathematically lossless Matroska file instead of the MP4 (`--out` must end in `.mkv`; `all` then defaults to `<name>.mkv`): the video is the composed RGB frames exactly (H.264 lossless RGB, `libx264rgb -qp 0 -preset medium`, copied into the file without a second encode), the audio uncompressed PCM s16le (at `--speed 1` the composed track sample for sample; at other speeds after atempo). Excludes `--target-mb`; `--crf` and `--audio-kbps` do not apply. The file is decoded again and compared with the composed stream by SHA-256 (video always, audio at `--speed 1`); a mismatch fails the stage, and `<out>_summary.json` records `container`, the codecs and `lossless_check` |
+| `--lossless-codec auto\|x264rgb\|ffv1` | auto | `--lossless`'s video codec: auto takes libx264rgb when the ffmpeg has it, else FFV1 (level 3, RGB, every frame a key frame) |
+| `--no-verify` | off | `--lossless` without the decode-and-compare pass (compose stage only) |
 | `--fork-title-delay N\|auto` | 0 | the PS2 stage's title delay (fork), as in `ps2.py`: `auto` picks the delay that enters the New Game movie on the port's frame index (see "The field phase"; which criterion `auto` should use is an open lead decision) |
 | `--info` | off | footer with the segment, both counters and each side's drawn half line (OFY .0 / .5) |
 | `--summary-seconds T` | 0 | end card with the drift summary |
@@ -1158,7 +1162,9 @@ binary is byte-identical).
   one fork cold boot, not a PS2 measurement: on a PS2 the phase follows the
   time since the driver armed its timer (boot and title dwell). The choice
   (keep it, or a switch-on knob set from a recording) is listed for the user
-  in the port's LAUNCHER_OPTIONS.md "Decisions for the user to review". The
+  in the port's LAUNCHER_OPTIONS.md "Decisions for the user to review"
+  (decided 2026-10-17: a comparison-only alignment setting; section
+  "Lossless master and the IOP tick phase"). The
   capture that would pin it for a given recording: on the fork, the IOP
   side's driver-thread wakes (the hard-timer interrupt that runs the
   driver's command loop) and the RPC 0x64 reply arrival, each against the EE
@@ -1218,7 +1224,8 @@ cut).
   in the default Original profile. A post's caption should say so.
 - **So the frame timing item (A) is not fixed by anything committed**: it
   is the open sound-driver tick-phase decision (section "Timing follow-ups"
-  above; port LAUNCHER_OPTIONS.md). Item (B) is fixed (the checker passes).
+  above; port LAUNCHER_OPTIONS.md; decided 2026-10-17, next section). Item
+  (B) is fixed (the checker passes).
 - **Videos** (the same compose options as demo_level_1017, with
   `--audio-kbps 320`): `demo_level_1018_sound_both.mp4` (274,363,592 B) and
   `demo_level_1018_original_sound.mp4` (274,214,852 B), 237.9 s, 2394x1084,
@@ -1237,3 +1244,83 @@ cut).
   checks both sides match the exact tick best.
 - demo_level_1017's frames and `audio.wav` files were deleted (identical to
   these); its videos, reports, recordings, logs and `check/` stay.
+
+## Lossless master and the IOP tick phase (2026-10-17)
+
+User decisions of 2026-10-17: (1) "Align it for the video": a
+comparison-only setting, off by default and not a player or launcher
+option, that starts the port's IOP sound-driver tick phase at the point
+matching the fork run, the same kind of alignment as the PS2 side's
+`--fork-title-delay`; (2) one master only, mathematically lossless, with
+the original's sound and uncompressed PCM, no compressed or Discord copies,
+and without compose's `--subtitle` line ("we already have subtitles on both
+videos anyways"); every other text stays (title, side labels, speed badge,
+sound note, load tags, end card) and the game's own subtitles are in the
+frames.
+
+- **Port switch** `EM_IOP_TICK_PHASE=N` (port STARTUP.md "Developer
+  switches", IOP_STREAM.md item 3): the backend's driver tick grid starts N
+  half-lines (0..127) into its 128-half-line period; unset changes nothing
+  (the level smokes' tick logs byte-identical, newgame-control 9.599849).
+  Here: `native.py` / `video_compare.py` `--iop-tick-phase N`, recorded in
+  `native/frames.json` and the native summary line (the stage fails when
+  the port's log does not confirm the value).
+- **Lossless output**: `compose.py` / `video_compare.py` `--lossless` (an
+  `.mkv`: H.264 lossless RGB, `libx264rgb -qp 0`, or FFV1 with
+  `--lossless-codec ffv1`; PCM s16le audio), decoded again and compared
+  with the composed stream by SHA-256 (options table above). The MP4 mode
+  is unchanged. Tested 2026-10-17 on demo_level_1018's passes at `--height
+  300`, `--speed 1`, `--audio original`, no subtitle
+  (`build/video_compare/lossless_test_1017/`, the .mkv deleted afterwards):
+  3,550 frames, 804x348, 541 MB, video and PCM both equal to the composed
+  stream (`lossless_check.verified` true).
+- **The fit** (receipts in `build/video_compare/iop_phase_1017/` and the
+  port's `build/iop_phase_1017/`). The value counts from the port backend's
+  boot, so it depends on the fields the run spends before the level: the
+  level smoke's own run (whose fixture skips the attract and New Game movies
+  at 2.0 s) fits 104 (219 for segment 24 on phases 68..122, the lane-0
+  refills best at 104: 227 of 240 on the fork's field); the native playback
+  of `demo_level_1018.rec` skips them at the first picture the skip test
+  accepts, 204 fields earlier, which moves the relation by 13 x 204 mod 128
+  = 92 half-lines, so the playback's value is **68** (the playback at 68
+  equals the smoke at 104 in every stream and message row from counter 1400
+  to the E001 movie). A recording re-made from the smoke at 104
+  (`demo_level_p104.rec`, segment 24 = 219) is not the way: its playback
+  has the playback's own phase (220 at 104), and its exit input lies one
+  tick later in segment 27 (the fixture times it by counter), so it would
+  need its own fork pass (made: `ps2_fork_d0/`, frames deleted; the E001
+  movie then starts on field 1 on the fork). The video keeps
+  `demo_level_1018.rec` and its existing fork pass.
+- **Native pass at 68** (`native_p68/`, 327 s, with `--audio`): 3,520
+  frames, the field-phase check 3,397 of 3,397; movies at counters 1109 /
+  1329 on 1 and 15199 on 1. Against `demo_level_1018/ps2_fork_d0`
+  (`drift_p68.txt`): position and heading bit-exact on all 13,619 paired
+  ticks; every segment length equal except the title, the first load (267 /
+  274) and the AREA01 load (94 / 302): **segment 24 is 219 on both** (220 /
+  219 before). Half line: 3,292 of 3,397 pairs with a field on both sides
+  agree (2,690 before): segments 4..27 on every pair with a field on both
+  sides, 28 all but its last
+  frame (offset 100, the E001 entry), and the fan room (25..27) now on the
+  same line; still on the other line: the first load (as before) and the
+  frames after E001 (segment 29 offsets 0..88, segment 31). The fork enters
+  E001 on field 0 (its log: frame index 1, field 0), the port on 1 at
+  counter 15199: that movie-entry relation is the remaining difference
+  after the movie, not the tick phase.
+- **The master** (not made in this step): from the two passes,
+
+  ```sh
+  python3 tools/video_compare/video_compare.py compose \
+      --native build/video_compare/iop_phase_1017/native_p68 \
+      --ps2 build/video_compare/demo_level_1018/ps2_fork_d0 \
+      --out build/video_compare/<new run>/<name>.mkv --lossless \
+      --speed 1 --height 896 --audio original --summary-seconds 3 \
+      --title "Extermination (PS2): original vs native port"
+  ```
+
+  (demo_level_1017's options with `--lossless` in place of `--crf 12` and
+  no `--subtitle`; 2394 wide, the header one line shorter). Expect about
+  5 GB (the 804x348 test came to 152 KB a frame) and check `df` first. The
+  port pass ran with the optional disc-drive switch
+  (`EM_PS2_DISC_DRIVE_TIMING=1`) and the comparison-only tick phase 68;
+  both are off in the default Original profile, and a post's caption should
+  say so.
