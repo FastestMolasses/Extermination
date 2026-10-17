@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-16 (Claude: the port's FIELD step re-applied on port ded1bcb, uncommitted, fb2 14's floor reset by the user; the frame-timing findings for the comparison video and the port's fixes, below; earlier: the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-16 (Claude: the Discord comparison video demo_level_1017 on port main f8616f9, below; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -58,6 +58,30 @@ that is a different, stale tree.
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
 
+## 2026-10-16: the Discord comparison video (demo_level_1017)
+The user's request (2026-10-15): the side-by-side video for the PS2Recomp
+Discord after the frame-timing fixes. Made on port main f8616f9 and the
+fork, delay 0, into the ignored `build/video_compare/demo_level_1017/`
+(details, numbers and the file list: VIDEO_COMPARE.md "Demo run 2026-10-16
+(demo_level_1017)").
+- Recording from the level smoke's title route (menu tick 15 CROSS, drive
+  timing on); the fixture's title inputs and movie START written into the
+  pad column (`logs/make_demo_rec_1017.py`); playback bit-identical on all
+  15,361 ticks; position and heading bit-exact on all 13,619 paired ticks;
+  opening 1,321 / 1,321.
+- Videos: two full-quality 1x videos (sound both / original only, 274 MB
+  each, 237.9 s) and two Discord copies under 10 MB (46-s excerpt 9.46 MB,
+  full length 9.42 MB).
+- **Open leads (not fixed here):** (1) the smoke checker fails
+  `check_render_context` at the E001 entry tick when the drive-timing
+  switch makes the run enter E001 on D_00810E80 = 0 (passes with the
+  switch off): the check or the port's field at that iteration; (2)
+  segment 24 (east tower) is 220 port ticks against the fork's 219, which
+  puts segments 25 to 31 (the fan room, Roger, AREA01) on the other half
+  line and likely the fan blades' angle; (3) native.py's phase check
+  assumes one field relation per run (40 false reports after E001 entered
+  on 0); (4) the port's sound is 0 to 1 tick later than the original's.
+
 ## 2026-10-16: frame timing in the comparison video (fork probes, port fixes)
 The user's goal (2026-10-15) is to stop L1 optimisation and make the
 side-by-side video for the PS2Recomp Discord, once the frame timing is
@@ -75,7 +99,7 @@ sound-bank SIF DMA's first status query".
   was the emulator's late teardown RPC in the d4 chain, and is withdrawn
   (PCSX2_FORK.md, GS_DIFF 5.3a corrected).
 - **Port FIELD (movies on the vblank clock): implemented in the port tree,
-  re-applied on port ded1bcb (MINORS) and not committed (2026-10-16, step
+  re-applied on port ded1bcb (MINORS); committed as port f8616f9 (2026-10-16, step
   "Finish the code-exact field model and field-paced movies").** User
   decisions of 2026-10-16: keep the code-exact model and press New Game at
   title menu tick 15 (the New Game movie entered on D_00810E80 = 1 as in
@@ -115,9 +139,8 @@ sound-bank SIF DMA's first status query".
   segment. The 2026-10-09 demo predates port fc986dc and all three fixes
   (VIDEO_COMPARE.md). Segment 24's 218 port ticks against 219 is not
   traced.
-- **Next:** review and commit FIELD, then record the Discord video with `--fork-title-delay 0` (the
-  port's EM_NEW_GAME=1 run enters the New Game movie on D_00810E80 = 1, as
-  the fork's delay 0 does: measured 2026-10-16).
+- **Done:** FIELD committed (port f8616f9) and the Discord video recorded
+  (the section above).
 
 ## 2026-10-16: the comparison video reports the field phase
 `tools/video_compare/` now logs the half line each side drew every captured frame on

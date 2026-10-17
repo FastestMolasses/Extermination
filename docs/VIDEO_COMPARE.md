@@ -478,8 +478,9 @@ agree.
   names its source file and that file's SHA-256) are: all 419 captured rows
   resolved to one slot, none was +0x9C's, context 2 agreed on all 419, no
   fallback (401 rows on line 0, 18 on line 1). The stored
-  `info.drawn_check` has not yet run in a live fork pass; the next one's
-  replaces this receipt. `uniform` marks a buffer of one colour.
+  `info.drawn_check` first ran live in the demo_level_1017 fork pass
+  (below): captured 3,574, resolved 3,574, not_slot_9c 3,574, ctx2_equal
+  3,574, fallback 0. `uniform` marks a buffer of one colour.
 - **The report** (`<name>_drift.txt` / `.json`, key `field_phase`; also
   `drift --out`): per segment the frame pairs at the same offset, how many
   carry a field on both sides, how many of those are on the same and on the
@@ -516,7 +517,7 @@ agree.
   - the level-exit movie E001. The original ends it on field 1 at host
     speed; the fork can end it a field late when its teardown RPC spans a
     vsync (docs/PCSX2_FORK_GS_DIFF.md 5.3a). The port's FIELD step
-    (implemented 2026-10-16, not yet committed; docs/HANDOFF.md) plays it
+    (port f8616f9) plays it
     on the vblank clock, ending on field 1; before it the port used the
     media player's clock with a hard-coded relation;
   - an iteration that draws nothing. This changes no phase, but the PS2
@@ -809,12 +810,10 @@ recorded, 111.5 s), and both videos recomposed from it and the same
 >   to be an empty-list iteration;
 > - port SIFDMA 92786d2: the sound bank's pending first query under the
 >   switch;
-> - the port's FIELD step (movies on the vblank clock), implemented
->   2026-10-16 and not yet committed (docs/HANDOFF.md).
+> - the port's FIELD step (movies on the vblank clock), port f8616f9.
 >
-> Its lags and leads below are history, not the current port. Segment 24
-> (east tower, line 0x99), 218 port ticks against 219, is still untraced.
-> Make the Discord video from a new recording.
+> Its lags and leads below are history, not the current port. The video
+> made after all of them is demo_level_1017 (the last section).
 
 The user asked for the demo over the entire first level. Same method as
 demo_hill: the port level smoke's main line recorded with the recorder
@@ -985,3 +984,95 @@ the stage logs, `title_delay_scan.json` and the clip; the frames were deleted.
   follow; it would need each try to run past the load, about 350 more
   ticks). Until then `--fork-title-delay 0` gives the matching half line
   for recordings with this load.
+
+## Demo run 2026-10-16 (demo_level_1017: the Discord video)
+
+The first-level video after the frame-timing fixes (port main f8616f9:
+fc986dc, NODRAW 72fee14, SIFDMA 92786d2, MINORS ded1bcb, FIELD f8616f9),
+for the user's post on the PS2Recomp Discord. Everything is in the ignored
+`build/video_compare/demo_level_1017/` (`logs/` holds the stage logs, the
+edit and check scripts and their outputs).
+
+- **Recording.** The level smoke's own title route, not `EM_NEW_GAME=1`:
+  `EM_UNCAPPED=1 EM_STARTUP_TEST=newgame-level EM_LEVEL_SMOKE_UNTIL=a01_arrival
+  EM_PS2_DISC_DRIVE_TIMING=1 EM_INPUT_RECORD=...` (109 s): the fixtures'
+  CROSS at title menu tick 15 enters the New Game movie on D_00810E80 = 1
+  (counter 1329). The fixture injects its title inputs and its movie START
+  (from 2.0 s of every movie) outside the pad, so the recorder sees none of
+  them; `logs/make_demo_rec_1017.py` writes them into the pad column: DOWN /
+  UP at menu ticks 2..12 and CROSS at 15 (counter 1192, found by playback:
+  the New Game movie then starts on the recorded counter 1329), START on the
+  steps of the attract movie and the New Game movie. E001 is left without
+  START, so the playback and the fork watch it (movies are cut from the
+  video). 15,361 ticks in 32 segments.
+- **Smoke checker** (`test_level_smoke.py --require-through a01_arrival`):
+  all 20 live phases pass, then `check_render_context` fails at port tick
+  13942, the E001 entry tick: "step W field +0x98 / slot +0x9C against the
+  field rule", field98 `0100000000000000`, relation 0, movies `[(71, 1),
+  (13942, 0)]`. With the drive-timing switch the run enters E001 on
+  D_00810E80 = 0 (counter 15200); without it (control run) on 1, and the
+  checker passes. The same failure without the recorder (control run), so
+  the recording is not the cause. `field_rule_port` gives the movie
+  iteration the new relation, while the port's step W of that tick still
+  holds the old one; which side is right (the check or the port's field at
+  E001's iteration) is open: a lead for the port. `check_present_again.py
+  --entries 3` passes.
+- **Native pass** (`native --stride 4 --audio`, 417 s): all 15,361 ticks
+  equal the recording in counter..off (`logs/playback_compare.txt`); E001
+  watched in playback (4,799 movie steps) against skipped in the recording
+  changes no tick. 3,520 captures, 3,397 with the GS field. native.py's
+  phase check reports 40 captures off line = 1 - (counter & 1), all from
+  the tick after E001: the check assumes one relation for the whole run,
+  while a movie entered on frame index 0 flips it (port GS_EXACT 10.4).
+- **Fork pass, delay 0** (one pass, 740 s with the native pass beside it):
+  14,245 ticks, 3,574 fields, `info.drawn_check` all 3,574 resolved; the
+  New Game movie entered on frame index 0, E001 on 1.
+- **Drift** (`drift_d0.txt`): position and heading bit-exact on all 13,619
+  paired play / cutscene ticks. Segment lengths port / PS2 all equal except
+  the title (by construction), the first load 267 / 274, segment 24
+  (east tower) **220 / 219** (the cutscene releases one tick later on the
+  port; every recorded column is equal; the smoke's east_tower check
+  passes against route 13; not traced) and the AREA01 load 94 / 302. The
+  opening is 1,321 / 1,321.
+- **Field phase with delay 0:** segments 4 to 24 on the same half line in
+  every pair with a field on both sides (8 of the 11 play segments); the
+  first load (odd difference 7) and everything after segment 24 (odd
+  difference 1: segments 25 to 31, the fan room, Roger and the AREA01
+  arrival) on the other half line. No other delay can fix both, so no
+  second fork pass was run.
+- **Pictures** (`pair_stats_d0.json`, mean absolute difference per channel
+  over 3,520 pairs: 0.69): segments 9 to 24 at 0.00 to 0.10 except the
+  cage-roof cutscene 20 (0.44); the opening 0.18; status / ITEM pages
+  (segments 8 and 14) 5.0 and 2.2 (the port's overlay text); segments 25
+  to 27 2.3 to 3.6 (the other half line). Black or empty frames on one
+  side only: the loads' ends (trimmed or held); segment 26 offset 44 and
+  27 offset 24 are dark on both sides (difference 0.00, one side just
+  under the near-black threshold).
+- **Fan room** (segments 26 / 27, `check/fan_room_d0.png`): the blades'
+  angle differs at 3 of 6 checked offsets; equal at 27 offset 120. Both
+  sides are past segment 24's one-tick difference there; whether the
+  blades follow a clock that is a tick apart is not verified (the stride-4
+  captures cannot pair offset k with k - 1).
+- **Sound** (`logs/audio_sync_check.py`, `audio_sync_d0_by_segment.txt`):
+  per-tick RMS envelopes correlate 0.80 to 0.998 at the best lag, which is
+  0 or one tick (16.7 ms) with the port later. Footsteps (segment 9) on the
+  same tick except the first (port one tick earlier); the area music's hits
+  in segment 17 (offsets 65, 234, 357, 533, 664, 832, 963 on the PS2) on
+  the same tick or one later on the port (the 14-tick lead of 2026-10-09 is
+  gone); the opening's onsets one tick later on the port.
+- **Videos** (1x, every 4th tick at 14.985 fps, each side 1194x896, nearest,
+  `--crf 12`, 3-s end card, title "Extermination (PS2): original vs native
+  port"): `demo_level_1017_sound_both.mp4` (`--audio both`, 274.4 MB) and
+  `demo_level_1017_original_sound.mp4` (`--audio original`, 274.2 MB),
+  2394x1084, 237.9 s. Discord copies (`logs/make_discord.sh`, two-pass,
+  original sound): `demo_level_1017_discord_excerpt.mp4` (the opening 5-19
+  s, the hill slide 70-80 s, Roger in the fan room 200-222 s; 46.0 s,
+  9.46 MB, full 2394x1084: SSIM against the source 0.989, against 0.984 at
+  1920 and 0.977 at 1280) and `demo_level_1017_discord_full.mp4` (237.9 s,
+  9.42 MB, 1280x580; SSIM 0.940, 1280 the best of 960 / 1280 / 1600).
+  `verify_outputs.json`: all four decode without an error, the audio is
+  present, and at three spot checks per video both sides match the same
+  tick: the full-length videos' frames match their captures of that tick
+  best (against 4 ticks before or after); in the excerpt's third cut both
+  sides match the next capture best together (the cut starts one frame
+  off), so the sides stay in sync there too.
