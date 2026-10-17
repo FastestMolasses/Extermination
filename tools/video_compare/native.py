@@ -400,14 +400,23 @@ def logged_captures(log: Path, fifo: Path) -> tuple[list[bool], list[int | None]
     return seq, xys, errs
 
 
-def port_phase_check(by_cap: dict, reader) -> dict:
+def port_phase_check(by_cap: dict, reader, movies=()) -> dict:
     """The port's drawn half line against its frame index.  On the port the
     frame index D_00810E80 during an iteration is its counter's low bit
-    (emrec.new_game_movie), step P sets the field D_00810E88 from it
-    (em_frame.c) and step V draws with the half pixel when 1 - field is set
-    (em_frame_kick.c, as 001D2300): so a tick's field should sit on line
-    1 - (counter & 1).  This is the mapping --fork-title-delay auto relies on;
-    each field capture's XYOFFSET_1 checks it."""
+    (emrec.new_game_movie), step P sets the field D_00810E88 and step V
+    draws with the half pixel when 1 - field is set (em_frame_kick.c, as
+    001D2300).  The field follows the code's rule (the port's
+    tools/field_rule.py, GS_EXACT.md 10.4): from the start-up rule (first
+    loop top (0, 1)) the field is 1 - (counter & 1), so a tick's field sits
+    on line 1 - (counter & 1); a movie (00203350, one iteration whose step P
+    then reads field 1) sets the relation by its iteration's D_00810E80 =
+    its counter's low bit: entered on 1 it keeps line = 1 - (counter & 1),
+    entered on 0 it gives line = counter & 1.  The movie iteration's own
+    step V draws with that P's field, so its own capture and every later one
+    follow the new relation.  movies: the counters of the recording's movie
+    iterations (its mv rows).  This is the mapping --fork-title-delay auto
+    relies on; each field capture's XYOFFSET_1 checks it."""
+    movies = sorted(set(movies))
     checked, agree, bad = 0, 0, []
     for i, has in enumerate(reader.has_field):
         r = by_cap.get(i)
@@ -416,12 +425,23 @@ def port_phase_check(by_cap: dict, reader) -> dict:
         if not has or r is None or xy is None:
             continue
         line = {0: 0, 8: 1}.get((xy >> 32) & 0xF, line)
+        c = r["counter"]
+        rel = 1                                     # the start-up rule: (0, 1)
+        for m in movies:
+            if m > c:
+                break
+            rel = m & 1
+        want = 1 - (c & 1) if rel else c & 1
         checked += 1
-        if line == 1 - (r["counter"] & 1):
+        if line == want:
             agree += 1
         else:
-            bad.append({"cap": i, "counter": r["counter"], "seg": r["seg"], "off": r["off"], "line": line})
-    return {"rule": "line == 1 - (counter & 1)", "checked": checked, "agree": agree, "mismatches": bad[:50],
+            bad.append({"cap": i, "counter": c, "seg": r["seg"], "off": r["off"], "line": line,
+                        "relation": rel})
+    entries = [{"counter": m, "entry": m & 1} for m in movies]
+    return {"rule": "line == 1 - (counter & 1) while the last movie at or before the counter entered on 1 "
+                    "(or none did), line == counter & 1 after one entered on 0",
+            "movies": entries, "checked": checked, "agree": agree, "mismatches": bad[:50],
             "mismatch_count": len(bad)}
 
 
@@ -517,9 +537,11 @@ def run(args) -> int:
     else:
         print(f"native: {n_field} of {reader.count} frames carry the exact GS field (unused: area)", flush=True)
     by_cap = {r["cap"]: r for r in caps}
-    phase = port_phase_check(by_cap, reader)
+    movies = sorted({r["counter"] for r in log_rec.rows if r["mv"]})
+    phase = port_phase_check(by_cap, reader, movies)
     print(f"native: field phase: {phase['agree']} of {phase['checked']} field captures drawn on the half line "
-          f"the counter parity gives (line = 1 - (counter & 1))"
+          f"the counter parity and the movies give (line = 1 - (counter & 1), or counter & 1 after a movie "
+          f"entered on 0; movies at {[(m['counter'], m['entry']) for m in phase['movies']]})"
           + (f"; {len(phase['mismatches'])} others, first {phase['mismatches'][:3]}" if phase["mismatches"] else ""),
           flush=True)
     frames_out = []

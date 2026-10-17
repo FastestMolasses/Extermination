@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-16 (Claude: the Discord comparison video demo_level_1017 on port main f8616f9, below; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-16 (Claude: the timing follow-ups of demo_level_1017, below; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -57,6 +57,30 @@ that is a different, stale tree.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
+
+## 2026-10-16: the timing follow-ups of demo_level_1017 (uncommitted, for the lead)
+Details: VIDEO_COMPARE.md "Timing follow-ups 2026-10-16 (after
+demo_level_1017)". Port tools / Makefile / docs and the decomp's
+`tools/video_compare/native.py`; the port binary is unchanged.
+- **Lead (1), the E001 entry under the drive switch: fixed (a checker
+  bug).** The port's `field_rule_port` gave the movie iteration the new
+  relation; the tick log samples +0x98 / +0x9C in step E, before the movie
+  and W, so that iteration keeps its loop top's (the original's, fork
+  probes_1016 movie_end/canon counter 15418). The check now also asserts
+  pair == loop top on every tick. `make test-level-smoke-ps2-drive` plays
+  through a01_arrival (PASS).
+- **Lead (3), native.py's phase check: movie-aware** (3,397 / 3,397 on the
+  demo's native pass).
+- **Lead (2), segment 24 (220 / 219): open, not a logic bug.** A lane-0
+  music refill lands in the voice line's first field on the port and one
+  field later on the fork, so the sequencer 001FA0D0 serves the refill
+  first on the port and the cutscene ends a field later. The field follows
+  the IOP sound driver's tick phase, which no capture records (port
+  IOP_STREAM.md item 3). A user decision is listed in the port's
+  LAUNCHER_OPTIONS.md (keep it, or a switch-on phase knob fitted to a
+  recording). For the Discord re-run, segments 25-31 stay on the other
+  half line at delay 0 unless the user decides; the third-cut alternative
+  (segments 9-24) stands.
 
 ## 2026-10-16: the Discord comparison video (demo_level_1017)
 The user's request (2026-10-15): the side-by-side video for the PS2Recomp

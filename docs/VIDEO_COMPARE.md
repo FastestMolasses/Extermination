@@ -439,11 +439,21 @@ agree.
 - **The port's mapping, checked on every run.** On the port the frame
   index D_00810E80 of an iteration is its counter's low bit (em_frame.c
   starts both at 0, step W flips the one and increments the other, nothing
-  else writes either; the recorder logs `em_frame_counter()`), step P sets
-  the field from it, and step V (em_frame_kick.c, as 001D2300) draws with
-  the half pixel when 1 - field is set: a tick's field sits on line
-  1 - (counter & 1). `native.py` checks this on every field capture and
-  prints and stores the result (`frames.json` `port_phase`).
+  else writes either; the recorder logs `em_frame_counter()`), step P reads
+  the field D_00810E88 of its vblank (since port f8616f9 the field
+  alternates per vblank from the start-up's (0, 1), port GS_EXACT.md 10.4
+  "The field clock"), and step V (em_frame_kick.c, as 001D2300) draws with
+  the half pixel when 1 - field is set. So a tick's field sits on line
+  1 - (counter & 1) until a movie entered on D_00810E80 = 0 (a movie runs
+  inside one iteration and its P reads field 1, so the relation afterwards
+  follows the movie iteration's D_00810E80), and on line counter & 1 after
+  one; the movie iteration's own capture already takes the new relation (its
+  step V draws with that P's field). `native.py` derives the relation per
+  capture from the recording's movie iterations (its `mv` rows' counters,
+  entry = counter & 1; since 2026-10-16, before which it assumed one
+  relation for the whole run) and checks every field capture against it,
+  and prints and stores the result (`frames.json` `port_phase`, with its
+  `movies`).
 - **PS2 side** (`ps2/ps2_extra.json`, per captured row: `frame.drawn` with
   `line`, `ofy`, `xyoffset1`, `slot`; per row as before `field` =
   D_00810E88 and `frame_idx` = D_00810E80 at the loop top). Step V
@@ -495,7 +505,8 @@ agree.
   vblank, and 00203350 ends with two vblank waits that return field 0, then
   field 1; fork probes of 2026-10-16, receipts in the ignored
   `build/fork_refs/probes_1016/movie_end/`), so its relation afterwards follows D_00810E80 at the movie's
-  entry; the port hard-codes field = frame index. With `auto` the PS2 pass
+  entry; the port, since f8616f9, does the same (before it, it hard-coded
+  field = frame index). With `auto` the PS2 pass
   takes the port's frame index at the New Game movie's entry from the
   recording (`emrec.new_game_movie`: the counter's low bit of the movie's
   iteration), runs delay 0, and stops at the movie driver's entry probe
@@ -1014,8 +1025,8 @@ edit and check scripts and their outputs).
   checker passes. The same failure without the recorder (control run), so
   the recording is not the cause. `field_rule_port` gives the movie
   iteration the new relation, while the port's step W of that tick still
-  holds the old one; which side is right (the check or the port's field at
-  E001's iteration) is open: a lead for the port. `check_present_again.py
+  holds the old one. Resolved 2026-10-16: the checker was wrong and the
+  port right (section "Timing follow-ups" below). `check_present_again.py
   --entries 3` passes.
 - **Native pass** (`native --stride 4 --audio`, 417 s): all 15,361 ticks
   equal the recording in counter..off (`logs/playback_compare.txt`); E001
@@ -1024,6 +1035,8 @@ edit and check scripts and their outputs).
   phase check reports 40 captures off line = 1 - (counter & 1), all from
   the tick after E001: the check assumes one relation for the whole run,
   while a movie entered on frame index 0 flips it (port GS_EXACT 10.4).
+  Fixed 2026-10-16: the movie-aware check agrees on all 3,397 (section
+  "Timing follow-ups" below).
 - **Fork pass, delay 0** (one pass, 740 s with the native pass beside it):
   14,245 ticks, 3,574 fields, `info.drawn_check` all 3,574 resolved; the
   New Game movie entered on frame index 0, E001 on 1.
@@ -1032,7 +1045,8 @@ edit and check scripts and their outputs).
   the title (by construction), the first load 267 / 274, segment 24
   (east tower) **220 / 219** (the cutscene releases one tick later on the
   port; every recorded column is equal; the smoke's east_tower check
-  passes against route 13; not traced) and the AREA01 load 94 / 302.
+  passes against route 13; traced 2026-10-16: section "Timing follow-ups"
+  below) and the AREA01 load 94 / 302.
   History for the trace: in demo_level (2026-10-09, port 0eea8b5) segment
   24 was fork 219 / v2.6.3 219 / port 218, so the port moved from one tick
   short to one tick long (+2 ticks) across 0eea8b5..f8616f9 while both PS2
@@ -1098,3 +1112,56 @@ edit and check scripts and their outputs).
   timing reason not yet traced. Alternatives for the user: a third cut
   from segments 9 to 24 (the cage-roof cutscene or the crevice, same half
   line on every pair), or trace segment 24 first. The user's choice.
+
+## Timing follow-ups 2026-10-16 (after demo_level_1017)
+
+The user asked for the comparison video to be re-run for the PS2Recomp
+Discord once the frame timing problem is fixed. The two timing items that
+demo_level_1017 found were traced and handled as follows. Port main
+f8616f9 plus the change below (tools, Makefile and docs only; the port
+binary is byte-identical).
+
+- **(B) The E001 entry under the drive-timing switch: a checker bug, fixed.**
+  The port's step W was right. The tick log samples +0x98 / +0x9C at the end
+  of the scene task (step E), after step B and before the movie and step W,
+  so the movie iteration's pair is still its loop top's (D_00810E88,
+  D_00810E80): the old relation, as in the original (the fork's
+  `probes_1016/movie_end/canon`, counter 15418: B's a0 = 0 while +0x98
+  holds 1). The port's `field_rule_port` (tools/test_level_smoke.py) now
+  gives the movie iteration its loop top's relation, and the check also
+  asserts on every tick that the pair equals the loop top. `make
+  test-level-smoke-ps2-drive` now plays through a01_arrival, so the switch's
+  E001 entry on 0 is covered by a make target (PASS, 20 live phases, 5 min
+  20 s). On the demo's own logs the corrected checker passes (12,311 ticks,
+  12,213 as 1 - slot, 98 as slot).
+- **native.py's phase check is movie-aware.** `port_phase_check` takes the
+  counters of the recording's movie iterations (its `mv` rows) and, per
+  capture, uses the relation the last movie at or before it set (entry =
+  counter & 1; the start-up rule before any): line = 1 - (counter & 1)
+  under 1, counter & 1 under 0. `frames.json` `port_phase` stores the
+  movies. Re-evaluated on demo_level_1017's native pass: 3,397 of 3,397
+  field captures agree (40 off under the old one-relation check).
+- **(A) Segment 24 (220 port / 219 fork): not a logic bug; open.** Traced
+  (port IOP_STREAM.md "What it gives the live route with the switch on",
+  item 3): lane 0's music refill request reaches the EE in the field in
+  which the voice line 0x99 starts on the port, one field later on the
+  fork; the read sequencer 001FA0D0 serves lane 0 first, so the voice read,
+  its key-on and everything up to the cutscene's end are one field later
+  on the port. That field follows the IOP sound driver's tick phase against
+  the field (and the RPC 0x64 reply time), which no capture records and the
+  port models as phase 0 at the backend's boot. A scratch phase scan on the
+  port gives 219 for an offset of 72..120 half-lines (104 makes every
+  voice-lane event from counter 4434 to 12900 equal the fork's), but that fits
+  one fork cold boot, not a PS2 measurement: on a PS2 the phase follows the
+  time since the driver armed its timer (boot and title dwell). The choice
+  (keep it, or a switch-on knob set from a recording) is listed for the user
+  in the port's LAUNCHER_OPTIONS.md "Decisions for the user to review". The
+  capture that would pin it for a given recording: on the fork, the IOP
+  side's driver-thread wakes (the hard-timer interrupt that runs the
+  driver's command loop) and the RPC 0x64 reply arrival, each against the EE
+  vsync count, over the demo recording's New Game to segment 24. That needs
+  IOP-side probes, which PCSX2_FORK.md does not document, so it is not a
+  small capture and was not made. Until a decision, segments 25 to 31 (the fan room,
+  Roger, the AREA01 arrival) stay on the other half line in a delay-0
+  comparison; the user's alternative of a third excerpt cut from segments 9
+  to 24 stands.
