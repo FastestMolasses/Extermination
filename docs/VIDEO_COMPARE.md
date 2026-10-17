@@ -1177,6 +1177,12 @@ binary is byte-identical).
 
 ## Demo run 2026-10-16 (demo_level_1018: the re-run after the timing follow-ups)
 
+**Superseded by demo_level_1019** (section "Demo run 2026-10-17" below):
+the user's output format is now one lossless master with the original's
+sound and no added subtitle line, and the comparison-only tick phase puts
+segment 24 and the fan room in step. This section stays as the record of
+the run.
+
 The user asked (2026-10-15) for the Discord video to be re-run once the
 frame timing problem is fixed. Made on port main df0720c (binary
 byte-identical to f8616f9) and decomp 85b1c46, exactly as demo_level_1017,
@@ -1306,7 +1312,8 @@ frames.
   E001 on field 0 (its log: frame index 1, field 0), the port on 1 at
   counter 15199: that movie-entry relation is the remaining difference
   after the movie, not the tick phase.
-- **The master** (not made in this step): from the two passes,
+- **The master** (not made in this step; made as demo_level_1019 from a
+  new recording and fork pass, next section): from the two passes,
 
   ```sh
   python3 tools/video_compare/video_compare.py compose \
@@ -1324,3 +1331,108 @@ frames.
   (`EM_PS2_DISC_DRIVE_TIMING=1`) and the comparison-only tick phase 68;
   both are off in the default Original profile, and a post's caption should
   say so.
+
+## Demo run 2026-10-17 (demo_level_1019: the lossless master)
+
+The user's output format (2026-10-17): **one master only**, mathematically
+lossless (H.264 lossless RGB, `libx264rgb -qp 0`, in an `.mkv`) with
+uncompressed PCM audio, **the original's sound only**, no compressed or
+Discord copies, and **no added subtitle line** (compose's `--subtitle`;
+the game's own subtitles are in the frames). Every other text stays: the
+title, the side labels, the speed badge, the sound note, the load tags and
+the end card. Made on port 17c5bf9 (the binary up to date there; the
+`EM_IOP_TICK_PHASE` switch, unset in the Original profile: the
+newgame-control 9.599849 and smoke tick-log proof is 17c5bf9's, not re-run
+here) and decomp 0253d6a, into the ignored
+`build/video_compare/demo_level_1019/` (`logs/` holds the stage logs and
+the scripts `make_demo_rec_1019.py`, `cmp_playback.py`, `pair_stats.py`,
+`audio_sync_check.py`, `verify_master.py`).
+
+- **Recording** (the level smoke's own run through a01_arrival,
+  `EM_PS2_DISC_DRIVE_TIMING=1`, the fixtures' title press,
+  `EM_IOP_TICK_PHASE=104`, the smoke's fitted value): the checker PASSES
+  (20 live phases and the render context; `smoke/check.log`) and
+  `check_present_again.py --entries 3` PASSES. `smoke/raw.rec` and
+  `demo_level_1019.rec` (`make_demo_rec_1019.py --cross 1192`) are
+  byte-identical to `iop_phase_1017`'s smoke at 104 and
+  `demo_level_p104.rec`. So this recording's exit input lies one tick
+  later in segment 27 than `demo_level_1018.rec`'s, and the video pairs
+  its own new fork pass. The run's ticks.jsonl (458 MB) and rand.trace
+  were deleted after the check.
+- **Native pass at phase 68** (the playback's equivalent of the smoke's
+  104: the playback skips the movies 204 fields earlier; previous section),
+  with `--audio`, 397 s: all 15,361 ticks equal the recording
+  (`logs/playback_compare.txt`, 0 differ); the field-phase check agrees on
+  3,398 of 3,398 captures (movies at counters 1109 and 1329 on 1, 15200 on
+  0). `native/frames.json` records `iop_tick_phase` 68 and drive timing 1.
+- **Fork pass, delay 0** (456 s; hidden, under the run lock, released, no
+  emulator left running): 14,246 ticks, 3,575 frames, the draw-environment
+  check 3,575 of 3,575 resolved. Its `ps2.rec` game columns equal
+  `iop_phase_1017`'s fork pass of the same recording (deterministic).
+- **Drift** (`drift_d0.txt`): position and heading bit-exact on all 13,620
+  paired ticks. Every segment length equal except the title, the first
+  load (267 / 274) and the AREA01 load (94 / 302): **segment 24 is 219 /
+  219** (220 / 219 in 1018). Half line: 3,293 of 3,398 pairs with a field
+  on both sides agree (2,690 in 1018): segments 4-27 on every such pair,
+  so the fan room (25-27) now agrees.
+- **Still on the other half line**: the first load (segment 2, as before),
+  segment 28's last frame (offset 100, the E001 entry), segment 29
+  (offsets 0..88) and segment 31 (offsets 0..60); in the master's frame
+  3515 the "UNDERGROUND TUNNEL - AREA B" text sits about one line lower on
+  the port. This is the open E001 movie-entry field relation (port 15200
+  on 0; the fork log gives frame index 0, field 1), not the tick phase. So
+  "the whole level matches" holds through segment 27.
+- **Pictures** (`pair_stats_d0.json`, `logs/pair_stats_d0.txt`): MAD 0.258
+  over 3,521 pairs (0.692 in 1018); segments 25 / 26 / 27 have a maximum
+  per-pair difference of 0.001 / 0.041 / 0.001. Fan room
+  (`check/fan_room_d0.png`): the blades match (segment 26 offsets 1100 /
+  1200 / 1400: 0.006 / 0.023 / 0.037, against 2.7 / 3.2 / 4.3; segment 27
+  offsets 120 and 360: 0.0, against 3.9 / 4.2). The large picture
+  differences left are as in 1018: segment 5 offsets 68-96 (the MAIN
+  status page, MAD about 7.2 per pair, the port has no field there),
+  segment 8 (MAD 5.02) and segment 14 (MAD 2.19). One-sided black frames:
+  14 by offset pairing (untrimmed), all at the ends of the first load and
+  the AREA01 load; the trimmed master shows no visible one-sided black
+  frame (a scan of all 3,566 frames: only 29:48 and 29:52 are borderline,
+  the port pane's maximum 12-18 against the PS2's 2-3, both effectively
+  black). The two mid-level near-black entries of 1018 are gone.
+- **Sound** (`audio_sync_d0_by_segment.txt`): the best lag within one tick
+  in every segment (mostly the port one tick later); 1018's two-tick onset
+  in segment 23 and the 21-tick pairing artifacts in segment 26 are gone.
+- **The master**, `demo_level_1019_master.mkv`:
+
+  ```sh
+  python3 tools/video_compare/video_compare.py compose \
+      --native build/video_compare/demo_level_1019/native \
+      --ps2 build/video_compare/demo_level_1019/ps2_fork_d0 \
+      --out build/video_compare/demo_level_1019/demo_level_1019_master.mkv \
+      --lossless --lossless-codec x264rgb --speed 1 --fps 14.985 \
+      --height 896 --scale-filter nearest --summary-seconds 3 \
+      --audio original \
+      --title "Extermination (PS2): original vs native port"
+  ```
+
+  (no `--subtitle`; `--fps 14.985` and `--scale-filter nearest` as the
+  1017 / 1018 videos, since compose's default is 30 fps). H.264 High 4:4:4
+  Predictive, gbrp, `qp=0` in the x264 SEI; PCM s16le 48 kHz stereo; 3,566
+  frames, 2394x1040 (the header one line shorter), 237.971 s,
+  1,650,172,203 bytes (well under the 5 GB estimate). Compose's
+  `lossless_check` is verified: the decoded video equals the composed RGB
+  stream (26.6 GB) and the decoded PCM the composed audio, by SHA-256.
+  `verify_master.json`: a full decode without an error, 3,566 video
+  packets, the sound about -18 dB, and at 12 spot checks (segments 4-31)
+  each side matches its exact tick (difference 0.0) and each decoded frame
+  equals compose's rendering bit for bit. The review found the title, the
+  1x badge, "sound: original only", the side labels, the load tags
+  ("load trimmed: 7 ticks longer" in segment 2, "208 ticks longer" in
+  segment 29), the end card and the game's subtitles present, and the
+  header rows between title and labels pure background.
+- **A post's caption** should say: the port side ran with the optional
+  disc-drive switch (`EM_PS2_DISC_DRIVE_TIMING=1`) and the comparison-only
+  tick phase 68, both off in the default Original profile; and the AREA01
+  arrival (segment 28's last frame, segments 29 and 31) is drawn one half line apart
+  (the open E001 movie-entry item).
+- Cleanup: the native and fork frame folders (3,521 + 3,575 PNGs) and both
+  `audio.wav` files were deleted by named path after their SHA-256s were
+  recorded in `pass_hashes.json`; the reports, recordings, logs and
+  `check/` stay.
