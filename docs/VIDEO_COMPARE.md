@@ -998,6 +998,9 @@ the stage logs, `title_delay_scan.json` and the clip; the frames were deleted.
 
 ## Demo run 2026-10-16 (demo_level_1017: the Discord video)
 
+> Re-made as demo_level_1018 (the last section) after the timing follow-ups:
+> byte-identical videos; its frames and audio.wav files were deleted.
+
 The first-level video after the frame-timing fixes (port main f8616f9:
 fc986dc, NODRAW 72fee14, SIFDMA 92786d2, MINORS ded1bcb, FIELD f8616f9),
 for the user's post on the PS2Recomp Discord. Everything is in the ignored
@@ -1165,3 +1168,61 @@ binary is byte-identical).
   Roger, the AREA01 arrival) stay on the other half line in a delay-0
   comparison; the user's alternative of a third excerpt cut from segments 9
   to 24 stands.
+
+## Demo run 2026-10-16 (demo_level_1018: the re-run after the timing follow-ups)
+
+The user asked (2026-10-15) for the Discord video to be re-run once the
+frame timing problem is fixed. Made on port main df0720c (binary
+byte-identical to f8616f9) and decomp 85b1c46, exactly as demo_level_1017,
+into the ignored `build/video_compare/demo_level_1018/` (`logs/` holds the
+stage logs and the scripts, copied from demo_level_1017's with the new
+names; `make_discord_1018.sh` and `verify_outputs.py` carry the new third
+cut).
+
+- **Recording** (the level smoke's own run, `EM_LEVEL_SMOKE_UNTIL=a01_arrival
+  EM_PS2_DISC_DRIVE_TIMING=1`, the fixtures' title press, 109 s): 20 live
+  phases PASS, and now the checker PASSES too (`smoke/check.log`:
+  render context 12,311 ticks, 12,213 as 1 - slot, 98 as slot, the movies
+  at port ticks 71 on 1 and 13942 on 0, each in its loop top's relation);
+  `check_present_again.py --entries 3` PASS. `smoke/raw.rec` is
+  byte-identical to demo_level_1017's, and so is `demo_level_1018.rec`
+  (`make_demo_rec_1018.py --cross 1192`). The run's ticks.jsonl and
+  rand.trace were deleted after the check.
+- **Native pass** (308 s): all 15,361 ticks equal the recording
+  (`logs/playback_compare.txt`); the movie-aware phase check agrees on
+  3,397 of 3,397 field captures (movies at counters 1109 / 1329 on 1,
+  15200 on 0). All 3,520 frames and `audio.wav` are byte-identical to
+  demo_level_1017's.
+- **Fork pass, delay 0** (541 s; 102 s cold boot to the title): 14,245
+  ticks, 3,574 fields, `info.drawn_check` 3,574 resolved. Every frame,
+  `audio.wav` and the game columns of `ps2.rec` are byte-identical to
+  demo_level_1017's fork pass (the fork run is deterministic).
+- **Drift and pictures** (`drift_d0.txt`, `pair_stats_d0.json`,
+  `audio_sync_d0_by_segment.txt`): identical to demo_level_1017's. Position
+  and heading bit-exact on all 13,619 paired ticks; segment lengths equal
+  except the title, the first load (267 / 274), **segment 24 (220 / 219)**
+  and the AREA01 load (94 / 302). Half line: segments 4-24 the same on every
+  pair with a field on both sides; the first load and segments 25-31 on the
+  other one; no delay fixes both, so delay 0. MAD 0.692 over 3,520 pairs.
+  Fan room (`check/fan_room_d0.png`): the blades' angle still differs
+  (segment 26 offsets 1100 / 1200 / 1400: 2.7 / 3.2 / 4.3; segment 27
+  offset 120 / 360: 3.9 / 4.2). Sound: within one tick either way, as
+  before (mostly the port one tick later).
+- **So the frame timing item (A) is not fixed by anything committed**: it
+  is the open sound-driver tick-phase decision (section "Timing follow-ups"
+  above; port LAUNCHER_OPTIONS.md). Item (B) is fixed (the checker passes).
+- **Videos** (the same compose options as demo_level_1017, with
+  `--audio-kbps 320`): `demo_level_1018_sound_both.mp4` (274,363,592 B) and
+  `demo_level_1018_original_sound.mp4` (274,214,852 B), 237.9 s, 2394x1084,
+  both byte-identical to demo_level_1017's. Discord copies (two-pass,
+  original sound): `demo_level_1018_discord_full.mp4` (9,424,419 B,
+  1280x580, byte-identical to demo_level_1017's) and
+  `demo_level_1018_discord_excerpt.mp4` (9,440,139 B, 46.0 s, 2394x1084,
+  SSIM 0.983 against its source cuts): the opening 5-19 s, the hill slide
+  70-80 s and, since segments 25-31 still disagree, a third cut from
+  segments 21-23 at 160-182 s (the flame on the pipe, the crevice cutscene
+  and the jump) instead of the fan room. `verify_outputs.json`: all four
+  decode without an error, the audio is present, and at all twelve spot
+  checks both sides match the exact tick best.
+- demo_level_1017's frames and `audio.wav` files were deleted (identical to
+  these); its videos, reports, recordings, logs and `check/` stay.

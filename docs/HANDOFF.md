@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-16 (Claude: the timing follow-ups of demo_level_1017, below; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-16 (Claude: the Discord video re-run demo_level_1018, below; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -58,7 +58,21 @@ that is a different, stale tree.
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
 
-## 2026-10-16: the timing follow-ups of demo_level_1017 (uncommitted, for the lead)
+## 2026-10-16: the Discord video re-run (demo_level_1018)
+Re-made exactly as demo_level_1017 on port main df0720c / decomp 85b1c46
+into the ignored `build/video_compare/demo_level_1018/` (VIDEO_COMPARE.md
+"Demo run 2026-10-16 (demo_level_1018)"). The smoke checker now PASSES
+under the drive switch through a01_arrival (item B fixed). Everything else
+is byte-identical to demo_level_1017: recording, both passes' frames and
+sound, the full videos and the full-length Discord copy. **Segment 24 is
+still 220 / 219 and segments 25-31 (the fan room) still on the other half
+line**: item A waits on the user's sound-driver tick-phase decision (port
+LAUNCHER_OPTIONS.md); nothing committed changes it. So the Discord excerpt's
+third cut is segments 21-23 (160-182 s: the pipe flame, the crevice
+cutscene, the jump), not the fan room. demo_level_1017's frames and audio
+were deleted; its videos and reports stay.
+
+## 2026-10-16: the timing follow-ups of demo_level_1017 (committed df0720c, 85b1c46)
 Details: VIDEO_COMPARE.md "Timing follow-ups 2026-10-16 (after
 demo_level_1017)". Port tools / Makefile / docs and the decomp's
 `tools/video_compare/native.py`; the port binary is unchanged.
