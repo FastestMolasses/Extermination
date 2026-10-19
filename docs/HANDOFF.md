@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-17 (Claude: the lossless comparison master demo_level_1019 and the comparison-only IOP tick phase, below; the Discord video re-run demo_level_1018; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-19 (Claude: Codex's `levels` branch reviewed and merged into port main 789b4b4, and the levels 2-4 state toward the drawbridge, below; earlier: the lossless comparison master demo_level_1019 and the comparison-only IOP tick phase, below; the Discord video re-run demo_level_1018; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -57,6 +57,49 @@ that is a different, stale tree.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
+
+## 2026-10-19: toward the drawbridge (levels 2-4), current state
+User goal (2026-10-19): before level 2 continues, finish AREA01 and AREA00
+up to the AREA01 revisit's cutscene (Roger attacked by the bugs) and the
+lowered bridge, every phase tick-exact against the fork recordings
+(`build/fork_refs/s87/route_a01`, `route_a00`, `route_a01r`). **Not
+reached.** On port main 789b4b4 (Codex's `levels` branch, reviewed
+"merge_with_fixes", merged), headless:
+- First level unchanged: newgame-control 9.599849, `make
+  test-level-smoke-full` and `make test-level-smoke-ps2-drive` PASS.
+- AREA01: a01_arrival, a01_00 (781 rows), a01_01 (306), a01_02 (591) exact
+  at host speed and with the drive switch; a01_03 exact for rows f0..f956
+  of 992 with the switch.
+- a01_03 row 957 is the **disc drive's per-read seek time**, not the game
+  code (the earlier "voice line ends a frame early" reading is
+  superseded): the fork's far seeks to the AREA01 voice data take 6 or 7
+  fields read by read (a01_03: 7 reads at 6, 9 at 7), the switch's model
+  always serves 6. A private diagnostic build serving the fork's per-read
+  values passes all 992 rows (never committed; receipts in the port's
+  ignored `build/frontier_i1_20261019_063524/`). a01_04..a01_07 inherit
+  the shift; a01_05 row 3836 very likely has the same cause.
+- AREA00: arrival aligns, then fault-stops at frame 0 in `00156620`: the
+  first-level file `em_area11_boxes.c` holds 32 owner views, the original
+  AREA00 arrival needs at least 39 (proposed change in the port's
+  LEVEL3_BINDING.md "Requests for main"). Zero AREA00 rows certified.
+- The AREA01 revisit (a01r_00..a01r_02): not reached; its 17 owners are
+  translated and oracle-checked but unwired (port AREA01_REVISIT.md); no
+  revisit harness exists yet.
+
+Left before the bridge, in order: the user's decision on the drive's seek
+spread (port LAUNCHER_OPTIONS.md "Decisions for the user to review":
+(a) a comparison-only per-read drive replay from fork tables, recommended;
+(b) event alignment from the first voiced line; (c) another rule), then
+a01_03..a01_07; the owner-view capacity (39+) with its first-level
+regression proof; AREA00 arrival, neutral frames, a00_00..a00_10 and
+a00_s0 (four unsampled ticks need fork boundary receipts first); a revisit
+harness and the binding of the revisit owners; the one continuous run from
+New Game to the bridge in both drive modes. Docs: port LEVEL2_BINDING.md /
+LEVEL3_BINDING.md / AREA01_REVISIT.md "State (2026-10-19)",
+LEVEL_READINESS.md "Native play state", LEVEL_SMOKE.md "Levels 2-4 toward
+the drawbridge" (port 479f387). The stale empty run-lock file was renamed
+to `build/.pcsx2.lock.stale-file-20261018` (no process held it; the user
+is asked to confirm).
 
 ## 2026-10-17: the lossless master (demo_level_1019) and the IOP tick phase
 User decisions 2026-10-17: a comparison-only port switch
