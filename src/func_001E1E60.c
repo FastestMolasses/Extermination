@@ -1,13 +1,3 @@
-// NEARMISS func_001E1E60  (vram 0x001E1E60, 0x400 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.43% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// PARK/NEARMISS — mwcc 2.3.3 saved-register allocation-ORDER permutation (the documented '2.3.3 does NOT fix regalloc permutation' class). Under 2.3.3 every one of the 27 residual diff rows is register-NAME-only: 2.3.3 demotes the across-calls param copy (idx) to s4 where the target has s1, rotatin...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
@@ -31,7 +21,10 @@
 // 384.0f), and if the old handle reported 0, func_001CEFD0(snd, vol). Finally
 // func_001D2040(idx,1) and recycles the packet node: byte+3=0x60, word+4=0,
 // half+0=0, advance by 0x10; returns the node pointer saved at entry.
-// (`off = arg1; i = off; off *= 4;` is the match shape for off=idx*4, i=idx.)
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 4, 2026-10-20; was
+// 99.43 NEARMISS). Lever: `i = (int)arg1; off = i * 4;`. The explicit cast keeps
+// i a separate local, so it is colored in declaration order (s1) instead of
+// after the locals as the parameter (s4); without the cast mwcc coalesces it.
 
 extern void func_001D1F80(int, int, int);
 extern void func_001D1FF0(int, int);
@@ -76,9 +69,8 @@ int func_001E1E60(int arg0, int arg1) {
     char *p;
     int n;
 
-    off = arg1;
-    i = off;
-    off *= 4;
+    i = (int)arg1;
+    off = i * 4;
     ret = *(int *)((off + (int)D_00275670) + 0x10);
     n = 7;
     func_001D1F80(i, 0, n);

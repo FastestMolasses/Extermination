@@ -1,8 +1,8 @@
 // NEARMISS func_001D4C30  (vram 0x001D4C30, 0x98 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 77.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation permutation (identical to func_001D4B80, differs only in bank base D_00816740): target uses saved-temps t0/t1/t2 + reuses a2 for the 0x8 literal and saves args s0-then-s1; mwcc colors into a4/a5, keeps ctx in v1, saves s1-then-s0. Driven by trailing func_001D4A90 call. Permuter.
+// objdiff 95.39% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Body corrected in decomp lane round 4: vif_build_unpack_const gets ch (the old C passed 0) and func_001D4A90 its real (ch, src) prototype. Residual is caller-saved temp coloring only, same instruction stream: the target never uses v0 after the second call, so each temp sits one register later (co...
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,54 +11,45 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
-// NEARMISS 77.1% (mwcc233). Identical to func_001D4B80 except the bank base is
-// D_00816740 (vs D_00816640). VIF command-record writer (sibling of matched
-// func_001D4EB0 / func_001D49D0): vif_build_unpack_const(0),
-// vif_append_ref_tag(s1, &D_00239C90), then index slot s1 of context D_00275670
-// (t0 = ctx + s1*4) and write a 0x10-byte VIF record at t0[0x10]: tag 0x30 at +3,
-// D_00816740 + (ctx[0x9c]<<7) at +4, halfword 8 at +0; advance t0[0x10] by 0x10;
-// finish with func_001D4A90(s1, s0). LOGIC/STRUCTURE byte-correct.
 //
-// Sole residual is the same register-allocation permutation as func_001D4B80:
-// target colors into saved-temps t0/t1/t2 + reuses a2 for the 0x8 literal and
-// saves args s0-then-s1; mwcc 2.3.3 uses caller-saved a4/a5, keeps ctx in v1,
-// saves s1-then-s0. Driven by the trailing func_001D4A90 call. No source rewrite
-// fixes the coloring -- permuter territory (cf. parked sibling func_001D4DA0).
-extern char *D_00275670;
-extern char D_00816740[0x10000];
-extern char D_00239C90[8];
-extern void vif_build_unpack_const(int);
-extern void vif_append_ref_tag(int, char *);
-extern void func_001D4A90(int, int);
+// Channel ch: vif_build_unpack_const(ch) (the original passes the channel; the
+// earlier C passed 0), vif_append_ref_tag(ch, D_00239C90), one ref tag (id 0x30,
+// qwc 8) for D_00816740 + frame * 128, then func_001D4A90(ch, src). Twin of
+// func_001D4B80 (only the bank global differs).
 
-void func_001D4C30(int a0, int a1) {
-    char *ctx;
-    char *t0;
-    char *v1;
-    char *a3;
-    int t2;
-    int s0;
-    int s1;
+typedef struct {
+    unsigned short qwc;
+    unsigned char pad;
+    unsigned char id;
+    int addr;
+    int w2;
+    int w3;
+} DmaTag;
+typedef struct {
+    char pad[0x10];
+    DmaTag *cur[16];
+    int ref[16];
+    int pad90[3];
+    int frame;
+} VifLists;
+extern VifLists *D_00275670;
+extern void vif_build_unpack_const(int ch);
+extern void vif_append_ref_tag(int ch, char *addr);
+extern char D_00239C90[];
+extern char D_00816740[];
+extern void func_001D4A90(int ch, int *src);
 
-    s0 = a1;
-    s1 = a0;
-    vif_build_unpack_const(0);
-    vif_append_ref_tag(s1, D_00239C90);
+void func_001D4C30(int ch, int *src) {
+    char *addr;
+    DmaTag **pp;
 
-    ctx = (char *)D_00275670;
-    a3 = D_00816740;
-    t2 = *(int *)(ctx + 0x9c);
-    t0 = ctx + s1 * 4;
-    v1 = *(char **)(t0 + 0x10);
-    t2 = t2 << 7;
-    v1[3] = 0x30;
-    v1 = *(char **)(t0 + 0x10);
-    a3 = a3 + t2;
-    *(int *)(v1 + 4) = (int)a3;
-    v1 = *(char **)(t0 + 0x10);
-    *(short *)v1 = 8;
-    v1 = *(char **)(t0 + 0x10);
-    v1 = v1 + 0x10;
-    *(char **)(t0 + 0x10) = v1;
-    func_001D4A90(s1, s0);
+    vif_build_unpack_const(ch);
+    vif_append_ref_tag(ch, D_00239C90);
+    addr = D_00816740 + D_00275670->frame * 128;
+    pp = &D_00275670->cur[ch];
+    (*pp)->id = 0x30;
+    (*pp)->addr = (int)addr;
+    (*pp)->qwc = 8;
+    (*pp)++;
+    func_001D4A90(ch, src);
 }

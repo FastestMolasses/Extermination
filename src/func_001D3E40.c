@@ -1,69 +1,48 @@
-// NEARMISS func_001D3E40  (vram 0x001D3E40, 0x110 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 81.26% via mwcc 2.3 (mwcps2-2.3-991202) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// GPR allocation, channel-offset lifetime and reload scheduling differ; candidate is 4 bytes longer. The channel argument correction is independently checked by 384 original-instruction DMA cases.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// COMPILER: mwcc
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+//
+// Submits a model's VIF packets on channel arg0: vif_append_ref_tag(arg0,
+// D_0023C480), then three ref tags (id 0x30): D_00816440 + frame * 128 (qwc 8);
+// D_002514B0 (qwc 2) only when func_001D2910(0) returns 0; model + 0x40 (qwc =
+// the word at model + 4).
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 4, 2026-10-20). Lever:
+// the model pointer is a local copied from the parameter with an explicit cast
+// and declared first, so it takes s0 and the packet pointer s1 (a parameter used
+// directly is colored after the locals, in s2).
 
-/* Submit a face mesh through the selected DMA channel. The first helper
- * takes the channel index, NOT model+0x40; it installs the morph program.
- * The following REF tags upload per-scene constants, an optional two-qword
- * setup block, and the model's VIF packets. Reloads through the channel
- * cursor preserve the original store order and aliasing behavior. */
-extern void vif_append_ref_tag(int channel, void *program);
-extern int func_001D2910(int a0);
-
-extern char *D_00275670;
+extern void vif_append_ref_tag(int ch, void *p);
+extern int func_001D2910(int id);
 extern char D_0023C480[];
-extern char D_00816440[];
-extern char D_002514B0[];
+extern unsigned char D_002514B0[16];
+extern unsigned char D_00816440[16];
+extern int D_00275670;
 
-void func_001D3E40(int channel, char *model)
-{
-    int channel_offset;
-    char *mesh_packets;
-    char *channel_base;
-    int *dma_tag;
+void func_001D3E40(int arg0, int model) {
+    char *arg1 = (char *)model;
+    char *mesh;
+    char **slot;
+    int v;
+    unsigned char *dma;
 
-    vif_append_ref_tag(channel, D_0023C480);
-    mesh_packets = model + 0x40;
-
-    channel_offset = channel << 2;
-    channel_base = D_00275670 + channel_offset;
-    dma_tag = *(int **)(channel_base + 0x10);
-    *(char *)((char *)dma_tag + 3) = 0x30;
-    dma_tag = *(int **)(channel_base + 0x10);
-    *(int *)((char *)dma_tag + 4) = (int)(D_00816440 + (*(int *)(D_00275670 + 0x9C) << 7));
-    dma_tag = *(int **)(channel_base + 0x10);
-    *(short *)dma_tag = 8;
-    dma_tag = *(int **)(channel_base + 0x10);
-    *(int **)(channel_base + 0x10) = (int *)((char *)dma_tag + 0x10);
-
+    mesh = arg1 + 0x40;
+    vif_append_ref_tag(arg0, D_0023C480);
+    dma = D_00816440 + (*(int *)(D_00275670 + 0x9C) << 7);
+    slot = (char **)((D_00275670 + arg0 * 4) + 0x10);
+    *(char *)(*slot + 3) = 0x30;
+    *(unsigned char **)(*slot + 4) = dma;
+    *(short *)(*slot + 0) = 8;
+    *slot = *slot + 0x10;
     if (func_001D2910(0) == 0) {
-        channel_base = D_00275670 + channel_offset;
-        dma_tag = *(int **)(channel_base + 0x10);
-        *(char *)((char *)dma_tag + 3) = 0x30;
-        dma_tag = *(int **)(channel_base + 0x10);
-        *(int *)((char *)dma_tag + 4) = (int)D_002514B0;
-        dma_tag = *(int **)(channel_base + 0x10);
-        *(short *)dma_tag = 2;
-        dma_tag = *(int **)(channel_base + 0x10);
-        *(int **)(channel_base + 0x10) = (int *)((char *)dma_tag + 0x10);
+        slot = (char **)((D_00275670 + arg0 * 4) + 0x10);
+        *(char *)(*slot + 3) = 0x30;
+        *(char **)(*slot + 4) = (char *)D_002514B0;
+        *(short *)(*slot + 0) = 2;
+        *slot = *slot + 0x10;
     }
-
-    channel_base = D_00275670 + channel_offset;
-    dma_tag = *(int **)(channel_base + 0x10);
-    *(char *)((char *)dma_tag + 3) = 0x30;
-    dma_tag = *(int **)(channel_base + 0x10);
-    *(int *)((char *)dma_tag + 4) = (int)mesh_packets;
-    dma_tag = *(int **)(channel_base + 0x10);
-    *(short *)dma_tag = *(int *)(model + 4);
-    dma_tag = *(int **)(channel_base + 0x10);
-    *(int **)(channel_base + 0x10) = (int *)((char *)dma_tag + 0x10);
+    v = *(int *)(arg1 + 4);
+    slot = (char **)((D_00275670 + arg0 * 4) + 0x10);
+    *(char *)(*slot + 3) = 0x30;
+    *(char **)(*slot + 4) = mesh;
+    *(short *)(*slot + 0) = v;
+    *slot = *slot + 0x10;
 }

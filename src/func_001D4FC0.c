@@ -1,79 +1,99 @@
-// NEARMISS func_001D4FC0  (vram 0x001D4FC0, 0x1A8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 81.12% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-order permutation. Body+control-flow byte-correct in shape (caching D_00275670 per-section + threshold-4 to keep the data symbols absolute lifted it from 55/59% to 72/81%). Residuals: s0<->s2 coloring swap (arg0 vs first-cursor), t0/t1 and a2/a3 coloring in the 2nd tag section...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+//
+// Channel 3 model submit. Keeps the channel's current list position (first),
+// writes a tag there (id 0x10, addr 0, qwc 0xE) followed by 0xE0 bytes copied
+// from D_002513D0, then vif_append_ref_tag(3, D_00237450), a ref tag (id 0x30,
+// qwc 8) for D_00816A40 + frame * 128 and func_001D1F80(3, 2, 1). The model's
+// vertex data at model + 0x40 goes out in ref tags of at most 0x1F8 vertices
+// (qwc = n * 0x82, 0x820 bytes per vertex), then an end tag (id 0x60). Finally
+// func_001CAAC0({model[0x34..0x3C], 1.0}, first).
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 4, 2026-10-20). The
+// 81.12 NEARMISS called block_copy, func_001D1F80 and func_001CAAC0 with invented
+// fourth / third arguments. Levers: the model pointer is a cast local declared
+// first (s0), the chunk qwc is stored before the run pointer advances, and the
+// cursor advance reads the cursor twice (dst = *pp + 1; *pp = *pp + 0xF).
 
-extern char *block_copy(char *, void *, int, char *);
-extern int func_001CAAC0(float *, char *, int, char *);
-extern int func_001D1F80(int, int, int, char *);
-extern int vif_append_ref_tag(int, void *);
-extern char D_00237450[256];
-extern char D_002513D0[256];
-extern char *D_00275670;
-extern char D_00816A40[256];
+typedef struct {
+    unsigned short qwc;
+    unsigned char pad;
+    unsigned char id;
+    int addr;
+    int w2;
+    int w3;
+} DmaTag;
+typedef struct {
+    char pad[0x10];
+    DmaTag *cur[16];
+    int ref[16];
+    int pad90[3];
+    int frame;
+} VifLists;
+typedef struct {
+    float x, y, z, w;
+} Vec4;
+extern VifLists *D_00275670;
+extern char D_00237450[];
+extern char D_002513D0[];
+extern char D_00816A40[];
+extern void *block_copy(void *dst, const void *src, unsigned int len);
+extern void vif_append_ref_tag(int ch, char *addr);
+extern void func_001D1F80(int ch, int a, int b);
+extern int func_001CAAC0(const Vec4 *world_pos, void *payload);
 
-void func_001D4FC0(char *arg0) {
-    int sp4C;
-    float sp48;
-    float sp44;
-    float sp40;
+void func_001D4FC0(int param) {
+    int *arg0 = (int *)param;
+    char *run;
+    DmaTag *first;
+    DmaTag **pp;
+    DmaTag *tmp;
+    char *addr;
     int n;
     int chunk;
-    char *first;
-    char *run;
-    char *blk;
-    char *dl;
-    char *tmp;
+    Vec4 v;
 
-    dl = D_00275670;
-    first = *(char **)(dl + 0x1C);
-    run = arg0 + 0x40;
-    *(char *)(first + 3) = 0x10;
-    *(int *)(*(char **)(dl + 0x1C) + 4) = 0;
-    *(short *)(*(char **)(dl + 0x1C) + 0) = 0xE;
-    tmp = *(char **)(dl + 0x1C);
-    *(char **)(dl + 0x1C) = tmp + 0xF0;
-    block_copy(tmp + 0x10, D_002513D0, 0xE0, dl);
-    vif_append_ref_tag(3, D_00237450);
-    dl = D_00275670;
-    *(char *)(*(char **)(dl + 0x1C) + 3) = 0x30;
-    blk = D_00816A40 + (*(int *)(dl + 0x9C) << 7);
-    *(char **)(*(char **)(dl + 0x1C) + 4) = blk;
-    *(short *)(*(char **)(dl + 0x1C) + 0) = 8;
-    *(char **)(dl + 0x1C) = *(char **)(dl + 0x1C) + 0x10;
-    func_001D1F80(3, 2, 1, blk);
-    n = *(int *)(arg0 + 0);
-    if (n > 0) {
-        do {
-            chunk = 0x1F8;
-            if (n < 0x1F8) {
-                chunk = n;
-            }
-            n -= 0x1F8;
-            dl = D_00275670;
-            *(char *)(*(char **)(dl + 0x1C) + 3) = 0x30;
-            *(char **)(*(char **)(dl + 0x1C) + 4) = run;
-            run += chunk * 0x820;
-            *(short *)(*(char **)(dl + 0x1C) + 0) = (short)(chunk * 0x82);
-            *(char **)(dl + 0x1C) = *(char **)(dl + 0x1C) + 0x10;
-        } while (n > 0);
+    pp = &D_00275670->cur[3];
+    run = (char *)arg0 + 0x40;
+    first = *pp;
+    first->id = 0x10;
+    (*pp)->addr = 0;
+    (*pp)->qwc = 0xE;
+    {
+        DmaTag *dst = *pp + 1;
+        *pp = *pp + 0xF;
+        block_copy(dst, D_002513D0, 0xE0);
     }
-    dl = D_00275670;
-    *(char *)(*(char **)(dl + 0x1C) + 3) = 0x60;
-    *(int *)(*(char **)(dl + 0x1C) + 4) = 0;
-    *(short *)(*(char **)(dl + 0x1C) + 0) = 0;
-    *(char **)(dl + 0x1C) = *(char **)(dl + 0x1C) + 0x10;
-    sp40 = *(float *)(arg0 + 0x34);
-    sp44 = *(float *)(arg0 + 0x38);
-    sp48 = *(float *)(arg0 + 0x3C);
-    sp4C = 0x3F800000;
-    func_001CAAC0(&sp40, first, 0x60, dl);
+    vif_append_ref_tag(3, D_00237450);
+    addr = D_00816A40 + D_00275670->frame * 128;
+    pp = &D_00275670->cur[3];
+    (*pp)->id = 0x30;
+    (*pp)->addr = (int)addr;
+    (*pp)->qwc = 8;
+    (*pp)++;
+    func_001D1F80(3, 2, 1);
+    n = arg0[0];
+    while (n > 0) {
+        if (n < 0x1F8) {
+            chunk = n;
+        } else {
+            chunk = 0x1F8;
+        }
+        n -= 0x1F8;
+        pp = &D_00275670->cur[3];
+        (*pp)->id = 0x30;
+        (*pp)->addr = (int)run;
+        (*pp)->qwc = chunk * 0x82;
+        run += chunk * 0x820;
+        (*pp)++;
+    }
+    pp = &D_00275670->cur[3];
+    (*pp)->id = 0x60;
+    (*pp)->addr = 0;
+    (*pp)->qwc = 0;
+    (*pp)++;
+    v.x = *(float *)((char *)arg0 + 0x34);
+    v.y = *(float *)((char *)arg0 + 0x38);
+    v.z = *(float *)((char *)arg0 + 0x3C);
+    v.w = 1.0f;
+    func_001CAAC0(&v, first);
 }

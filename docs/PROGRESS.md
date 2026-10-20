@@ -1,3 +1,36 @@
+## 2026-10-20 — the DMA-list NEARMISS family (decomp lane round 4): 12 byte-matched
+
+- Fourteen NEARMISS files that build VIF/DMA ref-tag lists on the
+  D_00275670 channels were rewritten from the original instructions. 12 are
+  byte-matched with mwcc 2.3.3 (objdiff 100, linked as
+  compiled_object_ordinary_c with text and relocations equal):
+  func_001D3E40, 001D3F60, 001D40E0, 001D42E0, 001D4440, 001D4650, 001D4A90,
+  001D4DA0, 001D4F30, 001D4FC0, 001D5170, 001E1E60. Nine are on the
+  first-level census (001D3E40, 001D4650, 001D4A90, 001D4DA0, 001D4F30,
+  001D4FC0, 001E1E60, and the still-NEARMISS 001D4B80 / 001D4C30); 001D4FC0 and
+  001D5170 are on the AREA01 list.
+- Most "register permutation" residuals were wrong calls in the old C: one-
+  argument vif_append_ref_tag, invented extra arguments to func_001D2910,
+  func_001D1F20, func_001D1F80, block_copy and func_001CAAC0. func_001D4B80 /
+  func_001D4C30 passed 0 to vif_build_unpack_const where the original passes
+  the channel (the port's em_aim_fire_lamp already passes it). Both are
+  corrected NEARMISS files now (77.08 -> 95.39); the residual is caller-saved
+  temp coloring only (the target never uses v0 after the second call).
+- New lever (MATCHING_GUIDE "Decomp lane round 4"): mwcc 2.3.3 gives saved
+  registers to locals in declaration order and colors a parameter used
+  directly after them. A parameter the target keeps in s0 / s1 is a local
+  copied with an explicit cast and declared first (`int *m = (int *)param;`;
+  the identity cast is what keeps it from being coalesced). It matched
+  func_001D3E40, func_001D4FC0, func_001D5170 and func_001E1E60. The 0x1F8
+  chunk loop needs the qwc stored before the address advance (func_001D4A90 /
+  func_001D4F30, identical twins).
+- fill_unmatched: func_001D3F60, func_001D40E0, func_001D4440, func_001E1E60
+  removed from GPREL_FORCE_ASM and func_001D4A90 from SIZE_DRIFT_FORCE_ASM.
+- Fresh build + verify_all: all six stages pass, 2222/2226 units,
+  matched_code 99.31% (99.3115), boot ELF byte-identical, 19/19 overlays.
+  FUNCTIONS.csv reconciled (12 nearmiss -> readable): 1890 readable, 716
+  nearmiss, 334 word, 2 c_partial, 10 undecompiled, 5 merged.
+
 ## 2026-10-20 — the 50 unmarked c_asm_fallback units rewritten (45 byte-matched, 5 NEARMISS)
 
 - The 50 `c_asm_fallback` units found by the FUNCTIONS.csv reconcile (ordinary

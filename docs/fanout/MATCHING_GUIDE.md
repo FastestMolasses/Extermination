@@ -1060,8 +1060,8 @@ one dereference too many). Levers that decided them:
   addr) and vif_build_unpack_const takes ch: several NEARMISS files still
   declare one argument. Correcting it made func_001D37D0 100 (it was 95.41
   NEARMISS) and lifted func_001D42E0 to 97.53 and func_001D4440 /
-  func_001D40E0 to 98.41 (not landed; they also pass invented arguments to
-  func_001D2910 and func_001D1F20).
+  func_001D40E0 to 98.41; with func_001D2910 and func_001D1F20 also given
+  their one-argument prototypes all three matched in round 4 (below).
 - **`||` chains for mwcc early returns.** `if (a || b) return 2;` reproduced
   the target's branch layout where nested ifs or a result variable did not
   (func_001ACE70, func_0016ADE0 with `!= 0` on both terms). `if (a && b && c)
@@ -1079,3 +1079,46 @@ one dereference too many). Levers that decided them:
   omission; an uninitialized local gets a saved register (78.26 NEARMISS).
   func_0021D800's unset a0 (idiom-32 notes) may be the same case; that is not
   checked.
+
+### Decomp lane round 4: the DMA-list NEARMISS family — 2026-10-20
+
+Fourteen NEARMISS files that build VIF/DMA ref-tag lists on the D_00275670
+channels were rewritten from the original instructions: 12 byte-matched
+(func_001D3E40, 001D3F60, 001D40E0, 001D42E0, 001D4440, 001D4650, 001D4A90,
+001D4DA0, 001D4F30, 001D4FC0, 001D5170, 001E1E60) and 2 still NEARMISS with a
+corrected body (func_001D4B80 / func_001D4C30, 95.39). Levers:
+
+- **Real prototypes first.** Most of these "register permutation" residuals
+  were wrong calls: vif_append_ref_tag (ch, addr), func_001D2910 (id),
+  func_001D1F20 (ch), func_001D1F80 (ch, a, b), block_copy (dst, src, len),
+  func_001CAAC0 (pos, payload), func_001D4A90 (ch, src). Extra arguments in the
+  old C were register leftovers. func_001D4B80 / func_001D4C30 passed 0 to
+  vif_build_unpack_const; the target passes the channel (a0 is not set before
+  the call). The port's oracle-checked em_aim_fire_lamp already passes a0.
+- **Saved registers follow declaration order, parameters come last.** mwcc
+  2.3.3 gives callee-saved registers to locals in declaration order (s0, s1,
+  ...) and colors a parameter that stays live after them, so it takes the
+  highest one. When the target keeps a parameter in s0 or s1, copy it into a
+  local declared first, with an explicit cast: `int *m = (int *)param;` (an
+  identity cast works; a plain `m = param` is coalesced into the parameter and
+  changes nothing). func_001D3E40 (model in s0, packet pointer s1),
+  func_001D4FC0 / func_001D5170 (model s0, run s1, saved list position s2) and
+  func_001E1E60 (`i = (int)arg1; off = i * 4;`, i in s1 under off in s0) all
+  matched this way. Check the target's s-register order against the
+  declaration order before calling a saved-register permutation a wall.
+- **The 0x1F8-chunk loop.** Store the tag's qwc (n * 0x82) before advancing the
+  address by n * 0x820: the target forms the qwc shift first from the shared
+  n * 65 (func_001D4A90 / func_001D4F30, identical twins; func_001D4FC0 /
+  func_001D5170). `while (n > 0)` and `if (n > 0) do {} while (n > 0)` give the
+  same code.
+- **Two reads of the cursor for a split advance.** func_001D4FC0 reserves 0xF
+  tags after a header and copies into the second: `dst = *pp + 1; *pp = *pp +
+  0xF;` gives the target's order (new cursor formed last in the loaded
+  register); `tmp = *pp; *pp = tmp + 0xF;` does not.
+- **Open: func_001D4B80 / func_001D4C30.** Same instruction stream; only
+  caller-saved temps differ. The target never uses v0 after the second call,
+  so every temp is one register later than mwcc's (context a2, slot t0, base
+  t1, frame t2). The matched func_001D4EB0 / func_001D4DA0 (no trailing call)
+  also avoid v0 and match, so the trailing func_001D4A90(ch, src) call is what
+  changes mwcc's choice. Declaration and order sweeps, an inline helper, return
+  types and a 25-minute permuter run found no lever.

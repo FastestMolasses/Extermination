@@ -135,15 +135,15 @@ GPREL_FORCE_ASM = {
     "func_001BE6C0",
     "func_001BECC0",
     "func_001BF3C0",
+    # Decomp lane round 4 (2026-10-20): func_001D3F60, func_001D40E0,
+    # func_001D4440 and func_001E1E60 removed -- byte-matched from C (mwcc 2.3.3,
+    # objdiff 100); the compiled objects link (audit_link_provenance).
     "func_001C02E0",
     "bone_root_pulse",  # was func_001C06E0
     "func_001C1A80",
     "func_001D1C50",
     "func_001D21E0",
     "func_001D2300",
-    "func_001D3F60",
-    "func_001D40E0",
-    "func_001D4440",
     "func_001D8690",
     "func_001D89D0",
     "func_001DA6A0",
@@ -153,7 +153,6 @@ GPREL_FORCE_ASM = {
     "func_001DF180",
     "func_001DF600",
     "func_001DFA40",
-    "func_001E1E60",
     "func_001E7D20",
     "func_001E9280",
     "func_001E9E60",
@@ -284,7 +283,7 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_001899C0",
     # func_001AB740 removed 2026-06-10: src/func_001AB740.c now compiles
     # byte-identical (statement-order idiom); the compiled obj is linked.
-    "func_001D4A90",
+    # func_001D4A90 removed 2026-10-20 (decomp lane round 4): byte-matched from C.
     "func_001D71A0",
     # func_001DF5A0 removed 2026-09-28 (lane DFIX): corrected C (f12 passed
     # through to func_001DF180, cursor stored before the call) is mwcc 2.3.3
