@@ -1,24 +1,32 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-extern char *D_00275674;
-extern char **D_00275670;
+//
+// Appends a ref tag (id 0x30, qwc 4) for D_00275674 + idx * 64 + 0x5A0 to DMA
+// list ch.
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 3, 2026-10-20).
 
-void func_001D2040(int a0, int a1) {
-    int a2 = a1 << 6;
-    char *a1b;
-    char **a3;
-    int a4 = a0;
-    char *ptr;
-    a1b = D_00275674;
-    a3 = D_00275670;
-    a1b = a1b + a2;
-    a3 = (char **)((char *)a3 + (a4 << 2));
-    a1b = a1b + 0x5a0;
-    ptr = a3[4];
-    ptr[3] = 0x30;
-    ptr = a3[4];
-    *(char **)(ptr + 4) = a1b;
-    ptr = a3[4];
-    *(short *)ptr = 4;
-    ptr = a3[4];
-    a3[4] = ptr + 0x10;
+typedef struct {
+    unsigned short qwc;
+    unsigned char pad;
+    unsigned char id;
+    int addr;
+    int w2;
+    int w3;
+} DmaTag;
+typedef struct {
+    char pad[0x10];
+    DmaTag *cur[16];
+    int ref[16];
+    int pad90[3];
+    int frame;
+} VifLists;
+extern VifLists *D_00275670;
+extern int D_00275674;
+void func_001D2040(int ch, int idx) {
+    int addr = D_00275674 + idx * 64 + 0x5A0;
+    DmaTag **pp = &D_00275670->cur[ch];
+    (*pp)->id = 0x30;
+    (*pp)->addr = addr;
+    (*pp)->qwc = 4;
+    (*pp)++;
 }

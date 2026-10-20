@@ -1,33 +1,32 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-extern char *D_00275670;
-extern char *D_00275674;
+//
+// Appends a ref tag (id 0x30, qwc 0x19) for D_00275674 + frame * 400 + 0x20 to
+// DMA list ch (frame = D_00275670 +0x9C).
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 3, 2026-10-20).
 
-void func_001D1F20(int a0) {
-    char *t0;
-    int v1;
-    char *a3;
-    char **a2;
-    int t1;
-    char *ptr;
-    int t0b;
-    int a1;
-    t0 = D_00275670;
-    v1 = a0 << 2;
-    a3 = D_00275674;
-    t1 = *(int *)(t0 + 0x9c);
-    a2 = (char **)(t0 + v1);
-    ptr = a2[4];
-    t0b = t1 * 4;
-    t0b = t0b + t1;
-    ptr[3] = 0x30;
-    a1 = t0b * 4;
-    a1 = t0b + a1;
-    ptr = a2[4];
-    a1 = a1 << 4;
-    a1 = (int)(a3 + a1) + 0x20;
-    *(int *)(ptr + 4) = a1;
-    ptr = a2[4];
-    *(short *)ptr = 0x19;
-    ptr = a2[4];
-    a2[4] = ptr + 0x10;
+typedef struct {
+    unsigned short qwc;
+    unsigned char pad;
+    unsigned char id;
+    int addr;
+    int w2;
+    int w3;
+} DmaTag;
+typedef struct {
+    char pad[0x10];
+    DmaTag *cur[16];
+    int ref[16];
+    int pad90[3];
+    int frame;
+} VifLists;
+extern VifLists *D_00275670;
+extern int D_00275674;
+void func_001D1F20(int ch) {
+    int addr = D_00275674 + D_00275670->frame * 400 + 0x20;
+    DmaTag **pp = &D_00275670->cur[ch];
+    (*pp)->id = 0x30;
+    (*pp)->addr = addr;
+    (*pp)->qwc = 0x19;
+    (*pp)++;
 }

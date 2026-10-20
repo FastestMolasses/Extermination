@@ -1,13 +1,13 @@
-// CFLAGS: -O4,p -sdatathreshold 0
-extern char D_002410E8[20];
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// Copies the 20-byte record D_002410E8 to a0 and returns a0.
+// Byte-matched from C with ee-gcc 2.9-991111-01 (decomp lane round 3, 2026-10-20).
+
+typedef struct { int w[5]; } Rec20;
+extern Rec20 D_002410E8;
 
 char *func_00101EA8(char *a0) {
-    char *t0 = D_002410E8;
-    long a1 = *(long *)t0;
-    long a2 = *(long *)(t0 + 8);
-    int a3 = *(int *)(t0 + 16);
-    *(long *)a0 = a1;
-    *(long *)(a0 + 8) = a2;
-    *(int *)(a0 + 16) = a3;
+    *(Rec20 *)a0 = D_002410E8;
     return a0;
 }

@@ -52,14 +52,19 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (2026-10-20, fresh build after func_0013D2D0 / 0013D850 / 00141C90 (asm bodies
-  to C) and func_0013D980 (NEARMISS to C) byte-matched; rerun fresh after the
-  FUNCTIONS.csv status reconcile, unchanged): 2164/2218 units, matched_code
-  98.69%; boot ELF byte-identical; 19/19 overlays. `docs/FUNCTIONS.csv`'s status
-  column is derived by `tools/decomp/reconcile_functions_csv.py` (rerun it with
-  `--write` after a fresh build + match stage); its 52 `c_asm_fallback` /
-  `c_partial` rows (unmarked, non-matching C) are listed in NEARMISS.md and are
-  the next matching targets.
+  Latest (2026-10-20, fresh build after decomp lane round 3: the 50 unmarked
+  `c_asm_fallback` units rewritten from the original instructions, 45 byte-matched
+  and 5 NEARMISS, and func_001D37D0 promoted from NEARMISS by its
+  vif_append_ref_tag prototype fix): 2210/2214 units, matched_code 99.31%; boot
+  ELF byte-identical; 19/19 overlays; audit_link_provenance shows all 46 new
+  matches as compiled_object_ordinary_c. `docs/FUNCTIONS.csv`'s status column is
+  derived by `tools/decomp/reconcile_functions_csv.py` (rerun it with `--write`
+  after a fresh build + match stage): 1878 readable, 728 nearmiss, 334 word,
+  2 c_partial (func_00140F80 / func_0014AFA0: the D_700038A0 literal-vs-relocation
+  expected-object case, NEARMISS.md), no c_asm_fallback left. Next matching
+  targets: the on-route NEARMISS files (359 on the census lists), starting with
+  the DMA-list builders whose vif_append_ref_tag / vif_build_unpack_const
+  prototypes are still wrong (MATCHING_GUIDE "Decomp lane round 3").
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.

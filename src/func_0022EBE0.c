@@ -1,19 +1,21 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-extern unsigned char D_008101E4;
+//
+// Returns 1 when D_008101E4 == 3 or the scratchpad byte 0x70003B8D is neither
+// 0 nor 4, else 0.
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 3, 2026-10-20).
+
+extern unsigned char D_008101E4[];
+extern unsigned char D_70003B8D;
 
 int func_0022EBE0(void) {
-    int v0;
-    unsigned char v1 = D_008101E4;
-    if (v1 == 3) {
+    int s;
+    if (D_008101E4[0] == 3) {
         return 1;
     }
-    v1 = *(volatile unsigned char *)(0x70003B8D);
-    v0 = 0;
-    if (v1) {
-        if (v1 != 4) {
-            return 1;
-        }
-        v0 = 0;
+    s = D_70003B8D;
+    if (s == 0 || s == 4) {
+        return 0;
     }
-    return v0;
+    return 1;
 }

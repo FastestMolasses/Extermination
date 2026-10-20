@@ -1,37 +1,42 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-extern char *D_00275670;
-extern char D_00816640[0x10000];
-extern char D_00237180[8];
-extern void vif_build_unpack_const(int);
-extern void vif_append_ref_tag(int, char *);
+//
+// Runs vif_build_unpack_const(ch) and vif_append_ref_tag(ch, D_00237180), then
+// appends a ref tag (qwc 8) for D_00816640 + frame * 128.
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 3, 2026-10-20).
 
-void func_001D4E20(int a0) {
-    char *a2;
-    char *v1;
-    char *a3;
-    int t0;
-    int a1;
-    int s0;
+typedef struct {
+    unsigned short qwc;
+    unsigned char pad;
+    unsigned char id;
+    int addr;
+    int w2;
+    int w3;
+} DmaTag;
+typedef struct {
+    char pad[0x10];
+    DmaTag *cur[16];
+    int ref[16];
+    int pad90[3];
+    int frame;
+} VifLists;
+extern VifLists *D_00275670;
+extern int D_00275674;
+extern char D_00816640[];
+extern char D_00237180[];
+extern void vif_build_unpack_const(int a0);
+extern void vif_append_ref_tag(int ch, char *addr);
 
-    s0 = a0;
-    vif_build_unpack_const(0);
-    vif_append_ref_tag(s0, D_00237180);
+void func_001D4E20(int ch) {
+    char *addr;
+    DmaTag **pp;
 
-    t0 = (int)D_00275670;
-    a2 = (char *)(t0 + s0 * 4);
-    a3 = D_00816640;
-    a1 = 0x30;
-    t0 = *(int *)((char *)D_00275670 + 0x9c);
-    v1 = *(char **)(a2 + 0x10);
-    a0 = 8;
-    t0 = t0 << 7;
-    v1[3] = a1;
-    v1 = *(char **)(a2 + 0x10);
-    a1 = (int)(a3 + t0);
-    *(int *)(v1 + 4) = a1;
-    v1 = *(char **)(a2 + 0x10);
-    *(short *)v1 = a0;
-    v1 = *(char **)(a2 + 0x10);
-    v1 = v1 + 0x10;
-    *(char **)(a2 + 0x10) = v1;
+    vif_build_unpack_const(ch);
+    vif_append_ref_tag(ch, D_00237180);
+    addr = D_00816640 + D_00275670->frame * 128;
+    pp = &D_00275670->cur[ch];
+    (*pp)->id = 0x30;
+    (*pp)->addr = (int)addr;
+    (*pp)->qwc = 8;
+    (*pp)++;
 }

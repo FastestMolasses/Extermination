@@ -1,28 +1,22 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-extern int D_00275BD0;
+//
+// Zeroes 13 quadwords at blk, pushes blk on the free stack D_00275BD0 and
+// increments the count D_00275BCC.
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 3, 2026-10-20).
+
+typedef unsigned int u128 __attribute__((mode(TI)));
+extern char **D_00275BD0;
 extern short D_00275BCC;
 
-void func_001AF890(char *a0) {
-    int a1;
-    char *v1;
-    int a1b;
-    int v1b;
-    short v1c;
-    a1 = 0xd;
-    v1 = a0;
+void func_001AF890(char *blk) {
+    u128 *p = (u128 *)blk;
+    int n = 13;
     do {
-        *(int *)(v1 + 0) = 0;
-        *(int *)(v1 + 4) = 0;
-        *(int *)(v1 + 8) = 0;
-        *(int *)(v1 + 12) = 0;
-        a1--;
-        v1 += 16;
-    } while (a1 != 0);
-    a1b = D_00275BD0;
-    v1b = a1b - 4;
-    D_00275BD0 = v1b;
-    *(int *)v1b = (int)a0;
-    v1c = D_00275BCC;
-    v1c = v1c + 1;
-    D_00275BCC = v1c;
+        *p = 0;
+        n--;
+        p++;
+    } while (n != 0);
+    *--D_00275BD0 = blk;
+    D_00275BCC++;
 }

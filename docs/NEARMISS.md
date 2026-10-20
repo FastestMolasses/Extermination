@@ -34,73 +34,29 @@ pointer to its companion. The registry rows below say "Companion C in src/readab
 one, reach 100% and replace the asm body in `src/<f>.c` with the C (then delete the companion).
 
 **Unmarked C that is not byte-matched (FUNCTIONS.csv `c_asm_fallback` / `c_partial`, 2026-10-20).**
-`tools/decomp/reconcile_functions_csv.py` found 52 boot functions whose `src/<f>.c` is ordinary C
-without a `// NEARMISS` marker yet is not objdiff 100%. They were never registered here. 50 link
-from the original `.s` through fill_unmatched's explicit `SIZE_DRIFT_FORCE_ASM` /
-`GPREL_FORCE_ASM` lists (`c_asm_fallback`); their bodies have not been checked against the
-original instructions, so they are not port ground truth until they are either byte-matched or
-audited and marked `// NEARMISS`. All but one of the 50 carry no `// COMPILER:` line, i.e.
-they compile with the pinned mwcc 991202. 21 of them sit in the SDK / low-memory range (below
-0x001305B0), where the SDK code is ee-gcc (`// COMPILER: eegcc`), so their low scores may come
-from the wrong compiler rather than walls; the other 29 are game code. Two (`c_partial`) link
-from their compiled objects with the boot ELF byte-identical and score 99.98-99.99%; the cause
-is not examined yet (LEVELS_DECOMP.md; one candidate is the expected-object hoisted-`%hi`
-artifact of PS2_DECOMP_PLAYBOOK.md section 2a-bis). Scores from the fresh build of 2026-10-20:
+`tools/decomp/reconcile_functions_csv.py` found 52 boot functions whose `src/<f>.c` was ordinary C
+without a `// NEARMISS` marker yet not objdiff 100%. 50 of them (`c_asm_fallback`) linked from the
+original `.s` through fill_unmatched's explicit `SIZE_DRIFT_FORCE_ASM` / `GPREL_FORCE_ASM` lists,
+and their bodies had never been checked against the original instructions. Decomp lane round 3
+(2026-10-20) rewrote all 50 from the original instructions. Most of the old bodies were wrong, not
+just unmatched: func_00110BC0 / func_00110C48 read the wrong fallback string, func_001098E0 called
+func_001026A0 where the original tail-calls func_0010A400, func_00107CB8 dereferenced one level too
+far, and func_001145A0 used a misnamed symbol for an offset. 45 are now byte-matched (21 SDK-range
+units with ee-gcc, 24 game units with mwcc 2.3.3; their list entries are removed) and the other
+5 are `// NEARMISS` files in the registry below (func_001899C0, func_001D4A90, func_001D71A0,
+func_001E0C80, func_001FC9B0). The two `c_partial` units remain:
 
 | Function | vram | bytes | objdiff % | `// COMPILER:` | CSV status / link route |
 |---|---|---|---|---|---|
-| dmac_channel_base | 0x00101BB8 | 40 | 61.00% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_00101EA8 | 0x00101EA8 | 56 | 45.29% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_00107CB8 | 0x00107CB8 | 56 | 59.14% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001098E0 | 0x001098E0 | 56 | 18.86% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_0010C9C8 | 0x0010C9C8 | 36 | 85.56% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_0010DC78 | 0x0010DC78 | 24 | 98.33% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_0010DC90 | 0x0010DC90 | 24 | 98.33% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_0010DCA8 | 0x0010DCA8 | 44 | 50.27% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_0010DCD8 | 0x0010DCD8 | 40 | 47.00% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_00110BC0 | 0x00110BC0 | 52 | 8.85% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_00110C48 | 0x00110C48 | 52 | 0.00% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001145A0 | 0x001145A0 | 144 | 68.89% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001152B0 | 0x001152B0 | 36 | 41.11% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001157F0 | 0x001157F0 | 96 | 54.58% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_00119400 | 0x00119400 | 80 | 21.50% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001199F0 | 0x001199F0 | 72 | 20.78% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_00119D08 | 0x00119D08 | 44 | 19.09% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_00119D38 | 0x00119D38 | 72 | 46.39% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_0011A730 | 0x0011A730 | 40 | 76.50% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_0011A938 | 0x0011A938 | 40 | 76.50% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_00120B10 | 0x00120B10 | 36 | 25.56% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
 | func_00140F80 | 0x00140F80 | 1860 | 99.99% | mwcc233 | c_partial / compiled_object_ordinary_c |
 | func_0014AFA0 | 0x0014AFA0 | 2056 | 99.98% | mwcc233 | c_partial / compiled_object_ordinary_c |
-| func_0014D1E0 | 0x0014D1E0 | 128 | 68.75% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_0016ADE0 | 0x0016ADE0 | 96 | 76.46% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001899C0 | 0x001899C0 | 92 | 57.22% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001ACE70 | 0x001ACE70 | 80 | 36.20% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001AF890 | 0x001AF890 | 68 | 63.47% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001B0BA0 | 0x001B0BA0 | 92 | 81.96% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001B1190 | 0x001B1190 | 80 | 60.50% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001BA1C0 | 0x001BA1C0 | 48 | 47.92% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001BA510 | 0x001BA510 | 48 | 76.67% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001CB8A0 | 0x001CB8A0 | 96 | 33.71% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001CB9B0 | 0x001CB9B0 | 136 | 76.47% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_gprel |
-| func_001D1F20 | 0x001D1F20 | 96 | 68.96% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_gprel |
-| func_001D1F80 | 0x001D1F80 | 108 | 53.33% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_gprel |
-| func_001D1FF0 | 0x001D1FF0 | 76 | 83.11% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_gprel |
-| func_001D2040 | 0x001D2040 | 76 | 70.74% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_gprel |
-| vif_append_ref_tag | 0x001D2090 | 124 | 80.81% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_gprel |
-| func_001D38A0 | 0x001D38A0 | 80 | 65.25% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001D4A90 | 0x001D4A90 | 128 | 56.38% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001D4E20 | 0x001D4E20 | 128 | 65.94% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001D4EB0 | 0x001D4EB0 | 128 | 65.94% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001D6B10 | 0x001D6B10 | 68 | 60.06% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001D71A0 | 0x001D71A0 | 76 | 46.84% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001DA290 | 0x001DA290 | 116 | 25.24% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001E0C80 | 0x001E0C80 | 60 | 56.87% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_001FC9B0 | 0x001FC9B0 | 84 | 90.48% | mwcc233 | c_asm_fallback / original_assembly_explicit_size |
-| func_001FCB90 | 0x001FCB90 | 56 | 53.57% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_0021BD10 | 0x0021BD10 | 76 | 38.16% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_0021C3F0 | 0x0021C3F0 | 80 | 46.00% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
-| func_0022EBE0 | 0x0022EBE0 | 80 | 73.00% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+
+Their cause is now identified: every differing row is a scratchpad access to 0x700038A0, which the
+expected object spells as a literal upper half (0x7000) plus offset 0x38A0 while the C names
+D_700038A0 and gets a relocation. The linked bytes are equal, which is why both link from their
+compiled objects with the boot ELF byte-identical. This is the splat literal-vs-relocation case
+recorded as tested and rejected in build.py (s86, 0x700038A0); objdiff 100 needs an
+expected-object normalizer for it, not a source change.
 
 
 ## Registry
@@ -277,7 +233,6 @@ artifact of PS2_DECOMP_PLAYBOOK.md section 2a-bis). Scores from the fresh build 
 | func_001AB430 | 0x001AB430 | 0xB0 | 82.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling near-miss: target hoists the shared %hi of D_00810118 and keeps sourc... |
 | func_001A8F40 | 0x001A8F40 | 0xBC | 85.21% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-coloring/scheduling permutation: target reloads *0x70003A20 early into $f1 and colors v |
 | func_001B0EA0 | 0x001B0EA0 | 0xC0 | 95.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Prologue instruction-scheduling artifact: body 100% identical except one instruction's pos |
-| func_001D37D0 | 0x001D37D0 | 0xC4 | 95.41% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body fully recovered (reload idiom #10 applied: *slot is reloaded before each of the 4 fie |
 | func_0021D530 | 0x0021D530 | 0xC4 | 98.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Delay-slot scheduling (inverse of the clean-store-nop case). The original CodeWarrior buil |
 | func_00206BF0 | 0x00206BF0 | 0xC8 | 97.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single-store addressing-mode/scheduling artifact: the CW target materializes &v34 into a r |
 | func_00205740 | 0x00205740 | 0xCC | 94.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling near-miss (94.9%, mwcc233): logic fully recovered, identical instru |
@@ -1005,3 +960,8 @@ artifact of PS2_DECOMP_PLAYBOOK.md section 2a-bis). Scores from the fresh build 
 | func_001B2F70 | 0x001B2F70 | 0x170 | 98.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected 2026-10-02 (lane DFIX2) against the original instructions; supersedes this function's earlier row(s) for the % and the logic, and its logic note: func_0019BC40 gets arg0 (the position). Still NEARMISS (links from splat). docs/FINDINGS.md "NEARMISS body corrections from the level side-track lanes, second round". |
 | func_0021BE40 | 0x0021BE40 | 0x90 | 100% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | LINKS FROM C since 2026-10-02 (lane DFIX2): its SIZE_DRIFT_FORCE_ASM entry was removed; full build byte-identical, audit_link_provenance compiled_object_ordinary_c with filler = prepared object; supersedes the "still links from the .s" wording of its earlier row. docs/LEVELS_DECOMP.md section 8. |
 | func_001D0D60 | 0x001D0D60 | 0x1BC | 100% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | LINKS FROM C since 2026-10-02 (lane DFIX2): its SIZE_DRIFT_FORCE_ASM entry was removed; same proof as func_0021BE40; supersedes the "still links from the .s" wording of its earlier row. docs/LEVELS_DECOMP.md section 8. |
+| func_001899C0 | 0x001899C0 | 0x5C | 78.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | The target sets no a0 for the func_00189730 call: func_00189630 is a leaf that never write |
+| func_001D4A90 | 0x001D4A90 | 0x80 | 98.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two shifts swapped: the target forms qwc (n*65*2) before the byte step (n*65*32) from the  |
+| func_001D71A0 | 0x001D71A0 | 0x4C | 85.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register coloring: the target keeps the list pointer and slot address in a3, ch*4 in v1 an |
+| func_001E0C80 | 0x001E0C80 | 0x3C | 89.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | The target computes the flag word address (D_00275670 + 0x174) into its own register for t |
+| func_001FC9B0 | 0x001FC9B0 | 0x54 | 90.48% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | One placement: mwcc 2.3.3 schedules the upper-half address load of D_002821D0 ahead of the |

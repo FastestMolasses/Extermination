@@ -1,11 +1,15 @@
-// CFLAGS: -O4,p -sdatathreshold 0
-extern int D_00241050;
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// Returns the DMA channel base address for channel ch (table D_00241050), or 0
+// for ch >= 10.
+// Byte-matched from C with ee-gcc 2.9-991111-01 (decomp lane round 3, 2026-10-20).
 
-int dmac_channel_base(int a0) {
-    int v1 = 0;
-    if ((unsigned int)a0 < 0xaU) {
-        int *base = &D_00241050;
-        v1 = base[a0];
+extern int D_00241050[];
+
+int dmac_channel_base(unsigned int ch) {
+    if (ch < 10) {
+        return D_00241050[ch];
     }
-    return v1;
+    return 0;
 }

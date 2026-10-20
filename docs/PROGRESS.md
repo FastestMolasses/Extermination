@@ -1,3 +1,34 @@
+## 2026-10-20 — the 50 unmarked c_asm_fallback units rewritten (45 byte-matched, 5 NEARMISS)
+
+- The 50 `c_asm_fallback` units found by the FUNCTIONS.csv reconcile (ordinary
+  C below objdiff 100 that linked from the `.s` through fill_unmatched's explicit
+  lists) were rewritten from the original instructions. Most old bodies were
+  wrong rather than near: func_00110BC0 / func_00110C48 read the wrong fallback
+  string, func_001098E0 called func_001026A0 where the original tail-calls
+  func_0010A400 with the rounded size, func_00107CB8 dereferenced one level too
+  far. They were not port ground truth; the new C is.
+- 45 are byte-matched (objdiff 100, .text within the slot, linked as
+  compiled_object_ordinary_c with text and relocations equal): the 21 SDK-range
+  units with ee-gcc (none matched with mwcc), the 24 game units with mwcc 2.3.3.
+  Their SIZE_DRIFT_FORCE_ASM (39) / GPREL_FORCE_ASM (6) entries are removed. 34
+  of the 51 functions touched are on the first-level census (none are only on
+  the AREA01 / AREA00 lists).
+- 5 are body-correct NEARMISS files with the exact residual: func_001D4A90
+  98.91, func_001FC9B0 90.48, func_001E0C80 89.93, func_001D71A0 85.79,
+  func_001899C0 78.26 (the target passes self to func_00189730 without setting
+  a0, because func_00189630 is a leaf that never writes a0).
+- func_001D37D0 (NEARMISS 95.41, "callee-saved arg-copy permutation") was a
+  wrong prototype: vif_append_ref_tag takes (channel, address). Fixed, it is 100.
+  The same fix lifts func_001D42E0 to 97.53 and func_001D4440 / func_001D40E0 to
+  98.41 (not landed; they also pass invented arguments).
+- The two `c_partial` units (func_00140F80 99.99, func_0014AFA0 99.98) differ only
+  at scratchpad accesses to 0x700038A0: the expected object has the literal
+  form, the C has a relocation. The linked bytes are equal.
+- Levers recorded in MATCHING_GUIDE "Decomp lane round 3". Promoted through
+  tools/match/integrate_nearmiss.py (46 KEEP, 5 NEARMISS). Fresh build +
+  verify_all: all six stages pass, 2210/2214 units, matched_code 99.31%, boot ELF
+  byte-identical, 19/19 overlays. FUNCTIONS.csv reconciled (51 rows changed).
+
 ## 2026-10-20 — FUNCTIONS.csv status column reconciled from the real state
 
 - New `tools/decomp/reconcile_functions_csv.py` derives each row's `status`

@@ -1,24 +1,27 @@
-// CFLAGS: -O4,p -sdatathreshold 0
-extern char D_0027E0C0[0x10000];
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// For slot a0 (a0 < 48) of D_0027E0C0 whose u16 +0x2E is 1, returns u16 +0x30
+// | (u16 +0x40 << 1); otherwise -1.
+// Byte-matched from C with ee-gcc 2.9-991111-01 (decomp lane round 3, 2026-10-20).
 
-int func_00119D38(int a0) {
-    char *v0;
-    char *a1;
-    unsigned short v1;
-    int a2;
+typedef struct {
+    char pad0[0x2E];
+    unsigned short state;
+    unsigned short lo;
+    char pad32[0x0E];
+    unsigned short hi;
+    char pad42[0x12];
+    unsigned short id;
+    char pad56[0x22];
+} Slot78;
+extern Slot78 D_0027E0C0[48];
 
-    v0 = D_0027E0C0;
-    a2 = -1;
-    if (a0 >= 48) {
-        return a2;
+int func_00119D38(unsigned int a0) {
+    int r = -1;
+    Slot78 *s = &D_0027E0C0[a0];
+    if (a0 < 48 && s->state == 1) {
+        r = s->lo; r |= s->hi << 1;
     }
-    a1 = v0 + a0 * 120;
-    v1 = *(unsigned short *)(a1 + 46);
-    if (v1 != 1) {
-        return a2;
-    }
-    v1 = *(unsigned short *)(a1 + 64);
-    a2 = *(unsigned short *)(a1 + 48);
-    a2 = a2 | ((int)v1 << 1);
-    return a2;
+    return r;
 }

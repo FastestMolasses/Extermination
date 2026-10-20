@@ -1,31 +1,21 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Starts an empty DMA chain at D_0028F700 + D_00810E80 * 0x70000 + 0x1F3EC0 +
+// a1 * 64 (tag 0x20000000) and returns the 28-bit addresses of the chain and
+// of its next entry through a2 / a3 (the loop-free sibling of func_001CB800).
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 3, 2026-10-20).
+
+extern char D_0028F700;
 extern short D_00810E80;
-extern char D_0028F700[0x10000];
 
-void func_001CB8A0(int a0, int a1, int *a2, int *a3) {
-    short t1;
-    int t0;
-    int a1_addr;
-    int a4;
-    int v1;
-    int at;
+void func_001CB8A0(int *arg0, int arg1, int *arg2, int *arg3) {
+    char *base;
 
-    t1 = D_00810E80;
-    a4 = a1 << 6;
-    a1_addr = (int)D_0028F700;
-    v1 = 0x20000000;
-    t0 = t1 << 3;
-    t0 = t0 - t1;
-    t0 = t0 << 16;
-    a1_addr = a1_addr + t0;
-    at = 0x1f3ec0;
-    a1_addr = a1_addr + at;
-    a1_addr = a1_addr + a4;
-    *(int *)a1_addr = v1;
-    v1 = a1_addr + 32;
-    a0 = (int)((unsigned long long)((long long)v1 << 36) >> 36);
-    v1 = (int)((unsigned long long)((long long)a1_addr << 36) >> 36);
-    *(int *)(a1_addr + 4) = a0;
-    *a2 = v1;
-    *a3 = a0;
+    base = &D_0028F700 + (int)D_00810E80 * 0x70000 + 0x1F3EC0;
+    base = base + (arg1 << 6);
+    *(int *)base = 0x20000000;
+    ((int *)base)[1] = (long long)(base + 0x20) & 0xFFFFFFF;
+    *arg2 = (long long)base & 0xFFFFFFF;
+    *arg3 = (long long)(base + 0x20) & 0xFFFFFFF;
 }

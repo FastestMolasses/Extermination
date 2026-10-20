@@ -1,39 +1,35 @@
-// CFLAGS: -O4,p -sdatathreshold 0
-extern char D_20000010[1];
-extern char D_20000050[1];
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// Through the uncached alias (a0 | 0x20000000), copies n0 bytes from +0x10 to
+// dst0 and n1 bytes from +0x50 to dst1 (counts and destinations at
+// +0/+4/+8/+0xC).
+// Byte-matched from C with ee-gcc 2.9-991111-01 (decomp lane round 3, 2026-10-20).
+
+typedef struct {
+    int n0;
+    int n1;
+    char *dst0;
+    char *dst1;
+    char buf0[0x40];
+    char buf1[0x40];
+} CopyPair;
 
 void func_001145A0(int a0) {
-    int v0;
-    int a1;
-    char *a2;
-    char *a3;
-    a0 = a0 | 0x20000000;
-    v0 = *(int *)a0;
-    if (v0 != 0) {
-        a2 = *(char **)(a0 + 8);
-        if (v0 > 0) {
-            a3 = (char *)a0;
-            a1 = 0;
-            do {
-                v0 = *(unsigned char *)(a3 + (int)D_20000010 + a1);
-                a1++;
-                *a2 = v0;
-                a2++;
-                v0 = *(int *)a0;
-            } while (a1 < v0);
+    CopyPair *p = (CopyPair *)(a0 | 0x20000000);
+    char *d;
+    int i;
+
+    if (p->n0 != 0) {
+        d = p->dst0;
+        for (i = 0; i < p->n0; i++) {
+            *d++ = p->buf0[i];
         }
     }
-    v0 = *(int *)(a0 + 4);
-    if (v0 == 0) return;
-    a2 = *(char **)(a0 + 12);
-    if (v0 <= 0) return;
-    a3 = (char *)a0;
-    a1 = 0;
-    do {
-        v0 = *(unsigned char *)(a3 + (int)D_20000050 + a1);
-        a1++;
-        *a2 = v0;
-        a2++;
-        v0 = *(int *)(a0 + 4);
-    } while (a1 < v0);
+    if (p->n1 != 0) {
+        d = p->dst1;
+        for (i = 0; i < p->n1; i++) {
+            *d++ = p->buf1[i];
+        }
+    }
 }

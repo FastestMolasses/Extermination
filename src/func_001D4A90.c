@@ -1,42 +1,60 @@
+// NEARMISS func_001D4A90  (vram 0x001D4A90, 0x80 bytes) — readable decompilation, NOT byte-identical.
+//
+// objdiff 98.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Two shifts swapped: the target forms qwc (n*65*2) before the byte step (n*65*32) from the shared n*65; mwcc 2.3.3 emits the byte step first. Statement order, a temp and shift spellings do not move it.
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-extern int *D_00275670;
 
-void func_001D4A90(int a0, int *a1) {
-    int t1;
-    int t0;
-    int t2;
-    int v1;
-    int a2;
-    int a3;
-    int *p;
-    t1 = a1[0];
-    if (t1 <= 0) return;
-    t0 = (int)a1 + 64;
-    t2 = a0 * 4;
-    a2 = 0x30;
-    if (t1 >= 504) {
-        a0 = 504;
-    } else {
-        a0 = t1;
+//
+// Streams the data after the 0x40-byte header at src to DMA list ch as ref
+// tags (id 0x30): each covers n = min(left, 504) units (qwc n * 130, address
+// advanced by n * 2080 bytes), and left -= 504 until it is <= 0; left starts
+// at src[0].
+
+typedef struct {
+    unsigned short qwc;
+    unsigned char pad;
+    unsigned char id;
+    int addr;
+    int w2;
+    int w3;
+} DmaTag;
+typedef struct {
+    char pad[0x10];
+    DmaTag *cur[16];
+    int ref[16];
+    int pad90[3];
+    int frame;
+} VifLists;
+extern VifLists *D_00275670;
+extern int D_00275674;
+
+void func_001D4A90(int ch, int *src) {
+    char *data;
+    int left;
+    int n;
+    DmaTag **pp;
+
+    left = src[0];
+    data = (char *)src + 0x40;
+    while (left > 0) {
+        if (left < 504) {
+            n = left;
+        } else {
+            n = 504;
+        }
+        pp = &D_00275670->cur[ch];
+        left -= 504;
+        (*pp)->id = 0x30;
+        (*pp)->addr = (int)data;
+        data += (n * 65) * 32;
+        (*pp)->qwc = (n * 65) * 2;
+        (*pp)++;
     }
-    a3 = (int)(*D_00275670) + t2;
-    v1 = a0 * 65;
-    t0 = (int)a1 + 64;
-    a0 = v1 * 2;
-    v1 = v1 * 32;
-    do {
-        p = (int *)(a3 + 16);
-        *(int *)a3 = (int)p + 16;  /* dummy to get a3 address */
-        p = (int *)*(int *)(a3 + 16);
-        t1 -= 504;
-        ((char *)p)[3] = a2;
-        p = (int *)*(int *)(a3 + 16);
-        ((int *)((char *)p + 4))[0] = t0;
-        t0 += v1;
-        p = (int *)*(int *)(a3 + 16);
-        ((short *)p)[0] = a0;
-        p = (int *)*(int *)(a3 + 16);
-        p = (int *)((char *)p + 16);
-        *(int *)(a3 + 16) = (int)p;
-    } while (t1 > 0);
 }

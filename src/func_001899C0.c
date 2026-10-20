@@ -1,17 +1,35 @@
+// NEARMISS func_001899C0  (vram 0x001899C0, 0x5C bytes) — readable decompilation, NOT byte-identical.
+//
+// objdiff 78.26% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// The target sets no a0 for the func_00189730 call: func_00189630 is a leaf that never writes a0, so self is still there. mwcc reloads a0 from the saved register, which adds one move and shifts the schedule (78.26%).
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+//
+// Runs func_00189630(self, D_008102B0) and func_00189730(self, D_008102B0),
+// copies the matrix at D_008103D0[0] + 0x90 to self + 0xD0 and passes it to
+// func_001C9610(D_00275B40, self[0xC], self + 0xD0).
+
 extern unsigned char D_008102B0[8];
 extern int D_008103D0[2];
 extern int *D_00275B40;
-extern void func_00189630(void *, unsigned char *);
-extern void func_00189730(unsigned char *);
-extern void copy_qw4(void *, void *);
-extern void func_001C9610(int *, int, void *);
+extern void func_00189630(unsigned char *a0, unsigned char *a1);
+extern void func_00189730(unsigned char *p, unsigned char *e);
+extern void copy_qw4(void *dst, void *src);
+extern void func_001C9610(int *a0, int a1, void *a2);
 
-void func_001899C0(void *a0) {
-    void *s0;
-    s0 = a0;
-    func_00189630(s0, D_008102B0);
-    func_00189730(D_008102B0);
-    copy_qw4((char *)s0 + 0xd0, (void *)(D_008103D0[0] + 0x90));
-    func_001C9610(D_00275B40, *(unsigned char *)((char *)s0 + 0xc), (char *)s0 + 0xd0);
+// The original sets no $a0 before the func_00189730 call: func_00189630 is a
+// leaf that never writes $a0, so self is still there. The call therefore
+// receives (self, D_008102B0).
+void func_001899C0(unsigned char *self) {
+    func_00189630(self, D_008102B0);
+    func_00189730(self, D_008102B0);
+    copy_qw4(self + 0xD0, (void *)(D_008103D0[0] + 0x90));
+    func_001C9610(D_00275B40, self[0xC], self + 0xD0);
 }

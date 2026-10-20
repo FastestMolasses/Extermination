@@ -108,6 +108,14 @@ GPREL_FORCE_ASM = {
     # jr-table lane (2026-09-23): func_0012A5D0 was removed after its C
     # reached objdiff 100% (NEARMISS promoted); same proof as above -- full
     # build + verify_all byte-identical, audit shows compiled_object_ordinary_c.
+    # Decomp lane round 3 (2026-10-20): 6 entries removed -- func_001CB9B0,
+    # func_001D1F20, func_001D1F80, func_001D1FF0, func_001D2040,
+    # vif_append_ref_tag. Their ordinary C (unverified c_asm_fallback bodies) was
+    # rewritten from the original instructions and is objdiff 100% with .text no
+    # larger than the slot (SDK-range units with ee-gcc, game code with mwcc
+    # 2.3.3); with the entries removed the full build + verify_all stayed byte-
+    # identical and audit_link_provenance shows compiled_object_ordinary_c for
+    # each.
     # Additional 107 discovered in subsequent link (obj/ compiled with GP-relative):
     "func_00128C10",
     "func_0012E560",
@@ -130,13 +138,7 @@ GPREL_FORCE_ASM = {
     "func_001C02E0",
     "bone_root_pulse",  # was func_001C06E0
     "func_001C1A80",
-    "func_001CB9B0",
     "func_001D1C50",
-    "func_001D1F20",
-    "func_001D1F80",
-    "func_001D1FF0",
-    "func_001D2040",
-    "vif_append_ref_tag",  # was func_001D2090
     "func_001D21E0",
     "func_001D2300",
     "func_001D3F60",
@@ -232,6 +234,20 @@ SIZE_DRIFT_FORCE_ASM = {
     # verify_all stayed byte-identical and audit_link_provenance shows each
     # linked from its compiled object (ordinary C / inline assembly) with the
     # filler's text and relocations equal to the prepared object.
+    # Decomp lane round 3 (2026-10-20): 39 entries removed -- dmac_channel_base,
+    # func_00101EA8, func_00107CB8, func_001098E0, func_0010C9C8, func_0010DC78,
+    # func_0010DC90, func_0010DCA8, func_0010DCD8, func_00110BC0, func_00110C48,
+    # func_001145A0, func_001152B0, func_001157F0, func_00119400, func_001199F0,
+    # func_00119D08, func_00119D38, func_0011A730, func_0011A938, func_00120B10,
+    # func_0014D1E0, func_0016ADE0, func_001ACE70, func_001AF890, func_001B0BA0,
+    # func_001B1190, func_001BA1C0, func_001BA510, func_001CB8A0, func_001D38A0,
+    # func_001D4E20, func_001D4EB0, func_001D6B10, func_001DA290, func_001FCB90,
+    # func_0021BD10, func_0021C3F0, func_0022EBE0. Their ordinary C (unverified
+    # c_asm_fallback bodies) was rewritten from the original instructions and is
+    # objdiff 100% with .text no larger than the slot (SDK-range units with ee-
+    # gcc, game code with mwcc 2.3.3); with the entries removed the full build +
+    # verify_all stayed byte-identical and audit_link_provenance shows
+    # compiled_object_ordinary_c for each.
     "func_001046C0",
     "func_0010C0C8",
     "func_0010C290",
@@ -246,7 +262,6 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_0019ED80",
     "func_0019F330",
     "func_001A4D10",
-    "func_001B1190",
     "func_001B1EA0",
     # anim_clip_init removed: readable C now supplies both float arguments
     # and matches the original212-byte slot; verify actual compiled-C linkage.
@@ -261,61 +276,23 @@ SIZE_DRIFT_FORCE_ASM = {
     # mwcc compiles successfully (or that build.py's tolerant compile
     # batches skip) but whose bytes diverge from the original; fall back
     # to splat-assembled .s for byte identity.
-    "dmac_channel_base",  # was func_00101BB8
-    "func_00101EA8",
     "func_00103380",
-    "func_00107CB8",
-    "func_001098E0",
-    "func_0010C9C8",
-    "func_0010DC78",
-    "func_0010DC90",
-    "func_0010DCA8",
-    "func_0010DCD8",
-    "func_00110BC0",
-    "func_00110C48",
-    "func_001145A0",
-    "func_001152B0",
-    "func_001157F0",
-    "func_001199F0",
-    "func_00119400",
-    "func_00119D08",
-    "func_00119D38",
-    "func_0011A730",
-    "func_0011A938",
-    "func_00120B10",
     # func_0012E070 removed 2026-09-28 (lane DFIX): the mwcc 2.3.3 rewrite is
     # objdiff 100% and the compiled object is linked (audit_link_provenance).
-    "func_0014D1E0",
-    "func_0016ADE0",
     # func_001749A0 removed: explicit caller blend and source-frame0 restore
     # the omitted f13 initialization and exact72-byte compiled function.
     "func_001899C0",
-    "func_001ACE70",
     # func_001AB740 removed 2026-06-10: src/func_001AB740.c now compiles
     # byte-identical (statement-order idiom); the compiled obj is linked.
-    "func_001AF890",
-    "func_001B0BA0",
-    "func_001BA1C0",
-    "func_001BA510",
-    "func_001CB8A0",
-    "func_001D38A0",
     "func_001D4A90",
-    "func_001D4E20",
-    "func_001D4EB0",
-    "func_001D6B10",
     "func_001D71A0",
-    "func_001DA290",
     # func_001DF5A0 removed 2026-09-28 (lane DFIX): corrected C (f12 passed
     # through to func_001DF180, cursor stored before the call) is mwcc 2.3.3
     # objdiff 100%; the compiled object is linked (audit_link_provenance).
     "func_001FC9B0",
-    "func_001FCB90",
     # func_002061B0 removed 2026-10-16: the old C dropped the field-wait loop
     # (.text 0x40 vs 0x50); the restored do/while under mwcc 2.3.3 with the
     # two gp-relative flags volatile is objdiff 100% at 0x50 and links.
-    "func_0021BD10",
-    "func_0021C3F0",
-    "func_0022EBE0",
 }
 
 # Regex for extracting the declared original size from a .s file's nonmatching line.

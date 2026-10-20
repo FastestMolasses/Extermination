@@ -1,29 +1,23 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-extern short D_00289B40;
-extern short D_0024A850;
+//
+// Builds the 23-entry (start, count) span table D_00289B40 from the counts
+// D_0024A850; a zero count still advances the start by 1.
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 3, 2026-10-20).
 
+typedef struct { short start; short count; } Span;
+extern Span D_00289B40[23];
+extern short D_0024A850[23];
 void func_001B0BA0(void) {
-    int v1;
-    short *a0;
-    short *a1;
-    int a2;
-    int a3;
-    a0 = &D_00289B40;
-    a1 = &D_0024A850;
-    a2 = 0;
-    a3 = 0;
-    while (a3 < 0x17) {
-        a0[0] = a2;
-        v1 = a1[0];
-        a0[1] = v1;
-        v1 = a1[0];
-        if (v1 == 0) {
-            a2++;
+    int i;
+    int pos = 0;
+    for (i = 0; i < 23; i++) {
+        D_00289B40[i].start = pos;
+        D_00289B40[i].count = D_0024A850[i];
+        if (D_0024A850[i] == 0) {
+            pos++;
         } else {
-            a2 += v1;
+            pos += D_0024A850[i];
         }
-        a3++;
-        a0 += 2;
-        a1++;
     }
 }

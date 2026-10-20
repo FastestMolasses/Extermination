@@ -1,48 +1,32 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-extern int D_00275670;
+//
+// Appends a ref tag (id 0x30, qwc 9) for D_00275674 + a * 1440 + b * 144 +
+// 0xBA0 to DMA list ch.
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 3, 2026-10-20).
+
+typedef struct {
+    unsigned short qwc;
+    unsigned char pad;
+    unsigned char id;
+    int addr;
+    int w2;
+    int w3;
+} DmaTag;
+typedef struct {
+    char pad[0x10];
+    DmaTag *cur[16];
+    int ref[16];
+    int pad90[3];
+    int frame;
+} VifLists;
+extern VifLists *D_00275670;
 extern int D_00275674;
-
-void func_001D1F80(int a0, int a1, int a2) {
-    int v1;
-    int a1b;
-    int a2b;
-    int a3;
-    int t0;
-    int *v1p;
-
-    /* compute a1*45*32 */
-    v1 = a1 << 4;
-    a1b = v1 - a1;
-    v1 = a1b << 2;
-    v1 = v1 - a1b;
-    t0 = v1 << 5;
-
-    /* load D_00275674, compute a2*9 */
-    a3 = D_00275674;
-    v1 = a2 << 3;
-    a1b = v1 + a2;
-
-    /* load D_00275670 into v1 */
-    v1 = D_00275670;
-
-    /* finalize a3 = D_00275674 + a1*1440 + a2*144 + 0xBA0 */
-    a2b = a1b << 4;
-    a3 = a3 + t0;
-    a3 = a3 + a2b;
-
-    /* compute channel ptr */
-    a0 = a0 << 2;
-    a2b = v1 + a0;
-
-    /* push command */
-    v1p = *(int **)(a2b + 0x10);
-    a3 = a3 + 0xBA0;
-    *(char *)((char *)v1p + 3) = 0x30;
-    v1p = *(int **)(a2b + 0x10);
-    *(int *)((char *)v1p + 4) = a3;
-    v1p = *(int **)(a2b + 0x10);
-    *(short *)v1p = 9;
-    v1p = *(int **)(a2b + 0x10);
-    v1p = (int *)((char *)v1p + 0x10);
-    *(int *)(a2b + 0x10) = (int)v1p;
+void func_001D1F80(int ch, int a, int b) {
+    int addr = D_00275674 + a * 1440 + b * 144 + 0xBA0;
+    DmaTag **pp = &D_00275670->cur[ch];
+    (*pp)->id = 0x30;
+    (*pp)->addr = addr;
+    (*pp)->qwc = 9;
+    (*pp)++;
 }

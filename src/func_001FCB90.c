@@ -1,22 +1,16 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-extern int *D_0028A498;
-extern void func_001FE070(int, int, int, int);
+//
+// Tail-calls func_001FE070(base + base->ofs + entry[idx].ofs, a3, a0, a1) for
+// the table header base = D_0028A498 (16-byte entries at +0x10).
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 3, 2026-10-20).
 
-void func_001FCB90(int a0, int a1, int a2, int a3) {
-    int *t0;
-    int v0;
-    int v1;
-    int a4;
+extern char *D_0028A498;
+extern void func_001FE070(char *p, int a1, int a2, int a3);
 
-    t0 = D_0028A498;
-    v0 = a2 << 4;
-    v1 = a1;
-    a2 = a0;
-    a1 = a3;
-    a3 = v1;
-    a4 = (int)t0 + 16;
-    v1 = t0[0];
-    v0 = *(int *)(a4 + v0);
-    v1 = (int)t0 + v1;
-    func_001FE070(v1 + v0, a1, a2, a3);
+typedef struct { int ofs; int w1, w2, w3; } Ent;
+void func_001FCB90(int a0, int a1, int idx, int a3) {
+    char *b = D_0028A498;
+    Ent *e = (Ent *)(b + 0x10);
+    func_001FE070(b + *(int *)b + e[idx].ofs, a3, a0, a1);
 }

@@ -1020,3 +1020,62 @@ saturating increment lands in place in v1; the target writes a fresh v0),
 func_002149F0 99.97 (one compare's rec/p12 load colouring), func_001429D0 99.94
 (parameter-copy order in the prologue), func_001FFCD0 99.67 (three colouring
 clusters; permuter 99.72), func_001C2770 98.27, func_001D8C30 89.45.
+
+### Decomp lane round 3: the unmarked `c_asm_fallback` set — 2026-10-20
+
+All 50 `c_asm_fallback` units (ordinary C below objdiff 100, linked from the
+`.s` through fill_unmatched's lists) were rewritten from the original
+instructions: 45 byte-matched, 5 NEARMISS. Read the target before trusting an
+old body: most were wrong, not near (wrong callee, wrong fallback string,
+one dereference too many). Levers that decided them:
+
+- **ee-gcc for the SDK range, then source order.** None of the 21 SDK-range
+  units matched with mwcc. With ee-gcc, the residuals were the order of
+  independent stores and the operand order of an address add. The scheduler
+  reorders stores, so try store permutations mechanically (func_0010C9C8
+  matched with the 0x4, 0xC, 0x8 order; func_0010DC78/90 with the natural order).
+- **ee-gcc sibling calls need a void caller.** `j callee` instead of `jal` +
+  frame appears only when the caller returns void (func_001098E0,
+  func_00119400). A caller that returns the callee's int keeps the frame
+  (func_00120B10 returns it, and the target has the frame).
+- **ee-gcc keeps a `lui/addiu` + offset load for volatile state.** A single
+  field read of a plain extern folds to `lw %lo+off`; the target's separate
+  `addiu` came from `extern volatile int D_0027F740[]` (func_001152B0). The
+  same volatile array gives the re-reads of the queue counter in
+  func_001157F0 / func_00119400.
+- **Struct member arrays fix ee-gcc's add operand order.** `D.b[i]` on
+  `struct { int a[0x30]; int b[0x30]; ... } D` gave `base + i*4` with the
+  member offset in the load; every pointer spelling gave `i*4 + base`
+  (func_0011A730, func_0011A938). An `int[5]` struct copy gives ldl/ldr pairs plus
+  one `lw`; `char[20]` gives lwl/lwr (func_00101EA8).
+- **Reusing the parameter as the base register.** The target put the table
+  base in `a0` after shifting it: `int *p = (int *)(a0 * 8); a0 = base; p =
+  (int *)((char *)p + a0);` (func_0010DCA8 / func_0010DCD8).
+- **DMA-list tag appends (mwcc 2.3.3).** The family appends 16-byte tags
+  through `DmaTag **pp = &D_00275670->cur[ch]` (the list header is a struct
+  with `DmaTag *cur[16]` at +0x10, `int ref[16]` at +0x50 and the frame word
+  at +0x9C). Write `(*pp)->id`, `->addr`, `->qwc`, then `(*pp)++`; compute the
+  address into a local before `pp` (func_001D1FF0 / 1F20 / 1F80 / 2040 /
+  38A0 / 4E20 / 4EB0, vif_append_ref_tag). vif_append_ref_tag takes (ch,
+  addr) and vif_build_unpack_const takes ch: several NEARMISS files still
+  declare one argument. Correcting it made func_001D37D0 100 (it was 95.41
+  NEARMISS) and lifted func_001D42E0 to 97.53 and func_001D4440 /
+  func_001D40E0 to 98.41 (not landed; they also pass invented arguments to
+  func_001D2910 and func_001D1F20).
+- **`||` chains for mwcc early returns.** `if (a || b) return 2;` reproduced
+  the target's branch layout where nested ifs or a result variable did not
+  (func_001ACE70, func_0016ADE0 with `!= 0` on both terms). `if (a && b && c)
+  return 0; return 1;` did the same for func_0021C3F0.
+- **Assignment inside the condition.** `if ((s0 = f(2)) == 0) return;` tests
+  v0 in the branch and copies to s0 in the delay slot; a separate `s0 = f(2);
+  if (s0 == 0)` tests s0 (func_0014D1E0). The same function needed the
+  constant handler store last before the call (idiom-16).
+- **A pointer local for a call argument computed early.** `unsigned char *p =
+  D_008102B0; if (*p == 1 && func_0021BB00(p) == 0)` puts the address in a0
+  before the test, as the target does (func_0021BD10).
+- **The leaf-call a0 quirk.** In func_001899C0 the target passes self to
+  func_00189730 without setting a0, because func_00189630 (a leaf) never
+  writes a0. mwcc reloads a0, and no source spelling found reproduces the
+  omission; an uninitialized local gets a saved register (78.26 NEARMISS).
+  func_0021D800's unset a0 (idiom-32 notes) may be the same case; that is not
+  checked.
