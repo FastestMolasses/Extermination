@@ -11,6 +11,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -39,6 +40,25 @@ def snapshot(root):
             pending.extend(path.iterdir())
         result[str(path.relative_to(root))] = value
     return result
+
+
+def settle_fixture(root):
+    """Let macOS finish first-read provenance xattrs before taking a baseline.
+
+    Only our synthetic data is read. Keep ctime in snapshot/identity checks:
+    dropping it would conceal real replacements. No system settings or xattrs
+    are changed by the test, and settling never runs during the audited action.
+    """
+    previous = snapshot(root)
+    deadline, quiet_since = time.monotonic() + 5, time.monotonic()
+    while time.monotonic() < deadline:
+        time.sleep(0.05)
+        current = snapshot(root)
+        if current != previous:
+            previous, quiet_since = current, time.monotonic()
+        elif time.monotonic() - quiet_since >= 0.5:
+            return
+    raise AssertionError("synthetic fixture metadata did not settle")
 
 
 class BuildAuditTests(unittest.TestCase):
@@ -99,6 +119,7 @@ class BuildAuditTests(unittest.TestCase):
         for path in self.build_paths():
             os.utime(path, ns=(OLD, OLD), follow_symlinks=False)
         os.utime(self.root / "recent" / "payload.dat", ns=(NOW, NOW))
+        settle_fixture(self.base)
 
     def make(self, relative, contents):
         path = self.repo / relative
@@ -348,6 +369,7 @@ class BuildAuditTests(unittest.TestCase):
         self.assertNotIn("build/cross.dat", citations[str(self.root)]["references"])
 
     def inventories(self, roots):
+        settle_fixture(self.base)
         citations = audit.collect_citations([str(self.root)])
         inventories = {}
         for root in roots:
@@ -487,6 +509,7 @@ class BuildAuditTests(unittest.TestCase):
         result = audit.audit_root(root, 10, 24, [], NOW, True, citations[root], inventory)
         inventories = {root: inventory, str(other_root): audit.scan(str(other_root))[1]}
         worktrees = audit.registered_worktrees(str(self.repo))
+        settle_fixture(self.base)
         before = snapshot(self.base)
         real_open = os.open
 
@@ -540,6 +563,82 @@ class BuildAuditTests(unittest.TestCase):
                                                      [str(checkout)])
         self.assertFalse(locations)
         self.assertTrue(errors)
+
+    def test_checkpoint_age_safety_overlap_and_redundant_copies(self):
+        self.make("build/generated/sub/work.o", b"scratch")
+        self.make("build/generated/copy.dat", b"a" * 32)
+        self.make("build/startup-reference/anchor.dat", b"a" * 32)
+        self.make("build/recent/old-copy.dat", b"a" * 32)
+        self.make("build/linked-scratch/ordinary.dat", b"scratch")
+        (self.root / "linked-scratch/link").symlink_to(self.base / "outside/secret.dat")
+        (self.root / "special-scratch").mkdir()
+        os.mkfifo(self.root / "special-scratch/pipe")
+        for path in self.build_paths():
+            os.utime(path, ns=(OLD - 1, OLD - 1), follow_symlinks=False)
+        os.utime(self.root / "recent/payload.dat", ns=(NOW, NOW))
+        os.utime(self.root / "top.dat", ns=(OLD, OLD))  # exactly 7 days: excluded
+        settle_fixture(self.base)
+        nodes = {}
+        repo = audit.audit_root(str(self.root), 1, 24, ["keep/*"], NOW, inventory=nodes)
+        inventories = {str(self.root): nodes}
+        before = snapshot(self.base)
+        duplicates = audit.find_duplicates(inventories, 32)
+        with mock.patch.object(audit.os, "scandir", side_effect=AssertionError("second walk")):
+            plan = audit.checkpoint_plan([repo], inventories, duplicates, NOW,
+                                         ["generated", "recent/old-copy.dat", "linked-scratch", "special-scratch"])
+        self.assertEqual(before, snapshot(self.base))
+        by_path = {r["path"]: r for r in plan["entries"]}
+        self.assertEqual(plan["safe_paths"], [str(self.root / "generated"), str(self.root / "recent/old-copy.dat")])
+        self.assertEqual(by_path["build/uncited"]["review"], "needs a look")
+        self.assertEqual(by_path["build/linked-scratch"]["review"], "needs a look")
+        self.assertEqual(by_path["build/special-scratch"]["review"], "needs a look")
+        self.assertNotIn("build/top.dat", by_path)
+        self.assertNotIn("build/recent", by_path)
+        self.assertNotIn("build/generated/copy.dat", by_path)
+        self.assertEqual(by_path["build/generated"]["redundant_copies"],
+                         [{"path": str(self.root / "generated/copy.dat"), "size_bytes": 32}])
+        self.assertEqual(plan["totals"]["safe"], {"entry_count": 2, "size_bytes": 71})
+        self.assertFalse(any(r["class"] in ("PROTECTED", "CITED") or r["citing_files"] for r in plan["entries"]))
+        self.assertEqual(audit.checkpoint_plan([repo], inventories, duplicates, NOW)["safe_paths"], [])
+        repo["complete"] = False
+        self.assertEqual(audit.checkpoint_plan([repo], inventories, duplicates, NOW, ["*"])["safe_paths"], [])
+
+    def test_checkpoint_cli_safe_path_array_and_no_writes_to_inputs(self):
+        for path in self.build_paths():
+            os.utime(path, ns=(OLD - 1, OLD - 1), follow_symlinks=False)
+        report_path, paths_path = self.base / "checkpoint.json", self.base / "safe-paths.json"
+        before = snapshot(self.repo)
+        with mock.patch.object(audit.time, "time_ns", return_value=NOW):
+            with contextlib.redirect_stdout(io.StringIO()):
+                rc = audit.main(["--root", str(self.root), "--checkpoint", "--scratch", "uncited",
+                                 "--checkpoint-paths", str(paths_path), "--json", str(report_path)])
+        self.assertEqual(rc, 0)
+        self.assertEqual(before, snapshot(self.repo))
+        report = json.loads(report_path.read_text())
+        self.assertTrue(report["duplicates_requested"])
+        self.assertEqual(json.loads(paths_path.read_text()), [str(self.root / "uncited")])
+        self.assertEqual(report["checkpoint"]["safe_paths"], json.loads(paths_path.read_text()))
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(audit.main(["--root", str(self.root), "--checkpoint",
+                                         "--checkpoint-paths", str(paths_path)]), 1)
+            with self.assertRaises(SystemExit):
+                audit.main(["--checkpoint-paths", str(paths_path)])
+
+    def test_checkpoint_recent_window_keeps_old_in_use_duplicates_under_review(self):
+        for path in ("build/startup-reference/anchor.dat", "build/old-copy.dat"):
+            self.make(path, b"a" * 32)
+        for path in self.build_paths():
+            os.utime(path, ns=(OLD - 1, OLD - 1), follow_symlinks=False)
+        settle_fixture(self.base)
+        nodes = {}
+        repo = audit.audit_root(str(self.root), 1, 240, [], NOW, inventory=nodes)
+        inventories = {str(self.root): nodes}
+        duplicates = audit.find_duplicates(inventories, 32)
+        plan = audit.checkpoint_plan([repo], inventories, duplicates, NOW, ["*"])
+        self.assertEqual(len(plan["entries"]), 1)
+        self.assertEqual(plan["entries"][0]["class"], "IN-USE")
+        self.assertEqual(plan["entries"][0]["review"], "needs a look")
+        self.assertEqual(plan["safe_paths"], [])
 
 
 if __name__ == "__main__":

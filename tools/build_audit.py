@@ -555,6 +555,84 @@ def find_duplicates(inventories, min_bytes):
             "errors": errors, "complete": not errors}
 
 
+def checkpoint_plan(repos, inventories, duplicates, now_ns, scratch_patterns=()):
+    """Review only: disjoint old candidates plus old redundant duplicate copies.
+
+    A path name cannot prove that bytes are disposable. Only caller-declared
+    generated scratch can receive the safe label, and all ordinary protection,
+    citation, age, completeness and symlink checks still apply.
+    """
+    cutoff = now_ns - 7 * 24 * 3600 * 1_000_000_000
+    patterns = [p.rstrip("/") if p.startswith("build/") else "build/" + p.rstrip("/")
+                for p in scratch_patterns]
+    complete = all(repo["complete"] for repo in repos) and duplicates["complete"]
+    choices, regular = {}, {}
+    for root, nodes in inventories.items():
+        for node in sorted(nodes.values(), key=lambda n: n.path.count("/"), reverse=True):
+            regular[file_path(root, node)] = (
+                node.complete and not node.contains_symlinks and
+                node.kind in ("file", "directory") and
+                all(regular[file_path(root, child)] for child in node.children))
+
+    def add(entry, root, source):
+        if (entry["newest_mtime_ns"] >= cutoff or entry["class"] in ("PROTECTED", "CITED")
+                or entry["citing_files"]):
+            return
+        path = entry["absolute_path"]
+        if path not in choices:
+            choices[path] = {**entry, "root": root, "sources": [], "redundant_copies": []}
+        if source not in choices[path]["sources"]:
+            choices[path]["sources"].append(source)
+        if source == "redundant duplicate":
+            choices[path]["redundant_copies"].append(
+                {"path": path, "size_bytes": entry["size_bytes"]})
+
+    for repo in repos:
+        for entry in repo["entries"]:
+            if entry["class"] == "CANDIDATE":
+                add(entry, repo["root"], "CANDIDATE")
+    for group in duplicates["groups"]:
+        for copy in group["copies"]:
+            if copy["redundant"]:
+                root = next(root for root in inventories
+                            if os.path.commonpath((copy["absolute_path"], root)) == root)
+                add(copy, root, "redundant duplicate")
+
+    # Keep a parent once instead of also proposing its descendants. Record any
+    # duplicate detail it covers without counting those bytes a second time.
+    selected = {}
+    for path, item in sorted(choices.items(), key=lambda pair: (len(Path(pair[0]).parts), pair[0])):
+        owner = next((selected[str(p)] for p in Path(path).parents if str(p) in selected), None)
+        if owner is not None:
+            owner["redundant_copies"].extend(item["redundant_copies"])
+            continue
+        selected[path] = item
+
+    totals = {label: {"entry_count": 0, "size_bytes": 0} for label in ("safe", "needs a look")}
+    by_repo = {repo["root"]: {label: dict(counts) for label, counts in totals.items()} for repo in repos}
+    entries = sorted(selected.values(), key=lambda e: (-e["size_bytes"], e["absolute_path"]))
+    for item in entries:
+        reasons = []
+        if not complete:
+            reasons.append("incomplete audit")
+        if item["class"] != "CANDIDATE":
+            reasons.append("still IN-USE under the requested recent-hours window")
+        if not regular.get(item["absolute_path"], False):
+            reasons.append("symlink, special file, or incomplete metadata in subtree")
+        if not any(fnmatch.fnmatchcase(ancestor, pattern)
+                   for ancestor in parents(item["path"]) for pattern in patterns):
+            reasons.append("generated scratch provenance not established")
+        item["review"] = "needs a look" if reasons else "safe"
+        item["review_reasons"] = reasons or ["uncited generated scratch declared by --scratch"]
+        for bucket in (totals, by_repo[item["root"]]):
+            bucket[item["review"]]["entry_count"] += 1
+            bucket[item["review"]]["size_bytes"] += item["size_bytes"]
+    return {"minimum_age_days": 7, "older_than_ns": cutoff, "scratch_patterns": patterns,
+            "entries": entries, "totals": totals, "totals_by_root": by_repo,
+            "safe_paths": sorted(e["absolute_path"] for e in entries if e["review"] == "safe"),
+            "complete": complete}
+
+
 def registered_worktrees(repo):
     return [absolute(os.fsdecode(field[len(b"worktree "):]))
             for field in git(repo, "worktree", "list", "--porcelain", "-z").split(b"\0")
@@ -707,6 +785,18 @@ def print_table(report):
         print("DUPLICATES TOTAL", duplicates["total_bytes_wasted"], "bytes wasted")
         for error in duplicates["errors"]:
             print("INCOMPLETE", safe(error["path"]), error["operation"], error["errno"])
+    if report["checkpoint_requested"]:
+        plan = report["checkpoint"]
+        print("\nCHECKPOINT (older than 7 days; review only)")
+        for entry in plan["entries"]:
+            print(entry["review"], entry["size_bytes"], "bytes", safe(entry["absolute_path"]),
+                  "; ".join(entry["review_reasons"]))
+            for copy in entry["redundant_copies"]:
+                print("  REDUNDANT", copy["size_bytes"], "bytes", safe(copy["path"]))
+        for label, counts in plan["totals"].items():
+            print("CHECKPOINT TOTAL", label, counts["entry_count"], "entries;", counts["size_bytes"], "bytes")
+        print("CHECKPOINT SAFE PATHS (JSON; recheck before any removal)")
+        print(json.dumps(plan["safe_paths"], ensure_ascii=True))
 
 
 def print_totals(totals):
@@ -755,8 +845,16 @@ def main(argv=None):
                         help="stream SHA-256 only for regular files with colliding sizes")
     parser.add_argument("--min-mb", type=nonnegative, default=50,
                         help="minimum duplicate file size in MiB (default 50)")
+    parser.add_argument("--checkpoint", action="store_true",
+                        help="review candidates and redundant copies older than 7 days; implies --duplicates")
+    parser.add_argument("--scratch", action="append", nargs="+", default=[], metavar="PATTERN",
+                        help="assert known generated scratch for checkpoint safe labels; default: all ambiguous")
+    parser.add_argument("--checkpoint-paths", metavar="FILE",
+                        help="create a NEW JSON array of safe absolute paths (requires --checkpoint)")
     parser.add_argument("--json", metavar="FILE", help="create a NEW JSON report; '-' for stdout")
     args = parser.parse_args(argv)
+    if (args.checkpoint_paths or args.scratch) and not args.checkpoint:
+        parser.error("--checkpoint-paths and --scratch require --checkpoint")
     roots = list(dict.fromkeys(absolute(p) for p in (
         (list(DEFAULT_ROOTS) if args.include_defaults or not args.root else []) + args.root)))
     if any(a != b and os.path.commonpath((a, b)) == a for a in roots for b in roots):
@@ -770,15 +868,19 @@ def main(argv=None):
              for root in roots]
     if args.dangling:
         classify_dangling(repos, inventories, citations)
-    duplicates = find_duplicates(inventories, args.min_mb * 1024**2) if args.duplicates else None
+    duplicates_requested = args.duplicates or args.checkpoint
+    duplicates = find_duplicates(inventories, args.min_mb * 1024**2) if duplicates_requested else None
+    checkpoint = checkpoint_plan(repos, inventories, duplicates, now_ns,
+                                 [p for group in args.scratch for p in group]) if args.checkpoint else None
     totals = empty_totals()
     for repo in repos:
         for name in CLASSES:
             for key in totals[name]:
                 totals[name][key] += repo["totals"][name][key]
-    report = {"schema_version": 2, "generated_at": utc(now_ns),
+    report = {"schema_version": 3, "generated_at": utc(now_ns),
               "split_gb": args.split_gb, "recent_hours": args.recent_hours,
-              "dangling_requested": args.dangling, "duplicates_requested": args.duplicates,
+              "dangling_requested": args.dangling, "duplicates_requested": duplicates_requested,
+              "checkpoint_requested": args.checkpoint, "checkpoint": checkpoint,
               "min_mb": args.min_mb, "duplicates": duplicates, "repos": repos, "totals": totals}
     if args.json == "-":
         print(json.dumps(report, indent=2, ensure_ascii=True))
@@ -792,6 +894,13 @@ def main(argv=None):
                       "roots, with no symlink components): " + json.dumps(args.json),
                       file=sys.stderr)
                 return 1
+    if args.checkpoint_paths:
+        try:
+            write_json(args.checkpoint_paths, checkpoint["safe_paths"], roots)
+        except (OSError, ValueError):
+            print("Cannot create checkpoint paths (requires a new file outside audited roots, "
+                  "with no symlink components): " + json.dumps(args.checkpoint_paths), file=sys.stderr)
+            return 1
     return 0 if (all(repo["complete"] for repo in repos) and
                  (duplicates is None or duplicates["complete"])) else 1
 

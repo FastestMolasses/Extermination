@@ -13,6 +13,8 @@ python3 -B tools/build_audit.py --duplicates --min-mb 50 --dangling \
 python3 -B tools/build_audit.py --root /absolute/repo/build --split-gb 0.5 \
   --recent-hours 48 --protect 'build/my-receipts' 'build/keep-*'
 python3 -B tools/build_audit.py --include-defaults --root /absolute/other-repo/build
+python3 -B tools/build_audit.py --checkpoint --json build/build-audit/checkpoint.json \
+  --checkpoint-paths build/build-audit/safe-paths.json
 python3 -B tools/test_build_audit.py
 ```
 
@@ -53,6 +55,24 @@ copy exists, other uncited copies are labeled **redundant**, including IN-USE
 copies; this describes identical bytes, not permission to delete. Protected
 copies and any copy with citations are never labeled redundant.
 
+`--checkpoint` prints a cleanup plan of CANDIDATE entries and redundant duplicate
+copies whose newest modification is **strictly older than seven days**. It implies
+`--duplicates` and honors `--min-mb`, `--split-gb`, protection and citation rules.
+Parent paths cover their children once; covered redundant copies remain visible
+as detail, without double-counting bytes. Every row has a size and review label:
+**safe** means uncited, complete, not IN-USE, containing only regular files and
+directories, and known generated scratch declared with repeatable
+`--scratch 'build/known-scratch'` patterns. The declaration covers matched paths
+and descendants; it cannot override protection, citations, age, or symlink checks.
+Without that provenance, or with any ambiguity, the label is **needs a look**.
+An incomplete audit produces no safe paths. `--checkpoint-paths FILE` creates a
+plain JSON array of absolute **safe** paths for the lead's checked remover; the
+same array appears in stdout and in the full report's `checkpoint.safe_paths`.
+The default array can be empty: names, age and duplicate bytes alone do not prove
+scratch provenance. The full report keeps all review rows and totals per root.
+This is a review snapshot; the lead must recheck current state before removal.
+Nothing is deleted.
+
 `git ls-files` selects `CLAUDE.md`, immediate `docs/*.md`, and immediate
 `tools/*.py`. Text comes from pinned `HEAD` blobs in one Git batch; working
 edits, staged additions, untracked/nested files, binary files, and symlinks are
@@ -86,7 +106,8 @@ symlink ancestors are refused. Failed worktree checks mark the audit incomplete,
 so unmatched citations are provisional. Other processes can change files during
 the scan. Read failures exit 1; complete audits exit 0.
 
-`--json FILE` is the only write: it creates a new metadata report outside all
+`--json FILE` and `--checkpoint-paths FILE` are the only writes: each creates a
+new metadata report outside all
 audited roots, refuses to overwrite any existing path, and does not create
 parent directories. `--json -` emits JSON alone. Reports include exact bytes,
 counts, nanosecond mtimes, classes, citations, totals, and requested dangling
