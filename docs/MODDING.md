@@ -313,7 +313,8 @@ Current state:
 - Current matched/near-miss counts: `tools/verify_all.py` (after a fresh
   `tools/decomp/build.py build`) and `docs/PROGRESS.md`. Mapping intent →
   function: `docs/SUBSYSTEMS.md` (game functions labeled by subsystem),
-  `docs/FUNCTIONS.csv` (the claimable index), `config/symbol_addrs.txt`
+  `docs/FUNCTIONS.csv` (the claimable index; its status column comes from
+  `tools/decomp/reconcile_functions_csv.py`), `config/symbol_addrs.txt`
   (named symbols), `tools/callgraph.py`.
 
 Regression gate after any change:

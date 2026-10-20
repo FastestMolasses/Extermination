@@ -1,3 +1,38 @@
+## 2026-10-20 — FUNCTIONS.csv status column reconciled from the real state
+
+- New `tools/decomp/reconcile_functions_csv.py` derives each row's `status`
+  from the source marker plus the linker's real choice
+  (`audit_link_provenance.audit` with the fresh objdiff report): `readable`
+  (C linked from its compiled object, objdiff 100), `nearmiss`, `word`
+  (whole-function asm body: a top-level `asm` definition, not an
+  `asm volatile` barrier inside C), `undecompiled` (INCLUDE_ASM), `c_partial`,
+  `c_asm_fallback` and `merged` (the five split-pair tails merged in
+  ec5ff20 / 4478ae5). Only the status column changes; vram, size, callers and
+  subsystem are untouched (port oracles read vram and size). Without
+  `--write` it is a check that exits 1 when the CSV is stale.
+- 1881 of 2957 rows changed: 771 undecompiled and 307 word rows were already
+  byte-matched C (among them 00206030, 00206D10, 001FB910, 00203350,
+  001FB370, 001FF590, 0020F2A0, and 00109F90, ee-gcc C with `asm volatile`
+  barriers); 718 undecompiled rows are NEARMISS files; 18 readable rows are
+  asm bodies. Counts now: 1832 readable, 724 nearmiss, 334 word,
+  10 undecompiled, 50 c_asm_fallback, 2 c_partial, 5 merged. They agree with
+  the gate: 1832 readable + 332 objdiff-100 word units = 2164. The other two
+  word rows, func_00103380 and func_001046C0, are asm bodies below objdiff
+  100 that link from the original `.s` through fill_unmatched's
+  SIZE_DRIFT_FORCE_ASM list; the check run prints them as "word not objdiff
+  100".
+- Finding: the 52 `c_asm_fallback` / `c_partial` units are ordinary C without
+  a NEARMISS marker that is not objdiff 100, and none was registered in
+  NEARMISS.md. 50 link from the original `.s` through fill_unmatched's
+  explicit size / gprel lists, so their bodies are unverified; 49 compile with
+  the default mwcc 991202, including 21 in the SDK / low-memory range, where
+  the SDK code is ee-gcc. Listed in NEARMISS.md ("Unmarked C that is not byte-matched")
+  as the next matching targets.
+- Not changed: 58 link slots have no CSV row (source-less data / high-memory
+  regions); the merged heads keep their pre-merge sizes.
+- Fresh build + verify_all: all six stages pass, 2164/2218 units, matched_code
+  98.69%, boot ELF byte-identical, 19/19 overlays (no code changed).
+
 ## 2026-10-20 — the three asm-bodied boot entries of the oracle audit byte-matched from C
 
 - Port `docs/LEVEL_ORACLE_AUDIT.md` "Requests for main" named four boot entries

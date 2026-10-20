@@ -53,8 +53,13 @@ that is a different, stale tree.
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
   Latest (2026-10-20, fresh build after func_0013D2D0 / 0013D850 / 00141C90 (asm bodies
-  to C) and func_0013D980 (NEARMISS to C) byte-matched): 2164/2218 units, matched_code
-  98.69%; boot ELF byte-identical; 19/19 overlays.
+  to C) and func_0013D980 (NEARMISS to C) byte-matched; rerun fresh after the
+  FUNCTIONS.csv status reconcile, unchanged): 2164/2218 units, matched_code
+  98.69%; boot ELF byte-identical; 19/19 overlays. `docs/FUNCTIONS.csv`'s status
+  column is derived by `tools/decomp/reconcile_functions_csv.py` (rerun it with
+  `--write` after a fresh build + match stage); its 52 `c_asm_fallback` /
+  `c_partial` rows (unmarked, non-matching C) are listed in NEARMISS.md and are
+  the next matching targets.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.

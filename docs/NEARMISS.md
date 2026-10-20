@@ -33,6 +33,76 @@ glob `src/*.c`, so these files are never compiled or linked; the asm file ends w
 pointer to its companion. The registry rows below say "Companion C in src/readable/". To promote
 one, reach 100% and replace the asm body in `src/<f>.c` with the C (then delete the companion).
 
+**Unmarked C that is not byte-matched (FUNCTIONS.csv `c_asm_fallback` / `c_partial`, 2026-10-20).**
+`tools/decomp/reconcile_functions_csv.py` found 52 boot functions whose `src/<f>.c` is ordinary C
+without a `// NEARMISS` marker yet is not objdiff 100%. They were never registered here. 50 link
+from the original `.s` through fill_unmatched's explicit `SIZE_DRIFT_FORCE_ASM` /
+`GPREL_FORCE_ASM` lists (`c_asm_fallback`); their bodies have not been checked against the
+original instructions, so they are not port ground truth until they are either byte-matched or
+audited and marked `// NEARMISS`. All but one of the 50 carry no `// COMPILER:` line, i.e.
+they compile with the pinned mwcc 991202. 21 of them sit in the SDK / low-memory range (below
+0x001305B0), where the SDK code is ee-gcc (`// COMPILER: eegcc`), so their low scores may come
+from the wrong compiler rather than walls; the other 29 are game code. Two (`c_partial`) link
+from their compiled objects with the boot ELF byte-identical and score 99.98-99.99%; the cause
+is not examined yet (LEVELS_DECOMP.md; one candidate is the expected-object hoisted-`%hi`
+artifact of PS2_DECOMP_PLAYBOOK.md section 2a-bis). Scores from the fresh build of 2026-10-20:
+
+| Function | vram | bytes | objdiff % | `// COMPILER:` | CSV status / link route |
+|---|---|---|---|---|---|
+| dmac_channel_base | 0x00101BB8 | 40 | 61.00% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_00101EA8 | 0x00101EA8 | 56 | 45.29% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_00107CB8 | 0x00107CB8 | 56 | 59.14% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001098E0 | 0x001098E0 | 56 | 18.86% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_0010C9C8 | 0x0010C9C8 | 36 | 85.56% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_0010DC78 | 0x0010DC78 | 24 | 98.33% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_0010DC90 | 0x0010DC90 | 24 | 98.33% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_0010DCA8 | 0x0010DCA8 | 44 | 50.27% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_0010DCD8 | 0x0010DCD8 | 40 | 47.00% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_00110BC0 | 0x00110BC0 | 52 | 8.85% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_00110C48 | 0x00110C48 | 52 | 0.00% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001145A0 | 0x001145A0 | 144 | 68.89% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001152B0 | 0x001152B0 | 36 | 41.11% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001157F0 | 0x001157F0 | 96 | 54.58% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_00119400 | 0x00119400 | 80 | 21.50% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001199F0 | 0x001199F0 | 72 | 20.78% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_00119D08 | 0x00119D08 | 44 | 19.09% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_00119D38 | 0x00119D38 | 72 | 46.39% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_0011A730 | 0x0011A730 | 40 | 76.50% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_0011A938 | 0x0011A938 | 40 | 76.50% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_00120B10 | 0x00120B10 | 36 | 25.56% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_00140F80 | 0x00140F80 | 1860 | 99.99% | mwcc233 | c_partial / compiled_object_ordinary_c |
+| func_0014AFA0 | 0x0014AFA0 | 2056 | 99.98% | mwcc233 | c_partial / compiled_object_ordinary_c |
+| func_0014D1E0 | 0x0014D1E0 | 128 | 68.75% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_0016ADE0 | 0x0016ADE0 | 96 | 76.46% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001899C0 | 0x001899C0 | 92 | 57.22% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001ACE70 | 0x001ACE70 | 80 | 36.20% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001AF890 | 0x001AF890 | 68 | 63.47% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001B0BA0 | 0x001B0BA0 | 92 | 81.96% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001B1190 | 0x001B1190 | 80 | 60.50% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001BA1C0 | 0x001BA1C0 | 48 | 47.92% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001BA510 | 0x001BA510 | 48 | 76.67% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001CB8A0 | 0x001CB8A0 | 96 | 33.71% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001CB9B0 | 0x001CB9B0 | 136 | 76.47% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_gprel |
+| func_001D1F20 | 0x001D1F20 | 96 | 68.96% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_gprel |
+| func_001D1F80 | 0x001D1F80 | 108 | 53.33% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_gprel |
+| func_001D1FF0 | 0x001D1FF0 | 76 | 83.11% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_gprel |
+| func_001D2040 | 0x001D2040 | 76 | 70.74% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_gprel |
+| vif_append_ref_tag | 0x001D2090 | 124 | 80.81% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_gprel |
+| func_001D38A0 | 0x001D38A0 | 80 | 65.25% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001D4A90 | 0x001D4A90 | 128 | 56.38% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001D4E20 | 0x001D4E20 | 128 | 65.94% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001D4EB0 | 0x001D4EB0 | 128 | 65.94% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001D6B10 | 0x001D6B10 | 68 | 60.06% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001D71A0 | 0x001D71A0 | 76 | 46.84% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001DA290 | 0x001DA290 | 116 | 25.24% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001E0C80 | 0x001E0C80 | 60 | 56.87% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_001FC9B0 | 0x001FC9B0 | 84 | 90.48% | mwcc233 | c_asm_fallback / original_assembly_explicit_size |
+| func_001FCB90 | 0x001FCB90 | 56 | 53.57% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_0021BD10 | 0x0021BD10 | 76 | 38.16% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_0021C3F0 | 0x0021C3F0 | 80 | 46.00% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+| func_0022EBE0 | 0x0022EBE0 | 80 | 73.00% | (none: mwcc 991202) | c_asm_fallback / original_assembly_explicit_size |
+
+
 ## Registry
 
 | Function | vram | bytes | objdiff % | compiler | divergence (compiler artifact) |
