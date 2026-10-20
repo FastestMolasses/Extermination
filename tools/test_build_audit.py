@@ -43,10 +43,11 @@ def snapshot(root):
 
 class BuildAuditTests(unittest.TestCase):
     def setUp(self):
-        # Resolve the OS temp-dir alias before constructing roots; the audit itself
-        # deliberately refuses symlink components such as macOS /tmp.
+        # Keep all fixtures and their Git metadata inside this checkout.
+        fixture_parent = Path(__file__).absolute().parent.parent / "build/build-audit/fixtures"
+        fixture_parent.mkdir(parents=True, exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(
-            prefix="build-audit-test-", dir=os.path.realpath(tempfile.gettempdir()))
+            prefix="build-audit-test-", dir=fixture_parent)
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
         self.repo = self.base / "fixture repo"
@@ -345,6 +346,200 @@ class BuildAuditTests(unittest.TestCase):
                          [str(self.repo / "docs/CROSS.md")])
         self.assertEqual([r["path"] for r in result["dangling"]], ["build/absent.dat"])
         self.assertNotIn("build/cross.dat", citations[str(self.root)]["references"])
+
+    def inventories(self, roots):
+        citations = audit.collect_citations([str(self.root)])
+        inventories = {}
+        for root in roots:
+            root = str(root)
+            tree, nodes, errors = audit.scan(root)
+            self.assertFalse(errors)
+            references = citations.get(root, {}).get("references", {})
+            audit.classify(tree, nodes, references, audit.PROTECTED,
+                           NOW - 24 * 3600 * 1_000_000_000)
+            inventories[root] = nodes
+        return inventories
+
+    def test_duplicates_collision_hashing_classes_and_unchanged_inputs(self):
+        paths = ["build/startup-reference/identical.dat", "build/candidate/identical.dat",
+                 "build/recent/identical.dat", "build/cited/nested/receipt.dat"]
+        for path in paths:
+            self.make(path, b"a" * 32)
+            os.utime(self.repo / path, ns=(OLD, OLD))
+        os.utime(self.root / "recent/identical.dat", ns=(NOW, NOW))
+        self.make("build/different.dat", b"b" * 32)
+        self.make("build/unique.dat", b"c" * 33)
+        (self.root / "duplicate-link.dat").symlink_to(self.root / "candidate/identical.dat")
+        other_root = self.base / "another-repo/build"
+        other_root.mkdir(parents=True)
+        (other_root / "copy.dat").write_bytes(b"a" * 32)
+        os.utime(other_root / "copy.dat", ns=(OLD, OLD))
+        inventories = self.inventories([self.root, other_root])
+        before = snapshot(self.base)
+        real_hash = audit.hash_file
+        hashed = []
+
+        def checked(root, node):
+            hashed.append(audit.file_path(root, node))
+            self.assertEqual(node.kind, "file")
+            self.assertNotIn("link", node.path)
+            return real_hash(root, node)
+
+        with mock.patch.object(audit, "hash_file", side_effect=checked):
+            result = audit.find_duplicates(inventories, 32)
+        self.assertEqual(before, snapshot(self.base))
+        self.assertTrue(result["complete"])
+        self.assertEqual(result["total_bytes_wasted"], 128)
+        self.assertEqual(len(result["groups"]), 1)
+        group = result["groups"][0]
+        self.assertEqual((group["size_bytes"], group["copy_count"]), (32, 5))
+        self.assertEqual(len(hashed), 6)  # includes the colliding but different bytes
+        self.assertFalse(any(path.endswith("unique.dat") for path in hashed))
+        copies = {copy["absolute_path"]: copy for copy in group["copies"]}
+        self.assertEqual(copies[str(self.root / "cited/nested/receipt.dat")]["class"], "CITED")
+        self.assertFalse(copies[str(self.root / "cited/nested/receipt.dat")]["redundant"])
+        self.assertFalse(copies[str(self.root / "startup-reference/identical.dat")]["redundant"])
+        self.assertTrue(copies[str(self.root / "candidate/identical.dat")]["redundant"])
+        self.assertEqual(copies[str(self.root / "recent/identical.dat")]["class"], "IN-USE")
+        self.assertTrue(copies[str(self.root / "recent/identical.dat")]["redundant"])
+        self.assertEqual(copies[str(self.root / "cited/nested/receipt.dat")]["citing_files"],
+                         ["CLAUDE.md", "docs/README.md", "tools/helper.py"])
+        # Stream hashes stay internal; the machine report contains no digest.
+        self.assertNotIn(hashlib.sha256(b"a" * 32).hexdigest(), json.dumps(result))
+
+    def test_duplicates_are_sorted_and_unanchored_copies_are_not_marked(self):
+        for name, data in (("a", b"x" * 32), ("b", b"x" * 32),
+                           ("c", b"y" * 64), ("d", b"y" * 64)):
+            self.make("build/" + name, data)
+        result = audit.find_duplicates(self.inventories([self.root]), 32)
+        self.assertEqual([g["bytes_wasted"] for g in result["groups"]], [64, 32])
+        self.assertEqual(result["total_bytes_wasted"], 96)
+        self.assertFalse(any(copy["redundant"] for group in result["groups"]
+                             for copy in group["copies"]))
+
+    def test_hash_refuses_symlink_replacement_before_reading(self):
+        nodes = self.inventories([self.root])[str(self.root)]
+        path = self.root / "top.dat"
+        path.unlink()  # synthetic fixture only
+        path.symlink_to(self.base / "outside/secret.dat")
+        with mock.patch.object(audit.os, "read", side_effect=AssertionError("read symlink")):
+            with self.assertRaises(OSError):
+                audit.hash_file(str(self.root), nodes["build/top.dat"])
+
+    def test_hash_is_streamed_and_rejects_mid_read_changes(self):
+        self.make("build/large.dat", b"x" * (2 * 1024 * 1024 + 1))
+        nodes = self.inventories([self.root])[str(self.root)]
+        real_read = os.read
+        calls = []
+
+        def bounded(fd, size):
+            self.assertLessEqual(size, 1024 * 1024)
+            calls.append(size)
+            return real_read(fd, size)
+
+        with mock.patch.object(audit.os, "read", side_effect=bounded):
+            audit.hash_file(str(self.root), nodes["build/large.dat"])
+        self.assertEqual(len(calls), 3)
+
+        def changed(fd, size):
+            chunk = real_read(fd, size)
+            os.utime(self.root / "large.dat", ns=(OLD, OLD))
+            return chunk
+
+        with mock.patch.object(audit.os, "read", side_effect=changed):
+            with self.assertRaises(OSError):
+                audit.hash_file(str(self.root), nodes["build/large.dat"])
+
+    def test_dangling_per_doc_lines_all_classes_and_metadata_only_checkout(self):
+        doc = (
+            "# Fixture\n"
+            "## Recorded\n"
+            "`build/removed/receipt.old`\n\n"
+            "Removed 2026-10-20.\n"
+            "## Moved\n"
+            "`build/lost/same-tail.dat`\n"
+            "## Worktree\n"
+            "`build/checkout-only.dat`\n"
+            "## Missing\n"
+            "`build/truly-missing.dat`\n"
+            "`build/removed/receipt.old`\n"
+            "This file was not removed.\n"
+        )
+        self.make("docs/CLASSIFY.md", doc.encode())
+        self.make("docs/OTHER.md", b"`build/removed/receipt.old`\n")
+        self.git("add", "--", "docs/CLASSIFY.md", "docs/OTHER.md")
+        self.git("-c", "user.name=Audit Fixture", "-c", "user.email=audit@example.invalid",
+                 "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
+                 "commit", "-q", "--only", "-m", "Synthetic dangling citations",
+                 "--", "docs/CLASSIFY.md", "docs/OTHER.md")
+        checkout = self.base / "checkout"
+        self.git("worktree", "add", "--detach", str(checkout), "HEAD")
+        (checkout / "build").mkdir()
+        (checkout / "build/checkout-only.dat").write_bytes(b"fixture")
+        # Working edits cannot supply or erase a committed removal note.
+        self.make("docs/CLASSIFY.md", b"Everything removed.\n")
+        other_root = self.base / "another-repo/build"
+        (other_root / "elsewhere").mkdir(parents=True)
+        (other_root / "elsewhere/same-tail.dat").write_bytes(b"fixture")
+        root = str(self.root)
+        citations = audit.collect_citations([root])
+        inventory = {}
+        result = audit.audit_root(root, 10, 24, [], NOW, True, citations[root], inventory)
+        inventories = {root: inventory, str(other_root): audit.scan(str(other_root))[1]}
+        worktrees = audit.registered_worktrees(str(self.repo))
+        before = snapshot(self.base)
+        real_open = os.open
+
+        def directories_only(path, flags, *args, **kwargs):
+            self.assertTrue(flags & os.O_DIRECTORY)
+            self.assertTrue(flags & os.O_NOFOLLOW)
+            return real_open(path, flags, *args, **kwargs)
+
+        with mock.patch.object(audit, "registered_worktrees", return_value=worktrees):
+            with mock.patch.object(audit.os, "scandir", side_effect=AssertionError("listing")):
+                with mock.patch.object(audit.os, "read", side_effect=AssertionError("read")):
+                    with mock.patch.object(audit.os, "open", side_effect=directories_only):
+                        audit.classify_dangling([result], inventories, citations)
+        self.assertEqual(before, snapshot(self.base))
+        classified = {(item["citing_file"], item["class"], item["path"]): item
+                      for item in result["dangling_citations"]}
+        removed = classified[("docs/CLASSIFY.md", "removed and recorded",
+                              "build/removed/receipt.old")]
+        self.assertEqual(removed["line_numbers"], [3])
+        moved = classified[("docs/CLASSIFY.md", "moved", "build/lost/same-tail.dat")]
+        self.assertEqual(moved["line_numbers"], [7])
+        self.assertEqual(moved["alternatives"], [str(other_root / "elsewhere/same-tail.dat")])
+        another = classified[("docs/CLASSIFY.md", "another checkout", "build/checkout-only.dat")]
+        self.assertEqual(another["line_numbers"], [9])
+        self.assertEqual(another["checkouts"], [{"worktree": str(checkout),
+                                               "path": str(checkout / "build/checkout-only.dat")}])
+        self.assertEqual(classified[("docs/CLASSIFY.md", "missing",
+                                     "build/removed/receipt.old")]["line_numbers"], [12])
+        self.assertEqual(result["dangling_by_doc"]["docs/CLASSIFY.md"],
+                         dict(zip(audit.DANGLING_CLASSES, [1, 1, 1, 2])))
+        self.assertEqual(result["dangling_by_doc"]["docs/OTHER.md"]["missing"], 1)
+
+    def test_removal_paragraph_scope_and_negation(self):
+        text = ("`build/a` was removed yesterday.\n\n"
+                "`build/b` was not removed.\n\n"
+                "`build/c` should be removed.\n")
+        _, recorded = audit.removal_context(text)
+        self.assertEqual(recorded, {1})
+
+    def test_moved_prefers_longest_tail_and_worktree_symlinks_are_not_followed(self):
+        matches = {"file.dat": [
+            ("/one/build/archive/tail/file.dat", ["archive", "tail", "file.dat"]),
+            ("/two/build/other/file.dat", ["other", "file.dat"]),
+        ]}
+        self.assertEqual(audit.moved_locations("build/old/tail/file.dat", matches),
+                         ["/one/build/archive/tail/file.dat"])
+        checkout = self.base / "checkout"
+        checkout.mkdir()
+        (checkout / "build").symlink_to(self.root, target_is_directory=True)
+        locations, errors = audit.checkout_locations(str(self.repo), "build/top.dat",
+                                                     [str(checkout)])
+        self.assertFalse(locations)
+        self.assertTrue(errors)
 
 
 if __name__ == "__main__":

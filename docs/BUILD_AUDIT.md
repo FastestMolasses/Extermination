@@ -1,12 +1,15 @@
 # Build audit
 
 `tools/build_audit.py` runs headlessly on native arm64 macOS with Python 3.9+
-and Git (standard library only). It reads build metadata without opening build
-files, following symlinks, or deleting anything.
+and Git (standard library only). It reads build metadata; `--duplicates` also
+streams file bytes into SHA-256. It never prints file contents, follows symlinks,
+or deletes anything.
 
 ```sh
 python3 -B tools/build_audit.py
 python3 -B tools/build_audit.py --dangling --json /absolute/new-report.json
+python3 -B tools/build_audit.py --duplicates --min-mb 50 --dangling \
+  --json build/build-audit/duplicates-dangling.json
 python3 -B tools/build_audit.py --root /absolute/repo/build --split-gb 0.5 \
   --recent-hours 48 --protect 'build/my-receipts' 'build/keep-*'
 python3 -B tools/build_audit.py --include-defaults --root /absolute/other-repo/build
@@ -40,6 +43,16 @@ Classes, in priority order:
 - **CANDIDATE:** none of those conditions applies. This is a review list for the
   lead; the tool never deletes anything.
 
+`--duplicates` groups regular files across all audited roots at or above
+`--min-mb` (default 50 MiB = 52,428,800 bytes). Only colliding sizes are hashed,
+in chunks of at most 1 MiB. Changed/replaced files are excluded with an
+INCOMPLETE notice. Groups show each path, class and citing files, sorted by
+`bytes wasted = size × (copies − 1)`, plus a total. This is logical duplication;
+hard links and APFS clones may share physical space. When a protected or cited
+copy exists, other uncited copies are labeled **redundant**, including IN-USE
+copies; this describes identical bytes, not permission to delete. Protected
+copies and any copy with citations are never labeled redundant.
+
 `git ls-files` selects `CLAUDE.md`, immediate `docs/*.md`, and immediate
 `tools/*.py`. Text comes from pinned `HEAD` blobs in one Git batch; working
 edits, staged additions, untracked/nested files, binary files, and symlinks are
@@ -49,11 +62,29 @@ audited root. Cross-repo citing filenames are absolute. Only filenames appear,
 never source text. Extraction recognizes literal path tokens, not constructed
 paths or names containing whitespace. Globs/templates cite their literal parent.
 
-`--dangling` lists missing literal paths and their citing files. Templates,
-globs, and ellipses are not reported as missing literal paths. References
-below symlinks or incomplete scans are UNRESOLVED. A broken symlink itself
-exists for this purpose. Other processes can change files during the scan.
-Read failures give an INCOMPLETE notice and exit status 1; complete audits exit 0.
+`--dangling` classifies each committed citation of a missing literal path, in
+this priority order:
+
+- **removed and recorded:** an affirmative removed/deleted/purged note appears
+  in the same paragraph or nearest Markdown heading section (up to the next
+  heading). Negated and conditional removal statements do not count. This is
+  a text heuristic; no document prose is printed.
+- **moved:** an existing file/directory in an audited root has the same final
+  component. The longest matching tail wins; all tied paths are listed.
+  These are possible relocations, not a content-identity claim.
+- **another checkout:** the exact path exists in another registered worktree
+  of the same repo (`git worktree list`). Only exact-path metadata is checked;
+  no worktree directories are listed and no file contents are opened.
+- **missing:** none of those conditions applies.
+
+Output groups by citing file and class, with line numbers and matching paths.
+Counts are unique `(path, citing file, line)` occurrences, so the same path can
+have different classes in different sections/docs. Templates, globs and
+ellipses are excluded; references below symlinks or incomplete scans remain
+UNRESOLVED. A final-component symlink itself exists, including a broken one;
+symlink ancestors are refused. Failed worktree checks mark the audit incomplete,
+so unmatched citations are provisional. Other processes can change files during
+the scan. Read failures exit 1; complete audits exit 0.
 
 `--json FILE` is the only write: it creates a new metadata report outside all
 audited roots, refuses to overwrite any existing path, and does not create

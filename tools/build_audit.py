@@ -2,9 +2,13 @@
 """Read-only build metadata audit; Python standard library, native macOS arm64."""
 
 import argparse
+from bisect import bisect_right
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import errno
 import fnmatch
+import hashlib
 import json
 import math
 import os
@@ -23,6 +27,7 @@ DEFAULT_ROOTS = (
 PROTECTED = ("build/startup-reference", "build/fork_refs", "build/s87",
              "build/.pcsx2.lock")
 CLASSES = ("PROTECTED", "IN-USE", "CITED", "CANDIDATE")
+DANGLING_CLASSES = ("removed and recorded", "moved", "another checkout", "missing")
 # Stop at prose / code delimiters. Templates and globs cite their literal parent
 # conservatively, but are not literal missing paths for --dangling.
 REFERENCE = re.compile(r"(?<![\w])build/[^\s`'\"<>{}\[\](),;:|=#\\]+")
@@ -43,6 +48,7 @@ class Node:
     citations: set = field(default_factory=set)
     classification: str = ""
     protection_reasons: set = field(default_factory=set)
+    identity: tuple = ()
 
 
 def absolute(path):
@@ -62,6 +68,11 @@ def open_directory(path):
     except BaseException:
         os.close(fd)
         raise
+
+
+def identity(info):
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
+            info.st_ctime_ns, stat.S_IFMT(info.st_mode))
 
 
 def scan(root):
@@ -131,6 +142,7 @@ def scan(root):
                     node.kind = "file"
                     node.size_bytes = info.st_size
                     node.file_count = 1
+                    node.identity = identity(info)
                 elif stat.S_ISDIR(info.st_mode):
                     node.kind = "directory"
                     child_fd = os.open(entry.name, DIRECTORY_FLAGS, dir_fd=fd)
@@ -198,7 +210,48 @@ def extract_references(text):
             literal = False
         parts = raw.split("/")
         if len(parts) > 1 and all(p and p not in (".", "..") for p in parts):
-            yield prefix, raw, literal
+            yield prefix, raw, literal, match.start()
+
+
+def removal_context(text):
+    """Return line offsets and lines covered by an affirmative removal note.
+
+    A section is the nearest ATX Markdown heading, up to the next heading.
+    Unheaded text uses paragraphs only. No source text leaves this function.
+    """
+    lines = text.splitlines(keepends=True)
+    offsets, offset = [], 0
+    for line in lines:
+        offsets.append(offset)
+        offset += len(line)
+    recorded = set()
+
+    def mark(start, end):
+        prose = REFERENCE.sub("", "".join(lines[start:end]))
+        for match in re.finditer(r"\b(?:removed|deleted|purged)\b", prose, re.I):
+            before = re.split(r"[.!?;\n]", prose[:match.start()])[-1]
+            if re.search(r"\b(?:not|never|no|cannot|can't|don't|didn't|wasn't|weren't|"
+                         r"hasn't|haven't|isn't|aren't|will|would|should|could|can|may|"
+                         r"must|if|unless)\b|\bto be\s*$", before, re.I):
+                continue
+            recorded.update(range(start + 1, end + 1))
+            break
+
+    paragraph, section = 0, None
+    for index, line in enumerate(lines):
+        if re.match(r"^ {0,3}#{1,6}\s+", line):
+            mark(paragraph, index)
+            paragraph = index
+            if section is not None:
+                mark(section, index)
+            section = index
+        elif not line.strip():
+            mark(paragraph, index)
+            paragraph = index + 1
+    mark(paragraph, len(lines))
+    if section is not None:
+        mark(section, len(lines))
+    return offsets, recorded
 
 
 def read_citations(repo, roots):
@@ -222,8 +275,9 @@ def read_citations(repo, roots):
             blobs.append((path, oid))
     references = {root: {} for root in roots}
     literal_paths = {root: set() for root in roots}
+    details = {root: [] for root in roots}
     if not blobs:
-        return revision, references, literal_paths
+        return revision, references, literal_paths, details
     data = git(repo, "cat-file", "--batch",
                input_data=b"".join(oid + b"\n" for _, oid in blobs))
     offset = 0
@@ -241,28 +295,39 @@ def read_citations(repo, roots):
             text = content.decode("utf-8")
         except UnicodeDecodeError:
             continue
-        for prefix, reference, literal in extract_references(text):
+        line_offsets, recorded = removal_context(text)
+        for prefix, reference, literal, position in extract_references(text):
             if prefix:
-                target = absolute(os.path.join(repo, prefix, "build"))
-                targets = [target] if target in references else []
+                full_path = absolute(os.path.join(repo, prefix, reference))
+                targets = [
+                    (root, "build/" + os.path.relpath(full_path, root))
+                    for root in roots
+                    if full_path != root and os.path.commonpath((full_path, root)) == root
+                ]
             else:
-                targets = [root for root in roots if str(Path(root).parent) == repo]
-            for target in targets:
+                targets = [(root, reference) for root in roots if str(Path(root).parent) == repo]
+            for target, routed_reference in targets:
                 citing_file = path if str(Path(target).parent) == repo else str(Path(repo) / path)
-                references[target].setdefault(reference, set()).add(citing_file)
+                references[target].setdefault(routed_reference, set()).add(citing_file)
                 if literal:
-                    literal_paths[target].add(reference)
-    return revision, references, literal_paths
+                    literal_paths[target].add(routed_reference)
+                    line = bisect_right(line_offsets, position)
+                    details[target].append({
+                        "path": routed_reference, "citing_file": citing_file, "line": line,
+                        "removed_recorded": line in recorded,
+                    })
+    return revision, references, literal_paths, details
 
 
 def collect_citations(roots):
     collected = {
-        root: {"revision": None, "references": {}, "literal_paths": set(), "errors": []}
+        root: {"revision": None, "references": {}, "literal_paths": set(),
+               "details": [], "errors": []}
         for root in roots
     }
     for repo in dict.fromkeys(str(Path(root).parent) for root in roots):
         try:
-            revision, references, literal_paths = read_citations(repo, roots)
+            revision, references, literal_paths, details = read_citations(repo, roots)
         except (OSError, ValueError):
             # An unavailable source might contain a cross-repo citation.
             for data in collected.values():
@@ -274,6 +339,7 @@ def collect_citations(roots):
             for path, files in references[root].items():
                 data["references"].setdefault(path, set()).update(files)
             data["literal_paths"].update(literal_paths[root])
+            data["details"].extend(details[root])
     return collected
 
 
@@ -354,7 +420,7 @@ def empty_totals():
 
 
 def audit_root(root, split_bytes, recent_hours, protect, now_ns, dangling=False,
-               citation_data=None):
+               citation_data=None, inventory=None):
     repo = str(Path(root).parent)
     tree, nodes, errors = scan(root)
     if citation_data is None:
@@ -370,6 +436,8 @@ def audit_root(root, split_bytes, recent_hours, protect, now_ns, dangling=False,
         patterns.append(pattern if pattern.startswith("build/") else "build/" + pattern)
     classify(tree, nodes, references, patterns, now_ns - int(recent_hours * 3600e9),
              citations_complete)
+    if inventory is not None:
+        inventory.update(nodes)
     entries = []
     pending = list(tree.children)
     while pending:
@@ -396,6 +464,196 @@ def audit_root(root, split_bytes, recent_hours, protect, now_ns, dangling=False,
             "errors": errors, "complete": tree.complete and citations_complete}
 
 
+def file_path(root, node):
+    return str(Path(root).joinpath(*node.path.split("/")[1:]))
+
+
+def exact_stat(path):
+    """Metadata-only lookup, refusing symlink ancestors; no directory listings."""
+    parent_fd = open_directory(str(Path(path).parent))
+    try:
+        return os.stat(Path(path).name, dir_fd=parent_fd, follow_symlinks=False)
+    finally:
+        os.close(parent_fd)
+
+
+def hash_file(root, node):
+    """Bounded streamed SHA-256; reject replaced or changed files before/after."""
+    path = file_path(root, node)
+    parent_fd = open_directory(str(Path(path).parent))
+    try:
+        # NONBLOCK prevents a concurrent replacement with a FIFO from hanging.
+        fd = os.open(Path(path).name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                     dir_fd=parent_fd)
+    finally:
+        os.close(parent_fd)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or identity(info) != node.identity:
+            raise OSError(errno.EAGAIN, "file changed")
+        digest = hashlib.sha256()
+        remaining = node.size_bytes
+        while remaining:
+            chunk = os.read(fd, min(1024 * 1024, remaining))
+            if not chunk:
+                raise OSError(errno.EAGAIN, "file changed")
+            digest.update(chunk)
+            remaining -= len(chunk)
+        if identity(os.fstat(fd)) != node.identity:
+            raise OSError(errno.EAGAIN, "file changed")
+        return digest.digest()
+    finally:
+        os.close(fd)
+
+
+def find_duplicates(inventories, min_bytes):
+    sizes = defaultdict(list)
+    for root, nodes in inventories.items():
+        for node in nodes.values():
+            if node.kind == "file" and node.complete and node.size_bytes >= min_bytes:
+                sizes[node.size_bytes].append((root, node))
+    groups, errors = [], []
+    hashed_files = hashed_bytes = 0
+    for size, candidates in sorted(sizes.items(), reverse=True):
+        if len(candidates) < 2:
+            continue
+        hashes = defaultdict(list)
+        for root, node in candidates:
+            try:
+                digest = hash_file(root, node)
+                hashed_files += 1
+                hashed_bytes += size
+                hashes[digest].append((root, node))
+            except OSError as error:
+                errors.append({"path": file_path(root, node), "operation": "hash",
+                               "errno": error.errno})
+        for copies in hashes.values():
+            valid = []
+            for root, node in copies:
+                try:
+                    if identity(exact_stat(file_path(root, node))) != node.identity:
+                        raise OSError(errno.EAGAIN, "file changed")
+                    valid.append(row(node, root))
+                except OSError as error:
+                    errors.append({"path": file_path(root, node),
+                                   "operation": "hash validation", "errno": error.errno})
+            if len(valid) < 2:
+                continue
+            anchored = any(copy["class"] in ("PROTECTED", "CITED") or copy["citing_files"]
+                           for copy in valid)
+            for copy in valid:
+                copy["redundant"] = bool(
+                    anchored and copy["class"] not in ("PROTECTED", "CITED") and
+                    not copy["citing_files"])
+            valid.sort(key=lambda copy: copy["absolute_path"])
+            groups.append({"size_bytes": size, "copy_count": len(valid),
+                           "bytes_wasted": size * (len(valid) - 1), "copies": valid})
+    groups.sort(key=lambda group: (-group["bytes_wasted"],
+                                  group["copies"][0]["absolute_path"]))
+    return {"groups": groups, "total_bytes_wasted": sum(g["bytes_wasted"] for g in groups),
+            "hashed_files": hashed_files, "hashed_bytes": hashed_bytes,
+            "errors": errors, "complete": not errors}
+
+
+def registered_worktrees(repo):
+    return [absolute(os.fsdecode(field[len(b"worktree "):]))
+            for field in git(repo, "worktree", "list", "--porcelain", "-z").split(b"\0")
+            if field.startswith(b"worktree ")]
+
+
+def checkout_locations(repo, path, worktrees):
+    """Probe only this exact path in registered worktrees, never enumerate them."""
+    locations, errors = [], []
+    for checkout in worktrees:
+        if checkout == repo:
+            continue
+        candidate = str(Path(checkout) / path)
+        try:
+            exact_stat(candidate)
+            locations.append({"worktree": checkout, "path": candidate})
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            errors.append({"path": candidate, "operation": "worktree metadata",
+                           "errno": error.errno})
+    return locations, errors
+
+
+def moved_locations(path, by_name):
+    wanted = path.split("/")[1:]
+    best, matches = 0, []
+    for candidate, parts in by_name.get(wanted[-1], []):
+        length = 0
+        for a, b in zip(reversed(wanted), reversed(parts)):
+            if a != b:
+                break
+            length += 1
+        if length > best:
+            best, matches = length, []
+        if length == best:
+            matches.append(candidate)
+    return sorted(matches)
+
+
+def classify_dangling(repos, inventories, citations):
+    by_name = defaultdict(list)
+    for root, nodes in inventories.items():
+        for node in nodes.values():
+            if node.kind in ("file", "directory") and node.complete:
+                parts = node.path.split("/")[1:]
+                by_name[parts[-1]].append((file_path(root, node), parts))
+    for repo in repos:
+        missing = {item["path"] for item in repo["dangling"]}
+        worktrees = None
+        lookup_failed = False
+        checkout_cache, moved_cache, grouped = {}, {}, {}
+        seen = set()
+        counts = {name: 0 for name in DANGLING_CLASSES}
+        by_doc = {}
+        for detail in citations[repo["root"]]["details"]:
+            path, doc, line = detail["path"], detail["citing_file"], detail["line"]
+            if path not in missing or (path, doc, line) in seen:
+                continue
+            seen.add((path, doc, line))
+            alternatives, checkouts = [], []
+            if detail["removed_recorded"]:
+                classification = "removed and recorded"
+            else:
+                if path not in moved_cache:
+                    moved_cache[path] = moved_locations(path, by_name)
+                alternatives = moved_cache[path]
+                if alternatives:
+                    classification = "moved"
+                else:
+                    if worktrees is None:
+                        try:
+                            worktrees = registered_worktrees(repo["repo"])
+                        except (OSError, ValueError):
+                            worktrees, lookup_failed = [], True
+                            repo["errors"].append({"path": repo["repo"],
+                                                   "operation": "worktree list"})
+                    if path not in checkout_cache:
+                        checkout_cache[path] = checkout_locations(repo["repo"], path, worktrees)
+                        repo["errors"].extend(checkout_cache[path][1])
+                    checkouts, errors = checkout_cache[path]
+                    classification = "another checkout" if checkouts else "missing"
+                    if errors or lookup_failed:
+                        repo["complete"] = False
+            key = (doc, classification, path)
+            item = grouped.setdefault(key, {
+                "path": path, "citing_file": doc, "class": classification,
+                "line_numbers": [], "alternatives": alternatives, "checkouts": checkouts,
+            })
+            item["line_numbers"].append(line)
+            counts[classification] += 1
+            by_doc.setdefault(doc, {name: 0 for name in DANGLING_CLASSES})[classification] += 1
+        repo["dangling_citations"] = [grouped[key] for key in sorted(grouped)]
+        for item in repo["dangling_citations"]:
+            item["line_numbers"].sort()
+        repo["dangling_counts"] = counts
+        repo["dangling_by_doc"] = dict(sorted(by_doc.items()))
+
+
 def print_table(report):
     # Escape paths to prevent control characters in filenames affecting terminals.
     def safe(value):
@@ -415,9 +673,19 @@ def print_table(report):
         print_totals(repo["totals"])
         print(f'REPO TOTAL {repo["size_bytes"]} bytes; {repo["file_count"]} files')
         if report["dangling_requested"]:
-            for item in repo["dangling"]:
-                print("DANGLING", safe(item["path"]), "cited:",
-                      ", ".join(map(safe, item["citing_files"])))
+            for doc, counts in repo["dangling_by_doc"].items():
+                print("DANGLING DOC", safe(doc),
+                      " ".join(f"{name}={count}" for name, count in counts.items()))
+                for item in repo["dangling_citations"]:
+                    if item["citing_file"] == doc:
+                        print(" ", item["class"], safe(item["path"]), "lines",
+                              ",".join(map(str, item["line_numbers"])))
+                        for path in item["alternatives"]:
+                            print("    MATCH", safe(path))
+                        for checkout in item["checkouts"]:
+                            print("    CHECKOUT", safe(checkout["worktree"]),
+                                  safe(checkout["path"]))
+            print("DANGLING TOTALS (citation lines)", repo["dangling_counts"])
             for item in repo["unresolved_references"]:
                 print("UNRESOLVED", safe(item["path"]), "cited:",
                       ", ".join(map(safe, item["citing_files"])))
@@ -426,6 +694,19 @@ def print_table(report):
                   error.get("errno", ""))
     print("\nALL REPOS")
     print_totals(report["totals"])
+    if report["duplicates_requested"]:
+        duplicates = report["duplicates"]
+        for group in duplicates["groups"]:
+            print("DUPLICATES", group["size_bytes"], "bytes each;",
+                  group["bytes_wasted"], "bytes wasted")
+            for copy in group["copies"]:
+                print(" ", copy["class"], safe(copy["absolute_path"]),
+                      "redundant" if copy["redundant"] else "")
+                if copy["citing_files"]:
+                    print("    cited:", ", ".join(map(safe, copy["citing_files"])))
+        print("DUPLICATES TOTAL", duplicates["total_bytes_wasted"], "bytes wasted")
+        for error in duplicates["errors"]:
+            print("INCOMPLETE", safe(error["path"]), error["operation"], error["errno"])
 
 
 def print_totals(totals):
@@ -470,6 +751,10 @@ def main(argv=None):
     parser.add_argument("--protect", action="append", nargs="+", default=[],
                         metavar="PATTERN", help="quoted build-relative shell patterns")
     parser.add_argument("--dangling", action="store_true")
+    parser.add_argument("--duplicates", action="store_true",
+                        help="stream SHA-256 only for regular files with colliding sizes")
+    parser.add_argument("--min-mb", type=nonnegative, default=50,
+                        help="minimum duplicate file size in MiB (default 50)")
     parser.add_argument("--json", metavar="FILE", help="create a NEW JSON report; '-' for stdout")
     args = parser.parse_args(argv)
     roots = list(dict.fromkeys(absolute(p) for p in (
@@ -479,16 +764,22 @@ def main(argv=None):
     now_ns = time.time_ns()
     protect = [pattern for group in args.protect for pattern in group]
     citations = collect_citations(roots)
+    inventories = {root: {} for root in roots}
     repos = [audit_root(root, args.split_gb * 1024**3, args.recent_hours,
-                        protect, now_ns, args.dangling, citations[root]) for root in roots]
+                        protect, now_ns, args.dangling, citations[root], inventories[root])
+             for root in roots]
+    if args.dangling:
+        classify_dangling(repos, inventories, citations)
+    duplicates = find_duplicates(inventories, args.min_mb * 1024**2) if args.duplicates else None
     totals = empty_totals()
     for repo in repos:
         for name in CLASSES:
             for key in totals[name]:
                 totals[name][key] += repo["totals"][name][key]
-    report = {"schema_version": 1, "generated_at": utc(now_ns),
+    report = {"schema_version": 2, "generated_at": utc(now_ns),
               "split_gb": args.split_gb, "recent_hours": args.recent_hours,
-              "dangling_requested": args.dangling, "repos": repos, "totals": totals}
+              "dangling_requested": args.dangling, "duplicates_requested": args.duplicates,
+              "min_mb": args.min_mb, "duplicates": duplicates, "repos": repos, "totals": totals}
     if args.json == "-":
         print(json.dumps(report, indent=2, ensure_ascii=True))
     else:
@@ -501,7 +792,8 @@ def main(argv=None):
                       "roots, with no symlink components): " + json.dumps(args.json),
                       file=sys.stderr)
                 return 1
-    return 0 if all(repo["complete"] for repo in repos) else 1
+    return 0 if (all(repo["complete"] for repo in repos) and
+                 (duplicates is None or duplicates["complete"])) else 1
 
 
 if __name__ == "__main__":
