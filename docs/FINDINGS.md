@@ -17199,13 +17199,14 @@ traced, and nothing here ties him to the blog's teenager.
 The only voice-channel starts (001FA790 with channel 1/2) are in 001FA5F0,
 which drains the ring that 001FA5A0 fills, and 001FA5A0's only callers are
 001FD580 and 001FD6A0, which push a record's +2 cue (a jal scan of the ELF
-and all 19 overlays; a call through a pointer is not excluded). The tool
-lists the eight other direct calls to 001FA790 (four in the ELF, one each in
-AREA02, 08, 13 and 21) but does not check their lane argument; that was
-checked by hand (2026-10-20, reading each call site's first argument): each
-passes lane 0, or is the call inside 001FABF0,
-whose five callers pass lane 0 or, from 001FA790 itself, a fourth argument
-of 0 that skips the start. Records name
+and all 19 overlays; a call through a pointer is not excluded). The tool now
+records the lane argument at each call site in `census.json`'s
+`voice.lane_calls` (2026-10-20): of the eight other direct calls to 001FA790
+(four in the ELF, one each in AREA02, 08, 13 and 21), seven pass lane 0 and
+the call inside 001FABF0 has an unknown forwarded lane; that wrapper's five
+callers record lane 0 / enable 1 four times, and an unknown lane / enable 0
+once (from 001FA790 itself), whose zero fourth argument skips the start.
+Records name
 162 of the 178 cues; the other 16 are never requested: 12, 37, 38, 56, 67,
 68, 73, 123, 161-167 and 170. Their content (Whisper large-v3-turbo run
 locally, and the user listening, 2026-10-16) is in CURIOSITIES 29 and 30.

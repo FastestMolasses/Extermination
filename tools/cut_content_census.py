@@ -28,7 +28,10 @@ entry 29 and docs/FINDINGS.md "Cut-content census"):
                     voice-channel starts are 001FA5F0's, fed by 001FA5A0,
                     whose only callers (001FD580 / 001FD6A0) push a record's
                     +2 cue, so a cue no record names is never requested
-                    (a jal scan of the ELF and every overlay is printed).
+                    (a jal scan of the ELF and every overlay is recorded).
+                    Each call to 001FA790 / 001FABF0 records its image,
+                    address and statically proven lane (or "unknown");
+                    wrapper calls also record the enable argument.
   stream cues       the MUSIC.DAT cue table D_0025DD30 and the (area,
                     trigger) -> cue rows D_0026EC60 that 001FD4C0 scans.
   scripts           64-byte event-script records (word 0 = flags | opcode,
@@ -80,6 +83,7 @@ STREAM_ROWS = 0x26EC60
 SPAWN_TABLE = 0x24D650
 OVERLAY_BASE = 0x823500                     # file offset 0 (MWo3 header) runs here
 VOICE_START = {0x1FA5A0: "001FA5A0", 0x1FA790: "001FA790", 0x1FD4C0: "001FD4C0"}
+LANE_START = {0x1FA790: "001FA790", 0x1FABF0: "001FABF0"}
 NO_TEXT = "<no text>"
 
 
@@ -261,6 +265,155 @@ def jal_targets(blob: bytes, base: int, targets):
     return hits
 
 
+def control(word: int, pc: int):
+    """Return (kind, target) for transfers; never render original instructions."""
+    op, rs, rt, fn = word >> 26, (word >> 21) & 31, (word >> 16) & 31, word & 63
+    if op in (2, 3):
+        return ("call" if op == 3 else "jump", ((pc + 4) & 0xF0000000) | ((word & 0x3FFFFFF) << 2))
+    if op == 0 and fn in (8, 9):
+        return ("call" if fn == 9 else "jump", None)
+    if op in (1, 4, 5, 6, 7, 20, 21, 22, 23) or (op in (16, 17, 18) and rs == 8):
+        # Include branch-and-link and branch-likely as boundaries. No fact is
+        # carried across either edge, even when a condition appears constant.
+        displacement = (word & 65535) - (65536 if word & 32768 else 0)
+        return ("branch", pc + 4 + displacement * 4)
+    return None
+
+
+def constant_step(word: int, registers: list):
+    """Conservative low-64-bit GPR constants for a straight-line block.
+
+    Loads invalidate their destination; unsupported operations invalidate all
+    facts. No memory, caller ABI, or unrecognised R5900 instruction is assumed.
+    """
+    op, rs, rt, rd = word >> 26, (word >> 21) & 31, (word >> 16) & 31, (word >> 11) & 31
+    fn, shift, imm = word & 63, (word >> 6) & 31, word & 65535
+    signed = imm - (65536 if imm & 32768 else 0)
+    left, right = registers[rs], registers[rt]
+    mask = (1 << 64) - 1
+
+    def set_reg(reg, value, bits=64):
+        if value is not None:
+            value &= (1 << bits) - 1
+            if bits == 32 and value & (1 << 31):
+                value |= mask ^ ((1 << 32) - 1)
+        registers[reg] = value
+
+    if op in (8, 9, 24, 25):
+        set_reg(rt, None if left is None else left + signed, 32 if op in (8, 9) else 64)
+    elif op == 15:
+        set_reg(rt, imm << 16, 32)
+    elif op in (12, 13, 14):
+        value = None
+        if left is not None:
+            value = (left & imm) if op == 12 else (left | imm) if op == 13 else (left ^ imm)
+        elif op == 12 and imm == 0:
+            value = 0
+        set_reg(rt, value)
+    elif op == 0 and fn in (0, 2, 3, 56, 58, 59, 60, 62, 63):
+        bits = 32 if fn in (0, 2, 3) else 64
+        amount = shift + (32 if fn in (60, 62, 63) else 0)
+        value = None
+        if right is not None:
+            value = right & ((1 << bits) - 1)
+            if fn in (3, 59, 63) and value & (1 << (bits - 1)):
+                value -= 1 << bits
+            value = value << amount if fn in (0, 56, 60) else value >> amount
+        set_reg(rd, value, bits)
+    elif op == 0 and fn in (32, 33, 34, 35, 36, 37, 38, 39, 44, 45, 46, 47):
+        value = None
+        if fn in (34, 35, 38, 46, 47) and rs == rt:
+            value = 0
+        elif fn == 36 and (left == 0 or right == 0):
+            value = 0
+        elif left is not None and right is not None:
+            if fn in (32, 33, 44, 45): value = left + right
+            elif fn in (34, 35, 46, 47): value = left - right
+            elif fn == 36: value = left & right
+            elif fn == 37: value = left | right
+            elif fn == 38: value = left ^ right
+            elif fn == 39: value = ~(left | right)
+        set_reg(rd, value, 32 if fn in (32, 33, 34, 35) else 64)
+    elif op == 28 and fn == 40 and shift == 24:
+        # Saturating unsigned byte addition, also the compiler's register copy
+        # when either input is zero. Only the low 64 bits are needed here.
+        value = None
+        if left is not None and right is not None:
+            value = sum(min(255, ((left >> bit) & 255) + ((right >> bit) & 255)) << bit
+                        for bit in range(0, 64, 8))
+        set_reg(rd, value)
+    elif op in (26, 27, 30, 32, 33, 34, 35, 36, 37, 38, 39, 48, 52, 55):
+        set_reg(rt, None)  # integer loads, including unaligned/quadword
+    elif op in (40, 41, 42, 43, 44, 45, 46, 47, 49, 51, 53, 54, 57, 58, 61, 62, 63, 31):
+        pass  # stores (except SC/SCD), floating loads/stores, cache/prefetch
+    elif op in (16, 17, 18) and rs in (0, 1, 2):
+        set_reg(rt, None)  # coprocessor -> integer register
+    elif op == 17 and rs in (4, 6, 16, 17, 20, 21):
+        pass  # integer -> FPU, or scalar floating-point arithmetic
+    else:
+        registers[:] = [None] * 32
+    registers[0] = 0
+
+
+def lane_calls(blob: bytes, base: int, image: str):
+    """Record proven lane/enable constants at every direct start call site.
+
+    Facts start unknown at every branch target and after every transfer.
+    The call's delay slot executes before sampling its arguments. This is
+    deliberately local: forwarded parameters and joined paths stay unknown.
+    The image name disambiguates identical overlay runtime addresses.
+    """
+    words = [word[0] for word in struct.iter_unpack("<I", blob[:len(blob) // 4 * 4])]
+    entries = {base}
+    for i, word in enumerate(words):
+        transfer = control(word, base + i * 4)
+        if transfer and transfer[1] is not None:
+            entries.add(transfer[1])
+    registers, pending, hits = [0] + [None] * 31, None, []
+    for i, word in enumerate(words):
+        pc = base + i * 4
+        if pc in entries:
+            registers = [0] + [None] * 31
+        transfer = control(word, pc)
+        if pending is not None:
+            # A transfer in a delay slot is not a supported execution path.
+            if transfer:
+                registers = [0] + [None] * 31
+                if word >> 26 == 3 and transfer[1] in LANE_START:
+                    nested = {"image": image, "address": hex(pc), "target": LANE_START[transfer[1]],
+                              "lane_argument": "unknown"}
+                    if transfer[1] == 0x1FABF0:
+                        nested["enable_argument"] = "unknown"
+                    hits.append(nested)
+            else:
+                constant_step(word, registers)
+            call_pc, target = pending
+            if target in LANE_START:
+                row = {"image": image, "address": hex(call_pc), "target": LANE_START[target],
+                       "lane_argument": registers[4] if registers[4] is not None else "unknown"}
+                if target == 0x1FABF0:
+                    row["enable_argument"] = registers[7] if registers[7] is not None else "unknown"
+                hits.append(row)
+            registers, pending = [0] + [None] * 31, None
+        elif transfer:
+            # JAL/JALR changes the link register before its delay slot.
+            if transfer[0] == "call":
+                registers = registers.copy()
+                registers[31 if word >> 26 == 3 else (word >> 11) & 31] = None
+                registers[0] = 0
+            pending = (pc, transfer[1] if word >> 26 == 3 else None)
+        else:
+            constant_step(word, registers)
+    # A truncated call still has a record, but no provable arguments.
+    if pending and pending[1] in LANE_START:
+        row = {"image": image, "address": hex(pending[0]), "target": LANE_START[pending[1]],
+               "lane_argument": "unknown"}
+        if pending[1] == 0x1FABF0:
+            row["enable_argument"] = "unknown"
+        hits.append(row)
+    return hits
+
+
 def run_chain(records, start: int):
     out, i = [], start
     while i < len(records):
@@ -348,6 +501,9 @@ def census(args) -> dict:
     for name, blob in overlays.items():
         calls += [(a, t) for a, t in jal_targets(blob, OVERLAY_BASE, VOICE_START)]
     out["voice"]["direct_calls"] = [(hex(a), t) for a, t in calls]
+    out["voice"]["lane_calls"] = lane_calls(elf.text(), 0x100000, "ELF")
+    for name, blob in overlays.items():
+        out["voice"]["lane_calls"].extend(lane_calls(blob, OVERLAY_BASE, name))
 
     triggers = {}
     for name, r in refs.items():
