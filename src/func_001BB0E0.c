@@ -7,7 +7,8 @@
 //  1: once the owner's stop mask (+0x2E) has the actor's bit (+0x2E) the
 //     actor goes to state 2. Commands 0x270C / 0x270D do nothing; otherwise
 //     the command's mode (+0x0A) picks: 0 starts the clip (func_001BA580(a, id): the
-//     callee classifies the command id into a sound category)
+//     callee maps the body type to its speaker slot and runs the face talk
+//     from that slot's D_008106D4 message mailbox)
 //     and plays, 3 waits, 4 only poses (func_001C68C0) and calls the draw
 //     callback +0x4C, 5 runs func_001C5C90, 6 plays and also triggers the
 //     command's sound (func_001F9660(a, id)); any other mode plays. Playing

@@ -39,6 +39,10 @@ review corrections applied to 1, 3, 4, 6, 8-12, 14, 15, 17, 18, 21 and
 23-25). Entry 28 added 2026-10-02 (the port's chain step AIMLIVE) and withdrawn
 the same day (the port's chain step AIMCAP fix round; see the last section).
 Entry 12's blank label decoded 2026-10-08 (the port's chain step OPTIONS).
+Entries 29 and 30 added and entry 24 extended 2026-10-16 (the cut-content
+census, FINDINGS "Cut-content census"), with a withdrawn-claims note on the
+fan-blog subplot. Entry 31 added and entries 22 and 23 extended 2026-10-16
+(the character census, sections 7-9).
 
 ---
 
@@ -418,9 +422,11 @@ refuse them.
 
 *Kind: optional content.* Placement [36] in AREA01 is a character at the
 control-room console, not a crank (the old FINDINGS s69/s74 "crank" and
-"bridge-lowering cutscene" labels are withdrawn). The AREA01 route capture
-shows the following (FINDINGS "AREA01 route capture", port
-`SECOND_LEVEL_ROUTE.md` section 2):
+"bridge-lowering cutscene" labels are withdrawn). The character is Roger:
+the placement's behaviour (0x825350) binds D_0028A490[0x47], his body, with
+face slot 0x88 and speaker slot 1 (FINDINGS "Cut-content census" section 7,
+2026-10-16). The AREA01 route capture shows the following (FINDINGS "AREA01
+route capture", port `SECOND_LEVEL_ROUTE.md` section 2):
 
 - With the story byte D_008107D9 = 0 the character's conversation is
   optional and changes no sampled progress byte.
@@ -449,7 +455,8 @@ not a proof of unreachability.
 - **AREA01, unvisited:** the north room beyond the two 0x8261A0 owners
   (called bridges in FINDINGS; not seen moving), the upper floor (doors to
   area 0x16 and AREA06), a second character record [38] (overlay 0x825740,
-  not spawned in the recorded load), and several deferred pickups (port
+  not spawned in the recorded load; it binds Roger's body like [36], FINDINGS
+  "Cut-content census" section 7), and several deferred pickups (port
   `SECOND_LEVEL_ROUTE.md` section 7).
 - **Functions that never ran** on either route: the gun-light-reactive
   00138900 and the alert-timer family 001418F0 / 0013D850 / 0013D980 /
@@ -472,9 +479,13 @@ or 12, so the code has no slot for them. The inference (not proven) is that
 the numbers were dropped before the overlay ids and the filename table were
 built. OVERLAYS.md section 8 item 5 once gave the wrong cause for AREA04's
 id (AREA05 absent and the id counter continuing); it now says the id is 5
-because AREA00 takes id 1 (corrected 2026-09-27). Open: whether any
-data table (area flags, names, maps) still reserves those numbers, and what
-the levels were.
+because AREA00 takes id 1 (corrected 2026-09-27). One data table still
+reserves a number (2026-10-16): the spawn table D_0024D650 has a room for
+area 10 holding a single spawn record, at (500, 80, 219) with map nibble 7,
+the map AREA20 and AREA21 use (FINDINGS "Cut-content census" section 5);
+the message, placement and dispatcher tables have nothing for it, and areas
+5, 9 and 12 have no spawn room. Open: the other tables (area flags, names),
+and what the levels were.
 
 ## 25. The random generator is not seeded for New Game — partial
 
@@ -550,6 +561,83 @@ dmg_07_pit_fall, `build/c10/damage/dmg_07_pit_fall`), the attribute census of
 the AREA11 grid (port `FIRST_CONTROL.md`) and 0021D250 (port
 `PLAYER_FALL.md`).
 
+## 29. An unused third conversation with the journalist, Japanese only — partial
+
+*Kind: cut content (audio left on the disc).* VOICE.DAT cues 161-167
+(48 s together) are a complete exchange between Dennis and Travis Miller,
+the freelance journalist (speaker slot 6), recorded only in Japanese. Travis
+hails Dennis as a marine; Dennis asks whether he is still investigating and
+remarks that he has stayed safe; they compare what they know of Dr. Falken
+(Travis has never seen him since he got in and wonders whether he exists);
+Dennis asks where he will go; Travis says he will keep reporting while he
+lives, and leaves. Travis is alive throughout.
+
+- **Never played (decoded, static).** Voice cues start only through a
+  dialogue record's cue field, and no record in any area names 161-167;
+  there is no subtitle text for them in any bank and no English take
+  (FINDINGS "Cut-content census" sections 1 and 3; a call through a
+  function pointer is not excluded).
+- **Content (unverified wording).** From a local Whisper large-v3-turbo
+  transcription, 2026-10-16, with the user confirming by ear that the cues
+  are Japanese; the summary above is our translation. Clips and transcripts:
+  `build/cut_content/voice/`, `build/cut_content/asr/out/` (ignored).
+- **Where it belonged (unknown).** The cue numbers sit with the late
+  recordings: after AREA14's last cues (152-160), before AREA13's 168-169.
+  The shipped Travis scenes are AREA13 (the first meeting) and AREA08 (the
+  second, where he leaves with his story); the Falken topic places this one
+  before AREA16, where Dennis meets Falken. Which area and trigger it was
+  meant for is not in any table.
+- Not restorable as it stands: it has no record, text, script or staging,
+  so an Enhanced switch would need invented content.
+
+## 30. Untranslated and unused voice and text leftovers — partial
+
+*Kind: cut content (audio and text left on the disc) and dead data.* The rest
+of the census (FINDINGS "Cut-content census"; content as in entry 29, from
+the local transcription and the user's listening; translations ours):
+
+- **AREA19's fire passage, Japanese only.** AREA19 lines 0x4A and 0x4C
+  (Dennis: the fire is out; he may get through now) and 0x5E (he cannot go
+  back this way) are Shift-JIS text, the only non-English dialogue lines in
+  the game; 0x4A names cue 69 and 0x5E cue 174, both Japanese audio
+  (69 matches the two lines' text). No script reaches the three lines. The
+  unnamed cue 68 (Japanese: so that is where it burst) sits beside them.
+- **Japanese corpse remarks:** cues 37 and 38 (a body chewed apart; what
+  creature did it) and 170 (a gruesome body; what happened here). The
+  English game has comparable examine lines as text only (global bank
+  0x26-0x34, AREA00 0x2F / 0x33).
+- **Cue 56** (Japanese: Dennis asks for any information), numbered inside
+  the AREA08 Travis scene (cues 55 / 57).
+- **Cues 12 and 67:** short non-speech takes by the transcription (a throat
+  clear, a laugh); the user hears Japanese voice.
+- **Cue 73** is the English take of AREA19 line 0x50 (Dennis needs a special
+  key), whose record names no cue, so the line plays silent. **Cue 123** is a
+  man screaming.
+- **MUSIC.DAT:** cutscene-range streams 31 (18 s) and 58 (23 s) have no
+  stream-table row and no direct caller and hold music and effects only;
+  cue 67 (1 s) is a spoken left/right channel check. All nine movies are
+  named in the boot ELF.
+- AREA04 line 0xF3 (a voiced hint, cue 171) is not reached by any script; an
+  object probably starts it (not traced), so it is not counted as cut.
+
+## 31. Two corpse models AREA00 loads and never places — partial
+
+*Kind: assets (unused copies; trivia).* AREA00 sub 0 and sub 1 load an
+area model table whose entries 0x16-0x18 are rigid corpse meshes: 0x16 is
+the gutted civilian placed in the AREA02 office, 0x17 a sitting body and
+0x18 a lying one that exist nowhere else on the disc (FINDINGS
+"Cut-content census" section 9; `tools/character_census.py`).
+
+- **Never placed (static census).** No placement record, deferred-spawn
+  record or constant model-table bind (001C6120 on D_0028A59C) in any
+  overlay or the ELF names entries 0x16-0x18 in AREA00. A bind through a
+  computed index is not excluded.
+- **Wrong textures there.** Each carries a single texture reference that
+  AREA00's own level upload fills with other texels, so drawn in AREA00
+  they would be wrongly textured; this fits copies left in the table, not
+  props meant for the area.
+- Not restorable: nothing on the disc says where they would lie.
+
 ---
 
 ## Notes for the port's candidate lists
@@ -609,3 +697,31 @@ Kept so the old claims are not reintroduced.
   world origin is outside. The AIM census run hits 00102990, the packet path,
   from aim_09 f26. The entry's evidence described the port's wrong argument
   (the slot itself), not the original. Port `docs/AIM_FIRE.md` section 11.3.
+- **"A cut subplot with a teenage boy, and the reporter killed, infected
+  and fought as a boss" (never entries here; checked 2026-10-16).** The claim
+  comes from a 2016 fan-blog post (Survival Horror Feeder, "Extermination
+  Development - PS2 (DeepSpace)", 2016-02-04) that says it paraphrases a
+  GameSpy article by an unnamed lead producer, which is no longer online. It
+  says Cindy meets a boy, Dennis brings him back and the two find Sonia dead
+  in Building B's stairwell, that the reporter becomes a boss, and that the
+  models and subtitle strings remain on the disc. Disc census (FINDINGS
+  "Cut-content census"):
+  - **The boy: not found.** No line in any bank mentions or addresses a boy,
+    no speaker slot is unaccounted for (0-9 are ten known characters), no
+    voice cue or cutscene stream speaks of one (all 178 cues and the 38
+    cutscene streams transcribed), and no body or face on the disc is small
+    or young (section 8). The static one- to four-node meshes were inspected
+    on 2026-10-16 (section 9): their bodies are adult corpses, and every
+    scripted actor is a named adult (section 7). Meshes inside overlays were
+    not scanned.
+  - **The reporter as a boss: not found.** Travis Miller has one body (a
+    civilian with a camera, AREA08 and AREA13 only), no mesh reuses its
+    parts, no line or cue has him die or turn, and his unused Japanese
+    conversation (entry 29) ends with him alive and leaving. The infected
+    companion the shipped game does have is Roger: the AREA01 mutant built on
+    his body and the AREA17 fight (FINDINGS section 8).
+  - **Matches the shipped game, not a cut:** Sonia is found dead in Building
+    B's stair tower (AREA19 sub 1, map 9 floor 1; FINDINGS sections 5 and 6),
+    but Dennis is alone there and the scene spawns no other actor.
+  - What the disc does keep from cut or untranslated work is entries 29 and
+    30 (Japanese-only audio and text), not the blog's subplot.

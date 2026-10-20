@@ -16,6 +16,88 @@
   (movies on the vblank clock) waits for a lead decision.
 - No source change; the matched counts are unchanged.
 
+## 2026-10-16 — func_001BA8E0 and func_001BA580 byte-matched from C
+
+- Re-measured after the table correction below (mwcc 2.3.3, -O4,p
+  -sdatathreshold 0): the corrected NEARMISS C scored 70.65% (001BA8E0)
+  and 52.16% (001BA580); the recorded 72.08% / 91.56% predated the fix.
+- Both are sparse `switch` statements in the original, not if/else
+  cascades (MATCHING_GUIDE idiom-33): written with ascending case labels
+  and `default` last, both reach objdiff 100% with identical relocations,
+  .text 0x320 / 0x268. 001BA580's body type is an `int` (an `unsigned char`
+  parameter adds a byte mask before the compares). Tables unchanged; they
+  agree with the port's `em_roger_actor_original.c` and
+  `tools/character_census.py`.
+- 001BA8E0's head was mistranslated as well: func_001F0120(self, type) runs
+  unless D_00810788 == 1 and the type is not 0x3B (then it is not called),
+  and func_001D8BF0 always gets 1. The old C called func_001F0120 on every
+  path (with 1 for 0x3B under the flag) and passed the type to
+  func_001D8BF0. The port already had this right.
+- Promoted with tools/match/integrate_nearmiss.py (both KEEP); NEARMISS.md
+  rows removed, FUNCTIONS.csv readable. Fresh build + verify_all: all six
+  stages pass, 2163/2217 units, matched_code 98.69%; audit_link_provenance
+  routes both as compiled_object_ordinary_c (text and relocations match).
+- Worktree note: the build ran in a git worktree with the ignored inputs
+  (config/SCUS_971.12*, elf/, tools/bin, tools/mwccps2*, tools/eegcc
+  toolchains, build/asm, build/jtblrodata, build/overlays, extract/OVERLAY)
+  cloned from the main checkout; `splat split` stalled there, so build/asm
+  was cloned rather than regenerated. integrate_nearmiss.py hard-codes the
+  main checkout as ROOT, so it ran from a copy rooted at the worktree.
+
+## 2026-10-16 — Character census: every scripted actor named and tied to its mesh
+
+- New tool `tools/character_census.py` (macOS arm64; replaces the local
+  `build/cut_content/models/scripts/` helpers): mesh-blob and rig scans,
+  INDEX.IDX load sets, op14 lists and placement binds resolved to meshes,
+  faces and speaker slots, unique-geometry inventory with shared parts,
+  textured previews and contact sheets. Output ignored
+  `build/cut_content/characters/`.
+- Names now come from code: 001BA8E0 (body type -> face slot, head node,
+  shadow kind) and 001BA580 (body type -> the speaker slot whose message
+  mailbox drives the face), both read off the original compare chains. Body
+  slots 0x47-0x49 Roger, 0x4F-0x51 Cindy, 0x54/55 Madigan, 0x59/5A Gary,
+  0x5D/5E Filel, 0x61 Travis Miller, 0x64 Sonia, 0x66 Morris, 0x68 Falken.
+  Every face fits its body's head (41/42; the 42nd is unloaded).
+- Corrected: the NEARMISS C of func_001BA8E0 and func_001BA580 had both
+  tables one case late (src fixed; not linked, the boot ELF is unchanged;
+  the port already had them right); section 7's first pass found 53 op14
+  entries, the list walk finds 179 in 36 lists over 13 overlays.
+- Found: AREA17's Roger line plays from the 44-node flesh giant while a
+  bloodied Madigan stands silent; Cindy's hooded AREA01/AREA04 body has no
+  face or speaker slot; the static one- to four-node meshes hold only adult
+  corpses (AREA02, 03, 07, 08, 13) besides AREA19's Sonia mass; AREA00 loads
+  two corpse models no placement uses (CURIOSITIES 31). FINDINGS
+  "Cut-content census" sections 7-9; CURIOSITIES 22, 23 and the
+  withdrawn-claims note updated.
+- Open: the op14 mode byte; the attachment parent link; AREA08 sub 1's
+  Travis placement with his slots unloaded; meshes inside overlays.
+
+## 2026-10-16 — Cut-content census: the fan-blog subplot checked against the disc
+
+- Claim checked (a 2016 fan-blog post, not an interview): a cut subplot with
+  a teenage boy and the journalist killed, infected and fought as a boss.
+  Neither is on the disc; Sonia's death in Building B's stair tower is the
+  shipped scene (CURIOSITIES "Withdrawn entries and claims").
+- New tool `tools/cut_content_census.py`: every area's dialogue bank (18/18,
+  each the load set's slot-0x41 entry by the loader's resident-start rule),
+  voice-cue and cutscene-stream reachability, script line coverage, op14
+  spawn entries, area map/floor; output ignored `build/cut_content/census/`.
+- Found: 16 VOICE.DAT cues no record names (never played), 14 of them
+  Japanese, including a complete unused conversation with the journalist
+  (CURIOSITIES 29); AREA19's untranslated Japanese fire passage and other
+  leftovers (CURIOSITIES 30); a spawn-table room for the missing area 10
+  (CURIOSITIES 24). All audio transcribed locally with whisper.cpp
+  large-v3-turbo (user-approved download, model in ignored
+  `build/cut_content/asr/`).
+- Decoded: Building B = AREA19 sub 1 (map 9 floor 1) + AREA15 (floors 2-3);
+  the Sonia scene (AREA19 sub 1 placement [53], script 0x82D590, flags
+  0x25/0x26); the skinned-mesh census (86 geometries, 29 faces, no young
+  body). FINDINGS "Cut-content census"; the s69 AREA02 "no bank" reading is
+  corrected there.
+- Open: where the journalist conversation was meant to play. (The op14
+  tabulation, the 1- to 4-node meshes and the committed model census were
+  done the same day; entry above.)
+
 ## 2026-10-16 — func_002061B0 (movie display gate) byte-matched from C
 
 - The old C dropped the original's field-wait loop (compiled .text 0x40 against

@@ -52,8 +52,8 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (2026-10-16, after the func_002061B0 fix): 2161/2215 units, matched_code
-  98.68%; boot ELF byte-identical; 19/19 overlays.
+  Latest (2026-10-16, after func_001BA8E0 / func_001BA580): 2163/2217 units,
+  matched_code 98.69%; boot ELF byte-identical; 19/19 overlays.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.
@@ -267,6 +267,21 @@ test recording `auto` picks delay 1, which puts the whole opening on the other h
 opening. Pass `--fork-title-delay 0` (the default) for the Discord video until the criterion
 is decided. Details and receipts: `docs/VIDEO_COMPARE.md` "The field phase";
 `build/video_compare/phase_test/` (keep: the drift reports and one clip).
+
+## 2026-10-16: cut-content census (side task)
+A fan-blog claim of a cut teenage-boy subplot and a reporter boss was
+checked against the disc: neither exists; the disc does keep Japanese-only
+cut audio, including an unused conversation with the journalist
+(CURIOSITIES 29, 30, withdrawn-claims note; FINDINGS "Cut-content census";
+`tools/cut_content_census.py`). Evidence lives in ignored
+`build/cut_content/` of the main checkout.
+Follow-up the same day: `tools/character_census.py` names every scripted
+actor from the code (001BA8E0 face table, 001BA580 speaker-slot table) and
+ties it to its mesh through the load sets; the static one- to four-node
+meshes are adult corpses only (FINDINGS "Cut-content census" sections 7-9,
+CURIOSITIES 31). The NEARMISS C of 001BA8E0 / 001BA580 was corrected,
+and both now byte-match from C as sparse switches (PROGRESS.md 2026-10-16);
+001BA8E0's head call order was fixed too (the port already had it right).
 
 ## 2026-10-16: func_002061B0 corrected (movie display gate)
 The C now has the original's field-wait loop (repeat func_001009C8(0) while it equals
