@@ -13,6 +13,8 @@ port's Enhanced cut-content switches (port `docs/PORT_PROFILES.md` rule 5 and
 - **partial** — some of it is proven, the rest is open; the entry says which.
 - **unverified** — an inference, a label or a single observation; nothing
   proves it yet.
+- **withdrawn** — contradicted or superseded; retained in the last section
+  under its stable entry number so the claim is not reintroduced.
 
 **Rules**
 
@@ -34,7 +36,8 @@ port's Enhanced cut-content switches (port `docs/PORT_PROFILES.md` rule 5 and
   number.
 - No disassembly, no game text (describe, don't quote) and no disc data.
 
-Last reviewed: 2026-09-27 (every entry re-checked; entries 17-25 added;
+Evidence-pointer and consistency review: 2026-10-20 (all numbered entries;
+statuses unchanged). Previous full review: 2026-09-27 (every entry re-checked; entries 17-25 added;
 review corrections applied to 1, 3, 4, 6, 8-12, 14, 15, 17, 18, 21 and
 23-25). Entry 28 added 2026-10-02 (the port's chain step AIMLIVE) and withdrawn
 the same day (the port's chain step AIMCAP fix round; see the last section).
@@ -130,8 +133,7 @@ follow-on link and a category), not the common sentinel. They were once
 "unknown payloads"; they are ordinary chained clips and all bake (FINDINGS
 "NON-SENTINEL ANIM CONTAINER"; port `PLAYER_CLIPS.md` section 2: 0x36 → 0x35,
 0x5E → 0x5F, 0x73 → 0x72, 0x177 → 0x178). Identified by the user watching
-them rendered, then traced (FINDINGS "WOODEN CRATE behaviour corrections +
-the unused player clips"). Two of them are on the first-level route:
+them rendered, then traced (FINDINGS "WOODEN CRATE behaviour corrections"). Two of them are on the first-level route:
 
 - **94 (0x5E) — on the route.** The user identified it as a crouch; in play
   it is the slide entry, requested in route beat 06, and chains to 0x5F
@@ -319,7 +321,7 @@ nest group (the deferred-spawn registry D_0024D820), verified against RAM
   6). Both appear in the s51 list of +0xA readers, and FINDINGS leaves light
   detection "not resolved here".
 
-## 16. The chain creature never touches dry land — decoded
+## 16. The chain creature emerges from a fixed generator pad — decoded
 
 *Kind: design detail.* The 24-node chain creature is installed only by
 mode-2 generator pads (organic growths); no nest record anywhere installs it.
@@ -451,8 +453,8 @@ not a proof of unreachability.
   from other areas) have not been excluded. The 108 functions of lane S1 are
   statically reached only from sub-1 owners, but some of them ran on the
   route through other callers: 17C370, 187EC0 and 21BC40 are tagged route in
-  port `AREA01_OVERVIEW.md`, whose lane-S1 note "only reachable through the
-  fan's direct exit" overstates this (port `FIRST_LEVEL_EXIT.md` section 4).
+  port `AREA01_OVERVIEW.md`, whose lane-S1 note now makes the same
+  distinction (port `FIRST_LEVEL_EXIT.md` section 4).
 - **AREA01, unvisited:** the north room beyond the two 0x8261A0 owners
   (called bridges in FINDINGS; not seen moving), the upper floor (doors to
   area 0x16 and AREA06), a second character record [38] (overlay 0x825740,
@@ -463,8 +465,10 @@ not a proof of unreachability.
   00138900 and the alert-timer family 001418F0 / 0013D850 / 0013D980 /
   0013DD40 (entry 1), the gun-light lamp 00187780 (D_008106C7 stays 0 on the
   route; port `FIRST_LEVEL_CENSUS.md`), and the beam 001E3630. The beam has no
-  static caller and may be installed through a runtime pointer (FINDINGS "BUG
-  LATCH / SHAKE-OFF", unverified).
+  direct static caller; its behaviour pointer is in the kind-0x0D prototype
+  table at 0x00258740. No placement record names it; the runtime spawner is
+  still unidentified (FINDINGS "ENEMY → PLAYER DAMAGE CONTRACT + AREA-11
+  ENEMIES", section 4).
 
 ## 24. Four missing level numbers — partial
 
@@ -644,17 +648,17 @@ the gutted civilian placed in the AREA02 office, 0x17 a sitting body and
 
 ## Notes for the port's candidate lists
 
-The candidate list in port `LAUNCHER_OPTIONS.md` and the examples in port
-`PORT_PROFILES.md` (cut and hidden content) predate this review and need
-correcting there:
+The candidate list in port `LAUNCHER_OPTIONS.md` and the source list in port
+`PORT_PROFILES.md` already incorporate the 2026-09-27 corrections: entry 1's
+old stealth claim is withdrawn, entry 3's clips are ordinary, and the
+dogtags (9), diary (10) and config row's existing function (12) are shipped
+features. Those corrections need no further port edit.
 
-- "The light-based stealth system" is withdrawn (entry 1); what remains is
-  partial.
-- "Hidden animation directory entries" are ordinary clips, two of them on
-  the first-level route (entry 3).
-- The 15 dogtags (9), the infection diary (10) and the unlabelled 7th config
-  row (12) are shipped features, not cut content, so none of them can be a
-  cut-content switch.
+Entry 12's later blank-label decode (2026-10-08) is distinct from the row's
+still-open function. Its proven label-drawing behaviour could support a
+separately scoped decoded UI entry, subject to the lead's status decision;
+the whole entry remains partial and is not eligible as a switch under the
+rule above. The port candidate lists predate that later decode.
 
 ---
 
@@ -707,7 +711,7 @@ Kept so the old claims are not reintroduced.
   says Cindy meets a boy, Dennis brings him back and the two find Sonia dead
   in Building B's stairwell, that the reporter becomes a boss, and that the
   models and subtitle strings remain on the disc. Disc census (FINDINGS
-  "Cut-content census"):
+  "Cut-content census"; all section numbers below refer to that section):
   - **The boy: not found.** There is no boy character: no speaker slot is
     unaccounted for (0-9 are ten known characters), no body or face on the
     disc is small or young (section 8), the static one- to four-node meshes
