@@ -1007,11 +1007,11 @@ vram,name,size_bytes,status,callers,subsystem
 0x0013C8C0,func_0013C8C0,1160,undecompiled,2,entity_logic
 0x0013CD50,func_0013CD50,1224,undecompiled,1,entity_logic
 0x0013D220,func_0013D220,164,undecompiled,2,entity_logic
-0x0013D2D0,func_0013D2D0,440,word,0,entity_logic
+0x0013D2D0,func_0013D2D0,440,readable,0,entity_logic
 0x0013D490,func_0013D490,368,undecompiled,1,entity_logic
 0x0013D600,func_0013D600,592,undecompiled,1,entity_logic
-0x0013D850,func_0013D850,292,word,1,entity_logic
-0x0013D980,func_0013D980,488,undecompiled,1,entity_logic
+0x0013D850,func_0013D850,292,readable,1,entity_logic
+0x0013D980,func_0013D980,488,readable,1,entity_logic
 0x0013DB70,func_0013DB70,236,undecompiled,1,entity_logic
 0x0013DC60,func_0013DC60,224,word,1,entity_logic
 0x0013DD40,func_0013DD40,2440,undecompiled,1,entity_logic
@@ -1032,7 +1032,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001416D0,func_001416D0,532,undecompiled,2,entity_logic
 0x001418F0,func_001418F0,308,undecompiled,3,entity_logic
 0x00141A30,func_00141A30,600,word,1,entity_logic
-0x00141C90,func_00141C90,132,word,1,entity_logic
+0x00141C90,func_00141C90,132,readable,1,entity_logic
 0x00141D20,func_00141D20,472,undecompiled,0,entity_logic
 0x00141F00,func_00141F00,360,undecompiled,1,entity_logic
 0x00142070,func_00142070,704,undecompiled,1,entity_logic
@@ -2766,7 +2766,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0020EC80,func_0020EC80,464,undecompiled,1,ui_screens
 0x0020EE50,func_0020EE50,796,undecompiled,1,ui_screens
 0x0020F170,func_0020F170,304,word,1,ui_screens
-0x0020F2A0,func_0020F2A0,1708,undecompiled,1,ui_screens
+0x0020F2A0,func_0020F2A0,1708,readable,1,ui_screens
 0x0020F950,func_0020F950,1752,undecompiled,1,ui_screens
 0x00210030,func_00210030,392,undecompiled,1,ui_screens
 0x002101C0,func_002101C0,2108,undecompiled,0,ui_screens

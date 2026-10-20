@@ -1,121 +1,74 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_0013D490(int, int, int, int);
-extern void func_0013D600(int, int, int, int);
-extern void func_00140690(int, int, int, int);
-extern void func_00140C00(int, int, int, int);
-extern void func_001B0D80(int, int, int, int);
-extern void func_001B2140(int, int, int, int);
-extern void func_001B5360(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Per-frame update for an entity e whose state block st sits at e+0x1F0,
+// gated on the scratchpad mode byte 0x70003B8D.
+// Mode 1: if func_001B2140(e) reports the entity active and e[4] is nonzero,
+// call the entity's callback at e+0x4C, then return. Modes 2 and 3: return.
+// Modes 0, 4 and any other value: clear the e+0x52 short, set e[0x5E] = 1 and
+// run the per-kind handler for e[4] with (e, st): 0 func_0013D490,
+// 1 func_0013D600, 2 func_00140690, 3 func_00140C00 (kind 3 returns right
+// after its handler). Then decrement each nonzero st counter at +0x70, +0x76,
+// +0x72 (shorts) and +0x8B, +0x87, +0x88 (signed bytes), clear the
+// e+0x54 short, call func_001B5360(e) when st[0x8E] is set, and finish with
+// func_001B0D80(e).
+//
+// Byte-matched (objdiff 100.0 with mwcc 2.3.3; 991202 reaches 97.0). Matching
+// key: the mode switch lists case 0 and case 4 explicitly (each a bare break),
+// which gives the target's descending compare chain; without them mwcc packs
+// the cases into a shorter chain. The call site leaves st in a1 for
+// func_00140C00 as well, so it is declared with two parameters here; the
+// callee ignores that argument (src/func_00140C00.c defines it with one
+// parameter, and the original never reads a1).
+extern int func_001B2140(char *e);
+extern void func_0013D490(char *e, char *st);
+extern void func_0013D600(char *e, char *st);
+extern void func_00140690(char *e, char *st);
+extern void func_00140C00(char *e, char *st);
+extern void func_001B5360(char *e);
+extern int func_001B0D80(char *e);
 
-asm void func_0013D2D0(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x3c017000
-    .word 0x90253b8d
-    .word 0x70808e28
-    .word 0x24030004
-    .word 0x10a30019
-    .word 0x263001f0
-    .word 0x24030003
-    .word 0x10a3005d
-    .word 0x24030002
-    .word 0x10a3005b
-    .word 0x00000000
-    .word 0x24020001
-    .word 0x10a20005
-    .word 0x00000000
-    .word 0x10a00010
-    .word 0x24040001
-    .word 0x1000000d
-    .word 0x00000000
-    jal       func_001B2140
-    .word 0x00000000
-    .word 0x10400050
-    .word 0x00000000
-    .word 0x92230004
-    .word 0x1060004d
-    .word 0x00000000
-    .word 0x8e22004c
-    .word 0x0040f809
-    .word 0x72202628
-    .word 0x10000049
-    .word 0x7bbf0020
-    .word 0x24040001
-    .word 0xa6200052
-    .word 0xa224005e
-    .word 0x92230004
-    .word 0x24020003
-    .word 0x50620016
-    .word 0x72202628
-    .word 0x24020002
-    .word 0x5062000f
-    .word 0x72202628
-    .word 0x10640009
-    .word 0x72202628
-    .word 0x10600003
-    .word 0x72202628
-    .word 0x10000012
-    .word 0x86020070
-    jal       func_0013D490
-    .word 0x72002e28
-    .word 0x1000000d
-    .word 0x00000000
-    jal       func_0013D600
-    .word 0x72002e28
-    .word 0x10000009
-    .word 0x00000000
-    jal       func_00140690
-    .word 0x72002e28
-    .word 0x10000005
-    .word 0x00000000
-    jal       func_00140C00
-    .word 0x72002e28
-    .word 0x10000028
-    .word 0x00000000
-    .word 0x86020070
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x2442ffff
-    .word 0xa6020070
-    .word 0x86020076
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x2442ffff
-    .word 0xa6020076
-    .word 0x8202008b
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x2442ffff
-    .word 0xa202008b
-    .word 0x82020087
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x2442ffff
-    .word 0xa2020087
-    .word 0x86020072
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x2442ffff
-    .word 0xa6020072
-    .word 0x82020088
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x2442ffff
-    .word 0xa2020088
-    .word 0xa6200054
-    .word 0x8202008e
-    .word 0x10400004
-    .word 0x72202628
-    jal       func_001B5360
-    .word 0x72202628
-    .word 0x72202628
-    jal       func_001B0D80
-    .word 0x00000000
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_0013D2D0(char *e) {
+    char *st = e + 0x1F0;
+
+    switch (*(unsigned char *)0x70003B8D) {
+    case 0:
+        break;
+    case 1:
+        if (func_001B2140(e) == 0) return;
+        if (*(unsigned char *)(e + 4) == 0) return;
+        (*(void (**)(char *))(e + 0x4C))(e);
+        return;
+    case 2:
+    case 3:
+        return;
+    case 4:
+        break;
+    }
+
+    *(short *)(e + 0x52) = 0;
+    *(unsigned char *)(e + 0x5E) = 1;
+    switch (*(unsigned char *)(e + 4)) {
+    case 0:
+        func_0013D490(e, st);
+        break;
+    case 1:
+        func_0013D600(e, st);
+        break;
+    case 2:
+        func_00140690(e, st);
+        break;
+    case 3:
+        func_00140C00(e, st);
+        return;
+    }
+    if (*(short *)(st + 0x70) != 0) *(short *)(st + 0x70) -= 1;
+    if (*(short *)(st + 0x76) != 0) *(short *)(st + 0x76) -= 1;
+    if (*(signed char *)(st + 0x8B) != 0) *(signed char *)(st + 0x8B) -= 1;
+    if (*(signed char *)(st + 0x87) != 0) *(signed char *)(st + 0x87) -= 1;
+    if (*(short *)(st + 0x72) != 0) *(short *)(st + 0x72) -= 1;
+    if (*(signed char *)(st + 0x88) != 0) *(signed char *)(st + 0x88) -= 1;
+    *(short *)(e + 0x54) = 0;
+    if (*(signed char *)(st + 0x8E) != 0) func_001B5360(e);
+    func_001B0D80(e);
 }

@@ -52,8 +52,9 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (2026-10-20, fresh build after merging func_001BA8E0 / func_001BA580): 2163/2217 units,
-  matched_code 98.69%; boot ELF byte-identical; 19/19 overlays.
+  Latest (2026-10-20, fresh build after func_0013D2D0 / 0013D850 / 00141C90 (asm bodies
+  to C) and func_0013D980 (NEARMISS to C) byte-matched): 2164/2218 units, matched_code
+  98.69%; boot ELF byte-identical; 19/19 overlays.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.

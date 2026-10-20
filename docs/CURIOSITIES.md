@@ -54,9 +54,10 @@ largely a misreading; what is left is smaller but real.
 - **Corrected (the old reading is withdrawn).** `func_001418F0` is byte-matched
   C. It takes an actor and that actor's AI block. It reads bit 0 of byte +0xA
   of the actor it is given, and its byte-matched caller 0013DD40 passes the
-  actor itself (the other callers, 0013D850 and 0013D980, are assembly and
-  NEARMISS C). So +0xA bit 0 is a per-actor flag of the actor passed, not the
-  player's light. Which code writes it for the actors 0013DD40 serves is not
+  actor itself. Its other callers, 0013D850 and 0013D980, are byte-matched C
+  too and also call it as (self, arg1), passing the actor itself, so all three
+  static callers confirm the reading: +0xA bit 0 is a per-actor flag of the actor
+  passed, not the player's light. Which code writes it for the actors 0013DD40 serves is not
   identified. (The crate brain 001551B0 writes +0xA only on boxes, models 6,
   0x1C, 0x1E, 0x1F and 0x50 with +0x52 set; port `CRATES_DRUMS_ORIGINAL.md`.)
   The timer (+0x70) and counter (+0x78) live in the AI block:

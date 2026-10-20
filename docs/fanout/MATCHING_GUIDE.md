@@ -131,6 +131,11 @@ tail call = last statement → a plain jump to the target (no link). 20 array ov
   prologue (how many of a0..a3 it consumes) and forward ALL the real params — when a
   function saves both params and its first call forwards both, mwcc copies a0 into s1
   before the jal and a1 into s0 in the delay slot, matching CW. (Cracked func_001914A0.)
+  Second symptom (2026-10-20): the target loads the first field into a2 or a3 before
+  copying the parameters into saved registers, while yours copies a1 first and loads
+  into a1. A later call forwards (a0, a1) unchanged, so a1 must stay live: declare and
+  pass both arguments (func_0013D850 and func_0013D980, both through
+  func_001418F0(self, arg1); 98.16% -> 100% for 0013D980).
 - **idiom-13 REFINED**: mwcc fills a conditional-branch delay slot with the first
   SPECULATABLE (pure-ALU: upper-half load, load-immediate, add-immediate, shift, add, mtc1-feeder) instruction from EITHER
   successor; loads/stores are never speculated. Matchable from C ONLY when every
@@ -629,6 +634,14 @@ func_001A9000, func_001AA140 and func_001A9B10 (0x70003B88), func_00184BA0
   constants (3 || 4) are merged into a range test, which the target does not
   do. Compare `(unsigned char)d` on an int `d` to keep two compares. The cast
   also produces the target's in-place mask-to-byte (AND with 0xff) of the value.
+- **`if (v >= K || v == K2) return;` before a tail block** gives a skip branch on the
+  range test, a branch-if-not-equal on K2 into the block, and an unconditional branch to
+  the end with a NOP slot (func_00141C90). func_00152EB0's `if (v == K1 || v == K2)
+  return;` is the equality-pair variant of the same early-return shape. An `if (v < K) { if (v != K2) ... }`
+  nest gives a single inverted branch and is shorter.
+- **Bare `case N: break;` labels change a sparse switch's chain.** Values that fall to
+  the code after the switch must still be listed when the target compares them
+  (func_0013D2D0: compares 4, 3, 2, 1, 0; cases 0 and 4 are bare breaks).
 - **Ternary min/max** `a = (a < b) ? a : b` gives a float-false branch-likely with a float move in its likely slot,
   then an unconditional branch to the join with a NOP slot, then a dead float move (func_0015BF90). `if (a >= b) a = b` gives
   `bc1t`.

@@ -1,3 +1,29 @@
+## 2026-10-20 — the three asm-bodied boot entries of the oracle audit byte-matched from C
+
+- Port `docs/LEVEL_ORACLE_AUDIT.md` "Requests for main" named four boot entries
+  as assembly bodies: 0013D2D0, 0013D850, 00141C90, 0020F2A0. 0020F2A0 was
+  already ordinary C (mwcc 2.3.3, objdiff 100, routed
+  compiled_object_ordinary_c); its FUNCTIONS.csv row said undecompiled, which
+  is what the request saw. The other three were `.word` asm bodies.
+- All three are now readable C at objdiff 100.0, .text sizes equal, linked as
+  compiled_object_ordinary_c with text and relocations matching
+  (audit_link_provenance): func_0013D2D0 (mwcc 2.3.3; 991202 97.0),
+  func_0013D850 (2.3.3 and 2.4; 991202 91.7), func_00141C90 (2.3.3; 991202 and
+  2.4 also 100). Matching keys, added to MATCHING_GUIDE: 0013D2D0's mode
+  switch lists cases 0 and 4 as bare breaks; 00141C90 ends with
+  `if (v >= 7 || v == 5) return;` on an int copy of the state byte;
+  0013D850 forwards (self, arg1) to func_001418F0.
+- The same missing argument was the whole residual of the NEARMISS
+  func_0013D980 (98.16%, "prologue register-coloring artifact"):
+  func_001418F0 takes (self, arg1); forwarding both keeps a1 live, so the
+  state byte lands in a2 as in the target. Now 100.0 (2.3.3 and 2.4), a normal
+  unit; its NEARMISS.md row is removed. Another instance of "walls are usually
+  our bugs".
+- Promoted through tools/match/integrate_nearmiss.py (all four KEEP). Fresh
+  build + verify_all: all six stages pass, 2164/2218 units, matched_code
+  98.69%, boot ELF byte-identical, 19/19 overlays. FUNCTIONS.csv: the five rows
+  above now say readable (the full CSV reconcile is still open).
+
 ## 2026-10-16 — frame-timing findings (fork probes) for the comparison video
 
 - **Movies end on field 1.** At host speed the code ends every movie on field 1, so the
