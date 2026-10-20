@@ -692,6 +692,11 @@ level smoke (`EM_NEW_GAME=1`, `EM_PS2_DISC_DRIVE_TIMING=1`), stride 4,
 the title and subtitle in the header, `--target-mb 10` for the Discord
 copy. PCSX2 vs port: 4,345 of 4,346 play/cutscene ticks bit-exact in
 position and heading. Output in `build/video_compare/demo_hill/`.
+Removed 2026-10-20 (disk cleanup; superseded by demo_level_1019):
+`smoke/ticks.jsonl`, `native/audio.wav`, `demo_hill.mp4` and
+`demo_hill_discord.mp4`; `ps2/` (the v2.6.3 frames), `native/frames` (port
+GS_EXACT.md 3.8), the recordings, reports and check images stay; the
+numbers below are unchanged.
 
 - **Blocky port frames: a sampling bug in this tool, fixed the same day.**
   The port's image was sharp; `native.py` sampled the presented 1920x1440
@@ -838,6 +843,11 @@ the New Game movie's steps; the level-exit movie (E001, 76.9 s) was watched in
 the checked smoke run, so it is left unskipped and plays in real time on both
 sides (movies are cut from the video). Receipts: `build/video_compare/demo_level/`
 (logs/recording_notes.txt, the stage logs, the drift report).
+Removed 2026-10-20 (disk cleanup; superseded by demo_level_1019):
+`native/frames`, `ps2_fork/frames`, `ps2_fork/audio.wav`, `smoke/rand.trace`
+and the three MP4s (`demo_level.mp4`, `demo_level_sound.mp4`,
+`demo_level_original_sound.mp4`); the numbers below are unchanged; `ps2/`
+(the v2.6.3 frames), the recordings, reports, logs and check images stay.
 
 - Recording: 14,102 ticks in 32 segments, New Game to the AREA01 arrival's 60
   neutral ticks; the smoke and its checker passed all 20 main-line phases with
@@ -1004,6 +1014,9 @@ the stage logs, `title_delay_scan.json` and the clip; the frames were deleted.
 
 > Re-made as demo_level_1018 (the last section) after the timing follow-ups:
 > byte-identical videos; its frames and audio.wav files were deleted.
+> Removed 2026-10-20 (disk cleanup; superseded by demo_level_1019): the four
+> MP4s (the two full-length ones byte-identical to demo_level_1018's) and
+> `smoke/rand.trace`; the reports, recordings, logs and `check/` stay.
 
 The first-level video after the frame-timing fixes (port main f8616f9:
 fc986dc, NODRAW 72fee14, SIFDMA 92786d2, MINORS ded1bcb, FIELD f8616f9),
@@ -1182,6 +1195,10 @@ the user's output format is now one lossless master with the original's
 sound and no added subtitle line, and the comparison-only tick phase puts
 segment 24 and the fan room in step. This section stays as the record of
 the run.
+Removed 2026-10-20 (disk cleanup; superseded by demo_level_1019):
+`native/frames`, `ps2_fork_d0/frames`, both `audio.wav` files and the four
+MP4s; the numbers below are unchanged; the reports, recordings, logs and
+`check/` stay.
 
 The user asked (2026-10-15) for the Discord video to be re-run once the
 frame timing problem is fixed. Made on port main df0720c (binary
@@ -1297,7 +1314,9 @@ frames.
   need its own fork pass (made: `ps2_fork_d0/`, frames deleted; the E001
   movie then starts on field 1 on the fork). The video keeps
   `demo_level_1018.rec` and its existing fork pass.
-- **Native pass at 68** (`native_p68/`, 327 s, with `--audio`): 3,520
+- **Native pass at 68** (`native_p68/`, 327 s, with `--audio`; its
+  `frames/` and `audio.wav` were removed on 2026-10-20, superseded by
+  demo_level_1019's passes; `frames.json` and the drift reports stay): 3,520
   frames, the field-phase check 3,397 of 3,397; movies at counters 1109 /
   1329 on 1 and 15199 on 1. Against `demo_level_1018/ps2_fork_d0`
   (`drift_p68.txt`): position and heading bit-exact on all 13,619 paired
@@ -1323,6 +1342,11 @@ frames.
       --speed 1 --height 896 --audio original --summary-seconds 3 \
       --title "Extermination (PS2): original vs native port"
   ```
+
+  (its inputs' frames, `iop_phase_1017/native_p68/frames` and
+  `demo_level_1018/ps2_fork_d0/frames`, were removed on 2026-10-20; the
+  master was made from demo_level_1019's own passes, whose frame SHA-256s
+  are in its `pass_hashes.json`)
 
   (demo_level_1017's options with `--lossless` in place of `--crf 12` and
   no `--subtitle`; 2394 wide, the header one line shorter). Expect about

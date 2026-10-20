@@ -138,7 +138,8 @@ its caption must mention the fan-room half-line difference and that the
 port side ran with the optional disc-drive switch (`EM_PS2_DISC_DRIVE_TIMING=1`,
 off by default). The user's "fix the frame timing first" is therefore only
 half met: tell them plainly before posting. demo_level_1017's frames and
-audio were deleted; its videos and reports stay.
+audio were deleted; its reports stay (its videos were removed on 2026-10-20,
+superseded by demo_level_1019).
 
 ## 2026-10-16: the timing follow-ups of demo_level_1017 (committed df0720c, 85b1c46)
 Details: VIDEO_COMPARE.md "Timing follow-ups 2026-10-16 (after
@@ -376,7 +377,9 @@ the retirement checklist: `docs/PCSX2_FORK.md`.
   `demo_level_sound.mp4` (original left, port right) and `demo_level_original_sound.mp4`.
   The loud sound 14 ticks early in the port is the area music resuming after status
   pages (disc seek timing, port a345d9a, which also fixed the replay WAV's one-field
-  stream lag).
+  stream lag). (The demo_hill, demo_level, demo_level_1017 and demo_level_1018 MP4s
+  and the superseded runs' frames were removed on 2026-10-20; demo_level_1019_master.mkv
+  is the current video.)
 - **Port presentation** (user, "(a) for both"): fields line-doubled to 448 lines with the
   half-line field one line lower, the picture moved by SCREEN ADJUST (port merge 3d403ac);
   the overlay pass now follows the field's line on half-line fields (0eea8b5); the movie

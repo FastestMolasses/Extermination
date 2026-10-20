@@ -779,7 +779,12 @@ field 1, not that delay.
   again, up to `--attempts` times. An identical rerun stops it (the
   difference is the fork's own). Otherwise the attempt closest to v2.6.3 is
   kept. The set manifest lists every attempt (`attempts`, `kept_attempt`),
-  and `_attempts/<beat>/<n>/trace.json` keeps the traces.
+  and `_attempts/<beat>/<n>/trace.json` keeps the traces. On 2026-10-20
+  eight `_attempts/<beat>/1` folders that were byte-identical (SHA-256,
+  every file) to their kept beat (kept_attempt 1; six under
+  `fork_refs/s87`, two under `fork_refs/c10`) were removed (451 MB): the
+  beat folder holds the same trace and files, and the set manifest keeps
+  both attempts' digests.
 - **Comparison.** `compare` sets each beat against its v2.6.3 trace in
   `build/fork_refs/compare/<group>.json`:
   - every row field except the time keys (counter, row index, frame index,
@@ -1167,7 +1172,8 @@ python3 tools/video_compare/video_compare.py ps2 build/video_compare/my_run.rec 
   (44.7 min on v2.6.3); position and heading equal to the v2.6.3 run on all
   13,632 paired ticks; the original's sound in the demo videos
   `demo_level_sound.mp4` and `demo_level_original_sound.mp4` (ignored,
-  `build/video_compare/demo_level/`).
+  `build/video_compare/demo_level/`; the MP4s were removed on 2026-10-20,
+  superseded by demo_level_1019's master).
 
 ### Retiring the 2.6.3 app: checklist (2026-10-10)
 
