@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-19 (Claude: Codex's `levels` branch reviewed and merged into port main 789b4b4, and the levels 2-4 state toward the drawbridge, below; earlier: the lossless comparison master demo_level_1019 and the comparison-only IOP tick phase, below; the Discord video re-run demo_level_1018; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-20 (Claude: the cut-content and character census branch and the func_001BA8E0 / func_001BA580 matches reviewed and merged, gate below; 2026-10-19: Codex's `levels` branch reviewed and merged into port main 789b4b4, and the levels 2-4 state toward the drawbridge, below; earlier: the lossless comparison master demo_level_1019 and the comparison-only IOP tick phase, below; the Discord video re-run demo_level_1018; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -52,7 +52,7 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (2026-10-16, after func_001BA8E0 / func_001BA580): 2163/2217 units,
+  Latest (2026-10-20, fresh build after merging func_001BA8E0 / func_001BA580): 2163/2217 units,
   matched_code 98.69%; boot ELF byte-identical; 19/19 overlays.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
@@ -270,10 +270,13 @@ is decided. Details and receipts: `docs/VIDEO_COMPARE.md` "The field phase";
 
 ## 2026-10-16: cut-content census (side task)
 A fan-blog claim of a cut teenage-boy subplot and a reporter boss was
-checked against the disc: neither exists; the disc does keep Japanese-only
+checked against the disc: neither was found (static census; limits in
+FINDINGS "Cut-content census" sections 3, 8 and 9). The shipped plot does
+speak of a son of Falken (AREA16, AREA21; FINDINGS section 2), not tied to
+the blog's teenager. The disc does keep Japanese-only
 cut audio, including an unused conversation with the journalist
 (CURIOSITIES 29, 30, withdrawn-claims note; FINDINGS "Cut-content census";
-`tools/cut_content_census.py`). Evidence lives in ignored
+`tools/cut_content_census.py`). Reviewed and merged into main 2026-10-20. Evidence lives in ignored
 `build/cut_content/` of the main checkout.
 Follow-up the same day: `tools/character_census.py` names every scripted
 actor from the code (001BA8E0 face table, 001BA580 speaker-slot table) and

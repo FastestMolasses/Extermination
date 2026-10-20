@@ -615,7 +615,8 @@ the local transcription and the user's listening; translations ours):
   man screaming.
 - **MUSIC.DAT:** cutscene-range streams 31 (18 s) and 58 (23 s) have no
   stream-table row and no direct caller and hold music and effects only;
-  cue 67 (1 s) is a spoken left/right channel check. All nine movies are
+  MUSIC.DAT stream 67 (1 s, just past the row range, also without a row) is
+  a spoken left/right channel check. All nine movies are
   named in the boot ELF.
 - AREA04 line 0xF3 (a voiced hint, cue 171) is not reached by any script; an
   object probably starts it (not traced), so it is not counted as cut.
@@ -706,14 +707,25 @@ Kept so the old claims are not reintroduced.
   in Building B's stairwell, that the reporter becomes a boss, and that the
   models and subtitle strings remain on the disc. Disc census (FINDINGS
   "Cut-content census"):
-  - **The boy: not found.** No line in any bank mentions or addresses a boy,
-    no speaker slot is unaccounted for (0-9 are ten known characters), no
-    voice cue or cutscene stream speaks of one (all 178 cues and the 38
-    cutscene streams transcribed), and no body or face on the disc is small
-    or young (section 8). The static one- to four-node meshes were inspected
-    on 2026-10-16 (section 9): their bodies are adult corpses, and every
-    scripted actor is a named adult (section 7). Meshes inside overlays were
-    not scanned.
+  - **The boy: not found.** There is no boy character: no speaker slot is
+    unaccounted for (0-9 are ten known characters), no body or face on the
+    disc is small or young (section 8), the static one- to four-node meshes
+    hold only adult corpses (section 9, inspected 2026-10-16), and every
+    scripted actor is a named adult (section 7). No unused line, voice cue or
+    cutscene stream is about one (all 178 cues and the 38 cutscene streams
+    transcribed; entries 29 and 30 are the unused ones). Meshes inside
+    overlays were not scanned.
+  - **The shipped plot's son of Falken.** The shipped game does speak of a
+    son, in two scripted scenes (FINDINGS section 2): in AREA16, Falken
+    (speaker slot 9) speaks to someone as his son in line 0x2C and, in
+    lines 0x3E-0x42, says he will kill to save him (stream trigger 3, line
+    run 0x03-0x53, spoken in MUSIC.DAT stream 56; the scene stages Falken's
+    body 0x68 and area-table machinery). In AREA21 line 0x1C, Dennis remarks
+    that father and son are together again (trigger 23, run 0x17-0x21,
+    stream 60; that scene's op14 list stages only body 0x9D, the horned
+    column creature, not 0xA0 or 0xA3, which belong to the next scene). Who the son is in the shipped plot
+    is not traced, and the census does not identify him with the blog's
+    teenager.
   - **The reporter as a boss: not found.** Travis Miller has one body (a
     civilian with a camera, AREA08 and AREA13 only), no mesh reuses its
     parts, no line or cue has him die or turn, and his unused Japanese

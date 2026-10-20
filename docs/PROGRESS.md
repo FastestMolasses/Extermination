@@ -76,8 +76,18 @@
 
 - Claim checked (a 2016 fan-blog post, not an interview): a cut subplot with
   a teenage boy and the journalist killed, infected and fought as a boss.
-  Neither is on the disc; Sonia's death in Building B's stair tower is the
+  Neither was found (static census; limits in FINDINGS "Cut-content census"
+  sections 3, 8 and 9); Sonia's death in Building B's stair tower is the
   shipped scene (CURIOSITIES "Withdrawn entries and claims").
+- Review follow-up (2026-10-20, merged to main): the shipped plot does speak
+  of a son of Falken (AREA16 lines 0x2C and 0x3E-0x42, stream 56; AREA21
+  line 0x1C, stream 60, a scene that stages only the 0x9D creature); the
+  census does not tie him to the blog's teenager, and the boy finding is
+  narrowed to no boy character, slot, young body or face, and no unused
+  line or cue about one (FINDINGS section 2, CURIOSITIES withdrawn-claims
+  note). The 001FA790 lane arguments were checked by hand (section 3);
+  `--out` of `tools/cut_content_census.py` must now be inside build/;
+  cross-references fixed.
 - New tool `tools/cut_content_census.py`: every area's dialogue bank (18/18,
   each the load set's slot-0x41 entry by the loader's resident-start rule),
   voice-cue and cutscene-stream reachability, script line coverage, op14

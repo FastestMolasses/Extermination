@@ -17177,25 +17177,45 @@ also the first line shown. A started line plays records until one with a
 non-zero end flag (001FDB80). Over every overlay, the only text lines no
 script reaches are AREA04 0xF3 (a voiced gameplay hint, cue 171; probably
 started by object code, not traced) and AREA19 0x4A, 0x4C and 0x5E, the
-three Shift-JIS lines of CURIOSITIES 29. The census is static: object code
+three Shift-JIS lines of CURIOSITIES 30. The census is static: object code
 that writes the message block directly is not covered.
+
+**The son in the shipped plot** (checked for the blog's boy claim; no line
+quoted). Two reached scenes speak of a son. AREA16 sub 1: script 0x829D70
+(op1A, stream trigger 3, so line run 0x03-0x53, MUSIC.DAT stream 56) has
+Falken (speaker slot 9) speak to someone as his son in line 0x2C and say in lines
+0x3E-0x42 that he will kill to save him; its op14 lists stage Falken's body
+0x68 and area-table entries 0x0A, 0x0E and 0x0F (section 7). AREA21: script
+0x82B5E0 (op07 trigger 23, run 0x17-0x21, stream 60) has Dennis (slot 0)
+remark that father and son are together again in line 0x1C; its op14 record 0x82B6A0
+binds the list at 0x82B500, whose only body is 0x9D, the horned column
+creature (bodies 0xA0 and 0xA3 are in the list of 0x82C800, the next
+scene). Both streams' transcriptions carry the same lines. No line
+addresses a boy and no speaker slot or body is one; who the son is is not
+traced, and nothing here ties him to the blog's teenager.
 
 ### 3. Voice cues: only records start them
 
 The only voice-channel starts (001FA790 with channel 1/2) are in 001FA5F0,
 which drains the ring that 001FA5A0 fills, and 001FA5A0's only callers are
 001FD580 and 001FD6A0, which push a record's +2 cue (a jal scan of the ELF
-and all 19 overlays; a call through a pointer is not excluded). Records name
+and all 19 overlays; a call through a pointer is not excluded). The tool
+lists the eight other direct calls to 001FA790 (four in the ELF, one each in
+AREA02, 08, 13 and 21) but does not check their lane argument; that was
+checked by hand (2026-10-20, reading each call site's first argument): each
+passes lane 0, or is the call inside 001FABF0,
+whose five callers pass lane 0 or, from 001FA790 itself, a fourth argument
+of 0 that skips the start. Records name
 162 of the 178 cues; the other 16 are never requested: 12, 37, 38, 56, 67,
 68, 73, 123, 161-167 and 170. Their content (Whisper large-v3-turbo run
-locally, and the user listening, 2026-10-16) is in CURIOSITIES 29.
+locally, and the user listening, 2026-10-16) is in CURIOSITIES 29 and 30.
 
 ### 4. Cutscene streams
 
 All 36 rows of D_0026EC60 (MUSIC.DAT cues 29-66) are started by some area
-script. Cutscene-range cues 31 (18 s), 58 (23 s) and 67 (1 s) have no row
-and no direct caller; 31 and 58 hold no speech (music and effects), 67 is a
-spoken left/right channel check. All nine MOVIE/*.PSS files are named in
+script. Streams 31 (18 s) and 58 (23 s), inside that range, and 67 (1 s),
+just past it, have no row and no direct caller; 31 and 58 hold no speech
+(music and effects), 67 is a spoken left/right channel check. All nine MOVIE/*.PSS files are named in
 the boot ELF's movie strings.
 
 ### 5. Map and floor of every area; Building B
@@ -17365,7 +17385,8 @@ global-table props and track spawns are left out unless noted):
 | AREA19 sub 1 | placement [53] | slot 0x9A, the rigid flesh mass with Sonia's upper body (section 6) |
 | AREA20 | 0x827170, placement [32] | Gary 0x5A (chunk24/f17_id94 + 0x2800, face 0x94) as a placement; the script moves area-table machinery; lines Gary |
 | AREA21 | 0x82B300, 0x82CFD0, placement [44] | Cindy 0x51 in the blue padded jacket (chunk25/f19_ida0 + 0x72800, face 0x95), Gary 0x5A (chunk25/f22_ida3 + 0x30800, face 0x94); lines Dennis, Cindy, Gary |
-| AREA21 | 0x82B6A0, 0x82C800 | 0x9D the horned column creature (chunk25/f28_id94 + 0x31000); 0xA0 33-node crouching monster (chunk25/f29_id95 + 0xB7000) and 0xA3 the skinless figure with the player's proportions (+ 0x15A000), with Cindy 0x51; lines Dennis, Cindy |
+| AREA21 | 0x82B6A0 | 0x9D the horned column creature (chunk25/f28_id94 + 0x31000) and track spawns; lines 0x17-0x21, Dennis (stream 60; section 2) |
+| AREA21 | 0x82C800 | 0xA0 33-node crouching monster (chunk25/f29_id95 + 0xB7000) and 0xA3 the skinless figure with the player's proportions (+ 0x15A000), with Cindy 0x51 and area-table entry 0x18; lines Dennis, Cindy |
 
 Open: what the mode byte selects; the parent link (+0x18) an attachment
 reads; and whether AREA08 sub 1's Travis placement ever runs with his slots

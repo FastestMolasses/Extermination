@@ -456,6 +456,11 @@ def main(argv=None) -> int:
     ap.add_argument("--iso", type=Path, help="disc image: also decode the orphan cues")
     ap.add_argument("--out", type=Path, default=MAIN / "build" / "cut_content" / "census")
     args = ap.parse_args(argv)
+    # The output is disc-derived (message text, audio): keep it in an ignored build/.
+    repo = Path(__file__).resolve().parents[1]
+    if not args.out.resolve().is_relative_to((MAIN / "build").resolve()) and \
+            not args.out.resolve().is_relative_to((repo / "build").resolve()):
+        raise SystemExit("--out must be inside an ignored build/ directory")
     args.out.mkdir(parents=True, exist_ok=True)
     report, voice, music, entries = census(args)
     if args.iso:
