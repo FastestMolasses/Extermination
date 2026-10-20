@@ -214,13 +214,13 @@ The configs live in `config/overlays/AREAXX.yaml` (splat) and
    (single entry-point symbol — required by splat 0.40).
 
 2. **`splat split config/overlays/AREAXX.yaml`** — disassembles text to
-   `build/overlays/AREAXX/asm/matchings/AREAXX/code/*.s` and data to
-   `build/overlays/AREAXX/asm/data/*.s`.  Symbol prefix:
+   `build/overlays/<AREA>/asm/matchings/AREAXX/code/*.s` and data to
+   `build/overlays/<AREA>/asm/data/*.s`.  Symbol prefix:
    `overlay_AREAXX_$VRAM` (e.g. `overlay_AREA07_func_00823580`) to avoid
    vram collisions between overlays (all load at 0x823500).
 
 3. **`fill_overlay.py AREAXX`** — pre-assembly fixups on the `.s` files, then
-   parallel assembly to `build/overlays/AREAXX/filler/*.o`:
+   parallel assembly to `build/overlays/<AREA>/filler/*.o`:
    - **VU0 fixup** (`fix_vu0_instructions`): replaces COP2 vector mnemonics
      (the macro broadcast multiply-accumulate forms, etc.) with `.word` directives. Splat's comment
      contains the raw 8-hex-char opcode; the LE integer is
@@ -296,7 +296,7 @@ addend fix. All are now handled automatically by the pipeline.
 ### 4.5 Repacking into the ISO
 
 `tools/decomp/repack_iso.py --overlays` swaps all rebuilt
-`build/overlays/AREAXX/AREAXX.BIN` files into a copy of the user's ISO for
+`build/overlays/<AREA>/AREAXX.BIN` files into a copy of the user's ISO for
 testing in PCSX2. Each rebuilt BIN must be exactly the original slot size
 (text+data bytes match — BSS is not stored). The `--overlay-dir` argument
 defaults to `build/overlays/`.
@@ -304,8 +304,10 @@ defaults to `build/overlays/`.
 ### 4.6 objdiff integration (future)
 
 When C decompilations are added to `src/overlays/AREAXX/`, `fill_overlay.py`
-automatically picks up compiled `.o` from `build/overlays/AREAXX/obj/` in
-preference to assembled `.s` filler. For objdiff, add per-function units:
+automatically picks up compiled `.o` from `build/overlays/<AREA>/obj/` in
+preference to assembled `.s` filler. The following is an illustrative objdiff
+configuration, not a retained pair of object receipts; generate both objects for
+the selected function before using it:
 
 ```json
 {
@@ -361,9 +363,9 @@ per-batch tallies). Current per-overlay match state is in `docs/PROGRESS.md`
 1. Add C source to `src/overlays/AREAXX/<funcname>.c` (`// CFLAGS:` in the leading
    comment block; default `-O4,p -sdatathreshold 4`).
 2. In the `exterm-permuter` container: `python3 tools/overlay/compile_overlay_src.py
-   AREAXX` → `build/overlays/AREAXX/obj/<funcname>.o`. The `verify_all.py` overlay
+   AREAXX` → `build/overlays/<AREA>/obj/<funcname>.o`. The `verify_all.py` overlay
    stage does NOT compile `src/overlays`; run this first.
-3. Remove `build/overlays/AREAXX/filler/<funcname>.o` (fill caches assembled
+3. Remove `build/overlays/<AREA>/filler/<funcname>.o` (fill caches assembled
    objects; a stale filler object silently resurrects dropped candidates).
 4. `python3 tools/overlay/link_overlay.py AREAXX` re-fills (prefers compiled
    `obj/*.o`), partial-links, applies the PC16 fix, final-links, packs MWo3 and
@@ -447,7 +449,7 @@ the per-overlay `AREAXX_symbol_addrs.txt` (required by splat 0.40).
 Assembles splat `.s` → filler `.o` with pre-assembly fixups:
 - VU0 / COP2 instruction replacement with `.word` directives
 - Cross-file `.L` label promotion to non-local + `.globl`
-Copies compiled `.o` from `build/overlays/AREAXX/obj/` when available.
+Copies compiled `.o` from `build/overlays/<AREA>/obj/` when available.
 
 ### `tools/overlay/link_overlay.py`
 GNU ld-based linker (replaces mwldmips for overlays):

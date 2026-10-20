@@ -168,5 +168,5 @@ docs/SFX_SEQUENCER.md "Where the driver runs".
 - **Memory cards.** Both cards' hashes are unchanged.
 - **Save slots.** No save slot 01..15 was written.
 - **Emulator processes.** No emulator was left running.
-- **The shared lock.** Every session held `build/.pcsx2.lock`.
+- **The shared lock.** Every session held `build/.pcsx2.lock` (transient runtime path, not a retained receipt).
 - **`playtime.dat`.** PCSX2 itself rewrites it at exit.

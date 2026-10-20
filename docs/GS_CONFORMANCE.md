@@ -547,7 +547,7 @@ the 759 tests of all batches bit for bit. The other 206 are recorded with exact 
 the six probe-7 batches, ten runs in all.
 1. With PCSX2 not running, copies of the live `inis/PCSX2.ini`,
    `inis/playtime.dat`, both memory cards and the unused
-   `portable-data/inis/PCSX2.ini` went to `build/b16/gscapN/pre/`, with
+   `portable-data/inis/PCSX2.ini` went to `build/b16/gscap<N>/pre/` (N is the probe/run placeholder), with
    `sha256.txt` and a listing of the save-state folder. Probe 7 uses `pre`
    and `pre2` .. `pre6`, one folder per run.
 2. Line 220 was verified to read `Renderer = 17` and set to

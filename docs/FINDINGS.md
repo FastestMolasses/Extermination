@@ -6898,7 +6898,7 @@ table around `0x00267290`.)
   itself ~5-6 s game time after L3.
 - **Zero battery drain**: `watch_change` armed on `0x810CB2` across a
   full on->auto-off cycle: 0 changes (and `0xCB2` never appeared in any
-  4 KB page diff during light-on). In this build/room the shoulder
+  4 KB page diff during light-on). In this build and room the shoulder
   light costs nothing; the 04/06 battery is exclusively the
   device-powering currency above. (Caveat: only tested in the lit
   office save room; re-check in a dark area if behavior ever looks

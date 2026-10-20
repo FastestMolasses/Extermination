@@ -3,7 +3,7 @@
 Original-game captures of the C10 lanes, recorded in the hidden, MCP-enabled
 PCSX2 from the user's own disc and save states through
 `tools/pcsx2_session.py`. Each lane has its own section; lanes run one at a
-time under the PCSX2 lock (`build/.pcsx2.lock`). This file cites addresses,
+time under the PCSX2 lock (`build/.pcsx2.lock`, a transient runtime path, not a retained receipt). This file cites addresses,
 frame numbers and what was recorded. It holds no original code, no disassembly
 and no disc bytes, and it describes in-game text instead of quoting it. All
 outputs are local and ignored (`build/`).

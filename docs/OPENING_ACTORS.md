@@ -130,6 +130,9 @@ unchanged. The old 64-byte geometry decoder cannot parse this layout. The
 port's `docs/VU1_FACE_MORPH.md` has the full program, its upload recipe and
 its reference test.
 
+This command regenerates the export and report; the example report is not a
+retained receipt. Other exporters' similarly named reports are not substitutes.
+
 ```sh
 python3 tools/export_opening_faces.py \
   --gs build/startup-reference/opening_gs.bin \

@@ -1,5 +1,10 @@
 # Modding Extermination — The Current Surface
 
+The walkthrough paths below are illustrative local inputs and generated outputs,
+not retained receipts. Run the preceding export/unpack steps to create them;
+similarly named artifacts from other runs are not substitutes. Paths in a block
+that changes into the port checkout are relative to that checkout.
+
 What you can actually change today, and with which tools. Three surfaces:
 
 1. **Code modding** — edit matched C in `src/`, rebuild the boot ELF, repack

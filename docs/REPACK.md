@@ -1,5 +1,10 @@
 # Lossless disc and archive rebuilding
 
+The command examples below name local inputs and generated outputs, not retained
+receipts. Regenerate them with the preceding commands; a matching filename from
+another mod or run does not establish the same artifact. Recorded proof results
+and their explicitly named run directories are separate from these examples.
+
 `tools/repack/` rebuilds the user's own SCUS-97112 disc from loose local
 files. It leaves the legacy extractor and the native-port export paths
 unchanged. Generated manifests, padding, templates, payloads, and images
@@ -269,7 +274,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m tools.repack build-disc \
 ```
 
 A fresh run uses a new output directory. It acquires the shared main-checkout
-`build/.decomp_build.lock` with a 10-second retry and releases it in `finally`.
+`build/.decomp_build.lock` (a transient runtime path, not a retained receipt) with a 10-second retry and releases it in `finally`.
 All compiler inputs are staged beneath the output's `source/workspace/`; all
 build writes stay there. The main checkout, its index, and its existing build
 products are not modified. `--toolchain-root PATH` can select the local compiler
