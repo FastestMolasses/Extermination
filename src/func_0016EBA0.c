@@ -1,8 +1,8 @@
 // NEARMISS func_0016EBA0  (vram 0x0016EBA0, 0x3AC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.89% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-ORDER wall: target loads the state byte directly into a0 (reusing arg0's register) and lazily materializes the arg0->s0 callee-save copy after the first case-30 compare fails; mwcc233 eagerly copies arg0->s0 at entry and keeps the state byte in a1, shifting every subsequent co...
+// objdiff 99.13% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// One delay slot: at the +0x0D == 1 test the target leaves the branch slot empty; mwcc fills it with the upper half of the first 0x700038A0 store (both successors start with it), so the function ends one instruction early. Else-if, a nested switch and a plain store did not change it.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,7 +11,21 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-extern void func_001B0B50(unsigned char);
+//
+// Player state handler dispatched on the sub-state byte +0x06 (0, 10, 20, 21,
+// 22, 30). Corrected in decomp lane round 8 from the original instructions
+// (93.89% before):
+//  - Sub-state 21 calls func_00179880(self, self + 0x2EC): the target sets $a1
+//    to self + 0x2EC and leaves self in $a0; the old C passed only the pointer.
+//  - Sub-state 0 calls func_001B0B50() with no argument (the target sets none
+//    and func_001B0B50 takes none); the old C passed the state byte.
+//  - The scratchpad float 0x70003A20 is the relocated extern D_70003A20
+//    (MATCHING_GUIDE idiom-32), as the original addresses it.
+//  - Every case ends with break, not return: nothing follows the switch, so the
+//    two are equivalent, and break gives the target's empty branch delay slots
+//    (MATCHING_GUIDE idiom-27).
+
+extern void func_001B0B50(void);
 extern void func_001749A0(char *, int, int, float);
 extern void anim_eval_skeleton(char *);
 extern void func_001026A0(char *, char *, char *);
@@ -20,7 +34,7 @@ extern int func_0019AD00(char *, char *, int);
 extern float func_0011E620(float, float);
 extern float func_001B1470(float);
 extern int func_00188550(char *);
-extern void func_00179880(char *);
+extern void func_00179880(unsigned char *a0, float *a1);
 extern int func_00175900(char *, int);
 extern void func_00182870(char *, int);
 extern short D_0028A9A0;
@@ -39,7 +53,7 @@ void func_0016EBA0(char *arg0) {
     st = *(unsigned char *)(arg0 + 6);
     switch (st) {
     case 0:
-        func_001B0B50(st);
+        func_001B0B50();
         *(int *)(arg0 + 0x38) = 0;
         if (*(unsigned char *)(arg0 + 0xD) == 0) {
             *(unsigned char *)(arg0 + 6) = 0xA;
@@ -50,7 +64,7 @@ void func_0016EBA0(char *arg0) {
             *(volatile float *)0x700038A8 = 5.0f;
             *(volatile float *)0x700038AC = 1.0f;
             func_001026A0(arg0 + 0xB0, arg0 + 0xD0, D_700038A0);
-            return;
+            break;
         }
         if (*(unsigned char *)(arg0 + 0xD) == 1) {
             *(volatile float *)0x700038A0 = 0.0f;
@@ -63,7 +77,7 @@ void func_0016EBA0(char *arg0) {
             *(unsigned char *)(arg0 + 6) = 0x14;
             *(int *)(arg0 + 0x2EC) = 0;
             *(short *)(arg0 + 0x28) = 8;
-            return;
+            break;
         }
         *(volatile float *)0x700038A0 = 0.0f;
         *(volatile float *)0x700038A4 = -3.0f;
@@ -77,19 +91,19 @@ void func_0016EBA0(char *arg0) {
             *(float *)(arg0 + 0xB8) = *(volatile float *)0x700031B8 + (1.5f * *(float *)(v + 0x2C));
             *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0xB4) - 20.5f;
             v = (char *)*(volatile int *)0x700031D0;
-            *(volatile float *)0x70003A20 = func_0011E620(-*(float *)(v + 0x2C), *(float *)(v + 0x24));
-            *(float *)(arg0 + 0xC4) = func_001B1470(4.712389f + *(volatile float *)0x70003A20);
+            D_70003A20 = func_0011E620(-*(float *)(v + 0x2C), *(float *)(v + 0x24));
+            *(float *)(arg0 + 0xC4) = func_001B1470(4.712389f + D_70003A20);
             *(unsigned char *)(arg0 + 6) = 0x1E;
             func_001749A0(arg0, func_00188550(arg0), 0, 0.0f);
-            return;
+            break;
         }
-        return;
+        break;
     case 10:
         if (D_0028A9A0 == 0 && (*(int *)(arg0 + 0x200) & 0x1000)) {
             *(char *)(arg0 + 5) = 0;
             *(unsigned char *)(arg0 + 6) = 0;
             *(char *)(arg0 + 0x1F0) = 0;
-            return;
+            break;
         }
         break;
     case 20:
@@ -97,16 +111,16 @@ void func_0016EBA0(char *arg0) {
         *(short *)(arg0 + 0x28) = t - 1;
         if (t == 0) {
             *(unsigned char *)(arg0 + 6) = *(unsigned char *)(arg0 + 6) + 1;
-            return;
+            break;
         }
         break;
     case 21:
-        func_00179880(arg0 + 0x2EC);
+        func_00179880((unsigned char *)arg0, (float *)(arg0 + 0x2EC));
         if (func_00175900(arg0, 1) != 0) {
             *(unsigned char *)(arg0 + 6) = *(unsigned char *)(arg0 + 6) + 1;
             func_00182870(arg0, 1);
             func_001749A0(arg0, 0x6D, 0, 8.0f);
-            return;
+            break;
         }
         break;
     case 22:
@@ -114,7 +128,7 @@ void func_0016EBA0(char *arg0) {
             *(char *)(arg0 + 5) = 0;
             *(unsigned char *)(arg0 + 6) = 0;
             *(char *)(arg0 + 0x1F0) = 0;
-            return;
+            break;
         }
         break;
     case 30:

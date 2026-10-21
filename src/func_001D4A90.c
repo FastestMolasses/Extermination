@@ -20,6 +20,9 @@ typedef struct {
 typedef struct {
     char pad[0x10];
     DmaTag *cur[16];
+    int ref[16];
+    int pad90[3];
+    int frame;
 } VifLists;
 extern VifLists *D_00275670;
 

@@ -1,23 +1,23 @@
-// NEARMISS func_0012B410  (vram 0x0012B410, 0x434 bytes) — readable decompilation, NOT byte-identical.
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// TU_STATIC: func_00128390
 //
-// objdiff 99.09% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring near-miss (98.31% on mwcc 2.3.3; logic fully recovered). Body, the 5-way state switch (cases 0-4 with the case-1 beql branch-likely), the nested sub-state switch on arg0+7, and all field/global I/O match. Residuals are pure compiler artifacts: (1) the switch selector byte arg0+6...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
+// Byte-matched (objdiff 100%), decomp lane round 8 (was a 99.09% NEARMISS).
+// Two source fixes, both read from the original instructions:
+//  - State 3's gate is func_00128640(arg0): the target sets only $a0 before the
+//    call, and func_00128640 takes one argument (the old C also passed 4).
+//  - func_00128390 is compiled as a static function of this file
+//    (// TU_STATIC:, MATCHING_GUIDE "Decomp lane round 7"). The original compiler
+//    saw it earlier in the same translation unit and knew it leaves $a1 alone,
+//    so state 4 sub 2 stores arg0+0 = 1 from $a1 (still the func_00128390
+//    argument 1) instead of a fresh constant: the former residual.
+//    tools/decomp/tu_static.py removes the static copy after checking it equals
+//    the original func_00128390; the call links to that function's own unit.
 //
 // CORRECTED (lane NMFIX4, 2026-09-28): func_001C2770 takes (arg0, arg1, 0) -- the original calls it with
 // its own a0/a1 unchanged and a2 = 0 (the old C passed one argument). Checked by an original-instruction
-// harness over the captured AREA00 RAM; objdiff 98.33% -> 99.09%. Remaining residual: switch selector
-// coloring and state 4 sub 2's byte +0 store, which the original takes from a1 (still 1, the
-// func_00128390 argument, across that call) instead of a fresh constant.
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
-
+// harness over the captured AREA00 RAM; objdiff 98.33% -> 99.09%.
 //
-// NEARMISS (objdiff 99.09% vs expected on mwcc 2.3.3 after the NMFIX4 correction).
 // Logic fully recovered: a 5-way per-frame state machine dispatched on the
 // state byte at arg0+6. State 0: zero arg1+0xD8, then (only when func_001C2770
 // reports not-busy) pick the 0xD0 timer (0x3C/0x78 by func_00122BB8&1), stage a
@@ -36,19 +36,17 @@
 // func_00128390 into arg0+0x34, clears arg0+0x36, sets arg0=1 and returns to
 // state 3. Finally, when not-busy, run func_001C3D60.
 //
-// Residual is register-coloring only (switch selector colored a0 vs target a1,
-// one paddub-vs-addiu copy of the constant 1, and the D_70003B68 absolute-vs-
-// symbol reloc form). Permuter territory; not a clean-store delay-slot nop.
 extern int func_001C2770(char *a, char *b, int flags);
 extern int func_00122BB8(void);
 extern int func_001C25E0(char *p, int *v);
 extern int func_0012ADC0(char *a, char *b, char *c, float f);
 extern void func_001287F0(char *a, char *b, int c, float f);
 extern int func_00128600(int a);
-extern int func_00128640(char *a, int b);
+extern int func_00128640(char *arg0);
 extern float func_001B12B0(float goal, float cur, float rate);
 extern float func_001B1470(float a);
-extern short func_00128390(char *a, int b);
+static int func_00128390(int a0, int a1);  /* same-TU callee, see TU_STATIC */
+#include "src/func_00128390.c"
 extern void func_001EFE00(int a, char *p);
 extern void func_001C3D60(char *a, char *b);
 extern char D_008102B0;
@@ -126,7 +124,7 @@ void func_0012B410(char *arg0, char *arg1) {
         }
         break;
     case 3:
-        if (func_00128640(arg0, 4) == 0) {
+        if (func_00128640(arg0) == 0) {
             *(char *)(arg0 + 5) = 1;
             *(unsigned char *)(arg0 + 6) = 0;
             *(unsigned char *)(arg0 + 7) = 0;
@@ -148,7 +146,7 @@ void func_0012B410(char *arg0, char *arg1) {
             }
             break;
         case 2:
-            *(short *)(arg0 + 0x34) = func_00128390(arg0, 1);
+            *(short *)(arg0 + 0x34) = func_00128390((int)arg0, 1);
             *(short *)(arg0 + 0x36) = 0;
             *(char *)(arg0 + 0) = 1;
             *(unsigned char *)(arg0 + 6) = 3;

@@ -87,6 +87,15 @@ diff sits at a call to a nearby lower-address callee (a missing argument move, a
 argument register across the call, a branch-likely after it), check whether that callee is a
 byte-matched unit and try it as a TU static.
 
+**Reconcile declarations before trusting a TU-static measurement (decomp lane round 8, 2026-10-20).**
+Five more rows left the registry as byte-matches (func_0012B410, func_001AA840, func_001BD560,
+func_001D4B80, func_001D4C30), and anim_matrix_player, func_0016EBA0 and func_001BAD40 have
+corrected bodies (MATCHING_GUIDE "Decomp lane round 8"). Three of the five had a wrong call: a
+constant argument the target never sets (func_0012B410's 4, func_001BD560's 1) or the wrong
+parameter slot (func_001AA840). A TU-static variant that fails to compile because the caller and
+callee disagree on a call is a pointer to such a bug: read the target's argument registers at that
+call before changing either declaration.
+
 ## Registry
 
 | Function | vram | bytes | objdiff % | compiler | divergence (compiler artifact) |
@@ -212,7 +221,6 @@ byte-matched unit and try it as a TU static.
 | func_001D91A0 | 0x001D91A0 | 0x388 | 94.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation (permuter territory): callee-saved coloring of the 4 |
 | func_001DA310 | 0x001DA310 | 0x384 | 93.21% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation (permuter territory). Body+control flow fully r |
 | func_001509A0 | 0x001509A0 | 0x400 | 96.48% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP even/odd register-coloring permutation: in the three easing tails the target pairs the  |
-| func_0012B410 | 0x0012B410 | 0x434 | 99.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | BODY CORRECTED 2026-09-28: func_001C2770(a0, a1, 0) (the original passes its own a0/a1). Residual: switch-selector colouring; byte +0 from a1. Earlier diagnosis, partly superseded: Register-coloring near-miss (98.31% on mwcc 2.3.3; logic fully recovered). Body, the 5-way |
 | func_00156F30 | 0x00156F30 | 0x430 | 92.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | BODY CORRECTED 2026-09-27 against the original instructions (see FINDINGS "NEARMISS body corrections from the AREA01 wave-2 lanes"). Earlier diagnosis, partly superseded: FP-register-half coloring + scheduling near-miss (91.50% on mwcc 2.3.3; logic fully recove |
 | func_0015FDF0 | 0x0015FDF0 | 0x42C | 91.01% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected body (func_001AA4E0(arg0)). Left: FP odd/even register coloring and the load/sto |
 | func_001F88C0 | 0x001F88C0 | 0x46C | 93.45% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation + FP-register coloring permutation. Body and control flow are byte-ide |
@@ -234,7 +242,6 @@ byte-matched unit and try it as a TU static.
 | func_001ECE70 | 0x001ECE70 | 0x7C | 80.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order/instruction-scheduling permutation (same class as func_001EC3F0/fun |
 | func_001FE920 | 0x001FE920 | 0x7C | 92.74% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Calling-convention/regalloc permutation: control flow, 0x20 frame with s0 save, and switch |
 | func_00128B80 | 0x00128B80 | 0x84 | 83.03% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch lowering / dead trailing return-0 block. Body, stores, call, and the con |
-| func_001AA840 | 0x001AA840 | 0x84 | 84.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation wall: live-across-call values in caller-saved temps vs mwcc's callee-s |
 | func_001AF800 | 0x001AF800 | 0x84 | 59.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two compounding 2.3.1 artifacts neither 991 nor 233 fixes (991=73.42% best; 233 regresses  |
 | func_001FECB0 | 0x001FECB0 | 0x84 | 84.70% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Regalloc/constant-rematerialization permutation: target keeps compare constant 1 live in v |
 | func_001FE9E0 | 0x001FE9E0 | 0x88 | 78.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Constant-rematerialization + branch-sense permutation: target re-materializes the return constant 1 inside each |
@@ -242,8 +249,6 @@ byte-matched unit and try it as a TU static.
 | func_00228320 | 0x00228320 | 0x8C | 76.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation / instruction-scheduling: CW keeps the 3-int stack temp via dead-store |
 | func_00183910 | 0x00183910 | 0x90 | 94.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-coloring / delay-slot scheduling: CW keeps arg0 in $a0 across the dispatch and co |
 | func_00194D10 | 0x00194D10 | 0x94 | 84.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-compare branch-lowering wall + arg-eval scheduling. Logic fully recovered. Residual 1:  |
-| func_001D4B80 | 0x001D4B80 | 0x98 | 95.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected in decomp lane round 4: vif_build_unpack_const gets ch (the old C passed 0) |
-| func_001D4C30 | 0x001D4C30 | 0x98 | 95.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected in decomp lane round 4: vif_build_unpack_const gets ch (the old C passed 0) |
 | func_0019AA80 | 0x0019AA80 | 0x9C | 90.51% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | branch-delay-slot scheduling: target keeps nop in the beqz delay slot, both 991202 and 233 |
 | func_001AF220 | 0x001AF220 | 0x9C | 76.87% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | constant-propagation era difference: target reloads (lbu) D_00810700/D_00810701 before the |
 | func_001CB2C0 | 0x001CB2C0 | 0x9C | 83.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | instruction-scheduling permutation: target computes the third-argument + 0x10 pointer into a saved register before the zero store at +0x10 |
@@ -432,7 +437,7 @@ byte-matched unit and try it as a TU static.
 | func_00126F88 | 0x00126F88 | 0x2A8 | 59.59% | ee-gcc 2.9-991111-01 | This function is Sony PS2 SDK softfloat-library code (module tag 'lowmem' in FUNCTIONS.csv |
 | func_001BD9F0 | 0x001BD9F0 | 0x2AC | 78.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS: 6-way state-machine switch (arg0+4) with nested 5-way switch on arg0+5, fully re |
 | func_00197490 | 0x00197490 | 0x2AC | 91.04% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS: 3-arg outer-switch on arg1+0x230 (an animation/anim-event id) dispatching to a s |
-| anim_matrix_player | 0x0017B660 | 0x2A8 | 82.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS: player-character bone-matrix-transition writer (documented in docs/FINDINGS.md ~ |
+| anim_matrix_player | 0x0017B660 | 0x2A8 | 98.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Saved-register colouring only, same instructions and size: the target has self in $s0, the |
 | func_001F5F60 | 0x001F5F60 | 0x2AC | 93.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation only. Body and control flow are byte-for-byte s |
 | func_00153290 | 0x00153290 | 0x2B0 | 93.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation only. Body and control flow structurally identi |
 | func_00185760 | 0x00185760 | 0x2B0 | 96.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation confined to the opening prologue block. Structurally ident |
@@ -496,7 +501,7 @@ byte-matched unit and try it as a TU static.
 | func_00146110 | 0x00146110 | 0x394 | 96.74% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same class as the sibling func_0014B7B0 (already-parked NEARMISS): register-allocation/sch |
 | func_0016A8B0 | 0x0016A8B0 | 0x394 | 94.02% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CFG-shape-dependent instruction-scheduling artifact: in each of the 4 switch-case's true-b |
 | func_001E9E60 | 0x001E9E60 | 0x3A4 | 96.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected body (3-argument func_001CB950, byte-offset loop like func_001E9280). Left: the  |
-| func_0016EBA0 | 0x0016EBA0 | 0x3AC | 93.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-ORDER wall: target loads the state byte directly into a0 (reusing arg0 |
+| func_0016EBA0 | 0x0016EBA0 | 0x3AC | 99.13% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | One delay slot: at the +0x0D == 1 test the target leaves the branch slot empty; mwcc fills |
 | func_00158810 | 0x00158810 | 0x3B4 | 83.32% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | BODY CORRECTED 2026-09-27 against the original instructions (see FINDINGS "NEARMISS body corrections from the AREA01 wave-2 lanes"). Earlier diagnosis, partly superseded: Register-allocation-ORDER wall: target keeps the arg0+0x1F0 pointer (a1) live in a caller- |
 | func_001612D0 | 0x001612D0 | 0x3BC | 89.22% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | State-machine dispatch (switch on +6) resolves body/structure identically to target, but t |
 | func_0019DB50 | 0x0019DB50 | 0x3C0 | 87.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation, same class as sibling family func_0019DF10 (91.8 |
@@ -696,8 +701,7 @@ byte-matched unit and try it as a TU static.
 | func_00134090 | 0x00134090 | 0x270 | 93.90% | mwcc24 | jr-table lane 2026-09-23: func_00122BB8 is the engine rand() and takes no argument (the ol |
 | func_001F0720 | 0x001F0720 | 0x334 | 86.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 86.25 with mwcc233 -O4,p -sdatathreshold 4 (o991 69.09, o24 86.25). Dispatch, all 7 preset |
 | func_001CFFE0 | 0x001CFFE0 | 0x414 | 87.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 87.16% (mwcc233; mwcc 2.3.1 = 76.1%). Decode is complete and verified instruction-by-instr |
-| func_001BD560 | 0x001BD560 | 0x490 | 99.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 5 instructions, all diagnosed. (1) idx 58-59 the %hi/%lo(jtbl_0026E220) pair vs mwcc's  |
-| func_001BAD40 | 0x001BAD40 | 0x3A0 | 91.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 91.09 (mwcc233 -O4,p -sdatathreshold 2; 232 instrs). The jr-table dispatch is FULLY byte-i |
+| func_001BAD40 | 0x001BAD40 | 0x3A0 | 91.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 52 bytes short: the target keeps the 0.0 anim_clip_init blend in $f20 across func_001C61D0 |
 | func_001D8C30 | 0x001D8C30 | 0x394 | 89.45% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 89.45 (mwcc233 -O4,p -sdatathreshold 4; 233 instrs). The jr-table dispatch is FULLY byte-i |
 | func_0015A750 | 0x0015A750 | 0x3A0 | 73.04% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 73.04 (mwcc233 -O4,p -sdatathreshold 0; 232 instrs). Byte-identical: the whole prologue/se |
 | func_0018BC20 | 0x0018BC20 | 0x4A0 | 99.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 9 of 316 instructions differ, in two independent spots. (1) 2 instr: the jtbl reloc pair o |

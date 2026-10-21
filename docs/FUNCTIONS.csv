@@ -908,7 +908,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0012A5D0,func_0012A5D0,2032,readable,0,lowmem
 0x0012ADC0,func_0012ADC0,508,nearmiss,2,lowmem
 0x0012AFC0,func_0012AFC0,1092,readable,1,lowmem
-0x0012B410,func_0012B410,1076,nearmiss,1,lowmem
+0x0012B410,func_0012B410,1076,readable,1,lowmem
 0x0012B850,func_0012B850,280,readable,1,lowmem
 0x0012B970,func_0012B970,1188,readable,1,lowmem
 0x0012BE20,func_0012BE20,1644,readable,1,lowmem
@@ -1680,7 +1680,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001AA640,func_001AA640,184,readable,1,frame_main
 0x001AA700,func_001AA700,152,readable,0,frame_main
 0x001AA7A0,func_001AA7A0,160,readable,1,frame_main
-0x001AA840,func_001AA840,132,nearmiss,1,frame_main
+0x001AA840,func_001AA840,132,readable,1,frame_main
 0x001AA8D0,func_001AA8D0,440,readable,1,frame_main
 0x001AAA90,func_001AAA90,356,nearmiss,1,frame_main
 0x001AAC00,func_001AAC00,244,readable,1,frame_main
@@ -1916,7 +1916,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001BD270,func_001BD270,248,readable,1,math_vector
 0x001BD370,func_001BD370,240,readable,1,math_vector
 0x001BD460,func_001BD460,256,readable,1,math_vector
-0x001BD560,func_001BD560,1168,nearmiss,0,math_vector
+0x001BD560,func_001BD560,1168,readable,0,math_vector
 0x001BD9F0,func_001BD9F0,684,nearmiss,0,math_vector
 0x001BDCA0,bone_wobble_decay_1,208,readable,1,anim_runtime
 0x001BDD70,bone_wobble_decay_0,228,readable,1,anim_runtime
@@ -2190,9 +2190,9 @@ vram,name,size_bytes,status,callers,subsystem
 0x001D4B10,func_001D4B10,12,readable,2,render_vif
 0x001D4B20,func_001D4B20,44,readable,1,render_vif
 0x001D4B50,func_001D4B50,44,readable,1,render_vif
-0x001D4B80,func_001D4B80,152,nearmiss,2,render_vif
+0x001D4B80,func_001D4B80,152,readable,2,render_vif
 0x001D4C20,func_001D4C20,12,readable,1,render_vif
-0x001D4C30,func_001D4C30,152,nearmiss,1,render_vif
+0x001D4C30,func_001D4C30,152,readable,1,render_vif
 0x001D4CD0,func_001D4CD0,196,readable,1,render_vif
 0x001D4DA0,func_001D4DA0,128,readable,1,render_vif
 0x001D4E20,func_001D4E20,128,readable,2,render_vif

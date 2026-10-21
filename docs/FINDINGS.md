@@ -17463,3 +17463,26 @@ in `a0` to the next call, and the old C had dropped that argument.
   D_0025D2C0 when slot 1 is not ready and D_0081079E is 0xFF. In state 0, func_001F66F0 is called
   with the func_001F6760 descriptor once func_001F6AC0 reports it ready. The old C called both
   with no argument (and its header said the slot 0 guard bytes must be 0xFF; they must not be).
+
+## Decomp C argument corrections (2026-10-20, decomp lane round 8)
+
+Read from the original instructions at each call (MATCHING_GUIDE "Decomp lane round 8"); each
+corrects what the readable C says the original passes.
+
+- anim_matrix_player (player bone-matrix transition writer; NEARMISS 98.09): the tier clip is
+  func_0017B490(self, 1, self[0x235], self[0x25C] (+1 / -1)); anim_clip_arbiter is called with
+  blend 0.0 and the position as its two float arguments; func_001C61D0 returns an integer clip
+  length that the caller converts to float; the next-clip start position re-reads self+0x3C after
+  func_00179D20 evaluates the current pose. The old C passed (1, +0x235, +0x25C), an integer 0 as
+  the blend, and read func_001C61D0's result as a float.
+- func_0016EBA0 (player state handler; NEARMISS 99.13): sub-state 21 calls
+  func_00179880(self, self + 0x2EC); sub-state 0 calls func_001B0B50() with no argument.
+- func_001BAD40 (actor message handler; NEARMISS 91.26): func_001C6120 is (table, index); cases
+  1/8 and 2 look up entry msg (the message id at ev+4) of the offset table that D_0028A59C /
+  D_0028A56C point to; case 5 calls func_001C5C90(obj).
+- func_001AA840 (byte-matched): the proximity test is func_001AA7A0(arg0, entry); the callee
+  reads only the entry.
+- func_0012B410 (byte-matched): state 3's gate is func_00128640(self), one argument.
+- func_001BD560 (door/lift update, byte-matched): the mover polls func_001BD180 / 270 / 370 / 460
+  each take only the mover sub-object (self + 0x1F0).
+

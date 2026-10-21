@@ -486,6 +486,10 @@ section. So a caller keeps its one-function unit: it `#include`s the callee's ow
 `static` prototype and names it in a `// TU_STATIC:` line, and `tools/decomp/tu_static.py` removes
 the static copy from the compiled object after checking it equals the original callee. The call
 then links to the callee's own unit. See MATCHING_GUIDE "Decomp lane round 7".
+Caller and callee then share one set of declarations, so conflicting prototypes or globals
+must be reconciled first; such a conflict often marks a wrong call in the caller (an argument
+the original never sets, round 8). The callee must also compile to its original bytes under the
+caller's flags (the same small-data threshold).
 
 ## 7. Orchestration notes (parallel agents)
 

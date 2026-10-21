@@ -956,7 +956,8 @@ Classes found and not cracked (the source is unchanged unless noted):
   they were in the same file. One-function units cannot do that (see
   PS2_DECOMP_PLAYBOOK §6a). Cracked in decomp lane round 7 (below):
   `// TU_STATIC:` compiles the callee as a static function of the caller's
-  file; func_0021B9A0 byte-matches that way.
+  file; func_0021B9A0 byte-matches that way, and func_001BD560 in round 8
+  (its `$a1` "constant 1" was a wrong extra argument in the old C).
 - **func_001B99F0 is two functions in one splat symbol.** It is a 4-instruction
   tail-jump stub, and func_001B9A00 starts at +0x10. Its "2.80%" is the
   objdiff of the stub against the merged symbol. The split needs
@@ -1126,6 +1127,9 @@ corrected body (func_001D4B80 / func_001D4C30, 95.39). Levers:
   also avoid v0 and match, so the trailing func_001D4A90(ch, src) call is what
   changes mwcc's choice. Declaration and order sweeps, an inline helper, return
   types and a 25-minute permuter run found no lever.
+  Closed in decomp lane round 8: both byte-match with func_001D4A90 as a
+  `// TU_STATIC:` callee (the original compiler's knowledge of that callee
+  decided the temporaries).
 
 ### Decomp lane round 5: call-site checks on the on-route NEARMISS set — 2026-10-20
 
@@ -1323,3 +1327,83 @@ declarations is the next step before re-running the sweep. func_001BD560
 (off-route; func_001BD180 / func_001BD270 / func_001BD370 with other
 `-sdatathreshold` values and m2c prelude typedefs) is untested.
 
+
+### Decomp lane round 8: declaration reconciliation and the TU-static sweep re-run — 2026-10-20
+
+The round-7 sweep (every lower-address byte-matched callee within 0x8000 bytes
+compiled as a `// TU_STATIC:` copy into each of the 148 mwcc NEARMISS files that
+has one) was re-run with the declaration conflicts resolved for the measurement:
+
+- the caller's own declaration of the callee is removed (only a file-scope
+  declaration: a pattern that also matches indented call statements silently
+  deletes calls, and the variant then scores against a different function);
+- each argument of a call to a TU callee is cast to the callee's parameter type
+  when both are integer or pointer types (`-relax_pointers` for the rest);
+- file-scope names, typedefs and struct tags that the caller or an earlier callee
+  also declares are renamed inside each included callee with a per-callee
+  `#define`, and the static prototype uses the callee's resolved typedefs with a
+  forward-declared struct tag (m2c prelude callees such as func_001BD180).
+
+Compile failures fell from 167 to 84 variants; the rest are mostly callers whose
+calls disagree with the callee's own parameter count (below). Measured this way,
+func_001D4B80 and func_001D4C30 reached 100 with func_001D4A90 as a TU static,
+which closes their "caller-saved colouring" residual. The renames are a
+measurement device only: a landed file must declare the same types as its
+callees (func_001D4A90's `VifLists` now carries the `ref` / `frame` fields its
+callers use; func_001BD270 and func_001BD460 both declare
+`char **D_00275B40`; all four still objdiff 100).
+
+Byte-matched this round (mwcc 2.3.3, compiled_object_ordinary_c):
+
+- **func_001D4B80, func_001D4C30** (95.39): `// TU_STATIC: func_001D4A90`.
+- **func_001AA840** (84.27): `// TU_STATIC: func_001AA7A0`, and the call is
+  func_001AA7A0(arg0, e). The callee tests its second parameter; the target sets
+  only `$a1` and leaves this function's own argument in `$a0` (its caller
+  func_0018A1F0 passes one). The old C passed the entry as the only argument.
+- **func_0012B410** (99.09): func_00128640 takes one argument (the old C also
+  passed 4, a value the target never sets), and `// TU_STATIC: func_00128390`
+  gives state 4's `arg0[0] = 1` store from `$a1`, still the callee's argument 1.
+- **func_001BD560** (99.08, off-route): its four mover polls take only the
+  mover; the old C passed a second argument 1, which the old header explained
+  as "CW kept the constant 1 in `$a1` across the leaf helpers". With
+  `// TU_STATIC: func_001BD270 func_001BD460` it matches. The callees are
+  compiled with `-sdatathreshold 8` (D_00275B40 gp-relative), and a static copy
+  compiled at the caller's threshold 0 fails tu_static.py's original-callee
+  guard, so the caller moves to threshold 8 and declares the four 0x0081xxxx
+  bytes it addresses absolutely as arrays (they would otherwise become
+  gp-relative). Check the guard, not only objdiff: objdiff scores the caller
+  symbol alone and reads 100 either way.
+
+A constant argument that the target never materializes is a register leftover,
+not an argument; when the callee is a nearby lower-address function, the
+leftover is the same-TU knowledge, and the TU static reproduces it.
+
+Body corrections (NEARMISS, from the original instructions):
+
+- **anim_matrix_player** 82.85 -> 98.09: func_0017B490 is (obj, cmd, idx, tbl)
+  and gets (self, 1, +0x235, +0x25C); anim_clip_arbiter's third and fourth
+  arguments are floats (0.0 in `$f12`, the position in `$f13`); func_001C61D0
+  returns an int length that the caller converts; the next-clip position
+  re-reads +0x3C after func_00179D20; D_00287F40 / D_00288D40 are absolute.
+  Left: saved-register colouring only (1500 declaration orders, mwcc 2.4 / 991202
+  and four placements of the clip-id copy tried).
+- **func_0016EBA0** 93.89 -> 99.13: func_00179880(self, self + 0x2EC) (the old C
+  passed only the pointer), func_001B0B50() with no argument, D_70003A20 named
+  (idiom-32), and `break` for every `return` inside the switch (idiom-27). Left:
+  one branch delay slot that mwcc fills with the upper half of a scratchpad
+  store.
+- **func_001BAD40** 91.09 -> 91.26: func_001C6120 is (table, index), and cases
+  1/8 and 2 pass the message id still in `$a1`; case 5 calls func_001C5C90(obj).
+
+Next (from the 84 failing variants): 36 are calls whose argument count differs
+from the callee's own C. In most of them the callers are right and the callee's
+definition takes fewer parameters than the original passes (func_001DF9D0(void)
+called with a float, func_00204080(void) with `&D_00273490`, func_001D8130(void)
+with two values, func_00206B00(char *) with five pointers, func_00206B10 with two)
+or more (func_00213F30 takes five, of which it reads the last two only for an
+unknown state byte; its callers pass one). Fixing those callee prototypes (each
+must stay objdiff 100) unblocks func_001E7570, sub_pts_is_not_used,
+func_001D89D0, func_00206BF0, func_00214020, sub_sceMpegGetPicture_decode_error,
+func_002044F0 and others for the TU-static measurement. The remaining 16
+redeclaration and 15 conversion failures are struct-typed or float/int
+mismatches the automatic casts leave alone.

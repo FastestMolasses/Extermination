@@ -1,8 +1,8 @@
 // NEARMISS func_001BAD40  (vram 0x001BAD40, 0x3A0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 91.09% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 91.09 (mwcc233 -O4,p -sdatathreshold 2; 232 instrs). The jr-table dispatch is FULLY byte-identical including the jtbl_0026E170 reloc, and all 9 case bodies + the second (compare-chain) dispatch match. Residual is 4 clusters, ~21 instructions: (1) SAVED-REG DIRECTION, 6 instrs at 0x1c-0x2c/0x68/0x...
+// objdiff 91.26% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 2). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// 52 bytes short: the target keeps the 0.0 anim_clip_init blend in $f20 across func_001C61D0 (frame 0x60), emits a separate func_001CA6F0 argument setup and call per inner-switch arm where mwcc merges the tails, and copies the entry arguments in the other saved-register order.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,14 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 2
+
+//
+// Corrected in decomp lane round 8 from the original instructions (91.09% before):
+//  - func_001C6120 is (table, index): cases 1/8 and 2 pass the message id msg as
+//    the index (it is still in $a1, loaded from ev+4); the old C passed only the
+//    table.
+//  - Case 5 calls func_001C5C90(obj) (self is still in $a0); the old C passed
+//    nothing.
 
 // SEMANTICS: message/event handler for one animated actor.  `obj` is the
 //   actor block, `ev` is the incoming event record:
@@ -71,9 +79,9 @@ extern short  D_0081024E[4];
 extern short  D_00275BCC;
 
 extern void func_001CA6E0(unsigned char *, int);
-extern int  func_001C6120();
+extern char *func_001C6120(char *a0, int a1);
 extern void func_0022EC30(char *);
-extern void func_001C5C90(void);
+extern void func_001C5C90(char *arg0);
 extern int  func_001AF780(void);
 extern int  func_001C6150(int);
 extern void func_001BA8E0(unsigned char *, int);
@@ -114,13 +122,13 @@ int func_001BAD40(unsigned char *obj, unsigned char *ev)
         break;
     case 1:
     case 8:
-        func_001CA6E0(obj, func_001C6120(D_0028A59C));
+        func_001CA6E0(obj, (int)func_001C6120((char *)D_0028A59C, msg));
         break;
     case 2:
-        func_001CA6E0(obj, func_001C6120(D_0028A56C));
+        func_001CA6E0(obj, (int)func_001C6120((char *)D_0028A56C, msg));
         break;
     case 3:
-        D_00810250 = (char *)func_001C6120(D_0028A490[*(short *)(ev + 6)],
+        D_00810250 = func_001C6120((char *)D_0028A490[*(short *)(ev + 6)],
                                            *(short *)(ev + 8));
         D_00810254 = 0;
         D_00810258 = *(float *)D_00810250;
@@ -130,7 +138,7 @@ int func_001BAD40(unsigned char *obj, unsigned char *ev)
         func_0022EC30(D_008101E0);
         break;
     case 5:
-        func_001C5C90();
+        func_001C5C90((char *)obj);
         if (obj[4] < 2) {
             return 0;
         }

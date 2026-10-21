@@ -7,7 +7,7 @@
 // by 0.2/frame; if it is still <= 8.0 the +0x10 counter also decays by 0.2; both
 // clamp at 0.0. The +0x80 floats of the first two objects get (+0x10 + +0x14),
 // the last two get just +0x14. Returns 1 iff the +0x10 counter has hit 0.0.
-extern char *D_00275B40;
+extern char **D_00275B40;
 
 int func_001BD270(char *arg0) {
     float a, b;
@@ -25,10 +25,10 @@ int func_001BD270(char *arg0) {
             *(float *)(arg0 + 0x10) = 0.0f;
         }
     }
-    *(float *)(*(int *)(D_00275B40 + 4) + 0x80) = *(float *)(arg0 + 0x10) + *(float *)(arg0 + 0x14);
-    *(float *)(*(int *)(D_00275B40 + 8) + 0x80) = *(float *)(arg0 + 0x10) + *(float *)(arg0 + 0x14);
-    *(float *)(*(int *)(D_00275B40 + 0xC) + 0x80) = *(float *)(arg0 + 0x14);
-    *(float *)(*(int *)(D_00275B40 + 0x10) + 0x80) = *(float *)(arg0 + 0x14);
+    *(float *)(D_00275B40[1] + 0x80) = *(float *)(arg0 + 0x10) + *(float *)(arg0 + 0x14);
+    *(float *)(D_00275B40[2] + 0x80) = *(float *)(arg0 + 0x10) + *(float *)(arg0 + 0x14);
+    *(float *)(D_00275B40[3] + 0x80) = *(float *)(arg0 + 0x14);
+    *(float *)(D_00275B40[4] + 0x80) = *(float *)(arg0 + 0x14);
     if (*(float *)(arg0 + 0x10) == 0.0f) {
         r = 1;
     } else {

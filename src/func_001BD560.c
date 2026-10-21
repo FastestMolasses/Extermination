@@ -1,16 +1,23 @@
-// NEARMISS func_001BD560  (vram 0x001BD560, 0x490 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 5 instructions, all diagnosed. (1) idx 58-59 `lui/addiu %hi/%lo(jtbl_0026E220)` vs mwcc's `@68`: this is a TWO-table dispatcher. mwcc emits each switch table as its own local .rodata SECTION at offset 0 (readelf: `@70` in section 5, `@68` in section 7), while build/jtblrodata/func_001BD560.s conc...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
-
+// CFLAGS: -O4,p -sdatathreshold 8
+// TU_STATIC: func_001BD270 func_001BD460
+//
+// Byte-matched (objdiff 100%), decomp lane round 8 (was a 99.08% NEARMISS).
+// Two source fixes, both read from the original instructions:
+//  - The four mover polls take only the mover: func_001BD180(sub),
+//    func_001BD270(sub), func_001BD370(sub), func_001BD460(sub). The target sets
+//    only $a0 before each call; the old C passed a second argument 1, which was
+//    a register leftover, not an argument.
+//  - func_001BD270 and func_001BD460 are compiled as static functions of this
+//    file (// TU_STATIC:, MATCHING_GUIDE "Decomp lane round 7"). The original
+//    compiler saw them earlier in the same translation unit and kept values in
+//    caller-saved registers across those calls. tools/decomp/tu_static.py
+//    removes the static copies after checking each equals the original callee;
+//    the calls link to the callees' own units.
+// The callees are compiled with -sdatathreshold 8 (D_00275B40 is gp-relative),
+// so this file uses the same threshold; the four 0x0081xxxx bytes, which the
+// original addresses absolutely, are declared as arrays so they stay out of
+// small data (the size only keeps them there, it is not the object's size).
 //
 // SEMANTICS: top-level per-frame update for the door/lift object arg0, dispatched
 // on the phase byte at arg0+4 (0 = enter, 1 = run, 2 and 3 = func_001AFC10, other =
@@ -34,11 +41,10 @@
 // and — unless arg0+0xB == 3 — trips arg0+1 and calls func_001B1D20(arg0) when the
 // owner at arg0+0x114 is nearer than 18.0 (its distance is at +0x80).
 //
-// NOTE (near-miss, 99.08%): CW kept the constant 1 in $a1 and `sub` in $a0 live
-// across the calls to the leaf helpers func_001BD180/270/370/460 (whole-file callee
-// register-usage analysis). Compiling this function alone, mwcc must rematerialize
-// them, which costs 3 instructions; the second jump table costs 2 more because mwcc
-// emits each switch table in its own .rodata section at offset 0.
+static int func_001BD270(char *arg0);         /* same-TU callee, see TU_STATIC */
+#include "src/func_001BD270.c"
+static int func_001BD460(unsigned char *a0);  /* same-TU callee, see TU_STATIC */
+#include "src/func_001BD460.c"
 extern void func_001AEBA0(int a, int b);
 extern void func_001AFC10(char *p);
 extern void func_001B0FD0(char *p, int a);
@@ -47,16 +53,14 @@ extern void func_001BA1A0(char *p, char *q);
 extern int func_001BA1F0(char *p, int a);
 extern void func_001BBD20(char *p, int a);
 extern void func_001BC150(char *p);
-extern int func_001BD180(char *p, int a);
-extern int func_001BD270(char *p, int a);
-extern int func_001BD370(char *p, int a);
-extern int func_001BD460(char *p, int a);
+extern int func_001BD180(char *p);
+extern int func_001BD370(char *p);
 extern void func_001C6380(char *p);
 extern char D_0024E6E0[];
-extern unsigned char D_00810700;
-extern unsigned char D_0081076C;
-extern unsigned char D_00810836[2];
-extern unsigned char D_0081083E;
+extern unsigned char D_00810700[16];
+extern unsigned char D_0081076C[16];
+extern unsigned char D_00810836[16];
+extern unsigned char D_0081083E[16];
 
 void func_001BD560(char *arg0) {
     char *sub;
@@ -100,7 +104,7 @@ void func_001BD560(char *arg0) {
                 }
                 break;
             case 1:
-                if (func_001BD180(sub, 1) != 0) {
+                if (func_001BD180(sub) != 0) {
                     *(unsigned char *)(arg0 + 5) = *(unsigned char *)(arg0 + 5) + 1;
                     *(unsigned char *)(arg0 + 0xB) = 3;
                 }
@@ -114,12 +118,12 @@ void func_001BD560(char *arg0) {
                 }
                 break;
             case 3:
-                if (func_001BD270(sub, 1) != 0) {
+                if (func_001BD270(sub) != 0) {
                     *(unsigned char *)(arg0 + 0xB) = 0;
                     *(int *)(sub + 0x10) = 0;
                     *(int *)(sub + 0x14) = 0;
-                    if (D_0081076C == 0) {
-                        D_0081076C = 1;
+                    if (D_0081076C[0] == 0) {
+                        D_0081076C[0] = 1;
                         *(unsigned char *)(arg0 + 5) = 7;
                     } else {
                         *(unsigned char *)(arg0 + 5) = *(unsigned char *)(arg0 + 5) + 1;
@@ -130,7 +134,7 @@ void func_001BD560(char *arg0) {
             case 4:
                 if (func_001BA1F0(arg0, 1) != 0) {
                     func_001BC150(arg0);
-                    D_0081083E = 1 - D_0081083E;
+                    D_0081083E[0] = 1 - D_0081083E[0];
                     *(unsigned char *)(arg0 + 5) = *(unsigned char *)(arg0 + 5) + 1;
                 }
                 break;
@@ -141,9 +145,9 @@ void func_001BD560(char *arg0) {
             case 6:
                 break;
             case 7:
-                if (D_0081076C == 0xFF) {
+                if (D_0081076C[0] == 0xFF) {
                     func_001BC150(arg0);
-                    D_0081083E = 1 - D_0081083E;
+                    D_0081083E[0] = 1 - D_0081083E[0];
                     *(unsigned char *)(arg0 + 5) = 5;
                 }
                 break;
@@ -158,7 +162,7 @@ void func_001BD560(char *arg0) {
                 }
                 break;
             case 1:
-                if (func_001BD370(sub, 1) != 0) {
+                if (func_001BD370(sub) != 0) {
                     *(unsigned char *)(arg0 + 5) = *(unsigned char *)(arg0 + 5) + 1;
                     *(unsigned char *)(arg0 + 0xB) = 3;
                 }
@@ -170,7 +174,7 @@ void func_001BD560(char *arg0) {
                 }
                 break;
             case 3:
-                if (func_001BD460(sub, 1) != 0) {
+                if (func_001BD460((unsigned char *)sub) != 0) {
                     *(unsigned char *)(arg0 + 0xB) = 0;
                     *(int *)(sub + 0x10) = 0;
                     *(int *)(sub + 0x14) = 0;
@@ -181,7 +185,7 @@ void func_001BD560(char *arg0) {
             case 4:
                 if (func_001BA1F0(arg0, 1) != 0) {
                     func_001BC150(arg0);
-                    if (D_00810700 == 4 || D_00810700 == 7) {
+                    if (D_00810700[0] == 4 || D_00810700[0] == 7) {
                         D_00810836[0] = 1 - D_00810836[0];
                     } else {
                         D_00810836[1] = 1 - D_00810836[1];

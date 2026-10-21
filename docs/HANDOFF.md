@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-20 (Claude: decomp lane round 7, same-TU static callees via `// TU_STATIC:`: 5 byte-matched, gate below; round 6: idiom-32 swept per address on the on-route NEARMISS set, 10 byte-matched; round 5: call-site checks, 3 byte-matched, 16 NEARMISS improved; round 4: 12 DMA-list functions byte-matched; the cut-content and character census branch and the func_001BA8E0 / func_001BA580 matches reviewed and merged; 2026-10-19: Codex's `levels` branch reviewed and merged into port main 789b4b4, and the levels 2-4 state toward the drawbridge, below; earlier: the lossless comparison master demo_level_1019 and the comparison-only IOP tick phase, below; the Discord video re-run demo_level_1018; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-20 (Claude: decomp lane round 8, declaration reconciliation and call-argument fixes: 5 byte-matched, 3 NEARMISS bodies corrected, gate below; round 7: same-TU static callees via `// TU_STATIC:`, 5 byte-matched; round 6: idiom-32 swept per address on the on-route NEARMISS set, 10 byte-matched; round 5: call-site checks, 3 byte-matched, 16 NEARMISS improved; round 4: 12 DMA-list functions byte-matched; the cut-content and character census branch and the func_001BA8E0 / func_001BA580 matches reviewed and merged; 2026-10-19: Codex's `levels` branch reviewed and merged into port main 789b4b4, and the levels 2-4 state toward the drawbridge, below; earlier: the lossless comparison master demo_level_1019 and the comparison-only IOP tick phase, below; the Discord video re-run demo_level_1018; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -52,30 +52,34 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (2026-10-20, fresh build after decomp lane round 7: same-TU
-  callees compiled as `static` copies with `// TU_STATIC:` and removed again
-  by the guarded `tools/decomp/tu_static.py`, MATCHING_GUIDE "Decomp lane
-  round 7"; func_001796C0, func_001899C0, func_001F6BB0, func_0021B9A0,
-  func_0021D800 byte-matched): 2240/2244 units, matched_code 99.32%
-  (99.3219); boot ELF byte-identical; 19/19 overlays; audit_link_provenance
-  shows the five as compiled_object_ordinary_c. `docs/FUNCTIONS.csv`'s status
+  Latest (2026-10-20, fresh build after decomp lane round 8: caller/callee
+  declarations reconciled and the TU-static sweep re-run, MATCHING_GUIDE
+  "Decomp lane round 8"; func_001D4B80, func_001D4C30, func_001AA840,
+  func_0012B410 and func_001BD560 byte-matched, anim_matrix_player /
+  func_0016EBA0 / func_001BAD40 bodies corrected): 2245/2249 units,
+  matched_code 99.32% (99.3248); boot ELF byte-identical; 19/19 overlays;
+  audit_link_provenance shows the five as compiled_object_ordinary_c.
+  `// TU_STATIC:` (round 7) compiles same-TU callees as `static` copies that
+  the guarded `tools/decomp/tu_static.py` removes again; the callee must be
+  compiled at the caller's `-sdatathreshold` or the guard rejects the copy.
+  `docs/FUNCTIONS.csv`'s status
   column is derived by `tools/decomp/reconcile_functions_csv.py` (rerun it
-  with `--write` after a fresh build + match stage): 1908 readable, 698
+  with `--write` after a fresh build + match stage): 1913 readable, 693
   nearmiss, 334 word, 2 c_partial (func_00140F80 / func_0014AFA0: the
   D_700038A0 literal-vs-relocation expected-object case, NEARMISS.md), no
   c_asm_fallback left. Before diagnosing a NEARMISS, rebuild its expected
   object from the normalized `.s` (build.py
-  refreshes only compiled units). Next matching targets: reconcile the
-  caller/callee declaration conflicts that kept many TU-static sweep variants
-  from compiling, then re-run the sweep (MATCHING_GUIDE round 7; func_001BD560
-  untested); the round-6 scratchpad partial gains (func_0019B6C0 /
-  func_0019A910 / func_0019A570 / func_0019AA80, func_0015FDF0,
-  func_00177030, func_001916C0); the remaining missing-argument call sites
-  (func_001BAD40, anim_matrix_player, func_001AA840, func_0016EBA0). A
-  declaration-order sweep over the 11 on-route register-choice-only
-  residuals and permuter runs of up to 15 minutes on nine of them found
-  nothing; func_001D4B80 / func_001D4C30
-  caller-saved colouring is still open.
+  refreshes only compiled units). Next matching targets: the 36 TU-static
+  variants whose calls disagree with the callee's own parameter count, mostly
+  callee definitions with too few parameters (func_001DF9D0, func_00204080,
+  func_001D8130, func_00206B00, func_00206B10) or too many (func_00213F30);
+  fixing those prototypes (each must stay objdiff 100) unblocks func_001E7570,
+  sub_pts_is_not_used, func_001D89D0, func_00206BF0, func_00214020 and others
+  (MATCHING_GUIDE round 8); the round-6 scratchpad partial gains
+  (func_0019B6C0 / func_0019A910 / func_0019A570 / func_0019AA80,
+  func_0015FDF0, func_00177030, func_001916C0). A declaration-order sweep over
+  the 11 on-route register-choice-only residuals and permuter runs of up to 15
+  minutes on nine of them found nothing.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.

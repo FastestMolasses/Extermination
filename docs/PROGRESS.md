@@ -1,3 +1,33 @@
+## 2026-10-20 — declaration reconciliation and argument fixes (decomp lane round 8): 5 byte-matched
+
+- The round-7 TU-static sweep was re-run with the caller/callee declaration
+  conflicts resolved for the measurement (only file-scope declarations of the
+  callee removed, call arguments cast to the callee's integer/pointer parameter
+  types, colliding names, typedefs and struct tags renamed per included callee).
+  Failing variants fell from 167 to 84 (MATCHING_GUIDE "Decomp lane round 8").
+- Byte-matched with mwcc 2.3.3 (objdiff 100, tu_static.py guard passed, linked as
+  compiled_object_ordinary_c): func_001D4B80 and func_001D4C30 (95.39;
+  `// TU_STATIC: func_001D4A90`), func_001AA840 (84.27; func_001AA7A0(arg0, e)
+  plus TU static), func_0012B410 (99.09; one-argument func_00128640 plus TU
+  static func_00128390) and func_001BD560 (99.08; one-argument mover polls plus
+  TU statics func_001BD270 / func_001BD460, at -sdatathreshold 8 with its
+  0x0081xxxx bytes declared as arrays). The first four are on the first-level /
+  AREA01 / AREA00 census lists. Callee declarations reconciled, all still
+  objdiff 100: func_001D4A90's VifLists gains the ref / frame fields,
+  func_001BD270 and func_001BD460 declare `char **D_00275B40`.
+- Body corrections from the original instructions (FINDINGS "Decomp C argument
+  corrections"): anim_matrix_player 82.85 -> 98.09 (func_0017B490 gets self
+  first, anim_clip_arbiter's blend/position are floats, func_001C61D0 returns an
+  int, +0x3C is re-read), func_0016EBA0 93.89 -> 99.13
+  (func_00179880(self, self + 0x2EC), func_001B0B50(), D_70003A20, idiom-27),
+  func_001BAD40 91.09 -> 91.26 (func_001C6120(table, msg), func_001C5C90(obj)).
+  These were the four "missing-argument call sites" left by round 5
+  (func_001AA840 is the fourth, now matched).
+- Fresh build + verify_all: all six stages pass, 2245/2249 units (was
+  2240/2244), matched_code 99.32% (99.3248), boot ELF byte-identical, 19/19
+  overlays. FUNCTIONS.csv reconciled (5 nearmiss -> readable: 1913 readable,
+  693 nearmiss, 334 word, 2 c_partial).
+
 ## 2026-10-20 — same-TU static callees (`// TU_STATIC:`, decomp lane round 7): 5 byte-matched
 
 - The "same-TU callee register knowledge" class (MATCHING_GUIDE) is cracked:
@@ -575,7 +605,7 @@ from casts, float truthiness, the `T[i] & (1U << n)` bit test, chained
 assignment, uncached volatile pointers, separate loop counters, and
 `(p + K)[j]`. The same section lists the classes still open:
 - callee register knowledge within one translation unit: func_001BD560,
-  func_0021B9A0;
+  func_0021B9A0 (both since byte-matched with `// TU_STATIC:`, rounds 7 and 8);
 - the merged split symbol func_001B99F0;
 - the target materializing a constant argument first: func_0018BC20,
   func_001916C0, func_00128C10.
