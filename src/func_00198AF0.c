@@ -1,40 +1,22 @@
-// NEARMISS func_00198AF0  (vram 0x00198AF0, 0x1F0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.68% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring + delay-slot scheduling near-miss (identical 94.68% on both builds). Body, the 4-way state dispatch and all field writes are exact. Residual: the dispatch constant 3 colors to a2 instead of v1; mwcc speculatively duplicates `state+1` into the case-0 beqz delay slot (extra addiu)...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), decomp2 lane round 3 (was a 94.68% NEARMISS).
+// Camera action 14 (player code 0x28), state byte cam + 1:
+//   0: advance, clear +2, fall into 1.
+//   1: unless the player code (+0x230) is 0x28 go to state 3; else
+//      func_00198930(cam, player) and advance when player + 0x1F1 == 1.
+//   2: go to state 3 when the code is not 0x28 or player + 0x1F1 == 2.
+//   3: rebuild the eye / target (D_70003B50, the player position, the matrix
+//      D_70003400 and the offset {0, 0, -15, 1} at D_70003600), copy them to
+//      D_008105E0 / D_008105D0, clear +6, set +1 to 3 (cam + 5 == 0) or 0, and
+//      clear +2 / +3 / +8.
+// Body correction from the original instructions: state 2's test is
+// `code != 0x28 || flag == 2` (the old C had `code == 0x28 && flag == 2`); the
+// port's em_camera_aim.c already follows the instructions there. Also: every
+// case ends in `break` (idiom-27), the advance stores through an unsigned char,
+// and the accumulates are `+=` (idiom-21).
 
-//
-// NEARMISS 94.7% (identical on pinned 991202 and mwcc 2.3.3). Body, the 4-way
-// state dispatch, and all field writes are fully recovered; residual is pure
-// register coloring + delay-slot/branch scheduling, not a logic gap.
-//
-// State machine for entity arg0 driven by source object arg1. Dispatches on the
-// state byte arg0+1 (0..3), default = no-op return.
-//   state 0: advance state (arg0+1 = state+1), clear arg0+2, fall into state 1.
-//   state 1: if arg1+0x230 != 0x28 force state 3 and return; else run
-//            func_00198930(arg0, arg1) and, if arg1+0x1F1 == 1, bump arg0+1.
-//   state 2: if arg1+0x230 == 0x28 and arg1+0x1F1 == 2, force state 3.
-//   state 3: reset transform scratch (arg0+0x30 from D_70003B50 identity; arg0+0x20
-//            from arg1+0xA0), set arg0+0x24 = arg1[0xB4] + arg0[0x8C], build a
-//            matrix (func_001029C0/func_00102C58), seed global vec 0x70003600 =
-//            (0,0,-15.0f,1.0f), advance arg0+0x10.. by func_001026A0, then add the
-//            +0x20.. deltas back into +0x10.. (with the +0x5C bias on Y), publish
-//            both transforms (func_00102948 into D_008105E0/D_008105D0), clear
-//            arg0+6, then arg0+1 = (arg0[5]==0 ? 3 : 0), clear arg0+2/+3 and
-//            the short at arg0+8.
-//
-// Wall (not the clean-store nop): the dispatch constant 3 colors to a2 not v1,
-// mwcc duplicates `state+1` into the case-0 branch delay slot, and the two simple
-// `dst += src` float adds schedule their loads in the opposite order from the
-// target. All register-coloring / scheduling permutation; logic is exact.
 extern void func_001026A0(char *, void *, void *);
 extern void func_00102948(void *, void *);
 extern void func_001029C0(void *);
@@ -58,18 +40,18 @@ void func_00198AF0(char *arg0, char *arg1) {
     case 1:
         if (*(int *)(arg1 + 0x230) != 0x28) {
             *(char *)(arg0 + 1) = 3;
-            return;
+            break;
         }
         func_00198930(arg0, arg1);
         if (*(unsigned char *)(arg1 + 0x1F1) == 1) {
-            *(char *)(arg0 + 1) = *(unsigned char *)(arg0 + 1) + 1;
+            *(unsigned char *)(arg0 + 1) = *(unsigned char *)(arg0 + 1) + 1;
         }
-        return;
+        break;
     case 2:
-        if (*(int *)(arg1 + 0x230) == 0x28 && *(unsigned char *)(arg1 + 0x1F1) == 2) {
+        if (*(int *)(arg1 + 0x230) != 0x28 || *(unsigned char *)(arg1 + 0x1F1) == 2) {
             *(char *)(arg0 + 1) = 3;
         }
-        return;
+        break;
     case 3:
         func_00102948(arg0 + 0x30, &D_70003B50);
         func_00102948(arg0 + 0x20, arg1 + 0xA0);
@@ -81,9 +63,9 @@ void func_00198AF0(char *arg0, char *arg1) {
         *(int *)0x70003608 = 0xC1700000;
         *(int *)0x7000360C = 0x3F800000;
         func_001026A0(arg0 + 0x10, &D_70003400, &D_70003600);
-        *(float *)(arg0 + 0x10) = *(float *)(arg0 + 0x20) + *(float *)(arg0 + 0x10);
+        *(float *)(arg0 + 0x10) += *(float *)(arg0 + 0x20);
         *(float *)(arg0 + 0x14) = *(float *)(arg0 + 0x14) + (*(float *)(arg0 + 0x24) + *(float *)(arg0 + 0x5C));
-        *(float *)(arg0 + 0x18) = *(float *)(arg0 + 0x28) + *(float *)(arg0 + 0x18);
+        *(float *)(arg0 + 0x18) += *(float *)(arg0 + 0x28);
         func_00102948(&D_008105E0, arg0 + 0x20);
         func_00102948(&D_008105D0, arg0 + 0x10);
         *(char *)(arg0 + 6) = 0;

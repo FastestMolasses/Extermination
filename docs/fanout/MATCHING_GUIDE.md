@@ -1465,3 +1465,70 @@ the ring, mwcc 2.4 and 991202 tried).
 Re-measured with the fixed prototypes, no further gain: func_001D89D0,
 func_00206BF0, sub_pts_is_not_used and sub_sceMpegGetPicture_decode_error (the
 TU statics compile now but leave the score unchanged or lower).
+
+
+### Decomp2 lane round 3: argument registers per call, the camera-aim actions and the sight switch — 2026-10-21
+
+Every on-route mwcc NEARMISS file (299 of the 371 on the four census lists
+compile with an mwcc build) was compiled and compared with the target call by
+call: the argument registers written in the block before each `jal` and in
+its delay slot, integer and float classes separately (`mtc1`'s destination is
+its second operand). 108 files differ somewhere. Many differences are only
+temporaries reused across a call, so each one was read in the target before
+anything changed. The real ones:
+
+- **A call that passes fewer arguments than the callee reads.** The target sets
+  only `$a2` before func_00198440 and func_00197490 and leaves the caller's own
+  incoming arguments in `$a0` / `$a1`; the C passed only the constant
+  (func_00197490 -> func_00198440(cam, player, 1); func_00197D20 ->
+  func_00197490(cam, player, 1)). Compare with round 5's lever "a call with no
+  argument setup passes the caller's own `a0`": the same applies to `$a1`.
+- **A float argument nobody reads.** func_001999C0 sets `$f12 = 1.0` before
+  every sight call; none of the six sight setup callees (func_001DB830,
+  sub_SPECIAL_PURPOSE_MISSILE_LAUNCHER, func_001DC610, sub_DELTA_AUTO_SIGHT_SYS,
+  sub_TACTICAL_ADVANCED, sub_NIGHT_VISION_SYSTEM) reads `$f12` before writing
+  it (func_001DB9D0 does read it, as its dt). The prototypes had a float parameter (now in the callee definitions,
+  still objdiff 100). Likewise func_001DB800 gets a different `$a0` in each of
+  its six call sites and reads none: an int parameter. The old header called
+  these "dead constants".
+- **A compare constant is not an argument.** func_001DB9D0 is (int, float);
+  the 2 the old C passed was the D_00810CA4 compare constant still in `$a1`.
+- **Read the branch targets, not only the call setup.** func_001999C0's
+  D_00810CA4 arms branch past the D_00810CA5 test straight to the return
+  (the old C ran the test for every arm), and func_00197490's cases 0xC / 0x29
+  branch to the epilogue past the +2 / +3 / +8 clears. In both, the old
+  objdiff residual looked like a few delay slots; the exits were wrong.
+
+With the calls right, the rest of this family matched with known spellings:
+`break` for every `return` in a trailing switch (idiom-27), `x += y` where
+the target adds the loaded value first (idiom-21), and the twin's spelling of
+a shared block (func_001B6BF0's quaternion as func_001B7B30's
+`volatile float` stores).
+
+Byte-matched (mwcc 2.3.3, compiled_object_ordinary_c; all first-level census):
+
+- **func_001999C0** (83.20): the sight switch above.
+- **func_00197490** (91.04): the call and exit fixes above, int flag arg2,
+  func_00102948 with two pointers (the third arguments were the next call's
+  `$a2`), cases 0x2A / 0xD merged, two `+=`.
+- **func_00198AF0** (94.68): state 2 tests `code != 0x28 || flag == 2` (the
+  old C had `==` and `&&`); `break`, `+=`, an unsigned char advance.
+- **func_00198650** (94.17), **func_00198D90** (98.82): func_00102948 with two
+  pointers, `break`, `+=`.
+- **func_001D1AE0** (83.62): func_001CBA40 is empty and takes nothing.
+- **func_001B6BF0** (92.44): func_001B0250(), the quaternion in the twin's
+  spelling, `break` to a shared `return 0`.
+- **func_00183910** (94.58): func_00179880(self, self + 0x2EC), as round 8
+  found for func_0016EBA0.
+
+Body corrected, still NEARMISS: func_00197D20 89.28 -> 96.36 (state 3's
+func_00197490 call; `break`; inner labels 41, 12 / default / 42, 13; the
+0x70003A24 re-read) and func_00198F10 91.95 -> 96.28 (D_70003600 extern,
+`+=`, `break`). Tried without gain: func_00198440 (all six orders of its three
+float locals), func_00197870, func_00198050, func_00199C50, func_00199DB0,
+func_00199FA0 (the `break` / `+=` pack; func_00199FA0 also with early
+returns).
+
+The port's em_camera_aim.c already follows the instructions at every point
+where these bodies were wrong (its header lists them), which agrees with the
+corrections.

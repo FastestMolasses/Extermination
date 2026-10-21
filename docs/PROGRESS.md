@@ -1,3 +1,30 @@
+## 2026-10-21 — argument registers per call on the first-level NEARMISS set (decomp2 lane round 3): 8 byte-matched, 3 bodies corrected
+
+- Every on-route mwcc NEARMISS file was compiled and its calls compared with the
+  target's argument registers, integer and float classes separately; each
+  difference was read in the target before a change (MATCHING_GUIDE "Decomp2
+  lane round 3", FINDINGS "Camera aim actions and the sight switch").
+- Byte-matched with mwcc 2.3.3 (objdiff 100, compiled_object_ordinary_c, all
+  first-level census): func_001999C0 (83.20), func_00197490 (91.04),
+  func_00198AF0 (94.68), func_00198650 (94.17), func_00198D90 (98.82),
+  func_001D1AE0 (83.62), func_001B6BF0 (92.44), func_00183910 (94.58).
+- Bodies that were wrong (now fixed): func_001999C0's D_00810CA4 arms return
+  before the D_00810CA5 == 6 hook; func_00197490's cases 0xC / 0x29 return
+  without clearing +2 / +3 / +8 and call func_00198440(cam, player, 1);
+  func_00198AF0's state 2 goes to state 3 when the code is not 0x28 or
+  +0x1F1 == 2. The port's em_camera_aim.c already follows the instructions
+  at all three points.
+- Callee definitions now take what the original passes (still objdiff 100):
+  func_001DB800(int), and an unused float on func_001DB830,
+  sub_SPECIAL_PURPOSE_MISSILE_LAUNCHER, func_001DC610,
+  sub_DELTA_AUTO_SIGHT_SYS, sub_TACTICAL_ADVANCED, sub_NIGHT_VISION_SYSTEM.
+- Still NEARMISS, closer: func_00197D20 89.28 -> 96.36 (state 3 calls
+  func_00197490(cam, player, 1)), func_00198F10 91.95 -> 96.28.
+- Fresh build + verify_all: all six stages pass, 2255/2259 units (was
+  2247/2251), matched_code 99.33%, boot ELF byte-identical, 19/19 overlays.
+  FUNCTIONS.csv reconciled (8 nearmiss -> readable: 1923 readable,
+  683 nearmiss, 334 word, 2 c_partial).
+
 ## 2026-10-20 — callee prototypes from the original (decomp2 lane round 1): 2 byte-matched, 1 body corrected
 
 - Round 8's failing TU-static variants pointed at callee definitions that take

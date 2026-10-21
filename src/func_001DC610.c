@@ -27,7 +27,10 @@ extern void func_00207F80(int a, int b, int c, int d, int e, int f);
 extern void func_001CBA50(int a, int b, int c, int d, int e, void *f, void *g);
 extern void func_002081A0(int a, void *b, int c, int d, int e);
 
-void func_001DC610(int arg0) {
+// The float parameter (decomp2 lane round 3) is never read: the only caller,
+// func_001999C0, passes 1.0f in $f12 to every sight function, so the original
+// prototype had it.
+void func_001DC610(int arg0, float scale) {
     Buf b0, b1, b2, b3;
     Hdr hdr;
 

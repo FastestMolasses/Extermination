@@ -18,7 +18,10 @@ extern void func_001DCD40(int a, int b, float c);
 extern void func_00207F80(int a, int b, int c, int d, int e, int f);
 extern void func_001CBA50(int a, int b, int c, int d, int e, void *f, void *g);
 
-void sub_SPECIAL_PURPOSE_MISSILE_LAUNCHER(int arg0) {
+// The float parameter (decomp2 lane round 3) is never read: the only caller,
+// func_001999C0, passes 1.0f in $f12 to every sight function, so the original
+// prototype had it.
+void sub_SPECIAL_PURPOSE_MISSILE_LAUNCHER(int arg0, float scale) {
     Hdr hdr;
 
     func_001DCD40(arg0, 0x8091CDFF, 1.0f);

@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-20 (Claude: decomp2 lane round 1, callee prototypes fixed from the original: func_00214020 and func_001E7570 byte-matched, func_002044F0's body corrected, gate below; decomp lane round 8, declaration reconciliation and call-argument fixes: 5 byte-matched, 3 NEARMISS bodies corrected, gate below; round 7: same-TU static callees via `// TU_STATIC:`, 5 byte-matched; round 6: idiom-32 swept per address on the on-route NEARMISS set, 10 byte-matched; round 5: call-site checks, 3 byte-matched, 16 NEARMISS improved; round 4: 12 DMA-list functions byte-matched; the cut-content and character census branch and the func_001BA8E0 / func_001BA580 matches reviewed and merged; 2026-10-19: Codex's `levels` branch reviewed and merged into port main 789b4b4, and the levels 2-4 state toward the drawbridge, below; earlier: the lossless comparison master demo_level_1019 and the comparison-only IOP tick phase, below; the Discord video re-run demo_level_1018; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-21 (Claude: decomp2 lane round 3, argument registers compared per call on the first-level NEARMISS set: 8 byte-matched including the camera-aim actions and the sight switch func_001999C0, three wrong bodies corrected, gate below; decomp2 lane round 1, callee prototypes fixed from the original: func_00214020 and func_001E7570 byte-matched, func_002044F0's body corrected, gate below; decomp lane round 8, declaration reconciliation and call-argument fixes: 5 byte-matched, 3 NEARMISS bodies corrected, gate below; round 7: same-TU static callees via `// TU_STATIC:`, 5 byte-matched; round 6: idiom-32 swept per address on the on-route NEARMISS set, 10 byte-matched; round 5: call-site checks, 3 byte-matched, 16 NEARMISS improved; round 4: 12 DMA-list functions byte-matched; the cut-content and character census branch and the func_001BA8E0 / func_001BA580 matches reviewed and merged; 2026-10-19: Codex's `levels` branch reviewed and merged into port main 789b4b4, and the levels 2-4 state toward the drawbridge, below; earlier: the lossless comparison master demo_level_1019 and the comparison-only IOP tick phase, below; the Discord video re-run demo_level_1018; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -52,7 +52,18 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (2026-10-20, fresh build after decomp2 lane round 1: callee
+  Latest (2026-10-21, fresh build after decomp2 lane round 3, MATCHING_GUIDE
+  "Decomp2 lane round 3": func_001999C0, func_00197490, func_00198AF0,
+  func_00198650, func_00198D90, func_001D1AE0, func_001B6BF0, func_00183910
+  byte-matched; func_001999C0 / func_00197490 / func_00198AF0 bodies were
+  wrong and are fixed): 2255/2259 units, matched_code 99.33%; boot ELF
+  byte-identical; 19/19 overlays; all eight compiled_object_ordinary_c.
+  FUNCTIONS.csv: 1923 readable, 683 nearmiss. Next: the remaining call
+  differences of that comparison (build/decomp2-r3-diff/bulk.json,
+  108 files; most are temporaries, check each in the target), the camera
+  family's func_00198440 / func_00197870 / func_00198050 / func_00199C50 /
+  func_00199DB0 / func_00199FA0 (the `break` / `+=` pack gave nothing).
+  Before it (2026-10-20, fresh build after decomp2 lane round 1: callee
   prototypes fixed from the original, MATCHING_GUIDE "Decomp2 lane round 1";
   func_00214020 and func_001E7570 byte-matched, func_002044F0 body
   corrected): 2247/2251 units, matched_code 99.33% (99.3266); boot ELF

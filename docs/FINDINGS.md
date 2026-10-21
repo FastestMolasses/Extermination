@@ -17513,3 +17513,32 @@ unchanged; what changed is what the readable C says each one takes.
   extra transfer is queued at index (head + count - 1) % size with mode 3 and
   s0's tag is recomposed; then n transfers from (head + count) % size, the
   last with mode 0, and count += n.
+
+## Camera aim actions and the sight switch (2026-10-21, decomp2 lane round 3)
+
+Read from the original instructions at each call and exit branch
+(MATCHING_GUIDE "Decomp2 lane round 3"); every function named here except
+func_00197D20 / func_00198F10 is now byte-matched C. The port's
+`em_camera_aim.c` already follows the instructions at each point below.
+
+- func_001999C0 (sight switch, arg0 player, arg1 flag): the D_00810CA4 arms
+  (2, 1, 0) return 0 directly; only the D_00810CA7 arms (8, 9, other) reach
+  the D_00810CA5 == 6 call of func_0022E7F0(&D_008102B0). The 9 arm's clear
+  path ends with func_001D2830(1, 0). Every sight function it calls gets
+  1.0f in `$f12`. Six of them (func_001DB830,
+  sub_SPECIAL_PURPOSE_MISSILE_LAUNCHER, func_001DC610,
+  sub_DELTA_AUTO_SIGHT_SYS, sub_TACTICAL_ADVANCED, sub_NIGHT_VISION_SYSTEM)
+  never read `$f12`; their definitions take it as an unused float.
+  func_001DB9D0(int, float) does read it: the 1.0f is its float argument
+  (`dt` in its C, used in its first computation). func_001DB800 (four byte
+  clears) gets 5, 4, 3, 1, 2 or 0 in `$a0` by arm, which it never reads.
+- func_00197490 (camera release, arg2 an int flag): player codes 0xC and 0x29
+  set +6 = 2, +1 = 2, call func_00198440(cam, player, 1) (0xC also
+  func_001912B0(player)) and return without clearing +2 / +3 / +8; 0x2A and
+  0xD share one body.
+- func_00197D20 state 3 calls func_00197490(cam, player, 1).
+- func_00198AF0 (camera action 14) state 2 goes to state 3 when the player
+  code is not 0x28 or player + 0x1F1 == 2 (the old C required both code 0x28
+  and flag 2).
+- func_00102948 takes two pointers at every call in this family; the extra
+  constants the old C passed were the next call's `$a2`.

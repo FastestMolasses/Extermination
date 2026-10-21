@@ -11,7 +11,10 @@ extern Qword D_00253240;
 extern void func_001D1F80(int, int, int);
 extern void func_001D64A0(int, int *, int *, Qword *, int);
 
-void func_001DB830(int a0, int a1) {
+// The float parameter (decomp2 lane round 3) is never read: the only caller,
+// func_001999C0, passes 1.0f in $f12 to every sight function, so the original
+// prototype had it.
+void func_001DB830(int a0, int a1, float scale) {
     int g0[4];
     int g1[4];
     Qword q;

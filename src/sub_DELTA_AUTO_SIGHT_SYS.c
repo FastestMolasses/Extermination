@@ -18,7 +18,10 @@ extern void func_001DCFF0(int a, int b, float c);
 extern void func_00207F80(int a, int b, int c, int d, int e, int f);
 extern void func_001CBA50(int a, int b, int c, int d, int e, void *f, void *g);
 
-void sub_DELTA_AUTO_SIGHT_SYS(int arg0) {
+// The float parameter (decomp2 lane round 3) is never read: the only caller,
+// func_001999C0, passes 1.0f in $f12 to every sight function, so the original
+// prototype had it.
+void sub_DELTA_AUTO_SIGHT_SYS(int arg0, float scale) {
     Hdr hdr;
 
     func_001DCFF0(arg0, 0x801996FF, 1.0f);

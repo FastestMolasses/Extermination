@@ -22,7 +22,10 @@ extern void func_001DCD40(int a0, int a1, float f);
 extern void func_001DCF40(int a0, int a1, float f);
 extern void func_001CBA50(int a0, int a1, int a2, int a3, int t0, void *t1, void *t2);
 
-void sub_NIGHT_VISION_SYSTEM(int arg0) {
+// The float parameter (decomp2 lane round 3) is never read: the only caller,
+// func_001999C0, passes 1.0f in $f12 to every sight function, so the original
+// prototype had it.
+void sub_NIGHT_VISION_SYSTEM(int arg0, float scale) {
     Col c;
     func_001DCD40(arg0, 0x80B9E1A5, 1.0f);
     func_001DCF40(arg0, 0x80B9E1A5, 1.0f);
