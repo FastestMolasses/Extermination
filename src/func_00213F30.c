@@ -5,16 +5,25 @@
 //
 // Clears the count byte at arg0+0x18, then maps the state byte at arg0+0x12 to
 // an id range [lo,hi): {0:[0,0x20), 1:[0x20,0x32), 2:[0x32,0x48),
-// 3:[0x48,0x5D), 4:[0x5D,0x6D)}; any other state keeps the caller-supplied
-// lo/hi. For each id i in the range it appends one byte to the list at
+// 3:[0x48,0x5D), 4:[0x5D,0x6D)}; any other state leaves lo/hi
+// uninitialized (see below). For each id i in the range it appends one byte
+// to the list at
 // arg0+0x50, indexed by the count at arg0+0x18 (post-incremented in place):
 // the id itself when the unlock/gate table entry D_00810700[i + 0x5C3] is set,
 // otherwise the sentinel 0x6D ("locked"/blank slot). Finally zeroes the
 // selection cursor at arg0+0x19.
+//
+// One parameter: every caller passes only the widget (func_00214020). For a
+// state byte above 4 the switch assigns neither bound, so lo/hi are read
+// uninitialized (in the original they are whatever $a3/$t0 hold). Declaring
+// them as uninitialized locals, in this order, gives that register choice and
+// the same bytes (decomp2 lane round 1; the old C took them as parameters 4/5).
 extern unsigned char D_00810700[];
 
-void func_00213F30(char *arg0, int a1u, int a2u, int lo, int hi) {
+void func_00213F30(char *arg0) {
     int i;
+    int lo;
+    int hi;
 
     *(unsigned char *)(arg0 + 0x18) = 0;
     switch (*(unsigned char *)(arg0 + 0x12)) {

@@ -1407,3 +1407,61 @@ func_001D89D0, func_00206BF0, func_00214020, sub_sceMpegGetPicture_decode_error,
 func_002044F0 and others for the TU-static measurement. The remaining 16
 redeclaration and 15 conversion failures are struct-typed or float/int
 mismatches the automatic casts leave alone.
+
+
+### Decomp2 lane round 1: callee prototypes from the original, then the TU-static sweep — 2026-10-20
+
+The callee definitions that round 8's failing variants pointed at were fixed to
+take what the original passes. Each stays objdiff 100 (the bytes are unchanged)
+and now agrees with its callers:
+
+- func_00204080 / func_00204090 (empty leaves): one pointer, never read. Every
+  caller sets `$a0` to a message (D_00273450, D_00273470, D_00273490,
+  D_002734A0, D_002734C0, D_002734E0) before the call: a compiled-out debug
+  print, not a `(void)` function.
+- func_001DF9D0(float amp): the caller's float in `$f12` is passed on to
+  func_001DF600's fourth (float) parameter, the pass-through already recorded
+  for its sibling func_001DF5A0 -> func_001DF180.
+- func_001D8130(int flag, int p): called like its sibling stages
+  func_001D8340 / func_001D8690 with the 0x20 flag and the record pointer
+  (byte-matched func_001D88B0 sets both); this stage reads neither.
+- func_00206B00 / func_00206B10 (thunks): forward `$a1..$t0` / `$a1`
+  untouched to func_00204390 (ring, four out-pointers, read in its prologue)
+  and func_00204490 (ring, count).
+- func_00213F30(char *arg0): one parameter. For a state byte above 4 its switch
+  assigns neither bound; uninitialized locals `int lo; int hi;` declared after
+  `i` give the original's `$a3` / `$t0` and the same bytes. Round 8 had read
+  them as parameters 4 and 5 that no caller passes. (The port's
+  em_area01_ui_00213F30 already treats them as unknown registers.)
+- func_00213A00 declares func_00207E40's last parameter `unsigned long long`
+  like the definition (it said `long long`, which conflicts inside one TU).
+
+Byte-matched (mwcc 2.3.3, compiled_object_ordinary_c):
+
+- **func_00214020** (98.68; the port's AREA01 status page 3):
+  `// TU_STATIC: func_00213A00 func_00213C50 func_00213F30` (func_002134C0 is
+  compiled at `-sdatathreshold 8`, so its static copy fails the guard and is
+  left out; the other callees made no difference), plus three spellings found
+  against the target: the list scan reads `s0 + 0x50 + i`, the cursor pick is
+  `(unsigned char)s0[func_0020BEF0(s0) + 0x50]` (the spelling of
+  func_00218D90's same pick), case 3 clears D_008106B0 before it stores the
+  state, and case 4 declares `count` before `tbl`.
+- **func_001E7570** (98.11): written in the spelling of its matched twin
+  func_001E7440 (store the eased value, re-read it for the test, `nx = -x` as
+  a local, `break` out of case 1). Its "FP register wall" was the old
+  spelling. **Lever: when a NEARMISS has a byte-matched structural twin, copy
+  the twin's C and change only the constants before trying anything else.**
+
+Body corrected (NEARMISS 92.40 -> 99.46): **func_002044F0**. func_002041A0 is
+`void (unsigned long long *out, a, b, c)`; the old C used its "return value"
+as the transfer count. The count is n = arg0[5] >> 11, which the original keeps
+in `$v0` across both calls because func_002041A0 is a same-TU leaf
+(`// TU_STATIC: func_002041A0`); the loop index / cursor stay in `$t1` / `$t0`
+and the frame is 0x40. The old header's "whole-function register allocation"
+residual was this. Left: register choice of three load pairs in the index
+arithmetic (2500 declaration orders, 162 argument spellings, a struct form of
+the ring, mwcc 2.4 and 991202 tried).
+
+Re-measured with the fixed prototypes, no further gain: func_001D89D0,
+func_00206BF0, sub_pts_is_not_used and sub_sceMpegGetPicture_decode_error (the
+TU statics compile now but leave the score unchanged or lower).

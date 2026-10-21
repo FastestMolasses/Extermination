@@ -19,9 +19,9 @@
 // func_00207150(tag(v2C), v38, tag(v30), v3C, &v34, 4, 0, 0); feeds its result
 // into func_00206B10(D_002DF740, r); calls func_00204B80(a0+0x48); then
 // if (*(int*)(a0+0xA8)==0) *(int*)(a0+0xA8)=2; returns 1.
-extern int func_00206B00(void *a0, int *a1, int *a2, int *a3, int *a4);
+extern void func_00206B00(char *a0, int *a1, int *a2, int *a3, int *a4);
 extern int func_00207150();
-extern int func_00206B10();
+extern void func_00206B10(char *p, int n);
 extern void func_00204B80(void *a0);
 
 extern int D_00275850;
@@ -32,7 +32,7 @@ int func_00206BF0(unsigned char *a0) {
     int r;
 
     v34 = D_00275850;
-    func_00206B00(a0, &v2C, &v38, &v30, &v3C);
+    func_00206B00((char *)a0, &v2C, &v38, &v30, &v3C);
     if (v38 + v3C < 4) {
         return 0;
     }

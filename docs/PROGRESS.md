@@ -1,3 +1,27 @@
+## 2026-10-20 — callee prototypes from the original (decomp2 lane round 1): 2 byte-matched, 1 body corrected
+
+- Round 8's failing TU-static variants pointed at callee definitions that take
+  less than the original passes. Fixed from the original instructions, each
+  still objdiff 100: func_00204080 / func_00204090 (one message pointer, never
+  read), func_001DF9D0(float) (passed on to func_001DF600), func_001D8130(flag,
+  p) (unused, like its sibling stages), the thunks func_00206B00 (five
+  arguments) / func_00206B10 (two), func_00213F30 (one parameter; its bounds
+  for a category above 4 are uninitialized locals) and func_00213A00's
+  declaration of func_00207E40 (MATCHING_GUIDE "Decomp2 lane round 1",
+  FINDINGS "Decomp C prototype and body corrections").
+- Byte-matched with mwcc 2.3.3 (objdiff 100, compiled_object_ordinary_c):
+  func_00214020 (98.68, AREA01 census; `// TU_STATIC: func_00213A00
+  func_00213C50 func_00213F30` plus three operand-order spellings) and
+  func_001E7570 (98.11, first-level census; written like its matched twin
+  func_001E7440).
+- Body corrected: func_002044F0 (first-level census) 92.40 -> 99.46. The old C
+  used the "return value" of the void func_002041A0 as the transfer count; the
+  count is ring[5] >> 11, kept in `$v0` across the same-TU leaf call.
+- Fresh build + verify_all: all six stages pass, 2247/2251 units (was
+  2245/2249), matched_code 99.33% (99.3266), boot ELF byte-identical, 19/19
+  overlays. FUNCTIONS.csv reconciled (2 nearmiss -> readable: 1915 readable,
+  691 nearmiss, 334 word, 2 c_partial).
+
 ## 2026-10-20 — declaration reconciliation and argument fixes (decomp lane round 8): 5 byte-matched
 
 - The round-7 TU-static sweep was re-run with the caller/callee declaration

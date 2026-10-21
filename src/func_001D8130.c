@@ -5,11 +5,15 @@
 // float 0x43000000 (128.0) at 0x12C. The dest global pointer is re-read on each
 // store (it lives in sdata, gp-relative). mwcc 2.3.3 reproduces the exact
 // instruction scheduling that the 991202 build does not (97.5%).
+// Like its sibling stages func_001D8340 / func_001D8690 it is called with the
+// 0x20 flag and the record pointer (func_001D88B0 passes (0x20, arg0),
+// func_001D89D0 (flag & 0x20, arg0 + 0xB0)); this stage reads neither. The
+// old C declared it (void) (decomp2 lane round 1; same bytes).
 extern char *func_001D7B30(void);
 extern char *D_00275688;
 extern char D_00817BC0[];
 
-void func_001D8130(void) {
+void func_001D8130(int flag, int p) {
     char *src;
 
     D_00275688 = D_00817BC0;

@@ -96,6 +96,14 @@ parameter slot (func_001AA840). A TU-static variant that fails to compile becaus
 callee disagree on a call is a pointer to such a bug: read the target's argument registers at that
 call before changing either declaration.
 
+**Prototype fixes, a structural twin and the TU-static sweep (decomp2 lane round 1, 2026-10-20).**
+func_00214020 and func_001E7570 left the registry as byte-matches and func_002044F0 has a corrected
+body (MATCHING_GUIDE "Decomp2 lane round 1"). func_001E7570's "FP register wall" was its spelling:
+written like its matched twin func_001E7440 it matches. func_002044F0's "whole-function register
+allocation" residual was a wrong body (a void callee's "result" used as the loop count) plus the
+same-TU leaf func_002041A0. Before recording a colouring wall, check for a byte-matched twin and
+for a callee whose own C disagrees with the call.
+
 ## Registry
 
 | Function | vram | bytes | objdiff % | compiler | divergence (compiler artifact) |
@@ -302,7 +310,6 @@ call before changing either declaration.
 | func_001D9070 | 0x001D9070 | 0x124 | 96.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Pure register-coloring permutation (FPR + GPR). After splitting the inner loop into two pa |
 | func_0022A460 | 0x0022A460 | 0x124 | 82.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring + scheduling permutation on a recovered nested state-machine switch. Rew |
 | func_00181F60 | 0x00181F60 | 0x128 | 94.46% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two compiler artifacts: (1) instruction scheduling -- mwcc 2.3.3 emits the call to func_0019A570 b... |
-| func_001E7570 | 0x001E7570 | 0x128 | 98.11% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Permuter-class FP register coloring: float temp `v` and the 0.2/0.05/0.015 literal scratch |
 | func_00203D30 | 0x00203D30 | 0x128 | 78.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Permuter-class regalloc / frame-size: target keeps 5 callee-saved regs (s0-s4 = arg1/arg2/ |
 | func_001BBBF0 | 0x001BBBF0 | 0x12C | 84.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | instruction-scheduling permutation: original CW 2.3.1 schedules the absolute-address minue |
 | func_001D1AE0 | 0x001D1AE0 | 0x130 | 83.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | List-scheduler / register-allocation artifact (permuter territory). Body and logic fully r |
@@ -385,7 +392,7 @@ call before changing either declaration.
 | func_0012ADC0 | 0x0012ADC0 | 0x1FC | 84.17% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | BODY CORRECTED 2026-09-27 against the original instructions (see FINDINGS "NEARMISS body corrections from the AREA01 wave-2 lanes"). Earlier diagnosis, partly superseded: List-scheduling + param-save-order artifact across a large global-store block. The control |
 | func_001FC7B0 | 0x001FC7B0 | 0x200 | 61.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Whole-function register-allocation ORDER on a recursive text-wrap parser: structure, branc |
 | func_00198440 | 0x00198440 | 0x204 | 96.67% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-coloring + scheduling near-miss. Body byte-identical after fixing the float const (0.4f |
-| func_002044F0 | 0x002044F0 | 0x204 | 92.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation near-miss. Logic fully recovered & body byte-identical (fixed the 64-b |
+| func_002044F0 | 0x002044F0 | 0x204 | 99.46% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected (decomp2 lane round 1): func_002041A0 is void, n = arg0[5] >> 11 is the loo |
 | func_00147390 | 0x00147390 | 0x210 | 95.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Outer mode-switch dispatch lowering: the target tests the mode byte in DESCENDING order (b |
 | vif_build_unpack_const | 0x001D4750 | 0x210 | 93.42% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual regions, both compiler artifacts (not the clean-store nop). (1) GS/DMA packet |
 | func_0013EB90 | 0x0013EB90 | 0x214 | 92.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation (NOT clean-store delay-slot nop). Logic + struc |
@@ -574,7 +581,6 @@ call before changing either declaration.
 | func_00187780 | 0x00187780 | 0x53C | 90.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | s87: register coloring only (arg2 in $s5 vs $s0 shifts the saved GPRs; three FP temps colored f21/f22/f23 vs f22/f23/f21) plus a few scheduling slots. The old "dead 64-bit constant" and "frame too small" walls were source bugs (missing $t0 arg to func_00187690; spE0 is one 4x4 matrix) |
 | func_00199220 | 0x00199220 | 0x544 | 87.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP+GPR register-coloring permutation (documented wall class) |
 | func_001D0720 | 0x001D0720 | 0x548 | 97.28% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected unknown-state talk gate; residual FPR scheduling/branch layout; C +24 bytes. |
-| func_00214020 | 0x00214020 | 0x548 | 98.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Compare spellings from a search on the target. Left: the state-switch constants are one re |
 | func_00224600 | 0x00224600 | 0x574 | 96.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring (4x c.eq.s operand-order swaps on reused ==0.0f/!=0.0f tests) + mwcc  |
 | func_00209860 | 0x00209860 | 0x584 | 95.430595% | mwcc233 (-O4,p -sdatathreshold 0) | Corrected UI argument and secondary width3; 1436-byte candidate, original fallback. Invalid selector inherits caller s0 (see the src header). |
 | func_001C87C0 | 0x001C87C0 | 0x590 | 98.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation across the three near-identical (rotation/transla |

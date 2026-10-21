@@ -8,19 +8,24 @@
 // 0xFFF000, handle, header). Near-identical sibling of func_001DF5A0 (which
 // uses func_001DF180 and a different prime arg).
 //
+// It takes the caller's float (func_001E7570 passes 0.2 * +0x60 in $f12) and
+// leaves it in $f12 for func_001DF600, whose fourth parameter is that float:
+// the same pass-through as func_001DF5A0 -> func_001DF180. The old C declared
+// both without it (decomp2 lane round 1; same bytes).
+//
 // NOTE: func_001DF600's 3rd parameter is 64-bit -- the original builds the
 // 0x80808080 arg with ori/dsll16/ori (64-bit constant materialization), not
-// lui/ori. Declaring that param `unsigned long long` is what reproduces it.
+// lui/ori. Declaring that param 64-bit (`long long`, as func_001DF600 does) reproduces it.
 //
 // Built with mwcc 2.3.3 (mwcps2-2.3.3-000906), not the pinned 991202, which
 // reschedules the packet-write / delay-slot store-back sequence and caps at
 // 74.07%. 2.3.3 is byte-identical (objdiff 100.0).
-extern int func_001DF600(int a0, int a1, unsigned long long a2);
+extern int func_001DF600(int a0, int a1, long long a2, float amp);
 extern void func_001CB760(char *a0, int a1, int a2, char *a3);
 extern char *D_00275670;
 extern char D_007635C0[8];
 
-void func_001DF9D0(void) {
+void func_001DF9D0(float amp) {
     char *t1;
     char *a3;
     char *v0;
@@ -28,7 +33,7 @@ void func_001DF9D0(void) {
     int a1;
     int t0;
 
-    a2 = func_001DF600(3, 0, 0x80808080);
+    a2 = func_001DF600(3, 0, 0x80808080, amp);
     t1 = D_00275670;
     t0 = 0x60;
     a3 = *(char **)(t1 + 0x1c);

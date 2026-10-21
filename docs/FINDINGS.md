@@ -17486,3 +17486,30 @@ corrects what the readable C says the original passes.
 - func_001BD560 (door/lift update, byte-matched): the mover polls func_001BD180 / 270 / 370 / 460
   each take only the mover sub-object (self + 0x1F0).
 
+
+## Decomp C prototype and body corrections (2026-10-20, decomp2 lane round 1)
+
+Read from the original instructions at each call and in each callee
+(MATCHING_GUIDE "Decomp2 lane round 1"). The bytes of the callees are
+unchanged; what changed is what the readable C says each one takes.
+
+- func_00204080 / func_00204090: empty functions that every caller passes one
+  message pointer (the movie-stream code's D_002734xx strings): debug prints
+  compiled out of the shipped build. They do nothing.
+- func_001DF9D0 takes the caller's float (func_001E7570 passes 0.2 * +0x60)
+  and hands it on as func_001DF600's fourth argument, like func_001DF5A0 does
+  for func_001DF180.
+- func_001D8130 is called with (flag 0x20, record pointer) like its sibling
+  stages func_001D8340 / func_001D8690 and reads neither.
+- func_00206B00 (ring, &a, &b, &c, &d) and func_00206B10 (ring, count) are
+  thunks onto func_00204390 / func_00204490 at ring + 0x48; func_00204390
+  fills the four out-words with the two free-region address/size pairs.
+- func_00213F30 takes only the widget. For a category byte above 4 its id
+  bounds are uninitialized (whatever `$a3` / `$t0` hold at the call); the old C
+  declared them as parameters 4 and 5.
+- func_002044F0 (stream ring submit, NEARMISS 99.46): func_002041A0 returns
+  nothing, so the transfer count is n = ring[5] >> 11 (the old C used a
+  non-existent return value of func_002041A0 as the count). When n > 0 one
+  extra transfer is queued at index (head + count - 1) % size with mode 3 and
+  s0's tag is recomposed; then n transfers from (head + count) % size, the
+  last with mode 0, and count += n.

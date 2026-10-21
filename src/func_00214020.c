@@ -1,20 +1,23 @@
-// NEARMISS func_00214020  (vram 0x00214020, 0x548 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.68% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// Compare spellings from a search on the target. Left: the state-switch constants are one register later than mwcc picks (t1/t0/a3/a2 vs t0/a3/a2/a1) and the coloring that follows.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+// TU_STATIC: func_00213A00 func_00213C50 func_00213F30
 //
-// Decomp lane round 5 (2026-10-20): spelling-only edits from a search against the
-// target (relational spelling such as `x > 1` for `x >= 2`, operand order, compound
-// assignment; MATCHING_GUIDE "Decomp lane round 5"). Meaning unchanged.
+// Byte-matched (objdiff 100%), decomp2 lane round 1 (was a 98.68% NEARMISS).
+// Per-frame state machine of a selection widget (state byte s0+3): case 0
+// seeds the list from the D_008106B0 / D_008106B1 request, case 1 handles
+// the pad (D_00810E74 / D_00810E78) and the list draw, cases 2/3/4 run the
+// transitions and the sub-entry cursor over the D_002659C0 count table.
+//
+// How it matches (MATCHING_GUIDE "Decomp2 lane round 1"):
+// - func_00213A00, func_00213C50 and func_00213F30 are same-TU static callees
+//   (`// TU_STATIC:`, tools/decomp/tu_static.py): the original compiler knew
+//   their register use, which decides the temporaries after those calls.
+//   func_00213F30 takes only the widget (its old C took five parameters).
+// - The list scan reads `s0 + 0x50 + i` and the cursor pick reads
+//   `(unsigned char)s0[func_0020BEF0(s0) + 0x50]` (the spelling of the
+//   matched func_00218D90 family); both only reorder `addu` operands.
+// - Case 3 clears D_008106B0 before it sets the state byte to 1, and case 4
+//   declares `count` before `tbl`.
 
 extern void func_001FB9F0(int sel, int size, int a2, int a3);
 extern void func_0020A7A0(unsigned long long arg0);
@@ -25,10 +28,13 @@ extern void func_0020CD80(void);
 extern void func_0020CDA0(void);
 extern void func_002131B0(unsigned char *p, int arg1);
 extern void func_002134C0(unsigned char *p, int arg1);
-extern int func_00213A00(char *arg0, int arg1);
-extern void func_00213C50(unsigned char *p, int sel);
 extern int func_00213CC0(char *arg0);
-void func_00213F30();
+static int func_00213A00(char *arg0, int arg1);
+#include "src/func_00213A00.c"
+static void func_00213C50(unsigned char *p, int sel);
+#include "src/func_00213C50.c"
+static void func_00213F30(char *arg0);
+#include "src/func_00213F30.c"
 
 extern int D_002659C0[];
 extern int D_002821B0;
@@ -72,7 +78,7 @@ void func_00214020(char *arg0) {
             }
             func_00213F30(s0);
             for (i = 0; i < (int)*(unsigned char *)(s0 + 0x18); i++) {
-                if (*(unsigned char *)(s0 + i + 0x50) == *(unsigned char *)(s0 + 0x1B)) {
+                if (*(unsigned char *)(s0 + 0x50 + i) == *(unsigned char *)(s0 + 0x1B)) {
                     unsigned char temp_a0;
                     *(unsigned char *)(s0 + 0x19) = (unsigned char)(i - 4);
                     temp_a0 = *(unsigned char *)(s0 + 0x19);
@@ -127,7 +133,7 @@ void func_00214020(char *arg0) {
             break;
         }
         if (D_00810E74 & 0x40) {
-            *(unsigned char *)(s0 + 0x1B) = *(unsigned char *)(s0 + func_0020BEF0((unsigned char *)s0) + 0x50);
+            *(unsigned char *)(s0 + 0x1B) = (unsigned char)s0[func_0020BEF0((unsigned char *)s0) + 0x50];
             if (*(unsigned char *)(s0 + 0x1B) != 0x6D) {
                 *(unsigned char *)(s0 + 3) = 4;
                 func_0020CD40();
@@ -161,14 +167,14 @@ void func_00214020(char *arg0) {
         v1 = *(unsigned char *)(s0 + 4) - 1;
         *(unsigned char *)(s0 + 4) = v1;
         if (v1 == 0) {
-            *(unsigned char *)(s0 + 3) = 1;
             D_008106B0 = 0;
+            *(unsigned char *)(s0 + 3) = 1;
         }
         break;
     }
     case 4: {
-        int *tbl;
         int count;
+        int *tbl;
         short cur;
         func_0020A7A0(((unsigned long long)0x200450A5 << 0x20) | ((unsigned long long)0x9D42 << 0x10) | 0x2200);
         func_002131B0((unsigned char *)s0, 1);

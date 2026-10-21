@@ -4,7 +4,7 @@
 extern int float_to_int(float);
 extern void func_001FCF60(unsigned char, int, int);
 extern void func_00207D00(int, int);
-extern void func_00207E40(int, int, int, int, int, int, long long);
+extern void func_00207E40(int, int, int, int, int, int, unsigned long long);
 extern void func_0020CDA0(void);
 extern unsigned short D_00810E78;
 
