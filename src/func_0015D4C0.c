@@ -1,8 +1,8 @@
 // NEARMISS func_0015D4C0  (vram 0x0015D4C0, 0x9F8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.34% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 991202 list-scheduler / FP-coloring shapes that mwcc233 cannot reproduce — body and structure fully correct, 3 residual regions all artifact-class: (1) load shadow-fill: in the scratch-vector builds (0x700038C0 block in case 0x37/38 and 0x700038A0 block in case 0x3D) the target interleaves the NE...
+// objdiff 96.66% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Spelling edits from a search on the target. Left: earlier diagnosis (scratch-vector load interleave, FP coloring).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,11 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+//
+// Decomp lane round 5 (2026-10-20): spelling-only edits from a search against the
+// target (relational spelling such as `x > 1` for `x >= 2`, operand order, compound
+// assignment; MATCHING_GUIDE "Decomp lane round 5"). Meaning unchanged.
 
 //
 // Entity AI action dispatcher on action byte e[0x23B]. Each case validates a
@@ -95,7 +100,7 @@ int func_0015D4C0(unsigned char *e)
                         if (n != 0) {
                             flg = &D_70003170;
                             ds = &D_700030F0;
-                            for (i = 0; i < n; i++) {
+                            for (i = 0; n > i; i++) {
                                 if ((*flg & 1) && !(*ds <= 4.01f + *(float *)(e + 0xB4))) {
                                     d = (&D_700030F0)[i];
                                     if (!(d < *(float *)(e + 0xB4) + D_002488B0)) {
@@ -247,7 +252,7 @@ int func_0015D4C0(unsigned char *e)
                     *(float *)0x700038A4 = fy;
                     *(int *)0x700038AC = 0x3F800000;
                     func_00102948(&D_700038B0, &D_700038A0, q);
-                    *(float *)0x700038B4 += 30.0f;
+                    *(float *)0x700038B4 = *(float *)0x700038B4 + 30.0f;
                     if (func_0019A570(&D_700038A0, &D_700038B0, 6, 0)) {
                         func_001031E0(&D_700038A0, &D_700031B0);
                         *(int *)0x700038B0 = 0;

@@ -1,4 +1,4 @@
-// NEARMISS anim_frame_top_b  (vram 0xframe_top_b, 0x594 bytes) — readable decompilation, NOT byte-identical.
+// NEARMISS anim_frame_top_b  (vram 0x001AE040, 0x594 bytes) — readable decompilation, NOT byte-identical.
 //
 // objdiff 92.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:

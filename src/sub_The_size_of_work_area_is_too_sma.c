@@ -1,4 +1,4 @@
-// NEARMISS sub_The_size_of_work_area_is_too_sma  (vram 0xhe_size_of_work_area_is_too_sma, 0x23C bytes) — readable decompilation, NOT byte-identical.
+// NEARMISS sub_The_size_of_work_area_is_too_sma  (vram 0x00109698, 0x23C bytes) — readable decompilation, NOT byte-identical.
 //
 // objdiff 70.95% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:

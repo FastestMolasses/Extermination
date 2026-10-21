@@ -1,8 +1,8 @@
 // NEARMISS gs_readback_queue_run  (vram 0x001AAE40, ?) — readable decompilation, NOT byte-identical.
 //
-// objdiff 82.25% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// STRUCTURAL, not a codegen wall — the emitted code IS byte-identical. splat gives this one 0x39C-byte symbol two entry points: a global label for gs_readback_queue_run (boot/main loop, 0x000..0x2F8) and an alternate-entry label for D_001AB140 (the VBLANK ISR installed via func_00101548, 0x300..0x39C). A C translation unit necessarily em...
+// objdiff 82.25% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Corrected callee (dma_wait_and_submit for the stale alias sub_D2_TADR_08x). Left: unchanged two-entry-point split (the VBLANK handler shares this symbol), not a code difference.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,11 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+//
+// CORRECTED (decomp lane round 5, 2026-10-20): the sync wait calls
+// dma_wait_and_submit(0, 0), the 0x00100A60 entry the original calls (the old C
+// used its stale pre-rename alias sub_D2_TADR_08x).
 
 // NEARMISS (structural, code is byte-identical): objdiff scores 82.25%
 // only because splat gives this ONE 0x39C-byte symbol two entry points --
@@ -67,7 +72,7 @@ extern void func_001FCA10(void);
 extern void func_001AEE70(void);
 extern void func_001FB100(void);
 extern void func_001B5B70(void);
-extern int sub_D2_TADR_08x(int, int);
+extern int dma_wait_and_submit(int, int);
 extern void func_0011B910(void);
 extern void func_0011B5E0(void);
 extern void func_0011B328(void);
@@ -128,7 +133,7 @@ void gs_readback_queue_run(void) {
         func_001AEE70();
         func_001FB100();
         func_001B5B70();
-        if (sub_D2_TADR_08x(0, 0) != 0) {
+        if (dma_wait_and_submit(0, 0) != 0) {
             func_0011B910();
             func_0011B5E0();
             func_0011B328();

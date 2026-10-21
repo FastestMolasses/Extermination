@@ -1,4 +1,4 @@
-// NEARMISS bone_root_pulse  (vram 0xroot_pulse, 0x94C bytes) — readable decompilation, NOT byte-identical.
+// NEARMISS bone_root_pulse  (vram 0x001C06E0, 0x94C bytes) — readable decompilation, NOT byte-identical.
 //
 // objdiff 98.25% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:

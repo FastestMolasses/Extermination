@@ -1,8 +1,8 @@
 // NEARMISS func_0015FDF0  (vram 0x0015FDF0, 0x42C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 91.01% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// see above
+// objdiff 91.01% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Corrected body (func_001AA4E0(arg0)). Left: FP odd/even register coloring and the load/store scheduling it causes.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,9 +12,12 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 
 //
-// NEARMISS (objdiff 91.01% vs expected on mwcc 2.3.3; 78.49% on pinned 991202).
-// Logic fully recovered: a line-of-sight / aim solver toward the target actor
-// returned by func_001AA4E0. Computes the horizontal delta to the target
+// CORRECTED (decomp lane round 5, 2026-10-20): func_001AA4E0 takes arg0 (the
+// original calls it with its own a0 untouched; the old C passed nothing).
+
+//
+// A line-of-sight / aim solver toward the target actor
+// returned by func_001AA4E0(arg0). Computes the horizontal delta to the target
 // (staged at 0x700038A0/0x700038A8), the desired facing as pi/2 + atan2(-dy,dx)
 // wrapped by func_001B1470. If the actor is in mode>=2 (func_00174AC0 + the
 // arg0+0x23F byte) and the angular error to its aim field (arg0+0x218) exceeds
@@ -32,7 +35,7 @@
 // wall). Residual is FP-register-half coloring (target odd-half fv0f/fs0f vs
 // mwcc even-half) plus the consequent load/store scheduling -- permuter/coloring
 // territory, not a clean-store delay-slot nop.
-extern char *func_001AA4E0(void);
+extern char *func_001AA4E0(char *);
 extern float func_0011E620(float y, float x);
 extern float func_001B1470(float a);
 extern int func_00174AC0(char *p, int n);
@@ -57,7 +60,7 @@ int func_0015FDF0(char *arg0) {
     float len0;
     int branch;
 
-    tgt = func_001AA4E0();
+    tgt = func_001AA4E0(arg0);
     if (tgt != 0) {
     *(float *)0x700038A0 = *(float *)(tgt + 0xB0) - *(float *)(arg0 + 0xB0);
     dy = *(float *)(tgt + 0xB8) - *(float *)(arg0 + 0xB8);

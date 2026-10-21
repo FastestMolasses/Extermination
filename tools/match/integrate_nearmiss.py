@@ -154,6 +154,21 @@ def pct(f):
     except Exception: return None
     return None
 
+def vram_of(f):
+    """The function's vram as 8 hex digits: from config/symbol_addrs.txt, or the
+    func_XXXXXXXX name. (Slicing the name broke named functions such as
+    dma_wait_and_submit, whose header read "vram 0xait_and_submit".)"""
+    try:
+        with open("config/symbol_addrs.txt") as fp:
+            for line in fp:
+                m = re.match(r"\s*%s\s*=\s*0x([0-9A-Fa-f]+)\s*;" % re.escape(f), line)
+                if m:
+                    return "%08X" % int(m.group(1), 16)
+    except OSError:
+        pass
+    m = re.fullmatch(r"func_([0-9A-Fa-f]{8})", f)
+    return m.group(1).upper() if m else "????????"
+
 def nearmiss_file(f, c_source, p, comp, fl, wall):
     sz = "?"
     try:
@@ -175,7 +190,7 @@ def nearmiss_file(f, c_source, p, comp, fl, wall):
     reason = re.sub(r'\s+', ' ', (wall or "Residual differences have not been classified.").strip())
     if len(reason) > 300: reason = reason[:297] + "..."
     cc = COMPILER_LONG.get(comp, comp)
-    hdr = (f"// NEARMISS {f}  (vram 0x{f[5:]}, {sz}) — readable decompilation, NOT byte-identical.\n//\n"
+    hdr = (f"// NEARMISS {f}  (vram 0x{vram_of(f)}, {sz}) — readable decompilation, NOT byte-identical.\n//\n"
            f"// objdiff {p:.2f}% via {cc} ({fl}). Object similarity does not prove semantic equivalence.\n"
            f"// Remaining differences in this candidate:\n// {reason}\n//\n"
            f"// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT\n"
@@ -211,7 +226,7 @@ try:
             with open(f"src/{f}.c", "w") as fp:
                 fp.write(content)
             if os.path.exists(f"build/obj/{f}.o"): os.remove(f"build/obj/{f}.o")
-            near.append(f); docrows.append(f"| {f} | 0x{f[5:]} | {sz.replace(' bytes','')} | {p:.2f}% | {cc} | {reason[:90]} |")
+            near.append(f); docrows.append(f"| {f} | 0x{vram_of(f)} | {sz.replace(' bytes','')} | {p:.2f}% | {cc} | {reason[:90]} |")
             print(f"  {f} -> {p:.2f} NEARMISS")
         else:
             reverted.append(f)

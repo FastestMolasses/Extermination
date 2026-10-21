@@ -1,4 +1,4 @@
-// NEARMISS dma_wait_and_submit  (vram 0xait_and_submit, 0x314 bytes) — readable decompilation, NOT byte-identical.
+// NEARMISS dma_wait_and_submit  (vram 0x00100A60, 0x314 bytes) — readable decompilation, NOT byte-identical.
 //
 // objdiff 89.69% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:

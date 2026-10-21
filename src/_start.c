@@ -1,4 +1,4 @@
-// NEARMISS _start  (vram 0xt, ?) — readable decompilation, NOT byte-identical.
+// NEARMISS _start  (vram 0x00100008, ?) — readable decompilation, NOT byte-identical.
 //
 // objdiff 0.00% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:

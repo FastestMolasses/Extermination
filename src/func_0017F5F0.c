@@ -1,8 +1,8 @@
 // NEARMISS func_0017F5F0  (vram 0x0017F5F0, 0x3E8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.75% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP odd/even register-coloring on two timer-expiry float add/sub ops (target picks a different-numbered FP reg than mwcc for the same live value, a function-wide register-pressure artifact) plus a cosmetic prologue saved-reg move-order swap; both confirmed genuine after exhausting operand-order/ma...
+// objdiff 99.94% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Corrected body (func_00174FD0(arg0); the old prologue move-order residual). Left: the constant 1.0f is colored $f1 where the target keeps it in $f2 for the state-1 timer (FP coloring).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,7 +12,13 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 
 //
-// NEARMISS 99.752% (mwcc 2.3.3; pinned 991202 build 82.9%). Logic fully recovered.
+// CORRECTED (decomp lane round 5, 2026-10-20) against the original instructions:
+// func_00174FD0 takes the entity; the original calls it with its own a0 (arg0)
+// untouched, so the call passes arg0 (the old C called it with no argument, which
+// was the "prologue saved-register move-order swap"). The timer-expiry updates of
+// +0x38 are compound assignments (`+= d`, `-= d`), which give the target's
+// operand order.
+
 //
 // Entity turn/aim-blend state machine. arg0 is the entity, arg1 is a
 // 'skip-anim-clip' flag. First block: state = arg0[0x24C] selects a turn
@@ -32,24 +38,21 @@
 // Sole residual: FP odd/even register-coloring on two float add/sub ops
 // inside the timer-expiry branches (target colors a constant load to a
 // DIFFERENT numbered FP reg -- f1 vs f2 -- than mwcc, purely a function-wide
-// register-pressure artifact; confirmed genuine by exhausting float-local,
-// operand-order and materialization variants without effect) plus a cosmetic
-// prologue saved-reg move-order swap (paddub s0,a1 / s1,a0 emitted in the
-// opposite order; registers themselves already match). No further C-source
-// lever found within the effort cap.
+// register-pressure artifact). The prologue move-order difference recorded
+// earlier was the missing func_00174FD0 argument (see CORRECTED above).
 extern float func_0011E2A8(float a);
 extern int func_001749A0(int e, short clip, int flags, float blend);
 extern float func_001B1470(float a);
 extern float func_001B12B0(float a, float b, float rate);
 extern float D_00248790[];
 extern float D_002487A0[];
-extern void func_00174FD0(void);
+extern void func_00174FD0(int);
 
 void func_0017F5F0(int arg0, int arg1) {
     int state;
     int flag;
     flag = arg1;
-    func_00174FD0();
+    func_00174FD0(arg0);
     state = *(int *)(arg0 + 0x24C);
 
     if (state == 0) {
@@ -68,7 +71,7 @@ void func_0017F5F0(int arg0, int arg1) {
             *(float *)(arg0 + 0x2F8) = t - 1.0f;
             if (t == zero) {
                 float d = *(float *)(arg0 + 0x2E4);
-                *(float *)(arg0 + 0x38) = d + *(float *)(arg0 + 0x38);
+                *(float *)(arg0 + 0x38) += d;
             }
         }
     } else if (state == 1) {
@@ -86,7 +89,7 @@ void func_0017F5F0(int arg0, int arg1) {
             *(float *)(arg0 + 0x2F8) = t - 1.0f;
             if (t == zero) {
                 float d = *(float *)(arg0 + 0x2E4);
-                *(float *)(arg0 + 0x38) = *(float *)(arg0 + 0x38) - d;
+                *(float *)(arg0 + 0x38) -= d;
             }
         }
     } else {

@@ -1,8 +1,8 @@
 // NEARMISS func_001E9280  (vram 0x001E9280, 0x2F4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.30% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The body follows the original instructions;
-// the residual diff is code generation only:
-// Body corrected 2026-09-26 against the original instructions, as its twin func_001E9E60.c was (was 84.76% with the wrong body): segments s+1 and s+2 are addressed from the record base, not from the advancing segment base; the 001CB950 doubleword is 0x20048BA199422040 (the old C sign-extended its low word to 0xFFFFFFFF99422040); the block headers are two word stores of zero, as in the original, not one quadword store; 001CB950 is called with three arguments (the original leaves $a3 unset, and neither 001CB950 nor 001CB5F0 reads it). Residual: register coloring of the segment-loop locals.
+// objdiff 98.15% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Locals in the target saved-register order. Left: ptr + int operand order of the three copy destinations (addu operands swapped) and the func_001CB6B0 argument load order.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,11 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+//
+// Decomp lane round 5 (2026-10-20): locals declared in the order of the target's
+// saved registers (blk s0, row s1, seg_idx s2, seg s3, off s4, seg1 s5, seg2 s6,
+// orig s7, base s8) and the inner loop's counters initialised row, seg, off.
 
 //
 // GS/DMA packet builder over one 0xA060-byte record of the array at
@@ -56,15 +61,15 @@ extern char *D_00275674;
 extern char D_00234FE0[];
 
 void func_001E9280(char *arg0) {
-    char *orig;
-    char *base;
-    char *seg;
-    char *seg1;
-    char *seg2;
     char *blk;
-    int off;
     int row;
     int seg_idx;
+    char *seg;
+    int off;
+    char *seg1;
+    char *seg2;
+    char *orig;
+    char *base;
 
     orig = D_00275C18 + *(unsigned short *)(arg0 + 0xE) * 0xA060;
     base = orig;
@@ -76,13 +81,13 @@ void func_001E9280(char *arg0) {
         *(int *)(blk + 0xC) = 0x6C188000;
         seg1 = orig + ((seg_idx + 1) << 9);
         seg2 = orig + ((seg_idx + 2) << 9);
-        off = 0;
-        seg = base;
         row = 0;
+        seg = base;
+        off = 0;
         do {
-            func_00102948(blk + off + 0x10, seg + 0x60);
-            func_00102948(blk + ((row + 8) << 4) + 0x10, seg1 + 0x60);
-            func_00102948(blk + ((row + 0x10) << 4) + 0x10, seg2 + 0x60);
+            func_00102948(off + blk + 0x10, seg + 0x60);
+            func_00102948(((row + 8) << 4) + blk + 0x10, seg1 + 0x60);
+            func_00102948(((row + 0x10) << 4) + blk + 0x10, seg2 + 0x60);
             row += 1;
             seg += 0x10;
             off += 0x10;

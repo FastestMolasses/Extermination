@@ -1,8 +1,8 @@
 // NEARMISS func_001E9E60  (vram 0x001E9E60, 0x3A4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 92.40% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The body follows the original instructions;
-// the residual diff is code generation only:
-// Body corrected 2026-09-25 against the original instructions (segments s, s+1, s+2 from the record base; +0x20 quadword = record vector * (1 - t) + D_0026E9B0 vector * t with the single scalar t = a0+0x80, MULA/MADD in the target; the blend is built in a float[4] array, because the original copies 16 contiguous bytes and separate float locals have no guaranteed layout; D_0026E9B0/B4/B8 are declared as arrays so they are addressed absolutely as in the original; was 79.75% with the wrong body). Residual: register coloring and the scheduling of the MULA/MADD pairs.
+// objdiff 96.05% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Corrected body (3-argument func_001CB950, byte-offset loop like func_001E9280). Left: the func_001CB6B0 argument load hoisted into the join delay slot, and the operand order seen in func_001E9280.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,12 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+//
+// CORRECTED (decomp lane round 5, 2026-10-20) against the original instructions:
+// func_001CB950 takes three arguments here (the target does not set a3; the old C
+// passed a fourth 0), and the inner loop walks a byte offset `off` from 0 like its
+// twin func_001E9280 (the target adds off to blk), not a destination pointer.
 
 //
 // GS/DMA display-list builder for a 6-segment tendril mesh, sibling of
@@ -41,7 +47,7 @@
 extern void func_00102948(void *dst, void *src);
 extern void copy_qw4(void *dst, void *src);
 extern char *func_001CB5F0(void *a0, int a1, int a2);
-extern unsigned char *func_001CB950(int a0, int a1, long a2, int a3);
+extern unsigned char *func_001CB950(int a0, int a1, long a2);
 extern void func_001CB6B0(int a0, int a1, int a2, int a3);
 extern void func_001CB760(int a0, int a1, int a2);
 
@@ -57,15 +63,15 @@ extern float D_0026E9B4[];
 extern float D_0026E9B8[];
 
 void func_001E9E60(char *arg0, int arg1) {
-    char *orig;
-    char *base;
-    char *seg;
-    char *seg1;
-    char *seg2;
     char *blk;
-    char *dst;
     int row;
     int seg_idx;
+    char *seg;
+    int off;
+    char *seg1;
+    char *seg2;
+    char *orig;
+    char *base;
     float blend[4];
     float t;
     float u;
@@ -80,16 +86,16 @@ void func_001E9E60(char *arg0, int arg1) {
         *(int *)(blk + 0xC) = 0x6C188000;
         seg1 = orig + ((seg_idx + 1) << 9);
         seg2 = orig + ((seg_idx + 2) << 9);
-        dst = blk + 0x10;
-        seg = base;
         row = 0;
+        seg = base;
+        off = 0;
         do {
-            func_00102948(dst, seg + 0x60);
+            func_00102948(blk + off + 0x10, seg + 0x60);
             func_00102948(blk + ((row + 8) << 4) + 0x10, seg1 + 0x60);
             func_00102948(blk + ((row + 0x10) << 4) + 0x10, seg2 + 0x60);
             row += 1;
             seg += 0x10;
-            dst += 0x10;
+            off += 0x10;
             seg1 += 0x10;
             seg2 += 0x10;
         } while (row < 8);
@@ -141,9 +147,9 @@ void func_001E9E60(char *arg0, int arg1) {
     func_00102948(blk + 0x80, D_00275670 + 0x2230);
 
     if (*(unsigned char *)(orig + 0x5C) != 1) {
-        func_001CB950((int)D_007635C0, 0, (long)0x55422242 | ((long)0x20048CC1 << 32), 0);
+        func_001CB950((int)D_007635C0, 0, (long)0x55422242 | ((long)0x20048CC1 << 32));
     } else {
-        func_001CB950((int)D_007635C0, 0, (long)0x55422256 | ((long)0x20048E41 << 32), 0);
+        func_001CB950((int)D_007635C0, 0, (long)0x55422256 | ((long)0x20048E41 << 32));
     }
     func_001CB6B0((int)D_007635C0, 0, 8, (int)(D_00275674 + 0x720));
     func_001CB760((int)D_007635C0, 0, (int)D_002345E0);

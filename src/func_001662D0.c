@@ -1,8 +1,8 @@
 // NEARMISS func_001662D0  (vram 0x001662D0, 0x19A8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.83% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 99.83% (mwcc233; 991202 = 88.38%) -- 14 partially-differing instructions out of 1643, ALL pure register-coloring, no structural or scheduling divergence anywhere. Structure fully recovered: the 34-case top-level dispatch is a real `switch` with ASCENDING source cases (CW's descending beq chain), ...
+// objdiff 99.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Corrected body (func_001C68C0(self), one-argument func_00180460/00180530). Left: the three float constants of both func_00180600(self, n, 9, 10, -2) calls are materialized in a different order (target sets $f14 first at the step-2 call); literal, local, statement and switch forms tried.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,15 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+//
+// CORRECTED (decomp lane round 5, 2026-10-20) against the original instructions:
+// func_001C68C0 takes the actor (it builds the TRS matrix at self+0xD0); all three
+// calls pass self (the old C passed the +0x200 flag word, the constant 0x20 and
+// (int)self). func_00180460 / func_00180530 take only the actor (the old second
+// argument 1 was a register leftover). Spelling fixes from the target's code:
+// `+0x23F > 1` (compare through $at), `+= 10.0f` on 0x700038A4, and the plain
+// float truth tests of +0x224 / +0x22C.
 
 // Ladder / climbable-object actor state machine (one tick).  `self+6` is the
 // state byte, `self+7` a per-state sub-step, `self+0x28` a countdown, and
@@ -51,8 +60,8 @@ extern void func_0017FE00(unsigned char *, int, float);
 extern void func_0017FE80(unsigned char *, int, float);
 extern void func_0017FF00(unsigned char *, int, float);
 extern int func_00180300(unsigned char *, void *, int);
-extern int func_00180460(unsigned char *, int);
-extern int func_00180530(unsigned char *, int);
+extern int func_00180460(unsigned char *);
+extern int func_00180530(unsigned char *);
 extern int func_00180600(unsigned char *, int, float, float, float);
 extern unsigned char func_001809B0(unsigned char *, int);
 extern int func_00181110(unsigned char *, int);
@@ -65,7 +74,7 @@ extern float func_001B12B0(float, float, float);
 extern float func_001B1470(float);
 extern void func_001B61C0(int, int, int, int);
 extern int func_001C61D0(int, short);
-extern void func_001C68C0(int);
+extern void func_001C68C0(unsigned char *);
 extern void func_001FB9F0(int, int, int, int);
 extern void func_001FBD50(unsigned char *, int, int, float);
 extern void func_0021C270(unsigned char *);
@@ -107,14 +116,14 @@ void func_001662D0(unsigned char *self)
         func_00174FD0(self);
         step = *(int *)(self + 0x24C);
         if (step == 0) {
-            r = func_00180460(self, 1);
+            r = func_00180460(self);
             if (r == 0) {
                 *(unsigned char *)(self + 6) = *(unsigned char *)(self + 6) + 1;
             } else if (r == 2 && *(unsigned char *)(self + 0xD) == 0) {
                 *(unsigned char *)(self + 6) = 0x14;
             }
         } else if (step == 1) {
-            r = func_00180530(self, 1);
+            r = func_00180530(self);
             if (r == 0) {
                 *(unsigned char *)(self + 6) = 0xA;
             } else if (r == 1) {
@@ -157,7 +166,7 @@ void func_001662D0(unsigned char *self)
             func_001FB9F0(0x107, 0x1000, 0x1000, 0x1000);
             *(unsigned char *)(self + 0x2F1) = 1 - *(unsigned char *)(self + 0x2F1);
             if (*(int *)(self + 0x24C) == 0) {
-                r = func_00180460(self, 1);
+                r = func_00180460(self);
                 if (r == 0) {
                     func_0017FD00(self, 1.0f);
                     *(float *)(self + 0x21C) = 0.0f;
@@ -213,7 +222,7 @@ void func_001662D0(unsigned char *self)
             func_001FB9F0(0x107, 0x1000, 0x1000, 0x1000);
             *(unsigned char *)(self + 0x2F1) = 1 - *(unsigned char *)(self + 0x2F1);
             if (*(int *)(self + 0x24C) == 1) {
-                r = func_00180530(self, 1);
+                r = func_00180530(self);
                 if (r == 0) {
                     func_0017FD40(self, 0.0f);
                     *(float *)(self + 0x21C) = 0.0f;
@@ -255,7 +264,7 @@ void func_001662D0(unsigned char *self)
     case 0x15:
         flg = *(int *)(self + 0x200);
         if (flg & 0x1000) {
-            func_001C68C0(flg);
+            func_001C68C0(self);
             func_00102948(self + 0xB0, D_00275B40[1] + 0xC0);
             *(float *)(self + 0xB4) = *(float *)(self + 0xB4) - 11.5f;
             *(float *)(self + 0xB4) += -0.4f;
@@ -265,7 +274,7 @@ void func_001662D0(unsigned char *self)
             }
             func_00174AB0(self);
             func_00174AC0(self, 0);
-            if ((int)*(unsigned char *)(self + 0x23F) >= 2) {
+            if (*(unsigned char *)(self + 0x23F) > 1) {
                 *(unsigned char *)(self + 6) = *(unsigned char *)(self + 6) + 1;
                 func_0017C440(self, 1);
             } else {
@@ -277,7 +286,7 @@ void func_001662D0(unsigned char *self)
             switch (sub) {
             case 0:
                 func_001031E0(D_700038A0, self + 0xB0);
-                *(volatile float *)0x700038A4 = *(volatile float *)0x700038A4 + 10.0f;
+                *(volatile float *)0x700038A4 += 10.0f;
                 if (func_00180300(self, D_700038A0, 0) == 0 && func_00199FA0(pa, pb) != 0) {
                     *(volatile float *)0x70003A20 = func_0011DF78(pb[1] - *(float *)(self + 0xB4));
                     *(volatile float *)0x70003A20 = *(volatile float *)0x70003A20 - 16.8f;
@@ -344,7 +353,7 @@ void func_001662D0(unsigned char *self)
         break;
     case 0x20:
         if (*(int *)(self + 0x200) & 0x1000) {
-            func_001C68C0(0x20);
+            func_001C68C0(self);
             *(float *)(self + 0xB0) = *(float *)(D_00275B40[1] + 0xC0);
             *(float *)(self + 0xB4) = *(float *)(D_00275B40[1] + 0xC4) - 11.5f;
             *(float *)(self + 0xB8) = *(float *)(D_00275B40[1] + 0xC8);
@@ -362,7 +371,7 @@ void func_001662D0(unsigned char *self)
             if (*(float *)(self + 0x3C) <= 22.0f) {
                 *(short *)(self + 0x28) = cnt + 1;
                 func_001031E0(self + 0x290, self + 0xB0);
-                func_001C68C0((int)self);
+                func_001C68C0(self);
                 *(float *)(self + 0xB0) = *(float *)(D_00275B40[1] + 0xC0);
                 *(float *)(self + 0xB4) = *(float *)(D_00275B40[1] + 0xC4) - 11.5f;
                 *(float *)(self + 0xB8) = *(float *)(D_00275B40[1] + 0xC8);
@@ -395,12 +404,12 @@ void func_001662D0(unsigned char *self)
         }
         break;
     case 0x2B:
-        if (*(float *)(self + 0x224) != 0.0f) {
+        if (*(float *)(self + 0x224)) {
             func_001B61C0(0, 0xC0, 5, 1);
             func_001FBD50(self, 0x152, 0, 300.0f);
             func_0021C350(self);
             *(int *)(self + 0x24C) = 1;
-        } else if (*(float *)(self + 0x22C) != 0.0f) {
+        } else if (*(float *)(self + 0x22C)) {
             func_001B61C0(0, 0xC0, 5, 1);
             func_001FBD50(self, 0x153, 0, 300.0f);
             func_0021C270(self);

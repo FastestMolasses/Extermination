@@ -1,8 +1,8 @@
 // NEARMISS func_001551B0  (vram 0x001551B0, 0x1464 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.92% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 97.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Compare spellings from a search on the target. Left: earlier diagnosis (register coloring and scheduling across the large body).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,11 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+//
+// Decomp lane round 5 (2026-10-20): spelling-only edits from a search against the
+// target (relational spelling such as `x > 1` for `x >= 2`, operand order, compound
+// assignment; MATCHING_GUIDE "Decomp lane round 5"). Meaning unchanged.
 
 //
 // Enemy "leap / pounce" AI state machine, dispatched on the state byte at arg0[4]
@@ -362,7 +367,7 @@ void func_001551B0(char *arg0, int arg1, int arg2)
             /* fallthrough */
         case 1: {
             *(short *)(arg0 + 0x2A) = *(short *)(arg0 + 0x2A) - 1;
-            if (*(short *)(arg0 + 0x28) < 2) goto motion;
+            if (*(short *)(arg0 + 0x28) <= 1) goto motion;
             *(short *)(arg0 + 0x28) = *(short *)(arg0 + 0x28) - 1;
             *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0x2C8) + *(float *)(arg0 + 0xB4);
             if (*(short *)(arg0 + 0x28) < 2) {
@@ -551,7 +556,7 @@ void func_001551B0(char *arg0, int arg1, int arg2)
                 if (func_0019AB20(arg0, D_700038A0, D_700038B0, 6) != 0) {
                     cnt2 += 1;
                 }
-                if (cnt2 >= 3) {
+                if (cnt2 > 2) {
                     if (*(short *)(arg0 + 0x2A) == 0 && *(unsigned char *)(arg0 + 0xA) != 0) {
                         *(short *)(arg0 + 0x2A) = 6;
                     }

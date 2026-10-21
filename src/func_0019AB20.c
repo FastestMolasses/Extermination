@@ -1,8 +1,8 @@
 // NEARMISS func_0019AB20  (vram 0x0019AB20, 0x1E0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.03% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Permuter-class on a fully-recovered body/structure. Residual 1: saved-register coloring swap (target result->s0 / sp60-ptr->s1; mwcc assigns the opposite), cascading across s0/s1 uses and prologue sq order; live-range driven, not movable by decl/init reorder. Residual 2: CW fills the bc1f delay s...
+// objdiff 95.99% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Corrected body (func_0019F730 takes no arguments). Left: idiom-32 scratchpad lui delay-slot fills and part of the loop-temp coloring.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,20 +11,25 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-extern int func_0019F730();
+//
+// CORRECTED (decomp lane round 5, 2026-10-20): func_0019F730 takes no arguments
+// (its byte-matched definition is (void) and the target sets none; the old C passed
+// the three loop cursors). Locals reordered by a declaration-order sweep.
+
+extern int func_0019F730(void);
 extern int func_0019C830(void);
 extern char D_70003190[];
 
 int func_0019AB20(char *arg0, float *arg1, char *arg2, int arg3) {
+    float f20;
     float sp60[3];
+    int i;
+    int v0;
     float *a0;
-    float *a1;
+    int s0;
     float *a3;
     float *s1;
-    int s0;
-    int i;
-    float f20;
-    int v0;
+    float *a1;
 
     s0 = 0;
     a1 = arg1;
@@ -55,7 +60,7 @@ int func_0019AB20(char *arg0, float *arg1, char *arg2, int arg3) {
     *(short *)0x7000324E = *(unsigned char *)(arg0 + 2) & 0x1F;
     if (arg3 & 2) {
         *(int *)0x70003254 = *(int *)(arg0 + 0x14);
-        if (func_0019F730(a0, a1, a3) == 0) {
+        if (func_0019F730() == 0) {
             s0 = 2;
         }
     }

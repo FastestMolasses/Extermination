@@ -1122,3 +1122,65 @@ corrected body (func_001D4B80 / func_001D4C30, 95.39). Levers:
   also avoid v0 and match, so the trailing func_001D4A90(ch, src) call is what
   changes mwcc's choice. Declaration and order sweeps, an inline helper, return
   types and a 25-minute permuter run found no lever.
+
+### Decomp lane round 5: call-site checks on the on-route NEARMISS set — 2026-10-20
+
+The 288 mwcc NEARMISS files on the first-level / AREA01 / AREA00 census lists
+were compiled and compared call by call with the target (argument registers
+set before each call, call order, callee names), and the arity of every call
+was checked against the callee's own C definition. Three files byte-match now
+(func_002134C0, func_00176390, func_001FA330) and 16 NEARMISS files have a
+corrected or closer body. Levers:
+
+- **A call with no argument setup passes the caller's own `a0`.** When the
+  target sets no `a0` before a `jal` to a callee that reads its first
+  parameter, the original passed the value still in `a0`, normally the
+  caller's first parameter. The C must pass it; mwcc then also emits no move.
+  The old C had these calls without arguments: func_00176390
+  (func_001762E0(arg0), func_00176BE0(arg0)), func_0017F5F0
+  (func_00174FD0(arg0); this was its "prologue move-order" residual),
+  func_00158D30 and func_00156620 (func_001B0FD0, func_001AFC10),
+  func_0015FDF0 (func_001AA4E0), func_001764E0 (func_00176C80). In
+  func_001662D0, case 0x15 / 0x20 called func_001C68C0 with the flag word or
+  the constant 0x20; it takes the actor.
+- **Extra arguments are register leftovers.** func_00180460 / func_00180530
+  take only the actor (the old C passed 1), func_0019F730 takes none (the old
+  C passed the three loop cursors that happened to sit in a0/a1/a3), and
+  func_001CB950's fourth parameter only forwards a3 (callers pass three).
+- **Relational spelling.** `x > 1` gives the target's compare-and-branch
+  through `$at` where `x >= 2` computed the result into a GPR; the operand
+  order follows the source (`p[0x1C] < n - 1`, not `n - 1 > p[0x1C]`).
+  func_002134C0 needed both. A plain float truth test (`if (v)`) gives the
+  target's `c.eq.s` operand order where `v != 0.0f` swapped it (func_001662D0,
+  func_001FA330).
+- **Branch arm order.** func_001FA330's cap select is `if (i != 0) A; else if
+  (D == 0) A; else B;`: the target falls through to the first arm and jumps to
+  the last.
+- **A stack copy of a word table indexed by a variable** is a word array:
+  `struct { int w[8]; } buf = D_x; buf.w[i]` gives the target's
+  `sp + 4 * i` load at the table offset (func_00176390); indexing through a
+  cast of a two-quadword struct formed the base first.
+- **Declaration order, swept.** For a saved-register permutation, compiling
+  every order of the local declarations (up to 7 locals, a sample above)
+  found the target order for func_001FA330 (with the two fixes above, 100),
+  gs_readback_queue_drain, func_001E9280, func_0019AB20 and func_0019BA80.
+- **Stale aliases.** gs_readback_queue_drain / gs_readback_queue_run called
+  sub_D2_TADR_08x, the pre-rename name of dma_wait_and_submit (0x00100A60).
+- **Measure against a fresh expected object.** build.py rebuilds
+  build/expected only for compiled units, so a NEARMISS file's expected
+  object can predate a relabel. Rebuilding the 716 NEARMISS expected objects
+  changed 48 scores by up to 0.5 points, most of them SDK callers of the
+  syscall stubs relabelled on 2026-09-27 (SignalSema measured against an
+  expected "CreateSema"). integrate_nearmiss.py always rebuilds it
+  from the normalized `.s`; do the same before diagnosing a NEARMISS.
+- **Tested, no effect:** defining the leaf callee func_0021D600 before
+  func_0021D800 in one file does not remove func_0021D800's `a0` reload at
+  -O4,p, and mwcc 2.3.3's `-help all` lists no interprocedural option, so the
+  "same-TU callee register knowledge" class stays open. The float-constant
+  argument order of func_001662D0's func_00180600 calls (and func_00162DB0's
+  func_001B12B0 call) did not move with literal, local, statement or switch
+  forms.
+- **Next:** idiom-32 (scratchpad literal versus per-address extern) is the
+  main residual left in func_00158D30, func_0019AB20 and func_0019BA80; it
+  needs the addresses in build.py `_SPAD_SYMS` with the collateral check that
+  section describes.

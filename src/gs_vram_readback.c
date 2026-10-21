@@ -1,4 +1,4 @@
-// NEARMISS gs_vram_readback  (vram 0xam_readback, 0x68C bytes) — readable decompilation, NOT byte-identical.
+// NEARMISS gs_vram_readback  (vram 0x00100EB8, 0x68C bytes) — readable decompilation, NOT byte-identical.
 //
 // objdiff 88.39% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:

@@ -1,8 +1,8 @@
 // NEARMISS func_00214020  (vram 0x00214020, 0x548 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.62% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// UI/screen-state manager: a 5-state (0-4) machine gating sound-effect selection (func_00213F30), audio SFX ID cycling on trigger flags 0x2000/0x8000, and a ring-buffer id table (D_002659C0). Body fully recovered; several calls to func_00213F30/func_0020CD40/func_0020CDA0 take FEWER args than their...
+// objdiff 98.68% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Compare spellings from a search on the target. Left: the state-switch constants are one register later than mwcc picks (t1/t0/a3/a2 vs t0/a3/a2/a1) and the coloring that follows.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,11 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+//
+// Decomp lane round 5 (2026-10-20): spelling-only edits from a search against the
+// target (relational spelling such as `x > 1` for `x >= 2`, operand order, compound
+// assignment; MATCHING_GUIDE "Decomp lane round 5"). Meaning unchanged.
 
 extern void func_001FB9F0(int sel, int size, int a2, int a3);
 extern void func_0020A7A0(unsigned long long arg0);
@@ -100,7 +105,7 @@ void func_00214020(char *arg0) {
         func_0020A7A0(((unsigned long long)0x200450A5 << 0x20) | ((unsigned long long)0x9D42 << 0x10) | 0x2200);
         if (D_00810E78 & 0x2000) {
             *(unsigned char *)(s0 + 0x12) = *(unsigned char *)(s0 + 0x12) + 1;
-            if ((int)*(unsigned char *)(s0 + 0x12) >= 5) {
+            if ((int)*(unsigned char *)(s0 + 0x12) > 4) {
                 *(unsigned char *)(s0 + 0x12) = 0;
             }
             func_001FB9F0(0xF, 0x1000, 0x1000, 0x1000);
@@ -171,7 +176,7 @@ void func_00214020(char *arg0) {
         D_002821B4 = 1;
         tbl = &D_002659C0[*(unsigned char *)(s0 + 0x1B)];
         count = *tbl;
-        if (count >= 2) {
+        if (count > 1) {
             if (D_00810E78 & 0x2000) {
                 cur = *(short *)(s0 + 0x1C);
                 if (cur >= count - 1) {

@@ -1,8 +1,8 @@
 // NEARMISS func_001647D0  (vram 0x001647D0, 0x138C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.84% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// NEARMISS 98.84 (mwcc233). Logic fully recovered; all 1251 instructions structurally reproduced. 6 residual artifact clusters (~15 insns total), all register-coloring / delay-slot-scheduling permutations: (1) case 0 scratchpad: target store-forwards the 0x700038A28 value (emits a redundant `mov.s ...
+// objdiff 99.27% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Compare spellings from a search on the target. Left: FP scheduling and coloring, several delay-slot fills and an 8-byte size difference (earlier diagnosis).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,11 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+//
+// Decomp lane round 5 (2026-10-20): spelling-only edits from a search against the
+// target (relational spelling such as `x > 1` for `x >= 2`, operand order, compound
+// assignment; MATCHING_GUIDE "Decomp lane round 5"). Meaning unchanged.
 
 // NEARMISS 98.84 (objdiff, mwcc 2.3.3). Body/structure fully recovered; residual
 // is register-coloring + delay-slot-scheduling permutation in case 0x21 and a few
@@ -231,7 +236,7 @@ void func_001647D0(unsigned char *arg0) {
             func_00182870(arg0, 1);
             func_00174AC0(arg0, 0);
             mode = arg0[0x23F];
-            if (mode >= 2) {
+            if (mode > 1) {
                 arg0[6] = arg0[6] + 1;
                 func_0017C440(arg0, 1);
             } else {
@@ -367,7 +372,7 @@ void func_001647D0(unsigned char *arg0) {
     case 0x21:
         if ((arg0[0x315] == 0 && *(float *)(arg0 + 0x3C) <= 6.0f) ||
             (arg0[0x315] != 0 && (*(int *)(arg0 + 0x200) & 0x1000))) {
-            arg0[6] = arg0[6] + 1;
+            arg0[6] += 1;
             func_001FBD50(arg0, 0x187, 0, 300.0f);
             *(float *)(arg0 + 0x2F4) = *(float *)(arg0 + 0x2E0);
             *(float *)(arg0 + 0x2F8) = *(float *)(arg0 + 0x2E8);

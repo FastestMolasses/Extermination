@@ -1,8 +1,8 @@
 // NEARMISS func_0019BA80  (vram 0x0019BA80, 0x1B4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 92.83% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Callee-saved register-coloring ROTATION at 92.84% (mwcc 2.3.3). Body fully correct, frame size and live-across-call array base now match. Target colors {s0=r, s1=&local, s2=arg3}; mwcc colors {s0=&local, s1=r} keeping arg3 in a caller-saved temp, which cascades into the temp/branch-delay-slot reg...
+// objdiff 95.40% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Locals reordered (fixes the saved-register rotation). Left: mainly idiom-32 scratchpad lui delay-slot fills.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,32 +11,33 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// NEARMISS 92.84% (mwcc 2.3.3; mwcc 991202 = 91.09%). Body/structure fully
-// recovered: loop1 broadcasts arg1[0..2] into a local float[3] and into the
+//
+// Decomp lane round 5 (2026-10-20): locals reordered by a declaration-order sweep
+// against the target's saved registers.
+
+// Loop1 broadcasts arg1[0..2] into a local float[3] and into the
 // D_70003190 block (offsets 0/0x10); a bias of +/-0.001f (from sign of
 // *(arg2+4)) is folded into the global at 0x70003194 around the func_001A3980 /
 // func_0019E930 dispatch (gated by arg3 bits 2/4) which selects a result r in
 // {0,2,4}; if r!=0 loop2 copies the saved locals back and computes a delta
 // (0x20-0x10 -> 0x30), else clears 0x700031D0; result stored at 0x700031D8.
-// Frame size now matches target (0x60, s0/s1/s2 saved) and the local-array base
-// is held live across the calls. Sole residual is a 3-way callee-saved coloring
-// ROTATION: target = {s0=r, s1=&local, s2=arg3}; mwcc = {s0=&local, s1=r, arg3
-// in a caller-saved temp}, which cascades into the temp-register and
-// delay-slot-filler choices. Body identical. Permuter territory.
+// The saved-register rotation recorded earlier is fixed by the declaration order;
+// most of the rest is the scratchpad upper-half `lui` the target leaves out of branch
+// delay slots (MATCHING_GUIDE idiom-32).
 extern int func_001A3980();
 extern int func_0019E930();
 extern char D_70003190[];
 
 int func_0019BA80(char *arg0, float *arg1, char *arg2, int arg3) {
-    float local[3];
+    int i;
+    char *d;
+    float bias;
+    int r;
+    char *d2;
     float *q;
     float *t;
+    float local[3];
     float *p;
-    char *d;
-    char *d2;
-    float bias;
-    int i;
-    int r;
 
     q = local;
     r = 0;

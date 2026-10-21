@@ -1,3 +1,48 @@
+## 2026-10-20 — call-site checks on the on-route NEARMISS set (decomp lane round 5): 3 byte-matched, 16 NEARMISS improved
+
+- The 288 mwcc NEARMISS files on the first-level / AREA01 / AREA00 census
+  lists were compiled and compared with the target call by call (argument
+  registers set before each call, call order, callee names), and every call's
+  arity was checked against the callee's own C definition.
+- Byte-matched with mwcc 2.3.3 (objdiff 100, linked as
+  compiled_object_ordinary_c with text and relocations equal):
+  func_00176390 (first level; 91.67: func_001762E0 / func_00176BE0 take arg0,
+  one shared fallback branch, a word-array stack table), func_001FA330 (first
+  level; 95.84: declaration order, the three-arm cap select, a float truth
+  test) and func_002134C0 (AREA01; 99.86: relational spelling `n > 1`,
+  `p[0x1C] < n - 1`). func_002134C0 left fill_unmatched's GPREL_FORCE_ASM.
+- Body corrections (still NEARMISS, exact residual in each header): the old
+  C called these with no argument where the original passes its own a0:
+  func_0017F5F0 (func_00174FD0, 99.75 -> 99.94), func_00158D30 (func_001B0FD0,
+  plus the per-branch 0x700038BC store, 86.86 -> 96.65), func_00156620
+  (func_001B0FD0, func_001AFC10), func_0015FDF0 (func_001AA4E0), func_001764E0
+  (func_00176C80). func_001662D0 passed the flag word, 0x20 or (int)self to
+  func_001C68C0, which takes the actor, and an invented second argument to
+  func_00180460 / func_00180530 (99.83 -> 99.98). func_0019AB20 passed three
+  loop cursors to the argument-less func_0019F730 (93.03 -> 95.99).
+  func_001E9E60 passed a fourth argument to func_001CB950 and walked a pointer
+  where the original walks a byte offset (92.40 -> 96.05).
+  gs_readback_queue_drain / gs_readback_queue_run called sub_D2_TADR_08x, the
+  stale alias of dma_wait_and_submit (0x00100A60).
+- Spelling and declaration-order gains on otherwise unchanged bodies:
+  func_001E9280 97.30 -> 98.15, func_0019BA80 92.83 -> 95.40,
+  gs_readback_queue_drain 99.14 -> 99.77, func_001647D0 98.84 -> 99.27,
+  func_00214020, func_001551B0, func_0015D4C0 (+0.06..0.54).
+- Finding: build/expected objects of NEARMISS functions are not rebuilt by
+  build.py; rebuilding all 716 changed 48 scores (up to 0.5 points), mostly
+  SDK callers of the syscall stubs relabelled 2026-09-27. integrate_nearmiss.py
+  now takes a named function's vram from config/symbol_addrs.txt (eight
+  NEARMISS headers and registry rows read "vram 0xait_and_submit" and similar;
+  fixed).
+- Tested, no effect: defining func_0021D600 before func_0021D800 in one file
+  does not remove the a0 reload (the same-TU callee class stays open).
+- Levers in MATCHING_GUIDE "Decomp lane round 5". Promoted through
+  tools/match/integrate_nearmiss.py (3 KEEP, 16 NEARMISS). Fresh build +
+  verify_all: all six stages pass, 2225/2229 units, matched_code 99.31%
+  (99.3140), boot ELF byte-identical, 19/19 overlays. FUNCTIONS.csv reconciled
+  (3 nearmiss -> readable): 1893 readable, 713 nearmiss, 334 word,
+  2 c_partial, 10 undecompiled, 5 merged.
+
 ## 2026-10-20 — the DMA-list NEARMISS family (decomp lane round 4): 12 byte-matched
 
 - Fourteen NEARMISS files that build VIF/DMA ref-tag lists on the

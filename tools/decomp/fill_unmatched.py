@@ -116,6 +116,9 @@ GPREL_FORCE_ASM = {
     # 2.3.3); with the entries removed the full build + verify_all stayed byte-
     # identical and audit_link_provenance shows compiled_object_ordinary_c for
     # each.
+    # Decomp lane round 5 (2026-10-20): func_002134C0 removed. Its C is now
+    # objdiff 100% (NEARMISS promoted); full build + verify_all byte-identical with
+    # the entry removed, audit_link_provenance compiled_object_ordinary_c.
     # Additional 107 discovered in subsequent link (obj/ compiled with GP-relative):
     "func_00128C10",
     "func_0012E560",
@@ -161,7 +164,6 @@ GPREL_FORCE_ASM = {
     "func_001FD950",
     "func_001FEE60",
     "func_00206BF0",
-    "func_002134C0",
     "func_00219550",
     "func_00228C90",
 }

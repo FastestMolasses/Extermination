@@ -1313,7 +1313,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001760C0,func_001760C0,192,readable,12,actor_anim
 0x00176180,func_00176180,344,nearmiss,1,actor_anim
 0x001762E0,func_001762E0,172,readable,2,actor_anim
-0x00176390,func_00176390,332,nearmiss,1,actor_anim
+0x00176390,func_00176390,332,readable,1,actor_anim
 0x001764E0,func_001764E0,1780,nearmiss,23,actor_anim
 0x00176BE0,func_00176BE0,152,readable,1,actor_anim
 0x00176C80,func_00176C80,312,readable,1,actor_anim
@@ -2509,7 +2509,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001F9BF0,func_001F9BF0,252,readable,1,unknown_03
 0x001F9CF0,func_001F9CF0,988,nearmiss,1,unknown_03
 0x001FA0D0,func_001FA0D0,608,nearmiss,1,stream_music
-0x001FA330,func_001FA330,564,nearmiss,1,stream_music
+0x001FA330,func_001FA330,564,readable,1,stream_music
 0x001FA570,func_001FA570,48,readable,2,stream_music
 0x001FA5A0,func_001FA5A0,72,readable,2,stream_music
 0x001FA5F0,func_001FA5F0,164,readable,1,stream_music
@@ -2783,7 +2783,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00212B60,func_00212B60,968,readable,1,ui_screens
 0x00212F30,func_00212F30,640,readable,1,ui_screens
 0x002131B0,func_002131B0,776,readable,1,ui_screens
-0x002134C0,func_002134C0,1332,nearmiss,1,ui_screens
+0x002134C0,func_002134C0,1332,readable,1,ui_screens
 0x00213A00,func_00213A00,580,readable,1,ui_screens
 0x00213C50,func_00213C50,104,readable,1,ui_screens
 0x00213CC0,func_00213CC0,616,word,1,ui_screens

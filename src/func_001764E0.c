@@ -1,8 +1,8 @@
 // NEARMISS func_001764E0  (vram 0x001764E0, 0x6F4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 83.63% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// register-allocation-ORDER across the whole body: mwcc233 puts arg0 in s4 (target: s0), with s1..s4 correspondingly shifted; ~223/469 objdiff instruction rows differ purely on this permutation plus its ripple into branch-target-address deltas. Not a logic error -- every gate/threshold/call-arg/loo...
+// objdiff 83.54% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Corrected body (func_00176C80(arg0)). Left: earlier diagnosis unchanged (call sequence differs, 56-byte size difference); not re-derived this round.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,10 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+//
+// CORRECTED (decomp lane round 5, 2026-10-20): func_00176C80 takes arg0 (the
+// original calls it with its own a0 untouched; the old C passed nothing).
 
 extern void func_001026A0(char *, char *, char *);
 extern void func_00102918(char *, char *, char *);
@@ -20,7 +24,7 @@ extern void func_001031E0(char *, char *);
 extern float func_0011DF78(float);
 extern int func_001760C0(char *, char *, int, float);
 extern void func_00176390(char *, int, char *, int);
-extern int func_00176C80(void);
+extern int func_00176C80(char *);
 extern void func_0019A310(char *, char *);
 extern int func_0019AD00(char *, char *, int);
 extern int func_0019AFE0(char *, char *, char *, int);
@@ -53,7 +57,7 @@ void func_001764E0(char *arg0) {
 
     s2 = 0;
     if (*(unsigned char *)(arg0 + 0x236) == 0) {
-        s2 = func_00176C80();
+        s2 = func_00176C80(arg0);
     }
     if (*(unsigned char *)(arg0 + 4) == 1 && *(unsigned char *)(arg0 + 5) == 1) {
         sbuf[0] = 0;

@@ -1,4 +1,4 @@
-// NEARMISS sub_pts_is_not_used  (vram 0xts_is_not_used, 0x188 bytes) — readable decompilation, NOT byte-identical.
+// NEARMISS sub_pts_is_not_used  (vram 0x00204BD0, 0x188 bytes) — readable decompilation, NOT byte-identical.
 //
 // objdiff 97.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:

@@ -1,8 +1,8 @@
 // NEARMISS func_00156620  (vram 0x00156620, 0x910 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 95.01% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 95.0% (mwcc233) near-miss, logic fully recovered. Residuals are NOT the clean-store nop: 4-way state dispatch holds state byte in $a3 vs mwcc-233's $a2 plus one extra delay-slot nop; odd/even FP-register coloring (fv0 vs fv0f) on a few field loads; and a CW FP register self-move idiom mwcc never emits (details below).
+// objdiff 95.22% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Corrected body (func_001B0FD0 / func_001AFC10 take the entity). Left: earlier diagnosis unchanged (state-byte coloring, FP odd/even coloring, a 44-byte size difference).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,10 +12,14 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 
 //
-// NEARMISS (mwcc 2.3.3 95.0%, pinned 991202 89.3%) -- logic fully recovered,
-// readable plain C. Per-state entity driver dispatched on the state byte at
+// CORRECTED (decomp lane round 5, 2026-10-20): func_001B0FD0 and func_001AFC10
+// take the entity (the original calls both with its own a0 untouched; the old C
+// passed nothing). Compare spellings from a spelling search on the target.
+
+//
+// Per-state entity driver dispatched on the state byte at
 // arg0+4 (switch 0/1/2/3); sub-struct base is arg0+0x1F0.
-//   state 0: if func_001B0FD0()==0, arm the entity (short +0x34=1, byte0=1),
+//   state 0: if func_001B0FD0(arg0)==0, arm the entity (short +0x34=1, byte0=1),
 //     init two transforms via func_00102948(sub+0x10,arg0+0xB0) /
 //     (sub+0x20,arg0+0xC0), then func_001C6380(self).
 //   state 1: if short +0x36 set, advance (byte0=2, byte+4=2), build the scratch
@@ -37,7 +41,7 @@
 //     (func_001EFD20 0x80000013/0x8000002E, func_001FC580 0x1A0) or, when grounded
 //     near D_00810700==0x15, func_001FBD50(self,0xDB,0,800.0f). Always tail-calls
 //     func_001C6380 / func_001A2370(self,arg0+0xD0) / func_001B17A0 / vtable+0x4C.
-//   state 3: func_001AFC10().
+//   state 3: func_001AFC10(arg0).
 //
 // Keys recovered: (1) the 0x700038xx / 0x700036xx / 0x70003Axx scratch fields are
 // absolute hardware addresses -- the base ptr passed to callees is the symbol
@@ -53,7 +57,7 @@
 // FP register self-move idiom mwcc does not emit -- scheduling / FP-coloring /
 // regalloc-permutation class, permuter territory, not idiom-fixable.
 
-extern int func_001B0FD0(void);
+extern int func_001B0FD0(char *);
 extern void func_00102948(void *dst, void *src);
 extern void func_001C6380(void *self);
 extern int func_0019A570(void *a, void *b, int c, int d);
@@ -76,7 +80,7 @@ extern int func_0019AB20(void *self, void *b, void *c, int id);
 extern int func_001B0D80(void *self);
 extern void func_001FBD50(void *self, int a, int b, float c);
 extern void func_001A2370(void *a, void *b);
-extern void func_001AFC10(void);
+extern void func_001AFC10(char *);
 
 extern float D_00246A00;
 extern float D_00246A10;
@@ -93,7 +97,7 @@ void func_00156620(char *arg0) {
 
     switch (st) {
     case 0:
-        if (func_001B0FD0() == 0) {
+        if (func_001B0FD0(arg0) == 0) {
             *(short *)(arg0 + 0x34) = 1;
             *(char *)(arg0 + 0) = 1;
             func_00102948(sub + 0x10, arg0 + 0xB0);
@@ -117,7 +121,7 @@ void func_00156620(char *arg0) {
                 func_001029C0(&D_700036A0);
                 func_00102B08(&D_700036A0, &D_700036A0, 1.5707964f);
                 func_00102918(&D_700036A0, &D_700036A0, arg0 + 0xB0);
-                *(float *)0x700036D4 = *(float *)0x700036D4 + 0.2f;
+                *(float *)0x700036D4 += 0.2f;
                 func_001F0460(4, &D_700036A0);
             }
         }
@@ -129,7 +133,7 @@ void func_00156620(char *arg0) {
         {
             float v = *(float *)0x70003A24 * 50.0f;
             *(float *)0x70003A24 = v;
-            if (*(float *)0x70003A20 <= v) {
+            if (v >= *(float *)0x70003A20) {
                 *(char *)(arg0 + 1) = 1;
                 func_001B1D20(arg0);
                 return;
@@ -214,7 +218,7 @@ void func_00156620(char *arg0) {
             if (*(float *)(sub + 0x78) < -4.0f) {
                 *(float *)(sub + 0x78) = -4.0f;
             }
-            *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0xB4) + *(float *)(sub + 0x78);
+            *(float *)(arg0 + 0xB4) += *(float *)(sub + 0x78);
             if (*(unsigned char *)(arg0 + 5) == 3 && *(short *)(arg0 + 0x36) != 0) {
                 if (!(*(short *)(arg0 + 0x36) & 0x2000)) {
                     *(float *)0x700038A0 = *(float *)(arg0 + 0xB0);
@@ -269,7 +273,7 @@ void func_00156620(char *arg0) {
         return;
     }
     case 3:
-        func_001AFC10();
+        func_001AFC10(arg0);
         break;
     }
 }

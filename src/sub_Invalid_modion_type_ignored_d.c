@@ -1,4 +1,4 @@
-// NEARMISS sub_Invalid_modion_type_ignored_d  (vram 0xnvalid_modion_type_ignored_d, 0x334 bytes) — readable decompilation, NOT byte-identical.
+// NEARMISS sub_Invalid_modion_type_ignored_d  (vram 0x001033E0, 0x334 bytes) — readable decompilation, NOT byte-identical.
 //
 // objdiff 88.94% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:

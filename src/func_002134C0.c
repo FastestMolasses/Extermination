@@ -1,15 +1,12 @@
-// NEARMISS func_002134C0  (vram 0x002134C0, 0x534 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.86% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-order permutation: body/schedule are byte-identical (same instruction sequence, same slots) for the D_002659C0[p[0x1B]] compare-and-subtract sequence guarding the arrow-indicator draws; target keeps the loaded value in v1 and the boolean in $at (pure branch, not stored), mwcc ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+//
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 5, 2026-10-20). The
+// 99.86 NEARMISS residual (the page compare's value in $v1 and its result in
+// $at) was the spelling of the two page compares: `n > 1` and
+// `p[0x1C] < n - 1` give the target's compare-and-branch through $at and its
+// operand order; `n >= 2` and `n - 1 > p[0x1C]` did not (MATCHING_GUIDE
+// "Decomp lane round 5").
 
 // HUD/overlay layout dispatcher. When arg1==0 it draws a fixed background set
 // (selected by global event flags D_00810E70 bits 0x2000/0x8000, then a second
@@ -59,8 +56,8 @@ void func_002134C0(unsigned char *p, int arg1) {
         func_001CBA50(1, 0x898, 0x7AC, 0x10, 0x10, &sp3C, &D_00275870);
 
         n = D_002659C0[p[0x1B]];
-        if (n >= 2) {
-            if (n - 1 > *(short *)(p + 0x1C)) {
+        if (n > 1) {
+            if (*(short *)(p + 0x1C) < n - 1) {
                 if (*(int *)0x70003B64 & 4) {
                     func_00207E40(1, 0x8D00, 0x7F40, 0x20, 0x20, 0x80808080, 0x2004502555422268ULL);
                 } else {
