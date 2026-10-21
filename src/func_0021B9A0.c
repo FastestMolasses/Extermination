@@ -1,15 +1,15 @@
-// NEARMISS func_0021B9A0  (vram 0x0021B9A0, 0xC4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 88.61% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// NOT a jr-table wall — the dispatch and all six case bodies match. Single residual class: CodeWarrior same-TU INTERPROCEDURAL REGISTER-USAGE analysis. The target keeps `mode` in caller-saved $a2 (a copy of a0) live across the call to func_0021B920, with a 0x10 frame saving only $ra (a quadword save at 0(...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// TU_STATIC: func_0021B900 func_0021B920
+//
+// Byte-matched (objdiff 100%) with func_0021B900 and func_0021B920 compiled as
+// static functions of this file. The original compiler saw both earlier in the
+// same translation unit and knew their register use: it keeps `mode` in the
+// caller-saved a2 across the func_0021B920 call with a 0x10 frame that saves
+// only ra (the former NEARMISS residual, 88.61%: a one-function file spills
+// `mode` to a saved register). tools/decomp/tu_static.py removes the static
+// copies after checking each equals the original callee; the calls link to the
+// callees' own units.
 
 //
 // SEMANTICS: fog / depth-range programmer for the per-frame render context
@@ -26,8 +26,10 @@
 // For modes 0, 1, 4 and 5 func_0021B900 then latches +0xA0..+0xBF into +0xC0.
 
 extern int *D_00275670;
-extern void func_0021B920(float, float);
-extern void func_0021B900(void);
+static void func_0021B900(void);                 /* same-TU callees, see TU_STATIC */
+static void func_0021B920(float f12, float f13);
+#include "src/func_0021B900.c"
+#include "src/func_0021B920.c"
 
 void func_0021B9A0(int mode, float scale, float bias) {
     int *p;

@@ -417,8 +417,29 @@ def compile_cmd(name: str) -> str:
         "mwcc301": "tools/mwccps2-301/mwccps2.exe",
     }
     exe = MWCC.get(comp, "tools/mwccps2/mwccmips.exe")
-    return (f"qemu-i386 tools/bin/wibo32 {exe} "
-            f"-c {flags} -o build/obj/{name}.o src/{name}.c")
+    cmd = (f"qemu-i386 tools/bin/wibo32 {exe} "
+           f"-c {flags} -o build/obj/{name}.o src/{name}.c")
+    # `// TU_STATIC: callee ...`: the file includes static copies of same-TU
+    # callees (the original compiler's register knowledge across those calls);
+    # tu_static.py removes the copies after checking each equals the original
+    # callee, or deletes the object (see tools/decomp/tu_static.py).
+    statics = file_tu_statics(name)
+    if statics:
+        cmd = (f"rm -f build/obj/{name}.o; {cmd} && python3 tools/decomp/tu_static.py "
+               f"build/obj/{name}.o {name} {' '.join(statics)}")
+    return cmd
+
+
+def file_tu_statics(name: str) -> list[str]:
+    """Callee names from the file's `// TU_STATIC:` lines (tools/decomp/tu_static.py)."""
+    try:
+        text = (SRC / f"{name}.c").read_text(errors="replace")
+    except OSError:
+        return []
+    out = []
+    for m in re.finditer(r"^//\s*TU_STATIC:(.*)$", text, re.M):
+        out += [t for t in m.group(1).split() if re.fullmatch(r"[A-Za-z_]\w*", t)]
+    return out
 
 
 def run_splat() -> None:

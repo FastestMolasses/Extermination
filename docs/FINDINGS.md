@@ -17450,3 +17450,16 @@ the AREA02 man's geometry and the two above). No placement, deferred-spawn
 record or constant 001C6120 bind in any overlay or the ELF names them, and
 each carries a single TEX0 that AREA00's own upload fills with other
 texels, so they would draw wrongly textured there.
+
+## Decomp C corrections from same-TU callees (2026-10-20, decomp lane round 7)
+
+Found while byte-matching with `// TU_STATIC:` (MATCHING_GUIDE "Decomp lane round 7"): when a
+callee earlier in the same original file leaves `a0` intact, the original passes the value still
+in `a0` to the next call, and the old C had dropped that argument.
+
+- func_001F6BB0 (the 0x1301 / state-0 slot dispatcher; was NEARMISS 78.73 -> byte-matched C):
+  func_001F6640 is called with the slot record it walks, func_001F6640(p0) for D_0025D270 when
+  slot 0 is not ready and neither D_00810778 nor D_0081077B is 0xFF, and func_001F6640(p1) for
+  D_0025D2C0 when slot 1 is not ready and D_0081079E is 0xFF. In state 0, func_001F66F0 is called
+  with the func_001F6760 descriptor once func_001F6AC0 reports it ready. The old C called both
+  with no argument (and its header said the slot 0 guard bytes must be 0xFF; they must not be).

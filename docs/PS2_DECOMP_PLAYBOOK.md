@@ -480,6 +480,13 @@ functions that already matched. Treat TU discovery as information first; only re
 your build system can score multi-symbol units. Record the discovered boundary either way, as
 it explains a whole neighbourhood of near-misses.
 
+**What this project does (2026-10-20).** mwcc 2.3.3 applies the register knowledge only to a
+`static` callee defined earlier in the same file, and it emits every function in its own `.text`
+section. So a caller keeps its one-function unit: it `#include`s the callee's own source behind a
+`static` prototype and names it in a `// TU_STATIC:` line, and `tools/decomp/tu_static.py` removes
+the static copy from the compiled object after checking it equals the original callee. The call
+then links to the callee's own unit. See MATCHING_GUIDE "Decomp lane round 7".
+
 ## 7. Orchestration notes (parallel agents)
 
 - **One wave at a time.** The container daemon can wedge under concurrent `container run`

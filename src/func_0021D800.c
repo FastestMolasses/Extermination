@@ -1,8 +1,14 @@
-// NEARMISS func_0021D800  (vram 0x0021D800, 0x3B0 bytes) — readable decompilation, NOT byte-identical.
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 4
+// TU_STATIC: func_0021D600
 //
-// objdiff 99.15% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// At both func_001FBD50 sound calls after func_0021D600 the target does not reload a0 (func_0021D600 leaves arg0 there); this C reloads it. func_0017C540 arity fixed; state-1 exits corrected (see below).
+// Byte-matched (objdiff 100%), decomp lane round 7, with func_0021D600
+// compiled as a static function of this file. The original compiler saw it
+// earlier in the same translation unit and knew it never writes a0, so at both
+// func_001FBD50 sound calls after func_0021D600(arg0) it passes arg0 without a
+// reload (the former NEARMISS residual, 99.15%: two extra a0 moves).
+// tools/decomp/tu_static.py removes the static copy after checking it equals
+// the original func_0021D600; the call links to that function's own unit.
 //
 // CORRECTED 2026-09-27 (AREA01 wave-2 review, checked against the original
 // instructions; original-instruction harness: 0 differing cases).
@@ -11,15 +17,8 @@
 // (0x0021DB84), which calls func_0021D250(arg0, 0) when byte +0x23A is 0x5D;
 // the C returned early at four of them. func_0021D600 never writes $a0, so
 // the original's first func_001FBD50 argument at the 0x146/0x147 sites is
-// still arg0: the C is faithful there, and the two extra "a0 = arg0" moves
-// the C emits are the whole remaining difference.
+// still arg0: the C is faithful there.
 //
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 4
 
 //
 // LANE NOTE (m1-firstlevel-matching): func_0017C540 takes one argument (its
@@ -41,7 +40,8 @@ extern void func_001FBD50(char *a0, int a1, int a2, float f12);
 extern int func_0021D1A0(char *a0);
 extern void func_0021D250(unsigned char *p, int a1);
 extern void func_0021D530(char *arg0);
-extern int func_0021D600(char *a0);
+static int func_0021D600(char *a0);  /* same-TU callee, see TU_STATIC */
+#include "src/func_0021D600.c"
 extern char **D_00275B40;
 
 void func_0021D800(char *arg0) {

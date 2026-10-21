@@ -258,7 +258,9 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_0011DE90",
     "func_0011E2A8",
     "func_00177460",
-    "func_001796C0",
+    # func_001796C0 removed 2026-10-20 (decomp lane round 7): byte-matched from
+    # C with its same-TU callee func_00179680 as a `// TU_STATIC:` (objdiff
+    # 100%, .text 0x1B8 inside the 0x1C0 slot); the compiled object is linked.
     "func_0019A310",
     "func_0019ED80",
     "func_0019F330",
@@ -282,7 +284,9 @@ SIZE_DRIFT_FORCE_ASM = {
     # objdiff 100% and the compiled object is linked (audit_link_provenance).
     # func_001749A0 removed: explicit caller blend and source-frame0 restore
     # the omitted f13 initialization and exact72-byte compiled function.
-    "func_001899C0",
+    # func_001899C0 removed 2026-10-20 (decomp lane round 7): byte-matched from
+    # C with its same-TU callee func_00189630 as a `// TU_STATIC:` (objdiff
+    # 100%, .text 0x5C inside the slot); the compiled object is linked.
     # func_001AB740 removed 2026-06-10: src/func_001AB740.c now compiles
     # byte-identical (statement-order idiom); the compiled obj is linked.
     # func_001D4A90 removed 2026-10-20 (decomp lane round 4): byte-matched from C.

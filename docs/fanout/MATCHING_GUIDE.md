@@ -863,7 +863,8 @@ is in parentheses):
 - func_001AD740 99.93 (SPAD). raw/next v0/v1 are swapped.
 - func_001D1C50 99.93 (D_70003B8D array form, `flag = 0` moved inside the if,
   folded store). One `addu` operand order is left.
-- func_001796C0 99.91. The float-constant temp is a0 vs v0.
+- func_001796C0 99.91. The float-constant temp is a0 vs v0 (byte-matched in
+  decomp lane round 7 with a `// TU_STATIC:` callee).
 - func_001D89D0 99.89 (ternary clamp `(c > 0.0f) ? c : 0.0f`, `<< 2`
   index). The flag byte is v1 vs v0.
 - func_001AC070 99.85 (SPAD; MATCHED in the jr-table lane, idiom-35).
@@ -953,7 +954,9 @@ Classes found and not cracked (the source is unchanged unless noted):
   just before it. func_0021B9A0 keeps `mode` in `$a2` across func_0021B920.
   The original compiler knew those callees preserve the registers because
   they were in the same file. One-function units cannot do that (see
-  PS2_DECOMP_PLAYBOOK §6a).
+  PS2_DECOMP_PLAYBOOK §6a). Cracked in decomp lane round 7 (below):
+  `// TU_STATIC:` compiles the callee as a static function of the caller's
+  file; func_0021B9A0 byte-matches that way.
 - **func_001B99F0 is two functions in one splat symbol.** It is a 4-instruction
   tail-jump stub, and func_001B9A00 starts at +0x10. Its "2.80%" is the
   objdiff of the stub against the merged symbol. The split needs
@@ -1078,7 +1081,8 @@ one dereference too many). Levers that decided them:
   writes a0. mwcc reloads a0, and no source spelling found reproduces the
   omission; an uninitialized local gets a saved register (78.26 NEARMISS).
   func_0021D800's unset a0 (idiom-32 notes) may be the same case; that is not
-  checked.
+  checked. (Both are the same-TU case: byte-matched in decomp lane round 7
+  with `// TU_STATIC:`.)
 
 ### Decomp lane round 4: the DMA-list NEARMISS family — 2026-10-20
 
@@ -1176,7 +1180,8 @@ corrected or closer body. Levers:
 - **Tested, no effect:** defining the leaf callee func_0021D600 before
   func_0021D800 in one file does not remove func_0021D800's `a0` reload at
   -O4,p, and mwcc 2.3.3's `-help all` lists no interprocedural option, so the
-  "same-TU callee register knowledge" class stays open. The float-constant
+  "same-TU callee register knowledge" class stayed open (closed in round 7:
+  mwcc 2.3.3 applies it only to a `static` callee, `// TU_STATIC:`). The float-constant
   argument order of func_001662D0's func_00180600 calls (and func_00162DB0's
   func_001B12B0 call) did not move with literal, local, statement or switch
   forms.
@@ -1240,3 +1245,81 @@ objdiff 100, compiled_object_ordinary_c), seven of them recorded as walls:
   materializes its 4.0f argument; casts, parentheses and a pointer cast did not
   move it). The full table is in the sweep's JSON output; rerun
   `spad_sweep.py` on them.
+
+### Decomp lane round 7: same-TU static callees (`// TU_STATIC:`) — 2026-10-20
+
+The original compiler saw several functions in one file. When a callee came
+earlier in the same file, CodeWarrior knew which registers it uses and kept
+values in caller-saved registers across the call. mwcc 2.3.3 does the same,
+but only when the callee is a `static` function defined before the caller in
+the same file (a non-static definition in the file had no effect, which is
+why round 5's test of func_0021D600 before func_0021D800 found nothing).
+Tells in the target, all at a call to a nearby lower-address callee:
+
+- no `a0` (or `a1`, `a2`) setup before a call although the callee reads it:
+  the value is still there from the previous call to the same-TU callee
+  (func_001F6BB0's func_001F6640(p0) / func_001F66F0(desc); func_0021D800's
+  func_001FBD50(arg0, ...));
+- a value kept in an argument or temporary register across the call with a
+  smaller frame, where a one-function file spills it to a saved register
+  (func_0021B9A0 keeps `mode` in a2 across func_0021B920);
+- a call with no `a0` setup after a leaf callee (func_001899C0 passes self to
+  func_00189730 after func_00189630);
+- a temporary coloured away from `a0`, or a branch-likely where the
+  one-function file has a plain branch, because `a0` is still live after the
+  call (func_001F6BB0's D_0081079E load into a1; func_001796C0's constant
+  built in a0 instead of v0).
+
+How (tools/decomp/tu_static.py; build.py and integrate_nearmiss.py run it
+after compiling any file that has the directive):
+
+    // TU_STATIC: func_0021D600
+    static int func_0021D600(char *a0);   /* internal linkage */
+    #include "src/func_0021D600.c"        /* path relative to the repo root */
+
+The static prototype gives the included non-static definition internal
+linkage (C99 6.2.2), so the callee's own unit file is unchanged and is still
+the only source of its C. The callee's prototype and the caller's
+declarations must agree (func_0021D600's parameter is now `char *`, as its
+callers declare it). mwcc emits each function into its own `.text` section;
+after compiling, tu_static.py checks that the static copy's bytes and
+relocation offsets/types equal the original callee in
+build/expected/<callee>.o, removes that section with its `.mwcats` catalog,
+and turns the callee symbol into an undefined global. The object is then an
+ordinary one-function unit whose calls link to the callee's own unit
+(compiled_object_ordinary_c). A failed check deletes the object, so the
+function links from its `.s` and is not counted. The callee must therefore be
+a byte-matched C unit; a NEARMISS callee (func_001C7420 for func_001CABA0,
+which reaches 99.26 with its static copy) does not qualify.
+
+Byte-matched this round with mwcc 2.3.3: func_001796C0 (99.91; static
+func_00179680), func_0021B9A0 (88.61; static func_0021B900 + func_0021B920),
+func_0021D800 (99.15; static func_0021D600) and func_001F6BB0 (78.73; static
+func_001F6AC0), all four on the first-level / AREA01 / AREA00 census lists,
+and func_001899C0 (78.26, the "leaf-call a0 quirk" above; static
+func_00189630). func_001796C0 and func_001899C0 also left fill_unmatched's
+SIZE_DRIFT_FORCE_ASM list; audit_link_provenance shows all five as
+compiled_object_ordinary_c.
+func_001F6BB0 also needed two source fixes: its selector dispatch is a sparse
+switch (labels 0, 0x1301, 1, 2, 0x100, 0x200, 0xE00, 0x1100 give the target's
+reverse compare order and body layout, idiom-33), and its calls pass the
+pointers the callees read (func_001F6640(p0) / (p1), func_001F66F0(desc));
+the old C called both with no argument.
+
+Measured, not landed (two sweeps, measurement only): pasting static copies
+of every lower-address callee (within 0x8000 bytes) into the 84 on-route
+NEARMISS files that have one, and including every lower-address byte-matched
+callee unit the `// TU_STATIC:` way into all 149 mwcc NEARMISS files that
+have one (`-relax_pointers` added for the measurement). No further file
+reached 100. Gains: func_001916C0 98.80 -> 99.49 (its scratchpad externs then
+lower it again; the rest is one unconditional-branch delay slot),
+func_001CABA0 93.31 -> 99.26 (but its callee func_001C7420 is a NEARMISS, so
+it cannot be a TU static), func_001854E0 88.66 -> 91.70, func_001936E0
+94.99 -> 95.75, bone_root_pulse 98.25 -> 98.71, func_00214020
+98.68 -> 98.74. Many variants did not compile because callers and callees declare
+the same function or global with different types (an int where the callee
+takes a pointer, `char[]` against `unsigned char *`); reconciling those
+declarations is the next step before re-running the sweep. func_001BD560
+(off-route; func_001BD180 / func_001BD270 / func_001BD370 with other
+`-sdatathreshold` values and m2c prelude typedefs) is untested.
+

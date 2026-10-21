@@ -4,7 +4,7 @@
 // Short-circuit OR (==1 || (v-3)<2) reproduces the CW branch lowering exactly
 // (beq + sltiu/beqz, redundant delay-slot addiu, unreachable trailing paddub)
 // instead of the movz that a plain if/return collapses to.
-int func_0021D600(int a0) {
+int func_0021D600(char *a0) {
     unsigned char v;
     v = *(unsigned char *)(a0 + 0x1F1);
     if (v == 1 || (unsigned int)(v - 3) < 2) {

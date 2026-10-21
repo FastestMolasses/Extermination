@@ -104,7 +104,15 @@ try:
         else:
             cc = CC.get(comp, CC["mwcc233"])
             img_parts["exterm-permuter"] += [asm]
-            img_parts["exterm-toolchain"] += [f'qemu-i386 tools/bin/wibo32 {cc} -c {fl} -o build/obj/{f}.o src/{f}.c >/dev/null 2>&1']
+            cmd = f'qemu-i386 tools/bin/wibo32 {cc} -c {fl} -o build/obj/{f}.o src/{f}.c >/dev/null 2>&1'
+            # `// TU_STATIC:` sources carry static copies of same-TU callees;
+            # tools/decomp/tu_static.py removes them after its original-callee
+            # guard (a failed guard deletes the object and fails this batch).
+            statics = [t for m in re.finditer(r"^//\s*TU_STATIC:(.*)$", r["c_source"], re.M)
+                       for t in m.group(1).split() if re.fullmatch(r"[A-Za-z_]\w*", t)]
+            if statics:
+                cmd += f' && python3 tools/decomp/tu_static.py build/obj/{f}.o {f} {" ".join(statics)}'
+            img_parts["exterm-toolchain"] += [cmd]
     print("compiling...")
     for img, parts in img_parts.items():
         if not parts: continue

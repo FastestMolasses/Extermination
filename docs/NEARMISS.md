@@ -44,7 +44,8 @@ func_001026A0 where the original tail-calls func_0010A400, func_00107CB8 derefer
 far, and func_001145A0 used a misnamed symbol for an offset. 45 are now byte-matched (21 SDK-range
 units with ee-gcc, 24 game units with mwcc 2.3.3; their list entries are removed) and the other
 5 became `// NEARMISS` files (func_001899C0, func_001D4A90, func_001D71A0, func_001E0C80,
-func_001FC9B0; round 4 byte-matched func_001D4A90, the other four are in the registry below).
+func_001FC9B0; round 4 byte-matched func_001D4A90 and round 7 func_001899C0, the other three are in
+the registry below).
 The two `c_partial` units remain:
 
 | Function | vram | bytes | objdiff % | `// COMPILER:` | CSV status / link route |
@@ -74,6 +75,17 @@ them blamed the compiler (an FP scheduling or coloring wall, a delay-slot fill n
 fixes); the main fix was per-address scratchpad externs opted in with `// SPAD:`
 (MATCHING_GUIDE idiom-32 and "Decomp lane round 6"). Before trusting a row whose diff touches a
 `0x7000xxxx` access, run `tools/match/spad_sweep.py` on it.
+
+**Same-TU callees: try `// TU_STATIC:` (decomp lane round 7, 2026-10-20).** Five rows left the
+registry as byte-matches (func_001796C0, func_001899C0, func_001F6BB0, func_0021B9A0, func_0021D800). Their
+headers blamed register colouring, CodeWarrior branch lowering or interprocedural analysis; the
+original compiler knew the register use of a callee earlier in the same file. With that callee
+compiled as a `static` function of the caller's file (`// TU_STATIC:`, tools/decomp/tu_static.py,
+MATCHING_GUIDE "Decomp lane round 7") mwcc 2.3.3 reproduces it. func_001F6BB0's old body was also
+wrong: it called func_001F6640 and func_001F66F0 without the pointer each one reads. When a row's
+diff sits at a call to a nearby lower-address callee (a missing argument move, a value kept in an
+argument register across the call, a branch-likely after it), check whether that callee is a
+byte-matched unit and try it as a TU static.
 
 ## Registry
 
@@ -171,7 +183,6 @@ fixes); the main fix was per-address scratchpad externs opted in with `// SPAD:`
 | func_001EBBB0 | 0x001EBBB0 | 0x7C | 80.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical wall to func_001EACF0 (same template, const 3.0f, table D_002561F0, flag 1): FP- |
 | func_001EBE10 | 0x001EBE10 | 0x7C | 80.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order / instruction-scheduling permutation: CW target emits the f15(1e-6f |
 | func_001EF780 | 0x001EF780 | 0x1B4 | 97.60% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register coloring / paired-single allocation + order of materializing the two call-argu |
-| func_001F6BB0 | 0x001F6BB0 | 0x1A8 | 78.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CW-vs-mwcc branch lowering (NOT logic): (1) original CodeWarrior left an unfilled nop in t |
 | func_001D8690 | 0x001D8690 | 0x220 | 97.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body fully correct (gp-rel reload-per-access reproduced, sized-array non-gp 0x28 symbols). |
 | func_001D89D0 | 0x001D89D0 | 0x21C | 97.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body fully correct: 5-arg func_001D8340 (pointer as 5th arg) per matched sibling func_001D |
 | func_001EF510 | 0x001EF510 | 0x26C | 98.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | instruction-scheduling permutation: the target reverses the f14(1.0f)/f15(9.99e-7) immedia |
@@ -486,7 +497,6 @@ fixes); the main fix was per-address scratchpad externs opted in with `// SPAD:`
 | func_0016A8B0 | 0x0016A8B0 | 0x394 | 94.02% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CFG-shape-dependent instruction-scheduling artifact: in each of the 4 switch-case's true-b |
 | func_001E9E60 | 0x001E9E60 | 0x3A4 | 96.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected body (3-argument func_001CB950, byte-offset loop like func_001E9280). Left: the  |
 | func_0016EBA0 | 0x0016EBA0 | 0x3AC | 93.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-ORDER wall: target loads the state byte directly into a0 (reusing arg0 |
-| func_0021D800 | 0x0021D800 | 0x3B0 | 99.15% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | BODY CORRECTED 2026-09-27 against the original instructions (see FINDINGS "NEARMISS body corrections from the AREA01 wave-2 lanes"). Earlier diagnosis, partly superseded: At both func_001FBD50 sound calls after func_0021D600 the target never sets a0 (original p |
 | func_00158810 | 0x00158810 | 0x3B4 | 83.32% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | BODY CORRECTED 2026-09-27 against the original instructions (see FINDINGS "NEARMISS body corrections from the AREA01 wave-2 lanes"). Earlier diagnosis, partly superseded: Register-allocation-ORDER wall: target keeps the arg0+0x1F0 pointer (a1) live in a caller- |
 | func_001612D0 | 0x001612D0 | 0x3BC | 89.22% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | State-machine dispatch (switch on +6) resolves body/structure identically to target, but t |
 | func_0019DB50 | 0x0019DB50 | 0x3C0 | 87.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation, same class as sibling family func_0019DF10 (91.8 |
@@ -683,7 +693,6 @@ fixes); the main fix was per-address scratchpad externs opted in with `// SPAD:`
 | func_0010DEB8 | 0x0010DEB8 | ? | 95.00% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring + list-scheduler wall, confined to the prologue/qword-copy region. Obje |
 | func_0010EAA0 | 0x0010EAA0 | ? | 95.56% | ee-gcc 2.9-991111-01 | eegcc ASSEMBLER delay-slot-swap wall — PIPELINE BUG, fixable, and this C is then a TRUE 10 |
 | func_0010E088 | 0x0010E088 | ? | 89.14% | ee-gcc 2.9-991111-01 | TWO stacked walls; body/structure fully recovered (prologue, both DI spin loops, the D_002 |
-| func_0021B9A0 | 0x0021B9A0 | 0xC4 | 88.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | jr-table external-dispatch wall (proven s84) — local @17 table vs external jtbl_00273790 ( |
 | func_00134090 | 0x00134090 | 0x270 | 93.90% | mwcc24 | jr-table lane 2026-09-23: func_00122BB8 is the engine rand() and takes no argument (the ol |
 | func_001F0720 | 0x001F0720 | 0x334 | 86.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 86.25 with mwcc233 -O4,p -sdatathreshold 4 (o991 69.09, o24 86.25). Dispatch, all 7 preset |
 | func_001CFFE0 | 0x001CFFE0 | 0x414 | 87.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 87.16% (mwcc233; mwcc 2.3.1 = 76.1%). Decode is complete and verified instruction-by-instr |
@@ -718,7 +727,6 @@ fixes); the main fix was per-address scratchpad externs opted in with `// SPAD:`
 | sub_c_invalid_motion_type_d_2 | 0x_invalid_motion_type_d_2 | 0x6B0 | 93.41% | ee-gcc 2.9-991111-01 | eegcc callee-saved coloring tie-break: body is instruction-for-instruction identical (438/ |
 | gs_vram_readback | 0x00100EB8 | 0x68C | 88.39% | ee-gcc 2.9-991111-01 | jr-table (external-table dispatch) wall + eegcc coloring: the PSM switch dispatches throug |
 | func_00116598 | 0x00116598 | 0x820 | 62.35% | ee-gcc 2.9-991111-01 | eegcc register pressure / dual-pipeline scheduling. Structure is recovered (frame 0xb0 mat |
-| func_001796C0 | 0x001796C0 | 0x1B8 | 99.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | REGALLOC COLORING of one short-lived scratch GPR — 2 of 112 instructions differ (99.909%). |
 | sub_pts_is_not_used | 0x00204BD0 | 0x188 | 97.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc empty-basic-block / branch-target-padding placement wall. Sizes are equal (98 == 98 i |
 | sub_BASCUS_97112_DS00_00_EX_DATA_00_2 | 0xASCUS_97112_DS00_00_EX_DATA_00_2 | 0x1E8 | 96.48% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | mwcc list-scheduler + operand-order permutation (NOT the clean-store delay-slot nop, so 2. |
 | func_001E04E0 | 0x001E04E0 | 0x264 | 58.46% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two stacked walls; logic is fully recovered (setup calls, packet header/GIFtag layout, bot |
@@ -952,7 +960,6 @@ fixes); the main fix was per-address scratchpad externs opted in with `// SPAD:`
 | func_001B2F70 | 0x001B2F70 | 0x170 | 98.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected 2026-10-02 (lane DFIX2) against the original instructions; supersedes this function's earlier row(s) for the % and the logic, and its logic note: func_0019BC40 gets arg0 (the position). Still NEARMISS (links from splat). docs/FINDINGS.md "NEARMISS body corrections from the level side-track lanes, second round". |
 | func_0021BE40 | 0x0021BE40 | 0x90 | 100% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | LINKS FROM C since 2026-10-02 (lane DFIX2): its SIZE_DRIFT_FORCE_ASM entry was removed; full build byte-identical, audit_link_provenance compiled_object_ordinary_c with filler = prepared object; supersedes the "still links from the .s" wording of its earlier row. docs/LEVELS_DECOMP.md section 8. |
 | func_001D0D60 | 0x001D0D60 | 0x1BC | 100% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | LINKS FROM C since 2026-10-02 (lane DFIX2): its SIZE_DRIFT_FORCE_ASM entry was removed; same proof as func_0021BE40; supersedes the "still links from the .s" wording of its earlier row. docs/LEVELS_DECOMP.md section 8. |
-| func_001899C0 | 0x001899C0 | 0x5C | 78.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | The target sets no a0 for the func_00189730 call: func_00189630 is a leaf that never write |
 | func_001D71A0 | 0x001D71A0 | 0x4C | 85.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register coloring: the target keeps the list pointer and slot address in a3, ch*4 in v1 an |
 | func_001E0C80 | 0x001E0C80 | 0x3C | 89.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | The target computes the flag word address (D_00275670 + 0x174) into its own register for t |
 | func_001FC9B0 | 0x001FC9B0 | 0x54 | 90.48% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | One placement: mwcc 2.3.3 schedules the upper-half address load of D_002821D0 ahead of the |

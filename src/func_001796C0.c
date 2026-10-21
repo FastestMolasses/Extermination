@@ -1,15 +1,14 @@
-// NEARMISS func_001796C0  (vram 0x001796C0, 0x1B8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// REGALLOC COLORING of one short-lived scratch GPR — 2 of 112 instructions differ (99.909%). Sole residual, at the -4.01f test: target builds the constant 0xC08051EC in v1 and then a0 before moving it into $f0; mwcc 2.3.3 uses v0 where the target uses a0. mwcc picks v0 (lowest free temp) where CodeWa...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// TU_STATIC: func_00179680
+//
+// Byte-matched (objdiff 100%) with func_00179680 compiled as a static
+// function of this file. The original compiler saw that callee earlier in the
+// same translation unit, knew its register use and built the -4.01f constant
+// in a0, where a one-function file gets v0 (the former "regalloc colouring" NEARMISS residual,
+// 2 of 112 instructions). tools/decomp/tu_static.py removes the static copy
+// after checking it equals the original func_00179680; the call links to that
+// function's own unit.
 
 //
 // Per-frame update for an actor's "wind-down / recoil" timer.
@@ -32,7 +31,8 @@
 // if that succeeds and the global object at *0x700031D0 has (halfword +0x1A &
 // 0xFF00) == 0x1000, func_00179680() resets the actor.
 extern int func_00179450(unsigned char *p, float *v);
-extern void func_00179680(unsigned char *p);
+static void func_00179680(unsigned char *p);  /* same-TU callee, see TU_STATIC */
+#include "src/func_00179680.c"
 extern int func_0019AB20(unsigned char *p, float *a, float *b, int n);
 
 void func_001796C0(unsigned char *p) {

@@ -1,3 +1,40 @@
+## 2026-10-20 — same-TU static callees (`// TU_STATIC:`, decomp lane round 7): 5 byte-matched
+
+- The "same-TU callee register knowledge" class (MATCHING_GUIDE) is cracked:
+  mwcc 2.3.3 keeps values in caller-saved registers across a call when the
+  callee is a `static` function defined earlier in the same file, as the
+  original compiler did for its own translation units. A caller opts in with
+  `// TU_STATIC: <callee>`, a static prototype and `#include "src/<callee>.c"`
+  (the callee's own unit file, unchanged). New `tools/decomp/tu_static.py`
+  (run by build.py and integrate_nearmiss.py after compiling) checks that the
+  static copy equals the original callee (bytes and relocation offsets/types
+  in build/expected/<callee>.o), removes it from the object and makes the
+  call an external relocation to the callee's own unit; any failed check
+  deletes the object (the function then links from its `.s`). Host tests:
+  `tools/decomp/test_tu_static.py` (synthetic objects).
+- Byte-matched with mwcc 2.3.3 (objdiff 100, .text within the slot, linked as
+  compiled_object_ordinary_c): func_001796C0 (first level; 99.91),
+  func_0021B9A0 (88.61), func_0021D800 (99.15), func_001F6BB0 (78.73), all on
+  the first-level / AREA01 / AREA00 census lists, and func_001899C0 (78.26).
+  Their headers called the residuals colouring, branch lowering or an
+  interprocedural-analysis wall. func_001796C0 and func_001899C0 left
+  fill_unmatched's SIZE_DRIFT_FORCE_ASM list. func_0021D600's parameter is now
+  `char *` (as its callers declare it; still objdiff 100).
+- Body correction: func_001F6BB0 called func_001F6640 and func_001F66F0
+  without the slot / descriptor pointer each reads (FINDINGS "Decomp C
+  corrections from same-TU callees"); its dispatch is a sparse switch.
+- Measured, not landed: two TU-static sweeps (84 on-route files with pasted
+  copies; all 149 mwcc NEARMISS files with a lower-address byte-matched callee)
+  found no other 100 (partial gains in MATCHING_GUIDE "Decomp lane round 7");
+  a declaration-order sweep over the 11 on-route NEARMISS files whose residual
+  is register choice only found no match (func_00209280 99.10 -> 99.76 on a
+  360-order sample); permuter runs of up to 15 minutes on nine of them
+  (the last stopped early) found no match.
+- Fresh build + verify_all: all six stages pass, 2240/2244 units (was
+  2235/2239), matched_code 99.32% (99.3219), boot ELF byte-identical, 19/19
+  overlays. FUNCTIONS.csv reconciled (5 nearmiss -> readable: 1908 readable,
+  698 nearmiss, 334 word, 2 c_partial).
+
 ## 2026-10-20 — idiom-32 swept per address on the on-route NEARMISS set (decomp lane round 6): 10 byte-matched
 
 - New `tools/match/spad_sweep.py` (measurement only) compiled, for the 129
@@ -69,7 +106,8 @@
   NEARMISS headers and registry rows read "vram 0xait_and_submit" and similar;
   fixed).
 - Tested, no effect: defining func_0021D600 before func_0021D800 in one file
-  does not remove the a0 reload (the same-TU callee class stays open).
+  does not remove the a0 reload (the same-TU callee class stays open). Round 7
+  found why: mwcc 2.3.3 needs the callee `static`; `// TU_STATIC:` matches it.
 - Levers in MATCHING_GUIDE "Decomp lane round 5". Promoted through
   tools/match/integrate_nearmiss.py (3 KEEP, 16 NEARMISS). Fresh build +
   verify_all: all six stages pass, 2225/2229 units, matched_code 99.31%
