@@ -1,20 +1,6 @@
-// NEARMISS func_0019B2C0  (vram 0x0019B2C0, 0x200 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// idiom-13 const-store delay-slot NOP x2: target leaves a NOP in the beqz delay slot before a global-address scratchpad-base lui (upper half 0x7000; the else-store at 0x700031D0 and the flags&0x80000000 guard); mwcc 2.3.3 and 991202 both speculatively fill the slot with the lui. Body otherwise byte-identical. Genuine bac...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// CORRECTED (lane NMFIX4, 2026-09-28): the first loop stores a1.xyz to 0x700031A0..0x700031A8
-// (D_70003190[4 + i]); the old C wrote D_700031A0[4 + i] = 0x700031B0.., clobbering the hit point and
-// leaving 0x700031A0 stale for func_001028D0. Checked by an original-instruction harness over the
-// captured AREA00 RAM; objdiff 96.64% -> 96.72%.
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+// SPAD: 0x700031D0 0x700031D8
 //
 // SEMANTICS: builds the global scratch transform at 0x70003190 / D_700031A0 from the two input vectors
 // (a0, a1). Seeds 0x70003190.x = a0.x, .y = a1.y, .z = a0.z; copies a1.xyz into 0x700031A0..0x700031A8
@@ -27,11 +13,14 @@
 // global offsets 0x700031C0/0x700031C8. Otherwise clears 0x700031D0. Stores the mode at 0x700031D8 and
 // returns it.
 //
-// WALL: idiom-13 const-store delay-slot NOP, x2. At `if(mode!=0){...}else{*(int*)0x700031D0=0;}` and the
-// `flags&0x80000000` guard, the target leaves a NOP in the conditional-branch delay slot whose successor
-// first instr is a GLOBAL address scratchpad-base lui (0x7000); mwcc 2.3.3 (and 991202) speculatively fill that slot
-// with the lui. Per docs/fanout/MATCHING_GUIDE.md this is matchable ONLY when the slot candidate is a
-// memory load — here it is a global lui, so it is a genuine backend wall. Body is otherwise byte-identical.
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 6, 2026-10-20); it was
+// a 96.72 NEARMISS whose header called the two filled delay slots a genuine
+// backend wall. They were MATCHING_GUIDE idiom-32: with 0x700031D0 and
+// 0x700031D8 as relocated externs (opted in with // SPAD:) mwcc leaves both
+// slots as nop. The CORRECTED note of lane NMFIX4 (2026-09-28) still holds: the
+// first loop stores a1.xyz to 0x700031A0..0x700031A8 (D_70003190[4 + i]).
+extern int D_700031D0;
+extern int D_700031D8;
 extern void func_001028D0(void *a, void *b, void *c);
 extern void func_00102760(void *a, void *b);
 extern void func_00103230(void *a, void *b, float v);
@@ -89,8 +78,8 @@ int func_0019B2C0(float *a0, float *a1, int flags) {
             a0[2] = a0[2] + *(float *)0x700031C8;
         }
     } else {
-        *(int *)0x700031D0 = 0;
+        D_700031D0 = 0;
     }
-    *(int *)0x700031D8 = mode;
+    D_700031D8 = mode;
     return mode;
 }

@@ -1181,6 +1181,62 @@ corrected or closer body. Levers:
   func_001B12B0 call) did not move with literal, local, statement or switch
   forms.
 - **Next:** idiom-32 (scratchpad literal versus per-address extern) is the
-  main residual left in func_00158D30, func_0019AB20 and func_0019BA80; it
-  needs the addresses in build.py `_SPAD_SYMS` with the collateral check that
-  section describes.
+  main residual left in func_00158D30, func_0019AB20 and func_0019BA80. Done
+  in round 6 (below), per file with `// SPAD:`, so `_SPAD_SYMS` is unchanged.
+
+### Decomp lane round 6: idiom-32 swept per address on the on-route NEARMISS set — 2026-10-20
+
+`tools/match/spad_sweep.py` (new, measurement only) took the 129 on-route mwcc
+NEARMISS files that dereference `*(T *)0x7000xxxx` literals and compiled, per
+file, variants that spell a chosen set of those addresses as `extern T
+D_7000xxxx;` (plain and volatile), opted in with `// SPAD:`. Each variant is
+scored against an expected object symbolized from that variant's own text,
+which is what integrate_nearmiss.py measures after promotion. Files with up to
+8 such addresses get every subset; larger ones get none / all / singles /
+all-but-one plus greedy toggles. Ten functions byte-match now (mwcc 2.3.3,
+objdiff 100, compiled_object_ordinary_c), seven of them recorded as walls:
+
+- **Directly by the sweep:** func_00175CF0 (99.15; 0x700031C0),
+  func_00176180 (97.24; 0x700031C0 / C8 / F0), func_00177F40 (89.75;
+  0x70003058 / 68), func_0019B2C0 (96.72; 0x700031D0 / D8), func_0019AB20
+  (95.99; 0x70003194 / 31D8 required). Their headers called the residual an
+  FP-load scheduling wall, an FP coloring permutation, or a delay-slot fill
+  no source change fixes.
+- **Not every literal is an extern.** In func_0019AB20 / func_0019BA80 /
+  func_0019B8C0 the clears of 0x700031AC and 0x7000319C only match as literal
+  stores: as externs (plain or volatile) mwcc moves them (88.9), while
+  0x70003194 / 0x700031D8 only match as externs. func_0019B4C0 wants all of
+  its addresses as externs. Measure every address, alone and in combination;
+  the sweep does.
+- **Sweep plus one more lever:** func_0019BA80 (95.40) also needed `i = 0`
+  before `d` and `t` among its six setup assignments (an exhaustive
+  permutation sweep). func_0019B8C0 (91.32, "register-allocation artifact")
+  has func_0019BA80's exact instruction shape with other callees; BA80's body
+  with those callees matched at once. func_0019B4C0 (96.56) needed
+  `*(float *)(a0 + 0xB0) += p[12];`: both `= p[12] + f` and `= f + p[12]`
+  give 99.84 with the wrong add operand order. func_00177CF0 (99.71) needed
+  func_00102918's third parameter as `void *`, its real prototype: the
+  `(float *)&sp20` cast is weight that makes mwcc set a2 before a1 (the
+  argument-order rule above).
+- **Volatile keeps the store order.** func_00158D30's four colour words at
+  0x700038B0..BC: as plain externs mwcc schedules the zero stores first
+  (88.2); the target keeps source order, as literals and volatile externs do.
+- **`return` versus `break` decides an inner switch's delay slots.**
+  func_00158D30's outer switch ended every case with `return`. With that, mwcc
+  filled both conditional-branch slots of the inner switch with the
+  scratchpad upper half in every spelling tried (literal, plain or volatile
+  externs, all 256 subsets): 96.65 at best. With `break` (the switch is the
+  last statement, so it means the same) and volatile externs: 100. The same
+  inner switch compiled alone, or with a call after it, left the slots as nop.
+  This qualifies the idiom-32 rule "a relocated `lui` is not speculated".
+- **Left for later (NEARMISS files not changed this round):** the sweep's best
+  sets raise func_0019B6C0 81.83 -> 91.37, func_0019A910 81.29 -> 91.36,
+  func_0019A570 84.72 -> 89.19, func_0019AA80 90.51 -> 92.18 (the same
+  scratchpad-transform family; their sizes still differ, so their bodies
+  differ structurally), func_0015FDF0 91.01 -> 96.82, func_00177030
+  92.32 -> 95.34, func_001A2370 80.63 -> 86.18, func_0015EC50
+  96.50 -> 98.10, func_001921D0 96.32 -> 97.84, func_001916C0
+  98.80 -> 99.31 (left: the order in which one func_0018C4B0 call
+  materializes its 4.0f argument; casts, parentheses and a pointer cast did not
+  move it). The full table is in the sweep's JSON output; rerun
+  `spad_sweep.py` on them.

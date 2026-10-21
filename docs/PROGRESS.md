@@ -1,3 +1,37 @@
+## 2026-10-20 — idiom-32 swept per address on the on-route NEARMISS set (decomp lane round 6): 10 byte-matched
+
+- New `tools/match/spad_sweep.py` (measurement only) compiled, for the 129
+  on-route mwcc NEARMISS files that dereference scratchpad literals, variants
+  that spell chosen addresses as relocated externs (plain and volatile,
+  opted in per file with `// SPAD:`), scored against expected objects
+  symbolized from each variant. `_SPAD_SYMS` is unchanged, so no other file
+  is affected.
+- Byte-matched with mwcc 2.3.3 (objdiff 100, .text sizes equal, linked as
+  compiled_object_ordinary_c with filler text and relocations equal to the
+  compiled object): func_00158D30 (first level, AREA01; 96.65),
+  func_00175CF0 (first level; 99.15), func_00176180 (round-5 on-route list;
+  97.24), func_00177CF0 (AREA01; 99.71), func_00177F40 (first level; 89.75),
+  func_0019AB20 (first level; 95.99), func_0019B2C0 (first level, AREA00;
+  96.72), func_0019B4C0 (first level, AREA01; 96.56), func_0019B8C0 (first
+  level; 91.32), func_0019BA80 (first level; 95.40). Seven of the ten headers
+  recorded the residual as a compiler wall.
+- Levers beyond the per-address externs (MATCHING_GUIDE "Decomp lane round
+  6"): func_00158D30 needs volatile externs (source store order) and `break`
+  instead of `return` in its outer switch (with `return`, mwcc fills the
+  inner switch's branch slots in every spelling); func_0019BA80 needs its
+  setup assignments in one order; func_0019B8C0 is func_0019BA80's body with
+  other callees; func_0019B4C0 needs `+=`; func_00177CF0 needs func_00102918's
+  real `void *` prototype (the cast reordered its arguments). The clears of
+  0x700031AC / 0x7000319C in func_0019AB20 / func_0019BA80 / func_0019B8C0
+  only match as literal stores.
+- The sweep's partial gains on other files (func_0019B6C0, func_0019A910,
+  func_0015FDF0, func_00177030, func_001916C0 and others) are listed in
+  MATCHING_GUIDE as next targets; those files are unchanged.
+- Fresh build + verify_all: all six stages pass, 2235/2239 units (was
+  2225/2229), matched_code 99.32% (99.3196), boot ELF byte-identical, 19/19
+  overlays. FUNCTIONS.csv reconciled (10 nearmiss -> readable: 1903 readable,
+  703 nearmiss, 334 word, 2 c_partial).
+
 ## 2026-10-20 — call-site checks on the on-route NEARMISS set (decomp lane round 5): 3 byte-matched, 16 NEARMISS improved
 
 - The 288 mwcc NEARMISS files on the first-level / AREA01 / AREA00 census

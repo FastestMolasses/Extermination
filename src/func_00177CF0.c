@@ -1,19 +1,25 @@
-// NEARMISS func_00177CF0  (vram 0x00177CF0, 0x250 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.71% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP register-coloring + arg-move-order permutation (f0/f1 swap on the local-vector setup and the func_00102918 a1/a2 order). Body/structure byte-identical; 99.71% on mwcc 2.3.3. Permuter (FP-coloring) territory.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003058
+//
+// Sibling of func_00177F40: sp20 = (*0x70003050, fparg0, *0x70003058, 1.0f)
+// goes to func_00102918 after func_001029C0 / func_00102BB0 (angle at
+// 0x700031E4) on D_700036A0. Two rounds then put the point pairs
+// (-4.5, 0, -2, 1) / (-4.5, 0, 2, 1) at 0x700038A0 / 0x700038B0 (the second
+// round with x = +4.5), transform them with func_001026A0 into 0x700038C0 /
+// 0x700038D0 and call func_0019AFE0(arg0, C0, D0, 7). A result with bit 0, or
+// with bits 1-2 while the byte at (*0x700031D0)+0x1A is 0x32, returns 1;
+// otherwise 0.
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 6, 2026-10-20); it was
+// a 99.71 NEARMISS. Keys: 0x70003058 is a relocated extern (MATCHING_GUIDE
+// idiom-32, // SPAD:), and func_00102918's third parameter is `void *` as in
+// its own definition: the old `(float *)&sp20` cast added weight, so mwcc set
+// a2 before a1 (MATCHING_GUIDE, argument evaluation order).
 
+extern float D_70003058;
 extern void func_001029C0(void *a);
 extern void func_00102BB0(void *a, void *b, float f);
-extern void func_00102918(void *a, void *b, float *c);
+extern void func_00102918(void *a, void *b, void *c);
 extern void func_001026A0(void *a, void *b, void *c);
 extern int func_0019AFE0(int obj, void *a, void *b, int n);
 extern char D_700036A0[];
@@ -29,14 +35,14 @@ int func_00177CF0(int arg0, float fparg0) {
     int r;
 
     float a = *(float *)0x70003050;
-    float b = *(float *)0x70003058;
+    float b = D_70003058;
     sp20.x = a;
     sp20.y = fparg0;
     sp20.z = b;
     sp20.w = 0x3F800000;
     func_001029C0(D_700036A0);
     func_00102BB0(D_700036A0, D_700036A0, *(float *)0x700031E4);
-    func_00102918(D_700036A0, D_700036A0, (float *)&sp20);
+    func_00102918(D_700036A0, D_700036A0, &sp20);
     *(int *)0x700038A0 = 0xC0900000;
     *(int *)0x700038B0 = 0xC0900000;
     *(int *)0x700038A4 = 0;

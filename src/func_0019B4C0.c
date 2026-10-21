@@ -1,16 +1,6 @@
-// NEARMISS func_0019B4C0  (vram 0x0019B4C0, 0x200 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.56% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// idiom-13 const-store delay-slot NOP x2 (else-store 0x700031D0 + flags&0x80000000 guard, target NOP vs mwcc-filled global lui) PLUS one permuter-class FP add-operand-order/register-coloring permutation in the final a0+0xB0 accumulate loop (target f0 = f0 + f1 vs mwcc f0 = f1 + f0; flipping ope...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+// SPAD: 0x7000319C 0x700031AC 0x700031D0 0x700031D4 0x700031D8 0x7000324E 0x70003254
 //
 // SEMANTICS: sibling of func_0019B2C0 but driven by two vectors (a1 = target, a2 = origin) and an actor a0.
 // Loop builds the global scratch transform: D_70003190[i] = a1[i]-a2[i]; D_700031A0[i] = a1[i]; tmp[i] = a1[i]
@@ -26,12 +16,19 @@
 // NOTE: the first func_001028D0 takes the SEPARATE global symbol D_700031A0 (not D_70003190+4) as its
 // middle arg — using the +4 addend would mis-match the reloc symbol; declare D_700031A0 as its own extern.
 //
-// WALL: (1) idiom-13 const-store delay-slot NOP x2 — same shape as func_0019B2C0 (the else-store at
-// 0x700031D0 and the flags&0x80000000 guard; target NOP vs mwcc-filled global address high-half load). (2) In the final
-// `a0+0xB0 += D_70003190[12+i]` loop the target colors D into $f1, the field into $f0, and emits
-// f0 = f0 + f1 (field+D); mwcc reaches the matching load coloring with `p[12] + f` but then emits the
-// commuted f0 = f1 + f0. Forcing the other operand order flips the load coloring instead. Permuter-class
-// FP-coloring/operand-order permutation; body and addressing are otherwise byte-identical.
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 6, 2026-10-20); it was
+// a 96.56 NEARMISS whose header recorded two walls. Both were source: the two
+// filled delay slots are MATCHING_GUIDE idiom-32 (the scratchpad globals above
+// as relocated externs, opted in with // SPAD:), and the last loop's add is
+// `*(float *)(a0 + 0xB0) += p[12];`, which gives the target's field + delta
+// operand order (`= p[12] + f` and `= f + p[12]` each give 99.84).
+extern int D_7000319C;
+extern int D_700031AC;
+extern int D_700031D0;
+extern int D_700031D4;
+extern int D_700031D8;
+extern short D_7000324E;
+extern int D_70003254;
 extern void func_001028D0(void *a, void *b, void *c);
 extern void func_00102760(void *a, void *b);
 extern void func_00103230(void *a, void *b, float v);
@@ -56,18 +53,18 @@ int func_0019B4C0(unsigned char *a0, float *a1, float *a2, int flags) {
         D_70003190[4 + i] = t;
         tmp[i] = t;
     }
-    *(int *)0x700031AC = 0;
-    *(int *)0x7000319C = 0;
-    *(int *)0x700031D4 = 0;
+    D_700031AC = 0;
+    D_7000319C = 0;
+    D_700031D4 = 0;
     func_001028D0(mat, D_700031A0, D_70003190);
     func_00102760(mat, mat);
     func_00103230(mat, mat, 0.01f);
     func_001028D0(D_70003190, D_70003190, mat);
 
-    *(short *)0x7000324E = a0[2] & 0x1F;
+    D_7000324E = a0[2] & 0x1F;
 
     if (flags & 2) {
-        *(int *)0x70003254 = *(int *)(a0 + 0x14);
+        D_70003254 = *(int *)(a0 + 0x14);
         if (func_001A06A0() == 0) {
             mode = 2;
         }
@@ -86,15 +83,14 @@ int func_0019B4C0(unsigned char *a0, float *a1, float *a2, int flags) {
         if (flags & 0x80000000) {
             float *p = D_70003190;
             for (i = 0; i < 3; i++) {
-                float f = *(float *)(a0 + 0xB0);
-                *(float *)(a0 + 0xB0) = p[12] + f;
+                *(float *)(a0 + 0xB0) += p[12];
                 p++;
                 a0 += 4;
             }
         }
     } else {
-        *(int *)0x700031D0 = 0;
+        D_700031D0 = 0;
     }
-    *(int *)0x700031D8 = mode;
+    D_700031D8 = mode;
     return mode;
 }

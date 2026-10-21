@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-20 (Claude: decomp lane round 5, call-site checks on the on-route NEARMISS set: 3 byte-matched, 16 NEARMISS improved, gate below; round 4: 12 DMA-list functions byte-matched; the cut-content and character census branch and the func_001BA8E0 / func_001BA580 matches reviewed and merged; 2026-10-19: Codex's `levels` branch reviewed and merged into port main 789b4b4, and the levels 2-4 state toward the drawbridge, below; earlier: the lossless comparison master demo_level_1019 and the comparison-only IOP tick phase, below; the Discord video re-run demo_level_1018; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-20 (Claude: decomp lane round 6, idiom-32 swept per address on the on-route NEARMISS set: 10 byte-matched, gate below; round 5: call-site checks, 3 byte-matched, 16 NEARMISS improved; round 4: 12 DMA-list functions byte-matched; the cut-content and character census branch and the func_001BA8E0 / func_001BA580 matches reviewed and merged; 2026-10-19: Codex's `levels` branch reviewed and merged into port main 789b4b4, and the levels 2-4 state toward the drawbridge, below; earlier: the lossless comparison master demo_level_1019 and the comparison-only IOP tick phase, below; the Discord video re-run demo_level_1018; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -52,24 +52,27 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (2026-10-20, fresh build after decomp lane round 5: call-site
-  checks on the on-route NEARMISS set, MATCHING_GUIDE "Decomp lane round 5";
-  func_00176390, func_001FA330, func_002134C0 byte-matched, 16 NEARMISS bodies
-  corrected or closer): 2225/2229 units, matched_code 99.31% (99.3140); boot
-  ELF byte-identical; 19/19 overlays; audit_link_provenance shows the three as
+  Latest (2026-10-20, fresh build after decomp lane round 6: idiom-32
+  swept per address over the on-route NEARMISS set with the new
+  `tools/match/spad_sweep.py`, MATCHING_GUIDE "Decomp lane round 6";
+  func_00158D30, func_00175CF0, func_00176180, func_00177CF0, func_00177F40,
+  func_0019AB20, func_0019B2C0, func_0019B4C0, func_0019B8C0, func_0019BA80
+  byte-matched): 2235/2239 units, matched_code 99.32% (99.3196); boot ELF
+  byte-identical; 19/19 overlays; audit_link_provenance shows the ten as
   compiled_object_ordinary_c. `docs/FUNCTIONS.csv`'s status column is
   derived by `tools/decomp/reconcile_functions_csv.py` (rerun it with `--write`
-  after a fresh build + match stage): 1893 readable, 713 nearmiss, 334 word,
+  after a fresh build + match stage): 1903 readable, 703 nearmiss, 334 word,
   2 c_partial (func_00140F80 / func_0014AFA0: the D_700038A0 literal-vs-relocation
   expected-object case, NEARMISS.md), no c_asm_fallback left. Before diagnosing
   a NEARMISS, rebuild its expected object from the normalized `.s` (build.py
-  refreshes only compiled units). Next matching targets: idiom-32 scratchpad
-  externs for func_00158D30 / func_0019AB20 / func_0019BA80 (needs `_SPAD_SYMS`
-  with the collateral check), the remaining missing-argument call sites
-  (func_001F6BB0, func_001BAD40, anim_matrix_player, func_001AA840,
-  func_0016EBA0), and a declaration-order sweep over the other saved-register
-  permutation residuals; func_001D4B80 / func_001D4C30 caller-saved coloring
-  is still open.
+  refreshes only compiled units). Next matching targets: the sweep's partial
+  gains (func_0019B6C0 / func_0019A910 / func_0019A570 / func_0019AA80, the
+  scratchpad-transform family whose sizes still differ; func_0015FDF0,
+  func_00177030, func_001916C0, MATCHING_GUIDE round 6), the remaining
+  missing-argument call sites (func_001F6BB0, func_001BAD40,
+  anim_matrix_player, func_001AA840, func_0016EBA0), and a declaration-order
+  sweep over the other saved-register permutation residuals; func_001D4B80 /
+  func_001D4C30 caller-saved coloring is still open.
 - Lanes: each owns disjoint files, builds privately and gets an adversarial review. The
   lead commits after an isolated index build (`git checkout-index` into scratch, then
   `make all`) and a leak scan.

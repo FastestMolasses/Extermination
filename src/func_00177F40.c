@@ -1,16 +1,21 @@
-// NEARMISS func_00177F40  (vram 0x00177F40, 0x140 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 89.75% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP register-coloring permutation. Body and structure fully recovered. The target computes sp[0]=*0x70003050-1.5f*(*0x70003060) and sp[2]=*0x70003058-1.5f*(*0x70003068) using a specific physical FP-register assignment (f4/f3/f2/f1/f0, with 1.5f materialized into f3 early and loads of 0x3060/0x3058...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003058 0x70003068
+//
+// sp = (*0x70003050 - 1.5 * *0x70003060, fparg0, *0x70003058 - 1.5 *
+// *0x70003068); func_001029C0(D_700036A0), func_00102BB0(D_700036A0, ...,
+// the float at 0x700031E4), func_00102918(D_700036A0, ..., sp). The scratchpad
+// points (0, 1, 0, 1) at 0x700038A0 and (0, -1, 0, 1) at 0x700038B0 go through
+// func_001026A0 into 0x700038C0 / 0x700038D0; returns 1 when
+// func_0019A570(C0, D0, 6, 0) is non-zero, else 0.
+// Byte-matched from C with mwcc 2.3.3 (decomp lane round 6, 2026-10-20); it was
+// an 89.75 NEARMISS whose header called the residual an FP register-coloring
+// permutation. It was MATCHING_GUIDE idiom-32: 0x70003058 and 0x70003068 are
+// relocated externs (opted in with // SPAD:); 0x70003050 / 0x70003060 stay
+// literal (the sweep's best set).
 
+extern float D_70003058;
+extern float D_70003068;
 extern void func_001029C0(void *);
 extern void func_00102BB0(void *, void *, float);
 extern void func_00102918(void *, void *, float *);
@@ -27,7 +32,7 @@ int func_00177F40(float fparg0) {
 
     sp[0] = *(float *)0x70003050 - 1.5f * *(float *)0x70003060;
     sp[1] = fparg0;
-    sp[2] = *(float *)0x70003058 - 1.5f * *(float *)0x70003068;
+    sp[2] = D_70003058 - 1.5f * D_70003068;
     func_001029C0(D_700036A0);
     func_00102BB0(D_700036A0, D_700036A0, *(float *)0x700031E4);
     func_00102918(D_700036A0, D_700036A0, sp);
