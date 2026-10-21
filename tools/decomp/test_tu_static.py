@@ -157,5 +157,96 @@ class TuStaticTest(unittest.TestCase):
         self.assertEqual(tu_static.tu_static_names(src), ["func_00179680", "func_0021B900", "x"])
 
 
+# A static callee with its own jump table (decomp2 lane round 4): the helper's
+# text addresses a local .rodata table through a HI16/LO16 pair, and the table
+# holds two word addresses inside the helper.
+R_MIPS_HI16, R_MIPS_LO16 = 5, 6
+SW_VRAM, SW_TABLE = 0x00100000, 0x00200000
+SW_CODE = struct.pack("<4I", 0x3C010000, 0x24210000, 0, 0)        # lui at,%hi / addiu at,%lo
+SW_ORIG_CODE = struct.pack("<4I", 0x3C010020, 0x24210000, 0, 0)   # the same pair, resolved
+SW_TABLE_ADDENDS = struct.pack("<2I", 8, 12)
+
+
+def switch_tu(table=SW_TABLE_ADDENDS, caller_refs_table=False):
+    st, o = strtab_of("helper", "caller", "ext", "@1")
+    rel_helper = struct.pack("<II", 0, (2 << 8) | R_MIPS_HI16) + struct.pack("<II", 4, (2 << 8) | R_MIPS_LO16)
+    rel_table = struct.pack("<II", 0, (1 << 8) | R_MIPS_32) + struct.pack("<II", 4, (1 << 8) | R_MIPS_32)
+    rel_caller = struct.pack("<II", 4, (1 << 8) | R_MIPS_26)
+    if caller_refs_table:
+        rel_caller += struct.pack("<II", 8, (2 << 8) | R_MIPS_32)
+    sections = [
+        None,
+        (".symtab", SHT_SYMTAB, 0, 2, 3, 4, 16, b""),
+        (".strtab", SHT_STRTAB, 0, 0, 0, 1, 0, b""),
+        (".shstrtab", SHT_STRTAB, 0, 0, 0, 1, 0, b""),
+        (".rodata", SHT_PROGBITS, 2, 0, 0, 16, 0, table),                       # 4: helper's table
+        (".rel.rodata", SHT_REL, 0, 1, 4, 4, 8, rel_table),                     # 5
+        (".text", SHT_PROGBITS, 6, 0, 0, 16, 0, SW_CODE),                       # 6: helper
+        (".rel.text", SHT_REL, 0, 1, 6, 4, 8, rel_helper),                      # 7
+        (".text", SHT_PROGBITS, 6, 0, 0, 16, 0, CALLER),                        # 8: caller
+        (".rel.text", SHT_REL, 0, 1, 8, 4, 8, rel_caller),                      # 9
+    ]
+    symbols = [
+        (0, 0, 0, 0, 0),
+        (o["helper"], 0, len(SW_CODE), 0x02, 6),       # LOCAL FUNC
+        (o["@1"], 0, len(table), 0x01, 4),            # LOCAL OBJECT in .rodata
+        (o["caller"], 0, len(CALLER), 0x12, 8),        # GLOBAL FUNC
+        (o["ext"], 0, 0, 0x10, 0),
+    ]
+    return elf(sections, symbols, st)
+
+
+def expected_switch_helper():
+    st, o = strtab_of("helper", "jtbl_00200000")
+    rel = struct.pack("<II", 0, (2 << 8) | R_MIPS_HI16) + struct.pack("<II", 4, (2 << 8) | R_MIPS_LO16)
+    sections = [
+        None,
+        (".symtab", SHT_SYMTAB, 0, 2, 1, 4, 16, b""),
+        (".strtab", SHT_STRTAB, 0, 0, 0, 1, 0, b""),
+        (".shstrtab", SHT_STRTAB, 0, 0, 0, 1, 0, b""),
+        (".text", SHT_PROGBITS, 6, 0, 0, 16, 0, SW_CODE),
+        (".rel.text", SHT_REL, 0, 1, 4, 4, 8, rel),
+    ]
+    symbols = [(0, 0, 0, 0, 0), (o["helper"], 0, len(SW_CODE), 0x12, 4), (o["jtbl_00200000"], 0, 0, 0x10, 0)]
+    return elf(sections, symbols, st)
+
+
+class TuStaticJumpTableTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        self.saved = (tu_static.EXPECTED, tu_static.callee_vram, tu_static.original_bytes)
+        tu_static.EXPECTED = self.dir
+        (self.dir / "helper.o").write_bytes(expected_switch_helper())
+        memory = {SW_VRAM: SW_ORIG_CODE, SW_TABLE: struct.pack("<2I", SW_VRAM + 8, SW_VRAM + 12)}
+
+        def original(addr, size):
+            for base, blob in memory.items():
+                if base <= addr and addr + size <= base + len(blob):
+                    return blob[addr - base:addr - base + size]
+            raise ValueError("outside the synthetic image")
+        tu_static.callee_vram = lambda name: SW_VRAM
+        tu_static.original_bytes = original
+
+    def tearDown(self):
+        tu_static.EXPECTED, tu_static.callee_vram, tu_static.original_bytes = self.saved
+        self.tmp.cleanup()
+
+    def test_table_goes_with_the_callee(self):
+        out = tu_static.Obj(tu_static.strip(switch_tu(), "caller", ["helper"]))
+        names = [out.secname(i) for i in range(1, len(out.sh))]
+        self.assertNotIn(".rodata", names)
+        self.assertEqual(names.count(".text"), 1)
+        self.assertNotIn("@1", {out.name(s[0]) for s in out.syms[1:]})
+
+    def test_guard_rejects_a_table_that_differs_from_the_original(self):
+        with self.assertRaisesRegex(ValueError, "differs from the original at 0x00200000"):
+            tu_static.strip(switch_tu(table=struct.pack("<2I", 8, 8)), "caller", ["helper"])
+
+    def test_guard_rejects_a_table_the_caller_also_uses(self):
+        with self.assertRaisesRegex(ValueError, "also referenced"):
+            tu_static.strip(switch_tu(caller_refs_table=True), "caller", ["helper"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,16 +1,31 @@
 // NEARMISS func_0016C6A0  (vram 0x0016C6A0, 0x6C4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.70% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// anim_clip_arbiter dead-float-argument scheduling + func_00224290 branch-likely tail scheduling; logic 100% recovered.
+// objdiff 99.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// One pair in func_001B12B0(0.0f, +0xC0, 0.06981317f): the target sets $f14 before $f12 = 0, as in func_00162DB0 (literal, local, function-scope and folded-constant spellings, mwcc 2.4 tried). Body corrected in decomp2 lane round 4.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// CFLAGS: -O4,p -sdatathreshold 4
 
+//
+// Body corrected, decomp2 lane round 4 (93.70 -> 99.95), from the original
+// instructions:
+//  - State 0x15 calls func_00224290(arg0) BEFORE it consumes the airborne
+//    timer (the old C called it after the +0x38 update), and branches on
+//    +0x38 > +0x2E0 first.
+//  - The two func_00178B90 calls in states 0xB / 0xC are func_00178B90(e, 1):
+//    the target sets $a1 = 1 and keeps e in $a0 (the old C passed the
+//    pointer 1 and the flag 0).
+//  - anim_clip_arbiter's blend and frame are floats (8.0 in $f12, the frame
+//    in $f13; the old C declared an int blend). State 0x14 keeps the clip
+//    length in a register for the subtraction; state 0's re-reads 0x70003A20.
+//  - -sdatathreshold 4: D_00275B40 is gp-relative in the target.
+// Left: one pair in func_001B12B0(0.0f, +0xC0, 0.06981317f), the same
+// residual as func_00162DB0 (the target sets $f14 before $f12 = 0).
 //
 // Player crouch/land vertical-motion state machine, dispatched on the state
 // byte at arg0+6 (a beq-chain, not a jump table: compare order 0x1E,0x15,
@@ -35,7 +50,7 @@
 //   state 0x1E: func_0021D2E0(arg0, 0x78, 0) — external abort/teleport hook.
 // Tail: unless state==0x1E, if the surface id at +0x23A==0x5D, fire the
 // splash/impact hook func_0021D250(arg0, 0).
-extern void anim_clip_arbiter(unsigned char *, int, int, float);
+extern void anim_clip_arbiter(unsigned char *, int, float, float);
 extern float func_0011DF78(float);
 extern void func_0016C520(unsigned char *);
 extern void func_0016C570(unsigned char *);
@@ -140,7 +155,7 @@ void func_0016C6A0(unsigned char *arg0)
         } else {
             *(float *)(e + 0x38) = *(float *)((char *)*D_00275B40 + 8) - *(float *)(e + 0x21C);
             *(float *)(e + 0x21C) = *(float *)((char *)*D_00275B40 + 8);
-            func_00178B90((unsigned char *)1, 0);
+            func_00178B90(e, 1);
         }
         *(float *)(e + 0xB4) += -0.6f;
         *(float *)(e + 0xB4) += *(float *)(e + 0x2EC);
@@ -156,7 +171,7 @@ void func_0016C6A0(unsigned char *arg0)
             *(float *)(e + 0x38) = *(float *)((char *)*D_00275B40 + 8) - *(float *)(e + 0x21C);
             *(float *)(e + 0x21C) = *(float *)((char *)*D_00275B40 + 8);
             *(float *)(e + 0x38) *= *(float *)(e + 0x26C);
-            func_00178B90((unsigned char *)1, 0);
+            func_00178B90(e, 1);
             switch (e[0x302]) {
             case 0:
                 if (*(float *)(e + 0x3C) <= 24.0f) {
@@ -184,8 +199,12 @@ void func_0016C6A0(unsigned char *arg0)
         break;
     case 0x14:
         e[6] = e[6] + 1;
-        *(float *)0x70003A20 = (float)func_001C61D0(*(int *)(e + 0x40), 0x73);
-        anim_clip_arbiter(e, 0x73, 8.0f, *(float *)0x70003A20 - 10.0f);
+        {
+            float len = (float)func_001C61D0(*(int *)(e + 0x40), 0x73);
+            float f = len - 10.0f;
+            *(float *)0x70003A20 = len;
+            anim_clip_arbiter(e, 0x73, 8.0f, f);
+        }
         *(float *)(e + 0x2F4) = *(float *)(e + 0xB4);
         *(float *)(e + 0x2EC) = z;
         *(float *)(e + 0x2E0) = *(float *)(e + 0x38) / 60.0f;
@@ -193,12 +212,12 @@ void func_0016C6A0(unsigned char *arg0)
     case 0x15: {
         int landed;
         *(float *)(e + 0xC0) = func_001B12B0(0.0f, *(float *)(e + 0xC0), 0.06981317f);
-        if (*(float *)(e + 0x38) <= *(float *)(e + 0x2E0)) {
-            *(float *)(e + 0x38) = z;
-        } else {
-            *(float *)(e + 0x38) -= *(float *)(e + 0x2E0);
-        }
         landed = func_00224290(e);
+        if (!(*(float *)(e + 0x38) <= *(float *)(e + 0x2E0))) {
+            *(float *)(e + 0x38) -= *(float *)(e + 0x2E0);
+        } else {
+            *(float *)(e + 0x38) = z;
+        }
         func_00178B90(e, 1);
         if (e[0x314] & 1) {
             *(float *)(e + 0x38) = z;

@@ -32,6 +32,14 @@ the repository root). After compiling, this script rewrites the object:
      splat-assembled target). This proves the static copy compiled to exactly
      the original function, so the register knowledge mwcc applied is the
      original callee's;
+     A callee whose switch compiles to a jump table also carries its own local
+     .rodata section. That section is removed with the copy when only the
+     callee refers to it and it equals the original table: its HI16/LO16 pair,
+     read against the original instructions at the callee's address, gives the
+     table's original address, and the section's words resolved against the
+     callee's original address equal the original bytes there
+     (check_callee_rodata; the callee's own unit links that table in place,
+     rodata_pin.py). Any other local data reference still fails the guard;
   3. the callee symbol becomes an undefined GLOBAL, so the caller's calls are
      ordinary external relocations resolved to the callee's own unit at link
      time (that unit stays a normal, separately compiled object).
@@ -56,6 +64,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 EXPECTED = ROOT / "build" / "expected"
 SHT_SYMTAB, SHT_REL, SHT_RELA, SHT_NOBITS = 2, 9, 4, 8
+R_MIPS_32, R_MIPS_HI16, R_MIPS_LO16 = 2, 5, 6
+ASM_DIR = ROOT / "build" / "asm" / "matchings" / "main" / "code"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 DIRECTIVE = re.compile(r"^//\s*TU_STATIC:(.*)$", re.M)
 
 
@@ -118,6 +129,78 @@ def expected_callee(name: str) -> tuple[bytes, list[tuple[int, int]]]:
     return code, sorted(rel)
 
 
+def callee_vram(name: str) -> int:
+    """The callee's original address, from its splat assembly (as link.py reads it)."""
+    for d in (ASM_DIR, ROOT / "build" / ".asmnorm"):
+        p = d / f"{name}.s"
+        if p.is_file():
+            for line in p.read_text(errors="replace").splitlines()[:40]:
+                m = re.search(r"/\*\s*[0-9A-Fa-f]+\s+([0-9A-Fa-f]{8})\s+[0-9A-Fa-f]{8}\s*\*/", line)
+                if m:
+                    return int(m.group(1), 16)
+    raise ValueError(f"guard: no original address for {name} (its splat .s is missing)")
+
+
+def original_bytes(addr: int, size: int) -> bytes:
+    import rodata_pin  # tools/decomp; reads config/SCUS_971.12 (the user's own ELF)
+    return rodata_pin.original_bytes(addr, size)
+
+
+def check_callee_rodata(o: "Obj", name: str, k: int, sec: int, d: int,
+                        refs: list[tuple[int, int, int]]) -> None:
+    """GUARD for a static callee's own local .rodata section `d` (a switch's jump
+    table, decomp2 lane round 4). The section goes with the callee copy, so it
+    must belong to the callee alone and equal the original table:
+      - only the callee's text refers to it, through HI16/LO16 pairs;
+      - its own relocations are word addresses inside the callee;
+      - every HI16/LO16 pair, read against the original instruction pair at the
+        callee's original address, gives one base address, and the section's
+        bytes with those relocations resolved equal the original bytes there.
+    The callee's own unit links its table at that address (rodata_pin.py)."""
+    for i, h in enumerate(o.sh):
+        if h[1] not in (SHT_REL, SHT_RELA) or h[7] in (sec, d):
+            continue
+        for r in o.relocs(i):
+            if o.syms[r[1] >> 8][5] == d:
+                raise ValueError(f"{name}: its .rodata is also referenced by {o.secname(h[7])}")
+    vram = callee_vram(name)
+    code = o.body[sec]
+    bases: set[int] = set()
+    hi = None
+    for off, kind, value in sorted(refs):
+        if kind not in (R_MIPS_HI16, R_MIPS_LO16):
+            raise ValueError(f"{name}: relocation type {kind} against its .rodata")
+        comp = struct.unpack_from("<I", code, off)[0]
+        orig = struct.unpack("<I", original_bytes(vram + off, 4))[0]
+        if kind == R_MIPS_HI16:
+            hi = (comp, orig)
+            continue
+        if hi is None:
+            raise ValueError(f"{name}: LO16 without a preceding HI16 against its .rodata")
+        addend = ((hi[0] & 0xFFFF) << 16) + _s16(comp)
+        target = ((hi[1] & 0xFFFF) << 16) + _s16(orig)
+        bases.add((target - addend - value) & 0xFFFFFFFF)
+    if len(bases) != 1:
+        raise ValueError(f"guard: {name}'s .rodata has {len(bases)} candidate original addresses")
+    base = bases.pop()
+    table = bytearray(o.body[d])
+    for i, h in enumerate(o.sh):
+        if h[1] in (SHT_REL, SHT_RELA) and h[7] == d:
+            for r in o.relocs(i):
+                t = o.syms[r[1] >> 8]
+                if (r[1] & 0xFF) != R_MIPS_32 or t[5] != sec or len(r) == 3:
+                    raise ValueError(f"{name}: its .rodata holds a relocation that is not a word address in {name}")
+                addend = struct.unpack_from("<I", table, r[0])[0]
+                struct.pack_into("<I", table, r[0], (vram + t[1] + addend) & 0xFFFFFFFF)
+    if bytes(table) != original_bytes(base, len(table)):
+        raise ValueError(f"guard: {name}'s .rodata differs from the original at 0x{base:08x}")
+
+
+def _s16(v: int) -> int:
+    v &= 0xFFFF
+    return v - 0x10000 if v >= 0x8000 else v
+
+
 def strip(data: bytes, caller: str, callees: list[str]) -> bytes:
     o = Obj(data)
     drop: set[int] = set()
@@ -142,16 +225,22 @@ def strip(data: bytes, caller: str, callees: list[str]) -> bytes:
             raise ValueError(f"{name}: its .text section holds other code")
         code = o.body[sec]
         rel = []
+        tables: dict[int, list[tuple[int, int, int]]] = {}  # local .rodata section -> text HI16/LO16 refs
         for i, h in enumerate(o.sh):
             if h[1] in (SHT_REL, SHT_RELA) and h[7] == sec:
                 for r in o.relocs(i):
                     t = o.syms[r[1] >> 8]
                     if (t[3] >> 4) == 0 and t[5] != sec and (t[3] & 0xF) != 2:
-                        raise ValueError(f"{name}: references local data of this object")
+                        if not (0 < t[5] < 0xFF00) or o.secname(t[5]) != ".rodata":
+                            raise ValueError(f"{name}: references local data of this object")
+                        tables.setdefault(t[5], []).append((r[0], r[1] & 0xFF, t[1]))
                     rel.append((r[0], r[1] & 0xFF))
         want_code, want_rel = expected_callee(name)
         if code != want_code or sorted(rel) != want_rel:
             raise ValueError(f"guard: the static copy of {name} differs from the original callee")
+        for d, refs in tables.items():
+            check_callee_rodata(o, name, k, sec, d, refs)
+            drop.add(d)
         drop.add(sec)
         helper_syms.append(k)
     if not helper_syms:

@@ -1,8 +1,8 @@
 // NEARMISS func_00195130  (vram 0x00195130, 0x1270 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 88.24% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// NEARMISS 88.24 (mwcc233), up from 41.30 at the start of this session. KEY REUSABLE FINDING: mwcc lays out a switch's `default:` body IMMEDIATELY after the compare chain when `default:` is written FIRST in the source. Moving the `default:` arm of the inner `switch(*(int*)(arg1+0x230))` (D_00810700...
+// objdiff 88.48% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Basic-block layout / switch-arm order in the two deeply nested arms (see the body notes). Calls corrected in decomp2 lane round 4.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,8 +11,16 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// NEARMISS 88.24 (objdiff, mwcc 2.3.3). Logic complete; residual is basic-block
-// layout / switch-arm-order permutation in the two deeply nested arms (see wall).
+// Calls corrected, decomp2 lane round 4 (88.24 -> 88.48), from the original
+// instructions and the callee definitions: func_00194DB0(arg0, arg1) and
+// func_0022FCA0(arg0, arg1) take two arguments (the target sets $a0 / $a1
+// only; the old C also passed 8), and func_0011DF78 is fabs of one float
+// (the old C also passed arg0). func_823FE0 keeps arg0: its block sets no
+// argument, but its only predecessor (a case 0xD compare) leaves arg0
+// in $a0.
+//
+// Earlier note (88.24): logic complete; residual is basic-block layout /
+// switch-arm-order permutation in the two deeply nested arms (see wall).
 //
 // Per-area camera/target driver: arg0 = camera state, arg1 = tracked entity.
 // Dispatches on the outer state byte arg0[1], then on the global area id
@@ -28,17 +36,17 @@ extern void func_00191210();
 extern void func_00193EB0(void *p, void *e, int a);
 extern int func_001944B0(void *p, void *e, int a);
 extern int func_00194D10(void *p, void *e, int a);
-extern void func_00194DB0(void *p, void *e, int a);
+extern void func_00194DB0(void *p, void *e);
 extern void func_0018D7B0(void *p, int a);
 extern int func_0018C4B0(float *d, float a, float b);
 extern int func_0018C6A0(void *src, float *d, float f);
 extern void func_00191D40(void *p, float a, float b);
 extern void func_00192010(void *p, float a, float b, float c);
-extern float func_0011DF78(void *p, float f);
+extern float func_0011DF78(float f);
 extern void func_00102948(void *a, void *b);
 extern int func_00230230(void *p, void *e);
 extern int func_823FE0(void *p);
-extern void func_0022FCA0(void *p, void *e, int a);
+extern void func_0022FCA0(void *p, void *e);
 extern void func_001AEDE0(int a, int b);
 extern float D_008105D0;
 extern float D_008105D4;
@@ -81,7 +89,7 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
             }
             if (D_00810701 == 2 && D_00810803 == 3) {
                 *(float *)(arg0 + 0x94) = 0.0f;
-                func_00194DB0(arg0, arg1, 8);
+                func_00194DB0(arg0, arg1);
                 var_s0 = 2;
             }
             break;
@@ -142,7 +150,7 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
                         } else {
                             lim = -10.0f;
                         }
-                        t = D_0081069C - func_0011DF78(arg0, *(float *)(arg0 + 0xC));
+                        t = D_0081069C - func_0011DF78(*(float *)(arg0 + 0xC));
                         *(float *)0x70003A20 = t;
                         if (t < lim) {
                             if (lim != -20.0f) {
@@ -261,7 +269,7 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
         case 0xB:
             if (*(float *)(arg1 + 0xA4) < 185.0f && *(float *)(arg1 + 0xA8) < 220.0f) {
                 if (!(*(float *)(arg1 + 0xA0) <= 359.0f) && *(float *)(arg1 + 0xA0) < 394.8f) {
-                    func_0022FCA0(arg0, arg1, 8);
+                    func_0022FCA0(arg0, arg1);
                     *(float *)(arg0 + 0x18) = 219.0f;
                     *(float *)(arg0 + 0x14) = 220.0f;
                     func_0018D7B0(arg0, 5);

@@ -16406,6 +16406,14 @@
       }
     },
     {
+      "name": "func_0020E460",
+      "target_path": "build/expected/func_0020E460.o",
+      "base_path": "build/obj/func_0020E460.o",
+      "metadata": {
+        "source_path": "src/func_0020E460.c"
+      }
+    },
+    {
       "name": "func_0020E6F0",
       "target_path": "build/expected/func_0020E6F0.o",
       "base_path": "build/obj/func_0020E6F0.o",

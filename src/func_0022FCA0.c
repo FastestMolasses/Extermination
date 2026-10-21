@@ -24,6 +24,9 @@
 // nudges the cached angle by 0.3 degrees per unit of remaining error, and re-derives
 // the velocity from sin/cos (func_0011E2A8/func_0011DE90) of the new angle. If the
 // error doesn't exceed the threshold, clears the arc-side flag (idle).
+// Takes (p, e) like its callers pass it (func_00195130 and func_00230000 both
+// set $a1 to the tracked entity before the call, decomp2 lane round 4); the
+// body reads only p, so the bytes are unchanged.
 extern void func_00102760(void *a, void *b);
 extern void func_001028D0(void *dst, void *a, void *b);
 extern float func_0011DE90(float);
@@ -34,7 +37,7 @@ extern float D_00810690;
 extern float D_0081069C;
 extern char D_700038A0[];
 
-void func_0022FCA0(char *p) {
+void func_0022FCA0(char *p, char *e) {
     float thresh;
     float ang;
 

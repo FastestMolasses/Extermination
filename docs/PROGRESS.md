@@ -1,3 +1,28 @@
+## 2026-10-21 — call arities on the first-level set, TU-static callees with jump tables (decomp2 lane round 4): 1 byte-matched, 3 bodies corrected
+
+- Round 3's call comparison continued on the first-level census files, each
+  difference read in the target (MATCHING_GUIDE "Decomp2 lane round 4").
+- Byte-matched with mwcc 2.3.3 (objdiff 100, compiled_object_ordinary_c):
+  func_0020E460 (93.18): func_001AFF90 takes one argument, func_0020E3A0 is a
+  `// TU_STATIC:` callee taking the glyph code alone, `-sdatathreshold 4`.
+- tools/decomp/tu_static.py accepts a static callee with its own jump table:
+  the table goes with the copy after a guard that it belongs to the callee
+  alone and equals the original table (check_callee_rodata; three new
+  host-only tests in tools/decomp/test_tu_static.py).
+- Bodies that were wrong (now fixed, still NEARMISS): anim_matrix_dispatch
+  93.94 -> 99.55 (anim_slot_index(obj, 0), not a null object; float arbiter
+  arguments); func_0016C6A0 93.70 -> 99.95 (state 0x15 calls func_00224290
+  before the airborne-timer update; func_00178B90(e, 1), not (1, 0); float
+  arbiter arguments); func_00195130 88.24 -> 88.48 (func_00194DB0 /
+  func_0022FCA0 take (p, e), func_0011DF78 is fabs of one float).
+  func_0022FCA0's definition takes (p, e) like both its callers (bytes
+  unchanged). The port's em_player_slide.c already follows the instructions
+  where func_0016C6A0 was wrong.
+- Fresh build + verify_all: all six stages pass, 2256/2260 units (was
+  2255/2259), matched_code 99.33%, boot ELF byte-identical, 19/19 overlays.
+  FUNCTIONS.csv reconciled (1 nearmiss -> readable: 1924 readable,
+  682 nearmiss, 334 word, 2 c_partial).
+
 ## 2026-10-21 — argument registers per call on the first-level NEARMISS set (decomp2 lane round 3): 8 byte-matched, 3 bodies corrected
 
 - Every on-route mwcc NEARMISS file was compiled and its calls compared with the

@@ -2761,7 +2761,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0020E1E0,func_0020E1E0,112,readable,1,ui_screens
 0x0020E250,func_0020E250,328,readable,1,ui_screens
 0x0020E3A0,func_0020E3A0,188,readable,2,ui_screens
-0x0020E460,func_0020E460,652,nearmiss,0,ui_screens
+0x0020E460,func_0020E460,652,readable,0,ui_screens
 0x0020E6F0,func_0020E6F0,1420,readable,0,ui_screens
 0x0020EC80,func_0020EC80,464,readable,1,ui_screens
 0x0020EE50,func_0020EE50,796,readable,1,ui_screens

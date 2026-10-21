@@ -1532,3 +1532,66 @@ returns).
 The port's em_camera_aim.c already follows the instructions at every point
 where these bodies were wrong (its header lists them), which agrees with the
 corrections.
+
+
+### Decomp2 lane round 4: call arities on the first-level set, TU-static callees with jump tables — 2026-10-21
+
+Round 3's call comparison (build/decomp2-r3-diff/bulk.json) was continued on
+the first-level census files, each difference read in the target. Two
+cautions from this round:
+
+- **A register that already holds the value is not a missing argument.**
+  callcmp only sees writes in the block before a `jal`. In func_001DFF70 the
+  target never writes `$a1` / `$a2` before func_001DFE70 (which reads only
+  `$a0` and `$f12`), but `$a1` holds the 3 of the switch compare and `$a2`
+  holds the state byte for the whole function, which is what passing
+  (p + 0x10, 3, st, f) would give. Dropping the two arguments raised the
+  score (91.97 -> 93.94) without settling which source is right, so the file
+  was left as it is; check the register's last write on every path first.
+- **A block with no argument setup can still pass one.** func_00195130's call
+  to func_823FE0 sets nothing in its block, but its only predecessor leaves
+  arg0 in `$a0` in a delay slot, so the argument stays.
+
+Byte-matched (mwcc 2.3.3, compiled_object_ordinary_c):
+
+- **func_0020E460** (93.18; first-level census): the fallback calls func_001AFF90(self) (one argument, the old C
+  passed three); func_0020E3A0 takes the glyph code alone and is a
+  `// TU_STATIC:` callee, so the target loads self[0xD] into `$a1` before the
+  call and compares it afterwards (the old header's "saved id in `$a1`");
+  `-sdatathreshold 4` with the 0x008106xx presets and D_0024A340 declared as
+  arrays so they stay absolute.
+
+**tu_static.py now accepts a callee with its own jump table.** func_0020E3A0
+is a switch with a local `.rodata` table (linked in place by rodata_pin.py in
+its own unit), and the guard used to refuse any local data reference. The
+table section now goes with the static copy when only the callee refers to
+it, its relocations are word addresses inside the callee, and the table
+equals the original: the HI16/LO16 pair read against the original
+instructions at the callee's address gives one base, and the words resolved
+against that address equal the original bytes there (check_callee_rodata;
+host-only tests in tools/decomp/test_tu_static.py). Round 8's TU-static sweep
+predates this, so jump-table callees within reach of a NEARMISS caller are
+untested candidates.
+
+Bodies corrected, still NEARMISS:
+
+- **anim_matrix_dispatch** 93.94 -> 99.55: the mid-blend branch publishes
+  anim_slot_index(obj, 0) (the old C passed a null object), the arbiter's
+  blend and frame are floats, its slot parameter is declared short (the
+  target passes the slot without the sign extension the int parameters of
+  bone_matrix_publish get), obj in `$s0` through a local copy declared first,
+  separate locals for the last two loops in the target's register order,
+  `-sdatathreshold 4`. Left: the three blend loops' back-edge delay slots,
+  which mwcc 2.3.3 fills with the loop top's upper half of 0x70003A20 and the
+  target leaves empty (volatile reads, mwcc 2.4 and anim_slot_index as a TU
+  static tried).
+- **func_0016C6A0** 93.70 -> 99.95: state 0x15 calls func_00224290 before it
+  consumes the airborne timer and tests `>` first; the two func_00178B90
+  calls are (e, 1) (the old C passed the pointer 1); the arbiter's arguments
+  are floats; state 0x14 keeps the clip length in a register. Left: the
+  func_001B12B0(0.0f, +0xC0, 0.06981317f) argument pair, the same residual as
+  func_00162DB0. The port's em_player_slide.c already follows the
+  instructions at all of these points.
+- **func_00195130** 88.24 -> 88.48: func_00194DB0 and func_0022FCA0 take
+  (p, e), func_0011DF78 is fabs of one float. func_0022FCA0's definition now
+  takes (p, e) like both its callers (bytes unchanged, 88.84).

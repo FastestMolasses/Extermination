@@ -1,6 +1,6 @@
 # HANDOFF — Extermination (PS2) decomp + native port
 
-**Current as of 2026-10-21 (Claude: decomp2 lane round 3, argument registers compared per call on the first-level NEARMISS set: 8 byte-matched including the camera-aim actions and the sight switch func_001999C0, three wrong bodies corrected, gate below; decomp2 lane round 1, callee prototypes fixed from the original: func_00214020 and func_001E7570 byte-matched, func_002044F0's body corrected, gate below; decomp lane round 8, declaration reconciliation and call-argument fixes: 5 byte-matched, 3 NEARMISS bodies corrected, gate below; round 7: same-TU static callees via `// TU_STATIC:`, 5 byte-matched; round 6: idiom-32 swept per address on the on-route NEARMISS set, 10 byte-matched; round 5: call-site checks, 3 byte-matched, 16 NEARMISS improved; round 4: 12 DMA-list functions byte-matched; the cut-content and character census branch and the func_001BA8E0 / func_001BA580 matches reviewed and merged; 2026-10-19: Codex's `levels` branch reviewed and merged into port main 789b4b4, and the levels 2-4 state toward the drawbridge, below; earlier: the lossless comparison master demo_level_1019 and the comparison-only IOP tick phase, below; the Discord video re-run demo_level_1018; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
+**Current as of 2026-10-21 (Claude: decomp2 lane round 4, call arities on the first-level set: func_0020E460 byte-matched through a TU-static callee with a jump table (tu_static.py extended), anim_matrix_dispatch / func_0016C6A0 / func_00195130 bodies corrected, gate below; decomp2 lane round 3, argument registers compared per call on the first-level NEARMISS set: 8 byte-matched including the camera-aim actions and the sight switch func_001999C0, three wrong bodies corrected, gate below; decomp2 lane round 1, callee prototypes fixed from the original: func_00214020 and func_001E7570 byte-matched, func_002044F0's body corrected, gate below; decomp lane round 8, declaration reconciliation and call-argument fixes: 5 byte-matched, 3 NEARMISS bodies corrected, gate below; round 7: same-TU static callees via `// TU_STATIC:`, 5 byte-matched; round 6: idiom-32 swept per address on the on-route NEARMISS set, 10 byte-matched; round 5: call-site checks, 3 byte-matched, 16 NEARMISS improved; round 4: 12 DMA-list functions byte-matched; the cut-content and character census branch and the func_001BA8E0 / func_001BA580 matches reviewed and merged; 2026-10-19: Codex's `levels` branch reviewed and merged into port main 789b4b4, and the levels 2-4 state toward the drawbridge, below; earlier: the lossless comparison master demo_level_1019 and the comparison-only IOP tick phase, below; the Discord video re-run demo_level_1018; the timing follow-ups of demo_level_1017; the Discord comparison video demo_level_1017 on port main f8616f9; earlier: the frame-timing findings and the port's fixes, the comparison video's field phase, the PCSX2 fork migration, census 1.69).** This is the short cross-repo entry point.
 Below the "MATCHING-WORKFLOW REFERENCE" line is the older byte-matching reference
 (compiler, build loop, NEARMISS, idioms, next matching tasks).
 
@@ -52,7 +52,19 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (2026-10-21, fresh build after decomp2 lane round 3, MATCHING_GUIDE
+  Latest (2026-10-21, fresh build after decomp2 lane round 4, MATCHING_GUIDE
+  "Decomp2 lane round 4": func_0020E460 byte-matched, compiled_object_ordinary_c;
+  anim_matrix_dispatch 99.55, func_0016C6A0 99.95, func_00195130 88.48 with
+  their wrong bodies fixed): 2256/2260 units, matched_code 99.33%; boot ELF
+  byte-identical; 19/19 overlays. FUNCTIONS.csv: 1924 readable, 682
+  nearmiss. tu_static.py now takes callees with a jump table, so round 8's
+  TU-static sweep should be re-run with jump-table callees included. Next
+  also: func_001DFF70 (whether func_001DFE70 / func_001D2830 get the switch
+  constant and the state byte; the registers hold them, the callees read
+  neither), the rest of bulk.json's first-level files from func_0015DF10
+  down, the func_001B12B0 argument pair shared by func_0016C6A0 /
+  func_00162DB0, and anim_matrix_dispatch's loop back-edge delay slots.
+  Before it (2026-10-21, fresh build after decomp2 lane round 3, MATCHING_GUIDE
   "Decomp2 lane round 3": func_001999C0, func_00197490, func_00198AF0,
   func_00198650, func_00198D90, func_001D1AE0, func_001B6BF0, func_00183910
   byte-matched; func_001999C0 / func_00197490 / func_00198AF0 bodies were
