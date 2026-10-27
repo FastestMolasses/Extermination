@@ -1,8 +1,14 @@
 // NEARMISS func_00109E68  (vram 0x00109E68, 0x124 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 80.71% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc coloring + address-rematerialization wall. Decoded fully (control flow + semantics correct; C compiles to nearly the right shape). Three coupled, non-source-controllable residuals: (1) GPR coloring s1<->s2 swap (expected: pointer->s1, result->s2; ours flips them) -- pure coloring, no permuter lever per s84; (2...
+// objdiff 91.07% via ee-gcc 2.9-991111-01 (-O2). Matching wave 2026-10-27 corrected the body:
+// the p[2] = D_00241404 - s0[0x2B] store runs on EVERY path (the original stores it in a
+// shared delay slot before testing D_0024141C); only the counter bumps are conditional.
+// Remaining differences: (1) s1/s2 coloring swap of p and the result (the `&&` spelling
+// fixes it, 86.71%, but loses the arm shape below); (2) the original computes the first
+// arm's result in a call-clobbered temporary copied into the result register at the end of
+// that arm, with the &D_00241404 high half materialised separately in each predecessor of
+// the join (PRE-style placement); ours assigns the result register directly and hoists the
+// high half. Tried: && / ?: / if-else / nested-temp / unsigned / statement-order spellings.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -48,9 +54,9 @@ int func_00109E68(int *p, int a1, int a2)
         D_0024141C = (D_0024141C == 0);
     }
 
+    a0 = D_00241404;
+    p[2] = a0 - s0[0x2B];
     if (D_0024141C == 0) {
-        a0 = D_00241404;
-        p[2] = a0 - s0[0x2B];
         D_00241404 = a0 + 1;
         s0[1] = s0[1] + 1;
     }

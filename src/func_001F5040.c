@@ -1,16 +1,22 @@
-// NEARMISS func_001F5040  (vram 0x001F5040, 0x450 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 80.45% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring wall: mwcc233 assigns arg0 to s2/step to s0/frame to s1 while the target uses s0/s1/a2 respectively (a persistent GP register swap, same operations otherwise), plus a 128-bit D_0025AD70 load/store codegen difference (folded-offset lq/sq vs target's separate address-then-load). L...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 2
-
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 80.45% NEARMISS).
+// Fixes read from the original instructions:
+// - Wrong body: the frame-0..3 clip events pass the constant 2 as their last
+//   argument, not the frame counter.
+// - The parameter is an int handle copied into a char pointer local; that
+//   copy (not declaration order) puts the object in the lowest saved register
+//   and the 0x1F0 sub-block pointer in the next one.
+// - The 128-bit constant is a 4-float struct copy (a TI-mode integer folds
+//   the address into the load).
+// - Every switch lists its cases in the reverse of the original compare
+//   order (mwcc emits compares last-label-first); the sub-type event switch
+//   has its default first, the per-frame switch has case 3, cases 0-2,
+//   default, then case 15, and the base-pose seed and the frame-3 check are
+//   switches with a default arm.
+// - The ease toward -128 is a compound assignment on the field; the
+//   integrate/decay tail uses += and *=.
 //
 // Character/actor animation-controller init + per-frame tick, dispatched on
 // the state byte at arg0+4 (0=first-time init, 1=running, 2/3=already
@@ -43,9 +49,9 @@
 //   func_001B17A0(arg0), and the object's own vtable tick at arg0+0x4C.
 //
 // Matched with mwcc 2.3.3 (mwcps2-2.3.3-000906); the pinned 991202 build
-// fills the clean-store/delay-slot residuals differently.
-typedef int s128 __attribute__((mode(TI)));
-extern s128 D_0025AD70;
+// scores 75%.
+struct vec { float x, y, z, w; };
+extern struct vec D_0025AD70;
 extern short D_00275BCC;
 extern int D_0028A56C;
 extern void anim_bone_array_setup(int a0);
@@ -61,8 +67,9 @@ extern void func_001CA5E0(int *obj, int field, int arg);
 extern void func_001D80E0(int a0, int a1);
 extern void func_001F4F90(char *arg0, float f13);
 
-void func_001F5040(char *arg0) {
-    s128 tmp = D_0025AD70;
+void func_001F5040(int self) {
+    char *arg0 = (char *)self;
+    struct vec tmp = D_0025AD70;
     char *step;
     unsigned char state;
     unsigned char sub;
@@ -73,6 +80,9 @@ void func_001F5040(char *arg0) {
     case 0:
         sub = *(unsigned char *)(arg0 + 0xD);
         switch (sub) {
+        default:
+            func_001CA5E0((int *)arg0, (int)func_001C6120((char *)D_0028A56C, 0xD), 2);
+            break;
         case 3:
             func_001CA5E0((int *)arg0, (int)func_001C6120((char *)D_0028A56C, 0xD), 2);
             break;
@@ -84,9 +94,6 @@ void func_001F5040(char *arg0) {
             break;
         case 2:
             func_001CA5E0((int *)arg0, (int)func_001C6120((char *)D_0028A56C, 0xF), 2);
-            break;
-        default:
-            func_001CA5E0((int *)arg0, (int)func_001C6120((char *)D_0028A56C, 0xD), 2);
             break;
         }
         *(unsigned char *)(arg0 + 0xC) = func_001C6150((void *)*(int *)(arg0 + 0x44));
@@ -116,14 +123,18 @@ void func_001F5040(char *arg0) {
         *(float *)(step + 0x44) = 0.15f;
         *(float *)(step + 0x40) = 0.15f;
         sub = *(unsigned char *)(arg0 + 0xD);
-        if (sub == 4 || sub == 3) {
+        switch (sub) {
+        case 3:
+        case 4:
             *(float *)(arg0 + 0x88) = -96.0f;
             *(float *)(arg0 + 0x84) = -96.0f;
             *(float *)(arg0 + 0x80) = -96.0f;
-        } else {
+            break;
+        default:
             *(float *)(arg0 + 0x88) = 0.0f;
             *(float *)(arg0 + 0x84) = 0.0f;
             *(float *)(arg0 + 0x80) = 0.0f;
+            break;
         }
         *(int *)(arg0 + 0x8C) = 0;
         func_001D80E0((int)(arg0 + 0x100), (int)&tmp);
@@ -136,55 +147,62 @@ void func_001F5040(char *arg0) {
         *(short *)(arg0 + 0x28) = frame + 1;
 
         switch (frame) {
-        case 0xF:
-            *(unsigned char *)(arg0 + 4) = 2;
-            break;
-        case 2:
-        case 1:
-        case 0:
+        case 3:
             sub = *(unsigned char *)(arg0 + 0xD);
             switch (sub) {
-            case 2:
-            case 4:
             case 3:
+            case 1:
+            case 4:
+            case 2:
                 break;
+            default:
+                func_001CA5E0((int *)arg0, (int)func_001C6120((char *)D_0028A56C, 7), 2);
+                break;
+            }
+            break;
+        case 0:
+        case 1:
+        case 2:
+            sub = *(unsigned char *)(arg0 + 0xD);
+            switch (sub) {
             case 0:
-                func_001CA5E0((int *)arg0, (int)func_001C6120((char *)D_0028A56C, 8), frame);
+                func_001CA5E0((int *)arg0, (int)func_001C6120((char *)D_0028A56C, 8), 2);
                 /* fallthrough */
             case 1:
                 func_001F4F90(arg0, 2.4f);
                 break;
-            }
-            break;
-        case 3:
-            sub = *(unsigned char *)(arg0 + 0xD);
-            if (sub != 2 && sub != 4 && sub != 1 && sub != 3) {
-                func_001CA5E0((int *)arg0, (int)func_001C6120((char *)D_0028A56C, 7), frame);
+            case 3:
+            case 4:
+            case 2:
+                break;
             }
             break;
         default: {
-            float cur = *(float *)(arg0 + 0x80);
-            float eased = cur + (0.35f * (-128.0f - cur));
-            *(float *)(arg0 + 0x80) = eased;
+            float eased;
+            *(float *)(arg0 + 0x80) += 0.35f * (-128.0f - *(float *)(arg0 + 0x80));
+            eased = *(float *)(arg0 + 0x80);
             *(float *)(arg0 + 0x88) = eased;
             *(float *)(arg0 + 0x84) = eased;
             break;
         }
+        case 0xF:
+            *(unsigned char *)(arg0 + 4) = 2;
+            break;
         }
 
-        *(float *)(arg0 + 0x60) = *(float *)(arg0 + 0x60) + *(float *)(step + 0x40);
-        *(float *)(arg0 + 0x64) = *(float *)(arg0 + 0x64) + *(float *)(step + 0x44);
-        *(float *)(arg0 + 0x68) = *(float *)(arg0 + 0x68) + *(float *)(step + 0x48);
-        *(float *)(step + 0x40) = *(float *)(step + 0x40) * 0.8f;
-        *(float *)(step + 0x44) = *(float *)(step + 0x44) * 0.8f;
-        *(float *)(step + 0x48) = *(float *)(step + 0x48) * 0.8f;
+        *(float *)(arg0 + 0x60) += *(float *)(step + 0x40);
+        *(float *)(arg0 + 0x64) += *(float *)(step + 0x44);
+        *(float *)(arg0 + 0x68) += *(float *)(step + 0x48);
+        *(float *)(step + 0x40) *= 0.8f;
+        *(float *)(step + 0x44) *= 0.8f;
+        *(float *)(step + 0x48) *= 0.8f;
         func_001C63D0(arg0);
         func_001B17A0(arg0);
         (*(void (**)(char *))(arg0 + 0x4C))(arg0);
         }
         break;
-    case 3:
     case 2:
+    case 3:
         func_001AFC10(arg0);
         return;
     }

@@ -1,15 +1,22 @@
-// NEARMISS func_00132490  (vram 0x00132490, 0x43C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 81.40% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure/semantics fully recovered (heading-integration table dispatch: decays arg1+0x38 timer, gates on func_001000E0/func_00128350/func_001B1560 proximity probe, then a 22-way switch on arg0+0x2C selecting a per-state interpolation-weight table, driven by a func_001C6160-clocked do-while ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 81.40% NEARMISS).
+// Fixes read from the original instructions:
+//  - The default (no-table) case leaves through a jump to the function's end
+//    (`goto done`), not a `return`: with `return` mwcc lays the default block
+//    directly after the compare chain and fills every case compare's delay
+//    slot with a branch-likely table-address load; the original keeps plain
+//    compares with empty slots and places the default block after the case
+//    blocks, ahead of the integration loop.
+//
+// Heading-integration table dispatch: decays the arg1+0x38 timer into the
+// arg0+0xB4 accumulator, gates on func_001000E0/func_00128350 and the
+// func_001B1560 proximity probe (sets arg0+0x52 bit 0 and stops), then a
+// 22-way switch on arg0+0x2C selects a per-state interpolation-weight table.
+// Unlisted states just drift by the arg1+0x3C weight along arg0+0xC4. Listed
+// states run a func_001C6160-clocked do-while that steps through the table,
+// wrapping the index when it goes negative.
 
 extern int float_to_int(float);
 extern int func_001000E0(int, double);
@@ -131,7 +138,7 @@ void func_00132490(unsigned char *arg0, unsigned char *arg1) {
             *(float *)(arg0 + 0xB0) += *(float *)(arg1 + 0x3C) * func_0011E2A8(*(float *)(arg0 + 0xC4));
             *(float *)(arg0 + 0xB8) += *(float *)(arg1 + 0x3C) * func_0011DE90(*(float *)(arg0 + 0xC4));
         }
-        return;
+        goto done;
     }
 
     f20 = (float)func_001C6160(arg0) - *(float *)(arg0 + 0x3C);
@@ -151,4 +158,6 @@ void func_00132490(unsigned char *arg0, unsigned char *arg1) {
         }
         sp58 -= 1.0f;
     } while (!(sp58 <= 0.0f));
+done:
+    ;
 }

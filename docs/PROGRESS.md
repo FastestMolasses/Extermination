@@ -1,3 +1,12 @@
+## 2026-10-27 — matching wave, ninth batch: 10 more byte-matched
+
+func_00132490, func_0017D080, func_00229A70, func_001416D0, func_001CC8A0,
+func_00109FD0, func_00159970, func_00110048, func_00110198, func_001F5040
+(all compiled_object_ordinary_c); six NEARMISS bodies corrected. Gate:
+fresh build + verify_all, all six stages pass, boot ELF byte-identical,
+19/19 overlays, matched_code 99.44%, 2374/2378 units. FUNCTIONS.csv: 2042
+readable, 564 nearmiss.
+
 ## 2026-10-27 — matching wave, eighth batch: 10 more byte-matched
 
 func_00107E88, func_001723D0, func_002280F0, func_001FECB0, func_00171320,
