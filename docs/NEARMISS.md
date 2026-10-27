@@ -220,7 +220,6 @@ exit branch goes, before recording a wall.
 | func_001F9820 | 0x001F9820 | 0x300 | 95.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling permutation in channels 3 and 4: mwcc places the D_00275B24/B20 sou |
 | func_001EEBA0 | 0x001EEBA0 | 0x30C | 97.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two permuter-class residuals (NOT the clean-store nop): (1) the middle of three identical  |
 | func_001EEEB0 | 0x001EEEB0 | 0x30C | 97.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical residual class to its twin func_001EEBA0 (NOT the clean-store nop): middle-itera |
-| func_001FA790 | 0x001FA790 | 0x328 | 89.50% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-ORDER permutation. Body and control flow fully recovered and logically |
 | func_0017B910 | 0x0017B910 | 0x330 | 80.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Branch-likely scheduling + FP register-coloring near-miss. Body and control flow fully rec |
 | func_001ED450 | 0x001ED450 | 0x348 | 94.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant register-coloring permutation in the func_001CFB50 call setup. Body/structure  |
 | func_001ED7A0 | 0x001ED7A0 | 0x34C | 95.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant register-coloring permutation in the func_001CFB50 call setup -- same class an |
@@ -338,7 +337,7 @@ exit branch goes, before recording a wall.
 | func_00210030 | 0x00210030 | 0x188 | 87.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring permutation (target pins temps to volatile $f2/$f3 across whole funct |
 | func_001DD7B0 | 0x001DD7B0 | 0x188 | 64.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Whole-function instruction scheduling + register coloring over a packed GS-bitfield read-m |
 | func_0019A180 | 0x0019A180 | 0x18C | 86.83% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-register-coloring permutation: target colors v into f1 + each const into f0 (c.lt.s/c.l |
-| func_0015A070 | 0x0015A070 | 0x190 | 88.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation on the outer switch dispatch: target keeps state byte live i |
+| func_0015A070 | 0x0015A070 | 0x190 | 99.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected (matching wave 2026-10-27): callee arities, -sdatathreshold 4, break-termin |
 | func_00229A70 | 0x00229A70 | 0x18C | 78.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two CodeWarrior codegen artifacts: (1) arg-eval/scheduling order on the leading func_001FE |
 | func_001E0E80 | 0x001E0E80 | 0x190 | 86.12% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring near-miss (permuter territory). Body, control flow, stack layout (sp50 a |
 | func_00181730 | 0x00181730 | 0x1A0 | 95.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register coloring on the (20.5+B4) temp: target colors the 5.0f constant into f1 / B4 i |
@@ -358,7 +357,6 @@ exit branch goes, before recording a wall.
 | func_001C92C0 | 0x001C92C0 | 0x1E8 | 86.84% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP even/odd register-coloring permutation (permuter-class, same as func_001509A0). Body, t |
 | func_00198050 | 0x00198050 | 0x1EC | 88.37% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Scheduling/FP-coloring near-miss. Body + control flow fully recovered. Residual: mwcc load |
 | func_00199DB0 | 0x00199DB0 | 0x1EC | 84.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Early-return guard branch-sense + FP-coloring near-miss. Logic fully recovered. Residual:  |
-| func_001BF3C0 | 0x001BF3C0 | 0x1F0 | 87.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation / constant-CSE + delay-slot-fill scheduling permutation. Body and cont |
 | func_001EB250 | 0x001EB250 | 0x1F0 | 64.54% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Float-constant materialization order + FP register coloring (scheduling permutation). Body |
 | func_001EB600 | 0x001EB600 | 0x1F0 | 89.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + float-constant scheduling in the two func_001CFB50 arg setups. Body |
 | func_00205050 | 0x00205050 | 0x1F0 | 88.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two residual codegen artifacts after full logic recovery (88.9% mwcc233 vs 69.6% 991202):  |
@@ -401,7 +399,6 @@ exit branch goes, before recording a wall.
 | func_001854E0 | 0x001854E0 | 0x280 | 88.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring on the sum-of-squares (float add-accumulate then multiply-accumulate) idiom -- identical wall class a |
 | func_001D2300 | 0x001D2300 | 0x280 | 80.44% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation (extra callee-saved register / one different cached  |
 | func_0018CBD0 | 0x0018CBD0 | 0x284 | 94.04% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected zero falloff and -7 clamp from original instructions. Remaining object differenc |
-| func_001C7EB0 | 0x001C7EB0 | 0x28C | 89.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same class of mwcc saved-register-coloring wall as func_0018CBD0: target assigns s1=tail/s |
 | func_001D66A0 | 0x001D66A0 | 0x28C | 68.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected draw-context pointer/slot scaling and false particle semantics; original fixed16 Gouraud geometry independently validated. Assembly-backed. |
 | func_002036E0 | 0x002036E0 | 0x294 | 93.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two backend artifacts, both confirmed non-C-reproducible: (1) $at-vs-GPR register naming o |
 | func_001DDB70 | 0x001DDB70 | 0x29C | 63.66% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | GS-packet struct-field/scheduling divergence: deep-offset field writes and a &D_0026E810 a |
@@ -420,7 +417,7 @@ exit branch goes, before recording a wall.
 | func_001DB9D0 | 0x001DB9D0 | 0x2D4 | 73.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FPU-MAC wall (genuine, confirmed against sibling func_001D66A0 which documents the identic |
 | func_001EBF10 | 0x001EBF10 | 0x2D4 | 56.72% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order / instruction-scheduling permutation, same wall class already docum |
 | func_001F3340 | 0x001F3340 | 0x2D8 | 80.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Switch-dispatch head (15 case labels, non-monotonic target test order) fully recovered by  |
-| func_0022B420 | 0x0022B420 | 0x2D8 | 87.95% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/logic fully recovered (state dispatch 0/1/2, screen-position compute via float_to_int |
+| func_0022B420 | 0x0022B420 | 0x2D8 | 99.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected (matching wave 2026-10-27): countdown is the record +0x1E, the cancel retur |
 | func_0012E560 | 0x0012E560 | 0x2DC | 91.53% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/logic fully recovered (spawn-counter bump, owner-record init via two func_00102948 co |
 | func_001B3F10 | 0x001B3F10 | 0x2DC | 97.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 97.97% (mwcc233; 991202 82.34%). Logic and structure fully recovered and body-ide |
 | func_001F2BA0 | 0x001F2BA0 | 0x2E4 | 94.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation permutation across the case-1 scan loop (s0-s4 relabeled end-to-end vs |
@@ -459,15 +456,12 @@ exit branch goes, before recording a wall.
 | func_001E13E0 | 0x001E13E0 | 0x37C | 81.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/frame-spill permutation. Both builds fully recover the logic (channel- |
 | func_00171B00 | 0x00171B00 | 0x388 | 92.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation (same documented class as sibling func_00171320.c, w |
 | func_0017AF70 | 0x0017AF70 | 0x388 | 87.23% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | see summary |
-| func_0021FB40 | 0x0021FB40 | 0x388 | 91.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Switch-dispatch branch-scheduling artifact: frame size (0x20), single callee-saved reg (s0 |
 | func_001E1AD0 | 0x001E1AD0 | 0x38C | 53.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-pressure/spill wall in a large (908-byte) 32x32-grid generator, same class as its |
 | func_00193EB0 | 0x00193EB0 | 0x390 | 87.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | see above |
 | func_001FD0E0 | 0x001FD0E0 | 0x38C | 91.42% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring / branch-likely scheduling on a large (908-byte) 3-nested-loop state mac |
-| func_00133640 | 0x00133640 | 0x394 | 91.45% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling permutation on the parallel struct-copy burst that seeds th |
 | func_00146110 | 0x00146110 | 0x394 | 96.74% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same class as the sibling func_0014B7B0 (already-parked NEARMISS): register-allocation/sch |
 | func_0016A8B0 | 0x0016A8B0 | 0x394 | 94.02% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CFG-shape-dependent instruction-scheduling artifact: in each of the 4 switch-case's true-b |
 | func_00158810 | 0x00158810 | 0x3B4 | 83.32% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | BODY CORRECTED 2026-09-27 against the original instructions (see FINDINGS "NEARMISS body corrections from the AREA01 wave-2 lanes"). Earlier diagnosis, partly superseded: Register-allocation-ORDER wall: target keeps the arg0+0x1F0 pointer (a1) live in a caller- |
-| func_001612D0 | 0x001612D0 | 0x3BC | 89.22% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | State-machine dispatch (switch on +6) resolves body/structure identically to target, but t |
 | func_0019DB50 | 0x0019DB50 | 0x3C0 | 87.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation, same class as sibling family func_0019DF10 (91.8 |
 | func_001DF600 | 0x001DF600 | 0x3C4 | 69.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Deep register-allocation / stack-layout divergence in a large (964-byte, 0x10F0-frame) fun |
 | func_001F1180 | 0x001F1180 | 0x3C4 | 81.62% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Deep register-allocation / block-layout divergence in the state-machine dispatch + GS-pack |
@@ -485,7 +479,6 @@ exit branch goes, before recording a wall.
 | func_001FE070 | 0x001FE070 | 0x3F0 | 85.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Logic fully recovered and cross-checked against a sibling caller (func_001FD0E0.c, which c |
 | func_001E8E80 | 0x001E8E80 | 0x3F4 | 87.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/addressing-derivation permutation (idiom exhaustion reached). The mula |
 | func_0018D910 | 0x0018D910 | 0x408 | 81.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 81.89% (233; 991202=78.47%). Logic and every branch/call/global fully recovered (a large F |
-| func_0014DC30 | 0x0014DC30 | 0x414 | 91.28% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (all 4 states decoded and structurally landed: idiom-20 bra |
 | func_00185A10 | 0x00185A10 | 0x41C | 90.20% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (both the fast-path locked-target re-check and the full ent |
 | func_00177030 | 0x00177030 | 0x430 | 92.32% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + list-scheduling residual: at the switch-dispatch delay slots (case  |
 | func_001DF180 | 0x001DF180 | 0x41C | 66.41% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | BODY CORRECTED 2026-09-28: 001D6B60 five args, 001D6BA0 six args, 001D7080 f12 = 1.0, grid offsets, cursor re-reads, (i*0xE0)/15 (an mwcc induction-variable miscompile otherwise, FINDINGS 2026-09-28). Earlier diagnosis, partly superseded: Register-allocation / stack-frame-size wall in a very large function (10 saved GPR incl. $ |
@@ -517,12 +510,10 @@ exit branch goes, before recording a wall.
 | func_001C1570 | 0x001C1570 | 0x504 | 71.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Broad register-allocation/scheduling churn in the LCG loop and trig/matrix chain (large re |
 | func_0013F240 | 0x0013F240 | 0x528 | 93.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring at the D_700038A4+=10.0f add (target: the float add takes the field as its first source; mwc |
 | func_00171E90 | 0x00171E90 | 0x53C | 95.56% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Same documented saved-register-allocation-order class as sibling func_00171B00.c (already  |
-| func_00187780 | 0x00187780 | 0x53C | 90.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | s87: register coloring only (arg2 in $s5 vs $s0 shifts the saved GPRs; three FP temps colored f21/f22/f23 vs f22/f23/f21) plus a few scheduling slots. The old "dead 64-bit constant" and "frame too small" walls were source bugs (missing $t0 arg to func_00187690; spE0 is one 4x4 matrix) |
 | func_00199220 | 0x00199220 | 0x544 | 87.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP+GPR register-coloring permutation (documented wall class) |
 | func_001D0720 | 0x001D0720 | 0x548 | 97.28% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected unknown-state talk gate; residual FPR scheduling/branch layout; C +24 bytes. |
 | func_00209860 | 0x00209860 | 0x584 | 95.430595% | mwcc233 (-O4,p -sdatathreshold 0) | Corrected UI argument and secondary width3; 1436-byte candidate, original fallback. Invalid selector inherits caller s0 (see the src header). |
 | func_00139E00 | 0x00139E00 | 0x5A4 | 96.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring/scheduling permutation: func_001B1270's two float args are evaluated in  |
-| func_00221FC0 | 0x00221FC0 | 0x5B4 | 89.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 89.97% — the state-machine dispatch/body logic is fully recovered (all 12 case bodies byte |
 | func_0021A500 | 0x0021A500 | 0x5BC | 89.22% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 89.22% — full logic recovered (state machine on e[4] driving a particle/twinkle-light init |
 | func_001963A0 | 0x001963A0 | 0x5C4 | 96.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation-order permutation: mwcc233 colors the switch(arg0[1]) dispatch temp in |
 | func_0016EF50 | 0x0016EF50 | 0x5D4 | 90.09% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Compiler scheduling/register-choice wall (idiom-13 family): the drift-add pair (arg0+0xB0/ |
@@ -624,7 +615,6 @@ exit branch goes, before recording a wall.
 | func_00134090 | 0x00134090 | 0x270 | 93.90% | mwcc24 | jr-table lane 2026-09-23: func_00122BB8 is the engine rand() and takes no argument (the ol |
 | func_001F0720 | 0x001F0720 | 0x334 | 86.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 86.25 with mwcc233 -O4,p -sdatathreshold 4 (o991 69.09, o24 86.25). Dispatch, all 7 preset |
 | func_001CFFE0 | 0x001CFFE0 | 0x414 | 87.16% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 87.16% (mwcc233; mwcc 2.3.1 = 76.1%). Decode is complete and verified instruction-by-instr |
-| func_001BAD40 | 0x001BAD40 | 0x3A0 | 91.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 52 bytes short: the target keeps the 0.0 anim_clip_init blend in $f20 across func_001C61D0 |
 | func_001D8C30 | 0x001D8C30 | 0x394 | 89.45% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 89.45 (mwcc233 -O4,p -sdatathreshold 4; 233 instrs). The jr-table dispatch is FULLY byte-i |
 | func_0015A750 | 0x0015A750 | 0x3A0 | 73.04% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 73.04 (mwcc233 -O4,p -sdatathreshold 0; 232 instrs). Byte-identical: the whole prologue/se |
 | func_0018BC20 | 0x0018BC20 | 0x4A0 | 99.05% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 9 of 316 instructions differ, in two independent spots. (1) 2 instr: the jtbl reloc pair o |

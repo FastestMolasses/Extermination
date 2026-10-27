@@ -1,15 +1,19 @@
-// NEARMISS func_00187780  (vram 0x00187780, 0x53C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 90.79% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is register coloring: arg2 lands in $s5 (target $s0) which shifts every saved GPR by one, and the 17.0/3.5/cone-length floats land in $f21/$f22/$f23 (target $f22/$f23/$f21), plus a few scheduling slots in the view-angle attenuation. Permuter-class.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 90.79% NEARMISS).
+// Fixes read from the original instructions:
+//  - the two colour vectors at sp+0xB0/sp+0xC0 are one float[2][4] array:
+//    mwcc keeps the address of the non-zero-offset element col[1] in a saved
+//    register (the old "arg2 in $s5 shifted every saved GPR" residual), while
+//    two separate arrays are addressed from sp each time;
+//  - the second func_0021B9A0 call passes 450.0, not 450.5;
+//  - the arg2==1 pass scales the 3.5-derived float by 0.75 as a statement
+//    before the two func_00103230 calls, not inside the call's argument list;
+//  - the view-angle attenuation stores (dist - 0.7) / 0.3 back into dist
+//    before computing 1 - 0.8 * dist;
+//  - float local declaration order (scale, dist, cone length, 17.0, 3.5)
+//    fixes the $f21/$f22/$f23 colouring.
 //
 // Gun-light (flashlight) cone draw. Sole caller func_00188ED0, which calls it
 // only while D_008106C7 (the gun-light enable) is set AND the player state
@@ -17,7 +21,7 @@
 // set 00188ED0 clears D_008106C7 instead (0x00189070). Calls use
 // arg1 = (func_001B0070() & 0x80) ? 0 : 1 and arg2 = mode from D_008104A0.
 // Dispatches on (arg2, arg1) to seed the size (64/32), the 17.0/3.5 floats, the
-// spB0 base vector (16 or 8 in xyz), the spC0 random vector (5+3*rand or 2+rand
+// col[0] base vector (16 or 8 in xyz), the col[1] random vector (5+3*rand or 2+rand
 // in xyz via func_00122BB8), and a packed 64-bit word (0x20045D05554221F6 for
 // arg2==0, 0x20048D0599422050 for arg2==1) passed to func_00187690 in $t0.
 //
@@ -31,13 +35,13 @@
 // f21 = min(len, 250), scale = min(len, 17)/17, spD0 = hit-record normal
 // (*0x700031D0 + 0x24). On miss: f21 = 250, scale 1.0, spD0 = -(matrix row 2).
 // The size and both floats are scaled by that factor. arg2==0 additionally
-// attenuates spB0 when |dot(normalize(origin - D_008105D0), normalize(row 2))|
+// attenuates col[0] when |dot(normalize(origin - D_008105D0), normalize(row 2))|
 // exceeds 0.7 (func_00103230 by 1 - 0.8*(d-0.7)/0.3).
-// Then: func_0021B9A0(2, 0, -140), func_0021B9A0(3, 0, 450.5), func_00187690
-// (light matrix, spB0, spC0, (int)size, word, 17-scaled, 0.1, 3.5-scaled);
+// Then: func_0021B9A0(2, 0, -140), func_0021B9A0(3, 0, 450.0), func_00187690
+// (light matrix, col[0], col[1], (int)size, word, 17-scaled, 0.1, 3.5-scaled);
 // unless area flag func_001B0070() & 0x20000000, func_001D9530(light matrix)
-// draws the cone shells; if arg2==1 a second func_00187690 pass with spB0*2,
-// spC0*1, word 0x20045D05554221F6 and 0.75x the 3.5-scaled float; finally
+// draws the cone shells; if arg2==1 a second func_00187690 pass with col[0]*2,
+// col[1]*1, word 0x20045D05554221F6 and 0.75x the 3.5-scaled float; finally
 // func_0021B9A0(1, 0, 0).
 //
 // s87 corrections vs the earlier 78.62% version (all from the .s): spE0 was
@@ -81,17 +85,17 @@ extern float D_008105D0[4]; /* [4] keeps it absolute under -sdatathreshold 4 */
 void func_00187780(char *arg0, int arg1, int arg2) {
     float sp90[4];   /* 0x90 */
     float spA0[4];   /* 0xA0 */
-    float spB0[4];   /* 0xB0 */
-    float spC0[4];   /* 0xC0 */
+    float col[2][4]; /* 0xB0: [0] base colour, [1] random colour */
     float spD0[4];   /* 0xD0 */
     float spE0[16];  /* 0xE0: 4x4 light matrix; rows at +0x10/+0x20/+0x30 */
     float sp120[16]; /* 0x120: 4x4 rotation matrix */
     float size;
     float r;
     float len2;
-    float f22, f23, f20;
+    float f20;
     float dist;
     float f21;
+    float f22, f23;
     long long word64; /* $s1: packed word handed to func_00187690 in $t0 */
 
     switch (arg2) {
@@ -103,13 +107,13 @@ void func_00187780(char *arg0, int arg1, int arg2) {
             f22 = 17.0f;
             f23 = 3.5f;
             word64 = 0x20045D05554221F6LL;
-            spB0[2] = 16.0f;
-            spB0[1] = 16.0f;
-            spB0[0] = 16.0f;
+            col[0][2] = 16.0f;
+            col[0][1] = 16.0f;
+            col[0][0] = 16.0f;
             r = 5.0f + (3.0f * ((float) func_00122BB8() / 2.1474836e9f));
-            spC0[2] = r;
-            spC0[1] = r;
-            spC0[0] = r;
+            col[1][2] = r;
+            col[1][1] = r;
+            col[1][0] = r;
             break;
         }
         break;
@@ -121,13 +125,13 @@ void func_00187780(char *arg0, int arg1, int arg2) {
             f22 = 17.0f;
             f23 = 3.5f;
             word64 = 0x20048D0599422050LL;
-            spB0[2] = 8.0f;
-            spB0[1] = 8.0f;
-            spB0[0] = 8.0f;
+            col[0][2] = 8.0f;
+            col[0][1] = 8.0f;
+            col[0][0] = 8.0f;
             r = 2.0f + ((float) func_00122BB8() / 2.1474836e9f);
-            spC0[2] = r;
-            spC0[1] = r;
-            spC0[0] = r;
+            col[1][2] = r;
+            col[1][1] = r;
+            col[1][0] = r;
             break;
         }
         break;
@@ -176,20 +180,22 @@ void func_00187780(char *arg0, int arg1, int arg2) {
         func_00102760(spA0, &spE0[8]);
         dist = func_0011DF78(func_00102738(sp90, spA0));
         if (!(dist <= 0.7f)) {
-            func_00103230(spB0, spB0, 1.0f - (0.8f * ((dist - 0.7f) / 0.3f)));
+            dist = (dist - 0.7f) / 0.3f;
+            func_00103230(col[0], col[0], 1.0f - 0.8f * dist);
         }
     }
 
     func_0021B9A0(2, 0.0f, -140.0f);
-    func_0021B9A0(3, 0.0f, 450.5f);
-    func_00187690(spE0, spB0, spC0, float_to_int(size), word64, f22, 0.1f, f23);
+    func_0021B9A0(3, 0.0f, 450.0f);
+    func_00187690(spE0, col[0], col[1], float_to_int(size), word64, f22, 0.1f, f23);
     if (!(func_001B0070() & 0x20000000)) {
-        func_001D9530(spE0, spB0, spC0, spD0, f21);
+        func_001D9530(spE0, col[0], col[1], spD0, f21);
     }
     if (arg2 == 1) {
-        func_00103230(spB0, spB0, 2.0f);
-        func_00103230(spC0, spC0, 1.0f);
-        func_00187690(spE0, spB0, spC0, float_to_int(size), 0x20045D05554221F6LL, f22, 0.1f, f23 * 0.75f);
+        f23 *= 0.75f;
+        func_00103230(col[0], col[0], 2.0f);
+        func_00103230(col[1], col[1], 1.0f);
+        func_00187690(spE0, col[0], col[1], float_to_int(size), 0x20045D05554221F6LL, f22, 0.1f, f23);
     }
     func_0021B9A0(1, 0.0f, 0.0f);
 }

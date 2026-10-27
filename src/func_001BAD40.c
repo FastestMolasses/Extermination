@@ -1,23 +1,20 @@
-// NEARMISS func_001BAD40  (vram 0x001BAD40, 0x3A0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 91.26% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 2). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// 52 bytes short: the target keeps the 0.0 anim_clip_init blend in $f20 across func_001C61D0 (frame 0x60), emits a separate func_001CA6F0 argument setup and call per inner-switch arm where mwcc merges the tails, and copies the entry arguments in the other saved-register order.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 2
 
-//
-// Corrected in decomp lane round 8 from the original instructions (91.09% before):
-//  - func_001C6120 is (table, index): cases 1/8 and 2 pass the message id msg as
-//    the index (it is still in $a1, loaded from ev+4); the old C passed only the
-//    table.
-//  - Case 5 calls func_001C5C90(obj) (self is still in $a0); the old C passed
-//    nothing.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 91.26% NEARMISS).
+// Fixes read from the original instructions:
+//  - Case 5 returns through `if (obj[4] >= 2) return 1; return 0;` (the
+//    original's set-0/set-1 branch pair), not a less-than test.
+//  - The anim_clip_init start time is an int 0 converted to float (idiom-24):
+//    it stays live in a saved float register across func_001C61D0, which is
+//    why the frame is 0x60 and saves $f20.
+//  - The clip start is an `if (cmd == 4) { ... }` block, not an early return.
+//  - The bone-handle loop is a for loop whose `i = 0, slot = obj` init sits
+//    after the bone-budget rejection.
+//  - `obj[9] > 2` (not `>= 3`) puts the compare result in $at (idiom-28).
+//  - A redundant (int) cast on func_001C61D0's first argument restores the
+//    original argument-load order.
+//  - func_001C6120 takes (table, index); func_001C5C90 takes obj (lane round 8).
 
 // SEMANTICS: message/event handler for one animated actor.  `obj` is the
 //   actor block, `ev` is the incoming event record:
@@ -139,32 +136,29 @@ int func_001BAD40(unsigned char *obj, unsigned char *ev)
         break;
     case 5:
         func_001C5C90((char *)obj);
-        if (obj[4] < 2) {
-            return 0;
+        if (obj[4] >= 2) {
+            return 1;
         }
-        return 1;
+        return 0;
     }
 
     if (*(short *)(ev + 0xA) != 3) {
         *(int *)(obj + 0x40) = D_0028A490[*(short *)(ev + 6)];
         obj[0xC] = func_001C6150(*(int *)(obj + 0x44));
-        i = 0;
         if (D_00275BCC < obj[0xC]) {
             obj[4] = 3;
             return 1;
         }
-        slot = obj;
-        while (i < obj[0xC]) {
+        for (i = 0, slot = obj; i < obj[0xC]; i++) {
             *(int *)(slot + 0x110) = func_001AF780();
             slot += 4;
-            i++;
         }
         obj[9] = obj[0xC];
 
         switch (*(short *)(ev + 0xA)) {
         case 0:
             func_001BA8E0(obj, *(short *)(ev + 4));
-            if (obj[9] >= 3) {
+            if (obj[9] > 2) {
                 func_001CA6F0(obj, 2);
             } else {
                 func_001CA6F0(obj, 0);
@@ -172,7 +166,7 @@ int func_001BAD40(unsigned char *obj, unsigned char *ev)
             break;
         case 6:
             func_001D8BF0(obj, 1);
-            if (obj[9] >= 3) {
+            if (obj[9] > 2) {
                 func_001CA6F0(obj, 2);
             } else {
                 func_001CA6F0(obj, 0);
@@ -187,12 +181,12 @@ int func_001BAD40(unsigned char *obj, unsigned char *ev)
         }
         anim_bone_array_setup(obj[9]);
         bone_init_default_2(obj, *(short *)(ev + 8));
-        if (*(short *)(ev + 0xA) != 4) {
-            return 0;
+        if (*(short *)(ev + 0xA) == 4) {
+        n = 0;
+        z = (float)n;
+        anim_clip_init(obj, *(short *)(ev + 8), z,
+                       (float)(func_001C61D0((int)*(int *)(obj + 0x40), *(short *)(ev + 8)) - 1));
         }
-        z = 0.0f;
-        n = func_001C61D0(*(int *)(obj + 0x40), *(short *)(ev + 8)) - 1;
-        anim_clip_init(obj, *(short *)(ev + 8), z, (float)n);
     } else {
         obj[0xC] = 0;
         obj[9] = 0;

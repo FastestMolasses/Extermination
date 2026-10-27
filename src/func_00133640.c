@@ -1,15 +1,30 @@
-// NEARMISS func_00133640  (vram 0x00133640, 0x394 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 91.45% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation/scheduling permutation on the parallel struct-copy burst that seeds the two work vectors at 0x700038A0/0x700038B0 from D_00810350/54/58 + arg0->0xB0/B4/B8 plus the two +10.0f offsets. Logic and the entire surrounding state machine (guards, func_0019A570/func_0011DF78/func_001B...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700038A0 0x700038A4 0x700038A8 0x700038AC 0x700038B0 0x700038B4 0x700038B8 0x700038BC
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 91.45% NEARMISS).
+// Fixes read from the original instructions:
+//  - The two work vectors are relocated scratchpad externs (idiom-32, opted in
+//    with // SPAD:), not literal-address macros. The A vector (0x700038A0..AC)
+//    is volatile; the B vector (0x700038B0..BC) is a plain extern. That split
+//    is what lets mwcc hoist the D_00810350/54/58 loads above the A stores
+//    (no aliasing with a plain global) while the arg0 loads stay in order, and
+//    it reloads both y words before the two += 10.0f stores, as the original.
+//  - The seeding order is A.xyz from arg0+0xB0, B.xyz from D_00810350, then
+//    both w words = 1.0f, then both y words += 10.0f (the old body interleaved
+//    them).
+//  - The func_001B15D0 distance stored at 0x70003A20 is the relocated volatile
+//    extern D_70003A20, so its upper half is no longer speculated into a
+//    branch delay slot.
+//
+// Proximity/attack-start check: arg0 = self, arg1 = owner. Bails out when the
+// owner is busy (+0x5A / +0x61), self is in state 3 or 4, or func_0021BE40 says
+// the player is unavailable. Seeds self and player positions (each raised by
+// 10.0f) into the scratchpad vectors, requires a clear line (func_0019A570), a
+// small height gap unless self flag 0xD&2, a planar distance <= 50 and a facing
+// cone (func_001B1560, 45 degrees). Within 24 units it picks an action
+// (state 7 or 5) from the random tables D_00245120; farther away it picks
+// state 6 or 5 from D_00245130. Returns 1 when an action was started.
 
 extern int func_0021BE40(float *p, char *a);
 extern int func_0019A570(float *a, float *b, int c, int d);
@@ -28,17 +43,14 @@ extern unsigned char D_00245120[];
 extern unsigned char D_00245130[];
 
 extern volatile float D_700038A0;
-extern volatile float D_700038B0;
-
-#define WA0 (*(volatile float *)0x700038A0)
-#define WA1 (*(volatile float *)0x700038A4)
-#define WA2 (*(volatile float *)0x700038A8)
-#define WA3 (*(volatile int *)0x700038AC)
-#define WB0 (*(volatile float *)0x700038B0)
-#define WB1 (*(volatile float *)0x700038B4)
-#define WB2 (*(volatile float *)0x700038B8)
-#define WB3 (*(volatile int *)0x700038BC)
-#define WD (*(volatile float *)0x70003A20)
+extern volatile float D_700038A4;
+extern volatile float D_700038A8;
+extern volatile int D_700038AC;
+extern float D_700038B0;
+extern float D_700038B4;
+extern float D_700038B8;
+extern int D_700038BC;
+extern volatile float D_70003A20;
 
 int func_00133640(char *a0, char *a1) {
     float dist;
@@ -55,31 +67,33 @@ int func_00133640(char *a0, char *a1) {
     if (func_0021BE40((float *)&D_008102B0, a0) != 0) {
         return 0;
     }
-    WA0 = *(float *)(a0 + 0xB0);
-    WB0 = D_00810350;
-    WA2 = *(float *)(a0 + 0xB8);
-    WB2 = D_00810358;
-    WA3 = 0x3F800000;
-    WB3 = 0x3F800000;
-    WA1 = *(float *)(a0 + 0xB4) + 10.0f;
-    WB1 = D_00810354 + 10.0f;
+    D_700038A0 = *(float *)(a0 + 0xB0);
+    D_700038A4 = *(float *)(a0 + 0xB4);
+    D_700038A8 = *(float *)(a0 + 0xB8);
+    D_700038B0 = D_00810350;
+    D_700038B4 = D_00810354;
+    D_700038B8 = D_00810358;
+    D_700038AC = 0x3F800000;
+    D_700038BC = 0x3F800000;
+    D_700038A4 += 10.0f;
+    D_700038B4 += 10.0f;
     if (func_0019A570((float *)&D_700038A0, (float *)&D_700038B0, 6, 0) != 0) {
         return 0;
     }
-    dist = func_0011DF78(WA1 - WB1);
+    dist = func_0011DF78(D_700038A4 - D_700038B4);
     if (!(*(unsigned char *)(a0 + 0xD) & 2) && !(dist < 13.0f)) {
         return 0;
     }
-    WB1 = 0.0f;
-    WA1 = 0.0f;
-    WD = func_001B15D0((float *)&D_700038A0, (float *)&D_700038B0);
-    if (!(WD <= 50.0f)) {
+    D_700038B4 = 0.0f;
+    D_700038A4 = 0.0f;
+    D_70003A20 = func_001B15D0((float *)&D_700038A0, (float *)&D_700038B0);
+    if (!(D_70003A20 <= 50.0f)) {
         return 0;
     }
     if (func_001B1560(a0, &D_00810360, 0.7853982f) == 0) {
         return 0;
     }
-    if (WD <= 24.0f) {
+    if (D_70003A20 <= 24.0f) {
         if (D_00245120[(func_00122BB8() >> 4) & 0xF] != 0) {
             if (!(*(unsigned char *)(a0 + 0xD) & 2) && func_0021BED0((float *)&D_008102B0) == 0) {
                 *(unsigned char *)(a1 + 0x63) = 0;

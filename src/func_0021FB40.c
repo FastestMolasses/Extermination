@@ -1,30 +1,33 @@
-// NEARMISS func_0021FB40  (vram 0x0021FB40, 0x388 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 91.35% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Switch-dispatch branch-scheduling artifact: frame size (0x20), single callee-saved reg (s0), and every per-state body are byte-identical in structure and content -- confirmed via inverse-CSE reload-per-use idiom on repeated *D_00275B40 dereferences. The residual is that the target leaves 3 delay-...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
-
+// CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x700038A0 0x700038A4 0x700038A8 0x700038AC 0x700038B4
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 91.35% NEARMISS).
+// Fixes read from the original instructions:
+//  - func_001749A0 takes a 4th float blend argument (its definition in src/):
+//    0.0f for clips 0x2F/0x30, 1.0f for clip 0x31 (the original loads 1.0 into $f12).
+//  - func_00178B90 takes (entity, collide): it is called as (arg0, 1).
+//  - Every switch case ends in break (state 2 becomes if/else); the early returns
+//    produced the wrong compare-chain delay slots and case-0 entry.
+//  - D_00275B40 is gp-relative (-sdatathreshold 4); D_008106BD and the scratchpad
+//    externs are declared as arrays so they stay hi/lo-addressed, and the original
+//    relocated every scratchpad store (// SPAD line).
+//  - The tracked target's Y is stored to arg0+0x2E4 before the scratchpad copy
+//    (one chained assignment), and 0xB4 accumulates with +=.
 //
 // Turret/area-logic state-machine step, dispatched on the state byte at
 // arg0+6 (0..4). State 0 arms the entity: fires an event via
 // func_001FBD50(arg0, 0x154, 0, 300.0f), advances the state byte, resets
 // the sub-state byte arg0+7, re-arms the clip via func_001749A0(arg0,
-// 0x2F, 0), zeroes 0x21C/0x38/0x2E4, and copies the base transform
+// 0x2F, 0, 0.0f), zeroes 0x21C/0x38/0x2E4, and copies the base transform
 // arg0+0xB0 into arg0+0x290 via func_00102948. State 1 stages the
 // tracked target's transform (*D_00275B40) into D_700038A0/A4/A8 (also
 // caching Y into arg0+0x2E4), builds a lead position via
-// func_001026A0(&D_700038B0, arg0+0xD0, &D_700038A0) (matrix*vector) and
-// func_001028B8(arg0+0xB0, arg0+0x290, &D_700038B0) (vector add),
+// func_001026A0(D_700038B0, arg0+0xD0, D_700038A0) (matrix*vector) and
+// func_001028B8(arg0+0xB0, arg0+0x290, D_700038B0) (vector add),
 // re-copies arg0+0x290/0xB0 into D_700038A0/D_700038B0, biases both
 // D_700038B4 and D_700038A4 by +10.0f, and probes with
-// func_0019AFE0(arg0, &D_700038A0, &D_700038B0, 6); on a hit, nudges
+// func_0019AFE0(arg0, D_700038A0, D_700038B0, 6); on a hit, nudges
 // arg0+0xB0/0xB8 by 4.5x the shared target pointer's 0x24/0x2C offsets.
 // If the area-active bit (arg0+0x200 & 0x1000) is set, advances to state
 // 2, re-arms the clip (0x30), and resets 0x28/0x2FE/0x26C. State 2
@@ -35,32 +38,32 @@
 // the area-active bit again: if set, advances to state 4 and zeroes
 // 0x2EC; otherwise it accumulates the tracked target's Y/vertical delta
 // into 0x38/0x2EC (against the cached 0x21C/0x2E4), republishes via
-// func_00178B90(1), and bumps arg0+0xB4 by the delta before calling
+// func_00178B90(arg0, 1), and bumps arg0+0xB4 by the delta before calling
 // func_00175900(arg0,1). State 4 decays the settle spring at arg0+0x2EC
 // (func_00179880) and, once func_00175900(arg0,1) reports settled,
 // re-arms the 0x20E timer and clears 0x25C via func_0017C540.
 extern void func_00102948(void *dst, void *src);
 extern void func_001028B8(void *dst, void *a, void *b);
 extern void func_001026A0(void *dst, void *matrix, void *vec);
-extern int func_001749A0(int a0, short a1, int a2);
+extern int func_001749A0(int a0, short a1, int a2, float blend);
 extern void func_00174AC0(void *a0, int a1);
 extern int func_001754E0(void *a0, int a1);
 extern int func_00175900(void *a0, int a1);
-extern void func_00178B90(int a0);
+extern void func_00178B90(unsigned char *e, int collide);
 extern void func_00179880(unsigned char *a0, float *a1);
 extern void func_0017C540(unsigned char *a0);
 extern int func_0019AFE0(void *p, void *a, void *b, int n);
 extern void func_001FBD50(void *a0, int a1, int a2, float f12);
 
 extern void **D_00275B40;
-extern unsigned char D_008106BD;
-extern float D_700038A0;
-extern float D_700038A4;
-extern float D_700038A8;
-extern int D_700038AC;
-extern float D_700038B0;
-extern float D_700038B4;
-extern unsigned char D_70003B8D;
+extern unsigned char D_008106BD[16];
+extern float D_700038A0[];
+extern float D_700038A4[];
+extern float D_700038A8[];
+extern int D_700038AC[];
+extern float D_700038B0[];
+extern float D_700038B4[];
+extern unsigned char D_70003B8D[];
 
 void func_0021FB40(unsigned char *arg0) {
     switch (arg0[6]) {
@@ -68,38 +71,37 @@ void func_0021FB40(unsigned char *arg0) {
         func_001FBD50(arg0, 0x154, 0, 300.0f);
         arg0[6]++;
         arg0[7] = 0;
-        func_001749A0((int)arg0, 0x2F, 0);
+        func_001749A0((int)arg0, 0x2F, 0, 0.0f);
         *(float *)(arg0 + 0x21C) = 0.0f;
         *(float *)(arg0 + 0x38) = 0.0f;
         *(float *)(arg0 + 0x2E4) = 0.0f;
         func_00102948(arg0 + 0x290, arg0 + 0xB0);
-        return;
+        break;
 
     case 1: {
-        D_700038A0 = *(float *)*D_00275B40;
-        D_700038A4 = *(float *)((char *)*D_00275B40 + 4);
-        *(float *)(arg0 + 0x2E4) = D_700038A4;
-        D_700038A8 = *(float *)((char *)*D_00275B40 + 8);
-        D_700038AC = 0;
-        func_001026A0(&D_700038B0, arg0 + 0xD0, &D_700038A0);
-        func_001028B8(arg0 + 0xB0, arg0 + 0x290, &D_700038B0);
-        func_00102948(&D_700038A0, arg0 + 0x290);
-        func_00102948(&D_700038B0, arg0 + 0xB0);
-        D_700038B4 = 10.0f + D_700038B4;
-        D_700038A4 = D_700038B4;
-        if (func_0019AFE0(arg0, &D_700038A0, &D_700038B0, 6) != 0) {
+        D_700038A0[0] = *(float *)*D_00275B40;
+        D_700038A4[0] = *(float *)(arg0 + 0x2E4) = *(float *)((char *)*D_00275B40 + 4);
+        D_700038A8[0] = *(float *)((char *)*D_00275B40 + 8);
+        D_700038AC[0] = 0;
+        func_001026A0(D_700038B0, arg0 + 0xD0, D_700038A0);
+        func_001028B8(arg0 + 0xB0, arg0 + 0x290, D_700038B0);
+        func_00102948(D_700038A0, arg0 + 0x290);
+        func_00102948(D_700038B0, arg0 + 0xB0);
+        D_700038B4[0] = 10.0f + D_700038B4[0];
+        D_700038A4[0] = D_700038B4[0];
+        if (func_0019AFE0(arg0, D_700038A0, D_700038B0, 6) != 0) {
             *(float *)(arg0 + 0xB0) = *(float *)0x700031B0 + (4.5f * *(float *)((char *)(*(void **)0x700031D0) + 0x24));
             *(float *)(arg0 + 0xB8) = *(float *)0x700031B8 + (4.5f * *(float *)((char *)(*(void **)0x700031D0) + 0x2C));
         }
         if (*(int *)(arg0 + 0x200) & 0x1000) {
             arg0[6]++;
-            func_001749A0((int)arg0, 0x30, 0);
+            func_001749A0((int)arg0, 0x30, 0, 0.0f);
             *(short *)(arg0 + 0x28) = 0;
             arg0[0x2FE] = 0;
             func_00174AC0(arg0, 0);
             *(float *)(arg0 + 0x26C) = *(float *)(arg0 + 0x24C);
         }
-        return;
+        break;
     }
 
     case 2: {
@@ -110,33 +112,33 @@ void func_0021FB40(unsigned char *arg0) {
             *(short *)(arg0 + 0x28) = 0;
         }
         func_00174AC0(arg0, 0);
-        if (func_001754E0(arg0, 0xA) != 0 || D_70003B8D != 0) {
+        if (func_001754E0(arg0, 0xA) != 0 || D_70003B8D[0] != 0) {
             arg0[6]++;
-            D_008106BD = 1;
+            D_008106BD[0] = 1;
             *(int *)(arg0 + 0x224) = 0;
-            func_001749A0((int)arg0, 0x31, 0);
+            func_001749A0((int)arg0, 0x31, 0, 1.0f);
             *(float *)(arg0 + 0x38) = 0.0f;
             *(float *)(arg0 + 0x21C) = 0.0f;
-            return;
+        } else {
+            *(float *)(arg0 + 0x26C) = *(float *)(arg0 + 0x24C);
         }
-        *(float *)(arg0 + 0x26C) = *(float *)(arg0 + 0x24C);
-        return;
+        break;
     }
 
     case 3:
         if (*(int *)(arg0 + 0x200) & 0x1000) {
             arg0[6]++;
             *(float *)(arg0 + 0x2EC) = 0.0f;
-            return;
+            break;
         }
         *(float *)(arg0 + 0x38) = ((float *)*D_00275B40)[2] - *(float *)(arg0 + 0x21C);
         *(float *)(arg0 + 0x21C) = ((float *)*D_00275B40)[2];
-        func_00178B90(1);
+        func_00178B90(arg0, 1);
         *(float *)(arg0 + 0x2EC) = ((float *)*D_00275B40)[1] - *(float *)(arg0 + 0x2E4);
         *(float *)(arg0 + 0x2E4) = ((float *)*D_00275B40)[1];
-        *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0xB4) + *(float *)(arg0 + 0x2EC);
+        *(float *)(arg0 + 0xB4) += *(float *)(arg0 + 0x2EC);
         func_00175900(arg0, 1);
-        return;
+        break;
 
     case 4:
         func_00179880(arg0, (float *)(arg0 + 0x2EC));

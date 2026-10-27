@@ -1,18 +1,16 @@
-// NEARMISS func_0014DC30  (vram 0x0014DC30, 0x414 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 91.28% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure fully recovered (all 4 states decoded and structurally landed: idiom-20 branch-likely dispatch, memory-reload-not-cache before array index, delay-slot short-store idiom, raw-int D_7000xxxx-less but %hi/%lo D_0081xxxx globals matched). Two residual genuine compiler artifacts: (1) ca...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 91.28% NEARMISS).
+// Fixes read from the original instructions:
+// - Every case ends in `break` (no early returns); the shared epilogue is reached by branch.
+// - The D_0081xxxx globals use the byte-matched twin func_0014D7C0's spelling:
+//   volatile 16-element extern arrays accessed at [0].
+// - The zero float arguments are idiom-24 int-to-float locals: state 0's last clip
+//   argument, and in state 1 one zero that is both the settle compare value and both
+//   clip arguments.
+// - The ease rate is 0.034906585f (the old literal rounded one ulp high).
 // 4-state actor tick keyed on p[6] (a0=p self, a1=e companion record).
-// state 0: seed e+8=0, e+0x20=0.4f, e+0x5D=0; pick e+4 = (p+0x38<0.0f)?0:1 as
+// state 0: seed e+8=0, e+0x20=0.4f, e+0x5D=0; pick e+4 = (e+0x38<0.0f)?0:1 as
 // a facing/side flag; start anim clip D_00245D00[e+4] (rate 5.0) and fire SFX
 // 0x862 (vol 300). state 1: if e+8==0 and p+0x3C<=33.0 latch e+8=1 and fire
 // SFX 0x863 (vol 300); ease e+0x28 toward 0 via func_001B12B0(rate 0.0349);
@@ -39,19 +37,24 @@ extern int func_0021BE40(void *a, char *p);
 extern short D_00245D00[2];
 extern short D_00245D06[2];
 extern short D_00245D0C[2];
-extern unsigned char D_008102B0;
-extern signed char D_008102BF;
-extern float D_00810320;
-extern int D_00810324;
-extern float D_00810328;
-extern float D_00810360;
-extern float D_00810368;
-extern int D_008104D4;
-extern unsigned char D_0081070A;
+extern volatile unsigned char D_008102B0[16];
+extern volatile signed char D_008102BF[16];
+extern volatile float D_00810320[16];
+extern volatile int D_00810324[16];
+extern volatile float D_00810328[16];
+extern volatile float D_00810360[16];
+extern volatile float D_00810368[16];
+extern int D_008104D4[16];
+extern unsigned char D_0081070A[16];
 
 void func_0014DC30(char *p, char *e) {
-    unsigned char state = *(unsigned char *)(p + 6);
+    unsigned char state;
+    int zi0;
+    float z0;
+    int zi1;
+    float z1;
 
+    state = *(unsigned char *)(p + 6);
     switch (state) {
     case 0:
         *(unsigned char *)(p + 6) = state + 1;
@@ -63,36 +66,39 @@ void func_0014DC30(char *p, char *e) {
         } else {
             *(int *)(e + 4) = 1;
         }
-        anim_clip_init(p, D_00245D00[*(int *)(e + 4)], 5.0f, 0.0f);
+        zi0 = 0;
+        z0 = (float)zi0;
+        anim_clip_init(p, D_00245D00[*(int *)(e + 4)], 5.0f, z0);
         func_001FBD50(p, 0x862, 0, 300.0f);
-        return;
+        break;
     case 1:
         if (*(int *)(e + 8) == 0 && *(float *)(p + 0x3C) <= 33.0f) {
             *(int *)(e + 8) = 1;
             func_001FBD50(p, 0x863, 0, 300.0f);
         }
-        *(float *)(e + 0x28) = func_001B12B0(0.0f, *(float *)(e + 0x28), 0.0349065870f);
-        if (*(float *)(e + 0x28) == 0.0f && *(int *)(e + 0) & 0x1000) {
+        *(float *)(e + 0x28) = func_001B12B0(0.0f, *(float *)(e + 0x28), 0.034906585f);
+        zi1 = 0;
+        z1 = (float)zi1;
+        if (*(float *)(e + 0x28) == z1 && *(int *)(e + 0) & 0x1000) {
             *(unsigned char *)(p + 6) = *(unsigned char *)(p + 6) + 1;
             *(int *)(e + 8) = 0;
-            anim_clip_init(p, D_00245D06[*(int *)(e + 4)], 0.0f, 0.0f);
-            return;
+            anim_clip_init(p, D_00245D06[*(int *)(e + 4)], z1, z1);
         }
-        return;
+        break;
     case 2:
         if (*(int *)(e + 4) == 2
-            || (!(*(float *)(p + 0x3C) < 27.0f) && func_0021BE40(&D_008102B0, p) == 0
+            || (!(*(float *)(p + 0x3C) < 27.0f) && func_0021BE40((void *)D_008102B0, p) == 0
                 && func_001A7B80(p) != 0)) {
-            D_008102B0 |= 2;
-            D_008102BF = 2;
-            D_00810320 = D_00810360 - *(float *)(p + 0xB0);
-            D_00810324 = 0;
-            D_00810328 = D_00810368 - *(float *)(p + 0xB8);
-            func_00102760(&D_00810320, &D_00810320);
-            if (D_0081070A != 0) {
-                D_008104D4 = 0x41A00000;
+            D_008102B0[0] |= 2;
+            D_008102BF[0] = 2;
+            D_00810320[0] = D_00810360[0] - *(float *)(p + 0xB0);
+            D_00810324[0] = 0;
+            D_00810328[0] = D_00810368[0] - *(float *)(p + 0xB8);
+            func_00102760((void *)D_00810320, (void *)D_00810320);
+            if (D_0081070A[0] != 0) {
+                D_008104D4[0] = 0x41A00000;
             } else {
-                D_008104D4 = 0x41700000;
+                D_008104D4[0] = 0x41700000;
             }
             func_001B55E0(p, 1);
         }
@@ -114,7 +120,6 @@ void func_0014DC30(char *p, char *e) {
             *(float *)(e + 0x20) = 0.2f;
             *(char *)(e + 0x5D) = 1;
             anim_clip_init(p, D_00245D0C[*(int *)(e + 4)], 0.0f, 0.0f);
-            return;
         }
         break;
     case 3:
