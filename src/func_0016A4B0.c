@@ -1,20 +1,27 @@
-// NEARMISS func_0016A4B0  (vram 0x0016A4B0, 0x3FC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.05% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// NEARMISS 94.05% mwcc233 (991202 83.79%). Fully recovered state-machine switch (all 7 states 0-5,0x63; all call args/prototypes verified against target incl. func_001749A0(self,code,a2,f) and func_0021D2E0(self,a1,a2)). Residual is a real idiom-13 delay-slot wall specific to this 5-way beq compare...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 94.05% NEARMISS).
+// Fixes read from the original instructions:
+//  - Every state ends in `break`, not `return` (the original's dispatch has the
+//    branch-likely + duplicated increment at the case-0 label that `break` gives);
+//    the "idiom-13 delay-slot wall" verdict was wrong.
+//  - func_001751A0 takes only the object (its definition in src/; no index argument).
+//  - State 4/5 integrates self+0xC0 with a compound `+= self+0x26C` (fixes the FP
+//    operand order of the add).
+
+// State machine on self+7: state 0 starts clip 0xD4 and saves a lifted copy of the
+// position (self+0x290); state 1 waits for self+0x200 bit 0x1000 and starts the
+// func_001885B0 clip; state 2 runs func_001751A0/func_0016A8B0, advances on the pad
+// mask (D_00810E74 & scratchpad 0x70003B76) or, while self+0x25C is 0, picks the next
+// self+6 sub-state and restores the position; state 3 seeds speeds from D_00248630
+// and starts clip 0xD5; states 4/5 decay speed, integrate self+0xC0 and settle to
+// state 7 (self+5) when stopped; state 0x63 calls func_0021D2E0(0x78, 0).
 
 extern void func_00102948(void *dst, void *src);
 extern void func_0016A8B0(void *p);
 extern void func_001749A0(void *self, int code, int a2, float a3);
-extern void func_001751A0(void *p, int idx);
+extern void func_001751A0(void *p);
 extern int func_00175900(void *p, int a1);
 extern void func_00178B90(void *p, int a1);
 extern void func_00179880(void *p, void *a1);
@@ -40,7 +47,7 @@ void func_0016A4B0(unsigned char *p)
     func_001749A0(p, 0xD4, 0, 4.0f);
     func_00102948(p + 0x290, p + 0xB0);
     *(float *)(p + 0x294) = *(float *)(p + 0x294) + k;
-    return;
+    break;
   }
 
   case 1:
@@ -53,15 +60,15 @@ void func_0016A4B0(unsigned char *p)
       *(short *)(p + 0x28) = 0;
       p[0x25C] = 0;
     }
-    return;
+    break;
 
   case 2:
-    func_001751A0(p, st);
+    func_001751A0(p);
     func_0016A8B0(p);
     if (D_00810E74 & *(unsigned short *)0x70003B76)
     {
       p[7] = p[7] + 1;
-      return;
+      break;
     }
     if (p[0x25C] == 0)
     {
@@ -82,7 +89,7 @@ void func_0016A4B0(unsigned char *p)
       *(float *)(p + 0xC0) = 0.0f;
       func_00102948(p + 0xB0, p + 0x290);
       *(float *)(p + 0xB4) = *(float *)(p + 0xB4) - 21.0f;
-      return;
+      break;
     }
     break;
 
@@ -98,11 +105,11 @@ void func_0016A4B0(unsigned char *p)
       *(int *)(p + 0x2EC) = 0x3ECCCCCD;
       func_001749A0(p, 0xD5, 0, 1.0f);
       *(float *)(p + 0x2F4) = *(float *)(p + 0xB4);
-      return;
+      break;
     }
-    func_001751A0(p, st);
+    func_001751A0(p);
     func_0016A8B0(p);
-    return;
+    break;
 
   case 4:
     if (*(int *)(p + 0x200) & 0x1000)
@@ -114,9 +121,7 @@ void func_0016A4B0(unsigned char *p)
   case 5:
   {
     float zero = 0.0f;
-    float t26c = *(float *)(p + 0x26C);
-    float tc0 = *(float *)(p + 0xC0);
-    *(float *)(p + 0xC0) = tc0 + t26c;
+    *(float *)(p + 0xC0) += *(float *)(p + 0x26C);
     if (*(float *)(p + 0x38) != zero)
     {
       float f = *(float *)(p + 0x38) + *(float *)(p + 0x2E0);
@@ -136,7 +141,7 @@ void func_0016A4B0(unsigned char *p)
     {
       *(float *)(p + 0xC0) = 0.0f;
       p[6] = 0x5B;
-      return;
+      break;
     }
     func_00179880(p, p + 0x2EC);
     if (func_00175900(p, 1))

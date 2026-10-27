@@ -1,29 +1,26 @@
-// NEARMISS func_0018AF50  (vram 0x0018AF50, 0x48C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 93.18% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// mwcc233 materializes small dispatch-chain constants (the case-3 literal 3) into a different scratch register (a0 vs target's a1) once arg0 has already been copied to the saved reg s0, cascading into a handful of reload-order/register-choice differences through the rest of the function (the func_0...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003B8D
 
-// NEARMISS: entity state machine (states 0-3: turn-init w/ TRS setup, homing-
-// turn-and-collision-response w/ knockback blend + camera-shake trigger, hit
-// react, idle-passthrough). Logic/body fully recovered incl. the nested
-// switch (turn-speed blend vs 1/3-decay), the collision-response dispatch
-// (func_0019A570 hit-kind branch incl. the masked-flag/kind==1 special case
-// and the func_0019B6C0 fallback + camera-shake-45 check), and the final
-// TRS-matrix build. Residual is register/scheduling-artifact noise: mwcc233
-// materializes small dispatch-chain constants (the case-3 literal `3`) into a
-// different scratch register (a0 vs target's a1) once arg0 has already been
-// copied to the saved reg, cascading into a handful of reload-order/FP-
-// operand-coloring differences through the (already idiom-1-fixed) add.s
-// chain and the collision-response block -- no further source-level lever
-// found; mwcc233 measured 93.18%, mwcc(991202) 89.75% (worse).
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 93.18% NEARMISS).
+// Fixes read from the original instructions:
+//  - Callee prototypes taken from their definitions in src/: func_0011DF78
+//    takes one float, func_001AFC10 takes the entity, func_001EFD20 takes two
+//    arguments, func_001B41F0 takes six (extra 0x2000, 0x50). The "a0 vs a1
+//    constant" residual was the switch's compare constants left in the
+//    argument registers, not a compiler artifact.
+//  - Every switch case ends in `break` (single return after the switch).
+//  - The 0x28 countdown tests the decremented short temp, not a reload.
+//  - Float updates spelled as compound assignments (+=, -=).
+//  - The collision result is assigned inside the if condition.
+//  - 0x70003B8D is a relocated volatile scratchpad extern (idiom-32).
+
+// Entity state machine (states 0-3: turn-init with TRS setup, homing-turn-
+// and-collision-response with knockback blend + camera-shake trigger, hit
+// react, idle-passthrough). Includes the nested switch (turn-speed blend vs
+// 1/3-decay), the collision-response dispatch (func_0019A570 hit-kind branch
+// incl. the masked-flag/kind==1 special case and the func_0019B6C0 fallback +
+// camera-shake-45 check), and the final TRS-matrix build.
 extern void build_trs_matrix(char *dst, char *pos, float *rot, float *scale);
 extern void func_00102760(void *dst, void *src);
 extern void func_001028D0(void *a, void *b, void *c);
@@ -31,18 +28,19 @@ extern void func_00102948(void *dst, void *src);
 extern void func_001031E0(void *a, void *b);
 extern void func_00103200(void *dst, void *a, void *b, float c);
 extern void func_00103230(char *a, char *b, float c);
-extern float func_0011DF78(int a, int b, unsigned char c, float d);
+extern float func_0011DF78(float a);
 extern void func_00183C40(int idx, void *dst);
 extern int func_0019A570(char *a, char *b, int c, int d);
 extern int func_0019B6C0(char *a, char *b);
-extern void func_001AFC10(int a, unsigned char b);
-extern void func_001B41F0(char *e, void *a, char *b, int c);
+extern void func_001AFC10(char *p);
+extern void func_001B41F0(char *e, void *a, char *b, int c, int d, int f);
 extern void func_001E8B90(char *p, float f);
-extern void func_001EFD20(int a, char *b, unsigned char c, unsigned char d);
+extern void func_001EFD20(int a, char *b);
 extern char *func_001EFE00(int a, char *e);
 extern void func_001FBD50(char *e, int a, int b, float c);
 
 extern float D_700031B0;
+extern volatile unsigned char D_70003B8D;
 extern float D_700038A0;
 extern float D_700038B0;
 
@@ -51,6 +49,7 @@ void func_0018AF50(char *e) {
     int r;
     char *q;
     unsigned char kind;
+    short t;
 
     switch (st) {
     case 0:
@@ -62,12 +61,12 @@ void func_0018AF50(char *e) {
         *(char **)(e + 0x20) = func_001EFE00(0x80000037, e);
         *(float *)(e + 0x38) = 0.0f;
         *(short *)(e + 0x2A) = 0x12C;
-        return;
+        break;
     case 1:
-        if (*(unsigned char *)0x70003B8D != 0) {
+        if (D_70003B8D != 0) {
             *(char *)(*(char **)(e + 0x20) + 4) = 2;
             *(unsigned char *)(e + 4) = 3;
-            return;
+            break;
         }
         if (*(short *)(e + 0x2A) == 0) {
             *(unsigned char *)(e + 4) = 2;
@@ -76,11 +75,12 @@ void func_0018AF50(char *e) {
         }
         switch (*(unsigned char *)(e + 5)) {
         case 0:
-            *(short *)(e + 0x28) = *(short *)(e + 0x28) - 1;
-            if (*(short *)(e + 0x28) == 0) {
+            t = *(short *)(e + 0x28) - 1;
+            *(short *)(e + 0x28) = t;
+            if (t == 0) {
                 *(unsigned char *)(e + 5) = *(unsigned char *)(e + 5) + 1;
                 if (*(float *)(e + 0xC4) < 0.0f) {
-                    *(float *)(e + 0x38) = func_0011DF78(3, 2, st, *(float *)(e + 0xC4));
+                    *(float *)(e + 0x38) = func_0011DF78(*(float *)(e + 0xC4));
                 }
             }
             if (*(int *)(e + 0x24) != 0) {
@@ -91,22 +91,21 @@ void func_0018AF50(char *e) {
                 func_00102760((float *)(e + 0xC0), &D_700038B0);
                 func_00103230(e + 0xC0, e + 0xC0, 4.0f);
             }
-            *(float *)(e + 0xB0) = *(float *)(e + 0xC0) + *(float *)(e + 0xB0);
-            *(float *)(e + 0xB4) = *(float *)(e + 0xC4) + *(float *)(e + 0xB4);
-            *(float *)(e + 0xB8) = *(float *)(e + 0xC8) + *(float *)(e + 0xB8);
+            *(float *)(e + 0xB0) += *(float *)(e + 0xC0);
+            *(float *)(e + 0xB4) += *(float *)(e + 0xC4);
+            *(float *)(e + 0xB8) += *(float *)(e + 0xC8);
             break;
         case 1:
-            *(float *)(e + 0xB0) = *(float *)(e + 0xB0) + (*(float *)(e + 0xC0) / 3.0f);
-            *(float *)(e + 0xB8) = *(float *)(e + 0xB8) + (*(float *)(e + 0xC8) / 3.0f);
-            *(float *)(e + 0x38) = *(float *)(e + 0x38) + 0.03f;
+            *(float *)(e + 0xB0) += *(float *)(e + 0xC0) / 3.0f;
+            *(float *)(e + 0xB8) += *(float *)(e + 0xC8) / 3.0f;
+            *(float *)(e + 0x38) += 0.03f;
             if (!(*(float *)(e + 0x38) <= 4.0f)) {
                 *(float *)(e + 0x38) = 4.0f;
             }
-            *(float *)(e + 0xB4) = *(float *)(e + 0xB4) - *(float *)(e + 0x38);
+            *(float *)(e + 0xB4) -= *(float *)(e + 0x38);
             break;
         }
-        r = func_0019A570(e + 0xA0, e + 0xB0, 7, 0x20);
-        if (r != 0) {
+        if ((r = func_0019A570(e + 0xA0, e + 0xB0, 7, 0x20)) != 0) {
             func_001031E0(&D_700038A0, &D_700031B0);
             *(int *)0x700038AC = 0x3F800000;
             func_00102948(e + 0xB0, &D_700038A0);
@@ -117,7 +116,7 @@ void func_0018AF50(char *e) {
                     if (kind != 0) {
                         if ((*(unsigned char *)(q + 2) & ~0xE0) == 2) {
                             if (kind == 1) {
-                                func_001B41F0(q, &D_700038A0, e + 0xC0, *(int *)(*(char **)0x700031D0 + 0x1C));
+                                func_001B41F0(q, &D_700038A0, e + 0xC0, *(int *)(*(char **)0x700031D0 + 0x1C), 0x2000, 0x50);
                             }
                         } else {
                             *(short *)(q + 0x36) = 0x50;
@@ -143,15 +142,15 @@ void func_0018AF50(char *e) {
         *(int *)0x700038A8 = 0;
         *(int *)0x700038AC = 0x3F800000;
         build_trs_matrix(e + 0xD0, e + 0xB0, &D_700038A0, &D_700038A0);
-        return;
+        break;
     case 2:
         *(unsigned char *)(e + 4) = st + 1;
         *(char *)(*(char **)(e + 0x20) + 4) = 2;
-        func_001EFD20(0x80000069, e + 0xB0, 2, st);
+        func_001EFD20(0x80000069, e + 0xB0);
         func_001FBD50(e, 0x5DE, 0, 300.0f);
-        return;
+        break;
     case 3:
-        func_001AFC10(3, st);
-        return;
+        func_001AFC10(e);
+        break;
     }
 }

@@ -1,19 +1,29 @@
-// NEARMISS func_001BECC0  (vram 0x001BECC0, 0x6FC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.21% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// residual register-allocation / instruction-scheduling deltas (a couple of lh/sh reg-name swaps on the arg0+0x34/+0x36 timer arithmetic, and a dsll32/dsra32 sign-extend the target keeps but our codegen elides). Body/structure fully recovered and byte-verified for the actual field offsets, constant...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 94.21% NEARMISS).
+// Fixes read from the original instructions:
+//  * func_001BEAC0 takes self first: (self, D_700038A0, 100, 0); the old call
+//    passed the scratchpad block twice.
+//  * func_001C1570 takes self (its definition is (char *)), not the state byte;
+//    func_001AF890 takes only the model handle at self+0x90 (one argument).
+//  * Every switch case ends in `break` (not `return`), as in the twin
+//    func_001BE6C0, restoring the dispatch layout and delay slots.
+//  * The hit-flag test at self+0x36 is `(long long)` widened before the 0x5000
+//    mask (the original's sign-extend), like func_001BE6C0.
+//  * Float increments are compound `+=`; the sub-state 2 probe result is
+//    assigned inside the if condition.
+//
+// Actor state machine on self[4]: state 0 spawns/initialises (allocates via
+// func_001BEAC0 with a scratchpad parameter block, sets the model, handlers and
+// timers); state 1 runs a four-step sub-state machine on self[5] against the
+// object at D_008102B0, then applies the hit flags at self+0x36 (low 12 bits)
+// to the counter short at self+0x34 (at zero -> state 2); state 2 decays self+0x64 and
+// goes to state 3; state 3 releases the model.
 
 extern void bone_init_default_1(char *);
 extern void func_00187EC0(int, int);
-extern void func_001AF890(int, unsigned char);
+extern void func_001AF890(int);
 extern void func_001AFC10(char *);
 extern void func_001B1190(unsigned char);
 extern void func_001B17A0(void *);
@@ -22,7 +32,7 @@ extern int func_001BEAC0(char *, char *, int, int);
 extern void func_001BEB70(char *);
 extern void func_001BEC40(char *, char *, int);
 extern void func_001C1500(char *, int, float, float, float);
-extern int func_001C1570(unsigned char);
+extern int func_001C1570(char *);
 extern void func_001C6380(char *);
 extern int func_001D0C80(char *, int);
 extern void func_001D0D40(char *, char *, int, int);
@@ -44,7 +54,6 @@ void func_001BECC0(char *arg0) {
     unsigned char st2;
     char *s0;
     char *s1;
-    char *spad;
     int v0;
     short v1;
 
@@ -53,16 +62,15 @@ void func_001BECC0(char *arg0) {
     s0 = arg0 + 0x1F0;
     switch (st) {
     case 0:
-        *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0xB4) + 0.8f;
-        spad = D_700038A0;
+        *(float *)(arg0 + 0xB4) += 0.8f;
         *(volatile int *)0x700038A0 = 0;
         *(volatile int *)0x700038A4 = 0;
         *(volatile int *)0x700038A8 = 0;
         *(volatile float *)0x700038AC = 1.0f;
-        *(int *)(arg0 + 0x20) = func_001BEAC0(D_700038A0, spad, 0x64, 0);
+        *(int *)(arg0 + 0x20) = func_001BEAC0(arg0, D_700038A0, 0x64, 0);
         if (*(int *)(arg0 + 0x20) == 0) {
             *(unsigned char *)(arg0 + 4) = 3;
-            return;
+            break;
         }
         func_001BEB70(arg0);
         if (func_001D0C80(arg0, D_0028A500[0]) == 0) {
@@ -80,7 +88,7 @@ void func_001BECC0(char *arg0) {
             *(char *)(arg0 + 0xB) = 0;
             *(int *)(s0 + 0x1C) = 0;
         }
-        return;
+        break;
     case 1:
         func_001B17A0(arg0);
         *(char *)(arg0 + 1) = 1;
@@ -103,7 +111,7 @@ void func_001BECC0(char *arg0) {
             break;
         case 1:
             func_001BEC40(arg0, s0, 1);
-            *(float *)(arg0 + 0x38) = *(float *)(arg0 + 0x38) + 0.6f;
+            *(float *)(arg0 + 0x38) += 0.6f;
             if (*(float *)(arg0 + 0x38) > 12.0f) {
                 *(float *)(arg0 + 0x38) = 12.0f;
                 *(unsigned char *)(arg0 + 5) = *(unsigned char *)(arg0 + 5) + 1;
@@ -119,8 +127,7 @@ void func_001BECC0(char *arg0) {
             }
             break;
         case 2:
-            v0 = func_001BE5F0(s1, arg0, s0);
-            if (v0 != 0) {
+            if ((v0 = func_001BE5F0(s1, arg0, s0)) != 0) {
                 func_00187EC0(8, 0);
                 if (*(unsigned char *)s1 == 1) {
                     *(float *)(s1 + 0x224) = 5.0f;
@@ -158,7 +165,7 @@ void func_001BECC0(char *arg0) {
             *(int *)(s0 + 0x1C) = *(int *)(s0 + 0x1C) - 1;
         }
         if (*(short *)(arg0 + 0x36) != 0) {
-            if (*(short *)(arg0 + 0x36) & 0x5000) {
+            if ((long long)*(short *)(arg0 + 0x36) & 0x5000) {
                 if (*(int *)(s0 + 0x1C) == 0) {
                     *(int *)(s0 + 0x1C) = 0x3C;
                     if (*(short *)(arg0 + 0x36) & 0x4000) {
@@ -187,9 +194,9 @@ void func_001BECC0(char *arg0) {
         *(short *)(s0 + 0) = func_001D0D60(*(int *)(arg0 + 0x90), 1.0f);
         func_001B17A0(arg0);
         (*(void (**)(char *))(arg0 + 0x4C))(arg0);
-        return;
+        break;
     case 2:
-        if (func_001C1570(st) != 0) {
+        if (func_001C1570(arg0) != 0) {
             *(unsigned char *)(arg0 + 4) = 3;
             *(float *)(arg0 + 0x38) = 0.0f;
         }
@@ -207,11 +214,10 @@ void func_001BECC0(char *arg0) {
         func_001C6380(arg0);
         if (*(float *)(arg0 + 0x64) != 0.0f) {
             (*(void (**)(char *))(arg0 + 0x4C))(arg0);
-            return;
         }
         break;
     case 3:
-        func_001AF890(*(int *)(arg0 + 0x90), st);
+        func_001AF890(*(int *)(arg0 + 0x90));
         func_001B1190(*(unsigned char *)(arg0 + 0x9A));
         func_001AFC10(arg0);
         break;

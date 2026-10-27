@@ -1,3 +1,14 @@
+## 2026-10-27 — matching wave, sixth batch: 10 more byte-matched
+
+func_0016A4B0, func_001BECC0, func_00126F88 (`__muldf3`), func_00127E40
+(`__divsf3`), func_002217C0, func_00153290, func_0018AF50, func_00143AF0,
+anim_frame_top_b, func_001E55F0 (all compiled_object_ordinary_c); bodies of
+func_001E3630 and func_001F88C0 corrected (still NEARMISS). Jump tables for
+renamed functions (tools/match/gen_jtbl_rodata.py). Gate: fresh build +
+verify_all, all six stages pass, boot ELF byte-identical, 19/19 overlays,
+matched_code 99.42%, 2344/2348 units. FUNCTIONS.csv: 2012 readable,
+594 nearmiss.
+
 ## 2026-10-27 — matching wave, fifth batch: 12 more byte-matched
 
 func_00167C80, func_001BE6C0, func_001921D0, func_001B2140, func_00196CE0,

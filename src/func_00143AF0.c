@@ -1,16 +1,15 @@
-// NEARMISS func_00143AF0  (vram 0x00143AF0, 0x544 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 91.94% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-order artifact: mwcc assigns arg1->s0 / arg0->s1 (opposite of the natural arg0-first order), pinning a differently-numbered callee-saved register pair through the whole function; cascades into ARG_MISMATCH on most branches/calls using those regs plus a v0/v1 + FP-load scheduli...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 91.94% NEARMISS).
+// Fixes read from the original instructions:
+// - the struggle-speed select is four separate stores of a float constant
+//   (25/20 when arg0[0xD] bit 0x80 is set, 20/15 otherwise, by D_0081070A),
+//   not one int temp stored once; D_008104D4 is a float.
+// - the grab-offset staging block D_00810320/324/328 and the player position
+//   D_00810360/368 are volatile externs (as in the byte-matched twin
+//   func_001352E0), so D_00810368 is loaded after D_00810320 is stored.
+// - the old "arg1->s0 / arg0->s1 register-order wall" was not a wall: the
+//   original assigns them that way from this source once the body is right.
 //
 // Enemy melee-boarding/grapple state machine dispatched on the state byte at
 // arg0[6] (arg0 = actor, arg1 = per-actor extra state block). State 0 clears the
@@ -31,22 +30,6 @@
 // func_00122BB8. Tail (every state): re-samples the head-tracking pitch via
 // func_001B1240(arg0->pos, player_x, player_z) into arg1+0x44, and eases arg0's
 // aim-pitch (arg0+0xC4) toward it via func_001B12B0.
-//
-// WALL: register-allocation-order artifact. mwcc assigns arg1->s0 / arg0->s1
-// (opposite of the natural arg0-first order this source implies), which this
-// source's statement order does not reproduce; that pins one differently-numbered
-// callee-saved register pair through the whole function and cascades into
-// ARG_MISMATCH on nearly every branch/call using those regs, even though every
-// idiom fix landed (branch-sense inversion on the 0x4C multiplier store, and fixing
-// func_001FBD50's real 4-arg (self,a,b,f) signature, get this to 91.9% on mwcc233;
-// tried touching arg1 first / re-ordering the two entry stores / alternate
-// -sdatathreshold, none flip the s0/s1 assignment). The sole remaining residual
-// besides the s0/s1 swap is a v0/v1-register + FP-load scheduling variant in the
-// D_008104D4 speed-const select and the D_00810320/D_00810368 delta computation
-// (target loads D_00810368 before storing D_00810320's result; ours stores first).
-// Not the clean-store nop, not fixable by a source-level idiom found so far --
-// parked as a genuine register-coloring near-miss. Best measured: mwcc233 91.9%,
-// 991202 78.5%.
 
 extern void anim_clip_init(char *self, int clip, float a, float b);
 extern void func_00102760(void *a0, void *a1);
@@ -58,16 +41,15 @@ extern void func_001B55E0(char *a0, int a1);
 extern void func_001FBD50(char *p, int a, int b, float f);
 extern int func_0021BE40(void *a0, char *a1);
 extern unsigned char D_008102B0;
-extern float D_00810320;
-extern int D_00810324;
-extern float D_00810328;
-extern int D_008104D4;
-extern float D_00810360;
-extern float D_00810368;
+extern volatile float D_00810320;
+extern volatile int D_00810324;
+extern volatile float D_00810328;
+extern float D_008104D4;
+extern volatile float D_00810360;
+extern volatile float D_00810368;
 extern unsigned char D_0081070A;
 
 void func_00143AF0(char *arg0, char *arg1) {
-    int v0;
     unsigned char st;
 
     *(char *)(arg0 + 0x5E) = 0;
@@ -109,21 +91,22 @@ void func_00143AF0(char *arg0, char *arg1) {
             *(int *)(arg1 + 0x20) = 1;
             D_008102B0 |= 2;
             if (*(unsigned char *)(arg0 + 0xD) & 0x80) {
-                v0 = 0x41A00000;
                 if (D_0081070A != 0) {
-                    v0 = 0x41C80000;
+                    D_008104D4 = 25.0f;
+                } else {
+                    D_008104D4 = 20.0f;
                 }
             } else {
-                v0 = 0x41700000;
                 if (D_0081070A != 0) {
-                    v0 = 0x41A00000;
+                    D_008104D4 = 20.0f;
+                } else {
+                    D_008104D4 = 15.0f;
                 }
             }
-            D_008104D4 = v0;
             D_00810320 = D_00810360 - *(float *)(arg0 + 0xB0);
             D_00810324 = 0;
             D_00810328 = D_00810368 - *(float *)(arg0 + 0xB8);
-            func_00102760(&D_00810320, &D_00810320);
+            func_00102760((float *)&D_00810320, (float *)&D_00810320);
             func_001B55E0(arg0, 0);
         }
         if (*(int *)(arg1 + 0x30) & 0x1000) {
@@ -144,21 +127,22 @@ void func_00143AF0(char *arg0, char *arg1) {
             *(int *)(arg1 + 0x20) = 1;
             D_008102B0 |= 2;
             if (*(unsigned char *)(arg0 + 0xD) & 0x80) {
-                v0 = 0x41A00000;
                 if (D_0081070A != 0) {
-                    v0 = 0x41C80000;
+                    D_008104D4 = 25.0f;
+                } else {
+                    D_008104D4 = 20.0f;
                 }
             } else {
-                v0 = 0x41700000;
                 if (D_0081070A != 0) {
-                    v0 = 0x41A00000;
+                    D_008104D4 = 20.0f;
+                } else {
+                    D_008104D4 = 15.0f;
                 }
             }
-            D_008104D4 = v0;
             D_00810320 = D_00810360 - *(float *)(arg0 + 0xB0);
             D_00810324 = 0;
             D_00810328 = D_00810368 - *(float *)(arg0 + 0xB8);
-            func_00102760(&D_00810320, &D_00810320);
+            func_00102760((float *)&D_00810320, (float *)&D_00810320);
             func_001B55E0(arg0, 0);
         }
         if (*(int *)(arg1 + 0x30) & 0x1000) {

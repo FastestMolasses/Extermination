@@ -61,6 +61,17 @@ def targets():
         with open(f, errors="ignore") as fh:
             if "jtbl_" in fh.read():
                 out.append(b)
+    # Renamed functions (anim_frame_top_b, bone_root_pulse, ...) own jump tables
+    # too; the func_* glob above used to skip them, so their C could never reach
+    # objdiff 100% (matching wave 2026-10-27). Boot-ELF functions only: a renamed
+    # function needs a src/ file of the same name.
+    for f in glob.glob(f"{ASM}/*.s"):
+        b = os.path.basename(f)[:-2]
+        if b.startswith("func_") or not os.path.exists(f"src/{b}.c"):
+            continue
+        with open(f, errors="ignore") as fh:
+            if "jtbl_" in fh.read():
+                out.append(b)
     return sorted(out)
 
 

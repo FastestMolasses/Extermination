@@ -1,129 +1,160 @@
-// NEARMISS func_00126F88  (vram 0x00126F88, 0x2A8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 59.59% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// This function is Sony PS2 SDK softfloat-library code (module tag 'lowmem' in FUNCTIONS.csv; sd/ld 64-bit ra saves, daddu reg moves -- the neighboring already-decompiled func_00126EC8/func_00126F20/func_00127230 in the same cluster are all `// COMPILER: eegcc`), so it is NOT mwcc-class and pct_991...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
-
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 59.59% NEARMISS).
+// Fixes read from the original instructions:
+//  - This is libgcc fp-bit __muldf3 with _fpmul_parts inlined, written in the
+//    shape of the matched twins func_00127230 (__divdf3) and func_00127C48
+//    (__mulsf3): double arguments taken by address, isnan/isinf/iszero
+//    inlines, a static inline parts routine returning the result pointer,
+//    and func_00126AB8 (pack_d) with one argument returning a double.
+//  - The class checks follow fp-bit's order (NaN a, NaN b, inf a, inf b,
+//    zero a, zero b); the old C had a different, partly wrong cascade.
+//  - The fraction is fp-bit's union (64-bit ll / two 32-bit halves); a plain
+//    64-bit field schedules the final fraction store differently.
+//  - The 64x64 product is fp-bit's four __muldi3 partial products
+//    (func_00125F48, named explicitly so gcc does not emit __muldi3), with
+//    the cross-sum shifted straight into the low sum (no reassigned pp_hl
+//    temporary) and its high half masked with 0xffffffff before adding.
 //
-// Software-float binary op (mantissa multiply) on the unpacked form -- the
-// multiplication twin of func_00127230 (division). Each operand is decoded
-// by func_00126BE8 into a 0x18-byte record:
-//   +0x00 cls  (class/tag: <2 = NaN/zero special, 2 and 4 = inf/special)
-//   +0x04 sign
-//   +0x08 exp
-//   +0x10 mant (64-bit)
-// The result record is chosen among operand a, operand b, a shared special
-// constant D_00281B28, or computed into a fresh 0x18-byte record (res) by a
-// 64x64->128 mantissa multiply (four 32x32->64 partial products via
-// func_00125F48) followed by normalize + round-to-nearest-even on the 128-bit
-// product, then repacked by func_00126AB8.
-typedef unsigned long long u64;
+// libgcc soft float (ee-gcc 2.9, fp-bit.c): __muldf3. Both operands are
+// unpacked by func_00126BE8 (unpack_d) into 0x18-byte records (class, sign,
+// exponent, 64-bit fraction at +0x10). NaN, infinity and zero operands are
+// returned with the XOR of the signs; inf*0 gives the shared NaN D_00281B28
+// (__thenan_df). Otherwise the fractions are multiplied into a 128-bit
+// product, normalized so the implicit bit sits at bit 60, rounded to nearest
+// even on the 8 guard bits, and repacked by func_00126AB8 (pack_d).
+// class: 0=SNAN 1=QNAN 2=ZERO 3=NUMBER 4=INFINITY.
+typedef unsigned long long UDItype;
+typedef struct {
+    int cls;
+    unsigned int sign;
+    int normal_exp;
+    union { unsigned long long ll; unsigned int l[2]; } fraction;
+} FpNumberDf;
 
-struct fp {
-    unsigned int cls;
-    int sign;
-    int exp;
-    int pad;
-    u64 mant;
-};
+extern void func_00126BE8(double *in, FpNumberDf *out);
+extern double func_00126AB8(FpNumberDf *in);
+extern FpNumberDf D_00281B28;
+extern UDItype func_00125F48(UDItype a, UDItype b); /* __muldi3 */
 
-extern void func_00126BE8(long *src, struct fp *dst);
-extern void func_00126AB8(struct fp *res);
-extern u64 func_00125F48(u64 a, u64 b);
-extern struct fp D_00281B28;
+static __inline__ int isnanDf (FpNumberDf *x) { return x->cls == 0 || x->cls == 1; }
+static __inline__ int isinfDf (FpNumberDf *x) { return x->cls == 4; }
+static __inline__ int iszeroDf (FpNumberDf *x) { return x->cls == 2; }
 
-void func_00126F88(long arg0, long arg1)
+static __inline__ FpNumberDf *
+_fpmul_parts (FpNumberDf *a, FpNumberDf *b, FpNumberDf *tmp)
 {
-    struct fp a;
-    struct fp b;
-    long ia;
-    long ib;
-    struct fp res;
-    struct fp *out;
+    UDItype low = 0;
+    UDItype high = 0;
 
-    ia = arg0;
-    ib = arg1;
-    func_00126BE8(&ia, &a);
-    func_00126BE8(&ib, &b);
-
-    if (a.cls < 2U) {
-        out = &a;
-        a.sign = (a.sign != b.sign);
-    } else if (b.cls < 2U) {
-        out = &b;
-        b.sign = (a.sign != b.sign);
-    } else if (a.cls == 4) {
-        if (b.cls != 2) {
-            out = &a;
-            a.sign = (a.sign != b.sign);
-        } else {
-            out = &D_00281B28;
-        }
-    } else if (b.cls == 4) {
-        if (a.cls == 2) {
-            out = &D_00281B28;
-        } else {
-            out = &b;
-            b.sign = (a.sign != b.sign);
-        }
-    } else if (a.cls == 2) {
-        out = &a;
-        a.sign = (a.sign != b.sign);
-    } else if (b.cls == 2) {
-        out = &b;
-        b.sign = (a.sign != b.sign);
-    } else {
-        u64 mask = 0xFFFFFFFFUL;
-        u64 alo = a.mant & mask;
-        u64 ahi = a.mant >> 32;
-        u64 blo = b.mant & mask;
-        u64 bhi = b.mant >> 32;
-        u64 p0 = func_00125F48(blo, alo);
-        u64 p1 = func_00125F48(blo, ahi);
-        u64 p2 = func_00125F48(bhi, alo);
-        u64 p3 = func_00125F48(bhi, ahi);
-        u64 mid = p1 + p2;
-        u64 lo = p0 + (mid << 32);
-        u64 carry = (mid < p1) ? 1 : 0;
-        u64 hi = ((carry << 32) | (lo < p0)) + ((mid >> 32) + p3);
-        int exp = a.exp + b.exp + 4;
-
-        if (hi > (0xFFFFFFFFUL >> 3)) {
-            do {
-                exp += 1;
-                if ((int)(hi & 1) != 0) {
-                    lo = (lo >> 1) | (0x8000ULL << 48);
-                }
-                hi = hi >> 1;
-            } while (hi > (0xFFFFFFFFUL >> 3));
-        }
-        if (hi > (0xFFFFFFFFUL >> 4)) {
-            do {
-                u64 h2 = hi * 2;
-                exp -= 1;
-                hi = (lo & (0x8000ULL << 48)) ? (h2 | 1) : h2;
-                lo *= 2;
-            } while (hi > (0xFFFFFFFFUL >> 4));
-        }
-        if ((hi & 0xFF) == 0x80) {
-            if (hi & 0x100) {
-                hi += 0x80;
-            } else if (lo != 0) {
-                hi += 0x80;
-            }
-        }
-        res.mant = hi;
-        res.cls = 3;
-        res.sign = (a.sign != b.sign);
-        res.exp = exp;
-        out = &res;
+    if (isnanDf (a))
+    {
+        a->sign = a->sign != b->sign;
+        return a;
     }
-    func_00126AB8(out);
+    if (isnanDf (b))
+    {
+        b->sign = a->sign != b->sign;
+        return b;
+    }
+    if (isinfDf (a))
+    {
+        if (iszeroDf (b))
+            return &D_00281B28;
+        a->sign = a->sign != b->sign;
+        return a;
+    }
+    if (isinfDf (b))
+    {
+        if (iszeroDf (a))
+        {
+            return &D_00281B28;
+        }
+        b->sign = a->sign != b->sign;
+        return b;
+    }
+    if (iszeroDf (a))
+    {
+        a->sign = a->sign != b->sign;
+        return a;
+    }
+    if (iszeroDf (b))
+    {
+        b->sign = a->sign != b->sign;
+        return b;
+    }
+
+    {
+        UDItype nl = a->fraction.ll & 0xffffffff;
+        UDItype nh = a->fraction.ll >> 32;
+        UDItype ml = b->fraction.ll & 0xffffffff;
+        UDItype mh = b->fraction.ll >> 32;
+        UDItype pp_ll = func_00125F48(ml, nl);
+        UDItype pp_hl = func_00125F48(mh, nl);
+        UDItype pp_lh = func_00125F48(ml, nh);
+        UDItype pp_hh = func_00125F48(mh, nh);
+        UDItype res2 = 0;
+        UDItype res0 = 0;
+        UDItype ps_hh__ = pp_hl + pp_lh;
+        if (ps_hh__ < pp_hl)
+            res2 += (UDItype)1 << 32;
+        res0 = pp_ll + (ps_hh__ << 32);
+        if (res0 < pp_ll)
+            res2++;
+        res2 += ((ps_hh__ >> 32) & 0xffffffff) + pp_hh;
+        high = res2;
+        low = res0;
+    }
+
+    tmp->normal_exp = a->normal_exp + b->normal_exp;
+    tmp->sign = a->sign != b->sign;
+    tmp->normal_exp += 4;
+    while (high >= (1ULL << 61))
+    {
+        tmp->normal_exp++;
+        if (high & 1)
+        {
+            low >>= 1;
+            low |= 0x8000000000000000ULL;
+        }
+        high >>= 1;
+    }
+    while (high < (1ULL << 60))
+    {
+        tmp->normal_exp--;
+
+        high <<= 1;
+        if (low & 0x8000000000000000ULL)
+            high |= 1;
+        low <<= 1;
+    }
+    if ((high & 0xFF) == 0x80)
+    {
+        if (high & (1 << 8))
+        {
+            high += 0x80;
+        }
+        else if (low)
+        {
+            high += 0x80;
+        }
+    }
+    tmp->fraction.ll = high;
+    tmp->cls = 3;
+    return tmp;
+}
+
+double func_00126F88(double arg_a, double arg_b)
+{
+    FpNumberDf a;
+    FpNumberDf b;
+    FpNumberDf tmp;
+    FpNumberDf *res;
+
+    func_00126BE8(&arg_a, &a);
+    func_00126BE8(&arg_b, &b);
+
+    res = _fpmul_parts (&a, &b, &tmp);
+
+    return func_00126AB8(res);
 }

@@ -1,21 +1,29 @@
-// NEARMISS anim_frame_top_b  (vram 0x001AE040, 0x594 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 92.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// NOT MATCHED — jr-table dispatch (the PROVEN-unmatchable class). Top-level dispatch is `lui %hi(jtbl_0026DD30); addiu %lo; sll idx,2; addu; lw; jr` on an EXTERNAL consolidated rodata table; mwcc emits its own LOCAL `@65` table, so objdiff counts the reloc as a mismatch even though the dispatch sch...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 92.08% NEARMISS).
+// Fixes read from the original instructions:
+//  - The scratchpad words 0x70003B6C (task-slot pointer) and 0x70003B8D
+//    (cutscene selector) are relocated externs D_70003B6C / D_70003B8D
+//    (idiom-32; both are in build.py's global scratchpad list), over-declared
+//    as arrays so -sdatathreshold 4 keeps them absolute rather than %gp_rel.
+//    As literals mwcc CSE'd and speculated the 0x7000 upper half (wrong store
+//    order in state 1/2, a filled branch slot in state 6).
+//  - Every top-level case ends in `break` (not `return`): the original has a
+//    single shared epilogue that all cases branch to.
+//  - func_001E0CC0 takes no argument (its definition in src/ is void); the
+//    original sets $a0 = 0 once, in the branch slot, for func_001D1EA0 only.
+//  - State 3 addresses its sub-step through its own pointer `sub` (g + 0xC),
+//    not by reusing `st`, which restores the original register colouring.
+//  - The "jr-table wall" was a missing local table: tools/match/gen_jtbl_rodata.py
+//    only scans func_* names, so build/jtblrodata/anim_frame_top_b.s was never
+//    generated; with jtbl_0026DD30 appended to the target (as build.py does) the
+//    dispatch matches.
 //
 // SEMANTICS: the IN-GAME FRAME MACHINE func_001AE040 (FINDINGS "ENGINE FRAME
 // ANATOMY": func_001ACEC0 -> func_001AD250 -> func_001AD4D0 = j here). NOT the
-// title/attract flow (the old label). `g` is the running task slot at
-// *(void **)0x70003B6C; g[0xB] is the frame state (0..6, jtbl_0026DD30) and
+// title/attract flow (the old label). `g` is the running task slot held in the
+// scratchpad word 0x70003B6C (extern D_70003B6C, idiom-32); g[0xB] is the frame state (0..6, jtbl_0026DD30) and
 // g[0xC] its sub-step. g[8]/g[9]/g[0xA]/g[0xD]/g[0x11] are task fields
 // cleared on transitions.
 //   state 0 : one-shot gameplay bring-up -- advance g[0xB], then the init
@@ -40,7 +48,7 @@
 //                    func_001FABB0, func_001AEDB0(0).
 //             otherwise (only while D_00275BD8 is clear) run one world frame
 //             -- the gameplay frame func_001AE5E0, or the cutscene frame
-//             func_001AE6B0 when scratchpad selector 0x70003B8D != 0 -- then,
+//             func_001AE6B0 when scratchpad selector D_70003B8D != 0 -- then,
 //             at fade hold-black (D_0028A9A0 == 2) either the death latch
 //             D_008106B9 enters the game-over wait (func_001AD140) or a
 //             pending room/area move D_008106B8 commits (func_001AD010).
@@ -68,7 +76,8 @@
 // as switches with ASCENDING case labels (mwcc lowers a switch to a DESCENDING beq
 // chain, which is the target's order); an if/else-if chain there emits the wrong
 // polarity. The nine small absolute globals are over-declared as [8] arrays (idiom-20)
-// so -sdatathreshold 4 keeps only D_00275BD8 / D_00275BE0 %gp_rel, matching the target.
+// so -sdatathreshold 4 keeps only D_00275BD8 / D_00275BE0 %gp_rel, matching the target
+// (the two scratchpad externs are over-declared the same way).
 extern void func_00119828(int, int, int);
 extern void func_0018AB00(void);
 extern void func_0018C0D0(void *, int);
@@ -97,7 +106,7 @@ extern void func_001D1EA0(int);
 extern void func_001D1EF0(void);
 extern void func_001D2610(float);
 extern void func_001D2830(int, int);
-extern void func_001E0CC0(int);
+extern void func_001E0CC0(void);
 extern void func_001FABB0(void);
 extern void func_001FAE70(int);
 extern void func_001FB9F0(int, int, int, int);
@@ -108,6 +117,8 @@ extern int func_0020CDC0(void);
 extern void func_0020E060(void);
 extern int func_0022A650(void);
 
+extern unsigned char *D_70003B6C[2];
+extern unsigned char D_70003B8D[8];
 extern unsigned char D_00275BD8;
 extern unsigned char D_00275BE0;
 extern char D_00282157[8];
@@ -122,11 +133,12 @@ extern unsigned char D_008106CF[8];
 extern unsigned char D_008106EF[8];
 
 void anim_frame_top_b(void) {
-    unsigned char *g;
     unsigned char *st;
+    unsigned char *g;
+    unsigned char *sub;
     int r;
 
-    g = *(unsigned char **)0x70003B6C;
+    g = D_70003B6C[0];
     st = g + 0xB;
     switch (g[0xB]) {
     case 0:
@@ -142,14 +154,14 @@ void anim_frame_top_b(void) {
         func_001FAE70(1);
         func_001C5C50();
         func_001D1EF0();
-        return;
+        break;
     case 4:
         func_001AFCF0();
         func_0018AB00();
         func_001B07C0(1);
         func_001C1DC0();
         D_008101E4[0] = 0;
-        (*(unsigned char **)0x70003B6C)[0xB] = 1;
+        D_70003B6C[0][0xB] = 1;
         func_0018D7B0(D_008101E0, 1);
         func_0018C0D0(D_008101E0, 1);
         func_001AEE10(4, 0);
@@ -162,29 +174,29 @@ void anim_frame_top_b(void) {
             D_008106C4[0] = 2;
             func_001FBC50();
             func_001FB9F0(0xC, 0x1000, 0x1000, 0x1000);
-            (*(unsigned char **)0x70003B6C)[0xB] =
-                (*(unsigned char **)0x70003B6C)[0xB] + 1;
-            (*(unsigned char **)0x70003B6C)[0x11] = 0;
-            (*(unsigned char **)0x70003B6C)[0xC] = 0;
-            (*(unsigned char **)0x70003B6C)[0xD] = 0;
+            D_70003B6C[0][0xB] =
+                D_70003B6C[0][0xB] + 1;
+            D_70003B6C[0][0x11] = 0;
+            D_70003B6C[0][0xC] = 0;
+            D_70003B6C[0][0xD] = 0;
         } else if (r == 2) {
             func_0020E060();
             D_008106C4[0] = 1;
-            (*(unsigned char **)0x70003B6C)[0xB] = 3;
-            (*(unsigned char **)0x70003B6C)[0x11] = 0;
-            (*(unsigned char **)0x70003B6C)[0xC] = 0;
+            D_70003B6C[0][0xB] = 3;
+            D_70003B6C[0][0x11] = 0;
+            D_70003B6C[0][0xC] = 0;
             func_001FBC50();
             func_001FABB0();
             func_00119828(0, 0x3FFF, 0x3FFF);
             func_00119828(1, 0x3FFF, 0x3FFF);
         } else if (r == 3) {
-            (*(unsigned char **)0x70003B6C)[0xB] = 6;
-            (*(unsigned char **)0x70003B6C)[0xC] = 0;
+            D_70003B6C[0][0xB] = 6;
+            D_70003B6C[0][0xC] = 0;
             func_001FBC50();
             func_001FABB0();
             func_001AEDB0(0);
         } else if (D_00275BD8 == 0) {
-            if (*(unsigned char *)0x70003B8D == 0) {
+            if (D_70003B8D[0] == 0) {
                 func_001AE5E0();
             } else {
                 func_001AE6B0();
@@ -199,13 +211,13 @@ void anim_frame_top_b(void) {
                 }
             }
         }
-        return;
+        break;
     case 2:
         r = func_0022A650();
         if (r == 1) {
             func_001AF1C0();
             D_008106C4[0] = 0;
-            g = *(unsigned char **)0x70003B6C;
+            g = D_70003B6C[0];
             g[0xB] = g[0xB] - 1;
             func_001FB9F0(0xD, 0x1000, 0x1000, 0x1000);
             func_001FAE70(0);
@@ -214,47 +226,47 @@ void anim_frame_top_b(void) {
             func_001AF150();
             func_001D2610(0.0f);
             D_00275BE0 = 1;
-            (*(unsigned char **)0x70003B6C)[8] = 3;
-            (*(unsigned char **)0x70003B6C)[9] = 5;
-            (*(unsigned char **)0x70003B6C)[0xA] = 0;
-            (*(unsigned char **)0x70003B6C)[0xB] = 0;
-            (*(unsigned char **)0x70003B6C)[0xC] = 0;
-            (*(unsigned char **)0x70003B6C)[0xD] = 0;
+            D_70003B6C[0][8] = 3;
+            D_70003B6C[0][9] = 5;
+            D_70003B6C[0][0xA] = 0;
+            D_70003B6C[0][0xB] = 0;
+            D_70003B6C[0][0xC] = 0;
+            D_70003B6C[0][0xD] = 0;
         } else if (r == 3) {
             func_001AD140();
         }
-        return;
+        break;
     case 3:
-        st = g + 0xC;
+        sub = g + 0xC;
         switch (g[0xC]) {
         case 0:
             if (D_00282157[0] == 0) {
-                *st = *st + 1;
+                *sub = *sub + 1;
             }
             break;
         case 1:
             func_001D1C50();
             func_001D2830(3, 1);
             if (func_0020CDC0() != 0) {
-                func_001E0CC0(0);
-                (*(unsigned char **)0x70003B6C)[0xB] = 5;
+                func_001E0CC0();
+                D_70003B6C[0][0xB] = 5;
                 D_008106EF[0] = 0x46;
                 func_001AEDB0(0);
             }
             func_001D1EA0(0);
             break;
         }
-        return;
+        break;
     case 5:
         func_001AEDB0(0);
         func_001D1EF0();
         func_0018C0D0(D_008101E0, 1);
         D_008106C4[0] = 0;
-        (*(unsigned char **)0x70003B6C)[0xB] = 1;
-        (*(unsigned char **)0x70003B6C)[0xC] = 0;
+        D_70003B6C[0][0xB] = 1;
+        D_70003B6C[0][0xC] = 0;
         func_001FAE70(1);
         func_001AEE40(0x20);
-        return;
+        break;
     case 6:
         switch (g[0xC]) {
         case 0:
@@ -264,7 +276,7 @@ void anim_frame_top_b(void) {
                 } else {
                     func_001FEFE0(D_008106CF[0]);
                 }
-                g = *(unsigned char **)0x70003B6C;
+                g = D_70003B6C[0];
                 g[0xC] = g[0xC] + 1;
             }
             break;
@@ -272,12 +284,12 @@ void anim_frame_top_b(void) {
             if (D_00275BD8 == 0) {
                 D_008106CE[0] = 0;
                 *st = 1;
-                (*(unsigned char **)0x70003B6C)[0xC] = 0;
+                D_70003B6C[0][0xC] = 0;
                 func_001C1DC0();
                 func_001FAE70(1);
             }
             break;
         }
-        return;
+        break;
     }
 }

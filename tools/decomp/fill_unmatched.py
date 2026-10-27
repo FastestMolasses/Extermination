@@ -109,7 +109,7 @@ GPREL_FORCE_ASM = {
     # reached objdiff 100% (NEARMISS promoted); same proof as above -- full
     # build + verify_all byte-identical, audit shows compiled_object_ordinary_c.
     # Matching wave 2026-10-27: func_001E9280, then func_001E9E60 and
-    # func_001C1A80, then func_001BE6C0 and func_001C02E0, were removed after
+    # func_001C1A80, then func_001BE6C0, func_001C02E0 and func_001BECC0, were removed after
     # their C reached objdiff 100% (NEARMISS promoted); same proof.
     # Decomp lane round 3 (2026-10-20): 6 entries removed -- func_001CB9B0,
     # func_001D1F20, func_001D1F80, func_001D1FF0, func_001D2040,
@@ -138,7 +138,6 @@ GPREL_FORCE_ASM = {
     "func_00181730",
     "func_00198440",
     "func_001BD9F0",
-    "func_001BECC0",
     "func_001BF3C0",
     # Decomp lane round 4 (2026-10-20): func_001D3F60, func_001D40E0,
     # func_001D4440 and func_001E1E60 removed -- byte-matched from C (mwcc 2.3.3,
