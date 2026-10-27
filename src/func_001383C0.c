@@ -1,40 +1,32 @@
-// NEARMISS func_001383C0  (vram 0x001383C0, 0x178 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.63% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Outer mode-switch dispatch lowering: target hoists the beqz (mode 0) test ahead of the beq ,1 test and assigns the compare-constant scratch register differently (a0 vs v0). Switch-lowering / comparison-ordering scheduling artifact; case reorderings did not reproduce the target's exact dispatch se...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
 //
-// NEARMISS 98.6% (identical on 991202 and 2.3.3). Per-frame update dispatcher for
-// an entity (substate object at arg0+0x1F0). First switches on the global game-mode
-// byte at 0x70003B8D: modes 2/3 do nothing; mode 1 runs the gated callback
-// (if func_001B2140() and arg0+4 != 0, invoke the virtual at arg0+0x4C); modes 0/4
-// (and default) fall through to the per-substate update, which dispatches on the
-// substate byte at arg0+4 (0->func_00138540, 1->func_001386E0, 2->func_0013B350,
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 98.63% NEARMISS).
+// Fixes read from the original instructions:
+//  - The outer mode switch is spelled like byte-matched twins func_00147390 /
+//    func_0013D2D0: case 0 break; case 1 handler; cases 2/3 return; case 4
+//    break (in that order). That gives the target's descending compare chain
+//    (the old "switch-lowering artifact" verdict was a wrong spelling).
+//  - func_001B2140 takes the entity pointer (a0 is still arg0 at the call),
+//    not the constant 1; the mode-1 gate is written as two early returns.
+//
+// Per-frame update dispatcher for an entity (substate object at arg0+0x1F0).
+// First switches on the global game-mode byte at 0x70003B8D: modes 2/3 do
+// nothing; mode 1 runs the gated callback (if func_001B2140(arg0) and arg0+4 != 0,
+// invoke the virtual at arg0+0x4C); modes 0/4 (any other mode also reaches it)
+// fall through to the per-substate update, which dispatches on the substate byte
+// at arg0+4 (0->func_00138540, 1->func_001386E0, 2->func_0013B350,
 // 3->func_0013B9A0 then return). After the 0/1/2 handlers it decrements the
 // 8-bit timer at +0x85 and the 16-bit timer at +0x34 (clamped at 0), runs
 // func_001B0D80, and if the +0x87 flag is set and the menu/global state
 // (D_00810700 != 0x13 || D_00810701 != 0) permits, calls func_001B5360.
-//
-// Body, both switches, both timers, and all call targets are byte-correct. The
-// sole residual is mwcc's switch-dispatch lowering for the outer mode switch:
-// the target hoists the `beqz` (mode 0) test ahead of the `beq ,1` test and uses
-// a different scratch register for the compare constants. This is a switch-
-// lowering / comparison-ordering scheduling artifact; reshaping the case order
-// could not steer mwcc onto the target's exact dispatch sequence.
+// Near-twin of func_00147390.
 extern void func_00138540(char *p, char *q);
 extern void func_001386E0(char *p, char *q);
 extern void func_0013B350(char *p, char *q);
 extern void func_0013B9A0(char *p, char *q);
 extern void func_001B0D80(char *p);
-extern int func_001B2140(unsigned char m);
+extern int func_001B2140(char *e);
 extern void func_001B5360(char *p);
 extern unsigned char D_00810700;
 extern unsigned char D_00810701;
@@ -47,17 +39,18 @@ void func_001383C0(char *arg0) {
 
     sub = arg0 + 0x1F0;
     switch (*(unsigned char *)0x70003B8D) {
-    default:
     case 0:
-    case 4:
         break;
     case 1:
-        if (func_001B2140(1) != 0 && *(unsigned char *)(arg0 + 4) != 0) {
-            (*(void (**)(char *))(arg0 + 0x4C))(arg0);
-        }
+        if (func_001B2140(arg0) == 0) return;
+        if (*(unsigned char *)(arg0 + 4) == 0) return;
+        (*(void (**)(char *))(arg0 + 0x4C))(arg0);
+        return;
     case 2:
     case 3:
         return;
+    case 4:
+        break;
     }
     st = *(unsigned char *)(arg0 + 4);
     switch (st) {

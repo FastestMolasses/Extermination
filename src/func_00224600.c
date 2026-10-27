@@ -1,15 +1,21 @@
-// NEARMISS func_00224600  (vram 0x00224600, 0x574 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.93% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP register-coloring (4x c.eq.s operand-order swaps on reused ==0.0f/!=0.0f tests) + mwcc tail-merge (3-instr shared epilogue for the early return-0 path, 12 bytes short). Body/structure 100% correct; not crackable via source-level changes (tried operand-order flips, flattened conditions, ~10 att...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.93% NEARMISS).
+// Fixes read from the original instructions:
+//  - State 0's early "return 0" is the else-arm of the guard (the original places
+//    the return-0 block after the state-0 body), so the guard is written as the
+//    positive "anything to do?" test with the body inside it.
+//  - The float fields are tested by plain truthiness (`if (f)`), not `!= 0.0f`;
+//    that is what gives the original's compare operand order.
+//  - Each arm of the state-0 transition stores the next state itself (no shared
+//    temporary); the original duplicates the store per arm.
+//
+// Per-object state machine on the state byte at +7. State 0 returns 0 when the
+// floats at +0x224 and +0x22C are zero and bit 1 of the byte at +0xF is clear;
+// otherwise it requests a rumble, plays effects for the non-zero floats and picks
+// the next state. The other states drive animations and transitions. Returns 2
+// on the two terminal transitions, else 1.
 
 extern int func_00122BB8(void);
 extern void func_001749A0(unsigned char *e, int clip, int flags, float blend);
@@ -31,41 +37,39 @@ extern unsigned char D_008106F1[];
 
 int func_00224600(unsigned char *arg0) {
     unsigned char st;
-    int v0;
 
     st = *(unsigned char *)(arg0 + 7);
     switch (st) {
     case 0:
-        if (*(float *)(arg0 + 0x224) == 0.0f) {
-            if (*(float *)(arg0 + 0x22C) == 0.0f && !(*(unsigned char *)(arg0 + 0xF) & 2)) {
-                return 0;
+        if (*(float *)(arg0 + 0x224) || *(float *)(arg0 + 0x22C) ||
+            (*(unsigned char *)(arg0 + 0xF) & 2)) {
+            func_001B61C0(0, 0xC0, 5, 1);
+            if (*(float *)(arg0 + 0x224)) {
+                func_001FBD50(arg0, 0x152, 0, 300.0f);
+                func_0021C350(arg0);
             }
-        }
-        func_001B61C0(0, 0xC0, 5, 1);
-        if (*(float *)(arg0 + 0x224) != 0.0f) {
-            func_001FBD50(arg0, 0x152, 0, 300.0f);
-            func_0021C350(arg0);
-        }
-        if (*(float *)(arg0 + 0x22C) != 0.0f) {
-            func_001FBD50(arg0, 0x153, 0, 300.0f);
-            func_0021C270(arg0);
-        }
-        if (*(float *)(arg0 + 0x220) <= 0.0f) {
-            if (*(unsigned char *)(arg0 + 0xF) == 0x63 ||
-                *(unsigned char *)(arg0 + 0x234) == 1) {
-                func_0021C200(arg0);
-                v0 = 0x1E;
+            if (*(float *)(arg0 + 0x22C)) {
+                func_001FBD50(arg0, 0x153, 0, 300.0f);
+                func_0021C270(arg0);
+            }
+            if (*(float *)(arg0 + 0x220) <= 0.0f) {
+                if (*(unsigned char *)(arg0 + 0xF) == 0x63 ||
+                    *(unsigned char *)(arg0 + 0x234) == 1) {
+                    func_0021C200(arg0);
+                    *(unsigned char *)(arg0 + 7) = 0x1E;
+                } else {
+                    *(unsigned char *)(arg0 + 7) = 0xA;
+                }
+            } else if (!(*(float *)(arg0 + 0x228) < 100.0f) && D_008106F1[0] != 0) {
+                *(unsigned char *)(arg0 + 7) = 0x14;
             } else {
-                v0 = 0xA;
+                *(unsigned char *)(arg0 + 7) = *(unsigned char *)(arg0 + 7) + 1;
             }
-        } else if (!(*(float *)(arg0 + 0x228) < 100.0f) && D_008106F1[0] != 0) {
-            v0 = 0x14;
+            if (*(unsigned char *)(arg0 + 0xF) & 2) {
+                *(unsigned char *)(arg0 + 0xF) = 0;
+            }
         } else {
-            v0 = *(unsigned char *)(arg0 + 7) + 1;
-        }
-        *(unsigned char *)(arg0 + 7) = v0;
-        if (*(unsigned char *)(arg0 + 0xF) & 2) {
-            *(unsigned char *)(arg0 + 0xF) = 0;
+            return 0;
         }
         break;
     case 1:

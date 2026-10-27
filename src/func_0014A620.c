@@ -1,34 +1,27 @@
-// NEARMISS func_0014A620  (vram 0x0014A620, 0x110 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.76% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// register-allocation/scheduling artifact. Body 100% logically correct (3-way state dispatch on self[5] -> func_0014A730/A9A0/ACC0, then conditional reset block guarded by other[0x86], then the fixed call chain func_0014BE20/AE80/AFA0/anim_advance_time/func_00131ED0/001C68C0/001B17A0 and the indire...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-//
-// NEARMISS (96.8% on mwcc 2.3.3): body logically complete & faithful; sole
-// residual is a register-allocation/scheduling artifact (param-save reg
-// coloring swap self<->other s0/s1, plus one delay-slot fill choice on the
-// func_0021C040 call). Permuter territory.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.76% NEARMISS).
+// Fixes read from the original instructions:
+//  - the three state handlers take (self, other) like their definitions in src/
+//    (declared (void) before); the arguments are already in place, so no moves
+//    are emitted, but the declaration changes register allocation.
+//  - the dirty flag other[0x86] is cleared BEFORE func_0021C040 is called (the
+//    original schedules that store into the call's delay slot).
+//  - the switch default is a plain break (no goto label).
 //
 // Per-state object tick. Dispatches on the state byte at self[5] (3-way: 0/1/2)
-// to func_0014A730 / func_0014A9A0 / func_0014ACC0. If the "dirty" flag other[0x86]
-// is set, runs a reset: func_0021C040(D_008102B0, self), clears other[0x86], and
+// to func_0014A730 / func_0014A9A0 / func_0014ACC0 (all (self,other)). If the "dirty" flag other[0x86]
+// is set, runs a reset: clears other[0x86], calls func_0021C040(D_008102B0, self), and
 // if the global D_008106BD == 1 clears it too. Then runs the fixed per-frame chain
 // func_0014BE20 / func_0014AE80 / func_0014AFA0 (all (self,other)), records
 // anim_advance_time(self, *(float*)(other+0x40)) into *(int*)(other+0x20), calls
 // func_00131ED0 / func_001C68C0 / func_001B17A0 (self), and finally the per-object
 // virtual via the function pointer at *(self+0x4C) called with self.
 
-extern void func_0014A730(void);
-extern void func_0014A9A0(void);
-extern void func_0014ACC0(void);
+extern void func_0014A730(char *a, char *b);
+extern void func_0014A9A0(char *a, char *b);
+extern void func_0014ACC0(char *a, char *b);
 extern void func_0021C040(char *a, char *b);
 extern void func_0014BE20(char *a, char *b);
 extern void func_0014AE80(char *a, char *b);
@@ -47,22 +40,21 @@ void func_0014A620(char *self, char *other)
 
     switch ((unsigned char)self[5]) {
     case 0:
-        func_0014A730();
+        func_0014A730(self, other);
         break;
     case 1:
-        func_0014A9A0();
+        func_0014A9A0(self, other);
         break;
     case 2:
-        func_0014ACC0();
+        func_0014ACC0(self, other);
         break;
     default:
-        goto check;
+        break;
     }
 
-check:
     if (other[0x86]) {
-        func_0021C040(D_008102B0, self);
         other[0x86] = 0;
+        func_0021C040(D_008102B0, self);
         if (D_008106BD == 1) {
             D_008106BD = 0;
         }

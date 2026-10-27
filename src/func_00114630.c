@@ -1,23 +1,33 @@
-// NEARMISS func_00114630  (vram 0x00114630, 0xD8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.93% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler wall (confirmed s84): body byte-identical (216/216, 95.93%); two deterministic adjacent-op swaps remain -- the %lo add forming &D_0027B5C0 vs the a0 store at +0x48, and the order of the two func_0010DFD8 argument-register copies at +0x50. Permuter ran twice full-window, never beat base score 80.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 95.93% NEARMISS).
+// Fixes read from the original instructions:
+//  - the request block D_0027B140 is a struct written through field stores, not
+//    an int array indexed by constants; the struct spelling gives ee-gcc's
+//    scheduler the original order (the %lo add of the reply buffer ahead of the
+//    first store, and the second cache-flush argument set before the first);
+//  - callee prototypes taken from their definitions/twins: func_0010DFD8 takes
+//    (void *addr, int size); the completion callback func_001145A0 takes one int.
+//
+// SDK RPC wrapper (request 5): unless a request is already pending
+// (D_00241D68) or the client is unbound (-100), fill the request block with
+// a0, the caller's buffer (a1) and its size (a2) plus the reply buffer
+// D_0027B5C0, flush both buffers from the data cache, and issue the call with
+// completion callback func_001145A0; on success mark request 5 pending.
 
 extern int D_00241D68;
 extern int D_0027B0C0[];
-extern int D_0027B140[];
+/* Request block sent to the IOP (0x30 bytes; only the fields used here are named). */
+struct cfg {
+    int f00, f04, f08, f0C, f10, f14, f18;
+    void *f1C;
+};
+extern struct cfg D_0027B140;
 extern int D_0027B5C0[];
 extern int D_0027C680[];
-extern void func_001145A0(void);
-extern void func_0010DFD8(int a0, int a1);
+extern void func_001145A0(int a0);
+extern void func_0010DFD8(void *a0, int a1);
 extern int func_0010E8A8(void *a0, int a1, int a2, void *a3, int a4, void *a5,
                          int a6, void *a7, void *a8);
 
@@ -30,13 +40,13 @@ int func_00114630(int a0, int a1, int a2) {
     if (D_0027B0C0[0x24 / 4] == 0) {
         return -0x64;
     }
-    D_0027B140[0] = a0;
-    D_0027B140[6] = a1;
-    D_0027B140[3] = a2;
-    D_0027B140[7] = (int)D_0027B5C0;
-    func_0010DFD8(a1, a2);
-    func_0010DFD8((int)D_0027B5C0, 0xC0);
-    r = func_0010E8A8(D_0027B0C0, 5, 1, D_0027B140, 0x30, D_0027C680, 4,
+    D_0027B140.f00 = a0;
+    D_0027B140.f18 = a1;
+    D_0027B140.f0C = a2;
+    D_0027B140.f1C = D_0027B5C0;
+    func_0010DFD8((void *)a1, a2);
+    func_0010DFD8(D_0027B5C0, 0xC0);
+    r = func_0010E8A8(D_0027B0C0, 5, 1, &D_0027B140, 0x30, D_0027C680, 4,
                       func_001145A0, D_0027B5C0);
     if (r == 0) {
         D_00241D68 = 5;

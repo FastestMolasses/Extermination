@@ -1,16 +1,21 @@
-// NEARMISS func_001399F0  (vram 0x001399F0, 0x410 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.73% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700038A0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 95.73% NEARMISS).
+// Fixes read from the original instructions:
+//  - func_001EFF10 takes a seventh float argument (its definition in src/ and
+//    the twin func_00189D30 show it); state 0 passes 10.0f, which shares the
+//    constant register with the 0x700038B0 store.
+//  - The state byte at p+6 is read unsigned.
+//  - The expiry path stores the 0x78 halfword to e+0x32, not p+0x32.
+//  - func_00102C58's second argument is D_700036A0 (not 0).
+//  - Dispatch is a switch where case 0 falls into case 1, and the state-1 body
+//    lives inside case 1 (no default): other states return directly.
+//  - The scratchpad word 0x700038A0 is a relocated volatile extern (idiom-32,
+//    opted in with // SPAD:), so its clear is no longer speculated into the
+//    func_0019A570 branch slot. 0x700038A4..DC stay literals.
+//
 // 2-state actor tick keyed on p[6] (a1 companion struct = e). State 0 seeds
 // heading/anim, RNG-picks a facing angle via func_00122BB8/func_001B1470,
 // optionally nudges heading toward a target at 0x700038A0 via
@@ -27,9 +32,9 @@ extern float func_001B1470(float);
 extern void anim_clip_init(char *self, int clip, float a, float b);
 extern void func_00102948(void *a0, void *a1);
 extern int func_0019A570(void *a0, void *a1, int a2, int a3);
-extern void *func_001EFF10(int mode, int a1, void *a2, void *a3, void *a4, void *a5);
+extern void *func_001EFF10(int mode, int a1, void *a2, void *a3, void *a4, void *a5, float value);
 extern void func_001029C0(void *a0);
-extern void func_00102C58(void *a0, int unused, void *a1);
+extern void func_00102C58(void *a0, void *a1, void *a2);
 extern void func_001026A0(void *a0, void *a1, void *a2);
 extern void func_001028B8(void *a0, void *a1, void *a2);
 extern void func_001028D0(void *a0, void *a1, void *a2);
@@ -39,7 +44,7 @@ extern void func_001028E8(void *a0, void *a1, void *a2);
 
 extern char D_700031B0[];
 extern char D_700036A0[];
-extern char D_700038A0[];
+extern volatile float D_700038A0;
 extern char D_700038B0[];
 extern char D_700038C0[];
 extern char D_700038D0[];
@@ -48,7 +53,7 @@ void func_001399F0(char *p, char *e) {
     int t;
     float f, z;
 
-    t = p[6];
+    t = ((unsigned char *)p)[6];
     switch (t) {
     case 0:
         p[6] = (char)(t + 1);
@@ -59,13 +64,13 @@ void func_001399F0(char *p, char *e) {
         f = func_001B1470(6.2831855f * (float)((func_00122BB8() >> 18) & 0xFF) / 255.0f);
         *(float *)(e + 0x58) = f;
         if (f < 0.0f) {
-            func_00102948(D_700038A0, p + 0xB0);
+            func_00102948(&D_700038A0, p + 0xB0);
             *(float *)0x700038A4 = *(float *)0x700038A4 - 10.0f;
-            if (func_0019A570(p + 0xB0, D_700038A0, 6, 0) != 0) {
+            if (func_0019A570(p + 0xB0, &D_700038A0, 6, 0) != 0) {
                 *(float *)(e + 0x58) = func_001B1470(3.1415927f + *(float *)(e + 0x58));
             }
         }
-        *(float *)0x700038A0 = 0.0f;
+        D_700038A0 = 0.0f;
         *(float *)0x700038A4 = 0.0f;
         *(float *)0x700038A8 = 0.0f;
         *(int *)0x700038AC = 0x3F800000;
@@ -81,52 +86,48 @@ void func_001399F0(char *p, char *e) {
         *(int *)0x700038C8 = 0x42A00000;
         *(int *)0x700038CC = 0x42A00000;
         *(int *)0x700038DC = 0x42A00000;
-        *(void **)(p + 0x20) = func_001EFF10(0x8000000D, *(int *)(p + 0x120) + 0x90, D_700038A0, D_700038B0, D_700038C0, D_700038D0);
+        *(void **)(p + 0x20) = func_001EFF10(0x8000000D, *(int *)(p + 0x120) + 0x90, &D_700038A0, D_700038B0, D_700038C0, D_700038D0, 10.0f);
         /* fallthrough */
     case 1:
-        break;
-    default:
-        return;
-    }
-
-    f = *(float *)(e + 0x44);
-    if (f <= 0.0f) {
-        p[5] = 2;
-        p[6] = 0;
-        *(float *)(e + 0x58) = *(float *)(p + 0xC4);
-        *(float *)(e + 0x48) = 0.0f;
-        *(float *)(e + 0x44) = 0.0f;
-        *(short *)(p + 0x32) = 0x78;
-        anim_clip_init(p, 4, 10.0f, 0.0f);
-        (*(char **)(p + 0x20))[4] = 3;
-        *(void **)(p + 0x20) = 0;
-        return;
-    }
-    *(float *)(e + 0x44) = f + *(float *)(e + 0x48);
-    func_001029C0(D_700036A0);
-    *(float *)0x700038A0 = 0.0f;
-    *(float *)0x700038A4 = *(float *)(p + 0xC4);
-    *(float *)0x700038A8 = *(float *)(e + 0x58);
-    *(int *)0x700038AC = 0x3F800000;
-    func_00102C58(D_700036A0, 0, D_700038A0);
-    *(float *)0x700038A0 = *(float *)(e + 0x44);
-    *(float *)0x700038A4 = 0.0f;
-    *(float *)0x700038A8 = 3.5f;
-    *(int *)0x700038AC = 0x3F800000;
-    func_001026A0(D_700038A0, D_700036A0, D_700038A0);
-    func_001028B8(p + 0xB0, p + 0xB0, D_700038A0);
-    func_001028D0(D_700038B0, p + 0xB0, D_700038A0);
-    if (func_0019A440(D_700038B0, p + 0xB0, 6) != 0) {
-        func_00102760(D_700038A0, D_700038A0);
-        *(int *)0x700038B0 = 0xBF000000;
-        *(int *)0x700038B4 = 0xBF000000;
-        *(int *)0x700038B8 = 0xBF000000;
-        *(int *)0x700038BC = 0x3F800000;
-        func_001028E8(D_700038A0, D_700038A0, D_700038B0);
-        func_001028B8(D_700038A0, D_700031B0, D_700038A0);
-        *(float *)(p + 0xB0) = *(float *)0x700038A0;
-        *(float *)(p + 0xB4) = *(float *)0x700038A4;
-        *(float *)(p + 0xB8) = *(float *)0x700038A8;
-        *(float *)(p + 0xBC) = *(float *)0x700038AC;
+        f = *(float *)(e + 0x44);
+        if (f <= 0.0f) {
+            p[5] = 2;
+            p[6] = 0;
+            *(float *)(e + 0x58) = *(float *)(p + 0xC4);
+            *(float *)(e + 0x48) = 0.0f;
+            *(float *)(e + 0x44) = 0.0f;
+            *(short *)(e + 0x32) = 0x78;
+            anim_clip_init(p, 4, 10.0f, 0.0f);
+            (*(char **)(p + 0x20))[4] = 3;
+            *(void **)(p + 0x20) = 0;
+            return;
+        }
+        *(float *)(e + 0x44) = f + *(float *)(e + 0x48);
+        func_001029C0(D_700036A0);
+        D_700038A0 = 0.0f;
+        *(float *)0x700038A4 = *(float *)(p + 0xC4);
+        *(float *)0x700038A8 = *(float *)(e + 0x58);
+        *(int *)0x700038AC = 0x3F800000;
+        func_00102C58(D_700036A0, D_700036A0, &D_700038A0);
+        D_700038A0 = *(float *)(e + 0x44);
+        *(float *)0x700038A4 = 0.0f;
+        *(float *)0x700038A8 = 3.5f;
+        *(int *)0x700038AC = 0x3F800000;
+        func_001026A0(&D_700038A0, D_700036A0, &D_700038A0);
+        func_001028B8(p + 0xB0, p + 0xB0, &D_700038A0);
+        func_001028D0(D_700038B0, p + 0xB0, &D_700038A0);
+        if (func_0019A440(D_700038B0, p + 0xB0, 6) != 0) {
+            func_00102760(&D_700038A0, &D_700038A0);
+            *(int *)0x700038B0 = 0xBF000000;
+            *(int *)0x700038B4 = 0xBF000000;
+            *(int *)0x700038B8 = 0xBF000000;
+            *(int *)0x700038BC = 0x3F800000;
+            func_001028E8(&D_700038A0, &D_700038A0, D_700038B0);
+            func_001028B8(&D_700038A0, D_700031B0, &D_700038A0);
+            *(float *)(p + 0xB0) = D_700038A0;
+            *(float *)(p + 0xB4) = *(float *)0x700038A4;
+            *(float *)(p + 0xB8) = *(float *)0x700038A8;
+            *(float *)(p + 0xBC) = *(float *)0x700038AC;
+        }
     }
 }

@@ -1,66 +1,73 @@
-// NEARMISS func_00114708  (vram 0x00114708, 0x140 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 63.02% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// Semantics fully decoded and compile correct (D_00241D68 guard, D_0027B0C0->0x24 check returning -100, D_0027B140 config fill with the a2<0x11 vs >=0x11 alignment split, byte copy loop, FlushCache(0), func_0010E8A8(&D_0027B0C0,6,1,&D_0027B140,0x30,4,0), D_00241D68=6 on success). Two blockers: (1) frame-stride...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 63.02% NEARMISS).
+// Fixes read from the original instructions:
+//  - the call passes NINE arguments like its twin func_00114630: the client
+//    D_0027B0C0, request 6, mode 1, the request block, size 0x30, the receive
+//    buffer D_0027C680, its size 4, and no callback / callback data (0, 0); the
+//    old C passed only seven, omitting D_0027C680 and the callback data;
+//  - the request block D_0027B140 is a struct written through field stores
+//    (as in func_00114630), with the leading-bytes copy into its 0x20 field;
+//  - the leading-byte count is spelled as the distance from the buffer up to
+//    the next 16-byte boundary, (((a1 - 1) & ~15) + 16) - a1, in unsigned
+//    arithmetic (the 0xfffffff0 mask is an unsigned constant);
+//  - store order: short branch writes count, size, then pointer; long branch
+//    writes the remaining size, the count, then the aligned pointer.
+//
+// SDK RPC wrapper (request 6): unless a request is already pending
+// (D_00241D68) or the client is unbound (-100), store a0 in the request block;
+// buffers of up to 16 bytes are sent whole inside the block (count = a2, no
+// separate transfer); longer buffers send their unaligned leading bytes inside
+// the block and the 16-byte-aligned rest (pointer + size) as a separate
+// transfer. Copy the leading bytes, flush the data cache, issue the call, and
+// on success mark request 6 pending.
 
 extern int FlushCache(int ch);
-extern int func_0010E8A8(void *a, int b, int c, void *d, int e, int f, int g);
+extern int func_0010E8A8(void *a0, int a1, int a2, void *a3, int a4, void *a5,
+                         int a6, void *a7, void *a8);
 
 extern int D_00241D68;
-extern unsigned char D_0027B0C0;
-extern unsigned char D_0027B140;
-extern unsigned char D_0027C680;
+extern int D_0027B0C0[];
+/* Request block sent to the IOP (0x30 bytes; only the fields used here are named). */
+struct cfg {
+    int f00, f04, f08, f0C, f10, f14;
+    unsigned char *f18;
+    void *f1C;
+    unsigned char f20[0x10];
+};
+extern struct cfg D_0027B140;
+extern int D_0027C680[];
 
-int func_00114708(int a0, unsigned char *src, int a2)
+int func_00114708(int a0, unsigned char *a1, int a2)
 {
-    int *cfg = (int *)&D_0027B140;
-    int v0;
     int r;
     unsigned int i;
 
-    v0 = D_00241D68;
-    if (v0 != 0) {
-        return v0;
+    if (D_00241D68 != 0) {
+        return D_00241D68;
     }
-
-    if (*(int *)((&D_0027B0C0) + 0x24) == 0) {
-        return -100;
+    if (D_0027B0C0[0x24 / 4] == 0) {
+        return -0x64;
     }
-
-    cfg[0] = a0;                       /* D_0027B140 = a0 */
-
+    D_0027B140.f00 = a0;
     if (a2 < 0x11) {
-        cfg[5] = a2;                   /* 0x14 */
-        cfg[6] = 0;                    /* 0x18 */
-        cfg[3] = 0;                    /* 0xC */
+        D_0027B140.f14 = a2;
+        D_0027B140.f0C = 0;
+        D_0027B140.f18 = 0;
     } else {
-        int len = (((int)src - 1) & ~0xf) - ((int)src - 16);
-        cfg[6] = (int)src + len;       /* 0x18 */
-        cfg[3] = a2 - len;             /* 0xC */
-        cfg[5] = len;                  /* 0x14 */
+        unsigned int len = (((unsigned int)a1 - 1) & 0xfffffff0) + 0x10 - (unsigned int)a1;
+        D_0027B140.f0C = a2 - len;
+        D_0027B140.f14 = len;
+        D_0027B140.f18 = a1 + len;
     }
-
-    if (cfg[5] != 0) {                 /* 0x14 */
-        i = 0;
-        do {
-            ((unsigned char *)cfg)[0x20 + i] = src[i];
-            i++;
-        } while (i < (unsigned int)cfg[5]);
+    for (i = 0; i < D_0027B140.f14; i++) {
+        D_0027B140.f20[i] = a1[i];
     }
-
     FlushCache(0);
-    r = func_0010E8A8(&D_0027B0C0, 6, 1, &D_0027B140, 0x30, 4, 0);
-    if (r != 0) {
-        return r;
+    r = func_0010E8A8(D_0027B0C0, 6, 1, &D_0027B140, 0x30, D_0027C680, 4, 0, 0);
+    if (r == 0) {
+        D_00241D68 = 6;
     }
-    D_00241D68 = 6;
     return r;
 }

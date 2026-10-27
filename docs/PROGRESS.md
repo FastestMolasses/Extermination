@@ -1,3 +1,14 @@
+## 2026-10-27 — matching wave, fourth batch: 13 more byte-matched
+
+func_00135870, func_00224600, func_0014A620, func_0016BE40, func_001582E0,
+func_001424C0, func_00147390, func_001383C0, func_001B0EA0, func_00114630,
+func_001634A0, func_001399F0, func_00114708 (all compiled_object_ordinary_c).
+Mostly wrong callee arities found by a prototype scan, plus two wrong bodies;
+MATCHING_GUIDE "Matching wave 2026-10-27" (fourth batch). Gate: fresh build +
+verify_all, all six stages pass, boot ELF byte-identical, 19/19 overlays,
+matched_code 99.40%, 2322/2326 units. FUNCTIONS.csv: 1990 readable,
+616 nearmiss.
+
 ## 2026-10-27 — matching wave, third batch: 14 more byte-matched
 
 func_001E9E60, func_00113280, func_00106B88, func_001C1A80, func_00131F90,
