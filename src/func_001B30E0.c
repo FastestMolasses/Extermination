@@ -1,15 +1,21 @@
-// NEARMISS func_001B30E0  (vram 0x001B30E0, 0x168 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.56% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation permutation. Body/structure/control-flow/branch-senses/FP-compare ordering all match the target 1:1 (no inserted/deleted/reordered instructions). Sole residual is a consistent saved-register renaming: target colors the three induction pointers s2/s3/s4 and the two scalars (set...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 98.56% NEARMISS).
+// Fixes read from the original instructions:
+// - The loop counter lives in s0, the "found" flag in s1 and the three
+//   induction pointers in s2/s3/s4: mwcc 2.3.3 gives the first-declared local
+//   the lowest saved register, so the locals are declared in that order
+//   (i, set, flags, angles, values). This was the whole "register-allocation
+//   permutation" residual, not a compiler wall.
+//
+// Walks the scratchpad table of *(int *)0x700031E0 entries (flag halfwords at
+// 0x70003170, values at 0x700030F0, angles at 0x00282250). For each flagged
+// entry whose func_0011DF78(angle) result is <= 1.0471976 (pi/3), the
+// first value is stored to *arg1; a later larger value replaces it, or returns
+// 1 at once if it also exceeds the threshold at arg0+4. An unflagged entry
+// returns 1 if a value is already set and the threshold is <= its value.
+// Returns whether any value was set.
 
 extern float func_0011DF78(float);
 extern float D_00282250;
@@ -17,11 +23,11 @@ extern float D_700030F0;
 extern unsigned short D_70003170;
 
 int func_001B30E0(char *arg0, float *arg1) {
+    int i;
+    int set;
     unsigned short *pf;
     float *pa;
     float *pt;
-    int set;
-    int i;
 
     if (*(int *)0x700031E0 == 0) {
         return 0;

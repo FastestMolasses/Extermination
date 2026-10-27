@@ -1,16 +1,16 @@
-// NEARMISS func_0017F9E0  (vram 0x0017F9E0, 0x1A4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.38% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Single speculative delay-slot fill (body byte-identical): mwcc hoists the post-if merge block's scratchpad-base lui (upper half 0x7000; address setup for the D_700038A0/B0 averages) into the `b` (skip-else) delay slot, where the original CW left a `nop`. Sole residual. Known CW-vs-mwcc branch-delay-slot scheduling wall...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700038A0 0x700038A8 0x700038B0 0x700038B8
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.38% NEARMISS).
+// Fixes read from the original instructions:
+//  - The scratchpad vec slots 0x700038A0/A8/B0/B8 are relocated float externs
+//    (idiom-32, opted in with // SPAD:): the address arguments and the averaging
+//    reads go through D_700038A0..D_700038B8. As relocated externs the merge
+//    block's upper-half address is no longer speculated into the skip-else
+//    branch slot, which the original leaves empty.
+//  - The scratch heading floats 0x70003A20/0x70003A24 are written as the
+//    relocated externs D_70003A20/D_70003A24 (already in the global list).
 //
 // Aim/orient setup for actor arg0 against the camera/target record at *0x700031D0.
 // Computes a base heading: func_0011E620(-record[0x3C], record[0x34]) (atan2-like)
@@ -24,30 +24,28 @@
 // (D_700038A8 + D_700038B8)/2 (the func_0019F680 calls fill those vec slots),
 // set arg0[5]=0x1B, arg0[6]=0, arg0+0x1F0=0x2F, arg0+0x1F1=0, and call
 // func_00174A50(self, 0.0f).
-//
-// NEARMISS: mwcc 2.3.3 reaches 99.381 (991202 95.571). Body byte-identical; the
-// sole residual is a single speculative delay-slot fill: mwcc hoists the merge
-// block's scratchpad-base lui (upper half 0x7000) into the `b` (skip-else) delay slot, where the original
-// CW left a `nop`. Known CW-vs-mwcc branch-delay-slot scheduling wall that 2.3.3
-// does not fix. Logic fully recovered.
 extern float func_0011E620(float a, float b);
 extern float func_001B1470(float a);
 extern void func_0019F680(void *p, int a, int b);
 extern void func_00174A50(char *p, float f);
-extern char D_700038A0;
-extern char D_700038B0;
+extern float D_700038A0;
+extern float D_700038A8;
+extern float D_700038B0;
+extern float D_700038B8;
+extern float D_70003A20;
+extern float D_70003A24;
 
 void func_0017F9E0(char *arg0) {
     char *p;
     float t;
 
     p = *(char **)0x700031D0;
-    *(float *)0x70003A20 = func_0011E620(-*(float *)(p + 0x3C), *(float *)(p + 0x34));
-    t = func_001B1470(1.5707964f + *(float *)0x70003A20);
-    *(float *)0x70003A20 = t;
+    D_70003A20 = func_0011E620(-*(float *)(p + 0x3C), *(float *)(p + 0x34));
+    t = func_001B1470(1.5707964f + D_70003A20);
+    D_70003A20 = t;
     *(float *)(arg0 + 0x218) = t;
-    t = func_001B1470(*(float *)0x70003A20 - *(float *)(arg0 + 0xC4));
-    *(float *)0x70003A24 = t;
+    t = func_001B1470(D_70003A20 - *(float *)(arg0 + 0xC4));
+    D_70003A24 = t;
     if (!(t < 0.0f)) {
         *(float *)(arg0 + 0xC4) = func_001B1470(*(float *)(arg0 + 0x218) - 1.5707964f);
         *(char *)(arg0 + 0x2F1) = 0;
@@ -59,8 +57,8 @@ void func_0017F9E0(char *arg0) {
         func_0019F680(&D_700038A0, *(int *)0x700031D0, 0);
         func_0019F680(&D_700038B0, *(int *)0x700031D0, 1);
     }
-    *(float *)(arg0 + 0xB0) = (*(float *)0x700038A0 + *(float *)0x700038B0) / 2.0f;
-    *(float *)(arg0 + 0xB8) = (*(float *)0x700038A8 + *(float *)0x700038B8) / 2.0f;
+    *(float *)(arg0 + 0xB0) = (D_700038A0 + D_700038B0) / 2.0f;
+    *(float *)(arg0 + 0xB8) = (D_700038A8 + D_700038B8) / 2.0f;
     *(char *)(arg0 + 5) = 0x1B;
     *(char *)(arg0 + 6) = 0;
     *(char *)(arg0 + 0x1F0) = 0x2F;

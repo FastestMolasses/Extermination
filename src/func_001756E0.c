@@ -1,16 +1,13 @@
-// NEARMISS func_001756E0  (vram 0x001756E0, 0x218 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.74% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// Saved-register swap: the target keeps the old +0x236 value in $s1 and the D_00248950 pointer in $s2; mwcc 2.3.3 assigns $s2/$s1. Six declaration orders, an int temp and indexed table access do not move it.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.74% NEARMISS).
+// Fixes read from the original instructions:
+// - The saved old latch value is an int, not an unsigned char (the byte is
+//   still read zero-extended); its type changes its register priority.
+// - Locals are declared loop counter, old latch, yaw pointer: that order
+//   gives the counter, old latch and table pointer the original saved
+//   registers.
 //
 // Low-clearance latch update (+0x236, FINDINGS: set while the player is
 // ducked under a low ceiling; bit 1 of +0x235 mirrors it).
@@ -41,8 +38,8 @@ extern int D_700038A0;
 
 int func_001756E0(char *self) {
     float local_point[4];
-    unsigned char old;
     int i;
+    int old;
     float *yaw_offset;
 
     if (D_00810700 == 0x12 && !(*(float *)(self + 0xB4) < 165.0f) &&

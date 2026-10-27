@@ -1595,3 +1595,38 @@ Bodies corrected, still NEARMISS:
 - **func_00195130** 88.24 -> 88.48: func_00194DB0 and func_0022FCA0 take
   (p, e), func_0011DF78 is fabs of one float. func_0022FCA0's definition now
   takes (p, e) like both its callers (bytes unchanged, 88.84).
+
+### Matching wave 2026-10-27: one subagent per NEARMISS function — 19 byte-matched
+
+One agent per function on the highest-% NEARMISS files, each building only in
+its own `build/agent_<name>/` (a per-function compile + objdiff helper that
+normalizes the target exactly as build.py does, scratchpad symbolization per
+trial). Every header "compiler wall" below was our source. Byte-matched
+(mwcc 2.3.3, all `compiled_object_ordinary_c`):
+
+- **Saved-register order = local declaration order / types** (no permuter
+  needed): func_001B2F70 and func_001B30E0 (declare the loop counter and flag
+  first), func_001B18F0 (one parameter copied into a first-declared local),
+  func_001756E0 (a latch local typed `int`, not `unsigned char`, plus order).
+- **idiom-32 (scratchpad word as a relocated extern)** cured every
+  "0x7000 upper half in a branch delay slot" residual tried: func_0017F9E0,
+  func_00225D20, func_001AAA90, func_0016EBA0, func_001CD390, func_0021D530,
+  func_00201F70, func_001305B0, func_00147B50. Often one
+  word of a vector is enough; a `// SPAD:` line opts in addresses outside
+  `_SPAD_SYMS`. An `(void *)` cast on `&D_7000xxxx` can swap argument setup.
+- **Callee prototypes from their definitions in src/**: func_00206A00
+  (a `(void)` callee takes the caller's three arguments), func_001FABF0
+  (two pass-through arguments), func_001305B0 (func_0021BE40 takes two).
+- **Spelling / control flow**: func_002044F0 (`%=` and operand order in the
+  address sums), func_001D7100 (slot address as integer offset + table copy),
+  func_0012D240 (if/goto was `switch` with case 0 falling into case 1),
+  func_00158BD0 (cases end in `break`, the twin's bit-test spelling),
+  func_001FABF0 (the byte-matched twin's if/else, even with equal branches).
+- **Wrong bodies**: func_00147B50's chain runs when +0x38 != 0 OR bit 0 of
+  +0xA is set (the old C skipped the first case).
+
+Parked this wave (not committed as changes): gs_readback_queue_drain 99.77
+(row index in $a2 vs $a0, 9.5 min permuter), func_001EF510 98.63 (middle of
+three spawn blocks loads its two float constants in the other order; twins
+func_001EEEB0 / func_001EEBA0 have the same residual), func_00211400 99.75 and
+func_002079F0 99.86 (gains only through contrived spellings).

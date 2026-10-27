@@ -1,35 +1,30 @@
-// NEARMISS func_00158BD0  (vram 0x00158BD0, 0x154 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.00% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// two regalloc/scheduling permutations: (1) dispatch save-sink — target keeps switch byte in a1 and sinks p->s0 save into the first branch delay slot (case 0 is p-dead); mwcc loads byte into a0 and saves p->s0 eagerly. (2) mask-test block register coloring permuted (a1/a0/v1/v0 vs v1/v0/a1/a0). Cle...
-//
-// CORRECTED 2026-09-27 (AREA01 wave-2 review, checked against the original
-// instructions; original-instruction harness: 0 differing cases).
-// State 0 calls func_001B0FD0(p) and state 1 calls func_001C6380(p): the
-// original passes the record in a0 (the C declared both without arguments).
-// With the arguments in place only the mask-test register coloring (2) and
-// one delay-slot constant remain.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
 //
-// Dispatch on p->byte[4]: case 0 -> func_001B0FD0(p); case 1 -> func_001C6380(p)
-// then optional vtable call (p+0x4C) if func_001B17A0(p), then build a scale
-// matrix in D_700038B0/C0 (flag bit from D_00810841[D_00810700] vs p->halfword
-// 0x2E selects which axis gets 0x80) and func_001F4A10(p+0xD0,...); cases 2/3
-// -> func_001AFC10(p).
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 98.00% NEARMISS).
+// Fixes read from the original instructions:
+//  - The per-stage bit test is spelled with pointer arithmetic on the byte
+//    table, *(D_00810841 + D_00810700[0]) & (1 << p[0x2E]), as in the matched
+//    twin func_00158430; the subscript form permuted the test's registers.
+//  - Every case ends in `break`, not `return` (as in the matched twin
+//    func_00158D30). With `return` mwcc removed the else branch's first
+//    instruction after copying it into the branch slot; the original keeps it.
+//
+// State dispatch on the byte at p+4. State 0: func_001B0FD0(p). State 1:
+// func_001C6380(p); the callback at p+0x4C runs when func_001B17A0(p) is
+// non-zero; then the four scratchpad words at 0x700038B0..0x700038BC get
+// (0, 0x80, 0, 0x80) when bit p[0x2E] is set in the stage mask byte
+// D_00810841[D_00810700[0]], else (0x80, 0, 0, 0x80); the words at
+// 0x700038C0..0x700038CC = 0x3F800000 (1.0f); and
+// func_001F4A10(p + 0xD0, D_700038B0, D_700038C0). States 2 and 3:
+// func_001AFC10(p).
+
 extern void func_001AFC10(char *p);
 extern int func_001B0FD0(char *p);
 extern int func_001B17A0(char *p);
 extern void func_001C6380(char *p);
 extern void func_001F4A10(void *a, void *b, void *c);
-extern unsigned char D_00810700;
+extern unsigned char D_00810700[];
 extern unsigned char D_00810841[];
 extern char D_700038B0[];
 extern char D_700038C0[];
@@ -41,13 +36,13 @@ void func_00158BD0(char *p) {
     switch (t) {
     case 0:
         func_001B0FD0(p);
-        return;
+        break;
     case 1:
         func_001C6380(p);
         if (func_001B17A0(p) != 0) {
             (*(void (**)(char *))(p + 0x4C))(p);
         }
-        if (D_00810841[D_00810700] & (1 << *(unsigned short *)(p + 0x2E))) {
+        if (*(unsigned char *)(D_00810841 + D_00810700[0]) & (1 << *(unsigned short *)(p + 0x2E))) {
             *(int *)0x700038B0 = 0;
             *(int *)0x700038B4 = 0x80;
             *(int *)0x700038B8 = 0;
@@ -63,10 +58,10 @@ void func_00158BD0(char *p) {
         *(int *)0x700038C8 = 0x3F800000;
         *(int *)0x700038CC = 0x3F800000;
         func_001F4A10(p + 0xD0, D_700038B0, D_700038C0);
-        return;
+        break;
     case 2:
     case 3:
         func_001AFC10(p);
-        return;
+        break;
     }
 }

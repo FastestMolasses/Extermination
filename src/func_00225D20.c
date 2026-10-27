@@ -1,16 +1,14 @@
-// NEARMISS func_00225D20  (vram 0x00225D20, 0x2E8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.30% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// idiom-13 refined wall (proven ungeneralizable): the sole residual is a conditional-branch delay slot where the target leaves a nop (case-2 result==2 check, both occurrences at *(u8*)0x70003B93), but mwcc233 fills it with the 0x7000 high-half load into $at (the hi-part of the absolute scratchpad address). Per the id...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003B93
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.30% NEARMISS).
+// Fixes read from the original instructions:
+//  - The scratchpad byte 0x70003B93 (read by the result==2 arms of states 1
+//    and 2) is a relocated extern (idiom-32, opted in with // SPAD:), not a
+//    literal address. As a literal, mwcc CSE'd its 0x7000 upper half and
+//    speculated it into a branch delay slot the original leaves empty; the
+//    "compiler wall" verdict was wrong.
 //
 // Actor per-frame state-machine update, dispatched on the state byte at
 // arg0+0x15 (switch 1: 0..3). State 0: if the busy flag arg0+0x19 is set,
@@ -38,6 +36,7 @@ extern void func_00225CF0(char *p, int a, int b);
 extern int func_00226070(void);
 extern int func_00227300(void);
 extern unsigned short D_00810E74;
+extern unsigned char D_70003B93;
 
 int func_00225D20(char *arg0) {
     unsigned char st;
@@ -99,7 +98,7 @@ int func_00225D20(char *arg0) {
             *(int *)(arg0 + 0x20) = 0;
             break;
         case 2:
-            if (*(unsigned char *)0x70003B93 != 0) {
+            if (D_70003B93 != 0) {
                 *(unsigned char *)(arg0 + 0x19) = 1;
                 *(unsigned char *)(arg0 + 0x15) = *(unsigned char *)(arg0 + 0x15) - 1;
             } else {
@@ -117,7 +116,7 @@ int func_00225D20(char *arg0) {
             func_00225A20();
             break;
         case 2:
-            if (*(unsigned char *)0x70003B93 != 0) {
+            if (D_70003B93 != 0) {
                 *(unsigned char *)(arg0 + 0x19) = 1;
                 *(unsigned char *)(arg0 + 0x15) = 0;
             } else {

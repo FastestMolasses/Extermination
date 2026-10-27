@@ -1,16 +1,18 @@
-// NEARMISS func_00147B50  (vram 0x00147B50, 0x5D4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.25% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 99.25%, byte count matches target exactly (0x5D4). Two tiny residuals, both compiler-internal register/scheduling choices, not logic: (1) a throwaway comparison result placed in $v0 instead of the target's $at for one compare-and-branch; (2) one redundant scratchpad upper-half load filling an otherwise-nop delay slot (details below).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.25% NEARMISS).
+// Fixes read from the original instructions:
+//  - Logic bug: the strafe/attack chain runs when arg1+0x38 is nonzero OR
+//    bit 0 of arg0+0xA is set (one combined test); the old C did nothing when
+//    arg1+0x38 was nonzero. This also explains the old "redundant upper-half
+//    in a delay slot" residual (the original's branch target was elsewhere).
+//  - The frame-gate scratchpad words 0x70003B68 (int) and 0x70003B8A (short)
+//    are relocated externs (idiom-32; both already in build.py's _SPAD_SYMS),
+//    which stops mwcc speculating the 0x7000 upper half into the arg1+0x82
+//    branch slot.
+//  - The retry-counter guard is spelled `> 2` (idiom-28): `>= 3` put the
+//    compare result in a GPR instead of the original's $at.
 //
 // Entity state-machine dispatch on mode byte arg0+6 (0/1/2), driving a melee
 // wind-up/attack cycle for entity arg0 with per-instance scratch arg1:
@@ -24,7 +26,8 @@
 //   (via func_001B1470 wrap) exceeds a threshold (pi/8, func_001000E0), bump
 //   a retry counter arg1+0x84 and re-roll the facing offset after 3 misses.
 //   If it returns 0 (ready), reset the counter, call func_0014BB10, then:
-//     - if arg1+0x38 (a "locked-on" flag) is nonzero: run the strafe/attack
+//     - if arg1+0x38 (a "locked-on" flag) is nonzero OR arg0's flag byte
+//       arg0+0xA has bit 0 set: run the strafe/attack
 //       probe chain (func_001B13F0/func_001B1560/func_0014C130) that picks
 //       the follow-up state (arg0+5 = 7/8/2) via the scratch (0x700038xx)
 //       transform block, OR (when out of range) recompute arg1+0x44 via
@@ -36,19 +39,9 @@
 //  case 2: target yaw-lerp rate is pi/40; once arg0+0xC4 catches up to
 //   arg1+0x44, advance mode back to 1.
 //  Always ends by yaw-lerping arg0+0xC4 toward arg1+0x44 at the per-case rate
-//  var_f20 (default pi/72, pi/36 in the "not locked on" sub-branch of case 1,
+//  var_f20 (default pi/72, pi/36 in the strafe/attack branch of case 1,
 //  pi/40 in case 2) via func_001B12B0.
 //
-// Logic and structure fully recovered (byte-identical body, size matches
-// target exactly: 0x5D4). Two residual artifacts, both instruction-scheduling/
-// register-naming only (not logic): (1) one `x < 3` compare-and-branch uses $v0
-// where the target uses `$at` for the same throwaway compare result (idiom-16
-// int-cache pattern applied; register choice itself is compiler-internal and
-// not C-addressable); (2) one redundant scratchpad upper-half load duplicated into an
-// otherwise-unused delay slot right after the arg1+0x82 dispatch (target
-// leaves that slot a `nop`). Both are the documented CW/mwcc delay-slot-fill
-// and temp-register-choice wall family (PROGRESS.md idiom 13), not
-// C-fixable without permuter-class register forcing.
 extern void anim_clip_init(char *self, int clip, float speed, float trailing);
 extern int func_001000E0(int, double);
 extern int func_001028B8(void *a, void *b, void *c);
@@ -73,6 +66,8 @@ extern float D_00810368;
 extern float D_008104D8;
 extern int D_700038A0;
 extern int D_700038B0;
+extern int D_70003B68;
+extern short D_70003B8A;
 
 void func_00147B50(char *arg0, char *arg1) {
     float var_f20;
@@ -103,7 +98,7 @@ void func_00147B50(char *arg0, char *arg1) {
             if (func_001000E0(func_00128350(func_0011DF78(func_001B1470(*(float *)(arg1 + 0x44) - func_001B1470(3.1415927f + *(float *)(arg1 + 0x58))))), 0.39269909262657166) != 0) {
                 cnt = *(signed char *)(arg1 + 0x84) + 1;
                 *(signed char *)(arg1 + 0x84) = cnt;
-                if ((signed char) cnt >= 3) {
+                if ((signed char) cnt > 2) {
                     *(signed char *)(arg1 + 0x84) = 0;
                     *(float *)(arg1 + 0x44) = func_001B1470(6.2831855f * ((float) ((func_00122BB8() >> 0xC) & 0xFF) / 255.0f));
                 }
@@ -111,8 +106,8 @@ void func_00147B50(char *arg0, char *arg1) {
         } else {
             *(unsigned char *)(arg1 + 0x84) = 0;
             func_0014BB10(arg0, arg1);
-            if (*(int *)(arg1 + 0x38) == 0) {
-                if (*(unsigned char *)(arg0 + 0xA) & 1) {
+            {
+                if ((*(int *)(arg1 + 0x38) != 0) || (*(unsigned char *)(arg0 + 0xA) & 1)) {
                     var_f20 = 0.0872664675116539f;
                     if (func_001B13F0(&D_00810360, arg0 + 0xB0, 20.0f) != 0) {
                         if (func_001B1560(arg0, &D_00810360, 1.5533430576324463f) != 0) {
@@ -155,7 +150,7 @@ void func_00147B50(char *arg0, char *arg1) {
                     *(unsigned char *)(arg0 + 6) = 0;
                 }
                 if (*(signed char *)(arg1 + 0x82) != 0) {
-                    if (!((*(int *)0x70003B68 + *(short *)0x70003B8A) & 0x3F)) {
+                    if (!((D_70003B68 + D_70003B8A) & 0x3F)) {
                         *(float *)0x700038A0 = *(float *)(arg0 + 0xB0);
                         *(float *)0x700038A4 = *(float *)(arg0 + 0xB4);
                         *(float *)0x700038A8 = *(float *)(arg0 + 0xB8);
@@ -171,7 +166,7 @@ void func_00147B50(char *arg0, char *arg1) {
                         }
                         *(float *)(arg1 + 0x44) = func_001B1240(arg0 + 0xB0, *(float *)(arg1 + 0), *(float *)(arg1 + 8));
                     }
-                } else if (!((*(int *)0x70003B68 + *(short *)0x70003B8A) & 0x3F)) {
+                } else if (!((D_70003B68 + D_70003B8A) & 0x3F)) {
                     *(float *)0x700038A0 = *(float *)(arg0 + 0xB0);
                     *(float *)0x700038A4 = *(float *)(arg0 + 0xB4);
                     *(float *)0x700038A8 = *(float *)(arg0 + 0xB8);

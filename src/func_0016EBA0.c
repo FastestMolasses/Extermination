@@ -1,15 +1,18 @@
-// NEARMISS func_0016EBA0  (vram 0x0016EBA0, 0x3AC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.13% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// One delay slot: at the +0x0D == 1 test the target leaves the branch slot empty; mwcc fills it with the upper half of the first 0x700038A0 store (both successors start with it), so the function ends one instruction early. Else-if, a nested switch and a plain store did not change it.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700038A0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.13% NEARMISS).
+// Fixes read from the original instructions:
+//  - The scratchpad vector 0x700038A0 is a relocated extern (idiom-32, opted in
+//    with // SPAD:), declared float: the first word of each of the three vector
+//    stores and the func_001026A0 vector argument go through D_700038A0. As a
+//    relocated symbol its upper half is no longer speculated into the branch
+//    slot of the +0x0D == 1 test, which the original leaves empty.
+//    0x700038A4..AC stay literals.
+//  - func_001026A0 is declared with void * parameters, as its definition in
+//    src/ has, so &D_700038A0 is passed without a cast (a cast reordered the
+//    argument setup).
 
 //
 // Player state handler dispatched on the sub-state byte +0x06 (0, 10, 20, 21,
@@ -28,7 +31,7 @@
 extern void func_001B0B50(void);
 extern void func_001749A0(char *, int, int, float);
 extern void anim_eval_skeleton(char *);
-extern void func_001026A0(char *, char *, char *);
+extern void func_001026A0(void *, void *, void *);
 extern void build_trs_matrix(char *, char *, char *, char *);
 extern int func_0019AD00(char *, char *, int);
 extern float func_0011E620(float, float);
@@ -38,7 +41,7 @@ extern void func_00179880(unsigned char *a0, float *a1);
 extern int func_00175900(char *, int);
 extern void func_00182870(char *, int);
 extern short D_0028A9A0;
-extern char D_700038A0[];
+extern float D_700038A0;
 extern char D_700038B0[];
 extern float D_700031B0;
 extern float D_700031B8;
@@ -59,19 +62,19 @@ void func_0016EBA0(char *arg0) {
             *(unsigned char *)(arg0 + 6) = 0xA;
             func_001749A0(arg0, 0x153, 0, 1.0f);
             anim_eval_skeleton(arg0);
-            *(volatile float *)0x700038A0 = 0.0f;
+            D_700038A0 = 0.0f;
             *(volatile float *)0x700038A4 = 0.0f;
             *(volatile float *)0x700038A8 = 5.0f;
             *(volatile float *)0x700038AC = 1.0f;
-            func_001026A0(arg0 + 0xB0, arg0 + 0xD0, D_700038A0);
+            func_001026A0(arg0 + 0xB0, arg0 + 0xD0, &D_700038A0);
             break;
         }
         if (*(unsigned char *)(arg0 + 0xD) == 1) {
-            *(volatile float *)0x700038A0 = 0.0f;
+            D_700038A0 = 0.0f;
             *(volatile float *)0x700038A4 = 0.0f;
             *(volatile float *)0x700038A8 = 5.0f;
             *(volatile float *)0x700038AC = 1.0f;
-            func_001026A0(arg0 + 0xB0, arg0 + 0xD0, D_700038A0);
+            func_001026A0(arg0 + 0xB0, arg0 + 0xD0, &D_700038A0);
             build_trs_matrix(arg0 + 0xD0, arg0 + 0xB0, arg0 + 0xC0, arg0 + 0x60);
             func_001749A0(arg0, 0x72, 0, 1.0f);
             *(unsigned char *)(arg0 + 6) = 0x14;
@@ -79,11 +82,11 @@ void func_0016EBA0(char *arg0) {
             *(short *)(arg0 + 0x28) = 8;
             break;
         }
-        *(volatile float *)0x700038A0 = 0.0f;
+        D_700038A0 = 0.0f;
         *(volatile float *)0x700038A4 = -3.0f;
         *(volatile float *)0x700038A8 = -5.0f;
         *(volatile float *)0x700038AC = 1.0f;
-        func_001026A0(D_700038B0, arg0 + 0xD0, D_700038A0);
+        func_001026A0(D_700038B0, arg0 + 0xD0, &D_700038A0);
         if (func_0019AD00(arg0, D_700038B0, 7) != 0) {
             v = (char *)*(volatile int *)0x700031D0;
             *(float *)(arg0 + 0xB0) = *(volatile float *)0x700031B0 + (1.5f * *(float *)(v + 0x24));

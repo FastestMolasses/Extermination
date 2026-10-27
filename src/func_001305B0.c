@@ -1,29 +1,31 @@
-// NEARMISS func_001305B0  (vram 0x001305B0, 0x4F8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.19% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation/scheduling permutation on 4 stack-temp float reloads (target always reloads 0x38a0 first regardless of C order; both mwcc builds reload in a fixed internal order) PLUS an idiom-13-class delay-slot-fill gap: target speculates the scratchpad high half and the arg0 copy into two branch delay slots.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
-// corrections from the level side-track lanes"): func_0021BE40 is passed the player block
-// only (its code reads a0 alone; the earlier text passed two more values). State 1 stores the
-// func_001B1240 result to owner+0x30, then reads self+0xC4 and re-reads owner+0x30 for
-// func_001B12B0's arguments, as the original does.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700038A0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.19% NEARMISS).
+// Fixes read from the original instructions:
+//  - func_0021BE40 takes two arguments: the original sets a1 to self in the
+//    call's delay slot (the twins func_001352E0/func_0012FC10 declare it so).
+//  - The scratchpad word 0x700038A0 is a relocated extern (idiom-32, opted in
+//    with // SPAD:), declared volatile float: every access (both clears, the
+//    reload after func_001B2B10, the tail store and the address arguments) goes
+//    through D_700038A0. As a relocated volatile it is no longer speculated into
+//    the func_0021BE40 branch slot and it is reloaded first, as the original does.
+//    0x700038A4..AC stay literals.
+//  - The four reload temporaries are declared w, z, y, x (first declared gets
+//    the lowest float register), which reproduces the original colouring.
+//
+// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
+// corrections from the level side-track lanes"): state 1 stores the
+// func_001B1240 result to owner+0x30, then reads self+0xC4 and re-reads owner+0x30 for
+// func_001B12B0's arguments, as the original does.
 //
 // Per-state driver dispatched on the state byte at arg0+6 (switch 0..4).
 // arg0 = self, arg1 = owner. State 0 inits the owner timers/flags and kicks
 // clip 0x1E, then falls through to state 1, which drives the lean angle at
 // self+0xC4 via func_001B1240/func_001B12B0 until the 0x1000 input bit advances
 // it (clip 0x1F). State 2 waits on the same bit (clip 0x20). State 3 either
-// commits the dash (func_0021BE40==0 && func_001A7B80!=0 -> seed D_00810320..,
+// commits the dash (func_0021BE40(&D_008102B0, self)==0 && func_001A7B80!=0 -> seed D_00810320..,
 // pick the D_008104D4 speed from the 0xD flags/D_0081070A, clip 0x21) or runs
 // the steering fallback (func_001B3250/func_001B1560). State 4 resets on input.
 // Tail: when state>=2 and owner bit 0x69&1 is set, ticks the 0x50 countdown and
@@ -43,7 +45,7 @@ extern int func_001B3250(char *p, void *a, float b);
 extern void func_001B55E0(char *p, int a);
 extern void func_001EFD90(int a, void *b, char *c);
 extern void func_001FBD50(char *p, int a, int b, float f);
-extern int func_0021BE40(unsigned char *player);
+extern int func_0021BE40(unsigned char *player, char *self);
 extern unsigned char D_008102B0;
 extern char D_008102BF;
 extern float D_00810320;
@@ -54,13 +56,13 @@ extern float D_00810360;
 extern float D_00810368;
 extern int D_008104D4;
 extern unsigned char D_0081070A;
-extern char D_700038A0[];
+extern volatile float D_700038A0;
 
 void func_001305B0(char *arg0, char *arg1) {
     unsigned char st;
     unsigned char fl;
     unsigned short c;
-    float f0, f1, f2, f3;
+    float w, z, y, x;
 
     st = *(unsigned char *)(arg0 + 6);
     switch (st) {
@@ -96,22 +98,22 @@ void func_001305B0(char *arg0, char *arg1) {
         }
         break;
     case 3:
-        if (func_0021BE40(&D_008102B0) == 0 && func_001A7B80(arg0) != 0) {
+        if (func_0021BE40(&D_008102B0, arg0) == 0 && func_001A7B80(arg0) != 0) {
             *(unsigned char *)(arg0 + 6) = *(unsigned char *)(arg0 + 6) + 1;
             D_008102BF = 2;
-            *(int *)0x700038A0 = 0;
+            D_700038A0 = 0.0f;
             *(int *)0x700038A4 = 0;
             *(float *)0x700038A8 = 1.0f;
             *(float *)0x700038AC = 1.0f;
-            func_001B2B10(arg0, D_700038A0, D_700038A0);
-            f0 = *(float *)0x700038A0;
-            f1 = *(float *)0x700038A4;
-            f2 = *(float *)0x700038A8;
-            f3 = *(float *)0x700038AC;
-            D_00810320 = f0;
-            D_00810324 = f1;
-            D_00810328 = f2;
-            D_0081032C = f3;
+            func_001B2B10(arg0, &D_700038A0, &D_700038A0);
+            x = D_700038A0;
+            y = *(float *)0x700038A4;
+            z = *(float *)0x700038A8;
+            w = *(float *)0x700038AC;
+            D_00810320 = x;
+            D_00810324 = y;
+            D_00810328 = z;
+            D_0081032C = w;
             fl = *(unsigned char *)(arg0 + 0xD);
             if (fl == 3) {
                 if (D_0081070A != 0) {
@@ -134,13 +136,13 @@ void func_001305B0(char *arg0, char *arg1) {
             func_001B55E0(arg0, 1);
             anim_clip_init(arg0, 0x21, 1.0f, 0.0f);
         } else {
-            *(int *)0x700038A0 = 0;
+            D_700038A0 = 0.0f;
             *(float *)0x700038A4 = 3.0f;
             *(float *)0x700038A8 = 10.0f;
             *(float *)0x700038AC = 1.0f;
-            func_00131F20(arg0, D_700038A0, D_700038A0);
-            func_001028B8(D_700038A0, D_700038A0, arg0 + 0xB0);
-            if (func_001B3250(arg0, D_700038A0, 15.0f) != 0) {
+            func_00131F20(arg0, &D_700038A0, &D_700038A0);
+            func_001028B8(&D_700038A0, &D_700038A0, arg0 + 0xB0);
+            if (func_001B3250(arg0, &D_700038A0, 15.0f) != 0) {
                 *(unsigned char *)(arg0 + 6) = *(unsigned char *)(arg0 + 6) + 1;
                 anim_clip_init(arg0, 0xA, 3.0f, 0.0f);
             } else if (func_001B1560(arg0, &D_00810360, 1.4835298f) == 0) {
@@ -167,12 +169,12 @@ void func_001305B0(char *arg0, char *arg1) {
                 *(short *)(arg1 + 0x50) = c - 1;
             } else {
                 *(short *)(arg1 + 0x50) = ((func_00122BB8() >> 9) & 7) + 5;
-                *(float *)0x700038A0 = *(float *)(arg0 + 0xB0);
+                D_700038A0 = *(float *)(arg0 + 0xB0);
                 *(float *)0x700038A4 = *(float *)(arg0 + 0xB4);
                 *(float *)0x700038A8 = *(float *)(arg0 + 0xB8);
                 *(float *)0x700038AC = 1.0f;
                 *(float *)0x700038A4 = *(float *)(arg1 + 0x40);
-                func_001EFD90(0x8000001D, D_700038A0, arg0 + 0xC0);
+                func_001EFD90(0x8000001D, &D_700038A0, arg0 + 0xC0);
             }
         }
     }

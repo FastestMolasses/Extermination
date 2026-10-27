@@ -1,3 +1,16 @@
+## 2026-10-27 — matching wave, one subagent per NEARMISS function: 19 byte-matched
+
+func_001B18F0, func_00206A00, func_001B2F70, func_001B30E0, func_002044F0,
+func_001D7100, func_001FABF0, func_001756E0, func_001305B0, func_0012D240,
+func_001CD390, func_00158BD0, func_0017F9E0, func_00225D20, func_0021D530,
+func_001AAA90, func_00201F70, func_0016EBA0, func_00147B50 byte-matched from
+readable C (all compiled_object_ordinary_c); levers in MATCHING_GUIDE
+"Matching wave 2026-10-27" (declaration order, idiom-32 on every scratchpad
+delay-slot residual tried, callee prototypes, control-flow spelling, one wrong
+body). Gate: fresh build.py build + verify_all, all six stages pass, boot ELF
+byte-identical, 19/19 overlays, matched_code 99.35%, 2275/2279 units (was
+2256/2260). FUNCTIONS.csv reconciled (1943 readable, 663 nearmiss).
+
 ## 2026-10-21 — call arities on the first-level set, TU-static callees with jump tables (decomp2 lane round 4): 1 byte-matched, 3 bodies corrected
 
 - Round 3's call comparison continued on the first-level census files, each

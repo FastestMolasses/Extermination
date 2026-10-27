@@ -1,32 +1,16 @@
-// NEARMISS func_001B2F70  (vram 0x001B2F70, 0x170 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.59% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// register-allocation permutation (callee-saved coloring + a0/a1 param-save order); body byte-identical, not the clean-store nop -> permuter, not 2.3.3
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-// Corrected 2026-10-02 (lane DFIX2) against the original instructions (port
-// docs/LEVEL12_PORT.md section 0; docs/FINDINGS.md "NEARMISS body corrections from the
-// level side-track lanes, second round"): func_0019BC40 receives arg0 (the position; the
-// argument register is untouched before the call, and func_0019BC40's own C takes one
-// float *); the old C called it with no argument. objdiff 98.37 -> 98.59.
-
 //
-// NEARMISS 98.4% (mwcc 2.3.3; pinned 991202 = 89.8%). Body is byte-identical to
-// the target; the sole residual is a register-allocation permutation
-// (callee-saved coloring + the a0/a1 param-save order at the two leading paddub
-// moves). The target colors {a1->s5, a0->s6} and {ptrs->s2/s3/s4, found->s1,
-// counter->s0}; mwcc colors {a0->s6, a1->s5} and {ptrs->s0/s1/s2, found->s3,
-// counter->s4}. Same instruction stream, different register numbers -> permuter.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 98.59% NEARMISS).
+// Fixes read from the original instructions:
+//  - The callee-saved register "permutation" was declaration order: the original
+//    gives the loop counter the lowest saved register, then the found flag, then
+//    the three table pointers, so the locals are declared i, found, p, q, r.
+//  - (Earlier, lane DFIX2:) func_0019BC40 receives arg0, the position.
 //
 // Scans the active-flag table at D_70003170 (one u16 per slot, count at
 // 0x700031E0). For each set slot, if func_0011DF78(angle D_00282250[i]) <= PI/3
-// (1.0471976), tracks the smallest D_700030F0[i] into *arg1 and returns 1 early
+// (1.0471976), tracks the largest D_700030F0[i] into *arg1 and returns 1 early
 // when *(arg0+4) crosses it; returns the "found" flag otherwise.
 extern float func_0011DF78(float);
 extern void func_0019BC40(char *pos);
@@ -35,11 +19,11 @@ extern float D_700030F0;
 extern unsigned short D_70003170;
 
 int func_001B2F70(char *arg0, float *arg1) {
+    int i;
+    int found;
     unsigned short *p;
     float *q;
     float *r;
-    int found;
-    int i;
 
     func_0019BC40(arg0);
     if (*(int *)0x700031E0 == 0) {

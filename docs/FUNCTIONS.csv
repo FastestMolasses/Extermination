@@ -914,7 +914,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0012BE20,func_0012BE20,1644,readable,1,lowmem
 0x0012C490,func_0012C490,1540,readable,1,lowmem
 0x0012CAA0,func_0012CAA0,1952,readable,1,lowmem
-0x0012D240,func_0012D240,828,nearmiss,1,lowmem
+0x0012D240,func_0012D240,828,readable,1,lowmem
 0x0012D580,func_0012D580,708,readable,6,lowmem
 0x0012D850,func_0012D850,232,readable,1,lowmem
 0x0012D940,func_0012D940,1064,readable,1,lowmem
@@ -933,7 +933,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0012F980,func_0012F980,200,word,1,lowmem
 0x0012FA50,func_0012FA50,444,readable,1,lowmem
 0x0012FC10,func_0012FC10,2464,nearmiss,1,lowmem
-0x001305B0,func_001305B0,1272,nearmiss,1,entity_logic
+0x001305B0,func_001305B0,1272,readable,1,entity_logic
 0x00130AB0,func_00130AB0,1876,readable,1,entity_logic
 0x00131210,func_00131210,764,readable,1,entity_logic
 0x00131510,func_00131510,308,word,1,entity_logic
@@ -1064,7 +1064,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001475A0,func_001475A0,348,readable,1,entity_logic
 0x00147700,func_00147700,600,readable,1,entity_logic
 0x00147960,func_00147960,484,readable,1,entity_logic
-0x00147B50,func_00147B50,1492,nearmiss,1,entity_logic
+0x00147B50,func_00147B50,1492,readable,1,entity_logic
 0x00148130,func_00148130,720,readable,1,entity_logic
 0x00148400,func_00148400,280,readable,1,entity_logic
 0x00148520,func_00148520,440,readable,1,entity_logic
@@ -1184,7 +1184,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00158430,func_00158430,344,readable,0,entity_logic
 0x00158590,func_00158590,632,nearmiss,5,entity_logic
 0x00158810,func_00158810,948,nearmiss,0,entity_logic
-0x00158BD0,func_00158BD0,340,nearmiss,0,entity_logic
+0x00158BD0,func_00158BD0,340,readable,0,entity_logic
 0x00158D30,func_00158D30,388,readable,0,entity_logic
 0x00158EC0,func_00158EC0,840,readable,0,entity_logic
 0x00159210,func_00159210,1032,readable,0,entity_logic
@@ -1275,7 +1275,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0016CD70,func_0016CD70,948,readable,1,entity_update
 0x0016D130,func_0016D130,3332,readable,1,entity_update
 0x0016DE40,func_0016DE40,3420,readable,1,entity_update
-0x0016EBA0,func_0016EBA0,940,nearmiss,1,entity_update
+0x0016EBA0,func_0016EBA0,940,readable,1,entity_update
 0x0016EF50,func_0016EF50,1492,readable,1,entity_update
 0x0016F530,func_0016F530,160,readable,4,entity_update
 0x0016F5D0,func_0016F5D0,48,readable,2,entity_update
@@ -1307,7 +1307,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001754E0,func_001754E0,208,readable,4,actor_anim
 0x001755B0,func_001755B0,132,readable,2,actor_anim
 0x00175640,func_00175640,156,readable,1,actor_anim
-0x001756E0,func_001756E0,536,nearmiss,2,actor_anim
+0x001756E0,func_001756E0,536,readable,2,actor_anim
 0x00175900,func_00175900,1004,readable,60,actor_anim
 0x00175CF0,func_00175CF0,964,readable,1,actor_anim
 0x001760C0,func_001760C0,192,readable,12,actor_anim
@@ -1398,7 +1398,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0017F240,func_0017F240,224,readable,2,actor_anim
 0x0017F320,func_0017F320,708,nearmiss,5,actor_anim
 0x0017F5F0,func_0017F5F0,1000,nearmiss,1,actor_anim
-0x0017F9E0,func_0017F9E0,420,nearmiss,1,actor_anim
+0x0017F9E0,func_0017F9E0,420,readable,1,actor_anim
 0x0017FB90,func_0017FB90,228,readable,1,actor_anim
 0x0017FC80,func_0017FC80,116,readable,6,actor_anim
 0x0017FD00,func_0017FD00,64,readable,1,actor_anim
@@ -1682,7 +1682,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001AA7A0,func_001AA7A0,160,readable,1,frame_main
 0x001AA840,func_001AA840,132,readable,1,frame_main
 0x001AA8D0,func_001AA8D0,440,readable,1,frame_main
-0x001AAA90,func_001AAA90,356,nearmiss,1,frame_main
+0x001AAA90,func_001AAA90,356,readable,1,frame_main
 0x001AAC00,func_001AAC00,244,readable,1,frame_main
 0x001AAD00,func_001AAD00,308,nearmiss,2,frame_main
 0x001AAE40,gs_readback_queue_run,924,nearmiss,1,frame_main
@@ -1791,7 +1791,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001B15D0,func_001B15D0,84,readable,27,math_vector
 0x001B1630,func_001B1630,364,nearmiss,6,math_vector
 0x001B17A0,func_001B17A0,328,readable,68,math_vector
-0x001B18F0,func_001B18F0,568,nearmiss,0,math_vector
+0x001B18F0,func_001B18F0,568,readable,0,math_vector
 0x001B1B30,func_001B1B30,64,readable,1,math_vector
 0x001B1B70,func_001B1B70,236,readable,9,math_vector
 0x001B1C60,func_001B1C60,56,readable,1,math_vector
@@ -1809,8 +1809,8 @@ vram,name,size_bytes,status,callers,subsystem
 0x001B2BF0,func_001B2BF0,260,readable,5,math_vector
 0x001B2D00,func_001B2D00,324,readable,1,math_vector
 0x001B2E50,func_001B2E50,288,nearmiss,1,math_vector
-0x001B2F70,func_001B2F70,368,nearmiss,7,math_vector
-0x001B30E0,func_001B30E0,360,nearmiss,1,math_vector
+0x001B2F70,func_001B2F70,368,readable,7,math_vector
+0x001B30E0,func_001B30E0,360,readable,1,math_vector
 0x001B3250,func_001B3250,156,word,9,math_vector
 0x001B32F0,func_001B32F0,160,nearmiss,4,math_vector
 0x001B3390,func_001B3390,172,readable,7,math_vector
@@ -2091,7 +2091,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001CD180,func_001CD180,304,nearmiss,1,gs_upload
 0x001CD2B0,func_001CD2B0,192,readable,5,gs_upload
 0x001CD370,func_001CD370,20,readable,20,gs_upload
-0x001CD390,func_001CD390,392,nearmiss,9,gs_upload
+0x001CD390,func_001CD390,392,readable,9,gs_upload
 0x001CD520,func_001CD520,1056,nearmiss,10,gs_upload
 0x001CD940,func_001CD940,1152,nearmiss,2,gs_upload
 0x001CDDC0,func_001CDDC0,1344,nearmiss,1,gs_upload
@@ -2221,7 +2221,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001D6F60,func_001D6F60,148,word,3,render_vif
 0x001D7000,func_001D7000,124,word,2,render_vif
 0x001D7080,func_001D7080,120,word,7,render_vif
-0x001D7100,func_001D7100,160,nearmiss,3,render_vif
+0x001D7100,func_001D7100,160,readable,3,render_vif
 0x001D71A0,func_001D71A0,76,nearmiss,1,render_vif
 0x001D71F0,func_001D71F0,8,readable,1,render_vif
 0x001D7200,func_001D7200,196,readable,1,render_vif
@@ -2520,7 +2520,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001FAB50,func_001FAB50,36,readable,3,stream_music
 0x001FAB80,func_001FAB80,44,readable,2,stream_music
 0x001FABB0,func_001FABB0,52,readable,15,stream_music
-0x001FABF0,func_001FABF0,384,nearmiss,3,stream_music
+0x001FABF0,func_001FABF0,384,readable,3,stream_music
 0x001FAD70,func_001FAD70,244,readable,1,stream_music
 0x001FAE70,func_001FAE70,344,readable,7,stream_music
 0x001FAFD0,func_001FAFD0,216,nearmiss,1,stream_music
@@ -2608,7 +2608,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00201290,func_00201290,1156,readable,2,unknown_04
 0x00201720,func_00201720,1324,readable,2,unknown_04
 0x00201C50,func_00201C50,792,nearmiss,2,unknown_04
-0x00201F70,func_00201F70,3116,nearmiss,2,unknown_04
+0x00201F70,func_00201F70,3116,readable,2,unknown_04
 0x00202BA0,func_00202BA0,360,readable,2,unknown_04
 0x00202D10,func_00202D10,1452,readable,2,unknown_04
 0x002032C0,func_002032C0,144,readable,1,iop_services
@@ -2642,7 +2642,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00204250,func_00204250,312,word,2,crt_heap
 0x00204390,func_00204390,244,word,1,crt_heap
 0x00204490,func_00204490,92,readable,1,crt_heap
-0x002044F0,func_002044F0,516,nearmiss,1,crt_heap
+0x002044F0,func_002044F0,516,readable,1,crt_heap
 0x00204700,func_00204700,208,readable,1,crt_heap
 0x002047D0,func_002047D0,780,word,1,crt_heap
 0x00204AE0,func_00204AE0,76,readable,1,crt_heap
@@ -2696,7 +2696,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00206770,func_00206770,152,readable,1,movie
 0x00206810,func_00206810,348,readable,1,movie
 0x00206970,func_00206970,132,readable,1,movie
-0x00206A00,func_00206A00,256,nearmiss,1,movie
+0x00206A00,func_00206A00,256,readable,1,movie
 0x00206B00,func_00206B00,8,readable,2,movie
 0x00206B10,func_00206B10,8,readable,2,movie
 0x00206B20,func_00206B20,8,readable,1,movie
@@ -2843,7 +2843,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0021D2E0,func_0021D2E0,420,readable,24,area_logic
 0x0021D490,func_0021D490,80,readable,15,area_logic
 0x0021D4E0,func_0021D4E0,72,readable,1,area_logic
-0x0021D530,func_0021D530,196,nearmiss,2,area_logic
+0x0021D530,func_0021D530,196,readable,2,area_logic
 0x0021D600,func_0021D600,56,readable,1,area_logic
 0x0021D640,func_0021D640,120,readable,1,area_logic
 0x0021D6C0,func_0021D6C0,308,word,1,area_logic
@@ -2889,7 +2889,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00225AC0,func_00225AC0,512,readable,4,ui_screens
 0x00225CC0,func_00225CC0,48,readable,2,ui_screens
 0x00225CF0,func_00225CF0,48,readable,7,ui_screens
-0x00225D20,func_00225D20,744,nearmiss,1,ui_screens
+0x00225D20,func_00225D20,744,readable,1,ui_screens
 0x00226010,func_00226010,88,word,2,ui_screens
 0x00226070,func_00226070,1840,nearmiss,1,ui_screens
 0x002267A0,func_002267A0,1004,nearmiss,2,ui_screens
