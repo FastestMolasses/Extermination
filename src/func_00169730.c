@@ -1,23 +1,17 @@
-// NEARMISS func_00169730  (vram 0x00169730, 0xD78 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.99% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring permutation (2 of 862 instructions). In case 1 the target loads the pad word D_00810E74 into $a1 ('lhu a1, %lo(D_00810E74)(at)' + 'and v1,a1,v1'); mwcc 2.3.3 picks the equally-dead $a0. Every other instruction is byte-identical. Identical wall (same case-1 pad test) to the alrea...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 8
-
+// CFLAGS: -O4,p -sdatathreshold 0x20
+// TU_STATIC: func_001696A0
 //
-// NEARMISS residual (mwcc 2.3.3, objdiff 99.99%): a single register-coloring
-// choice in case 1 — the target loads the pad word D_00810E74 into $a1
-// ('lhu a1' + 'and v1,a1,v1'), mwcc 2.3.3 picks the equally-dead $a0. All
-// 860 other instructions are byte-identical. Same wall (and same case-1 pad
-// test) as the sibling state machine func_0016AE40; operand-order, hoisted
-// -local, explicit-!=0 and scalar-vs-array shapes all reproduce $a0.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.99% NEARMISS).
+// Fixes read from the original instructions:
+// - func_001696A0 sat earlier in the same translation unit; compiled as a
+//   static same-TU callee (TU_STATIC) the compiler knows it leaves a0 alone,
+//   so after it a0 still holds e: the pad word D_00810E74 is coloured into a1
+//   (a0 is live), and the following func_001751A0(e) calls need no a0 setup.
+// - func_001751A0 takes the actor (its definition in src/): the two calls
+//   that had no argument pass e, and the prototype is void (unsigned char *).
+// - The shared file used -sdatathreshold 0x20 (the callee's own flags); the
+//   static copy only equals the original with that threshold.
 //
 // Boss/large-enemy behaviour state machine (sibling of func_0016AE40),
 // dispatched on the state byte at e+6 (cases 0,1,10,11,20,30,31,40,50,60,
@@ -27,8 +21,9 @@ extern int func_001885B0(unsigned char *e);
 extern void func_001749A0(unsigned char *e, int id, int z, float f);
 extern void func_001031E0(void *dst, void *src);
 extern int func_00181D70(unsigned char *e);
-extern int func_001696A0(unsigned char *e);
-extern int func_001751A0();
+static int func_001696A0(char *arg0);  /* same-TU callee, see TU_STATIC */
+#include "src/func_001696A0.c"
+extern void func_001751A0(unsigned char *e);
 extern int func_001814E0(unsigned char *e, int a);
 extern int func_001818D0(unsigned char *e);
 extern int func_00181730(unsigned char *e, int a);
@@ -74,7 +69,7 @@ void func_00169730(unsigned char *e)
         if (func_00181D70(e) != 0) {
             break;
         }
-        if (func_001696A0(e) != 0) {
+        if (func_001696A0((char *)e) != 0) {
             break;
         }
         if (D_00810E74[0] & *(unsigned short *)0x70003B76) {
@@ -82,7 +77,7 @@ void func_00169730(unsigned char *e)
             e[0x1F0] = 0x23;
             break;
         }
-        func_001751A0();
+        func_001751A0(e);
         {
             int n = *(int *)(e + 0x24C);
             if (n == 0) {
@@ -165,10 +160,10 @@ void func_00169730(unsigned char *e)
                     func_00181BA0(e);
                     func_00181B80(e);
                     build_trs_matrix(e + 0xD0, e + 0xB0, e + 0xC0, e + 0x60);
-                    if (func_001696A0(e) != 0) {
+                    if (func_001696A0((char *)e) != 0) {
                         return;
                     }
-                    func_001751A0();
+                    func_001751A0(e);
                     if (*(int *)(e + 0x24C) == 0) {
                         int r = func_001814E0(e, 1);
                         if (r == 1) {

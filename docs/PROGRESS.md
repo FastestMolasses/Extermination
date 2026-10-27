@@ -1,3 +1,16 @@
+## 2026-10-27 — matching wave, second batch: 20 more byte-matched
+
+func_001F1DD0, func_0017F320, anim_matrix_dispatch, func_001751A0,
+func_001066F8, func_0012DE90, func_00169730, func_0016AE40, func_002149F0,
+func_001662D0, func_00162DB0, func_0016C6A0, func_0014E050, func_0014A0D0,
+func_001C87C0, func_00230230, func_0017F5F0, func_001E9280, func_001F3620,
+func_001809B0 (all compiled_object_ordinary_c; func_001E9280 after its
+GPREL_FORCE_ASM entry was removed). Levers in MATCHING_GUIDE "Matching wave
+2026-10-27" (second batch): idiom-24, idiom-32, TU_STATIC, break-vs-return,
+wrong externs and bodies. Gate: fresh build + verify_all, all six stages
+pass, boot ELF byte-identical, 19/19 overlays, matched_code 99.38%,
+2295/2299 units. FUNCTIONS.csv: 1963 readable, 643 nearmiss.
+
 ## 2026-10-27 — matching wave, one subagent per NEARMISS function: 19 byte-matched
 
 func_001B18F0, func_00206A00, func_001B2F70, func_001B30E0, func_002044F0,

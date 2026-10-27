@@ -1,16 +1,13 @@
-// NEARMISS func_00162DB0  (vram 0x00162DB0, 0x6E4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// One pair in func_001B12B0(0.0f, +0xC0, 0.06981317f): the target sets $f14 before $f12 = 0; mwcc 2.3.3/2.4 set $f12 first. Literal, local, const and int-staged forms do not move it; the permuter matched only with the step set in case 0xA (uninitialised on the direct 0xB path), not used.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.95% NEARMISS).
+// Fixes read from the original instructions:
+// - The 0xB easing step is 4 degrees converted to radians from an int degree
+//   count (pi * (float)4 / 180). The int->float conversion survives as an IR
+//   node, so mwcc sets the step argument ($f14) before the 0.0f target ($f12);
+//   the folded literal 0.06981317f set $f12 first (the inverse of idiom-24, as
+//   in func_0017F130's `(float)oi` staging).
 //
 // Player state +0x05 = 5, dispatched on the sub-state byte +0x06. Sub-state
 // 0 is the fall start; 0xA / 0xB run until the footing update finds ground,
@@ -208,7 +205,12 @@ void func_00162DB0(unsigned char *self)
   {
     int defer_landing;
 
-    *(float *)(self + 0xC0) = func_001B12B0(0.0f, *(float *)(self + 0xC0), 0.06981317f);
+    {
+      int deg = 4;
+      float step = (3.1415927f * (float)deg) / 180.0f;
+
+      *(float *)(self + 0xC0) = func_001B12B0(0.0f, *(float *)(self + 0xC0), step);
+    }
     defer_landing = func_00224290(self);
     if (!(*(float *)(self + 0x38) <= *(float *)(self + 0x2E0))) {
       *(float *)(self + 0x38) -= *(float *)(self + 0x2E0);

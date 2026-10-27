@@ -1,20 +1,13 @@
-// NEARMISS func_002149F0  (vram 0x002149F0, 0xE80 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate (round 6, 2026-09-23):
-// One four-instruction cluster: in case 6 the compare D_00810CB2.h == p[0x12] - (rec[0x34] << 1)
-// loads rec[0x34] into v1 and p[0x12] into a0 in the target; mwcc swaps them. Round 6:
-// func_0020CDA0 is (void) with no argument, D_002821B0/B4 volatile, (p + 0x50)[i] in the scan,
-// case 2: shares the default arm of both p[0x34] switches (restores the target's dead li and scan-
-// loop nop), and the store site stages rec[0x34] in n.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.97% NEARMISS).
+// Fixes read from the original instructions:
+//  - case 6 (discharge tick): the charge D_00810CB2 is read once into a local
+//    (ev) before the target is computed, and the decrement reuses that local;
+//  - the target charge is staged in n (n = record cost; n = p[0x12] - 2n),
+//    so the compare and the 0x870 finish path share the same staging.
+//    Together these restore the original register assignment of the compare.
 //
 // SEMANTICS: the status screen's ITEM > BATTERY sub-module page (ITEM
 // sub-module 0x21, FINDINGS "STATUS SUB-PAGES"; the port's
@@ -458,14 +451,17 @@ void func_002149F0(unsigned char *p) {
             *(short *)(p + 0x3C) = t;
             if (t == 0) {
                 *(short *)(p + 0x3C) = 0x1E;
-                if (D_00810CB2.h == (p[0x12] - (*(short *)(rec + 0x34) << 1))) {
+                ev = D_00810CB2.h;
+                n = *(short *)(rec + 0x34);
+                n = p[0x12] - (n << 1);
+                if (ev == n) {
                     D_008106C5 = 0xFF;
                     rec[0xA] = 1;
                     rec[0xB] = 5;
                     *(char *)0x70003B8D = 3;
                     break;
                 }
-                D_00810CB2.h = D_00810CB2.h - 2;
+                D_00810CB2.h = ev - 2;
                 func_001FB9F0(6, 0x1000, 0x1000, 0x1000);
             }
         }

@@ -1,35 +1,26 @@
-// NEARMISS func_0017F320  (vram 0x0017F320, 0x2C4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.55% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Pure delay-slot-fill / scheduling permuter class. Logic fully recovered (97.6%). The three guards each leave their delay slot fillable with the NEXT probe's first constant upper-half load (cone direction) and the target fills it; mwcc 2.3.3 instead schedules the scratchpad upper-half load or the return-value increment there (details below).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.55% NEARMISS).
+// Fixes read from the original instructions:
+//  - The epilogue is `if (flags) return 0; return 1;`, not a `(flags == 0) ? 1 : 0`
+//    expression. With the early-return spelling mwcc 2.3.3 hoists each following
+//    constant load (the next probe's direction, and the final return value 1) into
+//    the guard's delay slot without leaving a duplicate copy on the fall-through
+//    path, as the original does. The earlier "scheduling wall" verdict was wrong.
+//  - No scratchpad symbolization (idiom-32) is needed: the literal 0x700038xx
+//    stores match as written.
 //
-// NEARMISS (best: 97.6% mwcc 2.3.3, 86.0% mwcc 991202). Logic fully recovered.
 // Runs four directional cone/ray probes off the entity's transform (arg0+0xD0) and
-// returns whether ANY of them was blocked. Each probe fills two scratch vectors at
-// 0x700038A0/0xB0 (cone params: a few float bit-patterns -- direction +/-3.0f, length
+// returns whether NONE of them was blocked. Each probe fills two scratch vectors at
+// 0x700038A0/0xB0 (cone params as float bit-patterns -- direction +/-3.0f, length
 // 20.0f/19.0f, and constants 0/1.0f/6.5f/1.0f), transforms them through
 // func_001026A0 into 0x700038C0/0xD0, then casts via func_0019AFE0(self, c0, d0, 6);
 // a nonzero result ORs a hit bit into `flags` (probes 1&3 set bit 0, probes 2&4 set
 // bit 1). The four probes are +3.0f/-3.0f direction at length 20.0f, then +3.0f/-3.0f
-// at length 19.0f. Returns 1 when no probe hit (flags==0), else 0 (matches the
-// `ret = 1; if (flags) ret = 0` conditional-move epilogue). Note: the scratch writes use raw absolute
-// 0x700038xx addresses while the call args use the &D_700038xx symbols, mirroring the
-// target's mix of bare literal addresses (upper half plus a literal low offset)
-// and %hi/%lo-relocated symbol addresses.
-//
-// Residual wall (NOT the clean-store nop): the three `beqz` guards each leave their
-// delay slot fillable with the NEXT probe's first constant upper-half load (cone direction), and
-// the target fills it; mwcc 2.3.3 instead schedules the scratchpad upper-half load /
-// the return-value increment there. Pure delay-slot-fill / scheduling permuter class.
+// at length 19.0f. Returns 1 when no probe hit (flags==0), else 0. The scratch writes
+// use raw absolute 0x700038xx addresses while the call arguments use the &D_700038xx
+// symbols, mirroring the original's mix of literal and relocated addresses.
 extern void func_001026A0(float *dst, char *src, float *m);
 extern int func_0019AFE0(int self, float *a, float *b, int n);
 extern float D_700038A0;
@@ -97,5 +88,6 @@ int func_0017F320(int arg0) {
         flags |= 2;
     }
 
-    return (flags == 0) ? 1 : 0;
+    if (flags) return 0;
+    return 1;
 }

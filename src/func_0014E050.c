@@ -1,16 +1,17 @@
-// NEARMISS func_0014E050  (vram 0x0014E050, 0x270 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.24% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two stacked genuine compiler artifacts (body/structure fully recovered): (1) the documented case-0 dispatch branch-likely dup-add wall (identical class to func_0014A0D0 above and func_00131740's parked near-miss); (2) an FP-register-coloring artifact on the func_001B12B0(0.0f, cur, rate) call -- ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.24% NEARMISS).
+// Fixes read from the original instructions:
+// - Every case ends with `break` (not `return`): the target's cases branch to a
+//   shared ra-restore, and with breaks mwcc reproduces the original dispatch
+//   (plain compares for 3/2/1 and the case-0 branch-likely whose slot computes
+//   state + 1, with the duplicated add left at the case label).
+// - The easing step is 2 degrees in radians from an int degree count
+//   (idiom-24), so the step argument is set before the 0.0f goal.
+// - The zero test on +0x28 is a float truth test (`!x`), which gives the
+//   original compare operand order (idiom-25).
+// - +0x700038BC = 1.0 is stored before the loop counter is zeroed.
 //
 // Per-tick state handler for actor arg0 (state byte at arg0+6) against companion
 // record arg1. state 0: advance state, set arg1+0x20 = 0.5, play anim clip 0x14
@@ -45,10 +46,14 @@ void func_0014E050(char *arg0, char *arg1) {
         *(unsigned char *)(arg0 + 6) = state + 1;
         *(float *)(arg1 + 0x20) = 0.5f;
         anim_clip_init((int)arg0, 0x14, 5.0f, 0.0f);
-        return;
+        break;
     case 1:
-        *(float *)(arg1 + 0x28) = func_001B12B0(0.0f, *(float *)(arg1 + 0x28), 0.0349065848f);
-        if (*(float *)(arg1 + 0x28) == 0.0f && *(int *)(arg1 + 0) & 0x1000) {
+        {
+            int deg = 2;
+            float step = (3.1415927f * (float)deg) / 180.0f;
+            *(float *)(arg1 + 0x28) = func_001B12B0(0.0f, *(float *)(arg1 + 0x28), step);
+        }
+        if (!*(float *)(arg1 + 0x28) && *(int *)(arg1 + 0) & 0x1000) {
             *(unsigned char *)(arg0 + 6) = *(unsigned char *)(arg0 + 6) + 1;
             anim_clip_init((int)arg0, 0x15, 0.0f, 0.0f);
             copy_qw4(D_700036A0, (char *)*(int *)(arg0 + 0x140) + 0x90);
@@ -60,24 +65,24 @@ void func_0014E050(char *arg0, char *arg1) {
             *(int *)0x700038B8 = 0;
             *(float *)0x700038B4 = 0.0f;
             *(int *)0x700038B0 = 0;
-            t = 0.0f;
             *(int *)0x700038BC = 0x3F800000;
+            t = 0.0f;
             do {
                 *(float *)0x700038B4 = (3.1415927f * (15.0f * t)) / 180.0f;
                 func_001EFD90(3, D_700038A0, D_700038B0);
                 t += 1.0f;
             } while (t < 13.0f);
             func_001FBD50(arg0, 0x861, 0, 300.0f);
-            return;
+            break;
         }
-        return;
+        break;
     case 2:
         if (*(int *)(arg1 + 0) & 0x1000) {
             *(unsigned char *)(arg0 + 6) = state + 1;
             anim_clip_init((int)arg0, 0x16, 0.0f, 0.0f);
-            return;
+            break;
         }
-        return;
+        break;
     case 3:
         if (*(int *)(arg1 + 0) & 0x1000) {
             short h;
@@ -88,6 +93,6 @@ void func_0014E050(char *arg0, char *arg1) {
             *(short *)(arg1 + 0x50) = h;
             *(short *)(arg1 + 0x50) = h;
         }
-        return;
+        break;
     }
 }

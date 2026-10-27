@@ -1,15 +1,15 @@
-// NEARMISS func_00230230  (vram 0x00230230, 0x5B4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.79% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Regalloc/scheduling permutation class (mwcc 2.3.3), NOT the clean-store nop. Body byte-identical except 28 bytes in 3 regions, each proven source-shape-invariant: (a) +0x27C FP equality-compare operand order for f!=0.0f — 2.3.3 sorts commutative FP-compare operands (f0 before f1; the target has f1 before f0); (b)/(c): docs/NEARMISS.md.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 98.79% NEARMISS).
+// Fixes read from the original instructions:
+// - The zero test on other+0x38 is `if (f)`, not `if (f != 0.0f)` (FP compare
+//   operand order).
+// - The homing branch multiplies by sin of the stored angle, read back from
+//   self+0x44 inline, not through a temp (multiply operand order).
+// - In the never-taken st == 21 homing call, the 45-degree snap is converted
+//   from an int degree count (pi * (float)45 / 180, idiom-24); this sets the
+//   original order in which the call's arguments are set up.
 
 // Camera/aim angle update driven by the target entity's state (*(other+0x230)).
 // Gates on func_00191350(other); computes a clamped pitch offset into self+0x94
@@ -87,7 +87,7 @@ int func_00230230(unsigned char *self, unsigned char *other)
                 float f;
 
                 f = *(float *)(other + 0x38);
-                if (f != 0.0f) {
+                if (f) {
                     if (st == 21) {     /* never true here (st is 10/25) — kept from original */
                         if (f >= 0.0f) {
                             *(float *)(self + 0x44) = func_001B12B0(func_001B1470((3.1415927f + *(float *)(other + 0xC4)) - 0.69813174f),
@@ -109,18 +109,19 @@ int func_00230230(unsigned char *self, unsigned char *other)
                     *(float *)(self + 0x18) = D_008105E8 + (*(float *)(self + 0xC) + *(float *)(self + 0x94)) * func_0011DE90(*(float *)(self + 0x44));
                 } else {
                     float r;
-                    float s;
 
                     if (st == 21) {     /* never true here — kept from original */
-                        r = func_00191120(3.1415927f + *(float *)(other + 0xC4), *(float *)(self + 0x44), 0.034906585f, 0.7853982f);
+                        int deg = 45;
+                        float snap = (3.1415927f * (float)deg) / 180.0f;
+
+                        r = func_00191120(3.1415927f + *(float *)(other + 0xC4), *(float *)(self + 0x44), 0.034906585f, snap);
                     } else {
                         r = func_00191120(*(float *)(other + 0xC4), *(float *)(self + 0x44), 0.034906585f, 0.7853982f);
                     }
                     *(float *)(self + 0x44) = r;
-                    /* s-temp keeps mwcc from hoisting the radius sum across the
-                       sin call into a callee-saved reg (fs0 spill, frame 0x40) */
-                    s = func_0011E2A8(r);
-                    *(float *)(self + 0x10) = D_008105E0 + (*(float *)(self + 0xC) + *(float *)(self + 0x94)) * s;
+                    /* sin reads the stored angle back (passing r itself keeps r live
+                       across the call in a callee-saved reg: fs0 spill, frame 0x40) */
+                    *(float *)(self + 0x10) = D_008105E0 + (*(float *)(self + 0xC) + *(float *)(self + 0x94)) * func_0011E2A8(*(float *)(self + 0x44));
                     *(float *)(self + 0x18) = D_008105E8 + (*(float *)(self + 0xC) + *(float *)(self + 0x94)) * func_0011DE90(*(float *)(self + 0x44));
                 }
                 func_00192010(self, *(float *)(self + 0x8C) + (*(float *)(self + 0x5C) + *(float *)(other + 0xB4)), 35.0f, 30.0f);

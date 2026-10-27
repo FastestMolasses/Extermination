@@ -1,17 +1,16 @@
-// NEARMISS func_0017F5F0  (vram 0x0017F5F0, 0x3E8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.94% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// Corrected body (func_00174FD0(arg0); the old prologue move-order residual). Left: the constant 1.0f is colored $f1 where the target keeps it in $f2 for the state-1 timer (FP coloring).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.94% NEARMISS).
+// Fixes read from the original instructions:
+// - State 1's timer-expiry test is a float post-decrement compared against a
+//   zero local (`if ((*timer)-- == zero)`), not a copy of the timer stored back
+//   as `t - 1.0f`. The old spelling made mwcc reload/recolor the 1.0f constant
+//   (the "FP odd/even coloring wall"); the post-decrement keeps the 1.0f from
+//   the `1.0f - table` expression in the target's register.
+// - State 0 keeps the explicit `t = timer; timer = t - 1.0f; if (t == zero)`
+//   spelling, which already matched.
+
 // CORRECTED (decomp lane round 5, 2026-10-20) against the original instructions:
 // func_00174FD0 takes the entity; the original calls it with its own a0 (arg0)
 // untouched, so the call passes arg0 (the old C called it with no argument, which
@@ -31,15 +30,6 @@
 // normalize) + func_001B12B0 (angle lerp, rate 0.06981317f), tracking a
 // left/right turn flag at arg0[0x25D]; default case resets the turn flag and
 // lerps back to the base heading arg0[0x218].
-//
-// WALL: body/structure/signature/all constants fully recovered (including
-// fixing the true func_001749A0(e,clip,flags,blend) signature and the two
-// blend-seconds float constants 8.0f/12.0f, misread initially as 1.0f/3.0f).
-// Sole residual: FP odd/even register-coloring on two float add/sub ops
-// inside the timer-expiry branches (target colors a constant load to a
-// DIFFERENT numbered FP reg -- f1 vs f2 -- than mwcc, purely a function-wide
-// register-pressure artifact). The prologue move-order difference recorded
-// earlier was the missing func_00174FD0 argument (see CORRECTED above).
 extern float func_0011E2A8(float a);
 extern int func_001749A0(int e, short clip, int flags, float blend);
 extern float func_001B1470(float a);
@@ -85,11 +75,8 @@ void func_0017F5F0(int arg0, int arg1) {
             *(unsigned char *)(arg0 + 0x1F1) = 2;
         } else {
             float zero = 0.0f;
-            float t = *(float *)(arg0 + 0x2F8);
-            *(float *)(arg0 + 0x2F8) = t - 1.0f;
-            if (t == zero) {
-                float d = *(float *)(arg0 + 0x2E4);
-                *(float *)(arg0 + 0x38) -= d;
+            if ((*(float *)(arg0 + 0x2F8))-- == zero) {
+                *(float *)(arg0 + 0x38) -= *(float *)(arg0 + 0x2E4);
             }
         }
     } else {

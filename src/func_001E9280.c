@@ -1,21 +1,17 @@
-// NEARMISS func_001E9280  (vram 0x001E9280, 0x2F4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.15% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// Locals in the target saved-register order. Left: ptr + int operand order of the three copy destinations (addu operands swapped) and the func_001CB6B0 argument load order.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
 //
-// Decomp lane round 5 (2026-10-20): locals declared in the order of the target's
-// saved registers (blk s0, row s1, seg_idx s2, seg s3, off s4, seg1 s5, seg2 s6,
-// orig s7, base s8) and the inner loop's counters initialised row, seg, off.
-
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 98.15% NEARMISS).
+// Fixes read from the original instructions:
+//  - func_001CB6B0 takes pointers for its context and its fourth argument (char *):
+//    with the int-cast prototype the D_00275674 load was scheduled after the context
+//    address instead of first.
+//  - The three per-row copy destinations add the row offset to the block address as an
+//    unsigned integer (offset first, then (unsigned int)blk, then +0x10); the plain
+//    pointer sum swapped the add's operands.
+//  - Locals stay declared in the target's saved-register order (blk, row, seg_idx, seg,
+//    off, seg1, seg2, orig, base); the inner loop's counters are initialised row, seg, off.
 //
 // GS/DMA packet builder over one 0xA060-byte record of the array at
 // D_00275C18, selected by arg0's unsigned halfword +0xE (the product is
@@ -46,10 +42,11 @@
 // D_00275674 is read after the 001CB950 call (whose allocation may move the render context's
 // cursor word).
 extern void func_00102948(void *dst, void *src);
+typedef struct { int w[4]; } QW;
 extern void copy_qw4(void *dst, void *src);
 extern char *func_001CB5F0(void *a0, int a1, int a2);
 extern unsigned char *func_001CB950(int a0, int a1, long a2);
-extern void func_001CB6B0(int a0, int a1, int a2, int a3);
+extern void func_001CB6B0(char *a0, int a1, int a2, char *a3);
 extern void func_001CB760(int a0, int a1, int a2);
 
 extern char D_007635C0[64];
@@ -85,9 +82,9 @@ void func_001E9280(char *arg0) {
         seg = base;
         off = 0;
         do {
-            func_00102948(off + blk + 0x10, seg + 0x60);
-            func_00102948(((row + 8) << 4) + blk + 0x10, seg1 + 0x60);
-            func_00102948(((row + 0x10) << 4) + blk + 0x10, seg2 + 0x60);
+            func_00102948((void *)(off + (unsigned int)blk + 0x10), seg + 0x60);
+            func_00102948((void *)(((row + 8) << 4) + (unsigned int)blk + 0x10), seg1 + 0x60);
+            func_00102948((void *)(((row + 0x10) << 4) + (unsigned int)blk + 0x10), seg2 + 0x60);
             row += 1;
             seg += 0x10;
             off += 0x10;
@@ -134,6 +131,6 @@ void func_001E9280(char *arg0) {
     func_00102948(blk + 0x80, D_00275670 + 0x2230);
 
     func_001CB950((int)D_007635C0, 0, (long)0x99422040U | ((long)0x20048BA1 << 32));
-    func_001CB6B0((int)D_007635C0, 0, 8, (int)(D_00275674 + 0x720));
+    func_001CB6B0(D_007635C0, 0, 8, D_00275674 + 0x720);
     func_001CB760((int)D_007635C0, 0, (int)D_00234FE0);
 }

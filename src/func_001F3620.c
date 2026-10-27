@@ -1,15 +1,12 @@
-// NEARMISS func_001F3620  (vram 0x001F3620, 0x80C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.92% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Single register-allocation swap (a0<->v1) on one 7-instruction pair: in the D_00275C44 sound-reseed block, the target colors the modulo divisor/result into $a0 and the mute-byte (0x70003B8D) temp into $v1; mine colors them v1/a0. Everything else byte-identical (99.92% = 7 mismatched rows / ~514 i...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.92% NEARMISS).
+// Fixes read from the original instructions:
+// - In the D_00275C44 reseed block the new value (rand%20 + 30) is computed into
+//   one local first, then the mute byte 0x70003B8D is read, then the global is
+//   stored; computing the modulo at the store (with the raw rand in a local)
+//   swapped the a0/v1 colouring of the two temps.
 
 // Debris/particle piece update state machine (called per-entity from matched
 // func_001F40C0 with t = the entity's +0x82 type id). p+0x70 = state (0..3),
@@ -33,10 +30,6 @@
 // States 0/3 (ret=1) then integrate: quat->mat3, scale rows by spin*fade,
 // translate by velocity (func_001028B8), and apply per-type gravity from table
 // D_0025A398 (stride 0x60) to vy.
-//
-// NEARMISS 99.92% (mwcc233; 991202 = 84.66%) - logic fully recovered; sole
-// residual is one a0<->v1 register-allocation swap in the D_00275C44 reseed
-// block (modulo temps vs mute-byte temp).
 
 extern int func_00122BB8(void);
 extern void func_001CA3B0(char *q, float x, float y, float z);
@@ -162,9 +155,9 @@ void func_001F3620(char *p, int t) {
                 *(int *)(p + 0x70) = 3;
                 ret = 1;
                 if (D_00275C44 < 0) {
-                    int rnd = func_00122BB8();
+                    int v = (func_00122BB8() % 20) + 0x1E;
                     unsigned char m = *(unsigned char *)0x70003B8D;
-                    D_00275C44 = (rnd % 20) + 0x1E;
+                    D_00275C44 = v;
                     if (m == 0) {
                         switch (t) {
                         case 3:

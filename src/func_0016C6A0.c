@@ -1,19 +1,14 @@
-// NEARMISS func_0016C6A0  (vram 0x0016C6A0, 0x6C4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// One pair in func_001B12B0(0.0f, +0xC0, 0.06981317f): the target sets $f14 before $f12 = 0, as in func_00162DB0 (literal, local, function-scope and folded-constant spellings, mwcc 2.4 tried). Body corrected in decomp2 lane round 4.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
 //
-// Body corrected, decomp2 lane round 4 (93.70 -> 99.95), from the original
-// instructions:
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.95% NEARMISS).
+// Fixes read from the original instructions:
+//  - The 0xB easing step is 4 degrees converted from an int,
+//    (3.1415927f * (float)deg) / 180.0f with deg = 4, not the folded literal
+//    0.06981317f: the conversion stays in the intermediate code, so $f14 (the
+//    step) is set before $f12 = 0, as in func_00162DB0.
+// Body corrected earlier, decomp2 lane round 4 (93.70 -> 99.95):
 //  - State 0x15 calls func_00224290(arg0) BEFORE it consumes the airborne
 //    timer (the old C called it after the +0x38 update), and branches on
 //    +0x38 > +0x2E0 first.
@@ -24,8 +19,6 @@
 //    in $f13; the old C declared an int blend). State 0x14 keeps the clip
 //    length in a register for the subtraction; state 0's re-reads 0x70003A20.
 //  - -sdatathreshold 4: D_00275B40 is gp-relative in the target.
-// Left: one pair in func_001B12B0(0.0f, +0xC0, 0.06981317f), the same
-// residual as func_00162DB0 (the target sets $f14 before $f12 = 0).
 //
 // Player crouch/land vertical-motion state machine, dispatched on the state
 // byte at arg0+6 (a beq-chain, not a jump table: compare order 0x1E,0x15,
@@ -211,7 +204,11 @@ void func_0016C6A0(unsigned char *arg0)
         break;
     case 0x15: {
         int landed;
-        *(float *)(e + 0xC0) = func_001B12B0(0.0f, *(float *)(e + 0xC0), 0.06981317f);
+        {
+            int deg = 4;
+            float step = (3.1415927f * (float)deg) / 180.0f;
+            *(float *)(e + 0xC0) = func_001B12B0(0.0f, *(float *)(e + 0xC0), step);
+        }
         landed = func_00224290(e);
         if (!(*(float *)(e + 0x38) <= *(float *)(e + 0x2E0))) {
             *(float *)(e + 0x38) -= *(float *)(e + 0x2E0);

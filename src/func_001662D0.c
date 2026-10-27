@@ -1,24 +1,17 @@
-// NEARMISS func_001662D0  (vram 0x001662D0, 0x19A8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// Corrected body (func_001C68C0(self), one-argument func_00180460/00180530). Left: the three float constants of both func_00180600(self, n, 9, 10, -2) calls are materialized in a different order (target sets $f14 first at the step-2 call); literal, local, statement and switch forms tried.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
 
-//
-// CORRECTED (decomp lane round 5, 2026-10-20) against the original instructions:
-// func_001C68C0 takes the actor (it builds the TRS matrix at self+0xD0); all three
-// calls pass self (the old C passed the +0x200 flag word, the constant 0x20 and
-// (int)self). func_00180460 / func_00180530 take only the actor (the old second
-// argument 1 was a register leftover). Spelling fixes from the target's code:
-// `+0x23F > 1` (compare through $at), `+= 10.0f` on 0x700038A4, and the plain
-// float truth tests of +0x224 / +0x22C.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.98% NEARMISS).
+// Fixes read from the original instructions:
+//  - The two func_00180600 hop-reach calls do not take three plain float
+//    literals: the original sets the -2.0 argument first at the variant-2 call and
+//    the 9.0 then -2.0 arguments first at the variant-3 call. That order is
+//    reproduced by staging those constants through int locals converted to float
+//    (idiom-24 generalized to non-zero constants; twin: func_001D2960's 560.0),
+//    one separate local per call (a shared local is folded back).
+//  - (decomp lane round 5) func_001C68C0 takes the actor (it builds the TRS matrix at
+//    self+0xD0); func_00180460 / func_00180530 take only the actor; `+0x23F > 1`,
+//    `+= 10.0f` on 0x700038A4 and the plain float truth tests of +0x224 / +0x22C.
 
 // Ladder / climbable-object actor state machine (one tick).  `self+6` is the
 // state byte, `self+7` a per-state sub-step, `self+0x28` a countdown, and
@@ -90,6 +83,12 @@ extern char D_700038B0[];
 
 void func_001662D0(unsigned char *self)
 {
+    int v2_dy_i;
+    float v2_dy;
+    int v3_dy_i;
+    float v3_dy;
+    int v3_dx_i;
+    float v3_dx;
     float pa[4];
     float pb[4];
     float ang;
@@ -132,11 +131,17 @@ void func_001662D0(unsigned char *self)
                 *(unsigned char *)(self + 6) = 0x1E;
             }
         } else if (step == 2) {
-            if (func_00180600(self, 0, 9.0f, 10.0f, -2.0f) == 0) {
+            v2_dy_i = -2;
+            v2_dy = (float)v2_dy_i;
+            if (func_00180600(self, 0, 9.0f, 10.0f, v2_dy) == 0) {
                 *(unsigned char *)(self + 6) = 0x32;
             }
         } else if (step == 3) {
-            if (func_00180600(self, 1, 9.0f, 10.0f, -2.0f) == 0) {
+            v3_dx_i = 9;
+            v3_dx = (float)v3_dx_i;
+            v3_dy_i = -2;
+            v3_dy = (float)v3_dy_i;
+            if (func_00180600(self, 1, v3_dx, 10.0f, v3_dy) == 0) {
                 *(unsigned char *)(self + 6) = 0x3C;
             }
         }
