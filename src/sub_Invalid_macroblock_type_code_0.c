@@ -1,6 +1,6 @@
 // NEARMISS sub_Invalid_macroblock_type_code_0  (vram 0xnvalid_macroblock_type_code_0, 0x524 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.09% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 94.02% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // eegcc GPR-coloring wall + one spill-reload/delay-slot divergence. The instruction sequence is otherwise identical end-to-end (both hardware-register RMWs, all four callee dispatches, the GIF/DMA channel setup, the field-clear blocks and the whole return tail). Residual is (a) a pure callee-saved ...
 //
@@ -9,6 +9,8 @@
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: eegcc
+// EEGCC_AS: 2.96
+// (2.96 gas: matching wave 2026-10-27 sweep; it fills call/return delay slots as the original does)
 // CFLAGS: -O2
 
 extern int D_00241408;

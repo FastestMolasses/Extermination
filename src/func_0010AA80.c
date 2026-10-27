@@ -1,6 +1,6 @@
 // NEARMISS func_0010AA80  (vram 0x0010AA80, 0xC0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 92.19% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
+// objdiff 98.75% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
 // Logic/frame(0x60)/externs all correct; return type void confirmed (no trailing return-value clear). Residual diff: the two volatile MMIO stores *(0x10002000)=0 and *(0x1000B400)=0x101 are not scheduled into the delay slots of the preceding func_001063E8 / func_001063B8 calls (gcc leaves a nop there and places the store before the call); rest of the note: docs/NEARMISS.md.
 //
@@ -9,6 +9,8 @@
 // unit / excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: eegcc
+// EEGCC_AS: 2.96
+// (2.96 gas: matching wave 2026-10-27 sweep; it fills call/return delay slots as the original does)
 // CFLAGS: -O2
 
 extern int func_00109B20(int a0, void *a1);

@@ -1,6 +1,6 @@
 // NEARMISS func_00111680  (vram 0x00111680, 0x194 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 44.41% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 94.68% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // SPLIT-SYMBOL (missing symbol at 0x00111740) -- 100% is structurally impossible, not a compiler wall. The splat symbol func_00111680 is 0x194/416 bytes but contains TWO functions: the thread loop (0x00111680..0x0011173B, ends with an infinite `b`, never returns) + an alignment nop at 0x0011173C + ...
 //
@@ -9,6 +9,8 @@
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: eegcc
+// EEGCC_AS: 2.96
+// (2.96 gas: matching wave 2026-10-27 sweep; it fills call/return delay slots as the original does)
 // CFLAGS: -O2
 
 //

@@ -1,8 +1,12 @@
 // NEARMISS func_001D0720  (vram 0x001D0720, 0x548 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.28% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// objdiff 97.31% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
 // Remaining differences in this candidate:
-// FPR allocation, branch-delay scheduling and shared fallback flow differ; candidate is 24 bytes longer. Original-instruction oracle verifies 7680 state transitions and identical RNG calls under host float32 rules.
+// Compiler mix (MATCHING_GUIDE open decision 2): the original fills every switch/if
+// compare-chain slot and the shape-reroll slot with the next constant the way
+// 991202 does, while its divide padding and loop nops are 2.3.3's; 991202 scores
+// 92.6%. The last loop also allocates count/target cursor to swapped temporaries.
+// Original-instruction oracle verifies 7680 state transitions and identical RNG calls under host float32 rules.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -152,7 +156,7 @@ expression_talk_gate:
                     if (i == *(int *)(control + 0x1C)) {
                         *(float *)(p + 0x20) = 0.0f;
                     } else {
-                        *(float *)(p + 0x20) = *(float *)(p + 0x20) * 0.1f;
+                        *(float *)(p + 0x20) *= 0.1f;
                     }
                     i += 1;
                     p += 4;

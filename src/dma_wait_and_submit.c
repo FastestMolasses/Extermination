@@ -1,6 +1,6 @@
 // NEARMISS dma_wait_and_submit  (vram 0x00100A60, 0x314 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 89.69% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 97.55% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // eegcc list-scheduler wall (+ minor GPR coloring). Body/structure fully recovered: all 5 poll loops, the 5 goto-merged timeout blocks and the 11-call register dump match instruction-for-instruction, and the whole query!=0 movn bitmask path is byte-identical. Residual is confined to the dump block:...
 //
@@ -9,6 +9,8 @@
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: eegcc
+// EEGCC_AS: 2.96
+// (2.96 gas: matching wave 2026-10-27 sweep; it fills call/return delay slots as the original does)
 // CFLAGS: -O2
 
 //

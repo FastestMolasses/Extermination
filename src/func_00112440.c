@@ -1,15 +1,11 @@
-// NEARMISS func_00112440  (vram 0x00112440, 0x1CC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.22% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc list-scheduler + delay-slot-fill wall. Body, control flow, register allocation and the switch decision tree all match exactly; the only residual is the delay slots of the two SignalSema calls, which the original fills with the load of D_00241D08 and ours leaves as a nop (rest of the note: docs/NEARMISS.md).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+// EEGCC_AS: 2.96
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.22% NEARMISS). Fixes read from the original instructions:
+// - The C was already correct; the residual (the D_00241D08 load sitting in the two
+//   SignalSema call delay slots) is the assembler's slot filling, reproduced by
+//   assembling with the 2.96 gas (EEGCC_AS: 2.96). No source change needed.
 
 // libcdvd: sceCdRead(lsn, sectors, buf, mode) — fills the RPC packet at
 // D_00279F40 and fires an async SIF RPC (fno 1) to the cdvd server.

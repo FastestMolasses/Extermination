@@ -1,15 +1,21 @@
-// NEARMISS func_00116DB8  (vram 0x00116DB8, 0x2D0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.22% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc CSE wall (local, 4 instrs) — everything except one 4-instruction cluster in the `mode == 1` arm is instruction-for-instruction identical (control flow, all delay slots, both branch-likely idioms, both loops, IV selection, epilogue). Expected evaluates `D_0027C6C0[j].buf` TWICE without CSE: ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.22% NEARMISS).
+// Fixes read from the original instructions:
+//  - The `mode == 1` arm indexes the slot table twice by re-reading the 16-bit
+//    slot index from the object at each use (the original computes the
+//    element address twice and loads `buf` twice); caching it in a local let
+//    ee-gcc share the address computation.
+//  - The slot table is a plain (non-volatile) extern; the earlier volatile
+//    qualifier was a workaround and is not needed.
+//
+// Commits the object's pending slot/owner change (mode 1: swap the current and
+// requested slot values and point the shared context at that slot's buffer;
+// mode 2: point the context at the object's own buffer and apply the per-bit
+// mask writes), then pushes the new value to every active node owned by the
+// object, refreshing its outputs through func_001179E0 / func_001157F0.
+// Returns -1 when nothing was pending, else 0.
 
 typedef struct {
     /* 0x00 */ signed char cur;
@@ -45,7 +51,7 @@ typedef struct {
 } Node; /* 0x6A */
 
 extern Pair D_002819C0[];
-extern volatile Slot D_0027C6C0[];
+extern Slot D_0027C6C0[];
 extern Ctx D_00281AC0;
 extern Node D_0027CCC0[];
 
@@ -77,9 +83,8 @@ int func_00116DB8(unsigned char *p)
 
     switch (mode) {
     case 1: {
-        int j = *(unsigned short *)(p + 0x24);
-        D_00281AC0.base = D_0027C6C0[j].buf;
-        D_00281AC0.cur = D_0027C6C0[j].buf + *(int *)(D_00281AC0.base + 0x20);
+        D_00281AC0.base = D_0027C6C0[*(unsigned short *)(p + 0x24)].buf;
+        D_00281AC0.cur = D_0027C6C0[*(unsigned short *)(p + 0x24)].buf + *(int *)(D_00281AC0.base + 0x20);
         *D_00281AC0.cur = p[0x6C];
         break;
     }

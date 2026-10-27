@@ -1,15 +1,16 @@
-// NEARMISS func_001BFFD0  (vram 0x001BFFD0, 0x308 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.24% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure fully recovered (switch on state byte at e+4, 4 cases dispatched by mwcc in descending 3,2,1,0 order matching idiom-20). Sole residual: the switch selector `st` and the literal constant 3 are assigned to swapped argument registers (a2 vs a3) versus the target in the very first comp...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.24% NEARMISS).
+// Fixes read from the original instructions:
+// - The old residual note (swapped switch-selector registers) was wrong; the real
+//   difference was in state 1's flag hand-off: the original stores the partner's
+//   state byte (3) separately in each of the two arms, not through a shared goto
+//   label. Writing the store in both arms reproduces the code.
+//
+// Per-frame state machine for an entity paired with a partner (e+0x20): the state
+// byte at e+4 runs 0 (wait/init), 1 (active, animate and pass flags to the
+// partner), 2 (fade out the value at e+0x64), 3 (finish via func_001AFC10).
 
 typedef unsigned char u8;
 typedef short s16;
@@ -92,11 +93,10 @@ void func_001BFFD0(char *e) {
                                     }
                                     *(s32 *)(e2 + 0x1C) = 0x3C;
                                     *(s16 *)(e0 + 0x36) = *(s16 *)(e + 0x36);
-                                    goto block_36;
+                                    *(u8 *)(e0 + 0) = 3;
                                 }
                             } else {
                                 *(s16 *)(e0 + 0x36) = flags;
-block_36:
                                 *(u8 *)(e0 + 0) = 3;
                             }
                         }

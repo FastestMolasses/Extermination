@@ -1,6 +1,6 @@
 // NEARMISS dmac_reset  (vram 0x00101BE0, 0xDC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 88.36% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
+// objdiff 91.27% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
 // eegcc reg-alloc + list-scheduler wall. Body structurally identical (88.4%). Two remaining diff classes: (1) register coloring of the two parallel arrays D_00241090/D_00241050 differs (expected a2/v1, ours v1/a1) propagating ARG_MISMATCH through the whole zeroing loop; (2) the volatile store `*(0x1000E010) &= 0xFF1F0...
 //
@@ -9,6 +9,8 @@
 // unit / excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: eegcc
+// EEGCC_AS: 2.96
+// (2.96 gas: matching wave 2026-10-27 sweep; it fills call/return delay slots as the original does)
 // CFLAGS: -O2
 
 extern int func_00101B80(void *, int);

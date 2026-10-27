@@ -1,6 +1,6 @@
 // NEARMISS func_0010A400  (vram 0x0010A400, 0xD4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 87.17% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
+// objdiff 90.38% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
 // eegcc volatile-store delay-slot-fill wall. The entire DMA-tag-build loop (slt/movz min, (chunk+15)/16 signed ceil-div, dsll32/dsll tag assembly, 16-byte tag stride, sd) is byte-identical, and after reordering id/qwc the hoisted const regs (t6=3,t5=-1) match, and the trailing register writes to 0x1000B430/B420/B400 m...
 //
@@ -9,6 +9,8 @@
 // unit / excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: eegcc
+// EEGCC_AS: 2.96
+// (2.96 gas: matching wave 2026-10-27 sweep; it fills call/return delay slots as the original does)
 // CFLAGS: -O2
 
 extern unsigned char D_00276080;

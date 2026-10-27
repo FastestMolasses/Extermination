@@ -1,8 +1,8 @@
 // NEARMISS func_001D89D0  (vram 0x001D89D0, 0x21C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.63% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 99.89% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Body fully correct: 5-arg func_001D8340 (pointer as 5th arg) per matched sibling func_001D88B0, gp-rel D_00275670/D_00275688, non-gp D_00817BC0[] array form, (sub&0xFF)*4 index ordering. Residuals: (1) v0<->v1 register coloring on the `*(arg0+2)` byte reloads + commutative addu operand order on t...
+// Body fully correct: 5-arg func_001D8340 (pointer as 5th arg) per matched sibling func_001D88B0, gp-rel D_00275670/D_00275688, non-gp D_00817BC0[] array form. Matching wave 2026-10-27: the clamp is the ternary `c = (c > 0) ? c : 0` (restores the original branch-likely join) and the table index is `((sub & 0xFF) << 2) + arg0` (restores the add operand order). Remaining differences: the arg0+2 byte reload feeding func_001D8690's flag lands in v0 instead of v1 (3 instructions); declaration order, local reuse, types, TU_STATIC callees and a 6450-iteration permuter run did not move it.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -23,10 +23,8 @@
 // is accumulated into arg2+0x30.. with the last component clamped
 // (max(arg0[0x8C]-1, 0)).
 //
-// NEARMISS: readable C, body byte-correct, 97.6% on mwcc 2.3.3 (991202 92.7%).
-// Residuals are v0/v1 register coloring on the arg0+2 byte reloads and the same
-// clamp bc1tl branch-likely + FP-coloring artifact as func_001D8690; not the
-// clean-store nop. Permuter/register-coloring class.
+// NEARMISS: readable C, body byte-correct, 99.89% on mwcc 2.3.3. Residual is
+// v0/v1 register coloring on the arg0+2 byte reload before func_001D8690.
 
 extern void func_001D8130(int flag, int p);
 extern void func_001D8340(int a, int b, int c, int flag, int p);
@@ -70,7 +68,7 @@ void func_001D89D0(char *arg0, int arg1, char *arg2, int arg3) {
         func_001D8130(*(unsigned char *)(arg0 + 2) & 0x20, (int)(arg0 + 0xB0));
         func_001D8340((int)arg0, arg1, (int)arg2, *(unsigned char *)(arg0 + 2) & 0x20, (int)(arg0 + 0xB0));
     } else {
-        m = *(int *)((sub & 0xFF) * 4 + (int)arg0 + 0x110);
+        m = *(int *)(((sub & 0xFF) << 2) + (int)arg0 + 0x110);
         func_001D8130(*(unsigned char *)(arg0 + 2) & 0x20, m + 0xC0);
         func_001D8340((int)arg0, arg1, (int)arg2, *(unsigned char *)(arg0 + 2) & 0x20, m + 0xC0);
     }
@@ -80,9 +78,7 @@ void func_001D89D0(char *arg0, int arg1, char *arg2, int arg3) {
         *(float *)(arg2 + 0x34) += 64.0f * *(float *)(arg0 + 0x84);
         *(float *)(arg2 + 0x38) += 64.0f * *(float *)(arg0 + 0x88);
         c = *(float *)(arg0 + 0x8C) - 1.0f;
-        if (c <= 0.0f) {
-            c = 0.0f;
-        }
+        c = (c > 0.0f) ? c : 0.0f;
         *(float *)(arg2 + 0x3C) += 64.0f * c;
     }
 }

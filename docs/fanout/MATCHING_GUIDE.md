@@ -97,3 +97,24 @@ anim_matrix_player (one variable carries the requested clip in both arms),
 func_00107CF0 (`(int)(frac >> 1)`), func_0014C680 (state 0 falls through to
 case 1; idiom-32), func_001B3F10 (idiom-32 query vectors), sub_pts_is_not_used
 (ternary clamp).
+
+### Queue batch after the tooling batch (2026-10-27)
+
+13 byte-matched (all compiled from C; audit_link_provenance clean):
+func_001D8690 and func_00181E20 (ternary clamp / one combined result test),
+func_00199770, func_001814E0 (a wrong body: the retry also runs when the
+copied byte is neither 0x34 nor 0x1E), func_001E7050, func_001BFFD0 (each arm
+stores its own flag instead of a shared `goto`), func_00116DB8 (ee-gcc: the
+slot index re-read at each use), func_0011DBB8 (ee-gcc fdlibm: the float word
+read inside a GET_FLOAT_WORD-shaped `do { ... } while (0)` block, which makes
+ee-gcc align the following label), sub_TTY_receive_error (a missing second
+argument), func_00112440 (2.96 gas only).
+**2.96-gas sweep:** every eegcc NEARMISS re-measured with `// EEGCC_AS: 2.96`
+and no other change: func_00112AD0, func_00112B90, func_00112C58 byte-match;
+seven gain against a fresh baseline and now use it (func_0010AA80 92.19 ->
+98.75, dma_wait_and_submit 89.66 -> 97.55, func_00111680 91.28 -> 94.68,
+func_0010A400, dmac_reset, func_00108300, sub_Invalid_macroblock_type_code_0).
+NEARMISS improved and parked: func_001D89D0 99.89 (one flag-byte reload in
+v0 instead of v1; callers pass a 4th argument that func_001D8690's definition
+lacks), func_001EF780 97.69 (easing-tail constant order shared with the
+func_001EF510 family), func_001D0720 97.31 (compiler mix).

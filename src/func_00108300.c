@@ -1,6 +1,6 @@
 // NEARMISS func_00108300  (vram 0x00108300, 0x1B0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 83.50% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
+// objdiff 87.21% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
 // residual diff is a genuine compiler artifact that no source change fixes here:
 // eegcc list-scheduler wall. Body matches 100% from AddDmacHandler onward; only the prologue diverges: the deterministic ee-gcc scheduler interleaves the callee-saved sd stores with the four struct stores to D_00241228 in a different order (expected 0xC,0,4,8) and consequently colors the constant/base GPRs differen...
 //
@@ -9,6 +9,8 @@
 // unit / excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: eegcc
+// EEGCC_AS: 2.96
+// (2.96 gas: matching wave 2026-10-27 sweep; it fills call/return delay slots as the original does)
 // CFLAGS: -O2
 
 extern int D_00241228[];

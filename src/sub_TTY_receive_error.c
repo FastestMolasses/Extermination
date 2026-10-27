@@ -1,15 +1,13 @@
-// NEARMISS sub_TTY_receive_error  (vram 0xTY_receive_error, 0x194 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.11% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc GPR coloring wall (no permuter lever). Body/structure/size are exact: our .text = 0x194 = the declared function size, and every instruction matches except 4, where the func_0010C8E8 result pseudo is allocated a0 instead of the target's a1 (the copy out of v0, the branch-likely sign test, and the add and subtract that use it).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.11% NEARMISS).
+// Fixes read from the original instructions:
+// - case 3's error report also passes the negative result: at that call the
+//   second argument register already holds it, which is why the result lives
+//   in that register (the old "coloring wall" was a missing argument).
+// - case 1/2 reads the write offset into a block-local before forming the
+//   SIF buffer address (offset loaded first, buffer base added to it).
 
 // TTY/SIF service dispatcher (ee-gcc SDK region): switch on the request code
 // and either push received bytes through the SIF DMA, drain a packet into the
@@ -54,8 +52,11 @@ void sub_TTY_receive_error(int code, int len, struct tty *tty)
             if ((unsigned int)(tty->f08 + len) > 0x140) {
                 func_0010D890(D_0026B7D8);
             }
-            len = func_0010C8B0(tty->f00, (int)(tty->f14 + tty->f08),
+            {
+            int off = tty->f08;
+            len = func_0010C8B0(tty->f00, (int)(tty->f14 + off),
                                 len & 0xFFFF);
+            }
             if (len < 0) {
                 func_0010D890(D_0026B800);
             }
@@ -72,7 +73,7 @@ void sub_TTY_receive_error(int code, int len, struct tty *tty)
     case 3:
         n = func_0010C8E8(tty->f00, tty->f10, tty->f04 & 0xFFFF);
         if (n < 0) {
-            func_0010D890(D_0026B818);
+            func_0010D890(D_0026B818, n);
             tty->f0C = 0;
         } else {
             tty->f10 += n;

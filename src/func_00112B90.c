@@ -1,15 +1,12 @@
-// NEARMISS func_00112B90  (vram 0x00112B90, 0xC4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.73% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Identical family member to func_00112AD0 — same eegcc volatile-vs-delay-slot deadlock, same single-instruction residual (the fall-through word load of D_00241D08 fails to fill the delay slot of the SignalSema call because the volatile qualifier that is required to force the `bgezl` annul also makes resource_c...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
+// EEGCC_AS: 2.96
 // CFLAGS: -O2
+
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.73% NEARMISS).
+// The C was already right: the original fills a call delay slot that only the
+// 2.96 gas fills (// EEGCC_AS: 2.96); found by the 2.96 sweep over eegcc NEARMISS files.
+//
 
 extern char D_00279E00[];
 extern volatile int D_00241D08;

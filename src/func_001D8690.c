@@ -1,15 +1,12 @@
-// NEARMISS func_001D8690  (vram 0x001D8690, 0x220 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body fully correct (gp-rel reload-per-access reproduced, sized-array non-gp 0x28 symbols). Sole residual (4 instrs of ~131): the clamp `if(c<=0)c=0;` emits plain `bc1f` instead of the target's `bc1tl` branch-likely with the first D_00275688 load duplicated into both branch slots + a `b` join. Bra...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.65% NEARMISS).
+// Fixes read from the original instructions:
+//  - The clamp is a ternary that keeps c when positive, `(c > 0.0f) ? c : 0.0f`,
+//    not `if (c <= 0.0f) c = 0.0f;`. The ternary's select shape gives the
+//    original's likely branch and the duplicated global-pointer load in both
+//    branch slots; it was never a compiler wall.
 
 //
 // Builds two blocks from the global state record at gp-rel D_00275688.
@@ -18,10 +15,6 @@
 // +0xF0 of D_00275688 with each row's 4th word zeroed. The second block
 // (arg1) scales arg2[0..2] / clamped-c by the matrix at +0xF0..+0x128 and
 // biases the last row by 8388608.0f.
-//
-// NEARMISS: readable C, body byte-correct, 97.6% on mwcc 2.3.3 (and 991202).
-// Residual is a branch-likely (bc1tl) + delay-slot-fill scheduling artifact on
-// the clamp, not the clean-store nop; permuter/scheduling class.
 
 extern char *D_00275688;
 
@@ -29,9 +22,7 @@ void func_001D8690(char *arg0, char *arg1, char *arg2) {
     float c;
 
     c = *(float *)(arg2 + 0xC) - 1.0f;
-    if (c <= 0.0f) {
-        c = 0.0f;
-    }
+    c = (c > 0.0f) ? c : 0.0f;
     *(float *)(arg0 + 0)    = *(float *)(D_00275688 + 0xC0);
     *(float *)(arg0 + 0x10) = *(float *)(D_00275688 + 0xC4);
     *(float *)(arg0 + 0x20) = *(float *)(D_00275688 + 0xC8);

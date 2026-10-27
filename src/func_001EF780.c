@@ -1,8 +1,8 @@
 // NEARMISS func_001EF780  (vram 0x001EF780, 0x1B4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.60% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 97.69% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// FP register coloring / paired-single allocation + order of materializing the two call-argument float constants (1.0f and 1e-6f). Body and structure fully recovered; residual is a scheduling/coloring permutation, not logic. Permuter territory; 2.3.3 does not fix it.
+// Remaining differences: (1) inside the loop the target materializes the 1e-6f argument before the 1.0f argument (ours: 1.0f first); (2) in the easing tail the target colours the loaded field into the lower FP register and the 0.02f constant into the higher one (ours: swapped). Tail store-through spelling (field = f + (0.02f - f) / 10.0f) took it from 97.60 to 97.69. Not fixed by constant spellings, int-staged constants, separate/extra locals, struct/array access, compilers 991202/2.4, or a 9-minute permuter run (no improvement from score 115). The sibling functions 001ECFB0..001EF1C0 share both residuals.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,7 +12,7 @@
 // CFLAGS: -O4,p -sdatathreshold 4
 
 //
-// NEARMISS (mwcc233 = 97.6%, 991202 = 90.4%): body and structure fully
+// NEARMISS (mwcc233 = 97.69%, 991202 = 90.4%): body and structure fully
 // recovered; the sole residual is FP register coloring / paired-single
 // allocation plus the order in which two call-argument float constants (1.0f
 // and 1e-6f) are materialized — a compiler scheduling/coloring permutation,
@@ -67,8 +67,7 @@ void func_001EF780(int arg0, int arg1) {
         pm += 4;
     }
     f = *(float *)((char *)D_00275C34 + 8);
-    f = f + (0.02f - f) / 10.0f;
-    *(float *)((char *)D_00275C34 + 8) = f;
+    *(float *)((char *)D_00275C34 + 8) = f + (0.02f - f) / 10.0f;
     f = *(float *)((char *)D_00275C34 + 8);
     if (f < 0.02f) {
         f = 0.02f;

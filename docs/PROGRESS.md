@@ -1,3 +1,14 @@
+## 2026-10-27 — matching wave, queue batch: 13 more byte-matched; 2.96-gas sweep
+
+func_001D8690, func_00199770, func_001814E0, func_001E7050, func_001BFFD0,
+func_00116DB8, func_00181E20, func_0011DBB8, sub_TTY_receive_error,
+func_00112440, and from a sweep of every eegcc NEARMISS with `// EEGCC_AS:
+2.96`: func_00112AD0, func_00112B90, func_00112C58 (seven more improved).
+Gate: fresh build + verify_all all six stages pass, boot ELF byte-identical,
+19/19 overlays, matched_code 99.96%, 2420/2422 units; audit_link_provenance
+clean (1922 ordinary-C routes). FUNCTIONS.csv 2087 readable, 521 nearmiss.
+MATCHING_GUIDE "Queue batch after the tooling batch".
+
 ## 2026-10-27 — matching wave, tooling batch: open decisions 1, 3, 4, 5 done; 14 byte-matched
 
 Relocation-spelling normaliser (tools/decomp/reloc_normalize.py, run by

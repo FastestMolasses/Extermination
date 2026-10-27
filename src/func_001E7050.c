@@ -1,25 +1,15 @@
-// NEARMISS func_001E7050  (vram 0x001E7050, 0x2B4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.25% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// register-allocation-order (coloring) permutation: target colors src->s1 and the 0x1F0 table base->s3 (arg0->s4, case-0 counter->s0, inner counter->s2); mwcc colors src->s0/table->s1, shifting every sN by one and pulling two add/increment ops into adjacent delay slots. Declaration-order and split-...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-//
-// NEARMISS 97.3% (mwcc 2.3.3; 991202 = 86.0%). Body fully recovered; all
-// instructions present and in order. Sole residual is a callee-saved register
-// COLORING permutation: the target assigns src(arg0+0x24)->s1 and the 0x1F0
-// table base->s3 (with arg0->s4, the case-0 counter->s0, the inner counter->s2),
-// while mwcc colors src->s0 / table->s1, which shifts every subsequent sN by one
-// and drags two add/increment ops into adjacent delay slots. Declaration-order
-// and split-counter nudges do not move mwcc's coloring (it allocs by live range,
-// not source order). Pure register-allocation-order -> permuter territory.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.25% NEARMISS).
+// Fixes read from the original instructions:
+//  - the clock advance is a compound `+= 8.0f` (the spelled-out sum commuted
+//    the float add operands);
+//  - the slot-phase step is `ph = (field += 0.2f)` (same operand-order cause);
+//  - in the state-0 seed loop the counter increment follows the third store;
+//  - the saved-register "coloring permutation" was local declaration order:
+//    the counters (i, h) come first, then src, p, j, tbl, with the locals
+//    assigned after the declarations.
 //
 // Per-state spawn/emitter driver, dispatched on the state byte at arg0+4.
 //   state 0: seed an 8-entry table at arg0+0x1F0: each slot's +0 int is a random
@@ -50,15 +40,19 @@ extern char D_700036A0[];
 extern char D_700036D0[];
 
 void func_001E7050(char *arg0) {
-    char *src = *(char **)(arg0 + 0x24);
-    unsigned char st = *(unsigned char *)(arg0 + 4);
-    char *tbl = arg0 + 0x1F0;
-    char *p;
     int i;
-    int j;
     int h;
+    char *src;
+    char *p;
+    int j;
+    char *tbl;
+    unsigned char st;
     float ph;
     char sp60[0x60];
+
+    src = *(char **)(arg0 + 0x24);
+    st = *(unsigned char *)(arg0 + 4);
+    tbl = arg0 + 0x1F0;
 
     switch (st) {
     case 0:
@@ -67,8 +61,8 @@ void func_001E7050(char *arg0) {
         do {
             *(int *)p = func_00122BB8() % *(unsigned char *)(src + 0xC);
             *(float *)(p + 0x20) = (float)func_00122BB8() / 2147483648.0f;
-            i++;
             *(float *)(p + 0x40) = (float)func_00122BB8() / 2147483648.0f;
+            i++;
             p += 4;
         } while (i < 8);
         *(int *)(tbl + 0x60) = 0;
@@ -80,7 +74,7 @@ void func_001E7050(char *arg0) {
             break;
         }
         func_00102948(arg0 + 0xB0, src + 0x100);
-        *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0xB4) + 8.0f;
+        *(float *)(arg0 + 0xB4) += 8.0f;
         h = func_001CD070(arg0 + 0xB0, 0x30);
         if (h == 0xFFFFFF) {
             break;
@@ -98,8 +92,7 @@ void func_001E7050(char *arg0) {
                           *(float *)(tbl + 0x40), *(float *)(tbl + 0x20),
                           *(float *)0x70003A20, 9.999999974752427e-07f);
             func_001CFBE0(h, 0, D_00255320, sp60, 0);
-            ph = *(float *)(tbl + 0x40) + 0.2f;
-            *(float *)(tbl + 0x40) = ph;
+            ph = (*(float *)(tbl + 0x40) += 0.2f);
             if (ph > 1.4f) {
                 *(float *)(tbl + 0x40) = *(float *)(tbl + 0x40) - 1.4f;
                 *(int *)tbl = func_00122BB8() % *(unsigned char *)(src + 0xC);

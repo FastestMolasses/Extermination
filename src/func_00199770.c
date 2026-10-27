@@ -1,15 +1,23 @@
-// NEARMISS func_00199770  (vram 0x00199770, 0x250 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.39% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FPU register-coloring permutation in the distance sqrt inputs and the two-coordinate scale/offset block (f-register assignment differs, e.g. ft0f vs ft2) + one arg-move order at the first func_00102948. Body/structure correct; 97.39% on mwcc 2.3.3. Permuter (FP-coloring) territory.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.39% NEARMISS).
+// Fixes read from the original instructions:
+// - The first call's source pointer is spelled as a char pointer read from
+//   arg0+0x20 plus 0xA0 (not an int sum cast to void *); that restores the
+//   original argument setup order (destination first).
+// - The distance deltas are declared in the order dz, dy, dx, which gives the
+//   original FPU register assignment for the squared-length sum.
+// - The screen-space scale block works through locals: both coordinates are
+//   multiplied by t first (Y read before X), then each is divided by 16 into its
+//   local and stored minus 2048; Y is then scaled by 1.5 from the stored value.
+//
+// Walks the D_00275B90 entry list (D_00275B98 entries). For each entry whose
+// first byte is set, func_00183B80 accepts and field 0x34 is non-zero, it fetches
+// the entry position, and if it lies within 360 units of arg0's position
+// (offset 0xA0) it transforms it by the matrix at D_70003AC0, divides by w,
+// recentres on 2048 (Y scaled by 1.5) and, when both magnitudes are inside
+// 180 / 90, calls func_001DD170 with the integer distance.
 
 extern void func_00102948(void *dst, void *src);
 extern void func_001026A0(void *a, void *b, void *c);
@@ -30,13 +38,13 @@ void func_00199770(char *arg0) {
     int n;
     unsigned char **pp;
     unsigned char *e;
-    float dx;
-    float dy;
     float dz;
+    float dy;
+    float dx;
     float dist;
     float t;
 
-    func_00102948(D_700038A0, (void *)(*(int *)(arg0 + 0x20) + 0xA0));
+    func_00102948(D_700038A0, *(char **)(arg0 + 0x20) + 0xA0);
     n = D_00275B98;
     pp = D_00275B90;
     if (n != 0) {
@@ -58,8 +66,10 @@ void func_00199770(char *arg0) {
                     if (!(t < 0.0f)) {
                         float q4 = *(float *)0x700038D4 * t;
                         float q0 = *(float *)0x700038D0 * t;
-                        *(float *)0x700038D0 = q0 / 16.0f - 2048.0f;
-                        *(float *)0x700038D4 = q4 / 16.0f - 2048.0f;
+                        q0 = q0 / 16.0f;
+                        *(float *)0x700038D0 = q0 - 2048.0f;
+                        q4 = q4 / 16.0f;
+                        *(float *)0x700038D4 = q4 - 2048.0f;
                         *(float *)0x700038D4 = 1.5f * *(float *)0x700038D4;
                         if (func_0011DF78(*(float *)0x700038D0) < 180.0f && func_0011DF78(*(float *)0x700038D4) < 90.0f) {
                             func_001DD170(1, D_700038B0, 1, 0x80808080, float_to_int(dist));

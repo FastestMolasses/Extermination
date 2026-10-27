@@ -1,17 +1,16 @@
-// NEARMISS func_0011DBB8  (vram 0x0011DBB8, 0x2A8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.06% via ee-gcc 2.9-991111-01 (-O2) (re-measured s87 after the atanhi/atanlo fix;
-// was 95.41% recorded, 96.94% on re-measure before the fix). Residual = prologue `sd ra`
-// placement + one extra nop at 0x0011DC04 after the NaN-return branch (all other diffs are
-// the resulting 4-byte branch-target shift); no flag variant moved it (the earlier
-// "constant-pool / list-scheduler wall" label is superseded). Function fully decompiled as fdlibm atanf (verified: func_0011DF78 is fabsf; tables D_0026C5F8=aT[11], D_0026C5D8=atanhi[4], D_0026C5E8=atanlo[4], D_0026C5E4/F4=atanhi[3]/atanlo[3]; huge=1.0e30f). Body + all branch-block ordering + polynomial Horner chains + range-reduction...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.06% NEARMISS).
+// Fixes read from the original instructions:
+//  - The float word of x is read inside a do { ... } while (0) block, the fdlibm
+//    GET_FLOAT_WORD macro shape (a union of float and int). ee-gcc records that block
+//    as a loop, which aligns the first following label (the |x| >= 2^34, non-NaN
+//    sign test) to 8 bytes; that is the padding after the NaN return, and the same
+//    change moves the return-address save to the original prologue position.
+//
+// fdlibm atanf: func_0011DF78 is fabsf; D_0026C5F8 = aT[11], D_0026C5D8 = atanhi[4],
+// D_0026C5E8 = atanlo[4], D_0026C5E4/F4 = atanhi[3]/atanlo[3]; huge = 1.0e30f.
 
 extern float func_0011DF78(float);
 
@@ -24,9 +23,10 @@ extern float D_0026C5F4;     /* atanlo[3] */
 float func_0011DBB8(float x)
 {
     float w, s1, s2, z;
-    int hx = *(int *)&x;
-    int ix = hx & 0x7fffffff;
-    int id;
+    int hx, ix, id;
+
+    do { union { float f; int i; } gf_u; gf_u.f = x; hx = gf_u.i; } while (0);
+    ix = hx & 0x7fffffff;
 
     if (ix > 0x507fffff) {
         if (ix > 0x7f800000)

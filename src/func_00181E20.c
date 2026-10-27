@@ -1,15 +1,22 @@
-// NEARMISS func_00181E20  (vram 0x00181E20, 0x140 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.12% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two residual artifacts at 97.125% on mwcc233 (best). (1) FP even/odd register-coloring on the '*0x700038C4 += 25.0f' update: target loads 0x700038C4 into the odd half (fv0f) and the 25.0f constant into fv0, mwcc 2.3.3 colors them fv0/fv1. (2) result-register placement: the target sets the return ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.12% NEARMISS).
+// Fixes read from the original instructions:
+// - The scratchpad float update is a compound `+= 25.0f`; the spelled-out
+//   `x = x + 25.0f` colours the two float temporaries the other way round.
+// - The result is one `if (hit && type == 0x1E) ret = 1; else ret = 0;`:
+//   both failing tests share one "result 0" block, and the result is never
+//   pre-set before the call (which forced it into a saved register).
+//
+// Writes the scratchpad vector at 0x700038A0 as (0, 0, 1 + fparg0, 1.0f).
+// If arg1 is 0 it builds a matrix in 0x700036A0 (func_001029C0, then
+// func_00102BB0 with the float at arg0+0x218, then func_00102918 with arg0+0xB0)
+// and transforms the vector into 0x700038B0; otherwise it transforms it with
+// the matrix at arg0+0xD0. It copies 0x700038B0 to 0x700038C0, adds 25.0f to
+// that copy's second component, and calls func_0019A570 on the two points
+// (mode 4). Returns 1 only if that call is non-zero and the byte at +0x1A of
+// the record pointed to by 0x700031D0 is 0x1E; otherwise 0.
 
 extern void func_001029C0(void *);
 extern void func_00102BB0(void *, void *, float);
@@ -37,14 +44,11 @@ int func_00181E20(char *arg0, int arg1, float fparg0) {
         func_001026A0(D_700038B0, arg0 + 0xD0, D_700038A0);
     }
     func_001031E0(D_700038C0, D_700038B0);
-    *(float *)0x700038C4 = *(float *)0x700038C4 + 25.0f;
-    ret = 0;
-    if (func_0019A570(D_700038B0, D_700038C0, 4, 0) != 0) {
-        if (*(unsigned char *)(*(char **)0x700031D0 + 0x1A) == 0x1E) {
-            ret = 1;
-        } else {
-            ret = 0;
-        }
+    *(float *)0x700038C4 += 25.0f;
+    if (func_0019A570(D_700038B0, D_700038C0, 4, 0) != 0 && *(unsigned char *)(*(char **)0x700031D0 + 0x1A) == 0x1E) {
+        ret = 1;
+    } else {
+        ret = 0;
     }
     return ret;
 }
