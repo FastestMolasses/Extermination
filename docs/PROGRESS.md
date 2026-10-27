@@ -1,3 +1,12 @@
+## 2026-10-27 — matching wave, eighth batch: 10 more byte-matched
+
+func_00107E88, func_001723D0, func_002280F0, func_001FECB0, func_00171320,
+sub_BASCUS_97112_DS00_00_EX_DATA_00, func_00120B98, func_00188430,
+func_001AB430, func_0019A910 (all compiled_object_ordinary_c); bodies of
+func_001DFF70 and func_001E4CE0 corrected. Gate: fresh build + verify_all,
+all six stages pass, boot ELF byte-identical, 19/19 overlays, matched_code
+99.43%, 2364/2368 units. FUNCTIONS.csv: 2032 readable, 574 nearmiss.
+
 ## 2026-10-27 — matching wave, seventh batch: 10 more byte-matched
 
 func_00133640, func_0021FB40, func_0014DC30, func_001BAD40, func_00221FC0,

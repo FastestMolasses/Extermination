@@ -1,94 +1,73 @@
-// NEARMISS func_00120B98  (vram 0x00120B98, 0x150 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 83.60% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// This is an EE-GCC function, NOT mwcc (target uses sd/ld + daddu register saves, not mwcc sq/paddub). Both mwcc builds plateau <=50%; ee-gcc 2.9-991111-01 reaches 83.6% with logic fully recovered. The `int size=0x400` hoist reproduces the target's promotion of 0x400 into callee-saved s2 and the 0x...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
 //
-// Stream/handle (re)opener on object arg0. If flag 0x2 is set in the u16 at
-// arg0+0xC, point the read cursor (arg0+0x10 / arg0+0) at the inline 0x43 byte
-// at arg0+0x43 and mark len=1. Otherwise probe via func_00120578 on the handle
-// at arg0+0x54 (using the s16 id at arg0+0xE) filling a local stat; classify
-// the resulting mode word (sp+4) -> 0xF000 bits, recording a 0x800/0x400 flag
-// and optionally 0x4C=0x400 for the dir vtable at 0011FE90+0x28. Then map the
-// handle through func_00120F40; on failure fall back to the inline buffer +
-// flag 0x2, on success wire arg0+0x10/0/0x14 to the mapped ptr, set the read
-// callback func_00120038 at (handle+0x3C), flag 0x80, and if it was a 0x2000
-// node call func_0010BF10(id, ptr) and OR in flag 0x1 on success.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 83.60% NEARMISS).
+// Fixes read from the original instructions:
+//  - The "forward branch-likely wall" was not there: the original has no annulled
+//    branches here; the residual came from a wrong body shape.
+//  - The two "no handle / probe failed" paths are one combined `||` condition
+//    sharing one tail (size, flag 0x800, is-tty = 0).
+//  - func_0010BF10 (tty probe) takes ONE argument, the s16 id at +0xE; the old
+//    extern passed (id, ptr).
+//  - Cursor stores are a chained assignment `+0x10 = +0 = ptr` (base first,
+//    read cursor last); flag ORs precede the length stores as written below.
 //
-// This is an EE-GCC function (sd/ld + daddu register saves, not mwcc sq/paddub).
-// NEARMISS 83.6% (ee-gcc 2.9-991111-01; both mwcc builds <=50%). Logic fully
-// recovered; the local `size = 0x400` hoist reproduces the target's promotion of
-// 0x400 into callee-saved s2 and the 0xb0 frame. Sole residuals: the confirmed
-// EE-GCC forward branch-likely wall -- target emits `bgezl`/`bnezl` on the two
-// forward success checks where our rebuild only emits the non-annul `bgez`/`bnez`
-// (proven not source/flag-crackable, s84) -- plus list-scheduler adjacent store
-// reordering and minor GPR coloring. PARK.
-extern int func_0010BF10(short id, char *p);
-extern int func_00120578(char *h, short id, void *stat);
+// Buffer setup for a stdio-style stream object (same shape as newlib's
+// __smakebuf). If flag 0x2 (unbuffered) is set in the u16 at +0xC, point the
+// base (+0x10) and read cursor (+0) at the inline byte at +0x43 with size 1.
+// Otherwise, if the s16 id at +0xE is valid, stat it via func_00120578 on the
+// reentrancy handle at +0x54; a regular-file mode (0x8000) whose seek hook at
+// +0x28 is the default one sets flag 0x400 and blksize (+0x4C) = 0x400, any
+// other outcome sets flag 0x800; a character-device mode (0x2000) marks the
+// stream as a possible tty. Then allocate 0x400 bytes via func_00120F40: on
+// failure fall back to the inline byte and flag 0x2; on success install the
+// cleanup hook func_00120038 at handle+0x3C, set flag 0x80, wire base/cursor
+// to the buffer with size 0x400, and if it may be a tty and func_0010BF10(id)
+// says so, set flag 0x1 (line buffered).
+extern int func_0010BF10(int fd);
+extern int func_00120578(char *h, int fd, void *stat);
 extern char *func_00120F40(char *h, int n);
 extern int func_00120038;
 extern int vtable_a0_at_0011FE90_off28;
 
-void func_00120B98(char *arg0) {
-    unsigned short fl;
-    short id;
-    int mode;
-    int is2000;
+void func_00120B98(char *fp) {
+    int size;
+    int couldbetty;
     char *p;
-    char stat[0x70];
-    int size = 0x400;
+    int st[0x1c];
 
-    fl = *(unsigned short *)(arg0 + 0xC);
-    if (fl & 2) {
-        *(int *)(arg0 + 0x14) = 1;
-        *(char **)(arg0 + 0x10) = arg0 + 0x43;
-        *(char **)(arg0 + 0) = arg0 + 0x43;
+    if (*(unsigned short *)(fp + 0xC) & 2) {
+        *(char **)(fp + 0x10) = *(char **)(fp + 0) = fp + 0x43;
+        *(int *)(fp + 0x14) = 1;
         return;
     }
-
-    id = *(short *)(arg0 + 0xE);
-    if (id < 0) {
-        is2000 = 0;
-        *(unsigned short *)(arg0 + 0xC) = fl | 0x800;
-    } else if (func_00120578(*(char **)(arg0 + 0x54), id, stat) < 0) {
-        is2000 = 0;
-        *(unsigned short *)(arg0 + 0xC) = *(unsigned short *)(arg0 + 0xC) | 0x800;
+    if (*(short *)(fp + 0xE) < 0 ||
+        func_00120578(*(char **)(fp + 0x54), *(short *)(fp + 0xE), st) < 0) {
+        couldbetty = 0;
+        size = 0x400;
+        *(unsigned short *)(fp + 0xC) |= 0x800;
     } else {
-        mode = *(int *)(stat + 4) & 0xF000;
-        is2000 = (mode == 0x2000);
-        if (mode == 0x8000 &&
-            *(int *)(arg0 + 0x28) == (int)&vtable_a0_at_0011FE90_off28) {
-            *(int *)(arg0 + 0x4C) = size;
-            *(unsigned short *)(arg0 + 0xC) = *(unsigned short *)(arg0 + 0xC) | 0x400;
+        couldbetty = (st[1] & 0xF000) == 0x2000;
+        size = 0x400;
+        if ((st[1] & 0xF000) == 0x8000 &&
+            *(int *)(fp + 0x28) == (int)&vtable_a0_at_0011FE90_off28) {
+            *(unsigned short *)(fp + 0xC) |= 0x400;
+            *(int *)(fp + 0x4C) = 0x400;
         } else {
-            *(unsigned short *)(arg0 + 0xC) = *(unsigned short *)(arg0 + 0xC) | 0x800;
+            *(unsigned short *)(fp + 0xC) |= 0x800;
         }
     }
-
-    p = func_00120F40(*(char **)(arg0 + 0x54), size);
-    if (p == 0) {
-        *(char **)(arg0 + 0x10) = arg0 + 0x43;
-        *(int *)(arg0 + 0x14) = 1;
-        *(unsigned short *)(arg0 + 0xC) = *(unsigned short *)(arg0 + 0xC) | 2;
-        *(char **)(arg0 + 0) = arg0 + 0x43;
+    if ((p = func_00120F40(*(char **)(fp + 0x54), size)) == 0) {
+        *(unsigned short *)(fp + 0xC) |= 2;
+        *(char **)(fp + 0x10) = *(char **)(fp + 0) = fp + 0x43;
+        *(int *)(fp + 0x14) = 1;
     } else {
-        *(char **)(arg0 + 0x10) = p;
-        *(int *)(*(char **)(arg0 + 0x54) + 0x3C) = (int)&func_00120038;
-        *(unsigned short *)(arg0 + 0xC) = *(unsigned short *)(arg0 + 0xC) | 0x80;
-        *(int *)(arg0 + 0x14) = size;
-        *(char **)(arg0 + 0) = p;
-        if (is2000) {
-            if (func_0010BF10(*(short *)(arg0 + 0xE), p) != 0) {
-                *(unsigned short *)(arg0 + 0xC) = *(unsigned short *)(arg0 + 0xC) | 1;
-            }
-        }
+        *(int *)(*(char **)(fp + 0x54) + 0x3C) = (int)&func_00120038;
+        *(unsigned short *)(fp + 0xC) |= 0x80;
+        *(char **)(fp + 0x10) = *(char **)(fp + 0) = p;
+        *(int *)(fp + 0x14) = size;
+        if (couldbetty && func_0010BF10(*(short *)(fp + 0xE)))
+            *(unsigned short *)(fp + 0xC) |= 1;
     }
 }

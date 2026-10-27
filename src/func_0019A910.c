@@ -1,15 +1,21 @@
-// NEARMISS func_0019A910  (vram 0x0019A910, 0x16C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 81.29% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation coloring + delay-slot scheduling. Body/structure fully recovered and verified. Target colors result->s0, flags->s1, tmp-base->s2 (all callee-saved across the 3 calls); both mwcc builds pick a different reg assignment for the same SSA values and reorder a few delay slots (no cl...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700031D0
+// SPAD: 0x700031D4
+// SPAD: 0x700031D8
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 81.29% NEARMISS).
+// Fixes read from the original instructions:
+// - func_001A6AD0 takes one argument (its definition in src/), not three.
+// - result is cleared before the copy loop, and the restore loop walks a
+//   pointer q = tmp (kept in a saved register) instead of indexing tmp[i].
+// - Each value from a1 is loaded once into a float temp, then stored to both
+//   tmp[] and the block.
+// - Local declaration order (result, flags, q first; i before p) fixes the
+//   saved/temporary register assignment.
+// - The scratchpad words 0x700031D0 / 0x700031D4 / 0x700031D8 are volatile
+//   relocated externs (idiom-32); that keeps their stores out of branch
+//   delay slots, as in the original.
 
 // Hardware/effect-block setup at 0x70003190. Copies 3 floats from a0 into the
 // block (+0) and 3 floats from a1 into both a local scratch (tmp[0..2]) and the
@@ -18,26 +24,34 @@
 // mode bits 1/2/4 (func_001A6AD0 / func_001A1390 / func_0019D770), recording the
 // highest-priority success in result (1, 2 or 4). On bit-1 success it mirrors
 // block +0x20 -> +0x10. If any init succeeded it restores tmp[] into block +0x10,
-// else clears 0x700031D0. Stores result to 0x700031D8 and returns it.
-extern int func_001A6AD0(int, float *, void *);
+// else clears the object pointer at 0x700031D0. Stores result to 0x700031D8 and
+// returns it.
+extern int func_001A6AD0(int);
 extern int func_001A1390(void);
 extern int func_0019D770(void);
-
 extern char D_70003190[];
+extern char * volatile D_700031D0;
+extern volatile int D_700031D4;
+extern volatile int D_700031D8;
 
 int func_0019A910(float *a0, float *a1, int mode) {
-    float tmp[4];
-    char *p;
-    int i;
-    int flags;
     int result;
+    int flags;
+    float *q;
+    float tmp[4];
+    int i;
+    char *p;
+    float f;
 
     p = D_70003190;
+    q = tmp;
+    result = 0;
     for (i = 0; i < 3; i++) {
         *(float *)p = *a0;
         a0++;
-        tmp[i] = *a1;
-        *(float *)(p + 0x10) = *a1;
+        f = *a1;
+        tmp[i] = f;
+        *(float *)(p + 0x10) = f;
         p += 4;
         a1++;
     }
@@ -45,10 +59,9 @@ int func_0019A910(float *a0, float *a1, int mode) {
     *(float *)0x7000319C = 1.0f;
     flags = mode & 0xFF;
     tmp[3] = 1.0f;
-    *(int *)0x700031D4 = 0;
-    result = 0;
+    D_700031D4 = 0;
     if (flags & 1) {
-        if (func_001A6AD0(0x40, a1, p) != 0) {
+        if (func_001A6AD0(0x40) != 0) {
             p = D_70003190;
             for (i = 0; i < 3; i++) {
                 *(float *)(p + 0x10) = *(float *)(p + 0x20);
@@ -69,12 +82,13 @@ int func_0019A910(float *a0, float *a1, int mode) {
     if (result != 0) {
         p = D_70003190;
         for (i = 0; i < 3; i++) {
-            *(float *)(p + 0x10) = tmp[i];
+            *(float *)(p + 0x10) = *q;
+            q++;
             p += 4;
         }
     } else {
-        *(int *)0x700031D0 = 0;
+        D_700031D0 = 0;
     }
-    *(int *)0x700031D8 = result;
+    D_700031D8 = result;
     return result;
 }

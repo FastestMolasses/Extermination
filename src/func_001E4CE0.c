@@ -1,8 +1,15 @@
 // NEARMISS func_001E4CE0  (vram 0x001E4CE0, 0x910 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 83.90% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 83.90 with mwcc 2.3.3 (-O4,p -sdatathreshold 4); ~185 diff rows out of 580 instructions (991202 82.05, mwcc 2.4 81.31). Decode verified against the whole .s including both jump tables; two real decode bugs were found and fixed during verification (m2c's raw output was right, my first transcriptio...
+// objdiff 98.59% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 83.90%; matching wave 2026-10-27).
+// Fixes read from the original: func_001CD2B0 takes four floats (no variant argument); the
+// area check reads D_00810700/1 as non-gp arrays; the variant-6/7 test, the area test and the
+// a[0] choice are switches; the state cases end in break; limit is set after the last
+// scratchpad store; the jitter is staged in a float local (cvt, /=, +=) before the seed step;
+// the actor arrives as an int and is cast into a local (gives the original's saved registers);
+// 0x70003A30 is the relocated scratchpad extern D_70003A30 (idiom-32).
+// Remaining differences: one scheduling choice - the third func_001CFB50 call materialises
+// its 1.0f/1e-6 constants in a different order (~8 rows of 580; idiom-24 int-to-float
+// locals and further SPAD externs for 0x70003A20..34 did not help).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +17,7 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x70003A30
 
 // SEMANTICS: per-frame update of a "burst/spray" particle emitter actor,
 // dispatched on the life-cycle byte arg0[4] (0 = init, 1 = run, 2/3 = free).
@@ -33,7 +41,7 @@
 //      the box x in (275,335) and z in (170,230) gets +0x40000 added to it.
 //      Unless the handle is the 0xFFFFFF "none", the emitter is drawn: the
 //      scale comes from 2 * the first float of the variant table via
-//      func_001CD2B0, the LOD pass is 1 (6 once D_00275C00 >= 0x101), and then
+//      func_001CD2B0, the LOD pass is 1 (6 once D_00275C00 > 0x100), and then
 //      the stretched quad (func_001E4A00) when 0x70003A24 is non-zero, or else
 //      the +0x120 particle batch once the age is past 0.2. EITHER WAY the base
 //      batch and the +0x90 batch then follow, with the animation frame picked
@@ -51,7 +59,7 @@ extern void func_00102C58(void *d, void *s, void *r);
 extern void func_00102918(void *d, void *s, void *r);
 extern int func_00122BB8(void);
 extern int func_001CD070(void *pos, int flags);
-extern float func_001CD2B0(int kind, float w, float h, float u, float v);
+extern float func_001CD2B0(float w, float h, float u, float v);
 extern void func_001E4A00(void *m, float age, float len);
 extern void func_001CFB50(void *out, int mode, void *m, float age, float jitter, float one, float eps, float fade);
 extern void func_001CFBE0(int handle, int pass, void *mesh, void *desc, int alt);
@@ -80,24 +88,35 @@ extern char D_00254BD0[];
 extern char D_00254D80[];
 extern char D_00253C50[];
 extern int D_00275C00;
-extern unsigned char D_00810700;
-extern unsigned char D_00810701;
+extern float D_70003A30[];
+extern unsigned char D_00810700[];
+extern unsigned char D_00810701[];
 
-void func_001E4CE0(unsigned char *a) {
+typedef struct {
+    int seed;
+    int frame;
+    float age;
+    float step;
+} Burst;
+
+void func_001E4CE0(int arg0) {
     char desc[0x60];
     char *set;
-    unsigned char *sub;
+    Burst *sub;
+    unsigned char *a;
     int handle;
     int seed;
     int limit;
     int pass;
-    int kind;
+    int lod;
     float age;
     float step;
     float len;
     float scale;
+    float jit;
 
-    sub = a + 0x1F0;
+    a = (unsigned char *)arg0;
+    sub = (Burst *)(a + 0x1F0);
     switch (a[4]) {
     case 0:
         switch (a[0xD]) {
@@ -141,18 +160,21 @@ void func_001E4CE0(unsigned char *a) {
             func_001EFD20(0x8000006E, a + 0xB0);
             break;
         }
-        if (a[0xD] != 4) {
-            a[0] = 1;
-        } else {
+        switch (a[0xD]) {
+        case 4:
             a[0] = 2;
+            break;
+        default:
+            a[0] = 1;
+            break;
         }
         func_001029C0(a + 0xD0);
         func_00102C58(a + 0xD0, a + 0xD0, a + 0xC0);
         func_00102918(a + 0xD0, a + 0xD0, a + 0xB0);
-        *(int *)(sub + 4) = 0;
-        *(int *)(sub + 0) = func_00122BB8();
-        *(int *)(sub + 8) = 0x3DCCCCCD;
-        *(int *)(sub + 0xC) = 0x3DCCCCCD;
+        sub->frame = 0;
+        sub->seed = func_00122BB8();
+        sub->age = 0.1f;
+        sub->step = 0.1f;
         *(int *)(a + 0x34) = (int)func_001E49F0;
         a[0xC] = 0;
         a[9] = 0;
@@ -165,64 +187,64 @@ void func_001E4CE0(unsigned char *a) {
             *(volatile int *)0x70003A20 = 0x41600000;
             *(volatile int *)0x70003A24 = 0x40C00000;
             *(volatile int *)0x70003A28 = 0x41100000;
-            limit = 0x1E;
             *(volatile int *)0x70003A2C = 0x40400000;
+            limit = 0x1E;
             break;
         case 2:
             set = D_002543F0;
             *(volatile int *)0x70003A20 = 0x41600000;
             *(volatile int *)0x70003A24 = 0x41600000;
             *(volatile int *)0x70003A28 = 0x41100000;
-            limit = 0x1E;
             *(volatile int *)0x70003A2C = 0x40A00000;
+            limit = 0x1E;
             break;
         case 3:
             set = D_00254510;
             *(volatile int *)0x70003A20 = 0x41600000;
             *(volatile int *)0x70003A24 = 0x41900000;
             *(volatile int *)0x70003A28 = 0x41100000;
-            limit = 0x1E;
             *(volatile int *)0x70003A2C = 0x41200000;
+            limit = 0x1E;
             break;
         case 4:
             set = D_00254630;
             *(volatile int *)0x70003A20 = 0x41600000;
             *(volatile int *)0x70003A24 = 0x42200000;
             *(volatile int *)0x70003A28 = 0x41100000;
-            limit = 0x1E;
             *(volatile int *)0x70003A2C = 0x41A00000;
+            limit = 0x1E;
             break;
         case 5:
             set = D_00254630;
             *(volatile int *)0x70003A20 = 0x41600000;
             *(volatile int *)0x70003A24 = 0x42200000;
             *(volatile int *)0x70003A28 = 0x41100000;
-            limit = 0x3E7;
             *(volatile int *)0x70003A2C = 0x41A00000;
+            limit = 0x3E7;
             break;
         case 6:
             set = D_00254750;
             *(volatile int *)0x70003A24 = 0;
             *(volatile int *)0x70003A20 = 0x41400000;
             *(volatile int *)0x70003A28 = 0x41100000;
-            limit = 0x1E;
             *(volatile int *)0x70003A2C = 0x41A00000;
+            limit = 0x1E;
             break;
         case 7:
             set = D_00254AB0;
             *(volatile int *)0x70003A20 = 0x41600000;
             *(volatile int *)0x70003A24 = 0x42200000;
             *(volatile int *)0x70003A28 = 0x41100000;
-            limit = 0x1E;
             *(volatile int *)0x70003A2C = 0x41A00000;
+            limit = 0x1E;
             break;
         case 8:
             set = D_00254900;
             *(volatile int *)0x70003A24 = 0;
             *(volatile int *)0x70003A20 = 0x41400000;
             *(volatile int *)0x70003A28 = 0x41100000;
-            limit = 0x1E;
             *(volatile int *)0x70003A2C = 0x41A00000;
+            limit = 0x1E;
             break;
         case 9:
         case 12:
@@ -231,97 +253,106 @@ void func_001E4CE0(unsigned char *a) {
             *(volatile int *)0x70003A24 = 0;
             *(volatile int *)0x70003A20 = 0x41600000;
             *(volatile int *)0x70003A28 = 0x41100000;
-            limit = 0x1E;
             *(volatile int *)0x70003A2C = 0x40A00000;
+            limit = 0x1E;
             break;
         case 14:
             set = D_00254D80;
             *(volatile int *)0x70003A24 = 0;
             *(volatile int *)0x70003A20 = 0x41200000;
             *(volatile int *)0x70003A28 = 0x3F800000;
-            limit = 0x1E;
             *(volatile int *)0x70003A2C = 0x41F00000;
+            limit = 0x1E;
             break;
         }
-        seed = *(int *)(sub + 0);
-        kind = a[0xD];
+        seed = sub->seed;
         handle = func_001CD070(a + 0x100, 0x30);
-        if (kind == 7 || kind == 6) {
-            kind = (D_00810700 << 8) + D_00810701;
-            if (kind == 0x1001) {
+        switch (a[0xD]) {
+        case 6:
+        case 7:
+            switch ((D_00810700[0] << 8) + D_00810701[0]) {
+            case 0x1001:
                 if (!(*(float *)(a + 0x100) <= 275.0f) && *(float *)(a + 0x100) < 335.0f) {
                     if (!(*(float *)(a + 0x108) <= 170.0f) && *(float *)(a + 0x108) < 230.0f) {
                         handle += 0x40000;
                     }
                 }
+                break;
             }
+            break;
         }
         if (handle != 0xFFFFFF) {
             scale = 2.0f * **(float **)(a + 0x30);
             *(volatile float *)0x70003A34 = scale;
-            *(volatile float *)0x70003A30 = func_001CD2B0(kind, scale, scale, 256.0f, 256.0f);
-            pass = 1;
-            if (D_00275C00 >= 0x101) {
-                pass = 6;
+            D_70003A30[0] = func_001CD2B0(scale, scale, 256.0f, 256.0f);
+            if (D_00275C00 > 0x100) {
+                lod = 6;
+            } else {
+                lod = 1;
             }
-            pass = pass & 0xFF;
+            pass = lod & 0xFF;
             len = *(volatile float *)0x70003A24;
             if (len != 0.0f) {
-                func_001E4A00(a + 0xD0, *(float *)(sub + 8), len);
+                func_001E4A00(a + 0xD0, sub->age, len);
             } else {
-                age = *(float *)(sub + 8);
+                age = sub->age;
                 if (!(age <= 0.2f)) {
-                    func_001CFB50(desc, 0, a + 0xD0,
-                                  age,
-                                  (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f,
-                                  1.0f, 0.000001f, *(volatile float *)0x70003A2C);
+                    jit = (float)((seed >> 16) & 0xFFFF);
+                    jit /= 65535.0f;
+                    jit += 0.0001f;
                     seed = seed * 0x25 + 0xB;
+                    func_001CFB50(desc, 0, a + 0xD0, age, jit,
+                                  1.0f, 0.000001f, *(volatile float *)0x70003A2C);
                     func_001CFBE0(handle, pass, set + 0x120, desc, 0);
                 }
             }
-            *(volatile float *)0x70003A28 = *(volatile float *)0x70003A28 * (*(float *)(sub + 8) / 1.8f);
+            *(volatile float *)0x70003A28 = *(volatile float *)0x70003A28 * (sub->age / 1.8f);
             *(long long *)(set + 0x70) = *(long long *)(D_00253C50 + float_to_int(*(volatile float *)0x70003A28) * 8);
-            func_001CFB50(desc, 0, a + 0xD0,
-                          *(float *)(sub + 8),
-                          (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f,
-                          1.0f, 0.000001f, *(volatile float *)0x70003A2C);
+            jit = (float)((seed >> 16) & 0xFFFF);
+            jit /= 65535.0f;
+            jit += 0.0001f;
             seed = seed * 0x25 + 0xB;
+            age = sub->age;
+            func_001CFB50(desc, 0, a + 0xD0, age, jit,
+                          1.0f, 0.000001f, *(volatile float *)0x70003A2C);
             func_001CFBE0(handle, pass, set, desc, 1);
-            func_001CFB50(desc, 0, a + 0xD0,
-                          *(float *)(sub + 8),
-                          (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f,
+            jit = (float)((seed >> 16) & 0xFFFF);
+            jit /= 65535.0f;
+            jit += 0.0001f;
+            func_001CFB50(desc, 0, a + 0xD0, sub->age, jit,
                           1.0f, 0.000001f, *(volatile float *)0x70003A2C);
             func_001CFBE0(handle, pass, set + 0x90, desc, 0);
         }
-        step = *(float *)(sub + 0xC);
+        step = sub->step;
         step = step + ((0.01f - step) / *(volatile float *)0x70003A20);
-        *(float *)(sub + 0xC) = step;
+        sub->step = step;
         if (step < 0.01f) {
             step = 0.01f;
         }
-        *(float *)(sub + 0xC) = step;
-        age = *(float *)(sub + 8) + step;
-        *(float *)(sub + 8) = age;
+        sub->step = step;
+        age = sub->age + step;
+        sub->age = age;
         if (!(age < 1.8f)) {
             a[4] = 3;
-            return;
+            break;
         }
-        *(int *)(sub + 4) = *(int *)(sub + 4) + 1;
-        if (limit < *(int *)(sub + 4)) {
+        sub->frame = sub->frame + 1;
+        if (limit < sub->frame) {
             a[0] = 2;
         }
         switch (a[0xD]) {
-        case 5:
         case 14:
+        case 5:
             func_001B1B70(a);
-            return;
+            break;
         default:
             func_001B17A0(a);
-            return;
+            break;
         }
+        break;
     case 2:
     case 3:
         func_001AFC10(a);
-        return;
+        break;
     }
 }
