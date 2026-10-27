@@ -1,16 +1,14 @@
-// NEARMISS func_00131F90  (vram 0x00131F90, 0x500 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.93% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-order artifact: target always keeps the local angular-error bucket value (sp5C) on the stack, reloading it (lwc1) at every func_00128250(sp5C) call site, spilling only 2 callee-saved FP regs (fs0/fs1, -0x60 frame); both mwcc builds instead promote sp5C into a 3rd callee-saved ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.93% NEARMISS).
+// Fixes read from the original instructions:
+//  - The original loads the 0x5C temp ONCE per branch arm into a local (a
+//    third callee-saved FP register) and passes that local to both bucket
+//    calls; the NEARMISS C passed the stack variable directly at each call.
+//    Spelled as an assignment inside the first call's argument (`b = sp5C`).
+//  - The negative-arm lower bound is written `<= 0xA` (not `< 0xB`), which
+//    puts that compare result in the assembler temporary as the original does.
 //
 // Steers the heading at self+0xC4 toward the desired heading at owner+0x30.
 // arg0 = self, arg1 = owner. Picks a per-frame angular step (var_f20) from the
@@ -18,7 +16,7 @@
 // 0x56 "snap" flag is set, else D_00244FD0. If already aligned, clears the
 // 0x63 turn-phase and returns. The 0x56-snap path just slews via func_001B12B0.
 // Otherwise it samples the signed angular error (func_00128250 bucket of the
-// 0x5C temp), and depending on the bucket and the error sign nudges 0xC4 by the
+// 0x5C temp, copied once per arm into a local that feeds both bucket calls), and depending on the bucket and the error sign nudges 0xC4 by the
 // step (clamped to the target), re-normalizes via func_001B1470, rebuilds the
 // 0xD0 basis (func_001029C0/func_00102C58), and on a phase change pushes the
 // per-bucket offset rows (D_00242F50/54 forward, D_00243180/84 reverse) through
@@ -50,6 +48,7 @@ void func_00131F90(char *arg0, char *arg1) {
     float ang;
     int t;
     int idx;
+    float b;
 
     if (*(unsigned char *)(arg1 + 0x62) != 0) {
         step = D_00244FD8;
@@ -78,7 +77,7 @@ void func_00131F90(char *arg0, char *arg1) {
     sp5C = (float)(t - float_to_int(sp5C));
     err = func_001B1470(*(float *)(arg1 + 0x30) - *(float *)(arg0 + 0xC4));
     if (!(err <= 0.0f)) {
-        if (func_00128250(sp5C) >= 0x17 && func_00128250(sp5C) < 0x30) {
+        if (func_00128250(b = sp5C) >= 0x17 && func_00128250(b) < 0x30) {
             ang = (3.1415927f * step) / 180.0f;
             if (!(err < ang)) {
                 *(float *)(arg0 + 0xC4) = *(float *)(arg0 + 0xC4) + ang;
@@ -109,7 +108,7 @@ void func_00131F90(char *arg0, char *arg1) {
         return;
     }
 
-    if (func_00128250(sp5C) < 0xB || func_00128250(sp5C) >= 0x38) {
+    if (func_00128250(b = sp5C) <= 0xA || func_00128250(b) >= 0x38) {
         ang = (3.1415927f * step) / 180.0f;
         if (!(-err < ang)) {
             *(float *)(arg0 + 0xC4) = *(float *)(arg0 + 0xC4) - ang;

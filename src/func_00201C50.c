@@ -1,15 +1,18 @@
-// NEARMISS func_00201C50  (vram 0x00201C50, 0x318 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.25% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// see summary above
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.25% NEARMISS).
+// Fixes read from the original instructions:
+//  - The tail is two early returns, `if (pad & 0x30) { ...; return (pad & 0x10) ? 2 : 1; }
+//    return 0;`, not a `ret` local preset to 0: the original tests the 0x30 mask in the
+//    0x40 branch's delay slot (a plain branch, not branch-likely) and keeps a separate
+//    return-0 path.
+//  - func_0020CDA0 keeps its two-pointer declaration (see the note at the extern).
+//
+// Menu/pad handler: steps the scratchpad state byte at +0xD (0 -> 1 -> 2), draws a
+// sprite via func_00207E40 at an x derived from arg1 and arg3[cursor index],
+// toggles arg0[3] on the 0x2000 button, and returns 1 on the 0x40 button (confirm,
+// resetting arg0 fields when arg0[3] was set), 2/1 on the 0x10/0x20 buttons, else 0.
 
 extern unsigned char *D_70003B6C;                   /* PS2 scratchpad @ 0x70003B6C */
 
@@ -17,6 +20,9 @@ extern int float_to_int(float);
 extern void func_00207E40(int a0, int a1, int a2, int a3, int t0, unsigned int t1, unsigned long long t2);
 extern void func_0020CD40(void);
 extern void func_0020CD60(void);
+/* Defined (void) in src/func_0020CDA0.c, but the original sets a0 = g + 0xD and
+   a1 = g before this call; declaring the two pass-through values reproduces it
+   (the (void) spelling scores 99.70%). Same situation as func_0020B210. */
 extern void func_0020CDA0(unsigned char *, unsigned char *);
 extern void func_001AF470(unsigned char);
 extern unsigned short D_00810E6A;
@@ -27,7 +33,6 @@ int func_00201C50(unsigned char *arg0, int arg1, unsigned char *arg2, int *arg3)
     unsigned char *p;
     int idx;
     int off;
-    int ret;
 
     g = D_70003B6C;
     p = g + 0xD;
@@ -85,11 +90,10 @@ int func_00201C50(unsigned char *arg0, int arg1, unsigned char *arg2, int *arg3)
         arg0[3] = 0;
         return 1;
     }
-    ret = 0;
     if (D_00810E74 & 0x30) {
         func_0020CD60();
         arg0[3] = 0;
-        ret = (D_00810E74 & 0x10) ? 2 : 1;
+        return (D_00810E74 & 0x10) ? 2 : 1;
     }
-    return ret;
+    return 0;
 }

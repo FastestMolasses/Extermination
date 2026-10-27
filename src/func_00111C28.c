@@ -1,15 +1,22 @@
-// NEARMISS func_00111C28  (vram 0x00111C28, 0x2EC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.26% via ee-gcc 2.9-991111-01 (-O2 -fno-strength-reduce). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc GPR-coloring wall (+2-insn address-form residual). Instruction count is EXACT (0x2EC == 0x2EC) and every instruction matches modulo register numbering. Expected allocates hi(D_00241D20)->s1 and shifts everything else up (s2=arg1, s3=arg0, s4=hi CF8, s5=hi C80, s6=hi D08, s7=hi E28); ee-gcc ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2 -fno-strength-reduce
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 98.26% NEARMISS).
+// Fixes read from the original instructions:
+//  - The "GPR coloring" residual was ee-gcc's allocation priority (references
+//    weighted by loop depth over live length), so the source shape decides it
+//    (same shape as the byte-matched sibling binder func_00113280):
+//  - the bind-done latch reset (D_00241D20 = 0) sits INSIDE the retry loop,
+//    just before the break, not after the loop;
+//  - the delay loops are empty: the r5900 assembler pads short loops itself,
+//    so the old inline nops were spurious and lengthened every live range;
+//  - the request buffer is a struct (32-byte file record, 256-byte name, dest
+//    pointer), so the name copy indexes from the name field;
+//  - the debug print routine returns int (printf-like).
+
+// libcdvd-style file search over SIF RPC: bind the search server once (retrying
+// with a busy-wait), copy the name into the request, write back the cache, call,
+// then copy the 32-byte file record back through the uncached view.
 
 extern volatile int D_00241D08;
 extern int D_00241CF8;
@@ -17,9 +24,18 @@ extern int D_00241D00;
 extern int D_00241D20;
 extern int D_00279B00;
 extern int D_00279B08;
-extern char D_00279C80[];
+typedef struct {
+    unsigned int lsn;
+    unsigned int size;
+    char name[16];
+    unsigned char date[8];
+} CdlFile;
+
+typedef struct { CdlFile file; char name[0x100]; void *dest; } SearchReq;
+extern SearchReq D_00279C80;
 extern unsigned char D_00279DC0[];
-extern unsigned char D_00279E28[];
+typedef struct { int pad[9]; int server; int rest[30]; } RpcClient;
+extern RpcClient D_00279E28;
 extern char D_0026BB50[];
 extern char D_0026BB70[];
 extern char D_0026BB88[];
@@ -31,17 +47,16 @@ extern int PollSema(int sema);
 extern void ReferThreadStatus(int a, void *b);
 extern int func_00112D18(int a0);
 extern void func_0010E088(int a0);
-extern int func_0010E6F8(void *a0, unsigned int a1, int a2);
+extern int func_0010E6F8(RpcClient *a0, unsigned int a1, int a2);
 extern int func_0010E8A8(void *a0, int a1, int a2, void *a3, int a4, void *a5,
                          int a6, void *a7, void *a8);
 extern void func_0010DFD8(void *a0, int a1);
-extern void func_00122B58(const char *fmt, ...);
+extern int func_00122B58(const char *fmt, ...);
 extern int SignalSema(int sema);
 extern void *memcpy(void *dst, const void *src, unsigned int n);
 
-int func_00111C28(char *out, const char *name)
+int func_00111C28(CdlFile *out, const char *name)
 {
-    unsigned char *cd;
     char *req;
     int i;
     int d;
@@ -63,44 +78,36 @@ int func_00111C28(char *out, const char *name)
 
     if (D_00241D20 < 0) {
         for (;;) {
-            cd = D_00279E28;
-            if (func_0010E6F8(cd, 0x80000597u, 0) < 0) {
+            if (func_0010E6F8(&D_00279E28, 0x80000597u, 0) < 0) {
                 if (D_00241CF8 > 0)
                     func_00122B58(D_0026BB50);
                 d = 0x100000;
                 do {
                     d--;
-                    __asm__("nop");
-                    __asm__("nop");
-                    __asm__("nop");
-                    __asm__("nop");
                 } while (d != -1);
                 continue;
             }
-            if (*(int *)(cd + 0x24) != 0)
+            if (D_00279E28.server != 0) {
+                D_00241D20 = 0;
                 break;
+            }
             d = 0x100000;
             do {
                 d--;
-                __asm__("nop");
-                __asm__("nop");
-                __asm__("nop");
-                __asm__("nop");
             } while (d != -1);
         }
-        D_00241D20 = 0;
     }
 
     i = 0;
     while (i < 0x100) {
-        if ((D_00279C80[0x20 + i] = name[i]) == 0)
+        if ((D_00279C80.name[i] = name[i]) == 0)
             break;
         i++;
     }
     if (i == 0x100)
-        D_00279C80[0x11F] = 0;
+        D_00279C80.name[0xFF] = 0;
 
-    req = D_00279C80;
+    req = (char *)&D_00279C80;
     *(char **)(req + 0x120) = req;
 
     if (D_00241CF8 > 0)
@@ -108,19 +115,19 @@ int func_00111C28(char *out, const char *name)
 
     func_0010DFD8(req, 0x124);
 
-    if (func_0010E8A8(D_00279E28, 0, 0, req, 0x124, D_00279DC0, 4, 0, 0) < 0) {
+    if (func_0010E8A8(&D_00279E28, 0, 0, req, 0x124, D_00279DC0, 4, 0, 0) < 0) {
         SignalSema(D_00241D08);
         return 0;
     }
 
-    memcpy(out, (char *)((unsigned int)req | 0x20000000), 32);
+    memcpy((char *)out, (char *)((unsigned int)req | 0x20000000), 32);
 
     if (D_00241CF8 > 0) {
-        func_00122B58(D_0026BB88, out + 8);
+        func_00122B58(D_0026BB88, out->name);
         if (D_00241CF8 > 0) {
-            func_00122B58(D_0026BB98, *(int *)(out + 4));
+            func_00122B58(D_0026BB98, out->size);
             if (D_00241CF8 > 0)
-                func_00122B58(D_0026BBA8, *(int *)out);
+                func_00122B58(D_0026BBA8, out->lsn);
         }
     }
 

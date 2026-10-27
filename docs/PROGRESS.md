@@ -1,3 +1,14 @@
+## 2026-10-27 — matching wave, third batch: 14 more byte-matched
+
+func_001E9E60, func_00113280, func_00106B88, func_001C1A80, func_00131F90,
+func_00106830, func_001FFCD0, func_0020B210, func_00111C28, func_001140C8,
+func_00111AE0, func_00201C50, func_00151940, func_0018B3E0 (all
+compiled_object_ordinary_c; six are ee-gcc SDK RPC/SIF functions). Levers in
+MATCHING_GUIDE "Matching wave 2026-10-27" (third batch). Gate: fresh build +
+verify_all, all six stages pass, boot ELF byte-identical, 19/19 overlays,
+matched_code 99.39%, 2309/2313 units. FUNCTIONS.csv: 1977 readable,
+629 nearmiss.
+
 ## 2026-10-27 — matching wave, second batch: 20 more byte-matched
 
 func_001F1DD0, func_0017F320, anim_matrix_dispatch, func_001751A0,

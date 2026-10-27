@@ -1,15 +1,16 @@
-// NEARMISS func_0020B210  (vram 0x0020B210, 0x9CC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.70% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation/canonicalization permutation (mwcc233 vs pinned 991202) — body and structure fully correct, zero structural diffs; all 30 residual instructions are DIFF_ARG_MISMATCH reg-naming/operand-order: (1) callee-saved coloring permutation in the flags&0x20 loop: target colors color=s1/...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.70% NEARMISS).
+// Fixes read from the original instructions:
+//  - the ring-refill loop and all three draw loops share ONE counter (i),
+//    declared right after n; separate counters colored the tri-state loop's
+//    registers in a different order;
+//  - each row-vs-selection test reads the row byte into a local (`row`)
+//    first, which puts the row value as the first compare operand;
+//  - the selected-row marker forms its record offset in a temporary
+//    (`recofs = entry * 24`, then + tbl + 0x10), and the final 4 -> 3 check
+//    reads the ring entry into `selrow` before comparing it with p[0x1B].
 
 //
 // Squad/inventory row-select renderer + input handler. p is the menu state
@@ -36,9 +37,13 @@
 // D_00282240 4 -> 3 when the cursor left the committed row. Returns the
 // wrap event (cleared when fewer than 5 items).
 //
-// The int[4] spB0/spC0/spE0 cells reproduce the target's 16-byte-aligned
+// The int[4] spB0/spC0/spE0 cells reproduce the original's 16-byte-aligned
 // stack slots and its kept store/reload sequences; the t0 temp forces the
-// full-word lw in p[0x1A] = spC0[0].
+// full-word lw in p[0x1A] = spC0[0]. One counter i serves the ring refill and
+// all three row loops; the row value is read into `row` before each == / >=
+// test against st, and the selected-row record offset / ring entry go through
+// `recofs` / `selrow` temporaries (these spellings set the original's operand
+// order and saved-register assignment).
 
 extern int float_to_int(float);
 extern void func_00123168(void *, int);
@@ -68,15 +73,16 @@ int func_0020B210(unsigned char *p, char *tbl, long long g, int flags)
     int t0;
     int n;
     int i;
-    int ra1;
+    int src;
     int k;
     unsigned char st;
-    unsigned char st2;
     unsigned int color;
     char *ptr2;
-    int j;
     float f;
-    int s0v;
+    int sel;
+    int recofs;
+    int selrow;
+    int row;
 
     p[0x1A] = 0;
     n = p[0x18];
@@ -122,13 +128,13 @@ int func_0020B210(unsigned char *p, char *tbl, long long g, int flags)
         }
     }
 
-    ra1 = p[0x19];
+    src = p[0x19];
     flags = flags & ~0x400;
     for (i = 0; i < (int)p[0x18] && i < 5; i++) {
-        p[0x90 + i] = p[0x50 + ra1];
-        ra1 += 1;
-        if (ra1 >= (int)p[0x18]) {
-            ra1 = 0;
+        p[0x90 + i] = p[0x50 + src];
+        src += 1;
+        if (src >= (int)p[0x18]) {
+            src = 0;
         }
     }
 
@@ -141,31 +147,34 @@ int func_0020B210(unsigned char *p, char *tbl, long long g, int flags)
             st = p[0x12] - *(unsigned char *)(p + 0x1E);
         }
         if (flags & 0x20) {
-            st2 = st;
-            for (j = 0; j < (int)p[0x18] && j < 4; j++) {
-                if (st2 == 2) {
-                    if (p[0x17] == j) {
-                        if ((int)p[0x90 + j] >= st2) {
+            for (i = 0; i < (int)p[0x18] && i < 4; i++) {
+                if (st == 2) {
+                    if (p[0x17] == i) {
+                        row = p[0x90 + i];
+                        if (row >= st) {
                             color = 0x80208080;
                         } else {
                             color = 0x80808080;
                         }
                     } else {
-                        if ((int)p[0x90 + j] >= st2) {
+                        row = p[0x90 + i];
+                        if (row >= st) {
                             color = 0x40208080;
                         } else {
                             color = 0x40404040;
                         }
                     }
                 } else {
-                    if (p[0x17] == j) {
-                        if (st2 == p[0x90 + j]) {
+                    if (p[0x17] == i) {
+                        row = p[0x90 + i];
+                        if (row == st) {
                             color = 0x80208080;
                         } else {
                             color = 0x80808080;
                         }
                     } else {
-                        if (st2 == p[0x90 + j]) {
+                        row = p[0x90 + i];
+                        if (row == st) {
                             color = 0x40208080;
                         } else {
                             color = 0x40404040;
@@ -174,21 +183,23 @@ int func_0020B210(unsigned char *p, char *tbl, long long g, int flags)
                 }
                 f = 16.0f * (float)(((k + 0x6A) >> 1) + 0x790);
                 func_00207E40(1, 0x77F0, float_to_int(f), 0x80, 0x40, color,
-                              *(long long *)(tbl + p[0x90 + j] * 24));
+                              *(long long *)(tbl + p[0x90 + i] * 24));
                 func_00207E40(1, 0x7FF0, float_to_int(f), 0x80, 0x40, color,
-                              *(long long *)(tbl + p[0x90 + j] * 24 + 8));
+                              *(long long *)(tbl + p[0x90 + i] * 24 + 8));
                 k += 0x30;
             }
         } else {
-            for (j = 0; j < (int)p[0x18] && j < 4; j++) {
-                if (p[0x17] == j) {
-                    if (st == p[0x90 + j]) {
+            for (i = 0; i < (int)p[0x18] && i < 4; i++) {
+                if (p[0x17] == i) {
+                    row = p[0x90 + i];
+                    if (row == st) {
                         color = 0x80208080;
                     } else {
                         color = 0x80808080;
                     }
                 } else {
-                    if (st == p[0x90 + j]) {
+                    row = p[0x90 + i];
+                    if (row == st) {
                         color = 0x40208080;
                     } else {
                         color = 0x40404040;
@@ -196,15 +207,15 @@ int func_0020B210(unsigned char *p, char *tbl, long long g, int flags)
                 }
                 f = 16.0f * (float)(((k + 0x6A) >> 1) + 0x790);
                 func_00207E40(1, 0x77F0, float_to_int(f), 0x80, 0x40, color,
-                              *(long long *)(tbl + p[0x90 + j] * 24));
+                              *(long long *)(tbl + p[0x90 + i] * 24));
                 func_00207E40(1, 0x7FF0, float_to_int(f), 0x80, 0x40, color,
-                              *(long long *)(tbl + p[0x90 + j] * 24 + 8));
+                              *(long long *)(tbl + p[0x90 + i] * 24 + 8));
                 k += 0x30;
             }
         }
     } else {
-        for (j = 0; j < (int)p[0x18] && j < 4; j++) {
-            if (p[0x17] == j) {
+        for (i = 0; i < (int)p[0x18] && i < 4; i++) {
+            if (p[0x17] == i) {
                 color = 0x80808080;
                 ptr2 = D_00265510;
             } else {
@@ -213,12 +224,12 @@ int func_0020B210(unsigned char *p, char *tbl, long long g, int flags)
             }
             f = 16.0f * (float)(((k + 0x6A) >> 1) + 0x790);
             func_00207E40(1, 0x77F0, float_to_int(f), 0x80, 0x40, color,
-                          *(long long *)(tbl + p[0x90 + j] * 24));
+                          *(long long *)(tbl + p[0x90 + i] * 24));
             func_00207E40(1, 0x7FF0, float_to_int(f), 0x80, 0x40, color,
-                          *(long long *)(tbl + p[0x90 + j] * 24 + 8));
+                          *(long long *)(tbl + p[0x90 + i] * 24 + 8));
             if (flags & 8) {
                 func_00123168(&spE0,
-                              func_001C5FB0(*(D_00810700 + p[0x90 + j] + *(short *)(p + 0x1E) + 0x564), 2, 0));
+                              func_001C5FB0(*(D_00810700 + p[0x90 + i] + *(short *)(p + 0x1E) + 0x564), 2, 0));
                 func_001CBA50(1, 0x7AF,
                               float_to_int(16.0f * (float)(((k + 0x86) >> 1) + 0x790)) >> 4,
                               0xC, 0xC, &spE0, ptr2);
@@ -254,7 +265,7 @@ int func_0020B210(unsigned char *p, char *tbl, long long g, int flags)
                 D_002821B8 = *(short *)(p + 0x1E) + p[0x90 + p[0x17]];
             }
         }
-        s0v = func_0020BEF0(p);
+        sel = func_0020BEF0(p);
         func_00207D00(1, 0);
         func_00207E40(1, 0x77F0,
                       float_to_int(16.0f * (float)(((p[0x17] * 0x30 + 0x6A) >> 1) + 0x790)),
@@ -262,19 +273,25 @@ int func_0020B210(unsigned char *p, char *tbl, long long g, int flags)
         if (!(flags & 0x40)) {
             if (flags & 0x20) {
                 if (spB0[0] == 0) {
+                    recofs = p[0x50 + sel] * 24;
                     func_00207E40(1, 0x89F0, 0x83E0, 0x40, 0x40, 0x40808080,
-                                  *(long long *)(p[0x50 + s0v] * 24 + (int)tbl + 0x10));
+                                  *(long long *)(recofs + (int)tbl + 0x10));
                 } else if (spB0[0] == 3) {
+                    recofs = p[0x50 + sel] * 24;
                     func_00207E40(1, 0x89F0, 0x83E0, 0x40, 0x40, 0x40808080,
-                                  *(long long *)(p[0x50 + s0v] * 24 + (int)tbl + 0x10));
+                                  *(long long *)(recofs + (int)tbl + 0x10));
                 }
             } else {
+                recofs = p[0x50 + sel] * 24;
                 func_00207E40(1, 0x89F0, 0x83E0, 0x40, 0x40, 0x40808080,
-                              *(long long *)(p[0x50 + s0v] * 24 + (int)tbl + 0x10));
+                              *(long long *)(recofs + (int)tbl + 0x10));
             }
         }
-        if (D_00282240 == 4 && p[0x1B] != p[0x50 + s0v]) {
-            D_00282240 = 3;
+        if (D_00282240 == 4) {
+            selrow = p[0x50 + sel];
+            if (selrow != p[0x1B]) {
+                D_00282240 = 3;
+            }
         }
     } else {
         D_002821B4 = 0;

@@ -1,19 +1,18 @@
-// NEARMISS func_001FFCD0  (vram 0x001FFCD0, 0x688 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.67% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate (round 6, 2026-09-23):
-// Register colouring only, in three clusters: case 9 loads n1/n2 into a1/a3 where the target uses
-// a2/a1, and the two descriptor loops of cases 7 and 11 colour their counter, bound and cursor
-// differently. Round 6: 0x70003B6C relocated extern (idiom-32) and the (int)D_00289BC0 argument-
-// weight cast removed the old delay-slot residuals; case 9 spells n2 + n1. The permuter reached
-// 99.72 without a match.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.67% NEARMISS).
+// Fixes read from the original instructions:
+//  - relocation loops (states 7 and 11): the masked 24-bit offset is the first
+//    operand and the cursor is added as an unsigned integer, then cast back.
+//  - state 9: the read offset is accumulated into n1 (n1 += n2) and n1 is passed,
+//    which puts n1 straight into the argument register.
+//  - state 11's relocation loop uses its own counter/bound/cursor/word locals,
+//    declared word, index, count, pointer (local order decides their registers).
+//  - the callee externs stay unprototyped: the byte-matched callee prototypes
+//    (func_00200780 takes 4, func_002009E0 2, func_00200830 1, func_001FF590 2)
+//    are honoured by every call's argument count, and full prototypes reorder
+//    the argument setup in states 0/1.
 
 // SEMANTICS: Two-stage streaming loader / relocator state machine. The context
 // lives in scratchpad at 0x70003B6C: byte 8 is a status/result code, byte 9 the
@@ -103,6 +102,10 @@ void func_001FFCD0(void) {
     int n2;
     int n3;
     int res;
+    unsigned int w2;
+    unsigned int j2;
+    unsigned int cnt2;
+    unsigned int *t2;
 
     switch (*st) {
     case 0:
@@ -201,7 +204,7 @@ void func_001FFCD0(void) {
             t = (unsigned int *)(D_00275C70 + (base + n) * 8 + 0x20);
             for (j = 0; j < cnt; j++) {
                 w = *t;
-                D_0028A490[w >> 24] = D_0028A73C[0] + (w & 0xFFFFFF);
+                D_0028A490[w >> 24] = (unsigned char *)((w & 0xFFFFFF) + (unsigned int)D_0028A73C[0]);
                 t++;
             }
         }
@@ -249,8 +252,9 @@ void func_001FFCD0(void) {
         n1 = *(int *)(h + 4);
         n2 = *(int *)(h + 0x14);
         n3 = *(int *)(h + 8);
+        n1 += n2;
         D_0028A744[0] = D_0028A740[0] + (n3 - n2);
-        func_00200780(D_0028A488, D_0028A740[0], n2 + n1, n3 - n2);
+        func_00200780(D_0028A488, D_0028A740[0], n1, n3 - n2);
         break;
     case 10:
         res = func_00200730();
@@ -276,13 +280,13 @@ void func_001FFCD0(void) {
                 total += *(int *)(D_00275C70 + (base + i) * 8 + 0x24);
             }
         }
-        cnt = *(unsigned int *)(D_00275C70 + 0x1C);
-        if (cnt != 0) {
-            t = (unsigned int *)(D_00275C70 + (base + n) * 8 + 0x20);
-            for (j = 0; j < cnt; j++) {
-                w = *t;
-                D_0028A490[w >> 24] = D_0028A740[0] + (w & 0xFFFFFF);
-                t++;
+        cnt2 = *(unsigned int *)(D_00275C70 + 0x1C);
+        if (cnt2 != 0) {
+            t2 = (unsigned int *)(D_00275C70 + (base + n) * 8 + 0x20);
+            for (j2 = 0; j2 < cnt2; j2++) {
+                w2 = *t2;
+                D_0028A490[w2 >> 24] = (unsigned char *)((w2 & 0xFFFFFF) + (unsigned int)D_0028A740[0]);
+                t2++;
             }
         }
         q = D_70003B6C[0];

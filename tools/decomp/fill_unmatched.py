@@ -108,8 +108,9 @@ GPREL_FORCE_ASM = {
     # jr-table lane (2026-09-23): func_0012A5D0 was removed after its C
     # reached objdiff 100% (NEARMISS promoted); same proof as above -- full
     # build + verify_all byte-identical, audit shows compiled_object_ordinary_c.
-    # Matching wave 2026-10-27: func_001E9280 was removed after its C reached
-    # objdiff 100% (NEARMISS promoted); same proof.
+    # Matching wave 2026-10-27: func_001E9280, then func_001E9E60 and
+    # func_001C1A80, were removed after their C reached objdiff 100%
+    # (NEARMISS promoted); same proof.
     # Decomp lane round 3 (2026-10-20): 6 entries removed -- func_001CB9B0,
     # func_001D1F20, func_001D1F80, func_001D1FF0, func_001D2040,
     # vif_append_ref_tag. Their ordinary C (unverified c_asm_fallback bodies) was
@@ -145,7 +146,6 @@ GPREL_FORCE_ASM = {
     # objdiff 100); the compiled objects link (audit_link_provenance).
     "func_001C02E0",
     "bone_root_pulse",  # was func_001C06E0
-    "func_001C1A80",
     "func_001D1C50",
     "func_001D21E0",
     "func_001D2300",
@@ -159,7 +159,6 @@ GPREL_FORCE_ASM = {
     "func_001DF600",
     "func_001DFA40",
     "func_001E7D20",
-    "func_001E9E60",
     "func_001FCBD0",
     "func_001FCE30",
     "func_001FD950",

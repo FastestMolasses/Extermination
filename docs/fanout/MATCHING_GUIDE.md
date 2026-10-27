@@ -1,39 +1,35 @@
 
 
-Second batch, same wave (20 byte-matched, all compiled_object_ordinary_c):
+Third batch, same wave (14 byte-matched, all compiled_object_ordinary_c):
 
-- **idiom-32 again**: anim_matrix_dispatch (D_70003A20 as `extern float
-  D_70003A20[4]` under `-sdatathreshold 4`; scalar goes gp-relative),
-  func_0012DE90 (one extern per scratchpad address: element offsets of one
-  symbol score below 100 with identical code), func_001809B0 (83.35 -> 100:
-  real 5-argument func_00180600 prototype, return values, block contents,
-  idiom-24, then the scratchpad words as externs), func_001F1DD0.
-- **idiom-24 (constant written as an int converted to float)** fixes argument
-  constant order: func_00162DB0 / func_0016C6A0 (`int deg = 4; float step =
-  (3.1415927f * (float)deg) / 180.0f;` sets $f14 before $f12 = 0),
-  func_001662D0, func_00230230, func_0014E050 (deg = 2), func_0014A0D0.
-- **Same-file static callee (`// TU_STATIC:`) for one value in another
-  argument register**: func_00169730 (func_001696A0, `-sdatathreshold 0x20`)
-  and func_0016AE40 (func_0016ADE0, `-sdatathreshold 4`); the callee's own
-  threshold is required.
-- **`break` instead of `return` in switch cases**: func_0014E050 and
-  func_0014A0D0 (the recorded "case-0 dup-add wall").
-- **Wrong extern or call**: func_001066F8 (ee-gcc; func_00106490 takes no
-  argument), func_001E9280 (func_001CB6B0's fourth argument is passed as a
-  pointer; `(unsigned int)` base in address sums).
-- **Wrong body or spelling**: func_001751A0 (the 0x70003A24 store runs on
-  every path), func_002149F0 (read the charge once, stage the target in two
-  steps), func_001F3620 (compute the reseed value before reading the mute
-  byte), func_0017F5F0 (float post-decrement against a zero local),
-  func_0017F320 (`if (flags) return 0; return 1;`), func_001C87C0 (absolute
-  byte global, loop and lookup shapes).
-- func_001E9280 was removed from fill_unmatched.py's GPREL_FORCE_ASM list:
-  with the entry present it linked from the .s despite objdiff 100%; with it
-  gone the boot ELF stays byte-identical and it links from C.
-
-Parked in the second batch: func_001429D0 99.94 (prologue parameter-copy
-order), func_0017C580 99.94 (one value in $a0 vs $a2, TU_STATIC tried),
-func_001AD740 99.98 (v0/v1 swap), func_00209280 99.85 (two saved registers
-swapped after a 5040-order declaration sweep), func_001DE920 99.22,
-func_00144040 97.91 (gains only through volatile globals). Permuter runs
-(10 min, 2 jobs) moved none of them.
+- **ee-gcc SDK RPC/SIF family** (func_00113280, func_00111C28, func_001140C8,
+  func_00111AE0, func_00106830, func_00106B88): the inline `asm("nop")` in
+  busy-wait delay loops was never in the source (the assembler pads short
+  loops; the extra statements changed register allocation); the latch reset
+  belongs inside the retry loop before `break`; identical failure tails are
+  separate blocks (gcc merges them), not a goto; RPC clients and request
+  buffers are struct globals used directly; the debug-print callee returns
+  int; func_00106490 takes no argument (func_00106830: 60.94 -> 100).
+  func_00106B88's saved-register order came from where `p = &D_0024147C;`
+  sits between two stores (a short ee-gcc permuter run found it).
+- **Wrong calls and bodies**: func_00135870 (anim_clip_init arguments,
+  four-argument func_001FBD50), func_0018B3E0 (four callee prototypes and a
+  3.34f constant), func_00151940 (the cooldown branch's state choice),
+  func_001E9E60 (twin of func_001E9280, plus a `switch` with `default:`
+  first, idiom-33).
+- **Spelling**: func_001C1A80 (convert inside the argument expression),
+  func_00131F90 (one float local for both bucket calls; `<= 0xA`),
+  func_001FFCD0 (cursor added last as an unsigned int; `n1 += n2`; its
+  unprototyped `()` externs must stay unprototyped), func_0020B210 (one shared
+  counter, row byte read first), func_00201C50 (early returns, not a preset
+  result).
+- Callee definitions that disagree with byte-matched callers (not changed,
+  noted for whoever reconciles them): func_0021BE40 is defined with one
+  parameter but every caller passes (player, self); func_0020CDA0 is defined
+  `(void)` but callers set $a0 / $a1 (func_0020B210 keeps a value in $a0,
+  func_00201C50 passes g + 0xD, g).
+- fill_unmatched.py: func_001E9E60 and func_001C1A80 dropped from
+  GPREL_FORCE_ASM (same proof as func_001E9280).
+- Automated prototype scan used to order the queue: every NEARMISS extern
+  whose parameter count differs from the callee's byte-matched definition
+  (unprototyped `()` declarations excluded). About half the hits were real.

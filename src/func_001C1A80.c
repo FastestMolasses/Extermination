@@ -1,21 +1,13 @@
-// NEARMISS func_001C1A80  (vram 0x001C1A80, 0x27C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.59% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
-// corrections from the level side-track lanes"): func_001D0D60 takes the handle (a0) and f12
-// only; the 0x30000000 / self the earlier text passed as a second argument is not an argument
-// (0x30000000 is the bit pattern of the 2^-31 scale, moved through a1 into the FPU).
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.59% NEARMISS).
+// Fixes read from the original instructions:
+//  - State 0's randomized blend weight converts the func_00122BB8 result to
+//    float inline inside the func_001D0D60 argument expression; a separate
+//    float local for the converted value cost an extra FPU register and
+//    swapped the two constant-load registers.
+//  - (Kept from 2026-10-01) func_001D0D60 takes the handle and f12 only.
 //
 // SEMANTICS: Actor state-machine init/update, keyed on self[4] (0..3).
 // State 0 (spawn): initializes the bone/segment array (func_001D0C80) with
@@ -80,9 +72,8 @@ void func_001C1A80(unsigned char *self) {
         self[0xA] = 0;
         { int x = func_00122BB8() >> 16; x *= 0xF0; x >>= 15;
           *(short *)(self + 0x28) = (short)(x + 0xF0); }
-        { float fr = (float)func_00122BB8();
-          func_001D0D60(*(void **)(self + 0x90),
-                        1.0f + 19.0f * (4.656613e-10f * fr)); }
+        func_001D0D60(*(void **)(self + 0x90),
+                      1.0f + 19.0f * (4.656613e-10f * (float)func_00122BB8()));
         break;
     case 1:
         if (func_001B17A0(self) != 0) {

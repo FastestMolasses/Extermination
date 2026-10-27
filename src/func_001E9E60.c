@@ -1,15 +1,18 @@
-// NEARMISS func_001E9E60  (vram 0x001E9E60, 0x3A4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.05% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// Corrected body (3-argument func_001CB950, byte-offset loop like func_001E9280). Left: the func_001CB6B0 argument load hoisted into the join delay slot, and the operand order seen in func_001E9280.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.05% NEARMISS).
+// Fixes read from the original instructions:
+//  - func_001CB6B0 takes pointers for its context and its fourth argument (char *),
+//    as in the byte-matched twin func_001E9280; the int-cast prototype moved the
+//    D_00275674 load.
+//  - The three per-row copy destinations add the row offset to the block address as an
+//    unsigned integer (offset first, then (unsigned int)blk, then +0x10).
+//  - The final func_001CB950 choice on the segment-0 object's +0x5C byte is a switch
+//    with the default (byte != 1) first and case 1 second (idiom-33): the if/else
+//    spelling kept a dead copy of the join's first instruction plus an alignment nop,
+//    both in this tail and in the segment loop's kick-word store.
 
 //
 // CORRECTED (decomp lane round 5, 2026-10-20) against the original instructions:
@@ -48,7 +51,7 @@ extern void func_00102948(void *dst, void *src);
 extern void copy_qw4(void *dst, void *src);
 extern char *func_001CB5F0(void *a0, int a1, int a2);
 extern unsigned char *func_001CB950(int a0, int a1, long a2);
-extern void func_001CB6B0(int a0, int a1, int a2, int a3);
+extern void func_001CB6B0(char *a0, int a1, int a2, char *a3);
 extern void func_001CB760(int a0, int a1, int a2);
 
 extern char D_007635C0[64];
@@ -90,9 +93,9 @@ void func_001E9E60(char *arg0, int arg1) {
         seg = base;
         off = 0;
         do {
-            func_00102948(blk + off + 0x10, seg + 0x60);
-            func_00102948(blk + ((row + 8) << 4) + 0x10, seg1 + 0x60);
-            func_00102948(blk + ((row + 0x10) << 4) + 0x10, seg2 + 0x60);
+            func_00102948((void *)(off + (unsigned int)blk + 0x10), seg + 0x60);
+            func_00102948((void *)(((row + 8) << 4) + (unsigned int)blk + 0x10), seg1 + 0x60);
+            func_00102948((void *)(((row + 0x10) << 4) + (unsigned int)blk + 0x10), seg2 + 0x60);
             row += 1;
             seg += 0x10;
             off += 0x10;
@@ -146,11 +149,14 @@ void func_001E9E60(char *arg0, int arg1) {
     func_00102948(blk + 0x70, D_00275670 + 0x2220);
     func_00102948(blk + 0x80, D_00275670 + 0x2230);
 
-    if (*(unsigned char *)(orig + 0x5C) != 1) {
+    switch (*(unsigned char *)(orig + 0x5C)) {
+    default:
         func_001CB950((int)D_007635C0, 0, (long)0x55422242 | ((long)0x20048CC1 << 32));
-    } else {
+        break;
+    case 1:
         func_001CB950((int)D_007635C0, 0, (long)0x55422256 | ((long)0x20048E41 << 32));
+        break;
     }
-    func_001CB6B0((int)D_007635C0, 0, 8, (int)(D_00275674 + 0x720));
+    func_001CB6B0(D_007635C0, 0, 8, D_00275674 + 0x720);
     func_001CB760((int)D_007635C0, 0, (int)D_002345E0);
 }

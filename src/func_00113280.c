@@ -1,15 +1,16 @@
-// NEARMISS func_00113280  (vram 0x00113280, 0x1F8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.93% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc callee-saved GPR coloring permutation (confirmed fast-park class). All 126 instructions, control flow, scheduling and every delay slot match one-for-one; .text size 0x1F8 == expected. Only the callee-saved assignment differs: expected D_00241CF8->s6, mode->s2, D_00241D30->s1, D_0027AFB0->s...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 98.93% NEARMISS).
+// Fixes read from the original instructions:
+//  - The "GPR coloring" residual was ee-gcc's allocation priority (references
+//    weighted by loop depth over live length), so the source shape decides it:
+//  - the bind-done latch reset (D_00241D30 = 0) sits INSIDE the retry loop,
+//    just before the break, not after the loop;
+//  - the func_00112DC0 failure path is its own SignalSema + return block (the
+//    compiler cross-jumps it into the shared error tail), not a goto into the
+//    RPC-failure branch.
+//  - The delay loops need no inline nop: the r5900 assembler pads short loops.
 
 // libcdvd: sceCdInit(mode) - binds the cdvd "S" RPC server (sid 0x8000059A),
 // retrying with a busy-wait, then issues fno 0 with the init mode.
@@ -49,8 +50,9 @@ int func_00113280(int mode)
         return 6;
     }
 
-    if (func_00112DC0(1) != 0) {
-        goto error;
+    if (func_00112DC0(1)) {
+        SignalSema(D_00241D0C);
+        return (mode != 8) ? 6 : -1;
     }
     func_0010E088(0);
 
@@ -63,26 +65,23 @@ int func_00113280(int mode)
                 i = 0x100000;
                 do {
                     i--;
-                    __asm__ __volatile__("nop");
                 } while (i != -1);
                 continue;
             }
             if (*(int *)(D_0027AFB0 + 0x24) != 0) {
+                D_00241D30 = 0;
                 break;
             }
             i = 0x100000;
             do {
                 i--;
-                __asm__ __volatile__("nop");
             } while (i != -1);
         }
-        D_00241D30 = 0;
     }
 
     D_0027B060 = mode;
     func_0010DFD8(&D_0027B060, 4);
     if (func_0010E8A8(D_0027AFB0, 0, 0, &D_0027B060, 4, D_0027AB40, 4, 0, 0) < 0) {
-error:
         SignalSema(D_00241D0C);
         return (mode != 8) ? 6 : -1;
     }
