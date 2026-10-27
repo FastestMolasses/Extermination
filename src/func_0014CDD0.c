@@ -1,15 +1,16 @@
-// NEARMISS func_0014CDD0  (vram 0x0014CDD0, 0x408 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 94.65% (233; 991202=84.36%). Body/logic and all data fully recovered (verified against sibling func_001B2B10.c/func_00110C48.c prototypes and FINDINGS.md field docs). Residual causes: (1) mwcc cross-jump/tail-merges the top-level cnt==0 early-exit block into one of the five identical later 'arg0[...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 94.65% NEARMISS).
+// Fixes read from the original instructions:
+// - Block order: the counter decrement is the fall-through arm and the
+//   zero-counter idle exit (state 2) is the else arm with an early return.
+// - The commit tail re-reads arg0+0x34 / arg0+0x36 after storing arg0+0 = 1
+//   instead of reusing the values loaded for the test.
+// - The budget test is spelled budget <= ((short)wind & 0xFFF): the original
+//   sign-extends the windup before masking and puts the compare result in $at.
+// - func_0021BE40 is called with two arguments (&D_008102B0, arg0); its
+//   definition in src/ declares only one parameter (see report).
 
 //
 // Attack/recoil state driver. arg0 = entity, arg1 = weapon/attack block. If
@@ -57,31 +58,52 @@ extern char D_700038B0[];
 void func_0014CDD0(char *arg0, char *arg1) {
     int cnt;
     short wind;
-    short budget;
 
     cnt = *(int *)(arg1 + 0x18);
-    if (cnt == 0) {
-        *(char *)(arg0 + 4) = 2;
-    } else {
+    if (cnt != 0) {
         *(int *)(arg1 + 0x18) = cnt - 1;
+    } else {
+        *(char *)(arg0 + 4) = 2;
+        return;
+    }
 
-        if (*(float *)(arg0 + 0xB4) <= 5.0f) {
-            func_00102948(D_700038A0, arg0 + 0xB0);
-            *(int *)0x700038A4 = 0x41200000;
-            func_001EFD20(0x8000005F, D_700038A0);
-            func_001FBD50(arg0, 0x872, 0, 800.0f);
-            *(char *)(arg0 + 4) = 3;
+    if (*(float *)(arg0 + 0xB4) <= 5.0f) {
+        func_00102948(D_700038A0, arg0 + 0xB0);
+        *(int *)0x700038A4 = 0x41200000;
+        func_001EFD20(0x8000005F, D_700038A0);
+        func_001FBD50(arg0, 0x872, 0, 800.0f);
+        *(char *)(arg0 + 4) = 3;
+        return;
+    }
+
+    if (*(char *)(arg1 + 0x41) == 0) {
+        *(int *)0x700038A0 = 0;
+        *(int *)0x700038A4 = 0;
+        *(int *)0x700038A8 = 0x40800000;
+        *(int *)0x700038AC = 0x3F800000;
+        func_001B2B10(arg0, (int)D_700038A0, (int)D_700038A0);
+        func_001028B8(D_700038A0, arg0 + 0xB0, D_700038A0);
+        if (func_0019AD00(arg0, D_700038A0, 6) != 0) {
+            *(int *)0x700038A8 = 0;
+            *(int *)0x700038A4 = 0;
+            *(int *)0x700038A0 = 0;
+            *(int *)0x700038AC = 0x3F800000;
+            func_001EFD90(D_00245CE0[*(unsigned char *)(arg0 + 0xD)], arg0 + 0xB0, D_700038A0);
+            *(char *)(arg0 + 4) = 2;
             return;
         }
 
-        if (*(char *)(arg1 + 0x41) == 0) {
+        if (*(float *)(arg1 + 0x24) < 0.0f) {
             *(int *)0x700038A0 = 0;
-            *(int *)0x700038A4 = 0;
-            *(int *)0x700038A8 = 0x40800000;
+            *(int *)0x700038B0 = 0;
+            *(int *)0x700038A4 = 0xC0000000;
+            *(int *)0x700038A8 = 0;
             *(int *)0x700038AC = 0x3F800000;
-            func_001B2B10(arg0, (int)D_700038A0, (int)D_700038A0);
-            func_001028B8(D_700038A0, arg0 + 0xB0, D_700038A0);
-            if (func_0019AD00(arg0, D_700038A0, 6) != 0) {
+            *(int *)0x700038B4 = 0xC1000000;
+            *(int *)0x700038B8 = 0;
+            *(int *)0x700038BC = 0x3F800000;
+            func_001028B8(D_700038A0, D_700038A0, arg0 + 0xB0);
+            if (func_0019AB20(arg0, D_700038A0, D_700038B0, 7) != 0) {
                 *(int *)0x700038A8 = 0;
                 *(int *)0x700038A4 = 0;
                 *(int *)0x700038A0 = 0;
@@ -90,63 +112,41 @@ void func_0014CDD0(char *arg0, char *arg1) {
                 *(char *)(arg0 + 4) = 2;
                 return;
             }
-
-            if (*(float *)(arg1 + 0x24) < 0.0f) {
-                *(int *)0x700038A0 = 0;
-                *(int *)0x700038B0 = 0;
-                *(int *)0x700038A4 = 0xC0000000;
-                *(int *)0x700038A8 = 0;
-                *(int *)0x700038AC = 0x3F800000;
-                *(int *)0x700038B4 = 0xC1000000;
-                *(int *)0x700038B8 = 0;
-                *(int *)0x700038BC = 0x3F800000;
-                func_001028B8(D_700038A0, D_700038A0, arg0 + 0xB0);
-                if (func_0019AB20(arg0, D_700038A0, D_700038B0, 7) != 0) {
-                    *(int *)0x700038A8 = 0;
-                    *(int *)0x700038A4 = 0;
-                    *(int *)0x700038A0 = 0;
-                    *(int *)0x700038AC = 0x3F800000;
-                    func_001EFD90(D_00245CE0[*(unsigned char *)(arg0 + 0xD)], arg0 + 0xB0, D_700038A0);
-                    *(char *)(arg0 + 4) = 2;
-                    return;
-                }
-            }
         }
-
-        if (func_0021BE40(&D_008102B0, arg0) == 0 && func_001A7B80(arg0) != 0) {
-            *(int *)0x700038A8 = 0;
-            *(int *)0x700038A4 = 0;
-            *(int *)0x700038A0 = 0;
-            *(int *)0x700038AC = 0x3F800000;
-            func_001EFD90(D_00245CE0[*(unsigned char *)(arg0 + 0xD)], arg0 + 0xB0, D_700038A0);
-            *(char *)(arg0 + 4) = 2;
-            D_008102B0 |= 2;
-            if (D_0081070A != 0) {
-                D_008104D4 = 0x41A00000;
-                D_008104DC = 0x41C80000;
-            } else {
-                D_008104D4 = 0x41700000;
-                D_008104DC = 0x41A00000;
-            }
-            return;
-        }
-
-        wind = *(short *)(arg0 + 0x36);
-        if (wind == 0) {
-            return;
-        }
-        budget = *(short *)(arg0 + 0x34);
-        if ((wind & 0xFFF) >= budget) {
-            *(int *)0x700038A8 = 0;
-            *(int *)0x700038A4 = 0;
-            *(int *)0x700038A0 = 0;
-            *(int *)0x700038AC = 0x3F800000;
-            func_001EFD90(D_00245CE0[*(unsigned char *)(arg0 + 0xD)], arg0 + 0xB0, D_700038A0);
-            *(char *)(arg0 + 4) = 2;
-            return;
-        }
-        *(char *)arg0 = 1;
-        *(short *)(arg0 + 0x34) = budget - (wind & 0xFFF);
-        *(short *)(arg0 + 0x36) = 0;
     }
+
+    if (func_0021BE40(&D_008102B0, arg0) == 0 && func_001A7B80(arg0) != 0) {
+        *(int *)0x700038A8 = 0;
+        *(int *)0x700038A4 = 0;
+        *(int *)0x700038A0 = 0;
+        *(int *)0x700038AC = 0x3F800000;
+        func_001EFD90(D_00245CE0[*(unsigned char *)(arg0 + 0xD)], arg0 + 0xB0, D_700038A0);
+        *(char *)(arg0 + 4) = 2;
+        D_008102B0 |= 2;
+        if (D_0081070A != 0) {
+            D_008104D4 = 0x41A00000;
+            D_008104DC = 0x41C80000;
+        } else {
+            D_008104D4 = 0x41700000;
+            D_008104DC = 0x41A00000;
+        }
+        return;
+    }
+
+    wind = *(short *)(arg0 + 0x36);
+    if (wind == 0) {
+        return;
+    }
+    if (*(short *)(arg0 + 0x34) <= ((short)wind & 0xFFF)) {
+        *(int *)0x700038A8 = 0;
+        *(int *)0x700038A4 = 0;
+        *(int *)0x700038A0 = 0;
+        *(int *)0x700038AC = 0x3F800000;
+        func_001EFD90(D_00245CE0[*(unsigned char *)(arg0 + 0xD)], arg0 + 0xB0, D_700038A0);
+        *(char *)(arg0 + 4) = 2;
+        return;
+    }
+    *(char *)arg0 = 1;
+    *(short *)(arg0 + 0x34) = *(short *)(arg0 + 0x34) - (*(short *)(arg0 + 0x36) & 0xFFF);
+    *(short *)(arg0 + 0x36) = 0;
 }

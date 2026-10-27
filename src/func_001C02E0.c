@@ -1,52 +1,31 @@
-// NEARMISS func_001C02E0  (vram 0x001C02E0, 0x3F8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.51% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Cluster of genuine mwcc-vs-CW artifacts, logic/structure fully recovered: (1) CW emits an unreachable duplicate copy of the 'alloc-failed -> self+4=3; return' arm inline right after the success arm's tail jump (documented dead-trailing-return-block lowering wall), shifting every later branch targ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x700038A0
 
-//
-// objdiff 94.51% via mwcc 2.3.3 (mwcps2-2.3.3-000906); pinned 991202 build
-// reaches 88.15%. LOGIC and STRUCTURE are fully recovered (verified against
-// the .s instruction-by-instruction: every call, store, and branch target
-// matches). Residual is a cluster of genuine mwcc-vs-CW scheduling/dead-code
-// artifacts, not a source defect:
-//  - One unreachable duplicate block: CW emits a second dead copy of the
-//    "alloc failed -> self+4=3; return" arm inline right after the success
-//    arm's own tail jump, before the real (reachable) copy further down
-//    (the documented "dead trailing return-0 block" mwcc-vs-CW lowering
-//    wall) -- this alone shifts every following branch target by 0x10,
-//    cascading into several DIFF_ARG_MISMATCH-on-branch-offset entries.
-//  - Several call/store delay-slot fills where CW leaves a `nop` (or hoists
-//    an unrelated load a instruction earlier) and mwcc233 schedules
-//    differently: func_001AFA90(2,2)'s first-arg copy vs the D_700038AC
-//    store ordering, a `beqz` following func_001BF630's call result (CW
-//    nop, mwcc233 fills from later code), and a redundant re-copy of
-//    a0=self CW performs before func_001C6380 that mwcc233 elides as dead
-//    (already live in a0). Both idiom-13 (clean-store nop) and idiom-20
-//    (branch-likely dispatch) were applied surgically already: the +5
-//    sub-state re-load (not reusing the switch scrutinee) was required to
-//    stop mwcc233 from branch-likely-ing the sub==0 init block, and the
-//    D_00810845/D_00810766/D_0028A518/D_0028A51C/D_0024FD50/D_00275638/
-//    D_00275648 externs all had to be declared as incomplete arrays (`T[]`)
-//    rather than scalars to get the correct mix of %gp_rel vs lui/%lo forms
-//    at -sdatathreshold 4 (array-typed externs are never gp_rel-eligible;
-//    scalar externs are, if their size is <= threshold).
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 94.51% NEARMISS).
+// Fixes read from the original instructions:
+//  - func_001AFA90 and func_001B6660 take ONE argument (their definitions in
+//    src/): the "extra" a1/a2 values were just leftovers from the state
+//    dispatch, not arguments.
+//  - The switch cases end in `break`, not `return` (one shared epilogue).
+//  - The allocation is `if (comp != 0) { copy/link } else { self+4 = 3; break; }`
+//    followed by the rest of the init: the "dead duplicate" fail arm was the
+//    delay-slot fill copying the else block's first instruction, not a
+//    compiler wall.
+//  - The scratchpad word 0x700038A0 is a relocated extern (idiom-32, opted in
+//    with // SPAD:), declared `float D_700038A0[]` (array: never gp_rel) and
+//    passed uncast to the vector helpers; as a symbol its upper half is no
+//    longer speculated into the debug-check branch slot. 0x700038A4..AC stay
+//    literals.
 //
 // SEMANTICS: Actor state-machine init/update (companion to func_001BFFD0,
 // which self+0x24 is wired to on success). State byte at self+4:
 //   0: debug-skip check (D_00810845 & 0x20) -> if set, force debug-fail
 //      color D_00810766=0xFF, install the "failed spawn" update vtable
-//      func_001BF6B0, notify via func_001B6660(&D_829110, 2), and bail.
+//      func_001BF6B0, notify via func_001B6660(&D_829110), and bail.
 //      Otherwise builds a scratch 4x4-ish transform via the VU scratch
 //      block D_700038A0.. (col0 (0,1,0), col1 identity-ish, w=1) and
-//      allocates a companion actor via func_001AFA90(2,2). On success,
+//      allocates a companion actor via func_001AFA90(2). On success,
 //      copies self's pos(+0xB0) and rot(+0xC0) into the new actor, tags it
 //      class/type bytes +3=0x12, +0xD=2, installs its update vtable
 //      func_001BFFD0, cross-links self<->companion (+0x20 / +0x24), inits
@@ -84,10 +63,10 @@ extern void func_001028B8(void *out, void *a, void *b);
 extern void func_001028D0(void *out, void *a, void *b);
 extern void func_00102948(void *dst, void *src);
 extern void func_001AF890(unsigned char *handle);
-extern unsigned char *func_001AFA90(int cls, int sub);
+extern unsigned char *func_001AFA90(int cls);
 extern void func_001AFC10(unsigned char *handle);
 extern void func_001B17A0(unsigned char *self);
-extern void func_001B6660(void *list, int a1, unsigned char cause);
+extern void func_001B6660(void *list);
 extern int func_001BF630(void *player, unsigned char *self, unsigned char *tail);
 extern void func_001C6380(unsigned char *self);
 extern void func_001D0C80(unsigned char *self, int type);
@@ -98,7 +77,7 @@ extern unsigned char D_008102B0[];
 extern unsigned char D_00810766[];
 extern unsigned char D_00810845[];
 extern unsigned char D_829110[];
-extern char D_700038A0[];
+extern float D_700038A0[];
 extern char D_700038B0[];
 extern char D_700038E0[];
 extern char D_700038F0[];
@@ -127,14 +106,14 @@ void func_001C02E0(unsigned char *arg0) {
         if (D_00810845[0] & 0x20) {
             D_00810766[0] = 0xFF;
             *(void **)(self + 0x10) = (void *)func_001BF6B0;
-            func_001B6660(D_829110, 2, st);
-            return;
+            func_001B6660(D_829110);
+            break;
         }
-        *(float *)0x700038A0 = 0.0f;
+        D_700038A0[0] = 0.0f;
         *(float *)0x700038A4 = 2.0f;
         *(float *)0x700038A8 = 5.0f;
         *(float *)0x700038AC = 1.0f;
-        comp = func_001AFA90(2, 2);
+        comp = func_001AFA90(2);
         if (comp != 0) {
             func_00102948(comp + 0xB0, self + 0xB0);
             func_00102948(comp + 0xC0, self + 0xC0);
@@ -143,6 +122,11 @@ void func_001C02E0(unsigned char *arg0) {
             *(void **)(comp + 0x10) = (void *)func_001BFFD0;
             *(unsigned char **)(comp + 0x20) = self;
             *(unsigned char **)(self + 0x24) = comp;
+        } else {
+            *(unsigned char *)(self + 4) = 3;
+            break;
+        }
+        {
             func_001D0C80(self, D_0028A518[0]);
             func_001D0D40(self, D_0024FD50, 0x5B, 1);
             *(short *)(tail + 2) = 0;
@@ -177,10 +161,8 @@ void func_001C02E0(unsigned char *arg0) {
             func_001028D0(D_700038F0, D_700038B0, D_700038A0);
             func_00102760(D_700038F0, D_700038F0);
             *(float *)(tail + 8) = func_00102738(D_700038E0, D_700038F0);
-            return;
         }
-        *(unsigned char *)(self + 4) = 3;
-        return;
+        break;
     case 1:
         sub = *(unsigned char *)(self + 5);
         switch (sub) {
@@ -209,13 +191,13 @@ void func_001C02E0(unsigned char *arg0) {
         }
         func_001B17A0(self);
         (*(void (**)(unsigned char *))(self + 0x4C))(self);
-        return;
+        break;
     case 2:
         *(unsigned char *)(self + 4) = 3;
-        return;
+        break;
     case 3:
         func_001AF890(*(unsigned char **)(self + 0x90));
         func_001AFC10(self);
-        return;
+        break;
     }
 }

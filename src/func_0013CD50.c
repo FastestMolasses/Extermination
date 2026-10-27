@@ -1,15 +1,31 @@
-// NEARMISS func_0013CD50  (vram 0x0013CD50, 0x4C8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 88.05% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-order permutation. Both mwcc builds place the exact same four live values (three per-slot scan pointers D_700030F0/D_70003170/D_00282250, plus the loop index) in the same four callee-saved registers s0-s3 but in a different assignment ORDER than the target (target: s0=tpos,s1=...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700038B0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 88.05% NEARMISS).
+// Fixes read from the original instructions:
+//  - Local declaration order: the loop index first, then the three per-slot
+//    scan pointers, then hi before lo (first declared gets the lowest saved
+//    register); the "register permutation" was this, not a compiler wall.
+//  - The scan loop advances the pointers before the index.
+//  - The mask switch has an explicit case 3 returning 3; any other mask
+//    value returns 0 (the old default returned 3).
+//  - The second scan re-reads the table count in its condition (no local
+//    count copy, so mwcc keeps the unrotated loop), walks a block-local
+//    pointer, and writes the +-5.0 limits inline.
+//  - The scratchpad word 0x700038B0 is a relocated extern (idiom-32, opted in
+//    with // SPAD:): its two clears go through D_700038B0, which stops mwcc
+//    hoisting the 0x7000 upper half into the scan loop's exit branch slots.
+//
+// func_0019AFE0(self, self+0xB0, pos, 6) gates it (0 -> 0; bit 1 with
+// *0x700031D4 clear, or bit 0 -> 3). After func_0019BC40(pos) fills the
+// parallel tables D_700030F0[] (values), D_70003170[] (flags) and
+// D_00282250[] (angles), it scans from pos[1] (+-1000 defaults) for the
+// bounding entries below (lo, flag bit 0 clear) and above (hi, flag bit 0
+// set) whose |angle| (func_0011DF78) is <= pi/3, rebuilds the
+// scratch transform at 0x700038B0 from self+0xC4, rescans to build a 2-bit mask
+// of entries outside the [lo-5, hi+5] band, and returns 1 (near hi) / 2 (near
+// lo) / 3 (blocked) from the 25-unit distances.
 
 extern int func_0019AFE0(void *p, void *a, void *b, int n);
 extern void func_0019BC40(void *p);
@@ -28,13 +44,12 @@ extern float D_700036A0;
 extern float D_700038B0;
 
 int func_0013CD50(char *arg0, char *arg1) {
+    int i;
     float *tpos;
     unsigned short *flags;
     float *tsin;
-    float lo;
     float hi;
-    int i;
-    int cnt;
+    float lo;
     int mask;
     int r;
 
@@ -60,7 +75,7 @@ int func_0013CD50(char *arg0, char *arg1) {
     tsin = D_00282250;
     i = 0;
 
-    for (; i < *(int *)0x700031E0; i++, tpos += 1, flags += 1, tsin += 1) {
+    for (; i < *(int *)0x700031E0; tpos += 1, flags += 1, tsin += 1, i++) {
         if (!(*(float *)(arg1 + 4) < *tpos)) {
             if (!(*flags & 1) && func_0011DF78(*tsin) <= 1.0471976f) {
                 lo = *tpos;
@@ -73,13 +88,13 @@ int func_0013CD50(char *arg0, char *arg1) {
         break;
     }
 
-    *(int *)0x700038B0 = 0;
+    D_700038B0 = 0.0f;
     *(float *)0x700038B4 = func_001B1470(3.1415927f + *(float *)(arg0 + 0xC4));
     *(int *)0x700038B8 = 0;
     *(int *)0x700038BC = 0x3F800000;
     func_001029C0(&D_700036A0);
     func_00102C58(&D_700036A0, &D_700036A0, &D_700038B0);
-    *(int *)0x700038B0 = 0;
+    D_700038B0 = 0.0f;
     *(float *)0x700038B4 = 0.0f;
     *(int *)0x700038B8 = 0x3DCCCCCD;
     *(int *)0x700038BC = 0x3F800000;
@@ -88,16 +103,14 @@ int func_0013CD50(char *arg0, char *arg1) {
     func_0019BC40(&D_700038B0);
 
     mask = 0;
-    cnt = *(int *)0x700031E0;
-    if (cnt != 0) {
-        tpos = D_700030F0;
-        for (i = 0; i < cnt; i++, tpos += 1) {
-            float d = *tpos;
-            if (d <= *(float *)(arg1 + 4)) {
-                if (!(d <= lo - 5.0f)) {
+    if (*(int *)0x700031E0 != 0) {
+        float *p = D_700030F0;
+        for (i = 0; i < *(int *)0x700031E0; p += 1, i++) {
+            if (*p <= *(float *)(arg1 + 4)) {
+                if (!(*p <= lo - 5.0f)) {
                     mask |= 1;
                 }
-            } else if (d < 5.0f + hi) {
+            } else if (*p < 5.0f + hi) {
                 mask |= 2;
             }
         }
@@ -128,7 +141,8 @@ int func_0013CD50(char *arg0, char *arg1) {
             return 2;
         }
         return 3;
-    default:
+    case 3:
         return 3;
     }
+    return 0;
 }

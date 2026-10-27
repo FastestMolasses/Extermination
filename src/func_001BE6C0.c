@@ -1,17 +1,24 @@
-// NEARMISS func_001BE6C0  (vram 0x001BE6C0, 0x3F4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.29% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-ORDER permutation (idiom exhaustion reached): after applying the 64-bit sign-extend idiom (long long cast unlocks the dsll32/dsra32 clean-store match) and matching the tail/other declaration order (fixes the s0/s1 swap), the SOLE residual is which physical temp registers (a0/a...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// CFLAGS: -O4,p -sdatathreshold 8
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 95.29% NEARMISS).
+// Fixes read from the original instructions:
+//  * func_001B1020 takes (actor, model, clip, frame) as its definition says; the
+//    original passes self first (the old extern dropped it).
+//  * D_00275618 is a small-data global the original addresses $gp-relative:
+//    -sdatathreshold 8 with an int-sized declaration; D_0028A524 stays absolute
+//    (declared as an unsized array so it is not placed in small data).
+//  * The partner's tail block (other + 0x1F0) is its own local, computed up front.
+//  * Every switch case ends in `break` (not `return`), which restores the
+//    original's dispatch layout and delay slots.
+//
+// State machine on self[4] with a partner object at self+0x20: state 0 waits for
+// the partner (copies its state 3) or sets up an animation and handler; state 1
+// forwards the hit flags at self+0x36 to the partner and runs the per-frame update
+// calls; state 2 decreases the float at self+0x64 by 0.05 to zero, then goes to
+// state 3; state 3 calls func_001AFC10.
 
-extern void func_001B1020(int a, int b, int c);
+extern int func_001B1020(char *actor, int model, int clip, int frame);
 extern void func_001C6380(unsigned char *self);
 extern void func_001C63D0(char *obj);
 extern void func_001B17A0(char *p);
@@ -27,8 +34,8 @@ extern void func_001EFD90(int a0, void *a1, void *a2);
 extern void func_001FBD50(char *p, int a, int b, float f);
 extern void func_001F4A00(void *a, void *b);
 extern void func_001AFC10(unsigned char *handle);
-extern int D_0028A524;
-extern void *D_00275618;
+extern int D_0028A524[];
+extern int D_00275618;
 extern float D_00810350[];
 extern float D_70003610[];
 extern float D_700036A0[];
@@ -39,20 +46,21 @@ extern float D_700038B0[];
 void func_001BE6C0(unsigned char *self) {
     unsigned char *tail = self + 0x1F0;
     unsigned char *other = *(unsigned char **)(self + 0x20);
+    unsigned char *otail = other + 0x1F0;
 
     switch (self[4]) {
     case 0:
         if (other[4] == 3) {
             self[4] = 3;
-            return;
+            break;
         }
-        func_001B1020(4, -1, 0);
-        *(int *)(self + 0x58) = D_0028A524;
+        func_001B1020((char *)self, 4, -1, 0);
+        *(int *)(self + 0x58) = D_0028A524[0];
         self[0x5D] = 0x81;
         self[0] = 1;
-        *(void **)(self + 0x30) = &D_00275618;
+        *(void **)(self + 0x30) = (void *)&D_00275618;
         *(int *)(tail + 0x1C) = 0;
-        return;
+        break;
     case 1:
         if (other[4] >= 2) {
             self[4] = 2;
@@ -67,7 +75,7 @@ void func_001BE6C0(unsigned char *self) {
                 if (h != 0) {
                     if (other[0] == 1) {
                         if ((long long)h & 0x5000) {
-                            if (*(int *)(tail + 0x1C) == 0 && *(int *)(other + 0x1F0 + 0x1C) == 0) {
+                            if (*(int *)(tail + 0x1C) == 0 && *(int *)(otail + 0x1C) == 0) {
                                 *(int *)(tail + 0x1C) = 0x3C;
                                 *(short *)(other + 0x36) = *(short *)(self + 0x36);
                                 other[0] = 3;
@@ -119,7 +127,7 @@ void func_001BE6C0(unsigned char *self) {
             *(int *)0x700038BC = 0x80;
             func_001F4A00(D_700038A0, D_700038B0);
         }
-        return;
+        break;
     case 2:
     {
         float t = *(float *)(self + 0x64) - 0.05f;
@@ -130,7 +138,7 @@ void func_001BE6C0(unsigned char *self) {
         }
         func_001C6380(self);
         (*(void (**)(unsigned char *))(self + 0x4C))(self);
-        return;
+        break;
     }
     case 3:
         func_001AFC10(self);

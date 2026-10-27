@@ -1,16 +1,23 @@
-// NEARMISS anim_frame_top_a  (vram 0x001ACA20, 0x450 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 93.67% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring wall: the target keeps slot in a1 and the precomputed &slot[9] pointer in a0 across the whole function (never promoting either to a callee-saved reg), while mwcc233 assigns them the other way round in one internal spot causing a v0/v1 swap in the mode==1 (D_00275BD4) global-seed...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
-
+// SPAD: 0x70003B8D
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 93.67% NEARMISS).
+// Fixes read from the original instructions:
+// - The task-slot pointer is the relocated scratchpad extern D_70003B6C
+//   (char * volatile, over-declared as an array so it stays absolute): the
+//   original re-forms its upper half per access, which a literal address let
+//   mwcc CSE/speculate into branch delay slots. Slot fields are bumped with
+//   `++` (one pointer load per increment).
+// - The case-3 increment is `(*statep)++`, re-reading the state byte.
+// - Seven of the mode-seed globals (D_00810700/701/702, D_00810C65/C68/C7E/
+//   CA6) are volatile: the original keeps their stores in source order, and
+//   mwcc otherwise hoists the stores of an already-loaded constant ahead of
+//   them (reordering the plain stores in the source does not change that).
+//   D_00810774/D_008107F4/D_0081079A are unsigned bytes set to 0xFF.
+// - The display-mode byte 0x70003B8D is its own volatile scratchpad extern
+//   (absolute, over-declared past the -sdatathreshold), which stops mwcc
+//   speculating its upper half into the preceding branch's delay slot.
 //
 // Top-level game-task state machine dispatched on the byte at slot[9]
 // (slot = *(void**)0x70003B6C, the current frame-task slot pointer -- same
@@ -75,26 +82,28 @@ extern int D_0028A564[8];
 extern short D_0028A9A0[64];
 extern unsigned char D_008106B8[16];
 extern unsigned char D_008106B9[16];
-extern signed char D_00810700[16];
-extern signed char D_00810701[16];
-extern signed char D_00810702[16];
-extern signed char D_00810774[16];
-extern signed char D_0081079A[16];
-extern signed char D_008107F4[16];
+extern volatile signed char D_00810700[16];
+extern volatile signed char D_00810701[16];
+extern volatile signed char D_00810702[16];
+extern unsigned char D_00810774[16];
+extern unsigned char D_0081079A[16];
+extern unsigned char D_008107F4[16];
 extern signed char D_00810C61[16];
-extern signed char D_00810C65[16];
-extern signed char D_00810C68[16];
-extern signed char D_00810C7E[16];
-extern signed char D_00810CA6[16];
+extern volatile signed char D_00810C65[16];
+extern volatile signed char D_00810C68[16];
+extern volatile signed char D_00810C7E[16];
+extern volatile signed char D_00810CA6[16];
 extern short D_00810CA8[16];
 extern short D_00810CAC[16];
 extern unsigned short D_00810E70[8];
+extern char * volatile D_70003B6C[4];
+extern volatile unsigned char D_70003B8D[16];
 
 int anim_frame_top_a(void) {
     unsigned char *statep;
     unsigned char *slot;
 
-    slot = *(unsigned char **)0x70003B6C;
+    slot = (unsigned char *)D_70003B6C[0];
     statep = slot + 9;
     switch (*statep) {
     case 0:
@@ -102,7 +111,7 @@ int anim_frame_top_a(void) {
         if (D_00810E70[0] & 0x9F0) {
             return 2;
         }
-        (*(unsigned char **)0x70003B6C)[9] = (*(unsigned char **)0x70003B6C)[9] + 1;
+        ((unsigned char *)D_70003B6C[0])[9]++;
         func_001AF2C0();
         D_00275BE0 = 2;
         D_00275BD8 = 1;
@@ -116,9 +125,9 @@ int anim_frame_top_a(void) {
             }
             func_00200830(D_0028A564[0]);
             func_001D19D0();
-            (*(unsigned char **)0x70003B6C)[9] = (*(unsigned char **)0x70003B6C)[9] + 1;
-            (*(unsigned char **)0x70003B6C)[0xA] = 0;
-            (*(unsigned char **)0x70003B6C)[0xB] = 0;
+            ((unsigned char *)D_70003B6C[0])[9]++;
+            ((unsigned char *)D_70003B6C[0])[0xA] = 0;
+            ((unsigned char *)D_70003B6C[0])[0xB] = 0;
             D_00810C61[0] = 1;
             if (D_00275BD4 == 0) {
                 D_00810700[0] = 6;
@@ -129,9 +138,9 @@ int anim_frame_top_a(void) {
                 D_00810C68[0] = 1;
                 D_00810CAC[0] = 0xA;
                 D_00810CA6[0] = 4;
-                D_00810774[0] = -1;
-                D_008107F4[0] = -1;
-                D_0081079A[0] = -1;
+                D_00810774[0] = 0xFF;
+                D_008107F4[0] = 0xFF;
+                D_0081079A[0] = 0xFF;
             } else {
                 D_00810700[0] = 3;
                 D_00810701[0] = 1;
@@ -143,8 +152,8 @@ int anim_frame_top_a(void) {
         break;
     case 2:
         if (func_001ADF50()) {
-            (*(unsigned char **)0x70003B6C)[9] = (*(unsigned char **)0x70003B6C)[9] + 1;
-            (*(unsigned char **)0x70003B6C)[0xA] = 0;
+            ((unsigned char *)D_70003B6C[0])[9]++;
+            ((unsigned char *)D_70003B6C[0])[0xA] = 0;
             D_00275BD8 = 1;
             func_001FF080(0, 0x36);
         }
@@ -154,9 +163,9 @@ int anim_frame_top_a(void) {
             if (D_00810E70[0] & 0x9F0) {
                 return 2;
             }
-            *statep = *statep + 1;
-            (*(unsigned char **)0x70003B6C)[0xA] = 0;
-            (*(unsigned char **)0x70003B6C)[0xB] = 0;
+            (*statep)++;
+            ((unsigned char *)D_70003B6C[0])[0xA] = 0;
+            ((unsigned char *)D_70003B6C[0])[0xB] = 0;
         }
         break;
     case 4:
@@ -168,10 +177,9 @@ int anim_frame_top_a(void) {
             func_00122BA8(0x45);
             *(int *)0x70003B68 = 0;
             *(int *)0x70003B64 = 0;
-            slot = *(unsigned char **)0x70003B6C;
-            slot[0xB] = slot[0xB] + 1;
-            *(short *)(slot + 0x1A) = 0;
-            *(unsigned short *)(slot + 0x16) = 0;
+            ((unsigned char *)D_70003B6C[0])[0xB]++;
+            *(short *)((unsigned char *)D_70003B6C[0] + 0x1A) = 0;
+            *(unsigned short *)((unsigned char *)D_70003B6C[0] + 0x16) = 0;
             func_001AFCA0();
             func_001AFCF0();
             func_001B07C0(0);
@@ -191,12 +199,11 @@ int anim_frame_top_a(void) {
                 return 2;
             }
             func_001B5BC0(*(unsigned short *)(slot + 0x16));
-            slot = *(unsigned char **)0x70003B6C;
-            *(unsigned short *)(slot + 0x16) = *(unsigned short *)(slot + 0x16) + 1;
+            (*(unsigned short *)((unsigned char *)D_70003B6C[0] + 0x16))++;
             if (func_001ACE70()) {
                 return 2;
             }
-            if (*(unsigned char *)0x70003B8D == 0) {
+            if (D_70003B8D[0] == 0) {
                 func_001AE5E0();
             } else {
                 func_001AE6B0();

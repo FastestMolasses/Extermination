@@ -1,3 +1,13 @@
+## 2026-10-27 — matching wave, fifth batch: 12 more byte-matched
+
+func_00167C80, func_001BE6C0, func_001921D0, func_001B2140, func_00196CE0,
+func_001B7700, anim_frame_top_a, func_0014CDD0, func_00141D20,
+func_00127230 (libgcc fp-bit `__divdf3`, ee-gcc), func_001C02E0,
+func_0013CD50 (all compiled_object_ordinary_c). MATCHING_GUIDE "Matching
+wave 2026-10-27" (fifth batch). Gate: fresh build + verify_all, all six
+stages pass, boot ELF byte-identical, 19/19 overlays, matched_code 99.41%,
+2334/2338 units. FUNCTIONS.csv: 2002 readable, 604 nearmiss.
+
 ## 2026-10-27 — matching wave, fourth batch: 13 more byte-matched
 
 func_00135870, func_00224600, func_0014A620, func_0016BE40, func_001582E0,

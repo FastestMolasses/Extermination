@@ -1,16 +1,22 @@
-// NEARMISS func_001B2140  (vram 0x001B2140, 0x9C4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.68% via mwcc 2.3 (mwcps2-2.3-991202) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 97.68 with mwcc 991202 (-O4,p -sdatathreshold 0); 18 diff rows out of 625 instructions. Decode fully verified instruction-by-instruction against the .s (both tables, all 23 outer cases, every inner compare-chain order and every default-chain constant order). NOT a jtbl-reloc problem -- the @NN-vs...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// COMPILER: mwcc
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.68% NEARMISS).
+// Fixes read from the original instructions:
+// - Compiler is mwcc 2.3.3, like every neighbour in 0x001B0000-0x001B4FFF: the
+//   jump-table address build (upper half, low add, then index scale) is the 2.3.3
+//   order; 991202 scales the index first.
+// - Every "not present" exit is `goto no` to the one shared `return 0` after the
+//   switch (the compare chains all branch to that single block); only the mode
+//   guard and the out-of-range stage return 0 directly.
+// - Adjacent room pairs (5/6, 4/5, 9/10, 0/1, 2/3) compare ent[0x9E] directly;
+//   through the `room` local mwcc 2.3.3 folds them into a subtract-and-range test.
+// - The default arms of stage 0, stage 4, stage 19 sub-area 0 and stage 22 are
+//   `switch (ent[0x9E])` lists that goto no (the order of the "1" in the branch
+//   delay slots follows from that); the other default arms stay && chains.
+// - Stage 13's "room 8 and up" test is `room > 7` (`>= 8` puts the compare in a
+//   different register).
+//
 // SEMANTICS: "is this entity in the player's current room?" predicate.
 // The three globals are the live location triple - D_00810700 = stage/level id,
 // D_00810701 = sub-area within the stage, D_00810702 = room within the sub-area.
@@ -45,8 +51,7 @@ int func_001B2140(unsigned char *ent) {
         switch (D_00810702) {
         case 5:
         case 6:
-            room = ent[0x9E];
-            if (room == 5 || room == 6) {
+            if (ent[0x9E] == 5 || ent[0x9E] == 6) {
                 return 1;
             }
             goto no;
@@ -57,11 +62,14 @@ int func_001B2140(unsigned char *ent) {
             }
             goto no;
         default:
-            room = ent[0x9E];
-            if (room != 11 && room != 8 && room != 6 && room != 5) {
-                return 1;
+            switch (ent[0x9E]) {
+            case 5:
+            case 6:
+            case 8:
+            case 11:
+                goto no;
             }
-            goto no;
+            return 1;
         }
     case 1:
         switch (D_00810702) {
@@ -125,24 +133,25 @@ int func_001B2140(unsigned char *ent) {
         switch (D_00810702) {
         case 4:
         case 5:
-            room = ent[0x9E];
-            if (room == 4 || room == 5) {
+            if (ent[0x9E] == 4 || ent[0x9E] == 5) {
                 return 1;
             }
             goto no;
         case 9:
         case 10:
-            room = ent[0x9E];
-            if (room == 9 || room == 10) {
+            if (ent[0x9E] == 9 || ent[0x9E] == 10) {
                 return 1;
             }
             goto no;
         default:
-            room = ent[0x9E];
-            if (room != 10 && room != 9 && room != 5 && room != 4) {
-                return 1;
+            switch (ent[0x9E]) {
+            case 4:
+            case 5:
+            case 9:
+            case 10:
+                goto no;
             }
-            goto no;
+            return 1;
         }
     case 6:
         switch (D_00810702) {
@@ -250,15 +259,13 @@ int func_001B2140(unsigned char *ent) {
         switch (D_00810702) {
         case 0:
         case 1:
-            room = ent[0x9E];
-            if (room == 0 || room == 1) {
+            if (ent[0x9E] == 0 || ent[0x9E] == 1) {
                 return 1;
             }
             goto no;
         case 2:
         case 3:
-            room = ent[0x9E];
-            if (room == 2 || room == 3) {
+            if (ent[0x9E] == 2 || ent[0x9E] == 3) {
                 return 1;
             }
             goto no;
@@ -278,7 +285,7 @@ int func_001B2140(unsigned char *ent) {
             goto no;
         default:
             room = ent[0x9E];
-            if (room >= 8) {
+            if (room > 7) {
                 return 1;
             }
             goto no;
@@ -359,11 +366,15 @@ int func_001B2140(unsigned char *ent) {
                 }
                 goto no;
             default:
-                room = ent[0x9E];
-                if (room != 9 && room != 8 && room != 7 && room != 5 && room != 4) {
-                    return 1;
+                switch (ent[0x9E]) {
+                case 4:
+                case 5:
+                case 7:
+                case 8:
+                case 9:
+                    goto no;
                 }
-                goto no;
+                return 1;
             }
         } else {
             switch (D_00810702) {
@@ -409,11 +420,13 @@ int func_001B2140(unsigned char *ent) {
             }
             goto no;
         default:
-            room = ent[0x9E];
-            if (room != 4 && room != 2 && room != 0) {
-                return 1;
+            switch (ent[0x9E]) {
+            case 0:
+            case 2:
+            case 4:
+                goto no;
             }
-            goto no;
+            return 1;
         }
     }
 no:

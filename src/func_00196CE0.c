@@ -1,42 +1,28 @@
-// NEARMISS func_00196CE0  (vram 0x00196CE0, 0x6B0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.33% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation / rematerialization + call-arg-register scheduling (permuter class), NOT the clean-store nop. CW holds self[2] in $a0 across uses and materializes &D_0024A6BC once; mwcc reloads lbu + re-lui's. FPU-MAC 2-term distance checks...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
-// corrections from the level side-track lanes"): func_001916C0 gets (self, other, 0) -- a0 /
-// a1 are the entry arguments, the 0 is in a2; the window, outside-region and step-back tests
-// are written as the original's compares (!(a <= b) / !(a < b); the same results on the EE
-// FPU, which has no unordered compare).
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
 //
-// NEARMISS 95.3% (mwcc 2.3.3; 991202 caps 90.6%). Body/logic FULLY recovered
-// and verified; the FPU-MAC distance checks (dx*dx+dy*dy -> mula.s/madd.s) DO
-// match. AI state-machine tick for an entity: dispatch on self[1] (state 0..4);
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 95.33% NEARMISS).
+// Fixes read from the original instructions:
+//  - func_00102948 takes 2 arguments (its definition); the file declared 3 and
+//    passed a stray third pointer.
+//  - The second distance gate is if (near) { window test -> state 3 } else if
+//    (self[2] == 5) -> state 2.
+//  - The trailing switch lists cases 9,44,45,6,7,8 (the original's compare order).
+//  - The table index and the < 3 test read self[2] through an (unsigned char) cast
+//    (the original re-truncates the byte); this was the old "register wall".
+//  - Case 3's 10.0f argument is staged as an int converted to float (idiom-24),
+//    which places its setup ahead of the self[0x8C] load.
+//
+// AI state-machine tick for an entity: dispatch on self[1] (state 0..4);
 // state 0 inits anim/heading, snaps position from the D_0024A6B0/B4/B8 table,
 // and transitions to 4/3/2 based on two squared-distance gates against the
 // player (other[0xA0]/[0xA8]) plus other[0xA4] window checks; states 1/2 track
 // or steer via func_001B12B0 and re-evaluate; states 3/4 set fixed positions.
 // A trailing dispatch on other[0x230] resets the state (self[5]/[6]/[1]=0) for
 // all values except {6,7,8,9,44,45}. Ends with func_0018C0C0(self).
-//
-// RESIDUAL WALLS (register-allocation / scheduling -> permuter class, NOT the
-// clean-store nop; mwcc 2.3.3 does not fix):
-//  (a) idx/self[2] reload + &D_0024A6BC base rematerialization: CW holds self[2]
-//      in a non-saved reg ($a0) across the threshold compare and the <3 test and
-//      materializes the table base once; mwcc reloads lbu + re-lui's the base.
-//  (b) (resolved 2026-10-01: the call is func_001916C0(self, other, 0); the
-//      earlier text passed 0 as the first argument.)
-// All non-offset deltas are register coloring / rematerialization; the remaining
-// large diff count is branch-target offset shift cascading from (a)/(b).
+// func_001916C0 gets (self, other, 0). The window, outside-region and step-back
+// tests are written as the original's compares (!(a <= b) / !(a < b); the same
+// results on the EE FPU, which has no unordered compare).
 extern void func_001916C0(unsigned char *camera, unsigned char *player, int mode);
 extern void func_00196970(unsigned char *, unsigned char *);
 extern void func_0018C0C0(unsigned char *);
@@ -44,7 +30,7 @@ extern void func_0018C4B0(void *, float, float);
 extern void func_0018C6A0(void *, void *, float);
 extern void func_0018D7B0(unsigned char *, int);
 extern void func_00192010(unsigned char *, float, float, float);
-extern void func_00102948(void *, void *, void *);
+extern void func_00102948(void *, void *);
 extern float func_0011DE90(float);
 extern float func_0011E2A8(float);
 extern float func_001B1240(void *, float, float);
@@ -74,9 +60,9 @@ void func_00196CE0(unsigned char *self, unsigned char *other) {
             *(float *)(self + 0x10) = (&D_0024A6B0)[self[2] * 4];
             *(float *)(self + 0x14) = (&D_0024A6B4)[self[2] * 4];
             *(float *)(self + 0x18) = (&D_0024A6B8)[self[2] * 4];
-            func_00102948(&D_008105D0, self + 0x10, &D_0024A6B4);
+            func_00102948(&D_008105D0, self + 0x10);
         } else if (self[2] == 3 || self[2] == 4) {
-            *(float *)(self + 0x10) = (&D_0024A6B0)[self[2] * 4];
+            *(float *)(self + 0x10) = (&D_0024A6B0)[(unsigned char)self[2] * 4];
             *(float *)(self + 0x14) = (&D_0024A6B4)[self[2] * 4];
             *(float *)(self + 0x18) = (&D_0024A6B8)[self[2] * 4];
         }
@@ -89,12 +75,12 @@ void func_00196CE0(unsigned char *self, unsigned char *other) {
         }
         dx = *(float *)(other + 0xA0) - 915.0f;
         dy = *(float *)(other + 0xA8) - 939.1f;
-        if (dx * dx + dy * dy < 225.0f &&
-            *(float *)(other + 0xA4) < 266.0f && !(*(float *)(other + 0xA4) <= 229.0f)) {
-            self[1] = 3;
-            break;
-        }
-        if (!(dx * dx + dy * dy < 225.0f) && self[2] == 5) {
+        if (dx * dx + dy * dy < 225.0f) {
+            if (*(float *)(other + 0xA4) < 266.0f && !(*(float *)(other + 0xA4) <= 229.0f)) {
+                self[1] = 3;
+                break;
+            }
+        } else if (self[2] == 5) {
             self[1] = 2;
             break;
         }
@@ -105,7 +91,7 @@ void func_00196CE0(unsigned char *self, unsigned char *other) {
         } else {
             func_00196970(self, other);
             if (*(float *)(other + 0xB4) < (&D_0024A6BC)[self[2] * 4]) {
-                if (self[2] < 3) {
+                if ((unsigned char)self[2] < 3) {
                     self[1] = self[1] + 1;
                 }
                 func_0018D7B0(self, 3);
@@ -130,7 +116,7 @@ void func_00196CE0(unsigned char *self, unsigned char *other) {
             func_00192010(self, *(float *)(self + 0x8C) + (*(float *)(self + 0x5C) + *(float *)(other + 0xB4)), 20.0f, 15.0f);
             func_00196970(self, other);
             idx = self[2];
-            if (idx != 5 && !(*(float *)(other + 0xB4) < (&D_0024A6BC)[idx * 4])) {
+            if (idx != 5 && !(*(float *)(other + 0xB4) < (&D_0024A6BC)[(unsigned char)idx * 4])) {
                 self[1] = self[1] - 1;
             }
             func_0018D7B0(self, 3);
@@ -138,10 +124,13 @@ void func_00196CE0(unsigned char *self, unsigned char *other) {
             func_0018C4B0(&D_008105D0, *(float *)(self + 0x14), 2.0f);
         }
         break;
-    case 3:
+    case 3: {
+        int k = 10;
+        float ten = (float)k;
         *(float *)(self + 0x10) = 915.8f;
         *(float *)(self + 0x18) = 900.0f;
-        func_00192010(self, *(float *)(self + 0x8C) + (*(float *)(self + 0x5C) + *(float *)(other + 0xB4)), 15.0f, 10.0f);
+        func_00192010(self, *(float *)(self + 0x8C) + (*(float *)(self + 0x5C) + *(float *)(other + 0xB4)), 15.0f, ten);
+    }
         func_0018D7B0(self, 5);
         func_0018C6A0(self + 0x10, &D_008105D0, 1.0f);
         func_0018C4B0(&D_008105D0, *(float *)(self + 0x14), 2.0f);
@@ -156,12 +145,12 @@ void func_00196CE0(unsigned char *self, unsigned char *other) {
         break;
     }
     switch (*(int *)(other + 0x230)) {
-    case 6:
-    case 7:
-    case 8:
     case 9:
     case 44:
     case 45:
+    case 6:
+    case 7:
+    case 8:
         break;
     default:
         self[5] = 0;
