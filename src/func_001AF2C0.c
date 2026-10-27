@@ -1,27 +1,20 @@
-// NEARMISS func_001AF2C0  (vram 0x001AF2C0, 0x1A4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 80.84% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Instruction-scheduling permutation of trailing independent global stores. Insns 0-29 (zero-fill, 5-field copy from D_00810118.. to D_00810708.., func_001AF470 call) byte-identical; all store values/targets and the func_001C40B0(0x10,2) call correct. mwcc list scheduler batches same-value stores b...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// NEARMISS: best 80.9% (mwcc233), 77.9% (mwcc991). Body/logic fully recovered:
-// the func_00121A28 zero-fill, the 5-field copy from D_00810118.. to D_00810708..,
-// the func_001AF470(D_00810708) call, all global-init store VALUES/TARGETS, and the
-// func_001C40B0(0x10,2) call are byte-exact through the call sequence (insns 0-29
-// identical). WALL: instruction-scheduling permutation of the trailing independent
-// global stores. mwcc's list scheduler batches the same-value stores by constant
-// register affinity (groups the 0x00/0x01/0xff stores and hoists the 0x42c80000
-// float-100 setup), whereas CW 2.3.1 emitted them in source order. Not the
-// clean-store delay-slot-nop case, so mwcc 2.3.3 does not close it; reordering source
-// statements and shared-temp liveness hints (tested) do not change the schedule.
-// Pure scheduler artifact -> orchestrator permuter territory.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 80.84% NEARMISS).
+// Fixes read from the original instructions:
+// - The trailing global-init stores (D_00810703.. through D_00810CAE) are
+//   declared volatile: the original keeps every store in source order and
+//   reloads nothing across them, which mwcc only does for volatile objects.
+//   Non-volatile externs let the scheduler group the stores by constant value
+//   (the old "scheduler wall"). Neighbouring files already declare globals in
+//   this 0x00810700 block volatile.
+//
+// Resets the 0x640-byte state block at D_00810700: zero-fills it, copies five
+// fields from D_00810118.. into D_00810708.., calls func_001AF470 with the
+// first copied byte, then writes the default values of the remaining fields
+// (0xFF markers, 100.0f, flags set to 1, counters 5/7, and 30/60 after the
+// func_001C40B0(0x10, 2) call).
 extern char D_00810700[];
 extern unsigned char D_00810118;
 extern unsigned char D_00810119;
@@ -33,37 +26,37 @@ extern unsigned char D_00810709;
 extern unsigned char D_0081070C;
 extern short D_00810754;
 extern short D_00810756;
-extern unsigned char D_00810703;
-extern unsigned char D_00810704;
-extern unsigned char D_00810705;
-extern unsigned char D_00810706;
-extern unsigned char D_00810707;
-extern float D_00810858;
-extern int D_0081085C;
-extern unsigned char D_00810C60;
-extern unsigned char D_00810D20;
-extern unsigned char D_00810D21;
-extern unsigned char D_00810D22;
-extern unsigned char D_00810D23;
-extern unsigned char D_00810C7B;
-extern unsigned char D_00810CB7;
-extern short D_00810CB2;
-extern unsigned char D_00810C69;
-extern unsigned char D_00810C64;
-extern unsigned char D_00810C6B;
-extern unsigned char D_00810CA4;
-extern unsigned char D_00810CA6;
-extern unsigned char D_00810CA5;
-extern unsigned char D_00810CA7;
-extern unsigned char D_00810C61;
-extern unsigned char D_00810C62;
-extern short D_00810CB4;
-extern unsigned char D_00810D3C;
-extern short D_00810CAA;
-extern short D_00810CA8;
-extern short D_00810CB0;
-extern short D_00810CAC;
-extern short D_00810CAE;
+extern volatile unsigned char D_00810703;
+extern volatile unsigned char D_00810704;
+extern volatile unsigned char D_00810705;
+extern volatile unsigned char D_00810706;
+extern volatile unsigned char D_00810707;
+extern volatile float D_00810858;
+extern volatile int D_0081085C;
+extern volatile unsigned char D_00810C60;
+extern volatile unsigned char D_00810D20;
+extern volatile unsigned char D_00810D21;
+extern volatile unsigned char D_00810D22;
+extern volatile unsigned char D_00810D23;
+extern volatile unsigned char D_00810C7B;
+extern volatile unsigned char D_00810CB7;
+extern volatile short D_00810CB2;
+extern volatile unsigned char D_00810C69;
+extern volatile unsigned char D_00810C64;
+extern volatile unsigned char D_00810C6B;
+extern volatile unsigned char D_00810CA4;
+extern volatile unsigned char D_00810CA6;
+extern volatile unsigned char D_00810CA5;
+extern volatile unsigned char D_00810CA7;
+extern volatile unsigned char D_00810C61;
+extern volatile unsigned char D_00810C62;
+extern volatile short D_00810CB4;
+extern volatile unsigned char D_00810D3C;
+extern volatile short D_00810CAA;
+extern volatile short D_00810CA8;
+extern volatile short D_00810CB0;
+extern volatile short D_00810CAC;
+extern volatile short D_00810CAE;
 
 extern void func_00121A28(char *, int, int);
 extern void func_001AF470();

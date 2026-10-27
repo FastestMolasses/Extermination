@@ -1,43 +1,47 @@
-// NEARMISS func_001C4A00  (vram 0x001C4A00, 0xE8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 86.78% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// NEARMISS 86.78% (mwcc233). Logic/structure fully recovered (4-state switch dispatcher, all call sites and CFG byte-shape correct). Three residuals, ALL agreed on by BOTH 991202 and 2.3.3 (ruling out a build-version fix between them): (1) shared-case likely-branch assignment swap — target emits be...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
-extern int func_001B0FD0();
-extern void func_001B1B70();
-extern void func_001C6380(char *arg0);
-extern void func_001AFC10(char *arg0);
+// SPAD: 0x70003B92
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 86.78% NEARMISS).
+// Fixes read from the original instructions:
+// - The callees take the object: func_001B0FD0(self) and func_001B1B70(self)
+//   (definitions in src/), and the switch reads self[4] directly as in the
+//   byte-matched twin func_001C4AF0; the old no-argument externs and the
+//   unsigned-char state local misplaced the self copy and the case chain.
+// - The scratchpad flag byte at 0x70003B92 is the relocated extern
+//   D_70003B92 (idiom-32); a literal address let mwcc speculate its upper
+//   half into the case-1 compare's delay slot.
+//
+// State handler: state 0 runs func_001C6380(self) unless func_001B0FD0(self)
+// returns nonzero; state 1 runs func_001B1B70(self) and the callback at
+// self+0x4C when the scratchpad flag 0x70003B92 is clear, or when it is set
+// and the table byte D_008107D8[self[3]] differs from the short at self+0x56;
+// states 2 and 3 run func_001AFC10(self).
+extern int func_001B0FD0(unsigned char *self);
+extern void func_001B1B70(unsigned char *self);
+extern void func_001C6380(unsigned char *self);
+extern void func_001AFC10(void *self);
 extern unsigned char D_008107D8[];
+extern unsigned char D_70003B92;
 
-void func_001C4A00(char *arg0) {
-    unsigned char st;
-    st = *(unsigned char *)(arg0 + 4);
-    switch (st) {
+void func_001C4A00(unsigned char *self) {
+    switch (self[4]) {
     case 0:
-        if (func_001B0FD0() == 0) {
-            func_001C6380(arg0);
+        if (func_001B0FD0(self) == 0) {
+            func_001C6380(self);
         }
         break;
     case 1:
-        if (*(unsigned char *)0x70003B92 == 0) {
-            func_001B1B70();
-            (*(void (**)(char *))(arg0 + 0x4C))(arg0);
-        } else if (D_008107D8[*(unsigned char *)(arg0 + 3)] != *(short *)(arg0 + 0x56)) {
-            func_001B1B70();
-            (*(void (**)(char *))(arg0 + 0x4C))(arg0);
+        if (D_70003B92 == 0) {
+            func_001B1B70(self);
+            (*(void (**)(unsigned char *))(self + 0x4C))(self);
+        } else if (D_008107D8[self[3]] != *(short *)(self + 0x56)) {
+            func_001B1B70(self);
+            (*(void (**)(unsigned char *))(self + 0x4C))(self);
         }
         break;
     case 2:
     case 3:
-        func_001AFC10(arg0);
+        func_001AFC10(self);
         break;
     }
 }

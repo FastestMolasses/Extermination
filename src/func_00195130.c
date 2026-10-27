@@ -1,8 +1,11 @@
 // NEARMISS func_00195130  (vram 0x00195130, 0x1270 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 88.48% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// objdiff 99.96% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
 // Remaining differences in this candidate:
-// Basic-block layout / switch-arm order in the two deeply nested arms (see the body notes). Calls corrected in decomp2 lane round 4.
+// Two scheduling/allocation residuals: in the area-8 default arm the sum built from the
+// scratchpad value 0x70003A24 gets other float temporaries than the original, and in the
+// "far" arm of the 6..9 sub-state case the original materialises the 10.0 argument of
+// func_00192010 before the 25.0 one (the identical call in the near arm and case 10 do not).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,16 +14,28 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Matching wave 2026-10-27 (88.48 -> 99.96), fixes read from the original instructions:
+// - func_00193D90 takes (cam, target): state 2 passes no third argument; func_823FE0
+//   takes no argument (the target sets no $a0 for it).
+// - Area 6: the clamp constant is -598.9 (not -598.4), and the "handled" flag is set
+//   after the func_0018C4B0 test on both paths.
+// - Area 4: one 11.5 store shared by both failing tests (a single && condition).
+// - Area 8 default arm: the 131.1 equality test keeps 131.1/182.5 on the equal side;
+//   the -20 limit case stores 0.5 * (t - lim), not 0.5 * t; 11.0 is added in each arm.
+// - Sub-states 6..9: the "far" arm (d < 25 or the A8/A4 test) is the first arm; the
+//   entity X/Z are read once into locals and reused by the second distance; every
+//   clamp tests the upper bound first.
+// - Area 0x11 compares are written constant-first; area 0xD tests D_00810702 > 7;
+//   area 4 sub-state 2 ORs the two step results into a local.
+// - The 0x14/0x15 sub-state test reads the field in each comparison (no range check).
+
 // Calls corrected, decomp2 lane round 4 (88.24 -> 88.48), from the original
 // instructions and the callee definitions: func_00194DB0(arg0, arg1) and
 // func_0022FCA0(arg0, arg1) take two arguments (the target sets $a0 / $a1
 // only; the old C also passed 8), and func_0011DF78 is fabs of one float
-// (the old C also passed arg0). func_823FE0 keeps arg0: its block sets no
-// argument, but its only predecessor (a case 0xD compare) leaves arg0
-// in $a0.
-//
-// Earlier note (88.24): logic complete; residual is basic-block layout /
-// switch-arm-order permutation in the two deeply nested arms (see wall).
+// (the old C also passed arg0). (The earlier claim that func_823FE0 keeps
+// arg0 was wrong: with no argument the compiler emits exactly the original's
+// call; see above.)
 //
 // Per-area camera/target driver: arg0 = camera state, arg1 = tracked entity.
 // Dispatches on the outer state byte arg0[1], then on the global area id
@@ -31,7 +46,7 @@
 
 extern void func_001916C0(void *p, void *e, int a);
 extern void func_001921D0();
-extern void func_00193D90();
+extern void func_00193D90(void *p, void *e);
 extern void func_00191210();
 extern void func_00193EB0(void *p, void *e, int a);
 extern int func_001944B0(void *p, void *e, int a);
@@ -45,7 +60,7 @@ extern void func_00192010(void *p, float a, float b, float c);
 extern float func_0011DF78(float f);
 extern void func_00102948(void *a, void *b);
 extern int func_00230230(void *p, void *e);
-extern int func_823FE0(void *p);
+extern int func_823FE0(void);
 extern void func_0022FCA0(void *p, void *e);
 extern void func_001AEDE0(int a, int b);
 extern float D_008105D0;
@@ -65,9 +80,10 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
     int v;
     float lim;
     float t;
-    float t2;
     float var_f1;
     float d;
+    float x;
+    float z;
     short cnt;
 
     st = arg0[1];
@@ -84,7 +100,7 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
         switch (D_00810700) {
         case 0:
             v = *(int *)(arg1 + 0x230);
-            if (v == 0x14 || v == 0x15) {
+            if (*(int *)(arg1 + 0x230) == 0x14 || *(int *)(arg1 + 0x230) == 0x15) {
                 *(float *)(arg0 + 0x94) = -10.0f - *(float *)(arg0 + 0xC);
             }
             if (D_00810701 == 2 && D_00810803 == 3) {
@@ -95,12 +111,8 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
             break;
         case 4:
             if (*(char *)(arg0 + 0x6D) != 0) {
-                if (!(*(float *)(arg1 + 0xA8) <= 360.0f)) {
-                    if (!(*(float *)(arg1 + 0xA4) <= 54.0f)) {
-                        *(float *)(arg0 + 0x98) = 0.0f;
-                    } else {
-                        *(float *)(arg0 + 0x98) = 11.5f;
-                    }
+                if (!(*(float *)(arg1 + 0xA8) <= 360.0f) && !(*(float *)(arg1 + 0xA4) <= 54.0f)) {
+                    *(float *)(arg0 + 0x98) = 0.0f;
                 } else {
                     *(float *)(arg0 + 0x98) = 11.5f;
                 }
@@ -112,13 +124,12 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
             } else if (func_00194D10(arg0, arg1, 2) != 0) {
                 func_0018D7B0(arg0, 5);
                 *(float *)(arg0 + 0x14) = 90.0f;
-                var_s0 = 1;
                 if (func_0018C4B0(&D_008105D0, *(float *)(arg0 + 0x14), 0.7f) != 0) {
                     *(float *)(arg0 + 0x10) = -367.7f;
-                    *(float *)(arg0 + 0x18) = -598.4f;
+                    *(float *)(arg0 + 0x18) = -598.9f;
                     func_0018C6A0(arg0 + 0x10, &D_008105D0, 0.7f);
-                    var_s0 = 1;
                 }
+                var_s0 = 1;
             }
             break;
         case 8:
@@ -134,12 +145,12 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
                             *(float *)(arg0 + 0x10) = 131.1f;
                             *(float *)(arg0 + 0x18) = 182.5f;
                         } else if (!(*(float *)(arg1 + 0xA8) < 163.0f)) {
-                            if (*(float *)(arg0 + 0x10) != 131.1f) {
-                                *(float *)(arg0 + 0x10) = 167.8f;
-                                *(float *)(arg0 + 0x18) = 180.9f;
-                            } else {
+                            if (*(float *)(arg0 + 0x10) == 131.1f) {
                                 *(float *)(arg0 + 0x10) = 131.1f;
                                 *(float *)(arg0 + 0x18) = 182.5f;
+                            } else {
+                                *(float *)(arg0 + 0x10) = 167.8f;
+                                *(float *)(arg0 + 0x18) = 180.9f;
                             }
                         } else {
                             *(float *)(arg0 + 0x10) = 167.8f;
@@ -153,20 +164,19 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
                         t = D_0081069C - func_0011DF78(*(float *)(arg0 + 0xC));
                         *(float *)0x70003A20 = t;
                         if (t < lim) {
-                            if (lim != -20.0f) {
-                                t2 = t - lim;
-                                *(float *)0x70003A24 = t2;
-                                if (t2 < -10.0f) {
+                            if (lim == -20.0f) {
+                                *(float *)0x70003A24 = 0.5f * (t - lim);
+                            } else {
+                                *(float *)0x70003A24 = t - lim;
+                                if (t - lim < -10.0f) {
                                     *(float *)0x70003A24 = -10.0f;
                                 }
-                            } else {
-                                *(float *)0x70003A24 = 0.5f * t;
                             }
-                            var_f1 = *(float *)(arg0 + 0x8C) + (*(float *)(arg1 + 0xA4) + (*(float *)(arg0 + 0x5C) - *(float *)0x70003A24));
+                            var_f1 = 11.0f + (*(float *)(arg0 + 0x8C) + (*(float *)(arg1 + 0xA4) + (*(float *)(arg0 + 0x5C) - *(float *)0x70003A24)));
                         } else {
-                            var_f1 = *(float *)(arg0 + 0x8C) + (*(float *)(arg0 + 0x5C) + *(float *)(arg1 + 0xA4));
+                            var_f1 = 11.0f + (*(float *)(arg0 + 0x8C) + (*(float *)(arg0 + 0x5C) + *(float *)(arg1 + 0xA4)));
                         }
-                        func_00191D40(arg0, 11.0f + var_f1, 4.0f);
+                        func_00191D40(arg0, var_f1, 4.0f);
                         func_0018D7B0(arg0, 5);
                         func_0018C4B0(&D_008105D0, *(float *)(arg0 + 0x14), 0.8f);
                         var_s0 = 2;
@@ -203,21 +213,46 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
                 case 6:
                 case 9:
                 case 8:
-                    d = (*(float *)(arg1 + 0xB0) - 129.7f) * (*(float *)(arg1 + 0xB0) - 129.7f) + (*(float *)(arg1 + 0xB8) - 150.5f) * (*(float *)(arg1 + 0xB8) - 150.5f);
-                    if (!(d < 25.0f)) {
-                        if (!(*(float *)(arg1 + 0xA8) <= 142.0f) && !(*(float *)(arg1 + 0xA4) <= 230.0f)) {
-                            goto far_arm;
-                        }
-                        d = (*(float *)(arg1 + 0xB0) - 129.8f) * (*(float *)(arg1 + 0xB0) - 129.8f) + (*(float *)(arg1 + 0xB8) - 160.5f) * (*(float *)(arg1 + 0xB8) - 160.5f);
-                        if (d < 25.0f) {
-                            if (*(float *)(arg0 + 0x14) <= 223.6f) {
-                                if (*(float *)(arg0 + 0x14) < 146.2f) {
-                                    *(float *)(arg0 + 0x14) = 146.2f;
-                                    D_008105D4 = 146.2f;
-                                }
-                            } else {
+                    x = *(float *)(arg1 + 0xB0);
+                    z = *(float *)(arg1 + 0xB8);
+                    d = (x - 129.7f) * (x - 129.7f) + (z - 150.5f) * (z - 150.5f);
+                    if (d < 25.0f || (!(*(float *)(arg1 + 0xA8) <= 142.0f) && !(*(float *)(arg1 + 0xA4) <= 230.0f))) {
+                        if (!(*(float *)(arg1 + 0xA4) <= 217.1f)) {
+                            *(float *)(arg0 + 0x10) = 148.6f;
+                            *(float *)(arg0 + 0x18) = 129.2f;
+                            if (!(*(float *)(arg0 + 0x14) <= 282.4f)) {
+                                *(float *)(arg0 + 0x14) = 282.4f;
+                                D_008105D4 = 282.4f;
+                            } else if (*(float *)(arg0 + 0x14) < 240.7f) {
+                                *(float *)(arg0 + 0x14) = 240.7f;
+                                D_008105D4 = 240.7f;
+                            }
+                        } else {
+                            *(float *)(arg0 + 0x10) = 136.7f;
+                            *(float *)(arg0 + 0x18) = 182.0f;
+                            if (!(*(float *)(arg0 + 0x14) <= 223.6f)) {
                                 *(float *)(arg0 + 0x14) = 223.6f;
                                 D_008105D4 = 223.6f;
+                            } else if (*(float *)(arg0 + 0x14) < 146.2f) {
+                                *(float *)(arg0 + 0x14) = 146.2f;
+                                D_008105D4 = 146.2f;
+                            }
+                        }
+                        D_008105D0 = *(float *)(arg0 + 0x10);
+                        D_008105D8 = *(float *)(arg0 + 0x18);
+                        func_00192010(arg0, *(float *)(arg0 + 0x8C) + (*(float *)(arg0 + 0x5C) + *(float *)(arg1 + 0xB4)), 25.0f, 10.0f);
+                        func_0018D7B0(arg0, 5);
+                        func_0018C4B0(&D_008105D0, *(float *)(arg0 + 0x14), 0.8f);
+                        var_s0 = 1;
+                    } else {
+                        d = (x - 129.8f) * (x - 129.8f) + (z - 160.5f) * (z - 160.5f);
+                        if (d < 25.0f) {
+                            if (!(*(float *)(arg0 + 0x14) <= 223.6f)) {
+                                *(float *)(arg0 + 0x14) = 223.6f;
+                                D_008105D4 = 223.6f;
+                            } else if (*(float *)(arg0 + 0x14) < 146.2f) {
+                                *(float *)(arg0 + 0x14) = 146.2f;
+                                D_008105D4 = 146.2f;
                             }
                             *(float *)(arg0 + 0x10) = 136.7f;
                             *(float *)(arg0 + 0x18) = 182.0f;
@@ -228,39 +263,6 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
                             func_0018C4B0(&D_008105D0, *(float *)(arg0 + 0x14), 0.8f);
                             var_s0 = 1;
                         }
-                    } else {
-                    far_arm:
-                        if (!(*(float *)(arg1 + 0xA4) <= 217.1f)) {
-                            *(float *)(arg0 + 0x10) = 148.6f;
-                            *(float *)(arg0 + 0x18) = 129.2f;
-                            if (*(float *)(arg0 + 0x14) <= 282.4f) {
-                                if (*(float *)(arg0 + 0x14) < 240.7f) {
-                                    *(float *)(arg0 + 0x14) = 240.7f;
-                                    D_008105D4 = 240.7f;
-                                }
-                            } else {
-                                *(float *)(arg0 + 0x14) = 282.4f;
-                                D_008105D4 = 282.4f;
-                            }
-                        } else {
-                            *(float *)(arg0 + 0x10) = 136.7f;
-                            *(float *)(arg0 + 0x18) = 182.0f;
-                            if (*(float *)(arg0 + 0x14) <= 223.6f) {
-                                if (*(float *)(arg0 + 0x14) < 146.2f) {
-                                    *(float *)(arg0 + 0x14) = 146.2f;
-                                    D_008105D4 = 146.2f;
-                                }
-                            } else {
-                                *(float *)(arg0 + 0x14) = 223.6f;
-                                D_008105D4 = 223.6f;
-                            }
-                        }
-                        D_008105D0 = *(float *)(arg0 + 0x10);
-                        D_008105D8 = *(float *)(arg0 + 0x18);
-                        func_00192010(arg0, *(float *)(arg0 + 0x8C) + (*(float *)(arg0 + 0x5C) + *(float *)(arg1 + 0xB4)), 25.0f, 10.0f);
-                        func_0018D7B0(arg0, 5);
-                        func_0018C4B0(&D_008105D0, *(float *)(arg0 + 0x14), 0.8f);
-                        var_s0 = 1;
                     }
                     break;
                 }
@@ -302,8 +304,8 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
             }
             break;
         case 0xD:
-            if ((int)D_00810702 >= 8) {
-                if (func_823FE0(arg0) != 0) {
+            if ((int)D_00810702 > 7) {
+                if (func_823FE0() != 0) {
                     *(float *)(arg0 + 0x10) = 801.3f;
                     *(float *)(arg0 + 0x14) = 282.3f;
                     *(float *)(arg0 + 0x18) = 1171.0f;
@@ -342,14 +344,14 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
         case 0xF:
             if (D_00810701 == 1) {
                 v = *(int *)(arg1 + 0x230);
-                if (v == 0x14 || v == 0x15) {
+                if (*(int *)(arg1 + 0x230) == 0x14 || *(int *)(arg1 + 0x230) == 0x15) {
                     *(float *)(arg0 + 0x94) = -10.0f - *(float *)(arg0 + 0xC);
                 }
             }
             break;
         case 0x11:
             d = (340.0f - *(float *)(arg1 + 0xA0)) * (340.0f - *(float *)(arg1 + 0xA0)) + (270.0f - *(float *)(arg1 + 0xA8)) * (270.0f - *(float *)(arg1 + 0xA8));
-            if (!(d >= 42025.0f) && d > 19600.0f) {
+            if (42025.0f > d && 19600.0f < d) {
                 *(float *)(arg0 + 0x98) = 20.0f;
             }
             break;
@@ -359,7 +361,7 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
                     var_s0 = 1;
                 } else {
                     v = *(int *)(arg1 + 0x230);
-                    if (v == 0x14 || v == 0x15) {
+                    if (*(int *)(arg1 + 0x230) == 0x14 || *(int *)(arg1 + 0x230) == 0x15) {
                         *(float *)(arg0 + 0x94) = -43.0f - *(float *)(arg0 + 0xC);
                     }
                 }
@@ -393,7 +395,7 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
         }
         break;
     case 2:
-        func_00193D90(arg0, arg1, 1);
+        func_00193D90(arg0, arg1);
         func_0018D7B0(arg0, 0);
         break;
     case 3:
@@ -423,7 +425,9 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
             *(float *)(arg0 + 0x10) = 765.6f;
             *(float *)(arg0 + 0x14) = 279.1f;
             *(float *)(arg0 + 0x18) = 1103.4f;
-            if ((func_0018C6A0(arg0 + 0x10, &D_008105D0, 0.6f) | func_0018C4B0(&D_008105D0, *(float *)(arg0 + 0x14), 0.48f)) == 7) {
+            v = func_0018C6A0(arg0 + 0x10, &D_008105D0, 0.6f);
+            v |= func_0018C4B0(&D_008105D0, *(float *)(arg0 + 0x14), 0.48f);
+            if (v == 7) {
                 *(short *)(arg0 + 8) = 0x78;
                 arg0[2] = arg0[2] + 1;
             }

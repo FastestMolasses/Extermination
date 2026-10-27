@@ -111,6 +111,7 @@ GPREL_FORCE_ASM = {
     # Matching wave 2026-10-27: func_001E9280, then func_001E9E60 and
     # func_001C1A80, then func_001BE6C0, func_001C02E0, func_001BECC0 and
     # func_001BF3C0, then func_00159970, then func_001DDB70 and func_0014FBC0,
+    # then func_0012E560,
     # were removed after
     # their C reached objdiff 100% (NEARMISS promoted); same proof.
     # Decomp lane round 3 (2026-10-20): 6 entries removed -- func_001CB9B0,
@@ -126,7 +127,6 @@ GPREL_FORCE_ASM = {
     # the entry removed, audit_link_provenance compiled_object_ordinary_c.
     # Additional 107 discovered in subsequent link (obj/ compiled with GP-relative):
     "func_00128C10",
-    "func_0012E560",
     "func_00131740",
     "func_001469B0",
     "func_00153770",

@@ -1,8 +1,8 @@
 // NEARMISS anim_matrix_multi  (vram 0x00148B40, 0x1010 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.60% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two genuine compiler artifacts, 967/1028 instructions byte-identical. (1) SCRATCHPAD-ALIAS SCHEDULING WALL (new class): splat renders EE-scratchpad loads/stores as an absolute 0x7000xxxx address (high half 0x7000 built in $at) + literal offset with NO relocation, so the C must be `*(float*)0x70003A20`. mwcc then treats those as unknown point...
+// objdiff 99.88% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// Remaining differences in this candidate:
+// Two loop-bottom branches only (same size, same registers): the first blend loop in each arm (into D_00287140, weight wy) ends in a branch-likely in the original and a plain branch here, i.e. mwcc saw the first argument register live on that loop's exit in the original. Fixed this wave (was 96.60%): every scratchpad word is a relocated extern (idiom-32: 0x70003A20/24 plain, the 0x700038A0..BC words volatile, opted in with // SPAD:), func_001B1560 takes the 0.7853982f range as a third (float) argument, the D_008104E4 == 1 test shares the e[5] = 8 tail (the not-found case leaves with break), float tests use if (turn) / if (!x), and the vec4 copy temporaries are declared last-to-first (a second block-local set for the second copy).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,7 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700038A0 0x700038A4 0x700038A8 0x700038AC 0x700038B0 0x700038B4 0x700038B8 0x700038BC 0x700036D0 0x700036D4 0x700036D8 0x700036DC
 
 //
 // Enemy "circling flyer" AI update (entity `e`, per-entity AI state `st`).
@@ -50,12 +51,24 @@ extern char D_00286340[];
 extern char D_00287140[];
 extern char D_00287F40[];
 extern char D_00288D40[];
+extern float D_70003A20[4];
+extern float D_70003A24[4];
 extern char D_700036A0[];
-extern char D_700038A0[];
-extern char D_700038B0[];
+extern volatile float D_700038A0[4];
+extern volatile float D_700038A4[4];
+extern volatile float D_700038A8[4];
+extern volatile float D_700038AC[4];
+extern volatile float D_700038B0[4];
+extern volatile float D_700038B4[4];
+extern volatile float D_700038B8[4];
+extern volatile float D_700038BC[4];
+extern float D_700036D0[4];
+extern float D_700036D4[4];
+extern float D_700036D8[4];
+extern float D_700036DC[4];
 
 extern int func_00122BB8(void);
-extern int func_001B1560();
+extern int func_001B1560(void *e, void *target, float range);
 extern void copy_qw4(void *dst, void *src);
 extern void func_001026A0(void *dst, void *a, void *b);
 extern void func_001028B8(void *dst, void *a, void *b);
@@ -80,11 +93,10 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
     float wy;
     float wp;
     float r;
-    float dz;
-    float q0;
-    float q1;
-    float q2;
     float q3;
+    float q2;
+    float q1;
+    float q0;
     int i;
 
     turn = 0.0f;
@@ -117,12 +129,11 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
         break;
     case 2:
         turn = 0.0034906587f;
-        if (*(float *)(st + 0x64) == 0.0f) {
-            *(float *)0x70003A20 = D_00810360 - *(float *)(e + 0xB0);
-            dz = D_00810368 - *(float *)(e + 0xB8);
-            *(float *)0x70003A24 = dz;
-            *(float *)(st + 0x60) = func_001B1470(
-                func_0011E620(*(float *)0x70003A20, dz) - *(float *)(e + 0xC4));
+        if (!*(float *)(st + 0x64)) {
+            D_70003A20[0] = D_00810360 - *(float *)(e + 0xB0);
+            D_70003A24[0] = D_00810368 - *(float *)(e + 0xB8);
+                        *(float *)(st + 0x60) = func_001B1470(
+                func_0011E620(D_70003A20[0], D_70003A24[0]) - *(float *)(e + 0xC4));
             if (*(float *)(st + 0x58) > *(float *)(st + 0x60)) {
                 *(float *)(st + 0x64) = -0.011344640f;
             } else {
@@ -132,23 +143,22 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
         *(float *)(st + 0x58) += *(float *)(st + 0x64);
         if (!(func_0011DF78(*(float *)(st + 0x58)) < 0.7853982f)) {
             *(float *)(st + 0x64) = 0.0f;
-            if (func_001B1560(e, &D_00810360) == 0) {
+            if (func_001B1560(e, &D_00810360, 0.7853982f) == 0) {
                 *(int *)(st + 0x30) = 0;
             }
         }
-        *(float *)0x70003A20 = D_00810360 - *(float *)(e + 0xB0);
-        dz = D_00810368 - *(float *)(e + 0xB8);
-        *(float *)0x70003A24 = dz;
-        *(float *)0x70003A20 =
-            func_0011E748(*(float *)0x70003A20 * *(float *)0x70003A20 + dz * dz);
-        *(float *)0x70003A24 = *(float *)(e + 0xB4);
+        D_70003A20[0] = D_00810360 - *(float *)(e + 0xB0);
+        D_70003A24[0] = D_00810368 - *(float *)(e + 0xB8);
+                D_70003A20[0] =
+            func_0011E748(D_70003A20[0] * D_70003A20[0] + D_70003A24[0] * D_70003A24[0]);
+        D_70003A24[0] = *(float *)(e + 0xB4);
         if (e[0xD] & 0x80) {
-            *(float *)0x70003A24 += 10.0f;
+            D_70003A24[0] += 10.0f;
         } else {
-            *(float *)0x70003A24 += 30.0f;
+            D_70003A24[0] += 30.0f;
         }
-        *(float *)0x70003A24 -= D_00810364;
-        r = func_001B1470(func_0011E620(*(float *)0x70003A24, *(float *)0x70003A20));
+        D_70003A24[0] -= D_00810364;
+        r = func_001B1470(func_0011E620(D_70003A24[0], D_70003A20[0]));
         *(float *)(st + 0x5C) = r;
         if (r < -0.7853982f) {
             *(float *)(st + 0x5C) = -0.7853982f;
@@ -246,23 +256,23 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
                 *(int *)(st + 0x28) = 7;
             }
             copy_qw4(D_700036A0, (void *)(*(int *)(e + 0x17C) + 0x90));
-            *(float *)0x700038A0 = 11.0f;
-            *(int *)0x700038A4 = 0;
-            *(int *)0x700038A8 = 0;
-            *(float *)0x700038AC = 1.0f;
+            D_700038A0[0] = 11.0f;
+            D_700038A4[0] = 0.0f;
+            D_700038A8[0] = 0.0f;
+            D_700038AC[0] = 1.0f;
             func_001026A0(D_700038A0, D_700036A0, D_700038A0);
-            q0 = *(float *)0x700038A0;
-            q1 = *(float *)0x700038A4;
-            q2 = *(float *)0x700038A8;
-            q3 = *(float *)0x700038AC;
-            *(float *)0x700036D0 = q0;
-            *(float *)0x700036D4 = q1;
-            *(float *)0x700036D8 = q2;
-            *(float *)0x700036DC = q3;
-            *(float *)0x700038B0 = 0.8f;
-            *(float *)0x700038B4 = 0.8f;
-            *(float *)0x700038B8 = 0.8f;
-            *(float *)0x700038BC = 1.0f;
+            q0 = D_700038A0[0];
+            q1 = D_700038A4[0];
+            q2 = D_700038A8[0];
+            q3 = D_700038AC[0];
+            D_700036D0[0] = q0;
+            D_700036D4[0] = q1;
+            D_700036D8[0] = q2;
+            D_700036DC[0] = q3;
+            D_700038B0[0] = 0.8f;
+            D_700038B4[0] = 0.8f;
+            D_700038B8[0] = 0.8f;
+            D_700038BC[0] = 1.0f;
             if (e[0xD] & 0x80) {
                 if (D_0081070A != 0) {
                     func_001B3C30(e, D_700036A0, D_700038B0, 200.0f, 20.0f);
@@ -280,25 +290,30 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
             if (*(int *)(st + 0x2C) != 0) {
                 *(int *)(st + 0x2C) = *(int *)(st + 0x2C) - 1;
             } else {
+                float w3;
+                float w2;
+                float w1;
+                float w0;
+
                 *(int *)(st + 0x2C) = 10;
                 copy_qw4(D_700036A0, (void *)(*(int *)(e + 0x180) + 0x90));
-                *(float *)0x700038A0 = 8.0f;
-                *(int *)0x700038A4 = 0;
-                *(int *)0x700038A8 = 0;
-                *(float *)0x700038AC = 1.0f;
+                D_700038A0[0] = 8.0f;
+                D_700038A4[0] = 0.0f;
+                D_700038A8[0] = 0.0f;
+                D_700038AC[0] = 1.0f;
                 func_001026A0(D_700038A0, D_700036A0, D_700038A0);
-                q0 = *(float *)0x700038A0;
-                q1 = *(float *)0x700038A4;
-                q2 = *(float *)0x700038A8;
-                q3 = *(float *)0x700038AC;
-                *(float *)0x700036D0 = q0;
-                *(float *)0x700036D4 = q1;
-                *(float *)0x700036D8 = q2;
-                *(float *)0x700036DC = q3;
-                *(float *)0x700038B0 = 0.8f;
-                *(float *)0x700038B4 = 0.8f;
-                *(float *)0x700038B8 = 0.8f;
-                *(float *)0x700038BC = 1.0f;
+                w0 = D_700038A0[0];
+                w1 = D_700038A4[0];
+                w2 = D_700038A8[0];
+                w3 = D_700038AC[0];
+                D_700036D0[0] = w0;
+                D_700036D4[0] = w1;
+                D_700036D8[0] = w2;
+                D_700036DC[0] = w3;
+                D_700038B0[0] = 0.8f;
+                D_700038B4[0] = 0.8f;
+                D_700038B8[0] = 0.8f;
+                D_700038BC[0] = 1.0f;
                 if (D_0081070A != 0) {
                     func_001B3C30(e, D_700036A0, D_700038B0, 200.0f, 20.0f);
                 } else {
@@ -311,29 +326,26 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
             *(int *)(st + 0x30) = 0;
             st[0x83] = 0;
             e[0x5D] = 1;
-            if (D_008104E4 == 1) {
-                e[5] = 8;
-                e[6] = 0;
-            } else {
-                *(int *)0x700038A0 = 0;
-                *(float *)0x700038A4 = 10.0f;
-                *(float *)0x700038A8 = 21.0f;
-                *(float *)0x700038AC = 1.0f;
+            if (D_008104E4 != 1) {
+                D_700038A0[0] = 0.0f;
+                D_700038A4[0] = 10.0f;
+                D_700038A8[0] = 21.0f;
+                D_700038AC[0] = 1.0f;
                 func_001B2B10(e, D_700038A0, D_700038A0);
-                *(float *)0x700038B0 = *(float *)(e + 0xB0);
-                *(float *)0x700038B4 = *(float *)(e + 0xB4);
-                *(float *)0x700038B8 = *(float *)(e + 0xB8);
-                *(float *)0x700038BC = *(float *)(e + 0xBC);
-                *(float *)0x700038B4 += 10.0f;
+                D_700038B0[0] = *(float *)(e + 0xB0);
+                D_700038B4[0] = *(float *)(e + 0xB4);
+                D_700038B8[0] = *(float *)(e + 0xB8);
+                D_700038BC[0] = *(float *)(e + 0xBC);
+                D_700038B4[0] += 10.0f;
                 func_001028B8(D_700038A0, D_700038B0, D_700038A0);
                 if (func_0019A570(D_700038B0, D_700038A0, 6, 0) == 0) {
                     e[5] = 7;
                     e[6] = 0;
-                } else {
-                    e[5] = 8;
-                    e[6] = 0;
+                    break;
                 }
             }
+            e[5] = 8;
+            e[6] = 0;
         } else if (*(int *)(st + 0x30) != 0) {
             *(int *)(st + 0x30) = *(int *)(st + 0x30) - 1;
         } else {
@@ -356,7 +368,7 @@ void anim_matrix_multi(unsigned char *e, unsigned char *st) {
         }
         break;
     }
-    if (turn != 0.0f) {
+    if (turn) {
         *(float *)(st + 0x44) = func_001B1240(e + 0xB0, D_00810360, D_00810368);
         *(float *)(e + 0xC4) =
             func_001B12B0(*(float *)(st + 0x44), *(float *)(e + 0xC4), turn);

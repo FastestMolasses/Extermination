@@ -1,21 +1,23 @@
-// NEARMISS func_001551B0  (vram 0x001551B0, 0x1464 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// Compare spellings from a search on the target. Left: earlier diagnosis (register coloring and scheduling across the large body).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x700038A4 0x700038B4
 
-//
-// Decomp lane round 5 (2026-10-20): spelling-only edits from a search against the
-// target (relational spelling such as `x > 1` for `x >= 2`, operand order, compound
-// assignment; MATCHING_GUIDE "Decomp lane round 5"). Meaning unchanged.
-
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.95% NEARMISS).
+// Fixes read from the original instructions:
+//  - The scratch-vector words 0x700038A4 and 0x700038B4 are relocated externs
+//    (idiom-32, opted in with // SPAD:): D_700038A4 / D_700038B4, one extern per
+//    address. As a relocated symbol the 0x700038A4 adjust in the ballistic branch
+//    is no longer speculated into the type-6 branch slot, and the 0x700038B4
+//    store can be scheduled freely. The case-0 clear of 0x700038A4 is a plain
+//    0.0f store; the 0x700038B4 constants are the floats -2.0f / -3.0f.
+//  - Each probe setup is "y -= 1.0f (or 2.0f), then store the probe height",
+//    in that order (no temporary); the old temp-first spelling scheduled the
+//    probe-vector address ahead of the probe height constant.
+//  - State 1 sub-state 0 decrements the timer at +0x2A before zeroing the hit
+//    counter and the four quadrant flags, which are assigned in the order
+//    cnt, c4, c3, c2, c1 (declared without initializers).
+//  - The arc/ballistic integrations add the velocity as `pos + vel`
+//    (pos += vel), not `vel + pos`.
 //
 // Enemy "leap / pounce" AI state machine, dispatched on the state byte at arg0[4]
 // (source case order 0, 4, 1, 2, 3/default -> mwcc tests them in reverse: 3,2,1,4,0).
@@ -101,6 +103,8 @@ extern int D_0028A56C[];
 extern unsigned char D_00810700[];
 extern unsigned char D_00810701[];
 
+extern float D_700038A4[3];
+extern float D_700038B4[3];
 extern int D_700036E0[];
 extern int D_700038A0[];
 extern int D_700038B0[];
@@ -145,7 +149,7 @@ void func_001551B0(char *arg0, int arg1, int arg2)
             break;
         }
         *(int *)0x700038AC = 0;
-        *(int *)0x700038A4 = 0;
+        D_700038A4[0] = 0.0f;
         func_001026A0(D_700038A0, arg0 + 0xD0, D_700038A0);
         *(float *)(arg0 + 0x2EC) = *(float *)(arg0 + 0xB0) + *(float *)0x700038A0;
         *(float *)(arg0 + 0x2DC) = *(float *)(arg0 + 0xB8) + *(float *)0x700038A8;
@@ -181,9 +185,9 @@ void func_001551B0(char *arg0, int arg1, int arg2)
             }
         }
         *(float *)0x700038A0 = *(float *)(arg0 + 0xB0);
-        *(float *)0x700038A4 = *(float *)(arg0 + 0xB4) - 2.0f;
+        D_700038A4[0] = *(float *)(arg0 + 0xB4) - 2.0f;
         *(float *)0x700038A8 = *(float *)(arg0 + 0xB8);
-        *(int *)0x700038B4 = 0xC0400000;
+        D_700038B4[0] = -3.0f;
         if (func_0019AB20(arg0, D_700038A0, D_700038B0, 7) == 4) {
             *(unsigned short *)(arg0 + 0x52) = 0;
         } else {
@@ -249,18 +253,16 @@ void func_001551B0(char *arg0, int arg1, int arg2)
     case 1: {
         switch (*(unsigned char *)(arg0 + 5)) {
         case 0: {
-            unsigned int cnt = 0;
-            int c4 = 0, c3 = 0, c2 = 0, c1 = 0;
+            unsigned int cnt;
+            int c4, c3, c2, c1;
             char *mtx;
             float *pD, *pC, *pB;
 
             *(short *)(arg0 + 0x2A) = *(short *)(arg0 + 0x2A) - 1;
+            cnt = 0; c4 = 0; c3 = 0; c2 = 0; c1 = 0;
             func_00102948(D_700038A0, arg0 + 0xB0);
-            {
-                float a4 = *(float *)0x700038A4;
-                *(int *)0x700038B4 = 0xC0000000;
-                *(float *)0x700038A4 = a4 - 1.0f;
-            }
+            D_700038A4[0] -= 1.0f;
+            D_700038B4[0] = -2.0f;
             *(float *)0x700038A0 = *(float *)(arg0 + 0x2EC);
             *(float *)0x700038A8 = *(float *)(arg0 + 0x2DC);
             if (func_0019AB20(arg0, D_700038A0, D_700038B0, 7) == 2 && *(int *)0x700031D4 != 0) {
@@ -293,11 +295,8 @@ void func_001551B0(char *arg0, int arg1, int arg2)
                 break;
             }
             func_00102948(D_700038A0, arg0 + 0xB0);
-            {
-                float a4b = *(float *)0x700038A4;
-                *(int *)0x700038B4 = 0xC0400000;
-                *(float *)0x700038A4 = a4b - 2.0f;
-            }
+            D_700038A4[0] -= 2.0f;
+            D_700038B4[0] = -3.0f;
             if (func_0019AB20(arg0, D_700038A0, D_700038B0, 7) == 2) {
                 if (*(int *)0x700031D4 != 0) {
                     if (*(short *)(arg0 + 0x2A) == 0) {
@@ -353,7 +352,7 @@ void func_001551B0(char *arg0, int arg1, int arg2)
                 *pC += (((float)func_00122BB8() / 2147483648.0f) - 0.5f) / 50.0f;
                 *pB += (((float)func_00122BB8() / 2147483648.0f) - 0.5f) / 60.0f;
                 *(float *)0x700038A0 = *pD;
-                *(float *)0x700038A4 = *pC;
+                D_700038A4[0] = *pC;
                 *(float *)0x700038A8 = *pB;
                 func_00102C58(mtx, mtx, D_700038A0);
             }
@@ -369,7 +368,7 @@ void func_001551B0(char *arg0, int arg1, int arg2)
             *(short *)(arg0 + 0x2A) = *(short *)(arg0 + 0x2A) - 1;
             if (*(short *)(arg0 + 0x28) <= 1) goto motion;
             *(short *)(arg0 + 0x28) = *(short *)(arg0 + 0x28) - 1;
-            *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0x2C8) + *(float *)(arg0 + 0xB4);
+            *(float *)(arg0 + 0xB4) += *(float *)(arg0 + 0x2C8);
             if (*(short *)(arg0 + 0x28) < 2) {
                 char *m2 = ((SubObj *)(arg0 + 0x1F0))->mtx;
                 func_001029C0(m2);
@@ -378,23 +377,23 @@ void func_001551B0(char *arg0, int arg1, int arg2)
                 *(float *)(arg0 + 0x2C0) = *(float *)(arg0 + 0x2C0) / 1.4f;
                 *(float *)(arg0 + 0x2B8) = *(float *)(arg0 + 0x2B8) / 1.4f;
                 *(float *)0x700038A0 = *(float *)(arg0 + 0x2C0);
-                *(float *)0x700038A4 = *(float *)(arg0 + 0x2BC);
+                D_700038A4[0] = *(float *)(arg0 + 0x2BC);
                 *(float *)0x700038A8 = *(float *)(arg0 + 0x2B8);
                 func_00102C58(m2, m2, D_700038A0);
             }
             goto ljoin;
         motion:
-            *(float *)(arg0 + 0xB0) = *(float *)(arg0 + 0x2CC) + *(float *)(arg0 + 0xB0);
-            *(float *)(arg0 + 0xB4) = *(float *)(arg0 + 0x2C8) + *(float *)(arg0 + 0xB4);
-            *(float *)(arg0 + 0xB8) = *(float *)(arg0 + 0x2C4) + *(float *)(arg0 + 0xB8);
-            *(float *)0x700038B4 = *(float *)(arg0 + 0x2C8);
+            *(float *)(arg0 + 0xB0) += *(float *)(arg0 + 0x2CC);
+            *(float *)(arg0 + 0xB4) += *(float *)(arg0 + 0x2C8);
+            *(float *)(arg0 + 0xB8) += *(float *)(arg0 + 0x2C4);
+            D_700038B4[0] = *(float *)(arg0 + 0x2C8);
             *(float *)(arg0 + 0x2C8) = *(float *)(arg0 + 0x2C8) - 0.052f;
             func_00102948(D_700038A0, arg0 + 0xB0);
             if (*(short *)(arg0 + 0x28) != 0) {
                 if (*(unsigned char *)(arg0 + 3) == 6) {
-                    *(float *)0x700038A4 = *(float *)0x700038A4 - 9.0f;
+                    D_700038A4[0] = D_700038A4[0] - 9.0f;
                 } else {
-                    *(float *)0x700038A4 = *(float *)0x700038A4 - 4.5f;
+                    D_700038A4[0] = D_700038A4[0] - 4.5f;
                 }
             }
             if (func_0019AB20(arg0, D_700038A0, D_700038B0, 7) == 4 ||
@@ -531,11 +530,8 @@ void func_001551B0(char *arg0, int arg1, int arg2)
                     *(short *)(arg0 + 0x2A) = *(volatile short *)(arg0 + 0x2A) - 1;
                 }
                 func_00102948(D_700038A0, arg0 + 0xB0);
-                {
-                    float a4c = *(float *)0x700038A4;
-                    *(int *)0x700038B4 = 0xC0000000;
-                    *(float *)0x700038A4 = a4c - 1.0f;
-                }
+                D_700038A4[0] -= 1.0f;
+                D_700038B4[0] = -2.0f;
                 *(float *)0x700038A0 = *(float *)(arg0 + 0x2EC);
                 *(float *)0x700038A8 = *(float *)(arg0 + 0x2DC);
                 if (func_0019AB20(arg0, D_700038A0, D_700038B0, 6) != 0) {

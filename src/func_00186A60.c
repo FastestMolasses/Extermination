@@ -1,16 +1,23 @@
-// NEARMISS func_00186A60  (vram 0x00186A60, 0x860 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.43% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure fully recovered (521/536 instrs identical); 3 residual regions, all 2.3.1.01-vs-available-builds scheduler artifacts: (1) same at-lui taken-path speculation into the `bnez i` delay slot (1 site, as in func_001607D0); (2) the spread clamp `if (20.0f <= spread) spread = 20.0f;` lower...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003A38
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.43% NEARMISS).
+// Fixes read from the original instructions:
+//  - The spread clamp is a ternary, spread = (20 > spread) ? spread : 20, as
+//    in the byte-matched twin func_0018C4B0; it gives the original's
+//    branch-likely clamp with the duplicated move.
+//  - The spread word 0x70003A38 is a relocated extern (idiom-32, // SPAD:),
+//    declared volatile float; it is no longer speculated into the i==0
+//    branch slot.
+//  - Jittered rays: the rand fraction, the angle base (0x70003A3C + i*pi/5)
+//    and the spread range (spread - minr) are locals computed before the
+//    0x70003A2C radius store, so the 0x70003A3C read comes before that store
+//    as in the original.
+//  - The cosine term is formed in a local and the angle is re-read from
+//    0x70003A20 before the 0x700038B0 store, so that store lands in the
+//    sine call's delay slot as in the original.
+//
 // Player weapon fire: casts up to 10 spread rays from the aim transform.
 // Builds an aim segment (scratchpad D_700038A0/D_70003900) from the actor's
 // pos (+0xC0) and dir (+0xA0), probes the world with func_0019A570; on a hit
@@ -28,6 +35,7 @@ extern char D_700038B0[];
 extern char D_700038C0[];
 extern char D_700038E0[];
 extern char D_70003900[];
+extern volatile float D_70003A38;
 extern void func_001026A0(char *dst, char *mtx, char *src);
 extern float func_00102738(char *a, char *b);
 extern void func_001028B8(char *dst, char *a, char *b);
@@ -63,6 +71,11 @@ int func_00186A60(char *p) {
     float minr;
     float spread;
     float d2;
+    float r;
+    float range;
+    float ofs;
+    float cs;
+    float ang;
 
     fired = 0;
     func_00103230(D_700038A0, p + 0xC0, 100.0f);
@@ -78,7 +91,7 @@ int func_00186A60(char *p) {
             *(float *)0x70003A20 = 70.0f;
         }
         fired = 1;
-        *(float *)0x70003A38 = 20.0f * (*(float *)0x70003A20 / 80.0f);
+        D_70003A38 = 20.0f * (*(float *)0x70003A20 / 80.0f);
     } else {
         func_001860A0(D_70003900, D_700038A0);
     }
@@ -90,20 +103,23 @@ int func_00186A60(char *p) {
             if (i == 0) {
                 func_00102948(D_700038B0, D_700038A0);
             } else {
-                spread = *(float *)0x70003A38;
-                if (20.0f <= spread) {
-                    spread = 20.0f;
-                }
+                spread = D_70003A38;
+                spread = (20.0f > spread) ? spread : 20.0f;
                 minr = 4.0f;
                 *(float *)0x70003A24 = spread;
                 if (!(4.0f <= spread)) {
                     minr = spread;
                 }
                 *(float *)0x70003A28 = minr;
-                *(float *)0x70003A2C = minr + ((spread - minr) * (4.656613e-10f * (float)func_00122BB8()));
-                *(float *)0x70003A20 = func_001B1470(*(float *)0x70003A3C + (0.62831855f * (float)i));
-                *(float *)0x700038B0 = *(float *)0x70003A2C * func_0011DE90(*(float *)0x70003A20);
-                *(float *)0x700038B4 = *(float *)0x70003A2C * func_0011E2A8(*(float *)0x70003A20);
+                r = 4.656613e-10f * (float)func_00122BB8();
+                ofs = *(float *)0x70003A3C + (0.62831855f * (float)i);
+                range = spread - minr;
+                *(float *)0x70003A2C = minr + (range * r);
+                *(float *)0x70003A20 = func_001B1470(ofs);
+                cs = *(float *)0x70003A2C * func_0011DE90(*(float *)0x70003A20);
+                ang = *(float *)0x70003A20;
+                *(float *)0x700038B0 = cs;
+                *(float *)0x700038B4 = *(float *)0x70003A2C * func_0011E2A8(ang);
                 *(float *)0x700038B8 = 0.0f;
                 *(float *)0x700038BC = 1.0f;
                 func_001026A0(D_700038B0, D_700037A0, D_700038B0);

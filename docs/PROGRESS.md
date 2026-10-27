@@ -1,3 +1,15 @@
+## 2026-10-27 — matching wave, final batch: 8 more byte-matched (134 in the wave)
+
+func_00186A60, func_0012E560, func_00171670, func_00203E60, func_001551B0,
+func_001C4A00, func_001AF2C0, sub_The_size_of_work_area_is_too_sma (all
+compiled_object_ordinary_c); bodies of anim_matrix_multi, func_00195130 and
+func_00203D30 corrected. Gate: fresh build + verify_all, all six stages
+pass, boot ELF byte-identical, 19/19 overlays, matched_code 99.45%,
+2390/2394 units (2256/2260 before the wave); FUNCTIONS.csv 2058 readable,
+548 nearmiss. Open decisions and tool gaps:
+MATCHING_GUIDE "Wave summary and open decisions (2026-10-27)". CURIOSITIES
+entry 21 gains 001861C0.
+
 ## 2026-10-27 — matching wave, tenth batch: 8 more byte-matched
 
 func_0020D930, func_0010F3B0, func_001FAFD0, func_001DDB70, func_001BB860,

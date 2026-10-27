@@ -415,6 +415,11 @@ refuse them.
   owes its nest a child) and no nest link reads a saved register that
   001AFD70's walk left holding the next node; the port module keeps that
   (port `CRATES_DRUMS_ORIGINAL.md`).
+- **001861C0** (shot / lock-on hit handler, byte-matched 2026-10-27): the
+  lock-record register is set only when the game-mode test passes; on the
+  other path the function reads whatever its caller left there. The matched
+  C reproduces this as a local that is uninitialised on that path. Whether
+  the game reaches the path with a live lock record is not established.
 - Port `AREA01_SYS.md` lists more reads of this kind in stubbed callees
   (0015A750, 0017B490, 0018CBD0, 0019C830, 0019CB60, 0019D330, 0019E280,
   001CFBE0), each on a path the port must keep unreachable.
