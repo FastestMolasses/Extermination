@@ -1,3 +1,21 @@
+## 2026-10-27 — matching wave, tooling batch: open decisions 1, 3, 4, 5 done; 14 byte-matched
+
+Relocation-spelling normaliser (tools/decomp/reloc_normalize.py, run by
+`build.py compile`), per-file ee-gcc 2.96 assembler (`// EEGCC_AS: 2.96`),
+inline VU0 row loads for func_001DB480 (user-approved), and the
+gs_readback_queue_run / func_001AB140 symbol split. Byte-matched: func_0022E7F0,
+func_002034C0, func_001575E0, func_0010EAA0, func_0010E088, func_00113478,
+func_001DB480, gs_readback_queue_run, func_001AC7F0, anim_matrix_player,
+func_00107CF0, func_0014C680, func_001B3F10, sub_pts_is_not_used. The compiler
+mix (decision 2) stays blocked: no mwcc 3.0 / 2.3.1.01 on disk. `build.py setup`
+now runs splat as a module (the venv launcher's shebang pointed at the iCloud
+copy of the repo and hung). Gate: fresh build + verify_all, all six stages
+pass, boot ELF byte-identical, 19/19 overlays, matched_code 99.96%,
+2407/2409 units (the normaliser lifted several earlier sub-100 units);
+audit_link_provenance clean (func_0010E088 / func_0010EAA0 / func_001DB480 route
+as compiled inline assembly: C with `di`/`ei` or VU0 asm statements).
+FUNCTIONS.csv 2074 readable, 534 nearmiss. MATCHING_GUIDE "Tooling batch".
+
 ## 2026-10-27 — matching wave, final batch: 8 more byte-matched (134 in the wave)
 
 func_00186A60, func_0012E560, func_00171670, func_00203E60, func_001551B0,

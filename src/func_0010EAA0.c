@@ -1,15 +1,13 @@
-// NEARMISS func_0010EAA0  (vram 0x0010EAA0, ?) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.56% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc ASSEMBLER delay-slot-swap wall — PIPELINE BUG, fixable, and this C is then a TRUE 100.0. Sole residual: expected ends `jr $ra` with `ei` in the delay slot; we emit `ei; jr $ra; nop` (+1 instr, size 148 vs 144). Root cause: tools/eegcc/ee-compile.sh assembles with gas 2.9-ee (tools/eegcc/ee-...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+// EEGCC_AS: 2.96
+
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 95.56% NEARMISS).
+// The C was already right: the original ends with `ei` in the return's delay
+// slot, which the 2.9 gas never fills. Assembling this file with the 2.96 gas
+// (`// EEGCC_AS: 2.96`, tools/eegcc/ee-compile.sh) reproduces it.
+//
 
 typedef struct Node {
     /* 0x00 */ int         f0;

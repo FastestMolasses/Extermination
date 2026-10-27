@@ -1,15 +1,19 @@
-// NEARMISS func_00107CF0  (vram 0x00107CF0, 0x194 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.02% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler wall. 104/105 instructions byte-identical; the ONLY diff is the 4th call's first-argument copy (a0 = s2), which our build schedules one slot earlier (between the two halves of the 64-bit bit-31 sign-extension shift pair) than the target (which emits it right after the pair). Pure sched2 ready-li...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 98.02% NEARMISS).
+// Fixes read from the original instructions:
+//  - The fraction term is the 64-bit product shifted right by one and truncated to
+//    int, (int)(frac >> 1); the old spelling (int)((frac << 31) >> 32) computes the
+//    same value but let the scheduler move the fourth call's first-argument copy
+//    ahead of the truncation. Not a scheduler wall.
+//
+// SDK/MPEG timing words: fills *out_time from the context's 64-bit time (adjusted
+// through the device block at D_002412F4 + 0x40 when it is negative and the device
+// has a base: base + (rate * lo) / 2 plus a parity correction from the 64-bit
+// multiply helper func_00125F48, bumping the device's counter when the parity term
+// is set), applies a pending override (state 2 at 0xF8), then copies the 0x20 word
+// to *out_a and packs the context's flag fields into *out_b.
 
 extern unsigned char *D_002412F4;
 
@@ -46,7 +50,7 @@ void func_00107CF0(unsigned char *ctx, long *out_time, long *out_a, long *out_b)
                 cnt = *(int *)(dev + 0x90);
                 adj = (int)func_00125F48(first, cnt & 1);
                 frac = func_00125F48(*(long *)(dev + 0x78), lo);
-                *out_time = base + ((int)((frac << 31) >> 32) + adj);
+                *out_time = base + ((int)(frac >> 1) + adj);
                 if (func_00125F48(bit, *(long *)(dev + 0x78) & 1) != 0) {
                     *(int *)(dev + 0x90) = cnt + 1;
                 }

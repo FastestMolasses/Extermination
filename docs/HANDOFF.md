@@ -52,16 +52,15 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (2026-10-27, fresh build after the matching wave's final batch,
-  134 NEARMISS byte-matched in the wave, all compiled_object_ordinary_c):
-  2390/2394 units, matched_code 99.45%; boot ELF byte-identical; 19/19
-  overlays. Open decisions / tool gaps that block further matches:
-  MATCHING_GUIDE "Wave summary and open decisions (2026-10-27)". About 105
-  queued NEARMISS functions were not attempted (ordered by the prototype
-  scan, then by percentage). Open lever: three
-  parked functions need 2.3.3 scheduling plus 991202 delay-slot moves
-  (MATCHING_GUIDE "Matching wave 2026-10-27", sixth batch); mwcc 3.0 / 3.0.1
-  are configured in build.py but not installed. Parked near-misses
+  Latest (2026-10-27, fresh build after the matching wave's tooling batch:
+  relocation-spelling normaliser, `// EEGCC_AS: 2.96`, the func_001AB140 split;
+  148 NEARMISS byte-matched in the wave): 2407/2409 units, matched_code
+  99.96%; boot ELF byte-identical; 19/19 overlays. MATCHING_GUIDE "Tooling
+  batch: open decisions 1-5". About 95 queued NEARMISS functions not yet
+  attempted (ordered by the prototype scan, then by percentage). Open lever:
+  five parked functions need 2.3.3 scheduling plus 991202 delay-slot moves
+  (MATCHING_GUIDE "Matching wave 2026-10-27", sixth batch); mwcc 3.0 / 3.0.1 /
+  2.3.1.01 must be supplied by the user. Parked near-misses
   with their residuals: MATCHING_GUIDE "Matching wave 2026-10-27". A NEARMISS listed in
   fill_unmatched.py's GPREL_FORCE_ASM / SIZE_DRIFT_FORCE_ASM keeps linking
   from the .s after its C reaches 100% until its entry is removed (check

@@ -398,6 +398,7 @@ skin_arena_init = 0x001D2E20;  // type:func
 // GS readback queue
 gs_readback_queue_drain = 0x001D7410;  // type:func
 gs_readback_queue_run = 0x001AAE40;  // type:func
+func_001AB140 = 0x001AB140;  // type:func
 // Memory helpers (block_copy / copy_qw4 64-byte matrix copy / float->int)
 block_copy = 0x00121870;  // type:func
 copy_qw4 = 0x00102958;  // type:func

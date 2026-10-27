@@ -1,19 +1,18 @@
-// NEARMISS func_0022E7F0  (vram 0x0022E7F0, 0x3E8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.87% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). Code is
-// instruction-identical; the residual is relocation spelling only (see below).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 // SPAD: 0x700038A0 0x700038B0 0x700038C0
 
 //
-// NEARMISS 99.87% (was 80.03%; matching wave 2026-10-27). The old "stack-packing
-// wall" and "scheduler wall" verdicts were our bugs:
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.87% NEARMISS).
+// The C was already instruction-identical; the residual was relocation spelling
+// (the original relocates the +8 element accesses against D_700038A0/B0/C0, splat
+// leaves them as bare literals). tools/decomp/reloc_normalize.py now spells the
+// target the way the compiled object does where both resolve to the same address.
+//
+
+//
+// Body corrected earlier in the same wave (80.03 -> 99.87); the old
+// "stack-packing wall" and "scheduler wall" verdicts were our bugs:
 //  - the two heading vectors are float[4] (16-byte) stack buffers whose y
 //    element is cleared, not float[3] plus a separate int; declared before
 //    the 4x4 scratch matrix, which gives the original's frame layout;
@@ -22,12 +21,6 @@
 //  - the three scratchpad corner vectors are array externs accessed by
 //    index; that lets mwcc know they do not alias, reproducing the original
 //    interleaved rescale schedule (integer-literal addresses did not).
-// Remaining differences: the +8 element accesses (z of each corner vector)
-// relocate against D_700038A0/B0/C0 with addend 8, while splat leaves those
-// load and store sites as bare 0x700038A8/B8/C8 literals in the target, so
-// objdiff counts them as relocation mismatches. The linked bytes are the same.
-// A tool-side fix (symbolizing such sites as %hi/%lo(D_700038A0+8) when the
-// file opts in) would make this 100%.
 //
 // Radar/HUD camera-relative setup. arg0 is the viewer entity. Dispatches
 // func_00207D00(1,0), then runs func_0022E630(arg0, blip) over the live blip

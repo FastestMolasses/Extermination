@@ -1,18 +1,27 @@
-// NEARMISS func_00113478  (vram 0x00113478, 0xB4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.78% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc %hi-CSE rematerialization wall (one instruction short: 44 vs 45). Improved 91.11% -> 97.78%. Structure, branch senses, register allocation and every other instruction match. Unlock found this pass: the failure-arm semaphore read must be `*(volatile int *)&D_00241D0C`, which exactly reproduc...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+// EEGCC_AS: 2.96
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.78% NEARMISS).
+// Fixes read from the original instructions:
+//  - The CD state word D_00241D48 and the semaphore D_00241D0C are both volatile
+//    globals (shared with the RPC side). The volatile store/load
+//    pair keeps the success arm's state clear ahead of the semaphore's address setup,
+//    which is why the original rebuilds the semaphore's upper address half there
+//    instead of reusing the one from the branch delay slot (the "%hi-CSE wall").
+//  - The success arm's semaphore read sits in SignalSema's call delay slot: that is
+//    the 2.96 assembler filling the call slot with the preceding load, not cc1.
+//    The earlier per-arm `*(volatile int *)&` cast is no longer needed.
+//
+// One RPC request (function 0x16) on the SIF RPC client D_0027AF60 with a 4-byte reply:
+// wait for the channel (func_00112E28 with command 0x1E, returns 0 if busy), set the
+// state word D_00241D48 to 8, issue the call into the reply buffer D_0027AB40. On failure,
+// release the semaphore, clear the state and return 0; on success clear the state,
+// release the semaphore and return the reply word read through the uncached mirror
+// (address | 0x20000000).
 
-extern int D_00241D48;
-extern int D_00241D0C;
+extern volatile int D_00241D48;
+extern volatile int D_00241D0C;
 extern int D_0027AB40;
 extern int D_0027AF60;
 
@@ -30,7 +39,7 @@ int func_00113478(void) {
     D_00241D48 = 8;
     r = func_0010E8A8(&D_0027AF60, 0x16, 0, 0, 0, p, 4, 0, 0);
     if (r < 0) {
-        SignalSema(*(volatile int *)&D_00241D0C);
+        SignalSema(D_00241D0C);
         D_00241D48 = 0;
         return 0;
     }

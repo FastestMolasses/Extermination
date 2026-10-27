@@ -8,6 +8,12 @@ export QEMU_LD_PREFIX=/
 P=tools/eegcc/ee-gcc2.9-991111-01
 CC1="$P/lib/gcc-lib/ee/2.9-ee-991111-01/cc1"
 AS="$P/ee/bin/as"
+# EE_AS=2.96 (set per file by build.py from `// EEGCC_AS: 2.96`): assemble with
+# the 2.96 gas, which fills a call's delay slot with a following instruction
+# such as `ei`. The 2.9 gas never fills call slots, and the matched ee-gcc
+# corpus relies on that, so this is a per-file opt-in (matching wave 2026-10-27:
+# the SIF RPC module func_0010E088 / func_0010EAA0).
+[ "$EE_AS" = "2.96" ] && AS="tools/eegcc/ee-gcc2.96/ee/bin/as"
 TS="${OUT%.o}.s"
 qemu-i386 "$CC1" -lang-c -D__GNUC__=2 -Dmips -DMIPSEL -DR5900 -D__mips__ -D__MIPSEL__ -D__R5900__ \
   -D_MIPSEL -D_R5900 -D__mips -D__MIPSEL -D__R5900 -D__LANGUAGE_C -D_LANGUAGE_C -DLANGUAGE_C \

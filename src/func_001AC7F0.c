@@ -1,18 +1,12 @@
-// NEARMISS func_001AC7F0  (vram 0x001AC7F0, 0x22C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.84% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful.
-// Remaining differences in this candidate:
-// mwcc233 -O4,p -sdatathreshold 0: 97.84173%; original 556 bytes, compiled
-// 544 bytes. All live instructions and registers match; the original retains
-// three unreachable duplicate v0 = 0x2005 << 16 instructions immediately before
-// case-entry labels at 0x001AC8E8, 0x001AC920, and 0x001AC958.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.84% NEARMISS).
+// Fixes read from the original instructions:
+//  - case 1 of the outer switch ends in `break`, not `return`. With `return`
+//    mwcc dropped the three unreachable copies of the 0x2005 upper-half load
+//    that the original keeps after each inner case's branch (the slot-fill
+//    leftovers); `break` restores them and the 556-byte size.
 
 // Title-menu compositor. The task's byte +0xA controls one-time audio/
 // highlight setup; byte +0xF selects the highlighted menu texture.
@@ -67,6 +61,6 @@ void func_001AC7F0(void)
         func_00207E40(1, 0x77F0, 0x8120, 256, 128, 0x80808080U, new_game);
         func_00207E40(1, 0x77F0, 0x8230, 256, 128, 0x80808080U, load_game);
         func_00207E40(1, 0x77F0, 0x8320, 256, 128, 0x80808080U, options);
-        return;
+        break;
     }
 }

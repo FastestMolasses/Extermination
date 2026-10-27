@@ -403,7 +403,8 @@ def compile_cmd(name: str) -> str:
     flags = file_cflags(name)
     comp = file_compiler(name)
     if comp == "eegcc":
-        return f"tools/eegcc/ee-compile.sh src/{name}.c build/obj/{name}.o {flags}"
+        env = "EE_AS=2.96 " if file_eegcc_as(name) == "2.96" else ""
+        return f"{env}tools/eegcc/ee-compile.sh src/{name}.c build/obj/{name}.o {flags}"
     # Per-file CodeWarrior build selection. byte-identity is what matters, not the
     # .comment string (which isn't in the loadable region) — so a later build that
     # reproduces a function's exact bytes is a valid match (same principle as the
@@ -430,6 +431,27 @@ def compile_cmd(name: str) -> str:
     return cmd
 
 
+def file_eegcc_as(name: str) -> str:
+    """`// EEGCC_AS: 2.96` in the leading comment block selects the 2.96 gas
+    for an ee-gcc file (see tools/eegcc/ee-compile.sh); default is the 2.9 gas."""
+    try:
+        text = (SRC / f"{name}.c").read_text(errors="replace")
+    except OSError:
+        return ""
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if not line.startswith("//"):
+            break
+        m = re.match(r"^//\s*EEGCC_AS:\s*(\S+)", line)
+        if m:
+            if m.group(1) != "2.96":
+                raise ValueError(f"src/{name}.c: unknown // EEGCC_AS: {m.group(1)}")
+            return m.group(1)
+    return ""
+
+
 def file_tu_statics(name: str) -> list[str]:
     """Callee names from the file's `// TU_STATIC:` lines (tools/decomp/tu_static.py)."""
     try:
@@ -446,10 +468,12 @@ def run_splat() -> None:
     if not (CONFIG / "SCUS_971.12").exists():
         sys.exit("error: config/SCUS_971.12 (boot ELF) is missing — extract it "
                  "from your own disc first. See docs/PROGRESS.md.")
-    splat = Path(sys.executable).with_name("splat")
-    cmd = [str(splat) if splat.exists() else "splat", "split", str(SPLAT_YAML)]
+    # Run splat as a module of this interpreter: the venv's `splat` launcher
+    # keeps the shebang of wherever the venv was created, which can point at
+    # another checkout (one in an iCloud folder hung on a file read).
+    cmd = [sys.executable, "-m", "splat", "split", str(SPLAT_YAML)]
     print("[splat]", " ".join(cmd))
-    subprocess.run(cmd, cwd=ROOT, check=True)
+    subprocess.run(cmd, cwd=ROOT, check=True, stdin=subprocess.DEVNULL)
 
 
 def objdiff_config(*, absolute_paths: bool = False) -> dict:
@@ -535,7 +559,31 @@ def cmd_compile(_a: argparse.Namespace) -> None:
     # the compiler).  See tools/decomp/inject_relocs.py for the rationale.
     subprocess.run([sys.executable, str(ROOT / "tools/decomp/inject_relocs.py")],
                    cwd=ROOT, check=False)
+    renormalize_expected(names)
     write_objdiff()
+
+
+def renormalize_expected(names: list[str]) -> None:
+    """Respell each expected object's address references the way its compiled
+    object does, where both resolve to the same address (reloc_normalize.py),
+    and reassemble the changed ones. Runs after compile because the spelling
+    is read from the compiled relocations; a real instruction difference is
+    never touched."""
+    sys.path.insert(0, str(ROOT / "tools/decomp"))
+    import reloc_normalize
+    changed = []
+    for n in names:
+        obj = ROOT / "build" / "obj" / f"{n}.o"
+        s_path = ROOT / "build" / ".asmnorm" / f"{n}.s"
+        if not obj.exists() or not s_path.exists():
+            continue
+        new = reloc_normalize.normalize(obj, n, s_path.read_text(errors="ignore"))
+        if new is not None:
+            s_path.write_text(new)
+            changed.append(n)
+    if changed:
+        _run_chunked("mkdir -p build/expected", [assemble_cmd(n) for n in changed])
+    print(f"[renormalize] respelled address references in {len(changed)} target object(s)")
 
 
 def cmd_build(a: argparse.Namespace) -> None:

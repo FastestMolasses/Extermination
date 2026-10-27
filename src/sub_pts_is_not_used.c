@@ -1,15 +1,10 @@
-// NEARMISS sub_pts_is_not_used  (vram 0x00204BD0, 0x188 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// mwcc empty-basic-block / branch-target-padding placement wall. Sizes are equal (98 == 98 instructions) and EVERY register assignment now matches the original exactly (s0=e, s1=i, s2=blk, s3=cont, s4=req, s5=ch, a2=avail, v1=want, a1=off, a0=roff), including the `beqzl` branch-likely with `cont = ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.91% NEARMISS). Fixes read from the original instructions:
+// - The live-count clamp is a ternary store (`count = (n < 0) ? 0 : n`), not an
+//   if-statement that zeroes n before the store; the if form moved the empty-block
+//   padding nop ahead of the store's branch instead of into the else arm.
 
 // Streaming-channel drain step (same subsystem as func_002044F0 / func_00204080).
 // `ch` is the channel: +0x08 = sectors-per-block (block size = that << 11),
@@ -68,10 +63,7 @@ int sub_pts_is_not_used(char *ch, char *req) {
                         *(int *)(e + 0x14) = 0;
                     }
                     n = *(int *)(ch + 0x58) - 1;
-                    if (n < 0) {
-                        n = 0;
-                    }
-                    *(int *)(ch + 0x58) = n;
+                    *(int *)(ch + 0x58) = (n < 0) ? 0 : n;
                 }
             } else {
                 cont = 0;

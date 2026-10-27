@@ -56,3 +56,44 @@ match:
    func_001FEC20 / func_001FECB0, func_00100130 / func_001000C0
    (pass-through doubles), anim_bone_array_setup (callers pass the count),
    func_0010BF10, func_001F4F90.
+
+### Tooling batch: open decisions 1-5 (2026-10-27)
+
+The user approved all five items above. Results:
+
+1. **Relocation naming: done.** `tools/decomp/reloc_normalize.py` (tests:
+   `tools/decomp/test_reloc_normalize.py`) reads the compiled object's
+   HI16/LO16 relocations and respells the matching site of the expected `.s`
+   to the compiled spelling (`D_x+off`, or a bare literal where the compiled
+   side has none). It changes a site only when both sides resolve to the same
+   address and the instruction words agree outside the immediate, so a real
+   mismatch stays visible. `build.py compile` runs it after inject_relocs and
+   reassembles the changed targets. func_0022E7F0 scored 100 with no source
+   change; func_002034C0 and func_001575E0 followed with corrected bodies.
+2. **Compiler mix: blocked.** No mwcc 3.0 / 3.0.1 / 2.3.1.01 build is on
+   disk. The five functions stay NEARMISS until the user supplies one.
+3. **ee-gcc 2.96 assembler: done.** `// EEGCC_AS: 2.96` in an eegcc file makes
+   `tools/eegcc/ee-compile.sh` assemble with the 2.96 gas (it fills a call or
+   return slot with `ei` or a preceding load; 2.9 never does). Matched
+   func_0010EAA0 (C unchanged), func_0010E088 and func_00113478.
+4. **Inline VU0 asm: done for func_001DB480 only** (user-approved). Four
+   GCC-style row-load `asm` statements; with them mwcc stops strength-reducing
+   the grid loop. Other VU0 macro-code functions stay NEARMISS.
+5. **Symbol split: done.** `config/symbol_addrs.txt` names the VBLANK handler
+   at 0x1AB140 `func_001AB140`; its existing CodeWarrior `asm` body moved
+   unchanged to `src/func_001AB140.c`, and gs_readback_queue_run (the code was
+   always identical) is a 100% unit. A re-run of `build.py setup` changed only
+   those two `.s` files.
+
+Also: `build.py setup` now runs splat as `python -m splat` with stdin closed.
+The venv's `splat` launcher kept the shebang of the iCloud copy of the repo
+it was created in, and one file read there blocked for two hours.
+
+Byte-matched in this batch (14): func_0022E7F0, func_002034C0, func_001575E0
+(relocation naming); func_0010EAA0, func_0010E088, func_00113478 (2.96 gas);
+func_001DB480 (inline asm); gs_readback_queue_run (split); func_001AC7F0
+(`break` not `return`, restoring three unreachable slot-fill leftovers),
+anim_matrix_player (one variable carries the requested clip in both arms),
+func_00107CF0 (`(int)(frac >> 1)`), func_0014C680 (state 0 falls through to
+case 1; idiom-32), func_001B3F10 (idiom-32 query vectors), sub_pts_is_not_used
+(ternary clamp).
