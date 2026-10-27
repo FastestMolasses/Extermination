@@ -1,69 +1,69 @@
-// NEARMISS func_001861C0  (vram 0x001861C0, 0x7D8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 62.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// large-function (7 saved regs, ~500 instructions, dense 0x700038xx GS/VU0 scratch traffic) register-allocation/scheduling divergence -- structurally and semantically correct (verified branch-by-branch against the .s, incl. the subtle func_001839A0 reaction-code retention that a naive read would mi...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// Weapon-fire raycast/hit-reaction dispatcher. arg0 is the shooter actor.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 62.91% NEARMISS).
+// Fixes read from the original instructions:
+//  - The scratchpad vectors passed by address (0x700031B0, 0x700038A0/B0/C0/
+//    D0/E0/F0) are relocated externs (the original carries %hi/%lo on every
+//    address argument); the word stores (+0xC w lanes, 0x700031E8, the hit
+//    record reads, 0x70003A20/24) stay literal addresses, as in the original.
+//  - The no-lock forward scale is 260.0, not 4.5 (4.5 is only the range-ratio
+//    threshold).
+//  - func_001B41F0 takes six arguments: both calls pass 0 and 5 after the aux
+//    word (its definition in src/ has six parameters).
+//  - The lock-class pick is a switch (default, case 1, case 2), read through a
+//    local pointer to D_008102B0 taken at entry.
+//  - The locked record (s5) is NOT initialized when the game-mode test fails:
+//    the original leaves the register as the caller left it.
+//  - Branch shapes were wrong: a direct actor hit with no secondary record keeps
+//    reaction code 0; a locked-target hit (kind 2) whose secondary record has a
+//    zero flags byte does nothing; any other hit kind always runs the
+//    surface-type dispatch. The reaction code is a short.
+//  - The miss path and the "no free slot" return share one return-0 tail after
+//    the main body (if/else around the whole hit handling).
+//  - Saved registers follow the declaration order s0..s5 with the shooter as
+//    the parameter itself.
 //
-// First decides which "aim origin" record (var_s5) to use: normally none
-// (var_a1=0, meaning "use the shooter's own forward vector" path below), but
-// if the game mode is 0xC or 0x29 (D_008104E0) AND the weapon-lock mode
-// D_00810CA4 is 0 or 1, it picks one of three lock targets (D_008106E0/E4/E8,
-// keyed by D_00810CA4 and the actor's target-class byte at +0x2F0) and if a
-// non-NULL record is found, calls func_00183C40(record, &D_700038A0) to fetch
-// its world position and takes the "locked" path (var_a1=1).
+// Weapon-fire raycast/hit-reaction dispatcher. self is the shooter actor.
 //
-// var_a1==0 (no lock): builds arg0+0xC0's forward vector scaled by 4.5 into
-// D_700038A0..AC (func_00103230/func_001028B8), then rotates it by the
-// shooter's world matrix (func_001028D0) into D_700038D0.. with w=1.0.
-// var_a1==1 (locked): rotates the locked position straight into D_700038D0..,
-// normalizes it (func_00102760) and scales by 5.0 (func_00102900), then adds
-// the shooter's forward-vector offset back in.
+// Aim origin: when the game mode D_008104E0 is 0xC or 0x29 and the weapon-lock
+// mode D_00810CA4 is 0 or 1, picks a lock record (D_008106E0, or by the
+// player's target-class byte at D_008102B0+0x2F0: class 2 tries D_008106E8,
+// class 1 tries D_008106E4, each falling back to D_008106E0); a non-NULL record
+// has its position fetched into D_700038A0 by func_00183C40 and takes the
+// locked path.
 //
-// Either way ends up with a world-space aim point in D_700038A0.. and fires a
-// raycast query (func_0019A570(arg0+0xA0, &D_700038A0, 7, 0x20)) to find the
-// first thing hit; on a miss (var_s1==0) it instead just resolves any
-// existing surface impact via func_001860A0(arg0+0xA0, &D_700038F0) and
-// returns 0.
+// Unlocked: the forward vector at self+0xC0 scaled by 260.0 plus the position
+// at self+0xA0 becomes the aim point D_700038A0 (w=1), then rotated into
+// D_700038D0. Locked: the locked position is rotated into D_700038D0,
+// normalized into D_700038E0, scaled by 5.0 and added onto D_700038A0.
 //
-// On a hit it always calls func_001860A0(arg0+0xA0, &D_700038A0) (surface FX
-// for the impact point) and folds a -1 "no valid target" sentinel into the
-// local hit-reaction code (var_s0) if that fails. It then classifies the hit
-// record (*(void**)0x700031D0 = the primary hit, *(void**)0x700031D4 = a
-// secondary/actor hit) by var_s1 (1 = actor hit, 2 = locked-target hit,
-// other = plain world hit):
-//  - var_s1==1 (direct actor hit): if the secondary hit record's flags byte
-//    (+0) == 1 and its class (+2, masked ~0xE0) == 2, applies knockback via
-//    func_001B41F0(actor, &D_700038A0, arg0+0xC0, aux); on failure sets the
-//    -1 sentinel. Else the hit-reaction code is fixed at 0x100.
-//  - var_s1!=1: if the LOCKED record (var_s5) is a live actor (class ~0xE0
-//    == 2) close enough (normalized aim-delta magnitude ratio < 4.5), applies
-//    knockback to it too and promotes var_s1 to 1 (re-fetches the FX vector
-//    from it). Otherwise (or if var_s1==2), the hit-reaction code (var_s0)
-//    starts from func_001839A0(secondary-hit)&0xFFFF (or, if there is no
-//    secondary-hit record / its flags byte is 0, defaults to 0x101), then a
-//    shared surface-type dispatch on s2 (the primary hit's +0x1A byte) can
-//    promote it to 0x201 (s2 in [2,4]) or fire an func_001EFD90 FX cue
-//    (0x8000002C for s2==5, 0x80000067 for s2==8 or for an initial 0x300
-//    code) and set the -1 sentinel; a secondary-hit record additionally gets
-//    its hit-reaction timer (+0x36) stamped to 5 via
-//    func_00102948(actor+0x70, arg0+0xC0).
+// Copies the aim point to D_700038F0, clears the result word 0x700031E8 and
+// casts func_0019A570(self+0xA0, D_700038A0, 7, 0x20). On a miss it resolves
+// the impact at D_700038F0 via func_001860A0 and returns 0.
 //
-// Finally allocates an FX/decal slot via func_001AFA90(1); if none is free,
-// returns 0. Otherwise stores whether the sentinel fired (+0xD = 0 or 1),
-// the hit-reaction code (+0x2E), fixed state (+3=3), the impact point
-// (+0xB0/+0xB4/+0xB8 from D_700038A0..A8) and the FX vtable pointer
-// (+0x10 = &func_0018ABA0); if this was NOT the var_s1==1 actor-hit path, it
-// also stamps a secondary FX vector (func_00102948(slot+0xC0, &D_700038E0));
-// otherwise it just zeroes slot+0xCC. Returns 1.
+// On a hit the impact point comes from D_700031B0, the surface normal from the
+// primary hit record (*0x700031D0, +0x24..+0x2C) into D_700038E0, and its
+// surface type (+0x1A) and aux word (+0x1C) are kept; func_001860A0 on the
+// impact point sets the -1 sentinel in 0x700031E8 when it fails.
+//  - hit kind 1 (actor): with a secondary record (*0x700031D4) whose flags
+//    byte is 1 and class (+2 masked ~0xE0) is 2, applies the hit through
+//    func_001B41F0 (sentinel on success); other records give code 0x100.
+//  - otherwise, if the lock record is a live class-2 actor and the ratio of
+//    the aim-delta length to the aim length is under 4.5, applies the hit to
+//    it (when its flags byte is 1), moves the impact point to it and becomes
+//    kind 1. Still not kind 1: kind 2 with a secondary record whose flags
+//    byte is set takes func_001839A0's reaction code (0x101 is refined by the
+//    surface type: 2..4 -> 0x201, 5 -> FX cue 0x8000002C, 8 -> 0x80000067;
+//    0x300 -> FX cue 0x80000067; cues set the sentinel), stamps +0x36 = 5 and
+//    copies the shooter's forward vector to +0x70; kind 2 without a record and
+//    every other kind run the same surface dispatch with 0x101 as default.
+//
+// Finally allocates an FX slot via func_001AFA90(1) (none free -> return 0),
+// stores +0xD (0 when the sentinel fired, else 1 plus the code at +0x2E),
+// +3 = 3, the impact point at +0xB0..+0xB8 and func_0018ABA0 at +0x10; a
+// non-kind-1 hit also copies D_700038E0 to +0xC0, kind 1 zeroes +0xCC.
+// Returns 1.
 extern void func_00102718(void *dst, void *a, void *b);
 extern float func_00102738(void *a, void *b);
 extern void func_00102760(void *dst, void *src);
@@ -76,10 +76,10 @@ extern void func_001031E0(void *dst, void *src);
 extern float func_0011E748(float x);
 extern short func_001839A0(void *a0);
 extern void func_00183C40(void *p, void *out);
-extern int func_001860A0(int a0, void *a1);
+extern int func_001860A0(void *a0, void *a1);
 extern int func_0019A570(void *a0, void *a1, int a2, int a3);
 extern void *func_001AFA90(int a0);
-extern int func_001B41F0(void *e, void *a, void *b, int c);
+extern int func_001B41F0(void *e, void *a, void *b, int c, int d, int f);
 extern void func_001EFD90(int code, void *a, void *b);
 
 extern int D_008104E0;
@@ -88,215 +88,213 @@ extern void *D_008106E0;
 extern void *D_008106E4;
 extern void *D_008106E8;
 extern char D_008102B0[];
+extern char D_700031B0[];
+extern char D_700038A0[];
+extern char D_700038B0[];
+extern char D_700038C0[];
+extern char D_700038D0[];
+extern char D_700038E0[];
+extern char D_700038F0[];
 extern void func_0018ABA0(void);
 
-int func_001861C0(int arg0) {
-    char *s6 = (char *) arg0;
-    void *s5;
-    int locked; /* var_a1: 0 = no lock target, 1 = locked target used */
-    int s1;     /* hit-kind: 0 = miss, 1 = actor hit, 2 = locked-target hit, other = world hit */
-    int s0;     /* hit-reaction code, high 16 bits of func_001839A0's result classification */
-    void *s4;   /* secondary/actor hit record (*(void**)0x700031D4) */
-    int s2;     /* surface-type byte (+0x1A) of the secondary hit record */
-    int s3;     /* aux field (+0x1C) of the secondary hit record */
-    void *hit;  /* primary hit record (*(void**)0x700031D0) */
-    void *slot;
-    unsigned char lockClass;
+int func_001861C0(char *self) {
+    short code;         /* hit-reaction code stored at slot+0x2E */
+    int kind;           /* func_0019A570 result: 0 miss, 1 actor, 2 locked target */
+    int surface;        /* primary hit record +0x1A */
+    int aux;            /* primary hit record +0x1C */
+    unsigned char *other; /* secondary hit record (*0x700031D4) */
+    unsigned char *lock;  /* lock record; uninitialized unless the mode test passes */
+    int locked;
+    char *player = D_008102B0;
+    char *hit;
+    char *slot;
 
-    s5 = 0;
-    s0 = 0;
+    code = 0;
     locked = 0;
 
     if ((D_008104E0 == 0xC || D_008104E0 == 0x29) && (D_00810CA4 == 1 || D_00810CA4 == 0)) {
         if (D_00810CA4 == 1) {
-            s5 = D_008106E0;
-            if (s5 != 0) {
-                func_00183C40(s5, (void *) 0x700038A0);
+            lock = D_008106E0;
+            if (lock != 0) {
+                func_00183C40(lock, D_700038A0);
                 locked = 1;
             }
         } else {
-            lockClass = *(unsigned char *) (D_008102B0 + 0x2F0);
-            if (lockClass == 2) {
-                s5 = D_008106E8;
-                if (s5 != 0) {
-                    func_00183C40(s5, (void *) 0x700038A0);
+            switch (*(unsigned char *) (player + 0x2F0)) {
+            default:
+                lock = D_008106E0;
+                if (lock != 0) {
+                    func_00183C40(lock, D_700038A0);
+                    locked = 1;
+                }
+                break;
+            case 1:
+                lock = D_008106E4;
+                if (lock != 0) {
+                    func_00183C40(lock, D_700038A0);
                     locked = 1;
                 } else {
-                    s5 = D_008106E0;
-                    if (s5 != 0) {
-                        func_00183C40(s5, (void *) 0x700038A0);
+                    lock = D_008106E0;
+                    if (lock != 0) {
+                        func_00183C40(lock, D_700038A0);
                         locked = 1;
                     }
                 }
-            } else if (lockClass == 1) {
-                s5 = D_008106E4;
-                if (s5 != 0) {
-                    func_00183C40(s5, (void *) 0x700038A0);
+                break;
+            case 2:
+                lock = D_008106E8;
+                if (lock != 0) {
+                    func_00183C40(lock, D_700038A0);
                     locked = 1;
                 } else {
-                    s5 = D_008106E0;
-                    if (s5 != 0) {
-                        func_00183C40(s5, (void *) 0x700038A0);
+                    lock = D_008106E0;
+                    if (lock != 0) {
+                        func_00183C40(lock, D_700038A0);
                         locked = 1;
                     }
                 }
-            } else {
-                s5 = D_008106E0;
-                if (s5 != 0) {
-                    func_00183C40(s5, (void *) 0x700038A0);
-                    locked = 1;
-                }
+                break;
             }
         }
     }
 
     if (!locked) {
-        func_00103230((void *) 0x700038A0, s6 + 0xC0, 4.5f);
-        func_001028B8((void *) 0x700038A0, (void *) 0x700038A0, s6 + 0xA0);
-        *(int *) 0x700038AC = 0x3F800000;
-        func_001028D0((void *) 0x700038D0, (void *) 0x700038A0, s6 + 0xA0);
-        *(int *) 0x700038DC = 0x3F800000;
+        func_00103230(D_700038A0, self + 0xC0, 260.0f);
+        func_001028B8(D_700038A0, D_700038A0, self + 0xA0);
+        *(float *) 0x700038AC = 1.0f;
+        func_001028D0(D_700038D0, D_700038A0, self + 0xA0);
+        *(float *) 0x700038DC = 1.0f;
     } else {
-        func_001028D0((void *) 0x700038D0, (void *) 0x700038A0, s6 + 0xA0);
-        *(int *) 0x700038DC = 0x3F800000;
-        func_00102760((void *) 0x700038E0, (void *) 0x700038D0);
-        func_00102900((void *) 0x700038E0, (void *) 0x700038E0, 5.0f);
-        func_001028B8((void *) 0x700038A0, (void *) 0x700038A0, (void *) 0x700038E0);
-        *(int *) 0x700038AC = 0x3F800000;
+        func_001028D0(D_700038D0, D_700038A0, self + 0xA0);
+        *(float *) 0x700038DC = 1.0f;
+        func_00102760(D_700038E0, D_700038D0);
+        func_00102900(D_700038E0, D_700038E0, 5.0f);
+        func_001028B8(D_700038A0, D_700038A0, D_700038E0);
+        *(float *) 0x700038AC = 1.0f;
     }
 
-    func_00102948((void *) 0x700038F0, (void *) 0x700038A0);
+    func_00102948(D_700038F0, D_700038A0);
     *(int *) 0x700031E8 = 0;
-    s1 = func_0019A570(s6 + 0xA0, (void *) 0x700038A0, 7, 0x20);
+    if ((kind = func_0019A570(self + 0xA0, D_700038A0, 7, 0x20)) != 0) {
 
-    if (s1 == 0) {
-        func_001860A0((int) (s6 + 0xA0), (void *) 0x700038F0);
-        return 0;
-    }
+        func_001031E0(D_700038A0, D_700031B0);
+        *(float *) 0x700038AC = 1.0f;
+        hit = *(char **) 0x700031D0;
+        other = *(unsigned char **) 0x700031D4;
+        *(float *) 0x700038E0 = *(float *) (hit + 0x24);
+        *(float *) 0x700038E4 = *(float *) (hit + 0x28);
+        *(float *) 0x700038E8 = *(float *) (hit + 0x2C);
+        *(float *) 0x700038EC = 1.0f;
+        surface = *(unsigned char *) (hit + 0x1A);
+        aux = *(int *) (hit + 0x1C);
 
-    func_001031E0((void *) 0x700038A0, (void *) 0x700031B0);
-    *(int *) 0x700038AC = 0x3F800000;
-
-    hit = *(void **) 0x700031D0;
-    s4 = *(void **) 0x700031D4;
-    *(float *) 0x700038E0 = *(float *) ((char *) hit + 0x24);
-    *(float *) 0x700038E4 = *(float *) ((char *) hit + 0x28);
-    *(float *) 0x700038E8 = *(float *) ((char *) hit + 0x2C);
-    *(int *) 0x700038EC = 0x3F800000;
-    s2 = *(unsigned char *) ((char *) hit + 0x1A);
-    s3 = *(int *) ((char *) hit + 0x1C);
-
-    if (func_001860A0((int) (s6 + 0xA0), (void *) 0x700038A0) != 0) {
-        *(int *) 0x700031E8 = -1;
-    }
-
-    if (s1 == 1) {
-        if (s4 != 0 && *(unsigned char *) s4 == 1 && (*(unsigned char *) ((char *) s4 + 2) & ~0xE0) == 2) {
-            if (func_001B41F0(s4, (void *) 0x700038A0, s6 + 0xC0, s3) != 0) {
-                *(int *) 0x700031E8 = -1;
-            }
-        } else {
-            s0 = 0x100;
-        }
-    } else {
-        if (s5 != 0 && *(unsigned char *) s5 != 0 && (*(unsigned char *) ((char *) s5 + 2) & ~0xE0) == 2) {
-            float mag0, mag1;
-            func_00183C40(s5, (void *) 0x700038C0);
-            func_001028D0((void *) 0x700038B0, (void *) 0x700038C0, s6 + 0xB0);
-            *(int *) 0x700038BC = 0x3F800000;
-            func_00102718((void *) 0x700038B0, (void *) 0x700038D0, (void *) 0x700038B0);
-            mag0 = func_0011E748(func_00102738((void *) 0x700038D0, (void *) 0x700038D0));
-            *(float *) 0x70003A20 = mag0;
-            mag1 = func_0011E748(func_00102738((void *) 0x700038B0, (void *) 0x700038B0));
-            *(float *) 0x70003A24 = mag1;
-            if ((mag1 / mag0) < 4.5f) {
-                if (*(unsigned char *) s5 == 1 && func_001B41F0(s5, (void *) 0x700038C0, s6 + 0xC0, s3) != 0) {
-                    *(int *) 0x700031E8 = -1;
-                }
-                s1 = 1;
-                func_001031E0((void *) 0x700038A0, (void *) 0x700038C0);
-                *(int *) 0x700038AC = 0x3F800000;
-            }
+        if (func_001860A0(self + 0xA0, D_700038A0) != 0) {
+            *(int *) 0x700031E8 = -1;
         }
 
-        if (s1 != 1) {
-            if (s1 == 2 && s4 != 0 && *(unsigned char *) s4 != 0) {
-                /* actor secondary-hit reaction path (uses func_001839A0's
-                   decoded state to pick the hit-reaction code). s0 stays at
-                   the decoded reaction value unless overridden below; the
-                   0x36 stamp is an unconditional side effect, unrelated to
-                   the s0/reaction value. */
-                s0 = (short) (func_001839A0(s4) & 0xFFFF);
-                if (s0 == 0x101) {
-                    if ((unsigned int) (s2 - 2) < 3U) {
-                        s0 = 0x201;
-                    } else if (s2 == 5) {
-                        func_001EFD90(0x8000002C, (void *) 0x700038A0, (void *) 0x700038E0);
-                        *(int *) 0x700031E8 = -1;
-                    } else if (s2 == 8) {
-                        func_001EFD90(0x80000067, (void *) 0x700038A0, (void *) 0x700038E0);
+        if (kind == 1) {
+            if (other != 0) {
+                if (other[0] == 1 && (other[2] & ~0xE0) == 2) {
+                    if (func_001B41F0(other, D_700038A0, self + 0xC0, aux, 0, 5) != 0) {
                         *(int *) 0x700031E8 = -1;
                     }
-                    /* else: s0 stays 0x101 */
-                } else if (s0 == 0x300) {
-                    func_001EFD90(0x80000067, (void *) 0x700038A0, (void *) 0x700038E0);
-                    *(int *) 0x700031E8 = -1;
-                    /* s0 stays 0x300 */
-                }
-                /* else: s0 stays whatever func_001839A0 returned */
-                *(short *) ((char *) s4 + 0x36) = 5;
-                func_00102948((char *) s4 + 0x70, s6 + 0xC0);
-            } else if (s4 == 0) {
-                /* no secondary-hit record at all: pick the hit-reaction code
-                   purely off the surface-type byte s2. */
-                if ((unsigned int) (s2 - 2) < 3U) {
-                    s0 = 0x201;
-                } else if (s2 == 5) {
-                    func_001EFD90(0x8000002C, (void *) 0x700038A0, (void *) 0x700038E0);
-                    *(int *) 0x700031E8 = -1;
-                } else if (s2 == 8) {
-                    func_001EFD90(0x80000067, (void *) 0x700038A0, (void *) 0x700038E0);
-                    *(int *) 0x700031E8 = -1;
                 } else {
-                    s0 = 0x101;
+                    code = 0x100;
                 }
-            } else {
-                /* secondary-hit record present but its flags byte (+0) is 0:
-                   same surface-type dispatch as the no-record case. */
-                if ((unsigned int) (s2 - 2) < 3U) {
-                    s0 = 0x201;
-                } else if (s2 == 5) {
-                    func_001EFD90(0x8000002C, (void *) 0x700038A0, (void *) 0x700038E0);
-                    *(int *) 0x700031E8 = -1;
-                } else if (s2 == 8) {
-                    func_001EFD90(0x80000067, (void *) 0x700038A0, (void *) 0x700038E0);
-                    *(int *) 0x700031E8 = -1;
+            }
+        } else {
+            if (lock != 0 && lock[0] != 0 && (lock[2] & ~0xE0) == 2) {
+                func_00183C40(lock, D_700038C0);
+                func_001028D0(D_700038B0, D_700038C0, self + 0xB0);
+                *(float *) 0x700038BC = 1.0f;
+                func_00102718(D_700038B0, D_700038D0, D_700038B0);
+                *(float *) 0x70003A20 = func_0011E748(func_00102738(D_700038D0, D_700038D0));
+                *(float *) 0x70003A24 = func_0011E748(func_00102738(D_700038B0, D_700038B0));
+                if (*(float *) 0x70003A24 / *(float *) 0x70003A20 < 4.5f) {
+                    if (lock[0] == 1) {
+                        if (func_001B41F0(lock, D_700038C0, self + 0xC0, aux, 0, 5) != 0) {
+                            *(int *) 0x700031E8 = -1;
+                        }
+                    }
+                    kind = 1;
+                    func_001031E0(D_700038A0, D_700038C0);
+                    *(float *) 0x700038AC = 1.0f;
+                }
+            }
+
+            if (kind != 1) {
+                if (kind == 2) {
+                    if (other != 0) {
+                        if (other[0] != 0) {
+                            code = func_001839A0(other);
+                            if (code == 0x101) {
+                                if ((unsigned int) (surface - 2) < 3) {
+                                    code = 0x201;
+                                } else if (surface == 5) {
+                                    func_001EFD90(0x8000002C, D_700038A0, D_700038E0);
+                                    *(int *) 0x700031E8 = -1;
+                                } else if (surface == 8) {
+                                    func_001EFD90(0x80000067, D_700038A0, D_700038E0);
+                                    *(int *) 0x700031E8 = -1;
+                                }
+                            } else if (code == 0x300) {
+                                func_001EFD90(0x80000067, D_700038A0, D_700038E0);
+                                *(int *) 0x700031E8 = -1;
+                            }
+                            *(short *) (other + 0x36) = 5;
+                            func_00102948(other + 0x70, self + 0xC0);
+                        }
+                    } else {
+                        if ((unsigned int) (surface - 2) < 3) {
+                            code = 0x201;
+                        } else if (surface == 5) {
+                            func_001EFD90(0x8000002C, D_700038A0, D_700038E0);
+                            *(int *) 0x700031E8 = -1;
+                        } else if (surface == 8) {
+                            func_001EFD90(0x80000067, D_700038A0, D_700038E0);
+                            *(int *) 0x700031E8 = -1;
+                        } else {
+                            code = 0x101;
+                        }
+                    }
                 } else {
-                    s0 = 0x101;
+                    if ((unsigned int) (surface - 2) < 3) {
+                        code = 0x201;
+                    } else if (surface == 5) {
+                        func_001EFD90(0x8000002C, D_700038A0, D_700038E0);
+                        *(int *) 0x700031E8 = -1;
+                    } else if (surface == 8) {
+                        func_001EFD90(0x80000067, D_700038A0, D_700038E0);
+                        *(int *) 0x700031E8 = -1;
+                    } else {
+                        code = 0x101;
+                    }
                 }
             }
         }
-    }
 
-    slot = func_001AFA90(1);
-    if (slot == 0) {
-        return 0;
-    }
-    if (*(int *) 0x700031E8 == -1) {
-        *(unsigned char *) ((char *) slot + 0xD) = 0;
+        slot = func_001AFA90(1);
+        if (slot != 0) {
+            if (*(int *) 0x700031E8 == -1) {
+                slot[0xD] = 0;
+            } else {
+                slot[0xD] = 1;
+                *(short *) (slot + 0x2E) = code;
+            }
+            slot[3] = 3;
+            *(float *) (slot + 0xB0) = *(float *) 0x700038A0;
+            *(float *) (slot + 0xB4) = *(float *) 0x700038A4;
+            *(float *) (slot + 0xB8) = *(float *) 0x700038A8;
+            *(void (**)(void)) (slot + 0x10) = func_0018ABA0;
+            if (kind != 1) {
+                func_00102948(slot + 0xC0, D_700038E0);
+            } else {
+                *(int *) (slot + 0xCC) = 0;
+            }
+            return 1;
+        }
     } else {
-        *(unsigned char *) ((char *) slot + 0xD) = 1;
-        *(short *) ((char *) slot + 0x2E) = (short) s0;
+        func_001860A0(self + 0xA0, D_700038F0);
     }
-    *(unsigned char *) ((char *) slot + 3) = 3;
-    *(float *) ((char *) slot + 0xB0) = *(float *) 0x700038A0;
-    *(float *) ((char *) slot + 0xB4) = *(float *) 0x700038A4;
-    *(float *) ((char *) slot + 0xB8) = *(float *) 0x700038A8;
-    *(void (**)(void)) ((char *) slot + 0x10) = func_0018ABA0;
-    if (s1 != 1) {
-        func_00102948((char *) slot + 0xC0, (void *) 0x700038E0);
-    } else {
-        *(int *) ((char *) slot + 0xCC) = 0;
-    }
-    return 1;
+    return 0;
 }

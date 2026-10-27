@@ -1,27 +1,28 @@
 
 
-Ninth batch, same wave (10 byte-matched, all compiled_object_ordinary_c;
-six NEARMISS bodies corrected):
+Tenth batch, same wave (8 byte-matched, all compiled_object_ordinary_c;
+three NEARMISS bodies corrected):
 
-- **Wrong bodies**: func_0017D080 (a failed first probe returns 0; a 0x46
-  hit skips only when the facing flag is clear), func_001CC8A0 (a
-  nine-argument func_001CCE80; a pointer table), func_00110048 (RPC
-  arguments in the wrong order, a wrong status tail), func_00110198, both
-  ee-gcc.
-- **Shapes**: func_00132490 (the table switch's default leaves with
-  `goto done` past the integration loop), func_00229A70, func_001416D0
-  (PI/4, not PI; one exit), func_00159970 (twin func_00159620),
-  func_00109FD0 (default-then-overwrite tests become conditional moves,
-  ee-gcc), func_001F5040 (switch label order read off the reversed compare
-  chain).
-- **mwcc 2.3.3 switch rule**: the compare chain is emitted in reverse source
-  order and the case bodies in source order, so both orders read off the
-  target fix the source order (func_00189EC0, func_001F5040).
-- NEARMISS bodies corrected: func_0017C860 (82.66 -> 95.95), func_001F28D0
-  (82.98 -> 98.80, an inverted latch test), func_00109E68 (80.71 -> 91.07),
-  func_0022E7F0 (80.03 -> 99.87, instruction-identical; only `+8` relocations
-  differ), func_001575E0 (78.93 -> 92.28), func_00189EC0 (73.00 -> 99.93).
-- fill_unmatched.py: func_00159970 dropped from GPREL_FORCE_ASM.
-- Not accepted: func_001DB480 reaches 100 only with four inline VU0 `asm`
-  statements (row loads); left for a user decision. func_001CE300 is
-  hand-written VU0 macro code (asm-void class).
+- **Wrong bodies / arities**: func_001DDB70 (63.66 -> 100: fields the
+  original never writes, three callee arities), func_001BB860 (57.68 ->
+  100: two real switches, one-argument func_001AFC10), func_001861C0
+  (62.91 -> 100: a 260.0 constant, six-argument func_001B41F0, three branch
+  corrections), func_0014FBC0 (72.16 -> 100), func_0010F3B0 (ee-gcc; a
+  64-bit mode shift), func_00114C30 (ee-gcc; the request block is a
+  0x414-byte struct).
+- **Shapes**: func_0020D930 (half-open angle-range chains; explicit
+  soft-float calls to func_00100130 / func_00128350, since plain `>=` makes
+  mwcc call its own helpers), func_001FAFD0 (one early return for both
+  gates; a negated `&&` chain keeps the three area compares).
+- NEARMISS bodies corrected: func_0016F600 (79.81 -> 98.99), func_001E3D90
+  (74.39 -> 96.81), func_001EB250 (64.54 -> 99.90).
+- fill_unmatched.py: func_001DDB70 and func_0014FBC0 dropped from
+  GPREL_FORCE_ASM.
+- Rule found: mwcc 2.3.3 never moves a load above a store to a different
+  literal address; when the target does, the source read the value into a
+  local first or the address is a named extern.
+- Tooling lever found (not applied): func_0010E088 and func_0010EAA0 match
+  when assembled with the ee-gcc 2.96 gas (tools/eegcc/ee-gcc2.96), which
+  fills a call's delay slot with the following `ei`; the 2.9 gas never
+  fills call slots. It would need a per-file assembler option, since the
+  matched ee-gcc corpus relies on unfilled slots.

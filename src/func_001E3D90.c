@@ -1,8 +1,15 @@
 // NEARMISS func_001E3D90  (vram 0x001E3D90, 0x870 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 74.39% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure fully recovered (every block traced against the .s; m2c cross-checked); best lane is 991202 at 82.76 (233 = 74.39). Residuals are multi-site scheduler/lowering version artifacts, target (2.3.1.01) again BETWEEN our two builds: (1) in each of the 3 variant blocks the target list-sch...
+// objdiff 96.81% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8) (was 74.39%, matching wave
+// 2026-10-27). Fixes read from the original: the room gates are switches (case 0x100; case 0/1) with
+// `D_00810702 == 5 || == 6` as one condition; the three matrix-Y bumps use per-address scratchpad
+// externs (idiom-32, SPAD header) so their loads hoist above the stores; the per-variant table
+// pointers are set after the bumps; the LCG steps reassign `seed`; the countdown tests `== 0` first.
+// Remaining differences: scheduling only -- in the LCG jitter block the target converts/divides the
+// first value straight into $f13 with the quotient as the add's first operand and loads +0x3A20
+// earlier; the quad-count byte (1 or 6) is built in a temp and narrowed into a saved register
+// (ours loads the constants straight into it); case 2 of the sound-ping switch sets its two float
+// arguments in the opposite order.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +17,7 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+// SPAD: 0x700036D4 0x70003714 0x70003754
 
 // Muzzle-flash / gunfire FX driver, state machine on the effect byte at +4.
 // State 0 (init): seeds three flash phases (+0x200/+0x204/+0x208 as s3+0x10..)
@@ -55,6 +63,9 @@ extern char D_700036A0[];
 extern char D_700036E0[];
 extern char D_70003720[];
 extern char D_70003750[];
+extern float D_700036D4[];
+extern float D_70003714[];
+extern float D_70003754[];
 
 void func_001E3D90(char *p) {
     int seed;
@@ -63,9 +74,7 @@ void func_001E3D90(char *p) {
     char *tbl;
     char *tbl2;
     unsigned char flag;
-    int pos;
     int n;
-    int n2;
     float fadeA;
     float fadeB;
     float fadeC;
@@ -96,20 +105,21 @@ void func_001E3D90(char *p) {
         /* fallthrough */
     case 1:
         if (D_008101E4[0] == 3) {
-            if (((D_00810700[0] << 8) + D_00810701[0]) == 0x100) {
+            switch ((D_00810700[0] << 8) + D_00810701[0]) {
+            case 0x100:
                 if (*(float *)(p + 0xB8) < -700.0f) {
                     return;
                 }
+                break;
             }
         } else {
-            pos = (D_00810700[0] << 8) + D_00810701[0];
-            if (pos == 1 || pos == 0) {
-                if (D_00810702[0] == 5) {
+            switch ((D_00810700[0] << 8) + D_00810701[0]) {
+            case 0:
+            case 1:
+                if (D_00810702[0] == 5 || D_00810702[0] == 6) {
                     return;
                 }
-                if (D_00810702[0] == 6) {
-                    return;
-                }
+                break;
             }
         }
         seed = *(int *)(s3 + 8);
@@ -121,31 +131,31 @@ void func_001E3D90(char *p) {
             fadeA = 0.005f;
             fadeB = 0.0175f;
             fadeC = 0.0125f;
+            D_700036D4[0] += 6.0f;
+            D_70003714[0] += 1.5f;
+            D_70003754[0] += 2.0f;
             tbl = D_00253CE0;
-            *(float *)0x700036D4 += 6.0f;
-            *(float *)0x70003714 += 1.5f;
             tbl2 = D_00253CC0;
-            *(float *)0x70003754 += 2.0f;
             break;
         case 1:
             fadeA = 0.005f;
             fadeB = 0.0175f;
             fadeC = 0.0125f;
+            D_700036D4[0] += 12.0f;
+            D_70003714[0] += 4.0f;
+            D_70003754[0] += 4.0f;
             tbl = D_00253E90;
-            *(float *)0x700036D4 += 12.0f;
-            *(float *)0x70003714 += 4.0f;
             tbl2 = D_00253CC8;
-            *(float *)0x70003754 += 4.0f;
             break;
         case 2:
             fadeA = 0.005f;
             fadeB = 0.0175f;
             fadeC = 0.0125f;
+            D_700036D4[0] += 18.0f;
+            D_70003714[0] += 6.0f;
+            D_70003754[0] += 6.0f;
             tbl = D_00254040;
-            *(float *)0x700036D4 += 18.0f;
-            *(float *)0x70003714 += 6.0f;
             tbl2 = D_00253CD0;
-            *(float *)0x70003754 += 6.0f;
             break;
         }
         switch ((D_00810700[0] << 8) + D_00810701[0]) {
@@ -164,12 +174,13 @@ void func_001E3D90(char *p) {
         id = func_001CD070(D_70003750, 0x30);
         if (id != 0xFFFFFF) {
             *(float *)0x70003A20 = func_001CD2B0(*(float *)tbl2, *(float *)(tbl2 + 4), 320.0f, 320.0f);
-            n2 = seed * 37 + 11;
-            dist = *(float *)0x70003A20;
             t24 = (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
             *(float *)0x70003A24 = t24;
-            *(float *)0x70003A28 = (float)((n2 >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
-            *(float *)0x70003A2C = (float)(((n2 * 37 + 11) >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
+            seed = seed * 37 + 11;
+            *(float *)0x70003A28 = (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
+            seed = seed * 37 + 11;
+            *(float *)0x70003A2C = (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
+            dist = *(float *)0x70003A20;
             if (dist != 0.0f) {
                 func_001CFAE0(buf, 0, D_700036A0, *(float *)(s3 + 0x10), t24, dist, 0.4f);
                 func_001CFBE0(id - 0x2000, 1, tbl, buf, 0);
@@ -177,23 +188,27 @@ void func_001E3D90(char *p) {
                 func_001CFBE0(id, 1, tbl + 0x90, buf, 0);
             }
             n = 1;
-            if (D_00275C00 >= 0x101) {
+            if (D_00275C00 > 0x100) {
                 n = 6;
             }
             flag = n;
             func_001CFAE0(buf, 0, D_70003720, *(float *)(s3 + 0x18), *(float *)0x70003A2C, 1.0f, 0.2f);
             func_001CFBE0(id, flag, tbl + 0x120, buf, 0);
         }
-        pos = (D_00810700[0] << 8) + D_00810701[0];
-        if (pos == 0x1301 || pos == 0x1100 || pos == 0xE00 || pos == 0x202 || pos == 0x200) {
+        switch ((D_00810700[0] << 8) + D_00810701[0]) {
+        case 0x1301:
+        case 0x1100:
+        case 0xE00:
+        case 0x202:
+        case 0x200:
             func_0021B9A0(1, 0.0f, 0.0f);
+            break;
         }
-        n = *(int *)(s3 + 0);
-        if (n != 0) {
-            *(int *)(s3 + 0) = n - 1;
-            *(char *)(p + 0) = 2;
-        } else {
+        if (*(int *)(s3 + 0) == 0) {
             *(char *)(p + 0) = 1;
+        } else {
+            *(int *)(s3 + 0) -= 1;
+            *(char *)(p + 0) = 2;
         }
         switch (*(unsigned char *)(p + 0xD)) {
         case 0:
