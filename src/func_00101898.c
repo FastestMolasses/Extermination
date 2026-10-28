@@ -1,196 +1,131 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00100268(int, int, int, int);
-extern void func_001002E0(int, int, int, int);
-extern void func_00100610(int, int, int, int);
-extern int func_001006D8(long long *, short, short, short, short, short);
-extern int func_001008C0(long long *, short, short, short, short, short,
-                        unsigned char, unsigned char, unsigned char, unsigned char, unsigned int);
-extern void func_00101630(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_00101898(void) {
-    .word 0x27bdff30
-    .word 0x00052c00
-    .word 0xffb00030
-    .word 0x00084400
-    .word 0xffbe00b0
-    .word 0x00098400
-    .word 0xffb700a0
-    .word 0x000a5400
-    .word 0xffb60090
-    .word 0x00108403
-    .word 0xffb50080
-    .word 0x0008b403
-    .word 0xffb20050
-    .word 0x0005ac03
-    .word 0xffb10040
-    .word 0x0080902d
-    .word 0xffb40070
-    .word 0x000abc03
-    .word 0xffb30060
-    .word 0x00068c00
-    .word 0xffbf00c0
-    jal       func_00100268
-    .word 0x0007f400
-    .word 0x00119c03
-    .word 0x001ea403
-    .word 0xafa20020
-    .word 0x0240202d
-    .word 0x02a0282d
-    .word 0x0260302d
-    .word 0x0280382d
-    .word 0x0000402d
-    jal       func_001002E0
-    .word 0x0000482d
-    .word 0x26440028
-    .word 0x02a0282d
-    .word 0x0260302d
-    .word 0x0280382d
-    .word 0x0000402d
-    jal       func_001002E0
-    .word 0x0000482d
-    .word 0x26440060
-    .word 0x02a0282d
-    .word 0x0260302d
-    .word 0x0280382d
-    .word 0x02c0402d
-    jal       func_001006D8
-    .word 0x0200482d
-    .word 0x264400e0
-    .word 0x02a0282d
-    .word 0x0260302d
-    .word 0x0280382d
-    .word 0x02c0402d
-    jal       func_00101630
-    .word 0x0200482d
-    .word 0x264401d0
-    .word 0x02a0282d
-    .word 0x0260302d
-    .word 0x0280382d
-    .word 0x02c0402d
-    jal       func_001006D8
-    .word 0x0200482d
-    .word 0x0200482d
-    .word 0x26440250
-    .word 0x02a0282d
-    .word 0x0260302d
-    .word 0x0280382d
-    jal       func_00101630
-    .word 0x02c0402d
-    .word 0x12e0001d
-    .word 0x00111443
-    .word 0x24100800
-    .word 0x001e8c43
-    .word 0xafa00000
-    .word 0x02118823
-    .word 0xafa00008
-    .word 0x02028023
-    .word 0x26440160
-    .word 0xafa00010
-    .word 0x02c0282d
-    .word 0x0200302d
-    .word 0x0220382d
-    .word 0x0260402d
-    .word 0x0280482d
-    .word 0x0000502d
-    jal       func_001008C0
-    .word 0x0000582d
-    .word 0x02c0282d
-    .word 0x0200302d
-    .word 0x0220382d
-    .word 0xafa00000
-    .word 0xafa00008
-    .word 0x264402d0
-    .word 0xafa00010
-    .word 0x0260402d
-    .word 0x0280482d
-    .word 0x0000502d
-    jal       func_001008C0
-    .word 0x0000582d
-    .word 0x700014a9
-    .word 0x24070016
-    .word 0x7e420050
-    .word 0x24068000
-    .word 0x7e4201c0
-    .word 0x24030010
-    .word 0xde440050
-    .word 0x24020010
-    .word 0xde4501c0
-    .word 0x00f7100b
-    .word 0x00862024
-    .word 0x00f7180b
-    .word 0x00a62824
-    .word 0x00822025
-    .word 0x00a32825
-    .word 0x34028000
-    .word 0xde460058
-    .word 0x00a22825
-    .word 0xde4701c8
-    .word 0x00822025
-    .word 0x2403ffff
-    .word 0x0003193a
-    .word 0x2402fff0
-    .word 0x00a32824
-    .word 0x00e23824
-    .word 0x00832024
-    .word 0x00c23024
-    .word 0x34038000
-    .word 0x00031b7c
-    .word 0x2402000e
-    .word 0x00a32825
-    .word 0x00832025
-    .word 0x00c23025
-    .word 0x00e23825
-    .word 0xfe440050
-    .word 0xfe460058
-    .word 0x02a0202d
-    .word 0xfe4501c0
-    .word 0x0280302d
-    .word 0x0260282d
-    jal       func_00100610
-    .word 0xfe4701c8
-    .word 0x8fa30020
-    .word 0x0040282d
-    .word 0x24040001
-    .word 0x0004203c
-    .word 0x34840001
-    .word 0xdc620000
-    .word 0x3403ffff
-    .word 0x0003183c
-    .word 0x3463ffff
-    .word 0x00431024
-    .word 0x10440004
-    .word 0x8fa30020
-    .word 0x84620000
-    .word 0x14400014
-    .word 0xdfbf00c0
-    .word 0x00052843
-    .word 0xde460038
-    .word 0xde470060
-    .word 0x00051c00
-    .word 0xde4400e0
-    .word 0x2402fe00
-    .word 0x00031c03
-    .word 0x30a501ff
-    .word 0x00822024
-    .word 0x306301ff
-    .word 0x00c23024
-    .word 0x00e23824
-    .word 0x00c33025
-    .word 0x00852025
-    .word 0x00e53825
-    .word 0xfe4400e0
-    .word 0xfe460038
-    .word 0xfe470060
-    .word 0xdfbf00c0
-    .word 0xdfbe00b0
-    .word 0xdfb700a0
-    .word 0xdfb60090
-    .word 0xdfb50080
-    .word 0xdfb40070
-    .word 0xdfb30060
-    .word 0xdfb20050
-    .word 0xdfb10040
-    .word 0xdfb00030
-    .word 0x03e00008
-    .word 0x27bd00d0
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// Written in the SDK libgraph shape: GS registers as bit-field structs, the
+// GIF tags cleared as one 128-bit store and then filled field by field.
+// DISPFB is declared with 32-bit bit-fields (the FBP store then keeps the
+// short-to-int narrowing the original has for that one field).
+//
+// SDK libgraph: sets up a default double-buffer record (two display
+// environments, two drawing-environment pairs each preceded by a GIF tag,
+// and two optional clear blocks) for a psm/w/h frame buffer with the given
+// Z test and Z format:
+//  - both display environments via func_001002E0 (offset 0, 0);
+//  - each buffer's two drawing environments via func_001006D8 and
+//    func_00101630;
+//  - if clear is set, each buffer's clear block via func_001008C0 (centred
+//    w x h rectangle at 2048 - w/2, 2048 - h/2, colour 0, depth 0);
+//  - the GIF tags: NLOOP 22 with the clear block, 16 without; EOP, one
+//    register (A+D);
+//  - when the video mode (func_00100268) has inter == 1 and ffmode == 1
+//    (interlaced, SMODE2 FFMD set) or inter == 0, display 1 and the first
+//    buffer's two drawing environments get FBP = size >> 1, size being
+//    func_00100610(psm, w, h); otherwise every FBP stays as the env setters
+//    left it. The video-mode test reads inter and ffmode as one masked 64-bit
+//    compare, as in func_00100610.
+
+typedef unsigned long u_long;
+typedef unsigned int u_long128 __attribute__((mode(TI)));
+
+typedef struct {
+    short inter;
+    short omode;
+    short ffmode;
+} GParam;
+
+typedef struct {
+    unsigned int FBP:9; unsigned int FBW:6; unsigned int PSM:5; unsigned int p0:12;
+    unsigned int DBX:11; unsigned int DBY:11; unsigned int p1:10;
+} sceGsDispfb;
+
+typedef struct {
+    u_long FBP:9; u_long p0:7; u_long FBW:6; u_long p1:2; u_long PSM:6;
+    u_long p2:2; u_long FBMSK:32;
+} sceGsFrame;
+
+typedef struct {
+    u_long NLOOP:15; u_long EOP:1; u_long pad16:16; u_long id:14;
+    u_long PRE:1; u_long PRIM:11; u_long FLG:2; u_long NREG:4;
+    u_long REGS0:4; u_long REGS1:4; u_long REGS2:4; u_long REGS3:4;
+    u_long REGS4:4; u_long REGS5:4; u_long REGS6:4; u_long REGS7:4;
+    u_long REGS8:4; u_long REGS9:4; u_long REGS10:4; u_long REGS11:4;
+    u_long REGS12:4; u_long REGS13:4; u_long REGS14:4; u_long REGS15:4;
+} sceGifTag;
+
+typedef struct {
+    u_long pmode;
+    u_long smode2;
+    sceGsDispfb dispfb;
+    u_long display;
+    u_long bgcolor;
+} DispEnv;
+
+typedef struct {
+    sceGsFrame frame;
+    u_long rest[15];
+} DrawEnv;
+
+typedef struct {
+    u_long regs[12];
+} ClearEnv;
+
+typedef struct {
+    DispEnv disp[2];
+    sceGifTag giftag0;
+    DrawEnv draw01;
+    DrawEnv draw02;
+    ClearEnv clear0;
+    sceGifTag giftag1;
+    DrawEnv draw11;
+    DrawEnv draw12;
+    ClearEnv clear1;
+} DBuffDc;
+
+extern GParam *func_00100268(void);
+extern void func_001002E0(DispEnv *disp, short psm, short w, short h, short dx, short dy);
+extern int func_001006D8(DrawEnv *draw, short psm, short w, short h, short ztest, short zpsm);
+extern int func_00101630(DrawEnv *draw, short psm, short w, short h, short ztest, short zpsm);
+extern int func_001008C0(ClearEnv *clear, short ztest, short x, short y, short w, short h,
+                         unsigned char r, unsigned char g, unsigned char b, unsigned char a,
+                         unsigned int z);
+extern short func_00100610(short psm, short w, short h);
+
+void func_00101898(DBuffDc *db, short psm, short w, short h, short ztest, short zpsm,
+                   short clear)
+{
+    GParam *gp;
+    short fbp;
+
+    gp = func_00100268();
+    func_001002E0(&db->disp[0], psm, w, h, 0, 0);
+    func_001002E0(&db->disp[1], psm, w, h, 0, 0);
+    func_001006D8(&db->draw01, psm, w, h, ztest, zpsm);
+    func_00101630(&db->draw02, psm, w, h, ztest, zpsm);
+    func_001006D8(&db->draw11, psm, w, h, ztest, zpsm);
+    func_00101630(&db->draw12, psm, w, h, ztest, zpsm);
+    if (clear) {
+        func_001008C0(&db->clear0, ztest, 2048 - (w >> 1), 2048 - (h >> 1), w, h,
+                      0, 0, 0, 0, 0);
+        func_001008C0(&db->clear1, ztest, 2048 - (w >> 1), 2048 - (h >> 1), w, h,
+                      0, 0, 0, 0, 0);
+    }
+
+    *(u_long128 *)&db->giftag0 = 0;
+    db->giftag0.NLOOP = clear ? 22 : 16;
+    db->giftag0.EOP = 1;
+    db->giftag0.NREG = 1;
+    db->giftag0.REGS0 = 0xE;
+    *(u_long128 *)&db->giftag1 = 0;
+    db->giftag1.NLOOP = clear ? 22 : 16;
+    db->giftag1.EOP = 1;
+    db->giftag1.NREG = 1;
+    db->giftag1.REGS0 = 0xE;
+
+    fbp = func_00100610(psm, w, h);
+    if ((*(long *)gp & 0xFFFF0000FFFFL) == 0x100000001L || gp->inter == 0) {
+        db->disp[1].dispfb.FBP = fbp >> 1;
+        db->draw01.frame.FBP = fbp >> 1;
+        db->draw02.frame.FBP = fbp >> 1;
+    }
 }

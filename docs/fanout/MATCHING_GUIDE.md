@@ -1062,3 +1062,30 @@ Found while decompiling: func_0025F0D4..func_0025F144 (8 entries) and
 func_00243BA8 are data mis-split as functions; func_00180000 + func_00180004 are
 one function split mid-body (merged C at build/agentkit/split/, needs the
 symbol split recipe).
+
+
+### Queue batch 51 (2026-10-28): asm-word bodies, game tail and first SDK
+
+Game: func_001B3670 (steering decision), func_001B5860 (record init),
+func_001C9570 (scale / rotate / translate matrix with VU0 row scales),
+func_001DC020 / func_001DC890 / func_001DCFF0 (AUTO_SIGHT reticle frame and
+rings; `r = ...; r *= 142.0f;` in-place chains fix the FPU destination),
+func_001DEDF0 (`// TU_STATIC: func_001DEDB0`), func_002255C0, func_002256E0,
+func_00225700, func_00226010, func_00227C60, func_00229960, func_00229C00, and
+the merged func_00180000. SDK (ee-gcc): func_00101EE0 (D_STADR helper, 2.96
+gas), func_00102638 / func_00102658 (CHCR as the SDK tD_CHCR bit-field struct),
+func_00102890, func_00102980, func_001029A0, func_001029B0, func_00102CA8,
+func_00103198, func_00103200, func_00103248, func_00103290 (libvu0 with
+one-instruction VU0 statements), func_00102EA8 / func_00102FB0 (view and
+projection matrix builders, plain float C), func_00101898 (libgraph
+double-buffer setup; DISPFB with 32-bit bit-fields), func_00109A40,
+func_00109BD8, func_00109BE8, func_00109CE0, func_0010AD88, func_0010AD98,
+func_0010C278. NEARMISS: func_001DAC90 99.38, func_001DB040 99.41,
+func_001E00F0 93.65, func_00103140 89.09 (hand-written loop steps),
+func_0010BC90 69.00 (vblank wait: the original re-reads the INTC address in
+its loop).
+ASM-only (no C form under the rules): padding / crt0 / syscall stubs,
+vu1_cold_start, gs_readback_build_packet and func_00101630 (end in sync),
+func_001032F0, func_00103380, func_00104378..func_00104F70 (MMI image loops),
+func_0010ADA8 / func_0010AF28 (IPU-DMA save / restore under di / ei),
+cache-op and di / ei wrappers 0x0010C020..0x0010C568.

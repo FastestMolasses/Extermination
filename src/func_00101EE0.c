@@ -1,13 +1,20 @@
-// Write a0 to HW reg 0x1000E060 if a0 != -1; always return current value
-asm int func_00101EE0(int a0) {
-    lui $2, 0x1000
-    lui $3, 0xFFFF
-    ori $2, $2, 0xE060
-    ori $3, $3, 0xFFFF
-    .word 0x10830003
-    lw $2, 0x0($2)
-    lui $1, 0x1001
-    sw $4, -0x1FA0($1)
-    jr $ra
-    nop
+// COMPILER: eegcc
+// CFLAGS: -O2
+// EEGCC_AS: 2.96
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// Assembled with the 2.96 gas, which puts the register read into the branch
+// delay slot as the original does.
+//
+// SDK DMA controller: returns the current D_STADR (stall address register,
+// 0x1000E060) and, unless addr is 0xFFFFFFFF ("leave unchanged"), writes addr
+// to it. The old value is read before the write.
+
+unsigned int func_00101EE0(unsigned int addr)
+{
+    unsigned int old = *(volatile unsigned int *)0x1000E060;
+
+    if (addr != 0xffffffff)
+        *(volatile unsigned int *)0x1000E060 = addr;
+    return old;
 }

@@ -1,133 +1,93 @@
-// All-word: everything as .word except jal/j-external
+// NEARMISS func_001DB040  (vram 0x001DB040, 0x200 bytes) — readable decompilation, NOT byte-identical.
+//
+// objdiff 99.41% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) (was an asm-word body, matching
+// wave 2026-10-28). Damping, spring and 4 + stiffness are hoisted into locals; velocity uses compound *= / +=; loop counters declared j, i.
+// Remaining differences: register colouring only, in the final integration loop: the
+// original keeps the column counter in a0 and the cell pointer in a2 (ours swapped), and
+// the clamped height in f2 (ours f1 or f2 depending on spelling). Tried: fresh loop
+// variables, a row-pointer walk, ternary clamp, swapped declaration orders; the permuter
+// (400 s, 2 jobs) plateaued at its base score.
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Steps the 32x32 water / heat-haze height grid (struct grid, also used by
+// func_001DB480). Per cell, with clamped neighbours (edges reuse the edge row or
+// column): lap = up + (down + (left + right)) - (4 + stiff) * h; vel = vel * damp;
+// vel += lap * k; u = 2 * (left - right); v = 2 * (down - up), where 'down' is row
+// i - 1. Then one random cell (row and column = (rand() >> 16) % 32 each, two
+// func_00122BB8 calls) gets vel += impulse (+0x400C). Finally every height
+// integrates h += vel, clamped to at most 70.0.
+struct cell {
+    float u;        /* 0x0 slope along the row (written here) */
+    float v;        /* 0x4 slope along the column */
+    float vel;      /* 0x8 height velocity */
+    float h;        /* 0xC height */
+};
+
+struct grid {
+    struct cell c[32][32];
+    float damp;     /* 0x4000 */
+    float k;        /* 0x4004 */
+    float stiff;    /* 0x4008 */
+    float impulse;  /* 0x400C */
+};
+
 extern int func_00122BB8(void);
 
-asm void func_001DB040(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0xc4814008
-    .word 0x3c024080
-    .word 0x44820000
-    .word 0x70808628
-    .word 0xc4874000
-    .word 0xc4884004
-    .word 0x46010240
-    .word 0x70003628
-    .word 0x72005e28
-    .word 0x3c024000
-    .word 0x44821000
-    .word 0x24c3ffff
-    .word 0x04610003
-    .word 0x24c40001
-    .word 0x70001e28
-    .word 0x00000000
-    .word 0x28820020
-    .word 0x14400003
-    .word 0x00031240
-    .word 0x2404001f
-    .word 0x00031240
-    .word 0x02024021
-    .word 0x00041240
-    .word 0x02024821
-    .word 0x70002e28
-    .word 0x71605628
-    .word 0x24a3ffff
-    .word 0x04610002
-    .word 0x24a70001
-    .word 0x70001e28
-    .word 0x28e20020
-    .word 0x14400003
-    .word 0x00031100
-    .word 0x2407001f
-    .word 0x00031100
-    .word 0x01622021
-    .word 0xc504000c
-    .word 0x00071100
-    .word 0x01621821
-    .word 0xc486000c
-    .word 0xc465000c
-    .word 0x24a50001
-    .word 0xc523000c
-    .word 0xc541000c
-    .word 0xc5400008
-    .word 0x28a20020
-    .word 0x46053140
-    .word 0x46052100
-    .word 0x46041818
-    .word 0x460148dd
-    .word 0x46070042
-    .word 0x46081802
-    .word 0xe5410008
-    .word 0x46000800
-    .word 0xe5400008
-    .word 0xc481000c
-    .word 0xc460000c
-    .word 0x46000801
-    .word 0x46001002
-    .word 0xe5400000
-    .word 0xc501000c
-    .word 0xc520000c
-    .word 0x25080010
-    .word 0x46000801
-    .word 0x25290010
-    .word 0x46001002
-    .word 0xe5400004
-    .word 0x1440ffd6
-    .word 0x254a0010
-    .word 0x24c60001
-    .word 0x28c20020
-    .word 0x1440ffc3
-    .word 0x256b0200
-    jal       func_00122BB8
-    .word 0x00000000
-    .word 0x00021403
-    .word 0x04410004
-    .word 0x3051001f
-    .word 0x12200002
-    .word 0x00000000
-    .word 0x2631ffe0
-    jal       func_00122BB8
-    .word 0x00000000
-    .word 0x00021c03
-    .word 0x04610004
-    .word 0x3065001f
-    .word 0x10a00003
-    .word 0x00111a40
-    .word 0x24a5ffe0
-    .word 0x00111a40
-    .word 0x00702021
-    .word 0xc601400c
-    .word 0x00051900
-    .word 0x00641821
-    .word 0xc4600008
-    .word 0x70002e28
-    .word 0x46010000
-    .word 0xe4600008
-    .word 0x3c03428c
-    .word 0x44830000
-    .word 0x70002628
-    .word 0x72003628
-    .word 0xc4c2000c
-    .word 0xc4c10008
-    .word 0x46011080
-    .word 0x46001036
-    .word 0x00000000
-    .word 0x45030003
-    .word 0x24840001
-    .word 0x46000086
-    .word 0x24840001
-    .word 0xe4c2000c
-    .word 0x28830020
-    .word 0x1460fff4
-    .word 0x24c60010
-    .word 0x24a50001
-    .word 0x28a30020
-    .word 0x1460ffee
-    .word 0x26100200
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_001DB040(struct grid *g) {
+    int j, i;
+    int im, ip, jm, jp;
+    int r, c;
+    float lap, h;
+    float damp, k, stiff;
+
+    stiff = 4.0f + g->stiff;
+    damp = g->damp;
+    k = g->k;
+    for (i = 0; i < 32; i++) {
+        im = i - 1;
+        ip = i + 1;
+        if (im < 0) {
+            im = 0;
+        }
+        if (ip >= 32) {
+            ip = 31;
+        }
+        for (j = 0; j < 32; j++) {
+            jm = j - 1;
+            jp = j + 1;
+            if (jm < 0) {
+                jm = 0;
+            }
+            if (jp >= 32) {
+                jp = 31;
+            }
+            lap = g->c[ip][j].h + (g->c[im][j].h + (g->c[i][jm].h + g->c[i][jp].h))
+                - stiff * g->c[i][j].h;
+            g->c[i][j].vel *= damp;
+            g->c[i][j].vel += lap * k;
+            g->c[i][j].u = 2.0f * (g->c[i][jm].h - g->c[i][jp].h);
+            g->c[i][j].v = 2.0f * (g->c[im][j].h - g->c[ip][j].h);
+        }
+    }
+
+    r = (func_00122BB8() >> 16) % 32;
+    c = (func_00122BB8() >> 16) % 32;
+    g->c[r][c].vel += g->impulse;
+
+    for (i = 0; i < 32; i++) {
+        for (j = 0; j < 32; j++) {
+            h = g->c[i][j].h;
+            h += g->c[i][j].vel;
+            if (h > 70.0f) {
+                h = 70.0f;
+            }
+            g->c[i][j].h = h;
+        }
+    }
 }

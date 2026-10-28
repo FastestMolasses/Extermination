@@ -18,6 +18,7 @@ func_0013F770 = 0x0013F770;  // type:func size:0xCCC
 func_001BFFD0 = 0x001BFFD0;  // type:func size:0x308  (merged TAIL func_001C0004, 0 jal refs)
 func_001C2770 = 0x001C2770;  // type:func size:0x1278 (merged TAIL func_001C2FF0, 0 jal refs)
 func_001FFCD0 = 0x001FFCD0;  // type:func size:0x688  (merged TAIL func_00200004, 0 jal refs)
+func_00180000 = 0x00180000;  // type:func size:0x40   (merged TAIL func_00180004, 0 jal refs)
 func_00200A40 = 0x00200A40;  // type:func size:0x848  (merged TAIL func_00201000, 0 jal refs)
 
 // EE-kernel syscall stubs 0x0010B400..0x0010BC80 (one 16-byte stub per slot).

@@ -1,60 +1,46 @@
-// Hybrid: branches/j as .word, jal with extern decls
-extern void func_001108E8(int, int, int, int);
-extern void func_00121A28(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Initialises a record: clears the 12-byte header block (arg0) and the 0x2C-byte
+// record (arg1) with func_00121A28 (memset-like: pointer, value, size), stores
+// the buffer (5th argument) and the two parameters a/b, sets the two bytes at
+// +0x24/+0x25 to 0x80, then calls func_001108E8(a, b, buf) (re-reading the
+// stored buffer). Finally clears flagsA[0..5] (+0x18), sets flagsB[0] = 0,
+// flagsB[1] = 1 and flagsB[2..5] = 0xFF (+0x1E).
+typedef struct {
+    unsigned char *buf;         /* 0x00 */
+    int a;                      /* 0x04 */
+    int b;                      /* 0x08 */
+    char pad0C[0x0C];           /* 0x0C */
+    unsigned char flagsA[6];    /* 0x18 */
+    unsigned char flagsB[6];    /* 0x1E */
+    unsigned char r;            /* 0x24 */
+    unsigned char g;            /* 0x25 */
+    char pad26[6];              /* 0x26 */
+} Rec5860;
 
-asm void func_001B5860(void) {
-    addiu      $sp, $sp, -0x50
-    sq         $ra, 0x40($sp)
-    sq         $s3, 0x30($sp)
-    sq         $s2, 0x20($sp)
-    sq         $s1, 0x10($sp)
-    sq         $s0, 0x0($sp)
-    paddub     $s3, $a2, $zero
-    paddub     $s0, $a1, $zero
-    addiu      $a2, $zero, 0xC
-    paddub     $s2, $a3, $zero
-    paddub     $s1, $8, $zero
-    jal        func_00121A28
-    paddub    $a1, $zero, $zero
-    addiu      $a2, $zero, 0x2C
-    paddub     $a0, $s0, $zero
-    jal        func_00121A28
-    paddub    $a1, $zero, $zero
-    sw         $s1, 0x0($s0)
-    sw         $s3, 0x4($s0)
-    addiu      $v0, $zero, 0x80
-    sw         $s2, 0x8($s0)
-    sb         $v0, 0x24($s0)
-    sb         $v0, 0x25($s0)
-    lw         $a2, 0x0($s0)
-    paddub     $a0, $s3, $zero
-    jal        func_001108E8
-    paddub    $a1, $s2, $zero
-    paddub     $a0, $zero, $zero
-    addu       $v1, $s0, $a0
-    addiu      $a0, $a0, 0x1
-    sb         $zero, 0x18($v1)
-    slti       $v1, $a0, 0x6
-    nop
-    .word 0x1460fffa
-    nop
-    addiu      $v1, $zero, 0x1
-    sb         $zero, 0x1E($s0)
-    addiu      $a1, $zero, 0x2
-    sb         $v1, 0x1F($s0)
-    addiu      $a0, $zero, 0xFF
-    addu       $v1, $s0, $a1
-    addiu      $a1, $a1, 0x1
-    sb         $a0, 0x1E($v1)
-    slti       $v1, $a1, 0x6
-    nop
-    .word 0x1460fffa
-    nop
-    lq         $ra, 0x40($sp)
-    lq         $s3, 0x30($sp)
-    lq         $s2, 0x20($sp)
-    lq         $s1, 0x10($sp)
-    lq         $s0, 0x0($sp)
-    jr         $ra
-    addiu     $sp, $sp, 0x50
+extern void func_00121A28(void *p, int value, int size);
+extern int func_001108E8(int a, int b, unsigned char *buf);
+
+void func_001B5860(void *hdr, Rec5860 *rec, int a, int b, unsigned char *buf) {
+    int i;
+
+    func_00121A28(hdr, 0, 0xC);
+    func_00121A28(rec, 0, 0x2C);
+    rec->buf = buf;
+    rec->a = a;
+    rec->b = b;
+    rec->r = 0x80;
+    rec->g = 0x80;
+    func_001108E8(a, b, rec->buf);
+    for (i = 0; i < 6; i++) {
+        rec->flagsA[i] = 0;
+    }
+    rec->flagsB[0] = 0;
+    rec->flagsB[1] = 1;
+    for (i = 2; i < 6; i++) {
+        rec->flagsB[i] = 0xFF;
+    }
 }

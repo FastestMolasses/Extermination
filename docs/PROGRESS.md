@@ -1,3 +1,11 @@
+## 2026-10-28 — decompiling the asm-word bodies, queue batch 51: 30 byte-matched, 5 NEARMISS, one split pair merged
+
+See MATCHING_GUIDE "Queue batch 51". func_00180000 / func_00180004 were one
+function cut mid-body: config/symbol_addrs.txt gives func_00180000 size 0x40
+(the earlier tail-merge recipe), the func_00180004 half is gone. Gate: fresh
+build + verify_all all six stages pass, boot ELF byte-identical, 19/19
+overlays, 2761/2763 units; provenance clean.
+
 ## 2026-10-28 — decompiling the asm-word bodies, queue batch 50: 51 byte-matched, 2 NEARMISS
 
 See MATCHING_GUIDE "Queue batch 50". Gate: fresh build + verify_all all six

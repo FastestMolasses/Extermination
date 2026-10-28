@@ -1,12 +1,13 @@
-// Tail-call wrapper: sets up arguments and tail-jumps to another
-// function. mwcc lacks C-level tail-call optimization, so we write
-// these wrappers as `asm void` to control the final `j`.
-extern void func_0010C158(void);
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// Cache helper (SDK libkernel): rounds both addresses of a range down to a
+// 64-byte cache-line boundary and tail-calls the cache-line loop
+// func_0010C158 (which is hand-written: cache ops + sync, no C form).
 
-asm void func_0010C278(void) {
-    lui $v0, (0xFFFFFFC0 >> 16)
-    ori $v0, $v0, (0xFFFFFFC0 & 0xFFFF)
-    and $a1, $a1, $v0
-    j func_0010C158
-    and $a0, $a0, $v0
+extern void func_0010C158(unsigned int start, unsigned int end);
+
+void func_0010C278(unsigned int start, unsigned int end) {
+    func_0010C158(start & ~0x3F, end & ~0x3F);
 }

@@ -1,105 +1,69 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00102FB0(void) {
-    .word 0x46006406
-    .word 0x10c0002a
-    .word 0x46006bc6
-    .word 0xc4a10000
-    .word 0xc4a20004
-    .word 0x46018242
-    .word 0xc4a30008
-    .word 0x46027a82
-    .word 0x3c013f80
-    .word 0x44812800
-    .word 0x46037182
-    .word 0xe490000c
-    .word 0x460009c7
-    .word 0xe48f001c
-    .word 0x460a4800
-    .word 0xe48e002c
-    .word 0x46001107
-    .word 0xe4870030
-    .word 0x46001a07
-    .word 0x46060000
-    .word 0xe4840034
-    .word 0x460179c2
-    .word 0x46028102
-    .word 0xe4880038
-    .word 0x46002801
-    .word 0x46017042
-    .word 0xe4870010
-    .word 0x46027082
-    .word 0xe4840004
-    .word 0x46050141
-    .word 0x46004a40
-    .word 0xe4810020
-    .word 0x46005280
-    .word 0xe4820024
-    .word 0x46003180
-    .word 0xe485003c
-    .word 0x46038002
-    .word 0xe4890000
-    .word 0x460378c2
-    .word 0xe48a0014
-    .word 0xe4860028
-    .word 0xe4800008
-    .word 0x03e00008
-    .word 0xe4830018
-    .word 0xc4a20000
-    .word 0xc4a40004
-    .word 0x46028142
-    .word 0xc4a70008
-    .word 0x46047982
-    .word 0x3c01bf80
-    .word 0x44810800
-    .word 0x46077202
-    .word 0xac80000c
-    .word 0x46001247
-    .word 0xac80001c
-    .word 0x46062800
-    .word 0xac80002c
-    .word 0x46047282
-    .word 0x460022c7
-    .word 0x46080000
-    .word 0x460278c2
-    .word 0x46078302
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x46000843
-    .word 0x46002941
-    .word 0x46003181
-    .word 0x46004201
-    .word 0x46077b42
-    .word 0x46000007
-    .word 0x46027082
-    .word 0x46048102
-    .word 0x460039c7
-    .word 0x46000802
-    .word 0x46050942
-    .word 0x460308c2
-    .word 0x46020882
-    .word 0xe480003c
-    .word 0x46090a42
-    .word 0xe4850000
-    .word 0x46040902
-    .word 0xe4830010
-    .word 0x46060982
-    .word 0xe4820020
-    .word 0x460a0a82
-    .word 0xe4890030
-    .word 0x460b0ac2
-    .word 0xe4840004
-    .word 0x460c0b02
-    .word 0xe4860014
-    .word 0x460d0b42
-    .word 0xe48a0024
-    .word 0x46080a02
-    .word 0xe48b0034
-    .word 0x46070842
-    .word 0xe48c0008
-    .word 0xe48d0018
-    .word 0xe4880028
-    .word 0x03e00008
-    .word 0xe4810038
+// COMPILER: eegcc
+// CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// Fix read from the original instructions: the normal's components are read
+// into locals declared inside each branch (with function-scope locals the
+// register allocation differs), and the cells are assigned column by column.
+//
+// Builds a 4x4 matrix (column-major, m[column][row]) from the vector n and the
+// point (x, y, z), with d = x*n0 + y*n1 + z*n2:
+//  - mode != 0: m[c][r] = p[c] * n[r] plus k = 1 - d on the diagonal, the
+//    fourth row (m[c][3]) is p, the fourth column is -n with m[3][3] = k - 1;
+//  - mode == 0: every cell of the same outer product (diagonal minus d,
+//    fourth row 0, fourth column -n, m[3][3] = -d) is scaled by -1 / d.
+// (A projection onto the plane with normal n; exact geometric use unconfirmed.)
+
+void func_00102FB0(float m[4][4], float *n, int mode, float x, float y, float z)
+{
+    if (mode) {
+        float n0, n1, n2, d;
+
+        n0 = n[0];
+        n1 = n[1];
+        n2 = n[2];
+        d = 1.0f - (x * n0 + y * n1 + z * n2);
+
+        m[0][0] = x * n0 + d;
+        m[1][0] = y * n0;
+        m[2][0] = z * n0;
+        m[3][0] = -n0;
+        m[0][1] = x * n1;
+        m[1][1] = y * n1 + d;
+        m[2][1] = z * n1;
+        m[3][1] = -n1;
+        m[0][2] = x * n2;
+        m[1][2] = y * n2;
+        m[2][2] = z * n2 + d;
+        m[3][2] = -n2;
+        m[0][3] = x;
+        m[1][3] = y;
+        m[2][3] = z;
+        m[3][3] = d - 1.0f;
+    } else {
+        float n0, n1, n2, d, r;
+
+        n0 = n[0];
+        n1 = n[1];
+        n2 = n[2];
+        d = x * n0 + y * n1 + z * n2;
+        r = -1.0f / d;
+
+        m[0][0] = r * (x * n0 - d);
+        m[1][0] = r * (y * n0);
+        m[2][0] = r * (z * n0);
+        m[3][0] = r * -n0;
+        m[0][1] = r * (x * n1);
+        m[1][1] = r * (y * n1 - d);
+        m[2][1] = r * (z * n1);
+        m[3][1] = r * -n1;
+        m[0][2] = r * (x * n2);
+        m[1][2] = r * (y * n2);
+        m[2][2] = r * (z * n2 - d);
+        m[3][2] = r * -n2;
+        m[0][3] = 0.0f;
+        m[1][3] = 0.0f;
+        m[2][3] = 0.0f;
+        m[3][3] = r * -d;
+    }
 }

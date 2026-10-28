@@ -1,57 +1,47 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00102948(int, int, int, int);
-extern void func_002082B0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Draws the aiming-sight (AUTO_SIGHT) zoom ring: fills a ring record on the stack and hands
+// it to func_002082B0(ctx, ring). Centre (32768, 32768) (screen centre in GS
+// coordinates), angle 0..360, inner radius r = (0.5 + 0.5 * zoom) * 142 and
+// outer radius r + 3, colour (85, 195, 205, 128) copied to all four corners
+// with func_00102948.
+// Fix read from the original: the radius is computed then scaled in place
+// (r = 0.5 + 0.5 * zoom; r *= 142) - the single-expression spelling colours
+// it into another FPU register.
+typedef struct { float x, y, z, w; } Vec4;
 
-asm void func_001DC890(void) {
-    .word 0x3c023f00
-    mtc1       $v0, $f1
-    addiu      $sp, $sp, -0x90
-    mul.s      $f0, $f1, $f12
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x3c024700
-    add.s      $f2, $f1, $f0
-    .word 0x3c03430e
-    .word 0xafa20030
-    .word 0xafa20034
-    mtc1       $v1, $f1
-    addiu      $s1, $sp, 0x50
-    mul.s      $f2, $f2, $f1
-    .word 0xafa00038
-    .word 0x3c0243b4
-    .word 0xafa2003c
-    .word 0x3c024040
-    mtc1       $v0, $f0
-    .word 0xe7a20040
-    add.s      $f0, $f0, $f2
-    .word 0xe7a20044
-    .word 0x70808628
-    .word 0x3c0742aa
-    .word 0xe7a00048
-    .word 0xe7a0004c
-    .word 0x3c064343
-    .word 0xae270000
-    .word 0x3c03434d
-    .word 0xafa60054
-    .word 0x3c024300
-    .word 0xafa30058
-    addiu      $a0, $sp, 0x60
-    .word 0x72202e28
-    jal        func_00102948
-    .word 0xafa2005c
-    addiu      $a0, $sp, 0x70
-    jal        func_00102948
-    .word 0x72202e28
-    addiu      $a0, $sp, 0x80
-    jal        func_00102948
-    .word 0x72202e28
-    addiu      $a1, $sp, 0x30
-    jal        func_002082B0
-    .word 0x72002628
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    jr         $ra
-    addiu     $sp, $sp, 0x90
+typedef struct {
+    Vec4 pos;       /* centre x, y, start angle, sweep */
+    Vec4 radius;    /* inner, inner, outer, outer */
+    Vec4 color[4];  /* RGBA per corner */
+} Ring;
+
+extern void func_00102948(Vec4 *dst, Vec4 *src);
+extern void func_002082B0(int ctx, Ring *ring);
+
+void func_001DC890(int ctx, float zoom) {
+    Ring ring;
+    float r;
+
+    r = 0.5f + 0.5f * zoom;
+    r *= 142.0f;
+    ring.pos.x = 32768.0f;
+    ring.pos.y = 32768.0f;
+    ring.pos.z = 0.0f;
+    ring.pos.w = 360.0f;
+    ring.radius.x = r;
+    ring.radius.y = r;
+    ring.radius.z = 3.0f + r;
+    ring.radius.w = 3.0f + r;
+    ring.color[0].x = 85.0f;
+    ring.color[0].y = 195.0f;
+    ring.color[0].z = 205.0f;
+    ring.color[0].w = 128.0f;
+    func_00102948(&ring.color[1], &ring.color[0]);
+    func_00102948(&ring.color[2], &ring.color[0]);
+    func_00102948(&ring.color[3], &ring.color[0]);
+    func_002082B0(ctx, &ring);
 }
