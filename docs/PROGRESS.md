@@ -1,3 +1,10 @@
+## 2026-10-27 — matching wave, queue batch 28: 15 more byte-matched
+
+See MATCHING_GUIDE "Queue batch 28" (four constant-order functions matched
+through TU neighbours). Gate: fresh build + verify_all all six stages pass,
+boot ELF byte-identical, 19/19 overlays, matched_code 99.97%, 2654/2656 units;
+audit_link_provenance clean (2157 ordinary-C routes).
+
 ## 2026-10-27 — matching wave, queue batch 27: 7 more byte-matched; TU neighbours
 
 See MATCHING_GUIDE "Queue batch 27": the constant-order class yields to

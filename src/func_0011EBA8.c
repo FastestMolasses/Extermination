@@ -1,259 +1,199 @@
 // NEARMISS func_0011EBA8  (vram 0x0011EBA8, 0x11CC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 48.54% via ee-gcc 2.9-991111-01 (-O2 -mno-split-addresses). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc GPR-colouring + branch-likely + list-scheduler residual across a 1139-instruction function. Structure is fully recovered (every basic block, branch polarity, loop shape, call sequence and stack slot sp+0x00..0x58 matches). Residuals, none source-fixable: (1) colouring - target parks `m2` an...
+// objdiff 99.68% via ee-gcc 2.9-991111-01 (-O2). The instruction stream is IDENTICAL to the
+// original (same 0x11CC bytes of code, every opcode, register and branch); what remains is
+// relocation spelling only:
+// Remaining differences: (1) the function's own .rodata literal pool ("Infinity", "NaN", "0",
+// the three log10 constants and the mode-switch jump table, laid out exactly as the original
+// 0x0026C760..0x0026C7B8 block: offsets 0/16/24/32/40/48/64) is relocated against the local
+// .rodata section, while the expected object names splat's split symbols D_0026C760..D_0026C790
+// (only the jump table is local, via build/jtblrodata); (2) ee-gcc emits the SCE soft-float
+// libcalls by name (dpadd dpsub dpmul dpdiv dpcmp litodp dptoli), which the symbol map knows as
+// func_00126EC8 / func_00126F20 / func_00126F88 / func_00127230 / func_001274B0 / func_00127500 /
+// func_001275B8.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: eegcc
-// CFLAGS: -O2 -mno-split-addresses
+// CFLAGS: -O2
 
-/* SDK: the PS2 newlib/MSL C library's `dtoa()` -- David M. Gay's arbitrary-precision
-   double -> shortest-decimal converter, the engine behind printf %e/%f/%g and
-   ecvt/fcvt/gcvt.  This build is the re-entrant variant: the Bigint arena / free
-   lists live in a per-locale state block passed as `ctx`, and the returned digit
-   buffer is cached in ctx->result / ctx->result_k so the next dtoa() call frees it.
+/* SDK: newlib's _dtoa_r (David M. Gay's dtoa, newlib libc/stdlib/dtoa.c), written in
+   newlib's own shape with native double arithmetic: ee-gcc lowers every double
+   operation to the soft-float runtime (add/sub/mul/div/compare/int<->double), and
+   the unsigned->double conversion of the denormal path adds 2^32 itself.
+   The previous call's digit buffer is cached in ptr->_result / _result_k (+0x40/+0x44)
+   and freed first. Bigint helpers: func_00121AF8 Balloc, func_00121BA0 Bfree,
+   func_00121BD0 multadd, func_00121E30 hi0bits, func_00121F78 i2b, func_00121FB0 mult,
+   func_001221E0 pow5mult, func_001222E0 lshift, func_00122458 cmp, func_001224C0 diff,
+   func_00122868 d2b, func_0011E990 quorem, block_copy (Bcopy's memcpy).
+   Data: D_0026C818 tens[0..22], D_0026C8E0 bigtens[0..4] (both const). */
 
-   Signature (reconstructed):
-     char *dtoa(ctx, d, mode, ndigits, &decpt, &sign, &rve)
+typedef struct _Bigint {
+    struct _Bigint *_next;
+    int _k, _maxwds, _sign, _wds;
+    unsigned int _x[1];
+} _Bigint;
 
-   The EE has no hardware double, so every double is a soft-float value carried in
-   one 64-bit GPR and every operation is an explicit call into the soft-float
-   runtime:
-     func_00126EC8 __adddf3     func_00126F20 __subdf3
-     func_00126F88 __muldf3     func_00127230 __divdf3
-     func_001274B0 __cmpdf2 (<0 / 0 / >0)
-     func_00127500 __floatsidf  func_001275B8 __fixdfsi
-   Bigint helpers (dtoa.c names):
-     func_00121AF8 Balloc    func_00121BA0 Bfree     func_00121BD0 multadd
-     func_00121E30 hi0bits   func_00121F78 i2b       func_00121FB0 mult
-     func_001221E0 pow5mult  func_001222E0 lshift    func_00122458 cmp
-     func_001224C0 diff      func_00122868 d2b       func_0011E990 quorem
-     block_copy    Bcopy
-   Data:
-     D_0026C818 tens[0..22]   D_0026C8E0 bigtens[0..4]   D_0026C900 bigtens[4]
-     D_0026C780 0.289529654602168   D_0026C788 0.1760912590558
-     D_0026C790 0.301029995663981
-     D_0026C760 "Infinity"   D_0026C770 "NaN"   D_0026C778 "0"          */
-
-typedef struct Bigint {
-    struct Bigint *next; /* 0x00 */
-    int k;               /* 0x04  2^k words allocated */
-    int maxwds;          /* 0x08 */
-    int sign;            /* 0x0C */
-    int wds;             /* 0x10 */
-    unsigned int x[1];   /* 0x14 */
-} Bigint;
-
-typedef struct DtoaCtx {
+struct _reent {
     char pad[0x40];
-    Bigint *result; /* 0x40  cached digit buffer from the previous call */
-    int result_k;   /* 0x44  its Balloc size class */
-} DtoaCtx;
+    _Bigint *_result;
+    int _result_k;
+};
 
-typedef union {
+union double_union {
     double d;
-    long L;           /* the EE `long` is 64-bit: the raw IEEE-754 bit pattern */
-    unsigned long UL;
-} U;
+    unsigned int i[2];
+};
 
-/* The compiler keeps the value in one 64-bit GPR, so the classic word0()/word1()
-   accessors are plain shifts.  hi() is the signed view (a single dsra32); uhi()
-   the unsigned one, needed only for the sign test. */
-#define hi(u)        ((u).L >> 32)
-#define word0(u)     ((int)((u).UL >> 32))
-#define word1(u)     ((int)(u).L)
-#define sethi(u, e)  ((u).L = ((u).L & 0xFFFFFFFFL) | ((long)(e) << 32))
+#define word0(x) ((x).i[1])
+#define word1(x) ((x).i[0])
 
-#define Sign_bit  0x80000000
-#define Exp_mask  0x7FF00000
-#define Frac_mask 0x000FFFFF
-#define Exp_11    0x3FF00000
-#define Exp_msk1  0x00100000
-#define Bias      0x3FF
-#define P         53
-#define Log2P     1
-#define Ten_pmax  22
+#define Exp_shift1 20
+#define Exp_msk1 0x100000
+#define Exp_mask 0x7ff00000
+#define P 53
+#define Bias 1023
+#define Exp_1 0x3ff00000
+#define Exp_11 0x3ff00000
+#define Ebits 11
+#define Frac_mask 0xfffff
+#define Frac_mask1 0xfffff
+#define Ten_pmax 22
+#define Bletch 0x10
+#define Bndry_mask 0xfffff
+#define Log2P 1
+#define Sign_bit 0x80000000
 #define Quick_max 14
-#define Int_max   14
-#define Bletch    0x10
+#define Int_max 14
 #define n_bigtens 5
-/* !word1(d) && !(word0(d) & Frac_mask) as one 64-bit test */
-#define Frac64    0x000FFFFFFFFFFFFFUL
 
-extern Bigint *func_00121AF8(DtoaCtx *, int);              /* Balloc   */
-extern void func_00121BA0(DtoaCtx *, Bigint *);            /* Bfree    */
-extern Bigint *func_00121BD0(DtoaCtx *, Bigint *, int, int); /* multadd */
-extern int func_00121E30(unsigned int);                    /* hi0bits  */
-extern Bigint *func_00121F78(DtoaCtx *, int);              /* i2b      */
-extern Bigint *func_00121FB0(DtoaCtx *, Bigint *, Bigint *); /* mult   */
-extern Bigint *func_001221E0(DtoaCtx *, Bigint *, int);    /* pow5mult */
-extern Bigint *func_001222E0(DtoaCtx *, Bigint *, int);    /* lshift   */
-extern int func_00122458(Bigint *, Bigint *);              /* cmp      */
-extern Bigint *func_001224C0(DtoaCtx *, Bigint *, Bigint *); /* diff   */
-extern Bigint *func_00122868(DtoaCtx *, double, int *, int *); /* d2b   */
-extern int func_0011E990(Bigint *, Bigint *);              /* quorem   */
-extern void block_copy(void *, void *, int);               /* Bcopy    */
+extern _Bigint *func_00121AF8(struct _reent *, int);
+extern void func_00121BA0(struct _reent *, _Bigint *);
+extern _Bigint *func_00121BD0(struct _reent *, _Bigint *, int, int);
+extern int func_00121E30(unsigned int);
+extern _Bigint *func_00121F78(struct _reent *, int);
+extern _Bigint *func_00121FB0(struct _reent *, _Bigint *, _Bigint *);
+extern _Bigint *func_001221E0(struct _reent *, _Bigint *, int);
+extern _Bigint *func_001222E0(struct _reent *, _Bigint *, int);
+extern int func_00122458(_Bigint *, _Bigint *);
+extern _Bigint *func_001224C0(struct _reent *, _Bigint *, _Bigint *);
+extern _Bigint *func_00122868(struct _reent *, double, int *, int *);
+extern int func_0011E990(_Bigint *, _Bigint *);
+extern void block_copy(void *, void *, int);
 
-extern double func_00126EC8(double, double); /* + */
-extern double func_00126F20(double, double); /* - */
-extern double func_00126F88(double, double); /* * */
-extern double func_00127230(double, double); /* / */
-extern int func_001274B0(double, double);    /* compare */
-extern double func_00127500(int);            /* (double)int */
-extern int func_001275B8(double);            /* (int)double */
+#define Balloc func_00121AF8
+#define Bfree func_00121BA0
+#define multadd func_00121BD0
+#define hi0bits func_00121E30
+#define i2b func_00121F78
+#define mult func_00121FB0
+#define pow5mult func_001221E0
+#define lshift func_001222E0
+#define cmp func_00122458
+#define diff func_001224C0
+#define d2b func_00122868
+#define quorem func_0011E990
+#define Bcopy(x, y) block_copy((char *)&x->_sign, (char *)&y->_sign, y->_wds * sizeof(int) + 2 * sizeof(int))
 
-extern double D_0026C818[]; /* tens[]    */
-extern double D_0026C8E0[]; /* bigtens[] */
-extern double D_0026C900;   /* bigtens[n_bigtens-1] */
-extern double D_0026C780;   /* 0.289529654602168 */
-extern double D_0026C788;   /* 0.1760912590558   */
-extern double D_0026C790;   /* 0.301029995663981 */
-extern char D_0026C760[];   /* "Infinity" */
-extern char D_0026C770[];   /* "NaN"      */
-extern char D_0026C778[];   /* "0"        */
+extern const double D_0026C818[];
+extern const double D_0026C8E0[];
+#define tens D_0026C818
+#define bigtens D_0026C8E0
 
-char *func_0011EBA8(DtoaCtx *ctx, double dd, int mode, int ndigits, int *decpt,
+char *func_0011EBA8(struct _reent *ptr, double _d, int mode, int ndigits, int *decpt,
                     int *sign, char **rve)
 {
-    int be;
-    int bbits;
-    int b2;
-    int b5;
-    int ilim;
-    int ilim0;
-    int ilim1;
-    int k0;
-    int k_check;
-    int leftright;
-    int s2;
-    int s5;
-    int spec_case;
-    int denorm;
-    Bigint *b;
-    Bigint *mlo;
-    Bigint *mhi;
-    Bigint *S;
-    char *s0;
-    char *s;
-    Bigint *b1;
-    Bigint *delta;
-    U u;
-    U d2;
-    U eps;
-    double ds;
-    int dig;
-    int i;
-    int ieps;
-    int j;
-    int j1;
-    int k;
-    int m2;
-    int m5;
-    int try_quick;
+    int bbits, b2, b5, be, dig, i, ieps, ilim, ilim0, ilim1, j, j1, k, k0,
+        k_check, leftright, m2, m5, s2, s5, spec_case, try_quick;
+    union double_union d, d2, eps;
     int L;
+    int denorm;
     unsigned int x;
+    _Bigint *b, *b1, *delta, *mlo, *mhi, *S;
+    double ds;
+    char *s, *s0;
 
-    u.d = dd;
+    d.d = _d;
 
-    /* Free the buffer handed out by the previous call. */
-    if (ctx->result) {
-        ctx->result->k = ctx->result_k;
-        ctx->result->maxwds = 1 << ctx->result_k;
-        func_00121BA0(ctx, ctx->result);
-        ctx->result = 0;
+    if (ptr->_result) {
+        ptr->_result->_k = ptr->_result_k;
+        ptr->_result->_maxwds = 1 << ptr->_result_k;
+        Bfree(ptr, ptr->_result);
+        ptr->_result = 0;
     }
 
-    if (word0(u) & Sign_bit) {
+    if (word0(d) & Sign_bit) {
+        /* set sign for everything, including 0's */
         *sign = 1;
-        sethi(u, word0(u) & ~Sign_bit);
-    } else {
+        word0(d) &= ~Sign_bit; /* clear sign bit */
+    } else
         *sign = 0;
-    }
 
-    if ((word0(u) & Exp_mask) == Exp_mask) {
+    if ((word0(d) & Exp_mask) == Exp_mask) {
         /* Infinity or NaN */
         *decpt = 9999;
-        if (!(u.UL & Frac64))
-            s = D_0026C760; /* "Infinity" */
-        else
-            s = D_0026C770; /* "NaN" */
+        s = !word1(d) && !(word0(d) & 0xfffff) ? "Infinity" : "NaN";
         if (rve)
             *rve = s[3] ? s + 8 : s + 3;
         return s;
     }
-
-    if (func_001274B0(u.d, 0.0) == 0) {
+    if (!d.d) {
         *decpt = 1;
-        s = D_0026C778; /* "0" */
+        s = "0";
         if (rve)
             *rve = s + 1;
         return s;
     }
 
-    b = func_00122868(ctx, u.d, &be, &bbits);
-    i = (int)((unsigned int)word0(u) >> 20) & (Exp_mask >> 20);
-    if (i) {
-        d2 = u;
-        sethi(d2, hi(d2) & Frac_mask);
-        sethi(d2, hi(d2) | Exp_11);
+    b = d2b(ptr, d.d, &be, &bbits);
+    if ((i = (int)(word0(d) >> Exp_shift1 & (Exp_mask >> Exp_shift1))) != 0) {
+        d2.d = d.d;
+        word0(d2) &= Frac_mask1;
+        word0(d2) |= Exp_11;
         i -= Bias;
         denorm = 0;
     } else {
         /* d is denormalized */
         i = bbits + be + (Bias + (P - 1) - 1);
-        if (i > 32)
-            x = ((unsigned int)word0(u) << (64 - i)) |
-                ((unsigned int)word1(u) >> (i - 32));
-        else
-            x = (unsigned int)word1(u) << (32 - i);
-        d2.d = func_00127500((int)x);
-        if ((int)x < 0)
-            d2.d = func_00126EC8(d2.d, 4294967296.0);
-        sethi(d2, (int)hi(d2) - 31 * Exp_msk1);
+        x = i > 32 ? word0(d) << (64 - i) | word1(d) >> (i - 32)
+                   : word1(d) << (32 - i);
+        d2.d = x;
+        word0(d2) -= 31 * Exp_msk1; /* adjust exponent */
         i -= (Bias + (P - 1) - 1) + 1;
         denorm = 1;
     }
-
-    /* ds = (d2-1.5)*0.289529654602168 + 0.1760912590558 + i*0.301029995663981 */
-    ds = func_00126EC8(
-        func_00126EC8(func_00126F88(func_00126F20(d2.d, 1.5), D_0026C780),
-                      D_0026C788),
-        func_00126F88(func_00127500(i), D_0026C790));
-    k = func_001275B8(ds);
-    if (func_001274B0(ds, 0.0) < 0 && func_001274B0(ds, func_00127500(k)) != 0)
+    ds = (d2.d - 1.5) * 0.289529654602168 + 0.1760912590558 + i * 0.301029995663981;
+    k = (int)ds;
+    if (ds < 0. && ds != k)
         k--; /* want k = floor(ds) */
     k_check = 1;
-    if ((unsigned int)k <= Ten_pmax) {
-        if (func_001274B0(u.d, D_0026C818[k]) < 0)
+    if (k >= 0 && k <= Ten_pmax) {
+        if (d.d < tens[k])
             k--;
         k_check = 0;
     }
-
     j = bbits - i - 1;
-    if (j < 0) {
-        b2 = -j;
-        s2 = 0;
-    } else {
+    if (j >= 0) {
         b2 = 0;
         s2 = j;
-    }
-    if (k < 0) {
-        b2 -= k;
-        b5 = -k;
-        s5 = 0;
     } else {
+        b2 = -j;
+        s2 = 0;
+    }
+    if (k >= 0) {
         b5 = 0;
         s5 = k;
         s2 += k;
+    } else {
+        b2 -= k;
+        b5 = -k;
+        s5 = 0;
     }
-
-    try_quick = 1;
-    if ((unsigned int)mode > 9)
+    if (mode < 0 || mode > 9)
         mode = 0;
+    try_quick = 1;
     if (mode > 5) {
         mode -= 4;
         try_quick = 0;
@@ -262,305 +202,281 @@ char *func_0011EBA8(DtoaCtx *ctx, double dd, int mode, int ndigits, int *decpt,
     switch (mode) {
     case 0:
     case 1:
+        ilim = ilim1 = -1;
         i = 18;
         ndigits = 0;
-        ilim = -1;
-        ilim1 = -1;
         break;
     case 2:
         leftright = 0;
-        /* fallthrough */
+        /* no break */
     case 4:
         if (ndigits <= 0)
             ndigits = 1;
-        i = ndigits;
-        ilim = ndigits;
-        ilim1 = ndigits;
+        ilim = ilim1 = i = ndigits;
         break;
     case 3:
         leftright = 0;
-        /* fallthrough */
+        /* no break */
     case 5:
         i = ndigits + k + 1;
         ilim = i;
         ilim1 = i - 1;
         if (i <= 0)
             i = 1;
-        break;
     }
+    j = sizeof(unsigned int);
+    for (ptr->_result_k = 0; sizeof(_Bigint) - sizeof(unsigned int) + j <= i; j <<= 1)
+        ptr->_result_k++;
+    ptr->_result = Balloc(ptr, ptr->_result_k);
+    s = s0 = (char *)ptr->_result;
 
-    /* rv_alloc(i), inlined: pick the Balloc size class that holds i chars. */
-    j = 4;
-    ctx->result_k = 0;
-    while ((unsigned int)i >= (unsigned int)(j + 20)) {
-        j *= 2;
-        ctx->result_k++;
-    }
-    ctx->result = func_00121AF8(ctx, ctx->result_k);
-    s0 = (char *)ctx->result;
-    s = s0;
-
-    if ((unsigned int)ilim < 15 && try_quick) {
+    if (ilim >= 0 && ilim <= Quick_max && try_quick) {
         /* Try to get by with floating-point arithmetic. */
-        d2 = u;
+        i = 0;
+        d2.d = d.d;
         k0 = k;
         ilim0 = ilim;
         ieps = 2; /* conservative */
         if (k > 0) {
-            ds = D_0026C818[k & 0xF];
+            ds = tens[k & 0xf];
             j = k >> 4;
             if (j & Bletch) {
                 /* prevent overflows */
                 j &= Bletch - 1;
-                u.d = func_00127230(u.d, D_0026C900);
+                d.d /= bigtens[n_bigtens - 1];
                 ieps++;
             }
-            if (j) {
-                double *bt = D_0026C8E0;
-                do {
-                    if (j & 1) {
-                        ieps++;
-                        ds = func_00126F88(ds, *bt);
-                    }
-                    j >>= 1;
-                    bt++;
-                } while (j);
-            }
-            u.d = func_00127230(u.d, ds);
+            for (; j; j >>= 1, i++)
+                if (j & 1) {
+                    ieps++;
+                    ds *= bigtens[i];
+                }
+            d.d /= ds;
         } else if ((j1 = -k) != 0) {
-            u.d = func_00126F88(D_0026C818[j1 & 0xF], u.d);
-            j = j1 >> 4;
-            if (j) {
-                double *bt = D_0026C8E0;
-                do {
-                    if (j & 1) {
-                        ieps++;
-                        u.d = func_00126F88(*bt, u.d);
-                    }
-                    j >>= 1;
-                    bt++;
-                } while (j);
-            }
+            d.d *= tens[j1 & 0xf];
+            for (j = j1 >> 4; j; j >>= 1, i++)
+                if (j & 1) {
+                    ieps++;
+                    d.d *= bigtens[i];
+                }
         }
-        if (k_check && func_001274B0(u.d, 1.0) < 0 && ilim > 0) {
+        if (k_check && d.d < 1. && ilim > 0) {
             if (ilim1 <= 0)
                 goto fast_failed;
             ilim = ilim1;
             k--;
-            u.d = func_00126F88(u.d, 10.0);
+            d.d *= 10.;
             ieps++;
         }
-        eps.d = func_00126EC8(func_00126F88(func_00127500(ieps), u.d), 7.0);
-        sethi(eps, (int)hi(eps) - (P - 1) * Exp_msk1);
+        eps.d = ieps * d.d + 7.;
+        word0(eps) -= (P - 1) * Exp_msk1;
         if (ilim == 0) {
-            S = 0;
-            mhi = 0;
-            u.d = func_00126F20(u.d, 5.0);
-            if (func_001274B0(u.d, eps.d) > 0)
+            S = mhi = 0;
+            d.d -= 5.;
+            if (d.d > eps.d)
                 goto one_digit;
-            if (func_001274B0(u.d, func_00126F20(0.0, eps.d)) < 0)
+            if (d.d < -eps.d)
                 goto no_digits;
             goto fast_failed;
         }
         if (leftright) {
-            /* Use Steele & White's method of only generating the digits needed. */
-            eps.d = func_00126F20(func_00127230(0.5, D_0026C818[ilim - 1]), eps.d);
-            i = 0;
-            for (;;) {
-                L = func_001275B8(u.d);
-                u.d = func_00126F20(u.d, func_00127500(L));
-                *s++ = '0' + L;
-                if (func_001274B0(u.d, eps.d) < 0)
+            /* Use Steele & White method of only
+             * generating digits needed.
+             */
+            eps.d = 0.5 / tens[ilim - 1] - eps.d;
+            for (i = 0;;) {
+                L = d.d;
+                d.d -= L;
+                *s++ = '0' + (int)L;
+                if (d.d < eps.d)
                     goto ret1;
-                if (func_001274B0(func_00126F20(1.0, u.d), eps.d) < 0)
+                if (1. - d.d < eps.d)
                     goto bump_up;
                 if (++i >= ilim)
                     break;
-                eps.d = func_00126F88(10.0, eps.d);
-                u.d = func_00126F88(10.0, u.d);
+                eps.d *= 10.;
+                d.d *= 10.;
             }
         } else {
             /* Generate ilim digits, then fix them up. */
-            eps.d = func_00126F88(D_0026C818[ilim - 1], eps.d);
-            i = 1;
-            for (;;) {
-                L = func_001275B8(u.d);
-                u.d = func_00126F20(u.d, func_00127500(L));
-                *s++ = '0' + L;
-                if (i == ilim)
+            eps.d *= tens[ilim - 1];
+            for (i = 1;; i++, d.d *= 10.) {
+                L = d.d;
+                d.d -= L;
+                *s++ = '0' + (int)L;
+                if (i == ilim) {
+                    if (d.d > 0.5 + eps.d)
+                        goto bump_up;
+                    else if (d.d < 0.5 - eps.d) {
+                        while (*--s == '0')
+                            ;
+                        s++;
+                        goto ret1;
+                    }
                     break;
-                i++;
-                u.d = func_00126F88(10.0, u.d);
-            }
-            if (func_001274B0(u.d, func_00126EC8(0.5, eps.d)) > 0)
-                goto bump_up;
-            if (func_001274B0(u.d, func_00126F20(0.5, eps.d)) < 0) {
-                while (*--s == '0')
-                    ;
-                s++;
-                goto ret1;
+                }
             }
         }
     fast_failed:
         s = s0;
-        u = d2;
+        d.d = d2.d;
         k = k0;
         ilim = ilim0;
     }
 
     /* Do we have a "small" integer? */
+
     if (be >= 0 && k <= Int_max) {
-        ds = D_0026C818[k];
+        /* Yes. */
+        ds = tens[k];
         if (ndigits < 0 && ilim <= 0) {
-            S = 0;
-            mhi = 0;
-            if (ilim < 0 || func_001274B0(u.d, func_00126F88(ds, 5.0)) <= 0)
+            S = mhi = 0;
+            if (ilim < 0 || d.d <= 5 * ds)
                 goto no_digits;
             goto one_digit;
         }
-        i = 1;
-        for (;;) {
-            L = func_001275B8(func_00127230(u.d, ds));
-            u.d = func_00126F20(u.d, func_00126F88(func_00127500(L), ds));
-            *s++ = '0' + L;
+        for (i = 1;; i++) {
+            L = d.d / ds;
+            d.d -= L * ds;
+            *s++ = '0' + (int)L;
             if (i == ilim) {
-                u.d = func_00126EC8(u.d, u.d);
-                if (func_001274B0(u.d, ds) > 0 ||
-                    (func_001274B0(u.d, ds) == 0 && (L & 1)))
-                    goto bump_up;
+                d.d += d.d;
+                if (d.d > ds || (d.d == ds && L & 1)) {
+                bump_up:
+                    while (*--s == '9')
+                        if (s == s0) {
+                            k++;
+                            *s = '0';
+                            break;
+                        }
+                    ++*s++;
+                }
                 break;
             }
-            u.d = func_00126F88(10.0, u.d);
-            if (func_001274B0(u.d, 0.0) == 0)
+            if (!(d.d *= 10.))
                 break;
-            i++;
         }
         goto ret1;
     }
 
     m2 = b2;
     m5 = b5;
-    mhi = 0;
-    mlo = 0;
+    mhi = mlo = 0;
     if (leftright) {
         if (mode < 2) {
             i = denorm ? be + (Bias + (P - 1) - 1 + 1) : 1 + P - bbits;
         } else {
             j = ilim - 1;
-            if (b5 >= j) {
-                m5 = b5 - j;
-            } else {
-                m5 = 0;
-                j -= b5;
+            if (m5 >= j)
+                m5 -= j;
+            else {
+                s5 += j -= m5;
                 b5 += j;
-                s5 += j;
+                m5 = 0;
             }
-            i = ilim;
-            if (i < 0) {
-                m2 = b2 - i;
+            if ((i = ilim) < 0) {
+                m2 -= i;
                 i = 0;
             }
         }
-        mhi = func_00121F78(ctx, 1);
-        s2 += i;
         b2 += i;
+        s2 += i;
+        mhi = i2b(ptr, 1);
     }
-    spec_case = 0;
-    if (mode < 2) {
-        /* Is d a normalized power of 2?  Then the lower bound is closer. */
-        if (!(u.UL & Frac64) && ((int)hi(u) & Exp_mask)) {
-            spec_case = 1;
-            b2 += Log2P;
-            s2 += Log2P;
-        }
-    }
-
     if (m2 > 0 && s2 > 0) {
         i = m2 < s2 ? m2 : s2;
-        s2 -= i;
-        m2 -= i;
         b2 -= i;
+        m2 -= i;
+        s2 -= i;
     }
     if (b5 > 0) {
         if (leftright) {
             if (m5 > 0) {
-                mhi = func_001221E0(ctx, mhi, m5);
-                b1 = func_00121FB0(ctx, mhi, b);
-                func_00121BA0(ctx, b);
+                mhi = pow5mult(ptr, mhi, m5);
+                b1 = mult(ptr, mhi, b);
+                Bfree(ptr, b);
                 b = b1;
             }
             if ((j = b5 - m5) != 0)
-                b = func_001221E0(ctx, b, j);
-        } else {
-            b = func_001221E0(ctx, b, b5);
-        }
+                b = pow5mult(ptr, b, j);
+        } else
+            b = pow5mult(ptr, b, b5);
     }
-    S = func_00121F78(ctx, 1);
+    S = i2b(ptr, 1);
     if (s5 > 0)
-        S = func_001221E0(ctx, S, s5);
+        S = pow5mult(ptr, S, s5);
 
-    /* Shift left so the divisor has 4 leading zero bits, for quorem(). */
-    if (s5)
-        i = (s2 - func_00121E30(S->x[S->wds - 1])) & 0x1F;
-    else
-        i = (s2 + 1) & 0x1F;
-    if (i)
+    /* Check for special case that d is a normalized power of 2. */
+
+    if (mode < 2) {
+        if (!word1(d) && !(word0(d) & Bndry_mask) && word0(d) & Exp_mask) {
+            /* The special case */
+            b2 += Log2P;
+            s2 += Log2P;
+            spec_case = 1;
+        } else
+            spec_case = 0;
+    }
+
+    if ((i = ((s5 ? 32 - hi0bits(S->_x[S->_wds - 1]) : 1) + s2) & 0x1f) != 0)
         i = 32 - i;
     if (i > 4) {
         i -= 4;
+        b2 += i;
         m2 += i;
         s2 += i;
-        b2 += i;
     } else if (i < 4) {
         i += 28;
+        b2 += i;
         m2 += i;
         s2 += i;
-        b2 += i;
     }
     if (b2 > 0)
-        b = func_001222E0(ctx, b, b2);
+        b = lshift(ptr, b, b2);
     if (s2 > 0)
-        S = func_001222E0(ctx, S, s2);
+        S = lshift(ptr, S, s2);
     if (k_check) {
-        if (func_00122458(b, S) < 0) {
-            /* we botched the k estimate */
-            b = func_00121BD0(ctx, b, 10, 0);
+        if (cmp(b, S) < 0) {
             k--;
+            b = multadd(ptr, b, 10, 0); /* we botched the k estimate */
             if (leftright)
-                mhi = func_00121BD0(ctx, mhi, 10, 0);
+                mhi = multadd(ptr, mhi, 10, 0);
             ilim = ilim1;
         }
     }
-    if (ilim <= 0 && mode >= 3) {
-        if (ilim < 0)
-            goto no_digits;
-        S = func_00121BD0(ctx, S, 5, 0);
-        if (func_00122458(b, S) <= 0)
-            goto no_digits;
-        goto one_digit;
+    if (ilim <= 0 && mode > 2) {
+        if (ilim < 0 || cmp(b, S = multadd(ptr, S, 5, 0)) <= 0) {
+            /* no digits, fcvt style */
+        no_digits:
+            k = -1 - ndigits;
+            goto ret;
+        }
+    one_digit:
+        *s++ = '1';
+        k++;
+        goto ret;
     }
-
     if (leftright) {
         if (m2 > 0)
-            mhi = func_001222E0(ctx, mhi, m2);
+            mhi = lshift(ptr, mhi, m2);
 
-        /* mlo/mhi: the lower and upper half-ulp bounds. */
         mlo = mhi;
         if (spec_case) {
-            mhi = func_00121AF8(ctx, mhi->k);
-            block_copy(&mhi->sign, &mlo->sign, mlo->wds * 4 + 8);
-            mhi = func_001222E0(ctx, mhi, Log2P);
+            mhi = Balloc(ptr, mhi->_k);
+            Bcopy(mhi, mlo);
+            mhi = lshift(ptr, mhi, Log2P);
         }
 
-        i = 1;
-        for (;;) {
-            dig = func_0011E990(b, S) + '0';
-            /* Do we yet have the shortest decimal string that rounds to d? */
-            j = func_00122458(b, mlo);
-            delta = func_001224C0(ctx, S, mhi);
-            j1 = delta->sign ? 1 : func_00122458(b, delta);
-            func_00121BA0(ctx, delta);
-            if (j1 == 0 && mode == 0 && !(word1(u) & 1)) {
+        for (i = 1;; i++) {
+            dig = quorem(b, S) + '0';
+            /* Do we yet have the shortest decimal string
+             * that will round to d?
+             */
+            j = cmp(b, mlo);
+            delta = diff(ptr, S, mhi);
+            j1 = delta->_sign ? 1 : cmp(b, delta);
+            Bfree(ptr, delta);
+            if (j1 == 0 && !mode && !(word1(d) & 1)) {
                 if (dig == '9')
                     goto round_9_up;
                 if (j > 0)
@@ -568,12 +484,11 @@ char *func_0011EBA8(DtoaCtx *ctx, double dd, int mode, int ndigits, int *decpt,
                 *s++ = dig;
                 goto ret;
             }
-            if (j < 0 || (j == 0 && mode == 0 && !(word1(u) & 1))) {
+            if (j < 0 || (j == 0 && !mode && !(word1(d) & 1))) {
                 if (j1 > 0) {
-                    /* possible if i == 1 */
-                    b = func_001222E0(ctx, b, 1);
-                    j1 = func_00122458(b, S);
-                    if ((j1 > 0 || (j1 == 0 && (dig & 1))) && dig++ == '9')
+                    b = lshift(ptr, b, 1);
+                    j1 = cmp(b, S);
+                    if ((j1 > 0 || (j1 == 0 && dig & 1)) && dig++ == '9')
                         goto round_9_up;
                 }
                 *s++ = dig;
@@ -591,77 +506,49 @@ char *func_0011EBA8(DtoaCtx *ctx, double dd, int mode, int ndigits, int *decpt,
             *s++ = dig;
             if (i == ilim)
                 break;
-            b = func_00121BD0(ctx, b, 10, 0);
-            if (mlo == mhi) {
-                mhi = func_00121BD0(ctx, mhi, 10, 0);
-                mlo = mhi;
-            } else {
-                mlo = func_00121BD0(ctx, mlo, 10, 0);
-                mhi = func_00121BD0(ctx, mhi, 10, 0);
+            b = multadd(ptr, b, 10, 0);
+            if (mlo == mhi)
+                mlo = mhi = multadd(ptr, mhi, 10, 0);
+            else {
+                mlo = multadd(ptr, mlo, 10, 0);
+                mhi = multadd(ptr, mhi, 10, 0);
             }
-            i++;
         }
-    } else {
-        i = 1;
-        for (;;) {
-            dig = func_0011E990(b, S) + '0';
-            *s++ = dig;
+    } else
+        for (i = 1;; i++) {
+            *s++ = dig = quorem(b, S) + '0';
             if (i >= ilim)
                 break;
-            i++;
-            b = func_00121BD0(ctx, b, 10, 0);
+            b = multadd(ptr, b, 10, 0);
         }
-    }
 
-    /* Round off the last digit. */
-    b = func_001222E0(ctx, b, 1);
-    j = func_00122458(b, S);
-    if (j > 0 || (j == 0 && (dig & 1))) {
+    /* Round off last digit */
+
+    b = lshift(ptr, b, 1);
+    j = cmp(b, S);
+    if (j > 0 || (j == 0 && dig & 1)) {
     roundoff:
-        while (*--s == '9') {
+        while (*--s == '9')
             if (s == s0) {
                 k++;
                 *s++ = '1';
                 goto ret;
             }
-        }
         ++*s++;
     } else {
         while (*--s == '0')
             ;
         s++;
     }
-    goto ret;
-
-no_digits:
-    k = -1 - ndigits;
-    goto ret;
-
-one_digit:
-    *s++ = '1';
-    k++;
-    goto ret;
-
-bump_up:
-    while (*--s == '9') {
-        if (s == s0) {
-            k++;
-            *s = '0';
-            break;
-        }
-    }
-    ++*s++;
-    goto ret1;
-
 ret:
-    func_00121BA0(ctx, S);
+    Bfree(ptr, S);
     if (mhi) {
         if (mlo && mlo != mhi)
-            func_00121BA0(ctx, mlo);
-        func_00121BA0(ctx, mhi);
+            Bfree(ptr, mlo);
+        Bfree(ptr, mhi);
     }
 ret1:
-    func_00121BA0(ctx, b);
+    Bfree(ptr, b);
     *s = 0;
     *decpt = k + 1;
     if (rve)

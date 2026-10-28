@@ -1,116 +1,107 @@
-// NEARMISS func_001FF1E0  (vram 0x001FF1E0, 0x210 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 82.06% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body fully correct (resource-bank streamer): gp-rel D_00275C70 vs non-gp 0x28xxxx symbols resolved via sized-array decls (>sdatathreshold 8), all four loops + the (t2&0xFFFFFF)+base / D_0028A490[t2>>24] relocation reproduced, register reuse of the 0xE count as loop2/3 base index modeled. Residual...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 8
+// CFLAGS: -O4,p -sdatathreshold 4
 
-//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 82.06% NEARMISS).
+// Fixes read from the original instructions:
+//  - D_0028A734 / D_0028A738 are absolute (unsized extern arrays), D_00275C70
+//    gp-relative; callee prototypes taken from their definitions in src/
+//    (func_00200780 takes pointers and returns int, func_00200830 a pointer);
+//  - the header is read through the chained `desc = D_00275C70 = D_00289BC0`
+//    value; the header buffer argument carries a (void *) cast, which sets
+//    the original argument-setup order;
+//  - each count is guarded by an explicit nonzero test around an unsigned
+//    for-loop, and the relocation table pointer is computed inside the
+//    guard; each sub-chunk's offset and size are read before its retry loop;
+//  - the three loops use separate counters, and the chunk offset/size locals
+//    are reused for the trailing copy (register assignment follows these
+//    declarations).
+
 // Streams a packed resource bank into memory. arg0 selects a base: 0 ->
-// 0xB00000, else the running pointer in D_0028A734. It DMA-loads the header
-// (func_00200780/func_00200700 retry pair) into D_00289BC0 from offset
+// 0xB00000, else the running pointer in D_0028A734. It DMA-loads the 0x800-byte
+// header (func_00200780/func_00200700 retry pair) into D_00289BC0 from offset
 // arg0<<11, publishes it as the current bank D_00275C70, then for each of the
-// header's [0xE] sub-chunks (n0) copies [0x20]/[0x24] (offset+size) into the
-// bank base. After a trailing [0x14]/[8] copy it advances D_0028A734/D_0028A738
-// by the consumed size, walks the [0x10] table (cnt10) running func_00200830
-// over each stored chunk (chunk sizes read from the [n0+i] slot, field 0x24),
-// then relocates the [0x1C] pointer table (cnt1c) starting at slot [n0+cnt10]:
-// for each entry e, D_0028A490[e>>24] = (e & 0xFFFFFF) + base.
-//
-// NEARMISS: readable C, body byte-correct, 82% on mwcc 2.3.3 (991202 79%).
-// Residuals are register-allocation renumbering, one extra callee-saved reg
-// (frame 0x80 vs 0x70), and arg-materialization/scheduling order; no single
-// idiom -- permuter/scheduling class. The sized-array externs below only push
-// the 0x28xxxx symbols past sdatathreshold (non-gp); their real sizes differ.
+// header's [0xE] sub-chunks (n0, 8-byte entries from +0x20) reads entry
+// [0x20]+header[4] (offset) and [0x24] (size) into the bank base and runs
+// func_00200830 on it. After a trailing copy of header[8]-header[0x14] bytes
+// from offset header[4]+header[0x14] it sets D_0028A734 and D_0028A738 to the
+// end of that copy, walks the [0x10] table (cnt10) running func_00200830 over
+// each stored chunk (chunk sizes read from the [n0+k] entry, field 0x24),
+// then relocates the [0x1C] pointer table (cnt1c) starting at entry
+// [n0+cnt10]: for each word e, D_0028A490[e>>24] = (e & 0xFFFFFF) + base.
 
 extern int func_00200700(void);
-extern void func_00200780(int a, int b, int c, int d);
-extern void func_00200830(int a);
-extern void *D_00275C70;
-extern char D_00289BC0[0x800];
-extern char D_0028A480[16];
-extern char D_0028A488[16];
-extern int D_0028A490[64];
-extern void *D_0028A734[16];
-extern void *D_0028A738[16];
-
+extern int func_00200780(void *file, void *buf, int offset, int size);
+extern void func_00200830(char *a);
+extern char *D_00275C70;
+extern char D_00289BC0[];
+extern char D_0028A480[];
+extern char D_0028A488[];
+extern int D_0028A490[];
+extern char *D_0028A734[];
+extern char *D_0028A738[];
 void func_001FF1E0(int arg0) {
     char *base;
-    char *bank;
     int off;
-    int n0;
-    int cnt10;
-    int cnt1c;
-    int i;
+    int o;
+    int sz;
+    unsigned int n0;
+    unsigned int i;
+    unsigned int cnt10;
+    unsigned int k;
     int j;
-    unsigned int e;
+    char *desc;
     int *p;
+    unsigned int cnt1c;
+    unsigned int m;
 
     if (arg0 == 0) {
         base = (char *)0xB00000;
     } else {
-        base = (char *)D_0028A734[0];
+        base = D_0028A734[0];
     }
     do {
-        func_00200780((int)D_0028A480, (int)D_00289BC0, arg0 << 0xB, 0x800);
+        func_00200780(D_0028A480, (void *)D_00289BC0, arg0 << 11, 0x800);
     } while (func_00200700() == 0);
 
-    D_00275C70 = D_00289BC0;
-    n0 = *(unsigned short *)(D_00289BC0 + 0xE);
-    off = *(int *)(D_00289BC0 + 4);
-    if (n0 != 0 && (unsigned int)n0 != 0) {
-        i = 0;
-        j = 0;
-        do {
-            bank = (char *)D_00275C70 + j;
+    desc = D_00275C70 = D_00289BC0;
+    n0 = *(unsigned short *)(desc + 0xE);
+    off = *(int *)(desc + 4);
+    if (n0 != 0) {
+        for (i = 0; i < n0; i++) {
+            char *ent = D_00275C70 + i * 8;
+            o = *(int *)(ent + 0x20) + off;
+            sz = *(int *)(ent + 0x24);
             do {
-                func_00200780((int)D_0028A488, (int)base,
-                              *(int *)(bank + 0x20) + off, *(int *)(bank + 0x24));
+                func_00200780(D_0028A488, base, o, sz);
             } while (func_00200700() == 0);
-            func_00200830((int)base);
-            i += 1;
-            j += 8;
-        } while ((unsigned int)i < (unsigned int)n0);
+            func_00200830(base);
+        }
     }
 
-    {
-        int sz = *(int *)((char *)D_00275C70 + 0x14);
-        int rem = *(int *)((char *)D_00275C70 + 8) - sz;
-        off += sz;
-        do {
-            func_00200780((int)D_0028A488, (int)base, off, rem);
-        } while (func_00200700() == 0);
-        base += rem;
-        D_0028A734[0] = base;
-        D_0028A738[0] = base;
-    }
+    sz = *(int *)(D_00275C70 + 0x14);
+    o = *(int *)(D_00275C70 + 8) - sz;
+    off += sz;
+    do {
+        func_00200780(D_0028A488, base, off, o);
+    } while (func_00200700() == 0);
+    D_0028A734[0] = base + o;
+    D_0028A738[0] = base + o;
 
-    cnt10 = *(int *)((char *)D_00275C70 + 0x10);
+    cnt10 = *(unsigned int *)(D_00275C70 + 0x10);
     j = 0;
-    if (cnt10 != 0 && (unsigned int)cnt10 != 0) {
-        i = 0;
-        do {
-            func_00200830((int)(base + j));
-            j += *(int *)((char *)D_00275C70 + (n0 + i) * 8 + 0x24);
-            i += 1;
-        } while ((unsigned int)i < (unsigned int)cnt10);
+    if (cnt10 != 0) {
+        for (k = 0; k < cnt10; k++) {
+            func_00200830(base + j);
+            j += *(int *)(D_00275C70 + (n0 + k) * 8 + 0x24);
+        }
     }
 
-    cnt1c = *(int *)((char *)D_00275C70 + 0x1C);
-    if (cnt1c != 0 && (unsigned int)cnt1c != 0) {
-        p = (int *)((char *)D_00275C70 + (n0 + cnt10) * 8 + 0x20);
-        i = 0;
-        do {
-            e = *(unsigned int *)p;
-            i += 1;
-            D_0028A490[e >> 0x18] = (e & 0xFFFFFF) + (int)base;
-            p += 1;
-        } while ((unsigned int)i < (unsigned int)cnt1c);
+    cnt1c = *(unsigned int *)(D_00275C70 + 0x1C);
+    if (cnt1c != 0) {
+        p = (int *)(D_00275C70 + (n0 + cnt10) * 8 + 0x20);
+        for (m = 0; m < cnt1c; m++) {
+            unsigned int e = *p++;
+            D_0028A490[e >> 24] = (e & 0xFFFFFF) + (int)base;
+        }
     }
 }

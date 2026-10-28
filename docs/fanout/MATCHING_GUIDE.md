@@ -571,3 +571,28 @@ the byte comparison. Promotion order matters: a dependant only matches once its
 neighbour's own C is in src/, and editing a neighbour's file (even its extern
 declarations) can un-match its dependants (they then fall back to the .s, so
 the build stays safe).
+
+### Queue batch 28 (2026-10-27)
+
+15 byte-matched. Through TU neighbours (`// TU_STATIC:` with the real
+immediately preceding byte-matched function): func_001EC1F0 (after
+func_001EBF10), func_001EACF0 (after func_001EAB50), func_001EBE10 (after
+func_001EBD20) and func_001EBE90 (after func_001EBD20 and func_001EBE10). Sound
+side, typed Voice/Chan/Song/Seq records as in func_00117EE8: func_00118EC0 (the
+second loop reuses the inner counter; one chained store), func_00118078 (the
+scale written `(x << 2) * tempo / 60`). Others: func_001CEEE0 (separately named
+globals are fields of one struct passed to func_001CFBE0; the stack quad is a
+struct), func_00128B80 (one if/else instead of an early-return guard),
+func_0022A460 (three callees take only the state pointer; one switch),
+func_001B37D0 (a goto/parity loop is two nested for-loops; the scalars handed
+to func_001026A0 are one float array), func_001FF1E0 (unsized arrays keep two
+globals absolute; chained header read as in func_001FF3F0), func_001FB9F0 (one
+(table, id) pair per id range feeding a shared tail), func_001F1180 (the old
+glow visibility test was inverted; nested switches), func_00161020 (state 1/2
+guard failures return instead of running the shared tail; func_001607D0 gets
+the entity, not the state byte), func_0015C1F0 (case lists in reverse of the
+original's compare order; `case 0: default:` shared bodies). Improved and
+parked: func_0011EBA8 99.68 (newlib `_dtoa_r` with native doubles; the
+instruction stream is identical, but its local .rodata block needs pinning and
+the soft-float routines need their libgcc names), func_001D98A0 95.25,
+func_0011A4E8 83.30, func_0010CE28 90.70.

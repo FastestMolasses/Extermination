@@ -1,75 +1,80 @@
-// NEARMISS func_00118EC0  (vram 0x00118EC0, 0x1C0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 82.71% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc GPR-coloring wall + loop-iv/address-materialisation. Both loops are structurally recovered — same rotated do-while shapes, same `bnel` back-edge fills, same annulled branch-likely skip on v0 != s8, same store set, correct sizes (440 vs 448, 2 insns). Residuals: (a) loop 1 outer/inner counters are colour...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 82.71% NEARMISS).
+// Fixes read from the original instructions:
+//  - Typed records indexed directly (Voice D_0027CCC0[48] as in the byte-matched
+//    voice siblings, a 0x78-byte Chan record for D_0027E0C0 and the argument)
+//    instead of byte offsets from split field symbols.
+//  - The second loop reuses the inner-loop counter j (not i): that one variable
+//    lives across the second loop's call, which puts it in a saved register and
+//    leaves i in an argument register, as in the original.
+//  - The four 0xFFFF stores are one chained assignment (f06 first, then f26, f24,
+//    f22), which gives the original's store order and address forms.
 //
-// Per-frame slot reaper. Loop 1: for each of 0x30 0x78-byte records, if it is
-// active (f3E==1 && f32==1) and no D_0027CCC0 entry claims its index, clear the
-// matching D_0027E0C0 record. Loop 2: age every D_0027CCC0 entry and reset the
-// ones that have gone stale.
-//
-// All loop-2 addressing is written as `i * 0x6A` (rather than a hand-rolled
-// offset/pointer accumulator) on purpose: that makes every address a giv of the
-// single biv `i`, which is what stops gcc's check_dbra_loop from reversing the
-// counter into a downcounter.
+// Per-frame slot reaper. Loop 1: for each of the 48 0x78-byte channel records,
+// if it is active (f3E == 1 && f32 == 1) and no voice in D_0027CCC0 claims its
+// index (voice f06), clear the matching D_0027E0C0 record. Loop 2: for every
+// voice whose D_002817C0 word is below 2, whose age f1C is at least 2, with
+// f08 == 1 and f1A != 3, clear the voice and reset f06/f22/f24/f26 to 0xFFFF
+// and f4E to 0x78; then age every voice (f1C += 1).
 
-typedef struct Ent {            /* 0x6A bytes */
-    unsigned char pad00[6];
+typedef struct {                /* 0x6A */
+    unsigned short f00;
+    unsigned short f02;
+    unsigned short f04;
     unsigned short f06;         /* 0x06 */
-    unsigned char pad08[0x62];
-} Ent;
+    unsigned short f08;         /* 0x08 */
+    unsigned char pad0A[0x1A - 0x0A];
+    unsigned short f1A;         /* 0x1A */
+    unsigned short f1C;         /* 0x1C */
+    unsigned char pad1E[0x22 - 0x1E];
+    unsigned short f22;         /* 0x22 */
+    unsigned short f24;         /* 0x24 */
+    unsigned short f26;         /* 0x26 */
+    unsigned char pad28[0x4E - 0x28];
+    unsigned short f4E;         /* 0x4E */
+    unsigned char pad50[0x6A - 0x50];
+} Voice;
 
-extern void func_00121A28(void *dst, int c, int n);   /* memset */
+typedef struct {                /* 0x78 */
+    unsigned char pad00[0x32];
+    unsigned short f32;
+    unsigned char pad34[0x3E - 0x34];
+    unsigned short f3E;
+    unsigned char pad40[0x78 - 0x40];
+} Chan;
 
-extern Ent D_0027CCC0[];
-extern unsigned char D_0027CCC8[];   /* = D_0027CCC0 + 0x08 */
-extern unsigned char D_0027CCDA[];   /* = D_0027CCC0 + 0x1A */
-extern unsigned char D_0027CCDC[];   /* = D_0027CCC0 + 0x1C */
-extern unsigned char D_0027CCE2[];   /* = D_0027CCC0 + 0x22 */
-extern unsigned char D_0027E0C0[];
+extern void func_00121A28(void *dst, int c, int n);
+
+extern Voice D_0027CCC0[48];
+extern Chan D_0027E0C0[48];
 extern int D_002817C0[];
 
-void func_00118EC0(unsigned char *p)
+void func_00118EC0(Chan *p)
 {
-    unsigned char *base;
     int i;
     int j;
 
-    for (i = 0; i < 0x30; i++) {
-        if (*(unsigned short *)(p + 0x3E) == 1 &&
-            *(unsigned short *)(p + 0x32) == 1) {
-            for (j = 0; j < 0x30; j++) {
+    for (i = 0; i < 48; i++, p++) {
+        if (p->f3E == 1 && p->f32 == 1) {
+            for (j = 0; j < 48; j++) {
                 if (D_0027CCC0[j].f06 == i)
                     goto next;
             }
-            func_00121A28(D_0027E0C0 + i * 0x78, 0, 0x78);
+            func_00121A28(&D_0027E0C0[i], 0, 0x78);
         }
     next:
-        p += 0x78;
+        ;
     }
 
-    base = (unsigned char *)D_0027CCC0;
-    for (i = 0; i < 0x30; i++) {
-        if (D_002817C0[i] < 2 &&
-            *(unsigned short *)(D_0027CCDC + i * 0x6A) >= 2 &&
-            *(unsigned short *)(D_0027CCC8 + i * 0x6A) == 1 &&
-            *(unsigned short *)(D_0027CCDA + i * 0x6A) != 3) {
-            func_00121A28(base + i * 0x6A, 0, 0x6A);
-            *(unsigned short *)(base + i * 0x6A + 6) = 0xFFFF;
-            *(unsigned short *)(base + i * 0x6A + 0x26) = 0xFFFF;
-            *(unsigned short *)(base + i * 0x6A + 0x24) = 0xFFFF;
-            *(unsigned short *)(D_0027CCE2 + i * 0x6A) = 0xFFFF;
-            *(unsigned short *)(base + i * 0x6A + 0x4E) = 0x78;
+    for (j = 0; j < 48; j++) {
+        if (D_002817C0[j] < 2 && D_0027CCC0[j].f1C >= 2 &&
+            D_0027CCC0[j].f08 == 1 && D_0027CCC0[j].f1A != 3) {
+            func_00121A28(&D_0027CCC0[j], 0, 0x6A);
+            D_0027CCC0[j].f22 = D_0027CCC0[j].f24 = D_0027CCC0[j].f26 = D_0027CCC0[j].f06 = 0xFFFF;
+            D_0027CCC0[j].f4E = 0x78;
         }
-        *(unsigned short *)(D_0027CCDC + i * 0x6A) += 1;
+        D_0027CCC0[j].f1C++;
     }
 }
