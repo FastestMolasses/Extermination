@@ -1,15 +1,17 @@
-// NEARMISS func_00105088  (vram 0x00105088, ?) — readable decompilation, NOT byte-identical.
+// NEARMISS func_00105088  (vram 0x00105088, 0x5C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 0.00% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 0.00% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
+// diff needs instructions that plain C cannot express:
+// hand-written MMI assembly (an addi the compilers never emit, 128-bit loads, parallel
+// halfword add/min/max and byte pack): no C compiler of this toolchain vectorises the
+// scalar loop into MMI. Tried ee-gcc -O2: 0.00%. Only inline asm could match (not allowed).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// COMPILER: eegcc
+// CFLAGS: -O2
 
 typedef short s16;
 typedef unsigned char u8;

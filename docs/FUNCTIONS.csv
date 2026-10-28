@@ -128,7 +128,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00106540,func_00106540,436,readable,4,lowmem
 0x001066F8,func_001066F8,308,readable,5,lowmem
 0x00106830,func_00106830,276,readable,7,lowmem
-0x00106948,func_00106948,360,nearmiss,16,lowmem
+0x00106948,func_00106948,360,readable,16,lowmem
 0x00106AB0,func_00106AB0,104,readable,3,lowmem
 0x00106B18,func_00106B18,108,readable,1,lowmem
 0x00106B88,func_00106B88,292,readable,2,lowmem
@@ -215,14 +215,14 @@ vram,name,size_bytes,status,callers,subsystem
 0x0010A4D8,func_0010A4D8,32,readable,1,lowmem
 0x0010A4F8,sub_vertical_size_2800,340,readable,1,lowmem
 0x0010A650,func_0010A650,836,readable,1,lowmem
-0x0010A998,func_0010A998,232,nearmiss,1,lowmem
+0x0010A998,func_0010A998,232,readable,1,lowmem
 0x0010AA80,func_0010AA80,192,readable,1,lowmem
 0x0010AB40,sub_chroma_format_needs_to_be_1_420,356,readable,0,lowmem
 0x0010ACA8,func_0010ACA8,160,readable,0,lowmem
-0x0010AD48,sub_sequenceScalableExtension_is_not,12,nearmiss,0,lowmem
-0x0010AD58,sub_Unknown_Extension,12,nearmiss,0,lowmem
-0x0010AD68,sub_pictureSpatialScalableExtension_,12,nearmiss,0,lowmem
-0x0010AD78,sub_pictureTemporalScalableExtension,12,nearmiss,0,lowmem
+0x0010AD48,sub_sequenceScalableExtension_is_not,12,readable,0,lowmem
+0x0010AD58,sub_Unknown_Extension,12,readable,0,lowmem
+0x0010AD68,sub_pictureSpatialScalableExtension_,12,readable,0,lowmem
+0x0010AD78,sub_pictureTemporalScalableExtension,12,readable,0,lowmem
 0x0010AD88,func_0010AD88,12,word,0,lowmem
 0x0010AD98,func_0010AD98,12,word,0,lowmem
 0x0010ADA8,func_0010ADA8,380,word,1,lowmem
@@ -1871,7 +1871,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001B8AB0,func_001B8AB0,1284,nearmiss,0,unknown_02
 0x001B8FC0,func_001B8FC0,1320,readable,0,unknown_02
 0x001B94F0,func_001B94F0,1268,readable,0,math_vector
-0x001B99F0,func_001B99F0,428,nearmiss,0,math_vector
+0x001B99F0,func_001B99F0,428,readable,0,math_vector
 0x001B9BA0,func_001B9BA0,104,readable,0,math_vector
 0x001B9C10,func_001B9C10,216,readable,0,math_vector
 0x001B9CF0,func_001B9CF0,764,readable,0,math_vector
@@ -2025,7 +2025,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001C9940,func_001C9940,1032,nearmiss,5,anim_runtime
 0x001C9D50,func_001C9D50,232,readable,5,anim_runtime
 0x001C9E40,func_001C9E40,604,readable,3,anim_runtime
-0x001CA0A0,quat_nlerp,276,nearmiss,9,anim_runtime
+0x001CA0A0,quat_nlerp,276,readable,9,anim_runtime
 0x001CA1C0,quat_to_mat3,492,readable,10,anim_runtime
 0x001CA3B0,func_001CA3B0,280,word,3,anim_runtime
 0x001CA4D0,func_001CA4D0,260,readable,2,anim_runtime
@@ -2729,7 +2729,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00207E40,func_00207E40,308,nearmiss,42,draw2d
 0x00207F80,func_00207F80,184,readable,18,draw2d
 0x00208040,func_00208040,352,readable,2,draw2d
-0x002081A0,func_002081A0,272,nearmiss,2,draw2d
+0x002081A0,func_002081A0,272,readable,2,draw2d
 0x002082B0,func_002082B0,1180,readable,5,draw2d
 0x00208750,func_00208750,860,nearmiss,1,draw2d
 0x00208AB0,func_00208AB0,24,readable,1,draw2d

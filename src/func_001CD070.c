@@ -1,15 +1,18 @@
 // NEARMISS func_001CD070  (vram 0x001CD070, 0x110 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 42.01% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 45.25% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful.
+// Remaining differences: the original performs the clip test and the projection as inline
+// VU0 macro code (matrix loads, multiply-accumulate, clip, divide, ftoi4) with no helper
+// calls; the vu0_* calls here stand in for that inline code. Only inline asm could close
+// the gap, which is not allowed for this function. (-sdatathreshold 8: D_00275670 and
+// D_00275C04 are gp-relative in the original.)
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// CFLAGS: -O4,p -sdatathreshold 8
 
 typedef struct { float x, y, z, w; } Vec4;
 typedef struct { int   x, y, z, w; } IVec4;

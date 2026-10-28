@@ -129,10 +129,9 @@ exit branch goes, before recording a wall.
 | func_00101CD0 | 0x00101CD0 | 0x1D8 | 91.34% | ee-gcc 2.9-991111-01 | MMIO config writer: validation branches, the 0xe000 bit-twiddle (D_002410B8/C8/D8 table lo |
 | func_00108818 | 0x00108818 | 0x88 | 97.79% | ee-gcc 2.9-991111-01 | gcc-2.9 emits movn (conditional move) for the (hi==0xFF00<<24)?0x20:0 sh-selection; target |
 | func_001172B8 | 0x001172B8 | 0x170 | 98.21% | ee-gcc 2.9-991111-01 | eegcc forward-branch-likely wall (confirmed s84). The two table-scan loops are built entir |
-| func_0010A248 | 0x0010A248 | 0x4C | 57.26% | ee-gcc 2.9-991111-01 | ee-gcc list-scheduler permutation wall. Reg-alloc and all instructions match the target ex |
+| func_0010A248 | 0x0010A248 | 0x4C | 94.26% | ee-gcc 2.9-991111-01 | ee-gcc list-scheduler permutation wall. Reg-alloc and all instructions match the target ex |
 | func_00119EA0 | 0x00119EA0 | 0x1CC | 91.74% | ee-gcc 2.9-991111-01 | eegcc forward-branch-likely wall (confirmed s84). The inner slot-scan loop (.L00119FD8) re |
 | func_00117088 | 0x00117088 | 0x22C | 82.88% | ee-gcc 2.9-991111-01 | eegcc coloring/reg-alloc wall (confirmed s84). Function fully decoded to logically-correct |
-| func_00106948 | 0x00106948 | 0x168 | 50.74% | ee-gcc 2.9-991111-01 | eegcc reg-alloc wall / saved-register-count divergence (confirmed s84). Instruction-for-in |
 | func_001B11E0 | 0x001B11E0 | 0x58 | 79.32% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation/scheduling permutation: identical opcodes (byte loads, shifts, masks, address pairs ... |
 | func_001EAF00 | 0x001EAF00 | 0x7C | 80.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical wall to func_001EACF0 (same template, const 5.0f, table D_002557D0, flag 1): FP- |
 | func_001EBBB0 | 0x001EBBB0 | 0x7C | 80.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical wall to func_001EACF0 (same template, const 3.0f, table D_002561F0, flag 1): FP- |
@@ -141,7 +140,7 @@ exit branch goes, before recording a wall.
 | func_001EF510 | 0x001EF510 | 0x26C | 98.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | instruction-scheduling permutation: the target reverses the f14(1.0f)/f15(9.99e-7) immedia |
 | func_0017C580 | 0x0017C580 | 0x2D4 | 99.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | One register: the +0x0F value of the 0x63 test is $a0 where the target has $a2 (2 instrs). |
 | func_001F9820 | 0x001F9820 | 0x300 | 95.35% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Instruction-scheduling permutation in channels 3 and 4: mwcc places the D_00275B24/B20 sou |
-| func_001EEBA0 | 0x001EEBA0 | 0x30C | 97.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two permuter-class residuals (NOT the clean-store nop): (1) the middle of three identical  |
+| func_001EEBA0 | 0x001EEBA0 | 0x30C | 98.88% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two permuter-class residuals (NOT the clean-store nop): (1) the middle of three identical  |
 | func_001EEEB0 | 0x001EEEB0 | 0x30C | 98.88% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical residual class to its twin func_001EEBA0 (NOT the clean-store nop): middle-itera |
 | func_001ED450 | 0x001ED450 | 0x348 | 94.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant register-coloring permutation in the func_001CFB50 call setup. Body/structure  |
 | func_001ED7A0 | 0x001ED7A0 | 0x34C | 95.73% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant register-coloring permutation in the func_001CFB50 call setup -- same class an |
@@ -168,7 +167,6 @@ exit branch goes, before recording a wall.
 | func_001D2730 | 0x001D2730 | 0x100 | 95.52% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation: target colors bit->s1/flags->s0/hit->s2, mwcc picks bit->s0 |
 | gs_readback_queue_drain | 0x001D7410 | 0x100 | 99.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected callee (dma_wait_and_submit for the stale alias sub_D2_TADR_08x); locals reorder |
 | func_001CABA0 | 0x001CABA0 | 0x110 | 94.04% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation/scheduling artifact. Body 100% logically complete & faithful. Keys tha |
-| func_002081A0 | 0x002081A0 | 0x110 | 50.85% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Pervasive register-allocation coloring + mwcc list-scheduling of the GIF-tag constant comp |
 | func_00189EC0 | 0x00189EC0 | 0x118 | 99.93% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected (matching wave 2026-10-27); see the file header for the fixes and the residual. |
 | func_00203D30 | 0x00203D30 | 0x128 | 99.19% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected (matching wave 2026-10-27); see the file header for the fixes and the residual. |
 | func_0019C6F0 | 0x0019C6F0 | 0x140 | 92.38% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation/coloring permutation (identical instruction sequence and operands, onl |
@@ -219,7 +217,7 @@ exit branch goes, before recording a wall.
 | func_001ECB00 | 0x001ECB00 | 0x368 | 76.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | BODY CORRECTED 2026-09-28: f16 = 6.0 for all three func_001CFB50 calls. Earlier diagnosis, partly superseded: FP-register-coloring / GPR-scheduling noise, not a missing/wrong operation: (1) the GS-alp |
 | func_001D7C30 | 0x001D7C30 | 0x370 | 99.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Correct scratch matrix extent from4 floats to16; original64-byte SDK matrix writes require |
 | func_001E13E0 | 0x001E13E0 | 0x37C | 99.10% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/frame-spill permutation. Both builds fully recover the logic (channel- |
-| func_001E1AD0 | 0x001E1AD0 | 0x38C | 53.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-pressure/spill wall in a large (908-byte) 32x32-grid generator, same class as its |
+| func_001E1AD0 | 0x001E1AD0 | 0x38C | 96.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-pressure/spill wall in a large (908-byte) 32x32-grid generator, same class as its |
 | func_0016A8B0 | 0x0016A8B0 | 0x394 | 94.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | CFG-shape-dependent instruction-scheduling artifact: in each of the 4 switch-case's true-b |
 | func_00158810 | 0x00158810 | 0x3B4 | 99.75% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | BODY CORRECTED 2026-09-27 against the original instructions (see FINDINGS "NEARMISS body corrections from the AREA01 wave-2 lanes"). Earlier diagnosis, partly superseded: Register-allocation-ORDER wall: target keeps the arg0+0x1F0 pointer (a1) live in a caller- |
 | func_0021AAC0 | 0x0021AAC0 | 0x3C4 | 99.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Saved-register allocation ORDER permutation: mwcc233 colors arg0->0x24 field and `e`(=arg0 |
@@ -271,10 +269,6 @@ exit branch goes, before recording a wall.
 | anim_matrix_multi | 0x00148B40 | 0x1010 | 99.88% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected (matching wave 2026-10-27); see the file header for the fixes and the residual. |
 | func_001647D0 | 0x001647D0 | 0x138C | 99.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Compare spellings from a search on the target. Left: FP scheduling and coloring, several d |
 | func_00195130 | 0x00195130 | 0x1270 | 99.99% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected (matching wave 2026-10-27); see the file header for the fixes and the residual. |
-| sub_sequenceScalableExtension_is_not | 0x0010AD48 | 0xC | 0.00% | mwcc 2.3 (mwcps2-2.3-991202) | tail-call/sibling-call trampoline (a plain jump with the %hi/%lo argument split around it); mwcc cannot emit a tail j from C |
-| sub_Unknown_Extension | 0x0010AD58 | 0xC | 0.00% | mwcc 2.3 (mwcps2-2.3-991202) | tail-call/sibling-call trampoline (a plain jump with the %hi/%lo argument split around it); mwcc cannot emit a tail j from C |
-| sub_pictureSpatialScalableExtension_ | 0x0010AD68 | 0xC | 0.00% | mwcc 2.3 (mwcps2-2.3-991202) | tail-call/sibling-call trampoline (a plain jump with the %hi/%lo argument split around it); mwcc cannot emit a tail j from C |
-| sub_pictureTemporalScalableExtension | 0x0010AD78 | 0xC | 0.00% | mwcc 2.3 (mwcps2-2.3-991202) | tail-call/sibling-call trampoline (a plain jump with the %hi/%lo argument split around it); mwcc cannot emit a tail j from C |
 | func_00117918 | 0x00117918 | 0xC8 | 94.20% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring wall (confirmed s84) — opcode/operand-structure identical, only physica |
 | func_0011A4E8 | 0x0011A4E8 | 0xE0 | 83.30% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring + tail list-scheduler wall (fast-park class). .text size 224 == expecte |
 | func_00118CF8 | 0x00118CF8 | 0x168 | 80.17% | ee-gcc 2.9-991111-01 | eegcc induction-variable-selection wall — target keeps base (s1) + byte-offset iv (s0) + c |
@@ -283,7 +277,7 @@ exit branch goes, before recording a wall.
 | func_00112F98 | 0x00112F98 | 0x2E8 | 70.56% | ee-gcc 2.9-991111-01 | TWO stacked walls. (1) eegcc LICM + callee-saved coloring wall: expected hoists NINE value |
 | func_00112150 | 0x00112150 | 0x2F0 | 99.51% | ee-gcc 2.9-991111-01 | eegcc list-scheduler + switch-tree + GPR-coloring wall (0x2EC vs 0x2F0, one insn short). L |
 | func_00107648 | 0x00107648 | 0x3DC | 93.66% | ee-gcc 2.9-991111-01 | eegcc cross-jump-merge + list-scheduler wall (0x3C8 vs 0x3DC, 5 insns short). Body/structu |
-| func_00103DC8 | 0x00103DC8 | 0x420 | 51.59% | ee-gcc 2.9-991111-01 | eegcc register-allocation + list-scheduler wall. The control flow, every arithmetic expres |
+| func_00103DC8 | 0x00103DC8 | 0x420 | 74.77% | ee-gcc 2.9-991111-01 | eegcc register-allocation + list-scheduler wall. The control flow, every arithmetic expres |
 | func_0010DEB8 | 0x0010DEB8 | ? | 97.92% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring + list-scheduler wall, confined to the prologue/qword-copy region. Obje |
 | func_00134090 | 0x00134090 | 0x270 | 93.90% | mwcc24 | jr-table lane 2026-09-23: func_00122BB8 is the engine rand() and takes no argument (the ol |
 | func_001F0720 | 0x001F0720 | 0x334 | 98.88% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 86.25 with mwcc233 -O4,p -sdatathreshold 4 (o991 69.09, o24 86.25). Dispatch, all 7 preset |
@@ -314,23 +308,21 @@ exit branch goes, before recording a wall.
 | func_0020CDC0 | 0x0020CDC0 | 0xB6C | 91.52% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Structure, all constants, both jr-table dispatches (jtbl_002735B0 and jtbl_00273590, reloc |
 | sub_EXTERMINATION | 0xXTERMINATION | 0xAA8 | 94.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | REGISTER-ALLOCATION-ORDER wall (park / permuter candidate). Instruction COUNT matches exac |
 | func_0011EBA8 | 0x0011EBA8 | 0x11CC | 99.68% | ee-gcc 2.9-991111-01 | eegcc GPR-colouring + branch-likely + list-scheduler residual across a 1139-instruction fu |
-| func_0010A998 | 0x0010A998 | 0xE8 | 41.76% | ee-gcc 2.9-991111-01 | eegcc CSE wall + GPR coloring. Body fully recovered (prologue, both global loads, mult, th |
 | func_00105088 | 0x00105088 | ? | 0.00% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001029E8 | 0x001029E8 | 0x74 | 0.00% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
-| _start | 0x00100008 | ? | 0.00% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| _start | 0x00100008 | ? | 26.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001D72D0 | 0x001D72D0 | 0xC8 | 56.14% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001CAAC0 | 0x001CAAC0 | 0xDC | 49.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001CCF70 | 0x001CCF70 | 0x100 | 38.39% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
-| func_001CD070 | 0x001CD070 | 0x110 | 42.01% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| func_001CD070 | 0x001CD070 | 0x110 | 45.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001D0540 | 0x001D0540 | 0x11C | 52.75% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001CD180 | 0x001CD180 | 0x130 | 46.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_00207E40 | 0x00207E40 | 0x134 | 5.42% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001DD170 | 0x001DD170 | 0x180 | 29.59% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001DAE10 | 0x001DAE10 | 0x18C | 85.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
-| func_001B99F0 | 0x001B99F0 | 0x1AC | 2.80% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001F4A10 | 0x001F4A10 | 0x1E0 | 80.55% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001CE660 | 0x001CE660 | 0x1F8 | 39.79% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
-| func_0010B160 | 0x0010B160 | ? | 0.00% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| func_0010B160 | 0x0010B160 | ? | 71.89% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001F15F0 | 0x001F15F0 | 0x2D0 | 46.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001E2BA0 | 0x001E2BA0 | 0x2D8 | 72.22% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001E4A00 | 0x001E4A00 | 0x2D8 | 38.04% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
@@ -349,7 +341,7 @@ exit branch goes, before recording a wall.
 | func_001D75E0 | 0x001D75E0 | 0x49C | 56.26% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001C7420 | 0x001C7420 | 0x4E0 | 4.57% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001CDDC0 | 0x001CDDC0 | 0x540 | 0.00% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
-| func_001DA6A0 | 0x001DA6A0 | ? | 49.82% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
+| func_001DA6A0 | 0x001DA6A0 | ? | 84.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001D5370 | 0x001D5370 | 0x700 | 39.18% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_001D5C80 | 0x001D5C80 | 0x728 | 47.65% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | compiler artifact (register coloring / scheduling) |
 | func_overlay_AREA06_00823B10 (overlay AREA06) | runtime 0x00823B50 | same size | 97.12% | mwcc 2.3.3 | Overlay C, not compiled (links from splat). Only residual: the three 12-byte period-table copies to the stack; the original moves the last word through a GPR, mwcc 2.3.3/2.4/991202 always use an FPR (docs/AREA06_OVERLAY.md) (2026-09-28). |
@@ -362,7 +354,6 @@ exit branch goes, before recording a wall.
 | func_overlay_AREA16_00824650 (overlay AREA16) | runtime 0x00824690 | 0x778 (C 0x10 shorter) | 99.04% | mwcc 2.3.3 | Overlay C, not compiled (links from splat). The original keeps an explicit compare for D_00810809 == 1 that branches to the default body (mwcc 2.3.3 merges case 1 into default for every label order tried) and pads the D_70003B88 loop with one nop. Equivalent to the original by the round-7 instruction-by-instruction review (docs/AREA16_OVERLAY.md) (2026-09-28). |
 | func_overlay_AREA11_00823FB0 (overlay AREA11) | runtime 0x00823FF0 | same size | 99.99% | mwcc 2.3.3 (-sdatathreshold 4) | Overlay C, not compiled (links from splat). One pair of argument moves: in the count & 15 == 0 case of the state-4 jump table the original sets a1 (self + 0x1F0) before the func_00102B08 call and a0 (self + 0xD0) in its delay slot; mwcc 2.3.3 sets a0 first and puts a1 in the slot. Everything else, the jump table included, is equal (docs/AREA11_OVERLAY.md) (2026-09-30). |
 | func_overlay_AREA11_00828010 (overlay AREA11) | runtime 0x00828050 | same size | 94.17% | mwcc 2.3.3 | Overlay C, not compiled (links from splat). The original reloads 1 into v0 in the default case's branch slot (mwcc 2.3.3 reuses the 1 the state compare left in v0), keeps the frame test in $at with a 0 / 1 return pair (mwcc selects with movn or keeps the compare in v0), and assigns the FPRs of the two global adds differently. Equivalent returns, stores and calls on every path (docs/AREA11_OVERLAY.md) (2026-09-30). |
-| quat_nlerp | 0x001CA0A0 | 0x114 | 99.06% | mwcc 2.3.3 | Readable unnormalized hemisphere blend; 67/69 instructions match, with two clamp branch/delay-slot scheduling differences. Assembly links. |
 | func_overlay_AREA13_00827F50 (overlay AREA13) | runtime 0x00827F90 | 0x548 (C 0x10 shorter) | 98.46% | mwcc 2.3.3 (-sdatathreshold 4) | Overlay C, not compiled (links from splat). The phase-1 five-spark loop: the original counts down from a trip count (4 + 1, tested for zero before the first pass) and keeps self in s1; mwcc 2.3.3 emits a plain count-down loop with self in s0. Same five passes, calls and stores; loop spellings (count-up, != -1, > -1, unsigned, trip count) were tried. Equivalent by instruction-by-instruction diff (docs/AREA13_OVERLAY.md) (2026-09-30). |
 | func_overlay_AREA13_00829A60 (overlay AREA13) | runtime 0x00829AA0 | 0x1F8 (C 0x4 longer) | 94.23% | mwcc 2.3.3 | Overlay C, not compiled (links from splat). The original loads the state byte into a2 before the self copy and then fills the case-3 slot with the copy (branch-likely on case 2); mwcc 2.3.3 copies self first. The AREA16 0x8237A0 wall. Equivalent by instruction-by-instruction diff (docs/AREA13_OVERLAY.md) (2026-09-30). |
 | func_overlay_AREA19_00823740 (overlay AREA19) | runtime 0x00823780 | same size | 99.39% | mwcc 2.3.3 | Overlay C, not compiled (links from splat). Registers and order match; one nop sits after the outer-loop phase store in the original and after the inner-loop wrap in mwcc 2.3.3, shifting two branch offsets. Equivalent by instruction-by-instruction diff (docs/AREA19_OVERLAY.md) (2026-09-30). |

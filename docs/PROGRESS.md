@@ -1,3 +1,11 @@
+## 2026-10-28 — matching wave, queue batch 35: 9 more byte-matched, one symbol split
+
+See MATCHING_GUIDE "Queue batch 35" (func_001B99F0 / func_001B9A00 split in
+config/symbol_addrs.txt; four MPEG error stubs relabelled ee-gcc). Gate: fresh
+build + verify_all all six stages pass, boot ELF byte-identical, 19/19
+overlays, matched_code 99.97%, 2715/2717 units; audit_link_provenance clean
+(2218 ordinary-C routes).
+
 ## 2026-10-28 — matching wave, queue batch 34: 8 more byte-matched
 
 See MATCHING_GUIDE "Queue batch 34"; CURIOSITIES 32 gains the voice-steal

@@ -1,17 +1,13 @@
-// NEARMISS quat_nlerp (vram 0x001CA0A0, 0x114 bytes) — readable C, not byte-identical.
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 //
-// Measured 99.05797% with mwcc 2.3.3; compiled symbol size is exactly 276
-// bytes. Raw comparison differs at only 0x14/0x18: the compiler duplicates
-// the second 1.0f LUI into the first branch's delay slot and advances that
-// branch target by four bytes. The other 67 instructions match exactly.
-// The original assembly remains the linked implementation until this last
-// scheduling difference is resolved. mwcc991202 measured 92.46377%/264 bytes.
-// A later bounded search also reproduced the same residual with mwcc 2.4
-// and alternate readable clamp/control-flow forms. Disabling instruction
-// scheduling restores the first branch but reshapes the body (62.86%,
-// 284 bytes); disabling peephole gives 53.39%, 316 bytes.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.06% NEARMISS).
+// Fixes read from the original instructions:
+//  - The upper clamp on the blend factor is a ternary
+//    (`t = (t > 1.0f) ? 1.0f : t;`), not an if statement. With the if
+//    statement the compiler moved the second 1.0f constant setup into the
+//    clamp branch's delay slot; the ternary keeps the slot empty like the
+//    original.
 //
 // Despite the historical name, this does NOT normalize the result or use
 // spherical interpolation. It clamps only the upper blend bound, computes
@@ -22,7 +18,7 @@ void quat_nlerp(float *out, const float *a, const float *b, float t)
 {
     float inverse;
 
-    if (!(t <= 1.0f)) t = 1.0f;
+    t = (t > 1.0f) ? 1.0f : t;
     inverse = 1.0f - t;
     if (((a[0]*b[0] + a[1]*b[1]) + a[2]*b[2]) + a[3]*b[3] < 0.0f) {
         out[0] = b[0]*t - a[0]*inverse;

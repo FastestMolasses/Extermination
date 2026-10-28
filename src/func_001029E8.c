@@ -1,15 +1,17 @@
 // NEARMISS func_001029E8  (vram 0x001029E8, 0x74 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 0.00% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 0.00% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
+// diff needs instructions that plain C cannot express:
+// hand-written VU0 macro-mode code (22 VU0 coprocessor-2 instruction words, vector loads):
+// neither ee-gcc nor mwcc emits VU0 macro instructions from C. Tried ee-gcc -O2: 0.00%.
+// Only inline asm could match (not allowed).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// COMPILER: eegcc
+// CFLAGS: -O2
 
 typedef struct { float x, y, z, w; } VuVec;
 

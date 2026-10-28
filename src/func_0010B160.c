@@ -1,22 +1,27 @@
-// NEARMISS func_0010B160  (vram 0x0010B160, ?) — readable decompilation, NOT byte-identical.
+// NEARMISS func_0010B160  (vram 0x0010B160, 0x294 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 0.00% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 71.89% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
+// diff needs instructions that plain C cannot express:
+// SDK IPU-init code (ee-gcc, was mislabelled mwcc). The original inlines the privileged
+// interrupt-disable / pipeline-sync / Status-register read / interrupt-enable instructions
+// (SDK DI/EI-style macros); C-only, they are extern calls here, which add a stack frame and
+// shift the registers of the first block. Everything from the IPU reset onward lines up
+// apart from small scheduling differences that follow from the frame. Only inline asm closes it
+// (not allowed).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// COMPILER: eegcc
+// CFLAGS: -O2
 
 typedef unsigned char      u8;
 typedef unsigned short     u16;
 typedef unsigned int       u32;
 
 /* 16-byte aligned qword, moved with 128-bit loads/stores. */
-typedef struct { u32 w[4]; } qword;
+typedef unsigned int qword __attribute__((mode(TI)));
 
 #define IPU_CMD    (*(volatile u32 *)0x10002000)
 #define IPU_CTRL   (*(volatile u32 *)0x10002010)
@@ -40,14 +45,14 @@ extern u32  cop0_status(void);    /* read the COP0 Status register */
 extern qword D_00241BE0[];        /* [0..3] intra Q matrix, [4] flat non-intra */
 extern qword D_00241C30[];        /* [0..1] 32-byte VQ CLUT                    */
 
-static void ipu_wait_idle(void)
+static inline void ipu_wait_idle(void)
 {
     while (IPU_BUSY(IPU_CTRL)) {
         /* five nops of read latency in the original */
     }
 }
 
-static void ipu_cmd(u32 cmd)
+static inline void ipu_cmd(u32 cmd)
 {
     IPU_CMD = cmd;
     ipu_wait_idle();

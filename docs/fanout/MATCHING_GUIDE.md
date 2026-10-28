@@ -707,3 +707,27 @@ func_0011A2B0 (the voice-steal routine, see CURIOSITIES 32), func_001FD790 (the
 +0x34 index is a 31-bit bitfield; the old C tested a flags byte the original
 never reads). Improved and parked: func_00119EA0 91.74 (the old C had the
 0x8000 test inverted), func_00117088 82.88.
+
+### Queue batch 35 (2026-10-28)
+
+9 byte-matched plus one symbol split. Split: splat had merged func_001B99F0
+(0xC bytes, script opcode 0x09, a tail jump through the record) and the opcode
+0x0A handler at 0x001B9A00 (0x19C bytes) into one 0x1AC symbol; the existing C
+already matched both halves. config/symbol_addrs.txt now sizes func_001B99F0 as
+0xC and names func_001B9A00 (new file src/func_001B9A00.c); the word at
+0x1B99FC is alignment padding, and the link still places it (boot ELF
+identical). As with the func_001AB140 split, docs/FUNCTIONS.csv keeps the
+original row and size. Wrong compiler labels: the four MPEG decoder error stubs
+sub_sequenceScalableExtension_is_not, sub_pictureTemporalScalableExtension,
+sub_Unknown_Extension and sub_pictureSpatialScalableExtension_ are ee-gcc SDK
+code (a void call in tail position becomes the tail jump); they had scored 0%
+under mwcc. Others: func_00106948 (the callee func_00106490 returns long),
+func_002081A0 (an `int` length where the old C had short), func_0010A998 (two
+inline helpers recompute each buffer address as the original does),
+quat_nlerp (the clamp as a ternary). Improved and parked: func_001E1AD0 96.08,
+func_00103DC8 74.77, func_0010A248 94.26, func_001EEBA0 98.88, and near-misses
+whose remaining code is VU0 macro code or privileged instructions (inline asm
+needs a user decision): func_001CD070 45.25, func_001DA6A0 84.63,
+func_0010B160 71.89 (also relabelled ee-gcc), plus the hand-written assembly
+`_start` 26.40, func_001029E8 and func_00105088 (relabelled ee-gcc; their
+headers now say they are hand-written).

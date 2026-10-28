@@ -1,8 +1,8 @@
 // NEARMISS func_001EEBA0  (vram 0x001EEBA0, 0x30C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 98.88% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Two permuter-class residuals (NOT the clean-store nop): (1) the middle of three identical call sites has its float-constant arg loads (1.0f / 9.999e-7f / 10.0f) scheduled in a different order by mwcc -> instruction-scheduling permutation; (2) the trailing clamp block is instruction-identical but ...
+// Remaining differences: only the middle func_001CFB50 call's float-constant setup order (the target sets up 1e-6f and 10.0f before the PRNG store and 1.0f last, in the call's delay-slot region). This is the TU-neighbour constant-order class (MATCHING_GUIDE batch 27): compiling a preceding function first changes it, but the real predecessor func_001EE830 is itself a NEARMISS with the same residual, so it cannot be a TU_STATIC yet. The easing tail now matches as an in-place update through a field pointer. Not fixed by double literals, an int-staged 10.0f, local declaration orders, a separate float per iteration, or volatile init arrays.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,10 +12,10 @@
 // CFLAGS: -O4,p -sdatathreshold 4
 
 //
-// objdiff 97.9% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4);
+// objdiff 98.88% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4);
 // the pinned 991202 build reaches 89.6%. The LOGIC and STRUCTURE are fully
 // recovered and instruction order is byte-identical except for the residuals
-// noted below (compiler scheduling / FP-register-coloring artifacts).
+// noted below (float-constant setup order in one call).
 //
 // Initializes two 8-float global parameter blocks (D_00257380[], D_002574A0[]),
 // then runs three identical "emit particle/clip" iterations: each advances the
@@ -28,15 +28,8 @@
 // (Twin of func_001EAD70, which matches 100%, but with 3 iterations + the header
 // block + trailing clamp.)
 //
-// RESIDUAL (permuter-class, NOT the clean-store nop 2.3.3 fixes):
-//  (1) middle iteration: mwcc schedules the float-constant arg loads (1.0f vs
-//      9.999e-7f vs 10.0f) in a different order than the boot for that one of the
-//      three identical call sites -> instruction-scheduling permutation.
-//  (2) trailing clamp block: identical instruction sequence, but mwcc colors the
-//      FP temporaries ft0/ft1 where the boot uses fv0/fv1 -> FP-register-coloring.
-//  (3) header stores: byte-identical order; objdiff only flags the data-symbol
-//      granularity (boot has per-field symbols D_00257384.., this indexes one
-//      array D_00257380[]) -> same final addresses, cosmetic.
+// RESIDUAL: middle iteration only -- the float-constant argument setup order
+// (1.0f / 1e-6f / 10.0f) differs; depends on earlier compiler state in the TU.
 extern int *D_00275C34;
 extern int D_0081F8F0[2];
 extern float D_00257380[8];
@@ -51,6 +44,7 @@ void func_001CFBE0(int a, int b, void *c, void *d, int e);
 void func_001EEBA0(int arg0, int arg1) {
     int r;
     float f;
+    float v;
 
     D_00257380[0] = 8.0f;
     D_00257380[1] = 24.0f;
@@ -100,14 +94,12 @@ void func_001EEBA0(int arg0, int arg1) {
     func_001CFBE0(arg1, 1, D_00257480, D_0081F8F0, 1);
 
     {
-        float v;
-        v = *(float *)((char *)D_00275C34 + 8);
-        v += (0.02f - v) / 10.0f;
-        *(float *)((char *)D_00275C34 + 8) = v;
-        v = *(float *)((char *)D_00275C34 + 8);
-        if (v < 0.02f) {
-            v = 0.02f;
-        }
-        *(float *)((char *)D_00275C34 + 8) = v;
+        float *p = (float *)((char *)D_00275C34 + 8);
+        *p += (0.02f - *p) / 10.0f;
     }
+    v = *(float *)((char *)D_00275C34 + 8);
+    if (v < 0.02f) {
+        v = 0.02f;
+    }
+    *(float *)((char *)D_00275C34 + 8) = v;
 }

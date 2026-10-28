@@ -1,15 +1,21 @@
-// NEARMISS func_001DA6A0  (vram 0x001DA6A0, ?) — readable decompilation, NOT byte-identical.
+// NEARMISS func_001DA6A0  (vram 0x001DA6A0, 0x5E8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 49.82% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 84.63% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and
+// STRUCTURE are faithful (both kind dispatches are 13-entry switches, as the two jump tables show).
+// Remaining differences: the original performs the three clip tests with inline VU0 macro code
+// (matrix rows loaded once into vf24..vf27, one multiply-accumulate chain plus clip test per probe,
+// CLIP flags read from VI18 and masked to 6 bits); the C stand-in clip_flags() is a scalar call.
+// Because the original function contains inline asm, mwcc also skipped its global optimisations
+// there: the bone loop is neither strength-reduced nor has its count hoisted, and 128.0f / scale
+// stays a run-time divide. C-only code cannot reproduce that; with GCC-style inline asm for the
+// VU0 block (not committed, rule 2026-10-27) the same body reaches 98.9%.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// CFLAGS: -O4,p -sdatathreshold 4
 
 typedef unsigned char u8;
 
@@ -18,7 +24,7 @@ typedef struct { Vec4 r[4]; }        Mtx4;
 
 extern char  *D_00275B40;                 /* -> table of global object pointers   */
 extern char  *D_00275688;                 /* active camera/view record            */
-extern char **D_0028A56C;                 /* -> resource archive                  */
+extern char *D_0028A56C[];                /* [0] = resource archive               */
 
 extern const Vec4 D_0026E620;             /* { 0, -40, 0, 0 } probe offset        */
 extern const Vec4 D_0026E630;             /* { 0,   0, 0, 0 } probe offset        */
@@ -74,7 +80,7 @@ void func_001DA6A0(char *self)
 {
     Vec4  pos;              /* sp+0x40 */
     Vec4  probe[3];         /* sp+0x50, +0x60, +0x70 */
-    Mtx4  spin;             /* sp+0x80 — built and never read (see header)  */
+    Mtx4  spin;             /* sp+0x80 — built and never read               */
     Vec4  colA;             /* sp+0xC0 */
     Vec4  colB;             /* sp+0xD0 */
     Vec4  rot;              /* sp+0xE0 */
@@ -87,20 +93,22 @@ void func_001DA6A0(char *self)
     float scale;
     float unit;
     float yaw;
+    float x, z;
     float minx_a, minx_b, minz_a, minz_b;
     float d;
 
     variant = 0;
-    scale   = 8.0f;
-    unit    = 128.0f / scale;               /* 16.0f */
+    scale   = 16.0f;
+    unit    = 128.0f;
+    unit   /= scale;                        /* 8.0f */
 
     kind = *(short *)(self + 0x96);
     if (kind == 0) {
         return;
     }
 
-    /* 2. Anchor position (jtbl_0026E690, index kind - 0x28, 13 entries). */
-    if (kind == 0x28) {
+    switch (*(short *)(self + 0x96)) {
+    case 0x28:
         sub = *(u8 *)(self + 0x98);
         if (sub == 0xFF) {
             func_00102948(&pos, self + 0xB0);
@@ -110,21 +118,60 @@ void func_001DA6A0(char *self)
         if (*(u8 *)(self + 0x23C) != 0) {
             variant = 1;
         }
-    } else if (kind == 0x2E || kind == 0x2F || kind == 0x30 ||
-               kind == 0x31 || kind == 0x34) {
-        func_00102948(&pos, *(char **)(D_00275B40 + 8) + 0xC0);      /* entry 2 */
-    } else {
-        func_00102948(&pos, *(char **)(D_00275B40 + 0xC) + 0xC0);    /* entry 3 */
+        break;
+    case 0x29:
+    default:
+        func_00102948(&pos, *(char **)(D_00275B40 + 0xC) + 0xC0);
+        break;
+    case 0x2A:
+        func_00102948(&pos, *(char **)(D_00275B40 + 0xC) + 0xC0);
+        break;
+    case 0x2B:
+        func_00102948(&pos, *(char **)(D_00275B40 + 0xC) + 0xC0);
+        break;
+    case 0x2C:
+        func_00102948(&pos, *(char **)(D_00275B40 + 0xC) + 0xC0);
+        break;
+    case 0x2D:
+        func_00102948(&pos, *(char **)(D_00275B40 + 0xC) + 0xC0);
+        break;
+    case 0x2E:
+        func_00102948(&pos, *(char **)(D_00275B40 + 8) + 0xC0);
+        break;
+    case 0x2F:
+        func_00102948(&pos, *(char **)(D_00275B40 + 8) + 0xC0);
+        break;
+    case 0x30:
+        func_00102948(&pos, *(char **)(D_00275B40 + 8) + 0xC0);
+        break;
+    case 0x31:
+        func_00102948(&pos, *(char **)(D_00275B40 + 8) + 0xC0);
+        break;
+    case 0x32:
+        func_00102948(&pos, *(char **)(D_00275B40 + 0xC) + 0xC0);
+        break;
+    case 0x33:
+        func_00102948(&pos, *(char **)(D_00275B40 + 0xC) + 0xC0);
+        break;
+    case 0x34:
+        func_00102948(&pos, *(char **)(D_00275B40 + 8) + 0xC0);
+        break;
     }
     pos.w = 1.0f;
 
-    /* 3. Probe set (jtbl_0026E650: only kind 0x2E differs) and the clip test. */
-    func_00102948(&probe[0], &pos);
-    func_001028B8(&probe[1], &pos, &D_0026E620);
-    if (*(short *)(self + 0x96) == 0x2E) {
-        func_001028B8(&probe[2], &pos, &D_0026E640);
-    } else {
+    switch (*(short *)(self + 0x96)) {
+    case 0x28: case 0x29: case 0x2A: case 0x2B: case 0x2C: case 0x2D:
+    case 0x2F: case 0x30: case 0x31: case 0x32: case 0x33: case 0x34:
+    default:
+        func_00102948(&probe[0], &pos);
+        func_001028B8(&probe[1], &pos, &D_0026E620);
         func_001028B8(&probe[2], &pos, &D_0026E630);
+        break;
+    case 0x2E:
+        func_00102948(&probe[0], &pos);
+        func_001028B8(&probe[1], &pos, &D_0026E620);
+        func_001028B8(&probe[2], &pos, &D_0026E640);
+        break;
     }
 
     cam   = (const Mtx4 *)func_001CD370(0);
@@ -132,50 +179,47 @@ void func_001DA6A0(char *self)
     flags &= clip_flags(cam, &probe[1]);
     flags &= clip_flags(cam, &probe[2]);
     if (flags != 0) {
-        return;                              /* wholly outside one plane */
+        return;
     }
 
-    /* 4. Bone spread -> marker size. See the SHIPPED BUG note in the header:
-          all four accumulators take the minimum, so d is always 0. */
-    minx_a = minx_b = *(float *)(*(char **)(self + 0x114) + 0xC0);
-    minz_a = minz_b = *(float *)(*(char **)(self + 0x114) + 0xC8);
+    minx_a = *(float *)(*(char **)(self + 0x114) + 0xC0);
+    minx_b = minx_a;
+    minz_a = *(float *)(*(char **)(self + 0x114) + 0xC8);
+    minz_b = minz_a;
     for (i = 2; i < (int)*(u8 *)(self + 9); i++) {
         char *node = *(char **)(self + 0x110 + i * 4);
-        float x = *(float *)(node + 0xC0);
-        float z = *(float *)(node + 0xC8);
+        x = *(float *)(node + 0xC0);
+        z = *(float *)(node + 0xC8);
 
-        if (!(minx_a < x)) { minx_a = x; }
-        if (!(minx_b < x)) { minx_b = x; }   /* intended max(), see header */
-        if (!(minz_a < z)) { minz_a = z; }
-        if (!(minz_b < z)) { minz_b = z; }   /* intended max(), see header */
+        minx_a = (minx_a < x) ? minx_a : x;
+        minx_b = (minx_b < x) ? minx_b : x;
+        minz_a = (minz_a < z) ? minz_a : z;
+        minz_b = (minz_b < z) ? minz_b : z;
     }
-    d = func_0011E748((minx_b - minx_a) * (minx_b - minx_a) +
-                      (minz_b - minz_a) * (minz_b - minz_a));
+    d = (minx_b - minx_a) * (minx_b - minx_a) +
+        (minz_b - minz_a) * (minz_b - minz_a);
+    d = func_0011E748(d);
     if (!(d <= 7.0f)) {
         scale = 1.0f + 2.0f * d;
     }
 
-    /* 5. Marker orientation + nearest/farthest bone pick. */
     func_001D98A0(&pos, variant, unit);
     func_001DA080(D_00817FB0, D_00817FA0, self, D_00817FF0);
 
-    /* 6. Vestigial: built from the camera angle, never read. */
     yaw = *(float *)(D_00275688 + 0xB4);
     func_001029C0(&spin);
     func_00102BB0(&spin, &spin, yaw);
 
-    /* 7/8. Two billboards at `pos`, sized by `scale`. */
     func_001DA290(0, 0);
     colA = D_00253210;
     colB = D_00253220;
     rot  = D_00253230;
 
     func_001D1F80(0, 2, 9);
-    func_001DA310(&pos, &rot, &colB, func_001C6120(*D_0028A56C, 0x14), scale);
-    func_001DA310(&pos, &rot, &colA, func_001C6120(*D_0028A56C, 0x15), scale);
+    func_001DA310(&pos, &rot, &colB, func_001C6120(D_0028A56C[0], 0x14), scale);
+    func_001DA310(&pos, &rot, &colA, func_001C6120(D_0028A56C[0], 0x15), scale);
     func_001D1F20(0);
 
-    /* 9. Actor overlay pass + the two picked bone transforms. */
     func_001D9EE0(unit, self);
     func_001D5C80(D_00817FB0, D_00817FA0);
 }

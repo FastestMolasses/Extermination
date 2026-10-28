@@ -1,22 +1,21 @@
-// NEARMISS sub_pictureTemporalScalableExtension  (vram 0x0010AD78, 0xC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 0.00% via mwcc 2.3 (mwcps2-2.3-991202) (-O4,p -sdatathreshold 0). The LOGIC is
-// faithful and complete; the residual is a genuine compiler artifact no source change fixes:
-// tail-call/sibling-call trampoline — the target is 3 instructions (lui / j func / addiu in
-// the delay slot); mwcc has no way to emit a tail `j` from C and always emits jal + epilogue,
-// so essentially every instruction differs and the percentage is meaningless here.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// COMPILER: mwcc
-// CFLAGS: -O4,p -sdatathreshold 0
+// COMPILER: eegcc
+// CFLAGS: -O2
+
+/* Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 0.00% NEARMISS).
+ * Fixes read from the original instructions:
+ * - the compiler was wrong: this is ee-gcc SDK code (the MPEG/IPU decoder), not
+ *   mwcc; ee-gcc -O2 turns a void call in tail position into the 3-instruction
+ *   tail jump the original has, so no asm wrapper is needed.
+ * - func_0010A3A8 takes an int (its definition in src/), not an int pointer.
+ *
+ * MPEG decoder error path (named after its "pictureTemporalScalableExtension..."
+ * message): passes the address D_0026B778 to func_0010A3A8, which queues it on
+ * the live handler chain or dispatches it directly. */
 
 extern int D_0026B778[];
-extern void func_0010A3A8(int *);
+extern void func_0010A3A8(int a0);
 
-void sub_pictureTemporalScalableExtension(void) {
-    int *a0 = D_0026B778;
-    func_0010A3A8(a0);
+void sub_pictureTemporalScalableExtension(void)
+{
+    func_0010A3A8((int)D_0026B778);
 }
