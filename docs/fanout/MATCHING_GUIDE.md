@@ -481,3 +481,16 @@ switch for the states; the first callee takes self+0x1F0; argument order of
 func_001C5570; the second height bound is floor+12; the rig state becomes 3).
 Improved and parked: func_0011A070 92.90 (old C ran the scan for an
 out-of-range index; register copy in the first block).
+
+### Queue batch 24 (2026-10-27)
+
+3 byte-matched: func_0018D910 (the two scratchpad results are relocated
+externs adjusted in place; the old body wrote one the original leaves alone on
+a third-probe miss), func_0019B6C0 (indexed copy loops as in func_0019B7D0),
+func_0017B910 (`-sdatathreshold 4`; one extern per scratchpad word; a clip
+limit local. It declares func_0017B490 as returning long long and
+func_001C61D0's second parameter as short, which is how the original
+sign-extends them; their definitions in src/ say short and int, to reconcile).
+Improved and parked: func_001F3340 98.83, func_0012ADC0 99.87 (float copies
+where the old C copied ints), func_00158810 99.75 (FP and integer colouring
+only).

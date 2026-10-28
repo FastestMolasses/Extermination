@@ -1367,7 +1367,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0017B490,func_0017B490,292,readable,11,actor_anim
 0x0017B5C0,func_0017B5C0,148,readable,2,actor_anim
 0x0017B660,anim_matrix_player,680,readable,1,actor_anim
-0x0017B910,func_0017B910,816,nearmiss,1,actor_anim
+0x0017B910,func_0017B910,816,readable,1,actor_anim
 0x0017BC40,func_0017BC40,1004,readable,2,actor_anim
 0x0017C030,func_0017C030,820,readable,2,actor_anim
 0x0017C370,func_0017C370,208,readable,3,actor_anim
@@ -1545,7 +1545,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0018CE60,func_0018CE60,1220,readable,2,init_io
 0x0018D330,func_0018D330,1144,readable,1,init_io
 0x0018D7B0,func_0018D7B0,340,readable,17,init_io
-0x0018D910,func_0018D910,1032,nearmiss,1,init_io
+0x0018D910,func_0018D910,1032,readable,1,init_io
 0x0018DD20,func_0018DD20,6984,readable,1,init_io
 0x0018F870,func_0018F870,5796,readable,1,init_io
 0x00190F20,func_00190F20,212,readable,1,init_io
@@ -1606,7 +1606,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0019AFE0,func_0019AFE0,736,readable,30,level_world
 0x0019B2C0,func_0019B2C0,512,readable,2,level_world
 0x0019B4C0,func_0019B4C0,512,readable,3,level_world
-0x0019B6C0,func_0019B6C0,260,nearmiss,9,level_world
+0x0019B6C0,func_0019B6C0,260,readable,9,level_world
 0x0019B7D0,func_0019B7D0,232,readable,1,level_world
 0x0019B8C0,func_0019B8C0,436,readable,1,level_world
 0x0019BA80,func_0019BA80,436,readable,1,level_world
