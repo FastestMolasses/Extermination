@@ -1,16 +1,15 @@
-// NEARMISS func_001368D0  (vram 0x001368D0, 0x36C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 89.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two residual artifacts, both scheduling/coloring not logic: (1) the first early-return guard compiles to mirror-image branch polarity/target vs CW's short-hop `bnez` in every source shape tried; (2) the `(short)delta >= field` compare keeps its slt result in $at in target vs GPR in mwcc (same $at...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x700038AC
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 89.97% NEARMISS).
+// Fixes read from the original instructions:
+//  - the two entry guards return 0 directly (no shared goto label);
+//  - the tail tests "HP zero, or 0x54 >= 0x19, or flag 0xA000" first and runs
+//    the death reset + return 1 there, then the alive path + return 0;
+//  - the HP compare is spelled with the field on the left (`hp <= delta`);
+//  - the last scratchpad word (0x700038AC) is a relocated extern, so the
+//    D_00275B40 load can be scheduled above that store.
 //
 // Per-entity hit/damage-over-time tick (arg0 = entity, arg1 = attacker/DoT
 // source). If arg0+0x36's pending-hit word is nonzero and arg1 isn't already
@@ -37,17 +36,18 @@ extern void func_001EFD90(int a0, void *a1, void *a2);
 extern char *D_00275B40;
 extern char D_700036A0[];
 extern char D_700038A0[];
+extern int D_700038AC[];
 
 int func_001368D0(char *arg0, char *arg1) {
     short flags;
     int delta;
 
     if (*(short *)(arg0 + 0x36) == 0) {
-        goto skip;
+        return 0;
     }
     if (*(short *)(arg1 + 0x52) != 0) {
         *(short *)(arg0 + 0x36) = 0;
-        goto skip;
+        return 0;
     }
     *(char *)(arg0 + 0) = 2;
     *(short *)(arg1 + 0x52) = 0xFF;
@@ -69,7 +69,7 @@ int func_001368D0(char *arg0, char *arg1) {
         func_001EFE00(0x80000027, arg0);
     }
 
-    if ((short)delta >= *(short *)(arg0 + 0x34)) {
+    if (*(short *)(arg0 + 0x34) <= (short)delta) {
         *(short *)(arg0 + 0x34) = 0;
         func_00136F20((int)arg0, 0);
     } else {
@@ -84,7 +84,7 @@ int func_001368D0(char *arg0, char *arg1) {
             *(int *)0x700038A0 = 0x40000000;
             *(int *)0x700038A4 = 0x40880000;
             *(int *)0x700038A8 = 0;
-            *(int *)0x700038AC = 0x3F800000;
+            D_700038AC[0] = 0x3F800000;
             copy_qw4(&D_700036A0, *(char **)(D_00275B40 + 0x6C) + 0x90);
             func_001026A0(&D_700038A0, &D_700036A0, &D_700038A0);
             *(short *)(*(char **)(D_00275B40 + 0x6C) + 0x88) = 0;
@@ -124,25 +124,20 @@ int func_001368D0(char *arg0, char *arg1) {
         }
     }
 
-    if (*(short *)(arg0 + 0x34) != 0) {
-        short st = *(short *)(arg0 + 0x36);
-        if (*(short *)(arg1 + 0x54) >= 0x19 || (st & 0xA000) != 0) {
-            goto done;
-        }
-        if (st & 0x5000) {
-            *(short *)(arg1 + 0x52) = 0x1E;
-        } else {
-            *(short *)(arg1 + 0x52) = 0;
-        }
-        *(char *)(arg0 + 0) = 1;
-        *(short *)(arg0 + 0x36) = 0;
-skip:
-        return 0;
+    if (*(short *)(arg0 + 0x34) == 0 || *(short *)(arg1 + 0x54) >= 0x19
+        || (*(short *)(arg0 + 0x36) & 0xA000) != 0) {
+        *(char *)(arg0 + 4) = 2;
+        *(char *)(arg0 + 5) = 0;
+        *(char *)(arg0 + 6) = 0;
+        *(short *)(arg1 + 0x54) = 0;
+        return 1;
     }
-done:
-    *(char *)(arg0 + 4) = 2;
-    *(char *)(arg0 + 5) = 0;
-    *(char *)(arg0 + 6) = 0;
-    *(short *)(arg1 + 0x54) = 0;
-    return 1;
+    if (*(short *)(arg0 + 0x36) & 0x5000) {
+        *(short *)(arg1 + 0x52) = 0x1E;
+    } else {
+        *(short *)(arg1 + 0x52) = 0;
+    }
+    *(char *)(arg0 + 0) = 1;
+    *(short *)(arg0 + 0x36) = 0;
+    return 0;
 }

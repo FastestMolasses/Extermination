@@ -327,3 +327,19 @@ the unpinned local data makes the build link the original assembly, so the
 boot ELF stays byte-identical but these two do not yet count as C routes.
 Pinning that data (as tools/decomp/rodata_pin.py does for jump tables) or a
 spelling that emits no local data is open.
+
+### Queue batch 15 (2026-10-27)
+
+11 byte-matched: func_0019AA80 (destination array and 0x700031D0 as relocated
+externs; the loop counter declared first), func_001BC560 (stores through
+literal addresses keep each load-add-store in order: mwcc never moves a load
+above a store to a different literal address), func_002082B0 (a wrong tag
+constant, an int NLOOP, one 128-bit clear), func_00109E68 (ee-gcc: the arm
+result in a block-local; the flag set last), func_00185A10 (the cone distance
+used the wrong vector; -sdatathreshold 8), func_0019E930 (pointer strides of
+one element; a short field), func_001D6BA0 and func_001D64A0 (the DMA packet
+family spelling: `char **` table, slot `&T[idx]`, cursor `slot[4]`, body
+pointer before the cursor advance), func_0019D770 and its twin func_0019CF50
+(each span arm stores its own halfwords; a `for` walk), func_001368D0 (direct
+`return 0` guards; one scratch word as an unsized relocated array). Improved
+and parked: func_0010A400 96.23 (constant order).

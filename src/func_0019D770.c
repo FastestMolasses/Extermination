@@ -1,8 +1,18 @@
-// NEARMISS func_0019D770  (vram 0x0019D770, 0x3D8 bytes) — readable decompilation, NOT byte-identical.
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 90.13% NEARMISS).
+// Fixes read from the original instructions:
+//  - The span walk stores both scratchpad halfwords (0x70003B86, 0x70003B88) inside each arm;
+//    the even arm increments 0x70003B88 in place (store, reload, add 1, store), no short temp.
+//  - The cell-list pointer is computed before the walk test (a for loop, not if + do/while),
+//    spelled as an element of a six-entry table of halfword-list pointers at 0x70003210.
+//  - Face bounds compare as "face field <= bound" / "face field >= bound"; the kind skip is
+//    "kind < 0x51 || kind > 0x53"; the face address is (base word + index * 64) as one sum.
+//  - Point copies index the 0x70003190 block as a float array (relocated base + offsets),
+//    the restore loop reuses i, and the tail is "if (hit) {...; return 1;} return 0;".
+//  - The best span length is the first-declared local.
 //
-// objdiff 90.13% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The body follows the original instructions;
-// the residual diff is code generation only:
-// Body corrected 2026-09-26 against the original instructions, as its twin func_0019CF50.c was (was 86.58% with the wrong body): halfword stride of the six bounds at 0x70003240 (both the copy and the walk pointer), word stride of the column table at 0x70003228, halfword stride of the cell list. The bound copy sits between the two 0019F1A0 call pairs (unchanged). Residual: register coloring and loop-pointer strength reduction.
 // Twin of func_0019CF50: this one has no upper bound on the face kind (only 0x51..0x53 are skipped).
 // Result: 1 only if at least one face was accepted by 0019ED80 during the walk and the word at
 // 0x700031D0 read after the LAST accepted face is nonzero. On its success path 0019ED80 stores
@@ -25,23 +35,17 @@
 // of cells. Whether the game reaches this path (it needs
 // every one of the six span lengths >= the 0x7000320C word) is not established; a port must
 // either prove it unreachable for its data or reproduce the caller-register walk.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
 
 extern int func_0019ED80(void *node, void *edata);
-extern void func_0019F1A0(void *seg, int mask);
+extern void func_0019F1A0(float *pt, unsigned int mask);
 extern float D_70003190;
 extern float D_700031A0;
 extern short D_70003240;
 extern int D_70003228;
-extern int D_70003210;
+extern short *D_70003210[6];
 
 int func_0019D770(void) {
+    int best_len;
     int s1, s2, hit, best_i;
     int s5, s6;
     int sp80[6];
@@ -49,10 +53,9 @@ int func_0019D770(void) {
     int i;
     short *p;
     int *q;
-    int v0;
-    short v1;
     short a2, a3;
     int t0;
+    short *node;
 
     hit = 0;
     if (!(*(float *)0x70003190 <= *(float *)0x700031A0)) {
@@ -87,24 +90,23 @@ int func_0019D770(void) {
     func_0019F1A0(&D_70003190, s5);
     func_0019F1A0(&D_700031A0, s6);
 
-    v0 = *(int *)0x7000320C;
+    best_len = *(int *)0x7000320C;
     p = &D_70003240;
     q = &D_70003228;
     for (i = 0; i < 6; i++) {
         if (i & 1) {
             *(short *)0x70003B86 = *p;
-            a2 = *(short *)(*q + sp80[i] * 2);
+            *(short *)0x70003B88 = *(short *)(*q + sp80[i] * 2);
         } else {
             *(short *)0x70003B86 = *(short *)(*q + sp80[i] * 2);
             *(short *)0x70003B88 = *p;
-            a2 = *(short *)0x70003B88 + 1;
+            *(short *)0x70003B88 = *(short *)0x70003B88 + 1;
         }
-        *(short *)0x70003B88 = a2;
         a3 = *(short *)0x70003B88;
         a2 = *(short *)0x70003B86;
         t0 = a3 - a2;
-        if (t0 < v0) {
-            v0 = t0;
+        if (t0 < best_len) {
+            best_len = t0;
             s1 = a2;
             s2 = a3;
             best_i = i;
@@ -113,43 +115,39 @@ int func_0019D770(void) {
         q += 1;
     }
 
-    if (s1 < s2) {
-        short *node = (short *)(*(&D_70003210 + best_i)) + s1;
-        do {
-            char *e = (char *)(*(int *)0x70003208) + (*node << 6);
-            node += 1;
-            if (*(short *)0x70003240 >= *(short *)(e + 0xC) &&
-                *(short *)(e + 0xE) >= *(short *)0x70003242 &&
-                *(short *)0x70003248 >= *(short *)(e + 0x14) &&
-                *(short *)(e + 0x16) >= *(short *)0x7000324A &&
-                *(short *)0x70003244 >= *(short *)(e + 0x10) &&
-                *(short *)(e + 0x12) >= *(short *)0x70003246) {
-                short st = *(unsigned char *)(e + 0x1A);
-                *(short *)0x70003B88 = st;
-                st = *(short *)0x70003B88;
-                if (st < 0x51 || st >= 0x54) {
-                    if (func_0019ED80(&D_70003190, e)) {
-                        int k;
-                        for (k = 0; k < 3; k++) {
-                            *(float *)(0x70003190 + 0x10 + k * 4) = *(float *)(0x70003190 + 0x20 + k * 4);
-                            spA0[k] = *(float *)(0x70003190 + 0x20 + k * 4);
-                        }
-                        hit = *(int *)0x700031D0;
+    node = &D_70003210[best_i][s1];
+    for (; s1 < s2; s1++) {
+        char *e = (char *)(*(int *)0x70003208 + (*node << 6));
+        node += 1;
+        if (*(short *)(e + 0xC) <= *(short *)0x70003240 &&
+            *(short *)(e + 0xE) >= *(short *)0x70003242 &&
+            *(short *)(e + 0x14) <= *(short *)0x70003248 &&
+            *(short *)(e + 0x16) >= *(short *)0x7000324A &&
+            *(short *)(e + 0x10) <= *(short *)0x70003244 &&
+            *(short *)(e + 0x12) >= *(short *)0x70003246) {
+            short st = *(unsigned char *)(e + 0x1A);
+            *(short *)0x70003B88 = st;
+            st = *(short *)0x70003B88;
+            if (st < 0x51 || st > 0x53) {
+                if (func_0019ED80(&D_70003190, e)) {
+                    float *f = &D_70003190;
+                    int k;
+                    for (k = 0; k < 3; k++) {
+                        f[4 + k] = f[8 + k];
+                        spA0[k] = f[8 + k];
                     }
+                    hit = *(int *)0x700031D0;
                 }
             }
-            s1 += 1;
-        } while (s1 < s2);
+        }
     }
 
-    v0 = 0;
     if (hit != 0) {
-        int k;
-        for (k = 0; k < 3; k++) {
-            *(float *)(0x70003190 + 0x20 + k * 4) = spA0[k];
+        for (i = 0; i < 3; i++) {
+            (&D_70003190)[8 + i] = spA0[i];
         }
-        v0 = 1;
         *(int *)0x700031D0 = hit;
+        return 1;
     }
-    return v0;
+    return 0;
 }
