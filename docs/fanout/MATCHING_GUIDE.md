@@ -138,3 +138,29 @@ SaveTask struct). Improved and parked: func_0014B7B0 99.86 (one FPU
 coalescing choice), func_001EF780 98.06 and func_001EF1C0 96.80 (the family
 tail as an in-place `*p += (0.02f - *p) / 10.0f`; the remaining residual is
 the constant-argument order at the func_001CFB50 calls), func_001370C0 97.53.
+
+### Queue batch 3 (2026-10-27)
+
+19 byte-matched: func_001509A0 (each clamp reads the volatile scratch once into
+a temp and stores the temp), func_00197390 and func_001F9660 (an if/else or
+`!=` chain that is a `switch`; cases listed in reverse of the compare order),
+func_00154120 (anim_advance_time takes self; six per-address globals are one
+block), func_00198F10 (`void *` callee parameters so no conversion reorders
+the argument setup), func_00109068 (separate PTS/DTS locals; no early return),
+func_001D9070, func_00185E30, func_0010DD00 (store order only), func_00181730,
+func_0014A730 (a store in each if/else arm, not a default-then-overwrite
+temp), func_00107A28 (ee-gcc: a short-circuit `&&` result), func_001D63B0
+(twin func_001D6580's spelling), func_00214570 (a wrong call:
+func_0020B0D0((int)arg0, D_00265B80)), func_0010A650 (multiply order; an early
+read into its own local), func_00171E90 and func_00171B00 (twins func_00171320
+/ func_00171670), func_001D6C90 (one extra local holding the returned
+pointer), func_0019A6F0 (one-int callees; indexed copy loops over
+D_70003190[]). Improved and parked: func_001EE830 96.11.
+**Class to investigate once:** about ten func_001E* functions (func_001EB020,
+func_001EC5F0, func_001EF510 / 780 / 1C0, func_001EE830, func_001ED100 / 450
+/ 7A0, func_001EEBA0 / EEB0) stop on the order in which the float constants
+before their func_001CFB50 calls are materialised; per-function sweeps,
+permuter runs and other compilers did not move it.
+**Compiler-mix parks may be spellings:** func_0019AFE0 looked like a 991202
+slot-fill case but matched under 2.3.3 once one gate became a block-local
+`unsigned int` (sibling func_0019AD00); re-try the five compiler-mix parks.

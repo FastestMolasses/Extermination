@@ -1,19 +1,13 @@
-// NEARMISS func_001509A0  (vram 0x001509A0, 0x400 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.48% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP even/odd register-coloring permutation: in the three easing tails the target pairs the object-field load and the scratch reload into $f0/$f0f (same 64-bit register) and stores $f0f, while mwcc 2.3.3 uses $f1/$f0 and re-loads for the store. Permuter-class FP coloring, not the clean-store nop. B...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
 //
-// NEARMISS 96.48% (mwcc 2.3.3; 991202 = 94.6%). Body and control flow fully
-// recovered; residual is an FP register-coloring permutation (see WALL).
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.48% NEARMISS).
+// Fixes read from the original instructions:
+//  - The "FP even/odd coloring wall" was a wrong body: in each of the four
+//    staged-candidate tails the original reads the scratch value
+//    at 0x70003A20 ONCE into a temp, compares the field against it, and stores
+//    that temp into the field. The old C read the volatile scratch twice
+//    (compare, then store), which forced a second load.
 //
 // Camera/aim limit-clamp using the VU0 scratchpad block at 0x70003800/0x70003A20.
 // arg0 is the camera object (pitch arg0+0xB0, distance arg0+0xB8), arg1 the input
@@ -28,15 +22,10 @@
 //   staging each candidate through the scratch float at 0x70003A20.
 //
 // Scratch writes use the project's `*(volatile float/int *)0x7000XXXX` idiom;
+// each easing tail reads the staged scratch candidate once into a temp, compares
+// it with the field and stores that temp.
 // vector bases passed as &D_700038A0 / &D_700038B0 / &D_700036A0.
 //
-// WALL: in the three easing tails the target loads the object field (e.g.
-// 0xB8(s1)) into $f0 and the scratch value (0x3A20) into the ODD half $f0f of the
-// SAME 64-bit pair, then `c.lt.s f0,f0f` and stores $f0f; mwcc 2.3.3 colors them
-// as $f1 + $f0 and re-loads the scratch for the store. Even/odd FP-register
-// coloring permutation -- permuter class. Forcing a temp to share the value only
-// shifts the coloring; the direct double-volatile-read form (this file) scores
-// highest at 96.48%. Logic is byte-correct otherwise.
 extern void func_001026A0(float *a, float *b, float *c);
 extern void func_001028B8(float *a, float *b, float *c);
 extern void func_00102948(float *a, char *b);
@@ -52,6 +41,7 @@ extern float D_700038B0;
 
 void func_001509A0(char *arg0, char *arg1) {
     float lim;
+    float t;
     int sel;
 
     if (!(*(char *)(arg1 + 0x64) & 2)) {
@@ -93,8 +83,8 @@ void func_001509A0(char *arg0, char *arg1) {
                 }
                 if (!(*(char *)(arg1 + 0x64) & 1) && *(float *)(arg0 + 0xB8) < 10.0f) {
                     *(volatile float *)0x70003A20 = 10.0f - (*(float *)(arg0 + 0xB0) - 195.0f);
-                    if (*(float *)(arg0 + 0xB8) < *(volatile float *)0x70003A20) {
-                        *(float *)(arg0 + 0xB8) = *(volatile float *)0x70003A20;
+                    if (*(float *)(arg0 + 0xB8) < (t = *(volatile float *)0x70003A20)) {
+                        *(float *)(arg0 + 0xB8) = t;
                     }
                 }
             } else {
@@ -103,8 +93,8 @@ void func_001509A0(char *arg0, char *arg1) {
                 }
                 if (!(*(char *)(arg1 + 0x64) & 1) && *(float *)(arg0 + 0xB8) < 10.0f) {
                     *(volatile float *)0x70003A20 = 10.0f - func_0011DF78(sel, *(float *)(arg0 + 0xB0) - 5.0f);
-                    if (*(float *)(arg0 + 0xB8) < *(volatile float *)0x70003A20) {
-                        *(float *)(arg0 + 0xB8) = *(volatile float *)0x70003A20;
+                    if (*(float *)(arg0 + 0xB8) < (t = *(volatile float *)0x70003A20)) {
+                        *(float *)(arg0 + 0xB8) = t;
                     }
                 }
             }
@@ -114,13 +104,13 @@ void func_001509A0(char *arg0, char *arg1) {
             }
             if (*(float *)(arg0 + 0xB0) < 5.0f) {
                 *(volatile float *)0x70003A20 = 5.0f + (*(float *)(arg0 + 0xB8) - 10.0f);
-                if (*(float *)(arg0 + 0xB0) < *(volatile float *)0x70003A20) {
-                    *(float *)(arg0 + 0xB0) = *(volatile float *)0x70003A20;
+                if (*(float *)(arg0 + 0xB0) < (t = *(volatile float *)0x70003A20)) {
+                    *(float *)(arg0 + 0xB0) = t;
                 }
             } else if (!(*(float *)(arg0 + 0xB0) <= 195.0f)) {
                 *(volatile float *)0x70003A20 = 195.0f + func_0011DF78(sel, *(float *)(arg0 + 0xB8) - 10.0f);
-                if (!(*(float *)(arg0 + 0xB0) <= *(volatile float *)0x70003A20)) {
-                    *(float *)(arg0 + 0xB0) = *(volatile float *)0x70003A20;
+                if (!(*(float *)(arg0 + 0xB0) <= (t = *(volatile float *)0x70003A20))) {
+                    *(float *)(arg0 + 0xB0) = t;
                 }
             }
         }

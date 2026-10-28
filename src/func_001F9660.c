@@ -1,23 +1,17 @@
-// NEARMISS func_001F9660  (vram 0x001F9660, 0x114 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.23% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// All logic, case constants, store values, branch-likely (beql) dispatch, and single shared call site match. Sole residual: the region-compare `(...)==0x1500` is lowered as a branch-if-not-equal (else-block first, empty delay slot) but the target uses a branch-if-equal (then-block first) with the ==switc...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.23% NEARMISS).
+// Fixes read from the original instructions:
+// - The region test is a switch with one case (0x1500) and a default, not an
+//   if/else: the original branches to the case when equal, with the case's first
+//   compare in the delay slot, then jumps to the default block. An if/else gives
+//   the inverted branch with the else block first.
+
 // Copies 0x2F0 bytes into a local buffer, then sets buf[3] based on a region key
 // ((D_00810700<<8)+D_00810701) and the `key` arg, dispatching func_001F91C0(buf).
-// Default (no key match) returns without calling. Single shared call site; switch
+// No key match returns without calling. Single shared call site; inner switch
 // cases written in reversed source order (mwcc reverses to ascending dispatch).
-// Sole residual: the region-compare emits `bne` (else-first layout) where the
-// target emits `beq` (then-first) with the ==block's first compare in the delay
-// slot -- a block-ordering/branch-lowering artifact that offset-shifts the tail.
 extern void block_copy(void *dst, void *src, int len);
 extern void func_001F91C0(void *buf);
 extern unsigned char D_00810700;
@@ -27,7 +21,8 @@ void func_001F9660(void *src, int key) {
     unsigned char buf[0x2F0];
 
     block_copy(buf, src, 0x2F0);
-    if (((D_00810700 << 8) + D_00810701) == 0x1500) {
+    switch ((D_00810700 << 8) + D_00810701) {
+    case 0x1500:
         switch (key) {
         case 0x9D:
             buf[3] = 0xA;
@@ -38,7 +33,8 @@ void func_001F9660(void *src, int key) {
         default:
             return;
         }
-    } else {
+        break;
+    default:
         switch (key) {
         case 0x9C:
             buf[3] = 0x2;

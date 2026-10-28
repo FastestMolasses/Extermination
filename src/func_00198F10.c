@@ -1,16 +1,13 @@
-// NEARMISS func_00198F10  (vram 0x00198F10, 0x308 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.28% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// Argument scheduling at the two D_008105E0 easing calls (the target builds the float constant before the pointer) and the placement of the func_001026A0 call setup; the D_008105E0 array spelling and mwcc 2.4 / 991202 tried.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.28% NEARMISS).
+// Fixes read from the original instructions:
+//  - the easing callees func_0018C6A0 / func_0018C4B0 take untyped pointers here
+//    (void *), so no pointer conversion is applied at any call; the char * casts
+//    (and a float * prototype with casts) reordered the argument setup.
+//  - D_008105E0 is passed directly as &D_008105E0 at each call instead of through
+//    one shared pointer local (the original rebuilds the address per call).
 //
 // Camera homing step (decomp2 lane round 3: 91.95% -> 96.28%). State byte cam + 1:
 //   0: build the player matrix D_70003400 (player + 0xC0) and, by the kind byte
@@ -25,17 +22,16 @@
 //      func_00191530(cam, player), copy it to D_008105D0 and stop; else ease the
 //      target and D_008105E0 by 0.2 (func_0018C6A0 / func_0018C4B0).
 //      Then cam + 0x44 = func_001B1240(&D_008105D0, D_008105E0, D_008105E8).
-// Levers this round: D_70003600 as an extern (idiom-32), `+=` for the +6
-// (idiom-21), `break` for every return (idiom-27), and one pointer for the two
-// D_008105E0 calls.
+// Levers: D_70003600 as an extern (idiom-32), `+=` for the +6 (idiom-21),
+// `break` for every return (idiom-27).
 
 extern void func_001026A0(char *a0, void *a1, void *a2);
 extern void func_001028B8(char *a0, char *a1, char *a2);
 extern void func_00102948(void *a0, char *a1);
 extern void func_001029C0(void *a0);
 extern void func_00102C58(void *a0, void *a1, char *a2);
-extern void func_0018C4B0(char *a0, float a1, float a2);
-extern void func_0018C6A0(char *a0, char *a1, float a2);
+extern int func_0018C4B0(void *a0, float a1, float a2);
+extern int func_0018C6A0(void *a0, void *a1, float a2);
 extern void func_00191530(char *a0, char *a1);
 extern float func_001B1240(void *a0, float a1, float a2);
 
@@ -114,11 +110,8 @@ void func_00198F10(char *arg0, char *arg1) {
 
         func_0018C6A0(arg1 + 0xB0, arg0 + 0x20, 0.20000000298023224f);
         func_0018C4B0(arg0 + 0x20, *(float *)(arg1 + 0xB4) + *(float *)(arg0 + 0x8C), 0.20000000298023224f);
-        {
-            char *e0 = (char *)&D_008105E0;
-            func_0018C6A0(arg0 + 0x20, e0, 0.20000000298023224f);
-            func_0018C4B0(e0, *(float *)(arg0 + 0x24), 0.20000000298023224f);
-        }
+        func_0018C6A0(arg0 + 0x20, &D_008105E0, 0.20000000298023224f);
+        func_0018C4B0(&D_008105E0, *(float *)(arg0 + 0x24), 0.20000000298023224f);
 skip:
         *(float *)(arg0 + 0x44) = func_001B1240(&D_008105D0, D_008105E0, D_008105E8);
         break;

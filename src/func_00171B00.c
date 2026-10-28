@@ -1,15 +1,15 @@
-// NEARMISS func_00171B00  (vram 0x00171B00, 0x388 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 92.31% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-order permutation (same documented class as sibling func_00171320.c, which parks at 83.99% -- this one reaches a materially higher 92.31%). Entity-anim state machine (state byte at arg0+7, cases 0/1/10/11/default) with a matrix-pick tail block duplicated verbatim by the compil...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 92.31% NEARMISS).
+// Fixes read from the original instructions:
+//  - The matrix-pick block clears its "copied" flag first and is an if/else on
+//    the 0x33 stage byte (dispatch only, vs dispatch + pick) instead of an early
+//    return, as in the byte-matched twins func_00171320 / func_00171670 /
+//    func_00171E90; done is declared first.
+//  - Case 10 sets the mode as mode + 1 (computed in the dispatch delay slot).
+//  - Case 11's stage advance is a nested if/else (instances remain, then
+//    arg0+0x28 >= 6) with the mode-1 store in each else arm, not an else-if chain.
 
 //
 // Entity anim-state-machine step, dispatched on the mode byte at arg0+7.
@@ -25,11 +25,13 @@
 // tail's matrix-pick block.
 // case 10: reset flags, bump the linked entity's clip index, decrement the
 // live-instance counter D_00810CA8, fire func_001FBD50 for a state-transition
-// event (0x5DC for stage 0x31/0x34, 0x5DD -- to a NULL target -- otherwise),
-// fall into case 11.
+// event on arg0 (0x5DC for stage 0x31/0x34, 0x5DD otherwise; the original
+// reuses the incoming argument register for arg0 on the 0x5DD path), fall into
+// case 11.
 // case 11: advance the frame counter arg0+0x276; once it reaches
-// float_to_int(arg0+0x2F4) frames, reset it and (if instances remain) advance
-// the stage byte and bump arg0+6; clear mode byte arg0+7. Falls to the tail.
+// float_to_int(arg0+0x2F4) frames, reset it and bump arg0+0x28; if instances
+// remain and arg0+0x28 has reached 6, set the stage byte to 0x33, bump arg0+6
+// and clear mode byte arg0+7; otherwise set the mode back to 1. Falls to the tail.
 // default (anything else): skip straight to the tail.
 // tail / matrix-pick: unless stage byte arg0+0x1F0==0x33 (call
 // anim_matrix_dispatch and return), call anim_matrix_dispatch then pick a
@@ -46,8 +48,8 @@ extern int D_00275B40;
 extern short D_00810CA8[8];
 
 void func_00171B00(int arg0) {
-    unsigned char mode;
     int done;
+    unsigned char mode;
     unsigned char src;
 
     mode = *(unsigned char *)(arg0 + 7);
@@ -59,10 +61,10 @@ void func_00171B00(int arg0) {
     case 1:
         *(short *)(arg0 + 0x2E) = 1;
         if (func_001607D0((void *)arg0) != 0) {
+            done = 0;
             if (*(unsigned char *)(arg0 + 0x1F0) != 0x33) {
                 anim_matrix_dispatch((void *)arg0);
                 src = *(unsigned char *)(arg0 + 0x1F0);
-                done = 0;
                 if (src == 0x32 || src == 0x35) {
                     copy_qw4((void *)(arg0 + 0x2A0), (char *)(*(int *)(D_00275B40 + 0x10)) + 0x90);
                     done = 1;
@@ -78,9 +80,9 @@ void func_00171B00(int arg0) {
                     *(float *)(arg0 + 0x2D4) = *(float *)((char *)(*(int *)(D_00275B40 + 0x10)) + 0xC4);
                     *(float *)(arg0 + 0x2D8) = *(float *)((char *)(*(int *)(D_00275B40 + 0x10)) + 0xC8);
                 }
-                return;
+            } else {
+                anim_matrix_dispatch((void *)arg0);
             }
-            anim_matrix_dispatch((void *)arg0);
             return;
         }
         *(unsigned char *)(arg0 + 0x2F2) = 1;
@@ -95,7 +97,7 @@ void func_00171B00(int arg0) {
         }
         break;
     case 10:
-        *(unsigned char *)(arg0 + 7) = 11;
+        *(unsigned char *)(arg0 + 7) = mode + 1;
         *(unsigned char *)(arg0 + 0x274) = 0;
         *(unsigned char *)(arg0 + 0x2F2) = 0;
         *(short *)(*(int *)(arg0 + 0x20) + 0x2E) = 1;
@@ -112,14 +114,16 @@ void func_00171B00(int arg0) {
         if (*(short *)(arg0 + 0x276) >= float_to_int(*(float *)(arg0 + 0x2F4))) {
             *(short *)(arg0 + 0x276) = 0;
             *(short *)(arg0 + 0x28) = (short)(*(short *)(arg0 + 0x28) + 1);
-            if (D_00810CA8[0] == 0) {
-                *(unsigned char *)(arg0 + 7) = 1;
-            } else if (*(short *)(arg0 + 0x28) < 6) {
-                *(unsigned char *)(arg0 + 7) = 1;
+            if (D_00810CA8[0] != 0) {
+                if (*(short *)(arg0 + 0x28) >= 6) {
+                    *(unsigned char *)(arg0 + 0x1F0) = 0x33;
+                    *(unsigned char *)(arg0 + 6) = (unsigned char)(*(unsigned char *)(arg0 + 6) + 1);
+                    *(unsigned char *)(arg0 + 7) = 0;
+                } else {
+                    *(unsigned char *)(arg0 + 7) = 1;
+                }
             } else {
-                *(unsigned char *)(arg0 + 0x1F0) = 0x33;
-                *(unsigned char *)(arg0 + 6) = (unsigned char)(*(unsigned char *)(arg0 + 6) + 1);
-                *(unsigned char *)(arg0 + 7) = 0;
+                *(unsigned char *)(arg0 + 7) = 1;
             }
         }
         break;
@@ -127,10 +131,10 @@ void func_00171B00(int arg0) {
         break;
     }
 
+    done = 0;
     if (*(unsigned char *)(arg0 + 0x1F0) != 0x33) {
         anim_matrix_dispatch((void *)arg0);
         src = *(unsigned char *)(arg0 + 0x1F0);
-        done = 0;
         if (src == 0x32 || src == 0x35) {
             copy_qw4((void *)(arg0 + 0x2A0), (char *)(*(int *)(D_00275B40 + 0x10)) + 0x90);
             done = 1;
@@ -146,7 +150,7 @@ void func_00171B00(int arg0) {
             *(float *)(arg0 + 0x2D4) = *(float *)((char *)(*(int *)(D_00275B40 + 0x10)) + 0xC4);
             *(float *)(arg0 + 0x2D8) = *(float *)((char *)(*(int *)(D_00275B40 + 0x10)) + 0xC8);
         }
-        return;
+    } else {
+        anim_matrix_dispatch((void *)arg0);
     }
-    anim_matrix_dispatch((void *)arg0);
 }

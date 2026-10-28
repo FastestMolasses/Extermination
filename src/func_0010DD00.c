@@ -1,15 +1,17 @@
-// NEARMISS func_0010DD00  (vram 0x0010DD00, 0x134 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.95% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc coloring/list-scheduler wall. Body fully decoded and correct (DMA-chain/queue builder: validates (unsigned)(arg3-0x10)<0x61, builds a 16-byte-stride descriptor array on stack {ptr,D_00277220,size,0x44}, optional cache-flush via func_0010DFD8 when arg1&4, then isceSifSetDma(arr,count) if arg1&1 else sceSifSetDma(...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 95.95% NEARMISS).
+// Fixes read from the original instructions:
+//  - The descriptor's 0x44 tag is written after the packet header stores
+//    (packet word 2 = arg0, low byte = arg3), not with the other descriptor fields.
+//  - In the arg6 > 0 arm the descriptor fields and packet header are written
+//    interleaved: descriptor word 0, packet word 0, descriptor word 1, packet word 1.
+//
+// DMA-chain/queue builder: validates (unsigned)(arg3-0x10)<0x61, builds a
+// 16-byte-stride descriptor array on the stack {ptr, D_00277220, size, 0x44},
+// optionally flushes the cache for the payload via func_0010DFD8 when arg1&4,
+// then submits with isceSifSetDma(arr,count) if arg1&1 else sceSifSetDma.
 
 extern void func_0010DFD8(void *addr, int size);
 extern int isceSifSetDma(void *p, int n);
@@ -37,10 +39,10 @@ int func_0010DD00(int arg0, int arg1, void *arg2, int arg3,
     count = 0;
     if (arg6 > 0) {
         count = 1;
-        *(int *)((char *)arg2 + 4) = arg5;
         local[0].a = arg4;
         *(int *)arg2 = *(unsigned char *)arg2 | (arg6 << 8);
         local[0].b = arg5;
+        *(int *)((char *)arg2 + 4) = arg5;
         local[0].c = arg6;
         local[0].d = 0;
         if (arg1 & 4) {
@@ -54,9 +56,9 @@ int func_0010DD00(int arg0, int arg1, void *arg2, int arg3,
     local[count].a = (int)arg2;
     local[count].b = D_00277220;
     local[count].c = arg3;
-    local[count].d = 0x44;
     *(int *)((char *)arg2 + 8) = arg0;
     *(unsigned char *)arg2 = (unsigned char)arg3;
+    local[count].d = 0x44;
 
     func_0010DFD8(arg2, arg3);
     count++;

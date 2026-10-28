@@ -1,8 +1,8 @@
 // NEARMISS func_001EE830  (vram 0x001EE830, 0x364 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 95.88% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 96.11% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// FP register-coloring permutation in the func_001CFB50 call setup, identical to sibling func_001EF1C0. Body/structure/init-block 100% recovered, including the extra pre-easing step *(arg0+0x38) -= 2.0f. The three FP constants (1.0f, 1e-6f, 15.0f) color to fa2/fa3/fa4 here vs target fa1f/ft4/fa1 an...
+// Remaining differences: the order in which the three constant call arguments (1.0f, 1e-6f, 15.0f) of func_001CFB50 are materialized in the first and third calls (the target sets up 1e-6f/15.0f before 1.0f in call 1 and 15.0f early in call 3; call 2 matches) -- the same residual as siblings func_001EF1C0/func_001EF780. The init block (volatile float[8] arrays, indexed) and the easing tail (in-place update through a field pointer) now match exactly. Not fixed by int-staged constants (idiom-24), constant locals in any declaration order, double literals, a timer local, a void* callee parameter, or compiler mwcc24.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,12 +12,9 @@
 // CFLAGS: -O4,p -sdatathreshold 4
 
 //
-// NEARMISS (mwcc233 = 95.88%, 991202 = 87.49%): body, structure, and the
-// absolute in-order init block fully recovered. Sole residual is the same
-// FP register-coloring permutation as sibling func_001EF1C0 -- the func_001CFB50
-// call's FP constant args (1.0f, 1e-6f, 15.0f) color to fa2/fa3/fa4 here vs the
-// target's fa1f/ft4/fa1 and load in a different order; the tail-clamp temp colors
-// differently. Permuter territory; 2.3.3 does not fix it.
+// NEARMISS (mwcc233 = 96.11%): body, structure, init block and easing tail
+// fully recovered; the sole residual is the func_001CFB50 constant-argument
+// setup order shared by the whole sibling family.
 //
 // Periodic particle/effect re-seed (sibling of func_001EF1C0 / func_001ED450).
 // Rewrites three 8-word (0x20) global descriptor blocks at D_002576E0,
@@ -33,15 +30,15 @@
 // D_00275C34+8 toward 0.02 by a tenth each call and clamps it to a 0.02 floor.
 //
 // -sdatathreshold 4: D_00275C34 stays gp-relative; init globals declared
-// volatile float[2] to stay absolute (hi/lo) and emit in address order.
+// volatile float[8] to stay absolute (hi/lo) and emit in address order.
 extern int *D_00275C34;
 extern int D_002576C0[2];
 extern int D_00257750[2];
 extern int D_002577E0[2];
 extern int D_0081F8F0[2];
-extern volatile float D_002576E0[2], D_002576E4[2], D_002576E8[2], D_002576EC[2], D_002576F0[2], D_002576F4[2], D_002576F8[2], D_002576FC[2];
-extern volatile float D_00257770[2], D_00257774[2], D_00257778[2], D_0025777C[2], D_00257780[2], D_00257784[2], D_00257788[2], D_0025778C[2];
-extern volatile float D_00257800[2], D_00257804[2], D_00257808[2], D_0025780C[2], D_00257810[2], D_00257814[2], D_00257818[2], D_0025781C[2];
+extern volatile float D_002576E0[8];
+extern volatile float D_00257770[8];
+extern volatile float D_00257800[8];
 
 void func_001CFB50(void *p, int b, int c, float f0, float f1, float f2, float f3, float f4);
 void func_001CFBE0(int a, int b, void *c, void *d, int e);
@@ -51,10 +48,9 @@ void func_001EE830(int arg0, int arg1) {
     float f;
     float v;
 
-    D_002576E0[0] = 12.0f; D_002576E4[0] = 12.0f; D_002576E8[0] = 16.0f;
-    D_002576EC[0] = 0.0f; D_002576F0[0] = 0.0f; D_002576F4[0] = 0.0f; D_002576F8[0] = 0.0f; D_002576FC[0] = 0.0f;
-    D_00257770[0] = 32.0f; D_00257774[0] = 32.0f; D_00257778[0] = 64.0f; D_0025777C[0] = 96.0f; D_00257780[0] = 16.0f; D_00257784[0] = 16.0f; D_00257788[0] = 64.0f; D_0025778C[0] = 0.0f;
-    D_00257800[0] = 32.0f; D_00257804[0] = 32.0f; D_00257808[0] = 64.0f; D_0025780C[0] = 96.0f; D_00257810[0] = 16.0f; D_00257814[0] = 16.0f; D_00257818[0] = 64.0f; D_0025781C[0] = 0.0f;
+    D_002576E0[0] = 12.0f; D_002576E0[1] = 12.0f; D_002576E0[2] = 16.0f; D_002576E0[3] = 0.0f; D_002576E0[4] = 0.0f; D_002576E0[5] = 0.0f; D_002576E0[6] = 0.0f; D_002576E0[7] = 0.0f;
+    D_00257770[0] = 32.0f; D_00257770[1] = 32.0f; D_00257770[2] = 64.0f; D_00257770[3] = 96.0f; D_00257770[4] = 16.0f; D_00257770[5] = 16.0f; D_00257770[6] = 64.0f; D_00257770[7] = 0.0f;
+    D_00257800[0] = 32.0f; D_00257800[1] = 32.0f; D_00257800[2] = 64.0f; D_00257800[3] = 96.0f; D_00257800[4] = 16.0f; D_00257800[5] = 16.0f; D_00257800[6] = 64.0f; D_00257800[7] = 0.0f;
 
     r = D_00275C34[1];
     f = (float)((r >> 0x10) & 0xFFFF);
@@ -80,11 +76,12 @@ void func_001EE830(int arg0, int arg1) {
     func_001CFB50(D_0081F8F0, 0, arg0, *(float *)((char *)D_00275C34 + 0x54), f, 1.0f, 9.999999974752427e-07f, 15.0f);
     func_001CFBE0(arg1, 1, D_002577E0, D_0081F8F0, 1);
 
-    *(float *)((char *)arg0 + 0x38) = *(float *)((char *)arg0 + 0x38) - 2.0f;
+    *(float *)((char *)arg0 + 0x38) -= 2.0f;
 
-    v = *(float *)((char *)D_00275C34 + 8);
-    v += (0.02f - v) / 10.0f;
-    *(float *)((char *)D_00275C34 + 8) = v;
+    {
+        float *p = (float *)((char *)D_00275C34 + 8);
+        *p += (0.02f - *p) / 10.0f;
+    }
     v = *(float *)((char *)D_00275C34 + 8);
     if (v < 0.02f) { v = 0.02f; }
     *(float *)((char *)D_00275C34 + 8) = v;

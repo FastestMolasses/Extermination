@@ -1,15 +1,18 @@
-// NEARMISS func_00107A28  (vram 0x00107A28, 0x9C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.77% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc branch-delay-slot fill choice. C is structurally correct and bytes match except one block: a bounds-check wrapper reading (*(D_002412F4+0x40)), comparing fields 0xDC/0xE4 against arg0[1]/arg0[2]/(arg0[3]*arg0[4]) into bool s0, then if !s0 calls sprintf-like func_00122D10(buf,D_0026B548,arg0[1],arg0[2]) + func...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 95.77% NEARMISS).
+// Fixes read from the original instructions:
+//  - The bounds result is a short-circuit `&&` expression (field 0xDC >= arg0[1]
+//    && field 0xE0 >= arg0[2]), not an if/else with an explicit `s0 = 0` arm and a
+//    negated compare. The nested if/else form let ee-gcc cross-jump the two
+//    identical "invert the compare" tails into one; the original keeps both copies.
+//
+// Bounds check: reads the context at (*(D_002412F4 + 0x40)). If its field 0xE0 is
+// nonzero, the request (arg0[1], arg0[2]) must fit within fields 0xDC / 0xE0;
+// otherwise the area arg0[3] * arg0[4] must fit within field 0xE4. On failure it
+// formats a message (sprintf-like func_00122D10 with D_0026B548, arg0[1], arg0[2])
+// and prints it via func_0010A3A8. Returns 1 when the request fits, else 0.
 
 extern void *D_002412F4;
 extern char D_0026B548[];
@@ -24,13 +27,9 @@ int func_00107A28(int *arg0)
 	int s0;
 
 	if (e0 != 0) {
-		if (*(int *)((char *)ctx + 0xDC) < arg0[1]) {
-			s0 = 0;
-		} else {
-			s0 = !(e0 < arg0[2]);
-		}
+		s0 = *(int *)((char *)ctx + 0xDC) >= arg0[1] && e0 >= arg0[2];
 	} else {
-		s0 = !(*(int *)((char *)ctx + 0xE4) < (arg0[3] * arg0[4]));
+		s0 = *(int *)((char *)ctx + 0xE4) >= arg0[3] * arg0[4];
 	}
 
 	if (s0 == 0) {

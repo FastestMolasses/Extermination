@@ -1,15 +1,19 @@
-// NEARMISS func_0010A650  (vram 0x0010A650, 0x344 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.61% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler / GPR-coloring wall on the last ~9 instructions. Whole tail (heap alloc, func_0010A998 12-arg call with 8-byte-stride stack args, all 9 func_0010A4D8 calls) is byte-identical, and the 6-store init block + the D_0024142C address materialization now match exactly. Residual: ee-...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 95.61% NEARMISS).
+// Fixes read from the original instructions:
+//  - the work-area size multiplies width first: (w * 0x180 * h), not (h * 0x180 * w);
+//    the operand order decided which of w/h got which register.
+//  - ctx[0] (the previous width) is read into its own local BEFORE the global
+//    width/height stores; the original loads it ahead of those stores, which a
+//    direct ctx[0] read after them cannot do (possible aliasing).
+//
+// Recomputes the macroblock-aligned frame dimensions (16-pixel rounding; the
+// height is rounded to 32 and doubled in one mode), publishes them to the
+// globals, and when they differ from the size stored in ctx re-initialises the
+// work-area heap, allocates three 64-byte-aligned frame buffers, rebuilds the
+// nine plane descriptors and resizes each (luma full height, chroma half).
 
 extern int D_00241BB0;
 extern int D_002414AC;
@@ -52,6 +56,7 @@ void func_0010A650(int *ctx)
     int h;
     int t;
     int *p2c;
+    int cw;
 
     st = (char *)ctx[0x10];
 
@@ -74,10 +79,11 @@ void func_0010A650(int *ctx)
 
     w = D_00241428 << 4;
     h = D_0024142C << 4;
+    cw = ctx[0];
     D_0024140C = w;
     D_00241410 = h;
 
-    if (w == ctx[0] && h == ctx[1])
+    if (w == cw && h == ctx[1])
         return;
 
     ctx[1] = h;
@@ -86,7 +92,7 @@ void func_0010A650(int *ctx)
     D_00241418 = h >> 1;
 
     heap = (void *)(st + 0x108);
-    size = (unsigned int)(h * 0x180 * w) >> 8;
+    size = (unsigned int)(w * 0x180 * h) >> 8;
     func_00109C68(heap);
     *(int *)(st + 0xFC) = sub_work_area_size_is_too_small(heap, size, 0x40);
     *(int *)(st + 0x100) = sub_work_area_size_is_too_small(heap, size, 0x40);

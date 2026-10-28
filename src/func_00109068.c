@@ -1,15 +1,18 @@
-// NEARMISS func_00109068  (vram 0x00109068, 0x588 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.18% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc GPR-coloring wall. Expected colors the bitstream pointer into $s3 and the three PTS/DTS field temps into $s0/$s1/$s2; ee-gcc colors the pointer into $s1 and the temps into $s3/$s2/$s0. That single swap accounts for ~50 of the ~54 differing instructions (almost all of them the repeated `dadd...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.18% NEARMISS).
+// Fixes read from the original instructions:
+//  - the PTS and DTS fields are read into their own locals (a/b/c and a2/b2/c2);
+//    sharing one set made the "colouring wall" (pointer and field temps swapped).
+//  - hdrlen is declared after the flag locals (its stack slot follows escr_flag's).
+//  - the DTS default (-1) is stored before the PTS default.
+//  - the PES-header path has no return of its own: it falls through to the common
+//    `return 1`, so its skip tail is not merged with the padding-stream tail.
+//
+// MPEG-2 PES packet header parser: reads start code, stream_id and packet length,
+// then for normal streams the optional header (PTS/DTS, ESCR, extension fields),
+// skips the rest of the header and the payload; special streams only skip.
 
 extern int func_001086F8(char *bs, int nbits);      /* get_bits            */
 extern void func_00108748(char *bs);                /* marker_bit          */
@@ -22,10 +25,13 @@ extern char D_0026B590[];                           /* "pack header" message    
 int func_00109068(char *bs, char *pes)
 {
     int saved;
-    int hdrlen, n, n2, rem, rem2;
+    int n, n2, rem, rem2;
     int pts_dts_flags, escr_flag, optflags, ext_flag;
+    int hdrlen;
     unsigned int a;
     int b, c;
+    unsigned int a2;
+    int b2, c2;
     int f1, f2, f3, f4, f5;
     unsigned int i, len;
 
@@ -33,8 +39,8 @@ int func_00109068(char *bs, char *pes)
     func_001086F8(bs, 24);                                        /* start code prefix */
     *(long *)(pes + 0x00) = (long)func_001086F8(bs, 8) << 32;     /* stream_id         */
     *(int *)(pes + 0x08) = func_001086F8(bs, 16);                 /* PES_packet_length */
-    *(long *)(pes + 0x10) = -1;
     *(long *)(pes + 0x18) = -1;
+    *(long *)(pes + 0x10) = -1;
 
     if (*(long *)(pes + 0x00) != 0xBC00000000L &&
         *(long *)(pes + 0x00) != 0xBE00000000L &&
@@ -69,14 +75,14 @@ int func_00109068(char *bs, char *pes)
         }
         if (pts_dts_flags == 3) {
             func_001086F8(bs, 4);
-            a = func_001086F8(bs, 3);
+            a2 = func_001086F8(bs, 3);
             func_00108748(bs);
-            b = func_001086F8(bs, 15);
+            b2 = func_001086F8(bs, 15);
             func_00108748(bs);
-            c = func_001086F8(bs, 15);
+            c2 = func_001086F8(bs, 15);
             func_00108748(bs);
-            *(long *)(pes + 0x18) = ((long)((a >> 2) & 1) << 32) |
-                                    (unsigned int)((a << 30) | (b << 15) | c);
+            *(long *)(pes + 0x18) = ((long)((a2 >> 2) & 1) << 32) |
+                                    (unsigned int)((a2 << 30) | (b2 << 15) | c2);
         }
         if (escr_flag == 1)
             func_001086F8(bs, 0x30);
@@ -125,7 +131,6 @@ int func_00109068(char *bs, char *pes)
         }
         if (rem2 != 0)
             func_00108790(bs, rem2);
-        return 1;
     } else if (*(long *)(pes + 0x00) == 0xBC00000000L ||
                *(long *)(pes + 0x00) == 0xBF00000000L ||
                *(long *)(pes + 0x00) == 0xF000000000L ||

@@ -1,15 +1,18 @@
-// NEARMISS func_0014A730  (vram 0x0014A730, 0x264 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.84% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure fully recovered (3-state switch/fallthrough dispatcher on arg0+6, anim_clip_init self-arg + trailing-0.0f pair, func_001FBD50 self-arg, D_00245BD0[][2] 4-byte-stride clip table). Residual is a register-allocation/tail-duplication scheduling artifact in the shared 'v1=6; if(f<=20.0f...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 95.84% NEARMISS).
+// Fixes read from the original instructions:
+//  - The pose-select tail (both arms) is an if/else with a separate store of
+//    8 or 6 to arg0+5 in each branch, not a temp defaulted to 6 and
+//    overwritten; the default-then-overwrite spelling coloured the temp into a
+//    different register and merged the stores.
+//
+// 3-state switch/fallthrough dispatcher on arg0+6: state 0 resets arg1's
+// fields and starts a clip (0x30 when arg1+0x87 is set, 0x2E with a
+// func_001FBD50 cue when arg0+0x36 has bit 15, otherwise a random clip from
+// D_00245BD0); state 1 waits for arg1+0x20 bit 0x1000; state 2 also clears
+// arg1+0x87 once arg0+0x3C drops to 45 or below.
 
 extern void anim_clip_init(char *self, int clip, float a, float b);
 extern void func_001FBD50(char *p, int a, int b, float f);
@@ -18,7 +21,6 @@ extern short D_00245BD0[][2];
 
 void func_0014A730(char *arg0, char *arg1) {
     unsigned char state;
-    int v1;
 
     state = *(unsigned char *)(arg0 + 6);
     switch (state) {
@@ -55,11 +57,11 @@ void func_0014A730(char *arg0, char *arg1) {
             *(short *)(arg1 + 0x72) = 0;
             *(short *)(arg0 + 0x36) = 0;
             *(char *)(arg1 + 0x85) = 0x3C;
-            v1 = 6;
             if (*(float *)(arg1 + 0x68) <= 20.0f) {
-                v1 = 8;
+                *(char *)(arg0 + 5) = 8;
+            } else {
+                *(char *)(arg0 + 5) = 6;
             }
-            *(char *)(arg0 + 5) = v1;
         }
         break;
     case 2:
@@ -74,11 +76,11 @@ void func_0014A730(char *arg0, char *arg1) {
             *(short *)(arg1 + 0x72) = 0;
             *(short *)(arg0 + 0x36) = 0;
             *(char *)(arg1 + 0x85) = 0x3C;
-            v1 = 6;
             if (*(float *)(arg1 + 0x68) <= 20.0f) {
-                v1 = 8;
+                *(char *)(arg0 + 5) = 8;
+            } else {
+                *(char *)(arg0 + 5) = 6;
             }
-            *(char *)(arg0 + 5) = v1;
         }
         break;
     }
