@@ -1,8 +1,24 @@
 // NEARMISS func_0022BBC0  (vram 0x0022BBC0, 0x1794 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 89.07% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 88.728% on mwcc 2.3.3 (-O4,p -sdatathreshold 0), 1509 instructions. Body/structure fully recovered (all five jump tables decode cleanly and every case body is present); the residual is dominated by ONE class. (1) WHOLE-FUNCTION SAVED-REGISTER PERMUTATION — this is ~80% of the diff rows and it is ...
+// objdiff 96.10% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4, TU_STATIC func_0022BB70).
+// The LOGIC and STRUCTURE are faithful. Matching wave 2026-10-28 (was 89.07%), fixes read from the
+// original instructions:
+//  - func_0022BB70 is a same-TU static callee (// TU_STATIC:); the original keeps the ring index in
+//    $a0 across that call. CFLAGS take the helper's -sdatathreshold 4; the four burst-size floats
+//    are unsized arrays so they stay absolute.
+//  - The seq[0xD] tests in timeline opcodes 0/3/4/6/7 are switches (one-case, and 1/3/9 for op 6).
+//  - The scroll loop has its own counter and actor pointer; the shade tests take the field address
+//    once; seq[0xD] case 0 and cases 6-8 of the fade step are separate identical bodies.
+//  - The emit block reads the 0x70003A20 scale before the 0x700038A0 stores; the variant-9 burst
+//    kind is assigned after both scratchpad stores; the burst loop reuses the period variable (the
+//    original's one saved register for both).
+//  - Render ring: the LCG state advances in place; the 0x70003A24 life is read into a local right
+//    after its store; each scale case stores 0x70003A28 itself (no default); each draw case adds its
+//    own lifetime step; 0x70003A2C is stored through a relocated extern so the alpha test reloads it.
+// Remaining differences: the ring-reset loop's -1 constant is set in the call delay slot (original:
+// after the call, plus one alignment nop), the variant-9 non-5 draw call orders its constant
+// argument setup differently, the render ring's life store is forwarded to the compare instead of
+// reloaded, and some saved-register colouring that follows.
 //
 // CORRECTED 2026-09-27 (AREA01 wave-2 review, checked against the original
 // instructions; original-instruction harness: 0 differing cases).
@@ -24,7 +40,9 @@
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// CFLAGS: -O4,p -sdatathreshold 4
+// TU_STATIC: func_0022BB70
+// SPAD: 0x70003A2C
 
 //
 // SEMANTICS (label from an earlier pass, not proven; on the AREA01 route this
@@ -80,11 +98,11 @@ extern char D_00268360[];
 extern char D_002683F0[];
 extern char D_00268480[];
 extern char D_00268900[];
-extern float D_00268910;
-extern float D_00268918;
+extern float D_00268910[];
+extern float D_00268918[];
 extern char D_00268990[];
-extern float D_002689A0;
-extern float D_002689A8;
+extern float D_002689A0[];
+extern float D_002689A8[];
 extern char D_00268A20[];
 extern char D_00268AB0[];
 extern float D_700036A0[4];
@@ -93,6 +111,7 @@ extern float D_700036C0[4];
 extern float D_700036D0[4];
 extern float D_700038A0[4];
 extern float D_700038C0[4];
+extern volatile float D_70003A2C[];
 
 extern void copy_qw4(float *dst, float *src);
 extern void func_001026A0(float *dst, float *quat, float *vec);
@@ -115,7 +134,8 @@ extern void func_001F0290();
 extern void func_0021B9A0(int chan, float a, float b);
 extern int func_0022B700(char *seq, int id);
 extern int func_0022B7A0(char *seq);
-extern char *func_0022BB70(int slot);
+static int func_0022BB70(int a0);  /* same-TU callee, see TU_STATIC */
+#include "src/func_0022BB70.c"
 
 void func_0022BBC0(char *seq)
 {
@@ -128,17 +148,19 @@ void func_0022BBC0(char *seq)
     int state;
     int kind;
     int i;
+    int j;
+    char *q;
+    short *sp;
     int off;
     int period;
     int burst;
     int handle;
     int seed;
-    int seedB;
-    int seedC;
     int n;
     float alpha;
     float scale;
     float t;
+    float life;
 
     state = (unsigned char)seq[4];
     scn = *(char **)(seq + 0x24);
@@ -158,7 +180,7 @@ void func_0022BBC0(char *seq)
             return;
         }
         for (i = 0; i < 0x41; i++) {
-            *(short *)(func_0022BB70(i) + 0xE) = -1;
+            *(short *)((char *)func_0022BB70(i) + 0xE) = -1;
         }
         *(int *)(w + 0x94) = func_00122BB8();
         *(int *)(w + 0x9C) = 0;
@@ -182,8 +204,8 @@ void func_0022BBC0(char *seq)
             if (*(int *)(w + 0xAC) == *(short *)ev) {
                 switch (*(short *)(ev + 2)) {
                 case 0:
-                    if (*(unsigned char *)(seq + 0xD) != 0) {
-                    } else {
+                    switch (*(unsigned char *)(seq + 0xD)) {
+                    case 0:
                         *(int *)(w + 0xA0) = *(short *)(ev + 6);
                         *(float *)(w + 0x80) = (1.0f - *(float *)(scn + 0x60)) /
                             (float)*(short *)(*(char **)(w + 0x90) + off + 6);
@@ -191,6 +213,7 @@ void func_0022BBC0(char *seq)
                             (float)*(short *)(*(char **)(w + 0x90) + off + 6);
                         *(float *)(w + 0x88) = (1.0f - *(float *)(scn + 0x68)) /
                             (float)*(short *)(*(char **)(w + 0x90) + off + 6);
+                        break;
                     }
                     break;
                 case 1:
@@ -204,19 +227,21 @@ void func_0022BBC0(char *seq)
                     w[*(short *)(ev + 4) + 0x38] = (char)*(short *)(ev + 6);
                     break;
                 case 3:
-                    if (*(unsigned char *)(seq + 0xD) != 0) {
-                    } else {
+                    switch (*(unsigned char *)(seq + 0xD)) {
+                    case 0:
                         *(short *)(*(char **)(scn + 0x110 + *(short *)(ev + 4) * 4) + 0x88) = 0;
                         *(short *)(*(char **)(scn + 0x110 +
                             *(short *)(*(char **)(w + 0x90) + off + 4) * 4) + 0x8A) = 0;
                         *(short *)(*(char **)(scn + 0x110 +
                             *(short *)(*(char **)(w + 0x90) + off + 4) * 4) + 0x8C) = 0;
+                        break;
                     }
                     break;
                 case 4:
-                    if (*(unsigned char *)(seq + 0xD) != 0) {
-                    } else {
+                    switch (*(unsigned char *)(seq + 0xD)) {
+                    case 0:
                         scn[4] = 3;
+                        break;
                     }
                     break;
                 case 5:
@@ -259,7 +284,10 @@ void func_0022BBC0(char *seq)
                     break;
                 case 6:
                     kind = *(unsigned char *)(seq + 0xD);
-                    if (kind == 9 || kind == 3 || kind == 1) {
+                    switch (kind) {
+                    case 1:
+                    case 3:
+                    case 9:
                         *(int *)(w + 0x9C) = *(short *)(ev + 6);
                         *(float *)(w + 0x70) = (*(float *)(seq + 0x80) - *(float *)(scn + 0x80)) /
                             (float)*(short *)(*(char **)(w + 0x90) + off + 6);
@@ -269,12 +297,14 @@ void func_0022BBC0(char *seq)
                             (float)*(short *)(*(char **)(w + 0x90) + off + 6);
                         *(float *)(w + 0x7C) = (*(float *)(seq + 0x8C) - *(float *)(scn + 0x8C)) /
                             (float)*(short *)(*(char **)(w + 0x90) + off + 6);
+                        break;
                     }
                     break;
                 case 7:
-                    if (*(unsigned char *)(seq + 0xD) != 1) {
-                    } else {
+                    switch (*(unsigned char *)(seq + 0xD)) {
+                    case 1:
                         func_001CA6E0(scn, D_0028A490[*(short *)(ev + 6)]);
+                        break;
                     }
                     break;
                 case 8:
@@ -301,21 +331,23 @@ void func_0022BBC0(char *seq)
         }
         if (*(int *)(w + 0xA4) != 0) {
             *(int *)(w + 0xA4) = *(int *)(w + 0xA4) - 1;
-            p = scn;
-            for (i = 0; i < (int)(unsigned char)scn[0xC]; i++) {
-                act = *(char **)(p + 0x110);
+            j = 0;
+            q = scn;
+            for (; j < (int)(unsigned char)scn[0xC]; j++) {
+                act = *(char **)(q + 0x110);
                 *(short *)(act + 0x8A) = (short)(*(short *)(act + 0x8A) - *(int *)(w + 0xA8));
-                act = *(char **)(p + 0x110);
-                if (*(short *)(act + 0x8A) < 0) {
-                    *(short *)(act + 0x8A) = 0;
+                sp = (short *)(*(char **)(q + 0x110) + 0x8A);
+                if (*sp < 0) {
+                    *sp = 0;
                 }
-                p += 4;
+                q += 4;
             }
         }
 
         /* ---- per-actor trail emitters ---- */
+        i = 0;
         p = scn;
-        for (i = 0; i < (int)(unsigned char)scn[0xC]; i++) {
+        for (; i < (int)(unsigned char)scn[0xC]; i++) {
             if (w[i] != 0) {
                 switch (*(unsigned char *)(seq + 0xD)) {
                 case 0:
@@ -419,14 +451,15 @@ void func_0022BBC0(char *seq)
                 }
 
                 if ((w[i] % period) == 1) {
+                    scale = *(volatile float *)0x70003A20;
                     *(volatile float *)0x700038A0 = *(float *)(*(char **)(p + 0x110));
                     *(volatile float *)0x700038A4 = *(float *)(*(char **)(p + 0x110) + 4);
                     *(volatile float *)0x700038A8 = *(float *)(*(char **)(p + 0x110) + 8);
                     *(volatile float *)0x700038AC = 1.0f;
-                    func_00103230(D_700038A0, D_700038A0, *(volatile float *)0x70003A20);
+                    func_00103230(D_700038A0, D_700038A0, scale);
                     func_001028B8(D_700038A0, D_700038A0, D_700038C0);
                     func_001026A0(D_700038A0, (float *)(*(char **)(p + 0x110) + 0x90), D_700038A0);
-                    act = func_0022BB70(*(int *)(w + 0xB0));
+                    act = (char *)func_0022BB70(*(int *)(w + 0xB0));
                     *(float *)act = *(volatile float *)0x700038A0 + *(volatile float *)0x700038B0;
                     *(float *)(act + 4) = *(volatile float *)0x700038A4 + *(volatile float *)0x700038B4;
                     *(float *)(act + 8) = *(volatile float *)0x700038A8 + *(volatile float *)0x700038B8;
@@ -442,14 +475,24 @@ void func_0022BBC0(char *seq)
 
                 switch (*(unsigned char *)(seq + 0xD)) {
                 case 0:
+                    act = *(char **)(p + 0x110);
+                    *(short *)(act + 0x88) = (short)(*(short *)(act + 0x88) - 0x66);
+                    sp = (short *)(*(char **)(p + 0x110) + 0x88);
+                    if (*sp < 0) {
+                        *sp = 0;
+                        *(short *)(*(char **)(p + 0x110) + 0x8A) = 0;
+                        *(short *)(*(char **)(p + 0x110) + 0x8C) = 0;
+                        w[i] = 0;
+                    }
+                    break;
                 case 6:
                 case 7:
                 case 8:
                     act = *(char **)(p + 0x110);
                     *(short *)(act + 0x88) = (short)(*(short *)(act + 0x88) - 0x66);
-                    act = *(char **)(p + 0x110);
-                    if (*(short *)(act + 0x88) < 0) {
-                        *(short *)(act + 0x88) = 0;
+                    sp = (short *)(*(char **)(p + 0x110) + 0x88);
+                    if (*sp < 0) {
+                        *sp = 0;
                         *(short *)(*(char **)(p + 0x110) + 0x8A) = 0;
                         *(short *)(*(char **)(p + 0x110) + 0x8C) = 0;
                         w[i] = 0;
@@ -481,23 +524,23 @@ void func_0022BBC0(char *seq)
                         break;
                     case 1:
                         *(volatile float *)0x70003A20 = 0.5f;
-                        burst = 2;
                         *(volatile float *)0x70003A24 = 5.0f;
+                        burst = 2;
                         break;
                     case 2:
                         *(volatile float *)0x70003A20 = 1.0f;
-                        burst = 2;
                         *(volatile float *)0x70003A24 = 15.0f;
+                        burst = 2;
                         break;
                     case 3:
                         *(volatile float *)0x70003A20 = 1.0f;
-                        burst = 4;
                         *(volatile float *)0x70003A24 = 20.0f;
+                        burst = 4;
                         break;
                     case 4:
                         *(volatile float *)0x70003A20 = 1.0f;
-                        burst = 6;
                         *(volatile float *)0x70003A24 = 20.0f;
+                        burst = 6;
                         break;
                     case 5:
                         *(volatile float *)0x70003A20 = 1.0f;
@@ -516,15 +559,15 @@ void func_0022BBC0(char *seq)
                     handle = func_001CCF70(D_700036D0);
                     func_001F0190(-145.0f, 450.0f);
                     if (w[i + 0x38] == 5) {
-                        for (n = 1; n < 4; n++) {
-                            t = 3.0f * (float)n;
-                            D_00268910 = t;
-                            D_00268918 = t;
-                            D_002689A0 = t;
-                            D_002689A8 = t;
+                        for (period = 1; period < 4; period++) {
+                            t = 3.0f * (float)period;
+                            D_00268910[0] = t;
+                            D_00268918[0] = t;
+                            D_002689A0[0] = t;
+                            D_002689A8[0] = t;
                             func_001CFB50(spA0, 0, D_700036A0,
                                           *(volatile float *)0x70003A28,
-                                          0.123456f * (float)n, 1.0f, 0.000001f,
+                                          0.123456f * (float)period, 1.0f, 0.000001f,
                                           *(volatile float *)0x70003A24);
                             func_001CFBE0(handle, 1, D_00268990, spA0, 1);
                             func_001CFBE0(handle, 1, D_00268900, spA0, 1);
@@ -548,36 +591,36 @@ void func_0022BBC0(char *seq)
         func_0021B9A0(3, 1.0f, 20.0f);
         seed = *(int *)(w + 0x94);
         for (i = 0; i < 0x41; i++) {
-            act = func_0022BB70(i);
-            seedB = (seed * 0x25) + 0xB;
-            seedC = (seedB * 0x25) + 0xB;
+            act = (char *)func_0022BB70(i);
             *(volatile float *)0x70003A24 = 0.0001f * (float)*(short *)(act + 0xE);
+            life = *(volatile float *)0x70003A24;
             *(volatile float *)0x700038D0 =
                 ((float)((seed >> 0x10) & 0xFFFF) / 65535.0f) + 0.0001f;
+            seed = (seed * 0x25) + 0xB;
             *(volatile float *)0x700038D4 =
-                ((float)((seedB >> 0x10) & 0xFFFF) / 65535.0f) + 0.0001f;
+                ((float)((seed >> 0x10) & 0xFFFF) / 65535.0f) + 0.0001f;
+            seed = (seed * 0x25) + 0xB;
             *(volatile float *)0x700038D8 =
-                ((float)((seedC >> 0x10) & 0xFFFF) / 65535.0f) + 0.0001f;
-            seed = (seedC * 0x25) + 0xB;
-            if (!(*(volatile float *)0x70003A24 < 0.0f)) {
-                scale = 1.0f;
+                ((float)((seed >> 0x10) & 0xFFFF) / 65535.0f) + 0.0001f;
+            seed = (seed * 0x25) + 0xB;
+            if (!(life < 0.0f)) {
                 switch (*(short *)(act + 0xC)) {
                 case 0:
-                case 3:
-                case 4:
-                    scale = 1.0f;
+                    *(volatile float *)0x70003A28 = 1.0f;
                     break;
                 case 1:
-                    scale = 1.5f;
+                    *(volatile float *)0x70003A28 = 1.5f;
                     break;
                 case 2:
-                    scale = 2.0f;
+                    *(volatile float *)0x70003A28 = 2.0f;
                     break;
-                default:
-                    goto no_scale;
+                case 3:
+                    *(volatile float *)0x70003A28 = 1.0f;
+                    break;
+                case 4:
+                    *(volatile float *)0x70003A28 = 1.0f;
+                    break;
                 }
-                *(volatile float *)0x70003A28 = scale;
-no_scale:
                 func_001029C0(D_700036A0);
                 func_00103230(D_700036A0, D_700036A0, *(volatile float *)0x70003A28);
                 func_00103230(D_700036B0, D_700036B0, *(volatile float *)0x70003A28);
@@ -589,7 +632,7 @@ no_scale:
                 if (handle != 0xFFFFFF) {
                     switch (*(unsigned char *)(seq + 0xD)) {
                     case 0:
-                        *(volatile float *)0x70003A2C =
+                        D_70003A2C[0] =
                             func_001CD2B0(15.0f, 20.0f, 320.0f, 320.0f);
                         alpha = *(volatile float *)0x70003A2C;
                         if (alpha != 0.0f) {
@@ -601,17 +644,17 @@ no_scale:
                             func_001CFB50(spA0, 0, D_700036A0,
                                           *(volatile float *)0x70003A24,
                                           *(volatile float *)0x700038D4,
-                                          *(volatile float *)0x70003A2C,
+                                          D_70003A2C[0],
                                           0.000001f, 8.0f);
                             func_001CFBE0(handle, 1, D_00268120, spA0, 0);
                             func_001CFB50(spA0, 0, D_700036A0,
                                           *(volatile float *)0x70003A24,
                                           *(volatile float *)0x700038D8,
-                                          *(volatile float *)0x70003A2C,
+                                          D_70003A2C[0],
                                           0.000001f, 8.0f);
                             func_001CFBE0(handle, 1, D_002681B0, spA0, 0);
                         }
-                        n = *(short *)(act + 0xE) + 0xC8;
+                        *(short *)(act + 0xE) += 0xC8;
                         break;
                     case 6:
                     case 7:
@@ -622,7 +665,7 @@ no_scale:
                                       0.000001f, 8.0f);
                         func_001CFBE0(handle, 1, D_00268240, spA0, 0);
                         func_001CFBE0(handle, 1, D_002682D0, spA0, 0);
-                        n = *(short *)(act + 0xE) + 0xFA;
+                        *(short *)(act + 0xE) += 0xFA;
                         break;
                     case 4:
                         func_001CFB50(spA0, 0, D_700036A0,
@@ -630,7 +673,7 @@ no_scale:
                                       *(volatile float *)0x700038D0, 1.0f,
                                       0.1f, 0.0f);
                         func_001CFBE0(handle, 1, D_00268360, spA0, 0);
-                        n = *(short *)(act + 0xE) + 0xC8;
+                        *(short *)(act + 0xE) += 0xC8;
                         break;
                     case 5:
                         func_001CFB50(spA0, 0, D_700036A0,
@@ -638,7 +681,7 @@ no_scale:
                                       *(volatile float *)0x700038D0, 1.0f,
                                       0.1f, 0.0f);
                         func_001CFBE0(handle, 1, D_002683F0, spA0, 0);
-                        n = *(short *)(act + 0xE) + 0xC8;
+                        *(short *)(act + 0xE) += 0xC8;
                         break;
                     case 2:
                     case 3:
@@ -647,7 +690,7 @@ no_scale:
                                       *(volatile float *)0x700038D0, 1.0f,
                                       0.000001f, 0.0f);
                         func_001CFBE0(handle, 1, D_00268AB0, spA0, 0);
-                        n = *(short *)(act + 0xE) + 0xC8;
+                        *(short *)(act + 0xE) += 0xC8;
                         break;
                     case 1:
                         func_001CFB50(spA0, 0, D_700036A0,
@@ -655,13 +698,12 @@ no_scale:
                                       *(volatile float *)0x700038D0, 1.0f,
                                       0.000001f, 5.0f);
                         func_001CFBE0(handle, 1, D_00268A20, spA0, 0);
-                        n = *(short *)(act + 0xE) + 0xC8;
+                        *(short *)(act + 0xE) += 0xC8;
                         break;
                     default:
-                        n = *(short *)(act + 0xE) + 0x3A98;
+                        *(short *)(act + 0xE) += 0x3A98;
                         break;
                     }
-                    *(short *)(act + 0xE) = (short)n;
                 }
                 if (*(short *)(act + 0xE) >= 0x3A99) {
                     *(short *)(act + 0xE) = -1;

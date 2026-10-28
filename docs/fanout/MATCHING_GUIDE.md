@@ -731,3 +731,16 @@ needs a user decision): func_001CD070 45.25, func_001DA6A0 84.63,
 func_0010B160 71.89 (also relabelled ee-gcc), plus the hand-written assembly
 `_start` 26.40, func_001029E8 and func_00105088 (relabelled ee-gcc; their
 headers now say they are hand-written).
+
+### Queue batch 36 (2026-10-28)
+
+2 byte-matched: func_00207E40 (`-sdatathreshold 4`; the packet family's
+spelling; the texture width and height shifts as locals reassigned in place,
+which keeps the UV word ahead of the header stores), func_001C1570 (the old C
+misread a cos() argument and the interpolation step; both random draws are
+inside the loop; four globals are fields of the record passed to
+func_001CFBE0). Improved and parked: func_001EE4E0 95.99, func_001EE190 95.99
+(the old C passed 0 where the original passes 1 to func_001CFBE0),
+func_0022BBC0 96.10 (a same-file static callee via `// TU_STATIC:`; the
+caller-register reads of CURIOSITIES 21 kept as locals left uninitialised on
+those paths).
