@@ -1,8 +1,8 @@
 // NEARMISS sub_EXTERMINATION  (vram 0xXTERMINATION, 0xAA8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 91.35% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// REGISTER-ALLOCATION-ORDER wall (park / permuter candidate). Instruction COUNT matches exactly (720 vs 720) and the emitted shape is recovered instruction for instruction — including the `movz a1,tplA,i` template select in bank A, the `sq` quadword arena clear, the two jr-table dispatches (jtbl_00...
+// objdiff 94.31% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
+// diff is register colouring:
+// Register colouring only remains (see the NEARMISS paragraph below); the emitted shape is recovered instruction for instruction, including the conditional-move template select in bank A, the quadword arena clear and the two jump-table dispatches.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -31,19 +31,20 @@
 //     timing constants, resets the fog/clear colour (func_0021BA80) and
 //     duplicates the 0x30-byte matrix at D_00275670+0xA0 into +0xC0 and +0x100.
 //
-// NEARMISS 91.38% (mwcc 2.3.3; 81.67% on the pinned 2.3.1.01 build).  Instruction
-// COUNT matches exactly (720 = 720) and the shape is recovered instruction for
-// instruction -- including the `movz` template select in bank A, the `sq` arena
-// clear, every GIFtag/AD constant and all seven loop strides.  384 of the 720
-// instructions differ only in which register they name: CodeWarrior and mwcc pick
-// different saved/temporary numbers for the per-bank (counter, offset, packet
-// pointer) triples (e.g. bank A target s4=packet/s3=index/s0=offset vs mwcc
-// s1/s0/s4).  This is the register-allocation-ORDER wall -- declaration and
-// first-use ordering already match, mwcc just numbers the registers differently --
-// so it is a permuter job, not a source-idiom one.  The only non-register
-// residuals left are the 3-instruction address formation for D_0026E3F0 (CW forms
-// lui/addiu then `ld 0(reg)`; mwcc folds it to lui/%lo) and two scheduling swaps in
-// banks E and F.
+// NEARMISS 94.31% (mwcc 2.3.3; matching wave 2026-10-27, was 91.35%).  Instruction
+// COUNT matches exactly (720 = 720).  Fixed this wave: the pattern word is read as a
+// 64-bit value through a cast of the symbol's address (gives the original's
+// address-then-load form); the packet offsets are written as index * stride (the
+// strength-reduced offsets then colour like the original's); in banks B and D the
+// counter increment sits after the address use; bank E indexes its tail through a
+// second pointer q; bank G's inner loop has its own signed counter j and its mode
+// words are written inline; bank C names its template pointer.
+// Remaining differences: register colouring only -- in banks A, C, E, F and G the
+// (counter, offset, packet pointer) triples get different numbers (e.g. bank E target
+// keeps the counter in a saved register and the pointer in a temporary, mwcc the
+// reverse), the prologue clear loop swaps the counter/pointer temporaries, and bank
+// G's hoisted mode-word ORs use one shared temporary in the original (which changes
+// their schedule).  Too large for the 600 s permuter budget.
 extern void block_copy(void *dst, void *src, int len);
 extern void func_00101898(void *env, int a, int w, int h, int mode, int b, int c);
 extern void func_001CB5C0(void *p);
@@ -56,7 +57,7 @@ extern void func_0021BA80(int r, int g, int b);
 
 typedef int u128 __attribute__((mode(TI)));
 
-extern long long D_0026E3F0[4];
+extern char D_0026E3F0[];
 extern char *D_00275670;
 extern char *D_00275674;
 extern char D_0028F700[];
@@ -64,22 +65,20 @@ extern int D_007635C0[];
 
 void sub_EXTERMINATION(void) {
     char fb[0x330];             /* stack scratch: video-mode desc + packet templates */
-    char *p;
-    char *q;
     char *tplA;
     char *tplB;
-    u128 pat;
+    char *tplC;
     unsigned int i;
-    int off;
-    int koff;
+    char *p;
+    char *q;
+    u128 pat;
+    int j;
     int k;
     int mode;
     int field;
-    long long modebits;
-    long long ad1;
 
     i = 0;
-    pat = (u128)D_0026E3F0[0];
+    pat = (u128)*(long long *)D_0026E3F0;
     q = D_0028F700;
     do {
         i += 1;
@@ -106,9 +105,8 @@ void sub_EXTERMINATION(void) {
     tplA = fb + 0x50;
     tplB = fb + 0x1C0;
     i = 0;
-    off = 0;
     do {
-        p = D_00275674 + off + 0x20;
+        p = D_00275674 + i * 0x190 + 0x20;
         block_copy(p + 0x10, (i == 0) ? tplA : tplB, 0x110);
         *(int *)(p + 0x00) = 0;
         *(int *)(p + 0x04) = 0;
@@ -131,15 +129,12 @@ void sub_EXTERMINATION(void) {
         *(long long *)(p + 0x180) = (long long)1 << 0x20;
         i += 1;
         *(long long *)(p + 0x188) = 0x3B;
-        off += 0x190;
     } while (i < 2);
 
     /* bank B: two 0x30-stride single-register packets at +0x340 */
     i = 0;
-    off = 0;
     do {
-        i += 1;
-        p = D_00275674 + off;
+        p = D_00275674 + i * 0x30;
         *(int *)(p + 0x340) = 0;
         *(int *)(p + 0x344) = 0;
         *(int *)(p + 0x348) = 0x11000000;
@@ -147,16 +142,16 @@ void sub_EXTERMINATION(void) {
         *(long long *)(p + 0x350) = ((long long)0x10000000 << 0x20) | 0x8001;
         *(long long *)(p + 0x358) = 0xE;
         *(long long *)(p + 0x360) = 0;
-        off += 0x30;
         *(long long *)(p + 0x368) = 0x3D;
+        i += 1;
     } while (i < 2);
 
     /* bank C: two 0x80-stride packets at +0x3A0 */
+    tplC = fb + 0x160;
     i = 0;
-    off = 0;
     do {
-        p = D_00275674 + off + 0x3A0;
-        block_copy(p + 0x20, fb + 0x160, 0x60);
+        p = D_00275674 + i * 0x80 + 0x3A0;
+        block_copy(p + 0x20, tplC, 0x60);
         *(int *)(p + 0x00) = 0;
         *(int *)(p + 0x04) = 0;
         *(int *)(p + 0x08) = 0x11000000;
@@ -172,86 +167,80 @@ void sub_EXTERMINATION(void) {
             break;
         }
         i += 1;
-        off += 0x80;
     } while (i < 2);
 
     /* bank D: four 0x40-stride TEST-register packets at +0x4A0 */
     i = 0;
-    off = 0;
     do {
-        *(int *)(D_00275674 + off + 0x4A0) = 0;
-        *(int *)(D_00275674 + off + 0x4A4) = 0;
-        *(int *)(D_00275674 + off + 0x4A8) = 0x11000000;
-        *(int *)(D_00275674 + off + 0x4AC) = 0x50000003;
-        *(long long *)(D_00275674 + off + 0x4B0) = ((long long)0x10000000 << 0x20) | 0x8002;
-        *(long long *)(D_00275674 + off + 0x4B8) = 0xE;
+        *(int *)(D_00275674 + i * 0x40 + 0x4A0) = 0;
+        *(int *)(D_00275674 + i * 0x40 + 0x4A4) = 0;
+        *(int *)(D_00275674 + i * 0x40 + 0x4A8) = 0x11000000;
+        *(int *)(D_00275674 + i * 0x40 + 0x4AC) = 0x50000003;
+        *(long long *)(D_00275674 + i * 0x40 + 0x4B0) = ((long long)0x10000000 << 0x20) | 0x8002;
+        *(long long *)(D_00275674 + i * 0x40 + 0x4B8) = 0xE;
         switch (i) {
         case 0:
-            *(long long *)(D_00275674 + off + 0x4D0) = 5;
+            *(long long *)(D_00275674 + i * 0x40 + 0x4D0) = 5;
             break;
         case 1:
-            *(long long *)(D_00275674 + off + 0x4D0) = 0;
+            *(long long *)(D_00275674 + i * 0x40 + 0x4D0) = 0;
             break;
         case 2:
-            *(long long *)(D_00275674 + off + 0x4D0) = ((long long)0x37C << 0x20) | 0x7FC00A;
+            *(long long *)(D_00275674 + i * 0x40 + 0x4D0) = ((long long)0x37C << 0x20) | 0x7FC00A;
             break;
         case 3:
-            *(long long *)(D_00275674 + off + 0x4D0) = ((long long)0x3FC << 0x20) | 0x3FC00A;
+            *(long long *)(D_00275674 + i * 0x40 + 0x4D0) = ((long long)0x3FC << 0x20) | 0x3FC00A;
             break;
         }
-        i += 1;
-        p = D_00275674 + off;
-        off += 0x40;
+        p = D_00275674 + i * 0x40;
         *(long long *)(p + 0x4D8) = 8;
+        i += 1;
     } while (i < 4);
 
     /* bank E: four 0x40-stride FRAME/field packets at +0x5A0 */
     i = 0;
-    off = 0;
     do {
-        p = D_00275674 + off;
+        p = D_00275674 + i * 0x40;
         *(int *)(p + 0x5A0) = 0x11000000;
         *(int *)(p + 0x5A4) = 0;
         *(int *)(p + 0x5A8) = 0;
         *(int *)(p + 0x5AC) = 0x50000003;
         *(long long *)(p + 0x5B0) = ((long long)0x10000000 << 0x20) | 0x8002;
         *(long long *)(p + 0x5B8) = 0xE;
-        p += 0x5A0;
+        q = p + 0x5A0;
         switch (i) {
         case 1:
-            *(long long *)(p + 0x20) = 0x5000D;
-            *(long long *)(p + 0x30) = ((long long)*(unsigned short *)(fb + 0x70) & 0x1FF) |
+            *(long long *)(q + 0x20) = 0x5000D;
+            *(long long *)(q + 0x30) = ((long long)*(unsigned short *)(fb + 0x70) & 0x1FF) |
                                        (((long long)*(unsigned char *)(fb + 0x73) & 0xF) << 24);
             break;
         case 0:
-            *(long long *)(p + 0x20) = 0x3000D;
-            *(long long *)(p + 0x30) = (((long long)*(unsigned short *)(fb + 0x70) & 0x1FF) |
+            *(long long *)(q + 0x20) = 0x3000D;
+            *(long long *)(q + 0x30) = (((long long)*(unsigned short *)(fb + 0x70) & 0x1FF) |
                                         (((long long)*(unsigned char *)(fb + 0x73) & 0xF) << 24)) |
                                        ((long long)1 << 0x20);
             break;
         case 2:
-            *(long long *)(p + 0x20) = 0x5000D;
-            *(long long *)(p + 0x30) = (((long long)*(unsigned short *)(fb + 0x70) & 0x1FF) |
+            *(long long *)(q + 0x20) = 0x5000D;
+            *(long long *)(q + 0x30) = (((long long)*(unsigned short *)(fb + 0x70) & 0x1FF) |
                                         (((long long)*(unsigned char *)(fb + 0x73) & 0xF) << 24)) |
                                        ((long long)1 << 0x20);
             break;
         case 3:
-            *(long long *)(p + 0x20) = 0x3000D;
-            *(long long *)(p + 0x30) = ((long long)*(unsigned short *)(fb + 0x70) & 0x1FF) |
+            *(long long *)(q + 0x20) = 0x3000D;
+            *(long long *)(q + 0x30) = ((long long)*(unsigned short *)(fb + 0x70) & 0x1FF) |
                                        (((long long)*(unsigned char *)(fb + 0x73) & 0xF) << 24);
             break;
         }
-        *(long long *)(p + 0x28) = 0x47;
+        *(long long *)(q + 0x28) = 0x47;
         i += 1;
-        *(long long *)(p + 0x38) = 0x4E;
-        off += 0x40;
+        *(long long *)(q + 0x38) = 0x4E;
     } while (i < 4);
 
     /* bank F: ten 0x80-stride blend presets at +0x6A0 */
     i = 0;
-    off = 0;
     do {
-        p = D_00275674 + off;
+        p = D_00275674 + i * 0x80;
         *(int *)(p + 0x6A0) = 0;
         *(int *)(p + 0x6A4) = 0;
         *(int *)(p + 0x6A8) = 0x11000000;
@@ -312,12 +301,10 @@ void sub_EXTERMINATION(void) {
             break;
         }
         i += 1;
-        off += 0x80;
     } while (i < 0xA);
 
     /* bank G: 4 passes x 10 blend presets at +0xBA0 (strides 0x5A0 / 0x90) */
     k = 0;
-    off = 0;
     do {
         switch (k) {
         case 1:
@@ -337,12 +324,9 @@ void sub_EXTERMINATION(void) {
             field = 0;
             break;
         }
-        modebits = (long long)mode << 0x11;
-        ad1 = modebits | 0x13001;
-        i = 0;
-        koff = 0;
+        j = 0;
         do {
-            p = D_00275674 + off + koff;
+            p = D_00275674 + k * 0x5A0 + j * 0x90;
             *(int *)(p + 0xBA0) = 0;
             *(int *)(p + 0xBA4) = 0;
             *(int *)(p + 0xBA8) = 0x11000000;
@@ -364,25 +348,25 @@ void sub_EXTERMINATION(void) {
             *(long long *)(p + 0xC20) = 1;
             q = p + 0xBA0;
             *(long long *)(p + 0xC28) = 0x46;
-            switch (i) {
+            switch (j) {
             case 0:
-                *(long long *)(q + 0x40) = modebits | 0x1000D;
+                *(long long *)(q + 0x40) = ((long long)mode << 0x11) | 0x1000D;
                 *(long long *)(q + 0x60) = ((long long)0x80 << 0x20) | 0xA8;
                 break;
             case 1:
-                *(long long *)(q + 0x40) = ad1;
+                *(long long *)(q + 0x40) = ((long long)mode << 0x11) | 0x13001;
                 *(long long *)(q + 0x60) = 0x44;
                 break;
             case 2:
-                *(long long *)(q + 0x40) = ad1;
+                *(long long *)(q + 0x40) = ((long long)mode << 0x11) | 0x13001;
                 *(long long *)(q + 0x60) = ((long long)0x80 << 0x20) | 0x68;
                 break;
             case 3:
-                *(long long *)(q + 0x40) = ad1;
+                *(long long *)(q + 0x40) = ((long long)mode << 0x11) | 0x13001;
                 *(long long *)(q + 0x60) = ((long long)0x80 << 0x20) | 0x62;
                 break;
             case 4:
-                *(long long *)(q + 0x40) = ad1;
+                *(long long *)(q + 0x40) = ((long long)mode << 0x11) | 0x13001;
                 *(long long *)(q + 0x60) = 0x49;
                 break;
             case 5:
@@ -390,27 +374,25 @@ void sub_EXTERMINATION(void) {
                 *(long long *)(q + 0x60) = 0x49;
                 break;
             case 6:
-                *(long long *)(q + 0x40) = modebits | 0x1C00D;
+                *(long long *)(q + 0x40) = ((long long)mode << 0x11) | 0x1C00D;
                 *(long long *)(q + 0x60) = 0x44;
                 break;
             case 7:
-                *(long long *)(q + 0x40) = modebits | 0x10003;
+                *(long long *)(q + 0x40) = ((long long)mode << 0x11) | 0x10003;
                 *(long long *)(q + 0x60) = ((long long)0x80 << 0x20) | 0xA8;
                 break;
             case 8:
-                *(long long *)(q + 0x40) = modebits | 0x12001;
+                *(long long *)(q + 0x40) = ((long long)mode << 0x11) | 0x12001;
                 *(long long *)(q + 0x60) = ((long long)0x80 << 0x20) | 0xA8;
                 break;
             case 9:
-                *(long long *)(q + 0x40) = modebits | 0x11001;
+                *(long long *)(q + 0x40) = ((long long)mode << 0x11) | 0x11001;
                 *(long long *)(q + 0x60) = ((long long)0x80 << 0x20) | 0xA9;
                 break;
             }
-            i += 1;
-            koff += 0x90;
-        } while ((int)i < 0xA);
+            j += 1;
+        } while (j < 0xA);
         k += 1;
-        off += 0x5A0;
     } while (k < 4);
 
     *(int *)(D_00275674 + 0x00) = 0;

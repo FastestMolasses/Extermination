@@ -308,3 +308,22 @@ local, one Ctx record), func_001FD0E0 (the glyph dispatch is a fall-through
 "2.3.1-only codegen" verdict was a spelling). Improved and parked:
 func_001486E0 98.33, func_00108300 95.88 (a volatile completion counter; four
 callee return types), func_0019F1A0 93.20.
+
+### Queue batch 14 (2026-10-27)
+
+8 byte-matched: dmac_reset (ee-gcc: volatile channel-register pointers keep
+the six clears in order; a plain indexed loop), func_0015AC00 (each case
+writes all three fields; case labels sharing a body in compare order; a case
+falling into `default:`), func_0012F100 (state 2 lacked a range test; the
+probe vector constants were wrong), func_00199C50 (a table value hoisted
+before the loop), func_0011C7B0 and func_0011D878 (fdlibm `__kernel_*` shapes
+with GET/SET_FLOAT_WORD; 66.98 -> 100 for func_0011D878), func_00106D80
+(ee-gcc: a trailing call in each arm; the clamp in its own statement),
+func_002117D0 (callee arities; one float temporary reused for two roles).
+Improved and parked: func_0015FDF0 98.95, sub_EXTERMINATION 94.31.
+**Local data:** func_0011C7B0 and func_0011D878 declare `static const float`
+constants. audit_link_provenance routes them `original_assembly_local_data`:
+the unpinned local data makes the build link the original assembly, so the
+boot ELF stays byte-identical but these two do not yet count as C routes.
+Pinning that data (as tools/decomp/rodata_pin.py does for jump tables) or a
+spelling that emits no local data is open.

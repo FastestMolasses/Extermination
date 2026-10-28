@@ -1,35 +1,40 @@
-// NEARMISS dmac_reset  (vram 0x00101BE0, 0xDC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 91.27% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc reg-alloc + list-scheduler wall. Body structurally identical (88.4%). Two remaining diff classes: (1) register coloring of the two parallel arrays D_00241090/D_00241050 differs (expected a2/v1, ours v1/a1) propagating ARG_MISMATCH through the whole zeroing loop; (2) the volatile store `*(0x1000E010) &= 0xFF1F0...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // EEGCC_AS: 2.96
-// (2.96 gas: matching wave 2026-10-27 sweep; it fills call/return delay slots as the original does)
+// (2.96 gas: it fills call/return delay slots as the original does)
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 91.27% NEARMISS).
+// Fixes read from the original instructions:
+//  - The per-channel register block is hardware: the channel base table holds
+//    pointers to volatile ints, so the six clearing stores keep source order
+//    (a plain pointer let the scheduler hoist the last store to the front).
+//  - Plain indexed loop over the two tables (ee-gcc strength-reduces it into the
+//    pointer walk with a 9..0 counter itself); the old hand-written pointer walk
+//    gave the wrong register colouring.
+//  - The callee prototypes follow their definitions: func_00101B80 (byte clear)
+//    returns void and takes a byte pointer; func_00101CD0 takes a byte pointer.
+//  - Compound volatile read-modify-writes on the DMAC control registers.
+//
+// Resets the DMA controller: remembers whether DMAC_CTRL's enable bit was set,
+// clears CHCR/MADR/TADR/ASR0/ASR1/SADR of every channel present in
+// D_00241090, writes the STAT clear mask and keeps only the STAT mask bits,
+// builds a zeroed 20-byte setup block and applies it via func_00101CD0, then
+// re-enables the DMAC if arg0 == 1. Returns the previous enable bit.
 
-extern int func_00101B80(void *, int);
-extern int func_00101CD0(void *);
+extern void func_00101B80(unsigned char *, int);
+extern int func_00101CD0(unsigned char *);
 extern int D_00241090[];
-extern int *D_00241050[];
+extern volatile int *D_00241050[];
 
 int dmac_reset(int arg0) {
-    int buf[8];
+    unsigned char buf[32];
     int ret;
     int i;
-    int *q = D_00241090;
-    int **p = D_00241050;
 
     ret = *(volatile int *)0x1000E000 & 1;
-
-    for (i = 9; i >= 0; i--) {
-        if (q[i] != 0) {
-            int *e = p[i];
+    for (i = 0; i < 10; i++) {
+        if (D_00241090[i] != 0) {
+            volatile int *e = D_00241050[i];
             e[0x80 / 4] = 0;
             e[0] = 0;
             e[0x30 / 4] = 0;
@@ -38,15 +43,12 @@ int dmac_reset(int arg0) {
             e[0x40 / 4] = 0;
         }
     }
-
     *(volatile int *)0x1000E010 = 0xFF1F;
-    *(volatile int *)0x1000E010 = *(volatile int *)0x1000E010 & 0xFF1F0000;
-
+    *(volatile int *)0x1000E010 &= 0xFF1F0000;
     func_00101B80(buf, 20);
     func_00101CD0(buf);
-
     if (arg0 == 1) {
-        *(volatile int *)0x1000E000 = *(volatile int *)0x1000E000 | 1;
+        *(volatile int *)0x1000E000 |= 1;
     }
     return ret;
 }

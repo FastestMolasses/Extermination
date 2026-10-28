@@ -1,23 +1,41 @@
-// NEARMISS func_0011C7B0  (vram 0x0011C7B0, 0x3E0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 90.81% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// TWO issues. (1) TOOLCHAIN BUG (not a source wall): ee-gcc emits the li.s pseudo-op for SFmode constants; the expected object materializes them through $at (high half, low half, then a move into the FPR), which is what GNU `as` produces ONLY when `-G 0` is in effect. tools/eegcc/ee-compile.sh passes `-G0` to cc1 but NO...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 90.81% NEARMISS).
+// Fixes read from the original instructions:
+//  - the float word reads/writes are the fdlibm GET_FLOAT_WORD / SET_FLOAT_WORD
+//    do { ... } while (0) blocks (int word in the union); ee-gcc aligns the label
+//    after the first early return and orders the prologue saves differently with
+//    that shape, which also swapped the saved registers of ix and y.
+//  - y[0] = r - w is stored first and its word read back from y[0], as in fdlibm.
+//  - the earlier li.s constant note no longer applies (the toolchain now
+//    assembles SFmode constants the way the original does).
+//
+// fdlibm __ieee754_rem_pio2f(x, y): reduce x to y[0] + y[1] in [-pi/4, pi/4],
+// returning the quadrant count n. func_0011DF78 = fabsf,
+// func_0011CE20 = __kernel_rem_pio2f.
 
 extern float func_0011DF78(float);                                        /* fabsf */
 extern int func_0011CE20(float *, float *, int, int, int, const int *);   /* __kernel_rem_pio2f */
 
 typedef union {
     float value;
-    unsigned int word;
+    int word;
 } ieee_float_shape_type;
+
+#define GET_FLOAT_WORD(i, d)                                                   \
+    do {                                                                       \
+        ieee_float_shape_type gf_u;                                            \
+        gf_u.value = (d);                                                      \
+        (i) = gf_u.word;                                                       \
+    } while (0)
+
+#define SET_FLOAT_WORD(d, i)                                                   \
+    do {                                                                       \
+        ieee_float_shape_type sf_u;                                            \
+        sf_u.word = (i);                                                       \
+        (d) = sf_u.value;                                                      \
+    } while (0)
 
 extern const int D_0026C490[32];   /* npio2_hw[]   */
 extern const int D_0026C178[];     /* two_over_pi[] */
@@ -40,7 +58,7 @@ int func_0011C7B0(float x, float *y)
     float tx[3];
     int e0, i, j, nx, n, ix, hx;
 
-    { ieee_float_shape_type gf_u; gf_u.value = x; hx = (int)gf_u.word; }
+    GET_FLOAT_WORD(hx, x);
     ix = hx & 0x7fffffff;
 
     if (ix <= 0x3f490fd8) {             /* |x| ~<= pi/4: no reduction needed */
@@ -86,14 +104,16 @@ int func_0011C7B0(float x, float *y)
         } else {
             unsigned int high;
             j = ix >> 23;
-            { ieee_float_shape_type gf_u; gf_u.value = r - w; y[0] = gf_u.value; high = gf_u.word; }
+            y[0] = r - w;
+            GET_FLOAT_WORD(high, y[0]);
             i = j - ((high >> 23) & 0xff);
             if (i > 8) {                /* 2nd iteration needed, good to 57 */
                 t = r;
                 w = fn * pio2_2;
                 r = t - w;
                 w = fn * pio2_2t - ((t - r) - w);
-                { ieee_float_shape_type gf_u; gf_u.value = r - w; y[0] = gf_u.value; high = gf_u.word; }
+                y[0] = r - w;
+                GET_FLOAT_WORD(high, y[0]);
                 i = j - ((high >> 23) & 0xff);
                 if (i > 25) {           /* 3rd iteration needed, 74 bits */
                     t = r;
@@ -120,7 +140,7 @@ int func_0011C7B0(float x, float *y)
 
     /* set z = scalbnf(|x|, ilogbf(x) - 7) */
     e0 = (ix >> 23) - 134;
-    { ieee_float_shape_type sf_u; sf_u.word = (unsigned int)(ix - (e0 << 23)); z = sf_u.value; }
+    SET_FLOAT_WORD(z, ix - ((int)(e0 << 23)));
     for (i = 0; i < 2; i++) {
         tx[i] = (float)(int)z;
         z = (z - tx[i]) * two8;

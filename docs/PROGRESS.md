@@ -1,3 +1,11 @@
+## 2026-10-27 — matching wave, queue batch 14: 8 more byte-matched
+
+See MATCHING_GUIDE "Queue batch 14" (two fdlibm functions byte-match but link
+the original assembly until their static const data is pinned). Gate: fresh
+build + verify_all all six stages pass, boot ELF byte-identical, 19/19
+overlays, matched_code 99.97%, 2538/2540 units; audit_link_provenance clean
+(2037 ordinary-C routes, 2 local-data routes).
+
 ## 2026-10-27 — matching wave, queue batch 13: 12 more byte-matched
 
 See MATCHING_GUIDE "Queue batch 13". Gate: fresh build + verify_all all six

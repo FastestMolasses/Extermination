@@ -1,8 +1,12 @@
 // NEARMISS func_0015FDF0  (vram 0x0015FDF0, 0x42C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 91.01% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// objdiff 98.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
 // Remaining differences in this candidate:
-// Corrected body (func_001AA4E0(arg0)). Left: FP odd/even register coloring and the load/store scheduling it causes.
+// Fixed (wave 2026-10-27): 0x700031B0 block, 0x70003A20 and 0x70003A28 are relocated externs
+// (idiom-32), the squared length reads both scratchpad words back, branch=1 is set after the
+// first call, local order. Left: the second +/-40deg selection; as an if/else mwcc merges
+// the two result copies after the join, as a switch the arms match but the dispatch is a
+// beqz/b pair where the original has a single bnez.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -27,14 +31,11 @@
 // `branch`), orients a ray (func_001029C0/func_00102BB0/func_00102918), stages a
 // 25-unit ray descriptor and casts via func_0019AD00. On a clear first cast it
 // commits that angle; on a hit it measures the squared contact distance with the
-// mula.s/madd.s FMA (dx*dx+dy*dy via func_0011E748), repeats the cast at the
+// FMA (dx*dx+dy*dy via func_0011E748), repeats the cast at the
 // opposite +/-40deg angle, and commits whichever angle has the larger clearance.
 // Returns 1 when a target exists, 0 otherwise.
 //
-// The mula.s/madd.s FMA idiom matches exactly under 2.3.3 (not the FPU-MAC
-// wall). Residual is FP-register-half coloring (target odd-half fv0f/fs0f vs
-// mwcc even-half) plus the consequent load/store scheduling -- permuter/coloring
-// territory, not a clean-store delay-slot nop.
+// The multiply-add idiom matches exactly under 2.3.3 (not the FPU-MAC wall).
 extern char *func_001AA4E0(char *);
 extern float func_0011E620(float y, float x);
 extern float func_001B1470(float a);
@@ -49,15 +50,17 @@ extern float func_0011E748(float a);
 extern char D_700036A0[];
 extern char D_700038A0[];
 extern char D_700038B0[];
+extern float D_700031B0[];
+extern float D_70003A20;
+extern float D_70003A28;
 
 int func_0015FDF0(char *arg0) {
     char *tgt;
     float ang;
+    float len0;
     float a0;
     float a1;
-    float dx;
     float dy;
-    float len0;
     int branch;
 
     tgt = func_001AA4E0(arg0);
@@ -67,22 +70,22 @@ int func_0015FDF0(char *arg0) {
     *(float *)0x700038A8 = dy;
     ang = func_001B1470(1.5707964f + func_0011E620(-dy, *(float *)0x700038A0));
     if (func_00174AC0(arg0, 2) != 0 && (int)*(unsigned char *)(arg0 + 0x23F) >= 2) {
-        *(float *)0x70003A20 = func_001B1470(ang - *(float *)(arg0 + 0x218));
-        if (!(func_0011DF78(*(float *)0x70003A20) < 0.69813174f)) {
+        D_70003A20 = func_001B1470(ang - *(float *)(arg0 + 0x218));
+        if (!(func_0011DF78(D_70003A20) < 0.69813174f)) {
             *(float *)(arg0 + 0xC4) = *(float *)(arg0 + 0x218);
             return 1;
         }
     }
-    *(float *)0x70003A20 = func_001B1470(ang - *(float *)(arg0 + 0xC4));
-    if (!(func_0011DF78(*(float *)0x70003A20) < 0.69813174f)) {
+    D_70003A20 = func_001B1470(ang - *(float *)(arg0 + 0xC4));
+    if (!(func_0011DF78(D_70003A20) < 0.69813174f)) {
         return 1;
     }
     if (!(func_001B1470(ang - *(float *)(arg0 + 0xC4)) < 0.0f)) {
         a1 = func_001B1470(ang - 0.69813174f);
         branch = 0;
     } else {
-        branch = 1;
         a1 = func_001B1470(0.69813174f + ang);
+        branch = 1;
     }
     func_001029C0(D_700036A0);
     func_00102BB0(D_700036A0, D_700036A0, a1);
@@ -96,15 +99,16 @@ int func_0015FDF0(char *arg0) {
         *(float *)(arg0 + 0xC4) = a1;
         return 1;
     }
-    *(float *)0x70003A20 = *(float *)0x700031B0 - *(float *)(arg0 + 0xB0);
-    dx = *(float *)0x700031B8 - *(float *)(arg0 + 0xB8);
-    *(float *)0x70003A28 = dx;
-    dy = *(float *)0x70003A20;
-    len0 = func_0011E748(dy * dy + dx * dx);
-    if (branch == 0) {
+    D_70003A20 = D_700031B0[0] - *(float *)(arg0 + 0xB0);
+    D_70003A28 = D_700031B0[2] - *(float *)(arg0 + 0xB8);
+    len0 = func_0011E748(D_70003A20 * D_70003A20 + D_70003A28 * D_70003A28);
+    switch (branch) {
+    case 0:
         a0 = func_001B1470(0.69813174f + ang);
-    } else {
+        break;
+    default:
         a0 = func_001B1470(ang - 0.69813174f);
+        break;
     }
     func_001029C0(D_700036A0);
     func_00102BB0(D_700036A0, D_700036A0, a0);
@@ -118,11 +122,9 @@ int func_0015FDF0(char *arg0) {
         *(float *)(arg0 + 0xC4) = a0;
         return 1;
     }
-    *(float *)0x70003A20 = *(float *)0x700031B0 - *(float *)(arg0 + 0xB0);
-    dx = *(float *)0x700031B8 - *(float *)(arg0 + 0xB8);
-    *(float *)0x70003A28 = dx;
-    dy = *(float *)0x70003A20;
-    if (!(func_0011E748(dy * dy + dx * dx) < len0)) {
+    D_70003A20 = D_700031B0[0] - *(float *)(arg0 + 0xB0);
+    D_70003A28 = D_700031B0[2] - *(float *)(arg0 + 0xB8);
+    if (!(func_0011E748(D_70003A20 * D_70003A20 + D_70003A28 * D_70003A28) < len0)) {
         *(float *)(arg0 + 0xC4) = a0;
     } else {
         if (branch == 0) {
