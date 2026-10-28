@@ -1,179 +1,204 @@
 // NEARMISS func_001CD520  (vram 0x001CD520, 0x420 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 21.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 98.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4), was 21.91%.
+// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
+// Matching wave 2026-10-28 rebuilt it from the original:
+//  - the cull, the projection and the half-extent projection are VU0 macro code
+//    inline (one instruction per asm statement): clip against camera 0's cull
+//    matrix and read the six clip flags; the projection reuses the loaded point,
+//    spills the raw transformed vector to the stack and takes the extent's depth
+//    from that spill (raw w), as func_001CD180 does for the extent.
+//  - -sdatathreshold 4 (the render context pointer is gp-relative); per-quad
+//    scratchpad externs; stores before the extent pointers; depth read first.
+//  - the fade is a switch (2, 3, 4 colour; 1 alpha); channels extracted first,
+//    locals declared bl, g, r before f; alpha masks rgba in place.
+//  - FIDELITY: func_001CB6B0 gets a plain 32-bit address (the old C zero-extended it).
+// Remaining differences: the z bias reaches VU0 through the fixed register t0.
+// The original moves it from the FPU (followed by a hazard nop); mwcc 2.3.3
+// drops a float asm operand, so the bits go through a stack union (frame 0x90,
+// not 0x80, and the rgba argument's save moves after the float saves). One
+// OR's operand order in the colour repack differs.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// CFLAGS: -O4,p -sdatathreshold 4
+//
+// Queues a camera-facing sprite: returns 0xFFFFFF when the point is outside
+// camera 0's view volume; otherwise projects it to 12.4 screen space with a
+// fog value (z biased by zbias), projects the half extent (0.5 w, 0.5 h) at
+// its depth, optionally fades the colour by the fog value (mode 1 alpha,
+// modes 2..4 RGB with the fog word reset to full), and writes a 6-quadword
+// sprite packet (giftag, colour, the two corners) into the bucket's z-sorted
+// display list with the static GIF state and the mode's trailer. Returns z.
 
-extern char *D_00275670;
-extern char  D_00251220[];          /* static GIF state packet chased in step 7 */
+typedef struct { float x, y, z, w; } Vec4;
+typedef union { float f; int i; } Word;
+
+extern char *D_00275670;            /* per-frame render context */
+extern char  D_00251220[];          /* static GIF state packet */
 extern char  D_0028F700[];          /* render-bucket page tables, stride 0x8000 */
 
 extern char *func_001CD370(int camera);
 extern char *func_001CB5F0(int page_table, int z, int nquads);
-extern void  func_001CB6B0(int page_table, int z, int kind, unsigned long long addr);
+extern void  func_001CB6B0(int page_table, int z, int kind, int addr);
 extern void  func_001CB900(int page_table, int z, int mode);
 
-/* ---- EE scratchpad staging (0x70000000 is the SPR) ------------------------ */
-/* Projected sprite centre, 28.4 fixed point. */
-#define SCR_X   (*(volatile int *)0x70003600)
-#define SCR_Y   (*(volatile int *)0x70003604)
-#define SCR_Z   (*(volatile int *)0x70003608)
-#define SCR_FOG (*(volatile int *)0x7000360C)
-/* Half-extent: floats going in, 28.4 fixed point coming out. */
-#define EXT_X_F (*(volatile float *)0x70003610)
-#define EXT_Y_F (*(volatile float *)0x70003614)
-#define EXT_W_F (*(volatile float *)0x70003618)
-#define EXT_X   (*(volatile int   *)0x70003610)
-#define EXT_Y   (*(volatile int   *)0x70003614)
+extern int  D_70003600[4];          /* projected centre: x, y, z (12.4), fog */
+extern Word D_70003610[4];          /* half extent: floats in, 12.4 out */
+extern Vec4 D_70003A40[4];          /* screen-scale matrix */
+extern Vec4 D_70003AC0[4];          /* camera P*V */
 
-extern volatile float D_70003AC0[16];   /* world -> screen matrix */
-extern volatile float D_70003A40[16];   /* projection-only matrix */
-
-typedef struct Vec4 {
-    float x, y, z, w;
-} Vec4;
-
-/* VU0 multiply-accumulate chain (acc = row0*x + row1*y + row2*z,
-   out = acc + row3*1.0): row-vector point transform,
-   with w taken from vf0.w == 1.0 rather than from the source vector. */
-static Vec4 vu0_transform_point(const volatile float *m, const Vec4 *v)
-{
-    Vec4 r;
-    r.x = m[0] * v->x + m[4] * v->y + m[ 8] * v->z + m[12];
-    r.y = m[1] * v->x + m[5] * v->y + m[ 9] * v->z + m[13];
-    r.z = m[2] * v->x + m[6] * v->y + m[10] * v->z + m[14];
-    r.w = m[3] * v->x + m[7] * v->y + m[11] * v->z + m[15];
-    return r;
-}
-
-/* VU0 clip test of xyz against w, then the clip flags are read back: 1 if any of +/-x, +/-y, +/-z falls outside +/-w. */
-static int vu0_clip_outside(const Vec4 *p)
-{
-    return p->x >  p->w || p->x < -p->w
-        || p->y >  p->w || p->y < -p->w
-        || p->z >  p->w || p->z < -p->w;
-}
-
-/* vftoi4: float -> 28.4 fixed point, truncating toward zero. */
-static int vu0_ftoi4(float f)
-{
-    return (int)(f * 16.0f);
-}
+#define PAGE_TABLE(b) ((int)(D_0028F700 + ((b) << 15) + 0x4D3EC0))
 
 int func_001CD520(int bucket, int mode, Vec4 *world, unsigned long long giftag,
                   float w, float h, float zbias, unsigned int rgba)
 {
-    const volatile float *cull;
-    const volatile float *fogp;
-    Vec4 clip;
-    Vec4 cs;
-    Vec4 ext;
-    float clip_w;
-    int   fog8;
+    char *m;
+    char *fog;
+    Vec4 *cam;
+    int *out;
+    Vec4 *raw_p;
+    Word *q;
+    Vec4 *sm;
+    Vec4 raw;
+    Word b;
+    int clip;
+    unsigned int bl, g, r;
+    int f;
     char *prim;
-    int   page_table;
+    float depth;
 
-    /* 1. frustum cull against the camera-0 cull matrix. */
-    cull = (const volatile float *)func_001CD370(0);
-    clip = vu0_transform_point(cull, world);
-    if (vu0_clip_outside(&clip)) {
-        return 0x00FFFFFF;
+    /* clip the point against the culling matrix of camera 0 */
+    m = func_001CD370(0);
+    asm("lqc2 vf24, 0x0(%0)" : : "r"(m));
+    asm("lqc2 vf25, 0x10(%0)" : : "r"(m));
+    asm("lqc2 vf26, 0x20(%0)" : : "r"(m));
+    asm("lqc2 vf27, 0x30(%0)" : : "r"(m));
+    asm("lqc2 vf1, 0x0(%0)" : : "r"(world));
+    asm("vmulax.xyzw ACC, vf24, vf1x");
+    asm("vmadday.xyzw ACC, vf25, vf1y");
+    asm("vmaddaz.xyzw ACC, vf26, vf1z");
+    asm("vmaddw.xyzw vf2, vf27, vf0w");
+    asm("vclipw.xyz vf2, vf2w");
+    asm("vnop");
+    asm("vnop");
+    asm("vnop");
+    asm("vnop");
+    asm("vnop");
+    asm("cfc2.ni %0, vi18" : "=r"(clip));
+    if ((clip & 0x3F) != 0) {
+        return 0xFFFFFF;
     }
 
-    /* 2. world -> screen, perspective divide xy. */
-    fogp = (const volatile float *)(D_00275670 + 0xA0);
-    cs = vu0_transform_point(D_70003AC0, world);
-    clip_w = cs.w;                       /* saved on the stack by the original */
-    cs.x /= cs.w;
-    cs.y /= cs.w;
+    /* project: camera matrix, divide x, y by w, bias w by zbias, divide z
+       by the biased w, fog ramp on w, convert to 12.4 */
+    fog = D_00275670 + 0xA0;
+    asm("lqc2 vf23, 0x0(%0)" : : "r"(fog));
+    cam = D_70003AC0;
+    asm("lqc2 vf28, 0x0(%0)" : : "r"(cam));
+    asm("lqc2 vf29, 0x10(%0)" : : "r"(cam));
+    asm("lqc2 vf30, 0x20(%0)" : : "r"(cam));
+    asm("lqc2 vf31, 0x30(%0)" : : "r"(cam));
+    out = D_70003600;
+    raw_p = &raw;
+    asm("vmulax.xyzw ACC, vf28, vf1x");
+    asm("vmadday.xyzw ACC, vf29, vf1y");
+    asm("vmaddaz.xyzw ACC, vf30, vf1z");
+    asm("vmaddw.xyzw vf2, vf31, vf0w");
+    asm("vdiv Q, vf0w, vf2w");
+    asm("sqc2 vf2, 0x0(%0)" : : "r"(raw_p) : "memory");
+    asm("vwaitq");
+    asm("vmulq.xy vf2, vf2, Q");
+    b.f = zbias;
+    asm("qmtc2.ni %0, vf3" : : "r"(b.i));
+    asm("vsubx.w vf2, vf2, vf3x");
+    asm("vdiv Q, vf0w, vf2w");
+    asm("vwaitq");
+    asm("vmulq.z vf2, vf2, Q");
+    asm("vmulaz.w ACC, vf0, vf23z");
+    asm("vmaddw.w vf2, vf23, vf2w");
+    asm("vminix.w vf2, vf2, vf23x");
+    asm("vmaxx.w vf2, vf2, vf0x");
+    asm("vftoi4.xyzw vf2, vf2");
+    asm("sqc2 vf2, 0x0(%0)" : : "r"(out) : "memory");
 
-    /* 3. depth bias, z divide, fog term, and the 28.4 conversion. */
-    cs.w -= zbias;
-    cs.z /= cs.w;
-    cs.w = fogp[2] + fogp[3] * cs.w;     /* w lane: multiply-accumulate */
-    if (cs.w > fogp[0]) { cs.w = fogp[0]; }   /* w clamped to fogp[0] */
-    if (cs.w < 0.0f)    { cs.w = 0.0f; }      /* w clamped at 0.0 */
-    SCR_X   = vu0_ftoi4(cs.x);
-    SCR_Y   = vu0_ftoi4(cs.y);
-    SCR_Z   = vu0_ftoi4(cs.z);
-    SCR_FOG = vu0_ftoi4(cs.w);
+    /* half extent at the point's depth, through the screen-scale matrix */
+    depth = raw.w;
+    D_70003610[0].f = 0.5f * w;
+    D_70003610[1].f = 0.5f * h;
+    D_70003610[2].f = depth;
+    q = D_70003610;
+    sm = D_70003A40;
+    asm("lqc2 vf1, 0x0(%0)" : : "r"(q));
+    asm("lqc2 vf16, 0x0(%0)" : : "r"(sm));
+    asm("lqc2 vf17, 0x10(%0)" : : "r"(sm));
+    asm("lqc2 vf18, 0x20(%0)" : : "r"(sm));
+    asm("lqc2 vf19, 0x30(%0)" : : "r"(sm));
+    asm("vsub.xy vf18, vf18, vf18");
+    asm("vmulax.xyzw ACC, vf16, vf1x");
+    asm("vmadday.xyzw ACC, vf17, vf1y");
+    asm("vmaddaz.xyzw ACC, vf18, vf1z");
+    asm("vmaddw.xyzw vf2, vf19, vf0w");
+    asm("vdiv Q, vf0w, vf2w");
+    asm("vwaitq");
+    asm("vmulq.xy vf2, vf2, Q");
+    asm("vftoi4.xy vf2, vf2");
+    asm("sqc2 vf2, 0x0(%0)" : : "r"(q) : "memory");
 
-    /* 4. project the half-extent at the sprite's depth. */
-    EXT_X_F = 0.5f * w;
-    EXT_Y_F = 0.5f * h;
-    EXT_W_F = clip_w;
-    {
-        float ex = EXT_X_F;
-        float ey = EXT_Y_F;
-        float ez = EXT_W_F;
-        /* row 2's x,y lanes are zeroed: depth only feeds z,w. */
-        ext.x = D_70003A40[0] * ex + D_70003A40[4] * ey + D_70003A40[12];
-        ext.y = D_70003A40[1] * ex + D_70003A40[5] * ey + D_70003A40[13];
-        ext.w = D_70003A40[3] * ex + D_70003A40[7] * ey
-              + D_70003A40[11] * ez + D_70003A40[15];
-    }
-    EXT_X = vu0_ftoi4(ext.x / ext.w);
-    EXT_Y = vu0_ftoi4(ext.y / ext.w);
-
-    /* 5. depth-driven colour modulation. */
+    /* depth-driven colour modulation */
     if (mode != 0) {
-        fog8 = SCR_FOG >> 4;
-        if (fog8 >= 0x100) { fog8 = 0xFF; }
-        if (fog8 < 0)      { fog8 = 0; }
-
-        if (mode == 1) {
-            /* alpha only */
-            unsigned int a = (rgba >> 24) & 0xFF;
-            rgba = (rgba & 0x00FFFFFFu) | (((a * fog8) >> 8) << 24);
-        } else if (mode == 2 || mode == 3 || mode == 4) {
-            /* RGB only; the GS fog word is pinned to full. */
-            unsigned int r = (rgba >>  0) & 0xFF;
-            unsigned int g = (rgba >>  8) & 0xFF;
-            unsigned int b = (rgba >> 16) & 0xFF;
-            r = (r * fog8) >> 8;
-            g = (g * fog8) >> 8;      /* the original issues this one on `mult1` */
-            b = (b * fog8) >> 8;
-            SCR_FOG = 0xFF0;
-            rgba = (rgba & 0xFF000000u) | r | (g << 8) | (b << 16);
+        f = D_70003600[3] >> 4;
+        if (f > 0xFF) f = 0xFF;
+        if (f < 0)    f = 0;
+        switch (mode) {
+        case 2:
+        case 3:
+        case 4: {
+            r = rgba & 0xFF;
+            g = (rgba >> 8) & 0xFF;
+            bl = (rgba >> 16) & 0xFF;
+            r = (r * f) >> 8;
+            g = (g * f) >> 8;
+            bl = (bl * f) >> 8;
+            rgba &= 0xFF000000;
+            D_70003600[3] = 0xFF0;
+            rgba |= r | ((g << 8) | (bl << 16));
+            break;
+        }
+        case 1:
+        {
+            unsigned int a = (((rgba >> 24) & 0xFF) * f) >> 8;
+            rgba &= 0xFFFFFF;
+            rgba |= a << 24;
+        }
+            break;
         }
     }
 
-    /* 6. allocate and fill the sprite primitive. */
-    page_table = (int)(D_0028F700 + (bucket << 15) + 0x4D3EC0);
-    prim = func_001CB5F0(page_table, SCR_Z, 6);
-
+    prim = func_001CB5F0(PAGE_TABLE(bucket), D_70003600[2], 6);
     *(unsigned long long *)(prim + 0x00) = giftag;
-    *(int *)(prim + 0x10) = (rgba >>  0) & 0xFF;
-    *(int *)(prim + 0x14) = (rgba >>  8) & 0xFF;
+    *(int *)(prim + 0x10) = rgba & 0xFF;
+    *(int *)(prim + 0x14) = (rgba >> 8) & 0xFF;
     *(int *)(prim + 0x18) = (rgba >> 16) & 0xFF;
     *(int *)(prim + 0x1C) = (rgba >> 24) & 0xFF;
     *(int *)(prim + 0x20) = 0;
     *(int *)(prim + 0x24) = 0;
     *(float *)(prim + 0x28) = 1.0f;
-
-    *(int *)(prim + 0x30) = SCR_X + EXT_X;
-    *(int *)(prim + 0x34) = SCR_Y + EXT_Y;
-    *(int *)(prim + 0x38) = SCR_Z;
-    *(int *)(prim + 0x3C) = SCR_FOG;
+    *(int *)(prim + 0x30) = D_70003600[0] + D_70003610[0].i;
+    *(int *)(prim + 0x34) = D_70003600[1] + D_70003610[1].i;
+    *(int *)(prim + 0x38) = D_70003600[2];
+    *(int *)(prim + 0x3C) = D_70003600[3];
     *(float *)(prim + 0x40) = 1.0f;
     *(float *)(prim + 0x44) = 1.0f;
     *(float *)(prim + 0x48) = 1.0f;
-
-    *(int *)(prim + 0x50) = SCR_X - EXT_X;
-    *(int *)(prim + 0x54) = SCR_Y - EXT_Y;
-    *(int *)(prim + 0x58) = SCR_Z;
-    *(int *)(prim + 0x5C) = SCR_FOG;
-
-    /* 7. trailing state + blend-mode command words. */
-    func_001CB6B0(page_table, SCR_Z, 2, (unsigned long long)(unsigned int)D_00251220);
-    func_001CB900(page_table, SCR_Z, mode);
-
-    return SCR_Z;
+    *(int *)(prim + 0x50) = D_70003600[0] - D_70003610[0].i;
+    *(int *)(prim + 0x54) = D_70003600[1] - D_70003610[1].i;
+    *(int *)(prim + 0x58) = D_70003600[2];
+    *(int *)(prim + 0x5C) = D_70003600[3];
+    func_001CB6B0(PAGE_TABLE(bucket), D_70003600[2], 2, (int)D_00251220);
+    func_001CB900(PAGE_TABLE(bucket), D_70003600[2], mode);
+    return D_70003600[2];
 }

@@ -982,3 +982,20 @@ only with the 14-instruction projection as ONE asm statement; func_001C9610,
 func_001C9940, func_001CE860 need a float-to-GPR move before a VU0 scalar
 load; func_001D5370 / func_001D5C80 need EE nop padding after clip-flag
 reads. Each is a user decision.
+
+
+### Queue batch 47 (2026-10-28): VU0 class, large functions
+
+build_trs_matrix byte-matched (companion; the scale step is twelve
+one-instruction VU0 statements). Improved from 0-23%: func_001CD520 98.72,
+func_001F0A60 98.69, func_001E0750 98.32, func_001CEFD0 95.71,
+func_001C69A0 94.83, func_001CDDC0 94.70, func_001E2800 94.65,
+func_001CE300 94.43, func_001CD940 94.03, anim_eval_skeleton 92.91 (needs
+`#pragma inline_depth(8)` so the per-node inline expands its matrix helper;
+user-confirmed), func_001E17E0 90.29, func_001C7900 86.82. func_001CB6B0's
+fourth argument is a 32-bit address (user-confirmed; the old C widened it).
+The common wall: the original hands a float to VU0 through a fixed GPR
+(float-to-GPR move, nop, VU0 transfer); mwcc 2.3.3 silently drops float asm
+operands and CodeWarrior asm blocks reject float variables, so the C passes the
+bits through a stack union (bigger frame, other registers). func_001CF970 stays
+an asm body (MMI, absolute jump).

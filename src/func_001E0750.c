@@ -1,201 +1,153 @@
 // NEARMISS func_001E0750  (vram 0x001E0750, 0x36C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 13.75% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 98.32% via mwcc 2.3.3 (mwcps2-2.3.3-000906); matching wave 2026-10-28 (inline VU0 asm,
+// user-approved 2026-10-28 for the VU0 class). Remaining differences:
+// The original hands 0.0f to VU0 from an FPU register (a float-to-integer move plus a
+// hazard nop, not VU0 instructions); this C passes the integer 0, and two argument
+// registers shift with it. Was 13.75% (scalar emulation).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
-
+// CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x70003600 0x70003604 0x70003608
+typedef unsigned int u128 __attribute__((mode(TI)));
 typedef struct { float x, y, z, w; } Vec4;
+typedef struct { float f[12]; } Corners;
 
-/* Render context: +0x1C is the write cursor into the current command buffer. */
-typedef struct { char pad[0x1C]; unsigned char *cur; } RenderCtx;
+typedef struct { char pad[0x1C]; char *cur; } RenderCtx;
 extern RenderCtx *D_00275670;
 
-/* Returns the 4x4 clip matrix for camera slot `n` inside the render context
-   (byte-matched: D_00275670 + (n << 6) + 0x2240). */
+extern int   D_70003600[4];             /* projected point, 12.4 fixed point */
+extern Vec4  D_70003AC0[4];             /* camera P*V */
+extern const Corners D_00253530;        /* six (x, y) corner offsets */
+
 extern Vec4 *func_001CD370(int n);
+extern int   func_00122BB8(void);
+extern int   float_to_int(float f);
 
-/* Pseudo-random generator (byte-matched LCG): returns a 31-bit non-negative int. */
-extern int func_00122BB8(void);
-
-/* CodeWarrior runtime float -> int cast helper. */
-extern int float_to_int(float f);
-
-/* .rodata: read as 6 pairs of (x,y) corner offsets for the strip, in units that
-   get scaled by 2048/w before being added to the projected centre. Sourced from
-   the game's own data section — the port must take it from there, not hard-code
-   it. NOTE for the port: only the first two pairs are clean float values; the
-   remaining words decode as sub-denormal bit patterns that the PS2 FPU flushes
-   to zero, so vertices 2..5 collapse onto the projected centre. That is what
-   the original binary does; do not "fix" it without checking in-game. */
-extern float D_00253530[12];
-
-/* EE scratchpad. 0x70003600 is the shared "one projected point" slot; the
-   0x70003AC0 block is the current world->screen matrix published by the camera. */
-#define SPR_PROJECTED  ((volatile int *)0x70003600)      /* x,y,z (12.4), w (fade) */
-#define SPR_SCREEN_MTX ((const Vec4 *)0x70003AC0)
-
-/* vf23 is a globally reserved VU0 register holding the depth-fade constants
-   published by the camera setup: .x = fade ceiling, .z = bias, .w = slope. */
-extern float VF23_x, VF23_z, VF23_w;
-
-/* --- VU0 macro-mode helpers, written out as plain scalar float math --------
-   one VU0 multiply and two multiply-adds into ACC, then a final multiply-add
-   that writes the result, is exactly
-   a row-vector by 4x4 matrix multiply with v.w forced to 1.0 (the constant w
-   lane of VU0 register 0). */
-static Vec4 vu0_transform(const Vec4 *m, Vec4 v) {
-    Vec4 r;
-    r.x = m[0].x * v.x + m[1].x * v.y + m[2].x * v.z + m[3].x;
-    r.y = m[0].y * v.x + m[1].y * v.y + m[2].y * v.z + m[3].y;
-    r.z = m[0].z * v.x + m[1].z * v.y + m[2].z * v.z + m[3].z;
-    r.w = m[0].w * v.x + m[1].w * v.y + m[2].w * v.z + m[3].w;
-    return r;
-}
-
-/* VU0 clip test (low six clip-flag bits): the VU0 clip unit compares +-w against
-   x,y,z and leaves six sticky bits in CLIPflag. Non-zero => outside the frustum.
-   There is no C equivalent; this is the exact predicate it computes. */
-static int vu0_clip_outside(Vec4 c) {
-    float w = c.w, nw = -c.w;
-    return (c.x > w) || (c.x < nw) ||
-           (c.y > w) || (c.y < nw) ||
-           (c.z > w) || (c.z < nw);
-}
-
-/* VU0 float-to-fixed conversion: convert to signed 12.4 fixed point (truncating, saturating). */
-static int vu0_ftoi4(float f) { return float_to_int(f * 16.0f); }
-
-void func_001E0750(const Vec4 *pos, const int *style) {
-    const Vec4 *clip_mtx;
-    const Vec4 *screen_mtx;
-    Vec4 clip, scr;
+/* Heat-haze sprite at pos: VU0 clip test against func_001CD370(0)'s rows
+   (VU0 24..27), nothing drawn if any clip flag is set. Otherwise project with
+   the camera rows (28..31; the w reduction is by 0.0) and the fog ramp
+   (VU0 23) into the scratchpad as 12.4 X, Y, Z, F; scale = 8 * 256 / w.
+   A six-vertex PACKED GIF strip (RGBAQ, ST, XYZ2) follows: vertex 0 opaque
+   (alpha style[3]), the rim transparent, XY = projected centre + scale *
+   corner offset, and ST taken from the vertex's own 12.4 screen position
+   plus a random jitter, which samples the frame buffer around it. */
+void func_001E0750(const Vec4 *pos, const int *style)
+{
     unsigned int rgba_centre[4];
     unsigned int rgba_edge[4];
-    float corner[12];
-    float w, scale, depth;
-    unsigned char *pkt;
-    unsigned char *vtx;
-    int i;
+    Corners corner;
+    Vec4  clip;
+    const Vec4 *m;
+    const Vec4 *cam;
+    Vec4 *c;
+    int  *out;
+    int   i;
+    char *vtx;
+    float jitter_s, jitter_t;
+    float scale;
+    RenderCtx *ctx;
+    char *pkt;
+    int   flags;
+    int   zero;
 
-    /* --- frustum reject -------------------------------------------------- */
-    clip_mtx = func_001CD370(0);            /* camera slot 0 clip matrix      */
-    clip = vu0_transform(clip_mtx, *pos);
-    if (vu0_clip_outside(clip)) {
-        return;                             /* off-screen: emit nothing       */
+    m = func_001CD370(0);
+    asm("lqc2 vf24, 0x0(%0)" : : "r"(m));
+    asm("lqc2 vf25, 0x10(%0)" : : "r"(m));
+    asm("lqc2 vf26, 0x20(%0)" : : "r"(m));
+    asm("lqc2 vf27, 0x30(%0)" : : "r"(m));
+    asm("lqc2 vf1, 0x0(%0)" : : "r"(pos));
+    asm("vmulax.xyzw ACC, vf24, vf1x");
+    asm("vmadday.xyzw ACC, vf25, vf1y");
+    asm("vmaddaz.xyzw ACC, vf26, vf1z");
+    asm("vmaddw.xyzw vf2, vf27, vf0w");
+    asm("vclipw.xyz vf2, vf2w");
+    asm("vnop");
+    asm("vnop");
+    asm("vnop");
+    asm("vnop");
+    asm("vnop");
+    asm("cfc2.ni %0, vi18" : "=r"(flags));
+    if ((flags & 0x3F) != 0) {
+        return;
     }
 
-    /* --- vertex colours (GS PACKED RGBAQ: one 32-bit word per component) -- */
-    rgba_centre[0] = 0x80;                  /* R */
-    rgba_centre[1] = 0x80;                  /* G */
-    rgba_centre[2] = 0x80;                  /* B */
-    rgba_centre[3] = (unsigned int)style[3];/* A supplied by the caller       */
-    rgba_edge[0]   = 0x80;
-    rgba_edge[1]   = 0x80;
-    rgba_edge[2]   = 0x80;
-    rgba_edge[3]   = 0;                     /* rim is fully transparent       */
+    rgba_centre[0] = 0x80;
+    rgba_centre[1] = 0x80;
+    rgba_centre[2] = 0x80;
+    rgba_centre[3] = style[3];
+    rgba_edge[0] = 0x80;
+    rgba_edge[1] = 0x80;
+    rgba_edge[2] = 0x80;
+    rgba_edge[3] = 0;
 
-    /* --- project to screen ----------------------------------------------- */
-    screen_mtx = SPR_SCREEN_MTX;
-    scr = vu0_transform(screen_mtx, *pos);
-    w = scr.w;                              /* clip w, kept before the divide */
+    cam = D_70003AC0;
+    asm("lqc2 vf28, 0x0(%0)" : : "r"(cam));
+    asm("lqc2 vf29, 0x10(%0)" : : "r"(cam));
+    asm("lqc2 vf30, 0x20(%0)" : : "r"(cam));
+    asm("lqc2 vf31, 0x30(%0)" : : "r"(cam));
+    zero = 0;                       /* the w reduction (0.0f; see the header) */
+    out = D_70003600;
+    c = &clip;
+    asm("lqc2 vf1, 0x0(%0)" : : "r"(pos));
+    asm("vmulax.xyzw ACC, vf28, vf1x");
+    asm("vmadday.xyzw ACC, vf29, vf1y");
+    asm("vmaddaz.xyzw ACC, vf30, vf1z");
+    asm("vmaddw.xyzw vf2, vf31, vf0w");
+    asm("vdiv Q, vf0w, vf2w");
+    asm("sqc2 vf2, 0x0(%0)" : : "r"(c) : "memory");
+    asm("vwaitq");
+    asm("vmulq.xy vf2, vf2, Q");
+    asm("qmtc2.ni %0, vf3" : : "r"(zero));
+    asm("vsubx.w vf2, vf2, vf3x");
+    asm("vdiv Q, vf0w, vf2w");
+    asm("vwaitq");
+    asm("vmulq.z vf2, vf2, Q");
+    asm("vmulaz.w ACC, vf0, vf23z");
+    asm("vmaddw.w vf2, vf23, vf2w");
+    asm("vminix.w vf2, vf2, vf23x");
+    asm("vmaxx.w vf2, vf2, vf0x");
+    asm("vftoi4.xyzw vf2, vf2");
+    asm("sqc2 vf2, 0x0(%0)" : : "r"(out) : "memory");
 
-    /* VU0 divide unit (1 / w) then scale x,y: perspective divide on x,y */
-    scr.x = scr.x / scr.w;
-    scr.y = scr.y / scr.w;
+    scale = clip.w;
+    scale = 8.0f * (256.0f / scale);
+    corner = D_00253530;
 
-    /* The target subtracts a w-bias staged through a GPR-to-VU0 move; here the bias is
-       0.0f, so this is a no-op. (The sibling func_001E2800 uses 1.0f.)       */
-    scr.w = scr.w - 0.0f;
+    ctx = D_00275670;
+    *(char *)(ctx->cur + 3) = 0x10;
+    *(int *)(ctx->cur + 4) = 0;
+    *(short *)(ctx->cur + 0) = 0x14;
+    pkt = ctx->cur;
+    vtx = pkt + 0x10;
+    ctx->cur = pkt + 0x150;
+    *(u128 *)vtx = 0;
+    *(int *)(vtx + 0xC) = 0x50000013;
+    *(long long *)(vtx + 0x10) = (long long)0x8006 | ((long long)0x302EC000 << 32);
+    *(long long *)(vtx + 0x18) = 0x421;
+    vtx += 0x20;
 
-    /* second VU0 divide (1 / w) and scale of z: perspective divide on z */
-    scr.z = scr.z / scr.w;
-
-    /* depth-fade: clamp(vf23.z + vf23.w * w, 0.0f, vf23.x) */
-    depth = VF23_z + VF23_w * scr.w;
-    if (depth > VF23_x) depth = VF23_x;
-    if (depth < 0.0f)   depth = 0.0f;
-    scr.w = depth;
-
-    /* all four lanes converted to 12.4 fixed point and stored as one quadword into the shared scratchpad projected-point slot */
-    SPR_PROJECTED[0] = vu0_ftoi4(scr.x);
-    SPR_PROJECTED[1] = vu0_ftoi4(scr.y);
-    SPR_PROJECTED[2] = vu0_ftoi4(scr.z);
-    SPR_PROJECTED[3] = vu0_ftoi4(scr.w);    /* written here, consumed elsewhere */
-
-    /* --- screen-space size: shrinks with distance ------------------------- */
-    scale = 8.0f * (256.0f / w);            /* == 2048/w, in 12.4 screen units */
-
-    /* local copy of the corner-offset table (the target does this with three
-       128-bit quadword load/store pairs) */
-    for (i = 0; i < 12; i++) {
-        corner[i] = D_00253530[i];
-    }
-
-    /* --- build the VIF/GIF packet ---------------------------------------- */
-    pkt = D_00275670->cur;
-    *(short *)(pkt + 0x00) = 0x14;          /* engine packet descriptor       */
-    *(char  *)(pkt + 0x03) = 0x10;
-    *(int   *)(pkt + 0x04) = 0;
-    *(int   *)(pkt + 0x10) = 0;             /* VIF nops ...                   */
-    *(int   *)(pkt + 0x14) = 0;
-    *(int   *)(pkt + 0x18) = 0;
-    *(int   *)(pkt + 0x1C) = 0x50000013;    /* VIFcode DIRECT, 19 quadwords   */
-    /* GIFtag: NLOOP=6, EOP=1, PRE=1, NREG=3, PACKED;
-       PRIM = triangle strip + gouraud + texture + alpha blend;
-       REGS = RGBAQ, ST, XYZ2. */
-    *(long long *)(pkt + 0x20) = 0x302EC00000008006LL;
-    *(long long *)(pkt + 0x28) = 0x421LL;
-    D_00275670->cur = pkt + 0x150;          /* 0x30 header + 6*0x30 vertices  */
-
-    vtx = pkt + 0x30;
     for (i = 0; i < 6; i++) {
-        float jitter_s, jitter_t;
-        float r0, r1;
-        int sx, sy;
+        jitter_s = scale * (-0.000195312503f + 0.000390625006f * (4.65661287e-10f * (float)func_00122BB8()));
+        jitter_t = scale * (-0.000446428574f + 0.000892857148f * (4.65661287e-10f * (float)func_00122BB8()));
 
-        /* Two independent uniform jitters, scaled by `scale`. 2^-31 turns the
-           31-bit LCG output into [0,1); each is then mapped to +-half-range. */
-        r0 = (float)func_00122BB8() * 4.6566129e-10f;
-        jitter_s = scale * (r0 * 3.90625e-4f - 1.953125e-4f);
-
-        r1 = (float)func_00122BB8() * 4.6566129e-10f;
-        jitter_t = scale * (r1 * 8.9287e-4f - 4.46435e-4f);
-
-        /* RGBAQ: only the first vertex is opaque. */
         if (i == 0) {
-            *(unsigned int *)(vtx + 0x00) = rgba_centre[0];
-            *(unsigned int *)(vtx + 0x04) = rgba_centre[1];
-            *(unsigned int *)(vtx + 0x08) = rgba_centre[2];
-            *(unsigned int *)(vtx + 0x0C) = rgba_centre[3];
+            *(u128 *)vtx = *(u128 *)rgba_centre;
         } else {
-            *(unsigned int *)(vtx + 0x00) = rgba_edge[0];
-            *(unsigned int *)(vtx + 0x04) = rgba_edge[1];
-            *(unsigned int *)(vtx + 0x08) = rgba_edge[2];
-            *(unsigned int *)(vtx + 0x0C) = rgba_edge[3];
+            *(u128 *)vtx = *(u128 *)rgba_edge;
         }
 
-        /* XYZ2: projected centre + scaled corner offset, all in 12.4 fixed. */
-        sx = float_to_int((float)SPR_PROJECTED[0] + scale * corner[i * 2 + 0]);
-        sy = float_to_int((float)SPR_PROJECTED[1] + scale * corner[i * 2 + 1]);
-        *(int *)(vtx + 0x20) = sx;
-        *(int *)(vtx + 0x24) = sy;
-        *(int *)(vtx + 0x28) = SPR_PROJECTED[2];   /* shared z for the strip  */
+        *(int *)(vtx + 0x20) = float_to_int((float)D_70003600[0] + scale * corner.f[i * 2 + 0]);
+        *(int *)(vtx + 0x24) = float_to_int((float)D_70003600[1] + scale * corner.f[i * 2 + 1]);
+        *(int *)(vtx + 0x28) = D_70003600[2];
         *(int *)(vtx + 0x2C) = 0;
-
-        /* ST: texture coords taken straight from the vertex's own screen
-           position (12.4 -> /8192 in x, /4096 in y) plus the random jitter.
-           This frame-buffer feedback is what produces the distortion. */
-        *(float *)(vtx + 0x10) = jitter_s + (-3.5f    + (float)sx * 1.220703125e-4f);
-        *(float *)(vtx + 0x14) = jitter_t + (-7.5625f + (float)sy * 2.44140625e-4f);
-        *(int   *)(vtx + 0x18) = 0x3F800000;       /* Q = 1.0f                */
-
+        *(float *)(vtx + 0x10) = jitter_s + (-3.5f + 0.0001220703125f * (float)*(int *)(vtx + 0x20));
+        *(float *)(vtx + 0x14) = jitter_t + (-7.5625f + 0.000244140625f * (float)*(int *)(vtx + 0x24));
+        *(int *)(vtx + 0x18) = 0x3F800000;
         vtx += 0x30;
     }
 }

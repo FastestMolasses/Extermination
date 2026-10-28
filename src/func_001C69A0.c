@@ -1,8 +1,20 @@
 // NEARMISS func_001C69A0  (vram 0x001C69A0, 0x3F8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 23.04% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 94.83% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0), was 23.04%.
+// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
+// Matching wave 2026-10-28 rebuilt it from the original: the matrix scale, the
+// per-row scales and the three matrix products are VU0 macro code inline
+// (one instruction per asm statement, in static inline helpers whose pointer
+// arguments are copied into locals first, which keeps them in registers as
+// in the original). The old C emulated them on the FPU with a different
+// structure (a 4-row loop helper).
+// Remaining differences: each row-scale factor reaches VU0 through the fixed
+// register t0. The original loads the stored scales straight into t0 and moves
+// the computed rest scales there from the FPU (each followed by a hazard nop);
+// mwcc 2.3.3 drops a float asm operand, so the stored scales go through an
+// integer reinterpretation (another register, no nop) and the computed ones
+// through a stack union (frame 0x50, not 0x40). The loop-tail nop placement
+// follows from the size difference.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,112 +22,164 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Evaluates a model's skeleton: scales the staged object matrix by the model
+// scale, then for every bone builds the animated rotation (quaternion blend
+// of the two keys, to a matrix with the animated translation) scaled per row,
+// the rest matrix (identity, rest rotation, rest translation, 4.12 rest
+// scales), combines rest * animation, and writes the bone's world matrix as
+// that local matrix times the parent's world matrix (the object matrix for
+// root bones).
 
 typedef struct { float x, y, z, w; } Vec4;
 
-/* Model instance. The bone records themselves are accessed by byte offset
-   (see the field map in the header comment) because their surrounding layout
-   is not fully mapped yet. */
+typedef struct Bone {
+    float  trans[4];        /* +0x00 animated translation             */
+    char   pad10[0x08];
+    float  scale[3];        /* +0x18 animated scale                   */
+    char   pad24[0x0C];
+    float  qa[4];           /* +0x30 key quaternion A                 */
+    float  qb[4];           /* +0x40 key quaternion B                 */
+    float  t;               /* +0x50 blend factor                     */
+    char   pad54[0x10];
+    short  parent;          /* +0x64 parent bone, -1 = object root    */
+    char   pad66[0x0A];
+    float  rest_rot[3];     /* +0x70 rest rotation (euler xyz)        */
+    float  rest_trans[3];   /* +0x7C rest translation                 */
+    short  rest_scale[3];   /* +0x88 rest scale, 4.12 fixed point     */
+    char   pad8E[0x02];
+    Vec4   world[4];        /* +0x90 bone world matrix                */
+} Bone;
+
 typedef struct {
     char          pad00[0x0C];
     unsigned char bone_count;   /* +0x0C */
     char          pad0D[0x60 - 0x0D];
-    float         scale[4];     /* +0x60 */
+    Vec4          scale;        /* +0x60 */
     char          pad70[0x110 - 0x70];
-    unsigned char *bone[1];     /* +0x110 array of bone pointers */
+    Bone         *bone[1];      /* +0x110 */
 } Model;
 
-/* Byte-matched / documented helpers. */
-extern void quat_nlerp(float *out, const float *qa, const float *qb, float t);
-extern void quat_to_mat3(float *m, const float *q, const float *translation);
-extern void func_001029C0(Vec4 *m);                              /* identity */
-extern void func_00102C58(Vec4 *dst, Vec4 *src, const float *euler_xyz);
+extern void quat_nlerp(float *out, float *a, float *b, float t);
+extern void quat_to_mat3(float *m, float *q, Bone *node);
+extern void func_001029C0(Vec4 *m);                       /* identity */
+extern void func_00102C58(Vec4 *obj, Vec4 *obj2, float *v); /* obj = rot(v) * obj; its src definition names the 2nd argument int unused */
 
-/* EE scratchpad working set. */
-#define SPR_OBJECT ((Vec4 *)0x70003400)   /* object world matrix, staged by caller */
-#define SPR_ANIM   ((Vec4 *)0x70003440)   /* animation matrix                      */
-#define SPR_REST   ((Vec4 *)0x70003480)   /* rest/bind matrix, then the combined   */
-#define SPR_QUAT   ((float *)0x70003600)  /* blended quaternion                    */
+extern Vec4 D_70003400[4];   /* object world matrix, staged by the caller */
+extern Vec4 D_70003440[4];   /* animation matrix */
+extern Vec4 D_70003480[4];   /* rest matrix, then the combined local matrix */
+extern float D_70003600[4];  /* blended quaternion */
 
-/* --- VU0 macro-mode helpers written out as scalar float math -------------- */
+/* dst.xyz = src.xyz * s (s passed as its bit pattern), dst.w = src.w */
+static inline void vu0_scale_xyz(Vec4 *dst, Vec4 *src, int s)
+{
+    Vec4 *d = dst;
+    Vec4 *a = src;
 
-/* `vmulx.xyz vfD, vfD, vfSx` etc: scale a row's xyz by a broadcast scalar,
-   leaving w untouched. */
-static void vu0_scale_row_xyz(Vec4 *row, float s) {
-    row->x = row->x * s;
-    row->y = row->y * s;
-    row->z = row->z * s;
+    asm("lqc2 vf4, 0x0(%0)" : : "r"(a));
+    asm("qmtc2.ni %0, vf5" : : "r"(s));
+    asm("vmulx.xyz vf4, vf4, vf5x");
+    asm("sqc2 vf4, 0x0(%0)" : : "r"(d) : "memory");
 }
 
-/* vmulax/vmadday/vmaddaz/vmaddw accumulator chain: out = a * b, row-vector
-   convention (each row of `a` is transformed by the whole of `b`). */
-static void vu0_mat4_mul(Vec4 *out, const Vec4 *a, const Vec4 *b) {
-    int i;
-    for (i = 0; i < 4; i++) {
-        Vec4 r;
-        r.x = b[0].x * a[i].x + b[1].x * a[i].y + b[2].x * a[i].z + b[3].x * a[i].w;
-        r.y = b[0].y * a[i].x + b[1].y * a[i].y + b[2].y * a[i].z + b[3].y * a[i].w;
-        r.z = b[0].z * a[i].x + b[1].z * a[i].y + b[2].z * a[i].z + b[3].z * a[i].w;
-        r.w = b[0].w * a[i].x + b[1].w * a[i].y + b[2].w * a[i].z + b[3].w * a[i].w;
-        out[i] = r;
-    }
+/* m0 = m1 * m2 (row vectors): each row of m2 transformed by m1 */
+static inline void vu0_mul_matrix(Vec4 *m0, Vec4 *m1, Vec4 *m2)
+{
+    Vec4 *r = m2;
+    Vec4 *a = m1;
+    Vec4 *d = m0;
+
+    asm("lqc2 vf4, 0x0(%0)" : : "r"(a));
+    asm("lqc2 vf5, 0x10(%0)" : : "r"(a));
+    asm("lqc2 vf6, 0x20(%0)" : : "r"(a));
+    asm("lqc2 vf7, 0x30(%0)" : : "r"(a));
+    asm("lqc2 vf8, 0x0(%0)" : : "r"(r));
+    asm("vmulax.xyzw ACC, vf4, vf8x");
+    asm("vmadday.xyzw ACC, vf5, vf8y");
+    asm("vmaddaz.xyzw ACC, vf6, vf8z");
+    asm("vmaddw.xyzw vf12, vf7, vf8w");
+    asm("sqc2 vf12, 0x0(%0)" : : "r"(d) : "memory");
+    asm("lqc2 vf9, 0x10(%0)" : : "r"(r));
+    asm("vmulax.xyzw ACC, vf4, vf9x");
+    asm("vmadday.xyzw ACC, vf5, vf9y");
+    asm("vmaddaz.xyzw ACC, vf6, vf9z");
+    asm("vmaddw.xyzw vf13, vf7, vf9w");
+    asm("sqc2 vf13, 0x10(%0)" : : "r"(d) : "memory");
+    asm("lqc2 vf10, 0x20(%0)" : : "r"(r));
+    asm("vmulax.xyzw ACC, vf4, vf10x");
+    asm("vmadday.xyzw ACC, vf5, vf10y");
+    asm("vmaddaz.xyzw ACC, vf6, vf10z");
+    asm("vmaddw.xyzw vf14, vf7, vf10w");
+    asm("sqc2 vf14, 0x20(%0)" : : "r"(d) : "memory");
+    asm("lqc2 vf11, 0x30(%0)" : : "r"(r));
+    asm("vmulax.xyzw ACC, vf4, vf11x");
+    asm("vmadday.xyzw ACC, vf5, vf11y");
+    asm("vmaddaz.xyzw ACC, vf6, vf11z");
+    asm("vmaddw.xyzw vf15, vf7, vf11w");
+    asm("sqc2 vf15, 0x30(%0)" : : "r"(d) : "memory");
 }
 
-void func_001C69A0(Model *model) {
+/* scale the xyz of rows 0..2 of src by v.x, v.y, v.z into dst */
+static inline void vu0_scale_matrix(Vec4 *dst, Vec4 *src, Vec4 *v)
+{
+    Vec4 *d = dst;
+    Vec4 *a = src;
+    Vec4 *b = v;
+
+    asm("lqc2 vf4, 0x0(%0)" : : "r"(a));
+    asm("lqc2 vf5, 0x10(%0)" : : "r"(a));
+    asm("lqc2 vf6, 0x20(%0)" : : "r"(a));
+    asm("lqc2 vf7, 0x30(%0)" : : "r"(a));
+    asm("lqc2 vf8, 0x0(%0)" : : "r"(b));
+    asm("vmulx.xyz vf4, vf4, vf8x");
+    asm("vmuly.xyz vf5, vf5, vf8y");
+    asm("vmulz.xyz vf6, vf6, vf8z");
+    asm("sqc2 vf4, 0x0(%0)" : : "r"(d) : "memory");
+    asm("sqc2 vf5, 0x10(%0)" : : "r"(d) : "memory");
+    asm("sqc2 vf6, 0x20(%0)" : : "r"(d) : "memory");
+    asm("sqc2 vf7, 0x30(%0)" : : "r"(d) : "memory");
+}
+
+typedef union { float f; int i; } FBits;
+
+void func_001C69A0(Model *model)
+{
     int i;
 
-    /* --- 0. pre-scale the staged object matrix in place -------------------- */
-    vu0_scale_row_xyz(&SPR_OBJECT[0], model->scale[0]);
-    vu0_scale_row_xyz(&SPR_OBJECT[1], model->scale[1]);
-    vu0_scale_row_xyz(&SPR_OBJECT[2], model->scale[2]);
-    /* The target also re-stores row 3 unchanged (it loads all four rows and
-       writes all four back); kept here so the store pattern is visible. */
-    SPR_OBJECT[3] = SPR_OBJECT[3];
+    vu0_scale_matrix(D_70003400, D_70003400, &model->scale);
 
-    /* --- 1. evaluate every bone ------------------------------------------- */
-    for (i = 0; i < (int)model->bone_count; i++) {
-        unsigned char *bone = model->bone[i];
-        const Vec4 *parent_mtx;
-        short parent;
+    for (i = 0; i < model->bone_count; i++) {
+        Bone *bone = model->bone[i];
+        float k;
+        FBits s;
 
-        /* a/b: animated rotation basis from the blended key quaternion */
-        quat_nlerp((float *)SPR_QUAT,
-                   (const float *)(bone + 0x30),
-                   (const float *)(bone + 0x40),
-                   *(float *)(bone + 0x50));
-        quat_to_mat3((float *)SPR_ANIM, (const float *)SPR_QUAT,
-                     (const float *)bone);
+        quat_nlerp(D_70003600, bone->qa, bone->qb, bone->t);
+        quat_to_mat3((float *)D_70003440, D_70003600, bone);
 
-        vu0_scale_row_xyz(&SPR_ANIM[0], *(float *)(bone + 0x18));
-        vu0_scale_row_xyz(&SPR_ANIM[1], *(float *)(bone + 0x1C));
-        vu0_scale_row_xyz(&SPR_ANIM[2], *(float *)(bone + 0x20));
+        vu0_scale_xyz(&D_70003440[0], &D_70003440[0], *(int *)&bone->scale[0]);
+        vu0_scale_xyz(&D_70003440[1], &D_70003440[1], *(int *)&bone->scale[1]);
+        vu0_scale_xyz(&D_70003440[2], &D_70003440[2], *(int *)&bone->scale[2]);
 
-        /* c: the bone's rest (bind) TRS matrix */
-        func_001029C0(SPR_REST);                               /* identity  */
-        func_00102C58(SPR_REST, SPR_REST, (const float *)(bone + 0x70));
+        func_001029C0(D_70003480);
+        func_00102C58(D_70003480, D_70003480, bone->rest_rot);
+        D_70003480[3].x = bone->rest_trans[0];
+        D_70003480[3].y = bone->rest_trans[1];
+        D_70003480[3].z = bone->rest_trans[2];
 
-        SPR_REST[3].x = *(float *)(bone + 0x7C);               /* translate */
-        SPR_REST[3].y = *(float *)(bone + 0x80);
-        SPR_REST[3].z = *(float *)(bone + 0x84);
+        k = 1.0f / 4096.0f;
+        s.f = k * (float)bone->rest_scale[0];
+        vu0_scale_xyz(&D_70003480[0], &D_70003480[0], s.i);
+        s.f = k * (float)bone->rest_scale[1];
+        vu0_scale_xyz(&D_70003480[1], &D_70003480[1], s.i);
+        s.f = k * (float)bone->rest_scale[2];
+        vu0_scale_xyz(&D_70003480[2], &D_70003480[2], s.i);
 
-        /* three s16 rest scales, 4.12 fixed point */
-        vu0_scale_row_xyz(&SPR_REST[0],
-                          (1.0f / 4096.0f) * (float)*(short *)(bone + 0x88));
-        vu0_scale_row_xyz(&SPR_REST[1],
-                          (1.0f / 4096.0f) * (float)*(short *)(bone + 0x8A));
-        vu0_scale_row_xyz(&SPR_REST[2],
-                          (1.0f / 4096.0f) * (float)*(short *)(bone + 0x8C));
+        vu0_mul_matrix(D_70003480, D_70003440, D_70003480);
 
-        /* d: REST = REST * ANIM (row-vector order: rest first) */
-        vu0_mat4_mul(SPR_REST, SPR_REST, SPR_ANIM);
-
-        /* e: concatenate with the parent's world matrix (or the object's) */
-        parent = *(short *)(bone + 0x64);
-        if (parent == -1) {
-            parent_mtx = SPR_OBJECT;
+        if (bone->parent != -1) {
+            vu0_mul_matrix(bone->world, model->bone[bone->parent]->world, D_70003480);
         } else {
-            parent_mtx = (const Vec4 *)(model->bone[parent] + 0x90);
+            vu0_mul_matrix(bone->world, D_70003400, D_70003480);
         }
-        vu0_mat4_mul((Vec4 *)(bone + 0x90), SPR_REST, parent_mtx);
     }
 }

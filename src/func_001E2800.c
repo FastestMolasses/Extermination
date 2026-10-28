@@ -1,8 +1,22 @@
 // NEARMISS func_001E2800  (vram 0x001E2800, 0x3A0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 4.87% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 94.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0), was 4.87%.
+// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
+// Matching wave 2026-10-28 rebuilt it block by block from the original:
+//  - each endpoint is projected by VU0 macro code inline (camera matrix in
+//    VU0 registers 28..31, fog ramp in 23, both loaded by the caller); the raw
+//    transformed vector is also spilled to a stack temporary, as the original does.
+//  - the scratchpad words are per-quad relocated externs; colours are 128-bit copies.
+//  - the fade's mode test is a switch (2/3 colour, 1 alpha), clamp written "> 0xFF".
+//  - FIDELITY: func_001CB6B0's fourth argument is a plain 32-bit address (the old
+//    C zero-extended it to 64 bits); the old C emulated the VU0 projection on the FPU.
+// Remaining differences: the w bias (1.0f) reaches VU0 through an integer
+// register. The original builds 1.0f in an FPU register once and moves it to
+// the fixed register t0 before each transfer (moving the fifth argument out of
+// t0 at entry); mwcc 2.3.3 cannot express that move without non-VU0 asm (a float
+// "r" operand is silently not materialised), so the bits go through a stack
+// union here. Two label paddings and register colouring follow from that size
+// difference (with the sizes aligned the rest of the body lines up).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,120 +24,106 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Draws one gouraud line between two points: projects both endpoints to 12.4
+// screen space with a depth-fade value in w, stages the two colours, optionally
+// applies the depth fade (mode 1: alpha; modes 2 and 3: RGB), then reserves
+// four quadwords in the z-sorted display list keyed by endpoint A's depth and
+// appends the canned line GIFtag block and the mode's trailer.
 
 typedef struct { float x, y, z, w; } Vec4;
+typedef int u128 __attribute__((mode(TI)));
+typedef struct { int w[4]; } Qw __attribute__((aligned(16)));
 
-/* Byte-matched display-list helpers (see their own source files). */
 extern char *func_001CB5F0(int list, int z, int nqw);
-extern void  func_001CB6B0(int list, int z, int nqw, unsigned long long ref);
+extern void  func_001CB6B0(int list, int z, int nqw, int ref);
 extern void  func_001CB900(int list, int z, int kind);
 
-/* The z-bucketed display list this effect draws into. */
 extern int D_007635C0;
-/* Pre-canned GIFtag + PRIM block for a 2-vertex gouraud line, referenced by
-   address (DMA "ref" transfer) rather than copied. */
 extern int D_00253720;
 
-/* CodeWarrior runtime float -> int cast helper. */
-extern int float_to_int(float f);
+/* EE scratchpad staging block for one line. */
+extern int D_70003600[4];   /* endpoint A: x, y, z (12.4), fade */
+extern int D_70003610[4];   /* endpoint B */
+extern int D_70003620[4];   /* colour A: R, G, B, A */
+extern int D_70003630[4];   /* colour B */
 
-/* EE scratchpad staging block. */
-#define SPR_PT_A  ((volatile int *)0x70003600)   /* x,y,z (12.4), w (fade)  */
-#define SPR_PT_B  ((volatile int *)0x70003610)
-#define SPR_COL_A ((volatile int *)0x70003620)   /* R,G,B,A one word each   */
-#define SPR_COL_B ((volatile int *)0x70003630)
+/* Transform p by the camera matrix in VU0 (implicit w = 1), divide x, y by w,
+   subtract the bias from w and divide z by the biased w, map the biased w
+   through the fog ramp (clamped to [0, ramp.x]) and convert all four to 12.4. */
+static inline void vu0_project(int *out, const Vec4 *p, float bias)
+{
+    Vec4 raw;
+    int *o = out;
+    Vec4 *r = &raw;
+    union { float f; int i; } u;
 
-/* vf23: globally reserved depth-fade constants (.x ceiling, .z bias, .w slope). */
-extern float VF23_x, VF23_z, VF23_w;
-/* vf28..vf31: the world->screen matrix, live in VU0 across the call. */
-extern Vec4 VF28_31[4];
-
-/* vftoi4: convert to signed 12.4 fixed point (truncating, saturating). */
-static int vu0_ftoi4(float f) { return float_to_int(f * 16.0f); }
-
-/* The shared projection idiom: transform by the VU0-resident screen matrix,
-   perspective-divide x,y by w, subtract a w bias (1.0f here), perspective-divide
-   z by the biased w, then map the biased w through the depth-fade ramp and
-   convert the whole vector to 12.4 fixed point.
-   PS2 floats are not IEEE-754: the divides saturate rather than producing inf. */
-static void vu0_project(volatile int *out, const Vec4 *p) {
-    Vec4 v;
-    float depth;
-
-    v.x = VF28_31[0].x * p->x + VF28_31[1].x * p->y + VF28_31[2].x * p->z + VF28_31[3].x;
-    v.y = VF28_31[0].y * p->x + VF28_31[1].y * p->y + VF28_31[2].y * p->z + VF28_31[3].y;
-    v.z = VF28_31[0].z * p->x + VF28_31[1].z * p->y + VF28_31[2].z * p->z + VF28_31[3].z;
-    v.w = VF28_31[0].w * p->x + VF28_31[1].w * p->y + VF28_31[2].w * p->z + VF28_31[3].w;
-
-    v.x = v.x / v.w;
-    v.y = v.y / v.w;
-    v.w = v.w - 1.0f;          /* w bias, staged through qmtc2 in the target */
-    v.z = v.z / v.w;
-
-    depth = VF23_z + VF23_w * v.w;
-    if (depth > VF23_x) depth = VF23_x;
-    if (depth < 0.0f)   depth = 0.0f;
-
-    out[0] = vu0_ftoi4(v.x);
-    out[1] = vu0_ftoi4(v.y);
-    out[2] = vu0_ftoi4(v.z);
-    out[3] = vu0_ftoi4(depth);
+    asm("lqc2 vf1, 0x0(%0)" : : "r"(p));
+    asm("vmulax.xyzw ACC, vf28, vf1x");
+    asm("vmadday.xyzw ACC, vf29, vf1y");
+    asm("vmaddaz.xyzw ACC, vf30, vf1z");
+    asm("vmaddw.xyzw vf2, vf31, vf0w");
+    asm("vdiv Q, vf0w, vf2w");
+    asm("sqc2 vf2, 0x0(%0)" : : "r"(r) : "memory");
+    asm("vwaitq");
+    asm("vmulq.xy vf2, vf2, Q");
+    u.f = bias;
+    asm("qmtc2.ni %0, vf3" : : "r"(u.i));
+    asm("vsubx.w vf2, vf2, vf3x");
+    asm("vdiv Q, vf0w, vf2w");
+    asm("vwaitq");
+    asm("vmulq.z vf2, vf2, Q");
+    asm("vmulaz.w ACC, vf0, vf23z");
+    asm("vmaddw.w vf2, vf23, vf2w");
+    asm("vminix.w vf2, vf2, vf23x");
+    asm("vmaxx.w vf2, vf2, vf0x");
+    asm("vftoi4.xyzw vf2, vf2");
+    asm("sqc2 vf2, 0x0(%0)" : : "r"(o) : "memory");
 }
 
-/* Apply the depth fade held in colour-block `col`'s companion depth word.
-   The 12.4 depth is shifted down to an integer 0..255 scale factor, clamped,
-   applied to the selected channels as (c * f) >> 8, and the depth word is then
-   reset to 0xFF0 (== 255.0 in 12.4) so downstream stages see "no fade". */
-static void apply_depth_fade(int mode, volatile int *pt, volatile int *col) {
-    int f;
+#define DEPTH_FADE(mode, pt, col)                          \
+    do {                                                   \
+        pt[3] = pt[3] >> 4;                                \
+        if (pt[3] > 0xFF) pt[3] = 0xFF;                   \
+        if (pt[3] < 0)      pt[3] = 0;                     \
+        switch (mode) {                                    \
+        case 2:                                            \
+        case 3:                                            \
+            col[0] = (col[0] * pt[3]) >> 8;                \
+            col[1] = (col[1] * pt[3]) >> 8;                \
+            col[2] = (col[2] * pt[3]) >> 8;                \
+            break;                                         \
+        case 1:                                            \
+            col[3] = (col[3] * pt[3]) >> 8;                \
+            break;                                         \
+        }                                                  \
+        pt[3] = 0xFF0;                                     \
+    } while (0)
 
-    pt[3] = pt[3] >> 4;
-    if (pt[3] >= 0x100) pt[3] = 0xFF;
-    if (pt[3] < 0)      pt[3] = 0;
-    f = pt[3];
-
-    if (mode == 1) {
-        col[3] = (col[3] * f) >> 8;              /* alpha only               */
-    } else if (mode == 3 || mode == 2) {
-        col[0] = (col[0] * f) >> 8;              /* R                        */
-        col[1] = (col[1] * f) >> 8;              /* G (target uses `mult1`,  */
-        col[2] = (col[2] * f) >> 8;              /*    the 2nd ALU pipeline) */
-    }
-    pt[3] = 0xFF0;
-}
-
-void func_001E2800(int mode, const Vec4 *pa, const Vec4 *ca,
-                   const Vec4 *pb, const Vec4 *cb) {
+void func_001E2800(int mode, const Vec4 *pa, const void *ca,
+                   const Vec4 *pb, const void *cb)
+{
     char *dst;
-    int z;
 
-    /* --- project both endpoints into the scratchpad staging block --------- */
-    vu0_project(SPR_PT_A, pa);
-    vu0_project(SPR_PT_B, pb);
+    vu0_project(D_70003600, pa, 1.0f);
+    vu0_project(D_70003610, pb, 1.0f);
 
-    /* --- stage both colours (128-bit quadword copies) --------------------- */
-    *(Vec4 *)SPR_COL_A = *ca;
-    *(Vec4 *)SPR_COL_B = *cb;
+    *(u128 *)D_70003620 = *(const u128 *)ca;
+    *(u128 *)D_70003630 = *(const u128 *)cb;
 
-    /* --- optional per-endpoint depth fade --------------------------------- */
     if (mode != 0) {
-        apply_depth_fade(mode, SPR_PT_A, SPR_COL_A);
+        DEPTH_FADE(mode, D_70003600, D_70003620);
     }
     if (mode != 0) {
-        apply_depth_fade(mode, SPR_PT_B, SPR_COL_B);
+        DEPTH_FADE(mode, D_70003610, D_70003630);
     }
 
-    /* --- submit into the z-sorted display list ---------------------------- */
-    z = SPR_PT_A[2];                       /* sort key: endpoint A's z        */
-
-    dst = func_001CB5F0((int)&D_007635C0, z, 4);  /* reserve 4 quadwords      */
-    *(Vec4 *)(dst + 0x00) = *(Vec4 *)SPR_COL_A;   /* RGBAQ vertex 0          */
-    *(Vec4 *)(dst + 0x10) = *(Vec4 *)SPR_PT_A;    /* XYZ2  vertex 0          */
-    *(Vec4 *)(dst + 0x20) = *(Vec4 *)SPR_COL_B;   /* RGBAQ vertex 1          */
-    *(Vec4 *)(dst + 0x30) = *(Vec4 *)SPR_PT_B;    /* XYZ2  vertex 1          */
-
-    /* 2-quadword DMA "ref" to the canned GIFtag/PRIM block, then the list's
-       standard trailer (func_001CB900 resolves a mode-specific state block). */
-    func_001CB6B0((int)&D_007635C0, z, 2, (unsigned long long)(unsigned int)&D_00253720);
-    func_001CB900((int)&D_007635C0, z, mode);
+    dst = func_001CB5F0((int)&D_007635C0, D_70003600[2], 4);
+    ((u128 *)dst)[0] = *(u128 *)D_70003620;
+    ((u128 *)dst)[1] = *(u128 *)D_70003600;
+    ((u128 *)dst)[2] = *(u128 *)D_70003630;
+    ((u128 *)dst)[3] = *(u128 *)D_70003610;
+    func_001CB6B0((int)&D_007635C0, D_70003600[2], 2,
+                  (int)&D_00253720);
+    func_001CB900((int)&D_007635C0, D_70003600[2], mode);
 }

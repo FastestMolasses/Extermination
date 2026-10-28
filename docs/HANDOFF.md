@@ -52,7 +52,7 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (2026-10-28, end of the matching wave, queue batch 44): 2759/2761
+  Latest (2026-10-28, end of the matching wave plus the VU0 class, queue batch 47): 2769/2771
   units, matched_code 99.97%; boot ELF byte-identical; 19/19 overlays;
   audit_link_provenance clean (2309 ordinary-C routes). The wave byte-matched
   498 NEARMISS functions and replaced 51 asm bodies by C; per-batch levers are in
@@ -61,8 +61,21 @@ that is a different, stale tree.
   signatures with how the original calls them (every file re-measured, scores
   unchanged; a few kept for matching are commented in place).
   What is left (185 NEARMISS in src/, 53 companions in src/readable/):
-  - VU0 macro code, about 43 NEARMISS plus the VU0 companions: needs the user's
-    decision on inline VU0 asm (approved only for func_001DB480 so far).
+  - VU0 class (user approval 2026-10-28: inline VU0 macro asm, one instruction
+    per asm statement, MATCHING_GUIDE "Queue batch 45"-"Queue batch 47"): 26
+    matched (14 libvu0 helpers, 12 game functions); about 30 near-misses now at
+    67-99.97%. Still blocked by the asm rules, each a user decision: (a) a
+    float handed to VU0 through a fixed GPR (a float-to-GPR move plus a nop
+    before the VU0 transfer; mwcc 2.3.3 drops float asm operands) caps about 12
+    functions (func_001C9610, func_001C9940, func_001CE860, func_001CE300,
+    func_001E0750, func_001E2800, func_001C69A0, func_001CD520, func_001CD940,
+    func_001CDDC0, anim_eval_skeleton, func_001F0A60); (b) EE nop padding after
+    clip-flag reads (func_001D5370, func_001D5C80); (c) a multi-instruction VU0
+    asm statement (func_001CAAC0, func_001F15F0 reach 100 with the 14-
+    instruction projection as one statement; rule [c] of the leak guard rejects
+    it). Kept as asm bodies (hand-written, no C form): func_001026D0,
+    func_00102A60, func_00102B08, func_00102BB0, func_001029E8,
+    func_00102798, func_001027E0 (MMI), func_001CF970 (MMI, absolute jump).
   - Interrupt-masked (di / ei) and `sync` SDK functions (func_0010B160,
     func_0010C0C8..func_0010C3C8, func_0010E270, func_001095F0, func_00203BA0,
     func_00204140, func_002040E0, func_001006D8, func_001008C0): no C form.

@@ -1,8 +1,11 @@
 // NEARMISS func_001CEFD0  (vram 0x001CEFD0, 0x348 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 0.00% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 95.71% via mwcc 2.3.3 (mwcps2-2.3.3-000906); matching wave 2026-10-28 (inline VU0 asm,
+// user-approved 2026-10-28 for the VU0 class). Remaining differences:
+// (1) the two 7-float .rodata tables are copied with lq/ld and a final integer word load;
+// the struct copy here moves the last word through an FPU register (same bytes).
+// (2) the original re-reads the centred X and Y from the scratchpad for r; mwcc here
+// forwards the just-stored Y and hoists the X load. Was 0.00% (scalar emulation).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,129 +13,135 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
-typedef unsigned int       u32;
+// SPAD: 0x70003600 0x70003604 0x7000360C 0x70003620 0x70003624 0x70003A20 0x70003A24
 typedef unsigned long long u64;
+typedef struct { float f[7]; } Float7;   /* a 7-entry .rodata table, copied whole */
 
+typedef union { int i; float f; } Word;
+extern Word  D_70003600;           /* projected X (12.4), then centred float X */
+extern Word  D_70003604;           /* projected Y (12.4), then centred float Y */
+extern int   D_7000360C;           /* projected fog F */
+extern float D_70003610[4];        /* faded colour */
+extern int   D_70003620;           /* sprite X (12.4) */
+extern int   D_70003624;           /* sprite Y (12.4) */
+extern float D_70003A20;           /* float scratch */
+extern float D_70003A24;           /* float scratch */
 typedef struct { float x, y, z, w; } Vec4;
-typedef struct { Vec4 r[4]; }        Mtx4;   /* rows; r[3] is the translation row */
+extern Vec4  D_70003AC0[4];        /* camera P*V */
+extern char  D_007635C0;           /* flare display-list page */
 
-/* EE scratchpad working set used by this routine. */
-#define SPR_PROJ_I  ((int   *)0x70003600)  /* 12.4 fixed-point output: X, Y, Z, F  */
-#define SPR_PROJ_F  ((float *)0x70003600)  /* words 0/1 rewritten as centred floats */
-#define SPR_COLOUR  ((float *)0x70003610)  /* faded colour, then made integer in place */
-#define SPR_XY      ((int   *)0x70003620)  /* 12.4 GS position handed to the sprite */
-#define SPR_TMP0    (*(float *)0x70003A20) /* float scratch                         */
-#define SPR_TMP1    (*(float *)0x70003A24) /* float scratch                         */
-#define SPR_MTX_VP  ((Mtx4  *)0x70003AC0)  /* view-projection (vf28..vf31)          */
+extern const Float7 D_00251370;     /* position factor along the centre axis */
+extern const Float7 D_00251390;     /* sprite size */
 
-extern char *D_00275670;
-extern char  D_007635C0;                   /* flare display-list page               */
-
-/* 7-entry .rodata tables, copied to the stack as 0x1C bytes each. */
-extern const float D_00251370[7];          /* position factor along the centre axis */
-extern const float D_00251390[7];          /* sprite size                           */
-
-extern char *func_001CD370(int which);     /* -> D_00275670 + (which<<6) + 0x2240   */
-extern float func_0011E748(float x);       /* sqrtf (libm domain-error wrapper)     */
+extern char *func_001CD370(int which);
+extern float func_0011E748(float x);
 extern int   float_to_int(float x);
-extern void  func_00102900(void *dst, const void *src, float s); /* dst = src * s  */
-extern void  func_00102990(void *dst, const void *src);          /* dst = (int)src per lane */
-extern void  func_001CF320(int *xy12_4, float *rgba_i, u64 tex0, float size);
+extern void  func_00102900(float *dst, const float *v, float s);
+extern void  func_00102990(float *dst, float *v);
+extern void  func_001CF320(int *xy, float *rgba, u64 tex0, float size);
 extern void  func_001CB900(char *page, int sortkey, int tag);
 
-void func_001CEFD0(const Vec4 *pos, const float *rgba)
+/* Lens flare for a light at pos: VU0 clip test against the matrix from
+   func_001CD370(2), loaded into VU0 24..27; if any clip flag is set,
+   nothing is drawn. Otherwise project with the camera rows
+   (28..31) and the live-in fog ramp (VU0 23) to 12.4 X, Y, Z and F in the
+   scratchpad; draw only when F is 0..255. The centred screen offset gives a
+   fade 1 - min(r / 393.85, 1) that scales rgba (func_00102900, then made
+   integer by func_00102990); seven sprites are placed along the centre axis
+   at posFactor[i] with size[i], alternating two TEX0 values, and the page is
+   closed with func_001CB900. */
+void func_001CEFD0(const float *pos, const float *rgba)
 {
-    float posFactor[7];      /* stack copy of D_00251370 (sp+0x30) */
-    float size[7];           /* stack copy of D_00251390 (sp+0x50) */
-    Vec4  clip;              /* sp+0x70 — pre-divide vector; the original stores it
-                                but never reads it back */
-    Mtx4  objm;              /* vf24..vf27 */
-    Mtx4  vpm;               /* vf28..vf31 */
-    Vec4  fog;               /* vf23 — LIVE-IN, see the header note */
-    Vec4  xf;
-    float cx, cy, r, t, intensity;
-    int   i;
+    Float7 posFactor;
+    Float7 size;
+    float  clip[4];
+    char  *m;
+    const Vec4 *cam;
+    int    flags;
+    int    i;
+    float  cx, cy;
 
-    __builtin_memcpy(posFactor, D_00251370, 0x1C);
-    __builtin_memcpy(size,      D_00251390, 0x1C);
+    posFactor = D_00251370;
+    size = D_00251390;
 
-    objm = *(Mtx4 *)func_001CD370(2);
-
-    /* ---- 1. frustum cull (VU0 clip test of xyz vs w; low 6 clip-flag bits) - */
-    xf.x = objm.r[0].x * pos->x + objm.r[1].x * pos->y + objm.r[2].x * pos->z + objm.r[3].x;
-    xf.y = objm.r[0].y * pos->x + objm.r[1].y * pos->y + objm.r[2].y * pos->z + objm.r[3].y;
-    xf.z = objm.r[0].z * pos->x + objm.r[1].z * pos->y + objm.r[2].z * pos->z + objm.r[3].z;
-    xf.w = objm.r[0].w * pos->x + objm.r[1].w * pos->y + objm.r[2].w * pos->z + objm.r[3].w;
-    if (!(-xf.w <= xf.x && xf.x <= xf.w) ||
-        !(-xf.w <= xf.y && xf.y <= xf.w) ||
-        !(-xf.w <= xf.z && xf.z <= xf.w)) {
-        return;                                   /* light is off-screen */
+    m = func_001CD370(2);
+    asm("lqc2 vf24, 0x0(%0)" : : "r"(m));
+    asm("lqc2 vf25, 0x10(%0)" : : "r"(m));
+    asm("lqc2 vf26, 0x20(%0)" : : "r"(m));
+    asm("lqc2 vf27, 0x30(%0)" : : "r"(m));
+    asm("lqc2 vf1, 0x0(%0)" : : "r"(pos));
+    asm("vmulax.xyzw ACC, vf24, vf1x");
+    asm("vmadday.xyzw ACC, vf25, vf1y");
+    asm("vmaddaz.xyzw ACC, vf26, vf1z");
+    asm("vmaddw.xyzw vf2, vf27, vf0w");
+    asm("vclipw.xyz vf2, vf2w");
+    asm("vnop");
+    asm("vnop");
+    asm("vnop");
+    asm("vnop");
+    asm("vnop");
+    asm("cfc2.ni %0, vi18" : "=r"(flags));
+    if ((flags & 0x3F) != 0) {
+        return;
     }
 
-    /* ---- 2. project to screen, apply the fog ramp, convert to 12.4 --------- */
-    vpm = *SPR_MTX_VP;
-    clip.x = vpm.r[0].x * pos->x + vpm.r[1].x * pos->y + vpm.r[2].x * pos->z + vpm.r[3].x;
-    clip.y = vpm.r[0].y * pos->x + vpm.r[1].y * pos->y + vpm.r[2].y * pos->z + vpm.r[3].y;
-    clip.z = vpm.r[0].z * pos->x + vpm.r[1].z * pos->y + vpm.r[2].z * pos->z + vpm.r[3].z;
-    clip.w = vpm.r[0].w * pos->x + vpm.r[1].w * pos->y + vpm.r[2].w * pos->z + vpm.r[3].w;
-
-    fog = *(Vec4 *)(D_00275670 + 0xA0);   /* NOT loaded here — vf23 is live-in */
-
+    cam = D_70003AC0;
+    asm("lqc2 vf28, 0x0(%0)" : : "r"(cam));
+    asm("lqc2 vf29, 0x10(%0)" : : "r"(cam));
+    asm("lqc2 vf30, 0x20(%0)" : : "r"(cam));
+    asm("lqc2 vf31, 0x30(%0)" : : "r"(cam));
     {
-        float q = 1.0f / clip.w;                  /* VU0 divide into Q */
-        xf.x = clip.x * q;
-        xf.y = clip.y * q;
-        xf.z = clip.z * q;
-        xf.w = fog.z + fog.w * clip.w;            /* w-lane multiply-acc */
-        if (xf.w > fog.x) { xf.w = fog.x; }       /* w-lane min vs fog.x */
-        if (xf.w < 0.0f)  { xf.w = 0.0f; }        /* w-lane max vs zero  */
-        SPR_PROJ_I[0] = (int)(xf.x * 16.0f);      /* to 12.4 fixed point  */
-        SPR_PROJ_I[1] = (int)(xf.y * 16.0f);
-        SPR_PROJ_I[2] = (int)(xf.z * 16.0f);
-        SPR_PROJ_I[3] = (int)(xf.w * 16.0f);
+        int *out = &D_70003600.i;
+        float *c = clip;
+
+        asm("vmulax.xyzw ACC, vf28, vf1x");
+        asm("vmadday.xyzw ACC, vf29, vf1y");
+        asm("vmaddaz.xyzw ACC, vf30, vf1z");
+        asm("vmaddw.xyzw vf2, vf31, vf0w");
+        asm("vdiv Q, vf0w, vf2w");
+        asm("sqc2 vf2, 0x0(%0)" : : "r"(c) : "memory");
+        asm("vwaitq");
+        asm("vmulq.xyz vf2, vf2, Q");
+        asm("vmulaz.w ACC, vf0, vf23z");
+        asm("vmaddw.w vf2, vf23, vf2w");
+        asm("vminix.w vf2, vf2, vf23x");
+        asm("vmaxx.w vf2, vf2, vf0x");
+        asm("vftoi4.xyzw vf2, vf2");
+        asm("sqc2 vf2, 0x0(%0)" : : "r"(out) : "memory");
     }
 
-    /* ---- 3. fog gate: F must land inside the GS 8-bit range ---------------- */
-    if (SPR_PROJ_I[3] < 0)      { return; }
-    if (SPR_PROJ_I[3] >= 0x100) { return; }
+    if (D_7000360C < 0) {
+        return;
+    }
+    if (D_7000360C >= 0x100) {
+        return;
+    }
 
-    /* ---- 4. centred screen pixels, distance and fade ----------------------- */
-    cx = (float)((SPR_PROJ_I[0] >> 4) - 0x800);
-    cy = (float)((SPR_PROJ_I[1] >> 4) - 0x800);
-    SPR_PROJ_F[0] = cx;
-    SPR_PROJ_F[1] = cy;
+    D_70003600.f = (float)((D_70003600.i >> 4) - 0x800);
+    D_70003604.f = (float)((D_70003604.i >> 4) - 0x800);
 
-    r = func_0011E748(cx * cx + cy * cy);         /* ACC multiply, multiply-add, sqrtf */
-    SPR_TMP0 = r;
-    t = r / 393.84616f;                           /* 0x43C4EC4F */
-    SPR_TMP0 = t;
-    if (t > 1.0f) { t = 1.0f; }                   /* clamp: float <= compare, branch on true */
-    SPR_TMP0 = t;
-    intensity = 1.0f - t;
-    SPR_TMP0 = intensity;
+    cx = D_70003600.f;
+    cy = D_70003604.f;
+    D_70003A20 = func_0011E748(cx * cx + cy * cy);
+    D_70003A20 = D_70003A20 / 393.84616f;
+    D_70003A20 = (D_70003A20 > 1.0f) ? 1.0f : D_70003A20;
+    D_70003A20 = 1.0f - D_70003A20;
+    func_00102900(D_70003610, rgba, D_70003A20);
+    func_00102990(D_70003610, D_70003610);
 
-    func_00102900(SPR_COLOUR, rgba, intensity);   /* colour = rgba * intensity */
-    func_00102990(SPR_COLOUR, SPR_COLOUR);        /* float -> GS integer RGBA  */
-
-    /* ---- 5. the seven flare sprites ---------------------------------------- */
     for (i = 0; i < 7; i++) {
         u64 tex0;
 
-        SPR_TMP0 = posFactor[i];
-        SPR_TMP1 = size[i];
-
-        SPR_XY[0] = (float_to_int(SPR_PROJ_F[0] * SPR_TMP0) + 0x800) << 4;
-        SPR_XY[1] = (float_to_int(SPR_PROJ_F[1] * SPR_TMP0) + 0x800) << 4;
-
-        /* Two alternating GS TEX0_1 values (they differ only in TBP0). */
+        D_70003A20 = posFactor.f[i];
+        D_70003A24 = size.f[i];
+        D_70003620 = (float_to_int(D_70003600.f * D_70003A20) + 0x800) << 4;
+        D_70003624 = (float_to_int(D_70003604.f * D_70003A20) + 0x800) << 4;
         if (i & 1) {
-            tex0 = ((u64)0x20045F05u << 32) | 0x99421EB8u;
+            tex0 = 0x20045F0599421EB8ULL;
         } else {
-            tex0 = ((u64)0x20045DA5u << 32) | 0x99421EA8u;
+            tex0 = 0x20045DA599421EA8ULL;
         }
-
-        func_001CF320(SPR_XY, SPR_COLOUR, tex0, SPR_TMP1);
+        func_001CF320(&D_70003620, D_70003610, tex0, D_70003A24);
     }
 
     func_001CB900(&D_007635C0, 0xFFF000, 2);

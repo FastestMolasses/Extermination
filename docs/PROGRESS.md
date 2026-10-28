@@ -1,3 +1,10 @@
+## 2026-10-28 — VU0 class, queue batch 47: build_trs_matrix byte-matched, 12 improved
+
+See MATCHING_GUIDE "Queue batch 47"; HANDOFF lists the VU0 class status and
+the three asm-rule questions left. Gate: fresh build + verify_all all six
+stages pass, boot ELF byte-identical, 19/19 overlays, matched_code 99.97%,
+2769/2771 units; provenance clean.
+
 ## 2026-10-28 — VU0 class, queue batch 46: 11 more byte-matched, 17 improved
 
 See MATCHING_GUIDE "Queue batch 46". Gate: fresh build + verify_all all six
