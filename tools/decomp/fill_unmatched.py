@@ -258,7 +258,7 @@ SIZE_DRIFT_FORCE_ASM = {
     # 100%, .text 0x1B8 inside the 0x1C0 slot); the compiled object is linked.
     "func_0019A310",
     "func_0019ED80",
-    "func_0019F330",
+    # func_0019F330 removed (matching wave 2026-10-28): byte-matched from C.
     "func_001A4D10",
     "func_001B1EA0",
     # anim_clip_init removed: readable C now supplies both float arguments

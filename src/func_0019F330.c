@@ -1,223 +1,102 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00102738(int, int, int, int);
-extern void func_001028B8(int, int, int, int);
-extern void func_001028D0(int, int, int, int);
-extern void func_00103230(int, int, int, int);
-extern void func_0011DBB8(int, int, int, int);
-extern void func_0011DF78(int, int, int, int);
-extern void func_0011E748(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700031FC 0x70003200 0x70003204 0x70003684
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a readable companion of an
+// asm body at 99.81%). Fix read from the original instructions:
+// - the node's index-list and edge-list offsets (+0x1C, +0x20) are read through volatile
+//   ints, the spelling of the byte-matched sibling func_0019F680; each pool base is then
+//   loaded ahead of its offset, as in the original.
+extern float D_70003684;
+extern float *D_700031FC;
+extern char *D_70003200;
+extern char *D_70003204;
 
-asm void func_0019F330(void) {
-    addiu      $sp, $sp, -0x110
-    .word 0x7fbf0090
-    .word 0x7fb70080
-    .word 0x7fb60070
-    .word 0x7fb50060
-    .word 0x7fb40050
-    .word 0x7fb30040
-    .word 0x7fb20030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0x70c0be28
-    .word 0x70e0b628
-    .word 0xe7b50004
-    addiu      $a2, $sp, 0xA0
-    addiu      $a3, $sp, 0xB0
-    .word 0xe7b40000
-    .word 0x70001e28
-    .word 0xc4800000
-    addiu      $v1, $v1, 0x1
-    slti       $v0, $v1, 0x3
-    .word 0xe4c00000
-    .word 0xc4a00000
-    addiu      $a0, $a0, 0x4
-    addiu      $a2, $a2, 0x4
-    .word 0xe4e00000
-    addiu      $a1, $a1, 0x4
-    .word 0x1440fff6
-    addiu     $a3, $a3, 0x4
-    addiu      $a0, $sp, 0xF0
-    addiu      $a1, $sp, 0xB0
-    addiu      $a2, $sp, 0xA0
-    .word 0xafa000ac
-    jal        func_001028D0
-    .word 0xafa000bc
-    addiu      $a0, $sp, 0x100
-    .word 0x70002e28
-    .word 0x72c01e28
-    .word 0xc4600024
-    addiu      $a1, $a1, 0x1
-    slti       $v0, $a1, 0x3
-    .word 0xe4800000
-    addiu      $v1, $v1, 0x4
-    .word 0x1440fffa
-    addiu     $a0, $a0, 0x4
-    .word 0xafa0010c
-    .word 0xc6d40030
-    addiu      $a0, $sp, 0xF0
-    jal        func_00102738
-    addiu     $a1, $sp, 0x100
-    addiu      $a0, $sp, 0x100
-    mov.s      $f21, $f0
-    jal        func_00102738
-    addiu     $a1, $sp, 0xA0
-    sub.s      $f0, $f20, $f0
-    addiu      $a0, $sp, 0xC0
-    addiu      $a1, $sp, 0xF0
-    div.s      $f12, $f0, $f21
-    nop
-    nop
-    jal        func_00103230
-    nop
-    addiu      $a0, $sp, 0xC0
-    addiu      $a1, $sp, 0xA0
-    jal        func_001028B8
-    .word 0x70803628
-    .word 0x3c017000
-    .word 0x8c243204
-    .word 0x8ec5001c
-    .word 0x8ec30020
-    .word 0x7000ae28
-    .word 0x3c017000
-    .word 0x8c223200
-    addu       $s0, $a0, $a1
-    .word 0x10000038
-    addu      $s1, $v0, $v1
-    .word 0x86050000
-    .word 0x3c017000
-    .word 0x8c2231fc
-    addiu      $s2, $sp, 0xE4
-    addiu      $s3, $sp, 0xE8
-    sll        $v1, $a1, 1
-    addu       $v1, $v1, $a1
-    sll        $v1, $v1, 2
-    addu       $v1, $v0, $v1
-    .word 0xc4600000
-    addiu      $s4, $sp, 0xEC
-    addiu      $a0, $sp, 0xD0
-    addiu      $a1, $sp, 0xC0
-    .word 0xe7a000e0
-    .word 0x86070000
-    addiu      $a2, $sp, 0xE0
-    sll        $v1, $a3, 1
-    addu       $v1, $v1, $a3
-    sll        $v1, $v1, 2
-    addu       $v1, $v0, $v1
-    .word 0xc4600004
-    .word 0xe6400000
-    .word 0x86070000
-    sll        $v1, $a3, 1
-    addu       $v1, $v1, $a3
-    sll        $v1, $v1, 2
-    addu       $v0, $v0, $v1
-    .word 0xc4400008
-    .word 0xe6600000
-    jal        func_001028D0
-    .word 0xae800000
-    .word 0xc6200000
-    addiu      $a0, $sp, 0xD0
-    addiu      $a1, $sp, 0xE0
-    .word 0xe7a000e0
-    .word 0xc6200004
-    .word 0xe6400000
-    .word 0xc6200008
-    .word 0xe6600000
-    jal        func_00102738
-    .word 0xae800000
-    .word 0x3c023727
-    .word 0x3442c5ac
-    mtc1       $v0, $f1
-    nop
-    c.le.s     $f0, $f1
-    nop
-    .word 0x45030004
-    addiu     $s0, $s0, 0x2
-    .word 0x10000048
-    .word 0x70001628
-    addiu      $s0, $s0, 0x2
-    addiu      $s1, $s1, 0xC
-    addiu      $s5, $s5, 0x1
-    nop
-    .word 0x92c20018
-    slt        $v0, $s5, $v0
-    .word 0x1440ffc6
-    nop
-    addiu      $v1, $sp, 0xC0
-    .word 0x70002e28
-    .word 0x72e02628
-    .word 0xc4600000
-    addiu      $a1, $a1, 0x1
-    slti       $v0, $a1, 0x3
-    .word 0xe4800000
-    addiu      $v1, $v1, 0x4
-    .word 0x1440fffa
-    addiu     $a0, $a0, 0x4
-    .word 0xc7a10100
-    .word 0xc7a00108
-    mula.s     $f1, $f1
-    jal        func_0011E748
-    madd.s    $f12, $f0, $f0
-    .word 0x3c0238d1
-    .word 0x3442b717
-    mtc1       $v0, $f1
-    .word 0x3c017000
-    c.lt.s     $f0, $f1
-    nop
-    .word 0x45000006
-    .word 0xe4203680
-    .word 0x3c027f7f
-    .word 0x3442c99e
-    .word 0x3c017000
-    .word 0x10000008
-    .word 0xac223684
-    jal        func_0011DF78
-    .word 0xc7ac0104
-    .word 0x3c017000
-    .word 0xc4213680
-    div.s      $f0, $f0, $f1
-    .word 0x3c017000
-    .word 0xe4203684
-    .word 0xc7a10104
-    mtc1       $zero, $f0
-    nop
-    c.lt.s     $f1, $f0
-    nop
-    .word 0x4500000c
-    nop
-    .word 0x3c017000
-    jal        func_0011DBB8
-    .word 0xc42c3684
-    .word 0x3c023fc9
-    .word 0x34420fdb
-    mtc1       $v0, $f1
-    nop
-    sub.s      $f0, $f1, $f0
-    neg.s      $f0, $f0
-    .word 0x1000000a
-    .word 0xe6e0000c
-    .word 0x3c017000
-    jal        func_0011DBB8
-    .word 0xc42c3684
-    .word 0x3c023fc9
-    .word 0x34420fdb
-    mtc1       $v0, $f1
-    nop
-    sub.s      $f0, $f1, $f0
-    .word 0xe6e0000c
-    addiu      $v0, $zero, 0x1
-    .word 0x7bbf0090
-    .word 0x7bb70080
-    .word 0x7bb60070
-    .word 0x7bb50060
-    .word 0x7bb40050
-    .word 0x7bb30040
-    .word 0x7bb20030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    .word 0xc7b50004
-    .word 0xc7b40000
-    jr         $ra
-    addiu     $sp, $sp, 0x110
+// Collision column pass 2's plane crossing (port COLL_LIST_PASSES.md:
+// em_coll_list_passes_0019F330). The line a -> b is intersected with the
+// node's plane (normal +0x24, distance +0x30): hit = a + (b - a) * t with
+// t = (d - n.a) / ((b - a).n). The hit must lie inside the node's polygon:
+// for each of its +0x18 vertices (index pool 0x70003204 + node+0x1C, vertex
+// pool 0x700031FC, 12-byte vertices) the hit relative to the vertex, dotted
+// with the edge normal (pool 0x70003200 + node+0x20), must be <= 1e-5;
+// otherwise 0. On a hit q[0..2] = hit, the scratchpad gets the plane's
+// horizontal length sqrtf(nx*nx + nz*nz) (0x70003680) and |ny| / that
+// (0x70003684, 3.4e38 when below 1e-4), and q[3] = pi/2 - atanf(ratio),
+// negated when ny < 0. Returns 1. The vector helpers are the SDK VU0
+// routines: func_001028D0 subtract, func_001028B8 add, func_00102738 dot,
+// func_00103230 scale.
+typedef struct V4 {
+    float v[3];
+    int w;
+} V4;
+
+extern void func_001028D0(V4 *dst, V4 *a, V4 *b);
+extern void func_001028B8(V4 *dst, V4 *a, V4 *b);
+extern float func_00102738(V4 *a, V4 *b);
+extern void func_00103230(V4 *dst, V4 *v, float t);
+extern float func_0011E748(float x);
+extern float func_0011DF78(float x);
+extern float func_0011DBB8(float x);
+
+int func_0019F330(float *a, float *b, float *q, char *node) {
+    V4 va;
+    V4 vb;
+    V4 hit;
+    V4 rel;
+    V4 v;
+    V4 dir;
+    V4 n;
+    float d;
+    float along;
+    short *idx;
+    float *e;
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        va.v[i] = a[i];
+        vb.v[i] = b[i];
+    }
+    va.w = 0;
+    vb.w = 0;
+    func_001028D0(&dir, &vb, &va);
+    for (i = 0; i < 3; i++) {
+        n.v[i] = *(float *)(node + 0x24 + i * 4);
+    }
+    n.w = 0;
+    d = *(float *)(node + 0x30);
+    along = func_00102738(&dir, &n);
+    func_00103230(&hit, &dir, (d - func_00102738(&n, &va)) / along);
+    func_001028B8(&hit, &va, &hit);
+    idx = (short *)(D_70003204 + *(volatile int *)(node + 0x1C));
+    e = (float *)(D_70003200 + *(volatile int *)(node + 0x20));
+    for (i = 0; i < *(unsigned char *)(node + 0x18); i++) {
+        v.v[0] = D_700031FC[*idx * 3 + 0];
+        v.v[1] = D_700031FC[*idx * 3 + 1];
+        v.v[2] = D_700031FC[*idx * 3 + 2];
+        v.w = 0;
+        func_001028D0(&rel, &hit, &v);
+        v.v[0] = e[0];
+        v.v[1] = e[1];
+        v.v[2] = e[2];
+        v.w = 0;
+        if (!(func_00102738(&rel, &v) <= 1e-5f)) {
+            return 0;
+        }
+        idx++;
+        e += 3;
+    }
+    for (i = 0; i < 3; i++) {
+        q[i] = hit.v[i];
+    }
+    *(volatile float *)0x70003680 = func_0011E748(n.v[0] * n.v[0] + n.v[2] * n.v[2]);
+    if (*(volatile float *)0x70003680 < 0.0001f) {
+        D_70003684 = 3.4e38f;
+    } else {
+        D_70003684 = func_0011DF78(n.v[1]) / *(volatile float *)0x70003680;
+    }
+    if (n.v[1] < 0.0f) {
+        q[3] = -(1.5707964f - func_0011DBB8(D_70003684));
+    } else {
+        q[3] = 1.5707964f - func_0011DBB8(D_70003684);
+    }
+    return 1;
 }
-
-// Readable C (NEARMISS companion, objdiff 96.20%): src/readable/func_0019F330.c

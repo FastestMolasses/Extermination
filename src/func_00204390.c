@@ -1,69 +1,55 @@
-// All-word: everything as .word except jal/j-external
-extern void SignalSema(int, int, int, int);
-extern void WaitSema(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a readable companion of an
+// asm body at 99.84%). Fix read from the original instructions:
+// - the write offset is built in two steps: the sector position scaled to bytes goes in its
+//   own local (pos), then (pos + byte_ofs) % size; that keeps the byte offset as the second
+//   operand of the add and the original register assignment.
 
-asm void func_00204390(void) {
-    .word 0x27bdffa0
-    .word 0x7fbf0050
-    .word 0x7fb40040
-    .word 0x7fb30030
-    .word 0x7fb20020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x7080a628
-    .word 0x8c840040
-    .word 0x70a09e28
-    .word 0x70c09628
-    .word 0x70e08e28
-    jal       WaitSema
-    .word 0x71008628
-    .word 0x8e850010
-    .word 0x8e83000c
-    .word 0x8e820008
-    .word 0x8e840014
-    .word 0x8e860018
-    .word 0x00651821
-    .word 0x00031ac0
-    .word 0x00641821
-    .word 0x0066001a
-    .word 0x2442fffe
-    .word 0x00451023
-    .word 0x000212c0
-    .word 0x00442023
-    .word 0x00001810
-    .word 0x00c31023
-    .word 0x0044102a
-    .word 0x14400008
-    .word 0x00000000
-    .word 0x8e820000
-    .word 0x00431021
-    .word 0xae620000
-    .word 0xae440000
-    .word 0xae200000
-    .word 0x1000000d
-    .word 0xae000000
-    .word 0x8e820000
-    .word 0x00431021
-    .word 0xae620000
-    .word 0x8e820018
-    .word 0x00431023
-    .word 0xae420000
-    .word 0x8e820000
-    .word 0xae220000
-    .word 0x8e820018
-    .word 0x00431023
-    .word 0x00821023
-    .word 0xae020000
-    jal       SignalSema
-    .word 0x8e840040
-    .word 0x7bbf0050
-    .word 0x7bb40040
-    .word 0x7bb30030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0060
+// Sector ring buffer (movie / stream path): returns the free region as up to
+// two spans. Under the ring's semaphore (+0x40), the write offset is
+// ((read_sector + count) * 2048 + byte_ofs) % size and the free byte count is
+// (capacity - 2 - count) * 2048 - byte_ofs. When it fits before the end of
+// the buffer the first span gets it all and the second is empty; otherwise
+// the first span runs to the end and the second starts at the buffer base.
+typedef struct SectorRing {
+    char *base;         /* 0x00 */
+    int pad04;
+    int capacity;       /* 0x08: in 2048-byte sectors */
+    int read_sector;    /* 0x0C */
+    int count;          /* 0x10: sectors filled */
+    int byte_ofs;       /* 0x14 */
+    int size;           /* 0x18: in bytes */
+    int pad1C[9];
+    int sema;           /* 0x40 */
+} SectorRing;
+
+extern int WaitSema(int sema);
+extern int SignalSema(int sema);
+
+void func_00204390(SectorRing *r, char **ptr1, int *len1, char **ptr2, int *len2) {
+    int ofs;
+    int avail;
+    int bo;
+    int cnt;
+    int pos;
+
+    WaitSema(r->sema);
+    cnt = r->count;
+    bo = r->byte_ofs;
+    pos = (r->read_sector + cnt) * 2048;
+    ofs = (pos + bo) % r->size;
+    avail = (r->capacity - 2 - cnt) * 2048 - bo;
+    if (r->size - ofs >= avail) {
+        *ptr1 = r->base + ofs;
+        *len1 = avail;
+        *ptr2 = 0;
+        *len2 = 0;
+    } else {
+        *ptr1 = r->base + ofs;
+        *len1 = r->size - ofs;
+        *ptr2 = r->base;
+        *len2 = avail - (r->size - ofs);
+    }
+    SignalSema(r->sema);
 }
-
-// Readable C (NEARMISS companion, objdiff 99.84%): src/readable/func_00204390.c

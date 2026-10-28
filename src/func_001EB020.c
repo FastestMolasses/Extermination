@@ -1,16 +1,18 @@
-// NEARMISS func_001EB020  (vram 0x001EB020, 0x230 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 95.53% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP register-coloring + constant-emit-order permutation in the 3rd of 3 identical passes (first two passes byte-identical). CW target loads 9.0f before 1e-6f and colors fade base into v1; mwcc reverses constant loads and colors into a3. Permuter-class, not clean-store nop. Same wall as sibling fun...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 95.53% NEARMISS).
+// Fixes read from the original instructions:
+//  - the third spawn sets up its 1.0 and 9.0 arguments ahead of the 1e-6 one
+//    (the first two spawns do not): in the original both are integer values
+//    converted to float in locals (idiom-24), 9 first, then 1.
+//
+// Spawns three particle effects for object arg0 into queue arg1. For each one
+// it reads the global LCG seed at *(D_00275C34+4), turns its high 16 bits into
+// a fraction (/65535 + 0.0001 bias), advances the seed (seed*37 + 11), calls
+// func_001CFB50(D_0081F8F0, 0, arg0, fade at +0x54, fraction, 1.0, 1e-6, 9.0)
+// and queues it with func_001CFBE0(arg1, 1, table, D_0081F8F0, 0) against the
+// tables D_00255980, D_00255A10 and D_00255AA0.
 extern int *D_00275C34;
 extern int D_00255980[2];
 extern int D_00255A10[2];
@@ -23,6 +25,10 @@ void func_001CFBE0(int a, int b, void *c, void *d, int e);
 void func_001EB020(int arg0, int arg1) {
     int r;
     float f;
+    int scale_i;
+    int unit_i;
+    float scale;
+    float unit;
 
     r = D_00275C34[1];
     f = (float)((r >> 0x10) & 0xFFFF);
@@ -44,6 +50,10 @@ void func_001EB020(int arg0, int arg1) {
                   f, 1.0f, 9.999999974752427e-07f, 9.0f);
     func_001CFBE0(arg1, 1, D_00255A10, D_0081F8F0, 0);
 
+    scale_i = 9;
+    scale = (float)scale_i;
+    unit_i = 1;
+    unit = (float)unit_i;
     r = D_00275C34[1];
     f = (float)((r >> 0x10) & 0xFFFF);
     f /= 65535.0f;
@@ -51,6 +61,6 @@ void func_001EB020(int arg0, int arg1) {
     f += 0.0001f;
     func_001CFB50(D_0081F8F0, 0, arg0,
                   *(float *)((char *)D_00275C34 + 0x54),
-                  f, 1.0f, 9.999999974752427e-07f, 9.0f);
+                  f, unit, 9.999999974752427e-07f, scale);
     func_001CFBE0(arg1, 1, D_00255AA0, D_0081F8F0, 0);
 }

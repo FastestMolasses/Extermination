@@ -1,16 +1,13 @@
-// NEARMISS func_001EB600  (vram 0x001EB600, 0x1F0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 89.90% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP register-coloring + float-constant scheduling in the two func_001CFB50 arg setups. Body/structure fully recovered and identical to the matched sibling family (func_001EB7F0/func_001EBA20 at -O4,p -sdatathreshold 4); the prologue additions unique to this variant (fade-guard, func_0021B9A0 brack...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an 89.90% NEARMISS).
+// Fixes read from the original instructions:
+//  - the 15.0 and 1.0 spawn arguments are integer values converted to float in
+//    locals (idiom-24): both in the first spawn (15 first, then 1), only the 15.0
+//    in the second; that sets them up ahead of the 1e-6 argument as the original
+//    does (same shape as func_001EB250). The old verdict (an FP register-colouring
+//    wall) was wrong.
 //
 // Particle/effect spawn driver, same idiom family as the matched siblings
 // func_001EB7F0 / func_001EBA20. Bracketed by audio/channel calls
@@ -23,10 +20,6 @@
 // D_0081F8F0, the fade scalar, that fraction and the tuning constants, and
 // queue via func_001CFBE0(arg1, 5, descriptor, block, 0) against D_00255D70
 // then D_00255E00.
-//
-// NEARMISS: 89.9% with mwcc 2.3.3 (991202 = 81.9%). Logic fully recovered;
-// residual is FP register-coloring + float-constant scheduling in the
-// func_001CFB50 argument setup (permuter class).
 extern int *D_00275C34;
 extern int D_00255D70[2];
 extern int D_00255E00[2];
@@ -39,6 +32,12 @@ void func_001CFBE0(int a, int b, void *c, void *d, int e);
 void func_001EB600(int arg0, int arg1) {
     int r;
     float f;
+    int scale_i;
+    int unit_i;
+    float scale;
+    float unit;
+    int scale2_i;
+    float scale2;
 
     if (!(*(float *)((char *)D_00275C34 + 0x54) <= 0.0f)) {
         *(float *)(arg0 + 0x38) -= 3.0f;
@@ -47,6 +46,10 @@ void func_001EB600(int arg0, int arg1) {
     func_0021B9A0(3, 0.0f, 2000.0f);
     *(float *)(arg0 + 0x34) = 20.0f;
 
+    scale_i = 15;
+    scale = (float)scale_i;
+    unit_i = 1;
+    unit = (float)unit_i;
     r = D_00275C34[1];
     f = (float)((r >> 0x10) & 0xFFFF);
     f /= 65535.0f;
@@ -54,9 +57,11 @@ void func_001EB600(int arg0, int arg1) {
     f += 0.0001f;
     func_001CFB50(D_0081F8F0, 0, arg0,
                   *(float *)((char *)D_00275C34 + 0x54),
-                  f, 1.0f, 9.999999974752427e-07f, 15.0f);
+                  f, unit, 9.999999974752427e-07f, scale);
     func_001CFBE0(arg1, 5, D_00255D70, D_0081F8F0, 0);
 
+    scale2_i = 15;
+    scale2 = (float)scale2_i;
     r = D_00275C34[1];
     f = (float)((r >> 0x10) & 0xFFFF);
     f /= 65535.0f;
@@ -64,7 +69,7 @@ void func_001EB600(int arg0, int arg1) {
     f += 0.0001f;
     func_001CFB50(D_0081F8F0, 0, arg0,
                   *(float *)((char *)D_00275C34 + 0x54),
-                  f, 1.0f, 9.999999974752427e-07f, 15.0f);
+                  f, 1.0f, 9.999999974752427e-07f, scale2);
     func_001CFBE0(arg1, 5, D_00255E00, D_0081F8F0, 0);
 
     func_0021B9A0(1, 0.0f, 0.0f);

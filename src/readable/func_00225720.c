@@ -3,8 +3,10 @@
 // objdiff 99.92% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) when compiled on its own. Object
 // similarity does not prove semantic equivalence. Remaining differences:
 // One register: the original reads the second page flag (+0x15) into a2, mwcc 2.3.3 into a0
-// (switch, cast, signedness and local spellings, mwcc 991202 / 2.4 measured). Every draw call and
-// GS constant matches.
+// (switch, cast, signedness and local spellings, mwcc 991202 / 2.4 measured; wave 2026-10-28:
+// int/char locals, reused locals, struct fields, early return, operand order, if-arm order,
+// 64-bit constant spellings, and a 560 s permuter run (8116 iterations) found nothing). Every
+// draw call and GS constant matches. rgba is unsigned int as in func_00207E40's definition.
 //
 // The function links from the asm body in src/func_00225720.c (kept by the user's asm-bodies decision
 // and so that matched_code does not drop); this companion is the readable ground truth and is
@@ -15,7 +17,7 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 
 extern void func_00207D00(int slot, int mode);
-extern void func_00207E40(int slot, int x, int y, int w, int h, int rgba, unsigned long long tex);
+extern void func_00207E40(int slot, int x, int y, int w, int h, unsigned int rgba, unsigned long long tex);
 extern int float_to_int(float);
 
 void func_00225720(unsigned char *m) {

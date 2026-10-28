@@ -744,3 +744,20 @@ func_001CFBE0). Improved and parked: func_001EE4E0 95.99, func_001EE190 95.99
 func_0022BBC0 96.10 (a same-file static callee via `// TU_STATIC:`; the
 caller-register reads of CURIOSITIES 21 kept as locals left uninitialised on
 those paths).
+
+
+### Queue batch 37 (2026-10-28)
+
+10 byte-matched. Six effect spawners finished by idiom-24 (int locals
+converted to float, larger value first, only in the spawn whose constants the
+original sets up early): func_001EB020, func_001EB250, func_001EB440,
+func_001EB600; two by a TU neighbour (`// TU_STATIC:` of the real predecessor):
+func_001ECB00, func_001ECFB0. Four readable companions replaced their asm
+bodies: func_00204390 (the scaled sector position in its own local before the
+modulo add), func_0019F330 (volatile int reads of the node's list offsets, the
+func_0019F680 spelling), func_001F4BF0 (the second 3.0 size as an int converted
+to float binds the constant to the second argument register), func_001D6F60
+(returns the entry packet pointer like its sibling func_001D7000; the companion
+returned void). Improved and parked: func_001EC270 95.31, func_001ED100 96.93,
+func_001ECE70 80.61 (its fourth float argument is 0.1, not 1e-6 as the old C
+had). func_00225720's companion now carries func_00207E40's corrected prototype.
