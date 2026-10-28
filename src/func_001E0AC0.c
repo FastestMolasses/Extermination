@@ -13,7 +13,7 @@ extern void func_001D1FF0(int, int);
 extern float func_0011DE90(float);
 extern float func_0011E2A8(float);
 extern void func_001E0750(float *, int);
-extern void func_001CAAC0(char *, char *, char *);
+extern int func_001CAAC0(char *world_pos, void *payload);
 
 typedef struct { char pad[0x1c]; char *cur; } Ctx;
 extern Ctx *D_00275670;
@@ -45,5 +45,5 @@ void func_001E0AC0(char *p, int arg1, float fx, float fy) {
     *(int *)(c->cur + 4) = 0;
     *(short *)(c->cur + 0) = 0;
     c->cur = c->cur + 0x10;
-    func_001CAAC0(p, buf, (char *)c);
+    func_001CAAC0(p, buf);
 }

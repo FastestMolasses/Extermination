@@ -8,10 +8,17 @@
 // format-handler context +0x54 seeded from the global D_0024295C. Dispatches
 // the varargs through func_001236D8 (the lazy-bind formatter driver), then
 // NUL-terminates at the final write cursor.
-// (__builtin_next_arg(fmt) - 48 == &the a2..t3 vararg register save area,
-// i.e. va_start(ap, fmt) for this 2-named-arg EABI frame.)
+// (va_start is ee-gcc's EABI form, as in func_00122CA8: the cursor starts at the
+// first unnamed register slot, 8 - 2 named = 6 slots of 8 bytes below
+// __builtin_next_arg(fmt).)
+
+typedef char *va_list;
+#define va_start(ap, last) \
+    ((ap) = (char *)__builtin_next_arg(last) - \
+     (__builtin_args_info(2) < 8 ? (8 - __builtin_args_info(2)) * 8 : 0))
+#define va_end(ap) ((void)0)
 extern int D_0024295C;
-extern int func_001236D8(void *, char *, void *);
+extern int func_001236D8(void *, char *, va_list);
 
 typedef struct {
     char *ptr;      /* 0x00 write cursor */
@@ -28,6 +35,7 @@ typedef struct {
 void func_00122D10(char *s, char *fmt, ...)
 {
     Stream f;
+    va_list ap;
 
     f.flag = 0x208;
     f.ptr = s;
@@ -35,6 +43,8 @@ void func_00122D10(char *s, char *fmt, ...)
     f.base = s;
     f.len = 0x7FFFFFFF;
     f.handler = D_0024295C;
-    func_001236D8(&f, fmt, (char *)__builtin_next_arg(fmt) - 48);
+    va_start(ap, fmt);
+    func_001236D8(&f, fmt, ap);
+    va_end(ap);
     *f.ptr = 0;
 }

@@ -73,7 +73,7 @@ extern int func_001C1570();
 extern int func_001D0D60(int model, float rate);
 extern int func_001AF890();
 extern void func_001B1190(int a);
-extern int func_001AFC10();
+extern void func_001AFC10(unsigned char *self);
 extern int func_001BFFD0();
 
 extern unsigned char D_008102B0[];
@@ -306,7 +306,7 @@ void func_001BF6B0(unsigned char *a) {
     case 3:
         func_001AF890(*(int *)(a + 0x90), a[4]);
         func_001B1190(a[0x9A]);
-        func_001AFC10(a);
+        func_001AFC10((unsigned char *)a);
         break;
     }
 }

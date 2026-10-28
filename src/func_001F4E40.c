@@ -4,10 +4,11 @@
 // rate) & 0x1FF) - 0x100, made positive; the brightness a = col[3] * t / 256 is
 // raised by a random byte (bits 23..30 of rand) as (a + a * k / 256) / 2, and
 // r, g, b = col[0..2] * a / 128 are packed 0xBBGGRR. func_001CD520(0, 2, pos,
-// 0x20045B0599421EF0, size, size, 1.5, colour) draws it.
+// 0x20045B0599421EF0, colour, size, size, 1.5) draws it.
 extern int D_70003B68;
 extern int func_00122BB8(void);
-extern void func_001CD520(int kind, int mode, void *pos, long long tag, float w, float h, float z, unsigned int rgb);
+extern int func_001CD520(int bucket, int mode, void *world, unsigned long long giftag,
+                         unsigned int rgba, float w, float h, float zbias);
 
 void func_001F4E40(void *pos, unsigned int *col, int rate, float size) {
     unsigned int a = col[3];
@@ -24,5 +25,5 @@ void func_001F4E40(void *pos, unsigned int *col, int rate, float size) {
     c = ((col[2] * a) >> 7) << 16;
     c |= ((col[1] * a) >> 7) << 8;
     c |= (col[0] * a) >> 7;
-    func_001CD520(0, 2, pos, 0x20045B0599421EF0LL, size, size, 1.5f, c);
+    func_001CD520(0, 2, pos, 0x20045B0599421EF0LL, c, size, size, 1.5f);
 }

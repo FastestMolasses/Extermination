@@ -39,7 +39,8 @@ extern float func_0011E2A8(float);
 extern int func_00122BB8(void);
 extern void func_001AFC10(unsigned char *e);
 extern int func_001CCF70(void *p);
-extern void func_001CD520(int mode, int n, void *dst, long long packedConst, float f12, float f13, float f14, int packed);
+extern int func_001CD520(int bucket, int mode, void *world, unsigned long long giftag,
+                         unsigned int rgba, float w, float h, float zbias);
 extern void func_001CE860(int a0, int a1, void *a2, void *a3, float f12, int t0, long long t1);
 extern void func_001CFB50(void *p, int a1, void *a2, float f12, float f13, float f14, float f15, float f16);
 extern void func_001CFBE0(int a0, int a1, void *a2, void *a3, int t0);
@@ -143,7 +144,7 @@ void func_0021A500(unsigned char *e) {
                 color = float_to_int(128.0f * frac);
                 color |= float_to_int(128.0f * frac) << 8;
                 color |= float_to_int(192.0f * frac) << 16;
-                func_001CD520(0, 2, p2 + 0x30, 0x20045BA5154222DCLL, 7.0f, 7.0f, 5.0f, color);
+                func_001CD520(0, 2, p2 + 0x30, 0x20045BA5154222DCLL, color, 7.0f, 7.0f, 5.0f);
                 n += 1;
                 p2 += 0x40;
             } while (n < 2);

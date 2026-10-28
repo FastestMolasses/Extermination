@@ -1111,3 +1111,18 @@ emits runtime names the build cannot resolve); varargs use gcc 2.9's own
 `- 48` in func_00122D10 is right only for two named arguments); u128 FIFO
 stores as mode(TI) types (lq / sq, no MMI). ASM-only: newlib's EE MMI memcmp
 func_001217D8 and strncpy func_00123418.
+
+
+### Queue batch 53 (2026-10-28): callee signatures, third round
+
+46 files (3 overlays). func_001D9EE0 is `(char *self, float)`; func_0017F1C0
+returns int (func_0019AD00's result survives the tail call); func_001B2B80 is
+`int (char *, float *, float *)`; func_00152E80 / func_00153EA0 / func_00150820
+take `(obj, st)`; func_00153B50 has two parameters; callers now declare
+func_001AFC10, func_001CAAC0 (two arguments, int return), func_001A99E0
+`(e, f)`, func_00182100 `(e)`, func_00229960, func_00226010 and func_002255C0 as
+the original calls them; func_001CD520's rgba is the 5th parameter in its
+callers; func_00122D10 uses the gcc 2.9 va_start formula. Kept for matching:
+func_001CAAC0's callers pass a 32-bit payload while it forwards a 64-bit one;
+AREA01_008282B0 / AREA19_00829330 evaluate the floats before rgba;
+func_00162190 calls func_0017D940 / DAF0 / DC80 without setting a0.

@@ -2,13 +2,13 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 // State-machine dispatch on the kind-0xE tendril field self[4]:
 //   0 INIT (func_00154740), 1 ACTIVE tick (func_001549C0),
-//   2 -> bump to state 3, 3 (func_001AFC10). Each handler gets
-//   (self, self+0x1F0 = scratch/tint record).
+//   2 -> bump to state 3, 3 (func_001AFC10(self), despawn). The
+//   state 0/1 handlers get (self, self+0x1F0 = scratch/tint record).
 // mwcc233 fills the case-2 beqz delay slot the same way CW did
 // (the idiom-13 clean-store nop case the pinned 991202 build cannot match).
 extern void func_00154740(unsigned char *self, unsigned char *scr);
 extern void func_001549C0(unsigned char *self, unsigned char *scr);
-extern void func_001AFC10(unsigned char *self, unsigned char *scr);
+extern void func_001AFC10(unsigned char *self);
 
 void func_001546C0(unsigned char *self) {
     unsigned char *scr = self + 0x1F0;
@@ -23,7 +23,7 @@ void func_001546C0(unsigned char *self) {
         self[4] = 3;
         break;
     case 3:
-        func_001AFC10(self, scr);
+        func_001AFC10(self);
         break;
     }
 }

@@ -20,7 +20,7 @@
 // if/else (single `owner = D_00275670`) so all +0x1C derefs share one base reg,
 // matching the target. Verified objdiff 100.0 vs build/expected/func_001CACC0.o.
 extern int func_001CA7B0(int, float);
-extern void func_001CAAC0(int, char *);
+extern int func_001CAAC0(int world_pos, char *payload);
 extern void func_001CB760(char *, int, char *);
 extern void func_001D39A0(int, char *);
 extern void func_001D3DA0(int, char *);

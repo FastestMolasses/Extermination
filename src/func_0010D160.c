@@ -27,7 +27,8 @@
 // through the SDK's soft-float helpers, so they are called explicitly here:
 //   func_001274B0(a,b) compare (<0 / 0 / >0)   func_00126F20(a,b) subtract
 //   func_00126F88(a,b) multiply                func_00127230(a,b) divide
-//   func_00125758(a)   double -> int           func_0010D008(n) int -> string
+//   func_00125758(a)   double -> unsigned 64-bit (__fixunsdfdi)
+//   func_0010D008(m)   64-bit double bit pattern -> int (saturates at 9999)
 //   func_0010D890(fmt, v) formatted print (tail-called)
 // 0.1 (twice) and 1000000.0 live in the constant pool (0x0026B868/70/78); 10.0 and
 // 1.0 are cheap enough that the compiler materialises them inline.
@@ -45,8 +46,8 @@ extern int func_001274B0(double a, double b);
 extern double func_00126F20(double a, double b);
 extern double func_00126F88(double a, double b);
 extern double func_00127230(double a, double b);
-extern int func_00125758(double a);
-extern char *func_0010D008(int v);
+extern unsigned long func_00125758(double a);
+extern int func_0010D008(unsigned long m);
 extern void func_0010D890(char *fmt, int v);
 
 void func_0010D160(double x)
@@ -72,7 +73,7 @@ void func_0010D160(double x)
             }
         }
     }
-    m = (int)func_0010D008(func_00125758(func_00126F88(x, 1000000.0)));
+    m = func_0010D008(func_00125758(func_00126F88(x, 1000000.0)));
     func_0010D890(D_0026B850, m);
     if (exp >= 0) {
         func_0010D890(D_0026B858, exp);

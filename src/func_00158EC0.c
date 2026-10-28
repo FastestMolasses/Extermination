@@ -55,7 +55,7 @@ extern int  func_00157860(unsigned char *p, unsigned char *anim, int mode);
 extern void func_001BA1A0(unsigned char *anim, void *clip);
 extern int  func_001BA1F0(unsigned char *p);
 extern void func_001B17A0(unsigned char *p);
-extern void func_001AFC10(void);
+extern void func_001AFC10(unsigned char *self);
 
 extern int           D_00275480;
 extern unsigned char D_00810700[8];
@@ -177,7 +177,7 @@ void func_00158EC0(unsigned char *p)
         p[4] = p[4] + 1;
         break;
     case 3:
-        func_001AFC10();
+        func_001AFC10(p);
         break;
     }
 }

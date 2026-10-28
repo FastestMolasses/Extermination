@@ -36,7 +36,7 @@ extern void func_001D1F20(int a);
 
 typedef struct { union { float f; int i; } e[16]; } Mtx;
 
-void func_001D9EE0(float arg0, char *arg1) {
+void func_001D9EE0(char *arg1, float arg0) {
     float farg;
     char sp30[0x40];   // sp+0x30
     Mtx sp70;          // sp+0x70

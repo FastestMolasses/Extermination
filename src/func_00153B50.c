@@ -42,8 +42,8 @@ extern unsigned char D_008107FB;
 extern int D_700038A0[];
 extern int D_700038B0[];
 
-void func_00153B50(Actor153 *self, Ctx153 *ctx, int state) {
-    Ctx153 *c; Actor153 *s; int hp; int clip; int zi; float z;
+void func_00153B50(Actor153 *self, Ctx153 *ctx) {
+    int state; Ctx153 *c; Actor153 *s; int hp; int clip; int zi; float z;
     state = self->sub05; c = ctx; s = self;
     switch (state) {
     case 0:

@@ -8,11 +8,10 @@
 // func_00154120(self, self+0x1F0). 2: sub-step byte self+5 -- step 0 fires
 // func_001FBD50(self, 0x434, 0, 300.0f), func_001EFE00(0x80000052, self) and
 // the hook at self+0x4C, then advances; step 1 advances; step 2 sets the state
-// to 3 and clears the step. 3: func_001AFC10(self, self+0x1F0) (its
-// definition takes one argument; the original passes two).
+// to 3 and clears the step. 3: func_001AFC10(self) (despawn).
 extern void func_00154040(char *arg0, short *arg1);
 extern void func_00154120(char *arg0, char *arg1);
-extern void func_001AFC10(unsigned char *handle, char *st);
+extern void func_001AFC10(unsigned char *self);
 extern char *func_001EFE00(int kind, char *src);
 extern int func_001FBD50(void *a0, int a1, int a2, float f12);
 extern unsigned char D_70003B8D;
@@ -49,7 +48,7 @@ void func_00153F10(char *self) {
         }
         break;
     case 3:
-        func_001AFC10((unsigned char *)self, st);
+        func_001AFC10((unsigned char *)self);
         break;
     }
 }

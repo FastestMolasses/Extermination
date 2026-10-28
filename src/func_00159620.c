@@ -23,7 +23,7 @@
 // addresses (0x700038A0..0x700038AC) and passed by symbol, which is exactly how
 // the target encodes it (raw lui/sw for the stores, %hi/%lo for the argument).
 extern int func_00157B30();
-extern int func_001AFC10();
+extern void func_001AFC10(unsigned char *self);
 extern int func_001B0FD0();
 extern int func_001B1B70();
 extern int func_001BA1A0();
@@ -134,7 +134,7 @@ void func_00159620(char *e) {
         *(char *)(e + 4) = st + 1;
         return;
     case 3:
-        func_001AFC10(e);
+        func_001AFC10((unsigned char *)e);
         break;
     }
 }

@@ -6,9 +6,8 @@
 // Per-tick driver: dispatches the state byte self+4 to its handler with
 // (self, self+0x1F0) -- 0 func_00153A10, 1 func_00153A90, 2 func_00153B50, 3
 // func_00153EA0 (state 3 returns at once). Otherwise, if the sub-block byte
-// +0x10 is set, calls func_001B5360(self). func_00153B50 and func_00153EA0 are
-// declared with the two arguments the original passes (their definitions
-// take three and one).
+// +0x10 is set, calls func_001B5360(self). Every handler takes
+// (self, sub-block).
 extern void func_00153A10(char *self, char *st);
 extern void func_00153A90(char *arg0, int *arg1);
 extern void func_00153B50(char *self, char *st);

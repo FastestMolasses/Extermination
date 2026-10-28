@@ -23,7 +23,7 @@
 extern unsigned char D_00810700;
 extern unsigned char D_00810841[];
 
-extern void func_001AFC10(int self);
+extern void func_001AFC10(unsigned char *self);
 extern int func_001B0FD0(int self);
 extern void func_001C6380(int self);
 extern void func_001F1110(int self, int a);
@@ -63,7 +63,7 @@ void func_001581A0(int a0) {
         break;
     case 2:
     case 3:
-        func_001AFC10(s0);
+        func_001AFC10((unsigned char *)s0);
         break;
     }
 }

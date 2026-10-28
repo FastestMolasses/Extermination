@@ -21,7 +21,7 @@ extern int func_00122BB8(void);
 extern void func_001028B8(void *out, void *a, void *b);
 extern void func_001026D0(void *out, void *a, void *b);
 extern void func_001D3D90(int);
-extern void func_001CAAC0(void *out, char *a, char *b);
+extern int func_001CAAC0(void *world_pos, void *payload);
 
 typedef int s128 __attribute__((mode(TI)));
 
@@ -183,7 +183,7 @@ void func_001F6210(void) {
         *(short *)(*(char **)(g + 0x1C) + 0) = 0;
         *(char **)(g + 0x1C) = *(char **)(g + 0x1C) + 0x10;
 
-        func_001CAAC0(&sp70, owner, g);
+        func_001CAAC0(&sp70, owner);
         rec += 0x28;
     }
     func_001D8C20(0);

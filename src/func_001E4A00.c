@@ -30,9 +30,8 @@ extern int  float_to_int(float x);
 extern int  func_00128250(float x);
 extern void func_00102948(void *dst, const void *src);
 
-extern void func_001CD520(int kind, int mode, const Vec4 *pos,
-                          unsigned long long tex, float w, float h, float depth,
-                          unsigned int rgba);
+extern int func_001CD520(int bucket, int mode, void *world, unsigned long long giftag,
+                         unsigned int rgba, float w, float h, float zbias);
 
 extern Vec4 D_002541F0[2];
 extern Vec4 D_00254210[2];
@@ -103,8 +102,6 @@ void func_001E4A00(char *obj, float age, float size)
     rgba2 |= func_00128250(D_700038B0.z) << 16;
     rgba2 |= func_00128250(D_700038B0.w) << 24;
 
-    func_001CD520(0, 2, (Vec4 *)(obj + 0x30), D_00253C50[float_to_int(frame_f)],
-                  w, w, size / 2.0f, rgba1);
-    func_001CD520(0, 2, (Vec4 *)(obj + 0x30), 0x20045BA5154222DCULL,
-                  2.0f * w, 2.0f * w, size / 2.0f, rgba2);
+    func_001CD520(0, 2, (Vec4 *)(obj + 0x30), D_00253C50[float_to_int(frame_f)], rgba1, w, w, size / 2.0f);
+    func_001CD520(0, 2, (Vec4 *)(obj + 0x30), 0x20045BA5154222DCULL, rgba2, 2.0f * w, 2.0f * w, size / 2.0f);
 }

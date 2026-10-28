@@ -24,8 +24,8 @@
 // a randomized RGB triple from it (spread pattern differs by D_008106E0 --
 // wide/bright when set, narrow/dim otherwise), packs the four color bytes
 // into a single word, and fires a muzzle-flash particle via func_001CD520
-// (position D_700038A0, packed 64-bit color-ish constant, size f12 twice +
-// 2.0f, plus the packed RGBA word as an extra int arg). Finally it builds a
+// (position D_700038A0, packed 64-bit GIF tag constant, the packed RGBA word,
+// size f12 twice and 2.0f). Finally it builds a
 // second transform at self+0x1F0 and calls func_001E2BA0 with a
 // D_008106E0-dependent tint vector (full white vs. dim amber) and the same
 // 260.0f scale.
@@ -34,10 +34,9 @@
 // (1) D_008106E0 is a scalar global 5.8MB away from $gp yet the target uses
 // absolute lui/%hi %lo addressing for it (not gp_rel) -- over-declaring it
 // int[4] (array-over-declaration idiom) fixes this at -sdatathreshold 8.
-// (2) The packed RGBA word ($t0 in the target) is genuinely computed but
-// never visibly consumed by any subsequent call in the m2c/asm view; making
-// it a real local and passing it as an extra 8th int argument to
-// func_001CD520 (beyond the 3 int + 1 int64 + 3 float args) is what keeps
+// (2) The packed RGBA word ($t0 in the target)
+// is func_001CD520's colour argument (its fifth parameter, the integer
+// register after the 64-bit tag); making it a real local passed there keeps
 // mwcc from spilling it to the stack (which grew the frame from -0x50 to
 // -0x60 when the value was merely computed-and-discarded). (3) The pack
 // order must be evaluated highest-byte-first (BC<<24 | B8<<16 | B4<<8 | B0)
@@ -53,7 +52,8 @@ extern void func_00102948(void *, void *);
 extern int func_0019A570(void *, void *, int, int);
 extern int func_00183AC0(char *);
 extern void func_001031E0(void *, void *);
-extern void func_001CD520(int, int, void *, long long, float, float, float, int);
+extern int func_001CD520(int bucket, int mode, void *world, unsigned long long giftag,
+                         unsigned int rgba, float w, float h, float zbias);
 extern void func_001E2BA0(void *, void *, void *, float);
 
 
@@ -119,7 +119,7 @@ void func_00185760(char *arg0) {
         | (D_700038B0[1] << 8)
         | D_700038B0[0];
 
-    func_001CD520(0, 2, D_700038A0, 0x20045BA5154222DCLL, f12, f12, 2.0f, packed);
+    func_001CD520(0, 2, D_700038A0, 0x20045BA5154222DCLL, packed, f12, f12, 2.0f);
     func_00102948(D_700038C0, arg0 + 0x1F0);
 
     if (D_008106E0[0] != 0) {

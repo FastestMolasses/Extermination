@@ -56,7 +56,7 @@
 //     accumulator `acc` and consumes 0x30 bytes of the packet per vertex;
 //   - teardown: func_001D1F20(3), func_001D1FF0(3, 1), close the list (byte
 //     [3] = 0x60, word [4] = 0, halfword [0] = 0), advance the cursor by 0x10,
-//     and kick with func_001CAAC0(arg0, wp0, D_00275670).
+//     and kick with func_001CAAC0(arg0, wp0).
 //
 typedef int u128 __attribute__((mode(TI)));
 
@@ -72,7 +72,7 @@ extern char *func_001CD370(int);
 extern void func_00103230(float *, char *, float);
 extern void func_001028B8(float *, int, float *);
 extern int func_001E0240(char *, float *, int, int);
-extern void func_001CAAC0(int, char *);
+extern int func_001CAAC0(int world_pos, char *payload);
 
 void func_001E04E0(int arg0, int arg1, float t)
 {

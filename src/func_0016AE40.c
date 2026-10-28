@@ -44,7 +44,7 @@ extern void func_00182090(unsigned char *e);
 extern void build_trs_matrix(void *m, void *pos, void *rot, void *scale);
 extern int func_00179B90();
 extern void func_001FBD50(unsigned char *e, int a, int b, float f);
-extern float func_00182100();
+extern float func_00182100(unsigned char *e);
 extern void func_001811F0(unsigned char *e);
 extern void func_00178B90(unsigned char *e, int a);
 extern void func_00181430(unsigned char *e);
@@ -149,7 +149,7 @@ void func_0016AE40(unsigned char *e)
                         return;
                     }
                     if (e[0x23F] != 0) {
-                        if (func_00181E20(e, 1, 2.25f + func_00182100()) != 0) {
+                        if (func_00181E20(e, 1, 2.25f + func_00182100(e)) != 0) {
                             func_001811F0(e);
                             e[0x25C] = e[0x23F];
                             *(float *)(e + 0x38) = 0.0f;

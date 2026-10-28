@@ -1,3 +1,10 @@
+## 2026-10-28 — queue batch 53: callee signatures reconciled (third round, 46 files)
+
+Definitions and declarations follow how the original calls each function
+(MATCHING_GUIDE "Queue batch 53"); every file re-measured with an unchanged
+score. Gate: fresh build + verify_all all six stages pass, boot ELF
+byte-identical, 19/19 overlays, 2762/2764 units; provenance clean.
+
 ## 2026-10-28 — decompiling the asm-word bodies, queue batch 52: 81 SDK functions byte-matched
 
 See MATCHING_GUIDE "Queue batch 52". With it every one of the 240 asm-only

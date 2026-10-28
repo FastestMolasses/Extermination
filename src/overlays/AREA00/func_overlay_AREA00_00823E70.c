@@ -29,7 +29,7 @@ extern void func_001CFBE0(int a0, int a1, void *a2, void *a3, int t0);
 extern int func_001C6190(unsigned char *self);
 extern int func_00122BB8(void);
 extern int func_001CD520(int bucket, int mode, void *world, unsigned long long giftag,
-                         float w, float h, float zbias, unsigned int rgba);
+                         unsigned int rgba, float w, float h, float zbias);
 
 void func_overlay_AREA00_00823E70(unsigned char *self) {
     float m[4][4];
@@ -84,7 +84,7 @@ void func_overlay_AREA00_00823E70(unsigned char *self) {
             c = (b >> 7) << 16;
             c |= (g >> 7) << 8;
             c |= r >> 7;
-            func_001CD520(0, 2, pos, 0x20045B0599421EF0ULL, 7.0f, 7.0f, 0.0f, c);
+            func_001CD520(0, 2, pos, 0x20045B0599421EF0ULL, c, 7.0f, 7.0f, 0.0f);
         }
         break;
     case 2:

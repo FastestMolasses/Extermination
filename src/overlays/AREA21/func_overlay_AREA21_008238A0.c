@@ -12,7 +12,7 @@ extern float D_700038A0[4];
 extern int func_00122BB8(void);
 extern void func_00102948(void *dst, void *src);
 extern int func_001CD520(int bucket, int mode, void *world, unsigned long long giftag,
-                         float w, float h, float zbias, unsigned int rgba);
+                         unsigned int rgba, float w, float h, float zbias);
 
 void func_overlay_AREA21_008238A0(unsigned char *self) {
     switch (self[4]) {
@@ -23,7 +23,7 @@ void func_overlay_AREA21_008238A0(unsigned char *self) {
     case 1:
         func_00102948(D_700038A0, self + 0xB0);
         D_700038A0[0] += 0.03f * (float)S16(0x28);
-        func_001CD520(0, 1, D_700038A0, 0x2004128555322090ULL, 20.0f, 15.0f, 5.0f, 0x40808080);
+        func_001CD520(0, 1, D_700038A0, 0x2004128555322090ULL, 0x40808080, 20.0f, 15.0f, 5.0f);
         S16(0x28) += S16(0x2A);
         break;
     case 2:

@@ -1,7 +1,7 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 extern void func_001C7420(int, int, int);
-extern void func_001CAAC0(int, int);
+extern int func_001CAAC0(int world_pos, int payload);
 extern void func_001D40E0(int, int, int);
 extern void func_001D8C20(int);
 extern char *D_00275670;

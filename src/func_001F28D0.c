@@ -37,7 +37,7 @@ extern void func_00102918(void *a, void *b, void *c);
 extern void func_00102948(void *dst, void *src);
 extern void func_001029C0(void *a);
 extern int func_00122BB8(void);
-extern int func_001AFC10(void *p);
+extern void func_001AFC10(unsigned char *self);
 extern int func_001CCF70(void *a0);
 extern void func_001CFAE0(void *out, int n, void *p, float a, float b, float c, float d);
 extern void func_001CFBE0(int handle, unsigned int n, void *p, void *src, int copy);
@@ -125,7 +125,7 @@ void func_001F28D0(unsigned char *p) {
         return;
     case 2:
     case 3:
-        func_001AFC10(p);
+        func_001AFC10((unsigned char *)p);
         return;
     }
 }

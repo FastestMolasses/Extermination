@@ -7,9 +7,8 @@
 // (self, self+0x1F0) -- 0 func_001516B0, 1 func_00151770, 2 func_00152CC0, 3
 // func_00152E80 (state 3 returns at once). Otherwise counts down the timers
 // in the sub-block (bytes +0x51, +0x52, +0x50 and shorts +0x42, +0x44, each
-// only while nonzero) and calls func_001F91C0(self). func_00152E80's own
-// definition takes one argument; the original passes the sub-block as a
-// second one, so it is declared here with two.
+// only while nonzero) and calls func_001F91C0(self). func_00152E80 takes
+// (self, sub-block) like the other handlers and ignores the sub-block.
 extern void func_001516B0(char *arg0, char *arg1);
 extern void func_00151770(unsigned char *self, unsigned char *st);
 extern void func_00152CC0(int arg0, int arg1);

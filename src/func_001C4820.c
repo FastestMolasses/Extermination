@@ -9,12 +9,11 @@
 // 2/3=FREE (func_001AFC10).
 //
 // Matched 100.0 with mwcc 2.3.3 (s84): the idiom-13 clean-store delay-slot
-// nop wall — the pinned 991202 build hoists func_001C6380's paddub a0,s0
-// into the bnez delay slot and stalls at 89.74%; 2.3.3 leaves
-// `bnez v0,skip; nop` and puts paddub in the jal delay slot, exactly as the
-// target. The other fix was single-argument callee signatures (the original
+// nop wall — the pinned 991202 build hoists func_001C6380's argument copy
+// into the branch delay slot and stalls at 89.74%; 2.3.3 leaves that slot
+// empty and puts the copy in the call's delay slot, exactly as the target. The other fix was single-argument callee signatures (the original
 // 4-arg decls forced spurious a1/a2/a3=0 arg materialization everywhere).
-extern void func_001AFC10(int);
+extern void func_001AFC10(unsigned char *self);
 extern int func_001B0FD0(int);
 extern void func_001B17A0(int);
 extern void func_001C6380(int);
@@ -32,7 +31,7 @@ void func_001C4820(int a0) {
         break;
     case 2:
     case 3:
-        func_001AFC10(a0);
+        func_001AFC10((unsigned char *)a0);
         break;
     }
 }

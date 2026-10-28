@@ -37,7 +37,7 @@ extern void func_00102918(void *a, void *b, void *c);
 extern void func_00102948(void *a, void *b);
 extern void func_001029C0(void *a, int v);
 extern int func_00122BB8(); /* rand(void); left unprototyped for the matching device below */
-extern void func_001AFC10(int state);
+extern void func_001AFC10(unsigned char *self);
 extern int func_001CD070(void *a, int n);
 extern float func_001CD2B0(float a, float b, float c, float d);
 extern void func_001CFAE0(void *out, int n, void *p, float a, float b, float c, float d);
@@ -154,7 +154,7 @@ void func_001F8350(char *p) {
         } while (i < 0x40);
         return;
     case 3:
-        func_001AFC10(st);
+        func_001AFC10((unsigned char *)st);
         return;
     }
 }

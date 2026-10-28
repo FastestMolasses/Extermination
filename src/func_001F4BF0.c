@@ -10,10 +10,11 @@
 // Draws a flickering glow sprite at pos. col points at four unsigned words (r, g, b, a);
 // one random byte k (bits 23..30 of func_00122BB8()) raises the brightness as
 // a = (a + a * k / 256) / 2, and each of r, g, b is scaled by a / 128 into a packed
-// 0xBBGGRR colour. func_001CD520(0, 2, pos, 0x20045B0599421EF0, 3.0, 3.0, 1.5, colour)
+// 0xBBGGRR colour. func_001CD520(0, 2, pos, 0x20045B0599421EF0, colour, 3.0, 3.0, 1.5)
 // draws it (same family as func_001F4D40 / func_001F4E40).
 extern int func_00122BB8(void);
-extern void func_001CD520(int kind, int mode, void *pos, long long tag, float w, float h, float z, unsigned int rgb);
+extern int func_001CD520(int bucket, int mode, void *world, unsigned long long giftag,
+                         unsigned int rgba, float w, float h, float zbias);
 
 void func_001F4BF0(void *pos, unsigned int *col) {
     unsigned int a = col[3];
@@ -27,6 +28,6 @@ void func_001F4BF0(void *pos, unsigned int *col) {
     {
         int ti = 3;
         float t = (float)ti;
-        func_001CD520(0, 2, pos, 0x20045B0599421EF0LL, 3.0f, t, 1.5f, c);
+        func_001CD520(0, 2, pos, 0x20045B0599421EF0LL, c, 3.0f, t, 1.5f);
     }
 }

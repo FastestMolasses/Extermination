@@ -29,7 +29,7 @@ extern int func_001FE9A0(int, char *, char *);
 extern int func_001FECB0(int, int, char *, int, int);
 extern void func_0020CD40(void);
 extern void func_0020CD60(void);
-extern void func_00226010(char *);
+extern int func_00226010(char *self);
 extern int D_00275C58;
 extern unsigned short D_00810E74[8];
 

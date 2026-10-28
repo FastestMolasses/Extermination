@@ -22,7 +22,9 @@
 // builds a fade/alpha packet: computes 255/192-scaled byte components into the
 // scratchpad words 0x70003600/04/08, packs them with alpha=0x80 into a 32-bit
 // RGBA word, and pushes a scaled-radius quad via func_001CD520(mode=0, n=2,
-// dst=arg0+0x30, packedConst=0x20045BA5154222DC, radius, radius, 6.0f, rgba).
+// dst=arg0+0x30, packedConst=0x20045BA5154222DC, rgba, radius, radius, 6.0f).
+// (The colour parameter is declared int here; the definition's unsigned int
+// spelling reorders this function's float-constant setup.)
 // Then, three times, advances the LCG seed at D_00275C34+4 (seed*37+11),
 // derives a 0..1 fraction from its high 16 bits, and submits a particle
 // packet via func_001CFB50(&D_0081F8F0, 0, arg0, scale, frac+0.0001, 1.0,
@@ -33,7 +35,8 @@
 static void func_001ECA20(int arg0, int arg1);  /* same-TU predecessor, see TU_STATIC */
 #include "src/func_001ECA20.c"
 extern int float_to_int(float);
-extern void func_001CD520(int mode, int n, void *dst, long long packedConst, float f12, float f13, float f14, int packed);
+extern int func_001CD520(int bucket, int mode, void *world, unsigned long long giftag,
+                         int rgba, float w, float h, float zbias);
 extern unsigned char D_00256EE0[16];
 extern unsigned char D_00256F70[16];
 
@@ -54,7 +57,7 @@ void func_001ECB00(char *arg0, int arg1) {
         *(int *)0x70003608 = float_to_int(diff) << 16;
         packed = (*(int *)0x70003608 | 0x80000000) | *(int *)0x70003604 | *(int *)0x70003600;
         f = 6.0f + 6.0f * *scaleP;
-        func_001CD520(0, 2, arg0 + 0x30, 0x20045BA5154222DCLL, f, f, 6.0f, packed);
+        func_001CD520(0, 2, arg0 + 0x30, 0x20045BA5154222DCLL, packed, f, f, 6.0f);
     }
 
     idx = *(int *)(D_00275C34 + 4);

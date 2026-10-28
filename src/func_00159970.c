@@ -26,7 +26,7 @@
 // func_001B17A0(e) and the virtual at e+0x4C. State 2: bumps the state byte.
 // State 3: func_001AFC10(e).
 extern int func_00157CE0();
-extern int func_001AFC10();
+extern void func_001AFC10(unsigned char *self);
 extern int func_001B0FD0();
 extern int func_001B17A0();
 extern int func_001BA1A0();
@@ -104,7 +104,7 @@ void func_00159970(char *e) {
         *(char *)(e + 4) = st + 1;
         return;
     case 3:
-        func_001AFC10(e);
+        func_001AFC10((unsigned char *)e);
         break;
     }
 }

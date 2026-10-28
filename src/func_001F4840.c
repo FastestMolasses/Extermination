@@ -35,7 +35,7 @@ extern void func_001029C0();
 extern void func_00102C58(char *dst, char *src, char *arg);
 extern void func_00102918(char *dst, char *src, char *arg);
 extern int func_00122BB8(void);
-extern void func_001AFC10();
+extern void func_001AFC10(unsigned char *self);
 extern void func_001F4190();
 extern char D_0025A350[];
 
@@ -96,7 +96,7 @@ void func_001F4840(char *arg0) {
         break;
     case 2:
     case 3:
-        func_001AFC10(arg0);
+        func_001AFC10((unsigned char *)arg0);
         break;
     }
 }

@@ -14,7 +14,7 @@ extern char *D_00275B44;
 extern void func_001D8C20(int a0);
 extern void func_001C7420(int a0, int a1, int a2);
 extern void func_001D4430(int a0, int a1);
-extern void func_001CAAC0(int a0, int a1);
+extern int func_001CAAC0(int world_pos, int payload);
 
 void func_001CB140(int a0, int a1) {
     char *base;

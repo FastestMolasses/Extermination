@@ -53,7 +53,7 @@ extern void func_002236F0();
 extern void func_00223C70();
 extern void func_00224FE0();
 extern void func_00225570();
-extern void func_002255C0();
+extern void func_002255C0(unsigned char *self);
 
 void func_0015B770(unsigned char *p)
 {

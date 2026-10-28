@@ -3,8 +3,8 @@
 // objdiff 98.51% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8) (matching wave 2026-10-28, was 93.65%).
 // Fixes: the third record's header writes word +0x18 = 0 too (four header words after the
 // quadword clear, like the second record); func_001026D0 takes three pointers (its
-// definition), so the first call passes no fourth argument; the final func_001CAAC0 call
-// passes the cached D_00275670 (`base`) instead of re-reading the global.
+// definition), so the first call passes no fourth argument; func_001CAAC0 takes two arguments
+// (world position, payload): the cached D_00275670 is not passed to it.
 // Remaining differences: register colouring only: the shared 0x01000101 constant stays in
 // v0 in the original (ours t1) and the second/third record temporaries shift one register
 // (v1/t0/t1/a3/a0 vs v0/a3/t0/a0/v1); constant-local and pointer-spelling variants did not move it.
@@ -28,7 +28,7 @@
 // twice (once against D_70003AC0, once against D_70003400) using sp50 as the
 // working matrix, followed by func_001D3990(arg3). Finally writes a fourth
 // type=0 (0x10-byte) trailer record and hands the whole thing off to
-// func_001CAAC0(sp90, s0, D_00275670).
+// func_001CAAC0(sp90, s0).
 //
 // NEARMISS 98.51% with mwcc 2.3.3 (mwcps2-2.3.3-000906). Keys applied:
 // (1) D_00275670 is a gp-rel pointer global (-sdatathreshold 8 required);
@@ -54,7 +54,7 @@ extern void func_00102918(void *, void *, void *);
 extern void func_001028B8(void *, int, void *, void *);
 extern void func_001026D0(void *, void *, void *);
 extern void func_001D3990(int);
-extern void func_001CAAC0(void *, void *, void *);
+extern int func_001CAAC0(void *world_pos, void *payload);
 
 typedef int u128 __attribute__((mode(TI)));
 
@@ -159,5 +159,5 @@ void func_001F5F60(void *arg0, int arg1, int arg2, int arg3) {
     v0 = v0 + 0x10;
     *(char **)(base + 0x1C) = v0;
 
-    func_001CAAC0(&sp90, s0, base);
+    func_001CAAC0(&sp90, s0);
 }

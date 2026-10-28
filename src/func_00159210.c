@@ -29,7 +29,7 @@
 //           6 - as case 1 but the "busy" arm sets p[5]=2 and plays D_00247BE0.
 //         The tail always runs func_001B17A0(p) then the virtual tick (*(p+0x4C))(p).
 //     2 - p[4]++ (advance to state 3).
-//     3 - func_001AFC10(p, q, p[4]); no tail work.
+//     3 - func_001AFC10(p); no tail work.
 //     other - nothing.
 //   All animation plays go through func_001BA1A0(q, clip, sub, 2).
 //
@@ -52,7 +52,7 @@ extern int D_00247DA0[4];
 extern int D_700038A0[4];
 
 extern int func_00157860(char *, char *, int);
-extern void func_001AFC10(char *, char *, int);
+extern void func_001AFC10(unsigned char *self);
 extern int func_001B0FD0(char *, char *, int, int);
 extern void func_001B17A0(char *);
 extern void func_001BA1A0(char *, int, int, int);
@@ -196,7 +196,7 @@ void func_00159210(char *p) {
         *(char *)(p + 4) = st + 1;
         break;
     case 3:
-        func_001AFC10(p, q, st);
+        func_001AFC10((unsigned char *)p);
         break;
     }
 }
