@@ -614,7 +614,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001177E8,func_001177E8,216,nearmiss,2,lowmem
 0x001178C0,func_001178C0,88,readable,1,lowmem
 0x00117918,func_00117918,200,nearmiss,4,lowmem
-0x001179E0,func_001179E0,448,nearmiss,6,lowmem
+0x001179E0,func_001179E0,448,readable,6,lowmem
 0x00117BA0,func_00117BA0,136,nearmiss,3,lowmem
 0x00117C28,func_00117C28,132,readable,1,lowmem
 0x00117CB0,func_00117CB0,100,nearmiss,1,lowmem
@@ -1167,7 +1167,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001551B0,func_001551B0,5220,readable,0,entity_logic
 0x00156620,func_00156620,2320,readable,0,entity_logic
 0x00156F30,func_00156F30,1072,readable,0,entity_logic
-0x00157360,func_00157360,584,nearmiss,0,entity_logic
+0x00157360,func_00157360,584,readable,0,entity_logic
 0x001575B0,func_001575B0,44,readable,0,entity_logic
 0x001575E0,func_001575E0,244,readable,0,entity_logic
 0x001576E0,func_001576E0,384,readable,1,entity_logic
@@ -1179,7 +1179,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00158050,func_00158050,100,readable,0,entity_logic
 0x001580C0,func_001580C0,104,readable,0,entity_logic
 0x00158130,func_00158130,100,readable,0,entity_logic
-0x001581A0,func_001581A0,316,nearmiss,0,entity_logic
+0x001581A0,func_001581A0,316,readable,0,entity_logic
 0x001582E0,func_001582E0,336,readable,0,entity_logic
 0x00158430,func_00158430,344,readable,0,entity_logic
 0x00158590,func_00158590,632,nearmiss,5,entity_logic
@@ -1559,7 +1559,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00191530,func_00191530,80,readable,1,init_io
 0x00191580,func_00191580,316,readable,1,init_io
 0x001916C0,func_001916C0,1652,nearmiss,6,init_io
-0x00191D40,func_00191D40,708,nearmiss,4,init_io
+0x00191D40,func_00191D40,708,readable,4,init_io
 0x00192010,func_00192010,440,readable,4,init_io
 0x001921D0,func_001921D0,5264,readable,1,init_io
 0x00193660,func_00193660,116,readable,1,init_io
@@ -1618,7 +1618,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0019D330,func_0019D330,1088,nearmiss,2,level_world
 0x0019D770,func_0019D770,984,nearmiss,1,level_world
 0x0019DB50,func_0019DB50,960,nearmiss,1,level_world
-0x0019DF10,func_0019DF10,880,nearmiss,1,level_world
+0x0019DF10,func_0019DF10,880,readable,1,level_world
 0x0019E280,func_0019E280,952,readable,1,level_world
 0x0019E640,func_0019E640,748,readable,1,level_world
 0x0019E930,func_0019E930,1092,nearmiss,1,level_world
@@ -1812,9 +1812,9 @@ vram,name,size_bytes,status,callers,subsystem
 0x001B2F70,func_001B2F70,368,readable,7,math_vector
 0x001B30E0,func_001B30E0,360,readable,1,math_vector
 0x001B3250,func_001B3250,156,word,9,math_vector
-0x001B32F0,func_001B32F0,160,nearmiss,4,math_vector
+0x001B32F0,func_001B32F0,160,readable,4,math_vector
 0x001B3390,func_001B3390,172,readable,7,math_vector
-0x001B3440,func_001B3440,164,nearmiss,5,math_vector
+0x001B3440,func_001B3440,164,readable,5,math_vector
 0x001B34F0,func_001B34F0,140,readable,1,math_vector
 0x001B3580,func_001B3580,228,readable,3,math_vector
 0x001B3670,func_001B3670,348,word,1,math_vector
@@ -2155,7 +2155,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001D2DE0,func_001D2DE0,20,readable,7,render_vif
 0x001D2E00,func_001D2E00,20,readable,4,render_vif
 0x001D2E20,skin_arena_init,628,readable,1,render_vif
-0x001D30A0,func_001D30A0,1828,nearmiss,1,render_vif
+0x001D30A0,func_001D30A0,1828,readable,1,render_vif
 0x001D37D0,func_001D37D0,196,readable,4,render_vif
 0x001D38A0,func_001D38A0,80,readable,2,render_vif
 0x001D38F0,func_001D38F0,12,readable,2,render_vif
@@ -2263,7 +2263,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001DA6A0,func_001DA6A0,1512,nearmiss,3,render_vif
 0x001DAC90,func_001DAC90,384,word,1,render_vif
 0x001DAE10,func_001DAE10,396,nearmiss,1,render_vif
-0x001DAFA0,func_001DAFA0,160,nearmiss,0,render_vif
+0x001DAFA0,func_001DAFA0,160,readable,0,render_vif
 0x001DB040,func_001DB040,512,word,1,weapon_equip
 0x001DB240,func_001DB240,12,readable,0,weapon_equip
 0x001DB250,func_001DB250,552,readable,0,weapon_equip
@@ -2547,13 +2547,13 @@ vram,name,size_bytes,status,callers,subsystem
 0x001FC9B0,func_001FC9B0,84,nearmiss,6,audio
 0x001FCA10,func_001FCA10,380,readable,2,audio
 0x001FCB90,func_001FCB90,56,readable,2,audio
-0x001FCBD0,func_001FCBD0,608,nearmiss,20,audio
-0x001FCE30,func_001FCE30,224,nearmiss,5,audio
+0x001FCBD0,func_001FCBD0,608,readable,20,audio
+0x001FCE30,func_001FCE30,224,readable,5,audio
 0x001FCF10,func_001FCF10,20,readable,9,audio
 0x001FCF30,func_001FCF30,44,readable,1,audio
 0x001FCF60,func_001FCF60,44,readable,3,audio
 0x001FCF90,func_001FCF90,328,readable,1,audio
-0x001FD0E0,func_001FD0E0,908,nearmiss,1,audio
+0x001FD0E0,func_001FD0E0,908,readable,1,audio
 0x001FD470,func_001FD470,68,readable,1,audio
 0x001FD4C0,func_001FD4C0,180,readable,2,audio
 0x001FD580,func_001FD580,280,readable,1,audio

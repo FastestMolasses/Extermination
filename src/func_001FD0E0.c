@@ -1,16 +1,15 @@
-// NEARMISS func_001FD0E0  (vram 0x001FD0E0, 0x38C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 91.42% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring / branch-likely scheduling on a large (908-byte) 3-nested-loop state machine. Every call, global, struct offset, and constant cross-checked instruction-by-instruction against the raw disassembly and matches. Residual clusters in the inner case-0/0xA/0xC 3-way dispatch (target lo...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 91.42% NEARMISS). Fixes read
+// from the original instructions:
+// - The glyph dispatch is a switch (case 0xA, case 0xC falling into case 0) inside the
+//   "special byte" test, followed by a break out of the line loop: every special byte ends the
+//   line, and the remaining-line counter carries across lines (it is seeded once with 4).
+// - The render result test is a switch (case 0 return, case 1 break, case 2 return; other
+//   values continue), not an if/goto chain.
+// - The line-advance step updates +0x28 right after the line counter increment.
+// - func_001FE4D0's third parameter is int; the line counter is declared before the slot pointer.
 //
 // Subtitle/caption-line "cue" state machine, driven by arg0+0x78 (0=idle/prime, 1=active/build,
 // 2=done). arg0 is a caption-cue context: +0/4/8/0xC a 16-byte header mirrored through the globals
@@ -25,13 +24,13 @@
 // records each: for each glyph offset it queries func_001FE4D0(D_0028A4EC, +0x34, +0x44) for a
 // pending style/command record and, if its region tag (rec+8) matches the running glyph offset,
 // stashes the record pointer into the record-slot table and advances +0x44 (consumed-record
-// count). It then reads the glyph-index byte at +0x1C[offset]: 0xA (soft-wrap) backs up the
-// remaining-column counter; 0xC (hard-break) advances the offset and ends the line; 0 (terminator)
-// ends the line without advancing; any other byte is a literal glyph appended to the current
+// count). It then reads the glyph-index byte at +0x1C[offset]: 0xA (soft-wrap) advances the offset,
+// decrements the remaining-line counter and ends the line; 0xC (hard-break) advances the offset,
+// zeroes that counter and ends the line; 0 (terminator) zeroes it without advancing; any other byte is a literal glyph appended to the current
 // line's byte buffer. After all 4 lines, +0x44 is corrected by subtracting the consumed-record
 // count, then +0x24/+0x28/+0x20 are seeded (0x37, 0x1C, &D_00264C90) as layout constants and a
 // second pass calls func_001FDDB0(line, *slot, arg0) per line to actually render/commit each
-// line's records: a return of 2 aborts immediately, 0 aborts immediately, and only 1 continues to
+// line's records: a return of 0 or 2 aborts immediately, and 1 (or any other value) continues to
 // the next line (accumulating +0x28's baseline via (D_00264C98+D_00264CA0)>>1 per line). If all 4
 // lines render, +0x34 is advanced past the header id and func_001FE070(D_0028A4EC, +0x34, 0x39,
 // 0x95) commits the next cue, with +0x10 set to 1 (render-ready flag). State 2 is a no-op (cue
@@ -43,7 +42,7 @@ extern int func_001FC9B0(void);
 extern int func_001FDDB0(int *a, int b, char *c);
 extern void func_001FE070(int *a, int b, int c, int d);
 extern int func_001FE480(int *a, int b);
-extern int *func_001FE4D0(int a, int b, unsigned int c);
+extern int *func_001FE4D0(int a, int b, int c);
 extern char D_00264C90;
 extern int D_00264C98;
 extern int D_00264CA0;
@@ -62,8 +61,8 @@ void func_001FD0E0(char *arg0) {
     int adv;
     int cnt;
     int off;
-    int *spB0;
     int spA0;
+    int *spB0;
     char *fp;
     int *s7;
     int *s3;
@@ -117,20 +116,22 @@ void func_001FD0E0(char *arg0) {
                 {
                     unsigned char st = *(unsigned char *)(*(int *)(arg0 + 0x1C) + off);
                     if (st == 0xA || st == 0xC || st == 0) {
-                        if (st == 0) {
-                            adv = 0;
-                        } else if (st == 0xC) {
-                            off += 1;
-                            adv = 0;
-                        } else {
+                        switch (st) {
+                        case 0xA:
                             off += 1;
                             adv -= 1;
+                            break;
+                        case 0xC:
+                            off += 1;
+                        case 0:
+                            adv = 0;
+                            break;
                         }
-                    } else {
-                        off += 1;
-                        s5[s4[0]] = st;
-                        s4[0] += 1;
+                        break;
                     }
+                    off += 1;
+                    s5[s4[0]] = st;
+                    s4[0] += 1;
                 }
             }
             s3 = (int *)((char *)s3 + 0x100);
@@ -146,20 +147,18 @@ void func_001FD0E0(char *arg0) {
         do {
             *(char **)(arg0 + 0x2C) = fp;
             adv = func_001FDDB0(s7, *spB0, arg0);
-            if (adv == 2) {
+            switch (adv) {
+            case 0:
+                return;
+            case 1:
+                break;
+            case 2:
                 return;
             }
-            if (adv == 1) {
-                goto cont;
-            }
-            if (adv == 0) {
-                return;
-            }
-cont:
             spA0 += 1;
+            *(int *)(arg0 + 0x28) = *(int *)(arg0 + 0x28) + ((D_00264C98 + D_00264CA0) >> 1);
             fp += 0x40;
             spB0 += 1;
-            *(int *)(arg0 + 0x28) = *(int *)(arg0 + 0x28) + ((D_00264C98 + D_00264CA0) >> 1);
             s7 = (int *)((char *)s7 + 0x100);
         } while (spA0 < 4);
         *(int *)(arg0 + 0x34) = *(int *)(arg0 + 8) + 1;

@@ -1,15 +1,14 @@
-// NEARMISS func_001179E0  (vram 0x001179E0, 0x1C0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 91.90% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc GPR-coloring wall (+ minor list-scheduler). Body/structure fully recovered: all 8 func_00125F48 calls, both 64-bit dsra/dsrl chains, the D_0027F778==1 abs/max block (incl. the annulled `beql`), the >>1 truncation and the f4A pack are all present and in the right order. Residual is a systema...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 91.90% NEARMISS).
+// Fixes read from the original instructions:
+// - The absolute values are ternaries (`w = (w < 0) ? -w : w;`): the original
+//   negates a copy of each value and re-truncates both before the compare.
+// - The scale factor is ONE nested expression of the five func_00125F48 calls
+//   shifted right by 27, not a chain of assignments through temporaries; the
+//   temporaries changed ee-gcc's register priorities (the parameter and the
+//   scale factor swapped saved registers).
 
 //
 // Fixed-point 2D extent helper. func_00125F48 is a 64-bit (long) two-operand
@@ -41,17 +40,14 @@ extern unsigned short D_0027F778;
 
 int func_001179E0(int idx, unsigned char *p)
 {
-    long t, u;
+    long t;
     unsigned long k;
     unsigned short k2;
     short w, h;
 
-    t = func_00125F48(D_0027CCC0[idx].f28, D_0027CCC0[idx].f34);
-    u = func_00125F48(D_0027CCC0[idx].f2E, D_0027CCC0[idx].f2C);
-    t = func_00125F48(t, u);
-    u = func_00125F48(D_0027CCC0[idx].f2A, D_0027CCC0[idx].f30);
-    t = func_00125F48(t, u);
-    t = t >> 27;
+    t = func_00125F48(func_00125F48(func_00125F48(D_0027CCC0[idx].f28, D_0027CCC0[idx].f34),
+                                    func_00125F48(D_0027CCC0[idx].f2E, D_0027CCC0[idx].f2C)),
+                      func_00125F48(D_0027CCC0[idx].f2A, D_0027CCC0[idx].f30)) >> 27;
     k = D_0027CCC0[idx].f32;
 
     w = (short)(func_00125F48(func_00125F48(t, (long)(k >> 8)),
@@ -60,10 +56,8 @@ int func_001179E0(int idx, unsigned char *p)
                               *(int *)(p + 0x4C)) >> 19);
 
     if (D_0027F778 == 1) {
-        if (w < 0)
-            w = -w;
-        if (h < 0)
-            h = -h;
+        w = (w < 0) ? -w : w;
+        h = (h < 0) ? -h : h;
         if (h < w)
             h = w;
         else

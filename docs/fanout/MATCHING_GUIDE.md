@@ -291,3 +291,20 @@ shape). Improved and parked: func_001DA310 99.09, anim_advance_time 96.76
 (compiler mix). A mechanical sweep that moves `r = f(...); if (r == 0)` into
 the test lifted func_00159B90 (90.64) and func_001EF9D0 (90.07) and matched
 none.
+
+### Queue batch 13 (2026-10-27)
+
+12 byte-matched: func_001B3440 and func_001B32F0 (a call result assigned
+inside its own test, `if ((r = f(...)) == 0)`), func_001581A0 (two cases
+sharing one body), func_001D30A0 (the global re-read in a block-local per
+use; an int array indexed `T[frame * 32]`), func_001179E0 (ee-gcc: ternary
+absolute values; one nested expression instead of temporaries),
+func_001DAFA0 (one grid aggregate; the inner counter declared first),
+func_0019DF10 (a wrong body in five places), func_00157360 (`void *` callee
+parameters; one 8-word block), func_001FCBD0 and its sibling func_001FCE30
+(74.38 -> 100 from the sibling's spelling: a 32-bit 5th parameter, a `desc`
+local, one Ctx record), func_001FD0E0 (the glyph dispatch is a fall-through
+`switch`), func_00191D40 (twin func_00192010's ternary min; its old
+"2.3.1-only codegen" verdict was a spelling). Improved and parked:
+func_001486E0 98.33, func_00108300 95.88 (a volatile completion counter; four
+callee return types), func_0019F1A0 93.20.

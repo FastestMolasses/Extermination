@@ -1,23 +1,20 @@
-// NEARMISS func_00157360  (vram 0x00157360, 0x248 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 91.71% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring + arg-eval-order + FP odd/even-half coloring scheduling artifacts in a 0..4 switch state machine. Body/control-flow byte-shape correct (best 91.7% mwcc233). Residuals: (1) state-0 func_00102948 arg-eval order reversed by mwcc across both branches + default-keyframe store-block c...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-//
-// NEARMISS (mwcc233 91.7%, mwcc991202 88.0%) -- logic fully recovered; residual is
-// register-coloring / arg-eval-order / FP-odd-half-coloring scheduling only.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 91.71% NEARMISS).
+// Fixes read from the original instructions:
+//  - func_00102948 takes untyped quadword pointers (void *dst, void *src);
+//    the (int *) casts on the arg2 sources reversed the argument setup order.
+//  - D_008105D0 is one 8-word block (two 4-word keyframes, the second at
+//    D_008105D0[4] = 0x008105E0). With two separate arrays mwcc hoisted the
+//    shared 0x43A78000 store to the second keyframe; one aggregate keeps the
+//    original store order.
+//  - The timers are compound `+= 1.0f` on the field with a `> K` advance test,
+//    the region flag is `D_00810841[D_00810700] |= ...`, and every case ends in
+//    `break` to one shared `return 0`.
 //
 // A short state machine (state byte at arg1+4) driving a scripted camera/effect
-// intro, dispatched ascending 0..4 (mwcc lowers to the target's descending compare
-// cascade). arg2 is the camera record; arg2+0x10 is a float timer.
+// intro. arg2 is the camera record; arg2+0x10 is a float timer.
 //   state 0: build two camera keyframe sets. If the region id D_00810700 == 7 use
 //     the disc-authored presets (four func_00102948 copies from D_008105D0/E0 and
 //     D_008101F0/0200 into arg2+0x20/+0x30); otherwise write the default keyframe
@@ -30,83 +27,59 @@
 //     the timer, advance the state.
 //   state 3: advance the timer by 1.0; once it passes 60.0, advance the state.
 //   state 4: func_001B0460(1) and return 1 (sequence finished). All other states 0.
-//
-// mwcc 2.3.3 gets closest. Remaining deltas are pure compiler artifacts: in state 0
-// mwcc evaluates the two func_00102948 args in the opposite order and colors the
-// default-keyframe store block differently; the state-1/3 `add.s` picks the other
-// odd/even half of the FP pair; the state-2 `1 << x` shift is colored to a different
-// GPR. Body and control flow are byte-shape-correct -- parked as documented nearmiss.
-extern void func_00102948(int *dst, int *src);
+extern void func_00102948(void *dst, void *src);
 extern void func_001B0460(int a);
 extern void func_001FB9F0(int a, int b, int c, int d);
-extern int D_008101F0;
-extern int D_00810200;
-extern int D_008105D0;
-extern int D_008105D4;
-extern int D_008105D8;
-extern int D_008105DC;
-extern int D_008105E0;
-extern int D_008105E4;
-extern int D_008105E8;
-extern int D_008105EC;
+extern int D_008101F0[4];
+extern int D_00810200[4];
+extern int D_008105D0[8];
 extern unsigned char D_00810700;
-extern unsigned char D_00810841;
+extern unsigned char D_00810841[];
 
 int func_00157360(char *arg0, char *arg1, char *arg2) {
-    unsigned char st;
-    unsigned char *p;
-    float f;
-
-    st = *(unsigned char *)(arg1 + 4);
-    switch (st) {
+    switch (*(unsigned char *)(arg1 + 4)) {
     case 0:
         if (D_00810700 == 7) {
-            func_00102948(&D_008105D0, (int *)(arg2 + 0x20));
-            func_00102948(&D_008105E0, (int *)(arg2 + 0x30));
-            func_00102948(&D_008101F0, (int *)(arg2 + 0x20));
-            func_00102948(&D_00810200, (int *)(arg2 + 0x30));
+            func_00102948(D_008105D0, arg2 + 0x20);
+            func_00102948(&D_008105D0[4], arg2 + 0x30);
+            func_00102948(D_008101F0, arg2 + 0x20);
+            func_00102948(D_00810200, arg2 + 0x30);
         } else {
-            D_008105D0 = 0x43A78000;
-            D_008105D4 = 0x436F0000;
-            D_008105D8 = 0x44117333;
-            D_008105DC = 0x3F800000;
-            D_008105E0 = 0x43A78000;
-            D_008105E4 = 0x436D0000;
-            D_008105E8 = 0x4405C000;
-            D_008105EC = 0x3F800000;
-            func_00102948(&D_008101F0, &D_008105D0);
-            func_00102948(&D_00810200, &D_008105E0);
+            D_008105D0[0] = 0x43A78000;
+            D_008105D0[1] = 0x436F0000;
+            D_008105D0[2] = 0x44117333;
+            D_008105D0[3] = 0x3F800000;
+            D_008105D0[4] = 0x43A78000;
+            D_008105D0[5] = 0x436D0000;
+            D_008105D0[6] = 0x4405C000;
+            D_008105D0[7] = 0x3F800000;
+            func_00102948(D_008101F0, D_008105D0);
+            func_00102948(D_00810200, &D_008105D0[4]);
         }
         *(int *)(arg2 + 0x10) = 0;
-        *(unsigned char *)(arg1 + 4) = *(unsigned char *)(arg1 + 4) + 1;
-        goto ret0;
+        *(unsigned char *)(arg1 + 4) += 1;
+        break;
     case 1:
-        f = *(float *)(arg2 + 0x10) + 1.0f;
-        *(float *)(arg2 + 0x10) = f;
-        if (f <= 30.0f) {
-            goto ret0;
+        *(float *)(arg2 + 0x10) += 1.0f;
+        if (*(float *)(arg2 + 0x10) > 30.0f) {
+            *(unsigned char *)(arg1 + 4) += 1;
         }
-        *(unsigned char *)(arg1 + 4) = *(unsigned char *)(arg1 + 4) + 1;
-        goto ret0;
+        break;
     case 2:
-        p = &D_00810841 + D_00810700;
-        *p = *p | (1 << *(unsigned char *)(arg0 + 0x2E));
+        D_00810841[D_00810700] |= 1 << *(unsigned char *)(arg0 + 0x2E);
         func_001FB9F0(0x3EE, 0x1000, 0x1000, 0x1000);
         *(int *)(arg2 + 0x10) = 0;
-        *(unsigned char *)(arg1 + 4) = *(unsigned char *)(arg1 + 4) + 1;
-        goto ret0;
+        *(unsigned char *)(arg1 + 4) += 1;
+        break;
     case 3:
-        f = *(float *)(arg2 + 0x10) + 1.0f;
-        *(float *)(arg2 + 0x10) = f;
-        if (f <= 60.0f) {
-            goto ret0;
+        *(float *)(arg2 + 0x10) += 1.0f;
+        if (*(float *)(arg2 + 0x10) > 60.0f) {
+            *(unsigned char *)(arg1 + 4) += 1;
         }
-        *(unsigned char *)(arg1 + 4) = *(unsigned char *)(arg1 + 4) + 1;
-        goto ret0;
+        break;
     case 4:
         func_001B0460(1);
         return 1;
     }
-ret0:
     return 0;
 }
