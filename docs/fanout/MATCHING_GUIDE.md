@@ -76,9 +76,17 @@ The user approved all five items above. Results:
    `tools/eegcc/ee-compile.sh` assemble with the 2.96 gas (it fills a call or
    return slot with `ei` or a preceding load; 2.9 never does). Matched
    func_0010EAA0 (C unchanged), func_0010E088 and func_00113478.
-4. **Inline VU0 asm: done for func_001DB480 only** (user-approved). Four
-   GCC-style row-load `asm` statements; with them mwcc stops strength-reducing
-   the grid loop. Other VU0 macro-code functions stay NEARMISS.
+4. **Inline VU0 asm: approved for the VU0 class** (user, 2026-10-28: "allow
+   inline VU0 macro asm for the VU0-class functions, the same way as
+   func_001DB480"). First done for func_001DB480 (four GCC-style row-load `asm`
+   statements; with them mwcc stops strength-reducing the grid loop). Rules:
+   only the VU0 macro-mode instructions the original contains (COP2 loads and
+   stores, qmtc2 / qmfc2, ctc2 / cfc2, the v* macro ops, vcallms) may be
+   `asm("...")` statements; every other instruction stays C. No `.word`, no asm
+   for non-VU0 instructions (di / ei / sync / MMI stay excluded), comments
+   describe the VU0 work in prose. SDK libvu0 helpers (0x001026A0..0x00103230)
+   follow the SDK's own libvu0.c shape (C functions whose bodies are inline
+   VU0 asm blocks).
 5. **Symbol split: done.** `config/symbol_addrs.txt` names the VBLANK handler
    at 0x1AB140 `func_001AB140`; its existing CodeWarrior `asm` body moved
    unchanged to `src/func_001AB140.c`, and gs_readback_queue_run (the code was
@@ -929,3 +937,24 @@ func_0017B490 returns short, func_001C61D0 keeps an int parameter,
 func_001FD6A0 / func_001FE480 keep 32-bit first parameters,
 func_001FECB0 / func_001FE9E0 keep an argument-less call declaration,
 func_001D5C80 keeps one parameter.
+
+
+### Queue batch 45 (2026-10-28): VU0 class, libvu0 helpers
+
+User decision: inline VU0 macro asm approved for the VU0 class, written as in
+func_001DB480 — ONE VU0 instruction per `asm __volatile__("...")` statement
+(tools/check_no_disassembly.py rule [c] rejects 3+ per statement), operands
+as %N, everything that is not a VU0 macro instruction in C. 14 libvu0 SDK
+helpers (func_001026A0, func_00102718, func_00102738, func_00102760,
+func_00102850, func_00102870, func_001028B8, func_001028D0, func_001028E8,
+func_00102900, func_00102918, func_00102990, func_001029C0, func_00103230)
+are ee-gcc C with real prototypes. Levers: a float scalar reaches VU0
+through `register float t asm("$8")` assigned after the first vector load;
+a float result leaves through a `"=r"` output; u128 row copies stay C with
+register variables. Kept as asm bodies: func_001026D0 (hand-written loop),
+func_00102A60 / func_00102B08 / func_00102BB0 (return address kept in a2,
+second entry labels mid-function), func_001029E8 (branches on the caller's
+a3, VU0 ops in delay slots), func_00102798 / func_001027E0 (MMI).
+mwcc notes: asm strings may not contain \n (';' separates), "=r" outputs
+warn about an uninitialised variable; with split statements the order in
+which pointer locals are assigned decides v0/v1.

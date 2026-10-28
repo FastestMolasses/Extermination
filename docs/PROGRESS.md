@@ -1,3 +1,13 @@
+## 2026-10-28 — VU0 class, queue batch 45: 14 libvu0 helpers as C with inline VU0 asm
+
+User decision 2026-10-28: inline VU0 macro asm is approved for the VU0 class
+(MATCHING_GUIDE "Tooling batch: open decisions" item 4). The 14 SDK VU0
+helpers now link from ee-gcc C with one VU0 instruction per asm statement;
+their asm bodies and readable companions are retired. Gate: fresh build +
+verify_all all six stages pass, boot ELF byte-identical, 19/19 overlays,
+matched_code 99.97%, 2759/2761 units; provenance clean (route
+compiled_object_inline_assembly, as func_001DB480).
+
 ## 2026-10-28 — matching wave, queue batch 44: 2 more byte-matched, 4 improved; 82 callee signatures reconciled
 
 See MATCHING_GUIDE "Queue batch 44" and HANDOFF (end-of-wave status, what is

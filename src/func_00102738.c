@@ -1,15 +1,25 @@
-// EE asm-void: leaf uses EE/COP2/VU instructions; reproduced verbatim
-// (mwccmips accepts Sony's syntax directly).
-asm float func_00102738(float *a, float *b) {
-    lqc2 $vf4, 0x0($a0)
-    lqc2 $vf5, 0x0($a1)
-    vmul.xyz $vf5, $vf4, $vf5
-    vaddy.x $vf5, $vf5, $vf5y
-    vaddz.x $vf5, $vf5, $vf5z
-    qmfc2.ni $v0, $vf5
-    mtc1 $v0, $f0
-    jr $ra
-    nop
-}
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-// Readable C (NEARMISS companion, objdiff 24.44%): src/readable/func_00102738.c
+// Byte-matched (objdiff 100%), matching wave 2026-10-28, replaces the asm body
+// and the readable companion (src/readable/func_00102738.c).
+// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
+// Compiler: ee-gcc 2.9 (-O2), as the SDK's libvu0; the VU0 macro instructions
+// are GCC-style asm statements, everything else is C.
+//
+// SDK VU0: the xyz dot product a.x * b.x + a.y * b.y + a.z * b.z.
+// The dot product leaves VU0 through an integer register and is returned as
+// the float result.
+
+float func_00102738(float *a, float *b)
+{
+    float ret;
+
+    asm __volatile__("lqc2 vf4, 0x0(%0)" : : "r"(a) : "memory");
+    asm __volatile__("lqc2 vf5, 0x0(%0)" : : "r"(b) : "memory");
+    asm __volatile__("vmul.xyz vf5, vf4, vf5" : : : "memory");
+    asm __volatile__("vaddy.x vf5, vf5, vf5y" : : : "memory");
+    asm __volatile__("vaddz.x vf5, vf5, vf5z" : : : "memory");
+    asm __volatile__("qmfc2.ni %0, vf5" : "=r"(ret) : : "memory");
+    return ret;
+}
