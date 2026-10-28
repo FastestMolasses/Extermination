@@ -1,227 +1,241 @@
-// NEARMISS func_001A7280  (vram 0x001A7280, 0x5F0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 72.05% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 72.05% (233) -- body-level control flow, offsets, and call sequence recovered with reasonable confidence for the outer scan/mask/plane-clip stages (verified line-by-line against the .s). LOWER CONFIDENCE on the innermost per-vertex epsilon-test loop's exact accept/reject wiring (the .L001A7738/.L...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 72.05% NEARMISS).
+// Fixes read from the original instructions (the old body was wrong in places):
+// - Rewritten in the spelling of the byte-matched twin func_001A6AD0 (same
+//   per-polygon loop over one fixed object instead of the object list):
+//   do-while walkers for the vector copies, w words cleared/set explicitly.
+// - The object is a struct-typed extern D_008102B0 addressed through a pointer,
+//   so its fields are read relative to one register.
+// - The segment start/end come from D_70003190 (w words cleared); the bounds
+//   test ACCEPTS when the hit lies strictly between start and
+//   end on ANY axis (six-term OR, as in the twin); the old C inverted it.
+// - The edge test breaks on the first edge with dot > 1e-5 and the polygon hits
+//   when every edge passed (also when nv is 0); the plane normal (not the plane
+//   point) is copied to D_700030B0+0x24, in a loop of its own.
+// - No back-face rejection here (the twin has one): t = (d(n,p) - d(n,start)) /
+//   d(dir,n) unconditionally.
 //
-// Per-frame wall/floor-segment collision scan against the moving object at
-// D_70003190/D_700030B0 (position/heading pair). Copies arg0's velocity
-// fields (+0x0 and +0x10, 3 floats each) into sp130/sp140, builds the sweep
-// plane sp150 via func_001028D0, then walks the world collision-object
-// array at D_008102B0+0x58 (count at [0]; a short -2 tag at [0xA] means an
-// extended header that must be skipped via the first record's own length).
-// For each record: computes a per-axis mask from arg0's bit flags 0x10/
-// 0x20/0x40 against the record's own per-axis flag bytes ANDed with the
-// world's flag bytes at +0x5C/0x5D/0x5E; a negative segment-count short at
-// [+6] forces the mask to 0 (skip). If the mask is nonzero: reloads the
-// per-"kind"-byte [+3] alignment matrix into sp1A0 via copy_qw4 only when
-// the kind changes since the last record (a small one-entry cache), then
-// transforms the record's own two boundary vertices ([+8] and [+0x10])
-// into the object-relative frame (func_001026A0) and clips the moving
-// object's sweep segment (sp150/sp130/sp140) against the resulting plane
-// (func_00102738 distances, func_00103230 lerp, func_001028B8 transform) to
-// get the candidate pierce point sp170. The point is accepted only if it
-// lies within [sp130,sp140] on all 3 axes (three OR-of-two-inequality
-// range checks). If accepted, the record's own list of interior vertices
-// (stride 0xC bytes starting at [+0x10+(3*segcount+4)*4]) is walked to find
-// whether the pierce point is actually inside the polygon by testing each
-// vertex against the clip plane's implicit distance (func_001028D0 point-
-// to-plane, func_00102738 dot) within a 0x3727C5AC (~1.0e-5f) epsilon; the
-// FIRST record whose test succeeds records a hit (D_700031D4 latches the
-// world table base) and copies its own boundary/data back into
-// D_70003190. Returns 1 if any record hit this frame, 0 otherwise. NOTE:
-// the innermost per-vertex epsilon test's exact accept/reject wiring
-// (blocks reached via .L001A7738 / .L001A773C in the original) is
-// transcribed faithfully from the disassembly but is NOT independently
-// verified against a byte-identical rebuild -- treat the very last stage
-// (the s6/s3 vertex-count loop and its exit condition) as lower-confidence
-// than the rest of this function.
+// Segment-vs-collision-mesh query against the single object D_008102B0
+// (the twin func_001A6AD0 walks the object list). The query segment lives in the
+// scratchpad block D_70003190 (+0x00 start xyz, +0x10 end xyz); flags bits 4-6
+// select which of the three per-poly layer bytes are tested against the object
+// masks at obj+0x5C/0x5D/0x5E. Returns 0 at once unless the object has collision
+// geo (obj+0x58) and a nonzero first byte. Walks the polygon records (u16 size
+// link at +4; leading skip record when the s16 at geo+0xA is -2). Per polygon
+// that passes the layer masks (s16 vertex count at +6, a negative count skips;
+// matrix index byte at +3): lazily fetches the bone matrix (copy_qw4 from
+// *(obj+0x110+idx*4)+0x90, cached by index, initial 0x270F), transforms the
+// plane normal (pd+0..8, w=0) and plane point (pd+0x10..0x18, w=1) via
+// func_001026A0, intersects the segment with the plane (func_00103230 +
+// func_001028B8), keeps hits strictly inside the segment bounds on some axis,
+// then edge-tests all nv edges (edge normals at pd+(3*nv+4)*4, verts at
+// pd+0x10): the hit must be behind every transformed edge normal (dot <= 1e-5).
+// On containment: hit point -> D_70003190+0x20, plane normal -> D_700030B0+0x24,
+// and the segment end is SHORTENED to the hit point (nearest-hit search
+// continues). After each polygon, once anything hit, 0x700031D4 = the object.
+// Clears 0x700030CA and points 0x700031D0 at D_700030B0 on entry.
+// Returns 1 if anything was hit, 0 otherwise.
 extern void copy_qw4(void *dst, void *src);
-extern void func_001026A0(void *dst, void *m, void *src);
+extern void func_001026A0(void *v, void *m, void *out);
 extern float func_00102738(void *a, void *b);
-extern void func_001028B8(void *dst, void *a, void *b);
-extern void func_001028D0(void *dst, void *a, void *b);
-extern void func_00103230(void *dst, void *src, float f);
+extern void func_001028B8(void *a, void *b, void *out);
+extern void func_001028D0(void *a, void *b, void *out);
+extern void func_00103230(void *out, void *v, float t);
 
-extern char D_008102B0;
-extern char D_700030B0;
-extern char D_70003190;
+typedef struct Obj { char b[0x200]; } Obj;
+extern Obj D_008102B0;
+extern char D_700030B0[];
+extern char D_70003190[];
 
-int func_001A7280(int arg0) {
-    float sp1A0[16];
-    float sp190[4];
-    float sp180[3];
-    float sp170[3];
-    float sp160[3];
-    float sp150[3];
-    float sp140[3];
-    float sp130[3];
-    int spD0;
-    int spE0;
-    char *seg;
-    char *rec1;
-    char *rec2;
-    int nInterior;
+int func_001A7280(int flags) {
     int count;
-    int i;
+    int last;
+    int hit;
+    int result;
+    int m10;
+    int m20;
+    int m40;
+    int j;
+    float seg0[4];
+    float seg1[4];
+    float dir[4];
+    float pln[4];
+    float hitp[4];
+    float pv[4];
+    float tv[4];
+    float mtx[16];
+    char *obj;
+    char *geo;
+    char *p;
+    char *pd;
+    char *nrm;
+    int nv;
+    int mask;
+    int mtxidx;
+    float *pb;
+    int e;
+    int k;
+    float *s;
+    float *d0;
+    float *d1;
+    float d20;
+    float d21;
 
     *(short *)0x700030CA = 0;
-    *(char **)0x700031D0 = &D_700030B0;
+    *(char **)0x700031D0 = D_700030B0;
 
-    {
-        char *src = &D_70003190;
+    s = (float *)D_70003190;
+    d0 = seg0;
+    d1 = seg1;
+    result = 0;
+    k = 0;
+    do {
+        k += 1;
+        *d0 = s[0];
+        d0 += 1;
+        *d1 = s[4];
+        s += 1;
+        d1 += 1;
+    } while (k < 3);
+    seg0[3] = 0.0f;
+    seg1[3] = 0.0f;
+    func_001028D0(dir, seg1, seg0);
 
-        for (i = 0; i < 3; i++) {
-            sp130[i] = *(float *)(src + 0);
-            sp140[i] = *(float *)(src + 0x10);
-            src += 4;
-        }
-    }
-    func_001028D0(sp150, sp140, sp130);
-
-    spE0 = 0;
-    spD0 = 0;
-
-    if (*(char **)(&D_008102B0 + 0x58) == 0 || *(unsigned char *)&D_008102B0 == 0) {
+    last = 0x270F;
+    obj = (char *)&D_008102B0;
+    hit = 0;
+    geo = *(char **)(obj + 0x58);
+    if (geo == 0 || *(unsigned char *)obj == 0) {
         return 0;
     }
-
-    seg = *(char **)(&D_008102B0 + 0x58) + 4;
-    count = *(int *)*(char **)(&D_008102B0 + 0x58);
-    if (*(short *)(*(char **)(&D_008102B0 + 0x58) + 0xA) == -2) {
-        seg += *(unsigned short *)(seg + 4);
+    count = *(int *)geo;
+    p = geo + 4;
+    if (*(short *)(geo + 0xA) == -2) {
+        p += *(unsigned short *)(p + 4);
         count -= 1;
     }
-
-    if (count > 0) {
-        int flagLo = arg0 & 0x10;
-        int flagMid = arg0 & 0x20;
-        int flagHi = arg0 & 0x40;
-        int kindCache = 0x270F;
-        int idx;
-
-        for (idx = 0; idx < count; idx++) {
-            int mask = 0;
-            short n;
-
-            if (flagLo && (*(unsigned char *)(seg + 0) & *(unsigned char *)(&D_008102B0 + 0x5C))) {
-                mask = 1;
+    j = 0;
+    if (0 < count) {
+        m10 = flags & 0x10;
+        m20 = flags & 0x20;
+        m40 = flags & 0x40;
+        do {
+            mask = 0;
+            if (m10 != 0 && (*(unsigned char *)p & *(unsigned char *)(obj + 0x5C))) {
+                mask |= 1;
             }
-            if (flagMid && (*(unsigned char *)(seg + 1) & *(unsigned char *)(&D_008102B0 + 0x5D))) {
+            if (m20 != 0 && (*(unsigned char *)(p + 1) & *(unsigned char *)(obj + 0x5D))) {
                 mask |= 2;
             }
-            if (flagHi && (*(unsigned char *)(seg + 2) & *(unsigned char *)(&D_008102B0 + 0x5E))) {
+            if (m40 != 0 && (*(unsigned char *)(p + 2) & *(unsigned char *)(obj + 0x5E))) {
                 mask |= 4;
             }
-
-            n = *(short *)(seg + 6);
-            if (n < 0) {
+            nv = *(short *)(p + 6);
+            if (nv < 0) {
                 mask = 0;
             }
-
             if (mask != 0) {
-                unsigned char kind = *(unsigned char *)(seg + 3);
-                char *p;
-
-                p = seg + 8;
-                if (kindCache != (int)kind) {
-                    kindCache = (int)kind;
-                    copy_qw4(sp1A0, *(float **)(&D_008102B0 + kind * 4 + 0x110) + (0x90 / 4));
-                    p = seg + 8;
+                mtxidx = *(unsigned char *)(p + 3);
+                if (last != mtxidx) {
+                    last = mtxidx;
+                    copy_qw4(mtx, (void *)(*(int *)(obj + mtxidx * 4 + 0x110) + 0x90));
                 }
-
-                for (i = 0; i < 3; i++) {
-                    sp160[i] = *(float *)(p + i * 4);
-                }
-                func_001026A0(sp160, sp1A0, sp160);
-
-                sp180[0] = *(float *)(p + 0x10);
-                sp180[1] = *(float *)(p + 0x14);
-                sp180[2] = *(float *)(p + 0x18);
-                func_001026A0(sp180, sp1A0, sp180);
-
-                {
-                    float dPlane = func_00102738(sp160, sp180);
-                    float dSpan = func_00102738(sp150, sp160);
-                    float dFrom = func_00102738(sp160, sp130);
-
-                    func_00103230(sp170, sp150, (dPlane - dFrom) / dSpan);
-                }
-                func_001028B8(sp170, sp130, sp170);
-
-                if ((sp130[0] > sp170[0] && sp140[0] < sp170[0]) ||
-                    (sp130[1] > sp170[1] && sp140[1] < sp170[1]) ||
-                    (sp130[2] > sp170[2] && sp140[2] < sp170[2])) {
-                    /* pierce point outside the record's own range on some axis: skip. */
-                } else {
-                    rec1 = p + 0x10;
-                    nInterior = (int)n;
-                    rec2 = rec1 + (nInterior * 3 + 4) * 4;
-
-                    if (nInterior > 0) {
-                        int j;
-                        int hit = 0;
-
-                        for (j = 0; j < nInterior && !hit; j++) {
-                            float v0[4];
-                            float v1[4];
-                            float d;
-
-                            v0[0] = *(float *)(rec1 + 0);
-                            v0[1] = *(float *)(rec1 + 4);
-                            v0[2] = *(float *)(rec1 + 8);
-                            v0[3] = 1.0f;
-                            func_001026A0(v0, sp1A0, v0);
-                            v0[3] = 0;
-                            func_001028D0(sp180, sp170, v0);
-
-                            v1[0] = *(float *)(rec2 + 0);
-                            v1[1] = *(float *)(rec2 + 4);
-                            v1[2] = *(float *)(rec2 + 8);
-                            v1[3] = 0;
-                            func_001026A0(v1, sp1A0, v1);
-                            v1[3] = 0;
-
-                            d = func_00102738(sp180, v1);
-                            if (d <= 0.00001f) {
-                                hit = 1;
+                pd = p + 8;
+                pb = pln;
+                e = 0;
+                s = (float *)pd;
+                d1 = pb;
+                do {
+                    e += 1;
+                    *d1 = *s;
+                    s += 1;
+                    d1 += 1;
+                } while (e < 3);
+                pln[3] = 0.0f;
+                func_001026A0(pln, mtx, pln);
+                pv[0] = *(float *)(pd + 0x10);
+                pv[1] = *(float *)(pd + 0x14);
+                pv[2] = *(float *)(pd + 0x18);
+                pv[3] = 1.0f;
+                func_001026A0(pv, mtx, pv);
+                d20 = func_00102738(pln, pv);
+                d21 = func_00102738(dir, pln);
+                func_00103230(hitp, dir, (d20 - func_00102738(pln, seg0)) / d21);
+                func_001028B8(hitp, seg0, hitp);
+                if ((seg0[0] > hitp[0] && seg1[0] < hitp[0])
+                    || (seg0[0] < hitp[0] && seg1[0] > hitp[0])
+                    || (seg0[1] > hitp[1] && seg1[1] < hitp[1])
+                    || (seg0[1] < hitp[1] && seg1[1] > hitp[1])
+                    || (seg0[2] > hitp[2] && seg1[2] < hitp[2])
+                    || (seg0[2] < hitp[2] && seg1[2] > hitp[2])) {
+                    nrm = pd + (nv * 3 + 4) * 4;
+                    pd += 0x10;
+                    e = 0;
+                    if (0 < nv) {
+                        do {
+                            tv[0] = *(float *)pd;
+                            tv[1] = *(float *)(pd + 4);
+                            tv[2] = *(float *)(pd + 8);
+                            tv[3] = 1.0f;
+                            func_001026A0(tv, mtx, tv);
+                            tv[3] = 0.0f;
+                            func_001028D0(pv, hitp, tv);
+                            tv[0] = *(float *)nrm;
+                            tv[1] = *(float *)(nrm + 4);
+                            tv[2] = *(float *)(nrm + 8);
+                            tv[3] = 0.0f;
+                            func_001026A0(tv, mtx, tv);
+                            tv[3] = 0.0f;
+                            if (func_00102738(pv, tv) > 0.00001f) {
+                                break;
                             }
-                            rec1 += 0xC;
-                            rec2 += 0xC;
-                        }
-
-                        if (hit) {
-                            spD0 = 1;
-                            for (i = 0; i < 3; i++) {
-                                *(float *)(&D_70003190 + 0x20 + i * 4) = sp170[i];
-                            }
-                            for (i = 0; i < 3; i++) {
-                                *(float *)(&D_700030B0 + 0x24 + i * 4) = *(float *)(p + 0x10 + i * 4);
-                            }
-                            for (i = 0; i < 3; i++) {
-                                sp140[i] = *(float *)(&D_70003190 + 0x20 + i * 4);
-                            }
-                            func_001028D0(sp150, sp140, sp130);
-                            spE0 = 1;
-                        }
+                            e += 1;
+                            pd += 0xC;
+                            nrm += 0xC;
+                        } while (e < nv);
+                    }
+                    if (e >= nv) {
+                        hit = 1;
+                        result = hit;
+                        k = 0;
+                        s = hitp;
+                        d0 = (float *)D_70003190;
+                        do {
+                            k += 1;
+                            d0[8] = *s;
+                            s += 1;
+                            d0 += 1;
+                        } while (k < 3);
+                        k = 0;
+                        s = pb;
+                        d1 = (float *)D_700030B0;
+                        do {
+                            k += 1;
+                            d1[9] = *s;
+                            s += 1;
+                            d1 += 1;
+                        } while (k < 3);
+                        k = 0;
+                        d0 = (float *)D_70003190;
+                        d1 = seg1;
+                        do {
+                            k += 1;
+                            *d1 = d0[8];
+                            d0 += 1;
+                            d1 += 1;
+                        } while (k < 3);
+                        func_001028D0(dir, seg1, seg0);
                     }
                 }
             }
-
-            seg += *(unsigned short *)(seg + 4);
-            if (spD0 != 0) {
-                *(char **)0x700031D4 = &D_008102B0;
+            p += *(unsigned short *)(p + 4);
+            if (hit != 0) {
+                *(char **)0x700031D4 = obj;
             }
-        }
+            j += 1;
+        } while (j < count);
     }
-
-    return spE0;
+    return result;
 }

@@ -1,3 +1,11 @@
+## 2026-10-27 — matching wave, queue batch 25: 8 more byte-matched
+
+See MATCHING_GUIDE "Queue batch 25" (the segment hit-scan family; its old C
+bodies had real behaviour errors the port should re-check). Gate: fresh build +
+verify_all all six stages pass, boot ELF byte-identical, 19/19 overlays,
+matched_code 99.97%, 2629/2631 units; audit_link_provenance clean (2132
+ordinary-C routes).
+
 ## 2026-10-27 — matching wave, queue batch 24: 3 more byte-matched
 
 See MATCHING_GUIDE "Queue batch 24". Gate: fresh build + verify_all all six

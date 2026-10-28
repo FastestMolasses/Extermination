@@ -1630,12 +1630,12 @@ vram,name,size_bytes,status,callers,subsystem
 0x0019FE50,func_0019FE50,2128,nearmiss,3,level_world
 0x001A06A0,func_001A06A0,1132,nearmiss,1,level_world
 0x001A0B10,func_001A0B10,2168,readable,2,level_world
-0x001A1390,func_001A1390,2032,nearmiss,1,level_world
-0x001A1B80,func_001A1B80,2032,nearmiss,1,level_world
+0x001A1390,func_001A1390,2032,readable,1,level_world
+0x001A1B80,func_001A1B80,2032,readable,1,level_world
 0x001A2370,func_001A2370,1896,nearmiss,3,level_world
-0x001A2AE0,func_001A2AE0,2012,nearmiss,1,level_world
-0x001A32C0,func_001A32C0,1716,nearmiss,1,level_world
-0x001A3980,func_001A3980,1708,nearmiss,1,level_world
+0x001A2AE0,func_001A2AE0,2012,readable,1,level_world
+0x001A32C0,func_001A32C0,1716,readable,1,level_world
+0x001A3980,func_001A3980,1708,readable,1,level_world
 0x001A4030,func_001A4030,1152,readable,9,level_world
 0x001A44B0,func_001A44B0,412,readable,4,level_world
 0x001A4650,func_001A4650,480,readable,4,level_world
@@ -1648,7 +1648,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001A5C30,func_001A5C30,2056,nearmiss,5,level_world
 0x001A6440,func_001A6440,1680,nearmiss,4,level_world
 0x001A6AD0,func_001A6AD0,1968,readable,1,level_world
-0x001A7280,func_001A7280,1520,nearmiss,4,level_world
+0x001A7280,func_001A7280,1520,readable,4,level_world
 0x001A7870,func_001A7870,780,nearmiss,1,level_world
 0x001A7B80,func_001A7B80,20,readable,16,level_world
 0x001A7BA0,func_001A7BA0,2748,nearmiss,1,level_world
@@ -2439,7 +2439,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001F1550,func_001F1550,156,readable,2,fx_render
 0x001F15F0,func_001F15F0,720,nearmiss,1,fx_render
 0x001F18C0,func_001F18C0,480,readable,0,fx_render
-0x001F1AA0,func_001F1AA0,808,nearmiss,0,fx_render
+0x001F1AA0,func_001F1AA0,808,readable,0,fx_render
 0x001F1DD0,func_001F1DD0,400,readable,1,fx_render
 0x001F1F60,func_001F1F60,2408,readable,0,fx_render
 0x001F28D0,func_001F28D0,708,nearmiss,0,fx_render
@@ -2490,7 +2490,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001F6E80,func_001F6E80,48,readable,1,fx_render
 0x001F6EB0,func_001F6EB0,252,readable,1,fx_render
 0x001F6FB0,func_001F6FB0,2048,nearmiss,0,fx_render
-0x001F77B0,func_001F77B0,1344,nearmiss,0,fx_render
+0x001F77B0,func_001F77B0,1344,readable,0,fx_render
 0x001F7CF0,func_001F7CF0,324,readable,1,fx_render
 0x001F7E40,func_001F7E40,1288,nearmiss,0,fx_render
 0x001F8350,func_001F8350,1156,nearmiss,0,fx_render

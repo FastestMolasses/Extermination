@@ -1,8 +1,11 @@
 // NEARMISS func_001A2370  (vram 0x001A2370, 0x768 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 80.63% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// mwcc233 register-coloring + list-scheduler permutation. Structure/logic fully recovered and verified (frame 0xC0, cnt/idx correctly spilled to sp+0xA0/0xB0, all callee-saved roles for the mesh case snapped in: n=s0, q2=s1, n2=s2, p=s3, vp=s4, k=s5, mtx=s6, vout=s7, hull=s8 after decl-order tuning...
+// objdiff 92.49% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) (was 80.63%; matching wave 2026-10-27).
+// Fixes: every scratchpad word is a relocated extern (// SPAD:), the vector copies use block-local walkers, the
+// mesh point min/max reads the transformed lanes from the scratch words directly, and the lane loop bound is n * 2.
+// Remaining differences: the original fills three branch delay slots from the fall-through block (the off == 0
+// return, the uid-count guard and the first case compare), which mwcc 2.3.3 never does here (2.3-991202 does, but
+// differs elsewhere); plus saved-register colouring of the lane loop (bound temp, p, vp, k) and the copy-loop counters.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +13,7 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x7000324C 0x70003250 0x70003400 0x70003404 0x70003408 0x70003410 0x70003414 0x70003418 0x70003600 0x70003604 0x70003608 0x7000360C 0x7000361C 0x7000362C 0x70003680
 
 // SEMANTICS: re-transform an actor-attached collision hull by a matrix and
 // rebuild its AABB. Looks up the actor's uid hull (0x70003250 table, uid from
@@ -41,6 +45,19 @@ extern float D_70003600[];   /* scratch transform vector (w at +0xC) */
 extern float D_70003610[];
 extern float D_70003620[];
 
+extern short D_7000324C;
+extern unsigned char *D_70003250;
+extern float D_70003404;
+extern float D_70003408;
+extern float D_70003410;
+extern float D_70003414;
+extern float D_70003418;
+extern float D_70003604;
+extern float D_70003608;
+extern float D_7000360C;
+extern float D_7000361C;
+extern float D_7000362C;
+extern float D_70003680;
 extern void func_001026A0(void *in, void *mtx, void *out);
 extern float func_00102738(void *a, void *b);
 
@@ -49,7 +66,6 @@ void func_001A2370(unsigned char *actor, float *mtx)
     float *c;
     int n;
     float *q2;
-    int n2;
     unsigned char *p;
     float *vp;
     int k;
@@ -61,21 +77,17 @@ void func_001A2370(unsigned char *actor, float *mtx)
     int off;
     unsigned char *tbl;
     unsigned char *hp;
-    float *dst;
-    float *src;
-    float *mn;
-    int i;
 
     uid = (*(unsigned short *)(actor + 0xE) >> 8) & 0xFF;
     if (uid == 0xFF) {
         return;
     }
-    tbl = *(unsigned char **)0x70003250;
+    tbl = D_70003250;
     off = *(int *)(tbl + uid * 4 + 4);
     if (off == 0) {
         return;
     }
-    if (uid < *(short *)0x7000324C) {
+    if (uid < D_7000324C) {
         hp = (unsigned char *)((int)tbl + 0x18) + off;
         cnt = *(short *)hp;
         hull = tbl + off;
@@ -84,8 +96,9 @@ void func_001A2370(unsigned char *actor, float *mtx)
 
             if (cnt != 0) {
                 float *q = D_70003400;
+                int j;
 
-                for (i = 0; i < 3; i++) {
+                for (j = 0; j < 3; j++) {
                     q[0] = 3.4e38f;
                     q[4] = -3.4e38f;
                     q++;
@@ -95,191 +108,212 @@ void func_001A2370(unsigned char *actor, float *mtx)
             for (idx = 0; idx < cnt; idx++) {
                 switch (*(unsigned short *)p & 0xF000) {
                 case 0x8000:
+                    c = (float *)(p + 4);
                     {
-                        c = (float *)(p + 4);
-                        src = (float *)(p + 0x14);
-                        dst = D_70003600;
-                        for (i = 0; i < 3; i++) {
-                            *dst = *src;
-                            src++;
-                            dst++;
-                        }
-                        *(float *)0x7000360C = 1.0f;
-                        func_001026A0(D_70003600, mtx, D_70003600);
-                        src = D_70003600;
-                        dst = c;
-                        for (i = 0; i < 3; i++) {
-                            *dst = *src;
-                            src++;
-                            dst++;
-                        }
+                        float *s = (float *)(p + 0x14);
+                        float *d = D_70003600;
+                        int j;
 
-                        src = c;
-                        dst = D_70003600;
-                        mn = D_70003400;
-                        for (i = 0; i < 3; i++) {
-                            *dst = *src - c[3];
-                            if (!(*mn <= *dst)) {
-                                *mn = *dst;
-                            }
-                            src++;
-                            dst++;
-                            mn++;
+                        for (j = 0; j < 3; j++) {
+                            *d = *s;
+                            s++;
+                            d++;
                         }
-
-                        src = c;
-                        dst = D_70003600;
-                        mn = D_70003400;
-                        for (i = 0; i < 3; i++) {
-                            *dst = c[3] + *src;
-                            if (mn[4] < *dst) {
-                                mn[4] = *dst;
-                            }
-                            src++;
-                            dst++;
-                            mn++;
-                        }
-                        p += 0x24;
                     }
+                    D_7000360C = 1.0f;
+                    func_001026A0(D_70003600, mtx, D_70003600);
+                    {
+                        float *s = D_70003600;
+                        float *d = c;
+                        int j;
+
+                        for (j = 0; j < 3; j++) {
+                            *d = *s;
+                            s++;
+                            d++;
+                        }
+                    }
+                    {
+                        float *s = c;
+                        float *d = D_70003600;
+                        float *m = D_70003400;
+                        int j;
+
+                        for (j = 0; j < 3; j++) {
+                            *d = *s - c[3];
+                            if (!(*m <= *d)) {
+                                *m = *d;
+                            }
+                            s++;
+                            d++;
+                            m++;
+                        }
+                    }
+                    {
+                        float *s = c;
+                        float *d = D_70003600;
+                        float *m = D_70003400;
+                        int j;
+
+                        for (j = 0; j < 3; j++) {
+                            *d = c[3] + *s;
+                            if (m[4] < *d) {
+                                m[4] = *d;
+                            }
+                            s++;
+                            d++;
+                            m++;
+                        }
+                    }
+                    p += 0x24;
                     break;
                 case 0x4000:
+                    c = (float *)(p + 4);
                     {
-                        c = (float *)(p + 4);
-                        src = (float *)(p + 0x18);
-                        dst = D_70003600;
-                        for (i = 0; i < 3; i++) {
-                            *dst = *src;
-                            src++;
-                            dst++;
-                        }
-                        *(float *)0x7000360C = 1.0f;
-                        func_001026A0(D_70003600, mtx, D_70003600);
-                        src = D_70003600;
-                        dst = c;
-                        for (i = 0; i < 3; i++) {
-                            *dst = *src;
-                            src++;
-                            dst++;
-                        }
+                        float *s = (float *)(p + 0x18);
+                        float *d = D_70003600;
+                        int j;
 
-                        *(float *)0x70003680 = c[0] - c[3];
-                        if (!(*(float *)0x70003400 <= *(float *)0x70003680)) {
-                            *(float *)0x70003400 = *(float *)0x70003680;
+                        for (j = 0; j < 3; j++) {
+                            *d = *s;
+                            s++;
+                            d++;
                         }
-                        *(float *)0x70003680 = c[2] - c[3];
-                        if (!(*(float *)0x70003408 <= *(float *)0x70003680)) {
-                            *(float *)0x70003408 = *(float *)0x70003680;
+                    }
+                    D_7000360C = 1.0f;
+                    func_001026A0(D_70003600, mtx, D_70003600);
+                    {
+                        float *s = D_70003600;
+                        float *d = c;
+                        int j;
+
+                        for (j = 0; j < 3; j++) {
+                            *d = *s;
+                            s++;
+                            d++;
                         }
-                        *(float *)0x70003680 = c[1] - c[4];
-                        if (!(*(float *)0x70003404 <= *(float *)0x70003680)) {
-                            *(float *)0x70003404 = *(float *)0x70003680;
+                    }
+
+                        D_70003680 = c[0] - c[3];
+                        if (!(D_70003400[0] <= D_70003680)) {
+                            D_70003400[0] = D_70003680;
                         }
-                        *(float *)0x70003680 = c[0] + c[3];
-                        if (*(float *)0x70003410 < *(float *)0x70003680) {
-                            *(float *)0x70003410 = *(float *)0x70003680;
+                        D_70003680 = c[2] - c[3];
+                        if (!(D_70003408 <= D_70003680)) {
+                            D_70003408 = D_70003680;
                         }
-                        *(float *)0x70003680 = c[2] + c[3];
-                        if (*(float *)0x70003418 < *(float *)0x70003680) {
-                            *(float *)0x70003418 = *(float *)0x70003680;
+                        D_70003680 = c[1] - c[4];
+                        if (!(D_70003404 <= D_70003680)) {
+                            D_70003404 = D_70003680;
                         }
-                        *(float *)0x70003680 = c[1] + c[4];
-                        if (*(float *)0x70003414 < *(float *)0x70003680) {
-                            *(float *)0x70003414 = *(float *)0x70003680;
+                        D_70003680 = c[0] + c[3];
+                        if (D_70003410 < D_70003680) {
+                            D_70003410 = D_70003680;
+                        }
+                        D_70003680 = c[2] + c[3];
+                        if (D_70003418 < D_70003680) {
+                            D_70003418 = D_70003680;
+                        }
+                        D_70003680 = c[1] + c[4];
+                        if (D_70003414 < D_70003680) {
+                            D_70003414 = D_70003680;
                         }
                         p += 0x2C;
-                    }
                     break;
                 case 0x1000:
-                    {
                         n = p[2];
                         vout = (float *)(p + 4);
                         vp = (float *)p + (n * 0x18 + 0x14) / 4;
-                        src = vp;
-                        dst = D_70003600;
-                        for (i = 0; i < 3; i++) {
-                            *dst = *src;
-                            src++;
-                            dst++;
+                        {
+                            float *s = vp;
+                            float *d = D_70003600;
+                            int j;
+
+                            for (j = 0; j < 3; j++) {
+                                *d = *s;
+                                s++;
+                                d++;
+                            }
                         }
-                        *(float *)0x7000360C = 0.0f;
+                        D_7000360C = 0.0f;
                         func_001026A0(D_70003600, mtx, D_70003600);
-                        src = D_70003600;
-                        dst = vout;
-                        for (i = 0; i < 3; i++) {
-                            *dst = *src;
-                            src++;
-                            dst++;
+                        {
+                            float *s = D_70003600;
+                            float *d = vout;
+                            int j;
+
+                            for (j = 0; j < 3; j++) {
+                                *d = *s;
+                                s++;
+                                d++;
+                            }
                         }
 
                         q2 = vout;
-                        n2 = n * 2;
-                        for (k = 0; k < n2; k++) {
-                            *(float *)0x70003600 = vp[4];
-                            *(float *)0x70003604 = vp[5];
-                            *(float *)0x70003608 = vp[6];
+                        for (k = 0; k < n * 2; k++) {
+                            D_70003600[0] = vp[4];
+                            D_70003604 = vp[5];
+                            D_70003608 = vp[6];
                             if (k < n) {
-                                *(float *)0x7000360C = 1.0f;
+                                D_7000360C = 1.0f;
                             } else {
-                                *(float *)0x7000360C = 0.0f;
+                                D_7000360C = 0.0f;
                             }
                             func_001026A0(D_70003600, mtx, D_70003600);
-                            q2[4] = *(float *)0x70003600;
-                            q2[5] = *(float *)0x70003604;
-                            q2[6] = *(float *)0x70003608;
+                            q2[4] = D_70003600[0];
+                            q2[5] = D_70003604;
+                            q2[6] = D_70003608;
                             if (k < n) {
-                                float x = *(float *)0x70003600;
-                                float y = *(float *)0x70003604;
-                                float z = *(float *)0x70003608;
-
-                                if (!(*(float *)0x70003400 <= x)) {
-                                    *(float *)0x70003400 = x;
+                                if (!(D_70003400[0] <= D_70003600[0])) {
+                                    D_70003400[0] = D_70003600[0];
                                 }
-                                if (!(*(float *)0x70003404 <= y)) {
-                                    *(float *)0x70003404 = y;
+                                if (!(D_70003404 <= D_70003604)) {
+                                    D_70003404 = D_70003604;
                                 }
-                                if (!(*(float *)0x70003408 <= z)) {
-                                    *(float *)0x70003408 = z;
+                                if (!(D_70003408 <= D_70003608)) {
+                                    D_70003408 = D_70003608;
                                 }
-                                if (*(float *)0x70003410 < x) {
-                                    *(float *)0x70003410 = x;
+                                if (D_70003410 < D_70003600[0]) {
+                                    D_70003410 = D_70003600[0];
                                 }
-                                if (*(float *)0x70003414 < y) {
-                                    *(float *)0x70003414 = y;
+                                if (D_70003414 < D_70003604) {
+                                    D_70003414 = D_70003604;
                                 }
-                                if (*(float *)0x70003418 < z) {
-                                    *(float *)0x70003418 = z;
+                                if (D_70003418 < D_70003608) {
+                                    D_70003418 = D_70003608;
                                 }
                             }
                             vp += 3;
                             q2 += 3;
                         }
 
-                        src = vout;
-                        dst = D_70003610;
                         {
-                            float *dst2 = D_70003620;
+                            float *s = vout;
+                            float *d = D_70003610;
+                            float *d2 = D_70003620;
+                            int j;
 
-                            for (i = 0; i < 3; i++) {
-                                *dst = *src;
-                                *dst2 = src[4];
-                                src++;
-                                dst++;
-                                dst2++;
+                            for (j = 0; j < 3; j++) {
+                                *d = *s;
+                                *d2 = s[4];
+                                s++;
+                                d++;
+                                d2++;
                             }
                         }
-                        *(float *)0x7000362C = 0.0f;
-                        *(float *)0x7000361C = 0.0f;
+                        D_7000362C = 0.0f;
+                        D_7000361C = 0.0f;
                         vout[3] = func_00102738(D_70003610, D_70003620);
                         p = (unsigned char *)((Adv48 *)(p + 0x24) + n);
-                    }
                     break;
                 }
             }
 
             if (cnt != 0) {
                 float *q = D_70003400;
+                int j;
 
-                for (i = 0; i < 3; i++) {
+                for (j = 0; j < 3; j++) {
                     *(float *)hull = q[0];
                     *(float *)(hull + 0xC) = q[4];
                     q++;

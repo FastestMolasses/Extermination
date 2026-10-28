@@ -494,3 +494,27 @@ sign-extends them; their definitions in src/ say short and int, to reconcile).
 Improved and parked: func_001F3340 98.83, func_0012ADC0 99.87 (float copies
 where the old C copied ints), func_00158810 99.75 (FP and integer colouring
 only).
+
+### Queue batch 25 (2026-10-27)
+
+8 byte-matched. The segment hit-scan family, rewritten in func_001A0B10's
+spelling: func_001A2AE0, func_001A1B80, func_001A1390 (identical to 001A1B80
+apart from one kind threshold), func_001A32C0, func_001A3980 (identical to
+001A32C0 apart from its kind gates). Every old body in this family was wrong in
+behaviour, not just spelling: pass 1 used `continue` where the original stops
+at the first entry with bit31 clear; kind gates were inverted or misplaced; the
+AABB axis order was wrong (it differs per function); the prim dispatch had a
+default case the original lacks; and hit blocks wrote a local or a phantom
+floor clamp where the original stores into the high-y bound word 0x700031A4.
+Also func_001A7280 (segment vs the fixed mesh D_008102B0, in the shape of
+func_001A6AD0; the old bounds test was inverted and it copied the plane point
+instead of the normal), func_001F77B0 (state 0 falls through into the animate
+pass; corner switch; loop locals declared in saved-register order) and
+func_001F1AA0 (the random value is the signed seed >> 16 masked with 0xFFFF;
+the AREA00 twins' float spelling). Improved and parked: func_001A2370 92.49
+(delay-slot fills from the fall-through block that mwcc 2.3.3 does not do;
+likely the 2.3.1.01 compiler), func_001D2300 93.62 (argument setup of two
+matrix calls; old C doubled a texture stride the original does not).
+
+The port should re-check its copies of these functions: the corrected C
+changes collision and particle behaviour.
