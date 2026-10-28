@@ -1027,3 +1027,21 @@ func_001CE860 97.79, func_001E2800 97.62, func_001CDDC0 95.79,
 func_001CE300 95.32. Residuals: the colour-repack OR operand order
 (func_001CD520 / func_001F0A60), a nop mwcc adds at clamp join labels
 (func_001E2800 / func_001CD940), register colouring.
+
+
+### Queue batch 49 (2026-10-28): asm-word bodies to readable C
+
+New pool: 230 functions (90 game, about 140 SDK) linked from `asm void`
+bodies of raw instruction words with no readable C, plus 10 INCLUDE_ASM
+stubs. Recipe (build/agentkit/DECOMP_BRIEF.md): m2c the normalised .s, rewrite
+with real types and callee prototypes taken from what the call sites pass
+(many stubs declared `(void)` really take `(self, ctx)`), mwcc233
+-O4,p -sdatathreshold 0 unless a byte-matched neighbour differs. Levers that
+mattered: switch bytes as unsigned char, compound `+=` / `-=`, no `ret`
+local, if / else-if chain vs switch, switches in reversed compare-chain order,
+a named `float zero` local, one plain extern per scratchpad word, a final
+plain call becomes a tail jump. 12 byte-matched: func_0012DD70,
+func_0012F980, func_00131510, func_00131650, func_00136140, func_00137830,
+func_0013B350, func_0013DC60, func_00140690, func_0014C220, func_0014C3A0,
+func_001450B0. NEARMISS (body-correct): func_00134300 98.97 (mwcc24),
+func_0013BBB0 99.77, func_0013BE60 94.58, func_0014C0B0 91.45.

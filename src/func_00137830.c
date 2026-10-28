@@ -1,68 +1,48 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00137920(int, int, int, int);
-extern void func_00137A50(int, int, int, int);
-extern void func_00137C80(int, int, int, int);
-extern void func_00137E80(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00137830(void) {
-    addiu      $sp, $sp, -0x20
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x90850004
-    addiu      $v1, $zero, 0x3
-    .word 0x10a3001a
-    addiu     $s0, $a0, 0x1F0
-    addiu      $v1, $zero, 0x2
-    .word 0x50a30013
-    .word 0x72002e28
-    addiu      $v1, $zero, 0x1
-    .word 0x50a3000b
-    .word 0x72002e28
-    .word 0x10a00004
-    .word 0x72002e28
-    .word 0x10000015
-    .word 0x82030042
-    .word 0x72002e28
-    jal        func_00137920
-    nop
-    .word 0x1000000f
-    nop
-    .word 0x72002e28
-    jal        func_00137A50
-    nop
-    .word 0x1000000a
-    nop
-    .word 0x72002e28
-    jal        func_00137C80
-    nop
-    .word 0x10000005
-    nop
-    jal        func_00137E80
-    .word 0x72002e28
-    .word 0x10000016
-    .word 0x7bbf0010
-    .word 0x82030042
-    .word 0x10600003
-    nop
-    addiu      $v1, $v1, -0x1
-    .word 0xa2030042
-    .word 0x82030041
-    .word 0x10600003
-    nop
-    addiu      $v1, $v1, -0x1
-    .word 0xa2030041
-    .word 0x82030040
-    .word 0x10600003
-    nop
-    addiu      $v1, $v1, -0x1
-    .word 0xa2030040
-    .word 0x82030044
-    .word 0x10600003
-    nop
-    addiu      $v1, $v1, -0x1
-    .word 0xa2030044
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    jr         $ra
-    addiu     $sp, $sp, 0x20
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Per-tick update of a sub-object block at self+0x1F0 (sub), dispatched on
+// the state byte self+4: 0 func_00137920, 1 func_00137A50, 2 func_00137C80,
+// 3 func_00137E80, each called as (self, sub). State 3 returns right after
+// its handler; the other states then count down the four signed-byte timers
+// sub+0x42, sub+0x41, sub+0x40, sub+0x44 toward zero.
+// func_00137E80 is passed sub as a second argument here although its own
+// definition takes one parameter (the extra argument is ignored).
+
+extern void func_00137920(char *arg0, char *arg1);
+extern void func_00137A50(char *p, char *q);
+extern void func_00137C80(char *arg0, char *arg1);
+extern void func_00137E80(char *obj, char *sub);
+
+void func_00137830(char *self) {
+    char *sub = self + 0x1F0;
+
+    switch (*(unsigned char *)(self + 4)) {
+    case 0:
+        func_00137920(self, sub);
+        break;
+    case 1:
+        func_00137A50(self, sub);
+        break;
+    case 2:
+        func_00137C80(self, sub);
+        break;
+    case 3:
+        func_00137E80(self, sub);
+        return;
+    }
+    if (*(signed char *)(sub + 0x42) != 0) {
+        *(signed char *)(sub + 0x42) -= 1;
+    }
+    if (*(signed char *)(sub + 0x41) != 0) {
+        *(signed char *)(sub + 0x41) -= 1;
+    }
+    if (*(signed char *)(sub + 0x40) != 0) {
+        *(signed char *)(sub + 0x40) -= 1;
+    }
+    if (*(signed char *)(sub + 0x44) != 0) {
+        *(signed char *)(sub + 0x44) -= 1;
+    }
 }

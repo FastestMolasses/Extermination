@@ -1,82 +1,48 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_00102948(int, int, int, int);
-extern void func_001287F0(int, int, int, int);
-extern void func_00128830(int, int, int, int);
-extern void func_001B12B0(int, int, int, int);
-extern void func_001B5360(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_0012DD70(void) {
-    addiu $sp, $sp, -0x30
-    sq $ra, 0x20($sp)
-    sq $s1, 0x10($sp)
-    sq $s0, 0x0($sp)
-    paddub $s0, $a1, $zero
-    lbu $a1, 0x7($a0)
-    addiu $v1, $zero, 0x1
-    .word 0x10a30020
-    paddub $s1, $a0, $zero
-    .word 0x10a00003
-    nop
-    .word 0x10000038
-    lq $ra, 0x20($sp)
-    jal func_001B5360
-    nop
-    lui $v0, (0x3FC90FDB >> 16)
-    ori $v0, $v0, (0x3FC90FDB & 0xFFFF)
-    mtc1 $v0, $f12
-    lui $v0, (0x3D8EFA35 >> 16)
-    ori $v0, $v0, (0x3D8EFA35 & 0xFFFF)
-    mtc1 $v0, $f14
-    jal func_001B12B0
-    lwc1 $f13, 0xC0($s1)
-    swc1 $f0, 0xC0($s1)
-    lw $a0, 0xE4($s0)
-    addiu $v1, $zero, 0x100
-    .word 0x14830028
-    nop
-    mtc1 $zero, $f12
-    addiu $a2, $zero, 0x9
-    paddub $a0, $s1, $zero
-    jal func_001287F0
-    paddub $a1, $s0, $zero
-    sw $zero, 0xC0($s1)
-    lbu $v1, 0x7($s1)
-    addiu $v1, $v1, 0x1
-    sb $v1, 0x7($s1)
-    sw $zero, 0xD8($s0)
-    .word 0x1000001c
-    sh $zero, 0xF4($s0)
-    lh $v1, 0xF4($s0)
-    andi $v1, $v1, 0x1000
-    .word 0x10600018
-    nop
-    mtc1 $zero, $f12
-    lui $v0, (0x3F800000 >> 16)
-    mtc1 $v0, $f14
-    jal func_00128830
-    mov.s $f13, $f12
-    mtc1 $zero, $f12
-    paddub $a0, $s1, $zero
-    paddub $a1, $s0, $zero
-    jal func_001287F0
-    paddub $a2, $zero, $zero
-    lui $v0, (0x40C00000 >> 16)
-    mtc1 $v0, $f12
-    addiu $a2, $zero, 0x2
-    paddub $a0, $s1, $zero
-    jal func_001287F0
-    paddub $a1, $s0, $zero
-    addiu $v0, $zero, 0x1
-    sb $v0, 0x5($s1)
-    sb $zero, 0x6($s1)
-    addiu $a0, $s0, 0x50
-    addiu $a1, $s1, 0xB0
-    jal func_00102948
-    sb $zero, 0x7($s1)
-    lq $ra, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Two-step actor sub-state handler on the step byte self+7.
+// Step 0: func_001B5360(self), then eases the angle self+0xC0 toward pi/2 by
+// 4 degrees (0.0698 rad) per tick through func_001B12B0(pi/2, angle, step).
+// When the controller's anim id ctl+0xE4 is 0x100 it starts clip 9
+// (func_001287F0(self, ctl, 9, 0.0)), zeroes the angle, advances the step and
+// clears ctl+0xD8 and the halfword ctl+0xF4.
+// Step 1: waits for bit 0x1000 of ctl+0xF4 (clip finished); then
+// func_00128830(self, 0, 0, 1.0), clips 0 (speed 0) and 2 (speed 6.0), sets
+// state self+5 = 1, clears the sub-state bytes self+6/self+7 and copies the
+// home position self+0xB0 into ctl+0x50 (func_00102948).
+
+extern void func_001B5360(char *p);
+extern float func_001B12B0(float cur, float target, float step);
+extern void func_001287F0(char *a, char *b, int c, float f);
+extern void func_00128830(char *arg0, float fparg0, float fparg1, float fparg2);
+extern void func_00102948(void *dst, void *src);
+
+void func_0012DD70(char *self, char *ctl) {
+    switch (*(unsigned char *)(self + 7)) {
+    case 0:
+        func_001B5360(self);
+        *(float *)(self + 0xC0) = func_001B12B0(1.5707964f, *(float *)(self + 0xC0), 0.06981317f);
+        if (*(int *)(ctl + 0xE4) == 0x100) {
+            func_001287F0(self, ctl, 9, 0.0f);
+            *(float *)(self + 0xC0) = 0.0f;
+            *(unsigned char *)(self + 7) += 1;
+            *(int *)(ctl + 0xD8) = 0;
+            *(short *)(ctl + 0xF4) = 0;
+        }
+        break;
+    case 1:
+        if (*(short *)(ctl + 0xF4) & 0x1000) {
+            func_00128830(self, 0.0f, 0.0f, 1.0f);
+            func_001287F0(self, ctl, 0, 0.0f);
+            func_001287F0(self, ctl, 2, 6.0f);
+            *(unsigned char *)(self + 5) = 1;
+            *(unsigned char *)(self + 6) = 0;
+            *(unsigned char *)(self + 7) = 0;
+            func_00102948(ctl + 0x50, self + 0xB0);
+        }
+        break;
+    }
 }

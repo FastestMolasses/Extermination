@@ -1,55 +1,38 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_0011DE90(int, int, int, int);
-extern void func_0011E2A8(int, int, int, int);
+// NEARMISS func_0013BE60  (vram 0x0013BE60, 0xC0 bytes) — readable decompilation, NOT byte-identical.
+//
+// objdiff 94.58% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) (was an asm-word
+// body, matching wave 2026-10-28). Body-correct: same calls, stores and conditions as the original.
+// Remaining differences: block layout of the `e[4] == 1 && e[5] == 3` early return only. The
+// original branches to the body when either test fails and reaches the return through an
+// unconditional branch to the epilogue; mwcc 2.3.3 inverts the second test into a direct branch
+// to the epilogue. Nested if, if/else, !=-or, switch (outer or inner), helper function, early
+// return vs enclosing if, and mwcc 991202 / 2.4 / -O4,s all tried.
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_0013BE60(void) {
-    addiu $sp, $sp, -0x30
-    sq $ra, 0x20($sp)
-    sq $s1, 0x10($sp)
-    sq $s0, 0x0($sp)
-    lb $v1, 0x82($a1)
-    paddub $s1, $a0, $zero
-    .word 0x14600024
-    paddub $s0, $a1, $zero
-    lbu $a0, 0x4($s1)
-    addiu $v1, $zero, 0x1
-    .word 0x14830007
-    nop
-    lbu $a0, 0x5($s1)
-    addiu $v1, $zero, 0x3
-    .word 0x14830003
-    nop
-    .word 0x1000001b
-    lq $ra, 0x20($sp)
-    lwc1 $f1, 0x48($s0)
-    lwc1 $f0, 0x44($s0)
-    add.s $f0, $f0, $f1
-    swc1 $f0, 0x44($s0)
-    jal func_0011E2A8
-    lwc1 $f12, 0x50($s0)
-    lwc1 $f2, 0x4C($s0)
-    lwc1 $f1, 0xB4($s1)
-    mul.s $f0, $f2, $f0
-    add.s $f0, $f1, $f0
-    swc1 $f0, 0xB4($s1)
-    jal func_0011E2A8
-    lwc1 $f12, 0xC4($s1)
-    lwc1 $f2, 0x44($s0)
-    lwc1 $f1, 0xB0($s1)
-    mul.s $f0, $f2, $f0
-    add.s $f0, $f1, $f0
-    swc1 $f0, 0xB0($s1)
-    jal func_0011DE90
-    lwc1 $f12, 0xC4($s1)
-    lwc1 $f2, 0x44($s0)
-    lwc1 $f1, 0xB8($s1)
-    mul.s $f0, $f2, $f0
-    add.s $f0, $f1, $f0
-    swc1 $f0, 0xB8($s1)
-    lq $ra, 0x20($sp)
-    lq $s1, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+// Integrates the actor motion, (e, st). Does nothing while st[0x82]
+// is set or while the actor is in mode 1, sub-mode 3 (e[4] == 1, e[5] == 3).
+// Otherwise: st+0x44 += st+0x48 (speed += accel); e+0xB4 (y) +=
+// st+0x4C * sin(st+0x50); e+0xB0 (x) += st+0x44 * sin(heading e+0xC4);
+// e+0xB8 (z) += st+0x44 * cos(heading). func_0011E2A8 / func_0011DE90 are
+// the sin / cos helpers (as in func_00140C30).
+extern float func_0011DE90(float);
+extern float func_0011E2A8(float);
+
+void func_0013BE60(char *e, char *st) {
+    if (*(char *)(st + 0x82) != 0) {
+        return;
+    }
+    if (*(unsigned char *)(e + 4) == 1 && *(unsigned char *)(e + 5) == 3) {
+        return;
+    }
+    *(float *)(st + 0x44) += *(float *)(st + 0x48);
+    *(float *)(e + 0xB4) += *(float *)(st + 0x4C) * func_0011E2A8(*(float *)(st + 0x50));
+    *(float *)(e + 0xB0) += *(float *)(st + 0x44) * func_0011E2A8(*(float *)(e + 0xC4));
+    *(float *)(e + 0xB8) += *(float *)(st + 0x44) * func_0011DE90(*(float *)(e + 0xC4));
 }

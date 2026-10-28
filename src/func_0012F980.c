@@ -1,57 +1,36 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00132490(int, int, int, int);
-extern void anim_clip_init(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_0012F980(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x90830006
-    .word 0x24020001
-    .word 0x70a08628
-    .word 0x1062000f
-    .word 0x70808e28
-    .word 0x10600004
-    .word 0x24620001
-    .word 0x1000001f
-    .word 0x72202628
-    .word 0x24620001
-    .word 0x44806800
-    .word 0xa2220006
-    .word 0x3c023f80
-    .word 0xae020034
-    .word 0x3c0240a0
-    .word 0x44826000
-    .word 0x2405000b
-    jal       anim_clip_init
-    .word 0xae00003c
-    .word 0x96020058
-    .word 0x30421000
-    .word 0x10400010
-    .word 0x00000000
-    .word 0x24020004
-    .word 0xa2220005
-    .word 0x3c023ecc
-    .word 0xa2200006
-    .word 0x3442cccd
-    .word 0xae02003c
-    .word 0x3c024006
-    .word 0x34426666
-    .word 0xae020038
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x240507d3
-    .word 0x72202628
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x72202628
-    jal       func_00132490
-    .word 0x72002e28
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Actor sub-state handler on the step byte self+6, always followed by
+// func_00132490(self, ctl).
+// Step 0: advances the step, sets the clip speed ctl+0x34 = 1.0, clears
+// ctl+0x3C and starts clip 0xB (blend 5.0); falls through to step 1.
+// Step 1: when bit 0x1000 of the halfword ctl+0x58 is set (clip ended): state
+// self+5 = 4, step 0, ctl+0x3C = 0.4, ctl+0x38 = 2.1, and fires event 0x7D3
+// via func_001FBD50(self, 0x7D3, 0, 300.0).
+
+extern void anim_clip_init(char *self, int clip, float a, float b);
+extern void func_001FBD50(char *p, int a, int b, float f);
+extern void func_00132490(char *p, char *e);
+
+void func_0012F980(char *self, char *ctl) {
+    switch (*(unsigned char *)(self + 6)) {
+    case 0:
+        *(unsigned char *)(self + 6) += 1;
+        *(float *)(ctl + 0x34) = 1.0f;
+        *(float *)(ctl + 0x3C) = 0.0f;
+        anim_clip_init(self, 0xB, 5.0f, 0.0f);
+    case 1:
+        if (*(unsigned short *)(ctl + 0x58) & 0x1000) {
+            *(unsigned char *)(self + 5) = 4;
+            *(unsigned char *)(self + 6) = 0;
+            *(float *)(ctl + 0x3C) = 0.4f;
+            *(float *)(ctl + 0x38) = 2.1f;
+            func_001FBD50(self, 0x7D3, 0, 300.0f);
+        }
+        break;
+    }
+    func_00132490(self, ctl);
 }

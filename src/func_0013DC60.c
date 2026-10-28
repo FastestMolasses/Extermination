@@ -1,62 +1,36 @@
-// All-word: everything as .word except jal/j-external
-extern void anim_clip_init(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// Behaviour state 3 of the func_0013D600 actor class, (e, st), sub-step in
+// e[6]. Sub-step 0: advance to sub-step 1, set st+0x40 = 1.0f, clear the
+// st+0x48/0x50/0x4C words, and start clip 10 with
+// anim_clip_init(e, 10, 10.0f, 0.0f). Sub-step 1: when the clip is settled
+// (e+0x2C bit 0x8000 clear) and the float at e+0x3C is exactly 62.0f, fire
+// cue 0x806 via func_001FBD50(e, 0x806, 0, 300.0f); then, once the animation
+// flags word st+0x30 has bit 0x1000 set, switch to behaviour state 4
+// (e[5] = 4, e[6] = 0). Other sub-steps do nothing.
+extern void anim_clip_init(char *e, int clip, float blend, float frame);
+extern int func_001FBD50(char *e, int id, int a2, float f);
 
-asm void func_0013DC60(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x70a08628
-    .word 0x90850006
-    .word 0x24030001
-    .word 0x10a30013
-    .word 0x70808e28
-    .word 0x50a00004
-    .word 0x24a20001
-    .word 0x10000028
-    .word 0x7bbf0020
-    .word 0x24a20001
-    .word 0x44806800
-    .word 0xa2220006
-    .word 0x3c023f80
-    .word 0xae020040
-    .word 0x3c024120
-    .word 0xae000048
-    .word 0xae000050
-    .word 0x44826000
-    .word 0x2405000a
-    jal       anim_clip_init
-    .word 0xae00004c
-    .word 0x10000019
-    .word 0x00000000
-    .word 0x8623002c
-    .word 0x30638000
-    .word 0x1460000e
-    .word 0x00000000
-    .word 0xc621003c
-    .word 0x3c034278
-    .word 0x44830000
-    .word 0x00000000
-    .word 0x46010032
-    .word 0x00000000
-    .word 0x45000006
-    .word 0x00000000
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x24050806
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x8e030030
-    .word 0x30631000
-    .word 0x10600004
-    .word 0x00000000
-    .word 0x24030004
-    .word 0xa2230005
-    .word 0xa2200006
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_0013DC60(char *e, char *st) {
+    switch (*(unsigned char *)(e + 6)) {
+    case 0:
+        *(unsigned char *)(e + 6) += 1;
+        *(float *)(st + 0x40) = 1.0f;
+        *(int *)(st + 0x48) = 0;
+        *(int *)(st + 0x50) = 0;
+        *(int *)(st + 0x4C) = 0;
+        anim_clip_init(e, 10, 10.0f, 0.0f);
+        break;
+    case 1:
+        if (!(*(short *)(e + 0x2C) & 0x8000) && *(float *)(e + 0x3C) == 62.0f) {
+            func_001FBD50(e, 0x806, 0, 300.0f);
+        }
+        if (*(int *)(st + 0x30) & 0x1000) {
+            *(unsigned char *)(e + 5) = 4;
+            *(unsigned char *)(e + 6) = 0;
+        }
+        break;
+    }
 }

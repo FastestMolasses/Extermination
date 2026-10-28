@@ -1,73 +1,44 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_0011E620(int, int, int, int);
-extern void func_0014C490(int, int, int, int);
-extern void func_0014C680(int, int, int, int);
-extern void func_0014C9D0(int, int, int, int);
-extern void func_0014CD30(int, int, int, int);
-extern void func_0014CDD0(int, int, int, int);
-extern void func_001B1470(int, int, int, int);
-extern void func_001B17A0(int, int, int, int);
-extern void func_001B5360(int, int, int, int);
-extern void anim_advance_time(int, int, int, int);
-extern void func_001C68C0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// Mode-1 tick of the func_0014C220 sub-actor, (e, st). Runs the behaviour
+// handler for the state byte e[5] (0 func_0014C680, 1 func_0014C9D0,
+// 2 func_0014C490; other values none), then sets the heading e+0xC0 =
+// func_001B1470(-func_0011E620(st+0x24, st+0x2C)) (func_0011E620 is an
+// atan2-style wrapper; the angle is negated before func_001B1470), and runs func_001B5360, func_0014CD30,
+// func_0014CDD0, st+0x00 = anim_advance_time(e, st+0x20), func_001C68C0,
+// func_001B17A0 and the unconditional hook at e+0x4C.
+extern void func_0014C680(char *e, char *st);
+extern void func_0014C9D0(char *e, char *st);
+extern void func_0014C490(char *e, char *st);
+extern float func_0011E620(float y, float x);
+extern float func_001B1470(float angle);
+extern void func_001B5360(char *e);
+extern void func_0014CD30(char *e, char *st);
+extern void func_0014CDD0(char *e, char *st);
+extern int anim_advance_time(char *e, float t);
+extern void func_001C68C0(char *e);
+extern int func_001B17A0(char *e);
 
-asm void func_0014C3A0(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x90830005
-    .word 0x24020002
-    .word 0x70808e28
-    .word 0x10620010
-    .word 0x70a08628
-    .word 0x24020001
-    .word 0x10620009
-    .word 0x00000000
-    .word 0x10600003
-    .word 0x00000000
-    .word 0x1000000c
-    .word 0xc60c0024
-    jal       func_0014C680
-    .word 0x00000000
-    .word 0x10000007
-    .word 0x00000000
-    jal       func_0014C9D0
-    .word 0x00000000
-    .word 0x10000003
-    .word 0x00000000
-    jal       func_0014C490
-    .word 0x00000000
-    .word 0xc60c0024
-    jal       func_0011E620
-    .word 0xc60d002c
-    .word 0x3c02bf80
-    .word 0x44820800
-    jal       func_001B1470
-    .word 0x46000b02
-    .word 0xe62000c0
-    jal       func_001B5360
-    .word 0x72202628
-    .word 0x72202628
-    jal       func_0014CD30
-    .word 0x72002e28
-    .word 0x72202628
-    jal       func_0014CDD0
-    .word 0x72002e28
-    .word 0xc60c0020
-    jal       anim_advance_time
-    .word 0x72202628
-    .word 0xae020000
-    jal       func_001C68C0
-    .word 0x72202628
-    jal       func_001B17A0
-    .word 0x72202628
-    .word 0x8e22004c
-    .word 0x0040f809
-    .word 0x72202628
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_0014C3A0(char *e, char *st) {
+    switch (*(unsigned char *)(e + 5)) {
+    case 0:
+        func_0014C680(e, st);
+        break;
+    case 1:
+        func_0014C9D0(e, st);
+        break;
+    case 2:
+        func_0014C490(e, st);
+        break;
+    }
+    *(float *)(e + 0xC0) = func_001B1470(-1.0f * func_0011E620(*(float *)(st + 0x24), *(float *)(st + 0x2C)));
+    func_001B5360(e);
+    func_0014CD30(e, st);
+    func_0014CDD0(e, st);
+    *(int *)st = anim_advance_time(e, *(float *)(st + 0x20));
+    func_001C68C0(e);
+    func_001B17A0(e);
+    (*(void (**)(char *))(e + 0x4C))(e);
 }

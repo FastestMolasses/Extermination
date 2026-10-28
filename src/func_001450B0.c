@@ -1,103 +1,52 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// Per-frame update for one enemy class, (e, d) with d the behaviour record.
+// Runs the behaviour handler for e[5] (0 func_00145210, 1 func_001453C0,
+// 2 func_001455A0; other values none). While the current animation (low byte
+// of d+0x30) is 9 or 8 it fires one of five random voice cues (0x827.. or
+// 0x82C.., chosen by ((rand >> 13) % 5)) through func_001FBD50 at range
+// 300.0. Then the fixed chain: func_00146CE0, func_00145880, func_001459A0,
+// d+0x30 = anim_advance_time(e, 1.0f), func_00131ED0, func_001C68C0,
+// func_001B17A0 and the unconditional hook at e+0x4C. Same cue block as the
+// byte-matched func_00142070.
+extern void func_00145210(unsigned char *, unsigned char *);
+extern void func_001453C0(unsigned char *, unsigned char *);
+extern void func_001455A0(unsigned char *, unsigned char *);
 extern int func_00122BB8(void);
-extern void func_00131ED0(int, int, int, int);
-extern void func_00145210(int, int, int, int);
-extern void func_001453C0(int, int, int, int);
-extern void func_001455A0(int, int, int, int);
-extern void func_00145880(int, int, int, int);
-extern void func_001459A0(int, int, int, int);
-extern void func_00146CE0(int, int, int, int);
-extern void func_001B17A0(int, int, int, int);
-extern void anim_advance_time(int, int, int, int);
-extern void func_001C68C0(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+extern void func_001FBD50(unsigned char *, int, int, float);
+extern void func_00146CE0(unsigned char *, unsigned char *);
+extern void func_00145880(unsigned char *, unsigned char *);
+extern void func_001459A0(unsigned char *, unsigned char *);
+extern int anim_advance_time(unsigned char *, float);
+extern void func_00131ED0(unsigned char *);
+extern void func_001C68C0(unsigned char *);
+extern void func_001B17A0(unsigned char *);
 
-asm void func_001450B0(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x90830005
-    .word 0x24020002
-    .word 0x70808e28
-    .word 0x10620010
-    .word 0x70a08628
-    .word 0x24020001
-    .word 0x10620009
-    .word 0x00000000
-    .word 0x10600003
-    .word 0x00000000
-    .word 0x1000000c
-    .word 0x92030030
-    jal       func_00145210
-    .word 0x00000000
-    .word 0x10000007
-    .word 0x00000000
-    jal       func_001453C0
-    .word 0x00000000
-    .word 0x10000003
-    .word 0x00000000
-    jal       func_001455A0
-    .word 0x00000000
-    .word 0x92030030
-    .word 0x24020009
-    .word 0x14620010
-    .word 0x24020008
-    jal       func_00122BB8
-    .word 0x00000000
-    .word 0x00021b43
-    .word 0x24020005
-    .word 0x0062001a
-    .word 0x72202628
-    .word 0x70003628
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x00001010
-    jal       func_001FBD50
-    .word 0x24450827
-    .word 0x10000011
-    .word 0x72202628
-    .word 0x24020008
-    .word 0x1462000d
-    .word 0x00000000
-    jal       func_00122BB8
-    .word 0x00000000
-    .word 0x00021b43
-    .word 0x24020005
-    .word 0x0062001a
-    .word 0x72202628
-    .word 0x70003628
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x00001010
-    jal       func_001FBD50
-    .word 0x2445082c
-    .word 0x72202628
-    jal       func_00146CE0
-    .word 0x72002e28
-    .word 0x72202628
-    jal       func_00145880
-    .word 0x72002e28
-    .word 0x72202628
-    jal       func_001459A0
-    .word 0x72002e28
-    .word 0x3c023f80
-    .word 0x44826000
-    jal       anim_advance_time
-    .word 0x72202628
-    .word 0xae020030
-    jal       func_00131ED0
-    .word 0x72202628
-    jal       func_001C68C0
-    .word 0x72202628
-    jal       func_001B17A0
-    .word 0x72202628
-    .word 0x8e22004c
-    .word 0x0040f809
-    .word 0x72202628
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_001450B0(unsigned char *e, unsigned char *d) {
+    switch (e[5]) {
+    case 0:
+        func_00145210(e, d);
+        break;
+    case 1:
+        func_001453C0(e, d);
+        break;
+    case 2:
+        func_001455A0(e, d);
+        break;
+    }
+    if (d[0x30] == 9) {
+        func_001FBD50(e, ((func_00122BB8() >> 13) % 5) + 0x827, 0, 300.0f);
+    } else if (d[0x30] == 8) {
+        func_001FBD50(e, ((func_00122BB8() >> 13) % 5) + 0x82C, 0, 300.0f);
+    }
+    func_00146CE0(e, d);
+    func_00145880(e, d);
+    func_001459A0(e, d);
+    *(int *)(d + 0x30) = anim_advance_time(e, 1.0f);
+    func_00131ED0(e);
+    func_001C68C0(e);
+    func_001B17A0(e);
+    (*(void (**)(unsigned char *))(e + 0x4C))(e);
 }

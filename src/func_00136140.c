@@ -1,78 +1,46 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern int func_00122BB8(void);
-extern void func_00131ED0(int, int, int, int);
-extern void func_00136240(int, int, int, int);
-extern void func_00136490(int, int, int, int);
-extern void func_00136630(int, int, int, int);
-extern void func_001366E0(int, int, int, int);
-extern void func_001B17A0(int, int, int, int);
-extern void func_001B5360(int, int, int, int);
-extern void anim_advance_time(int, int, int, int);
-extern void func_001C68C0(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00136140(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x90830005
-    .word 0x24020001
-    .word 0x70808e28
-    .word 0x10620009
-    .word 0x70a08628
-    .word 0x10600003
-    .word 0x00000000
-    .word 0x10000008
-    .word 0x92030000
-    jal       func_00136240
-    .word 0x00000000
-    .word 0x10000003
-    .word 0x00000000
-    jal       func_00136490
-    .word 0x00000000
-    .word 0x92030000
-    .word 0x24020009
-    .word 0x1462000e
-    .word 0x72202628
-    jal       func_00122BB8
-    .word 0x00000000
-    .word 0x00021c03
-    .word 0x2402000a
-    .word 0x0062001a
-    .word 0x72202628
-    .word 0x70003628
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x00001010
-    jal       func_001FBD50
-    .word 0x24450841
-    .word 0x72202628
-    jal       func_001B5360
-    .word 0x00000000
-    .word 0x72202628
-    jal       func_00136630
-    .word 0x72002e28
-    .word 0x72202628
-    jal       func_001366E0
-    .word 0x72002e28
-    .word 0x3c023f80
-    .word 0x44826000
-    jal       anim_advance_time
-    .word 0x72202628
-    .word 0xae020000
-    jal       func_00131ED0
-    .word 0x72202628
-    jal       func_001C68C0
-    .word 0x72202628
-    jal       func_001B17A0
-    .word 0x72202628
-    .word 0x8e22004c
-    .word 0x0040f809
-    .word 0x72202628
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Per-tick actor update: dispatches the state byte self+5 (0 func_00136240,
+// 1 func_00136490, each (self, ctl)). When the low byte of the anim word ctl+0
+// is 9 it fires a random sound/event 0x841 + (rand >> 16) % 10 via
+// func_001FBD50(self, id, 0, 300.0). Then func_001B5360(self),
+// func_00136630 / func_001366E0 (self, ctl), stores anim_advance_time(self,
+// 1.0) into ctl+0, runs func_00131ED0, func_001C68C0, func_001B17A0 and the
+// per-actor hook at self+0x4C.
+
+extern void func_00136240(char *arg0, char *arg1);
+extern void func_00136490(char *p, char *a1);
+extern int func_00122BB8(void);
+extern void func_001FBD50(char *p, int a, int b, float f);
+extern void func_001B5360(char *p);
+extern void func_00136630(char *a0, char *a1);
+extern void func_001366E0(char *self, char *owner);
+extern int anim_advance_time(char *arg0, float dt);
+extern void func_00131ED0(char *a0);
+extern void func_001C68C0(char *o);
+extern unsigned char func_001B17A0(char *self);
+
+void func_00136140(char *self, char *ctl) {
+    switch (*(unsigned char *)(self + 5)) {
+    case 0:
+        func_00136240(self, ctl);
+        break;
+    case 1:
+        func_00136490(self, ctl);
+        break;
+    }
+    if (*(unsigned char *)ctl == 9) {
+        func_001FBD50(self, 0x841 + (func_00122BB8() >> 16) % 10, 0, 300.0f);
+    }
+    func_001B5360(self);
+    func_00136630(self, ctl);
+    func_001366E0(self, ctl);
+    *(int *)ctl = anim_advance_time(self, 1.0f);
+    func_00131ED0(self);
+    func_001C68C0(self);
+    func_001B17A0(self);
+    (*(void (**)(char *))(self + 0x4C))(self);
 }

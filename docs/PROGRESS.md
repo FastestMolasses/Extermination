@@ -1,3 +1,12 @@
+## 2026-10-28 — decompiling the asm-word bodies, queue batch 49: 12 byte-matched, 4 NEARMISS
+
+First batch of the 230 functions that linked from `asm void` bodies of raw
+instruction words with no readable C. m2c drafts rewritten with callee
+prototypes taken from what the call sites pass; most matched on the first
+or second trial. See MATCHING_GUIDE "Queue batch 49". Gate: fresh build +
+verify_all all six stages pass, boot ELF byte-identical, 19/19 overlays,
+2769/2771 units; provenance clean (the four NEARMISS route to their .s).
+
 ## 2026-10-28 — VU0 class, queue batch 48: float-to-GPR move approved; 4 more byte-matched, 8 improved
 
 See MATCHING_GUIDE "Queue batch 48". Gate: fresh build + verify_all all six

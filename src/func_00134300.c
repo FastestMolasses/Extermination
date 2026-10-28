@@ -1,135 +1,81 @@
-// All-word: everything as .word except jal/j-external
-extern int func_00122BB8(void);
-extern void float_to_int(int, int, int, int);
-extern void anim_clip_init(int, int, int, int);
-extern void func_001E04E0(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// NEARMISS func_00134300  (vram 0x00134300, 0x1F8 bytes) — readable decompilation, NOT byte-identical.
+//
+// objdiff 98.97% via mwcc 2.4 (mwcc24) (-O4,p -sdatathreshold 0) (was an asm-word body, matching
+// wave 2026-10-28; mwcc 2.3.3 gives 92.17%: it hoists the float constants, the original loads each
+// right before its use as 2.4 does, and the neighbour func_00134090 is also a 2.4 file).
+// Remaining differences: register colouring only. The original keeps the shared constant 1 in a3,
+// the flags halfword in a2 and the phase word in t0 (ours a2/a1/a3), and holds the fade value in f3
+// with 90.0 in f2 (ours swapped). Tried: int vs short flags, phase as a local or field reads,
+// locals at block or function top in two orders, parameter copies (self/ctl, both orders), a
+// state local, case order, if/else form, phase switch, compound field update, a 90.0 local,
+// sdatathreshold 4. A missing 2.4.x/3.0 point release may be the real cause.
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc24
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00134300(void) {
-    .word 0x27bdffc0
-    .word 0x7fbf0030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0xe7b40000
-    .word 0x90830006
-    .word 0x24070001
-    .word 0x70808e28
-    .word 0x1067001f
-    .word 0x70a08628
-    .word 0x50600004
-    .word 0x24620001
-    .word 0x1000006c
-    .word 0x7bbf0030
-    .word 0x24620001
-    .word 0xa2220006
-    .word 0xae000004
-    .word 0xae000030
-    jal       func_00122BB8
-    .word 0xae00002c
-    .word 0x00021303
-    .word 0x3042000f
-    .word 0x1040000a
-    .word 0x3c0240a0
-    .word 0x3c024120
-    .word 0x44826000
-    .word 0x44806800
-    .word 0x24050006
-    jal       anim_clip_init
-    .word 0x72202628
-    .word 0x10000059
-    .word 0x00000000
-    .word 0x3c0240a0
-    .word 0x44826000
-    .word 0x44806800
-    .word 0x72202628
-    jal       anim_clip_init
-    .word 0x70002e28
-    .word 0x10000051
-    .word 0x00000000
-    .word 0x8626002c
-    .word 0x3c03ffff
-    .word 0x34637fff
-    .word 0x00c31824
-    .word 0x14600041
-    .word 0x00000000
-    .word 0x8e080004
-    .word 0x15070028
-    .word 0x00000000
-    .word 0xc603003c
-    .word 0x3c0242b4
-    .word 0x44821000
-    .word 0x3c023cf5
-    .word 0x3442c28f
-    .word 0x46031041
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x46010002
-    .word 0x3c02437f
-    .word 0x46001d00
-    .word 0x46141041
-    .word 0xe614003c
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x46010002
-    .word 0x46020303
-    .word 0x00000000
-    .word 0x00000000
-    jal       float_to_int
-    .word 0x00000000
-    .word 0x8203005c
-    .word 0x10600004
-    .word 0x70402e28
-    .word 0x262400b0
-    jal       func_001E04E0
-    .word 0x4600a306
-    .word 0xc601003c
-    .word 0x3c0342a0
-    .word 0x44830000
-    .word 0x00000000
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x4501001b
-    .word 0x00000000
-    .word 0x8e030004
-    .word 0x24630001
-    .word 0x10000017
-    .word 0xae030004
-    .word 0x15000015
-    .word 0x00000000
-    .word 0x30c38000
-    .word 0x14600012
-    .word 0x00000000
-    .word 0xc621003c
-    .word 0x3c034302
-    .word 0x44830000
-    .word 0x00000000
-    .word 0x46000836
-    .word 0x00000000
-    .word 0x4500000a
-    .word 0x00000000
-    .word 0x25020001
-    .word 0xae020004
-    .word 0x3c024120
-    .word 0xae02003c
-    .word 0x3c0243e1
-    .word 0x44826000
-    .word 0x2405084b
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x8e030000
-    .word 0x30631000
-    .word 0x14600005
-    .word 0x24030001
-    .word 0x86030056
-    .word 0x10600004
-    .word 0x00000000
-    .word 0x24030001
-    .word 0xa2230005
-    .word 0xa2200006
-    .word 0x7bbf0030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0040
+// Two-step actor sub-state handler on the step byte self+6 (a fade-out / death sequence).
+// Step 0: advances, clears ctl+4 (phase), ctl+0x30 and ctl+0x2C, and starts clip 6
+// (blend 10.0) when bits 12..15 of rand() are nonzero, else clip 0 (blend 5.0).
+// Step 1: only while the halfword self+0x2C has no bits other than 0x8000:
+//   phase 1: ctl+0x3C moves 3% of the way toward 90.0 each tick; when ctl+0x5C
+//     is set, func_001E04E0(self+0xB0, alpha, value) with alpha =
+//     float_to_int(255 * (90 - value) / 90); once the value reaches 80.0 the
+//     phase advances.
+//   phase 0: when bit 0x8000 is clear and self+0x3C <= 130.0, the phase
+//     advances, ctl+0x3C = 10.0 and event 0x84B fires via
+//     func_001FBD50(self, 0x84B, 0, 450.0).
+// Then, when ctl+0 has bit 0x1000 or the halfword ctl+0x56 is nonzero:
+// state self+5 = 1 and step 0.
+extern int func_00122BB8(void);
+extern void anim_clip_init(char *self, int clip, float a, float b);
+extern int float_to_int(float f);
+extern void func_001E04E0(void *pos, int alpha, float t);
+extern void func_001FBD50(char *p, int a, int b, float f);
+
+void func_00134300(char *self, char *ctl) {
+    switch (*(unsigned char *)(self + 6)) {
+    case 0:
+        *(unsigned char *)(self + 6) += 1;
+        *(int *)(ctl + 4) = 0;
+        *(int *)(ctl + 0x30) = 0;
+        *(int *)(ctl + 0x2C) = 0;
+        if ((func_00122BB8() >> 12) & 0xF) {
+            anim_clip_init(self, 6, 10.0f, 0.0f);
+        } else {
+            anim_clip_init(self, 0, 5.0f, 0.0f);
+        }
+        break;
+    case 1: {
+        short flags = *(short *)(self + 0x2C);
+        if ((flags & ~0x8000) == 0) {
+            int phase = *(int *)(ctl + 4);
+            if (phase == 1) {
+                float cur = *(float *)(ctl + 0x3C);
+                float next = cur + 0.03f * (90.0f - cur);
+                int alpha;
+                *(float *)(ctl + 0x3C) = next;
+                alpha = float_to_int((255.0f * (90.0f - next)) / 90.0f);
+                if (*(signed char *)(ctl + 0x5C) != 0) {
+                    func_001E04E0(self + 0xB0, alpha, next);
+                }
+                if (!(*(float *)(ctl + 0x3C) < 80.0f)) {
+                    *(int *)(ctl + 4) += 1;
+                }
+            } else if (phase == 0 && !(flags & 0x8000) && *(float *)(self + 0x3C) <= 130.0f) {
+                *(int *)(ctl + 4) = phase + 1;
+                *(float *)(ctl + 0x3C) = 10.0f;
+                func_001FBD50(self, 0x84B, 0, 450.0f);
+            }
+        }
+        if ((*(int *)ctl & 0x1000) || *(short *)(ctl + 0x56) != 0) {
+            *(unsigned char *)(self + 5) = 1;
+            *(unsigned char *)(self + 6) = 0;
+        }
+        break;
+    }
+    }
 }
