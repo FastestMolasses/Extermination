@@ -1,16 +1,15 @@
-// NEARMISS func_002036E0  (vram 0x002036E0, 0x294 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 93.33% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two backend artifacts, both confirmed non-C-reproducible: (1) $at-vs-GPR register naming on two loop-guard compares (target keeps $at, mwcc colors v0/v1 - purely cosmetic, tried a named-local retry with no effect); (2) mwcc-vs-CW branch-lowering difference in the tail cleanup loop's dead re-entry...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 93.33% NEARMISS).
+// Fixes read from the original instructions:
+//  - the tail "pump until finished or state 3" loop is one while loop whose
+//    condition tests both (func_00206CC0 == 0 && func_00206B80 != 3); the
+//    earlier body/break form laid the blocks out differently;
+//  - the two guard compares are written `> 10` and `s1 > 4` (not `>= 0xB`,
+//    `>= 5`), which keeps the compare result in the scratch register;
+//  - the decoder's fifth argument is a struct member past the 0x50000-byte
+//    data area, not an int-array index off a byte offset.
 //
 // Per-frame stream/decode pump: arg0 is the stream/device handle, arg1 the
 // active buffer cursor, arg2 the byte budget (split into two running
@@ -33,19 +32,9 @@
 // (func_00206B80==3), and finally tears down via func_00206200() +
 // func_00206320(&D_002DF800), returning 1.
 //
-// Body/control-flow and every call site fully recovered; walled at 93.33%
-// on the pinned mwcc233 build (80.22% on 991202) by two backend artifacts,
-// neither reproducible from C: (1) two loop-guard compares (`arg0+8 >=
-// 0xB` and the `s1 >= 5` loop test) that the target keeps in the scratch
-// `$at` register but mwcc colors into `$v0`/`$v1` instead -- a pure
-// register-naming choice with identical semantics and instruction count;
-// (2) the tail "pump until func_00206CC0 or state==3" loop's dead re-entry
-// block is laid out by CW as an unreachable-via-fallthrough block reached
-// only by a backward branch (a `b`-over-a-`jal` shape), which mwcc's
-// scheduler collapses into a different (but logically identical) block
-// order -- the mwcc-vs-CW branch-lowering wall documented in
-// docs/fanout/MATCHING_GUIDE.md (no known C lever; tried both `break` and
-// `continue`-based loop forms, byte-identical output either way).
+/* The buffer cursor (arg1) heads a 0x50000-byte data area followed by
+   three header words; the third is passed to the decoder. */
+typedef struct { char buf[0x50000]; int f0; int f4; int f8; } StreamBuf;
 extern void func_001B57E0(void);
 extern int func_002039D0(char *, int *);
 extern void func_00203A10(char *, int);
@@ -81,10 +70,10 @@ int func_002036E0(char *arg0, char *arg1, int arg2) {
     int n;
     int v0;
 
-    while (s1 >= 5 && func_00206B80(arg0) != 3) {
+    while (s1 > 4 && func_00206B80(arg0) != 3) {
         func_001B57E0();
         if (D_00810E70 & (short)(*(unsigned char *)0x70003B90 == 0 ? 0x8F0 : 0x800)) {
-            if (*(int *)(arg0 + 8) >= 0xB) {
+            if (*(int *)(arg0 + 8) > 10) {
                 func_00206B70(&D_002DF740);
             }
         }
@@ -104,7 +93,7 @@ int func_002036E0(char *arg0, char *arg1, int arg2) {
         func_00203980();
         v0 = func_00203A80(arg1, &sp78);
         if (v0 > 0) {
-            n = func_00108AA0(arg0, sp78, v0, arg1, ((int *)(arg1 + 0x50000))[2]);
+            n = func_00108AA0(arg0, sp78, v0, arg1, ((StreamBuf *)arg1)->f8);
             func_00203AE0(arg1, n);
             s1 -= n;
         }
@@ -124,10 +113,7 @@ int func_002036E0(char *arg0, char *arg1, int arg2) {
             func_00203980();
         } while (func_00206BF0(arg0) == 0);
     }
-    while (func_00206CC0(arg0) == 0) {
-        if (func_00206B80(arg0) == 3) {
-            break;
-        }
+    while (func_00206CC0(arg0) == 0 && func_00206B80(arg0) != 3) {
         func_00203980();
     }
     func_00206200();

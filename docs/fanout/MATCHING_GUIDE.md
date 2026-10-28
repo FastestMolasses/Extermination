@@ -253,3 +253,14 @@ own effect fields; an unsized extern stays absolute), func_00151200 (per-slot
 `signed char[4]` arrays indexed by i). Improved and parked: func_0021AAC0
 99.89, func_001C3DB0 99.61, func_001373B0 99.06 (if/goto dispatch was a
 `switch`; state 1 had a wrong body).
+
+### Queue batch 10 (2026-10-27)
+
+3 byte-matched: vif_build_unpack_const (the quadword count an unsigned local,
+`n + 1` and `(n << 16) | ...`, which stops the constants folding; the second
+packet built through its own pointer), func_002036E0 (one `while (a && b)`
+tail loop; `> 10` compares; a struct member for the 0x50000-offset field),
+func_001FCF90 (an inverted loop arm; declaration order; an integer-sum
+address). Improved and parked: func_00131740 99.88, func_0019FE50 96.91,
+func_001CABA0 94.04 (the 2.3.3 permuter reached 100 only through a
+self-assignment, which was rejected).

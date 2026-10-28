@@ -1,8 +1,13 @@
 // NEARMISS func_00131740  (vram 0x00131740, 0x1F4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.44% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Instruction-scheduling / delay-slot-fill / branch-likely lowering permutation. Body and structure fully recovered; 9 residual instructions: (1) target duplicates 'addiu v0,v1,1' via a branch-likely beql slot fill at the case-0 entry while mwcc emits it once; (2) target fills the func_001C6160 jal...
+// objdiff 99.88% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8) (was 93.44%;
+// matching wave 2026-10-27: every switch case now ends in `break` instead of `return`,
+// which restored the branch-likely case-0 entry and the shared epilogue).
+// Remaining differences: the random-clip anim_clip_init call (third call) loads its two
+// 0.0f arguments into f12 then copies to f13, where the original loads f13 and copies to
+// f12. The `(z, (z = 0.0f))` device that fixes this on the other two calls gives the right
+// register order here but swaps the arg0 copy with the float copy around the div (99.04%).
+// The 2.3.3 permuter (600 s) plateaued at the same residual.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -51,7 +56,7 @@ void func_00131740(char *arg0, char *arg1) {
         }
         if (*(unsigned char *)(arg1 + 0x61) != 0) {
             anim_clip_init(arg0, 0x27, z, (z = 0.0f));
-            return;
+            break;
         }
         if (*(short *)(arg0 + 0x34) != 0) {
             *(char *)(arg0 + 0) = 1;
@@ -60,10 +65,10 @@ void func_00131740(char *arg0, char *arg1) {
             anim_clip_init(arg0, 0x28, z, (z = 0.0f));
             func_001FBD50(arg0, 0x7D6, 0, 300.0f);
         } else {
-            anim_clip_init(arg0, D_00275390[(func_00122BB8() >> 11) % 3], z, (z = 0.0f));
+            anim_clip_init(arg0, D_00275390[(func_00122BB8() >> 11) % 3], 0.0f, 0.0f);
         }
         *(short *)(arg0 + 0x36) = 0;
-        return;
+        break;
     case 1:
         if (*(unsigned short *)(arg1 + 0x58) & 0x1000) {
             if (*(short *)(arg0 + 0x34) != 0) {
@@ -74,15 +79,15 @@ void func_00131740(char *arg0, char *arg1) {
                 *(unsigned char *)(arg0 + 6) = 0;
                 *(char *)(arg1 + 0x62) = 0;
                 *(char *)(arg1 + 0x6A) = 0x3C;
-                return;
+                break;
             }
             *(char *)(arg0 + 5) = 2;
             *(char *)(arg0 + 6) = 0;
-            return;
+            break;
         }
         if (*(unsigned char *)(arg1 + 0x61) == 0) {
             func_00133A20(arg0, arg1);
         }
-        return;
+        break;
     }
 }

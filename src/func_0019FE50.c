@@ -1,8 +1,13 @@
 // NEARMISS func_0019FE50  (vram 0x0019FE50, 0x850 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.39% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// NEARMISS: register-allocation web-ORDER permutation in the pass-2 (actor-list) loop. Both available mwcc builds (991202 and 2.3.3) demote the pass-2 outer loop counter's web to the LAST callee-saved register (s6/s7), while the 2.3.1.01 target keeps it in s2 with cnt=s3/p=s4/found=s5/n=s6/list=s7;...
+// objdiff 96.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful.
+// Matching wave 2026-10-27 (was 93.39%): the hit-block scratchpad words 0x700030CA, 0x70003190,
+// 0x70003198, 0x700031A0, 0x700031A8 and 0x700031D4 are relocated externs (the original's load
+// placement around the hit stores needs alias freedom), and both hit blocks store the 0x700030CA
+// kind in one read-modify-write after the bound/owner stores.
+// NEARMISS: Remaining differences: pass-2 saved-register web order (outer counter, found, prim
+// count/pointer land one register off), pass-1 hit block hoists the 0x700031A0 re-read and sinks the
+// 0x700030CA load relative to the target, and temp-register colouring in the 0x1000 stride case.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -34,6 +39,12 @@
 // Returns 1 if the segment cleared both passes, 0 if anything was hit.
 
 extern int D_700030B0[];
+extern short D_700030CA[];
+extern float D_700031A0[];
+extern float D_700031A8[];
+extern void *D_700031D4[];
+extern float D_70003190[];
+extern float D_70003198[];
 extern unsigned char **D_0024D7C0[];
 extern unsigned char D_00810700[];
 extern unsigned char D_00810701[];
@@ -55,17 +66,13 @@ int func_0019FE50(void)
     int off4;
     int off28;
     unsigned char *uid_table;
-    unsigned char *a;
-    int found;
-    int n;
-    unsigned char **list;
 
     *(int **)0x700031D0 = D_700030B0;
     ret = 1;
 
-    lox = *(float *)0x70003190;
+    lox = D_70003190[0];
     {
-        float t = *(float *)0x700031A0;
+        float t = D_700031A0[0];
         if (!(lox <= t)) {
             hix = t;
         } else {
@@ -74,9 +81,9 @@ int func_0019FE50(void)
         }
     }
 
-    loz = *(float *)0x70003198;
+    loz = D_70003198[0];
     {
-        float t = *(float *)0x700031A8;
+        float t = D_700031A8[0];
         if (!(loz <= t)) {
             hiz = t;
         } else {
@@ -168,18 +175,15 @@ int func_0019FE50(void)
                     }
 
                     if (hit != 0) {
-                        int k;
-
-                        *(float *)0x700031A0 = *(float *)0x700031B0;
+                        D_700031A0[0] = *(float *)0x700031B0;
                         ret = 0;
-                        k = (*(short *)0x700030CA & 0xFF00) |
+                        D_700031A8[0] = *(float *)0x700031B8;
+                        D_700031D4[0] = 0;
+                        D_700030CA[0] = (D_700030CA[0] & 0xFF00) |
                             D_0024D7C0[D_00810700[0]][D_00810701[0]][off28 + 8];
-                        *(float *)0x700031A8 = *(float *)0x700031B8;
-                        *(void **)0x700031D4 = 0;
-                        *(short *)0x700030CA = (short)k;
                         {
-                            float lo = *(float *)0x70003190;
-                            float t = *(float *)0x700031A0;
+                            float lo = D_70003190[0];
+                            float t = D_700031A0[0];
                             if (!(lo <= t)) {
                                 hix = t;
                             } else {
@@ -187,8 +191,8 @@ int func_0019FE50(void)
                             }
                         }
                         {
-                            float lo = *(float *)0x70003198;
-                            float t = *(float *)0x700031A8;
+                            float lo = D_70003198[0];
+                            float t = D_700031A8[0];
                             if (!(lo <= t)) {
                                 hiz = t;
                             } else {
@@ -201,10 +205,14 @@ int func_0019FE50(void)
         }
     }
 
-    list = D_00275B7C;
-
     {
-        for (j = 0; j < D_00275B84; j++) {
+        unsigned char **list;
+        unsigned char *a;
+        int m;
+        int found;
+        int n;
+        list = D_00275B7C;
+        for (m = 0; m < D_00275B84; m++) {
             a = *list;
             list += 1;
             if (a[0] == 0) {
@@ -302,22 +310,19 @@ int func_0019FE50(void)
                                         break;
                                     }
                                     if (hit != 0) {
-                                        int k;
-
                                         found = 1;
-                                        k = (*(short *)0x700030CA & 0xFF00) | a[0x54];
                                         ret = 0;
-                                        *(float *)0x700031A0 = *(float *)0x700031B0;
-                                        *(float *)0x700031A8 = *(float *)0x700031B8;
-                                        *(unsigned char **)0x700031D4 = a;
-                                        *(short *)0x700030CA = (short)k;
+                                        D_700031A0[0] = *(float *)0x700031B0;
+                                        D_700031A8[0] = *(float *)0x700031B8;
+                                        D_700031D4[0] = a;
+                                        D_700030CA[0] = (D_700030CA[0] & 0xFF00) | a[0x54];
                                     }
                                 }
 
                                 if (found != 0) {
                                     {
-                                        float lo = *(float *)0x70003190;
-                                        float t = *(float *)0x700031A0;
+                                        float lo = D_70003190[0];
+                                        float t = D_700031A0[0];
                                         if (!(lo <= t)) {
                                             hix = t;
                                         } else {
@@ -325,8 +330,8 @@ int func_0019FE50(void)
                                         }
                                     }
                                     {
-                                        float lo = *(float *)0x70003198;
-                                        float t = *(float *)0x700031A8;
+                                        float lo = D_70003198[0];
+                                        float t = D_700031A8[0];
                                         if (!(lo <= t)) {
                                             hiz = t;
                                         } else {
