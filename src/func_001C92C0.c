@@ -1,46 +1,59 @@
-// NEARMISS func_001C92C0  (vram 0x001C92C0, 0x1E8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 86.84% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP even/odd register-coloring permutation (permuter-class, same as func_001509A0). Body, the keyframe-search loop, and the lerp/translation math are fully recovered (o233 86.84%); frame size (0x60), the s0-s3 callee-save set, and the gp_rel access of D_00275BEC (unlocked by -sdatathreshold 8) all...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
-
-extern void anim_decode_translation(char *src, float *dst);
-extern void func_001C86A0(float *a, float *b, float *c, float t);
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 86.84% NEARMISS).
+// Fixes read from the original instructions:
+// - Not an FP register-coloring wall: the body is the exact twin of the
+//   byte-matched func_001C90D0 (translation channel, D_00275BF0, +0x68/+0x58,
+//   dst +0x0/+0xC); this one uses D_00275BEC, counter +0x6A, duration +0x5C,
+//   dst vec +0x18 and delta vec +0x24. Spelled like the twin: int t_prev/t_next,
+//   `t_prev > time` first guard, goto loop, and the three position-advance
+//   lines as compound assignments.
+//
+// Per-bone keyframe directory walk + interval sampler for the second
+// translation-type channel. Resolves the bone's keyframe stream via the
+// directory (D_00275BEC + u32-offset[bone_idx]), walks 12-byte records
+// counting steps into the step counter (+0x6A, seeded 1) until
+// t_prev(+0xA) <= time < t_next(+0x16), decodes both straddling keyframes via
+// anim_decode_translation into the vec at +0x18 and a delta vec at +0x24,
+// scales the delta via func_001C86A0(+0x24, +0x24, +0x18, t_next - t_prev),
+// writes dur(+0x5C) = t_next - time, and advances vec[0..2] += delta[0..2] *
+// (time - t_prev). u16 times convert through the (float)(unsigned int) idiom.
 extern char *D_00275BEC;
+extern void anim_decode_translation(unsigned short *, float *);
+extern void func_001C86A0(float *dst, const float *a, const float *b, float divisor);
 
-void func_001C92C0(char *arg0, int arg1, int arg2) {
-    char *e;
-    unsigned short start, end;
-    float factor, ang;
+void func_001C92C0(char *actor, int bone_idx, int time) {
+    char *rec;
+    int t_prev;
+    int t_next;
+    float fblend;
+    float ftmp;
 
-    e = D_00275BEC + *(int *)(D_00275BEC + arg1 * 4);
-    *(unsigned short *)(arg0 + 0x6A) = 1;
-    while (1) {
-        start = *(unsigned short *)(e + 0xA);
-        if (!(arg2 < (int)start)) {
-            end = *(unsigned short *)(e + 0x16);
-            if (arg2 < (int)end) {
-                break;
-            }
-        }
-        e += 0xC;
-        *(unsigned short *)(arg0 + 0x6A) = *(unsigned short *)(arg0 + 0x6A) + 1;
-    }
-    factor = (float)arg2 - (float)(unsigned int)start;
-    ang = (float)(unsigned int)start;
-    anim_decode_translation(e, (float *)(arg0 + 0x18));
-    ang = (float)(unsigned int)*(unsigned short *)(e + 0x16) - ang;
-    anim_decode_translation(e + 0xC, (float *)(arg0 + 0x24));
-    func_001C86A0((float *)(arg0 + 0x24), (float *)(arg0 + 0x24), (float *)(arg0 + 0x18), ang);
-    *(float *)(arg0 + 0x5C) = (float)(unsigned int)end - (float)arg2;
-    *(float *)(arg0 + 0x18) = *(float *)(arg0 + 0x18) + *(float *)(arg0 + 0x24) * factor;
-    *(float *)(arg0 + 0x1C) = *(float *)(arg0 + 0x1C) + *(float *)(arg0 + 0x28) * factor;
-    *(float *)(arg0 + 0x20) = *(float *)(arg0 + 0x20) + *(float *)(arg0 + 0x2C) * factor;
+    rec = D_00275BEC + *(int *)(D_00275BEC + bone_idx * 4);
+    *(unsigned short *)(actor + 0x6A) = 1;
+top:
+    t_prev = *(unsigned short *)(rec + 0xA);
+    if (t_prev > time) goto advance;
+    t_next = *(unsigned short *)(rec + 0x16);
+    if (time >= t_next) goto advance;
+
+    fblend = (float)time - (float)(unsigned int)t_prev;
+    ftmp = (float)(unsigned int)t_prev;
+    anim_decode_translation((unsigned short *)rec, (float *)(actor + 0x18));
+    ftmp = (float)(unsigned int)*(unsigned short *)(rec + 0x16) - ftmp;
+    anim_decode_translation((unsigned short *)(rec + 0xC), (float *)(actor + 0x24));
+    func_001C86A0((float *)(actor + 0x24), (float *)(actor + 0x24), (float *)(actor + 0x18), ftmp);
+    *(float *)(actor + 0x5C) = (float)(unsigned int)t_next - (float)time;
+    *(float *)(actor + 0x18) += *(float *)(actor + 0x24) * fblend;
+    *(float *)(actor + 0x1C) += *(float *)(actor + 0x28) * fblend;
+    *(float *)(actor + 0x20) += *(float *)(actor + 0x2C) * fblend;
+    goto done;
+
+advance:
+    *(unsigned short *)(actor + 0x6A) += 1;
+    rec += 0xC;
+    goto top;
+
+done:
+    return;
 }

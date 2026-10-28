@@ -1,15 +1,16 @@
-// NEARMISS func_001E8E80  (vram 0x001E8E80, 0x3F4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 87.05% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation/addressing-derivation permutation (idiom exhaustion reached). The mula.s/madd.s FMA in the target (dx*dx+dy*dy via func_0011E748) is NOT the FPU-MAC wall -- writing it as plain (sx-3)*(sx-3)+(bx-3)*(bx-3) reproduces the exact FMA under mwcc233 once the statement order matches ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// CFLAGS: -O4,p -sdatathreshold 4
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 87.05% NEARMISS).
+// Fixes read from the original instructions:
+// - D_00275C18 is reached gp-relative: -sdatathreshold 4, not 0.
+// - The grid distance uses per-cell float locals dx = sx - 3, dy = bx - 3 (keeps
+//   the squared terms in the loop, fused into one multiply-add as in the original).
+// - sx is declared before bx; the cell pointer before the flag pointer.
+// - dist is reused as the scale (dist = 1 or dist *= 2, clamped at 0), and is
+//   computed as 3 - sqrt(...) then divided by 4 in a second statement.
+// - The +0x64 lift is a compound `+= 0.15f`.
+// - The two flag words are stores through an int pointer indexed by word.
 
 extern float func_0011E748(float d);
 extern int func_00122BB8(void);
@@ -23,8 +24,8 @@ extern char *D_00275C18;
 // spread vector (arg2+0x0/8). +0x8060/-0x6FA0(alias) flag words are cleared.
 void func_001E8E80(char *arg0, int idx, char *arg2) {
     char *base = D_00275C18 + idx * 0xA060;
-    int bx;
     int sx;
+    int bx;
     char *cell;
     char *flag;
 
@@ -55,10 +56,11 @@ void func_001E8E80(char *arg0, int idx, char *arg2) {
         cell = base + bx * 0x200;
         flag = base + bx * 0x80;
         for (sx = 0; sx < 8; sx++) {
-            char *f = flag + sx * 4;
             char *c = cell + sx * 0x10;
+            int *f = (int *)(flag + sx * 4);
             float dist;
-            float scale;
+            float dx;
+            float dy;
 
             *(float *)(c + 0x60) = (*(float *)(base + 0) - 0.5f * *(float *)(base + 0x30)) + (*(float *)(base + 0x30) * (float)sx) / 6.0f;
             *(float *)(c + 0x68) = (*(float *)(base + 8) - 0.5f * *(float *)(base + 0x34)) + (*(float *)(base + 0x34) * (float)bx) / 6.0f;
@@ -67,24 +69,27 @@ void func_001E8E80(char *arg0, int idx, char *arg2) {
             *(float *)(c + 0x60) = *(float *)(c + 0x60) + (0.1f * ((float)func_00122BB8() / 2147483648.0f) - 0.05f);
             *(float *)(c + 0x68) = *(float *)(c + 0x68) + (0.1f * ((float)func_00122BB8() / 2147483648.0f) - 0.05f);
 
-            dist = (3.0f - func_0011E748((float)(sx - 3) * (float)(sx - 3) + (float)(bx - 3) * (float)(bx - 3))) / 4.0f;
+            dx = (float)(sx - 3);
+            dy = (float)(bx - 3);
+            dist = 3.0f - func_0011E748(dx * dx + dy * dy);
+            dist /= 4.0f;
             if (dist > 0.1f) {
-                *(float *)(c + 0x64) = *(float *)(c + 0x64) + 0.15f;
+                *(float *)(c + 0x64) += 0.15f;
                 *(float *)(c + 0x64) = *(float *)(c + 0x64) + (0.05f * (float)func_00122BB8()) / 2147483648.0f;
             }
             if (dist > 0.35f) {
-                scale = 1.0f;
+                dist = 1.0f;
             } else {
-                scale = dist * 2.0f;
+                dist *= 2.0f;
             }
-            if (scale < 0.0f) {
-                scale = 0.0f;
+            if (dist < 0.0f) {
+                dist = 0.0f;
             }
-            *(float *)(c + 0x6C) = 128.0f * scale;
+            *(float *)(c + 0x6C) = 128.0f * dist;
             *(float *)(c + 0x4060) = (float)sx / 8.0f;
             *(float *)(c + 0x4064) = (float)bx / 8.0f;
-            *(int *)(f + 0x8060) = 0;
-            *(int *)(f + 0x9060) = 0;
+            f[0x8060 / 4] = 0;
+            f[0x9060 / 4] = 0;
         }
     }
 

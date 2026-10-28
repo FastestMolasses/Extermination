@@ -54,9 +54,9 @@ that is a different, stale tree.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
   Latest (2026-10-27, fresh build after the matching wave's tooling batch:
   relocation-spelling normaliser, `// EEGCC_AS: 2.96`, the func_001AB140 split;
-  329 NEARMISS byte-matched and 4 asm bodies replaced by C in the wave, plus one new file): 2589/2591 units, matched_code
+  340 NEARMISS byte-matched and 4 asm bodies replaced by C in the wave, plus one new file): 2600/2602 units, matched_code
   99.97%; boot ELF byte-identical; 19/19 overlays. MATCHING_GUIDE "Tooling
-  batch: open decisions 1-5" and "Queue batch after the tooling batch" / "Queue batch 2" / "Queue batch 3" / "Queue batch 4" / "Queue batch 5" / "Queue batch 6" / "Queue batch 7" / "Queue batch 8" / "Queue batch 9" / "Queue batch 10" / "Queue batch 11" / "Queue batch 12" / "Queue batch 13" / "Queue batch 14" / "Queue batch 15" / "Queue batch 16" / "Queue batch 17" / "Queue batch 18" / "Queue batches 19 and 20". A second queue (every untried non-VU0 NEARMISS, by %) holds about 340 NEARMISS functions not yet
+  batch: open decisions 1-5" and "Queue batch after the tooling batch" / "Queue batch 2" / "Queue batch 3" / "Queue batch 4" / "Queue batch 5" / "Queue batch 6" / "Queue batch 7" / "Queue batch 8" / "Queue batch 9" / "Queue batch 10" / "Queue batch 11" / "Queue batch 12" / "Queue batch 13" / "Queue batch 14" / "Queue batch 15" / "Queue batch 16" / "Queue batch 17" / "Queue batch 18" / "Queue batches 19 and 20" / "Queue batch 21". A second queue (every untried non-VU0 NEARMISS, by %) holds about 340 NEARMISS functions not yet
   attempted (ordered by the prototype scan, then by percentage). Open lever:
   five parked functions need 2.3.3 scheduling plus 991202 delay-slot moves
   (MATCHING_GUIDE "Matching wave 2026-10-27", sixth batch); mwcc 3.0 / 3.0.1 /

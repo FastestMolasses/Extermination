@@ -426,3 +426,20 @@ rerun with every file in place passed. Results now wait in to_accept.txt until
 the gate finishes. `reconcile_functions_csv.py` gained a `c_local_data` status
 for objdiff-100 C whose local .rodata cannot be pinned (func_0011C7B0,
 func_0011D878), which had stopped it since batch 14.
+
+### Queue batch 21 (2026-10-27)
+
+11 byte-matched: func_001221E0 (newlib `_pow5mult` in newlib's own shape),
+func_001E8E80 (gp-relative flag word; per-cell distance locals stop the loop
+hoist), func_001F9CF0 (old body had the ring-size test arms swapped; state
+switch with a case-0 fall-through), func_001C92C0 (twin of func_001C90D0),
+func_0019A180 (if/else arm order; one scratchpad word as a relocated extern
+frees a delay slot), func_00111818 (ee-gcc: record argument with inline
+buffers), func_00158590 (the facing test is a stored flag; array and volatile
+scratchpad externs), func_001118B8 (ee-gcc: volatile thread-state words, store
+order, `// EEGCC_AS: 2.96`), func_001C5FB0 (digit loop: plain for-loop, flag
+set at the end of each arm), func_00228C90 (record array indexed in plain
+for-loops; one gp-relative name buffer), func_001B2E50 (loop test re-reads the
+scratchpad count, as the matched twin func_001B2F70 does). Improved and
+parked: func_001CFFE0 97.89 (caller-saved colouring after a call),
+func_001A06A0 99.64 (two FP registers swapped).

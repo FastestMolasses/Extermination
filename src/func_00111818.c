@@ -1,37 +1,46 @@
-// NEARMISS func_00111818  (vram 0x00111818, 0xA0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 86.75% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc delay-slot-fill placement wall. Logic/structure fully recovered: uncached-segment alias (arg|0x20000000), two guarded byte-copy loops (count reloaded each iteration from p[0] / p[4], separate hoisted source base p+0x10 / p+0x50 — matches expected's 'addu v0,a3,a1' + 'lbu 0(v0)' exactly), th...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 86.75% NEARMISS).
+// Fixes read from the original instructions:
+// - The argument is a record (two byte counts, two destination pointers, two inline
+//   0x40-byte source buffers at +0x10 / +0x50); indexing the buffer member directly
+//   lets the loop optimiser hoist the buffer base into the loop preheader, as the
+//   original does, instead of a hand-hoisted source pointer that the scheduler pulled
+//   into the guard's delay slot.
+//
+// Copies the two pending byte payloads out of an uncached (arg | 0x20000000) view of
+// the reply record into their destination buffers, each guarded by count > 0 with the
+// count re-read from the record every iteration, then tail-calls func_001115D0 with
+// &D_00241D48.
 
 extern int D_00241D48;
 extern void func_001115D0(int *p);
 
+struct reply_buf {
+    int n0;                  /* +0x00 bytes to copy into d0 */
+    int n1;                  /* +0x04 bytes to copy into d1 */
+    unsigned char *d0;       /* +0x08 */
+    unsigned char *d1;       /* +0x0C */
+    unsigned char b0[0x40];  /* +0x10 */
+    unsigned char b1[0x40];  /* +0x50 */
+};
+
 void func_00111818(void *arg) {
-    unsigned char *p = (unsigned char *)((unsigned int)arg | 0x20000000);
+    struct reply_buf *p = (struct reply_buf *)((unsigned int)arg | 0x20000000);
     unsigned char *dst;
-    unsigned char *src;
     int i;
 
-    if (*(int *)p > 0) {
-        dst = *(unsigned char **)(p + 8);
-        src = p + 0x10;
-        for (i = 0; i < *(int *)p; i++) {
-            dst[i] = src[i];
+    if (p->n0 > 0) {
+        dst = p->d0;
+        for (i = 0; i < p->n0; i++) {
+            dst[i] = p->b0[i];
         }
     }
-    if (*(int *)(p + 4) > 0) {
-        dst = *(unsigned char **)(p + 0xC);
-        src = p + 0x50;
-        for (i = 0; i < *(int *)(p + 4); i++) {
-            dst[i] = src[i];
+    if (p->n1 > 0) {
+        dst = p->d1;
+        for (i = 0; i < p->n1; i++) {
+            dst[i] = p->b1[i];
         }
     }
     func_001115D0(&D_00241D48);

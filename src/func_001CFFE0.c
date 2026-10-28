@@ -1,8 +1,12 @@
 // NEARMISS func_001CFFE0  (vram 0x001CFFE0, 0x414 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 87.16% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 87.16% (mwcc233; mwcc 2.3.1 = 76.1%). Decode is complete and verified instruction-by-instruction: every packet field offset/width/constant, both jump tables, all 14 case bodies, the 9-iteration quadword loop and the whole tail block line up 1:1 with the target -- there is NO logic residual. Progr...
+// objdiff 97.89% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 87.16%; matching wave 2026-10-27).
+// Improvements: saved registers now match (sel/tbl declared first), the two scratchpad matrices are read
+// through base-pointer locals g1/g2 (one address setup each, as in the byte-matched sibling func_001CFBE0),
+// the selected D_00251260 row is indexed as a quadword array, each packet header goes through a cursor
+// pointer, and packet 4's GIFtag is written through its tag pointer p.
+// Remaining differences: caller-saved temporary colouring only (D_00275670 base / slot*4 / small tag constants
+// in different t/a/v registers after the func_001CB9B0 call); instruction order and logic are identical.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -51,18 +55,20 @@ extern int func_001CB9B0(int kind);
 
 void func_001CFFE0(int slot, unsigned int idx, char *obj, char *src)
 {
+    int sel;
+    char *tbl;
     char *dl;
+    char **c;
     char *q;
     char *p;
     char *dst;
     char *m;
     int kind;
-    int sel;
-    int soff;
     int n;
     int ret;
     int i;
-    char *tbl;
+    s128 *g1;
+    s128 *g2;
 
     kind = *(int *)(obj + 0x8C);
     switch (kind) {
@@ -136,59 +142,64 @@ void func_001CFFE0(int slot, unsigned int idx, char *obj, char *src)
 
     ret = func_001CB9B0(kind);
     n = slot * 4;
-    soff = sel * 16;
 
     dl = D_00275670;
-    *(char *)(*(int *)(dl + n + 0x10) + 3) = 0x30;
-    *(int *)(*(int *)(dl + n + 0x10) + 4) = ret;
-    *(short *)(*(int *)(dl + n + 0x10)) = 8;
-    *(int *)(dl + n + 0x10) = *(int *)(dl + n + 0x10) + 0x10;
+    c = (char **)(dl + n + 0x10);
+    (*c)[3] = 0x30;
+    *(int *)(*c + 4) = ret;
+    *(short *)*c = 8;
+    *c = *c + 0x10;
 
     dl = D_00275670;
-    *(char *)(*(int *)(dl + n + 0x10) + 3) = 0x50;
-    *(int *)(*(int *)(dl + n + 0x10) + 4) = (int)tbl;
-    *(short *)(*(int *)(dl + n + 0x10)) = 0;
-    *(int *)(dl + n + 0x10) = *(int *)(dl + n + 0x10) + 0x10;
+    c = (char **)(dl + n + 0x10);
+    (*c)[3] = 0x50;
+    *(int *)(*c + 4) = (int)tbl;
+    *(short *)*c = 0;
+    *c = *c + 0x10;
 
     dl = D_00275670;
-    *(char *)(*(int *)(dl + n + 0x10) + 3) = 0x10;
-    *(int *)(*(int *)(dl + n + 0x10) + 4) = 0;
-    *(short *)(*(int *)(dl + n + 0x10)) = 0x10;
-    q = *(char **)(dl + n + 0x10);
-    *(char **)(dl + n + 0x10) = q + 0x110;
+    c = (char **)(dl + n + 0x10);
+    (*c)[3] = 0x10;
+    *(int *)(*c + 4) = 0;
+    *(short *)*c = 0x10;
+    q = *c;
+    *c = q + 0x110;
     ((s128 *)q)[1] = 0;
     *(int *)(q + 0x18) = 0x01000101;
     *(int *)(q + 0x1C) = 0x6C0F006E;
-    ((s128 *)q)[2] = ((s128 *)D_70003A40)[0];
-    ((s128 *)q)[3] = ((s128 *)D_70003A40)[1];
-    ((s128 *)q)[4] = ((s128 *)D_70003A40)[2];
-    ((s128 *)q)[5] = ((s128 *)D_70003A40)[3];
+    g1 = (s128 *)D_70003A40;
+    ((s128 *)q)[2] = g1[0];
+    ((s128 *)q)[3] = g1[1];
+    ((s128 *)q)[4] = g1[2];
+    ((s128 *)q)[5] = g1[3];
     m = *(char **)(src + 0x40);
     ((s128 *)q)[6] = ((s128 *)m)[0];
     ((s128 *)q)[7] = ((s128 *)m)[1];
     ((s128 *)q)[8] = ((s128 *)m)[2];
     ((s128 *)q)[9] = ((s128 *)m)[3];
-    ((s128 *)q)[10] = ((s128 *)D_70003AC0)[0];
-    ((s128 *)q)[11] = ((s128 *)D_70003AC0)[1];
-    ((s128 *)q)[12] = ((s128 *)D_70003AC0)[2];
-    ((s128 *)q)[13] = ((s128 *)D_70003AC0)[3];
+    g2 = (s128 *)D_70003AC0;
+    ((s128 *)q)[10] = g2[0];
+    ((s128 *)q)[11] = g2[1];
+    ((s128 *)q)[12] = g2[2];
+    ((s128 *)q)[13] = g2[3];
     ((s128 *)q)[14] = ((s128 *)D_00275670)[10];
     *(int *)(q + 0xF0) = 0;
     *(int *)(q + 0xF4) = 0;
     *(float *)(q + 0xF8) = *(float *)(src + 0x54);
     *(int *)(q + 0xFC) = 0;
-    ((s128 *)q)[16] = ((s128 *)(D_00251260 + soff))[0];
+    ((s128 *)q)[16] = ((s128 *)D_00251260)[sel];
 
     dl = D_00275670;
-    *(char *)(*(int *)(dl + n + 0x10) + 3) = 0x10;
-    *(int *)(*(int *)(dl + n + 0x10) + 4) = 0;
-    *(short *)(*(int *)(dl + n + 0x10)) = 0xA;
-    q = *(char **)(dl + n + 0x10);
+    c = (char **)(dl + n + 0x10);
+    (*c)[3] = 0x10;
+    *(int *)(*c + 4) = 0;
+    *(short *)*c = 0xA;
+    q = *c;
     p = q + 0x10;
     dst = p + 0x10;
-    *(char **)(dl + n + 0x10) = q + 0xB0;
-    ((s128 *)q)[1] = 0;
-    *(int *)(q + 0x1C) = 0x6C090050;
+    *c = q + 0xB0;
+    ((s128 *)p)[0] = 0;
+    *(int *)(p + 0xC) = 0x6C090050;
     i = 9;
     do {
         i -= 1;
@@ -198,11 +209,12 @@ void func_001CFFE0(int slot, unsigned int idx, char *obj, char *src)
     } while (i != 0);
 
     dl = D_00275670;
-    *(char *)(*(int *)(dl + n + 0x10) + 3) = 0x10;
-    *(int *)(*(int *)(dl + n + 0x10) + 4) = 0;
-    *(short *)(*(int *)(dl + n + 0x10)) = 7;
-    q = *(char **)(dl + n + 0x10);
-    *(char **)(dl + n + 0x10) = q + 0x80;
+    c = (char **)(dl + n + 0x10);
+    (*c)[3] = 0x10;
+    *(int *)(*c + 4) = 0;
+    *(short *)*c = 7;
+    q = *c;
+    *c = q + 0x80;
     ((s128 *)q)[1] = 0;
     *(int *)(q + 0x1C) = 0x6C050059;
     *(float *)(q + 0x20) = *(float *)(src + 0x44);

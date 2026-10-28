@@ -1,68 +1,51 @@
-// NEARMISS func_001221E0  (vram 0x001221E0, 0x100 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 87.08% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc register-allocation permutation (NOT mwcc; target uses sd/ld/daddu EABI saves -> compiled with ee-gcc 2.9 -O2, which lifted it from 0.5% to 87%). Logic fully recovered, instruction stream matches exactly. Sole residual: ee-gcc colors this dataflow with 5 saved regs (frame 0x60) vs target's...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
-
-// Binary-doubling list/accumulator builder. Low 2 bits of arg2 select an
-// initial node via func_00121BD0(a0,a1,D_0026C808[bits-1],0); then for each set
-// bit of (arg2>>2) it either grafts the running result onto a freshly built
-// node (func_00121FB0 + func_00121BA0) or walks/extends the chain anchored at
-// *(a0+0x48), allocating fresh links (func_00121F78 / func_00121FB0) as needed.
-extern int func_00121BA0(unsigned char *, int *);
-extern int *func_00121BD0(unsigned char *, int *, int, int);
-extern int *func_00121F78(unsigned char *, int);
-extern int *func_00121FB0(unsigned char *, int *, int *);
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 87.08% NEARMISS). Fixes read from
+// the original instructions:
+// - The routine is newlib's dtoa helper _pow5mult (b * 5^k): rewritten in newlib's own shape
+//   (early `return b` when k>>2 is zero, `if (!(p5 = ptr->_p5s))` lazy init, for(;;) loop with
+//   the in-test assignments). The old goto-into-loop body gave ee-gcc a different dataflow
+//   (5 saved registers and a larger frame).
+// - The Bfree callee (func_00121BA0) returns void, matching its definition in src/.
+//
+// Multiply Bigint b by 5^k. The low two bits of k select 5/25/125 from D_0026C808 via
+// multadd (func_00121BD0); the remaining bits walk the cached chain of 5^(4*2^n) powers
+// anchored at ptr->_p5s (+0x48), created on demand with i2b(625) (func_00121F78) and
+// mult(p5, p5) (func_00121FB0); each used power multiplies b and the old b is freed.
+typedef struct _Bigint { struct _Bigint *_next; int _k; } _Bigint;
+struct _reent { int pad[18]; _Bigint *_p5s; };
+extern void func_00121BA0(struct _reent *, _Bigint *);
+extern _Bigint *func_00121BD0(struct _reent *, _Bigint *, int, int);
+extern _Bigint *func_00121F78(struct _reent *, int);
+extern _Bigint *func_00121FB0(struct _reent *, _Bigint *, _Bigint *);
 extern int D_0026C808[];
 
-int *func_001221E0(unsigned char *a0, int *a1, int arg2) {
-    int *s2;
-    int *s0;
-    int *v0;
-    int s1;
+_Bigint *func_001221E0(struct _reent *ptr, _Bigint *b, int k) {
+    _Bigint *b1, *p5, *p51;
+    int i;
 
-    s2 = a1;
-    if ((arg2 & 3) != 0) {
-        s2 = func_00121BD0(a0, a1, D_0026C808[(arg2 & 3) - 1], 0);
+    if ((i = k & 3))
+        b = func_00121BD0(ptr, b, D_0026C808[i - 1], 0);
+
+    if (!(k >>= 2))
+        return b;
+    if (!(p5 = ptr->_p5s)) {
+        p5 = ptr->_p5s = func_00121F78(ptr, 625);
+        p5->_next = 0;
     }
-    s1 = arg2 >> 2;
-    v0 = s2;
-    if (s1 != 0) {
-        s0 = *(int **)(a0 + 0x48);
-        if (s0 == 0) {
-            s0 = func_00121F78(a0, 0x271);
-            *(int **)(a0 + 0x48) = s0;
-            *s0 = 0;
-        } else {
-            goto have_node;
+    for (;;) {
+        if (k & 1) {
+            b1 = func_00121FB0(ptr, b, p5);
+            func_00121BA0(ptr, b);
+            b = b1;
         }
-        for (;;) {
-        have_node:
-            if (s1 & 1) {
-                v0 = func_00121FB0(a0, s2, s0);
-                func_00121BA0(a0, s2);
-                s2 = v0;
-            }
-            s1 = s1 >> 1;
-            if (s1 == 0) {
-                break;
-            }
-            v0 = (int *)*s0;
-            if (v0 == 0) {
-                v0 = func_00121FB0(a0, s0, s0);
-                *s0 = (int)v0;
-                *v0 = 0;
-            }
-            s0 = v0;
+        if (!(k >>= 1))
+            break;
+        if (!(p51 = p5->_next)) {
+            p51 = p5->_next = func_00121FB0(ptr, p5, p5);
+            p51->_next = 0;
         }
-        v0 = s2;
+        p5 = p51;
     }
-    return v0;
+    return b;
 }
