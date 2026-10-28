@@ -343,3 +343,22 @@ pointer before the cursor advance), func_0019D770 and its twin func_0019CF50
 (each span arm stores its own halfwords; a `for` walk), func_001368D0 (direct
 `return 0` guards; one scratch word as an unsized relocated array). Improved
 and parked: func_0010A400 96.23 (constant order).
+
+### Queue batch 16 (2026-10-27): asm bodies replaced by C
+
+12 byte-matched. **Four CodeWarrior `asm` bodies replaced by readable C** and
+their src/readable/ companions retired (git rm; history keeps them):
+func_001D7000 (written in the func_001D7100 / func_001D71A0 family style; it
+returns the tag pointer read first), and func_00205F90, func_00204250,
+func_001CC170 — their companions already scored 100% "on their own" but
+needed their leaf callee in the same TU; `// TU_STATIC:` (added in decomp
+lane round 7, after the companions were written) now provides that.
+Eight more: func_001D6E60 and func_001DD7B0 and func_001D9720 (func_001006D8
+takes six arguments, char * plus five shorts; func_001008C0 takes eleven;
+GIFtag words as 64-bit bitfield structs), func_001D71A0 (returns the tag
+pointer; twin func_001D7100's `CUR(v, off)` slot), func_001D7510 and
+func_001D7A80 (the packet family spelling; a `(x == 0) ? 0 : K` default),
+func_001E0C80 (a struct field pointer taken once), func_00106540 (ee-gcc:
+post-increment spin tests; a plain 64-bit load folds its address).
+**Next pool:** 100 src/readable/ companions remain (asm-bodied functions with
+readable near-miss C); ~15 score >= 95%.

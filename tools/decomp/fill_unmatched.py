@@ -148,7 +148,7 @@ GPREL_FORCE_ASM = {
     # func_001D8690 removed (matching wave 2026-10-27): byte-matched from C.
     "func_001D89D0",
     "func_001DA6A0",
-    "func_001DD7B0",
+    # func_001DD7B0 removed (matching wave 2026-10-27): byte-matched from C.
     "func_001DE920",
     "func_001DF180",
     "func_001DF600",
@@ -264,11 +264,11 @@ SIZE_DRIFT_FORCE_ASM = {
     # anim_clip_init removed: readable C now supplies both float arguments
     # and matches the original212-byte slot; verify actual compiled-C linkage.
     "func_001CF470",
-    "func_00205F90",
+    # func_00205F90 removed (matching wave 2026-10-27): byte-matched from C.
     # Content-mismatch functions: compiled obj has wrong instructions (different
     # code generation from mwcc vs original), even though size may be correct.
     # These were identified by comparing filler object bytes to the original ELF.
-    "func_001E0C80",
+    # func_001E0C80 removed (matching wave 2026-10-27): byte-matched from C.
     # 91 additional drift/content-mismatch entries found after the
     # 2026-05-24 naming/splat-regen pass.  These all have src/*.c that
     # mwcc compiles successfully (or that build.py's tolerant compile
@@ -285,7 +285,7 @@ SIZE_DRIFT_FORCE_ASM = {
     # func_001AB740 removed 2026-06-10: src/func_001AB740.c now compiles
     # byte-identical (statement-order idiom); the compiled obj is linked.
     # func_001D4A90 removed 2026-10-20 (decomp lane round 4): byte-matched from C.
-    "func_001D71A0",
+    # func_001D71A0 removed (matching wave 2026-10-27): byte-matched from C.
     # func_001DF5A0 removed 2026-09-28 (lane DFIX): corrected C (f12 passed
     # through to func_001DF180, cursor stored before the call) is mwcc 2.3.3
     # objdiff 100%; the compiled object is linked (audit_link_provenance).

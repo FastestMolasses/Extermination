@@ -1,42 +1,67 @@
-// NEARMISS func_001D9720  (vram 0x001D9720, 0x178 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 57.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// u64 GS-register bitfield-struct reconstruction wall (57.95% mwcc 2.3.3, ~75/101 instructions differ). Target writes the DISPLAY register image via a packed 64-bit bitfield union: OR-values held in registers via `daddiu` and combined with register `or` (not `ori`), and literal-0 sub-fields emitted...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 57.95% NEARMISS).
+// Fixes read from the original instructions:
+//  - func_001006D8 takes SIX arguments (a pointer and five 16-bit values): the
+//    call passes (&A+D block, 0, 0x80, 0x80, 0, 2); the old 4-argument extern
+//    dropped the last two.
+//  - func_001008C0 (libgraph clear-packet builder) takes eleven arguments:
+//    (p, ztest 0, x 0x7C0, y 0x7C0, w 0x80, h 0x80, r/g/b 0x80, a 0, z 0).
+//  - The GIFtag at +0x10 is a struct of 64-bit bitfields written field by
+//    field (NLOOP, EOP, PRE, FLG, NREG, REGS0), not hand-written byte masks.
+//  - The final 9-bit merge at the A+D block is a 64-bit bitfield store on the
+//    global itself (absolute address, not through a pointer register).
+//
+// Builds the static packet at D_00817E20: two zero words, the VIF words
+// 0x11000000 / 0x5000000F, a GIFtag (NLOOP 14, EOP, PRE off, PACKED, one
+// A+D register), fills the A+D register block at +0x20 with func_001006D8
+// (0x80 x 0x80), writes a default clear packet at +0xA0 with func_001008C0,
+// then sets the low 9 bits of the first A+D word to 0x12C.
 
-extern int func_001006D8(unsigned short *, int, int, int);
-extern int func_001008C0(void *, int, int, int, long long, long long, long long);
-extern int D_00817E20;
-extern int D_00817E24;
-extern int D_00817E28;
-extern int D_00817E2C;
-extern unsigned short D_00817E30;
-extern unsigned char D_00817E35;
-extern unsigned char D_00817E37;
-extern unsigned char D_00817E38;
-extern unsigned short D_00817E40;
-extern int D_00817EC0;
+extern void func_001006D8(char *, short, short, short, short, short);
+extern int func_001008C0(void *, short, short, short, short, short,
+                         unsigned char, unsigned char, unsigned char, unsigned char, unsigned int);
+
+typedef struct {
+    unsigned long long NLOOP : 15;
+    unsigned long long EOP : 1;
+    unsigned long long pad16 : 30;
+    unsigned long long PRE : 1;
+    unsigned long long PRIM : 11;
+    unsigned long long FLG : 2;
+    unsigned long long NREG : 4;
+    unsigned long long REGS0 : 4;
+    unsigned long long REGS1 : 60;
+} GifTag;
+
+typedef struct {
+    unsigned long long X : 9;
+    unsigned long long rest : 55;
+} AdReg;
+
+typedef struct {
+    int vif[4];
+    GifTag tag;
+    AdReg ad;
+    char ad_rest[0x78];
+    char clear[0x60];
+} Pkt;
+
+extern Pkt D_00817E20;
 
 void func_001D9720(void) {
-    D_00817E20 = 0;
-    D_00817E24 = 0;
-    D_00817E28 = 0x11000000;
-    D_00817E2C = 0x5000000F;
-    D_00817E30 = (unsigned short)((D_00817E30 & ~0x7FFF) | 0xE);
-    *(unsigned char *)((char *)&D_00817E30 + 1) =
-        (unsigned char)((*(unsigned char *)((char *)&D_00817E30 + 1) & ~0x80) | 0x80);
-    D_00817E35 = (unsigned char)((D_00817E35 & ~0x40) | ((0 & 1) << 6));
-    D_00817E37 = (unsigned char)((D_00817E37 & ~0xC) | ((0 & 3) << 2));
-    D_00817E37 = (unsigned char)((D_00817E37 & ~0xF0) | 0x10);
-    D_00817E38 = (unsigned char)((D_00817E38 & ~0xF) | 0xE);
-    func_001006D8(&D_00817E40, 0, 0x80, 0x80);
-    func_001008C0(&D_00817EC0, 0, 0x7C0, 0x7C0, 0x80, 0, 0);
-    D_00817E40 = (unsigned short)((D_00817E40 & ~0x1FF) | 0x12C);
+    D_00817E20.vif[0] = 0;
+    D_00817E20.vif[1] = 0;
+    D_00817E20.vif[2] = 0x11000000;
+    D_00817E20.vif[3] = 0x5000000F;
+    D_00817E20.tag.NLOOP = 0xE;
+    D_00817E20.tag.EOP = 1;
+    D_00817E20.tag.PRE = 0;
+    D_00817E20.tag.FLG = 0;
+    D_00817E20.tag.NREG = 1;
+    D_00817E20.tag.REGS0 = 0xE;
+    func_001006D8((char *)&D_00817E20.ad, 0, 0x80, 0x80, 0, 2);
+    func_001008C0(D_00817E20.clear, 0, 0x7C0, 0x7C0, 0x80, 0x80, 0x80, 0x80, 0x80, 0, 0);
+    D_00817E20.ad.X = 0x12C;
 }

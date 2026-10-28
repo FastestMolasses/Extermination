@@ -1,86 +1,53 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00204140(int, int, int, int);
-extern void func_002041A0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// TU_STATIC: func_002041A0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a CodeWarrior asm body with a
+// readable companion; same-TU callee via // TU_STATIC:). tools/decomp/tu_static.py removes the
+// static copy of func_002041A0 after checking it equals the original; the call links to that
+// function's own unit.
+//
+// Movie decoder: resets the IPU input ring r and points DMA channel 4
+// (toIPU) at it. Clears the cursors +0x0C / +0x10 / +0x14 and +0x58 / +0x5C,
+// sets +0x44 = 1, marks every 0x18-byte sector record (+0x50 array, +0x54
+// entries) empty (two -1 doublewords, two zero words), builds a ref DMA tag
+// per sector in the tag array +4 (sector i at base + i * 0x800, 0x80
+// quadwords) closed by a next tag back to the first, then sets the channel's
+// QWC = 0, MADR = base and TADR = the tag array and starts it with
+// func_00204140(5). Returns 1.
+// The original keeps r in v0 across the calls to the leaf func_002041A0
+// (intra-TU register analysis), so the callee is compiled here as a static of
+// the same TU.
+static void func_002041A0(unsigned long long *out, unsigned int a, unsigned int b, unsigned int c);  /* same-TU callee, see TU_STATIC */
+#include "src/func_002041A0.c"
 
-asm void func_00204250(void) {
-    addiu      $sp, $sp, -0x10
-    .word 0x7fbf0000
-    .word 0xac80000c
-    .word 0xac800010
-    addiu      $v1, $zero, 0x1
-    .word 0xac800014
-    .word 0xac830044
-    .word 0xac800058
-    .word 0x70801628
-    .word 0xac80005c
-    addiu      $a0, $zero, -0x1
-    .word 0x70002e28
-    .word 0x1000000f
-    .word 0x70003628
-    .word 0x8c430050
-    addiu      $a1, $a1, 0x1
-    addu       $v1, $v1, $a2
-    .word 0xfc640000
-    .word 0x8c430050
-    addu       $v1, $v1, $a2
-    .word 0xfc640008
-    .word 0x8c430050
-    addu       $v1, $v1, $a2
-    .word 0xac600010
-    .word 0x8c430050
-    addu       $v1, $v1, $a2
-    addiu      $a2, $a2, 0x18
-    .word 0xac600014
-    .word 0x8c430054
-    slt        $v1, $a1, $v1
-    .word 0x1460ffef
-    nop
-    .word 0x70005628
-    .word 0x70004628
-    .word 0x1000000d
-    .word 0x70004e28
-    .word 0x8c430000
-    .word 0x8c440004
-    addiu      $a2, $zero, 0x3
-    addiu      $a3, $zero, 0x80
-    addu       $v1, $v1, $8
-    dsll32     $a1, $v1, 4
-    addu       $a0, $a0, $9
-    jal        func_002041A0
-    dsrl32    $a1, $a1, 4
-    addiu      $8, $8, 0x800
-    addiu      $9, $9, 0x10
-    addiu      $10, $10, 0x1
-    .word 0x8c430008
-    slt        $v1, $10, $v1
-    .word 0x1460fff1
-    nop
-    .word 0x8c450004
-    sll        $v1, $10, 4
-    addiu      $a2, $zero, 0x2
-    .word 0x70003e28
-    addu       $a0, $a1, $v1
-    dsll32     $a1, $a1, 4
-    jal        func_002041A0
-    dsrl32    $a1, $a1, 4
-    .word 0x3c011001
-    .word 0xac20b420
-    .word 0x8c430000
-    .word 0x3c011001
-    addiu      $a0, $zero, 0x5
-    dsll32     $v1, $v1, 4
-    dsrl32     $v1, $v1, 4
-    .word 0xac23b410
-    .word 0x8c420004
-    .word 0x3c011001
-    dsll32     $v0, $v0, 4
-    dsrl32     $v0, $v0, 4
-    jal        func_00204140
-    .word 0xac22b430
-    .word 0x7bbf0000
-    addiu      $v0, $zero, 0x1
-    jr         $ra
-    addiu     $sp, $sp, 0x10
+extern void func_00204140(int mode);
+
+int func_00204250(int *r) {
+    int i;
+    int ofs;
+    int addr;
+    int tag;
+
+    r[3] = 0;
+    r[4] = 0;
+    r[5] = 0;
+    r[0x11] = 1;
+    r[0x16] = 0;
+    r[0x17] = 0;
+    for (i = 0, ofs = 0; i < r[0x15]; i++, ofs += 0x18) {
+        *(long long *)(r[0x14] + ofs) = -1;
+        *(long long *)(r[0x14] + ofs + 8) = -1;
+        *(int *)(r[0x14] + ofs + 0x10) = 0;
+        *(int *)(r[0x14] + ofs + 0x14) = 0;
+    }
+    for (i = 0, addr = 0, tag = 0; i < r[2]; addr += 0x800, tag += 0x10, i++) {
+        func_002041A0((unsigned long long *)(r[1] + tag), (r[0] + addr) & 0x0FFFFFFF, 3, 0x80);
+    }
+    func_002041A0((unsigned long long *)(r[1] + (i << 4)), r[1] & 0x0FFFFFFF, 2, 0);
+    *(volatile int *)0x1000B420 = 0;
+    *(volatile int *)0x1000B410 = r[0] & 0x0FFFFFFF;
+    *(volatile int *)0x1000B430 = r[1] & 0x0FFFFFFF;
+    func_00204140(5);
+    return 1;
 }
-
-// Readable C (NEARMISS companion, objdiff 100.00%): src/readable/func_00204250.c

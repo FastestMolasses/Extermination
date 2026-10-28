@@ -1,3 +1,11 @@
+## 2026-10-27 — matching wave, queue batch 16: 12 more byte-matched, 4 asm bodies replaced
+
+See MATCHING_GUIDE "Queue batch 16". Four CodeWarrior asm bodies are now
+readable C (their src/readable/ companions retired). Gate: fresh build +
+verify_all all six stages pass, boot ELF byte-identical, 19/19 overlays,
+matched_code 99.97%, 2557/2559 units; audit_link_provenance clean (2060
+ordinary-C routes, 481 inline-assembly).
+
 ## 2026-10-27 — matching wave, queue batch 15: 11 more byte-matched
 
 See MATCHING_GUIDE "Queue batch 15". Gate: fresh build + verify_all all six

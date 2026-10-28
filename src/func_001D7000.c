@@ -1,40 +1,58 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-// asm void: 64-bit register manipulations (dsll32/dsra32/or) and gp_rel loads;
-// lw gp_rel hardcoded .word -- byte-identical at link time.
-extern int *D_00275670;
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a CodeWarrior asm body;
+// readable companion src/readable/func_001D7000.c was 98.39%).
+// Fixes read from the original instructions:
+// - The function returns the tag pointer it first read (the pre-advance write
+//   pointer, still in the return register at exit); the companion was void.
+// - The list-pointer slot is spelled as in the byte-matched twins func_001D7100 /
+//   func_001D71A0: the channel byte offset (ch * 4) in its own local, the table
+//   pointer in a local copy, and the slot formed as integer arithmetic, offset
+//   first. That gives the original's register choice and add operand order.
+//
+// Appends one GS register packet to DMA list ch of D_00275670 (the same 0x40-byte
+// layout as func_00207D90): an id 0x10 tag (addr 0, qwc 3), a zeroed quadword whose
+// last word is 0x50000002, the GIF tag 0x1000000000008001 / 0xE (one A+D register),
+// then the data word val sign-extended to 64 bits for GS register 0x3B. The cursor
+// advances by 0x40. Returns the tag (the pre-advance write pointer).
 
-asm void func_001D7000(int a0, int a1) {
-    .word 0x00041880  // sll v1, a0, 2
-    .word 0x0005203C  // dsll32 a0, a1, 0
-    .word 0x8F858300  // lw a1, %gp_rel(D_00275670)(gp) [hardcoded]
-    .word 0x3C025000  // lui v0, 0x5000
-    .word 0x34470002  // ori a3, v0, 0x0002
-    .word 0x24080010  // addiu t0, zero, 0x10
-    .word 0x24090003  // addiu t1, zero, 0x3
-    .word 0x00655021  // addu t2, v1, a1
-    .word 0x8D420010  // lw v0, 0x10(t2)
-    .word 0x3C031000  // lui v1, 0x1000
-    .word 0x0003283C  // dsll32 a1, v1, 0
-    .word 0x34038001  // ori v1, zero, 0x8001
-    .word 0x00653025  // or a2, v1, a1
-    .word 0x2405000E  // addiu a1, zero, 0xE
-    .word 0xA0480003  // sb t0, 0x3(v0)
-    .word 0x8D480010  // lw t0, 0x10(t2)
-    .word 0x0004203F  // dsra32 a0, a0, 0
-    .word 0x2403003B  // addiu v1, zero, 0x3B
-    .word 0xAD000004  // sw zero, 0x4(t0)
-    .word 0x8D480010  // lw t0, 0x10(t2)
-    .word 0xA5090000  // sh t1, 0x0(t0)
-    .word 0x8D490010  // lw t1, 0x10(t2)
-    .word 0x25280040  // addiu t0, t1, 0x40
-    .word 0xAD480010  // sw t0, 0x10(t2)
-    .word 0x7D200010  // sq zero, 0x10(t1)
-    .word 0xAD27001C  // sw a3, 0x1C(t1)
-    .word 0xFD260020  // sd a2, 0x20(t1)
-    .word 0xFD250028  // sd a1, 0x28(t1)
-    .word 0xFD240030  // sd a0, 0x30(t1)
-    .word 0x03E00008  // jr ra
-    .word 0xFD230038  // sd v1, 0x38(t1)
+typedef unsigned __int128 u128;
+typedef struct {
+    unsigned short qwc;
+    unsigned char pad;
+    unsigned char id;
+    int addr;
+    int w2;
+    int w3;
+} DmaTag;
+typedef struct {
+    char pad[0x10];
+    DmaTag *cur[16];
+} VifLists;
+extern VifLists *D_00275670;
+
+/* v->cur[ch], spelled the way the original computes it */
+#define CUR(v, off) (((DmaTag **)((off) + (int)(v)))[4])
+
+DmaTag *func_001D7000(int ch, int val) {
+    int off = ch * 4;
+    VifLists *v = D_00275670;
+    DmaTag *base = CUR(v, off);
+    DmaTag *p;
+    long *d;
+
+    base->id = 0x10;
+    CUR(v, off)->addr = 0;
+    CUR(v, off)->qwc = 3;
+    p = CUR(v, off);
+    CUR(v, off) = p + 4;
+    *(u128 *)(p + 1) = 0;
+    p[1].w3 = 0x50000002;
+    d = (long *)(p + 2);
+    d[0] = 0x8001L | ((long)0x10000000 << 32);
+    d[1] = 0xE;
+    d[2] = (long)val;
+    d[3] = 0x3B;
+    return base;
 }
-
-// Readable C (NEARMISS companion, objdiff 98.39%): src/readable/func_001D7000.c
