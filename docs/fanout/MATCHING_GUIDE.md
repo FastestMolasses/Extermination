@@ -378,3 +378,17 @@ list set up in turn), func_001E4610 (dispatch and size pick as switches;
 values updated in place), func_00187CC0 (an if/else ladder; a flag set in each
 arm; a named scratch block). Improved and parked: func_001D7C30 99.68,
 func_00117918 94.20, func_001D6930 83.69.
+
+### Queue batch 18 (2026-10-27)
+
+6 byte-matched: func_00107310 (ee-gcc: the order of an if/else test decides
+the branch-likely inversion), func_0022FCA0 (one scratchpad slot as a
+relocated extern; branch sense of the arc pick), func_001B62C0 (one combined
+condition with two call sites where the C duplicated cos/sin calls),
+func_0019D330 (collision walker: each span arm stores its own halves, a nested
+type filter, early `continue`s), func_0011FD88 (ee-gcc newlib fflush: a FILE
+struct, the reentrancy record as the init argument, newlib's CHECK_INIT
+`do { } while (0)` block), func_0019F730 (collision walker: four scratchpad
+words as relocated externs, triple indexing, a pointer-walked list). Improved
+and parked: func_00112150 99.51, sub_Invalid_modion_type_ignored_d 99.02 (a
+wrong DMA destination constant fixed).

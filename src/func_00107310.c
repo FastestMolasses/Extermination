@@ -1,15 +1,16 @@
-// NEARMISS func_00107310  (vram 0x00107310, 0xF0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 88.92% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc forward-branch-likely + list-scheduler wall. Body matches structurally. Divergences at -O2 (best of -O2/-O1/-O0; O1=50.7, O0=0): at the D_002414AC==3 test the original uses a plain branch whose delay slot holds the next constant's upper-half load, while ee-gcc 2.9-991111-01 inverts it into a branch-likely that annuls the slot (rest of the note: docs/NEARMISS.md).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 88.92% NEARMISS).
+// Fixes read from the original instructions:
+//  - the "not the first mode" arm tests D_002414AC != 3 first and sets the count to 1,
+//    with the D_002414C0 pick in the else arm; the original places the count-1 block
+//    before the pick, and the old == 3 order made ee-gcc invert it into a
+//    branch-likely (not a compiler wall, just the wrong branch order).
+//
+// Picks how many entry pairs to fetch from the global mode flags (1, 2 or 3), then
+// for each one reads two 16-unit values through func_00106948 into D_002414E8[i]
+// and D_002414F8[i], each read followed by a 1-unit call.
 
 extern int D_00241448;
 extern int D_002414C0;
@@ -30,10 +31,10 @@ void func_00107310(void) {
 		} else {
 			n = 1;
 		}
-	} else if (D_002414AC == 3) {
-		n = D_002414C0 ? D_002414AC : 2;
-	} else {
+	} else if (D_002414AC != 3) {
 		n = 1;
+	} else {
+		n = D_002414C0 ? D_002414AC : 2;
 	}
 
 	for (i = 0; i < n; i++) {

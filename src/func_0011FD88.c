@@ -1,65 +1,80 @@
-// NEARMISS func_0011FD88  (vram 0x0011FD88, 0x104 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 88.66% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc register-coloring wall. Logic fully recovered and body byte-identical APART from a systematic register-pair swap: expected uses s1=fp(arg)/s2=p(write-ptr)/v1=q/v1=cur, our ee-gcc 2.9-991111-01 emits the mirror (s2=fp/s1=p/v0=q/v0=cur). Nearly every residual DIFF line is exactly an s1<->s2 or v0<->v1 swap, plus...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 88.66% NEARMISS).
+// Fixes read from the original instructions:
+// - The body was wrong: the init call takes the stream's reentrancy record
+//   (fp+0x54), not the flags; and fp+0x8 receives 0 or the buffer size
+//   (fp+0x14) depending on the line/unbuffered flag bits, while the write
+//   pointer stays the buffer base (the old C overwrote it with the size).
+// - The "register-pair swap" was a symptom of that wrong body, not a wall.
+// - The init check is a do { ... } while (0) block (newlib's CHECK_INIT
+//   macro shape); gcc aligns its inner label, giving the original's lone nop.
+//
+// newlib-style fflush: with a null stream, walk every open stream through
+// func_001209B0 calling this function; otherwise make sure the stdio state is
+// initialised, and if the stream is in write mode with a buffer, write out the
+// pending bytes through the stream's write callback, setting the error flag
+// (0x40) and returning -1 on a failed write.
 
-extern int D_0024295C;
-extern int func_001209B0(int, int (*)());
-extern void func_00120058(int);
+struct sbuf {
+    unsigned char *_base;   /* 0x10 */
+    int _size;              /* 0x14 */
+};
 
-int func_0011FD88(int fp)
+struct reent {
+    char pad[0x38];
+    int sdidinit;           /* 0x38 */
+};
+
+struct file {
+    unsigned char *_p;      /* 0x00 */
+    int _r;                 /* 0x04 */
+    int _w;                 /* 0x08 */
+    short _flags;           /* 0x0C */
+    short _file;            /* 0x0E */
+    struct sbuf _bf;        /* 0x10 */
+    int _lbfsize;           /* 0x18 */
+    void *_cookie;          /* 0x1C */
+    int (*_read)(void *, char *, int);  /* 0x20 */
+    int (*_write)(void *, const char *, int); /* 0x24 */
+    char pad28[0x54 - 0x28];
+    struct reent *_data;    /* 0x54 */
+};
+
+extern struct reent *D_0024295C;
+extern int func_001209B0(struct reent *, int (*)(struct file *));
+extern void func_00120058(struct reent *);
+
+int func_0011FD88(struct file *fp)
 {
-    int q;
-    int p;
-    int n;
-    int cur;
+    unsigned char *p;
+    int n, t;
 
-    if (fp == 0) {
+    if (fp == 0)
         return func_001209B0(D_0024295C, func_0011FD88);
-    }
 
-    q = *(int *)(fp + 0x54);
-    if (q == 0) {
-        q = D_0024295C;
-        *(int *)(fp + 0x54) = q;
-    }
+    do {
+        if (fp->_data == 0)
+            fp->_data = D_0024295C;
+        if (!fp->_data->sdidinit)
+            func_00120058(fp->_data);
+    } while (0);
 
-    if (*(int *)(q + 0x38) == 0) {
-        func_00120058(*(short *)(fp + 0xC));
-    }
-
-    if ((*(short *)(fp + 0xC) & 0x8) == 0) {
+    t = fp->_flags;
+    if ((t & 0x8) == 0 || (p = fp->_bf._base) == 0)
         return 0;
-    }
-
-    p = *(int *)(fp + 0x10);
-    if (p == 0) {
-        return 0;
-    }
-
-    n = *(int *)(fp + 0x0) - p;
-    *(int *)(fp + 0x0) = p;
-    if ((*(short *)(fp + 0xC) & 0x3) == 0) {
-        p = *(int *)(fp + 0x14);
-    }
-    *(int *)(fp + 0x8) = p;
-
+    n = fp->_p - p;
+    fp->_p = p;
+    fp->_w = t & (0x1 | 0x2) ? 0 : fp->_bf._size;
     while (n > 0) {
-        cur = (*(int (**)(int, int, int))(fp + 0x24))(*(int *)(fp + 0x1C), p, n);
-        if (cur <= 0) {
-            *(short *)(fp + 0xC) = *(unsigned short *)(fp + 0xC) | 0x40;
+        t = (*fp->_write)(fp->_cookie, (char *)p, n);
+        if (t <= 0) {
+            fp->_flags |= 0x40;
             return -1;
         }
-        n -= cur;
-        p += cur;
+        p += t;
+        n -= t;
     }
     return 0;
 }

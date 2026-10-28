@@ -1,16 +1,21 @@
-// NEARMISS func_0019F730  (vram 0x0019F730, 0x718 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 88.78% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// mwcc233 web-coloring-order permutation, same family wall as committed NEARMISS siblings func_001A1390/func_001A1B80 (they parked at 76%). Pass 1 is fully register-exact (i=s1, j=s2, np=s3, p=s4, manual off4=s5/off40=s6, fp/tbl v0/v1 all match after decl-order tuning); the residual is pass 2: the ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+// SPAD: 0x70003250 0x70003194 0x700031A4 0x700030CA
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 88.78% NEARMISS).
+// Fixes read from the original instructions:
+// - The scratchpad words 0x70003250 (uid table), 0x70003194 / 0x700031A4 (y
+//   interval) and 0x700030CA (kind word) are relocated externs (idiom-32),
+//   plus D_700031D4 as an unsized array; only then may the scheduler move the
+//   table and kind-word loads above the hit-block stores, as the original does.
+// - The area-descriptor kind byte is plain triple indexing
+//   D_0024D7C0[area][sub][off40 + 8].
+// - The 0x1000 prim advance reads the count byte p[2] inside each arm.
+// - Pass 2 walks the actor list by pointer (a = *list++) with its own counter
+//   declared after list; hit is cleared in the inner loop's init.
+// - Both y re-clamps re-read 0x700031A4 in the compare and in each arm.
+// - Pass 2 ORs the actor kind as (a[0x54] & 0xFF) into the masked kind word.
+//
 // SEMANTICS: y-interval hit-scan sibling of func_001A1390/func_001A1B80
 // (see docs/FINDINGS.md "4. The uid state words at 0x70003250"). x/z are
 // POINT coordinates (D_70003190/D_70003198); only y is an interval
@@ -40,6 +45,11 @@ typedef struct Adv48 { int w[12]; } Adv48;   /* 0x30-byte tri record */
 typedef struct Adv24 { int w[6]; } Adv24;    /* 0x18-byte tri record */
 
 extern int D_700030B0[];
+extern void *D_700031D4[];
+extern unsigned char *D_70003250[];
+extern float D_70003194[];
+extern float D_700031A4[];
+extern short D_700030CA[];
 extern unsigned char **D_0024D7C0[];
 extern unsigned char D_00810700[];
 extern unsigned char D_00810701[];
@@ -60,18 +70,19 @@ int func_0019F730(void)
     unsigned char *p;
     int off4;
     int off40;
+    unsigned char **list;
     unsigned char *a;
+    int n;
     short *np2;
     unsigned char *p2;
     int found;
     int k;
-    unsigned char **list;
     int hit;
 
     *(int **)0x700031D0 = D_700030B0;
 
-    hi = *(float *)0x70003194;
-    t = *(float *)0x700031A4;
+    hi = D_70003194[0];
+    t = D_700031A4[0];
     ret = 1;
     if (!(hi <= t)) {
         lo = t;
@@ -86,7 +97,7 @@ int func_0019F730(void)
         int flags;
         short kind;
 
-        tbl = *(unsigned char **)0x70003250;
+        tbl = D_70003250[0];
         fp = (int *)(tbl + off4 + 4);
         flags = *fp;
 
@@ -98,7 +109,7 @@ int func_0019F730(void)
         }
 
         *(short *)0x70003B88 =
-            (*(unsigned char **)((char *)D_0024D7C0[D_00810700[0]] + D_00810701[0] * 4))[off40 + 8];
+            D_0024D7C0[D_00810700[0]][D_00810701[0]][off40 + 8];
         kind = *(short *)0x70003B88;
 
         if (kind >= 0x5A) {
@@ -148,13 +159,10 @@ int func_0019F730(void)
                         break;
                     case 0x1000:
                         hit = func_001A4030(p);
-                        {
-                            int n = p[2];
-                            if (*(short *)p & 0x800) {
-                                p = (unsigned char *)((Adv48 *)(p + 0x24) + n);
-                            } else {
-                                p = (unsigned char *)((Adv24 *)(p + 0x14) + n);
-                            }
+                        if (*(short *)p & 0x800) {
+                            p = (unsigned char *)((Adv48 *)(p + 0x24) + p[2]);
+                        } else {
+                            p = (unsigned char *)((Adv24 *)(p + 0x14) + p[2]);
                         }
                         break;
                     }
@@ -165,15 +173,14 @@ int func_0019F730(void)
 
                 if (hit != 0) {
                     ret = 0;
-                    *(float *)0x700031A4 = *(float *)0x700031B4;
-                    *(void **)0x700031D4 = 0;
-                    *(short *)0x700030CA = (short)((*(short *)0x700030CA & 0xFF00) |
-                        (*(unsigned char **)((char *)D_0024D7C0[D_00810700[0]] + D_00810701[0] * 4))[off40 + 8]);
-                    t = *(float *)0x700031A4;
-                    if (!(*(float *)0x70003194 <= t)) {
-                        lo = t;
+                    D_700031A4[0] = *(float *)0x700031B4;
+                    D_700031D4[0] = 0;
+                    D_700030CA[0] = (short)((D_700030CA[0] & 0xFF00) |
+                        D_0024D7C0[D_00810700[0]][D_00810701[0]][off40 + 8]);
+                    if (!(D_70003194[0] <= D_700031A4[0])) {
+                        lo = D_700031A4[0];
                     } else {
-                        hi = t;
+                        hi = D_700031A4[0];
                     }
                 }
             }
@@ -182,8 +189,8 @@ int func_0019F730(void)
 
     list = D_00275B7C;
 
-    for (j = 0; j < D_00275B84; j++) {
-        a = list[j];
+    for (n = 0; n < D_00275B84; n++) {
+        a = *list++;
         if (a[0] == 0) {
             continue;
         }
@@ -200,7 +207,7 @@ int func_0019F730(void)
                 continue;
             }
             {
-                unsigned char *tbl = *(unsigned char **)0x70003250;
+                unsigned char *tbl = D_70003250[0];
                 int off = *(int *)(tbl + uid * 4 + 4);
 
                 if (off == 0) {
@@ -224,9 +231,7 @@ int func_0019F730(void)
                         np2 = (short *)(hull + 0x18);
                         p2 = (unsigned char *)np2 + 4;
                         found = 0;
-                        hit = 0;
-
-                        for (k = 0; k < *np2; k++) {
+                        for (k = 0, hit = 0; k < *np2; k++) {
                             switch (*(short *)p2 & 0xF000) {
                             case 0x8000:
                                 hit = func_001A44B0(p2);
@@ -250,31 +255,27 @@ int func_0019F730(void)
                                 break;
                             case 0x1000:
                                 hit = func_001A4030(p2);
-                                {
-                                    int n = p2[2];
-                                    if (*(short *)p2 & 0x800) {
-                                        p2 = (unsigned char *)((Adv48 *)(p2 + 0x24) + n);
-                                    } else {
-                                        p2 = (unsigned char *)((Adv24 *)(p2 + 0x14) + n);
-                                    }
+                                if (*(short *)p2 & 0x800) {
+                                    p2 = (unsigned char *)((Adv48 *)(p2 + 0x24) + p2[2]);
+                                } else {
+                                    p2 = (unsigned char *)((Adv24 *)(p2 + 0x14) + p2[2]);
                                 }
                                 break;
                             }
                             if (hit != 0) {
                                 found = 1;
                                 ret = 0;
-                                *(float *)0x700031A4 = *(float *)0x700031B4;
-                                *(void **)0x700031D4 = a;
-                                *(short *)0x700030CA = (short)((*(short *)0x700030CA & 0xFF00) | a[0x54]);
+                                D_700031A4[0] = *(float *)0x700031B4;
+                                D_700031D4[0] = a;
+                                D_700030CA[0] = (short)((D_700030CA[0] & 0xFF00) | (a[0x54] & 0xFF));
                             }
                         }
 
                         if (found != 0) {
-                            t = *(float *)0x700031A4;
-                            if (!(*(float *)0x70003194 <= t)) {
-                                lo = t;
+                            if (!(D_70003194[0] <= D_700031A4[0])) {
+                                lo = D_700031A4[0];
                             } else {
-                                hi = t;
+                                hi = D_700031A4[0];
                             }
                         }
                     }
