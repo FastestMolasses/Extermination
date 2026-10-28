@@ -835,3 +835,24 @@ Improved: func_001E4CE0 99.96 (eps lever), func_0014BC30 99.84, func_001F0720
 99.02, func_001B8AB0 95.37 (one shared zero-return exit); companions
 func_001A4D10 98.85, func_00205240 97.07 (the packet cursor is a 64-bit value
 end to end), func_00133DB0 91.33.
+
+
+### Queue batch 41 (2026-10-28)
+
+9 byte-matched; 6 readable companions replaced their asm bodies.
+- func_001741D0: the "original never fills delay slots" residual was source
+  shape, not a compiler wall: the compare-chain switch's cases end in `break`
+  (not `return`), a field clear moved after an if/else, and `arg0[6]++`.
+- func_00139E00: volatile player-block globals, `void *` callee parameters (as
+  its twin func_0013A3B0), one value read into a block local before a call.
+- func_001B41F0: idiom-32 per-address externs (volatile for the words that are
+  stored then re-read, plain for the spray words).
+- SDK (ee-gcc): func_00108608 (bit-reader init: statement order only),
+  func_00108660 (post-increment inside the OR), func_00109AF8 (the CbTab struct
+  of func_00109B20), func_0011B9E0 (returns the value it writes: the original
+  leaves it in v0; plus `// EEGCC_AS: 2.96`), func_00108AA0 (libmpeg demux:
+  STRICT ALIASING — the event type as an enum, header/data as
+  `unsigned char *`, unsigned len decide ee-gcc's store/load order; loop
+  rotation by the condition order), func_0011E0A8 (newlib modff).
+Improved: func_00137EB0 99.89, func_00144040 99.38, func_001A50A0 99.61,
+func_00177B80 95.31.

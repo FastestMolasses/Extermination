@@ -1,45 +1,37 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00108660(void) {
-    .word 0x0080302d
-    .word 0xdcc20000
-    .word 0x8cc30010
-    .word 0x00a21014
-    .word 0x00651823
-    .word 0xfcc20000
-    .word 0x2c640039
-    .word 0x10800019
-    .word 0xacc30010
-    .word 0x8cc80024
-    .word 0x00a0482d
-    .word 0xdcca0018
-    .word 0x8cc5000c
-    .word 0x24020038
-    .word 0x8cc70010
-    .word 0x90a30000
-    .word 0x00471023
-    .word 0xdcc40000
-    .word 0x00431814
-    .word 0x24a50001
-    .word 0x00832025
-    .word 0x00a8102b
-    .word 0xfcc40000
-    .word 0x14400003
-    .word 0xacc5000c
-    .word 0x8cc20020
-    .word 0xacc2000c
-    .word 0x24e20008
-    .word 0x2c430039
-    .word 0x1460ffee
-    .word 0xacc20010
-    .word 0x10000004
-    .word 0x0149102d
-    .word 0xdcca0018
-    .word 0x00a0482d
-    .word 0x0149102d
-    .word 0x03e00008
-    .word 0xfcc20018
-}
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-// Readable C (NEARMISS companion, objdiff 78.95%): src/readable/func_00108660.c
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 78.95% NEARMISS
+// companion in src/readable/). Fix read from the original instructions:
+//  - the byte fetch post-increments the cursor inside the OR expression
+//    (*br->cur++); the old separate br->cur++ statement made ee-gcc store the
+//    cursor before the window and keep the window in another register.
+
+// Bitstream reader (SDK, movie path): skip n bits. The window shifts left by
+// n, then is refilled a byte at a time (each byte ORed in at bit 56 - nbits)
+// while 56 or fewer bits are valid; the byte cursor wraps from end back to the
+// ring start. pos accumulates the skipped bits.
+typedef struct BitReader {
+    unsigned long long bits;    /* 0x00: left-aligned bit window */
+    unsigned char *start;       /* 0x08: first byte of the stream */
+    unsigned char *cur;         /* 0x0C: next byte to load */
+    unsigned int nbits;         /* 0x10: valid bits in the window */
+    int pad14;
+    long long pos;              /* 0x18: bits consumed since start */
+    unsigned char *ring;        /* 0x20: ring buffer start (wrap target) */
+    unsigned char *end;         /* 0x24: ring buffer end */
+    int size;                   /* 0x28: ring buffer size in bytes */
+} BitReader;
+
+void func_00108660(BitReader *br, int n) {
+    br->bits <<= n;
+    br->nbits -= n;
+    while (br->nbits < 57) {
+        br->bits |= (unsigned long long)*br->cur++ << (56 - br->nbits);
+        if (br->cur >= br->end) {
+            br->cur = br->ring;
+        }
+        br->nbits += 8;
+    }
+    br->pos += n;
+}

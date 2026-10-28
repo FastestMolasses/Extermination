@@ -1,15 +1,18 @@
-// NEARMISS func_001B41F0  (vram 0x001B41F0, 0x61C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.73% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 94.734 (mwcc233; 80.95 on 991202). IMPORTANT: the old src stub's three-wall verdict is largely DISPROVEN - the jtbl dispatch, the whole case tree, the case-1/9 deflect legs, the case-13 reflected-spray leg, the case-19 mailbox leg, the saved-register mapping a0..t1 -> s6,s5,s4,s3,s2,s1, the two `...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003600 0x70003604 0x70003608 0x7000360C 0x70003610 0x70003614 0x70003618 0x7000361C 0x70003680 0x70003684 0x70003688
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 94.73% NEARMISS).
+// Fixes read from the original instructions:
+//  - Every scratchpad word is a relocated extern (idiom-32, opted in with
+//    // SPAD:), one extern per address. The FX origin / impact blocks
+//    D_70003600..0C and D_70003610..1C are volatile (all their stores stay
+//    in source order); the random spray triple D_70003680/84/88 is plain.
+//  - The impact point adds the spray words directly
+//    (`D_70003610 = (hitPos[0] - 0.5f) + D_70003680;`) instead of reading
+//    them into locals first: with plain relocated externs the first two
+//    spray loads move above the last spray store and the third is re-read
+//    after it, exactly as in the original.
 
 // SEMANTICS (verified against the disassembly, s85): the HIT APPLICATION --
 // func_001B41F0(victim, hitPos, dir, flags, p5, p6) -> 1 if the hit was applied,
@@ -54,14 +57,20 @@ extern float func_001B1470(float f0);
 extern float D_00810354;
 extern float D_00810374;
 extern int D_00810350;
-extern int D_70003600;
-extern int D_70003610;
+extern volatile float D_70003600;
+extern volatile float D_70003604;
+extern volatile float D_70003608;
+extern volatile float D_7000360C;
+extern volatile float D_70003610;
+extern volatile float D_70003614;
+extern volatile float D_70003618;
+extern volatile float D_7000361C;
+extern float D_70003680;
+extern float D_70003684;
+extern float D_70003688;
 
 int func_001B41F0(unsigned char *victim, float *hitPos, void *dir, int flags, int p5, int p6) {
     int fx;
-    float sa;
-    float sb;
-    float sc;
 
     switch (victim[3]) {
     case 1:
@@ -89,7 +98,7 @@ int func_001B41F0(unsigned char *victim, float *hitPos, void *dir, int flags, in
     case 13:
         func_001028D0(&D_70003610, &D_00810350, victim + 0xB0);
         func_00102760(&D_70003610, &D_70003610);
-        *(volatile int *)0x7000361C = 0x3F800000;
+        D_7000361C = 1.0f;
         func_001031E0(&D_70003600, hitPos);
         func_001EFD90(0x80000026, &D_70003600, &D_70003610);
         return 1;
@@ -113,20 +122,17 @@ int func_001B41F0(unsigned char *victim, float *hitPos, void *dir, int flags, in
     case 16:
     case 17:
     case 18:
-        *(volatile int *)0x70003600 = 0;
-        *(volatile float *)0x70003604 = func_001B1470(3.1415927f + D_00810374);
-        *(volatile int *)0x70003608 = 0;
-        *(volatile int *)0x7000360C = 0x3F800000;
-        *(volatile float *)0x70003680 = (float)((func_00122BB8() >> 17) & 0xFF) / 255.0f;
-        *(volatile float *)0x70003684 = (float)((func_00122BB8() >> 13) & 0xFF) / 255.0f;
-        *(volatile float *)0x70003688 = (float)((func_00122BB8() >> 19) & 0xFF) / 255.0f;
-        sa = *(float *)0x70003680;
-        sb = *(float *)0x70003684;
-        sc = *(float *)0x70003688;
-        *(volatile float *)0x70003610 = (hitPos[0] - 0.5f) + sa;
-        *(volatile float *)0x70003614 = (hitPos[1] - 0.5f) + sb;
-        *(volatile float *)0x70003618 = (hitPos[2] - 0.5f) + sc;
-        *(volatile int *)0x7000361C = 0x3F800000;
+        D_70003600 = 0.0f;
+        D_70003604 = func_001B1470(3.1415927f + D_00810374);
+        D_70003608 = 0.0f;
+        D_7000360C = 1.0f;
+        D_70003680 = (float)((func_00122BB8() >> 17) & 0xFF) / 255.0f;
+        D_70003684 = (float)((func_00122BB8() >> 13) & 0xFF) / 255.0f;
+        D_70003688 = (float)((func_00122BB8() >> 19) & 0xFF) / 255.0f;
+        D_70003610 = (hitPos[0] - 0.5f) + D_70003680;
+        D_70003614 = (hitPos[1] - 0.5f) + D_70003684;
+        D_70003618 = (hitPos[2] - 0.5f) + D_70003688;
+        D_7000361C = 1.0f;
         func_00102948(victim + 0x70, dir);
         victim[0] = 3;
         if (flags) {
@@ -147,20 +153,17 @@ int func_001B41F0(unsigned char *victim, float *hitPos, void *dir, int flags, in
         fx = 0x80000007;
         break;
     }
-    *(volatile int *)0x70003600 = 0;
-    *(volatile float *)0x70003604 = func_001B1470(3.1415927f + D_00810374);
-    *(volatile int *)0x70003608 = 0;
-    *(volatile int *)0x7000360C = 0x3F800000;
-    *(volatile float *)0x70003680 = (float)((func_00122BB8() >> 17) & 0xFF) / 255.0f;
-    *(volatile float *)0x70003684 = (float)((func_00122BB8() >> 13) & 0xFF) / 255.0f;
-    *(volatile float *)0x70003688 = (float)((func_00122BB8() >> 19) & 0xFF) / 255.0f;
-    sa = *(float *)0x70003680;
-    sb = *(float *)0x70003684;
-    sc = *(float *)0x70003688;
-    *(volatile float *)0x70003610 = (hitPos[0] - 0.5f) + sa;
-    *(volatile float *)0x70003614 = (hitPos[1] - 0.5f) + sb;
-    *(volatile float *)0x70003618 = (hitPos[2] - 0.5f) + sc;
-    *(volatile int *)0x7000361C = 0x3F800000;
+    D_70003600 = 0.0f;
+    D_70003604 = func_001B1470(3.1415927f + D_00810374);
+    D_70003608 = 0.0f;
+    D_7000360C = 1.0f;
+    D_70003680 = (float)((func_00122BB8() >> 17) & 0xFF) / 255.0f;
+    D_70003684 = (float)((func_00122BB8() >> 13) & 0xFF) / 255.0f;
+    D_70003688 = (float)((func_00122BB8() >> 19) & 0xFF) / 255.0f;
+    D_70003610 = (hitPos[0] - 0.5f) + D_70003680;
+    D_70003614 = (hitPos[1] - 0.5f) + D_70003684;
+    D_70003618 = (hitPos[2] - 0.5f) + D_70003688;
+    D_7000361C = 1.0f;
     func_00102948(victim + 0x70, dir);
     victim[0] = 3;
     if (flags) {

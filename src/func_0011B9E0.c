@@ -1,13 +1,19 @@
-// func_0011B9E0: *(0x10003C20) = a0 | (a1 << 1) | (a2 << 2).
-asm void func_0011B9E0(int a0, int a1, int a2) {
-    sll $5, $5, 1
-    sll $6, $6, 2
-    or $2, $4, $5
-    lui $3, 0x1000
-    or $2, $2, $6
-    ori $3, $3, 0x3C20
-    jr $ra
-    sw $2, 0x0($3)
-}
+// COMPILER: eegcc
+// CFLAGS: -O2
+// EEGCC_AS: 2.96
 
-// Readable C (NEARMISS companion, objdiff 76.25%): src/readable/func_0011B9E0.c
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 76.25% NEARMISS
+// companion in src/readable/). Fixes read from the original instructions:
+//  - assembled by the 2.96 gas (// EEGCC_AS: 2.96), which puts the register
+//    store in the return's delay slot (as for func_0011B910 / func_0011B5E0);
+//  - the function returns the value it wrote: the original builds the value in
+//    the return-value register and leaves it there. A void function built it in
+//    the first argument register instead. Callers may ignore the result.
+
+// SDK: sets VIF1_ERR (0x10003C20) = mii | me0 << 1 | me1 << 2 (the
+// interrupt-bit, DMAtag-mismatch and VIFcode error masks) and returns that value.
+int func_0011B9E0(int mii, int me0, int me1) {
+    int v = mii | (me0 << 1) | (me1 << 2);
+    *(volatile int *)0x10003C20 = v;
+    return v;
+}

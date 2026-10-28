@@ -1,199 +1,151 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_00108608(int, int, int, int);
-extern void func_00108640(int, int, int, int);
-extern void func_001087E8(int, int, int, int);
-extern void func_00108EA8(int, int, int, int);
-extern void func_00109068(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_00108AA0(void) {
-    .word 0x27bdfeb0
-    .word 0xffb70120
-    .word 0xffb400f0
-    .word 0x0080b82d
-    .word 0xffb300e0
-    .word 0x03a0202d
-    .word 0xffb200d0
-    .word 0x24140001
-    .word 0xffb100c0
-    .word 0x27b20030
-    .word 0xffb000b0
-    .word 0x0000982d
-    .word 0xffbf0140
-    .word 0x00c0802d
-    .word 0xffbe0130
-    .word 0x00e0302d
-    .word 0xffb50100
-    .word 0x0100382d
-    .word 0xffb60110
-    .word 0x8ef60040
-    .word 0x8ec20044
-    .word 0xafa000a0
-    jal       func_00108608
-    .word 0xafa200a8
-    .word 0xafa000a4
-    .word 0x03a0882d
-    .word 0x8ec40048
-    .word 0xafa000ac
-    .word 0x18800017
-    .word 0x0080282d
-    .word 0x0010a8c0
-    .word 0x8fa300a8
-    .word 0x24020018
-    .word 0x3404bdff
-    .word 0x00042638
-    .word 0x00600013
-    .word 0x72621000
-    .word 0xdc430000
-    .word 0x54640006
-    .word 0x8fa200a0
-    .word 0x8c430014
-    .word 0xafa300a4
-    .word 0x8c420010
-    .word 0xafa200a0
-    .word 0x8fa200a0
-    .word 0x14400008
-    .word 0x26730001
-    .word 0x0265102a
-    .word 0x1440ffef
-    .word 0x8fa300a8
-    .word 0x10000004
-    .word 0x0220202d
-    .word 0x0010a8c0
-    .word 0x00000000
-    .word 0x0220202d
-    jal       func_00108640
-    .word 0x24050020
-    .word 0x240301ba
-    .word 0x14430053
-    .word 0x241e0006
-    .word 0x0220202d
-    jal       func_00108EA8
-    .word 0x0240282d
-    .word 0x1000004e
-    .word 0x241e0006
-    .word 0x00000000
-    .word 0x0220202d
-    jal       func_001087E8
-    .word 0xafbe0080
-    .word 0x8e450038
-    .word 0x0220202d
-    jal       func_001087E8
-    .word 0xafa20084
-    .word 0xde430028
-    .word 0x02e0202d
-    .word 0x8e48003c
-    .word 0x27a50080
-    .word 0xffa30090
-    .word 0xde430030
-    .word 0x8e060014
-    .word 0x8e070010
-    .word 0xafa20088
-    .word 0xafa8008c
-    .word 0x00e0f809
-    .word 0xffa30098
-    .word 0x0040a02d
-    .word 0x10000019
-    .word 0x8ec40048
-    jal       func_00109068
-    .word 0x26450018
-    .word 0xde230018
-    .word 0x0203182b
-    .word 0x14600032
-    .word 0x0220202d
-    .word 0x8ec40048
-    .word 0x0000982d
-    .word 0x1880000f
-    .word 0x0080302d
-    .word 0xde450018
-    .word 0x8fa300a8
-    .word 0x24020018
-    .word 0x00600013
-    .word 0x72628000
-    .word 0xde030008
-    .word 0xde020000
-    .word 0x00a31824
-    .word 0x5043ffd7
-    .word 0x8e450040
-    .word 0x26730001
-    .word 0x0266102a
-    .word 0x1440fff5
-    .word 0x8fa300a8
-    .word 0x16640017
-    .word 0x8fa200a0
-    .word 0x10400015
-    .word 0x0220202d
-    .word 0x8e450040
-    jal       func_001087E8
-    .word 0xafbe0080
-    .word 0x8e450038
-    .word 0x0220202d
-    jal       func_001087E8
-    .word 0xafa20084
-    .word 0xde430028
-    .word 0x02e0202d
-    .word 0x8e47003c
-    .word 0x27a50080
-    .word 0xffa30090
-    .word 0xafa20088
-    .word 0xde420030
-    .word 0x8fa600a4
-    .word 0x8fa300a0
-    .word 0xafa7008c
-    .word 0x0060f809
-    .word 0xffa20098
-    .word 0x0040a02d
-    .word 0x12800006
-    .word 0x0220202d
-    .word 0xde220018
-    .word 0x00021778
-    .word 0x0002103f
-    .word 0xafa200ac
-    .word 0x0220202d
-    jal       func_00108640
-    .word 0x24050018
-    .word 0x24030001
-    .word 0x14430013
-    .word 0x0220202d
-    jal       func_00108640
-    .word 0x24050020
-    .word 0x240301ba
-    .word 0x1043000e
-    .word 0x0220202d
-    jal       func_00108640
-    .word 0x24050020
-    .word 0x240301b9
-    .word 0x10430009
-    .word 0x02a0802d
-    .word 0xde230018
-    .word 0x0070102b
-    .word 0x10400007
-    .word 0x02a3102b
-    .word 0x1680ffb5
-    .word 0x0220202d
-    .word 0x10000003
-    .word 0x00000000
-    .word 0xde230018
-    .word 0x02a3102b
-    .word 0x14400006
-    .word 0x0220202d
-    jal       func_00108640
-    .word 0x24050020
-    .word 0x240301ba
-    .word 0x1043ff89
-    .word 0x0220202d
-    .word 0x8fa200ac
-    .word 0xdfbf0140
-    .word 0xdfbe0130
-    .word 0xdfb70120
-    .word 0xdfb60110
-    .word 0xdfb50100
-    .word 0xdfb400f0
-    .word 0xdfb300e0
-    .word 0xdfb200d0
-    .word 0xdfb100c0
-    .word 0xdfb000b0
-    .word 0x03e00008
-    .word 0x27bd0150
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 65.91% NEARMISS
+// companion in src/readable/). Fixes read from the original instructions:
+//  - the default-callback search tests "no default yet" in the for condition
+//    ahead of the count test (the old in-body break kept ee-gcc from rotating
+//    the loop);
+//  - the outer pack loop is while (1) with one combined break test at its end
+//    (the do-while placed the second test at the loop top);
+//  - the bit limit is the expression len << 3 at each use (an unsigned local
+//    added zero extensions);
+//  - the reader and packet info are used through pointers; the reader pointer
+//    is taken after the reader is initialised (func_00108608(&brs, ...)), which
+//    decides where the original sets it up;
+//  - types decide ee-gcc's alias analysis and so the store order: the event
+//    type is an enum, the event's two addresses are unsigned char pointers
+//    (callee func_001087E8 returns one), its length is unsigned; the PES parsers
+//    func_00108EA8 / func_00109068 return int (as their definitions in src/ do).
+
+// Movie library (SDK libmpeg): demultiplexes an MPEG program stream. The
+// data starts at data inside the ring [ring, ring + ringsize) and len bytes
+// are available. m+0x40 holds the callback table: +0x44 an array of +0x48
+// 0x18-byte entries (stream key, key mask, callback, argument); the entry
+// keyed 0xBDFF000000 is the default. A bit reader (func_00108608 / skip
+// func_00108660 / peek func_00108640) walks the stream: a pack header
+// (start code 0x1BA) is parsed by func_00108EA8; then while the next start
+// code is a packet (prefix 1, not 0x1BA / 0x1B9), the reader is inside the
+// data and the last callback asked to continue, func_00109068 parses the
+// PES header into the packet info. A packet that lies wholly inside the
+// data is handed to the first callback whose masked key matches its stream
+// key, else to the default, as event 6 with the payload start and end
+// addresses (func_001087E8), its length and its PTS / DTS; a non-zero
+// result records the bytes consumed. Packs repeat while one follows within
+// the data. Returns the bytes consumed by the last accepted packet.
+typedef struct BitReader {
+    unsigned long long bits;
+    unsigned char *start;
+    unsigned char *cur;
+    unsigned int nbits;
+    int pad14;
+    unsigned long long pos;
+    unsigned char *ring;
+    unsigned char *end;
+    int size;
+    int pad2C;
+} BitReader;
+
+typedef struct PesInfo {
+    char pack[0x18];            /* pack header fields */
+    unsigned long long key;     /* +0x18: stream key */
+    char pad20[8];
+    long long pts;              /* +0x28 */
+    long long dts;              /* +0x30 */
+    int end;                    /* +0x38: payload end, in bits */
+    int len;                    /* +0x3C */
+    int start;                  /* +0x40: payload start, in bits */
+    int pad44;
+} PesInfo;
+
+typedef enum DemuxEventType {
+    DEMUX_EV_PACKET = 6
+} DemuxEventType;
+
+typedef struct DemuxEvent {
+    DemuxEventType type;
+    unsigned char *header;      /* payload start address */
+    unsigned char *data;        /* payload end address */
+    unsigned int len;
+    long long pts;
+    long long dts;
+} DemuxEvent;
+
+typedef int (*DemuxCb)(char *m, DemuxEvent *ev, void *arg);
+
+typedef struct CbEntry {
+    unsigned long long key;
+    unsigned long long mask;
+    DemuxCb func;
+    void *arg;
+} CbEntry;
+
+extern void func_00108608(BitReader *br, unsigned char *start, unsigned char *ring, int size);
+extern int func_00108640(BitReader *br, int n);
+extern unsigned char *func_001087E8(BitReader *br, int bitpos);
+extern int func_00108EA8(BitReader *br, PesInfo *pkt);
+extern int func_00109068(BitReader *br, unsigned long long *pes);
+
+int func_00108AA0(char *m, unsigned char *data, int len, unsigned char *ring, int ringsize) {
+    BitReader brs;
+    PesInfo pkts;
+    DemuxEvent ev;
+    DemuxCb deflt_func = 0;
+    void *deflt_arg = 0;
+    BitReader *br;
+    PesInfo *pkt = &pkts;
+    char *tab = *(char **)(m + 0x40);
+    CbEntry *cbs = *(CbEntry **)(tab + 0x44);
+    int consumed = 0;
+    int keep = 1;
+    int i;
+
+    func_00108608(&brs, data, ring, ringsize);
+    br = &brs;
+    for (i = 0; deflt_func == 0 && i < *(int *)(tab + 0x48); i++) {
+        if (cbs[i].key == 0xBDFF000000ULL) {
+            deflt_func = cbs[i].func;
+            deflt_arg = cbs[i].arg;
+        }
+    }
+    while (1) {
+        if (func_00108640(br, 32) == 0x1BA) {
+            func_00108EA8(br, pkt);
+        }
+        while (func_00108640(br, 24) == 1 && func_00108640(br, 32) != 0x1BA
+               && func_00108640(br, 32) != 0x1B9 && br->pos < (len << 3) && keep) {
+            func_00109068(br, &pkt->key);
+            if ((len << 3) < br->pos) {
+                continue;
+            }
+            for (i = 0; i < *(int *)(tab + 0x48); i++) {
+                if (cbs[i].key == (pkt->key & cbs[i].mask)) {
+                    ev.type = DEMUX_EV_PACKET;
+                    ev.header = func_001087E8(br, pkt->start);
+                    ev.data = func_001087E8(br, pkt->end);
+                    ev.pts = pkt->pts;
+                    ev.len = pkt->len;
+                    ev.dts = pkt->dts;
+                    keep = cbs[i].func(m, &ev, cbs[i].arg);
+                    break;
+                }
+            }
+            if (i == *(int *)(tab + 0x48) && deflt_func != 0) {
+                ev.type = DEMUX_EV_PACKET;
+                ev.header = func_001087E8(br, pkt->start);
+                ev.data = func_001087E8(br, pkt->end);
+                ev.pts = pkt->pts;
+                ev.len = pkt->len;
+                ev.dts = pkt->dts;
+                keep = deflt_func(m, &ev, deflt_arg);
+            }
+            if (keep) {
+                consumed = (int)(br->pos >> 3);
+            }
+        }
+        if ((len << 3) < br->pos || func_00108640(br, 32) != 0x1BA) {
+            break;
+        }
+    }
+    return consumed;
 }
-
-// Readable C (NEARMISS companion, objdiff 65.91%): src/readable/func_00108AA0.c

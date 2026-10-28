@@ -1,8 +1,8 @@
 // NEARMISS func_00137EB0  (vram 0x00137EB0, 0x31C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.62% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Three residual allocator/scheduler artifact clusters, body/structure fully recovered (19 rows): (1) copy_qw4 arg-chain scratch COLORING swap — 2.3.3 puts the gp-pointer in a1 and the conditional-move index in v1 where the target (and 991202 on the same source!) uses v1/a1, plus the dependent index add; (2)/(3) are described in the note below.
+// objdiff 99.89% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// diff is a compiler artifact that the source levers tried so far (matching wave 2026-10-28) do not fix:
+// Remaining differences: the 20.0f argument of the D_0081070A-set func_001B3C30 call is materialised (into f13) before the self copy and the 200.0f argument in the original, after them here; and one address add (idx*4 + other) has its operands in the other order. Improved 97.62 -> 99.89 by idiom-32 scratchpad externs (volatile, one per address, arrays so they stay out of small data at -sdatathreshold 4) with float-literal stores, and by computing the bone-row index before loading the linked actor pointer.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,7 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x700036A0 0x700036D0 0x700036D4 0x700036D8 0x700036DC 0x700038A0 0x700038A4 0x700038A8 0x700038AC 0x700038B0 0x700038B4 0x700038B8 0x700038BC
 
 //
 // 4-state skeletal-rig owner step, dispatched on the state byte at arg0+4;
@@ -33,12 +34,12 @@
 // the parent's state-3, ticks func_001B17A0(self) and the virtual at
 // arg0+0x4C. States 2/3: func_001AFC10(self).
 //
-// NEARMISS: mwcc 2.3.3 reaches 97.62 (991202: 94.11). Residuals are a scratch
-// coloring swap at the copy_qw4 arg chain (991202 colors it right, 2.3.3
-// doesn't; 991202 loses more elsewhere), the 0x3F4CCCCD/0x3F800000
-// materialization split/hoist, and the f13-before-f12 mtc1 order in the
-// D_0081070A branch. The volatile-pinned t3..t0 spad reads are required to
-// reproduce the target's f3..f0 load-all-then-store-all copy block.
+// NEARMISS: 99.89 (matching wave 2026-10-28). The scratchpad words are
+// relocated volatile externs (idiom-32): this fixed the 0.8f/1.0f
+// materialisation order. Computing idx before loading `other` fixed the
+// copy_qw4 argument-chain colouring. Reading the four transformed words
+// into t3..t0 before storing them reproduces the original's load-all-then-
+// store-all copy block.
 extern void copy_qw4(void *dst, void *src);
 extern void func_001026A0(void *dst, void *src, void *mtx);
 extern void func_001AFC10(char *p);
@@ -54,9 +55,19 @@ extern char **D_00275B40;
 extern short D_00275BCC;
 extern int D_0028A490[];
 extern unsigned char D_0081070A[16];
-extern char D_700036A0[16];
-extern char D_700038A0[16];
-extern char D_700038B0[16];
+extern volatile float D_700036A0[4];
+extern volatile float D_700036D0[];
+extern volatile float D_700036D4[];
+extern volatile float D_700036D8[];
+extern volatile float D_700036DC[];
+extern volatile float D_700038A0[4];
+extern volatile float D_700038A4[];
+extern volatile float D_700038A8[];
+extern volatile float D_700038AC[];
+extern volatile float D_700038B0[4];
+extern volatile float D_700038B4[];
+extern volatile float D_700038B8[];
+extern volatile float D_700038BC[];
 
 void func_00137EB0(char *arg0) {
     unsigned char st;
@@ -89,8 +100,8 @@ void func_00137EB0(char *arg0) {
         bone_init_default_1(arg0);
         break;
     case 1:
-        other = *(char **)(arg0 + 0x20);
         idx = *(unsigned char *)(arg0 + 0xD) ? 0xE : 4;
+        other = *(char **)(arg0 + 0x20);
         copy_qw4(*D_00275B40 + 0x90, *(char **)(idx * 4 + (int)other + 0x110) + 0x90);
         if (*(int *)(sub + 4) != 0) {
             *(int *)(sub + 4) = *(int *)(sub + 4) - 1;
@@ -99,23 +110,23 @@ void func_00137EB0(char *arg0) {
             *(int *)(sub + 4) == 0) {
             *(int *)(sub + 4) = 6;
             copy_qw4(D_700036A0, *D_00275B40 + 0x90);
-            *(int *)0x700038A0 = 0x40B3D70A;
-            *(int *)0x700038A4 = 0x3F7AE148;
-            *(int *)0x700038A8 = 0;
-            *(int *)0x700038AC = 0x3F800000;
+            D_700038A0[0] = 5.62f;
+            D_700038A4[0] = 0.98f;
+            D_700038A8[0] = 0.0f;
+            D_700038AC[0] = 1.0f;
             func_001026A0(D_700038A0, D_700036A0, D_700038A0);
-            t3 = *(volatile float *)0x700038A0;
-            t2 = *(volatile float *)0x700038A4;
-            t1 = *(volatile float *)0x700038A8;
-            t0 = *(volatile float *)0x700038AC;
-            *(float *)0x700036D0 = t3;
-            *(float *)0x700036D4 = t2;
-            *(float *)0x700036D8 = t1;
-            *(float *)0x700036DC = t0;
-            *(float *)0x700038B0 = 0.8f;
-            *(float *)0x700038B4 = 0.8f;
-            *(float *)0x700038B8 = 0.8f;
-            *(float *)0x700038BC = 1.0f;
+            t3 = D_700038A0[0];
+            t2 = D_700038A4[0];
+            t1 = D_700038A8[0];
+            t0 = D_700038AC[0];
+            D_700036D0[0] = t3;
+            D_700036D4[0] = t2;
+            D_700036D8[0] = t1;
+            D_700036DC[0] = t0;
+            D_700038B0[0] = 0.8f;
+            D_700038B4[0] = 0.8f;
+            D_700038B8[0] = 0.8f;
+            D_700038BC[0] = 1.0f;
             if (D_0081070A[0]) {
                 func_001B3C30(arg0, D_700036A0, D_700038B0, 200.0f, 20.0f);
             } else {

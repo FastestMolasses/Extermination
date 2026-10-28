@@ -1,8 +1,8 @@
 // NEARMISS func_00144040  (vram 0x00144040, 0xBD4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.79% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure fully recovered (757 insns, 70 diff rows, all clusters are documented compiler artifacts; ~10 source-reshape iterations exhausted): (1) case-1 bc1f delay slot — mwcc233 (and 991202) speculate the else-block's scratchpad-address 'lui at,0x7000' into the bc1f slot and retarget the br...
+// objdiff 99.38% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// diff is a compiler artifact that the source levers tried so far (matching wave 2026-10-28) do not fix:
+// Remaining differences: in state 1 the 20.0f argument of anim_clip_init(self, 0x10, 5.0f, 20.0f) is set up before the self[6] load in the original, after it here; in the state-2 latch block the original loads D_008102B0 into a0 and hoists the constant 2 for D_008102BF into v1 (here: v1 / a late v0, and the D_008102BF store moves ahead of the argument setup); and in state 5 the two FP registers of the +0x4C zero test and the lift add are swapped. Improved 96.79 -> 99.38 by idiom-32 volatile scratchpad externs (one per address, float stores), by declaring the latch block D_008102B0 / D_008102BF and the grab point D_00810320..2C / D_008104D4 volatile (all accesses in source order), and by declaring the copy temporaries as t3, t2, t1, t0 (first-loaded word gets f3).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,7 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700038A0 0x700038A4 0x700038A8 0x700038AC 0x700038B0 0x700038B4 0x700038B8 0x700038BC
 
 //
 // Boss/enemy AI update: state machine on the entity state byte self[6]
@@ -56,20 +57,26 @@ extern void func_00102948(void *dst, void *src);
 extern int func_0019AFE0(unsigned char *self, void *from, void *to, int mask);
 extern void func_00182F90(unsigned char *player, void *pt);
 extern int func_00146F80(unsigned char *self);
-extern unsigned char D_008102B0;
-extern unsigned char D_008102BF;
-extern float D_00810320;
-extern float D_00810324;
-extern float D_00810328;
-extern float D_0081032C;
+extern volatile unsigned char D_008102B0;
+extern volatile unsigned char D_008102BF;
+extern volatile float D_00810320;
+extern volatile float D_00810324;
+extern volatile float D_00810328;
+extern volatile float D_0081032C;
 extern float D_00810360;
 extern float D_00810368;
 extern float D_00810374;
-extern int D_008104D4;
+extern volatile int D_008104D4;
 extern unsigned char D_0081070A;
 extern float D_00245950;
-extern float D_700038A0;
-extern float D_700038B0;
+extern volatile float D_700038A0[4];
+extern volatile float D_700038A4[];
+extern volatile float D_700038A8[];
+extern volatile float D_700038AC[];
+extern volatile float D_700038B0[4];
+extern volatile float D_700038B4[];
+extern volatile float D_700038B8[];
+extern volatile float D_700038BC[];
 
 void func_00144040(unsigned char *self, unsigned char *arg1) {
     unsigned char st = self[6];
@@ -95,27 +102,27 @@ void func_00144040(unsigned char *self, unsigned char *arg1) {
             *(int *)(arg1 + 0x40) = 0x40000000; /* 2.0f */
             anim_clip_init(self, 0x10, 5.0f, 20.0f);
             if (self[0xD] & 0x80) {
-                *(volatile int *)0x700038A0 = 0;
-                *(volatile int *)0x700038A4 = 0x40400000; /*  3.0f */
-                *(volatile int *)0x700038A8 = 0x42480000; /* 50.0f */
-                *(volatile int *)0x700038AC = 0x3F800000; /*  1.0f */
-                func_001B2B10(self, &D_700038A0, &D_700038A0);
-                func_001028B8(&D_700038A0, self + 0xB0, &D_700038A0);
-                if (func_001B3250(self, &D_700038A0, 20.0f) == 0) {
+                D_700038A0[0] = 0.0f;
+                D_700038A4[0] = 3.0f;
+                D_700038A8[0] = 50.0f;
+                D_700038AC[0] = 1.0f;
+                func_001B2B10(self, D_700038A0, D_700038A0);
+                func_001028B8(D_700038A0, self + 0xB0, D_700038A0);
+                if (func_001B3250(self, D_700038A0, 20.0f) == 0) {
                     self[6] = 3;
                     anim_clip_init(self, 0x18, 5.0f, 23.0f);
                 }
             }
             break;
         }
-        *(volatile int *)0x700038A0 = 0;
-        *(volatile int *)0x700038A4 = 0x40400000; /*  3.0f */
-        *(volatile int *)0x700038A8 = 0x41900000; /* 18.0f */
-        *(volatile int *)0x700038AC = 0x3F800000; /*  1.0f */
-        func_001B2B10(self, &D_700038A0, &D_700038A0);
-        func_001028B8(&D_700038A0, self + 0xB0, &D_700038A0);
+        D_700038A0[0] = 0.0f;
+        D_700038A4[0] = 3.0f;
+        D_700038A8[0] = 18.0f;
+        D_700038AC[0] = 1.0f;
+        func_001B2B10(self, D_700038A0, D_700038A0);
+        func_001028B8(D_700038A0, self + 0xB0, D_700038A0);
         if (*(short *)(arg1 + 0x62) == 0 ||
-            func_001B3250(self, &D_700038A0, 20.0f) != 0 ||
+            func_001B3250(self, D_700038A0, 20.0f) != 0 ||
             (*(char *)(arg1 + 0x74) & 1)) {
             self[6] = 0x63;
         } else if (func_001B1560(self, &D_00810360, 1.39626348f) == 0) {
@@ -138,21 +145,21 @@ void func_00144040(unsigned char *self, unsigned char *arg1) {
                 if (*(int *)(arg1 + 0x20) == 0 && *(float *)(self + 0x3C) <= 71.0f &&
                     func_0021BE40(&D_008102B0, self) == 0 &&
                     func_001A7B80(self) != 0) {
-                    float t0, t1, t2, t3;
+                    float t3, t2, t1, t0;
                     unsigned char b;
                     *(int *)(arg1 + 0x20) = 1;
-                    *(volatile int *)0x700038A0 = 0;
-                    *(volatile int *)0x700038A4 = 0;
+                    D_700038A0[0] = 0.0f;
+                    D_700038A4[0] = 0.0f;
                     b = D_008102B0;
-                    *(volatile int *)0x700038A8 = 0x3F800000; /* 1.0f */
-                    *(volatile int *)0x700038AC = 0x3F800000; /* 1.0f */
+                    D_700038A8[0] = 1.0f;
+                    D_700038AC[0] = 1.0f;
                     D_008102B0 = b | 2;
                     D_008102BF = 2;
-                    func_001B2B10(self, &D_700038A0, &D_700038A0);
-                    t0 = *(volatile float *)0x700038A0;
-                    t1 = *(volatile float *)0x700038A4;
-                    t2 = *(volatile float *)0x700038A8;
-                    t3 = *(volatile float *)0x700038AC;
+                    func_001B2B10(self, D_700038A0, D_700038A0);
+                    t0 = D_700038A0[0];
+                    t1 = D_700038A4[0];
+                    t2 = D_700038A8[0];
+                    t3 = D_700038AC[0];
                     D_00810320 = t0;
                     D_00810324 = t1;
                     D_00810328 = t2;
@@ -184,28 +191,28 @@ void func_00144040(unsigned char *self, unsigned char *arg1) {
             if (*(float *)(self + 0x3C) <= 4.0f && *(int *)(arg1 + 0x20) == 0 &&
                 func_0021BED0(&D_008102B0) == 0 && func_001A7B80(self) != 0) {
                 *(int *)(arg1 + 0x20) = 1;
-                *(volatile int *)0x700038A0 = 0;
-                *(volatile int *)0x700038A4 = 0x40400000; /*  3.0f */
-                *(volatile int *)0x700038A8 = 0x42480000; /* 50.0f */
-                *(volatile int *)0x700038AC = 0x3F800000; /*  1.0f */
-                func_001B2B10(self, &D_700038A0, &D_700038A0);
-                func_001028B8(&D_700038A0, self + 0xB0, &D_700038A0);
-                if (func_001B3250(self, &D_700038A0, 20.0f) != 0) {
-                    float t0, t1, t2, t3;
+                D_700038A0[0] = 0.0f;
+                D_700038A4[0] = 3.0f;
+                D_700038A8[0] = 50.0f;
+                D_700038AC[0] = 1.0f;
+                func_001B2B10(self, D_700038A0, D_700038A0);
+                func_001028B8(D_700038A0, self + 0xB0, D_700038A0);
+                if (func_001B3250(self, D_700038A0, 20.0f) != 0) {
+                    float t3, t2, t1, t0;
                     unsigned char b;
                     self[6] = 2;
-                    *(volatile int *)0x700038A0 = 0;
-                    *(volatile int *)0x700038A4 = 0;
+                    D_700038A0[0] = 0.0f;
+                    D_700038A4[0] = 0.0f;
                     b = D_008102B0;
-                    *(volatile int *)0x700038A8 = 0x3F800000; /* 1.0f */
-                    *(volatile int *)0x700038AC = 0x3F800000; /* 1.0f */
+                    D_700038A8[0] = 1.0f;
+                    D_700038AC[0] = 1.0f;
                     D_008102B0 = b | 2;
                     D_008102BF = 2;
-                    func_001B2B10(self, &D_700038A0, &D_700038A0);
-                    t0 = *(volatile float *)0x700038A0;
-                    t1 = *(volatile float *)0x700038A4;
-                    t2 = *(volatile float *)0x700038A8;
-                    t3 = *(volatile float *)0x700038AC;
+                    func_001B2B10(self, D_700038A0, D_700038A0);
+                    t0 = D_700038A0[0];
+                    t1 = D_700038A4[0];
+                    t2 = D_700038A8[0];
+                    t3 = D_700038AC[0];
                     D_00810320 = t0;
                     D_00810324 = t1;
                     D_00810328 = t2;
@@ -219,10 +226,10 @@ void func_00144040(unsigned char *self, unsigned char *arg1) {
                     arg1[0x7B] = 1;
                     D_00810374 = func_001B1470(3.1415927f + *(float *)(self + 0xC4));
                     anim_clip_init(self, 0x19, 0.0f, 0.0f);
-                    func_00102948(&D_700038A0, &D_00245950);
-                    func_001B2B10(self, &D_700038A0, &D_700038A0);
-                    func_001028B8(&D_700038A0, self + 0xB0, &D_700038A0);
-                    func_00182F90(&D_008102B0, &D_700038A0);
+                    func_00102948(D_700038A0, &D_00245950);
+                    func_001B2B10(self, D_700038A0, D_700038A0);
+                    func_001028B8(D_700038A0, self + 0xB0, D_700038A0);
+                    func_00182F90(&D_008102B0, D_700038A0);
                 }
                 break;
             }
@@ -236,10 +243,10 @@ void func_00144040(unsigned char *self, unsigned char *arg1) {
         break;
     case 4: {
         int t;
-        func_00102948(&D_700038A0, &D_00245950);
-        func_001B2B10(self, &D_700038A0, &D_700038A0);
-        func_001028B8(&D_700038A0, self + 0xB0, &D_700038A0);
-        func_00182F90(&D_008102B0, &D_700038A0);
+        func_00102948(D_700038A0, &D_00245950);
+        func_001B2B10(self, D_700038A0, D_700038A0);
+        func_001028B8(D_700038A0, self + 0xB0, D_700038A0);
+        func_00182F90(&D_008102B0, D_700038A0);
         if (func_00146F80(self) != 0 || (*(char *)(arg1 + 0x74) & 1)) {
             *(int *)(arg1 + 0x20) = 0;
         }
@@ -256,16 +263,16 @@ void func_00144040(unsigned char *self, unsigned char *arg1) {
     case 5:
         if (!(*(float *)(arg1 + 0x4C) == 0.0f)) {
             float lift;
-            func_00102948(&D_700038A0, self + 0xB0);
-            *(volatile int *)0x700038B0 = 0;
-            *(volatile int *)0x700038B4 = 0;
-            lift = *(volatile float *)0x700038A4 + 10.0f;
-            *(volatile int *)0x700038B8 = 0x42200000; /* 40.0f */
-            *(volatile int *)0x700038BC = 0x3F800000; /*  1.0f */
-            *(volatile float *)0x700038A4 = lift;
-            func_001B2B10(self, &D_700038B0, &D_700038B0);
-            func_001028B8(&D_700038B0, &D_700038A0, &D_700038B0);
-            if (func_0019AFE0(self, &D_700038A0, &D_700038B0, 6) != 0 ||
+            func_00102948(D_700038A0, self + 0xB0);
+            D_700038B0[0] = 0.0f;
+            D_700038B4[0] = 0.0f;
+            lift = D_700038A4[0] + 10.0f;
+            D_700038B8[0] = 40.0f;
+            D_700038BC[0] = 1.0f;
+            D_700038A4[0] = lift;
+            func_001B2B10(self, D_700038B0, D_700038B0);
+            func_001028B8(D_700038B0, D_700038A0, D_700038B0);
+            if (func_0019AFE0(self, D_700038A0, D_700038B0, 6) != 0 ||
                 *(float *)(arg1 + 0x4C) < 0.0f) {
                 *(int *)(arg1 + 0x4C) = 0;
                 *(int *)(arg1 + 0x50) = 0;
@@ -284,10 +291,10 @@ void func_00144040(unsigned char *self, unsigned char *arg1) {
             func_001B55E0(self, 1);
         }
         if (*(char *)(arg1 + 0x7B) != 0) {
-            func_00102948(&D_700038A0, &D_00245950);
-            func_001B2B10(self, &D_700038A0, &D_700038A0);
-            func_001028B8(&D_700038A0, self + 0xB0, &D_700038A0);
-            func_00182F90(&D_008102B0, &D_700038A0);
+            func_00102948(D_700038A0, &D_00245950);
+            func_001B2B10(self, D_700038A0, D_700038A0);
+            func_001028B8(D_700038A0, self + 0xB0, D_700038A0);
+            func_00182F90(&D_008102B0, D_700038A0);
         } else if (*(float *)(self + 0x3C) <= 74.0f) {
             self[6] = self[6] + 1;
             *(int *)(arg1 + 0x48) = 0x3FC00000; /*  1.5f  */

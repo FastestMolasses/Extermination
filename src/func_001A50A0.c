@@ -1,8 +1,8 @@
 // NEARMISS func_001A50A0  (vram 0x001A50A0, 0x600 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 95.33% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 69 of 387 instructions differ; the instruction SEQUENCE is aligned 1:1 with the target everywhere except one reload, so the decode is verified faithful. Residuals, all in the post-loop switch plus 3 in the loop tail: (1) LOOP-TAIL SCHEDULING (3 instrs): the three pointer bumps around the `swc1 pr...
+// objdiff 99.61% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// diff is a compiler artifact that the source levers tried so far (matching wave 2026-10-28) do not fix:
+// Remaining differences: in each face case the original loads the delta word (0x70003624 / 0x70003620) before the start-point word (0x70003194 / 0x70003190), here the other way round, which swaps f3/f4 for the first cross-axis product. Improved 95.33 -> 99.61 by idiom-32 plain relocated scratchpad externs (one per address; written with plain externs the 0x70003684 / 0x70003688 results are re-read after their stores like in the original, no volatile needed) and by storing *prel before the loop-counter bump.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,7 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700030CA 0x700030D4 0x700030D8 0x700030DC 0x70003190 0x70003194 0x70003198 0x700031A0 0x700031A4 0x700031A8 0x700031B0 0x700031B4 0x700031B8 0x70003600 0x70003604 0x70003608 0x70003610 0x70003614 0x70003618 0x70003620 0x70003624 0x70003628 0x70003630 0x70003634 0x70003638 0x70003680 0x70003684 0x70003688
 
 //
 // SEMANTICS: segment-vs-AABB single-face intersection test on the scratchpad,
@@ -33,11 +34,34 @@
 // at 0x700030CA (0x2000 for X/Z faces, 0x4000 / -0x8000 for the Y faces) and the
 // unit face normal (+/-1.0f) in 0x700030D4 / 0x700030D8 / 0x700030DC, and returns 1.
 // Any miss returns 0.
+extern short D_700030CA;
+extern float D_700030D4;
+extern float D_700030D8;
+extern float D_700030DC;
 extern float D_70003190[];
+extern float D_70003194;
+extern float D_70003198;
+extern float D_700031A0;
+extern float D_700031A4;
+extern float D_700031A8;
+extern float D_700031B0;
+extern float D_700031B4;
+extern float D_700031B8;
 extern float D_70003600[];
+extern float D_70003604;
+extern float D_70003608;
 extern float D_70003610[];
+extern float D_70003614;
+extern float D_70003618;
 extern float D_70003620[];
+extern float D_70003624;
+extern float D_70003628;
 extern float D_70003630[];
+extern float D_70003634;
+extern float D_70003638;
+extern float D_70003680;
+extern float D_70003684;
+extern float D_70003688;
 
 int func_001A50A0(char *arg0) {
     int i;
@@ -101,9 +125,9 @@ int func_001A50A0(char *arg0) {
             *pmin = pbox[0] + e;
             *pmax = pbox[0];
         }
+        *prel = pbox[0] - pa[0];
         i += 1;
         pd += 1;
-        *prel = pbox[0] - pa[0];
         pmin += 1;
         pbox += 1;
         pa += 1;
@@ -116,43 +140,33 @@ int func_001A50A0(char *arg0) {
     {
         float dn;
         float t;
-        float ax;
-        float bx;
-        float by;
-        float ay;
-        float lo;
         float x;
         float y;
-        dn = *(float *)0x70003630;
-        if (!(dn * (*(float *)0x70003600 - *(float *)0x700031A0) < 0.0f)) {
+        dn = D_70003630[0];
+        if (!(dn * (D_70003600[0] - D_700031A0) < 0.0f)) {
             return 0;
         }
-        t = dn / *(float *)0x70003620;
-        ax = *(float *)0x70003624;
-        bx = *(float *)0x70003194;
-        by = *(float *)0x70003198;
-        ay = *(float *)0x70003628;
-        lo = *(float *)0x70003604;
-        *(float *)0x70003680 = t;
-        *(float *)0x70003684 = bx + (ax * t);
-        x = *(volatile float *)0x70003684;
-        *(float *)0x70003688 = by + (ay * t);
-        if (x > lo) {
-            if (x < *(float *)0x70003614) {
-                y = *(float *)0x70003688;
-                if (y > *(float *)0x70003608) {
-                    if (y < *(float *)0x70003618) {
-                        *(float *)0x700031B0 = box[0];
-                        *(float *)0x700031B4 = x;
-                        *(float *)0x700031B8 = y;
-                        *(short *)0x700030CA = 0x2000;
+        t = dn / D_70003620[0];
+        D_70003680 = t;
+        D_70003684 = D_70003194 + D_70003624 * t;
+        D_70003688 = D_70003198 + D_70003628 * t;
+        x = D_70003684;
+        if (x > D_70003604) {
+            if (x < D_70003614) {
+                y = D_70003688;
+                if (y > D_70003608) {
+                    if (y < D_70003618) {
+                        D_700031B0 = box[0];
+                        D_700031B4 = x;
+                        D_700031B8 = y;
+                        D_700030CA = 0x2000;
                         if (face == 1) {
-                            *(int *)0x700030D4 = 0x3F800000;
+                            D_700030D4 = 1.0f;
                         } else {
-                            *(int *)0x700030D4 = 0xBF800000;
+                            D_700030D4 = -1.0f;
                         }
-                        *(int *)0x700030DC = 0;
-                        *(int *)0x700030D8 = 0;
+                        D_700030DC = 0.0f;
+                        D_700030D8 = 0.0f;
                         return 1;
                     }
                 }
@@ -165,44 +179,34 @@ int func_001A50A0(char *arg0) {
     {
         float dn;
         float t;
-        float ax;
-        float bx;
-        float by;
-        float ay;
-        float lo;
         float x;
         float y;
-        dn = *(float *)0x70003634;
-        if (!(dn * (*(float *)0x70003604 - *(float *)0x700031A4) < 0.0f)) {
+        dn = D_70003634;
+        if (!(dn * (D_70003604 - D_700031A4) < 0.0f)) {
             return 0;
         }
-        t = dn / *(float *)0x70003624;
-        ax = *(float *)0x70003620;
-        bx = *(float *)0x70003190;
-        by = *(float *)0x70003198;
-        ay = *(float *)0x70003628;
-        lo = *(float *)0x70003600;
-        *(float *)0x70003680 = t;
-        *(float *)0x70003684 = bx + (ax * t);
-        x = *(volatile float *)0x70003684;
-        *(float *)0x70003688 = by + (ay * t);
-        if (x > lo) {
-            if (x < *(float *)0x70003610) {
-                y = *(float *)0x70003688;
-                if (y > *(float *)0x70003608) {
-                    if (y < *(float *)0x70003618) {
-                        *(float *)0x700031B0 = x;
-                        *(float *)0x700031B4 = box[1];
-                        *(float *)0x700031B8 = y;
+        t = dn / D_70003624;
+        D_70003680 = t;
+        D_70003684 = D_70003190[0] + D_70003620[0] * t;
+        D_70003688 = D_70003198 + D_70003628 * t;
+        x = D_70003684;
+        if (x > D_70003600[0]) {
+            if (x < D_70003610[0]) {
+                y = D_70003688;
+                if (y > D_70003608) {
+                    if (y < D_70003618) {
+                        D_700031B0 = x;
+                        D_700031B4 = box[1];
+                        D_700031B8 = y;
                         if (face == 3) {
-                            *(int *)0x700030D8 = 0x3F800000;
-                            *(short *)0x700030CA = 0x4000;
+                            D_700030D8 = 1.0f;
+                            D_700030CA = 0x4000;
                         } else {
-                            *(int *)0x700030D8 = 0xBF800000;
-                            *(short *)0x700030CA = (short)0x8000;
+                            D_700030D8 = -1.0f;
+                            D_700030CA = (short)0x8000;
                         }
-                        *(int *)0x700030DC = 0;
-                        *(int *)0x700030D4 = 0;
+                        D_700030DC = 0.0f;
+                        D_700030D4 = 0.0f;
                         return 1;
                     }
                 }
@@ -215,43 +219,33 @@ int func_001A50A0(char *arg0) {
     {
         float dn;
         float t;
-        float ax;
-        float bx;
-        float by;
-        float ay;
-        float lo;
         float x;
         float y;
-        dn = *(float *)0x70003638;
-        if (!(dn * (*(float *)0x70003608 - *(float *)0x700031A8) < 0.0f)) {
+        dn = D_70003638;
+        if (!(dn * (D_70003608 - D_700031A8) < 0.0f)) {
             return 0;
         }
-        t = dn / *(float *)0x70003628;
-        ax = *(float *)0x70003620;
-        bx = *(float *)0x70003190;
-        by = *(float *)0x70003194;
-        ay = *(float *)0x70003624;
-        lo = *(float *)0x70003600;
-        *(float *)0x70003680 = t;
-        *(float *)0x70003684 = bx + (ax * t);
-        x = *(volatile float *)0x70003684;
-        *(float *)0x70003688 = by + (ay * t);
-        if (x > lo) {
-            if (x < *(float *)0x70003610) {
-                y = *(float *)0x70003688;
-                if (y > *(float *)0x70003604) {
-                    if (y < *(float *)0x70003614) {
-                        *(float *)0x700031B0 = x;
-                        *(float *)0x700031B4 = y;
-                        *(float *)0x700031B8 = box[2];
-                        *(short *)0x700030CA = 0x2000;
+        t = dn / D_70003628;
+        D_70003680 = t;
+        D_70003684 = D_70003190[0] + D_70003620[0] * t;
+        D_70003688 = D_70003194 + D_70003624 * t;
+        x = D_70003684;
+        if (x > D_70003600[0]) {
+            if (x < D_70003610[0]) {
+                y = D_70003688;
+                if (y > D_70003604) {
+                    if (y < D_70003614) {
+                        D_700031B0 = x;
+                        D_700031B4 = y;
+                        D_700031B8 = box[2];
+                        D_700030CA = 0x2000;
                         if (face == 5) {
-                            *(int *)0x700030DC = 0x3F800000;
+                            D_700030DC = 1.0f;
                         } else {
-                            *(int *)0x700030DC = 0xBF800000;
+                            D_700030DC = -1.0f;
                         }
-                        *(int *)0x700030D8 = 0;
-                        *(int *)0x700030D4 = 0;
+                        D_700030D8 = 0.0f;
+                        D_700030D4 = 0.0f;
                         return 1;
                     }
                 }

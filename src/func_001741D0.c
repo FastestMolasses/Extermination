@@ -1,15 +1,17 @@
-// NEARMISS func_001741D0  (vram 0x001741D0, 0x614 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.02% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 97.018 (mwcc233; 93.21 on 991202, 93.50 on mwcc24). The jtbl dispatch itself MATCHES (table address, index scaling, table load, indirect jump and the unsigned a1 < 6 range check all diff-clean; no reloc residual). 12 residual rows, all idiom-13 delay-slot-fill + one dead-dup, none logical: (a) 9 conditional-branch delay slots where CW 2.3.1 ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 97.02% NEARMISS).
+// Fixes read from the original instructions (the "unfilled delay slot" residual
+// was not a compiler wall):
+// - The compare-chain switch (mode != 0x38) ends its cases in `break`, not
+//   `return` (early returns inside a case stay): this gives the original's
+//   case-0 branch-likely entry with the duplicated increment and the unfilled
+//   compare-chain delay slots.
+// - In that switch's case 0 the `arg0+0x21C = 0` clear follows the if/else
+//   instead of ending each arm (the then-arm copies it into its branch slot,
+//   the else-arm falls into it).
+// - The jr-table switch's case 0 advances the state with `arg0[6]++`.
 
 // SEMANTICS: per-frame update for one actor (arg0), split into two independent
 // state machines selected by the mode byte arg0[0x1F0]:
@@ -83,7 +85,7 @@ void func_001741D0(unsigned char *arg0) {
         st = arg0[6];
         switch (st) {
         case 0:
-            arg0[6] = *(volatile unsigned char *)(arg0 + 6) + 1;
+            arg0[6]++;
             arg0[7] = 0;
             func_001749A0(arg0, 2, 1, 0.0f);
             arg0[0x302] = 0;
@@ -167,13 +169,12 @@ void func_001741D0(unsigned char *arg0) {
         if (*(unsigned short *)(arg0 + 0x2E) == 0) {
             *(float *)(arg0 + 0xC4) = func_001B1470(1.5707964f + *(float *)(arg0 + 0x218));
             func_001749A0(arg0, 0x173, 0, 0.0f);
-            *(int *)(arg0 + 0x21C) = 0;
         } else {
             *(float *)(arg0 + 0xC4) = func_001B1470(*(float *)(arg0 + 0x218) - 1.5707964f);
             func_001749A0(arg0, 0x174, 0, 0.0f);
-            *(int *)(arg0 + 0x21C) = 0;
         }
-        return;
+        *(int *)(arg0 + 0x21C) = 0;
+        break;
     case 1:
         if (*(int *)(arg0 + 0x200) & 0x1000) {
             arg0[6] = st + 1;
@@ -186,7 +187,7 @@ void func_001741D0(unsigned char *arg0) {
         *(float *)(arg0 + 0x38) = (*D_00275B40)[2] - *(float *)(arg0 + 0x21C);
         *(float *)(arg0 + 0x21C) = (*D_00275B40)[2];
         func_00178B90(arg0, 0);
-        return;
+        break;
     case 2:
         zero = 0.0f;
         if (*(float *)(arg0 + 0x224) != zero || *(float *)(arg0 + 0x22C) != zero ||
@@ -207,7 +208,7 @@ void func_001741D0(unsigned char *arg0) {
             arg0[0] = arg0[0] | 2;
             *(int *)(arg0 + 0x21C) = 0;
         }
-        return;
+        break;
     case 3:
         if (*(int *)(arg0 + 0x200) & 0x1000) {
             arg0[5] = 0;
@@ -223,6 +224,6 @@ void func_001741D0(unsigned char *arg0) {
             *(float *)(arg0 + 0x38) * func_0011DE90(*(float *)(arg0 + 0xC4));
         *(float *)(arg0 + 0xB8) -=
             *(float *)(arg0 + 0x38) * func_0011E2A8(*(float *)(arg0 + 0xC4));
-        return;
+        break;
     }
 }

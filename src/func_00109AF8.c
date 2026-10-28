@@ -1,15 +1,35 @@
-// Auto-recovered trivial leaf function. The boot ELF is stripped, so the
-// name is the VRAM address until the real purpose is identified.
-asm int func_00109AF8(int *a0, int a1, int a2, int a3) {
-    lw $v0, 0x40($a0)
-    sll $a1, $a1, 3
-    addiu $v1, $v0, 12
-    addu $v0, $v0, $a1
-    addu $v1, $v1, $a1
-    sw $a3, 16($v0)
-    lw $v0, 0($v1)
-    jr $ra
-    sw $a2, 0($v1)
-}
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-// Readable C (NEARMISS companion, objdiff 75.33%): src/readable/func_00109AF8.c
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 73.89% NEARMISS
+// companion in src/readable/). Fix read from the original instructions:
+//  - the callback table is the same struct as in func_00109B20 (CbTab: a
+//    0xC-byte header and an array of 8-byte { func, data } entries), indexed per
+//    use (t->ent[type].data / .func). The old byte-offset form with a cached slot
+//    pointer computed the entry address in a different order and registers.
+
+// Movie library (SDK libmpeg): installs a callback. Entry type of the context's
+// callback table (+0x40) gets func and arg; the previous function is returned.
+typedef struct {
+    int (*func)();
+    void *data;
+} CbEnt;
+
+typedef struct {
+    int pad[3];
+    CbEnt ent[1];
+} CbTab;
+
+typedef struct {
+    int pad[16];
+    CbTab *cbtab;
+} Ctx;
+
+void *func_00109AF8(Ctx *m, int type, int (*func)(), void *arg) {
+    CbTab *t = m->cbtab;
+    int (*old)();
+    t->ent[type].data = arg;
+    old = t->ent[type].func;
+    t->ent[type].func = func;
+    return (void *)old;
+}

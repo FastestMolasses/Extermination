@@ -1,21 +1,30 @@
-// NEARMISS func_00139E00  (vram 0x00139E00, 0x5A4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.03% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring/scheduling permutation: func_001B1270's two float args are evaluated in the opposite order from the target (a genuine FP-arg-order swap that the assign-in-arg idiom did not crack), a small set of lui/addiu hoist-order swaps in the D_00810320/D_00810324/D_00810328 float block and...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-// Corrected 2026-10-02 (lane DFIX2) against the original instructions (port
-// docs/LEVEL13_PORT.md section 0; docs/FINDINGS.md "NEARMISS body corrections from the
-// level side-track lanes, second round"): state 3 sets +0x44 = 0.4 and +0x48 = 0 when
-// +0x44 is NOT below 0.4 (a cap; the old C did it when +0x44 was below 0.4). The block
-// comment below is corrected to match: state 3's finish (done == 2) seeds +0x2E in
-// [0xB4..0x133], states 0 / 1 in [0..0x3F]. objdiff 96.86 -> 97.03.
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 97.03% NEARMISS).
+// Fixes read from the original instructions:
+//  - The player-position / climb-out block D_00810320..D_00810368, the
+//    "climbing" flag byte D_008102B0 and D_00810324 are volatile: the
+//    original keeps every access in source order (the D_008102B0 |= 2
+//    store before the D_00810360 load, D_00810324 = 0 after the
+//    D_00810320 store, D_00810368 read after both).
+//  - func_001026A0 takes three pointers; D_700036A0 is passed uncast (the
+//    (int) cast swapped the argument setup).
+//  - The z argument of func_001B1270 reads arg0+0xB8 into a block-local
+//    float first, which makes the original evaluate the second float
+//    argument before the first. Callee position parameters are void *
+//    (as in the byte-matched twin func_0013A3B0); the spring constants are
+//    float stores (0.65f / 0.4f / 0.005f).
+//
+// The VU0 scratchpad writes at 0x700038A0..AC and 0x700038B0..BC are
+// constant-address volatile stores; only the whole-vector addresses passed
+// to the helper calls use the relocated D_700036A0/D_700038A0/D_700038B0
+// symbols. func_001FBD50 is (self, a, b, f). The derived climb-out heights
+// are stored directly in each if/else leaf, and the spring-easing clamps
+// use the `if (!(cond)) {A} else if (other) {B}` guard.
+//
+// State 3 sets +0x44 = 0.4 and +0x48 = 0 when +0x44 is NOT below 0.4 (a
+// cap), corrected 2026-10-02 against the original instructions.
 
 // Wade/swim-recovery state-machine step (dispatched on state byte at
 // arg0+6, states 0..3; state byte 0 falls through into state 1's body).
@@ -45,28 +54,8 @@
 // state 3's finish (done == 2) uses [0xB4..0x133], states 0/1 use
 // [0..0x3F].
 //
-// NEARMISS: 96.86% (mwcc 2.3.3), 89.02% (pinned 991202). Keys that
-// cracked this from an initial ~85%: (1) the VU0 scratchpad writes at
-// 0x700038A0/A4/A8/AC and 0x700038B0/B4/B8/BC are constant-address
-// volatile stores (matching the anim_decode_translation family), NOT
-// array-index writes through the D_700038A0 symbol -- only the
-// *whole-struct address* passed to helper calls uses the relocated
-// symbol form; (2) func_001FBD50's real signature is (self,a,b,f) with
-// `self` an IMPLICIT/unset arg here (still holds `arg0` from function
-// entry, never reloaded); (3) writing derived-constant assignments as
-// direct `D_008104D4 = <imm>;` in each if/else leaf (not through an
-// intermediate local) avoids mwcc emitting `movz`, matching the target's
-// plain branch-per-leaf store shape; (4) `if (!(cond)) {A} else if
-// (other) {B}` (De Morgan'd guard) reproduces the target's bc1tl/bc1f
-// sense for the two spring-easing clamps. Residual: one FP call
-// (func_001B1270) evaluates its two float args in the opposite order
-// from ours (target computes the second arg first), a handful of
-// lui/addiu scheduling-order swaps in the D_00810320 float block and the
-// func_001026A0 D_700036A0/D_700038B0 argument setup -- register /
-// scheduling only. (The "last bc1t/bc1f sense" residual listed here before
-// 2026-10-02 was the inverted state-3 clamp, a logic error, now corrected.)
 extern void anim_clip_init(char *self, int clip, float a, float b);
-extern void func_001026A0(void *dst, int n, void *src);
+extern void func_001026A0(void *dst, void *n, void *src);
 extern void func_00102760(void *a0, void *a1);
 extern void func_001028B8(void *a, void *b, void *c);
 extern void func_001029C0(int);
@@ -75,20 +64,20 @@ extern int func_00122BB8(void);
 extern void func_0013BA20(unsigned char *, unsigned char *);
 extern void func_0013BBB0(char *, char *);
 extern int func_001A7B80(char *p);
-extern float func_001B1240(unsigned char *origin, float x, float z);
-extern float func_001B1270(unsigned char *origin, float x, float z);
+extern float func_001B1240(void *pos, float px, float pz);
+extern float func_001B1270(void *pos, float px, float pz);
 extern float func_001B12B0(float a, float b, float c);
 extern int func_001B1560(unsigned char *p, void *v, float r);
 extern void func_001EFD90(int mode, void *b, void *c);
 extern void func_001FBD50(char *p, int a, int b, float f);
 extern int func_0021BE40(float *p, char *a);
-extern unsigned char D_008102B0;
-extern float D_00810320;
-extern int D_00810324;
-extern float D_00810328;
-extern float D_00810360;
-extern float D_00810364;
-extern float D_00810368;
+extern volatile unsigned char D_008102B0;
+extern volatile float D_00810320;
+extern volatile int D_00810324;
+extern volatile float D_00810328;
+extern volatile float D_00810360;
+extern volatile float D_00810364;
+extern volatile float D_00810368;
 extern int D_008104D4;
 extern unsigned char D_0081070A;
 extern int D_700036A0[4];
@@ -123,19 +112,22 @@ void func_00139E00(char *arg0, char *arg1) {
             if (!(f44 <= 0.8f)) {
                 *(float *)(arg1 + 0x44) = 0.8f;
             } else if (f44 < 1.0f) {
-                *(int *)(arg1 + 0x48) = 0x3BA3D70A;
+                *(float *)(arg1 + 0x48) = 0.005f;
             }
             if (*(float *)(arg1 + 0x50) < 0.0f) {
-                *(int *)(arg1 + 0x4C) = 0x3F266666;
+                *(float *)(arg1 + 0x4C) = 0.65f;
             } else {
-                *(int *)(arg1 + 0x4C) = 0x3ECCCCCD;
+                *(float *)(arg1 + 0x4C) = 0.4f;
             }
-            *(float *)(arg1 + 0x5C) = -1.0f * func_001B1270((unsigned char *)(arg0 + 0xB0), 7.0f + D_00810364, 5.0f + *(float *)(arg0 + 0xB8));
-            *(float *)(arg1 + 0x58) = func_001B1240((unsigned char *)(arg0 + 0xB0), D_00810360, D_00810368);
+            {
+                float zz = *(float *)(arg0 + 0xB8);
+                *(float *)(arg1 + 0x5C) = -1.0f * func_001B1270(arg0 + 0xB0, 7.0f + D_00810364, 5.0f + zz);
+            }
+            *(float *)(arg1 + 0x58) = func_001B1240(arg0 + 0xB0, D_00810360, D_00810368);
             if (func_0021BE40((float *)&D_008102B0, arg0) == 0 && func_001A7B80(arg0) != 0) {
                 *(unsigned char *)(arg0 + 6) = *(unsigned char *)(arg0 + 6) + 1;
                 *(int *)(arg0 + 0xC8) = 0;
-                *(int *)(arg1 + 0x4C) = 0x3ECCCCCD;
+                *(float *)(arg1 + 0x4C) = 0.4f;
                 *(int *)(arg1 + 0x48) = 0;
                 *(float *)(arg1 + 0x44) = 0.0f;
                 *(float *)(arg1 + 0x50) = 0.0f;
@@ -169,7 +161,7 @@ void func_00139E00(char *arg0, char *arg1) {
                 *(volatile float *)0x700038B4 = (*(float *)(arg0 + 0xB4) - D_00810364) - 1.5f;
                 *(volatile int *)0x700038B8 = 0x40400000;
                 *(volatile int *)0x700038BC = 0x3F800000;
-                func_001026A0(&D_700038B0, (int)&D_700036A0, &D_700038B0);
+                func_001026A0(&D_700038B0, &D_700036A0, &D_700038B0);
                 func_001028B8(&D_700038B0, &D_00810360, &D_700038B0);
                 func_001EFD90(0x80000006, &D_700038B0, &D_700038A0);
             } else {
@@ -208,7 +200,7 @@ void func_00139E00(char *arg0, char *arg1) {
         *(signed char *)(arg0 + 5) = 1;
         *(unsigned char *)(arg0 + 6) = 0;
         *(float *)(arg1 + 0x5C) = 0.0f;
-        *(int *)(arg1 + 0x4C) = 0x3ECCCCCD;
+        *(float *)(arg1 + 0x4C) = 0.4f;
         *(int *)(arg1 + 0x48) = 0;
         *(float *)(arg1 + 0x44) = 0.4f;
         *(unsigned short *)(arg1 + 0x20) = 0;
