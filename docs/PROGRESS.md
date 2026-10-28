@@ -1,3 +1,12 @@
+## 2026-10-27 — matching wave, queue batch 27: 7 more byte-matched; TU neighbours
+
+See MATCHING_GUIDE "Queue batch 27": the constant-order class yields to
+compiling a function after its real preceding byte-matched neighbour
+(TU_STATIC); tu_static.py's guard now resolves named scratchpad externs. Gate:
+fresh build + verify_all all six stages pass, boot ELF byte-identical, 19/19
+overlays, matched_code 99.97%, 2639/2641 units; audit_link_provenance clean
+(2142 ordinary-C routes).
+
 ## 2026-10-27 — matching wave, queue batch 26: 3 more byte-matched
 
 See MATCHING_GUIDE "Queue batch 26" (including new evidence that the

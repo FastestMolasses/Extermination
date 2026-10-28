@@ -201,6 +201,46 @@ def _s16(v: int) -> int:
     return v - 0x10000 if v >= 0x8000 else v
 
 
+NAMED_ADDRESS = re.compile(r"D_[0-9A-F]{8}")
+
+
+def resolve_named_addresses(o: Obj, code: bytes, rel: list[tuple[int, int, int]],
+                            want_rel: list[tuple[int, int]]) -> tuple[bytes, list[tuple[int, int]]]:
+    """Resolve the copy's HI16/LO16 pairs against undefined D_XXXXXXXX externs
+    that the original callee spells as bare constants (no relocation at that
+    offset in build/expected): a callee whose own unit reaches a scratchpad word
+    through a relocated extern (`// SPAD:`) compiles that reference as a
+    relocation, while splat's expected object holds the literal address. The
+    pair's address (symbol name + REL addend, the HI16 addend completed by the
+    next LO16 of the same symbol) is written into the immediates and the
+    relocations are dropped, so the guard compares the same instruction words.
+    References the expected object also relocates are left as they are."""
+    want = set(want_rel)
+    words = bytearray(code)
+    out: list[tuple[int, int]] = []
+    pending = sorted(rel)
+    for idx, (off, typ, sym) in enumerate(pending):
+        s = o.syms[sym]
+        nm = o.name(s[0])
+        if ((off, typ) in want or typ not in (R_MIPS_HI16, R_MIPS_LO16)
+                or s[5] != 0 or not NAMED_ADDRESS.fullmatch(nm)):
+            out.append((off, typ))
+            continue
+        base = int(nm[2:], 16)
+        insn = struct.unpack_from("<I", code, off)[0]
+        if typ == R_MIPS_LO16:
+            addend = _s16(insn)
+        else:
+            lo = next((p for p in pending[idx + 1:] if p[1] == R_MIPS_LO16 and p[2] == sym), None)
+            if lo is None:
+                raise ValueError(f"guard: unpaired HI16 against {nm}")
+            addend = ((insn & 0xFFFF) << 16) + _s16(struct.unpack_from("<I", code, lo[0])[0])
+        a = (base + addend) & 0xFFFFFFFF
+        imm = ((a + 0x8000) >> 16) & 0xFFFF if typ == R_MIPS_HI16 else a & 0xFFFF
+        struct.pack_into("<I", words, off, (insn & 0xFFFF0000) | imm)
+    return bytes(words), sorted(out)
+
+
 def strip(data: bytes, caller: str, callees: list[str]) -> bytes:
     o = Obj(data)
     drop: set[int] = set()
@@ -234,8 +274,9 @@ def strip(data: bytes, caller: str, callees: list[str]) -> bytes:
                         if not (0 < t[5] < 0xFF00) or o.secname(t[5]) != ".rodata":
                             raise ValueError(f"{name}: references local data of this object")
                         tables.setdefault(t[5], []).append((r[0], r[1] & 0xFF, t[1]))
-                    rel.append((r[0], r[1] & 0xFF))
+                    rel.append((r[0], r[1] & 0xFF, r[1] >> 8))
         want_code, want_rel = expected_callee(name)
+        code, rel = resolve_named_addresses(o, code, rel, want_rel)
         if code != want_code or sorted(rel) != want_rel:
             raise ValueError(f"guard: the static copy of {name} differs from the original callee")
         for d, refs in tables.items():

@@ -540,3 +540,34 @@ same file lifts it from 80% to 99.6%, so the order depends on the earlier
 functions of the original translation unit, not only on the compiler version.
 Compiling with the real preceding byte-matched neighbours (TU_STATIC-style) is
 being tested.
+
+### Queue batch 27 (2026-10-27)
+
+7 byte-matched: func_001E5AC0 and func_001E67C0 (twins: per-bank locals,
+setup after the wrap-fraction adds, the 0x700038A0/0x700038B0 vectors as
+relocated externs, area selection as one switch), func_001EBF10 (the random
+bias is 0.0001f, not 1e-6; `-sdatathreshold 4`; float array elements where the
+old C stored int bit patterns), func_001FC280 (the high-half shift is signed;
+volatile sound-state words), func_00124F58 (newlib `__swsetup` in newlib's
+shape, `short _flags`), func_00120CE8 (newlib dlmalloc 2.6 `malloc_extend_top`
+with its 32/64-bit and signed types), func_001CB2C0 (packet family: body
+pointer before the cursor advance). Improved and parked: func_001EC1F0 93.55
+(now matched in batch 28 through a TU neighbour), func_001DD600 86.52 (do-while
+loop shape; argument-register colouring).
+
+TU neighbours (constant-order class). Compiling a function after its real
+immediately preceding byte-matched neighbour, as a `// TU_STATIC:` static copy
+that is removed after the guard, reproduces the original float-constant setup
+order in the 0x001EA000 wrapper family (func_001EC1F0, func_001EACF0,
+func_001EBE10, func_001EBE90 reach 100%; the same bodies alone score about 80%).
+The mechanism is compiler state left by everything earlier in the file, not a
+semantic dependency: only the immediate real predecessor works, and longer
+chains change already-matched neighbours. A neighbour need not be called; the
+copy becomes an unreferenced undefined symbol. tu_static.py's guard now
+resolves the copy's HI16/LO16 pairs against undefined D_XXXXXXXX externs that
+the expected object spells as bare constants (`resolve_named_addresses`), so a
+neighbour that reaches scratchpad words through `// SPAD:` externs still passes
+the byte comparison. Promotion order matters: a dependant only matches once its
+neighbour's own C is in src/, and editing a neighbour's file (even its extern
+declarations) can un-match its dependants (they then fall back to the .s, so
+the build stays safe).

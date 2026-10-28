@@ -1,64 +1,78 @@
-// NEARMISS func_001EBF10  (vram 0x001EBF10, 0x2D4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 56.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP-constant emit-order / instruction-scheduling permutation, same wall class already documented on sibling func_001EBD20/func_001EBC30/func_001EC1F0/func_001EC3F0. Logic (three VFX init blocks, LCG jitter, call args, table selection) fully recovered and verified against the splat .s; only the flo...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// CFLAGS: -O4,p -sdatathreshold 4
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 56.72% NEARMISS).
+// Fixes read from the original instructions:
+//  - the random-fraction bias is 0.0001f, not 1e-6 (only the fourth float
+//    argument is 1e-6); the body is the byte-matched twin func_001EBA20's
+//    template (fraction /= 65535, seed advance, += 0.0001f), with D_00275C34
+//    re-read for the +0x54 argument.
+//  - the scratchpad words 0x700036D0..DC are elements 12..15 (row 3,
+//    translation x/y/z/w) of the 4x4 float matrix D_700036A0, written as
+//    float stores; -sdatathreshold 4 (D_00275C34 is gp-relative).
+//
+// func_001EBF10 (vram 0x001EBF10, 0x2D4 bytes).
+// Loads identity into the scratchpad matrix D_700036A0 (func_001029C0), then
+// three emit passes. Each pass sets the matrix translation to (X, arg0->+0x34,
+// Z, 1.0) with (X, Z) = (370, 380), (345, 390), (395, 390); draws a [0,1)
+// fraction from the LCG seed at D_00275C34->+0x04 (high 16 bits / 65535 +
+// 0.0001, seed = seed*0x25 + 0xB); calls func_001CFB50 with D_0081F8F0, the
+// matrix, D_00275C34->+0x54, the fraction, 1.0f, 1e-6f, 0.0f; then
+// func_001CFBE0 with descriptor D_002565E0 (pass 1) or D_00256670 (passes 2-3).
+extern int *D_00275C34;
+extern int D_002565E0[2];
+extern int D_00256670[2];
+extern int D_0081F8F0[2];
+extern float D_700036A0[16];
 
-extern void func_001029C0(void *);
-extern void func_001CFB50(void *, int, void *, float, float, float, float, float);
-extern void func_001CFBE0(int, int, void *, void *, int);
-extern char *D_00275C34;
-extern char D_0081F8F0[0x100];
-extern char D_002565E0[0x100];
-extern char D_00256670[0x100];
-extern float D_700036A0[4];
+extern void func_001029C0(float *m);
+void func_001CFB50(void *p, int b, void *c, float f0, float f1, float f2, float f3, float f4);
+void func_001CFBE0(int a, int b, void *c, void *d, int e);
 
 void func_001EBF10(char *arg0, int arg1) {
-    char *dl;
-    int v;
+    int r;
+    float f;
 
     func_001029C0(D_700036A0);
-
-    *(int *)0x700036D0 = 0x43B90000;
-    *(float *)0x700036D4 = *(float *)(arg0 + 0x34);
-    *(int *)0x700036D8 = 0x43BE0000;
-    *(int *)0x700036DC = 0x3F800000;
-    dl = D_00275C34;
-    v = *(int *)(dl + 4);
-    *(int *)(dl + 4) = (v * 0x25) + 0xB;
-    func_001CFB50(D_0081F8F0, 0, D_700036A0, *(float *)(dl + 0x54),
-                  ((float)((v >> 16) & 0xFFFF) / 65535.0f) + 9.999999974752427e-07f,
-                  1.0f, 9.999999974752427e-07f, 0.0f);
+    D_700036A0[12] = 370.0f;
+    D_700036A0[13] = *(float *)(arg0 + 0x34);
+    D_700036A0[14] = 380.0f;
+    D_700036A0[15] = 1.0f;
+    r = D_00275C34[1];
+    f = (float)((r >> 0x10) & 0xFFFF);
+    f /= 65535.0f;
+    D_00275C34[1] = r * 0x25 + 0xB;
+    f += 0.0001f;
+    func_001CFB50(D_0081F8F0, 0, D_700036A0,
+                  *(float *)((char *)D_00275C34 + 0x54),
+                  f, 1.0f, 9.999999974752427e-07f, 0.0f);
     func_001CFBE0(arg1, 1, D_002565E0, D_0081F8F0, 0);
 
-    *(int *)0x700036D0 = 0x43AC8000;
-    *(float *)0x700036D4 = *(float *)(arg0 + 0x34);
-    *(int *)0x700036D8 = 0x43C30000;
-    *(int *)0x700036DC = 0x3F800000;
-    dl = D_00275C34;
-    v = *(int *)(dl + 4);
-    *(int *)(dl + 4) = (v * 0x25) + 0xB;
-    func_001CFB50(D_0081F8F0, 0, D_700036A0, *(float *)(dl + 0x54),
-                  ((float)((v >> 16) & 0xFFFF) / 65535.0f) + 9.999999974752427e-07f,
-                  1.0f, 9.999999974752427e-07f, 0.0f);
+    D_700036A0[12] = 345.0f;
+    D_700036A0[13] = *(float *)(arg0 + 0x34);
+    D_700036A0[14] = 390.0f;
+    D_700036A0[15] = 1.0f;
+    r = D_00275C34[1];
+    f = (float)((r >> 0x10) & 0xFFFF);
+    f /= 65535.0f;
+    D_00275C34[1] = r * 0x25 + 0xB;
+    f += 0.0001f;
+    func_001CFB50(D_0081F8F0, 0, D_700036A0,
+                  *(float *)((char *)D_00275C34 + 0x54),
+                  f, 1.0f, 9.999999974752427e-07f, 0.0f);
     func_001CFBE0(arg1, 1, D_00256670, D_0081F8F0, 0);
 
-    *(int *)0x700036D0 = 0x43C58000;
-    *(float *)0x700036D4 = *(float *)(arg0 + 0x34);
-    *(int *)0x700036D8 = 0x43C30000;
-    *(int *)0x700036DC = 0x3F800000;
-    dl = D_00275C34;
-    v = *(int *)(dl + 4);
-    *(int *)(dl + 4) = (v * 0x25) + 0xB;
-    func_001CFB50(D_0081F8F0, 0, D_700036A0, *(float *)(dl + 0x54),
-                  ((float)((v >> 16) & 0xFFFF) / 65535.0f) + 9.999999974752427e-07f,
-                  1.0f, 9.999999974752427e-07f, 0.0f);
+    D_700036A0[12] = 395.0f;
+    D_700036A0[13] = *(float *)(arg0 + 0x34);
+    D_700036A0[14] = 390.0f;
+    D_700036A0[15] = 1.0f;
+    r = D_00275C34[1];
+    f = (float)((r >> 0x10) & 0xFFFF);
+    f /= 65535.0f;
+    D_00275C34[1] = r * 0x25 + 0xB;
+    f += 0.0001f;
+    func_001CFB50(D_0081F8F0, 0, D_700036A0,
+                  *(float *)((char *)D_00275C34 + 0x54),
+                  f, 1.0f, 9.999999974752427e-07f, 0.0f);
     func_001CFBE0(arg1, 1, D_00256670, D_0081F8F0, 0);
 }

@@ -1,45 +1,28 @@
 // NEARMISS func_001EC1F0  (vram 0x001EC1F0, 0x7C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 76.87% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body 100% correct (93.5% mwcc991202). Two residuals, both pure scheduling artifacts no C change fixes: (1) second-call arg1->a0 register move (paddub a0,s0) emitted eagerly by mwcc vs delayed-to-last by CW target — the paddub-timing class that the 100% sibling func_001EAF80 only resolves via a se...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
-
-// NEARMISS func_001EC1F0  (vram 0x001EC1F0, 0x7C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 93.5% via mwcc 991202 (-O4,p -sdatathreshold 4); 80.4% via mwcc 2.3.3.
-// The LOGIC and STRUCTURE are faithful and fully recovered; the residual diff is a
-// genuine compiler scheduling artifact that no source change fixes here.
+// objdiff 93.55% via mwcc 991202 (-O4,p -sdatathreshold 4); 80.42% via mwcc 2.3.3 (the
+// byte-matched sibling func_001EAF80 spelling). The LOGIC and STRUCTURE are faithful.
+// Remaining differences: under 991202 only the second call's arg1 copy into the first
+// argument register is scheduled one slot early. Under 2.3.3 only the order in which
+// the three float constants (1.0, 5.0, 1e-6) are set up differs, and that order
+// depends on what earlier functions in the same translation unit did (wave 2026-10-27:
+// a preceding function in the same file that stores 1e-6 moves 1e-6 to the end and
+// reaches 99.61%), so a one-function file cannot reproduce it.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
 // unit / excluded from matched_code. Registry: docs/NEARMISS.md.
 //
-// Animation/effect setup wrapper, sibling of the verified-100% func_001EAF80 and the
-// 80.6% single-call nearmisses func_001EACF0/func_001EBBB0/func_001EBE10 (same template,
-// this one uses const 5.0f, table D_00256700, flag 1). Pulls two floats from the gp-rel
-// global object *D_00275C34 (fields +0x54 and +0x5C) plus FPU constants 1.0f, 1e-6f
-// (0x358637BD), 5.0f into func_001CFB50(&D_0081F8F0, 0, arg0, ...), then a single
-// func_001CFBE0(arg1, 1, D_00256700, &D_0081F8F0, 0). sq/lq frame saves $ra,$s0
-// (s0 = arg1 held across the two calls). func_001CFBE0 genuinely takes 5 args.
+// COMPILER: mwcc
+// CFLAGS: -O4,p -sdatathreshold 4
 //
-// The float-arg locals (one/five/f54/tiny/f5c) reproduce the target's FP-constant
-// emit/eval order around the paddub s0,a1 arg1-save (mwcc 991202: 93.5%).
-//
-// WALL: pure scheduling permutation, two residual deltas, both unreachable from C:
-//   (1) the second call's arg1->a0 register move (paddub a0,s0) — mwcc schedules it
-//       eagerly right after the a2 setup; the CW target delays it to the last setup
-//       slot before the jal (the same paddub-timing the 100% sibling func_001EAF80
-//       only resolves because it has a SECOND func_001CFBE0 call).
-//   (2) a trailing CW function-alignment nop (0x7C -> 0x80) mwcc does not emit.
-// Single-call wrapper of this template is the documented FP-const/paddub-timing
-// scheduling-permutation class -> dedicated permuter pass.
+// Animation/effect setup wrapper, sibling of the byte-matched func_001EAF80 and the
+// single-call near-misses func_001EACF0/func_001EBBB0/func_001EBE10 (same template;
+// this one uses constant 5.0f, table D_00256700, flag 1). Pulls two floats from the
+// gp-relative object *D_00275C34 (fields +0x54 and +0x5C) plus the constants 1.0f,
+// 1e-6f and 5.0f into func_001CFB50(D_0081F8F0, 0, arg0, ...), then one
+// func_001CFBE0(arg1, 1, D_00256700, D_0081F8F0, 0). arg1 is kept in a saved
+// register across the first call.
 extern char *D_00275C34;
 extern int D_00256700[8];
 extern int D_0081F8F0[8];

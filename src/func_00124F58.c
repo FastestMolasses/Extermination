@@ -1,70 +1,94 @@
-// NEARMISS func_00124F58  (vram 0x00124F58, 0x10C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 84.03% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// EE-GCC function, not mwcc: disasm has daddu register moves, sd/ld 8-byte saves, and pervasive branch-likely (bnel/beql/beqzl). mwcc emits paddub/sq and plain branches, so both mwcc builds cap ~57-59%. This is the ee-gcc-codegen park class for the mwcc wall. Correct compiler is ee-gcc 2.9-991111-0...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 84.03% NEARMISS).
+// Fixes read from the original instructions:
+// - This is newlib's __swsetup; written in its own source shape with the
+//   FILE-shaped record (as in the matched fflush, func_0011FD88): the stdio
+//   init check as a CHECK_INIT-style do { } while (0) block, flag tests read
+//   straight from fp->_flags, and the ungetc-buffer free (HASUB/FREEUB) as
+//   nested ifs. The old "ee-gcc codegen wall" verdict was wrong.
+//
+// newlib-style __swsetup: make sure stdio is initialised for the stream's
+// reentrancy record (fp+0x54); if the stream is not in write mode, fail with -1
+// unless it is read/write, dropping any read state (freeing a separate ungetc
+// buffer through func_001200E8, clearing the read/EOF flags 0x24, resetting the
+// read count and pointer) before setting the write flag 0x8. Allocate a buffer
+// through func_00120B98 when there is none, then set the write count: 0 with a
+// negative line-buffer size for line-buffered streams, else 0 for unbuffered
+// streams or the buffer size.
+struct sbuf {
+    unsigned char *_base;   /* 0x10 */
+    int _size;              /* 0x14 */
+};
 
-extern void func_00120058(char *);
-extern void func_001200E8(char *, int);
-extern void func_00120B98(char *);
-extern char *D_0024295C;
+struct reent {
+    char pad[0x38];
+    int sdidinit;           /* 0x38 */
+};
 
-int func_00124F58(char *arg0) {
-    char *p;
-    int v0;
-    unsigned short fl;
+struct file {
+    unsigned char *_p;      /* 0x00 */
+    int _r;                 /* 0x04 */
+    int _w;                 /* 0x08 */
+    short _flags;           /* 0x0C */
+    short _file;            /* 0x0E */
+    struct sbuf _bf;        /* 0x10 */
+    int _lbfsize;           /* 0x18 */
+    void *_cookie;          /* 0x1C */
+    int (*_read)(void *, char *, int);  /* 0x20 */
+    int (*_write)(void *, const char *, int); /* 0x24 */
+    int (*_seek)(void *, int, int);     /* 0x28 */
+    int (*_close)(void *);  /* 0x2C */
+    struct sbuf _ub;        /* 0x30 */
+    unsigned char *_up;     /* 0x38 */
+    int _ur;                /* 0x3C */
+    unsigned char _ubuf[3]; /* 0x40 */
+    unsigned char _nbuf[1]; /* 0x43 */
+    struct sbuf _lb;        /* 0x44 */
+    int _blksize;           /* 0x4C */
+    int _offset;            /* 0x50 */
+    struct reent *_data;    /* 0x54 */
+};
 
-    p = *(char **)(arg0 + 0x54);
-    if (p != 0) {
-        v0 = *(int *)(p + 0x38);
-    } else {
-        p = D_0024295C;
-        *(char **)(arg0 + 0x54) = p;
-        v0 = *(int *)(p + 0x38);
-    }
-    if (v0 == 0) {
-        func_00120058(p);
-    }
-    fl = *(unsigned short *)(arg0 + 0xC);
-    if (!(fl & 8)) {
-        if (!(fl & 0x10)) {
+extern struct reent *D_0024295C;
+extern void func_00120058(struct reent *);
+extern void func_001200E8(struct reent *, void *);
+extern void func_00120B98(struct file *);
+
+int func_00124F58(struct file *fp)
+{
+    do {
+        if (fp->_data == 0)
+            fp->_data = D_0024295C;
+        if (!fp->_data->sdidinit)
+            func_00120058(fp->_data);
+    } while (0);
+
+    if ((fp->_flags & 0x8) == 0) {
+        if ((fp->_flags & 0x10) == 0)
             return -1;
-        }
-        if (fl & 4) {
-            int sub = *(int *)(arg0 + 0x30);
-            if (sub != 0) {
-                if (sub != (int)(arg0 + 0x40)) {
-                    func_001200E8(*(char **)(arg0 + 0x54), sub);
-                }
-                *(int *)(arg0 + 0x30) = 0;
+        if (fp->_flags & 0x4) {
+            if (fp->_ub._base != 0) {
+                if (fp->_ub._base != fp->_ubuf)
+                    func_001200E8(fp->_data, fp->_ub._base);
+                fp->_ub._base = 0;
             }
-            fl = *(unsigned short *)(arg0 + 0xC) & ~0x24;
-            *(int *)(arg0 + 4) = 0;
-            *(short *)(arg0 + 0xC) = fl;
-            *(int *)(arg0 + 0) = *(int *)(arg0 + 0x10);
+            fp->_flags &= ~(0x4 | 0x20);
+            fp->_r = 0;
+            fp->_p = fp->_bf._base;
         }
-        *(short *)(arg0 + 0xC) = (short)(fl | 8);
+        fp->_flags |= 0x8;
     }
-    if (*(int *)(arg0 + 0x10) == 0) {
-        func_00120B98(arg0);
-    }
-    fl = *(unsigned short *)(arg0 + 0xC);
-    if (fl & 1) {
-        *(int *)(arg0 + 8) = 0;
-        *(int *)(arg0 + 0x18) = -*(int *)(arg0 + 0x14);
-    } else {
-        v0 = 0;
-        if (!(fl & 2)) {
-            v0 = *(int *)(arg0 + 0x14);
-        }
-        *(int *)(arg0 + 8) = v0;
-    }
+
+    if (fp->_bf._base == 0)
+        func_00120B98(fp);
+
+    if (fp->_flags & 0x1) {
+        fp->_w = 0;
+        fp->_lbfsize = -fp->_bf._size;
+    } else
+        fp->_w = fp->_flags & 0x2 ? 0 : fp->_bf._size;
+
     return 0;
 }
