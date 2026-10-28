@@ -1,3 +1,11 @@
+## 2026-10-28 — matching wave, queue batch 42: 8 more byte-matched (7 asm bodies replaced), relocation-order normaliser
+
+See MATCHING_GUIDE "Queue batch 42". New tools/decomp/rel_order.py (run by
+build.py after renormalize): reordered 147 target objects. Gate: fresh build +
+verify_all all six stages pass, boot ELF byte-identical, 19/19 overlays,
+matched_code 99.97%, 2750/2752 units; audit_link_provenance clean (2296
+ordinary-C routes; func_0011E0A8 now links from C).
+
 ## 2026-10-28 — matching wave, queue batch 41: 9 more byte-matched (6 asm bodies replaced), 4 improved
 
 See MATCHING_GUIDE "Queue batch 41". Gate: fresh build + verify_all all six

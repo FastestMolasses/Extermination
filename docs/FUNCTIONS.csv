@@ -21,9 +21,9 @@ vram,name,size_bytes,status,callers,subsystem
 0x00100D78,gs_readback_build_packet,320,word,2,lowmem
 0x00100EB8,gs_vram_readback,1676,nearmiss,2,lowmem
 0x00101548,func_00101548,96,readable,2,lowmem
-0x001015A8,func_001015A8,136,word,3,lowmem
+0x001015A8,func_001015A8,136,readable,3,lowmem
 0x00101630,func_00101630,480,word,1,lowmem
-0x00101810,func_00101810,136,word,3,lowmem
+0x00101810,func_00101810,136,readable,3,lowmem
 0x00101898,func_00101898,740,word,2,lowmem
 0x00101B80,func_00101B80,52,readable,2,lowmem
 0x00101BB8,dmac_channel_base,40,readable,6,lowmem
@@ -454,7 +454,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0010E318,func_0010E318,28,readable,1,lowmem
 0x0010E338,func_0010E338,48,readable,4,lowmem
 0x0010E368,func_0010E368,64,readable,1,lowmem
-0x0010E3A8,func_0010E3A8,180,word,0,lowmem
+0x0010E3A8,func_0010E3A8,180,readable,0,lowmem
 0x0010E460,func_0010E460,96,readable,0,lowmem
 0x0010E4C0,func_0010E4C0,308,readable,0,lowmem
 0x0010E5F8,func_0010E5F8,76,readable,1,lowmem
@@ -605,7 +605,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001157F0,func_001157F0,96,readable,39,lowmem
 0x00115850,func_00115850,1532,readable,1,lowmem
 0x00115E50,func_00115E50,1860,readable,1,lowmem
-0x00116598,func_00116598,2080,nearmiss,1,lowmem
+0x00116598,func_00116598,2080,readable,1,lowmem
 0x00116DB8,func_00116DB8,720,readable,1,lowmem
 0x00117088,func_00117088,556,nearmiss,1,lowmem
 0x001172B8,func_001172B8,368,nearmiss,1,lowmem
@@ -723,7 +723,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0011B028,func_0011B028,36,readable,1,lowmem
 0x0011B050,func_0011B050,396,word,0,lowmem
 0x0011B1E0,func_0011B1E0,328,word,0,lowmem
-0x0011B328,func_0011B328,20,word,2,lowmem
+0x0011B328,func_0011B328,20,readable,2,lowmem
 0x0011B340,func_0011B340,24,word,0,lowmem
 0x0011B358,func_0011B358,56,readable,0,lowmem
 0x0011B390,func_0011B390,100,readable,0,lowmem
@@ -767,8 +767,8 @@ vram,name,size_bytes,status,callers,subsystem
 0x0011DE90,func_0011DE90,232,readable,75,lowmem
 0x0011DF78,func_0011DF78,28,readable,124,lowmem
 0x0011DF98,func_0011DF98,228,word,1,lowmem
-0x0011E080,func_0011E080,36,word,4,lowmem
-0x0011E0A8,func_0011E0A8,156,c_local_data,7,lowmem
+0x0011E080,func_0011E080,36,readable,4,lowmem
+0x0011E0A8,func_0011E0A8,156,readable,7,lowmem
 0x0011E148,func_0011E148,352,word,1,lowmem
 0x0011E2A8,func_0011E2A8,240,readable,85,lowmem
 0x0011E398,func_0011E398,136,readable,4,lowmem
@@ -802,7 +802,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00120B98,func_00120B98,336,readable,1,lowmem
 0x00120CE8,func_00120CE8,596,readable,1,lowmem
 0x00120F40,func_00120F40,1912,readable,3,lowmem
-0x001216B8,func_001216B8,60,word,1,lowmem
+0x001216B8,func_001216B8,60,readable,1,lowmem
 0x001216F8,func_001216F8,224,word,2,lowmem
 0x001217D8,func_001217D8,148,word,2,lowmem
 0x00121870,block_copy,176,word,26,lowmem
@@ -836,7 +836,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00122CA8,func_00122CA8,104,word,0,lowmem
 0x00122D10,func_00122D10,112,readable,4,lowmem
 0x00122D80,vtable_a0_at_0011FE90_off20,100,word,0,lowmem
-0x00122DE8,vtable_a0_at_0011FE90_off24,128,word,0,lowmem
+0x00122DE8,vtable_a0_at_0011FE90_off24,128,readable,0,lowmem
 0x00122E68,vtable_a0_at_0011FE90_off28,104,word,0,lowmem
 0x00122ED0,vtable_a0_at_0011FE90_off2C,32,word,0,lowmem
 0x00122EF0,func_00122EF0,300,word,5,lowmem

@@ -584,6 +584,15 @@ def renormalize_expected(names: list[str]) -> None:
     if changed:
         _run_chunked("mkdir -p build/expected", [assemble_cmd(n) for n in changed])
     print(f"[renormalize] respelled address references in {len(changed)} target object(s)")
+    # Same .text bytes and the same relocation set, emitted in another order by
+    # the other assembler: give the target the compiled order (rel_order.py).
+    import rel_order
+    ordered = [n for n in names
+               if (ROOT / "build" / "obj" / f"{n}.o").exists()
+               and (ROOT / "build" / "expected" / f"{n}.o").exists()
+               and rel_order.align(ROOT / "build" / "expected" / f"{n}.o",
+                                   ROOT / "build" / "obj" / f"{n}.o")]
+    print(f"[rel-order] reordered relocations in {len(ordered)} target object(s)")
 
 
 def cmd_build(a: argparse.Namespace) -> None:

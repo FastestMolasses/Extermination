@@ -856,3 +856,31 @@ end to end), func_00133DB0 91.33.
   rotation by the condition order), func_0011E0A8 (newlib modff).
 Improved: func_00137EB0 99.89, func_00144040 99.38, func_001A50A0 99.61,
 func_00177B80 95.31.
+
+
+### Queue batch 42 (2026-10-28)
+
+Tooling: tools/decomp/rel_order.py. objdiff pairs each REL-style R_MIPS_HI16
+with a following R_MIPS_LO16 to recover its addend, and GNU as reorders HI16
+entries differently from ee-gcc's assembler, so an object with byte-identical
+.text and the identical relocation set could score below 100%
+(func_00116598: 99.98). When both hold, the target object's .rel.text is
+rewritten in the compiled order; anything else is left alone. The target is
+an objdiff input only, never linked. build.py runs it after renormalize
+(147 targets reordered, no score lowered) and the agents' m1.py runs it per
+trial.
+
+8 byte-matched; 7 companions replaced their asm bodies: func_00116598 (sound
+voice update: the 12-bit length compared as an unsigned short, plus the
+relocation order); func_0011B328 (GIF reset: `// EEGCC_AS: 2.96`);
+vtable_a0_at_0011FE90_off24 (newlib __swrite over the full FILE struct;
+_lseek_r / _write_r return `long`, 64-bit on ee-gcc); func_0011E080 (newlib
+isnanf); func_001216B8 (newlib _mbtowc_r without MB_CAPABLE: newlib's test
+order); func_00101810 / func_001015A8 (libgraph half-offset setters: the
+register as an `unsigned long` bit-field struct and the SCE_GS_SET_XYOFFSET
+macro expression, `short halfoff`); func_0010E3A8 (sifrpc reply callback: a
+third, empty `case` label makes ee-gcc build the original's decision tree).
+Improved: func_00117428 99.31, func_001172B8 98.32, func_00107648 94.47;
+companions block_copy 86.70 and func_00121920 81.23 (newlib memcpy / memmove:
+built by ee-gcc 2.95.3, which is in tools/eegcc but has no build.py mode yet),
+func_0010BCD0 95.37.

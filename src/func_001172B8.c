@@ -1,14 +1,15 @@
 // NEARMISS func_001172B8  (vram 0x001172B8, 0x170 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.21% via ee-gcc 2.9-991111-01 (-O2) (was 61.66%). The old "forward
-// branch-likely wall" verdict was wrong: the old C had the first loop's test
-// inverted (it returned for an ACTIVE voice) and used byte offsets; written in
-// the house spelling (typed Voice D_0027CCC0[48], Tempo D_0027F740 with the
-// unsigned rotating cursor f30, plain loops), ee-gcc emits the same forward
-// branch-likely code as the original.
-// Remaining differences: the four selection locals and the divide-check zero get
-// a permuted set of t4..t8 registers, and at the final select the original loads
-// -1 again for the "none" result where ours reuses best1 (known to be -1).
+// objdiff 98.32% via ee-gcc 2.9-991111-01 (-O2) (was 98.21%; 61.66% before 2026-10-27). The old
+// "forward branch-likely wall" verdict was wrong: the old C had the first loop's test inverted
+// and used byte offsets; written with typed Voice D_0027CCC0[48], Tempo D_0027F740 (unsigned
+// rotating cursor f30) and plain loops, ee-gcc emits the original's branch-likely code.
+// Matching wave 2026-10-28: the selection locals declared min2, min1, best2, best1 (best colouring
+// of eight orders swept).
+// Remaining differences: the t4..t8 colouring of the four selection locals and the divide-check
+// zero, and at the final select the original loads -1 again for the "none" result where ours
+// reuses best1 (known -1). Same tail pattern as func_00117428; ~15 tail spellings tried
+// (ternary, nested if, `~x`, `x + 1 != 0`, unsigned compare, result local): none better.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -47,9 +48,9 @@ int func_001172B8(int a0)
     int i;
     int idx;
     int min2 = -1;
-    int best1 = -1;
-    int best2 = -1;
     int min1 = -1;
+    int best2 = -1;
+    int best1 = -1;
 
     for (i = 0; i < 48; i++) {
         idx = D_0027F740.f30 % 48;

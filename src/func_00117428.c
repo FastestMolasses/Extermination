@@ -1,15 +1,15 @@
 // NEARMISS func_00117428  (vram 0x00117428, 0x2B4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.16% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful.
-// Matching wave 2026-10-27 (was 88.05%): the cursor block D_0027F740 is a word array
-// (`D_0027F740[12]`), which makes ee-gcc keep the full symbol address in a register and
-// use offset 0x30 like the original; the channel table is the struct voice array shared
-// with func_00115850.
-// Remaining differences: saved-register colouring of cand2 (original gives it the lowest
-// priority, s4) and an explicit reload of -1 before the final conditional move; ee-gcc
-// here substitutes cand2 (known -1) for the final -1, adding a reference to cand2. A tail
-// ending in `return cand1;` (also -1 there) colours every register right (99.31%) but
-// still not the explicit -1; the original tail spelling is not found yet.
+// objdiff 99.31% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful.
+// Matching wave 2026-10-28 (was 99.16%): the tail ends in `return cand1;` (cand1 is -1 there,
+// so the result is unchanged), which gives every saved register the original colour.
+// Earlier (2026-10-27, was 88.05%): the cursor block D_0027F740 is a word array
+// (`D_0027F740[12]`), so ee-gcc keeps the full symbol address in a register and uses offset 0x30
+// like the original; the channel table is the struct voice array shared with func_00115850.
+// Remaining differences: the final select. The original loads -1 explicitly as the default and
+// conditionally moves cand3 over it; ours starts from cand3 and conditionally moves cand1 (the
+// known -1). Tail spellings tried 2026-10-28: ternary, nested if, else chains, `>= 0` tests,
+// a result local, declaration-order and no-initialiser variants (all 90-99.16%).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -103,5 +103,5 @@ int func_00117428(int arg0, int arg1, int arg2)
         return cand2;
     if (cand3 != -1)
         return cand3;
-    return -1;
+    return cand1;
 }

@@ -1,12 +1,14 @@
 // NEARMISS func_00107648  (vram 0x00107648, 0x3DC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.66% via ee-gcc 2.9-991111-01 (-O2); same instruction count as the original (0x3DC).
-// Matching wave 2026-10-27 fixes (was 78.40%): the "cross-jump merge" was our bug — the
-// result tests are plain `&&` / `||` conditions that set ret = 1 (not ret = 1 then clear),
-// and the final switch lists case 1, case 3, case 2 in that source order.
-// Remaining differences: instruction scheduling only — the initial dst = 0 copy sits one slot
-// later, the store clearing D_00241534 is not in the delay slot of the D_002414AC == 3 test,
-// and the tail copy into dst schedules its loads/stores (and register choices) differently.
+// objdiff 94.47% via ee-gcc 2.9-991111-01 (-O2); same instruction count as the original (0x3DC).
+// Matching wave 2026-10-28 (was 93.66%): `dst` is initialised to 0 at its declaration, which
+// puts the dst = 0 copy before the constant 3 like the original.
+// Earlier (2026-10-27, was 78.40%): the result tests are plain `&&` / `||` conditions that set
+// ret = 1, and the final switch lists case 3, case 1, case 2 in that source order.
+// Remaining differences: instruction scheduling only. The store clearing D_00241534 is not in
+// the delay slot of the D_002414AC == 3 test, and the tail copy into dst schedules its 64-bit
+// stores (0x18 / 0x20) earlier, with different registers. Swept 2026-10-28: head statement
+// orders, store placement in the arms, natural tail spellings, and seven tail store orders.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -48,7 +50,7 @@ extern long long D_00241B90;
 int func_00107648(int flip)
 {
     unsigned char *ctx;
-    unsigned char *dst;
+    unsigned char *dst = 0;
     int *tmp;
     int *sel;
     int need;
@@ -58,7 +60,6 @@ int func_00107648(int flip)
 
     need = (D_002414AC == 3) ? 2 : 4;
     ctx = *(unsigned char **)(D_002412F4 + 0x40);
-    dst = 0;
     ret = 0;
 
     if (D_0024147C == 3) {

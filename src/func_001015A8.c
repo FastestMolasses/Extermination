@@ -1,41 +1,41 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001015A8(void) {
-    .word 0xdc820030
-    .word 0x00052c00
-    .word 0x00063400
-    .word 0x00052c03
-    .word 0x00021c3a
-    .word 0x00063403
-    .word 0x0002143e
-    .word 0x306307ff
-    .word 0x304207ff
-    .word 0x0003183c
-    .word 0x0003183f
-    .word 0x0002103c
-    .word 0x0002103f
-    .word 0x0006343c
-    .word 0x24420001
-    .word 0x00052c3c
-    .word 0x24630001
-    .word 0x0002107a
-    .word 0x0006343f
-    .word 0x00052c3f
-    .word 0x0003187a
-    .word 0x00c2302f
-    .word 0x00a3282f
-    .word 0x00061138
-    .word 0x00073c00
-    .word 0x10e00004
-    .word 0x00052938
-    .word 0x64420008
-    .word 0x10000002
-    .word 0x0002103c
-    .word 0x0006113c
-    .word 0x00a21025
-    .word 0x03e00008
-    .word 0xfc820020
-}
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-// Readable C (NEARMISS companion, objdiff 49.26%): src/readable/func_001015A8.c
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 49.26% NEARMISS
+// companion in src/readable/). Fix read from the original instructions:
+//  - written in the SDK libgraph shape: the draw environment is a struct of
+//    64-bit GS registers, SCISSOR is a bit-field struct of unsigned long
+//    fields, and the offset is one SCE_GS_SET_XYOFFSET-style macro expression.
+//    The 11-bit SCAX1/SCAY1 fields promote to int (the 32-to-64 sign
+//    extension), "(u_long)(f + 1) >> 1" is the 64-bit logical halving, the
+//    short centre is widened to long before the subtraction, and the half
+//    pixel is a "(halfoff ? 8 : 0)" term inside the OFY argument (that is what
+//    splits the OFY shift into two paths).
+
+// SDK libgraph: sets a draw environment's XYOFFSET so that the screen centre
+// (centerx, centery) maps to the middle of its scissor area: OFX = (centerx -
+// (SCAX1 + 1) / 2) * 16 and OFY = (centery - (SCAY1 + 1) / 2) * 16, plus a half
+// pixel (8) on y when halfoff is set (the odd field). func_00101810 and
+// func_001015A8 are two identical copies.
+typedef unsigned long u_long;
+typedef struct {
+    u_long SCAX0:11; u_long pad11:5; u_long SCAX1:11; u_long pad27:5;
+    u_long SCAY0:11; u_long pad43:5; u_long SCAY1:11; u_long pad59:5;
+} sceGsScissor;
+typedef struct {
+    u_long OFX:16; u_long pad16:16; u_long OFY:16; u_long pad48:16;
+} sceGsXyoffset;
+typedef struct {
+    u_long frame1; long frame1addr;
+    u_long zbuf1; long zbuf1addr;
+    sceGsXyoffset xyoffset1; long xyoffset1addr;
+    sceGsScissor scissor1; long scissor1addr;
+} sceGsDrawEnv1;
+#define SCE_GS_SET_XYOFFSET(ofx, ofy) ((u_long)(ofx) | ((u_long)(ofy) << 32))
+
+void func_001015A8(sceGsDrawEnv1 *draw, short centerx, short centery, short halfoff)
+{
+    *(u_long *)&draw->xyoffset1 = SCE_GS_SET_XYOFFSET(
+        ((long)centerx - ((u_long)(draw->scissor1.SCAX1 + 1) >> 1)) << 4,
+        (((long)centery - ((u_long)(draw->scissor1.SCAY1 + 1) >> 1)) << 4) + (halfoff ? 8 : 0));
+}

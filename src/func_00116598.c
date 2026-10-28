@@ -1,23 +1,19 @@
-// NEARMISS func_00116598  (vram 0x00116598, 0x820 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.80% via ee-gcc 2.9-991111-01 (-O2); .text size 0x820 matches. Matching wave
-// 2026-10-27 (was 62.35%): rewritten with typed Voice D_0027CCC0[48] / Seq D_0027E0C0[48] /
-// Song / Tempo records; logic fixes read from the original: the pan restarts from f4E before
-// the f1A == 1 vibrato step (f02 only feeds the first argument), the >= arms come first, the
-// f1A == 2 f58 == f5A test has its clear arm first, f62 / f54 / f5C are masked in place (no
-// separate zero store), the loop counter and the 0xFF / 480 divisions are unsigned, and the
-// arm temporaries are block-scoped (one shared `n` forced extra registers everywhere).
-// Remaining differences: one instruction plus its register colouring: in the tempo-60 /
-// length-120 envelope step the original ORs the held `f3C & 0xFFF` register into the new
-// counter, while our build folds it to the known constant 0x78 (gcc records the equality
-// from the compare); every spelling of that compare against a literal folds it.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 99.80% NEARMISS).
+// Fixes read from the original instructions:
+//  - the tempo-60 envelope test compares the 12-bit length as an unsigned short,
+//    so ee-gcc keeps the held `f3C & 0xFFF` register for the OR instead of
+//    folding it to the constant 0x78.
+//  - the last 0.02% was objdiff pairing two %hi(D_0027CCC0) halves with different
+//    %lo halves because the two assemblers order HI16 relocations differently;
+//    tools/decomp/rel_order.py gives the target the compiled order when the
+//    .text bytes and the relocation set are identical.
+// Earlier wave (2026-10-27, was 62.35%): typed Voice D_0027CCC0[48] / Seq D_0027E0C0[48] /
+// Song / Tempo records; the pan restarts from f4E before the f1A == 1 vibrato step, the >= arms
+// come first, the f1A == 2 f58 == f5A test has its clear arm first, f62 / f54 / f5C are masked in
+// place, the loop counter and the 0xFF / 480 divisions are unsigned, arm temporaries block-scoped.
 
 // Per-frame voice update. For each of the 48 voices that is active (f00 == 1), not in
 // state 3 (f1A) and bound to a channel record (f06 < 48) of D_0027E0C0:
@@ -124,7 +120,7 @@ void func_00116598(void)
                     }
 
                     if (D_0027CCC0[i].f14 != 0) {
-                        if (D_0027F740.f3A == 0x3C && (low = D_0027CCC0[i].f3C & 0xFFF) == 0x78) {
+                        if (D_0027F740.f3A == 0x3C && (unsigned short)(low = D_0027CCC0[i].f3C & 0xFFF) == 0x78) {
                             if ((D_0027CCC0[i].f3C & 0xF000) != 0) {
                                 cnt = (D_0027CCC0[i].f3C >> 12) - 1;
                                 rate = low | (cnt << 12);

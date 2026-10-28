@@ -1,10 +1,14 @@
-// Writes 1 to the hardware register at 0x10003000.
-asm void func_0011B328(void) {
-    lui $2, 0x1000
-    addiu $3, $zero, 0x1
-    ori $2, $2, 0x3000
-    jr $ra
-    sw $3, 0x0($2)
-}
+// COMPILER: eegcc
+// CFLAGS: -O2
+// EEGCC_AS: 2.96
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 68.00% NEARMISS
+// companion in src/readable/). Fix read from the original instructions:
+//  - the C was already right; the original was assembled by the 2.96 gas, which
+//    fills the return's delay slot with the store (// EEGCC_AS: 2.96), as for
+//    func_0011B910.
 
-// Readable C (NEARMISS companion, objdiff 68.00%): src/readable/func_0011B328.c
+// SDK: resets the GIF (GIF_CTRL, 0x10003000, = 1).
+void func_0011B328(void) {
+    *(volatile int *)0x10003000 = 1;
+}
