@@ -1,24 +1,43 @@
-// NEARMISS func_00117CB0  (vram 0x00117CB0, 0x64 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 70.00% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// Body decoded correctly and compiles at 70%. Two residual diffs are genuine ee-gcc EE-codegen/scheduling decisions not steerable from C: (1) the SECOND of two adjacent integer divides is emitted by the target on the EE second integer pipe (div1/mflo1) while ee-gcc here emits a regular div/mflo for both — no C express...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern unsigned short D_0027F77A;
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 70.00% NEARMISS).
+// Fixes read from the original instructions:
+//  - Rewritten in the spelling of the byte-matched sibling func_00119650: the
+//    0x78-byte sequence record is a typed Seq (f08 cursor, p0C data, f1C, f54,
+//    f56) and the tempo halfword is D_0027F740.f3A (the Tempo block) instead of
+//    byte offsets and a bare D_0027F77A. The second divide then lands on the
+//    EE's second divide pipe as in the original (no compiler wall).
+//  - The cursor advance (+4) is the last statement, after the +0x1C store.
+//
+// Sequencer event: reads a little-endian halfword from payload bytes +2/+3 at the
+// record's cursor into f54, recomputes f1C = (f56 * f54 << 12) / tempo / 60, and
+// advances the cursor by 4.
 
-void func_00117CB0(unsigned char *a0) {
-    int base = *(int *)(a0 + 8);
-    unsigned char *p = *(unsigned char **)(a0 + 0xC) + base;
-    int rate = *(unsigned short *)(a0 + 0x56);
-    int val = (p[3] << 8) | p[2];
-    *(unsigned short *)(a0 + 0x54) = val;
-    *(int *)(a0 + 8) = base + 4;
-    *(int *)(a0 + 0x1C) = ((rate * val) << 12) / (int)D_0027F77A / 0x3C;
+typedef struct {
+    unsigned char pad00[0x08];
+    int f08;
+    unsigned char *p0C;
+    unsigned char pad10[0x1C - 0x10];
+    int f1C;
+    unsigned char pad20[0x54 - 0x20];
+    unsigned short f54;
+    unsigned short f56;
+    unsigned char pad58[0x78 - 0x58];
+} Seq;
+
+typedef struct {
+    unsigned char pad00[0x3A];
+    unsigned short f3A;
+} Tempo;
+
+extern Tempo D_0027F740;
+
+void func_00117CB0(Seq *seq)
+{
+    unsigned char *p = seq->p0C + seq->f08;
+
+    seq->f54 = (p[3] << 8) | p[2];
+    seq->f1C = ((seq->f56 * seq->f54) << 12) / D_0027F740.f3A / 60;
+    seq->f08 += 4;
 }

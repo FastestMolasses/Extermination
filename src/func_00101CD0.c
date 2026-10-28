@@ -1,8 +1,13 @@
 // NEARMISS func_00101CD0  (vram 0x00101CD0, 0x1D8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 69.44% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// MMIO config writer: validation branches, the 0xe000 bit-twiddle (D_002410B8/C8/D8 table lookups, masks 0xCF/0x3F/0xF3, b3 branch), all five MMIO reg writes (0x1000E000/E020/E030/E040/E050), and the unaligned struct copy to D_002410E8 all match structurally (improved 46->66->69% by reading all 5 volatile MMIO regs up...
+// objdiff 91.34% via ee-gcc 2.9-991111-01 (-O2). This is the libdma routine sceDmaPutEnv:
+// it validates the env bytes (stall source, stall drain, MFIFO drain < 10, release cycle < 7),
+// packs D_CTRL from three lookup tables, writes D_PCR, D_SQWC, D_RBOR and D_RBSR, and saves
+// the 20-byte env to D_002410E8 (read back by func_00101EA8, sceDmaGetEnv).
+// Remaining differences: register choice and scheduling around the four discarded volatile reads
+// of D_PCR/D_SQWC/D_RBOR/D_RBSR at entry. Reading them into locals that are later reassigned
+// from env (the SDK's read-then-overwrite shape) byte-matches 100% (same 0x1D8 size), but those
+// initial values are never read, which the honesty rule forbids without approval.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -11,49 +16,57 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern unsigned char D_002410B8;
-extern unsigned char D_002410C8;
-extern unsigned char D_002410D8;
-extern unsigned char D_002410E8;
+typedef struct {
+    unsigned char sts;
+    unsigned char std;
+    unsigned char mfd;
+    unsigned char rcycle;
+    unsigned short express;
+    unsigned short notify;
+    unsigned short sqwc;
+    unsigned short tqwc;
+    void *rbadr;
+    unsigned int rbmsk;
+} sceDmaEnv;
 
-int func_00101CD0(unsigned char *p)
+extern unsigned char D_002410B8[];
+extern unsigned char D_002410C8[];
+extern unsigned char D_002410D8[];
+extern sceDmaEnv D_002410E8;
+
+int func_00101CD0(sceDmaEnv *env)
 {
-    unsigned int reg00 = *(volatile unsigned int *)0x1000E000;
-    unsigned int reg20 = *(volatile unsigned int *)0x1000E020;
-    unsigned int reg30 = *(volatile unsigned int *)0x1000E030;
-    unsigned int reg40 = *(volatile unsigned int *)0x1000E040;
-    unsigned int reg50 = *(volatile unsigned int *)0x1000E050;
-    unsigned int b3;
+    unsigned int ctrl, pcr, sqwc, rbor, rbsr;
 
-    if ((unsigned int)p[0] >= 10) return -1;
-    if ((unsigned int)p[1] >= 10) return -2;
-    if ((unsigned int)p[2] >= 10) return -3;
-    b3 = p[3];
-    if (b3 >= 7) return -4;
+    ctrl = *(volatile unsigned int *)0x1000E000;
+    *(volatile unsigned int *)0x1000E020;
+    *(volatile unsigned int *)0x1000E030;
+    *(volatile unsigned int *)0x1000E050;
+    *(volatile unsigned int *)0x1000E040;
 
-    reg00 = (reg00 & 0xFFFFFFCF) | ((unsigned int)(&D_002410B8)[p[0]] << 4);
-    reg00 = (reg00 & 0xFFFFFF3F) | ((unsigned int)(&D_002410C8)[p[1]] << 6);
-    reg00 = (reg00 & 0xFFFFFFF3) | ((unsigned int)(&D_002410D8)[p[2]] << 2);
+    if (env->sts >= 10) return -1;
+    if (env->std >= 10) return -2;
+    if (env->mfd >= 10) return -3;
+    if (env->rcycle >= 7) return -4;
 
-    if (b3 != 0) {
-        reg00 = ((reg00 | 2) & 0xFFFFFCFF) | ((p[3] - 1) << 8);
+    ctrl = (ctrl & ~0x30) | (D_002410B8[env->sts] << 4);
+    ctrl = (ctrl & ~0xC0) | (D_002410C8[env->std] << 6);
+    ctrl = (ctrl & ~0x0C) | (D_002410D8[env->mfd] << 2);
+    if (env->rcycle) {
+        ctrl |= 2;
+        ctrl = (ctrl & ~0x300) | ((env->rcycle - 1) << 8);
     } else {
-        reg00 = reg00 & 0xFFFFFFFD;
+        ctrl &= ~2;
     }
-
-    *(volatile unsigned int *)0x1000E000 = reg00;
-    *(volatile unsigned int *)0x1000E020 =
-        ((unsigned int)*(unsigned short *)(p + 4) << 16) | *(unsigned short *)(p + 6);
-    *(volatile unsigned int *)0x1000E030 =
-        ((unsigned int)*(unsigned short *)(p + 0xA) << 16) | *(unsigned short *)(p + 8);
-    *(volatile unsigned int *)0x1000E050 = *(unsigned int *)(p + 0xC);
-    *(volatile unsigned int *)0x1000E040 = *(unsigned int *)(p + 0x10);
-
-    {
-        unsigned char *dst = &D_002410E8;
-        __builtin_memcpy(dst, p, 16);
-        *(unsigned int *)(dst + 16) = *(unsigned int *)(p + 16);
-    }
-    (void)reg20; (void)reg30; (void)reg40; (void)reg50;
+    pcr = (env->express << 16) | env->notify;
+    sqwc = (env->tqwc << 16) | env->sqwc;
+    rbor = (unsigned int)env->rbadr;
+    rbsr = env->rbmsk;
+    *(volatile unsigned int *)0x1000E000 = ctrl;
+    *(volatile unsigned int *)0x1000E020 = pcr;
+    *(volatile unsigned int *)0x1000E030 = sqwc;
+    *(volatile unsigned int *)0x1000E050 = rbor;
+    *(volatile unsigned int *)0x1000E040 = rbsr;
+    D_002410E8 = *env;
     return 0;
 }

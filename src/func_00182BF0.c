@@ -1,71 +1,52 @@
-// NEARMISS func_00182BF0  (vram 0x00182BF0, 0x148 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 69.87% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// CW branch-inversion/dead-b idiom dominates: each of the ~7 `return 1` exits is lowered by the target as a forward zero-test or FP-condition branch with the v0=1 set in the delay slot and an unconditional branch into a split epilogue that reloads the return address in its delay slot; mwcc inverts every guard, nops the delay slot, and unifies all exi...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
 //
-// Gate/eligibility check on an entity (arg0). Series of early `return 1` bail-
-// outs: if D_008106BC set then bail when D_0081083C set else clear D_008106BC;
-// bail if float[arg0+0x220] <= 0; bail if byte[arg0+0xF]==0x63; if D_0081083C
-// set then set D_008106BC=1 and bail; bail if D_008106F1 set; bail if
-// func_0021BB00(arg0) returns nonzero; read byte[arg0+0x1F0] and bail if it is
-// 0x3C, 0x3D, or in [0xB,0xE) (the v-0xB < 3 test). Finally, if either float at
-// arg0+0x22C or arg0+0x224 is nonzero, zero both and set byte[arg0]=1; return 0.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 69.87% NEARMISS).
+// Fixes read from the original instructions:
+// - The bail-outs are grouped OR conditions, not separate ifs: (health <= 0
+//   || type byte == 0x63) and (D_008106F1 || func_0021BB00 || kind 0x3C/0x3D/
+//   0xB..0xD) each share one `return 1` exit.
+// - The first block tests D_0081083C == 0 first (clear D_008106BC) with the
+//   `return 1` in the else arm.
+// - The kind byte is held in an int (no re-mask between the compares).
+// - The final test is a plain float truth test (`f || g`), which gives the
+//   original's compare operand order.
 //
-// Logic fully recovered (the trailing float-clear body at the bottom matches
-// instruction-for-instruction). DOMINANT WALL: the CW branch-inversion /
-// dead-b idiom -- each `return 1` is emitted by the target as
-// a forward branch on the test with v0 = 1 in its delay slot, then an
-// unconditional branch (ra reload in its delay slot) into a SECOND epilogue
-// entry that restores ra before the final s0 restore and return. mwcc instead
-// inverts every guard, leaves the delay slot empty, and routes all exits through
-// one unified epilogue. Secondary: FP-compare register coloring (target compares
-// field == zero with the field in f0/zero in f1; mwcc swaps to field in f1/zero
-// in f0). Both are documented CW-vs-mwcc lowering walls that 2.3.3 does not fix. Tried single-exit, OR-
-// chaining the 0x3C/0x3D/<3 triple (best, +8%), separate ifs (worse). Parked.
+// Gate/eligibility check on an entity (arg0). Returns 1 (blocked) when: the
+// pending flag D_008106BC is set and D_0081083C is still set (otherwise the
+// pending flag is cleared); float[arg0+0x220] <= 0; byte[arg0+0xF] == 0x63;
+// D_0081083C is set (then D_008106BC is set to 1); D_008106F1 is set;
+// func_0021BB00(arg0) returns nonzero; or byte[arg0+0x1F0] is 0x3C, 0x3D or
+// in [0xB, 0xE). Otherwise, if either float at arg0+0x22C or arg0+0x224 is
+// nonzero, zeroes both and sets byte[arg0] = 1; returns 0.
 extern int func_0021BB00(char *p);
 extern unsigned char D_008106BC;
 extern unsigned char D_008106F1;
 extern unsigned char D_0081083C;
 
 int func_00182BF0(char *arg0) {
-    unsigned char v;
+    int v;
 
     if (D_008106BC != 0) {
-        if (D_0081083C != 0) {
+        if (D_0081083C == 0) {
+            D_008106BC = 0;
+        } else {
             return 1;
         }
-        D_008106BC = 0;
     }
-    if (*(float *)(arg0 + 0x220) <= 0.0f) {
-        return 1;
-    }
-    if (*(unsigned char *)(arg0 + 0xF) == 0x63) {
+    if (*(float *)(arg0 + 0x220) <= 0.0f || *(unsigned char *)(arg0 + 0xF) == 0x63) {
         return 1;
     }
     if (D_0081083C != 0) {
         D_008106BC = 1;
         return 1;
     }
-    if (D_008106F1 != 0) {
+    if (D_008106F1 != 0 || func_0021BB00(arg0) != 0 ||
+        (v = *(unsigned char *)(arg0 + 0x1F0)) == 0x3C || v == 0x3D ||
+        (unsigned int)(v - 0xB) < 3) {
         return 1;
     }
-    if (func_0021BB00(arg0) != 0) {
-        return 1;
-    }
-    v = *(unsigned char *)(arg0 + 0x1F0);
-    if ((v == 0x3C) || (v == 0x3D) || ((unsigned int)(v - 0xB) < 3)) {
-        return 1;
-    }
-    if ((*(float *)(arg0 + 0x22C) != 0.0f) || (*(float *)(arg0 + 0x224) != 0.0f)) {
+    if (*(float *)(arg0 + 0x22C) || *(float *)(arg0 + 0x224)) {
         *(float *)(arg0 + 0x22C) = 0.0f;
         *(float *)(arg0 + 0x224) = 0.0f;
         *(char *)(arg0 + 0) = 1;

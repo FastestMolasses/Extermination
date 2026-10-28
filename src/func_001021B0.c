@@ -1,36 +1,72 @@
-// NEARMISS func_001021B0  (vram 0x001021B0, 0xC4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 69.98% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// Frame-size stride wall: correct readable C (DMA/IRQ spin-wait; loop body, srl, li constants all match) but ee-gcc hoists the ~0x100 mask into a 4th callee-saved reg -> frame 0x50 vs expected 0x40 (3 saved regs). Original kept a dead inner spin sub-loop that this ee-gcc optimizer always eliminates. 480s seeded permut...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 69.98% NEARMISS).
+// Fixes read from the original instructions:
+//  - Same shape as the byte-matched sibling func_00102530: the channel is a volatile
+//    register block (CHCR at +0, QWC at +0x20), the countdown starts at 0x1000000 and is
+//    decremented before its test (`--count < 0`), and clearing STR goes through a
+//    temporary bitfield copy in a loop the compiler folds to "never repeats" (this is
+//    the inner spin loop the old C could not produce).
+//  - The STR wait test is a whole-word CHCR read; the final CHCR update is a bitfield
+//    record read before QWC is cleared, then written back once.
+//
+// SDK DMA helper: wait for a DMA channel to stop (CHCR.STR clear), with a countdown of
+// 0x1000000 polls; once it runs out, each further poll prints a diagnostic
+// (func_00122B58, printf, on the string at D_0026B220) and, if the channel is still
+// running, clears STR. Then clears QWC and restarts the channel with MOD = 1 (chain),
+// DIR = 0 and STR = 1.
 
-extern void func_00122B58(void *);
-extern unsigned char D_0026B220;
-extern unsigned char D_FFFFFF;
+typedef struct {
+    unsigned DIR : 1;
+    unsigned p0 : 1;
+    unsigned MOD : 2;
+    unsigned ASP : 2;
+    unsigned TTE : 1;
+    unsigned TIE : 1;
+    unsigned STR : 1;
+    unsigned p1 : 7;
+    unsigned TAG : 16;
+} ChcrBits;
 
-void func_001021B0(volatile int *p)
+typedef struct {
+    ChcrBits chcr;
+    unsigned int p0[3];
+    void *madr;
+    unsigned int p1[3];
+    unsigned int qwc;
+} DmaChan;
+
+extern void func_00122B58(int *p);
+extern int D_0026B220;
+
+void func_001021B0(volatile DmaChan *d)
 {
-    int i = (int)&D_FFFFFF;
+    int count = 0x1000000;
+    ChcrBits chcr;
 
-    if (*p & 0x100) {
-        do {
-            if (i < 0) {
-                func_00122B58(&D_0026B220);
-                if (((unsigned int)*p >> 8) & 1) {
-                    *p = *p & -0x101;
-                }
+    while (*(volatile unsigned int *)&d->chcr & 0x100) {
+        if (--count < 0) {
+            func_00122B58(&D_0026B220);
+            chcr = d->chcr;
+            if (chcr.STR) {
+                ChcrBits t;
+                do {
+                    t = chcr;
+                    t.STR = 0;
+                    chcr = t;
+                } while (chcr.STR);
+                d->chcr = t;
             }
-            i -= 1;
-        } while (*p & 0x100);
+        }
     }
 
-    p[8] = 0;
-    *p = (((*p & -0xD) | 0x4) & -0x2) | 0x100;
+    {
+        ChcrBits c = d->chcr;
+        d->qwc = 0;
+        c.MOD = 1;
+        c.DIR = 0;
+        c.STR = 1;
+        d->chcr = c;
+    }
 }

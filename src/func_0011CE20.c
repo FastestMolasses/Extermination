@@ -29,7 +29,10 @@ extern const float D_0026C548[];
 extern float func_0011E148(float x, int n);
 extern float func_0011DF98(float x);
 
-static const float zero = 0.0f, one = 1.0f, two8 = 2.5600000000e+02f, twon8 = 3.9062500000e-03f;
+#define zero  0.0f
+#define one   1.0f
+#define two8  2.5600000000e+02f
+#define twon8 3.9062500000e-03f
 
 int func_0011CE20(float *x, float *y, int e0, int nx, int prec, const int *ipio2)
 {

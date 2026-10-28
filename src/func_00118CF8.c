@@ -1,8 +1,6 @@
 // NEARMISS func_00118CF8  (vram 0x00118CF8, 0x168 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 71.91% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc induction-variable-selection wall — target keeps base (s1) + byte-offset iv (s0) + combined pointer iv (s3) and recomputes base + offset each iteration; our ee-gcc collapses to one pointer iv, and with the freed register also hoists the loop-invariant literals 1 and 44100 into s6/s5 instead of rematerialising them (details below).
+// objdiff 80.17% via ee-gcc 2.9-991111-01 (-O2). Logic and structure are faithful.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,69 +10,92 @@
 // CFLAGS: -O2
 
 //
-// NEARMISS 71.91 — eegcc induction-variable-selection + loop-invariant-hoist wall.
-// Logic fully recovered and verified instruction-by-instruction: the 0x30-entry /
-// 0x6A-stride voice-table scan, all five annulled `bnel` continue edges, the CSE
-// of the compared constant 1 into the fifth compare, the 5-argument (a0-a3 + t0)
-// call to func_00117918, the gcc divide-by-zero trap guard (branch-likely over a break), the r5900
-// 3-operand `mult`, the divide with its move-from-LO, and the trailing `ev->8 += 2` all reproduce, and
-// the frame (0x80, s0-s6 saved) matches exactly.
-// Residual is iv selection: the target keeps THREE loop registers for the table —
-// s1 = base, s0 = byte offset (+0x6A), s3 = combined pointer (+0x6A) — and
-// recomputes base + offset (s1 + s0) per iteration, while our ee-gcc collapses them into
-// a single pointer iv. With a register thus freed it also hoists the loop-invariant
-// literals 1 and 44100 into s6/s5, whereas the target rematerialises them inside
-// the loop (1 and 0xAC44 are rebuilt each pass). Tried: pointer local
-// (`ch = base + i*0x6A`, 68.48%), fully inline `D_0027CCC0 + i*0x6A + off`
-// (70.58%, degrades to a runtime `mult`), separate `idx` biv in the for-update
-// (71.91%), `idx = i*0x6A` in the body (71.91%), and an explicit dual base+pointer
-// pair mirroring the target (68.58%).
-// NOTE: the divisor MUST stay a variable (`rate`) — the target's divide-by-zero trap guard
-// (branch-likely over a break) proves ee-gcc did not see a literal divisor (a literal 48000 would
-// have been strength-reduced to a magic multiply).
+// Rewritten (matching wave 2026-10-27, was 71.91%) in the spelling of the byte-matched
+// twin func_00118418: typed Voice / Seq / Song records, the voice table indexed
+// directly in a for (i < 48) loop with continue guards, the event data byte re-formed
+// from seq->f08 + D_00281AC0.p14 at each use. The original reads f00 and f3A through a
+// walking element pointer (its own register, advanced by 0x6A) and the other fields
+// through the base plus a byte offset, so a pointer v is walked beside i (reading f04
+// through v as well scores higher here, 80.17 vs 78.61).
+// The divisor is a literal 48000: ee-gcc keeps the constant in a saved register and
+// emits a real divide with its zero-trap guard (the old note that the trap proves a
+// variable divisor was wrong; literal and variable compile identically).
+// Remaining differences: ee-gcc keeps i * 0x6A as a runtime multiply instead of the
+// original's strength-reduced byte-offset register, which shifts the saved-register
+// assignment and the frame (0x70 vs 0x80); no source spelling tried (all-indexed,
+// pointer-only, element pointer per iteration, unsigned i, result local, operand order)
+// reproduces the original's offset induction variable.
+//
+// Sequencer event with a 2-byte payload: copy payload[1] into byte 0xA of the song's
+// p0C block; for every voice with f04 == (seq->f00 & 0xF), f22 == seq->f24,
+// f06 == seq->f18, f1A == 1 and f00 == 1: store payload[1] in f38 and call
+// func_001157F0(6, i, func_00117918(f40, f02, f36, p0C[0xA], f3A) * 44100 / 48000, 0).
+// Then advance seq->f08 by 2.
 
-extern unsigned char D_00281AC0[];
-extern unsigned char D_0027CCC0[];
+typedef struct {                /* 0x6A */
+    unsigned short f00;         /* 0x00 */
+    unsigned short f02;         /* 0x02 */
+    unsigned short f04;         /* 0x04 */
+    unsigned short f06;         /* 0x06 */
+    unsigned char pad08[0x1A - 0x08];
+    unsigned short f1A;         /* 0x1A */
+    unsigned char pad1C[0x22 - 0x1C];
+    unsigned short f22;         /* 0x22 */
+    unsigned char pad24[0x36 - 0x24];
+    short f36;                  /* 0x36 */
+    unsigned short f38;         /* 0x38 */
+    unsigned short f3A;         /* 0x3A */
+    unsigned char pad3C[0x40 - 0x3C];
+    unsigned short f40;         /* 0x40 */
+    unsigned char pad42[0x6A - 0x42];
+} Voice;
+
+typedef struct {
+    unsigned char f00;          /* 0x00 */
+    unsigned char pad01[0x08 - 0x01];
+    int f08;                    /* 0x08 */
+    unsigned char pad0C[0x18 - 0x0C];
+    int f18;                    /* 0x18 */
+    unsigned char pad1C[0x24 - 0x1C];
+    unsigned short f24;         /* 0x24 */
+} Seq;
+
+typedef struct {
+    int f00;                    /* 0x00 */
+    int f04;                    /* 0x04 */
+    int f08;                    /* 0x08 */
+    unsigned char *p0C;         /* 0x0C */
+    int f10;                    /* 0x10 */
+    unsigned char *p14;         /* 0x14 */
+} Song;
+
+extern Voice D_0027CCC0[48];
+extern Song D_00281AC0;
 
 extern int func_00117918(int a0, int a1, int a2, int a3, int a4);
 extern int func_001157F0(int a0, int a1, int a2, int a3);
-
-void func_00118CF8(unsigned char *ev)
+void func_00118CF8(Seq *seq)
 {
-    unsigned char *snd = D_00281AC0;
-    unsigned char *tbl = D_0027CCC0;
-    int rate = 48000;
-    int idx;
+    Voice *v = D_0027CCC0;
     int i;
-    int v;
+    int r;
 
-    *(unsigned char *)(*(int *)(snd + 0xC) + 0xA) =
-        *(unsigned char *)(*(int *)(ev + 8) + *(int *)(snd + 0x14) + 1);
-
-    for (i = 0; i < 0x30; i++) {
-        idx = i * 0x6A;
-        if (*(unsigned short *)(tbl + idx + 4) != (*(unsigned char *)ev & 0xF))
+    D_00281AC0.p0C[0xA] = D_00281AC0.p14[seq->f08 + 1];
+    for (i = 0; i < 48; i++, v++) {
+        if (v->f04 != (seq->f00 & 0xF))
             continue;
-        if (*(unsigned short *)(tbl + idx + 0x22) != *(unsigned short *)(ev + 0x24))
+        if (D_0027CCC0[i].f22 != seq->f24)
             continue;
-        if (*(unsigned short *)(tbl + idx + 6) != *(int *)(ev + 0x18))
+        if (D_0027CCC0[i].f06 != seq->f18)
             continue;
-        if (*(unsigned short *)(tbl + idx + 0x1A) != 1)
+        if (D_0027CCC0[i].f1A != 1)
             continue;
-        if (*(unsigned short *)(tbl + idx + 0) != 1)
+        if (v->f00 != 1)
             continue;
-
-        *(unsigned short *)(tbl + idx + 0x38) =
-            *(unsigned char *)(*(int *)(ev + 8) + *(int *)(snd + 0x14) + 1);
-
-        v = func_00117918(*(unsigned short *)(tbl + idx + 0x40),
-                          *(unsigned short *)(tbl + idx + 2),
-                          *(short *)(tbl + idx + 0x36),
-                          *(unsigned char *)(*(int *)(snd + 0xC) + 0xA),
-                          *(unsigned short *)(tbl + idx + 0x3A));
-
-        func_001157F0(6, i, v * 44100 / rate, 0);
+        D_0027CCC0[i].f38 = D_00281AC0.p14[seq->f08 + 1];
+        r = func_00117918(D_0027CCC0[i].f40, D_0027CCC0[i].f02, D_0027CCC0[i].f36,
+                          D_00281AC0.p0C[0xA], v->f3A);
+        func_001157F0(6, i, r * 44100 / 48000, 0);
     }
-
-    *(int *)(ev + 8) = *(int *)(ev + 8) + 2;
+    seq->f08 += 2;
 }

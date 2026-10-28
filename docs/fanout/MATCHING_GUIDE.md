@@ -634,3 +634,25 @@ bitfields cleared through a temporary copy), func_001F3FA0 (a large offset
 symbol is a struct field offset inside D_0028F700). Improved and parked:
 func_00228320 81.51 (mwcc copies the 12-byte template through a float register
 where the original uses integer loads).
+
+### Queue batch 31 (2026-10-27)
+
+12 byte-matched. SDK low range: func_00110368 (libkernel IOP reset in the SDK's
+shape; the packet is an extern 64-byte-aligned struct with psize/dsize
+bitfields; sceSifGetReg takes and returns unsigned int), func_00111950 (void
+return, so the last DeleteSema is a tail jump; volatile state words;
+`// EEGCC_AS: 2.96`), func_00107098 (the old C stored a bogus address on the
+inverted condition), func_00102468 and func_001021B0 (libdma waits in the shape
+of func_00102530). Others: func_001C1F50 (all four level-key tests are
+switches), func_001D21E0 (hardware registers as CodeWarrior bitfield structs, as
+in func_001AB590), func_00117CB0 (sound: typed Seq/Tempo records),
+func_00182BF0 (grouped OR bail-outs in the original's order), func_001C5930
+(three switches; the area-5 name draw passes D_00265520), func_001176E0 (the
+exact and partial voice masks are separate), and func_0011CE20 again: its
+fdlibm constants are now macros, so it compiles to code only and routes as
+ordinary C. Improved and parked: func_001DB9D0 96.08 (the start vector's sine
+and cosine were swapped), func_00208750 99.81, func_00118CF8 80.17 (strength
+reduction of the record stride), func_001DFA40 98.55 and func_001DF600 99.92
+(both matched in batch 32), func_001DF180 81.46, func_00101CD0 91.34 (libdma
+sceDmaPutEnv; a 100% spelling needs register reads into locals that are never
+read and is held back).

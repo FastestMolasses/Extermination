@@ -143,7 +143,7 @@ GPREL_FORCE_ASM = {
     # objdiff 100); the compiled objects link (audit_link_provenance).
     "bone_root_pulse",  # was func_001C06E0
     "func_001D1C50",
-    "func_001D21E0",
+    # func_001D21E0 removed (matching wave 2026-10-27): byte-matched from C.
     "func_001D2300",
     # func_001D8690 removed (matching wave 2026-10-27): byte-matched from C.
     "func_001D89D0",

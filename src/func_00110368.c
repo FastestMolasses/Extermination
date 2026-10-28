@@ -1,58 +1,81 @@
-// NEARMISS func_00110368  (vram 0x00110368, 0x130 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 71.57% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc global-address %hi-caching / coloring wall (+ loop branch-likely shape). Body fully decoded and correct (sceSifStopDma(); r=sceSifGetReg(0x80000000); D_00279680+0x14=arg1; strcpy arg0 -> D_00279680+0x18 counting len; set +0x4=0,+0x10=len,+0x8=0x80000003, mask qword &0xFFFFFFFF000000FF, byte0=0x68; build stack {base,r,0x...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 71.57% NEARMISS).
+// Fixes read from the original instructions:
+//  - The routine is the libkernel IOP reset (sceSifResetIop shape): the packet at
+//    D_00279680 is a static, 64-byte-aligned SIF reset command (16-byte command
+//    header with psize:8/dsize:24 bitfields, then arglen, mode and an 80-byte
+//    argument string). The alignment makes gcc clear the dsize bitfield with a
+//    64-bit read-modify-write, as the original does; the DMA descriptor is a typed
+//    record {src, dest, size, attr} on the stack.
+//  - sceSifGetReg takes an unsigned int register number and returns unsigned int;
+//    with a plain int parameter gcc put the argument load into the call's delay
+//    slot, which shifted the 8-byte-aligned copy loop (the old "hi-caching /
+//    coloring wall" was this prototype plus byte-offset access).
+//
+// IOP reset: stops SIF DMA, reads the IOP's receive address (SIF register
+// 0x80000000), stores mode, copies arg (without its terminator) into the packet
+// counting its length, fills the header (dest 0, dsize 0, psize 0x68, command id
+// 0x80000003), writes the packet back from the data cache (func_0010DFD8) and
+// queues it with sceSifSetDma (attr 0x44). If the transfer was queued (non-zero id) it
+// writes 0x10000 and then 0x20000 to SIF register 4 (the SM flag register), zeroes
+// registers 0x80000002 and 0x80000000, and returns 1; otherwise returns 0.
+
+typedef struct {
+    unsigned int psize:8;
+    unsigned int dsize:24;
+    unsigned int dest;
+    int cid;
+    unsigned int opt;
+} SifCmdHeader;
+
+typedef struct {
+    SifCmdHeader header;
+    int arglen;
+    int mode;
+    char arg[80];
+} SifResetPkt;
+
+typedef struct {
+    void *src;
+    void *dest;
+    int size;
+    int attr;
+} SifDmaTransfer;
 
 extern int sceSifStopDma(void);
-extern int sceSifGetReg(int a);
+extern unsigned int sceSifGetReg(unsigned int a);
 extern void func_0010DFD8(void *addr, int size);
 extern int sceSifSetDma(void *p, int n);
 extern int sceSifSetReg(int a, int b);
 
-extern unsigned char D_00279680[];
+extern SifResetPkt D_00279680 __attribute__((aligned(64)));
 
-int func_00110368(char *arg0, int arg1)
+int func_00110368(char *arg, int mode)
 {
-    int local[4];
-    unsigned char *base;
-    int count;
-    int r;
+    SifDmaTransfer dmat;
+    int arglen;
+    unsigned int r;
 
     sceSifStopDma();
     r = sceSifGetReg(0x80000000);
+    D_00279680.mode = mode;
+    for (arglen = 0; arg[arglen] != 0; arglen++)
+        D_00279680.arg[arglen] = arg[arglen];
+    D_00279680.header.dest = 0;
+    D_00279680.arglen = arglen;
+    D_00279680.header.cid = 0x80000003;
+    D_00279680.header.dsize = 0;
+    D_00279680.header.psize = sizeof D_00279680;
 
-    base = D_00279680;
-    *(int *)(base + 0x14) = arg1;
+    dmat.src = &D_00279680;
+    dmat.dest = (void *)r;
+    dmat.size = sizeof D_00279680;
+    dmat.attr = 0x44;
+    func_0010DFD8(&D_00279680, sizeof D_00279680);
 
-    count = 0;
-    if (arg0[count] != 0) {
-        do {
-            base[0x18 + count] = (unsigned char)arg0[count];
-            count++;
-        } while (arg0[count] != 0);
-    }
-
-    *(int *)(base + 0x4) = 0;
-    *(int *)(base + 0x10) = count;
-    *(int *)(base + 0x8) = 0x80000003;
-    *(long *)base = *(long *)base & 0xFFFFFFFF000000FFL;
-    base[0] = 0x68;
-
-    local[0] = (int)base;
-    local[1] = r;
-    local[2] = 0x68;
-    local[3] = 0x44;
-    func_0010DFD8(base, 0x68);
-
-    if (sceSifSetDma(local, 1) != 0) {
+    if (sceSifSetDma(&dmat, 1) != 0) {
         sceSifSetReg(4, 0x10000);
         sceSifSetReg(4, 0x20000);
         sceSifSetReg(0x80000002, 0);
