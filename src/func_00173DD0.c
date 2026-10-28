@@ -16,7 +16,7 @@
 // func_00174AC0(self,2); the steer helper is func_001B12B0(goal,cur,rate)->yaw.
 typedef struct { float f[4]; } Rates;
 extern Rates D_002486F0;
-extern unsigned char func_00174AC0(char *p, int n);
+extern int func_00174AC0(char *p, int n);
 extern float func_001B12B0(float goal, float cur, float rate);
 
 void func_00173DD0(unsigned char *self) {

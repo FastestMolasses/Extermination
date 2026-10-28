@@ -1,7 +1,7 @@
 // Hybrid: branches/j as .word, jal with extern decls
 extern void func_00100610(int, int, int, int);
 
-asm void func_001006D8(void) {
+asm int func_001006D8(long long *env, short psm, short w, short h, short ztest, short zpsm) {
     addiu      $sp, $sp, -0x70
     sll        $a2, $a2, 16
     sd         $s2, 0x20($sp)

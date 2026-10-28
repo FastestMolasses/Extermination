@@ -1,7 +1,11 @@
-// Simple nonleaf asm void
-extern void sub__0000000000000000Inf(int, int, int, int);
+// Simple nonleaf asm function: newlib-shaped _printf_r(r, fmt, ...) -- spills the
+// variadic registers and hands (r, r->_stdout, fmt, ap) to the vfprintf core,
+// returning its int result.
+struct reent;
+struct file;
+extern int sub__0000000000000000Inf(struct reent *, struct file *, const char *, char *);
 
-asm void func_00122B18(void) {
+asm int func_00122B18(struct reent *r, const char *fmt, ...) {
     addiu      $sp, $sp, -0x80
     sd         $a2, 0x50($sp)
     sd         $a3, 0x58($sp)

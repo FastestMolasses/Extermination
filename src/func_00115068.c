@@ -9,7 +9,7 @@
 //    The old C walked a pointer down from D_0027B120 instead, which reordered the
 //    record store against the FlushCache argument setup.
 
-extern void func_00123418(char *dst, int a1, int a2);
+extern char *func_00123418(char *dst, int a1, int a2);
 extern int FlushCache(int ch);
 extern int func_0010E8A8(int a0,int a1,int a2,int a3,int t0,int t1,int t2,int t3,int s0);
 extern int D_00241D68;

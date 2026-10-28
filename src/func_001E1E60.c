@@ -28,7 +28,7 @@
 
 extern void func_001D1F80(int, int, int);
 extern void func_001D1FF0(int, int);
-extern void func_001D6F60(int, long, int);
+extern void *func_001D6F60(int, long, int);
 extern int func_00128250(float);
 extern void func_001D7080(int, int, float);
 extern void func_00102798(void *, void *);

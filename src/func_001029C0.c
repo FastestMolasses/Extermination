@@ -1,6 +1,6 @@
 // EE asm-void: leaf uses EE/COP2/VU instructions; reproduced verbatim
 // (mwccmips accepts Sony's syntax directly).
-asm void func_001029C0(void) {
+asm void func_001029C0(float *m) {
     vsub.xyzw $vf4, $vf0, $vf0
     vadd.w $vf4, $vf4, $vf0
     vmr32.xyzw $vf5, $vf4

@@ -32,7 +32,7 @@ struct g {
 };
 extern struct g D_00281AC0;
 
-unsigned char func_00117BA0(int a0, int a1) {
+int func_00117BA0(int a0, int a1) {
     unsigned char v0;
     unsigned char v1;
 

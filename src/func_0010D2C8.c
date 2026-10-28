@@ -1,15 +1,17 @@
 // NEARMISS func_0010D2C8  (vram 0x0010D2C8, 0x5C8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 88.01% via ee-gcc 2.9-991111-01 (-O2) (was 81.71%). Wave 2026-10-27 fixes read from
-// the original instructions: the format pointer is ONE variable advanced by the loops'
-// increments (outer `p++`, inner `for (;;) { p++; switch (*p) ... }`), with a separate
-// buffer pointer `s`; one 64-bit value variable shared by every conversion; the second
-// width digit is read before the first digit is tested; func_00128350 returns a double
-// (__extendsfdf2) and func_0010D160 takes it; 64-bit div/mod are explicit helper calls.
+// objdiff 89.23% via ee-gcc 2.9-991111-01 (-O2) (was 88.01%; 81.71% before 2026-10-27). Wave
+// 2026-10-27 fixes read from the original instructions: the format pointer is ONE variable
+// advanced by the loops' increments (outer `p++`, inner `for (;;) { p++; switch (*p) ... }`),
+// with a separate buffer pointer `s`; one 64-bit value variable shared by every conversion;
+// the second width digit is read before the first digit is tested; func_00128350 returns a
+// double (__extendsfdf2) and func_0010D160 takes it; 64-bit div/mod are explicit helper calls.
+// Wave 2026-10-28: the hex digit store is an if/else with one store per arm (not a ternary).
 // Remaining differences: saved-register swap (the original keeps the buffer pointer in the
-// outer pointer's register and the value in the next one; declaration order does not move
-// it), a temporary copy in the 's' case, one temp-register choice in the width parse, and
-// the .text is 8 bytes short.
+// outer pointer's register and the value in the next one; declaration order and a separate
+// outer/inner pointer pair do not move it), the 'e'/'f' zero test lays out the '0' branch
+// first, the 's' case tests the string in a temporary before copying it to the buffer
+// pointer, one temp-register choice in the width parse, and the .text is 8 bytes short.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -140,7 +142,11 @@ void func_0010D2C8(char *p, char *ap)
                         while (uv != 0) {
                             unsigned long long d = uv & 0xF;
 
-                            *--s = (d < 10) ? (d + '0') : (d + 0x57);
+                            if (d < 10) {
+                                *--s = d + '0';
+                            } else {
+                                *--s = d + 0x57;
+                            }
                             uv >>= 4;
                         }
                     }

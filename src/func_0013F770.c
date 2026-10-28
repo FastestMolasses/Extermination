@@ -52,7 +52,7 @@ extern float func_001B1240(void *p, float x, float z);
 extern float func_001B12B0(float goal, float cur, float rate);
 extern float func_001B1470(float a);
 extern void func_001B2B10(void *self, void *a, void *b);
-extern int func_001B3390(void *self, void *a, void *b, float f);
+extern int func_001B3390(float f, void *self, void *a, void *b);
 extern void func_001E8B90(void *p, float f);
 extern void func_001EFD90(int a, void *b, void *c);
 extern void func_001FBD50(char *self, int a, int b, float f);
@@ -141,7 +141,7 @@ void func_0013F770(char *self, char *ctx) {
             D_700038B0[3] = 1.0f;
             func_001B2B10(self, D_700038B0, D_700038B0);
             func_001028B8(D_700038B0, D_700038B0, D_700038A0);
-            if (func_001B3390(self, D_700038A0, D_700038B0, 0.7853982f)) {
+            if (func_001B3390(0.7853982f, self, D_700038A0, D_700038B0)) {
                 *(float *)(ctx + 0x4C) = 0.0f;
             }
         }
@@ -320,7 +320,7 @@ void func_0013F770(char *self, char *ctx) {
             func_001B2B10(self, D_700038B0, D_700038B0);
             func_001028B8(D_700038A0, self + 0xB0, D_700038A0);
             func_001028B8(D_700038B0, self + 0xB0, D_700038B0);
-            if (func_001B3390(self, D_700038A0, D_700038B0, 0.7853982f)) {
+            if (func_001B3390(0.7853982f, self, D_700038A0, D_700038B0)) {
                 *(float *)(ctx + 0x4C) = 0.0f;
             }
         }

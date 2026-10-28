@@ -21,7 +21,7 @@
 // once 0x3C <= 46.0, advances and kicks func_001FBD50(...,300.0). State 3:
 // when the 0x1000 flag is set, transitions (5=0x17, 6=0, 0x1F0=0x2A).
 extern float func_001B12B0(float goal, float cur, float rate);
-extern void func_001749A0(char *e, int clip, int flags, float blend);
+extern int func_001749A0(char *e, int clip, int flags, float blend);
 extern void func_00182870(char *e, int f);
 extern int func_0016BB80(char *e);
 extern void func_0016BAE0(unsigned char *a, unsigned char b);

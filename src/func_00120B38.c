@@ -1,16 +1,18 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
-// SDK wrapper: clear D_008234E0, call func_0010BE60; on failure stash error code.
+// newlib _lseek_r: clear errno (D_008234E0), call the _lseek syscall wrapper
+// func_0010BE60; if it fails (-1) with errno set, store errno into the reent
+// block's first word (_errno). Returns the 64-bit offset (_off_t is long).
 extern int D_008234E0;
-extern int func_0010BE60(int a0, int a1, int a2);
+extern long func_0010BE60(int fd, long pos, int whence);
 
-int func_00120B38(int *out, int a0, int a1, int a2) {
-    int r;
+long func_00120B38(int *ptr, int fd, long pos, int whence) {
+    long r;
     D_008234E0 = 0;
-    r = func_0010BE60(a0, a1, a2);
+    r = func_0010BE60(fd, pos, whence);
     if (r == -1) {
         if (D_008234E0 != 0) {
-            *out = D_008234E0;
+            *ptr = D_008234E0;
         }
     }
     return r;

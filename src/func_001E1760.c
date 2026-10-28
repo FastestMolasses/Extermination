@@ -3,7 +3,7 @@
 extern void func_001D6E60(int, int, int, int);
 extern void func_001D1F80(int, int, int);
 extern void func_001D1FF0(int, int);
-extern void func_001D6F60(int, long long, int);
+extern void *func_001D6F60(int, long long, int);
 extern void func_001E10A0(void);
 extern void func_001E13E0(int);
 extern void func_001D1F20(int);

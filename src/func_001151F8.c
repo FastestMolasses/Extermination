@@ -4,7 +4,7 @@ extern int D_00241D68;
 extern int D_0027B0C0[];
 extern int D_0027B170[];
 extern char D_0027C680[];
-extern void func_00123418(void *p, int v, int n);
+extern char *func_00123418(void *p, int v, int n);
 extern int func_0010E8A8(void *a, int b, int c, void *d, int e, void *f, int g, int h, int i);
 
 int func_001151F8(int a0, int a1, int a2) {

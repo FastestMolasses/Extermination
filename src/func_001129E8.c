@@ -29,9 +29,9 @@ extern volatile int D_00241D08;
 extern int func_00112088(void);
 extern int func_00111F18(int a0);
 extern void func_0010DFD8(void *p, int size);
-extern int func_0010E8A8(void *cd, int fno, int mode, void *send, int ssize, void *recv, int rsize, void (*end)(void), void *arg);
+extern int func_0010E8A8(void *cd, int fno, int mode, void *send, int ssize, void *recv, int rsize, void (*end)(int *), void *arg);
 extern int SignalSema(int sema);
-extern void func_001115D0(void);
+extern void func_001115D0(int *p);
 
 int func_001129E8(int a0) {
     if (func_00112088() == 6) {

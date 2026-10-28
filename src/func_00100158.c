@@ -1,7 +1,7 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
 extern void *func_00100268(void);
-extern unsigned int GsPutIMR(int a);
+extern unsigned long GsPutIMR(unsigned long imr);
 extern void func_0010C290(int a);
 extern void RemoveIntcHandler(int a, int b);
 extern void SetGsCrt(int a, int b, int c);

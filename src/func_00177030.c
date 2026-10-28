@@ -34,7 +34,7 @@ extern float func_0011E748(float x);
 extern void func_00199DB0(void *out);
 extern void func_001026A0(void *out, void *a, void *b);
 extern float func_00102738(void *a, void *b);
-extern void func_00102760(void *out, void *a, void *b);
+extern void func_00102760(void *dst, void *src);
 
 extern float D_70003A20;
 extern float D_70003A24;
@@ -102,7 +102,7 @@ int func_00177030(char *arg0, int arg1) {
         *(int *)0x700038B4 = 0;
         *(float *)0x700038B8 = *(float *)((char *)p2 + 0x3C);
         *(int *)0x700038BC = 0x3F800000;
-        func_00102760(D_700038B0, D_700038B0, p2);
+        func_00102760(D_700038B0, D_700038B0);
         *(int *)0x700038C0 = 0;
         *(int *)0x700038C4 = 0;
         *(int *)0x700038C8 = 0x3F800000;

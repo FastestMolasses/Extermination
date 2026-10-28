@@ -7,7 +7,7 @@
 //   read stays live in the return register to the end. The companion returned void, which
 //   recoloured the scaled channel index, the GIF constant and that first pointer.
 // - Written in func_001D7000's spelling (DmaTag / VifLists, the CUR() cursor macro).
-// Callers in src/ declare it void and ignore the result; that is harmless.
+// Callers ignore the result (they declare it as returning void *).
 //
 // Appends a texture switch to packet channel ch of the render context
 // (D_00275670 + 0x10 + ch * 4 is the channel's cursor): a DMA cnt tag (id

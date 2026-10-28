@@ -20,7 +20,7 @@
 // with that block as both send and receive buffer; an RPC failure returns 0xFFFEFFFF.
 extern int func_0010FAD0(void);
 extern int sub__9PsIIlibkernl2000_4(void);
-extern void func_00123418(char *dst, char *src, int n);
+extern char *func_00123418(char *dst, char *src, int n);
 extern int func_0010E8A8(char *bd, int fno, int mode, void *send, int ssize, void *recv,
                          int rsize, int end, int end_param);
 

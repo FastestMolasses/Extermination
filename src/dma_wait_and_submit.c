@@ -34,6 +34,9 @@
 //                  0x08 VU0   VPU_STAT (COP2 ctrl 29) VBS1
 //                  0x10 VIF1  STAT FQC/FDR (0xC00 of 0x10003020)
 //
+//   timeout    : every caller passes a second argument (0); the body never
+//                reads it.
+//
 
 extern int func_00122B58(const char *fmt, ...);
 
@@ -66,7 +69,7 @@ extern const char D_0026B020[];
     func_00122B58(D_0026AF80, *(volatile unsigned int *)0x10003020); \
     return -1
 
-int dma_wait_and_submit(int query) {
+int dma_wait_and_submit(int query, int timeout) {
     unsigned int n;
     unsigned int stat;
     int busy;

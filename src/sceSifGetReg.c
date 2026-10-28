@@ -3,6 +3,6 @@
 // (if any) flows back in $v0 from the syscall handler. Match: inline
 // asm yields the canonical 4-instruction stub at -O4,p.
 // 0x0010BC30: EE syscall 122 (0x7A); name per ps2sdk syscallnr.h; label corrected 2026-09-27.
-void sceSifGetReg(void) {
+unsigned int sceSifGetReg(unsigned int reg) {
     asm { addiu $v1, $zero, 122; syscall 0; };
 }

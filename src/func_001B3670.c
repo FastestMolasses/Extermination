@@ -1,7 +1,7 @@
 // Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00102738(int, int, int, int);
-extern void func_00102760(int, int, int, int);
-extern void func_001028B8(int, int, int, int);
+extern float func_00102738(float *, float *);
+extern void func_00102760(void *, void *);
+extern void func_001028B8(float *, float *, float *);
 extern void func_00102948(int, int, int, int);
 extern void func_0011E420(int, int, int, int);
 extern void func_001B1380(int, int, int, int);

@@ -10,7 +10,7 @@ struct s_b0c0
 extern struct s_b0c0 D_0027B0C0;
 extern char D_0027B184[];
 extern int D_0027C680;
-extern unsigned char func_00123418(char *, int, int);
+extern char *func_00123418(char *, int, int);
 extern int func_0010E8A8(struct s_b0c0 *, int, int, char *, int, int *, int, int, int);
 int func_00114DA8(int a0, int a1, int a2)
 {

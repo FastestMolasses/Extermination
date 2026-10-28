@@ -30,8 +30,8 @@
 // Matching keys: (1) the 6/7 suppression test must be written as
 // `if (st == 7) goto zeroarg; if (st == 6) { zeroarg: arg1 = 0; } else {...}`
 // - the goto-into-the-then-block is what makes mwcc emit the target's
-// `beql st,7` (arg1=0 peeled into the delay slot, target +4) followed by an
-// inverted `bne st,6` that falls through into the shared block. An if/else-if
+// branch-likely test of st == 7 (arg1=0 peeled into the delay slot, target +4)
+// followed by an inverted st != 6 test that falls through into the shared block. An if/else-if
 // chain duplicates the block and its exit branch; `st == 7 || st == 6`
 // collapses into a `sltiu` range test; a `switch` gets the beql but emits
 // `beq` + `b default` instead of the inverted fall-through.
@@ -47,7 +47,7 @@ extern unsigned char D_00810E57;
 extern unsigned char D_00810E64;
 extern unsigned char D_00810E65;
 
-unsigned char func_00174AC0(char *arg0, int arg1) {
+int func_00174AC0(char *arg0, int arg1) {
     int st;
     float ang;
     float f64, f65;

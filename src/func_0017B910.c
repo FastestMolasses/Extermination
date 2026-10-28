@@ -11,8 +11,11 @@
 //  - the clip limit is read once into a local for the compare and the cur - lim
 //    store; the 0x70003A20 subtraction re-reads the table.
 //  - the distance squares are read back through the scratchpad words, not locals.
-//  - func_0017B490's result is sign-extended from 64 bits by the caller (declared
-//    long long here), and func_001C61D0's second argument is a short.
+//  - func_0017B490's result is re-sign-extended to 16 bits by this caller before
+//    it is passed on as a short, so the caller saw a plain int return (declared
+//    int here; the definition returns short and a short prototype drops the
+//    re-extension), and func_001C61D0's second argument is a short here (its
+//    definition takes int and re-extends it; an int prototype here scores 99.95%).
 //
 // Per-frame animation advance for an entity. Runs anim_eval_skeleton first.
 // When the entity's 0x236 'busy' byte is 0 it advances the active clip: samples
@@ -35,7 +38,7 @@ extern void func_001029C0(float *);
 extern void func_00102C58(float *, float *, char *);
 extern float func_0011E748(float);
 extern int func_001749A0(char *, short, int, float);
-extern long long func_0017B490(char *, int, int, int);
+extern int func_0017B490(char *, int, int, int);
 extern int func_001C61D0(int, short);
 extern float D_0024875C[][2];
 extern char *D_00275B40;

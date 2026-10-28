@@ -23,7 +23,7 @@
 // dimensions (1 << arg2, 1 << arg3); the low 9 bits of the first halfword are
 // then replaced with arg1 >> 13. Returns the body pointer (cursor + 0x10).
 extern char **D_00275670;
-extern void func_001006D8(char *, short, short, short, short, short);
+extern int func_001006D8(char *, short, short, short, short, short);
 
 typedef struct {
     unsigned short lo : 9;

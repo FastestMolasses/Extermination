@@ -1,6 +1,6 @@
 // Hybrid asm void: real mnemonics where mwcc accepts them,
 // .word for branch instructions (mwcc rejects PC-relative labels).
-extern void SetVSyncFlag(int, int, int, int);
+extern void SetVSyncFlag(int *flag, unsigned long long *data);
 
 asm void func_0010BCD0(void) {
     addiu $sp, $sp, -0x20

@@ -18,7 +18,7 @@ extern int func_0019A310(int a0);
 extern int func_001028B8(int a0, int a1, int a2);
 extern int D_700031C0;
 
-int func_001B3440(int a0, int *a1, int *a2, float f) {
+int func_001B3440(float f, int a0, int *a1, int *a2) {
     int r;
     float t;
 

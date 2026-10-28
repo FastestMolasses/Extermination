@@ -1,9 +1,9 @@
 // All-word: everything as .word except jal/j-external
 extern void func_00205810(int, int, int, int);
-extern void func_00205990(int, int, int, int);
-extern void func_00205A00(int, int, int, int);
-extern void func_00205A80(int, int, int, int);
-extern void func_00205A90(int, int, int, int);
+extern long long *func_00205990(long long *, unsigned int, int, unsigned int, unsigned int, unsigned int, unsigned int);
+extern int *func_00205A00(int *, unsigned long long, int, int, int, int, int, int);
+extern int *func_00205A80(int *);
+extern int *func_00205A90(int *, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
 extern void func_00205B00(int, int, int, int);
 extern void func_00205EA0(int, int, int, int);
 extern void func_00205EE0(int, int, int, int);

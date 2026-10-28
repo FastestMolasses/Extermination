@@ -2,7 +2,7 @@
 extern void func_00229A00(int, int, int, int);
 extern void func_00229A70(int, int, int, int);
 
-asm void func_00229C00(void) {
+asm int func_00229C00(unsigned char *arg0) {
     addiu      $sp, $sp, -0x20
     .word 0x7fbf0010
     .word 0x7fb00000

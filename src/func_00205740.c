@@ -13,7 +13,7 @@
 // (0x1000A000/A010/A020), and submits via dma_wait_and_submit.
 extern int *func_00205A00(int *dst, unsigned long long a, int b, int c, int d, int e, int f, int g);
 extern void func_002058D0(int a0, int *a1, unsigned int a2);
-extern void dma_wait_and_submit(int a0, int a1);
+extern int dma_wait_and_submit(int query, int timeout);
 extern char D_008211C0[];
 
 void func_00205740(char *arg0, unsigned int arg1) {

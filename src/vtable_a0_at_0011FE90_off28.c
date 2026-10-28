@@ -1,6 +1,6 @@
 // Hybrid asm void: real mnemonics where mwcc accepts them,
 // .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_00120B38(int, int, int, int);
+extern long func_00120B38(int *ptr, int fd, long pos, int whence);
 
 asm void vtable_a0_at_0011FE90_off28(void) {
     addiu $sp, $sp, -0x20

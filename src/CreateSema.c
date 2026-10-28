@@ -3,6 +3,6 @@
 // (if any) flows back in $v0 from the syscall handler. Match: inline
 // asm yields the canonical 4-instruction stub at -O4,p.
 // 0x0010B820: EE syscall 64 (0x40); name per ps2sdk syscallnr.h.
-void CreateSema(void) {
+int CreateSema(void *sema) {
     asm { addiu $v1, $zero, 64; syscall 0; };
 }

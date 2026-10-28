@@ -23,7 +23,8 @@
 //   to the current packet-buffer tail; each write advances it).
 //   slot = display-list channel, idx = the actor's material/skin variant
 //   (0..6), obj = the actor draw block (obj+0x8C = its kind), src = the
-//   transform/colour block.
+//   transform/colour block. Both callers (func_001E5AC0, func_001E67C0) pass a
+//   fifth argument (1) that this function never reads.
 //   The (kind, idx) pair selects a texture/CLUT base `tbl` and a light-set
 //   index `sel`: kind 1 uses one table, kinds 2/3/4 another (both 7-entry
 //   jump tables; other kinds leave both unset, as in the original).
@@ -56,7 +57,7 @@ extern char D_70003AC0[];
 
 extern int func_001CB9B0(int kind);
 
-void func_001CFFE0(int slot, unsigned int idx, char *obj, char *src)
+void func_001CFFE0(int slot, unsigned int idx, char *obj, char *src, int unused)
 {
     int sel;
     char *tbl;

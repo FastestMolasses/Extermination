@@ -6,7 +6,7 @@ extern void func_001028D0(char *, char *, char *);
 extern float func_00102738(char *, char *);
 extern float func_0011E748(float);
 
-int func_00193660(void) {
+int func_00193660(char *arg0, char *arg1) {
     float r;
     func_001028D0(D_700038A0, D_008105E0, D_008105D0);
     r = func_0011E748(func_00102738(D_700038A0, D_700038A0));

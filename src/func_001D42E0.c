@@ -12,7 +12,7 @@
 
 extern void vif_append_ref_tag(int ch, void *p);
 extern void func_001D1F80(int a, int b, int c);
-extern void func_001D6F60(int a, long long b, int c);
+extern void *func_001D6F60(int a, long long b, int c);
 extern void func_001D1FF0(int a, int b);
 extern int func_001D2910(int a);
 extern char D_0023D4D0[];

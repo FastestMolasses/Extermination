@@ -19,7 +19,7 @@
 // (0x80 x 0x80), writes a default clear packet at +0xA0 with func_001008C0,
 // then sets the low 9 bits of the first A+D word to 0x12C.
 
-extern void func_001006D8(char *, short, short, short, short, short);
+extern int func_001006D8(char *, short, short, short, short, short);
 extern int func_001008C0(void *, short, short, short, short, short,
                          unsigned char, unsigned char, unsigned char, unsigned char, unsigned int);
 

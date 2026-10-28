@@ -11,16 +11,16 @@ extern void func_001026A0(void *, void *, void *);
 extern void func_001028B8(void *, void *, void *);
 extern void func_001028D0(void *, void *, void *);
 extern void func_00102760(void *, void *);
-extern int func_0021BE40(void *, int);
+extern int func_0021BE40(void *, char *);
 extern int func_0019AA80(void *, void *, int);
 extern int func_0019A570(void *, void *, int, int);
 extern void func_001EFD90(int, void *, void *);
-extern void func_001E2BA0(void *, void *, int, float);
+extern void func_001E2BA0(void *, void *, const float *, float);
 extern int func_001F4F40(int);
 extern void copy_qw4(int, void *);
 extern short float_to_int(float);
 
-void func_001B3C30(int arg0, char *arg1, int arg2, float fparg0, float fparg1) {
+void func_001B3C30(char *arg0, char *arg1, float *arg2, float fparg0, float fparg1) {
     float sp70[4];
     float sp80[4];
     struct { float v[3]; int w; } sp90;

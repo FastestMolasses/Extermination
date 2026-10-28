@@ -910,3 +910,22 @@ func_0010BCD0 95.37.
 Improved: func_001E3D90 97.69, func_001CFFE0 97.97, func_0020F950 99.90,
 func_001F5F60 98.51 (two wrong-body fixes), func_0019C6F0 92.50,
 func_001CBC20 92.45, func_00119EA0 92.13; companion func_002047D0 97.55.
+
+
+### Queue batch 44 (2026-10-28)
+
+2 byte-matched: func_001063E8 (SDK: the register read through a constant
+address at each use, the guard compares and returns a local, the watchdog is a
+post-increment test), func_00146F80 (wrong body: a first move-probe hit always
+returns 1; the threshold is pi/4). Improved: func_0021A500 98.38 (the PRNG seed
+and the draw colour are separate), func_00205050 98.39, func_00117088 84.37,
+func_0010D2C8 89.23.
+Signature reconciliation: 82 files now declare and define functions the way
+the original calls them (returns that pass v0/f0 through, unused trailing
+parameters callers really pass, 64-bit `long` in newlib, SDK syscall stubs,
+float-first parameter order where callers need it). Every file was re-measured
+before and after with the same score. Kept for matching, commented in place:
+func_0017B490 returns short, func_001C61D0 keeps an int parameter,
+func_001FD6A0 / func_001FE480 keep 32-bit first parameters,
+func_001FECB0 / func_001FE9E0 keep an argument-less call declaration,
+func_001D5C80 keeps one parameter.

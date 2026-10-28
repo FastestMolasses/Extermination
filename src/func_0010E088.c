@@ -41,7 +41,7 @@ extern char D_002783C0[];
 
 extern void func_0010D9A0(void);
 extern void func_0010DCA8(int, void (*)(), void *);
-extern int  sceSifGetReg(int);
+extern unsigned int sceSifGetReg(unsigned int);
 extern void func_0010DE38(int, void *, int, int, int, int);
 extern int  func_0010D958(int);
 extern int  sceSifSetReg(int, int);
@@ -50,7 +50,7 @@ extern void func_0010E648();
 extern void func_0010E818();
 extern void func_0010E460();
 
-void func_0010E088(void)
+void func_0010E088(int mode)
 {
     Ctx *ctx;
     char *p;

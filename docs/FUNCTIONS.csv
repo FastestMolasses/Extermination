@@ -123,7 +123,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001060F8,func_001060F8,380,readable,1,lowmem
 0x00106278,func_00106278,316,readable,2,lowmem
 0x001063B8,func_001063B8,48,readable,6,lowmem
-0x001063E8,func_001063E8,164,nearmiss,7,lowmem
+0x001063E8,func_001063E8,164,readable,7,lowmem
 0x00106490,func_00106490,176,readable,3,lowmem
 0x00106540,func_00106540,436,readable,4,lowmem
 0x001066F8,func_001066F8,308,readable,5,lowmem
@@ -1058,7 +1058,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001469B0,func_001469B0,320,readable,2,entity_logic
 0x00146AF0,func_00146AF0,488,readable,1,entity_logic
 0x00146CE0,func_00146CE0,660,readable,2,entity_logic
-0x00146F80,func_00146F80,608,nearmiss,1,entity_logic
+0x00146F80,func_00146F80,608,readable,1,entity_logic
 0x001471E0,func_001471E0,428,readable,1,entity_logic
 0x00147390,func_00147390,528,readable,0,entity_logic
 0x001475A0,func_001475A0,348,readable,1,entity_logic

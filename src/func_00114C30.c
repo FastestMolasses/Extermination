@@ -22,7 +22,7 @@ struct req { int a; int b; int c; int d; char *buf; char name[0x400]; };
 extern struct req D_0027B170;
 extern char D_0027B680[];
 extern int D_0027C680;
-extern void func_00123418(char *, int, int);
+extern char *func_00123418(char *, int, int);
 extern void func_0010DFD8(char *, int);
 extern int func_00114BA8();
 extern int func_0010E8A8(struct s_b0c0 *, int, int, struct req *, int, int *, int, void *, int);

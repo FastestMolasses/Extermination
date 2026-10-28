@@ -22,7 +22,8 @@ extern char D_0026B528[];
 extern void func_0010A3A8(char *);
 extern int sub_Skip_to_the_next_picture(int);
 
-int sub_odd_number_of_field_pictures(int arg)
+/* Both callers pass a second argument (the channel's +4 word); the body never reads it. */
+int sub_odd_number_of_field_pictures(int arg, int arg1)
 {
     unsigned char *dst;
     int ret;

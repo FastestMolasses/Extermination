@@ -2,16 +2,18 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 // Keep f12 as the caller's blend and pass explicit source frame0 in f13.
 // The old no-float prototype omitted this real initialization argument.
-extern void anim_clip_init(int, int, float, float);
+// The clip id arrives as a full int: the body sign-extends it itself before
+// comparing it with the entity's current clip (+0x20C).
+extern void anim_clip_init(unsigned char *actor, int clip, float blend, float frame);
 
-int func_001749A0(int a0, short a1, int a2, float blend) {
-    if (a2 == 0) {
-        short v0 = *(short *)(a0 + 0x20C);
-        if ((short)a1 == v0) {
+int func_001749A0(unsigned char *e, int clip, int flags, float blend) {
+    if (flags == 0) {
+        short cur = *(short *)(e + 0x20C);
+        if ((short)clip == cur) {
             return 1;
         }
     }
-    *(short *)(a0 + 0x20C) = a1;
-    anim_clip_init(a0, *(short *)(a0 + 0x20C), blend, 0.0f);
+    *(short *)(e + 0x20C) = clip;
+    anim_clip_init(e, *(short *)(e + 0x20C), blend, 0.0f);
     return 0;
 }

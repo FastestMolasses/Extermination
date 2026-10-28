@@ -8,7 +8,7 @@ struct s_b0c0 {
 extern struct s_b0c0 D_0027B0C0;
 extern int D_0027B170;
 extern int D_0027C680;
-extern void func_00123418(int *, int, int);
+extern char *func_00123418(int *, int, int);
 extern void func_0010DFD8(int, int);
 extern int func_0010E8A8(struct s_b0c0 *, int, int, int *, int, int *, int, int, int);
 

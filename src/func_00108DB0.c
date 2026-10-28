@@ -16,7 +16,7 @@
 // bumped and the slot at the stop index is (re)written with the key, a3, t0 and
 // the table's high word for a1.
 
-extern long func_00108818(unsigned int idx, long arg);
+extern unsigned long func_00108818(unsigned int idx, int arg);
 
 struct tent { long lo; long hi; };
 extern struct tent D_00241238[];

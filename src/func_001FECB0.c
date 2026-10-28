@@ -19,7 +19,10 @@
 // returns 0 without flagging. Any other phase just flags D_00275C58 = 1 and
 // returns -1.
 
-extern int func_00114988(void);
+/* Defined as int func_00114988(int, int, int, int, int); the original call
+ * here sets none of the argument registers, so it is declared without a
+ * prototype and called with no arguments. */
+extern int func_00114988();
 extern int D_00275C58;
 extern int D_00275C5C;
 extern int D_00275C64;

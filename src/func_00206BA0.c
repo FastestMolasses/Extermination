@@ -2,10 +2,11 @@
 // CFLAGS: -O4,p -sdatathreshold 0
 // Builds a 0x20-byte argument struct on the stack from the incoming params
 // (two long long, then int = a3 - a0->0x48, then the 5th int arg), then tail-
-// calls func_00204D60(D_002DF788, &struct). mwcc 2.3.3 fills the jal delay slot
+// calls func_00204D60(D_002DF788, &struct), returning its int result (the
+// caller func_00203D30 tests it). mwcc 2.3.3 fills the jal delay slot
 // with the t0 store to sp+0x24 (matching the target); the pinned 991202 build instead
 // hoists the a0 = v0 copy into the delay slot, so it does not match.
-extern void func_00204D60(void *, void *);
+extern int func_00204D60(void *, void *);
 extern char D_002DF788[];
 
 typedef struct {
@@ -15,11 +16,11 @@ typedef struct {
     int d;
 } Args;
 
-void func_00206BA0(void *a0, long long a1, long long a2, int a3, int t0) {
+int func_00206BA0(void *a0, long long a1, long long a2, int a3, int t0) {
     Args s;
     s.a = a1;
     s.b = a2;
     s.c = a3 - *(int *)((char *)a0 + 0x48);
     s.d = t0;
-    func_00204D60(D_002DF788, &s);
+    return func_00204D60(D_002DF788, &s);
 }

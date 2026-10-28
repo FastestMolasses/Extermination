@@ -20,16 +20,16 @@
 // (D_700036A0, via func_001029C0 identity + func_00102BB0 y-axis rotate by arg0->0xC4),
 // seeds 4 fixed local-space direction vectors (0x700038A0/B0/C0/D0, +-3.0/-+3.0 XZ pairs)
 // via func_001026A0 (rotate) + func_001028B8 (translate by arg0+0xB0 world pos), then tests
-// each opposite pair with func_001B3390(arg0, dirA, dirB, 45deg) — an angle-between-vectors
+// each opposite pair with func_001B3390(45deg, arg0, dirA, dirB) — an angle-between-vectors
 // check — OR-ing bit 0 of arg1[0x80] if any pair reports true. Otherwise (arg1[0x48] >= 0)
 // walks 4 direction vectors from the global table D_00245900 (0x10-byte stride, entries
-// 1..4) through func_001B32F0(arg0, dir, 45deg) in a loop, same OR-bit-0 result.
+// 1..4) through func_001B32F0(45deg, arg0, dir) in a loop, same OR-bit-0 result.
 //
 // If bit 0 got set, ORs bit 0 into arg0's 0x52 halfword (a "seen/alerted" flag word).
 //
 // Second block: re-reads arg1[0x48] as the "phase" float f.
 //  f < 0: rebuilds the yaw matrix, seeds a 5-entry sweep from D_00245900 (stride 0x10,
-//    entries 0..4) through func_001B3440(arg0, dir, band, 45deg) (band = {0,-10,0,1} at
+//    entries 0..4) through func_001B3440(45deg, arg0, dir, band) (band = {0,-10,0,1} at
 //    0x700038B0..BC); on a hit, resets phase to 0.0f, ORs bit 1 into arg1[0x80], stops.
 //    If bit 1 is still clear and arg0[4]==1 (a "type" byte) and arg1[0x85] is 0 (an
 //    idle-cooldown gate), does a one-shot func_001B2F70(arg0+0xB0, scratch) line-of-sight
@@ -53,9 +53,9 @@ extern void func_001029C0(void *a0);
 extern void func_00102BB0(void *a0, void *a1, float f);
 extern void func_001026A0(void *a0, void *a1, void *a2);
 extern void func_001028B8(void *a0, void *a1, void *a2);
-extern int func_001B3390(void *a0, void *a1, void *a2, float f12);
-extern int func_001B32F0(void *a0, void *a1, float f12);
-extern int func_001B3440(void *a0, void *a1, void *a2, float f12);
+extern int func_001B3390(float f12, void *a0, void *a1, void *a2);
+extern int func_001B32F0(float f12, void *a0, void *a1);
+extern int func_001B3440(float f12, void *a0, void *a1, void *a2);
 extern int func_001B2F70(void *a0, void *a1);
 extern int func_0019B6C0(void *a0, void *a1);
 extern int func_00122BB8(void);
@@ -103,15 +103,15 @@ void func_00140F80(char *arg0, char *arg1)
         func_001028B8(D_700038B0, arg0 + 0xB0, D_700038B0);
         func_001028B8(D_700038C0, arg0 + 0xB0, D_700038C0);
         func_001028B8(D_700038D0, arg0 + 0xB0, D_700038D0);
-        if (func_001B3390(arg0, &D_700038A0, D_700038B0, 0.7853982f) != 0) {
+        if (func_001B3390(0.7853982f, arg0, &D_700038A0, D_700038B0) != 0) {
             *(char *)(arg1 + 0x80) = *(char *)(arg1 + 0x80) | 1;
-        } else if (func_001B3390(arg0, D_700038B0, &D_700038A0, 0.7853982f) != 0) {
+        } else if (func_001B3390(0.7853982f, arg0, D_700038B0, &D_700038A0) != 0) {
             *(char *)(arg1 + 0x80) = *(char *)(arg1 + 0x80) | 1;
         }
         if (*(char *)(arg1 + 0x80) == 0) {
-            if (func_001B3390(arg0, D_700038C0, D_700038D0, 0.7853982f) != 0) {
+            if (func_001B3390(0.7853982f, arg0, D_700038C0, D_700038D0) != 0) {
                 *(char *)(arg1 + 0x80) = *(char *)(arg1 + 0x80) | 1;
-            } else if (func_001B3390(arg0, D_700038D0, D_700038C0, 0.7853982f) != 0) {
+            } else if (func_001B3390(0.7853982f, arg0, D_700038D0, D_700038C0) != 0) {
                 *(char *)(arg1 + 0x80) = *(char *)(arg1 + 0x80) | 1;
             }
         }
@@ -122,7 +122,7 @@ void func_00140F80(char *arg0, char *arg1)
         do {
             func_001026A0(&D_700038A0, D_700036A0, D_00245900 + (i + 1) * 0x10);
             func_001028B8(&D_700038A0, arg0 + 0xB0, &D_700038A0);
-            if (func_001B32F0(arg0, &D_700038A0, 0.7853982f) != 0) {
+            if (func_001B32F0(0.7853982f, arg0, &D_700038A0) != 0) {
                 *(char *)(arg1 + 0x80) = *(char *)(arg1 + 0x80) | 1;
                 break;
             }
@@ -146,7 +146,7 @@ void func_00140F80(char *arg0, char *arg1)
         do {
             func_001026A0(&D_700038A0, D_700036A0, D_00245900 + i * 0x10);
             func_001028B8(&D_700038A0, arg0 + 0xB0, &D_700038A0);
-            if (func_001B3440(arg0, &D_700038A0, D_700038B0, 0.7853982f) != 0) {
+            if (func_001B3440(0.7853982f, arg0, &D_700038A0, D_700038B0) != 0) {
                 *(float *)(arg1 + 0x48) = 0.0f;
                 *(char *)(arg1 + 0x80) = *(char *)(arg1 + 0x80) | 2;
                 break;

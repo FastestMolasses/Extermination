@@ -22,7 +22,7 @@ extern void func_001026A0(void *a, void *b, void *c);
 extern void func_001028B8(void *a, void *b, void *c);
 extern float func_001B1240(void *p, float a, float b);
 extern float func_001B15D0(void *a, void *b);
-extern int func_001B3440(void *self, void *p, void *m, float a);
+extern int func_001B3440(float a, void *self, void *p, void *m);
 extern char D_700036A0[];
 extern char D_700038A0[];
 extern char D_700038B0[];
@@ -54,7 +54,7 @@ void func_001366E0(char *self, char *owner) {
         *(int *)0x700038A4 = 0xC1700000;
         *(int *)0x700038A8 = 0;
         *(int *)0x700038AC = 0x3F800000;
-        if (func_001B3440(self, self + 0xB0, D_700038A0, 0.7853981852531433f) != 0) {
+        if (func_001B3440(0.7853981852531433f, self, self + 0xB0, D_700038A0) != 0) {
             *(float *)(owner + 0x28) = 0.0f;
             owner[0x5A] = owner[0x5A] | 2;
         }

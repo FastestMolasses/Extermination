@@ -61,12 +61,12 @@
 
 extern void func_001B2B10(void *a, void *b, void *c);
 extern void func_001028B8(void *a, void *b, void *c);
-extern int func_001B32F0(char *a, void *b, float c);
+extern int func_001B32F0(float c, char *a, void *b);
 extern void func_001029C0(void *a);
 extern void func_00102BB0(void *a, void *b, float c);
 extern void func_001026A0(void *a, void *b, void *c);
-extern int func_001B3390(char *a, void *b, void *c, float d);
-extern int func_001B3440(char *a, void *b, void *c, float d);
+extern int func_001B3390(float d, char *a, void *b, void *c);
+extern int func_001B3440(float d, char *a, void *b, void *c);
 extern int func_001B2F70(char *a, void *b);
 extern void func_001031E0(void *a, void *b);
 extern int func_0019B6C0(void *a, void *b);
@@ -95,7 +95,7 @@ void func_0014AFA0(char *ent, char *st) {
     }
     func_001B2B10(ent, &D_700038A0, &D_700038A0);
     func_001028B8(&D_700038A0, ent + 0xB0, &D_700038A0);
-    if (func_001B32F0(ent, &D_700038A0, 0.7853981852531433f) != 0) {
+    if (func_001B32F0(0.7853981852531433f, ent, &D_700038A0) != 0) {
         st[0x81] |= 1;
     } else {
         float d = *(float *)(st + 0x48);
@@ -106,7 +106,7 @@ void func_0014AFA0(char *ent, char *st) {
             do {
                 func_001026A0(&D_700038A0, &D_700036A0, &D_00245BE0[(i + 1) * 16]);
                 func_001028B8(&D_700038A0, ent + 0xB0, &D_700038A0);
-                if (func_001B32F0(ent, &D_700038A0, 0.7853981852531433f) != 0) {
+                if (func_001B32F0(0.7853981852531433f, ent, &D_700038A0) != 0) {
                     st[0x81] |= 1;
                     break;
                 }
@@ -139,15 +139,15 @@ void func_0014AFA0(char *ent, char *st) {
             func_001028B8(&D_700038B0, ent + 0xB0, &D_700038B0);
             func_001028B8(&D_700038C0, ent + 0xB0, &D_700038C0);
             func_001028B8(&D_700038D0, ent + 0xB0, &D_700038D0);
-            if (func_001B3390(ent, &D_700038A0, &D_700038B0, 0.7853981852531433f) != 0) {
+            if (func_001B3390(0.7853981852531433f, ent, &D_700038A0, &D_700038B0) != 0) {
                 st[0x81] |= 1;
-            } else if (func_001B3390(ent, &D_700038B0, &D_700038A0, 0.7853981852531433f) != 0) {
+            } else if (func_001B3390(0.7853981852531433f, ent, &D_700038B0, &D_700038A0) != 0) {
                 st[0x81] |= 1;
             }
             if (st[0x81] == 0) {
-                if (func_001B3390(ent, &D_700038C0, &D_700038D0, 0.7853981852531433f) != 0) {
+                if (func_001B3390(0.7853981852531433f, ent, &D_700038C0, &D_700038D0) != 0) {
                     st[0x81] |= 1;
-                } else if (func_001B3390(ent, &D_700038D0, &D_700038C0, 0.7853981852531433f) != 0) {
+                } else if (func_001B3390(0.7853981852531433f, ent, &D_700038D0, &D_700038C0) != 0) {
                     st[0x81] |= 1;
                 }
             }
@@ -170,7 +170,7 @@ void func_0014AFA0(char *ent, char *st) {
             do {
                 func_001026A0(&D_700038A0, &D_700036A0, p);
                 func_001028B8(&D_700038A0, ent + 0xB0, &D_700038A0);
-                if (func_001B3440(ent, &D_700038A0, &D_700038B0, 0.7853981852531433f) != 0) {
+                if (func_001B3440(0.7853981852531433f, ent, &D_700038A0, &D_700038B0) != 0) {
                     *(float *)(st + 0x48) = 0.0f;
                     st[0x81] |= 2;
                     break;

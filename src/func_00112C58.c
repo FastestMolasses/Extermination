@@ -14,7 +14,7 @@ extern volatile int D_00241D48;
 extern volatile int D_00241D14;
 extern int func_00112088(void);
 extern int func_00111F18(int);
-extern int func_001115D0();
+extern void func_001115D0(int *p);
 extern int func_0010E8A8(void *, int, int, int, int, int, int, void *, void *);
 extern int SignalSema(int);
 

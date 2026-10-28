@@ -22,7 +22,7 @@
 extern char D_0026B9B0[];
 extern char D_0026B9C0[];
 extern int func_00122B58(char *fmt, ...);
-extern int func_0010E088(int);
+extern void func_0010E088(int mode);
 extern void func_0010E248(void);
 extern int func_00110368(char *buf, int x);
 

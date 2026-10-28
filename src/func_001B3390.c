@@ -21,7 +21,7 @@ extern int func_0019A310(float *p);
 extern int func_0019B2C0(char *a, char *b, int n);
 extern char D_700031C0;
 
-int func_001B3390(int arg0, char *arg1, char *arg2, float fparg0) {
+int func_001B3390(float fparg0, int arg0, char *arg1, char *arg2) {
     float sp4C;
     int v0;
 

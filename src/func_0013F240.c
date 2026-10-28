@@ -46,7 +46,7 @@ extern float func_001B1240(char *a, unsigned char b, float c, float d);
 extern float func_001B12B0(float a, float b, float c);
 extern float func_001B1470(unsigned char a, float b);
 extern void func_001B2B10(char *a, char *b, char *c);
-extern int func_001B3390(char *a, char *b, char *c, float d);
+extern int func_001B3390(float d, char *a, char *b, char *c);
 extern void func_001B55E0(char *a, int b);
 extern void func_001E8B90(char *a, float b);
 extern void func_001EFD90(int a, char *b, char *c);
@@ -112,7 +112,7 @@ void func_0013F240(char *arg0, char *arg1) {
         *(int *)0x700038BC = 0x3F800000;
         func_001B2B10(arg0, D_700038B0, D_700038B0);
         func_001028B8(D_700038B0, D_700038B0, D_700038A0);
-        if (func_001B3390(arg0, D_700038A0, D_700038B0, 0.785398185f) != 0) {
+        if (func_001B3390(0.785398185f, arg0, D_700038A0, D_700038B0) != 0) {
             *(int *)(arg1 + 0x4C) = 0;
         }
         break;

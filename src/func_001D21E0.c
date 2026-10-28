@@ -40,7 +40,7 @@ extern State *D_00275670;
 extern char *D_00275674;
 extern char D_0028F700[];
 extern int dmac_channel_base(unsigned int ch);
-extern void dma_wait_and_submit(int, int);
+extern int dma_wait_and_submit(int, int);
 extern void func_0011B9E0(int a0, int a1, int a2);
 extern void FlushCache(int id);
 extern void func_00101F08(int *s0, int arg1);

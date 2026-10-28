@@ -36,7 +36,7 @@ typedef union Buf128 {
 extern int func_001FE480(int *desc, int a1);
 extern int func_00123280(char *s, char *set);
 extern int func_001232E0(char *s);
-extern void func_00123418(char *dst, char *src, int n);
+extern char *func_00123418(char *dst, char *src, int n);
 extern void func_00122EF0(char *dst, char *src);
 extern int func_001CC1E0(int a0, int a1, int a2, int a3, int t0, char *t1, int *t2);
 extern void func_001FC770(int a0, int a1, char *s, void *a3);

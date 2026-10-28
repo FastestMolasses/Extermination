@@ -21,7 +21,7 @@
 // 0x100 x 0x100, then replaces its low 9 bits with (D_0027568C >> 13). Finally
 // zeroes a 0x20-byte command/state record at globalctx(D_00275670)+0x24F0 and
 // sets its +0x20 word to 1.
-extern void func_001006D8(char *, short, short, short, short, short);
+extern int func_001006D8(char *, short, short, short, short, short);
 extern char *D_00275670;
 extern int D_0027568C;
 

@@ -16,7 +16,7 @@ extern int func_001B1380(void *a, void *b, float c);
 extern void anim_clip_init(int self, int clip, float a, float b);
 extern void copy_qw4(void *dst, void *src);
 extern void func_001026A0(void *dst, void *mat, void *src);
-extern void func_001B3C30(int self, void *a, void *b, float fa, float fb);
+extern void func_001B3C30(void *self, void *a, void *b, float fa, float fb);
 extern void func_001FBD50(int self, int a, int b, float c);
 extern float func_001B1470(float a);
 
@@ -84,9 +84,9 @@ void func_001348E0(unsigned char *p, unsigned char *e) {
                 *(float *)0x700038B8 = 0.8f;
                 *(float *)0x700038BC = 1.0f;
                 if (D_0081070A[0] != 0) {
-                    func_001B3C30((int)p, D_700036A0, D_700038B0, 200.0f, 20.0f);
+                    func_001B3C30(p, D_700036A0, D_700038B0, 200.0f, 20.0f);
                 } else {
-                    func_001B3C30((int)p, D_700036A0, D_700038B0, 200.0f, 15.0f);
+                    func_001B3C30(p, D_700036A0, D_700038B0, 200.0f, 15.0f);
                 }
                 func_001FBD50((int)p, 0x164, 0, 300.0f);
             }
@@ -117,9 +117,9 @@ void func_001348E0(unsigned char *p, unsigned char *e) {
                 *(float *)0x700038B8 = 0.8f;
                 *(float *)0x700038BC = 1.0f;
                 if (D_0081070A[0] != 0) {
-                    func_001B3C30((int)p, D_700036A0, D_700038B0, 200.0f, 20.0f);
+                    func_001B3C30(p, D_700036A0, D_700038B0, 200.0f, 20.0f);
                 } else {
-                    func_001B3C30((int)p, D_700036A0, D_700038B0, 200.0f, 15.0f);
+                    func_001B3C30(p, D_700036A0, D_700038B0, 200.0f, 15.0f);
                 }
                 func_001FBD50((int)p, 0x164, 0, 300.0f);
             }

@@ -1,15 +1,17 @@
 // NEARMISS func_00117088  (vram 0x00117088, 0x22C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 82.88% via ee-gcc 2.9-991111-01 (-O2). Matching wave 2026-10-28 (was 55.16%):
+// objdiff 84.37% via ee-gcc 2.9-991111-01 (-O2). Matching wave 2026-10-28 (was 55.16%, then 82.88%):
 // rewritten with typed Event / Song / Bank / Tone records; fixes read from the original:
 // the event's data pointer (+0x0C) and cursor (+0x08) are read into locals once; a
 // running-status byte (no 0x80 bit) steps the cursor back and re-reads it from the event;
 // both arms share a single `return 1`; the f04 program pointer of the f32 == 1 arm is the
-// bank's array at +8 indexed from there.
-// Remaining differences: the original keeps `bank + 8` (f32 == 1 arm) and `bank->f10 + 8`
-// (other arm) as separate early values, while every spelling tried here lets the front
-// end fold the +8 to the end of the sum; plus the register colouring that follows (the
-// event pointer lands in a3 instead of t3).
+// bank's array at +8, held in a local set at the top of that arm (this keeps `bank + 8`
+// an early separate value as in the original instead of folding the +8 into the sum).
+// Remaining differences (wave 2026-10-28, agent wZ1): the other arm still folds its
+// `bank->f10 + 8` (the original adds 8 to the loaded f10 early and adds `index + bank`
+// to it; local / cast spellings of that regress the colouring) and adds bank + f10 in
+// the opposite operand order; plus the register colouring that follows (the event
+// pointer lands in a3 instead of t3; the f10 == -1 guard becomes a branch-likely).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -83,6 +85,7 @@ int func_00117088(Event *ev)
     Bank *buf;
     unsigned char b;
     int ch;
+    unsigned char *prog;
 
     data = ev->f0C;
     pos = ev->f08;
@@ -106,11 +109,12 @@ int func_00117088(Event *ev)
     ev->f04 = D_00281AC0.f14[pos + 3];
 
     if (ev->f32 == 1) {
+        prog = buf->f08;
         D_00281AC0.f00 = ((unsigned char *)buf + D_00281AC0.f10->f24) +
             *(unsigned short *)(D_00281AC0.f20 + D_00281AC0.f14[pos + 3] * 2 + 0x312);
         D_00281AC0.f08 = (unsigned char *)buf + D_00281AC0.f10->f20;
         D_00281AC0.f0C = D_00281AC0.f08 + (ev->f18 * 16 + 0x10);
-        D_00281AC0.f04 = buf->f08 +
+        D_00281AC0.f04 = prog +
             (*(unsigned short *)(D_00281AC0.f20 + D_00281AC0.f14[pos + 3] * 2 + 0x312) +
              D_00281AC0.f10->f24);
     } else {

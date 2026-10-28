@@ -1,3 +1,11 @@
+## 2026-10-28 — matching wave, queue batch 44: 2 more byte-matched, 4 improved; 82 callee signatures reconciled
+
+See MATCHING_GUIDE "Queue batch 44" and HANDOFF (end-of-wave status, what is
+left, and the old-C behaviour errors the wave found). Gate: fresh build +
+verify_all all six stages pass, boot ELF byte-identical, 19/19 overlays,
+matched_code 99.97%, 2759/2761 units; audit_link_provenance clean (2309
+ordinary-C routes).
+
 ## 2026-10-28 — matching wave, queue batch 43: 11 more byte-matched (4 asm bodies replaced), 8 improved
 
 See MATCHING_GUIDE "Queue batch 43". Gate: fresh build + verify_all all six

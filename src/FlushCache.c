@@ -3,6 +3,6 @@
 // (if any) flows back in $v0 from the syscall handler. Match: inline
 // asm yields the canonical 4-instruction stub at -O4,p.
 // 0x0010BAA0: EE syscall 100 (0x64); name per ps2sdk syscallnr.h; label corrected 2026-09-27.
-void FlushCache(void) {
+void FlushCache(int mode) {
     asm { addiu $v1, $zero, 100; syscall 0; };
 }

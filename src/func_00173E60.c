@@ -7,7 +7,7 @@
 
 extern int func_001749A0(unsigned char *e, short clip, int flags, float blend);
 extern void func_00173DD0(unsigned char *self);
-extern unsigned char func_00174AC0(unsigned char *arg0, int arg1);
+extern int func_00174AC0(unsigned char *arg0, int arg1);
 extern void func_0017C440(unsigned char *p, int unused);
 extern void func_0017C540(unsigned char *a0);
 extern void func_0011A070(int arg0);

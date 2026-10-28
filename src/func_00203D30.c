@@ -34,7 +34,7 @@ extern char D_002DF740[];
 extern char D_00273450[];
 int func_00206B00();
 int func_00203F40();
-int func_00206BA0();
+int func_00206BA0(void *a0, long long a1, long long a2, int a3, int t0);
 int func_00206B10();
 int func_00204080();
 

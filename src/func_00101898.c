@@ -2,8 +2,9 @@
 extern void func_00100268(int, int, int, int);
 extern void func_001002E0(int, int, int, int);
 extern void func_00100610(int, int, int, int);
-extern void func_001006D8(int, int, int, int);
-extern void func_001008C0(int, int, int, int);
+extern int func_001006D8(long long *, short, short, short, short, short);
+extern int func_001008C0(long long *, short, short, short, short, short,
+                        unsigned char, unsigned char, unsigned char, unsigned char, unsigned int);
 extern void func_00101630(int, int, int, int);
 
 asm void func_00101898(void) {
