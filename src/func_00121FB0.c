@@ -1,144 +1,114 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00121AF8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_00121FB0(void) {
-    .word 0x27bdff90
-    .word 0xffb10010
-    .word 0xffb00000
-    .word 0x00c0882d
-    .word 0xffbf0060
-    .word 0x00a0802d
-    .word 0xffb50050
-    .word 0xffb40040
-    .word 0xffb30030
-    .word 0xffb20020
-    .word 0x8e120010
-    .word 0x8e330010
-    .word 0x0253102a
-    .word 0x10400005
-    .word 0x0200c82d
-    .word 0x0220802d
-    .word 0x0320882d
-    .word 0x8e120010
-    .word 0x8e330010
-    .word 0x8e050008
-    .word 0x0253a021
-    .word 0x8e020004
-    .word 0x00b4282a
-    jal       func_00121AF8
-    .word 0x00452821
-    .word 0x0040c82d
-    .word 0x0014a880
-    .word 0x27380014
-    .word 0x03152021
-    .word 0x0304102b
-    .word 0x1040000e
-    .word 0x0300482d
-    .word 0x260e0014
-    .word 0x00122880
-    .word 0x26260014
-    .word 0x00131880
-    .word 0xad200000
-    .word 0x25290004
-    .word 0x0124102b
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x1440fffa
-    .word 0x00000000
-    .word 0x10000006
-    .word 0x00c0602d
-    .word 0x260e0014
-    .word 0x00122880
-    .word 0x26260014
-    .word 0x00131880
-    .word 0x00c0602d
-    .word 0x01c58821
-    .word 0x01839021
-    .word 0x0192102b
-    .word 0x10400043
-    .word 0x0300682d
-    .word 0x00000000
-    .word 0x8d820000
-    .word 0x304affff
-    .word 0x1140001c
-    .word 0x01a0402d
-    .word 0x01c0482d
-    .word 0x0000582d
-    .word 0x25900004
-    .word 0x250f0004
-    .word 0x8d230000
-    .word 0x8d040000
-    .word 0x25290004
-    .word 0x3062ffff
-    .word 0x0131302b
-    .word 0x004a1018
-    .word 0x00031c02
-    .word 0x706a1818
-    .word 0x3085ffff
-    .word 0x00042402
-    .word 0x00451021
-    .word 0x004b1021
-    .word 0x00641821
-    .word 0x00025c02
-    .word 0xa5020000
-    .word 0x006b3821
-    .word 0xa5070002
-    .word 0x00075c02
-    .word 0x14c0ffed
-    .word 0x25080004
-    .word 0xad0b0000
-    .word 0x10000003
-    .word 0x8d820000
-    .word 0x25900004
-    .word 0x25af0004
-    .word 0x00025402
-    .word 0x1140001a
-    .word 0x01a0402d
-    .word 0x01c0482d
-    .word 0x8d070000
-    .word 0x0000582d
-    .word 0x00e0102d
-    .word 0x8d240000
-    .word 0x00021c02
-    .word 0xa5070000
-    .word 0x25290004
-    .word 0x3082ffff
-    .word 0x0131282b
-    .word 0x004a1018
-    .word 0x00042402
-    .word 0x708a2018
-    .word 0x00431021
-    .word 0x004b1021
-    .word 0xa5020002
-    .word 0x00025c02
-    .word 0x25080004
-    .word 0x8d020000
-    .word 0x3043ffff
-    .word 0x00832021
-    .word 0x008b3821
-    .word 0x14a0ffed
-    .word 0x00075c02
-    .word 0xad070000
-    .word 0x0200602d
-    .word 0x0192102b
-    .word 0x1440ffc0
-    .word 0x01e0682d
-    .word 0x03154021
-    .word 0x5a800006
-    .word 0xaf340010
-    .word 0x2508fffc
-    .word 0x8d020000
-    .word 0x5040fffb
-    .word 0x2694ffff
-    .word 0xaf340010
-    .word 0x0320102d
-    .word 0xdfbf0060
-    .word 0xdfb50050
-    .word 0xdfb40040
-    .word 0xdfb30030
-    .word 0xdfb20020
-    .word 0xdfb10010
-    .word 0xdfb00000
-    .word 0x03e00008
-    .word 0x27bd0070
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libc (newlib mprec.c): mult(reent, a, b): _Bigint product in 16-bit halves
+// (Storeinc little-endian halfword stores).
+
+typedef struct _Bigint {
+    struct _Bigint *_next;
+    int _k, _maxwds, _sign, _wds;
+    unsigned int _x[1];
+} _Bigint;
+struct _reent;
+union double_union { double d; unsigned int i[2]; };
+#define word0(x) ((x).i[1])
+#define word1(x) ((x).i[0])
+#define Exp_shift 20
+#define Exp_shift1 20
+#define Exp_msk1 0x100000
+#define Exp_mask 0x7ff00000
+#define P 53
+#define Bias 1023
+#define Exp_1 0x3ff00000
+#define Ebits 11
+#define Frac_mask 0xfffff
+#define Frac_mask1 0xfffff
+extern _Bigint *func_00121AF8(struct _reent *, int);
+extern void func_00121BA0(struct _reent *, _Bigint *);
+extern _Bigint *func_00121BD0(struct _reent *, _Bigint *, int, int);
+extern int func_00121E30(unsigned int);
+extern int func_00121EB8(unsigned int *);
+extern void *block_copy(void *dst, const void *src, unsigned int len);
+#define Balloc func_00121AF8
+#define Bfree func_00121BA0
+#define multadd func_00121BD0
+#define hi0bits func_00121E30
+#define lo0bits func_00121EB8
+#define Bcopy(x,y) block_copy((char *)&x->_sign, (char *)&y->_sign, y->_wds*sizeof(int) + 2*sizeof(int))
+extern int func_00122458(_Bigint *, _Bigint *);
+extern double func_001226E8(_Bigint *, int *);
+#define cmp func_00122458
+#define b2d func_001226E8
+#define Storeinc(a,b,c) (((unsigned short *)a)[1] = (unsigned short)b, \
+((unsigned short *)a)[0] = (unsigned short)c, a++)
+#define Sign_Extend(a,b) /* no-op: arithmetic right shifts */
+_Bigint *func_00121FB0(struct _reent *ptr, _Bigint *a, _Bigint *b)
+{
+  _Bigint *c;
+  int k, wa, wb, wc;
+  unsigned int carry, y, z;
+  unsigned int *x, *xa, *xae, *xb, *xbe, *xc, *xc0;
+  unsigned int z2;
+
+  if (a->_wds < b->_wds)
+    {
+      c = a;
+      a = b;
+      b = c;
+    }
+  k = a->_k;
+  wa = a->_wds;
+  wb = b->_wds;
+  wc = wa + wb;
+  if (wc > a->_maxwds)
+    k++;
+  c = Balloc (ptr, k);
+  for (x = c->_x, xa = x + wc; x < xa; x++)
+    *x = 0;
+  xa = a->_x;
+  xae = xa + wa;
+  xb = b->_x;
+  xbe = xb + wb;
+  xc0 = c->_x;
+  for (; xb < xbe; xb++, xc0++)
+    {
+      if ((y = *xb & 0xffff) != 0)
+	{
+	  x = xa;
+	  xc = xc0;
+	  carry = 0;
+	  do
+	    {
+	      z = (*x & 0xffff) * y + (*xc & 0xffff) + carry;
+	      carry = z >> 16;
+	      z2 = (*x++ >> 16) * y + (*xc >> 16) + carry;
+	      carry = z2 >> 16;
+	      Storeinc (xc, z2, z);
+	    }
+	  while (x < xae);
+	  *xc = carry;
+	}
+      if ((y = *xb >> 16) != 0)
+	{
+	  x = xa;
+	  xc = xc0;
+	  carry = 0;
+	  z2 = *xc;
+	  do
+	    {
+	      z = (*x & 0xffff) * y + (*xc >> 16) + carry;
+	      carry = z >> 16;
+	      Storeinc (xc, z, z2);
+	      z2 = (*x++ >> 16) * y + (*xc & 0xffff) + carry;
+	      carry = z2 >> 16;
+	    }
+	  while (x < xae);
+	  *xc = z2;
+	}
+    }
+  for (xc0 = c->_x, xc = xc0 + wc; wc > 0 && !*--xc; --wc);
+  c->_wds = wc;
+  return c;
 }

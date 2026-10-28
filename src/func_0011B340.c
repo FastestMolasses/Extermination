@@ -1,9 +1,14 @@
-// func_0011B340: writes 8 to the GIF control register at 0x10003000; returns 1.
-asm int func_0011B340(void) {
-    lui $3, 0x1000
-    addiu $4, $zero, 0x8
-    ori $3, $3, 0x3000
-    addiu $2, $zero, 0x1
-    jr $ra
-    sw $4, 0x0($3)
+// COMPILER: eegcc
+// CFLAGS: -O2
+// EEGCC_AS: 2.96
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// Assembled by the 2.96 gas (// EEGCC_AS: 2.96), which fills the delay slot as
+// the original does.
+//
+// SDK GIF: GIF_CTRL (0x10003000) = 8 (PSE: pause the transfer); returns 1.
+
+int func_0011B340(void) {
+    *(volatile int *)0x10003000 = 8;
+    return 1;
 }

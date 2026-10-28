@@ -1,31 +1,60 @@
-// Simple nonleaf asm void
-extern void func_001236D8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_00122CA8(void) {
-    addiu      $sp, $sp, -0xE0
-    daddu      $12, $a1, $zero
-    lui        $v0, (0x7FFFFFFF >> 16)
-    sw         $a0, 0x54($sp)
-    .word 0x3442ffff
-    daddu      $a1, $a2, $zero
-    addiu      $v1, $zero, 0x208
-    sd         $ra, 0x60($sp)
-    sd         $a3, 0xB8($sp)
-    daddu      $a0, $sp, $zero
-    sd         $8, 0xC0($sp)
-    addiu      $a2, $sp, 0xB8
-    sd         $9, 0xC8($sp)
-    sd         $10, 0xD0($sp)
-    sd         $11, 0xD8($sp)
-    sh         $v1, 0xC($sp)
-    sw         $12, 0x10($sp)
-    sw         $v0, 0x14($sp)
-    sw         $12, 0x0($sp)
-    jal        func_001236D8
-    sw        $v0, 0x8($sp)
-    lw         $v1, 0x0($sp)
-    ld         $ra, 0x60($sp)
-    sb         $zero, 0x0($v1)
-    jr         $ra
-    addiu     $sp, $sp, 0xE0
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libc (newlib sprintf.c, older form): _sprintf_r(reent, str, fmt, ...): a
+// string FILE on the stack (flags __SWR | __SSTR, buffer = str, size INT_MAX,
+// _data = reent) through vfprintf (func_001236D8), then NUL-terminates.
+
+/* ee-gcc's EABI varargs (gcc 2.9 va-mips.h, no <stdarg.h> in this toolchain
+   setup): the unnamed register arguments are spilled as 8-byte slots just
+   below __builtin_next_arg(last); va_list is a plain cursor that starts at the
+   first unnamed slot (8 argument registers minus the named ones). */
+typedef char *va_list;
+#define va_start(ap, last) \
+    ((ap) = (char *)__builtin_next_arg(last) - \
+     (__builtin_args_info(2) < 8 ? (8 - __builtin_args_info(2)) * 8 : 0))
+#define va_end(ap) ((void)0)
+typedef struct __sFILE {
+    unsigned char *_p;
+    int _r;
+    int _w;
+    short _flags;
+    short _file;
+    struct { unsigned char *_base; int _size; } _bf;
+    int _lbfsize;
+    void *_cookie;
+    int (*_read)(void *, char *, int);
+    int (*_write)(void *, const char *, int);
+    long (*_seek)(void *, long, int);
+    int (*_close)(void *);
+    struct { unsigned char *_base; int _size; } _ub;
+    unsigned char *_up;
+    int _ur;
+    unsigned char _ubuf[3];
+    unsigned char _nbuf[1];
+    struct { unsigned char *_base; int _size; } _lb;
+    int _blksize;
+    int _offset;
+    void *_data;
+} FILE;
+struct _reent;
+extern int func_001236D8(FILE *fp, const char *fmt, va_list ap);
+
+int func_00122CA8(struct _reent *ptr, char *str, const char *fmt, ...)
+{
+  int ret;
+  va_list ap;
+  FILE f;
+
+  f._flags = 0x0008 | 0x0200;
+  f._bf._base = f._p = (unsigned char *) str;
+  f._bf._size = f._w = 0x7fffffff;
+  f._data = ptr;
+  va_start (ap, fmt);
+  ret = func_001236D8 (&f, fmt, ap);
+  va_end (ap);
+  *f._p = 0;
+  return ret;
 }

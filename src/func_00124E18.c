@@ -1,61 +1,38 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00124E18(void) {
-    .word 0x27bdfec0
-    .word 0x04a10006
-    .word 0xa0860000
-    .word 0x2402002d
-    .word 0x00052823
-    .word 0xa0820001
-    .word 0x10000004
-    .word 0x24880002
-    .word 0x2402002b
-    .word 0x24880002
-    .word 0xa0820001
-    .word 0x27a60134
-    .word 0x28a2000a
-    .word 0x14400021
-    .word 0x00c0502d
-    .word 0x2407000a
-    .word 0x0000482d
-    .word 0x00a7001a
-    .word 0x50e90001
-    .word 0x000001cd
-    .word 0x24c6ffff
-    .word 0x00001010
-    .word 0x00001812
-    .word 0x24420030
-    .word 0x0060282d
-    .word 0xa0c20000
-    .word 0x28a3000a
-    .word 0x50e90001
-    .word 0x000001cd
-    .word 0x5060fff4
-    .word 0x00a7001a
-    .word 0x24c6ffff
-    .word 0x24a30030
-    .word 0x00ca102b
-    .word 0x10400012
-    .word 0xa0c30000
-    .word 0x0140282d
-    .word 0x00000000
-    .word 0x90c20000
-    .word 0x24c60001
-    .word 0xa1020000
-    .word 0x00c5182b
-    .word 0x25080001
-    .word 0x1460fffa
-    .word 0x00000000
-    .word 0x10000008
-    .word 0x01041023
-    .word 0x24020030
-    .word 0x24a30030
-    .word 0xa1020000
-    .word 0x25080001
-    .word 0xa1030000
-    .word 0x25080001
-    .word 0x01041023
-    .word 0x03e00008
-    .word 0x27bd0140
+// COMPILER: eegcc
+// CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libc (newlib vfprintf.c): exponent(p0, exp, fmtch): writes the exponent part
+// (fmtch, sign, at least two digits) and returns its length.
+
+#define MAXEXP 308
+#define to_char(n) ((n) + '0')
+
+int func_00124E18(char *p0, int exp, int fmtch)
+{
+	register char *p, *t;
+	char expbuf[MAXEXP];
+
+	p = p0;
+	*p++ = fmtch;
+	if (exp < 0) {
+		exp = -exp;
+		*p++ = '-';
+	}
+	else
+		*p++ = '+';
+	t = expbuf + MAXEXP;
+	if (exp > 9) {
+		do {
+			*--t = to_char(exp % 10);
+		} while ((exp /= 10) > 9);
+		*--t = to_char(exp);
+		for (; t < expbuf + MAXEXP; *p++ = *t++);
+	}
+	else {
+		*p++ = '0';
+		*p++ = to_char(exp);
+	}
+	return (p - p0);
 }

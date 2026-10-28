@@ -1,76 +1,72 @@
-// Hybrid: branches/j as .word, jal with extern decls
-extern void block_copy(int, int, int, int);
-extern void func_00121AF8(int, int, int, int);
-extern void func_00121BA0(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_00121BD0(void) {
-    addiu      $sp, $sp, -0x60
-    daddu      $8, $a2, $zero
-    sd         $s4, 0x40($sp)
-    daddu      $9, $zero, $zero
-    sd         $s3, 0x30($sp)
-    daddu      $s4, $a0, $zero
-    sd         $s1, 0x10($sp)
-    daddu      $s3, $a3, $zero
-    sd         $ra, 0x50($sp)
-    daddu      $s1, $a1, $zero
-    sd         $s0, 0x0($sp)
-    addiu      $10, $s1, 0x14
-    sd         $s2, 0x20($sp)
-    daddu      $a3, $10, $zero
-    lw         $s2, 0x10($s1)
-    nop
-    lw         $v1, 0x0($a3)
-    addiu      $9, $9, 0x1
-    slt        $a2, $9, $s2
-    .word 0x3064ffff
-    mult       $v0, $a0, $8
-    srl        $v1, $v1, 16
-    mult       $v1, $v1, $8
-    addu       $a0, $v0, $s3
-    srl        $a1, $a0, 16
-    addu       $v1, $v1, $a1
-    .word 0x3084ffff
-    sll        $v0, $v1, 16
-    srl        $s3, $v1, 16
-    addu       $v0, $v0, $a0
-    sw         $v0, 0x0($a3)
-    .word 0x14c0fff0
-    addiu     $a3, $a3, 0x4
-    .word 0x1260001b
-    daddu     $v0, $s1, $zero
-    lw         $v0, 0x8($s1)
-    slt        $v0, $s2, $v0
-    .word 0x14400012
-    sll       $v0, $s2, 2
-    lw         $a1, 0x4($s1)
-    daddu      $a0, $s4, $zero
-    jal        func_00121AF8
-    addiu     $a1, $a1, 0x1
-    lw         $a2, 0x10($s1)
-    daddu      $s0, $v0, $zero
-    addiu      $a1, $s1, 0xC
-    addiu      $a0, $s0, 0xC
-    sll        $a2, $a2, 2
-    jal        block_copy
-    addiu     $a2, $a2, 0x8
-    daddu      $a1, $s1, $zero
-    jal        func_00121BA0
-    daddu     $a0, $s4, $zero
-    daddu      $s1, $s0, $zero
-    addiu      $10, $s1, 0x14
-    sll        $v0, $s2, 2
-    addu       $v0, $10, $v0
-    addiu      $s2, $s2, 0x1
-    sw         $s3, 0x0($v0)
-    sw         $s2, 0x10($s1)
-    daddu      $v0, $s1, $zero
-    ld         $ra, 0x50($sp)
-    ld         $s4, 0x40($sp)
-    ld         $s3, 0x30($sp)
-    ld         $s2, 0x20($sp)
-    ld         $s1, 0x10($sp)
-    ld         $s0, 0x0($sp)
-    jr         $ra
-    addiu     $sp, $sp, 0x60
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libc (newlib mprec.c): multadd(reent, b, m, a): b = b * m + a in 16-bit halves,
+// growing b (Balloc / Bcopy via block_copy / Bfree) when the carry needs a word.
+
+typedef struct _Bigint {
+    struct _Bigint *_next;
+    int _k, _maxwds, _sign, _wds;
+    unsigned int _x[1];
+} _Bigint;
+struct _reent;
+union double_union { double d; unsigned int i[2]; };
+#define word0(x) ((x).i[1])
+#define word1(x) ((x).i[0])
+#define Exp_shift 20
+#define Exp_shift1 20
+#define Exp_msk1 0x100000
+#define Exp_mask 0x7ff00000
+#define P 53
+#define Bias 1023
+#define Exp_1 0x3ff00000
+#define Ebits 11
+#define Frac_mask 0xfffff
+#define Frac_mask1 0xfffff
+extern _Bigint *func_00121AF8(struct _reent *, int);
+extern void func_00121BA0(struct _reent *, _Bigint *);
+extern _Bigint *func_00121BD0(struct _reent *, _Bigint *, int, int);
+extern int func_00121E30(unsigned int);
+extern int func_00121E98(unsigned int *);
+extern void *block_copy(void *dst, const void *src, unsigned int len);
+#define Balloc func_00121AF8
+#define Bfree func_00121BA0
+#define multadd func_00121BD0
+#define hi0bits func_00121E30
+#define lo0bits func_00121E98
+#define Bcopy(x,y) block_copy((char *)&x->_sign, (char *)&y->_sign, y->_wds*sizeof(int) + 2*sizeof(int))
+_Bigint *func_00121BD0(struct _reent *ptr, _Bigint *b, int m, int a)
+{
+  int i, wds;
+  unsigned int *x, y;
+  unsigned int xi, z;
+  _Bigint *b1;
+
+  wds = b->_wds;
+  x = b->_x;
+  i = 0;
+  do
+    {
+      xi = *x;
+      y = (xi & 0xffff) * m + a;
+      z = (xi >> 16) * m + (y >> 16);
+      a = (int) (z >> 16);
+      *x++ = (z << 16) + (y & 0xffff);
+    }
+  while (++i < wds);
+  if (a)
+    {
+      if (wds >= b->_maxwds)
+	{
+	  b1 = Balloc (ptr, b->_k + 1);
+	  Bcopy (b1, b);
+	  Bfree (ptr, b);
+	  b = b1;
+	}
+      b->_x[wds++] = a;
+      b->_wds = wds;
+    }
+  return b;
 }

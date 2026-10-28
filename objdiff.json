@@ -21870,6 +21870,14 @@
       }
     },
     {
+      "name": "sub__0000000000000000Inf",
+      "target_path": "build/expected/sub__0000000000000000Inf.o",
+      "base_path": "build/obj/sub__0000000000000000Inf.o",
+      "metadata": {
+        "source_path": "src/sub__0000000000000000Inf.c"
+      }
+    },
+    {
       "name": "sub__02d_02d_02d",
       "target_path": "build/expected/sub__02d_02d_02d.o",
       "base_path": "build/obj/sub__02d_02d_02d.o",

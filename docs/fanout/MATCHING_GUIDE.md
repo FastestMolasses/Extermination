@@ -1089,3 +1089,25 @@ vu1_cold_start, gs_readback_build_packet and func_00101630 (end in sync),
 func_001032F0, func_00103380, func_00104378..func_00104F70 (MMI image loops),
 func_0010ADA8 / func_0010AF28 (IPU-DMA save / restore under di / ei),
 cache-op and di / ei wrappers 0x0010C020..0x0010C568.
+
+
+### Queue batch 52 (2026-10-28): asm-word bodies, the rest of the SDK
+
+81 byte-matched, each in its library's own source shape: SIF RPC (bind
+handler, RPC loop), libpad scePadInfoAct, sceCdIntToPos, EE SIO putc, the
+double helpers func_0010D008 / func_0010D098, sound-driver wrappers and the
+controller-0x63 sequencer handler, the VU0 / VU1 control and context helpers
+(cfc2 / ctc2 one per statement; docs/CURIOSITIES.md 33 for the VU0 save /
+restore quirk), GIF / VIF register setters and FIFO loops (2.96 gas), newlib
+libm (isinf, isnan, copysignf, floorf, scalbnf, acosf) and libc (_calloc_r,
+quorem, __sfp, the mprec family, _printf_r, _sprintf_r, __sread / __sseek /
+__sclose, __sbprintf, cvt, exponent, and _vfprintf_r
+`sub__0000000000000000Inf` with its own jump table), libgcc (__fixunsdfdi,
+__floatdidf, litodp, dptoli, dptoul, __fpcmp_parts) and the VIF1 helpers.
+Conventions: fdlibm `static const` constants as macros (no unused .rodata);
+soft-float libcalls written by their linked names through macros (ee-gcc
+emits runtime names the build cannot resolve); varargs use gcc 2.9's own
+`__builtin_next_arg(last) - (8 - __builtin_args_info(2)) * 8` (the existing
+`- 48` in func_00122D10 is right only for two named arguments); u128 FIFO
+stores as mode(TI) types (lq / sq, no MMI). ASM-only: newlib's EE MMI memcmp
+func_001217D8 and strncpy func_00123418.

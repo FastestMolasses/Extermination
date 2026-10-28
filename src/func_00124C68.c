@@ -1,115 +1,69 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011EBA8(int, int, int, int);
-extern void func_00126F20(int, int, int, int);
-extern void func_001274B0(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_00124C68(void) {
-    .word 0x27bdff50
-    .word 0x24020066
-    .word 0xffbe0090
-    .word 0xffb70080
-    .word 0x0160f02d
-    .word 0xffb60070
-    .word 0x00e0b82d
-    .word 0xffb50060
-    .word 0x0080b02d
-    .word 0xffb40050
-    .word 0x0120a82d
-    .word 0xffb20030
-    .word 0x00c0a02d
-    .word 0xffb10020
-    .word 0x00a0902d
-    .word 0xffb00010
-    .word 0x0140882d
-    .word 0xffbf00a0
-    .word 0x0100802d
-    .word 0x16220003
-    .word 0xffb30040
-    .word 0x10000008
-    .word 0x24130003
-    .word 0x24020065
-    .word 0x12220003
-    .word 0x24020045
-    .word 0x16220003
-    .word 0x24130002
-    .word 0x26940001
-    .word 0x24130002
-    .word 0x0240102d
-    .word 0x0002103f
-    .word 0x04430007
-    .word 0xa2000000
-    .word 0x0240282d
-    jal       func_00126F20
-    .word 0x0000202d
-    .word 0x2403002d
-    .word 0x0040902d
-    .word 0xa2030000
-    .word 0x0260302d
-    .word 0x02c0202d
-    .word 0x0240282d
-    .word 0x0280382d
-    .word 0x02a0402d
-    .word 0x03a0482d
-    jal       func_0011EBA8
-    .word 0x37aa0004
-    .word 0x0040982d
-    .word 0x24020067
-    .word 0x12220003
-    .word 0x24020047
-    .word 0x16220004
-    .word 0x24020066
-    .word 0x32e20001
-    .word 0x10400024
-    .word 0x24020066
-    .word 0x1622000e
-    .word 0x02748021
-    .word 0x82630000
-    .word 0x24020030
-    .word 0x54620009
-    .word 0x8ea20000
-    .word 0x0240202d
-    jal       func_001274B0
-    .word 0x0000282d
-    .word 0x10400003
-    .word 0x00141023
-    .word 0x24420001
-    .word 0xaea20000
-    .word 0x8ea20000
-    .word 0x02028021
-    .word 0x0240202d
-    jal       func_001274B0
-    .word 0x0000282d
-    .word 0x50400001
-    .word 0xafb00004
-    .word 0x8fa30004
-    .word 0x0070102b
-    .word 0x1040000d
-    .word 0x0060202d
-    .word 0x24050030
-    .word 0x24820001
-    .word 0xa0850000
-    .word 0x0040182d
-    .word 0xafa20004
-    .word 0x0060202d
-    .word 0x0070102b
-    .word 0x1440fff9
-    .word 0x00000000
-    .word 0x10000003
-    .word 0x00731823
-    .word 0x8fa30004
-    .word 0x00731823
-    .word 0x0260102d
-    .word 0xafc30000
-    .word 0xdfbf00a0
-    .word 0xdfbe0090
-    .word 0xdfb70080
-    .word 0xdfb60070
-    .word 0xdfb50060
-    .word 0xdfb40050
-    .word 0xdfb30040
-    .word 0xdfb20030
-    .word 0xdfb10020
-    .word 0xdfb00010
-    .word 0x03e00008
-    .word 0x27bd00b0
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libc (newlib vfprintf.c): cvt(reent, value, ndigits, flags, &sign, &decpt, ch,
+// &length): the %e/%f/%g digit generator over _dtoa_r (func_0011EBA8): mode 3
+// for 'f', 2 otherwise ('e'/'E' get one more digit); negative values (sign bit
+// of the high word, so also -0.0) are negated and give '-'; pads trailing zeros
+// unless %g without '#'. The double negate and compares are the soft-float
+// dpsub / dpcmp, called by their linked names.
+
+struct _reent;
+union double_union { double d; unsigned int i[2]; };
+#define word0(x) ((x).i[1])
+#define Sign_bit 0x80000000
+#define ALT 0x001
+/* ee-gcc lowers double arithmetic to the SCE soft-float runtime by name;
+   this binary links those routines under their address names. */
+extern double func_00126F20(double a, double b);   /* dpsub: a - b */
+extern int func_001274B0(double a, double b);      /* dpcmp: <0, 0, >0 */
+extern char *func_0011EBA8(struct _reent *ptr, double d, int mode, int ndigits,
+                           int *decpt, int *sign, char **rve);   /* _dtoa_r */
+#define dpsub func_00126F20
+#define dpcmp func_001274B0
+#define _dtoa_r func_0011EBA8
+
+char *func_00124C68(struct _reent *data, double value, int ndigits, int flags,
+                    char *sign, int *decpt, int ch, int *length)
+{
+	int mode, dsgn;
+	char *digits, *bp, *rve;
+        union double_union tmp;
+
+	if (ch == 'f') {
+		mode = 3;		/* ndigits after the decimal point */
+	} else {
+		/* To obtain ndigits after the decimal point for the 'e'
+		 * and 'E' formats, round to ndigits + 1 significant
+		 * figures.
+		 */
+		if (ch == 'e' || ch == 'E') {
+			ndigits++;
+		}
+		mode = 2;		/* ndigits significant digits */
+	}
+
+        tmp.d = value;
+	if (word0(tmp) & Sign_bit) { /* this will check for < 0 and -0.0 */
+		value = dpsub(0.0, value);	/* value = -value */
+		*sign = '-';
+        } else
+		*sign = '\000';
+	digits = _dtoa_r(data, value, mode, ndigits, decpt, &dsgn, &rve);
+	if ((ch != 'g' && ch != 'G') || flags & ALT) {	/* Print trailing zeros */
+		bp = digits + ndigits;
+		if (ch == 'f') {
+			if (*digits == '0' && dpcmp(value, 0.0) != 0)
+				*decpt = -ndigits + 1;
+			bp += *decpt;
+		}
+		if (dpcmp(value, 0.0) == 0)	/* kludge for __dtoa irregularity */
+			rve = bp;
+		while (rve < bp)
+			*rve++ = '0';
+	}
+	*length = rve - digits;
+	return (digits);
 }

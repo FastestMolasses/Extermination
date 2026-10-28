@@ -1,123 +1,92 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_0011BA10(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// EEGCC_AS: 2.96
 
-asm void func_0011BA60(void) {
-    addiu      $sp, $sp, -0x90
-    .word 0x3c021000
-    .word 0xffb60060
-    .word 0x34423c40
-    .word 0xffbf0080
-    daddu      $s6, $a0, $zero
-    .word 0xffb50050
-    .word 0xffb40040
-    .word 0xffb30030
-    .word 0xffb20020
-    .word 0xffb10010
-    .word 0xffb00000
-    .word 0xffb70070
-    jal        func_0011BA10
-    .word 0x8c570000
-    sltiu      $v0, $v0, 0x2
-    .word 0x14400003
-    .word 0x3c021000
-    .word 0x10000058
-    daddu     $v0, $zero, $zero
-    .word 0x3c031000
-    .word 0x34423d00
-    .word 0x34633d10
-    .word 0x8c450000
-    .word 0x3c041000
-    .word 0x34843d20
-    .word 0x3c061000
-    .word 0xaec50000
-    .word 0x34c63d30
-    .word 0x3c051000
-    .word 0x3c071000
-    .word 0x8c620000
-    .word 0x34a53d40
-    .word 0x34e73d50
-    .word 0x3c0c1000
-    .word 0xaec20004
-    .word 0x358c3d60
-    .word 0x3c131000
-    .word 0x3c141000
-    .word 0x8c820000
-    .word 0x36733d70
-    .word 0x36943c70
-    .word 0x3c111000
-    .word 0xaec20008
-    .word 0x36313c80
-    .word 0x3c101000
-    .word 0x3c121000
-    .word 0x8cc20000
-    .word 0x36103c00
-    .word 0x36523cd0
-    .word 0x3c061000
-    .word 0xaec2000c
-    .word 0x34c63c90
-    .word 0x3c081000
-    .word 0x3c0e1000
-    .word 0x8ca20000
-    .word 0x35083ca0
-    .word 0x35ce3cb0
-    .word 0x3c0b1000
-    .word 0xaec20010
-    .word 0x356b3ce0
-    .word 0x3c091000
-    .word 0x3c0f1000
-    .word 0x8ce20000
-    .word 0x35293cc0
-    .word 0x35ef3c30
-    .word 0x3c0d1000
-    .word 0xaec20014
-    .word 0x35ad3c60
-    .word 0x3c0a1000
-    srl        $s5, $s7, 8
-    .word 0x8d830000
-    .word 0x354a3c20
-    .word 0x3c0c1000
-    addiu      $v0, $zero, 0x1
-    .word 0xaec30018
-    .word 0x358c3c50
-    .word 0x8e630000
-    .word 0xaec3001c
-    .word 0x8e840000
-    .word 0xaec40020
-    .word 0x8e230000
-    .word 0xaec30024
-    .word 0x8e040000
-    .word 0xaec40028
-    .word 0x8e430000
-    .word 0x8cc40000
-    .word 0x8d050000
-    .word 0x8dc60000
-    .word 0x8d670000
-    .word 0x8d280000
-    .word 0xa6c3002c
-    .word 0xa6c4002e
-    .word 0xa6c50030
-    .word 0xa6c60032
-    .word 0xa6c70034
-    .word 0xa6c80036
-    .word 0x8de40000
-    .word 0x8da50000
-    .word 0x8d430000
-    .word 0xa2d5003e
-    .word 0xa2c3003c
-    .word 0xa2d7003d
-    .word 0xa6c40038
-    .word 0x8d830000
-    .word 0xa6c5003a
-    .word 0xa2c3003f
-    .word 0xdfbf0080
-    .word 0xdfb70070
-    .word 0xdfb60060
-    .word 0xdfb50050
-    .word 0xdfb40040
-    .word 0xdfb30030
-    .word 0xdfb20020
-    .word 0xdfb10010
-    .word 0xdfb00000
-    jr         $ra
-    addiu     $sp, $sp, 0x90
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// SDK (libdma/libvif-style helper): snapshot of the VIF1 registers. Reads VIF1_CYCLE
+// first, then asks func_0011BA10 for the VIF1 state class; a class of 2 or more
+// (stalled / error) returns 0 without touching the record. Otherwise copies the row
+// (R0-R3) and column (C0-C3) registers, MASK, CODE, STAT, the 16-bit ITOP, ITOPS,
+// BASE, OFST, TOP, TOPS, MARK and NUM, the ERR and MODE bytes and CYCLE's CL/WL
+// bytes into the 64-byte record and returns 1. The state class is compared
+// unsigned; assembled by the 2.96 gas (the CYCLE read sits in the call's slot).
+
+#define VIF1_REG(off) (*(volatile unsigned int *)(0x10003C00 + (off)))
+#define VIF1_STAT  VIF1_REG(0x000)
+#define VIF1_ERR   VIF1_REG(0x020)
+#define VIF1_MARK  VIF1_REG(0x030)
+#define VIF1_CYCLE VIF1_REG(0x040)
+#define VIF1_MODE  VIF1_REG(0x050)
+#define VIF1_NUM   VIF1_REG(0x060)
+#define VIF1_MASK  VIF1_REG(0x070)
+#define VIF1_CODE  VIF1_REG(0x080)
+#define VIF1_ITOPS VIF1_REG(0x090)
+#define VIF1_BASE  VIF1_REG(0x0A0)
+#define VIF1_OFST  VIF1_REG(0x0B0)
+#define VIF1_TOPS  VIF1_REG(0x0C0)
+#define VIF1_ITOP  VIF1_REG(0x0D0)
+#define VIF1_TOP   VIF1_REG(0x0E0)
+#define VIF1_R0    VIF1_REG(0x100)
+#define VIF1_R1    VIF1_REG(0x110)
+#define VIF1_R2    VIF1_REG(0x120)
+#define VIF1_R3    VIF1_REG(0x130)
+#define VIF1_C0    VIF1_REG(0x140)
+#define VIF1_C1    VIF1_REG(0x150)
+#define VIF1_C2    VIF1_REG(0x160)
+#define VIF1_C3    VIF1_REG(0x170)
+
+typedef struct {
+    unsigned int r[4];          /* 0x00 row registers R0..R3 */
+    unsigned int c[4];          /* 0x10 column registers C0..C3 */
+    unsigned int mask;          /* 0x20 */
+    unsigned int code;          /* 0x24 */
+    unsigned int stat;          /* 0x28 */
+    unsigned short itop;        /* 0x2C */
+    unsigned short itops;       /* 0x2E */
+    unsigned short base;        /* 0x30 */
+    unsigned short ofst;        /* 0x32 */
+    unsigned short top;         /* 0x34 */
+    unsigned short tops;        /* 0x36 */
+    unsigned short mark;        /* 0x38 */
+    unsigned short num;         /* 0x3A */
+    unsigned char err;          /* 0x3C */
+    unsigned char cl;           /* 0x3D */
+    unsigned char wl;           /* 0x3E */
+    unsigned char mode;         /* 0x3F */
+} Vif1Regs;
+
+extern int func_0011BA10(void);   /* VIF1 state class from VIF1_STAT */
+
+int func_0011BA60(Vif1Regs *regs)
+{
+    unsigned int cycle = VIF1_CYCLE;
+
+    if ((unsigned int)func_0011BA10() >= 2)
+        return 0;
+
+    regs->r[0] = VIF1_R0;
+    regs->r[1] = VIF1_R1;
+    regs->r[2] = VIF1_R2;
+    regs->r[3] = VIF1_R3;
+    regs->c[0] = VIF1_C0;
+    regs->c[1] = VIF1_C1;
+    regs->c[2] = VIF1_C2;
+    regs->c[3] = VIF1_C3;
+    regs->mask = VIF1_MASK;
+    regs->code = VIF1_CODE;
+    regs->stat = VIF1_STAT;
+    regs->itop = VIF1_ITOP;
+    regs->itops = VIF1_ITOPS;
+    regs->base = VIF1_BASE;
+    regs->ofst = VIF1_OFST;
+    regs->top = VIF1_TOP;
+    regs->tops = VIF1_TOPS;
+    regs->mark = VIF1_MARK;
+    regs->num = VIF1_NUM;
+    regs->err = VIF1_ERR;
+    regs->cl = cycle;
+    regs->wl = cycle >> 8;
+    regs->mode = VIF1_MODE;
+    return 1;
 }

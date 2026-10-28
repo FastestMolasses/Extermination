@@ -1,26 +1,26 @@
-// DMA wait loop (0x10003C00/0x10005000/0x10000000 variant, beql form)
-asm int func_0011BC38(void *a0, int a1) {
-    daddu $7, $zero, $zero
-    .word 0x10A00013
-    addiu $3, $5, -0x1
-    lui $6, 0x1000
-    .word 0x3C051000
-    ori $6, $6, 0x3C00
-    .word 0x3C091000
-    ori $5, $5, 0x5000
-    addiu $8, $zero, -0x1
-    nop
-    lw $2, 0x0($6)
-    and $2, $2, $9
-    .word 0x50400003
-    lq $2, 0x0($4)
-    .word 0x03E00008
-    daddu $2, $7, $zero
-    addiu $7, $7, 0x1
-    addiu $4, $4, 0x10
-    addiu $3, $3, -0x1
-    .word 0x1468FFF6
-    sq $2, 0x0($5)
-    jr $ra
-    daddu $2, $7, $zero
+// COMPILER: eegcc
+// CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// SDK: pushes up to n quadwords from data into the VIF1 FIFO (0x10005000),
+// stopping early when VIF1_STAT bit 28 (FIFO full) is set; returns the number
+// written. The FIFO store is a plain (non-volatile) 128-bit store: that is what
+// lets the compiler put it in the loop branch's delay slot as the original does.
+
+typedef unsigned int u128 __attribute__((mode(TI)));
+#define VIF1_STAT  (*(volatile unsigned int *)0x10003C00)
+#define VIF1_FIFO  (*(u128 *)0x10005000)
+
+int func_0011BC38(u128 *data, int n)
+{
+    int i = 0;
+
+    while (n--) {
+        if (VIF1_STAT & 0x10000000)
+            return i;
+        VIF1_FIFO = *data++;
+        i++;
+    }
+    return i;
 }

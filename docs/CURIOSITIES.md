@@ -673,6 +673,19 @@ capture (that would need all 48 voices busy at once).
   with `i` equal to the scan's end, not the index of the voice it took; the
   effect at run time is not traced yet.
 
+## 33. The SDK's VU0 context save never saves the float registers, and the restore overwrites them — decoded (code only)
+
+*Kind: engine quirk (latent, SDK).* func_0011AB80 is the VU0 context save: when
+func_0011A9C0 reports VU0 idle it stores the VU0 control registers and integer
+registers vi0..vi15 into the context block, but not the 32 float registers.
+Its counterpart func_0011AC60 (restore) loads the control and integer
+registers back, and then STORES the live vf0..vf31 into the context block's
+float area instead of loading them. The float half sits in the wrong function:
+the float registers are never restored, and a restore overwrites whatever the
+context block held for them. Evidence: both functions byte-matched (matching
+wave queue batch 52, decompiled from asm-word bodies). Callers and any visible
+effect are not traced yet; nothing here is known to run in the first level.
+
 ## Notes for the port's candidate lists
 
 The candidate list in port `LAUNCHER_OPTIONS.md` and the examples in port

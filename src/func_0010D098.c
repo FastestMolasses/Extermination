@@ -1,56 +1,51 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00125848(int, int, int, int);
-extern void func_00126EC8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+// EEGCC_AS: 2.96
 
-asm void func_0010D098(void) {
-    .word 0x27bdfff0
-    .word 0x0000282d
-    .word 0xffbf0000
-    .word 0x14800003
-    .word 0x0000302d
-    .word 0x10000029
-    .word 0x0000102d
-    .word 0x04810004
-    .word 0x0080182d
-    .word 0x0004182f
-    .word 0x34068000
-    .word 0x0006343c
-    .word 0x24020001
-    .word 0x5062000a
-    .word 0x28a20035
-    .word 0x00000000
-    .word 0x64a50001
-    .word 0x0003187b
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x1462fffa
-    .word 0x00000000
-    .word 0x28a20035
-    .word 0x10400007
-    .word 0x64a303ff
-    .word 0x24020040
-    .word 0x0045102f
-    .word 0x0002103c
-    .word 0x0002103f
-    .word 0x00442014
-    .word 0x0004233b
-    .word 0x0003153c
-    .word 0x00c21025
-    .word 0x00442025
-    .word 0x04800005
-    .word 0x0004107a
-    jal       func_00125848
-    .word 0x00000000
-    .word 0x10000008
-    .word 0xdfbf0000
-    .word 0x30840001
-    jal       func_00125848
-    .word 0x00822025
-    .word 0x0040202d
-    jal       func_00126EC8
-    .word 0x0080282d
-    .word 0xdfbf0000
-    .word 0x03e00008
-    .word 0x27bd0010
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// SDK soft-float helper: builds a double-precision bit pattern from the signed
+// 64-bit integer x (sign bit, exponent n + 1023 where n is the index of the
+// highest set bit of |x|, mantissa from x shifted left by 64 - n then
+// arithmetically right by 12 when n < 53) and then converts that assembled
+// 64-bit VALUE (not a reinterpretation) to double with func_00125848 (signed
+// 64-bit to double); a negative pattern is converted as unsigned: halve with
+// the low bit kept sticky, convert, then double it with func_00126EC8 (add).
+// x == 0 returns 0. Note the mantissa is taken from x, not |x|, and |LONG_MIN|
+// never reaches 1 in the bit-count loop. Shift counts are 6-bit on the EE.
+
+extern long func_00125848(long a);
+extern long func_00126EC8(long a, long b);
+
+long func_0010D098(long x) {
+    long n;
+    unsigned long sign;
+    long a;
+    long d;
+    long e;
+
+    n = 0;
+    sign = 0;
+    if (x == 0) {
+        return 0;
+    }
+    a = x;
+    if (x < 0) {
+        a = -x;
+        sign = (unsigned long)0x8000 << 48;
+    }
+    while (a != 1) {
+        n++;
+        a >>= 1;
+    }
+    e = n + 0x3FF;
+    if (n < 53) {
+        x <<= (int)(64 - n);
+        x >>= 12;
+    }
+    d = sign | (e << 52) | x;
+    if (d >= 0) {
+        return func_00125848(d);
+    }
+    d = func_00125848((d & 1) | ((unsigned long)d >> 1));
+    return func_00126EC8(d, d);
 }

@@ -1,62 +1,44 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_0011DF98(void) {
-    .word 0x44026000
-    .word 0x0040202d
-    .word 0x000415c3
-    .word 0x304200ff
-    .word 0x2445ff81
-    .word 0x28a30017
-    .word 0x5060002b
-    .word 0x24020080
-    .word 0x04a30012
-    .word 0x3c02007f
-    .word 0x3c017149
-    .word 0x3421f2ca
-    .word 0x44810000
-    .word 0x44800800
-    .word 0x46006000
-    .word 0x46000834
-    .word 0x45000025
-    .word 0x00000000
-    .word 0x04800003
-    .word 0x3c027fff
-    .word 0x10000021
-    .word 0x0000202d
-    .word 0x3c03bf80
-    .word 0x3442ffff
-    .word 0x00821024
-    .word 0x1000001c
-    .word 0x0062200b
-    .word 0x3442ffff
-    .word 0x00a23007
-    .word 0x00861824
-    .word 0x14600003
-    .word 0x00000000
-    .word 0x03e00008
-    .word 0x46006006
-    .word 0x3c017149
-    .word 0x3421f2ca
-    .word 0x44810000
-    .word 0x44800800
-    .word 0x46006000
-    .word 0x46000834
-    .word 0x4500000d
-    .word 0x00000000
-    .word 0x04810005
-    .word 0x00061027
-    .word 0x3c020080
-    .word 0x00a21007
-    .word 0x00822021
-    .word 0x00061027
-    .word 0x10000005
-    .word 0x00822024
-    .word 0x14a2ffed
-    .word 0x00000000
-    .word 0x03e00008
-    .word 0x460c6000
-    .word 0x44846000
-    .word 0x03e00008
-    .word 0x46006006
+// COMPILER: eegcc
+// CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libm (fdlibm/newlib sf_floor.c, older form with j0 == 0x80 for inf/NaN):
+// floorf(x). huge + x > 0 is fdlibm's raise-inexact test.
+
+typedef union { float value; int word; } ieee_float_shape_type;
+#define GET_FLOAT_WORD(i,d) do { ieee_float_shape_type gf_u; gf_u.value = (d); (i) = gf_u.word; } while (0)
+#define SET_FLOAT_WORD(d,i) do { ieee_float_shape_type sf_u; sf_u.word = (i); (d) = sf_u.value; } while (0)
+
+/* fdlibm's static const float constants, written as macros: the original
+   folds every use into an immediate and has no data object for them. */
+#define huge     ((float)1.0e30)
+
+float func_0011DF98(float x)
+{
+	int i0,j0;
+	unsigned int i;
+	GET_FLOAT_WORD(i0,x);
+	j0 = ((i0>>23)&0xff)-0x7f;
+	if(j0<23) {
+	    if(j0<0) { 	/* raise inexact if x != 0 */
+		if(huge+x>(float)0.0) {/* return 0*sign(x) if |x|<1 */
+		    if(i0>=0) {i0=0;}
+		    else if((i0&0x7fffffff)!=0)
+			{ i0=0xbf800000;}
+		}
+	    } else {
+		i = (0x007fffff)>>j0;
+		if((i0&i)==0) return x; /* x is integral */
+		if(huge+x>(float)0.0) {	/* raise inexact flag */
+		    if(i0<0) i0 += (0x00800000)>>j0;
+		    i0 &= (~i);
+		}
+	    }
+	} else {
+	    if(j0==0x80) return x+x;	/* inf or NaN */
+	    else return x;		/* x is integral */
+	}
+	SET_FLOAT_WORD(x,i0);
+	return x;
 }

@@ -1,17 +1,19 @@
-// copysign(float a0, float a1): bits(a0) & 0x7FFFFFFF | bits(a1) & 0x80000000,
-// computed on the raw bits in integer registers and moved back to the float
-// return register; the return delay slot is empty.
-asm float func_0011DE60(float a0, float a1) {
-    mfc1 $5, $f12
-    mfc1 $4, $f13
-    daddu $3, $4, $zero
-    lui $2, 0x7FFF
-    ori $2, $2, 0xFFFF
-    .word 0x3C048000
-    and $5, $5, $2
-    and $3, $3, $4
-    or $5, $5, $3
-    mtc1 $5, $f0
-    jr $ra
-    nop
+// COMPILER: eegcc
+// CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libm (newlib sf_copysign.c): copysignf(x, y) = |x| with the sign bit of y.
+
+typedef union { float value; unsigned int word; } ieee_float_shape_type;
+#define GET_FLOAT_WORD(i,d) do { ieee_float_shape_type gf_u; gf_u.value = (d); (i) = gf_u.word; } while (0)
+#define SET_FLOAT_WORD(d,i) do { ieee_float_shape_type sf_u; sf_u.word = (i); (d) = sf_u.value; } while (0)
+
+float func_0011DE60(float x, float y)
+{
+	unsigned int ix,iy;
+	GET_FLOAT_WORD(ix,x);
+	GET_FLOAT_WORD(iy,y);
+	SET_FLOAT_WORD(x,(ix&0x7fffffff)|(iy&0x80000000));
+        return x;
 }

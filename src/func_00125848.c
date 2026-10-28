@@ -1,46 +1,46 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_00126EC8(int, int, int, int);
-extern void func_00126F88(int, int, int, int);
-extern void func_00127500(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_00125848(void) {
-    addiu $sp, $sp, -0x30
-    sd $s0, 0x0($sp)
-    daddu $s0, $a0, $zero
-    sd $s1, 0x10($sp)
-    ori $s1, $zero, 0x81E0
-    dsll32 $s1, $s1, 15
-    dsra32 $a0, $s0, 0
-    sd $ra, 0x20($sp)
-    jal func_00127500
-    nop
-    daddu $a1, $s1, $zero
-    jal func_00126F88
-    daddu $a0, $v0, $zero
-    daddu $a1, $s1, $zero
-    jal func_00126F88
-    daddu $a0, $v0, $zero
-    daddu $s1, $v0, $zero
-    lui $v0, (0xFFFF0000 >> 16)
-    dsrl32 $v0, $v0, 0
-    and $s0, $s0, $v0
-    dsll32 $s0, $s0, 0
-    dsra32 $s0, $s0, 0
-    jal func_00127500
-    daddu $a0, $s0, $zero
-    .word 0x06010006
-    daddu $a0, $s1, $zero
-    ori $a1, $zero, 0x83E0
-    dsll32 $a1, $a1, 15
-    jal func_00126EC8
-    daddu $a0, $v0, $zero
-    daddu $a0, $s1, $zero
-    jal func_00126EC8
-    daddu $a1, $v0, $zero
-    ld $ra, 0x20($sp)
-    ld $s1, 0x10($sp)
-    ld $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libgcc (libgcc2.c): __floatdidf: signed 64-bit to double = (double)(high word)
+// * 65536 * 65536 + (double)(unsigned low word), with the soft-float litodp /
+// dpmul / dpadd calls by their linked names (an unsigned word converts as signed
+// plus 2^32 when its top bit is set).
+
+/* ee-gcc lowers double arithmetic to the SCE soft-float runtime by name
+   (dpadd, dpmul, ...); this binary links those routines under their address
+   names, so the calls are written out explicitly. */
+extern double func_00126EC8(double a, double b);   /* dpadd: a + b */
+extern double func_00126F20(double a, double b);   /* dpsub: a - b */
+extern double func_00126F88(double a, double b);   /* dpmul: a * b */
+extern int func_001274B0(double a, double b);      /* dpcmp: <0, 0, >0 */
+extern double func_00127500(int i);                /* litodp: (double)i */
+extern unsigned int func_00127650(double a);       /* dptoul: (unsigned int)a */
+#define dpadd func_00126EC8
+#define dpsub func_00126F20
+#define dpmul func_00126F88
+#define dpcmp func_001274B0
+#define litodp func_00127500
+#define dptoul func_00127650
+#define WORD_SIZE 32
+#define HIGH_HALFWORD_COEFF 65536.0
+#define HIGH_WORD_COEFF 4294967296.0
+
+double func_00125848(long u)
+{
+  double d;
+  int low;
+  double dl;
+
+  d = litodp ((int) (u >> WORD_SIZE));
+  d = dpmul (d, HIGH_HALFWORD_COEFF);
+  d = dpmul (d, HIGH_HALFWORD_COEFF);
+  /* d += (unsigned int) (u & 0xffffffff): the unsigned word converts as a
+     signed one, plus 2^32 when its top bit is set. */
+  low = (int) (u & 0xffffffffUL);
+  dl = litodp (low);
+  if (low < 0)
+    dl = dpadd (dl, HIGH_WORD_COEFF);
+  return dpadd (d, dl);
 }

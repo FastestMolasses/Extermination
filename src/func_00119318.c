@@ -1,9 +1,11 @@
-// Tail-call wrapper: sets up arguments and tail-jumps to another
-// function. mwcc lacks C-level tail-call optimization, so we write
-// these wrappers as `asm void` to control the final `j`.
-extern void func_001190B8(void);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_00119318(void) {
-    j func_001190B8
-    daddu $a0, $zero, $zero
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// Sound system: reset with argument 0 (tail call of func_001190B8).
+
+extern void func_001190B8(int arg0);
+
+void func_00119318(void) {
+    func_001190B8(0);
 }

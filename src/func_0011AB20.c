@@ -1,21 +1,23 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_0011AB20(void) {
-    .word 0x4843e800
-    .word 0x30620002
-    .word 0x10400003
-    .word 0x30620004
-    .word 0x03e00008
-    .word 0x24020001
-    .word 0x10400003
-    .word 0x30620008
-    .word 0x03e00008
-    .word 0x24020002
-    .word 0x10400003
-    .word 0x30620001
-    .word 0x03e00008
-    .word 0x24020003
-    .word 0x03e00008
-    .word 0x00021080
+// COMPILER: eegcc
+// CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// VU0 run state from VPU_STAT (COP2 control register vi29): 1 when bit 1 (D-bit
+// stop) is set, else 2 for bit 2 (T-bit stop), else 3 for bit 3 (force break),
+// else 4 when bit 0 (busy) is set, else 0 (idle). func_0011A9F0 consumes these
+// codes. The COP2 move is a user-approved VU0 inline asm statement.
+
+int func_0011AB20(void) {
+    unsigned int stat;
+    asm volatile("cfc2.ni %0, $vi29" : "=r"(stat));
+    if (stat & 2) {
+        return 1;
+    }
+    if (stat & 4) {
+        return 2;
+    }
+    if (stat & 8) {
+        return 3;
+    }
+    return (stat & 1) << 2;
 }

@@ -1,19 +1,30 @@
-// func_0011DB58: NaN test on a double held in one 64-bit register. With hi/lo
-// its two words: returns 1 when ((hi & 0x7FFFFFFF) | (lo != 0)) > 0x7FF00000
-// (unsigned), else 0.
-asm int func_0011DB58(int a0) {
-    dsll32 $2, $4, 0
-    dsra32 $2, $2, 0
-    dsra32 $4, $4, 0
-    lui $3, 0x7FFF
-    negu $5, $2
-    ori $3, $3, 0xFFFF
-    or $2, $2, $5
-    and $4, $4, $3
-    srl $2, $2, 31
-    lui $3, 0x7FF0
-    or $4, $4, $2
-    subu $4, $3, $4
-    jr $ra
-    srl $2, $4, 31
+// COMPILER: eegcc
+// CFLAGS: -O2
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libm (newlib s_isnan.c): isnan(double) on the soft-float double: 1 for a NaN,
+// else 0 (branch-free bit test).
+
+typedef union {
+    double value;
+    struct { unsigned int lsw; unsigned int msw; } parts;
+} ieee_double_shape_type;
+
+#define EXTRACT_WORDS(ix0,ix1,d)        \
+do {                                    \
+  ieee_double_shape_type ew_u;          \
+  ew_u.value = (d);                     \
+  (ix0) = ew_u.parts.msw;               \
+  (ix1) = ew_u.parts.lsw;               \
+} while (0)
+
+int func_0011DB58(double x)
+{
+	int hx,lx;
+	EXTRACT_WORDS(hx,lx,x);
+	hx &= 0x7fffffff;
+	hx |= (unsigned int)(lx|(-lx))>>31;
+	hx = 0x7ff00000 - hx;
+	return (int)(((unsigned int)(hx))>>31);
 }

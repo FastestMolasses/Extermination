@@ -1,51 +1,68 @@
-// Hybrid: branches/j as .word, jal with extern decls
-extern void func_0011FD88(int, int, int, int);
-extern void func_001236D8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_00123620(void) {
-    addiu      $sp, $sp, -0x490
-    addiu      $10, $zero, 0x400
-    sd         $s1, 0x470($sp)
-    addiu      $11, $sp, 0x60
-    sd         $s0, 0x460($sp)
-    daddu      $s1, $a0, $zero
-    sd         $ra, 0x480($sp)
-    daddu      $a0, $sp, $zero
-    lhu        $v0, 0xC($s1)
-    lw         $8, 0x54($s1)
-    lhu        $9, 0xE($s1)
-    andi       $v0, $v0, 0xFFFD
-    lw         $a3, 0x1C($s1)
-    lw         $v1, 0x24($s1)
-    sw         $8, 0x54($sp)
-    sh         $v0, 0xC($sp)
-    sh         $9, 0xE($sp)
-    sw         $a3, 0x1C($sp)
-    sw         $v1, 0x24($sp)
-    sw         $11, 0x10($sp)
-    sw         $10, 0x14($sp)
-    sw         $11, 0x0($sp)
-    sw         $10, 0x8($sp)
-    jal        func_001236D8
-    sw        $zero, 0x18($sp)
-    daddu      $s0, $v0, $zero
-    .word 0x06000006
-    lhu       $v0, 0xC($sp)
-    jal        func_0011FD88
-    daddu     $a0, $sp, $zero
-    addiu      $v1, $zero, -0x1
-    movn       $s0, $v1, $v0
-    lhu        $v0, 0xC($sp)
-    andi       $v0, $v0, 0x40
-    .word 0x10400005
-    daddu     $v0, $s0, $zero
-    lhu        $v0, 0xC($s1)
-    ori        $v0, $v0, 0x40
-    sh         $v0, 0xC($s1)
-    daddu      $v0, $s0, $zero
-    ld         $ra, 0x480($sp)
-    ld         $s1, 0x470($sp)
-    ld         $s0, 0x460($sp)
-    jr         $ra
-    addiu     $sp, $sp, 0x490
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libc (newlib vfprintf.c): __sbprintf(fp, fmt, ap): formats an unbuffered
+// stream through a 1024-byte stack buffer on a fake FILE (copies _data, flags
+// without __SNBF, file, cookie, write hook), fflush (func_0011FD88) after a
+// successful vfprintf (func_001236D8), returns EOF if the flush fails, and copies
+// __SERR back to fp.
+
+typedef struct __sFILE {
+    unsigned char *_p;
+    int _r;
+    int _w;
+    short _flags;
+    short _file;
+    struct { unsigned char *_base; int _size; } _bf;
+    int _lbfsize;
+    void *_cookie;
+    int (*_read)(void *, char *, int);
+    int (*_write)(void *, const char *, int);
+    long (*_seek)(void *, long, int);
+    int (*_close)(void *);
+    struct { unsigned char *_base; int _size; } _ub;
+    unsigned char *_up;
+    int _ur;
+    unsigned char _ubuf[3];
+    unsigned char _nbuf[1];
+    struct { unsigned char *_base; int _size; } _lb;
+    int _blksize;
+    int _offset;
+    void *_data;
+} FILE;
+typedef char *va_list;
+extern int func_001236D8(FILE *fp, const char *fmt, va_list ap);   /* vfprintf */
+extern int func_0011FD88(FILE *fp);                                  /* fflush */
+#define BUFSIZ 1024
+#define __SNBF 0x0002
+#define __SERR 0x0040
+#define EOF (-1)
+
+int func_00123620(FILE *fp, const char *fmt, va_list ap)
+{
+	int ret;
+	FILE fake;
+	unsigned char buf[BUFSIZ];
+
+	/* copy the important variables */
+	fake._data = fp->_data;
+	fake._flags = fp->_flags & ~__SNBF;
+	fake._file = fp->_file;
+	fake._cookie = fp->_cookie;
+	fake._write = fp->_write;
+
+	/* set up the buffer */
+	fake._bf._base = fake._p = buf;
+	fake._bf._size = fake._w = sizeof(buf);
+	fake._lbfsize = 0;	/* not actually used, but Just In Case */
+
+	/* do the work, then copy any error status */
+	ret = func_001236D8(&fake, fmt, ap);
+	if (ret >= 0 && func_0011FD88(&fake))
+		ret = EOF;
+	if (fake._flags & __SERR)
+		fp->_flags |= __SERR;
+	return (ret);
 }

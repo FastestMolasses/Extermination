@@ -1,23 +1,28 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_0011AFD0(void) {
-    .word 0x4843e800
-    .word 0x30620200
-    .word 0x10400003
-    .word 0x30620400
-    .word 0x1000000b
-    .word 0x24030001
-    .word 0x10400003
-    .word 0x30620800
-    .word 0x10000007
-    .word 0x24030002
-    .word 0x10400003
-    .word 0x30620100
-    .word 0x10000003
-    .word 0x24030003
-    .word 0x24030004
-    .word 0x0002180a
-    .word 0x03e00008
-    .word 0x0060102d
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// The VU0 macro / COP2 transfers are GCC-style asm statements, one instruction
+// each (user-approved 2026-10-28 for the VU0 class); everything else is C.
+//
+// SDK VU1: run state decoded from VPU_STAT (COP2 control register 29), first
+// match wins: bit 9 -> 1 (stopped on D-bit), bit 10 -> 2 (stopped on T-bit),
+// bit 11 -> 3 (stopped by force break), bit 8 -> 4 (running), else 0 (idle).
+
+int func_0011AFD0(void) {
+    int stat;
+    int state;
+    asm volatile("cfc2.ni %0, $vi29" : "=r"(stat));
+    if (stat & 0x200) {
+        state = 1;
+    } else if (stat & 0x400) {
+        state = 2;
+    } else if (stat & 0x800) {
+        state = 3;
+    } else if (stat & 0x100) {
+        state = 4;
+    } else {
+        state = 0;
+    }
+    return state;
 }

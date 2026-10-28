@@ -52,7 +52,7 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (2026-10-28, end of the matching wave plus the VU0 class, queue batch 48): 2773/2775
+  Latest (2026-10-28, matching wave + VU0 class + asm-word bodies decompiled, queue batch 52): 2762/2764
   units, matched_code 99.97%; boot ELF byte-identical; 19/19 overlays;
   audit_link_provenance clean (2309 ordinary-C routes). The wave byte-matched
   498 NEARMISS functions and replaced 51 asm bodies by C; per-batch levers are in

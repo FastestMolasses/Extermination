@@ -1,31 +1,46 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_00122BE8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void vtable_a0_at_0011FE90_off20(void) {
-    addiu $sp, $sp, -0x20
-    daddu $v0, $a1, $zero
-    sd $s0, 0x0($sp)
-    daddu $a3, $a2, $zero
-    sd $ra, 0x10($sp)
-    daddu $s0, $a0, $zero
-    daddu $a2, $v0, $zero
-    lw $a0, 0x54($s0)
-    jal func_00122BE8
-    lh $a1, 0xE($s0)
-    dsll32 $v1, $v0, 0
-    dsra32 $v1, $v1, 0
-    .word 0x04620005
-    lhu $v0, 0xC($s0)
-    lw $v0, 0x50($s0)
-    addu $v0, $v0, $v1
-    .word 0x10000003
-    sw $v0, 0x50($s0)
-    andi $v0, $v0, 0xEFFF
-    sh $v0, 0xC($s0)
-    ld $ra, 0x10($sp)
-    daddu $v0, $v1, $zero
-    ld $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libc (newlib stdio.c): __sread, the default read hook of a FILE: _read_r
+// (func_00122BE8, 64-bit result truncated); a non-negative count advances
+// _offset (+0x50), an error clears __SOFF (0x1000).
+
+typedef struct __sFILE {
+    unsigned char *_p;
+    int _r;
+    int _w;
+    short _flags;
+    short _file;
+    struct { unsigned char *_base; int _size; } _bf;
+    int _lbfsize;
+    void *_cookie;
+    int (*_read)(void *, char *, int);
+    int (*_write)(void *, const char *, int);
+    long (*_seek)(void *, long, int);
+    int (*_close)(void *);
+    struct { unsigned char *_base; int _size; } _ub;
+    unsigned char *_up;
+    int _ur;
+    unsigned char _ubuf[3];
+    unsigned char _nbuf[1];
+    struct { unsigned char *_base; int _size; } _lb;
+    int _blksize;
+    int _offset;
+    void *_data;
+} FILE;
+extern long func_00122BE8(void *ptr, int fd, void *buf, unsigned int cnt);
+
+int vtable_a0_at_0011FE90_off20(void *cookie, char *buf, int n)
+{
+    register FILE *fp = (FILE *)cookie;
+    register int ret;
+
+    ret = func_00122BE8(fp->_data, fp->_file, buf, n);
+    if (ret >= 0)
+        fp->_offset += ret;
+    else
+        fp->_flags &= ~0x1000;
+    return ret;
 }

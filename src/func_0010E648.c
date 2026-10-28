@@ -1,51 +1,68 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0010E338(int, int, int, int);
-extern void func_0010E5F8(int, int, int, int);
-extern void func_0010DE78(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_0010E648(void) {
-    .word 0x27bdffc0
-    .word 0xffb10010
-    .word 0xffb00000
-    .word 0x00a0882d
-    .word 0x0080802d
-    .word 0xffb20020
-    .word 0xffbf0030
-    jal       func_0010E338
-    .word 0x0220202d
-    .word 0x0040902d
-    .word 0x8e04001c
-    .word 0x8e030014
-    .word 0x3c028000
-    .word 0x34420009
-    .word 0xae44001c
-    .word 0xae430014
-    .word 0x0220282d
-    .word 0xae420020
-    jal       func_0010E5F8
-    .word 0x8e040020
-    .word 0x0040182d
-    .word 0x54600005
-    .word 0xae430024
-    .word 0xae400024
-    .word 0xae400028
-    .word 0x10000005
-    .word 0xae40002c
-    .word 0x8c620008
-    .word 0xae420028
-    .word 0x8c630014
-    .word 0xae43002c
-    .word 0x0240282d
-    .word 0x3c048000
-    .word 0xdfbf0030
-    .word 0x34840008
-    .word 0xdfb20020
-    .word 0x24060040
-    .word 0xdfb10010
-    .word 0x0000382d
-    .word 0xdfb00000
-    .word 0x0000402d
-    .word 0x0000482d
-    j         func_0010DE78
-    .word 0x27bd0040
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// SDK (SIF RPC, EE side): handler for the IOP's bind request (command
+// 0x80000009, registered by func_0010E088). Takes a reply packet from the
+// packet ring (func_0010E338), copies the request's packet address and client
+// pointer into it, sets the command to 0x80000009, looks up the served
+// function number in the server list (func_0010E5F8) and fills the server,
+// its receive buffer and its callback buffer (all 0 when not found), then
+// sends the 0x40-byte packet back with command 0x80000008 (func_0010DE78).
+// Fixes read from the original instructions: the reply packet's two copied
+// fields are words (unsigned int) while the request's are pointers, so the two
+// loads are scheduled ahead of both stores; the packet address is copied first.
+
+typedef struct {
+    char hdr[0x14];
+    void *pkt_addr;         /* 0x14 */
+    int pad_18;
+    void *client;           /* 0x1C */
+    int sid;                /* 0x20 */
+} SifRpcBindPkt;
+
+typedef struct {
+    char hdr[0x14];
+    unsigned int pkt_addr;         /* 0x14 */
+    int pad_18;
+    unsigned int client;           /* 0x1C */
+    unsigned int cid;       /* 0x20 */
+    void *server;           /* 0x24 */
+    void *buff;             /* 0x28 */
+    void *cbuff;            /* 0x2C */
+    char pad_30[0x10];
+} SifRpcRendPkt;
+
+typedef struct {
+    int sid;                /* 0x00 */
+    void *func;             /* 0x04 */
+    void *buff;             /* 0x08 */
+    int size;               /* 0x0C */
+    void *cfunc;            /* 0x10 */
+    void *cbuff;            /* 0x14 */
+} SifRpcServerData;
+
+extern SifRpcRendPkt *func_0010E338(void *rpc_data);
+extern SifRpcServerData *func_0010E5F8(int sid, void *rpc_data);
+extern int func_0010DE78(int cid, void *pkt, int size, int src, int dest, int opt);
+
+void func_0010E648(SifRpcBindPkt *bind, void *data) {
+    SifRpcRendPkt *rend;
+    SifRpcServerData *sd;
+
+    rend = func_0010E338(data);
+    rend->pkt_addr = (unsigned int)bind->pkt_addr;
+    rend->client = (unsigned int)bind->client;
+    rend->cid = 0x80000009;
+    sd = func_0010E5F8(bind->sid, data);
+    if (sd == 0) {
+        rend->server = 0;
+        rend->buff = 0;
+        rend->cbuff = 0;
+    } else {
+        rend->server = sd;
+        rend->buff = sd->buff;
+        rend->cbuff = sd->cbuff;
+    }
+    func_0010DE78(0x80000008, rend, 0x40, 0, 0, 0);
 }

@@ -1,52 +1,75 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_00126AB8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_00127500(void) {
-    addiu $sp, $sp, -0x30
-    addiu $v0, $zero, 0x3
-    srl $v1, $a0, 31
-    sd $ra, 0x20($sp)
-    sw $v0, 0x0($sp)
-    .word 0x14800004
-    sw $v1, 0x4($sp)
-    addiu $v0, $zero, 0x2
-    .word 0x10000020
-    sw $v0, 0x0($sp)
-    addiu $v0, $zero, 0x3C
-    .word 0x1060000a
-    sw $v0, 0x8($sp)
-    lui $v0, (0x80000000 >> 16)
-    .word 0x14820005
-    negu $v0, $a0
-    ori $v0, $zero, 0xC1E0
-    dsll32 $v0, $v0, 16
-    .word 0x10000019
-    ld $ra, 0x20($sp)
-    .word 0x10000002
-    sd $v0, 0x10($sp)
-    sd $a0, 0x10($sp)
-    ld $a1, 0x10($sp)
-    addiu $v0, $zero, -0x1
-    dsrl $v0, $v0, 4
-    sltu $v0, $v0, $a1
-    .word 0x1440000d
-    lw $a0, 0x8($sp)
-    addiu $a2, $zero, -0x1
-    dsrl $a2, $a2, 4
-    nop
-    dsll $v1, $a1, 1
-    addiu $a0, $a0, -0x1
-    daddu $a1, $v1, $zero
-    sltu $v0, $a2, $v1
-    nop
-    .word 0x1040fffa
-    nop
-    sw $a0, 0x8($sp)
-    sd $v1, 0x10($sp)
-    jal func_00126AB8
-    daddu $a0, $sp, $zero
-    ld $ra, 0x20($sp)
-    jr $ra
-    addiu $sp, $sp, 0x30
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libgcc (fp-bit.c): si_to_float for double (the SCE runtime's litodp): int to
+// double via fp_number_type and pack_d (func_00126AB8); INT_MIN is a constant.
+
+typedef enum {
+    CLASS_SNAN, CLASS_QNAN, CLASS_ZERO, CLASS_NUMBER, CLASS_INFINITY
+} fp_class_type;
+
+typedef struct {
+    fp_class_type class;
+    unsigned int sign;
+    int normal_exp;
+    union {
+        unsigned long long ll;
+        unsigned int l[2];
+    } fraction;
+} fp_number_type;
+
+typedef union {
+    double value;
+    unsigned long long value_raw;
+} FLO_union_type;
+
+#define FRACBITS 52
+#define NGARDS 8
+#define BITS_PER_SI 32
+#define MAX_SI_INT 0x7fffffff
+#define MAX_USI_INT 0xffffffffU
+
+extern double func_00126AB8(fp_number_type *src);              /* pack_d */
+extern void func_00126BE8(FLO_union_type *src, fp_number_type *dst); /* unpack_d */
+#define pack_d func_00126AB8
+#define unpack_d func_00126BE8
+
+static __inline__ int isnan(fp_number_type *x) { return x->class == CLASS_SNAN || x->class == CLASS_QNAN; }
+static __inline__ int isinf(fp_number_type *x) { return x->class == CLASS_INFINITY; }
+static __inline__ int iszero(fp_number_type *x) { return x->class == CLASS_ZERO; }
+double func_00127500(int arg_a)
+{
+  fp_number_type in;
+
+  in.class = CLASS_NUMBER;
+  in.sign = arg_a < 0;
+  if (!arg_a)
+    {
+      in.class = CLASS_ZERO;
+    }
+  else
+    {
+      in.normal_exp = FRACBITS + NGARDS;
+      if (in.sign)
+	{
+	  /* Special case for minint, since there is no +ve integer
+	     representation for it */
+	  if (arg_a == (- MAX_SI_INT - 1))
+	    {
+	      return (double)(- MAX_SI_INT - 1);
+	    }
+	  in.fraction.ll = (-arg_a);
+	}
+      else
+	in.fraction.ll = arg_a;
+
+      while (in.fraction.ll < (1LL << (FRACBITS + NGARDS)))
+	{
+	  in.fraction.ll <<= 1;
+	  in.normal_exp -= 1;
+	}
+    }
+  return pack_d (&in);
 }

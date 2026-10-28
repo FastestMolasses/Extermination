@@ -1,43 +1,65 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_00126BE8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_001275B8(void) {
-    addiu $sp, $sp, -0x40
-    sd $a0, 0x20($sp)
-    daddu $a1, $sp, $zero
-    sd $ra, 0x30($sp)
-    jal func_00126BE8
-    addiu $a0, $sp, 0x20
-    lw $v1, 0x0($sp)
-    xori $v0, $v1, 0x2
-    .word 0x10400003
-    sltiu $v0, $v1, 0x2
-    .word 0x10400003
-    xori $v0, $v1, 0x4
-    .word 0x10000015
-    daddu $v0, $zero, $zero
-    .word 0x10400005
-    lw $a0, 0x8($sp)
-    .word 0x0480fffb
-    slti $v0, $a0, 0x1F
-    .word 0x14400007
-    addiu $v1, $zero, 0x3C
-    lw $v1, 0x4($sp)
-    lui $v0, (0x7FFFFFFF >> 16)
-    ori $v0, $v0, (0x7FFFFFFF & 0xFFFF)
-    lui $a0, (0x80000000 >> 16)
-    .word 0x10000009
-    movn $v0, $a0, $v1
-    ld $v0, 0x10($sp)
-    subu $v1, $v1, $a0
-    dsrlv $v0, $v0, $v1
-    lw $a0, 0x4($sp)
-    dsll32 $v0, $v0, 0
-    dsra32 $v0, $v0, 0
-    negu $v1, $v0
-    movn $v0, $v1, $a0
-    ld $ra, 0x30($sp)
-    jr $ra
-    addiu $sp, $sp, 0x40
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libgcc (fp-bit.c): float_to_si for double (dptoli): unpack_d (func_00126BE8),
+// zero/NaN give 0, infinities and |x| >= 2^31 saturate by sign, small values
+// give 0, else the fraction shifted down, negated for a negative sign.
+
+typedef enum {
+    CLASS_SNAN, CLASS_QNAN, CLASS_ZERO, CLASS_NUMBER, CLASS_INFINITY
+} fp_class_type;
+
+typedef struct {
+    fp_class_type class;
+    unsigned int sign;
+    int normal_exp;
+    union {
+        unsigned long long ll;
+        unsigned int l[2];
+    } fraction;
+} fp_number_type;
+
+typedef union {
+    double value;
+    unsigned long long value_raw;
+} FLO_union_type;
+
+#define FRACBITS 52
+#define NGARDS 8
+#define BITS_PER_SI 32
+#define MAX_SI_INT 0x7fffffff
+#define MAX_USI_INT 0xffffffffU
+
+extern double func_00126AB8(fp_number_type *src);              /* pack_d */
+extern void func_00126BE8(FLO_union_type *src, fp_number_type *dst); /* unpack_d */
+#define pack_d func_00126AB8
+#define unpack_d func_00126BE8
+
+static __inline__ int isnan(fp_number_type *x) { return x->class == CLASS_SNAN || x->class == CLASS_QNAN; }
+static __inline__ int isinf(fp_number_type *x) { return x->class == CLASS_INFINITY; }
+static __inline__ int iszero(fp_number_type *x) { return x->class == CLASS_ZERO; }
+int func_001275B8(double arg_a)
+{
+  fp_number_type a;
+  int tmp;
+  FLO_union_type au;
+
+  au.value = arg_a;
+  unpack_d (&au, &a);
+  if (iszero (&a))
+    return 0;
+  if (isnan (&a))
+    return 0;
+  /* get reasonable MAX_SI_INT... */
+  if (isinf (&a))
+    return a.sign ? (-MAX_SI_INT)-1 : MAX_SI_INT;
+  /* it is a number, but a small one */
+  if (a.normal_exp < 0)
+    return 0;
+  if (a.normal_exp > BITS_PER_SI - 2)
+    return a.sign ? (-MAX_SI_INT)-1 : MAX_SI_INT;
+  tmp = a.fraction.ll >> ((FRACBITS + NGARDS) - a.normal_exp);
+  return a.sign ? (-tmp) : (tmp);
 }

@@ -1,106 +1,66 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_0011ADD0(int, int, int, int);
-extern void func_0011AE40(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// SDK VU1 context save: unless func_0011ADD0 reports a VU running (then returns
+// 0), reads every VU1 register through VU0 memory with func_0011AE40 and stores it
+// into ctx: vf0..vf31 (addresses 0x400..0x41F), status, MAC, clip, R, I, Q and P
+// (0x430, 0x431, 0x432, 0x434, 0x435, 0x436, 0x437; low word of each) and
+// vi0..vi15 (0x420..0x42F; low halfword). Returns 1.
 
-asm void func_0011B050(void) {
-    addiu $sp, $sp, -0x130
-    sd $s2, 0xB0($sp)
-    sd $ra, 0x120($sp)
-    daddu $s2, $a0, $zero
-    sd $fp, 0x110($sp)
-    sd $s7, 0x100($sp)
-    sd $s6, 0xF0($sp)
-    sd $s5, 0xE0($sp)
-    sd $s4, 0xD0($sp)
-    sd $s3, 0xC0($sp)
-    sd $s1, 0xA0($sp)
-    jal func_0011ADD0
-    sd $s0, 0x90($sp)
-    .word 0x14400049
-    daddu $v0, $zero, $zero
-    addiu $v0, $sp, 0x50
-    daddu $s1, $zero, $zero
-    sw $v0, 0x84($sp)
-    addiu $s4, $sp, 0x10
-    addiu $v0, $sp, 0x60
-    addiu $s5, $sp, 0x20
-    sw $v0, 0x80($sp)
-    addiu $s6, $sp, 0x30
-    addiu $s7, $sp, 0x40
-    addiu $fp, $sp, 0x70
-    addiu $s3, $s2, 0x21C
-    daddu $s0, $s2, $zero
-    nop
-    addiu $a1, $s1, 0x400
-    daddu $a0, $sp, $zero
-    andi $a1, $a1, 0xFFFF
-    jal func_0011AE40
-    addiu $s1, $s1, 0x1
-    lq $v0, 0x0($sp)
-    sltiu $v1, $s1, 0x20
-    sq $v0, 0x0($s0)
-    .word 0x1460fff7
-    addiu $s0, $s0, 0x10
-    daddu $a0, $sp, $zero
-    jal func_0011AE40
-    addiu $a1, $zero, 0x430
-    daddu $s0, $s3, $zero
-    lw $v0, 0x0($sp)
-    daddu $a0, $s4, $zero
-    addiu $a1, $zero, 0x431
-    daddu $s1, $zero, $zero
-    jal func_0011AE40
-    sw $v0, 0x200($s2)
-    lw $v0, 0x10($sp)
-    daddu $a0, $s5, $zero
-    addiu $a1, $zero, 0x432
-    jal func_0011AE40
-    sw $v0, 0x204($s2)
-    lw $v0, 0x20($sp)
-    daddu $a0, $s6, $zero
-    addiu $a1, $zero, 0x434
-    jal func_0011AE40
-    sw $v0, 0x208($s2)
-    lw $v0, 0x30($sp)
-    daddu $a0, $s7, $zero
-    addiu $a1, $zero, 0x435
-    jal func_0011AE40
-    sw $v0, 0x20C($s2)
-    lw $v0, 0x40($sp)
-    addiu $a1, $zero, 0x436
-    lw $a0, 0x84($sp)
-    jal func_0011AE40
-    sw $v0, 0x210($s2)
-    lw $v0, 0x50($sp)
-    addiu $a1, $zero, 0x437
-    lw $a0, 0x80($sp)
-    jal func_0011AE40
-    sw $v0, 0x214($s2)
-    lw $v0, 0x60($sp)
-    sw $v0, 0x218($s2)
-    nop
-    addiu $a1, $s1, 0x420
-    daddu $a0, $fp, $zero
-    andi $a1, $a1, 0xFFFF
-    jal func_0011AE40
-    addiu $s1, $s1, 0x1
-    lhu $v0, 0x70($sp)
-    sltiu $v1, $s1, 0x10
-    sh $v0, 0x0($s0)
-    .word 0x1460fff7
-    addiu $s0, $s0, 0x2
-    addiu $v0, $zero, 0x1
-    ld $ra, 0x120($sp)
-    ld $fp, 0x110($sp)
-    ld $s7, 0x100($sp)
-    ld $s6, 0xF0($sp)
-    ld $s5, 0xE0($sp)
-    ld $s4, 0xD0($sp)
-    ld $s3, 0xC0($sp)
-    ld $s2, 0xB0($sp)
-    ld $s1, 0xA0($sp)
-    ld $s0, 0x90($sp)
-    jr $ra
-    addiu $sp, $sp, 0x130
+typedef unsigned int u128 __attribute__((mode(TI)));
+typedef struct {
+    unsigned long d[2];
+} vu_qword;
+typedef union {
+    vu_qword s;
+    u128 q;
+} vu_qword_u;
+
+struct vu1_context {
+    u128 vf[32];
+    unsigned int status;
+    unsigned int mac;
+    unsigned int clip;
+    unsigned int r;
+    unsigned int i;
+    unsigned int q;
+    unsigned int p;
+    unsigned short vi[16];
+};
+
+extern int func_0011ADD0(void);
+extern vu_qword func_0011AE40(unsigned short addr);
+
+int func_0011B050(struct vu1_context *ctx) {
+    vu_qword vf, mac, clip, r, i, q, p, vi;
+    unsigned int n;
+
+    if (func_0011ADD0() != 0) {
+        return 0;
+    }
+    for (n = 0; n < 32; n++) {
+        vf = func_0011AE40(0x400 + n);
+        ctx->vf[n] = *(u128 *)&vf;
+    }
+    vf = func_0011AE40(0x430);
+    ctx->status = vf.d[0];
+    mac = func_0011AE40(0x431);
+    ctx->mac = mac.d[0];
+    clip = func_0011AE40(0x432);
+    ctx->clip = clip.d[0];
+    r = func_0011AE40(0x434);
+    ctx->r = r.d[0];
+    i = func_0011AE40(0x435);
+    ctx->i = i.d[0];
+    q = func_0011AE40(0x436);
+    ctx->q = q.d[0];
+    p = func_0011AE40(0x437);
+    ctx->p = p.d[0];
+    for (n = 0; n < 16; n++) {
+        vi = func_0011AE40(0x420 + n);
+        ctx->vi[n] = vi.d[0];
+    }
+    return 1;
 }

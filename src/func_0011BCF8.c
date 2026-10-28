@@ -1,273 +1,75 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011CB90(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_0011BCF8(void) {
-    .word 0x27bdffd0
-    .word 0x460062c6
-    .word 0xffbf0000
-    .word 0xe7b60020
-    .word 0xe7b50018
-    .word 0x44025800
-    .word 0x0040202d
-    .word 0x3c027fff
-    .word 0x3442ffff
-    .word 0x3c053f80
-    .word 0x00821824
-    .word 0x1465000a
-    .word 0xe7b40010
-    .word 0x44800000
-    .word 0x1c8000f8
-    .word 0xdfbf0000
-    .word 0x3c014049
-    .word 0x34210fdb
-    .word 0x44810000
-    .word 0x100000f4
-    .word 0xc7b60020
-    .word 0x00000000
-    .word 0x00a3102a
-    .word 0x10400007
-    .word 0xdfbf0000
-    .word 0x460b5801
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x46000003
-    .word 0x100000ea
-    .word 0xc7b60020
-    .word 0x3c023eff
-    .word 0x3442ffff
-    .word 0x0043102a
-    .word 0x1440004a
-    .word 0x3c022300
-    .word 0x0043102a
-    .word 0x54400006
-    .word 0x460b5d42
-    .word 0x3c013fc9
-    .word 0x34210fdb
-    .word 0x44810000
-    .word 0x100000dc
-    .word 0xdfbf0000
-    .word 0x3c013811
-    .word 0x3421ef08
-    .word 0x44810800
-    .word 0x3c013a4f
-    .word 0x34217f04
-    .word 0x44811800
-    .word 0x3c01bd24
-    .word 0x34211146
-    .word 0x44813000
-    .word 0x4601a842
-    .word 0x3c013d9d
-    .word 0x3421c62e
-    .word 0x44811000
-    .word 0x3c01bf30
-    .word 0x34213361
-    .word 0x44810000
-    .word 0x4602a882
-    .word 0x3c013e4e
-    .word 0x34210aa8
-    .word 0x44813800
-    .word 0x46030840
-    .word 0x3c014001
-    .word 0x3421572d
-    .word 0x44812000
-    .word 0x3c01bea6
-    .word 0x3421b090
-    .word 0x44814800
-    .word 0x46001080
-    .word 0x3c01c019
-    .word 0x3421d139
-    .word 0x44811800
-    .word 0x4601a842
-    .word 0x3c013e2a
-    .word 0x3421aaab
-    .word 0x44814000
-    .word 0x3c013f80
-    .word 0x44812800
-    .word 0x4602a882
-    .word 0x3c0133a2
-    .word 0x34212168
-    .word 0x44810000
-    .word 0x46060840
-    .word 0x3c013fc9
-    .word 0x34210fda
-    .word 0x44815000
-    .word 0x46041080
-    .word 0x4601a842
-    .word 0x4602a882
-    .word 0x46070840
-    .word 0x46031080
-    .word 0x4601a842
-    .word 0x4602a882
-    .word 0x46090840
-    .word 0x46051580
-    .word 0x4601a842
-    .word 0x46080840
-    .word 0x4601ad02
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x4616a303
-    .word 0x460c5842
-    .word 0x46010001
-    .word 0x46005801
-    .word 0x1000009a
-    .word 0x46005001
-    .word 0x0481004a
-    .word 0x00000000
-    .word 0x3c013f80
-    .word 0x44815000
-    .word 0x3c013f00
-    .word 0x44811800
-    .word 0x460a5880
-    .word 0x3c013811
-    .word 0x3421ef08
-    .word 0x44810000
-    .word 0x3c013a4f
-    .word 0x34217f04
-    .word 0x44812000
-    .word 0x3c01bd24
-    .word 0x34211146
-    .word 0x44813800
-    .word 0x46031542
-    .word 0x3c013d9d
-    .word 0x3421c62e
-    .word 0x44810800
-    .word 0x3c01bf30
-    .word 0x34213361
-    .word 0x44811000
-    .word 0x3c013e4e
-    .word 0x34210aa8
-    .word 0x44814000
-    .word 0x4600a802
-    .word 0x3c014001
-    .word 0x3421572d
-    .word 0x44811800
-    .word 0x4601a842
-    .word 0x3c01bea6
-    .word 0x3421b090
-    .word 0x44814800
-    .word 0x3c01c019
-    .word 0x3421d139
-    .word 0x44812800
-    .word 0x4600ab06
-    .word 0x46040000
-    .word 0x3c013e2a
-    .word 0x3421aaab
-    .word 0x44813000
-    .word 0x46020840
-    .word 0x4600a802
-    .word 0x4601a842
-    .word 0x46070000
-    .word 0x46030840
-    .word 0x4600a802
-    .word 0x4601a842
-    .word 0x46080000
-    .word 0x46050840
-    .word 0x4600a802
-    .word 0x4601a842
-    .word 0x46090000
-    .word 0x460a0d80
-    .word 0x4600a802
-    .word 0x46060000
-    jal       func_0011CB90
-    .word 0x4600ad02
-    .word 0x46000286
-    .word 0x3c0133a2
-    .word 0x34212168
-    .word 0x44810800
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x4616a303
-    .word 0x3c014049
-    .word 0x34210fda
-    .word 0x44811000
-    .word 0x460a6002
-    .word 0x46010001
-    .word 0x46005000
-    .word 0x46000000
-    .word 0x1000004f
-    .word 0x46001001
-    .word 0x3c013f80
-    .word 0x4481a000
-    .word 0x3c013f00
-    .word 0x44810800
-    .word 0x460ba001
-    .word 0x46010542
-    jal       func_0011CB90
-    .word 0x4600ab06
-    .word 0x44030000
-    .word 0x44835000
-    .word 0x3c02ffff
-    .word 0x3442f000
-    .word 0x00621824
-    .word 0x44830000
-    .word 0x46000082
-    .word 0x3c013811
-    .word 0x3421ef08
-    .word 0x44810000
-    .word 0x3c013a4f
-    .word 0x34217f04
-    .word 0x44812000
-    .word 0x4600a802
-    .word 0x3c013d9d
-    .word 0x3421c62e
-    .word 0x44810800
-    .word 0x3c01bd24
-    .word 0x34211146
-    .word 0x44814800
-    .word 0x4602a881
-    .word 0x4601a842
-    .word 0x3c01bf30
-    .word 0x34213361
-    .word 0x44812800
-    .word 0x46040000
-    .word 0x3c01bea6
-    .word 0x3421b090
-    .word 0x44814000
-    .word 0x44833000
-    .word 0x46050840
-    .word 0x3c014001
-    .word 0x3421572d
-    .word 0x44812000
-    .word 0x4600a802
-    .word 0x3c013e2a
-    .word 0x3421aaab
-    .word 0x44813800
-    .word 0x460650c0
-    .word 0x3c013e4e
-    .word 0x34210aa8
-    .word 0x44813000
-    .word 0x4601a842
-    .word 0x46090000
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x46031083
-    .word 0x46040840
-    .word 0x3c01c019
-    .word 0x3421d139
-    .word 0x44811800
-    .word 0x4600a802
-    .word 0x4601a842
-    .word 0x46060000
-    .word 0x46030840
-    .word 0x4600a802
-    .word 0x4601a842
-    .word 0x46080000
-    .word 0x46140d80
-    .word 0x4600a802
-    .word 0x44830800
-    .word 0x46070000
-    .word 0x4600ad02
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x4616a303
-    .word 0x460a6002
-    .word 0x46020000
-    .word 0x46000800
-    .word 0x46000000
-    .word 0xdfbf0000
-    .word 0xc7b60020
-    .word 0xc7b50018
-    .word 0xc7b40010
-    .word 0x03e00008
-    .word 0x27bd0030
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libm (fdlibm/newlib e_acosf.c): __ieee754_acosf, written in the library's own
+// shape (GET_FLOAT_WORD / SET_FLOAT_WORD blocks, the pS*/qS* rational
+// approximation, func_0011CB90 = __ieee754_sqrtf).
+
+typedef union { float value; int word; } ieee_float_shape_type;
+#define GET_FLOAT_WORD(i,d) do { ieee_float_shape_type gf_u; gf_u.value = (d); (i) = gf_u.word; } while (0)
+#define SET_FLOAT_WORD(d,i) do { ieee_float_shape_type sf_u; sf_u.word = (i); (d) = sf_u.value; } while (0)
+
+extern float func_0011CB90(float x);   /* __ieee754_sqrtf */
+#define __ieee754_sqrtf func_0011CB90
+
+/* fdlibm's static const float constants, written as macros: the original
+   folds every use into an immediate and has no data object for them. */
+#define one      ((float)1.0000000000e+00) /* 0x3F800000 */
+#define pi       ((float)3.1415925026e+00) /* 0x40490fda */
+#define pio2_hi  ((float)1.5707962513e+00) /* 0x3fc90fda */
+#define pio2_lo  ((float)7.5497894159e-08) /* 0x33a22168 */
+#define pS0      ((float)1.6666667163e-01) /* 0x3e2aaaab */
+#define pS1      ((float)-3.2556581497e-01) /* 0xbea6b090 */
+#define pS2      ((float)2.0121252537e-01) /* 0x3e4e0aa8 */
+#define pS3      ((float)-4.0055535734e-02) /* 0xbd241146 */
+#define pS4      ((float)7.9153501429e-04) /* 0x3a4f7f04 */
+#define pS5      ((float)3.4793309169e-05) /* 0x3811ef08 */
+#define qS1      ((float)-2.4033949375e+00) /* 0xc019d139 */
+#define qS2      ((float)2.0209457874e+00) /* 0x4001572d */
+#define qS3      ((float)-6.8828397989e-01) /* 0xbf303361 */
+#define qS4      ((float)7.7038154006e-02) /* 0x3d9dc62e */
+
+float func_0011BCF8(float x)
+{
+	float z,p,q,r,w,s,c,df;
+	int hx,ix;
+	GET_FLOAT_WORD(hx,x);
+	ix = hx&0x7fffffff;
+	if(ix==0x3f800000) {		/* |x|==1 */
+	    if(hx>0) return 0.0;	/* acos(1) = 0  */
+	    else return pi+(float)2.0*pio2_lo;	/* acos(-1)= pi */
+	} else if(ix>0x3f800000) {	/* |x| >= 1 */
+	    return (x-x)/(x-x);		/* acos(|x|>1) is NaN */
+	}
+	if(ix<0x3f000000) {	/* |x| < 0.5 */
+	    if(ix<=0x23000000) return pio2_hi+pio2_lo;/*if|x|<2**-57*/
+	    z = x*x;
+	    p = z*(pS0+z*(pS1+z*(pS2+z*(pS3+z*(pS4+z*pS5)))));
+	    q = one+z*(qS1+z*(qS2+z*(qS3+z*qS4)));
+	    r = p/q;
+	    return pio2_hi - (x - (pio2_lo-x*r));
+	} else  if (hx<0) {		/* x < -0.5 */
+	    z = (one+x)*(float)0.5;
+	    p = z*(pS0+z*(pS1+z*(pS2+z*(pS3+z*(pS4+z*pS5)))));
+	    q = one+z*(qS1+z*(qS2+z*(qS3+z*qS4)));
+	    s = __ieee754_sqrtf(z);
+	    r = p/q;
+	    w = r*s-pio2_lo;
+	    return pi - (float)2.0*(s+w);
+	} else {			/* x > 0.5 */
+	    int idf;
+	    z = (one-x)*(float)0.5;
+	    s = __ieee754_sqrtf(z);
+	    df = s;
+	    GET_FLOAT_WORD(idf,df);
+	    SET_FLOAT_WORD(df,idf&0xfffff000);
+	    c  = (z-df*df)/(s+df);
+	    p = z*(pS0+z*(pS1+z*(pS2+z*(pS3+z*(pS4+z*pS5)))));
+	    q = one+z*(qS1+z*(qS2+z*(qS3+z*qS4)));
+	    r = p/q;
+	    w = r*s+c;
+	    return (float)2.0*(df+w);
+	}
 }

@@ -1,26 +1,24 @@
-// DMA wait loop (0x10003800/0x10004000 variant)
-asm int func_0011B8B0(void *a0, int a1) {
-    daddu $7, $zero, $zero
-    .word 0x10A00013
-    addiu $3, $5, -0x1
-    lui $6, 0x1000
-    .word 0x3C051000
-    ori $6, $6, 0x3800
-    .word 0x3C091000
-    ori $5, $5, 0x4000
-    addiu $8, $zero, -0x1
-    nop
-    lw $2, 0x0($6)
-    and $2, $2, $9
-    .word 0x50400003
-    lq $2, 0x0($4)
-    .word 0x03E00008
-    daddu $2, $7, $zero
-    addiu $7, $7, 0x1
-    addiu $4, $4, 0x10
-    addiu $3, $3, -0x1
-    .word 0x1468FFF6
-    sq $2, 0x0($5)
-    jr $ra
-    daddu $2, $7, $zero
+// COMPILER: eegcc
+// CFLAGS: -O2
+// EEGCC_AS: 2.96
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// Assembled by the 2.96 gas (// EEGCC_AS: 2.96), which fills the delay slot as
+// the original does.
+//
+// SDK VIF0: pushes up to n quadwords from src into the VIF0 FIFO (0x10004000),
+// stopping early when VIF0_STAT (0x10003800) bit 28 is set; returns the number of
+// quadwords written (the VIF0 twin of func_0011B580).
+
+typedef unsigned int u128 __attribute__((mode(TI)));
+int func_0011B8B0(u128 *src, int n) {
+    int i = 0;
+    while (n-- != 0) {
+        if (*(volatile unsigned int *)0x10003800 & 0x10000000) {
+            return i;
+        }
+        *(volatile u128 *)0x10004000 = *src++;
+        i++;
+    }
+    return i;
 }

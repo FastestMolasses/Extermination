@@ -1,45 +1,69 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00126BE8(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_00127650(void) {
-    .word 0x27bdffc0
-    .word 0xffa40020
-    .word 0x03a0282d
-    .word 0xffbf0030
-    jal       func_00126BE8
-    .word 0x27a40020
-    .word 0x8fa30000
-    .word 0x38620002
-    .word 0x10400003
-    .word 0x2c620002
-    .word 0x10400003
-    .word 0x8fa20004
-    .word 0x10000018
-    .word 0x0000102d
-    .word 0x14400016
-    .word 0x0000102d
-    .word 0x38620004
-    .word 0x10400005
-    .word 0x8fa40008
-    .word 0x0480fff8
-    .word 0x28820020
-    .word 0x54400004
-    .word 0x2882003d
-    .word 0x3c02ffff
-    .word 0x1000000c
-    .word 0x3442ffff
-    .word 0x14400005
-    .word 0x2403003c
-    .word 0xdfa20010
-    .word 0x2483ffc4
-    .word 0x10000004
-    .word 0x00621014
-    .word 0xdfa20010
-    .word 0x00641823
-    .word 0x00621016
-    .word 0x0002103c
-    .word 0x0002103f
-    .word 0xdfbf0030
-    .word 0x03e00008
-    .word 0x27bd0040
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libgcc (fp-bit.c): float_to_usi for double (dptoul): zero, NaN, negative and
+// |x| < 1 give 0, infinity and x >= 2^32 give 0xFFFFFFFF, else the fraction
+// shifted into place.
+
+typedef enum {
+    CLASS_SNAN, CLASS_QNAN, CLASS_ZERO, CLASS_NUMBER, CLASS_INFINITY
+} fp_class_type;
+
+typedef struct {
+    fp_class_type class;
+    unsigned int sign;
+    int normal_exp;
+    union {
+        unsigned long long ll;
+        unsigned int l[2];
+    } fraction;
+} fp_number_type;
+
+typedef union {
+    double value;
+    unsigned long long value_raw;
+} FLO_union_type;
+
+#define FRACBITS 52
+#define NGARDS 8
+#define BITS_PER_SI 32
+#define MAX_SI_INT 0x7fffffff
+#define MAX_USI_INT 0xffffffffU
+
+extern double func_00126AB8(fp_number_type *src);              /* pack_d */
+extern void func_00126BE8(FLO_union_type *src, fp_number_type *dst); /* unpack_d */
+#define pack_d func_00126AB8
+#define unpack_d func_00126BE8
+
+static __inline__ int isnan(fp_number_type *x) { return x->class == CLASS_SNAN || x->class == CLASS_QNAN; }
+static __inline__ int isinf(fp_number_type *x) { return x->class == CLASS_INFINITY; }
+static __inline__ int iszero(fp_number_type *x) { return x->class == CLASS_ZERO; }
+unsigned int func_00127650(double arg_a)
+{
+  fp_number_type a;
+  FLO_union_type au;
+
+  au.value = arg_a;
+  unpack_d (&au, &a);
+  if (iszero (&a))
+    return 0;
+  if (isnan (&a))
+    return 0;
+  /* it is a negative number */
+  if (a.sign)
+    return 0;
+  /* get reasonable MAX_USI_INT... */
+  if (isinf (&a))
+    return MAX_USI_INT;
+  /* it is a number, but a small one */
+  if (a.normal_exp < 0)
+    return 0;
+  if (a.normal_exp > BITS_PER_SI - 1)
+    return MAX_USI_INT;
+  else if (a.normal_exp > (FRACBITS + NGARDS))
+    return a.fraction.ll << (a.normal_exp - (FRACBITS + NGARDS));
+  else
+    return a.fraction.ll >> ((FRACBITS + NGARDS) - a.normal_exp);
 }

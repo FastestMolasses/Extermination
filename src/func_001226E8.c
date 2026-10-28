@@ -1,100 +1,83 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00121E30(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_001226E8(void) {
-    addiu      $sp, $sp, -0x70
-    sd         $s4, 0x50($sp)
-    sd         $s2, 0x30($sp)
-    addiu      $s4, $a0, 0x14
-    sd         $s0, 0x10($sp)
-    sd         $ra, 0x60($sp)
-    daddu      $s0, $a1, $zero
-    sd         $s3, 0x40($sp)
-    sd         $s1, 0x20($sp)
-    lw         $v0, 0x10($a0)
-    sll        $v0, $v0, 2
-    addu       $s2, $s4, $v0
-    addiu      $s2, $s2, -0x4
-    lw         $s3, 0x0($s2)
-    jal        func_00121E30
-    daddu     $a0, $s3, $zero
-    daddu      $a2, $v0, $zero
-    addiu      $v0, $zero, 0x20
-    slti       $v1, $a2, 0xB
-    subu       $v0, $v0, $a2
-    .word 0x1060001a
-    sw        $v0, 0x0($s0)
-    addiu      $v0, $zero, 0xB
-    .word 0x3c043ff0
-    subu       $v0, $v0, $a2
-    .word 0x3c03ffff
-    dsrl32     $v1, $v1, 0
-    srlv       $v0, $s3, $v0
-    and        $s1, $s1, $v1
-    or         $v0, $v0, $a0
-    sltu       $v1, $s4, $s2
-    dsll32     $v0, $v0, 0
-    or         $s1, $s1, $v0
-    .word 0x10600002
-    daddu     $a0, $zero, $zero
-    lw         $a0, -0x4($s2)
-    addiu      $v0, $zero, 0xB
-    addiu      $v1, $a2, 0x15
-    subu       $v0, $v0, $a2
-    sllv       $v1, $s3, $v1
-    srlv       $v0, $a0, $v0
-    or         $v1, $v1, $v0
-    addiu      $a0, $zero, -0x1
-    dsll32     $a0, $a0, 0
-    dsll32     $v1, $v1, 0
-    .word 0x1000001f
-    and       $s1, $s1, $a0
-    sltu       $v0, $s4, $s2
-    .word 0x10400003
-    daddu     $a3, $zero, $zero
-    addiu      $s2, $s2, -0x4
-    lw         $a3, 0x0($s2)
-    addiu      $a2, $a2, -0xB
-    .word 0x10c0001a
-    negu      $v0, $a2
-    .word 0x3c053ff0
-    srlv       $v0, $a3, $v0
-    sllv       $v1, $s3, $a2
-    or         $v0, $v0, $a1
-    .word 0x3c04ffff
-    dsrl32     $a0, $a0, 0
-    or         $v1, $v1, $v0
-    and        $s1, $s1, $a0
-    dsll32     $v1, $v1, 0
-    sltu       $v0, $s4, $s2
-    or         $s1, $s1, $v1
-    .word 0x10400002
-    daddu     $s3, $zero, $zero
-    lw         $s3, -0x4($s2)
-    negu       $v0, $a2
-    sllv       $v1, $a3, $a2
-    srlv       $v0, $s3, $v0
-    addiu      $a0, $zero, -0x1
-    dsll32     $a0, $a0, 0
-    or         $v1, $v1, $v0
-    and        $s1, $s1, $a0
-    dsll32     $v1, $v1, 0
-    dsrl32     $v1, $v1, 0
-    .word 0x10000007
-    or        $s1, $s1, $v1
-    .word 0x3c033ff0
-    or         $v1, $s3, $v1
-    dsll32     $v0, $a3, 0
-    dsrl32     $v0, $v0, 0
-    dsll32     $s1, $v1, 0
-    or         $s1, $s1, $v0
-    daddu      $v0, $s1, $zero
-    ld         $ra, 0x60($sp)
-    ld         $s4, 0x50($sp)
-    ld         $s3, 0x40($sp)
-    ld         $s2, 0x30($sp)
-    ld         $s1, 0x20($sp)
-    ld         $s0, 0x10($sp)
-    jr         $ra
-    addiu     $sp, $sp, 0x70
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// libc (newlib mprec.c): b2d(a, &e): the top 53 bits of _Bigint a as a double,
+// with the binary exponent in e (func_00121E30 = hi0bits).
+
+typedef struct _Bigint {
+    struct _Bigint *_next;
+    int _k, _maxwds, _sign, _wds;
+    unsigned int _x[1];
+} _Bigint;
+struct _reent;
+union double_union { double d; unsigned int i[2]; };
+#define word0(x) ((x).i[1])
+#define word1(x) ((x).i[0])
+#define Exp_shift 20
+#define Exp_shift1 20
+#define Exp_msk1 0x100000
+#define Exp_mask 0x7ff00000
+#define P 53
+#define Bias 1023
+#define Exp_1 0x3ff00000
+#define Ebits 11
+#define Frac_mask 0xfffff
+#define Frac_mask1 0xfffff
+extern _Bigint *func_00121AF8(struct _reent *, int);
+extern void func_00121BA0(struct _reent *, _Bigint *);
+extern _Bigint *func_00121BD0(struct _reent *, _Bigint *, int, int);
+extern int func_00121E30(unsigned int);
+extern int func_00121EB8(unsigned int *);
+extern void *block_copy(void *dst, const void *src, unsigned int len);
+#define Balloc func_00121AF8
+#define Bfree func_00121BA0
+#define multadd func_00121BD0
+#define hi0bits func_00121E30
+#define lo0bits func_00121EB8
+#define Bcopy(x,y) block_copy((char *)&x->_sign, (char *)&y->_sign, y->_wds*sizeof(int) + 2*sizeof(int))
+extern int func_00122458(_Bigint *, _Bigint *);
+extern double func_001226E8(_Bigint *, int *);
+#define cmp func_00122458
+#define b2d func_001226E8
+#define Storeinc(a,b,c) (((unsigned short *)a)[1] = (unsigned short)b, \
+((unsigned short *)a)[0] = (unsigned short)c, a++)
+#define Sign_Extend(a,b) /* no-op: arithmetic right shifts */
+double func_001226E8(_Bigint *a, int *e)
+{
+  unsigned int *xa, *xa0, w, y, z;
+  int k;
+  union double_union d;
+#define d0 word0(d)
+#define d1 word1(d)
+
+  xa0 = a->_x;
+  xa = xa0 + a->_wds;
+  y = *--xa;
+  k = hi0bits (y);
+  *e = 32 - k;
+  if (k < Ebits)
+    {
+      d0 = Exp_1 | y >> (Ebits - k);
+      w = xa > xa0 ? *--xa : 0;
+      d1 = y << ((32 - Ebits) + k) | w >> (Ebits - k);
+      goto ret_d;
+    }
+  z = xa > xa0 ? *--xa : 0;
+  if (k -= Ebits)
+    {
+      d0 = Exp_1 | y << k | z >> (32 - k);
+      y = xa > xa0 ? *--xa : 0;
+      d1 = z << k | y >> (32 - k);
+    }
+  else
+    {
+      d0 = Exp_1 | y;
+      d1 = z;
+    }
+ret_d:
+#undef d0
+#undef d1
+  return d.d;
 }

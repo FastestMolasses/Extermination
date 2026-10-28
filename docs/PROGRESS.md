@@ -1,3 +1,12 @@
+## 2026-10-28 — decompiling the asm-word bodies, queue batch 52: 81 SDK functions byte-matched
+
+See MATCHING_GUIDE "Queue batch 52". With it every one of the 240 asm-only
+functions has been worked: readable C for 187 (169 byte-matched, 18 NEARMISS),
+34 have no C form under the rules (hand-written: di / ei, sync, cache ops,
+MMI, syscall stubs), 12 are data or padding. Gate: fresh build + verify_all
+all six stages pass, boot ELF byte-identical, 19/19 overlays, 2762/2764 units;
+provenance clean (2452 ordinary-C routes).
+
 ## 2026-10-28 — decompiling the asm-word bodies, queue batch 51: 30 byte-matched, 5 NEARMISS, one split pair merged
 
 See MATCHING_GUIDE "Queue batch 51". func_00180000 / func_00180004 were one

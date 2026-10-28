@@ -1,9 +1,10 @@
-// Returns bit 2 of the GIF STAT register: (*(volatile u32 *)0x10003020 & 4) >> 2.
-asm int func_0011B3F8(void) {
-    lui $3, 0x1000
-    ori $3, $3, 0x3020
-    lw $2, 0x0($3)
-    andi $2, $2, 0x4
-    jr $ra
-    srl $2, $2, 2
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// SDK GIF: returns GIF_STAT (0x10003020) bit 2 as 0/1.
+
+int func_0011B3F8(void) {
+    return (*(volatile unsigned int *)0x10003020 & 4) >> 2;
 }
