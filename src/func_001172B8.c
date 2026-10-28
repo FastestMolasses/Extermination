@@ -1,8 +1,14 @@
 // NEARMISS func_001172B8  (vram 0x001172B8, 0x170 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 61.66% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc forward-branch-likely wall (confirmed s84). The two table-scan loops are built entirely on forward branch-likely (beql/bnezl/bnel/beqzl annulling branches with the ctrp[0x30] reload in the annulled slot); our ee-gcc 2.9-991111-01 only emits branch-likely on loop back-edges, never forward conditionals, so clean...
+// objdiff 98.21% via ee-gcc 2.9-991111-01 (-O2) (was 61.66%). The old "forward
+// branch-likely wall" verdict was wrong: the old C had the first loop's test
+// inverted (it returned for an ACTIVE voice) and used byte offsets; written in
+// the house spelling (typed Voice D_0027CCC0[48], Tempo D_0027F740 with the
+// unsigned rotating cursor f30, plain loops), ee-gcc emits the same forward
+// branch-likely code as the original.
+// Remaining differences: the four selection locals and the divide-check zero get
+// a permuted set of t4..t8 registers, and at the final select the original loads
+// -1 again for the "none" result where ours reuses best1 (known to be -1).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -11,52 +17,69 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern unsigned char D_0027CCC0[];
-extern int D_0027F740[];
+typedef struct {                /* 0x6A */
+    unsigned short f00;         /* 0x00 */
+    unsigned char pad02[0x08 - 0x02];
+    unsigned short f08;         /* 0x08 */
+    unsigned short f0A;         /* 0x0A */
+    unsigned char pad0C[0x1A - 0x0C];
+    unsigned short f1A;         /* 0x1A */
+    unsigned char pad1C[0x6A - 0x1C];
+} Voice;
 
-int func_001172B8(int a0) {
-    unsigned char *base = D_0027CCC0;
-    int *ctrp = D_0027F740;
+typedef struct {
+    unsigned char pad00[0x30];
+    unsigned int f30;           /* 0x30 */
+} Tempo;
+
+extern Voice D_0027CCC0[48];
+extern Tempo D_0027F740;
+
+// Voice allocator: scans the 48 voices starting at the rotating cursor
+// D_0027F740.f30 (cursor mod 48, advanced once per probe). First pass: return the
+// first voice with f00 == 0 and f1A != 3. Second pass (another 48 probes): among
+// voices with f1A == 1, pick the one with the lowest f0A, separately for f08 == 1
+// and f08 != 1. Returns the f08 == 1 pick, else the other pick, else -1. The
+// argument is unused.
+
+int func_001172B8(int a0)
+{
     int i;
     int idx;
+    int min2 = -1;
     int best1 = -1;
     int best2 = -1;
-    short min1 = -1;
-    short min2 = -1;
+    int min1 = -1;
 
-    for (i = 0; i < 0x30; i++) {
-        idx = ctrp[0x30] % 0x30;
-        if (*(unsigned short *)(base + idx * 0x6A) != 0) {
-            if (*(unsigned short *)(base + idx * 0x6A + 0x1A) == 3) {
-                return idx;
-            }
+    for (i = 0; i < 48; i++) {
+        idx = D_0027F740.f30 % 48;
+        if (D_0027CCC0[idx].f00 == 0 && D_0027CCC0[idx].f1A != 3) {
+            return idx;
         }
-        ctrp[0x30]++;
+        D_0027F740.f30++;
     }
-
-    for (i = 0x2F; i >= 0; i--) {
-        idx = ctrp[0x30] % 0x30;
-        if (*(unsigned short *)(base + idx * 0x6A + 0x1A) == 1) {
-            if (*(unsigned short *)(base + idx * 0x6A + 0x08) == 1) {
-                if ((short)*(unsigned short *)(base + idx * 0x6A + 0x0A) < min1) {
+    for (i = 0; i < 48; i++) {
+        idx = D_0027F740.f30 % 48;
+        if (D_0027CCC0[idx].f1A == 1) {
+            if (D_0027CCC0[idx].f08 == 1) {
+                if (D_0027CCC0[idx].f0A < min1) {
                     best1 = idx;
-                    min1 = *(unsigned short *)(base + idx * 0x6A + 0x0A);
+                    min1 = D_0027CCC0[idx].f0A;
                 }
             } else {
-                if ((short)*(unsigned short *)(base + idx * 0x6A + 0x0A) < min2) {
+                if (D_0027CCC0[idx].f0A < min2) {
                     best2 = idx;
-                    min2 = *(unsigned short *)(base + idx * 0x6A + 0x0A);
+                    min2 = D_0027CCC0[idx].f0A;
                 }
             }
         }
-        ctrp[0x30]++;
+        D_0027F740.f30++;
     }
-
     if (best1 != -1) {
         return best1;
-    }
-    if (best2 != -1) {
+    } else if (best2 != -1) {
         return best2;
+    } else {
+        return -1;
     }
-    return -1;
 }

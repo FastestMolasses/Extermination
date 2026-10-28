@@ -674,3 +674,20 @@ wrong value in state 1 and changed a flag the original leaves alone),
 func_001AAD00 (each list publishes its count, then its cursor, in descending
 address order). Improved and parked: func_001F4A10 80.55 (the rest is VU0 macro
 code), func_001002E0 91.15, func_00108818 97.79.
+
+### Queue batch 33 (2026-10-28)
+
+6 byte-matched: func_00102368 (libdma, MOD = 2; the old C cleared the wrong
+CHCR bit), func_001FC7B0 (one struct copy of a 128-byte template; an
+`unsigned char` character local; a plain while loop), func_001AF800 (each
+record is cleared with quadword stores, as in its twin func_001AF890),
+func_00110608 (struct-array slot table; the two address computations keep the
+original's grouping; an SDK-sized local DMA descriptor array of which only
+entry 0 is used, which gives the original's frame), func_001E10A0 (water
+ripple: plain indexed loops over `WaterVtx D_0081E0F0[16][16]`; the old C had
+the splash rows in a different order and a different impulse constant),
+func_0010F9E0 (a record with a mode word and a 0xFC-byte name copied by a
+bounded loop; SifCallRpc with nine arguments). Improved and parked:
+func_001DF180 83.14, func_001CBC20 92.37, func_001172B8 98.21 (the voice
+allocator; see CURIOSITIES 32), func_00116598 99.80 (one constant gcc folds
+from a compare), func_001CC3B0 90.13 (old packet constants were wrong).

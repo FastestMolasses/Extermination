@@ -1,3 +1,11 @@
+## 2026-10-28 — matching wave, queue batch 33: 6 more byte-matched
+
+See MATCHING_GUIDE "Queue batch 33"; CURIOSITIES gains entry 32 (the sound
+voice allocator's fallback pass never picks a voice). Gate: fresh build +
+verify_all all six stages pass, boot ELF byte-identical, 19/19 overlays,
+matched_code 99.97%, 2697/2699 units; audit_link_provenance clean (2200
+ordinary-C routes).
+
 ## 2026-10-28 — matching wave, queue batch 32: 11 more byte-matched
 
 See MATCHING_GUIDE "Queue batch 32". Gate: fresh build + verify_all all six

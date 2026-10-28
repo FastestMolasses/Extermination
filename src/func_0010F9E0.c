@@ -1,61 +1,55 @@
-// NEARMISS func_0010F9E0  (vram 0x0010F9E0, 0xF0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 57.15% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc codegen-shape wall (confirmed). C is semantically correct and reaches 57.15% best at -O2 (-O1=49%, -O0=0%), but cannot byte-match because expected .text is 288 bytes (72 instrs) vs our 232 bytes (58 instrs). The original SDK object was built by a compiler whose optimizer differs structurally from our ee-gcc 2....
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 57.15% NEARMISS).
+// Fixes read from the original instructions:
+// - The "codegen-shape wall" was a wrong body: the request is a record of a 4-byte mode
+//   word followed by a 0xFC-byte name, and the copy is an ordinary bounded loop
+//   `for (i = 0; i < 0xFC; i++) if ((name[i] = src[i]) == 0) break;` (ee-gcc rotates
+//   it, which is where the extra instructions came from), with plain-char elements.
+// - The overflow case (i == 0xFC) terminates the last name byte and clamps the length
+//   to 0xFB; the mode word is stored after that test, then the last name byte is
+//   always cleared again.
+// - The ninth argument of the RPC call is the 0 passed on the stack.
+//
+// libkernel SIF RPC client call: if the client latch D_00241C90 is negative (not
+// bound) it returns 0. Otherwise it copies the NUL-terminated name (at most 0xFB
+// characters) and the mode word into the send buffer D_00279340 and issues
+// func_0010E8A8 (SifCallRpc) on the client block D_00279240 with rpc number 3,
+// mode 0, send size = name length + 5, and a 4-byte receive buffer D_00279280.
+// A failed call returns -1; otherwise the server's 4-byte reply is returned.
 
 extern int D_00241C90;
-extern unsigned char D_00279340[];
+
+struct name_req {
+    int mode;
+    char name[0xFC];
+};
+extern struct name_req D_00279340;
 extern int D_00279240;
 extern int D_00279280;
 
-extern int func_0010E8A8(int *a, int b, int c, unsigned char *d, int e,
-                         int *f, int g, int h, int i);
+extern int func_0010E8A8(void *client, int rpc_number, int mode, void *send, int ssize,
+                         void *recv, int rsize, int endfunc, int efarg);
 
-int func_0010F9E0(unsigned char *src, int a1)
+int func_0010F9E0(const char *name, int mode)
 {
     int i;
-    int n;
-    int c;
 
     if (D_00241C90 < 0)
         return 0;
 
-    c = src[0];
-    D_00279340[4] = c;
-    i = 0;
-    if (c != 0) {
-        i = 1;
-        for (;;) {
-            if (i >= 0xFC)
-                break;
-            c = src[i];
-            D_00279340[4 + i] = c;
-            if (c == 0)
-                break;
-            i++;
-        }
+    for (i = 0; i < 0xFC; i++) {
+        if ((D_00279340.name[i] = name[i]) == 0)
+            break;
     }
-
-    n = i;
-    if (i != 0xFC) {
-        *(int *)D_00279340 = a1;
-        D_00279340[0xFF] = 0;
-        *(int *)D_00279340 = a1;
-        n = 0xFB;
+    if (i == 0xFC) {
+        D_00279340.name[0xFB] = 0;
+        i = 0xFB;
     }
-    n += 5;
-
-    D_00279340[0xFF] = 0;
-    if (func_0010E8A8(&D_00279240, 3, 0, D_00279340, n, &D_00279280, 4, 0, 0) >= 0)
-        return D_00279280;
-
-    return -1;
+    D_00279340.mode = mode;
+    D_00279340.name[0xFB] = 0;
+    if (func_0010E8A8(&D_00279240, 3, 0, &D_00279340, i + 5, &D_00279280, 4, 0, 0) < 0)
+        return -1;
+    return D_00279280;
 }

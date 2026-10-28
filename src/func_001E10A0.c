@@ -1,101 +1,84 @@
-// NEARMISS func_001E10A0  (vram 0x001E10A0, 0x340 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 60.43% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Cross-compiler FP list-scheduling divergence: mwcc233/991202's -O4,p scheduler hoists the loop-invariant (float)i/16.0f divide (mtc1/cvt.s.w/div.s) to the very start of each outer-loop iteration regardless of source statement placement, while the target pads with 2 explicit nops and schedules it ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// NEARMISS: water/heat diffusion step over the 16x16 D_0081E0F0 grid (0x18-byte
-// records, same layout func_001E1010 initializes: [0]=fi,[4]=fo,[8]=height,
-// [0xC]=velocity). Outer pass diffuses velocity from the 4 wrapped neighbors and
-// derives per-cell flow fields at [0x10]/[0x14]. Then two PRNG-picked "splash" cells
-// (a,b) in the sibling D_0081E0FC grid get an impulse added to their center + 8
-// neighbors (1.2f center, 0.9f orthogonal, 0.54f diagonal). Final pass integrates
-// height += velocity across D_0081E0F0. Sole residual: mwcc's -O4,p scheduler
-// hoists the per-row `(float)i/16.0f` div (mtc1/cvt.s.w/div.s) to the very start of
-// the outer-loop body regardless of source placement/barriers, while the target
-// pads with 2 nops and issues it after the pjm1/pjp1 pointer setup — a genuine
-// cross-compiler list-scheduling divergence (not idiom-13; source reordering,
-// asm volatile barriers, and -O4/-O4,s alternates all fail to reproduce it).
-extern unsigned char D_0081E0F0[];
-extern unsigned char D_0081E0FC[];
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 60.43% NEARMISS).
+// Fixes read from the original instructions:
+// - The grid is the [16][16] array of 0x18-byte WaterVtx records (as in
+//   func_001E13E0) written as plain indexed for-loops; the original's pointer
+//   walkers, the unscheduled row setup and the per-row (float)i / 16.0f divide
+//   are mwcc's loop-invariant hoisting and strength reduction of that indexing
+//   (the old "scheduler divergence" was the hand-written pointer form).
+// - The wrapped row indices (i - 1) & 0xF and (i + 1) & 0xF are locals set at
+//   the top of the outer loop.
+// - The laplacian is accumulated in sum (0, row above, row below, left, right,
+//   minus 0.25 + 4 * height) BEFORE the velocity update, which is the two
+//   compound statements w *= 0.961f; w += 0.0022f * sum.
+// - The splash impulses go to the velocity field (.w, splat's D_0081E0FC) in
+//   the order centre, left, right, above, below, then the four diagonals; the
+//   orthogonal constant is 0.90000004f (0x3F666667), not 0.9f.
+//
+// Water surface step over the 16x16 D_0081E0F0 grid (0x18-byte records, same
+// layout func_001E1010 initializes: x, y, height z, velocity w, u, v). The
+// first pass damps each cell's velocity by 0.961 and adds 0.0022 times the
+// wrapped 4-neighbour laplacian of height (minus a 0.25 bias), and derives
+// u = j/16 + 0.03 * (z - right z), v = i/16 + 0.03 * (z - lower z). Then two
+// PRNG-picked cells (a = column, b = row from func_00122BB8 >> 6 & 0xF) get a
+// velocity impulse: 1.2 at the centre, 0.9 orthogonal, 0.54 diagonal (wrapped).
+// The final pass integrates height += velocity over the whole grid.
+typedef struct {
+    float x;
+    float y;
+    float z;
+    float w;
+    float u;
+    float v;
+} WaterVtx;
+
+extern WaterVtx D_0081E0F0[16][16];
+
 extern int func_00122BB8(void);
 
 void func_001E10A0(void) {
     int i;
     int j;
-    char *row;
-    char *e;
-    int jp1;
-    char *pjm1;
-    char *pjp1;
-    float finv;
     float sum;
-    int r;
+    int im1;
+    int ip1;
     int a;
     int b;
-    char *pa;
-    char *pb;
 
-    i = 0;
-    row = (char *)D_0081E0F0;
-    do {
-        pjm1 = (char *)D_0081E0F0 + (((i - 1) & 0xF) * 0x180);
-        pjp1 = (char *)D_0081E0F0 + (((i + 1) & 0xF) * 0x180);
-        j = 0;
-        e = row;
-        finv = ((float)i) / 16.0f;
-        do {
-            sum = 0.0f + *(float *)(pjm1 + 8) + *(float *)(pjp1 + 8);
-            pjm1 += 0x18;
-            jp1 = (j + 1) & 0xF;
-            pb = row + (jp1 * 0x18);
-            *(float *)(e + 0xC) = *(float *)(e + 0xC) * 0.961f;
-            *(float *)(e + 0xC) = *(float *)(e + 0xC) + (0.0022f *
-                ((sum + *(float *)(row + (((j - 1) & 0xF) * 0x18) + 8) + *(float *)(pb + 8))
-                 - (0.25f + (4.0f * *(float *)(e + 8)))));
-            *(float *)(e + 0x10) = (((float)j) / 16.0f) + (0.03f * (*(float *)(e + 8) - *(float *)(pb + 8)));
-            *(float *)(e + 0x14) = finv + (0.03f * (*(float *)(e + 8) - *(float *)(pjp1 + 8)));
-            pjp1 += 0x18;
-            e += 0x18;
-            j++;
-        } while (j < 16);
-        i++;
-        row += 0x180;
-    } while (i < 16);
+    for (i = 0; i < 16; i++) {
+        im1 = (i - 1) & 0xF;
+        ip1 = (i + 1) & 0xF;
+        for (j = 0; j < 16; j++) {
+            sum = 0.0f;
+            sum += D_0081E0F0[im1][j].z;
+            sum += D_0081E0F0[ip1][j].z;
+            sum += D_0081E0F0[i][(j - 1) & 0xF].z;
+            sum += D_0081E0F0[i][(j + 1) & 0xF].z;
+            sum -= 0.25f + 4.0f * D_0081E0F0[i][j].z;
+            D_0081E0F0[i][j].w *= 0.961f;
+            D_0081E0F0[i][j].w += 0.0022f * sum;
+            D_0081E0F0[i][j].u = (float)j / 16.0f + 0.03f * (D_0081E0F0[i][j].z - D_0081E0F0[i][(j + 1) & 0xF].z);
+            D_0081E0F0[i][j].v = (float)i / 16.0f + 0.03f * (D_0081E0F0[i][j].z - D_0081E0F0[ip1][j].z);
+        }
+    }
 
     a = (func_00122BB8() >> 6) & 0xF;
     b = (func_00122BB8() >> 6) & 0xF;
-    pa = (char *)D_0081E0FC + (b * 0x180);
-    *(float *)(pa + (a * 0x18)) += 1.2f;
-    *(float *)(pa + (((a - 1) & 0xF) * 0x18)) += 0.90000004f;
-    *(float *)(pa + (((a + 1) & 0xF) * 0x18)) += 0.90000004f;
-    pb = (char *)D_0081E0FC + (((b - 1) & 0xF) * 0x180);
-    *(float *)(pb + (a * 0x18)) += 0.90000004f;
-    *(float *)(pb + (((a - 1) & 0xF) * 0x18)) += 0.54f;
-    *(float *)(pb + (((a + 1) & 0xF) * 0x18)) += 0.54f;
-    pa = (char *)D_0081E0FC + (((b + 1) & 0xF) * 0x180);
-    *(float *)(pa + (a * 0x18)) += 0.90000004f;
-    *(float *)(pa + (((a - 1) & 0xF) * 0x18)) += 0.54f;
-    *(float *)(pa + (((a + 1) & 0xF) * 0x18)) += 0.54f;
+    D_0081E0F0[b][a].w += 1.2f;
+    D_0081E0F0[b][(a - 1) & 0xF].w += 0.90000004f;
+    D_0081E0F0[b][(a + 1) & 0xF].w += 0.90000004f;
+    D_0081E0F0[(b - 1) & 0xF][a].w += 0.90000004f;
+    D_0081E0F0[(b + 1) & 0xF][a].w += 0.90000004f;
+    D_0081E0F0[(b - 1) & 0xF][(a - 1) & 0xF].w += 0.54f;
+    D_0081E0F0[(b - 1) & 0xF][(a + 1) & 0xF].w += 0.54f;
+    D_0081E0F0[(b + 1) & 0xF][(a - 1) & 0xF].w += 0.54f;
+    D_0081E0F0[(b + 1) & 0xF][(a + 1) & 0xF].w += 0.54f;
 
-    r = 0;
-    e = (char *)D_0081E0F0;
-    do {
-        j = 0;
-        pa = e;
-        do {
-            j++;
-            *(float *)(pa + 8) = *(float *)(pa + 8) + *(float *)(pa + 0xC);
-            pa += 0x18;
-        } while (j < 16);
-        r++;
-        e += 0x180;
-    } while (r < 16);
+    for (i = 0; i < 16; i++) {
+        for (j = 0; j < 16; j++) {
+            D_0081E0F0[i][j].z += D_0081E0F0[i][j].w;
+        }
+    }
 }

@@ -653,6 +653,20 @@ the gutted civilian placed in the AREA02 office, 0x17 a sitting body and
 
 ---
 
+## 32. The sound voice allocator's fallback pass can never pick a voice — decoded (code only)
+
+*Kind: engine quirk (latent).* func_001172B8 picks a free voice out of the 48
+hardware voices. Its first pass returns the first voice whose state is idle;
+when none is idle, a second pass is meant to choose the voice with the lowest
+priority word. The trackers for that minimum start at the int value -1 and are
+compared with zero-extended halfword priorities, so no priority is ever below
+them and the second pass never selects anything: the function returns -1 (no
+voice) whenever every voice is busy; what each caller then does is not traced
+yet. Evidence: the C of func_001172B8 (a 98.21% NEARMISS from matching wave
+batch 33 whose logic follows the original instruction by instruction; the
+residual is register colouring only). Not yet observed in a
+capture (that would need all 48 voices busy at once).
+
 ## Notes for the port's candidate lists
 
 The candidate list in port `LAUNCHER_OPTIONS.md` and the examples in port

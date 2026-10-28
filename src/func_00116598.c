@@ -1,8 +1,16 @@
 // NEARMISS func_00116598  (vram 0x00116598, 0x820 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 62.35% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc register pressure / dual-pipeline scheduling. Structure is recovered (frame 0xb0 matches exactly, both control-flow halves and all branch shapes line up), but the target keeps five distinct global base addresses live in callee-saved regs across the whole loop while our build spills three of...
+// objdiff 99.80% via ee-gcc 2.9-991111-01 (-O2); .text size 0x820 matches. Matching wave
+// 2026-10-27 (was 62.35%): rewritten with typed Voice D_0027CCC0[48] / Seq D_0027E0C0[48] /
+// Song / Tempo records; logic fixes read from the original: the pan restarts from f4E before
+// the f1A == 1 vibrato step (f02 only feeds the first argument), the >= arms come first, the
+// f1A == 2 f58 == f5A test has its clear arm first, f62 / f54 / f5C are masked in place (no
+// separate zero store), the loop counter and the 0xFF / 480 divisions are unsigned, and the
+// arm temporaries are block-scoped (one shared `n` forced extra registers everywhere).
+// Remaining differences: one instruction plus its register colouring: in the tempo-60 /
+// length-120 envelope step the original ORs the held `f3C & 0xFFF` register into the new
+// counter, while our build folds it to the known constant 0x78 (gcc records the equality
+// from the compare); every spelling of that compare against a literal folds it.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,251 +19,253 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern unsigned char D_0027CCC0[];   /* 0x30 x 0x6A entries */
-extern unsigned char D_0027CCD4[];   /* == D_0027CCC0 + 0x14 */
-extern unsigned char D_0027CCDA[];   /* == D_0027CCC0 + 0x1A */
-extern unsigned char D_0027CD0E[];   /* == D_0027CCC0 + 0x4E */
-extern unsigned char D_0027E0C0[];   /* 0x30 x 0x78 entries */
-extern unsigned char D_0027F740[];
-extern unsigned char D_0027C6C4[];
-extern unsigned char D_00281AC0[];
-extern unsigned char D_00242630[];
+// Per-frame voice update. For each of the 48 voices that is active (f00 == 1), not in
+// state 3 (f1A) and bound to a channel record (f06 < 48) of D_0027E0C0:
+//  - if a key-on (f14), a pan slide (f44) or the channel's pending flag (+0x50) is set and
+//    the channel is not paused (+0x2E, +0x30 zero): computes the pitch inputs. For key-on
+//    voices the 0x3C envelope word (low 12 bits length, top 4 bits repeat count) advances
+//    f12; the channel's tone (D_0027C6C0 row +4) gives the Song envelope tables at +0x1C /
+//    +0x24 and the level byte; f1A == 1 adds the f38/f3A vibrato to the pan (f4E) and the
+//    detune; the volume comes from the level and f16. A pan slide (f44, count f62 of f64,
+//    direction/amount f60) moves the pan, clamps it to 12..243, stores it in the channel
+//    (+0x58) and, when finished, into f4E. Then pushes the pitch (func_00117918, scaled
+//    441/480) as command 6.
+//  - if f1A == 2 and a volume slide (f46: f50 -> f52 into f2C) or a second slide (f48:
+//    f58 -> f5A into f4C, with f32 = D_00242630[f4C >> 2]) or the channel's +0x52 flag is
+//    set: steps the slides through func_00119080 and pushes the volume pair
+//    (func_001179E0) as command 1.
+// Finally clears the +0x50 / +0x52 pending flags of all 48 channel records.
 
-extern int func_00117918(int, int, int, int, int);
-extern int func_001157F0(int, int, int, int);
-extern int func_001179E0(int, unsigned char *);
-extern int func_00119080(int, int, int, int);
+typedef struct {
+    unsigned short f00, f02, f04, f06, f08, f0A, f0C, f0E;
+    unsigned short f10, f12, f14, f16, f18, f1A, f1C, f1E;
+    unsigned short f20, f22, f24, f26, f28, f2A, f2C, f2E;
+    unsigned short f30, f32, f34;
+    short f36;
+    unsigned short f38, f3A, f3C, f3E;
+    unsigned short f40, f42, f44, f46, f48, f4A, f4C, f4E;
+    unsigned short f50, f52, f54, f56, f58, f5A, f5C, f5E;
+    unsigned short f60, f62, f64, f66, f68;
+} Voice;                        /* 0x6A */
+
+typedef struct {
+    unsigned char pad00[0x24];
+    unsigned short f24;         /* 0x24 */
+    unsigned char pad26[0x2E - 0x26];
+    unsigned short f2E;         /* 0x2E */
+    unsigned short f30;         /* 0x30 */
+    unsigned char pad32[0x44 - 0x32];
+    unsigned short f44;         /* 0x44 */
+    unsigned char pad46[0x50 - 0x46];
+    unsigned short f50;         /* 0x50 */
+    unsigned short f52;         /* 0x52 */
+    unsigned char pad54[0x58 - 0x54];
+    unsigned short f58;         /* 0x58 */
+    unsigned char pad5A[0x78 - 0x5A];
+} Seq;
+
+typedef struct {
+    unsigned char pad00[0x10];
+    unsigned char *f10;         /* 0x10 */
+    unsigned char pad14[0x1C - 0x14];
+    unsigned char *f1C;         /* 0x1C */
+    unsigned char pad20[0x24 - 0x20];
+    unsigned short *f24;        /* 0x24 */
+} Song;
+
+typedef struct {
+    unsigned char pad00[0x3A];
+    unsigned short f3A;
+} Tempo;
+
+extern Voice D_0027CCC0[48];
+extern Seq D_0027E0C0[48];
+extern unsigned char *D_0027C6C0[][3];
+extern Song D_00281AC0;
+extern Tempo D_0027F740;
+extern unsigned short D_00242630[];
+
+extern int func_00117918(int a0, int a1, int a2, int a3, int a4);
+extern int func_001157F0(int a0, int a1, int a2, int a3);
+extern int func_001179E0(int idx, Seq *e);
+extern int func_00119080(int a, int b, int c, int d);
 
 void func_00116598(void)
 {
-    unsigned char *p;
-    unsigned char *q;
-    unsigned char *r;
-    int off;
-    int i;
-    int ah, ax, ay, aw, af;
-    int shade;
-    int ptr, end;
-    int n, hi, lo;
-    int v;
+    Seq *e = D_0027E0C0;
+    unsigned int i;
+    unsigned short ah, ax, aw, af;
+    short ay;
+    unsigned int shade;
+    unsigned short cnt;
+    int rate;
+    int low;
+    unsigned char *ptr;
+    unsigned char *end;
     int res;
 
-    r = D_0027CD0E;
-    p = D_0027CCC0;
-    q = D_0027E0C0;
-    off = 0;
-    i = 0;
-    do {
-        if (*(unsigned short *)(p + 0x00) == 1 &&
-            *(unsigned short *)(D_0027CCDA + off) != 3 &&
-            (unsigned int)*(unsigned short *)(D_0027CCC0 + off + 0x06) < 0x30) {
+    for (i = 0; i < 48; i++) {
+        if (D_0027CCC0[i].f00 == 1 && D_0027CCC0[i].f1A != 3 && D_0027CCC0[i].f06 < 48) {
+            e += D_0027CCC0[i].f06;
 
-            q += *(unsigned short *)(D_0027CCC0 + off + 0x06) * 0x78;
+            if ((D_0027CCC0[i].f14 == 1 || D_0027CCC0[i].f44 == 1 || e->f50 == 1) &&
+                e->f2E == 0 && e->f30 == 0) {
+                ax = D_0027CCC0[i].f02;
+                ay = D_0027CCC0[i].f36;
+                aw = D_0027CCC0[i].f38;
+                af = D_0027CCC0[i].f3A;
+                ah = D_0027CCC0[i].f40;
 
-            if ((*(unsigned short *)(D_0027CCD4 + off) == 1 ||
-                 *(unsigned short *)(p + 0x44) == 1 ||
-                 *(unsigned short *)(q + 0x50) == 1) &&
-                *(unsigned short *)(q + 0x2E) == 0 &&
-                *(unsigned short *)(q + 0x30) == 0) {
-
-                ax = *(unsigned short *)(D_0027CCC0 + off + 0x02);
-                ay = *(short *)(D_0027CCC0 + off + 0x36);
-                aw = *(unsigned short *)(D_0027CCC0 + off + 0x38);
-                af = *(unsigned short *)(D_0027CCC0 + off + 0x3A);
-                ah = *(unsigned short *)(D_0027CCC0 + off + 0x40);
-
-                if (*(unsigned short *)(D_0027CCD4 + off) == 1 ||
-                    *(unsigned short *)(p + 0x44) == 1) {
-
-                    if (ax < ah) {
-                        ah = (ah - ax) + 0x78;
-                    } else {
+                if (D_0027CCC0[i].f14 == 1 || D_0027CCC0[i].f44 == 1) {
+                    if (ax >= ah) {
                         ah = 0x78 - (ax - ah);
+                    } else {
+                        ah = (ah - ax) + 0x78;
                     }
-                    ah = ah & 0xFFFF;
 
-                    if (*(unsigned short *)(D_0027CCD4 + off) != 0) {
-                        if (*(unsigned short *)(D_0027F740 + 0x3A) == 0x3C &&
-                            (*(unsigned short *)(D_0027CCC0 + off + 0x3C) & 0xFFF) == 0x78) {
-                            if ((*(unsigned short *)(D_0027CCC0 + off + 0x3C) & 0xF000) != 0) {
-                                v = (*(unsigned short *)(D_0027CCC0 + off + 0x3C) & 0xFFF) |
-                                    ((((*(unsigned short *)(D_0027CCC0 + off + 0x3C) >> 12) - 1) & 0xFFFF) << 12);
-                                *(unsigned short *)(D_0027CCC0 + off + 0x3C) = v;
-                                *(unsigned short *)(D_0027CCC0 + off + 0x12) += (v & 0xFFF);
+                    if (D_0027CCC0[i].f14 != 0) {
+                        if (D_0027F740.f3A == 0x3C && (low = D_0027CCC0[i].f3C & 0xFFF) == 0x78) {
+                            if ((D_0027CCC0[i].f3C & 0xF000) != 0) {
+                                cnt = (D_0027CCC0[i].f3C >> 12) - 1;
+                                rate = low | (cnt << 12);
+                                D_0027CCC0[i].f3C = rate;
+                                D_0027CCC0[i].f12 += rate & 0xFFF;
                             } else {
-                                *(unsigned short *)(D_0027CCC0 + off + 0x3C) =
-                                    *(unsigned short *)(D_0027CCC0 + off + 0x3C) | 0x6000;
+                                D_0027CCC0[i].f3C |= 0x6000;
                             }
                         } else {
-                            *(unsigned short *)(D_0027CCC0 + off + 0x12) +=
-                                (*(unsigned short *)(D_0027CCC0 + off + 0x3C) & 0xFFF);
+                            D_0027CCC0[i].f12 += D_0027CCC0[i].f3C & 0xFFF;
                         }
 
                         shade = 0x80;
-                        ptr = *(int *)(D_0027C6C4 + *(unsigned short *)(q + 0x24) * 0xC);
-                        if ((ptr & 3) == 0) {
+                        ptr = D_0027C6C0[e->f24][1];
+                        if (((int)ptr & 3) == 0) {
                             end = ptr + *(int *)(ptr + 0x18);
-                            *(int *)(D_00281AC0 + 0x10) = ptr;
-                            if (end != -1 && (end & 1) == 0) {
-                                *(int *)(D_00281AC0 + 0x1C) = end;
-                                *(int *)(D_00281AC0 + 0x24) = end;
-                                shade = *(unsigned short *)(D_0027CCC0 + off + 0x12);
-                                if (shade >= 0xF0) {
-                                    shade = (*(unsigned short *)(D_0027CCC0 + off + 0x3C) & 0xFFF) >> 1;
-                                    *(unsigned short *)(D_0027CCC0 + off + 0x12) = shade;
+                            D_00281AC0.f10 = ptr;
+                            if (end != (unsigned char *)-1 && ((int)end & 1) == 0) {
+                                D_00281AC0.f24 = (unsigned short *)end;
+                                D_00281AC0.f1C = end;
+                                if (D_0027CCC0[i].f12 >= 0xF0) {
+                                    D_0027CCC0[i].f12 = (D_0027CCC0[i].f3C & 0xFFF) >> 1;
                                 }
-                                shade = *(unsigned char *)(*(int *)(D_00281AC0 + 0x1C) +
-                                        *(unsigned short *)(*(int *)(D_00281AC0 + 0x24) +
-                                            *(unsigned short *)(D_0027CCC0 + off + 0x10) * 2 + 2) +
-                                        (shade >> 2));
+                                shade = D_00281AC0.f1C[D_00281AC0.f24[D_0027CCC0[i].f10 + 1] +
+                                                       (D_0027CCC0[i].f12 >> 2)];
                             }
                         }
 
-                        if (*(unsigned short *)(D_0027CCDA + off) == 1) {
-                            if (*(unsigned short *)(D_0027CCC0 + off + 0x38) < 0x40) {
-                                n = (0x40 - *(unsigned short *)(D_0027CCC0 + off + 0x38)) *
-                                    *(unsigned short *)(D_0027CCC0 + off + 0x3A);
+                        ax = D_0027CCC0[i].f4E;
+                        if (D_0027CCC0[i].f1A == 1) {
+                            if (D_0027CCC0[i].f38 >= 0x40) {
+                                int n, hi, lo;
+                                n = (D_0027CCC0[i].f38 - 0x40) * D_0027CCC0[i].f3A;
                                 hi = n / 64;
                                 lo = n / 4;
-                                ay = ay + (hi * 16 - lo);
-                                ax = (ax - hi) & 0xFFFF;
-                            } else {
-                                n = (*(unsigned short *)(D_0027CCC0 + off + 0x38) - 0x40) *
-                                    *(unsigned short *)(D_0027CCC0 + off + 0x3A);
-                                hi = n / 64;
-                                lo = n / 4;
+                                ax = ax + hi;
                                 ay = ay + (lo - hi * 16);
-                                ax = (ax + hi) & 0xFFFF;
+                            } else {
+                                int n, hi, lo;
+                                n = (0x40 - D_0027CCC0[i].f38) * D_0027CCC0[i].f3A;
+                                hi = n / 64;
+                                lo = n / 4;
+                                ax = ax - hi;
+                                ay = ay + (hi * 16 - lo);
                             }
-                            ay = (short)ay;
                             af = 1;
                         }
 
-                        aw = (shade * *(unsigned short *)(p + 0x16)) / 0xFF;
-                        aw = (aw + 0x40 - ((*(unsigned short *)(p + 0x16) + 1) >> 1)) & 0xFFFF;
+                        aw = (shade * D_0027CCC0[i].f16) / 0xFF + 0x40;
+                        aw -= (D_0027CCC0[i].f16 + 1) >> 1;
                     }
 
-                    if (*(unsigned short *)(p + 0x44) != 0 &&
-                        (*(unsigned short *)(D_0027CCC0 + off + 0x62) & 0x7FFF) != 0) {
-                        *(unsigned short *)(D_0027CCC0 + off + 0x62) =
-                            (*(unsigned short *)(D_0027CCC0 + off + 0x62) & 0x7FFF) - 1;
-
-                        if ((*(unsigned short *)(D_0027CCC0 + off + 0x60) & 0x80) != 0) {
-                            n = *(unsigned short *)(D_0027CCC0 + off + 0x64) -
-                                *(unsigned short *)(D_0027CCC0 + off + 0x62);
-                            ax = (*(unsigned short *)r -
-                                  ((n * (0x100 - *(unsigned short *)(D_0027CCC0 + off + 0x60))) / 10) /
-                                      *(unsigned short *)(D_0027CCC0 + off + 0x64)) & 0xFFFF;
-                            v = (n * ((-*(unsigned char *)(D_0027CCC0 + off + 0x60)) & 0xFF) * 0xC0) /
-                                (*(unsigned short *)(D_0027CCC0 + off + 0x64) * 0x78);
-                            ay = (short)(ay - (v - (v / 16) * 16));
+                    if (D_0027CCC0[i].f44 != 0 && (D_0027CCC0[i].f62 &= 0x7FFF) != 0) {
+                        D_0027CCC0[i].f62--;
+                        if ((D_0027CCC0[i].f60 & 0x80) != 0) {
+                            int n, v;
+                            n = D_0027CCC0[i].f64 - D_0027CCC0[i].f62;
+                            ax = D_0027CCC0[i].f4E -
+                                 ((n * (0x100 - D_0027CCC0[i].f60)) / 10) / D_0027CCC0[i].f64;
+                            v = (n * (unsigned char)(0x100 - D_0027CCC0[i].f60) * 0xC0) /
+                                (D_0027CCC0[i].f64 * 0x78);
+                            ay = ay - v % 16;
                         } else {
-                            n = *(unsigned short *)(D_0027CCC0 + off + 0x64) -
-                                *(unsigned short *)(D_0027CCC0 + off + 0x62);
-                            ax = (*(unsigned short *)r +
-                                  ((n * *(unsigned short *)(D_0027CCC0 + off + 0x60)) / 10) /
-                                      *(unsigned short *)(D_0027CCC0 + off + 0x64)) & 0xFFFF;
-                            v = (n * *(unsigned short *)(D_0027CCC0 + off + 0x60) * 0xC0) /
-                                (*(unsigned short *)(D_0027CCC0 + off + 0x64) * 0x78);
-                            ay = (short)(ay + (v - (v / 16) * 16));
+                            int n, v;
+                            n = D_0027CCC0[i].f64 - D_0027CCC0[i].f62;
+                            ax = D_0027CCC0[i].f4E +
+                                 ((n * D_0027CCC0[i].f60) / 10) / D_0027CCC0[i].f64;
+                            v = (n * D_0027CCC0[i].f60 * 0xC0) / (D_0027CCC0[i].f64 * 0x78);
+                            ay = ay + v % 16;
                         }
 
-                        if ((unsigned int)ax <= 0xC) {
+                        if (ax <= 0xC) {
                             ax = 0xC;
                         }
-                        if ((unsigned int)ax >= 0xF3) {
+                        if (ax >= 0xF3) {
                             ax = 0xF3;
                         }
-                        *(unsigned short *)(q + 0x58) = ax;
-                        if (*(unsigned short *)(D_0027CCC0 + off + 0x62) == 0) {
-                            *(unsigned short *)r = ax;
-                            *(unsigned short *)(p + 0x44) = 0;
+                        e->f58 = ax;
+                        if (D_0027CCC0[i].f62 == 0) {
+                            D_0027CCC0[i].f4E = ax;
+                            D_0027CCC0[i].f44 = 0;
                         }
                     }
                 }
 
                 res = func_00117918(ah, ax, ay, aw, af);
-                func_001157F0(6, i,
-                    (((res * *(unsigned short *)(q + 0x44)) >> 12) * 0x1B9) / 0x1E0, 0);
+                func_001157F0(6, i, (((res * e->f44) >> 12) * 0x1B9U) / 0x1E0, 0);
             }
 
-            if (*(unsigned short *)(D_0027CCDA + off) == 2) {
-                if (*(unsigned short *)(D_0027CCC0 + off + 0x46) == 1 ||
-                    *(unsigned short *)(D_0027CCC0 + off + 0x48) == 1 ||
-                    *(unsigned short *)(q + 0x52) == 1) {
-
-                    if (*(unsigned short *)(D_0027CCC0 + off + 0x46) == 1) {
-                        if (*(unsigned short *)(D_0027CCC0 + off + 0x50) !=
-                            *(unsigned short *)(D_0027CCC0 + off + 0x52)) {
-                            if ((*(unsigned short *)(D_0027CCC0 + off + 0x54) & 0x7FFF) != 0) {
-                                *(unsigned short *)(D_0027CCC0 + off + 0x54) =
-                                    *(unsigned short *)(D_0027CCC0 + off + 0x54) & 0x7FFF;
-                                *(unsigned short *)(D_0027CCC0 + off + 0x2C) = func_00119080(
-                                    *(unsigned char *)(D_0027CCC0 + off + 0x50),
-                                    *(unsigned char *)(D_0027CCC0 + off + 0x52),
-                                    *(unsigned char *)(D_0027CCC0 + off + 0x56),
-                                    *(unsigned char *)(D_0027CCC0 + off + 0x54));
-                                *(unsigned short *)(D_0027CCC0 + off + 0x54) -= 1;
-                            } else {
-                                *(unsigned short *)(D_0027CCC0 + off + 0x54) = 0;
-                                *(unsigned short *)(D_0027CCC0 + off + 0x2C) =
-                                    *(unsigned short *)(D_0027CCC0 + off + 0x50);
-                                *(unsigned short *)(D_0027CCC0 + off + 0x46) = 0;
-                            }
+            if (D_0027CCC0[i].f1A == 2 &&
+                (D_0027CCC0[i].f46 == 1 || D_0027CCC0[i].f48 == 1 || e->f52 == 1)) {
+                if (D_0027CCC0[i].f46 == 1) {
+                    if (D_0027CCC0[i].f50 != D_0027CCC0[i].f52) {
+                        if ((D_0027CCC0[i].f54 &= 0x7FFF) != 0) {
+                            D_0027CCC0[i].f2C = func_00119080(
+                                (unsigned char)D_0027CCC0[i].f50, (unsigned char)D_0027CCC0[i].f52,
+                                (unsigned char)D_0027CCC0[i].f56, (unsigned char)D_0027CCC0[i].f54);
+                            D_0027CCC0[i].f54--;
                         } else {
-                            *(unsigned short *)(D_0027CCC0 + off + 0x46) = 0;
+                            D_0027CCC0[i].f2C = D_0027CCC0[i].f50;
+                            D_0027CCC0[i].f46 = 0;
                         }
+                    } else {
+                        D_0027CCC0[i].f46 = 0;
                     }
-
-                    if (*(unsigned short *)(D_0027CCC0 + off + 0x48) == 1) {
-                        if (*(unsigned short *)(D_0027CCC0 + off + 0x58) !=
-                            *(unsigned short *)(D_0027CCC0 + off + 0x5A)) {
-                            if ((*(unsigned short *)(D_0027CCC0 + off + 0x5C) & 0x7FFF) != 0) {
-                                *(unsigned short *)(D_0027CCC0 + off + 0x5C) =
-                                    *(unsigned short *)(D_0027CCC0 + off + 0x5C) & 0x7FFF;
-                                *(unsigned short *)(D_0027CCC0 + off + 0x4C) = func_00119080(
-                                    *(unsigned char *)(D_0027CCC0 + off + 0x58),
-                                    *(unsigned char *)(D_0027CCC0 + off + 0x5A),
-                                    *(unsigned char *)(D_0027CCC0 + off + 0x5E),
-                                    *(unsigned char *)(D_0027CCC0 + off + 0x5C));
-                                *(unsigned short *)(D_0027CCC0 + off + 0x5C) -= 1;
-                            } else {
-                                *(unsigned short *)(D_0027CCC0 + off + 0x5C) = 0;
-                                *(unsigned short *)(D_0027CCC0 + off + 0x4C) =
-                                    *(unsigned short *)(D_0027CCC0 + off + 0x58);
-                                *(unsigned short *)(D_0027CCC0 + off + 0x48) = 0;
-                            }
-                            *(unsigned short *)(D_0027CCC0 + off + 0x32) =
-                                *(unsigned short *)(D_00242630 +
-                                    ((*(unsigned short *)(D_0027CCC0 + off + 0x4C) >> 2) << 1));
-                        } else {
-                            *(unsigned short *)(D_0027CCC0 + off + 0x48) = 0;
-                        }
-                    }
-
-                    res = func_001179E0(i, q);
-                    func_001157F0(1, i, res >> 16, (short)res);
                 }
+
+                if (D_0027CCC0[i].f48 == 1) {
+                    if (D_0027CCC0[i].f58 == D_0027CCC0[i].f5A) {
+                        D_0027CCC0[i].f48 = 0;
+                    } else {
+                        if ((D_0027CCC0[i].f5C &= 0x7FFF) != 0) {
+                            D_0027CCC0[i].f4C = func_00119080(
+                                (unsigned char)D_0027CCC0[i].f58, (unsigned char)D_0027CCC0[i].f5A,
+                                (unsigned char)D_0027CCC0[i].f5E, (unsigned char)D_0027CCC0[i].f5C);
+                            D_0027CCC0[i].f5C--;
+                        } else {
+                            D_0027CCC0[i].f4C = D_0027CCC0[i].f58;
+                            D_0027CCC0[i].f48 = 0;
+                        }
+                        D_0027CCC0[i].f32 = D_00242630[D_0027CCC0[i].f4C >> 2];
+                    }
+                }
+
+                res = func_001179E0(i, e);
+                func_001157F0(1, i, res >> 16, (short)res);
             }
 
-            q -= *(unsigned short *)(D_0027CCC0 + off + 0x06) * 0x78;
+            e -= D_0027CCC0[i].f06;
         }
-
-        i++;
-        off += 0x6A;
-        p += 0x6A;
-        r += 0x6A;
-    } while ((unsigned int)i < 0x30);
+    }
 
     i = 0;
     do {
         i++;
-        if (*(unsigned short *)(q + 0x50) == 1) {
-            *(unsigned short *)(q + 0x50) = 0;
+        if (e->f50 == 1) {
+            e->f50 = 0;
         }
-        if (*(unsigned short *)(q + 0x52) == 1) {
-            *(unsigned short *)(q + 0x52) = 0;
+        if (e->f52 == 1) {
+            e->f52 = 0;
         }
-        q += 0x78;
-    } while ((unsigned int)i < 0x30);
+        e++;
+    } while (i < 48);
 }

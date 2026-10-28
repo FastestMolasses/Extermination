@@ -1,42 +1,50 @@
-// NEARMISS func_001AF800  (vram 0x001AF800, 0x84 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 59.06% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two compounding 2.3.1 artifacts neither 991 nor 233 fixes (991=73.42% best; 233 regresses to 59.06%, so 2.3.3 makes it WORSE -- not a clean-store-nop case). (1) Inner-loop instruction-scheduling padding: the CW 2.3.1 target inserts a nop before the zero quadword store and TWO nops before the loop branch; (2) rest of the note: docs/NEARMISS.md.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 59.06% NEARMISS).
+// Fixes read from the original instructions:
+// - each record is zeroed with 13 quadword stores (a 128-bit element type, as in
+//   the twin func_001AF890), not 52 word stores; the "scheduling padding" was
+//   just the quadword store loop's normal shape
+// - the owner is a record struct (count byte at +9, flag byte at +0xC, slot
+//   pointer array at +0x110) walked with an indexed for-loop
+// - the push is the twin's `*--D_00275BD0 = blk` and the count update `+=`
+//
+// Releases every record owned by r: for each of its r->count slots, zeroes the
+// 13-quadword (0xD0-byte) record, pushes it back on the free stack D_00275BD0
+// and clears the slot; then adds the released count to D_00275BCC and clears
+// the count and the flag byte at +0xC.
 
-extern int *D_00275BD0;
+typedef unsigned int u128 __attribute__((mode(TI)));
+extern char **D_00275BD0;
 extern short D_00275BCC;
 
-void func_001AF800(char *arg0) {
-    int i;
-    int *p;
-    int j;
-    int *cur;
+typedef struct {
+    char pad0[9];
+    unsigned char count;
+    char pad1[2];
+    unsigned char flag;
+    char pad2[0x110 - 0xD];
+    char *slot[1];
+} Rec;
 
-    i = 0;
-    while (i < *(unsigned char *)(arg0 + 9)) {
-        p = *(int **)(arg0 + 0x110 + i * 4);
-        for (j = 0xD; j != 0; j--) {
-            *(int *)((char *)p + 0) = 0;
-            *(int *)((char *)p + 4) = 0;
-            *(int *)((char *)p + 8) = 0;
-            *(int *)((char *)p + 0xC) = 0;
-            p = (int *)((char *)p + 0x10);
-        }
-        cur = *(int **)(arg0 + 0x110 + i * 4);
-        D_00275BD0 = D_00275BD0 - 1;
-        *D_00275BD0 = (int)cur;
-        *(int *)(arg0 + 0x110 + i * 4) = 0;
-        i++;
+void func_001AF800(Rec *r) {
+    int i;
+    u128 *p;
+    int n;
+
+    for (i = 0; i < r->count; i++) {
+        p = (u128 *)r->slot[i];
+        n = 13;
+        do {
+            *p = 0;
+            n--;
+            p++;
+        } while (n != 0);
+        *--D_00275BD0 = r->slot[i];
+        r->slot[i] = 0;
     }
-    D_00275BCC = D_00275BCC + *(unsigned char *)(arg0 + 9);
-    *(unsigned char *)(arg0 + 9) = 0;
-    *(unsigned char *)(arg0 + 0xC) = 0;
+    D_00275BCC += r->count;
+    r->count = 0;
+    r->flag = 0;
 }

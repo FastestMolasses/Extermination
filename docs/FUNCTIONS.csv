@@ -37,7 +37,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001020C8,func_001020C8,228,readable,0,lowmem
 0x001021B0,func_001021B0,196,readable,0,lowmem
 0x00102278,func_00102278,236,nearmiss,0,lowmem
-0x00102368,func_00102368,240,nearmiss,0,lowmem
+0x00102368,func_00102368,240,readable,0,lowmem
 0x00102458,func_00102458,12,readable,0,lowmem
 0x00102468,func_00102468,196,readable,5,lowmem
 0x00102530,func_00102530,208,readable,0,lowmem
@@ -485,7 +485,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0010F870,func_0010F870,136,readable,1,lowmem
 0x0010F8F8,func_0010F8F8,112,readable,2,lowmem
 0x0010F968,func_0010F968,120,readable,1,lowmem
-0x0010F9E0,func_0010F9E0,240,nearmiss,0,lowmem
+0x0010F9E0,func_0010F9E0,240,readable,0,lowmem
 0x0010FAD0,func_0010FAD0,256,readable,5,lowmem
 0x0010FBD0,sub__9PsIIlibkernl2000_4,44,readable,3,lowmem
 0x0010FC00,func_0010FC00,56,readable,0,lowmem
@@ -501,7 +501,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00110498,func_00110498,40,readable,0,lowmem
 0x001104C0,func_001104C0,72,readable,1,lowmem
 0x00110508,func_00110508,256,nearmiss,1,lowmem
-0x00110608,func_00110608,132,nearmiss,0,lowmem
+0x00110608,func_00110608,132,readable,0,lowmem
 0x00110690,sub_PsIIlibpad_2000,308,readable,1,lowmem
 0x001107C8,func_001107C8,156,readable,1,lowmem
 0x00110868,sub_PsIIlibpad_2000_2,128,readable,0,lowmem
@@ -1745,7 +1745,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001AF710,func_001AF710,108,readable,1,entity_sys
 0x001AF780,func_001AF780,56,readable,20,entity_sys
 0x001AF7C0,func_001AF7C0,52,readable,3,entity_sys
-0x001AF800,func_001AF800,132,nearmiss,3,entity_sys
+0x001AF800,func_001AF800,132,readable,3,entity_sys
 0x001AF890,func_001AF890,68,readable,5,entity_sys
 0x001AF8E0,func_001AF8E0,368,readable,1,entity_sys
 0x001AFA50,func_001AFA50,52,readable,1,entity_sys
@@ -2326,7 +2326,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001E0DF0,func_001E0DF0,140,readable,1,weapon_equip
 0x001E0E80,func_001E0E80,400,readable,1,weapon_equip
 0x001E1010,func_001E1010,136,readable,1,weapon_equip
-0x001E10A0,func_001E10A0,832,nearmiss,1,weapon_equip
+0x001E10A0,func_001E10A0,832,readable,1,weapon_equip
 0x001E13E0,func_001E13E0,892,nearmiss,1,weapon_equip
 0x001E1760,func_001E1760,124,readable,1,weapon_equip
 0x001E17E0,func_001E17E0,748,nearmiss,1,weapon_equip
@@ -2543,7 +2543,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001FC580,func_001FC580,348,readable,6,audio
 0x001FC6E0,func_001FC6E0,140,readable,1,audio
 0x001FC770,func_001FC770,64,readable,6,audio
-0x001FC7B0,func_001FC7B0,512,nearmiss,2,audio
+0x001FC7B0,func_001FC7B0,512,readable,2,audio
 0x001FC9B0,func_001FC9B0,84,nearmiss,6,audio
 0x001FCA10,func_001FCA10,380,readable,2,audio
 0x001FCB90,func_001FCB90,56,readable,2,audio

@@ -1,16 +1,16 @@
 // NEARMISS func_001DF180  (vram 0x001DF180, 0x41C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 81.46% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful.
-// Matching wave 2026-10-27 (was 66.41%), spelled like its twin func_001DFA40: the packet header
-// uses the DMA packet family spelling (slot = &D_00275670[arg0], cursor slot[4] re-read per store);
-// j is declared before i; the outer squared term goes through a temporary; the radial term is
-// k = sv + su; k = k * fparg0; the two strip rows (lo/hi) are filled interleaved; the vertex
-// cursor advances in the for-increment. The 0x10F0 frame now matches (the old "frame 16 bytes
-// larger" verdict was a spelling artifact).
-// Remaining differences: instruction scheduling and FP register choice around the two random
-// jitter products, scheduling of the packet-header stores against the row-Y divisions, the vertex
-// cursor blk+0x10+0x20 folded to one add (original adds 0x10 then 0x20 later), and the FP
-// registers of the 546.13336f add before float_to_int.
+// objdiff 83.14% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful.
+// Matching wave 2026-10-27 (was 66.41%, then 81.46%), spelled like its byte-matched twins func_001DFA40 /
+// func_001DF600: the packet header uses the DMA packet family spelling (slot = &D_00275670[arg0], cursor
+// slot[4] re-read per store); j is declared before i; the outer squared term goes through a temporary;
+// k = sv + su; k = k * fparg0; the vertex cursor is set to blk + 0x10 before the strip-row fills and moved
+// past the 0x20-byte GIF header after lo[1]/hi[1]; the two grid rows are walked through row pointers p/q
+// set up after a separate j = 0; each int X goes through a float temporary and the 546.13336f step is a
+// named local assigned in the inner loop (this fixed the inner loop's FP registers; it is now identical).
+// Remaining differences: instruction scheduling only -- the original doubles the first random product
+// before the second (and materializes -1.0f before the y offset constant), and schedules the packet-header
+// stores and the 0x7000 fills ahead of the (i+1) row-Y division; register names in the header block follow.
 //
 // Builds a 16x16 grid of (u', v', 1.0) texture coordinates: u = j/15, v = i/15, with a jitter
 // k * (2*rand*2^-31 - 1) per axis where k = (f(2u-1)^2 + f(2v-1)^2) * fparg0 (func_0011DF78 is
@@ -60,6 +60,10 @@ int func_001DF180(int arg0, float fparg0) {
     char **slot;
     char *blk;
     char *vb;
+    float *p;
+    float *q;
+    float x;
+    float step;
 
     ret = (int)D_00275670[arg0 + 4];
     func_001D6B60(arg0, D_0027568C, 8, 8, D_0026E860);
@@ -99,22 +103,32 @@ int func_001DF180(int arg0, float fparg0) {
         *((int *)(blk + 0x1C)) = 0x50000041;
         *((long long *)(blk + 0x20)) = 0x8010 | (((long long)0x400A4000) << 0x20);
         *((long long *)(blk + 0x28)) = 0x4242;
+        vb = blk + 0x10;
         lo[0] = 0x7000;
         hi[0] = 0x7000;
         lo[1] = ((i * 0xE0) / 15 + 0x790) * 0x10;
         hi[1] = (((i + 1) * 0xE0) / 15 + 0x790) * 0x10;
+        vb += 0x20;
         lo[2] = 0xFFFFFF;
         hi[2] = 0xFFFFFF;
         lo[3] = 0;
         hi[3] = 0;
-        vb = blk + 0x10 + 0x20;
-        for (j = 0; j < 16; j++, vb += 0x40) {
-            func_00102948(vb, tab[i][j]);
+        j = 0;
+        p = tab[i][0];
+        q = tab[i + 1][0];
+        for (; j < 16; j++) {
+            func_00102948(vb, p);
             func_00102948(vb + 0x10, lo);
-            func_00102948(vb + 0x20, tab[i + 1][j]);
+            func_00102948(vb + 0x20, q);
             func_00102948(vb + 0x30, hi);
-            lo[0] = float_to_int((float)lo[0] + 546.13336f);
-            hi[0] = float_to_int((float)hi[0] + 546.13336f);
+            step = 546.13336f;
+            x = (float)lo[0];
+            lo[0] = float_to_int(x + step);
+            x = (float)hi[0];
+            hi[0] = float_to_int(x + step);
+            p += 4;
+            q += 4;
+            vb += 0x40;
         }
     }
 
