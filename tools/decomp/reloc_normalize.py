@@ -11,9 +11,11 @@ address reach the linked ELF as identical bytes but count as mismatches:
   * the C names a scratchpad word as an extern (`D_700038A0[2]`) while splat
     leaves the site a bare literal (`0x700038A8`), or the reverse;
   * splat cannot pair a hoisted `%hi` with its `%lo` and leaves a bare
-    constant on one side.
+    constant on one side;
+  * a gp-relative access to a byte inside a small global relocates against
+    the global plus an offset (`D_00275C94+1`) where splat names the byte.
 
-This tool reads the COMPILED object's HI16/LO16 relocations for one function
+This tool reads the COMPILED object's HI16/LO16/GPREL16 relocations for one function
 and, instruction by instruction, rewrites the matching site of the expected
 `.s` to the compiled spelling, but only when both sides resolve to the SAME
 address and the instruction words agree outside the 16-bit immediate. It
@@ -33,10 +35,10 @@ import struct
 import sys
 from pathlib import Path
 
-R_MIPS_HI16, R_MIPS_LO16 = 5, 6
+R_MIPS_HI16, R_MIPS_LO16, R_MIPS_GPREL16 = 5, 6, 7
 _DSYM = re.compile(r"^D_([0-9A-Fa-f]{8})$")
 _LINE = re.compile(r"/\*\s*[0-9A-Fa-f]+\s+([0-9A-Fa-f]{8})\s+([0-9A-Fa-f]{8})\s*\*/")
-_REF = re.compile(r"%(hi|lo)\((D_[0-9A-Fa-f]{8})(?:\s*([+-])\s*(0x[0-9A-Fa-f]+|\d+))?\)")
+_REF = re.compile(r"%(hi|lo|gp_rel)\((D_[0-9A-Fa-f]{8})(?:\s*([+-])\s*(0x[0-9A-Fa-f]+|\d+))?\)")
 _LIT = re.compile(r"\((0x[0-9A-Fa-f]+) (>> 16|& 0xFFFF)\)")
 
 
@@ -84,15 +86,15 @@ def read_function(obj: Path, func: str):
         for i in range(s[5] // 8):
             off, info = struct.unpack_from("<II", data, s[4] + i * 8)
             typ, symi = info & 0xFF, info >> 8
-            if typ in (R_MIPS_HI16, R_MIPS_LO16) and fval <= off < fval + len(body):
+            if typ in (R_MIPS_HI16, R_MIPS_LO16, R_MIPS_GPREL16) and fval <= off < fval + len(body):
                 relocs[off - fval] = (typ, syms[symi][0])
     return words, relocs
 
 
 def compiled_targets(relocs: dict) -> dict[int, tuple[str, str]]:
-    """{offset: ('hi'|'lo', symbol)} for HI16/LO16 relocations against D_ symbols."""
-    return {off: ("hi" if typ == R_MIPS_HI16 else "lo", sym)
-            for off, (typ, sym) in relocs.items() if _DSYM.match(sym)}
+    """{offset: ('hi'|'lo'|'gp_rel', symbol)} for HI16/LO16/GPREL16 relocations against D_ symbols."""
+    part = {R_MIPS_HI16: "hi", R_MIPS_LO16: "lo", R_MIPS_GPREL16: "gp_rel"}
+    return {off: (part[typ], sym) for off, (typ, sym) in relocs.items() if _DSYM.match(sym)}
 
 
 def spell(part: str, sym: str, addr: int) -> str:
@@ -152,13 +154,16 @@ def normalize(obj: Path, func: str, src: str) -> str | None:
             delta = eaddr - int(csym[2:], 16)
             if cpart != part or not -0x8000 <= delta <= 0x7FFF:
                 continue
-            if (part == "hi" and imm != _hi(delta)) or (part == "lo" and imm != delta & 0xFFFF):
+            if (part == "hi" and imm != _hi(delta)) or (part != "hi" and imm != delta & 0xFFFF):
                 continue
             new = spell(part, csym, eaddr)
         elif off in relocs:
             continue  # relocated against something this tool does not model
         else:
             # compiled has a bare constant here: spell the expected side literally
+            # (a gp-relative site always carries a relocation, so it never gets here)
+            if part == "gp_rel":
+                continue
             if (part == "hi" and imm != _hi(eaddr)) or (part == "lo" and imm != eaddr & 0xFFFF):
                 continue
             new = f"(0x{eaddr:08X} >> 16)" if part == "hi" else f"(0x{eaddr:08X} & 0xFFFF)"

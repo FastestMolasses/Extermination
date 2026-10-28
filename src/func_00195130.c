@@ -1,11 +1,11 @@
 // NEARMISS func_00195130  (vram 0x00195130, 0x1270 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.96% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// objdiff 99.99% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
 // Remaining differences in this candidate:
-// Two scheduling/allocation residuals: in the area-8 default arm the sum built from the
-// scratchpad value 0x70003A24 gets other float temporaries than the original, and in the
-// "far" arm of the 6..9 sub-state case the original materialises the 10.0 argument of
-// func_00192010 before the 25.0 one (the identical call in the near arm and case 10 do not).
+// One scheduling residual: in the "far" arm of the 6..9 sub-state case the original
+// materialises the 10.0 argument of func_00192010 before the 25.0 one (the identical
+// call in the near arm and case 10 do not). Not moved by argument locals, int-to-float
+// constants, duplicated tails, condition spellings or the 2.3.3 permuter.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -13,8 +13,12 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003A24
 
-// Matching wave 2026-10-27 (88.48 -> 99.96), fixes read from the original instructions:
+// Matching wave 2026-10-27 (88.48 -> 99.99), fixes read from the original instructions:
+// - The scratchpad word 0x70003A24 (area-8 height offset) is its own relocated
+//   extern D_70003A24 (// SPAD:, idiom-32); with it the area-8 sum gets the
+//   original's float registers.
 // - func_00193D90 takes (cam, target): state 2 passes no third argument; func_823FE0
 //   takes no argument (the target sets no $a0 for it).
 // - Area 6: the clamp constant is -598.9 (not -598.4), and the "handled" flag is set
@@ -63,6 +67,7 @@ extern int func_00230230(void *p, void *e);
 extern int func_823FE0(void);
 extern void func_0022FCA0(void *p, void *e);
 extern void func_001AEDE0(int a, int b);
+extern float D_70003A24;
 extern float D_008105D0;
 extern float D_008105D4;
 extern float D_008105D8;
@@ -165,14 +170,14 @@ void func_00195130(unsigned char *arg0, unsigned char *arg1) {
                         *(float *)0x70003A20 = t;
                         if (t < lim) {
                             if (lim == -20.0f) {
-                                *(float *)0x70003A24 = 0.5f * (t - lim);
+                                D_70003A24 = 0.5f * (t - lim);
                             } else {
-                                *(float *)0x70003A24 = t - lim;
+                                D_70003A24 = t - lim;
                                 if (t - lim < -10.0f) {
-                                    *(float *)0x70003A24 = -10.0f;
+                                    D_70003A24 = -10.0f;
                                 }
                             }
-                            var_f1 = 11.0f + (*(float *)(arg0 + 0x8C) + (*(float *)(arg1 + 0xA4) + (*(float *)(arg0 + 0x5C) - *(float *)0x70003A24)));
+                            var_f1 = 11.0f + (*(float *)(arg0 + 0x8C) + (*(float *)(arg1 + 0xA4) + (*(float *)(arg0 + 0x5C) - D_70003A24)));
                         } else {
                             var_f1 = 11.0f + (*(float *)(arg0 + 0x8C) + (*(float *)(arg0 + 0x5C) + *(float *)(arg1 + 0xA4)));
                         }

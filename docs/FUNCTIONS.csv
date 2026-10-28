@@ -503,7 +503,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00110508,func_00110508,256,nearmiss,1,lowmem
 0x00110608,func_00110608,132,nearmiss,0,lowmem
 0x00110690,sub_PsIIlibpad_2000,308,readable,1,lowmem
-0x001107C8,func_001107C8,156,nearmiss,1,lowmem
+0x001107C8,func_001107C8,156,readable,1,lowmem
 0x00110868,sub_PsIIlibpad_2000_2,128,readable,0,lowmem
 0x001108E8,func_001108E8,340,readable,1,lowmem
 0x00110A40,func_00110A40,116,readable,0,lowmem
@@ -547,7 +547,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00112150,func_00112150,752,nearmiss,0,lowmem
 0x00112440,func_00112440,460,readable,1,lowmem
 0x00112610,func_00112610,328,nearmiss,1,lowmem
-0x00112758,func_00112758,656,nearmiss,0,lowmem
+0x00112758,func_00112758,656,readable,0,lowmem
 0x001129E8,func_001129E8,228,nearmiss,0,lowmem
 0x00112AD0,func_00112AD0,192,readable,0,lowmem
 0x00112B90,func_00112B90,196,readable,0,lowmem
@@ -1193,7 +1193,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00159B90,func_00159B90,724,nearmiss,0,entity_logic
 0x00159E70,func_00159E70,324,readable,0,entity_logic
 0x00159FC0,func_00159FC0,172,readable,1,entity_logic
-0x0015A070,func_0015A070,400,nearmiss,0,entity_logic
+0x0015A070,func_0015A070,400,readable,0,entity_logic
 0x0015A200,func_0015A200,184,readable,1,entity_logic
 0x0015A2C0,func_0015A2C0,1164,readable,0,entity_logic
 0x0015A750,func_0015A750,928,nearmiss,1,entity_logic
@@ -2796,7 +2796,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x002160B0,func_002160B0,4056,readable,1,ui_screens
 0x00217090,func_00217090,1820,readable,1,ui_screens
 0x002177B0,func_002177B0,2032,readable,1,ui_screens
-0x00217FA0,func_00217FA0,1692,nearmiss,1,ui_screens
+0x00217FA0,func_00217FA0,1692,readable,1,ui_screens
 0x00218640,func_00218640,1860,readable,1,ui_screens
 0x00218D90,func_00218D90,1976,readable,1,ui_screens
 0x00219550,func_00219550,796,nearmiss,0,unknown_06
@@ -2917,7 +2917,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00228C90,func_00228C90,544,nearmiss,1,save_memcard
 0x00228EB0,sub_BASCUS_97112_DS00_00_EX_DATA_00_3,696,readable,1,save_memcard
 0x00229170,func_00229170,568,readable,2,save_memcard
-0x002293B0,sub__02d_02d_02d,648,nearmiss,2,save_memcard
+0x002293B0,sub__02d_02d_02d,648,readable,2,save_memcard
 0x00229640,sub_BASCUS_97112_DS00_00_EX_ico,56,readable,1,save_memcard
 0x00229680,sub_BASCUS_97112_DS00_00_EX_DATA_00_4,228,readable,1,save_memcard
 0x00229770,func_00229770,492,readable,1,save_memcard

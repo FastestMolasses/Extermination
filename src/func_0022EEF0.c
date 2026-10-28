@@ -1,8 +1,8 @@
 // NEARMISS func_0022EEF0  (vram 0x0022EEF0, 0xDA8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 99.12% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring + scheduling artifacts, 31 of 876 instructions. (a) 4x: the read-modify-write sites on D_008106C8 load the old value into $a2 in the target vs the equally-dead $a0 here — the target consistently skips the argument registers used by the preceding call in the same basic block (sam...
+// objdiff 99.95% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
+// diff is a register-colouring artifact no source change tried here fixes:
+// 8 of 876 instructions: the four "clear 0x0E000070, set 0x02000000" read-modify-write sites on D_008106C8 load the old value into $a2 in the target vs $a0 here.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,17 +12,13 @@
 // CFLAGS: -O4,p -sdatathreshold 8
 
 //
-// NEARMISS residual (mwcc 2.3.3, objdiff 99.12%): 31 of 876 instructions
-// differ, all register-coloring / scheduling artifacts — (a) the four
-// read-modify-write sites on D_008106C8 load the old value into $a2 in the
-// target and into the equally-dead $a0 here (the target skips the argument
-// registers used by the preceding call in the same block); (b) FP coloring
-// in the three track guards and the 0x84 terminator test ($f1 vs $f0/$f2 for
-// the time cursor); (c) which of the two ready ops fills the guard's branch
-// delay slot (the cursor bump vs the following load); (d) the order of the
-// two independent D_008105F4/D_008105F8 stores. Logic, control flow, call
-// signatures and constants are exact; source-order, operand-order and
-// temp-hoisting shapes were all tried and mwcc 2.3.3 normalises them away.
+// Matching wave 2026-10-27 (99.12% -> 99.95%): the track cursors step inside the
+// time test (`t >= *p++`), so the step fills the guard's delay slot; the view
+// matrix reset writes D_008105F0 as one 4-word array (fixes the store order).
+// Remaining differences: the four wide-bar read-modify-write sites on
+// D_008106C8 colour the loaded word $a2 (target) vs $a0; spelling variants
+// (compound vs spelled-out, ~mask, signed/volatile extern, a held constant)
+// and a 600 s 2.3.3 permuter run did not move it.
 //
 // Cutscene/demo timeline driver, ticked once per frame with the playback
 // record d. d+0x6E is the scene id, d+0x74 the current time cursor (frames)
@@ -209,8 +205,7 @@ void func_0022EEF0(unsigned char *d)
     }
 
     p = *(float **)(d + 0x7C);
-    if (p != 0 && *(float *)(d + 0x74) >= p[0]) {
-        p = p + 1;
+    if (p != 0 && *(float *)(d + 0x74) >= *p++) {
         if (d[0x88] == 0) {
             v = *p++;
             if (v == -1.0f) {
@@ -249,8 +244,7 @@ void func_0022EEF0(unsigned char *d)
                 d[0x89] = 0x81;
             }
             *(float **)(d + 0x80) = *(float **)(d + 0x80) + 1;
-        } else if (*(float *)(d + 0x74) >= t) {
-            p = p + 1;
+        } else if (*(float *)(d + 0x74) >= *p++) {
             f = d[0x89];
             if (f & 0x80) {
                 if (f & 1) {
@@ -277,8 +271,7 @@ void func_0022EEF0(unsigned char *d)
     }
 
     p = *(float **)(d + 0x84);
-    if (p != 0 && *(float *)(d + 0x74) >= p[0]) {
-        p = p + 1;
+    if (p != 0 && *(float *)(d + 0x74) >= *p++) {
         if (d[0x8A] == 0) {
             func_001D2830(2, 1);
         } else {
@@ -301,9 +294,9 @@ void func_0022EEF0(unsigned char *d)
         func_001D2830(2, 0);
         func_001D25F0(480.0f);
         D_008105F0[0] = 0;
-        D_008105F4[0] = 0xBF800000;
-        D_008105F8[0] = 0;
-        D_008105FC[0] = 0x3F800000;
+        D_008105F0[1] = 0xBF800000;
+        D_008105F0[2] = 0;
+        D_008105F0[3] = 0x3F800000;
         return;
     }
     D_008105D0[0] = D_008234C0[0];

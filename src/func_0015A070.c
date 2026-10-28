@@ -1,23 +1,11 @@
-// NEARMISS func_0015A070  (vram 0x0015A070, 0x190 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.35% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful.
-// Remaining differences: one register-colouring permutation in the case-0 enable-bit
-// test. The original keeps the table index in $a2, the table address in $a1, the
-// shift count in $v1 and the literal 1 in $a0 (that 1 is reused for the +0 store);
-// mwcc picks a0/v1/a1/a2 for the same values. Every instruction, branch and delay
-// slot otherwise matches. Only a no-op comma spelling found by the permuter closes
-// it; that spelling was rejected as unreadable.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
-//
-// Fixes over the earlier 88.90% version (matching wave 2026-10-27), read from the
-// original instructions:
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.35% NEARMISS).
+// Fixes read from the original instructions:
+// - The enable-bit test is spelled D_00810841[D_00810700[0]] & (1U << n)
+//   (idiom-35, as in the matched func_00158EC0): the unsigned shift base gives the
+//   original register colouring, with the literal 1 reused for the +0 store.
 // - func_001B0FD0 and func_001AFC10 take the actor only (one parameter, per their
 //   definitions in src/); func_00158590 takes (actor, a, mode), so the calls are
 //   (actor,1,1), (actor,1,1) and (actor,0,1).
@@ -56,7 +44,7 @@ void func_0015A070(char *arg0) {
             return;
         }
         func_001C6380(arg0);
-        if (((1 << *(unsigned short *)(arg0 + 0x2E)) & D_00810841[D_00810700[0]]) != 0) {
+        if (D_00810841[D_00810700[0]] & (1U << *(unsigned short *)(arg0 + 0x2E))) {
             *(unsigned char *)(arg0 + 5) = 2;
         } else {
             *(int *)(arg0 + 0x30) = (int)&D_00275468;

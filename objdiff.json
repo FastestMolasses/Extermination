@@ -3350,6 +3350,14 @@
       }
     },
     {
+      "name": "func_001107C8",
+      "target_path": "build/expected/func_001107C8.o",
+      "base_path": "build/obj/func_001107C8.o",
+      "metadata": {
+        "source_path": "src/func_001107C8.c"
+      }
+    },
+    {
       "name": "func_001108E8",
       "target_path": "build/expected/func_001108E8.o",
       "base_path": "build/obj/func_001108E8.o",
@@ -3611,6 +3619,14 @@
       "base_path": "build/obj/func_00112440.o",
       "metadata": {
         "source_path": "src/func_00112440.c"
+      }
+    },
+    {
+      "name": "func_00112758",
+      "target_path": "build/expected/func_00112758.o",
+      "base_path": "build/obj/func_00112758.o",
+      "metadata": {
+        "source_path": "src/func_00112758.c"
       }
     },
     {
@@ -8075,6 +8091,14 @@
       "base_path": "build/obj/func_00159FC0.o",
       "metadata": {
         "source_path": "src/func_00159FC0.c"
+      }
+    },
+    {
+      "name": "func_0015A070",
+      "target_path": "build/expected/func_0015A070.o",
+      "base_path": "build/obj/func_0015A070.o",
+      "metadata": {
+        "source_path": "src/func_0015A070.c"
       }
     },
     {
@@ -18286,6 +18310,14 @@
       }
     },
     {
+      "name": "func_00217FA0",
+      "target_path": "build/expected/func_00217FA0.o",
+      "base_path": "build/obj/func_00217FA0.o",
+      "metadata": {
+        "source_path": "src/func_00217FA0.c"
+      }
+    },
+    {
       "name": "func_00218640",
       "target_path": "build/expected/func_00218640.o",
       "base_path": "build/obj/func_00218640.o",
@@ -19723,6 +19755,14 @@
       "base_path": "build/obj/sub_Too_many_macroblocks_in_picture.o",
       "metadata": {
         "source_path": "src/sub_Too_many_macroblocks_in_picture.c"
+      }
+    },
+    {
+      "name": "sub__02d_02d_02d",
+      "target_path": "build/expected/sub__02d_02d_02d.o",
+      "base_path": "build/obj/sub__02d_02d_02d.o",
+      "metadata": {
+        "source_path": "src/sub__02d_02d_02d.c"
       }
     },
     {

@@ -1,15 +1,12 @@
-// NEARMISS func_00112758  (vram 0x00112758, 0x290 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.60% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler wall — exactly one adjacent-op swap (sw D_00241D48 vs lui %hi(D_00241D08)) in the RPC-failure block; 162/164 words reloc-resolved byte-identical. Target ordering needs the store to be a scheduling dependence of the following load; no C-level form reproduces it (volatile, same...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+// EEGCC_AS: 2.96
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 98.78% NEARMISS). Fixes read from the original instructions:
+// - The RPC lock semaphore id D_00241D08 and the busy flag D_00241D48 are volatile globals
+//   (as in the byte-matched siblings func_00112440 / func_00112AD0): the busy-flag clear in
+//   the RPC-failure block now stays ahead of the semaphore-id address setup, as in the original.
+// - SignalSema is declared returning void, as in the siblings (the result is never used).
 
 //
 // SIF-RPC wrapper (same family as the already-committed func_00113F68): check the RPC client is
@@ -23,12 +20,12 @@
 
 extern int func_00111F18(int);
 extern void func_0010DFD8(void *, int);
-extern int func_0010E8A8(void *, int, int, void *, int, void *, int, void *, void *);
-extern int SignalSema(int);
+extern int func_0010E8A8(void *, int, int, void *, int, void *, int, void (*)(void *), void *);
+extern void SignalSema(int);
 extern void *memcpy(void *, const void *, unsigned int);
 
-extern int D_00241D08;
-extern int D_00241D48;
+extern volatile int D_00241D08;
+extern volatile int D_00241D48;
 extern unsigned char D_00279B80[];
 extern unsigned char D_00279E00[];
 extern void *D_0027A2D0;

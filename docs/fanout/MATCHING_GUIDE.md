@@ -207,3 +207,23 @@ func_001F6210; a three-argument func_001028B8), func_001E3630 (one scratchpad
 store through the extern, the other three literal), func_0013F770 (the
 compound `D_700038A0[1] += 10.0f` of twin func_0013EDB0), func_0017E250
 (callee pointer parameters, as their definitions declare).
+
+### Queue batch 7 (2026-10-27)
+
+5 byte-matched: func_0015A070 (the enable-bit test spelled as twin
+func_00158EC0: table byte first, `1U << n`), func_001107C8 (ee-gcc: the +0x10
+request word cleared as a pointer, so it no longer aliases the int store),
+func_00217FA0 (twin func_00217090's literal addresses; the wanted id re-read
+each pass), func_00112758 (both RPC globals volatile, as its siblings),
+sub__02d_02d_02d (the glyph string written through one base pointer).
+Improved and parked: func_0022EEF0 99.95, func_00195130 99.99, func_0016A8B0
+94.06.
+**Tool:** tools/decomp/reloc_normalize.py now also respells R_MIPS_GPREL16
+sites (`%gp_rel(D_x+off)` against the compiled base symbol); a gp-relative
+byte inside a small global was the only residual of sub__02d_02d_02d.
+**Constant-order class, a hypothesis:** mwcc 2.3.3 materialises float
+constant call arguments strictly left to right; in func_001F28D0 the original
+set up the second constant first. With func_0016F600, func_001916C0,
+func_0018BC20 and the func_001CFB50 / func_001CFAE0 callers (about 30
+functions) parked on this, the class is probably a compiler-version
+difference (the original's 2.3.1.01), not a source spelling.

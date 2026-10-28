@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import reloc_normalize as RN  # noqa: E402
 
 SHT_PROGBITS, SHT_SYMTAB, SHT_STRTAB, SHT_REL = 1, 2, 3, 9
-HI, LO = RN.R_MIPS_HI16, RN.R_MIPS_LO16
+HI, LO, GP = RN.R_MIPS_HI16, RN.R_MIPS_LO16, RN.R_MIPS_GPREL16
 
 
 def elf(words, relocs, func="f"):
@@ -111,6 +111,13 @@ class Normalize(unittest.TestCase):
                             [0x3C01007A, 0xAC225580],
                             ["op1 $at, %hi(D_007A5580)", "op2 $v0, %lo(D_007A5580)($at)"])
         self.assertTrue(out is None or "%lo(D_007A5580)" in out)
+
+    def test_gp_relative_byte_becomes_base_plus_offset(self):
+        # compiled: a gp-relative byte store at +1 of D_00275C94; splat names the byte
+        words = [0xA3800001]   # addend 1 in the immediate
+        out = self.run_case(words, [(0, GP, "D_00275C94")], [0xA3808925],
+                            ["op2 $zero, %gp_rel(D_00275C95)($gp)"])
+        self.assertIn("%gp_rel(D_00275C94+0x1)($gp)", out)
 
     def test_non_address_symbol_is_left_alone(self):
         words = [0x3C010000, 0xAC220000]

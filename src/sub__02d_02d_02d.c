@@ -1,15 +1,14 @@
-// NEARMISS sub__02d_02d_02d  (vram 0x02d_02d_02d, 0x288 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.77% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// TWO instructions, one store-sink: the gp-relative byte store for `D_00275C94 = 0x9E` is emitted by CodeWarrior immediately after its 0x9E constant load (which mwcc DOES place correctly), but mwcc sinks the store past all seven call-argument setups to just before the jal. This is idiom-...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 98.77% NEARMISS).
+// Fixes read from the original instructions:
+// - the one-character glyph string is written through one base pointer
+//   (b[0] = 0x9E; b[1] = 0), not two externs, which keeps the 0x9E store
+//   next to its constant; the terminator relocates as D_00275C94+1 (gp-relative),
+//   which tools/decomp/reloc_normalize.py now respells like the HI16/LO16 sites.
+//
 
 // Save-slot list renderer: draws the five memory-card slot rows of the
 // load/save screen. arg0 is the browser context populated by
@@ -45,7 +44,6 @@ extern int D_002671C0[];
 extern short D_00289B40[];
 extern unsigned char D_00275898;
 extern unsigned char D_00275C94;
-extern unsigned char D_00275C95;
 
 void sub__02d_02d_02d(unsigned char *arg0) {
     int i;
@@ -85,8 +83,11 @@ void sub__02d_02d_02d(unsigned char *arg0) {
             func_00122D10(&D_00275C94, D_002739A0, hh, mm, r2 / 60);
             func_001CC1E0(1, 0x88C, row2 + 0x790, 0xA, 0x14, &D_00275C94, 0);
             if (q[0x7A] != 0) {
-                D_00275C94 = 0x9E;
-                D_00275C95 = 0;
+                {
+                    unsigned char *b = &D_00275C94;
+                    b[0] = 0x9E;
+                    b[1] = 0;
+                }
                 func_001CC1E0(1, 0x8D2, row2 + 0x790, 0xA, 0x14, &D_00275C94, &D_00275898);
             }
             break;

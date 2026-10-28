@@ -1,3 +1,11 @@
+## 2026-10-27 — matching wave, queue batch 7: 5 more byte-matched; GPREL16 normaliser
+
+See MATCHING_GUIDE "Queue batch 7" (also the constant-order class hypothesis:
+about 30 parked functions likely need the original compiler build). Gate:
+fresh build + verify_all all six stages pass, boot ELF byte-identical, 19/19
+overlays, matched_code 99.97%, 2492/2494 units; audit_link_provenance clean
+(1993 ordinary-C routes).
+
 ## 2026-10-27 — matching wave, queue batch 6: 8 more byte-matched
 
 See MATCHING_GUIDE "Queue batch 6"; CURIOSITIES 21 gains 0018CBD0 (an
