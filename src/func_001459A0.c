@@ -1,26 +1,21 @@
-// NEARMISS func_001459A0  (vram 0x001459A0, 0x770 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 91.29% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Delay-slot/instruction-scheduling artifact repeated across the six capsule-test call sites (func_001B32F0/func_001B3390). Body/structure/every call-site and branch fully recovered and verified 1:1 against the target (all real callee signatures pulled from already-matched siblings func_001B2B10/fu...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
-// corrections from the level side-track lanes"): bit 0 of +0x74 is set at each hit site; the
-// second segment pair is a separate `if` on +0x74 (not an `else if`); both "positive lean"
-// tests are written as the original's compare, !(lean <= 0). Behaviour is unchanged by these
-// (the EE FPU has no unordered compare, and the old else-if reached the same outcomes).
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 91.29% NEARMISS).
+// Fixes read from the original instructions:
+// - The capsule tests func_001B32F0 / func_001B3390 / func_001B3440 take their
+//   float (the 0x3F490FDB cone) FIRST in the parameter list: the registers are
+//   the same (f12 and a0..a2), but mwcc sets up arguments in source order, and
+//   the original loads f12 before a0. This was the whole "scheduling artifact"
+//   repeated at the six call sites.
+// - func_001B2F70's second argument is passed without the redundant cast, and
+//   the proximity fallback stores through the named scratch D_700038A0.
+// - The probe's +20.002 lift is a compound add.
 
 // Ragdoll/bone-collision resolver: seeds a VU0 scratchpad "capsule" test
 // object at D_700038A0 (center=0, half-len=3, radius scaled by arg1+0x4C's
 // sign, w=1), then transforms/tests it against arg0's local frame
-// (func_001B2B10 + func_001028B8 + func_001B32F0 at a fixed ~80-degree cone
+// (func_001B2B10 + func_001028B8 + func_001B32F0 at a fixed pi/4 (45-degree) cone
 // half-angle 0x3F490FDB). If that first probe hits, sets the "collided" bit
 // (arg1+0x74 |= 1) and skips to the tail. Otherwise it branches on the
 // "lean" scalar arg1+0x48: if positive, re-probes against up to 4 successive
@@ -46,9 +41,9 @@ extern void func_00102BB0(void *a0, void *a1, float f12);
 extern int func_0019AB20(char *arg0, float *arg1, char *arg2, int arg3);
 extern void func_001B2B10(char *arg0, int arg1, int arg2);
 extern int func_001B2F70(char *arg0, float *arg1);
-extern int func_001B32F0(int a0, int *a1, float f);
-extern int func_001B3390(int arg0, char *arg1, char *arg2, float fparg0);
-extern int func_001B3440(int a0, int *a1, int *a2, float f);
+extern int func_001B32F0(float f, int a0, int *a1);
+extern int func_001B3390(float f, int arg0, char *arg1, char *arg2);
+extern int func_001B3440(float f, int a0, int *a1, int *a2);
 
 extern float D_00245960;
 extern float D_002459B0;
@@ -77,7 +72,7 @@ void func_001459A0(char *arg0, char *arg1) {
     func_001028B8(&D_700038A0, arg0 + 0xB0, &D_700038A0);
 
     ang = 0.7853982f;
-    if (func_001B32F0((int) arg0, (int *) &D_700038A0, ang) != 0) {
+    if (func_001B32F0(ang, (int) arg0, (int *) &D_700038A0) != 0) {
         *(signed char *)(arg1 + 0x74) = (signed char) (*(signed char *)(arg1 + 0x74) | 1);
         goto tail;
     }
@@ -95,7 +90,7 @@ void func_001459A0(char *arg0, char *arg1) {
             }
             func_001028B8(&D_700038A0, arg0 + 0xB0, &D_700038A0);
             ang = 0.7853982f;
-            if (func_001B32F0((int) arg0, (int *) &D_700038A0, ang) != 0) {
+            if (func_001B32F0(ang, (int) arg0, (int *) &D_700038A0) != 0) {
                 *(signed char *)(arg1 + 0x74) = (signed char) (*(signed char *)(arg1 + 0x74) | 1);
                 goto tail;
             }
@@ -130,16 +125,16 @@ void func_001459A0(char *arg0, char *arg1) {
         func_001028B8(&D_700038D0, arg0 + 0xB0, &D_700038D0);
 
         /* First pair: a hit sets bit 0 at its own site. */
-        if (func_001B3390((int) arg0, (char *) &D_700038A0, (char *) &D_700038B0, 0.7853982f) != 0) {
+        if (func_001B3390(0.7853982f, (int) arg0, (char *) &D_700038A0, (char *) &D_700038B0) != 0) {
             *(signed char *)(arg1 + 0x74) = (signed char) (*(signed char *)(arg1 + 0x74) | 1);
-        } else if (func_001B3390((int) arg0, (char *) &D_700038B0, (char *) &D_700038A0, 0.7853982f) != 0) {
+        } else if (func_001B3390(0.7853982f, (int) arg0, (char *) &D_700038B0, (char *) &D_700038A0) != 0) {
             *(signed char *)(arg1 + 0x74) = (signed char) (*(signed char *)(arg1 + 0x74) | 1);
         }
         /* Second pair: a separate test, tried whenever +0x74 is still zero. */
         if (*(signed char *)(arg1 + 0x74) == 0) {
-            if (func_001B3390((int) arg0, (char *) &D_700038C0, (char *) &D_700038D0, 0.7853982f) != 0) {
+            if (func_001B3390(0.7853982f, (int) arg0, (char *) &D_700038C0, (char *) &D_700038D0) != 0) {
                 *(signed char *)(arg1 + 0x74) = (signed char) (*(signed char *)(arg1 + 0x74) | 1);
-            } else if (func_001B3390((int) arg0, (char *) &D_700038D0, (char *) &D_700038C0, 0.7853982f) != 0) {
+            } else if (func_001B3390(0.7853982f, (int) arg0, (char *) &D_700038D0, (char *) &D_700038C0) != 0) {
                 *(signed char *)(arg1 + 0x74) = (signed char) (*(signed char *)(arg1 + 0x74) | 1);
             }
         }
@@ -171,7 +166,7 @@ tail:
                 func_001026A0(&D_700038A0, &D_700036A0, frameB);
             }
             func_001028B8(&D_700038A0, arg0 + 0xB0, &D_700038A0);
-            if (func_001B3440((int) arg0, (int *) &D_700038A0, (int *) &D_700038B0, 0.7853982f) != 0) {
+            if (func_001B3440(0.7853982f, (int) arg0, (int *) &D_700038A0, (int *) &D_700038B0) != 0) {
                 *(float *)(arg1 + 0x48) = 0.0f;
                 *(signed char *)(arg1 + 0x74) = (signed char) (*(signed char *)(arg1 + 0x74) | 2);
                 break;
@@ -181,10 +176,10 @@ tail:
         }
 
         if (!(*(signed char *)(arg1 + 0x74) & 2) && *(unsigned char *)(arg0 + 4) == 1 && *(signed char *)(arg1 + 0x7A) == 0) {
-            if (func_001B2F70(arg0 + 0xB0, (float *) &D_700038A0) == 0) {
-                *(float *)0x700038A0 = *(float *)(arg0 + 0xB4) - 10.0f;
+            if (func_001B2F70(arg0 + 0xB0, &D_700038A0) == 0) {
+                D_700038A0 = *(float *)(arg0 + 0xB4) - 10.0f;
             }
-            if (!(*(float *)(arg0 + 0xB4) - *(float *)0x700038A0 < 10.0f) && *(float *)(arg1 + 0x48) < -0.5f) {
+            if (!(*(float *)(arg0 + 0xB4) - D_700038A0 < 10.0f) && *(float *)(arg1 + 0x48) < -0.5f) {
                 *(signed char *)(arg0 + 5) = 4;
                 *(signed char *)(arg0 + 6) = 0;
             }
@@ -198,7 +193,7 @@ tail:
         *(int *)0x700038B4 = 0x41700000;
         *(int *)0x700038B8 = 0;
         *(int *)0x700038BC = 0x3F800000;
-        *(float *)0x700038A4 = *(float *)0x700038A4 + 20.002f;
+        *(float *)0x700038A4 += 20.002f;
 
         if (func_0019AB20(arg0, (float *) &D_700038A0, (char *) &D_700038B0, 0x80000007) != 0) {
             *(float *)(arg1 + 0x48) = 0.0f;

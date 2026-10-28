@@ -1,45 +1,60 @@
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-// asm void: 64-bit register manipulation (dsll32/dsra32/or), gp_rel load, return via v0;
-// lw gp_rel hardcoded .word -- byte-identical at link time.
-extern int *D_00275670;
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a CodeWarrior asm body;
+// readable companion src/readable/func_001D6DD0.c was 40.61%). Compiler: mwcc 2.3.3.
+// Fixes read from the original instructions:
+// - The packed (x, y) doubleword is computed first, as its own local, spelled
+//   x | (y << 32) (both sign-extended to 64 bits).
+// - The channel cursor is reached through one slot pointer local
+//   (&D_00275670->cur[ch]) and every cursor access goes through it; that gives the
+//   original's slot register.
+// - The body pointer (cursor + 0x10) is taken before the cursor advance, the zero
+//   quadword is stored through it and it is the return value (as func_001D6E60 /
+//   func_001D6C90 do).
+// - Written with the DmaTag / VifLists types of the byte-matched siblings
+//   func_001D7000 / func_001D6F60.
+//
+// Appends one GS register packet to DMA list ch of D_00275670 (the 0x40-byte layout
+// of func_001D7000): an id 0x10 tag (addr 0, qwc 3), a zeroed quadword whose last
+// word is 0x50000002, the GIF tag 0x1000000000008001 / 0xE (one A+D register), then
+// the data word x | (y << 32) for GS register 0x18 (XYOFFSET_1). The cursor advances
+// by 0x40. Returns the packet body (tag + 0x10).
 
-asm void *func_001D6DD0(int a0, int a1, int a2, int a3) {
-    .word 0x0006103C  // dsll32 v0, a2, 0
-    .word 0x0005183C  // dsll32 v1, a1, 0
-    .word 0x0002103F  // dsra32 v0, v0, 0
-    .word 0x00043880  // sll a3, a0, 2
-    .word 0x0003183F  // dsra32 v1, v1, 0
-    .word 0x0002103C  // dsll32 v0, v0, 0
-    .word 0x00622025  // or a0, v1, v0
-    .word 0x8F838300  // lw v1, %gp_rel(D_00275670)(gp) [hardcoded]
-    .word 0x3C025000  // lui v0, 0x5000
-    .word 0x240A0010  // addiu t2, zero, 0x10
-    .word 0x24080003  // addiu t0, zero, 0x3
-    .word 0x00675821  // addu t3, v1, a3
-    .word 0x8D690010  // lw t1, 0x10(t3)
-    .word 0x34470002  // ori a3, v0, 0x0002
-    .word 0x3C021000  // lui v0, 0x1000
-    .word 0x0002183C  // dsll32 v1, v0, 0
-    .word 0x34028001  // ori v0, zero, 0x8001
-    .word 0x00433025  // or a2, v0, v1
-    .word 0xA12A0003  // sb t2, 0x3(t1)
-    .word 0x8D620010  // lw v0, 0x10(t3)
-    .word 0x2405000E  // addiu a1, zero, 0xE
-    .word 0x24030018  // addiu v1, zero, 0x18
-    .word 0xAC400004  // sw zero, 0x4(v0)
-    .word 0x8D620010  // lw v0, 0x10(t3)
-    .word 0xA4480000  // sh t0, 0x0(v0)
-    .word 0x8D690010  // lw t1, 0x10(t3)
-    .word 0x25280040  // addiu t0, t1, 0x40 (was v1)
-    .word 0xAD680010  // sw t0, 0x10(t3)
-    .word 0x7D200010  // sq zero, 0x10(t1)
-    .word 0xAD27001C  // sw a3, 0x1C(t1)
-    .word 0xFD260020  // sd a2, 0x20(t1)
-    .word 0xFD250028  // sd a1, 0x28(t1)
-    .word 0xFD240030  // sd a0, 0x30(t1)
-    .word 0x25220010  // addiu v0, t1, 0x10
-    .word 0x03E00008  // jr ra
-    .word 0xFD230038  // sd v1, 0x38(t1)
+typedef unsigned __int128 u128;
+typedef struct {
+    unsigned short qwc;
+    unsigned char pad;
+    unsigned char id;
+    int addr;
+    int w2;
+    int w3;
+} DmaTag;
+typedef struct {
+    char pad[0x10];
+    DmaTag *cur[16];
+} VifLists;
+extern VifLists *D_00275670;
+
+DmaTag *func_001D6DD0(int ch, int x, int y) {
+    unsigned long packed = (long)x | ((long)y << 32);
+    DmaTag **slot = &D_00275670->cur[ch];
+    DmaTag *p;
+    DmaTag *q;
+    long *d;
+
+    (*slot)->id = 0x10;
+    (*slot)->addr = 0;
+    (*slot)->qwc = 3;
+    p = *slot;
+    q = p + 1;
+    *slot = p + 4;
+    *(u128 *)q = 0;
+    p[1].w3 = 0x50000002;
+    d = (long *)(p + 2);
+    d[0] = 0x8001L | ((long)0x10000000 << 32);
+    d[1] = 0xE;
+    d[2] = packed;
+    d[3] = 0x18;
+    return q;
 }
-
-// Readable C (NEARMISS companion, objdiff 40.61%): src/readable/func_001D6DD0.c

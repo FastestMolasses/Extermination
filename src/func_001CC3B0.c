@@ -1,19 +1,18 @@
-// NEARMISS func_001CC3B0  (vram 0x001CC3B0, 0x4E8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 90.13% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). Body rewritten
-// from the original instructions (was 62.16%): same instruction count and order apart from
-// register choice. Remaining differences: register colouring only (the original keeps the
-// first header block's temporaries and the outline/fill setup in s0-s2 and the loop pointer
-// in ra; ours picks t-registers), plus the scheduling that follows from it. Survives
-// declaration-order sweeps, block-scoped loop locals and expression spellings; a 300 s
-// 2.3.3 permuter run found nothing valid.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 90.13% NEARMISS).
+// Fixes read from the original instructions:
+// - Locals are declared loop counter and sprite position/colour first (i, dx,
+//   dy, col, outline, fill, flag, hi, ...); that order gives the original's
+//   register choice for the header temporaries and the loop pointer.
+// - The packet cursor q is set to p + 0x10 and advanced in place (q += 2) past
+//   the cleared qword, so one register carries it through the sprite loop.
+// - Each arm has its own block-local packet pointer p; the else arm declares
+//   uv and half in its block.
+// - The nudge clamp is a ternary and its shifted value is a separate local
+//   OR-ed into both XYZ words (the compare result then lands where the
+//   original puts it).
 
 // SEMANTICS: GS/DMA "tall font" glyph-strip flush (docs/FINDINGS.md "Draw path";
 // sibling of the small-font func_001CBC20). First appends a DMA ref tag (byte +3 =
@@ -46,19 +45,18 @@ extern char D_002511C0[];
 
 void func_001CC3B0(int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, FontStyle *arg7)
 {
-    char **slot;
-    char *p;
-    unsigned long long *q;
-    unsigned int hi;
-    int outline;
-    int fill;
-    int flag;
     int i;
     int dx;
     int dy;
     int col;
-    int half;
+    int outline;
+    int fill;
+    int flag;
+    unsigned int hi;
     int a;
+    int x;
+    char **slot;
+    unsigned long long *q;
 
     slot = &D_00275670[arg0];
     *(unsigned char *)(slot[4] + 3) = 0x30;
@@ -78,6 +76,7 @@ void func_001CC3B0(int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, i
     }
 
     if (flag != 0) {
+        char *p;
 
         slot = &D_00275670[arg0];
         *(unsigned char *)(slot[4] + 3) = 0x30;
@@ -93,7 +92,7 @@ void func_001CC3B0(int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, i
         q = (unsigned long long *)(p + 0x10);
         slot[4] = p + 0x200;
         *(unsigned __int128 *)(p + 0x10) = 0;
-        q = (unsigned long long *)((char *)q + 0x10);
+        q += 2;
         *(int *)(p + 0x1C) = 0x5000001E;
 
         for (i = 0; i < 5; i++) {
@@ -141,7 +140,11 @@ void func_001CC3B0(int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, i
     }
 
     {
-        long long uv = (long long)((arg3 << 4) | (arg4 << 20));
+        long long uv;
+        int half;
+        char *p;
+
+        uv = (long long)((arg3 << 4) | (arg4 << 20));
         half = arg6 >> 1;
 
         slot = &D_00275670[arg0];
@@ -158,7 +161,7 @@ void func_001CC3B0(int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, i
         q = (unsigned long long *)(p + 0x10);
         slot[4] = p + 0x160;
         *(unsigned __int128 *)(p + 0x10) = 0;
-        q = (unsigned long long *)((char *)q + 0x10);
+        q += 2;
         *(int *)(p + 0x1C) = 0x50000014;
 
         for (i = 0; i < 5; i++) {
@@ -198,11 +201,10 @@ void func_001CC3B0(int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, i
             q[6] = (long long)(int)(((dx + arg5) << 4) | ((dy + half) << 20)) | ((unsigned long long)0xFFFFFF << 32);
             if (arg7 != 0) {
                 a = arg7->nudge;
-                if (a >= 0x10) {
-                    a = 0xF;
-                }
-                q[4] |= (long long)(a << 16);
-                q[6] |= (long long)(a << 16);
+                a = (a > 0xF) ? 0xF : a;
+                x = a << 16;
+                q[4] |= x;
+                q[6] |= x;
             }
             q += 8;
         }

@@ -1,8 +1,13 @@
 // NEARMISS func_001F5F60  (vram 0x001F5F60, 0x2AC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.65% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation/scheduling permutation only. Body and control flow are byte-for-byte structurally identical to target (verified instruction-by-instruction): a display-list cursor builder (D_00275670 + 0x1C) that zeroes a 0x70003400 quadword-copy VU0 scratch block, copies a 4x u128 matrix from...
+// objdiff 98.51% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8) (matching wave 2026-10-28, was 93.65%).
+// Fixes: the third record's header writes word +0x18 = 0 too (four header words after the
+// quadword clear, like the second record); func_001026D0 takes three pointers (its
+// definition), so the first call passes no fourth argument; the final func_001CAAC0 call
+// passes the cached D_00275670 (`base`) instead of re-reading the global.
+// Remaining differences: register colouring only: the shared 0x01000101 constant stays in
+// v0 in the original (ours t1) and the second/third record temporaries shift one register
+// (v1/t0/t1/a3/a0 vs v0/a3/t0/a0/v1); constant-local and pointer-spelling variants did not move it.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -25,7 +30,7 @@
 // type=0 (0x10-byte) trailer record and hands the whole thing off to
 // func_001CAAC0(sp90, s0, D_00275670).
 //
-// NEARMISS 93.65% with mwcc 2.3.3 (mwcps2-2.3.3-000906). Keys applied:
+// NEARMISS 98.51% with mwcc 2.3.3 (mwcps2-2.3.3-000906). Keys applied:
 // (1) D_00275670 is a gp-rel pointer global (-sdatathreshold 8 required);
 // D_0026EB50/D_70003400/D_70003440/D_70003470/D_70003AC0 are all in the
 // 0x7000xxxx VU0-scratch overlay far outside gp range, so each is
@@ -47,7 +52,7 @@ extern void func_001029C0(void *);
 extern void func_00102C58(void *, void *, void *);
 extern void func_00102918(void *, void *, void *);
 extern void func_001028B8(void *, int, void *, void *);
-extern void func_001026D0();
+extern void func_001026D0(void *, void *, void *);
 extern void func_001D3990(int);
 extern void func_001CAAC0(void *, void *, void *);
 
@@ -135,12 +140,13 @@ void func_001F5F60(void *arg0, int arg1, int arg2, int arg3) {
     a3 = *(char **)(base + 0x1C);
     *(char **)(base + 0x1C) = a3 + 0xA0;
 
-    *(u128 *)(a3 + 0x10) = 0;
-    *(int *)(a3 + 0x14) = 0x01000101;
     s1 = a3 + 0x10;
-    *(int *)(a3 + 0x1C) = 0x6C080000;
+    *(u128 *)(s1 + 0x00) = 0;
+    *(int *)(s1 + 0x04) = 0x01000101;
+    *(int *)(s1 + 0x08) = 0;
+    *(int *)(s1 + 0x0C) = 0x6C080000;
 
-    func_001026D0(s1 + 0x10, D_70003AC0, sp50, a3);
+    func_001026D0(s1 + 0x10, D_70003AC0, sp50);
     func_001026D0(s1 + 0x50, D_70003400, sp50);
     func_001D3990(arg3);
 
@@ -153,5 +159,5 @@ void func_001F5F60(void *arg0, int arg1, int arg2, int arg3) {
     v0 = v0 + 0x10;
     *(char **)(base + 0x1C) = v0;
 
-    func_001CAAC0(&sp90, s0, D_00275670);
+    func_001CAAC0(&sp90, s0, base);
 }

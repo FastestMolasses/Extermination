@@ -1,9 +1,16 @@
 // NEARMISS func_002047D0  (vram 0x002047D0, 0x30C bytes) — readable companion C, NOT byte-identical.
 //
-// objdiff 75.30% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) when compiled on its own. Object
-// similarity does not prove semantic equivalence. Remaining differences:
-// Register allocation and scheduling across the two wrap paths (the body follows the original's
-// arithmetic; not iterated further).
+// objdiff 97.55% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) when compiled on its own
+// (matching wave 2026-10-28, was 75.30%). Object similarity does not prove semantic equivalence.
+// Fixes so far: the CHCR / TADR address masks are & 0x0FFFFFFF (not shift pairs); the saved
+// bit pointer (bp & 0x7F) is extracted before the semaphore wait; locals declared in the
+// original's saved-register order (bit, madr, qwc, tadr, chcr, a) and assigned after the
+// IPU_BP read; the FIFO count is built in two statements; in the sector-crossing path the
+// TADR is computed first and the tag-field test is a separate equality flag like the wrap path;
+// the range test is written 0 > k. Remaining differences:
+// two temporaries swap registers in the wrap path's CHCR merge (to_chcr and the tag flag),
+// and the crossing path loads the sector count and read sector in a different order with
+// renumbered temporaries. Same instruction sequence otherwise.
 //
 // The function links from the asm body in src/func_002047D0.c (kept by the user's asm-bodies decision
 // and so that matched_code does not drop); this companion is the readable ground truth and is
@@ -60,31 +67,38 @@ extern void func_002040E0(int chcr);
 extern void func_00204140(int chcr);
 
 int func_002047D0(IpuRing *r) {
-    unsigned int bp = r->ipu_bp;
-    unsigned int madr = r->to_madr;
-    int tadr = r->to_tadr;
-    int fifo = ((bp >> 16) & 3) + ((bp >> 8) & 0xF);
-    unsigned int qwc = r->to_qwc + fifo;
+    unsigned int bit;
+    unsigned int madr;
+    unsigned int qwc;
+    int tadr;
     int chcr;
-    int same;
-    int k;
     int a;
     int b;
+    int k;
+    int same;
+    unsigned int bp;
+    int fifo;
 
-    madr -= fifo * 16;
+    bp = r->ipu_bp;
+    bit = bp & 0x7F;
+    fifo = (bp >> 16) & 3;
+    fifo = fifo + ((bp >> 8) & 0xF);
+    madr = r->to_madr - fifo * 16;
+    qwc = r->to_qwc + fifo;
+    tadr = r->to_tadr;
     chcr = r->to_chcr | 0x100;
     WaitSema(r->sema);
     if (madr < r->base) {
         qwc = (r->base - madr) >> 4;
         same = 1;
         madr += r->sectors << 11;
-        tadr = (unsigned int)(r->tagaddr << 4) >> 4;
+        tadr = r->tagaddr & 0x0FFFFFFF;
         if (r->to_madr != r->base && r->to_madr != r->base + (r->sectors << 11)) {
             same = 0;
         }
-        chcr = (unsigned int)(r->to_chcr << 4) >> 4 | (same ? 0 : 3) << 28 | 0x100;
+        chcr = (r->to_chcr & 0x0FFFFFFF) | (same ? 0 : 3) << 28 | 0x100;
         k = (r->sectors - r->read_sector) % r->sectors;
-        if (k < 0 || k >= r->count) {
+        if (0 > k || k >= r->count) {
             r->read_sector = r->sectors - 1;
             r->count++;
         }
@@ -92,14 +106,13 @@ int func_002047D0(IpuRing *r) {
         a = func_002040A0(r, r->to_madr);
         b = func_002040A0(r, madr);
         if (a != b) {
+            tadr = (r->tagaddr + a * 16) & 0x0FFFFFFF;
             qwc = (r->base + (a << 11) - madr) >> 4;
+            same = (r->base + (r->to_madr - r->base) % (unsigned int)(r->sectors << 11))
+                == (r->base + (((r->read_sector + r->count) % r->sectors) << 11));
+            chcr = (r->to_chcr & 0x0FFFFFFF) | (same ? 0 : 3) << 28 | 0x100;
             k = (b + r->sectors - r->read_sector) % r->sectors;
-            chcr = (unsigned int)(r->to_chcr << 4) >> 4
-                 | ((r->base + (r->to_madr - r->base) % (unsigned int)(r->sectors << 11))
-                    != (r->base + (((r->read_sector + r->count) % r->sectors) << 11)) ? 3 : 0) << 28
-                 | 0x100;
-            tadr = (unsigned int)((r->tagaddr + a * 16) << 4) >> 4;
-            if (k < 0 || k >= r->count) {
+            if (0 > k || k >= r->count) {
                 r->read_sector = b;
                 r->count++;
             }
@@ -113,7 +126,7 @@ int func_002047D0(IpuRing *r) {
     if (r->count != 0) {
         while (*(volatile int *)0x10002010 < 0) {
         }
-        *(volatile int *)0x10002000 = bp & 0x7F;
+        *(volatile int *)0x10002000 = bit;
         while (*(volatile int *)0x10002010 < 0) {
         }
     }

@@ -1,17 +1,19 @@
 // NEARMISS func_0020F950  (vram 0x0020F950, 0x6D8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.67% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0).
+// objdiff 99.90% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0).
 // 3-state menu/actor tick: `switch (m->mode)` (case 0 init, case 1 selection input,
 // case 2 render-config), every case ends in `break` to one shared epilogue.
-// Fixes this wave (2026-10-27, was 85.91%): switch instead of nested ifs; func_00210F30
+// Fixes (2026-10-27, was 85.91%): switch instead of nested ifs; func_00210F30
 // takes one argument (its definition); the decrement wrap is `if (sel == 0) sel = 10;
 // else sel--;`; the increment wrap is a strict `sel > 10`; the selection loops are plain
 // counted for-loops; D_002821B0/D_002821B4/D_00282240 are volatile (they are stored in
-// source order); the scratchpad vector is the relocated extern D_70003600 with its
-// differences computed into locals first; the result reads both components first.
-// Remaining differences: the 11-entry availability sum swaps two registers (base
-// pointer vs running total), and the two position minus row loads of the scratchpad
-// vector are scheduled in the other order (z pair before x pair).
+// source order); the scratchpad vector is the relocated extern D_70003600.
+// Fixes (2026-10-28, was 98.67%): the availability sum zeroes the counter and the total in
+// the for-initialiser (`for (i = 0, total = 0; ...)`); the scratchpad vector differences
+// read both positions into x/z first, then subtract z before x.
+// Remaining differences: FP register colouring of the two row loads and the z position
+// (row[0]/z/row[1] land in f0/f3/f1 instead of f3/f0/f1); declaration order, compound ops,
+// row locals and the later inner block's spelling did not move it.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -92,8 +94,7 @@ void func_0020F950(Menu *m) {
         D_002821B0 = 4;
         D_002821B4 = 0;
         D_00282240 = 6;
-        total = 0;
-        for (i = 0; i < 0xB; i++) {
+        for (i = 0, total = 0; i < 0xB; i++) {
             total += D_00810700[i + 0x5B8];
         }
         if (total != 0) {
@@ -173,8 +174,10 @@ void func_0020F950(Menu *m) {
                     float *base = (float *)D_00265890[m->sel];
                     float *row = base + m->sub * 3;
                     float x, z;
-                    z = D_00810358 - row[1];
-                    x = D_00810350 - row[0];
+                    x = D_00810350;
+                    z = D_00810358;
+                    z = z - row[1];
+                    x = x - row[0];
                     *(float *)0x70003600 = x;
                     *(int *)0x70003604 = 0;
                     *(float *)0x70003608 = z;

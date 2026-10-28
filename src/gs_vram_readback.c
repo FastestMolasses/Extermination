@@ -1,24 +1,21 @@
-// NEARMISS gs_vram_readback  (vram 0x00100EB8, 0x68C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.89% via ee-gcc 2.9-991111-01 (-O2) (matching wave 2026-10-27, was 88.39%).
-// This is the libgraph StoreImage (GS-to-host VRAM readback) routine: the packet is a
-// StoreImage-shaped struct whose TRXREG/BITBLTBUF are read through bitfields (int-promoted,
-// hence the sign extensions), IMR get/put take and return 64-bit values, each PSM case
-// tests `rb == 0` first, the padded product lives in one shared variable `n`, the read
-// loops are plain for-loops without guard ifs, and the 0x10005000 FIFO stores are volatile.
-// Remaining differences: (1) the PSM switch dispatches through the splat data symbol
-// jtbl_0026B130 while ee-gcc emits its own local .rodata table (2-instruction %hi/%lo
-// reloc floor, the jr-table class); (2) epilogue: the original puts the final
-// 0x12001040 = 0 store in the GsPutIMR call delay slot and loads D_00241040 before the
-// CSR = 2 store; ours leaves the slot empty (store order variants and non-volatile
-// spellings tried, none reproduce it).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+// EEGCC_AS: 2.96
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 97.89% NEARMISS). Fixes read
+// from the original instructions:
+// - The pad drain loop sits inside the `rb != 0` block: when the transfer has no
+//   remainder bytes the original skips straight to the epilogue.
+// - The epilogue reads the GIF FIFO restore value into a local before the CSR = 2 store,
+//   and assembles with the 2.96 gas, which puts the final 0x12001040 = 0 store in the
+//   GsPutIMR call delay slot.
+// - The PSM switch's jump table is this function's own .rodata (build/jtblrodata via
+//   tools/match/gen_jtbl_rodata.py gs_vram_readback; the local-table pinning carries it).
+//
+// libgraph StoreImage (GS-to-host VRAM readback): the packet is a StoreImage-shaped
+// struct whose TRXREG/BITBLTBUF are read through bitfields (int-promoted, hence the sign
+// extensions), IMR get/put take and return 64-bit values, each PSM case tests `rb == 0`
+// first, the padded product lives in one shared variable `n`, the read loops are plain
+// for-loops without guard ifs, and the 0x10005000 FIFO stores are volatile.
 
 typedef int qword __attribute__((mode(TI)));
 
@@ -248,7 +245,6 @@ int gs_vram_readback(GsStoreImage *sp, qword *dst)
         for (i = 0; i < rb; i++) {
             ((unsigned char *)&dst[nq + rq])[i] = tmp[i];
         }
-    }
 
     for (i = 0; i < pad; i++) {
         while ((*(volatile unsigned int *)0x10003C00 & 0x1F000000) == 0) {
@@ -263,11 +259,15 @@ int gs_vram_readback(GsStoreImage *sp, qword *dst)
         }
         *(qword *)tmp = *(volatile qword *)0x10005000;
     }
+    }
 
     *(volatile unsigned int *)0x10003C00 = 0;
     *(volatile unsigned long *)0x12001040 = 0;
     GsPutIMR(oldimr);
-    *(volatile unsigned long *)0x12001000 = 2;
-    *(volatile qword *)0x10005000 = D_00241040;
+    {
+        qword t = D_00241040;
+        *(volatile unsigned long *)0x12001000 = 2;
+        *(volatile qword *)0x10005000 = t;
+    }
     return 0;
 }

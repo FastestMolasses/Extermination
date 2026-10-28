@@ -1,22 +1,15 @@
-// NEARMISS func_001E1AD0  (vram 0x001E1AD0, 0x38C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful.
-// Fixes read from the original (matching wave 2026-10-28, was 53.61%): the channel index is the
-// SECOND parameter (arg0 unused); func_001D6BA0 takes six arguments (..., 0, 1); the random
-// value is converted as an unsigned int (no hand-written odd/even fold); both grid loops are
-// for-loops (a do-while let the compiler hoist the whole row-V expression, the original only
-// hoists the 224*row products); the row header goes through q = p + 0x10 with a quadword zero
-// store, set before the cursor bump; local declaration order; the prologue sum puts the offset first.
-// Remaining differences: scratch-register colouring and ordering in the per-row header stores
-// (the original keeps the channel pointer in the register of its gp load; same size 0x38C).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 96.08% NEARMISS).
+// Fixes read from the original instructions:
+//  - earlier fixes kept: the channel index is the SECOND parameter (arg0 unused);
+//    func_001D6BA0 takes six arguments; the random value converts as unsigned int;
+//    both grid loops are for-loops; the row header goes through q = p + 0x10.
+//  - the per-row channel pointer is loaded and then offset in place
+//    (ch = D_00275670; ch += off;), which keeps it in the register of its gp load
+//  - local declaration order: p is declared before ch (fixes the remaining
+//    scratch-register colouring of the row header stores)
 //
 // Grid packet builder: builds a 32x32 grid of GS vertex-pair records into the
 // channel's linked draw buffer (arg1 indexes D_00275670[]; each slot's +0x10
@@ -59,8 +52,8 @@ int func_001E1AD0(int arg0, int arg1) {
     int vBot;
     char *q;
     int off;
-    char *ch;
     char *p;
+    char *ch;
     int savedCursor;
 
     off = arg1 * 4;
@@ -77,7 +70,8 @@ int func_001E1AD0(int arg0, int arg1) {
     func_001D7000(arg1, 0x80);
 
     for (row = 0; row < 0x20; row++) {
-        ch = D_00275670 + off;
+        ch = D_00275670;
+        ch += off;
         *(char *)(*(char **)(ch + 0x10) + 3) = 0x10;
         *(int *)(*(char **)(ch + 0x10) + 4) = 0;
         *(short *)(*(char **)(ch + 0x10) + 0) = 0xC2;

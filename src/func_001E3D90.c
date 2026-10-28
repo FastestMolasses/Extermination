@@ -1,17 +1,20 @@
 // NEARMISS func_001E3D90  (vram 0x001E3D90, 0x870 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.04% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8) (was 74.39%, then 96.81%,
-// matching wave 2026-10-27). Fixes read from the original: the room gates are switches (case 0x100; case 0/1) with
+// objdiff 97.69% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8) (was 74.39%, then 96.81%,
+// then 97.04%, matching waves 2026-10-27/28). Fixes read from the original: the room gates are switches (case 0x100; case 0/1) with
 // `D_00810702 == 5 || == 6` as one condition; the three matrix-Y bumps use per-address scratchpad
 // externs (idiom-32, SPAD header) so their loads hoist above the stores; the per-variant table
 // pointers are set after the bumps; the LCG steps reassign `seed`; the countdown tests `== 0` first;
 // the scratchpad result vector at 0x70003A20 is one float[4] extern and the three jitter values are
 // computed into locals before being stored (the original reloads [0] ahead of those stores).
-// Remaining differences: scheduling only -- in the LCG jitter block the target defers the first
-// value's convert/divide until after the second seed step (straight into $f13); the quad-count byte
+// 2026-10-28: the three jitter values go to the literal scratchpad addresses 0x70003A24/28/2C
+// (as the later argument loads already did), written as the sibling LCG spelling (convert, /= 65535,
+// seed step, += 0.0001f), and dist is read from D_70003A20[0] before those stores.
+// Remaining differences: the 0.0001f constant is set up before the first seed step in the
+// original (ours after it, with a0/a1 colouring of the seed chain); the quad-count byte
 // (1 or 6) is built in a temp and narrowed into a saved register (ours loads the constants straight
-// into it; int/short/char/ternary spellings tried); case 2 of the sound-ping switch sets its two
-// float arguments in the opposite order (case reorderings tried).
+// into it; int/short/char/ternary/if-else/cast-at-call spellings tried); case 2 of the sound-ping
+// switch sets its two float arguments in the opposite order (case reorderings, default, no-break tried).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -179,15 +182,21 @@ void func_001E3D90(char *p) {
         id = func_001CD070(D_70003750, 0x30);
         if (id != 0xFFFFFF) {
             D_70003A20[0] = func_001CD2B0(*(float *)tbl2, *(float *)(tbl2 + 4), 320.0f, 320.0f);
-            t24 = (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
+            t24 = (float)((seed >> 16) & 0xFFFF);
+            t24 /= 65535.0f;
             seed = seed * 37 + 11;
-            t28 = (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
+            t24 += 0.0001f;
+            t28 = (float)((seed >> 16) & 0xFFFF);
+            t28 /= 65535.0f;
             seed = seed * 37 + 11;
-            t2c = (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
-            D_70003A20[1] = t24;
-            D_70003A20[2] = t28;
-            D_70003A20[3] = t2c;
+            t28 += 0.0001f;
+            t2c = (float)((seed >> 16) & 0xFFFF);
+            t2c /= 65535.0f;
+            t2c += 0.0001f;
             dist = D_70003A20[0];
+            *(float *)0x70003A24 = t24;
+            *(float *)0x70003A28 = t28;
+            *(float *)0x70003A2C = t2c;
             if (dist != 0.0f) {
                 func_001CFAE0(buf, 0, D_700036A0, *(float *)(s3 + 0x10), t24, dist, 0.4f);
                 func_001CFBE0(id - 0x2000, 1, tbl, buf, 0);

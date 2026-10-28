@@ -1,14 +1,12 @@
 // NEARMISS func_0019C6F0  (vram 0x0019C6F0, 0x140 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 92.38% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful.
+// objdiff 92.50% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful.
 // Remaining differences: the original copies the first record-list pointer into a
 // second register before the walk (one extra register move, 0x140 vs 0x13C bytes) and
 // colours neg/base/pp/the off induction variable differently (a2/t0/a3/v1 vs v1/a2/t6/t0);
 // the loop shape, both return-0 exits, the branch-likely tests and the gate code match.
-// Improved 2026-10-27 from 72.38%: the record list is re-read through the descriptor
-// slot on every iteration (volatile slot pointer), the cls != 0xB exit is the else arm
-// after the key test, the counter starts before the slot lookup, and rec is declared
-// before the slot pointer.
+// 2026-10-28 (wave wX2): the flag updates are compound &=/|= through a byte offset
+// (base + idx*4 + 4), which gives the original's base-first address add.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -75,9 +73,9 @@ int func_0019C6F0(int arg0, int arg1) {
     }
 act:
     if (arg1 != 0) {
-        base[idx + 1] = base[idx + 1] & 0xBFFFFFFF;
+        *(int *)((char *)base + idx * 4 + 4) &= 0xBFFFFFFF;
     } else {
-        base[idx + 1] = base[idx + 1] | 0x40000000;
+        *(int *)((char *)base + idx * 4 + 4) |= 0x40000000;
     }
     return 1;
 }

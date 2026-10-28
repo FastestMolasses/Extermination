@@ -1,22 +1,14 @@
-// NEARMISS func_00199220  (vram 0x00199220, 0x544 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.06% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful.
-// Matching wave 2026-10-27 (was 87.89%): -sdatathreshold 8 (the entity list
-// D_00275B8C/D_00275B94 is gp-relative), the list counter is an int, locals
-// declared in saved-register order, the scratch vectors are float[4] externs
-// (D_700038A0/B0/D0) so their loads may move above the D_700038D0 stores, the
-// three result slots are one array D_008106E0[3], the screen y value is read
-// into a local before the x store.
-// Remaining differences: only the screen-space block (x/y scale by 16/w,
-// minus 2048): the original issues the y divide after the x store and colours
-// the y chain in a different FP register (pure FP scheduling/colouring).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 99.06% NEARMISS).
+// Fixes read from the original instructions:
+//  - earlier fixes kept: -sdatathreshold 8 (the entity list is gp-relative), an int
+//    list counter, locals in saved-register order, the scratch vectors as float[4]
+//    externs, the three result slots as one array, screen y read before the x store
+//  - the screen y value is divided by 16 in place (ys /= 16.0f) and the 2048 centre
+//    subtracted in the store; this moves the y divide after the x store and gives
+//    the y chain the original's FP register
 
 // AUTO-AIM target acquisition (R2 stance family). Copies the player's muzzle
 // (arg0+0x20's +0xA0) into scratch D_700038A0, clears the 3 result slots
@@ -113,7 +105,8 @@ void func_00199220(char *arg0) {
                             ys = D_700038D0[1] * t;
                             D_700038D0[0] = (D_700038D0[0] * t) / 16.0f - 2048.0f;
                             mode = D_00810CA4[0];
-                            D_700038D0[1] = ys / 16.0f - 2048.0f;
+                            ys /= 16.0f;
+                            D_700038D0[1] = ys - 2048.0f;
                             D_700038D0[1] = 1.5f * D_700038D0[1];
                             if (mode == 1) {
                                 if (func_0011E748(D_700038D0[0] * D_700038D0[0] +

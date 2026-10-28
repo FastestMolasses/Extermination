@@ -1,11 +1,13 @@
 // NEARMISS func_00119EA0  (vram 0x00119EA0, 0x1CC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 91.74% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful (the
+// objdiff 92.13% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful (the
 // old "forward branch-likely wall" verdict was wrong: the continue-shaped slot scan, as in the
 // byte-matched sibling func_00119650, emits the three forward annulled branches).
-// Remaining differences: the 0xFFFF entry test keeps a copy of the entry in a second register
-// in the original (non-likely branch to the shared return), the original shifts it logically,
-// and the order of the hoisted loop constants / a few field stores in the claim block differs.
+// Remaining differences: the original keeps a copy of the 0xFFFF-tested entry in a
+// second register (non-likely branch to the shared return) and shifts it logically
+// (srl: an unsigned value), and it materialises its own constant 1 for the claim-block
+// stores (ours reuses the bank-state compare's 1), which reorders the claim stores.
+// 2026-10-28 (wave wX2): the table entry is read into sel itself and then halved.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -100,9 +102,9 @@ int func_00119EA0(int a0, int a1, int a2)
         D_00281AC0.p28 = blk;
         if (D_0027C6C0[id].state == 1 && *(int *)(hdr + 0xC) == 0x64685353 &&
             *(unsigned int *)(hdr + 0x20) != 0xFFFFFFFF && *(unsigned short *)blk >= a1) {
-            x = ((unsigned short *)blk)[a1 + 1];
-            if (x != 0xFFFF) {
-                sel = x >> 1;
+            sel = ((unsigned short *)blk)[a1 + 1];
+            if (sel != 0xFFFF) {
+                sel = sel >> 1;
                 if (((unsigned short *)blk)[sel] >= a2) {
                     blk = blk + ((unsigned short *)blk)[a2 + sel + 1];
                     for (i = 0; i < 48; i++, e++) {

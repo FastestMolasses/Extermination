@@ -1,120 +1,94 @@
-// All-word: everything as .word except jal/j-external
-extern void SignalSema(int, int, int, int);
-extern void WaitSema(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 75.23% NEARMISS).
+// Fixes read from the original instructions:
+// - The IPU_BP fields (FP, IFC) are int locals extracted before the semaphore
+//   wait; with unsigned locals mwcc folded them into their single use after the
+//   call (two fewer saved registers).
+// - Statement order before the wait: found = 0, the toIPU MADR read, the IPU_BP
+//   read, then the saved bit pointer, the two fields, and the ring size last.
+// - Declaration order (madr, bit, fp, ifc, bp, k, n, i, first, at, size, found)
+//   gives the original saved-register assignment.
+// - The position is built in steps (madr minus the FIFO bytes, then size plus
+//   that plus bit / 8; then the ring-relative modulo and += size), and the count
+//   update tests count <= 0 first.
 
-asm void func_00204E90(void) {
-    .word 0x27bdff70
-    .word 0x7fbf0080
-    .word 0x7fb70070
-    .word 0x7fb60060
-    .word 0x7fb50050
-    .word 0x7fb40040
-    .word 0x7fb30030
-    .word 0x7fb20020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x3c011001
-    .word 0x8c34b410
-    .word 0x70a09628
-    .word 0x8c850038
-    .word 0x8c820008
-    .word 0x70809e28
-    .word 0x70008e28
-    .word 0x3c011000
-    .word 0x8c262020
-    .word 0x30b5007f
-    .word 0x8c840040
-    .word 0x000282c0
-    .word 0x00061c02
-    .word 0x30760003
-    .word 0x00061a02
-    jal       WaitSema
-    .word 0x3077000f
-    .word 0x02d71021
-    .word 0x00021100
-    .word 0x02821823
-    .word 0x001510c3
-    .word 0x00621021
-    .word 0x02023821
-    .word 0x2402ffff
-    .word 0xfe420000
-    .word 0xfe420008
-    .word 0x8e660000
-    .word 0x8e630058
-    .word 0x8e65005c
-    .word 0x70002628
-    .word 0x00e63023
-    .word 0x00d0001b
-    .word 0x00a32823
-    .word 0x00000000
-    .word 0x00003010
-    .word 0x1000002e
-    .word 0x00d03021
-    .word 0x8e690054
-    .word 0x8e670050
-    .word 0x01254021
-    .word 0x00884021
-    .word 0x0109001a
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x00004810
-    .word 0x00094040
-    .word 0x01094021
-    .word 0x000850c0
-    .word 0x00ea4821
-    .word 0x8d280010
-    .word 0x8d270014
-    .word 0x00c84023
-    .word 0x0110001a
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x00004010
-    .word 0x0107382a
-    .word 0x50e00017
-    .word 0x24840001
-    .word 0xdd270000
-    .word 0xfe470000
-    .word 0x8e670050
-    .word 0x00ea3821
-    .word 0xdce70008
-    .word 0xfe470008
-    .word 0x8e670050
-    .word 0x00ea3821
-    .word 0xfce20000
-    .word 0x8e670050
-    .word 0x00ea3821
-    .word 0xfce20008
-    .word 0x8e680058
-    .word 0x1d000003
-    .word 0x24110001
-    .word 0x10000003
-    .word 0x8e670058
-    .word 0x72204628
-    .word 0x8e670058
-    .word 0x00e83823
-    .word 0xae670058
-    .word 0x24840001
-    .word 0x00000000
-    .word 0x0083082a
-    .word 0x10200004
-    .word 0x00000000
-    .word 0x1220ffcf
-    .word 0x00000000
-    .word 0x00000000
-    jal       SignalSema
-    .word 0x8e640040
-    .word 0x7bbf0080
-    .word 0x7bb70070
-    .word 0x7bb60060
-    .word 0x7bb50050
-    .word 0x7bb40040
-    .word 0x7bb30030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x24020001
-    .word 0x03e00008
-    .word 0x27bd0090
+// Movie decoder: finds the time stamps of the picture the IPU is decoding.
+// The decode position is the toIPU MADR (0x1000B410) minus the quadwords
+// still buffered in the IPU (IPU_BP FP + IFC) plus the saved bit pointer
+// (+0x38, bits 0..6) in bytes, taken relative to the ring base modulo the
+// ring size (sectors * 2048). out starts as (-1, -1). The queued entries
+// (oldest first) are searched for the first one whose span [pos, pos + len)
+// contains the position (modulo the ring size); its stamps are copied to
+// out, the entry is marked empty and the queue count drops by one (never
+// below zero). Runs under the ring's semaphore; returns 1.
+typedef struct PtsEntry {
+    long long pts;  /* 0x00 */
+    long long dts;  /* 0x08 */
+    int pos;        /* 0x10 */
+    int len;        /* 0x14 */
+} PtsEntry;
+
+typedef struct PtsRing {
+    unsigned int base;  /* 0x00 */
+    int pad04;
+    int sectors;        /* 0x08 */
+    char pad0C[0x2C];
+    unsigned int ipu_bp;/* 0x38 */
+    int pad3C;
+    int sema;           /* 0x40 */
+    char pad44[0xC];
+    PtsEntry *ents;     /* 0x50 */
+    int cap;            /* 0x54 */
+    int count;          /* 0x58 */
+    int tail;           /* 0x5C */
+} PtsRing;
+
+extern int WaitSema(int sema);
+extern int SignalSema(int sema);
+
+int func_00204E90(PtsRing *r, PtsEntry *out) {
+    unsigned int madr;
+    int bit;
+    int fp;
+    int ifc;
+    unsigned int bp;
+    int k;
+    int n;
+    int i;
+    int first;
+    unsigned int at;
+    unsigned int size;
+    int found;
+
+    found = 0;
+    madr = *(volatile unsigned int *)0x1000B410;
+    bp = *(volatile unsigned int *)0x10002020;
+    bit = r->ipu_bp & 0x7F;
+    fp = (bp >> 16) & 3;
+    ifc = (bp >> 8) & 0xF;
+    size = r->sectors << 11;
+    WaitSema(r->sema);
+    at = madr - (fp + ifc) * 16;
+    at = size + (at + (bit >> 3));
+    out->pts = -1;
+    out->dts = -1;
+    n = r->count;
+    first = r->tail - n;
+    at = (at - r->base) % size;
+    at += size;
+    for (i = 0; i < n && found == 0; i++) {
+        k = (i + (r->cap + first)) % r->cap;
+        if ((int)(at - r->ents[k].pos) % (int)size < r->ents[k].len) {
+            out->pts = r->ents[k].pts;
+            out->dts = r->ents[k].dts;
+            r->ents[k].pts = -1;
+            r->ents[k].dts = -1;
+            found = 1;
+            r->count -= (r->count <= 0) ? r->count : found;
+        }
+    }
+    SignalSema(r->sema);
+    return 1;
 }
-
-// Readable C (NEARMISS companion, objdiff 75.23%): src/readable/func_00204E90.c

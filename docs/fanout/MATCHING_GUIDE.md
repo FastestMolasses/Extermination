@@ -884,3 +884,29 @@ Improved: func_00117428 99.31, func_001172B8 98.32, func_00107648 94.47;
 companions block_copy 86.70 and func_00121920 81.23 (newlib memcpy / memmove:
 built by ee-gcc 2.95.3, which is in tools/eegcc but has no build.py mode yet),
 func_0010BCD0 95.37.
+
+
+### Queue batch 43 (2026-10-28)
+
+11 byte-matched; 4 companions replaced their asm bodies.
+- func_001DEE80 / func_001DEEC0: `// TU_STATIC: func_001DEDB0` (the original
+  keeps a value in a1 across the same-TU leaf); CFLAGS must be the callee's
+  own `-sdatathreshold 4` or tu_static's guard rejects the static copy.
+- func_00204E90 (IPU): `int` (not unsigned) locals for FP / IFC, the
+  original's statement order before the semaphore wait, declaration order.
+- func_001D6DD0 (DMA packet): the packed doubleword as its own first local,
+  one `DmaTag **slot` pointer, the body pointer taken before the cursor advance.
+- func_00108818 (bit reader, ee-gcc): an `int` parameter widened only at the
+  shift; declaring it 64-bit recoloured every temporary.
+- func_001E1AD0 (`ch = BASE; ch += off;`), func_00199220 (`ys /= 16.0f;`).
+- gs_vram_readback: wrong body (the pad-drain loop belongs inside the
+  `if (rb != 0)`), `// EEGCC_AS: 2.96`, and its jump table: run
+  tools/match/gen_jtbl_rodata.py for the function so build/jtblrodata/ has it.
+- func_0021AE90: returns void (the old C returned 0; no caller uses it); both
+  dispatches are switches whose cases end in `break`.
+- func_001459A0: the float-first parameter order on three capsule-test callees
+  (same registers, different argument-setup order).
+- func_001CC3B0: declaration order and in-place packet-pointer advances.
+Improved: func_001E3D90 97.69, func_001CFFE0 97.97, func_0020F950 99.90,
+func_001F5F60 98.51 (two wrong-body fixes), func_0019C6F0 92.50,
+func_001CBC20 92.45, func_00119EA0 92.13; companion func_002047D0 97.55.

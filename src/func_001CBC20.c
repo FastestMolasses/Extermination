@@ -1,6 +1,6 @@
 // NEARMISS func_001CBC20  (vram 0x001CBC20, 0x1F0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 92.37% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 62.15%).
+// objdiff 92.45% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 62.15%).
 // Matching wave 2026-10-27: the four command nodes are one static inline helper (dma_node,
 // family spelling: slot = &D_00275670[ch], cursor slot[4], node pointer taken before the
 // advance); the colour is a 64-bit local holding the sign-extended 32-bit RGBA; alpha is a
@@ -8,8 +8,9 @@
 // Remaining differences: register colouring only: the else-arm cursor slot and the RGBA
 // value swap t7/t8, the RGBA sign extension is scheduled inside the arg7 arm instead of
 // beside the final stores, and the vertex pointer (packet + 0x10) lands in the clamp
-// branch's delay slot instead of the last store. Declaration order and statement order do
-// not change it.
+// branch's delay slot instead of the last store. Declaration order (8 orders swept) and
+// statement order do not change it. 2026-10-28 (wave wX2): the else arm queues its
+// D_00250FC0 node before setting the default colour (the original's order).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -70,9 +71,9 @@ void func_001CBC20(int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, i
         rgba = (arg7[4] << 24) | *(int *)arg7;
         alpha = arg7[7];
     } else {
+        dma_node(arg0, 0x30, D_00250FC0, 8, 0x10);
         rgba = 0x80808080;
         alpha = 0;
-        dma_node(arg0, 0x30, D_00250FC0, 8, 0x10);
     }
 
     v48 = (arg5 << 4) | (arg6 << 20);

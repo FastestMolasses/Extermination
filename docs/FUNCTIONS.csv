@@ -19,7 +19,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001009C8,func_001009C8,148,readable,2,lowmem
 0x00100A60,dma_wait_and_submit,788,readable,6,lowmem
 0x00100D78,gs_readback_build_packet,320,word,2,lowmem
-0x00100EB8,gs_vram_readback,1676,nearmiss,2,lowmem
+0x00100EB8,gs_vram_readback,1676,readable,2,lowmem
 0x00101548,func_00101548,96,readable,2,lowmem
 0x001015A8,func_001015A8,136,readable,3,lowmem
 0x00101630,func_00101630,480,word,1,lowmem
@@ -161,7 +161,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00108748,func_00108748,68,readable,2,lowmem
 0x00108790,func_00108790,84,readable,1,lowmem
 0x001087E8,func_001087E8,44,readable,1,lowmem
-0x00108818,func_00108818,136,nearmiss,1,lowmem
+0x00108818,func_00108818,136,readable,1,lowmem
 0x001088A0,func_001088A0,508,readable,0,lowmem
 0x00108AA0,func_00108AA0,752,readable,2,lowmem
 0x00108D90,func_00108D90,32,readable,0,lowmem
@@ -1051,7 +1051,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001455A0,func_001455A0,680,readable,1,entity_logic
 0x00145850,func_00145850,48,readable,1,entity_logic
 0x00145880,func_00145880,276,readable,2,entity_logic
-0x001459A0,func_001459A0,1904,nearmiss,2,entity_logic
+0x001459A0,func_001459A0,1904,readable,2,entity_logic
 0x00146110,func_00146110,916,readable,1,entity_logic
 0x001464B0,func_001464B0,648,readable,1,entity_logic
 0x00146740,func_00146740,620,readable,1,entity_logic
@@ -1588,7 +1588,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00198CE0,func_00198CE0,164,readable,1,init_io
 0x00198D90,func_00198D90,372,readable,1,init_io
 0x00198F10,func_00198F10,776,readable,1,init_io
-0x00199220,func_00199220,1348,nearmiss,2,init_io
+0x00199220,func_00199220,1348,readable,2,init_io
 0x00199770,func_00199770,592,readable,1,init_io
 0x001999C0,func_001999C0,656,readable,2,init_io
 0x00199C50,func_00199C50,344,readable,4,init_io
@@ -2079,7 +2079,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001CBE10,func_001CBE10,860,readable,2,anim_runtime
 0x001CC170,func_001CC170,100,readable,7,gs_upload
 0x001CC1E0,func_001CC1E0,460,readable,8,gs_upload
-0x001CC3B0,func_001CC3B0,1256,nearmiss,1,gs_upload
+0x001CC3B0,func_001CC3B0,1256,readable,1,gs_upload
 0x001CC8A0,func_001CC8A0,596,readable,2,gs_upload
 0x001CCB00,func_001CCB00,8,readable,2,gs_upload
 0x001CCB10,func_001CCB10,192,readable,3,gs_upload
@@ -2216,7 +2216,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001D6B60,func_001D6B60,60,readable,4,render_vif
 0x001D6BA0,func_001D6BA0,236,readable,14,render_vif
 0x001D6C90,func_001D6C90,316,readable,4,render_vif
-0x001D6DD0,func_001D6DD0,144,word,1,render_vif
+0x001D6DD0,func_001D6DD0,144,readable,1,render_vif
 0x001D6E60,func_001D6E60,248,readable,2,render_vif
 0x001D6F60,func_001D6F60,148,readable,3,render_vif
 0x001D7000,func_001D7000,124,readable,2,render_vif
@@ -2297,8 +2297,8 @@ vram,name,size_bytes,status,callers,subsystem
 0x001DEDB0,func_001DEDB0,40,readable,3,weapon_equip
 0x001DEDE0,func_001DEDE0,8,readable,1,weapon_equip
 0x001DEDF0,func_001DEDF0,140,word,1,weapon_equip
-0x001DEE80,func_001DEE80,52,word,4,weapon_equip
-0x001DEEC0,func_001DEEC0,32,word,4,weapon_equip
+0x001DEE80,func_001DEE80,52,readable,4,weapon_equip
+0x001DEEC0,func_001DEEC0,32,readable,4,weapon_equip
 0x001DEEE0,func_001DEEE0,308,readable,1,weapon_equip
 0x001DF020,func_001DF020,228,readable,1,weapon_equip
 0x001DF110,func_001DF110,100,readable,1,weapon_equip
@@ -2330,7 +2330,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001E13E0,func_001E13E0,892,nearmiss,1,weapon_equip
 0x001E1760,func_001E1760,124,readable,1,weapon_equip
 0x001E17E0,func_001E17E0,748,nearmiss,1,weapon_equip
-0x001E1AD0,func_001E1AD0,908,nearmiss,1,weapon_equip
+0x001E1AD0,func_001E1AD0,908,readable,1,weapon_equip
 0x001E1E60,func_001E1E60,1024,readable,1,weapon_equip
 0x001E2260,func_001E2260,12,readable,2,weapon_equip
 0x001E2270,func_001E2270,16,readable,1,weapon_equip
@@ -2650,7 +2650,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00204B80,func_00204B80,68,readable,1,crt_heap
 0x00204BD0,sub_pts_is_not_used,392,readable,1,crt_heap
 0x00204D60,func_00204D60,304,readable,1,crt_heap
-0x00204E90,func_00204E90,448,word,1,crt_heap
+0x00204E90,func_00204E90,448,readable,1,crt_heap
 0x00205050,func_00205050,496,nearmiss,1,unknown_05
 0x00205240,func_00205240,1212,word,1,unknown_05
 0x00205700,func_00205700,52,readable,1,unknown_05
@@ -2806,7 +2806,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0021A440,func_0021A440,184,readable,1,unknown_06
 0x0021A500,func_0021A500,1468,nearmiss,0,unknown_06
 0x0021AAC0,func_0021AAC0,964,nearmiss,0,unknown_06
-0x0021AE90,func_0021AE90,752,nearmiss,0,unknown_06
+0x0021AE90,func_0021AE90,752,readable,0,unknown_06
 0x0021B180,func_0021B180,44,readable,1,area_state
 0x0021B1B0,func_0021B1B0,836,word,1,area_state
 0x0021B500,func_0021B500,68,readable,1,area_state

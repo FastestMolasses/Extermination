@@ -1,12 +1,15 @@
 // NEARMISS func_001CFFE0  (vram 0x001CFFE0, 0x414 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.89% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 87.16%; matching wave 2026-10-27).
+// objdiff 97.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 87.16%, then 97.89%; matching waves 2026-10-27/28).
 // Improvements: saved registers now match (sel/tbl declared first), the two scratchpad matrices are read
 // through base-pointer locals g1/g2 (one address setup each, as in the byte-matched sibling func_001CFBE0),
 // the selected D_00251260 row is indexed as a quadword array, each packet header goes through a cursor
-// pointer, and packet 4's GIFtag is written through its tag pointer p.
+// pointer, and packet 4's GIFtag is written through its tag pointer p; each header computes the
+// cursor address as dl + slot * 4 + 0x10 inline (no scaled-index local).
 // Remaining differences: caller-saved temporary colouring only (D_00275670 base / slot*4 / small tag constants
 // in different t/a/v registers after the func_001CB9B0 call); instruction order and logic are identical.
+// Tried 2026-10-28 without effect: local declaration orders, the DmaTag/VifLists CUR() spelling of
+// func_001D6F60, dl + n as one pointer, the scaled index computed before the call.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -64,7 +67,6 @@ void func_001CFFE0(int slot, unsigned int idx, char *obj, char *src)
     char *dst;
     char *m;
     int kind;
-    int n;
     int ret;
     int i;
     s128 *g1;
@@ -141,24 +143,23 @@ void func_001CFFE0(int slot, unsigned int idx, char *obj, char *src)
     }
 
     ret = func_001CB9B0(kind);
-    n = slot * 4;
 
     dl = D_00275670;
-    c = (char **)(dl + n + 0x10);
+    c = (char **)(dl + slot * 4 + 0x10);
     (*c)[3] = 0x30;
     *(int *)(*c + 4) = ret;
     *(short *)*c = 8;
     *c = *c + 0x10;
 
     dl = D_00275670;
-    c = (char **)(dl + n + 0x10);
+    c = (char **)(dl + slot * 4 + 0x10);
     (*c)[3] = 0x50;
     *(int *)(*c + 4) = (int)tbl;
     *(short *)*c = 0;
     *c = *c + 0x10;
 
     dl = D_00275670;
-    c = (char **)(dl + n + 0x10);
+    c = (char **)(dl + slot * 4 + 0x10);
     (*c)[3] = 0x10;
     *(int *)(*c + 4) = 0;
     *(short *)*c = 0x10;
@@ -190,7 +191,7 @@ void func_001CFFE0(int slot, unsigned int idx, char *obj, char *src)
     ((s128 *)q)[16] = ((s128 *)D_00251260)[sel];
 
     dl = D_00275670;
-    c = (char **)(dl + n + 0x10);
+    c = (char **)(dl + slot * 4 + 0x10);
     (*c)[3] = 0x10;
     *(int *)(*c + 4) = 0;
     *(short *)*c = 0xA;
@@ -209,7 +210,7 @@ void func_001CFFE0(int slot, unsigned int idx, char *obj, char *src)
     } while (i != 0);
 
     dl = D_00275670;
-    c = (char **)(dl + n + 0x10);
+    c = (char **)(dl + slot * 4 + 0x10);
     (*c)[3] = 0x10;
     *(int *)(*c + 4) = 0;
     *(short *)*c = 7;
