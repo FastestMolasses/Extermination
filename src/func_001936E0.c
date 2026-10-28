@@ -1,8 +1,8 @@
 // NEARMISS func_001936E0  (vram 0x001936E0, 0x6AC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 94.99% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure fully recovered (melee-grab/lunge-attack FSM; real switch(kind) case values 0x21/0xF/0x2/0x1/0x29/0xC/0xD/0x2A recovered from the .s -- the m2c guess of 13/42/12/41 was WRONG, corrected; the two FPU-MAC mula.s/madd.s sum-of-squares blocks decoded as plain dx*dx+dz*dz and gx*gx+gz*g...
+// objdiff 99.24% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful (matching wave 2026-10-27, was 94.99%):
+// fixes: func_00193660 is called with (arg0, arg1); the near-hand angle nudge stores 30+yaw directly when above it, else 10+(yaw+reach) when below that; the sqrt distances and the case-1 angle are kept in scratchpad 0x70003A20/0x70003A24 (angle as a relocated extern); the second kind switch lists its cases in reverse (2.3.3 emits compares in reverse source order); `> 0x50` counter test.
+// Remaining differences: register colouring only -- the state dispatch keeps the state byte in a0 with the constant in v1 (ours v1/v0, so case 0's first constant is not a branch-likely slot), and the case-1 tail uses v1 where ours uses v0. Neither local order, parameter copies, unsigned-char params, done placement nor compound assignments moved it.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -59,7 +59,7 @@ extern void func_0018C4B0(void *dst, float target, float rate);
 extern void func_0018C6A0(void *dst, void *src, float rate);
 extern void func_0018D7B0(void *arg0, int a1);
 extern void func_00191210(void);
-extern int func_00193660(void);
+extern int func_00193660(char *a0, char *a1);
 extern float func_001B1240(void *p, float a, float b);
 extern float func_001B1470(float a);
 
@@ -76,13 +76,13 @@ extern char D_70003600[];
 extern char D_70003630[];
 extern char D_700038A0[];
 extern char D_70003B50[];
+extern float D_70003A24;
 
 void func_001936E0(char *arg0, char *arg1) {
     unsigned char st;
     int done;
     int kind;
     float reach;
-    float dx, dz;
     float gx, gz;
 
     st = *(unsigned char *)(arg0 + 1);
@@ -133,7 +133,7 @@ void func_001936E0(char *arg0, char *arg1) {
         case 2:
         case 4:
         case 15:
-            if (func_00193660() != 0) {
+            if (func_00193660(arg0, arg1) != 0) {
                 *(unsigned char *)(arg0 + 6) = 0;
                 *(unsigned char *)(arg0 + 1) = 0;
                 *(char *)(arg0 + 2) = 0;
@@ -142,20 +142,16 @@ void func_001936E0(char *arg0, char *arg1) {
             break;
         default:
             func_001028D0(D_70003630, arg0 + 0x10, arg0 + 0x20);
-            dx = *(float *)0x70003630;
-            dz = *(float *)0x70003638;
-            if (func_0011E748(dx * dx + dz * dz) < 7.0f) {
+            if (func_0011E748(*(float *)0x70003630 * *(float *)0x70003630 + *(float *)0x70003638 * *(float *)0x70003638) < 7.0f) {
                 float cur = *(float *)(arg0 + 0x14);
                 float ang = 30.0f + *(float *)(arg1 + 0xA4);
-                int setIt;
                 if (!(cur <= ang)) {
-                    setIt = 1;
+                    *(float *)(arg0 + 0x14) = ang;
                 } else {
                     ang = 10.0f + (*(float *)(arg1 + 0xA4) + reach);
-                    setIt = cur < ang;
-                }
-                if (setIt) {
-                    *(float *)(arg0 + 0x14) = ang;
+                    if (cur < ang) {
+                        *(float *)(arg0 + 0x14) = ang;
+                    }
                 }
             }
             break;
@@ -180,22 +176,24 @@ void func_001936E0(char *arg0, char *arg1) {
         if (D_008105D4 < (23.0f + *(float *)(arg1 + 0xA4))) {
             gx = D_008105D0 - *(float *)(arg1 + 0xA0);
             gz = D_008105D8 - *(float *)(arg1 + 0xA8);
-            if (func_0011E748(gx * gx + gz * gz) < 8.0f) {
-                float ang = func_001B1470(func_0011E620(gx, gz));
-                D_008105D0 = *(float *)(arg1 + 0xA0) + (8.0f * func_0011E2A8(ang));
-                D_008105D8 = *(float *)(arg1 + 0xA8) + (8.0f * func_0011DE90(ang));
+            *(float *)0x70003A20 = func_0011E748(gx * gx + gz * gz);
+            if (*(float *)0x70003A20 < 8.0f) {
+                D_70003A24 = func_001B1470(func_0011E620(gx, gz));
+                D_008105D0 = *(float *)(arg1 + 0xA0) + (8.0f * func_0011E2A8(D_70003A24));
+                D_008105D8 = *(float *)(arg1 + 0xA8) + (8.0f * func_0011DE90(D_70003A24));
             }
         }
 
         *(short *)(arg0 + 8) = *(short *)(arg0 + 8) + 1;
         func_001028D0(D_700038A0, arg0 + 0x10, &D_008105D0);
-        if (func_0011E748(func_00102738(D_700038A0, D_700038A0)) < 0.25f) {
+        *(float *)0x70003A20 = func_0011E748(func_00102738(D_700038A0, D_700038A0));
+        if (*(float *)0x70003A20 < 0.25f) {
             done = 1;
         }
         if (!(*(float *)(arg1 + 0x38) <= 0.0f)) {
             *(short *)(arg0 + 8) = *(short *)(arg0 + 8) + 0xA;
         }
-        if (done != 0 || *(short *)(arg0 + 8) >= 0x51) {
+        if (done != 0 || *(short *)(arg0 + 8) > 0x50) {
             *(unsigned char *)(arg0 + 6) = 0;
             *(unsigned char *)(arg0 + 1) = 0;
             *(char *)(arg0 + 2) = 0;
@@ -207,21 +205,21 @@ void func_001936E0(char *arg0, char *arg1) {
     func_00191210();
 
     switch (*(int *)(arg1 + 0x230)) {
-    case 0x21:
-    case 0xF:
-    case 2:
-    case 1:
-        /* untouched -- falls straight to the tail check below */
+    case 0x2A:
+    case 0xD:
+        *(unsigned char *)(arg0 + 6) = 1;
+        *(unsigned char *)(arg0 + 1) = 0;
         break;
-    case 0x29:
     case 0xC:
+    case 0x29:
         *(unsigned char *)(arg0 + 6) = 2;
         *(unsigned char *)(arg0 + 1) = 0;
         break;
-    case 0xD:
-    case 0x2A:
-        *(unsigned char *)(arg0 + 6) = 1;
-        *(unsigned char *)(arg0 + 1) = 0;
+    case 1:
+    case 2:
+    case 0xF:
+    case 0x21:
+        /* untouched -- falls straight to the tail check below */
         break;
     default:
         *(unsigned char *)(arg0 + 6) = 0;

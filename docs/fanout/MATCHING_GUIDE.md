@@ -164,3 +164,18 @@ permuter runs and other compilers did not move it.
 **Compiler-mix parks may be spellings:** func_0019AFE0 looked like a 991202
 slot-fill case but matched under 2.3.3 once one gate became a block-local
 `unsigned int` (sibling func_0019AD00); re-try the five compiler-mix parks.
+
+### Queue batch 4 (2026-10-27)
+
+8 byte-matched: func_0019AD00 and func_0019AFE0 (twin func_0019A6F0's
+spelling; the path-B gate as a block-local `unsigned int t = (flags & 1) ?
+0x40 : 0;` — func_0019AFE0 had looked like a 991202 slot-fill case),
+func_002177B0 (a wrong state-1 body; twin func_00217090's literal
+addresses), func_00118790 (ee-gcc: store order, `cursor + (int)base`),
+func_00156620 (switch cases `break`; the range test `D_x = 50.0f; D_x *=
+50.0f;` reproduces an FP self-move), func_0018DD20 (20 scratchpad externs,
+five constant stores kept literal for their aliasing order), func_00205740
+(statement order only), func_00106490 (a post-increment test, `if (n++ >=
+K)`). Improved and parked: func_001936E0 99.24, func_0019BC40 99.12,
+func_001A0B10 97.36, func_001D2730 95.52 (register colouring). The mwcc 2.3.3
+permuter is tools/match/permuter/run_func233.sh.

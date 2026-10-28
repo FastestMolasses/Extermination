@@ -124,7 +124,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00106278,func_00106278,316,readable,2,lowmem
 0x001063B8,func_001063B8,48,readable,6,lowmem
 0x001063E8,func_001063E8,164,nearmiss,7,lowmem
-0x00106490,func_00106490,176,nearmiss,3,lowmem
+0x00106490,func_00106490,176,readable,3,lowmem
 0x00106540,func_00106540,436,nearmiss,4,lowmem
 0x001066F8,func_001066F8,308,readable,5,lowmem
 0x00106830,func_00106830,276,readable,7,lowmem
@@ -625,7 +625,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001181B0,func_001181B0,612,nearmiss,1,lowmem
 0x00118418,func_00118418,660,nearmiss,1,lowmem
 0x001186B0,func_001186B0,220,nearmiss,1,lowmem
-0x00118790,func_00118790,152,nearmiss,1,lowmem
+0x00118790,func_00118790,152,readable,1,lowmem
 0x00118828,func_00118828,884,readable,1,lowmem
 0x00118BA0,func_00118BA0,92,readable,1,lowmem
 0x00118C00,func_00118C00,244,word,1,lowmem
@@ -1165,7 +1165,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001549C0,func_001549C0,1344,readable,1,entity_logic
 0x00154F00,func_00154F00,676,word,1,entity_logic
 0x001551B0,func_001551B0,5220,readable,0,entity_logic
-0x00156620,func_00156620,2320,nearmiss,0,entity_logic
+0x00156620,func_00156620,2320,readable,0,entity_logic
 0x00156F30,func_00156F30,1072,nearmiss,0,entity_logic
 0x00157360,func_00157360,584,nearmiss,0,entity_logic
 0x001575B0,func_001575B0,44,readable,0,entity_logic
@@ -1546,7 +1546,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0018D330,func_0018D330,1144,readable,1,init_io
 0x0018D7B0,func_0018D7B0,340,readable,17,init_io
 0x0018D910,func_0018D910,1032,nearmiss,1,init_io
-0x0018DD20,func_0018DD20,6984,nearmiss,1,init_io
+0x0018DD20,func_0018DD20,6984,readable,1,init_io
 0x0018F870,func_0018F870,5796,nearmiss,1,init_io
 0x00190F20,func_00190F20,212,readable,1,init_io
 0x00191000,func_00191000,284,readable,2,init_io
@@ -1602,8 +1602,8 @@ vram,name,size_bytes,status,callers,subsystem
 0x0019A910,func_0019A910,364,readable,8,level_world
 0x0019AA80,func_0019AA80,156,nearmiss,4,level_world
 0x0019AB20,func_0019AB20,480,readable,20,level_world
-0x0019AD00,func_0019AD00,736,nearmiss,36,level_world
-0x0019AFE0,func_0019AFE0,736,nearmiss,30,level_world
+0x0019AD00,func_0019AD00,736,readable,36,level_world
+0x0019AFE0,func_0019AFE0,736,readable,30,level_world
 0x0019B2C0,func_0019B2C0,512,readable,2,level_world
 0x0019B4C0,func_0019B4C0,512,readable,3,level_world
 0x0019B6C0,func_0019B6C0,260,nearmiss,9,level_world
@@ -2654,7 +2654,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00205050,func_00205050,496,nearmiss,1,unknown_05
 0x00205240,func_00205240,1212,word,1,unknown_05
 0x00205700,func_00205700,52,readable,1,unknown_05
-0x00205740,func_00205740,204,nearmiss,1,unknown_05
+0x00205740,func_00205740,204,readable,1,unknown_05
 0x00205810,func_00205810,188,readable,1,unknown_05
 0x002058D0,func_002058D0,180,readable,1,unknown_05
 0x00205990,func_00205990,108,readable,1,unknown_05
@@ -2795,7 +2795,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00215FE0,func_00215FE0,208,readable,1,ui_screens
 0x002160B0,func_002160B0,4056,readable,1,ui_screens
 0x00217090,func_00217090,1820,readable,1,ui_screens
-0x002177B0,func_002177B0,2032,nearmiss,1,ui_screens
+0x002177B0,func_002177B0,2032,readable,1,ui_screens
 0x00217FA0,func_00217FA0,1692,nearmiss,1,ui_screens
 0x00218640,func_00218640,1860,readable,1,ui_screens
 0x00218D90,func_00218D90,1976,nearmiss,1,ui_screens

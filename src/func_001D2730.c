@@ -1,8 +1,8 @@
 // NEARMISS func_001D2730  (vram 0x001D2730, 0x100 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 95.12% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 95.52% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Register-coloring permutation: target colors bit->s1/flags->s0/hit->s2, mwcc picks bit->s0/flags->s2/hit->s1. Instruction selection, gp-rel addressing, switch dispatch order, scheduling and frame all match. Permuter-class.
+// Remaining differences: register-coloring swap of two saved registers. Declaring hit, bit, flags in that order (assignments after the declarations) gives bit->s1 as in the target, but mwcc still colors flags->s2/hit->s0 where the target has flags->s0/hit->s2 (and the two leading compares schedule one slot later as a consequence). Declaration order, types, struct access, ternary/compound spellings, boolean hit and a 9-minute permuter run (plateau, no honest gain) did not swap them. Instruction selection, gp-rel addressing, switch dispatch order, scheduling and frame all match. Permuter-class.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,7 +12,7 @@
 // CFLAGS: -O4,p -sdatathreshold 8
 
 //
-// NEARMISS 95.2% (mwcc 2.3.3; pinned 991202 reaches 86.9%). Body/structure are
+// NEARMISS 95.5% (mwcc 2.3.3; pinned 991202 reaches 86.9%). Body/structure are
 // fully recovered and verified; the sole residual is a register-coloring
 // permutation: the target colors bit->$s1, flags->$s0, hit->$s2, whereas mwcc
 // (both builds) picks bit->$s0, flags->$s2, hit->$s1. Instruction selection,
@@ -31,10 +31,13 @@ extern int *D_00275670;
 void block_copy(void *dst, void *src, int count);
 
 int func_001D2730(int a0, int a1) {
+    int hit;
+    int bit;
+    int flags;
     int *base = D_00275670;
-    int flags = *(int *)((char *)base + 0xC);
-    int bit = 1 << a0;
-    int hit = flags & bit;
+    bit = 1 << a0;
+    flags = *(int *)((char *)base + 0xC);
+    hit = flags & bit;
 
     switch (a0) {
     case 0:

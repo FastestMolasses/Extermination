@@ -1,8 +1,13 @@
 // NEARMISS func_0019BC40  (vram 0x0019BC40, 0xAB0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 95.42% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// mwcc233 web-coloring-order permutation + list-sched ties (sibling family wall of func_0019F730/func_001A1390, which parked at 88.78%/76%). Body and structure are fully register-shape-correct except: (1) the two loop-1 record blocks emit the same 5 instrs with the zero move into $f0 two slots later than ta...
+// objdiff 99.12% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful.
+// Fixed this wave (was 95.42%): the span/mailbox scratchpad words (0x70003240..4A, the span-table
+// pointers 0x70003228/2C/38/3C, the mailbox shorts 0x70003B86/88, best 0x7000320C, grid base
+// 0x70003208, hull table 0x70003250, aux 0x7000319C/31AC, count 0x700031E0) are relocated
+// externs (idiom-32, SPAD line; declared as arrays so -sdatathreshold 8 keeps them off $gp);
+// the two pass-1 record blocks store dist before order.
+// Remaining differences: temp-register colouring only, in the selection sort (i/k/&order[i])
+// and in the compaction loop (cnt/i/&order[i] vs the four output-table walkers).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +15,7 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+// SPAD: 0x70003240 0x70003242 0x70003248 0x7000324A 0x70003228 0x7000322C 0x70003238 0x7000323C 0x70003B86 0x70003B88 0x7000320C 0x70003208 0x70003250 0x7000319C 0x700031AC 0x700031E0
 
 // SEMANTICS: melee/lock-on target scan around point pos (float[3]).
 //   Pass 1: walks the published CLASS-4 actor list (D_00275B7C/D_00275B84); for each actor
@@ -41,6 +47,22 @@ extern unsigned char *D_70003130[];
 extern unsigned short D_70003170[];
 extern short *D_70003210[];
 extern float D_00282250[];
+extern short D_70003240[];
+extern short D_70003242[];
+extern short D_70003248[];
+extern short D_7000324A[];
+extern short * D_70003228[];
+extern short * D_7000322C[];
+extern short * D_70003238[];
+extern short * D_7000323C[];
+extern volatile short D_70003B86[];
+extern volatile short D_70003B88[];
+extern int D_7000320C[];
+extern unsigned char * D_70003208[];
+extern unsigned char * D_70003250[];
+extern float D_7000319C[];
+extern float D_700031AC[];
+extern int D_700031E0[];
 
 extern float func_0011DF78(float);
 extern void func_0019F1A0(float *, int);
@@ -102,7 +124,7 @@ void func_0019BC40(float *pos)
                 continue;
             }
             {
-                unsigned char *tbl = *(unsigned char **)0x70003250;
+                unsigned char *tbl = D_70003250[0];
                 int off = *(int *)(tbl + uid * 4 + 4);
 
                 if (off == 0) {
@@ -174,11 +196,11 @@ void func_0019BC40(float *pos)
                                 break;
                             }
                             if (out[0] > -3.4e37f) {
-                                order[n] = n;
                                 dist[n] = out[0];
+                                order[n] = n;
                                 obj[n] = a;
                                 flags[n] = 0x8000;
-                                extra[n] = *(float *)0x7000319C;
+                                extra[n] = D_7000319C[0];
                                 if (!(out[2] <= 0.0f)) {
                                     flags[n] |= 1;
                                 }
@@ -188,11 +210,11 @@ void func_0019BC40(float *pos)
                                 break;
                             }
                             if (out[1] < 3.4e37f) {
-                                order[n] = n;
                                 dist[n] = out[1];
+                                order[n] = n;
                                 obj[n] = a;
                                 flags[n] = 0x8000;
-                                extra[n] = *(float *)0x700031AC;
+                                extra[n] = D_700031AC[0];
                                 if (!(out[3] <= 0.0f)) {
                                     flags[n] |= 1;
                                 }
@@ -207,17 +229,17 @@ void func_0019BC40(float *pos)
 
     func_0019F1A0(pos, 0x33);
 
-    best = *(int *)0x7000320C;
+    best = D_7000320C[0];
     {
         int t, e, s;
-        short tmp = *(short *)0x70003240;
-        short *tab = *(short **)0x70003228;
-        *(volatile short *)0x70003B88 = tmp;
-        t = *(volatile short *)0x70003B88;
-        *(volatile short *)0x70003B86 = tab[t];
-        *(volatile short *)0x70003B88 = t + 1;
-        e = *(volatile short *)0x70003B88;
-        s = *(volatile short *)0x70003B86;
+        short tmp = D_70003240[0];
+        short *tab = D_70003228[0];
+        D_70003B88[0] = tmp;
+        t = D_70003B88[0];
+        D_70003B86[0] = tab[t];
+        D_70003B88[0] = t + 1;
+        e = D_70003B88[0];
+        s = D_70003B86[0];
         if (e - s < best) {
             best = e - s;
             start = s;
@@ -227,12 +249,12 @@ void func_0019BC40(float *pos)
     }
     {
         int t, e;
-        short tmp = *(short *)0x70003242;
-        short *tab = *(short **)0x7000322C;
-        *(volatile short *)0x70003B86 = tmp;
-        t = *(volatile short *)0x70003B86;
-        *(volatile short *)0x70003B88 = tab[t];
-        e = *(volatile short *)0x70003B88;
+        short tmp = D_70003242[0];
+        short *tab = D_7000322C[0];
+        D_70003B86[0] = tmp;
+        t = D_70003B86[0];
+        D_70003B88[0] = tab[t];
+        e = D_70003B88[0];
         if (e - t < best) {
             end = e;
             best = e - t;
@@ -242,14 +264,14 @@ void func_0019BC40(float *pos)
     }
     {
         int t, e, s;
-        short tmp = *(short *)0x70003248;
-        short *tab = *(short **)0x70003238;
-        *(volatile short *)0x70003B88 = tmp;
-        t = *(volatile short *)0x70003B88;
-        *(volatile short *)0x70003B86 = tab[t];
-        *(volatile short *)0x70003B88 = t + 1;
-        e = *(volatile short *)0x70003B88;
-        s = *(volatile short *)0x70003B86;
+        short tmp = D_70003248[0];
+        short *tab = D_70003238[0];
+        D_70003B88[0] = tmp;
+        t = D_70003B88[0];
+        D_70003B86[0] = tab[t];
+        D_70003B88[0] = t + 1;
+        e = D_70003B88[0];
+        s = D_70003B86[0];
         if (e - s < best) {
             start = s;
             best = e - s;
@@ -259,12 +281,12 @@ void func_0019BC40(float *pos)
     }
     {
         int t, e;
-        short tmp = *(short *)0x7000324A;
-        short *tab = *(short **)0x7000323C;
-        *(volatile short *)0x70003B86 = tmp;
-        t = *(volatile short *)0x70003B86;
-        *(volatile short *)0x70003B88 = tab[t];
-        e = *(volatile short *)0x70003B88;
+        short tmp = D_7000324A[0];
+        short *tab = D_7000323C[0];
+        D_70003B86[0] = tmp;
+        t = D_70003B86[0];
+        D_70003B88[0] = tab[t];
+        e = D_70003B88[0];
         if (e - t < best) {
             start = t;
             end = e;
@@ -274,20 +296,20 @@ void func_0019BC40(float *pos)
 
     sp2 = D_70003210[which] + start;
     for (; start < end; start++) {
-        ent = *(unsigned char **)0x70003208 + (*sp2++ << 6);
-        if (*(short *)0x70003240 < *(short *)(ent + 0xC)) {
+        ent = D_70003208[0] + (*sp2++ << 6);
+        if (*(short *)(ent + 0xC) > D_70003240[0]) {
             continue;
         }
-        if (*(short *)(ent + 0xE) < *(short *)0x70003242) {
+        if (*(short *)(ent + 0xE) < D_70003242[0]) {
             continue;
         }
         if (func_0011DF78(*(float *)(ent + 0x28)) < 0.001f) {
             continue;
         }
-        if (*(short *)(ent + 0x14) > *(short *)0x70003248) {
+        if (*(short *)(ent + 0x14) > D_70003248[0]) {
             continue;
         }
-        if (*(short *)(ent + 0x16) < *(short *)0x7000324A) {
+        if (*(short *)(ent + 0x16) < D_7000324A[0]) {
             continue;
         }
         if (*(unsigned char *)(ent + 0x1A) >= 0x50) {
@@ -325,7 +347,7 @@ void func_0019BC40(float *pos)
     }
 
     if (n <= 0) {
-        *(int *)0x700031E0 = 0;
+        D_700031E0[0] = 0;
         return;
     }
 
@@ -358,9 +380,10 @@ void func_0019BC40(float *pos)
         flags[order[0]] = f & ~0x80;
     }
     f = flags[order[n - 1]];
-    i = 0;
     if (f & 1) {
         flags[order[n - 1]] = f & ~0x80;
+        i = 0;
+    } else {
         i = 0;
     }
 
@@ -374,5 +397,5 @@ void func_0019BC40(float *pos)
             cnt++;
         }
     }
-    *(int *)0x700031E0 = cnt;
+    D_700031E0[0] = cnt;
 }

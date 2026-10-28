@@ -1,8 +1,8 @@
 // NEARMISS func_001A0B10  (vram 0x001A0B10, 0x878 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 95.37% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 97.36% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation web permutation + list-scheduling residual (NEARMISS harvest; body and structure fully recovered; up from the sibling func_001A2AE0's 77.20% park on the same class): (1) pass-2 saved-reg webs rotated — target keeps function-scope j/cnt/p in s2/s3/s4 across BOTH passes and recy...
+// Remaining differences (matching wave 2026-10-27; up from 95.37%: pass-2 list pointer advanced as `*list++`, pass-2 inner counter is the function-scope j with i as the outer counter, re-clamps read the low bound straight from the scratchpad, pass-1 hit block reads the clamp operands before the kind-byte store): (1) pass-2 saved registers rotated (target: outer counter s2, cnt s3, p s4, found s5, inner counter s6); (2) pairwise scratch-register swaps (v0/v1, a0/a1) in the pass-1 entry load, the 0x1000 prim advance and the pass-2 uid lookup; (3) pass-1 loop-top delay slot filled from the head; (4) small scheduling order in the pass-1 hit block (the 0x700030CA read precedes the low-bound load in the target).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -187,11 +187,13 @@ int func_001A0B10(void)
                     }
                     *(void **)0x700031D4 = 0;
                     ret = 1;
-                    *(short *)0x700030CA = (short)((*(short *)0x700030CA & 0xFF00) |
-                        D_0024D7C0[D_00810700[0]][D_00810701[0]][off28 + 8]);
                     {
+                        int kb = D_0024D7C0[D_00810700[0]][D_00810701[0]][off28 + 8];
+                        short v = *(short *)0x700030CA;
                         float lo = *(float *)0x70003190;
                         float t = *(float *)0x700031A0;
+
+                        *(short *)0x700030CA = (short)((v & 0xFF00) | kb);
                         if (!(lo <= t)) {
                             hix = t;
                         } else {
@@ -199,18 +201,16 @@ int func_001A0B10(void)
                         }
                     }
                     {
-                        float lo = *(float *)0x70003194;
-                        float t = *(float *)0x700031A4;
-                        if (!(lo <= t)) {
+                        float t;
+                        if (!(*(float *)0x70003194 <= (t = *(float *)0x700031A4))) {
                             hiy = t;
                         } else {
                             loy = t;
                         }
                     }
                     {
-                        float lo = *(float *)0x70003198;
-                        float t = *(float *)0x700031A8;
-                        if (!(lo <= t)) {
+                        float t;
+                        if (!(*(float *)0x70003198 <= (t = *(float *)0x700031A8))) {
                             hiz = t;
                         } else {
                             loz = t;
@@ -224,8 +224,8 @@ int func_001A0B10(void)
     {
         unsigned char **list = D_00275B7C;
 
-        for (j = 0; j < D_00275B84; list++, j++) {
-            unsigned char *a = *list;
+        for (i = 0; i < D_00275B84; i++) {
+            unsigned char *a = *list++;
 
             if (a[0] == 0 || (a[2] & 0x1F) != 4 || *(unsigned char **)0x70003254 == a) {
                 continue;
@@ -258,11 +258,10 @@ int func_001A0B10(void)
                             (a[0x54] < 0x50)) {
                             int found = 0;
                             int hit = 0;
-                            int n;
 
                             cnt = hull + 0x18;
                             p = cnt + 4;
-                            for (n = 0; n < *(short *)cnt; n++) {
+                            for (j = 0; j < *(short *)cnt; j++) {
                                 int ptype = *(short *)p & 0xF000;
 
                                 switch (ptype) {
@@ -317,27 +316,24 @@ int func_001A0B10(void)
 
                             if (found != 0) {
                                 {
-                                    float lo = *(float *)0x70003190;
-                                    float t = *(float *)0x700031A0;
-                                    if (!(lo <= t)) {
+                                    float t;
+                                    if (!(*(float *)0x70003190 <= (t = *(float *)0x700031A0))) {
                                         hix = t;
                                     } else {
                                         lox = t;
                                     }
                                 }
                                 {
-                                    float lo = *(float *)0x70003194;
-                                    float t = *(float *)0x700031A4;
-                                    if (!(lo <= t)) {
+                                    float t;
+                                    if (!(*(float *)0x70003194 <= (t = *(float *)0x700031A4))) {
                                         hiy = t;
                                     } else {
                                         loy = t;
                                     }
                                 }
                                 {
-                                    float lo = *(float *)0x70003198;
-                                    float t = *(float *)0x700031A8;
-                                    if (!(lo <= t)) {
+                                    float t;
+                                    if (!(*(float *)0x70003198 <= (t = *(float *)0x700031A8))) {
                                         hiz = t;
                                     } else {
                                         loz = t;
