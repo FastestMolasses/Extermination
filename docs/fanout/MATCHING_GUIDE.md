@@ -656,3 +656,21 @@ reduction of the record stride), func_001DFA40 98.55 and func_001DF600 99.92
 (both matched in batch 32), func_001DF180 81.46, func_00101CD0 91.34 (libdma
 sceDmaPutEnv; a 100% spelling needs register reads into locals that are never
 read and is held back).
+
+### Queue batch 32 (2026-10-27)
+
+11 byte-matched. libdma (the matched SDK DMA family: a volatile DmaChan register
+block with CHCR as a ChcrBits bitfield, a `--count < 0` countdown, STR cleared
+through a temporary-copy loop, the final CHCR read into a ChcrBits local, its
+fields set in the original's order and written back once): func_00101F08,
+func_001020C8 (MOD = 2 interleave) and dma_kick (the old C had its MADR test
+backwards). Sound: func_00115850 and func_00115E50 (typed Voice/Event/Song/Tempo
+records; func_00117BA0 takes two arguments and returns int), func_00119C98 (the
+product reads back the just-stored field). The ripple twins func_001DFA40 and
+func_001DF600 (the X step in a named local assigned just before the conversions;
+the warp sum in its own temporary). Others: func_00226070 and its callee
+func_002267A0 (switches with cases -3/-2, -1, 0, default; the old C returned the
+wrong value in state 1 and changed a flag the original leaves alone),
+func_001AAD00 (each list publishes its count, then its cursor, in descending
+address order). Improved and parked: func_001F4A10 80.55 (the rest is VU0 macro
+code), func_001002E0 91.15, func_00108818 97.79.

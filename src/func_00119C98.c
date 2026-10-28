@@ -1,26 +1,41 @@
-// NEARMISS func_00119C98  (vram 0x00119C98, 0x6C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 65.19% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// ee-gcc reg-alloc/delay-slot wall. C reaches objdiff 96.3% (permuter best, score 100); body is instruction-for-instruction identical EXCEPT one trailing nop placement at the function tail: expected puts the +0x1C store directly before the return, with an empty return delay slot (27 instrs), while ee-gcc 2.9 -O2 adds an extra nop between the store and the return (28 instrs, +4 bytes ove...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern char D_0027E0C0[];
-extern unsigned short D_0027F77A;
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 65.19% NEARMISS).
+// Fixes read from the original instructions:
+//  - Typed records as in the byte-matched siblings: a 0x78-byte Seq record array
+//    for D_0027E0C0 (indexed directly) and the D_0027F740 Tempo struct with the
+//    tempo halfword at 0x3A, instead of byte offsets and a split symbol.
+//  - The +0x1C product reads the stored +0x54 field back (e->f54) rather than a
+//    hand-masked copy of the argument; ee-gcc forwards the stored value itself.
+//    The old "trailing nop" verdict was a measurement of the wrong body.
+//
+// Sets the tempo of sequence channel `ch` (< 48) when 0 <= tempo <= 0x3C0: stores
+// it at +0x54 and recomputes +0x1C = (f56 * f54 << 12) / tempo word / 60.
 
-void func_00119C98(unsigned int a0, int a1) {
-    char *e = D_0027E0C0 + a0 * 0x78;
+typedef struct {
+    unsigned char pad00[0x1C];
+    int f1C;
+    unsigned char pad20[0x54 - 0x20];
+    unsigned short f54;
+    unsigned short f56;
+    unsigned char pad58[0x78 - 0x58];
+} Seq;
 
-    if (a0 < 0x30 && a1 >= 0 && a1 < 0x3C1) {
-        *(short *)(e + 0x54) = (short)a1;
-        *(int *)(e + 0x1C) =
-            (int)((*(unsigned short *)(e + 0x56) * (a1 & 0xFFFF)) << 12)
-            / D_0027F77A / 0x3C;
+typedef struct {
+    unsigned char pad00[0x3A];
+    unsigned short f3A;
+} Tempo;
+
+extern Seq D_0027E0C0[48];
+extern Tempo D_0027F740;
+
+void func_00119C98(unsigned int ch, int tempo)
+{
+    Seq *e = &D_0027E0C0[ch];
+
+    if (ch < 48 && tempo >= 0 && tempo < 0x3C1) {
+        e->f54 = tempo;
+        e->f1C = ((e->f56 * e->f54) << 12) / D_0027F740.f3A / 60;
     }
 }

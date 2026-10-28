@@ -1,28 +1,17 @@
-// NEARMISS func_001DF600  (vram 0x001DF600, 0x3C4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.92% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful.
-// Matching wave 2026-10-27 (was 69.20%), spelling shared with its twin func_001DFA40: the row y
-// coordinate is a plain signed (x/15 + 0x790)*16 (the old C added a second sign term);
-// D_0026E870 is reached by absolute address (unsized array); the packet header uses the DMA
-// packet family spelling (cursor re-read per store); lo[] is filled before hi[]; the warp is
-// k = 1 - (su+sv)*fparg0 with the sum in its own step; the vertex cursor starts at blk+0x10 and
-// moves past the 0x20-byte GIF header between lo[] and hi[]; the grid rows are walked through
-// two row pointers set up after j = 0; each int coordinate goes through a float temporary.
-// Remaining differences: FP register colouring / operand order of the 546.13336f add before
-// the two float_to_int calls (two to four instructions).
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 4
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.92% NEARMISS). Fixes read from the original instructions:
+// - the row y coordinate is a plain signed (x/15 + 0x790)*16; the texture table is reached by absolute address (unsized array); the packet header uses the DMA packet family spelling (cursor re-read per store); lo[] is filled before hi[].
+// - the vertex cursor starts at blk+0x10 and moves past the 0x20-byte GIF header between the lo[] and hi[] fills; the grid rows are walked through two row pointers set up after j = 0; each int coordinate goes through a float temporary.
+// - the X step 546.13336f (8192/15) is a named local assigned inside the inner loop, which fixes the operand order of the two adds before float_to_int.
+// - the warp is k = 1 - (su+sv)*fparg0 with the sum in its own step.
 //
 // Builds a 16x16 grid of (u', v', 1.0) texture coordinates warped by a radial term
 // (k = 1 - (f(2u-1)^2 + f(2v-1)^2) * fparg0), then emits 15 GS strips of 16
 // vertex pairs (0x430-byte packets) through the per-context cursor D_00275670[arg0].slot[4],
 // with screen X stepping by 8192/15 and Y rows at (row*224/15 + 0x790)*16. Returns the
 // cursor value read on entry.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 4
 
 typedef unsigned __int128 u128;
 extern void func_001D6B60(int a0, int a1, int a2, int a3, void *a4);
@@ -53,6 +42,7 @@ int func_001DF600(int arg0, int arg1, long long arg2, float fparg0) {
     float k;
     float t;
     float x;
+    float step;
     char **slot;
     char *blk;
     char *vb;
@@ -112,10 +102,11 @@ int func_001DF600(int arg0, int arg1, long long arg2, float fparg0) {
             func_00102948(vb + 0x10, lo);
             func_00102948(vb + 0x20, q);
             func_00102948(vb + 0x30, hi);
+            step = 546.13336f;
             x = (float)lo[0];
-            lo[0] = float_to_int(x + 546.13336f);
+            lo[0] = float_to_int(x + step);
             x = (float)hi[0];
-            hi[0] = float_to_int(x + 546.13336f);
+            hi[0] = float_to_int(x + step);
             p += 4;
             q += 4;
             vb += 0x40;

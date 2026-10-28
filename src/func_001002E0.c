@@ -1,8 +1,12 @@
 // NEARMISS func_001002E0  (vram 0x001002E0, 0x270 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 65.22% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler + regalloc wall inside the four DISPLAY-building arms. Head is byte-identical: prologue with the five short sign-extends, func_00100268 call, disp[0]=0x66, the lh/lhu pair on mode[0], the 2/3/1 interlace-code selection and its single sd, and the whole DISPFB expression (andi/...
+// objdiff 91.15% via ee-gcc 2.9-991111-01 (-O2) (was 65.22%). Improved in the matching wave
+// 2026-10-27: typed GParam/DispEnv records, a block-local magh per arm, and the DISPLAY value
+// OR'ed in the order DX | DH | MAGH | DY | DW (that order alone moved the OR tree onto the
+// original's pairing). Remaining differences: register colouring only — the mode pointer and
+// mode[0] copy sit one argument register lower than the original's, and the non-interlaced
+// arms keep the (w + 2559) numerator in a different register, so the original's single shared
+// numerator in the field-test delay slot is emitted twice here (two extra instructions).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -12,109 +16,89 @@
 // CFLAGS: -O2
 
 //
-// SEMANTICS: build a GS display configuration block (Sony SDK "lowmem" region).
+// SEMANTICS: libgraph-style "set default display environment" (Sony SDK lowmem region):
+// fills a five-word GS display block from the current video mode.
 //
 // func_00100268() returns the current video-mode descriptor:
-//   mode[0] = field/interlace mode, mode[1] = tv standard (2 = NTSC, 3 = PAL),
-//   mode[2] = frame/field (FFMD).
+//   inter  = interlace mode, omode = tv standard (2 = NTSC, 3 = PAL), ffmode = frame/field.
 //
-// The five 64-bit words written to `disp` are:
-//   disp[0] = 0x66            (block id)
-//   disp[1] = interlace code  (2 = non-interlaced, 3 = FFMD frame, 1 = field)
-//   disp[2] = DISPFB value    (FBW bits 9..14, PSM bits 15..19)
-//   disp[3] = DISPLAY value   (DX 0..11, DY 12..22, MAGH 23..26,
-//                              DW 32..43, DH 44..54)
-//   disp[4] = 0
+// The five 64-bit words written to `disp`:
+//   pmode   = 0x66            (PMODE: EN2, CRTMD=1, MMOD, AMOD)
+//   smode2  = 2 non-interlaced, 3 interlaced FFMD, 1 interlaced field
+//   dispfb  = FBW ((w + 63) >> 6) at bit 9, PSM at bit 15
+//   display = DX 0..11, DY 12..22, MAGH 23..26, DW 32..43, DH 44..54
+//   bgcolor = 0
 //
-// DX/DY origins are the standard NTSC (0x27C / 0x32 / 0x19) and
-// PAL (0x290 / 0x48 / 0x24) display offsets.
+// MAGH is ceil(2560 / w); DX/DY origins are NTSC 636 / 50 (interlaced) / 25 and
+// PAL 656 / 72 (interlaced) / 36. An unknown tv standard prints D_0026AE80 and leaves
+// display untouched.
 //
 
-extern short *func_00100268(void);
-extern void func_00122B58();
+typedef struct {
+    short inter;
+    short omode;
+    short ffmode;
+} GParam;
+
+typedef struct {
+    unsigned long pmode;
+    unsigned long smode2;
+    unsigned long dispfb;
+    unsigned long display;
+    unsigned long bgcolor;
+} DispEnv;
+
+extern GParam *func_00100268(void);
+extern int func_00122B58(const char *fmt, ...);
 
 extern const char D_0026AE80[];
 
-void func_001002E0(long *disp, short psm, short width, short height, short x,
-                   short y) {
-    short *mode;
-    short m0;
-    unsigned short field;
-    int magh;
-    int mag;
-    long dx;
-    int dy;
-    int dw;
-    int dh;
+#define DISPLAY(dx, dy, magh, dw, dh)                                   \
+    ((unsigned long)(dx) | ((unsigned long)(dh) << 44) |                \
+     ((unsigned long)(magh) << 23) | ((unsigned long)(dy) << 12) |      \
+     ((unsigned long)(dw) << 32))
 
-    mode = func_00100268();
-    disp[0] = 0x66;
+void func_001002E0(DispEnv *disp, short psm, short w, short h, short dx, short dy)
+{
+    GParam *gp;
 
-    m0 = mode[0];
-    field = *(unsigned short *)mode;
-    if (m0 != 0) {
-        if (mode[2] != 0) {
-            disp[1] = 3;
+    gp = func_00100268();
+    disp->pmode = 0x66;
+    if (gp->inter) {
+        if (gp->ffmode) {
+            disp->smode2 = 3;
         } else {
-            disp[1] = 1;
+            disp->smode2 = 1;
         }
     } else {
-        disp[1] = 2;
+        disp->smode2 = 2;
     }
-
-    disp[2] = ((long)(psm & 0xF) << 15) | ((long)(((width + 63) >> 6) & 0x3F) << 9);
-
-    if (mode[1] == 2) {
-        if ((short)field == 1) {
-            magh = (width + 0x9FF) / width;
-            dy = (y + 0x32) & 0xFFF;
-            dx = ((long)(x * magh) + 0x27C) & 0xFFF;
-            dw = magh * width - 1;
-            mag = magh - 1;
-            if (mode[2] != 0) {
-                dh = height * 2 - 1;
-            } else {
-                dh = height - 1;
-            }
-            disp[3] = dx | ((long)dy << 12) | ((long)mag << 23) |
-                      ((long)dw << 32) | ((long)dh << 44);
+    disp->dispfb = ((unsigned long)(psm & 0xF) << 15) |
+                   ((unsigned long)(((w + 63) >> 6) & 0x3F) << 9);
+    if (gp->omode == 2) {
+        if (gp->inter == 1) {
+            int magh = (w + 2559) / w;
+            disp->display = DISPLAY((636 + dx * magh) & 0xFFF, (dy + 50) & 0xFFF,
+                                    magh - 1, magh * w - 1,
+                                    (gp->ffmode ? h * 2 : h) - 1);
         } else {
-            magh = (width + 0x9FF) / width;
-            dy = (y + 0x19) & 0xFFF;
-            dx = ((long)(x * magh) + 0x27C) & 0xFFF;
-            dw = magh * width - 1;
-            mag = magh - 1;
-            dh = height - 1;
-            disp[3] = dx | ((long)dy << 12) | ((long)mag << 23) |
-                      ((long)dw << 32) | ((long)dh << 44);
+            int magh = (w + 2559) / w;
+            disp->display = DISPLAY((636 + dx * magh) & 0xFFF, (dy + 25) & 0xFFF,
+                                    magh - 1, magh * w - 1, h - 1);
         }
-    } else if (mode[1] == 3) {
-        if ((short)field == 1) {
-            magh = (width + 0x9FF) / width;
-            dy = (y + 0x48) & 0xFFF;
-            dx = ((long)(x * magh) + 0x290) & 0xFFF;
-            dw = magh * width - 1;
-            mag = magh - 1;
-            if (mode[2] != 0) {
-                dh = height * 2 - 1;
-            } else {
-                dh = height - 1;
-            }
-            disp[3] = dx | ((long)dy << 12) | ((long)mag << 23) |
-                      ((long)dw << 32) | ((long)dh << 44);
+    } else if (gp->omode == 3) {
+        if (gp->inter == 1) {
+            int magh = (w + 2559) / w;
+            disp->display = DISPLAY((656 + dx * magh) & 0xFFF, (dy + 72) & 0xFFF,
+                                    magh - 1, magh * w - 1,
+                                    (gp->ffmode ? h * 2 : h) - 1);
         } else {
-            magh = (width + 0x9FF) / width;
-            dy = (y + 0x24) & 0xFFF;
-            dx = ((long)(x * magh) + 0x290) & 0xFFF;
-            dw = magh * width - 1;
-            mag = magh - 1;
-            dh = height - 1;
-            disp[3] = dx | ((long)dy << 12) | ((long)mag << 23) |
-                      ((long)dw << 32) | ((long)dh << 44);
+            int magh = (w + 2559) / w;
+            disp->display = DISPLAY((656 + dx * magh) & 0xFFF, (dy + 36) & 0xFFF,
+                                    magh - 1, magh * w - 1, h - 1);
         }
     } else {
         func_00122B58(D_0026AE80);
     }
-
-    disp[4] = 0;
+    disp->bgcolor = 0;
 }

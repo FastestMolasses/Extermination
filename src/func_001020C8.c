@@ -1,40 +1,76 @@
-// NEARMISS func_001020C8  (vram 0x001020C8, 0xE4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 62.98% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc dead-single-iteration-loop shape + regalloc wall: body decoded correctly (flag-poll loop calling func_00122B58, conditional store via forward bnel reproduced, final *p=(*p&~0xD)|0x109), but expected emits a one-iteration dead loop (bnez $v0 back-edge with $v0 const-0) that clean C collapses to straight-line; n...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 62.98% NEARMISS).
+// Fixes read from the original instructions:
+//  - Same shape as the byte-matched siblings func_001021B0 / func_00102530: the
+//    channel is a volatile register block (CHCR at +0, MADR at +0x10, QWC at +0x20),
+//    the countdown starts at 0x1000000 and is decremented before its test, and clearing
+//    STR goes through a temporary bitfield copy in a loop the compiler folds to "never
+//    repeats" (the one-iteration inner loop the old C could not produce).
+//  - The MADR test compares against (void *)-1; the final CHCR update is a bitfield
+//    record read before QWC is written, fields set MOD, DIR, STR, then written back once
+//    (the old C had the right mask/OR values but a plain word update).
+//
+// SDK DMA helper (interleave send, sceDmaSendI-shaped): wait for the channel to stop
+// (CHCR.STR clear) with a countdown of 0x1000000 polls; once it runs out each further
+// poll prints a diagnostic (func_00122B58, printf, on the string at D_0026B220) and,
+// if the channel is still running, clears STR. Then, unless MADR reads as -1, sets
+// MADR to `addr`; writes QWC = `qwc`; and starts the channel with MOD = 2
+// (interleave), DIR = 1 (from memory) and STR = 1.
 
-extern int D_FFFFFF;            /* absolute symbol = 0x00FFFFFF */
-extern unsigned char D_0026B220[];
+typedef struct {
+    unsigned DIR : 1;
+    unsigned p0 : 1;
+    unsigned MOD : 2;
+    unsigned ASP : 2;
+    unsigned TTE : 1;
+    unsigned TIE : 1;
+    unsigned STR : 1;
+    unsigned p1 : 7;
+    unsigned TAG : 16;
+} ChcrBits;
 
-extern void func_00122B58(unsigned char *);
+typedef struct {
+    ChcrBits chcr;
+    unsigned int p0[3];
+    void *madr;
+    unsigned int p1[3];
+    unsigned int qwc;
+} DmaChan;
 
-void func_001020C8(int *p, int a1, int a2) {
-    int i;
+extern void func_00122B58(int *p);
+extern int D_0026B220;
 
-    if (*p & 0x100) {
-        i = (int)&D_FFFFFF;
-        do {
-            if (i < 0) {
-                func_00122B58(D_0026B220);
-                if ((*p >> 8) & 1) {
-                    *p &= ~0x100;
-                }
+void func_001020C8(volatile DmaChan *d, void *addr, int qwc)
+{
+    int count = 0x1000000;
+    ChcrBits chcr;
+
+    while (*(volatile unsigned int *)&d->chcr & 0x100) {
+        if (--count < 0) {
+            func_00122B58(&D_0026B220);
+            chcr = d->chcr;
+            if (chcr.STR) {
+                ChcrBits t;
+                do {
+                    t = chcr;
+                    t.STR = 0;
+                    chcr = t;
+                } while (chcr.STR);
+                d->chcr = t;
             }
-            i--;
-        } while (*p & 0x100);
+        }
     }
 
-    if (*(int *)((char *)p + 0x10) != -1) {
-        *(int *)((char *)p + 0x10) = a1;
+    if (d->madr != (void *)-1)
+        d->madr = addr;
+    {
+        ChcrBits c = d->chcr;
+        d->qwc = qwc;
+        c.MOD = 2;
+        c.DIR = 1;
+        c.STR = 1;
+        d->chcr = c;
     }
-    *(int *)((char *)p + 0x20) = a2;
-    *p = (*p & ~0xD) | 0x109;
 }
