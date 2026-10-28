@@ -128,7 +128,7 @@ GPREL_FORCE_ASM = {
     # Additional 107 discovered in subsequent link (obj/ compiled with GP-relative):
     "func_00128C10",
     "func_00131740",
-    "func_001469B0",
+    # func_001469B0 removed (matching wave 2026-10-27): byte-matched from C.
     "func_00153770",
     "func_00158810",
     "func_00159B90",

@@ -241,3 +241,15 @@ arms were swapped), func_001181B0 (ee-gcc: table fields read as `T[i].f`,
 not through a cached element pointer). Improved and parked: func_001916C0
 99.31, sub_Invalid_macroblock_type_code_0 99.39, func_001EEEB0 98.88. The
 first of the 57 functions with no C file at all is now decompiled.
+
+### Queue batch 9 (2026-10-27)
+
+5 byte-matched: func_001C7C00 (each clamp branch stores all eight floats and
+returns itself; one global gp-relative, so -sdatathreshold 4),
+func_0019E640 (twin func_0019E280; `i == 2 || i == 3`), func_001469B0 (twins
+func_0014BB10 / func_001418F0: counter tests wrap the stores instead of an
+early return), func_00219870 (switch cases `break`; each branch writes its
+own effect fields; an unsized extern stays absolute), func_00151200 (per-slot
+`signed char[4]` arrays indexed by i). Improved and parked: func_0021AAC0
+99.89, func_001C3DB0 99.61, func_001373B0 99.06 (if/goto dispatch was a
+`switch`; state 1 had a wrong body).

@@ -1055,7 +1055,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00146110,func_00146110,916,readable,1,entity_logic
 0x001464B0,func_001464B0,648,readable,1,entity_logic
 0x00146740,func_00146740,620,readable,1,entity_logic
-0x001469B0,func_001469B0,320,nearmiss,2,entity_logic
+0x001469B0,func_001469B0,320,readable,2,entity_logic
 0x00146AF0,func_00146AF0,488,readable,1,entity_logic
 0x00146CE0,func_00146CE0,660,readable,2,entity_logic
 0x00146F80,func_00146F80,608,nearmiss,1,entity_logic
@@ -1129,7 +1129,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001509A0,func_001509A0,1024,readable,1,entity_logic
 0x00150DA0,func_00150DA0,408,word,1,entity_logic
 0x00150F40,func_00150F40,692,nearmiss,1,entity_logic
-0x00151200,func_00151200,424,nearmiss,1,entity_logic
+0x00151200,func_00151200,424,readable,1,entity_logic
 0x001513B0,func_001513B0,480,readable,2,entity_logic
 0x00151590,func_00151590,284,word,0,entity_logic
 0x001516B0,func_001516B0,188,readable,1,entity_logic
@@ -1620,7 +1620,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0019DB50,func_0019DB50,960,nearmiss,1,level_world
 0x0019DF10,func_0019DF10,880,nearmiss,1,level_world
 0x0019E280,func_0019E280,952,readable,1,level_world
-0x0019E640,func_0019E640,748,nearmiss,1,level_world
+0x0019E640,func_0019E640,748,readable,1,level_world
 0x0019E930,func_0019E930,1092,nearmiss,1,level_world
 0x0019ED80,func_0019ED80,1048,word,10,level_world
 0x0019F1A0,func_0019F1A0,388,nearmiss,11,level_world
@@ -2004,7 +2004,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001C6DA0,anim_eval_skeleton,1664,nearmiss,15,anim_runtime
 0x001C7420,func_001C7420,1248,nearmiss,12,anim_runtime
 0x001C7900,func_001C7900,760,nearmiss,4,anim_runtime
-0x001C7C00,func_001C7C00,676,nearmiss,1,anim_runtime
+0x001C7C00,func_001C7C00,676,readable,1,anim_runtime
 0x001C7EB0,func_001C7EB0,652,readable,0,anim_runtime
 0x001C8140,func_001C8140,124,readable,1,anim_runtime
 0x001C81C0,func_001C81C0,220,readable,2,anim_runtime
@@ -2800,7 +2800,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00218640,func_00218640,1860,readable,1,ui_screens
 0x00218D90,func_00218D90,1976,readable,1,ui_screens
 0x00219550,func_00219550,796,nearmiss,0,unknown_06
-0x00219870,func_00219870,1748,nearmiss,0,unknown_06
+0x00219870,func_00219870,1748,readable,0,unknown_06
 0x00219F50,func_00219F50,548,readable,1,unknown_06
 0x0021A180,func_0021A180,700,readable,1,unknown_06
 0x0021A440,func_0021A440,184,readable,1,unknown_06

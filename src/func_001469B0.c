@@ -1,24 +1,16 @@
-// NEARMISS func_001469B0  (vram 0x001469B0, 0x140 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 93.69% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Regalloc + scheduling permutation: control flow and all memory ops byte-structure identical (gp-rel/%hi-%lo split for the two globals matched). Residuals are (1) FP-temp coloring f1/f3 vs f4, (2) slt/slti result colored into $at vs target's $v1, (3) epilogue split where target fills a branch dela...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-
-// NEARMISS 97.6% (mwcc 991202) / 93.7% (mwcc 2.3.3). Logic + control flow
-// fully recovered and structurally identical (gp-rel access of D_002753F0
-// at threshold 4 with D_0081050C sized > threshold to stay %hi/%lo matches
-// the target). Residuals: FP-register coloring (f1/f3 vs f4 on the 0x5C/B0/B8
-// math), an slt/slti result colored into $at vs $v1, and an epilogue split
-// where the target fills a `b` delay slot with the first `lq` of the
-// restore. None is the clean-store nop -> 2.3.3 does not help. Permuter
-// (regalloc + scheduling) territory.
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 93.69% NEARMISS).
+// Fixes read from the original instructions and the byte-matched twins
+// func_0014BB10 / func_001418F0 (same timer/aim-query shape):
+// - the timer-running branch ends in an explicit `return;` (the original
+//   jumps to the epilogue from that block rather than sharing the tail);
+// - both counter tests are written as `if (c >= limit) { arm/clear }`
+//   wrapping the stores, not an early return on `c < limit`; that form lets
+//   the timer constant 0x12C be speculated into the preceding branch slots;
+// - the owner/entity pointers are plain `char *` as in the twins, and the
+//   aim context at arg0+0x14C is read as a byte pointer.
 //
 // Semantics: timer/state machine on the entity at arg1. If 0x64 (timer)
 // is running: while flag 0x7F set or height(0x5C) > 100, increment the
@@ -31,13 +23,13 @@
 
 extern float func_0011E620(float, float);
 extern float func_001B1470(float);
-extern int func_001B3F10(unsigned char *, float, float);
+extern int func_001B3F10(char *, float, float);
 extern unsigned char D_002753F0[4];
 extern unsigned char D_0081050C[8];
 
-void func_001469B0(unsigned char *arg0, unsigned char *arg1) {
+void func_001469B0(char *arg0, char *arg1) {
     unsigned char c;
-    float *v0;
+    char *v0;
 
     if (*(short *)(arg1 + 0x64) != 0) {
         if (*(char *)(arg1 + 0x7F) == 0 && *(float *)(arg1 + 0x5C) <= 100.0f) {
@@ -45,28 +37,30 @@ void func_001469B0(unsigned char *arg0, unsigned char *arg1) {
         } else {
             c = *(unsigned char *)(arg1 + 0x70) + 1;
             *(unsigned char *)(arg1 + 0x70) = c;
-            if ((c & 0xFF) >= 0xB4) {
+            if (c >= 0xB4) {
                 *(short *)(arg1 + 0x64) = 0;
                 *(char *)(arg1 + 0x70) = 0;
             }
         }
-    } else if (*(char *)(arg1 + 0x7F) == 0) {
+        return;
+    } else {
+        if (*(char *)(arg1 + 0x7F) == 0) {
         if (*(unsigned char *)(arg0 + 0xA) & 1) {
             *(short *)(arg1 + 0x64) = 0x12C;
             *(char *)(arg1 + 0x70) = 0;
         } else {
-            v0 = (float *)*(int *)(arg0 + 0x14C);
-            if (func_001B3F10(arg0, func_001B1470(func_0011E620(v0[0x2C], v0[0x2E]) - 1.5707964f), 18.0f) != 0) {
+            v0 = *(char **)(arg0 + 0x14C);
+            if (func_001B3F10(arg0, func_001B1470(func_0011E620(*(float *)(v0 + 0xB0), *(float *)(v0 + 0xB8)) - 1.5707964f), 18.0f) != 0) {
                 c = *(unsigned char *)(arg1 + 0x70) + 1;
                 *(unsigned char *)(arg1 + 0x70) = c;
-                if ((int)(c & 0xFF) < (int)D_002753F0[D_0081050C[0] & 3]) {
-                    return;
+                if (c >= D_002753F0[D_0081050C[0] & 3]) {
+                    *(short *)(arg1 + 0x64) = 0x12C;
+                    *(char *)(arg1 + 0x70) = 0;
                 }
-                *(short *)(arg1 + 0x64) = 0x12C;
-                *(char *)(arg1 + 0x70) = 0;
             } else {
                 *(char *)(arg1 + 0x70) = 0;
             }
+        }
         }
     }
 }

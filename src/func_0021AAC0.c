@@ -1,8 +1,8 @@
 // NEARMISS func_0021AAC0  (vram 0x0021AAC0, 0x3C4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.44% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Saved-register allocation ORDER permutation: mwcc233 colors arg0->0x24 field and `e`(=arg0+0x1F0) to s0/s1 while the target colors them s1/s2, and this single leading swap cascades ARG_MISMATCH (register-only, no opcode/immediate differences) through nearly the whole 964-byte function including t...
+// objdiff 99.89% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) (was 93.44%; matching wave 2026-10-27: case 0 is an explicit `case 0:` with case 1 ending in `break`, the emitter block at arg0+0x1F0 is a struct (6 vec4 slots, two float[6] tables, fade value, count, timer), `> 0x1E` / `> 0x78` compares, compound `+= 0.02f`, locals declared counter/index first, loop-2 increments ordered n, field, p, r). The LOGIC and STRUCTURE are faithful; the residual
+// diff is register colouring only:
+// Remaining differences: in the per-slot draw loop the slot counter and the vec4 slot pointer swap saved registers s3/s5 (6 instructions, register-only); declaration-order sweeps, for/while spellings, typed pointers, merging the two counters and a 540 s 2.3.3 permuter run did not fix it.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -13,7 +13,7 @@
 
 extern void copy_qw4(char *, char *);
 extern void func_001026A0(char *, char *, void *);
-extern void func_00102918(void *, void *, char *);
+extern void func_00102918(void *, void *, void *);
 extern void func_001028B8(char *, char *, char *);
 extern void func_001029C0(void *);
 extern void func_00102B08(void *, void *, float);
@@ -30,30 +30,41 @@ extern int D_002669C0;
 extern int D_00266A50;
 extern int D_700038A0;
 
-void func_0021AAC0(char *arg0) {
-    char *s1 = *(char **)(arg0 + 0x24);
-    unsigned char st = *(unsigned char *)(arg0 + 4);
-    char *e = arg0 + 0x1F0;
-    int i;
-    char *p;
-    int cnt;
-    int idx;
+typedef struct { float x, y, z, w; } V4;
+typedef struct {
+    V4 v[6];
+    float a[6];
+    float b[6];
+    float f90;
     int n;
-    char *q;
+    int t;
+} Emit;
+
+void func_0021AAC0(char *arg0) {
+    int i;
+    int idx;
+    char *s1;
+    Emit *e;
+    char *p;
+    int n;
     char *r;
+    unsigned char st;
+    int cnt;
+    char *q;
     char sp80[0x60];
 
+    s1 = *(char **)(arg0 + 0x24);
+    st = *(unsigned char *)(arg0 + 4);
+    e = (Emit *)(arg0 + 0x1F0);
+
     switch (st) {
-    default:
-        if (st != 0) {
-            return;
-        }
+    case 0:
         i = 0;
-        p = e;
+        p = (char *)e;
         do {
-            i += 1;
             *(float *)(p + 0x78) = (float) func_00122BB8() / 2.1474836e9f;
             *(int *)(p + 0x60) = 0;
+            i += 1;
             p += 4;
         } while (i < 6);
         *(int *)0x700038A0 = 0;
@@ -62,30 +73,30 @@ void func_0021AAC0(char *arg0) {
         *(int *)0x700038AC = 0x3F800000;
         copy_qw4(arg0 + 0xD0, s1 + 0xD0);
         func_001026A0(arg0 + 0xB0, arg0 + 0xD0, &D_700038A0);
-        *(int *)(e + 0x98) = 0;
-        *(int *)(e + 0x94) = 0;
-        *(float *)(e + 0x90) = 0.0f;
+        e->t = 0;
+        e->n = 0;
+        e->f90 = 0.0f;
         *(unsigned char *)(arg0 + 4) = 1;
     case 1:
-        *(int *)(e + 0x98) = *(int *)(e + 0x98) + 1;
-        cnt = *(int *)(e + 0x98);
-        if (cnt >= 0x1F) {
+        e->t = e->t + 1;
+        cnt = e->t;
+        if (cnt > 0x1E) {
             if ((cnt % 6) == 1) {
-                if (*(int *)(e + 0x94) < 6) {
-                    *(int *)(e + *(int *)(e + 0x94) * 0x10) = 0;
-                    *(float *)(e + *(int *)(e + 0x94) * 0x10 + 4) = *(float *)(e + 0x90);
-                    *(int *)(e + *(int *)(e + 0x94) * 0x10 + 8) = 0;
-                    *(int *)(e + *(int *)(e + 0x94) * 0x10 + 0xC) = 0x3F800000;
-                    q = e + *(int *)(e + 0x94) * 0x10;
+                if (e->n < 6) {
+                    e->v[e->n].x = 0.0f;
+                    e->v[e->n].y = e->f90;
+                    e->v[e->n].z = 0.0f;
+                    e->v[e->n].w = 1.0f;
+                    q = (char *)&e->v[e->n];
                     func_001028B8(q, q, arg0 + 0xB0);
-                    *(float *)(e + 0x90) = *(float *)(e + 0x90) - 8.0f;
-                    *(int *)(e + 0x94) = *(int *)(e + 0x94) + 1;
+                    e->f90 = e->f90 - 8.0f;
+                    e->n = e->n + 1;
                 }
             }
             n = 0;
-            p = e;
-            r = e;
-            while (n < *(int *)(e + 0x94)) {
+            p = (char *)e;
+            r = (char *)e;
+            while (n < e->n) {
                 func_001029C0(&D_700036A0);
                 func_00102B08(&D_700036A0, &D_700036A0, 1.5707964f);
                 func_00102918(&D_700036A0, &D_700036A0, p);
@@ -93,13 +104,13 @@ void func_0021AAC0(char *arg0) {
                 func_001CFA60(sp80, &D_700036A0, *(float *)(r + 0x60), *(float *)(r + 0x78));
                 func_001CFBE0(idx, 2, &D_002669C0, sp80, 0);
                 func_001CFBE0(idx, 1, &D_00266A50, sp80, 0);
-                p += 0x10;
                 n += 1;
-                *(float *)(r + 0x60) = *(float *)(r + 0x60) + 0.02f;
+                *(float *)(r + 0x60) += 0.02f;
+                p += 0x10;
                 r += 4;
             }
         }
-        if ((*(int *)(e + 0x98) < 0x3C) && ((*(int *)(e + 0x98) % 10) == 1)) {
+        if ((e->t < 0x3C) && ((e->t % 10) == 1)) {
             func_001029C0(&D_700036A0);
             func_00102B08(&D_700036A0, &D_700036A0, 1.5707964f);
             func_00102918(&D_700036A0, &D_700036A0, arg0 + 0xB0);
@@ -111,14 +122,13 @@ void func_0021AAC0(char *arg0) {
                 *(int *)(q + 0x1F8) = 0x3F000000;
             }
         }
-        if (*(int *)(e + 0x98) == 0x3C) {
+        if (e->t == 0x3C) {
             *(char *)(s1 + 4) = 3;
         }
-        if (*(int *)(e + 0x98) >= 0x79) {
+        if (e->t > 0x78) {
             *(unsigned char *)(arg0 + 4) = 3;
-            return;
         }
-        return;
+        break;
     case 2:
     case 3:
         func_001AFC10(arg0);

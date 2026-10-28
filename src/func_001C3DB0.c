@@ -1,8 +1,8 @@
 // NEARMISS func_001C3DB0  (vram 0x001C3DB0, 0x2FC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 93.46% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// fp-register-coloring + list-scheduler-interleave: body/structure fully recovered (cross-product-magnitude + dot-product angle-between-vectors computation feeding a quaternion-style blend via func_001026D0). Residual is the mwcc list-scheduler interleaving the D_70003400 struct-copy loads/stores 1...
+// objdiff 99.61% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
+// diff is a scheduling/colouring artifact no source change tried here fixes (matching wave 2026-10-27: was 93.46%):
+// Remaining differences: in the 3x3 block copy into D_70003400 the original loads all six scratchpad values in source order into $f5..$f0 before the stores; mwcc 2.3.3 here sinks the load feeding the first store (0x700038A0) to just before that store and colours the six values differently (~9 instructions). The block must read the six values into locals first (the original hoists them above the stores); the |cross|^2 sum reads 0x700038B0 through one pointer. Tried: declaration/load orders, store orders, arrays, Vec3 structs, outer-scope locals, other compilers, 600 s permuter (no honest gain).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -63,15 +63,24 @@ void func_001C3DB0(char *arg0, char *arg1, float *arg2, float *arg3) {
     func_00102760(D_70003630, D_70003600);
     func_001029C0(D_70003400);
 
-    *(float *)0x70003400 = *(float *)0x700038A0;
-    *(float *)0x70003404 = *(float *)0x700038A4;
-    *(float *)0x70003408 = *(float *)0x700038A8;
-    *(float *)0x70003410 = *(float *)(arg0 + 0);
-    *(float *)0x70003414 = *(float *)(arg0 + 4);
-    *(float *)0x70003418 = *(float *)(arg0 + 8);
-    *(float *)0x70003420 = *(float *)0x70003630;
-    *(float *)0x70003424 = *(float *)0x70003634;
-    *(float *)0x70003428 = *(float *)0x70003638;
+    {
+        float b0 = *(float *)0x700038A0;
+        float d0 = *(float *)0x70003630;
+        float b1 = *(float *)0x700038A4;
+        float d1 = *(float *)0x70003634;
+        float b2 = *(float *)0x700038A8;
+        float d2 = *(float *)0x70003638;
+
+        *(float *)0x70003400 = b0;
+        *(float *)0x70003404 = b1;
+        *(float *)0x70003408 = b2;
+        *(float *)0x70003410 = *(float *)(arg0 + 0);
+        *(float *)0x70003414 = *(float *)(arg0 + 4);
+        *(float *)0x70003418 = *(float *)(arg0 + 8);
+        *(float *)0x70003420 = d0;
+        *(float *)0x70003424 = d1;
+        *(float *)0x70003428 = d2;
+    }
 
     func_00102798(D_70003440, D_70003400);
 
@@ -87,10 +96,8 @@ void func_001C3DB0(char *arg0, char *arg1, float *arg2, float *arg3) {
         func_00102718(D_700038B0, arg0, arg1);
 
         {
-            float sx = *(float *)0x700038B0;
-            float sy = *(float *)0x700038B4;
-            float sz = *(float *)0x700038B8;
-            float len2 = sx * sx + sy * sy + sz * sz;
+            float *s = (float *)0x700038B0;
+            float len2 = s[0] * s[0] + s[1] * s[1] + s[2] * s[2];
 
             ang = func_0011E620(func_0011E748(len2), dot);
         }

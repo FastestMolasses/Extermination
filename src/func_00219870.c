@@ -1,20 +1,28 @@
-// NEARMISS func_00219870  (vram 0x00219870, 0x6D4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 93.43% (92.08% before the 2026-09-28 correction) via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure fully recovered and byte-identical up to a register-allocation-order permutation: mwcc233 colors the state-byte load into a0 (my object emits it into a1 like the target expects the OPPOSITE arg live at that point) and a handful of downstream a0/a1/v0/v1 uses follow suit; this casca...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// Corrected 2026-09-28 against the original instructions (round-7 A06T/A06ASSETS
-// lanes): state 0 passes the node itself to func_001B0FD0 and state 3 passes it to
-// func_001AFC10 (the state byte is loaded into another register; the node's
-// register is never rewritten before either call). The old C passed the state byte.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x70003B88
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 93.43% NEARMISS).
+// Fixes read from the original instructions:
+// - Every case of both switches ends in `break` (the original leaves its
+//   conditional-branch delay slots empty); the function returns after the switch.
+// - D_008102C8 is addressed absolutely (an unsized array of pointers), not gp-relative.
+// - The pulse word at 0x70003B88 is a relocated scratchpad
+//   extern (idiom-32) that is re-read after each store instead of a cached local.
+// - Sub-state 0 and sub-state 1 each write their own copy of the four effect fields
+//   (both arms of the bit-3 test too) instead of sharing a tail through a label.
+// - The flags word at sub+0xD4 is addressed through a pointer formed before the
+//   threshold test; in state 2 the arg0+0x2CC object pointer is re-read through
+//   (arg0 + 0x1F0) + 0xDC, formed before the null test.
+// - The three camera offsets are compound additions; the 6.0 * count limit converts
+//   the count into its own float local.
+//
+// State machine for a scripted object (state byte at +4): state 0 waits for
+// func_001B0FD0 and initialises; state 1 runs the sub-state 0/1 approach and pulse
+// animation, the optional camera drift and the per-frame callback; state 2 spawns
+// effects until the count limit; state 3 hands off to func_001AFC10. Corrected
+// 2026-09-28: state 0 passes the node itself to func_001B0FD0 and state 3 passes it
+// to func_001AFC10.
 
 extern int func_001026A0(float *a, void *b, float *c);
 extern float func_00102738(float *a, float *b);
@@ -38,7 +46,8 @@ extern void func_00219F50(char *arg0);
 extern void func_0021A180(char *arg0);
 extern void func_0021A440(char *arg0, void *arg1);
 extern int D_00275B40;
-extern unsigned char *D_008102C8;
+extern short D_70003B88[];
+extern unsigned char *D_008102C8[];
 extern float D_700038A0[4];
 extern float D_700038B0[4];
 extern char D_00810360[8];
@@ -66,10 +75,10 @@ void func_00219870(char *arg0) {
                 *(short *)(arg0 + 0x28) = 0;
                 *(unsigned char *)(arg0 + 5) = 2;
                 func_0021A440(arg0, sub);
-                return;
+                break;
             }
         }
-        return;
+        break;
 
     case 1: {
         unsigned char sub_state;
@@ -77,7 +86,7 @@ void func_00219870(char *arg0) {
         sub_state = *(unsigned char *)(arg0 + 5);
         switch (sub_state) {
         case 0:
-            if ((*D_008102C8) != 1 && func_0019AA80(sub, sub + 0x10, 0x40) != 0) {
+            if ((*D_008102C8[0]) != 1 && func_0019AA80(sub, sub + 0x10, 0x40) != 0) {
                 func_001FBD50(arg0, 0x429, 0, 300.0f);
                 *(unsigned char *)(arg0 + 0) = 2;
                 *(short *)(arg0 + 0x28) = 0;
@@ -110,65 +119,62 @@ void func_00219870(char *arg0) {
                 func_001028B8(D_700038A0, sub, D_700038A0);
                 func_0021A440(arg0, D_700038A0);
             }
-            {
-                short v = *(short *)(arg0 + 0x2A) & 0x7F;
-                *(short *)0x70003B88 = v;
-                if (v >= 0x40) {
-                    *(short *)0x70003B88 = 0x7F - v;
-                }
+            D_70003B88[0] = *(short *)(arg0 + 0x2A) & 0x7F;
+            if (D_70003B88[0] > 0x3F) {
+                D_70003B88[0] = 0x7F - D_70003B88[0];
             }
-            {
-                float f = (*(short *)0x70003B88 * 2) / 128.0f;
-                *(float *)0x70003A20 = f;
-                *(float *)(*(char **)(arg0 + 0x2CC) + 0xA0) = f;
-            }
+            *(float *)0x70003A20 = (D_70003B88[0] * 2) / 128.0f;
+            *(float *)(*(char **)(arg0 + 0x2CC) + 0xA0) = *(float *)0x70003A20;
             *(int *)(*(char **)(arg0 + 0x2CC) + 0xA4) = 0;
             *(int *)(*(char **)(arg0 + 0x2CC) + 0xA8) = 0;
-        block_25:
             *(float *)(*(char **)(arg0 + 0x2CC) + 0xAC) = 0.25f;
             break;
-        case 1:
+        case 1: {
+            int *q;
             *(short *)(arg0 + 0x28) = *(short *)(arg0 + 0x28) + 1;
+            q = (int *)(sub + 0xD4);
             if (*(short *)(arg0 + 0x28) >= (*(int *)(arg0 + 0x2C4) + 0xA) >> 2) {
                 func_001FBD50(arg0, 0x42B, 0, 300.0f);
                 if (*(unsigned char *)(arg0 + 0) == 2) {
                     *(short *)(arg0 + 0x2A) = 0;
                     *(short *)(arg0 + 0x28) = 0;
-                    {
-                        char *q = sub + 0xD4;
-                        *(int *)q = *(int *)q >> 2;
-                    }
+                    *q = *q >> 2;
                     *(unsigned char *)(arg0 + 4) = 2;
                 }
             }
             if (*(short *)(arg0 + 0x2A) & 8) {
                 *(float *)(*(char **)(arg0 + 0x2CC) + 0xA0) = 1.0f;
+                *(int *)(*(char **)(arg0 + 0x2CC) + 0xA4) = 0;
+                *(int *)(*(char **)(arg0 + 0x2CC) + 0xA8) = 0;
+                *(float *)(*(char **)(arg0 + 0x2CC) + 0xAC) = 0.25f;
             } else {
                 *(float *)(*(char **)(arg0 + 0x2CC) + 0xA0) = 0.0f;
+                *(int *)(*(char **)(arg0 + 0x2CC) + 0xA4) = 0;
+                *(int *)(*(char **)(arg0 + 0x2CC) + 0xA8) = 0;
+                *(float *)(*(char **)(arg0 + 0x2CC) + 0xAC) = 0.25f;
             }
-            *(int *)(*(char **)(arg0 + 0x2CC) + 0xA4) = 0;
-            *(int *)(*(char **)(arg0 + 0x2CC) + 0xA8) = 0;
-            goto block_25;
+            break;
+        }
         }
         if (*(int *)(arg0 + 0x2D8) != 0) {
             char *p;
-            *(float *)(arg0 + 0x2E8) = *(float *)(arg0 + 0x2E8) + -0.015f;
+            *(float *)(arg0 + 0x2E8) += -0.015f;
             p = *(char **)(D_00275B40 + 4);
-            *(float *)(p + 0xC0) = *(float *)(arg0 + 0x2E4) + *(float *)(p + 0xC0);
+            *(float *)(p + 0xC0) += *(float *)(arg0 + 0x2E4);
             p = *(char **)(D_00275B40 + 4);
-            *(float *)(p + 0xC4) = *(float *)(arg0 + 0x2E8) + *(float *)(p + 0xC4);
+            *(float *)(p + 0xC4) = *(float *)(p + 0xC4) + *(float *)(arg0 + 0x2E8);
             p = *(char **)(D_00275B40 + 4);
-            *(float *)(p + 0xC8) = *(float *)(arg0 + 0x2E0) + *(float *)(p + 0xC8);
+            *(float *)(p + 0xC8) += *(float *)(arg0 + 0x2E0);
         }
         *(unsigned char *)(arg0 + 1) = func_001B1630(*(float *)(arg0 + 0xB0), *(float *)(arg0 + 0xB4), *(float *)(arg0 + 0xB8));
         if (*(unsigned char *)(arg0 + 1) != 0) {
-            if ((int)*(unsigned char *)(arg0 + 5) < 2 && (*D_008102C8) == 1) {
+            if ((int)*(unsigned char *)(arg0 + 5) < 2 && (*D_008102C8[0]) == 1) {
                 func_001B1B70(arg0);
             }
             (*(void (**)(char *))(arg0 + 0x4C))(arg0);
         }
         func_0021A180(arg0);
-        return;
+        break;
     }
 
     case 2: {
@@ -190,14 +196,20 @@ void func_00219870(char *arg0) {
             func_001EFD20(0x8000006D, D_700038A0);
             *(short *)(arg0 + 0x2A) = *(short *)(arg0 + 0x2A) + 1;
         }
+        {
+        float fc;
         cnt = *(short *)(arg0 + 0x2A);
-        if (*(float *)(arg0 + 0x2C8) < 6.0f * (float) cnt || cnt == 8) {
+        fc = (float) cnt;
+        if (*(float *)(arg0 + 0x2C8) < 6.0f * fc || cnt == 8) {
+            char **pp;
             *(unsigned char *)(arg0 + 4) = 3;
+            pp = (char **)((int)(arg0 + 0x1F0) + 0xDC);
             if (*(char **)(arg0 + 0x2CC) != 0) {
                 func_001B1190(*(unsigned char *)(arg0 + 0x9A));
-                *(char *)(*(char **)(sub + 0xDC) + 4) = 3;
-                return;
+                *(char *)(*pp + 4) = 3;
+                break;
             }
+        }
         }
         break;
     }

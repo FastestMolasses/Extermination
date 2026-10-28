@@ -1,3 +1,9 @@
+## 2026-10-27 — matching wave, queue batch 9: 5 more byte-matched (2003 C routes)
+
+See MATCHING_GUIDE "Queue batch 9". Gate: fresh build + verify_all all six
+stages pass, boot ELF byte-identical, 19/19 overlays, matched_code 99.97%,
+2502/2504 units; audit_link_provenance clean (2003 ordinary-C routes).
+
 ## 2026-10-27 — matching wave, queue batch 8: 5 more byte-matched (one new file)
 
 See MATCHING_GUIDE "Queue batch 8". src/func_00111740.c is new (it had no C
