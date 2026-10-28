@@ -1,272 +1,135 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00102738(int, int, int, int);
-extern void func_001028B8(int, int, int, int);
-extern void func_001028D0(int, int, int, int);
-extern void func_00103230(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700031FC 0x70003200 0x70003204
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a readable companion of an
+// asm body, 99.92%). Fixes read from the original instructions:
+//  - the pool bases are added as unsigned addresses with the pool first
+//    ((unsigned int)pool + node offset) for both the edge-normal and the vertex-index
+//    pools; with the node offset first (or an int cast) the two loads swapped registers.
+extern float *D_700031FC;
+extern char *D_70003200;
+extern char *D_70003204;
 
-asm void func_0019ED80(void) {
-    .word 0x27bdff00
-    .word 0x7fbf0080
-    .word 0x7fb60070
-    .word 0x7fb50060
-    .word 0x7fb40050
-    .word 0x7fb30040
-    .word 0x7fb20030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0x70a09e28
-    .word 0xe7b50004
-    .word 0x27a50090
-    .word 0x27a600a0
-    .word 0xe7b40000
-    .word 0x7080a628
-    .word 0x70001e28
-    .word 0xc4800000
-    .word 0x24630001
-    .word 0x28620003
-    .word 0xe4a00000
-    .word 0xc4800010
-    .word 0x24a50004
-    .word 0xe4c00000
-    .word 0x24840004
-    .word 0x1440fff7
-    .word 0x24c60004
-    .word 0x27a400e0
-    .word 0x27a500a0
-    .word 0x27a60090
-    .word 0xafa0009c
-    jal       func_001028D0
-    .word 0xafa000ac
-    .word 0x27a400f0
-    .word 0x70002e28
-    .word 0x72601e28
-    .word 0xc4600024
-    .word 0x24a50001
-    .word 0x28a20003
-    .word 0xe4800000
-    .word 0x24630004
-    .word 0x1440fffa
-    .word 0x24840004
-    .word 0xafa000fc
-    .word 0xc6740030
-    .word 0x27a400e0
-    jal       func_00102738
-    .word 0x27a500f0
-    .word 0x3c02b727
-    .word 0x46000546
-    .word 0x3442c5ac
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x4600a836
-    .word 0x00000000
-    .word 0x45010004
-    .word 0x27a400f0
-    .word 0x100000c1
-    .word 0x70001628
-    .word 0x27a400f0
-    jal       func_00102738
-    .word 0x27a50090
-    .word 0x4600a001
-    .word 0x27a400b0
-    .word 0x27a500e0
-    .word 0x46150303
-    .word 0x00000000
-    .word 0x00000000
-    jal       func_00103230
-    .word 0x00000000
-    .word 0x27a400b0
-    .word 0x27a50090
-    jal       func_001028B8
-    .word 0x70803628
-    .word 0xc7a00090
-    .word 0xc7a200a0
-    .word 0x46020036
-    .word 0x00000000
-    .word 0x4501000e
-    .word 0x00000000
-    .word 0xc7a100b0
-    .word 0x46010034
-    .word 0x00000000
-    .word 0x45000003
-    .word 0x00000000
-    .word 0x100000a5
-    .word 0x70001628
-    .word 0x46011036
-    .word 0x00000000
-    .word 0x45010010
-    .word 0x00000000
-    .word 0x1000009f
-    .word 0x70001628
-    .word 0xc7a100b0
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x45010003
-    .word 0x00000000
-    .word 0x10000098
-    .word 0x70001628
-    .word 0x46011034
-    .word 0x00000000
-    .word 0x45000003
-    .word 0x00000000
-    .word 0x10000092
-    .word 0x70001628
-    .word 0xc7a00094
-    .word 0xc7a200a4
-    .word 0x46020036
-    .word 0x00000000
-    .word 0x4501000e
-    .word 0x00000000
-    .word 0xc7a100b4
-    .word 0x46010034
-    .word 0x00000000
-    .word 0x45000003
-    .word 0x00000000
-    .word 0x10000085
-    .word 0x70001628
-    .word 0x46011036
-    .word 0x00000000
-    .word 0x45010010
-    .word 0x00000000
-    .word 0x1000007f
-    .word 0x70001628
-    .word 0xc7a100b4
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x45010003
-    .word 0x00000000
-    .word 0x10000078
-    .word 0x70001628
-    .word 0x46011034
-    .word 0x00000000
-    .word 0x45000003
-    .word 0x00000000
-    .word 0x10000072
-    .word 0x70001628
-    .word 0xc7a00098
-    .word 0xc7a200a8
-    .word 0x46020036
-    .word 0x00000000
-    .word 0x4501000e
-    .word 0x00000000
-    .word 0xc7a100b8
-    .word 0x46010034
-    .word 0x00000000
-    .word 0x45000003
-    .word 0x00000000
-    .word 0x10000065
-    .word 0x70001628
-    .word 0x46011036
-    .word 0x00000000
-    .word 0x45010010
-    .word 0x00000000
-    .word 0x1000005f
-    .word 0x70001628
-    .word 0xc7a100b8
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x45010003
-    .word 0x00000000
-    .word 0x10000058
-    .word 0x70001628
-    .word 0x46011034
-    .word 0x00000000
-    .word 0x45000003
-    .word 0x00000000
-    .word 0x10000052
-    .word 0x70001628
-    .word 0x3c017000
-    .word 0x8c243200
-    .word 0x8e650020
-    .word 0x8e63001c
-    .word 0x70009628
-    .word 0x3c017000
-    .word 0x8c223204
-    .word 0x0085b021
-    .word 0xafa000dc
-    .word 0xafa000cc
-    .word 0xafa000bc
-    .word 0x10000035
-    .word 0x0043a821
-    .word 0x86a60000
-    .word 0x3c017000
-    .word 0x8c2231fc
-    .word 0x27b000d4
-    .word 0x27b100d8
-    .word 0x00061840
-    .word 0x00661821
-    .word 0x00031880
-    .word 0x00431821
-    .word 0xc4600000
-    .word 0x27a400c0
-    .word 0x27a500b0
-    .word 0x27a600d0
-    .word 0xe7a000d0
-    .word 0x86a70000
-    .word 0x00071840
-    .word 0x00671821
-    .word 0x00031880
-    .word 0x00431821
-    .word 0xc4600004
-    .word 0xe6000000
-    .word 0x86a70000
-    .word 0x00071840
-    .word 0x00671821
-    .word 0x00031880
-    .word 0x00431021
-    .word 0xc4400008
-    jal       func_001028D0
-    .word 0xe6200000
-    .word 0xc6c00000
-    .word 0x27a400c0
-    .word 0x27a500d0
-    .word 0xe7a000d0
-    .word 0xc6c00004
-    .word 0xe6000000
-    .word 0xc6c00008
-    jal       func_00102738
-    .word 0xe6200000
-    .word 0x3c023727
-    .word 0x3442c5ac
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x46010036
-    .word 0x00000000
-    .word 0x45030004
-    .word 0x26b50002
-    .word 0x10000015
-    .word 0x70001628
-    .word 0x26b50002
-    .word 0x26d6000c
-    .word 0x26520001
-    .word 0x00000000
-    .word 0x92620018
-    .word 0x0242102a
-    .word 0x1440ffc9
-    .word 0x00000000
-    .word 0x27a300b0
-    .word 0x70002e28
-    .word 0x72802628
-    .word 0xc4600000
-    .word 0x24a50001
-    .word 0x28a20003
-    .word 0xe4800020
-    .word 0x24630004
-    .word 0x1440fffa
-    .word 0x24840004
-    .word 0x24020001
-    .word 0xae930040
-    .word 0x7bbf0080
-    .word 0x7bb60070
-    .word 0x7bb50060
-    .word 0x7bb40050
-    .word 0x7bb30040
-    .word 0x7bb20030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    .word 0xc7b50004
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0100
+// Grid collision node test (port COLL_GRID_HULL.md / em_coll_probe_original:
+// em_coll_probe_0019ED80). s is the probe state (start +0x00, end +0x10, hit
+// point +0x20, hit node +0x40; the scratchpad block at 0x70003190). The
+// segment must approach the node's plane (normal +0x24, distance +0x30) from
+// the front: dir.n <= -1e-5. The crossing hit = start + dir * t,
+// t = (d - n.start) / (dir.n), must lie within the segment's span on every
+// axis and inside the node's polygon (for each of its +0x18 vertices, the
+// hit relative to the vertex dotted with the edge normal <= 1e-5; pools as in
+// func_0019F330). A hit stores the point and the node and returns 1;
+// otherwise 0. The vector helpers are the SDK VU0 routines (func_001028D0
+// subtract, func_001028B8 add, func_00102738 dot, func_00103230 scale).
+typedef struct V4 {
+    float v[3];
+    int w;
+} V4;
+
+extern void func_001028D0(V4 *dst, V4 *a, V4 *b);
+extern void func_001028B8(V4 *dst, V4 *a, V4 *b);
+extern float func_00102738(V4 *a, V4 *b);
+extern void func_00103230(V4 *dst, V4 *v, float t);
+
+int func_0019ED80(float *s, char *node) {
+    V4 qa;
+    V4 qb;
+    V4 hit;
+    V4 rel;
+    V4 v;
+    V4 dir;
+    V4 n;
+    float d;
+    float along;
+    short *idx;
+    float *e;
+    int i;
+
+    for (i = 0; i < 3; i++) {
+        qa.v[i] = s[i];
+        qb.v[i] = s[i + 4];
+    }
+    qa.w = 0;
+    qb.w = 0;
+    func_001028D0(&dir, &qb, &qa);
+    for (i = 0; i < 3; i++) {
+        n.v[i] = *(float *)(node + 0x24 + i * 4);
+    }
+    n.w = 0;
+    d = *(float *)(node + 0x30);
+    along = func_00102738(&dir, &n);
+    if (!(along <= -1e-5f)) {
+        return 0;
+    }
+    func_00103230(&hit, &dir, (d - func_00102738(&n, &qa)) / along);
+    func_001028B8(&hit, &qa, &hit);
+    if (!(qa.v[0] <= qb.v[0])) {
+        if (qa.v[0] < hit.v[0]) {
+            return 0;
+        }
+        if (!(qb.v[0] <= hit.v[0])) {
+            return 0;
+        }
+    } else {
+        if (!(qa.v[0] <= hit.v[0])) {
+            return 0;
+        }
+        if (qb.v[0] < hit.v[0]) {
+            return 0;
+        }
+    }
+    if (!(qa.v[1] <= qb.v[1])) {
+        if (qa.v[1] < hit.v[1]) {
+            return 0;
+        }
+        if (!(qb.v[1] <= hit.v[1])) {
+            return 0;
+        }
+    } else {
+        if (!(qa.v[1] <= hit.v[1])) {
+            return 0;
+        }
+        if (qb.v[1] < hit.v[1]) {
+            return 0;
+        }
+    }
+    if (!(qa.v[2] <= qb.v[2])) {
+        if (qa.v[2] < hit.v[2]) {
+            return 0;
+        }
+        if (!(qb.v[2] <= hit.v[2])) {
+            return 0;
+        }
+    } else {
+        if (!(qa.v[2] <= hit.v[2])) {
+            return 0;
+        }
+        if (qb.v[2] < hit.v[2]) {
+            return 0;
+        }
+    }
+    e = (float *)((unsigned int)D_70003200 + *(int *)(node + 0x20));
+    idx = (short *)((unsigned int)D_70003204 + *(int *)(node + 0x1C));
+    v.w = 0;
+    rel.w = 0;
+    hit.w = 0;
+    for (i = 0; i < *(unsigned char *)(node + 0x18); i++) {
+        v.v[0] = D_700031FC[*idx * 3 + 0];
+        v.v[1] = D_700031FC[*idx * 3 + 1];
+        v.v[2] = D_700031FC[*idx * 3 + 2];
+        func_001028D0(&rel, &hit, &v);
+        v.v[0] = e[0];
+        v.v[1] = e[1];
+        v.v[2] = e[2];
+        if (!(func_00102738(&rel, &v) <= 1e-5f)) {
+            return 0;
+        }
+        idx++;
+        e += 3;
+    }
+    for (i = 0; i < 3; i++) {
+        s[i + 8] = hit.v[i];
+    }
+    *(char **)(s + 0x10) = node;
+    return 1;
 }
-
-// Readable C (NEARMISS companion, objdiff 96.20%): src/readable/func_0019ED80.c

@@ -1,123 +1,79 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001232E0(int, int, int, int);
-extern void func_001CBC20(int, int, int, int);
-extern void func_001CC8A0(int, int, int, int);
-extern void func_001CCB00(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_001CBA50(void) {
-    .word 0x27bdff50
-    .word 0x7fbf0090
-    .word 0x7fbe0080
-    .word 0x7fb70070
-    .word 0x7fb60060
-    .word 0x7fb50050
-    .word 0x7fb40040
-    .word 0x7fb30030
-    .word 0x7fb20020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x71209628
-    .word 0x7080a628
-    .word 0x70a09e28
-    .word 0x70c0f628
-    .word 0xafa700ac
-    .word 0xafa800a8
-    .word 0xafaa00a4
-    .word 0x72402628
-    .word 0x7000be28
-    .word 0x7000b628
-    .word 0x70008e28
-    jal       func_001232E0
-    .word 0x70008628
-    .word 0x24070200
-    .word 0x24080010
-    .word 0x7040ae28
-    .word 0x72802628
-    .word 0x70002e28
-    jal       func_001CCB00
-    .word 0x70003628
-    .word 0x12a0003a
-    .word 0x00000000
-    .word 0x92470000
-    .word 0x2ce20020
-    .word 0x1440000c
-    .word 0x70001e28
-    .word 0x24020024
-    .word 0x50e20004
-    .word 0x24070087
-    .word 0x10000005
-    .word 0x24e7ffe0
-    .word 0x24070087
-    .word 0x10000003
-    .word 0x24030001
-    .word 0x24e7ffe0
-    .word 0x24030001
-    .word 0x00000000
-    .word 0x54600004
-    .word 0x00073940
-    .word 0x70003e28
-    .word 0x00000000
-    .word 0x00073940
-    .word 0x70002628
-    .word 0x72c02e28
-    jal       func_001CC8A0
-    .word 0x72e03628
-    .word 0x8fa200ac
-    .word 0x26d60010
-    .word 0x02028021
-    .word 0x2ac20200
-    .word 0x54400019
-    .word 0x26b5ffff
-    .word 0x8fa200a8
-    .word 0x8fab00a4
-    .word 0x26ea0010
-    .word 0x72c04e28
-    .word 0x72802628
-    .word 0x02228821
-    .word 0x72204628
-    .word 0x72602e28
-    .word 0x73c03628
-    jal       func_001CBC20
-    .word 0x72003e28
-    .word 0x02709821
-    .word 0x24070200
-    .word 0x24080010
-    .word 0x72802628
-    .word 0x70002e28
-    .word 0x70003628
-    .word 0x7000be28
-    .word 0x7000b628
-    .word 0x70008e28
-    jal       func_001CCB00
-    .word 0x70008628
-    .word 0x00000000
-    .word 0x26b5ffff
-    .word 0x16a0ffc9
-    .word 0x26520001
-    .word 0x00000000
-    .word 0x8fa200a8
-    .word 0x8fab00a4
-    .word 0x26ea0010
-    .word 0x72802628
-    .word 0x72602e28
-    .word 0x02228821
-    .word 0x73c03628
-    .word 0x72003e28
-    .word 0x72204628
-    jal       func_001CBC20
-    .word 0x72c04e28
-    .word 0x7bbf0090
-    .word 0x7bbe0080
-    .word 0x7bb70070
-    .word 0x7bb60060
-    .word 0x7bb50050
-    .word 0x7bb40040
-    .word 0x7bb30030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd00b0
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 94.80% NEARMISS).
+// Fixes read from the original instructions:
+// - The string length n is declared first and the four counters are zeroed by
+//   statements (row, col, h, w) before the length call: that gives the
+//   original's saved-register order (w, h, s, x, ctx, n, col, row, y).
+// - The dollar-sign mapping is a switch with a default arm (the likely branch
+//   for '$'), and the glyph index is scaled in place (c <<= 5) before the call,
+//   which keeps it in the argument register and gives the likely branch around
+//   the control-byte zeroing.
+
+// Renders a message string into the glyph strip and draws it. The strip is
+// cleared with func_001CCB00(ctx, 0, 0, 0x200, 0x10); each byte of s
+// (strlen through func_001232E0) adds one 16-pixel glyph cell with
+// func_001CC8A0(0, column, row, glyph * 32): printable bytes map to
+// byte - 0x20, '$' to glyph 0x87, control bytes to glyph 0. Each cell widens
+// the drawn width by advance. When the strip is full (0x200 pixels) it is
+// drawn with func_001CBC20(ctx, x, y, width, height, columns, row + 0x10,
+// arg7) and restarted at x + width; the rest is drawn the same way at the
+// end. row stays 0 throughout.
+extern int func_001232E0(unsigned char *s);
+extern void func_001CCB00(int ctx, int a, int b, int w, int h);
+extern void func_001CC8A0(int a, int col, int row, int glyph);
+extern void func_001CBC20(int ctx, int x, int y, int w, int h, int cols, int rows, int arg7);
+
+void func_001CBA50(int ctx, int x, int y, int advance, int height, unsigned char *s, int arg7) {
+    int n;
+    int col;
+    int row;
+    int w;
+    int h;
+    unsigned int c;
+    int ok;
+
+    row = 0;
+    col = 0;
+    h = 0;
+    w = 0;
+    n = func_001232E0(s);
+    func_001CCB00(ctx, 0, 0, 0x200, 0x10);
+    while (n != 0) {
+        c = *s;
+        ok = 0;
+        if (c >= 0x20) {
+            switch (c) {
+            case 0x24:
+                c = 0x87;
+                break;
+            default:
+                c -= 0x20;
+                break;
+            }
+            ok = 1;
+        }
+        if (!ok) {
+            c = 0;
+        }
+        c <<= 5;
+        func_001CC8A0(0, col, row, c);
+        col += 0x10;
+        w += advance;
+        if (col >= 0x200) {
+            h += height;
+            func_001CBC20(ctx, x, y, w, h, col, row + 0x10, arg7);
+            x += w;
+            row = 0;
+            col = 0;
+            h = 0;
+            w = 0;
+            func_001CCB00(ctx, 0, 0, 0x200, 0x10);
+        }
+        n--;
+        s++;
+    }
+    h += height;
+    func_001CBC20(ctx, x, y, w, h, col, row + 0x10, arg7);
 }
-
-// Readable C (NEARMISS companion, objdiff 94.80%): src/readable/func_001CBA50.c

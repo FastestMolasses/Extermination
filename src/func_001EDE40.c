@@ -1,123 +1,98 @@
-// NEARMISS func_001EDE40  (vram 0x001EDE40, 0x34C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 82.52% via mwcc 2.3 (mwcps2-2.3-991202) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body and structure fully recovered (objdiff 82.52% via mwcc 991202 -O4,p -sdatathreshold 4; 2.3.3 scores LOWER at 81.82%, so NOT the clean-store delay-slot nop). The entire 24-store global-init table and the easing tail match byte-for-byte and the gp-rel addressing of D_00275C34 matches with -sda...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// COMPILER: mwcc
+// COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
-
 //
-// SEMANTICS: Effect/animation setup. Initializes a fixed table of float parameters (three records at
-// D_00257510 / D_002575A0 / D_00257630; written slots at field offsets 0x20..0x3C of each record),
-// then runs three identical event-spawn passes and one easing update:
-//   For each record R in {D_00257510, D_002575A0, D_00257630}:
-//     r = state->index4;                              // *(int*)(D_00275C34 + 4)
-//     phase = (float)((r >> 16) & 0xFFFF) / 65535.0f + 1e-4f;
-//     state->index4 = r * 37 + 11;                    // LCG-style advance (0x25 = 37, 0xB = 11)
-//     func_001CFB50(D_0081F8F0, 0, arg0, state->f54, phase, 1.0f, 1e-6f, 10.0f);
-//     func_001CFBE0(arg1, 1, R, D_0081F8F0, 0);       // fire one event on the built object
-//   Easing of state->f8 toward 0.02 with a /10 step, clamped to a floor of 0.02:
-//     state->f8 += (0.02f - state->f8) / 10.0f;  if (state->f8 < 0.02f) state->f8 = 0.02f;
-// 0x358637BD is the float 1e-6f; 0x38D1B717 is 1e-4f. The D_002575xx table slots are declared
-// volatile float[3] so mwcc keeps absolute (%hi/%lo) addressing and source store order; the small
-// D_00275C34 pointer stays gp-rel (via -sdatathreshold 4); the [0] index keeps each relocation
-// pointed at its own splat symbol with addend 0.
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 82.52% NEARMISS).
+// Fixes read from the original instructions:
+//  - the original sets up the spawn constants in a different order in each of
+//    the three func_001CFB50 calls. First call: the 1e-6 and the 10.0 come
+//    first and the 1.0 last; in the original source the 1e-6 is computed as
+//    1.0 / (float)1000000 from an int local and the 10.0 is an int local
+//    converted to float (idiom-24; both fold to constants but keep their early
+//    setup). Second call: plain constants. Third call: only the 10.0 is an int
+//    converted to float, which sets it up ahead of the 1.0 and the 1e-6.
+//  - func_001CFBE0's last argument is 1, not 0 (the original copies it from the
+//    register already holding the 1 of the second argument).
+//  - the three default parameter blocks are 8-float volatile arrays at +0x20 of
+//    the 0x90-byte emitter records; the ease toward 0.02 goes through a field
+//    pointer.
+//
+// Periodic particle/effect re-seed. Rewrites three 8-float parameter blocks
+// (D_00257530, D_002575C0, D_00257650, at +0x20 of the 0x90-byte emitter records
+// D_00257510/D_002575A0/D_00257630) to their defaults, then for each emitter advances
+// the PRNG word D_00275C34[1] (r*0x25+0xB), derives
+// f = ((r>>16)&0xFFFF)/65535 + 0.0001, calls func_001CFB50(D_0081F8F0, 0, arg0,
+// <field 0x54>, f, 1.0f, 1e-6f, 10.0f) and func_001CFBE0(arg1, 1, record,
+// D_0081F8F0, 1). Finally eases the float at D_00275C34+8 toward 0.02 by 1/10
+// and floors it at 0.02.
+extern int *D_00275C34;
+extern int D_0081F8F0[2];
+extern char D_00257510[0x90];
+extern char D_002575A0[0x90];
+extern char D_00257630[0x90];
+extern volatile float D_00257530[8];
+extern volatile float D_002575C0[8];
+extern volatile float D_00257650[8];
 
-extern void func_001CFB50(void *p, int a1, int a2, float f12, float f13, float f14, float f15, float f16);
-extern void func_001CFBE0(int a0, int a1, void *a2, void *a3, int a4);
-
-extern volatile float D_00257530[3];
-extern volatile float D_00257534[3];
-extern volatile float D_00257538[3];
-extern volatile float D_0025753C[3];
-extern volatile float D_00257540[3];
-extern volatile float D_00257544[3];
-extern volatile float D_00257548[3];
-extern volatile float D_0025754C[3];
-extern volatile float D_002575C0[3];
-extern volatile float D_002575C4[3];
-extern volatile float D_002575C8[3];
-extern volatile float D_002575CC[3];
-extern volatile float D_002575D0[3];
-extern volatile float D_002575D4[3];
-extern volatile float D_002575D8[3];
-extern volatile float D_002575DC[3];
-extern volatile float D_00257650[3];
-extern volatile float D_00257654[3];
-extern volatile float D_00257658[3];
-extern volatile float D_0025765C[3];
-extern volatile float D_00257660[3];
-extern volatile float D_00257664[3];
-extern volatile float D_00257668[3];
-extern volatile float D_0025766C[3];
-extern char D_00257510[256];
-extern char D_002575A0[256];
-extern char D_00257630[256];
-extern char *D_00275C34;
-extern char D_0081F8F0[256];
+void func_001CFB50(void *p, int b, int c, float f0, float f1, float f2, float f3, float f4);
+void func_001CFBE0(int a, int b, void *c, void *d, int e);
 
 void func_001EDE40(int arg0, int arg1) {
     int r;
     float f;
-    float t;
     float v;
+    int scale_i;
+    float scale;
+    int eps_i;
+    float eps;
+    int scale3_i;
+    float scale3;
 
-    D_00257530[0] = 16.0f;
-    D_00257534[0] = 12.0f;
-    D_00257538[0] = 16.0f;
-    D_0025753C[0] = 0.0f;
-    D_00257540[0] = 0.0f;
-    D_00257544[0] = 0.0f;
-    D_00257548[0] = 0.0f;
-    D_0025754C[0] = 0.0f;
-    D_002575C0[0] = 128.0f;
-    D_002575C4[0] = 0.0f;
-    D_002575C8[0] = 128.0f;
-    D_002575CC[0] = 96.0f;
-    D_002575D0[0] = 96.0f;
-    D_002575D4[0] = 0.0f;
-    D_002575D8[0] = 96.0f;
-    D_002575DC[0] = 0.0f;
-    D_00257650[0] = 128.0f;
-    D_00257654[0] = 0.0f;
-    D_00257658[0] = 128.0f;
-    D_0025765C[0] = 96.0f;
-    D_00257660[0] = 96.0f;
-    D_00257664[0] = 0.0f;
-    D_00257668[0] = 96.0f;
-    D_0025766C[0] = 0.0f;
+    D_00257530[0] = 16.0f; D_00257530[1] = 12.0f; D_00257530[2] = 16.0f; D_00257530[3] = 0.0f; D_00257530[4] = 0.0f; D_00257530[5] = 0.0f; D_00257530[6] = 0.0f; D_00257530[7] = 0.0f;
+    D_002575C0[0] = 128.0f; D_002575C0[1] = 0.0f; D_002575C0[2] = 128.0f; D_002575C0[3] = 96.0f; D_002575C0[4] = 96.0f; D_002575C0[5] = 0.0f; D_002575C0[6] = 96.0f; D_002575C0[7] = 0.0f;
+    D_00257650[0] = 128.0f; D_00257650[1] = 0.0f; D_00257650[2] = 128.0f; D_00257650[3] = 96.0f; D_00257650[4] = 96.0f; D_00257650[5] = 0.0f; D_00257650[6] = 96.0f; D_00257650[7] = 0.0f;
 
-    r = *(int *)(D_00275C34 + 4);
-    f = (float)((r >> 0x10) & 0xFFFF) / 65535.0f + 9.999999747378752e-05f;
-    *(int *)(D_00275C34 + 4) = r * 0x25 + 0xB;
-    func_001CFB50(D_0081F8F0, 0, arg0, *(float *)(D_00275C34 + 0x54),
+    scale_i = 10;
+    scale = (float)scale_i;
+    eps_i = 1000000;
+    eps = 1.0f / (float)eps_i;
+    r = D_00275C34[1];
+    f = (float)((r >> 0x10) & 0xFFFF);
+    f /= 65535.0f;
+    D_00275C34[1] = r * 0x25 + 0xB;
+    f += 0.0001f;
+    func_001CFB50(D_0081F8F0, 0, arg0,
+                  *(float *)((char *)D_00275C34 + 0x54),
+                  f, 1.0f, eps, scale);
+    func_001CFBE0(arg1, 1, D_00257510, D_0081F8F0, 1);
+
+    r = D_00275C34[1];
+    f = (float)((r >> 0x10) & 0xFFFF);
+    f /= 65535.0f;
+    D_00275C34[1] = r * 0x25 + 0xB;
+    f += 0.0001f;
+    func_001CFB50(D_0081F8F0, 0, arg0,
+                  *(float *)((char *)D_00275C34 + 0x54),
                   f, 1.0f, 9.999999974752427e-07f, 10.0f);
-    func_001CFBE0(arg1, 1, D_00257510, D_0081F8F0, 0);
+    func_001CFBE0(arg1, 1, D_002575A0, D_0081F8F0, 1);
 
-    r = *(int *)(D_00275C34 + 4);
-    f = (float)((r >> 0x10) & 0xFFFF) / 65535.0f + 9.999999747378752e-05f;
-    *(int *)(D_00275C34 + 4) = r * 0x25 + 0xB;
-    func_001CFB50(D_0081F8F0, 0, arg0, *(float *)(D_00275C34 + 0x54),
-                  f, 1.0f, 9.999999974752427e-07f, 10.0f);
-    func_001CFBE0(arg1, 1, D_002575A0, D_0081F8F0, 0);
-
-    r = *(int *)(D_00275C34 + 4);
-    f = (float)((r >> 0x10) & 0xFFFF) / 65535.0f + 9.999999747378752e-05f;
-    *(int *)(D_00275C34 + 4) = r * 0x25 + 0xB;
-    func_001CFB50(D_0081F8F0, 0, arg0, *(float *)(D_00275C34 + 0x54),
-                  f, 1.0f, 9.999999974752427e-07f, 10.0f);
-    func_001CFBE0(arg1, 1, D_00257630, D_0081F8F0, 0);
-
-    t = *(float *)(D_00275C34 + 8);
-    *(float *)(D_00275C34 + 8) = t + (0.02f - t) / 10.0f;
-    v = *(float *)(D_00275C34 + 8);
+    scale3_i = 10;
+    scale3 = (float)scale3_i;
+    r = D_00275C34[1];
+    f = (float)((r >> 0x10) & 0xFFFF);
+    f /= 65535.0f;
+    D_00275C34[1] = r * 0x25 + 0xB;
+    f += 0.0001f;
+    func_001CFB50(D_0081F8F0, 0, arg0,
+                  *(float *)((char *)D_00275C34 + 0x54),
+                  f, 1.0f, 9.999999974752427e-07f, scale3);
+    func_001CFBE0(arg1, 1, D_00257630, D_0081F8F0, 1);
+    {
+        float *p = (float *)((char *)D_00275C34 + 8);
+        *p += (0.02f - *p) / 10.0f;
+    }
+    v = *(float *)((char *)D_00275C34 + 8);
     if (v < 0.02f) {
         v = 0.02f;
     }
-    *(float *)(D_00275C34 + 8) = v;
+    *(float *)((char *)D_00275C34 + 8) = v;
 }

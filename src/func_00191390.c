@@ -1,73 +1,56 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00191390(void) {
-    .word 0xac800094
-    .word 0xac800098
-    .word 0x8ca50230
-    .word 0x24030013
-    .word 0x10a30034
-    .word 0x3c034130
-    .word 0x24030008
-    .word 0x10a3002d
-    .word 0x24030009
-    .word 0x10a3002b
-    .word 0x24030007
-    .word 0x10a30029
-    .word 0x24030006
-    .word 0x10a30027
-    .word 0x2403002d
-    .word 0x10a30025
-    .word 0x2403002c
-    .word 0x10a30023
-    .word 0x2403000f
-    .word 0x10a3001d
-    .word 0x3c03c040
-    .word 0x24030004
-    .word 0x10a30019
-    .word 0x24030002
-    .word 0x10a30017
-    .word 0x24030003
-    .word 0x10a30003
-    .word 0x24030001
-    .word 0x10a30001
-    .word 0x00000000
-    .word 0xc4810064
-    .word 0x3c03c1f9
-    .word 0x34639999
-    .word 0x44830000
-    .word 0x00000000
-    .word 0x46010032
-    .word 0x00000000
-    .word 0x45000006
-    .word 0x3c0340c0
-    .word 0x3c034000
-    .word 0xac83008c
-    .word 0x3c0340c0
-    .word 0x10000011
-    .word 0xac83005c
-    .word 0xac83008c
-    .word 0x3c034000
-    .word 0x1000000d
-    .word 0xac83005c
-    .word 0x3c03c040
-    .word 0xac83008c
-    .word 0x3c033f80
-    .word 0x10000008
-    .word 0xac83005c
-    .word 0xac80008c
-    .word 0x3c034000
-    .word 0x10000004
-    .word 0xac83005c
-    .word 0xac83008c
-    .word 0x3c034000
-    .word 0xac83005c
-    .word 0x8083006d
-    .word 0x10600002
-    .word 0x3c0341b8
-    .word 0xac830098
-    .word 0x03e00008
-    .word 0x00000000
-}
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-// Readable C (NEARMISS companion, objdiff 96.97%): src/readable/func_00191390.c
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 96.97% NEARMISS).
+// Fixes read from the original instructions:
+// - The default group also lists move 0 (`case 0:` ahead of `case 1:`). mwcc drops
+//   the move-0 test because it would branch straight to the next block, which in
+//   turn keeps the move-1 test that the old C lost (same shape as the byte-matched
+//   footstep switch in func_0016CD70: `case 0x0: case 0x1: ... default:`).
+//   Behaviour is unchanged: move 0 already took the default path.
+
+// Camera offsets for the player's current move (player +0x230). Clears
+// cam+0x94 / +0x98 and sets the pair cam+0x8C / cam+0x5C:
+// moves 2, 4, 0x0F: (-3, 1); 6..9, 0x2C, 0x2D: (0, 2); 0x13: (11, 2);
+// anything else (0, 1 and 3 included): (2, 6) when cam+0x64 is -31.2 (bits 0xC1F99999),
+// else (6, 2). When cam+0x6D is set, cam+0x98 becomes 23.
+void func_00191390(char *cam, char *player) {
+    *(float *)(cam + 0x94) = 0.0f;
+    *(float *)(cam + 0x98) = 0.0f;
+    switch (*(int *)(player + 0x230)) {
+    case 0:
+    case 1:
+    case 3:
+    default:
+        if (*(float *)(cam + 0x64) == -31.1999989f) {
+            *(float *)(cam + 0x8C) = 2.0f;
+            *(float *)(cam + 0x5C) = 6.0f;
+        } else {
+            *(float *)(cam + 0x8C) = 6.0f;
+            *(float *)(cam + 0x5C) = 2.0f;
+        }
+        break;
+    case 2:
+    case 4:
+    case 0x0F:
+        *(float *)(cam + 0x8C) = -3.0f;
+        *(float *)(cam + 0x5C) = 1.0f;
+        break;
+    case 0x2C:
+    case 0x2D:
+    case 6:
+    case 7:
+    case 9:
+    case 8:
+        *(float *)(cam + 0x8C) = 0.0f;
+        *(float *)(cam + 0x5C) = 2.0f;
+        break;
+    case 0x13:
+        *(float *)(cam + 0x8C) = 11.0f;
+        *(float *)(cam + 0x5C) = 2.0f;
+        break;
+    }
+    if (cam[0x6D] != 0) {
+        *(float *)(cam + 0x98) = 23.0f;
+    }
+}

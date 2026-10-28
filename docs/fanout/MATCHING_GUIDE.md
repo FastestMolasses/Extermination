@@ -761,3 +761,28 @@ to float binds the constant to the second argument register), func_001D6F60
 returned void). Improved and parked: func_001EC270 95.31, func_001ED100 96.93,
 func_001ECE70 80.61 (its fourth float argument is 0.1, not 1e-6 as the old C
 had). func_00225720's companion now carries func_00207E40's corrected prototype.
+
+
+### Queue batch 38 (2026-10-28)
+
+27 byte-matched. The constant-order spawn family is finished by a second lever
+beside idiom-24: where the original sets up the 1e-6 argument early, the source
+computes it from an int local, `eps_i = 1000000; eps = 1.0f / (float)eps_i;`
+(a plain `1.0f/1000000.0f`, a double, or a float local do not keep the early
+setup). Per call, apply idiom-24 and the eps local only to the constants the
+original sets up early, in its order (scale, then unit, then eps); some
+siblings need `-sdatathreshold 4`. Matched this way: func_001EAF00,
+func_001EBBB0, func_001EC3F0, func_001EC470, func_001EC5F0, func_001EC820,
+func_001EC9A0, func_001ED100, func_001ED450, func_001ED7A0, func_001EDAF0,
+func_001EDE40, func_001EE190, func_001EE4E0, func_001EE830, func_001EEBA0,
+func_001EEEB0, func_001EF1C0 (func_001EDAF0 / func_001EDE40: the old C passed 0
+where the original passes 1 to func_001CFBE0). Nine readable companions replaced
+their asm bodies: func_001D7080, func_001F54E0, func_0019ED80; func_00126BE8
+(libgcc fp-bit unpack_d shape with `NO_DENORMALS`: the dead denormal loop still
+aligns the next label); func_00191390 (`case 0:` listed in the default group
+keeps the original's compare for move 1, as in func_0016CD70); func_001CBA50 /
+func_001CC1E0 (declaration and zeroing order, a `switch` for the dollar glyph,
+the index scaled in place; func_001CC1E0 also a `// TU_STATIC:` of its leaf
+callee func_001CBE10); func_001CA3B0 (x and y half angles in fresh locals, z
+halved in place as `z = z / 2.0f`); func_0011D770 (newlib __kernel_sinf in
+newlib's source shape, constants as `#define` literals so no unused .rodata).

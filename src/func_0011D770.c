@@ -1,72 +1,56 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_0011D770(void) {
-    .word 0x0080282d
-    .word 0x44026000
-    .word 0x0040202d
-    .word 0x3c037fff
-    .word 0x3463ffff
-    .word 0x3c0231ff
-    .word 0x00832024
-    .word 0x3442ffff
-    .word 0x0044102a
-    .word 0x54400008
-    .word 0x460c6142
-    .word 0x46006024
-    .word 0x44020000
-    .word 0x00000000
-    .word 0x54400003
-    .word 0x460c6142
-    .word 0x03e00008
-    .word 0x46006006
-    .word 0x3c012f2e
-    .word 0x3421c9d3
-    .word 0x44810000
-    .word 0x3c01b2d7
-    .word 0x34212f34
-    .word 0x44810800
-    .word 0x3c013638
-    .word 0x3421ef1b
-    .word 0x44811000
-    .word 0x46002802
-    .word 0x3c01b950
-    .word 0x34210d01
-    .word 0x44811800
-    .word 0x3c013c08
-    .word 0x34218889
-    .word 0x44812000
-    .word 0x460c2982
-    .word 0x46010000
-    .word 0x46002802
-    .word 0x46020000
-    .word 0x46002802
-    .word 0x46030000
-    .word 0x46002802
-    .word 0x14a00009
-    .word 0x46040040
-    .word 0x46012802
-    .word 0x3c01be2a
-    .word 0x3421aaab
-    .word 0x44810800
-    .word 0x46010000
-    .word 0x46003002
-    .word 0x03e00008
-    .word 0x46006000
-    .word 0x3c013f00
-    .word 0x44810000
-    .word 0x46013082
-    .word 0x3c01be2a
-    .word 0x3421aaab
-    .word 0x44810800
-    .word 0x46006802
-    .word 0x46013042
-    .word 0x46020001
-    .word 0x46002802
-    .word 0x460d0001
-    .word 0x46010001
-    .word 0x03e00008
-    .word 0x46006001
-}
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 94.23% NEARMISS).
+// Fixes read from the original instructions:
+//  - the routine is newlib's single-precision sine kernel __kernel_sinf
+//    (kf_sin.c); written in newlib's own shape: the float word is read with the
+//    GET_FLOAT_WORD do { } while (0) union block into ix, then masked in place
+//    (ix &= 0x7fffffff), and the tail is an if / else pair of returns. The old
+//    pointer-cast read with the mask folded into the declaration gave the
+//    different register allocation.
+//  - the newlib constants are #defined float literals rather than static const
+//    objects, so the object carries no unused .rodata table (the original ELF
+//    has no such table; the folded constants are materialised inline).
+//
+// newlib __kernel_sinf(x, y, iy): sine of x + y on [-pi/4, pi/4]; y is the tail
+// of the reduced argument and iy says whether it is used. Tiny |x| (below
+// 2^-27) whose integer truncation is 0 return x. Otherwise z = x * x,
+// v = z * x, r = S2 + z * (S3 + z * (S4 + z * (S5 + z * S6))) and the result is
+// x + v * (S1 + z * r) without the tail, else
+// x - ((z * (0.5 * y - v * r) - y) - v * S1).
 
-// Readable C (NEARMISS companion, objdiff 94.23%): src/readable/func_0011D770.c
+typedef union {
+    float value;
+    int word;
+} ieee_float_shape_type;
+
+#define GET_FLOAT_WORD(i, d)            \
+    do {                                \
+        ieee_float_shape_type gf_u;     \
+        gf_u.value = (d);               \
+        (i) = gf_u.word;                \
+    } while (0)
+
+#define half  5.0000000000e-01f
+#define S1   -1.6666667163e-01f
+#define S2    8.3333337680e-03f
+#define S3   -1.9841270114e-04f
+#define S4    2.7557314297e-06f
+#define S5   -2.5050759689e-08f
+#define S6    1.5896910177e-10f
+
+float func_0011D770(float x, float y, int iy) {
+    float z, r, v;
+    int ix;
+    GET_FLOAT_WORD(ix, x);
+    ix &= 0x7fffffff;
+    if (ix < 0x32000000) {
+        if ((int)x == 0) return x;
+    }
+    z = x * x;
+    v = z * x;
+    r = S2 + z * (S3 + z * (S4 + z * (S5 + z * S6)));
+    if (iy == 0) return x + v * (S1 + z * r);
+    else return x - ((z * (half * y - v * r) - y) - v * S1);
+}

@@ -1,78 +1,32 @@
-// Simple nonleaf asm void
-extern void func_0011DE90(int, int, int, int);
-extern void func_0011E2A8(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_001CA3B0(void) {
-    addiu      $sp, $sp, -0x40
-    sq         $ra, 0x30($sp)
-    sq         $s0, 0x20($sp)
-    swc1       $f24, 0x10($sp)
-    lui        $v0, (0x40000000 >> 16)
-    swc1       $f23, 0xC($sp)
-    swc1       $f22, 0x8($sp)
-    mtc1       $v0, $f0
-    swc1       $f21, 0x4($sp)
-    div.s      $f22, $f12, $f0
-    swc1       $f20, 0x0($sp)
-    paddub     $s0, $a0, $zero
-    mov.s      $f21, $f13
-    mov.s      $f24, $f14
-    nop
-    nop
-    jal        func_0011E2A8
-    mov.s     $f12, $f22
-    mov.s      $f20, $f0
-    lui        $v0, (0x40000000 >> 16)
-    mtc1       $v0, $f0
-    nop
-    div.s      $f23, $f21, $f0
-    nop
-    nop
-    jal        func_0011E2A8
-    mov.s     $f12, $f23
-    mov.s      $f21, $f0
-    lui        $v0, (0x40000000 >> 16)
-    mtc1       $v0, $f0
-    nop
-    div.s      $f24, $f24, $f0
-    nop
-    nop
-    jal        func_0011E2A8
-    mov.s     $f12, $f24
-    mov.s      $f12, $f22
-    jal        func_0011DE90
-    mov.s     $f22, $f0
-    mov.s      $f12, $f23
-    jal        func_0011DE90
-    mov.s     $f23, $f0
-    mov.s      $f12, $f24
-    jal        func_0011DE90
-    mov.s     $f24, $f0
-    mul.s      $f1, $f22, $f24
-    mul.s      $f4, $f0, $f24
-    mul.s      $f2, $f0, $f21
-    mula.s     $f23, $f1
-    msub.s     $f0, $f20, $f2
-    mul.s      $f3, $f22, $f21
-    swc1       $f0, 0x0($s0)
-    mula.s     $f23, $f2
-    madd.s     $f0, $f20, $f1
-    swc1       $f0, 0x4($s0)
-    mula.s     $f20, $f4
-    msub.s     $f0, $f23, $f3
-    mula.s     $f23, $f4
-    swc1       $f0, 0x8($s0)
-    madd.s     $f0, $f20, $f3
-    swc1       $f0, 0xC($s0)
-    lq         $ra, 0x30($sp)
-    lq         $s0, 0x20($sp)
-    lwc1       $f24, 0x10($sp)
-    lwc1       $f23, 0xC($sp)
-    lwc1       $f22, 0x8($sp)
-    lwc1       $f21, 0x4($sp)
-    lwc1       $f20, 0x0($sp)
-    jr         $ra
-    addiu     $sp, $sp, 0x40
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 94.34% NEARMISS).
+// Fixes read from the original instructions:
+// - x and y are halved into fresh locals (hx, hy) declared AFTER the sine/cosine
+//   locals, so they take the later saved FPRs; z is halved in place, spelled
+//   `z = z / 2.0f` (the compound `/=` form colours differently).
+//
+// Builds a quaternion from three Euler angles: halves each angle, takes the sine
+// (func_0011E2A8) and cosine (func_0011DE90) of each half angle, and writes the
+// four components to q[0..3].
+
+extern float func_0011E2A8(float);
+extern float func_0011DE90(float);
+
+void func_001CA3B0(float *q, float x, float y, float z) {
+    float sx, sy, sz, cx, cy, cz, hx, hy;
+    hx = x / 2.0f;
+    sx = func_0011E2A8(hx);
+    hy = y / 2.0f;
+    sy = func_0011E2A8(hy);
+    z = z / 2.0f;
+    sz = func_0011E2A8(z);
+    cx = func_0011DE90(hx);
+    cy = func_0011DE90(hy);
+    cz = func_0011DE90(z);
+    q[0] = cx * (sz * cy) - sx * (cz * sy);
+    q[1] = cx * (cz * sy) + sx * (sz * cy);
+    q[2] = sx * (cz * cy) - cx * (sz * sy);
+    q[3] = cx * (cz * cy) + sx * (sz * sy);
 }
-
-// Readable C (NEARMISS companion, objdiff 94.34%): src/readable/func_001CA3B0.c

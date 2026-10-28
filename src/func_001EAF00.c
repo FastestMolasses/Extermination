@@ -1,35 +1,33 @@
-// NEARMISS func_001EAF00  (vram 0x001EAF00, 0x7C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 80.61% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Identical wall to func_001EACF0 (same template, const 5.0f, table D_002557D0, flag 1): FP-constant scheduling permutation - target hoists the 1e-6f const before paddub s0,a1, mwcc emits 1.0f first. Body 100% correct. Scheduling/FP-coloring permutation -> permuter.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an 80.61% NEARMISS).
+// Fixes read from the original instructions:
+//  - the original sets up the 1e-6 argument first, ahead of the 1.0: in the
+//    original source it is computed as 1.0 / (float)1000000 from an int local
+//    (idiom-24 shape; it folds to the same constant but keeps its early setup).
+//    The old verdict (an FP-constant scheduling wall) was wrong.
+//
+// Single-call sibling of func_001EAF80: func_001CFB50(&D_0081F8F0, 0, arg0,
+// D_00275C34->+0x54 fade, D_00275C34->+0x5C, 1.0f, 1e-6f, 5.0f), then
+// func_001CFBE0(arg1, 1, D_002557D0, &D_0081F8F0, 0). The frame saves $ra and $s0
+// (s0 = arg1 held across the first call).
+extern int *D_00275C34;
+extern int D_002557D0[2];
+extern int D_0081F8F0[2];
 
-// NEARMISS 80.6% (mwcc233; 991202=74.2%). Animation/interpolation setup wrapper,
-// sibling of the verified-100% func_001EAF80. Forwards two floats from the gp-rel
-// global object D_00275C34 (fields +0x54 fade, +0x5C) plus FPU constants 1.0f,
-// 1e-6f (0x358637BD), 5.0f into func_001CFB50(&D_0081F8F0,...), then a single
-// func_001CFBE0(arg1, 1, D_002557D0, &D_0081F8F0, 0). sq/lq frame saves $ra,$s0
-// (s0 = arg1 held across the calls). func_001CFBE0 genuinely takes 5 args.
-// WALL: target schedules the 1e-6f const (lui+ori+mtc1) BEFORE the paddub s0,a1
-// and the 1.0f const after; mwcc emits 1.0f first, splitting 1e-6f around paddub.
-// Pure FP-const scheduling/coloring permutation -> dedicated permuter pass.
-extern char *D_00275C34;
-extern int D_002557D0[8];
-extern int D_0081F8F0[8];
-extern void func_001CFB50(int *, int, int, float, float, float, float, float);
-extern void func_001CFBE0(int, int, int *, int *, int);
+void func_001CFB50(void *p, int b, int c, float f0, float f1, float f2, float f3, float f4);
+void func_001CFBE0(int a, int b, void *c, void *d, int e);
 
 void func_001EAF00(int arg0, int arg1) {
+    int eps_i;
+    float eps;
+
+    eps_i = 1000000;
+    eps = 1.0f / (float)eps_i;
     func_001CFB50(D_0081F8F0, 0, arg0,
-                  *(float *)(D_00275C34 + 0x54),
-                  *(float *)(D_00275C34 + 0x5C),
-                  1.0f, 9.999999974752427e-07f, 5.0f);
+                  *(float *)((char *)D_00275C34 + 0x54),
+                  *(float *)((char *)D_00275C34 + 0x5C),
+                  1.0f, eps, 5.0f);
     func_001CFBE0(arg1, 1, D_002557D0, D_0081F8F0, 0);
 }
