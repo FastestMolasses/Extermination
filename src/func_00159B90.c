@@ -1,6 +1,6 @@
 // NEARMISS func_00159B90  (vram 0x00159B90, 0x2D4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 89.50% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The body follows the original instructions;
+// objdiff 90.64% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The body follows the original instructions;
 // the residual diff is code generation only:
 // Body corrected 2026-09-25 against the original instructions (callee argument lists and the sub-state 3 store; was 85.72% with the wrong body; 89.89% before D_00810350/370/710/720 and D_002470E0 were declared as arrays, which the original addresses absolutely and which a gp-relative access cannot reach). Residual: switch-comparand registers (a2 = 2, a3 = 3 kept live across the calls) and branch layout.
 //
@@ -60,8 +60,7 @@ void func_00159B90(unsigned char *p) {
         st2 = p[5];
         switch (st2) {
         case 0:
-            r = func_00157CE0(p, e);
-            if (r != 0) {
+            if ((r = func_00157CE0(p, e)) != 0) {
                 func_00102948(D_00810710, D_00810350);
                 func_00102948(D_00810720, D_00810370);
                 func_001FB9F0(0x3E8, 0x1000, 0x1000, 0x1000);

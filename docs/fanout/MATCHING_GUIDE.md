@@ -274,3 +274,20 @@ through; the old `(void)` signature was the whole residual), func_00178910
 func_0011E748 (ee-gcc fdlibm wrapper in its twins' shape; the domain-error
 path returned the wrong value, a behaviour fix). Improved and parked:
 func_00144C20 98.62, func_00150F40 97.92.
+
+### Queue batch 12 (2026-10-27)
+
+9 byte-matched: func_001A9360 (the callee func_0011E748 is a one-float sqrt,
+not `(void)`), func_00113D08 (ee-gcc: three logic errors, among them the last
+error saved only in debug mode and a goto-into-loop retry), sub_c_invalid_
+motion_type_d_2 (ee-gcc: a `char` table index; separate flag variables; one
+compare against a local holding 2, which the permuter found — plain C but an
+unusual spelling), func_001F4010 (the slot pointer built as base, then
+`+= index * stride`), func_00156F30 (switch cases `break`; the rig as an array
+of 4x4 matrices), func_00177030 (values stored to scratchpad and read back),
+func_001084B0 (ee-gcc: an int-returning callee declared void caused the v0/v1
+swap), func_0013EB90 (returns void), func_0018C5A0 (twin func_0018C4B0's
+shape). Improved and parked: func_001DA310 99.09, anim_advance_time 96.76
+(compiler mix). A mechanical sweep that moves `r = f(...); if (r == 0)` into
+the test lifted func_00159B90 (90.64) and func_001EF9D0 (90.07) and matched
+none.

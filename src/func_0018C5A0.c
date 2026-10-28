@@ -1,52 +1,40 @@
-// NEARMISS func_0018C5A0  (vram 0x0018C5A0, 0xF4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 92.21% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Branch-likely SENSE (target bc1tl vs mwcc bc1fl) on the min-clamp, plus FP register coloring (target keeps t/8 and arg13 in the f0/f20 odd-half pair fv0f/fs0f; mwcc colors them fv1/fs1) and return-tail scheduling (paddub v0 placement). Body/control-flow fully recovered; the residual is a CW-2.3.1...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 92.21% NEARMISS).
+// Fixes read from the original instructions:
+//  - Spelled like its byte-matched twin func_0018C4B0 (same ease, plus the
+//    D_00810278 offset): the guard is `!(a <= 1.0f)` with the quarter-step
+//    snap in the else arm returning 4 and a shared `return 0` after the if.
+//  - The min clamp is `(maxstep > step) ? step : maxstep` (this sets the
+//    branch-likely sense), not `(v <= a13) ? v : a13`.
+//  - No copies of the parameters into locals; the target offset is added to
+//    the parameter in place before the difference is taken.
 //
-// Float approach/ease driver on the field at arg0+4. Computes
-// diff = (arg12 + D_00810278) - field, then t = func_0011DF78(diff) (|diff| or
-// a magnitude). If t > 1.0: step = min(t/8, arg13), negated when diff < 0, is
-// added to the field and 0 is returned. Otherwise (t <= 1.0): the field is
-// nudged by diff/4 and 4 is returned (a "close enough / snap" result code).
-//
-// NEARMISS 92.2% (mwcc 2.3.3; 991202 = 82.4%). Body and control flow are
-// correct -- the target lays the t>1 path as the fall-through and the t<=1
-// /4 path as the forward block, and emits the min-clamp as a branch-likely
-// with a dead mov tail, all of which this C reproduces. The residual is a
-// branch-likely SENSE difference (target bc1tl vs mwcc bc1fl) plus FP register
-// coloring (target uses the f0/f20 odd-half pair; mwcc uses f1/f21) and the
-// return-value paddub scheduling -- pure compiler-version codegen artifacts
-// (permuter class), not a logic gap.
+// Eases cur's y (+4) toward target_y + D_00810278. With d = that target minus
+// y: when |d| <= 1 the axis takes a quarter of d and returns 4 (the done bit);
+// otherwise it moves by min(|d| / 8, maxstep) in d's direction and returns 0.
+// func_0011DF78 is fabsf.
 extern float D_00810278;
 extern float func_0011DF78(float x);
 
-int func_0018C5A0(char *arg0, float arg12, float arg13) {
-    char *self = arg0;
-    float a13 = arg13;
-    float diff;
-    float t;
-    float v;
+int func_0018C5A0(float *cur, float target_y, float maxstep) {
+    float d;
+    float a;
+    float step;
 
-    arg12 = arg12 + D_00810278;
-    diff = arg12 - *(float *)(self + 4);
-    t = func_0011DF78(diff);
-    if (t > 1.0f) {
-        v = t / 8.0f;
-        v = (v <= a13) ? v : a13;
-        if (diff < 0.0f)
-            v = -v;
-        *(float *)(self + 4) = *(float *)(self + 4) + v;
-        return 0;
+    target_y = target_y + D_00810278;
+    d = target_y - cur[1];
+    a = func_0011DF78(d);
+    if (!(a <= 1.0f)) {
+        step = a / 8.0f;
+        step = (maxstep > step) ? step : maxstep;
+        if (d < 0.0f) {
+            step = -step;
+        }
+        cur[1] = cur[1] + step;
+    } else {
+        cur[1] = cur[1] + d / 4.0f;
+        return 4;
     }
-    *(float *)(self + 4) = *(float *)(self + 4) + diff / 4.0f;
-    return 4;
+    return 0;
 }

@@ -1,6 +1,6 @@
 // NEARMISS func_001EF9D0  (vram 0x001EF9D0, 0x350 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 88.89% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 90.07% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Integer register-allocation/coloring permutation. Logic, control flow, both switch dispatchers (correct beq dispatch order, ascending source -> mwcc descending), the signed-modulo idiom (n%4 / n%2), all stores, the shared func_001EF940 tail call, and the kind-dispatch are 100% recovered. Residual...
 //
@@ -130,8 +130,7 @@ int func_001EF9D0(int arg0, int arg1, float arg2) {
     }
 
     ent = base + off;
-    out = func_001AFA90(*(unsigned char *)ent);
-    if (out == 0) {
+    if ((out = func_001AFA90(*(unsigned char *)ent)) == 0) {
         return 0;
     }
     *(unsigned char *)(out + 3) = *(unsigned char *)(ent + 4);
