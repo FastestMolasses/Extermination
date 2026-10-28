@@ -1,32 +1,62 @@
-// NEARMISS func_00119AA0  (vram 0x00119AA0, 0x1F8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.26% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler wall. Body/structure/regalloc fully recovered (128 instrs both sides, identical frame 0xA0, identical callee-save set, identical control flow, identical loop IVs incl. the strength-reduced 0x6A offset IV and the 64-bit `bit <<= 1` mask IV). Two residual clusters, both pure po...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 94.26% NEARMISS).
+// Fixes read from the original instructions:
+// - The 0x30-entry slot table at D_0027CCC0 (stride 0x6A) is indexed as a struct
+//   array (Slot[i].field), not walked through a char pointer; that restores the
+//   loop body's store order.
+// - The slot's +0x14 halfword is cleared through a separate byte-offset counter
+//   (off += 0x6A) rather than the struct index, which gives the original its
+//   second induction variable and its initialisation order.
+// - The cursor at D_00281AC0 is a struct whose +0xC field points at 16-byte cells;
+//   the final loop clears each cell's +9 byte and advances the cursor through it.
+// - func_001157F0 returns int (its definition in src/).
+//
+// For an active entry a0 (< 0x30) of the 0x78-byte table D_0027E0C0 whose state
+// table entry is 1: modes 0/1 reset the entry and pick sel = mode; modes 2/3 only
+// proceed when the entry's +0x30 field already equals 1 (otherwise they arm it and
+// return). Every slot owned by a0 with +0x1A == 1 is reset, its bit is set in the
+// 64-bit mask at D_0027F740+0x28, and with sel == 1 func_001157F0(3, slot, 0, 0)
+// is called. Finally the cursor is placed after the entry's +0xC base and 16 cells
+// are cleared.
+
+typedef struct {
+    char pad00[9];
+    char f09;
+    char pad0A[6];
+} Cell;
+typedef struct {
+    char pad00[0xC];
+    Cell *cur;
+} Cursor;
+typedef struct {
+    unsigned short f00;
+    char pad02[4];
+    unsigned short f06;
+    unsigned short f08;
+    char pad0A[0xA];
+    unsigned short f14;
+    unsigned short f16;
+    char pad18[2];
+    unsigned short f1A;
+    char pad1C[0x1C];
+    unsigned short f38;
+    char pad3A[0x30];
+} Slot;
+extern Slot D_0027CCC0[];
 extern char D_0027E0C0[];
 extern char D_0027C6C0[];
-extern char D_0027CCC0[];
-extern char D_0027CCD4[];
 extern char D_0027F740[];
-extern char D_00281AC0[];
-extern void func_001157F0(int a, int b, int c, int d);
+extern Cursor D_00281AC0;
+extern int func_001157F0(int a0, int a1, int a2, int a3);
 
 void func_00119AA0(unsigned int a0, int a1) {
     char *e;
-    char *q;
     char *g;
-    char *r;
     long bit;
-    int off;
     unsigned int i;
+    int off;
     int st;
     int sel;
     unsigned short cur;
@@ -73,31 +103,29 @@ void func_00119AA0(unsigned int a0, int a1) {
         *(unsigned short *)(e + 0x30) = 0;
     }
 
-    q = D_0027CCC0;
     g = D_0027F740;
     bit = 1;
-    for (i = 0, off = 0; i < 0x30; i++, q += 0x6A, off += 0x6A, bit <<= 1) {
-        if (*(unsigned short *)(q + 6) != a0) {
+    for (i = 0, off = 0; i < 0x30; i++, off += 0x6A, bit <<= 1) {
+        if (D_0027CCC0[i].f06 != a0) {
             continue;
         }
-        if (*(unsigned short *)(q + 0x1A) != 1) {
+        if (D_0027CCC0[i].f1A != 1) {
             continue;
         }
-        *(unsigned short *)(q + 0) = 0;
-        *(unsigned short *)(q + 8) = 1;
-        *(unsigned short *)(q + 0x38) = 0x40;
+        D_0027CCC0[i].f00 = 0;
+        D_0027CCC0[i].f08 = 1;
+        D_0027CCC0[i].f38 = 0x40;
         *(long *)(g + 0x28) |= bit;
-        *(unsigned short *)(D_0027CCD4 + off) = 0;
-        *(unsigned short *)(q + 0x16) = 0;
+        *(unsigned short *)((char *)&D_0027CCC0[0].f14 + off) = 0;
+        D_0027CCC0[i].f16 = 0;
         if (sel == 1) {
             func_001157F0(3, i, 0, 0);
         }
     }
 
-    r = D_00281AC0;
-    *(int *)(r + 0xC) = *(int *)(e + 0xC) + 0x10;
+    D_00281AC0.cur = (Cell *)(*(int *)(e + 0xC) + 0x10);
     for (i = 0; i < 0x10; i++) {
-        *(char *)(*(int *)(D_00281AC0 + 0xC) + 9) = 0;
-        *(int *)(D_00281AC0 + 0xC) = *(int *)(D_00281AC0 + 0xC) + 0x10;
+        D_00281AC0.cur->f09 = 0;
+        D_00281AC0.cur++;
     }
 }

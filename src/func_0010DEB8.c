@@ -1,8 +1,8 @@
 // NEARMISS func_0010DEB8  (vram 0x0010DEB8, ?) — readable decompilation, NOT byte-identical.
 //
-// objdiff 95.00% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc GPR-coloring + list-scheduler wall, confined to the prologue/qword-copy region. Object size is exact (288 == 288, symbol sizes identical) and the entire second half (isceSifSetDChain call, cid dispatch, both sys/usr handler-table paths, sync/ei/epilogue) is byte-identical. Residual = 19 ins...
+// objdiff 97.92% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful. Wave
+// 2026-10-27: the packet pointer is copied into the copy cursor AFTER the header byte is
+// cleared, and the rounded qword count reuses the length variable (was 95.00%).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,8 +11,10 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-// NEARMISS: 95.0% - eegcc GPR-coloring + list-scheduler wall in the prologue/copy
-// region only (size exact; dispatch tail byte-identical). Body/logic fully recovered.
+// NEARMISS: 97.92% - Remaining differences: register colouring in the prologue/copy region
+// only. The original keeps the loop down-counter in its own register (a copy of the qword
+// count), so the packet pointer, length and copy cursor each sit one argument register higher,
+// and the post-call command-id test loads into the second return register. Size exact.
 
 typedef unsigned int u128 __attribute__((mode(TI)));
 
@@ -33,7 +35,6 @@ int func_0010DEB8(void)
     u128 *src;
     SifCmdEntry *tbl;
     int len;
-    int nqw;
     int i;
     int cid;
     int idx;
@@ -47,10 +48,10 @@ int func_0010DEB8(void)
     if (len == 0)
         return 0;
 
-    src = (u128 *)pkt;
-    nqw = (len + 15) / 16;
+    len = (len + 15) / 16;
     *(volatile unsigned char *)pkt = 0;
-    for (i = 0; i < nqw; i++)
+    src = (u128 *)pkt;
+    for (i = 0; i < len; i++)
         buf[i] = *src++;
 
     isceSifSetDChain();

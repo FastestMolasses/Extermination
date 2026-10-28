@@ -1,15 +1,17 @@
-// NEARMISS func_0013EDB0  (vram 0x0013EDB0, 0x488 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.96% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// residual scheduling artifact (see above)
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 94.96% NEARMISS).
+// Fixes read from the original instructions:
+// - every switch case ends in `break` (the original duplicates the case-0
+//   increment and the threshold constants at the branch targets), and the
+//   pitch dispatch is an if / else-if / else chain, not early returns;
+// - the pitch step is `y += 10.0f` on the scratch vector element (a compound
+//   assignment), with the scratch Y words spelled as elements of the relocated
+//   D_700038A0 / D_700038B0 vectors so their loads can be scheduled ahead of
+//   the neighbouring literal stores;
+// - case 2 raises the origin's Y before writing the target's Z/W words
+//   (0x700038B8/0x700038BC as D_700038B0[2]/[3]).
 
 // Per-state enemy behavior handler. arg0 is the actor, arg1 the paired
 // control record. Dispatches on the state byte at arg0+6 (cases 0/1/2).
@@ -17,7 +19,7 @@
 //     arg1+0x40=1.0f, arg1+0x48/0x50/0x4C=0, then anim_clip_init(self,
 //     0xC, 5.0f, 0.0f).
 //   case 1: aim yaw at arg0+0x44 via func_001B1240(self+0xB0, target xy),
-//     steer arg0+0xC4 toward it via func_001B12B0(rate=0.06957.../ 0x3D8EFA35).
+//     steer arg0+0xC4 toward it via func_001B12B0 (rate 0.0698132f, 4 degrees in radians).
 //     If arg1+0x30 bit 0x1000 set, bump state and compute a pitch value
 //     staged through the scratch globals at 0x700038Ax/0x70003Ax (uses
 //     func_00102948/func_0011DF78/func_001B15D0/func_0011E620), clamps it to
@@ -56,6 +58,7 @@ extern float D_700038B0[8];
 
 void func_0013EDB0(char *arg0, char *arg1) {
   unsigned char st;
+  float ang;
 
   st = *(unsigned char *)(arg0 + 6);
   switch (st) {
@@ -69,22 +72,18 @@ void func_0013EDB0(char *arg0, char *arg1) {
     *(int *)(arg1 + 0x50) = 0;
     *(int *)(arg1 + 0x4C) = 0;
     anim_clip_init(arg0, 0xC, 5.0f, 0.0f);
-    return;
+    break;
   case 1:
     *(float *)(arg1 + 0x44) = func_001B1240(arg0 + 0xB0, D_00810360[0], D_00810368[0]);
     *(float *)(arg0 + 0xC4) = func_001B12B0(*(float *)(arg1 + 0x44), *(float *)(arg0 + 0xC4), 0.06981316953897476f);
     if (*(int *)(arg1 + 0x30) & 0x1000) {
-      float t;
-      float ang;
-
       *(unsigned char *)(arg0 + 6) = *(unsigned char *)(arg0 + 6) + 1;
       func_00102948(D_700038A0, (void *)(*(int *)(D_00275B40 + 0x3C) + 0xC0));
       func_00102948(D_700038B0, D_00810360);
-      t = *(float *)0x700038B4 + 10.0f;
-      *(float *)0x700038B4 = t;
-      *(float *)0x70003A20 = func_0011DF78(*(float *)0x700038A4 - t);
-      *(float *)0x700038B4 = 0.0f;
-      *(float *)0x700038A4 = 0.0f;
+      D_700038B0[1] += 10.0f;
+      *(float *)0x70003A20 = func_0011DF78(D_700038A0[1] - D_700038B0[1]);
+      D_700038B0[1] = 0.0f;
+      D_700038A0[1] = 0.0f;
       *(float *)0x70003A24 = func_001B15D0(D_700038A0, D_700038B0);
       ang = -1.0f * func_0011E620(*(float *)0x70003A20, *(float *)0x70003A24);
       *(float *)0x70003A20 = ang;
@@ -94,25 +93,22 @@ void func_0013EDB0(char *arg0, char *arg1) {
       *(float *)(arg1 + 0x54) = *(float *)0x70003A20;
       if (!(*(float *)0x70003A20 < -0.5235988f)) {
         anim_clip_init(arg0, 0xD, 0.0f, 0.0f);
-        return;
-      }
-      if (!(*(float *)0x70003A20 < -1.0471976f)) {
+      } else if (!(*(float *)0x70003A20 < -1.0471976f)) {
         anim_clip_init(arg0, 0xE, 0.0f, 0.0f);
-        return;
+      } else {
+        anim_clip_init(arg0, 0xF, 0.0f, 0.0f);
       }
-      anim_clip_init(arg0, 0xF, 0.0f, 0.0f);
-      return;
     }
-    return;
+    break;
   case 2:
     if (*(int *)(arg1 + 0x20) == 0 && *(float *)(arg0 + 0x3C) <= 16.0f) {
       *(int *)(arg1 + 0x20) = 1;
       func_00102948(D_700038A0, arg0 + 0xB0);
       *(int *)0x700038B0 = 0;
       *(float *)0x700038B4 = 0.0f;
-      *(float *)0x700038B8 = 12.0f;
-      *(float *)0x700038BC = 1.0f;
-      *(float *)0x700038A4 = *(float *)0x700038A4 + 10.0f;
+      D_700038A0[1] += 10.0f;
+      D_700038B0[2] = 12.0f;
+      D_700038B0[3] = 1.0f;
       func_001B2B10(arg0, D_700038B0, D_700038B0);
       func_001028B8(D_700038B0, D_700038B0, D_700038A0);
       if (func_0019A6F0(arg0, D_700038A0, D_700038B0, 7, 0x40) == 0) {

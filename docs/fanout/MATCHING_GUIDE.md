@@ -179,3 +179,19 @@ five constant stores kept literal for their aliasing order), func_00205740
 K)`). Improved and parked: func_001936E0 99.24, func_0019BC40 99.12,
 func_001A0B10 97.36, func_001D2730 95.52 (register colouring). The mwcc 2.3.3
 permuter is tools/match/permuter/run_func233.sh.
+
+### Queue batch 5 (2026-10-27)
+
+13 byte-matched: func_001E0380 (statement order before the loop),
+func_00173DD0 (a 16-byte struct copy; the callee declared as its definition
+says), func_0013EDB0, func_001FDDB0 (four body errors: flush order, an
+explicit empty `case 0`, inner cases `break`, `i <= n`), func_0020A7A0 (a
+0x20-byte record array; u64 tex0 argument), func_0018CE60 (scratchpad words as
+lcf symbols, array elements where needed), func_00181F60 (twin
+func_00181E20), func_0013BF20 (volatile relocated staging words; the old
+comment had the retry logic inverted), func_0016BC40 (one shared exit; the
+switch compare constant reused as an argument), func_001F2BA0 (`i % 2` row
+index; for-loop shapes), func_00162A40, func_00108DB0 (ee-gcc: the loop
+counter set only by its `for`; 16-byte struct table), func_00119AA0 (ee-gcc:
+struct-array table and a cursor struct). Improved and parked: func_001A7BA0
+98.69, func_0010DEB8 97.92.
