@@ -1,8 +1,13 @@
 // NEARMISS func_001A6440  (vram 0x001A6440, 0x690 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 88.58% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Not a genuine idiom-13 wall: body/logic fully recovered (segment-vs-collision-mesh sweep matching sibling func_001A4030's convex n-gon test, verified field-for-field against the .s). Residual is a stack-frame-layout / scalar-spill-order artifact -- target spills 10 scalars (result/hitThisEntity/m...
+// objdiff 99.87% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 88.58%; matching wave
+// 2026-10-27 fixed the body: the bounds test passes when the hit lies strictly between the
+// endpoints on ANY axis; the edge test breaks when the dot is ABOVE the epsilon; a hit sets the
+// return value and also stores the transformed first vertex at D_700030B0[9..11]; the surface id is a
+// full word read; the material transform is a 4x4 matrix; spill order from declaration order).
+// Remaining differences: one saved-register swap (the edge-loop counter and the compiler's
+// pointer to the first-vertex scratch exchange $s4/$s5); declaration sweeps, an explicit
+// pointer local and a 540 s 2.3.3 permuter run did not move it.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -19,19 +24,21 @@
 // at +4, s16 vertex count at +6, then N verts + N edge-normals starting at
 // +8). Records that pass the requested-axis face mask and have a
 // non-negative vertex count get the convex n-gon segment-intersection test
-// (front-facing plane dot when the z-face mask bit is set, hit point, per-
-// axis interval reject, "inside" test against each edge normal -- the same
-// test as func_001A4030). The record's material transform (copy_qw4 from
+// (front-facing plane dot when the z-face mask bit is set, hit point, a
+// bounds test that passes when the hit lies strictly between the segment
+// endpoints on any one axis, then an "inside" test that rejects as soon as
+// the hit's offset from an edge vertex has a dot above epsilon with that
+// edge's normal). The record's material transform (copy_qw4 from
 // the pointer stored at e+matIdx*4+0x110, +0x90 offset) is cached per
 // material index and only reloaded when the index changes. On acceptance:
-// stashes the hit point into D_70003190[8..10], optionally clears bit0 of
+// stashes the hit point into D_70003190[8..10] and the transformed first
+// vertex into D_700030B0[9..11], sets the return value to 1, optionally clears bit0 of
 // the masked y-face byte into the pending-surface global D_700030CC,
-// stores the record's first mask byte into D_700030D0, and restages the
+// stores the record's first word into D_700030D0, and restages the
 // swept segment to [A, hit] so later records in the SAME entity's chain
 // (and later entities) test against the shortened segment. After a chain
 // finishes, if it produced a hit the entity becomes the new collision
-// entity D_700031D4. Final return is always 0 in this build (matches the
-// target: the loop never assigns a nonzero return value).
+// entity D_700031D4. Returns 1 when any record was hit, else 0.
 extern void copy_qw4(void *dst, void *src);
 extern void func_001026A0(void *a0, void *a1, void *a2);
 extern float func_00102738(void *a, void *b);
@@ -52,25 +59,26 @@ int func_001A6440(int arg0) {
     float hit[4];
     float hit2[4];
     float sc[4];
-    float mat[4];
-    int i;
-    short n;
+    float mat[16];
+    int j;
+    int recCount;
+    int matIdx;
+    int hitThisEntity;
+    int result;
     unsigned char **pp;
+    int wantX, wantY, wantZ;
+    int n;
+    int i;
+    int i1;
     unsigned char *e;
     unsigned char *node;
     unsigned char *rec;
     unsigned char *vp;
     unsigned char *np;
-    int recCount;
-    int matIdx;
-    short vcount;
+    int vcount;
+    int k;
     int mask;
-    int hitThisEntity;
-    int result;
-    int wantX, wantY, wantZ;
     float t, d;
-    int j, k;
-    int ok;
 
     *(short *)0x700030CA = 0;
     *(int *)0x700030CC = 0;
@@ -111,7 +119,7 @@ int func_001A6440(int arg0) {
                 for (j = 0; j < recCount; j++) {
                     mask = 0;
                     if (wantX && (*(unsigned char *)(rec + 0) & *(unsigned char *)(e + 0x5C))) {
-                        mask = 1;
+                        mask |= 1;
                     }
                     if (wantY && (*(unsigned char *)(rec + 1) & *(unsigned char *)(e + 0x5D))) {
                         mask |= 2;
@@ -126,16 +134,16 @@ int func_001A6440(int arg0) {
 
                     if (mask != 0) {
                         unsigned char m = *(unsigned char *)(rec + 3);
-                        vp = rec + 8;
                         if (matIdx != m) {
                             matIdx = m;
                             copy_qw4(mat, (char *)(*(int *)(e + (m * 4) + 0x110)) + 0x90);
-                            vp = rec + 8;
                         }
+                        vp = rec + 8;
 
-                        for (i = 0; i < 3; i++) {
-                            v0[i] = *(float *)(vp + i * 4);
+                        for (i1 = 0; i1 < 3; i1++) {
+                            v0[i1] = *(float *)(vp + i1 * 4);
                         }
+                        v0[3] = 0;
                         func_001026A0(v0, mat, v0);
 
                         hit2[0] = *(float *)(vp + 0x10);
@@ -155,16 +163,15 @@ int func_001A6440(int arg0) {
                         func_00103230(hit, dir, (t - func_00102738(v0, qa)) / d);
                         func_001028B8(hit, qa, hit);
 
-                        if ((qa[0] <= hit[0] || qb[0] <= hit[0]) &&
-                            !(qa[0] < hit[0] && qb[0] < hit[0]) &&
-                            (qa[1] <= hit[1] || qb[1] <= hit[1]) &&
-                            !(qa[1] < hit[1] && qb[1] < hit[1]) &&
-                            (qa[2] <= hit[2] || qb[2] <= hit[2]) &&
-                            !(qa[2] < hit[2] && qb[2] < hit[2])) {
+                        if ((qa[0] > hit[0] && qb[0] < hit[0]) ||
+                            (qa[0] < hit[0] && qb[0] > hit[0]) ||
+                            (qa[1] > hit[1] && qb[1] < hit[1]) ||
+                            (qa[1] < hit[1] && qb[1] > hit[1]) ||
+                            (qa[2] > hit[2] && qb[2] < hit[2]) ||
+                            (qa[2] < hit[2] && qb[2] > hit[2])) {
 
-                            vp = rec + 8 + 0x10;
-                            np = rec + 8 + ((vcount * 2 + vcount + 4) * 4);
-                            ok = 1;
+                            np = vp + ((vcount * 3 + 4) * 4);
+                            vp += 0x10;
                             for (k = 0; k < vcount; k++) {
                                 sc[0] = *(float *)(vp + 0);
                                 sc[1] = *(float *)(vp + 4);
@@ -179,23 +186,24 @@ int func_001A6440(int arg0) {
                                 sc[3] = 0.0f;
                                 func_001026A0(sc, mat, sc);
                                 sc[3] = 0.0f;
-                                if (func_00102738(hit2, sc) <= 0.00001f) {
-                                    ok = 0;
+                                if (func_00102738(hit2, sc) > 0.00001f) {
                                     break;
                                 }
                                 vp += 0xC;
                                 np += 0xC;
                             }
 
-                            if (ok) {
+                            if (k >= vcount) {
                                 hitThisEntity = 1;
+                                result = hitThisEntity;
                                 for (i = 0; i < 3; i++) {
                                     D_70003190[8 + i] = hit[i];
+                                    D_700030B0[9 + i] = v0[i];
                                 }
                                 if (mask & 2) {
                                     *(int *)0x700030CC = (int) (*(unsigned char *)(rec + 1) & *(unsigned char *)(e + 0x5D) & 0xFE);
                                 }
-                                *(int *)0x700030D0 = (int) *(unsigned char *)rec;
+                                *(int *)0x700030D0 = *(int *)rec;
                                 for (i = 0; i < 3; i++) {
                                     qb[i] = D_70003190[8 + i];
                                 }

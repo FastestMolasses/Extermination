@@ -1,27 +1,36 @@
-// NEARMISS func_001129E8  (vram 0x001129E8, 0xE4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 79.49% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc forward-branch-likely wall (confirmed s84): body matches; sole blocker is the func_0010E8A8(...) < 0 syscall-success check where expected emits a branch-likely on the sign of the result and our ee-gcc 2.9-991111-01 emits the plain (non-annulling) branch for the forward conditional. Not source/flag/ISA-crackable; fast-parked.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+// EEGCC_AS: 2.96
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 79.49% NEARMISS).
+// Fixes read from the original instructions:
+//  - The RPC call func_0010E8A8 takes nine arguments (client, function 5, mode 1, send
+//    buffer, send size 4, no receive buffer, receive size 0, completion callback
+//    func_001115D0, callback argument &D_00241D48); the old C passed eight in the wrong
+//    order, which is what looked like a "branch-likely wall".
+//  - func_0010DFD8 takes (buffer, size).
+//  - The RPC state words D_00241D48 / D_00241D14 / D_00241D08 are volatile, as in the
+//    byte-matched RPC siblings (func_00112610).
+//  - Assembled with the 2.96 gas, which fills the failure path's SignalSema delay slot.
+//
+// Sends the one-word RPC request 5 (mode 1) through the client at D_00279E00: unless the
+// RPC layer is in state 6 or the binding check for slot 9 fails, it stores a0 in the
+// request word D_0027AB10, writes it back from the data cache, marks the call pending
+// (D_00241D48 = 4, D_00241D14 = 1) and issues it with func_001115D0 as the completion
+// callback. On failure it clears the pending flags, signals the semaphore and returns 0;
+// on success it signals the semaphore and returns 1.
 
 extern int D_0027AB10;
-extern int D_00241D48;
-extern int D_00241D14;
+extern volatile int D_00241D48;
+extern volatile int D_00241D14;
 extern int D_00279E00;
-extern int D_00241D08;
+extern volatile int D_00241D08;
 
 extern int func_00112088(void);
-extern int func_00111F18(int);
-extern void func_0010DFD8(int *, int);
-extern int func_0010E8A8(int, int, int, int *, int *, int, int, int);
-extern int SignalSema(int);
+extern int func_00111F18(int a0);
+extern void func_0010DFD8(void *p, int size);
+extern int func_0010E8A8(void *cd, int fno, int mode, void *send, int ssize, void *recv, int rsize, void (*end)(void), void *arg);
+extern int SignalSema(int sema);
 extern void func_001115D0(void);
 
 int func_001129E8(int a0) {
@@ -31,14 +40,11 @@ int func_001129E8(int a0) {
     if (func_00111F18(9) == 0) {
         return 0;
     }
-
     D_0027AB10 = a0;
     func_0010DFD8(&D_0027AB10, 4);
     D_00241D48 = 4;
     D_00241D14 = 1;
-
-    if (func_0010E8A8((int)&D_00279E00, 5, 1, &D_0027AB10,
-                      &D_00241D48, 4, 0, 0) < 0) {
+    if (func_0010E8A8(&D_00279E00, 5, 1, &D_0027AB10, 4, 0, 0, func_001115D0, (void *)&D_00241D48) < 0) {
         D_00241D48 = 0;
         D_00241D14 = 0;
         SignalSema(D_00241D08);

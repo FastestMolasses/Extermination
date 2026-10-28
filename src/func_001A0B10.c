@@ -1,16 +1,25 @@
-// NEARMISS func_001A0B10  (vram 0x001A0B10, 0x878 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 97.36% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Remaining differences (matching wave 2026-10-27; up from 95.37%: pass-2 list pointer advanced as `*list++`, pass-2 inner counter is the function-scope j with i as the outer counter, re-clamps read the low bound straight from the scratchpad, pass-1 hit block reads the clamp operands before the kind-byte store): (1) pass-2 saved registers rotated (target: outer counter s2, cnt s3, p s4, found s5, inner counter s6); (2) pairwise scratch-register swaps (v0/v1, a0/a1) in the pass-1 entry load, the 0x1000 prim advance and the pass-2 uid lookup; (3) pass-1 loop-top delay slot filled from the head; (4) small scheduling order in the pass-1 hit block (the 0x700030CA read precedes the low-bound load in the target).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+// SPAD: 0x70003250 0x7000324C 0x700030CA
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 97.36% NEARMISS).
+// Fixes read from the original instructions:
+// - The uid table 0x70003250, its count 0x7000324C and the kind word 0x700030CA
+//   are relocated scratchpad externs (idiom-32), with D_700031D4 an unsized array.
+// - Pass 1 keeps the table-entry pointer (fp) and re-reads it for the hull offset.
+// - The 0x1000 prim advance is a record-pointer stride reading the count byte
+//   inside each arm.
+// - Pass-1 hit block reads the kind word into an int (unmasked) before the
+//   low-bound and high-bound loads, then stores (v & 0xFF00) | kind byte.
+// - Pass 2 walks the list as a = *list++ with its own counter, prim count and
+//   cursor pointers at function scope; hit is cleared in the inner-loop init.
+// - Pass 2 reads the uid in two steps (halfword, then >> 8 & 0xFF) and the
+//   table offset as a value.
+// - Pass 2's bound copy reuses hit as its loop counter (the original does: hit
+//   ends at 3, still nonzero, for the rest of the prim loop).
+// - Pass 2 ORs the actor kind as (a[0x54] & 0xFF); the re-clamps re-read the
+//   scratch bound words in the compare and each arm.
+//
 // SEMANTICS: segment hit-scan sibling of func_001A2AE0/func_001A32C0/func_001A06A0
 // (docs/FINDINGS.md "4. The uid state words at 0x70003250"). Clamps the query
 // interval on all three axes (x/y/z, D_70003190..98 lo / 0x700031A0..A8 hi), then:
@@ -31,8 +40,15 @@
 //   0x700031D4, ORs actor kind into 0x700030CA, re-clamps after the loop.
 // Returns 1 if either pass recorded a hit, 0 if the segment cleared both.
 
+typedef struct Adv48 { int w[12]; } Adv48;   /* 0x30-byte tri record */
+typedef struct Adv24 { int w[6]; } Adv24;    /* 0x18-byte tri record */
+
 extern int D_700030B0[];
+extern void *D_700031D4[];
+extern unsigned char *D_70003250[];
+extern short D_7000324C[];
 extern float D_70003190[];
+extern short D_700030CA[];
 extern unsigned char **D_0024D7C0[];
 extern unsigned char D_00810700[];
 extern unsigned char D_00810701[];
@@ -53,7 +69,14 @@ int func_001A0B10(void)
     unsigned char *p;
     int off4;
     int off28;
-    unsigned char *uid_table;
+    unsigned char **list;
+    unsigned char *a;
+    int n;
+    unsigned char *cnt2;
+    unsigned char *p2;
+    int found;
+    int k;
+    int hit;
 
     *(int **)0x700031D0 = D_700030B0;
     ret = 0;
@@ -91,12 +114,15 @@ int func_001A0B10(void)
         }
     }
 
-    for (i = 0, off4 = 0, off28 = 0; i < *(short *)0x7000324C; off4 += 4, off28 += 0x28, i++) {
+    for (i = 0, off4 = 0, off28 = 0; i < D_7000324C[0]; off4 += 4, off28 += 0x28, i++) {
+        int *fp;
+        unsigned char *uid_table;
         int off;
         short kind;
 
-        uid_table = *(unsigned char **)0x70003250;
-        off = *(int *)(uid_table + off4 + 4);
+        uid_table = D_70003250[0];
+        fp = (int *)(uid_table + off4 + 4);
+        off = *fp;
 
         if (!(off & 0x80000000)) {
             break;
@@ -125,15 +151,14 @@ int func_001A0B10(void)
             }
         }
         {
-            unsigned char *hull = uid_table + (*(int *)(uid_table + off4 + 4) & 0x3FFFFFFF);
+            unsigned char *hull = uid_table + (*fp & 0x3FFFFFFF);
 
             if (!(lox < *(float *)(hull + 0)) && (hix <= *(float *)(hull + 0xC)) &&
                 !(loz < *(float *)(hull + 8)) && (hiz <= *(float *)(hull + 0x14)) &&
                 !(loy < *(float *)(hull + 4)) && (hiy <= *(float *)(hull + 0x10))) {
-                int hit = 0;
-
                 cnt = hull + 0x18;
                 p = cnt + 4;
+                hit = 0;
                 for (j = 0; j < *(short *)cnt; j++) {
                     int ptype = *(short *)p & 0xF000;
 
@@ -160,13 +185,9 @@ int func_001A0B10(void)
                     case 0x1000:
                         hit = func_001A4030(p);
                         if (*(short *)p & 0x800) {
-                            unsigned char *q = (unsigned char *)((int)p + 0x24);
-                            int c2 = p[2];
-                            p = q + c2 * 0x30;
+                            p = (unsigned char *)((Adv48 *)(p + 0x24) + p[2]);
                         } else {
-                            unsigned char *q = (unsigned char *)((int)p + 0x14);
-                            int c2 = p[2];
-                            p = q + c2 * 0x18;
+                            p = (unsigned char *)((Adv24 *)(p + 0x14) + p[2]);
                         }
                         break;
                     }
@@ -177,168 +198,152 @@ int func_001A0B10(void)
 
                 if (hit != 0) {
                     {
-                        int k = 0;
+                        int m = 0;
                         float *v = D_70003190;
                         do {
-                            k += 1;
+                            m += 1;
                             v[4] = v[8];
                             v += 1;
-                        } while (k < 3);
+                        } while (m < 3);
                     }
-                    *(void **)0x700031D4 = 0;
+                    D_700031D4[0] = 0;
                     ret = 1;
                     {
                         int kb = D_0024D7C0[D_00810700[0]][D_00810701[0]][off28 + 8];
-                        short v = *(short *)0x700030CA;
+                        int v = D_700030CA[0];
                         float lo = *(float *)0x70003190;
                         float t = *(float *)0x700031A0;
 
-                        *(short *)0x700030CA = (short)((v & 0xFF00) | kb);
+                        D_700030CA[0] = (short)((v & 0xFF00) | kb);
                         if (!(lo <= t)) {
                             hix = t;
                         } else {
                             lox = t;
                         }
                     }
-                    {
-                        float t;
-                        if (!(*(float *)0x70003194 <= (t = *(float *)0x700031A4))) {
-                            hiy = t;
-                        } else {
-                            loy = t;
-                        }
+                    if (!(*(float *)0x70003194 <= *(float *)0x700031A4)) {
+                        hiy = *(float *)0x700031A4;
+                    } else {
+                        loy = *(float *)0x700031A4;
                     }
-                    {
-                        float t;
-                        if (!(*(float *)0x70003198 <= (t = *(float *)0x700031A8))) {
-                            hiz = t;
-                        } else {
-                            loz = t;
-                        }
+                    if (!(*(float *)0x70003198 <= *(float *)0x700031A8)) {
+                        hiz = *(float *)0x700031A8;
+                    } else {
+                        loz = *(float *)0x700031A8;
                     }
                 }
             }
         }
     }
 
-    {
-        unsigned char **list = D_00275B7C;
+    list = D_00275B7C;
 
-        for (i = 0; i < D_00275B84; i++) {
-            unsigned char *a = *list++;
+    for (n = 0; n < D_00275B84; n++) {
+        a = *list++;
+        if (a[0] == 0) {
+            continue;
+        }
+        if ((a[2] & 0x1F) != 4) {
+            continue;
+        }
+        if (*(unsigned char **)0x70003254 == a) {
+            continue;
+        }
+        {
+            int uid = *(unsigned short *)(a + 0xE);
 
-            if (a[0] == 0 || (a[2] & 0x1F) != 4 || *(unsigned char **)0x70003254 == a) {
+            uid = (uid >> 8) & 0xFF;
+            if (uid == 0xFF) {
                 continue;
             }
             {
-                int uid = ((int)*(unsigned short *)(a + 0xE) >> 8) & 0xFF;
+                unsigned char *tbl = D_70003250[0];
+                int off = *(int *)(tbl + uid * 4 + 4);
 
-                if (uid == 0xFF) {
+                if (off == 0) {
+                    continue;
+                }
+                if (!(uid < D_7000324C[0])) {
+                    continue;
+                }
+                if (uid < 0) {
                     continue;
                 }
                 {
-                    unsigned char *base2 = *(unsigned char **)0x70003250;
-                    int off2 = *(int *)(base2 + uid * 4 + 4);
+                    unsigned char *hull = tbl + off;
 
-                    if (off2 == 0) {
-                        continue;
-                    }
-                    if (!(uid < *(short *)0x7000324C)) {
-                        continue;
-                    }
-                    if (uid < 0) {
-                        continue;
-                    }
-                    {
-                        unsigned char *hull = base2 + off2;
-
-                        if (!(lox < *(float *)(hull + 0)) && (hix <= *(float *)(hull + 0xC)) &&
-                            !(loz < *(float *)(hull + 8)) && (hiz <= *(float *)(hull + 0x14)) &&
-                            !(loy < *(float *)(hull + 4)) && (hiy <= *(float *)(hull + 0x10)) &&
-                            (a[0x54] < 0x50)) {
-                            int found = 0;
-                            int hit = 0;
-
-                            cnt = hull + 0x18;
-                            p = cnt + 4;
-                            for (j = 0; j < *(short *)cnt; j++) {
-                                int ptype = *(short *)p & 0xF000;
-
-                                switch (ptype) {
-                                case 0x8000:
-                                    if (*(short *)p & 0x800) {
-                                        p += 0x24;
-                                    } else {
-                                        p += 0x14;
-                                    }
-                                    break;
-                                case 0x4000:
-                                    hit = func_001A5C30(p);
-                                    if (*(short *)p & 0x800) {
-                                        p += 0x2C;
-                                    } else {
-                                        p += 0x18;
-                                    }
-                                    break;
-                                case 0x2000:
-                                    hit = func_001A50A0(p);
-                                    p += 0x1C;
-                                    break;
-                                case 0x1000:
-                                    hit = func_001A4030(p);
-                                    if (*(short *)p & 0x800) {
-                                        unsigned char *q = (unsigned char *)((int)p + 0x24);
-                                        int c2 = p[2];
-                                        p = q + c2 * 0x30;
-                                    } else {
-                                        unsigned char *q = (unsigned char *)((int)p + 0x14);
-                                        int c2 = p[2];
-                                        p = q + c2 * 0x18;
-                                    }
-                                    break;
+                    if (!(lox < *(float *)(hull + 0)) && (hix <= *(float *)(hull + 0xC)) &&
+                        !(loz < *(float *)(hull + 8)) && (hiz <= *(float *)(hull + 0x14)) &&
+                        !(loy < *(float *)(hull + 4)) && (hiy <= *(float *)(hull + 0x10)) &&
+                        (a[0x54] < 0x50)) {
+                        cnt2 = hull + 0x18;
+                        p2 = cnt2 + 4;
+                        found = 0;
+                        for (k = 0, hit = 0; k < *(short *)cnt2; k++) {
+                            switch (*(short *)p2 & 0xF000) {
+                            case 0x8000:
+                                if (*(short *)p2 & 0x800) {
+                                    p2 += 0x24;
+                                } else {
+                                    p2 += 0x14;
                                 }
-                                if (hit != 0) {
-                                    found = 1;
-                                    {
-                                        int k = 0;
-                                        float *v = D_70003190;
-                                        do {
-                                            k += 1;
-                                            v[4] = v[8];
-                                            v += 1;
-                                        } while (k < 3);
-                                    }
-                                    *(unsigned char **)0x700031D4 = a;
-                                    ret = 1;
-                                    *(short *)0x700030CA = (short)((*(short *)0x700030CA & 0xFF00) | a[0x54]);
+                                break;
+                            case 0x4000:
+                                hit = func_001A5C30(p2);
+                                if (*(short *)p2 & 0x800) {
+                                    p2 += 0x2C;
+                                } else {
+                                    p2 += 0x18;
                                 }
+                                break;
+                            case 0x2000:
+                                hit = func_001A50A0(p2);
+                                p2 += 0x1C;
+                                break;
+                            case 0x1000:
+                                hit = func_001A4030(p2);
+                                if (*(short *)p2 & 0x800) {
+                                    p2 = (unsigned char *)((Adv48 *)(p2 + 0x24) + p2[2]);
+                                } else {
+                                    p2 = (unsigned char *)((Adv24 *)(p2 + 0x14) + p2[2]);
+                                }
+                                break;
                             }
+                            if (hit != 0) {
+                                found = 1;
+                                {
+                                    float *v;
 
-                            if (found != 0) {
-                                {
-                                    float t;
-                                    if (!(*(float *)0x70003190 <= (t = *(float *)0x700031A0))) {
-                                        hix = t;
-                                    } else {
-                                        lox = t;
-                                    }
+                                    /* the copy reuses hit as its counter (it ends at 3, still nonzero) */
+                                    hit = 0;
+                                    v = D_70003190;
+                                    do {
+                                        hit += 1;
+                                        v[4] = v[8];
+                                        v += 1;
+                                    } while (hit < 3);
                                 }
-                                {
-                                    float t;
-                                    if (!(*(float *)0x70003194 <= (t = *(float *)0x700031A4))) {
-                                        hiy = t;
-                                    } else {
-                                        loy = t;
-                                    }
-                                }
-                                {
-                                    float t;
-                                    if (!(*(float *)0x70003198 <= (t = *(float *)0x700031A8))) {
-                                        hiz = t;
-                                    } else {
-                                        loz = t;
-                                    }
-                                }
+                                D_700031D4[0] = a;
+                                ret = 1;
+                                D_700030CA[0] = (short)((D_700030CA[0] & 0xFF00) | (a[0x54] & 0xFF));
+                            }
+                        }
+
+                        if (found != 0) {
+                            if (!(*(float *)0x70003190 <= *(float *)0x700031A0)) {
+                                hix = *(float *)0x700031A0;
+                            } else {
+                                lox = *(float *)0x700031A0;
+                            }
+                            if (!(*(float *)0x70003194 <= *(float *)0x700031A4)) {
+                                hiy = *(float *)0x700031A4;
+                            } else {
+                                loy = *(float *)0x700031A4;
+                            }
+                            if (!(*(float *)0x70003198 <= *(float *)0x700031A8)) {
+                                hiz = *(float *)0x700031A8;
+                            } else {
+                                loz = *(float *)0x700031A8;
                             }
                         }
                     }

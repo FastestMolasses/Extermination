@@ -1,3 +1,10 @@
+## 2026-10-27 — matching wave, queue batches 19 and 20: 17 more byte-matched
+
+See MATCHING_GUIDE "Queue batches 19 and 20". Gate: fresh build + verify_all
+all six stages pass, boot ELF byte-identical, 19/19 overlays, matched_code
+99.97%, 2589/2591 units; audit_link_provenance clean (2092 ordinary-C routes).
+FUNCTIONS.csv reconciled again (new `c_local_data` status).
+
 ## 2026-10-27 — matching wave, queue batch 18: 6 more byte-matched
 
 See MATCHING_GUIDE "Queue batch 18". Gate: fresh build + verify_all all six

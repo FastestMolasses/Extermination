@@ -1,39 +1,45 @@
-// NEARMISS func_0010CD58  (vram 0x0010CD58, 0xD0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 87.50% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc register-coloring permutation wall (permuter territory). Instruction stream is byte-identical to expected (same ops, same shapes, frame size 96 matched, lbu/lb matched, branch structure matched after restructuring); the ONLY residual diff is GPR coloring: expected holds the loop index in v1 and the two saved t...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern char *D_00276E28;
-extern int D_00276E10;
-extern void func_0010CA30(int);
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 87.50% NEARMISS).
+// Fixes read from the original instructions:
+// - The loop is a plain counted for-loop over buf[i] that returns i + 1 on a
+//   newline or carriage return; the old next/do-while spelling coloured the
+//   index and the buffer pointer into swapped registers.
+// - D_00276E10 is a record whose word at +0x18 is the receive ring pointer;
+//   the ring is the struct func_0010CA30 consumes (size, count, read ptr).
+// - The busy-wait polls the ring pointer through its own split symbol
+//   D_00276E28 (the same word as D_00276E10.ring), which pairs the two
+//   high-half relocations the way the original object does.
+//
+// SDK TTY read: block until the receive ring holds a byte, copy it into
+// buf, consume it, and stop after a line terminator or count bytes.
+// Returns the number of bytes stored.
+
+struct ring {
+    /* 0x0 */ int size;
+    /* 0x4 */ volatile int count;
+    /* 0x8 */ char *rd;
+};
+
+struct tty_ctx {
+    /* 0x00 */ int pad[6];
+    /* 0x18 */ struct ring *ring;
+};
+
+extern struct tty_ctx D_00276E10;
+extern struct ring *D_00276E28; /* D_00276E10.ring */
+extern void func_0010CA30(struct ring *r);
 
 int func_0010CD58(char *buf, int count) {
-    int i = 0;
-    if (count > 0) {
-        do {
-            int *base;
-            int next = i + 1;
-            signed char r;
-            while (*(volatile int *)((char *)D_00276E28 + 4) == 0)
-                ;
-            base = (int *)&D_00276E10;
-            buf[i] = *(unsigned char *)(*(int *)(base[6] + 8));
-            func_0010CA30(base[6]);
-            r = buf[i];
-            if (r == 0xA)
-                return next;
-            if (r == 0xD)
-                return next;
-            i = next;
-        } while (i < count);
+    int i;
+    for (i = 0; i < count; i++) {
+        while (D_00276E28->count == 0)
+            ;
+        buf[i] = *D_00276E10.ring->rd;
+        func_0010CA30(D_00276E10.ring);
+        if (buf[i] == '\n' || buf[i] == '\r')
+            return i + 1;
     }
     return i;
 }

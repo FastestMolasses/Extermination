@@ -29,6 +29,10 @@ Status values:
                 assembly (fill_unmatched's explicit size / gprel lists or an
                 automatic route) and is not objdiff 100 %: its body has not
                 been verified, so it is neither readable nor nearmiss.
+  c_local_data  C that objdiff scores 100 % but whose local .rodata could not
+                be pinned at one original address (route
+                original_assembly_local_data), so it links from the original
+                assembly until that data is pinned.
   merged        tail row of a splat split pair merged into its head
                 function (no source file of its own; the head's source
                 covers it).
@@ -95,6 +99,8 @@ def classify(name: str, row: dict | None) -> str:
         raise ValueError(f"{name}: source present but no link row")
     if row["route"].startswith("compiled_object_"):
         return "readable" if row.get("objdiff_perfect") else "c_partial"
+    if row.get("objdiff_perfect") and row["route"] == "original_assembly_local_data":
+        return "c_local_data"
     if row.get("objdiff_perfect"):
         raise ValueError(f"{name}: objdiff 100 % C linked via {row['route']}")
     return "c_asm_fallback"

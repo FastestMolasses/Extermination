@@ -392,3 +392,37 @@ struct, the reentrancy record as the init argument, newlib's CHECK_INIT
 words as relocated externs, triple indexing, a pointer-walked list). Improved
 and parked: func_00112150 99.51, sub_Invalid_modion_type_ignored_d 99.02 (a
 wrong DMA destination constant fixed).
+
+### Queue batches 19 and 20 (2026-10-27)
+
+17 byte-matched. Batch 19: func_001A0B10 (segment hit-scan: scratchpad
+externs; pass 2's bound copy reuses `hit` as its counter, so a later 0x8000
+prim repeats the hit block, which only rewrites the same values),
+func_00198050, func_00199FA0, func_001B65C0, func_001FF3F0. Batch 20:
+func_00112610 and func_001129E8 (ee-gcc RPC pair: volatile RPC state words,
+`// EEGCC_AS: 2.96`, func_0010DFD8 takes (buffer, size); 001129E8's
+"branch-likely wall" was an 8-argument call to the 9-argument func_0010E8A8),
+func_001236D8 (newlib vfprintf: the formatter returns int, so the tail call is
+not a sibling jump), func_0018CA90 (six adjacent floats are one struct, which
+stops mwcc batching the loads), func_0019DB50, func_0019CB60, func_0019C830
+(collision walkers rewritten in the shape of the matched twin func_0019DF10:
+short-pointer tables, scratchpad short bounds, one short per node),
+func_0010CD58 (typed ring struct; the callee took the struct, not an int),
+func_001B55E0 (record-pointer argument, `signed char` selector, two
+scratchpad floats as relocated externs), func_00193EB0 (goto chain is a
+switch; old body had an inverted D_00810701 test and swapped band arms),
+func_0017AF70 (swapped blend arms; the second angle uses the linked entity),
+func_00153770 (one combined reset condition; the flags word read once).
+Improved and parked: gs_vram_readback 97.89 (jump-table rodata for ee-gcc),
+func_00117428 99.16, func_00210030 99.57 (constant order), func_00199220
+99.06 (one FP schedule), plus the batch-19 near-misses func_0019FE50 98.54,
+func_001854E0 93.47, func_001A6440 99.87, func_00132FB0 98.98.
+
+Lesson: objects must not change under a running gate. Batch 20's files were
+copied into src/ while the batch-19 gate was building; the link then took
+objects compiled from the old NEARMISS C for functions no longer marked
+NEARMISS, and the boot ELF differed (2224 bytes, all in those functions). The
+rerun with every file in place passed. Results now wait in to_accept.txt until
+the gate finishes. `reconcile_functions_csv.py` gained a `c_local_data` status
+for objdiff-100 C whose local .rodata cannot be pinned (func_0011C7B0,
+func_0011D878), which had stopped it since batch 14.

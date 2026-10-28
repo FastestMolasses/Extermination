@@ -1,15 +1,28 @@
-// NEARMISS func_001B65C0  (vram 0x001B65C0, 0xA0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 88.03% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register allocation: caller-saved temp held across a call. Body/structure fully match (gp_rel split for D_00275BE4/E8 vs absolute D_0081xxxx achieved via array-decl idiom + threshold 8; full int shift, no andi mask). Sole residual: the input pointer `p` is incremented and reloaded across the call...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+// TU_STATIC: func_001B64F0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 88.03% NEARMISS).
+// Fixes read from the original instructions:
+// - func_001B64F0 sat earlier in the same translation unit; compiled as a
+//   static same-TU callee (TU_STATIC) the compiler knows it leaves t7 alone,
+//   so the walking pointer stays in a caller-saved register across the call
+//   (no saved register, 16-byte frame). The callee takes (char *, int), per
+//   its definition in src/; its own unit's flags differ only in the
+//   threshold, and the static copy equals the original at threshold 8.
+// - The pointer post-increment belongs in the store (`*p++`): that lets the
+//   bit-table byte index load ahead of the global store and puts the
+//   increment in the call's delay slot.
+// - The bit mask is spelled inline in the test and in the set (no mask
+//   local), which gives the original's register choice.
+// - Both guards are early returns; the nested-if shape left an extra empty
+//   block before the epilogue.
+//
+// Marks entry D_00810700[0] in the byte bit-table at D_00810B40 (bit
+// D_00810701[0]); if the bit was not yet set, sets it, records the table
+// cursor in D_00275BE4, and for each nonzero word of the zero-terminated list
+// p stores it in D_00275BE8 and runs the entity-array sweep func_001B64F0 on
+// it for index D_00810700[0]. Only runs while D_00810788[0] == 0xFF.
 
 extern unsigned char D_00810788[];
 extern unsigned char D_00810700[];
@@ -18,24 +31,24 @@ extern unsigned char D_00810B40[];
 extern unsigned char *D_00275BE4;
 extern int D_00275BE8;
 
-extern void func_001B64F0(int a0, int a1);
+static void func_001B64F0(char *p, int idx);
+#include "src/func_001B64F0.c"
 
 void func_001B65C0(int *p) {
     unsigned char *q;
-    int m;
 
-    if (D_00810788[0] == 0xFF) {
-        D_00275BE4 = D_00810B40;
-        D_00275BE4 = D_00275BE4 + D_00810700[0];
-        q = D_00275BE4;
-        m = 1 << D_00810701[0];
-        if ((*q & m) == 0) {
-            *q = *q | m;
-            do {
-                D_00275BE8 = *p;
-                func_001B64F0(D_00275BE8, D_00810700[0]);
-                p++;
-            } while (*p != 0);
-        }
+    if (D_00810788[0] != 0xFF) {
+        return;
     }
+    D_00275BE4 = D_00810B40;
+    D_00275BE4 = D_00275BE4 + D_00810700[0];
+    q = D_00275BE4;
+    if ((*q & (1 << D_00810701[0])) != 0) {
+        return;
+    }
+    *q = *q | (1 << D_00810701[0]);
+    do {
+        D_00275BE8 = *p++;
+        func_001B64F0((char *)D_00275BE8, D_00810700[0]);
+    } while (*p != 0);
 }

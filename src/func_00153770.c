@@ -1,37 +1,27 @@
-// NEARMISS func_00153770  (vram 0x00153770, 0x1DC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 87.10% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// scheduling + block-ordering near-miss (87.1% mwcc233): target schedules the t34-step subtraction into the branch delay slot so the timer compare lands in $at (mwcc computes it in v0); target orders the block_22 reset block before the flag-class else-chain, mwcc reverses. Not the clean-store nop -> permuter.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
 
-// NEARMISS 87.1% (mwcc 2.3.3; 991202=79.6%). Per-frame state/timer step. Early
-// out if arg0+0x36 (flags) == 0. If arg1+0x50 (a delay byte) is nonzero, set
-// arg0[0]=1, clear flags, return 0. Otherwise set arg0[0]=2, arg1+0x50=-1, and
-// compute the advance `step` = sign-extended low 12 bits of flags, times 5 when
-// flags & 0x8000. If flags & 0x2000, accumulate (when arg1+0x51 set) or set
-// (else) arg1+0x40 by step, then latch arg1+0x51 = D_00275438. If arg1+0x52 == 0
-// and flags & 0x4000, arm arg1+0x52 = 0x3C and signal func_001EFE00(0x80000027,
-// self). If step >= arg0+0x34 (the remaining timer): clear it, set arg0[4]=2,
-// [5]=0, [6]=0, call func_001B4CF0(self), return 1. Else decrement the timer by
-// step; if arg0[5]!=1 and arg1+0x40 >= D_0027543A, or flags & 0x8000, take the
-// `block_22` reset (arg0[4]=2,[5]=0,[6]=0; arg1+0x40=0; return 1); otherwise pick
-// arg1+0x50 from the flag class (0x5000->0x1E, 0x2000->0x3C, else 0), set
-// arg0[0]=1, clear flags, return 0.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 87.10% NEARMISS).
+// Fixes read from the original instructions:
+// - The reset tail is one `||` condition ((arg0[5] != 1 && arg1+0x40 >= D_0027543A)
+//   || flags & 0x8000) placed before the flag-class chain, not a goto.
+// - The flags word is re-read once inside that condition into an int local and
+//   reused by the flag-class tests (no second load / sign extension).
+// - The timer test is `timer <= step` read directly from arg0+0x34 and the
+//   decrement is a compound `-=` on the field (puts the compare result in $at).
 //
-// Body + logic fully recovered; the residual is CW-vs-mwcc instruction
-// scheduling/layout, NOT the clean-store nop: (1) the target computes the timer
-// compare into $at and branches on nonzero (CW schedules the t34-step subtraction
-// into the branch delay slot, freeing v0 so the compare lands in $at) where mwcc
-// materializes the compare in v0; (2) the target lays out the block_22 reset block
-// before the flag-class else-chain, mwcc orders them the other way. Both are
-// scheduling/basic-block-ordering artifacts -> permuter territory.
+// Per-frame state/timer step. Early out if arg0+0x36 (flags) == 0. If arg1+0x50
+// (a delay byte) is nonzero, set arg0[0]=1, clear flags, return 0. Otherwise set
+// arg0[0]=2, arg1+0x50=-1, and compute the advance `step` = sign-extended low 12
+// bits of flags, times 5 when flags & 0x8000. If flags & 0x2000, accumulate (when
+// arg1+0x51 set) or set (else) arg1+0x40 by step, then latch arg1+0x51 =
+// D_00275438. If arg1+0x52 == 0 and flags & 0x4000, arm arg1+0x52 = 0x3C and
+// signal func_001EFE00(0x80000027, self). If the remaining timer arg0+0x34 <= step:
+// clear it, set arg0[4]=2, [5]=0, [6]=0, call func_001B4CF0(self), return 1. Else
+// decrement the timer by step; if (arg0[5]!=1 and arg1+0x40 >= D_0027543A) or
+// flags & 0x8000, reset (arg0[4]=2,[5]=0,[6]=0; arg1+0x40=0; return 1); otherwise
+// pick arg1+0x50 from the flag class (0x5000->0x1E, 0x2000->0x3C, else 0), set
+// arg0[0]=1, clear flags, return 0.
 extern signed char D_00275438;
 extern short D_0027543A;
 extern void func_001B4CF0(void *);
@@ -39,8 +29,8 @@ extern void func_001EFE00(int, void *);
 
 int func_00153770(unsigned char *arg0, unsigned char *arg1) {
     short flags;
-    short t34;
     short step;
+    int f2;
 
     if (*(short *)(arg0 + 0x36) == 0) {
         return 0;
@@ -69,8 +59,7 @@ int func_00153770(unsigned char *arg0, unsigned char *arg1) {
         *(signed char *)(arg1 + 0x52) = 0x3C;
         func_001EFE00(0x80000027, arg0);
     }
-    t34 = *(short *)(arg0 + 0x34);
-    if (!(step < t34)) {
+    if (*(short *)(arg0 + 0x34) <= step) {
         *(short *)(arg0 + 0x34) = 0;
         *(signed char *)(arg0 + 4) = 2;
         *(unsigned char *)(arg0 + 5) = 0;
@@ -78,27 +67,23 @@ int func_00153770(unsigned char *arg0, unsigned char *arg1) {
         func_001B4CF0(arg0);
         return 1;
     }
-    *(short *)(arg0 + 0x34) = (short)(t34 - step);
-    if (*(unsigned char *)(arg0 + 5) != 1 && *(short *)(arg1 + 0x40) >= D_0027543A) {
-        goto block_22;
+    *(short *)(arg0 + 0x34) -= step;
+    if ((*(unsigned char *)(arg0 + 5) != 1 && *(short *)(arg1 + 0x40) >= D_0027543A)
+        || ((f2 = *(short *)(arg0 + 0x36)) & 0x8000)) {
+        *(signed char *)(arg0 + 4) = 2;
+        *(unsigned char *)(arg0 + 5) = 0;
+        *(signed char *)(arg0 + 6) = 0;
+        *(short *)(arg1 + 0x40) = 0;
+        return 1;
     }
-    flags = *(short *)(arg0 + 0x36);
-    if (!(flags & 0x8000)) {
-        if (flags & 0x5000) {
-            *(signed char *)(arg1 + 0x50) = 0x1E;
-        } else if (flags & 0x2000) {
-            *(signed char *)(arg1 + 0x50) = 0x3C;
-        } else {
-            *(signed char *)(arg1 + 0x50) = 0;
-        }
-        *(signed char *)(arg0 + 0) = 1;
-        *(short *)(arg0 + 0x36) = 0;
-        return 0;
+    if (f2 & 0x5000) {
+        *(signed char *)(arg1 + 0x50) = 0x1E;
+    } else if (f2 & 0x2000) {
+        *(signed char *)(arg1 + 0x50) = 0x3C;
+    } else {
+        *(signed char *)(arg1 + 0x50) = 0;
     }
-block_22:
-    *(signed char *)(arg0 + 4) = 2;
-    *(unsigned char *)(arg0 + 5) = 0;
-    *(signed char *)(arg0 + 6) = 0;
-    *(short *)(arg1 + 0x40) = 0;
-    return 1;
+    *(signed char *)(arg0 + 0) = 1;
+    *(short *)(arg0 + 0x36) = 0;
+    return 0;
 }
